@@ -1648,14 +1648,14 @@ struct target_ipc_perm
 
 struct target_semid_ds
 {
-  struct target_ipc_perm sem_perm;
-  abi_ulong sem_otime;
-  abi_ulong __unused1;
-  abi_ulong sem_ctime;
-  abi_ulong __unused2;
-  abi_ulong sem_nsems;
-  abi_ulong __unused3;
-  abi_ulong __unused4;
+    struct target_ipc_perm sem_perm;
+    abi_ulong sem_otime;
+    abi_ulong __unused1;
+    abi_ulong sem_ctime;
+    abi_ulong __unused2;
+    abi_ulong sem_nsems;
+    abi_ulong __unused3;
+    abi_ulong __unused4;
 };
 
 static inline abi_long target_to_host_ipc_perm(struct ipc_perm *host_ip,
@@ -1703,7 +1703,8 @@ static inline abi_long target_to_host_semid_ds(struct semid_ds *host_sd,
 
     if (!lock_user_struct(VERIFY_READ, target_sd, target_addr, 1))
         return -TARGET_EFAULT;
-    target_to_host_ipc_perm(&(host_sd->sem_perm),target_addr);
+    if (target_to_host_ipc_perm(&(host_sd->sem_perm),target_addr))
+        return -TARGET_EFAULT;
     host_sd->sem_nsems = tswapl(target_sd->sem_nsems);
     host_sd->sem_otime = tswapl(target_sd->sem_otime);
     host_sd->sem_ctime = tswapl(target_sd->sem_ctime);
@@ -1718,7 +1719,8 @@ static inline abi_long host_to_target_semid_ds(abi_ulong target_addr,
 
     if (!lock_user_struct(VERIFY_WRITE, target_sd, target_addr, 0))
         return -TARGET_EFAULT;
-    host_to_target_ipc_perm(target_addr,&(host_sd->sem_perm));
+    if (host_to_target_ipc_perm(target_addr,&(host_sd->sem_perm)))
+        return -TARGET_EFAULT;;
     target_sd->sem_nsems = tswapl(host_sd->sem_nsems);
     target_sd->sem_otime = tswapl(host_sd->sem_otime);
     target_sd->sem_ctime = tswapl(host_sd->sem_ctime);
@@ -1726,133 +1728,213 @@ static inline abi_long host_to_target_semid_ds(abi_ulong target_addr,
     return 0;
 }
 
+struct target_seminfo {
+    int semmap;
+    int semmni;
+    int semmns;
+    int semmnu;
+    int semmsl;
+    int semopm;
+    int semume;
+    int semusz;
+    int semvmx;
+    int semaem;
+};
+
+static inline abi_long host_to_target_seminfo(abi_ulong target_addr,
+                                              struct seminfo *host_seminfo)
+{
+    struct target_seminfo *target_seminfo;
+    if (!lock_user_struct(VERIFY_WRITE, target_seminfo, target_addr, 0))
+        return -TARGET_EFAULT;
+    __put_user(host_seminfo->semmap, &target_seminfo->semmap);
+    __put_user(host_seminfo->semmni, &target_seminfo->semmni);
+    __put_user(host_seminfo->semmns, &target_seminfo->semmns);
+    __put_user(host_seminfo->semmnu, &target_seminfo->semmnu);
+    __put_user(host_seminfo->semmsl, &target_seminfo->semmsl);
+    __put_user(host_seminfo->semopm, &target_seminfo->semopm);
+    __put_user(host_seminfo->semume, &target_seminfo->semume);
+    __put_user(host_seminfo->semusz, &target_seminfo->semusz);
+    __put_user(host_seminfo->semvmx, &target_seminfo->semvmx);
+    __put_user(host_seminfo->semaem, &target_seminfo->semaem);
+    unlock_user_struct(target_seminfo, target_addr, 1);
+    return 0;
+}
+
 union semun {
-	int val;
-	struct semid_ds *buf;
-	unsigned short *array;
+    int val;
+    struct semid_ds *buf;
+    unsigned short *array;
+    struct seminfo *__buf;
 };
 
 union target_semun {
-	int val;
-	abi_long buf;
-	unsigned short int *array;
+    int val;
+    abi_ulong buf;
+    abi_ulong array;
+    abi_ulong __buf;
 };
 
-static inline abi_long target_to_host_semun(int cmd,
-                                            union semun *host_su,
-                                            abi_ulong target_addr,
-                                            struct semid_ds *ds)
+static inline abi_long target_to_host_semarray(int semid, unsigned short **host_array,
+                                               abi_ulong target_addr)
 {
-    union target_semun *target_su;
+    int nsems;
+    unsigned short *array;
+    union semun semun;
+    struct semid_ds semid_ds;
+    int i, ret;
 
-    switch( cmd ) {
-	case IPC_STAT:
-	case IPC_SET:
-           if (!lock_user_struct(VERIFY_READ, target_su, target_addr, 1))
-               return -TARGET_EFAULT;
-	   target_to_host_semid_ds(ds,target_su->buf);
-	   host_su->buf = ds;
-           unlock_user_struct(target_su, target_addr, 0);
-	   break;
-	case GETVAL:
-	case SETVAL:
-           if (!lock_user_struct(VERIFY_READ, target_su, target_addr, 1))
-               return -TARGET_EFAULT;
-	   host_su->val = tswapl(target_su->val);
-           unlock_user_struct(target_su, target_addr, 0);
-	   break;
-	case GETALL:
-	case SETALL:
-           if (!lock_user_struct(VERIFY_READ, target_su, target_addr, 1))
-               return -TARGET_EFAULT;
-	   *host_su->array = tswap16(*target_su->array);
-           unlock_user_struct(target_su, target_addr, 0);
-	   break;
-	default:
-           gemu_log("semun operation not fully supported: %d\n", (int)cmd);
+    semun.buf = &semid_ds;
+
+    ret = semctl(semid, 0, IPC_STAT, semun);
+    if (ret == -1)
+        return get_errno(ret);
+
+    nsems = semid_ds.sem_nsems;
+
+    *host_array = malloc(nsems*sizeof(unsigned short));
+    array = lock_user(VERIFY_READ, target_addr,
+                      nsems*sizeof(unsigned short), 1);
+    if (!array)
+        return -TARGET_EFAULT;
+
+    for(i=0; i<nsems; i++) {
+        __get_user((*host_array)[i], &array[i]);
     }
+    unlock_user(array, target_addr, 0);
+
     return 0;
 }
 
-static inline abi_long host_to_target_semun(int cmd,
-                                            abi_ulong target_addr,
-                                            union semun *host_su,
-                                            struct semid_ds *ds)
+static inline abi_long host_to_target_semarray(int semid, abi_ulong target_addr,
+                                               unsigned short **host_array)
 {
-    union target_semun *target_su;
+    int nsems;
+    unsigned short *array;
+    union semun semun;
+    struct semid_ds semid_ds;
+    int i, ret;
 
-    switch( cmd ) {
-	case IPC_STAT:
-	case IPC_SET:
-           if (lock_user_struct(VERIFY_WRITE, target_su, target_addr, 0))
-               return -TARGET_EFAULT;
-	   host_to_target_semid_ds(target_su->buf,ds);
-           unlock_user_struct(target_su, target_addr, 1);
-	   break;
-	case GETVAL:
-	case SETVAL:
-           if (lock_user_struct(VERIFY_WRITE, target_su, target_addr, 0))
-               return -TARGET_EFAULT;
-	   target_su->val = tswapl(host_su->val);
-           unlock_user_struct(target_su, target_addr, 1);
-	   break;
-	case GETALL:
-	case SETALL:
-           if (lock_user_struct(VERIFY_WRITE, target_su, target_addr, 0))
-               return -TARGET_EFAULT;
-	   *target_su->array = tswap16(*host_su->array);
-           unlock_user_struct(target_su, target_addr, 1);
-	   break;
-        default:
-           gemu_log("semun operation not fully supported: %d\n", (int)cmd);
+    semun.buf = &semid_ds;
+
+    ret = semctl(semid, 0, IPC_STAT, semun);
+    if (ret == -1)
+        return get_errno(ret);
+
+    nsems = semid_ds.sem_nsems;
+
+    array = lock_user(VERIFY_WRITE, target_addr,
+                      nsems*sizeof(unsigned short), 0);
+    if (!array)
+        return -TARGET_EFAULT;
+
+    for(i=0; i<nsems; i++) {
+        __put_user((*host_array)[i], &array[i]);
     }
+    free(*host_array);
+    unlock_user(array, target_addr, 1);
+
     return 0;
 }
 
-static inline abi_long do_semctl(int first, int second, int third,
-                                 abi_long ptr)
+static inline abi_long do_semctl(int semid, int semnum, int cmd,
+                                 union target_semun target_su)
 {
     union semun arg;
     struct semid_ds dsarg;
-    int cmd = third&0xff;
-    abi_long ret = 0;
+    unsigned short *array;
+    struct seminfo seminfo;
+    abi_long ret = -TARGET_EINVAL;
+    abi_long err;
 
-    switch( cmd ) {
-	case GETVAL:
-            target_to_host_semun(cmd,&arg,ptr,&dsarg);
-            ret = get_errno(semctl(first, second, cmd, arg));
-            host_to_target_semun(cmd,ptr,&arg,&dsarg);
-            break;
-	case SETVAL:
-            target_to_host_semun(cmd,&arg,ptr,&dsarg);
-            ret = get_errno(semctl(first, second, cmd, arg));
-            host_to_target_semun(cmd,ptr,&arg,&dsarg);
-            break;
-	case GETALL:
-            target_to_host_semun(cmd,&arg,ptr,&dsarg);
-            ret = get_errno(semctl(first, second, cmd, arg));
-            host_to_target_semun(cmd,ptr,&arg,&dsarg);
-            break;
-	case SETALL:
-            target_to_host_semun(cmd,&arg,ptr,&dsarg);
-            ret = get_errno(semctl(first, second, cmd, arg));
-            host_to_target_semun(cmd,ptr,&arg,&dsarg);
-            break;
-	case IPC_STAT:
-            target_to_host_semun(cmd,&arg,ptr,&dsarg);
-            ret = get_errno(semctl(first, second, cmd, arg));
-            host_to_target_semun(cmd,ptr,&arg,&dsarg);
-            break;
-	case IPC_SET:
-            target_to_host_semun(cmd,&arg,ptr,&dsarg);
-            ret = get_errno(semctl(first, second, cmd, arg));
-            host_to_target_semun(cmd,ptr,&arg,&dsarg);
-            break;
-    default:
-            ret = get_errno(semctl(first, second, cmd, arg));
+    cmd &= 0xff;
+
+    switch (cmd) {
+    case IPC_STAT:
+    case IPC_SET:
+    case SEM_STAT:
+        err = target_to_host_semid_ds(&dsarg, target_su.buf);
+        if (err)
+            return err;
+        arg.buf = &dsarg;
+        ret = get_errno(semctl(semid, semnum, cmd, arg));
+        err = host_to_target_semid_ds(target_su.buf, &dsarg);
+        if (err)
+            return err;
+        break;
+    case GETVAL:
+    case SETVAL:
+        arg.val = tswapl(target_su.val);
+        ret = get_errno(semctl(semid, semnum, cmd, arg));
+        target_su.val = tswapl(arg.val);
+        break;
+    case GETALL:
+    case SETALL:
+        err = target_to_host_semarray(semid, &array, target_su.array);
+        if (err)
+            return err;
+        arg.array = array;
+        ret = get_errno(semctl(semid, semnum, cmd, arg));
+        err = host_to_target_semarray(semid, target_su.array, &array);
+        if (err)
+            return err;
+        break;
+    case IPC_INFO:
+    case SEM_INFO:
+        arg.__buf = &seminfo;
+        ret = get_errno(semctl(semid, semnum, cmd, arg));
+        err = host_to_target_seminfo(target_su.__buf, &seminfo);
+        if (err)
+            return err;
+        break;
+    case IPC_RMID:
+    case GETPID:
+    case GETNCNT:
+    case GETZCNT:
+        ret = get_errno(semctl(semid, semnum, cmd, NULL));
+        break;
     }
 
     return ret;
+}
+
+struct target_sembuf {
+    unsigned short sem_num;
+    short sem_op;
+    short sem_flg;
+};
+
+static inline abi_long target_to_host_sembuf(struct sembuf *host_sembuf,
+                                             abi_ulong target_addr,
+                                             unsigned nsops)
+{
+    struct target_sembuf *target_sembuf;
+    int i;
+
+    target_sembuf = lock_user(VERIFY_READ, target_addr,
+                              nsops*sizeof(struct target_sembuf), 1);
+    if (!target_sembuf)
+        return -TARGET_EFAULT;
+
+    for(i=0; i<nsops; i++) {
+        __put_user(target_sembuf[i].sem_num, &host_sembuf[i].sem_num);
+        __put_user(target_sembuf[i].sem_op, &host_sembuf[i].sem_op);
+        __put_user(target_sembuf[i].sem_flg, &host_sembuf[i].sem_flg);
+    }
+
+    unlock_user(target_sembuf, target_addr, 0);
+
+    return 0;
+}
+
+static inline abi_long do_semop(int semid, abi_long ptr, unsigned nsops)
+{
+    struct sembuf sops[nsops];
+
+    if (target_to_host_sembuf(sops, ptr, nsops))
+        return -TARGET_EFAULT;
+
+    return semop(semid, sops, nsops);
 }
 
 struct target_msqid_ds
@@ -2058,7 +2140,7 @@ static abi_long do_ipc(unsigned int call, int first,
 
     switch (call) {
     case IPCOP_semop:
-        ret = get_errno(semop(first,(struct sembuf *)g2h(ptr), second));
+        ret = do_semop(first, ptr, second);
         break;
 
     case IPCOP_semget:
@@ -2066,12 +2148,7 @@ static abi_long do_ipc(unsigned int call, int first,
         break;
 
     case IPCOP_semctl:
-        ret = do_semctl(first, second, third, ptr);
-        break;
-
-    case IPCOP_semtimedop:
-        gemu_log("Unsupported ipc call: %d (version %d)\n", call, version);
-        ret = -TARGET_ENOSYS;
+        ret = do_semctl(first, second, third, (union target_semun)(abi_ulong) ptr);
         break;
 
     case IPCOP_msgget:
