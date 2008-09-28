@@ -4924,7 +4924,21 @@ abi_long do_syscall(void *cpu_env, int num, abi_long arg1,
 	ret = do_ipc(arg1, arg2, arg3, arg4, arg5, arg6);
 	break;
 #endif
-
+#ifdef TARGET_NR_semget
+    case TARGET_NR_semget:
+        ret = get_errno(semget(arg1, arg2, arg3));
+        break;
+#endif
+#ifdef TARGET_NR_semop
+    case TARGET_NR_semop:
+        ret = get_errno(do_semop(arg1, arg2, arg3));
+        break;
+#endif
+#ifdef TARGET_NR_semctl
+    case TARGET_NR_semctl:
+        ret = do_semctl(arg1, arg2, arg3, (union target_semun)(abi_ulong)arg4);
+        break;
+#endif
 #ifdef TARGET_NR_msgctl
     case TARGET_NR_msgctl:
         ret = do_msgctl(arg1, arg2, arg3);
