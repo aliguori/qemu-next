@@ -5125,6 +5125,32 @@ abi_long do_syscall(void *cpu_env, int num, abi_long arg1,
         ret = do_msgsnd(arg1, arg2, arg3, arg4);
         break;
 #endif
+#ifdef TARGET_NR_shmget
+    case TARGET_NR_shmget:
+        ret = get_errno(shmget(arg1, arg2, arg3));
+        break;
+#endif
+#ifdef TARGET_NR_shmctl
+    case TARGET_NR_shmctl:
+        ret = do_shmctl(arg1, arg2, arg3);
+        break;
+#endif
+#ifdef TARGET_NR_shmat
+    case TARGET_NR_shmat:
+        {
+            abi_long err;
+            unsigned long _ret;
+
+            err = do_shmat(arg1, arg2, arg3, &_ret);
+            ret = err ? err : _ret;
+        }
+        break;
+#endif
+#ifdef TARGET_NR_shmdt
+    case TARGET_NR_shmdt:
+        ret = do_shmdt(arg1);
+        break;
+#endif
     case TARGET_NR_fsync:
         ret = get_errno(fsync(arg1));
         break;
