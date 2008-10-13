@@ -2274,23 +2274,38 @@ static inline abi_long do_shmctl(int shmid, int cmd, abi_long buf)
 static inline abi_long do_shmat(int shmid, abi_ulong shmaddr, int shmflg,
                                 unsigned long *raddr)
 {
+    abi_ulong mmap_find_vma(abi_ulong start, abi_ulong size);
     abi_long ret;
     struct shmid_ds shm_info;
     int i;
-
-    /* SHM_* flags are the same on all linux platforms */
-    *raddr = (unsigned long) shmat(shmid, g2h(shmaddr), shmflg);
-
-    if (*raddr == -1) {
-        return get_errno(*raddr);
-    }
 
     /* find out the length of the shared memory segment */
     ret = get_errno(shmctl(shmid, IPC_STAT, &shm_info));
     if (is_error(ret)) {
         /* can't get length, bail out */
-        shmdt((void *) *raddr);
         return get_errno(ret);
+    }
+
+    mmap_lock();
+
+    if (shmaddr)
+        *raddr = (unsigned long) shmat(shmid, g2h(shmaddr), shmflg);
+    else {
+        abi_ulong mmap_start;
+
+        mmap_start = mmap_find_vma(0, shm_info.shm_segsz);
+
+        if (mmap_start == -1) {
+            errno = ENOMEM;
+            *raddr = -1;
+        } else
+            *raddr = (unsigned long) shmat(shmid, g2h(mmap_start),
+                                           shmflg | SHM_REMAP);
+    }
+
+    if (*raddr == -1) {
+        mmap_unlock();
+        return get_errno(*raddr);
     }
 
     page_set_flags(h2g(*raddr), h2g(*raddr) + shm_info.shm_segsz,
@@ -2305,6 +2320,7 @@ static inline abi_long do_shmat(int shmid, abi_ulong shmaddr, int shmflg,
         }
     }
 
+    mmap_unlock();
     return 0;
 }
 
