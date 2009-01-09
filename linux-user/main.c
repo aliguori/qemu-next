@@ -999,7 +999,7 @@ void cpu_loop (CPUSPARCState *env)
         default:
             printf ("Unhandled trap: 0x%x\n", trapnr);
             cpu_dump_state(env, stderr, fprintf, 0);
-            exit (1);
+            _exit (1);
         }
         process_pending_signals (env);
     }
@@ -1930,7 +1930,7 @@ void cpu_loop (CPUState *env)
         default:
             printf ("Unhandled trap: 0x%x\n", trapnr);
             cpu_dump_state(env, stderr, fprintf, 0);
-            exit (1);
+            _exit (1);
         }
         process_pending_signals (env);
     }
@@ -2268,7 +2268,7 @@ int main(int argc, char **argv, char **envp)
                 for(item = cpu_log_items; item->mask != 0; item++) {
                     printf("%-10s %s\n", item->name, item->help);
                 }
-                exit(1);
+                _exit(1);
             }
             cpu_set_log(mask);
         } else if (!strcmp(r, "s")) {
@@ -2287,7 +2287,7 @@ int main(int argc, char **argv, char **envp)
             if (qemu_host_page_size == 0 ||
                 (qemu_host_page_size & (qemu_host_page_size - 1)) != 0) {
                 fprintf(stderr, "page size must be a power of two\n");
-                exit(1);
+                _exit(1);
             }
         } else if (!strcmp(r, "g")) {
             gdbstub_port = atoi(argv[optind++]);
