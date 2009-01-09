@@ -4720,8 +4720,13 @@ abi_long do_syscall(void *cpu_env, int num, abi_long arg1,
             p2 = lock_user(VERIFY_WRITE, arg2, arg3, 0);
             if (!p || !p2)
                 ret = -TARGET_EFAULT;
-            else
-                ret = get_errno(readlink(path(p), p2, arg3));
+            else {
+                if (strncmp((const char *)p, "/proc/self/exe", 14) == 0)
+                    ret = get_errno(snprintf((char *)p2, arg3, "%s", exec_path));
+                else
+                    ret = get_errno(readlink(path(p), p2, arg3));
+                break;
+            }
             unlock_user(p2, arg2, ret);
             unlock_user(p, arg1, 0);
         }
