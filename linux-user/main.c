@@ -2310,6 +2310,9 @@ int main(int argc, char **argv, char **envp)
         } else if (!strcmp(r, "0")) {
             r = argv[optind++];
             argv0 = r;
+        } else if (!strcmp(r,"-sbox-call")) {
+           r = argv[optind++];
+           argv0 = r;
         } else if (!strcmp(r, "s")) {
             r = argv[optind++];
             x86_stack_size = strtol(r, (char **)&r, 0);
