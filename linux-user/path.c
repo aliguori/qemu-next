@@ -4,6 +4,7 @@
    The assumption is that this area does not change.
 */
 #include <sys/types.h>
+#include <assert.h>
 #include <dirent.h>
 #include <unistd.h>
 #include <stdlib.h>
@@ -52,6 +53,38 @@ static struct pathelem *new_entry(const char *root,
 
 #define streq(a,b) (strcmp((a), (b)) == 0)
 
+/*
+ * Checks whether directory entry (dent) is valid.  This
+ * means that symlinks pointing to '.' and '..' should
+ * be skipped by main recursion code.  Returns 1 when
+ * entry is valid.
+ */
+static int
+is_dentry_valid(const char *path, const struct dirent *dent)
+{
+    char fullpath[PATH_MAX];
+    char linkbuf[PATH_MAX];
+    ssize_t len;
+
+    assert(path != NULL);
+    assert(dent != NULL);
+
+    if (dent->d_type != DT_LNK)
+        return (1);
+
+    (void) snprintf(fullpath, sizeof (fullpath), "%s/%s",
+       path, dent->d_name);
+
+    if ((len = readlink(fullpath, linkbuf, sizeof (linkbuf) - 1)) != -1) {
+        linkbuf[len] = '\0';
+        if (streq(linkbuf, ".") || streq(linkbuf, ".."))
+            return (0);
+    }
+
+    return (1);
+}
+
+/* TODO: add recursion count check */
 static struct pathelem *add_dir_maybe(struct pathelem *path)
 {
     DIR *dir;
@@ -61,7 +94,9 @@ static struct pathelem *add_dir_maybe(struct pathelem *path)
 
 	while ((dirent = readdir(dir)) != NULL) {
 	    if (!streq(dirent->d_name,".") && !streq(dirent->d_name,"..")){
-		path = add_entry(path, dirent->d_name);
+	        if (is_dentry_valid(path->pathname, dirent)) {
+	            path = add_entry(path, dirent->d_name);
+	        }
 	    }
 	}
         closedir(dir);
