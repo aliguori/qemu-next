@@ -583,12 +583,12 @@ int cocoa_keycode_to_qemu(int keycode)
             if (isAbsoluteEnabled) {
                 if (p.x < 0 || p.x > screen.width || p.y < 0 || p.y > screen.height || ![[self window] isKeyWindow]) {
                     if (isTabletEnabled) { // if we leave the window, deactivate the tablet
-                        [NSCursor unhide];
+                        if (cursor_hide) [NSCursor unhide];
                         isTabletEnabled = FALSE;
                     }
                 } else {
                     if (!isTabletEnabled) { // if we enter the window, activate the tablet
-                        [NSCursor hide];
+                        if (cursor_hide) [NSCursor hide];
                         isTabletEnabled = TRUE;
                     }
                 }
@@ -668,7 +668,7 @@ int cocoa_keycode_to_qemu(int keycode)
         else
             [normalWindow setTitle:@"QEMU - (Press ctrl + alt to release Mouse)"];
     }
-    [NSCursor hide];
+    if (cursor_hide) [NSCursor hide];
     CGAssociateMouseAndMouseCursorPosition(FALSE);
     isMouseGrabed = TRUE; // while isMouseGrabed = TRUE, QemuCocoaApp sends all events to [cocoaView handleEvent:]
 }
@@ -683,7 +683,7 @@ int cocoa_keycode_to_qemu(int keycode)
         else
             [normalWindow setTitle:@"QEMU"];
     }
-    [NSCursor unhide];
+    if (cursor_hide) [NSCursor unhide];
     CGAssociateMouseAndMouseCursorPosition(TRUE);
     isMouseGrabed = FALSE;
 }
