@@ -73,7 +73,7 @@ OBJS+=readline.o console.o
 
 OBJS+=irq.o
 OBJS+=i2c.o smbus.o smbus_eeprom.o max7310.o max111x.o wm8750.o
-OBJS+=ssd0303.o ssd0323.o ads7846.o stellaris_input.o twl92230.o
+OBJS+=ssd0303.o ssd0323.o ads7846.o stellaris_input.o twl92230.o twl4030.o
 OBJS+=tmp105.o lm832x.o
 OBJS+=scsi-disk.o cdrom.o
 OBJS+=scsi-generic.o

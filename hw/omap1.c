@@ -96,6 +96,7 @@ struct omap_intr_handler_s {
     qemu_irq parent_intr[2];
     unsigned char nbanks;
     int level_only;
+    uint8_t revision;
 
     /* state */
     uint32_t new_agr[2];
@@ -449,7 +450,7 @@ static uint32_t omap2_inth_read(void *opaque, target_phys_addr_t addr)
 
     switch (offset) {
     case 0x00:	/* INTC_REVISION */
-        return 0x21;
+        return s->revision;
 
     case 0x10:	/* INTC_SYSCONFIG */
         return (s->autoidle >> 2) & 1;
@@ -625,7 +626,9 @@ static CPUWriteMemoryFunc *omap2_inth_writefn[] = {
     omap2_inth_write,
 };
 
-struct omap_intr_handler_s *omap2_inth_init(target_phys_addr_t base,
+struct omap_intr_handler_s *omap2_inth_init(
+                struct omap_mpu_state_s *mpu,
+                target_phys_addr_t base,
                 int size, int nbanks, qemu_irq **pins,
                 qemu_irq parent_irq, qemu_irq parent_fiq,
                 omap_clk fclk, omap_clk iclk)
@@ -635,6 +638,7 @@ struct omap_intr_handler_s *omap2_inth_init(target_phys_addr_t base,
             qemu_mallocz(sizeof(struct omap_intr_handler_s) +
                             sizeof(struct omap_intr_handler_bank_s) * nbanks);
 
+    s->revision = cpu_class_omap3(mpu) ? 0x40 : 0x21;
     s->parent_intr[0] = parent_irq;
     s->parent_intr[1] = parent_fiq;
     s->nbanks = nbanks;

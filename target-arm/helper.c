@@ -689,7 +689,7 @@ static void do_v7m_exception_exit(CPUARMState *env)
        pointer.  */
 }
 
-void do_interrupt_v7m(CPUARMState *env)
+static void do_interrupt_v7m(CPUARMState *env)
 {
     uint32_t xpsr = xpsr_read(env);
     uint32_t lr;
@@ -1387,7 +1387,7 @@ void HELPER(set_cp15)(CPUState *env, uint32_t insn, uint32_t val)
                 break;
             case 2: /* Nonsecure access control register. */
                 if (env->cp15.c1_secfg & 1)
-                    goto bad_register;
+                    goto bad_reg;
                 env->cp15.c1_nseac = val;
                 break;
             default:
@@ -1845,7 +1845,7 @@ uint32_t HELPER(get_cp15)(CPUState *env, uint32_t insn)
             }
         }
     case 7: /* Cache control.  */
-        if ((insn >> 12) & 0xf) == 0xf) /* clear ZF only if destination is r15 */
+        if (((insn >> 12) & 0xf) == 0xf) /* clear ZF only if destination is r15 */
             env->ZF = 0;
         return 0;
     case 8: /* MMU TLB control.  */

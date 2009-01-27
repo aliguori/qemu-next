@@ -6026,6 +6026,7 @@ static void disas_arm_insn(CPUState * env, DisasContext *s)
                 /* smi/smc */
                 if (!(env->cp15.c0_c2[4] & 0xf000))
                     goto illegal_op;
+                fprintf(stderr,"smc [0x%08x] pc=0x%08x\n", insn, s->pc);
                 /* unsupported at the moment, ignore. */
             } else {
                 goto illegal_op;
