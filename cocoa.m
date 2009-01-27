@@ -229,7 +229,7 @@ int keymap[] =
 */
 };
 
-int cocoa_keycode_to_qemu(int keycode)
+static int cocoa_keycode_to_qemu(int keycode)
 {
     if((sizeof(keymap)/sizeof(int)) <= keycode)
     {
@@ -301,6 +301,11 @@ int cocoa_keycode_to_qemu(int keycode)
     [super dealloc];
 }
 
+- (BOOL) isOpaque
+{
+    return YES;
+}
+
 - (void) drawRect:(NSRect) rect
 {
     COCOA_DEBUG("QemuCocoaView: drawRect\n");
@@ -333,6 +338,7 @@ int cocoa_keycode_to_qemu(int keycode)
             0, //interpolate
             kCGRenderingIntentDefault //intent
         );
+
 // test if host support "CGImageCreateWithImageInRect" at compiletime
 #if (MAC_OS_X_VERSION_MAX_ALLOWED >= MAC_OS_X_VERSION_10_4)
         if (CGImageCreateWithImageInRect == NULL) { // test if "CGImageCreateWithImageInRect" is supported on host at runtime
@@ -354,12 +360,9 @@ int cocoa_keycode_to_qemu(int keycode)
                 clipRect.origin.y = (float)screen.height - (rectList[i].origin.y + rectList[i].size.height) / cdy;
                 clipRect.size.width = rectList[i].size.width / cdx;
                 clipRect.size.height = rectList[i].size.height / cdy;
-                clipImageRef = CGImageCreateWithImageInRect(
-                    imageRef,
-                    clipRect
-                );
-                CGContextDrawImage (viewContextRef, cgrect(rectList[i]), clipImageRef);
-                CGImageRelease (clipImageRef);
+                clipImageRef = CGImageCreateWithImageInRect(imageRef, clipRect);
+                CGContextDrawImage(viewContextRef, cgrect(rectList[i]), clipImageRef);
+                CGImageRelease(clipImageRef);
             }
         }
 #endif
@@ -797,7 +800,7 @@ int cocoa_keycode_to_qemu(int keycode)
     if(returnCode == NSCancelButton) {
         exit(0);
     } else if(returnCode == NSOKButton) {
-        char *bin = "qemu";
+        const char *bin = "qemu";
         char *img = (char*)[ [ sheet filename ] cStringUsingEncoding:NSASCIIStringEncoding];
 
         char **argv = (char**)malloc( sizeof(char*)*3 );
@@ -920,7 +923,6 @@ int main (int argc, const char * argv[]) {
 }
 
 
-
 #pragma mark qemu
 static void cocoa_update(DisplayState *ds, int x, int y, int w, int h)
 {
@@ -936,7 +938,7 @@ static void cocoa_update(DisplayState *ds, int x, int y, int w, int h)
             w * [cocoaView cdx],
             h * [cocoaView cdy]);
     }
-    [cocoaView displayRect:rect];
+    [cocoaView setNeedsDisplayInRect:rect];
 }
 
 static void cocoa_resize(DisplayState *ds, int w, int h)
