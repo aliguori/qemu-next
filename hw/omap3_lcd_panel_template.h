@@ -75,6 +75,28 @@ static void glue(omap3_lcd_panel_draw_line16_, DEPTH)(PIXEL_TYPE *dest,
 #endif
 }
 
+static void glue(omap3_lcd_panel_draw_line16_bgr_, DEPTH)(PIXEL_TYPE *dest,
+                                                      const uint16_t *src, unsigned int width)
+{
+#if !defined(SWAP_WORDS) && DEPTH == 16
+    memcpy(dest, src, width);
+#else
+    uint16_t data;
+    unsigned int r, g, b;
+    const uint16_t *end = (const void *) src + width;
+    while (src < end) {
+        data = lduw_raw(src ++);
+        r = (data & 0x1f) << 3;
+        data >>= 5;
+        g = (data & 0x3f) << 2;
+        data >>= 6;
+        b = (data & 0x1f) << 3;
+        data >>= 5;
+        COPY_PIXEL1(dest, glue(rgb_to_pixel, DEPTH)(r, g, b));
+    }
+#endif
+}
+
 
 /*
 LCD: 0x4: RGB 12      
@@ -109,9 +131,31 @@ static omap3_lcd_panel_fn_t glue(omap3_lcd_panel_draw_fn_, DEPTH)[0x10] = {
     NULL,  /*0xe: RGBx 32 (24-bit RGB aligned on MSB of the 32-bit container) */
     NULL,  /*0xf */
 };
+static omap3_lcd_panel_fn_t glue(omap3_lcd_panel_draw_fn_bgr_, DEPTH)[0x10] = {
+    NULL,   /*0x0*/
+    NULL,   /*0x1*/
+    NULL,   /*0x2*/
+    NULL,   /*0x3*/
+    NULL,  /*0x4:RGB 12 */
+    NULL,  /*0x5: ARGB16 */
+    (omap3_lcd_panel_fn_t)glue(omap3_lcd_panel_draw_line16_bgr_, DEPTH),  /*0x6: RGB 16 */
+    NULL,  /*0x7*/
+    NULL,  /*0x8: RGB 24 (un-packed in 32-bit container) */
+    NULL,  /*0x9: RGB 24 (packed in 24-bit container) */
+    NULL,  /*0xa */
+    NULL,  /*0xb */
+    NULL,  /*0xc: ARGB32 */
+    NULL,  /*0xd: RGBA32 */
+    NULL,  /*0xe: RGBx 32 (24-bit RGB aligned on MSB of the 32-bit container) */
+    NULL,  /*0xf */
+};
 
 /* 90deg, 180deg and 270deg rotation */
 static omap3_lcd_panel_fn_t glue(omap3_lcd_panel_draw_fn_r_, DEPTH)[0x10] = {
+    /* TODO */
+    [0 ... 0xf] = NULL,
+};
+static omap3_lcd_panel_fn_t glue(omap3_lcd_panel_draw_fn_r_bgr_, DEPTH)[0x10] = {
     /* TODO */
     [0 ... 0xf] = NULL,
 };
