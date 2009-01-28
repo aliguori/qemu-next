@@ -758,6 +758,7 @@ void usage(void)
            interp_prefix,
            stack_size,
            DEBUG_LOGFILE);
+    fflush(stdout);
     _exit(1);
 }
 

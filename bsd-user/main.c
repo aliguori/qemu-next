@@ -351,6 +351,7 @@ static void usage(void)
            interp_prefix,
            x86_stack_size,
            DEBUG_LOGFILE);
+    fflush(stdout);
     _exit(1);
 }
 
