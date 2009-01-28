@@ -1199,9 +1199,9 @@ void omap3_set_mem_type(struct omap_mpu_state_s *s, int bootfrom);
 void omap3_set_device_type(struct omap_mpu_state_s *s, int device_type);
 
 # if TARGET_PHYS_ADDR_BITS == 32
-#  define OMAP_FMT_plx "%#08x"
+#  define OMAP_FMT_plx "0x%08x"
 # elif TARGET_PHYS_ADDR_BITS == 64
-#  define OMAP_FMT_plx "%#08" PRIx64
+#  define OMAP_FMT_plx "0x%08" PRIx64
 # else
 #  error TARGET_PHYS_ADDR_BITS undefined
 # endif
@@ -1221,9 +1221,15 @@ void omap_mpu_wakeup(void *opaque, int irq, int req);
 # define OMAP_BAD_REG(paddr)		\
         fprintf(stderr, "%s: Bad register " OMAP_FMT_plx "\n",	\
                         __FUNCTION__, paddr)
+# define OMAP_BAD_REGV(paddr, value) \
+        fprintf(stderr, "%s: Bad register " OMAP_FMT_plx " (value " OMAP_FMT_plx ")\n", \
+                __FUNCTION__, paddr, value)
 # define OMAP_RO_REG(paddr)		\
         fprintf(stderr, "%s: Read-only register " OMAP_FMT_plx "\n",	\
                         __FUNCTION__, paddr)
+# define OMAP_RO_REGV(paddr, value) \
+        fprintf(stderr, "%s: Read-only register " OMAP_FMT_plx " (value " OMAP_FMT_plx ")\n", \
+                __FUNCTION__, paddr, value)
 
 /* OMAP-specific Linux bootloader tags for the ATAG_BOARD area
    (Board-specifc tags are not here)  */
