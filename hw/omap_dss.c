@@ -224,7 +224,7 @@ static void omap_diss_write(void *opaque, target_phys_addr_t addr,
     case 0x54:	/* DSS_PSA_LCD_REG_2 */
     case 0x58:	/* DSS_PSA_VIDEO_REG */
     case 0x5c:	/* DSS_STATUS */
-        OMAP_RO_REG(addr);
+        OMAP_RO_REGV(addr, value);
         break;
 
     case 0x10:	/* DSS_SYSCONFIG */
@@ -238,7 +238,8 @@ static void omap_diss_write(void *opaque, target_phys_addr_t addr,
         break;
 
     default:
-        OMAP_BAD_REG(addr);
+        OMAP_BAD_REGV(addr, value);
+        break;
     }
 }
 
@@ -380,6 +381,13 @@ static void omap_disc_write(void *opaque, target_phys_addr_t addr,
     struct omap_dss_s *s = (struct omap_dss_s *) opaque;
 
     switch (addr) {
+    case 0x000: /* DISPC_REVISION */
+    case 0x014: /* DISPC_SYSSTATUS */
+    case 0x05c: /* DISPC_LINE_STATUS */
+    case 0x0a8: /* DISPC_GFX_FIFO_SIZE_STATUS */
+        OMAP_RO_REGV(addr, value);
+        break;
+            
     case 0x010:	/* DISPC_SYSCONFIG */
         if (value & 2)						/* SOFTRESET */
             omap_dss_reset(s);
@@ -581,7 +589,8 @@ static void omap_disc_write(void *opaque, target_phys_addr_t addr,
         break;
 
     default:
-        OMAP_BAD_REG(addr);
+        OMAP_BAD_REGV(addr, value);
+        break;
     }
 }
 
@@ -851,7 +860,8 @@ static void omap_rfbi_write(void *opaque, target_phys_addr_t addr,
         break;
 
     default:
-        OMAP_BAD_REG(addr);
+        OMAP_BAD_REGV(addr, value);
+        break;
     }
 }
 
@@ -970,7 +980,8 @@ static void omap_venc_write(void *opaque, target_phys_addr_t addr,
         break;
 
     default:
-        OMAP_BAD_REG(addr);
+        OMAP_BAD_REGV(addr, value);
+        break;
     }
 }
 
@@ -1020,7 +1031,8 @@ static void omap_im3_write(void *opaque, target_phys_addr_t addr,
         break;
 
     default:
-        OMAP_BAD_REG(addr);
+        OMAP_BAD_REGV(addr, value);
+        break;
     }
 }
 

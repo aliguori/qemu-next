@@ -29,7 +29,7 @@
 #include "soc_dma.h"
 #include "audio/audio.h"
 
-#define _OMAP3_DEBUG_
+//#define _OMAP3_DEBUG_
 
 #ifdef _OMAP3_DEBUG_
 #define OMAP3_DEBUG(x)    do {  printf x ; } while(0)
