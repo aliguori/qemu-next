@@ -288,7 +288,7 @@ static int beagle_boot_from_mmc(struct beagle_s *s)
                         p = beagle_scan_fat_dir_sector(sector);
                     }
                 }
-                if (*p) { // did we indeed find the file?
+                if (p && *p) { // did we indeed find the file?
                     i = get_le16(p + 0x14); i <<= 16; i |= get_le16(p + 0x1a);
                     j = drv.spc * 0x200;
                     uint8 *data = qemu_mallocz(j);
@@ -296,17 +296,15 @@ static int beagle_boot_from_mmc(struct beagle_s *s)
                         /* TODO: support HS device boot - for now only GP device is supported */
                         img_size = get_le32(data);
                         img_addr = get_le32(data + 4);
-                        memcpy((q = phys_ram_base + beagle_binfo.ram_size - OMAP3_SRAM_BASE + img_addr), 
-                               data + 8,
-                               (k = (j - 8 >= img_size) ? img_size : j - 8));
-                        q += k;
-                        img_size -= k;
-                        while (img_size && (i = beagle_read_fat_cluster(data, &drv, i))) {
-                            memcpy(q, data, (k = (j >= img_size) ? img_size : j));
-                            q += k;
-                            img_size -= k;
-                        }
                         s->cpu->env->regs[15] = img_addr;
+                        cpu_physical_memory_write(img_addr, data + 8, 
+                                                  (k = (j - 8 >= img_size) ? img_size : j - 8));
+                        for (img_addr += k, img_size -= k;
+                             img_size && (i = beagle_read_fat_cluster(data, &drv, i));
+                             img_addr += k, img_size -= k) {
+                            cpu_physical_memory_write(img_addr, data, 
+                                                      (k = (j >= img_size) ? img_size : j));
+                        }
                         result = 0;
                     } else
                         fprintf(stderr, "%s: unable to read MLO file contents from SD card\n", __FUNCTION__);

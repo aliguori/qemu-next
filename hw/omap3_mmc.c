@@ -30,7 +30,6 @@
 
 struct omap3_mmc_s
 {
-    target_phys_addr_t base;
     qemu_irq irq;
     qemu_irq *dma;
     qemu_irq coverswitch;
@@ -359,11 +358,10 @@ static void omap3_mmc_reset(struct omap3_mmc_s *s)
 static uint32_t omap3_mmc_read(void *opaque, target_phys_addr_t addr)
 {
     struct omap3_mmc_s *s = (struct omap3_mmc_s *) opaque;
-    uint32_t offset = addr - s->base;
     uint32_t i ;
    //if ((offset!=0x12c)&&(offset!=0x120))
    //printf("omap3_mmc_read %x pc %x \n",offset,cpu_single_env->regs[15] );
-    switch (offset)
+    switch (addr)
     {
     case 0x10:
         return s->sysconfig;
@@ -436,7 +434,7 @@ static uint32_t omap3_mmc_read(void *opaque, target_phys_addr_t addr)
     case 0x1fc:
         return s->rev;
     default:
-        OMAP_BAD_REG(offset);
+        OMAP_BAD_REG(addr);
         exit(-1);
         return 0;
     }
@@ -447,9 +445,8 @@ static void omap3_mmc_write(void *opaque, target_phys_addr_t addr,
                             uint32_t value)
 {
     struct omap3_mmc_s *s = (struct omap3_mmc_s *) opaque;
-    uint32_t offset = addr - s->base;
 	//printf("omap3_mmc_write %x value %x \n",offset,value);
-    switch (offset)
+    switch (addr)
     {
     case 0x14:
     case 0x110:
@@ -459,7 +456,7 @@ static void omap3_mmc_write(void *opaque, target_phys_addr_t addr,
     case 0x124:
     case 0x13c:
     case 0x1fc:
-        OMAP_RO_REG(offset);
+        OMAP_RO_REG(addr);
         exit(-1);
     case 0x10:
         s->sysconfig = value & 0x30f;
@@ -562,7 +559,7 @@ static void omap3_mmc_write(void *opaque, target_phys_addr_t addr,
         s->cur_capa = value & 0xffffff;
         break;
     default:
-        OMAP_BAD_REG(offset);
+        OMAP_BAD_REG(addr);
         exit(-1);
     }
 
@@ -600,7 +597,7 @@ struct omap3_mmc_s *omap3_mmc_init(struct omap_target_agent_s *ta,
 
     iomemtype = l4_register_io_memory(0, omap3_mmc_readfn,
                                       omap3_mmc_writefn, s);
-    s->base = omap_l4_attach(ta, 0, iomemtype);
+    omap_l4_attach(ta, 0, iomemtype);
 
     /* Instantiate the storage */
     s->card = sd_init(bd, 0);
