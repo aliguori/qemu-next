@@ -3947,7 +3947,7 @@ struct omap_mpu_state_s *omap3530_mpu_init(unsigned long sdram_size,
     s->sram_size = OMAP3530_SRAM_SIZE;
 
     sdindex = drive_get_index(IF_SD, 0, 0);
-    printf("sdindex %d \n",sdindex);
+    //printf("sdindex %d \n",sdindex);
     if (sdindex == -1) {
         fprintf(stderr, "qemu: missing SecureDigital device\n");
         exit(1);
