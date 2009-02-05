@@ -28,7 +28,7 @@
 
 #define VERBOSE 1
 
-extern CPUState *cpu_single_env;
+//extern CPUState *cpu_single_env;
 
 struct twl4030_i2c_s {
     i2c_slave i2c;
@@ -46,8 +46,8 @@ struct twl4030_s {
 
 static uint8_t twl4030_48_read(void *opaque, uint8_t addr)
 {
-    struct twl4030_i2c_s *s = (struct twl4030_i2c_s *) opaque;
-    int reg = 0;
+    //struct twl4030_i2c_s *s = (struct twl4030_i2c_s *) opaque;
+    //int reg = 0;
 	
     printf("twl4030_48_read addr %x\n",addr);
 	
@@ -65,10 +65,10 @@ static uint8_t twl4030_48_read(void *opaque, uint8_t addr)
 
 static void twl4030_48_write(void *opaque, uint8_t addr, uint8_t value)
 {
-    struct twl4030_i2c_s *s = (struct twl4030_i2c_s *) opaque;
-    int line;
-    int reg = 0;
-    struct tm tm;
+    //struct twl4030_i2c_s *s = (struct twl4030_i2c_s *) opaque;
+    //int line;
+    //int reg = 0;
+    //struct tm tm;
 	
     printf("twl4030_48_write addr %x value %x \n",addr,value);
     
@@ -120,8 +120,8 @@ static void twl4030_48_event(i2c_slave *i2c, enum i2c_event event)
 
 static uint8_t twl4030_49_read(void *opaque, uint8_t addr)
 {
-    struct twl4030_i2c_s *s = (struct twl4030_i2c_s *) opaque;
-    int reg = 0;
+    //struct twl4030_i2c_s *s = (struct twl4030_i2c_s *) opaque;
+    //int reg = 0;
 	
     printf("twl4030_49_read addr %x\n",addr);
 	
@@ -140,14 +140,22 @@ static uint8_t twl4030_49_read(void *opaque, uint8_t addr)
 static void twl4030_49_write(void *opaque, uint8_t addr, uint8_t value)
 {
     struct twl4030_i2c_s *s = (struct twl4030_i2c_s *) opaque;
-    int line;
-    int reg = 0;
-    struct tm tm;
+    //int line;
+    //int reg = 0;
+    //struct tm tm;
 	
     //printf("twl4030_49_write addr %x value %x \n", addr, value);
 	
     switch (addr)
     {
+        case 0xaa:
+        case 0xab:
+        case 0xac:
+        case 0xad:
+        case 0xae:
+        case 0xaf:
+            fprintf(stderr,"%s: addr %x value %02x\n", __FUNCTION__, addr, value);
+            /* fallthrough */
 	    case 0xb4:  /*GPIO IMR*/
 	    case 0xb5:
 	    case 0xb6:
@@ -160,6 +168,7 @@ static void twl4030_49_write(void *opaque, uint8_t addr, uint8_t value)
 	    case 0xc5:
 	    	s->reg_data[addr] = value;
 	    	break;
+            
         default:
 #ifdef VERBOSE
             printf("%s: unknown register %02x pc %x \n", __FUNCTION__, addr,
@@ -208,8 +217,8 @@ static void twl4030_49_event(i2c_slave *i2c, enum i2c_event event)
 
 static uint8_t twl4030_4a_read(void *opaque, uint8_t addr)
 {
-    struct twl4030_i2c_s *s = (struct twl4030_i2c_s *) opaque;
-    int reg = 0;
+    //struct twl4030_i2c_s *s = (struct twl4030_i2c_s *) opaque;
+    //int reg = 0;
 	
     printf("twl4030_4a_read addr %x\n",addr);
 	
@@ -228,11 +237,11 @@ static uint8_t twl4030_4a_read(void *opaque, uint8_t addr)
 static void twl4030_4a_write(void *opaque, uint8_t addr, uint8_t value)
 {
     struct twl4030_i2c_s *s = (struct twl4030_i2c_s *) opaque;
-    int line;
-    int reg = 0;
-    struct tm tm;
+    //int line;
+    //int reg = 0;
+    //struct tm tm;
 	
-    printf("twl4030_4a_write addr %x value %x \n",addr,value);
+    fprintf(stderr, "%s: addr %x value %02x\n", __FUNCTION__, addr, value);
 	
     switch (addr)
     {
@@ -242,6 +251,12 @@ static void twl4030_4a_write(void *opaque, uint8_t addr, uint8_t value)
         case 0xbb:
         case 0xbc:
         case 0x62:
+            
+        case 0x61:
+        case 0xb9:
+        case 0xba:
+        case 0xef:
+        case 0xf0:
             s->reg_data[addr] = value;
             break;
         default:
@@ -290,8 +305,8 @@ static void twl4030_4a_event(i2c_slave *i2c, enum i2c_event event)
 
 static uint8_t twl4030_4b_read(void *opaque, uint8_t addr)
 {
-    struct twl4030_i2c_s *s = (struct twl4030_i2c_s *) opaque;
-    int reg = 0;
+    //struct twl4030_i2c_s *s = (struct twl4030_i2c_s *) opaque;
+    //int reg = 0;
 	
     printf("twl4030_4b_read addr %x\n",addr);
 	
@@ -311,7 +326,7 @@ static void twl4030_4b_write(void *opaque, uint8_t addr, uint8_t value)
 {
     struct twl4030_i2c_s *s = (struct twl4030_i2c_s *) opaque;
 	
-    printf("twl4030_4b_write addr %x value %x \n",addr,value);
+    fprintf(stderr, "%s: addr %x value %02x\n", __FUNCTION__, addr, value);
 	
     switch (addr)
     {
@@ -327,6 +342,24 @@ static void twl4030_4b_write(void *opaque, uint8_t addr, uint8_t value)
         case 0x91:
         case 0x96:
         case 0x99:
+
+        case 0x46:
+        case 0x47:
+        case 0x48:
+        case 0x55:
+        case 0x56:
+        case 0x57:
+        case 0x59:
+        case 0x5a:
+        case 0xcc:
+        case 0xcd:
+        case 0xcf:
+        case 0xd0:
+        case 0xd2:
+        case 0xd3:
+        case 0xd8:
+        case 0xd9:
+        case 0xe6:
             s->reg_data[addr] = value;
             break;
         default:
