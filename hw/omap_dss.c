@@ -34,6 +34,7 @@ struct omap_dss_s {
 
     int autoidle;
     int control;
+    uint32_t sdi_control;
     int enable;
 
     struct omap_dss_panel_s {
@@ -99,6 +100,10 @@ struct omap_dss_s {
         uint16_t hsync;
         struct rfbi_chip_s *chip[2];
     } rfbi;
+    
+    struct {
+        uint32_t irqst;
+    } dsi;
 };
 
 static void omap_dispc_interrupt_update(struct omap_dss_s *s)
@@ -134,6 +139,7 @@ void omap_dss_reset(struct omap_dss_s *s)
 {
     s->autoidle = 0;
     s->control = 0;
+    s->sdi_control = 0;
     s->enable = 0;
 
     s->dig.enable = 0;
@@ -175,6 +181,8 @@ void omap_dss_reset(struct omap_dss_s *s)
     s->dispc.l[0].colinc = 1;
     s->dispc.l[0].wininc = 0;
 
+    s->dsi.irqst = 0;
+    
     omap_rfbi_reset(s);
     omap_dispc_interrupt_update(s);
 }
@@ -192,9 +200,16 @@ static uint32_t omap_diss_read(void *opaque, target_phys_addr_t addr)
 
     case 0x14:	/* DSS_SYSSTATUS */
         return 1;						/* RESETDONE */
+            
+    case 0x18:  /* DSS_IRQSTATUS */
+        return ((s->dispc.irqst & s->dispc.irqen) ? 0x1 : 0x0)
+            | ((s->dsi.irqst) ? 0x2 : 0x0);
 
     case 0x40:	/* DSS_CONTROL */
         return s->control;
+
+    case 0x44:  /* DSS_SDI_CONTROL */
+        return s->sdi_control;
 
     case 0x50:	/* DSS_PSA_LCD_REG_1 */
     case 0x54:	/* DSS_PSA_LCD_REG_2 */
@@ -237,6 +252,10 @@ static void omap_diss_write(void *opaque, target_phys_addr_t addr,
         s->control = value & 0x3dd;
         break;
 
+    case 0x44: /* DSS_SDI_CONTROL */
+        s->sdi_control = value & 0x000ff80f;
+        break;
+    
     default:
         OMAP_BAD_REGV(addr, value);
         break;
@@ -261,7 +280,7 @@ static uint32_t omap_disc_read(void *opaque, target_phys_addr_t addr)
 
     switch (addr) {
     case 0x000:	/* DISPC_REVISION */
-        return 0x20;
+        return 0x20; // 0x30 in OMAP3
 
     case 0x010:	/* DISPC_SYSCONFIG */
         return s->dispc.idlemode;
@@ -1049,10 +1068,10 @@ static CPUWriteMemoryFunc *omap_im3_writefn[] = {
 };
 
 struct omap_dss_s *omap_dss_init(struct omap_target_agent_s *ta,
-                target_phys_addr_t l3_base, DisplayState *ds,
-                qemu_irq irq, qemu_irq drq,
-                omap_clk fck1, omap_clk fck2, omap_clk ck54m,
-                omap_clk ick1, omap_clk ick2)
+                                 target_phys_addr_t l3_base, DisplayState *ds,
+                                 qemu_irq irq, qemu_irq drq,
+                                 omap_clk fck1, omap_clk fck2, omap_clk ck54m,
+                                 omap_clk ick1, omap_clk ick2)
 {
     int iomemtype[5];
     struct omap_dss_s *s = (struct omap_dss_s *)
@@ -1063,22 +1082,21 @@ struct omap_dss_s *omap_dss_init(struct omap_target_agent_s *ta,
     s->state = ds;
     omap_dss_reset(s);
 
-    iomemtype[0] = l4_register_io_memory(0, omap_diss1_readfn,
-                    omap_diss1_writefn, s);
-    iomemtype[1] = l4_register_io_memory(0, omap_disc1_readfn,
-                    omap_disc1_writefn, s);
-    iomemtype[2] = l4_register_io_memory(0, omap_rfbi1_readfn,
-                    omap_rfbi1_writefn, s);
-    iomemtype[3] = l4_register_io_memory(0, omap_venc1_readfn,
-                    omap_venc1_writefn, s);
-    iomemtype[4] = cpu_register_io_memory(0, omap_im3_readfn,
-                    omap_im3_writefn, s);
-    omap_l4_attach(ta, 0, iomemtype[0]);
-    omap_l4_attach(ta, 1, iomemtype[1]);
-    omap_l4_attach(ta, 2, iomemtype[2]);
-    omap_l4_attach(ta, 3, iomemtype[3]);
-    cpu_register_physical_memory(l3_base, 0x1000, iomemtype[4]);
-
+        iomemtype[0] = l4_register_io_memory(0, omap_diss1_readfn,
+                                             omap_diss1_writefn, s);
+        iomemtype[1] = l4_register_io_memory(0, omap_disc1_readfn,
+                                             omap_disc1_writefn, s);
+        iomemtype[2] = l4_register_io_memory(0, omap_rfbi1_readfn,
+                                             omap_rfbi1_writefn, s);
+        iomemtype[3] = l4_register_io_memory(0, omap_venc1_readfn,
+                                             omap_venc1_writefn, s);
+        iomemtype[4] = cpu_register_io_memory(0, omap_im3_readfn,
+                                              omap_im3_writefn, s);
+        omap_l4_attach(ta, 0, iomemtype[0]);
+        omap_l4_attach(ta, 1, iomemtype[1]);
+        omap_l4_attach(ta, 2, iomemtype[2]);
+        omap_l4_attach(ta, 3, iomemtype[3]);
+        cpu_register_physical_memory(l3_base, 0x1000, iomemtype[4]);
 #if 0
     if (ds)
         graphic_console_init(ds, omap_update_display,

@@ -46,10 +46,10 @@ struct omap3_mmc_s
     uint32_t blk;               /*0x104 */
     uint32_t arg;               /*0x108 */
     uint32_t cmd;               /*0x10c */
-    uint32_t psp10;             /*0x110 */
-    uint32_t psp32;             /*0x114 */
-    uint32_t psp54;             /*0x118 */
-    uint32_t psp76;             /*0x11c */
+    uint32_t rsp10;             /*0x110 */
+    uint32_t rsp32;             /*0x114 */
+    uint32_t rsp54;             /*0x118 */
+    uint32_t rsp76;             /*0x11c */
     uint32_t data;              /*0x120 */
     uint32_t pstate;            /*0x124 */
     uint32_t hctl;              /*0x128 */
@@ -72,8 +72,8 @@ struct omap3_mmc_s
 
     int ddir;
     int transfer;
-
-
+    
+    uint32_t stat_pending;
 };
 
 
@@ -88,7 +88,7 @@ typedef enum
 int test=1;
 static void omap3_mmc_interrupts_update(struct omap3_mmc_s *s)
 {
-    qemu_set_irq(s->irq, !!(s->stat & s->ise & s->ie));
+    qemu_set_irq(s->irq, !!((s->stat | s->stat_pending) & s->ise & s->ie));
 }
 
 static void omap3_mmc_fifolevel_update(struct omap3_mmc_s *host,int de)
@@ -177,7 +177,7 @@ static void omap3_mmc_transfer(struct omap3_mmc_s *host, int msbs, int ace,
                 {
                     host->nblk_counter = (host->blk >> 16) & 0xffff;
                     host->transfer = 0;
-                    host->stat |= 0x2;        /*tc */
+                    host->stat_pending |= 0x2;        /*tc */
                     break;
                 }
             }
@@ -185,7 +185,7 @@ static void omap3_mmc_transfer(struct omap3_mmc_s *host, int msbs, int ace,
             {
             	  /*single block transfer*/
                 host->transfer = 0;
-                host->stat |= 0x2;    /*tc */
+                host->stat_pending |= 0x2;    /*tc */
                 break;
             }
         }
@@ -207,6 +207,7 @@ static void omap3_mmc_transfer(struct omap3_mmc_s *host, int msbs, int ace,
     	}
     	/*clear BRR BWR*/
     	host->stat &= ~0x30;
+        host->stat_pending &= ~0x30;
     }
    else
     {
@@ -215,15 +216,17 @@ static void omap3_mmc_transfer(struct omap3_mmc_s *host, int msbs, int ace,
     	{
     		host->pstate |= 0x800;  /*BRE*/
     		host->pstate &= ~0x400;  /*BWE*/  /*can not write*/
-    		host ->stat |= 0x20;  /*BRR*/
-    		host ->stat &= ~0x10; /*BWR*/
+    		host->stat_pending |= 0x20;  /*BRR*/
+    		host->stat &= ~0x10; /*BWR*/
+            host->stat_pending &= ~0x10;
     	}
     	else
     	{
     		host->pstate &= ~0x800;  /*BRE*/
     		host->pstate |= 0x400;  /*BWE*/
-    		host ->stat |= 0x10;  /*BWR*/
-    		host ->stat &= ~0x20; /*BRR*/
+    		host->stat_pending |= 0x10;  /*BWR*/
+    		host->stat &= ~0x20; /*BRR*/
+            host->stat_pending &= ~0x20;
     	}
     		
     }
@@ -243,9 +246,9 @@ static void omap3_mmc_command(struct omap3_mmc_s *host, int indx, int dp,
 
     //printf("CMD %d host->arg %x \n",indx,host->arg);
 
-    if ((host->con & 0x2) && (indx == 0))
+    if ((host->con & 2) && !indx) /* INIT and CMD0 */
     {
-        host->stat |= 0x1;
+        host->stat_pending |= 0x1;
         host->pstate &= 0xfffffffe;
         return;
     }
@@ -282,13 +285,13 @@ static void omap3_mmc_command(struct omap3_mmc_s *host, int indx, int dp,
             break;
         }
         rsplen = 16;
-        host->psp76 = (response[0] << 24) | (response[1] << 16) |
+        host->rsp76 = (response[0] << 24) | (response[1] << 16) |
             (response[2] << 8) | (response[3] << 0);
-        host->psp54 = (response[4] << 24) | (response[5] << 16) |
+        host->rsp54 = (response[4] << 24) | (response[5] << 16) |
             (response[6] << 8) | (response[7] << 0);
-        host->psp32 = (response[8] << 24) | (response[9] << 16) |
+        host->rsp32 = (response[8] << 24) | (response[9] << 16) |
             (response[10] << 8) | (response[11] << 0);
-        host->psp10 = (response[12] << 24) | (response[13] << 16) |
+        host->rsp10 = (response[12] << 24) | (response[13] << 16) |
             (response[14] << 8) | (response[15] << 0);
         break;
     case sd_48_bits:
@@ -299,7 +302,7 @@ static void omap3_mmc_command(struct omap3_mmc_s *host, int indx, int dp,
             break;
         }
         rsplen = 4;
-        host->psp10 = (response[0] << 24) | (response[1] << 16) |
+        host->rsp10 = (response[0] << 24) | (response[1] << 16) |
             (response[2] << 8) | (response[3] << 0);
         switch (indx)
         {
@@ -323,36 +326,34 @@ static void omap3_mmc_command(struct omap3_mmc_s *host, int indx, int dp,
     }
 
     if (rspstatus & mask & host->csre)
-        host->stat |= 0x10000000;
-    else
+        host->stat_pending |= 0x10000000;
+    else {
         host->stat &= ~0x10000000;
+        host->stat_pending &= ~0x10000000;
+    }
 
     if (timeout)
-        host->stat |= 0x10000;
+        host->stat_pending |= 0x10000;
     else
-        host->stat |= 0x1;
+        host->stat_pending |= 0x1;
 
     /*do we allow to set the stat bit? */
-    host->stat &= host->ie;
+    host->stat_pending &= host->ie;
 
-    if (host->stat & 0xffff0000)
-        host->stat |= 0x8000;
-
-	//printf("after command host->stat %x \n",host->stat);
-	test = 2;
-
+    if (host->stat_pending & 0xffff0000)
+        host->stat_pending |= 0x8000;
 }
 
 static void omap3_mmc_reset(struct omap3_mmc_s *s)
 {
-    s->sysconfig = 0x15;
-    s->con = 0x500;
-    s->capa = 0xe10080;
-    s->rev = 0x26000000;
+    s->sysconfig = 0x00000015;
+    s->con       = 0x00000500;
+    s->pstate    = 0x00040000;
+    s->capa      = 0x00e10080;
+    s->rev       = 0x26000000;
+
     s->fifo_start =0;
     s->fifo_len =0;
-
-
 }
 
 static uint32_t omap3_mmc_read(void *opaque, target_phys_addr_t addr)
@@ -360,7 +361,7 @@ static uint32_t omap3_mmc_read(void *opaque, target_phys_addr_t addr)
     struct omap3_mmc_s *s = (struct omap3_mmc_s *) opaque;
     uint32_t i ;
    //if ((offset!=0x12c)&&(offset!=0x120))
-   //printf("omap3_mmc_read %x pc %x \n",offset,cpu_single_env->regs[15] );
+   //fprintf(stderr, "%s: addr %03x pc %08x \n", __FUNCTION__, addr, cpu_single_env->regs[15]);
     switch (addr)
     {
     case 0x10:
@@ -371,24 +372,24 @@ static uint32_t omap3_mmc_read(void *opaque, target_phys_addr_t addr)
         return s->csre;
     case 0x28:
         return s->systest;
-    case 0x2c:
+    case 0x2c: /* MMCHS_CON */
         return s->con;
     case 0x30:
         return s->pwcnt;
-    case 0x104:
+    case 0x104: /* MMCHS_BLK */
         return s->blk;
-    case 0x108:
+    case 0x108: /* MMCHS_ARG */
         return s->arg;
     case 0x10c:
         return s->cmd;
     case 0x110:
-        return s->psp10;
+        return s->rsp10;
     case 0x114:
-        return s->psp32;
+        return s->rsp32;
     case 0x118:
-        return s->psp54;
+        return s->rsp54;
     case 0x11c:
-        return s->psp76;
+        return s->rsp76;
     case 0x120:
         /*Read Data */
         i = s->fifo[s->fifo_start];
@@ -401,25 +402,21 @@ static uint32_t omap3_mmc_read(void *opaque, target_phys_addr_t addr)
         s->fifo_start ++;
         s->fifo_len --;
         s->fifo_start &= 255;
-         omap3_mmc_transfer(s,(s->cmd>>5)&1,(s->cmd>>2)&1,(s->cmd>>1)&1,(s->cmd)&1);
-        omap3_mmc_fifolevel_update(s,s->cmd*0x1);
+        omap3_mmc_transfer(s,(s->cmd>>5)&1,(s->cmd>>2)&1,(s->cmd>>1)&1,(s->cmd)&1);
+        omap3_mmc_fifolevel_update(s,s->cmd&1);
         omap3_mmc_interrupts_update(s);
         return i;
 
-    case 0x124:
+    case 0x124: /* MMCHS_PSTATE */
         return s->pstate;
     case 0x128:
         return s->hctl;
-    case 0x12c:
-    	//printf("s->sysctl | 0x1 %x \n",s->sysctl | 0x1);
-        return (s->sysctl | 0x2); /*ICS is alway ready*/
-    case 0x130:
-    	if (test==2)
-    		{
-    			test=3;
-    			//printf("s->stat %x \n",s->stat);
-    		}
-    	 
+    case 0x12c: /* MMCHS_SYSCTL */
+        return s->sysctl;
+    case 0x130: /* MMCHS_STAT */
+        s->stat |= s->stat_pending;
+        s->stat_pending = 0;
+        //fprintf(stderr, "%s: MMCHS_STAT = %08x\n", __FUNCTION__, s->stat);
         return s->stat;
     case 0x134:
         return s->ie;
@@ -427,7 +424,7 @@ static uint32_t omap3_mmc_read(void *opaque, target_phys_addr_t addr)
         return s->ise;
     case 0x13c:
         return s->ac12;
-    case 0x140:
+    case 0x140: /* MMCHS_CAPA */
         return s->capa;
     case 0x148:
         return s->cur_capa;
@@ -445,7 +442,7 @@ static void omap3_mmc_write(void *opaque, target_phys_addr_t addr,
                             uint32_t value)
 {
     struct omap3_mmc_s *s = (struct omap3_mmc_s *) opaque;
-	//printf("omap3_mmc_write %x value %x \n",offset,value);
+	//fprintf(stderr, "%s: addr %x value %08x \n", __FUNCTION__, addr, value);
     switch (addr)
     {
     case 0x14:
@@ -459,7 +456,8 @@ static void omap3_mmc_write(void *opaque, target_phys_addr_t addr,
         OMAP_RO_REG(addr);
         exit(-1);
     case 0x10:
-        s->sysconfig = value & 0x30f;
+        if (value & 2) omap3_mmc_reset(s);
+        s->sysconfig = value & 0x31d;
         break;
     case 0x24:
         s->csre = value;
@@ -467,38 +465,34 @@ static void omap3_mmc_write(void *opaque, target_phys_addr_t addr,
     case 0x28:
         s->systest = value;
         break;
-    case 0x2c:
+    case 0x2c: /* MMCHS_CON */
+        if (value & 0x10) {
+            fprintf(stderr, "%s: SYSTEST mode is not supported\n", __FUNCTION__);
+            exit(-1);
+        }
+        if (value & 0x20) {
+            fprintf(stderr, "%s: 8-bit data width is not supported\n", __FUNCTION__);
+            exit(-1);
+        }
         s->con = value & 0x1ffff;
-        if (s->con & 0x10)
-        {
-            fprintf(stderr, "mode =1 is not supported \n");
-            exit(-1);
-        }
-        if (s->con & 0x20)
-        {
-            fprintf(stderr, "DW8 =1 is not supported \n");
-            exit(-1);
-        }
         break;
     case 0x30:
         s->pwcnt = value;
         break;
-    case 0x104:
-        s->blk = value;
+    case 0x104: /* MMCHS_BLK */
+        s->blk = value & 0xffff07ff;
         s->blen_counter = value & 0x7ff;
         s->nblk_counter = (value & 0xffff) >> 16;
         break;
-    case 0x108:
+    case 0x108: /* MMCHS_ARG */
         s->arg = value;
         break;
-    case 0x10c:
-        /*command */
-        s->cmd = value;
-        omap3_mmc_command(s, (value >> 24) & 63, (value >> 21) & 1,
+    case 0x10c: /* MMCHS_CMD */
+        s->cmd = value & 0x3ffb0037;
+        omap3_mmc_command(s, (value >> 24) & 0x3f, (value >> 21) & 1,
                           (value >> 16) & 3, (value >> 4) & 1);
-
         omap3_mmc_transfer(s,(s->cmd>>5)&1,(s->cmd>>2)&1,(s->cmd>>1)&1,(s->cmd)&1);
-        omap3_mmc_fifolevel_update(s,s->cmd*0x1);
+        omap3_mmc_fifolevel_update(s,s->cmd&0x1);
         omap3_mmc_interrupts_update(s);
         break;
     case 0x120:
@@ -508,52 +502,57 @@ static void omap3_mmc_write(void *opaque, target_phys_addr_t addr,
         s->fifo[(s->fifo_start + s->fifo_len) & 255] = value;
         s->fifo_len ++;
         omap3_mmc_transfer(s,(s->cmd>>5)&1,(s->cmd>>2)&1,(s->cmd>>1)&1,(s->cmd)&1);
-        omap3_mmc_fifolevel_update(s,s->cmd*0x1);
+        omap3_mmc_fifolevel_update(s,s->cmd&0x1);
         omap3_mmc_interrupts_update(s);
         break;
 
-    case 0x128:
+    case 0x128: /* MMCHS_HCTL */
         s->hctl = value & 0xf0f0f02;
         break;
-    case 0x12c:
-    	 //printf("write value %x\n",value);
-    	 s->sysctl = value & 0x70fffc7;
-    	 //printf("s->sysctl  %x\n",s->sysctl );
-    	 if (value & 0x04000000)
-    	 {
-    	 	/*SRD*/
-    	 	s->fifo_start =0;
-    	 	s->fifo_len =0;
-    	 	printf("sizeof(s->fifo) %ld \n",sizeof(s->fifo));
-    	 	s->pstate &= ~0xf06;
-    	 	s->hctl &= ~0x3000;
-    	 	s->stat &= ~0x30;
-    	 }
-    	 if (value & (0x1<<24))
-    	 {
-    	   //printf("hehe \n");
-    	 	omap3_mmc_reset(s);
-    	 	s->sysctl &= ~(0x1<<24);
-    	 }
-    	 //printf("s->sysctl1  %x\n",s->sysctl );
-    	 	
+    case 0x12c: /* MMCHS_SYSCTL */
+        if (value & 0x04000000) { /* SRD */
+            s->data    = 0;
+    	 	s->pstate &= ~0x00000f06; /* BRE, BWE, RTA, WTA, DLA, DATI */
+    	 	s->hctl   &= ~0x00030000; /* SGBR, CR */
+    	 	s->stat   &= ~0x00000034; /* BRR, BWR, BGE */
+            s->stat_pending &= ~0x00000034;
+    	 	s->fifo_start = 0;
+    	 	s->fifo_len = 0;
+        }
+        if (value & 0x02000000) { /* SRC */
+            s->pstate &= ~0x00000001; /* CMDI */
+        }
+        if (value & 0x01000000) { /* SRA */
+            uint32_t capa = s->capa;
+            uint32_t cur_capa = s->cur_capa;
+            omap3_mmc_reset(s);
+            s->capa = capa;
+            s->cur_capa = cur_capa;
+        }
+        value = (value & ~2) | ((value & 1) << 1); /* copy ICE directly to ICS */
+        s->sysctl = value & 0x000fffc7;
         break;
     case 0x130:
         value = value & 0X317f0237;
         s->stat &= ~value;
+        /* stat_pending is NOT cleared */
         break;
-    case 0x134:
+    case 0x134: /* MMCHS_IE */
+        if (!(s->con & 0x4000)) /* if CON:OBIE is clear, ignore write to OBI_ENABLE */
+            value = (value & ~0x200) | (s->ie & 0x200);
         s->ie = value & 0x317f0337;
-        if (!(s->ie & 0x100))
+        if (!(s->ie & 0x100)) {
             s->stat &= ~0x100;
+            s->stat_pending &= ~0x100;
+        }
         omap3_mmc_interrupts_update(s);
         break;
     case 0x138:
         s->ise = value & 0x317f0337;
         omap3_mmc_interrupts_update(s);
         break;
-    case 0x140:
-        s->capa = value & 0x7000000;
+    case 0x140: /* MMCHS_CAPA */
+        s->capa = value & 0x07000000;
         break;
     case 0x148:
         s->cur_capa = value & 0xffffff;

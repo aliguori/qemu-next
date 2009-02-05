@@ -974,6 +974,12 @@ struct omap_i2c_s *omap2_i2c_init(struct omap_target_agent_s *ta,
 void omap_i2c_reset(struct omap_i2c_s *s);
 i2c_bus *omap_i2c_bus(struct omap_i2c_s *s);
 
+/* omap3_i2c.c */
+struct omap3_i2c_s *omap3_i2c_init(struct omap_target_agent_s *ta,
+                qemu_irq irq, qemu_irq *dma, omap_clk fclk, omap_clk iclk);
+i2c_bus *omap3_i2c_bus(struct omap3_i2c_s *s);
+
+
 # define cpu_is_omap310(cpu)		(cpu->mpu_model == omap310)
 # define cpu_is_omap1510(cpu)		(cpu->mpu_model == omap1510)
 # define cpu_is_omap1610(cpu)		(cpu->mpu_model == omap1610)
@@ -1152,6 +1158,8 @@ struct omap_mpu_state_s {
     struct omap3_scm_s *omap3_scm;
     struct omap3_pm_s *omap3_pm;
     struct omap3_sms_s *omap3_sms;
+    struct omap3_i2c_s *omap3_i2c[3];
+    struct omap3_mmc_s *omap3_mmc;
 };
 
 struct omap_target_agent_s {

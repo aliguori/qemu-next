@@ -33,7 +33,6 @@
 #include "block.h"
 
 #define BEAGLE_NAND_CS			0
-#define BEAGLE_TWL4030_ADDR		0x4b	/* Power management */
 
 #define GPMC_NOR             0
 #define GPMC_NAND           1
@@ -63,6 +62,7 @@ struct beagle_s {
     struct nand_bflash_s *nand;
     struct omap3_lcd_panel_s *lcd_panel;
     i2c_bus *i2c;
+    struct twl4030_s *twl4030;
 };
 
 
@@ -387,15 +387,10 @@ static void beagle_mmc_cs_cb(void *opaque, int line, int level)
 
 static void beagle_i2c_setup(struct beagle_s *s)
 {
-
     /* Attach the CPU on one end of our I2C bus.  */
-    s->i2c = omap_i2c_bus(s->cpu->i2c[0]);
+    s->i2c = omap3_i2c_bus(s->cpu->omap3_i2c[0]);
 
-    /* Attach a menelaus PM chip */
-    i2c_set_slave_address(
-                    twl4030_init(s->i2c,
-                            s->cpu->irq[0][OMAP_INT_35XX_SYS_NIRQ]),
-                    BEAGLE_TWL4030_ADDR);
+    s->twl4030 = twl4030_init(s->i2c, s->cpu->irq[0][OMAP_INT_35XX_SYS_NIRQ]);
 }
 
 
