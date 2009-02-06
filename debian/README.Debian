@@ -1,0 +1,25 @@
+qemu for Debian
+---------------
+
+The qemu debian package does not include the video.x file, which is 
+needed by qemu-system-ppc for some systems. The file is available from
+the mac-on-linux project, and the sources are available on:
+  http://mac-on-linux.svn.sourceforge.net/viewvc/mac-on-linux/mac-drivers/video_driver/Makefile?revision=HEAD&view=markup
+
+They are not buildable on a Debian system though, hence video.x is not
+present in the package. The qemu-system-ppc binary is still useful for
+emulating a PReP platform, which does not need video.x.
+
+ -- Aurelien Jarno <aurel32@debian.org>  Sun, 16 Mar 2008 19:17:39 +0100
+
+
+The qemu debian package includes a simple script called qemu-make-debian-root
+under /usr/sbin, which uses debootstrap to create an image suitable for qemu
+with a fresh Debian installation inside.
+
+If you just want a test system, not wanting to go through any installation
+process, that might be just ideal. Take a look at the manual page
+qemu-make-debian-root (8) for further usage instructions.
+
+ -- Guilherme de S. Pastore <gpastore@colband.com.br>, Sun May 15 09:49:11 2005
+

@@ -1,0 +1,3 @@
+version=3
+
+http://bellard.org/qemu/download.html	qemu-([\d.]*).tar.gz	debian	uupdate

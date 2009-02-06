@@ -1,0 +1,53 @@
+This package was debianized by Paul Russell <prussell@debian.org> on
+Wed,  3 Mar 2004 02:18:54 +0100.
+
+Then maintained as part of the team by:
+
+    Guilherme de S. Pastore <gpastore@debian.org>
+    Elrond <elrond@samba-tng.org>
+    Guillem Jover <guillem@debian.org>
+
+Now maintained as a team by:
+
+    Aurelien Jarno <aurel32@debian.org>
+    Josh Triplett <josh@psas.pdx.edu>
+    Riku Voipio <riku@debian.org>
+
+The upstream source was downloaded from:
+
+    <http://www.qemu.org/download.html>
+
+    All the binary blobs without sources contained in the pc-bios/ directory
+    in the original upstream tarball have been removed starting from Debian
+    package version 0.6.0.dfsg.1-1. Those roms which are free can be found
+    in split packages of their own, represented accordingly in the dependecy
+    relationships.
+
+Upstream Author:
+
+    Fabrice Bellard <fabrice.bellard@free.fr>
+
+Copyright:
+
+    Copyright (C) 2003, 2004, 2005, 2006, 2007  Fabrice Bellard
+
+License:
+
+    QEMU as a whole is released under the GNU General Public License.
+    On Debian systems, the complete text of the GNU General Public License
+    can be found in the file /usr/share/common-licenses/GPL.
+
+    Parts of QEMU have specific licenses which are compatible with the
+    GNU General Public License. Hence each source file contains its own
+    licensing information.
+
+    In particular, the QEMU virtual CPU core library (libqemu.a) is
+    released under the GNU Lesser General Public License. On Debian systems,
+    the complete text of the GNU Lesser General Public License can be found
+    in the file /usr/share/common-licenses/LGPL.
+
+    Many hardware device emulation sources are released under the BSD license.
+    On Debian systems, the complete text of the BSD license be found in the
+    file /usr/share/common-licenses/BSD.
+
+

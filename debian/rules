@@ -1,0 +1,132 @@
+#!/usr/bin/make -f
+#
+# $Id: rules 366 2008-12-23 16:19:26Z aurel32 $
+#
+
+ifneq (,$(findstring noopt,$(DEB_BUILD_OPTIONS)))
+	CFLAGS = -O0
+endif
+
+# Support multiple makes at once
+ifneq (,$(filter parallel=%,$(DEB_BUILD_OPTIONS)))
+NJOBS := -j $(patsubst parallel=%,%,$(filter parallel=%,$(DEB_BUILD_OPTIONS)))
+endif
+
+# Architecture/system specific configuration
+DEB_HOST_ARCH_OS = $(shell dpkg-architecture -qDEB_HOST_ARCH_OS)
+DEB_HOST_ARCH_CPU = $(shell dpkg-architecture -qDEB_HOST_ARCH_CPU)
+
+
+TARGET_SYSTEM_TCG    = arm-softmmu i386-softmmu
+TARGET_LINUX_TCG     = arm-linux-user i386-linux-user
+package_list		 = obj-sb2/config-host.mak
+install_list		 = sb2-qemu-install
+sb1_prefix			 = /scratchbox/devkits/cputransp
+
+target_system_list = $(TARGET_SYSTEM_TCG)
+
+ifeq ($(DEB_HOST_ARCH_OS),linux)
+       conf_arch += --audio-drv-list=sdl
+       target_linux_list += $(TARGET_LINUX_TCG)
+endif
+ifeq ($(DEB_HOST_ARCH_OS),kfreebsd)
+       conf_arch += --audio-drv-list=oss,sdl,esd,pa
+endif
+
+ifeq ($(DEB_HOST_ARCH_CPU),i386)
+       conf_arch += --cpu=i386
+       package_list += obj-sb1/config-host.mak
+       install_list += sb1-qemu-install
+       SB1_LDFLAGS=-L/scratchbox/tools/lib -lsb -ldl
+endif
+ifeq ($(DEB_HOST_ARCH_CPU),sparc)
+       conf_arch += --cpu=sparc
+endif
+
+qemu_docs = \
+	qemu-doc.html \
+	qemu-tech.html \
+	qemu.1 \
+	qemu-img.1
+
+obj-sb2/config-host.mak: configure
+	dh_testdir
+	mkdir obj-sb2
+	( cd obj-sb2; CFLAGS="$(CFLAGS)" ../configure \
+		--prefix=/usr \
+		--disable-blobs \
+		--target-list="$(target_system_list) $(target_linux_list)" \
+		$(conf_arch) )
+	( cd obj-sb2; $(MAKE) $(NJOBS) )
+
+obj-sb1/config-host.mak: configure
+	dh_testdir
+	mkdir obj-sb1
+	( cd obj-sb1; LDFLAGS="$(SB1_LDFLAGS)" CFLAGS="$(CFLAGS)"  ../configure \
+		--prefix=$(sb1_prefix) \
+		--static \
+		--target-list="arm-linux-user" \
+		--disable-kqemu --disable-sdl )
+	( cd obj-sb1; $(MAKE) $(NJOBS) )
+
+build: $(package_list)
+
+clean:
+	dh_testdir
+	dh_testroot
+	
+	[ ! -f config-host.mak ] || $(MAKE) distclean
+	
+	rm -rf obj-sb1 obj-sb2
+	rm -f $(qemu_docs)
+	
+	dh_clean
+
+# cputransp-methods should be generated at postinst
+sb1-qemu-install:
+	mkdir -p debian/sb1-qemu/$(sb1_prefix)/{bin,etc}
+	cp debian/cputransp-methods debian/sb1-qemu/$(sb1_prefix)/etc
+	cp obj-sb1/*-linux-user/qemu-* debian/sb1-qemu/$(sb1_prefix)/bin
+	ln -sf $(sb1_prefix)/bin/qemu-arm debian/sb1-qemu/$(sb1_prefix)/bin/qemu-arm-cvs-m
+
+sb2-qemu-install:
+	mkdir -p debian/sb2-qemu/usr/bin
+	cp obj-sb2/arm-linux-user/qemu-arm debian/sb2-qemu/usr/bin/sb2-qemu-arm
+	cp obj-sb2/i386-linux-user/qemu-i386  debian/sb2-qemu/usr/bin/sb2-qemu-i386
+	cp obj-sb2/arm-softmmu/qemu-system-arm  debian/sb2-qemu/usr/bin/sb2-qemu-system-arm
+	cp obj-sb2/i386-softmmu/qemu  debian/sb2-qemu/usr/bin/sb2-qemu-system-i386
+
+install: build $(install_list)
+	dh_testdir
+	dh_testroot
+#	dh_clean -k
+	dh_installdirs -a
+
+binary-indep:
+# Nothing to do.
+
+binary-arch: install
+	dh_testdir
+	dh_testroot
+#	dh_install -a
+#	dh_installdebconf -a
+	dh_installdocs -s
+	dh_installexamples -s
+#	dh_installlogrotate -a
+	dh_installman -s
+	dh_installinfo -s
+	dh_installchangelogs -s Changelog
+	dh_link -s
+	dh_strip -s
+	dh_compress -s
+	dh_fixperms -s
+	dh_installdeb -s
+	dh_shlibdeps -s
+	dh_gencontrol -s
+	dh_md5sums -s
+	dh_builddeb -s
+
+binary: binary-indep binary-arch
+
+.PHONY: build clean binary-indep binary-arch binary install
+

@@ -1,0 +1,3 @@
+debian/qemu-ifup etc/
+debian/qemu-make-debian-root usr/sbin/
+debian/overrides/qemu usr/share/lintian/overrides/

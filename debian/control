@@ -1,0 +1,31 @@
+Source: qemu
+Section: misc
+Priority: optional
+Maintainer: Debian QEMU Team <pkg-qemu-devel@lists.alioth.debian.org>
+Uploaders: Aurelien Jarno <aurel32@debian.org>, Riku Voipio <riku@debian.org>,
+ Josh Triplett <josh@psas.pdx.edu>
+Build-Depends: debhelper (>= 5), quilt (>= 0.40), binutils (>= 2.16), nasm,
+ libx11-dev, libsdl1.2-dev (>> 1.2.1), libncurses5-dev, zlib1g-dev,
+ texi2html, sharutils, libgnutls-dev, libesd0-dev, libbrlapi-dev, etherboot,
+ libpulse-dev,
+ libvdeplug2-dev [!kfreebsd-i386 !kfreebsd-amd64],
+ libfreebsd-dev [kfreebsd-i386 kfreebsd-amd64], 
+ libasound2-dev [!kfreebsd-i386 !kfreebsd-amd64],
+ libbluetooth-dev [!kfreebsd-i386 !kfreebsd-amd64],
+ libgpmg1-dev [amd64 arm armel hppa i386 powerpc sparc ppc64]
+Standards-Version: 3.8.0
+
+Package: sb2-qemu
+Architecture: amd64 i386 powerpc
+Depends: ${shlibs:Depends}, ${misc:Depends}
+Description: Qemu for scratchbox2
+ Qemu packaging for sb2. This should become eventually temporary
+ when mainstream qemu merges any remaining patches.
+
+Package: sb1-qemu
+Architecture: i386
+Depends: ${shlibs:Depends}, ${misc:Depends}
+Replaces: scratchbox-devkit-cputransp
+Conflicts: scratchbox-devkit-cputransp
+Description: Qemu scratchbox devkit
+ The qemu for the scratchbox1 lovers.
