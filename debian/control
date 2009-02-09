@@ -12,7 +12,8 @@ Build-Depends: debhelper (>= 5), quilt (>= 0.40), binutils (>= 2.16), nasm,
  libfreebsd-dev [kfreebsd-i386 kfreebsd-amd64], 
  libasound2-dev [!kfreebsd-i386 !kfreebsd-amd64],
  libbluetooth-dev [!kfreebsd-i386 !kfreebsd-amd64],
- libgpmg1-dev [amd64 arm armel hppa i386 powerpc sparc ppc64]
+ libgpmg1-dev [amd64 arm armel hppa i386 powerpc sparc ppc64],
+ scratchbox-core [i386] (>= 1.0.12)
 Standards-Version: 3.8.0
 
 Package: sb2-qemu
