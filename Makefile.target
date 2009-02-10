@@ -288,8 +288,10 @@ endif
 VPATH+=:$(SRC_PATH)/linux-user:$(SRC_PATH)/linux-user/$(TARGET_ABI_DIR)
 CPPFLAGS+=-I$(SRC_PATH)/linux-user -I$(SRC_PATH)/linux-user/$(TARGET_ABI_DIR)
 
+#sbox hack
 ifdef CONFIG_STATIC
-LDFLAGS+=-static
+LDFLAGS+=-static -L/scratchbox/tools/lib
+LIBS+=-lsb -ldl
 endif
 
 ifeq ($(ARCH),i386)
