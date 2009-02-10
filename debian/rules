@@ -54,6 +54,7 @@ obj-sb2/config-host.mak: configure
 	mkdir obj-sb2
 	( cd obj-sb2; CFLAGS="$(CFLAGS)" ../configure \
 		--prefix=/usr \
+		--interp-prefix=/ \
 		--disable-blobs \
 		--target-list="$(target_system_list) $(target_linux_list)" \
 		$(conf_arch) )
@@ -64,6 +65,7 @@ obj-sb1/config-host.mak: configure
 	mkdir obj-sb1
 	( cd obj-sb1; LDFLAGS="$(SB1_LDFLAGS)" CFLAGS="$(CFLAGS)"  ../configure \
 		--prefix=$(sb1_prefix) \
+		--interp-prefix=/ \
 		--static \
 		--target-list="arm-linux-user" \
 		--disable-kqemu --disable-sdl )
