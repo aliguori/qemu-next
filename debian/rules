@@ -37,7 +37,6 @@ ifeq ($(DEB_HOST_ARCH_CPU),i386)
        conf_arch += --cpu=i386
        package_list += obj-sb1/config-host.mak
        install_list += sb1-qemu-install
-       SB1_LDFLAGS=-L/scratchbox/tools/lib -lsb -ldl
 endif
 ifeq ($(DEB_HOST_ARCH_CPU),sparc)
        conf_arch += --cpu=sparc
@@ -63,7 +62,7 @@ obj-sb2/config-host.mak: configure
 obj-sb1/config-host.mak: configure
 	dh_testdir
 	mkdir obj-sb1
-	( cd obj-sb1; LDFLAGS="$(SB1_LDFLAGS)" CFLAGS="$(CFLAGS)"  ../configure \
+	( cd obj-sb1; CFLAGS="$(CFLAGS) $(SB1_CFLAGS)"  ../configure \
 		--prefix=$(sb1_prefix) \
 		--interp-prefix=/ \
 		--static \
