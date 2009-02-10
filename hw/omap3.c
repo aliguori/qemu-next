@@ -4133,21 +4133,24 @@ struct omap_mpu_state_s *omap3530_mpu_init(unsigned long sdram_size,
                     &s->drq[OMAP35XX_DMA_MMC1_TX],
                     omap_findclk(s, "omap3_mmc1_fclk"), omap_findclk(s, "omap3_mmc1_iclk"));
 
-    s->omap3_i2c[0] = omap3_i2c_init(omap3_l4ta_get(s->l4, 32),
-                    s->irq[0][OMAP_INT_35XX_I2C1_IRQ],
-                    &s->drq[OMAP35XX_DMA_I2C1_TX],
-                    omap_findclk(s, "omap3_i2c1_fclk"),
-                    omap_findclk(s, "omap3_i2c1_iclk"));
-    s->omap3_i2c[1] = omap3_i2c_init(omap3_l4ta_get(s->l4, 33),
-                    s->irq[0][OMAP_INT_35XX_I2C2_IRQ],
-                    &s->drq[OMAP35XX_DMA_I2C2_TX],
-                    omap_findclk(s, "omap3_i2c2_fclk"),
-                    omap_findclk(s, "omap3_i2c2_iclk"));
-    s->omap3_i2c[2] = omap3_i2c_init(omap3_l4ta_get(s->l4, 34),
-                    s->irq[0][OMAP_INT_35XX_I2C3_IRQ],
-                    &s->drq[OMAP35XX_DMA_I2C3_TX],
-                    omap_findclk(s, "omap3_i2c3_fclk"),
-                    omap_findclk(s, "omap3_i2c3_iclk"));
+    s->i2c[0] = omap3_i2c_init(omap3_l4ta_get(s->l4, 32),
+                               s->irq[0][OMAP_INT_35XX_I2C1_IRQ],
+                               &s->drq[OMAP35XX_DMA_I2C1_TX],
+                               omap_findclk(s, "omap3_i2c1_fclk"),
+                               omap_findclk(s, "omap3_i2c1_iclk"),
+                               8);
+    s->i2c[1] = omap3_i2c_init(omap3_l4ta_get(s->l4, 33),
+                               s->irq[0][OMAP_INT_35XX_I2C2_IRQ],
+                               &s->drq[OMAP35XX_DMA_I2C2_TX],
+                               omap_findclk(s, "omap3_i2c2_fclk"),
+                               omap_findclk(s, "omap3_i2c2_iclk"),
+                               8);
+    s->i2c[2] = omap3_i2c_init(omap3_l4ta_get(s->l4, 34),
+                               s->irq[0][OMAP_INT_35XX_I2C3_IRQ],
+                               &s->drq[OMAP35XX_DMA_I2C3_TX],
+                               omap_findclk(s, "omap3_i2c3_fclk"),
+                               omap_findclk(s, "omap3_i2c3_iclk"),
+                               64);
 
     return s;
 }

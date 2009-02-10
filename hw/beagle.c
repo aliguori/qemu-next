@@ -388,7 +388,7 @@ static void beagle_mmc_cs_cb(void *opaque, int line, int level)
 static void beagle_i2c_setup(struct beagle_s *s)
 {
     /* Attach the CPU on one end of our I2C bus.  */
-    s->i2c = omap3_i2c_bus(s->cpu->omap3_i2c[0]);
+    s->i2c = omap_i2c_bus(s->cpu->i2c[0]);
 
     s->twl4030 = twl4030_init(s->i2c, s->cpu->irq[0][OMAP_INT_35XX_SYS_NIRQ]);
 }
