@@ -2237,7 +2237,7 @@ void init_task_state(TaskState *ts)
  
 int main(int argc, char **argv, char **envp)
 {
-    const char *filename;
+    char *filename = NULL;
     const char *cpu_model;
     struct target_pt_regs regs1, *regs = &regs1;
     struct image_info info1, *info = &info1;
@@ -2313,7 +2313,9 @@ int main(int argc, char **argv, char **envp)
             argv0 = r;
         } else if (!strcmp(r,"-sbox-call")) {
            r = argv[optind++];
-           argv0 = r;
+           filename = r;
+           exec_path = r;
+           argv0 = argv[optind+2];
         } else if (!strcmp(r, "s")) {
             r = argv[optind++];
             x86_stack_size = strtol(r, (char **)&r, 0);
@@ -2356,8 +2358,10 @@ int main(int argc, char **argv, char **envp)
     }
     if (optind >= argc)
         usage();
-    filename = argv[optind];
-    exec_path = argv[optind];
+    if (filename == NULL) {
+        filename = argv[optind];
+        exec_path = argv[optind];
+    }
 
     /* Zero out regs */
     memset(regs, 0, sizeof(struct target_pt_regs));
