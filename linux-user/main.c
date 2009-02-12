@@ -2249,7 +2249,7 @@ int main(int argc, char **argv, char **envp)
     char **target_environ, **wrk;
     char **target_argv;
     int target_argc;
-    int drop_ld_preload = 1;
+    int drop_ld_preload = 0;
     envlist_t *envlist = NULL;
     const char *argv0 = NULL;
     int i;
