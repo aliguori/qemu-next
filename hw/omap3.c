@@ -301,7 +301,7 @@ static struct omap_l4_agent_info_s omap3_l4_agent_info[] = {
     {21,  75, 2, 1},  /* GPIO1 */
     {22, 121, 2, 1},  /* GPIO2 */
     {23, 123, 2, 1},  /* GPIO3 */
-    {24, 124, 2, 1},  /* GPIO4 */
+    {24, 125, 2, 1},  /* GPIO4 */
     {25, 127, 2, 1},  /* GPIO5 */
     {26, 129, 2, 1},  /* GPIO6 */
     {27,  73, 2, 1},  /* TAP */
@@ -3699,7 +3699,7 @@ struct omap_mpu_state_s *omap3530_mpu_init(unsigned long sdram_size,
 
 
     s->mpu_model = omap3530;
-    s->env = cpu_init("cortex-a8");
+    s->env = cpu_init("cortex-a8-r2");
     if (!s->env)
     {
         fprintf(stderr, "Unable to find CPU definition\n");
@@ -3888,7 +3888,7 @@ struct omap_mpu_state_s *omap3530_mpu_init(unsigned long sdram_size,
                     &s->irq[0][OMAP_INT_35XX_GPIO_BANK6], 
                     NULL,NULL,5);
 
-     omap_tap_init(omap3_l4ta_get(s->l4, 27), s);
+    omap_tap_init(omap3_l4ta_get(s->l4, 27), s);
 
     s->omap3_mmc = omap3_mmc_init(omap3_l4ta_get(s->l4, 28), drives_table[sdindex].bdrv,
                     s->irq[0][OMAP_INT_35XX_MMC1_IRQ],

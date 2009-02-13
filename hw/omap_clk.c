@@ -955,7 +955,7 @@ static struct clk omap3_sys_32k = {
 
 static struct clk omap3_sys_xtalin = {
     .name	= "omap3_sys_xtalin",
-    .rate	= 13000000,
+    .rate	= 26000000,
     .flags	= CLOCK_IN_OMAP353X  | ALWAYS_ENABLED,
 };
 
