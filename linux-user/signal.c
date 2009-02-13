@@ -356,6 +356,7 @@ static void __attribute((noreturn)) force_sig(int sig)
     host_sig = target_to_host_signal(sig);
     fprintf(stderr, "qemu: uncaught target signal %d (%s) - exiting\n",
             sig, strsignal(host_sig));
+    gdb_signalled(thread_env, sig);
 
     /* The proper exit code for dieing from an uncaught signal is
      * -<signal>.  The kernel doesn't allow exit() or _exit() to pass
