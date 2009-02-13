@@ -29,12 +29,12 @@
 #include "soc_dma.h"
 #include "audio/audio.h"
 
-//#define _OMAP3_DEBUG_
+//#define OMAP3_DEBUG_
 
-#ifdef _OMAP3_DEBUG_
-#define OMAP3_DEBUG(x)    do {  printf x ; } while(0)
+#ifdef OMAP3_DEBUG_
+#define TRACE(fmt, ...) fprintf(stderr, "%s " fmt "\n", __FUNCTION__, ##__VA_ARGS__)
 #else
-#define OMAP3_DEBUG(x) 
+#define TRACE(...) 
 #endif
 
 static uint32_t omap3_l4ta_read(void *opaque, target_phys_addr_t addr)
@@ -603,6 +603,7 @@ static uint32_t omap3_prm_read(void *opaque, target_phys_addr_t addr)
 {
     struct omap3_prm_s *s = (struct omap3_prm_s *)opaque;
 
+    TRACE("%04x", addr);
     switch (addr) {
         /* IVA2_PRM */
         case 0x0050: return s->rm_rstctrl_iva2;
@@ -737,6 +738,7 @@ static void omap3_prm_write(void *opaque, target_phys_addr_t addr,
 {
     struct omap3_prm_s *s = (struct omap3_prm_s *)opaque;
 
+    TRACE("%04x = %08x", addr, value);
     switch (addr) {
         /* IVA2_PRM */
         case 0x0050: s->rm_rstctrl_iva2 = value & 0x7; break;
@@ -870,7 +872,6 @@ static void omap3_prm_write(void *opaque, target_phys_addr_t addr,
             break;
     }
 }
-
 
 static CPUReadMemoryFunc *omap3_prm_readfn[] = {
     omap_badwidth_read32,
@@ -1079,7 +1080,8 @@ static inline void omap3_cm_clksel_wkup_update(struct omap3_cm_s *s,
     /*Tell GPTIMER to generate new clk rate */
     omap_gp_timer_change_clk(s->mpu->gptimer[0]);
 
-    OMAP3_DEBUG(("omap3_gp1_fclk %lld \n",omap_clk_getrate(omap_findclk(s->mpu, "omap3_gp1_fclk"))));
+    TRACE("omap3_gp1_fclk %lld",
+          omap_clk_getrate(omap_findclk(s->mpu, "omap3_gp1_fclk")));
 
     /*TODO:CM_USIM_CLK CLKSEL_RM */
 }
@@ -1206,7 +1208,7 @@ static inline void omap3_cm_dpll3_update(struct omap3_cm_s *s)
         	/*override control of DPLL3*/
         	m = (s->cm_clksel2_emu&0x7ff)>>8;
         	n =  s->cm_clksel2_emu&0x7f;
-        	OMAP3_DEBUG(("DPLL3 override, m 0x%x n 0x%x \n",m,n));
+        	TRACE("DPLL3 override, m 0x%x n 0x%x",m,n);
         }
 
         //OMAP3_DEBUG(("dpll3 cm_clksel1_pll %x m  %d n %d m2 %d  m3 %d\n",s->cm_clksel1_pll,m,n,m2,m3 ));
@@ -1216,7 +1218,8 @@ static inline void omap3_cm_dpll3_update(struct omap3_cm_s *s)
                          m * 2);
         omap_clk_setrate(omap_findclk(s->mpu, "omap3_emu_core_alwon_clk"),
                          (n + 1) * m3, m * 2);
-        OMAP3_DEBUG(("coreclk %lld \n",omap_clk_getrate(omap_findclk(s->mpu, "omap3_core_clk"))));
+        TRACE("coreclk %lld",
+              omap_clk_getrate(omap_findclk(s->mpu, "omap3_core_clk")));
     }
 
 
@@ -1265,7 +1268,7 @@ static inline void omap3_cm_dpll4_update(struct omap3_cm_s *s)
         	/*override control of DPLL4*/
         	m = (s->cm_clksel3_emu&0x7ff)>>8;
         	n =  s->cm_clksel3_emu&0x7f;
-        	OMAP3_DEBUG(("DPLL4 override, m 0x%x n 0x%x \n",m,n));
+        	TRACE("DPLL4 override, m 0x%x n 0x%x",m,n);
         }
 
 
@@ -1281,15 +1284,20 @@ static inline void omap3_cm_dpll4_update(struct omap3_cm_s *s)
         omap_clk_setrate(omap_findclk(s->mpu, "omap3_per_alwon_clk"),
                          (n + 1) * m6, m * 2);
 
-        OMAP3_DEBUG(("omap3_96m_fclk %lld \n",omap_clk_getrate(omap_findclk(s->mpu, "omap3_96m_fclk"))));
-        OMAP3_DEBUG(("omap3_54m_fclk %lld \n",omap_clk_getrate(omap_findclk(s->mpu, "omap3_54m_fclk"))));
-        OMAP3_DEBUG(("omap3_dss1_alwon_fclk %lld \n",omap_clk_getrate(omap_findclk(s->mpu, "omap3_dss1_alwon_fclk"))));
-        OMAP3_DEBUG(("omap3_cam_mclk %lld \n",omap_clk_getrate(omap_findclk(s->mpu, "omap3_cam_mclk"))));
-        OMAP3_DEBUG(("omap3_per_alwon_clk %lld \n",omap_clk_getrate(omap_findclk(s->mpu, "omap3_per_alwon_clk"))));
-        OMAP3_DEBUG(("omap3_48m_fclk %lld \n",omap_clk_getrate(omap_findclk(s->mpu, "omap3_48m_fclk"))));
-        OMAP3_DEBUG(("omap3_12m_fclk %lld \n",omap_clk_getrate(omap_findclk(s->mpu, "omap3_12m_fclk"))));
-
-        		//printf("omap3_cm_dpll4_update \n");
+        TRACE("omap3_96m_fclk %lld",
+              omap_clk_getrate(omap_findclk(s->mpu, "omap3_96m_fclk")));
+        TRACE("omap3_54m_fclk %lld",
+              omap_clk_getrate(omap_findclk(s->mpu, "omap3_54m_fclk")));
+        TRACE("omap3_dss1_alwon_fclk %lld",
+              omap_clk_getrate(omap_findclk(s->mpu, "omap3_dss1_alwon_fclk")));
+        TRACE("omap3_cam_mclk %lld",
+              omap_clk_getrate(omap_findclk(s->mpu, "omap3_cam_mclk")));
+        TRACE("omap3_per_alwon_clk %lld",
+              omap_clk_getrate(omap_findclk(s->mpu, "omap3_per_alwon_clk")));
+        TRACE("omap3_48m_fclk %lld",
+              omap_clk_getrate(omap_findclk(s->mpu, "omap3_48m_fclk")));
+        TRACE("omap3_12m_fclk %lld",
+              omap_clk_getrate(omap_findclk(s->mpu, "omap3_12m_fclk")));
     }
 }
 
@@ -1316,10 +1324,11 @@ static inline void omap3_cm_dpll5_update(struct omap3_cm_s *s)
         n = s->cm_clksel4_pll & 0x3f00;
         m2 = s->cm_clksel5_pll & 0x1f;
 
-        OMAP3_DEBUG(("dpll5 m %d n %d m2 %d\n",m,n,m2 ));
+        TRACE("dpll5 m %d n %d m2 %d",m,n,m2);
         omap_clk_setrate(omap_findclk(s->mpu, "omap3_120m_fclk"), (n + 1) * m2,
                          m);
-        OMAP3_DEBUG(("omap3_120m_fclk %lld \n",omap_clk_getrate(omap_findclk(s->mpu, "omap3_120m_fclk"))));
+        TRACE("omap3_120m_fclk %lld",
+              omap_clk_getrate(omap_findclk(s->mpu, "omap3_120m_fclk")));
     }
 
 
@@ -1360,7 +1369,8 @@ static inline void omap3_cm_gp10_update(struct omap3_cm_s *s)
 
     /*Tell GPTIMER10 to generate new clk rate */
     omap_gp_timer_change_clk(s->mpu->gptimer[9]);
-    OMAP3_DEBUG(("omap3_gp10_fclk %lld \n",omap_clk_getrate(omap_findclk(s->mpu, "omap3_gp10_fclk"))));
+    TRACE("omap3_gp10_fclk %lld",
+          omap_clk_getrate(omap_findclk(s->mpu, "omap3_gp10_fclk")));
 }
 
 static inline void omap3_cm_gp11_update(struct omap3_cm_s *s)
@@ -1371,9 +1381,10 @@ static inline void omap3_cm_gp11_update(struct omap3_cm_s *s)
         omap_clk_reparent(gp11_fclk, omap_findclk(s->mpu, "omap3_sys_clk"));
     else
         omap_clk_reparent(gp11_fclk, omap_findclk(s->mpu, "omap3_32k_fclk"));
-    /*Tell GPTIMER10 to generate new clk rate */
+    /*Tell GPTIMER11 to generate new clk rate */
     omap_gp_timer_change_clk(s->mpu->gptimer[10]);
-    OMAP3_DEBUG(("omap3_gp11_fclk %lld \n",omap_clk_getrate(omap_findclk(s->mpu, "omap3_gp11_fclk"))));
+    TRACE("omap3_gp11_fclk %lld",
+          omap_clk_getrate(omap_findclk(s->mpu, "omap3_gp11_fclk")));
 }
 
 static inline void omap3_cm_l3clk_update(struct omap3_cm_s *s)
@@ -1464,14 +1475,22 @@ static inline void omap3_cm_per_gptimer_update(struct omap3_cm_s *s)
     omap_gp_timer_change_clk(s->mpu->gptimer[8]);
 
     /*TODO:Tell GPTIMER to generate new clk rate */
-    OMAP3_DEBUG(("omap3_gp2_fclk %lld \n",omap_clk_getrate(omap_findclk(s->mpu, "omap3_gp2_fclk"))));
-    OMAP3_DEBUG(("omap3_gp3_fclk %lld \n",omap_clk_getrate(omap_findclk(s->mpu, "omap3_gp3_fclk"))));
-	OMAP3_DEBUG(("omap3_gp4_fclk %lld \n",omap_clk_getrate(omap_findclk(s->mpu, "omap3_gp4_fclk"))));
-    OMAP3_DEBUG(("omap3_gp5_fclk %lld \n",omap_clk_getrate(omap_findclk(s->mpu, "omap3_gp5_fclk"))));
-    OMAP3_DEBUG(("omap3_gp6_fclk %lld \n",omap_clk_getrate(omap_findclk(s->mpu, "omap3_gp6_fclk"))));
-    OMAP3_DEBUG(("omap3_gp7_fclk %lld \n",omap_clk_getrate(omap_findclk(s->mpu, "omap3_gp7_fclk"))));
-    OMAP3_DEBUG(("omap3_gp8_fclk %lld \n",omap_clk_getrate(omap_findclk(s->mpu, "omap3_gp8_fclk"))));
-    OMAP3_DEBUG(("omap3_gp9_fclk %lld \n",omap_clk_getrate(omap_findclk(s->mpu, "omap3_gp9_fclk"))));
+    TRACE("omap3_gp2_fclk %lld",
+          omap_clk_getrate(omap_findclk(s->mpu, "omap3_gp2_fclk")));
+    TRACE("omap3_gp3_fclk %lld",
+          omap_clk_getrate(omap_findclk(s->mpu, "omap3_gp3_fclk")));
+	TRACE("omap3_gp4_fclk %lld",
+          omap_clk_getrate(omap_findclk(s->mpu, "omap3_gp4_fclk")));
+    TRACE("omap3_gp5_fclk %lld",
+          omap_clk_getrate(omap_findclk(s->mpu, "omap3_gp5_fclk")));
+    TRACE("omap3_gp6_fclk %lld",
+          omap_clk_getrate(omap_findclk(s->mpu, "omap3_gp6_fclk")));
+    TRACE("omap3_gp7_fclk %lld",
+          omap_clk_getrate(omap_findclk(s->mpu, "omap3_gp7_fclk")));
+    TRACE("omap3_gp8_fclk %lld",
+          omap_clk_getrate(omap_findclk(s->mpu, "omap3_gp8_fclk")));
+    TRACE("omap3_gp9_fclk %lld",
+          omap_clk_getrate(omap_findclk(s->mpu, "omap3_gp9_fclk")));
 }
 
 static inline void omap3_cm_clkout2_update(struct omap3_cm_s *s)
@@ -1632,6 +1651,7 @@ static uint32_t omap3_cm_read(void *opaque, target_phys_addr_t addr)
     uint32_t ret;
     uint32_t bypass = 0, m;
 
+    TRACE("%04x", addr);
     switch (addr)
     {
     case 0x0:
@@ -1922,6 +1942,7 @@ static void omap3_cm_write(void *opaque, target_phys_addr_t addr,
 {
     struct omap3_cm_s *s = (struct omap3_cm_s *) opaque;
 
+    TRACE("%04x = %08x", addr, value);
     switch (addr)
     {
     case 0x20:
