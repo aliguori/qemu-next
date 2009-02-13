@@ -39,48 +39,61 @@
 
 static uint32_t omap3_l4ta_read(void *opaque, target_phys_addr_t addr)
 {
-    struct omap_target_agent_s *s = (struct omap_target_agent_s *) opaque;
+    struct omap_target_agent_s *s = (struct omap_target_agent_s *)opaque;
 
-    switch (addr)
-    {
-        //case 0x00:        /* COMPONENT */
-        //    return s->component;
-    case 0x20:                 /* AGENT_CONTROL */
-        return s->control;
-
-    case 0x24:                 /* AGENT_CONTROL_H */
-        return s->control_h;
-
-    case 0x28:                 /* AGENT_STATUS */
-        return s->status;
+    switch (addr) {
+        case 0x00: /* COMPONENT_L */
+            return s->component;
+        case 0x04: /* COMPONENT_H */
+            return 0;
+        case 0x18: /* CORE_L */
+            return s->component;
+        case 0x1c: /* CORE_H */
+            return (s->component >> 16);
+        case 0x20: /* AGENT_CONTROL_L */
+            return s->control;
+        case 0x24: /* AGENT_CONTROL_H */
+            return s->control_h;
+        case 0x28: /* AGENT_STATUS_L */
+            return s->status;
+        case 0x2c: /* AGENT_STATUS_H */
+            return 0;
+        default:
+            break;
     }
 
-    OMAP_BAD_REG(addr);
+    OMAP_BAD_REG(s->base + addr);
     return 0;
 }
 
 static void omap3_l4ta_write(void *opaque, target_phys_addr_t addr,
                              uint32_t value)
 {
-    struct omap_target_agent_s *s = (struct omap_target_agent_s *) opaque;
+    struct omap_target_agent_s *s = (struct omap_target_agent_s *)opaque;
 
-    switch (addr)
-    {
-        //case 0x00:        /* COMPONENT */
-        //  OMAP_RO_REG(addr);
-        // break;
-    case 0x20:                 /* AGENT_CONTROL */
-        s->control = value & 0x00000700;
-        break;
-    case 0x24:                 /* AGENT_CONTROL_H */
-        s->control_h = value & 0x100;
-        break;
-    case 0x28:                 /* AGENT_STATUS */
-        if (value & 0x100)
-            s->status &= ~0x100;        /* REQ_TIMEOUT */
-        break;
-    default:
-        OMAP_BAD_REG(addr);
+    switch (addr) {
+        case 0x00: /* COMPONENT_L */
+        case 0x04: /* COMPONENT_H */
+        case 0x18: /* CORE_L */
+        case 0x1c: /* CORE_H */
+            OMAP_RO_REG(s->base + addr);
+            break;
+        case 0x20: /* AGENT_CONTROL_L */
+            s->control = value & 0x00000701;
+            break;
+        case 0x24: /* AGENT_CONTROL_H */
+            s->control_h = value & 0x100; /* TODO: shouldn't this be read-only? */
+            break;
+        case 0x28: /* AGENT_STATUS_L */
+            if (value & 0x100)
+                s->status &= ~0x100; /* REQ_TIMEOUT */
+            break;
+        case 0x2c: /* AGENT_STATUS_H */
+            /* no writable bits although the register is listed as RW */
+            break;
+        default:
+            OMAP_BAD_REG(s->base + addr);
+            break;
     }
 }
 
@@ -96,296 +109,208 @@ static CPUWriteMemoryFunc *omap3_l4ta_writefn[] = {
     omap3_l4ta_write,
 };
 
-
-
-static struct omap_l4_region_s omap3_l4_region[] = {
-    [1] = {0x40800, 0x800, 32}, /* Initiator agent */
-    [2] = {0x41000, 0x1000, 32},        /* Link agent */
-    [0] = {0x40000, 0x800, 32}, /* Address and protection */
-
-    [3] = {0x002000, 0x1000, 32 | 16 | 8},      /* System Control module */
-    [4] = {0x003000, 0x1000, 32 | 16 | 8},      /* L4TA1 */
-
-    [5] = {0x004000, 0x2000, 32},       /*CM Region A */
-    [6] = {0x006000, 0x0800, 32},       /*CM Region B */
-    [7] = {0x007000, 0x1000, 32 | 16 | 8},      /*  L4TA2 */
-
-    [8] = {0x050000, 0x0400, 32},       /*Display subsystem top */
-    [9] = {0x050400, 0x0400, 32},       /*Display controller */
-    [10] = {0x050800, 0x0400, 32},      /*RFBI*/
-    [11] = {0x050c00, 0x0400, 32},       /*Video encoder */
-    [12] = {0x051000, 0x1000, 32 | 16 | 8},     /*  L4TA3 */
-
-    [13] = {0x056000, 0x1000, 32},      /*  SDMA */
-    [14] = {0x057000, 0x1000, 32 | 16 | 8},     /*  L4TA4 */
-
-    [15] = {0x060000, 0x1000, 16 | 8},  /*  I2C3 */
-    [16] = {0x061000, 0x1000, 32 | 16 | 8},     /*  L4TA4 */
-
-    [17] = {0x062000, 0x1000, 32},      /*  USBTLL */
-    [18] = {0x063000, 0x1000, 32 | 16 | 8},     /*  L4TA4 */
-
-    [19] = {0x064000, 0x1000, 32},      /* HS USB HOST */
-    [20] = {0x065000, 0x1000, 32 | 16 | 8},     /*  L4TA4 */
-
-    [21] = {0x06a000, 0x1000, 32 | 16 | 8},     /* UART1 */
-    [22] = {0x06b000, 0x1000, 32 | 16 | 8},     /*  L4TA4 */
-
-    [23] = {0x06c000, 0x1000, 32 | 16 | 8},     /* UART2 */
-    [24] = {0x06d000, 0x1000, 32 | 16 | 8},     /*  L4TA4 */
-
-    [25] = {0x070000, 0x1000, 16 | 8},  /*  I2C1 */
-    [26] = {0x071000, 0x1000, 32 | 16 | 8},     /*  L4TA4 */
-
-    [27] = {0x072000, 0x1000, 16 | 8},  /*  I2C2 */
-    [28] = {0x073000, 0x1000, 32 | 16 | 8},     /*  L4TA4 */
-
-    [29] = {0x074000, 0x1000, 32},      /*  mcbsp1 */
-    [30] = {0x075000, 0x1000, 32 | 16 | 8},     /*  L4TA4 */
-
-    [31] = {0x086000, 0x1000, 32 | 16}, /*  GPTIMER10 */
-    [32] = {0x087000, 0x1000, 32 | 16 | 8},     /*  L4TA4 */
-
-    [33] = {0x088000, 0x1000, 32 | 16}, /*  GPTIMER11 */
-    [34] = {0x089000, 0x1000, 32 | 16 | 8},     /*  L4TA4 */
-
-    [35] = {0x094000, 0x1000, 32 | 16 | 8},     /*  MAILBOX */
-    [36] = {0x095000, 0x1000, 32 | 16 | 8},     /*  L4TA4 */
-
-    [37] = {0x096000, 0x1000, 32},      /*  mcbsp5 */
-    [38] = {0x097000, 0x1000, 32 | 16 | 8},     /*  L4TA4 */
-
-    [39] = {0x098000, 0x1000, 32 | 16 | 8},     /*  MCSPI1 */
-    [40] = {0x099000, 0x1000, 32 | 16 | 8},     /*  L4TA4 */
-
-    [41] = {0x09a000, 0x1000, 32 | 16 | 8},     /*  MCSPI2 */
-    [42] = {0x09b000, 0x1000, 32 | 16 | 8},     /*  L4TA4 */
-
-    [43] = {0x09c000, 0x1000, 32},      /*  MMC/SD/SDIO */
-    [44] = {0x09d000, 0x1000, 32 | 16 | 8},     /*  L4TA4 */
-
-    [45] = {0x09e000, 0x1000, 32},      /*  MS-PRO */
-    [46] = {0x09f000, 0x1000, 32 | 16 | 8},     /*  L4TA4 */
-
-    [47] = {0x09e000, 0x1000, 32},      /*  MS-PRO */
-    [48] = {0x09f000, 0x1000, 32 | 16 | 8},     /*  L4TA4 */
-
-    [49] = {0x0ab000, 0x1000, 32},      /*  HS USB OTG */
-    [50] = {0x0ac000, 0x1000, 32 | 16 | 8},     /*  L4TA4 */
-
-    [51] = {0x0ad000, 0x1000, 32},      /*  MMC/SD/SDIO3 */
-    [52] = {0x0ae000, 0x1000, 32 | 16 | 8},     /*  L4TA4 */
-
-    [53] = {0x0b0000, 0x1000, 32 | 16}, /*  MG */
-    [54] = {0x0b1000, 0x1000, 32 | 16 | 8},     /*  L4TA4 */
-
-    [55] = {0x0b2000, 0x1000, 32},      /*  HDQ/1-WIRE */
-    [56] = {0x0b3000, 0x1000, 32 | 16 | 8},     /*  L4TA4 */
-
-    [57] = {0x0b4000, 0x1000, 32},      /*  MMC/SD/SDIO2 */
-    [58] = {0x0b5000, 0x1000, 32 | 16 | 8},     /*  L4TA4 */
-
-    [59] = {0x0b6000, 0x1000, 32},      /*  icr mpu  */
-    [60] = {0x0b7000, 0x1000, 32 | 16 | 8},     /*  L4TA4 */
-
-    [61] = {0x0b8000, 0x1000, 32 | 16 | 8},     /*  MCSPI3  */
-    [62] = {0x0b9000, 0x1000, 32 | 16 | 8},     /*  L4TA4 */
-
-    [63] = {0x0ba000, 0x1000, 32 | 16 | 8},     /*  MCSPI4  */
-    [64] = {0x0bb000, 0x1000, 32 | 16 | 8},     /*  L4TA4 */
-
-    [65] = {0x0bc000, 0x4000, 32 | 16 | 8},     /*  CAMERA ISP  */
-    [66] = {0x0c0000, 0x1000, 32 | 16 | 8},     /*  L4TA4 */
-
-    [67] = {0x0c7000, 0x1000, 32 | 16}, /*  MODEM  */
-    [68] = {0x0c8000, 0x1000, 32 | 16 | 8},     /*  L4TA4 */
-
-    [69] = {0x0c9000, 0x1000, 32 | 16 | 8},     /*  SR1  */
-    [70] = {0x0ca000, 0x1000, 32 | 16 | 8},     /*  L4TA4 */
-
-    [71] = {0x0cb000, 0x1000, 32 | 16 | 8},     /*  SR2  */
-    [72] = {0x0cc000, 0x1000, 32 | 16 | 8},     /*  L4TA4 */
-
-    [73] = {0x0cd000, 0x1000, 32},      /*  ICR MODEM  */
-    [74] = {0x0ce000, 0x1000, 32 | 16 | 8},     /*  L4TA4 */
-
-    [75] = {0x30a000, 0x1000, 32 | 16 | 8},     /*  CONTRL MODULE ID  */
-    [76] = {0x30b000, 0x1000, 32 | 16 | 8},     /*  L4TA4 */
-
-    
-    [77] = {0x306000, 0x2000, 32},      /* PRM REGION A  */
-    [78] = {0x308000, 0x800, 32},       /* PRM REGION B  */
-    [79] = {0x309000, 0x1000, 32 | 16 | 8},     /*  L4TA4 */
-
-     /*L4 WAKEUP MEMORY SPACE */
-    [80] = {0x304000, 0x1000, 32 | 16}, /* GPTIMER12  */
-    [81] = {0x305000, 0x1000, 32 | 16 | 8},     /*  L4TA4 */
-    
-    [82] = {0x30a000, 0x800, 32 | 16 | 8},        /*TAP.undocument*/
-    [83] = {0x30a800, 0x1000, 32 | 16 | 8},     /*  L4TA4 */
-
-
-    [84] = {0x310000, 0x1000, 32 | 16 | 8},     /* GPIO1  */
-    [85] = {0x311000, 0x1000, 32 | 16 | 8},     /*  L4TA4 */
-
-    [86] = {0x314000, 0x1000, 32 | 16}, /* WDTIMER2  */
-    [87] = {0x315000, 0x1000, 32 | 16 | 8},     /*  L4TA4 */
-
-    [88] = {0x318000, 0x1000, 32 | 16}, /* GPTIMER1  */
-    [89] = {0x319000, 0x1000, 32 | 16 | 8},     /*  L4TA4 */
-
-    [90] = {0x320000, 0x1000, 32 | 16}, /* 32K Timer */
-    [91] = {0x321000, 0x1000, 32 | 16 | 8},     /*  L4TA2 */
-
-    [92] = {0x328000, 0x800, 32 | 16 | 8},      /* AP  */
-    [93] = {0x328800, 0x800, 32 | 16 | 8},      /* IP  */
-    [94] = {0x329000, 0x1000, 32 | 16 | 8},     /* LA  */
-    [95] = {0x32a000, 0x800, 32 | 16 | 8},      /* LA  */
-    [96] = {0x340000, 0x1000, 32 | 16 | 8},     /*  L4TA4 */
-
-    /*L4 Peripheral MEMORY SPACE */
-    [97] = {0x1000000, 0x800, 32 | 16 | 8},     /* AP  */
-    [98] = {0x1000800, 0x800, 32 | 16 | 8},     /* IP  */
-    [99] = {0x1001000, 0x1000, 32 | 16 | 8},    /* LA  */
-
-    [100] = {0x1020000, 0x1000, 32 | 16 | 8},    /* UART3 */
-    [101] = {0x1021000, 0x1000, 32 | 16 | 8},    /*  L4TA4 */
-
-    [102] = {0x1022000, 0x1000, 32},     /* MCBSP 2 */
-    [103] = {0x1023000, 0x1000, 32 | 16 | 8},    /*  L4TA4 */
-    
-    [104] = {0x1024000, 0x1000, 32},    /* MCBSP 3 */
-    [105] = {0x1025000, 0x1000, 32 | 16 | 8},   /*  L4TA4 */
-
-    [106] = {0x1026000, 0x1000, 32},    /* MCBSP 4 */
-    [107] = {0x1027000, 0x1000, 32 | 16 | 8},   /*  L4TA4 */
-
-    [108] = {0x1028000, 0x1000, 32},    /* MCBSP 2 (sidetone) */
-    [109] = {0x1029000, 0x1000, 32 | 16 | 8},   /*  L4TA4 */
-
-    [110] = {0x102a000, 0x1000, 32},    /* MCBSP 3 (sidetone) */
-    [111] = {0x102b000, 0x1000, 32 | 16 | 8},   /*  L4TA4 */
-
-    [112] = {0x1030000, 0x1000, 32 | 16},       /* WDTIMER3  */
-    [113] = {0x1031000, 0x1000, 32 | 16 | 8},   /*  L4TA4 */
-
-    [114] = {0x1032000, 0x1000, 32 | 16},       /* GPTIMER2 */
-    [115] = {0x1033000, 0x1000, 32 | 16 | 8},   /*  L4TA4 */
-
-    [116] = {0x1034000, 0x1000, 32 | 16},       /* GPTIMER3 */
-    [117] = {0x1035000, 0x1000, 32 | 16 | 8},   /*  L4TA4 */
-
-    [118] = {0x1036000, 0x1000, 32 | 16},       /* GPTIMER4 */
-    [119] = {0x1037000, 0x1000, 32 | 16 | 8},   /*  L4TA4 */
-
-    [120] = {0x1038000, 0x1000, 32 | 16},       /* GPTIMER5 */
-    [121] = {0x1039000, 0x1000, 32 | 16 | 8},   /*  L4TA4 */
-
-    [122] = {0x103a000, 0x1000, 32 | 16},       /* GPTIMER6 */
-    [123] = {0x103b000, 0x1000, 32 | 16 | 8},   /*  L4TA4 */
-
-    [124] = {0x103c000, 0x1000, 32 | 16},       /* GPTIMER7 */
-    [125] = {0x103d000, 0x1000, 32 | 16 | 8},   /*  L4TA4 */
-
-    [126] = {0x103e000, 0x1000, 32 | 16},       /* GPTIMER8 */
-    [127] = {0x103f000, 0x1000, 32 | 16 | 8},   /*  L4TA4 */
-
-    [128] = {0x1040000, 0x1000, 32 | 16},       /* GPTIMER9 */
-    [129] = {0x1041000, 0x1000, 32 | 16 | 8},   /*  L4TA4 */
-
-    [130] = {0x1050000, 0x1000, 32 | 16 | 8},   /* GPIO2 */
-    [131] = {0x1051000, 0x1000, 32 | 16 | 8},   /*  L4TA4 */
-
-    [132] = {0x1052000, 0x1000, 32 | 16 | 8},   /* GPIO3 */
-    [133] = {0x1053000, 0x1000, 32 | 16 | 8},   /*  L4TA4 */
-
-    [134] = {0x1054000, 0x1000, 32 | 16 | 8},   /* GPIO4 */
-    [135] = {0x1055000, 0x1000, 32 | 16 | 8},   /*  L4TA4 */
-
-    [136] = {0x1056000, 0x1000, 32 | 16 | 8},   /* GPIO5 */
-    [137] = {0x1057000, 0x1000, 32 | 16 | 8},   /*  L4TA4 */
-
-    [138] = {0x1058000, 0x1000, 32 | 16 | 8},   /* GPIO6 */
-    [139] = {0x1059000, 0x1000, 32 | 16 | 8},   /*  L4TA4 */
-
-    /*L4 Emulation MEMORY SPACE */
-    [140] = {0xc006000, 0x800, 32 | 16 | 8},    /* AP  */
-    [141] = {0xc006800, 0x800, 32 | 16 | 8},    /* IP  */
-    [142] = {0xc007000, 0x1000, 32 | 16 | 8},   /* LA  */
-    [143] = {0xc008000, 0x800, 32 | 16 | 8},    /* DAP  */
-
-    [144] = {0xc010000, 0x8000, 32 | 16 | 8},   /* MPU Emulation */
-    [145] = {0xc018000, 0x1000, 32 | 16 | 8},   /*  L4TA4 */
-
-    [146] = {0xc019000, 0x8000, 32},    /* TPIU */
-    [147] = {0xc01a000, 0x1000, 32 | 16 | 8},   /*  L4TA4 */
-
-    [148] = {0xc01b000, 0x8000, 32},    /* ETB */
-    [149] = {0xc01c000, 0x1000, 32 | 16 | 8},   /*  L4TA4 */
-
-    [150] = {0xc01d000, 0x8000, 32},    /* DAOCTL */
-    [151] = {0xc01e000, 0x1000, 32 | 16 | 8},   /*  L4TA4 */
-
-    [152] = {0xc706000, 0x2000, 32},    /* PR Region A */
-    [153] = {0xc706800, 0x800, 32},     /* PR Region B */
-    [154] = {0xc709000, 0x1000, 32 | 16 | 8},   /*  L4TA4 */
-
-    [155] = {0xc710000, 0x1000, 32 | 16 | 8},   /* GPIO1 */
-    [156] = {0xc711000, 0x1000, 32 | 16 | 8},   /*  L4TA4 */
-
-    [157] = {0xc714000, 0x1000, 32 | 16},       /* WDTIMER 2 */
-    [158] = {0xc715000, 0x1000, 32 | 16 | 8},   /*  L4TA4 */
-
-    [159] = {0xc718000, 0x1000, 32 | 16 | 8},   /* GPTIMER 1 */
-    [160] = {0xc719000, 0x1000, 32 | 16 | 8},   /*  L4TA4 */
-
-    [161] = {0xc720000, 0x1000, 32 | 16},       /* 32k timer */
-    [162] = {0xc721000, 0x1000, 32 | 16 | 8},   /*  L4TA4 */
-
-    [163] = {0xc728000, 0x800, 32 | 16 | 8},    /* AP  */
-    [164] = {0xc728800, 0x800, 32 | 16 | 8},    /* IP  */
-    [165] = {0xc729000, 0x1000, 32 | 16 | 8},   /* LA  */
-    [166] = {0xc72a000, 0x800, 32 | 16 | 8},    /* DAP  */
-
+static struct omap_l4_region_s omap3_l4_region[158] = {
+    /* L4-Core */
+    [  0] = {0x00002000, 0x1000, 32 | 16 | 8}, /* SCM */
+    [  1] = {0x00003000, 0x1000, 32 | 16 | 8}, /* L4IC */
+    [  2] = {0x00004000, 0x2000, 32         }, /* CM Region A */
+    [  3] = {0x00006000, 0x0800, 32         }, /* CM Region B */
+    [  4] = {0x00007000, 0x1000, 32 | 16 | 8}, /* L4IC */
+    [  5] = {0x00040000, 0x0800, 32         }, /* AP */
+    [  6] = {0x00040800, 0x0800, 32         }, /* IP */
+    [  7] = {0x00041000, 0x1000, 32         }, /* LA */
+    [  8] = {0x0004fc00, 0x0400, 32 | 16 | 8}, /* DSI */
+    [  9] = {0x00050000, 0x0400, 32 | 16 | 8}, /* DISS */
+    [ 10] = {0x00050400, 0x0400, 32 | 16 | 8}, /* DISPC */
+    [ 11] = {0x00050800, 0x0400, 32 | 16 | 8}, /* RFBI */
+    [ 12] = {0x00050c00, 0x0400, 32 | 16 | 8}, /* VENC */
+    [ 13] = {0x00051000, 0x1000, 32 | 16 | 8}, /* L4IC */
+    [ 14] = {0x00056000, 0x1000, 32         }, /* SDMA */
+    [ 15] = {0x00057000, 0x1000, 32 | 16 | 8}, /* L4IC */
+    [ 16] = {0x00060000, 0x1000,      16 | 8}, /* I2C3 */
+    [ 17] = {0x00061000, 0x1000, 32 | 16 | 8}, /* L4IC */
+    [ 18] = {0x00062000, 0x1000, 32         }, /* USBTLL */
+    [ 19] = {0x00063000, 0x1000, 32 | 16 | 8}, /* L4IC */
+    [ 20] = {0x00064000, 0x1000, 32         }, /* HS USB HOST */
+    [ 21] = {0x00065000, 0x1000, 32 | 16 | 8}, /* L4IC */
+    [ 22] = {0x0006a000, 0x1000, 32 | 16 | 8}, /* UART1 */
+    [ 23] = {0x0006b000, 0x1000, 32 | 16 | 8}, /* L4IC */
+    [ 24] = {0x0006c000, 0x1000, 32 | 16 | 8}, /* UART2 */
+    [ 25] = {0x0006d000, 0x1000, 32 | 16 | 8}, /* L4IC */
+    [ 26] = {0x00070000, 0x1000,      16 | 8}, /* I2C1 */
+    [ 27] = {0x00071000, 0x1000, 32 | 16 | 8}, /* L4IC */
+    [ 28] = {0x00072000, 0x1000,      16 | 8}, /* I2C2 */
+    [ 29] = {0x00073000, 0x1000, 32 | 16 | 8}, /* L4IC */
+    [ 30] = {0x00074000, 0x1000, 32         }, /* McBSP1 */
+    [ 31] = {0x00075000, 0x1000, 32 | 16 | 8}, /* L4IC */
+    [ 32] = {0x00086000, 0x1000, 32 | 16    }, /* GPTIMER10 */
+    [ 33] = {0x00087000, 0x1000, 32 | 16 | 8}, /* L4IC */
+    [ 34] = {0x00088000, 0x1000, 32 | 16    }, /* GPTIMER11 */
+    [ 35] = {0x00089000, 0x1000, 32 | 16 | 8}, /* L4IC */
+    [ 36] = {0x00094000, 0x1000, 32 | 16 | 8}, /* MAILBOX */
+    [ 37] = {0x00095000, 0x1000, 32 | 16 | 8}, /* L4IC */
+    [ 38] = {0x00096000, 0x1000, 32         }, /* McBSP5 */
+    [ 39] = {0x00097000, 0x1000, 32 | 16 | 8}, /* L4IC */
+    [ 40] = {0x00098000, 0x1000, 32 | 16 | 8}, /* McSPI1 */
+    [ 41] = {0x00099000, 0x1000, 32 | 16 | 8}, /* L4IC */
+    [ 42] = {0x0009a000, 0x1000, 32 | 16 | 8}, /* McSPI2 */
+    [ 43] = {0x0009b000, 0x1000, 32 | 16 | 8}, /* L4IC */
+    [ 44] = {0x0009c000, 0x1000, 32         }, /* MMC/SD/SDIO1 */
+    [ 45] = {0x0009d000, 0x1000, 32 | 16 | 8}, /* L4IC */
+    [ 46] = {0x0009e000, 0x1000, 32         }, /* MS-PRO */
+    [ 47] = {0x0009f000, 0x1000, 32 | 16 | 8}, /* L4IC */
+    [ 48] = {0x000ab000, 0x1000, 32         }, /* HS USB OTG */
+    [ 49] = {0x000ac000, 0x1000, 32 | 16 | 8}, /* L4IC */
+    [ 50] = {0x000ad000, 0x1000, 32         }, /* MMC/SD/SDIO3 */
+    [ 51] = {0x000ae000, 0x1000, 32 | 16 | 8}, /* L4IC */
+    [ 52] = {0x000b2000, 0x1000, 32         }, /* HDQ/1-Wire */
+    [ 53] = {0x000b3000, 0x1000, 32 | 16 | 8}, /* L4IC */
+    [ 54] = {0x000b4000, 0x1000, 32         }, /* MMC/SD/SDIO2 */
+    [ 55] = {0x000b5000, 0x1000, 32 | 16 | 8}, /* L4IC */
+    [ 56] = {0x000b6000, 0x1000, 32         }, /* ICR MPU Port */
+    [ 57] = {0x000b7000, 0x1000, 32 | 16 | 8}, /* L4IC */
+    [ 58] = {0x000b8000, 0x1000, 32 | 16 | 8}, /* McSPI3 */
+    [ 59] = {0x000b9000, 0x1000, 32 | 16 | 8}, /* L4IC */
+    [ 60] = {0x000ba000, 0x1000, 32 | 16 | 8}, /* McSPI4 */
+    [ 61] = {0x000bb000, 0x1000, 32 | 16 | 8}, /* L4IC */
+    [ 62] = {0x000bc000, 0x4000, 32 | 16 | 8}, /* Camera ISP */
+    [ 63] = {0x000c0000, 0x1000, 32 | 16 | 8}, /* L4IC */
+    [ 64] = {0x000c7000, 0x1000, 32         }, /* Modem */
+    [ 65] = {0x000c8000, 0x1000, 32 | 16 | 8}, /* L4IC */
+    [ 66] = {0x000cd000, 0x1000, 32         }, /* ICR modem port  */
+    [ 67] = {0x000ce000, 0x1000, 32 | 16 | 8}, /* L4IC */
+    /* L4-Wakeup interconnect region A */
+    [ 68] = {0x00304000, 0x1000, 32 | 16    }, /* GPTIMER12 */
+    [ 69] = {0x00305000, 0x1000, 32 | 16 | 8}, /* L4IC */
+    [ 70] = {0x00306000, 0x2000, 32         }, /* PRM region A */
+    [ 71] = {0x00308000, 0x0800, 32         }, /* PRM region B */
+    [ 72] = {0x00309000, 0x1000, 32 | 16 | 8}, /* L4IC */
+    /* L4-Core */
+    [ 73] = {0x0030a000, 0x0800, 32 | 16 | 8}, /* TAP */
+    [ 74] = {0x0030b000, 0x1000, 32 | 16 | 8}, /* L4IC */
+    /* L4-Wakeup interconnect region B */
+    [ 75] = {0x00310000, 0x1000, 32 | 16 | 8}, /* GPIO1 */
+    [ 76] = {0x00311000, 0x1000, 32 | 16 | 8}, /* L4IC */
+    [ 77] = {0x00314000, 0x1000, 32 | 16    }, /* WDTIMER2 */
+    [ 78] = {0x00315000, 0x1000, 32 | 16 | 8}, /* L4IC */
+    [ 79] = {0x00318000, 0x1000, 32 | 16    }, /* GPTIMER1 */
+    [ 80] = {0x00319000, 0x1000, 32 | 16 | 8}, /* L4IC */
+    [ 81] = {0x00320000, 0x1000, 32 | 16    }, /* 32K Timer */
+    [ 82] = {0x00321000, 0x1000, 32 | 16 | 8}, /* L4IC */
+    [ 83] = {0x00328000, 0x0800, 32 | 16 | 8}, /* L4-Wakeup config AP */
+    [ 84] = {0x00328800, 0x0800, 32 | 16 | 8}, /* L4-Wakeup config IP L4-Core */
+    [ 85] = {0x00329000, 0x1000, 32 | 16 | 8}, /* L4-Wakeup config LA */
+    [ 86] = {0x0032a000, 0x0800, 32 | 16 | 8}, /* L4-Wakeup config IP L4-Emu */
+    [ 87] = {0x00340000, 0x1000, 32 | 16 | 8}, /* L4IC */
+    /* L4-Per */
+    [ 88] = {0x01000000, 0x0800, 32 | 16 | 8}, /* AP */
+    [ 89] = {0x01000800, 0x0800, 32 | 16 | 8}, /* IP */
+    [ 90] = {0x01001000, 0x1000, 32 | 16 | 8}, /* LA */
+    [ 91] = {0x01020000, 0x1000, 32 | 16 | 8}, /* UART3 */
+    [ 92] = {0x01021000, 0x1000, 32 | 16 | 8}, /* L4IC */
+    [ 93] = {0x01022000, 0x1000, 32         }, /* McBSP2 */
+    [ 94] = {0x01023000, 0x1000, 32 | 16 | 8}, /* L4IC */
+    [ 95] = {0x01024000, 0x1000, 32         }, /* McBSP3 */
+    [ 96] = {0x01025000, 0x1000, 32 | 16 | 8}, /* L4IC */
+    [ 97] = {0x01026000, 0x1000, 32         }, /* McBSP4 */
+    [ 98] = {0x01027000, 0x1000, 32 | 16 | 8}, /* L4IC */
+    [ 99] = {0x01028000, 0x1000, 32         }, /* McBSP2 (sidetone) */
+    [100] = {0x01029000, 0x1000, 32 | 16 | 8}, /* L4IC */
+    [101] = {0x0102a000, 0x1000, 32         }, /* McBSP3 (sidetone) */
+    [102] = {0x0102b000, 0x1000, 32 | 16 | 8}, /* L4IC */
+    [103] = {0x01030000, 0x1000, 32 | 16    }, /* WDTIMER3  */
+    [104] = {0x01031000, 0x1000, 32 | 16 | 8}, /* L4IC */
+    [105] = {0x01032000, 0x1000, 32 | 16    }, /* GPTIMER2 */
+    [106] = {0x01033000, 0x1000, 32 | 16 | 8}, /* L4IC */
+    [107] = {0x01034000, 0x1000, 32 | 16    }, /* GPTIMER3 */
+    [108] = {0x01035000, 0x1000, 32 | 16 | 8}, /* L4IC */
+    [109] = {0x01036000, 0x1000, 32 | 16    }, /* GPTIMER4 */
+    [110] = {0x01037000, 0x1000, 32 | 16 | 8}, /* L4IC */
+    [111] = {0x01038000, 0x1000, 32 | 16    }, /* GPTIMER5 */
+    [112] = {0x01039000, 0x1000, 32 | 16 | 8}, /* L4IC */
+    [113] = {0x0103a000, 0x1000, 32 | 16    }, /* GPTIMER6 */
+    [114] = {0x0103b000, 0x1000, 32 | 16 | 8}, /* L4IC */
+    [115] = {0x0103c000, 0x1000, 32 | 16    }, /* GPTIMER7 */
+    [116] = {0x0103d000, 0x1000, 32 | 16 | 8}, /* L4IC */
+    [117] = {0x0103e000, 0x1000, 32 | 16    }, /* GPTIMER8 */
+    [118] = {0x0103f000, 0x1000, 32 | 16 | 8}, /* L4IC */
+    [119] = {0x01040000, 0x1000, 32 | 16    }, /* GPTIMER9 */
+    [120] = {0x01041000, 0x1000, 32 | 16 | 8}, /* L4IC */
+    [121] = {0x01050000, 0x1000, 32 | 16 | 8}, /* GPIO2 */
+    [122] = {0x01051000, 0x1000, 32 | 16 | 8}, /* L4IC */
+    [123] = {0x01052000, 0x1000, 32 | 16 | 8}, /* GPIO3 */
+    [124] = {0x01053000, 0x1000, 32 | 16 | 8}, /* L4IC */
+    [125] = {0x01054000, 0x1000, 32 | 16 | 8}, /* GPIO4 */
+    [126] = {0x01055000, 0x1000, 32 | 16 | 8}, /* L4IC */
+    [127] = {0x01056000, 0x1000, 32 | 16 | 8}, /* GPIO5 */
+    [128] = {0x01057000, 0x1000, 32 | 16 | 8}, /* L4IC */
+    [129] = {0x01058000, 0x1000, 32 | 16 | 8}, /* GPIO6 */
+    [130] = {0x01059000, 0x1000, 32 | 16 | 8}, /* L4IC */
+    /* L4-Emu */
+    [131] = {0x0c006000, 0x0800, 32 | 16 | 8}, /* AP */
+    [132] = {0x0c006800, 0x0800, 32 | 16 | 8}, /* IP L4-Core */
+    [133] = {0x0c007000, 0x1000, 32 | 16 | 8}, /* LA */
+    [134] = {0x0c008000, 0x0800, 32 | 16 | 8}, /* IP DAP */
+    [135] = {0x0c010000, 0x8000, 32 | 16 | 8}, /* MPU Emulation */
+    [136] = {0x0c018000, 0x1000, 32 | 16 | 8}, /* L4IC */
+    [137] = {0x0c019000, 0x1000, 32         }, /* TPIU */
+    [138] = {0x0c01a000, 0x1000, 32 | 16 | 8}, /* L4IC */
+    [139] = {0x0c01b000, 0x1000, 32         }, /* ETB */
+    [140] = {0x0c01c000, 0x1000, 32 | 16 | 8}, /* L4IC */
+    [141] = {0x0c01d000, 0x1000, 32         }, /* DAPCTL */
+    [142] = {0x0c01e000, 0x1000, 32 | 16 | 8}, /* L4IC */
+    [143] = {0x0c706000, 0x2000, 32         }, /* PRM Region A */
+    [144] = {0x0c706800, 0x0800, 32         }, /* PRM Region B */
+    [145] = {0x0c709000, 0x1000, 32 | 16 | 8}, /* L4IC */
+    [146] = {0x0c710000, 0x1000, 32 | 16 | 8}, /* GPIO1 */
+    [147] = {0x0c711000, 0x1000, 32 | 16 | 8}, /* L4IC */
+    [148] = {0x0c714000, 0x1000, 32 | 16    }, /* WDTIMER2 */
+    [149] = {0x0c715000, 0x1000, 32 | 16 | 8}, /* L4IC */
+    [150] = {0x0c718000, 0x1000, 32 | 16 | 8}, /* GPTIMER1 */
+    [151] = {0x0c719000, 0x1000, 32 | 16 | 8}, /* L4IC */
+    [152] = {0x0c720000, 0x1000, 32 | 16    }, /* 32k timer */
+    [153] = {0x0c721000, 0x1000, 32 | 16 | 8}, /* L4IC */
+    [154] = {0x0c728000, 0x0800, 32 | 16 | 8}, /* L4-Wakeup config AP */
+    [155] = {0x0c728800, 0x0800, 32 | 16 | 8}, /* L4-Wakeup config IP L4-Core */
+    [156] = {0x0c729000, 0x1000, 32 | 16 | 8}, /* L4-Wakeup config LA */
+    [157] = {0x0c72a000, 0x0800, 32 | 16 | 8}, /* L4-Wakeup config IP L4-Emu */
 };
+
 static struct omap_l4_agent_info_s omap3_l4_agent_info[] = {
-    {0, 0, 2, 1},                /* System Control module */
-    {1, 5, 3, 2},                /* CM */
-    {2, 77, 3, 2},               /* PRM */
-    {3, 86, 2, 1},               /* WDTIMER 2 */
-    {4, 3, 2, 1},                 /* SCM */
-    {5, 88, 2, 1},               /* GP TIMER 1 */
-    {6, 114, 2, 1},              /* GP TIMER 2 */
-    {7, 116, 2, 1},              /* GP TIMER 3 */
-    {8, 118, 2, 1},              /* GP TIMER 4 */
-    {9, 120, 2, 1},              /* GP TIMER 5 */
-    {10, 122, 2, 1},              /* GP TIMER 6 */
-    {11, 124, 2, 1},              /* GP TIMER 7 */
-    {12, 126, 2, 1},              /* GP TIMER 8 */
-    {13, 128, 2, 1},              /* GP TIMER 9 */
-    {14, 31, 2, 1},              /* GP TIMER 10 */
-    {15, 33, 2, 1},              /* GP TIMER 11 */
-    {16, 80, 2, 1},              /* GP TIMER 12 */
-    {17, 90, 2, 1},                /* 32K Sync timer */
-    {18, 21, 2, 1},                /* uart1 */
-    {19, 23, 2, 1},                /* uart2 */
-    {20, 100, 2, 1},              /* uart3 */
-    {21, 8, 5, 4},                /* Display */
-    {22, 84, 2, 1},               /* GPIO 1 */
-    {23, 130, 2, 1},              /* GPIO 2 */
-    {24, 132, 2, 1},              /* GPIO 3 */
-    {25, 134, 2, 1},              /* GPIO 4 */
-    {26, 136, 2, 1},              /* GPIO 5 */
-    {27, 138, 2, 1},              /* GPIO 6 */
-    {28,82, 2, 1},                 /* TAP */
-    {29,43, 2, 1},                 /* MMC1 */
-    {30,57, 2, 1},                 /* MMC2 */
-    {31,51, 2, 1},                 /* MMC3 */
-    {32,25, 2, 1},                 /* I2C1 */
-    {33,27, 2, 1},                 /* I2C2 */
-    {34,15, 2, 1},                 /* I2C3 */
-    
-    
+    { 0,   0, 2, 1},  /* SCM */
+    { 1,   1, 3, 2},  /* CM */
+    { 2,  70, 3, 2},  /* PRM */
+    { 3,  77, 2, 1},  /* WDTIMER2 */
+    { 4,  79, 2, 1},  /* GPTIMER1 */
+    { 5, 105, 2, 1},  /* GPTIMER2 */
+    { 6, 107, 2, 1},  /* GPTIMER3 */
+    { 7, 108, 2, 1},  /* GPTIMER4 */
+    { 8, 111, 2, 1},  /* GPTIMER5 */
+    { 9, 113, 2, 1},  /* GPTIMER6 */
+    {10, 115, 2, 1},  /* GPTIMER7 */
+    {11, 116, 2, 1},  /* GPTIMER8 */
+    {12, 119, 2, 1},  /* GPTIMER9 */
+    {13,  32, 2, 1},  /* GPTIMER10 */
+    {14,  34, 2, 1},  /* GPTIMER11 */
+    {15,  68, 2, 1},  /* GPTIMER12 */
+    {16,  81, 2, 1},  /* 32K Sync timer */
+    {17,  22, 2, 1},  /* UART1 */
+    {18,  24, 2, 1},  /* UART2 */
+    {19,  91, 2, 1},  /* UART3 */
+    {20,   8, 6, 4},  /* DSS */
+    {21,  75, 2, 1},  /* GPIO1 */
+    {22, 121, 2, 1},  /* GPIO2 */
+    {23, 123, 2, 1},  /* GPIO3 */
+    {24, 124, 2, 1},  /* GPIO4 */
+    {25, 127, 2, 1},  /* GPIO5 */
+    {26, 129, 2, 1},  /* GPIO6 */
+    {27,  73, 2, 1},  /* TAP */
+    {28,  44, 2, 1},  /* MMC1 */
+    {29,  54, 2, 1},  /* MMC2 */
+    {30,  50, 2, 1},  /* MMC3 */
+    {31,  26, 2, 1},  /* I2C1 */
+    {32,  28, 2, 1},  /* I2C2 */
+    {33,  16, 2, 1},  /* I2C3 */
 };
 
 static struct omap_target_agent_s *omap3_l4ta_get(struct omap_l4_s *bus, int cs)
@@ -429,14 +354,14 @@ struct omap3_prm_s
     struct omap_mpu_state_s *mpu;
 
     /*IVA2_PRM Register */
-    uint32_t rm_rstctrl_iva2;   /*0x4830 6050 */
-    uint32_t rm_rstst_iva2;     /*0x4830 6058 */
-    uint32_t pm_wkdep_iva2;     /*0x4830 60C8 */
-    uint32_t pm_pwstctrl_iva2;  /*0x4830 60E0 */
-    uint32_t pm_pwstst_iva2;    /*0x4830 60E4 */
-    uint32_t pm_prepwstst_iva2; /*0x4830 60E8 */
-    uint32_t pm_irqstatus_iva2; /*0x4830 60F8 */
-    uint32_t pm_irqenable_iva2; /*0x4830 60FC */
+    uint32_t rm_rstctrl_iva2;    /*0x4830 6050 */
+    uint32_t rm_rstst_iva2;      /*0x4830 6058 */
+    uint32_t pm_wkdep_iva2;      /*0x4830 60C8 */
+    uint32_t pm_pwstctrl_iva2;   /*0x4830 60E0 */
+    uint32_t pm_pwstst_iva2;     /*0x4830 60E4 */
+    uint32_t pm_prepwstst_iva2;  /*0x4830 60E8 */
+    uint32_t prm_irqstatus_iva2; /*0x4830 60F8 */
+    uint32_t prm_irqenable_iva2; /*0x4830 60FC */
 
     /*OCP_System_Reg_PRM Registerr */
     uint32_t prm_revision;      /*0x4830 6804 */
@@ -495,7 +420,7 @@ struct omap3_prm_s
 
     /*CAM_PRM Register */
     uint32_t rm_rstst_cam;      /*0x4830 6f58 */
-    uint32_t pm_wken_cam;       /*0x4830 6fc8 */
+    uint32_t pm_wkdep_cam;      /*0x4830 6fc8 */
     uint32_t pm_pwstctrl_cam;   /*0x4830 6fe0 */
     uint32_t pm_pwstst_cam;     /*0x4830 6fe4 */
     uint32_t pm_prepwstst_cam;  /*0x4830 6fe8 */
@@ -546,14 +471,14 @@ struct omap3_prm_s
 
     /*USBHOST_PRM Register */
     uint32_t rm_rstst_usbhost;  /*0x4830 7458 */
-    uint32_t rm_wken_usbhost;   /*0x4830 74a0 */
-    uint32_t rm_mpugrpsel_usbhost;      /*0x4830 74a4 */
-    uint32_t rm_iva2grpsel_usbhost;     /*0x4830 74a8 */
-    uint32_t rm_wkst_usbhost;   /*0x4830 74b0 */
-    uint32_t rm_wkdep_usbhost;  /*0x4830 74c8 */
-    uint32_t rm_pwstctrl_usbhost;       /*0x4830 74e0 */
-    uint32_t rm_pwstst_usbhost; /*0x4830 74e4 */
-    uint32_t rm_prepwstst_usbhost;      /*0x4830 74e8 */
+    uint32_t pm_wken_usbhost;   /*0x4830 74a0 */
+    uint32_t pm_mpugrpsel_usbhost;      /*0x4830 74a4 */
+    uint32_t pm_iva2grpsel_usbhost;     /*0x4830 74a8 */
+    uint32_t pm_wkst_usbhost;   /*0x4830 74b0 */
+    uint32_t pm_wkdep_usbhost;  /*0x4830 74c8 */
+    uint32_t pm_pwstctrl_usbhost;       /*0x4830 74e0 */
+    uint32_t pm_pwstst_usbhost; /*0x4830 74e4 */
+    uint32_t pm_prepwstst_usbhost;      /*0x4830 74e8 */
 
 };
 
@@ -565,8 +490,8 @@ static void omap3_prm_reset(struct omap3_prm_s *s)
     s->pm_pwstctrl_iva2 = 0xff0f07;
     s->pm_pwstst_iva2 = 0xff7;
     s->pm_prepwstst_iva2 = 0x0;
-    s->pm_irqstatus_iva2 = 0x0;
-    s->pm_irqenable_iva2 = 0x0;
+    s->prm_irqstatus_iva2 = 0x0;
+    s->prm_irqenable_iva2 = 0x0;
 
     s->prm_revision = 0x10;
     s->prm_sysconfig = 0x1;
@@ -617,7 +542,7 @@ static void omap3_prm_reset(struct omap3_prm_s *s)
     s->pm_prepwstst_dss = 0x0;
 
     s->rm_rstst_cam = 0x1;
-    s->pm_wken_cam = 0x16;
+    s->pm_wkdep_cam = 0x16;
     s->pm_pwstctrl_cam = 0x30107;
     s->pm_pwstst_cam = 0x3;
     s->pm_prepwstst_cam = 0x0;
@@ -663,230 +588,138 @@ static void omap3_prm_reset(struct omap3_prm_s *s)
     s->pm_prepwstst_neon = 0x0;
 
     s->rm_rstst_usbhost = 0x1;
-    s->rm_wken_usbhost = 0x1;
-    s->rm_mpugrpsel_usbhost = 0x1;
-    s->rm_iva2grpsel_usbhost = 0x1;
-    s->rm_wkst_usbhost = 0x0;
-    s->rm_wkdep_usbhost = 0x17;
-    s->rm_pwstctrl_usbhost = 0x30107;
-    s->rm_pwstst_usbhost = 0x3;
-    s->rm_prepwstst_usbhost = 0x0;
+    s->pm_wken_usbhost = 0x1;
+    s->pm_mpugrpsel_usbhost = 0x1;
+    s->pm_iva2grpsel_usbhost = 0x1;
+    s->pm_wkst_usbhost = 0x0;
+    s->pm_wkdep_usbhost = 0x17;
+    s->pm_pwstctrl_usbhost = 0x30107;
+    s->pm_pwstst_usbhost = 0x3;
+    s->pm_prepwstst_usbhost = 0x0;
 
 }
 
 static uint32_t omap3_prm_read(void *opaque, target_phys_addr_t addr)
 {
-    struct omap3_prm_s *s = (struct omap3_prm_s *) opaque;
+    struct omap3_prm_s *s = (struct omap3_prm_s *)opaque;
 
-    switch (addr)
-    {
-    case 0x50:
-    	return s->rm_rstctrl_iva2;
-    case 0x58:
-    	return s->rm_rstst_iva2;
-    case 0xc8:
-    	return s->pm_wkdep_iva2 ;
-    case 0xe0:
-    	return s->pm_pwstctrl_iva2;
-    case 0xe4:
-    	return s->pm_pwstst_iva2;
-    case 0xe8:
-    	return s->pm_prepwstst_iva2;
-    case 0xf8:
-    	return s->pm_irqstatus_iva2;
-    case 0xfc:
-    	return s->pm_irqenable_iva2;
-
-    case 0x804:
-    	return s->prm_revision;
-    case 0x814:
-    	return s->prm_sysconfig;
-    case 0x818:
-    	return s->prm_irqstatus_mpu;
-    case 0x81c:
-    	return s->prm_irqenable_mpu;
-
-    case 0x958:
-    	return s->rm_rstst_mpu;
-    case 0x9c8:
-    	return s->pm_wkdep_mpu;
-    case 0x9d4:
-    	return s->pm_evgenctrl_mpu;
-    case 0x9d8:
-    	return s->pm_evgenontim_mpu;
-    case 0x9dc:
-    	return s->pm_evgenofftim_mpu;
-    case 0x9e0:
-    	return s->pm_pwstctrl_mpu;
-    case 0x9e4:
-    	return s->pm_pwstst_mpu;
-    case 0x9e8:
-    	return s->pm_perpwstst_mpu;
-
-    case 0xa58:
-    	return s->rm_rstst_core;
-    case 0xaa0:
-    	return s->pm_wken1_core;
-    case 0xaa4:
-    	return s->pm_mpugrpsel1_core;
-    case 0xaa8:
-    	return s->pm_iva2grpsel1_core;
-    case 0xab0:
-    	return s->pm_wkst1_core;
-    case 0xab8:
-    	return s->pm_wkst3_core;
-    case 0xae0:
-    	return s->pm_pwstctrl_core;
-    case 0xae4:
-    	return s->pm_pwstst_core;
-    case 0xae8:
-    	return s->pm_prepwstst_core;
-
-    case 0xb58:
-    	return s->rm_rstst_sgx;
-    case 0xbc8:
-    	return s->pm_wkdep_sgx;
-    case 0xbe0:
-    	return s->pm_pwstctrl_sgx;
-    case 0xbe4:
-    	return s->pm_pwstst_sgx;
-    case 0xbe8:
-    	return s->pm_prepwstst_sgx;
-
-    	
-    case 0xca0:
-    	return s->pm_wken_wkup;
-   	 case 0xca4:
-    	return s->pm_mpugrpsel_wkup ;
-    case 0xca8:
-    	return s->pm_iva2grpsel_wkup ;
-	 case 0xcb0:
-    	return s->pm_wkst_wkup ;
-
-    	
-    case 0xd40:
-        return s->prm_clksel;
-    case 0xd70:
-    	return s->prm_clkout_ctrl;
-
-     case 0xe58:
-     	return s->rm_rstst_dss;
-     case 0xea0:
-     	return s->pm_wken_dss;
-     case 0xec8:
-     	return s->pm_wkdep_dss;
-     case 0xee0:
-     	return s->pm_pwstctrl_dss;
-     case 0xee4:
-     	return s->pm_pwstst_dss;
-     case 0xee8:
-     	return s->pm_prepwstst_dss;
-
-     case 0xf58:
-     	return s->rm_rstst_cam;
-     case 0xfc8:
-    	return s->pm_wken_cam ;
-    case 0xfe0:
-    	return s->pm_pwstctrl_cam;
-    case 0xfe4:
-    	return s->pm_pwstst_cam;
-    case 0xfe8:
-    	return s->pm_prepwstst_cam;
-
-    case 0x1058:
-    	return s->rm_rstst_per;
-    case 0x10a0:
-    	return s->pm_wken_per ;
-    case 0x10a4:
-    	return s->pm_mpugrpsel_per;
-    case 0x10a8:
-    	return s->pm_iva2grpsel_per;
-    case 0x10b0:
-    	return s->pm_wkst_per;
-    case 0x10c8:
-    	return s->pm_wkdep_per;
-    case 0x10e0:
-    	return s->pm_pwstctrl_per;
-    case 0x10e4:
-    	return s->pm_pwstst_per;
-    case 0x10e8:
-    	return s->pm_perpwstst_per;
-
-    	
-    case 0x1220:
-    	return s->prm_vc_smps_sa;
-    case 0x1224:
-    	return s->prm_vc_smps_vol_ra ;
-    case 0x1228:
-    	return s->prm_vc_smps_cmd_ra ;
-    case 0x122c:
-    	return s->prm_vc_cmd_val_0 ;
-    case 0x1230:
-    	return s->prm_vc_cmd_val_1 ;
-    case 0x1234:
-    	return s->prm_vc_hc_conf;
-    case 0x1238:
-    	return s->prm_vc_i2c_cfg;
-    case 0x123c:
-    	return s->prm_vc_bypass_val;
-	case 0x1250:
-    	return s->prm_rstctrl;
-	case 0x1254:
-    	return s->prm_rsttimer;
-    case 0x1258:
-    	return s->prm_rstst;
-    case 0x1260:
-    	return s->prm_voltctrl;
-    case 0x1264:
-    	return s->prm_sram_pcharge;    	
-    case 0x1270:
-        return s->prm_clksrc_ctrl;
-    case 0x1280:
-    	return s->prm_obs;
-    case 0x1290:
-    	return s->prm_voltsetup1;
-    case 0x1294:
-    	return s->prm_voltoffset;
-    case 0x1298:
-    	return s->prm_clksetup;
-    case 0x129c:
-    	return s->prm_polctrl;
-    case 0x12a0:
-    	return s->prm_voltsetup2;
-
-    case 0x1358:
-    	return s->rm_rstst_neon;
-    case 0x13c8:
-   		return s->pm_wkdep_neon ;
-   	case 0x13e0:
-   		return s->pm_pwstctrl_neon;
-   	case 0x13e4:
-   		return s->pm_pwstst_neon;
-   	case 0x13e8:
-   		return s->pm_prepwstst_neon;
-
-   	case 0x1458:
-   		return s->rm_rstst_usbhost;
-   case 0x14a0:
-   		return s->rm_wken_usbhost ;
-   	case 0x14a4:
-   		return s->rm_mpugrpsel_usbhost;
-   	case 0x14a8:
-   		return s->rm_iva2grpsel_usbhost;
-   	case 0x14b0:
-   		return s->rm_wkst_usbhost;
-    case 0x14c8:
-    	return s->rm_wkdep_usbhost;
-    case 0x14e0:
-    	return s->rm_pwstctrl_usbhost;
-    case 0x14e4:
-    	return s->rm_pwstst_usbhost;
-    case 0x14e8:
-    	return s->rm_prepwstst_usbhost;
-
-    default:
-    	 printf("prm READ offset %x\n",addr);
-        exit(-1);
+    switch (addr) {
+        /* IVA2_PRM */
+        case 0x0050: return s->rm_rstctrl_iva2;
+        case 0x0058: return s->rm_rstst_iva2;
+        case 0x00c8: return s->pm_wkdep_iva2;
+        case 0x00e0: return s->pm_pwstctrl_iva2;
+        case 0x00e4: return s->pm_pwstst_iva2;
+        case 0x00e8: return s->pm_prepwstst_iva2;
+        case 0x00f8: return s->prm_irqstatus_iva2;
+        case 0x00fc: return s->prm_irqenable_iva2;
+        /* OCP_System_Reg_PRM */
+        case 0x0804: return s->prm_revision;
+        case 0x0814: return s->prm_sysconfig;
+        case 0x0818: return s->prm_irqstatus_mpu;
+        case 0x081c: return s->prm_irqenable_mpu;
+        /* MPU_PRM */
+        case 0x0958: return s->rm_rstst_mpu;
+        case 0x09c8: return s->pm_wkdep_mpu;
+        case 0x09d4: return s->pm_evgenctrl_mpu;
+        case 0x09d8: return s->pm_evgenontim_mpu;
+        case 0x09dc: return s->pm_evgenofftim_mpu;
+        case 0x09e0: return s->pm_pwstctrl_mpu;
+        case 0x09e4: return s->pm_pwstst_mpu;
+        case 0x09e8: return s->pm_perpwstst_mpu;
+        /* CORE_PRM */
+        case 0x0a58: return s->rm_rstst_core;
+        case 0x0aa0: return s->pm_wken1_core;
+        case 0x0aa4: return s->pm_mpugrpsel1_core;
+        case 0x0aa8: return s->pm_iva2grpsel1_core;
+        case 0x0ab0: return s->pm_wkst1_core;
+        case 0x0ab8: return s->pm_wkst3_core;
+        case 0x0ae0: return s->pm_pwstctrl_core;
+        case 0x0ae4: return s->pm_pwstst_core;
+        case 0x0ae8: return s->pm_prepwstst_core;
+        case 0x0af0: return s->pm_wken3_core;
+        case 0x0af4: return s->pm_iva2grpsel3_core;
+        case 0x0af8: return s->pm_mpugrpsel3_core;
+        /* SGX_PRM */
+        case 0x0b58: return s->rm_rstst_sgx;
+        case 0x0bc8: return s->pm_wkdep_sgx;
+        case 0x0be0: return s->pm_pwstctrl_sgx;
+        case 0x0be4: return s->pm_pwstst_sgx;
+        case 0x0be8: return s->pm_prepwstst_sgx;
+    	/* WKUP_PRM */
+        case 0x0ca0: return s->pm_wken_wkup;
+        case 0x0ca4: return s->pm_mpugrpsel_wkup;
+        case 0x0ca8: return s->pm_iva2grpsel_wkup;
+        case 0x0cb0: return s->pm_wkst_wkup;
+    	/* Clock_Control_Reg_PRM */
+        case 0x0d40: return s->prm_clksel;
+        case 0x0d70: return s->prm_clkout_ctrl;
+        /* DSS_PRM */
+        case 0x0e58: return s->rm_rstst_dss;
+        case 0x0ea0: return s->pm_wken_dss;
+        case 0x0ec8: return s->pm_wkdep_dss;
+        case 0x0ee0: return s->pm_pwstctrl_dss;
+        case 0x0ee4: return s->pm_pwstst_dss;
+        case 0x0ee8: return s->pm_prepwstst_dss;
+        /* CAM_PRM */
+        case 0x0f58: return s->rm_rstst_cam;
+        case 0x0fc8: return s->pm_wkdep_cam;
+        case 0x0fe0: return s->pm_pwstctrl_cam;
+        case 0x0fe4: return s->pm_pwstst_cam;
+        case 0x0fe8: return s->pm_prepwstst_cam;
+        /* PER_PRM */
+        case 0x1058: return s->rm_rstst_per;
+        case 0x10a0: return s->pm_wken_per;
+        case 0x10a4: return s->pm_mpugrpsel_per;
+        case 0x10a8: return s->pm_iva2grpsel_per;
+        case 0x10b0: return s->pm_wkst_per;
+        case 0x10c8: return s->pm_wkdep_per;
+        case 0x10e0: return s->pm_pwstctrl_per;
+        case 0x10e4: return s->pm_pwstst_per;
+        case 0x10e8: return s->pm_perpwstst_per;
+        /* EMU_PRM */
+        case 0x1158: return s->rm_rstst_emu;
+        case 0x11e4: return s->pm_pwstst_emu;
+        /* Global_Reg_PRM */
+        case 0x1220: return s->prm_vc_smps_sa;
+        case 0x1224: return s->prm_vc_smps_vol_ra;
+        case 0x1228: return s->prm_vc_smps_cmd_ra;
+        case 0x122c: return s->prm_vc_cmd_val_0;
+        case 0x1230: return s->prm_vc_cmd_val_1;
+        case 0x1234: return s->prm_vc_hc_conf;
+        case 0x1238: return s->prm_vc_i2c_cfg;
+        case 0x123c: return s->prm_vc_bypass_val;
+        case 0x1250: return s->prm_rstctrl;
+        case 0x1254: return s->prm_rsttimer;
+        case 0x1258: return s->prm_rstst;
+        case 0x1260: return s->prm_voltctrl;
+        case 0x1264: return s->prm_sram_pcharge;    	
+        case 0x1270: return s->prm_clksrc_ctrl;
+        case 0x1280: return s->prm_obs;
+        case 0x1290: return s->prm_voltsetup1;
+        case 0x1294: return s->prm_voltoffset;
+        case 0x1298: return s->prm_clksetup;
+        case 0x129c: return s->prm_polctrl;
+        case 0x12a0: return s->prm_voltsetup2;
+        /* NEON_PRM */
+        case 0x1358: return s->rm_rstst_neon;
+        case 0x13c8: return s->pm_wkdep_neon;
+        case 0x13e0: return s->pm_pwstctrl_neon;
+        case 0x13e4: return s->pm_pwstst_neon;
+        case 0x13e8: return s->pm_prepwstst_neon;
+        /* USBHOST_PRM */
+        case 0x1458: return s->rm_rstst_usbhost;
+        case 0x14a0: return s->pm_wken_usbhost;
+        case 0x14a4: return s->pm_mpugrpsel_usbhost;
+        case 0x14a8: return s->pm_iva2grpsel_usbhost;
+        case 0x14b0: return s->pm_wkst_usbhost;
+        case 0x14c8: return s->pm_wkdep_usbhost;
+        case 0x14e0: return s->pm_pwstctrl_usbhost;
+        case 0x14e4: return s->pm_pwstst_usbhost;
+        case 0x14e8: return s->pm_prepwstst_usbhost;
+        default:
+            OMAP_BAD_REG(addr);
+            return 0;
     }
 }
 
@@ -897,213 +730,144 @@ static inline void omap3_prm_clksrc_ctrl_update(struct omap3_prm_s *s,
         omap_clk_setrate(omap_findclk(s->mpu, "omap3_sys_clk"), 1, 1);
     else if ((value & 0xd0) == 0x80)
         omap_clk_setrate(omap_findclk(s->mpu, "omap3_sys_clk"), 2, 1);
-    //OMAP3_DEBUG(("omap3_sys_clk %d \n",omap_clk_getrate(omap_findclk(s->mpu, "omap3_sys_clk"))));
 }
+
 static void omap3_prm_write(void *opaque, target_phys_addr_t addr,
                             uint32_t value)
 {
-    struct omap3_prm_s *s = (struct omap3_prm_s *) opaque;
+    struct omap3_prm_s *s = (struct omap3_prm_s *)opaque;
 
-    switch (addr)
-    {
-    case 0xc8:
-    	s->pm_wkdep_iva2 = value & 0xb3;
-    	break;
-    case 0xe0:
-    	s->pm_pwstctrl_iva2 = value & 0xff0f0f;
-    	break;
-    case 0xe4:
-    	s->pm_pwstst_iva2 = value & 0x100ff7;
-    	break;
-    case 0xe8:
-    	s->pm_prepwstst_iva2 = value & 0xff7;
-    	break;
-    case 0x814:
-    	s->prm_sysconfig = value &0x1;
-    	break;
-    case 0x818:
-    	s->prm_irqstatus_mpu = 0x0;
-    	break;
-    case 0x81c:
-    	s->prm_irqenable_mpu = 0x3ffffff;
-    	break;
-    case 0x9c8:
-    	s->pm_wkdep_mpu = value & 0xa5;;
-    	break;
-    case 0x9e0:
-    	s->pm_pwstctrl_mpu = value & 0x3010f;
-    	break;
-    case 0x9e4:
-    	s->pm_pwstst_mpu = value & 0x1000c7;
-    	break;
-    case 0x9e8:
-    	s->pm_perpwstst_mpu = value & 0xc7;
-    	break;
-    case 0xae0:
-    	s->pm_pwstctrl_core = value & 0xf0307;
-    	break;
-    case 0xae4:
-    	s->pm_pwstst_core = value & 0x1000f3;
-    	break;
-    case 0xae8:
-    	s->pm_prepwstst_core = value & 0xf7;
-    	break;
-    case 0xbc8:
-    	s->pm_wkdep_sgx = value & 0x17;
-    	break;
-   case 0xbe0:
-   		s->pm_pwstctrl_sgx = value & 0x30107;
-   		break;
-   	case 0xbe4:
-   		s->pm_pwstst_sgx = value & 0x100003;;
-   		break;
-   	case 0xbe8:
-   		s->pm_prepwstst_sgx = value & 0x3;
-   		break;    	
-    case 0xca0:
-    	s->pm_wken_wkup = value & 0x3cb;
-    	break;
-    case 0xca4:
-    	s->pm_mpugrpsel_wkup = value & 0x3cb;
-    	break;
-    case 0xca8:
-    	s->pm_iva2grpsel_wkup = value & 0x3cb;
-    	break;
-	 case 0xcac:
-    	s->pm_wkst_wkup = value & 0x3cb;
-    	break;
-    case 0xd40:
-        s->prm_clksel = value & 0x7;
-        break;
-    case 0xec8:
-     	 s->pm_wkdep_dss = value & 0x16;
-     	 break;
-    case 0xee0:
-    	s->pm_pwstctrl_dss = value & 0x30107;
-    	break;
-    case 0xee4:
-    	s->pm_pwstst_dss = value & 0x100003;
-    	break;
-    case 0xee8:
-    	s->pm_prepwstst_dss = value &0x3;
-    	break;
-    case 0xfc8:
-    	s->pm_wken_cam = value & 0x16;
-     	 break;
-    case 0xfe0:
-    	s->pm_pwstctrl_cam = value & 0x30107;
-    	break;
-    case 0xfe4:
-    	s->pm_pwstst_cam = value & 0x100003;
-    	break;
-    case 0xfe8:
-    	s->pm_prepwstst_cam = value & 0x3;
-    	break;
-    case 0x10c8:
-    	s->pm_wkdep_per = value & 0x17;
-		break;
-    case 0x10a0:
-    	s->pm_wken_per = value & 0x3efff;
-     	break;
-    case 0x10e0:
-		s->pm_pwstctrl_per = value & 0x30107;
-		break;
-	case 0x10e4:
-		s->pm_pwstst_per = value & 0x100003;;
-		break;
-	case 0x10e8:
-		s->pm_perpwstst_per = value & 0x3;
-		break;    	
-    case 0x1220:
-    	s->prm_vc_smps_sa = value & 0x7f007f;
-    	break;
-    case 0x1224:
-    	s->prm_vc_smps_vol_ra = value & 0xff00ff;
-    	break;
-    case 0x1228:
-    	s->prm_vc_smps_cmd_ra = value & 0xff00ff;
-    	break;
-    case 0x122c:
-    	s->prm_vc_cmd_val_0 = value ;
-    	break;
-    case 0x1230:
-    	s->prm_vc_cmd_val_1 = value ;
-    	break;
-    case 0x1234:
-    	s->prm_vc_hc_conf = value & 0x1f001f;
-    	break;
-    case 0x1238:
-    	s->prm_vc_i2c_cfg = value & 0x3f;
-    	break;
-    case 0x123c:
-    	s->prm_vc_bypass_val = value;
-    	break;
-    case 0x1250:
-    	s->prm_rstctrl = value & 0x7;
-    	/*TODO: Software reset*/
-    	break;
-    case 0x1254:
-    	s->prm_rsttimer = value & 0x1fff;
-    	break;
-    case 0x1258:
-    	s->prm_rstst = value & 0x7ff;
-    	break;
-    case 0x1260:
-    	s->prm_voltctrl = value & 0x1f;
-    	break;
-    case 0x1264:
-    	s->prm_sram_pcharge = value &0xff;
-    	break;
-    case 0x1270:
-        s->prm_clksrc_ctrl = value & (0xd8);
-        omap3_prm_clksrc_ctrl_update(s, s->prm_clksrc_ctrl);
-        break;
-    case 0x1290:
-    	s->prm_voltsetup1 = value;
-    	break;
-    case 0x1294:
-    	s->prm_voltoffset = value&0xffff;
-    	break;
-    case 0x1298:
-    	s->prm_clksetup = value&0xffff;
-    	break;
-    case 0x129c:
-    	 s->prm_polctrl = value&0xf;
-    	 break;
-    case 0x12a0:
-    	s->prm_voltsetup2 = value & 0xffff;
-    	break;
-   case 0x13c8:
-   		s->pm_wkdep_neon = value & 0x2;
-   		break;
-   	case 0x13e0:
-   		s->pm_pwstctrl_neon = value & 0x7;
-   		break;
-   	case 0x13e4:
-   		s->pm_pwstst_neon = value & 0x100003;
-   		break;
-   case 0x13e8:
-   		s->pm_prepwstst_neon = value & 0x3;
-   		break;
-   case 0x14a0:
-   		s->rm_wken_usbhost = value &0x1;
-   		break;
-    case 0x14c8:
-    	s->rm_wkdep_usbhost = value & 0x17;
-    	break;
-    case 0x14e0:
-    	s->rm_pwstctrl_usbhost = value & 0x30117;
-    	break;
-    case 0x14e4:
-    	s->rm_pwstst_usbhost = value & 0x100002;
-    	break;
-    case 0x14e8:
-    	s->rm_prepwstst_usbhost = value & 0x2;
-    	break;
-
-    default:
-        printf("omap3_prm_write addr %x value %x \n", addr, value);
-        exit(-1);
+    switch (addr) {
+        /* IVA2_PRM */
+        case 0x0050: s->rm_rstctrl_iva2 = value & 0x7; break;
+        case 0x0058: s->rm_rstst_iva2 &= ~(value & 0x3f0f); break;
+        case 0x00c8: s->pm_wkdep_iva2 = value & 0xb3; break;
+        case 0x00e0: s->pm_pwstctrl_iva2 = 0xcff000 | (value & 0x300f0f); break;
+        case 0x00e4: OMAP_RO_REG(addr); break;
+        case 0x00e8: s->pm_prepwstst_iva2 = value & 0xff7;
+        case 0x00f8: s->prm_irqstatus_iva2 &= ~(value & 0x7); break;
+        case 0x00fc: s->prm_irqenable_iva2 = value & 0x7; break;
+        /* OCP_System_Reg_PRM */
+        case 0x0804: OMAP_RO_REG(addr); break;
+        case 0x0814: s->prm_sysconfig = value & 0x1; break;
+        case 0x0818: s->prm_irqstatus_mpu &= ~(value & 0x03c003fd); break;
+        case 0x081c: s->prm_irqenable_mpu = value & 0x03c003fd; break;
+        /* MPU_PRM */
+        case 0x0958: s->rm_rstst_mpu &= ~(value & 0x080f); break;
+        case 0x09c8: s->pm_wkdep_mpu = value & 0xa5; break;
+        case 0x09d4: s->pm_evgenctrl_mpu = value & 0x1f; break;
+        case 0x09d8: s->pm_evgenontim_mpu = value; break;
+        case 0x09dc: s->pm_evgenofftim_mpu = value; break;
+        case 0x09e0: s->pm_pwstctrl_mpu = value & 0x3010f; break;
+        case 0x09e4: OMAP_RO_REG(addr); break;
+        case 0x09e8: s->pm_perpwstst_mpu = value & 0xc7; break;
+        /* CORE_PRM */
+        case 0x0a58: s->rm_rstst_core &= ~(value & 0x7); break;
+        case 0x0aa0: s->pm_wken1_core = 0x80000008 | (value & 0x433ffe10); break;
+        case 0x0aa4: s->pm_mpugrpsel1_core = 0x80000008 | (value & 0x433ffe10); break;
+        case 0x0aa8: s->pm_iva2grpsel1_core = 0x80000008 | (value & 0x433ffe10); break;
+        case 0x0ab0: s->pm_wkst1_core = value & 0x433ffe10; break;
+        case 0x0ab8: s->pm_wkst3_core &= ~(value & 0x4); break;
+        case 0x0ae0: s->pm_pwstctrl_core = (value & 0x0f031f); break;
+        case 0x0ae4: OMAP_RO_REG(addr); break;
+        case 0x0ae8: s->pm_prepwstst_core = value & 0xf7; break;
+        case 0x0af0: s->pm_wken3_core = value & 0x4; break;
+        case 0x0af4: s->pm_iva2grpsel3_core = value & 0x4; break;
+        case 0x0af8: s->pm_mpugrpsel3_core = value & 0x4; break;
+        /* SGX_PRM */
+        case 0x0b58: s->rm_rstst_sgx &= ~(value & 0xf); break;
+        case 0x0bc8: s->pm_wkdep_sgx = value & 0x16; break;
+        case 0x0be0: s->pm_pwstctrl_sgx = 0x030104 | (value & 0x3); break;
+        case 0x0be4: OMAP_RO_REG(addr); break;
+        case 0x0be8: s->pm_prepwstst_sgx = value & 0x3; break;
+        /* WKUP_PRM */
+        case 0x0ca0: s->pm_wken_wkup = 0x2 | (value & 0x0103c9); break;
+        case 0x0ca4: s->pm_mpugrpsel_wkup = 0x0102 | (value & 0x02c9); break;
+        case 0x0ca8: s->pm_iva2grpsel_wkup = value & 0x03cb; break;
+        case 0x0cb0: s->pm_wkst_wkup &= ~(value & 0x0103cb); break;
+        /* Clock_Control_Reg_PRM */
+        case 0x0d40: 
+            s->prm_clksel = value & 0x7;
+            fprintf(stderr, "%s PRM_CLKSEL = 0x%x\n", __FUNCTION__,
+                    s->prm_clksel);
+            /* TODO: update clocks */
+            break;
+        case 0x0d70:
+            s->prm_clkout_ctrl = value & 0x80;
+            fprintf(stderr, "%s PRM_CLKOUT_CTRL = 0x%x\n", __FUNCTION__,
+                    s->prm_clkout_ctrl);
+            /* TODO: check do we need to update something */
+            break;
+        /* DSS_PRM */
+        case 0x0e58: s->rm_rstst_dss &= ~(value & 0xf); break;
+        case 0x0ea0: s->pm_wken_dss = value & 1; break;
+        case 0x0ec8: s->pm_wkdep_dss = value & 0x16; break;
+        case 0x0ee0: s->pm_pwstctrl_dss = 0x030104 | (value & 3); break;
+        case 0x0ee4: OMAP_RO_REG(addr); break;
+        case 0x0ee8: s->pm_prepwstst_dss = value & 3; break;
+        /* CAM_PRM */
+        case 0x0f58: s->rm_rstst_cam &= (value & 0xf); break;
+        case 0x0fc8: s->pm_wkdep_cam = value & 0x16; break;
+        case 0x0fe0: s->pm_pwstctrl_cam = 0x030104 | (value & 3); break;
+        case 0x0fe4: OMAP_RO_REG(addr); break;
+        case 0x0fe8: s->pm_prepwstst_cam = value & 0x3; break;
+        /* PER_PRM */
+        case 0x1058: s->rm_rstst_per &= ~(value & 0xf); break;
+        case 0x10a0: s->pm_wken_per = value & 0x03efff; break;
+        case 0x10a4: s->pm_mpugrpsel_per = value & 0x03efff; break;
+        case 0x10a8: s->pm_iva2grpsel_per = value & 0x03efff; break;
+        case 0x10b0: s->pm_wkst_per &= ~(value & 0x03efff); break;
+        case 0x10c8: s->pm_wkdep_per = value & 0x17; break;
+        case 0x10e0: s->pm_pwstctrl_per = 0x030100 | (value & 7); break;
+        case 0x10e4: OMAP_RO_REG(addr); break;
+        case 0x10e8: s->pm_perpwstst_per = value & 0x7; break;
+        /* EMU_PRM */
+        case 0x1158: s->rm_rstst_emu &= ~(value & 7); break;
+        case 0x11e4: OMAP_RO_REG(addr); break;
+        /* Global_Reg_PRM */
+        case 0x1220: s->prm_vc_smps_sa = value & 0x7f007f; break;
+        case 0x1224: s->prm_vc_smps_vol_ra = value & 0xff00ff; break;
+        case 0x1228: s->prm_vc_smps_cmd_ra = value & 0xff00ff; break;
+        case 0x122c: s->prm_vc_cmd_val_0 = value; break;
+        case 0x1230: s->prm_vc_cmd_val_1 = value; break;
+        case 0x1234: s->prm_vc_hc_conf = value & 0x1f001f; break;
+        case 0x1238: s->prm_vc_i2c_cfg = value & 0x3f; break;
+        case 0x123c: s->prm_vc_bypass_val = value & 0x01ffff7f; break;
+        case 0x1250: s->prm_rstctrl = 0; break; /* TODO: resets */
+        case 0x1254: s->prm_rsttimer = value & 0x1fff; break;
+        case 0x1258: s->prm_rstst &= ~(value & 0x7fb); break;
+        case 0x1260: s->prm_voltctrl = value & 0x1f; break;
+        case 0x1264: s->prm_sram_pcharge = value & 0xff; break;
+        case 0x1270:
+            s->prm_clksrc_ctrl = value & (0xd8);
+            omap3_prm_clksrc_ctrl_update(s, s->prm_clksrc_ctrl);
+            /* TODO: update SYSCLKSEL bits */
+            break;
+        case 0x1280: OMAP_RO_REG(addr); break;
+        case 0x1290: s->prm_voltsetup1 = value; break;
+        case 0x1294: s->prm_voltoffset = value & 0xffff; break;
+        case 0x1298: s->prm_clksetup = value & 0xffff; break;
+        case 0x129c: s->prm_polctrl = value & 0xf; break;
+        case 0x12a0: s->prm_voltsetup2 = value & 0xffff; break;
+        /* NEON_PRM */
+        case 0x1358: s->rm_rstst_neon &= ~(value & 0xf); break;
+        case 0x13c8: s->pm_wkdep_neon = value & 0x2; break;
+        case 0x13e0: s->pm_pwstctrl_neon = 0x4 | (value & 3); break;
+        case 0x13e4: OMAP_RO_REG(addr); break;
+        case 0x13e8: s->pm_prepwstst_neon = value & 3; break;
+        /* USBHOST_PRM */
+        case 0x1458: s->rm_rstst_usbhost &= ~(value & 0xf); break;
+        case 0x14a0: s->pm_wken_usbhost = value & 1; break;
+        case 0x14a4: s->pm_mpugrpsel_usbhost = value & 1; break;
+        case 0x14a8: s->pm_iva2grpsel_usbhost = value & 1; break;
+        case 0x14b0: s->pm_wkst_usbhost &= ~(value & 1); break;
+        case 0x14c8: s->pm_wkdep_usbhost = value & 0x17; break;
+        case 0x14e0: s->pm_pwstctrl_usbhost = 0x030104 | (value & 0x13); break;
+        case 0x14e4: OMAP_RO_REG(addr); break;
+        case 0x14e8: s->pm_prepwstst_usbhost = value & 3; break;
+        default:
+            OMAP_BAD_REGV(addr, value);
+            break;
     }
 }
 
@@ -3965,14 +3729,13 @@ struct omap_mpu_state_s *omap3530_mpu_init(unsigned long sdram_size,
 
     
 
-    s->l4 = omap_l4_init(OMAP3_L4_BASE, sizeof(omap3_l4_agent_info));
+    s->l4 = omap_l4_init(OMAP3_L4_BASE, sizeof(omap3_l4_agent_info) / sizeof(struct omap_l4_agent_info_s));
 
     cpu_irq = arm_pic_init_cpu(s->env);
-    s->ih[0] = omap2_inth_init(s,
-                               0x48200000, 0x1000, 3, &s->irq[0],
+    s->ih[0] = omap2_inth_init(s, 0x48200000, 0x1000, 3, &s->irq[0],
                                cpu_irq[ARM_PIC_CPU_IRQ],
-                               cpu_irq[ARM_PIC_CPU_FIQ], omap_findclk(s,
-                                                                      "omap3_mpu_intc_fclk"),
+                               cpu_irq[ARM_PIC_CPU_FIQ], 
+                               omap_findclk(s, "omap3_mpu_intc_fclk"),
                                omap_findclk(s, "omap3_mpu_intc_iclk"));
 
     for (i = 0; i < 4; i++)
@@ -4001,63 +3764,62 @@ struct omap_mpu_state_s *omap3530_mpu_init(unsigned long sdram_size,
                                           omap_findclk(s, "omap3_wkup_l4_iclk"),
                                           s);
 
-    s->omap3_scm = omap3_scm_init(omap3_l4ta_get(s->l4, 4), s);
+    s->omap3_scm = omap3_scm_init(omap3_l4ta_get(s->l4, 0), s);
 
     s->omap3_pm = omap3_pm_init(s);
     s->omap3_sms = omap3_sms_init(s);
 
-    s->gptimer[0] = omap_gp_timer_init(omap3_l4ta_get(s->l4, 5),
+    s->gptimer[0] = omap_gp_timer_init(omap3_l4ta_get(s->l4, 4),
                                        s->irq[0][OMAP_INT_35XX_GPTIMER1],
                                        omap_findclk(s, "omap3_gp1_fclk"),
                                        omap_findclk(s, "omap3_wkup_l4_iclk"));
-    s->gptimer[1] = omap_gp_timer_init(omap3_l4ta_get(s->l4, 6),
+    s->gptimer[1] = omap_gp_timer_init(omap3_l4ta_get(s->l4, 5),
                                        s->irq[0][OMAP_INT_35XX_GPTIMER2],
                                        omap_findclk(s, "omap3_gp2_fclk"),
                                        omap_findclk(s, "omap3_per_l4_iclk"));
-    s->gptimer[2] = omap_gp_timer_init(omap3_l4ta_get(s->l4, 7),
+    s->gptimer[2] = omap_gp_timer_init(omap3_l4ta_get(s->l4, 6),
                                        s->irq[0][OMAP_INT_35XX_GPTIMER3],
                                        omap_findclk(s, "omap3_gp3_fclk"),
                                        omap_findclk(s, "omap3_per_l4_iclk"));
-    s->gptimer[3] = omap_gp_timer_init(omap3_l4ta_get(s->l4, 8),
+    s->gptimer[3] = omap_gp_timer_init(omap3_l4ta_get(s->l4, 7),
                                        s->irq[0][OMAP_INT_35XX_GPTIMER4],
                                        omap_findclk(s, "omap3_gp4_fclk"),
                                        omap_findclk(s, "omap3_per_l4_iclk"));
-    s->gptimer[4] = omap_gp_timer_init(omap3_l4ta_get(s->l4, 9),
+    s->gptimer[4] = omap_gp_timer_init(omap3_l4ta_get(s->l4, 8),
                                        s->irq[0][OMAP_INT_35XX_GPTIMER5],
                                        omap_findclk(s, "omap3_gp5_fclk"),
                                        omap_findclk(s, "omap3_per_l4_iclk"));
-    s->gptimer[5] = omap_gp_timer_init(omap3_l4ta_get(s->l4, 10),
+    s->gptimer[5] = omap_gp_timer_init(omap3_l4ta_get(s->l4, 9),
                                        s->irq[0][OMAP_INT_35XX_GPTIMER6],
                                        omap_findclk(s, "omap3_gp6_fclk"),
                                        omap_findclk(s, "omap3_per_l4_iclk"));
-    s->gptimer[6] = omap_gp_timer_init(omap3_l4ta_get(s->l4, 11),
+    s->gptimer[6] = omap_gp_timer_init(omap3_l4ta_get(s->l4, 10),
                                        s->irq[0][OMAP_INT_35XX_GPTIMER7],
                                        omap_findclk(s, "omap3_gp7_fclk"),
                                        omap_findclk(s, "omap3_per_l4_iclk"));
-    s->gptimer[7] = omap_gp_timer_init(omap3_l4ta_get(s->l4, 12),
+    s->gptimer[7] = omap_gp_timer_init(omap3_l4ta_get(s->l4, 11),
                                        s->irq[0][OMAP_INT_35XX_GPTIMER8],
                                        omap_findclk(s, "omap3_gp8_fclk"),
                                        omap_findclk(s, "omap3_per_l4_iclk"));
-    s->gptimer[8] = omap_gp_timer_init(omap3_l4ta_get(s->l4, 13),
+    s->gptimer[8] = omap_gp_timer_init(omap3_l4ta_get(s->l4, 12),
                                        s->irq[0][OMAP_INT_35XX_GPTIMER9],
                                        omap_findclk(s, "omap3_gp9_fclk"),
                                        omap_findclk(s, "omap3_per_l4_iclk"));
-    s->gptimer[9] = omap_gp_timer_init(omap3_l4ta_get(s->l4, 14),
+    s->gptimer[9] = omap_gp_timer_init(omap3_l4ta_get(s->l4, 13),
                                        s->irq[0][OMAP_INT_35XX_GPTIMER10],
                                        omap_findclk(s, "omap3_gp10_fclk"),
                                        omap_findclk(s, "omap3_core_l4_iclk"));
-    s->gptimer[10] = omap_gp_timer_init(omap3_l4ta_get(s->l4, 15),
+    s->gptimer[10] = omap_gp_timer_init(omap3_l4ta_get(s->l4, 14),
                                        s->irq[0][OMAP_INT_35XX_GPTIMER11],
                                        omap_findclk(s, "omap3_gp12_fclk"),
                                        omap_findclk(s, "omap3_core_l4_iclk"));
-    s->gptimer[11] = omap_gp_timer_init(omap3_l4ta_get(s->l4, 16),
-                                       s->irq[0][OMAP_INT_35XX_GPTIMER12],
-                                       omap_findclk(s, "omap3_gp12_fclk"),
-                                       omap_findclk(s, "omap3_wkup_l4_iclk"));
-
+    s->gptimer[11] = omap_gp_timer_init(omap3_l4ta_get(s->l4, 15),
+                                        s->irq[0][OMAP_INT_35XX_GPTIMER12],
+                                        omap_findclk(s, "omap3_gp12_fclk"),
+                                        omap_findclk(s, "omap3_wkup_l4_iclk"));
     
 	
-    omap_synctimer_init(omap3_l4ta_get(s->l4, 17), s,
+    omap_synctimer_init(omap3_l4ta_get(s->l4, 16), s,
                         omap_findclk(s, "omap3_sys_32k"), NULL);
 
     s->sdrc = omap_sdrc_init(0x6d000000);
@@ -4065,20 +3827,20 @@ struct omap_mpu_state_s *omap3530_mpu_init(unsigned long sdram_size,
     s->gpmc = omap_gpmc_init(s, 0x6e000000, s->irq[0][OMAP_INT_35XX_GPMC_IRQ]);
     
 
-    s->uart[0] = omap2_uart_init(omap3_l4ta_get(s->l4, 18),
+    s->uart[0] = omap2_uart_init(omap3_l4ta_get(s->l4, 17),
                                  s->irq[0][OMAP_INT_35XX_UART1_IRQ],
                                  omap_findclk(s, "omap3_uart1_fclk"),
                                  omap_findclk(s, "omap3_uart1_iclk"),
                                  s->drq[OMAP35XX_DMA_UART1_TX],
                                  s->drq[OMAP35XX_DMA_UART1_RX], serial_hds[0]);
-    s->uart[1] = omap2_uart_init(omap3_l4ta_get(s->l4, 19),
+    s->uart[1] = omap2_uart_init(omap3_l4ta_get(s->l4, 18),
                                  s->irq[0][OMAP_INT_35XX_UART2_IRQ],
                                  omap_findclk(s, "omap3_uart2_fclk"),
                                  omap_findclk(s, "omap3_uart2_iclk"),
                                  s->drq[OMAP35XX_DMA_UART2_TX],
                                  s->drq[OMAP35XX_DMA_UART2_RX],
                                  serial_hds[0] ? serial_hds[1] : 0);
-    s->uart[2] = omap2_uart_init(omap3_l4ta_get(s->l4, 20),
+    s->uart[2] = omap2_uart_init(omap3_l4ta_get(s->l4, 19),
                                  s->irq[0][OMAP_INT_35XX_UART3_IRQ],
                                  omap_findclk(s, "omap3_uart2_fclk"),
                                  omap_findclk(s, "omap3_uart3_iclk"),
@@ -4090,7 +3852,7 @@ struct omap_mpu_state_s *omap3530_mpu_init(unsigned long sdram_size,
     /*attach serial[0] to uart 2 for beagle board */
     omap_uart_attach(s->uart[2], serial_hds[0]);
 
-    s->dss = omap_dss_init(omap3_l4ta_get(s->l4, 21), 0x68005400, ds,
+    s->dss = omap_dss_init(omap3_l4ta_get(s->l4, 20), 0x68005400, ds,
                     s->irq[0][OMAP_INT_35XX_DSS_IRQ], s->drq[OMAP24XX_DMA_DSS],
                    NULL,NULL,NULL,NULL,NULL);
 
@@ -4101,51 +3863,51 @@ struct omap_mpu_state_s *omap3530_mpu_init(unsigned long sdram_size,
 
     s->gpif = omap3_gpif_init();
     /*gpio 1*/
-    omap3_gpio_init(s, s->gpif ,omap3_l4ta_get(s->l4, 22),
+    omap3_gpio_init(s, s->gpif ,omap3_l4ta_get(s->l4, 21),
                     &s->irq[0][OMAP_INT_35XX_GPIO_BANK1], 
                     NULL,NULL,0);
     /*gpio 2*/
-    omap3_gpio_init(s, s->gpif ,omap3_l4ta_get(s->l4, 23),
+    omap3_gpio_init(s, s->gpif ,omap3_l4ta_get(s->l4, 22),
                     &s->irq[0][OMAP_INT_35XX_GPIO_BANK2], 
                     NULL,NULL,1);
     /*gpio 3*/
-    omap3_gpio_init(s, s->gpif ,omap3_l4ta_get(s->l4, 24),
+    omap3_gpio_init(s, s->gpif ,omap3_l4ta_get(s->l4, 23),
                     &s->irq[0][OMAP_INT_35XX_GPIO_BANK3], 
                     NULL,NULL,2);
     /*gpio 4*/
-    omap3_gpio_init(s, s->gpif ,omap3_l4ta_get(s->l4, 25),
+    omap3_gpio_init(s, s->gpif ,omap3_l4ta_get(s->l4, 24),
                     &s->irq[0][OMAP_INT_35XX_GPIO_BANK4], 
                     NULL,NULL,3);
 
     /*gpio 5*/
-    omap3_gpio_init(s, s->gpif ,omap3_l4ta_get(s->l4, 26),
+    omap3_gpio_init(s, s->gpif ,omap3_l4ta_get(s->l4, 25),
                     &s->irq[0][OMAP_INT_35XX_GPIO_BANK5], 
                     NULL,NULL,4);
      /*gpio 6*/
-    omap3_gpio_init(s, s->gpif ,omap3_l4ta_get(s->l4, 27),
+    omap3_gpio_init(s, s->gpif ,omap3_l4ta_get(s->l4, 26),
                     &s->irq[0][OMAP_INT_35XX_GPIO_BANK6], 
                     NULL,NULL,5);
 
-     omap_tap_init(omap3_l4ta_get(s->l4, 28), s);
+     omap_tap_init(omap3_l4ta_get(s->l4, 27), s);
 
-    s->omap3_mmc = omap3_mmc_init(omap3_l4ta_get(s->l4, 29), drives_table[sdindex].bdrv,
+    s->omap3_mmc = omap3_mmc_init(omap3_l4ta_get(s->l4, 28), drives_table[sdindex].bdrv,
                     s->irq[0][OMAP_INT_35XX_MMC1_IRQ],
                     &s->drq[OMAP35XX_DMA_MMC1_TX],
                     omap_findclk(s, "omap3_mmc1_fclk"), omap_findclk(s, "omap3_mmc1_iclk"));
 
-    s->i2c[0] = omap3_i2c_init(omap3_l4ta_get(s->l4, 32),
+    s->i2c[0] = omap3_i2c_init(omap3_l4ta_get(s->l4, 31),
                                s->irq[0][OMAP_INT_35XX_I2C1_IRQ],
                                &s->drq[OMAP35XX_DMA_I2C1_TX],
                                omap_findclk(s, "omap3_i2c1_fclk"),
                                omap_findclk(s, "omap3_i2c1_iclk"),
                                8);
-    s->i2c[1] = omap3_i2c_init(omap3_l4ta_get(s->l4, 33),
+    s->i2c[1] = omap3_i2c_init(omap3_l4ta_get(s->l4, 32),
                                s->irq[0][OMAP_INT_35XX_I2C2_IRQ],
                                &s->drq[OMAP35XX_DMA_I2C2_TX],
                                omap_findclk(s, "omap3_i2c2_fclk"),
                                omap_findclk(s, "omap3_i2c2_iclk"),
                                8);
-    s->i2c[2] = omap3_i2c_init(omap3_l4ta_get(s->l4, 34),
+    s->i2c[2] = omap3_i2c_init(omap3_l4ta_get(s->l4, 33),
                                s->irq[0][OMAP_INT_35XX_I2C3_IRQ],
                                &s->drq[OMAP35XX_DMA_I2C3_TX],
                                omap_findclk(s, "omap3_i2c3_fclk"),

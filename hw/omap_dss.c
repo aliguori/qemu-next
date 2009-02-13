@@ -1073,7 +1073,7 @@ struct omap_dss_s *omap_dss_init(struct omap_target_agent_s *ta,
                                  omap_clk fck1, omap_clk fck2, omap_clk ck54m,
                                  omap_clk ick1, omap_clk ick2)
 {
-    int iomemtype[5];
+    int iomemtype[6];
     struct omap_dss_s *s = (struct omap_dss_s *)
             qemu_mallocz(sizeof(struct omap_dss_s));
 
@@ -1082,26 +1082,22 @@ struct omap_dss_s *omap_dss_init(struct omap_target_agent_s *ta,
     s->state = ds;
     omap_dss_reset(s);
 
-        iomemtype[0] = l4_register_io_memory(0, omap_diss1_readfn,
-                                             omap_diss1_writefn, s);
-        iomemtype[1] = l4_register_io_memory(0, omap_disc1_readfn,
-                                             omap_disc1_writefn, s);
-        iomemtype[2] = l4_register_io_memory(0, omap_rfbi1_readfn,
-                                             omap_rfbi1_writefn, s);
-        iomemtype[3] = l4_register_io_memory(0, omap_venc1_readfn,
-                                             omap_venc1_writefn, s);
-        iomemtype[4] = cpu_register_io_memory(0, omap_im3_readfn,
-                                              omap_im3_writefn, s);
-        omap_l4_attach(ta, 0, iomemtype[0]);
-        omap_l4_attach(ta, 1, iomemtype[1]);
-        omap_l4_attach(ta, 2, iomemtype[2]);
-        omap_l4_attach(ta, 3, iomemtype[3]);
-        cpu_register_physical_memory(l3_base, 0x1000, iomemtype[4]);
-#if 0
-    if (ds)
-        graphic_console_init(ds, omap_update_display,
-                        omap_invalidate_display, omap_screen_dump, s);
-#endif
+    iomemtype[0] = l4_register_io_memory(0, omap_diss1_readfn,
+                                         omap_diss1_writefn, s);
+    iomemtype[1] = l4_register_io_memory(0, omap_disc1_readfn,
+                                         omap_disc1_writefn, s);
+    iomemtype[2] = l4_register_io_memory(0, omap_rfbi1_readfn,
+                                         omap_rfbi1_writefn, s);
+    iomemtype[3] = l4_register_io_memory(0, omap_venc1_readfn,
+                                         omap_venc1_writefn, s);
+    iomemtype[4] = cpu_register_io_memory(0, omap_im3_readfn,
+                                          omap_im3_writefn, s);
+    /* TODO: DSI */
+    omap_l4_attach(ta, 1, iomemtype[0]);
+    omap_l4_attach(ta, 2, iomemtype[1]);
+    omap_l4_attach(ta, 3, iomemtype[2]);
+    omap_l4_attach(ta, 4, iomemtype[3]);
+    cpu_register_physical_memory(l3_base, 0x1000, iomemtype[4]);
 
     return s;
 }
