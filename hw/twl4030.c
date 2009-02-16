@@ -428,7 +428,6 @@ static uint8_t twl4030_4a_read(void *opaque, uint8_t addr)
         default:
 #ifdef VERBOSE
 	        printf("%s: unknown register %02x pc %x \n", __FUNCTION__, addr,cpu_single_env->regs[15] );
-            //printf("%s: unknown register %02x \n", __FUNCTION__, addr);
 #endif
             exit(-1);
             break;
@@ -438,9 +437,6 @@ static uint8_t twl4030_4a_read(void *opaque, uint8_t addr)
 static void twl4030_4a_write(void *opaque, uint8_t addr, uint8_t value)
 {
     struct twl4030_i2c_s *s = (struct twl4030_i2c_s *) opaque;
-    //int line;
-    //int reg = 0;
-    //struct tm tm;
 	
     switch (addr) {
         case 0x61: /* MADC_ISR1 */
@@ -484,7 +480,6 @@ static void twl4030_4a_write(void *opaque, uint8_t addr, uint8_t value)
         default:
 #ifdef VERBOSE
 	        printf("%s: unknown register %02x pc %x \n", __FUNCTION__, addr,cpu_single_env->regs[15] );
-	        //printf("%s: unknown register %02x \n", __FUNCTION__, addr);
 #endif
             exit(-1);
             break;

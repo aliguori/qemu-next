@@ -171,155 +171,6 @@ static int beagle_nand_read_page(struct beagle_s *s,uint8_t *buf, uint16_t page_
 	return 1;
 }
 
-static uint32_t get_le32(void *p)
-{
-    uint8_t *q = (uint8_t *)p;
-    uint32_t v;
-    v = q[3]; v <<= 8;
-    v |= q[2]; v <<= 8;
-    v |= q[1]; v <<= 8;
-    v |= q[0];
-    return v;
-}
-
-static uint32_t get_le16(void *p)
-{
-    uint8_t *q = (uint8_t *)p;
-    uint32_t v;
-    v = q[1]; v <<= 8;
-    v |= q[0];
-    return v;
-}
-
-/* returns ptr to matching dir entry / zero entry or 0 if unsuccessful */
-static uint8_t *beagle_scan_fat_dir_sector(uint8_t *s)
-{
-    int i;
-
-    /* there are 0x10 items with 0x20 bytes per item */
-    for (i = 0x10; i--; s += 0x20) {
-        if (*s == 0xe5 || (s[0x0b] & 0x0f) == 0x0f) continue; /* erased or LFN */
-        if (!*s || !strncasecmp((void *)s, "mlo        ", 8+3)) return s;
-    }
-    return 0;
-}
-
-struct beagle_fat_drv_s {
-    BlockDriverState *bs;
-    uint8_t ptype; // 12, 16, 32
-    uint64_t c0; // physical byte offset for data cluster 0
-    uint64_t fat; // physical byte offset for used FAT sector 0
-    uint32_t spc; // sectors per cluster
-};
-
-/* returns cluster data in the buffer and next cluster chain number or 0 if unsuccessful */
-static uint32_t beagle_read_fat_cluster(uint8_t *data,
-                                        struct beagle_fat_drv_s *drv,
-                                        uint32_t cl)
-{
-    uint8_t buf[ 4 ];
-    uint32_t len = drv->spc * 0x200; // number of bytes to read i.e. bytes per cluster
-    
-    switch (drv->ptype) { /* check for EOF */
-        case 12: if (cl > 0xff0) return 0; break;
-        case 16: if (cl > 0xfff0) return 0; break;
-        case 32: if (cl > 0x0ffffff0) return 0; break;
-        default: return 0;
-    }
-
-    if (bdrv_pread(drv->bs, drv->c0 + ((drv->ptype == 32 ? cl - 2 : cl) * len), data, len) != len) return 0;
-    
-    switch (drv->ptype) { /* determine next cluster # */
-        case 12: fprintf(stderr, "%s: FAT12 parsing not implemented!\n", __FUNCTION__); break;
-        case 16: return (bdrv_pread(drv->bs, drv->fat + cl * 2, buf, 2) != 2) ? 0 : get_le16(buf);
-        case 32: return (bdrv_pread(drv->bs, drv->fat + cl * 4, buf, 4) != 4) ? 0 : get_le32(buf) & 0x0fffffff;
-        default: break;
-    }
-    return 0;
-}
-
-static int beagle_boot_from_mmc(struct beagle_s *s)
-{
-    struct beagle_fat_drv_s drv;
-    int sdindex = drive_get_index(IF_SD, 0, 0);
-    uint8_t sector[0x200], *p, *q;
-    uint32_t pstart, i, j, k, cluster0, fatsize, bootsize, rootsize;
-    uint32_t img_size, img_addr;
-    int result = -1;
-    
-    /* very simple implementation, requires MBR partitioning with an active FAT partition
-       and does no sanity checks for the partition table or FAT boot sector entries */
-    if (sdindex >= 0) {
-        drv.bs = drives_table[sdindex].bdrv;
-        if (bdrv_pread(drv.bs, 0, sector, 0x200) == 0x200
-            && sector[0x1fe] == 0x55 && sector[0x1ff] == 0xaa) { /* MBR signature */
-            for (i = 0, p = sector + 0x1be; i < 4; i++, p += 0x10) if (p[0] == 0x80) break;
-            if (i < 4 /* was there an active partition? */
-                && (p[4] == 1 || p[4] == 4 || p[4] == 6 || p[4] == 11 
-                    || p[4] == 12 || p[4] == 14 || p[4] == 15) /* FAT partition type */
-                && bdrv_pread(drv.bs, (pstart = get_le32(p + 8)) * 0x200, sector, 0x200) == 0x200
-                && sector[0x1fe] ==0x55 && sector[0x1ff] == 0xaa) { /* boot sector signature */
-                /* determine FAT type */
-                fatsize = get_le16(sector + 0x16); if (!fatsize) fatsize = get_le32(sector + 0x24);
-                bootsize = get_le16(sector + 0x0e);
-                cluster0 = bootsize + fatsize * sector[0x10];
-                rootsize = get_le16(sector + 0x11); if (rootsize & 0x0f) rootsize += 0x10; rootsize >>= 4;
-                drv.spc = sector[0x0d];
-                i = get_le16(sector + 0x13); if (!i) i = get_le32(sector + 0x20);
-                i = (i - (cluster0 + rootsize)) / drv.spc;
-                drv.ptype = (i < 4085) ? 12 : (i < 65525) ? 16 : 32;
-                /* search for MLO file */
-                drv.fat = (bootsize + pstart) * 0x200;
-                drv.c0 = (cluster0 + pstart) * 0x200;
-                if (drv.ptype == 32) {
-                    i = get_le32(sector + 0x2c); /* first root cluster # */
-                    j = get_le16(sector + 0x28);
-                    if (j & 0x80) drv.fat += (j & 0x0f) * fatsize * 0x200;
-                    uint8_t *cluster = qemu_mallocz(drv.spc * 0x200);
-                    for (p = 0; !p && (i = beagle_read_fat_cluster(cluster, &drv, i)); ) {
-                        for (j = drv.spc, q=cluster; j-- & !p; q += 0x200)
-                            p = beagle_scan_fat_dir_sector(q);
-                        if (p) memcpy(sector, q - 0x200, 0x200); // save the sector
-                    }
-                    free(cluster);
-                } else { /* FAT12/16 */
-                    for (i = rootsize, j = 0, p = 0; i-- && !p; j++) {
-                        if (bdrv_pread(drv.bs, drv.c0 + j * 0x200, sector, 0x200) != 0x200) break;
-                        p = beagle_scan_fat_dir_sector(sector);
-                    }
-                }
-                if (p && *p) { // did we indeed find the file?
-                    i = get_le16(p + 0x14); i <<= 16; i |= get_le16(p + 0x1a);
-                    j = drv.spc * 0x200;
-                    uint8 *data = qemu_mallocz(j);
-                    if ((i = beagle_read_fat_cluster(data, &drv, i))) {
-                        /* TODO: support HS device boot - for now only GP device is supported */
-                        img_size = get_le32(data);
-                        img_addr = get_le32(data + 4);
-                        s->cpu->env->regs[15] = img_addr;
-                        cpu_physical_memory_write(img_addr, data + 8, 
-                                                  (k = (j - 8 >= img_size) ? img_size : j - 8));
-                        for (img_addr += k, img_size -= k;
-                             img_size && (i = beagle_read_fat_cluster(data, &drv, i));
-                             img_addr += k, img_size -= k) {
-                            cpu_physical_memory_write(img_addr, data, 
-                                                      (k = (j >= img_size) ? img_size : j));
-                        }
-                        result = 0;
-                    } else
-                        fprintf(stderr, "%s: unable to read MLO file contents from SD card\n", __FUNCTION__);
-                    free(data);
-                } else
-                    fprintf(stderr, "%s: MLO file not found in the root directory\n", __FUNCTION__);
-            } else
-                fprintf(stderr, "%s: no active FAT partition found on SD card\n", __FUNCTION__);
-        } else
-            fprintf(stderr, "%s: MBR not found on SD card\n", __FUNCTION__);
-    }
-    
-	return result;
-}
-
 /*read the xloader from NAND Flash into internal RAM*/
 static int beagle_boot_from_nand(struct beagle_s *s)
 {
@@ -359,14 +210,13 @@ static int beagle_boot_from_nand(struct beagle_s *s)
 	return 0;
 
 }
- static int beagle_rom_emu(struct beagle_s *s)
+
+static int beagle_rom_emu(struct beagle_s *s)
 {
-	if (beagle_boot_from_mmc(s)<0)
-	{
-		if (beagle_boot_from_nand(s)<0)
-			return (-1); 
-	}
-	return (0);
+    if (!omap3_mmc_boot(s->cpu))
+        if (beagle_boot_from_nand(s) < 0)
+            return -1;
+	return 0;
 }
 
 static void beagle_dss_setup(struct beagle_s *s, DisplayState *ds)
