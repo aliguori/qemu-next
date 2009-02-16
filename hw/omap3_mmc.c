@@ -599,12 +599,10 @@ struct omap3_mmc_s *omap3_mmc_init(struct omap_target_agent_s *ta,
     omap_l4_attach(ta, 0, iomemtype);
 
     /* Instantiate the storage */
-    s->card = sd_init(bd, 0);
-
-    //s->cdet = qemu_allocate_irqs(omap_mmc_cover_cb, s, 1)[0];
-    //sd_set_cb(s->card, 0, s->cdet);
-
-    omap3_mmc_enable(s,1);
+    if (bd!=NULL) {
+    	s->card = sd_init(bd, 0);
+	    omap3_mmc_enable(s,1);
+    }
 
     return s;
 }

@@ -4503,7 +4503,7 @@ static void omap1_mpu_reset(void *opaque)
     omap_uart_reset(mpu->uart[0]);
     omap_uart_reset(mpu->uart[1]);
     omap_uart_reset(mpu->uart[2]);
-    omap_mmc_reset(mpu->mmc);
+    omap_mmc_reset(mpu->mmc[0]);
     omap_mpuio_reset(mpu->mpuio);
     omap_gpio_reset(mpu->gpio);
     omap_uwire_reset(mpu->microwire);
@@ -4751,7 +4751,7 @@ struct omap_mpu_state_s *omap310_mpu_init(unsigned long sdram_size,
         fprintf(stderr, "qemu: missing SecureDigital device\n");
         exit(1);
     }
-    s->mmc = omap_mmc_init(0xfffb7800, drives_table[sdindex].bdrv,
+    s->mmc[0] = omap_mmc_init(0xfffb7800, drives_table[sdindex].bdrv,
                     s->irq[1][OMAP_INT_OQN], &s->drq[OMAP_DMA_MMC_TX],
                     omap_findclk(s, "mmc_ck"));
 
