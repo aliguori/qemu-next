@@ -4189,12 +4189,26 @@ struct omap_mpu_state_s *omap3530_mpu_init(unsigned long sdram_size,
 
     omap_tap_init(omap3_l4ta_get(s->l4, L4A_TAP), s);
 
-    s->omap3_mmc = omap3_mmc_init(omap3_l4ta_get(s->l4, L4A_MMC1), 
+    s->omap3_mmc[0] = omap3_mmc_init(omap3_l4ta_get(s->l4, L4A_MMC1),
                                   drives_table[sdindex].bdrv,
                                   s->irq[0][OMAP_INT_35XX_MMC1_IRQ],
                                   &s->drq[OMAP35XX_DMA_MMC1_TX],
                                   omap_findclk(s, "omap3_mmc1_fclk"),
                                   omap_findclk(s, "omap3_mmc1_iclk"));
+
+    s->omap3_mmc[1] = omap3_mmc_init(omap3_l4ta_get(s->l4, L4A_MMC2),
+                                  drives_table[-1].bdrv,
+                                  s->irq[0][OMAP_INT_35XX_MMC2_IRQ],
+                                  &s->drq[OMAP35XX_DMA_MMC2_TX],
+                                  omap_findclk(s, "omap3_mmc2_fclk"),
+                                  omap_findclk(s, "omap3_mmc2_iclk"));
+
+    s->omap3_mmc[2] = omap3_mmc_init(omap3_l4ta_get(s->l4, L4A_MMC3),
+                                  drives_table[-1].bdrv,
+                                  s->irq[0][OMAP_INT_35XX_MMC3_IRQ],
+                                  &s->drq[OMAP35XX_DMA_MMC3_TX],
+                                  omap_findclk(s, "omap3_mmc3_fclk"),
+                                  omap_findclk(s, "omap3_mmc3_iclk"));
 
     s->i2c[0] = omap3_i2c_init(omap3_l4ta_get(s->l4, L4A_I2C1),
                                s->irq[0][OMAP_INT_35XX_I2C1_IRQ],
