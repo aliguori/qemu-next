@@ -1202,6 +1202,7 @@ struct omap_mpu_state_s *omap3530_mpu_init(unsigned long sdram_size,
                 DisplayState *ds, const char *core);
 void omap3_set_mem_type(struct omap_mpu_state_s *s, int bootfrom);
 void omap3_set_device_type(struct omap_mpu_state_s *s, int device_type);
+int omap3_mmc_boot(struct omap_mpu_state_s *s);
 
 # if TARGET_PHYS_ADDR_BITS == 32
 #  define OMAP_FMT_plx "0x%08x"
