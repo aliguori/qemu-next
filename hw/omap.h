@@ -97,8 +97,8 @@ struct omap_prcm_s *omap_prcm_init(struct omap_target_agent_s *ta,
 
 struct omap3_prm_s;
 struct omap3_prm_s *omap3_prm_init(struct omap_target_agent_s *ta,
-                qemu_irq mpu_int, qemu_irq dsp_int, qemu_irq iva_int,
-                struct omap_mpu_state_s *mpu);
+                                   qemu_irq mpu_int, qemu_irq iva_int,
+                                   struct omap_mpu_state_s *mpu);
 
 struct omap3_cm_s;
 struct omap3_cm_s *omap3_cm_init(struct omap_target_agent_s *ta,

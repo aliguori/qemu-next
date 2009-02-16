@@ -29,7 +29,7 @@
 #include "soc_dma.h"
 #include "audio/audio.h"
 
-//#define OMAP3_DEBUG_
+#define OMAP3_DEBUG_
 
 #ifdef OMAP3_DEBUG_
 #define TRACE(fmt, ...) fprintf(stderr, "%s " fmt "\n", __FUNCTION__, ##__VA_ARGS__)
@@ -611,7 +611,8 @@ static struct omap_target_agent_s *omap3_l4ta_get(struct omap_l4_s *bus, int cs)
 
 struct omap3_prm_s
 {
-    qemu_irq irq[3];
+    qemu_irq mpu_irq;
+    qemu_irq iva_irq;
     struct omap_mpu_state_s *mpu;
 
     /*IVA2_PRM Register */
@@ -624,7 +625,7 @@ struct omap3_prm_s
     uint32_t prm_irqstatus_iva2; /*0x4830 60F8 */
     uint32_t prm_irqenable_iva2; /*0x4830 60FC */
 
-    /*OCP_System_Reg_PRM Registerr */
+    /*OCP_System_Reg_PRM Register */
     uint32_t prm_revision;      /*0x4830 6804 */
     uint32_t prm_sysconfig;     /*0x4830 6814 */
     uint32_t prm_irqstatus_mpu; /*0x4830 6818 */
@@ -743,6 +744,12 @@ struct omap3_prm_s
 
 };
 
+static void omap3_prm_int_update(struct omap3_prm_s *s)
+{
+    qemu_set_irq(s->mpu_irq, s->prm_irqstatus_mpu & s->prm_irqenable_mpu);
+    qemu_set_irq(s->iva_irq, s->prm_irqstatus_iva2 & s->prm_irqenable_iva2);
+}
+
 static void omap3_prm_reset(struct omap3_prm_s *s)
 {
     s->rm_rstctrl_iva2 = 0x7;
@@ -858,6 +865,7 @@ static void omap3_prm_reset(struct omap3_prm_s *s)
     s->pm_pwstst_usbhost = 0x3;
     s->pm_prepwstst_usbhost = 0x0;
 
+    omap3_prm_int_update(s);
 }
 
 static uint32_t omap3_prm_read(void *opaque, target_phys_addr_t addr)
@@ -913,9 +921,11 @@ static uint32_t omap3_prm_read(void *opaque, target_phys_addr_t addr)
         case 0x0ca4: return s->pm_mpugrpsel_wkup;
         case 0x0ca8: return s->pm_iva2grpsel_wkup;
         case 0x0cb0: return s->pm_wkst_wkup;
+        //case 0x0ce4: return 0x3; /* power on */
     	/* Clock_Control_Reg_PRM */
         case 0x0d40: return s->prm_clksel;
         case 0x0d70: return s->prm_clkout_ctrl;
+        //case 0x0de4: return 0x3; /* power on */
         /* DSS_PRM */
         case 0x0e58: return s->rm_rstst_dss;
         case 0x0ea0: return s->pm_wken_dss;
@@ -1008,13 +1018,25 @@ static void omap3_prm_write(void *opaque, target_phys_addr_t addr,
         case 0x00e0: s->pm_pwstctrl_iva2 = 0xcff000 | (value & 0x300f0f); break;
         case 0x00e4: OMAP_RO_REG(addr); break;
         case 0x00e8: s->pm_prepwstst_iva2 = value & 0xff7;
-        case 0x00f8: s->prm_irqstatus_iva2 &= ~(value & 0x7); break;
-        case 0x00fc: s->prm_irqenable_iva2 = value & 0x7; break;
+        case 0x00f8:
+            s->prm_irqstatus_iva2 &= ~(value & 0x7);
+            omap3_prm_int_update(s);
+            break;
+        case 0x00fc:
+            s->prm_irqenable_iva2 = value & 0x7;
+            omap3_prm_int_update(s);
+            break;
         /* OCP_System_Reg_PRM */
         case 0x0804: OMAP_RO_REG(addr); break;
         case 0x0814: s->prm_sysconfig = value & 0x1; break;
-        case 0x0818: s->prm_irqstatus_mpu &= ~(value & 0x03c003fd); break;
-        case 0x081c: s->prm_irqenable_mpu = value & 0x03c003fd; break;
+        case 0x0818:
+            s->prm_irqstatus_mpu &= ~(value & 0x03c003fd);
+            omap3_prm_int_update(s);
+            break;
+        case 0x081c:
+            s->prm_irqenable_mpu = value & 0x03c003fd;
+            omap3_prm_int_update(s);
+            break;
         /* MPU_PRM */
         case 0x0958: s->rm_rstst_mpu &= ~(value & 0x080f); break;
         case 0x09c8: s->pm_wkdep_mpu = value & 0xa5; break;
@@ -1059,7 +1081,7 @@ static void omap3_prm_write(void *opaque, target_phys_addr_t addr,
             s->prm_clkout_ctrl = value & 0x80;
             fprintf(stderr, "%s PRM_CLKOUT_CTRL = 0x%x\n", __FUNCTION__,
                     s->prm_clkout_ctrl);
-            /* TODO: check do we need to update something */
+            /* TODO: update clocks */
             break;
         /* DSS_PRM */
         case 0x0e58: s->rm_rstst_dss &= ~(value & 0xf); break;
@@ -1147,16 +1169,14 @@ static CPUWriteMemoryFunc *omap3_prm_writefn[] = {
 };
 
 struct omap3_prm_s *omap3_prm_init(struct omap_target_agent_s *ta,
-                                   qemu_irq mpu_int, qemu_irq dsp_int,
-                                   qemu_irq iva_int,
+                                   qemu_irq mpu_int, qemu_irq iva_int,
                                    struct omap_mpu_state_s *mpu)
 {
     int iomemtype;
     struct omap3_prm_s *s = (struct omap3_prm_s *) qemu_mallocz(sizeof(*s));
 
-    s->irq[0] = mpu_int;
-    s->irq[1] = dsp_int;
-    s->irq[2] = iva_int;
+    s->mpu_irq = mpu_int;
+    s->iva_irq = iva_int;
     s->mpu = mpu;
     omap3_prm_reset(s);
 
@@ -2292,13 +2312,18 @@ static void omap3_cm_write(void *opaque, target_phys_addr_t addr,
     	 s->cm_fclken3_core = value & 0x7;
     	 break;
     case 0xa10:
-        s->cm_iclken1_core = value & 0x7ffffed2;
-         break;
+        s->cm_iclken1_core = value & 0x637ffed2;
+        s->cm_idlest1_core = ~s->cm_iclken1_core;
+        /* TODO: replace code below with real implementation */
+        s->cm_idlest1_core &= ~0x20; /* HS OTG USB idle */
+        s->cm_idlest1_core |= 4; /* SDMA in standby */
+        break;
     case 0xa14:
     	 s->cm_iclken2_core = value & 0x1f;
     	 break;
     case 0xa18:
-    	s->cm_iclken3_core = value & 0x2;
+    	s->cm_iclken3_core = value & 0x4;
+        s->cm_idlest3_core = 0xd & ~(s->cm_iclken3_core & 4);
     	break;
     case 0xa30:
     	s->cm_autoidle1_core = value & 0x7ffffed0;
@@ -4036,7 +4061,8 @@ struct omap_mpu_state_s *omap3530_mpu_init(unsigned long sdram_size,
     s->omap3_cm = omap3_cm_init(omap3_l4ta_get(s->l4, L4A_CM), NULL, NULL, NULL, s);
 
     s->omap3_prm = omap3_prm_init(omap3_l4ta_get(s->l4, L4A_PRM),
-                                  NULL, NULL, NULL, s);
+                                  s->irq[0][OMAP_INT_35XX_PRCM_MPU_IRQ],
+                                  NULL, s);
 
     s->omap3_mpu_wdt = omap3_mpu_wdt_init(omap3_l4ta_get(s->l4, L4A_WDTIMER2),
                                           NULL,

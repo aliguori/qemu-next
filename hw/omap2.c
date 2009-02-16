@@ -4033,8 +4033,7 @@ static uint32_t omap_sdrc_read(void *opaque, target_phys_addr_t addr)
         return s->dlla_ctrl;
         
     case 0x64:	/* SDRC_DLLA_STATUS */
-        OMAP_BAD_REG(addr);
-        return 0x00;
+        return ~(s->dlla_ctrl & 0x4);
 
     case 0x68:	/* SDRC_DLLB_CTRL */
     case 0x6c:	/* SDRC_DLLB_STATUS */
