@@ -1046,7 +1046,7 @@ struct omap_mpu_state_s {
     /* MPU public TIPB peripherals */
     struct omap_32khz_timer_s *os_timer;
 
-    struct omap_mmc_s *mmc;
+    struct omap_mmc_s *mmc[2];
 
     struct omap_mpuio_s *mpuio;
 
@@ -1156,7 +1156,7 @@ struct omap_mpu_state_s {
     struct omap3_scm_s *omap3_scm;
     struct omap3_pm_s *omap3_pm;
     struct omap3_sms_s *omap3_sms;
-    struct omap3_mmc_s *omap3_mmc;
+    struct omap3_mmc_s *omap3_mmc[3];
 };
 
 struct omap_target_agent_s {
