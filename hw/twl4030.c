@@ -195,6 +195,24 @@ static uint8_t twl4030_48_read(void *opaque, uint8_t addr)
     struct twl4030_i2c_s *s = (struct twl4030_i2c_s *) opaque;
 	
     switch (addr) {
+        case 0x00: /* VENDOR_ID_LO */
+        case 0x01: /* VENDOR_ID_HI */
+        case 0x02: /* PRODUCT_ID_LO */
+        case 0x03: /* PRODUCT_ID_HI */
+            return s->reg_data[addr];
+        case 0x04: /* FUNC_CTRL */
+        case 0x05: /* FUNC_CRTL_SET */
+        case 0x06: /* FUNC_CRTL_CLR */
+            return s->reg_data[0x04];
+        case 0x07: /* IFC_CTRL */
+        case 0x08: /* IFC_CRTL_SET */
+        case 0x09: /* IFC_CRTL_CLR */
+            return s->reg_data[0x07];
+        case 0xac: /* POWER_CTRL */
+        case 0xad: /* POWER_SET */
+        case 0xae: /* POWER_CLR */
+            return s->reg_data[0xac];
+        case 0xfe: /* PHY_CLK_CTRL */
         case 0xfd: /* PHY_PWR_CTRL */
             return s->reg_data[addr];
         default:
@@ -209,9 +227,42 @@ static uint8_t twl4030_48_read(void *opaque, uint8_t addr)
 
 static void twl4030_48_write(void *opaque, uint8_t addr, uint8_t value)
 {
-    //struct twl4030_i2c_s *s = (struct twl4030_i2c_s *) opaque;
+    struct twl4030_i2c_s *s = (struct twl4030_i2c_s *) opaque;
 	
     switch (addr) {
+        case 0x04: /* IFC_CTRL */
+            s->reg_data[0x04] = value & 0x80;
+            break;
+        case 0x05: /* IFC_CRTL_SET */
+            s->reg_data[0x04] =  (s->reg_data[0x04] | value) & 0x80;
+            break;
+        case 0x06: /* IFC_CRTL_CLEAR */
+            s->reg_data[0x04] =  (s->reg_data[0x04] & ~value) & 0x80;
+            break;
+        case 0x07: /* IFC_CTRL */
+            s->reg_data[0x07] = value & 0x61;
+            break;
+        case 0x08: /* IFC_CRTL_SET */
+            s->reg_data[0x07] =  (s->reg_data[0x07] | value) & 0x61;
+            break;
+        case 0x09: /* IFC_CRTL_CLEAR */
+            s->reg_data[0x07] =  (s->reg_data[0x07] & ~value) & 0x61;
+            break;
+        case 0xac: /* POWER_CTRL */
+            s->reg_data[0xac] = value & 0x20;
+            break;
+        case 0xad: /* POWER_SET */
+            s->reg_data[0xac] =  (s->reg_data[0xac] | value) & 0x20;
+            break;
+        case 0xae: /* POWER_CLEAR */
+            s->reg_data[0xac] =  (s->reg_data[0xac] & ~value) & 0x20;
+            break;
+        case 0xfe: /* PHY_CLK_CTRL */
+            s->reg_data[addr] = value & 0x7;
+            break;
+        case 0xfd: /* PHY_PWR_CTRL */
+            s->reg_data[addr] = value & 0x1;
+            break;
         default:
 #ifdef VERBOSE
             printf("%s: unknown register %02x pc %x \n", __FUNCTION__, addr,cpu_single_env->regs[15] );
@@ -281,6 +332,21 @@ static void twl4030_49_write(void *opaque, uint8_t addr, uint8_t value)
     struct twl4030_i2c_s *s = (struct twl4030_i2c_s *) opaque;
 	
     switch (addr) {
+        case 0x9b: /* GPIODATADIR1 */
+        case 0x9c: /* GPIODATADIR2 */
+        case 0x9d: /* GPIODATADIR3 */
+        case 0x9e: /* GPIODATAOUT1 */
+        case 0x9f: /* GPIODATAOUT2 */
+        case 0xa0: /* GPIODATAOUT3 */
+        case 0xa1: /* CLEARGPIODATAOUT1 */
+        case 0xa2: /* CLEARGPIODATAOUT2 */
+        case 0xa3: /* CLEARGPIODATAOUT3 */
+        case 0xa4: /* SETGPIODATAOUT1 */
+        case 0xa5: /* SETGPIODATAOUT2 */
+        case 0xa6: /* SETGPIODATAOUT3 */
+        case 0xa7: /* GPIO_DEBEN1 */
+        case 0xa8: /* GPIO_DEBEN2 */
+        case 0xa9: /* GPIO_DEBEN3 */
         case 0xaa: /* GPIO_CTRL */
         case 0xab: /* GPIOPUPDCTR1 */
         case 0xac: /* GPIOPUPDCTR2 */

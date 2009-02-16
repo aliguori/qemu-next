@@ -52,7 +52,7 @@ struct omap_i2c_s {
 #define OMAP2_GC_REV	0x34
 #define OMAP3_INTR_REV  0x3c
 
-//#define I2C_DEBUG
+#define I2C_DEBUG
 #ifdef I2C_DEBUG
 #define TRACE(fmt, ...) fprintf(stderr, "%s " fmt "\n", __FUNCTION__, ##__VA_ARGS__)
 #else

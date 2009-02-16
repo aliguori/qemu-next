@@ -29,7 +29,7 @@
 #include "soc_dma.h"
 #include "audio/audio.h"
 
-#define OMAP3_DEBUG_
+//#define OMAP3_DEBUG_
 
 #ifdef OMAP3_DEBUG_
 #define TRACE(fmt, ...) fprintf(stderr, "%s " fmt "\n", __FUNCTION__, ##__VA_ARGS__)
