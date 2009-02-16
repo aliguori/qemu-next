@@ -52,7 +52,7 @@ struct omap_i2c_s {
 #define OMAP2_GC_REV	0x34
 #define OMAP3_INTR_REV  0x3c
 
-//#define I2C_DEBUG
+#define I2C_DEBUG
 #ifdef I2C_DEBUG
 #define TRACE(fmt, ...) fprintf(stderr, "%s " fmt "\n", __FUNCTION__, ##__VA_ARGS__)
 #else
@@ -61,11 +61,15 @@ struct omap_i2c_s {
 
 static void omap_i2c_interrupts_update(struct omap_i2c_s *s)
 {
+    TRACE("IRQ=%04x,RDRQ=%d,XDRQ=%d", 
+          s->stat & s->mask,
+          ((s->dma >> 15 ) & 1) & ((s->stat >> 3) & 1),
+          ((s->dma >> 7 ) & 1 )& ((s->stat >> 4 ) & 1));
     qemu_set_irq(s->irq, s->stat & s->mask);
-    if ((s->dma >> 15) & 1)					/* RDMA_EN */
-        qemu_set_irq(s->drq[0], (s->stat >> 3) & 1);		/* RRDY */
-    if ((s->dma >> 7) & 1)					/* XDMA_EN */
-        qemu_set_irq(s->drq[1], (s->stat >> 4) & 1);		/* XRDY */
+    if ((s->dma >> 15) & 1)                          /* RDMA_EN */
+        qemu_set_irq(s->drq[0], (s->stat >> 3) & 1); /* RRDY */
+    if ((s->dma >> 7) & 1)                           /* XDMA_EN */
+        qemu_set_irq(s->drq[1], (s->stat >> 4) & 1); /* XRDY */
 }
 
 /* These are only stubs now.  */
@@ -183,6 +187,7 @@ static void omap_i2c_fifo_run(struct omap_i2c_s *s)
                 if (!s->txlen)
                     s->stat |= 1 << 10;             /* XUDF */
                 if (s->revision >= OMAP3_INTR_REV
+                    && (s->mask & (1 << 14))
                     && s->txlen >= s->fifosize - (s->dma & 0x3f)) /* XTRSH */
                     s->stat |= 1 << 14;             /* XDR */
                 else
@@ -200,7 +205,8 @@ static void omap_i2c_fifo_run(struct omap_i2c_s *s)
             }
             s->stat &= ~((1 << 3) | (1 << 13));            /* RRDY | RDR */
             if (s->rxlen) {
-                if (s->revision < OMAP3_INTR_REV)
+                if (s->revision < OMAP3_INTR_REV
+                    || !(s->mask & (1 << 13)))
                     s->stat |= 1 << 3;                     /* RRDY */
                 else {
                     if (s->rxlen > ((s->dma >> 8) & 0x3f)) /* RTRSH */
@@ -225,7 +231,7 @@ static void omap_i2c_fifo_run(struct omap_i2c_s *s)
     s->stat |= (!ack) << 1;	              /* NACK */
     if (!ack)
         s->control &= ~(1 << 1);          /* STP */
-    TRACE("finished, ack state = %d, stat = %04x", ack, s->stat);
+    TRACE("finished, STAT = %04x, CNT = %d", s->stat, s->count_cur);
 }
 
 void omap_i2c_reset(struct omap_i2c_s *s)
