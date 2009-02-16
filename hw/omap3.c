@@ -109,208 +109,469 @@ static CPUWriteMemoryFunc *omap3_l4ta_writefn[] = {
     omap3_l4ta_write,
 };
 
-static struct omap_l4_region_s omap3_l4_region[158] = {
+enum omap3_l4_region_id_t {
+    /* 48000000-48001FFF */
+    /* 48002000-48002FFF */ L4ID_SCM = 0,
+    /* 48003000-48003FFF */ L4ID_SCM_TA,
+    /* 48004000-48005FFF */ L4ID_CM_A,
+    /* 48006000-480067FF */ L4ID_CM_B,
+    /* 48006800-48006FFF */
+    /* 48007000-48007FFF */ L4ID_CM_TA,
+    /* 48008000-48023FFF */
+    /* 48024000-48024FFF */
+    /* 48025000-48025FFF */
+    /* 48026000-4803FFFF */
+    /* 48040000-480407FF */ L4ID_CORE_AP,
+    /* 48040800-48040FFF */ L4ID_CORE_IP,
+    /* 48041000-48041FFF */ L4ID_CORE_LA,
+    /* 48042000-4804FBFF */
+    /* 4804FC00-4804FFFF */ L4ID_DSI,
+    /* 48050000-480503FF */ L4ID_DSS,
+    /* 48050400-480507FF */ L4ID_DISPC,
+    /* 48050800-48050BFF */ L4ID_RFBI,
+    /* 48050C00-48050FFF */ L4ID_VENC,
+    /* 48051000-48051FFF */ L4ID_DSS_TA,
+    /* 48052000-48055FFF */
+    /* 48056000-48056FFF */ L4ID_SDMA,
+    /* 48057000-48057FFF */ L4ID_SDMA_TA,
+    /* 48058000-4805FFFF */
+    /* 48060000-48060FFF */ L4ID_I2C3,
+    /* 48061000-48061FFF */ L4ID_I2C3_TA,
+    /* 48062000-48062FFF */ L4ID_USBTLL,
+    /* 48063000-48063FFF */ L4ID_USBTLL_TA,
+    /* 48064000-48064FFF */ L4ID_HSUSBHOST,
+    /* 48065000-48065FFF */ L4ID_HSUSBHOST_TA,
+    /* 48066000-48069FFF */
+    /* 4806A000-4806AFFF */ L4ID_UART1,
+    /* 4806B000-4806BFFF */ L4ID_UART1_TA,
+    /* 4806C000-4806CFFF */ L4ID_UART2,
+    /* 4806D000-4806DFFF */ L4ID_UART2_TA,
+    /* 4806E000-4806FFFF */
+    /* 48070000-48070FFF */ L4ID_I2C1,
+    /* 48071000-48071FFF */ L4ID_I2C1_TA,
+    /* 48072000-48072FFF */ L4ID_I2C2,
+    /* 48073000-48073FFF */ L4ID_I2C2_TA,
+    /* 48074000-48074FFF */ L4ID_MCBSP1,
+    /* 48075000-48075FFF */ L4ID_MCBSP1_TA,
+    /* 48076000-48085FFF */
+    /* 48086000-48086FFF */ L4ID_GPTIMER10,
+    /* 48087000-48087FFF */ L4ID_GPTIMER10_TA,
+    /* 48088000-48088FFF */ L4ID_GPTIMER11,
+    /* 48089000-48089FFF */ L4ID_GPTIMER11_TA,
+    /* 4808A000-4808AFFF */
+    /* 4808B000-4808BFFF */
+    /* 4808C000-48093FFF */
+    /* 48094000-48094FFF */ L4ID_MAILBOX,
+    /* 48095000-48095FFF */ L4ID_MAILBOX_TA,
+    /* 48096000-48096FFF */ L4ID_MCBSP5,
+    /* 48097000-48097FFF */ L4ID_MCBSP5_TA,
+    /* 48098000-48098FFF */ L4ID_MCSPI1,
+    /* 48099000-48099FFF */ L4ID_MCSPI1_TA,
+    /* 4809A000-4809AFFF */ L4ID_MCSPI2,
+    /* 4809B000-4809BFFF */ L4ID_MCSPI2_TA,
+    /* 4809C000-4809CFFF */ L4ID_MMCSDIO1,
+    /* 4809D000-4809DFFF */ L4ID_MMCSDIO1_TA,
+    /* 4809E000-4809EFFF */ L4ID_MSPRO,
+    /* 4809F000-4809FFFF */ L4ID_MSPRO_TA,
+    /* 480A0000-480AAFFF */
+    /* 480AB000-480ABFFF */ L4ID_HSUSBOTG,
+    /* 480AC000-480ACFFF */ L4ID_HSUSBOTG_TA,
+    /* 480AD000-480ADFFF */ L4ID_MMCSDIO3,
+    /* 480AE000-480AEFFF */ L4ID_MMCSDIO3_TA,
+    /* 480AF000-480AFFFF */
+    /* 480B0000-480B0FFF */
+    /* 480B1000-480B1FFF */
+    /* 480B2000-480B2FFF */ L4ID_HDQ1WIRE,
+    /* 480B3000-480B2FFF */ L4ID_HDQ1WIRE_TA,
+    /* 480B4000-480B4FFF */ L4ID_MMCSDIO2,
+    /* 480B5000-480B5FFF */ L4ID_MMCSDIO2_TA,
+    /* 480B6000-480B6FFF */ L4ID_ICRMPU,
+    /* 480B7000-480B7FFF */ L4ID_ICRMPU_TA,
+    /* 480B8000-480B8FFF */ L4ID_MCSPI3,
+    /* 480B9000-480B9FFF */ L4ID_MCSPI3_TA,
+    /* 480BA000-480BAFFF */ L4ID_MCSPI4,
+    /* 480BB000-480BBFFF */ L4ID_MCSPI4_TA,
+    /* 480BC000-480BFFFF */ L4ID_CAMERAISP,
+    /* 480C0000-480C0FFF */ L4ID_CAMERAISP_TA,
+    /* 480C1000-480CCFFF */
+    /* 480CD000-480CDFFF */ L4ID_ICRMODEM,
+    /* 480CE000-480CEFFF */ L4ID_ICRMODEM_TA,
+    /* 480CF000-482FFFFF */
+    /* 48300000-48303FFF */
+    /* 48304000-48304FFF */ L4ID_GPTIMER12,
+    /* 48305000-48305FFF */ L4ID_GPTIMER12_TA,
+    /* 48306000-48307FFF */ L4ID_PRM_A,
+    /* 48308000-483087FF */ L4ID_PRM_B,
+    /* 48308800-48308FFF */
+    /* 48309000-48309FFF */ L4ID_PRM_TA,
+    /* 4830A000-4830AFFF */ L4ID_TAP,
+    /* 4830B000-4830BFFF */ L4ID_TAP_TA,
+    /* 4830C000-4830FFFF */
+    /* 48310000-48310FFF */ L4ID_GPIO1,
+    /* 48311000-48311FFF */ L4ID_GPIO1_TA,
+    /* 48312000-48313FFF */
+    /* 48314000-48314FFF */ L4ID_WDTIMER2,
+    /* 48315000-48315FFF */ L4ID_WDTIMER2_TA,
+    /* 48316000-48317FFF */
+    /* 48318000-48318FFF */ L4ID_GPTIMER1,
+    /* 48319000-48319FFF */ L4ID_GPTIMER1_TA,
+    /* 4831A000-4831FFFF */
+    /* 48320000-48320FFF */ L4ID_32KTIMER,
+    /* 48321000-48321FFF */ L4ID_32KTIMER_TA,
+    /* 48322000-48327FFF */
+    /* 48328000-483287FF */ L4ID_WAKEUP_AP,
+    /* 48328800-48328FFF */ L4ID_WAKEUP_C_IP,
+    /* 48329000-48329FFF */ L4ID_WAKEUP_LA,
+    /* 4832A000-4832A7FF */ L4ID_WAKEUP_E_IP,
+    /* 4832A800-4833FFFF */
+    /* 48340000-48340FFF */
+    /* 48341000-48FFFFFF */
+    /* 49000000-490007FF */ L4ID_PER_AP,
+    /* 49000800-49000FFF */ L4ID_PER_IP,
+    /* 49001000-49001FFF */ L4ID_PER_LA,
+    /* 49002000-4901FFFF */
+    /* 49020000-49020FFF */ L4ID_UART3,
+    /* 49021000-49021FFF */ L4ID_UART3_TA,
+    /* 49022000-49022FFF */ L4ID_MCBSP2,
+    /* 49023000-49023FFF */ L4ID_MCBSP2_TA,
+    /* 49024000-49024FFF */ L4ID_MCBSP3,
+    /* 49025000-49025FFF */ L4ID_MCBSP3_TA,
+    /* 49026000-49026FFF */ L4ID_MCBSP4,
+    /* 49027000-49027FFF */ L4ID_MCBSP4_TA,
+    /* 49028000-49028FFF */ L4ID_MCBSP2S,
+    /* 49029000-49029FFF */ L4ID_MCBSP2S_TA,
+    /* 4902A000-4902AFFF */ L4ID_MCBSP3S,
+    /* 4902B000-4902BFFF */ L4ID_MCBSP3S_TA,
+    /* 4902C000-4902FFFF */
+    /* 49030000-49030FFF */ L4ID_WDTIMER3,
+    /* 49031000-49031FFF */ L4ID_WDTIMER3_TA,
+    /* 49032000-49032FFF */ L4ID_GPTIMER2,
+    /* 49033000-49033FFF */ L4ID_GPTIMER2_TA,
+    /* 49034000-49034FFF */ L4ID_GPTIMER3,
+    /* 49035000-49035FFF */ L4ID_GPTIMER3_TA,
+    /* 49036000-49036FFF */ L4ID_GPTIMER4,
+    /* 49037000-49037FFF */ L4ID_GPTIMER4_TA,
+    /* 49038000-49038FFF */ L4ID_GPTIMER5,
+    /* 49039000-49039FFF */ L4ID_GPTIMER5_TA,
+    /* 4903A000-4903AFFF */ L4ID_GPTIMER6,
+    /* 4903B000-4903BFFF */ L4ID_GPTIMER6_TA,
+    /* 4903C000-4903CFFF */ L4ID_GPTIMER7,
+    /* 4903D000-4903DFFF */ L4ID_GPTIMER7_TA,
+    /* 4903E000-4903EFFF */ L4ID_GPTIMER8,
+    /* 4903F000-4903FFFF */ L4ID_GPTIMER8_TA,
+    /* 49040000-49040FFF */ L4ID_GPTIMER9,
+    /* 49041000-49041FFF */ L4ID_GPTIMER9_TA,
+    /* 49042000-4904FFFF */
+    /* 49050000-49050FFF */ L4ID_GPIO2,
+    /* 49051000-49051FFF */ L4ID_GPIO2_TA,
+    /* 49052000-49052FFF */ L4ID_GPIO3,
+    /* 49053000-49053FFF */ L4ID_GPIO3_TA,
+    /* 49054000-49054FFF */ L4ID_GPIO4,
+    /* 49055000-49055FFF */ L4ID_GPIO4_TA,
+    /* 49056000-49056FFF */ L4ID_GPIO5,
+    /* 49057000-49057FFF */ L4ID_GPIO5_TA,
+    /* 49058000-49058FFF */ L4ID_GPIO6,
+    /* 49059000-49059FFF */ L4ID_GPIO6_TA,
+    /* 4905A000-490FFFFF */
+    /* 54000000-54003FFF */
+    /* 54004000-54005FFF */
+    /* 54006000-540067FF */ L4ID_EMU_AP,
+    /* 54006800-54006FFF */ L4ID_EMU_IP_C,
+    /* 54007000-54007FFF */ L4ID_EMU_LA,
+    /* 54008000-540087FF */ L4ID_EMU_IP_DAP,
+    /* 54008800-5400FFFF */
+    /* 54010000-54017FFF */ L4ID_MPUEMU,
+    /* 54018000-54018FFF */ L4ID_MPUEMU_TA,
+    /* 54019000-54019FFF */ L4ID_TPIU,
+    /* 5401A000-5401AFFF */ L4ID_TPIU_TA,
+    /* 5401B000-5401BFFF */ L4ID_ETB,
+    /* 5401C000-5401CFFF */ L4ID_ETB_TA,
+    /* 5401D000-5401DFFF */ L4ID_DAPCTL,
+    /* 5401E000-5401EFFF */ L4ID_DAPCTL_TA,
+    /* 5401F000-5401FFFF */ L4ID_SDTI_TA,
+    /* 54020000-544FFFFF */
+    /* 54500000-5450FFFF */ L4ID_SDTI_CFG,
+    /* 54510000-545FFFFF */
+    /* 54600000-546FFFFF */ L4ID_SDTI,
+    /* 54700000-54705FFF */
+    /* 54706000-54707FFF */ L4ID_EMU_PRM_A,
+    /* 54708000-547087FF */ L4ID_EMU_PRM_B,
+    /* 54708800-54708FFF */
+    /* 54709000-54709FFF */ L4ID_EMU_PRM_TA,
+    /* 5470A000-5470FFFF */
+    /* 54710000-54710FFF */ L4ID_EMU_GPIO1,
+    /* 54711000-54711FFF */ L4ID_EMU_GPIO1_TA,
+    /* 54712000-54713FFF */
+    /* 54714000-54714FFF */ L4ID_EMU_WDTM2,
+    /* 54715000-54715FFF */ L4ID_EMU_WDTM2_TA,
+    /* 54716000-54717FFF */
+    /* 54718000-54718FFF */ L4ID_EMU_GPTM1,
+    /* 54719000-54719FFF */ L4ID_EMU_GPTM1_TA,
+    /* 5471A000-5471FFFF */
+    /* 54720000-54720FFF */ L4ID_EMU_32KTM,
+    /* 54721000-54721FFF */ L4ID_EMU_32KTM_TA,
+    /* 54722000-54727FFF */
+    /* 54728000-547287FF */ L4ID_EMU_WKUP_AP,
+    /* 54728800-54728FFF */ L4ID_EMU_WKUP_IPC,
+    /* 54729000-54729FFF */ L4ID_EMU_WKUP_LA,
+    /* 5472A000-5472A7FF */ L4ID_EMU_WKUP_IPE,
+    /* 5472A800-547FFFFF */
+};
+
+static struct omap_l4_region_s omap3_l4_region[] = {
     /* L4-Core */
-    [  0] = {0x00002000, 0x1000, 32 | 16 | 8}, /* SCM */
-    [  1] = {0x00003000, 0x1000, 32 | 16 | 8}, /* L4IC */
-    [  2] = {0x00004000, 0x2000, 32         }, /* CM Region A */
-    [  3] = {0x00006000, 0x0800, 32         }, /* CM Region B */
-    [  4] = {0x00007000, 0x1000, 32 | 16 | 8}, /* L4IC */
-    [  5] = {0x00040000, 0x0800, 32         }, /* AP */
-    [  6] = {0x00040800, 0x0800, 32         }, /* IP */
-    [  7] = {0x00041000, 0x1000, 32         }, /* LA */
-    [  8] = {0x0004fc00, 0x0400, 32 | 16 | 8}, /* DSI */
-    [  9] = {0x00050000, 0x0400, 32 | 16 | 8}, /* DISS */
-    [ 10] = {0x00050400, 0x0400, 32 | 16 | 8}, /* DISPC */
-    [ 11] = {0x00050800, 0x0400, 32 | 16 | 8}, /* RFBI */
-    [ 12] = {0x00050c00, 0x0400, 32 | 16 | 8}, /* VENC */
-    [ 13] = {0x00051000, 0x1000, 32 | 16 | 8}, /* L4IC */
-    [ 14] = {0x00056000, 0x1000, 32         }, /* SDMA */
-    [ 15] = {0x00057000, 0x1000, 32 | 16 | 8}, /* L4IC */
-    [ 16] = {0x00060000, 0x1000,      16 | 8}, /* I2C3 */
-    [ 17] = {0x00061000, 0x1000, 32 | 16 | 8}, /* L4IC */
-    [ 18] = {0x00062000, 0x1000, 32         }, /* USBTLL */
-    [ 19] = {0x00063000, 0x1000, 32 | 16 | 8}, /* L4IC */
-    [ 20] = {0x00064000, 0x1000, 32         }, /* HS USB HOST */
-    [ 21] = {0x00065000, 0x1000, 32 | 16 | 8}, /* L4IC */
-    [ 22] = {0x0006a000, 0x1000, 32 | 16 | 8}, /* UART1 */
-    [ 23] = {0x0006b000, 0x1000, 32 | 16 | 8}, /* L4IC */
-    [ 24] = {0x0006c000, 0x1000, 32 | 16 | 8}, /* UART2 */
-    [ 25] = {0x0006d000, 0x1000, 32 | 16 | 8}, /* L4IC */
-    [ 26] = {0x00070000, 0x1000,      16 | 8}, /* I2C1 */
-    [ 27] = {0x00071000, 0x1000, 32 | 16 | 8}, /* L4IC */
-    [ 28] = {0x00072000, 0x1000,      16 | 8}, /* I2C2 */
-    [ 29] = {0x00073000, 0x1000, 32 | 16 | 8}, /* L4IC */
-    [ 30] = {0x00074000, 0x1000, 32         }, /* McBSP1 */
-    [ 31] = {0x00075000, 0x1000, 32 | 16 | 8}, /* L4IC */
-    [ 32] = {0x00086000, 0x1000, 32 | 16    }, /* GPTIMER10 */
-    [ 33] = {0x00087000, 0x1000, 32 | 16 | 8}, /* L4IC */
-    [ 34] = {0x00088000, 0x1000, 32 | 16    }, /* GPTIMER11 */
-    [ 35] = {0x00089000, 0x1000, 32 | 16 | 8}, /* L4IC */
-    [ 36] = {0x00094000, 0x1000, 32 | 16 | 8}, /* MAILBOX */
-    [ 37] = {0x00095000, 0x1000, 32 | 16 | 8}, /* L4IC */
-    [ 38] = {0x00096000, 0x1000, 32         }, /* McBSP5 */
-    [ 39] = {0x00097000, 0x1000, 32 | 16 | 8}, /* L4IC */
-    [ 40] = {0x00098000, 0x1000, 32 | 16 | 8}, /* McSPI1 */
-    [ 41] = {0x00099000, 0x1000, 32 | 16 | 8}, /* L4IC */
-    [ 42] = {0x0009a000, 0x1000, 32 | 16 | 8}, /* McSPI2 */
-    [ 43] = {0x0009b000, 0x1000, 32 | 16 | 8}, /* L4IC */
-    [ 44] = {0x0009c000, 0x1000, 32         }, /* MMC/SD/SDIO1 */
-    [ 45] = {0x0009d000, 0x1000, 32 | 16 | 8}, /* L4IC */
-    [ 46] = {0x0009e000, 0x1000, 32         }, /* MS-PRO */
-    [ 47] = {0x0009f000, 0x1000, 32 | 16 | 8}, /* L4IC */
-    [ 48] = {0x000ab000, 0x1000, 32         }, /* HS USB OTG */
-    [ 49] = {0x000ac000, 0x1000, 32 | 16 | 8}, /* L4IC */
-    [ 50] = {0x000ad000, 0x1000, 32         }, /* MMC/SD/SDIO3 */
-    [ 51] = {0x000ae000, 0x1000, 32 | 16 | 8}, /* L4IC */
-    [ 52] = {0x000b2000, 0x1000, 32         }, /* HDQ/1-Wire */
-    [ 53] = {0x000b3000, 0x1000, 32 | 16 | 8}, /* L4IC */
-    [ 54] = {0x000b4000, 0x1000, 32         }, /* MMC/SD/SDIO2 */
-    [ 55] = {0x000b5000, 0x1000, 32 | 16 | 8}, /* L4IC */
-    [ 56] = {0x000b6000, 0x1000, 32         }, /* ICR MPU Port */
-    [ 57] = {0x000b7000, 0x1000, 32 | 16 | 8}, /* L4IC */
-    [ 58] = {0x000b8000, 0x1000, 32 | 16 | 8}, /* McSPI3 */
-    [ 59] = {0x000b9000, 0x1000, 32 | 16 | 8}, /* L4IC */
-    [ 60] = {0x000ba000, 0x1000, 32 | 16 | 8}, /* McSPI4 */
-    [ 61] = {0x000bb000, 0x1000, 32 | 16 | 8}, /* L4IC */
-    [ 62] = {0x000bc000, 0x4000, 32 | 16 | 8}, /* Camera ISP */
-    [ 63] = {0x000c0000, 0x1000, 32 | 16 | 8}, /* L4IC */
-    [ 64] = {0x000c7000, 0x1000, 32         }, /* Modem */
-    [ 65] = {0x000c8000, 0x1000, 32 | 16 | 8}, /* L4IC */
-    [ 66] = {0x000cd000, 0x1000, 32         }, /* ICR modem port  */
-    [ 67] = {0x000ce000, 0x1000, 32 | 16 | 8}, /* L4IC */
+    [L4ID_SCM         ] = {0x00002000, 0x1000, 32 | 16 | 8},
+    [L4ID_SCM_TA      ] = {0x00003000, 0x1000, 32 | 16 | 8},
+    [L4ID_CM_A        ] = {0x00004000, 0x2000, 32         },
+    [L4ID_CM_B        ] = {0x00006000, 0x0800, 32         },
+    [L4ID_CM_TA       ] = {0x00007000, 0x1000, 32 | 16 | 8},
+    [L4ID_CORE_AP     ] = {0x00040000, 0x0800, 32         },
+    [L4ID_CORE_IP     ] = {0x00040800, 0x0800, 32         },
+    [L4ID_CORE_LA     ] = {0x00041000, 0x1000, 32         },
+    [L4ID_DSI         ] = {0x0004fc00, 0x0400, 32 | 16 | 8},
+    [L4ID_DSS         ] = {0x00050000, 0x0400, 32 | 16 | 8},
+    [L4ID_DISPC       ] = {0x00050400, 0x0400, 32 | 16 | 8},
+    [L4ID_RFBI        ] = {0x00050800, 0x0400, 32 | 16 | 8},
+    [L4ID_VENC        ] = {0x00050c00, 0x0400, 32 | 16 | 8},
+    [L4ID_DSS_TA      ] = {0x00051000, 0x1000, 32 | 16 | 8},
+    [L4ID_SDMA        ] = {0x00056000, 0x1000, 32         },
+    [L4ID_SDMA_TA     ] = {0x00057000, 0x1000, 32 | 16 | 8},
+    [L4ID_I2C3        ] = {0x00060000, 0x1000,      16 | 8},
+    [L4ID_I2C3_TA     ] = {0x00061000, 0x1000, 32 | 16 | 8},
+    [L4ID_USBTLL      ] = {0x00062000, 0x1000, 32         },
+    [L4ID_USBTLL_TA   ] = {0x00063000, 0x1000, 32 | 16 | 8},
+    [L4ID_HSUSBHOST   ] = {0x00064000, 0x1000, 32         },
+    [L4ID_HSUSBHOST_TA] = {0x00065000, 0x1000, 32 | 16 | 8},
+    [L4ID_UART1       ] = {0x0006a000, 0x1000, 32 | 16 | 8},
+    [L4ID_UART1_TA    ] = {0x0006b000, 0x1000, 32 | 16 | 8},
+    [L4ID_UART2       ] = {0x0006c000, 0x1000, 32 | 16 | 8},
+    [L4ID_UART2_TA    ] = {0x0006d000, 0x1000, 32 | 16 | 8},
+    [L4ID_I2C1        ] = {0x00070000, 0x1000,      16 | 8},
+    [L4ID_I2C1_TA     ] = {0x00071000, 0x1000, 32 | 16 | 8},
+    [L4ID_I2C2        ] = {0x00072000, 0x1000,      16 | 8},
+    [L4ID_I2C2_TA     ] = {0x00073000, 0x1000, 32 | 16 | 8},
+    [L4ID_MCBSP1      ] = {0x00074000, 0x1000, 32         },
+    [L4ID_MCBSP1_TA   ] = {0x00075000, 0x1000, 32 | 16 | 8},
+    [L4ID_GPTIMER10   ] = {0x00086000, 0x1000, 32 | 16    },
+    [L4ID_GPTIMER10_TA] = {0x00087000, 0x1000, 32 | 16 | 8},
+    [L4ID_GPTIMER11   ] = {0x00088000, 0x1000, 32 | 16    },
+    [L4ID_GPTIMER11_TA] = {0x00089000, 0x1000, 32 | 16 | 8},
+    [L4ID_MAILBOX     ] = {0x00094000, 0x1000, 32 | 16 | 8},
+    [L4ID_MAILBOX_TA  ] = {0x00095000, 0x1000, 32 | 16 | 8},
+    [L4ID_MCBSP5      ] = {0x00096000, 0x1000, 32         },
+    [L4ID_MCBSP5_TA   ] = {0x00097000, 0x1000, 32 | 16 | 8},
+    [L4ID_MCSPI1      ] = {0x00098000, 0x1000, 32 | 16 | 8},
+    [L4ID_MCSPI1_TA   ] = {0x00099000, 0x1000, 32 | 16 | 8},
+    [L4ID_MCSPI2      ] = {0x0009a000, 0x1000, 32 | 16 | 8},
+    [L4ID_MCSPI2_TA   ] = {0x0009b000, 0x1000, 32 | 16 | 8},
+    [L4ID_MMCSDIO1    ] = {0x0009c000, 0x1000, 32         },
+    [L4ID_MMCSDIO1_TA ] = {0x0009d000, 0x1000, 32 | 16 | 8},
+    [L4ID_MSPRO       ] = {0x0009e000, 0x1000, 32         },
+    [L4ID_MSPRO_TA    ] = {0x0009f000, 0x1000, 32 | 16 | 8},
+    [L4ID_HSUSBOTG    ] = {0x000ab000, 0x1000, 32         },
+    [L4ID_HSUSBOTG_TA ] = {0x000ac000, 0x1000, 32 | 16 | 8},
+    [L4ID_MMCSDIO3    ] = {0x000ad000, 0x1000, 32         },
+    [L4ID_MMCSDIO3_TA ] = {0x000ae000, 0x1000, 32 | 16 | 8},
+    [L4ID_HDQ1WIRE    ] = {0x000b2000, 0x1000, 32         },
+    [L4ID_HDQ1WIRE_TA ] = {0x000b3000, 0x1000, 32 | 16 | 8},
+    [L4ID_MMCSDIO2    ] = {0x000b4000, 0x1000, 32         },
+    [L4ID_MMCSDIO2_TA ] = {0x000b5000, 0x1000, 32 | 16 | 8},
+    [L4ID_ICRMPU      ] = {0x000b6000, 0x1000, 32         },
+    [L4ID_ICRMPU_TA   ] = {0x000b7000, 0x1000, 32 | 16 | 8},
+    [L4ID_MCSPI3      ] = {0x000b8000, 0x1000, 32 | 16 | 8},
+    [L4ID_MCSPI3_TA   ] = {0x000b9000, 0x1000, 32 | 16 | 8},
+    [L4ID_MCSPI4      ] = {0x000ba000, 0x1000, 32 | 16 | 8},
+    [L4ID_MCSPI4_TA   ] = {0x000bb000, 0x1000, 32 | 16 | 8},
+    [L4ID_CAMERAISP   ] = {0x000bc000, 0x4000, 32 | 16 | 8},
+    [L4ID_CAMERAISP_TA] = {0x000c0000, 0x1000, 32 | 16 | 8},
+    [L4ID_ICRMODEM    ] = {0x000cd000, 0x1000, 32         },
+    [L4ID_ICRMODEM_TA ] = {0x000ce000, 0x1000, 32 | 16 | 8},
     /* L4-Wakeup interconnect region A */
-    [ 68] = {0x00304000, 0x1000, 32 | 16    }, /* GPTIMER12 */
-    [ 69] = {0x00305000, 0x1000, 32 | 16 | 8}, /* L4IC */
-    [ 70] = {0x00306000, 0x2000, 32         }, /* PRM region A */
-    [ 71] = {0x00308000, 0x0800, 32         }, /* PRM region B */
-    [ 72] = {0x00309000, 0x1000, 32 | 16 | 8}, /* L4IC */
+    [L4ID_GPTIMER12   ] = {0x00304000, 0x1000, 32 | 16    },
+    [L4ID_GPTIMER12_TA] = {0x00305000, 0x1000, 32 | 16 | 8},
+    [L4ID_PRM_A       ] = {0x00306000, 0x2000, 32         },
+    [L4ID_PRM_B       ] = {0x00308000, 0x0800, 32         },
+    [L4ID_PRM_TA      ] = {0x00309000, 0x1000, 32 | 16 | 8},
     /* L4-Core */
-    [ 73] = {0x0030a000, 0x0800, 32 | 16 | 8}, /* TAP */
-    [ 74] = {0x0030b000, 0x1000, 32 | 16 | 8}, /* L4IC */
+    [L4ID_TAP         ] = {0x0030a000, 0x1000, 32 | 16 | 8},
+    [L4ID_TAP_TA      ] = {0x0030b000, 0x1000, 32 | 16 | 8},
     /* L4-Wakeup interconnect region B */
-    [ 75] = {0x00310000, 0x1000, 32 | 16 | 8}, /* GPIO1 */
-    [ 76] = {0x00311000, 0x1000, 32 | 16 | 8}, /* L4IC */
-    [ 77] = {0x00314000, 0x1000, 32 | 16    }, /* WDTIMER2 */
-    [ 78] = {0x00315000, 0x1000, 32 | 16 | 8}, /* L4IC */
-    [ 79] = {0x00318000, 0x1000, 32 | 16    }, /* GPTIMER1 */
-    [ 80] = {0x00319000, 0x1000, 32 | 16 | 8}, /* L4IC */
-    [ 81] = {0x00320000, 0x1000, 32 | 16    }, /* 32K Timer */
-    [ 82] = {0x00321000, 0x1000, 32 | 16 | 8}, /* L4IC */
-    [ 83] = {0x00328000, 0x0800, 32 | 16 | 8}, /* L4-Wakeup config AP */
-    [ 84] = {0x00328800, 0x0800, 32 | 16 | 8}, /* L4-Wakeup config IP L4-Core */
-    [ 85] = {0x00329000, 0x1000, 32 | 16 | 8}, /* L4-Wakeup config LA */
-    [ 86] = {0x0032a000, 0x0800, 32 | 16 | 8}, /* L4-Wakeup config IP L4-Emu */
-    [ 87] = {0x00340000, 0x1000, 32 | 16 | 8}, /* L4IC */
+    [L4ID_GPIO1       ] = {0x00310000, 0x1000, 32 | 16 | 8},
+    [L4ID_GPIO1_TA    ] = {0x00311000, 0x1000, 32 | 16 | 8},
+    [L4ID_WDTIMER2    ] = {0x00314000, 0x1000, 32 | 16    },
+    [L4ID_WDTIMER2_TA ] = {0x00315000, 0x1000, 32 | 16 | 8},
+    [L4ID_GPTIMER1    ] = {0x00318000, 0x1000, 32 | 16    },
+    [L4ID_GPTIMER1_TA ] = {0x00319000, 0x1000, 32 | 16 | 8},
+    [L4ID_32KTIMER    ] = {0x00320000, 0x1000, 32 | 16    },
+    [L4ID_32KTIMER_TA ] = {0x00321000, 0x1000, 32 | 16 | 8},
+    [L4ID_WAKEUP_AP   ] = {0x00328000, 0x0800, 32 | 16 | 8},
+    [L4ID_WAKEUP_C_IP ] = {0x00328800, 0x0800, 32 | 16 | 8},
+    [L4ID_WAKEUP_LA   ] = {0x00329000, 0x1000, 32 | 16 | 8},
+    [L4ID_WAKEUP_E_IP ] = {0x0032a000, 0x0800, 32 | 16 | 8},
     /* L4-Per */
-    [ 88] = {0x01000000, 0x0800, 32 | 16 | 8}, /* AP */
-    [ 89] = {0x01000800, 0x0800, 32 | 16 | 8}, /* IP */
-    [ 90] = {0x01001000, 0x1000, 32 | 16 | 8}, /* LA */
-    [ 91] = {0x01020000, 0x1000, 32 | 16 | 8}, /* UART3 */
-    [ 92] = {0x01021000, 0x1000, 32 | 16 | 8}, /* L4IC */
-    [ 93] = {0x01022000, 0x1000, 32         }, /* McBSP2 */
-    [ 94] = {0x01023000, 0x1000, 32 | 16 | 8}, /* L4IC */
-    [ 95] = {0x01024000, 0x1000, 32         }, /* McBSP3 */
-    [ 96] = {0x01025000, 0x1000, 32 | 16 | 8}, /* L4IC */
-    [ 97] = {0x01026000, 0x1000, 32         }, /* McBSP4 */
-    [ 98] = {0x01027000, 0x1000, 32 | 16 | 8}, /* L4IC */
-    [ 99] = {0x01028000, 0x1000, 32         }, /* McBSP2 (sidetone) */
-    [100] = {0x01029000, 0x1000, 32 | 16 | 8}, /* L4IC */
-    [101] = {0x0102a000, 0x1000, 32         }, /* McBSP3 (sidetone) */
-    [102] = {0x0102b000, 0x1000, 32 | 16 | 8}, /* L4IC */
-    [103] = {0x01030000, 0x1000, 32 | 16    }, /* WDTIMER3  */
-    [104] = {0x01031000, 0x1000, 32 | 16 | 8}, /* L4IC */
-    [105] = {0x01032000, 0x1000, 32 | 16    }, /* GPTIMER2 */
-    [106] = {0x01033000, 0x1000, 32 | 16 | 8}, /* L4IC */
-    [107] = {0x01034000, 0x1000, 32 | 16    }, /* GPTIMER3 */
-    [108] = {0x01035000, 0x1000, 32 | 16 | 8}, /* L4IC */
-    [109] = {0x01036000, 0x1000, 32 | 16    }, /* GPTIMER4 */
-    [110] = {0x01037000, 0x1000, 32 | 16 | 8}, /* L4IC */
-    [111] = {0x01038000, 0x1000, 32 | 16    }, /* GPTIMER5 */
-    [112] = {0x01039000, 0x1000, 32 | 16 | 8}, /* L4IC */
-    [113] = {0x0103a000, 0x1000, 32 | 16    }, /* GPTIMER6 */
-    [114] = {0x0103b000, 0x1000, 32 | 16 | 8}, /* L4IC */
-    [115] = {0x0103c000, 0x1000, 32 | 16    }, /* GPTIMER7 */
-    [116] = {0x0103d000, 0x1000, 32 | 16 | 8}, /* L4IC */
-    [117] = {0x0103e000, 0x1000, 32 | 16    }, /* GPTIMER8 */
-    [118] = {0x0103f000, 0x1000, 32 | 16 | 8}, /* L4IC */
-    [119] = {0x01040000, 0x1000, 32 | 16    }, /* GPTIMER9 */
-    [120] = {0x01041000, 0x1000, 32 | 16 | 8}, /* L4IC */
-    [121] = {0x01050000, 0x1000, 32 | 16 | 8}, /* GPIO2 */
-    [122] = {0x01051000, 0x1000, 32 | 16 | 8}, /* L4IC */
-    [123] = {0x01052000, 0x1000, 32 | 16 | 8}, /* GPIO3 */
-    [124] = {0x01053000, 0x1000, 32 | 16 | 8}, /* L4IC */
-    [125] = {0x01054000, 0x1000, 32 | 16 | 8}, /* GPIO4 */
-    [126] = {0x01055000, 0x1000, 32 | 16 | 8}, /* L4IC */
-    [127] = {0x01056000, 0x1000, 32 | 16 | 8}, /* GPIO5 */
-    [128] = {0x01057000, 0x1000, 32 | 16 | 8}, /* L4IC */
-    [129] = {0x01058000, 0x1000, 32 | 16 | 8}, /* GPIO6 */
-    [130] = {0x01059000, 0x1000, 32 | 16 | 8}, /* L4IC */
+    [L4ID_PER_AP      ] = {0x01000000, 0x0800, 32 | 16 | 8},
+    [L4ID_PER_IP      ] = {0x01000800, 0x0800, 32 | 16 | 8},
+    [L4ID_PER_LA      ] = {0x01001000, 0x1000, 32 | 16 | 8},
+    [L4ID_UART3       ] = {0x01020000, 0x1000, 32 | 16 | 8},
+    [L4ID_UART3_TA    ] = {0x01021000, 0x1000, 32 | 16 | 8},
+    [L4ID_MCBSP2      ] = {0x01022000, 0x1000, 32         },
+    [L4ID_MCBSP2_TA   ] = {0x01023000, 0x1000, 32 | 16 | 8},
+    [L4ID_MCBSP3      ] = {0x01024000, 0x1000, 32         },
+    [L4ID_MCBSP3_TA   ] = {0x01025000, 0x1000, 32 | 16 | 8},
+    [L4ID_MCBSP4      ] = {0x01026000, 0x1000, 32         },
+    [L4ID_MCBSP4_TA   ] = {0x01027000, 0x1000, 32 | 16 | 8},
+    [L4ID_MCBSP2S     ] = {0x01028000, 0x1000, 32         },
+    [L4ID_MCBSP2S_TA  ] = {0x01029000, 0x1000, 32 | 16 | 8},
+    [L4ID_MCBSP3S     ] = {0x0102a000, 0x1000, 32         },
+    [L4ID_MCBSP3S_TA  ] = {0x0102b000, 0x1000, 32 | 16 | 8},
+    [L4ID_WDTIMER3    ] = {0x01030000, 0x1000, 32 | 16    },
+    [L4ID_WDTIMER3_TA ] = {0x01031000, 0x1000, 32 | 16 | 8},
+    [L4ID_GPTIMER2    ] = {0x01032000, 0x1000, 32 | 16    },
+    [L4ID_GPTIMER2_TA ] = {0x01033000, 0x1000, 32 | 16 | 8},
+    [L4ID_GPTIMER3    ] = {0x01034000, 0x1000, 32 | 16    },
+    [L4ID_GPTIMER3_TA ] = {0x01035000, 0x1000, 32 | 16 | 8},
+    [L4ID_GPTIMER4    ] = {0x01036000, 0x1000, 32 | 16    },
+    [L4ID_GPTIMER4_TA ] = {0x01037000, 0x1000, 32 | 16 | 8},
+    [L4ID_GPTIMER5    ] = {0x01038000, 0x1000, 32 | 16    },
+    [L4ID_GPTIMER5_TA ] = {0x01039000, 0x1000, 32 | 16 | 8},
+    [L4ID_GPTIMER6    ] = {0x0103a000, 0x1000, 32 | 16    },
+    [L4ID_GPTIMER6_TA ] = {0x0103b000, 0x1000, 32 | 16 | 8},
+    [L4ID_GPTIMER7    ] = {0x0103c000, 0x1000, 32 | 16    },
+    [L4ID_GPTIMER7_TA ] = {0x0103d000, 0x1000, 32 | 16 | 8},
+    [L4ID_GPTIMER8    ] = {0x0103e000, 0x1000, 32 | 16    },
+    [L4ID_GPTIMER8_TA ] = {0x0103f000, 0x1000, 32 | 16 | 8},
+    [L4ID_GPTIMER9    ] = {0x01040000, 0x1000, 32 | 16    },
+    [L4ID_GPTIMER9_TA ] = {0x01041000, 0x1000, 32 | 16 | 8},
+    [L4ID_GPIO2       ] = {0x01050000, 0x1000, 32 | 16 | 8},
+    [L4ID_GPIO2_TA    ] = {0x01051000, 0x1000, 32 | 16 | 8},
+    [L4ID_GPIO3       ] = {0x01052000, 0x1000, 32 | 16 | 8},
+    [L4ID_GPIO3_TA    ] = {0x01053000, 0x1000, 32 | 16 | 8},
+    [L4ID_GPIO4       ] = {0x01054000, 0x1000, 32 | 16 | 8},
+    [L4ID_GPIO4_TA    ] = {0x01055000, 0x1000, 32 | 16 | 8},
+    [L4ID_GPIO5       ] = {0x01056000, 0x1000, 32 | 16 | 8},
+    [L4ID_GPIO5_TA    ] = {0x01057000, 0x1000, 32 | 16 | 8},
+    [L4ID_GPIO6       ] = {0x01058000, 0x1000, 32 | 16 | 8},
+    [L4ID_GPIO6_TA    ] = {0x01059000, 0x1000, 32 | 16 | 8},
     /* L4-Emu */
-    [131] = {0x0c006000, 0x0800, 32 | 16 | 8}, /* AP */
-    [132] = {0x0c006800, 0x0800, 32 | 16 | 8}, /* IP L4-Core */
-    [133] = {0x0c007000, 0x1000, 32 | 16 | 8}, /* LA */
-    [134] = {0x0c008000, 0x0800, 32 | 16 | 8}, /* IP DAP */
-    [135] = {0x0c010000, 0x8000, 32 | 16 | 8}, /* MPU Emulation */
-    [136] = {0x0c018000, 0x1000, 32 | 16 | 8}, /* L4IC */
-    [137] = {0x0c019000, 0x1000, 32         }, /* TPIU */
-    [138] = {0x0c01a000, 0x1000, 32 | 16 | 8}, /* L4IC */
-    [139] = {0x0c01b000, 0x1000, 32         }, /* ETB */
-    [140] = {0x0c01c000, 0x1000, 32 | 16 | 8}, /* L4IC */
-    [141] = {0x0c01d000, 0x1000, 32         }, /* DAPCTL */
-    [142] = {0x0c01e000, 0x1000, 32 | 16 | 8}, /* L4IC */
-    [143] = {0x0c706000, 0x2000, 32         }, /* PRM Region A */
-    [144] = {0x0c706800, 0x0800, 32         }, /* PRM Region B */
-    [145] = {0x0c709000, 0x1000, 32 | 16 | 8}, /* L4IC */
-    [146] = {0x0c710000, 0x1000, 32 | 16 | 8}, /* GPIO1 */
-    [147] = {0x0c711000, 0x1000, 32 | 16 | 8}, /* L4IC */
-    [148] = {0x0c714000, 0x1000, 32 | 16    }, /* WDTIMER2 */
-    [149] = {0x0c715000, 0x1000, 32 | 16 | 8}, /* L4IC */
-    [150] = {0x0c718000, 0x1000, 32 | 16 | 8}, /* GPTIMER1 */
-    [151] = {0x0c719000, 0x1000, 32 | 16 | 8}, /* L4IC */
-    [152] = {0x0c720000, 0x1000, 32 | 16    }, /* 32k timer */
-    [153] = {0x0c721000, 0x1000, 32 | 16 | 8}, /* L4IC */
-    [154] = {0x0c728000, 0x0800, 32 | 16 | 8}, /* L4-Wakeup config AP */
-    [155] = {0x0c728800, 0x0800, 32 | 16 | 8}, /* L4-Wakeup config IP L4-Core */
-    [156] = {0x0c729000, 0x1000, 32 | 16 | 8}, /* L4-Wakeup config LA */
-    [157] = {0x0c72a000, 0x0800, 32 | 16 | 8}, /* L4-Wakeup config IP L4-Emu */
+    [L4ID_EMU_AP      ] = {0x0c006000, 0x0800, 32 | 16 | 8},
+    [L4ID_EMU_IP_C    ] = {0x0c006800, 0x0800, 32 | 16 | 8},
+    [L4ID_EMU_LA      ] = {0x0c007000, 0x1000, 32 | 16 | 8},
+    [L4ID_EMU_IP_DAP  ] = {0x0c008000, 0x0800, 32 | 16 | 8},
+    [L4ID_MPUEMU      ] = {0x0c010000, 0x8000, 32 | 16 | 8},
+    [L4ID_MPUEMU_TA   ] = {0x0c018000, 0x1000, 32 | 16 | 8},
+    [L4ID_TPIU        ] = {0x0c019000, 0x1000, 32         },
+    [L4ID_TPIU_TA     ] = {0x0c01a000, 0x1000, 32 | 16 | 8},
+    [L4ID_ETB         ] = {0x0c01b000, 0x1000, 32         },
+    [L4ID_ETB_TA      ] = {0x0c01c000, 0x1000, 32 | 16 | 8},
+    [L4ID_DAPCTL      ] = {0x0c01d000, 0x1000, 32         },
+    [L4ID_DAPCTL_TA   ] = {0x0c01e000, 0x1000, 32 | 16 | 8},
+    [L4ID_EMU_PRM_A   ] = {0x0c706000, 0x2000, 32         },
+    [L4ID_EMU_PRM_B   ] = {0x0c706800, 0x0800, 32         },
+    [L4ID_EMU_PRM_TA  ] = {0x0c709000, 0x1000, 32 | 16 | 8},
+    [L4ID_EMU_GPIO1   ] = {0x0c710000, 0x1000, 32 | 16 | 8},
+    [L4ID_EMU_GPIO1_TA] = {0x0c711000, 0x1000, 32 | 16 | 8},
+    [L4ID_EMU_WDTM2   ] = {0x0c714000, 0x1000, 32 | 16    },
+    [L4ID_EMU_WDTM2_TA] = {0x0c715000, 0x1000, 32 | 16 | 8},
+    [L4ID_EMU_GPTM1   ] = {0x0c718000, 0x1000, 32 | 16 | 8},
+    [L4ID_EMU_GPTM1_TA] = {0x0c719000, 0x1000, 32 | 16 | 8},
+    [L4ID_EMU_32KTM   ] = {0x0c720000, 0x1000, 32 | 16    },
+    [L4ID_EMU_32KTM_TA] = {0x0c721000, 0x1000, 32 | 16 | 8},
+    [L4ID_EMU_WKUP_AP ] = {0x0c728000, 0x0800, 32 | 16 | 8},
+    [L4ID_EMU_WKUP_IPC] = {0x0c728800, 0x0800, 32 | 16 | 8},
+    [L4ID_EMU_WKUP_LA ] = {0x0c729000, 0x1000, 32 | 16 | 8},
+    [L4ID_EMU_WKUP_IPE] = {0x0c72a000, 0x0800, 32 | 16 | 8},
+};
+
+enum omap3_agent_info_id_t {
+    L4A_SCM = 0,
+    L4A_CM,
+    L4A_PRM,
+    L4A_GPTIMER1,
+    L4A_GPTIMER2,
+    L4A_GPTIMER3,
+    L4A_GPTIMER4,
+    L4A_GPTIMER5,
+    L4A_GPTIMER6,
+    L4A_GPTIMER7,
+    L4A_GPTIMER8,
+    L4A_GPTIMER9,
+    L4A_GPTIMER10,
+    L4A_GPTIMER11,
+    L4A_GPTIMER12,
+    L4A_WDTIMER2,
+    L4A_32KTIMER,
+    L4A_UART1,
+    L4A_UART2,
+    L4A_UART3,
+    L4A_DSS,
+    L4A_GPIO1,
+    L4A_GPIO2,
+    L4A_GPIO3,
+    L4A_GPIO4,
+    L4A_GPIO5,
+    L4A_GPIO6,
+    L4A_MMC1,
+    L4A_MMC2,
+    L4A_MMC3,
+    L4A_I2C1,
+    L4A_I2C2,
+    L4A_I2C3,
+    L4A_TAP
 };
 
 static struct omap_l4_agent_info_s omap3_l4_agent_info[] = {
-    { 0,   0, 2, 1},  /* SCM */
-    { 1,   1, 3, 2},  /* CM */
-    { 2,  70, 3, 2},  /* PRM */
-    { 3,  77, 2, 1},  /* WDTIMER2 */
-    { 4,  79, 2, 1},  /* GPTIMER1 */
-    { 5, 105, 2, 1},  /* GPTIMER2 */
-    { 6, 107, 2, 1},  /* GPTIMER3 */
-    { 7, 108, 2, 1},  /* GPTIMER4 */
-    { 8, 111, 2, 1},  /* GPTIMER5 */
-    { 9, 113, 2, 1},  /* GPTIMER6 */
-    {10, 115, 2, 1},  /* GPTIMER7 */
-    {11, 116, 2, 1},  /* GPTIMER8 */
-    {12, 119, 2, 1},  /* GPTIMER9 */
-    {13,  32, 2, 1},  /* GPTIMER10 */
-    {14,  34, 2, 1},  /* GPTIMER11 */
-    {15,  68, 2, 1},  /* GPTIMER12 */
-    {16,  81, 2, 1},  /* 32K Sync timer */
-    {17,  22, 2, 1},  /* UART1 */
-    {18,  24, 2, 1},  /* UART2 */
-    {19,  91, 2, 1},  /* UART3 */
-    {20,   8, 6, 4},  /* DSS */
-    {21,  75, 2, 1},  /* GPIO1 */
-    {22, 121, 2, 1},  /* GPIO2 */
-    {23, 123, 2, 1},  /* GPIO3 */
-    {24, 125, 2, 1},  /* GPIO4 */
-    {25, 127, 2, 1},  /* GPIO5 */
-    {26, 129, 2, 1},  /* GPIO6 */
-    {27,  73, 2, 1},  /* TAP */
-    {28,  44, 2, 1},  /* MMC1 */
-    {29,  54, 2, 1},  /* MMC2 */
-    {30,  50, 2, 1},  /* MMC3 */
-    {31,  26, 2, 1},  /* I2C1 */
-    {32,  28, 2, 1},  /* I2C2 */
-    {33,  16, 2, 1},  /* I2C3 */
+    /* L4-Core Target Agents */
+    {L4A_DSS,       L4ID_DSI,       6, 4},
+    /* TODO: camera */
+    /* TODO: USBHS OTG */
+    /* TODO: USBHS host */
+    /* TODO: USBTLL */
+    {L4A_UART1,     L4ID_UART1,     2, 1},
+    {L4A_UART2,     L4ID_UART2,     2, 1},
+    {L4A_I2C1,      L4ID_I2C1,      2, 1},
+    {L4A_I2C2,      L4ID_I2C2,      2, 1},
+    {L4A_I2C3,      L4ID_I2C3,      2, 1},
+    /* TODO: McBSP1 */
+    /* TODO: McBSP5 */
+    {L4A_GPTIMER10, L4ID_GPTIMER10, 2, 1},
+    {L4A_GPTIMER11, L4ID_GPTIMER11, 2, 1},
+    /* TODO: SPI1 */
+    /* TODO: SPI2 */
+    {L4A_MMC1,      L4ID_MMCSDIO1,  2, 1},
+    {L4A_MMC2,      L4ID_MMCSDIO2,  2, 1},
+    {L4A_MMC3,      L4ID_MMCSDIO3,  2, 1},
+    /* TODO: HDQ/1-Wire */
+    /* TODO: Mailbox */
+    /* TODO: SPI3 */
+    /* TODO: SPI4 */
+    /* TODO: SDMA */
+    {L4A_CM,        L4ID_CM_A,      3, 2},
+    {L4A_SCM,       L4ID_SCM,       2, 1},
+    {L4A_TAP,       L4ID_TAP,       2, 1},
+    /* L4-Wakeup Target Agents */
+    {L4A_GPTIMER12, L4ID_GPTIMER12, 2, 1},
+    {L4A_PRM,       L4ID_PRM_A,     3, 2},
+    {L4A_GPIO1,     L4ID_GPIO1,     2, 1},
+    {L4A_WDTIMER2,  L4ID_WDTIMER2,  2, 1},
+    {L4A_GPTIMER1,  L4ID_GPTIMER1,  2, 1},
+    {L4A_32KTIMER,  L4ID_32KTIMER,  2, 1},
+    /* L4-Per Target Agents */
+    {L4A_UART3,     L4ID_UART3,     2, 1},
+    /* TODO: McBSP2 */
+    /* TODO: McBSP3 */
+    {L4A_GPTIMER2,  L4ID_GPTIMER2,  2, 1},
+    {L4A_GPTIMER3,  L4ID_GPTIMER3,  2, 1},
+    {L4A_GPTIMER4,  L4ID_GPTIMER4,  2, 1},
+    {L4A_GPTIMER5,  L4ID_GPTIMER5,  2, 1},
+    {L4A_GPTIMER6,  L4ID_GPTIMER6,  2, 1},
+    {L4A_GPTIMER7,  L4ID_GPTIMER7,  2, 1},
+    {L4A_GPTIMER8,  L4ID_GPTIMER8,  2, 1},
+    {L4A_GPTIMER9,  L4ID_GPTIMER9,  2, 1},
+    {L4A_GPIO2,     L4ID_GPIO2,     2, 1},
+    {L4A_GPIO3,     L4ID_GPIO3,     2, 1},
+    {L4A_GPIO4,     L4ID_GPIO4,     2, 1},
+    {L4A_GPIO5,     L4ID_GPIO5,     2, 1},
+    {L4A_GPIO6,     L4ID_GPIO6,     2, 1},
 };
 
 static struct omap_target_agent_s *omap3_l4ta_get(struct omap_l4_s *bus, int cs)
@@ -3747,10 +4008,9 @@ struct omap_mpu_state_s *omap3530_mpu_init(unsigned long sdram_size,
     cpu_register_physical_memory(OMAP3_SRAM_BASE, s->sram_size,
                                  (sram_base | IO_MEM_RAM));
 
-
-    
-
-    s->l4 = omap_l4_init(OMAP3_L4_BASE, sizeof(omap3_l4_agent_info) / sizeof(struct omap_l4_agent_info_s));
+    s->l4 = omap_l4_init(OMAP3_L4_BASE, 
+                         sizeof(omap3_l4_agent_info) 
+                         / sizeof(struct omap_l4_agent_info_s));
 
     cpu_irq = arm_pic_init_cpu(s->env);
     s->ih[0] = omap2_inth_init(s, 0x48200000, 0x1000, 3, &s->irq[0],
@@ -3773,74 +4033,73 @@ struct omap_mpu_state_s *omap3530_mpu_init(unsigned long sdram_size,
     soc_dma_port_add_mem_ram(s->dma, sram_base, OMAP2_SRAM_BASE, s->sram_size);
 
 
-    s->omap3_cm = omap3_cm_init(omap3_l4ta_get(s->l4, 1), NULL, NULL, NULL, s);
+    s->omap3_cm = omap3_cm_init(omap3_l4ta_get(s->l4, L4A_CM), NULL, NULL, NULL, s);
 
-    s->omap3_prm = omap3_prm_init(omap3_l4ta_get(s->l4, 2),
+    s->omap3_prm = omap3_prm_init(omap3_l4ta_get(s->l4, L4A_PRM),
                                   NULL, NULL, NULL, s);
 
-    s->omap3_mpu_wdt = omap3_mpu_wdt_init(omap3_l4ta_get(s->l4, 3),
+    s->omap3_mpu_wdt = omap3_mpu_wdt_init(omap3_l4ta_get(s->l4, L4A_WDTIMER2),
                                           NULL,
-                                          omap_findclk(s,
-                                                       "omap3_wkup_32k_fclk"),
+                                          omap_findclk(s, "omap3_wkup_32k_fclk"),
                                           omap_findclk(s, "omap3_wkup_l4_iclk"),
                                           s);
 
-    s->omap3_scm = omap3_scm_init(omap3_l4ta_get(s->l4, 0), s);
+    s->omap3_scm = omap3_scm_init(omap3_l4ta_get(s->l4, L4A_SCM), s);
 
     s->omap3_pm = omap3_pm_init(s);
     s->omap3_sms = omap3_sms_init(s);
 
-    s->gptimer[0] = omap_gp_timer_init(omap3_l4ta_get(s->l4, 4),
+    s->gptimer[0] = omap_gp_timer_init(omap3_l4ta_get(s->l4, L4A_GPTIMER1),
                                        s->irq[0][OMAP_INT_35XX_GPTIMER1],
                                        omap_findclk(s, "omap3_gp1_fclk"),
                                        omap_findclk(s, "omap3_wkup_l4_iclk"));
-    s->gptimer[1] = omap_gp_timer_init(omap3_l4ta_get(s->l4, 5),
+    s->gptimer[1] = omap_gp_timer_init(omap3_l4ta_get(s->l4, L4A_GPTIMER2),
                                        s->irq[0][OMAP_INT_35XX_GPTIMER2],
                                        omap_findclk(s, "omap3_gp2_fclk"),
                                        omap_findclk(s, "omap3_per_l4_iclk"));
-    s->gptimer[2] = omap_gp_timer_init(omap3_l4ta_get(s->l4, 6),
+    s->gptimer[2] = omap_gp_timer_init(omap3_l4ta_get(s->l4, L4A_GPTIMER3),
                                        s->irq[0][OMAP_INT_35XX_GPTIMER3],
                                        omap_findclk(s, "omap3_gp3_fclk"),
                                        omap_findclk(s, "omap3_per_l4_iclk"));
-    s->gptimer[3] = omap_gp_timer_init(omap3_l4ta_get(s->l4, 7),
+    s->gptimer[3] = omap_gp_timer_init(omap3_l4ta_get(s->l4, L4A_GPTIMER4),
                                        s->irq[0][OMAP_INT_35XX_GPTIMER4],
                                        omap_findclk(s, "omap3_gp4_fclk"),
                                        omap_findclk(s, "omap3_per_l4_iclk"));
-    s->gptimer[4] = omap_gp_timer_init(omap3_l4ta_get(s->l4, 8),
+    s->gptimer[4] = omap_gp_timer_init(omap3_l4ta_get(s->l4, L4A_GPTIMER5),
                                        s->irq[0][OMAP_INT_35XX_GPTIMER5],
                                        omap_findclk(s, "omap3_gp5_fclk"),
                                        omap_findclk(s, "omap3_per_l4_iclk"));
-    s->gptimer[5] = omap_gp_timer_init(omap3_l4ta_get(s->l4, 9),
+    s->gptimer[5] = omap_gp_timer_init(omap3_l4ta_get(s->l4, L4A_GPTIMER6),
                                        s->irq[0][OMAP_INT_35XX_GPTIMER6],
                                        omap_findclk(s, "omap3_gp6_fclk"),
                                        omap_findclk(s, "omap3_per_l4_iclk"));
-    s->gptimer[6] = omap_gp_timer_init(omap3_l4ta_get(s->l4, 10),
+    s->gptimer[6] = omap_gp_timer_init(omap3_l4ta_get(s->l4, L4A_GPTIMER7),
                                        s->irq[0][OMAP_INT_35XX_GPTIMER7],
                                        omap_findclk(s, "omap3_gp7_fclk"),
                                        omap_findclk(s, "omap3_per_l4_iclk"));
-    s->gptimer[7] = omap_gp_timer_init(omap3_l4ta_get(s->l4, 11),
+    s->gptimer[7] = omap_gp_timer_init(omap3_l4ta_get(s->l4, L4A_GPTIMER8),
                                        s->irq[0][OMAP_INT_35XX_GPTIMER8],
                                        omap_findclk(s, "omap3_gp8_fclk"),
                                        omap_findclk(s, "omap3_per_l4_iclk"));
-    s->gptimer[8] = omap_gp_timer_init(omap3_l4ta_get(s->l4, 12),
+    s->gptimer[8] = omap_gp_timer_init(omap3_l4ta_get(s->l4, L4A_GPTIMER9),
                                        s->irq[0][OMAP_INT_35XX_GPTIMER9],
                                        omap_findclk(s, "omap3_gp9_fclk"),
                                        omap_findclk(s, "omap3_per_l4_iclk"));
-    s->gptimer[9] = omap_gp_timer_init(omap3_l4ta_get(s->l4, 13),
+    s->gptimer[9] = omap_gp_timer_init(omap3_l4ta_get(s->l4, L4A_GPTIMER10),
                                        s->irq[0][OMAP_INT_35XX_GPTIMER10],
                                        omap_findclk(s, "omap3_gp10_fclk"),
                                        omap_findclk(s, "omap3_core_l4_iclk"));
-    s->gptimer[10] = omap_gp_timer_init(omap3_l4ta_get(s->l4, 14),
+    s->gptimer[10] = omap_gp_timer_init(omap3_l4ta_get(s->l4, L4A_GPTIMER11),
                                        s->irq[0][OMAP_INT_35XX_GPTIMER11],
                                        omap_findclk(s, "omap3_gp12_fclk"),
                                        omap_findclk(s, "omap3_core_l4_iclk"));
-    s->gptimer[11] = omap_gp_timer_init(omap3_l4ta_get(s->l4, 15),
+    s->gptimer[11] = omap_gp_timer_init(omap3_l4ta_get(s->l4, L4A_GPTIMER12),
                                         s->irq[0][OMAP_INT_35XX_GPTIMER12],
                                         omap_findclk(s, "omap3_gp12_fclk"),
                                         omap_findclk(s, "omap3_wkup_l4_iclk"));
     
 	
-    omap_synctimer_init(omap3_l4ta_get(s->l4, 16), s,
+    omap_synctimer_init(omap3_l4ta_get(s->l4, L4A_32KTIMER), s,
                         omap_findclk(s, "omap3_sys_32k"), NULL);
 
     s->sdrc = omap_sdrc_init(0x6d000000);
@@ -3848,20 +4107,20 @@ struct omap_mpu_state_s *omap3530_mpu_init(unsigned long sdram_size,
     s->gpmc = omap_gpmc_init(s, 0x6e000000, s->irq[0][OMAP_INT_35XX_GPMC_IRQ]);
     
 
-    s->uart[0] = omap2_uart_init(omap3_l4ta_get(s->l4, 17),
+    s->uart[0] = omap2_uart_init(omap3_l4ta_get(s->l4, L4A_UART1),
                                  s->irq[0][OMAP_INT_35XX_UART1_IRQ],
                                  omap_findclk(s, "omap3_uart1_fclk"),
                                  omap_findclk(s, "omap3_uart1_iclk"),
                                  s->drq[OMAP35XX_DMA_UART1_TX],
                                  s->drq[OMAP35XX_DMA_UART1_RX], serial_hds[0]);
-    s->uart[1] = omap2_uart_init(omap3_l4ta_get(s->l4, 18),
+    s->uart[1] = omap2_uart_init(omap3_l4ta_get(s->l4, L4A_UART2),
                                  s->irq[0][OMAP_INT_35XX_UART2_IRQ],
                                  omap_findclk(s, "omap3_uart2_fclk"),
                                  omap_findclk(s, "omap3_uart2_iclk"),
                                  s->drq[OMAP35XX_DMA_UART2_TX],
                                  s->drq[OMAP35XX_DMA_UART2_RX],
                                  serial_hds[0] ? serial_hds[1] : 0);
-    s->uart[2] = omap2_uart_init(omap3_l4ta_get(s->l4, 19),
+    s->uart[2] = omap2_uart_init(omap3_l4ta_get(s->l4, L4A_UART3),
                                  s->irq[0][OMAP_INT_35XX_UART3_IRQ],
                                  omap_findclk(s, "omap3_uart2_fclk"),
                                  omap_findclk(s, "omap3_uart3_iclk"),
@@ -3873,7 +4132,7 @@ struct omap_mpu_state_s *omap3530_mpu_init(unsigned long sdram_size,
     /*attach serial[0] to uart 2 for beagle board */
     omap_uart_attach(s->uart[2], serial_hds[0]);
 
-    s->dss = omap_dss_init(omap3_l4ta_get(s->l4, 20), 0x68005400, ds,
+    s->dss = omap_dss_init(omap3_l4ta_get(s->l4, L4A_DSS), 0x68005400, ds,
                     s->irq[0][OMAP_INT_35XX_DSS_IRQ], s->drq[OMAP24XX_DMA_DSS],
                    NULL,NULL,NULL,NULL,NULL);
 
@@ -3883,52 +4142,47 @@ struct omap_mpu_state_s *omap3530_mpu_init(unsigned long sdram_size,
     //gpio_clks[3] = NULL;
 
     s->gpif = omap3_gpif_init();
-    /*gpio 1*/
-    omap3_gpio_init(s, s->gpif ,omap3_l4ta_get(s->l4, 21),
+    omap3_gpio_init(s, s->gpif ,omap3_l4ta_get(s->l4, L4A_GPIO1),
                     &s->irq[0][OMAP_INT_35XX_GPIO_BANK1], 
                     NULL,NULL,0);
-    /*gpio 2*/
-    omap3_gpio_init(s, s->gpif ,omap3_l4ta_get(s->l4, 22),
+    omap3_gpio_init(s, s->gpif ,omap3_l4ta_get(s->l4, L4A_GPIO2),
                     &s->irq[0][OMAP_INT_35XX_GPIO_BANK2], 
                     NULL,NULL,1);
-    /*gpio 3*/
-    omap3_gpio_init(s, s->gpif ,omap3_l4ta_get(s->l4, 23),
+    omap3_gpio_init(s, s->gpif ,omap3_l4ta_get(s->l4, L4A_GPIO3),
                     &s->irq[0][OMAP_INT_35XX_GPIO_BANK3], 
                     NULL,NULL,2);
-    /*gpio 4*/
-    omap3_gpio_init(s, s->gpif ,omap3_l4ta_get(s->l4, 24),
+    omap3_gpio_init(s, s->gpif ,omap3_l4ta_get(s->l4, L4A_GPIO4),
                     &s->irq[0][OMAP_INT_35XX_GPIO_BANK4], 
                     NULL,NULL,3);
-
-    /*gpio 5*/
-    omap3_gpio_init(s, s->gpif ,omap3_l4ta_get(s->l4, 25),
+    omap3_gpio_init(s, s->gpif ,omap3_l4ta_get(s->l4, L4A_GPIO5),
                     &s->irq[0][OMAP_INT_35XX_GPIO_BANK5], 
                     NULL,NULL,4);
-     /*gpio 6*/
-    omap3_gpio_init(s, s->gpif ,omap3_l4ta_get(s->l4, 26),
+    omap3_gpio_init(s, s->gpif ,omap3_l4ta_get(s->l4, L4A_GPIO6),
                     &s->irq[0][OMAP_INT_35XX_GPIO_BANK6], 
                     NULL,NULL,5);
 
-    omap_tap_init(omap3_l4ta_get(s->l4, 27), s);
+    omap_tap_init(omap3_l4ta_get(s->l4, L4A_TAP), s);
 
-    s->omap3_mmc = omap3_mmc_init(omap3_l4ta_get(s->l4, 28), drives_table[sdindex].bdrv,
-                    s->irq[0][OMAP_INT_35XX_MMC1_IRQ],
-                    &s->drq[OMAP35XX_DMA_MMC1_TX],
-                    omap_findclk(s, "omap3_mmc1_fclk"), omap_findclk(s, "omap3_mmc1_iclk"));
+    s->omap3_mmc = omap3_mmc_init(omap3_l4ta_get(s->l4, L4A_MMC1), 
+                                  drives_table[sdindex].bdrv,
+                                  s->irq[0][OMAP_INT_35XX_MMC1_IRQ],
+                                  &s->drq[OMAP35XX_DMA_MMC1_TX],
+                                  omap_findclk(s, "omap3_mmc1_fclk"),
+                                  omap_findclk(s, "omap3_mmc1_iclk"));
 
-    s->i2c[0] = omap3_i2c_init(omap3_l4ta_get(s->l4, 31),
+    s->i2c[0] = omap3_i2c_init(omap3_l4ta_get(s->l4, L4A_I2C1),
                                s->irq[0][OMAP_INT_35XX_I2C1_IRQ],
                                &s->drq[OMAP35XX_DMA_I2C1_TX],
                                omap_findclk(s, "omap3_i2c1_fclk"),
                                omap_findclk(s, "omap3_i2c1_iclk"),
                                8);
-    s->i2c[1] = omap3_i2c_init(omap3_l4ta_get(s->l4, 32),
+    s->i2c[1] = omap3_i2c_init(omap3_l4ta_get(s->l4, L4A_I2C2),
                                s->irq[0][OMAP_INT_35XX_I2C2_IRQ],
                                &s->drq[OMAP35XX_DMA_I2C2_TX],
                                omap_findclk(s, "omap3_i2c2_fclk"),
                                omap_findclk(s, "omap3_i2c2_iclk"),
                                8);
-    s->i2c[2] = omap3_i2c_init(omap3_l4ta_get(s->l4, 33),
+    s->i2c[2] = omap3_i2c_init(omap3_l4ta_get(s->l4, L4A_I2C3),
                                s->irq[0][OMAP_INT_35XX_I2C3_IRQ],
                                &s->drq[OMAP35XX_DMA_I2C3_TX],
                                omap_findclk(s, "omap3_i2c3_fclk"),
