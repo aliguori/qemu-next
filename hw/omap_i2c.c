@@ -189,10 +189,10 @@ static void omap_i2c_fifo_run(struct omap_i2c_s *s)
                 if (s->revision < OMAP3_INTR_REV)
                     s->stat |= 1 << 4;              /* XRDY */
                 else {
-                    if (s->count_cur < (s->dma & 0x3f)) /* XTRSH */
-                        s->stat |= 1 << 14;
+                    if (s->count_cur > (s->dma & 0x3f)) /* XTRSH */
+                        s->stat |= 1 << 4;          /* XRDY */
                     else
-                        s->stat |= 1 << 4;
+                        s->stat |= 1 << 14;         /* XDR */
                 }
             }
             if (!s->count_cur)                      /* everything sent? */
