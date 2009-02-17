@@ -28,7 +28,7 @@ struct omap_i2c_s {
     i2c_bus *bus;
 
     uint8_t revision;
-    uint8_t mask;
+    uint16_t mask;
     uint16_t stat;
     uint16_t we;
     uint16_t dma;
@@ -173,25 +173,27 @@ static void omap_i2c_fifo_run(struct omap_i2c_s *s)
         }
     } else {
         if ((s->control >> 9) & 1) {                /* TRX */
-            TRACE("master transmit");
+            TRACE("master transmit, count_cur=%d, txlen=%d", s->count_cur, s->txlen);
             /* this implementation actually always transfers everything
                in the FIFO if acknowledged by the slave; thus a situation
                where we would set XDR status never really happens */
             for (i = 0; ack && s->count_cur && i < s->txlen; i++, s->count_cur--)
                 ack = (i2c_send(s->bus, s->fifo[i]) >= 0);
             s->txlen -= i;
-            if (s->txlen)
+            if (s->txlen) /* happens only when NACK has been received */
                 memmove(s->fifo, s->fifo + i, s->txlen);
             s->stat &= ~0x4410;                     /* XDR | XUDF | XRDY */
             if (ack && s->count_cur) {              /* send more? */
-                if (!s->txlen)
-                    s->stat |= 1 << 10;             /* XUDF */
-                if (s->revision >= OMAP3_INTR_REV
-                    && (s->mask & (1 << 14))
-                    && s->txlen >= s->fifosize - (s->dma & 0x3f)) /* XTRSH */
-                    s->stat |= 1 << 14;             /* XDR */
-                else
+                /* we know that FIFO is empty */
+                s->stat |= 1 << 10;                 /* XUDF */
+                if (s->revision < OMAP3_INTR_REV)
                     s->stat |= 1 << 4;              /* XRDY */
+                else {
+                    if (s->count_cur < (s->dma & 0x3f)) /* XTRSH */
+                        s->stat |= 1 << 14;
+                    else
+                        s->stat |= 1 << 4;
+                }
             }
             if (!s->count_cur)                      /* everything sent? */
                 s->stat |= 1 << 2;                  /* ARDY */
@@ -205,8 +207,7 @@ static void omap_i2c_fifo_run(struct omap_i2c_s *s)
             }
             s->stat &= ~((1 << 3) | (1 << 13));            /* RRDY | RDR */
             if (s->rxlen) {
-                if (s->revision < OMAP3_INTR_REV
-                    || !(s->mask & (1 << 13)))
+                if (s->revision < OMAP3_INTR_REV)
                     s->stat |= 1 << 3;                     /* RRDY */
                 else {
                     if (s->rxlen > ((s->dma >> 8) & 0x3f)) /* RTRSH */
@@ -364,8 +365,8 @@ static uint32_t omap_i2c_read(void *opaque, target_phys_addr_t addr)
                     case 64: ret = 0xc000; break;
                     default: ret = 0x0000; break;
                 }
-                ret |= ((s->rxlen) & 0x3f) << 8; /* RXSTAT */
-                ret |= s->txlen & 0x3f;          /* TXSTAT */
+                ret |= ((s->rxlen) & 0x3f) << 8;  /* RXSTAT */
+                ret |= (s->count_cur) & 0x3f;     /* TXSTAT */
                 TRACE("BUFSTAT returns %04x", ret);
                 return ret;
             }
@@ -412,6 +413,7 @@ static void omap_i2c_write(void *opaque, target_phys_addr_t addr,
                 s->mask = value & 0x63ff;
             else
                 s->mask = value & (s->revision < OMAP2_GC_REV ? 0x1f : 0x3f);
+            omap_i2c_interrupts_update(s);
             break;
         case 0x08: /* I2C_STAT */
             if (s->revision < OMAP2_INTR_REV)
