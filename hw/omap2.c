@@ -4025,9 +4025,10 @@ static uint32_t omap_sdrc_read(void *opaque, target_phys_addr_t addr)
         return s->sharing;
             
     case 0x48:	/* SDRC_ERR_ADDR */
+        return 0;
+
     case 0x4c:	/* SDRC_ERR_TYPE */
-        OMAP_BAD_REG(addr);
-        return 0x00;
+        return 0x8;
             
     case 0x60:	/* SDRC_DLLA_SCTRL */
         return s->dlla_ctrl;

@@ -19,14 +19,21 @@
  * MA 02111-1307 USA
  */
 
-
-
 /*The MMCHS of OMAP3530/3430 is different from OMAP1 and OAMP2420.*/
 
 
 #include "hw.h"
 #include "omap.h"
 #include "sd.h"
+
+
+//#define MMC_DEBUG_
+
+#ifdef MMC_DEBUG_
+#define TRACE(fmt,...) fprintf(stderr, "%s: " fmt "\n", __FUNCTION__, ##__VA_ARGS__)
+#else
+#define TRACE(...)
+#endif
 
 struct omap3_mmc_s
 {
@@ -360,209 +367,243 @@ static uint32_t omap3_mmc_read(void *opaque, target_phys_addr_t addr)
 {
     struct omap3_mmc_s *s = (struct omap3_mmc_s *) opaque;
     uint32_t i ;
-   //if ((offset!=0x12c)&&(offset!=0x120))
-   //fprintf(stderr, "%s: addr %03x pc %08x \n", __FUNCTION__, addr, cpu_single_env->regs[15]);
-    switch (addr)
-    {
-    case 0x10:
-        return s->sysconfig;
-    case 0x14:
-        return s->sysstatus | 0x1;      /*reset completed */
-    case 0x24:
-        return s->csre;
-    case 0x28:
-        return s->systest;
-    case 0x2c: /* MMCHS_CON */
-        return s->con;
-    case 0x30:
-        return s->pwcnt;
-    case 0x104: /* MMCHS_BLK */
-        return s->blk;
-    case 0x108: /* MMCHS_ARG */
-        return s->arg;
-    case 0x10c:
-        return s->cmd;
-    case 0x110:
-        return s->rsp10;
-    case 0x114:
-        return s->rsp32;
-    case 0x118:
-        return s->rsp54;
-    case 0x11c:
-        return s->rsp76;
-    case 0x120:
-        /*Read Data */
-        i = s->fifo[s->fifo_start];
-        /*set the buffer to default value*/
-        s->fifo[s->fifo_start] = 0x0;
-        if (s->fifo_len == 0) {
-            printf("MMC: FIFO underrun\n");
+
+    switch (addr) {
+        case 0x10:
+            TRACE("SYSCONFIG = %08x", s->sysconfig);
+            return s->sysconfig;
+        case 0x14:
+            TRACE("SYSSTATUS = %08x", s->sysstatus | 0x1);
+            return s->sysstatus | 0x1; /*reset completed */
+        case 0x24:
+            TRACE("CSRE = %08x", s->csre);
+            return s->csre;
+        case 0x28:
+            TRACE("SYSTEST = %08x", s->systest);
+            return s->systest;
+        case 0x2c: /* MMCHS_CON */
+            TRACE("CON = %08x", s->con);
+            return s->con;
+        case 0x30:
+            TRACE("PWCNT = %08x", s->pwcnt);
+            return s->pwcnt;
+        case 0x104: /* MMCHS_BLK */
+            TRACE("BLK = %08x", s->blk);
+            return s->blk;
+        case 0x108: /* MMCHS_ARG */
+            TRACE("ARG = %08x", s->arg);
+            return s->arg;
+        case 0x10c:
+            TRACE("CMD = %08x", s->cmd);
+            return s->cmd;
+        case 0x110:
+            TRACE("RSP10 = %08x", s->rsp10);
+            return s->rsp10;
+        case 0x114:
+            TRACE("RSP32 = %08x", s->rsp32);
+            return s->rsp32;
+        case 0x118:
+            TRACE("RSP54 = %08x", s->rsp54);
+            return s->rsp54;
+        case 0x11c:
+            TRACE("RSP76 = %08x", s->rsp76);
+            return s->rsp76;
+        case 0x120:
+            /*Read Data */
+            i = s->fifo[s->fifo_start];
+            /*set the buffer to default value*/
+            s->fifo[s->fifo_start] = 0x0;
+            if (s->fifo_len == 0) {
+                printf("MMC: FIFO underrun\n");
+                return i;
+            }
+            s->fifo_start++;
+            s->fifo_len--;
+            s->fifo_start &= 255;
+            omap3_mmc_transfer(s,(s->cmd>>5)&1,(s->cmd>>2)&1,(s->cmd>>1)&1,(s->cmd)&1);
+            omap3_mmc_fifolevel_update(s,s->cmd&1);
+            omap3_mmc_interrupts_update(s);
             return i;
-        }
-        s->fifo_start ++;
-        s->fifo_len --;
-        s->fifo_start &= 255;
-        omap3_mmc_transfer(s,(s->cmd>>5)&1,(s->cmd>>2)&1,(s->cmd>>1)&1,(s->cmd)&1);
-        omap3_mmc_fifolevel_update(s,s->cmd&1);
-        omap3_mmc_interrupts_update(s);
-        return i;
-
-    case 0x124: /* MMCHS_PSTATE */
-        return s->pstate;
-    case 0x128:
-        return s->hctl;
-    case 0x12c: /* MMCHS_SYSCTL */
-        return s->sysctl;
-    case 0x130: /* MMCHS_STAT */
-        s->stat |= s->stat_pending;
-        s->stat_pending = 0;
-        //fprintf(stderr, "%s: MMCHS_STAT = %08x\n", __FUNCTION__, s->stat);
-        return s->stat;
-    case 0x134:
-        return s->ie;
-    case 0x138:
-        return s->ise;
-    case 0x13c:
-        return s->ac12;
-    case 0x140: /* MMCHS_CAPA */
-        return s->capa;
-    case 0x148:
-        return s->cur_capa;
-    case 0x1fc:
-        return s->rev;
-    default:
-        OMAP_BAD_REG(addr);
-        exit(-1);
-        return 0;
+        case 0x124: /* MMCHS_PSTATE */
+            TRACE("PSTATE = %08x", s->pstate);
+            return s->pstate;
+        case 0x128:
+            TRACE("HCTL = %08x", s->hctl);
+            return s->hctl;
+        case 0x12c: /* MMCHS_SYSCTL */
+            TRACE("SYSCTL = %08x", s->sysctl);
+            return s->sysctl;
+        case 0x130: /* MMCHS_STAT */
+            s->stat |= s->stat_pending;
+            s->stat_pending = 0;
+            TRACE("STAT = %08x", s->stat);
+            return s->stat;
+        case 0x134:
+            TRACE("IE = %08x", s->ie);
+            return s->ie;
+        case 0x138:
+            TRACE("ISE = %08x", s->ise);
+            return s->ise;
+        case 0x13c:
+            TRACE("AC12 = %08x", s->ac12);
+            return s->ac12;
+        case 0x140: /* MMCHS_CAPA */
+            TRACE("CAPA = %08x", s->capa);
+            return s->capa;
+        case 0x148:
+            TRACE("CUR_CAPA = %08x", s->cur_capa);
+            return s->cur_capa;
+        case 0x1fc:
+            TRACE("REV = %08x", s->rev);
+            return s->rev;
+        default:
+            OMAP_BAD_REG(addr);
+            exit(-1);
+            return 0;
     }
-
 }
 
 static void omap3_mmc_write(void *opaque, target_phys_addr_t addr,
                             uint32_t value)
 {
     struct omap3_mmc_s *s = (struct omap3_mmc_s *) opaque;
-	//fprintf(stderr, "%s: addr %x value %08x \n", __FUNCTION__, addr, value);
-    switch (addr)
-    {
-    case 0x14:
-    case 0x110:
-    case 0x114:
-    case 0x118:
-    case 0x11c:
-    case 0x124:
-    case 0x13c:
-    case 0x1fc:
-        OMAP_RO_REG(addr);
-        exit(-1);
-    case 0x10:
-        if (value & 2) omap3_mmc_reset(s);
-        s->sysconfig = value & 0x31d;
-        break;
-    case 0x24:
-        s->csre = value;
-        break;
-    case 0x28:
-        s->systest = value;
-        break;
-    case 0x2c: /* MMCHS_CON */
-        if (value & 0x10) {
-            fprintf(stderr, "%s: SYSTEST mode is not supported\n", __FUNCTION__);
-            exit(-1);
-        }
-        if (value & 0x20) {
-            fprintf(stderr, "%s: 8-bit data width is not supported\n", __FUNCTION__);
-            exit(-1);
-        }
-        s->con = value & 0x1ffff;
-        break;
-    case 0x30:
-        s->pwcnt = value;
-        break;
-    case 0x104: /* MMCHS_BLK */
-        s->blk = value & 0xffff07ff;
-        s->blen_counter = value & 0x7ff;
-        s->nblk_counter = (value & 0xffff) >> 16;
-        break;
-    case 0x108: /* MMCHS_ARG */
-        s->arg = value;
-        break;
-    case 0x10c: /* MMCHS_CMD */
-        s->cmd = value & 0x3ffb0037;
-        omap3_mmc_command(s, (value >> 24) & 0x3f, (value >> 21) & 1,
-                          (value >> 16) & 3, (value >> 4) & 1);
-        omap3_mmc_transfer(s,(s->cmd>>5)&1,(s->cmd>>2)&1,(s->cmd>>1)&1,(s->cmd)&1);
-        omap3_mmc_fifolevel_update(s,s->cmd&0x1);
-        omap3_mmc_interrupts_update(s);
-        break;
-    case 0x120:
-        /*data */
-        if (s->fifo_len == 256)
+    
+    switch (addr) {
+        case 0x014:
+        case 0x110:
+        case 0x114:
+        case 0x118:
+        case 0x11c:
+        case 0x124:
+        case 0x13c:
+        case 0x1fc:
+            OMAP_RO_REG(addr);
             break;
-        s->fifo[(s->fifo_start + s->fifo_len) & 255] = value;
-        s->fifo_len ++;
-        omap3_mmc_transfer(s,(s->cmd>>5)&1,(s->cmd>>2)&1,(s->cmd>>1)&1,(s->cmd)&1);
-        omap3_mmc_fifolevel_update(s,s->cmd&0x1);
-        omap3_mmc_interrupts_update(s);
-        break;
-
-    case 0x128: /* MMCHS_HCTL */
-        s->hctl = value & 0xf0f0f02;
-        break;
-    case 0x12c: /* MMCHS_SYSCTL */
-        if (value & 0x04000000) { /* SRD */
-            s->data    = 0;
-    	 	s->pstate &= ~0x00000f06; /* BRE, BWE, RTA, WTA, DLA, DATI */
-    	 	s->hctl   &= ~0x00030000; /* SGBR, CR */
-    	 	s->stat   &= ~0x00000034; /* BRR, BWR, BGE */
-            s->stat_pending &= ~0x00000034;
-    	 	s->fifo_start = 0;
-    	 	s->fifo_len = 0;
-        }
-        if (value & 0x02000000) { /* SRC */
-            s->pstate &= ~0x00000001; /* CMDI */
-        }
-        if (value & 0x01000000) { /* SRA */
-            uint32_t capa = s->capa;
-            uint32_t cur_capa = s->cur_capa;
-            omap3_mmc_reset(s);
-            s->capa = capa;
-            s->cur_capa = cur_capa;
-        }
-        value = (value & ~2) | ((value & 1) << 1); /* copy ICE directly to ICS */
-        s->sysctl = value & 0x000fffc7;
-        break;
-    case 0x130:
-        value = value & 0X317f0237;
-        s->stat &= ~value;
-        /* stat_pending is NOT cleared */
-        break;
-    case 0x134: /* MMCHS_IE */
-        if (!(s->con & 0x4000)) /* if CON:OBIE is clear, ignore write to OBI_ENABLE */
-            value = (value & ~0x200) | (s->ie & 0x200);
-        s->ie = value & 0x317f0337;
-        if (!(s->ie & 0x100)) {
-            s->stat &= ~0x100;
-            s->stat_pending &= ~0x100;
-        }
-        omap3_mmc_interrupts_update(s);
-        break;
-    case 0x138:
-        s->ise = value & 0x317f0337;
-        omap3_mmc_interrupts_update(s);
-        break;
-    case 0x140: /* MMCHS_CAPA */
-        s->capa = value & 0x07000000;
-        break;
-    case 0x148:
-        s->cur_capa = value & 0xffffff;
-        break;
-    default:
-        OMAP_BAD_REG(addr);
-        exit(-1);
+        case 0x010:
+            TRACE("SYSCONFIG = %08x", value);
+            if (value & 2)
+                omap3_mmc_reset(s);
+            s->sysconfig = value & 0x31d;
+            break;
+        case 0x024:
+            TRACE("CSRE = %08x", value);
+            s->csre = value;
+            break;
+        case 0x028:
+            TRACE("SYSTEST = %08x", value);
+            s->systest = value;
+            break;
+        case 0x02c: /* MMCHS_CON */
+            TRACE("CON = %08x", value);
+            if (value & 0x10) {
+                fprintf(stderr, "%s: SYSTEST mode is not supported\n", __FUNCTION__);
+                exit(-1);
+            }
+            if (value & 0x20) {
+                fprintf(stderr, "%s: 8-bit data width is not supported\n", __FUNCTION__);
+                exit(-1);
+            }
+            s->con = value & 0x1ffff;
+            break;
+        case 0x030:
+            TRACE("PWCNT = %08x", value);
+            s->pwcnt = value;
+            break;
+        case 0x104: /* MMCHS_BLK */
+            TRACE("BLK = %08x", value);
+            s->blk = value & 0xffff07ff;
+            s->blen_counter = value & 0x7ff;
+            s->nblk_counter = (value & 0xffff) >> 16;
+            break;
+        case 0x108: /* MMCHS_ARG */
+            TRACE("ARG = %08x", value);
+            s->arg = value;
+            break;
+        case 0x10c: /* MMCHS_CMD */
+            TRACE("CMD = %08x", value);
+            s->cmd = value & 0x3ffb0037;
+            omap3_mmc_command(s, (value >> 24) & 0x3f, (value >> 21) & 1,
+                              (value >> 16) & 3, (value >> 4) & 1);
+            omap3_mmc_transfer(s,(s->cmd>>5)&1,(s->cmd>>2)&1,(s->cmd>>1)&1,(s->cmd)&1);
+            omap3_mmc_fifolevel_update(s,s->cmd&0x1);
+            omap3_mmc_interrupts_update(s);
+            break;
+        case 0x120:
+            /*data */
+            if (s->fifo_len == 256)
+                break;
+            s->fifo[(s->fifo_start + s->fifo_len) & 255] = value;
+            s->fifo_len ++;
+            omap3_mmc_transfer(s,(s->cmd>>5)&1,(s->cmd>>2)&1,(s->cmd>>1)&1,(s->cmd)&1);
+            omap3_mmc_fifolevel_update(s,s->cmd&0x1);
+            omap3_mmc_interrupts_update(s);
+            break;
+        case 0x128: /* MMCHS_HCTL */
+            TRACE("HCTL = %08x", value);
+            s->hctl = value & 0xf0f0f02;
+            break;
+        case 0x12c: /* MMCHS_SYSCTL */
+            TRACE("SYSCTL = %08x", value);
+            if (value & 0x04000000) { /* SRD */
+                s->data    = 0;
+                s->pstate &= ~0x00000f06; /* BRE, BWE, RTA, WTA, DLA, DATI */
+                s->hctl   &= ~0x00030000; /* SGBR, CR */
+                s->stat   &= ~0x00000034; /* BRR, BWR, BGE */
+                s->stat_pending &= ~0x00000034;
+                s->fifo_start = 0;
+                s->fifo_len = 0;
+            }
+            if (value & 0x02000000) { /* SRC */
+                s->pstate &= ~0x00000001; /* CMDI */
+            }
+            if (value & 0x01000000) { /* SRA */
+                uint32_t capa = s->capa;
+                uint32_t cur_capa = s->cur_capa;
+                omap3_mmc_reset(s);
+                s->capa = capa;
+                s->cur_capa = cur_capa;
+            }
+            value = (value & ~2) | ((value & 1) << 1); /* copy ICE directly to ICS */
+            s->sysctl = value & 0x000fffc7;
+            break;
+        case 0x130:
+            TRACE("STAT = %08x", value);
+            value = value & 0x317f0237;
+            s->stat &= ~value;
+            /* stat_pending is NOT cleared */
+            omap3_mmc_interrupts_update(s);
+            break;
+        case 0x134: /* MMCHS_IE */
+            TRACE("IE = %08x", value);
+            if (!(s->con & 0x4000)) /* if CON:OBIE is clear, ignore write to OBI_ENABLE */
+                value = (value & ~0x200) | (s->ie & 0x200);
+            s->ie = value & 0x317f0337;
+            if (!(s->ie & 0x100)) {
+                s->stat &= ~0x100;
+                s->stat_pending &= ~0x100;
+            }
+            omap3_mmc_interrupts_update(s);
+            break;
+        case 0x138:
+            TRACE("ISE = %08x", value);
+            s->ise = value & 0x317f0337;
+            omap3_mmc_interrupts_update(s);
+            break;
+        case 0x140: /* MMCHS_CAPA */
+            TRACE("CAPA = %08x", value);
+            s->capa &= ~0x07000000;
+            s->capa |= value & 0x07000000;
+            break;
+        case 0x148:
+            TRACE("CUR_CAPA = %08x", value);
+            s->cur_capa = value & 0xffffff;
+            break;
+        default:
+            OMAP_BAD_REG(addr);
+            exit(-1);
     }
-
 }
+
 static CPUReadMemoryFunc *omap3_mmc_readfn[] = {
     omap_badwidth_read32,
     omap_badwidth_read32,
