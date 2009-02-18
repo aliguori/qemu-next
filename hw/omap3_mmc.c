@@ -313,11 +313,6 @@ static void omap3_mmc_command(struct omap3_mmc_s *host)
     }
     host->stat_pending |= timeout ? (1 << 16) : 0x1; /* CTO : CC */
     host->stat_pending &= host->ie; /* use only enabled signals */
-
-    if (host->stat_pending & 0xffff0000)
-        host->stat_pending |= 1 << 15;    /* ERRI */
-    else
-        host->stat_pending &= ~(1 << 15); /* ERRI */
 }
 
 static void omap3_mmc_reset(struct omap3_mmc_s *s)
@@ -406,6 +401,10 @@ static uint32_t omap3_mmc_read(void *opaque, target_phys_addr_t addr)
             return s->sysctl;
         case 0x130: /* MMCHS_STAT */
             s->stat |= s->stat_pending;
+            if (s->stat & 0xffff0000)
+                   s->stat |= 1 << 15;    /* ERRI */
+            else
+                   s->stat &= ~(1 << 15); /* ERRI */
             s->stat_pending = 0;
             TRACE2("STAT = %08x", s->stat);
             return s->stat;
