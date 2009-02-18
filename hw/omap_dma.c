@@ -1825,7 +1825,7 @@ static uint32_t omap_dma4_read(void *opaque, target_phys_addr_t addr)
         return ch->color;
 
     default:
-        OMAP_BAD_REG(addr);
+        OMAP_BAD_REG(0x80 + chnum * 0x60 + addr);
         return 0;
     }
 }
