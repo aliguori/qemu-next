@@ -105,13 +105,8 @@ static void omap3_mmc_interrupts_update(struct omap3_mmc_s *s)
 
 static void omap3_mmc_fifolevel_update(struct omap3_mmc_s *host)
 {
-    if (!host->transfer && !host->fifo_len) {
-        host->pstate &= ~0x0c00;     /* BRE | BWE */
-        host->stat_pending &= ~0x30; /* BRR | BWR */
-        host->stat &= ~0x30;         /* BRR | BWR */
-        return;
-    }
-    
+    TRACE2("ddir=%d, dma=%d, fifo_len=%d", host->ddir, host->cmd & 1, host->fifo_len);
+
     if (host->cmd & 1) {             /* DE */
         host->pstate &= ~0x0c00;     /* BRE | BWE */
         host->stat_pending &= ~0x30; /* BRR | BWR */
@@ -176,8 +171,8 @@ static void omap3_mmc_transfer(struct omap3_mmc_s *host)
         if (!host->blen_counter) {
             if (host->cmd & 2) /* BCE */
                 host->nblk_counter--;
-            TRACE("block done, %d blocks left",
-                  (host->cmd & (1 << 5)) ? host->nblk_counter : 0);
+            TRACE2("block done, %d blocks left",
+                   (host->cmd & (1 << 5)) ? host->nblk_counter : 0);
             host->blen_counter = host->blk & 0x7ff;
             if (!(host->cmd & (1 << 5)) /* MSBS */
                 || !host->nblk_counter) {
@@ -188,7 +183,7 @@ static void omap3_mmc_transfer(struct omap3_mmc_s *host)
             }
         }
     }
-    TRACE2("end, %d bytes in FIFO", host->fifo_len);
+    TRACE2("end, %d bytes in FIFO", host->fifo_len * 4);
 }
 
 static void omap3_mmc_command(struct omap3_mmc_s *host)
@@ -347,11 +342,11 @@ static uint32_t omap3_mmc_read(void *opaque, target_phys_addr_t addr)
             return s->rsp76;
         case 0x120:
             /*Read Data */
+            //if(s->cmd&1) TRACE("DMA read data, fifo_len=%d", s->fifo_len);
             i = s->fifo[s->fifo_start];
-            /*set the buffer to default value*/
-            s->fifo[s->fifo_start] = 0x0;
+            s->fifo[s->fifo_start] = 0;
             if (s->fifo_len == 0) {
-                printf("MMC: FIFO underrun\n");
+                fprintf(stderr, "MMC: FIFO underrun\n");
                 return i;
             }
             s->fifo_start++;
