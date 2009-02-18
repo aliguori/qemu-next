@@ -33,7 +33,7 @@
 #include "block.h"
 #include "sd.h"
 
-//#define DEBUG_SD 1
+#define DEBUG_SD 1
 
 #ifdef DEBUG_SD
 #define DPRINTF(fmt, args...) \
@@ -200,8 +200,8 @@ static void sd_set_ocr(SDState *sd)
 
 static void sd_set_scr(SDState *sd)
 {
-    sd->scr[0] = 0x00;		/* SCR Structure */
-    sd->scr[1] = 0x2f;		/* SD Security Support */
+    sd->scr[0] = 0x00; /* SCR v1.0, SD spec v1.0/1.01 */
+    sd->scr[1] = 0x25; /* erase=0, SD security v1.01, 1bit/4bit bus width */
     sd->scr[2] = 0x00;
     sd->scr[3] = 0x00;
     sd->scr[4] = 0x00;
@@ -1230,6 +1230,8 @@ int sd_do_command(SDState *sd, struct sd_request_s *req,
     sd_rsp_type_t rtype;
     int rsplen;
 
+    DPRINTF("sd_do_command begin, state = %d\n", sd->state);
+    
     if (!bdrv_is_inserted(sd->bdrv) || !sd->enable) {
         return 0;
     }
@@ -1308,8 +1310,8 @@ int sd_do_command(SDState *sd, struct sd_request_s *req,
         int i;
         DPRINTF("Response:");
         for (i = 0; i < rsplen; i++)
-            printf(" %02x", response[i]);
-        printf(" state %d\n", sd->state);
+            fprintf(stderr, " %02x", response[i]);
+        fprintf(stderr, " state %d\n", sd->state);
     } else {
         DPRINTF("No response %d\n", sd->state);
     }
@@ -1380,6 +1382,8 @@ void sd_write_data(SDState *sd, uint8_t value)
 {
     int i;
 
+    DPRINTF("sd_write_data: %02x\n", value);
+    
     if (!sd->bdrv || !bdrv_is_inserted(sd->bdrv) || !sd->enable)
         return;
 
@@ -1506,7 +1510,7 @@ uint8_t sd_read_data(SDState *sd)
         return 0x00;
 
     if (sd->state != sd_sendingdata_state) {
-        fprintf(stderr, "sd_read_data: not in Sending-Data state\n");
+        fprintf(stderr, "sd_read_data: not in Sending-Data state (state=%d)\n", sd->state);
         return 0x00;
     }
 
@@ -1590,6 +1594,7 @@ uint8_t sd_read_data(SDState *sd)
         break;
 
     case 51:	/* ACMD51: SEND_SCR */
+            DPRINTF("sd_read_data returning SCR offset %d\n", sd->data_offset);
         ret = sd->scr[sd->data_offset ++];
 
         if (sd->data_offset >= sizeof(sd->scr))
