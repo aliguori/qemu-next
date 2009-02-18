@@ -27,12 +27,18 @@
 #include "sd.h"
 
 
-//#define MMC_DEBUG_
+#define MMC_DEBUG_LEVEL 0
 
-#ifdef MMC_DEBUG_
+#if MMC_DEBUG_LEVEL>0
 #define TRACE(fmt,...) fprintf(stderr, "%s: " fmt "\n", __FUNCTION__, ##__VA_ARGS__)
+#if MMC_DEBUG_LEVEL>1
+#define TRACE2(...) TRACE(__VA_ARGS__)
+#else
+#define TRACE2(...)
+#endif
 #else
 #define TRACE(...)
+#define TRACE2(...)
 #endif
 
 struct omap3_mmc_s
@@ -42,7 +48,6 @@ struct omap3_mmc_s
     qemu_irq coverswitch;
     omap_clk clk;
     SDState *card;
-
 
     uint32_t sysconfig;         /*0x10 */
     uint32_t sysstatus;         /*0x14 */
@@ -86,269 +91,201 @@ struct omap3_mmc_s
 
 typedef enum
 {
-    sd_nore = 0,                /* no response */
-    sd_136_bits = 1,            /*Response Length 136 bits */
-    sd_48_bits = 2,             /*Response Length 48 bits */
-    sd_48b_bits = 3,            /*Response Length 48 bits with busy after response */
+    sd_nore = 0,     /* no response */
+    sd_136_bits = 1, /* response length 136 bits */
+    sd_48_bits = 2,  /* response length 48 bits */
+    sd_48b_bits = 3, /* response length 48 bits with busy after response */
 } omap3_sd_rsp_type_t;
 
 int test=1;
 static void omap3_mmc_interrupts_update(struct omap3_mmc_s *s)
 {
-    qemu_set_irq(s->irq, !!((s->stat | s->stat_pending) & s->ise & s->ie));
+    qemu_set_irq(s->irq, !!((s->stat | s->stat_pending) & s->ie & s->ise));
 }
 
-static void omap3_mmc_fifolevel_update(struct omap3_mmc_s *host,int de)
+static void omap3_mmc_fifolevel_update(struct omap3_mmc_s *host)
 {
-	if (!de)
-		return;
-
-	if (host->ddir)
-	{
-		/*card -> host*/
-		if (host->fifo_len<(host->blk&0x7f))
-		{
-			/*DMA has read one byte from fifo*/
-			 qemu_irq_lower(host->dma[1]);
-		}
-	}
-	else
-	{
-		if (host->fifo_len>0)
-		{
-			/*DMA has written one byte to fifo*/
-			qemu_irq_lower(host->dma[0]);
-		}
-	}
-
+    if (!host->transfer && !host->fifo_len) {
+        host->pstate &= ~0x0c00;     /* BRE | BWE */
+        host->stat_pending &= ~0x30; /* BRR | BWR */
+        host->stat &= ~0x30;         /* BRR | BWR */
+        return;
+    }
+    
+    if (host->cmd & 1) {             /* DE */
+        host->pstate &= ~0x0c00;     /* BRE | BWE */
+        host->stat_pending &= ~0x30; /* BRR | BWR */
+        host->stat &= ~0x30;         /* BRR | BWR */
+    }
+    
+    if (host->ddir && host->fifo_len) {
+        if (host->cmd & 1)               /* DE */
+            qemu_irq_raise(host->dma[1]);
+        else {
+            host->pstate |= 0x0800;      /* BRE */
+            host->stat_pending |= 0x20;  /* BRR */
+        }
+    } else {
+        host->pstate &= ~0x0800;         /* BRE */
+        host->stat_pending &= ~0x20;     /* BRR */
+        host->stat &= ~0x20;             /* BRR */
+        qemu_irq_lower(host->dma[1]);
+    }
+    
+    if (!host->ddir && !host->fifo_len) {
+        if (host->cmd & 1)               /* DE */
+            qemu_irq_raise(host->dma[0]);
+        else {
+            host->pstate |= 0x0400;      /* BWE */
+            host->stat_pending |= 0x10;  /* BWR */
+        }
+    } else {
+        host->pstate &= ~0x0400;     /* BWE */
+        host->stat_pending &= ~0x10; /* BWR */
+        host->stat &= ~0x10;         /* BWR */
+        qemu_irq_lower(host->dma[0]);
+    }
 }
 
-static void omap3_mmc_transfer(struct omap3_mmc_s *host, int msbs, int ace,
-                               int bce, int de)
+static void omap3_mmc_transfer(struct omap3_mmc_s *host)
 {
-    uint8_t value;
     int i;
 
     if (!host->transfer)
         return;
-    while (1)
-    {
-        if (host->ddir)
-        {
-            /*data read. card->host */
-            for (i = 0; i < 4; i++)
-            {
-                if (host->blen_counter)
-                {
-                   value = sd_read_data(host->card);
-                   //if (host->arg==0x13c00)
-                   //	printf("value %x ",value);
-                    host->fifo[(host->fifo_start + host->fifo_len) & 255] |=
-                        value << (i * 8);
-                    host->blen_counter--;
-                }
-                else
-                    break;
-            }
+    
+    TRACE2("begin, %d bytes left to %s, %d bytes in FIFO", 
+           host->blen_counter,
+           host->ddir ? "receive" : "send",
+           host->fifo_len);
+    while (1) {
+        if (host->ddir) {
+            for (i = 0; i < 32 && host->blen_counter; i += 8, host->blen_counter--)
+                host->fifo[(host->fifo_start + host->fifo_len) & 0xff] |=
+                    sd_read_data(host->card) << i;
             host->fifo_len++;
-        }
-        else
-        {
-            /*data write. host->card */
+        } else {
             if (!host->fifo_len)
                 break;
-            for (i = 0; i < 4; i++)
-            {
-                if (host->blen_counter)
-                {
-                    value = (host->fifo[host->fifo_start] >> (i * 8)) & 0xff;
-                    sd_write_data(host->card, value);
-                    host->blen_counter--;
-                }
-                else
-                    break;
-            }
+            for (i = 0; i < 32 && host->blen_counter; i += 8, host->blen_counter--)
+                sd_write_data(host->card, (host->fifo[host->fifo_start] >> i) & 0xff);
             host->fifo_start++;
             host->fifo_len--;
-            host->fifo_start &= 255;
+            host->fifo_start &= 0xff;
         }
-
-        if (host->blen_counter == 0)
-        {
-            host->nblk_counter--;
+        if (!host->blen_counter) {
+            if (host->cmd & 2) /* BCE */
+                host->nblk_counter--;
+            TRACE("block done, %d blocks left",
+                  (host->cmd & (1 << 5)) ? host->nblk_counter : 0);
             host->blen_counter = host->blk & 0x7ff;
-            if (msbs)
-            {
-                /*multi block transfer */
-                if (host->nblk_counter == 0)
-                {
-                    host->nblk_counter = (host->blk >> 16) & 0xffff;
-                    host->transfer = 0;
-                    host->stat_pending |= 0x2;        /*tc */
-                    break;
-                }
-            }
-            else
-            {
-            	  /*single block transfer*/
+            if (!(host->cmd & (1 << 5)) /* MSBS */
+                || !host->nblk_counter) {
+                host->nblk_counter = (host->blk >> 16) & 0xffff;
                 host->transfer = 0;
-                host->stat_pending |= 0x2;    /*tc */
+                host->stat_pending |= 0x2; /* TC */
                 break;
             }
         }
-
     }
-
-    /*transfer complete*/
-    if (de)
-    {
-        /*DMA*/
-    	if (host->ddir)
-    	{
-    		/*card->host*/
-          qemu_irq_raise(host->dma[1]);
-    	}
-    	else
-    	{
-    		qemu_irq_raise(host->dma[0]);
-    	}
-    	/*clear BRR BWR*/
-    	host->stat &= ~0x30;
-        host->stat_pending &= ~0x30;
-    }
-   else
-    {
-    	/*not DMA*/
-    	if (host->ddir)
-    	{
-    		host->pstate |= 0x800;  /*BRE*/
-    		host->pstate &= ~0x400;  /*BWE*/  /*can not write*/
-    		host->stat_pending |= 0x20;  /*BRR*/
-    		host->stat &= ~0x10; /*BWR*/
-            host->stat_pending &= ~0x10;
-    	}
-    	else
-    	{
-    		host->pstate &= ~0x800;  /*BRE*/
-    		host->pstate |= 0x400;  /*BWE*/
-    		host->stat_pending |= 0x10;  /*BWR*/
-    		host->stat &= ~0x20; /*BRR*/
-            host->stat_pending &= ~0x20;
-    	}
-    		
-    }
-
-   	//printf("after MMC TRANS host->stat %x \n",host->stat);
-
-   
+    TRACE2("end, %d bytes in FIFO", host->fifo_len);
 }
 
-static void omap3_mmc_command(struct omap3_mmc_s *host, int indx, int dp,
-                              omap3_sd_rsp_type_t rsp_type, int ddir)
+static void omap3_mmc_command(struct omap3_mmc_s *host)
 {
     uint32_t rspstatus, mask;
     int rsplen, timeout;
     struct sd_request_s request;
     uint8_t response[16];
+    int cmd = (host->cmd >> 24) & 0x3f; /* INDX */
 
-    //printf("CMD %d host->arg %x \n",indx,host->arg);
-
-    if ((host->con & 2) && !indx) /* INIT and CMD0 */
-    {
+    TRACE("%d type=%d arg=0x%08x", cmd, (host->cmd >> 22) & 3, host->arg);
+    
+    if ((host->con & 2) && !cmd) { /* INIT and CMD0 */
         host->stat_pending |= 0x1;
         host->pstate &= 0xfffffffe;
         return;
     }
 
-    if (dp)
-    {
+    if (host->cmd & (1 << 21)) { /* DP */
         host->fifo_start = 0;
         host->fifo_len = 0;
         host->transfer = 1;
-        host->ddir = ddir;
-    }
-    else
+        host->ddir = (host->cmd >> 4) & 1;
+    } else
         host->transfer = 0;
 
     timeout = 0;
     mask = 0;
     rspstatus = 0;
 
-    request.cmd = indx;
+    request.cmd = cmd;
     request.arg = host->arg;
-    request.crc = 0;            /* FIXME */
+    request.crc = 0; /* FIXME */
 
     rsplen = sd_do_command(host->card, &request, response);
 
-    switch (rsp_type)
-    {
-    case sd_nore:
-        rsplen = 0;
-        break;
-    case sd_136_bits:
-        if (rsplen < 16)
-        {
-            timeout = 1;
+    switch ((host->cmd >> 16) & 3) { /* RSP_TYPE */
+        case sd_nore:
+            rsplen = 0;
             break;
-        }
-        rsplen = 16;
-        host->rsp76 = (response[0] << 24) | (response[1] << 16) |
-            (response[2] << 8) | (response[3] << 0);
-        host->rsp54 = (response[4] << 24) | (response[5] << 16) |
-            (response[6] << 8) | (response[7] << 0);
-        host->rsp32 = (response[8] << 24) | (response[9] << 16) |
-            (response[10] << 8) | (response[11] << 0);
-        host->rsp10 = (response[12] << 24) | (response[13] << 16) |
-            (response[14] << 8) | (response[15] << 0);
-        break;
-    case sd_48_bits:
-    case sd_48b_bits:
-        if (rsplen < 4)
-        {
-            timeout = 1;
-            break;
-        }
-        rsplen = 4;
-        host->rsp10 = (response[0] << 24) | (response[1] << 16) |
-            (response[2] << 8) | (response[3] << 0);
-        switch (indx)
-        {
-        case 41:               /*r3 */
-        case 8:                /*r7 */
-        case 6:                /*r6 */
-            break;
-        default:
-            mask = OUT_OF_RANGE | ADDRESS_ERROR | BLOCK_LEN_ERROR |
-                ERASE_SEQ_ERROR | ERASE_PARAM | WP_VIOLATION |
-                LOCK_UNLOCK_FAILED | COM_CRC_ERROR | ILLEGAL_COMMAND |
-                CARD_ECC_FAILED | CC_ERROR | SD_ERROR |
-                CID_CSD_OVERWRITE | WP_ERASE_SKIP;
-            rspstatus = (response[0] << 24) | (response[1] << 16) |
+        case sd_136_bits:
+            if (rsplen < 16) {
+                timeout = 1;
+                break;
+            }
+            rsplen = 16;
+            host->rsp76 = (response[0] << 24) | (response[1] << 16) |
                 (response[2] << 8) | (response[3] << 0);
-
+            host->rsp54 = (response[4] << 24) | (response[5] << 16) |
+                (response[6] << 8) | (response[7] << 0);
+            host->rsp32 = (response[8] << 24) | (response[9] << 16) |
+                (response[10] << 8) | (response[11] << 0);
+            host->rsp10 = (response[12] << 24) | (response[13] << 16) |
+                (response[14] << 8) | (response[15] << 0);
             break;
-
-        }
-
+        case sd_48_bits:
+        case sd_48b_bits:
+            if (rsplen < 4) {
+                timeout = 1;
+                break;
+            }
+            rsplen = 4;
+            host->rsp10 = (response[0] << 24) | (response[1] << 16) |
+                (response[2] << 8) | (response[3] << 0);
+            switch (cmd) {
+                case 41: /* r3 */
+                case 8:  /* r7 */
+                    break;
+                case 3:  /* r6 */
+                    mask = 0xe00;
+                    rspstatus = (response[2] << 8) | response[3];
+                    break;
+                default:
+                    mask = OUT_OF_RANGE | ADDRESS_ERROR | BLOCK_LEN_ERROR |
+                        ERASE_SEQ_ERROR | ERASE_PARAM | WP_VIOLATION |
+                        LOCK_UNLOCK_FAILED | COM_CRC_ERROR | ILLEGAL_COMMAND |
+                        CARD_ECC_FAILED | CC_ERROR | SD_ERROR |
+                        CID_CSD_OVERWRITE | WP_ERASE_SKIP;
+                    rspstatus = (response[0] << 24) | (response[1] << 16) |
+                        (response[2] << 8) | (response[3] << 0);
+                    break;
+            }
+        default:
+            break;
     }
 
     if (rspstatus & mask & host->csre)
-        host->stat_pending |= 0x10000000;
+        host->stat_pending |= 1 << 28;    /* CERR */
     else {
-        host->stat &= ~0x10000000;
-        host->stat_pending &= ~0x10000000;
+        host->stat &= ~(1 << 28);         /* CERR */
+        host->stat_pending &= ~(1 << 28); /* CERR */
     }
-
-    if (timeout)
-        host->stat_pending |= 0x10000;
-    else
-        host->stat_pending |= 0x1;
-
-    /*do we allow to set the stat bit? */
-    host->stat_pending &= host->ie;
+    host->stat_pending |= timeout ? (1 << 16) : 0x1; /* CTO : CC */
+    host->stat_pending &= host->ie; /* use only enabled signals */
 
     if (host->stat_pending & 0xffff0000)
-        host->stat_pending |= 0x8000;
+        host->stat_pending |= 1 << 15; /* ERRI */
 }
 
 static void omap3_mmc_reset(struct omap3_mmc_s *s)
@@ -370,43 +307,43 @@ static uint32_t omap3_mmc_read(void *opaque, target_phys_addr_t addr)
 
     switch (addr) {
         case 0x10:
-            TRACE("SYSCONFIG = %08x", s->sysconfig);
+            TRACE2("SYSCONFIG = %08x", s->sysconfig);
             return s->sysconfig;
         case 0x14:
-            TRACE("SYSSTATUS = %08x", s->sysstatus | 0x1);
+            TRACE2("SYSSTATUS = %08x", s->sysstatus | 0x1);
             return s->sysstatus | 0x1; /*reset completed */
         case 0x24:
-            TRACE("CSRE = %08x", s->csre);
+            TRACE2("CSRE = %08x", s->csre);
             return s->csre;
         case 0x28:
-            TRACE("SYSTEST = %08x", s->systest);
+            TRACE2("SYSTEST = %08x", s->systest);
             return s->systest;
         case 0x2c: /* MMCHS_CON */
-            TRACE("CON = %08x", s->con);
+            TRACE2("CON = %08x", s->con);
             return s->con;
         case 0x30:
-            TRACE("PWCNT = %08x", s->pwcnt);
+            TRACE2("PWCNT = %08x", s->pwcnt);
             return s->pwcnt;
         case 0x104: /* MMCHS_BLK */
-            TRACE("BLK = %08x", s->blk);
+            TRACE2("BLK = %08x", s->blk);
             return s->blk;
         case 0x108: /* MMCHS_ARG */
-            TRACE("ARG = %08x", s->arg);
+            TRACE2("ARG = %08x", s->arg);
             return s->arg;
         case 0x10c:
-            TRACE("CMD = %08x", s->cmd);
+            TRACE2("CMD = %08x", s->cmd);
             return s->cmd;
         case 0x110:
-            TRACE("RSP10 = %08x", s->rsp10);
+            TRACE2("RSP10 = %08x", s->rsp10);
             return s->rsp10;
         case 0x114:
-            TRACE("RSP32 = %08x", s->rsp32);
+            TRACE2("RSP32 = %08x", s->rsp32);
             return s->rsp32;
         case 0x118:
-            TRACE("RSP54 = %08x", s->rsp54);
+            TRACE2("RSP54 = %08x", s->rsp54);
             return s->rsp54;
         case 0x11c:
-            TRACE("RSP76 = %08x", s->rsp76);
+            TRACE2("RSP76 = %08x", s->rsp76);
             return s->rsp76;
         case 0x120:
             /*Read Data */
@@ -420,41 +357,41 @@ static uint32_t omap3_mmc_read(void *opaque, target_phys_addr_t addr)
             s->fifo_start++;
             s->fifo_len--;
             s->fifo_start &= 255;
-            omap3_mmc_transfer(s,(s->cmd>>5)&1,(s->cmd>>2)&1,(s->cmd>>1)&1,(s->cmd)&1);
-            omap3_mmc_fifolevel_update(s,s->cmd&1);
+            omap3_mmc_transfer(s);
+            omap3_mmc_fifolevel_update(s);
             omap3_mmc_interrupts_update(s);
             return i;
         case 0x124: /* MMCHS_PSTATE */
-            TRACE("PSTATE = %08x", s->pstate);
+            TRACE2("PSTATE = %08x", s->pstate);
             return s->pstate;
         case 0x128:
-            TRACE("HCTL = %08x", s->hctl);
+            TRACE2("HCTL = %08x", s->hctl);
             return s->hctl;
         case 0x12c: /* MMCHS_SYSCTL */
-            TRACE("SYSCTL = %08x", s->sysctl);
+            TRACE2("SYSCTL = %08x", s->sysctl);
             return s->sysctl;
         case 0x130: /* MMCHS_STAT */
             s->stat |= s->stat_pending;
             s->stat_pending = 0;
-            TRACE("STAT = %08x", s->stat);
+            TRACE2("STAT = %08x", s->stat);
             return s->stat;
         case 0x134:
-            TRACE("IE = %08x", s->ie);
+            TRACE2("IE = %08x", s->ie);
             return s->ie;
         case 0x138:
-            TRACE("ISE = %08x", s->ise);
+            TRACE2("ISE = %08x", s->ise);
             return s->ise;
         case 0x13c:
-            TRACE("AC12 = %08x", s->ac12);
+            TRACE2("AC12 = %08x", s->ac12);
             return s->ac12;
         case 0x140: /* MMCHS_CAPA */
-            TRACE("CAPA = %08x", s->capa);
+            TRACE2("CAPA = %08x", s->capa);
             return s->capa;
         case 0x148:
-            TRACE("CUR_CAPA = %08x", s->cur_capa);
+            TRACE2("CUR_CAPA = %08x", s->cur_capa);
             return s->cur_capa;
         case 0x1fc:
-            TRACE("REV = %08x", s->rev);
+            TRACE2("REV = %08x", s->rev);
             return s->rev;
         default:
             OMAP_BAD_REG(addr);
@@ -480,21 +417,21 @@ static void omap3_mmc_write(void *opaque, target_phys_addr_t addr,
             OMAP_RO_REG(addr);
             break;
         case 0x010:
-            TRACE("SYSCONFIG = %08x", value);
+            TRACE2("SYSCONFIG = %08x", value);
             if (value & 2)
                 omap3_mmc_reset(s);
             s->sysconfig = value & 0x31d;
             break;
         case 0x024:
-            TRACE("CSRE = %08x", value);
+            TRACE2("CSRE = %08x", value);
             s->csre = value;
             break;
         case 0x028:
-            TRACE("SYSTEST = %08x", value);
+            TRACE2("SYSTEST = %08x", value);
             s->systest = value;
             break;
         case 0x02c: /* MMCHS_CON */
-            TRACE("CON = %08x", value);
+            TRACE2("CON = %08x", value);
             if (value & 0x10) {
                 fprintf(stderr, "%s: SYSTEST mode is not supported\n", __FUNCTION__);
                 exit(-1);
@@ -506,44 +443,45 @@ static void omap3_mmc_write(void *opaque, target_phys_addr_t addr,
             s->con = value & 0x1ffff;
             break;
         case 0x030:
-            TRACE("PWCNT = %08x", value);
+            TRACE2("PWCNT = %08x", value);
             s->pwcnt = value;
             break;
         case 0x104: /* MMCHS_BLK */
-            TRACE("BLK = %08x", value);
+            TRACE2("BLK = %08x", value);
             s->blk = value & 0xffff07ff;
             s->blen_counter = value & 0x7ff;
-            s->nblk_counter = (value & 0xffff) >> 16;
+            s->nblk_counter = (value >> 16) & 0xffff;
             break;
         case 0x108: /* MMCHS_ARG */
-            TRACE("ARG = %08x", value);
+            TRACE2("ARG = %08x", value);
             s->arg = value;
             break;
         case 0x10c: /* MMCHS_CMD */
-            TRACE("CMD = %08x", value);
+            TRACE2("CMD = %08x", value);
             s->cmd = value & 0x3ffb0037;
-            omap3_mmc_command(s, (value >> 24) & 0x3f, (value >> 21) & 1,
-                              (value >> 16) & 3, (value >> 4) & 1);
-            omap3_mmc_transfer(s,(s->cmd>>5)&1,(s->cmd>>2)&1,(s->cmd>>1)&1,(s->cmd)&1);
-            omap3_mmc_fifolevel_update(s,s->cmd&0x1);
+            omap3_mmc_command(s);
+            omap3_mmc_transfer(s);
+            omap3_mmc_fifolevel_update(s);
             omap3_mmc_interrupts_update(s);
             break;
         case 0x120:
             /*data */
-            if (s->fifo_len == 256)
+            if (s->fifo_len == 256) {
+                fprintf(stderr, "%s: FIFO overrun\n", __FUNCTION__);
                 break;
+            }
             s->fifo[(s->fifo_start + s->fifo_len) & 255] = value;
-            s->fifo_len ++;
-            omap3_mmc_transfer(s,(s->cmd>>5)&1,(s->cmd>>2)&1,(s->cmd>>1)&1,(s->cmd)&1);
-            omap3_mmc_fifolevel_update(s,s->cmd&0x1);
+            s->fifo_len++;
+            omap3_mmc_transfer(s);
+            omap3_mmc_fifolevel_update(s);
             omap3_mmc_interrupts_update(s);
             break;
         case 0x128: /* MMCHS_HCTL */
-            TRACE("HCTL = %08x", value);
+            TRACE2("HCTL = %08x", value);
             s->hctl = value & 0xf0f0f02;
             break;
         case 0x12c: /* MMCHS_SYSCTL */
-            TRACE("SYSCTL = %08x", value);
+            TRACE2("SYSCTL = %08x", value);
             if (value & 0x04000000) { /* SRD */
                 s->data    = 0;
                 s->pstate &= ~0x00000f06; /* BRE, BWE, RTA, WTA, DLA, DATI */
@@ -567,14 +505,14 @@ static void omap3_mmc_write(void *opaque, target_phys_addr_t addr,
             s->sysctl = value & 0x000fffc7;
             break;
         case 0x130:
-            TRACE("STAT = %08x", value);
+            TRACE2("STAT = %08x", value);
             value = value & 0x317f0237;
             s->stat &= ~value;
             /* stat_pending is NOT cleared */
             omap3_mmc_interrupts_update(s);
             break;
         case 0x134: /* MMCHS_IE */
-            TRACE("IE = %08x", value);
+            TRACE2("IE = %08x", value);
             if (!(s->con & 0x4000)) /* if CON:OBIE is clear, ignore write to OBI_ENABLE */
                 value = (value & ~0x200) | (s->ie & 0x200);
             s->ie = value & 0x317f0337;
@@ -585,17 +523,17 @@ static void omap3_mmc_write(void *opaque, target_phys_addr_t addr,
             omap3_mmc_interrupts_update(s);
             break;
         case 0x138:
-            TRACE("ISE = %08x", value);
+            TRACE2("ISE = %08x", value);
             s->ise = value & 0x317f0337;
             omap3_mmc_interrupts_update(s);
             break;
         case 0x140: /* MMCHS_CAPA */
-            TRACE("CAPA = %08x", value);
+            TRACE2("CAPA = %08x", value);
             s->capa &= ~0x07000000;
             s->capa |= value & 0x07000000;
             break;
         case 0x148:
-            TRACE("CUR_CAPA = %08x", value);
+            TRACE2("CUR_CAPA = %08x", value);
             s->cur_capa = value & 0xffffff;
             break;
         default:

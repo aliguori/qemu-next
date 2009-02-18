@@ -37,7 +37,7 @@
 
 #ifdef DEBUG_SD
 #define DPRINTF(fmt, args...) \
-do { fprintf(stderr, "SD: " fmt , ##args); } while (0)
+do { fprintf(stderr, "%s: " fmt , __FUNCTION__, ##args); } while (0)
 #else
 #define DPRINTF(fmt, args...) do {} while(0)
 #endif
