@@ -179,6 +179,10 @@ static void omap3_mmc_transfer(struct omap3_mmc_s *host)
                 host->nblk_counter = (host->blk >> 16) & 0xffff;
                 host->transfer = 0;
                 host->stat_pending |= 0x2; /* TC */
+                if (host->cmd & 4) { /* ACEN */
+                    fprintf(stderr, "%s: Auto CMD12 not implemented yet!\n", __FUNCTION__);
+                    /* TODO: issue CMD12 to SD controller */
+                }
                 break;
             }
         }
@@ -270,6 +274,37 @@ static void omap3_mmc_command(struct omap3_mmc_s *host)
             break;
     }
 
+    switch ((host->cmd >> 22) & 3) { /* CMD_TYPE */
+        case 0: /* normal commands */
+            break;
+        case 1: /* with CMD52, "bus suspend" operation */
+            if (cmd == 52) {
+                fprintf(stderr, "%s: bus suspend operation not supported yet!\n", __FUNCTION__);
+            }
+            break;
+        case 2: /* with CMD52, "function select" operation */
+            if (cmd == 52) {
+                fprintf(stderr, "%s: function select operation not supported yet!\n", __FUNCTION__);
+            }
+            break;
+        case 3: /* with CMD12 or CMD52, "I/O Abort" command */
+            if (cmd == 12 || cmd == 52) {
+                fprintf(stderr, "%s: i/o abort command received\n", __FUNCTION__);
+                //host->fifo_start = 0;
+                //host->fifo_len = 0;
+                //host->transfer = 0;
+                host->pstate &= ~0x0c00;     /* BRE | BWE */
+                host->stat_pending &= ~0x30; /* BRR | BWR */
+                host->stat &= ~0x30;         /* BRR | BWR */
+                qemu_irq_lower(host->dma[0]);
+                qemu_irq_lower(host->dma[1]);
+                host->stat_pending |= 2;
+            }
+            break;
+        default:
+            break;
+    }
+    
     if (rspstatus & mask & host->csre)
         host->stat_pending |= 1 << 28;    /* CERR */
     else {
@@ -280,7 +315,9 @@ static void omap3_mmc_command(struct omap3_mmc_s *host)
     host->stat_pending &= host->ie; /* use only enabled signals */
 
     if (host->stat_pending & 0xffff0000)
-        host->stat_pending |= 1 << 15; /* ERRI */
+        host->stat_pending |= 1 << 15;    /* ERRI */
+    else
+        host->stat_pending &= ~(1 << 15); /* ERRI */
 }
 
 static void omap3_mmc_reset(struct omap3_mmc_s *s)
@@ -342,7 +379,9 @@ static uint32_t omap3_mmc_read(void *opaque, target_phys_addr_t addr)
             return s->rsp76;
         case 0x120:
             /*Read Data */
-            //if(s->cmd&1) TRACE("DMA read data, fifo_len=%d", s->fifo_len);
+#if MMC_DEBUG_LEVEL>0
+            if(s->cmd&1) TRACE("DMA read data, fifo_len=%d", s->fifo_len);
+#endif
             i = s->fifo[s->fifo_start];
             s->fifo[s->fifo_start] = 0;
             if (s->fifo_len == 0) {
@@ -580,7 +619,3 @@ struct omap3_mmc_s *omap3_mmc_init(struct omap_target_agent_s *ta,
 
     return s;
 }
-
-
-
-
