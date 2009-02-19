@@ -14,6 +14,9 @@ static uint32_t cortexa8_cp15_c0_c1[8] =
 static uint32_t cortexa8_cp15_c0_c2[8] =
 { 0x00101111, 0x12112111, 0x21232031, 0x11112131, 0x00111142, 0, 0, 0 };
 
+static uint32_t cortexa8r2_cp16_c0_c2[8] =
+{ 0x00101111, 0x12112111, 0x21232031, 0x11112131, 0x00011142, 0, 0, 0 };
+
 static uint32_t mpcore_cp15_c0_c1[8] =
 { 0x111, 0x1, 0, 0x2, 0x01100103, 0x10020302, 0x01222000, 0 };
 
@@ -89,6 +92,7 @@ static void cpu_reset_model_id(CPUARMState *env, uint32_t id)
         set_feature(env, ARM_FEATURE_VFP3);
         set_feature(env, ARM_FEATURE_NEON);
         set_feature(env, ARM_FEATURE_THUMB2EE);
+        set_feature(env, ARM_FEATURE_TRUSTZONE);
         env->vfp.xregs[ARM_VFP_FPSID] = 0x410330c0;
         env->vfp.xregs[ARM_VFP_MVFR0] = 0x11110222;
         env->vfp.xregs[ARM_VFP_MVFR1] = 0x00011100;
@@ -99,6 +103,28 @@ static void cpu_reset_model_id(CPUARMState *env, uint32_t id)
         env->cp15.c0_ccsid[0] = 0xe007e01a; /* 16k L1 dcache. */
         env->cp15.c0_ccsid[1] = 0x2007e01a; /* 16k L1 icache. */
         env->cp15.c0_ccsid[2] = 0xf0000000; /* No L2 icache. */
+        break;
+    case ARM_CPUID_CORTEXA8_R2:
+        set_feature(env, ARM_FEATURE_V6);
+        set_feature(env, ARM_FEATURE_V6K);
+        set_feature(env, ARM_FEATURE_V7);
+        set_feature(env, ARM_FEATURE_AUXCR);
+        set_feature(env, ARM_FEATURE_THUMB2);
+        set_feature(env, ARM_FEATURE_VFP);
+        set_feature(env, ARM_FEATURE_VFP3);
+        set_feature(env, ARM_FEATURE_NEON);
+        set_feature(env, ARM_FEATURE_THUMB2EE);
+        set_feature(env, ARM_FEATURE_TRUSTZONE);
+        env->vfp.xregs[ARM_VFP_FPSID] = 0x410330c2;
+        env->vfp.xregs[ARM_VFP_MVFR0] = 0x11110222;
+        env->vfp.xregs[ARM_VFP_MVFR1] = 0x00011100; /* should be 0x00011111 */
+        memcpy(env->cp15.c0_c1, cortexa8_cp15_c0_c1, 8 * sizeof(uint32_t));
+        memcpy(env->cp15.c0_c2, cortexa8r2_cp16_c0_c2, 8 * sizeof(uint32_t));
+        env->cp15.c0_cachetype = 0x82048004;
+        env->cp15.c0_clid = (1 << 27) | (2 << 24) | (4 << 3) | 3;
+        env->cp15.c0_ccsid[0] = 0xe007e01a; /* 16k L1 dcache. */
+        env->cp15.c0_ccsid[1] = 0x2007e01a; /* 16k L1 icache. */
+        env->cp15.c0_ccsid[2] = 0xf03fe03a; /* 256k L2 cache. */
         break;
     case ARM_CPUID_CORTEXM3:
         set_feature(env, ARM_FEATURE_V6);
@@ -280,6 +306,7 @@ static const struct arm_cpu_t arm_cpu_names[] = {
     { ARM_CPUID_ARM11MPCORE, "arm11mpcore"},
     { ARM_CPUID_CORTEXM3, "cortex-m3"},
     { ARM_CPUID_CORTEXA8, "cortex-a8"},
+    { ARM_CPUID_CORTEXA8_R2, "cortex-a8-r2"},
     { ARM_CPUID_TI925T, "ti925t" },
     { ARM_CPUID_PXA250, "pxa250" },
     { ARM_CPUID_PXA255, "pxa255" },
@@ -688,7 +715,7 @@ static void do_v7m_exception_exit(CPUARMState *env)
        pointer.  */
 }
 
-void do_interrupt_v7m(CPUARMState *env)
+static void do_interrupt_v7m(CPUARMState *env)
 {
     uint32_t xpsr = xpsr_read(env);
     uint32_t lr;
@@ -1337,30 +1364,60 @@ void HELPER(set_cp15)(CPUState *env, uint32_t insn, uint32_t val)
         }
         goto bad_reg;
     case 1: /* System configuration.  */
-        if (arm_feature(env, ARM_FEATURE_OMAPCP))
-            op2 = 0;
-        switch (op2) {
+        switch (crm) {
         case 0:
-            if (!arm_feature(env, ARM_FEATURE_XSCALE) || crm == 0)
-                env->cp15.c1_sys = val;
-            /* ??? Lots of these bits are not implemented.  */
-            /* This may enable/disable the MMU, so do a TLB flush.  */
-            tlb_flush(env, 1);
-            break;
-        case 1: /* Auxiliary cotrol register.  */
-            if (arm_feature(env, ARM_FEATURE_XSCALE)) {
-                env->cp15.c1_xscaleauxcr = val;
+            if (arm_feature(env, ARM_FEATURE_OMAPCP))
+                op2 = 0;
+            switch (op2) {
+            case 0:
+                if (!arm_feature(env, ARM_FEATURE_XSCALE))
+                    env->cp15.c1_sys = val;
+                /* ??? Lots of these bits are not implemented.  */
+                /* This may enable/disable the MMU, so do a TLB flush.  */
+                tlb_flush(env, 1);
                 break;
-            }
-            /* Not implemented.  */
-            break;
-        case 2:
-            if (arm_feature(env, ARM_FEATURE_XSCALE))
+            case 1: /* Auxiliary cotrol register.  */
+                if (arm_feature(env, ARM_FEATURE_XSCALE)) {
+                    env->cp15.c1_xscaleauxcr = val;
+                    break;
+                }
+                /* Not implemented.  */
+                break;
+            case 2:
+                if (arm_feature(env, ARM_FEATURE_XSCALE))
+                    goto bad_reg;
+                if (env->cp15.c1_coproc != val) {
+                    env->cp15.c1_coproc = val;
+                    /* ??? Is this safe when called from within a TB?  */
+                    tb_flush(env);
+                }
+                break;
+            default:
                 goto bad_reg;
-            if (env->cp15.c1_coproc != val) {
-                env->cp15.c1_coproc = val;
-                /* ??? Is this safe when called from within a TB?  */
-                tb_flush(env);
+            }
+            break;
+        case 1:
+            if (!arm_feature(env, ARM_FEATURE_TRUSTZONE)
+                || (env->uncached_cpsr & CPSR_M) == ARM_CPU_MODE_USR)
+                goto bad_reg;
+            switch (op2) {
+            case 0: /* Secure configuration register. */
+                if (env->cp15.c1_secfg & 1)
+                    goto bad_reg;
+                env->cp15.c1_secfg = val;
+                break;
+            case 1: /* Secure debug enable register. */
+                if (env->cp15.c1_secfg & 1)
+                    goto bad_reg;
+                env->cp15.c1_sedbg = val;
+                break;
+            case 2: /* Nonsecure access control register. */
+                if (env->cp15.c1_secfg & 1)
+                    goto bad_reg;
+                env->cp15.c1_nseac = val;
+                break;
+            default:
+                goto bad_reg;
             }
             break;
         default:
@@ -1380,22 +1437,22 @@ void HELPER(set_cp15)(CPUState *env, uint32_t insn, uint32_t val)
                 goto bad_reg;
             }
         } else {
-	    switch (op2) {
-	    case 0:
-		env->cp15.c2_base0 = val;
-		break;
-	    case 1:
-		env->cp15.c2_base1 = val;
-		break;
-	    case 2:
+            switch (op2) {
+            case 0:
+                env->cp15.c2_base0 = val;
+                break;
+            case 1:
+                env->cp15.c2_base1 = val;
+                break;
+            case 2:
                 val &= 7;
                 env->cp15.c2_control = val;
-		env->cp15.c2_mask = ~(((uint32_t)0xffffffffu) >> val);
+                env->cp15.c2_mask = ~(((uint32_t)0xffffffffu) >> val);
                 env->cp15.c2_base_mask = ~((uint32_t)0x3fffu >> val);
-		break;
-	    default:
-		goto bad_reg;
-	    }
+                break;
+            default:
+                goto bad_reg;
+            }
         }
         break;
     case 3: /* MMU Domain access control / MPU write buffer control.  */
@@ -1494,26 +1551,26 @@ void HELPER(set_cp15)(CPUState *env, uint32_t insn, uint32_t val)
             break;
         switch (crm) {
         case 0: /* Cache lockdown.  */
-	    switch (op1) {
-	    case 0: /* L1 cache.  */
-		switch (op2) {
-		case 0:
-		    env->cp15.c9_data = val;
-		    break;
-		case 1:
-		    env->cp15.c9_insn = val;
-		    break;
-		default:
-		    goto bad_reg;
-		}
-		break;
-	    case 1: /* L2 cache.  */
-		/* Ignore writes to L2 lockdown/auxiliary registers.  */
-		break;
-	    default:
-		goto bad_reg;
-	    }
-	    break;
+            switch (op1) {
+            case 0: /* L1 cache.  */
+                switch (op2) {
+                case 0:
+                    env->cp15.c9_data = val;
+                    break;
+                case 1:
+                    env->cp15.c9_insn = val;
+                    break;
+                default:
+                    goto bad_reg;
+                }
+                break;
+            case 1: /* L2 cache.  */
+                /* Ignore writes to L2 lockdown/auxiliary registers.  */
+                break;
+            default:
+                goto bad_reg;
+            }
+            break;
         case 1: /* TCM memory region registers.  */
             /* Not implemented.  */
             goto bad_reg;
@@ -1623,7 +1680,7 @@ uint32_t HELPER(get_cp15)(CPUState *env, uint32_t insn)
                 case 0: /* Device ID.  */
                     return env->cp15.c0_cpuid;
                 case 1: /* Cache Type.  */
-		    return env->cp15.c0_cachetype;
+                    return env->cp15.c0_cachetype;
                 case 2: /* TCM status.  */
                     return 0;
                 case 3: /* TLB type register.  */
@@ -1646,6 +1703,7 @@ uint32_t HELPER(get_cp15)(CPUState *env, uint32_t insn)
             default:
                 goto bad_reg;
             }
+            break;
         case 1:
             /* These registers aren't documented on arm11 cores.  However
                Linux looks at them anyway.  */
@@ -1672,37 +1730,66 @@ uint32_t HELPER(get_cp15)(CPUState *env, uint32_t insn)
         default:
             goto bad_reg;
         }
+        break;
     case 1: /* System configuration.  */
-        if (arm_feature(env, ARM_FEATURE_OMAPCP))
-            op2 = 0;
-        switch (op2) {
-        case 0: /* Control register.  */
-            return env->cp15.c1_sys;
-        case 1: /* Auxiliary control register.  */
-            if (arm_feature(env, ARM_FEATURE_XSCALE))
-                return env->cp15.c1_xscaleauxcr;
-            if (!arm_feature(env, ARM_FEATURE_AUXCR))
-                goto bad_reg;
-            switch (ARM_CPUID(env)) {
-            case ARM_CPUID_ARM1026:
-                return 1;
-            case ARM_CPUID_ARM1136:
-            case ARM_CPUID_ARM1136_R2:
-                return 7;
-            case ARM_CPUID_ARM11MPCORE:
-                return 1;
-            case ARM_CPUID_CORTEXA8:
-                return 0;
+        switch (crm) {
+        case 0:
+            if (arm_feature(env, ARM_FEATURE_OMAPCP))
+                op2 = 0;
+            switch (op2) {
+            case 0: /* Control register.  */
+                return env->cp15.c1_sys;
+            case 1: /* Auxiliary control register.  */
+                if (arm_feature(env, ARM_FEATURE_XSCALE))
+                    return env->cp15.c1_xscaleauxcr;
+                if (!arm_feature(env, ARM_FEATURE_AUXCR))
+                    goto bad_reg;
+                switch (ARM_CPUID(env)) {
+                case ARM_CPUID_ARM1026:
+                    return 1;
+                case ARM_CPUID_ARM1136:
+                case ARM_CPUID_ARM1136_R2:
+                    return 7;
+                case ARM_CPUID_ARM11MPCORE:
+                    return 1;
+                case ARM_CPUID_CORTEXA8:
+                case ARM_CPUID_CORTEXA8_R2:
+                    return 2;
+                default:
+                    goto bad_reg;
+                }
+                break;
+            case 2: /* Coprocessor access register.  */
+                if (arm_feature(env, ARM_FEATURE_XSCALE))
+                    goto bad_reg;
+                return env->cp15.c1_coproc;
             default:
                 goto bad_reg;
             }
-        case 2: /* Coprocessor access register.  */
-            if (arm_feature(env, ARM_FEATURE_XSCALE))
+            break;
+        case 1:
+            if (!arm_feature(env, ARM_FEATURE_TRUSTZONE)
+                || (env->uncached_cpsr & CPSR_M) == ARM_CPU_MODE_USR)
                 goto bad_reg;
-            return env->cp15.c1_coproc;
+            switch (op2) {
+            case 0: /* Secure configuration register. */
+                if (env->cp15.c1_secfg & 1)
+                    goto bad_reg;
+                return env->cp15.c1_secfg;
+            case 1: /* Secure debug enable register. */
+                if (env->cp15.c1_secfg & 1)
+                    goto bad_reg;
+                return env->cp15.c1_sedbg;
+            case 2: /* Nonsecure access control register. */
+                return env->cp15.c1_nseac;
+            default:
+                goto bad_reg;
+            }
+            break;
         default:
             goto bad_reg;
         }
+        break;
     case 2: /* MMU Page table control / MPU cache control.  */
         if (arm_feature(env, ARM_FEATURE_MPU)) {
             switch (op2) {
@@ -1716,17 +1803,17 @@ uint32_t HELPER(get_cp15)(CPUState *env, uint32_t insn)
                 goto bad_reg;
             }
         } else {
-	    switch (op2) {
-	    case 0:
-		return env->cp15.c2_base0;
-	    case 1:
-		return env->cp15.c2_base1;
-	    case 2:
+            switch (op2) {
+            case 0:
+                return env->cp15.c2_base0;
+            case 1:
+                return env->cp15.c2_base1;
+            case 2:
                 return env->cp15.c2_control;
-	    default:
-		goto bad_reg;
-	    }
-	}
+            default:
+                goto bad_reg;
+            }
+        }
     case 3: /* MMU Domain access control / MPU write buffer control.  */
         return env->cp15.c3;
     case 4: /* Reserved.  */
@@ -1762,41 +1849,39 @@ uint32_t HELPER(get_cp15)(CPUState *env, uint32_t insn)
         } else {
             if (arm_feature(env, ARM_FEATURE_OMAPCP))
                 op2 = 0;
-	    switch (op2) {
-	    case 0:
-		return env->cp15.c6_data;
-	    case 1:
-		if (arm_feature(env, ARM_FEATURE_V6)) {
-		    /* Watchpoint Fault Adrress.  */
-		    return 0; /* Not implemented.  */
-		} else {
-		    /* Instruction Fault Adrress.  */
-		    /* Arm9 doesn't have an IFAR, but implementing it anyway
-		       shouldn't do any harm.  */
-		    return env->cp15.c6_insn;
-		}
-	    case 2:
-		if (arm_feature(env, ARM_FEATURE_V6)) {
-		    /* Instruction Fault Adrress.  */
-		    return env->cp15.c6_insn;
-		} else {
-		    goto bad_reg;
-		}
-	    default:
-		goto bad_reg;
-	    }
+            switch (op2) {
+            case 0:
+                return env->cp15.c6_data;
+            case 1:
+                if (arm_feature(env, ARM_FEATURE_V6)) {
+                    /* Watchpoint Fault Adrress.  */
+                    return 0; /* Not implemented.  */
+                }
+                /* Instruction Fault Adrress.  */
+                /* Arm9 doesn't have an IFAR, but implementing it anyway
+                   shouldn't do any harm.  */
+                return env->cp15.c6_insn;
+            case 2:
+                if (arm_feature(env, ARM_FEATURE_V6)) {
+                    /* Instruction Fault Adrress.  */
+                    return env->cp15.c6_insn;
+                }
+                goto bad_reg;
+            default:
+                goto bad_reg;
+            }
         }
     case 7: /* Cache control.  */
-        /* FIXME: Should only clear Z flag if destination is r15.  */
-        env->ZF = 0;
+        if (((insn >> 12) & 0xf) == 0xf) /* clear ZF only if destination is r15 */
+            env->ZF = 0;
         return 0;
     case 8: /* MMU TLB control.  */
         goto bad_reg;
     case 9: /* Cache lockdown.  */
         switch (op1) {
         case 0: /* L1 cache.  */
-	    if (arm_feature(env, ARM_FEATURE_OMAPCP))
-		return 0;
+            if (arm_feature(env, ARM_FEATURE_OMAPCP))
+                return 0;
             switch (op2) {
             case 0:
                 return env->cp15.c9_data;

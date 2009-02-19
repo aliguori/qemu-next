@@ -21,6 +21,11 @@
 #include "hw.h"
 #include "console.h"
 #include "omap.h"
+#include "qemu-common.h"
+#include "sysemu.h"
+#include "devices.h"
+#include "vga_int.h"
+#include "pixel_ops.h"
 
 struct omap_dss_s {
     qemu_irq irq;
@@ -29,16 +34,19 @@ struct omap_dss_s {
 
     int autoidle;
     int control;
+    uint32_t sdi_control;
     int enable;
 
     struct omap_dss_panel_s {
         int enable;
+        int active;
         int nx;
         int ny;
 
         int x;
         int y;
     } dig, lcd;
+    struct omap3_lcd_panel_s *omap_lcd_panel[2];
 
     struct {
         uint32_t idlemode;
@@ -60,6 +68,10 @@ struct omap_dss_s {
             int nx;
             int ny;
 
+            int rotation_flag;
+            int gfx_format;
+            int gfx_channel;
+            
             target_phys_addr_t addr[3];
 
             uint32_t attr;
@@ -88,6 +100,10 @@ struct omap_dss_s {
         uint16_t hsync;
         struct rfbi_chip_s *chip[2];
     } rfbi;
+    
+    struct {
+        uint32_t irqst;
+    } dsi;
 };
 
 static void omap_dispc_interrupt_update(struct omap_dss_s *s)
@@ -123,6 +139,7 @@ void omap_dss_reset(struct omap_dss_s *s)
 {
     s->autoidle = 0;
     s->control = 0;
+    s->sdi_control = 0;
     s->enable = 0;
 
     s->dig.enable = 0;
@@ -164,6 +181,8 @@ void omap_dss_reset(struct omap_dss_s *s)
     s->dispc.l[0].colinc = 1;
     s->dispc.l[0].wininc = 0;
 
+    s->dsi.irqst = 0;
+    
     omap_rfbi_reset(s);
     omap_dispc_interrupt_update(s);
 }
@@ -181,9 +200,16 @@ static uint32_t omap_diss_read(void *opaque, target_phys_addr_t addr)
 
     case 0x14:	/* DSS_SYSSTATUS */
         return 1;						/* RESETDONE */
+            
+    case 0x18:  /* DSS_IRQSTATUS */
+        return ((s->dispc.irqst & s->dispc.irqen) ? 0x1 : 0x0)
+            | ((s->dsi.irqst) ? 0x2 : 0x0);
 
     case 0x40:	/* DSS_CONTROL */
         return s->control;
+
+    case 0x44:  /* DSS_SDI_CONTROL */
+        return s->sdi_control;
 
     case 0x50:	/* DSS_PSA_LCD_REG_1 */
     case 0x54:	/* DSS_PSA_LCD_REG_2 */
@@ -213,7 +239,7 @@ static void omap_diss_write(void *opaque, target_phys_addr_t addr,
     case 0x54:	/* DSS_PSA_LCD_REG_2 */
     case 0x58:	/* DSS_PSA_VIDEO_REG */
     case 0x5c:	/* DSS_STATUS */
-        OMAP_RO_REG(addr);
+        OMAP_RO_REGV(addr, value);
         break;
 
     case 0x10:	/* DSS_SYSCONFIG */
@@ -226,8 +252,13 @@ static void omap_diss_write(void *opaque, target_phys_addr_t addr,
         s->control = value & 0x3dd;
         break;
 
+    case 0x44: /* DSS_SDI_CONTROL */
+        s->sdi_control = value & 0x000ff80f;
+        break;
+    
     default:
-        OMAP_BAD_REG(addr);
+        OMAP_BAD_REGV(addr, value);
+        break;
     }
 }
 
@@ -249,7 +280,7 @@ static uint32_t omap_disc_read(void *opaque, target_phys_addr_t addr)
 
     switch (addr) {
     case 0x000:	/* DISPC_REVISION */
-        return 0x20;
+        return 0x20; // 0x30 in OMAP3
 
     case 0x010:	/* DISPC_SYSCONFIG */
         return s->dispc.idlemode;
@@ -369,6 +400,13 @@ static void omap_disc_write(void *opaque, target_phys_addr_t addr,
     struct omap_dss_s *s = (struct omap_dss_s *) opaque;
 
     switch (addr) {
+    case 0x000: /* DISPC_REVISION */
+    case 0x014: /* DISPC_SYSSTATUS */
+    case 0x05c: /* DISPC_LINE_STATUS */
+    case 0x0a8: /* DISPC_GFX_FIFO_SIZE_STATUS */
+        OMAP_RO_REGV(addr, value);
+        break;
+            
     case 0x010:	/* DISPC_SYSCONFIG */
         if (value & 2)						/* SOFTRESET */
             omap_dss_reset(s);
@@ -389,6 +427,7 @@ static void omap_disc_write(void *opaque, target_phys_addr_t addr,
         s->dispc.control = value & 0x07ff9fff;
         s->dig.enable = (value >> 1) & 1;
         s->lcd.enable = (value >> 0) & 1;
+        s->lcd.active = (value >> 5) & 1;
         if (value & (1 << 12))			/* OVERLAY_OPTIMIZATION */
             if (~((s->dispc.l[1].attr | s->dispc.l[2].attr) & 1))
                  fprintf(stderr, "%s: Overlay Optimization when no overlay "
@@ -507,12 +546,15 @@ static void omap_disc_write(void *opaque, target_phys_addr_t addr,
         s->dispc.invalidate = 1;
         break;
     case 0x0a0:	/* DISPC_GFX_ATTRIBUTES */
-        s->dispc.l[0].attr = value & 0x7ff;
+        s->dispc.l[0].attr = value & 0xffff;
         if (value & (3 << 9))
             fprintf(stderr, "%s: Big-endian pixel format not supported\n",
                             __FUNCTION__);
         s->dispc.l[0].enable = value & 1;
         s->dispc.l[0].bpp = (value >> 1) & 0xf;
+        s->dispc.l[0].rotation_flag = (value >> 12) & 0x3;
+        s->dispc.l[0].gfx_format = (value >> 1) & 0xf;
+        s->dispc.l[0].gfx_channel = (value >> 8) & 0x1;
         s->dispc.invalidate = 1;
         break;
     case 0x0a4:	/* DISPC_GFX_FIFO_TRESHOLD */
@@ -566,7 +608,8 @@ static void omap_disc_write(void *opaque, target_phys_addr_t addr,
         break;
 
     default:
-        OMAP_BAD_REG(addr);
+        OMAP_BAD_REGV(addr, value);
+        break;
     }
 }
 
@@ -836,7 +879,8 @@ static void omap_rfbi_write(void *opaque, target_phys_addr_t addr,
         break;
 
     default:
-        OMAP_BAD_REG(addr);
+        OMAP_BAD_REGV(addr, value);
+        break;
     }
 }
 
@@ -955,7 +999,8 @@ static void omap_venc_write(void *opaque, target_phys_addr_t addr,
         break;
 
     default:
-        OMAP_BAD_REG(addr);
+        OMAP_BAD_REGV(addr, value);
+        break;
     }
 }
 
@@ -1005,7 +1050,8 @@ static void omap_im3_write(void *opaque, target_phys_addr_t addr,
         break;
 
     default:
-        OMAP_BAD_REG(addr);
+        OMAP_BAD_REGV(addr, value);
+        break;
     }
 }
 
@@ -1022,12 +1068,12 @@ static CPUWriteMemoryFunc *omap_im3_writefn[] = {
 };
 
 struct omap_dss_s *omap_dss_init(struct omap_target_agent_s *ta,
-                target_phys_addr_t l3_base, DisplayState *ds,
-                qemu_irq irq, qemu_irq drq,
-                omap_clk fck1, omap_clk fck2, omap_clk ck54m,
-                omap_clk ick1, omap_clk ick2)
+                                 target_phys_addr_t l3_base, DisplayState *ds,
+                                 qemu_irq irq, qemu_irq drq,
+                                 omap_clk fck1, omap_clk fck2, omap_clk ck54m,
+                                 omap_clk ick1, omap_clk ick2)
 {
-    int iomemtype[5];
+    int iomemtype[6];
     struct omap_dss_s *s = (struct omap_dss_s *)
             qemu_mallocz(sizeof(struct omap_dss_s));
 
@@ -1037,26 +1083,21 @@ struct omap_dss_s *omap_dss_init(struct omap_target_agent_s *ta,
     omap_dss_reset(s);
 
     iomemtype[0] = l4_register_io_memory(0, omap_diss1_readfn,
-                    omap_diss1_writefn, s);
+                                         omap_diss1_writefn, s);
     iomemtype[1] = l4_register_io_memory(0, omap_disc1_readfn,
-                    omap_disc1_writefn, s);
+                                         omap_disc1_writefn, s);
     iomemtype[2] = l4_register_io_memory(0, omap_rfbi1_readfn,
-                    omap_rfbi1_writefn, s);
+                                         omap_rfbi1_writefn, s);
     iomemtype[3] = l4_register_io_memory(0, omap_venc1_readfn,
-                    omap_venc1_writefn, s);
+                                         omap_venc1_writefn, s);
     iomemtype[4] = cpu_register_io_memory(0, omap_im3_readfn,
-                    omap_im3_writefn, s);
-    omap_l4_attach(ta, 0, iomemtype[0]);
-    omap_l4_attach(ta, 1, iomemtype[1]);
-    omap_l4_attach(ta, 2, iomemtype[2]);
-    omap_l4_attach(ta, 3, iomemtype[3]);
+                                          omap_im3_writefn, s);
+    /* TODO: DSI */
+    omap_l4_attach(ta, 1, iomemtype[0]);
+    omap_l4_attach(ta, 2, iomemtype[1]);
+    omap_l4_attach(ta, 3, iomemtype[2]);
+    omap_l4_attach(ta, 4, iomemtype[3]);
     cpu_register_physical_memory(l3_base, 0x1000, iomemtype[4]);
-
-#if 0
-    if (ds)
-        graphic_console_init(ds, omap_update_display,
-                        omap_invalidate_display, omap_screen_dump, s);
-#endif
 
     return s;
 }
@@ -1066,4 +1107,184 @@ void omap_rfbi_attach(struct omap_dss_s *s, int cs, struct rfbi_chip_s *chip)
     if (cs < 0 || cs > 1)
         cpu_abort(cpu_single_env, "%s: wrong CS %i\n", __FUNCTION__, cs);
     s->rfbi.chip[cs] = chip;
+}
+
+void omap3_lcd_panel_attach(struct omap_dss_s *s, int cs, struct omap3_lcd_panel_s *lcd_panel)
+{
+    if (cs < 0 || cs > 1)
+        cpu_abort(cpu_single_env, "%s: wrong CS %i\n", __FUNCTION__, cs);
+    s->omap_lcd_panel[cs] = lcd_panel;
+}
+
+/*omap3 lcd panel stuff*/
+
+/* Bytes(!) per pixel */
+static const int omap3_lcd_panel_bpp[0x10] = {
+    0,   /*0x0*/
+    0,   /*0x1*/
+    0,   /*0x2*/
+    0,   /*0x3*/
+    2,  /*0x4:RGB 12 */
+    2,  /*0x5: ARGB16 */
+    2,  /*0x6: RGB 16 */
+    0,  /*0x7*/
+    4,  /*0x8: RGB 24 (un-packed in 32-bit container) */
+    3,  /*0x9: RGB 24 (packed in 24-bit container) */
+    0,  /*0xa */
+    0,  /*0xb */
+    4,  /*0xc: ARGB32 */
+    4,  /*0xd: RGBA32 */
+    4,  /*0xe: RGBx 32 (24-bit RGB aligned on MSB of the 32-bit container) */
+    0,  /*0xf */
+};
+
+static inline void omap3_lcd_panel_invalidate_display(void *opaque) 
+{
+    struct omap3_lcd_panel_s *s = (struct omap3_lcd_panel_s *)opaque;
+    s->invalidate = 1;
+}
+
+static void omap3_lcd_panel_update_display(void *opaque)
+{
+    struct omap3_lcd_panel_s *s = (struct omap3_lcd_panel_s *)opaque;
+    struct omap_dss_s *dss = s->dss;
+    uint32_t lcd_width,lcd_height;
+    uint32_t graphic_width,graphic_height;
+    uint32_t start_x,start_y;
+    uint32_t lcd_Bpp,dss_Bpp;
+    uint32_t linesize,y;
+    uint32_t copy_width,copy_height;
+    uint8_t *src, *dest;
+
+    //printf("dss->lcd.active  %d dss->lcd.enable %d \n",dss->lcd.active,dss->lcd.enable);
+    if (!dss->lcd.active)
+        return;
+
+    /*check whether LCD is enabled*/
+    if (!dss->lcd.enable)
+        return;
+
+    if ((dss->dispc.control & (1 << 11)))			/* RFBIMODE */
+        return;
+
+    if (dss->dispc.l[0].gfx_channel)			/* 24 bit digital out */
+        return;
+
+    if (!(dss->dispc.l[0].rotation_flag)) {	  /* rotation*/
+        s->line_fn = s->line_fn_tab[0][dss->dispc.l[0].gfx_format];
+    } else {
+        fprintf(stderr, "%s: rotation is not supported \n", __FUNCTION__);
+        exit(1);
+    }
+    if (!s->line_fn) {
+        fprintf(stderr, "%s:s->line_fn is NULL. Not supported gfx_format \n", __FUNCTION__);
+        exit(1);
+    }
+
+    /* Resolution */
+    lcd_width = dss->lcd.nx;
+    lcd_height = dss->lcd.ny;
+    graphic_width = dss->dispc.l[0].nx;
+    graphic_height = dss->dispc.l[0].ny;
+    start_x = dss->dispc.l[0].posx;
+    start_y = dss->dispc.l[0].posy;
+    //printf("lcd_width %d lcd_height %d \n",lcd_width,lcd_height);
+    //printf("graphic_width %d graphic_height %d \n",graphic_width,graphic_height);
+    //printf("start_x %d start_y %d \n",start_x,start_y);
+
+    if (lcd_width != ds_get_width(s->state) 
+        || lcd_height != ds_get_height(s->state)) {
+        qemu_console_resize(s->console, lcd_width, lcd_height);
+        dss->dispc.invalidate = 1;
+    }
+
+    /*if ((start_x+graphic_width)>lcd_width) {
+        fprintf(stderr, "%s: graphic window width(0x%x) > lcd width(0x%x) \n",__FUNCTION__,start_x+graphic_width,lcd_width );
+         exit(1);
+    }
+    if ((start_y+graphic_height)>lcd_height) {
+        fprintf(stderr, "%s: graphic window height(0x%x) > lcd height(0x%x) \n",__FUNCTION__,start_y+graphic_height,lcd_height);
+        exit(1);
+    }*/
+
+    /*use the rfbi function*/
+    src = (uint8_t *)omap_rfbi_get_buffer(dss);
+    dest = ds_get_data(s->state);
+    linesize = ds_get_linesize(s->state);
+
+    lcd_Bpp = omap3_lcd_panel_bpp[dss->dispc.l[0].gfx_format];
+    dss_Bpp = linesize/ds_get_width(s->state);
+
+    //printf("LCD BPP %d dss_bpp %d \n",lcd_Bpp,dss_Bpp);
+
+    dest += linesize*start_y;
+    dest += start_x*dss_Bpp;
+
+    if ((start_x+graphic_width)>lcd_width)
+        copy_width = lcd_width - start_x;
+    else
+    	copy_width = graphic_width;
+    copy_height = lcd_height>graphic_height ? graphic_height:lcd_height;
+
+    for (y=start_y;y<copy_height;y++) {
+        s->line_fn(dest,src,copy_width*lcd_Bpp);
+        src += graphic_width*lcd_Bpp;
+        dest += linesize;
+    }
+
+    dpy_update(s->state, start_x, start_y, graphic_width, graphic_height);
+}
+
+/*omap lcd stuff*/
+#define DEPTH 8
+#include "omap3_lcd_panel_template.h"
+#define DEPTH 15
+#include "omap3_lcd_panel_template.h"
+#define DEPTH 16
+#include "omap3_lcd_panel_template.h"
+#define DEPTH 24
+#include "omap3_lcd_panel_template.h"
+#define DEPTH 32
+#include "omap3_lcd_panel_template.h"
+
+void *omap3_lcd_panel_init(DisplayState *ds)
+{
+    struct omap3_lcd_panel_s *s = (struct omap3_lcd_panel_s *) qemu_mallocz(sizeof(*s));
+
+    s->state = ds;
+
+    switch (ds_get_bits_per_pixel(s->state)) {
+    case 0:
+        s->line_fn_tab[0] = s->line_fn_tab[1] =
+            qemu_mallocz(sizeof(omap3_lcd_panel_fn_t) * 0x10);
+        break;
+    case 8:
+        s->line_fn_tab[0] = ds->bgr ? omap3_lcd_panel_draw_fn_bgr_8 : omap3_lcd_panel_draw_fn_8;
+        s->line_fn_tab[1] = ds->bgr ? omap3_lcd_panel_draw_fn_r_bgr_8 : omap3_lcd_panel_draw_fn_r_8;
+        break;
+    case 15:
+        s->line_fn_tab[0] = ds->bgr ? omap3_lcd_panel_draw_fn_bgr_15 : omap3_lcd_panel_draw_fn_15;
+        s->line_fn_tab[1] = ds->bgr ? omap3_lcd_panel_draw_fn_r_bgr_15 : omap3_lcd_panel_draw_fn_r_15;
+        break;
+    case 16:
+        s->line_fn_tab[0] = ds->bgr ? omap3_lcd_panel_draw_fn_bgr_16 : omap3_lcd_panel_draw_fn_16;
+        s->line_fn_tab[1] = ds->bgr ? omap3_lcd_panel_draw_fn_r_bgr_16: omap3_lcd_panel_draw_fn_r_16;
+        break;
+    case 24:
+        s->line_fn_tab[0] = ds->bgr ? omap3_lcd_panel_draw_fn_bgr_24 : omap3_lcd_panel_draw_fn_24;
+        s->line_fn_tab[1] = ds->bgr ? omap3_lcd_panel_draw_fn_r_bgr_24 : omap3_lcd_panel_draw_fn_r_24;
+        break;
+    case 32:
+        s->line_fn_tab[0] = ds->bgr ? omap3_lcd_panel_draw_fn_bgr_32 : omap3_lcd_panel_draw_fn_32;
+        s->line_fn_tab[1] = ds->bgr ? omap3_lcd_panel_draw_fn_r_bgr_32 : omap3_lcd_panel_draw_fn_r_32;
+        break;
+    default:
+        fprintf(stderr, "%s: Bad color depth\n", __FUNCTION__);
+        exit(1);
+    }
+
+    s->console = graphic_console_init(s->state, omap3_lcd_panel_update_display,
+                                      omap3_lcd_panel_invalidate_display,
+                                      NULL, NULL, s);
+    return s;
 }

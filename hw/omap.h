@@ -35,6 +35,12 @@
 # define OMAP2_L3_BASE		0x68000000
 # define OMAP2_Q2_BASE		0x80000000
 # define OMAP2_Q3_BASE		0xc0000000
+# define OMAP3_Q1_BASE      0x40000000
+# define OMAP3_L4_BASE      0x48000000
+# define OMAP3_SRAM_BASE    0x40200000
+# define OMAP3_L3_BASE      0x68000000
+# define OMAP3_Q2_BASE      0x80000000
+# define OMAP3_Q3_BASE      0xc0000000
 # define OMAP_MPUI_BASE		0xe1000000
 
 # define OMAP730_SRAM_SIZE	0x00032000
@@ -43,6 +49,7 @@
 # define OMAP1611_SRAM_SIZE	0x0003e800
 # define OMAP242X_SRAM_SIZE	0x000a0000
 # define OMAP243X_SRAM_SIZE	0x00010000
+# define OMAP3530_SRAM_SIZE 0x00010000
 # define OMAP_CS0_SIZE		0x04000000
 # define OMAP_CS1_SIZE		0x04000000
 # define OMAP_CS2_SIZE		0x04000000
@@ -76,7 +83,8 @@ struct omap_intr_handler_s;
 struct omap_intr_handler_s *omap_inth_init(target_phys_addr_t base,
                 unsigned long size, unsigned char nbanks, qemu_irq **pins,
                 qemu_irq parent_irq, qemu_irq parent_fiq, omap_clk clk);
-struct omap_intr_handler_s *omap2_inth_init(target_phys_addr_t base,
+struct omap_intr_handler_s *omap2_inth_init(struct omap_mpu_state_s *mpu,
+                target_phys_addr_t base,
                 int size, int nbanks, qemu_irq **pins,
                 qemu_irq parent_irq, qemu_irq parent_fiq,
                 omap_clk fclk, omap_clk iclk);
@@ -87,18 +95,32 @@ struct omap_prcm_s *omap_prcm_init(struct omap_target_agent_s *ta,
                 qemu_irq mpu_int, qemu_irq dsp_int, qemu_irq iva_int,
                 struct omap_mpu_state_s *mpu);
 
+struct omap3_prm_s;
+struct omap3_prm_s *omap3_prm_init(struct omap_target_agent_s *ta,
+                                   qemu_irq mpu_int, qemu_irq iva_int,
+                                   struct omap_mpu_state_s *mpu);
+
+struct omap3_cm_s;
+struct omap3_cm_s *omap3_cm_init(struct omap_target_agent_s *ta,
+                qemu_irq mpu_int, qemu_irq dsp_int, qemu_irq iva_int,
+                struct omap_mpu_state_s *mpu);
+
 struct omap_sysctl_s;
 struct omap_sysctl_s *omap_sysctl_init(struct omap_target_agent_s *ta,
                 omap_clk iclk, struct omap_mpu_state_s *mpu);
 
 struct omap_sdrc_s;
 struct omap_sdrc_s *omap_sdrc_init(target_phys_addr_t base);
+void omap_sdrc_write_mcfg(struct omap_sdrc_s *s, uint32_t value, uint32_t cs);
 
 struct omap_gpmc_s;
-struct omap_gpmc_s *omap_gpmc_init(target_phys_addr_t base, qemu_irq irq);
+struct omap_gpmc_s *omap_gpmc_init(struct omap_mpu_state_s *mpu,
+                                   target_phys_addr_t base, qemu_irq irq);
 void omap_gpmc_attach(struct omap_gpmc_s *s, int cs, int iomemtype,
                 void (*base_upd)(void *opaque, target_phys_addr_t new),
-                void (*unmap)(void *opaque), void *opaque);
+                void (*unmap)(void *opaque), void *opaque,
+                CPUReadMemoryFunc **nand_readfn,
+                CPUWriteMemoryFunc **nand_writefn);
 
 /*
  * Common IRQ numbers for level 1 interrupt handler
@@ -408,6 +430,71 @@ void omap_gpmc_attach(struct omap_gpmc_s *s, int cs, int iomemtype,
 # define OMAP_INT_243X_CARKIT		94
 # define OMAP_INT_34XX_GPTIMER12	95
 
+/*
+ * OMAP-35XX common IRQ numbers
+ */
+# define OMAP_INT_35XX_SYS_NIRQ		7
+# define OMAP_INT_35XX_PRCM_MPU_IRQ	11
+# define OMAP_INT_35XX_SDMA_IRQ0	12
+# define OMAP_INT_35XX_SDMA_IRQ1	13
+# define OMAP_INT_35XX_SDMA_IRQ2	14
+# define OMAP_INT_35XX_SDMA_IRQ3	15
+# define OMAP_INT_35XX_MCBSP1_IRQ	16
+# define OMAP_INT_35XX_MCBSP2_IRQ	17
+# define OMAP_INT_35XX_GPMC_IRQ		20
+# define OMAP_INT_35XX_MCBSP3_IRQ	22
+# define OMAP_INT_35XX_MCBSP4_IRQ	23
+# define OMAP_INT_35XX_CAM_IRQ		24
+# define OMAP_INT_35XX_DSS_IRQ		25
+# define OMAP_INT_35XX_MAIL_U0_MPU	26
+# define OMAP_INT_35XX_MCBSP5_IRQ	27
+# define OMAP_INT_35XX_DSP_MMU		28
+# define OMAP_INT_35XX_GPIO_BANK1	29
+# define OMAP_INT_35XX_GPIO_BANK2	30
+# define OMAP_INT_35XX_GPIO_BANK3	31
+# define OMAP_INT_35XX_GPIO_BANK4	32
+# define OMAP_INT_35XX_GPIO_BANK5	33
+# define OMAP_INT_35XX_GPIO_BANK6	34
+# define OMAP_INT_35XX_WDT3		36
+# define OMAP_INT_35XX_GPTIMER1		37
+# define OMAP_INT_35XX_GPTIMER2		38
+# define OMAP_INT_35XX_GPTIMER3		39
+# define OMAP_INT_35XX_GPTIMER4		40
+# define OMAP_INT_35XX_GPTIMER5		41
+# define OMAP_INT_35XX_GPTIMER6		42
+# define OMAP_INT_35XX_GPTIMER7		43
+# define OMAP_INT_35XX_GPTIMER8		44
+# define OMAP_INT_35XX_GPTIMER9		45
+# define OMAP_INT_35XX_GPTIMER10	46
+# define OMAP_INT_35XX_GPTIMER11	47
+# define OMAP_INT_35XX_MG_IRQ		53
+# define OMAP_INT_35XX_MCBSP4_IRQ_TX	54
+# define OMAP_INT_35XX_MCBSP4_IRQ_RX	55
+# define OMAP_INT_35XX_I2C1_IRQ		56
+# define OMAP_INT_35XX_I2C2_IRQ		57
+# define OMAP_INT_35XX_MCBSP1_IRQ_TX	59
+# define OMAP_INT_35XX_MCBSP1_IRQ_RX	60
+# define OMAP_INT_35XX_I2C3_IRQ		61
+# define OMAP_INT_35XX_MCBSP2_IRQ_TX	62
+# define OMAP_INT_35XX_MCBSP2_IRQ_RX	63
+# define OMAP_INT_35XX_MCSPI1_IRQ	65
+# define OMAP_INT_35XX_MCSPI2_IRQ	66
+# define OMAP_INT_35XX_UART1_IRQ	72
+# define OMAP_INT_35XX_UART2_IRQ	73
+# define OMAP_INT_35XX_UART3_IRQ	74
+# define OMAP_INT_35XX_MCBSP5_IRQ_TX	81
+# define OMAP_INT_35XX_MCBSP5_IRQ_RX	82
+# define OMAP_INT_35XX_MMC1_IRQ		83
+# define OMAP_INT_35XX_MS_IRQ		84
+# define OMAP_INT_35XX_MMC2_IRQ		86
+# define OMAP_INT_35XX_MCBSP3_IRQ_TX	89
+# define OMAP_INT_35XX_MCBSP3_IRQ_RX	90
+# define OMAP_INT_35XX_MCSPI3_IRQ	91
+# define OMAP_INT_35XX_HS_USB_MC	92
+# define OMAP_INT_35XX_HS_USB_DMA	93
+# define OMAP_INT_35XX_MMC3_IRQ		94
+# define OMAP_INT_35XX_GPTIMER12	95
+
 /* omap_dma.c */
 enum omap_dma_model {
     omap_dma_3_0,
@@ -627,6 +714,79 @@ struct omap_dma_lcd_channel_s {
 # define OMAP24XX_DMA_MS		63	/* Not in OMAP2420 */
 # define OMAP24XX_DMA_EXT_DMAREQ5	64
 
+/*
+ * DMA request numbers for the OMAP3
+ * Note that the numbers have to match the values that are
+ * written to CCRi SYNCHRO_CONTROL bits, i.e. actual line
+ * number plus one! Zero is a reserved value (defined as
+ * NO_DEVICE here). Other missing values are reserved.
+ */
+#define OMAP35XX_DMA_NO_DEVICE        0
+
+#define OMAP35XX_DMA_EXT_DMAREQ0      2
+#define OMAP35XX_DMA_EXT_DMAREQ1      3
+#define OMAP35XX_DMA_GPMC             4
+
+#define OMAP35XX_DMA_DSS_LINETRIGGER  6
+#define OMAP35XX_DMA_EXT_DMAREQ2      7
+
+#define OMAP35XX_DMA_SPI3_TX0         15
+#define OMAP35XX_DMA_SPI3_RX0         16
+#define OMAP35XX_DMA_MCBSP3_TX        17
+#define OMAP35XX_DMA_MCBSP3_RX        18
+#define OMAP35XX_DMA_MCBSP4_TX        19
+#define OMAP35XX_DMA_MCBSP4_RX        20
+#define OMAP35XX_DMA_MCBSP5_TX        21
+#define OMAP35XX_DMA_MCBSP5_RX        22
+#define OMAP35XX_DMA_SPI3_TX1         23
+#define OMAP35XX_DMA_SPI3_RX1         24
+#define OMAP35XX_DMA_I2C3_TX          25
+#define OMAP35XX_DMA_I2C3_RX          26
+#define OMAP35XX_DMA_I2C1_TX          27
+#define OMAP35XX_DMA_I2C1_RX          28
+#define OMAP35XX_DMA_I2C2_TX          29
+#define OMAP35XX_DMA_I2C2_RX          30
+#define OMAP35XX_DMA_MCBSP1_TX        31
+#define OMAP35XX_DMA_MCBSP1_RX        32
+#define OMAP35XX_DMA_MCBSP2_TX        33
+#define OMAP35XX_DMA_MCBSP2_RX        34
+#define OMAP35XX_DMA_SPI1_TX0         35
+#define OMAP35XX_DMA_SPI1_RX0         36
+#define OMAP35XX_DMA_SPI1_TX1         37
+#define OMAP35XX_DMA_SPI1_RX1         38
+#define OMAP35XX_DMA_SPI1_TX2         39
+#define OMAP35XX_DMA_SPI1_RX2         40
+#define OMAP35XX_DMA_SPI1_TX3         41
+#define OMAP35XX_DMA_SPI1_RX4         42
+#define OMAP35XX_DMA_SPI2_TX0         43
+#define OMAP35XX_DMA_SPI2_RX0         44
+#define OMAP35XX_DMA_SPI2_TX1         45
+#define OMAP35XX_DMA_SPI2_RX1         46
+#define OMAP35XX_DMA_MMC2_TX          47
+#define OMAP35XX_DMA_MMC2_RX          48
+#define OMAP35XX_DMA_UART1_TX         49
+#define OMAP35XX_DMA_UART1_RX         50
+#define OMAP35XX_DMA_UART2_TX         51
+#define OMAP35XX_DMA_UART2_RX         52
+#define OMAP35XX_DMA_UART3_TX         53
+#define OMAP35XX_DMA_UART3_RX         54
+
+#define OMAP35XX_DMA_MMC1_TX          61
+#define OMAP35XX_DMA_MMC1_RX          62
+#define OMAP35XX_DMA_MS               63
+#define OMAP35XX_DMA_EXT_DMAREQ3      64
+
+#define OMAP35XX_DMA_SPI4_TX0         70
+#define OMAP35XX_DMA_SPI4_RX0         71
+#define OMAP35XX_DMA_DSS0             72
+#define OMAP35XX_DMA_DSS1             73
+#define OMAP35XX_DMA_DSS2             74
+#define OMAP35XX_DMA_DSS3             75
+
+#define OMAP35XX_DMA_MMC3_TX          77
+#define OMAP35XX_DMA_MMC3_RX          78
+
+
 /* omap[123].c */
 struct omap_mpu_timer_s;
 struct omap_mpu_timer_s *omap_mpu_timer_init(target_phys_addr_t base,
@@ -635,6 +795,7 @@ struct omap_mpu_timer_s *omap_mpu_timer_init(target_phys_addr_t base,
 struct omap_gp_timer_s;
 struct omap_gp_timer_s *omap_gp_timer_init(struct omap_target_agent_s *ta,
                 qemu_irq irq, omap_clk fclk, omap_clk iclk);
+void omap_gp_timer_change_clk(struct omap_gp_timer_s *timer);
 
 struct omap_watchdog_timer_s;
 struct omap_watchdog_timer_s *omap_wd_timer_init(target_phys_addr_t base,
@@ -676,8 +837,13 @@ qemu_irq *omap_gpio_in_get(struct omap_gpio_s *s);
 void omap_gpio_out_set(struct omap_gpio_s *s, int line, qemu_irq handler);
 
 struct omap_gpif_s;
-struct omap_gpif_s *omap2_gpio_init(struct omap_target_agent_s *ta,
+struct omap_gpif_s *omap2_gpio_init(struct omap_mpu_state_s *mpu,
+                struct omap_target_agent_s *ta,
                 qemu_irq *irq, omap_clk *fclk, omap_clk iclk, int modules);
+struct omap_gpif_s *omap3_gpif_init(void);
+void omap3_gpio_init(struct omap_mpu_state_s *mpu,
+                     struct omap_gpif_s *s, struct omap_target_agent_s *ta,
+                     qemu_irq *irq, omap_clk *fclk, omap_clk iclk, int module_index);
 qemu_irq *omap2_gpio_in_get(struct omap_gpif_s *s, int start);
 void omap2_gpio_out_set(struct omap_gpif_s *s, int line, qemu_irq handler);
 
@@ -756,6 +922,15 @@ struct rfbi_chip_s {
     void (*block)(void *opaque, int dc, void *buf, size_t len, int pitch);
     uint16_t (*read)(void *opaque, int dc);
 };
+typedef void (*omap3_lcd_panel_fn_t)(uint8_t *, const uint8_t *, unsigned int);
+struct omap3_lcd_panel_s {
+    struct omap_dss_s *dss;
+    DisplayState *state;
+    QEMUConsole *console;
+    omap3_lcd_panel_fn_t *line_fn_tab[2];
+    omap3_lcd_panel_fn_t line_fn;
+    uint32_t invalidate;
+};
 struct omap_dss_s;
 void omap_dss_reset(struct omap_dss_s *s);
 struct omap_dss_s *omap_dss_init(struct omap_target_agent_s *ta,
@@ -764,6 +939,8 @@ struct omap_dss_s *omap_dss_init(struct omap_target_agent_s *ta,
                 omap_clk fck1, omap_clk fck2, omap_clk ck54m,
                 omap_clk ick1, omap_clk ick2);
 void omap_rfbi_attach(struct omap_dss_s *s, int cs, struct rfbi_chip_s *chip);
+void omap3_lcd_panel_attach(struct omap_dss_s *s, int cs, struct omap3_lcd_panel_s *lcd_panel);
+void *omap3_lcd_panel_init(DisplayState *ds);
 
 /* omap_mmc.c */
 struct omap_mmc_s;
@@ -777,14 +954,24 @@ void omap_mmc_reset(struct omap_mmc_s *s);
 void omap_mmc_handlers(struct omap_mmc_s *s, qemu_irq ro, qemu_irq cover);
 void omap_mmc_enable(struct omap_mmc_s *s, int enable);
 
+/* omap3_mmc.c */
+struct omap3_mmc_s;
+struct omap3_mmc_s *omap3_mmc_init(struct omap_target_agent_s *ta,
+                BlockDriverState *bd, qemu_irq irq, qemu_irq dma[],
+                omap_clk fclk, omap_clk iclk);
+
 /* omap_i2c.c */
 struct omap_i2c_s;
 struct omap_i2c_s *omap_i2c_init(target_phys_addr_t base,
                 qemu_irq irq, qemu_irq *dma, omap_clk clk);
 struct omap_i2c_s *omap2_i2c_init(struct omap_target_agent_s *ta,
                 qemu_irq irq, qemu_irq *dma, omap_clk fclk, omap_clk iclk);
+struct omap_i2c_s *omap3_i2c_init(struct omap_target_agent_s *ta,
+                qemu_irq irq, qemu_irq *dma, omap_clk fclk, omap_clk iclk,
+                int fifosize);
 void omap_i2c_reset(struct omap_i2c_s *s);
 i2c_bus *omap_i2c_bus(struct omap_i2c_s *s);
+
 
 # define cpu_is_omap310(cpu)		(cpu->mpu_model == omap310)
 # define cpu_is_omap1510(cpu)		(cpu->mpu_model == omap1510)
@@ -794,6 +981,7 @@ i2c_bus *omap_i2c_bus(struct omap_i2c_s *s);
 # define cpu_is_omap2420(cpu)		(cpu->mpu_model == omap2420)
 # define cpu_is_omap2430(cpu)		(cpu->mpu_model == omap2430)
 # define cpu_is_omap3430(cpu)		(cpu->mpu_model == omap3430)
+# define cpu_is_omap3530(cpu)       (cpu->mpu_model == omap3530)
 
 # define cpu_is_omap15xx(cpu)		\
         (cpu_is_omap310(cpu) || cpu_is_omap1510(cpu))
@@ -805,7 +993,8 @@ i2c_bus *omap_i2c_bus(struct omap_i2c_s *s);
 # define cpu_class_omap1(cpu)		\
         (cpu_is_omap15xx(cpu) || cpu_is_omap16xx(cpu))
 # define cpu_class_omap2(cpu)		cpu_is_omap24xx(cpu)
-# define cpu_class_omap3(cpu)		cpu_is_omap3430(cpu)
+# define cpu_class_omap3(cpu)		\
+        (cpu_is_omap3430(cpu) || cpu_is_omap3530(cpu))
 
 struct omap_mpu_state_s {
     enum omap_mpu_model {
@@ -819,6 +1008,7 @@ struct omap_mpu_state_s {
         omap2423,
         omap2430,
         omap3430,
+        omap3530,
     } mpu_model;
 
     CPUState *env;
@@ -851,7 +1041,7 @@ struct omap_mpu_state_s {
     /* MPU public TIPB peripherals */
     struct omap_32khz_timer_s *os_timer;
 
-    struct omap_mmc_s *mmc;
+    struct omap_mmc_s *mmc[2];
 
     struct omap_mpuio_s *mpuio;
 
@@ -871,7 +1061,7 @@ struct omap_mpu_state_s {
         omap_clk clk;
     } pwt;
 
-    struct omap_i2c_s *i2c[2];
+    struct omap_i2c_s *i2c[3];
 
     struct omap_rtc_s *rtc;
 
@@ -938,6 +1128,7 @@ struct omap_mpu_state_s {
     struct omap_synctimer_s {
         uint32_t val;
         uint16_t readh;
+        uint32_t sysconfig; /*OMAP3*/
     } synctimer;
 
     struct omap_prcm_s *prcm;
@@ -952,6 +1143,45 @@ struct omap_mpu_state_s {
     struct omap_dss_s *dss;
 
     struct omap_eac_s *eac;
+    
+    /* OMAP3-only */
+    struct omap3_prm_s *omap3_prm;
+    struct omap3_cm_s *omap3_cm;
+    struct omap3_wdt_s *omap3_mpu_wdt;
+    struct omap3_scm_s *omap3_scm;
+    struct omap3_pm_s *omap3_pm;
+    struct omap3_sms_s *omap3_sms;
+    struct omap3_mmc_s *omap3_mmc[3];
+};
+
+struct omap_target_agent_s {
+    struct omap_l4_s *bus;
+    int regions;
+    struct omap_l4_region_s *start;
+    target_phys_addr_t base;
+    uint32_t component;
+    uint32_t control;
+    uint32_t control_h; /* OMAP3 */
+    uint32_t status;
+};
+
+struct omap_l4_s {
+    target_phys_addr_t base;
+    int ta_num;
+    struct omap_target_agent_s ta[0];
+};
+
+struct omap_l4_region_s {
+    target_phys_addr_t offset;
+    size_t size;
+    int access;
+};
+
+struct omap_l4_agent_info_s {
+    int ta;
+    int region;
+    int regions;
+    int ta_region;
 };
 
 /* omap1.c */
@@ -962,10 +1192,17 @@ struct omap_mpu_state_s *omap310_mpu_init(unsigned long sdram_size,
 struct omap_mpu_state_s *omap2420_mpu_init(unsigned long sdram_size,
                 DisplayState *ds, const char *core);
 
+/* omap3.c */
+struct omap_mpu_state_s *omap3530_mpu_init(unsigned long sdram_size,
+                DisplayState *ds, const char *core);
+void omap3_set_mem_type(struct omap_mpu_state_s *s, int bootfrom);
+void omap3_set_device_type(struct omap_mpu_state_s *s, int device_type);
+int omap3_mmc_boot(struct omap_mpu_state_s *s);
+
 # if TARGET_PHYS_ADDR_BITS == 32
-#  define OMAP_FMT_plx "%#08x"
+#  define OMAP_FMT_plx "0x%08x"
 # elif TARGET_PHYS_ADDR_BITS == 64
-#  define OMAP_FMT_plx "%#08" PRIx64
+#  define OMAP_FMT_plx "0x%08" PRIx64
 # else
 #  error TARGET_PHYS_ADDR_BITS undefined
 # endif
@@ -985,9 +1222,15 @@ void omap_mpu_wakeup(void *opaque, int irq, int req);
 # define OMAP_BAD_REG(paddr)		\
         fprintf(stderr, "%s: Bad register " OMAP_FMT_plx "\n",	\
                         __FUNCTION__, paddr)
+# define OMAP_BAD_REGV(paddr, value) \
+        fprintf(stderr, "%s: Bad register " OMAP_FMT_plx " (value " OMAP_FMT_plx ")\n", \
+                __FUNCTION__, paddr, value)
 # define OMAP_RO_REG(paddr)		\
         fprintf(stderr, "%s: Read-only register " OMAP_FMT_plx "\n",	\
                         __FUNCTION__, paddr)
+# define OMAP_RO_REGV(paddr, value) \
+        fprintf(stderr, "%s: Read-only register " OMAP_FMT_plx " (value " OMAP_FMT_plx ")\n", \
+                __FUNCTION__, paddr, value)
 
 /* OMAP-specific Linux bootloader tags for the ATAG_BOARD area
    (Board-specifc tags are not here)  */

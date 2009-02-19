@@ -6015,11 +6015,22 @@ static void disas_arm_insn(CPUState * env, DisasContext *s)
             dead_tmp(tmp2);
             store_reg(s, rd, tmp);
             break;
-        case 7: /* bkpt */
-            gen_set_condexec(s);
-            gen_set_pc_im(s->pc - 4);
-            gen_exception(EXCP_BKPT);
-            s->is_jmp = DISAS_JUMP;
+        case 7:
+            if (op1 == 1) {
+                /* bkpt */
+                gen_set_condexec(s);
+                gen_set_pc_im(s->pc - 4);
+                gen_exception(EXCP_BKPT);
+                s->is_jmp = DISAS_JUMP;
+            } else if (op1 == 3) {
+                /* smi/smc */
+                if (!(env->cp15.c0_c2[4] & 0xf000))
+                    goto illegal_op;
+                fprintf(stderr,"smc [0x%08x] pc=0x%08x\n", insn, s->pc);
+                /* unsupported at the moment, ignore. */
+            } else {
+                goto illegal_op;
+            }
             break;
         case 0x8: /* signed multiply */
         case 0xa:

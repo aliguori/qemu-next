@@ -37,7 +37,7 @@
 
 #ifdef DEBUG_SD
 #define DPRINTF(fmt, args...) \
-do { fprintf(stderr, "SD: " fmt , ##args); } while (0)
+do { fprintf(stderr, "%s: " fmt , __FUNCTION__, ##args); } while (0)
 #else
 #define DPRINTF(fmt, args...) do {} while(0)
 #endif
@@ -195,13 +195,13 @@ static uint16_t sd_crc16(void *message, size_t width)
 static void sd_set_ocr(SDState *sd)
 {
     /* All voltages OK, card power-up OK, Standard Capacity SD Memory Card */
-    sd->ocr = 0x80ffff80;
+    sd->ocr = 0x80ffff00;
 }
 
 static void sd_set_scr(SDState *sd)
 {
-    sd->scr[0] = 0x00;		/* SCR Structure */
-    sd->scr[1] = 0x2f;		/* SD Security Support */
+    sd->scr[0] = 0x00; /* SCR v1.0, SD spec v1.0/1.01 */
+    sd->scr[1] = 0x25; /* erase=0, SD security v1.01, 1bit/4bit bus width */
     sd->scr[2] = 0x00;
     sd->scr[3] = 0x00;
     sd->scr[4] = 0x00;
@@ -1308,8 +1308,8 @@ int sd_do_command(SDState *sd, struct sd_request_s *req,
         int i;
         DPRINTF("Response:");
         for (i = 0; i < rsplen; i++)
-            printf(" %02x", response[i]);
-        printf(" state %d\n", sd->state);
+            fprintf(stderr, " %02x", response[i]);
+        fprintf(stderr, " state %d\n", sd->state);
     } else {
         DPRINTF("No response %d\n", sd->state);
     }
@@ -1506,7 +1506,7 @@ uint8_t sd_read_data(SDState *sd)
         return 0x00;
 
     if (sd->state != sd_sendingdata_state) {
-        fprintf(stderr, "sd_read_data: not in Sending-Data state\n");
+        fprintf(stderr, "sd_read_data: not in Sending-Data state (state=%d)\n", sd->state);
         return 0x00;
     }
 

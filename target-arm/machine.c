@@ -23,6 +23,7 @@ void register_machines(void)
     qemu_register_machine(&mainstone2_machine);
     qemu_register_machine(&musicpal_machine);
     qemu_register_machine(&tosapda_machine);
+    qemu_register_machine(&beagle_machine);
 }
 
 void cpu_save(QEMUFile *f, void *opaque)
@@ -49,6 +50,9 @@ void cpu_save(QEMUFile *f, void *opaque)
     qemu_put_be32(f, env->cp15.c1_sys);
     qemu_put_be32(f, env->cp15.c1_coproc);
     qemu_put_be32(f, env->cp15.c1_xscaleauxcr);
+    qemu_put_be32(f, env->cp15.c1_secfg);
+    qemu_put_be32(f, env->cp15.c1_sedbg);
+    qemu_put_be32(f, env->cp15.c1_nseac);
     qemu_put_be32(f, env->cp15.c2_base0);
     qemu_put_be32(f, env->cp15.c2_base1);
     qemu_put_be32(f, env->cp15.c2_mask);
@@ -144,6 +148,9 @@ int cpu_load(QEMUFile *f, void *opaque, int version_id)
     env->cp15.c1_sys = qemu_get_be32(f);
     env->cp15.c1_coproc = qemu_get_be32(f);
     env->cp15.c1_xscaleauxcr = qemu_get_be32(f);
+    env->cp15.c1_secfg = qemu_get_be32(f);
+    env->cp15.c1_sedbg = qemu_get_be32(f);
+    env->cp15.c1_nseac = qemu_get_be32(f);
     env->cp15.c2_base0 = qemu_get_be32(f);
     env->cp15.c2_base1 = qemu_get_be32(f);
     env->cp15.c2_mask = qemu_get_be32(f);

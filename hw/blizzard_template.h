@@ -68,6 +68,28 @@ static void glue(blizzard_draw_line16_, DEPTH)(PIXEL_TYPE *dest,
 #endif
 }
 
+static void glue(blizzard_draw_line16_bgr_, DEPTH)(PIXEL_TYPE *dest,
+											   const uint16_t *src, unsigned int width)
+{
+#if !defined(SWAP_WORDS) && DEPTH == 16
+    memcpy(dest, src, width);
+#else
+    uint16_t data;
+    unsigned int r, g, b;
+    const uint16_t *end = (const void *) src + width;
+    while (src < end) {
+        data = lduw_raw(src ++);
+        r = (data & 0x1f) << 3;
+        data >>= 5;
+        g = (data & 0x3f) << 2;
+        data >>= 6;
+        b = (data & 0x1f) << 3;
+        data >>= 5;
+        COPY_PIXEL1(dest, glue(rgb_to_pixel, DEPTH)(r, g, b));
+    }
+#endif
+}
+
 static void glue(blizzard_draw_line24mode1_, DEPTH)(PIXEL_TYPE *dest,
                 const uint8_t *src, unsigned int width)
 {
@@ -87,6 +109,25 @@ static void glue(blizzard_draw_line24mode1_, DEPTH)(PIXEL_TYPE *dest,
     }
 }
 
+static void glue(blizzard_draw_line24mode1_bgr_, DEPTH)(PIXEL_TYPE *dest,
+													const uint8_t *src, unsigned int width)
+{
+    /* TODO: check if SDL 24-bit planes are not in the same format and
+     * if so, use memcpy */
+    unsigned int r[2], g[2], b[2];
+    const uint8_t *end = src + width;
+    while (src < end) {
+        g[0] = *src ++;
+        b[0] = *src ++;
+        b[1] = *src ++;
+        r[0] = *src ++;
+        COPY_PIXEL1(dest, glue(rgb_to_pixel, DEPTH)(r[0], g[0], b[0]));
+        r[1] = *src ++;
+        g[1] = *src ++;
+        COPY_PIXEL1(dest, glue(rgb_to_pixel, DEPTH)(r[1], g[1], b[1]));
+    }
+}
+
 static void glue(blizzard_draw_line24mode2_, DEPTH)(PIXEL_TYPE *dest,
                 const uint8_t *src, unsigned int width)
 {
@@ -96,6 +137,20 @@ static void glue(blizzard_draw_line24mode2_, DEPTH)(PIXEL_TYPE *dest,
         r = *src ++;
         src ++;
         b = *src ++;
+        g = *src ++;
+        COPY_PIXEL1(dest, glue(rgb_to_pixel, DEPTH)(r, g, b));
+    }
+}
+
+static void glue(blizzard_draw_line24mode2_bgr_, DEPTH)(PIXEL_TYPE *dest,
+													const uint8_t *src, unsigned int width)
+{
+    unsigned int r, g, b;
+    const uint8_t *end = src + width;
+    while (src < end) {
+        b = *src ++;
+        src ++;
+        r = *src ++;
         g = *src ++;
         COPY_PIXEL1(dest, glue(rgb_to_pixel, DEPTH)(r, g, b));
     }
@@ -122,8 +177,35 @@ static blizzard_fn_t glue(blizzard_draw_fn_, DEPTH)[0x10] = {
     NULL, NULL, NULL, NULL, NULL, NULL,
 };
 
+/* No rotation, BGR */
+static blizzard_fn_t glue(blizzard_draw_fn_bgr_, DEPTH)[0x10] = {
+    NULL,
+    /* RGB 5:6:5*/
+    (blizzard_fn_t) glue(blizzard_draw_line16_bgr_, DEPTH),
+    /* RGB 6:6:6 mode 1 */
+    (blizzard_fn_t) glue(blizzard_draw_line24mode1_bgr_, DEPTH),
+    /* RGB 8:8:8 mode 1 */
+    (blizzard_fn_t) glue(blizzard_draw_line24mode1_bgr_, DEPTH),
+    NULL, NULL,
+    /* RGB 6:6:6 mode 2 */
+    (blizzard_fn_t) glue(blizzard_draw_line24mode2_bgr_, DEPTH),
+    /* RGB 8:8:8 mode 2 */
+    (blizzard_fn_t) glue(blizzard_draw_line24mode2_bgr_, DEPTH),
+    /* YUV 4:2:2 */
+    NULL,
+    /* YUV 4:2:0 */
+    NULL,
+    NULL, NULL, NULL, NULL, NULL, NULL,
+};
+
 /* 90deg, 180deg and 270deg rotation */
 static blizzard_fn_t glue(blizzard_draw_fn_r_, DEPTH)[0x10] = {
+    /* TODO */
+    [0 ... 0xf] = NULL,
+};
+
+/* 90deg, 180deg and 270deg rotation, BGR */
+static blizzard_fn_t glue(blizzard_draw_fn_r_bgr_, DEPTH)[0x10] = {
     /* TODO */
     [0 ... 0xf] = NULL,
 };

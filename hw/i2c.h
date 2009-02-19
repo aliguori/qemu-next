@@ -87,4 +87,8 @@ void tmp105_set(i2c_slave *i2c, int temp);
 struct i2c_slave *lm8323_init(i2c_bus *bus, qemu_irq nirq);
 void lm832x_key_event(struct i2c_slave *i2c, int key, int state);
 
+/* twl4030.c */
+struct twl4030_s;
+struct twl4030_s *twl4030_init(i2c_bus *bus, qemu_irq irq);
+
 #endif

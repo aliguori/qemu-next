@@ -1825,7 +1825,7 @@ static uint32_t omap_dma4_read(void *opaque, target_phys_addr_t addr)
         return ch->color;
 
     default:
-        OMAP_BAD_REG(addr);
+        OMAP_BAD_REG(0x80 + chnum * 0x60 + addr);
         return 0;
     }
 }
@@ -1931,7 +1931,10 @@ static void omap_dma4_write(void *opaque, target_phys_addr_t addr,
         break;
 
     case 0x08:	/* DMA4_CICR */
-        ch->interrupts = value & 0x09be;
+        if (cpu_class_omap3(s->mpu))
+            ch->interrupts = value & 0x1dbe;
+        else
+            ch->interrupts = value & 0x09be;
         break;
 
     case 0x0c:	/* DMA4_CSR */
@@ -2010,11 +2013,11 @@ static void omap_dma4_write(void *opaque, target_phys_addr_t addr,
     case 0x38:	/* DMA4_CDAC */
     case 0x3c:	/* DMA4_CCEN */
     case 0x40:	/* DMA4_CCFN */
-        OMAP_RO_REG(addr);
+        OMAP_RO_REG(0x80 + chnum * 0x60 + addr);
         break;
 
     default:
-        OMAP_BAD_REG(addr);
+        OMAP_BAD_REG(0x80 + chnum * 0x60 + addr);
     }
 }
 
