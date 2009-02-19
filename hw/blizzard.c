@@ -967,24 +967,24 @@ void *s1d13745_init(qemu_irq gpio_int, DisplayState *ds)
                 qemu_mallocz(sizeof(blizzard_fn_t) * 0x10);
         break;
     case 8:
-        s->line_fn_tab[0] = ds->bgr ? blizzard_draw_fn_bgr_8 : blizzard_draw_fn_8;
-        s->line_fn_tab[1] = ds->bgr ? blizzard_draw_fn_r_bgr_8 : blizzard_draw_fn_r_8;
+        s->line_fn_tab[0] = blizzard_draw_fn_8;
+        s->line_fn_tab[1] = blizzard_draw_fn_r_8;
         break;
     case 15:
-        s->line_fn_tab[0] = ds->bgr ? blizzard_draw_fn_bgr_15 : blizzard_draw_fn_15;
-        s->line_fn_tab[1] = ds->bgr ? blizzard_draw_fn_r_bgr_15 : blizzard_draw_fn_r_15;
+        s->line_fn_tab[0] = blizzard_draw_fn_15;
+        s->line_fn_tab[1] = blizzard_draw_fn_r_15;
         break;
     case 16:
-        s->line_fn_tab[0] = ds->bgr ? blizzard_draw_fn_bgr_16 : blizzard_draw_fn_16;
-        s->line_fn_tab[1] = ds->bgr ? blizzard_draw_fn_r_bgr_16 : blizzard_draw_fn_r_16;
+        s->line_fn_tab[0] = blizzard_draw_fn_16;
+        s->line_fn_tab[1] = blizzard_draw_fn_r_16;
         break;
     case 24:
-        s->line_fn_tab[0] = ds->bgr ? blizzard_draw_fn_bgr_24 : blizzard_draw_fn_24;
-        s->line_fn_tab[1] = ds->bgr ? blizzard_draw_fn_r_bgr_24 : blizzard_draw_fn_r_24;
+        s->line_fn_tab[0] = blizzard_draw_fn_24;
+        s->line_fn_tab[1] = blizzard_draw_fn_r_24;
         break;
     case 32:
-        s->line_fn_tab[0] = ds->bgr ? blizzard_draw_fn_bgr_32 : blizzard_draw_fn_32;
-        s->line_fn_tab[1] = ds->bgr ? blizzard_draw_fn_r_bgr_32 : blizzard_draw_fn_r_32;
+        s->line_fn_tab[0] = blizzard_draw_fn_32;
+        s->line_fn_tab[1] = blizzard_draw_fn_r_32;
         break;
     default:
         fprintf(stderr, "%s: Bad color depth\n", __FUNCTION__);
