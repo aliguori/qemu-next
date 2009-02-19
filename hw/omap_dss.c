@@ -1068,10 +1068,10 @@ static CPUWriteMemoryFunc *omap_im3_writefn[] = {
 };
 
 struct omap_dss_s *omap_dss_init(struct omap_target_agent_s *ta,
-                target_phys_addr_t l3_base,
-                qemu_irq irq, qemu_irq drq,
-                omap_clk fck1, omap_clk fck2, omap_clk ck54m,
-                omap_clk ick1, omap_clk ick2)
+                                 target_phys_addr_t l3_base,
+                                 qemu_irq irq, qemu_irq drq,
+                                 omap_clk fck1, omap_clk fck2, omap_clk ck54m,
+                                 omap_clk ick1, omap_clk ick2, int region_base)
 {
     int iomemtype[6];
     struct omap_dss_s *s = (struct omap_dss_s *)
@@ -1092,10 +1092,10 @@ struct omap_dss_s *omap_dss_init(struct omap_target_agent_s *ta,
     iomemtype[4] = cpu_register_io_memory(0, omap_im3_readfn,
                                           omap_im3_writefn, s);
     /* TODO: DSI */
-    omap_l4_attach(ta, 1, iomemtype[0]);
-    omap_l4_attach(ta, 2, iomemtype[1]);
-    omap_l4_attach(ta, 3, iomemtype[2]);
-    omap_l4_attach(ta, 4, iomemtype[3]);
+    omap_l4_attach(ta, region_base+0, iomemtype[0]);
+    omap_l4_attach(ta, region_base+1, iomemtype[1]);
+    omap_l4_attach(ta, region_base+2, iomemtype[2]);
+    omap_l4_attach(ta, region_base+3, iomemtype[3]);
     cpu_register_physical_memory(l3_base, 0x1000, iomemtype[4]);
 
 #if 0

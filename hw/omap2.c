@@ -4989,7 +4989,7 @@ struct omap_mpu_state_s *omap2420_mpu_init(unsigned long sdram_size,
                     omap_findclk(s, "dss_clk1"), omap_findclk(s, "dss_clk2"),
                     omap_findclk(s, "dss_54m_clk"),
                     omap_findclk(s, "dss_l3_iclk"),
-                    omap_findclk(s, "dss_l4_iclk"));
+                    omap_findclk(s, "dss_l4_iclk"),0);
 
     omap_sti_init(omap_l4ta(s->l4, 18), 0x54000000,
                     s->irq[0][OMAP_INT_24XX_STI], omap_findclk(s, "emul_ck"),

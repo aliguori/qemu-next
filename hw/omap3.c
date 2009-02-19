@@ -4161,7 +4161,7 @@ struct omap_mpu_state_s *omap3530_mpu_init(unsigned long sdram_size,
 
     s->dss = omap_dss_init(omap3_l4ta_get(s->l4, L4A_DSS), 0x68005400, 
                     s->irq[0][OMAP_INT_35XX_DSS_IRQ], s->drq[OMAP24XX_DMA_DSS],
-                   NULL,NULL,NULL,NULL,NULL);
+                   NULL,NULL,NULL,NULL,NULL,1);
 
     //gpio_clks[0] = NULL;
     //gpio_clks[1] = NULL;
