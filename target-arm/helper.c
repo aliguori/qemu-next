@@ -185,6 +185,12 @@ static void cpu_reset_model_id(CPUARMState *env, uint32_t id)
 void cpu_reset(CPUARMState *env)
 {
     uint32_t id;
+
+    if (qemu_loglevel_mask(CPU_LOG_RESET)) {
+        qemu_log("CPU Reset (CPU %d)\n", env->cpu_index);
+        log_cpu_state(env, 0);
+    }
+
     id = env->cp15.c0_cpuid;
     memset(env, 0, offsetof(CPUARMState, breakpoints));
     if (id)
@@ -268,8 +274,6 @@ CPUARMState *cpu_arm_init(const char *cpu_model)
     if (id == 0)
         return NULL;
     env = qemu_mallocz(sizeof(CPUARMState));
-    if (!env)
-        return NULL;
     cpu_exec_init(env);
     if (!inited) {
         inited = 1;
@@ -489,8 +493,6 @@ int cpu_arm_handle_mmu_fault (CPUState *env, target_ulong address, int rw,
 static void allocate_mmon_state(CPUState *env)
 {
     env->mmon_entry = malloc(sizeof (mmon_state));
-    if (!env->mmon_entry)
-        abort();
     memset (env->mmon_entry, 0, sizeof (mmon_state));
     env->mmon_entry->cpu_env = env;
     mmon_head = env->mmon_entry;

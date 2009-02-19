@@ -25,6 +25,7 @@
 #include "hw.h"
 #include "ppc.h"
 #include "ppc_mac.h"
+#include "mac_dbdma.h"
 #include "nvram.h"
 #include "pc.h"
 #include "sysemu.h"
@@ -108,7 +109,7 @@ static int vga_osi_call (CPUState *env)
 }
 
 static void ppc_heathrow_init (ram_addr_t ram_size, int vga_ram_size,
-                               const char *boot_device, DisplayState *ds,
+                               const char *boot_device,
                                const char *kernel_filename,
                                const char *kernel_cmdline,
                                const char *initrd_filename,
@@ -121,17 +122,18 @@ static void ppc_heathrow_init (ram_addr_t ram_size, int vga_ram_size,
     m48t59_t *m48t59;
     int linux_boot, i;
     ram_addr_t ram_offset, vga_ram_offset, bios_offset, vga_bios_offset;
-    uint32_t kernel_base, kernel_size, initrd_base, initrd_size;
+    uint32_t kernel_base, initrd_base;
+    int32_t kernel_size, initrd_size;
     PCIBus *pci_bus;
     MacIONVRAMState *nvr;
     int vga_bios_size, bios_size;
-    qemu_irq *dummy_irq;
     int pic_mem_index, nvram_mem_index, dbdma_mem_index, cuda_mem_index;
     int escc_mem_index, ide_mem_index[2];
     int ppc_boot_device;
     BlockDriverState *hd[MAX_IDE_BUS * MAX_IDE_DEVS];
     int index;
     void *fw_cfg;
+    void *dbdma;
 
     linux_boot = (kernel_filename != NULL);
 
@@ -144,18 +146,11 @@ static void ppc_heathrow_init (ram_addr_t ram_size, int vga_ram_size,
             fprintf(stderr, "Unable to find PowerPC CPU definition\n");
             exit(1);
         }
-        /* Set time-base frequency to 100 Mhz */
-        cpu_ppc_tb_init(env, 100UL * 1000UL * 1000UL);
+        /* Set time-base frequency to 16.6 Mhz */
+        cpu_ppc_tb_init(env,  16600000UL);
         env->osi_call = vga_osi_call;
         qemu_register_reset(&cpu_ppc_reset, env);
         envs[i] = env;
-    }
-    if (env->nip < 0xFFF80000) {
-        /* Special test for PowerPC 601:
-         * the boot vector is at 0xFFF00100, then we need a 1MB BIOS.
-         * But the NVRAM is located at 0xFFF04000...
-         */
-        cpu_abort(env, "G3 Beige Mac hardware can not handle 1 MB BIOS\n");
     }
 
     /* allocate RAM */
@@ -207,10 +202,16 @@ static void ppc_heathrow_init (ram_addr_t ram_size, int vga_ram_size,
     }
 
     if (linux_boot) {
+        uint64_t lowaddr = 0;
         kernel_base = KERNEL_LOAD_ADDR;
-        /* now we can load the kernel */
-        kernel_size = load_elf(kernel_filename, kernel_base - 0xc0000000ULL,
-                               NULL, NULL, NULL);
+        /* Now we can load the kernel. The first step tries to load the kernel
+           supposing PhysAddr = 0x00000000. If that was wrong the kernel is
+           loaded again, the new PhysAddr being computed from lowaddr. */
+        kernel_size = load_elf(kernel_filename, kernel_base, NULL, &lowaddr, NULL);
+        if (kernel_size > 0 && lowaddr != KERNEL_LOAD_ADDR) {
+            kernel_size = load_elf(kernel_filename, (2 * kernel_base) - lowaddr,
+                                   NULL, 0, NULL);
+        }
         if (kernel_size < 0)
             kernel_size = load_aout(kernel_filename, kernel_base,
                                     ram_size - kernel_base);
@@ -297,14 +298,11 @@ static void ppc_heathrow_init (ram_addr_t ram_size, int vga_ram_size,
     }
     pic = heathrow_pic_init(&pic_mem_index, 1, heathrow_irqs);
     pci_bus = pci_grackle_init(0xfec00000, pic);
-    pci_vga_init(pci_bus, ds, phys_ram_base + vga_ram_offset,
+    pci_vga_init(pci_bus, phys_ram_base + vga_ram_offset,
                  vga_ram_offset, vga_ram_size,
                  vga_bios_offset, vga_bios_size);
 
-    /* XXX: suppress that */
-    dummy_irq = i8259_init(NULL);
-
-    escc_mem_index = escc_init(0x80013000, pic[0x10], serial_hds[0],
+    escc_mem_index = escc_init(0x80013000, pic[0x0f], pic[0x10], serial_hds[0],
                                serial_hds[1], ESCC_CLOCK, 4);
 
     for(i = 0; i < nb_nics; i++)
@@ -340,8 +338,11 @@ static void ppc_heathrow_init (ram_addr_t ram_size, int vga_ram_size,
         hd[1] = NULL;
     else
         hd[1] =  drives_table[index].bdrv;
+
+    dbdma = DBDMA_init(&dbdma_mem_index);
+
     ide_mem_index[0] = -1;
-    ide_mem_index[1] = pmac_ide_init(hd, pic[0x0D]);
+    ide_mem_index[1] = pmac_ide_init(hd, pic[0x0D], dbdma, 0x16, pic[0x02]);
 
     /* cuda also initialize ADB */
     cuda_init(&cuda_mem_index, pic[0x12]);
@@ -349,13 +350,12 @@ static void ppc_heathrow_init (ram_addr_t ram_size, int vga_ram_size,
     adb_kbd_init(&adb_bus);
     adb_mouse_init(&adb_bus);
 
-    nvr = macio_nvram_init(&nvram_mem_index, 0x2000);
+    nvr = macio_nvram_init(&nvram_mem_index, 0x2000, 4);
     pmac_format_nvram_partition(nvr, 0x2000);
 
-    dbdma_init(&dbdma_mem_index);
-
-    macio_init(pci_bus, 0x0010, 1, pic_mem_index, dbdma_mem_index,
-               cuda_mem_index, nvr, 2, ide_mem_index, escc_mem_index);
+    macio_init(pci_bus, PCI_DEVICE_ID_APPLE_343S1201, 1, pic_mem_index,
+               dbdma_mem_index, cuda_mem_index, nvr, 2, ide_mem_index,
+               escc_mem_index);
 
     if (usb_enabled) {
         usb_ohci_init_pci(pci_bus, 3, -1);
@@ -364,7 +364,7 @@ static void ppc_heathrow_init (ram_addr_t ram_size, int vga_ram_size,
     if (graphic_depth != 15 && graphic_depth != 32 && graphic_depth != 8)
         graphic_depth = 15;
 
-    m48t59 = m48t59_init(dummy_irq[8], 0xFFF04000, 0x0074, NVRAM_SIZE, 59);
+    m48t59 = m48t59_init(0, 0xFFF04000, 0x0074, NVRAM_SIZE, 59);
     nvram.opaque = m48t59;
     nvram.read_fn = &m48t59_read;
     nvram.write_fn = &m48t59_write;
@@ -376,9 +376,6 @@ static void ppc_heathrow_init (ram_addr_t ram_size, int vga_ram_size,
                          0,
                          graphic_width, graphic_height, graphic_depth);
     /* No PCI init: the BIOS will do it */
-
-    /* Special port to get debug messages from Open-Firmware */
-    register_ioport_write(0x0F00, 4, 1, &PPC_debug_write, NULL);
 
     fw_cfg = fw_cfg_init(0, 0, CFG_ADDR, CFG_ADDR + 2);
     fw_cfg_add_i32(fw_cfg, FW_CFG_ID, 1);

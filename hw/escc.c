@@ -719,15 +719,14 @@ static int escc_load(QEMUFile *f, void *opaque, int version_id)
 
 }
 
-int escc_init(target_phys_addr_t base, qemu_irq irq, CharDriverState *chrA,
-              CharDriverState *chrB, int clock, int it_shift)
+int escc_init(target_phys_addr_t base, qemu_irq irqA, qemu_irq irqB,
+              CharDriverState *chrA, CharDriverState *chrB,
+              int clock, int it_shift)
 {
     int escc_io_memory, i;
     SerialState *s;
 
     s = qemu_mallocz(sizeof(SerialState));
-    if (!s)
-        return 0;
 
     escc_io_memory = cpu_register_io_memory(0, escc_mem_read,
                                             escc_mem_write,
@@ -741,9 +740,10 @@ int escc_init(target_phys_addr_t base, qemu_irq irq, CharDriverState *chrA,
     s->chn[1].chr = chrA;
     s->chn[0].disabled = 0;
     s->chn[1].disabled = 0;
+    s->chn[0].irq = irqB;
+    s->chn[1].irq = irqA;
 
     for (i = 0; i < 2; i++) {
-        s->chn[i].irq = irq;
         s->chn[i].chn = 1 - i;
         s->chn[i].type = ser;
         s->chn[i].clock = clock / 2;
@@ -907,8 +907,6 @@ void slavio_serial_ms_kbd_init(target_phys_addr_t base, qemu_irq irq,
     SerialState *s;
 
     s = qemu_mallocz(sizeof(SerialState));
-    if (!s)
-        return;
 
     s->it_shift = it_shift;
     for (i = 0; i < 2; i++) {

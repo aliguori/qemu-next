@@ -13,6 +13,7 @@
 #include "hw.h"
 #include "pci.h"
 #include "scsi-disk.h"
+#include "block_int.h"
 
 //#define DEBUG_LSI
 //#define DEBUG_LSI_REG
@@ -1314,6 +1315,11 @@ again:
 static uint8_t lsi_reg_readb(LSIState *s, int offset)
 {
     uint8_t tmp;
+#define CASE_GET_REG24(name, addr) \
+    case addr: return s->name & 0xff; \
+    case addr + 1: return (s->name >> 8) & 0xff; \
+    case addr + 2: return (s->name >> 16) & 0xff;
+
 #define CASE_GET_REG32(name, addr) \
     case addr: return s->name & 0xff; \
     case addr + 1: return (s->name >> 8) & 0xff; \
@@ -1389,12 +1395,7 @@ static uint8_t lsi_reg_readb(LSIState *s, int offset)
         return s->ctest5;
     case 0x23: /* CTEST6 */
          return 0;
-    case 0x24: /* DBC[0:7] */
-        return s->dbc & 0xff;
-    case 0x25: /* DBC[8:15] */
-        return (s->dbc >> 8) & 0xff;
-    case 0x26: /* DBC[16->23] */
-        return (s->dbc >> 16) & 0xff;
+    CASE_GET_REG24(dbc, 0x24)
     case 0x27: /* DCMD */
         return s->dcmd;
     CASE_GET_REG32(dsp, 0x2c)
@@ -1477,6 +1478,7 @@ static uint8_t lsi_reg_readb(LSIState *s, int offset)
     }
     BADF("readb 0x%x\n", offset);
     exit(1);
+#undef CASE_GET_REG24
 #undef CASE_GET_REG32
 }
 
@@ -1957,11 +1959,25 @@ void lsi_scsi_attach(void *opaque, BlockDriverState *bd, int id)
     s->scsi_dev[id] = scsi_generic_init(bd, 1, lsi_command_complete, s);
     if (s->scsi_dev[id] == NULL)
         s->scsi_dev[id] = scsi_disk_init(bd, 1, lsi_command_complete, s);
+    bd->private = &s->pci_dev;
+}
+
+static int lsi_scsi_uninit(PCIDevice *d)
+{
+    LSIState *s = (LSIState *) d;
+
+    cpu_unregister_io_memory(s->mmio_io_addr);
+    cpu_unregister_io_memory(s->ram_io_addr);
+
+    qemu_free(s->queue);
+
+    return 0;
 }
 
 void *lsi_scsi_init(PCIBus *bus, int devfn)
 {
     LSIState *s;
+    uint8_t *pci_conf;
 
     s = (LSIState *)pci_register_device(bus, "LSI53C895A SCSI HBA",
                                         sizeof(*s), devfn, NULL, NULL);
@@ -1970,21 +1986,21 @@ void *lsi_scsi_init(PCIBus *bus, int devfn)
         return NULL;
     }
 
+    pci_conf = s->pci_dev.config;
+
     /* PCI Vendor ID (word) */
-    s->pci_dev.config[0x00] = 0x00;
-    s->pci_dev.config[0x01] = 0x10;
+    pci_config_set_vendor_id(pci_conf, PCI_VENDOR_ID_LSI_LOGIC);
     /* PCI device ID (word) */
-    s->pci_dev.config[0x02] = 0x12;
-    s->pci_dev.config[0x03] = 0x00;
+    pci_config_set_device_id(pci_conf, PCI_DEVICE_ID_LSI_53C895A);
     /* PCI base class code */
-    s->pci_dev.config[0x0b] = 0x01;
+    pci_config_set_class(pci_conf, PCI_CLASS_STORAGE_SCSI);
     /* PCI subsystem ID */
-    s->pci_dev.config[0x2e] = 0x00;
-    s->pci_dev.config[0x2f] = 0x10;
+    pci_conf[0x2e] = 0x00;
+    pci_conf[0x2f] = 0x10;
     /* PCI latency timer = 255 */
-    s->pci_dev.config[0x0d] = 0xff;
+    pci_conf[0x0d] = 0xff;
     /* Interrupt pin 1 */
-    s->pci_dev.config[0x3d] = 0x01;
+    pci_conf[0x3d] = 0x01;
 
     s->mmio_io_addr = cpu_register_io_memory(0, lsi_mmio_readfn,
                                              lsi_mmio_writefn, s);
@@ -2000,6 +2016,7 @@ void *lsi_scsi_init(PCIBus *bus, int devfn)
     s->queue = qemu_malloc(sizeof(lsi_queue));
     s->queue_len = 1;
     s->active_commands = 0;
+    s->pci_dev.unregister = lsi_scsi_uninit;
 
     lsi_soft_reset(s);
 

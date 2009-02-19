@@ -35,6 +35,7 @@
 #include "fw_cfg.h"
 #include "virtio-blk.h"
 #include "virtio-balloon.h"
+#include "virtio-console.h"
 #include "hpet_emul.h"
 
 /* output Bochs bios info messages */
@@ -751,7 +752,7 @@ static void pc_init_ne2k_isa(NICInfo *nd, qemu_irq *pic)
 
 /* PC hardware initialisation */
 static void pc_init1(ram_addr_t ram_size, int vga_ram_size,
-                     const char *boot_device, DisplayState *ds,
+                     const char *boot_device,
                      const char *kernel_filename, const char *kernel_cmdline,
                      const char *initrd_filename,
                      int pci_enabled, const char *cpu_model)
@@ -851,27 +852,29 @@ static void pc_init1(ram_addr_t ram_size, int vga_ram_size,
         exit(1);
     }
 
-    /* VGA BIOS load */
-    if (cirrus_vga_enabled) {
-        snprintf(buf, sizeof(buf), "%s/%s", bios_dir, VGABIOS_CIRRUS_FILENAME);
-    } else {
-        snprintf(buf, sizeof(buf), "%s/%s", bios_dir, VGABIOS_FILENAME);
-    }
-    vga_bios_size = get_image_size(buf);
-    if (vga_bios_size <= 0 || vga_bios_size > 65536)
-        goto vga_bios_error;
-    vga_bios_offset = qemu_ram_alloc(65536);
+    if (cirrus_vga_enabled || std_vga_enabled || vmsvga_enabled) {
+        /* VGA BIOS load */
+        if (cirrus_vga_enabled) {
+            snprintf(buf, sizeof(buf), "%s/%s", bios_dir, VGABIOS_CIRRUS_FILENAME);
+        } else {
+            snprintf(buf, sizeof(buf), "%s/%s", bios_dir, VGABIOS_FILENAME);
+        }
+        vga_bios_size = get_image_size(buf);
+        if (vga_bios_size <= 0 || vga_bios_size > 65536)
+            goto vga_bios_error;
+        vga_bios_offset = qemu_ram_alloc(65536);
 
-    ret = load_image(buf, phys_ram_base + vga_bios_offset);
-    if (ret != vga_bios_size) {
-    vga_bios_error:
-        fprintf(stderr, "qemu: could not load VGA BIOS '%s'\n", buf);
-        exit(1);
-    }
+        ret = load_image(buf, phys_ram_base + vga_bios_offset);
+        if (ret != vga_bios_size) {
+vga_bios_error:
+            fprintf(stderr, "qemu: could not load VGA BIOS '%s'\n", buf);
+            exit(1);
+        }
 
-    /* setup basic memory access */
-    cpu_register_physical_memory(0xc0000, 0x10000,
-                                 vga_bios_offset | IO_MEM_ROM);
+        /* setup basic memory access */
+        cpu_register_physical_memory(0xc0000, 0x10000,
+                                     vga_bios_offset | IO_MEM_ROM);
+    }
 
     /* map the last 128KB of the BIOS in ISA space */
     isa_bios_size = bios_size;
@@ -943,29 +946,29 @@ static void pc_init1(ram_addr_t ram_size, int vga_ram_size,
     if (cirrus_vga_enabled) {
         if (pci_enabled) {
             pci_cirrus_vga_init(pci_bus,
-                                ds, phys_ram_base + vga_ram_addr,
+                                phys_ram_base + vga_ram_addr,
                                 vga_ram_addr, vga_ram_size);
         } else {
-            isa_cirrus_vga_init(ds, phys_ram_base + vga_ram_addr,
+            isa_cirrus_vga_init(phys_ram_base + vga_ram_addr,
                                 vga_ram_addr, vga_ram_size);
         }
     } else if (vmsvga_enabled) {
         if (pci_enabled)
-            pci_vmsvga_init(pci_bus, ds, phys_ram_base + vga_ram_addr,
+            pci_vmsvga_init(pci_bus, phys_ram_base + vga_ram_addr,
                             vga_ram_addr, vga_ram_size);
         else
             fprintf(stderr, "%s: vmware_vga: no PCI bus\n", __FUNCTION__);
-    } else {
+    } else if (std_vga_enabled) {
         if (pci_enabled) {
-            pci_vga_init(pci_bus, ds, phys_ram_base + vga_ram_addr,
+            pci_vga_init(pci_bus, phys_ram_base + vga_ram_addr,
                          vga_ram_addr, vga_ram_size, 0, 0);
         } else {
-            isa_vga_init(ds, phys_ram_base + vga_ram_addr,
+            isa_vga_init(phys_ram_base + vga_ram_addr,
                          vga_ram_addr, vga_ram_size);
         }
     }
 
-    rtc_state = rtc_init(0x70, i8259[8]);
+    rtc_state = rtc_init(0x70, i8259[8], 2000);
 
     qemu_register_boot_set(pc_boot_set, rtc_state);
 
@@ -1006,6 +1009,8 @@ static void pc_init1(ram_addr_t ram_size, int vga_ram_size,
         else
             pci_nic_init(pci_bus, nd, -1, "ne2k_pci");
     }
+
+    qemu_system_hot_add_init();
 
     if (drive_get_max_bus(IF_IDE) >= MAX_IDE_BUS) {
         fprintf(stderr, "qemu: too many IDE bus\n");
@@ -1097,28 +1102,36 @@ static void pc_init1(ram_addr_t ram_size, int vga_ram_size,
     /* Add virtio balloon device */
     if (pci_enabled)
         virtio_balloon_init(pci_bus);
+
+    /* Add virtio console devices */
+    if (pci_enabled) {
+        for(i = 0; i < MAX_VIRTIO_CONSOLES; i++) {
+            if (virtcon_hds[i])
+                virtio_console_init(pci_bus, virtcon_hds[i]);
+        }
+    }
 }
 
 static void pc_init_pci(ram_addr_t ram_size, int vga_ram_size,
-                        const char *boot_device, DisplayState *ds,
+                        const char *boot_device,
                         const char *kernel_filename,
                         const char *kernel_cmdline,
                         const char *initrd_filename,
                         const char *cpu_model)
 {
-    pc_init1(ram_size, vga_ram_size, boot_device, ds,
+    pc_init1(ram_size, vga_ram_size, boot_device,
              kernel_filename, kernel_cmdline,
              initrd_filename, 1, cpu_model);
 }
 
 static void pc_init_isa(ram_addr_t ram_size, int vga_ram_size,
-                        const char *boot_device, DisplayState *ds,
+                        const char *boot_device,
                         const char *kernel_filename,
                         const char *kernel_cmdline,
                         const char *initrd_filename,
                         const char *cpu_model)
 {
-    pc_init1(ram_size, vga_ram_size, boot_device, ds,
+    pc_init1(ram_size, vga_ram_size, boot_device,
              kernel_filename, kernel_cmdline,
              initrd_filename, 0, cpu_model);
 }

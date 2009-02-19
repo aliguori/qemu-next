@@ -378,8 +378,6 @@ static qemu_irq *icp_pic_init(uint32_t base,
     qemu_irq *qi;
 
     s = (icp_pic_state *)qemu_mallocz(sizeof(icp_pic_state));
-    if (!s)
-        return NULL;
     qi = qemu_allocate_irqs(icp_pic_set_irq, s, 32);
     s->parent_irq = parent_irq;
     s->parent_fiq = parent_fiq;
@@ -454,7 +452,7 @@ static struct arm_boot_info integrator_binfo = {
 };
 
 static void integratorcp_init(ram_addr_t ram_size, int vga_ram_size,
-                     const char *boot_device, DisplayState *ds,
+                     const char *boot_device,
                      const char *kernel_filename, const char *kernel_cmdline,
                      const char *initrd_filename, const char *cpu_model)
 {
@@ -499,7 +497,7 @@ static void integratorcp_init(ram_addr_t ram_size, int vga_ram_size,
     pl181_init(0x1c000000, drives_table[sd].bdrv, pic[23], pic[24]);
     if (nd_table[0].vlan)
         smc91c111_init(&nd_table[0], 0xc8000000, pic[27]);
-    pl110_init(ds, 0xc0000000, pic[22], 0);
+    pl110_init(0xc0000000, pic[22], 0);
 
     integrator_binfo.ram_size = ram_size;
     integrator_binfo.kernel_filename = kernel_filename;

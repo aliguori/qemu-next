@@ -179,7 +179,7 @@ static void io_mem_init(void);
 CPUWriteMemoryFunc *io_mem_write[IO_MEM_NB_ENTRIES][4];
 CPUReadMemoryFunc *io_mem_read[IO_MEM_NB_ENTRIES][4];
 void *io_mem_opaque[IO_MEM_NB_ENTRIES];
-static int io_mem_nb;
+char io_mem_used[IO_MEM_NB_ENTRIES];
 static int io_mem_watch;
 #endif
 
@@ -476,10 +476,6 @@ static void code_gen_alloc(unsigned long tb_size)
     }
 #else
     code_gen_buffer = qemu_malloc(code_gen_buffer_size);
-    if (!code_gen_buffer) {
-        fprintf(stderr, "Could not allocate dynamic translator buffer\n");
-        exit(1);
-    }
     map_exec(code_gen_buffer, code_gen_buffer_size);
 #endif
 #endif /* !USE_STATIC_CODE_GEN_BUFFER */
@@ -825,8 +821,6 @@ static void build_page_bitmap(PageDesc *p)
     TranslationBlock *tb;
 
     p->code_bitmap = qemu_mallocz(TARGET_PAGE_SIZE / 8);
-    if (!p->code_bitmap)
-        return;
 
     tb = p->first_tb;
     while (tb != NULL) {
@@ -1004,12 +998,10 @@ static inline void tb_invalidate_phys_page_fast(target_phys_addr_t start, int le
     int offset, b;
 #if 0
     if (1) {
-        if (loglevel) {
-            fprintf(logfile, "modifying code at 0x%x size=%d EIP=%x PC=%08x\n",
-                   cpu_single_env->mem_io_vaddr, len,
-                   cpu_single_env->eip,
-                   cpu_single_env->eip + (long)cpu_single_env->segs[R_CS].base);
-        }
+        qemu_log("modifying code at 0x%x size=%d EIP=%x PC=%08x\n",
+                  cpu_single_env->mem_io_vaddr, len,
+                  cpu_single_env->eip,
+                  cpu_single_env->eip + (long)cpu_single_env->segs[R_CS].base);
     }
 #endif
     p = page_find(start >> TARGET_PAGE_BITS);
@@ -1320,8 +1312,6 @@ int cpu_watchpoint_insert(CPUState *env, target_ulong addr, target_ulong len,
         return -EINVAL;
     }
     wp = qemu_malloc(sizeof(*wp));
-    if (!wp)
-        return -ENOMEM;
 
     wp->vaddr = addr;
     wp->len_mask = len_mask;
@@ -1386,8 +1376,6 @@ int cpu_breakpoint_insert(CPUState *env, target_ulong pc, int flags,
     CPUBreakpoint *bp;
 
     bp = qemu_malloc(sizeof(*bp));
-    if (!bp)
-        return -ENOMEM;
 
     bp->pc = pc;
     bp->flags = flags;
@@ -1571,6 +1559,8 @@ const CPULogItem cpu_log_items[] = {
 #ifdef TARGET_I386
     { CPU_LOG_PCALL, "pcall",
       "show protected mode far calls/returns/exceptions" },
+    { CPU_LOG_RESET, "cpu_reset",
+      "show CPU state before CPU resets" },
 #endif
 #ifdef DEBUG_IOPORT
     { CPU_LOG_IOPORT, "ioport",
@@ -1634,17 +1624,17 @@ void cpu_abort(CPUState *env, const char *fmt, ...)
 #else
     cpu_dump_state(env, stderr, fprintf, 0);
 #endif
-    if (logfile) {
-        fprintf(logfile, "qemu: fatal: ");
-        vfprintf(logfile, fmt, ap2);
-        fprintf(logfile, "\n");
+    if (qemu_log_enabled()) {
+        qemu_log("qemu: fatal: ");
+        qemu_log_vprintf(fmt, ap2);
+        qemu_log("\n");
 #ifdef TARGET_I386
-        cpu_dump_state(env, logfile, fprintf, X86_DUMP_FPU | X86_DUMP_CCOP);
+        log_cpu_state(env, X86_DUMP_FPU | X86_DUMP_CCOP);
 #else
-        cpu_dump_state(env, logfile, fprintf, 0);
+        log_cpu_state(env, 0);
 #endif
-        fflush(logfile);
-        fclose(logfile);
+        qemu_log_flush();
+        qemu_log_close();
     }
     va_end(ap2);
     va_end(ap);
@@ -1654,12 +1644,34 @@ void cpu_abort(CPUState *env, const char *fmt, ...)
 CPUState *cpu_copy(CPUState *env)
 {
     CPUState *new_env = cpu_init(env->cpu_model_str);
-    /* preserve chaining and index */
     CPUState *next_cpu = new_env->next_cpu;
     int cpu_index = new_env->cpu_index;
+#if defined(TARGET_HAS_ICE)
+    CPUBreakpoint *bp;
+    CPUWatchpoint *wp;
+#endif
+
     memcpy(new_env, env, sizeof(CPUState));
+
+    /* Preserve chaining and index. */
     new_env->next_cpu = next_cpu;
     new_env->cpu_index = cpu_index;
+
+    /* Clone all break/watchpoints.
+       Note: Once we support ptrace with hw-debug register access, make sure
+       BP_CPU break/watchpoints are handled correctly on clone. */
+    TAILQ_INIT(&env->breakpoints);
+    TAILQ_INIT(&env->watchpoints);
+#if defined(TARGET_HAS_ICE)
+    TAILQ_FOREACH(bp, &env->breakpoints, entry) {
+        cpu_breakpoint_insert(new_env, bp->pc, bp->flags, NULL);
+    }
+    TAILQ_FOREACH(wp, &env->watchpoints, entry) {
+        cpu_watchpoint_insert(new_env, wp->vaddr, (~wp->len_mask) + 1,
+                              wp->flags, NULL);
+    }
+#endif
+
     return new_env;
 }
 
@@ -2773,27 +2785,42 @@ static void *subpage_init (target_phys_addr_t base, ram_addr_t *phys,
     int subpage_memory;
 
     mmio = qemu_mallocz(sizeof(subpage_t));
-    if (mmio != NULL) {
-        mmio->base = base;
-        subpage_memory = cpu_register_io_memory(0, subpage_read, subpage_write, mmio);
+
+    mmio->base = base;
+    subpage_memory = cpu_register_io_memory(0, subpage_read, subpage_write, mmio);
 #if defined(DEBUG_SUBPAGE)
-        printf("%s: %p base " TARGET_FMT_plx " len %08x %d\n", __func__,
-               mmio, base, TARGET_PAGE_SIZE, subpage_memory);
+    printf("%s: %p base " TARGET_FMT_plx " len %08x %d\n", __func__,
+           mmio, base, TARGET_PAGE_SIZE, subpage_memory);
 #endif
-        *phys = subpage_memory | IO_MEM_SUBPAGE;
-        subpage_register(mmio, 0, TARGET_PAGE_SIZE - 1, orig_memory,
+    *phys = subpage_memory | IO_MEM_SUBPAGE;
+    subpage_register(mmio, 0, TARGET_PAGE_SIZE - 1, orig_memory,
                          region_offset);
-    }
 
     return mmio;
 }
 
+static int get_free_io_mem_idx(void)
+{
+    int i;
+
+    for (i = 0; i<IO_MEM_NB_ENTRIES; i++)
+        if (!io_mem_used[i]) {
+            io_mem_used[i] = 1;
+            return i;
+        }
+
+    return -1;
+}
+
 static void io_mem_init(void)
 {
+    int i;
+
     cpu_register_io_memory(IO_MEM_ROM >> IO_MEM_SHIFT, error_mem_read, unassigned_mem_write, NULL);
     cpu_register_io_memory(IO_MEM_UNASSIGNED >> IO_MEM_SHIFT, unassigned_mem_read, unassigned_mem_write, NULL);
     cpu_register_io_memory(IO_MEM_NOTDIRTY >> IO_MEM_SHIFT, error_mem_read, notdirty_mem_write, NULL);
-    io_mem_nb = 5;
+    for (i=0; i<5; i++)
+        io_mem_used[i] = 1;
 
     io_mem_watch = cpu_register_io_memory(0, watch_mem_read,
                                           watch_mem_write, NULL);
@@ -2818,9 +2845,9 @@ int cpu_register_io_memory(int io_index,
     int i, subwidth = 0;
 
     if (io_index <= 0) {
-        if (io_mem_nb >= IO_MEM_NB_ENTRIES)
-            return -1;
-        io_index = io_mem_nb++;
+        io_index = get_free_io_mem_idx();
+        if (io_index == -1)
+            return io_index;
     } else {
         if (io_index >= IO_MEM_NB_ENTRIES)
             return -1;
@@ -2834,6 +2861,19 @@ int cpu_register_io_memory(int io_index,
     }
     io_mem_opaque[io_index] = opaque;
     return (io_index << IO_MEM_SHIFT) | subwidth;
+}
+
+void cpu_unregister_io_memory(int io_table_address)
+{
+    int i;
+    int io_index = io_table_address >> IO_MEM_SHIFT;
+
+    for (i=0;i < 3; i++) {
+        io_mem_read[io_index][i] = unassigned_mem_read[i];
+        io_mem_write[io_index][i] = unassigned_mem_write[i];
+    }
+    io_mem_opaque[io_index] = NULL;
+    io_mem_used[io_index] = 0;
 }
 
 CPUWriteMemoryFunc **cpu_get_io_memory_write(int io_index)
@@ -3025,6 +3065,148 @@ void cpu_physical_memory_write_rom(target_phys_addr_t addr,
     }
 }
 
+typedef struct {
+    void *buffer;
+    target_phys_addr_t addr;
+    target_phys_addr_t len;
+} BounceBuffer;
+
+static BounceBuffer bounce;
+
+typedef struct MapClient {
+    void *opaque;
+    void (*callback)(void *opaque);
+    LIST_ENTRY(MapClient) link;
+} MapClient;
+
+static LIST_HEAD(map_client_list, MapClient) map_client_list
+    = LIST_HEAD_INITIALIZER(map_client_list);
+
+void *cpu_register_map_client(void *opaque, void (*callback)(void *opaque))
+{
+    MapClient *client = qemu_malloc(sizeof(*client));
+
+    client->opaque = opaque;
+    client->callback = callback;
+    LIST_INSERT_HEAD(&map_client_list, client, link);
+    return client;
+}
+
+void cpu_unregister_map_client(void *_client)
+{
+    MapClient *client = (MapClient *)_client;
+
+    LIST_REMOVE(client, link);
+}
+
+static void cpu_notify_map_clients(void)
+{
+    MapClient *client;
+
+    while (!LIST_EMPTY(&map_client_list)) {
+        client = LIST_FIRST(&map_client_list);
+        client->callback(client->opaque);
+        LIST_REMOVE(client, link);
+    }
+}
+
+/* Map a physical memory region into a host virtual address.
+ * May map a subset of the requested range, given by and returned in *plen.
+ * May return NULL if resources needed to perform the mapping are exhausted.
+ * Use only for reads OR writes - not for read-modify-write operations.
+ * Use cpu_register_map_client() to know when retrying the map operation is
+ * likely to succeed.
+ */
+void *cpu_physical_memory_map(target_phys_addr_t addr,
+                              target_phys_addr_t *plen,
+                              int is_write)
+{
+    target_phys_addr_t len = *plen;
+    target_phys_addr_t done = 0;
+    int l;
+    uint8_t *ret = NULL;
+    uint8_t *ptr;
+    target_phys_addr_t page;
+    unsigned long pd;
+    PhysPageDesc *p;
+    unsigned long addr1;
+
+    while (len > 0) {
+        page = addr & TARGET_PAGE_MASK;
+        l = (page + TARGET_PAGE_SIZE) - addr;
+        if (l > len)
+            l = len;
+        p = phys_page_find(page >> TARGET_PAGE_BITS);
+        if (!p) {
+            pd = IO_MEM_UNASSIGNED;
+        } else {
+            pd = p->phys_offset;
+        }
+
+        if ((pd & ~TARGET_PAGE_MASK) != IO_MEM_RAM) {
+            if (done || bounce.buffer) {
+                break;
+            }
+            bounce.buffer = qemu_memalign(TARGET_PAGE_SIZE, TARGET_PAGE_SIZE);
+            bounce.addr = addr;
+            bounce.len = l;
+            if (!is_write) {
+                cpu_physical_memory_rw(addr, bounce.buffer, l, 0);
+            }
+            ptr = bounce.buffer;
+        } else {
+            addr1 = (pd & TARGET_PAGE_MASK) + (addr & ~TARGET_PAGE_MASK);
+            ptr = phys_ram_base + addr1;
+        }
+        if (!done) {
+            ret = ptr;
+        } else if (ret + done != ptr) {
+            break;
+        }
+
+        len -= l;
+        addr += l;
+        done += l;
+    }
+    *plen = done;
+    return ret;
+}
+
+/* Unmaps a memory region previously mapped by cpu_physical_memory_map().
+ * Will also mark the memory as dirty if is_write == 1.  access_len gives
+ * the amount of memory that was actually read or written by the caller.
+ */
+void cpu_physical_memory_unmap(void *buffer, target_phys_addr_t len,
+                               int is_write, target_phys_addr_t access_len)
+{
+    if (buffer != bounce.buffer) {
+        if (is_write) {
+            unsigned long addr1 = (uint8_t *)buffer - phys_ram_base;
+            while (access_len) {
+                unsigned l;
+                l = TARGET_PAGE_SIZE;
+                if (l > access_len)
+                    l = access_len;
+                if (!cpu_physical_memory_is_dirty(addr1)) {
+                    /* invalidate code */
+                    tb_invalidate_phys_page_range(addr1, addr1 + l, 0);
+                    /* set dirty bit */
+                    phys_ram_dirty[addr1 >> TARGET_PAGE_BITS] |=
+                        (0xff & ~CODE_DIRTY_FLAG);
+                }
+                addr1 += l;
+                access_len -= l;
+            }
+        }
+        return;
+    }
+    if (is_write) {
+        cpu_physical_memory_write(bounce.addr, bounce.buffer, access_len);
+    }
+    qemu_free(bounce.buffer);
+    bounce.buffer = NULL;
+    cpu_notify_map_clients();
+}
 
 /* warning: addr must be aligned */
 uint32_t ldl_phys(target_phys_addr_t addr)

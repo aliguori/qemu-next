@@ -92,7 +92,7 @@ static int get_pmsts(PIIX4PMState *s)
     d = muldiv64(qemu_get_clock(vm_clock), PM_FREQ, ticks_per_sec);
     if (d >= s->tmr_overflow_time)
         s->pmsts |= TMROF_EN;
-    return pmsts;
+    return s->pmsts;
 }
 
 static void pm_update_sci(PIIX4PMState *s)
@@ -503,16 +503,13 @@ i2c_bus *piix4_pm_init(PCIBus *bus, int devfn, uint32_t smb_io_base,
                                          devfn, NULL, pm_write_config);
     pm_state = s;
     pci_conf = s->dev.config;
-    pci_conf[0x00] = 0x86;
-    pci_conf[0x01] = 0x80;
-    pci_conf[0x02] = 0x13;
-    pci_conf[0x03] = 0x71;
+    pci_config_set_vendor_id(pci_conf, PCI_VENDOR_ID_INTEL);
+    pci_config_set_device_id(pci_conf, PCI_DEVICE_ID_INTEL_82371AB_3);
     pci_conf[0x06] = 0x80;
     pci_conf[0x07] = 0x02;
     pci_conf[0x08] = 0x03; // revision number
     pci_conf[0x09] = 0x00;
-    pci_conf[0x0a] = 0x80; // other bridge device
-    pci_conf[0x0b] = 0x06; // bridge device
+    pci_config_set_class(pci_conf, PCI_CLASS_BRIDGE_OTHER);
     pci_conf[0x0e] = 0x00; // header_type
     pci_conf[0x3d] = 0x01; // interrupt pin 1
 
@@ -564,3 +561,169 @@ void qemu_system_powerdown(void)
     }
 }
 #endif
+
+#define GPE_BASE 0xafe0
+#define PCI_BASE 0xae00
+#define PCI_EJ_BASE 0xae08
+
+struct gpe_regs {
+    uint16_t sts; /* status */
+    uint16_t en;  /* enabled */
+};
+
+struct pci_status {
+    uint32_t up;
+    uint32_t down;
+};
+
+static struct gpe_regs gpe;
+static struct pci_status pci0_status;
+
+static uint32_t gpe_readb(void *opaque, uint32_t addr)
+{
+    uint32_t val = 0;
+    struct gpe_regs *g = opaque;
+    switch (addr) {
+        case GPE_BASE:
+            val = g->sts & 0xFF;
+            break;
+        case GPE_BASE + 1:
+            val =  (g->sts >> 8) & 0xFF;
+            break;
+        case GPE_BASE + 2:
+            val =  g->en & 0xFF;
+            break;
+        case GPE_BASE + 3:
+            val =  (g->en >> 8) & 0xFF;
+            break;
+        default:
+            break;
+    }
+
+#if defined(DEBUG)
+    printf("gpe read %lx == %lx\n", addr, val);
+#endif
+    return val;
+}
+
+static void gpe_writeb(void *opaque, uint32_t addr, uint32_t val)
+{
+    struct gpe_regs *g = opaque;
+    switch (addr) {
+        case GPE_BASE:
+            g->sts = (g->sts & ~0xFFFF) | (val & 0xFFFF);
+            break;
+        case GPE_BASE + 1:
+            g->sts = (g->sts & 0xFFFF) | (val << 8);
+            break;
+        case GPE_BASE + 2:
+            g->en = (g->en & ~0xFFFF) | (val & 0xFFFF);
+            break;
+        case GPE_BASE + 3:
+            g->en = (g->en & 0xFFFF) | (val << 8);
+            break;
+        default:
+            break;
+   }
+
+#if defined(DEBUG)
+    printf("gpe write %lx <== %d\n", addr, val);
+#endif
+}
+
+static uint32_t pcihotplug_read(void *opaque, uint32_t addr)
+{
+    uint32_t val = 0;
+    struct pci_status *g = opaque;
+    switch (addr) {
+        case PCI_BASE:
+            val = g->up;
+            break;
+        case PCI_BASE + 4:
+            val = g->down;
+            break;
+        default:
+            break;
+    }
+
+#if defined(DEBUG)
+    printf("pcihotplug read %lx == %lx\n", addr, val);
+#endif
+    return val;
+}
+
+static void pcihotplug_write(void *opaque, uint32_t addr, uint32_t val)
+{
+    struct pci_status *g = opaque;
+    switch (addr) {
+        case PCI_BASE:
+            g->up = val;
+            break;
+        case PCI_BASE + 4:
+            g->down = val;
+            break;
+   }
+
+#if defined(DEBUG)
+    printf("pcihotplug write %lx <== %d\n", addr, val);
+#endif
+}
+
+static uint32_t pciej_read(void *opaque, uint32_t addr)
+{
+#if defined(DEBUG)
+    printf("pciej read %lx == %lx\n", addr, val);
+#endif
+    return 0;
+}
+
+static void pciej_write(void *opaque, uint32_t addr, uint32_t val)
+{
+#if defined (TARGET_I386)
+    int slot = ffs(val) - 1;
+
+    pci_device_hot_remove_success(0, slot);
+#endif
+
+#if defined(DEBUG)
+    printf("pciej write %lx <== %d\n", addr, val);
+#endif
+}
+
+void qemu_system_hot_add_init(void)
+{
+    register_ioport_write(GPE_BASE, 4, 1, gpe_writeb, &gpe);
+    register_ioport_read(GPE_BASE, 4, 1,  gpe_readb, &gpe);
+
+    register_ioport_write(PCI_BASE, 8, 4, pcihotplug_write, &pci0_status);
+    register_ioport_read(PCI_BASE, 8, 4,  pcihotplug_read, &pci0_status);
+
+    register_ioport_write(PCI_EJ_BASE, 4, 4, pciej_write, NULL);
+    register_ioport_read(PCI_EJ_BASE, 4, 4,  pciej_read, NULL);
+}
+
+static void enable_device(struct pci_status *p, struct gpe_regs *g, int slot)
+{
+    g->sts |= 2;
+    g->en |= 2;
+    p->up |= (1 << slot);
+}
+
+static void disable_device(struct pci_status *p, struct gpe_regs *g, int slot)
+{
+    g->sts |= 2;
+    g->en |= 2;
+    p->down |= (1 << slot);
+}
+
+void qemu_system_device_hot_add(int bus, int slot, int state)
+{
+    qemu_set_irq(pm_state->irq, 1);
+    pci0_status.up = 0;
+    pci0_status.down = 0;
+    if (state)
+        enable_device(&pci0_status, &gpe, slot);
+    else
+        disable_device(&pci0_status, &gpe, slot);
+    qemu_set_irq(pm_state->irq, 0);
+}

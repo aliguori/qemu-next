@@ -184,6 +184,11 @@ void cpu_dump_state(CPUState * env, FILE * f,
 
 static void cpu_sh4_reset(CPUSH4State * env)
 {
+    if (qemu_loglevel_mask(CPU_LOG_RESET)) {
+        qemu_log("CPU Reset (CPU %d)\n", env->cpu_index);
+        log_cpu_state(env, 0);
+    }
+
 #if defined(CONFIG_USER_ONLY)
     env->sr = 0;
 #else
@@ -217,12 +222,14 @@ static sh4_def_t sh4_defs[] = {
 	.pvr = 0x00050000,
 	.prr = 0x00000100,
 	.cvr = 0x00110000,
+	.features = SH_FEATURE_BCR3_AND_BCR4,
     }, {
 	.name = "SH7751R",
 	.id = SH_CPU_SH7751R,
 	.pvr = 0x04050005,
 	.prr = 0x00000113,
 	.cvr = 0x00110000,	/* Neutered caches, should be 0x20480000 */
+	.features = SH_FEATURE_BCR3_AND_BCR4,
     }, {
 	.name = "SH7785",
 	.id = SH_CPU_SH7785,
@@ -272,8 +279,6 @@ CPUSH4State *cpu_sh4_init(const char *cpu_model)
     if (!def)
 	return NULL;
     env = qemu_mallocz(sizeof(CPUSH4State));
-    if (!env)
-	return NULL;
     env->features = def->features;
     cpu_exec_init(env);
     sh4_translate_init();
@@ -1176,6 +1181,17 @@ static void _decode_opc(DisasContext * ctx)
 	    }
 	}
 	return;
+    case 0xf00e: /* fmac FR0,RM,Rn */
+        {
+            CHECK_FPU_ENABLED
+            if (ctx->fpscr & FPSCR_PR) {
+                break; /* illegal instruction */
+            } else {
+                gen_helper_fmac_FT(cpu_fregs[FREG(B11_8)],
+                                   cpu_fregs[FREG(0)], cpu_fregs[FREG(B7_4)], cpu_fregs[FREG(B11_8)]);
+                return;
+            }
+        }
     }
 
     switch (ctx->opcode & 0xff00) {
@@ -1829,11 +1845,9 @@ gen_intermediate_code_internal(CPUState * env, TranslationBlock * tb,
     ctx.features = env->features;
 
 #ifdef DEBUG_DISAS
-    if (loglevel & CPU_LOG_TB_CPU) {
-	fprintf(logfile,
-		"------------------------------------------------\n");
-	cpu_dump_state(env, logfile, fprintf, 0);
-    }
+    qemu_log_mask(CPU_LOG_TB_CPU,
+                 "------------------------------------------------\n");
+    log_cpu_state_mask(CPU_LOG_TB_CPU, env, 0);
 #endif
 
     ii = -1;
@@ -1926,13 +1940,12 @@ gen_intermediate_code_internal(CPUState * env, TranslationBlock * tb,
 
 #ifdef DEBUG_DISAS
 #ifdef SH4_DEBUG_DISAS
-    if (loglevel & CPU_LOG_TB_IN_ASM)
-	fprintf(logfile, "\n");
+    qemu_log_mask(CPU_LOG_TB_IN_ASM, "\n");
 #endif
-    if (loglevel & CPU_LOG_TB_IN_ASM) {
-	fprintf(logfile, "IN:\n");	/* , lookup_symbol(pc_start)); */
-	target_disas(logfile, pc_start, ctx.pc - pc_start, 0);
-	fprintf(logfile, "\n");
+    if (qemu_loglevel_mask(CPU_LOG_TB_IN_ASM)) {
+	qemu_log("IN:\n");	/* , lookup_symbol(pc_start)); */
+	log_target_disas(pc_start, ctx.pc - pc_start, 0);
+	qemu_log("\n");
     }
 #endif
 }

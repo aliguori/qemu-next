@@ -55,7 +55,7 @@ static void add_flagname_to_bitmaps(char *flagname, uint32_t *features,
     };
     static const char *ext2_feature_name[] = {
        "fpu", "vme", "de", "pse", "tsc", "msr", "pae", "mce",
-       "cx8" /* AMD CMPXCHG8B */, "apic", NULL, "syscall", "mttr", "pge", "mca", "cmov",
+       "cx8" /* AMD CMPXCHG8B */, "apic", NULL, "syscall", "mtrr", "pge", "mca", "cmov",
        "pat", "pse36", NULL, NULL /* Linux mp */, "nx" /* Intel xd */, NULL, "mmxext", "mmx",
        "fxsr", "fxsr_opt" /* AMD ffxsr */, "pdpe1gb" /* AMD Page1GB */, "rdtscp", NULL, "lm" /* Intel 64 */, "3dnowext", "3dnow",
     };
@@ -135,6 +135,34 @@ static x86_def_t x86_defs[] = {
         .ext3_features = CPUID_EXT3_SVM,
         .xlevel = 0x8000000A,
         .model_id = "QEMU Virtual CPU version " QEMU_VERSION,
+    },
+    {
+        .name = "phenom",
+        .level = 5,
+        .vendor1 = CPUID_VENDOR_AMD_1,
+        .vendor2 = CPUID_VENDOR_AMD_2,
+        .vendor3 = CPUID_VENDOR_AMD_3,
+        .family = 16,
+        .model = 2,
+        .stepping = 3,
+        /* Missing: CPUID_VME, CPUID_HT */
+        .features = PPRO_FEATURES | 
+            CPUID_MTRR | CPUID_CLFLUSH | CPUID_MCA |
+            CPUID_PSE36,
+        /* Missing: CPUID_EXT_CX16, CPUID_EXT_POPCNT */
+        .ext_features = CPUID_EXT_SSE3 | CPUID_EXT_MONITOR,
+        /* Missing: CPUID_EXT2_PDPE1GB, CPUID_EXT2_RDTSCP */
+        .ext2_features = (PPRO_FEATURES & 0x0183F3FF) | 
+            CPUID_EXT2_LM | CPUID_EXT2_SYSCALL | CPUID_EXT2_NX |
+            CPUID_EXT2_3DNOW | CPUID_EXT2_3DNOWEXT | CPUID_EXT2_MMXEXT |
+            CPUID_EXT2_FFXSR,
+        /* Missing: CPUID_EXT3_LAHF_LM, CPUID_EXT3_CMP_LEG, CPUID_EXT3_EXTAPIC,
+                    CPUID_EXT3_CR8LEG, CPUID_EXT3_ABM, CPUID_EXT3_SSE4A,
+                    CPUID_EXT3_MISALIGNSSE, CPUID_EXT3_3DNOWPREFETCH,
+                    CPUID_EXT3_OSVW, CPUID_EXT3_IBS */
+        .ext3_features = CPUID_EXT3_SVM,
+        .xlevel = 0x8000001A,
+        .model_id = "AMD Phenom(tm) 9550 Quad-Core Processor"
     },
     {
         .name = "core2duo",
@@ -417,6 +445,11 @@ static int cpu_x86_register (CPUX86State *env, const char *cpu_model)
 void cpu_reset(CPUX86State *env)
 {
     int i;
+
+    if (qemu_loglevel_mask(CPU_LOG_RESET)) {
+        qemu_log("CPU Reset (CPU %d)\n", env->cpu_index);
+        log_cpu_state(env, X86_DUMP_FPU | X86_DUMP_CCOP);
+    }
 
     memset(env, 0, offsetof(CPUX86State, breakpoints));
 
@@ -1370,7 +1403,8 @@ static void breakpoint_handler(CPUState *env)
 }
 #endif /* !CONFIG_USER_ONLY */
 
-static void host_cpuid(uint32_t function, uint32_t *eax, uint32_t *ebx,
+static void host_cpuid(uint32_t function, uint32_t count,
+                       uint32_t *eax, uint32_t *ebx,
                        uint32_t *ecx, uint32_t *edx)
 {
 #if defined(CONFIG_KVM)
@@ -1378,19 +1412,19 @@ static void host_cpuid(uint32_t function, uint32_t *eax, uint32_t *ebx,
 
 #ifdef __x86_64__
     asm volatile("cpuid"
-		 : "=a"(vec[0]), "=b"(vec[1]),
-		   "=c"(vec[2]), "=d"(vec[3])
-		 : "0"(function) : "cc");
+                 : "=a"(vec[0]), "=b"(vec[1]),
+                   "=c"(vec[2]), "=d"(vec[3])
+                 : "0"(function), "c"(count) : "cc");
 #else
     asm volatile("pusha \n\t"
-		 "cpuid \n\t"
-		 "mov %%eax, 0(%1) \n\t"
-		 "mov %%ebx, 4(%1) \n\t"
-		 "mov %%ecx, 8(%1) \n\t"
-		 "mov %%edx, 12(%1) \n\t"
-		 "popa"
-		 : : "a"(function), "S"(vec)
-		 : "memory", "cc");
+                 "cpuid \n\t"
+                 "mov %%eax, 0(%1) \n\t"
+                 "mov %%ebx, 4(%1) \n\t"
+                 "mov %%ecx, 8(%1) \n\t"
+                 "mov %%edx, 12(%1) \n\t"
+                 "popa"
+                 : : "a"(function), "c"(count), "S"(vec)
+                 : "memory", "cc");
 #endif
 
     if (eax)
@@ -1404,7 +1438,7 @@ static void host_cpuid(uint32_t function, uint32_t *eax, uint32_t *ebx,
 #endif
 }
 
-void cpu_x86_cpuid(CPUX86State *env, uint32_t index,
+void cpu_x86_cpuid(CPUX86State *env, uint32_t index, uint32_t count,
                    uint32_t *eax, uint32_t *ebx,
                    uint32_t *ecx, uint32_t *edx)
 {
@@ -1429,7 +1463,7 @@ void cpu_x86_cpuid(CPUX86State *env, uint32_t index,
          * actuall cpu, and say goodbye to migration between different vendors
          * is you use compatibility mode. */
         if (kvm_enabled())
-            host_cpuid(0, NULL, ebx, ecx, edx);
+            host_cpuid(0, 0, NULL, ebx, ecx, edx);
         break;
     case 1:
         *eax = env->cpuid_version;
@@ -1450,7 +1484,7 @@ void cpu_x86_cpuid(CPUX86State *env, uint32_t index,
         break;
     case 4:
         /* cache info: needed for Core compatibility */
-        switch (*ecx) {
+        switch (count) {
             case 0: /* L1 dcache info */
                 *eax = 0x0000121;
                 *ebx = 0x1c0003f;
@@ -1476,7 +1510,6 @@ void cpu_x86_cpuid(CPUX86State *env, uint32_t index,
                 *edx = 0;
                 break;
         }
-
         break;
     case 5:
         /* mwait info: needed for Core compatibility */
@@ -1521,7 +1554,7 @@ void cpu_x86_cpuid(CPUX86State *env, uint32_t index,
         if (kvm_enabled()) {
             uint32_t h_eax, h_edx;
 
-            host_cpuid(0x80000001, &h_eax, NULL, NULL, &h_edx);
+            host_cpuid(index, 0, &h_eax, NULL, NULL, &h_edx);
 
             /* disable CPU features that the host does not support */
 
@@ -1612,8 +1645,6 @@ CPUX86State *cpu_x86_init(const char *cpu_model)
     static int inited;
 
     env = qemu_mallocz(sizeof(CPUX86State));
-    if (!env)
-        return NULL;
     cpu_exec_init(env);
     env->cpu_model_str = cpu_model;
 

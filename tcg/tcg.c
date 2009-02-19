@@ -59,7 +59,7 @@
 static void patch_reloc(uint8_t *code_ptr, int type, 
                         tcg_target_long value, tcg_target_long addend);
 
-TCGOpDef tcg_op_defs[] = {
+static TCGOpDef tcg_op_defs[] = {
 #define DEF(s, n, copy_size) { #s, 0, 0, n, n, 0, copy_size },
 #define DEF2(s, iargs, oargs, cargs, flags) { #s, iargs, oargs, cargs, iargs + oargs + cargs, flags, 0 },
 #include "tcg-opc.h"
@@ -1878,10 +1878,10 @@ static inline int tcg_gen_code_common(TCGContext *s, uint8_t *gen_code_buf,
     const TCGArg *args;
 
 #ifdef DEBUG_DISAS
-    if (unlikely(loglevel & CPU_LOG_TB_OP)) {
-        fprintf(logfile, "OP:\n");
+    if (unlikely(qemu_loglevel_mask(CPU_LOG_TB_OP))) {
+        qemu_log("OP:\n");
         tcg_dump_ops(s, logfile);
-        fprintf(logfile, "\n");
+        qemu_log("\n");
     }
 #endif
 
@@ -1894,10 +1894,10 @@ static inline int tcg_gen_code_common(TCGContext *s, uint8_t *gen_code_buf,
 #endif
 
 #ifdef DEBUG_DISAS
-    if (unlikely(loglevel & CPU_LOG_TB_OP_OPT)) {
-        fprintf(logfile, "OP after la:\n");
+    if (unlikely(qemu_loglevel_mask(CPU_LOG_TB_OP_OPT))) {
+        qemu_log("OP after la:\n");
         tcg_dump_ops(s, logfile);
-        fprintf(logfile, "\n");
+        qemu_log("\n");
     }
 #endif
 
@@ -2038,8 +2038,6 @@ void tcg_dump_info(FILE *f,
                 s->tb_count1 ? (double)(s->tb_count1 - s->tb_count) / s->tb_count1 * 100.0 : 0);
     cpu_fprintf(f, "avg ops/TB          %0.1f max=%d\n", 
                 s->tb_count ? (double)s->op_count / s->tb_count : 0, s->op_count_max);
-    cpu_fprintf(f, "old ops/total ops   %0.1f%%\n", 
-                s->op_count ? (double)s->old_op_count / s->op_count * 100.0 : 0);
     cpu_fprintf(f, "deleted ops/TB      %0.2f\n",
                 s->tb_count ? 
                 (double)s->del_op_count / s->tb_count : 0);

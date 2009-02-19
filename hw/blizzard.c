@@ -72,7 +72,6 @@ struct blizzard_s {
     uint8_t iformat;
     uint8_t source;
     DisplayState *state;
-    QEMUConsole *console;
     blizzard_fn_t *line_fn_tab[2];
     void *fb;
 
@@ -896,7 +895,7 @@ static void blizzard_update_display(void *opaque)
 
     if (s->x != ds_get_width(s->state) || s->y != ds_get_height(s->state)) {
         s->invalidate = 1;
-        qemu_console_resize(s->console, s->x, s->y);
+        qemu_console_resize(s->state, s->x, s->y);
     }
 
     if (s->invalidate) {
@@ -940,7 +939,7 @@ static void blizzard_screen_dump(void *opaque, const char *filename) {
 
     blizzard_update_display(opaque);
     if (s && ds_get_data(s->state))
-        ppm_save(filename, ds_get_data(s->state), s->x, s->y, ds_get_linesize(s->state));
+        ppm_save(filename, s->state->surface);
 }
 
 #define DEPTH 8
@@ -954,12 +953,15 @@ static void blizzard_screen_dump(void *opaque, const char *filename) {
 #define DEPTH 32
 #include "blizzard_template.h"
 
-void *s1d13745_init(qemu_irq gpio_int, DisplayState *ds)
+void *s1d13745_init(qemu_irq gpio_int)
 {
     struct blizzard_s *s = (struct blizzard_s *) qemu_mallocz(sizeof(*s));
 
-    s->state = ds;
     s->fb = qemu_malloc(0x180000);
+
+    s->state = graphic_console_init(blizzard_update_display,
+                                 blizzard_invalidate_display,
+                                 blizzard_screen_dump, NULL, s);
 
     switch (ds_get_bits_per_pixel(s->state)) {
     case 0:
@@ -967,24 +969,24 @@ void *s1d13745_init(qemu_irq gpio_int, DisplayState *ds)
                 qemu_mallocz(sizeof(blizzard_fn_t) * 0x10);
         break;
     case 8:
-        s->line_fn_tab[0] = ds->bgr ? blizzard_draw_fn_bgr_8 : blizzard_draw_fn_8;
-        s->line_fn_tab[1] = ds->bgr ? blizzard_draw_fn_r_bgr_8 : blizzard_draw_fn_r_8;
+        s->line_fn_tab[0] = 0 ? blizzard_draw_fn_bgr_8 : blizzard_draw_fn_8;
+        s->line_fn_tab[1] = 0 ? blizzard_draw_fn_r_bgr_8 : blizzard_draw_fn_r_8;
         break;
     case 15:
-        s->line_fn_tab[0] = ds->bgr ? blizzard_draw_fn_bgr_15 : blizzard_draw_fn_15;
-        s->line_fn_tab[1] = ds->bgr ? blizzard_draw_fn_r_bgr_15 : blizzard_draw_fn_r_15;
+        s->line_fn_tab[0] = 0 ? blizzard_draw_fn_bgr_15 : blizzard_draw_fn_15;
+        s->line_fn_tab[1] = 0 ? blizzard_draw_fn_r_bgr_15 : blizzard_draw_fn_r_15;
         break;
     case 16:
-        s->line_fn_tab[0] = ds->bgr ? blizzard_draw_fn_bgr_16 : blizzard_draw_fn_16;
-        s->line_fn_tab[1] = ds->bgr ? blizzard_draw_fn_r_bgr_16 : blizzard_draw_fn_r_16;
+        s->line_fn_tab[0] = 0 ? blizzard_draw_fn_bgr_16 : blizzard_draw_fn_16;
+        s->line_fn_tab[1] = 0 ? blizzard_draw_fn_r_bgr_16 : blizzard_draw_fn_r_16;
         break;
     case 24:
-        s->line_fn_tab[0] = ds->bgr ? blizzard_draw_fn_bgr_24 : blizzard_draw_fn_24;
-        s->line_fn_tab[1] = ds->bgr ? blizzard_draw_fn_r_bgr_24 : blizzard_draw_fn_r_24;
+        s->line_fn_tab[0] = 0 ? blizzard_draw_fn_bgr_24 : blizzard_draw_fn_24;
+        s->line_fn_tab[1] = 0 ? blizzard_draw_fn_r_bgr_24 : blizzard_draw_fn_r_24;
         break;
     case 32:
-        s->line_fn_tab[0] = ds->bgr ? blizzard_draw_fn_bgr_32 : blizzard_draw_fn_32;
-        s->line_fn_tab[1] = ds->bgr ? blizzard_draw_fn_r_bgr_32 : blizzard_draw_fn_r_32;
+        s->line_fn_tab[0] = 0 ? blizzard_draw_fn_bgr_32 : blizzard_draw_fn_32;
+        s->line_fn_tab[1] = 0 ? blizzard_draw_fn_r_bgr_32 : blizzard_draw_fn_r_32;
         break;
     default:
         fprintf(stderr, "%s: Bad color depth\n", __FUNCTION__);
@@ -992,10 +994,6 @@ void *s1d13745_init(qemu_irq gpio_int, DisplayState *ds)
     }
 
     blizzard_reset(s);
-
-    s->console = graphic_console_init(s->state, blizzard_update_display,
-                                      blizzard_invalidate_display,
-                                      blizzard_screen_dump, NULL, s);
 
     return s;
 }

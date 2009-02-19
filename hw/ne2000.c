@@ -725,8 +725,6 @@ void isa_ne2000_init(int base, qemu_irq irq, NICInfo *nd)
     qemu_check_nic_model(nd, "ne2k_isa");
 
     s = qemu_mallocz(sizeof(NE2000State));
-    if (!s)
-        return;
 
     register_ioport_write(base, 16, 1, ne2000_ioport_write, s);
     register_ioport_read(base, 16, 1, ne2000_ioport_read, s);
@@ -779,7 +777,7 @@ static void ne2000_map(PCIDevice *pci_dev, int region_num,
     register_ioport_read(addr + 0x1f, 1, 1, ne2000_reset_ioport_read, s);
 }
 
-void pci_ne2000_init(PCIBus *bus, NICInfo *nd, int devfn)
+PCIDevice *pci_ne2000_init(PCIBus *bus, NICInfo *nd, int devfn)
 {
     PCINE2000State *d;
     NE2000State *s;
@@ -790,12 +788,9 @@ void pci_ne2000_init(PCIBus *bus, NICInfo *nd, int devfn)
                                               devfn,
                                               NULL, NULL);
     pci_conf = d->dev.config;
-    pci_conf[0x00] = 0xec; // Realtek 8029
-    pci_conf[0x01] = 0x10;
-    pci_conf[0x02] = 0x29;
-    pci_conf[0x03] = 0x80;
-    pci_conf[0x0a] = 0x00; // ethernet network controller
-    pci_conf[0x0b] = 0x02;
+    pci_config_set_vendor_id(pci_conf, PCI_VENDOR_ID_REALTEK);
+    pci_config_set_device_id(pci_conf, PCI_DEVICE_ID_REALTEK_RTL8029);
+    pci_config_set_class(pci_conf, PCI_CLASS_NETWORK_ETHERNET);
     pci_conf[0x0e] = 0x00; // header_type
     pci_conf[0x3d] = 1; // interrupt pin 0
 
@@ -812,4 +807,6 @@ void pci_ne2000_init(PCIBus *bus, NICInfo *nd, int devfn)
     qemu_format_nic_info_str(s->vc, s->macaddr);
 
     register_savevm("ne2000", -1, 3, ne2000_save, ne2000_load, s);
+
+    return (PCIDevice *)d;
 }

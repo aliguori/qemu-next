@@ -31,6 +31,13 @@
 //#define DEBUG_UNASSIGNED
 #define DEBUG_UIC
 
+
+#ifdef DEBUG_UIC
+#  define LOG_UIC(...) qemu_log_mask(CPU_LOG_INT, ## __VA_ARGS__)
+#else
+#  define LOG_UIC(...) do { } while (0)
+#endif
+
 /*****************************************************************************/
 /* Generic PowerPC 4xx processor instanciation */
 CPUState *ppc4xx_init (const char *cpu_model,
@@ -239,18 +246,16 @@ ppc4xx_mmio_t *ppc4xx_mmio_init (CPUState *env, target_phys_addr_t base)
     int mmio_memory;
 
     mmio = qemu_mallocz(sizeof(ppc4xx_mmio_t));
-    if (mmio != NULL) {
-        mmio->base = base;
-        mmio_memory = cpu_register_io_memory(0, mmio_read, mmio_write, mmio);
+    mmio->base = base;
+    mmio_memory = cpu_register_io_memory(0, mmio_read, mmio_write, mmio);
 #if defined(DEBUG_MMIO)
-        printf("%s: base " PADDRX " len %08x %d\n", __func__,
-               base, TARGET_PAGE_SIZE, mmio_memory);
+    printf("%s: base " PADDRX " len %08x %d\n", __func__,
+           base, TARGET_PAGE_SIZE, mmio_memory);
 #endif
-        cpu_register_physical_memory(base, TARGET_PAGE_SIZE, mmio_memory);
-        ppc4xx_mmio_register(env, mmio, 0, TARGET_PAGE_SIZE,
-                             unassigned_mmio_read, unassigned_mmio_write,
-                             mmio);
-    }
+    cpu_register_physical_memory(base, TARGET_PAGE_SIZE, mmio_memory);
+    ppc4xx_mmio_register(env, mmio, 0, TARGET_PAGE_SIZE,
+                         unassigned_mmio_read, unassigned_mmio_write,
+                         mmio);
 
     return mmio;
 }
@@ -294,28 +299,16 @@ static void ppcuic_trigger_irq (ppcuic_t *uic)
     /* Trigger interrupt if any is pending */
     ir = uic->uicsr & uic->uicer & (~uic->uiccr);
     cr = uic->uicsr & uic->uicer & uic->uiccr;
-#ifdef DEBUG_UIC
-    if (loglevel & CPU_LOG_INT) {
-        fprintf(logfile, "%s: uicsr %08" PRIx32 " uicer %08" PRIx32
+    LOG_UIC("%s: uicsr %08" PRIx32 " uicer %08" PRIx32
                 " uiccr %08" PRIx32 "\n"
                 "   %08" PRIx32 " ir %08" PRIx32 " cr %08" PRIx32 "\n",
                 __func__, uic->uicsr, uic->uicer, uic->uiccr,
                 uic->uicsr & uic->uicer, ir, cr);
-    }
-#endif
     if (ir != 0x0000000) {
-#ifdef DEBUG_UIC
-        if (loglevel & CPU_LOG_INT) {
-            fprintf(logfile, "Raise UIC interrupt\n");
-        }
-#endif
+        LOG_UIC("Raise UIC interrupt\n");
         qemu_irq_raise(uic->irqs[PPCUIC_OUTPUT_INT]);
     } else {
-#ifdef DEBUG_UIC
-        if (loglevel & CPU_LOG_INT) {
-            fprintf(logfile, "Lower UIC interrupt\n");
-        }
-#endif
+        LOG_UIC("Lower UIC interrupt\n");
         qemu_irq_lower(uic->irqs[PPCUIC_OUTPUT_INT]);
     }
     /* Trigger critical interrupt if any is pending and update vector */
@@ -340,18 +333,10 @@ static void ppcuic_trigger_irq (ppcuic_t *uic)
                 }
             }
         }
-#ifdef DEBUG_UIC
-        if (loglevel & CPU_LOG_INT) {
-            fprintf(logfile, "Raise UIC critical interrupt - "
+        LOG_UIC("Raise UIC critical interrupt - "
                     "vector %08" PRIx32 "\n", uic->uicvr);
-        }
-#endif
     } else {
-#ifdef DEBUG_UIC
-        if (loglevel & CPU_LOG_INT) {
-            fprintf(logfile, "Lower UIC critical interrupt\n");
-        }
-#endif
+        LOG_UIC("Lower UIC critical interrupt\n");
         qemu_irq_lower(uic->irqs[PPCUIC_OUTPUT_CINT]);
         uic->uicvr = 0x00000000;
     }
@@ -364,14 +349,10 @@ static void ppcuic_set_irq (void *opaque, int irq_num, int level)
 
     uic = opaque;
     mask = 1 << (31-irq_num);
-#ifdef DEBUG_UIC
-    if (loglevel & CPU_LOG_INT) {
-        fprintf(logfile, "%s: irq %d level %d uicsr %08" PRIx32
+    LOG_UIC("%s: irq %d level %d uicsr %08" PRIx32
                 " mask %08" PRIx32 " => %08" PRIx32 " %08" PRIx32 "\n",
                 __func__, irq_num, level,
                 uic->uicsr, mask, uic->uicsr & mask, level << irq_num);
-    }
-#endif
     if (irq_num < 0 || irq_num > 31)
         return;
     sr = uic->uicsr;
@@ -391,12 +372,8 @@ static void ppcuic_set_irq (void *opaque, int irq_num, int level)
             uic->level &= ~mask;
         }
     }
-#ifdef DEBUG_UIC
-    if (loglevel & CPU_LOG_INT) {
-        fprintf(logfile, "%s: irq %d level %d sr %" PRIx32 " => "
+    LOG_UIC("%s: irq %d level %d sr %" PRIx32 " => "
                 "%08" PRIx32 "\n", __func__, irq_num, level, uic->uicsr, sr);
-    }
-#endif
     if (sr != uic->uicsr)
         ppcuic_trigger_irq(uic);
 }
@@ -453,11 +430,7 @@ static void dcr_write_uic (void *opaque, int dcrn, target_ulong val)
 
     uic = opaque;
     dcrn -= uic->dcr_base;
-#ifdef DEBUG_UIC
-    if (loglevel & CPU_LOG_INT) {
-        fprintf(logfile, "%s: dcr %d val " ADDRX "\n", __func__, dcrn, val);
-    }
-#endif
+    LOG_UIC("%s: dcr %d val " ADDRX "\n", __func__, dcrn, val);
     switch (dcrn) {
     case DCR_UICSR:
         uic->uicsr &= ~val;
@@ -517,18 +490,16 @@ qemu_irq *ppcuic_init (CPUState *env, qemu_irq *irqs,
     int i;
 
     uic = qemu_mallocz(sizeof(ppcuic_t));
-    if (uic != NULL) {
-        uic->dcr_base = dcr_base;
-        uic->irqs = irqs;
-        if (has_vr)
-            uic->use_vectors = 1;
-        for (i = 0; i < DCR_UICMAX; i++) {
-            ppc_dcr_register(env, dcr_base + i, uic,
-                             &dcr_read_uic, &dcr_write_uic);
-        }
-        qemu_register_reset(ppcuic_reset, uic);
-        ppcuic_reset(uic);
+    uic->dcr_base = dcr_base;
+    uic->irqs = irqs;
+    if (has_vr)
+        uic->use_vectors = 1;
+    for (i = 0; i < DCR_UICMAX; i++) {
+        ppc_dcr_register(env, dcr_base + i, uic,
+                         &dcr_read_uic, &dcr_write_uic);
     }
+    qemu_register_reset(ppcuic_reset, uic);
+    ppcuic_reset(uic);
 
     return qemu_allocate_irqs(&ppcuic_set_irq, uic, UIC_MAX_IRQ);
 }
@@ -854,24 +825,22 @@ void ppc4xx_sdram_init (CPUState *env, qemu_irq irq, int nbanks,
     ppc4xx_sdram_t *sdram;
 
     sdram = qemu_mallocz(sizeof(ppc4xx_sdram_t));
-    if (sdram != NULL) {
-        sdram->irq = irq;
-        sdram->nbanks = nbanks;
-        memset(sdram->ram_bases, 0, 4 * sizeof(target_phys_addr_t));
-        memcpy(sdram->ram_bases, ram_bases,
-               nbanks * sizeof(target_phys_addr_t));
-        memset(sdram->ram_sizes, 0, 4 * sizeof(target_phys_addr_t));
-        memcpy(sdram->ram_sizes, ram_sizes,
-               nbanks * sizeof(target_phys_addr_t));
-        sdram_reset(sdram);
-        qemu_register_reset(&sdram_reset, sdram);
-        ppc_dcr_register(env, SDRAM0_CFGADDR,
-                         sdram, &dcr_read_sdram, &dcr_write_sdram);
-        ppc_dcr_register(env, SDRAM0_CFGDATA,
-                         sdram, &dcr_read_sdram, &dcr_write_sdram);
-        if (do_init)
-            sdram_map_bcr(sdram);
-    }
+    sdram->irq = irq;
+    sdram->nbanks = nbanks;
+    memset(sdram->ram_bases, 0, 4 * sizeof(target_phys_addr_t));
+    memcpy(sdram->ram_bases, ram_bases,
+           nbanks * sizeof(target_phys_addr_t));
+    memset(sdram->ram_sizes, 0, 4 * sizeof(target_phys_addr_t));
+    memcpy(sdram->ram_sizes, ram_sizes,
+           nbanks * sizeof(target_phys_addr_t));
+    sdram_reset(sdram);
+    qemu_register_reset(&sdram_reset, sdram);
+    ppc_dcr_register(env, SDRAM0_CFGADDR,
+                     sdram, &dcr_read_sdram, &dcr_write_sdram);
+    ppc_dcr_register(env, SDRAM0_CFGDATA,
+                     sdram, &dcr_read_sdram, &dcr_write_sdram);
+    if (do_init)
+        sdram_map_bcr(sdram);
 }
 
 /* Fill in consecutive SDRAM banks with 'ram_size' bytes of memory.

@@ -1371,10 +1371,6 @@ static void do_wav_capture (const char *path,
     CaptureState *s;
 
     s = qemu_mallocz (sizeof (*s));
-    if (!s) {
-        term_printf ("Not enough memory to add wave capture\n");
-        return;
-    }
 
     freq = has_freq ? freq : 44100;
     bits = has_bits ? bits : 16;
@@ -1429,6 +1425,7 @@ static void do_info_balloon(void)
         term_printf("balloon: actual=%d\n", (int)(actual >> 20));
 }
 
+/* Please update qemu-doc.texi when adding or changing commands */
 static const term_cmd_t term_cmds[] = {
     { "help|?", "s?", do_help,
       "[cmd]", "show the help" },
@@ -1496,8 +1493,8 @@ static const term_cmd_t term_cmds[] = {
       "path [frequency bits channels]",
       "capture audio to a wave file (default frequency=44100 bits=16 channels=2)" },
 #endif
-     { "stopcapture", "i", do_stop_capture,
-       "capture index", "stop capture" },
+    { "stopcapture", "i", do_stop_capture,
+      "capture index", "stop capture" },
     { "memsave", "lis", do_memory_save,
       "addr size file", "save to disk virtual memory dump starting at 'addr' of size 'size'", },
     { "pmemsave", "lis", do_physical_memory_save,
@@ -1514,15 +1511,31 @@ static const term_cmd_t term_cmds[] = {
       "", "cancel the current VM migration" },
     { "migrate_set_speed", "s", do_migrate_set_speed,
       "value", "set maximum speed (in bytes) for migrations" },
+#if defined(TARGET_I386)
+    { "drive_add", "ss", drive_hot_add, "pci_addr=[[<domain>:]<bus>:]<slot>\n"
+                                         "[file=file][,if=type][,bus=n]\n"
+                                        "[,unit=m][,media=d][index=i]\n"
+                                        "[,cyls=c,heads=h,secs=s[,trans=t]]\n"
+                                        "[snapshot=on|off][,cache=on|off]",
+                                        "add drive to PCI storage controller" },
+    { "pci_add", "sss", pci_device_hot_add, "pci_addr=auto|[[<domain>:]<bus>:]<slot> nic|storage [[vlan=n][,macaddr=addr][,model=type]] [file=file][,if=type][,bus=nr]...", "hot-add PCI device" },
+    { "pci_del", "s", pci_device_hot_remove, "pci_addr=[[<domain>:]<bus>:]<slot>", "hot remove PCI device" },
+    { "host_net_add", "ss", net_host_device_add,
+      "[tap,user,socket,vde] options", "add host VLAN client" },
+    { "host_net_remove", "is", net_host_device_remove,
+      "vlan_id name", "remove host VLAN client" },
+#endif
     { "balloon", "i", do_balloon,
       "target", "request VM to change it's memory allocation (in MB)" },
-    { "set_link", "ss", do_set_link, "name [up|down]" },
+    { "set_link", "ss", do_set_link,
+      "name [up|down]", "change the link status of a network adapter" },
     { NULL, NULL, },
 };
 
+/* Please update qemu-doc.texi when adding or changing commands */
 static const term_cmd_t info_cmds[] = {
     { "version", "", do_info_version,
-      "", "show the version of qemu" },
+      "", "show the version of QEMU" },
     { "network", "", do_info_network,
       "", "show the network state" },
     { "chardev", "", qemu_chr_info,
@@ -1554,9 +1567,9 @@ static const term_cmd_t info_cmds[] = {
     { "jit", "", do_info_jit,
       "", "show dynamic compiler info", },
     { "kqemu", "", do_info_kqemu,
-      "", "show kqemu information", },
+      "", "show KQEMU information", },
     { "kvm", "", do_info_kvm,
-      "", "show kvm information", },
+      "", "show KVM information", },
     { "usb", "", usb_info,
       "", "show guest USB devices", },
     { "usbhost", "", usb_host_info,

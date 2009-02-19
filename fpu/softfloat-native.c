@@ -51,10 +51,10 @@ ldexpl(long double x, int n) {
 #endif
 #endif
 
-#if defined(__powerpc__)
+#if defined(_ARCH_PPC)
 
 /* correct (but slow) PowerPC rint() (glibc version is incorrect) */
-double qemu_rint(double x)
+static double qemu_rint(double x)
 {
     double y = 4503599627370496.0;
     if (fabs(x) >= y)

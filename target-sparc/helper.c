@@ -639,12 +639,16 @@ target_phys_addr_t cpu_get_phys_page_debug(CPUState *env, target_ulong addr)
 
 void cpu_reset(CPUSPARCState *env)
 {
+    if (qemu_loglevel_mask(CPU_LOG_RESET)) {
+        qemu_log("CPU Reset (CPU %d)\n", env->cpu_index);
+        log_cpu_state(env, 0);
+    }
+
     tlb_flush(env, 1);
     env->cwp = 0;
     env->wim = 1;
     env->regwptr = env->regbase + (env->cwp * 16);
 #if defined(CONFIG_USER_ONLY)
-    env->user_mode_only = 1;
 #ifdef TARGET_SPARC64
     env->cleanwin = env->nwindows - 2;
     env->cansave = env->nwindows - 2;
@@ -709,8 +713,6 @@ CPUSPARCState *cpu_sparc_init(const char *cpu_model)
     CPUSPARCState *env;
 
     env = qemu_mallocz(sizeof(CPUSPARCState));
-    if (!env)
-        return NULL;
     cpu_exec_init(env);
 
     gen_intermediate_code_init(env);

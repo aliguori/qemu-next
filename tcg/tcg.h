@@ -272,7 +272,6 @@ struct TCGContext {
     int op_count_max; /* max insn per TB */
     int64_t temp_count;
     int temp_count_max;
-    int64_t old_op_count;
     int64_t del_op_count;
     int64_t code_in_len;
     int64_t code_out_len;
@@ -390,8 +389,6 @@ typedef struct TCGTargetOpDef {
     const char *args_ct_str[TCG_MAX_OP_ARGS];
 } TCGTargetOpDef;
 
-extern TCGOpDef tcg_op_defs[];
-
 void tcg_target_init(TCGContext *s);
 void tcg_target_qemu_prologue(TCGContext *s);
 
@@ -457,7 +454,7 @@ uint64_t tcg_helper_divu_i64(uint64_t arg1, uint64_t arg2);
 uint64_t tcg_helper_remu_i64(uint64_t arg1, uint64_t arg2);
 
 extern uint8_t code_gen_prologue[];
-#if defined(__powerpc__) && !defined(__powerpc64__)
+#if defined(_ARCH_PPC) && !defined(_ARCH_PPC64)
 #define tcg_qemu_tb_exec(tb_ptr) \
     ((long REGPARM __attribute__ ((longcall)) (*)(void *))code_gen_prologue)(tb_ptr)
 #else

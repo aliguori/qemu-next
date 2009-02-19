@@ -1068,10 +1068,10 @@ static CPUWriteMemoryFunc *omap_im3_writefn[] = {
 };
 
 struct omap_dss_s *omap_dss_init(struct omap_target_agent_s *ta,
-                                 target_phys_addr_t l3_base, DisplayState *ds,
-                                 qemu_irq irq, qemu_irq drq,
-                                 omap_clk fck1, omap_clk fck2, omap_clk ck54m,
-                                 omap_clk ick1, omap_clk ick2)
+                target_phys_addr_t l3_base,
+                qemu_irq irq, qemu_irq drq,
+                omap_clk fck1, omap_clk fck2, omap_clk ck54m,
+                omap_clk ick1, omap_clk ick2)
 {
     int iomemtype[6];
     struct omap_dss_s *s = (struct omap_dss_s *)
@@ -1079,7 +1079,6 @@ struct omap_dss_s *omap_dss_init(struct omap_target_agent_s *ta,
 
     s->irq = irq;
     s->drq = drq;
-    s->state = ds;
     omap_dss_reset(s);
 
     iomemtype[0] = l4_register_io_memory(0, omap_diss1_readfn,
@@ -1098,6 +1097,11 @@ struct omap_dss_s *omap_dss_init(struct omap_target_agent_s *ta,
     omap_l4_attach(ta, 3, iomemtype[2]);
     omap_l4_attach(ta, 4, iomemtype[3]);
     cpu_register_physical_memory(l3_base, 0x1000, iomemtype[4]);
+
+#if 0
+    s->state = graphic_console_init(omap_update_display,
+                                    omap_invalidate_display, omap_screen_dump, s);
+#endif
 
     return s;
 }
@@ -1251,7 +1255,9 @@ void *omap3_lcd_panel_init(DisplayState *ds)
 {
     struct omap3_lcd_panel_s *s = (struct omap3_lcd_panel_s *) qemu_mallocz(sizeof(*s));
 
-    s->state = ds;
+    s->state = graphic_console_init(omap3_lcd_panel_update_display,
+                                      omap3_lcd_panel_invalidate_display,
+                                      NULL, NULL, s);
 
     switch (ds_get_bits_per_pixel(s->state)) {
     case 0:
@@ -1259,32 +1265,29 @@ void *omap3_lcd_panel_init(DisplayState *ds)
             qemu_mallocz(sizeof(omap3_lcd_panel_fn_t) * 0x10);
         break;
     case 8:
-        s->line_fn_tab[0] = ds->bgr ? omap3_lcd_panel_draw_fn_bgr_8 : omap3_lcd_panel_draw_fn_8;
-        s->line_fn_tab[1] = ds->bgr ? omap3_lcd_panel_draw_fn_r_bgr_8 : omap3_lcd_panel_draw_fn_r_8;
+        s->line_fn_tab[0] = 0 ? omap3_lcd_panel_draw_fn_bgr_8 : omap3_lcd_panel_draw_fn_8;
+        s->line_fn_tab[1] = 0 ? omap3_lcd_panel_draw_fn_r_bgr_8 : omap3_lcd_panel_draw_fn_r_8;
         break;
     case 15:
-        s->line_fn_tab[0] = ds->bgr ? omap3_lcd_panel_draw_fn_bgr_15 : omap3_lcd_panel_draw_fn_15;
-        s->line_fn_tab[1] = ds->bgr ? omap3_lcd_panel_draw_fn_r_bgr_15 : omap3_lcd_panel_draw_fn_r_15;
+        s->line_fn_tab[0] = 0 ? omap3_lcd_panel_draw_fn_bgr_15 : omap3_lcd_panel_draw_fn_15;
+        s->line_fn_tab[1] = 0 ? omap3_lcd_panel_draw_fn_r_bgr_15 : omap3_lcd_panel_draw_fn_r_15;
         break;
     case 16:
-        s->line_fn_tab[0] = ds->bgr ? omap3_lcd_panel_draw_fn_bgr_16 : omap3_lcd_panel_draw_fn_16;
-        s->line_fn_tab[1] = ds->bgr ? omap3_lcd_panel_draw_fn_r_bgr_16: omap3_lcd_panel_draw_fn_r_16;
+        s->line_fn_tab[0] = 0 ? omap3_lcd_panel_draw_fn_bgr_16 : omap3_lcd_panel_draw_fn_16;
+        s->line_fn_tab[1] = 0 ? omap3_lcd_panel_draw_fn_r_bgr_16: omap3_lcd_panel_draw_fn_r_16;
         break;
     case 24:
-        s->line_fn_tab[0] = ds->bgr ? omap3_lcd_panel_draw_fn_bgr_24 : omap3_lcd_panel_draw_fn_24;
-        s->line_fn_tab[1] = ds->bgr ? omap3_lcd_panel_draw_fn_r_bgr_24 : omap3_lcd_panel_draw_fn_r_24;
+        s->line_fn_tab[0] = 0 ? omap3_lcd_panel_draw_fn_bgr_24 : omap3_lcd_panel_draw_fn_24;
+        s->line_fn_tab[1] = 0 ? omap3_lcd_panel_draw_fn_r_bgr_24 : omap3_lcd_panel_draw_fn_r_24;
         break;
     case 32:
-        s->line_fn_tab[0] = ds->bgr ? omap3_lcd_panel_draw_fn_bgr_32 : omap3_lcd_panel_draw_fn_32;
-        s->line_fn_tab[1] = ds->bgr ? omap3_lcd_panel_draw_fn_r_bgr_32 : omap3_lcd_panel_draw_fn_r_32;
+        s->line_fn_tab[0] = 0 ? omap3_lcd_panel_draw_fn_bgr_32 : omap3_lcd_panel_draw_fn_32;
+        s->line_fn_tab[1] = 0 ? omap3_lcd_panel_draw_fn_r_bgr_32 : omap3_lcd_panel_draw_fn_r_32;
         break;
     default:
         fprintf(stderr, "%s: Bad color depth\n", __FUNCTION__);
         exit(1);
     }
 
-    s->console = graphic_console_init(s->state, omap3_lcd_panel_update_display,
-                                      omap3_lcd_panel_invalidate_display,
-                                      NULL, NULL, s);
     return s;
 }

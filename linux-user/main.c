@@ -1062,10 +1062,8 @@ int ppc_dcr_write (ppc_dcr_t *dcr_env, int dcrn, target_ulong val)
 do {                                                                          \
     fprintf(stderr, fmt , ##args);                                            \
     cpu_dump_state(env, stderr, fprintf, 0);                                  \
-    if (loglevel != 0) {                                                      \
-        fprintf(logfile, fmt , ##args);                                       \
-        cpu_dump_state(env, logfile, fprintf, 0);                             \
-    }                                                                         \
+    qemu_log(fmt, ##args);                                                   \
+    log_cpu_state(env, 0);                                                      \
 } while (0)
 
 void cpu_loop(CPUPPCState *env)
@@ -2317,6 +2315,8 @@ int main(int argc, char **argv, char **envp)
            filename = r;
            exec_path = r;
         } else if (!strcmp(r, "s")) {
+            if (optind >= argc)
+                break;
             r = argv[optind++];
             x86_stack_size = strtol(r, (char **)&r, 0);
             if (x86_stack_size <= 0)
@@ -2328,6 +2328,8 @@ int main(int argc, char **argv, char **envp)
         } else if (!strcmp(r, "L")) {
             interp_prefix = argv[optind++];
         } else if (!strcmp(r, "p")) {
+            if (optind >= argc)
+                break;
             qemu_host_page_size = atoi(argv[optind++]);
             if (qemu_host_page_size == 0 ||
                 (qemu_host_page_size & (qemu_host_page_size - 1)) != 0) {
@@ -2335,12 +2337,14 @@ int main(int argc, char **argv, char **envp)
                 _exit(1);
             }
         } else if (!strcmp(r, "g")) {
+            if (optind >= argc)
+                break;
             gdbstub_port = atoi(argv[optind++]);
 	} else if (!strcmp(r, "r")) {
 	    qemu_uname_release = argv[optind++];
         } else if (!strcmp(r, "cpu")) {
             cpu_model = argv[optind++];
-            if (strcmp(cpu_model, "?") == 0) {
+            if (cpu_model == NULL || strcmp(cpu_model, "?") == 0) {
 /* XXX: implement xxx_cpu_list for targets that still miss it */
 #if defined(cpu_list)
                     cpu_list(stdout, &fprintf);
@@ -2468,20 +2472,20 @@ int main(int argc, char **argv, char **envp)
 
     free(target_environ);
 
-    if (loglevel) {
-        page_dump(logfile);
+    if (qemu_log_enabled()) {
+        log_page_dump();
 
-        fprintf(logfile, "start_brk   0x" TARGET_ABI_FMT_lx "\n", info->start_brk);
-        fprintf(logfile, "end_code    0x" TARGET_ABI_FMT_lx "\n", info->end_code);
-        fprintf(logfile, "start_code  0x" TARGET_ABI_FMT_lx "\n",
-                info->start_code);
-        fprintf(logfile, "start_data  0x" TARGET_ABI_FMT_lx "\n",
-                info->start_data);
-        fprintf(logfile, "end_data    0x" TARGET_ABI_FMT_lx "\n", info->end_data);
-        fprintf(logfile, "start_stack 0x" TARGET_ABI_FMT_lx "\n",
-                info->start_stack);
-        fprintf(logfile, "brk         0x" TARGET_ABI_FMT_lx "\n", info->brk);
-        fprintf(logfile, "entry       0x" TARGET_ABI_FMT_lx "\n", info->entry);
+        qemu_log("start_brk   0x" TARGET_ABI_FMT_lx "\n", info->start_brk);
+        qemu_log("end_code    0x" TARGET_ABI_FMT_lx "\n", info->end_code);
+        qemu_log("start_code  0x" TARGET_ABI_FMT_lx "\n",
+                 info->start_code);
+        qemu_log("start_data  0x" TARGET_ABI_FMT_lx "\n",
+                 info->start_data);
+        qemu_log("end_data    0x" TARGET_ABI_FMT_lx "\n", info->end_data);
+        qemu_log("start_stack 0x" TARGET_ABI_FMT_lx "\n",
+                 info->start_stack);
+        qemu_log("brk         0x" TARGET_ABI_FMT_lx "\n", info->brk);
+        qemu_log("entry       0x" TARGET_ABI_FMT_lx "\n", info->entry);
     }
 
     target_set_brk(info->brk);
@@ -2493,7 +2497,6 @@ int main(int argc, char **argv, char **envp)
     init_task_state(ts);
     ts->info = info;
     env->opaque = ts;
-    env->user_mode_only = 1;
 
 #if defined(TARGET_I386)
     cpu_x86_set_cpl(env, 3);

@@ -54,11 +54,13 @@
 #define REG_B_PIE 0x40
 #define REG_B_AIE 0x20
 #define REG_B_UIE 0x10
+#define REG_B_DM  0x04
 
 struct RTCState {
     uint8_t cmos_data[128];
     uint8_t cmos_index;
     struct tm current_tm;
+    int base_year;
     qemu_irq irq;
     int it_shift;
     /* periodic timer */
@@ -66,6 +68,10 @@ struct RTCState {
     int64_t next_periodic_time;
     /* second update */
     int64_t next_second_time;
+#ifdef TARGET_I386
+    uint32_t irq_coalesced;
+    uint32_t period;
+#endif
     QEMUTimer *second_timer;
     QEMUTimer *second_timer2;
 };
@@ -103,12 +109,20 @@ static void rtc_timer_update(RTCState *s, int64_t current_time)
             period_code += 7;
         /* period in 32 Khz cycles */
         period = 1 << (period_code - 1);
+#ifdef TARGET_I386
+        if(period != s->period)
+            s->irq_coalesced = (s->irq_coalesced * s->period) / period;
+        s->period = period;
+#endif
         /* compute 32 khz clock */
         cur_clock = muldiv64(current_time, 32768, ticks_per_sec);
         next_irq_clock = (cur_clock & ~(period - 1)) + period;
         s->next_periodic_time = muldiv64(next_irq_clock, ticks_per_sec, 32768) + 1;
         qemu_mod_timer(s->periodic_timer, s->next_periodic_time);
     } else {
+#ifdef TARGET_I386
+        s->irq_coalesced = 0;
+#endif
         qemu_del_timer(s->periodic_timer);
     }
 }
@@ -118,6 +132,12 @@ static void rtc_periodic_timer(void *opaque)
     RTCState *s = opaque;
 
     rtc_timer_update(s, s->next_periodic_time);
+#ifdef TARGET_I386
+    if ((s->cmos_data[RTC_REG_C] & 0xc0) && rtc_td_hack) {
+        s->irq_coalesced++;
+        return;
+    }
+#endif
     s->cmos_data[RTC_REG_C] |= 0xc0;
     rtc_irq_raise(s->irq);
 }
@@ -186,7 +206,7 @@ static void cmos_ioport_write(void *opaque, uint32_t addr, uint32_t data)
 
 static inline int to_bcd(RTCState *s, int a)
 {
-    if (s->cmos_data[RTC_REG_B] & 0x04) {
+    if (s->cmos_data[RTC_REG_B] & REG_B_DM) {
         return a;
     } else {
         return ((a / 10) << 4) | (a % 10);
@@ -195,7 +215,7 @@ static inline int to_bcd(RTCState *s, int a)
 
 static inline int from_bcd(RTCState *s, int a)
 {
-    if (s->cmos_data[RTC_REG_B] & 0x04) {
+    if (s->cmos_data[RTC_REG_B] & REG_B_DM) {
         return a;
     } else {
         return ((a >> 4) * 10) + (a & 0x0f);
@@ -213,15 +233,16 @@ static void rtc_set_time(RTCState *s)
         (s->cmos_data[RTC_HOURS] & 0x80)) {
         tm->tm_hour += 12;
     }
-    tm->tm_wday = from_bcd(s, s->cmos_data[RTC_DAY_OF_WEEK]);
+    tm->tm_wday = from_bcd(s, s->cmos_data[RTC_DAY_OF_WEEK]) - 1;
     tm->tm_mday = from_bcd(s, s->cmos_data[RTC_DAY_OF_MONTH]);
     tm->tm_mon = from_bcd(s, s->cmos_data[RTC_MONTH]) - 1;
-    tm->tm_year = from_bcd(s, s->cmos_data[RTC_YEAR]) + 100;
+    tm->tm_year = from_bcd(s, s->cmos_data[RTC_YEAR]) + s->base_year - 1900;
 }
 
 static void rtc_copy_date(RTCState *s)
 {
     const struct tm *tm = &s->current_tm;
+    int year;
 
     s->cmos_data[RTC_SECONDS] = to_bcd(s, tm->tm_sec);
     s->cmos_data[RTC_MINUTES] = to_bcd(s, tm->tm_min);
@@ -234,10 +255,13 @@ static void rtc_copy_date(RTCState *s)
         if (tm->tm_hour >= 12)
             s->cmos_data[RTC_HOURS] |= 0x80;
     }
-    s->cmos_data[RTC_DAY_OF_WEEK] = to_bcd(s, tm->tm_wday);
+    s->cmos_data[RTC_DAY_OF_WEEK] = to_bcd(s, tm->tm_wday + 1);
     s->cmos_data[RTC_DAY_OF_MONTH] = to_bcd(s, tm->tm_mday);
     s->cmos_data[RTC_MONTH] = to_bcd(s, tm->tm_mon + 1);
-    s->cmos_data[RTC_YEAR] = to_bcd(s, tm->tm_year % 100);
+    year = (tm->tm_year - s->base_year) % 100;
+    if (year < 0)
+        year += 100;
+    s->cmos_data[RTC_YEAR] = to_bcd(s, year);
 }
 
 /* month is between 0 and 11. */
@@ -378,6 +402,15 @@ static uint32_t cmos_ioport_read(void *opaque, uint32_t addr)
         case RTC_REG_C:
             ret = s->cmos_data[s->cmos_index];
             qemu_irq_lower(s->irq);
+#ifdef TARGET_I386
+            if(s->irq_coalesced) {
+                apic_reset_irq_delivered();
+                qemu_irq_raise(s->irq);
+                if (apic_get_irq_delivered())
+                    s->irq_coalesced--;
+                break;
+            }
+#endif
             s->cmos_data[RTC_REG_C] = 0x00;
             break;
         default:
@@ -472,13 +505,33 @@ static int rtc_load(QEMUFile *f, void *opaque, int version_id)
     return 0;
 }
 
-RTCState *rtc_init(int base, qemu_irq irq)
+#ifdef TARGET_I386
+static void rtc_save_td(QEMUFile *f, void *opaque)
+{
+    RTCState *s = opaque;
+
+    qemu_put_be32(f, s->irq_coalesced);
+    qemu_put_be32(f, s->period);
+}
+
+static int rtc_load_td(QEMUFile *f, void *opaque, int version_id)
+{
+    RTCState *s = opaque;
+
+    if (version_id != 1)
+        return -EINVAL;
+
+    s->irq_coalesced = qemu_get_be32(f);
+    s->period = qemu_get_be32(f);
+    return 0;
+}
+#endif
+
+RTCState *rtc_init(int base, qemu_irq irq, int base_year)
 {
     RTCState *s;
 
     s = qemu_mallocz(sizeof(RTCState));
-    if (!s)
-        return NULL;
 
     s->irq = irq;
     s->cmos_data[RTC_REG_A] = 0x26;
@@ -486,6 +539,7 @@ RTCState *rtc_init(int base, qemu_irq irq)
     s->cmos_data[RTC_REG_C] = 0x00;
     s->cmos_data[RTC_REG_D] = 0x80;
 
+    s->base_year = base_year;
     rtc_set_date_from_host(s);
 
     s->periodic_timer = qemu_new_timer(vm_clock,
@@ -502,6 +556,10 @@ RTCState *rtc_init(int base, qemu_irq irq)
     register_ioport_read(base, 2, 1, cmos_ioport_read, s);
 
     register_savevm("mc146818rtc", base, 1, rtc_save, rtc_load, s);
+#ifdef TARGET_I386
+    if (rtc_td_hack)
+        register_savevm("mc146818rtc-td", base, 1, rtc_save_td, rtc_load_td, s);
+#endif
     return s;
 }
 
@@ -577,14 +635,13 @@ static CPUWriteMemoryFunc *rtc_mm_write[] = {
     &cmos_mm_writel,
 };
 
-RTCState *rtc_mm_init(target_phys_addr_t base, int it_shift, qemu_irq irq)
+RTCState *rtc_mm_init(target_phys_addr_t base, int it_shift, qemu_irq irq,
+                      int base_year)
 {
     RTCState *s;
     int io_memory;
 
     s = qemu_mallocz(sizeof(RTCState));
-    if (!s)
-        return NULL;
 
     s->irq = irq;
     s->cmos_data[RTC_REG_A] = 0x26;
@@ -592,6 +649,7 @@ RTCState *rtc_mm_init(target_phys_addr_t base, int it_shift, qemu_irq irq)
     s->cmos_data[RTC_REG_C] = 0x00;
     s->cmos_data[RTC_REG_D] = 0x80;
 
+    s->base_year = base_year;
     rtc_set_date_from_host(s);
 
     s->periodic_timer = qemu_new_timer(vm_clock,
@@ -608,5 +666,9 @@ RTCState *rtc_mm_init(target_phys_addr_t base, int it_shift, qemu_irq irq)
     cpu_register_physical_memory(base, 2 << it_shift, io_memory);
 
     register_savevm("mc146818rtc", base, 1, rtc_save, rtc_load, s);
+#ifdef TARGET_I386
+    if (rtc_td_hack)
+        register_savevm("mc146818rtc-td", base, 1, rtc_save_td, rtc_load_td, s);
+#endif
     return s;
 }

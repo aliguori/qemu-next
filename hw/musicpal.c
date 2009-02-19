@@ -443,13 +443,9 @@ static i2c_interface *musicpal_audio_init(uint32_t base, qemu_irq irq)
     }
 
     s = qemu_mallocz(sizeof(musicpal_audio_state));
-    if (!s)
-        return NULL;
     s->irq = irq;
 
     i2c = qemu_mallocz(sizeof(i2c_interface));
-    if (!i2c)
-        return NULL;
     i2c->bus = i2c_init_bus();
     i2c->current_addr = -1;
 
@@ -717,8 +713,6 @@ static void mv88w8618_eth_init(NICInfo *nd, uint32_t base, qemu_irq irq)
     qemu_check_nic_model(nd, "mv88w8618");
 
     s = qemu_mallocz(sizeof(mv88w8618_eth_state));
-    if (!s)
-        return;
     s->irq = irq;
     s->vc = qemu_new_vlan_client(nd->vlan, nd->model, nd->name,
                                  eth_receive, eth_can_receive, s);
@@ -752,7 +746,6 @@ typedef struct musicpal_lcd_state {
     int page;
     int page_off;
     DisplayState *ds;
-    QEMUConsole *console;
     uint8_t video_ram[128*64/8];
 } musicpal_lcd_state;
 
@@ -829,7 +822,7 @@ static void lcd_refresh(void *opaque)
         break;
     LCD_REFRESH(8, rgb_to_pixel8)
     LCD_REFRESH(16, rgb_to_pixel16)
-    LCD_REFRESH(32, (s->ds->bgr ? rgb_to_pixel32bgr : rgb_to_pixel32))
+    LCD_REFRESH(32, rgb_to_pixel32)
     default:
         cpu_abort(cpu_single_env, "unsupported colour depth %i\n",
                   ds_get_bits_per_pixel(s->ds));
@@ -906,22 +899,19 @@ static CPUWriteMemoryFunc *musicpal_lcd_writefn[] = {
     musicpal_lcd_write
 };
 
-static void musicpal_lcd_init(DisplayState *ds, uint32_t base)
+static void musicpal_lcd_init(uint32_t base)
 {
     musicpal_lcd_state *s;
     int iomemtype;
 
     s = qemu_mallocz(sizeof(musicpal_lcd_state));
-    if (!s)
-        return;
-    s->ds = ds;
     iomemtype = cpu_register_io_memory(0, musicpal_lcd_readfn,
                                        musicpal_lcd_writefn, s);
     cpu_register_physical_memory(base, MP_LCD_SIZE, iomemtype);
 
-    s->console = graphic_console_init(ds, lcd_refresh, lcd_invalidate,
-                                      NULL, NULL, s);
-    qemu_console_resize(s->console, 128*3, 64*3);
+    s->ds = graphic_console_init(lcd_refresh, lcd_invalidate,
+                                 NULL, NULL, s);
+    qemu_console_resize(s->ds, 128*3, 64*3);
 }
 
 /* PIC register offsets */
@@ -1010,8 +1000,6 @@ static qemu_irq *mv88w8618_pic_init(uint32_t base, qemu_irq parent_irq)
     qemu_irq *qi;
 
     s = qemu_mallocz(sizeof(mv88w8618_pic_state));
-    if (!s)
-        return NULL;
     qi = qemu_allocate_irqs(mv88w8618_pic_set_irq, s, 32);
     s->parent_irq = parent_irq;
     iomemtype = cpu_register_io_memory(0, mv88w8618_pic_readfn,
@@ -1136,8 +1124,6 @@ static void mv88w8618_pit_init(uint32_t base, qemu_irq *pic, int irq)
     mv88w8618_pit_state *s;
 
     s = qemu_mallocz(sizeof(mv88w8618_pit_state));
-    if (!s)
-        return;
 
     /* Letting them all run at 1 MHz is likely just a pragmatic
      * simplification. */
@@ -1202,8 +1188,6 @@ static void mv88w8618_flashcfg_init(uint32_t base)
     mv88w8618_flashcfg_state *s;
 
     s = qemu_mallocz(sizeof(mv88w8618_flashcfg_state));
-    if (!s)
-        return;
 
     s->cfgr0 = 0xfffe4285; /* Default as set by U-Boot for 8 MB flash */
     iomemtype = cpu_register_io_memory(0, mv88w8618_flashcfg_readfn,
@@ -1404,7 +1388,7 @@ static struct arm_boot_info musicpal_binfo = {
 };
 
 static void musicpal_init(ram_addr_t ram_size, int vga_ram_size,
-               const char *boot_device, DisplayState *ds,
+               const char *boot_device,
                const char *kernel_filename, const char *kernel_cmdline,
                const char *initrd_filename, const char *cpu_model)
 {
@@ -1470,7 +1454,7 @@ static void musicpal_init(ram_addr_t ram_size, int vga_ram_size,
     }
     mv88w8618_flashcfg_init(MP_FLASHCFG_BASE);
 
-    musicpal_lcd_init(ds, MP_LCD_BASE);
+    musicpal_lcd_init(MP_LCD_BASE);
 
     qemu_add_kbd_event_handler(musicpal_key_event, pic[MP_GPIO_IRQ]);
 

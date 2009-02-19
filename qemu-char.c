@@ -30,6 +30,7 @@
 #include "block.h"
 #include "hw/usb.h"
 #include "hw/baum.h"
+#include "hw/msmouse.h"
 
 #include <unistd.h>
 #include <fcntl.h>
@@ -193,8 +194,6 @@ static CharDriverState *qemu_chr_open_null(void)
     CharDriverState *chr;
 
     chr = qemu_mallocz(sizeof(CharDriverState));
-    if (!chr)
-        return NULL;
     chr->chr_write = null_chr_write;
     return chr;
 }
@@ -241,13 +240,13 @@ static int mux_chr_write(CharDriverState *chr, const uint8_t *buf, int len)
                 if (term_timestamps_start == -1)
                     term_timestamps_start = ti;
                 ti -= term_timestamps_start;
-                secs = ti / 1000000000;
+                secs = ti / 1000;
                 snprintf(buf1, sizeof(buf1),
                          "[%02d:%02d:%02d.%03d] ",
                          secs / 3600,
                          (secs / 60) % 60,
                          secs % 60,
-                         (int)((ti / 1000000) % 1000));
+                         (int)(ti % 1000));
                 d->drv->chr_write(d->drv, (uint8_t *)buf1, strlen(buf1));
             }
         }
@@ -425,13 +424,7 @@ static CharDriverState *qemu_chr_open_mux(CharDriverState *drv)
     MuxDriver *d;
 
     chr = qemu_mallocz(sizeof(CharDriverState));
-    if (!chr)
-        return NULL;
     d = qemu_mallocz(sizeof(MuxDriver));
-    if (!d) {
-        free(chr);
-        return NULL;
-    }
 
     chr->opaque = d;
     d->drv = drv;
@@ -576,13 +569,7 @@ static CharDriverState *qemu_chr_open_fd(int fd_in, int fd_out)
     FDCharDriver *s;
 
     chr = qemu_mallocz(sizeof(CharDriverState));
-    if (!chr)
-        return NULL;
     s = qemu_mallocz(sizeof(FDCharDriver));
-    if (!s) {
-        free(chr);
-        return NULL;
-    }
     s->fd_in = fd_in;
     s->fd_out = fd_out;
     chr->opaque = s;
@@ -929,13 +916,7 @@ static CharDriverState *qemu_chr_open_pty(void)
 #endif
 
     chr = qemu_mallocz(sizeof(CharDriverState));
-    if (!chr)
-        return NULL;
     s = qemu_mallocz(sizeof(PtyCharDriver));
-    if (!s) {
-        qemu_free(chr);
-        return NULL;
-    }
 
     if (openpty(&s->fd, &slave_fd, pty_name, NULL, NULL) < 0) {
         return NULL;
@@ -1067,17 +1048,17 @@ static int tty_serial_ioctl(CharDriverState *chr, int cmd, void *arg)
             int *targ = (int *)arg;
             ioctl(s->fd_in, TIOCMGET, &sarg);
             *targ = 0;
-            if (sarg | TIOCM_CTS)
+            if (sarg & TIOCM_CTS)
                 *targ |= CHR_TIOCM_CTS;
-            if (sarg | TIOCM_CAR)
+            if (sarg & TIOCM_CAR)
                 *targ |= CHR_TIOCM_CAR;
-            if (sarg | TIOCM_DSR)
+            if (sarg & TIOCM_DSR)
                 *targ |= CHR_TIOCM_DSR;
-            if (sarg | TIOCM_RI)
+            if (sarg & TIOCM_RI)
                 *targ |= CHR_TIOCM_RI;
-            if (sarg | TIOCM_DTR)
+            if (sarg & TIOCM_DTR)
                 *targ |= CHR_TIOCM_DTR;
-            if (sarg | TIOCM_RTS)
+            if (sarg & TIOCM_RTS)
                 *targ |= CHR_TIOCM_RTS;
         }
         break;
@@ -1085,9 +1066,20 @@ static int tty_serial_ioctl(CharDriverState *chr, int cmd, void *arg)
         {
             int sarg = *(int *)arg;
             int targ = 0;
-            if (sarg | CHR_TIOCM_DTR)
+            ioctl(s->fd_in, TIOCMGET, &targ);
+            targ &= ~(CHR_TIOCM_CTS | CHR_TIOCM_CAR | CHR_TIOCM_DSR
+                     | CHR_TIOCM_RI | CHR_TIOCM_DTR | CHR_TIOCM_RTS);
+            if (sarg & CHR_TIOCM_CTS)
+                targ |= TIOCM_CTS;
+            if (sarg & CHR_TIOCM_CAR)
+                targ |= TIOCM_CAR;
+            if (sarg & CHR_TIOCM_DSR)
+                targ |= TIOCM_DSR;
+            if (sarg & CHR_TIOCM_RI)
+                targ |= TIOCM_RI;
+            if (sarg & CHR_TIOCM_DTR)
                 targ |= TIOCM_DTR;
-            if (sarg | CHR_TIOCM_RTS)
+            if (sarg & CHR_TIOCM_RTS)
                 targ |= TIOCM_RTS;
             ioctl(s->fd_in, TIOCMSET, &targ);
         }
@@ -1246,19 +1238,10 @@ static CharDriverState *qemu_chr_open_pp(const char *filename)
     }
 
     drv = qemu_mallocz(sizeof(ParallelCharDriver));
-    if (!drv) {
-        close(fd);
-        return NULL;
-    }
     drv->fd = fd;
     drv->mode = IEEE1284_MODE_COMPAT;
 
     chr = qemu_mallocz(sizeof(CharDriverState));
-    if (!chr) {
-	qemu_free(drv);
-        close(fd);
-        return NULL;
-    }
     chr->chr_write = null_chr_write;
     chr->chr_ioctl = pp_ioctl;
     chr->chr_close = pp_close;
@@ -1318,10 +1301,6 @@ static CharDriverState *qemu_chr_open_pp(const char *filename)
         return NULL;
 
     chr = qemu_mallocz(sizeof(CharDriverState));
-    if (!chr) {
-        close(fd);
-        return NULL;
-    }
     chr->opaque = (void *)fd;
     chr->chr_write = null_chr_write;
     chr->chr_ioctl = pp_ioctl;
@@ -1535,13 +1514,7 @@ static CharDriverState *qemu_chr_open_win(const char *filename)
     WinCharState *s;
 
     chr = qemu_mallocz(sizeof(CharDriverState));
-    if (!chr)
-        return NULL;
     s = qemu_mallocz(sizeof(WinCharState));
-    if (!s) {
-        free(chr);
-        return NULL;
-    }
     chr->opaque = s;
     chr->chr_write = win_chr_write;
     chr->chr_close = win_chr_close;
@@ -1640,13 +1613,7 @@ static CharDriverState *qemu_chr_open_win_pipe(const char *filename)
     WinCharState *s;
 
     chr = qemu_mallocz(sizeof(CharDriverState));
-    if (!chr)
-        return NULL;
     s = qemu_mallocz(sizeof(WinCharState));
-    if (!s) {
-        free(chr);
-        return NULL;
-    }
     chr->opaque = s;
     chr->chr_write = win_chr_write;
     chr->chr_close = win_chr_close;
@@ -1666,13 +1633,7 @@ static CharDriverState *qemu_chr_open_win_file(HANDLE fd_out)
     WinCharState *s;
 
     chr = qemu_mallocz(sizeof(CharDriverState));
-    if (!chr)
-        return NULL;
     s = qemu_mallocz(sizeof(WinCharState));
-    if (!s) {
-        free(chr);
-        return NULL;
-    }
     s->hcom = fd_out;
     chr->opaque = s;
     chr->chr_write = win_chr_write;
@@ -1774,11 +1735,7 @@ static CharDriverState *qemu_chr_open_udp(const char *def)
     struct sockaddr_in saddr;
 
     chr = qemu_mallocz(sizeof(CharDriverState));
-    if (!chr)
-        goto return_err;
     s = qemu_mallocz(sizeof(NetCharDriver));
-    if (!s)
-        goto return_err;
 
     fd = socket(PF_INET, SOCK_DGRAM, 0);
     if (fd < 0) {
@@ -2035,6 +1992,10 @@ static CharDriverState *qemu_chr_open_tcp(const char *host_str,
             do_nodelay = 1;
         } else if (!strncmp(ptr,"to=",3)) {
             /* nothing, inet_listen() parses this one */;
+        } else if (!strncmp(ptr,"ipv4",4)) {
+            /* nothing, inet_connect() and inet_listen() parse this one */;
+        } else if (!strncmp(ptr,"ipv6",4)) {
+            /* nothing, inet_connect() and inet_listen() parse this one */;
         } else {
             printf("Unknown option: %s\n", ptr);
             goto fail;
@@ -2044,20 +2005,16 @@ static CharDriverState *qemu_chr_open_tcp(const char *host_str,
         is_waitconnect = 0;
 
     chr = qemu_mallocz(sizeof(CharDriverState));
-    if (!chr)
-        goto fail;
     s = qemu_mallocz(sizeof(TCPCharDriver));
-    if (!s)
-        goto fail;
 
     if (is_listen) {
         chr->filename = qemu_malloc(256);
         if (is_unix) {
-            strcpy(chr->filename, "unix:");
+            pstrcpy(chr->filename, 256, "unix:");
         } else if (is_telnet) {
-            strcpy(chr->filename, "telnet:");
+            pstrcpy(chr->filename, 256, "telnet:");
         } else {
-            strcpy(chr->filename, "tcp:");
+            pstrcpy(chr->filename, 256, "tcp:");
         }
         offset = strlen(chr->filename);
     }
@@ -2122,16 +2079,16 @@ static CharDriverState *qemu_chr_open_tcp(const char *host_str,
 static TAILQ_HEAD(CharDriverStateHead, CharDriverState) chardevs
 = TAILQ_HEAD_INITIALIZER(chardevs);
 
-CharDriverState *qemu_chr_open(const char *label, const char *filename)
+CharDriverState *qemu_chr_open(const char *label, const char *filename, void (*init)(struct CharDriverState *s))
 {
     const char *p;
     CharDriverState *chr;
 
     if (!strcmp(filename, "vc")) {
-        chr = text_console_init(&display_state, 0);
+        chr = text_console_init(0);
     } else
     if (strstart(filename, "vc:", &p)) {
-        chr = text_console_init(&display_state, p);
+        chr = text_console_init(p);
     } else
     if (!strcmp(filename, "null")) {
         chr = qemu_chr_open_null();
@@ -2146,13 +2103,15 @@ CharDriverState *qemu_chr_open(const char *label, const char *filename)
         chr = qemu_chr_open_udp(p);
     } else
     if (strstart(filename, "mon:", &p)) {
-        chr = qemu_chr_open(label, p);
+        chr = qemu_chr_open(label, p, NULL);
         if (chr) {
             chr = qemu_chr_open_mux(chr);
             monitor_init(chr, !nographic);
         } else {
             printf("Unable to open driver: %s\n", p);
         }
+    } else if (!strcmp(filename, "msmouse")) {
+        chr = qemu_chr_open_msmouse();
     } else
 #ifndef _WIN32
     if (strstart(filename, "unix:", &p)) {
@@ -2207,6 +2166,7 @@ CharDriverState *qemu_chr_open(const char *label, const char *filename)
     if (chr) {
         if (!chr->filename)
             chr->filename = qemu_strdup(filename);
+        chr->init = init;
         chr->label = qemu_strdup(label);
         TAILQ_INSERT_TAIL(&chardevs, chr, next);
     }

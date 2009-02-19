@@ -39,9 +39,6 @@
 
 #define ESCC_CLOCK 3686400
 
-/* DBDMA */
-void dbdma_init (int *dbdma_mem_index);
-
 /* Cuda */
 void cuda_init (int *cuda_mem_index, qemu_irq irq);
 
@@ -51,7 +48,8 @@ void macio_init (PCIBus *bus, int device_id, int is_oldworld, int pic_mem_index,
                  int nb_ide, int *ide_mem_index, int escc_mem_index);
 
 /* NewWorld PowerMac IDE */
-int pmac_ide_init (BlockDriverState **hd_table, qemu_irq irq);
+int pmac_ide_init (BlockDriverState **hd_table, qemu_irq irq,
+                   void *dbdma, int channel, qemu_irq dma_irq);
 
 /* Heathrow PIC */
 qemu_irq *heathrow_pic_init(int *pmem_index,
@@ -66,7 +64,8 @@ PCIBus *pci_pmac_init(qemu_irq *pic);
 /* Mac NVRAM */
 typedef struct MacIONVRAMState MacIONVRAMState;
 
-MacIONVRAMState *macio_nvram_init (int *mem_index, target_phys_addr_t size);
+MacIONVRAMState *macio_nvram_init (int *mem_index, target_phys_addr_t size,
+                                   unsigned int it_shift);
 void macio_nvram_map (void *opaque, target_phys_addr_t mem_base);
 void pmac_format_nvram_partition (MacIONVRAMState *nvr, int len);
 uint32_t macio_nvram_read (void *opaque, uint32_t addr);

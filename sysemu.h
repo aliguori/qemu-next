@@ -12,15 +12,11 @@ extern uint8_t qemu_uuid[];
 #define UUID_FMT "%02hhx%02hhx%02hhx%02hhx-%02hhx%02hhx-%02hhx%02hhx-%02hhx%02hhx-%02hhx%02hhx%02hhx%02hhx%02hhx%02hhx"
 
 typedef struct vm_change_state_entry VMChangeStateEntry;
-typedef void VMChangeStateHandler(void *opaque, int running);
-typedef void VMStopHandler(void *opaque, int reason);
+typedef void VMChangeStateHandler(void *opaque, int running, int reason);
 
 VMChangeStateEntry *qemu_add_vm_change_state_handler(VMChangeStateHandler *cb,
                                                      void *opaque);
 void qemu_del_vm_change_state_handler(VMChangeStateEntry *e);
-
-int qemu_add_vm_stop_handler(VMStopHandler *cb, void *opaque);
-void qemu_del_vm_stop_handler(VMStopHandler *cb, void *opaque);
 
 void vm_start(void);
 void vm_stop(int reason);
@@ -83,6 +79,7 @@ void do_info_slirp(void);
 
 extern int bios_size;
 extern int cirrus_vga_enabled;
+extern int std_vga_enabled;
 extern int vmsvga_enabled;
 extern int graphic_width;
 extern int graphic_height;
@@ -90,6 +87,7 @@ extern int graphic_depth;
 extern int nographic;
 extern const char *keyboard_layout;
 extern int win2k_install_hack;
+extern int rtc_td_hack;
 extern int alt_grab;
 extern int usb_enabled;
 extern int smp_cpus;
@@ -99,7 +97,6 @@ extern int no_quit;
 extern int semihosting_enabled;
 extern int old_param;
 extern const char *bootp_filename;
-extern DisplayState display_state;
 
 #ifdef USE_KQEMU
 extern int kqemu_allowed;
@@ -127,11 +124,19 @@ typedef enum {
     IF_IDE, IF_SCSI, IF_FLOPPY, IF_PFLASH, IF_MTD, IF_SD, IF_VIRTIO
 } BlockInterfaceType;
 
+typedef enum {
+    BLOCK_ERR_REPORT, BLOCK_ERR_IGNORE, BLOCK_ERR_STOP_ENOSPC,
+    BLOCK_ERR_STOP_ANY
+} BlockInterfaceErrorAction;
+
 typedef struct DriveInfo {
     BlockDriverState *bdrv;
     BlockInterfaceType type;
     int bus;
     int unit;
+    int used;
+    int drive_opt_idx;
+    BlockInterfaceErrorAction onerror;
     char serial[21];
 } DriveInfo;
 
@@ -144,7 +149,40 @@ extern DriveInfo drives_table[MAX_DRIVES+1];
 
 extern int drive_get_index(BlockInterfaceType type, int bus, int unit);
 extern int drive_get_max_bus(BlockInterfaceType type);
+extern void drive_uninit(BlockDriverState *bdrv);
+extern void drive_remove(int index);
 extern const char *drive_get_serial(BlockDriverState *bdrv);
+extern BlockInterfaceErrorAction drive_get_onerror(BlockDriverState *bdrv);
+
+struct drive_opt {
+    const char *file;
+    char opt[1024];
+    int used;
+};
+
+extern struct drive_opt drives_opt[MAX_DRIVES];
+extern int nb_drives_opt;
+
+extern int drive_add(const char *file, const char *fmt, ...);
+extern int drive_init(struct drive_opt *arg, int snapshot, void *machine);
+
+/* acpi */
+void qemu_system_hot_add_init(void);
+void qemu_system_device_hot_add(int pcibus, int slot, int state);
+
+/* device-hotplug */
+
+typedef int (dev_match_fn)(void *dev_private, void *arg);
+
+int add_init_drive(const char *opts);
+void destroy_nic(dev_match_fn *match_fn, void *arg);
+void destroy_bdrvs(dev_match_fn *match_fn, void *arg);
+
+/* pci-hotplug */
+void pci_device_hot_add(const char *pci_addr, const char *type, const char *opts);
+void drive_hot_add(const char *pci_addr, const char *opts);
+void pci_device_hot_remove(const char *pci_addr);
+void pci_device_hot_remove_success(int pcibus, int slot);
 
 /* serial ports */
 
@@ -157,6 +195,12 @@ extern CharDriverState *serial_hds[MAX_SERIAL_PORTS];
 #define MAX_PARALLEL_PORTS 3
 
 extern CharDriverState *parallel_hds[MAX_PARALLEL_PORTS];
+
+/* virtio consoles */
+
+#define MAX_VIRTIO_CONSOLES 1
+
+extern CharDriverState *virtcon_hds[MAX_VIRTIO_CONSOLES];
 
 #define TFR(expr) do { if ((expr) != -1) break; } while (errno == EINTR)
 

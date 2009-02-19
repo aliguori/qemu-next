@@ -88,8 +88,14 @@ elif check_define __sparc__ ; then
   else
     cpu="sparc"
   fi
+elif check_define _ARCH_PPC ; then
+  if check_define _ARCH_PPC64 ; then
+    cpu="ppc64"
+  else
+    cpu="ppc"
+  fi
 else
-  cpu=`test $(uname -s) = AIX && uname -p || uname -m`
+  cpu=`uname -m`
 fi
 
 target_list=""
@@ -127,8 +133,11 @@ case "$cpu" in
   mips64)
     cpu="mips64"
   ;;
-  "Power Macintosh"|ppc|ppc64|powerpc)
-    cpu="powerpc"
+  ppc)
+    cpu="ppc"
+  ;;
+  ppc64)
+    cpu="ppc64"
   ;;
   s390*)
     cpu="s390"
@@ -234,11 +243,21 @@ oss_lib="-lossaudio"
 Darwin)
 bsd="yes"
 darwin="yes"
+# on Leopard most of the system is 32-bit, so we have to ask the kernel it if we can run 64-bit userspace code
+is_x86_64=`sysctl -n hw.optional.x86_64`
+if [ "$is_x86_64" = "1" ]; then
+    cpu=x86_64
+fi
+if [ "$cpu" = "x86_64" ] ; then
+    OS_CFLAGS="-arch x86_64"
+    LDFLAGS="-arch x86_64"
+else
+    OS_CFLAGS="-mdynamic-no-pic"
+fi
 darwin_user="yes"
 cocoa="yes"
 audio_drv_list="coreaudio"
 audio_possible_drivers="coreaudio sdl fmod"
-OS_CFLAGS="-mdynamic-no-pic"
 OS_LDFLAGS="-framework CoreFoundation -framework IOKit"
 ;;
 SunOS)
@@ -678,7 +697,8 @@ if test "$cpu" = "armv4b" \
      -o "$cpu" = "m68k" \
      -o "$cpu" = "mips" \
      -o "$cpu" = "mips64" \
-     -o "$cpu" = "powerpc" \
+     -o "$cpu" = "ppc" \
+     -o "$cpu" = "ppc64" \
      -o "$cpu" = "s390" \
      -o "$cpu" = "sparc" \
      -o "$cpu" = "sparc64"; then
@@ -692,18 +712,9 @@ hostlongbits="32"
 if test "$cpu" = "x86_64" \
      -o "$cpu" = "alpha" \
      -o "$cpu" = "ia64" \
-     -o "$cpu" = "sparc64"; then
+     -o "$cpu" = "sparc64" \
+     -o "$cpu" = "ppc64"; then
     hostlongbits="64"
-fi
-
-# ppc specific hostlongbits selection
-if test "$cpu" = "powerpc" ; then
-    if $cc $ARCH_CFLAGS -dM -E - -o $TMPI 2>/dev/null </dev/null; then
-        grep -q __powerpc64__ $TMPI && hostlongbits=64
-    else
-        echo hostlongbits test failed
-        exit 1
-    fi
 fi
 
 # check gcc options support
@@ -952,13 +963,17 @@ fi
 if test "$kvm" = "yes" ; then
     cat > $TMPC <<EOF
 #include <linux/kvm.h>
-#if !defined(KVM_API_VERSION) || \
-    KVM_API_VERSION < 12 || \
-    KVM_API_VERSION > 12 || \
-    !defined(KVM_CAP_USER_MEMORY) || \
-    !defined(KVM_CAP_SET_TSS_ADDR) || \
-    !defined(KVM_CAP_DESTROY_MEMORY_REGION_WORKS)
+#if !defined(KVM_API_VERSION) || KVM_API_VERSION < 12 || KVM_API_VERSION > 12
 #error Invalid KVM version
+#endif
+#if !defined(KVM_CAP_USER_MEMORY)
+#error Missing KVM capability KVM_CAP_USER_MEMORY
+#endif
+#if !defined(KVM_CAP_SET_TSS_ADDR)
+#error Missing KVM capability KVM_CAP_SET_TSS_ADDR
+#endif
+#if !defined(KVM_CAP_DESTROY_MEMORY_REGION_WORKS)
+#error Missing KVM capability KVM_CAP_DESTROY_MEMORY_REGION_WORKS
 #endif
 int main(void) { return 0; }
 EOF
@@ -967,6 +982,8 @@ EOF
       if test \( "$cpu" = "i386" -o "$cpu" = "x86_64" \) \
          -a -d "$kerneldir/arch/x86/include" ; then
             kvm_cflags="$kvm_cflags -I$kerneldir/arch/x86/include"
+	elif test "$cpu" = "ppc" -a -d "$kerneldir/arch/powerpc/include" ; then
+	    kvm_cflags="$kvm_cflags -I$kerneldir/arch/powerpc/include"
         elif test -d "$kerneldir/arch/$cpu/include" ; then
             kvm_cflags="$kvm_cflags -I$kerneldir/arch/$cpu/include"
       fi
@@ -977,7 +994,16 @@ EOF
       > /dev/null 2>/dev/null ; then
     :
   else
-    kvm="no"
+    kvm="no";
+    if [ -x "`which awk 2>/dev/null`" ] && \
+       [ -x "`which grep 2>/dev/null`" ]; then
+      kvmerr=`$cc $ARCH_CFLAGS -o $TMPE ${OS_CFLAGS} $kvm_cflags $TMPC 2>&1 \
+	| grep "error: " \
+	| awk -F "error: " '{if (NR>1) printf(", "); printf("%s",$2);}'`
+      if test "$kvmerr" != "" ; then
+        kvm="no - (${kvmerr})"
+      fi
+    fi
   fi
 fi
 
@@ -989,7 +1015,7 @@ if test "$aio" = "yes" ; then
   aio=no
   cat > $TMPC << EOF
 #include <pthread.h>
-int main(void) { pthread_mutex_t lock; return 0; }
+int main(void) { pthread_mutex_t lock;  return 0; }
 EOF
   if $cc $ARCH_CFLAGS -o $TMPE $AIOLIBS $TMPC 2> /dev/null ; then
     aio=yes
@@ -1000,7 +1026,9 @@ fi
 ##########################################
 # iovec probe
 cat > $TMPC <<EOF
+#include <sys/types.h>
 #include <sys/uio.h>
+#include <unistd.h>
 int main(void) { struct iovec iov; return 0; }
 EOF
 iovec=no
@@ -1235,14 +1263,13 @@ case "$cpu" in
     echo "ARCH=mips64" >> $config_mak
     echo "#define HOST_MIPS64 1" >> $config_h
   ;;
-  powerpc)
-  if test "$hostlongbits" = "32"; then
-      echo "ARCH=ppc" >> $config_mak
-      echo "#define HOST_PPC 1" >> $config_h
-  else
-      echo "ARCH=ppc64" >> $config_mak
-      echo "#define HOST_PPC64 1" >> $config_h
-  fi
+  ppc)
+    echo "ARCH=ppc" >> $config_mak
+    echo "#define HOST_PPC 1" >> $config_h
+  ;;
+  ppc64)
+    echo "ARCH=ppc64" >> $config_mak
+    echo "#define HOST_PPC64 1" >> $config_h
   ;;
   s390)
     echo "ARCH=s390" >> $config_mak
@@ -1562,7 +1589,7 @@ gdb_xml_files=""
 
 # Make sure the target and host cpus are compatible
 if test "$kvm" = "yes" -a ! \( "$target_cpu" = "$cpu" -o \
-  \( "$target_cpu" = "ppcemb" -a "$cpu" = "powerpc" \) -o \
+  \( "$target_cpu" = "ppcemb" -a "$cpu" = "ppc" \) -o \
   \( "$target_cpu" = "x86_64" -a "$cpu" = "i386"   \) -o \
   \( "$target_cpu" = "i386"   -a "$cpu" = "x86_64" \) \) ; then
   kvm="no"
@@ -1651,6 +1678,7 @@ case "$target_cpu" in
     echo "TARGET_ARCH=ppc" >> $config_mak
     echo "#define TARGET_ARCH \"ppc\"" >> $config_h
     echo "#define TARGET_PPC 1" >> $config_h
+    gdb_xml_files="power-core.xml power-fpu.xml power-altivec.xml power-spe.xml"
   ;;
   ppcemb)
     echo "TARGET_ARCH=ppcemb" >> $config_mak
@@ -1663,6 +1691,7 @@ case "$target_cpu" in
       echo "KVM_CFLAGS=$kvm_cflags" >> $config_mak
       echo "#define CONFIG_KVM 1" >> $config_h
     fi
+    gdb_xml_files="power-core.xml power-fpu.xml power-altivec.xml power-spe.xml"
   ;;
   ppc64)
     echo "TARGET_ARCH=ppc64" >> $config_mak
@@ -1670,6 +1699,7 @@ case "$target_cpu" in
     echo "#define TARGET_ARCH \"ppc64\"" >> $config_h
     echo "#define TARGET_PPC 1" >> $config_h
     echo "#define TARGET_PPC64 1" >> $config_h
+    gdb_xml_files="power64-core.xml power-fpu.xml power-altivec.xml power-spe.xml"
   ;;
   ppc64abi32)
     echo "TARGET_ARCH=ppc64" >> $config_mak
@@ -1679,6 +1709,7 @@ case "$target_cpu" in
     echo "#define TARGET_PPC 1" >> $config_h
     echo "#define TARGET_PPC64 1" >> $config_h
     echo "#define TARGET_ABI32 1" >> $config_h
+    gdb_xml_files="power64-core.xml power-fpu.xml power-altivec.xml power-spe.xml"
   ;;
   sh4|sh4eb)
     echo "TARGET_ARCH=sh4" >> $config_mak

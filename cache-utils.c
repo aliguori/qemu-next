@@ -1,6 +1,6 @@
 #include "cache-utils.h"
 
-#ifdef HOST_PPC
+#if defined(_ARCH_PPC)
 struct qemu_cache_conf qemu_cache_conf = {
     .dcache_bsize = 16,
     .icache_bsize = 16
@@ -37,6 +37,7 @@ static void ppc_init_cacheline_sizes(char **envp)
 }
 
 #elif defined __APPLE__
+#include <stdio.h>
 #include <sys/types.h>
 #include <sys/sysctl.h>
 
@@ -46,6 +47,7 @@ static void ppc_init_cacheline_sizes(void)
     unsigned cacheline;
     int name[2] = { CTL_HW, HW_CACHELINE };
 
+    len = sizeof(cacheline);
     if (sysctl(name, 2, &cacheline, &len, NULL, 0)) {
         perror("sysctl CTL_HW HW_CACHELINE failed");
     } else {
@@ -68,4 +70,4 @@ void qemu_cache_utils_init(char **envp)
 }
 #endif
 
-#endif /* HOST_PPC */
+#endif /* _ARCH_PPC */

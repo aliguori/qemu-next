@@ -178,7 +178,7 @@ static int usb_host_handle_control(USBDevice *dev,
         req.ucr_flags = USBD_SHORT_XFER_OK;
 
         ret = ioctl(s->devfd, USB_SET_TIMEOUT, &timeout);
-#if (__NetBSD__ || __OpenBSD__)
+#if defined(__NetBSD__) || defined(__OpenBSD__)
         if (ret < 0 && errno != EINVAL) {
 #else
         if (ret < 0) {
@@ -340,8 +340,6 @@ USBDevice *usb_host_device_open(const char *devname)
 
     if (dfd >= 0) {
         dev = qemu_mallocz(sizeof(USBHostDevice));
-        if (!dev)
-            goto fail;
         dev->devfd = dfd;
 
         if (ioctl(dfd, USB_GET_DEVICEINFO, &dev_info) < 0) {
@@ -372,7 +370,7 @@ USBDevice *usb_host_device_open(const char *devname)
                      "host:%s", devname);
 
         pstrcpy(dev->devpath, sizeof(dev->devpath), "/dev/");
-	strcat(dev->devpath, dev_info.udi_devnames[0]);
+        pstrcat(dev->devpath, sizeof(dev->devpath), dev_info.udi_devnames[0]);
 
         /* Mark the endpoints as not yet open */
         for (i = 0; i < USB_MAX_ENDPOINTS; i++)
@@ -550,10 +548,10 @@ static const char *usb_class_str(uint8_t class)
     return p->class_name;
 }
 
-void usb_info_device(int bus_num, int addr, int class_id,
-                     int vendor_id, int product_id,
-                     const char *product_name,
-                     int speed)
+static void usb_info_device(int bus_num, int addr, int class_id,
+                            int vendor_id, int product_id,
+                            const char *product_name,
+                            int speed)
 {
     const char *class_str, *speed_str;
 

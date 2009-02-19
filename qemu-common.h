@@ -2,6 +2,19 @@
 #ifndef QEMU_COMMON_H
 #define QEMU_COMMON_H
 
+#ifdef _WIN32
+#define WIN32_LEAN_AND_MEAN
+#define WINVER 0x0501  /* needed for ipv6 bits */
+#include <windows.h>
+#endif
+
+#define QEMU_NORETURN __attribute__ ((__noreturn__))
+
+/* Hack around the mess dyngen-exec.h causes: We need QEMU_NORETURN in files that
+   cannot include the following headers without conflicts. This condition has
+   to be removed once dyngen is gone. */
+#ifndef __DYNGEN_EXEC_H__
+
 /* we put basic includes here to avoid repeating them in device drivers */
 #include <stdlib.h>
 #include <stdio.h>
@@ -40,9 +53,6 @@ struct iovec {
 #endif
 
 #ifdef _WIN32
-#define WIN32_LEAN_AND_MEAN
-#define WINVER 0x0501  /* needed for ipv6 bits */
-#include <windows.h>
 #define fsync _commit
 #define lseek _lseeki64
 #define ENOTSUP 4096
@@ -134,9 +144,8 @@ void *get_mmap_addr(unsigned long size);
 
 /* Error handling.  */
 
-void hw_error(const char *fmt, ...)
-    __attribute__ ((__format__ (__printf__, 1, 2)))
-    __attribute__ ((__noreturn__));
+void QEMU_NORETURN hw_error(const char *fmt, ...)
+    __attribute__ ((__format__ (__printf__, 1, 2)));
 
 /* IO callbacks.  */
 typedef void IOReadHandler(void *opaque, const uint8_t *buf, int size);
@@ -157,6 +166,9 @@ typedef struct HCIInfo HCIInfo;
 typedef struct AudioState AudioState;
 typedef struct BlockDriverState BlockDriverState;
 typedef struct DisplayState DisplayState;
+typedef struct DisplayChangeListener DisplayChangeListener;
+typedef struct DisplaySurface DisplaySurface;
+typedef struct PixelFormat PixelFormat;
 typedef struct TextConsole TextConsole;
 typedef TextConsole QEMUConsole;
 typedef struct CharDriverState CharDriverState;
@@ -178,5 +190,21 @@ int cpu_load(QEMUFile *f, void *opaque, int version_id);
 
 /* Force QEMU to stop what it's doing and service IO */
 void qemu_service_io(void);
+
+typedef struct QEMUIOVector {
+    struct iovec *iov;
+    int niov;
+    int nalloc;
+    size_t size;
+} QEMUIOVector;
+
+void qemu_iovec_init(QEMUIOVector *qiov, int alloc_hint);
+void qemu_iovec_add(QEMUIOVector *qiov, void *base, size_t len);
+void qemu_iovec_destroy(QEMUIOVector *qiov);
+void qemu_iovec_reset(QEMUIOVector *qiov);
+void qemu_iovec_to_buffer(QEMUIOVector *qiov, void *buf);
+void qemu_iovec_from_buffer(QEMUIOVector *qiov, const void *buf, size_t count);
+
+#endif /* dyngen-exec.h hack */
 
 #endif

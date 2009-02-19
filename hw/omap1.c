@@ -1992,7 +1992,7 @@ struct omap_uart_s *omap_uart_init(target_phys_addr_t base,
     s->fclk = fclk;
     s->irq = irq;
     s->serial = serial_mm_init(base, 2, irq, omap_clk_getrate(fclk)/16,
-                               chr ?: qemu_chr_open("null", "null"), 1);
+                               chr ?: qemu_chr_open("null", "null", NULL), 1);
 
     return s;
 }
@@ -2108,7 +2108,7 @@ void omap_uart_attach(struct omap_uart_s *s, CharDriverState *chr)
     /* TODO: Should reuse or destroy current s->serial */
     s->serial = serial_mm_init(s->base, 2, s->irq,
                     omap_clk_getrate(s->fclk) / 16,
-                    chr ?: qemu_chr_open("null", "null"), 1);
+                    chr ?: qemu_chr_open("null", "null", NULL), 1);
 }
 
 /* MPU Clock/Reset/Power Mode Control */
@@ -4626,7 +4626,7 @@ static int omap_validate_tipb_mpui_addr(struct omap_mpu_state_s *s,
 }
 
 struct omap_mpu_state_s *omap310_mpu_init(unsigned long sdram_size,
-                DisplayState *ds, const char *core)
+                const char *core)
 {
     int i;
     struct omap_mpu_state_s *s = (struct omap_mpu_state_s *)
@@ -4708,7 +4708,7 @@ struct omap_mpu_state_s *omap310_mpu_init(unsigned long sdram_size,
                     omap_findclk(s, "clk32-kHz"));
 
     s->lcd = omap_lcdc_init(0xfffec000, s->irq[0][OMAP_INT_LCD_CTRL],
-                    omap_dma_get_lcdch(s->dma), ds, imif_base, emiff_base,
+                    omap_dma_get_lcdch(s->dma), imif_base, emiff_base,
                     omap_findclk(s, "lcd_ck"));
 
     omap_ulpd_pm_init(0xfffe0800, s);

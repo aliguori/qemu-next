@@ -34,7 +34,7 @@
 /* Default to cache=writeback as data integrity is not important for qemu-tcg. */
 #define BRDV_O_FLAGS BDRV_O_CACHE_WB
 
-static void __attribute__((noreturn)) error(const char *fmt, ...)
+static void QEMU_NORETURN error(const char *fmt, ...)
 {
     va_list ap;
     va_start(ap, fmt);
@@ -50,6 +50,7 @@ static void format_print(void *opaque, const char *name)
     printf(" %s", name);
 }
 
+/* Please keep in synch with qemu-img.texi */
 static void help(void)
 {
     printf("qemu-img version " QEMU_VERSION ", Copyright (c) 2004-2008 Fabrice Bellard\n"
@@ -61,7 +62,7 @@ static void help(void)
            "  commit [-f fmt] filename\n"
            "  convert [-c] [-e] [-6] [-f fmt] [-O output_fmt] [-B output_base_image] filename [filename2 [...]] output_filename\n"
            "  info [-f fmt] filename\n"
-           "  snapshot [-l|-a snapshot|-c snapshot|-d snapshot] filename\n"
+           "  snapshot [-l | -a snapshot | -c snapshot | -d snapshot] filename\n"
            "\n"
            "Command parameters:\n"
            "  'filename' is a disk image filename\n"
@@ -72,22 +73,24 @@ static void help(void)
            "    content as the input's base image, however the path, image format, etc may\n"
            "    differ\n"
            "  'fmt' is the disk image format. It is guessed automatically in most cases\n"
-           "  'size' is the disk image size in kilobytes. Optional suffixes 'M' (megabyte)\n"
-           "    and 'G' (gigabyte) are supported\n"
+           "  'size' is the disk image size in kilobytes. Optional suffixes\n"
+           "    'M' (megabyte, 1024 * 1024) and 'G' (gigabyte, 1024 * 1024 * 1024) are"
+           "    supported any @code{k} or @code{K} is ignored\n"
            "  'output_filename' is the destination disk image filename\n"
            "  'output_fmt' is the destination format\n"
            "  '-c' indicates that target image must be compressed (qcow format only)\n"
            "  '-e' indicates that the target image must be encrypted (qcow format only)\n"
            "  '-6' indicates that the target image must use compatibility level 6 (vmdk format only)\n"
+           "  '-h' with or without a command shows this help and lists the supported formats\n"
            "\n"
-           "  Parameters to snapshot subcommand:\n"
-           "    'snapshot' is the name of the snapshot to create, apply or delete\n"
-           "    '-a' applies a snapshot (revert disk to saved state)\n"
-           "    '-c' creates a snapshot\n"
-           "    '-d' deletes a snapshot\n"
-           "    '-l' lists all snapshots in the given image\n"
+           "Parameters to snapshot subcommand:\n"
+           "  'snapshot' is the name of the snapshot to create, apply or delete\n"
+           "  '-a' applies a snapshot (revert disk to saved state)\n"
+           "  '-c' creates a snapshot\n"
+           "  '-d' deletes a snapshot\n"
+           "  '-l' lists all snapshots in the given image\n"
            );
-    printf("\nSupported format:");
+    printf("\nSupported formats:");
     bdrv_iterate_format(format_print, NULL);
     printf("\n");
     exit(1);
@@ -727,6 +730,10 @@ static int img_info(int argc, char **argv)
     if (bdrv_get_info(bs, &bdi) >= 0) {
         if (bdi.cluster_size != 0)
             printf("cluster_size: %d\n", bdi.cluster_size);
+        if (bdi.highest_alloc)
+            printf("highest_alloc: %" PRId64 "\n", bdi.highest_alloc);
+        if (bdi.num_free_bytes)
+            printf("num_free_bytes: %" PRId64 "\n", bdi.num_free_bytes);
     }
     bdrv_get_backing_filename(bs, backing_filename, sizeof(backing_filename));
     if (backing_filename[0] != '\0') {
@@ -751,8 +758,7 @@ static void img_snapshot(int argc, char **argv)
     BlockDriverState *bs;
     QEMUSnapshotInfo sn;
     char *filename, *snapshot_name = NULL;
-    char c;
-    int ret;
+    int c, ret;
     int action = 0;
     qemu_timeval tv;
 
@@ -859,7 +865,7 @@ int main(int argc, char **argv)
     if (argc < 2)
         help();
     cmd = argv[1];
-    optind++;
+    argc--; argv++;
     if (!strcmp(cmd, "create")) {
         img_create(argc, argv);
     } else if (!strcmp(cmd, "commit")) {
