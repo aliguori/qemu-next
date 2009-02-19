@@ -1041,7 +1041,7 @@ struct omap_mpu_state_s {
     /* MPU public TIPB peripherals */
     struct omap_32khz_timer_s *os_timer;
 
-    struct omap_mmc_s *mmc[2];
+    struct omap_mmc_s *mmc;
 
     struct omap_mpuio_s *mpuio;
 
