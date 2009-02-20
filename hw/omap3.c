@@ -3994,7 +3994,7 @@ void omap3_set_device_type(struct omap_mpu_state_s *s,int device_type)
 }
 
 struct omap_mpu_state_s *omap3530_mpu_init(unsigned long sdram_size,
-                                           DisplayState * ds, const char *core)
+                                           const char *core)
 {
     struct omap_mpu_state_s *s = (struct omap_mpu_state_s *)
         qemu_mallocz(sizeof(struct omap_mpu_state_s));

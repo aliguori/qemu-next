@@ -1198,7 +1198,7 @@ static void omap3_lcd_panel_update_display(void *opaque)
 
     if (lcd_width != ds_get_width(s->state) 
         || lcd_height != ds_get_height(s->state)) {
-        qemu_console_resize(s->console, lcd_width, lcd_height);
+        qemu_console_resize(s->state, lcd_width, lcd_height);
         dss->dispc.invalidate = 1;
     }
 
@@ -1251,7 +1251,7 @@ static void omap3_lcd_panel_update_display(void *opaque)
 #define DEPTH 32
 #include "omap3_lcd_panel_template.h"
 
-void *omap3_lcd_panel_init(DisplayState *ds)
+void *omap3_lcd_panel_init()
 {
     struct omap3_lcd_panel_s *s = (struct omap3_lcd_panel_s *) qemu_mallocz(sizeof(*s));
 
@@ -1265,24 +1265,24 @@ void *omap3_lcd_panel_init(DisplayState *ds)
             qemu_mallocz(sizeof(omap3_lcd_panel_fn_t) * 0x10);
         break;
     case 8:
-        s->line_fn_tab[0] = 0 ? omap3_lcd_panel_draw_fn_bgr_8 : omap3_lcd_panel_draw_fn_8;
-        s->line_fn_tab[1] = 0 ? omap3_lcd_panel_draw_fn_r_bgr_8 : omap3_lcd_panel_draw_fn_r_8;
+        s->line_fn_tab[0] =  omap3_lcd_panel_draw_fn_8;
+        s->line_fn_tab[1] =  omap3_lcd_panel_draw_fn_r_8;
         break;
     case 15:
-        s->line_fn_tab[0] = 0 ? omap3_lcd_panel_draw_fn_bgr_15 : omap3_lcd_panel_draw_fn_15;
-        s->line_fn_tab[1] = 0 ? omap3_lcd_panel_draw_fn_r_bgr_15 : omap3_lcd_panel_draw_fn_r_15;
+        s->line_fn_tab[0] =  omap3_lcd_panel_draw_fn_15;
+        s->line_fn_tab[1] =  omap3_lcd_panel_draw_fn_r_15;
         break;
     case 16:
-        s->line_fn_tab[0] = 0 ? omap3_lcd_panel_draw_fn_bgr_16 : omap3_lcd_panel_draw_fn_16;
-        s->line_fn_tab[1] = 0 ? omap3_lcd_panel_draw_fn_r_bgr_16: omap3_lcd_panel_draw_fn_r_16;
+        s->line_fn_tab[0] =  omap3_lcd_panel_draw_fn_16;
+        s->line_fn_tab[1] =  omap3_lcd_panel_draw_fn_r_16;
         break;
     case 24:
-        s->line_fn_tab[0] = 0 ? omap3_lcd_panel_draw_fn_bgr_24 : omap3_lcd_panel_draw_fn_24;
-        s->line_fn_tab[1] = 0 ? omap3_lcd_panel_draw_fn_r_bgr_24 : omap3_lcd_panel_draw_fn_r_24;
+        s->line_fn_tab[0] =  omap3_lcd_panel_draw_fn_24;
+        s->line_fn_tab[1] =  omap3_lcd_panel_draw_fn_r_24;
         break;
     case 32:
-        s->line_fn_tab[0] = 0 ? omap3_lcd_panel_draw_fn_bgr_32 : omap3_lcd_panel_draw_fn_32;
-        s->line_fn_tab[1] = 0 ? omap3_lcd_panel_draw_fn_r_bgr_32 : omap3_lcd_panel_draw_fn_r_32;
+        s->line_fn_tab[0] =  omap3_lcd_panel_draw_fn_32;
+        s->line_fn_tab[1] =  omap3_lcd_panel_draw_fn_r_32;
         break;
     default:
         fprintf(stderr, "%s: Bad color depth\n", __FUNCTION__);

@@ -926,7 +926,6 @@ typedef void (*omap3_lcd_panel_fn_t)(uint8_t *, const uint8_t *, unsigned int);
 struct omap3_lcd_panel_s {
     struct omap_dss_s *dss;
     DisplayState *state;
-    QEMUConsole *console;
     omap3_lcd_panel_fn_t *line_fn_tab[2];
     omap3_lcd_panel_fn_t line_fn;
     uint32_t invalidate;
@@ -940,7 +939,7 @@ struct omap_dss_s *omap_dss_init(struct omap_target_agent_s *ta,
                 omap_clk ick1, omap_clk ick2, int region_start);
 void omap_rfbi_attach(struct omap_dss_s *s, int cs, struct rfbi_chip_s *chip);
 void omap3_lcd_panel_attach(struct omap_dss_s *s, int cs, struct omap3_lcd_panel_s *lcd_panel);
-void *omap3_lcd_panel_init(DisplayState *ds);
+void *omap3_lcd_panel_init();
 
 /* omap_mmc.c */
 struct omap_mmc_s;
@@ -1194,7 +1193,7 @@ struct omap_mpu_state_s *omap2420_mpu_init(unsigned long sdram_size,
 
 /* omap3.c */
 struct omap_mpu_state_s *omap3530_mpu_init(unsigned long sdram_size,
-                DisplayState *ds, const char *core);
+                const char *core);
 void omap3_set_mem_type(struct omap_mpu_state_s *s, int bootfrom);
 void omap3_set_device_type(struct omap_mpu_state_s *s, int device_type);
 int omap3_mmc_boot(struct omap_mpu_state_s *s);

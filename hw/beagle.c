@@ -219,9 +219,9 @@ static int beagle_rom_emu(struct beagle_s *s)
 	return 0;
 }
 
-static void beagle_dss_setup(struct beagle_s *s, DisplayState *ds)
+static void beagle_dss_setup(struct beagle_s *s)
 {
-	s->lcd_panel = omap3_lcd_panel_init(ds);
+	s->lcd_panel = omap3_lcd_panel_init();
 	omap3_lcd_panel_attach(s->cpu->dss, 0, s->lcd_panel);
 	s->lcd_panel->dss = s->cpu->dss;
 }
@@ -245,7 +245,7 @@ static void beagle_i2c_setup(struct beagle_s *s)
 
 
 static void beagle_init(ram_addr_t ram_size, int vga_ram_size,
-                const char *boot_device, DisplayState *ds,
+                const char *boot_device,
                 const char *kernel_filename, const char *kernel_cmdline,
                 const char *initrd_filename, const char *cpu_model)
 {
@@ -257,10 +257,10 @@ static void beagle_init(ram_addr_t ram_size, int vga_ram_size,
                         sdram_size + OMAP3530_SRAM_SIZE);
         exit(1);
     }
-   	s->cpu = omap3530_mpu_init(sdram_size, NULL, NULL);
+   	s->cpu = omap3530_mpu_init(sdram_size, NULL);
    	beagle_nand_setup(s);
    	beagle_i2c_setup(s);
-   	beagle_dss_setup(s,ds);
+   	beagle_dss_setup(s);
    	omap3_set_device_type(s->cpu,GP_DEVICE);
     if (beagle_rom_emu(s) < 0) {
    		fprintf(stderr,"boot from MMC and nand failed \n");
