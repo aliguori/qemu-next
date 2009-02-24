@@ -1067,13 +1067,40 @@ static CPUWriteMemoryFunc *omap_im3_writefn[] = {
     omap_im3_write,
 };
 
-struct omap_dss_s *omap_dss_init(struct omap_target_agent_s *ta,
-                                 target_phys_addr_t l3_base,
+static uint32_t omap_dsi_read(void *opaque, target_phys_addr_t addr)
+{
+    fprintf(stderr, "%s: DSI register %08x not implemented!\n", __FUNCTION__,
+            addr);
+    return 0;
+}
+
+static void omap_dsi_write(void *opaque, target_phys_addr_t addr,
+                           uint32_t value)
+{
+    fprintf(stderr, "%s: DSI register %08x not implemented!\n", __FUNCTION__,
+            addr);
+}
+
+static CPUReadMemoryFunc *omap_dsi_readfn[] = {
+    omap_badwidth_read32,
+    omap_badwidth_read32,
+    omap_dsi_read,
+};
+
+static CPUWriteMemoryFunc *omap_dsi_writefn[] = {
+    omap_badwidth_write32,
+    omap_badwidth_write32,
+    omap_dsi_write,
+};
+
+struct omap_dss_s *omap_dss_init(struct omap_mpu_state_s *mpu,
+                                 struct omap_target_agent_s *ta,
                                  qemu_irq irq, qemu_irq drq,
                                  omap_clk fck1, omap_clk fck2, omap_clk ck54m,
-                                 omap_clk ick1, omap_clk ick2, int region_base)
+                                 omap_clk ick1, omap_clk ick2)
 {
-    int iomemtype[6];
+    int iomemtype[5];
+    int region_base = 0;
     struct omap_dss_s *s = (struct omap_dss_s *)
             qemu_mallocz(sizeof(struct omap_dss_s));
 
@@ -1089,14 +1116,22 @@ struct omap_dss_s *omap_dss_init(struct omap_target_agent_s *ta,
                                          omap_rfbi1_writefn, s);
     iomemtype[3] = l4_register_io_memory(0, omap_venc1_readfn,
                                          omap_venc1_writefn, s);
-    iomemtype[4] = cpu_register_io_memory(0, omap_im3_readfn,
-                                          omap_im3_writefn, s);
-    /* TODO: DSI */
-    omap_l4_attach(ta, region_base+0, iomemtype[0]);
-    omap_l4_attach(ta, region_base+1, iomemtype[1]);
-    omap_l4_attach(ta, region_base+2, iomemtype[2]);
-    omap_l4_attach(ta, region_base+3, iomemtype[3]);
-    cpu_register_physical_memory(l3_base, 0x1000, iomemtype[4]);
+
+    if (cpu_class_omap3(mpu)) {
+        iomemtype[4] = l4_register_io_memory(0, omap_dsi_readfn,
+                                             omap_dsi_writefn, s);
+        omap_l4_attach(ta, 0, iomemtype[4]);
+        region_base = 1;
+    } else {
+        iomemtype[4] = cpu_register_io_memory(0, omap_im3_readfn,
+                                              omap_im3_writefn, s);
+        cpu_register_physical_memory(0x68000800, 0x1000, iomemtype[4]);
+    }
+    
+    omap_l4_attach(ta, region_base+0, iomemtype[0]); /* DISS */
+    omap_l4_attach(ta, region_base+1, iomemtype[1]); /* DISC */
+    omap_l4_attach(ta, region_base+2, iomemtype[2]); /* RFBI */
+    omap_l4_attach(ta, region_base+3, iomemtype[3]); /* VENC */
 
 #if 0
     s->state = graphic_console_init(omap_update_display,
