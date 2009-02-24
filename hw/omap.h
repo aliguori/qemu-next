@@ -939,7 +939,7 @@ struct omap_dss_s *omap_dss_init(struct omap_target_agent_s *ta,
                 omap_clk ick1, omap_clk ick2, int region_start);
 void omap_rfbi_attach(struct omap_dss_s *s, int cs, struct rfbi_chip_s *chip);
 void omap3_lcd_panel_attach(struct omap_dss_s *s, int cs, struct omap3_lcd_panel_s *lcd_panel);
-void *omap3_lcd_panel_init();
+void *omap3_lcd_panel_init(void);
 
 /* omap_mmc.c */
 struct omap_mmc_s;

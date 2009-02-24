@@ -226,14 +226,14 @@ static void beagle_dss_setup(struct beagle_s *s)
 	s->lcd_panel->dss = s->cpu->dss;
 }
 
-static void beagle_mmc_cs_cb(void *opaque, int line, int level)
-{
-    /* TODO: this seems to actually be connected to the menelaus, to
-     * which also both MMC slots connect.  */
-    omap_mmc_enable((struct omap_mmc_s *) opaque, !level);
-
-    printf("%s: MMC slot %i active\n", __FUNCTION__, level + 1);
-}
+//static void beagle_mmc_cs_cb(void *opaque, int line, int level)
+//{
+//    /* TODO: this seems to actually be connected to the menelaus, to
+//     * which also both MMC slots connect.  */
+//    omap_mmc_enable((struct omap_mmc_s *) opaque, !level);
+//
+//    printf("%s: MMC slot %i active\n", __FUNCTION__, level + 1);
+//}
 
 static void beagle_i2c_setup(struct beagle_s *s)
 {
