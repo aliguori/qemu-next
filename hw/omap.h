@@ -71,6 +71,7 @@ void omap_clk_reparent(omap_clk clk, omap_clk parent);
 
 /* omap[123].c */
 struct omap_l4_s;
+struct omap_l3_s;
 struct omap_l4_s *omap_l4_init(target_phys_addr_t base, int ta_num);
 
 struct omap_target_agent_s;
@@ -1147,8 +1148,8 @@ struct omap_mpu_state_s {
     struct omap3_prm_s *omap3_prm;
     struct omap3_cm_s *omap3_cm;
     struct omap3_wdt_s *omap3_mpu_wdt;
+    struct omap_l3_s *omap3_l3;
     struct omap3_scm_s *omap3_scm;
-    struct omap3_pm_s *omap3_pm;
     struct omap3_sms_s *omap3_sms;
     struct omap3_mmc_s *omap3_mmc[3];
 };
