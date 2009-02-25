@@ -638,7 +638,7 @@ static sd_rsp_type_t sd_normal_command(SDState *sd,
             goto bad_cmd;
         switch (sd->state) {
         case sd_standby_state:
-            break;
+            return sd_r0;
 
         default:
             break;
