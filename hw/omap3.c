@@ -1579,11 +1579,11 @@ static uint32_t omap3_prm_read(void *opaque, target_phys_addr_t addr)
         case 0x0ca4: return s->pm_mpugrpsel_wkup;
         case 0x0ca8: return s->pm_iva2grpsel_wkup;
         case 0x0cb0: return s->pm_wkst_wkup;
-        //case 0x0ce4: return 0x3; /* power on */
+        case 0x0ce4: return 0x3; /* TODO: dummy, check on real hardware */
     	/* Clock_Control_Reg_PRM */
         case 0x0d40: return s->prm_clksel;
         case 0x0d70: return s->prm_clkout_ctrl;
-        //case 0x0de4: return 0x3; /* power on */
+        case 0x0de4: return 0x3; /* TODO: dummy, check on real hardware */
         /* DSS_PRM */
         case 0x0e58: return s->rm_rstst_dss;
         case 0x0ea0: return s->pm_wken_dss;
@@ -1705,6 +1705,7 @@ static void omap3_prm_write(void *opaque, target_phys_addr_t addr,
         case 0x09e4: OMAP_RO_REG(addr); break;
         case 0x09e8: s->pm_perpwstst_mpu = value & 0xc7; break;
         /* CORE_PRM */
+        case 0x0a50: break; /* TODO: check if available on real hw */
         case 0x0a58: s->rm_rstst_core &= ~(value & 0x7); break;
         case 0x0aa0: s->pm_wken1_core = 0x80000008 | (value & 0x433ffe10); break;
         case 0x0aa4: s->pm_mpugrpsel1_core = 0x80000008 | (value & 0x433ffe10); break;
