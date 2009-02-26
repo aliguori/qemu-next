@@ -135,8 +135,8 @@ static void omap3_mmc_fifolevel_update(struct omap3_mmc_s *host)
                     }
                 }
             }
-        } else if (host->transfer) {
-            if (host->blen_counter) {
+        } else {
+            if (host->transfer && host->blen_counter) {
                 if (host->cmd & 1) { /* DE */
                     if (host->blen_counter == (host->blk & 0x7ff)) { /* BLEN */
                         if (host->stop)
@@ -202,6 +202,28 @@ static void omap3_mmc_transfer(struct omap3_mmc_s *host)
                     sd_read_data(host->card) << i;
             host->fifo_len++;
         }
+        TRACE2("end, %d bytes in FIFO:", host->fifo_len * 4);
+#if MMC_DEBUG_LEVEL>1
+        for (i = 0; i < host->fifo_len; i += 4)
+            TRACE2("[0x%03x] %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x",
+                   i * 4,
+                   host->fifo[(host->fifo_start + i) & 0xff] & 0xff,
+                   (host->fifo[(host->fifo_start + i) & 0xff] >> 8) & 0xff,
+                   (host->fifo[(host->fifo_start + i) & 0xff] >> 16) & 0xff,
+                   (host->fifo[(host->fifo_start + i) & 0xff] >> 24) & 0xff,
+                   host->fifo[(host->fifo_start + i + 1) & 0xff] & 0xff,
+                   (host->fifo[(host->fifo_start + i + 1) & 0xff] >> 8) & 0xff,
+                   (host->fifo[(host->fifo_start + i + 1) & 0xff] >> 16) & 0xff,
+                   (host->fifo[(host->fifo_start + i + 1) & 0xff] >> 24) & 0xff,
+                   host->fifo[(host->fifo_start + i + 2) & 0xff] & 0xff,
+                   (host->fifo[(host->fifo_start + i + 2) & 0xff] >> 8) & 0xff,
+                   (host->fifo[(host->fifo_start + i + 2) & 0xff] >> 16) & 0xff,
+                   (host->fifo[(host->fifo_start + i + 2) & 0xff] >> 24) & 0xff,
+                   host->fifo[(host->fifo_start + i + 3) & 0xff] & 0xff,
+                   (host->fifo[(host->fifo_start + i + 3) & 0xff] >> 8) & 0xff,
+                   (host->fifo[(host->fifo_start + i + 3) & 0xff] >> 16) & 0xff,
+                   (host->fifo[(host->fifo_start + i + 3) & 0xff] >> 24) & 0xff);
+#endif
     } else {
         while (host->blen_counter && host->fifo_len) {
             for (i = 0; i < 32 && host->blen_counter; i += 8, host->blen_counter--)
@@ -210,6 +232,7 @@ static void omap3_mmc_transfer(struct omap3_mmc_s *host)
             host->fifo_len--;
             host->fifo_start &= 0xff;
         }
+        TRACE2("end, %d bytes pending in current block", host->blen_counter);
     }
 
     if (!host->blen_counter) {
@@ -225,29 +248,6 @@ static void omap3_mmc_transfer(struct omap3_mmc_s *host)
             host->pstate &= ~0x0306; /* RTA | WTA | DLA | DATI */
         }
     }
-    
-    TRACE2("end, %d bytes in FIFO:", host->fifo_len * 4);
-#if MMC_DEBUG_LEVEL>1
-    for (i = 0; i < host->fifo_len; i += 4)
-        TRACE2("[0x%03x] %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x",
-               i * 4,
-               host->fifo[(host->fifo_start + i) & 0xff] & 0xff,
-               (host->fifo[(host->fifo_start + i) & 0xff] >> 8) & 0xff,
-               (host->fifo[(host->fifo_start + i) & 0xff] >> 16) & 0xff,
-               (host->fifo[(host->fifo_start + i) & 0xff] >> 24) & 0xff,
-               host->fifo[(host->fifo_start + i + 1) & 0xff] & 0xff,
-               (host->fifo[(host->fifo_start + i + 1) & 0xff] >> 8) & 0xff,
-               (host->fifo[(host->fifo_start + i + 1) & 0xff] >> 16) & 0xff,
-               (host->fifo[(host->fifo_start + i + 1) & 0xff] >> 24) & 0xff,
-               host->fifo[(host->fifo_start + i + 2) & 0xff] & 0xff,
-               (host->fifo[(host->fifo_start + i + 2) & 0xff] >> 8) & 0xff,
-               (host->fifo[(host->fifo_start + i + 2) & 0xff] >> 16) & 0xff,
-               (host->fifo[(host->fifo_start + i + 2) & 0xff] >> 24) & 0xff,
-               host->fifo[(host->fifo_start + i + 3) & 0xff] & 0xff,
-               (host->fifo[(host->fifo_start + i + 3) & 0xff] >> 8) & 0xff,
-               (host->fifo[(host->fifo_start + i + 3) & 0xff] >> 16) & 0xff,
-               (host->fifo[(host->fifo_start + i + 3) & 0xff] >> 24) & 0xff);
-#endif
 }
 
 static void omap3_mmc_command(struct omap3_mmc_s *host)
@@ -437,9 +437,9 @@ static uint32_t omap3_mmc_read(void *opaque, target_phys_addr_t addr)
                 s->fifo_start &= 255;
                 //if (s->ddir && !s->fifo_len)
                 //    s->stat_pending |= 0x2; /* TC */
-                omap3_mmc_fifolevel_update(s);
-                omap3_mmc_transfer(s);
                 //omap3_mmc_fifolevel_update(s);
+                omap3_mmc_transfer(s);
+                omap3_mmc_fifolevel_update(s);
             }
             omap3_mmc_interrupts_update(s);
             return i;
