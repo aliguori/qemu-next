@@ -585,6 +585,19 @@ static void twl4030_4b_write(void *opaque, uint8_t addr, uint8_t value)
     uint8_t seq_addr, seq_sub;
 	
     switch (addr) {
+        case 0x1c: /* RTC */
+        case 0x1d:
+        case 0x1e:
+        case 0x1f:
+        case 0x20:
+        case 0x21:
+        case 0x22:
+        case 0x23:
+        case 0x24:
+        case 0x25:
+        case 0x26:
+        case 0x27:
+        case 0x28:
         case 0x29: /* RTC_CTRL_REG */
         case 0x2a: /* RTC_STATUS_REG */
         case 0x2b: /* RTC_INTERRUPTS_REG */
