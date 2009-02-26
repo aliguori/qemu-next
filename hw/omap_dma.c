@@ -24,7 +24,7 @@
 #include "irq.h"
 #include "soc_dma.h"
 
-#define OMAP_DMA_DEBUG
+//#define OMAP_DMA_DEBUG
 
 #ifdef OMAP_DMA_DEBUG
 #define TRACE(fmt,...) fprintf(stderr, "%s:" fmt "\n", __FUNCTION__, ##__VA_ARGS__)
