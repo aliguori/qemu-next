@@ -18,10 +18,6 @@
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston,
  * MA 02111-1307 USA
  */
-
-/*The MMCHS of OMAP3530/3430 is different from OMAP1 and OAMP2420.*/
-
-
 #include "hw.h"
 #include "omap.h"
 #include "sd.h"
@@ -49,32 +45,31 @@ struct omap3_mmc_s
     omap_clk clk;
     SDState *card;
 
-    uint32_t sysconfig;         /*0x10 */
-    uint32_t sysstatus;         /*0x14 */
-    uint32_t csre;              /*0x24 */
-    uint32_t systest;           /*0x28 */
-    uint32_t con;               /*0x2c */
-    uint32_t pwcnt;             /*0x30 */
-    uint32_t blk;               /*0x104 */
-    uint32_t arg;               /*0x108 */
-    uint32_t cmd;               /*0x10c */
-    uint32_t rsp10;             /*0x110 */
-    uint32_t rsp32;             /*0x114 */
-    uint32_t rsp54;             /*0x118 */
-    uint32_t rsp76;             /*0x11c */
-    uint32_t data;              /*0x120 */
-    uint32_t pstate;            /*0x124 */
-    uint32_t hctl;              /*0x128 */
-    uint32_t sysctl;            /*0x12c */
-    uint32_t stat;              /*0x130 */
-    uint32_t ie;                /*0x134 */
-    uint32_t ise;               /*0x138 */
-    uint32_t ac12;              /*0x13c */
-    uint32_t capa;              /*0x140 */
-    uint32_t cur_capa;          /*0x148 */
-    uint32_t rev;               /*0x1fc */
+    uint32_t sysconfig;
+    uint32_t sysstatus;
+    uint32_t csre;
+    uint32_t systest;
+    uint32_t con;
+    uint32_t pwcnt;
+    uint32_t blk;
+    uint32_t arg;
+    uint32_t cmd;
+    uint32_t rsp10;
+    uint32_t rsp32;
+    uint32_t rsp54;
+    uint32_t rsp76;
+    uint32_t data;
+    uint32_t pstate;
+    uint32_t hctl;
+    uint32_t sysctl;
+    uint32_t stat;
+    uint32_t ie;
+    uint32_t ise;
+    uint32_t ac12;
+    uint32_t capa;
+    uint32_t cur_capa;
+    uint32_t rev;
 
-    /*for quick reference */
     uint16_t blen_counter;
     uint16_t nblk_counter;
 
@@ -110,13 +105,16 @@ static void omap3_mmc_fifolevel_update(struct omap3_mmc_s *host)
     enum { ongoing, ready, aborted } state = ongoing;
     
     if ((host->cmd & (1 << 21))) { /* DP */
-        TRACE2("ddir=%d, dma=%d, fifo_len=%d bytes",
-               host->ddir, host->cmd & 1, host->fifo_len * 4);
-
         if (host->ddir) {
-            if (!host->fifo_len)
-                state = host->stop ? aborted : ready;
-            else {
+            TRACE2("receive, dma=%d, fifo_len=%d bytes",
+                   host->cmd & 1, host->fifo_len * 4);
+            
+            /* omap3_mmc_transfer ensures we always have data in FIFO
+               during receive as long as all data has not been transferred -
+               NOTE that the actual transfer may be finished already (i.e.
+               host->transfer is cleared) but not all data has been read out
+               from FIFO yet */
+            if (host->fifo_len) {
                 if (host->cmd & 1) { /* DE */
                     if (host->fifo_len * 4 == (host->blk & 0x7ff)) { /* BLEN */
                         if (host->stop)
@@ -135,8 +133,12 @@ static void omap3_mmc_fifolevel_update(struct omap3_mmc_s *host)
                     }
                 }
             }
+            else
+                state = host->stop ? aborted : ready;
         } else {
-            if (host->transfer && host->blen_counter) {
+            /* omap3_mmc_transfer keeps FIFO empty during transmit so
+               we just check all blocks have been transferred or not */
+            if (host->transfer) {
                 if (host->cmd & 1) { /* DE */
                     if (host->blen_counter == (host->blk & 0x7ff)) { /* BLEN */
                         if (host->stop)
@@ -163,6 +165,10 @@ static void omap3_mmc_fifolevel_update(struct omap3_mmc_s *host)
             host->stat_pending &= ~0x30;           /* BRR | BWR */
             host->stat &= ~0x30;                   /* BRR | BWR */
             if (state != ongoing) {
+                TRACE2("transfer %s", 
+                       state == ready
+                       ? "complete"
+                       : "aborted --> complete");
                 host->stat_pending |= 0x2;         /* TC */
                 if (state == aborted) {
                     host->cmd = host->stop;
@@ -177,54 +183,52 @@ static void omap3_mmc_fifolevel_update(struct omap3_mmc_s *host)
 static void omap3_mmc_transfer(struct omap3_mmc_s *host)
 {
     int i;
+    uint32_t x;
+#if MMC_DEBUG_LEVEL>1
+    int j;
+    uint8_t c, sym[17];
+#endif
 
-    /* if data transfer is inactive
+    /* IF data transfer is inactive
        OR block count enabled with zero block count
        OR in receive mode and we have unread data in FIFO
        OR in transmit mode and we have no data in FIFO,
-       don't do anything */
+       THEN don't do anything */
     if (!host->transfer
         || ((host->cmd & 2) && !host->nblk_counter)
         || (host->ddir && host->fifo_len)
         || (!host->ddir && !host->fifo_len))
         return;
     
-    TRACE2("begin, %d blocks (%d bytes/block) left to %s, %d bytes in FIFO",
-           (host->cmd & 2) ? host->nblk_counter : 1,
-           host->blk & 0x7ff, 
-           host->ddir ? "receive" : "send",
-           host->fifo_len * 4);
-
     if (host->ddir) {
+        TRACE2("begin, %d blocks (%d bytes/block) left to receive, %d bytes in FIFO",
+               (host->cmd & 2) ? host->nblk_counter : 1,
+               host->blk & 0x7ff, 
+               host->fifo_len * 4);
         while (host->blen_counter && host->fifo_len < 255) {
-            for (i = 0; i < 32 && host->blen_counter; i += 8, host->blen_counter--)
-                host->fifo[(host->fifo_start + host->fifo_len) & 0xff] |=
-                    sd_read_data(host->card) << i;
+            for (i = 0, x = 0; i < 32 && host->blen_counter; i += 8, host->blen_counter--)
+                x |= sd_read_data(host->card) << i;
+            host->fifo[(host->fifo_start + host->fifo_len) & 0xff] = x;
             host->fifo_len++;
         }
         TRACE2("end, %d bytes in FIFO:", host->fifo_len * 4);
 #if MMC_DEBUG_LEVEL>1
-        for (i = 0; i < host->fifo_len; i += 4)
-            TRACE2("[0x%03x] %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x",
-                   i * 4,
-                   host->fifo[(host->fifo_start + i) & 0xff] & 0xff,
-                   (host->fifo[(host->fifo_start + i) & 0xff] >> 8) & 0xff,
-                   (host->fifo[(host->fifo_start + i) & 0xff] >> 16) & 0xff,
-                   (host->fifo[(host->fifo_start + i) & 0xff] >> 24) & 0xff,
-                   host->fifo[(host->fifo_start + i + 1) & 0xff] & 0xff,
-                   (host->fifo[(host->fifo_start + i + 1) & 0xff] >> 8) & 0xff,
-                   (host->fifo[(host->fifo_start + i + 1) & 0xff] >> 16) & 0xff,
-                   (host->fifo[(host->fifo_start + i + 1) & 0xff] >> 24) & 0xff,
-                   host->fifo[(host->fifo_start + i + 2) & 0xff] & 0xff,
-                   (host->fifo[(host->fifo_start + i + 2) & 0xff] >> 8) & 0xff,
-                   (host->fifo[(host->fifo_start + i + 2) & 0xff] >> 16) & 0xff,
-                   (host->fifo[(host->fifo_start + i + 2) & 0xff] >> 24) & 0xff,
-                   host->fifo[(host->fifo_start + i + 3) & 0xff] & 0xff,
-                   (host->fifo[(host->fifo_start + i + 3) & 0xff] >> 8) & 0xff,
-                   (host->fifo[(host->fifo_start + i + 3) & 0xff] >> 16) & 0xff,
-                   (host->fifo[(host->fifo_start + i + 3) & 0xff] >> 24) & 0xff);
+        for (i = 0; i < host->fifo_len; ) {
+            fprintf(stderr, "%s: [0x%03x] ", __FUNCTION__, i * 4);
+            do {
+                x = host->fifo[(host->fifo_start + i) & 0xff];
+                for (j = 0; j < 4; j++) {
+                    c = (x >> (j * 8)) & 0xff;
+                    fprintf(stderr, "%02x ", c);
+                    sym[(i & 3) * 4 + j] = (c < 32 || c > 126) ? '.' : c;
+                }
+            } while (((++i) & 3));
+            sym[16] = 0;
+            fprintf(stderr, "%s\n", sym);
+        }
 #endif
     } else {
+        TRACE2("%d bytes left to transmit in current block", host->blen_counter);
         while (host->blen_counter && host->fifo_len) {
             for (i = 0; i < 32 && host->blen_counter; i += 8, host->blen_counter--)
                 sd_write_data(host->card, (host->fifo[host->fifo_start] >> i) & 0xff);
@@ -232,7 +236,6 @@ static void omap3_mmc_transfer(struct omap3_mmc_s *host)
             host->fifo_len--;
             host->fifo_start &= 0xff;
         }
-        TRACE2("end, %d bytes pending in current block", host->blen_counter);
     }
 
     if (!host->blen_counter) {
@@ -258,8 +261,10 @@ static void omap3_mmc_command(struct omap3_mmc_s *host)
     uint8_t response[16];
     int cmd = (host->cmd >> 24) & 0x3f; /* INDX */
     
-    TRACE("%d type=%d arg=0x%08x", cmd, (host->cmd >> 22) & 3, host->arg);
-    
+    TRACE("%d type=%d arg=0x%08x blk=0x%08x, fifo=%d/%d",
+          cmd, (host->cmd >> 22) & 3, host->arg, host->blk,
+          host->fifo_start, host->fifo_len);
+
     if ((host->con & 2) && !cmd) { /* INIT and CMD0 */
         host->stat_pending |= 0x1;
         host->pstate &= 0xfffffffe;
@@ -544,6 +549,12 @@ static void omap3_mmc_write(void *opaque, target_phys_addr_t addr,
             break;
         case 0x10c: /* MMCHS_CMD */
             TRACE2("CMD = %08x", value);
+            /* TODO: writing to bits 0-15 should have no effect during
+               an active data transfer */
+            if (value & 4) { /* ACEN */
+                fprintf(stderr, "%s: AutoCMD12 not supported!\n", __FUNCTION__);
+                exit(-1);
+            }
             if (!s->stop
                 && (((value >> 24) & 0x3f) == 12 || ((value >> 24) & 0x3f) == 52)) {
                 s->stop = value & 0x3ffb0037;
