@@ -22,7 +22,10 @@
 #include "omap.h"
 #include "sd.h"
 
-
+/* debug levels:
+   0 - no debug
+   1 - print out all commands in processing order
+   2 - dump all register accesses and buffer management */
 #define MMC_DEBUG_LEVEL 0
 
 #if MMC_DEBUG_LEVEL>0
@@ -344,8 +347,8 @@ static void omap3_mmc_command(struct omap3_mmc_s *host)
     }
     
     if (cmd == 12 || cmd == 52) { /* stop transfer commands */
-        //host->fifo_start = 0;
-        //host->fifo_len = 0;
+        /*host->fifo_start = 0;*/
+        /*host->fifo_len = 0;*/
         host->transfer = 0;
         host->pstate &= ~0x0f06;     /* BRE | BWE | RTA | WTA | DLA | DATI */
         host->stat_pending &= ~0x30; /* BRR | BWR */
@@ -364,7 +367,6 @@ static void omap3_mmc_command(struct omap3_mmc_s *host)
         host->stat_pending &= ~(1 << 28); /* CERR */
     }
     host->stat_pending |= timeout ? (1 << 16) : 0x1; /* CTO : CC */
-    //    host->stat_pending &= host->ie; /* use only enabled signals */
 }
 
 static void omap3_mmc_reset(struct omap3_mmc_s *s)
@@ -434,15 +436,12 @@ static uint32_t omap3_mmc_read(void *opaque, target_phys_addr_t addr)
                 i = s->fifo[s->fifo_start];
                 s->fifo[s->fifo_start] = 0;
                 if (s->fifo_len == 0) {
-                    fprintf(stderr, "MMC: FIFO underrun\n");
+                    fprintf(stderr, "%s: FIFO underrun\n", __FUNCTION__);
                     return i;
                 }
                 s->fifo_start++;
                 s->fifo_len--;
                 s->fifo_start &= 255;
-                //if (s->ddir && !s->fifo_len)
-                //    s->stat_pending |= 0x2; /* TC */
-                //omap3_mmc_fifolevel_update(s);
                 omap3_mmc_transfer(s);
                 omap3_mmc_fifolevel_update(s);
             }
