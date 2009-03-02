@@ -27,6 +27,14 @@
 #include "vga_int.h"
 #include "pixel_ops.h"
 
+#define OMAP_DSS_DEBUG
+
+#ifdef OMAP_DSS_DEBUG
+#define TRACE(fmt,...) fprintf(stderr, "%s: " fmt "\n", __FUNCTION__, ##__VA_ARGS__)
+#else
+#define TRACE(...)
+#endif
+
 struct omap_dss_s {
     qemu_irq irq;
     qemu_irq drq;
@@ -35,6 +43,7 @@ struct omap_dss_s {
     int autoidle;
     int control;
     uint32_t sdi_control;
+    uint32_t pll_control;
     int enable;
 
     struct omap_dss_panel_s {
@@ -49,6 +58,7 @@ struct omap_dss_s {
     struct omap3_lcd_panel_s *omap_lcd_panel[2];
 
     struct {
+        uint8_t rev;
         uint32_t idlemode;
         uint32_t irqst;
         uint32_t irqen;
@@ -59,6 +69,7 @@ struct omap_dss_s {
         int line;
         uint32_t bg[2];
         uint32_t trans[2];
+        uint32_t global_alpha;
 
         struct omap_dss_plane_s {
             int enable;
@@ -103,12 +114,15 @@ struct omap_dss_s {
     
     struct {
         uint32_t irqst;
+        uint32_t irqen;
     } dsi;
 };
 
-static void omap_dispc_interrupt_update(struct omap_dss_s *s)
+static void omap_dss_interrupt_update(struct omap_dss_s *s)
 {
-    qemu_set_irq(s->irq, s->dispc.irqst & s->dispc.irqen);
+    qemu_set_irq(s->irq, 
+                 (s->dsi.irqst & s->dsi.irqen)
+                 | (s->dispc.irqst & s->dispc.irqen));
 }
 
 static void omap_rfbi_reset(struct omap_dss_s *s)
@@ -137,9 +151,10 @@ static void omap_rfbi_reset(struct omap_dss_s *s)
 
 void omap_dss_reset(struct omap_dss_s *s)
 {
-    s->autoidle = 0;
+    s->autoidle = 0x10; /* was 0 for OMAP2 but bit4 must be set for OMAP3 */
     s->control = 0;
     s->sdi_control = 0;
+    s->pll_control = 0;
     s->enable = 0;
 
     s->dig.enable = 0;
@@ -165,6 +180,7 @@ void omap_dss_reset(struct omap_dss_s *s)
     s->dispc.bg[1] = 0;
     s->dispc.trans[0] = 0;
     s->dispc.trans[1] = 0;
+    s->dispc.global_alpha = 0;
 
     s->dispc.l[0].enable = 0;
     s->dispc.l[0].bpp = 0;
@@ -182,9 +198,10 @@ void omap_dss_reset(struct omap_dss_s *s)
     s->dispc.l[0].wininc = 0;
 
     s->dsi.irqst = 0;
+    s->dsi.irqen = 0;
     
     omap_rfbi_reset(s);
-    omap_dispc_interrupt_update(s);
+    omap_dss_interrupt_update(s);
 }
 
 static uint32_t omap_diss_read(void *opaque, target_phys_addr_t addr)
@@ -202,14 +219,17 @@ static uint32_t omap_diss_read(void *opaque, target_phys_addr_t addr)
         return 1;						/* RESETDONE */
             
     case 0x18:  /* DSS_IRQSTATUS */
-        return ((s->dispc.irqst & s->dispc.irqen) ? 0x1 : 0x0)
-            | ((s->dsi.irqst) ? 0x2 : 0x0);
-
+        return ((s->dsi.irqst & s->dsi.irqen) ? 2 : 0) 
+            | ((s->dispc.irqst & s->dispc.irqen) ? 1 : 0);
+            
     case 0x40:	/* DSS_CONTROL */
         return s->control;
 
     case 0x44:  /* DSS_SDI_CONTROL */
         return s->sdi_control;
+            
+    case 0x48: /* DSS_PLL_CONTROL */
+        return s->pll_control;
 
     case 0x50:	/* DSS_PSA_LCD_REG_1 */
     case 0x54:	/* DSS_PSA_LCD_REG_2 */
@@ -235,27 +255,33 @@ static void omap_diss_write(void *opaque, target_phys_addr_t addr,
     switch (addr) {
     case 0x00:	/* DSS_REVISIONNUMBER */
     case 0x14:	/* DSS_SYSSTATUS */
+    case 0x18:  /* DSS_IRQSTATUS */
     case 0x50:	/* DSS_PSA_LCD_REG_1 */
     case 0x54:	/* DSS_PSA_LCD_REG_2 */
     case 0x58:	/* DSS_PSA_VIDEO_REG */
     case 0x5c:	/* DSS_STATUS */
-        OMAP_RO_REGV(addr, value);
+        /* quietly ignore */
+        /*OMAP_RO_REGV(addr, value);*/
         break;
 
     case 0x10:	/* DSS_SYSCONFIG */
         if (value & 2)						/* SOFTRESET */
             omap_dss_reset(s);
-        s->autoidle = value & 1;
+        s->autoidle = value & 0x19; /* was 0x01 for OMAP2 */
         break;
 
     case 0x40:	/* DSS_CONTROL */
-        s->control = value & 0x3dd;
+        s->control = value & 0x3ff; /* was 0x3dd for OMAP2 */
         break;
 
     case 0x44: /* DSS_SDI_CONTROL */
         s->sdi_control = value & 0x000ff80f;
         break;
-    
+
+    case 0x48: /* DSS_PLL_CONTROL */
+        s->pll_control = value;
+        break;
+            
     default:
         OMAP_BAD_REGV(addr, value);
         break;
@@ -280,7 +306,7 @@ static uint32_t omap_disc_read(void *opaque, target_phys_addr_t addr)
 
     switch (addr) {
     case 0x000:	/* DISPC_REVISION */
-        return 0x20; // 0x30 in OMAP3
+        return s->dispc.rev;
 
     case 0x010:	/* DISPC_SYSCONFIG */
         return s->dispc.idlemode;
@@ -325,6 +351,8 @@ static uint32_t omap_disc_read(void *opaque, target_phys_addr_t addr)
         return s->dispc.timing[2];
     case 0x070:	/* DISPC_DIVISOR */
         return s->dispc.timing[3];
+    case 0x074: /* DISPC_GLOBAL_ALPHA */
+        return s->dispc.global_alpha;
 
     case 0x078:	/* DISPC_SIZE_DIG */
         return ((s->dig.ny - 1) << 16) | (s->dig.nx - 1);
@@ -404,27 +432,31 @@ static void omap_disc_write(void *opaque, target_phys_addr_t addr,
     case 0x014: /* DISPC_SYSSTATUS */
     case 0x05c: /* DISPC_LINE_STATUS */
     case 0x0a8: /* DISPC_GFX_FIFO_SIZE_STATUS */
-        OMAP_RO_REGV(addr, value);
+        /* quietly ignore */
+        /*OMAP_RO_REGV(addr, value);*/
         break;
             
     case 0x010:	/* DISPC_SYSCONFIG */
         if (value & 2)						/* SOFTRESET */
             omap_dss_reset(s);
-        s->dispc.idlemode = value & 0x301b;
+        s->dispc.idlemode = value & ((s->dispc.rev < 0x30) ? 0x301b : 0x331f);
         break;
 
     case 0x018:	/* DISPC_IRQSTATUS */
         s->dispc.irqst &= ~value;
-        omap_dispc_interrupt_update(s);
+        omap_dss_interrupt_update(s);
         break;
 
     case 0x01c:	/* DISPC_IRQENABLE */
-        s->dispc.irqen = value & 0xffff;
-        omap_dispc_interrupt_update(s);
+        s->dispc.irqen = value & ((s->dispc.rev < 0x30) ? 0xffff : 0x1ffff);
+        omap_dss_interrupt_update(s);
         break;
 
     case 0x040:	/* DISPC_CONTROL */
-        s->dispc.control = value & 0x07ff9fff;
+        if (s->dispc.rev < 0x30)
+            s->dispc.control = value & 0x07ff9fff;
+        else
+            s->dispc.control = (value & 0xffff9bff) | (s->dispc.control & 0x6000);
         s->dig.enable = (value >> 1) & 1;
         s->lcd.enable = (value >> 0) & 1;
         s->lcd.active = (value >> 5) & 1;
@@ -466,6 +498,7 @@ static void omap_disc_write(void *opaque, target_phys_addr_t addr,
         }
         if (value & (1 << 5)) {				/* GOLCD */
              /* XXX: Likewise for LCD here.  */
+            s->dispc.control &= ~(1 << 5); /* GOLCD finished */
         }
         s->dispc.invalidate = 1;
         break;
@@ -515,6 +548,9 @@ static void omap_disc_write(void *opaque, target_phys_addr_t addr,
         break;
     case 0x070:	/* DISPC_DIVISOR */
         s->dispc.timing[3] = value & 0x00ff00ff;
+        break;
+    case 0x074: /* DISPC_GLOBAL_ALPHA */
+        s->dispc.global_alpha = value & 0x00ff00ff;
         break;
 
     case 0x078:	/* DISPC_SIZE_DIG */
@@ -694,7 +730,7 @@ static void omap_rfbi_transfer_start(struct omap_dss_s *s)
 
     /* TODO */
     s->dispc.irqst |= 1;					/* FRAMEDONE */
-    omap_dispc_interrupt_update(s);
+    omap_dss_interrupt_update(s);
 }
 
 static uint32_t omap_rfbi_read(void *opaque, target_phys_addr_t addr)
@@ -1106,7 +1142,6 @@ struct omap_dss_s *omap_dss_init(struct omap_mpu_state_s *mpu,
 
     s->irq = irq;
     s->drq = drq;
-    omap_dss_reset(s);
 
     iomemtype[0] = l4_register_io_memory(0, omap_diss1_readfn,
                                          omap_diss1_writefn, s);
@@ -1118,11 +1153,15 @@ struct omap_dss_s *omap_dss_init(struct omap_mpu_state_s *mpu,
                                          omap_venc1_writefn, s);
 
     if (cpu_class_omap3(mpu)) {
+        s->dispc.rev = 0x30;
+        
         iomemtype[4] = l4_register_io_memory(0, omap_dsi_readfn,
                                              omap_dsi_writefn, s);
         omap_l4_attach(ta, 0, iomemtype[4]);
         region_base = 1;
     } else {
+        s->dispc.rev = 0x20;
+        
         iomemtype[4] = cpu_register_io_memory(0, omap_im3_readfn,
                                               omap_im3_writefn, s);
         cpu_register_physical_memory(0x68000800, 0x1000, iomemtype[4]);
@@ -1132,6 +1171,8 @@ struct omap_dss_s *omap_dss_init(struct omap_mpu_state_s *mpu,
     omap_l4_attach(ta, region_base+1, iomemtype[1]); /* DISC */
     omap_l4_attach(ta, region_base+2, iomemtype[2]); /* RFBI */
     omap_l4_attach(ta, region_base+3, iomemtype[3]); /* VENC */
+
+    omap_dss_reset(s);
 
 #if 0
     s->state = graphic_console_init(omap_update_display,
@@ -1195,15 +1236,9 @@ static void omap3_lcd_panel_update_display(void *opaque)
     uint32_t copy_width,copy_height;
     uint8_t *src, *dest;
 
-    //printf("dss->lcd.active  %d dss->lcd.enable %d \n",dss->lcd.active,dss->lcd.enable);
-    if (!dss->lcd.active)
-        return;
-
-    /*check whether LCD is enabled*/
-    if (!dss->lcd.enable)
-        return;
-
-    if ((dss->dispc.control & (1 << 11)))			/* RFBIMODE */
+    if (!dss->lcd.active
+        || !dss->lcd.enable
+        || ((dss->dispc.control & (1 << 11)))) /* RFBI */
         return;
 
     if (dss->dispc.l[0].gfx_channel)			/* 24 bit digital out */
@@ -1254,7 +1289,7 @@ static void omap3_lcd_panel_update_display(void *opaque)
     lcd_Bpp = omap3_lcd_panel_bpp[dss->dispc.l[0].gfx_format];
     dss_Bpp = linesize/ds_get_width(s->state);
 
-    //printf("LCD BPP %d dss_bpp %d \n",lcd_Bpp,dss_Bpp);
+    //TRACE("lcd_bpp %d dss_bpp %d",lcd_Bpp,dss_Bpp);
 
     dest += linesize*start_y;
     dest += start_x*dss_Bpp;
@@ -1291,8 +1326,8 @@ void *omap3_lcd_panel_init()
     struct omap3_lcd_panel_s *s = (struct omap3_lcd_panel_s *) qemu_mallocz(sizeof(*s));
 
     s->state = graphic_console_init(omap3_lcd_panel_update_display,
-                                      omap3_lcd_panel_invalidate_display,
-                                      NULL, NULL, s);
+                                    omap3_lcd_panel_invalidate_display,
+                                    NULL, NULL, s);
 
     switch (ds_get_bits_per_pixel(s->state)) {
     case 0:
