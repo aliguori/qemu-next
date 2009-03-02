@@ -4777,6 +4777,7 @@ static int omap3_mmc_fat_boot(BlockDriverState *bs,
             boot = omap3_boot_init(data, j, mpu);
             while (omap3_boot_block(data, j, boot))
                 i = omap3_read_fat_cluster(data, &drv, i);
+            free(boot);
             result = 1;
         } else
             fprintf(stderr, "%s: unable to read MLO file contents from SD card\n",
