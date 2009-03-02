@@ -2,6 +2,7 @@
  * OMAP3 Multimedia Card/Secure Digital/Secure Digital I/O (MMC/SD/SDIO) Card Interface emulation
  *
  * Copyright (C) 2008 yajin  <yajin@vm-kernel.org>
+ * Copyright (C) 2009 Nokia Corporation
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License as
