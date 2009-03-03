@@ -924,13 +924,7 @@ struct rfbi_chip_s {
     uint16_t (*read)(void *opaque, int dc);
 };
 typedef void (*omap3_lcd_panel_fn_t)(uint8_t *, const uint8_t *, unsigned int);
-struct omap3_lcd_panel_s {
-    struct omap_dss_s *dss;
-    DisplayState *state;
-    omap3_lcd_panel_fn_t *line_fn_tab[2];
-    omap3_lcd_panel_fn_t line_fn;
-    uint32_t invalidate;
-};
+struct omap3_lcd_panel_s;
 struct omap_dss_s;
 void omap_dss_reset(struct omap_dss_s *s);
 struct omap_dss_s *omap_dss_init(struct omap_mpu_state_s *mpu,

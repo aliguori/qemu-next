@@ -2,6 +2,7 @@
  * TI OMAP3 processors emulation.
  *
  * Copyright (C) 2008 yajin <yajin@vm-kernel.org>
+ * Copyright (C) 2009 Nokia Corporation
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License as
@@ -4435,9 +4436,9 @@ struct omap_mpu_state_s *omap3530_mpu_init(unsigned long sdram_size,
 }
 
 
-static uint32_t omap3_get_le32(void *p)
+static inline uint32_t omap3_get_le32(const void *p)
 {
-    uint8_t *q = (uint8_t *)p;
+    const uint8_t *q = (const uint8_t *)p;
     uint32_t v;
     v = q[3]; v <<= 8;
     v |= q[2]; v <<= 8;
@@ -4446,17 +4447,213 @@ static uint32_t omap3_get_le32(void *p)
     return v;
 }
 
-static uint32_t omap3_get_le16(void *p)
+static inline uint32_t omap3_get_le16(const void *p)
 {
-    uint8_t *q = (uint8_t *)p;
+    const uint8_t *q = (const uint8_t *)p;
     uint32_t v;
     v = q[1]; v <<= 8;
     v |= q[0];
     return v;
 }
 
+struct omap3_boot_s {
+    struct omap_mpu_state_s *mpu;
+    enum {
+        undefined = 0,
+        confighdr,
+        chdone,
+        imagehdr,
+        copy,
+        done
+    } state;
+    target_phys_addr_t addr;
+    uint32_t count;
+};
+
+static struct omap3_boot_s *omap3_boot_init(const uint8_t *data,
+                                            uint32_t data_len,
+                                            struct omap_mpu_state_s *mpu)
+{
+    struct omap3_boot_s *s = qemu_mallocz(sizeof(struct omap3_boot_s));
+    s->mpu = mpu;
+    s->state = imagehdr;
+    if (data_len >= 512) {
+        if (!strncasecmp((char *)(data + 0x14), "chsettings", 10)
+            || !strncasecmp((char *)(data + 0x14), "chram", 5)
+            || !strncasecmp((char *)(data + 0x14), "chflash", 7)
+            || !strncasecmp((char *)(data + 0x14), "chmmcsd", 7))
+            s->state = confighdr;
+    }
+    return s;
+}
+
+static void omap3_boot_chsettings(const uint8_t *chtoc)
+{
+    uint32_t flags, x;
+    
+    if (omap3_get_le32(chtoc) != 0xc0c0c0c1) {
+        fprintf(stderr, "%s: invalid section verification key\n", __FUNCTION__);
+        return;
+    }
+    if (!chtoc[4]) { /* section disabled? */
+        return;
+    }
+    if (omap3_get_le16(chtoc + 5) != 0x0001) {
+        fprintf(stderr, "%s: unsupported CH version (0x%04x)\n", __FUNCTION__,
+                omap3_get_le16(chtoc));
+        return;
+    }
+    flags = omap3_get_le32(chtoc + 8);
+    chtoc += 12;
+    if (flags & 1) {
+        cpu_physical_memory_write(0x48307270, chtoc + 0x00, 4); /* PRM_CLKSRC_CTRL */
+        cpu_physical_memory_write(0x48306d40, chtoc + 0x04, 4); /* PRM_CLKSEL */
+        cpu_physical_memory_write(0x48005140, chtoc + 0x08, 4); /* CM_CLKSEL1_EMU */
+        if (flags & (1 << 2)) { /* clock configuration */
+            cpu_physical_memory_write(0x48004a40, chtoc + 0x0c, 4); /* CM_CLKSEL_CORE */
+            cpu_physical_memory_write(0x48004c40, chtoc + 0x10, 4); /* CM_CLKSEL_WKUP */
+        }
+        if (flags & (1 << 5)) { /* DPLL3 CORE */
+            if (flags & (1 << 8)) { /* enable DPLL3 bypass */
+                cpu_physical_memory_read(0x48004d00, (uint8_t *)&x, 4);
+                x &= ~7; x |= 5; /* set DPLL3 bypass */
+                cpu_physical_memory_write(0x48004d00, (uint8_t *)&x, 4);
+            }
+            cpu_physical_memory_write(0x48004d00, chtoc + 0x14, 4); /* CM_CLKEN_PLL */
+            cpu_physical_memory_write(0x48004d30, chtoc + 0x18, 4); /* CM_AUTOIDLE_PLL */
+            cpu_physical_memory_write(0x48004d40, chtoc + 0x1c, 4); /* CM_CLKSEL1_PLL */
+        }
+        if (flags & (1 << 3)) { /* DPLL4 PER */
+            if (flags & (1 << 6)) { /* enable DPLL4 bypass */
+                cpu_physical_memory_read(0x48004d00, (uint8_t *)&x, 4);
+                x &= ~0x70000; x |= 0x10000; /* set DPLL4 in stop mode */
+                cpu_physical_memory_write(0x48004d00, (uint8_t *)&x, 4);
+            }
+            cpu_physical_memory_write(0x48004d00, chtoc + 0x20, 4); /* CM_CLKEN_PLL */
+            cpu_physical_memory_write(0x48004d30, chtoc + 0x24, 4); /* CM_AUTOIDLE_PLL */
+            cpu_physical_memory_write(0x48004d44, chtoc + 0x28, 4); /* CM_CLKSEL2_PLL */
+            cpu_physical_memory_write(0x48004d48, chtoc + 0x2c, 4); /* CM_CLKSEL3_PLL */
+        }
+        if (flags & (1 << 3)) { /* DPLL1 MPU */
+            if (flags & (1 << 7)) { /* enable DPLL1 bypass */
+                cpu_physical_memory_read(0x48004904, (uint8_t *)&x, 4);
+                x &= ~7; x |= 5; /* set DPLL1 bypass */
+                cpu_physical_memory_write(0x48004904, (uint8_t *)&x, 4);
+            }
+            cpu_physical_memory_write(0x48004904, chtoc + 0x30, 4); /* CM_CLKEN_PLL_MPU */
+            cpu_physical_memory_write(0x48004934, chtoc + 0x34, 4); /* CM_AUTOIDLE_PLL_MPU */
+            cpu_physical_memory_write(0x48004940, chtoc + 0x38, 4); /* CM_CLKSEL1_PLL_MPU */
+            cpu_physical_memory_write(0x48004944, chtoc + 0x3c, 4); /* CM_CLKSEL2_PLL_MPU */
+            cpu_physical_memory_write(0x48004948, chtoc + 0x40, 4); /* CM_CLKSTCTRL_MPU */
+        }
+        switch ((flags >> 24) & 0xff) {
+            case 0x01: x = 0; break; /* 12MHz */
+            case 0x02: x = 1; break; /* 13MHz */
+            case 0x03: x = 5; break; /* 16.8MHz */
+            case 0x04: x = 2; break; /* 19.2MHz */
+            case 0x05: x = 3; break; /* 26MHz */
+            case 0x06: x = 4; break; /* 38.4MHz */
+            default:
+                fprintf(stderr, "%s: unsupported SYS.CLK setting\n", __FUNCTION__);
+                x = 1;
+                break;
+        }
+        if (x != omap3_get_le32(chtoc + 0x04)) {
+            fprintf(stderr, "%s: mismatch in SYS.CLK id and PRM_CLKSEL value\n", __FUNCTION__);
+        }
+    }
+}
+
+static void omap3_boot_chram(const uint8_t *chtoc)
+{
+    if (omap3_get_le32(chtoc) != 0xc0c0c0c2) {
+        fprintf(stderr, "%s: invalid section verification key\n", __FUNCTION__);
+        return;
+    }
+    if (!chtoc[4]) { /* section disabled? */
+        return;
+    }
+}
+
+static void omap3_boot_chflash(const uint8_t *chtoc)
+{
+    if (omap3_get_le32(chtoc) != 0xc0c0c0c3) {
+        fprintf(stderr, "%s: invalid section verification key\n", __FUNCTION__);
+        return;
+    }
+    if (!chtoc[4]) { /* section disabled? */
+        return;
+    }
+}
+
+static void omap3_boot_chmmcsd(const uint8_t *chtoc)
+{
+    if (omap3_get_le32(chtoc) != 0xc0c0c0c4) {
+        fprintf(stderr, "%s: invalid section verification key\n", __FUNCTION__);
+        return;
+    }
+    if (!chtoc[4]) { /* section disabled? */
+        return;
+    }
+}
+
+/* returns non-zero if more blocks are needed */
+static uint32_t omap3_boot_block(const uint8_t *data,
+                                 uint32_t data_len,
+                                 struct omap3_boot_s *s)
+{
+    const uint8_t *p = 0;
+    uint32_t i = 0;
+    
+    switch (s->state) {
+        case confighdr:
+            i = data_len;
+            for (p = data; i >= 32 && omap3_get_le32(p) != 0xffffffff; p += 32, i -= 32) {
+                if (!strcasecmp((char *)(p + 0x14), "chsettings"))
+                    omap3_boot_chsettings(p + omap3_get_le32(p));
+                else if (!strcasecmp((char *)(p + 0x14), "chram"))
+                    omap3_boot_chram(p + omap3_get_le32(p));
+                else if (!strcasecmp((char *)(p + 0x14), "chflash"))
+                    omap3_boot_chflash(p + omap3_get_le32(p));
+                else if (!strcasecmp((char *)(p + 0x14), "chmmcsd"))
+                    omap3_boot_chmmcsd(p + omap3_get_le32(p));
+                else
+                    fprintf(stderr, "%s: unknown CHTOC item \"%s\"\n",
+                            __FUNCTION__, (char *)(p + 0x14));
+            }
+            data += 512;
+            data_len -= 512;
+            s->state = chdone;
+            /* fallthrough */
+        case chdone:
+            s->state = imagehdr;
+            /* fallthrough */
+        case imagehdr:
+            if (data_len < 8)
+                break;
+            s->count = omap3_get_le32(data);
+            s->addr = omap3_get_le32(data + 4);
+            s->mpu->env->regs[15] = s->addr;
+            data += 8;
+            data_len -= 8;
+            s->state = copy;
+            /* fallthrough */
+        case copy:
+            i = (s->count >= data_len) ? data_len : s->count;
+            cpu_physical_memory_write(s->addr, data, i);
+            s->addr += i;
+            s->count -= i;
+           if (!s->count)
+                s->state = done;
+            return s->count;
+        default:
+            break;
+    }
+    return 0;
+}
+
 /* returns ptr to matching dir entry / zero entry or 0 if unsuccessful */
-static uint8_t *omap3_scan_fat_dir_sector(uint8_t *s)
+static const uint8_t *omap3_scan_fat_dir_sector(const uint8_t *s)
 {
     int i;
     
@@ -4470,10 +4667,10 @@ static uint8_t *omap3_scan_fat_dir_sector(uint8_t *s)
 
 struct omap3_fat_drv_s {
     BlockDriverState *bs;
-    uint8_t ptype; // 12, 16, 32
-    uint64_t c0;   // physical byte offset for data cluster 0
-    uint64_t fat;  // physical byte offset for used FAT sector 0
-    uint32_t spc;  // sectors per cluster
+    uint8_t ptype; /* 12, 16, 32 */
+    uint64_t c0;   /* physical byte offset for data cluster 0 */
+    uint64_t fat;  /* physical byte offset for used FAT sector 0 */
+    uint32_t spc;  /* sectors per cluster */
 };
 
 /* returns cluster data in the buffer and next cluster chain number
@@ -4483,7 +4680,7 @@ static uint32_t omap3_read_fat_cluster(uint8_t *data,
                                        uint32_t cl)
 {
     uint8_t buf[ 4 ];
-    uint32_t len = drv->spc * 0x200; // number of bytes to read
+    uint32_t len = drv->spc * 0x200; /* number of bytes to read */
     
     switch (drv->ptype) { /* check for EOF */
         case 12: if (cl > 0xff0) return 0; break;
@@ -4520,9 +4717,10 @@ static int omap3_mmc_fat_boot(BlockDriverState *bs,
                               struct omap_mpu_state_s *mpu)
 {
     struct omap3_fat_drv_s drv;
-    uint32_t i, j, k, cluster0, fatsize, bootsize, rootsize;
-    uint32_t img_size, img_addr;
-    uint8_t *p, *q;
+    struct omap3_boot_s *boot;
+    uint32_t i, j, cluster0, fatsize, bootsize, rootsize;
+    const uint8_t *p, *q;
+    uint8_t *cluster;
     int result = 0;
     
     /* determine FAT type */
@@ -4553,12 +4751,12 @@ static int omap3_mmc_fat_boot(BlockDriverState *bs,
         j = omap3_get_le16(sector + 0x28);
         if (j & 0x80)
             drv.fat += (j & 0x0f) * fatsize * 0x200;
-        uint8_t *cluster = qemu_mallocz(drv.spc * 0x200);
+        cluster = qemu_mallocz(drv.spc * 0x200);
         for (p = 0; !p && (i = omap3_read_fat_cluster(cluster, &drv, i)); ) {
             for (j = drv.spc, q=cluster; j-- & !p; q += 0x200)
                 p = omap3_scan_fat_dir_sector(q);
             if (p) 
-                memcpy(sector, q - 0x200, 0x200); // save the sector
+                memcpy(sector, q - 0x200, 0x200); /* save the sector */
         }
         free(cluster);
     } else { /* FAT12/16 */
@@ -4569,26 +4767,17 @@ static int omap3_mmc_fat_boot(BlockDriverState *bs,
         }
     }
     
-    if (p && *p) { // did we indeed find the file?
+    if (p && *p) { /* did we indeed find the file? */
         i = omap3_get_le16(p + 0x14);
         i <<= 16;
         i |= omap3_get_le16(p + 0x1a);
         j = drv.spc * 0x200;
         uint8 *data = qemu_mallocz(j);
         if ((i = omap3_read_fat_cluster(data, &drv, i))) {
-            /* TODO: support HS device boot
-               for now only GP device is supported */
-            img_size = omap3_get_le32(data);
-            img_addr = omap3_get_le32(data + 4);
-            mpu->env->regs[15] = img_addr;
-            cpu_physical_memory_write(img_addr, data + 8, 
-                                      (k = (j - 8 >= img_size) ? img_size : j - 8));
-            for (img_addr += k, img_size -= k;
-                 img_size && (i = omap3_read_fat_cluster(data, &drv, i));
-                 img_addr += k, img_size -= k) {
-                cpu_physical_memory_write(img_addr, data, 
-                                          (k = (j >= img_size) ? img_size : j));
-            }
+            boot = omap3_boot_init(data, j, mpu);
+            while (omap3_boot_block(data, j, boot))
+                i = omap3_read_fat_cluster(data, &drv, i);
+            free(boot);
             result = 1;
         } else
             fprintf(stderr, "%s: unable to read MLO file contents from SD card\n",
@@ -4605,6 +4794,22 @@ static int omap3_mmc_raw_boot(BlockDriverState *bs,
                               uint8_t *sector,
                               struct omap_mpu_state_s *mpu)
 {
+    struct omap3_boot_s *boot;
+    uint32_t i = 0;
+    
+    if (bdrv_pread(bs, 0, sector, 0x200) == 0x200) {
+        boot = omap3_boot_init(sector, 0x200, mpu);
+        if (boot->state == confighdr) {
+            while (omap3_boot_block(sector, 0x200, boot)) {
+                if (bdrv_pread(bs, ++i, sector, 0x200) != 0x200) {
+                    fprintf(stderr, "%s: error trying to read sector %u on boot device\n",
+                            __FUNCTION__, i);
+                    break;
+                }
+            }
+        }
+        free(boot);
+    }
     return 0;
 }
 
@@ -4613,8 +4818,9 @@ int omap3_mmc_boot(struct omap_mpu_state_s *s)
 {
     BlockDriverState *bs;
     int sdindex = drive_get_index(IF_SD, 0, 0);
-    uint8_t sector[0x200], *p;
+    uint8_t *sector, *p;
     uint32_t pstart, i;
+    int result = 0;
     
     /* very simple implementation, supports only two modes:
        1. MBR partition table with an active FAT partition
@@ -4622,6 +4828,7 @@ int omap3_mmc_boot(struct omap_mpu_state_s *s)
        2. boot loader located on first sector */
     if (sdindex >= 0) {
         bs = drives_table[sdindex].bdrv;
+        sector = qemu_mallocz(0x200);
         if (bdrv_pread(bs, 0, sector, 0x200) == 0x200) {
             for (i = 0, p = sector + 0x1be; i < 4; i++, p += 0x10) 
                 if (p[0] == 0x80) break;
@@ -4632,11 +4839,12 @@ int omap3_mmc_boot(struct omap_mpu_state_s *s)
                 && bdrv_pread(bs, (pstart = omap3_get_le32(p + 8)) * 0x200,
                               sector, 0x200) == 0x200
                 && sector[0x1fe] == 0x55 && sector[0x1ff] == 0xaa)
-                return omap3_mmc_fat_boot(bs, sector, pstart, s);
+                result = omap3_mmc_fat_boot(bs, sector, pstart, s);
             else
-                return omap3_mmc_raw_boot(bs, sector, s);
+                result = omap3_mmc_raw_boot(bs, sector, s);
         }
+        free(sector);
     }
-    return 0;
+    return result;
 }
 
