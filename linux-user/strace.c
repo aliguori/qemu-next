@@ -255,6 +255,172 @@ print_syscall_ret_newselect(const struct syscallname *name, abi_long ret)
 }
 #endif
 
+#define LOCKED_ARG0	(1 << 0)
+#define LOCKED_ARG1	(1 << 1)
+#define LOCKED_ARG2	(1 << 2)
+#define LOCKED_ARG3	(1 << 3)
+#define LOCKED_ARG4	(1 << 4)
+#define LOCKED_ARG5	(1 << 5)
+
+struct args {
+    abi_long	arg_guest;	/* guest argument */
+    uintptr_t	arg_host;	/* host argument */
+    int		arg_locked;	/* is this argument locked? */
+};
+
+/*
+ * This function locks strings from guest memory and prints
+ * strace output according to format specified in strace.list.
+ *
+ * First parameter specifies, which guest arguments should be
+ * locked (LOCKED_ARG0 - LOCKED_ARG5).
+ */
+static void
+print_locked(unsigned int locked, const struct syscallname *name,
+    abi_long arg0, abi_long arg1, abi_long arg2,
+    abi_long arg3, abi_long arg4, abi_long arg5)
+{
+    struct args args[6] = {
+        { arg0, 0, (locked & LOCKED_ARG0) },
+        { arg1, 0, (locked & LOCKED_ARG1) },
+        { arg2, 0, (locked & LOCKED_ARG2) },
+        { arg3, 0, (locked & LOCKED_ARG3) },
+        { arg4, 0, (locked & LOCKED_ARG4) },
+        { arg5, 0, (locked & LOCKED_ARG5) },
+    };
+    struct args *a;
+    int i;
+
+    for (i = 0; i < 6; i++) {
+        a = &args[i];
+        if (a->arg_locked) {
+            a->arg_host = (uintptr_t)lock_user_string(a->arg_guest);
+            if (a->arg_host == 0)
+                goto out;
+        } else {
+            a->arg_host = (uintptr_t)a->arg_guest;
+        }
+    }
+
+    /*
+     * Now we can have all strings locked and converted into host
+     * addresses.
+     */
+    gemu_log(name->format,
+        name->name,
+        args[0].arg_host,
+        args[1].arg_host,
+        args[2].arg_host,
+        args[3].arg_host,
+        args[4].arg_host,
+        args[5].arg_host);
+
+out:
+    for (i = 0; i < 6; i++) {
+        a = &args[i];
+        if (a->arg_locked)
+            unlock_user((void *)a->arg_host, a->arg_guest, 0);
+    }
+}
+
+static void
+print_1st_locked(const struct syscallname *name,
+    abi_long arg0, abi_long arg1, abi_long arg2,
+    abi_long arg3, abi_long arg4, abi_long arg5)
+{
+    print_locked(LOCKED_ARG0, name, arg0, arg1, arg2, arg3, arg4, arg5);
+}
+
+static void
+print_2nd_locked(const struct syscallname *name,
+    abi_long arg0, abi_long arg1, abi_long arg2,
+    abi_long arg3, abi_long arg4, abi_long arg5)
+{
+    print_locked(LOCKED_ARG1, name, arg0, arg1, arg2, arg3, arg4, arg5);
+}
+
+static void
+print_1st_and_2nd_locked(const struct syscallname *name,
+    abi_long arg0, abi_long arg1, abi_long arg2,
+    abi_long arg3, abi_long arg4, abi_long arg5)
+{
+    print_locked(LOCKED_ARG0 | LOCKED_ARG1, name, arg0, arg1, arg2,
+        arg3, arg4, arg5);
+}
+
+static void
+print_1st_and_3rd_locked(const struct syscallname *name,
+    abi_long arg0, abi_long arg1, abi_long arg2,
+    abi_long arg3, abi_long arg4, abi_long arg5)
+{
+    print_locked(LOCKED_ARG0 | LOCKED_ARG2, name, arg0, arg1, arg2,
+        arg3, arg4, arg5);
+}
+
+static void
+print_1st_2nd_and_3rd_locked(const struct syscallname *name,
+    abi_long arg0, abi_long arg1, abi_long arg2,
+    abi_long arg3, abi_long arg4, abi_long arg5)
+{
+    print_locked(LOCKED_ARG0 | LOCKED_ARG1 | LOCKED_ARG2, name,
+        arg0, arg1, arg2, arg3, arg4, arg5);
+}
+
+static void
+print_2nd_and_4th_locked(const struct syscallname *name,
+    abi_long arg0, abi_long arg1, abi_long arg2,
+    abi_long arg3, abi_long arg4, abi_long arg5)
+{
+    print_locked(LOCKED_ARG1 | LOCKED_ARG3, name, arg0, arg1, arg2,
+        arg3, arg4, arg5);
+}
+
+/*
+ * Here is list of syscalls that we support reading in (locking)
+ * strings from guest addresses.  Every syscall that has "%s" in its
+ * parameter list and doesn't have specific print function, should
+ * be defined here.
+ */
+#define print_access	print_1st_locked
+#define print_chdir	print_1st_locked
+#define print_chmod	print_1st_locked
+#define print_creat	print_1st_locked
+#define print_execv	print_1st_locked
+#define print_faccessat print_2nd_locked
+#define print_fchmodat	print_2nd_locked
+#define print_fchown	print_1st_locked
+#define print_fchownat	print_2nd_locked
+#define print_futimesat	print_2nd_locked
+#define print_link	print_1st_and_2nd_locked
+#define print_linkat	print_2nd_and_4th_locked
+#define print_lstat	print_1st_locked
+#define print_lstat64	print_1st_locked
+#define print_mkdir	print_1st_locked
+#define print_mkdirat	print_2nd_locked
+#define print_mknod	print_1st_locked
+#define print_mknodat	print_2nd_locked
+#define print_mq_open	print_1st_locked
+#define print_mq_unlink	print_1st_locked
+#define print_fstatat64	print_2nd_locked
+#define print_newfstatat print_2nd_locked
+#define print_open	print_1st_locked
+#define print_openat	print_2nd_locked
+#define print_readlink	print_1st_locked
+#define print_readlinkat print_2nd_locked
+#define print_rename	print_1st_and_2nd_locked
+#define print_renameat	print_2nd_and_4th_locked
+#define print_stat	print_1st_locked
+#define print_stat64	print_1st_locked
+#define print_statfs	print_1st_locked
+#define print_statfs64	print_1st_locked
+#define print_symlink	print_1st_and_2nd_locked
+#define print_symlinkat	print_1st_and_3rd_locked
+#define print_umount	print_1st_2nd_and_3rd_locked
+#define print_unlink	print_1st_locked
+#define print_unlinkat	print_2nd_locked
+#define print_utime	print_1st_locked
+#define print_utimensat	print_2nd_locked
+
 /*
  * An array of all of the syscalls we know about
  */
@@ -285,6 +451,10 @@ print_syscall(int num,
             } else {
                 /* XXX: this format system is broken because it uses
                    host types and host pointers for strings */
+                /*
+                 * It now works when it has print_xxx_locked function
+                 * as its printing function.
+                 */
                 if( scnames[i].format != NULL )
                     format = scnames[i].format;
                 gemu_log(format,scnames[i].name, arg1,arg2,arg3,arg4,arg5,arg6);
