@@ -223,7 +223,6 @@ static void beagle_dss_setup(struct beagle_s *s)
 {
 	s->lcd_panel = omap3_lcd_panel_init();
 	omap3_lcd_panel_attach(s->cpu->dss, 0, s->lcd_panel);
-	s->lcd_panel->dss = s->cpu->dss;
 }
 
 //static void beagle_mmc_cs_cb(void *opaque, int line, int level)
