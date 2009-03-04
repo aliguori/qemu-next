@@ -27,8 +27,8 @@
 #include "vga_int.h"
 #include "pixel_ops.h"
 
-#define OMAP_DSS_DEBUG
-#define OMAP_DSS_DEBUG_REG
+//#define OMAP_DSS_DEBUG
+//#define OMAP_DSS_DEBUG_REG
 
 #ifdef OMAP_DSS_DEBUG
 #define TRACE(fmt,...) fprintf(stderr, "%s: " fmt "\n", __FUNCTION__, ##__VA_ARGS__)
@@ -64,7 +64,6 @@ struct omap_dss_s {
 
     struct omap_dss_panel_s {
         int enable;
-        int active;
         int nx;
         int ny;
 
@@ -298,6 +297,7 @@ static uint32_t omap_diss_read(void *opaque, target_phys_addr_t addr)
         return 0;
 
     case 0x5c:	/* DSS_SDI_STATUS */
+        /* TODO: check and implement missing OMAP3 bits */
         TRACEREG("DSS_STATUS: 0x%08x", 1 + (s->control & 1));
         return 1 + (s->control & 1);
 
@@ -630,7 +630,6 @@ static void omap_disc_write(void *opaque, target_phys_addr_t addr,
             s->dispc.control = (value & 0xffff9bff) | (s->dispc.control & 0x6000);
         s->dig.enable = (value >> 1) & 1;
         s->lcd.enable = (value >> 0) & 1;
-        s->lcd.active = (value >> 5) & 1;
         if (value & (1 << 12))			/* OVERLAY_OPTIMIZATION */
             if (~((s->dispc.l[1].attr | s->dispc.l[2].attr) & 1))
                  fprintf(stderr, "%s: Overlay Optimization when no overlay "
@@ -666,6 +665,7 @@ static void omap_disc_write(void *opaque, target_phys_addr_t addr,
              * s->dispc.l[0].wininc
              * All they need to be loaded here from their shadow registers.
              */
+            s->dispc.control &= ~(1 << 6); /* GODIGITAL finished */
         }
         if (value & (1 << 5)) {				/* GOLCD */
              /* XXX: Likewise for LCD here.  */
@@ -1522,22 +1522,22 @@ void omap3_lcd_panel_attach(struct omap_dss_s *dss,
 
 /* Bytes(!) per pixel */
 static const int omap3_lcd_panel_bpp[0x10] = {
-    0,   /*0x0*/
-    0,   /*0x1*/
-    0,   /*0x2*/
-    0,   /*0x3*/
-    2,  /*0x4:RGB 12 */
-    2,  /*0x5: ARGB16 */
-    2,  /*0x6: RGB 16 */
-    0,  /*0x7*/
-    4,  /*0x8: RGB 24 (un-packed in 32-bit container) */
-    3,  /*0x9: RGB 24 (packed in 24-bit container) */
-    0,  /*0xa */
-    0,  /*0xb */
-    4,  /*0xc: ARGB32 */
-    4,  /*0xd: RGBA32 */
-    4,  /*0xe: RGBx 32 (24-bit RGB aligned on MSB of the 32-bit container) */
-    0,  /*0xf */
+    0,  /* 0x0: BITMAP1 (CLUT) */
+    0,  /* 0x1: BITMAP2 (CLUT) */
+    0,  /* 0x2: BITMAP4 (CLUT) */
+    0,  /* 0x3: BITMAP8 (CLUT) */
+    2,  /* 0x4: RGB12 (unpacked 16-bit container)*/
+    2,  /* 0x5: ARGB16 */
+    2,  /* 0x6: RGB16 */
+    0,  /* 0x7: reserved */
+    4,  /* 0x8: RGB24 (unpacked in 32-bit container) */
+    3,  /* 0x9: RGB24 (packed in 24-bit container) */
+    0,  /* 0xa: reserved */
+    0,  /* 0xb: reserved */
+    4,  /* 0xc: ARGB32 */
+    4,  /* 0xd: RGBA32 */
+    4,  /* 0xe: RGBx32 (24-bit RGB aligned on MSB of the 32-bit container) */
+    0,  /* 0xf: reserved */
 };
 
 static inline void omap3_lcd_panel_invalidate_display(void *opaque) 
@@ -1550,85 +1550,72 @@ static void omap3_lcd_panel_update_display(void *opaque)
 {
     struct omap3_lcd_panel_s *s = (struct omap3_lcd_panel_s *)opaque;
     struct omap_dss_s *dss = s->dss;
-    uint32_t lcd_width,lcd_height;
-    uint32_t graphic_width,graphic_height;
-    uint32_t start_x,start_y;
-    uint32_t lcd_Bpp,dss_Bpp;
-    uint32_t linesize,y;
-    uint32_t copy_width,copy_height;
+    const uint32_t lcd_width = dss->lcd.nx;
+    const uint32_t lcd_height = dss->lcd.ny;
+    uint32_t graphic_width, graphic_height;
+    uint32_t start_x, start_y;
+    const uint32_t lcd_Bpp = omap3_lcd_panel_bpp[dss->dispc.l[0].gfx_format];
+    uint32_t dss_Bpp;
+    uint32_t linesize, y;
+    uint32_t copy_width, copy_height;
     uint8_t *src, *dest;
 
-    if (!dss->lcd.active
-        || !dss->lcd.enable
-        || ((dss->dispc.control & (1 << 11)))) /* RFBI */
+    if (!dss->lcd.enable
+        || dss->dispc.l[0].gfx_channel /* 24bit digital out */
+        || ((dss->dispc.control & (1 << 11))) /* RFBI */
+        || !lcd_Bpp)
         return;
     
-    if (dss->dispc.l[0].gfx_channel)			/* 24 bit digital out */
-        return;
-
-    if (!(dss->dispc.l[0].rotation_flag)) {	  /* rotation*/
-        s->line_fn = s->line_fn_tab[0][dss->dispc.l[0].gfx_format];
-    } else {
-        fprintf(stderr, "%s: rotation is not supported \n", __FUNCTION__);
-        exit(1);
+    /* check for setup changes since last visit only if flagged */
+    if (dss->dispc.invalidate) {
+        dss->dispc.invalidate = 0;
+        if (!(dss->dispc.l[0].rotation_flag)) {	  /* rotation*/
+            s->line_fn = s->line_fn_tab[0][dss->dispc.l[0].gfx_format];
+        } else {
+            fprintf(stderr, "%s: rotation is not supported \n", __FUNCTION__);
+            exit(1);
+        }
+        if (!s->line_fn) {
+            fprintf(stderr, "%s:s->line_fn is NULL. Not supported gfx_format \n", __FUNCTION__);
+            exit(1);
+        }
+        if (lcd_width != ds_get_width(s->state) 
+            || lcd_height != ds_get_height(s->state)) {
+            qemu_console_resize(s->state, lcd_width, lcd_height);
+            s->invalidate = 1;
+        }
     }
-    if (!s->line_fn) {
-        fprintf(stderr, "%s:s->line_fn is NULL. Not supported gfx_format \n", __FUNCTION__);
-        exit(1);
-    }
-
+    
     /* Resolution */
-    lcd_width = dss->lcd.nx;
-    lcd_height = dss->lcd.ny;
     graphic_width = dss->dispc.l[0].nx;
     graphic_height = dss->dispc.l[0].ny;
     start_x = dss->dispc.l[0].posx;
     start_y = dss->dispc.l[0].posy;
-    //printf("lcd_width %d lcd_height %d \n",lcd_width,lcd_height);
-    //printf("graphic_width %d graphic_height %d \n",graphic_width,graphic_height);
-    //printf("start_x %d start_y %d \n",start_x,start_y);
-
-    if (lcd_width != ds_get_width(s->state) 
-        || lcd_height != ds_get_height(s->state)) {
-        qemu_console_resize(s->state, lcd_width, lcd_height);
-        dss->dispc.invalidate = 1;
-    }
-
-    /*if ((start_x+graphic_width)>lcd_width) {
-        fprintf(stderr, "%s: graphic window width(0x%x) > lcd width(0x%x) \n",__FUNCTION__,start_x+graphic_width,lcd_width );
-         exit(1);
-    }
-    if ((start_y+graphic_height)>lcd_height) {
-        fprintf(stderr, "%s: graphic window height(0x%x) > lcd height(0x%x) \n",__FUNCTION__,start_y+graphic_height,lcd_height);
-        exit(1);
-    }*/
 
     /*use the rfbi function*/
     src = (uint8_t *)omap_rfbi_get_buffer(dss);
     dest = ds_get_data(s->state);
     linesize = ds_get_linesize(s->state);
 
-    lcd_Bpp = omap3_lcd_panel_bpp[dss->dispc.l[0].gfx_format];
-    dss_Bpp = linesize/ds_get_width(s->state);
+    dss_Bpp = linesize / ds_get_width(s->state);
 
-    //TRACE("lcd_bpp %d dss_bpp %d",lcd_Bpp,dss_Bpp);
+    dest += linesize * start_y;
+    dest += start_x * dss_Bpp;
 
-    dest += linesize*start_y;
-    dest += start_x*dss_Bpp;
-
-    if ((start_x+graphic_width)>lcd_width)
+    if ((start_x + graphic_width) > lcd_width)
         copy_width = lcd_width - start_x;
     else
     	copy_width = graphic_width;
     copy_height = lcd_height>graphic_height ? graphic_height:lcd_height;
 
-    for (y=start_y;y<copy_height;y++) {
-        s->line_fn(dest,src,copy_width*lcd_Bpp);
-        src += graphic_width*lcd_Bpp;
+    for (y = start_y; y < copy_height; y++) {
+        s->line_fn(dest, src, copy_width * lcd_Bpp);
+        src += graphic_width * lcd_Bpp;
         dest += linesize;
     }
 
     dpy_update(s->state, start_x, start_y, graphic_width, graphic_height);
+    s->invalidate = 0;
 }
 
 /*omap lcd stuff*/
