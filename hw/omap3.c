@@ -4166,8 +4166,8 @@ static int omap3_validate_addr(struct omap_mpu_state_s *s,
 */
 void omap3_set_mem_type(struct omap_mpu_state_s *s,int bootfrom)
 {
-	switch (bootfrom)
-	{
+    s->omap3_scm->general[32] &= ~0x3f;
+	switch (bootfrom) {
 		case 0x0: /*GPMC_NOR*/
 			s->omap3_scm->general[32] |= 7;
 			break;
@@ -4191,6 +4191,7 @@ void omap3_set_mem_type(struct omap_mpu_state_s *s,int bootfrom)
 
 void omap3_set_device_type(struct omap_mpu_state_s *s,int device_type)
 {
+    s->omap3_scm->general[32] &= ~(0x7 << 8);
 	s->omap3_scm->general[32] |= (device_type & 0x7) << 8;
 }
 
@@ -4874,7 +4875,7 @@ int omap3_mmc_boot(struct omap_mpu_state_s *s)
        supports only two modes:
        1. MBR partition table with an active FAT partition
           and boot loader file (MLO) in its root directory, or
-       2. CH sector or boot loader located on first sector */
+       2. CH sector located on first sector, followed by boot loader image */
     if (sdindex >= 0) {
         bs = drives_table[sdindex].bdrv;
         sector = qemu_mallocz(0x200);

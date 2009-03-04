@@ -136,14 +136,10 @@ static void beagle_nand_setup(struct beagle_s *s)
 	/*wp=1, no write protect!!! */
 	//nand_set_wp(s->nand, 1);
 
-/*	iomemtype = cpu_register_io_memory(0, beagle_nand_readfn,
-                    beagle_nand_writefn, s);
-    cpu_register_physical_memory(0x6e00007c, 0xc, iomemtype);*/
-    omap_gpmc_attach(s->cpu->gpmc, 0, 0, NULL, NULL, s, beagle_nand_readfn, beagle_nand_writefn);
+    omap_gpmc_attach(s->cpu->gpmc, BEAGLE_NAND_CS, 0, NULL, NULL, s,
+                     beagle_nand_readfn, beagle_nand_writefn);
 
-	 /*BOOT from nand*/
     omap3_set_mem_type(s->cpu,GPMC_NAND);
-
 }
 
 static int beagle_nand_read_page(struct beagle_s *s,uint8_t *buf, uint16_t page_addr)
