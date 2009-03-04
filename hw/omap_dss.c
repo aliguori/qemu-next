@@ -27,7 +27,7 @@
 #include "vga_int.h"
 #include "pixel_ops.h"
 
-//#define OMAP_DSS_DEBUG
+#define OMAP_DSS_DEBUG
 //#define OMAP_DSS_DEBUG_REG
 
 #ifdef OMAP_DSS_DEBUG
@@ -707,7 +707,7 @@ static void omap_disc_write(void *opaque, target_phys_addr_t addr,
         s->dispc.invalidate = 1;
         break;
     case 0x060:	/* DISPC_LINE_NUMBER */
-        TRACEREG("DISPC_LINE_NUMBER = 0x%08x", value);
+        TRACE("DISPC_LINE_NUMBER = 0x%08x", value);
         s->dispc.line = value & 0x7ff;
         break;
     case 0x064:	/* DISPC_TIMING_H */
@@ -888,7 +888,7 @@ static void omap_disc_write(void *opaque, target_phys_addr_t addr,
     case 0x1d4:	/* DISPC_DATA_CYCLE1 */
     case 0x1d8:	/* DISPC_DATA_CYCLE2 */
     case 0x1dc:	/* DISPC_DATA_CYCLE3 */
-        TRACE("DISPC_DATA_CYCLE%d = 0x%08x (ignored)", (addr - 0x1d4) / 4, value);
+        TRACEREG("DISPC_DATA_CYCLE%d = 0x%08x (ignored)", (addr - 0x1d4) / 4, value);
         break;
     case 0x200 ... 0x21c: /* DISPC_VID2_FIR_COEF_Vi */
         n++;
@@ -1616,6 +1616,9 @@ static void omap3_lcd_panel_update_display(void *opaque)
 
     dpy_update(s->state, start_x, start_y, graphic_width, graphic_height);
     s->invalidate = 0;
+    
+    dss->dispc.irqst |= 1; /* FRAMEDONE */
+    omap_dss_interrupt_update(dss);
 }
 
 /*omap lcd stuff*/
