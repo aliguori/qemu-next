@@ -4456,6 +4456,16 @@ static inline uint32_t omap3_get_le16(const void *p)
     return v;
 }
 
+static inline void omap3_boot_setlsb(target_phys_addr_t addr, uint16_t lsb)
+{
+    uint8_t x[4];
+    
+    cpu_physical_memory_read(addr, x, 4);
+    x[0] = lsb & 0xff;
+    x[1] = (lsb >> 8) & 0xff;
+    cpu_physical_memory_write(addr, x, 4);
+}
+
 struct omap3_boot_s {
     struct omap_mpu_state_s *mpu;
     enum {
@@ -4573,6 +4583,27 @@ static void omap3_boot_chram(const uint8_t *chtoc)
     if (!chtoc[4]) { /* section disabled? */
         return;
     }
+    omap3_boot_setlsb(0x6d000040, omap3_get_le16(chtoc + 0x0a)); /* SDRC_CS_CFG */
+    omap3_boot_setlsb(0x6d000044, omap3_get_le16(chtoc + 0x0c)); /* SDRC_SHARING */
+    cpu_physical_memory_write(0x6d000060, chtoc + 0x10, 4);      /* SDRC_DLLA_CTRL */
+
+    cpu_physical_memory_write(0x6d000080, chtoc + 0x20, 4);      /* SDRC_MCFG_0 */
+    omap3_boot_setlsb(0x6d000084, omap3_get_le16(chtoc + 0x24)); /* SDRC_MR_0 */
+    omap3_boot_setlsb(0x6d000088, omap3_get_le16(chtoc + 0x26)); /* SDRC_EMR1_0? */
+    omap3_boot_setlsb(0x6d00008c, omap3_get_le16(chtoc + 0x28)); /* SDRC_EMR2_0 */
+    omap3_boot_setlsb(0x6d000090, omap3_get_le16(chtoc + 0x2a)); /* SDRC_EMR3_0? */
+    cpu_physical_memory_write(0x6d00009c, chtoc + 0x2c, 4);      /* SDRC_ACTIM_CTRLA_0 */
+    cpu_physical_memory_write(0x6d0000a0, chtoc + 0x30, 4);      /* SDRC_ACTIM_CTRLB_0 */
+    cpu_physical_memory_write(0x6d0000a4, chtoc + 0x34, 4);      /* SDRC_RFR_CTRL_0 */
+    
+    cpu_physical_memory_write(0x6d0000b0, chtoc + 0x20, 4);      /* SDRC_MCFG_1 */
+    omap3_boot_setlsb(0x6d0000b4, omap3_get_le16(chtoc + 0x24)); /* SDRC_MR_1 */
+    omap3_boot_setlsb(0x6d0000b8, omap3_get_le16(chtoc + 0x26)); /* SDRC_EMR1_1? */
+    omap3_boot_setlsb(0x6d0000bc, omap3_get_le16(chtoc + 0x28)); /* SDRC_EMR2_1 */
+    omap3_boot_setlsb(0x6d0000c0, omap3_get_le16(chtoc + 0x2a)); /* SDRC_EMR3_1? */
+    cpu_physical_memory_write(0x6d0000cc, chtoc + 0x2c, 4);      /* SDRC_ACTIM_CTRLA_1 */
+    cpu_physical_memory_write(0x6d0000d0, chtoc + 0x30, 4);      /* SDRC_ACTIM_CTRLB_1 */
+    cpu_physical_memory_write(0x6d0000d4, chtoc + 0x34, 4);      /* SDRC_RFR_CTRL_1 */
 }
 
 static void omap3_boot_chflash(const uint8_t *chtoc)
@@ -4584,6 +4615,21 @@ static void omap3_boot_chflash(const uint8_t *chtoc)
     if (!chtoc[4]) { /* section disabled? */
         return;
     }
+    omap3_boot_setlsb(0x6e000010, omap3_get_le16(chtoc + 0x08)); /* GPMC_SYSCONFIG */
+    omap3_boot_setlsb(0x6e00001c, omap3_get_le16(chtoc + 0x0a)); /* GPMC_IRQENABLE */
+    omap3_boot_setlsb(0x6e000040, omap3_get_le16(chtoc + 0x0c)); /* GPMC_TIMEOUT_CONTROL */
+    omap3_boot_setlsb(0x6e000050, omap3_get_le16(chtoc + 0x0e)); /* GPMC_CONFIG */
+    cpu_physical_memory_write(0x6e000060, chtoc + 0x10, 4);      /* GPMC_CONFIG1_0 */
+    cpu_physical_memory_write(0x6e000064, chtoc + 0x14, 4);      /* GPMC_CONFIG2_0 */
+    cpu_physical_memory_write(0x6e000068, chtoc + 0x18, 4);      /* GPMC_CONFIG3_0 */
+    cpu_physical_memory_write(0x6e00006c, chtoc + 0x1c, 4);      /* GPMC_CONFIG4_0 */
+    cpu_physical_memory_write(0x6e000070, chtoc + 0x20, 4);      /* GPMC_CONFIG5_0 */
+    cpu_physical_memory_write(0x6e000074, chtoc + 0x24, 4);      /* GPMC_CONFIG6_0 */
+    cpu_physical_memory_write(0x6e000078, chtoc + 0x28, 4);      /* GPMC_CONFIG7_0 */
+    cpu_physical_memory_write(0x6e0001e0, chtoc + 0x2c, 4);      /* GPMC_PREFETCH_CONFIG1 */
+    omap3_boot_setlsb(0x6e0001e4, omap3_get_le16(chtoc + 0x30)); /* GPMC_PREFETCH_CONFIG2 */
+    omap3_boot_setlsb(0x6e0001ec, omap3_get_le16(chtoc + 0x32)); /* GPMC_PREFETCH_CONTROL */
+    /* TODO: ECC config registers. The TRM spec is not clear on these */
 }
 
 static void omap3_boot_chmmcsd(const uint8_t *chtoc)
@@ -4595,6 +4641,7 @@ static void omap3_boot_chmmcsd(const uint8_t *chtoc)
     if (!chtoc[4]) { /* section disabled? */
         return;
     }
+    /* TODO: MMCHS registers */
 }
 
 /* returns non-zero if more blocks are needed */
@@ -4775,6 +4822,7 @@ static int omap3_mmc_fat_boot(BlockDriverState *bs,
         uint8 *data = qemu_mallocz(j);
         if ((i = omap3_read_fat_cluster(data, &drv, i))) {
             boot = omap3_boot_init(data, j, mpu);
+            boot->state = imagehdr; /* override CH detection */
             while (omap3_boot_block(data, j, boot))
                 i = omap3_read_fat_cluster(data, &drv, i);
             free(boot);
@@ -4799,7 +4847,7 @@ static int omap3_mmc_raw_boot(BlockDriverState *bs,
     
     if (bdrv_pread(bs, 0, sector, 0x200) == 0x200) {
         boot = omap3_boot_init(sector, 0x200, mpu);
-        if (boot->state == confighdr) {
+        if (boot->state == confighdr) { /* CH must be present for raw boot */
             while (omap3_boot_block(sector, 0x200, boot)) {
                 if (bdrv_pread(bs, ++i, sector, 0x200) != 0x200) {
                     fprintf(stderr, "%s: error trying to read sector %u on boot device\n",
@@ -4822,10 +4870,11 @@ int omap3_mmc_boot(struct omap_mpu_state_s *s)
     uint32_t pstart, i;
     int result = 0;
     
-    /* very simple implementation, supports only two modes:
+    /* very simple implementation for GP device boot,
+       supports only two modes:
        1. MBR partition table with an active FAT partition
           and boot loader file (MLO) in its root directory, or
-       2. boot loader located on first sector */
+       2. CH sector or boot loader located on first sector */
     if (sdindex >= 0) {
         bs = drives_table[sdindex].bdrv;
         sector = qemu_mallocz(0x200);
