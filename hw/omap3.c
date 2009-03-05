@@ -1118,7 +1118,10 @@ typedef enum {
     L4A_I2C1,
     L4A_I2C2,
     L4A_I2C3,
-    L4A_TAP
+    L4A_TAP,
+    L4A_USBHS_OTG,
+    L4A_USBHS_HOST,
+    L4A_USBHS_TLL
 } omap3_l4_agent_info_id_t;
 
 struct omap3_l4_agent_info_s {
@@ -1129,57 +1132,57 @@ struct omap3_l4_agent_info_s {
 
 static const struct omap3_l4_agent_info_s omap3_l4_agent_info[] = {
     /* L4-Core Agents */
-    {L4A_DSS,       L4ID_DSI,       6},
+    {L4A_DSS,        L4ID_DSI,       6},
     /* TODO: camera */
-    /* TODO: USBHS OTG */
-    /* TODO: USBHS host */
-    /* TODO: USBTLL */
-    {L4A_UART1,     L4ID_UART1,     2},
-    {L4A_UART2,     L4ID_UART2,     2},
-    {L4A_I2C1,      L4ID_I2C1,      2},
-    {L4A_I2C2,      L4ID_I2C2,      2},
-    {L4A_I2C3,      L4ID_I2C3,      2},
+    {L4A_USBHS_OTG,  L4ID_HSUSBOTG,  2},
+    {L4A_USBHS_HOST, L4ID_HSUSBHOST, 2},
+    {L4A_USBHS_TLL,  L4ID_USBTLL,    2},
+    {L4A_UART1,      L4ID_UART1,     2},
+    {L4A_UART2,      L4ID_UART2,     2},
+    {L4A_I2C1,       L4ID_I2C1,      2},
+    {L4A_I2C2,       L4ID_I2C2,      2},
+    {L4A_I2C3,       L4ID_I2C3,      2},
     /* TODO: McBSP1 */
     /* TODO: McBSP5 */
-    {L4A_GPTIMER10, L4ID_GPTIMER10, 2},
-    {L4A_GPTIMER11, L4ID_GPTIMER11, 2},
+    {L4A_GPTIMER10,  L4ID_GPTIMER10, 2},
+    {L4A_GPTIMER11,  L4ID_GPTIMER11, 2},
     /* TODO: SPI1 */
     /* TODO: SPI2 */
-    {L4A_MMC1,      L4ID_MMCSDIO1,  2},
-    {L4A_MMC2,      L4ID_MMCSDIO2,  2},
-    {L4A_MMC3,      L4ID_MMCSDIO3,  2},
+    {L4A_MMC1,       L4ID_MMCSDIO1,  2},
+    {L4A_MMC2,       L4ID_MMCSDIO2,  2},
+    {L4A_MMC3,       L4ID_MMCSDIO3,  2},
     /* TODO: HDQ/1-Wire */
     /* TODO: Mailbox */
     /* TODO: SPI3 */
     /* TODO: SPI4 */
     /* TODO: SDMA */
-    {L4A_CM,        L4ID_CM_A,      3},
-    {L4A_SCM,       L4ID_SCM,       2},
-    {L4A_TAP,       L4ID_TAP,       2},
+    {L4A_CM,         L4ID_CM_A,      3},
+    {L4A_SCM,        L4ID_SCM,       2},
+    {L4A_TAP,        L4ID_TAP,       2},
     /* L4-Wakeup Agents */
-    {L4A_GPTIMER12, L4ID_GPTIMER12, 2},
-    {L4A_PRM,       L4ID_PRM_A,     3},
-    {L4A_GPIO1,     L4ID_GPIO1,     2},
-    {L4A_WDTIMER2,  L4ID_WDTIMER2,  2},
-    {L4A_GPTIMER1,  L4ID_GPTIMER1,  2},
-    {L4A_32KTIMER,  L4ID_32KTIMER,  2},
+    {L4A_GPTIMER12,  L4ID_GPTIMER12, 2},
+    {L4A_PRM,        L4ID_PRM_A,     3},
+    {L4A_GPIO1,      L4ID_GPIO1,     2},
+    {L4A_WDTIMER2,   L4ID_WDTIMER2,  2},
+    {L4A_GPTIMER1,   L4ID_GPTIMER1,  2},
+    {L4A_32KTIMER,   L4ID_32KTIMER,  2},
     /* L4-Per Agents */
-    {L4A_UART3,     L4ID_UART3,     2},
+    {L4A_UART3,      L4ID_UART3,     2},
     /* TODO: McBSP2 */
     /* TODO: McBSP3 */
-    {L4A_GPTIMER2,  L4ID_GPTIMER2,  2},
-    {L4A_GPTIMER3,  L4ID_GPTIMER3,  2},
-    {L4A_GPTIMER4,  L4ID_GPTIMER4,  2},
-    {L4A_GPTIMER5,  L4ID_GPTIMER5,  2},
-    {L4A_GPTIMER6,  L4ID_GPTIMER6,  2},
-    {L4A_GPTIMER7,  L4ID_GPTIMER7,  2},
-    {L4A_GPTIMER8,  L4ID_GPTIMER8,  2},
-    {L4A_GPTIMER9,  L4ID_GPTIMER9,  2},
-    {L4A_GPIO2,     L4ID_GPIO2,     2},
-    {L4A_GPIO3,     L4ID_GPIO3,     2},
-    {L4A_GPIO4,     L4ID_GPIO4,     2},
-    {L4A_GPIO5,     L4ID_GPIO5,     2},
-    {L4A_GPIO6,     L4ID_GPIO6,     2},
+    {L4A_GPTIMER2,   L4ID_GPTIMER2,  2},
+    {L4A_GPTIMER3,   L4ID_GPTIMER3,  2},
+    {L4A_GPTIMER4,   L4ID_GPTIMER4,  2},
+    {L4A_GPTIMER5,   L4ID_GPTIMER5,  2},
+    {L4A_GPTIMER6,   L4ID_GPTIMER6,  2},
+    {L4A_GPTIMER7,   L4ID_GPTIMER7,  2},
+    {L4A_GPTIMER8,   L4ID_GPTIMER8,  2},
+    {L4A_GPTIMER9,   L4ID_GPTIMER9,  2},
+    {L4A_GPIO2,      L4ID_GPIO2,     2},
+    {L4A_GPIO3,      L4ID_GPIO3,     2},
+    {L4A_GPIO4,      L4ID_GPIO4,     2},
+    {L4A_GPIO5,      L4ID_GPIO5,     2},
+    {L4A_GPIO6,      L4ID_GPIO6,     2},
 };
 
 static uint32_t omap3_l4ta_read(void *opaque, target_phys_addr_t addr)
@@ -4280,51 +4283,51 @@ struct omap_mpu_state_s *omap3530_mpu_init(unsigned long sdram_size,
     s->omap3_sms = omap3_sms_init(s);
 
     s->gptimer[0] = omap_gp_timer_init(omap3_l4ta_init(s->l4, L4A_GPTIMER1),
-                                       s->irq[0][OMAP_INT_35XX_GPTIMER1],
+                                       s->irq[0][OMAP_INT_35XX_GPT1_IRQ],
                                        omap_findclk(s, "omap3_gp1_fclk"),
                                        omap_findclk(s, "omap3_wkup_l4_iclk"));
     s->gptimer[1] = omap_gp_timer_init(omap3_l4ta_init(s->l4, L4A_GPTIMER2),
-                                       s->irq[0][OMAP_INT_35XX_GPTIMER2],
+                                       s->irq[0][OMAP_INT_35XX_GPT2_IRQ],
                                        omap_findclk(s, "omap3_gp2_fclk"),
                                        omap_findclk(s, "omap3_per_l4_iclk"));
     s->gptimer[2] = omap_gp_timer_init(omap3_l4ta_init(s->l4, L4A_GPTIMER3),
-                                       s->irq[0][OMAP_INT_35XX_GPTIMER3],
+                                       s->irq[0][OMAP_INT_35XX_GPT3_IRQ],
                                        omap_findclk(s, "omap3_gp3_fclk"),
                                        omap_findclk(s, "omap3_per_l4_iclk"));
     s->gptimer[3] = omap_gp_timer_init(omap3_l4ta_init(s->l4, L4A_GPTIMER4),
-                                       s->irq[0][OMAP_INT_35XX_GPTIMER4],
+                                       s->irq[0][OMAP_INT_35XX_GPT4_IRQ],
                                        omap_findclk(s, "omap3_gp4_fclk"),
                                        omap_findclk(s, "omap3_per_l4_iclk"));
     s->gptimer[4] = omap_gp_timer_init(omap3_l4ta_init(s->l4, L4A_GPTIMER5),
-                                       s->irq[0][OMAP_INT_35XX_GPTIMER5],
+                                       s->irq[0][OMAP_INT_35XX_GPT5_IRQ],
                                        omap_findclk(s, "omap3_gp5_fclk"),
                                        omap_findclk(s, "omap3_per_l4_iclk"));
     s->gptimer[5] = omap_gp_timer_init(omap3_l4ta_init(s->l4, L4A_GPTIMER6),
-                                       s->irq[0][OMAP_INT_35XX_GPTIMER6],
+                                       s->irq[0][OMAP_INT_35XX_GPT6_IRQ],
                                        omap_findclk(s, "omap3_gp6_fclk"),
                                        omap_findclk(s, "omap3_per_l4_iclk"));
     s->gptimer[6] = omap_gp_timer_init(omap3_l4ta_init(s->l4, L4A_GPTIMER7),
-                                       s->irq[0][OMAP_INT_35XX_GPTIMER7],
+                                       s->irq[0][OMAP_INT_35XX_GPT7_IRQ],
                                        omap_findclk(s, "omap3_gp7_fclk"),
                                        omap_findclk(s, "omap3_per_l4_iclk"));
     s->gptimer[7] = omap_gp_timer_init(omap3_l4ta_init(s->l4, L4A_GPTIMER8),
-                                       s->irq[0][OMAP_INT_35XX_GPTIMER8],
+                                       s->irq[0][OMAP_INT_35XX_GPT8_IRQ],
                                        omap_findclk(s, "omap3_gp8_fclk"),
                                        omap_findclk(s, "omap3_per_l4_iclk"));
     s->gptimer[8] = omap_gp_timer_init(omap3_l4ta_init(s->l4, L4A_GPTIMER9),
-                                       s->irq[0][OMAP_INT_35XX_GPTIMER9],
+                                       s->irq[0][OMAP_INT_35XX_GPT9_IRQ],
                                        omap_findclk(s, "omap3_gp9_fclk"),
                                        omap_findclk(s, "omap3_per_l4_iclk"));
     s->gptimer[9] = omap_gp_timer_init(omap3_l4ta_init(s->l4, L4A_GPTIMER10),
-                                       s->irq[0][OMAP_INT_35XX_GPTIMER10],
+                                       s->irq[0][OMAP_INT_35XX_GPT10_IRQ],
                                        omap_findclk(s, "omap3_gp10_fclk"),
                                        omap_findclk(s, "omap3_core_l4_iclk"));
     s->gptimer[10] = omap_gp_timer_init(omap3_l4ta_init(s->l4, L4A_GPTIMER11),
-                                       s->irq[0][OMAP_INT_35XX_GPTIMER11],
+                                       s->irq[0][OMAP_INT_35XX_GPT11_IRQ],
                                        omap_findclk(s, "omap3_gp12_fclk"),
                                        omap_findclk(s, "omap3_core_l4_iclk"));
     s->gptimer[11] = omap_gp_timer_init(omap3_l4ta_init(s->l4, L4A_GPTIMER12),
-                                        s->irq[0][OMAP_INT_35XX_GPTIMER12],
+                                        s->irq[0][OMAP_INT_35XX_GPT12_IRQ],
                                         omap_findclk(s, "omap3_gp12_fclk"),
                                         omap_findclk(s, "omap3_wkup_l4_iclk"));
     
@@ -4373,22 +4376,22 @@ struct omap_mpu_state_s *omap3530_mpu_init(unsigned long sdram_size,
 
     s->gpif = omap3_gpif_init();
     omap3_gpio_init(s, s->gpif ,omap3_l4ta_init(s->l4, L4A_GPIO1),
-                    &s->irq[0][OMAP_INT_35XX_GPIO_BANK1], 
+                    &s->irq[0][OMAP_INT_35XX_GPIO1_MPU_IRQ], 
                     NULL,NULL,0);
     omap3_gpio_init(s, s->gpif ,omap3_l4ta_init(s->l4, L4A_GPIO2),
-                    &s->irq[0][OMAP_INT_35XX_GPIO_BANK2], 
+                    &s->irq[0][OMAP_INT_35XX_GPIO2_MPU_IRQ], 
                     NULL,NULL,1);
     omap3_gpio_init(s, s->gpif ,omap3_l4ta_init(s->l4, L4A_GPIO3),
-                    &s->irq[0][OMAP_INT_35XX_GPIO_BANK3], 
+                    &s->irq[0][OMAP_INT_35XX_GPIO3_MPU_IRQ], 
                     NULL,NULL,2);
     omap3_gpio_init(s, s->gpif ,omap3_l4ta_init(s->l4, L4A_GPIO4),
-                    &s->irq[0][OMAP_INT_35XX_GPIO_BANK4], 
+                    &s->irq[0][OMAP_INT_35XX_GPIO4_MPU_IRQ], 
                     NULL,NULL,3);
     omap3_gpio_init(s, s->gpif ,omap3_l4ta_init(s->l4, L4A_GPIO5),
-                    &s->irq[0][OMAP_INT_35XX_GPIO_BANK5], 
+                    &s->irq[0][OMAP_INT_35XX_GPIO5_MPU_IRQ], 
                     NULL,NULL,4);
     omap3_gpio_init(s, s->gpif ,omap3_l4ta_init(s->l4, L4A_GPIO6),
-                    &s->irq[0][OMAP_INT_35XX_GPIO_BANK6], 
+                    &s->irq[0][OMAP_INT_35XX_GPIO6_MPU_IRQ], 
                     NULL,NULL,5);
 
     omap_tap_init(omap3_l4ta_init(s->l4, L4A_TAP), s);
@@ -4433,6 +4436,14 @@ struct omap_mpu_state_s *omap3530_mpu_init(unsigned long sdram_size,
                                omap_findclk(s, "omap3_i2c3_iclk"),
                                64);
 
+    s->omap3_usb = omap3_hsusb_init(omap3_l4ta_init(s->l4, L4A_USBHS_OTG),
+                                    omap3_l4ta_init(s->l4, L4A_USBHS_HOST),
+                                    omap3_l4ta_init(s->l4, L4A_USBHS_TLL),
+                                    s->irq[0][OMAP_INT_35XX_HSUSB_MC],
+                                    s->irq[0][OMAP_INT_35XX_HSUSB_DMA],
+                                    s->irq[0][OMAP_INT_35XX_OHCI_IRQ],
+                                    s->irq[0][OMAP_INT_35XX_EHCI_IRQ],
+                                    s->irq[0][OMAP_INT_35XX_TLL_IRQ]);
     return s;
 }
 
