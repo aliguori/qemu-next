@@ -71,6 +71,7 @@ void omap_clk_reparent(omap_clk clk, omap_clk parent);
 
 /* omap[123].c */
 struct omap_l4_s;
+struct omap_l3_s;
 struct omap_l4_s *omap_l4_init(target_phys_addr_t base, int ta_num);
 
 struct omap_target_agent_s;
@@ -923,23 +924,17 @@ struct rfbi_chip_s {
     uint16_t (*read)(void *opaque, int dc);
 };
 typedef void (*omap3_lcd_panel_fn_t)(uint8_t *, const uint8_t *, unsigned int);
-struct omap3_lcd_panel_s {
-    struct omap_dss_s *dss;
-    DisplayState *state;
-    omap3_lcd_panel_fn_t *line_fn_tab[2];
-    omap3_lcd_panel_fn_t line_fn;
-    uint32_t invalidate;
-};
+struct omap3_lcd_panel_s;
 struct omap_dss_s;
 void omap_dss_reset(struct omap_dss_s *s);
-struct omap_dss_s *omap_dss_init(struct omap_target_agent_s *ta,
-                target_phys_addr_t l3_base,
-                qemu_irq irq, qemu_irq drq,
-                omap_clk fck1, omap_clk fck2, omap_clk ck54m,
-                omap_clk ick1, omap_clk ick2, int region_start);
+struct omap_dss_s *omap_dss_init(struct omap_mpu_state_s *mpu,
+                                 struct omap_target_agent_s *ta,
+                                 qemu_irq irq, qemu_irq drq,
+                                 omap_clk fck1, omap_clk fck2, omap_clk ck54m,
+                                 omap_clk ick1, omap_clk ick2);
 void omap_rfbi_attach(struct omap_dss_s *s, int cs, struct rfbi_chip_s *chip);
 void omap3_lcd_panel_attach(struct omap_dss_s *s, int cs, struct omap3_lcd_panel_s *lcd_panel);
-void *omap3_lcd_panel_init();
+void *omap3_lcd_panel_init(void);
 
 /* omap_mmc.c */
 struct omap_mmc_s;
@@ -1147,8 +1142,8 @@ struct omap_mpu_state_s {
     struct omap3_prm_s *omap3_prm;
     struct omap3_cm_s *omap3_cm;
     struct omap3_wdt_s *omap3_mpu_wdt;
+    struct omap_l3_s *omap3_l3;
     struct omap3_scm_s *omap3_scm;
-    struct omap3_pm_s *omap3_pm;
     struct omap3_sms_s *omap3_sms;
     struct omap3_mmc_s *omap3_mmc[3];
 };

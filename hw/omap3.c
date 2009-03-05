@@ -2,6 +2,7 @@
  * TI OMAP3 processors emulation.
  *
  * Copyright (C) 2008 yajin <yajin@vm-kernel.org>
+ * Copyright (C) 2009 Nokia Corporation
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License as
@@ -38,10 +39,215 @@
 #define TRACE(...) 
 #endif
 
-static uint32_t omap3_l4ta_read(void *opaque, target_phys_addr_t addr)
+typedef enum {
+    /* 68000000-680003FF */ L3ID_L3RT = 0,
+    /* 68000400-680007FF */ L3ID_L3SI,
+    /* 68000800-680013FF */
+    /* 68001400-680017FF */ L3ID_MPUSS_IA,
+    /* 68001800-68001BFF */ L3ID_IVASS_IA,
+    /* 68001C00-68001FFF */ L3ID_SGXSS_IA,
+    /* 68002000-680023FF */ L3ID_SMS_TA,
+    /* 68002400-680027FF */ L3ID_GPMC_TA,
+    /* 68002800-68002BFF */ L3ID_OCM_RAM_TA,
+    /* 68002C00-68002FFF */ L3ID_OCM_ROM_TA,
+    /* 68003000-680033FF */ L3ID_D2D_IA,
+    /* 68003400-680037FF */ L3ID_D2D_TA,
+    /* 68003800-68003FFF */
+    /* 68004000-680043FF */ L3ID_HSUSB_HOST_IA,
+    /* 68004400-680047FF */ L3ID_HSUSB_OTG_IA,
+    /* 68004800-68004BFF */
+    /* 68004C00-68004FFF */ L3ID_SDMA_RD_IA,
+    /* 68005000-680053FF */ L3ID_SDMA_WR_IA,
+    /* 68005400-680057FF */ L3ID_DSS_IA,
+    /* 68005800-68005BFF */ L3ID_CAMISP_IA,
+    /* 68005C00-68005FFF */ L3ID_DAP_IA,
+    /* 68006000-680063FF */ L3ID_IVASS_TA,
+    /* 68006400-680067FF */ L3ID_SGXSS_TA,
+    /* 68006800-68006BFF */ L3ID_L4_CORE_TA,
+    /* 68006C00-68006FFF */ L3ID_L4_PER_TA,
+    /* 68007000-680073FF */ L3ID_L4_EMU_TA,
+    /* 68007400-6800FFFF */
+    /* 68010000-680103FF */ L3ID_RT_PM,
+    /* 68010400-680123FF */
+    /* 68012400-680127FF */ L3ID_GPMC_PM,
+    /* 68012800-68012BFF */ L3ID_OCM_RAM_PM,
+    /* 68012C00-68012FFF */ L3ID_OCM_ROM_PM,
+    /* 68013000-680133FF */ L3ID_D2D_PM,
+    /* 68013400-68013FFF */
+    /* 68014000-680143FF */ L3ID_IVA_PM,
+    /* 68014400-68FFFFFF */
+} omap3_l3_region_id_t;
+
+struct omap_l3_region_s {
+    target_phys_addr_t offset;
+    size_t size;
+    enum {
+        L3TYPE_GENERIC = 0, /* needs to be mapped separately */
+        L3TYPE_IA,          /* initiator agent */
+        L3TYPE_TA,          /* target agent */
+        L3TYPE_PM,          /* protection mechanism */
+        L3TYPE_UNDEFINED,   /* every access will emit an error message */
+    } type;
+};
+
+struct omap3_l3_initiator_agent_s {
+    target_phys_addr_t base;
+    
+    uint32_t component;
+    uint32_t control;
+    uint32_t status;
+};
+
+struct omap3_l3pm_s {
+    target_phys_addr_t base;
+    
+    uint32_t error_log;
+    uint8_t  control;
+    uint16_t req_info_permission[8];
+    uint16_t read_permission[8];
+    uint16_t write_permission[8];
+    uint32_t addr_match[7];
+};
+
+union omap3_l3_port_s {
+    struct omap_target_agent_s ta;
+    struct omap3_l3_initiator_agent_s ia;
+    struct omap3_l3pm_s pm;
+};
+
+struct omap_l3_s {
+    target_phys_addr_t base;
+    int region_count;
+    union omap3_l3_port_s region[0];
+};
+
+static struct omap_l3_region_s omap3_l3_region[] = {
+    [L3ID_L3RT         ] = {0x00000000, 0x0400, L3TYPE_UNDEFINED},
+    [L3ID_L3SI         ] = {0x00000400, 0x0400, L3TYPE_UNDEFINED},
+    [L3ID_MPUSS_IA     ] = {0x00001400, 0x0400, L3TYPE_IA},
+    [L3ID_IVASS_IA     ] = {0x00001800, 0x0400, L3TYPE_IA},
+    [L3ID_SGXSS_IA     ] = {0x00001c00, 0x0400, L3TYPE_IA},
+    [L3ID_SMS_TA       ] = {0x00002000, 0x0400, L3TYPE_TA},
+    [L3ID_GPMC_TA      ] = {0x00002400, 0x0400, L3TYPE_TA},
+    [L3ID_OCM_RAM_TA   ] = {0x00002800, 0x0400, L3TYPE_TA},
+    [L3ID_OCM_ROM_TA   ] = {0x00002c00, 0x0400, L3TYPE_TA},
+    [L3ID_D2D_IA       ] = {0x00003000, 0x0400, L3TYPE_IA},
+    [L3ID_D2D_TA       ] = {0x00003400, 0x0400, L3TYPE_TA},
+    [L3ID_HSUSB_HOST_IA] = {0x00004000, 0x0400, L3TYPE_IA},
+    [L3ID_HSUSB_OTG_IA ] = {0x00004400, 0x0400, L3TYPE_IA},
+    [L3ID_SDMA_RD_IA   ] = {0x00004c00, 0x0400, L3TYPE_IA},
+    [L3ID_SDMA_WR_IA   ] = {0x00005000, 0x0400, L3TYPE_IA},
+    [L3ID_DSS_IA       ] = {0x00005400, 0x0400, L3TYPE_IA},
+    [L3ID_CAMISP_IA    ] = {0x00005800, 0x0400, L3TYPE_IA},
+    [L3ID_DAP_IA       ] = {0x00005c00, 0x0400, L3TYPE_IA},
+    [L3ID_IVASS_TA     ] = {0x00006000, 0x0400, L3TYPE_TA},
+    [L3ID_SGXSS_TA     ] = {0x00006400, 0x0400, L3TYPE_TA},
+    [L3ID_L4_CORE_TA   ] = {0x00006800, 0x0400, L3TYPE_TA},
+    [L3ID_L4_PER_TA    ] = {0x00006c00, 0x0400, L3TYPE_TA},
+    [L3ID_L4_EMU_TA    ] = {0x00007000, 0x0400, L3TYPE_TA},
+    [L3ID_RT_PM        ] = {0x00010000, 0x0400, L3TYPE_PM},
+    [L3ID_GPMC_PM      ] = {0x00012400, 0x0400, L3TYPE_PM},
+    [L3ID_OCM_RAM_PM   ] = {0x00012800, 0x0400, L3TYPE_PM},
+    [L3ID_OCM_ROM_PM   ] = {0x00012c00, 0x0400, L3TYPE_PM},
+    [L3ID_D2D_PM       ] = {0x00013000, 0x0400, L3TYPE_PM},
+    [L3ID_IVA_PM       ] = {0x00014000, 0x0400, L3TYPE_PM},
+};
+
+static uint32_t omap3_l3ia_read(void *opaque, target_phys_addr_t addr)
+{
+    struct omap3_l3_initiator_agent_s *s = (struct omap3_l3_initiator_agent_s *)opaque;
+    
+    switch (addr) {
+        case 0x00: /* COMPONENT_L */
+            return s->component;
+        case 0x04: /* COMPONENT_H */
+            return 0;
+        case 0x18: /* CORE_L */
+            return s->component;
+        case 0x1c: /* CORE_H */
+            return (s->component >> 16);
+        case 0x20: /* AGENT_CONTROL_L */
+            return s->control;
+        case 0x24: /* AGENT_CONTROL_H */
+            return 0;
+        case 0x28: /* AGENT_STATUS_L */
+            return s->status;
+        case 0x2c: /* AGENT_STATUS_H */
+            return 0;
+        case 0x58: /* ERROR_LOG_L */
+            return 0;
+        case 0x5c: /* ERROR_LOG_H */
+            return 0;
+        case 0x60: /* ERROR_LOG_ADDR_L */
+            return 0;
+        case 0x64: /* ERROR_LOG_ADDR_H */
+            return 0;
+        default:
+            break;
+    }
+    
+    OMAP_BAD_REG(s->base + addr);
+    return 0;
+}
+
+static void omap3_l3ia_write(void *opaque, target_phys_addr_t addr,
+                             uint32_t value)
+{
+    struct omap3_l3_initiator_agent_s *s = (struct omap3_l3_initiator_agent_s *)opaque;
+    
+    switch (addr) {
+        case 0x00: /* COMPONENT_L */
+        case 0x04: /* COMPONENT_H */
+        case 0x18: /* CORE_L */
+        case 0x1c: /* CORE_H */
+        case 0x60: /* ERROR_LOG_ADDR_L */
+        case 0x64: /* ERROR_LOG_ADDR_H */
+            OMAP_RO_REG(s->base + addr);
+            break;
+        case 0x24: /* AGENT_CONTROL_H */
+        case 0x2c: /* AGENT_STATUS_H */
+        case 0x5c: /* ERROR_LOG_H */
+            /* RW register but all bits are reserved/read-only */
+            break;
+        case 0x20: /* AGENT_CONTROL_L */
+            s->control = value & 0x3e070711;
+            /* TODO: some bits are reserved for some IA instances */
+            break;
+        case 0x28: /* AGENT_STATUS_L */
+            s->status &= ~(value & 0x30000000);
+            break;
+        case 0x58: /* ERROR_LOG_L */
+            /* error logging is not implemented, so ignore */
+            break;
+        default:
+            OMAP_BAD_REG(s->base + addr);
+            break;
+    }
+}
+
+static void omap3_l3ia_init(struct omap3_l3_initiator_agent_s *s)
+{
+    s->component = ('Q' << 24) | ('E' << 16) | ('M' << 8) | ('U' << 0);
+    s->control = 0x3e000000;
+    s->status = 0;
+}
+
+static CPUReadMemoryFunc *omap3_l3ia_readfn[] = {
+    omap_badwidth_read32,
+    omap_badwidth_read32,
+    omap3_l3ia_read,
+};
+
+static CPUWriteMemoryFunc *omap3_l3ia_writefn[] = {
+    omap_badwidth_write32,
+    omap_badwidth_write32,
+    omap3_l3ia_write,
+};
+
+static uint32_t omap3_l3ta_read(void *opaque, target_phys_addr_t addr)
 {
     struct omap_target_agent_s *s = (struct omap_target_agent_s *)opaque;
-
+    
     switch (addr) {
         case 0x00: /* COMPONENT_L */
             return s->component;
@@ -59,38 +265,60 @@ static uint32_t omap3_l4ta_read(void *opaque, target_phys_addr_t addr)
             return s->status;
         case 0x2c: /* AGENT_STATUS_H */
             return 0;
+        case 0x58: /* ERROR_LOG_L */
+            return 0;
+        case 0x5c: /* ERROR_LOG_H */
+            return 0;
+        case 0x60: /* ERROR_LOG_ADDR_L */
+            return 0;
+        case 0x64: /* ERROR_LOG_ADDR_H */
+            return 0;
         default:
             break;
     }
-
+    
     OMAP_BAD_REG(s->base + addr);
     return 0;
 }
 
-static void omap3_l4ta_write(void *opaque, target_phys_addr_t addr,
+static void omap3_l3ta_write(void *opaque, target_phys_addr_t addr,
                              uint32_t value)
 {
     struct omap_target_agent_s *s = (struct omap_target_agent_s *)opaque;
-
+    
     switch (addr) {
         case 0x00: /* COMPONENT_L */
         case 0x04: /* COMPONENT_H */
         case 0x18: /* CORE_L */
         case 0x1c: /* CORE_H */
+        case 0x60: /* ERROR_LOG_ADDR_L */
+        case 0x64: /* ERROR_LOG_ADDR_H */
             OMAP_RO_REG(s->base + addr);
             break;
-        case 0x20: /* AGENT_CONTROL_L */
-            s->control = value & 0x00000701;
-            break;
         case 0x24: /* AGENT_CONTROL_H */
-            s->control_h = value & 0x100; /* TODO: shouldn't this be read-only? */
+        case 0x5c: /* ERROR_LOG_H */
+            /* RW register but all bits are reserved/read-only */
+            break;
+        case 0x20: /* AGENT_CONTROL_L */
+            s->control = value & 0x03000711;
             break;
         case 0x28: /* AGENT_STATUS_L */
-            if (value & 0x100)
-                s->status &= ~0x100; /* REQ_TIMEOUT */
+            if (s->base == OMAP3_L3_BASE + omap3_l3_region[L3ID_L4_CORE_TA].offset
+                || s->base == OMAP3_L3_BASE + omap3_l3_region[L3ID_L4_PER_TA].offset
+                || s->base == OMAP3_L3_BASE + omap3_l3_region[L3ID_L4_EMU_TA].offset) {
+                s->status &= ~(value & (1 << 24));
+            } else
+                OMAP_RO_REG(s->base + addr);
             break;
         case 0x2c: /* AGENT_STATUS_H */
-            /* no writable bits although the register is listed as RW */
+            if (s->base != OMAP3_L3_BASE + omap3_l3_region[L3ID_L4_CORE_TA].offset
+                && s->base != OMAP3_L3_BASE + omap3_l3_region[L3ID_L4_PER_TA].offset
+                && s->base != OMAP3_L3_BASE + omap3_l3_region[L3ID_L4_EMU_TA].offset)
+                OMAP_RO_REG(s->base + addr);
+            /* for L4 core, per, emu TAs this is RW reg */
+            break;
+        case 0x58: /* ERROR_LOG_L */
+            /* error logging is not implemented, so ignore */
             break;
         default:
             OMAP_BAD_REG(s->base + addr);
@@ -98,19 +326,382 @@ static void omap3_l4ta_write(void *opaque, target_phys_addr_t addr,
     }
 }
 
-static CPUReadMemoryFunc *omap3_l4ta_readfn[] = {
-    omap_badwidth_read16,
-    omap3_l4ta_read,
-    omap_badwidth_read16,
+static void omap3_l3ta_init(struct omap_target_agent_s *s)
+{
+    s->component = ('Q' << 24) | ('E' << 16) | ('M' << 8) | ('U' << 0);
+    s->control = 0x03000000;
+    s->status = 0;
+}
+
+static CPUReadMemoryFunc *omap3_l3ta_readfn[] = {
+    omap_badwidth_read32,
+    omap_badwidth_read32,
+    omap3_l3ta_read,
 };
 
-static CPUWriteMemoryFunc *omap3_l4ta_writefn[] = {
+static CPUWriteMemoryFunc *omap3_l3ta_writefn[] = {
     omap_badwidth_write32,
     omap_badwidth_write32,
-    omap3_l4ta_write,
+    omap3_l3ta_write,
 };
 
-enum omap3_l4_region_id_t {
+static uint32_t omap3_l3pm_read8(void *opaque, target_phys_addr_t addr)
+{
+    struct omap3_l3pm_s *s = (struct omap3_l3pm_s *)opaque;
+    int i;
+    
+    switch (addr) {
+        case 0x00 ... 0x1f:
+        case 0x40 ... 0x47:
+            OMAP_BAD_REG(s->base + addr);
+            return 0;
+        /* ERROR_LOG */
+        case 0x20: return s->error_log & 0xff;
+        case 0x21: return (s->error_log >> 8) & 0xff;
+        case 0x22: return (s->error_log >> 16) & 0xff;
+        case 0x23: return (s->error_log >> 24) & 0xff;
+        case 0x24 ... 0x27: return 0;
+        /* CONTROL */
+        case 0x28 ... 0x2a: return 0;
+        case 0x2b: return s->control;
+        case 0x2c ... 0x2f: return 0;
+        /* ERROR_CLEAR_SINGLE */
+        case 0x30: return 0; /* TODO: clear single error from log */
+        case 0x31 ... 0x37: return 0;
+        /* ERROR_CLEAR_MULTI */
+        case 0x38: return 0; /* TODO: clear multiple errors from log */
+        case 0x39 ... 0x3f: return 0;
+        default:
+            break;
+    }
+    
+    i = (addr - 0x48) / 0x20;
+    addr -= i * 0x20;
+    if (i < 7 || (i < 8 && addr < 0x60)) 
+        switch (addr) {
+            /* REQ_INFO_PERMISSION_i */
+            case 0x48: return s->req_info_permission[i] & 0xff;
+            case 0x49: return (s->req_info_permission[i] >> 8) & 0xff;
+            case 0x4a ... 0x4f: return 0;
+            /* READ_PERMISSION_i */
+            case 0x50: return s->read_permission[i] & 0xff;
+            case 0x51: return (s->read_permission[i] >> 8) & 0xff;
+            case 0x52 ... 0x57: return 0;
+            /* WRITE_PERMISSION_i */
+            case 0x58: return s->write_permission[i] & 0xff;
+            case 0x59: return (s->write_permission[i] >> 8) & 0xff;
+            case 0x5a ... 0x5f: return 0;
+            /* ADDR_MATCH_i */
+            case 0x60: return s->addr_match[i] & 0xff;
+            case 0x61: return (s->addr_match[i] >> 8) & 0xff;
+            case 0x62: return (s->addr_match[i] >> 16) & 0xff;
+            case 0x63 ... 0x67: return 0;
+            default:
+                break;
+        }
+
+    OMAP_BAD_REG(s->base + addr);
+    return 0;
+}
+
+static uint32_t omap3_l3pm_read16(void *opaque, target_phys_addr_t addr)
+{
+    return omap3_l3pm_read8(opaque, addr)
+        | (omap3_l3pm_read8(opaque, addr + 1) << 8);
+}
+
+static uint32_t omap3_l3pm_read32(void *opaque, target_phys_addr_t addr)
+{
+    return omap3_l3pm_read16(opaque, addr)
+        | (omap3_l3pm_read16(opaque, addr + 2) << 16);
+}
+
+static void omap3_l3pm_write8(void *opaque, target_phys_addr_t addr,
+                              uint32_t value)
+{
+    struct omap3_l3pm_s *s = (struct omap3_l3pm_s *)opaque;
+    int i;
+    
+    switch (addr) {
+        case 0x00 ... 0x1f:
+        case 0x40 ... 0x47:
+            OMAP_BAD_REGV(s->base + addr, value);
+            return;
+        /* ERROR_LOG */
+        case 0x23:
+            s->error_log &= ~((value & 0xcf) << 24);
+        case 0x20 ... 0x22:
+        case 0x24 ... 0x27:
+            return;
+        /* CONTROL */
+        case 0x2b:
+            s->control = value & 3;
+        case 0x28 ... 0x2a:
+        case 0x2c ... 0x2f:
+            return;
+        /* ERROR_CLEAR_SINGLE / ERROR_CLEAR_MULTI */
+        case 0x30 ... 0x3f:
+            OMAP_RO_REGV(s->base + addr, value);
+            return;
+        default:
+            break;
+    }
+    
+    i = (addr - 0x48) / 0x20;
+    addr -= i * 0x20;
+    if (i < 7 || (i < 8 && addr < 0x60)) 
+        switch (addr) {
+            /* REQ_INFO_PERMISSION_i */
+            case 0x48:
+                s->req_info_permission[i] =
+                    (s->req_info_permission[i] & ~0xff) | (value & 0xff);
+                return;
+            case 0x49:
+                s->req_info_permission[i] =
+                    (s->req_info_permission[i] & ~0xff00) | ((value & 0xff) << 8);
+                return;
+            case 0x4a ... 0x4f:
+                return;
+            /* READ_PERMISSION_i */
+            case 0x50:
+                s->read_permission[i] =
+                    (s->read_permission[i] & ~0xff) | (value & 0x3e);
+                return;
+            case 0x51:
+                s->read_permission[i] =
+                    (s->read_permission[i] & ~0xff00) | ((value & 0x5f) << 8);
+                return;
+            case 0x52 ... 0x57:
+                return;
+            /* WRITE_PERMISSION_i */
+            case 0x58:
+                s->write_permission[i] =
+                    (s->write_permission[i] & ~0xff) | (value & 0x3e);
+                return;
+            case 0x59:
+                s->write_permission[i] =
+                    (s->write_permission[i] & ~0xff00) | ((value & 0x5f) << 8);
+                return;
+            case 0x5a ... 0x5f:
+                return;
+            /* ADDR_MATCH_i */
+            case 0x60:
+                s->addr_match[i] = (s->addr_match[i] & ~0xff) | (value & 0xff);
+                return;
+            case 0x61:
+                s->addr_match[i] =
+                    (s->addr_match[i] & ~0xfe00) | ((value & 0xfe) << 8);
+                return;
+            case 0x62:
+                s->addr_match[i] =
+                    (s->addr_match[i] & ~0x0f0000) | ((value & 0x0f) << 16);
+                return;
+            case 0x63 ... 0x67:
+                return;
+            default:
+                break;
+        }
+    
+    OMAP_BAD_REGV(s->base + addr, value);
+}
+
+static void omap3_l3pm_write16(void *opaque, target_phys_addr_t addr,
+                               uint32_t value)
+{
+    omap3_l3pm_write8(opaque, addr + 0, value & 0xff);
+    omap3_l3pm_write8(opaque, addr + 1, (value >> 8) & 0xff);
+}
+
+static void omap3_l3pm_write32(void *opaque, target_phys_addr_t addr,
+                               uint32_t value)
+{
+    omap3_l3pm_write16(opaque, addr + 0, value & 0xffff);
+    omap3_l3pm_write16(opaque, addr + 2, (value >> 16) & 0xffff);
+}
+
+static void omap3_l3pm_init(struct omap3_l3pm_s *s)
+{
+    int i;
+    
+    s->error_log = 0;
+    s->control = 0x03;
+    switch (s->base) {
+        case 0x68010000: /* PM_RT */
+            s->req_info_permission[0] = 0xffff;
+            s->req_info_permission[1] = 0;
+            for (i = 0; i < 2; i++)
+                s->read_permission[i] = s->write_permission[i] = 0x1406;
+            s->addr_match[0] = 0x10230;
+            break;
+        case 0x68012400: /* PM_GPMC */
+            s->req_info_permission[0] = 0;
+            for (i = 3; i < 8; i++)
+                s->req_info_permission[i] = 0xffff;
+            for (i = 0; i < 8; i++)
+                s->read_permission[i] = s->write_permission[i] = 0x563e;
+            s->addr_match[0] = 0x00098;
+            break;
+        case 0x68012800: /* PM_OCM_RAM */
+            s->req_info_permission[0] = 0;
+            for (i = 1; i < 8; i++)
+                s->req_info_permission[i] = 0xffff;
+            for (i = 0; i < 8; i++)
+                s->read_permission[i] = s->write_permission[i] = 0x5f3e;
+            s->addr_match[1] = 0x0f810;
+            break;
+        case 0x68012C00: /* PM_OCM_ROM */
+            s->req_info_permission[1] = 0xffff;
+            for (i = 0; i < 2; i++) {
+                s->read_permission[i] = 0x1002;
+                s->write_permission[i] = 0;
+            }
+            s->addr_match[0] = 0x14028;
+            break;
+        case 0x68013000: /* PM_MAD2D */
+            s->req_info_permission[0] = 0;
+            for (i = 1; i < 8; i++)
+                s->req_info_permission[i] = 0xffff;
+            for (i = 0; i < 8; i++)
+                s->read_permission[i] = s->write_permission[i] = 0x5f1e;
+            break;
+        case 0x68014000: /* PM_IVA2.2 */
+            s->req_info_permission[0] = 0;
+            for (i = 1; i < 4; i++)
+                s->req_info_permission[i] = 0xffff;
+            for (i = 0; i < 4; i++)
+                s->read_permission[i] = s->write_permission[i] = 0x140e;
+            break;
+        default:
+            fprintf(stderr, "%s: unknown PM region (0x%08x)\n",
+                    __FUNCTION__, s->base);
+            exit(-1);
+            break;
+    }
+}
+
+static CPUReadMemoryFunc *omap3_l3pm_readfn[] = {
+    omap3_l3pm_read8,
+    omap3_l3pm_read16,
+    omap3_l3pm_read32,
+};
+
+static CPUWriteMemoryFunc *omap3_l3pm_writefn[] = {
+    omap3_l3pm_write8,
+    omap3_l3pm_write16,
+    omap3_l3pm_write32,
+};
+
+static uint32_t omap3_l3undef_read8(void *opaque, target_phys_addr_t addr)
+{
+    fprintf(stderr, "%s: unsupported register at %08x\n",
+            __FUNCTION__, addr);
+    return 0;
+}
+
+static uint32_t omap3_l3undef_read16(void *opaque, target_phys_addr_t addr)
+{
+    fprintf(stderr, "%s: unsupported register at %08x\n",
+            __FUNCTION__, addr);
+    return 0;
+}
+
+static uint32_t omap3_l3undef_read32(void *opaque, target_phys_addr_t addr)
+{
+    fprintf(stderr, "%s: unsupported register at %08x\n",
+            __FUNCTION__, addr);
+    return 0;
+}
+
+static void omap3_l3undef_write8(void *opaque, target_phys_addr_t addr,
+                               uint32_t value)
+{
+    fprintf(stderr, "%s: unsupported register at %08x, value %02x\n",
+            __FUNCTION__, addr, value);
+}
+
+static void omap3_l3undef_write16(void *opaque, target_phys_addr_t addr,
+                                uint32_t value)
+{
+    fprintf(stderr, "%s: unsupported register at %08x, value %04x\n",
+            __FUNCTION__, addr, value);
+}
+
+static void omap3_l3undef_write32(void *opaque, target_phys_addr_t addr,
+                                uint32_t value)
+{
+    fprintf(stderr, "%s: unsupported register at %08x, value %08x\n",
+            __FUNCTION__, addr, value);
+}
+
+static CPUReadMemoryFunc *omap3_l3undef_readfn[] = {
+    omap3_l3undef_read8,
+    omap3_l3undef_read16,
+    omap3_l3undef_read32,
+};
+
+static CPUWriteMemoryFunc *omap3_l3undef_writefn[] = {
+    omap3_l3undef_write8,
+    omap3_l3undef_write16,
+    omap3_l3undef_write32,
+};
+
+static struct omap_l3_s *omap3_l3_init(target_phys_addr_t base,
+                                       struct omap_l3_region_s *regions,
+                                       int n)
+{
+    int i, iomemtype = 0;
+    
+    struct omap_l3_s *bus = qemu_mallocz(sizeof(*bus) + n * sizeof(*bus->region));
+    bus->region_count = n;
+    bus->base = base;
+    
+    for (i = 0; i < n; i++) {
+        switch (regions[i].type) {
+            case L3TYPE_GENERIC:
+                /* not mapped for now, mapping will be done later by
+                   specialized code */
+                break;
+            case L3TYPE_IA:
+                iomemtype = cpu_register_io_memory(0, omap3_l3ia_readfn,
+                                                   omap3_l3ia_writefn,
+                                                   &bus->region[i].ia);
+                bus->region[i].ia.base = base + regions[i].offset;
+                omap3_l3ia_init(&bus->region[i].ia);
+                break;
+            case L3TYPE_TA:
+                iomemtype = cpu_register_io_memory(0, omap3_l3ta_readfn,
+                                                   omap3_l3ta_writefn,
+                                                   &bus->region[i].ta);
+                bus->region[i].ta.base = base + regions[i].offset;
+                omap3_l3ta_init(&bus->region[i].ta);
+                break;
+            case L3TYPE_PM:
+                iomemtype = cpu_register_io_memory(0, omap3_l3pm_readfn,
+                                                   omap3_l3pm_writefn,
+                                                   &bus->region[i].pm);
+                bus->region[i].pm.base = base + regions[i].offset;
+                omap3_l3pm_init(&bus->region[i].pm);
+                break;
+            case L3TYPE_UNDEFINED:
+                iomemtype = cpu_register_io_memory(0, omap3_l3undef_readfn,
+                                                   omap3_l3undef_writefn,
+                                                   &bus->region[i]);
+                break;
+            default:
+                fprintf(stderr, "%s: unknown L3 region type: %d\n",
+                        __FUNCTION__, regions[i].type);
+                exit(-1);
+                break;
+        }
+        cpu_register_physical_memory(base + regions[i].offset,
+                                     regions[i].size,
+                                     iomemtype);
+    }
+    
+    return bus;
+}
+
+typedef enum {
     /* 48000000-48001FFF */
     /* 48002000-48002FFF */ L4ID_SCM = 0,
     /* 48003000-48003FFF */ L4ID_SCM_TA,
@@ -317,173 +908,183 @@ enum omap3_l4_region_id_t {
     /* 54729000-54729FFF */ L4ID_EMU_WKUP_LA,
     /* 5472A000-5472A7FF */ L4ID_EMU_WKUP_IPE,
     /* 5472A800-547FFFFF */
-};
+} omap3_l4_region_id_t;
 
+typedef enum {
+    L4TYPE_GENERIC = 0, /* not mapped by default, must be mapped separately */
+    L4TYPE_IA,          /* initiator agent */
+    L4TYPE_TA,          /* target agent */
+    L4TYPE_LA,          /* link register agent */
+    L4TYPE_AP           /* address protection */
+} omap3_l4_region_type_t;
+
+/* we reuse the "access" member for defining region type -- the original
+   omap_l4_region_s "access" member is not used anywhere else anyway! */
 static struct omap_l4_region_s omap3_l4_region[] = {
     /* L4-Core */
-    [L4ID_SCM         ] = {0x00002000, 0x1000, 32 | 16 | 8},
-    [L4ID_SCM_TA      ] = {0x00003000, 0x1000, 32 | 16 | 8},
-    [L4ID_CM_A        ] = {0x00004000, 0x2000, 32         },
-    [L4ID_CM_B        ] = {0x00006000, 0x0800, 32         },
-    [L4ID_CM_TA       ] = {0x00007000, 0x1000, 32 | 16 | 8},
-    [L4ID_CORE_AP     ] = {0x00040000, 0x0800, 32         },
-    [L4ID_CORE_IP     ] = {0x00040800, 0x0800, 32         },
-    [L4ID_CORE_LA     ] = {0x00041000, 0x1000, 32         },
-    [L4ID_DSI         ] = {0x0004fc00, 0x0400, 32 | 16 | 8},
-    [L4ID_DSS         ] = {0x00050000, 0x0400, 32 | 16 | 8},
-    [L4ID_DISPC       ] = {0x00050400, 0x0400, 32 | 16 | 8},
-    [L4ID_RFBI        ] = {0x00050800, 0x0400, 32 | 16 | 8},
-    [L4ID_VENC        ] = {0x00050c00, 0x0400, 32 | 16 | 8},
-    [L4ID_DSS_TA      ] = {0x00051000, 0x1000, 32 | 16 | 8},
-    [L4ID_SDMA        ] = {0x00056000, 0x1000, 32         },
-    [L4ID_SDMA_TA     ] = {0x00057000, 0x1000, 32 | 16 | 8},
-    [L4ID_I2C3        ] = {0x00060000, 0x1000,      16 | 8},
-    [L4ID_I2C3_TA     ] = {0x00061000, 0x1000, 32 | 16 | 8},
-    [L4ID_USBTLL      ] = {0x00062000, 0x1000, 32         },
-    [L4ID_USBTLL_TA   ] = {0x00063000, 0x1000, 32 | 16 | 8},
-    [L4ID_HSUSBHOST   ] = {0x00064000, 0x1000, 32         },
-    [L4ID_HSUSBHOST_TA] = {0x00065000, 0x1000, 32 | 16 | 8},
-    [L4ID_UART1       ] = {0x0006a000, 0x1000, 32 | 16 | 8},
-    [L4ID_UART1_TA    ] = {0x0006b000, 0x1000, 32 | 16 | 8},
-    [L4ID_UART2       ] = {0x0006c000, 0x1000, 32 | 16 | 8},
-    [L4ID_UART2_TA    ] = {0x0006d000, 0x1000, 32 | 16 | 8},
-    [L4ID_I2C1        ] = {0x00070000, 0x1000,      16 | 8},
-    [L4ID_I2C1_TA     ] = {0x00071000, 0x1000, 32 | 16 | 8},
-    [L4ID_I2C2        ] = {0x00072000, 0x1000,      16 | 8},
-    [L4ID_I2C2_TA     ] = {0x00073000, 0x1000, 32 | 16 | 8},
-    [L4ID_MCBSP1      ] = {0x00074000, 0x1000, 32         },
-    [L4ID_MCBSP1_TA   ] = {0x00075000, 0x1000, 32 | 16 | 8},
-    [L4ID_GPTIMER10   ] = {0x00086000, 0x1000, 32 | 16    },
-    [L4ID_GPTIMER10_TA] = {0x00087000, 0x1000, 32 | 16 | 8},
-    [L4ID_GPTIMER11   ] = {0x00088000, 0x1000, 32 | 16    },
-    [L4ID_GPTIMER11_TA] = {0x00089000, 0x1000, 32 | 16 | 8},
-    [L4ID_MAILBOX     ] = {0x00094000, 0x1000, 32 | 16 | 8},
-    [L4ID_MAILBOX_TA  ] = {0x00095000, 0x1000, 32 | 16 | 8},
-    [L4ID_MCBSP5      ] = {0x00096000, 0x1000, 32         },
-    [L4ID_MCBSP5_TA   ] = {0x00097000, 0x1000, 32 | 16 | 8},
-    [L4ID_MCSPI1      ] = {0x00098000, 0x1000, 32 | 16 | 8},
-    [L4ID_MCSPI1_TA   ] = {0x00099000, 0x1000, 32 | 16 | 8},
-    [L4ID_MCSPI2      ] = {0x0009a000, 0x1000, 32 | 16 | 8},
-    [L4ID_MCSPI2_TA   ] = {0x0009b000, 0x1000, 32 | 16 | 8},
-    [L4ID_MMCSDIO1    ] = {0x0009c000, 0x1000, 32         },
-    [L4ID_MMCSDIO1_TA ] = {0x0009d000, 0x1000, 32 | 16 | 8},
-    [L4ID_MSPRO       ] = {0x0009e000, 0x1000, 32         },
-    [L4ID_MSPRO_TA    ] = {0x0009f000, 0x1000, 32 | 16 | 8},
-    [L4ID_HSUSBOTG    ] = {0x000ab000, 0x1000, 32         },
-    [L4ID_HSUSBOTG_TA ] = {0x000ac000, 0x1000, 32 | 16 | 8},
-    [L4ID_MMCSDIO3    ] = {0x000ad000, 0x1000, 32         },
-    [L4ID_MMCSDIO3_TA ] = {0x000ae000, 0x1000, 32 | 16 | 8},
-    [L4ID_HDQ1WIRE    ] = {0x000b2000, 0x1000, 32         },
-    [L4ID_HDQ1WIRE_TA ] = {0x000b3000, 0x1000, 32 | 16 | 8},
-    [L4ID_MMCSDIO2    ] = {0x000b4000, 0x1000, 32         },
-    [L4ID_MMCSDIO2_TA ] = {0x000b5000, 0x1000, 32 | 16 | 8},
-    [L4ID_ICRMPU      ] = {0x000b6000, 0x1000, 32         },
-    [L4ID_ICRMPU_TA   ] = {0x000b7000, 0x1000, 32 | 16 | 8},
-    [L4ID_MCSPI3      ] = {0x000b8000, 0x1000, 32 | 16 | 8},
-    [L4ID_MCSPI3_TA   ] = {0x000b9000, 0x1000, 32 | 16 | 8},
-    [L4ID_MCSPI4      ] = {0x000ba000, 0x1000, 32 | 16 | 8},
-    [L4ID_MCSPI4_TA   ] = {0x000bb000, 0x1000, 32 | 16 | 8},
-    [L4ID_CAMERAISP   ] = {0x000bc000, 0x4000, 32 | 16 | 8},
-    [L4ID_CAMERAISP_TA] = {0x000c0000, 0x1000, 32 | 16 | 8},
-    [L4ID_ICRMODEM    ] = {0x000cd000, 0x1000, 32         },
-    [L4ID_ICRMODEM_TA ] = {0x000ce000, 0x1000, 32 | 16 | 8},
+    [L4ID_SCM         ] = {0x00002000, 0x1000, L4TYPE_GENERIC},
+    [L4ID_SCM_TA      ] = {0x00003000, 0x1000, L4TYPE_TA},
+    [L4ID_CM_A        ] = {0x00004000, 0x2000, L4TYPE_GENERIC},
+    [L4ID_CM_B        ] = {0x00006000, 0x0800, L4TYPE_GENERIC},
+    [L4ID_CM_TA       ] = {0x00007000, 0x1000, L4TYPE_TA},
+    [L4ID_CORE_AP     ] = {0x00040000, 0x0800, L4TYPE_AP},
+    [L4ID_CORE_IP     ] = {0x00040800, 0x0800, L4TYPE_IA},
+    [L4ID_CORE_LA     ] = {0x00041000, 0x1000, L4TYPE_LA},
+    [L4ID_DSI         ] = {0x0004fc00, 0x0400, L4TYPE_GENERIC},
+    [L4ID_DSS         ] = {0x00050000, 0x0400, L4TYPE_GENERIC},
+    [L4ID_DISPC       ] = {0x00050400, 0x0400, L4TYPE_GENERIC},
+    [L4ID_RFBI        ] = {0x00050800, 0x0400, L4TYPE_GENERIC},
+    [L4ID_VENC        ] = {0x00050c00, 0x0400, L4TYPE_GENERIC},
+    [L4ID_DSS_TA      ] = {0x00051000, 0x1000, L4TYPE_TA},
+    [L4ID_SDMA        ] = {0x00056000, 0x1000, L4TYPE_GENERIC},
+    [L4ID_SDMA_TA     ] = {0x00057000, 0x1000, L4TYPE_TA},
+    [L4ID_I2C3        ] = {0x00060000, 0x1000, L4TYPE_GENERIC},
+    [L4ID_I2C3_TA     ] = {0x00061000, 0x1000, L4TYPE_TA},
+    [L4ID_USBTLL      ] = {0x00062000, 0x1000, L4TYPE_GENERIC},
+    [L4ID_USBTLL_TA   ] = {0x00063000, 0x1000, L4TYPE_TA},
+    [L4ID_HSUSBHOST   ] = {0x00064000, 0x1000, L4TYPE_GENERIC},
+    [L4ID_HSUSBHOST_TA] = {0x00065000, 0x1000, L4TYPE_TA},
+    [L4ID_UART1       ] = {0x0006a000, 0x1000, L4TYPE_GENERIC},
+    [L4ID_UART1_TA    ] = {0x0006b000, 0x1000, L4TYPE_TA},
+    [L4ID_UART2       ] = {0x0006c000, 0x1000, L4TYPE_GENERIC},
+    [L4ID_UART2_TA    ] = {0x0006d000, 0x1000, L4TYPE_TA},
+    [L4ID_I2C1        ] = {0x00070000, 0x1000, L4TYPE_GENERIC},
+    [L4ID_I2C1_TA     ] = {0x00071000, 0x1000, L4TYPE_TA},
+    [L4ID_I2C2        ] = {0x00072000, 0x1000, L4TYPE_GENERIC},
+    [L4ID_I2C2_TA     ] = {0x00073000, 0x1000, L4TYPE_TA},
+    [L4ID_MCBSP1      ] = {0x00074000, 0x1000, L4TYPE_GENERIC},
+    [L4ID_MCBSP1_TA   ] = {0x00075000, 0x1000, L4TYPE_TA},
+    [L4ID_GPTIMER10   ] = {0x00086000, 0x1000, L4TYPE_GENERIC},
+    [L4ID_GPTIMER10_TA] = {0x00087000, 0x1000, L4TYPE_TA},
+    [L4ID_GPTIMER11   ] = {0x00088000, 0x1000, L4TYPE_GENERIC},
+    [L4ID_GPTIMER11_TA] = {0x00089000, 0x1000, L4TYPE_TA},
+    [L4ID_MAILBOX     ] = {0x00094000, 0x1000, L4TYPE_GENERIC},
+    [L4ID_MAILBOX_TA  ] = {0x00095000, 0x1000, L4TYPE_TA},
+    [L4ID_MCBSP5      ] = {0x00096000, 0x1000, L4TYPE_GENERIC},
+    [L4ID_MCBSP5_TA   ] = {0x00097000, 0x1000, L4TYPE_TA},
+    [L4ID_MCSPI1      ] = {0x00098000, 0x1000, L4TYPE_GENERIC},
+    [L4ID_MCSPI1_TA   ] = {0x00099000, 0x1000, L4TYPE_TA},
+    [L4ID_MCSPI2      ] = {0x0009a000, 0x1000, L4TYPE_GENERIC},
+    [L4ID_MCSPI2_TA   ] = {0x0009b000, 0x1000, L4TYPE_TA},
+    [L4ID_MMCSDIO1    ] = {0x0009c000, 0x1000, L4TYPE_GENERIC},
+    [L4ID_MMCSDIO1_TA ] = {0x0009d000, 0x1000, L4TYPE_TA},
+    [L4ID_MSPRO       ] = {0x0009e000, 0x1000, L4TYPE_GENERIC},
+    [L4ID_MSPRO_TA    ] = {0x0009f000, 0x1000, L4TYPE_TA},
+    [L4ID_HSUSBOTG    ] = {0x000ab000, 0x1000, L4TYPE_GENERIC},
+    [L4ID_HSUSBOTG_TA ] = {0x000ac000, 0x1000, L4TYPE_TA},
+    [L4ID_MMCSDIO3    ] = {0x000ad000, 0x1000, L4TYPE_GENERIC},
+    [L4ID_MMCSDIO3_TA ] = {0x000ae000, 0x1000, L4TYPE_TA},
+    [L4ID_HDQ1WIRE    ] = {0x000b2000, 0x1000, L4TYPE_GENERIC},
+    [L4ID_HDQ1WIRE_TA ] = {0x000b3000, 0x1000, L4TYPE_TA},
+    [L4ID_MMCSDIO2    ] = {0x000b4000, 0x1000, L4TYPE_GENERIC},
+    [L4ID_MMCSDIO2_TA ] = {0x000b5000, 0x1000, L4TYPE_TA},
+    [L4ID_ICRMPU      ] = {0x000b6000, 0x1000, L4TYPE_GENERIC},
+    [L4ID_ICRMPU_TA   ] = {0x000b7000, 0x1000, L4TYPE_TA},
+    [L4ID_MCSPI3      ] = {0x000b8000, 0x1000, L4TYPE_GENERIC},
+    [L4ID_MCSPI3_TA   ] = {0x000b9000, 0x1000, L4TYPE_TA},
+    [L4ID_MCSPI4      ] = {0x000ba000, 0x1000, L4TYPE_GENERIC},
+    [L4ID_MCSPI4_TA   ] = {0x000bb000, 0x1000, L4TYPE_TA},
+    [L4ID_CAMERAISP   ] = {0x000bc000, 0x4000, L4TYPE_GENERIC},
+    [L4ID_CAMERAISP_TA] = {0x000c0000, 0x1000, L4TYPE_TA},
+    [L4ID_ICRMODEM    ] = {0x000cd000, 0x1000, L4TYPE_GENERIC},
+    [L4ID_ICRMODEM_TA ] = {0x000ce000, 0x1000, L4TYPE_TA},
     /* L4-Wakeup interconnect region A */
-    [L4ID_GPTIMER12   ] = {0x00304000, 0x1000, 32 | 16    },
-    [L4ID_GPTIMER12_TA] = {0x00305000, 0x1000, 32 | 16 | 8},
-    [L4ID_PRM_A       ] = {0x00306000, 0x2000, 32         },
-    [L4ID_PRM_B       ] = {0x00308000, 0x0800, 32         },
-    [L4ID_PRM_TA      ] = {0x00309000, 0x1000, 32 | 16 | 8},
+    [L4ID_GPTIMER12   ] = {0x00304000, 0x1000, L4TYPE_GENERIC},
+    [L4ID_GPTIMER12_TA] = {0x00305000, 0x1000, L4TYPE_TA},
+    [L4ID_PRM_A       ] = {0x00306000, 0x2000, L4TYPE_GENERIC},
+    [L4ID_PRM_B       ] = {0x00308000, 0x0800, L4TYPE_GENERIC},
+    [L4ID_PRM_TA      ] = {0x00309000, 0x1000, L4TYPE_TA},
     /* L4-Core */
-    [L4ID_TAP         ] = {0x0030a000, 0x1000, 32 | 16 | 8},
-    [L4ID_TAP_TA      ] = {0x0030b000, 0x1000, 32 | 16 | 8},
+    [L4ID_TAP         ] = {0x0030a000, 0x1000, L4TYPE_GENERIC},
+    [L4ID_TAP_TA      ] = {0x0030b000, 0x1000, L4TYPE_TA},
     /* L4-Wakeup interconnect region B */
-    [L4ID_GPIO1       ] = {0x00310000, 0x1000, 32 | 16 | 8},
-    [L4ID_GPIO1_TA    ] = {0x00311000, 0x1000, 32 | 16 | 8},
-    [L4ID_WDTIMER2    ] = {0x00314000, 0x1000, 32 | 16    },
-    [L4ID_WDTIMER2_TA ] = {0x00315000, 0x1000, 32 | 16 | 8},
-    [L4ID_GPTIMER1    ] = {0x00318000, 0x1000, 32 | 16    },
-    [L4ID_GPTIMER1_TA ] = {0x00319000, 0x1000, 32 | 16 | 8},
-    [L4ID_32KTIMER    ] = {0x00320000, 0x1000, 32 | 16    },
-    [L4ID_32KTIMER_TA ] = {0x00321000, 0x1000, 32 | 16 | 8},
-    [L4ID_WAKEUP_AP   ] = {0x00328000, 0x0800, 32 | 16 | 8},
-    [L4ID_WAKEUP_C_IP ] = {0x00328800, 0x0800, 32 | 16 | 8},
-    [L4ID_WAKEUP_LA   ] = {0x00329000, 0x1000, 32 | 16 | 8},
-    [L4ID_WAKEUP_E_IP ] = {0x0032a000, 0x0800, 32 | 16 | 8},
+    [L4ID_GPIO1       ] = {0x00310000, 0x1000, L4TYPE_GENERIC},
+    [L4ID_GPIO1_TA    ] = {0x00311000, 0x1000, L4TYPE_TA},
+    [L4ID_WDTIMER2    ] = {0x00314000, 0x1000, L4TYPE_GENERIC},
+    [L4ID_WDTIMER2_TA ] = {0x00315000, 0x1000, L4TYPE_TA},
+    [L4ID_GPTIMER1    ] = {0x00318000, 0x1000, L4TYPE_GENERIC},
+    [L4ID_GPTIMER1_TA ] = {0x00319000, 0x1000, L4TYPE_TA},
+    [L4ID_32KTIMER    ] = {0x00320000, 0x1000, L4TYPE_GENERIC},
+    [L4ID_32KTIMER_TA ] = {0x00321000, 0x1000, L4TYPE_TA},
+    [L4ID_WAKEUP_AP   ] = {0x00328000, 0x0800, L4TYPE_AP},
+    [L4ID_WAKEUP_C_IP ] = {0x00328800, 0x0800, L4TYPE_IA},
+    [L4ID_WAKEUP_LA   ] = {0x00329000, 0x1000, L4TYPE_LA},
+    [L4ID_WAKEUP_E_IP ] = {0x0032a000, 0x0800, L4TYPE_IA},
     /* L4-Per */
-    [L4ID_PER_AP      ] = {0x01000000, 0x0800, 32 | 16 | 8},
-    [L4ID_PER_IP      ] = {0x01000800, 0x0800, 32 | 16 | 8},
-    [L4ID_PER_LA      ] = {0x01001000, 0x1000, 32 | 16 | 8},
-    [L4ID_UART3       ] = {0x01020000, 0x1000, 32 | 16 | 8},
-    [L4ID_UART3_TA    ] = {0x01021000, 0x1000, 32 | 16 | 8},
-    [L4ID_MCBSP2      ] = {0x01022000, 0x1000, 32         },
-    [L4ID_MCBSP2_TA   ] = {0x01023000, 0x1000, 32 | 16 | 8},
-    [L4ID_MCBSP3      ] = {0x01024000, 0x1000, 32         },
-    [L4ID_MCBSP3_TA   ] = {0x01025000, 0x1000, 32 | 16 | 8},
-    [L4ID_MCBSP4      ] = {0x01026000, 0x1000, 32         },
-    [L4ID_MCBSP4_TA   ] = {0x01027000, 0x1000, 32 | 16 | 8},
-    [L4ID_MCBSP2S     ] = {0x01028000, 0x1000, 32         },
-    [L4ID_MCBSP2S_TA  ] = {0x01029000, 0x1000, 32 | 16 | 8},
-    [L4ID_MCBSP3S     ] = {0x0102a000, 0x1000, 32         },
-    [L4ID_MCBSP3S_TA  ] = {0x0102b000, 0x1000, 32 | 16 | 8},
-    [L4ID_WDTIMER3    ] = {0x01030000, 0x1000, 32 | 16    },
-    [L4ID_WDTIMER3_TA ] = {0x01031000, 0x1000, 32 | 16 | 8},
-    [L4ID_GPTIMER2    ] = {0x01032000, 0x1000, 32 | 16    },
-    [L4ID_GPTIMER2_TA ] = {0x01033000, 0x1000, 32 | 16 | 8},
-    [L4ID_GPTIMER3    ] = {0x01034000, 0x1000, 32 | 16    },
-    [L4ID_GPTIMER3_TA ] = {0x01035000, 0x1000, 32 | 16 | 8},
-    [L4ID_GPTIMER4    ] = {0x01036000, 0x1000, 32 | 16    },
-    [L4ID_GPTIMER4_TA ] = {0x01037000, 0x1000, 32 | 16 | 8},
-    [L4ID_GPTIMER5    ] = {0x01038000, 0x1000, 32 | 16    },
-    [L4ID_GPTIMER5_TA ] = {0x01039000, 0x1000, 32 | 16 | 8},
-    [L4ID_GPTIMER6    ] = {0x0103a000, 0x1000, 32 | 16    },
-    [L4ID_GPTIMER6_TA ] = {0x0103b000, 0x1000, 32 | 16 | 8},
-    [L4ID_GPTIMER7    ] = {0x0103c000, 0x1000, 32 | 16    },
-    [L4ID_GPTIMER7_TA ] = {0x0103d000, 0x1000, 32 | 16 | 8},
-    [L4ID_GPTIMER8    ] = {0x0103e000, 0x1000, 32 | 16    },
-    [L4ID_GPTIMER8_TA ] = {0x0103f000, 0x1000, 32 | 16 | 8},
-    [L4ID_GPTIMER9    ] = {0x01040000, 0x1000, 32 | 16    },
-    [L4ID_GPTIMER9_TA ] = {0x01041000, 0x1000, 32 | 16 | 8},
-    [L4ID_GPIO2       ] = {0x01050000, 0x1000, 32 | 16 | 8},
-    [L4ID_GPIO2_TA    ] = {0x01051000, 0x1000, 32 | 16 | 8},
-    [L4ID_GPIO3       ] = {0x01052000, 0x1000, 32 | 16 | 8},
-    [L4ID_GPIO3_TA    ] = {0x01053000, 0x1000, 32 | 16 | 8},
-    [L4ID_GPIO4       ] = {0x01054000, 0x1000, 32 | 16 | 8},
-    [L4ID_GPIO4_TA    ] = {0x01055000, 0x1000, 32 | 16 | 8},
-    [L4ID_GPIO5       ] = {0x01056000, 0x1000, 32 | 16 | 8},
-    [L4ID_GPIO5_TA    ] = {0x01057000, 0x1000, 32 | 16 | 8},
-    [L4ID_GPIO6       ] = {0x01058000, 0x1000, 32 | 16 | 8},
-    [L4ID_GPIO6_TA    ] = {0x01059000, 0x1000, 32 | 16 | 8},
+    [L4ID_PER_AP      ] = {0x01000000, 0x0800, L4TYPE_AP},
+    [L4ID_PER_IP      ] = {0x01000800, 0x0800, L4TYPE_IA},
+    [L4ID_PER_LA      ] = {0x01001000, 0x1000, L4TYPE_LA},
+    [L4ID_UART3       ] = {0x01020000, 0x1000, L4TYPE_GENERIC},
+    [L4ID_UART3_TA    ] = {0x01021000, 0x1000, L4TYPE_TA},
+    [L4ID_MCBSP2      ] = {0x01022000, 0x1000, L4TYPE_GENERIC},
+    [L4ID_MCBSP2_TA   ] = {0x01023000, 0x1000, L4TYPE_TA},
+    [L4ID_MCBSP3      ] = {0x01024000, 0x1000, L4TYPE_GENERIC},
+    [L4ID_MCBSP3_TA   ] = {0x01025000, 0x1000, L4TYPE_TA},
+    [L4ID_MCBSP4      ] = {0x01026000, 0x1000, L4TYPE_GENERIC},
+    [L4ID_MCBSP4_TA   ] = {0x01027000, 0x1000, L4TYPE_TA},
+    [L4ID_MCBSP2S     ] = {0x01028000, 0x1000, L4TYPE_GENERIC},
+    [L4ID_MCBSP2S_TA  ] = {0x01029000, 0x1000, L4TYPE_TA},
+    [L4ID_MCBSP3S     ] = {0x0102a000, 0x1000, L4TYPE_GENERIC},
+    [L4ID_MCBSP3S_TA  ] = {0x0102b000, 0x1000, L4TYPE_TA},
+    [L4ID_WDTIMER3    ] = {0x01030000, 0x1000, L4TYPE_GENERIC},
+    [L4ID_WDTIMER3_TA ] = {0x01031000, 0x1000, L4TYPE_TA},
+    [L4ID_GPTIMER2    ] = {0x01032000, 0x1000, L4TYPE_GENERIC},
+    [L4ID_GPTIMER2_TA ] = {0x01033000, 0x1000, L4TYPE_TA},
+    [L4ID_GPTIMER3    ] = {0x01034000, 0x1000, L4TYPE_GENERIC},
+    [L4ID_GPTIMER3_TA ] = {0x01035000, 0x1000, L4TYPE_TA},
+    [L4ID_GPTIMER4    ] = {0x01036000, 0x1000, L4TYPE_GENERIC},
+    [L4ID_GPTIMER4_TA ] = {0x01037000, 0x1000, L4TYPE_TA},
+    [L4ID_GPTIMER5    ] = {0x01038000, 0x1000, L4TYPE_GENERIC},
+    [L4ID_GPTIMER5_TA ] = {0x01039000, 0x1000, L4TYPE_TA},
+    [L4ID_GPTIMER6    ] = {0x0103a000, 0x1000, L4TYPE_GENERIC},
+    [L4ID_GPTIMER6_TA ] = {0x0103b000, 0x1000, L4TYPE_TA},
+    [L4ID_GPTIMER7    ] = {0x0103c000, 0x1000, L4TYPE_GENERIC},
+    [L4ID_GPTIMER7_TA ] = {0x0103d000, 0x1000, L4TYPE_TA},
+    [L4ID_GPTIMER8    ] = {0x0103e000, 0x1000, L4TYPE_GENERIC},
+    [L4ID_GPTIMER8_TA ] = {0x0103f000, 0x1000, L4TYPE_TA},
+    [L4ID_GPTIMER9    ] = {0x01040000, 0x1000, L4TYPE_GENERIC},
+    [L4ID_GPTIMER9_TA ] = {0x01041000, 0x1000, L4TYPE_TA},
+    [L4ID_GPIO2       ] = {0x01050000, 0x1000, L4TYPE_GENERIC},
+    [L4ID_GPIO2_TA    ] = {0x01051000, 0x1000, L4TYPE_TA},
+    [L4ID_GPIO3       ] = {0x01052000, 0x1000, L4TYPE_GENERIC},
+    [L4ID_GPIO3_TA    ] = {0x01053000, 0x1000, L4TYPE_TA},
+    [L4ID_GPIO4       ] = {0x01054000, 0x1000, L4TYPE_GENERIC},
+    [L4ID_GPIO4_TA    ] = {0x01055000, 0x1000, L4TYPE_TA},
+    [L4ID_GPIO5       ] = {0x01056000, 0x1000, L4TYPE_GENERIC},
+    [L4ID_GPIO5_TA    ] = {0x01057000, 0x1000, L4TYPE_TA},
+    [L4ID_GPIO6       ] = {0x01058000, 0x1000, L4TYPE_GENERIC},
+    [L4ID_GPIO6_TA    ] = {0x01059000, 0x1000, L4TYPE_TA},
     /* L4-Emu */
-    [L4ID_EMU_AP      ] = {0x0c006000, 0x0800, 32 | 16 | 8},
-    [L4ID_EMU_IP_C    ] = {0x0c006800, 0x0800, 32 | 16 | 8},
-    [L4ID_EMU_LA      ] = {0x0c007000, 0x1000, 32 | 16 | 8},
-    [L4ID_EMU_IP_DAP  ] = {0x0c008000, 0x0800, 32 | 16 | 8},
-    [L4ID_MPUEMU      ] = {0x0c010000, 0x8000, 32 | 16 | 8},
-    [L4ID_MPUEMU_TA   ] = {0x0c018000, 0x1000, 32 | 16 | 8},
-    [L4ID_TPIU        ] = {0x0c019000, 0x1000, 32         },
-    [L4ID_TPIU_TA     ] = {0x0c01a000, 0x1000, 32 | 16 | 8},
-    [L4ID_ETB         ] = {0x0c01b000, 0x1000, 32         },
-    [L4ID_ETB_TA      ] = {0x0c01c000, 0x1000, 32 | 16 | 8},
-    [L4ID_DAPCTL      ] = {0x0c01d000, 0x1000, 32         },
-    [L4ID_DAPCTL_TA   ] = {0x0c01e000, 0x1000, 32 | 16 | 8},
-    [L4ID_EMU_PRM_A   ] = {0x0c706000, 0x2000, 32         },
-    [L4ID_EMU_PRM_B   ] = {0x0c706800, 0x0800, 32         },
-    [L4ID_EMU_PRM_TA  ] = {0x0c709000, 0x1000, 32 | 16 | 8},
-    [L4ID_EMU_GPIO1   ] = {0x0c710000, 0x1000, 32 | 16 | 8},
-    [L4ID_EMU_GPIO1_TA] = {0x0c711000, 0x1000, 32 | 16 | 8},
-    [L4ID_EMU_WDTM2   ] = {0x0c714000, 0x1000, 32 | 16    },
-    [L4ID_EMU_WDTM2_TA] = {0x0c715000, 0x1000, 32 | 16 | 8},
-    [L4ID_EMU_GPTM1   ] = {0x0c718000, 0x1000, 32 | 16 | 8},
-    [L4ID_EMU_GPTM1_TA] = {0x0c719000, 0x1000, 32 | 16 | 8},
-    [L4ID_EMU_32KTM   ] = {0x0c720000, 0x1000, 32 | 16    },
-    [L4ID_EMU_32KTM_TA] = {0x0c721000, 0x1000, 32 | 16 | 8},
-    [L4ID_EMU_WKUP_AP ] = {0x0c728000, 0x0800, 32 | 16 | 8},
-    [L4ID_EMU_WKUP_IPC] = {0x0c728800, 0x0800, 32 | 16 | 8},
-    [L4ID_EMU_WKUP_LA ] = {0x0c729000, 0x1000, 32 | 16 | 8},
-    [L4ID_EMU_WKUP_IPE] = {0x0c72a000, 0x0800, 32 | 16 | 8},
+    [L4ID_EMU_AP      ] = {0x0c006000, 0x0800, L4TYPE_AP},
+    [L4ID_EMU_IP_C    ] = {0x0c006800, 0x0800, L4TYPE_IA},
+    [L4ID_EMU_LA      ] = {0x0c007000, 0x1000, L4TYPE_LA},
+    [L4ID_EMU_IP_DAP  ] = {0x0c008000, 0x0800, L4TYPE_IA},
+    [L4ID_MPUEMU      ] = {0x0c010000, 0x8000, L4TYPE_GENERIC},
+    [L4ID_MPUEMU_TA   ] = {0x0c018000, 0x1000, L4TYPE_TA},
+    [L4ID_TPIU        ] = {0x0c019000, 0x1000, L4TYPE_GENERIC},
+    [L4ID_TPIU_TA     ] = {0x0c01a000, 0x1000, L4TYPE_TA},
+    [L4ID_ETB         ] = {0x0c01b000, 0x1000, L4TYPE_GENERIC},
+    [L4ID_ETB_TA      ] = {0x0c01c000, 0x1000, L4TYPE_TA},
+    [L4ID_DAPCTL      ] = {0x0c01d000, 0x1000, L4TYPE_GENERIC},
+    [L4ID_DAPCTL_TA   ] = {0x0c01e000, 0x1000, L4TYPE_TA},
+    [L4ID_EMU_PRM_A   ] = {0x0c706000, 0x2000, L4TYPE_GENERIC},
+    [L4ID_EMU_PRM_B   ] = {0x0c706800, 0x0800, L4TYPE_GENERIC},
+    [L4ID_EMU_PRM_TA  ] = {0x0c709000, 0x1000, L4TYPE_TA},
+    [L4ID_EMU_GPIO1   ] = {0x0c710000, 0x1000, L4TYPE_GENERIC},
+    [L4ID_EMU_GPIO1_TA] = {0x0c711000, 0x1000, L4TYPE_TA},
+    [L4ID_EMU_WDTM2   ] = {0x0c714000, 0x1000, L4TYPE_GENERIC},
+    [L4ID_EMU_WDTM2_TA] = {0x0c715000, 0x1000, L4TYPE_TA},
+    [L4ID_EMU_GPTM1   ] = {0x0c718000, 0x1000, L4TYPE_GENERIC},
+    [L4ID_EMU_GPTM1_TA] = {0x0c719000, 0x1000, L4TYPE_TA},
+    [L4ID_EMU_32KTM   ] = {0x0c720000, 0x1000, L4TYPE_GENERIC},
+    [L4ID_EMU_32KTM_TA] = {0x0c721000, 0x1000, L4TYPE_TA},
+    [L4ID_EMU_WKUP_AP ] = {0x0c728000, 0x0800, L4TYPE_AP},
+    [L4ID_EMU_WKUP_IPC] = {0x0c728800, 0x0800, L4TYPE_IA},
+    [L4ID_EMU_WKUP_LA ] = {0x0c729000, 0x1000, L4TYPE_LA},
+    [L4ID_EMU_WKUP_IPE] = {0x0c72a000, 0x0800, L4TYPE_IA},
 };
 
-enum omap3_agent_info_id_t {
+typedef enum {
     L4A_SCM = 0,
     L4A_CM,
     L4A_PRM,
@@ -518,353 +1119,381 @@ enum omap3_agent_info_id_t {
     L4A_I2C2,
     L4A_I2C3,
     L4A_TAP
+} omap3_l4_agent_info_id_t;
+
+struct omap3_l4_agent_info_s {
+    omap3_l4_agent_info_id_t agent_id;
+    omap3_l4_region_id_t     first_region_id;
+    int                      region_count;
 };
 
-static struct omap_l4_agent_info_s omap3_l4_agent_info[] = {
-    /* L4-Core Target Agents */
-    {L4A_DSS,       L4ID_DSI,       6, 4},
+static const struct omap3_l4_agent_info_s omap3_l4_agent_info[] = {
+    /* L4-Core Agents */
+    {L4A_DSS,       L4ID_DSI,       6},
     /* TODO: camera */
     /* TODO: USBHS OTG */
     /* TODO: USBHS host */
     /* TODO: USBTLL */
-    {L4A_UART1,     L4ID_UART1,     2, 1},
-    {L4A_UART2,     L4ID_UART2,     2, 1},
-    {L4A_I2C1,      L4ID_I2C1,      2, 1},
-    {L4A_I2C2,      L4ID_I2C2,      2, 1},
-    {L4A_I2C3,      L4ID_I2C3,      2, 1},
+    {L4A_UART1,     L4ID_UART1,     2},
+    {L4A_UART2,     L4ID_UART2,     2},
+    {L4A_I2C1,      L4ID_I2C1,      2},
+    {L4A_I2C2,      L4ID_I2C2,      2},
+    {L4A_I2C3,      L4ID_I2C3,      2},
     /* TODO: McBSP1 */
     /* TODO: McBSP5 */
-    {L4A_GPTIMER10, L4ID_GPTIMER10, 2, 1},
-    {L4A_GPTIMER11, L4ID_GPTIMER11, 2, 1},
+    {L4A_GPTIMER10, L4ID_GPTIMER10, 2},
+    {L4A_GPTIMER11, L4ID_GPTIMER11, 2},
     /* TODO: SPI1 */
     /* TODO: SPI2 */
-    {L4A_MMC1,      L4ID_MMCSDIO1,  2, 1},
-    {L4A_MMC2,      L4ID_MMCSDIO2,  2, 1},
-    {L4A_MMC3,      L4ID_MMCSDIO3,  2, 1},
+    {L4A_MMC1,      L4ID_MMCSDIO1,  2},
+    {L4A_MMC2,      L4ID_MMCSDIO2,  2},
+    {L4A_MMC3,      L4ID_MMCSDIO3,  2},
     /* TODO: HDQ/1-Wire */
     /* TODO: Mailbox */
     /* TODO: SPI3 */
     /* TODO: SPI4 */
     /* TODO: SDMA */
-    {L4A_CM,        L4ID_CM_A,      3, 2},
-    {L4A_SCM,       L4ID_SCM,       2, 1},
-    {L4A_TAP,       L4ID_TAP,       2, 1},
-    /* L4-Wakeup Target Agents */
-    {L4A_GPTIMER12, L4ID_GPTIMER12, 2, 1},
-    {L4A_PRM,       L4ID_PRM_A,     3, 2},
-    {L4A_GPIO1,     L4ID_GPIO1,     2, 1},
-    {L4A_WDTIMER2,  L4ID_WDTIMER2,  2, 1},
-    {L4A_GPTIMER1,  L4ID_GPTIMER1,  2, 1},
-    {L4A_32KTIMER,  L4ID_32KTIMER,  2, 1},
-    /* L4-Per Target Agents */
-    {L4A_UART3,     L4ID_UART3,     2, 1},
+    {L4A_CM,        L4ID_CM_A,      3},
+    {L4A_SCM,       L4ID_SCM,       2},
+    {L4A_TAP,       L4ID_TAP,       2},
+    /* L4-Wakeup Agents */
+    {L4A_GPTIMER12, L4ID_GPTIMER12, 2},
+    {L4A_PRM,       L4ID_PRM_A,     3},
+    {L4A_GPIO1,     L4ID_GPIO1,     2},
+    {L4A_WDTIMER2,  L4ID_WDTIMER2,  2},
+    {L4A_GPTIMER1,  L4ID_GPTIMER1,  2},
+    {L4A_32KTIMER,  L4ID_32KTIMER,  2},
+    /* L4-Per Agents */
+    {L4A_UART3,     L4ID_UART3,     2},
     /* TODO: McBSP2 */
     /* TODO: McBSP3 */
-    {L4A_GPTIMER2,  L4ID_GPTIMER2,  2, 1},
-    {L4A_GPTIMER3,  L4ID_GPTIMER3,  2, 1},
-    {L4A_GPTIMER4,  L4ID_GPTIMER4,  2, 1},
-    {L4A_GPTIMER5,  L4ID_GPTIMER5,  2, 1},
-    {L4A_GPTIMER6,  L4ID_GPTIMER6,  2, 1},
-    {L4A_GPTIMER7,  L4ID_GPTIMER7,  2, 1},
-    {L4A_GPTIMER8,  L4ID_GPTIMER8,  2, 1},
-    {L4A_GPTIMER9,  L4ID_GPTIMER9,  2, 1},
-    {L4A_GPIO2,     L4ID_GPIO2,     2, 1},
-    {L4A_GPIO3,     L4ID_GPIO3,     2, 1},
-    {L4A_GPIO4,     L4ID_GPIO4,     2, 1},
-    {L4A_GPIO5,     L4ID_GPIO5,     2, 1},
-    {L4A_GPIO6,     L4ID_GPIO6,     2, 1},
+    {L4A_GPTIMER2,  L4ID_GPTIMER2,  2},
+    {L4A_GPTIMER3,  L4ID_GPTIMER3,  2},
+    {L4A_GPTIMER4,  L4ID_GPTIMER4,  2},
+    {L4A_GPTIMER5,  L4ID_GPTIMER5,  2},
+    {L4A_GPTIMER6,  L4ID_GPTIMER6,  2},
+    {L4A_GPTIMER7,  L4ID_GPTIMER7,  2},
+    {L4A_GPTIMER8,  L4ID_GPTIMER8,  2},
+    {L4A_GPTIMER9,  L4ID_GPTIMER9,  2},
+    {L4A_GPIO2,     L4ID_GPIO2,     2},
+    {L4A_GPIO3,     L4ID_GPIO3,     2},
+    {L4A_GPIO4,     L4ID_GPIO4,     2},
+    {L4A_GPIO5,     L4ID_GPIO5,     2},
+    {L4A_GPIO6,     L4ID_GPIO6,     2},
 };
 
-static struct omap_target_agent_s *omap3_l4ta_get(struct omap_l4_s *bus, int cs)
+static uint32_t omap3_l4ta_read(void *opaque, target_phys_addr_t addr)
+{
+    struct omap_target_agent_s *s = (struct omap_target_agent_s *)opaque;
+    
+    switch (addr) {
+        case 0x00: /* COMPONENT_L */
+            return s->component;
+        case 0x04: /* COMPONENT_H */
+            return 0;
+        case 0x18: /* CORE_L */
+            return s->component;
+        case 0x1c: /* CORE_H */
+            return (s->component >> 16);
+        case 0x20: /* AGENT_CONTROL_L */
+            return s->control;
+        case 0x24: /* AGENT_CONTROL_H */
+            return s->control_h;
+        case 0x28: /* AGENT_STATUS_L */
+            return s->status;
+        case 0x2c: /* AGENT_STATUS_H */
+            return 0;
+        default:
+            break;
+    }
+    
+    OMAP_BAD_REG(s->base + addr);
+    return 0;
+}
+
+static void omap3_l4ta_write(void *opaque, target_phys_addr_t addr,
+                             uint32_t value)
+{
+    struct omap_target_agent_s *s = (struct omap_target_agent_s *)opaque;
+    
+    switch (addr) {
+        case 0x00: /* COMPONENT_L */
+        case 0x04: /* COMPONENT_H */
+        case 0x18: /* CORE_L */
+        case 0x1c: /* CORE_H */
+            OMAP_RO_REG(s->base + addr);
+            break;
+        case 0x20: /* AGENT_CONTROL_L */
+            s->control = value & 0x00000701;
+            break;
+        case 0x24: /* AGENT_CONTROL_H */
+            s->control_h = value & 0x100; /* TODO: shouldn't this be read-only? */
+            break;
+        case 0x28: /* AGENT_STATUS_L */
+            if (value & 0x100)
+                s->status &= ~0x100; /* REQ_TIMEOUT */
+            break;
+        case 0x2c: /* AGENT_STATUS_H */
+            /* no writable bits although the register is listed as RW */
+            break;
+        default:
+            OMAP_BAD_REG(s->base + addr);
+            break;
+    }
+}
+
+static CPUReadMemoryFunc *omap3_l4ta_readfn[] = {
+    omap_badwidth_read32,
+    omap_badwidth_read32,
+    omap3_l4ta_read,
+};
+
+static CPUWriteMemoryFunc *omap3_l4ta_writefn[] = {
+    omap_badwidth_write32,
+    omap_badwidth_write32,
+    omap3_l4ta_write,
+};
+
+static struct omap_target_agent_s *omap3_l4ta_init(struct omap_l4_s *bus, int cs)
 {
     int i, iomemtype;
     struct omap_target_agent_s *ta = 0;
-    struct omap_l4_agent_info_s *info = 0;
+    const struct omap3_l4_agent_info_s *info = 0;
 
     for (i = 0; i < bus->ta_num; i++)
-        if (omap3_l4_agent_info[i].ta == cs)
-        {
+        if (omap3_l4_agent_info[i].agent_id == cs) {
             ta = &bus->ta[i];
             info = &omap3_l4_agent_info[i];
             break;
         }
-    if (!ta)
-    {
-        fprintf(stderr, "%s: bad target agent (%i)\n", __FUNCTION__, cs);
+    if (!ta) {
+        fprintf(stderr, "%s: invalid agent id (%i)\n", __FUNCTION__, cs);
+        exit(-1);
+    }
+    if (ta->bus) {
+        fprintf(stderr, "%s: target agent (%d) already initialized\n",
+                __FUNCTION__, cs);
         exit(-1);
     }
 
     ta->bus = bus;
-    ta->start = &omap3_l4_region[info->region];
-    ta->regions = info->regions;
+    ta->start = &omap3_l4_region[info->first_region_id];
+    ta->regions = info->region_count;
 
     ta->component = ('Q' << 24) | ('E' << 16) | ('M' << 8) | ('U' << 0);
     ta->status = 0x00000000;
-    ta->control = 0x00000200;   /* XXX 01000200 for L4TAO */
+    ta->control = 0x00000200;
 
+    for (i = 0; i < info->region_count; i++)
+        if (omap3_l4_region[info->first_region_id + i].access == L4TYPE_TA)
+            break;
+    if (i >= info->region_count) {
+        fprintf(stderr, "%s: specified agent (%d) has no TA region\n",
+                __FUNCTION__, cs);
+        exit(-1);
+    }
+    
     iomemtype = l4_register_io_memory(0, omap3_l4ta_readfn,
                                       omap3_l4ta_writefn, ta);
-    ta->base = omap_l4_attach(ta, info->ta_region, iomemtype);
+    ta->base = omap_l4_attach(ta, i, iomemtype);
 
     return ta;
 }
 
+/* common PRM domain registers */
+struct omap3_prm_domain_s {
+    uint32_t rm_rstctrl;   /* 50 */
+    uint32_t rm_rstst;     /* 58 */
+    uint32_t pm_wken;      /* a0 */
+    uint32_t pm_mpugrpsel; /* a4 */
+    uint32_t pm_ivagrpsel; /* a8 */
+    uint32_t pm_wkst;      /* b0 */
+    uint32_t pm_wkdep;     /* c8 */
+    uint32_t pm_pwstctrl;  /* e0 */
+    uint32_t pm_pwstst;    /* e4 */
+    uint32_t pm_prepwstst; /* e8 */
+};
 
-struct omap3_prm_s
-{
+struct omap3_prm_s {
     qemu_irq mpu_irq;
     qemu_irq iva_irq;
-    struct omap_mpu_state_s *mpu;
+    struct omap_mpu_state_s *omap;
 
-    /*IVA2_PRM Register */
-    uint32_t rm_rstctrl_iva2;    /*0x4830 6050 */
-    uint32_t rm_rstst_iva2;      /*0x4830 6058 */
-    uint32_t pm_wkdep_iva2;      /*0x4830 60C8 */
-    uint32_t pm_pwstctrl_iva2;   /*0x4830 60E0 */
-    uint32_t pm_pwstst_iva2;     /*0x4830 60E4 */
-    uint32_t pm_prepwstst_iva2;  /*0x4830 60E8 */
-    uint32_t prm_irqstatus_iva2; /*0x4830 60F8 */
-    uint32_t prm_irqenable_iva2; /*0x4830 60FC */
+    struct omap3_prm_domain_s iva2;
+    struct omap3_prm_domain_s mpu;
+    struct omap3_prm_domain_s core;
+    struct omap3_prm_domain_s sgx;
+    struct omap3_prm_domain_s wkup;
+    struct omap3_prm_domain_s dss;
+    struct omap3_prm_domain_s cam;
+    struct omap3_prm_domain_s per;
+    struct omap3_prm_domain_s emu;
+    struct omap3_prm_domain_s neon;
+    struct omap3_prm_domain_s usbhost;
 
-    /*OCP_System_Reg_PRM Register */
-    uint32_t prm_revision;      /*0x4830 6804 */
-    uint32_t prm_sysconfig;     /*0x4830 6814 */
-    uint32_t prm_irqstatus_mpu; /*0x4830 6818 */
-    uint32_t prm_irqenable_mpu; /*0x4830 681c */
+    uint32_t iva2_prm_irqstatus;
+    uint32_t iva2_prm_irqenable;
+    
+    uint32_t mpu_pm_evgenctrl;
+    uint32_t mpu_pm_evgenontim;
+    uint32_t mpu_pm_evgenofftim;
 
-    /*MPU_PRM Register */
-    uint32_t rm_rstst_mpu;      /*0x4830 6958 */
-    uint32_t pm_wkdep_mpu;      /*0x4830 69c8 */
-    uint32_t pm_evgenctrl_mpu;  /*0x4830 69d4 */
-    uint32_t pm_evgenontim_mpu; /*0x4830 69d8 */
-    uint32_t pm_evgenofftim_mpu;        /*0x4830 69dc */
-    uint32_t pm_pwstctrl_mpu;   /*0x4830 69e0 */
-    uint32_t pm_pwstst_mpu;     /*0x4830 69e4 */
-    uint32_t pm_perpwstst_mpu;  /*0x4830 69e8 */
+    uint32_t core_pm_wkst3;
+    uint32_t core_pm_wken3;
+    uint32_t core_pm_iva2grpsel3;
+    uint32_t core_pm_mpugrpsel3;
 
-    /*CORE_PRM Register */
-    uint32_t rm_rstst_core;     /*0x4830 6a58 */
-    uint32_t pm_wken1_core;     /*0x4830 6aa0 */
-    uint32_t pm_mpugrpsel1_core;        /*0x4830 6aa4 */
-    uint32_t pm_iva2grpsel1_core;       /*0x4830 6aa8 */
-    uint32_t pm_wkst1_core;     /*0x4830 6ab0 */
-    uint32_t pm_wkst3_core;     /*0x4830 6ab8 */
-    uint32_t pm_pwstctrl_core;  /*0x4830 6ae0 */
-    uint32_t pm_pwstst_core;    /*0x4830 6ae4 */
-    uint32_t pm_prepwstst_core; /*0x4830 6ae8 */
-    uint32_t pm_wken3_core;     /*0x4830 6af0 */
-    uint32_t pm_iva2grpsel3_core;       /*0x4830 6af4 */
-    uint32_t pm_mpugrpsel3_core;        /*0x4830 6af8 */
+    uint32_t prm_revision;
+    uint32_t prm_sysconfig;
+    uint32_t prm_irqstatus_mpu;
+    uint32_t prm_irqenable_mpu;
 
-    /*SGX_PRM Register */
-    uint32_t rm_rstst_sgx;      /*0x4830 6b58 */
-    uint32_t pm_wkdep_sgx;      /*0x4830 6bc8 */
-    uint32_t pm_pwstctrl_sgx;   /*0x4830 6be0 */
-    uint32_t pm_pwstst_sgx;     /*0x4830 6be4 */
-    uint32_t pm_prepwstst_sgx;  /*0x4830 6be8 */
+    uint32_t prm_clksel;
+    uint32_t prm_clkout_ctrl;
 
-    /*WKUP_PRM Register */
-    uint32_t pm_wken_wkup;      /*0x4830 6ca0 */
-    uint32_t pm_mpugrpsel_wkup; /*0x4830 6ca4 */
-    uint32_t pm_iva2grpsel_wkup;        /*0x4830 6ca8 */
-    uint32_t pm_wkst_wkup;      /*0x4830 6cb0 */
-
-    /*Clock_Control_Reg_PRM Register */
-    uint32_t prm_clksel;        /*0x4830 6D40 */
-    uint32_t prm_clkout_ctrl;   /*0x4830 6D70 */
-
-    /*DSS_PRM Register */
-    uint32_t rm_rstst_dss;      /*0x4830 6e58 */
-    uint32_t pm_wken_dss;       /*0x4830 6ea0 */
-    uint32_t pm_wkdep_dss;      /*0x4830 6ec8 */
-    uint32_t pm_pwstctrl_dss;   /*0x4830 6ee0 */
-    uint32_t pm_pwstst_dss;     /*0x4830 6ee4 */
-    uint32_t pm_prepwstst_dss;  /*0x4830 6ee8 */
-
-    /*CAM_PRM Register */
-    uint32_t rm_rstst_cam;      /*0x4830 6f58 */
-    uint32_t pm_wkdep_cam;      /*0x4830 6fc8 */
-    uint32_t pm_pwstctrl_cam;   /*0x4830 6fe0 */
-    uint32_t pm_pwstst_cam;     /*0x4830 6fe4 */
-    uint32_t pm_prepwstst_cam;  /*0x4830 6fe8 */
-
-    /*PER_PRM Register */
-    uint32_t rm_rstst_per;      /*0x4830 7058 */
-    uint32_t pm_wken_per;       /*0x4830 70a0 */
-    uint32_t pm_mpugrpsel_per;  /*0x4830 70a4 */
-    uint32_t pm_iva2grpsel_per; /*0x4830 70a8 */
-    uint32_t pm_wkst_per;       /*0x4830 70b0 */
-    uint32_t pm_wkdep_per;      /*0x4830 70c8 */
-    uint32_t pm_pwstctrl_per;   /*0x4830 70e0 */
-    uint32_t pm_pwstst_per;     /*0x4830 70e4 */
-    uint32_t pm_perpwstst_per;  /*0x4830 70e8 */
-
-    /*EMU_PRM Register */
-    uint32_t rm_rstst_emu;      /*0x4830 7158 */
-    uint32_t pm_pwstst_emu;     /*0x4830 71e4 */
-
-    /*Global_Reg_PRM Register */
-    uint32_t prm_vc_smps_sa;    /*0x4830 7220 */
-    uint32_t prm_vc_smps_vol_ra;        /*0x4830 7224 */
-    uint32_t prm_vc_smps_cmd_ra;        /*0x4830 7228 */
-    uint32_t prm_vc_cmd_val_0;  /*0x4830 722c */
-    uint32_t prm_vc_cmd_val_1;  /*0x4830 7230 */
-    uint32_t prm_vc_hc_conf;    /*0x4830 7234 */
-    uint32_t prm_vc_i2c_cfg;    /*0x4830 7238 */
-    uint32_t prm_vc_bypass_val; /*0x4830 723c */
-    uint32_t prm_rstctrl;       /*0x4830 7250 */
-    uint32_t prm_rsttimer;      /*0x4830 7254 */
-    uint32_t prm_rstst;         /*0x4830 7258 */
-    uint32_t prm_voltctrl;      /*0x4830 7260 */
-    uint32_t prm_sram_pcharge;  /*0x4830 7264 */
-    uint32_t prm_clksrc_ctrl;   /*0x4830 7270 */
-    uint32_t prm_obs;           /*0x4830 7280 */
-    uint32_t prm_voltsetup1;    /*0x4830 7290 */
-    uint32_t prm_voltoffset;    /*0x4830 7294 */
-    uint32_t prm_clksetup;      /*0x4830 7298 */
-    uint32_t prm_polctrl;       /*0x4830 729c */
-    uint32_t prm_voltsetup2;    /*0x4830 72a0 */
-
-    /*NEON_PRM Register */
-    uint32_t rm_rstst_neon;     /*0x4830 7358 */
-    uint32_t pm_wkdep_neon;     /*0x4830 73c8 */
-    uint32_t pm_pwstctrl_neon;  /*0x4830 73e0 */
-    uint32_t pm_pwstst_neon;    /*0x4830 73e4 */
-    uint32_t pm_prepwstst_neon; /*0x4830 73e8 */
-
-    /*USBHOST_PRM Register */
-    uint32_t rm_rstst_usbhost;  /*0x4830 7458 */
-    uint32_t pm_wken_usbhost;   /*0x4830 74a0 */
-    uint32_t pm_mpugrpsel_usbhost;      /*0x4830 74a4 */
-    uint32_t pm_iva2grpsel_usbhost;     /*0x4830 74a8 */
-    uint32_t pm_wkst_usbhost;   /*0x4830 74b0 */
-    uint32_t pm_wkdep_usbhost;  /*0x4830 74c8 */
-    uint32_t pm_pwstctrl_usbhost;       /*0x4830 74e0 */
-    uint32_t pm_pwstst_usbhost; /*0x4830 74e4 */
-    uint32_t pm_prepwstst_usbhost;      /*0x4830 74e8 */
-
+    uint32_t prm_vc_smps_sa;
+    uint32_t prm_vc_smps_vol_ra;
+    uint32_t prm_vc_smps_cmd_ra;
+    uint32_t prm_vc_cmd_val_0;
+    uint32_t prm_vc_cmd_val_1;
+    uint32_t prm_vc_hc_conf;
+    uint32_t prm_vc_i2c_cfg;
+    uint32_t prm_vc_bypass_val;
+    uint32_t prm_rstctrl;
+    uint32_t prm_rsttimer;
+    uint32_t prm_rstst;
+    uint32_t prm_voltctrl;
+    uint32_t prm_sram_pcharge;
+    uint32_t prm_clksrc_ctrl;
+    uint32_t prm_obs;
+    uint32_t prm_voltsetup1;
+    uint32_t prm_voltoffset;
+    uint32_t prm_clksetup;
+    uint32_t prm_polctrl;
+    uint32_t prm_voltsetup2;
 };
 
 static void omap3_prm_int_update(struct omap3_prm_s *s)
 {
     qemu_set_irq(s->mpu_irq, s->prm_irqstatus_mpu & s->prm_irqenable_mpu);
-    qemu_set_irq(s->iva_irq, s->prm_irqstatus_iva2 & s->prm_irqenable_iva2);
+    qemu_set_irq(s->iva_irq, s->iva2_prm_irqstatus & s->iva2_prm_irqenable);
 }
 
 static void omap3_prm_reset(struct omap3_prm_s *s)
 {
-    s->rm_rstctrl_iva2 = 0x7;
-    s->rm_rstst_iva2 = 0x1;
-    s->pm_wkdep_iva2 = 0xb3;
-    s->pm_pwstctrl_iva2 = 0xff0f07;
-    s->pm_pwstst_iva2 = 0xff7;
-    s->pm_prepwstst_iva2 = 0x0;
-    s->prm_irqstatus_iva2 = 0x0;
-    s->prm_irqenable_iva2 = 0x0;
+    s->iva2.rm_rstctrl    = 0x7;
+    s->iva2.rm_rstst      = 0x1;
+    s->iva2.pm_wkdep      = 0xb3;
+    s->iva2.pm_pwstctrl   = 0xff0f07;
+    s->iva2.pm_pwstst     = 0xff7;
+    s->iva2.pm_prepwstst  = 0x0;
+    s->iva2_prm_irqstatus = 0x0;
+    s->iva2_prm_irqenable = 0x0;
 
-    s->prm_revision = 0x10;
-    s->prm_sysconfig = 0x1;
+    s->prm_revision      = 0x10;
+    s->prm_sysconfig     = 0x1;
     s->prm_irqstatus_mpu = 0x0;
     s->prm_irqenable_mpu = 0x0;
 
-    s->rm_rstst_mpu = 0x1;
-    s->pm_wkdep_mpu = 0xa5;
-    s->pm_evgenctrl_mpu = 0x12;
-    s->pm_evgenontim_mpu = 0x0;
-    s->pm_evgenofftim_mpu = 0x0;
-    s->pm_pwstctrl_mpu = 0x30107;
-    s->pm_pwstst_mpu = 0xc7;
-    s->pm_pwstst_mpu = 0x0;
+    s->mpu.rm_rstst       = 0x1;
+    s->mpu.pm_wkdep       = 0xa5;
+    s->mpu.pm_pwstctrl    = 0x30107;
+    s->mpu.pm_pwstst      = 0xc7;
+    s->mpu.pm_pwstst      = 0x0;
+    s->mpu_pm_evgenctrl   = 0x12;
+    s->mpu_pm_evgenontim  = 0x0;
+    s->mpu_pm_evgenofftim = 0x0;
 
-    s->rm_rstst_core = 0x1;
-    s->pm_wken1_core = 0xc33ffe18;
-    s->pm_mpugrpsel1_core = 0xc33ffe18;
-    s->pm_iva2grpsel1_core = 0xc33ffe18;
-    s->pm_wkst1_core = 0x0;
-    s->pm_wkst3_core = 0x0;
-    s->pm_pwstctrl_core = 0xf0307;
-    s->pm_pwstst_core = 0xf7;
-    s->pm_prepwstst_core = 0x0;
-    s->pm_wken3_core = 0x4;
-    s->pm_iva2grpsel3_core = 0x4;
-    s->pm_mpugrpsel3_core = 0x4;
+    s->core.rm_rstst       = 0x1;
+    s->core.pm_wken        = 0xc33ffe18;
+    s->core.pm_mpugrpsel   = 0xc33ffe18;
+    s->core.pm_ivagrpsel   = 0xc33ffe18;
+    s->core.pm_wkst        = 0x0;
+    s->core.pm_pwstctrl    = 0xf0307;
+    s->core.pm_pwstst      = 0xf7;
+    s->core.pm_prepwstst   = 0x0;
+    s->core_pm_wkst3       = 0x0;
+    s->core_pm_wken3       = 0x4;
+    s->core_pm_iva2grpsel3 = 0x4;
+    s->core_pm_mpugrpsel3  = 0x4;
 
-    s->rm_rstst_sgx = 0x1;
-    s->pm_wkdep_sgx = 0x16;
-    s->pm_pwstctrl_sgx = 0x30107;
-    s->pm_pwstst_sgx = 0x3;
-    s->pm_prepwstst_sgx = 0x0;
+    s->sgx.rm_rstst     = 0x1;
+    s->sgx.pm_wkdep     = 0x16;
+    s->sgx.pm_pwstctrl  = 0x30107;
+    s->sgx.pm_pwstst    = 0x3;
+    s->sgx.pm_prepwstst = 0x0;
 
-    s->pm_wken_wkup = 0x3cb;
-    s->pm_mpugrpsel_wkup = 0x3cb;
-    s->pm_iva2grpsel_wkup = 0x0;
-    s->pm_wkst_wkup = 0x0;
+    s->wkup.pm_wken      = 0x3cb;
+    s->wkup.pm_mpugrpsel = 0x3cb;
+    s->wkup.pm_ivagrpsel = 0x0;
+    s->wkup.pm_wkst      = 0x0;
+    s->wkup.pm_pwstst    = 0x3; /* TODO: check on real hardware */
 
-    s->prm_clksel = 0x4;
+    s->prm_clksel      = 0x4;
     s->prm_clkout_ctrl = 0x80;
 
-    s->rm_rstst_dss = 0x1;
-    s->pm_wken_dss = 0x1;
-    s->pm_wkdep_dss = 0x16;
-    s->pm_pwstctrl_dss = 0x30107;
-    s->pm_pwstst_dss = 0x3;
-    s->pm_prepwstst_dss = 0x0;
+    s->dss.rm_rstst     = 0x1;
+    s->dss.pm_wken      = 0x1;
+    s->dss.pm_wkdep     = 0x16;
+    s->dss.pm_pwstctrl  = 0x30107;
+    s->dss.pm_pwstst    = 0x3;
+    s->dss.pm_prepwstst = 0x0;
 
-    s->rm_rstst_cam = 0x1;
-    s->pm_wkdep_cam = 0x16;
-    s->pm_pwstctrl_cam = 0x30107;
-    s->pm_pwstst_cam = 0x3;
-    s->pm_prepwstst_cam = 0x0;
+    s->cam.rm_rstst     = 0x1;
+    s->cam.pm_wkdep     = 0x16;
+    s->cam.pm_pwstctrl  = 0x30107;
+    s->cam.pm_pwstst    = 0x3;
+    s->cam.pm_prepwstst = 0x0;
 
-    s->rm_rstst_per = 0x1;
-    s->pm_wken_per = 0x3efff;
-    s->pm_mpugrpsel_per = 0x3efff;
-    s->pm_iva2grpsel_per = 0x3efff;
-    s->pm_wkst_per = 0x0;
-    s->pm_wkdep_per = 0x17;
-    s->pm_pwstctrl_per = 0x30107;
-    s->pm_pwstst_per = 0x7;
-    s->pm_perpwstst_per = 0x0;
+    s->per.rm_rstst     = 0x1;
+    s->per.pm_wken      = 0x3efff;
+    s->per.pm_mpugrpsel = 0x3efff;
+    s->per.pm_ivagrpsel = 0x3efff;
+    s->per.pm_wkst      = 0x0;
+    s->per.pm_wkdep     = 0x17;
+    s->per.pm_pwstctrl  = 0x30107;
+    s->per.pm_pwstst    = 0x7;
+    s->per.pm_prepwstst = 0x0;
 
-    s->rm_rstst_emu = 0x1;
-    s->pm_pwstst_emu = 0x13;
+    s->emu.rm_rstst  = 0x1;
+    s->emu.pm_pwstst = 0x13;
 
-    s->prm_vc_smps_sa = 0x0;
+    s->prm_vc_smps_sa     = 0x0;
     s->prm_vc_smps_vol_ra = 0x0;
     s->prm_vc_smps_cmd_ra = 0x0;
-    s->prm_vc_cmd_val_0 = 0x0;
-    s->prm_vc_cmd_val_1 = 0x0;
-    s->prm_vc_hc_conf = 0x0;
-    s->prm_vc_i2c_cfg = 0x18;
-    s->prm_vc_bypass_val = 0x0;
-    s->prm_rstctrl = 0x0;
-    s->prm_rsttimer = 0x1006;
-    s->prm_rstst = 0x1;
-    s->prm_voltctrl = 0x0;
-    s->prm_sram_pcharge = 0x50;
-    s->prm_clksrc_ctrl = 0x43;
-    s->prm_obs = 0x0;
-    s->prm_voltsetup1 = 0x0;
-    s->prm_voltoffset = 0x0;
-    s->prm_clksetup = 0x0;
-    s->prm_polctrl = 0xa;
-    s->prm_voltsetup2 = 0x0;
+    s->prm_vc_cmd_val_0   = 0x0;
+    s->prm_vc_cmd_val_1   = 0x0;
+    s->prm_vc_hc_conf     = 0x0;
+    s->prm_vc_i2c_cfg     = 0x18;
+    s->prm_vc_bypass_val  = 0x0;
+    s->prm_rstctrl        = 0x0;
+    s->prm_rsttimer       = 0x1006;
+    s->prm_rstst          = 0x1;
+    s->prm_voltctrl       = 0x0;
+    s->prm_sram_pcharge   = 0x50;
+    s->prm_clksrc_ctrl    = 0x43;
+    s->prm_obs            = 0x0;
+    s->prm_voltsetup1     = 0x0;
+    s->prm_voltoffset     = 0x0;
+    s->prm_clksetup       = 0x0;
+    s->prm_polctrl        = 0xa;
+    s->prm_voltsetup2     = 0x0;
 
-    s->rm_rstst_neon = 0x1;
-    s->pm_wkdep_neon = 0x2;
-    s->pm_pwstctrl_neon = 0x7;
-    s->pm_pwstst_neon = 0x3;
-    s->pm_prepwstst_neon = 0x0;
+    s->neon.rm_rstst     = 0x1;
+    s->neon.pm_wkdep     = 0x2;
+    s->neon.pm_pwstctrl  = 0x7;
+    s->neon.pm_pwstst    = 0x3;
+    s->neon.pm_prepwstst = 0x0;
 
-    s->rm_rstst_usbhost = 0x1;
-    s->pm_wken_usbhost = 0x1;
-    s->pm_mpugrpsel_usbhost = 0x1;
-    s->pm_iva2grpsel_usbhost = 0x1;
-    s->pm_wkst_usbhost = 0x0;
-    s->pm_wkdep_usbhost = 0x17;
-    s->pm_pwstctrl_usbhost = 0x30107;
-    s->pm_pwstst_usbhost = 0x3;
-    s->pm_prepwstst_usbhost = 0x0;
+    s->usbhost.rm_rstst     = 0x1;
+    s->usbhost.pm_wken      = 0x1;
+    s->usbhost.pm_mpugrpsel = 0x1;
+    s->usbhost.pm_ivagrpsel = 0x1;
+    s->usbhost.pm_wkst      = 0x0;
+    s->usbhost.pm_wkdep     = 0x17;
+    s->usbhost.pm_pwstctrl  = 0x30107;
+    s->usbhost.pm_pwstst    = 0x3;
+    s->usbhost.pm_prepwstst = 0x0;
 
     omap3_prm_int_update(s);
 }
@@ -872,88 +1501,59 @@ static void omap3_prm_reset(struct omap3_prm_s *s)
 static uint32_t omap3_prm_read(void *opaque, target_phys_addr_t addr)
 {
     struct omap3_prm_s *s = (struct omap3_prm_s *)opaque;
+    struct omap3_prm_domain_s *d = 0;
 
     TRACE("%04x", addr);
+    
+    /* handle common domain registers first - all domains may not
+       have all common registers though but we're returning zeroes there */
+    switch ((addr >> 8) & 0xff) {
+        case 0x00: d = &s->iva2; break;
+        case 0x09: d = &s->mpu; break;
+        case 0x0a: d = &s->core; break;
+        case 0x0b: d = &s->sgx; break;
+        case 0x0c: d = &s->wkup; break;
+        case 0x0e: d = &s->dss; break;
+        case 0x0f: d = &s->cam; break;
+        case 0x10: d = &s->per; break;
+        case 0x11: d = &s->emu; break;
+        case 0x13: d = &s->neon; break;
+        case 0x14: d = &s->usbhost; break;
+        default: break;
+    }
+    if (d)
+        switch (addr & 0xff) {
+            case 0x50: return d->rm_rstctrl;
+            case 0x58: return d->rm_rstst;
+            case 0xa0: return d->pm_wken;
+            case 0xa4: return d->pm_mpugrpsel;
+            case 0xa8: return d->pm_ivagrpsel;
+            case 0xb0: return d->pm_wkst;
+            case 0xc8: return d->pm_wkdep;
+            case 0xe0: return d->pm_pwstctrl;
+            case 0xe4: return d->pm_pwstst;
+            case 0xe8: return d->pm_prepwstst;
+            default: break;
+        }
+
+    /* okay, not a common domain register so let's take a closer look */
     switch (addr) {
-        /* IVA2_PRM */
-        case 0x0050: return s->rm_rstctrl_iva2;
-        case 0x0058: return s->rm_rstst_iva2;
-        case 0x00c8: return s->pm_wkdep_iva2;
-        case 0x00e0: return s->pm_pwstctrl_iva2;
-        case 0x00e4: return s->pm_pwstst_iva2;
-        case 0x00e8: return s->pm_prepwstst_iva2;
-        case 0x00f8: return s->prm_irqstatus_iva2;
-        case 0x00fc: return s->prm_irqenable_iva2;
-        /* OCP_System_Reg_PRM */
+        case 0x00f8: return s->iva2_prm_irqstatus;
+        case 0x00fc: return s->iva2_prm_irqenable;
         case 0x0804: return s->prm_revision;
         case 0x0814: return s->prm_sysconfig;
         case 0x0818: return s->prm_irqstatus_mpu;
         case 0x081c: return s->prm_irqenable_mpu;
-        /* MPU_PRM */
-        case 0x0958: return s->rm_rstst_mpu;
-        case 0x09c8: return s->pm_wkdep_mpu;
-        case 0x09d4: return s->pm_evgenctrl_mpu;
-        case 0x09d8: return s->pm_evgenontim_mpu;
-        case 0x09dc: return s->pm_evgenofftim_mpu;
-        case 0x09e0: return s->pm_pwstctrl_mpu;
-        case 0x09e4: return s->pm_pwstst_mpu;
-        case 0x09e8: return s->pm_perpwstst_mpu;
-        /* CORE_PRM */
-        case 0x0a58: return s->rm_rstst_core;
-        case 0x0aa0: return s->pm_wken1_core;
-        case 0x0aa4: return s->pm_mpugrpsel1_core;
-        case 0x0aa8: return s->pm_iva2grpsel1_core;
-        case 0x0ab0: return s->pm_wkst1_core;
-        case 0x0ab8: return s->pm_wkst3_core;
-        case 0x0ae0: return s->pm_pwstctrl_core;
-        case 0x0ae4: return s->pm_pwstst_core;
-        case 0x0ae8: return s->pm_prepwstst_core;
-        case 0x0af0: return s->pm_wken3_core;
-        case 0x0af4: return s->pm_iva2grpsel3_core;
-        case 0x0af8: return s->pm_mpugrpsel3_core;
-        /* SGX_PRM */
-        case 0x0b58: return s->rm_rstst_sgx;
-        case 0x0bc8: return s->pm_wkdep_sgx;
-        case 0x0be0: return s->pm_pwstctrl_sgx;
-        case 0x0be4: return s->pm_pwstst_sgx;
-        case 0x0be8: return s->pm_prepwstst_sgx;
-    	/* WKUP_PRM */
-        case 0x0ca0: return s->pm_wken_wkup;
-        case 0x0ca4: return s->pm_mpugrpsel_wkup;
-        case 0x0ca8: return s->pm_iva2grpsel_wkup;
-        case 0x0cb0: return s->pm_wkst_wkup;
-        //case 0x0ce4: return 0x3; /* power on */
-    	/* Clock_Control_Reg_PRM */
+        case 0x09d4: return s->mpu_pm_evgenctrl;
+        case 0x09d8: return s->mpu_pm_evgenontim;
+        case 0x09dc: return s->mpu_pm_evgenofftim;
+        case 0x0ab8: return s->core_pm_wkst3;
+        case 0x0af0: return s->core_pm_wken3;
+        case 0x0af4: return s->core_pm_iva2grpsel3;
+        case 0x0af8: return s->core_pm_mpugrpsel3;
         case 0x0d40: return s->prm_clksel;
         case 0x0d70: return s->prm_clkout_ctrl;
-        //case 0x0de4: return 0x3; /* power on */
-        /* DSS_PRM */
-        case 0x0e58: return s->rm_rstst_dss;
-        case 0x0ea0: return s->pm_wken_dss;
-        case 0x0ec8: return s->pm_wkdep_dss;
-        case 0x0ee0: return s->pm_pwstctrl_dss;
-        case 0x0ee4: return s->pm_pwstst_dss;
-        case 0x0ee8: return s->pm_prepwstst_dss;
-        /* CAM_PRM */
-        case 0x0f58: return s->rm_rstst_cam;
-        case 0x0fc8: return s->pm_wkdep_cam;
-        case 0x0fe0: return s->pm_pwstctrl_cam;
-        case 0x0fe4: return s->pm_pwstst_cam;
-        case 0x0fe8: return s->pm_prepwstst_cam;
-        /* PER_PRM */
-        case 0x1058: return s->rm_rstst_per;
-        case 0x10a0: return s->pm_wken_per;
-        case 0x10a4: return s->pm_mpugrpsel_per;
-        case 0x10a8: return s->pm_iva2grpsel_per;
-        case 0x10b0: return s->pm_wkst_per;
-        case 0x10c8: return s->pm_wkdep_per;
-        case 0x10e0: return s->pm_pwstctrl_per;
-        case 0x10e4: return s->pm_pwstst_per;
-        case 0x10e8: return s->pm_perpwstst_per;
-        /* EMU_PRM */
-        case 0x1158: return s->rm_rstst_emu;
-        case 0x11e4: return s->pm_pwstst_emu;
-        /* Global_Reg_PRM */
+        case 0x0de4: return 0x3; /* TODO: check on real hardware */
         case 0x1220: return s->prm_vc_smps_sa;
         case 0x1224: return s->prm_vc_smps_vol_ra;
         case 0x1228: return s->prm_vc_smps_cmd_ra;
@@ -974,35 +1574,20 @@ static uint32_t omap3_prm_read(void *opaque, target_phys_addr_t addr)
         case 0x1298: return s->prm_clksetup;
         case 0x129c: return s->prm_polctrl;
         case 0x12a0: return s->prm_voltsetup2;
-        /* NEON_PRM */
-        case 0x1358: return s->rm_rstst_neon;
-        case 0x13c8: return s->pm_wkdep_neon;
-        case 0x13e0: return s->pm_pwstctrl_neon;
-        case 0x13e4: return s->pm_pwstst_neon;
-        case 0x13e8: return s->pm_prepwstst_neon;
-        /* USBHOST_PRM */
-        case 0x1458: return s->rm_rstst_usbhost;
-        case 0x14a0: return s->pm_wken_usbhost;
-        case 0x14a4: return s->pm_mpugrpsel_usbhost;
-        case 0x14a8: return s->pm_iva2grpsel_usbhost;
-        case 0x14b0: return s->pm_wkst_usbhost;
-        case 0x14c8: return s->pm_wkdep_usbhost;
-        case 0x14e0: return s->pm_pwstctrl_usbhost;
-        case 0x14e4: return s->pm_pwstst_usbhost;
-        case 0x14e8: return s->pm_prepwstst_usbhost;
-        default:
-            OMAP_BAD_REG(addr);
-            return 0;
+        default: break;
     }
+
+    OMAP_BAD_REG(addr);
+    return 0;
 }
 
 static inline void omap3_prm_clksrc_ctrl_update(struct omap3_prm_s *s,
                                                 uint32_t value)
 {
     if ((value & 0xd0) == 0x40)
-        omap_clk_setrate(omap_findclk(s->mpu, "omap3_sys_clk"), 1, 1);
+        omap_clk_setrate(omap_findclk(s->omap, "omap3_sys_clk"), 1, 1);
     else if ((value & 0xd0) == 0x80)
-        omap_clk_setrate(omap_findclk(s->mpu, "omap3_sys_clk"), 2, 1);
+        omap_clk_setrate(omap_findclk(s->omap, "omap3_sys_clk"), 2, 1);
 }
 
 static void omap3_prm_write(void *opaque, target_phys_addr_t addr,
@@ -1013,18 +1598,18 @@ static void omap3_prm_write(void *opaque, target_phys_addr_t addr,
     TRACE("%04x = %08x", addr, value);
     switch (addr) {
         /* IVA2_PRM */
-        case 0x0050: s->rm_rstctrl_iva2 = value & 0x7; break;
-        case 0x0058: s->rm_rstst_iva2 &= ~(value & 0x3f0f); break;
-        case 0x00c8: s->pm_wkdep_iva2 = value & 0xb3; break;
-        case 0x00e0: s->pm_pwstctrl_iva2 = 0xcff000 | (value & 0x300f0f); break;
+        case 0x0050: s->iva2.rm_rstctrl = value & 0x7; break;
+        case 0x0058: s->iva2.rm_rstst &= ~(value & 0x3f0f); break;
+        case 0x00c8: s->iva2.pm_wkdep = value & 0xb3; break;
+        case 0x00e0: s->iva2.pm_pwstctrl = 0xcff000 | (value & 0x300f0f); break;
         case 0x00e4: OMAP_RO_REG(addr); break;
-        case 0x00e8: s->pm_prepwstst_iva2 = value & 0xff7;
+        case 0x00e8: s->iva2.pm_prepwstst = value & 0xff7;
         case 0x00f8:
-            s->prm_irqstatus_iva2 &= ~(value & 0x7);
+            s->iva2_prm_irqstatus &= ~(value & 0x7);
             omap3_prm_int_update(s);
             break;
         case 0x00fc:
-            s->prm_irqenable_iva2 = value & 0x7;
+            s->iva2_prm_irqenable = value & 0x7;
             omap3_prm_int_update(s);
             break;
         /* OCP_System_Reg_PRM */
@@ -1039,38 +1624,39 @@ static void omap3_prm_write(void *opaque, target_phys_addr_t addr,
             omap3_prm_int_update(s);
             break;
         /* MPU_PRM */
-        case 0x0958: s->rm_rstst_mpu &= ~(value & 0x080f); break;
-        case 0x09c8: s->pm_wkdep_mpu = value & 0xa5; break;
-        case 0x09d4: s->pm_evgenctrl_mpu = value & 0x1f; break;
-        case 0x09d8: s->pm_evgenontim_mpu = value; break;
-        case 0x09dc: s->pm_evgenofftim_mpu = value; break;
-        case 0x09e0: s->pm_pwstctrl_mpu = value & 0x3010f; break;
+        case 0x0958: s->mpu.rm_rstst &= ~(value & 0x080f); break;
+        case 0x09c8: s->mpu.pm_wkdep = value & 0xa5; break;
+        case 0x09d4: s->mpu_pm_evgenctrl = value & 0x1f; break;
+        case 0x09d8: s->mpu_pm_evgenontim = value; break;
+        case 0x09dc: s->mpu_pm_evgenofftim = value; break;
+        case 0x09e0: s->mpu.pm_pwstctrl = value & 0x3010f; break;
         case 0x09e4: OMAP_RO_REG(addr); break;
-        case 0x09e8: s->pm_perpwstst_mpu = value & 0xc7; break;
+        case 0x09e8: s->mpu.pm_prepwstst = value & 0xc7; break;
         /* CORE_PRM */
-        case 0x0a58: s->rm_rstst_core &= ~(value & 0x7); break;
-        case 0x0aa0: s->pm_wken1_core = 0x80000008 | (value & 0x433ffe10); break;
-        case 0x0aa4: s->pm_mpugrpsel1_core = 0x80000008 | (value & 0x433ffe10); break;
-        case 0x0aa8: s->pm_iva2grpsel1_core = 0x80000008 | (value & 0x433ffe10); break;
-        case 0x0ab0: s->pm_wkst1_core = value & 0x433ffe10; break;
-        case 0x0ab8: s->pm_wkst3_core &= ~(value & 0x4); break;
-        case 0x0ae0: s->pm_pwstctrl_core = (value & 0x0f031f); break;
+        case 0x0a50: s->core.rm_rstctrl = value & 0x3; break; /* TODO: check if available on real hw */
+        case 0x0a58: s->core.rm_rstst &= ~(value & 0x7); break;
+        case 0x0aa0: s->core.pm_wken = 0x80000008 | (value & 0x433ffe10); break;
+        case 0x0aa4: s->core.pm_mpugrpsel = 0x80000008 | (value & 0x433ffe10); break;
+        case 0x0aa8: s->core.pm_ivagrpsel = 0x80000008 | (value & 0x433ffe10); break;
+        case 0x0ab0: s->core.pm_wkst = value & 0x433ffe10; break;
+        case 0x0ab8: s->core_pm_wkst3 &= ~(value & 0x4); break;
+        case 0x0ae0: s->core.pm_pwstctrl = (value & 0x0f031f); break;
         case 0x0ae4: OMAP_RO_REG(addr); break;
-        case 0x0ae8: s->pm_prepwstst_core = value & 0xf7; break;
-        case 0x0af0: s->pm_wken3_core = value & 0x4; break;
-        case 0x0af4: s->pm_iva2grpsel3_core = value & 0x4; break;
-        case 0x0af8: s->pm_mpugrpsel3_core = value & 0x4; break;
+        case 0x0ae8: s->core.pm_prepwstst = value & 0xf7; break;
+        case 0x0af0: s->core_pm_wken3 = value & 0x4; break;
+        case 0x0af4: s->core_pm_iva2grpsel3 = value & 0x4; break;
+        case 0x0af8: s->core_pm_mpugrpsel3 = value & 0x4; break;
         /* SGX_PRM */
-        case 0x0b58: s->rm_rstst_sgx &= ~(value & 0xf); break;
-        case 0x0bc8: s->pm_wkdep_sgx = value & 0x16; break;
-        case 0x0be0: s->pm_pwstctrl_sgx = 0x030104 | (value & 0x3); break;
+        case 0x0b58: s->sgx.rm_rstst &= ~(value & 0xf); break;
+        case 0x0bc8: s->sgx.pm_wkdep = value & 0x16; break;
+        case 0x0be0: s->sgx.pm_pwstctrl = 0x030104 | (value & 0x3); break;
         case 0x0be4: OMAP_RO_REG(addr); break;
-        case 0x0be8: s->pm_prepwstst_sgx = value & 0x3; break;
+        case 0x0be8: s->sgx.pm_prepwstst = value & 0x3; break;
         /* WKUP_PRM */
-        case 0x0ca0: s->pm_wken_wkup = 0x2 | (value & 0x0103c9); break;
-        case 0x0ca4: s->pm_mpugrpsel_wkup = 0x0102 | (value & 0x02c9); break;
-        case 0x0ca8: s->pm_iva2grpsel_wkup = value & 0x03cb; break;
-        case 0x0cb0: s->pm_wkst_wkup &= ~(value & 0x0103cb); break;
+        case 0x0ca0: s->wkup.pm_wken = 0x2 | (value & 0x0103c9); break;
+        case 0x0ca4: s->wkup.pm_mpugrpsel = 0x0102 | (value & 0x02c9); break;
+        case 0x0ca8: s->wkup.pm_ivagrpsel = value & 0x03cb; break;
+        case 0x0cb0: s->wkup.pm_wkst &= ~(value & 0x0103cb); break;
         /* Clock_Control_Reg_PRM */
         case 0x0d40: 
             s->prm_clksel = value & 0x7;
@@ -1085,30 +1671,30 @@ static void omap3_prm_write(void *opaque, target_phys_addr_t addr,
             /* TODO: update clocks */
             break;
         /* DSS_PRM */
-        case 0x0e58: s->rm_rstst_dss &= ~(value & 0xf); break;
-        case 0x0ea0: s->pm_wken_dss = value & 1; break;
-        case 0x0ec8: s->pm_wkdep_dss = value & 0x16; break;
-        case 0x0ee0: s->pm_pwstctrl_dss = 0x030104 | (value & 3); break;
+        case 0x0e58: s->dss.rm_rstst &= ~(value & 0xf); break;
+        case 0x0ea0: s->dss.pm_wken = value & 1; break;
+        case 0x0ec8: s->dss.pm_wkdep = value & 0x16; break;
+        case 0x0ee0: s->dss.pm_pwstctrl = 0x030104 | (value & 3); break;
         case 0x0ee4: OMAP_RO_REG(addr); break;
-        case 0x0ee8: s->pm_prepwstst_dss = value & 3; break;
+        case 0x0ee8: s->dss.pm_prepwstst = value & 3; break;
         /* CAM_PRM */
-        case 0x0f58: s->rm_rstst_cam &= (value & 0xf); break;
-        case 0x0fc8: s->pm_wkdep_cam = value & 0x16; break;
-        case 0x0fe0: s->pm_pwstctrl_cam = 0x030104 | (value & 3); break;
+        case 0x0f58: s->cam.rm_rstst &= (value & 0xf); break;
+        case 0x0fc8: s->cam.pm_wkdep = value & 0x16; break;
+        case 0x0fe0: s->cam.pm_pwstctrl = 0x030104 | (value & 3); break;
         case 0x0fe4: OMAP_RO_REG(addr); break;
-        case 0x0fe8: s->pm_prepwstst_cam = value & 0x3; break;
+        case 0x0fe8: s->cam.pm_prepwstst = value & 0x3; break;
         /* PER_PRM */
-        case 0x1058: s->rm_rstst_per &= ~(value & 0xf); break;
-        case 0x10a0: s->pm_wken_per = value & 0x03efff; break;
-        case 0x10a4: s->pm_mpugrpsel_per = value & 0x03efff; break;
-        case 0x10a8: s->pm_iva2grpsel_per = value & 0x03efff; break;
-        case 0x10b0: s->pm_wkst_per &= ~(value & 0x03efff); break;
-        case 0x10c8: s->pm_wkdep_per = value & 0x17; break;
-        case 0x10e0: s->pm_pwstctrl_per = 0x030100 | (value & 7); break;
+        case 0x1058: s->per.rm_rstst &= ~(value & 0xf); break;
+        case 0x10a0: s->per.pm_wken = value & 0x03efff; break;
+        case 0x10a4: s->per.pm_mpugrpsel = value & 0x03efff; break;
+        case 0x10a8: s->per.pm_ivagrpsel = value & 0x03efff; break;
+        case 0x10b0: s->per.pm_wkst &= ~(value & 0x03efff); break;
+        case 0x10c8: s->per.pm_wkdep = value & 0x17; break;
+        case 0x10e0: s->per.pm_pwstctrl = 0x030100 | (value & 7); break;
         case 0x10e4: OMAP_RO_REG(addr); break;
-        case 0x10e8: s->pm_perpwstst_per = value & 0x7; break;
+        case 0x10e8: s->per.pm_prepwstst = value & 0x7; break;
         /* EMU_PRM */
-        case 0x1158: s->rm_rstst_emu &= ~(value & 7); break;
+        case 0x1158: s->emu.rm_rstst &= ~(value & 7); break;
         case 0x11e4: OMAP_RO_REG(addr); break;
         /* Global_Reg_PRM */
         case 0x1220: s->prm_vc_smps_sa = value & 0x7f007f; break;
@@ -1136,21 +1722,21 @@ static void omap3_prm_write(void *opaque, target_phys_addr_t addr,
         case 0x129c: s->prm_polctrl = value & 0xf; break;
         case 0x12a0: s->prm_voltsetup2 = value & 0xffff; break;
         /* NEON_PRM */
-        case 0x1358: s->rm_rstst_neon &= ~(value & 0xf); break;
-        case 0x13c8: s->pm_wkdep_neon = value & 0x2; break;
-        case 0x13e0: s->pm_pwstctrl_neon = 0x4 | (value & 3); break;
+        case 0x1358: s->neon.rm_rstst &= ~(value & 0xf); break;
+        case 0x13c8: s->neon.pm_wkdep = value & 0x2; break;
+        case 0x13e0: s->neon.pm_pwstctrl = 0x4 | (value & 3); break;
         case 0x13e4: OMAP_RO_REG(addr); break;
-        case 0x13e8: s->pm_prepwstst_neon = value & 3; break;
+        case 0x13e8: s->neon.pm_prepwstst = value & 3; break;
         /* USBHOST_PRM */
-        case 0x1458: s->rm_rstst_usbhost &= ~(value & 0xf); break;
-        case 0x14a0: s->pm_wken_usbhost = value & 1; break;
-        case 0x14a4: s->pm_mpugrpsel_usbhost = value & 1; break;
-        case 0x14a8: s->pm_iva2grpsel_usbhost = value & 1; break;
-        case 0x14b0: s->pm_wkst_usbhost &= ~(value & 1); break;
-        case 0x14c8: s->pm_wkdep_usbhost = value & 0x17; break;
-        case 0x14e0: s->pm_pwstctrl_usbhost = 0x030104 | (value & 0x13); break;
+        case 0x1458: s->usbhost.rm_rstst &= ~(value & 0xf); break;
+        case 0x14a0: s->usbhost.pm_wken = value & 1; break;
+        case 0x14a4: s->usbhost.pm_mpugrpsel = value & 1; break;
+        case 0x14a8: s->usbhost.pm_ivagrpsel = value & 1; break;
+        case 0x14b0: s->usbhost.pm_wkst &= ~(value & 1); break;
+        case 0x14c8: s->usbhost.pm_wkdep = value & 0x17; break;
+        case 0x14e0: s->usbhost.pm_pwstctrl = 0x030104 | (value & 0x13); break;
         case 0x14e4: OMAP_RO_REG(addr); break;
-        case 0x14e8: s->pm_prepwstst_usbhost = value & 3; break;
+        case 0x14e8: s->usbhost.pm_prepwstst = value & 3; break;
         default:
             OMAP_BAD_REGV(addr, value);
             break;
@@ -1178,7 +1764,7 @@ struct omap3_prm_s *omap3_prm_init(struct omap_target_agent_s *ta,
 
     s->mpu_irq = mpu_int;
     s->iva_irq = iva_int;
-    s->mpu = mpu;
+    s->omap = mpu;
     omap3_prm_reset(s);
 
     iomemtype = l4_register_io_memory(0, omap3_prm_readfn,
@@ -1409,6 +1995,7 @@ static inline void omap3_cm_mpu_update(struct omap3_cm_s *s)
     }
 
 }
+
 static inline void omap3_cm_iva2_update(struct omap3_cm_s *s)
 {
     uint32_t m, n, divide, m2, cm_clken_pll_iva2;
@@ -1506,7 +2093,6 @@ static inline void omap3_cm_dpll3_update(struct omap3_cm_s *s)
 
 
 }
-
 
 static inline void omap3_cm_dpll4_update(struct omap3_cm_s *s)
 {
@@ -1612,9 +2198,8 @@ static inline void omap3_cm_dpll5_update(struct omap3_cm_s *s)
         TRACE("omap3_120m_fclk %lld",
               omap_clk_getrate(omap_findclk(s->mpu, "omap3_120m_fclk")));
     }
-
-
 }
+
 static inline void omap3_cm_48m_update(struct omap3_cm_s *s)
 {
     if (s->cm_clksel1_pll & 0x8)
@@ -2599,12 +3184,7 @@ struct omap3_wdt_s
 
     uint16_t writeh;            /* LSB */
     uint16_t readh;             /* MSB */
-
 };
-
-
-
-
 
 static inline void omap3_wdt_timer_update(struct omap3_wdt_s *wdt_timer)
 {
@@ -2618,6 +3198,7 @@ static inline void omap3_wdt_timer_update(struct omap3_wdt_s *wdt_timer)
     else
         qemu_del_timer(wdt_timer->timer);
 }
+
 static void omap3_wdt_clk_setup(struct omap3_wdt_s *timer)
 {
     /*TODO: Add irq as user to clk */
@@ -2727,6 +3308,7 @@ static uint32_t omap3_wdt_read32(void *opaque, target_phys_addr_t addr,
         exit(-1);
     }
 }
+
 static uint32_t omap3_mpu_wdt_read16(void *opaque, target_phys_addr_t addr)
 {
     struct omap3_wdt_s *s = (struct omap3_wdt_s *) opaque;
@@ -2741,6 +3323,7 @@ static uint32_t omap3_mpu_wdt_read16(void *opaque, target_phys_addr_t addr)
         return ret & 0xffff;
     }
 }
+
 static uint32_t omap3_mpu_wdt_read32(void *opaque, target_phys_addr_t addr)
 {
     return omap3_wdt_read32(opaque, addr, OMAP3_MPU_WDT);
@@ -2824,12 +3407,12 @@ static void omap3_mpu_wdt_write16(void *opaque, target_phys_addr_t addr,
     else
         s->writeh = (uint16_t) value;
 }
+
 static void omap3_mpu_wdt_write32(void *opaque, target_phys_addr_t addr,
                                   uint32_t value)
 {
     omap3_wdt_write32(opaque, addr, value, OMAP3_MPU_WDT);
 }
-
 
 static CPUReadMemoryFunc *omap3_mpu_wdt_readfn[] = {
     omap_badwidth_read32,
@@ -2842,8 +3425,6 @@ static CPUWriteMemoryFunc *omap3_mpu_wdt_writefn[] = {
     omap3_mpu_wdt_write16,
     omap3_mpu_wdt_write32,
 };
-
-
 
 static void omap3_mpu_wdt_timer_tick(void *opaque)
 {
@@ -2886,7 +3467,6 @@ static struct omap3_wdt_s *omap3_mpu_wdt_init(struct omap_target_agent_s *ta,
     return s;
 
 }
-
 
 /*dummy system control module*/
 struct omap3_scm_s
@@ -3133,15 +3713,6 @@ static uint32_t omap3_scm_read8(void *opaque, target_phys_addr_t addr)
     case 0xa60 ... 0xa7f:
         temp = (uint8_t *)s->general_wkup;
         return temp[addr-0xa60];
-    /* case 0x2f0:
-        return s->control_status & 0xff;
-    case 0x2f1:
-        return (s->control_status & 0xff00) >> 8;
-    case 0x2f2:
-        return (s->control_status & 0xff0000) >> 16;
-    case 0x2f3:
-        return (s->control_status & 0xff000000) >> 24;    */
-	
     default:
         break;
     }
@@ -3249,374 +3820,6 @@ static struct omap3_scm_s *omap3_scm_init(struct omap_target_agent_s *ta,
     return s;
 }
 
-
-/*dummy port protection*/
-struct omap3_pm_s
-{
-    struct omap_mpu_state_s *mpu;
-
-    uint32_t l3_pm_rt_error_log;        /*0x6801 0020 */
-    uint32_t l3_pm_rt_control;  /*0x6801 0028 */
-    uint32_t l3_pm_rt_error_clear_single;       /*0x6801 0030 */
-    uint32_t l3_pm_rt_error_clear_multi;        /*0x6801 0038 */
-    uint32_t l3_pm_rt_req_info_permission[2];   /*0x6801 0048 + (0x20*i) */
-    uint32_t l3_pm_rt_read_permission[2];       /*0x6801 0050 + (0x20*i) */
-    uint32_t l3_pm_rt_write_permission[2];      /*0x6801 0058 + (0x20*i) */
-    uint32_t l3_pm_rt_addr_match[1];    /*0x6801 0060 + (0x20*k) */
-
-    uint32_t l3_pm_gpmc_error_log;      /*0x6801 2420 */
-    uint32_t l3_pm_gpmc_control;        /*0x6801 2428 */
-    uint32_t l3_pm_gpmc_error_clear_single;     /*0x6801 2430 */
-    uint32_t l3_pm_gpmc_error_clear_multi;      /*0x6801 2438 */
-    uint32_t l3_pm_gpmc_req_info_permission[8]; /*0x6801 2448 + (0x20*i) */
-    uint32_t l3_pm_gpmc_read_permission[8];     /*0x6801 2450 + (0x20*i) */
-    uint32_t l3_pm_gpmc_write_permission[8];    /*0x6801 2458 + (0x20*i) */
-    uint32_t l3_pm_gpmc_addr_match[7];  /*0x6801 2460 + (0x20*k) */
-
-    uint32_t l3_pm_ocmram_error_log;    /*0x6801 2820 */
-    uint32_t l3_pm_ocmram_control;      /*0x6801 2828 */
-    uint32_t l3_pm_ocmram_error_clear_single;   /*0x6801 2830 */
-    uint32_t l3_pm_ocmram_error_clear_multi;    /*0x6801 2838 */
-    uint32_t l3_pm_ocmram_req_info_permission[8];       /*0x6801 2848 + (0x20*i) */
-    uint32_t l3_pm_ocmram_read_permission[8];   /*0x6801 2850 + (0x20*i) */
-    uint32_t l3_pm_ocmram_write_permission[8];  /*0x6801 2858 + (0x20*i) */
-    uint32_t l3_pm_ocmram_addr_match[7];        /*0x6801 2860 + (0x20*k) */
-
-    uint32_t l3_pm_ocmrom_error_log;    /*0x6801 2c20 */
-    uint32_t l3_pm_ocmrom_control;      /*0x6801 2c28 */
-    uint32_t l3_pm_ocmrom_error_clear_single;   /*0x6801 2c30 */
-    uint32_t l3_pm_ocmrom_error_clear_multi;    /*0x6801 2c38 */
-    uint32_t l3_pm_ocmrom_req_info_permission[2];       /*0x6801 2c48 + (0x20*i) */
-    uint32_t l3_pm_ocmrom_read_permission[2];   /*0x6801 2c50 + (0x20*i) */
-    uint32_t l3_pm_ocmrom_write_permission[2];  /*0x6801 2c58 + (0x20*i) */
-    uint32_t l3_pm_ocmrom_addr_match[1];        /*0x6801 2c60 + (0x20*k) */
-
-    uint32_t l3_pm_mad2d_error_log;     /*0x6801 3020 */
-    uint32_t l3_pm_mad2d_control;       /*0x6801 3028 */
-    uint32_t l3_pm_mad2d_error_clear_single;    /*0x6801 3030 */
-    uint32_t l3_pm_mad2d_error_clear_multi;     /*0x6801 3038 */
-    uint32_t l3_pm_mad2d_req_info_permission[8];        /*0x6801 3048 + (0x20*i) */
-    uint32_t l3_pm_mad2d_read_permission[8];    /*0x6801 3050 + (0x20*i) */
-    uint32_t l3_pm_mad2d_write_permission[8];   /*0x6801 3058 + (0x20*i) */
-    uint32_t l3_pm_mad2d_addr_match[7]; /*0x6801 3060 + (0x20*k) */
-
-    uint32_t l3_pm_iva_error_log;       /*0x6801 4020 */
-    uint32_t l3_pm_iva_control; /*0x6801 4028 */
-    uint32_t l3_pm_iva_error_clear_single;      /*0x6801 4030 */
-    uint32_t l3_pm_iva_error_clear_multi;       /*0x6801 4038 */
-    uint32_t l3_pm_iva_req_info_permission[4];  /*0x6801 4048 + (0x20*i) */
-    uint32_t l3_pm_iva_read_permission[4];      /*0x6801 4050 + (0x20*i) */
-    uint32_t l3_pm_iva_write_permission[4];     /*0x6801 4058 + (0x20*i) */
-    uint32_t l3_pm_iva_addr_match[3];   /*0x6801 4060 + (0x20*k) */
-};
-
-static void omap3_pm_reset(struct omap3_pm_s *s)
-{
-    int i;
-
-    s->l3_pm_rt_control = 0x3000000;
-    s->l3_pm_gpmc_control = 0x3000000;
-    s->l3_pm_ocmram_control = 0x3000000;
-    s->l3_pm_ocmrom_control = 0x3000000;
-    s->l3_pm_mad2d_control = 0x3000000;
-    s->l3_pm_iva_control = 0x3000000;
-
-    s->l3_pm_rt_req_info_permission[0] = 0xffff;
-    s->l3_pm_rt_req_info_permission[1] = 0x0;
-    for (i = 3; i < 8; i++)
-        s->l3_pm_gpmc_req_info_permission[i] = 0xffff;
-    for (i = 1; i < 8; i++)
-        s->l3_pm_ocmram_req_info_permission[i] = 0xffff;
-    s->l3_pm_ocmrom_req_info_permission[1] = 0xffff;
-    for (i = 1; i < 8; i++)
-        s->l3_pm_mad2d_req_info_permission[i] = 0xffff;
-    for (i = 1; i < 4; i++)
-        s->l3_pm_iva_req_info_permission[i] = 0xffff;
-
-    s->l3_pm_rt_read_permission[0] = 0x1406;
-    s->l3_pm_rt_read_permission[1] = 0x1406;
-    s->l3_pm_rt_write_permission[0] = 0x1406;
-    s->l3_pm_rt_write_permission[1] = 0x1406;
-    for (i = 0; i < 8; i++)
-    {
-        s->l3_pm_gpmc_read_permission[i] = 0x563e;
-        s->l3_pm_gpmc_write_permission[i] = 0x563e;
-    }
-    for (i = 0; i < 8; i++)
-    {
-        s->l3_pm_ocmram_read_permission[i] = 0x5f3e;
-        s->l3_pm_ocmram_write_permission[i] = 0x5f3e;
-    }
-    for (i = 0; i < 2; i++)
-    {
-        s->l3_pm_ocmrom_read_permission[i] = 0x1002;
-        s->l3_pm_ocmrom_write_permission[i] = 0x1002;
-    }
-
-    for (i = 0; i < 8; i++)
-    {
-        s->l3_pm_mad2d_read_permission[i] = 0x5f1e;
-        s->l3_pm_mad2d_write_permission[i] = 0x5f1e;
-    }
-
-    for (i = 0; i < 4; i++)
-    {
-        s->l3_pm_iva_read_permission[i] = 0x140e;
-        s->l3_pm_iva_write_permission[i] = 0x140e;
-    }
-
-
-    s->l3_pm_rt_addr_match[0] = 0x10230;
-
-    s->l3_pm_gpmc_addr_match[0] = 0x10230;
-}
-
-static uint32_t omap3_pm_read8(void *opaque, target_phys_addr_t addr)
-{
-    //struct omap3_pm_s *s = (struct omap3_pm_s *) opaque;
-
-    switch (addr)
-    {
-    default:
-        printf("omap3_pm_read8 addr %x \n", addr);
-        exit(-1);
-    }
-}
-
-static uint32_t omap3_pm_read16(void *opaque, target_phys_addr_t addr)
-{
-    uint32_t v;
-    v = omap3_pm_read8(opaque, addr);
-    v |= omap3_pm_read8(opaque, addr + 1) << 8;
-    return v;
-}
-
-static uint32_t omap3_pm_read32(void *opaque, target_phys_addr_t addr)
-{
-    uint32_t v;
-    v = omap3_pm_read8(opaque, addr);
-    v |= omap3_pm_read8(opaque, addr + 1) << 8;
-    v |= omap3_pm_read8(opaque, addr + 2) << 16;
-    v |= omap3_pm_read8(opaque, addr + 3) << 24;
-    return v;
-}
-
-static void omap3_pm_write8(void *opaque, target_phys_addr_t addr,
-                            uint32_t value)
-{
-    struct omap3_pm_s *s = (struct omap3_pm_s *) opaque;
-    int i;
-
-    switch (addr)
-    {
-    case 0x48 ... 0x4b:
-    case 0x68 ... 0x6b:
-        i = (addr - 0x48) / 0x20;
-        s->l3_pm_rt_req_info_permission[i] &=
-            (~(0xff << ((addr - 0x48 - i * 0x20) * 8)));
-        s->l3_pm_rt_req_info_permission[i] |=
-            (value << (addr - 0x48 - i * 0x20) * 8);
-        break;
-    case 0x50 ... 0x53:
-    case 0x70 ... 0x73:
-        i = (addr - 0x50) / 0x20;
-        s->l3_pm_rt_read_permission[i] &=
-            (~(0xff << ((addr - 0x50 - i * 0x20) * 8)));
-        s->l3_pm_rt_read_permission[i] |=
-            (value << (addr - 0x50 - i * 0x20) * 8);
-        break;
-    case 0x58 ... 0x5b:
-    case 0x78 ... 0x7b:
-        i = (addr - 0x58) / 0x20;
-        s->l3_pm_rt_write_permission[i] &=
-            (~(0xff << ((addr - 0x58 - i * 0x20) * 8)));
-        s->l3_pm_rt_write_permission[i] |=
-            (value << (addr - 0x58 - i * 0x20) * 8);
-        break;
-    case 0x60 ... 0x63:
-        s->l3_pm_rt_addr_match[0] &= (~(0xff << ((addr - 0x60) * 8)));
-        s->l3_pm_rt_addr_match[0] |= (value << (addr - 0x60) * 8);
-        break;
-    case 0x2448 ... 0x244b:
-    case 0x2468 ... 0x246b:
-    case 0x2488 ... 0x248b:
-    case 0x24a8 ... 0x24ab:
-    case 0x24c8 ... 0x24cb:
-    case 0x24e8 ... 0x24eb:
-    case 0x2508 ... 0x250b:
-    case 0x2528 ... 0x252b:
-        i = (addr - 0x2448) / 0x20;
-        s->l3_pm_gpmc_req_info_permission[i] &=
-            (~(0xff << ((addr - 0x2448 - i * 0x20) * 8)));
-        s->l3_pm_gpmc_req_info_permission[i] |=
-            (value << (addr - 0x2448 - i * 0x20) * 8);
-        break;
-    case 0x2450 ... 0x2453:
-    case 0x2470 ... 0x2473:
-    case 0x2490 ... 0x2493:
-    case 0x24b0 ... 0x24b3:
-    case 0x24d0 ... 0x24d3:
-    case 0x24f0 ... 0x24f3:
-    case 0x2510 ... 0x2513:
-    case 0x2530 ... 0x2533:
-        i = (addr - 0x2450) / 0x20;
-        s->l3_pm_gpmc_read_permission[i] &=
-            (~(0xff << ((addr - 0x2450 - i * 0x20) * 8)));
-        s->l3_pm_gpmc_read_permission[i] |=
-            (value << (addr - 0x2450 - i * 0x20) * 8);
-        break;
-    case 0x2458 ... 0x245b:
-    case 0x2478 ... 0x247b:
-    case 0x2498 ... 0x249b:
-    case 0x24b8 ... 0x24bb:
-    case 0x24d8 ... 0x24db:
-    case 0x24f8 ... 0x24fb:
-    case 0x2518 ... 0x251b:
-    case 0x2538 ... 0x253b:
-        i = (addr - 0x2458) / 0x20;
-        s->l3_pm_gpmc_write_permission[i] &=
-            (~(0xff << ((addr - 0x2458 - i * 0x20) * 8)));
-        s->l3_pm_gpmc_write_permission[i] |=
-            (value << (addr - 0x2458 - i * 0x20) * 8);
-        break;
-    case 0x2848 ... 0x284b:
-    case 0x2868 ... 0x286b:
-    case 0x2888 ... 0x288b:
-    case 0x28a8 ... 0x28ab:
-    case 0x28c8 ... 0x28cb:
-    case 0x28e8 ... 0x28eb:
-    case 0x2908 ... 0x290b:
-    case 0x2928 ... 0x292b:
-        i = (addr - 0x2848) / 0x20;
-        s->l3_pm_ocmram_req_info_permission[i] &=
-            (~(0xff << ((addr - 0x2848 - i * 0x20) * 8)));
-        s->l3_pm_ocmram_req_info_permission[i] |=
-            (value << (addr - 0x2848 - i * 0x20) * 8);
-        break;
-    case 0x2850 ... 0x2853:
-    case 0x2870 ... 0x2873:
-    case 0x2890 ... 0x2893:
-    case 0x28b0 ... 0x28b3:
-    case 0x28d0 ... 0x28d3:
-    case 0x28f0 ... 0x28f3:
-    case 0x2910 ... 0x2913:
-    case 0x2930 ... 0x2933:
-        i = (addr - 0x2850) / 0x20;
-        s->l3_pm_ocmram_read_permission[i] &=
-            (~(0xff << ((addr - 0x2850 - i * 0x20) * 8)));
-        s->l3_pm_ocmram_read_permission[i] |=
-            (value << (addr - 0x2850 - i * 0x20) * 8);
-        break;
-    case 0x2858 ... 0x285b:
-    case 0x2878 ... 0x287b:
-    case 0x2898 ... 0x289b:
-    case 0x28b8 ... 0x28bb:
-    case 0x28d8 ... 0x28db:
-    case 0x28f8 ... 0x28fb:
-    case 0x2918 ... 0x291b:
-    case 0x2938 ... 0x293b:
-        i = (addr - 0x2858) / 0x20;
-        s->l3_pm_ocmram_write_permission[i] &=
-            (~(0xff << ((addr - 0x2858 - i * 0x20) * 8)));
-        s->l3_pm_ocmram_write_permission[i] |=
-            (value << (addr - 0x2858 - i * 0x20) * 8);
-        break;
-
-    case 0x2860 ... 0x2863:
-    case 0x2880 ... 0x2883:
-    case 0x28a0 ... 0x28a3:
-    case 0x28c0 ... 0x28c3:
-    case 0x28e0 ... 0x28e3:
-    case 0x2900 ... 0x2903:
-    case 0x2920 ... 0x2923:
-        i = (addr - 0x2860) / 0x20;
-        s->l3_pm_ocmram_addr_match[i] &=
-            (~(0xff << ((addr - 0x2860 - i * 0x20) * 8)));
-        s->l3_pm_ocmram_addr_match[i] |=
-            (value << (addr - 0x2860 - i * 0x20) * 8);
-        break;
-
-    case 0x4048 ... 0x404b:
-    case 0x4068 ... 0x406b:
-    case 0x4088 ... 0x408b:
-    case 0x40a8 ... 0x40ab:
-        i = (addr - 0x4048) / 0x20;
-        s->l3_pm_iva_req_info_permission[i] &=
-            (~(0xff << ((addr - 0x4048 - i * 0x20) * 8)));
-        s->l3_pm_iva_req_info_permission[i] |=
-            (value << (addr - 0x4048 - i * 0x20) * 8);
-        break;
-    case 0x4050 ... 0x4053:
-    case 0x4070 ... 0x4073:
-    case 0x4090 ... 0x4093:
-    case 0x40b0 ... 0x40b3:
-        i = (addr - 0x4050) / 0x20;
-        s->l3_pm_iva_read_permission[i] &=
-            (~(0xff << ((addr - 0x4050 - i * 0x20) * 8)));
-        s->l3_pm_iva_read_permission[i] |=
-            (value << (addr - 0x4050 - i * 0x20) * 8);
-        break;
-    case 0x4058 ... 0x405b:
-    case 0x4078 ... 0x407b:
-    case 0x4098 ... 0x409b:
-    case 0x40b8 ... 0x40bb:
-        i = (addr - 0x4058) / 0x20;
-        s->l3_pm_iva_write_permission[i] &=
-            (~(0xff << ((addr - 0x4058 - i * 0x20) * 8)));
-        s->l3_pm_iva_write_permission[i] |=
-            (value << (addr - 0x4058 - i * 0x20) * 8);
-        break;
-    default:
-        printf("omap3_pm_write8 addr %x \n", addr);
-        exit(-1);
-    }
-}
-
-static void omap3_pm_write16(void *opaque, target_phys_addr_t addr,
-                             uint32_t value)
-{
-    omap3_pm_write8(opaque, addr + 0, (value) & 0xff);
-    omap3_pm_write8(opaque, addr + 1, (value >> 8) & 0xff);
-}
-
-static void omap3_pm_write32(void *opaque, target_phys_addr_t addr,
-                             uint32_t value)
-{
-    omap3_pm_write8(opaque, addr + 0, (value) & 0xff);
-    omap3_pm_write8(opaque, addr + 1, (value >> 8) & 0xff);
-    omap3_pm_write8(opaque, addr + 2, (value >> 16) & 0xff);
-    omap3_pm_write8(opaque, addr + 3, (value >> 24) & 0xff);
-}
-
-static CPUReadMemoryFunc *omap3_pm_readfn[] = {
-    omap3_pm_read8,
-    omap3_pm_read16,
-    omap3_pm_read32,
-};
-
-static CPUWriteMemoryFunc *omap3_pm_writefn[] = {
-    omap3_pm_write8,
-    omap3_pm_write16,
-    omap3_pm_write32,
-};
-
-static struct omap3_pm_s *omap3_pm_init(struct omap_mpu_state_s *mpu)
-{
-    int iomemtype;
-    struct omap3_pm_s *s = (struct omap3_pm_s *) qemu_mallocz(sizeof(*s));
-
-    s->mpu = mpu;
-    //s->base = 0x68010000;
-    //s->size = 0x4400;
-
-    omap3_pm_reset(s);
-
-    iomemtype = cpu_register_io_memory(0, omap3_pm_readfn, omap3_pm_writefn, s);
-    cpu_register_physical_memory(0x68010000, 0x4400, iomemtype);
-
-    return s;
-}
-
 /*dummy SDRAM Memory Scheduler emulation*/
 struct omap3_sms_s
 {
@@ -3641,8 +3844,6 @@ struct omap3_sms_s
     uint32 sms_rot_control[12];
     uint32 sms_rot_size[12];
     uint32 sms_rot_physical_ba[12];
-
-
 };
 
 static uint32_t omap3_sms_read32(void *opaque, target_phys_addr_t addr)
@@ -3965,8 +4166,8 @@ static int omap3_validate_addr(struct omap_mpu_state_s *s,
 */
 void omap3_set_mem_type(struct omap_mpu_state_s *s,int bootfrom)
 {
-	switch (bootfrom)
-	{
+    s->omap3_scm->general[32] &= ~0x3f;
+	switch (bootfrom) {
 		case 0x0: /*GPMC_NOR*/
 			s->omap3_scm->general[32] |= 7;
 			break;
@@ -3990,6 +4191,7 @@ void omap3_set_mem_type(struct omap_mpu_state_s *s,int bootfrom)
 
 void omap3_set_device_type(struct omap_mpu_state_s *s,int device_type)
 {
+    s->omap3_scm->general[32] &= ~(0x7 << 8);
 	s->omap3_scm->general[32] |= (device_type & 0x7) << 8;
 }
 
@@ -4005,11 +4207,9 @@ struct omap_mpu_state_s *omap3530_mpu_init(unsigned long sdram_size,
     int sdindex;
     //omap_clk gpio_clks[4];
 
-
     s->mpu_model = omap3530;
     s->env = cpu_init("cortex-a8-r2");
-    if (!s->env)
-    {
+    if (!s->env) {
         fprintf(stderr, "Unable to find CPU definition\n");
         exit(1);
     }
@@ -4036,7 +4236,7 @@ struct omap_mpu_state_s *omap3530_mpu_init(unsigned long sdram_size,
 
     s->l4 = omap_l4_init(OMAP3_L4_BASE, 
                          sizeof(omap3_l4_agent_info) 
-                         / sizeof(struct omap_l4_agent_info_s));
+                         / sizeof(struct omap3_l4_agent_info_s));
 
     cpu_irq = arm_pic_init_cpu(s->env);
     s->ih[0] = omap2_inth_init(s, 0x48200000, 0x1000, 3, &s->irq[0],
@@ -4059,74 +4259,77 @@ struct omap_mpu_state_s *omap3530_mpu_init(unsigned long sdram_size,
     soc_dma_port_add_mem_ram(s->dma, sram_base, OMAP2_SRAM_BASE, s->sram_size);
 
 
-    s->omap3_cm = omap3_cm_init(omap3_l4ta_get(s->l4, L4A_CM), NULL, NULL, NULL, s);
+    s->omap3_cm = omap3_cm_init(omap3_l4ta_init(s->l4, L4A_CM), NULL, NULL, NULL, s);
 
-    s->omap3_prm = omap3_prm_init(omap3_l4ta_get(s->l4, L4A_PRM),
+    s->omap3_prm = omap3_prm_init(omap3_l4ta_init(s->l4, L4A_PRM),
                                   s->irq[0][OMAP_INT_35XX_PRCM_MPU_IRQ],
                                   NULL, s);
 
-    s->omap3_mpu_wdt = omap3_mpu_wdt_init(omap3_l4ta_get(s->l4, L4A_WDTIMER2),
+    s->omap3_mpu_wdt = omap3_mpu_wdt_init(omap3_l4ta_init(s->l4, L4A_WDTIMER2),
                                           NULL,
                                           omap_findclk(s, "omap3_wkup_32k_fclk"),
                                           omap_findclk(s, "omap3_wkup_l4_iclk"),
                                           s);
 
-    s->omap3_scm = omap3_scm_init(omap3_l4ta_get(s->l4, L4A_SCM), s);
+    s->omap3_l3 = omap3_l3_init(OMAP3_L3_BASE, 
+                                omap3_l3_region,
+                                sizeof(omap3_l3_region)
+                                / sizeof(struct omap_l3_region_s));
+    s->omap3_scm = omap3_scm_init(omap3_l4ta_init(s->l4, L4A_SCM), s);
 
-    s->omap3_pm = omap3_pm_init(s);
     s->omap3_sms = omap3_sms_init(s);
 
-    s->gptimer[0] = omap_gp_timer_init(omap3_l4ta_get(s->l4, L4A_GPTIMER1),
+    s->gptimer[0] = omap_gp_timer_init(omap3_l4ta_init(s->l4, L4A_GPTIMER1),
                                        s->irq[0][OMAP_INT_35XX_GPTIMER1],
                                        omap_findclk(s, "omap3_gp1_fclk"),
                                        omap_findclk(s, "omap3_wkup_l4_iclk"));
-    s->gptimer[1] = omap_gp_timer_init(omap3_l4ta_get(s->l4, L4A_GPTIMER2),
+    s->gptimer[1] = omap_gp_timer_init(omap3_l4ta_init(s->l4, L4A_GPTIMER2),
                                        s->irq[0][OMAP_INT_35XX_GPTIMER2],
                                        omap_findclk(s, "omap3_gp2_fclk"),
                                        omap_findclk(s, "omap3_per_l4_iclk"));
-    s->gptimer[2] = omap_gp_timer_init(omap3_l4ta_get(s->l4, L4A_GPTIMER3),
+    s->gptimer[2] = omap_gp_timer_init(omap3_l4ta_init(s->l4, L4A_GPTIMER3),
                                        s->irq[0][OMAP_INT_35XX_GPTIMER3],
                                        omap_findclk(s, "omap3_gp3_fclk"),
                                        omap_findclk(s, "omap3_per_l4_iclk"));
-    s->gptimer[3] = omap_gp_timer_init(omap3_l4ta_get(s->l4, L4A_GPTIMER4),
+    s->gptimer[3] = omap_gp_timer_init(omap3_l4ta_init(s->l4, L4A_GPTIMER4),
                                        s->irq[0][OMAP_INT_35XX_GPTIMER4],
                                        omap_findclk(s, "omap3_gp4_fclk"),
                                        omap_findclk(s, "omap3_per_l4_iclk"));
-    s->gptimer[4] = omap_gp_timer_init(omap3_l4ta_get(s->l4, L4A_GPTIMER5),
+    s->gptimer[4] = omap_gp_timer_init(omap3_l4ta_init(s->l4, L4A_GPTIMER5),
                                        s->irq[0][OMAP_INT_35XX_GPTIMER5],
                                        omap_findclk(s, "omap3_gp5_fclk"),
                                        omap_findclk(s, "omap3_per_l4_iclk"));
-    s->gptimer[5] = omap_gp_timer_init(omap3_l4ta_get(s->l4, L4A_GPTIMER6),
+    s->gptimer[5] = omap_gp_timer_init(omap3_l4ta_init(s->l4, L4A_GPTIMER6),
                                        s->irq[0][OMAP_INT_35XX_GPTIMER6],
                                        omap_findclk(s, "omap3_gp6_fclk"),
                                        omap_findclk(s, "omap3_per_l4_iclk"));
-    s->gptimer[6] = omap_gp_timer_init(omap3_l4ta_get(s->l4, L4A_GPTIMER7),
+    s->gptimer[6] = omap_gp_timer_init(omap3_l4ta_init(s->l4, L4A_GPTIMER7),
                                        s->irq[0][OMAP_INT_35XX_GPTIMER7],
                                        omap_findclk(s, "omap3_gp7_fclk"),
                                        omap_findclk(s, "omap3_per_l4_iclk"));
-    s->gptimer[7] = omap_gp_timer_init(omap3_l4ta_get(s->l4, L4A_GPTIMER8),
+    s->gptimer[7] = omap_gp_timer_init(omap3_l4ta_init(s->l4, L4A_GPTIMER8),
                                        s->irq[0][OMAP_INT_35XX_GPTIMER8],
                                        omap_findclk(s, "omap3_gp8_fclk"),
                                        omap_findclk(s, "omap3_per_l4_iclk"));
-    s->gptimer[8] = omap_gp_timer_init(omap3_l4ta_get(s->l4, L4A_GPTIMER9),
+    s->gptimer[8] = omap_gp_timer_init(omap3_l4ta_init(s->l4, L4A_GPTIMER9),
                                        s->irq[0][OMAP_INT_35XX_GPTIMER9],
                                        omap_findclk(s, "omap3_gp9_fclk"),
                                        omap_findclk(s, "omap3_per_l4_iclk"));
-    s->gptimer[9] = omap_gp_timer_init(omap3_l4ta_get(s->l4, L4A_GPTIMER10),
+    s->gptimer[9] = omap_gp_timer_init(omap3_l4ta_init(s->l4, L4A_GPTIMER10),
                                        s->irq[0][OMAP_INT_35XX_GPTIMER10],
                                        omap_findclk(s, "omap3_gp10_fclk"),
                                        omap_findclk(s, "omap3_core_l4_iclk"));
-    s->gptimer[10] = omap_gp_timer_init(omap3_l4ta_get(s->l4, L4A_GPTIMER11),
+    s->gptimer[10] = omap_gp_timer_init(omap3_l4ta_init(s->l4, L4A_GPTIMER11),
                                        s->irq[0][OMAP_INT_35XX_GPTIMER11],
                                        omap_findclk(s, "omap3_gp12_fclk"),
                                        omap_findclk(s, "omap3_core_l4_iclk"));
-    s->gptimer[11] = omap_gp_timer_init(omap3_l4ta_get(s->l4, L4A_GPTIMER12),
+    s->gptimer[11] = omap_gp_timer_init(omap3_l4ta_init(s->l4, L4A_GPTIMER12),
                                         s->irq[0][OMAP_INT_35XX_GPTIMER12],
                                         omap_findclk(s, "omap3_gp12_fclk"),
                                         omap_findclk(s, "omap3_wkup_l4_iclk"));
     
 	
-    omap_synctimer_init(omap3_l4ta_get(s->l4, L4A_32KTIMER), s,
+    omap_synctimer_init(omap3_l4ta_init(s->l4, L4A_32KTIMER), s,
                         omap_findclk(s, "omap3_sys_32k"), NULL);
 
     s->sdrc = omap_sdrc_init(0x6d000000);
@@ -4134,20 +4337,20 @@ struct omap_mpu_state_s *omap3530_mpu_init(unsigned long sdram_size,
     s->gpmc = omap_gpmc_init(s, 0x6e000000, s->irq[0][OMAP_INT_35XX_GPMC_IRQ]);
     
 
-    s->uart[0] = omap2_uart_init(omap3_l4ta_get(s->l4, L4A_UART1),
+    s->uart[0] = omap2_uart_init(omap3_l4ta_init(s->l4, L4A_UART1),
                                  s->irq[0][OMAP_INT_35XX_UART1_IRQ],
                                  omap_findclk(s, "omap3_uart1_fclk"),
                                  omap_findclk(s, "omap3_uart1_iclk"),
                                  s->drq[OMAP35XX_DMA_UART1_TX],
                                  s->drq[OMAP35XX_DMA_UART1_RX], serial_hds[0]);
-    s->uart[1] = omap2_uart_init(omap3_l4ta_get(s->l4, L4A_UART2),
+    s->uart[1] = omap2_uart_init(omap3_l4ta_init(s->l4, L4A_UART2),
                                  s->irq[0][OMAP_INT_35XX_UART2_IRQ],
                                  omap_findclk(s, "omap3_uart2_fclk"),
                                  omap_findclk(s, "omap3_uart2_iclk"),
                                  s->drq[OMAP35XX_DMA_UART2_TX],
                                  s->drq[OMAP35XX_DMA_UART2_RX],
                                  serial_hds[0] ? serial_hds[1] : 0);
-    s->uart[2] = omap2_uart_init(omap3_l4ta_get(s->l4, L4A_UART3),
+    s->uart[2] = omap2_uart_init(omap3_l4ta_init(s->l4, L4A_UART3),
                                  s->irq[0][OMAP_INT_35XX_UART3_IRQ],
                                  omap_findclk(s, "omap3_uart2_fclk"),
                                  omap_findclk(s, "omap3_uart3_iclk"),
@@ -4159,9 +4362,9 @@ struct omap_mpu_state_s *omap3530_mpu_init(unsigned long sdram_size,
     /*attach serial[0] to uart 2 for beagle board */
     omap_uart_attach(s->uart[2], serial_hds[0]);
 
-    s->dss = omap_dss_init(omap3_l4ta_get(s->l4, L4A_DSS), 0x68005400, 
+    s->dss = omap_dss_init(s, omap3_l4ta_init(s->l4, L4A_DSS), 
                     s->irq[0][OMAP_INT_35XX_DSS_IRQ], s->drq[OMAP24XX_DMA_DSS],
-                   NULL,NULL,NULL,NULL,NULL,1);
+                   NULL,NULL,NULL,NULL,NULL);
 
     //gpio_clks[0] = NULL;
     //gpio_clks[1] = NULL;
@@ -4169,61 +4372,61 @@ struct omap_mpu_state_s *omap3530_mpu_init(unsigned long sdram_size,
     //gpio_clks[3] = NULL;
 
     s->gpif = omap3_gpif_init();
-    omap3_gpio_init(s, s->gpif ,omap3_l4ta_get(s->l4, L4A_GPIO1),
+    omap3_gpio_init(s, s->gpif ,omap3_l4ta_init(s->l4, L4A_GPIO1),
                     &s->irq[0][OMAP_INT_35XX_GPIO_BANK1], 
                     NULL,NULL,0);
-    omap3_gpio_init(s, s->gpif ,omap3_l4ta_get(s->l4, L4A_GPIO2),
+    omap3_gpio_init(s, s->gpif ,omap3_l4ta_init(s->l4, L4A_GPIO2),
                     &s->irq[0][OMAP_INT_35XX_GPIO_BANK2], 
                     NULL,NULL,1);
-    omap3_gpio_init(s, s->gpif ,omap3_l4ta_get(s->l4, L4A_GPIO3),
+    omap3_gpio_init(s, s->gpif ,omap3_l4ta_init(s->l4, L4A_GPIO3),
                     &s->irq[0][OMAP_INT_35XX_GPIO_BANK3], 
                     NULL,NULL,2);
-    omap3_gpio_init(s, s->gpif ,omap3_l4ta_get(s->l4, L4A_GPIO4),
+    omap3_gpio_init(s, s->gpif ,omap3_l4ta_init(s->l4, L4A_GPIO4),
                     &s->irq[0][OMAP_INT_35XX_GPIO_BANK4], 
                     NULL,NULL,3);
-    omap3_gpio_init(s, s->gpif ,omap3_l4ta_get(s->l4, L4A_GPIO5),
+    omap3_gpio_init(s, s->gpif ,omap3_l4ta_init(s->l4, L4A_GPIO5),
                     &s->irq[0][OMAP_INT_35XX_GPIO_BANK5], 
                     NULL,NULL,4);
-    omap3_gpio_init(s, s->gpif ,omap3_l4ta_get(s->l4, L4A_GPIO6),
+    omap3_gpio_init(s, s->gpif ,omap3_l4ta_init(s->l4, L4A_GPIO6),
                     &s->irq[0][OMAP_INT_35XX_GPIO_BANK6], 
                     NULL,NULL,5);
 
-    omap_tap_init(omap3_l4ta_get(s->l4, L4A_TAP), s);
+    omap_tap_init(omap3_l4ta_init(s->l4, L4A_TAP), s);
 
-    s->omap3_mmc[0] = omap3_mmc_init(omap3_l4ta_get(s->l4, L4A_MMC1),
+    s->omap3_mmc[0] = omap3_mmc_init(omap3_l4ta_init(s->l4, L4A_MMC1),
                                      drives_table[sdindex].bdrv,
                                      s->irq[0][OMAP_INT_35XX_MMC1_IRQ],
                                      &s->drq[OMAP35XX_DMA_MMC1_TX],
                                      omap_findclk(s, "omap3_mmc1_fclk"),
                                      omap_findclk(s, "omap3_mmc1_iclk"));
 
-    s->omap3_mmc[1] = omap3_mmc_init(omap3_l4ta_get(s->l4, L4A_MMC2),
+    s->omap3_mmc[1] = omap3_mmc_init(omap3_l4ta_init(s->l4, L4A_MMC2),
                                      NULL,
                                      s->irq[0][OMAP_INT_35XX_MMC2_IRQ],
                                      &s->drq[OMAP35XX_DMA_MMC2_TX],
                                      omap_findclk(s, "omap3_mmc2_fclk"),
                                      omap_findclk(s, "omap3_mmc2_iclk"));
 
-    s->omap3_mmc[2] = omap3_mmc_init(omap3_l4ta_get(s->l4, L4A_MMC3),
+    s->omap3_mmc[2] = omap3_mmc_init(omap3_l4ta_init(s->l4, L4A_MMC3),
                                      NULL,
                                      s->irq[0][OMAP_INT_35XX_MMC3_IRQ],
                                      &s->drq[OMAP35XX_DMA_MMC3_TX],
                                      omap_findclk(s, "omap3_mmc3_fclk"),
                                      omap_findclk(s, "omap3_mmc3_iclk"));
 
-    s->i2c[0] = omap3_i2c_init(omap3_l4ta_get(s->l4, L4A_I2C1),
+    s->i2c[0] = omap3_i2c_init(omap3_l4ta_init(s->l4, L4A_I2C1),
                                s->irq[0][OMAP_INT_35XX_I2C1_IRQ],
                                &s->drq[OMAP35XX_DMA_I2C1_TX],
                                omap_findclk(s, "omap3_i2c1_fclk"),
                                omap_findclk(s, "omap3_i2c1_iclk"),
                                8);
-    s->i2c[1] = omap3_i2c_init(omap3_l4ta_get(s->l4, L4A_I2C2),
+    s->i2c[1] = omap3_i2c_init(omap3_l4ta_init(s->l4, L4A_I2C2),
                                s->irq[0][OMAP_INT_35XX_I2C2_IRQ],
                                &s->drq[OMAP35XX_DMA_I2C2_TX],
                                omap_findclk(s, "omap3_i2c2_fclk"),
                                omap_findclk(s, "omap3_i2c2_iclk"),
                                8);
-    s->i2c[2] = omap3_i2c_init(omap3_l4ta_get(s->l4, L4A_I2C3),
+    s->i2c[2] = omap3_i2c_init(omap3_l4ta_init(s->l4, L4A_I2C3),
                                s->irq[0][OMAP_INT_35XX_I2C3_IRQ],
                                &s->drq[OMAP35XX_DMA_I2C3_TX],
                                omap_findclk(s, "omap3_i2c3_fclk"),
@@ -4234,9 +4437,9 @@ struct omap_mpu_state_s *omap3530_mpu_init(unsigned long sdram_size,
 }
 
 
-static uint32_t omap3_get_le32(void *p)
+static inline uint32_t omap3_get_le32(const void *p)
 {
-    uint8_t *q = (uint8_t *)p;
+    const uint8_t *q = (const uint8_t *)p;
     uint32_t v;
     v = q[3]; v <<= 8;
     v |= q[2]; v <<= 8;
@@ -4245,17 +4448,260 @@ static uint32_t omap3_get_le32(void *p)
     return v;
 }
 
-static uint32_t omap3_get_le16(void *p)
+static inline uint32_t omap3_get_le16(const void *p)
 {
-    uint8_t *q = (uint8_t *)p;
+    const uint8_t *q = (const uint8_t *)p;
     uint32_t v;
     v = q[1]; v <<= 8;
     v |= q[0];
     return v;
 }
 
+static inline void omap3_boot_setlsb(target_phys_addr_t addr, uint16_t lsb)
+{
+    uint8_t x[4];
+    
+    cpu_physical_memory_read(addr, x, 4);
+    x[0] = lsb & 0xff;
+    x[1] = (lsb >> 8) & 0xff;
+    cpu_physical_memory_write(addr, x, 4);
+}
+
+struct omap3_boot_s {
+    struct omap_mpu_state_s *mpu;
+    enum {
+        undefined = 0,
+        confighdr,
+        chdone,
+        imagehdr,
+        copy,
+        done
+    } state;
+    target_phys_addr_t addr;
+    uint32_t count;
+};
+
+static struct omap3_boot_s *omap3_boot_init(const uint8_t *data,
+                                            uint32_t data_len,
+                                            struct omap_mpu_state_s *mpu)
+{
+    struct omap3_boot_s *s = qemu_mallocz(sizeof(struct omap3_boot_s));
+    s->mpu = mpu;
+    s->state = imagehdr;
+    if (data_len >= 512) {
+        if (!strncasecmp((char *)(data + 0x14), "chsettings", 10)
+            || !strncasecmp((char *)(data + 0x14), "chram", 5)
+            || !strncasecmp((char *)(data + 0x14), "chflash", 7)
+            || !strncasecmp((char *)(data + 0x14), "chmmcsd", 7))
+            s->state = confighdr;
+    }
+    return s;
+}
+
+static void omap3_boot_chsettings(const uint8_t *chtoc)
+{
+    uint32_t flags, x;
+    
+    if (omap3_get_le32(chtoc) != 0xc0c0c0c1) {
+        fprintf(stderr, "%s: invalid section verification key\n", __FUNCTION__);
+        return;
+    }
+    if (!chtoc[4]) { /* section disabled? */
+        return;
+    }
+    if (omap3_get_le16(chtoc + 5) != 0x0001) {
+        fprintf(stderr, "%s: unsupported CH version (0x%04x)\n", __FUNCTION__,
+                omap3_get_le16(chtoc));
+        return;
+    }
+    flags = omap3_get_le32(chtoc + 8);
+    chtoc += 12;
+    if (flags & 1) {
+        cpu_physical_memory_write(0x48307270, chtoc + 0x00, 4); /* PRM_CLKSRC_CTRL */
+        cpu_physical_memory_write(0x48306d40, chtoc + 0x04, 4); /* PRM_CLKSEL */
+        cpu_physical_memory_write(0x48005140, chtoc + 0x08, 4); /* CM_CLKSEL1_EMU */
+        if (flags & (1 << 2)) { /* clock configuration */
+            cpu_physical_memory_write(0x48004a40, chtoc + 0x0c, 4); /* CM_CLKSEL_CORE */
+            cpu_physical_memory_write(0x48004c40, chtoc + 0x10, 4); /* CM_CLKSEL_WKUP */
+        }
+        if (flags & (1 << 5)) { /* DPLL3 CORE */
+            if (flags & (1 << 8)) { /* enable DPLL3 bypass */
+                cpu_physical_memory_read(0x48004d00, (uint8_t *)&x, 4);
+                x &= ~7; x |= 5; /* set DPLL3 bypass */
+                cpu_physical_memory_write(0x48004d00, (uint8_t *)&x, 4);
+            }
+            cpu_physical_memory_write(0x48004d00, chtoc + 0x14, 4); /* CM_CLKEN_PLL */
+            cpu_physical_memory_write(0x48004d30, chtoc + 0x18, 4); /* CM_AUTOIDLE_PLL */
+            cpu_physical_memory_write(0x48004d40, chtoc + 0x1c, 4); /* CM_CLKSEL1_PLL */
+        }
+        if (flags & (1 << 3)) { /* DPLL4 PER */
+            if (flags & (1 << 6)) { /* enable DPLL4 bypass */
+                cpu_physical_memory_read(0x48004d00, (uint8_t *)&x, 4);
+                x &= ~0x70000; x |= 0x10000; /* set DPLL4 in stop mode */
+                cpu_physical_memory_write(0x48004d00, (uint8_t *)&x, 4);
+            }
+            cpu_physical_memory_write(0x48004d00, chtoc + 0x20, 4); /* CM_CLKEN_PLL */
+            cpu_physical_memory_write(0x48004d30, chtoc + 0x24, 4); /* CM_AUTOIDLE_PLL */
+            cpu_physical_memory_write(0x48004d44, chtoc + 0x28, 4); /* CM_CLKSEL2_PLL */
+            cpu_physical_memory_write(0x48004d48, chtoc + 0x2c, 4); /* CM_CLKSEL3_PLL */
+        }
+        if (flags & (1 << 3)) { /* DPLL1 MPU */
+            if (flags & (1 << 7)) { /* enable DPLL1 bypass */
+                cpu_physical_memory_read(0x48004904, (uint8_t *)&x, 4);
+                x &= ~7; x |= 5; /* set DPLL1 bypass */
+                cpu_physical_memory_write(0x48004904, (uint8_t *)&x, 4);
+            }
+            cpu_physical_memory_write(0x48004904, chtoc + 0x30, 4); /* CM_CLKEN_PLL_MPU */
+            cpu_physical_memory_write(0x48004934, chtoc + 0x34, 4); /* CM_AUTOIDLE_PLL_MPU */
+            cpu_physical_memory_write(0x48004940, chtoc + 0x38, 4); /* CM_CLKSEL1_PLL_MPU */
+            cpu_physical_memory_write(0x48004944, chtoc + 0x3c, 4); /* CM_CLKSEL2_PLL_MPU */
+            cpu_physical_memory_write(0x48004948, chtoc + 0x40, 4); /* CM_CLKSTCTRL_MPU */
+        }
+        switch ((flags >> 24) & 0xff) {
+            case 0x01: x = 0; break; /* 12MHz */
+            case 0x02: x = 1; break; /* 13MHz */
+            case 0x03: x = 5; break; /* 16.8MHz */
+            case 0x04: x = 2; break; /* 19.2MHz */
+            case 0x05: x = 3; break; /* 26MHz */
+            case 0x06: x = 4; break; /* 38.4MHz */
+            default:
+                fprintf(stderr, "%s: unsupported SYS.CLK setting\n", __FUNCTION__);
+                x = 1;
+                break;
+        }
+        if (x != omap3_get_le32(chtoc + 0x04)) {
+            fprintf(stderr, "%s: mismatch in SYS.CLK id and PRM_CLKSEL value\n", __FUNCTION__);
+        }
+    }
+}
+
+static void omap3_boot_chram(const uint8_t *chtoc)
+{
+    if (omap3_get_le32(chtoc) != 0xc0c0c0c2) {
+        fprintf(stderr, "%s: invalid section verification key\n", __FUNCTION__);
+        return;
+    }
+    if (!chtoc[4]) { /* section disabled? */
+        return;
+    }
+    omap3_boot_setlsb(0x6d000040, omap3_get_le16(chtoc + 0x0a)); /* SDRC_CS_CFG */
+    omap3_boot_setlsb(0x6d000044, omap3_get_le16(chtoc + 0x0c)); /* SDRC_SHARING */
+    cpu_physical_memory_write(0x6d000060, chtoc + 0x10, 4);      /* SDRC_DLLA_CTRL */
+
+    cpu_physical_memory_write(0x6d000080, chtoc + 0x20, 4);      /* SDRC_MCFG_0 */
+    omap3_boot_setlsb(0x6d000084, omap3_get_le16(chtoc + 0x24)); /* SDRC_MR_0 */
+    omap3_boot_setlsb(0x6d000088, omap3_get_le16(chtoc + 0x26)); /* SDRC_EMR1_0? */
+    omap3_boot_setlsb(0x6d00008c, omap3_get_le16(chtoc + 0x28)); /* SDRC_EMR2_0 */
+    omap3_boot_setlsb(0x6d000090, omap3_get_le16(chtoc + 0x2a)); /* SDRC_EMR3_0? */
+    cpu_physical_memory_write(0x6d00009c, chtoc + 0x2c, 4);      /* SDRC_ACTIM_CTRLA_0 */
+    cpu_physical_memory_write(0x6d0000a0, chtoc + 0x30, 4);      /* SDRC_ACTIM_CTRLB_0 */
+    cpu_physical_memory_write(0x6d0000a4, chtoc + 0x34, 4);      /* SDRC_RFR_CTRL_0 */
+    
+    cpu_physical_memory_write(0x6d0000b0, chtoc + 0x20, 4);      /* SDRC_MCFG_1 */
+    omap3_boot_setlsb(0x6d0000b4, omap3_get_le16(chtoc + 0x24)); /* SDRC_MR_1 */
+    omap3_boot_setlsb(0x6d0000b8, omap3_get_le16(chtoc + 0x26)); /* SDRC_EMR1_1? */
+    omap3_boot_setlsb(0x6d0000bc, omap3_get_le16(chtoc + 0x28)); /* SDRC_EMR2_1 */
+    omap3_boot_setlsb(0x6d0000c0, omap3_get_le16(chtoc + 0x2a)); /* SDRC_EMR3_1? */
+    cpu_physical_memory_write(0x6d0000cc, chtoc + 0x2c, 4);      /* SDRC_ACTIM_CTRLA_1 */
+    cpu_physical_memory_write(0x6d0000d0, chtoc + 0x30, 4);      /* SDRC_ACTIM_CTRLB_1 */
+    cpu_physical_memory_write(0x6d0000d4, chtoc + 0x34, 4);      /* SDRC_RFR_CTRL_1 */
+}
+
+static void omap3_boot_chflash(const uint8_t *chtoc)
+{
+    if (omap3_get_le32(chtoc) != 0xc0c0c0c3) {
+        fprintf(stderr, "%s: invalid section verification key\n", __FUNCTION__);
+        return;
+    }
+    if (!chtoc[4]) { /* section disabled? */
+        return;
+    }
+    omap3_boot_setlsb(0x6e000010, omap3_get_le16(chtoc + 0x08)); /* GPMC_SYSCONFIG */
+    omap3_boot_setlsb(0x6e00001c, omap3_get_le16(chtoc + 0x0a)); /* GPMC_IRQENABLE */
+    omap3_boot_setlsb(0x6e000040, omap3_get_le16(chtoc + 0x0c)); /* GPMC_TIMEOUT_CONTROL */
+    omap3_boot_setlsb(0x6e000050, omap3_get_le16(chtoc + 0x0e)); /* GPMC_CONFIG */
+    cpu_physical_memory_write(0x6e000060, chtoc + 0x10, 4);      /* GPMC_CONFIG1_0 */
+    cpu_physical_memory_write(0x6e000064, chtoc + 0x14, 4);      /* GPMC_CONFIG2_0 */
+    cpu_physical_memory_write(0x6e000068, chtoc + 0x18, 4);      /* GPMC_CONFIG3_0 */
+    cpu_physical_memory_write(0x6e00006c, chtoc + 0x1c, 4);      /* GPMC_CONFIG4_0 */
+    cpu_physical_memory_write(0x6e000070, chtoc + 0x20, 4);      /* GPMC_CONFIG5_0 */
+    cpu_physical_memory_write(0x6e000074, chtoc + 0x24, 4);      /* GPMC_CONFIG6_0 */
+    cpu_physical_memory_write(0x6e000078, chtoc + 0x28, 4);      /* GPMC_CONFIG7_0 */
+    cpu_physical_memory_write(0x6e0001e0, chtoc + 0x2c, 4);      /* GPMC_PREFETCH_CONFIG1 */
+    omap3_boot_setlsb(0x6e0001e4, omap3_get_le16(chtoc + 0x30)); /* GPMC_PREFETCH_CONFIG2 */
+    omap3_boot_setlsb(0x6e0001ec, omap3_get_le16(chtoc + 0x32)); /* GPMC_PREFETCH_CONTROL */
+    /* TODO: ECC config registers. The TRM spec is not clear on these */
+}
+
+static void omap3_boot_chmmcsd(const uint8_t *chtoc)
+{
+    if (omap3_get_le32(chtoc) != 0xc0c0c0c4) {
+        fprintf(stderr, "%s: invalid section verification key\n", __FUNCTION__);
+        return;
+    }
+    if (!chtoc[4]) { /* section disabled? */
+        return;
+    }
+    /* TODO: MMCHS registers */
+}
+
+/* returns non-zero if more blocks are needed */
+static uint32_t omap3_boot_block(const uint8_t *data,
+                                 uint32_t data_len,
+                                 struct omap3_boot_s *s)
+{
+    const uint8_t *p = 0;
+    uint32_t i = 0;
+    
+    switch (s->state) {
+        case confighdr:
+            i = data_len;
+            for (p = data; i >= 32 && omap3_get_le32(p) != 0xffffffff; p += 32, i -= 32) {
+                if (!strcasecmp((char *)(p + 0x14), "chsettings"))
+                    omap3_boot_chsettings(p + omap3_get_le32(p));
+                else if (!strcasecmp((char *)(p + 0x14), "chram"))
+                    omap3_boot_chram(p + omap3_get_le32(p));
+                else if (!strcasecmp((char *)(p + 0x14), "chflash"))
+                    omap3_boot_chflash(p + omap3_get_le32(p));
+                else if (!strcasecmp((char *)(p + 0x14), "chmmcsd"))
+                    omap3_boot_chmmcsd(p + omap3_get_le32(p));
+                else
+                    fprintf(stderr, "%s: unknown CHTOC item \"%s\"\n",
+                            __FUNCTION__, (char *)(p + 0x14));
+            }
+            data += 512;
+            data_len -= 512;
+            s->state = chdone;
+            /* fallthrough */
+        case chdone:
+            s->state = imagehdr;
+            /* fallthrough */
+        case imagehdr:
+            if (data_len < 8)
+                break;
+            s->count = omap3_get_le32(data);
+            s->addr = omap3_get_le32(data + 4);
+            s->mpu->env->regs[15] = s->addr;
+            data += 8;
+            data_len -= 8;
+            s->state = copy;
+            /* fallthrough */
+        case copy:
+            i = (s->count >= data_len) ? data_len : s->count;
+            cpu_physical_memory_write(s->addr, data, i);
+            s->addr += i;
+            s->count -= i;
+           if (!s->count)
+                s->state = done;
+            return s->count;
+        default:
+            break;
+    }
+    return 0;
+}
+
 /* returns ptr to matching dir entry / zero entry or 0 if unsuccessful */
-static uint8_t *omap3_scan_fat_dir_sector(uint8_t *s)
+static const uint8_t *omap3_scan_fat_dir_sector(const uint8_t *s)
 {
     int i;
     
@@ -4269,10 +4715,10 @@ static uint8_t *omap3_scan_fat_dir_sector(uint8_t *s)
 
 struct omap3_fat_drv_s {
     BlockDriverState *bs;
-    uint8_t ptype; // 12, 16, 32
-    uint64_t c0;   // physical byte offset for data cluster 0
-    uint64_t fat;  // physical byte offset for used FAT sector 0
-    uint32_t spc;  // sectors per cluster
+    uint8_t ptype; /* 12, 16, 32 */
+    uint64_t c0;   /* physical byte offset for data cluster 0 */
+    uint64_t fat;  /* physical byte offset for used FAT sector 0 */
+    uint32_t spc;  /* sectors per cluster */
 };
 
 /* returns cluster data in the buffer and next cluster chain number
@@ -4282,7 +4728,7 @@ static uint32_t omap3_read_fat_cluster(uint8_t *data,
                                        uint32_t cl)
 {
     uint8_t buf[ 4 ];
-    uint32_t len = drv->spc * 0x200; // number of bytes to read
+    uint32_t len = drv->spc * 0x200; /* number of bytes to read */
     
     switch (drv->ptype) { /* check for EOF */
         case 12: if (cl > 0xff0) return 0; break;
@@ -4319,9 +4765,10 @@ static int omap3_mmc_fat_boot(BlockDriverState *bs,
                               struct omap_mpu_state_s *mpu)
 {
     struct omap3_fat_drv_s drv;
-    uint32_t i, j, k, cluster0, fatsize, bootsize, rootsize;
-    uint32_t img_size, img_addr;
-    uint8_t *p, *q;
+    struct omap3_boot_s *boot;
+    uint32_t i, j, cluster0, fatsize, bootsize, rootsize;
+    const uint8_t *p, *q;
+    uint8_t *cluster;
     int result = 0;
     
     /* determine FAT type */
@@ -4352,12 +4799,12 @@ static int omap3_mmc_fat_boot(BlockDriverState *bs,
         j = omap3_get_le16(sector + 0x28);
         if (j & 0x80)
             drv.fat += (j & 0x0f) * fatsize * 0x200;
-        uint8_t *cluster = qemu_mallocz(drv.spc * 0x200);
+        cluster = qemu_mallocz(drv.spc * 0x200);
         for (p = 0; !p && (i = omap3_read_fat_cluster(cluster, &drv, i)); ) {
             for (j = drv.spc, q=cluster; j-- & !p; q += 0x200)
                 p = omap3_scan_fat_dir_sector(q);
             if (p) 
-                memcpy(sector, q - 0x200, 0x200); // save the sector
+                memcpy(sector, q - 0x200, 0x200); /* save the sector */
         }
         free(cluster);
     } else { /* FAT12/16 */
@@ -4368,26 +4815,18 @@ static int omap3_mmc_fat_boot(BlockDriverState *bs,
         }
     }
     
-    if (p && *p) { // did we indeed find the file?
+    if (p && *p) { /* did we indeed find the file? */
         i = omap3_get_le16(p + 0x14);
         i <<= 16;
         i |= omap3_get_le16(p + 0x1a);
         j = drv.spc * 0x200;
         uint8 *data = qemu_mallocz(j);
         if ((i = omap3_read_fat_cluster(data, &drv, i))) {
-            /* TODO: support HS device boot
-               for now only GP device is supported */
-            img_size = omap3_get_le32(data);
-            img_addr = omap3_get_le32(data + 4);
-            mpu->env->regs[15] = img_addr;
-            cpu_physical_memory_write(img_addr, data + 8, 
-                                      (k = (j - 8 >= img_size) ? img_size : j - 8));
-            for (img_addr += k, img_size -= k;
-                 img_size && (i = omap3_read_fat_cluster(data, &drv, i));
-                 img_addr += k, img_size -= k) {
-                cpu_physical_memory_write(img_addr, data, 
-                                          (k = (j >= img_size) ? img_size : j));
-            }
+            boot = omap3_boot_init(data, j, mpu);
+            boot->state = imagehdr; /* override CH detection */
+            while (omap3_boot_block(data, j, boot))
+                i = omap3_read_fat_cluster(data, &drv, i);
+            free(boot);
             result = 1;
         } else
             fprintf(stderr, "%s: unable to read MLO file contents from SD card\n",
@@ -4404,6 +4843,22 @@ static int omap3_mmc_raw_boot(BlockDriverState *bs,
                               uint8_t *sector,
                               struct omap_mpu_state_s *mpu)
 {
+    struct omap3_boot_s *boot;
+    uint32_t i = 0;
+    
+    if (bdrv_pread(bs, 0, sector, 0x200) == 0x200) {
+        boot = omap3_boot_init(sector, 0x200, mpu);
+        if (boot->state == confighdr) { /* CH must be present for raw boot */
+            while (omap3_boot_block(sector, 0x200, boot)) {
+                if (bdrv_pread(bs, ++i, sector, 0x200) != 0x200) {
+                    fprintf(stderr, "%s: error trying to read sector %u on boot device\n",
+                            __FUNCTION__, i);
+                    break;
+                }
+            }
+        }
+        free(boot);
+    }
     return 0;
 }
 
@@ -4412,15 +4867,18 @@ int omap3_mmc_boot(struct omap_mpu_state_s *s)
 {
     BlockDriverState *bs;
     int sdindex = drive_get_index(IF_SD, 0, 0);
-    uint8_t sector[0x200], *p;
+    uint8_t *sector, *p;
     uint32_t pstart, i;
+    int result = 0;
     
-    /* very simple implementation, supports only two modes:
+    /* very simple implementation for GP device boot,
+       supports only two modes:
        1. MBR partition table with an active FAT partition
           and boot loader file (MLO) in its root directory, or
-       2. boot loader located on first sector */
+       2. CH sector located on first sector, followed by boot loader image */
     if (sdindex >= 0) {
         bs = drives_table[sdindex].bdrv;
+        sector = qemu_mallocz(0x200);
         if (bdrv_pread(bs, 0, sector, 0x200) == 0x200) {
             for (i = 0, p = sector + 0x1be; i < 4; i++, p += 0x10) 
                 if (p[0] == 0x80) break;
@@ -4431,11 +4889,12 @@ int omap3_mmc_boot(struct omap_mpu_state_s *s)
                 && bdrv_pread(bs, (pstart = omap3_get_le32(p + 8)) * 0x200,
                               sector, 0x200) == 0x200
                 && sector[0x1fe] == 0x55 && sector[0x1ff] == 0xaa)
-                return omap3_mmc_fat_boot(bs, sector, pstart, s);
+                result = omap3_mmc_fat_boot(bs, sector, pstart, s);
             else
-                return omap3_mmc_raw_boot(bs, sector, s);
+                result = omap3_mmc_raw_boot(bs, sector, s);
         }
+        free(sector);
     }
-    return 0;
+    return result;
 }
 

@@ -24,6 +24,14 @@
 #include "irq.h"
 #include "soc_dma.h"
 
+//#define OMAP_DMA_DEBUG
+
+#ifdef OMAP_DMA_DEBUG
+#define TRACE(fmt,...) fprintf(stderr, "%s:" fmt "\n", __FUNCTION__, ##__VA_ARGS__)
+#else
+#define TRACE(...)
+#endif
+
 struct omap_dma_channel_s {
     /* transfer data */
     int burst[2];
@@ -374,6 +382,7 @@ static void omap_dma_transfer_generic(struct soc_dma_ch_s *dma)
     uint16_t status = ch->status;
 #endif
 
+    TRACE("frame %d", a->frame);
     do {
         /* Transfer a single element */
         /* FIXME: check the endianness */
@@ -1670,7 +1679,7 @@ static void omap_dma_interrupts_4_update(struct omap_dma_s *s)
     uint32_t bmp, bit;
 
     for (bmp = 0, bit = 1; bit; ch ++, bit <<= 1)
-        if (ch->status) {
+        if ((ch->status &= ch->interrupts)) {
             bmp |= bit;
             ch->cstatus |= ch->status;
             ch->status = 0;
@@ -1768,6 +1777,7 @@ static uint32_t omap_dma4_read(void *opaque, target_phys_addr_t addr)
         return ch->interrupts;
 
     case 0x0c:	/* DMA4_CSR */
+        TRACE("CSR = %04x", ch->cstatus);
         return ch->cstatus;
 
     case 0x10:	/* DMA4_CSDP */
@@ -1935,10 +1945,12 @@ static void omap_dma4_write(void *opaque, target_phys_addr_t addr,
             ch->interrupts = value & 0x1dbe;
         else
             ch->interrupts = value & 0x09be;
+        TRACE("CICR = 0x%04x", ch->interrupts);
         break;
 
     case 0x0c:	/* DMA4_CSR */
         ch->cstatus &= ~value;
+        TRACE("CSR = 0x%04x --> 0x%04x", value, ch->cstatus);
         break;
 
     case 0x10:	/* DMA4_CSDP */
@@ -1967,11 +1979,15 @@ static void omap_dma4_write(void *opaque, target_phys_addr_t addr,
     case 0x14:	/* DMA4_CEN */
         ch->set_update = 1;
         ch->elements = value & 0xffffff;
+        TRACE("elements=%d, frames=%d, data=%d bytes",
+              ch->elements, ch->frames, ch->data_type);
         break;
 
     case 0x18:	/* DMA4_CFN */
         ch->frames = value & 0xffff;
         ch->set_update = 1;
+        TRACE("elements=%d, frames=%d, data=%d bytes",
+              ch->elements, ch->frames, ch->data_type);
         break;
 
     case 0x1c:	/* DMA4_CSSA */
@@ -2013,7 +2029,11 @@ static void omap_dma4_write(void *opaque, target_phys_addr_t addr,
     case 0x38:	/* DMA4_CDAC */
     case 0x3c:	/* DMA4_CCEN */
     case 0x40:	/* DMA4_CCFN */
-        OMAP_RO_REG(0x80 + chnum * 0x60 + addr);
+        /* f.ex. linux kernel writes zeroes to these registers as well
+           when performing a DMA channel reset. let's just ignore the
+           writes instead of reporting "dummy" errors; that's what the
+           real hardware does as well */
+        /*OMAP_RO_REG(0x80 + chnum * 0x60 + addr);*/
         break;
 
     default:

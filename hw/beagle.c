@@ -136,14 +136,10 @@ static void beagle_nand_setup(struct beagle_s *s)
 	/*wp=1, no write protect!!! */
 	//nand_set_wp(s->nand, 1);
 
-/*	iomemtype = cpu_register_io_memory(0, beagle_nand_readfn,
-                    beagle_nand_writefn, s);
-    cpu_register_physical_memory(0x6e00007c, 0xc, iomemtype);*/
-    omap_gpmc_attach(s->cpu->gpmc, 0, 0, NULL, NULL, s, beagle_nand_readfn, beagle_nand_writefn);
+    omap_gpmc_attach(s->cpu->gpmc, BEAGLE_NAND_CS, 0, NULL, NULL, s,
+                     beagle_nand_readfn, beagle_nand_writefn);
 
-	 /*BOOT from nand*/
     omap3_set_mem_type(s->cpu,GPMC_NAND);
-
 }
 
 static int beagle_nand_read_page(struct beagle_s *s,uint8_t *buf, uint16_t page_addr)
@@ -223,17 +219,16 @@ static void beagle_dss_setup(struct beagle_s *s)
 {
 	s->lcd_panel = omap3_lcd_panel_init();
 	omap3_lcd_panel_attach(s->cpu->dss, 0, s->lcd_panel);
-	s->lcd_panel->dss = s->cpu->dss;
 }
 
-static void beagle_mmc_cs_cb(void *opaque, int line, int level)
-{
-    /* TODO: this seems to actually be connected to the menelaus, to
-     * which also both MMC slots connect.  */
-    omap_mmc_enable((struct omap_mmc_s *) opaque, !level);
-
-    printf("%s: MMC slot %i active\n", __FUNCTION__, level + 1);
-}
+//static void beagle_mmc_cs_cb(void *opaque, int line, int level)
+//{
+//    /* TODO: this seems to actually be connected to the menelaus, to
+//     * which also both MMC slots connect.  */
+//    omap_mmc_enable((struct omap_mmc_s *) opaque, !level);
+//
+//    printf("%s: MMC slot %i active\n", __FUNCTION__, level + 1);
+//}
 
 static void beagle_i2c_setup(struct beagle_s *s)
 {

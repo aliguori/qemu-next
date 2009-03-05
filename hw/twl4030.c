@@ -1,8 +1,10 @@
 /*
  * TI TWL4030 for beagle board
- * register implementation based on TPS65950 ES1.0 specification
  *
  * Copyright (C) 2008 yajin<yajin@vm-kernel.org>
+ * Copyright (C) 2009 Nokia Corporation
+ *
+ * Register implementation based on TPS65950 ES1.0 specification.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License as
@@ -585,9 +587,44 @@ static void twl4030_4b_write(void *opaque, uint8_t addr, uint8_t value)
     uint8_t seq_addr, seq_sub;
 	
     switch (addr) {
+        case 0x1c: /* SECONDS_REG */
+        case 0x1d: /* MINUTES_REG */
+        case 0x23: /* ALARM_SECONDS_REG */
+        case 0x24: /* ALARM_MINUTES_REG */
+            s->reg_data[addr] = value & 0x7f;
+            break;
+        case 0x1e: /* HOURS_REG */
+        case 0x25: /* ALARM_HOURS_REG */
+            s->reg_data[addr] = value & 0xbf;
+            break;
+        case 0x1f: /* DAYS_REG */
+        case 0x26: /* ALARM_DAYS_REG */
+            s->reg_data[addr] = value & 0x3f;
+            break;
+        case 0x20: /* MONTHS_REG */
+        case 0x27: /* ALARM_MONTHS_REG */
+            s->reg_data[addr] = value & 0x1f;
+            break;
+        case 0x21: /* YEARS_REG */
+        case 0x28: /* ALARM_YEARS_REG */
+            s->reg_data[addr] = value;
+            break;
+        case 0x22: /* WEEKS_REG */
+            s->reg_data[addr] = value & 0x07;
+            break;
         case 0x29: /* RTC_CTRL_REG */
+            s->reg_data[addr] = value & 0x7f;
+            break;
         case 0x2a: /* RTC_STATUS_REG */
+            s->reg_data[addr] = value & 0xfe;
+            break;
         case 0x2b: /* RTC_INTERRUPTS_REG */
+            s->reg_data[addr] = value & 0x0f;
+            break;
+        case 0x2c: /* RTC_COMP_LSB_REG */
+        case 0x2d: /* RTC_COMP_MSB_REG */
+            s->reg_data[addr] = value;
+            break;
         case 0x33: /* PWR_EDR1 */
         case 0x34: /* PWR_EDR2 */
             s->reg_data[addr] = value;
@@ -697,10 +734,8 @@ static void twl4030_4b_write(void *opaque, uint8_t addr, uint8_t value)
             break;
             
         default:
-#ifdef VERBOSE
 	        fprintf(stderr, "%s: unknown register %02x value %0x pc %x \n", __FUNCTION__, 
                     addr, value, cpu_single_env->regs[15]);
-#endif
             exit(-1);
             break;
     }
