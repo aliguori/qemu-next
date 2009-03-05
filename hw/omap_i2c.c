@@ -2,6 +2,7 @@
  * TI OMAP on-chip I2C controller.  Only "new I2C" mode supported.
  *
  * Copyright (C) 2007 Andrzej Zaborowski  <balrog@zabor.org>
+ * Copyright (C) 2009 Nokia Corporation
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License as
@@ -20,6 +21,9 @@
 #include "hw.h"
 #include "i2c.h"
 #include "omap.h"
+
+#define I2C_MAX_FIFO_SIZE (1 << 6)
+#define I2C_FIFO_SIZE_MASK ((I2C_MAX_FIFO_SIZE) - 1)
 
 struct omap_i2c_s {
     qemu_irq irq;
@@ -42,10 +46,10 @@ struct omap_i2c_s {
     uint8_t divider;
     uint16_t times[2];
     uint16_t test;
-    int rxlen;
-    int txlen;
+    int fifostart;
+    int fifolen;
     int fifosize;
-    uint8_t fifo[64];
+    uint8_t fifo[I2C_MAX_FIFO_SIZE];
 };
 
 #define OMAP2_INTR_REV	0x34
@@ -159,29 +163,34 @@ static void omap_i2c_fifo_run(struct omap_i2c_s *s)
             i2c_end_transfer(s->bus);
             s->control &= ~(1 << 1);				/* STP */
             s->count_cur = s->count;
-            s->txlen = 0;
+            s->fifolen = 0;
         } else if ((s->control >> 9) & 1) {			/* TRX */
-            for (i = 0; ack && i < s->txlen; i++)
-                ack = (i2c_send(s->bus, s->fifo[i]) >= 0);
-            s->txlen = 0;
+            while (ack && s->fifolen) {
+                ack = (i2c_send(s->bus, s->fifo[s->fifostart++]) >= 0);
+                s->fifostart &= I2C_FIFO_SIZE_MASK;
+                s->fifolen--;
+            }
+            s->fifolen = 0;
             s->stat |= 1 << 4;					/* XRDY */
         } else {
             for (i = 0; i < 4; i++)
-                s->fifo[i] = i2c_recv(s->bus);
-            s->rxlen = 4;
+                s->fifo[(s->fifostart + i) & I2C_FIFO_SIZE_MASK] =
+                    i2c_recv(s->bus);
+            s->fifolen = 4;
             s->stat |= 1 << 3;					/* RRDY */
         }
     } else {
         if ((s->control >> 9) & 1) {                /* TRX */
-            TRACE("master transmit, count_cur=%d, txlen=%d", s->count_cur, s->txlen);
+            TRACE("master transmit, count_cur=%d, fifolen=%d",
+                  s->count_cur, s->fifolen);
             /* this implementation actually always transfers everything
                in the FIFO if acknowledged by the slave; thus a situation
                where we would set XDR status never really happens */
-            for (i = 0; ack && s->count_cur && i < s->txlen; i++, s->count_cur--)
-                ack = (i2c_send(s->bus, s->fifo[i]) >= 0);
-            s->txlen -= i;
-            if (s->txlen) /* happens only when NACK has been received */
-                memmove(s->fifo, s->fifo + i, s->txlen);
+            for (; ack && s->count_cur && s->fifolen; s->count_cur--) {
+                ack = (i2c_send(s->bus, s->fifo[s->fifostart++]) >= 0);
+                s->fifostart &= I2C_FIFO_SIZE_MASK;
+                s->fifolen--;
+            }
             s->stat &= ~0x4410;                     /* XDR | XUDF | XRDY */
             if (ack && s->count_cur) {              /* send more? */
                 /* we know that FIFO is empty */
@@ -197,20 +206,22 @@ static void omap_i2c_fifo_run(struct omap_i2c_s *s)
             }
             if (!s->count_cur)                      /* everything sent? */
                 s->stat |= 1 << 2;                  /* ARDY */
-        } else {                                           /* !TRX */
+        } else {                                    /* !TRX */
             TRACE("master receive");
-            for (; s->count_cur && s->rxlen < s->fifosize; s->count_cur--) {
+            for (; s->count_cur && s->fifolen < s->fifosize; s->count_cur--) {
                 i = i2c_recv(s->bus);
                 if (i < 0) break; /* stop receiving if nothing to receive */
-                s->fifo[s->rxlen++] = (uint8_t)(i & 0xff);
-                TRACE("received fifo[%02x] = %02x", s->rxlen - 1, s->fifo[s->rxlen - 1]);
+                s->fifo[(s->fifostart + s->fifolen++) & I2C_FIFO_SIZE_MASK] =
+                    (uint8_t)(i & 0xff);
+                TRACE("received fifo[%02x] = %02x", s->fifolen - 1,
+                      s->fifo[(s->fifostart + s->fifolen - 1) & I2C_FIFO_SIZE_MASK]);
             }
             s->stat &= ~((1 << 3) | (1 << 13));            /* RRDY | RDR */
-            if (s->rxlen) {
+            if (s->fifolen) {
                 if (s->revision < OMAP3_INTR_REV)
                     s->stat |= 1 << 3;                     /* RRDY */
                 else {
-                    if (s->rxlen > ((s->dma >> 8) & 0x3f)) /* RTRSH */
+                    if (s->fifolen > ((s->dma >> 8) & 0x3f)) /* RTRSH */
                         s->stat |= 1 << 3;                 /* RRDY */
                     else
                         s->stat |= 1 << 13;                /* RDR */
@@ -224,7 +235,6 @@ static void omap_i2c_fifo_run(struct omap_i2c_s *s)
                 i2c_end_transfer(s->bus);
                 s->control &= ~0x0602;     /* MST | TRX | STP */
                 s->count_cur = s->count;
-                s->txlen = 0;
             } 
         }
     }
@@ -244,8 +254,8 @@ void omap_i2c_reset(struct omap_i2c_s *s)
     s->count_cur = 0;
     s->we = 0;
     s->sysc = 0;
-    s->rxlen = 0;
-    s->txlen = 0;
+    s->fifolen = 0;
+    s->fifostart = 0;
     s->control = 0;
     s->own_addr[0] = 0;
     s->own_addr[1] = 0;
@@ -295,30 +305,30 @@ static uint32_t omap_i2c_read(void *opaque, target_phys_addr_t addr)
             return s->count_cur; /* DCOUNT */
         case 0x1c: /* I2C_DATA */
             ret = 0;
-            if (s->rxlen) {
+            if (s->fifolen) {
                 if (s->revision < OMAP3_INTR_REV) {
                     if (s->control & (1 << 14)) /* BE */
-                        ret = (((uint16_t)s->fifo[0]) << 8) | s->fifo[1];
+                        ret = (((uint16_t)s->fifo[s->fifostart]) << 8) 
+                            | s->fifo[(s->fifostart + 1) & I2C_FIFO_SIZE_MASK];
                     else
-                        ret = (((uint16_t)s->fifo[1]) << 8) | s->fifo[0];
-                    if (s->rxlen == 1) {
+                        ret = (((uint16_t)s->fifo[(s->fifostart + 1) & I2C_FIFO_SIZE_MASK]) << 8) 
+                            | s->fifo[s->fifostart];
+                    s->fifostart = (s->fifostart + 2) & I2C_FIFO_SIZE_MASK;
+                    if (s->fifolen == 1) {
                         s->stat |= 1 << 15; /* SBD */
-                        s->rxlen = 0;
-                    } else {
-                        s->rxlen -= 2;
-                        if (s->rxlen)
-                            memmove(s->fifo, s->fifo + 2, s->rxlen);
-                    }
-                    if (!s->rxlen) {
+                        s->fifolen = 0;
+                    } else
+                        s->fifolen -= 2;
+                    if (!s->fifolen) {
                         s->stat &= ~(1 << 3); /* RRDY */
                         s->stat |= 1 << 2;    /* ARDY */
                     }
                 } else {
                     s->stat &= ~(1 << 7); /* AERR */
-                    ret = s->fifo[0];
-                    if (--s->rxlen) {
-                        memmove(s->fifo, s->fifo + 1, s->rxlen);
-                        if (s->rxlen < ((s->dma & 0x3f) >> 8)) {
+                    ret = s->fifo[s->fifostart++];
+                    s->fifostart &= I2C_FIFO_SIZE_MASK;
+                    if (--s->fifolen) {
+                        if (s->fifolen < ((s->dma & 0x3f) >> 8)) {
                             s->stat &= ~(1 << 3); /* RRDY */
                             s->stat |= 1 << 13;   /* RDR */
                         }
@@ -365,8 +375,8 @@ static uint32_t omap_i2c_read(void *opaque, target_phys_addr_t addr)
                     case 64: ret = 0xc000; break;
                     default: ret = 0x0000; break;
                 }
-                ret |= ((s->rxlen) & 0x3f) << 8;  /* RXSTAT */
-                ret |= (s->count_cur) & 0x3f;     /* TXSTAT */
+                ret |= ((s->fifolen) & 0x3f) << 8;  /* RXSTAT */
+                ret |= (s->count_cur) & 0x3f;       /* TXSTAT */
                 TRACE("BUFSTAT returns %04x", ret);
                 return ret;
             }
@@ -437,10 +447,9 @@ static void omap_i2c_write(void *opaque, target_phys_addr_t addr,
                 s->dma = value & 0x8080;
             else {
                 s->dma = value & 0xbfbf;
-                if (value & (1 << 14)) /* RXFIFO_CLR */
-                    s->rxlen = 0;
-                if (value & (1 << 6))  /* TXFIFO_CLR */
-                    s->txlen = 0;
+                if ((value & (1 << 14))    /* RXFIFO_CLR */
+                    || (value & (1 << 6))) /* TXFIFO_CLR */
+                    s->fifolen = 0;
             }
             if (value & (1 << 15))     /* RDMA_EN */
                 s->mask &= ~(1 << 3);  /* RRDY_IE */
@@ -454,21 +463,26 @@ static void omap_i2c_write(void *opaque, target_phys_addr_t addr,
         case 0x1c: /* I2C_DATA */
             TRACE("DATA = %04x", value);
             if (s->revision < OMAP3_INTR_REV) {
-                if (s->txlen > 2) {
+                if (s->fifolen > 2) {
                     /* XXX: remote access (qualifier) error - what's that? */
                     break;
                 }
                 if (s->control & (1 << 14)) { /* BE */
-                    s->fifo[s->txlen++] = (uint8_t)((value >> 8) & 0xff);
-                    s->fifo[s->txlen++] = (uint8_t)(value & 0xff);
+                    s->fifo[(s->fifostart + s->fifolen++) & I2C_FIFO_SIZE_MASK] =
+                        (uint8_t)((value >> 8) & 0xff);
+                    s->fifo[(s->fifostart + s->fifolen++) & I2C_FIFO_SIZE_MASK] =
+                        (uint8_t)(value & 0xff);
                 } else {
-                    s->fifo[s->txlen++] = (uint8_t)(value & 0xff);
-                    s->fifo[s->txlen++] = (uint8_t)((value >> 8) & 0xff);
+                    s->fifo[(s->fifostart + s->fifolen++) & I2C_FIFO_SIZE_MASK] =
+                        (uint8_t)(value & 0xff);
+                    s->fifo[(s->fifostart + s->fifolen++) & I2C_FIFO_SIZE_MASK] =
+                        (uint8_t)((value >> 8) & 0xff);
                 }
             } else {
-                if (s->txlen < s->fifosize) {
+                if (s->fifolen < s->fifosize) {
                     s->stat &= ~(1 << 7); /* AERR */
-                    s->fifo[s->txlen++] = (uint8_t)(value & 0xff);
+                    s->fifo[(s->fifostart + s->fifolen++) & I2C_FIFO_SIZE_MASK] =
+                        (uint8_t)(value & 0xff);
                 } else
                     s->stat |= (1 << 7); /* AERR */
             }
@@ -507,8 +521,7 @@ static void omap_i2c_write(void *opaque, target_phys_addr_t addr,
                                                 (~value >> 9) & 1);    /*TRX*/
                     s->stat |= nack << 1;        /* NACK */
                     s->control &= ~(1 << 0);     /* STT */
-                    s->txlen = 0;
-                    s->rxlen = 0;
+                    s->fifolen = 0;
                     if (nack)
                         s->control &= ~(1 << 1); /* STP */
                     else {
@@ -520,7 +533,6 @@ static void omap_i2c_write(void *opaque, target_phys_addr_t addr,
                     i2c_end_transfer(s->bus);
                     s->control &= ~0x0602;     /* MST | TRX | STP */
                     s->count_cur = s->count;
-                    s->txlen = 0;
                 }
             }
             break;
@@ -600,12 +612,13 @@ static void omap_i2c_writeb(void *opaque, target_phys_addr_t addr,
     switch (offset) {
         case 0x1c: /* I2C_DATA */
             TRACE("DATA = %02x", value);
-            if (s->revision < OMAP3_INTR_REV && s->txlen > 2) {
+            if (s->revision < OMAP3_INTR_REV && s->fifolen > 2) {
                 /* XXX: remote access (qualifier) error - what's that? */
                 break;
             }
-            if (s->txlen < s->fifosize) {
-                s->fifo[s->txlen++] = (uint8_t)(value & 0xff);
+            if (s->fifolen < s->fifosize) {
+                s->fifo[(s->fifostart + s->fifolen++) & I2C_FIFO_SIZE_MASK] =
+                    (uint8_t)(value & 0xff);
                 if (s->revision >= OMAP3_INTR_REV)
                     s->stat &= ~(1 << 7); /* AERR */
                 s->stat &= ~(1 << 10);    /* XUDF */
