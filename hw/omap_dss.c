@@ -707,7 +707,7 @@ static void omap_disc_write(void *opaque, target_phys_addr_t addr,
         s->dispc.invalidate = 1;
         break;
     case 0x060:	/* DISPC_LINE_NUMBER */
-        TRACE("DISPC_LINE_NUMBER = 0x%08x", value);
+        TRACEREG("DISPC_LINE_NUMBER = 0x%08x", value);
         s->dispc.line = value & 0x7ff;
         break;
     case 0x064:	/* DISPC_TIMING_H */
