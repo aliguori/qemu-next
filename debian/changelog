@@ -1,3 +1,10 @@
+qemu (0.10.0-0maemo1) unstable; urgency=low
+
+  * New upstream version
+  * merge maemo patches 
+
+ -- Riku Voipio <riku.voipio@iki.fi>  Thu, 05 Mar 2009 11:50:07 +0200
+
 qemu (0.9.1+svn20090113-0maemo1) unstable; urgency=low
 
   * maemo patched version
