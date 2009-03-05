@@ -91,11 +91,11 @@ sb1-qemu-install:
 	ln -sf $(sb1_prefix)/bin/qemu-arm debian/sb1-qemu/$(sb1_prefix)/bin/qemu-arm-cvs-m
 
 sb2-qemu-install:
-	mkdir -p debian/sb2-qemu/usr/bin
-	cp obj-sb2/arm-linux-user/qemu-arm debian/sb2-qemu/usr/bin/sb2-qemu-arm
-	cp obj-sb2/i386-linux-user/qemu-i386  debian/sb2-qemu/usr/bin/sb2-qemu-i386
-	cp obj-sb2/arm-softmmu/qemu-system-arm  debian/sb2-qemu/usr/bin/sb2-qemu-system-arm
-	cp obj-sb2/i386-softmmu/qemu  debian/sb2-qemu/usr/bin/sb2-qemu-system-i386
+	mkdir -p debian/sb2-qemu-arm/usr/bin
+	cp obj-sb2/arm-linux-user/qemu-arm debian/sb2-qemu-arm/usr/bin/sb2-qemu-arm
+	cp obj-sb2/i386-linux-user/qemu-i386  debian/sb2-qemu-arm/usr/bin/sb2-qemu-i386
+	cp obj-sb2/arm-softmmu/qemu-system-arm  debian/sb2-qemu-arm/usr/bin/sb2-qemu-system-arm
+	cp obj-sb2/i386-softmmu/qemu  debian/sb2-qemu-arm/usr/bin/sb2-qemu-system-i386
 
 install: build $(install_list)
 	dh_testdir
