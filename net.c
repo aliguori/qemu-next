@@ -670,6 +670,23 @@ void do_info_slirp(void)
     slirp_stats();
 }
 
+struct VMChannel {
+    CharDriverState *hd;
+    int port;
+} *vmchannels;
+
+static int vmchannel_can_read(void *opaque)
+{
+    struct VMChannel *vmc = (struct VMChannel*)opaque;
+    return slirp_socket_can_recv(4, vmc->port);
+}
+
+static void vmchannel_read(void *opaque, const uint8_t *buf, int size)
+{
+    struct VMChannel *vmc = (struct VMChannel*)opaque;
+    slirp_socket_recv(4, vmc->port, buf, size);
+}
+
 #endif /* CONFIG_SLIRP */
 
 #if !defined(_WIN32)
@@ -1076,8 +1093,8 @@ typedef struct NetSocketState {
     VLANClientState *vc;
     int fd;
     int state; /* 0 = getting length, 1 = getting data */
-    int index;
-    int packet_len;
+    unsigned int index;
+    unsigned int packet_len;
     uint8_t buf[4096];
     struct sockaddr_in dgram_dst; /* contains inet host and port destination iff connectionless (SOCK_DGRAM) */
 } NetSocketState;
@@ -1110,7 +1127,8 @@ static void net_socket_receive_dgram(void *opaque, const uint8_t *buf, int size)
 static void net_socket_send(void *opaque)
 {
     NetSocketState *s = opaque;
-    int l, size, err;
+    int size, err;
+    unsigned l;
     uint8_t buf1[4096];
     const uint8_t *buf;
 
@@ -1149,7 +1167,15 @@ static void net_socket_send(void *opaque)
             l = s->packet_len - s->index;
             if (l > size)
                 l = size;
-            memcpy(s->buf + s->index, buf, l);
+            if (s->index + l <= sizeof(s->buf)) {
+                memcpy(s->buf + s->index, buf, l);
+            } else {
+                fprintf(stderr, "serious error: oversized packet received,"
+                    "connection terminated.\n");
+                s->state = 0;
+                goto eoc;
+            }
+
             s->index += l;
             buf += l;
             size -= l;
@@ -1630,6 +1656,30 @@ int net_client_init(const char *device, const char *p)
         }
         vlan->nb_host_devs++;
         ret = net_slirp_init(vlan, device, name);
+    } else if (!strcmp(device, "channel")) {
+        long port;
+        char name[20], *devname;
+        struct VMChannel *vmc;
+
+        port = strtol(p, &devname, 10);
+        devname++;
+        if (port < 1 || port > 65535) {
+            fprintf(stderr, "vmchannel wrong port number\n"); 
+            return -1;
+        }
+        vmc = malloc(sizeof(struct VMChannel));
+        snprintf(name, 20, "vmchannel%ld", port);
+        vmc->hd = qemu_chr_open(name, devname, NULL);
+        if (!vmc->hd) {
+            fprintf(stderr, "qemu: could not open vmchannel device"
+                    "'%s'\n", devname);
+            return -1;
+        }
+        vmc->port = port;
+        slirp_add_exec(3, vmc->hd, 4, port);
+        qemu_chr_add_handlers(vmc->hd, vmchannel_can_read, vmchannel_read,
+                NULL, vmc);
+        ret = 0;
     } else
 #endif
 #ifdef _WIN32
