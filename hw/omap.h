@@ -115,13 +115,13 @@ struct omap_sdrc_s *omap_sdrc_init(target_phys_addr_t base);
 void omap_sdrc_write_mcfg(struct omap_sdrc_s *s, uint32_t value, uint32_t cs);
 
 struct omap_gpmc_s;
+struct nand_flash_s;
 struct omap_gpmc_s *omap_gpmc_init(struct omap_mpu_state_s *mpu,
                                    target_phys_addr_t base, qemu_irq irq);
 void omap_gpmc_attach(struct omap_gpmc_s *s, int cs, int iomemtype,
                 void (*base_upd)(void *opaque, target_phys_addr_t new),
                 void (*unmap)(void *opaque), void *opaque,
-                CPUReadMemoryFunc **nand_readfn,
-                CPUWriteMemoryFunc **nand_writefn);
+                struct nand_flash_s *nand_s);
 
 /*
  * Common IRQ numbers for level 1 interrupt handler

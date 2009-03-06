@@ -23,16 +23,9 @@ void nand_done(struct nand_flash_s *s);
 void nand_setpins(struct nand_flash_s *s,
                 int cle, int ale, int ce, int wp, int gnd);
 void nand_getpins(struct nand_flash_s *s, int *rb);
-void nand_setio(struct nand_flash_s *s, uint8_t value);
-uint8_t nand_getio(struct nand_flash_s *s);
-
-/* nand_bpage.c */
-struct nand_bflash_s;
-struct nand_bflash_s *nandb_init(int manf_id, int chip_id);
-void nandb_write_data16(struct nand_bflash_s *s, uint16_t value);
-uint16_t nandb_read_data16(struct nand_bflash_s *s);
-void nandb_write_address(struct nand_bflash_s *s, uint16_t value);
-void nandb_write_command(struct nand_bflash_s *s, uint16_t value);
+void nand_setio(struct nand_flash_s *s, uint32_t value);
+uint32_t nand_getio(struct nand_flash_s *s);
+uint32_t nand_getbuswidth(struct nand_flash_s *s);
 
 #define NAND_MFR_TOSHIBA	0x98
 #define NAND_MFR_SAMSUNG	0xec

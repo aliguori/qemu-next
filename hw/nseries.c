@@ -170,7 +170,7 @@ static void n8x0_nand_setup(struct n800_s *s)
                     (s->nand = onenand_init(0xec4800, 1,
                                             omap2_gpio_in_get(s->cpu->gpif,
                                                     N8X0_ONENAND_GPIO)[0])),
-                     NULL, NULL);
+                     NULL);
     otp_region = onenand_raw_otp(s->nand);
 
     memcpy(otp_region + 0x000, n8x0_cal_wlan_mac, sizeof(n8x0_cal_wlan_mac));
@@ -771,10 +771,10 @@ static void n8x0_usb_setup(struct n800_s *s)
     /* Using the NOR interface */
     omap_gpmc_attach(s->cpu->gpmc, N8X0_USB_ASYNC_CS,
                     tusb6010_async_io(tusb), 0, 0, tusb,
-                    NULL, NULL);
+                    NULL);
     omap_gpmc_attach(s->cpu->gpmc, N8X0_USB_SYNC_CS,
                     tusb6010_sync_io(tusb), 0, 0, tusb,
-                    NULL, NULL);
+                    NULL);
 
     s->usb = tusb;
     omap2_gpio_out_set(s->cpu->gpif, N8X0_TUSB_ENABLE_GPIO, tusb_pwr);

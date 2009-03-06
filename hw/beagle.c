@@ -59,7 +59,7 @@
 struct beagle_s {
     struct omap_mpu_state_s *cpu;
     
-    struct nand_bflash_s *nand;
+    struct nand_flash_s *nand;
     struct omap3_lcd_panel_s *lcd_panel;
     i2c_bus *i2c;
     struct twl4030_s *twl4030;
@@ -72,99 +72,42 @@ static struct arm_boot_info beagle_binfo = {
 };
 
 
-static uint32_t beagle_nand_read16(void *opaque, target_phys_addr_t addr)
-{
-	struct beagle_s *s = (struct beagle_s *) opaque;
-    //BEAGLE_DEBUG("beagle_nand_read16 offset %x\n",addr);
-
-	switch (addr)
-	{
-		case 0x7C: /*NAND_COMMAND*/
-		case 0x80: /*NAND_ADDRESS*/
-			OMAP_BAD_REG(addr);
-			break;
-		case 0x84: /*NAND_DATA*/
-			return nandb_read_data16(s->nand);
-			break;
-		default:
-			OMAP_BAD_REG(addr);
-			break;
-	}
-    return 0;
-}
-
-static void beagle_nand_write16(void *opaque, target_phys_addr_t addr,
-                uint32_t value)
-{
-	struct beagle_s *s = (struct beagle_s *) opaque;
-    switch (addr)
-	{
-		case 0x7C: /*NAND_COMMAND*/
-			nandb_write_command(s->nand,value);
-			break;
-		case 0x80: /*NAND_ADDRESS*/
-			nandb_write_address(s->nand,value);
-			break;
-		case 0x84: /*NAND_DATA*/
-			nandb_write_data16(s->nand,value);
-			break;
-		default:
-			OMAP_BAD_REG(addr);
-			break;
-	}
-}
-
-
-static CPUReadMemoryFunc *beagle_nand_readfn[] = {
-        beagle_nand_read16,
-        beagle_nand_read16,
-        omap_badwidth_read32,
-};
-
-static CPUWriteMemoryFunc *beagle_nand_writefn[] = {
-        beagle_nand_write16,
-        beagle_nand_write16,
-        omap_badwidth_write32,
-};
-
 static void beagle_nand_setup(struct beagle_s *s)
 {
-	//int iomemtype;
-	
-	/*MT29F2G16ABC*/
-	s->nand = nandb_init(NAND_MFR_MICRON,0xba);
-	/*wp=1, no write protect!!! */
-	//nand_set_wp(s->nand, 1);
-
-    omap_gpmc_attach(s->cpu->gpmc, BEAGLE_NAND_CS, 0, NULL, NULL, s,
-                     beagle_nand_readfn, beagle_nand_writefn);
-
-    omap3_set_mem_type(s->cpu,GPMC_NAND);
+	s->nand = nand_init(NAND_MFR_MICRON, 0xba); /* MT29F2G16ABC */
+	nand_setpins(s->nand, 0, 0, 0, 1, 0); /* no write-protect */
+    omap_gpmc_attach(s->cpu->gpmc, BEAGLE_NAND_CS, 0, NULL, NULL, s, s->nand);
+    omap3_set_mem_type(s->cpu, GPMC_NAND);
 }
 
-static int beagle_nand_read_page(struct beagle_s *s,uint8_t *buf, uint16_t page_addr)
+static int beagle_nand_read_page(struct beagle_s *s,uint8_t *buf, uint32_t addr)
 {
-	uint16_t *p;
+	uint16_t *p = (uint16_t *)buf;
 	int i;
 
-	p=(uint16_t *)buf;
-
-	/*send command 0x0*/
-	beagle_nand_write16(s,0x7C,0);
-	/*send page address */
-	beagle_nand_write16(s,0x80,page_addr&0xff);
-	beagle_nand_write16(s,0x80,(page_addr>>8)&0x7);
-	beagle_nand_write16(s,0x80,(page_addr>>11)&0xff);
-	beagle_nand_write16(s,0x80,(page_addr>>19)&0xff);
-	beagle_nand_write16(s,0x80,(page_addr>>27)&0xff);
-	/*send command 0x30*/
-	beagle_nand_write16(s,0x7C,0x30);
-
-	for (i=0;i<0x800/2;i++)
-	{
-		*p++ = beagle_nand_read16(s,0x84);
-	}
-	return 1;
+    /* send command: reset */
+    nand_setpins(s->nand, 1, 0, 0, 1, 0);
+    nand_setio(s->nand, 0xff);
+	/* send command: read page (cycle1) */
+    nand_setpins(s->nand, 1, 0, 0, 1, 0);
+    nand_setio(s->nand, 0);
+	/* send page address (x16 device):
+       bits  0-11 define cache address in words (bit11 set only for OOB access)
+       bits 16-33 define page and block address */
+    nand_setpins(s->nand, 0, 1, 0, 1, 0);
+    nand_setio(s->nand, (addr >> 1) & 0xff);
+    nand_setio(s->nand, (addr >> 9) & 0x3);
+    nand_setio(s->nand, (addr >> 11) & 0xff);
+    nand_setio(s->nand, (addr >> 19) & 0xff);
+    nand_setio(s->nand, (addr >> 27) & 0x1);
+	/* send command: read page (cycle2) */
+    nand_setpins(s->nand, 1, 0, 0, 1, 0);
+    nand_setio(s->nand, 0x30);
+    /* read page data */
+    nand_setpins(s->nand, 0, 0, 0, 1, 0);
+    for (i = 0; i < 0x800 / 2; i++)
+        *(p++) = nand_getio(s->nand);
+    return 1;
 }
 
 /*read the xloader from NAND Flash into internal RAM*/
@@ -180,14 +123,13 @@ static int beagle_boot_from_nand(struct beagle_s *s)
 	beagle_nand_read_page(s,nand_page,0);
 	len = *((uint32_t*)nand_page);
 	loadaddr =  *((uint32_t*)(nand_page+4));
-	if ((len==0)||(loadaddr==0)||(len==0xffffffff)||(loadaddr==0xffffffff))
+    fprintf(stderr, "%s: len = 0x%08x, addr = 0x%08x\n", __FUNCTION__, len, loadaddr);
+    if ((len==0)||(loadaddr==0)||(len==0xffffffff)||(loadaddr==0xffffffff))
 		return (-1);
 
 	/*put the first page into internal ram*/
-	load_dest = phys_ram_base +beagle_binfo.ram_size;
+	load_dest = phys_ram_base + beagle_binfo.ram_size;
 	load_dest += loadaddr-OMAP3_SRAM_BASE;
-	
-	BEAGLE_DEBUG("load_dest %x phys_ram_base %x \n",(unsigned)load_dest,(unsigned)phys_ram_base);
 	
 	memcpy(load_dest,nand_page+8,0x800-8);
 	load_dest += 0x800-8;
