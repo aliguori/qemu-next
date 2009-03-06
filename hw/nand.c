@@ -463,7 +463,7 @@ void nand_setio(struct nand_flash_s *s, uint32_t value)
 uint32_t nand_getio(struct nand_flash_s *s)
 {
     int offset;
-    uint16_t x = 0;
+    uint32_t x = 0;
 
     /* Allow sequential reading */
     if (!s->iolen && s->cmd == NAND_CMD_READ0) {
