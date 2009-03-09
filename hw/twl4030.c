@@ -568,8 +568,9 @@ static uint8_t twl4030_4b_read(void *opaque, uint8_t addr)
         case 0x2e: /* PWR_ISR1 */
         case 0x33: /* PWR_EDR1 */
         case 0x34: /* PWR_EDR2 */
-        case 0x45: /* STS_HW_CONDITIONS */
             return s->reg_data[addr];
+        case 0x45: /* STS_HW_CONDITIONS - USB plugged, no VBUS -> host usb */
+            return 0x4;
         default:
 #ifdef VERBOSE
 	        printf("%s: unknown register %02x pc %x \n", __FUNCTION__, addr,cpu_single_env->regs[15] );
