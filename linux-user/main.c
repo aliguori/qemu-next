@@ -2497,10 +2497,7 @@ int main(int argc, char **argv, char **envp)
             unsigned long tmp;
             if (fscanf(fp, "%lu", &tmp) == 1) {
                 mmap_min_addr = tmp;
-                if (loglevel) {
-                    (void) fprintf(logfile, "kernel mmap_min_addr=%lu\n",
-                        mmap_min_addr);
-                }
+                qemu_log("kernel mmap_min_addr=%lu\n", mmap_min_addr);
             }
             fclose(fp);
         }
