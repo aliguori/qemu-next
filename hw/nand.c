@@ -6,11 +6,9 @@
  * Copyright (c) 2006 Openedhand Ltd.
  * Written by Andrzej Zaborowski <balrog@zabor.org>
  *
- * Copyright (C) 2009 Nokia Corporation
- * Support for variable bus width and read cache commands based
- * on "MT29F2G16ABCWP 2Gx16" datasheet from Micron Technology and
- * "NAND02G-B2C" datasheet from ST Microelectronics.
- * Written by Juha Riihimäki
+ * Support for additional features based on "MT29F2G16ABCWP 2Gx16"
+ * datasheet from Micron Technology and "NAND02G-B2C" datasheet
+ * from ST Microelectronics.
  *
  * This code is licensed under the GNU GPL v2.
  */
@@ -580,7 +578,7 @@ void nand_done(struct nand_flash_s *s)
 /* Program a single page */
 static void glue(nand_blk_write_, PAGE_SIZE)(struct nand_flash_s *s)
 {
-    uint32_t off, page, sector, soff;
+    uint64_t off, page, sector, soff;
     uint8_t iobuf[(PAGE_SECTORS + 2) * 0x200];
     if (PAGE(s->addr) >= s->pages)
         return;
@@ -593,7 +591,7 @@ static void glue(nand_blk_write_, PAGE_SIZE)(struct nand_flash_s *s)
         off = (s->addr & PAGE_MASK) + s->offset;
         soff = SECTOR_OFFSET(s->addr);
         if (bdrv_read(s->bdrv, sector, iobuf, PAGE_SECTORS) == -1) {
-            printf("%s: read error in sector %i\n", __FUNCTION__, sector);
+            printf("%s: read error in sector %lli\n", __FUNCTION__, sector);
             return;
         }
 
@@ -605,20 +603,20 @@ static void glue(nand_blk_write_, PAGE_SIZE)(struct nand_flash_s *s)
         }
 
         if (bdrv_write(s->bdrv, sector, iobuf, PAGE_SECTORS) == -1)
-            printf("%s: write error in sector %i\n", __FUNCTION__, sector);
+            printf("%s: write error in sector %lli\n", __FUNCTION__, sector);
     } else {
         off = PAGE_START(s->addr) + (s->addr & PAGE_MASK) + s->offset;
         sector = off >> 9;
         soff = off & 0x1ff;
         if (bdrv_read(s->bdrv, sector, iobuf, PAGE_SECTORS + 2) == -1) {
-            printf("%s: read error in sector %i\n", __FUNCTION__, sector);
+            printf("%s: read error in sector %lli\n", __FUNCTION__, sector);
             return;
         }
 
         memcpy(iobuf + soff, s->io, s->iolen);
 
         if (bdrv_write(s->bdrv, sector, iobuf, PAGE_SECTORS + 2) == -1)
-            printf("%s: write error in sector %i\n", __FUNCTION__, sector);
+            printf("%s: write error in sector %lli\n", __FUNCTION__, sector);
     }
     s->offset = 0;
 }
@@ -626,7 +624,7 @@ static void glue(nand_blk_write_, PAGE_SIZE)(struct nand_flash_s *s)
 /* Erase a single block */
 static void glue(nand_blk_erase_, PAGE_SIZE)(struct nand_flash_s *s)
 {
-    uint32_t i, page, addr;
+    uint64_t i, page, addr;
     uint8_t iobuf[0x200] = { [0 ... 0x1ff] = 0xff, };
     addr = s->addr & ~((1 << (ADDR_SHIFT + s->erase_shift)) - 1);
 
@@ -643,29 +641,29 @@ static void glue(nand_blk_erase_, PAGE_SIZE)(struct nand_flash_s *s)
         page = SECTOR(addr + (ADDR_SHIFT + s->erase_shift));
         for (; i < page; i ++)
             if (bdrv_write(s->bdrv, i, iobuf, 1) == -1)
-                printf("%s: write error in sector %i\n", __FUNCTION__, i);
+                printf("%s: write error in sector %lli\n", __FUNCTION__, i);
     } else {
         addr = PAGE_START(addr);
         page = addr >> 9;
         if (bdrv_read(s->bdrv, page, iobuf, 1) == -1)
-            printf("%s: read error in sector %i\n", __FUNCTION__, page);
+            printf("%s: read error in sector %lli\n", __FUNCTION__, page);
         memset(iobuf + (addr & 0x1ff), 0xff, (~addr & 0x1ff) + 1);
         if (bdrv_write(s->bdrv, page, iobuf, 1) == -1)
-            printf("%s: write error in sector %i\n", __FUNCTION__, page);
+            printf("%s: write error in sector %lli\n", __FUNCTION__, page);
 
         memset(iobuf, 0xff, 0x200);
         i = (addr & ~0x1ff) + 0x200;
         for (addr += ((PAGE_SIZE + OOB_SIZE) << s->erase_shift) - 0x200;
                         i < addr; i += 0x200)
             if (bdrv_write(s->bdrv, i >> 9, iobuf, 1) == -1)
-                printf("%s: write error in sector %i\n", __FUNCTION__, i >> 9);
+                printf("%s: write error in sector %lli\n", __FUNCTION__, i >> 9);
 
         page = i >> 9;
         if (bdrv_read(s->bdrv, page, iobuf, 1) == -1)
-            printf("%s: read error in sector %i\n", __FUNCTION__, page);
+            printf("%s: read error in sector %lli\n", __FUNCTION__, page);
         memset(iobuf, 0xff, ((addr - 1) & 0x1ff) + 1);
         if (bdrv_write(s->bdrv, page, iobuf, 1) == -1)
-            printf("%s: write error in sector %i\n", __FUNCTION__, page);
+            printf("%s: write error in sector %lli\n", __FUNCTION__, page);
     }
 }
 
