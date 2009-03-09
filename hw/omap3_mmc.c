@@ -174,6 +174,10 @@ static void omap3_mmc_fifolevel_update(struct omap3_mmc_s *host)
                        ? "complete"
                        : "aborted --> complete");
                 host->stat_pending |= 0x2;         /* TC */
+                if (host->cmd & 0x04) {            /* ACEN */
+                    host->stop = 0x0cc30000;
+                    state = aborted;
+                }
                 if (state == aborted) {
                     host->cmd = host->stop;
                     host->stop = 0;
@@ -523,14 +527,15 @@ static void omap3_mmc_write(void *opaque, target_phys_addr_t addr,
             break;
         case 0x02c: /* MMCHS_CON */
             TRACE2("CON = %08x", value);
-            if (value & 0x10) {
-                fprintf(stderr, "%s: SYSTEST mode is not supported\n", __FUNCTION__);
-                exit(-1);
-            }
-            if (value & 0x20) {
-                fprintf(stderr, "%s: 8-bit data width is not supported\n", __FUNCTION__);
-                exit(-1);
-            }
+            if (value & 0x10)   /* MODE */
+                fprintf(stderr, "%s: SYSTEST mode is not supported\n",
+                        __FUNCTION__);
+            if (value & 0x20)   /* DW8 */
+                fprintf(stderr, "%s: 8-bit data width is not supported\n",
+                        __FUNCTION__);
+            if (value & 0x1000) /* CEATA */
+                fprintf(stderr, "%s: CE-ATA control mode not supported\n",
+                        __FUNCTION__);
             s->con = value & 0x1ffff;
             break;
         case 0x030:
@@ -549,21 +554,22 @@ static void omap3_mmc_write(void *opaque, target_phys_addr_t addr,
             break;
         case 0x10c: /* MMCHS_CMD */
             TRACE2("CMD = %08x", value);
-            /* TODO: writing to bits 0-15 should have no effect during
-               an active data transfer */
-            if (value & 4) { /* ACEN */
-                fprintf(stderr, "%s: AutoCMD12 not supported!\n", __FUNCTION__);
-                exit(-1);
-            }
-            if (!s->stop
-                && (((value >> 24) & 0x3f) == 12 || ((value >> 24) & 0x3f) == 52)) {
-                s->stop = value & 0x3ffb0037;
+            if (!s->card) {
+                s->stat_pending |= (1 << 16); /* CTO */
             } else {
-                s->cmd = value & 0x3ffb0037;
-                omap3_mmc_command(s);
+                /* TODO: writing to bits 0-15 should have no effect during
+                   an active data transfer */
+                if (!s->stop
+                    && (((value >> 24) & 0x3f) == 12
+                        || ((value >> 24) & 0x3f) == 52)) {
+                    s->stop = value & 0x3ffb0037;
+                } else {
+                    s->cmd = value & 0x3ffb0037;
+                    omap3_mmc_command(s);
+                }
+                omap3_mmc_transfer(s);
+                omap3_mmc_fifolevel_update(s);
             }
-            omap3_mmc_transfer(s);
-            omap3_mmc_fifolevel_update(s);
             omap3_mmc_interrupts_update(s);
             break;
         case 0x120:
@@ -662,14 +668,9 @@ static CPUWriteMemoryFunc *omap3_mmc_writefn[] = {
     omap3_mmc_write,
 };
 
-static void omap3_mmc_enable(struct omap3_mmc_s *s, int enable)
-{
-    sd_enable(s->card, enable);
-}
-
 struct omap3_mmc_s *omap3_mmc_init(struct omap_target_agent_s *ta,
-                                   BlockDriverState * bd, qemu_irq irq,
-                                   qemu_irq dma[], omap_clk fclk, omap_clk iclk)
+                                   qemu_irq irq, qemu_irq dma[],
+                                   omap_clk fclk, omap_clk iclk)
 {
     int iomemtype;
     struct omap3_mmc_s *s = (struct omap3_mmc_s *)
@@ -685,11 +686,16 @@ struct omap3_mmc_s *omap3_mmc_init(struct omap_target_agent_s *ta,
                                       omap3_mmc_writefn, s);
     omap_l4_attach(ta, 0, iomemtype);
 
-    /* Instantiate the storage */
-    if (bd!=NULL) {
-    	s->card = sd_init(bd, 0);
-	    omap3_mmc_enable(s,1);
-    }
-
     return s;
+}
+
+void omap3_mmc_attach(struct omap3_mmc_s *s,
+                      BlockDriverState *bd)
+{
+    if (s->card) {
+        fprintf(stderr, "%s: SD card already attached!\n", __FUNCTION__);
+        exit(-1);
+    }
+    s->card = sd_init(bd, 0);
+    sd_enable(s->card, 1);
 }

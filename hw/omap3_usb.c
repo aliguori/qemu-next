@@ -145,9 +145,9 @@ static void omap3_hsusb_otg_write(void *opaque, target_phys_addr_t addr,
     struct omap3_hsusb_otg_s *s = (struct omap3_hsusb_otg_s *)opaque;
     
     if (addr < 0x200)
-        musb_write[1](s->musb, addr, value);
+        musb_write[2](s->musb, addr, value);
     else if (addr < 0x400)
-        musb_write[1](s->musb, 0x20 + ((addr >> 3) & 0x3c), value);
+        musb_write[2](s->musb, 0x20 + ((addr >> 3) & 0x3c), value);
     else switch (addr) {
         case 0x400: /* OTG_REVISION */
         case 0x408: /* OTG_SYSSTATUS */

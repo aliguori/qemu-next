@@ -1230,7 +1230,7 @@ int sd_do_command(SDState *sd, struct sd_request_s *req,
     sd_rsp_type_t rtype;
     int rsplen;
 
-    if (!bdrv_is_inserted(sd->bdrv) || !sd->enable) {
+    if (!sd->bdrv || !bdrv_is_inserted(sd->bdrv) || !sd->enable) {
         return 0;
     }
 

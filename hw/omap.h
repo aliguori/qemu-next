@@ -115,13 +115,13 @@ struct omap_sdrc_s *omap_sdrc_init(target_phys_addr_t base);
 void omap_sdrc_write_mcfg(struct omap_sdrc_s *s, uint32_t value, uint32_t cs);
 
 struct omap_gpmc_s;
+struct nand_flash_s;
 struct omap_gpmc_s *omap_gpmc_init(struct omap_mpu_state_s *mpu,
                                    target_phys_addr_t base, qemu_irq irq);
 void omap_gpmc_attach(struct omap_gpmc_s *s, int cs, int iomemtype,
                 void (*base_upd)(void *opaque, target_phys_addr_t new),
                 void (*unmap)(void *opaque), void *opaque,
-                CPUReadMemoryFunc **nand_readfn,
-                CPUWriteMemoryFunc **nand_writefn);
+                struct nand_flash_s *nand_s);
 
 /*
  * Common IRQ numbers for level 1 interrupt handler
@@ -986,8 +986,10 @@ void omap_mmc_enable(struct omap_mmc_s *s, int enable);
 /* omap3_mmc.c */
 struct omap3_mmc_s;
 struct omap3_mmc_s *omap3_mmc_init(struct omap_target_agent_s *ta,
-                BlockDriverState *bd, qemu_irq irq, qemu_irq dma[],
-                omap_clk fclk, omap_clk iclk);
+                                   qemu_irq irq, qemu_irq dma[],
+                                   omap_clk fclk, omap_clk iclk);
+void omap3_mmc_attach(struct omap3_mmc_s *s,
+                      BlockDriverState *bd);
 
 /* omap_i2c.c */
 struct omap_i2c_s;
@@ -1236,8 +1238,13 @@ struct omap_mpu_state_s *omap2420_mpu_init(unsigned long sdram_size,
 struct omap_mpu_state_s *omap3530_mpu_init(unsigned long sdram_size,
                 const char *core);
 void omap3_set_mem_type(struct omap_mpu_state_s *s, int bootfrom);
-void omap3_set_device_type(struct omap_mpu_state_s *s, int device_type);
 int omap3_mmc_boot(struct omap_mpu_state_s *s);
+int omap3_nand_boot(struct omap_mpu_state_s *mpu,
+                    struct nand_flash_s *nand,
+                    void (*nand_pread_f)(struct nand_flash_s *nand,
+                                         uint64_t address,
+                                         uint8_t *data,
+                                         uint32_t len));
 
 # if TARGET_PHYS_ADDR_BITS == 32
 #  define OMAP_FMT_plx "0x%08x"
