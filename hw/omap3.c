@@ -4207,8 +4207,6 @@ struct omap_mpu_state_s *omap3530_mpu_init(unsigned long sdram_size,
     qemu_irq *cpu_irq;
     qemu_irq dma_irqs[4];
     int i;
-    int sdindex;
-    //omap_clk gpio_clks[4];
 
     s->mpu_model = omap3530;
     s->env = cpu_init("cortex-a8-r2");
@@ -4218,12 +4216,6 @@ struct omap_mpu_state_s *omap3530_mpu_init(unsigned long sdram_size,
     }
     s->sdram_size = sdram_size;
     s->sram_size = OMAP3530_SRAM_SIZE;
-
-    sdindex = drive_get_index(IF_SD, 0, 0);
-    if (sdindex == -1) {
-        fprintf(stderr, "qemu: missing SecureDigital device\n");
-        exit(1);
-    }
 
     /* Clocks */
     omap_clk_init(s);
@@ -4255,7 +4247,6 @@ struct omap_mpu_state_s *omap3530_mpu_init(unsigned long sdram_size,
                             omap_findclk(s, "omap3_sdma_fclk"),
                             omap_findclk(s, "omap3_sdma_iclk"));
     s->port->addr_valid = omap3_validate_addr;
-
 
     /* Register SDRAM and SRAM ports for fast DMA transfers.  */
     soc_dma_port_add_mem_ram(s->dma, q2_base, OMAP2_Q2_BASE, s->sdram_size);
@@ -4345,34 +4336,23 @@ struct omap_mpu_state_s *omap3530_mpu_init(unsigned long sdram_size,
                                  omap_findclk(s, "omap3_uart1_fclk"),
                                  omap_findclk(s, "omap3_uart1_iclk"),
                                  s->drq[OMAP35XX_DMA_UART1_TX],
-                                 s->drq[OMAP35XX_DMA_UART1_RX], serial_hds[0]);
+                                 s->drq[OMAP35XX_DMA_UART1_RX], 0);
     s->uart[1] = omap2_uart_init(omap3_l4ta_init(s->l4, L4A_UART2),
                                  s->irq[0][OMAP_INT_35XX_UART2_IRQ],
                                  omap_findclk(s, "omap3_uart2_fclk"),
                                  omap_findclk(s, "omap3_uart2_iclk"),
                                  s->drq[OMAP35XX_DMA_UART2_TX],
-                                 s->drq[OMAP35XX_DMA_UART2_RX],
-                                 serial_hds[0] ? serial_hds[1] : 0);
+                                 s->drq[OMAP35XX_DMA_UART2_RX], 0);
     s->uart[2] = omap2_uart_init(omap3_l4ta_init(s->l4, L4A_UART3),
                                  s->irq[0][OMAP_INT_35XX_UART3_IRQ],
                                  omap_findclk(s, "omap3_uart2_fclk"),
                                  omap_findclk(s, "omap3_uart3_iclk"),
                                  s->drq[OMAP35XX_DMA_UART3_TX],
-                                 s->drq[OMAP35XX_DMA_UART3_RX],
-                                 serial_hds[0]
-                                 && serial_hds[1] ? serial_hds[2] : 0);
+                                 s->drq[OMAP35XX_DMA_UART3_RX], 0);
     
-    /*attach serial[0] to uart 2 for beagle board */
-    omap_uart_attach(s->uart[2], serial_hds[0]);
-
     s->dss = omap_dss_init(s, omap3_l4ta_init(s->l4, L4A_DSS), 
                     s->irq[0][OMAP_INT_35XX_DSS_IRQ], s->drq[OMAP24XX_DMA_DSS],
                    NULL,NULL,NULL,NULL,NULL);
-
-    //gpio_clks[0] = NULL;
-    //gpio_clks[1] = NULL;
-    //gpio_clks[2] = NULL;
-    //gpio_clks[3] = NULL;
 
     s->gpif = omap3_gpif_init();
     omap3_gpio_init(s, s->gpif ,omap3_l4ta_init(s->l4, L4A_GPIO1),
@@ -4397,21 +4377,18 @@ struct omap_mpu_state_s *omap3530_mpu_init(unsigned long sdram_size,
     omap_tap_init(omap3_l4ta_init(s->l4, L4A_TAP), s);
 
     s->omap3_mmc[0] = omap3_mmc_init(omap3_l4ta_init(s->l4, L4A_MMC1),
-                                     drives_table[sdindex].bdrv,
                                      s->irq[0][OMAP_INT_35XX_MMC1_IRQ],
                                      &s->drq[OMAP35XX_DMA_MMC1_TX],
                                      omap_findclk(s, "omap3_mmc1_fclk"),
                                      omap_findclk(s, "omap3_mmc1_iclk"));
 
     s->omap3_mmc[1] = omap3_mmc_init(omap3_l4ta_init(s->l4, L4A_MMC2),
-                                     NULL,
                                      s->irq[0][OMAP_INT_35XX_MMC2_IRQ],
                                      &s->drq[OMAP35XX_DMA_MMC2_TX],
                                      omap_findclk(s, "omap3_mmc2_fclk"),
                                      omap_findclk(s, "omap3_mmc2_iclk"));
 
     s->omap3_mmc[2] = omap3_mmc_init(omap3_l4ta_init(s->l4, L4A_MMC3),
-                                     NULL,
                                      s->irq[0][OMAP_INT_35XX_MMC3_IRQ],
                                      &s->drq[OMAP35XX_DMA_MMC3_TX],
                                      omap_findclk(s, "omap3_mmc3_fclk"),
@@ -4688,10 +4665,14 @@ static uint32_t omap3_boot_block(const uint8_t *data,
             s->state = imagehdr;
             /* fallthrough */
         case imagehdr:
+            if (!data_len)
+                return 1;
             if (data_len < 8)
                 break;
             s->count = omap3_get_le32(data);
             s->addr = omap3_get_le32(data + 4);
+            if (!s->count || !s->addr || s->addr == 0xffffffff)
+                break;
             s->mpu->env->regs[15] = s->addr;
             data += 8;
             data_len -= 8;
@@ -4702,7 +4683,7 @@ static uint32_t omap3_boot_block(const uint8_t *data,
             cpu_physical_memory_write(s->addr, data, i);
             s->addr += i;
             s->count -= i;
-           if (!s->count)
+            if (!s->count)
                 s->state = done;
             return s->count;
         default:
@@ -4837,8 +4818,8 @@ static int omap3_mmc_fat_boot(BlockDriverState *bs,
             boot->state = imagehdr; /* override CH detection */
             while (omap3_boot_block(data, j, boot))
                 i = omap3_read_fat_cluster(data, &drv, i);
+            result = (boot->state == done);
             free(boot);
-            result = 1;
         } else
             fprintf(stderr, "%s: unable to read MLO file contents from SD card\n",
                     __FUNCTION__);
@@ -4856,6 +4837,7 @@ static int omap3_mmc_raw_boot(BlockDriverState *bs,
 {
     struct omap3_boot_s *boot;
     uint32_t i = 0;
+    int result = 0;
     
     if (bdrv_pread(bs, 0, sector, 0x200) == 0x200) {
         boot = omap3_boot_init(sector, 0x200, mpu);
@@ -4868,9 +4850,10 @@ static int omap3_mmc_raw_boot(BlockDriverState *bs,
                 }
             }
         }
+        result = (boot->state == done);
         free(boot);
     }
-    return 0;
+    return result;
 }
 
 /* returns non-zero if successful, zero if unsuccessful */
@@ -4909,3 +4892,28 @@ int omap3_mmc_boot(struct omap_mpu_state_s *s)
     return result;
 }
 
+/* returns non-zero if successful, zero if unsuccessful */
+int omap3_nand_boot(struct omap_mpu_state_s *mpu,
+                    struct nand_flash_s *nand,
+                    void (*nand_pread_f)(struct nand_flash_s *nand,
+                                         uint64_t address,
+                                         uint8_t *data,
+                                         uint32_t len))
+{
+    struct omap3_boot_s *boot;
+    uint8_t *data;
+    uint64_t addr = 0;
+    int result = 0;
+    
+    data = qemu_mallocz(0x1000);
+    nand_pread_f(nand, 0, data, 0x1000);
+    boot = omap3_boot_init(data, 0x1000, mpu);
+    while (omap3_boot_block(data, 0x1000, boot)) {
+        addr += 0x1000;
+        nand_pread_f(nand, addr, data, 0x1000);
+    }
+    result = (boot->state == done);
+    free(boot);
+    free(data);
+    return result;
+}
