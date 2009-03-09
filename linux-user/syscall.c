@@ -3372,11 +3372,9 @@ static void *clone_func(void *arg)
     env = info->env;
     thread_env = env;
     info->tid = gettid();
-    if (info->flags & CLONE_CHILD_SETTID)
+    if (info->child_tidptr)
         put_user_u32(info->tid, info->child_tidptr);
-    if (info->flags & CLONE_CHILD_CLEARTID)
-        set_tid_address(g2h(info->child_tidptr));
-    if (info->flags & CLONE_PARENT_SETTID)
+    if (info->parent_tidptr)
         put_user_u32(info->tid, info->parent_tidptr);
     /* Enable signals.  */
     sigprocmask(SIG_SETMASK, &info->sigmask, NULL);
@@ -3456,9 +3454,7 @@ static int do_fork(CPUState *env, unsigned int flags, abi_ulong newsp,
         pthread_mutex_lock(&info.mutex);
         pthread_cond_init(&info.cond, NULL);
         info.env = new_env;
-        info.flags = nptl_flags;
-        if (nptl_flags & CLONE_CHILD_SETTID ||
-            nptl_flags & CLONE_CHILD_CLEARTID)
+        if (nptl_flags & CLONE_CHILD_SETTID)
             info.child_tidptr = child_tidptr;
         if (nptl_flags & CLONE_PARENT_SETTID)
             info.parent_tidptr = parent_tidptr;
