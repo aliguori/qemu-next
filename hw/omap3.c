@@ -3471,17 +3471,15 @@ static struct omap3_wdt_s *omap3_mpu_wdt_init(struct omap_target_agent_s *ta,
 
 }
 
-/*dummy system control module*/
-struct omap3_scm_s
-{
+struct omap3_scm_s {
     struct omap_mpu_state_s *mpu;
 
-	uint8 interface[48];           /*0x4800 2000*/
-	uint8 padconfs[576];         /*0x4800 2030*/
-	uint32 general[228];            /*0x4800 2270*/
-	uint8 mem_wkup[1024];     /*0x4800 2600*/
+	uint8 interface[48];     /*0x4800 2000*/
+	uint8 padconfs[576];     /*0x4800 2030*/
+	uint32 general[228];     /*0x4800 2270*/
+	uint8 mem_wkup[1024];    /*0x4800 2600*/
 	uint8 padconfs_wkup[84]; /*0x4800 2a00*/
-	uint32 general_wkup[8];    /*0x4800 2a60*/
+	uint32 general_wkup[8];  /*0x4800 2a60*/
 };
 
 #define PADCONFS_VALUE(wakeup0,wakeup1,offmode0,offmode1, \
@@ -3494,7 +3492,7 @@ struct omap3_scm_s
 
 static void omap3_scm_reset(struct omap3_scm_s *s)
 {
-	 uint32 * padconfs;
+    uint32 * padconfs;
     padconfs = (uint32 *)(s->padconfs);
     PADCONFS_VALUE(0,0,0,0,1,1,0,0,0,0,0x0);
     PADCONFS_VALUE(0,0,0,0,1,1,0,0,0,0,0x4);
@@ -3639,44 +3637,45 @@ static void omap3_scm_reset(struct omap3_scm_s *s)
     PADCONFS_VALUE(0,0,0,0,1,1,3,3,7,7,0x230);
     PADCONFS_VALUE(0,0,0,0,1,1,3,3,7,7,0x234);
 
-
 	padconfs = (uint32 *)(s->general);
-	s->general[1] = 0x4000000;  /*0x4800 2274*/
-	s->general[0x1c] = 0x1;  /*0x4800 22e0*/
-	s->general[0x75] = 0x7fc0;  /*0x4800 2444*/
-	s->general[0x76] = 0xaa;  /*0x4800 2448*/
-	s->general[0x7c] = 0x2700;  /*0x4800 2460*/
-	s->general[0x7d] = 0x300000;  /*0x4800 2464*/
-	s->general[0x7e] = 0x300000;  /*0x4800 2468*/
-	s->general[0x81] = 0xffff;  /*0x4800 2474*/
-	s->general[0x82] = 0xffff;  /*0x4800 2478*/
-	s->general[0x83] = 0xffff;  /*0x4800 247c*/
-	s->general[0x84] = 0x6;  /*0x4800 2480*/
-	s->general[0x85] = 0xffffffff;  /*0x4800 2484*/
-	s->general[0x86] = 0xffff;  /*0x4800 2488*/
-	s->general[0x87] = 0xffff;  /*0x4800 248c*/
-	s->general[0x88] = 0x1;  /*0x4800 2490*/
-	s->general[0x8b] = 0xffffffff;  /*0x4800 249c*/
-	s->general[0x8c] = 0xffff;  /*0x4800 24a0*/
-	s->general[0x8e] = 0xffff;  /*0x4800 24a8*/
-	s->general[0x8f] = 0xffff;  /*0x4800 24ac*/
-	s->general[0x91] = 0xffff;  /*0x4800 24b4*/
-	s->general[0x92] = 0xffff;  /*0x4800 24b8*/
-	s->general[0xac] = 0x109;  /*0x4800 2520*/
-	s->general[0xb2] = 0xffff;  /*0x4800 2538*/
-	s->general[0xb3] = 0xffff;  /*0x4800 253c*/
-	s->general[0xb4] = 0xffff;  /*0x4800 2540*/
-	PADCONFS_VALUE(0,0,0,0,1,1,3,3,4,4,0x368);
-    PADCONFS_VALUE(0,0,0,0,1,1,3,3,4,4,0x36c);
-    PADCONFS_VALUE(0,0,0,0,1,1,3,3,4,4,0x370);
-    PADCONFS_VALUE(0,0,0,0,1,1,1,1,4,4,0x374);
-    PADCONFS_VALUE(0,0,0,0,1,1,1,1,4,4,0x378);
-    PADCONFS_VALUE(0,0,0,0,1,1,1,1,4,4,0x37c);
-    PADCONFS_VALUE(0,0,0,0,1,1,1,1,4,4,0x380);
-    PADCONFS_VALUE(0,0,0,0,1,1,1,1,4,4,0x384);
-    PADCONFS_VALUE(0,0,0,0,1,1,1,1,4,4,0x388);
-
-    
+    memset(s->general, 0, sizeof(s->general));
+	s->general[0x01] = 0x4000000;  /* CONTROL_DEVCONF_0 */
+	s->general[0x1c] = 0x1;        /* 0x480022e0?? */
+    s->general[0x20] = 0x30f;      /* CONTROL_STATUS:
+                                    * - device type = GP Device
+                                    * - sys_boot = NAND, USB, UART3, MMC1 */
+	s->general[0x75] = 0x7fc0;     /* CONTROL_PROG_IO0 */
+	s->general[0x76] = 0xaa;       /* CONTROL_PROG_IO1 */
+	s->general[0x7c] = 0x2700;     /* CONTROL_SDRC_SHARING */
+	s->general[0x7d] = 0x300000;   /* CONTROL_SDRC_MCFG0 */
+	s->general[0x7e] = 0x300000;   /* CONTROL_SDRC_MCFG1 */
+	s->general[0x81] = 0xffff;     /* CONTROL_MODEM_GPMC_DT_FW_REQ_INFO */
+	s->general[0x82] = 0xffff;     /* CONTROL_MODEM_GPMC_DT_FW_RD */
+	s->general[0x83] = 0xffff;     /* CONTROL_MODEM_GPMC_DT_FW_WR */
+	s->general[0x84] = 0x6;        /* CONTROL_MODEM_GPMC_BOOT_CODE */
+	s->general[0x85] = 0xffffffff; /* CONTROL_MODEM_SMS_RG_ATT1 */
+	s->general[0x86] = 0xffff;     /* CONTROL_MODEM_SMS_RG_RDPERM1 */
+	s->general[0x87] = 0xffff;     /* CONTROL_MODEM_SMS_RG_WRPERM1 */
+	s->general[0x88] = 0x1;        /* CONTROL_MODEM_D2D_FW_DEBUG_MODE */
+	s->general[0x8b] = 0xffffffff; /* CONTROL_DPF_OCM_RAM_FW_REQINFO */
+	s->general[0x8c] = 0xffff;     /* CONTROL_DPF_OCM_RAM_FW_WR */
+	s->general[0x8e] = 0xffff;     /* CONTROL_DPF_REGION4_GPMC_FW_REQINFO */
+	s->general[0x8f] = 0xffff;     /* CONTROL_DPF_REGION4_GPMC_FW_WR */
+	s->general[0x91] = 0xffff;     /* CONTROL_DPF_REGION1_IVA2_FW_REQINFO */
+	s->general[0x92] = 0xffff;     /* CONTROL_DPF_REGION1_IVA2_FW_WR */
+	s->general[0xac] = 0x109;      /* CONTROL_PBIAS_LITE */
+	s->general[0xb2] = 0xffff;     /* CONTROL_DPF_MAD2D_FW_ADDR_MATCH */
+	s->general[0xb3] = 0xffff;     /* CONTROL_DPF_MAD2D_FW_REQINFO */
+	s->general[0xb4] = 0xffff;     /* CONTROL_DPF_MAD2D_FW_WR */
+	PADCONFS_VALUE(0,0,0,0,1,1,3,3,4,4,0x368); /* PADCONF_ETK_CLK */
+    PADCONFS_VALUE(0,0,0,0,1,1,3,3,4,4,0x36c); /* PADCONF_ETK_D0 */
+    PADCONFS_VALUE(0,0,0,0,1,1,3,3,4,4,0x370); /* PADCONF_ETK_D2 */
+    PADCONFS_VALUE(0,0,0,0,1,1,1,1,4,4,0x374); /* PADCONF_ETK_D4 */
+    PADCONFS_VALUE(0,0,0,0,1,1,1,1,4,4,0x378); /* PADCONF_ETK_D6 */
+    PADCONFS_VALUE(0,0,0,0,1,1,1,1,4,4,0x37c); /* PADCONF_ETK_D8 */
+    PADCONFS_VALUE(0,0,0,0,1,1,1,1,4,4,0x380); /* PADCONF_ETK_D10 */
+    PADCONFS_VALUE(0,0,0,0,1,1,1,1,4,4,0x384); /* PADCONF_ETK_D12 */
+    PADCONFS_VALUE(0,0,0,0,1,1,1,1,4,4,0x388); /* PADCONF_ETK_D14 */
 
 	padconfs = (uint32 *)(s->padconfs_wkup);
 	PADCONFS_VALUE(0,0,0,0,1,1,3,3,0,0,0x0);
@@ -3691,9 +3690,7 @@ static void omap3_scm_reset(struct omap3_scm_s *s)
 	PADCONFS_VALUE(0,0,0,0,1,1,3,3,0,0,0x24);
 	PADCONFS_VALUE(0,0,0,0,1,1,1,1,0,0,0x2c);
 
-
-	s->general_wkup[0] = 0x66ff; /*0x4800 2A60*/
-	    
+	s->general_wkup[0] = 0x66ff; /* 0x48002A60?? */
 }
 
 static uint32_t omap3_scm_read8(void *opaque, target_phys_addr_t addr)
@@ -4161,41 +4158,6 @@ static int omap3_validate_addr(struct omap_mpu_state_s *s,
                                target_phys_addr_t addr)
 {
     return 1;
-}
-
-/*
-  set the kind of memory connected to GPMC that we are trying to boot form.
-  Uses SYS BOOT settings.
-*/
-void omap3_set_mem_type(struct omap_mpu_state_s *s,int bootfrom)
-{
-    s->omap3_scm->general[32] &= ~0x3f;
-	switch (bootfrom) {
-		case 0x0: /*GPMC_NOR*/
-			s->omap3_scm->general[32] |= 7;
-			break;
-		case 0x1: /*GPMC_NAND*/
-			s->omap3_scm->general[32] |= 1;
-			break;
-		case 0x2:
-			s->omap3_scm->general[32] |= 8;
-			break;
-		case 0x3:
-			s->omap3_scm->general[32] |= 0;
-			break;
-		case 0x4:
-			s->omap3_scm->general[32] |= 17;
-			break;
-		case 0x5:
-			s->omap3_scm->general[32] |= 3;
-			break;
-	}
-}
-
-void omap3_set_device_type(struct omap_mpu_state_s *s,int device_type)
-{
-    s->omap3_scm->general[32] &= ~(0x7 << 8);
-	s->omap3_scm->general[32] |= (device_type & 0x7) << 8;
 }
 
 struct omap_mpu_state_s *omap3530_mpu_init(unsigned long sdram_size,

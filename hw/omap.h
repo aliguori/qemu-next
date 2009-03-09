@@ -1238,7 +1238,6 @@ struct omap_mpu_state_s *omap2420_mpu_init(unsigned long sdram_size,
 struct omap_mpu_state_s *omap3530_mpu_init(unsigned long sdram_size,
                 const char *core);
 void omap3_set_mem_type(struct omap_mpu_state_s *s, int bootfrom);
-void omap3_set_device_type(struct omap_mpu_state_s *s, int device_type);
 int omap3_mmc_boot(struct omap_mpu_state_s *s);
 int omap3_nand_boot(struct omap_mpu_state_s *mpu,
                     struct nand_flash_s *nand,

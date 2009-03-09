@@ -35,19 +35,6 @@
 #define BEAGLE_NAND_CS       0
 #define BEAGLE_NAND_PAGESIZE 0x800
 
-#define GPMC_NOR             0
-#define GPMC_NAND           1
-#define GPMC_MDOC           2
-#define GPMC_ONENAND    3
-#define MMC_NAND            4
-#define MMC_ONENAND     5
-
-
-#define TST_DEVICE              0x0
-#define EMU_DEVICE              0x1
-#define HS_DEVICE               0x2
-#define GP_DEVICE               0x3
-
 /* Beagle board support */
 struct beagle_s {
     struct omap_mpu_state_s *cpu;
@@ -139,8 +126,6 @@ static void beagle_init(ram_addr_t ram_size, int vga_ram_size,
 	s->lcd_panel = omap3_lcd_panel_init();
 	omap3_lcd_panel_attach(s->cpu->dss, 0, s->lcd_panel);
 
-    omap3_set_mem_type(s->cpu, GPMC_NAND);
-   	omap3_set_device_type(s->cpu,GP_DEVICE);
     if (!omap3_mmc_boot(s->cpu) 
         && !omap3_nand_boot(s->cpu, s->nand, beagle_nand_pread)) {
         fprintf(stderr, "%s: boot from MMC and NAND failed\n",
