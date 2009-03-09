@@ -1270,13 +1270,13 @@ void omap_mpu_wakeup(void *opaque, int irq, int req);
         fprintf(stderr, "%s: Bad register " OMAP_FMT_plx "\n",	\
                         __FUNCTION__, paddr)
 # define OMAP_BAD_REGV(paddr, value) \
-        fprintf(stderr, "%s: Bad register " OMAP_FMT_plx " (value " OMAP_FMT_plx ")\n", \
+        fprintf(stderr, "%s: Bad register " OMAP_FMT_plx " (value 0x%08x)\n", \
                 __FUNCTION__, paddr, value)
 # define OMAP_RO_REG(paddr)		\
         fprintf(stderr, "%s: Read-only register " OMAP_FMT_plx "\n",	\
                         __FUNCTION__, paddr)
 # define OMAP_RO_REGV(paddr, value) \
-        fprintf(stderr, "%s: Read-only register " OMAP_FMT_plx " (value " OMAP_FMT_plx ")\n", \
+        fprintf(stderr, "%s: Read-only register " OMAP_FMT_plx " (value 0x%08x)\n", \
                 __FUNCTION__, paddr, value)
 
 /* OMAP-specific Linux bootloader tags for the ATAG_BOARD area

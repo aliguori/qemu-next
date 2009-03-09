@@ -223,14 +223,14 @@ struct omap3_hsusb_host_s {
 
 static uint32_t omap3_hsusb_host_read(void *opaque, target_phys_addr_t addr)
 {
-    TRACE("0x%04x", addr);
+    TRACE(OMAP_FMT_plx, addr);
     return 0;
 }
 
 static void omap3_hsusb_host_write(void *opaque, target_phys_addr_t addr,
                                    uint32_t value)
 {
-    TRACE("0x%04x = 0x%08x", addr, value);
+    TRACE(OMAP_FMT_plx " = 0x%08x", addr, value);
 }
 
 static CPUReadMemoryFunc *omap3_hsusb_host_readfn[] = {
@@ -247,14 +247,14 @@ static CPUWriteMemoryFunc *omap3_hsusb_host_writefn[] = {
 
 static uint32_t omap3_hsusb_tll_read(void *opaque, target_phys_addr_t addr)
 {
-    TRACE("0x%04x", addr);
+    TRACE(OMAP_FMT_plx, addr);
     return 0;
 }
 
 static void omap3_hsusb_tll_write(void *opaque, target_phys_addr_t addr,
                                   uint32_t value)
 {
-    TRACE("0x%04x = 0x%08x", addr, value);
+    TRACE(OMAP_FMT_plx " = 0x%08x", addr, value);
 }
 
 static CPUReadMemoryFunc *omap3_hsusb_tll_readfn[] = {

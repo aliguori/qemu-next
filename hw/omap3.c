@@ -572,7 +572,7 @@ static void omap3_l3pm_init(struct omap3_l3pm_s *s)
                 s->read_permission[i] = s->write_permission[i] = 0x140e;
             break;
         default:
-            fprintf(stderr, "%s: unknown PM region (0x%08x)\n",
+            fprintf(stderr, "%s: unknown PM region (0x%08llx)\n",
                     __FUNCTION__, s->base);
             exit(-1);
             break;
@@ -593,21 +593,21 @@ static CPUWriteMemoryFunc *omap3_l3pm_writefn[] = {
 
 static uint32_t omap3_l3undef_read8(void *opaque, target_phys_addr_t addr)
 {
-    fprintf(stderr, "%s: unsupported register at %08x\n",
+    fprintf(stderr, "%s: unsupported register at " OMAP_FMT_plx "\n",
             __FUNCTION__, addr);
     return 0;
 }
 
 static uint32_t omap3_l3undef_read16(void *opaque, target_phys_addr_t addr)
 {
-    fprintf(stderr, "%s: unsupported register at %08x\n",
+    fprintf(stderr, "%s: unsupported register at " OMAP_FMT_plx "\n",
             __FUNCTION__, addr);
     return 0;
 }
 
 static uint32_t omap3_l3undef_read32(void *opaque, target_phys_addr_t addr)
 {
-    fprintf(stderr, "%s: unsupported register at %08x\n",
+    fprintf(stderr, "%s: unsupported register at " OMAP_FMT_plx "\n",
             __FUNCTION__, addr);
     return 0;
 }
@@ -615,21 +615,21 @@ static uint32_t omap3_l3undef_read32(void *opaque, target_phys_addr_t addr)
 static void omap3_l3undef_write8(void *opaque, target_phys_addr_t addr,
                                uint32_t value)
 {
-    fprintf(stderr, "%s: unsupported register at %08x, value %02x\n",
+    fprintf(stderr, "%s: unsupported register at " OMAP_FMT_plx ", value %02x\n",
             __FUNCTION__, addr, value);
 }
 
 static void omap3_l3undef_write16(void *opaque, target_phys_addr_t addr,
                                 uint32_t value)
 {
-    fprintf(stderr, "%s: unsupported register at %08x, value %04x\n",
+    fprintf(stderr, "%s: unsupported register at " OMAP_FMT_plx ", value %04x\n",
             __FUNCTION__, addr, value);
 }
 
 static void omap3_l3undef_write32(void *opaque, target_phys_addr_t addr,
                                 uint32_t value)
 {
-    fprintf(stderr, "%s: unsupported register at %08x, value %08x\n",
+    fprintf(stderr, "%s: unsupported register at " OMAP_FMT_plx ", value %08x\n",
             __FUNCTION__, addr, value);
 }
 
@@ -2801,7 +2801,7 @@ static uint32_t omap3_cm_read(void *opaque, target_phys_addr_t addr)
     	return s->cm_clkstst_usbhost;
 
     default:
-        printf("omap3_cm_read addr %x pc %x \n", addr, cpu_single_env->regs[15] );
+        OMAP_BAD_REG(addr);
         exit(-1);
     }
 }
@@ -2812,7 +2812,6 @@ static void omap3_cm_write(void *opaque, target_phys_addr_t addr,
 {
     struct omap3_cm_s *s = (struct omap3_cm_s *) opaque;
 
-    TRACE("%04x = %08x", addr, value);
     switch (addr)
     {
     case 0x20:
@@ -2841,7 +2840,7 @@ static void omap3_cm_write(void *opaque, target_phys_addr_t addr,
     case 0x1320:
     case 0x1420:
     case 0x144c:
-        OMAP_RO_REG(addr);
+        OMAP_RO_REGV(addr, value);
         exit(-1);
         break;
         
@@ -3114,7 +3113,7 @@ static void omap3_cm_write(void *opaque, target_phys_addr_t addr,
     	break;
    
     default:
-        printf("omap3_cm_write addr %x value %x pc %x\n", addr, value,cpu_single_env->regs[15] );
+        OMAP_BAD_REGV(addr, value);
         exit(-1);
     }
 }
@@ -3192,13 +3191,11 @@ struct omap3_wdt_s
 static inline void omap3_wdt_timer_update(struct omap3_wdt_s *wdt_timer)
 {
     int64_t expires;
-    if (wdt_timer->active)
-    {
+    if (wdt_timer->active) {
         expires = muldiv64(0xffffffffll - wdt_timer->wcrr,
                            ticks_per_sec, wdt_timer->rate);
         qemu_mod_timer(wdt_timer->timer, wdt_timer->time + expires);
-    }
-    else
+    } else
         qemu_del_timer(wdt_timer->timer);
 }
 
@@ -3211,8 +3208,7 @@ static inline uint32_t omap3_wdt_timer_read(struct omap3_wdt_s *timer)
 {
     uint64_t distance;
 
-    if (timer->active)
-    {
+    if (timer->active) {
         distance = qemu_get_clock(vm_clock) - timer->time;
         distance = muldiv64(distance, timer->rate, ticks_per_sec);
 
@@ -3220,8 +3216,7 @@ static inline uint32_t omap3_wdt_timer_read(struct omap3_wdt_s *timer)
             return 0xffffffff;
         else
             return timer->wcrr + distance;
-    }
-    else
+    } else
         return timer->wcrr;
 }
 
@@ -3242,29 +3237,31 @@ static void omap3_wdt_reset(struct omap3_wdt_s *s, int wdt_index)
     s->wier = 0x0;
     s->wclr = 0x20;
     s->wcrr = 0x0;
-    switch (wdt_index)
-    {
-    case OMAP3_MPU_WDT:
-    case OMAP3_IVA2_WDT:
-        s->wldr = 0xfffb0000;
-        break;
-    case OMAP3_SEC_WDT:
-        s->wldr = 0xffa60000;
-        break;
+    switch (wdt_index) {
+        case OMAP3_MPU_WDT:
+        case OMAP3_IVA2_WDT:
+            s->wldr = 0xfffb0000;
+            break;
+        case OMAP3_SEC_WDT:
+            s->wldr = 0xffa60000;
+            break;
+        default:
+            break;
     }
     s->wtgr = 0x0;
     s->wwps = 0x0;
     s->wspr = 0x0;
 
-    switch (wdt_index)
-    {
-    case OMAP3_SEC_WDT:
-    case OMAP3_MPU_WDT:
-        s->active = 1;
-        break;
-    case OMAP3_IVA2_WDT:
-        s->active = 0;
-        break;
+    switch (wdt_index) {
+        case OMAP3_SEC_WDT:
+        case OMAP3_MPU_WDT:
+            s->active = 1;
+            break;
+        case OMAP3_IVA2_WDT:
+            s->active = 0;
+            break;
+        default:
+            break;
     }
     s->pre = s->wclr & (1 << 5);
     s->ptv = (s->wclr & 0x1c) >> 2;
@@ -3280,36 +3277,24 @@ static uint32_t omap3_wdt_read32(void *opaque, target_phys_addr_t addr,
 {
     struct omap3_wdt_s *s = (struct omap3_wdt_s *) opaque;
 
-    //uint32_t ret;
-    //printf("omap3_wdt_read32 addr %x \n",addr);
-    switch (addr)
-    {
-    case 0x10:                 /*WD_SYSCONFIG */
-        return s->wd_sysconfig;
-    case 0x14:                 /*WD_SYSSTATUS */
-        return s->wd_sysstatus;
-    case 0x18:
-         /*WISR*/ return s->wisr & 0x1;
-    case 0x1c:
-         /*WIER*/ return s->wier & 0x1;
-    case 0x24:
-         /*WCLR*/ return s->wclr & 0x3c;
-    case 0x28:
-         /*WCRR*/ s->wcrr = omap3_wdt_timer_read(s);
-        s->time = qemu_get_clock(vm_clock);
-        return s->wcrr;
-    case 0x2c:
-         /*WLDR*/ return s->wldr;
-    case 0x30:
-         /*WTGR*/ return s->wtgr;
-    case 0x34:
-         /*WWPS*/ return s->wwps;
-    case 0x48:
-         /*WSPR*/ return s->wspr;
-    default:
-        printf("omap3_wdt_read32 addr %x \n", addr);
-        exit(-1);
+    switch (addr) {
+        case 0x10: return s->wd_sysconfig;
+        case 0x14: return s->wd_sysstatus;
+        case 0x18: return s->wisr & 0x1;
+        case 0x1c: return s->wier & 0x1;
+        case 0x24: return s->wclr & 0x3c;
+        case 0x28: /* WCRR */
+            s->wcrr = omap3_wdt_timer_read(s);
+            s->time = qemu_get_clock(vm_clock);
+            return s->wcrr;
+        case 0x2c: return s->wldr;
+        case 0x30: return s->wtgr;
+        case 0x34: return s->wwps;
+        case 0x48: return s->wspr;
+        default: break;
     }
+    OMAP_BAD_REG(addr);
+    return 0;
 }
 
 static uint32_t omap3_mpu_wdt_read16(void *opaque, target_phys_addr_t addr)
@@ -3319,12 +3304,10 @@ static uint32_t omap3_mpu_wdt_read16(void *opaque, target_phys_addr_t addr)
 
     if (addr & 2)
         return s->readh;
-    else
-    {
-        ret = omap3_wdt_read32(opaque, addr, OMAP3_MPU_WDT);
-        s->readh = ret >> 16;
-        return ret & 0xffff;
-    }
+
+    ret = omap3_wdt_read32(opaque, addr, OMAP3_MPU_WDT);
+    s->readh = ret >> 16;
+    return ret & 0xffff;
 }
 
 static uint32_t omap3_mpu_wdt_read32(void *opaque, target_phys_addr_t addr)
@@ -3337,37 +3320,33 @@ static void omap3_wdt_write32(void *opaque, target_phys_addr_t addr,
 {
     struct omap3_wdt_s *s = (struct omap3_wdt_s *) opaque;
 
-    //printf("omap3_wdt_write32 addr %x value %x \n",addr,value);
-    switch (addr)
-    {
-    case 0x14:                 /*WD_SYSSTATUS */
-    case 0x34:
-         /*WWPS*/ OMAP_RO_REG(addr);
-        exit(-1);
+    switch (addr) {
+    case 0x14: /* WD_SYSSTATUS */
+    case 0x34: /* WWPS */
+        OMAP_RO_REGV(addr, value);
         break;
-    case 0x10:                 /*WD_SYSCONFIG */
+    case 0x10: /*WD_SYSCONFIG */
         s->wd_sysconfig = value & 0x33f;
         break;
-    case 0x18:
-         /*WISR*/ s->wisr = value & 0x1;
+    case 0x18: /* WISR */
+         s->wisr = value & 0x1;
         break;
-    case 0x1c:
-         /*WIER*/ s->wier = value & 0x1;
+    case 0x1c: /* WIER */
+        s->wier = value & 0x1;
         break;
-    case 0x24:
-         /*WCLR*/ s->wclr = value & 0x3c;
+    case 0x24: /* WCLR */
+        s->wclr = value & 0x3c;
         break;
-    case 0x28:
-         /*WCRR*/ s->wcrr = value;
+    case 0x28: /* WCRR */
+        s->wcrr = value;
         s->time = qemu_get_clock(vm_clock);
         omap3_wdt_timer_update(s);
         break;
-    case 0x2c:
-         /*WLDR*/ s->wldr = value;      /*It will take effect after next overflow */
+    case 0x2c: /* WLDR */
+        s->wldr = value; /* It will take effect after next overflow */
         break;
-    case 0x30:
-         /*WTGR*/ if (value != s->wtgr)
-        {
+    case 0x30: /* WTGR */
+        if (value != s->wtgr) {
             s->wcrr = s->wldr;
             s->pre = s->wclr & (1 << 5);
             s->ptv = (s->wclr & 0x1c) >> 2;
@@ -3377,16 +3356,13 @@ static void omap3_wdt_write32(void *opaque, target_phys_addr_t addr,
         }
         s->wtgr = value;
         break;
-    case 0x48:
-         /*WSPR*/
-            if (((value & 0xffff) == 0x5555) && ((s->wspr & 0xffff) == 0xaaaa))
-        {
+    case 0x48: /* WSPR */
+        if (((value & 0xffff) == 0x5555) && ((s->wspr & 0xffff) == 0xaaaa)) {
             s->active = 0;
             s->wcrr = omap3_wdt_timer_read(s);
             omap3_wdt_timer_update(s);
         }
-        if (((value & 0xffff) == 0x4444) && ((s->wspr & 0xffff) == 0xbbbb))
-        {
+        if (((value & 0xffff) == 0x4444) && ((s->wspr & 0xffff) == 0xbbbb)) {
             s->active = 1;
             s->time = qemu_get_clock(vm_clock);
             omap3_wdt_timer_update(s);
@@ -3394,8 +3370,8 @@ static void omap3_wdt_write32(void *opaque, target_phys_addr_t addr,
         s->wspr = value;
         break;
     default:
-        printf("omap3_wdt_write32 addr %x \n", addr);
-        exit(-1);
+        OMAP_BAD_REGV(addr, value);
+        break;
     }
 }
 
@@ -3699,24 +3675,15 @@ static uint32_t omap3_scm_read8(void *opaque, target_phys_addr_t addr)
     uint8_t* temp;
 	
     switch (addr) {
-    case 0x00 ... 0x2f:
-        return s->interface[addr];
-    case 0x30 ... 0x26f:
-        return s->padconfs[addr-0x30];
-    case 0x270 ... 0x5ff:
-        temp = (uint8_t *)s->general;
-        return temp[addr-0x270];
-    case 0x600 ... 0x9ff:
-        return s->mem_wkup[addr-0x600];
-    case 0xa00 ... 0xa5f:
-        return s->padconfs_wkup[addr-0xa00];
-    case 0xa60 ... 0xa7f:
-        temp = (uint8_t *)s->general_wkup;
-        return temp[addr-0xa60];
-    default:
-        break;
+        case 0x000 ... 0x02f: return s->interface[addr];
+        case 0x030 ... 0x26f: return s->padconfs[addr - 0x30];
+        case 0x270 ... 0x5ff: temp = (uint8_t *)s->general; return temp[addr - 0x270];
+        case 0x600 ... 0x9ff: return s->mem_wkup[addr - 0x600];
+        case 0xa00 ... 0xa5f: return s->padconfs_wkup[addr - 0xa00];
+        case 0xa60 ... 0xa7f: temp = (uint8_t *)s->general_wkup; return temp[addr - 0xa60];
+        default: break;
     }
-    printf("omap3_scm_read8 addr %x pc %x  \n", addr,cpu_single_env->regs[15] );
+    OMAP_BAD_REG(addr);
     return 0;
 }
 
@@ -3744,34 +3711,14 @@ static void omap3_scm_write8(void *opaque, target_phys_addr_t addr,
     struct omap3_scm_s *s = (struct omap3_scm_s *) opaque;
     uint8_t* temp;
 
-    switch (addr)
-    {
-    case 0x00 ... 0x2f:
-        s->interface[addr] = value;
-        break;
-    case 0x30 ... 0x26f:
-        s->padconfs[addr-0x30] = value;
-        break;
-    case 0x270 ... 0x5ff:
-        temp = (uint8_t *)s->general;
-        temp[addr-0x270] = value;
-        break;
-    case 0x600 ... 0x9ff:
-        s->mem_wkup[addr-0x600] = value;
-        break;
-    case 0xa00 ... 0xa5f:
-        s->padconfs_wkup[addr-0xa00] = value;
-        break;
-    case 0xa60 ... 0xa7f:
-        temp = (uint8_t *)s->general_wkup;
-        temp[addr-0xa60] = value;
-        break;
-    default:
-        /*we do not care scm write*/
-        printf("omap3_scm_write8 addr %x pc %x \n \n", addr,
-               cpu_single_env->regs[15] - 0x80008000 + 0x80e80000);
-        exit(1);
-        //break;
+    switch (addr) {
+        case 0x000 ... 0x02f: s->interface[addr] = value; break;
+        case 0x030 ... 0x26f: s->padconfs[addr-0x30] = value; break;
+        case 0x270 ... 0x5ff: temp = (uint8_t *)s->general; temp[addr-0x270] = value; break;
+        case 0x600 ... 0x9ff: s->mem_wkup[addr-0x600] = value; break;
+        case 0xa00 ... 0xa5f: s->padconfs_wkup[addr-0xa00] = value; break;
+        case 0xa60 ... 0xa7f: temp = (uint8_t *)s->general_wkup; temp[addr-0xa60] = value; break;
+        default: OMAP_BAD_REGV(addr, value); break;
     }
 }
 
@@ -3961,9 +3908,10 @@ static uint32_t omap3_sms_read32(void *opaque, target_phys_addr_t addr)
 		return s->sms_rot_size[(addr-0x188)/0x10];
 
     default:
-        printf("omap3_sms_read32 addr %x \n", addr);
-        exit(-1);
+        break;
     }
+    OMAP_BAD_REG(addr);
+    return 0;
 }
 
 static void omap3_sms_write32(void *opaque, target_phys_addr_t addr,
@@ -4101,8 +4049,8 @@ static void omap3_sms_write32(void *opaque, target_phys_addr_t addr,
 		s->sms_rot_size[(addr-0x188)/0x10] = value;   
 		break;
 	default:
-        printf("omap3_sms_write32 addr %x\n", addr);
-        exit(-1);
+        OMAP_BAD_REGV(addr, value);
+        break;
     }
 }
 
