@@ -1,3 +1,11 @@
+qemu (0.10.0-0maemo2) unstable; urgency=low
+
+  * Add guest-base support
+  * merge upstream
+  * more omap3 fixes
+
+ -- Riku Voipio <voipio@absurd.research.nokia.com>  Mon, 09 Mar 2009 14:53:44 +0200
+
 qemu (0.10.0-0maemo1) unstable; urgency=low
 
   * New upstream version
