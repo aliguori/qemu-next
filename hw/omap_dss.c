@@ -1424,16 +1424,16 @@ static CPUWriteMemoryFunc *omap_im3_writefn[] = {
 
 static uint32_t omap_dsi_read(void *opaque, target_phys_addr_t addr)
 {
-    fprintf(stderr, "%s: DSI register %08x not implemented!\n", __FUNCTION__,
-            addr);
+    fprintf(stderr, "%s: DSI register " OMAP_FMT_plx " not implemented!\n",
+            __FUNCTION__, addr);
     return 0;
 }
 
 static void omap_dsi_write(void *opaque, target_phys_addr_t addr,
                            uint32_t value)
 {
-    fprintf(stderr, "%s: DSI register %08x not implemented!\n", __FUNCTION__,
-            addr);
+    fprintf(stderr, "%s: DSI register " OMAP_FMT_plx " not implemented!\n",
+            __FUNCTION__, addr);
 }
 
 static CPUReadMemoryFunc *omap_dsi_readfn[] = {
