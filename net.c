@@ -21,14 +21,6 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#include "qemu-common.h"
-#include "net.h"
-#include "console.h"
-#include "sysemu.h"
-#include "qemu-timer.h"
-#include "qemu-char.h"
-#include "audio/audio.h"
-
 #include <unistd.h>
 #include <fcntl.h>
 #include <signal.h>
@@ -36,6 +28,9 @@
 #include <errno.h>
 #include <sys/time.h>
 #include <zlib.h>
+
+/* Needed early for HOST_BSD etc. */
+#include "config-host.h"
 
 #ifndef _WIN32
 #include <sys/times.h>
@@ -57,9 +52,9 @@
 #include <dirent.h>
 #include <netdb.h>
 #include <sys/select.h>
-#ifdef _BSD
+#ifdef HOST_BSD
 #include <sys/stat.h>
-#ifdef __FreeBSD__
+#if defined(__FreeBSD__) || defined(__DragonFly__)
 #include <libutil.h>
 #else
 #include <util.h>
@@ -98,12 +93,6 @@
 #endif
 #endif
 
-#include "qemu_socket.h"
-
-#if defined(CONFIG_SLIRP)
-#include "libslirp.h"
-#endif
-
 #if defined(__OpenBSD__)
 #include <util.h>
 #endif
@@ -113,12 +102,27 @@
 #endif
 
 #ifdef _WIN32
+#include <windows.h>
 #include <malloc.h>
 #include <sys/timeb.h>
 #include <mmsystem.h>
 #define getopt_long_only getopt_long
 #define memalign(align, size) malloc(size)
 #endif
+
+#include "qemu-common.h"
+#include "net.h"
+#include "monitor.h"
+#include "sysemu.h"
+#include "qemu-timer.h"
+#include "qemu-char.h"
+#include "audio/audio.h"
+#include "qemu_socket.h"
+
+#if defined(CONFIG_SLIRP)
+#include "libslirp.h"
+#endif
+
 
 static VLANState *first_vlan;
 
@@ -585,7 +589,7 @@ static void erase_dir(char *dir_name)
     char filename[1024];
 
     /* erase all the files in the directory */
-    if ((d = opendir(dir_name)) != 0) {
+    if ((d = opendir(dir_name)) != NULL) {
         for(;;) {
             de = readdir(d);
             if (!de)
@@ -665,7 +669,7 @@ void net_slirp_smb(const char *exported_dir)
 }
 
 #endif /* !defined(_WIN32) */
-void do_info_slirp(void)
+void do_info_slirp(Monitor *mon)
 {
     slirp_stats();
 }
@@ -673,7 +677,7 @@ void do_info_slirp(void)
 struct VMChannel {
     CharDriverState *hd;
     int port;
-} *vmchannels;
+};
 
 static int vmchannel_can_read(void *opaque)
 {
@@ -766,7 +770,7 @@ static TAPState *net_tap_fd_init(VLANState *vlan,
     return s;
 }
 
-#if defined (_BSD) || defined (__FreeBSD_kernel__)
+#if defined (HOST_BSD) || defined (__FreeBSD_kernel__)
 static int tap_open(char *ifname, int ifname_size)
 {
     int fd;
@@ -1804,28 +1808,28 @@ static int net_host_check_device(const char *device)
     return 0;
 }
 
-void net_host_device_add(const char *device, const char *opts)
+void net_host_device_add(Monitor *mon, const char *device, const char *opts)
 {
     if (!net_host_check_device(device)) {
-        term_printf("invalid host network device %s\n", device);
+        monitor_printf(mon, "invalid host network device %s\n", device);
         return;
     }
     net_client_init(device, opts);
 }
 
-void net_host_device_remove(int vlan_id, const char *device)
+void net_host_device_remove(Monitor *mon, int vlan_id, const char *device)
 {
     VLANState *vlan;
     VLANClientState *vc;
 
     if (!net_host_check_device(device)) {
-        term_printf("invalid host network device %s\n", device);
+        monitor_printf(mon, "invalid host network device %s\n", device);
         return;
     }
 
     vlan = qemu_find_vlan(vlan_id);
     if (!vlan) {
-        term_printf("can't find vlan %d\n", vlan_id);
+        monitor_printf(mon, "can't find vlan %d\n", vlan_id);
         return;
     }
 
@@ -1834,7 +1838,7 @@ void net_host_device_remove(int vlan_id, const char *device)
             break;
 
     if (!vc) {
-        term_printf("can't find device %s\n", device);
+        monitor_printf(mon, "can't find device %s\n", device);
         return;
     }
     qemu_del_vlan_client(vc);
@@ -1860,19 +1864,19 @@ int net_client_parse(const char *str)
     return net_client_init(device, p);
 }
 
-void do_info_network(void)
+void do_info_network(Monitor *mon)
 {
     VLANState *vlan;
     VLANClientState *vc;
 
     for(vlan = first_vlan; vlan != NULL; vlan = vlan->next) {
-        term_printf("VLAN %d devices:\n", vlan->id);
+        monitor_printf(mon, "VLAN %d devices:\n", vlan->id);
         for(vc = vlan->first_client; vc != NULL; vc = vc->next)
-            term_printf("  %s: %s\n", vc->name, vc->info_str);
+            monitor_printf(mon, "  %s: %s\n", vc->name, vc->info_str);
     }
 }
 
-int do_set_link(const char *name, const char *up_or_down)
+int do_set_link(Monitor *mon, const char *name, const char *up_or_down)
 {
     VLANState *vlan;
     VLANClientState *vc = NULL;
@@ -1884,7 +1888,7 @@ int do_set_link(const char *name, const char *up_or_down)
 done:
 
     if (!vc) {
-        term_printf("could not find network device '%s'", name);
+        monitor_printf(mon, "could not find network device '%s'", name);
         return 0;
     }
 
@@ -1893,8 +1897,8 @@ done:
     else if (strcmp(up_or_down, "down") == 0)
         vc->link_down = 1;
     else
-        term_printf("invalid link status '%s'; only 'up' or 'down' valid\n",
-                    up_or_down);
+        monitor_printf(mon, "invalid link status '%s'; only 'up' or 'down' "
+                       "valid\n", up_or_down);
 
     if (vc->link_status_changed)
         vc->link_status_changed(vc);

@@ -21,28 +21,6 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#include "hw/hw.h"
-#include "hw/boards.h"
-#include "hw/usb.h"
-#include "hw/pcmcia.h"
-#include "hw/pc.h"
-#include "hw/audiodev.h"
-#include "hw/isa.h"
-#include "hw/baum.h"
-#include "hw/bt.h"
-#include "net.h"
-#include "console.h"
-#include "sysemu.h"
-#include "gdbstub.h"
-#include "qemu-timer.h"
-#include "qemu-char.h"
-#include "cache-utils.h"
-#include "block.h"
-#include "audio/audio.h"
-#include "migration.h"
-#include "kvm.h"
-#include "balloon.h"
-
 #include <unistd.h>
 #include <fcntl.h>
 #include <signal.h>
@@ -50,6 +28,9 @@
 #include <errno.h>
 #include <sys/time.h>
 #include <zlib.h>
+
+/* Needed early for HOST_BSD etc. */
+#include "config-host.h"
 
 #ifndef _WIN32
 #include <pwd.h>
@@ -72,9 +53,9 @@
 #include <dirent.h>
 #include <netdb.h>
 #include <sys/select.h>
-#ifdef _BSD
+#ifdef HOST_BSD
 #include <sys/stat.h>
-#ifdef __FreeBSD__
+#if defined(__FreeBSD__) || defined(__DragonFly__)
 #include <libutil.h>
 #else
 #include <util.h>
@@ -113,12 +94,6 @@
 #endif
 #endif
 
-#include "qemu_socket.h"
-
-#if defined(CONFIG_SLIRP)
-#include "libslirp.h"
-#endif
-
 #if defined(__OpenBSD__)
 #include <util.h>
 #endif
@@ -128,6 +103,7 @@
 #endif
 
 #ifdef _WIN32
+#include <windows.h>
 #include <malloc.h>
 #include <sys/timeb.h>
 #include <mmsystem.h>
@@ -153,9 +129,38 @@ int main(int argc, char **argv)
 #define main qemu_main
 #endif /* CONFIG_COCOA */
 
+#include "hw/hw.h"
+#include "hw/boards.h"
+#include "hw/usb.h"
+#include "hw/pcmcia.h"
+#include "hw/pc.h"
+#include "hw/audiodev.h"
+#include "hw/isa.h"
+#include "hw/baum.h"
+#include "hw/bt.h"
+#include "net.h"
+#include "monitor.h"
+#include "console.h"
+#include "sysemu.h"
+#include "gdbstub.h"
+#include "qemu-timer.h"
+#include "qemu-char.h"
+#include "cache-utils.h"
+#include "block.h"
+#include "audio/audio.h"
+#include "migration.h"
+#include "kvm.h"
+#include "balloon.h"
+
 #include "disas.h"
 
 #include "exec-all.h"
+
+#include "qemu_socket.h"
+
+#if defined(CONFIG_SLIRP)
+#include "libslirp.h"
+#endif
 
 //#define DEBUG_UNUSED_IOPORT
 //#define DEBUG_IOPORT
@@ -201,6 +206,7 @@ ram_addr_t ram_size;
 int nb_nics;
 NICInfo nd_table[MAX_NICS];
 int vm_running;
+static int autostart;
 static int rtc_utc = 1;
 static int rtc_date_offset = -1; /* -1 means no change */
 int cirrus_vga_enabled = 1;
@@ -652,34 +658,34 @@ int kbd_mouse_is_absolute(void)
     return qemu_put_mouse_event_current->qemu_put_mouse_event_absolute;
 }
 
-void do_info_mice(void)
+void do_info_mice(Monitor *mon)
 {
     QEMUPutMouseEntry *cursor;
     int index = 0;
 
     if (!qemu_put_mouse_event_head) {
-        term_printf("No mouse devices connected\n");
+        monitor_printf(mon, "No mouse devices connected\n");
         return;
     }
 
-    term_printf("Mouse devices available:\n");
+    monitor_printf(mon, "Mouse devices available:\n");
     cursor = qemu_put_mouse_event_head;
     while (cursor != NULL) {
-        term_printf("%c Mouse #%d: %s\n",
-                    (cursor == qemu_put_mouse_event_current ? '*' : ' '),
-                    index, cursor->qemu_put_mouse_event_name);
+        monitor_printf(mon, "%c Mouse #%d: %s\n",
+                       (cursor == qemu_put_mouse_event_current ? '*' : ' '),
+                       index, cursor->qemu_put_mouse_event_name);
         index++;
         cursor = cursor->next;
     }
 }
 
-void do_mouse_set(int index)
+void do_mouse_set(Monitor *mon, int index)
 {
     QEMUPutMouseEntry *cursor;
     int i = 0;
 
     if (!qemu_put_mouse_event_head) {
-        term_printf("No mouse devices connected\n");
+        monitor_printf(mon, "No mouse devices connected\n");
         return;
     }
 
@@ -692,7 +698,7 @@ void do_mouse_set(int index)
     if (cursor != NULL)
         qemu_put_mouse_event_current = cursor;
     else
-        term_printf("Mouse at given index not found\n");
+        monitor_printf(mon, "Mouse at given index not found\n");
 }
 
 /* compute with 96 bit intermediate result: (a*b)/c */
@@ -754,7 +760,8 @@ static int use_rt_clock;
 static void init_get_clock(void)
 {
     use_rt_clock = 0;
-#if defined(__linux__) || (defined(__FreeBSD__) && __FreeBSD_version >= 500000)
+#if defined(__linux__) || (defined(__FreeBSD__) && __FreeBSD_version >= 500000) \
+    || defined(__DragonFly__)
     {
         struct timespec ts;
         if (clock_gettime(CLOCK_MONOTONIC, &ts) == 0) {
@@ -766,7 +773,8 @@ static void init_get_clock(void)
 
 static int64_t get_clock(void)
 {
-#if defined(__linux__) || (defined(__FreeBSD__) && __FreeBSD_version >= 500000)
+#if defined(__linux__) || (defined(__FreeBSD__) && __FreeBSD_version >= 500000) \
+	|| defined(__DragonFly__)
     if (use_rt_clock) {
         struct timespec ts;
         clock_gettime(CLOCK_MONOTONIC, &ts);
@@ -1174,7 +1182,7 @@ void qemu_mod_timer(QEMUTimer *ts, int64_t expire_time)
         }
         /* Interrupt execution to force deadline recalculation.  */
         if (use_icount && cpu_single_env) {
-            cpu_interrupt(cpu_single_env, CPU_INTERRUPT_EXIT);
+            cpu_exit(cpu_single_env);
         }
     }
 }
@@ -1341,7 +1349,7 @@ static void host_alarm_handler(int host_signum)
 
         if (env) {
             /* stop the currently executing cpu because a timer occured */
-            cpu_interrupt(env, CPU_INTERRUPT_EXIT);
+            cpu_exit(env);
 #ifdef USE_KQEMU
             if (env->kqemu_enabled) {
                 kqemu_cpu_interrupt(env);
@@ -2132,11 +2140,7 @@ static int bt_parse(const char *opt)
 /* QEMU Block devices */
 
 #define HD_ALIAS "index=%d,media=disk"
-#ifdef TARGET_PPC
-#define CDROM_ALIAS "index=1,media=cdrom"
-#else
 #define CDROM_ALIAS "index=2,media=cdrom"
-#endif
 #define FD_ALIAS "index=%d,if=floppy"
 #define PFLASH_ALIAS "if=pflash"
 #define MTD_ALIAS "if=mtd"
@@ -2607,11 +2611,13 @@ int drive_init(struct drive_opt *arg, int snapshot, void *opaque)
         bdrv_flags |= BDRV_O_CACHE_WB;
     else if (cache == 3) /* not specified */
         bdrv_flags |= BDRV_O_CACHE_DEF;
-    if (bdrv_open2(bdrv, file, bdrv_flags, drv) < 0 || qemu_key_check(bdrv, file)) {
+    if (bdrv_open2(bdrv, file, bdrv_flags, drv) < 0) {
         fprintf(stderr, "qemu: could not open disk image %s\n",
                         file);
         return -1;
     }
+    if (bdrv_key_required(bdrv))
+        autostart = 0;
     return drives_table_idx;
 }
 
@@ -2658,7 +2664,17 @@ int usb_device_add_dev(USBDevice *dev)
     return 0;
 }
 
-static int usb_device_add(const char *devname)
+static void usb_msd_password_cb(void *opaque, int err)
+{
+    USBDevice *dev = opaque;
+
+    if (!err)
+        usb_device_add_dev(dev);
+    else
+        dev->handle_destroy(dev);
+}
+
+static int usb_device_add(const char *devname, int is_hotplug)
 {
     const char *p;
     USBDevice *dev;
@@ -2675,7 +2691,20 @@ static int usb_device_add(const char *devname)
     } else if (!strcmp(devname, "keyboard")) {
         dev = usb_keyboard_init();
     } else if (strstart(devname, "disk:", &p)) {
+        BlockDriverState *bs;
+
         dev = usb_msd_init(p);
+        if (!dev)
+            return -1;
+        bs = usb_msd_get_bdrv(dev);
+        if (bdrv_key_required(bs)) {
+            autostart = 0;
+            if (is_hotplug) {
+                monitor_read_bdrv_key_start(cur_mon, bs, usb_msd_password_cb,
+                                            dev);
+                return 0;
+            }
+        }
     } else if (!strcmp(devname, "wacom-tablet")) {
         dev = usb_wacom_init();
     } else if (strstart(devname, "serial:", &p)) {
@@ -2754,24 +2783,24 @@ static int usb_device_del(const char *devname)
     return usb_device_del_addr(bus_num, addr);
 }
 
-void do_usb_add(const char *devname)
+void do_usb_add(Monitor *mon, const char *devname)
 {
-    usb_device_add(devname);
+    usb_device_add(devname, 1);
 }
 
-void do_usb_del(const char *devname)
+void do_usb_del(Monitor *mon, const char *devname)
 {
     usb_device_del(devname);
 }
 
-void usb_info(void)
+void usb_info(Monitor *mon)
 {
     USBDevice *dev;
     USBPort *port;
     const char *speed_str;
 
     if (!usb_enabled) {
-        term_printf("USB support not enabled\n");
+        monitor_printf(mon, "USB support not enabled\n");
         return;
     }
 
@@ -2793,8 +2822,8 @@ void usb_info(void)
             speed_str = "?";
             break;
         }
-        term_printf("  Device %d.%d, Speed %s Mb/s, Product %s\n",
-                    0, dev->addr, speed_str, dev->devname);
+        monitor_printf(mon, "  Device %d.%d, Speed %s Mb/s, Product %s\n",
+                       0, dev->addr, speed_str, dev->devname);
     }
 }
 
@@ -2828,16 +2857,17 @@ void pcmcia_socket_unregister(struct pcmcia_socket_s *socket)
         }
 }
 
-void pcmcia_info(void)
+void pcmcia_info(Monitor *mon)
 {
     struct pcmcia_socket_entry_s *iter;
+
     if (!pcmcia_sockets)
-        term_printf("No PCMCIA sockets\n");
+        monitor_printf(mon, "No PCMCIA sockets\n");
 
     for (iter = pcmcia_sockets; iter; iter = iter->next)
-        term_printf("%s: %s\n", iter->socket->slot_string,
-                    iter->socket->attached ? iter->socket->card_string :
-                    "Empty");
+        monitor_printf(mon, "%s: %s\n", iter->socket->slot_string,
+                       iter->socket->attached ? iter->socket->card_string :
+                       "Empty");
 }
 
 /***********************************************************/
@@ -3293,7 +3323,7 @@ void qemu_service_io(void)
 {
     CPUState *env = cpu_single_env;
     if (env) {
-        cpu_interrupt(env, CPU_INTERRUPT_EXIT);
+        cpu_exit(env);
 #ifdef USE_KQEMU
         if (env->kqemu_enabled) {
             kqemu_cpu_interrupt(env);
@@ -3374,7 +3404,7 @@ void qemu_bh_schedule(QEMUBH *bh)
     bh->idle = 0;
     /* stop the currently executing CPU to execute the BH ASAP */
     if (env) {
-        cpu_interrupt(env, CPU_INTERRUPT_EXIT);
+        cpu_exit(env);
     }
 }
 
@@ -3585,21 +3615,21 @@ void qemu_system_reset_request(void)
         reset_requested = 1;
     }
     if (cpu_single_env)
-        cpu_interrupt(cpu_single_env, CPU_INTERRUPT_EXIT);
+        cpu_exit(cpu_single_env);
 }
 
 void qemu_system_shutdown_request(void)
 {
     shutdown_requested = 1;
     if (cpu_single_env)
-        cpu_interrupt(cpu_single_env, CPU_INTERRUPT_EXIT);
+        cpu_exit(cpu_single_env);
 }
 
 void qemu_system_powerdown_request(void)
 {
     powerdown_requested = 1;
     if (cpu_single_env)
-        cpu_interrupt(cpu_single_env, CPU_INTERRUPT_EXIT);
+        cpu_exit(cpu_single_env);
 }
 
 #ifdef _WIN32
@@ -4334,45 +4364,6 @@ static const QEMUOption qemu_options[] = {
     { NULL },
 };
 
-/* password input */
-
-int qemu_key_check(BlockDriverState *bs, const char *name)
-{
-    char password[256];
-    int i;
-
-    if (!bdrv_is_encrypted(bs))
-        return 0;
-
-    term_printf("%s is encrypted.\n", name);
-    for(i = 0; i < 3; i++) {
-        monitor_readline("Password: ", 1, password, sizeof(password));
-        if (bdrv_set_key(bs, password) == 0)
-            return 0;
-        term_printf("invalid password\n");
-    }
-    return -EPERM;
-}
-
-static BlockDriverState *get_bdrv(int index)
-{
-    if (index > nb_drives)
-        return NULL;
-    return drives_table[index].bdrv;
-}
-
-static void read_passwords(void)
-{
-    BlockDriverState *bs;
-    int i;
-
-    for(i = 0; i < 6; i++) {
-        bs = get_bdrv(i);
-        if (bs)
-            qemu_key_check(bs, bdrv_get_device_name(bs));
-    }
-}
-
 #ifdef HAS_AUDIO
 struct soundhw soundhw[] = {
 #ifdef HAS_AUDIO_CHOICE
@@ -4639,7 +4630,6 @@ int main(int argc, char **argv, char **envp)
     int fds[2];
     int tb_size;
     const char *pid_file = NULL;
-    int autostart;
     const char *incoming = NULL;
     int fd = 0;
     struct passwd *pwd = NULL;
@@ -4696,7 +4686,7 @@ int main(int argc, char **argv, char **envp)
     kernel_cmdline = "";
     cyls = heads = secs = 0;
     translation = BIOS_ATA_TRANSLATION_AUTO;
-    monitor_device = "vc";
+    monitor_device = "vc:80Cx24C";
 
     serial_devices[0] = "vc:80Cx24C";
     for(i = 1; i < MAX_SERIAL_PORTS; i++)
@@ -5637,7 +5627,7 @@ int main(int argc, char **argv, char **envp)
     /* init USB devices */
     if (usb_enabled) {
         for(i = 0; i < usb_devices_index; i++) {
-            if (usb_device_add(usb_devices[i]) < 0) {
+            if (usb_device_add(usb_devices[i], 0) < 0) {
                 fprintf(stderr, "Warning: could not add USB device %s\n",
                         usb_devices[i]);
             }
@@ -5693,9 +5683,10 @@ int main(int argc, char **argv, char **envp)
     }
 
     text_consoles_set_display(display_state);
+    qemu_chr_initial_reset();
 
     if (monitor_device && monitor_hd)
-        monitor_init(monitor_hd, !nographic);
+        monitor_init(monitor_hd, MONITOR_USE_READLINE | MONITOR_IS_DEFAULT);
 
     for(i = 0; i < MAX_SERIAL_PORTS; i++) {
         const char *devname = serial_devices[i];
@@ -5740,20 +5731,15 @@ int main(int argc, char **argv, char **envp)
 #endif
 
     if (loadvm)
-        do_loadvm(loadvm);
+        do_loadvm(cur_mon, loadvm);
 
     if (incoming) {
         autostart = 0; /* fixme how to deal with -daemonize */
         qemu_start_incoming_migration(incoming);
     }
 
-    {
-        /* XXX: simplify init */
-        read_passwords();
-        if (autostart) {
-            vm_start();
-        }
-    }
+    if (autostart)
+        vm_start();
 
     if (daemonize) {
 	uint8_t status = 0;

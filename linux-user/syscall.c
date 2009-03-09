@@ -159,7 +159,6 @@ static type name (type1 arg1,type2 arg2,type3 arg3,type4 arg4,type5 arg5,	\
 }
 
 
-#define __NR_sys_exit __NR_exit
 #define __NR_sys_uname __NR_uname
 #define __NR_sys_faccessat __NR_faccessat
 #define __NR_sys_fchmodat __NR_fchmodat
@@ -202,9 +201,19 @@ static int gettid(void) {
     return -ENOSYS;
 }
 #endif
-_syscall1(int,sys_exit,int,status)
-#if (defined(TARGET_NR_fstatat64) || defined(TARGET_NR_newfstatat)) && \
-        defined(__NR_fstatat64)
+_syscall1(int,sys_uname,struct new_utsname *,buf)
+#if defined(TARGET_NR_faccessat) && defined(__NR_faccessat)
+_syscall4(int,sys_faccessat,int,dirfd,const char *,pathname,int,mode,int,flags)
+#endif
+#if defined(TARGET_NR_fchmodat) && defined(__NR_fchmodat)
+_syscall4(int,sys_fchmodat,int,dirfd,const char *,pathname,
+          mode_t,mode,int,flags)
+#endif
+#if defined(TARGET_NR_fchownat) && defined(__NR_fchownat) && defined(USE_UID16)
+_syscall5(int,sys_fchownat,int,dirfd,const char *,pathname,
+          uid_t,owner,gid_t,group,int,flags)
+#endif
+#if defined(TARGET_NR_fstatat64) && defined(__NR_fstatat64)
 _syscall4(int,sys_fstatat64,int,dirfd,const char *,pathname,
           struct stat *,buf,int,flags)
 #endif
@@ -3432,6 +3441,10 @@ static int do_fork(CPUState *env, unsigned int flags, abi_ulong newsp,
         nptl_flags = flags;
         flags &= ~CLONE_NPTL_FLAGS2;
 
+        if (nptl_flags & CLONE_CHILD_CLEARTID) {
+            ts->child_tidptr = child_tidptr;
+        }
+
         if (nptl_flags & CLONE_SETTLS)
             cpu_set_tls (new_env, newtls);
 
@@ -3458,6 +3471,7 @@ static int do_fork(CPUState *env, unsigned int flags, abi_ulong newsp,
         sigprocmask(SIG_BLOCK, &sigmask, &info.sigmask);
 
         ret = pthread_create(&info.thread, &attr, clone_func, &info);
+        /* TODO: Free new CPU state if thread creation failed.  */
 
         sigprocmask(SIG_SETMASK, &info.sigmask, NULL);
         pthread_attr_destroy(&attr);
@@ -3509,7 +3523,7 @@ static int do_fork(CPUState *env, unsigned int flags, abi_ulong newsp,
             if (flags & CLONE_SETTLS)
                 cpu_set_tls (env, newtls);
             if (flags & CLONE_CHILD_CLEARTID)
-                set_tid_address(g2h(child_tidptr));
+                ts->child_tidptr = child_tidptr;
 #endif
         } else {
             fork_end(0);
@@ -3930,12 +3944,46 @@ abi_long do_syscall(void *cpu_env, int num, abi_long arg1,
 
     switch(num) {
     case TARGET_NR_exit:
+#ifdef USE_NPTL
+      /* In old applications this may be used to implement _exit(2).
+         However in threaded applictions it is used for thread termination,
+         and _exit_group is used for application termination.
+         Do thread termination if we have more then one thread.  */
+      /* FIXME: This probably breaks if a signal arrives.  We should probably
+         be disabling signals.  */
+      if (first_cpu->next_cpu) {
+          CPUState **lastp;
+          CPUState *p;
+
+          cpu_list_lock();
+          lastp = &first_cpu;
+          p = first_cpu;
+          while (p && p != (CPUState *)cpu_env) {
+              lastp = &p->next_cpu;
+              p = p->next_cpu;
+          }
+          /* If we didn't find the CPU for this thread then something is
+             horribly wrong.  */
+          if (!p)
+              abort();
+          /* Remove the CPU from the list.  */
+          *lastp = p->next_cpu;
+          cpu_list_unlock();
+          TaskState *ts = ((CPUState *)cpu_env)->opaque;
+          if (ts->child_tidptr) {
+              put_user_u32(0, ts->child_tidptr);
+              sys_futex(g2h(ts->child_tidptr), FUTEX_WAKE, INT_MAX,
+                        NULL, NULL, 0);
+          }
+          /* TODO: Free CPU state.  */
+          pthread_exit(NULL);
+      }
+#endif
 #ifdef HAVE_GPROF
         _mcleanup();
 #endif
         gdb_exit(cpu_env, arg1);
-        /* XXX: should free thread stack and CPU env */
-        sys_exit(arg1);
+        _exit(arg1);
         ret = 0; /* avoid warning */
         break;
     case TARGET_NR_read:

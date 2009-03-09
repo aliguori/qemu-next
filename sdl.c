@@ -21,17 +21,17 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#include "qemu-common.h"
-#include "console.h"
-#include "sysemu.h"
-#include "x_keymap.h"
-
 #include <SDL.h>
-#include <SDL/SDL_syswm.h>
+#include <SDL_syswm.h>
 
 #ifndef _WIN32
 #include <signal.h>
 #endif
+
+#include "qemu-common.h"
+#include "console.h"
+#include "sysemu.h"
+#include "x_keymap.h"
 
 static DisplayChangeListener *dcl;
 static SDL_Surface *real_screen;
@@ -109,7 +109,6 @@ static void sdl_resize(DisplayState *ds)
 /* generic keyboard conversion */
 
 #include "sdl_keysym.h"
-#include "keymaps.c"
 
 static kbd_layout_t *kbd_layout = NULL;
 
@@ -677,7 +676,7 @@ void sdl_display_init(DisplayState *ds, int full_screen, int no_frame)
         keyboard_layout = "en-us";
 #endif
     if(keyboard_layout) {
-        kbd_layout = init_keyboard_layout(keyboard_layout);
+        kbd_layout = init_keyboard_layout(name2keysym, keyboard_layout);
         if (!kbd_layout)
             exit(1);
     }
