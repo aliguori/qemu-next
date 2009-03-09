@@ -201,19 +201,8 @@ static int gettid(void) {
     return -ENOSYS;
 }
 #endif
-_syscall1(int,sys_uname,struct new_utsname *,buf)
-#if defined(TARGET_NR_faccessat) && defined(__NR_faccessat)
-_syscall4(int,sys_faccessat,int,dirfd,const char *,pathname,int,mode,int,flags)
-#endif
-#if defined(TARGET_NR_fchmodat) && defined(__NR_fchmodat)
-_syscall4(int,sys_fchmodat,int,dirfd,const char *,pathname,
-          mode_t,mode,int,flags)
-#endif
-#if defined(TARGET_NR_fchownat) && defined(__NR_fchownat) && defined(USE_UID16)
-_syscall5(int,sys_fchownat,int,dirfd,const char *,pathname,
-          uid_t,owner,gid_t,group,int,flags)
-#endif
-#if defined(TARGET_NR_fstatat64) && defined(__NR_fstatat64)
+#if (defined(TARGET_NR_fstatat64) || defined(TARGET_NR_newfstatat)) && \
+        defined(__NR_fstatat64)
 _syscall4(int,sys_fstatat64,int,dirfd,const char *,pathname,
           struct stat *,buf,int,flags)
 #endif
