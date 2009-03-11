@@ -1346,39 +1346,45 @@ struct omap3_prm_s {
     uint32_t core_pm_iva2grpsel3;
     uint32_t core_pm_mpugrpsel3;
 
-    uint32_t prm_revision;
-    uint32_t prm_sysconfig;
-    uint32_t prm_irqstatus_mpu;
-    uint32_t prm_irqenable_mpu;
+    struct {
+        uint32_t prm_revision;
+        uint32_t prm_sysconfig;
+        uint32_t prm_irqstatus_mpu;
+        uint32_t prm_irqenable_mpu;
+    } ocp;
 
-    uint32_t prm_clksel;
-    uint32_t prm_clkout_ctrl;
+    struct {
+        uint32_t prm_clksel;
+        uint32_t prm_clkout_ctrl;
+    } ccr; /* clock_control_reg */
 
-    uint32_t prm_vc_smps_sa;
-    uint32_t prm_vc_smps_vol_ra;
-    uint32_t prm_vc_smps_cmd_ra;
-    uint32_t prm_vc_cmd_val_0;
-    uint32_t prm_vc_cmd_val_1;
-    uint32_t prm_vc_hc_conf;
-    uint32_t prm_vc_i2c_cfg;
-    uint32_t prm_vc_bypass_val;
-    uint32_t prm_rstctrl;
-    uint32_t prm_rsttimer;
-    uint32_t prm_rstst;
-    uint32_t prm_voltctrl;
-    uint32_t prm_sram_pcharge;
-    uint32_t prm_clksrc_ctrl;
-    uint32_t prm_obs;
-    uint32_t prm_voltsetup1;
-    uint32_t prm_voltoffset;
-    uint32_t prm_clksetup;
-    uint32_t prm_polctrl;
-    uint32_t prm_voltsetup2;
+    struct {
+        uint32_t prm_vc_smps_sa;
+        uint32_t prm_vc_smps_vol_ra;
+        uint32_t prm_vc_smps_cmd_ra;
+        uint32_t prm_vc_cmd_val_0;
+        uint32_t prm_vc_cmd_val_1;
+        uint32_t prm_vc_hc_conf;
+        uint32_t prm_vc_i2c_cfg;
+        uint32_t prm_vc_bypass_val;
+        uint32_t prm_rstctrl;
+        uint32_t prm_rsttimer;
+        uint32_t prm_rstst;
+        uint32_t prm_voltctrl;
+        uint32_t prm_sram_pcharge;
+        uint32_t prm_clksrc_ctrl;
+        uint32_t prm_obs;
+        uint32_t prm_voltsetup1;
+        uint32_t prm_voltoffset;
+        uint32_t prm_clksetup;
+        uint32_t prm_polctrl;
+        uint32_t prm_voltsetup2;
+    } gr; /* global_reg */
 };
 
 static void omap3_prm_int_update(struct omap3_prm_s *s)
 {
-    qemu_set_irq(s->mpu_irq, s->prm_irqstatus_mpu & s->prm_irqenable_mpu);
+    qemu_set_irq(s->mpu_irq, s->ocp.prm_irqstatus_mpu & s->ocp.prm_irqenable_mpu);
     qemu_set_irq(s->iva_irq, s->iva2_prm_irqstatus & s->iva2_prm_irqenable);
 }
 
@@ -1393,10 +1399,10 @@ static void omap3_prm_reset(struct omap3_prm_s *s)
     s->iva2_prm_irqstatus = 0x0;
     s->iva2_prm_irqenable = 0x0;
 
-    s->prm_revision      = 0x10;
-    s->prm_sysconfig     = 0x1;
-    s->prm_irqstatus_mpu = 0x0;
-    s->prm_irqenable_mpu = 0x0;
+    s->ocp.prm_revision      = 0x10;
+    s->ocp.prm_sysconfig     = 0x1;
+    s->ocp.prm_irqstatus_mpu = 0x0;
+    s->ocp.prm_irqenable_mpu = 0x0;
 
     s->mpu.rm_rstst       = 0x1;
     s->mpu.pm_wkdep       = 0xa5;
@@ -1432,8 +1438,8 @@ static void omap3_prm_reset(struct omap3_prm_s *s)
     s->wkup.pm_wkst      = 0x0;
     s->wkup.pm_pwstst    = 0x3; /* TODO: check on real hardware */
 
-    s->prm_clksel      = 0x4;
-    s->prm_clkout_ctrl = 0x80;
+    s->ccr.prm_clksel      = 0x3; /* TRM says 0x4, but on HW this is 0x3 */
+    s->ccr.prm_clkout_ctrl = 0x80;
 
     s->dss.rm_rstst     = 0x1;
     s->dss.pm_wken      = 0x1;
@@ -1461,26 +1467,26 @@ static void omap3_prm_reset(struct omap3_prm_s *s)
     s->emu.rm_rstst  = 0x1;
     s->emu.pm_pwstst = 0x13;
 
-    s->prm_vc_smps_sa     = 0x0;
-    s->prm_vc_smps_vol_ra = 0x0;
-    s->prm_vc_smps_cmd_ra = 0x0;
-    s->prm_vc_cmd_val_0   = 0x0;
-    s->prm_vc_cmd_val_1   = 0x0;
-    s->prm_vc_hc_conf     = 0x0;
-    s->prm_vc_i2c_cfg     = 0x18;
-    s->prm_vc_bypass_val  = 0x0;
-    s->prm_rstctrl        = 0x0;
-    s->prm_rsttimer       = 0x1006;
-    s->prm_rstst          = 0x1;
-    s->prm_voltctrl       = 0x0;
-    s->prm_sram_pcharge   = 0x50;
-    s->prm_clksrc_ctrl    = 0x43;
-    s->prm_obs            = 0x0;
-    s->prm_voltsetup1     = 0x0;
-    s->prm_voltoffset     = 0x0;
-    s->prm_clksetup       = 0x0;
-    s->prm_polctrl        = 0xa;
-    s->prm_voltsetup2     = 0x0;
+    s->gr.prm_vc_smps_sa     = 0x0;
+    s->gr.prm_vc_smps_vol_ra = 0x0;
+    s->gr.prm_vc_smps_cmd_ra = 0x0;
+    s->gr.prm_vc_cmd_val_0   = 0x0;
+    s->gr.prm_vc_cmd_val_1   = 0x0;
+    s->gr.prm_vc_hc_conf     = 0x0;
+    s->gr.prm_vc_i2c_cfg     = 0x18;
+    s->gr.prm_vc_bypass_val  = 0x0;
+    s->gr.prm_rstctrl        = 0x0;
+    s->gr.prm_rsttimer       = 0x1006;
+    s->gr.prm_rstst          = 0x1;
+    s->gr.prm_voltctrl       = 0x0;
+    s->gr.prm_sram_pcharge   = 0x50;
+    s->gr.prm_clksrc_ctrl    = 0x43;
+    s->gr.prm_obs            = 0x0;
+    s->gr.prm_voltsetup1     = 0x0;
+    s->gr.prm_voltoffset     = 0x0;
+    s->gr.prm_clksetup       = 0x0;
+    s->gr.prm_polctrl        = 0xa;
+    s->gr.prm_voltsetup2     = 0x0;
 
     s->neon.rm_rstst     = 0x1;
     s->neon.pm_wkdep     = 0x2;
@@ -1543,10 +1549,10 @@ static uint32_t omap3_prm_read(void *opaque, target_phys_addr_t addr)
     switch (addr) {
         case 0x00f8: return s->iva2_prm_irqstatus;
         case 0x00fc: return s->iva2_prm_irqenable;
-        case 0x0804: return s->prm_revision;
-        case 0x0814: return s->prm_sysconfig;
-        case 0x0818: return s->prm_irqstatus_mpu;
-        case 0x081c: return s->prm_irqenable_mpu;
+        case 0x0804: return s->ocp.prm_revision;
+        case 0x0814: return s->ocp.prm_sysconfig;
+        case 0x0818: return s->ocp.prm_irqstatus_mpu;
+        case 0x081c: return s->ocp.prm_irqenable_mpu;
         case 0x09d4: return s->mpu_pm_evgenctrl;
         case 0x09d8: return s->mpu_pm_evgenontim;
         case 0x09dc: return s->mpu_pm_evgenofftim;
@@ -1554,29 +1560,29 @@ static uint32_t omap3_prm_read(void *opaque, target_phys_addr_t addr)
         case 0x0af0: return s->core_pm_wken3;
         case 0x0af4: return s->core_pm_iva2grpsel3;
         case 0x0af8: return s->core_pm_mpugrpsel3;
-        case 0x0d40: return s->prm_clksel;
-        case 0x0d70: return s->prm_clkout_ctrl;
+        case 0x0d40: return s->ccr.prm_clksel;
+        case 0x0d70: return s->ccr.prm_clkout_ctrl;
         case 0x0de4: return 0x3; /* TODO: check on real hardware */
-        case 0x1220: return s->prm_vc_smps_sa;
-        case 0x1224: return s->prm_vc_smps_vol_ra;
-        case 0x1228: return s->prm_vc_smps_cmd_ra;
-        case 0x122c: return s->prm_vc_cmd_val_0;
-        case 0x1230: return s->prm_vc_cmd_val_1;
-        case 0x1234: return s->prm_vc_hc_conf;
-        case 0x1238: return s->prm_vc_i2c_cfg;
-        case 0x123c: return s->prm_vc_bypass_val;
-        case 0x1250: return s->prm_rstctrl;
-        case 0x1254: return s->prm_rsttimer;
-        case 0x1258: return s->prm_rstst;
-        case 0x1260: return s->prm_voltctrl;
-        case 0x1264: return s->prm_sram_pcharge;    	
-        case 0x1270: return s->prm_clksrc_ctrl;
-        case 0x1280: return s->prm_obs;
-        case 0x1290: return s->prm_voltsetup1;
-        case 0x1294: return s->prm_voltoffset;
-        case 0x1298: return s->prm_clksetup;
-        case 0x129c: return s->prm_polctrl;
-        case 0x12a0: return s->prm_voltsetup2;
+        case 0x1220: return s->gr.prm_vc_smps_sa;
+        case 0x1224: return s->gr.prm_vc_smps_vol_ra;
+        case 0x1228: return s->gr.prm_vc_smps_cmd_ra;
+        case 0x122c: return s->gr.prm_vc_cmd_val_0;
+        case 0x1230: return s->gr.prm_vc_cmd_val_1;
+        case 0x1234: return s->gr.prm_vc_hc_conf;
+        case 0x1238: return s->gr.prm_vc_i2c_cfg;
+        case 0x123c: return s->gr.prm_vc_bypass_val;
+        case 0x1250: return s->gr.prm_rstctrl;
+        case 0x1254: return s->gr.prm_rsttimer;
+        case 0x1258: return s->gr.prm_rstst;
+        case 0x1260: return s->gr.prm_voltctrl;
+        case 0x1264: return s->gr.prm_sram_pcharge;    	
+        case 0x1270: return s->gr.prm_clksrc_ctrl;
+        case 0x1280: return s->gr.prm_obs;
+        case 0x1290: return s->gr.prm_voltsetup1;
+        case 0x1294: return s->gr.prm_voltoffset;
+        case 0x1298: return s->gr.prm_clksetup;
+        case 0x129c: return s->gr.prm_polctrl;
+        case 0x12a0: return s->gr.prm_voltsetup2;
         default: break;
     }
 
@@ -1591,6 +1597,28 @@ static inline void omap3_prm_clksrc_ctrl_update(struct omap3_prm_s *s,
         omap_clk_setrate(omap_findclk(s->omap, "omap3_sys_clk"), 1, 1);
     else if ((value & 0xd0) == 0x80)
         omap_clk_setrate(omap_findclk(s->omap, "omap3_sys_clk"), 2, 1);
+}
+
+static void omap3_prm_clksel_update(struct omap3_prm_s *s)
+{
+    omap_clk newparent = 0;
+    
+    switch (s->ccr.prm_clksel & 7) {
+        case 0: newparent = omap_findclk(s->omap, "omap3_osc_sys_clk12"); break;
+        case 1: newparent = omap_findclk(s->omap, "omap3_osc_sys_clk13"); break;
+        case 2: newparent = omap_findclk(s->omap, "omap3_osc_sys_clk192"); break;
+        case 3: newparent = omap_findclk(s->omap, "omap3_osc_sys_clk26"); break;
+        case 4: newparent = omap_findclk(s->omap, "omap3_osc_sys_clk384"); break;
+        case 5: newparent = omap_findclk(s->omap, "omap3_osc_sys_clk168"); break;
+        default:
+            fprintf(stderr, "%s: invalid sys_clk input selection (%d) - ignored\n",
+                    __FUNCTION__, s->ccr.prm_clksel & 7);
+            break;
+    }
+    if (newparent) {
+        omap_clk_reparent(omap_findclk(s->omap, "omap3_sys_clk"), newparent);
+        omap_clk_reparent(omap_findclk(s->omap, "omap3_sys_clkout1"), newparent);
+    }
 }
 
 static void omap3_prm_write(void *opaque, target_phys_addr_t addr,
@@ -1617,13 +1645,13 @@ static void omap3_prm_write(void *opaque, target_phys_addr_t addr,
             break;
         /* OCP_System_Reg_PRM */
         case 0x0804: OMAP_RO_REG(addr); break;
-        case 0x0814: s->prm_sysconfig = value & 0x1; break;
+        case 0x0814: s->ocp.prm_sysconfig = value & 0x1; break;
         case 0x0818:
-            s->prm_irqstatus_mpu &= ~(value & 0x03c003fd);
+            s->ocp.prm_irqstatus_mpu &= ~(value & 0x03c003fd);
             omap3_prm_int_update(s);
             break;
         case 0x081c:
-            s->prm_irqenable_mpu = value & 0x03c003fd;
+            s->ocp.prm_irqenable_mpu = value & 0x03c003fd;
             omap3_prm_int_update(s);
             break;
         /* MPU_PRM */
@@ -1662,16 +1690,13 @@ static void omap3_prm_write(void *opaque, target_phys_addr_t addr,
         case 0x0cb0: s->wkup.pm_wkst &= ~(value & 0x0103cb); break;
         /* Clock_Control_Reg_PRM */
         case 0x0d40: 
-            s->prm_clksel = value & 0x7;
-            fprintf(stderr, "%s PRM_CLKSEL = 0x%x\n", __FUNCTION__,
-                    s->prm_clksel);
-            /* TODO: update clocks */
+            s->ccr.prm_clksel = value & 0x7;
+            omap3_prm_clksel_update(s);
             break;
         case 0x0d70:
-            s->prm_clkout_ctrl = value & 0x80;
-            fprintf(stderr, "%s PRM_CLKOUT_CTRL = 0x%x\n", __FUNCTION__,
-                    s->prm_clkout_ctrl);
-            /* TODO: update clocks */
+            s->ccr.prm_clkout_ctrl = value & 0x80;
+            omap_clk_onoff(omap_findclk(s->omap, "omap3_sys_clkout1"),
+                           s->ccr.prm_clkout_ctrl & 0x80);
             break;
         /* DSS_PRM */
         case 0x0e58: s->dss.rm_rstst &= ~(value & 0xf); break;
@@ -1700,30 +1725,29 @@ static void omap3_prm_write(void *opaque, target_phys_addr_t addr,
         case 0x1158: s->emu.rm_rstst &= ~(value & 7); break;
         case 0x11e4: OMAP_RO_REG(addr); break;
         /* Global_Reg_PRM */
-        case 0x1220: s->prm_vc_smps_sa = value & 0x7f007f; break;
-        case 0x1224: s->prm_vc_smps_vol_ra = value & 0xff00ff; break;
-        case 0x1228: s->prm_vc_smps_cmd_ra = value & 0xff00ff; break;
-        case 0x122c: s->prm_vc_cmd_val_0 = value; break;
-        case 0x1230: s->prm_vc_cmd_val_1 = value; break;
-        case 0x1234: s->prm_vc_hc_conf = value & 0x1f001f; break;
-        case 0x1238: s->prm_vc_i2c_cfg = value & 0x3f; break;
-        case 0x123c: s->prm_vc_bypass_val = value & 0x01ffff7f; break;
-        case 0x1250: s->prm_rstctrl = 0; break; /* TODO: resets */
-        case 0x1254: s->prm_rsttimer = value & 0x1fff; break;
-        case 0x1258: s->prm_rstst &= ~(value & 0x7fb); break;
-        case 0x1260: s->prm_voltctrl = value & 0x1f; break;
-        case 0x1264: s->prm_sram_pcharge = value & 0xff; break;
+        case 0x1220: s->gr.prm_vc_smps_sa = value & 0x7f007f; break;
+        case 0x1224: s->gr.prm_vc_smps_vol_ra = value & 0xff00ff; break;
+        case 0x1228: s->gr.prm_vc_smps_cmd_ra = value & 0xff00ff; break;
+        case 0x122c: s->gr.prm_vc_cmd_val_0 = value; break;
+        case 0x1230: s->gr.prm_vc_cmd_val_1 = value; break;
+        case 0x1234: s->gr.prm_vc_hc_conf = value & 0x1f001f; break;
+        case 0x1238: s->gr.prm_vc_i2c_cfg = value & 0x3f; break;
+        case 0x123c: s->gr.prm_vc_bypass_val = value & 0x01ffff7f; break;
+        case 0x1250: s->gr.prm_rstctrl = 0; break; /* TODO: resets */
+        case 0x1254: s->gr.prm_rsttimer = value & 0x1fff; break;
+        case 0x1258: s->gr.prm_rstst &= ~(value & 0x7fb); break;
+        case 0x1260: s->gr.prm_voltctrl = value & 0x1f; break;
+        case 0x1264: s->gr.prm_sram_pcharge = value & 0xff; break;
         case 0x1270:
-            s->prm_clksrc_ctrl = value & (0xd8);
-            omap3_prm_clksrc_ctrl_update(s, s->prm_clksrc_ctrl);
-            /* TODO: update SYSCLKSEL bits */
+            s->gr.prm_clksrc_ctrl = value & 0xd8; /* set osc bypass mode */ 
+            omap3_prm_clksrc_ctrl_update(s, s->gr.prm_clksrc_ctrl);
             break;
         case 0x1280: OMAP_RO_REG(addr); break;
-        case 0x1290: s->prm_voltsetup1 = value; break;
-        case 0x1294: s->prm_voltoffset = value & 0xffff; break;
-        case 0x1298: s->prm_clksetup = value & 0xffff; break;
-        case 0x129c: s->prm_polctrl = value & 0xf; break;
-        case 0x12a0: s->prm_voltsetup2 = value & 0xffff; break;
+        case 0x1290: s->gr.prm_voltsetup1 = value; break;
+        case 0x1294: s->gr.prm_voltoffset = value & 0xffff; break;
+        case 0x1298: s->gr.prm_clksetup = value & 0xffff; break;
+        case 0x129c: s->gr.prm_polctrl = value & 0xf; break;
+        case 0x12a0: s->gr.prm_voltsetup2 = value & 0xffff; break;
         /* NEON_PRM */
         case 0x1358: s->neon.rm_rstst &= ~(value & 0xf); break;
         case 0x13c8: s->neon.pm_wkdep = value & 0x2; break;
@@ -4095,11 +4119,23 @@ static struct omap3_sms_s *omap3_sms_init(struct omap_mpu_state_s *mpu)
     return s;
 }
 
+#define OMAP3_BOOT_ROM_SIZE 0x1c000 /* 80 + 32 KB */
+static const uint8_t omap3_boot_rom[] = {
+    0x0e, 0xf0, 0xb0, 0xe1, /* movs pc, lr */
+    0x0e, 0xf0, 0xb0, 0xe1, /* movs pc, lr */
+    0x0e, 0xf0, 0xb0, 0xe1, /* movs pc, lr */
+    0x04, 0xf0, 0x5e, 0xe2, /* subs pc, lr, #4 */
+    0x08, 0xf0, 0x5e, 0xe2, /* subs pc, lr, #8 */
+    0x0e, 0xf0, 0xb0, 0xe1, /* movs pc, lr */
+    0x04, 0xf0, 0x5e, 0xe2, /* subs pc, lr, #4 */
+    0x04, 0xf0, 0x5e, 0xe2, /* subs pc, lr, #4 */
+};
+
 static const struct dma_irq_map omap3_dma_irq_map[] = {
-    {0, OMAP_INT_35XX_SDMA_IRQ0},
-    {0, OMAP_INT_35XX_SDMA_IRQ1},
-    {0, OMAP_INT_35XX_SDMA_IRQ2},
-    {0, OMAP_INT_35XX_SDMA_IRQ3},
+    {0, OMAP_INT_3XXX_SDMA_IRQ0},
+    {0, OMAP_INT_3XXX_SDMA_IRQ1},
+    {0, OMAP_INT_3XXX_SDMA_IRQ2},
+    {0, OMAP_INT_3XXX_SDMA_IRQ3},
 };
 
 static int omap3_validate_addr(struct omap_mpu_state_s *s,
@@ -4113,7 +4149,7 @@ struct omap_mpu_state_s *omap3530_mpu_init(unsigned long sdram_size,
 {
     struct omap_mpu_state_s *s = (struct omap_mpu_state_s *)
         qemu_mallocz(sizeof(struct omap_mpu_state_s));
-    ram_addr_t sram_base, q2_base;
+    ram_addr_t sram_base, q2_base, bootrom_base;
     qemu_irq *cpu_irq;
     qemu_irq dma_irqs[4];
     int i;
@@ -4125,7 +4161,7 @@ struct omap_mpu_state_s *omap3530_mpu_init(unsigned long sdram_size,
         exit(1);
     }
     s->sdram_size = sdram_size;
-    s->sram_size = OMAP3530_SRAM_SIZE;
+    s->sram_size = OMAP3XXX_SRAM_SIZE;
 
     /* Clocks */
     omap_clk_init(s);
@@ -4134,10 +4170,17 @@ struct omap_mpu_state_s *omap3530_mpu_init(unsigned long sdram_size,
 
     q2_base = qemu_ram_alloc(s->sdram_size);
     cpu_register_physical_memory(OMAP3_Q2_BASE, s->sdram_size,
-                                 (q2_base | IO_MEM_RAM));
+                                 q2_base | IO_MEM_RAM);
     sram_base = qemu_ram_alloc(s->sram_size);
     cpu_register_physical_memory(OMAP3_SRAM_BASE, s->sram_size,
-                                 (sram_base | IO_MEM_RAM));
+                                 sram_base | IO_MEM_RAM);
+    bootrom_base = qemu_ram_alloc(OMAP3XXX_BOOTROM_SIZE);
+    cpu_register_physical_memory(OMAP3_Q1_BASE, OMAP3_BOOT_ROM_SIZE,
+                                 bootrom_base | IO_MEM_ROM);
+    cpu_register_physical_memory(0, OMAP3_BOOT_ROM_SIZE,
+                                 bootrom_base | IO_MEM_ROM);
+    cpu_physical_memory_write_rom(OMAP3_Q1_BASE, omap3_boot_rom,
+                                  sizeof(omap3_boot_rom));
 
     s->l4 = omap_l4_init(OMAP3_L4_BASE, 
                          sizeof(omap3_l4_agent_info) 
@@ -4166,7 +4209,7 @@ struct omap_mpu_state_s *omap3530_mpu_init(unsigned long sdram_size,
     s->omap3_cm = omap3_cm_init(omap3_l4ta_init(s->l4, L4A_CM), NULL, NULL, NULL, s);
 
     s->omap3_prm = omap3_prm_init(omap3_l4ta_init(s->l4, L4A_PRM),
-                                  s->irq[0][OMAP_INT_35XX_PRCM_MPU_IRQ],
+                                  s->irq[0][OMAP_INT_3XXX_PRCM_MPU_IRQ],
                                   NULL, s);
 
     s->omap3_mpu_wdt = omap3_mpu_wdt_init(omap3_l4ta_init(s->l4, L4A_WDTIMER2),
@@ -4184,51 +4227,51 @@ struct omap_mpu_state_s *omap3530_mpu_init(unsigned long sdram_size,
     s->omap3_sms = omap3_sms_init(s);
 
     s->gptimer[0] = omap_gp_timer_init(omap3_l4ta_init(s->l4, L4A_GPTIMER1),
-                                       s->irq[0][OMAP_INT_35XX_GPT1_IRQ],
+                                       s->irq[0][OMAP_INT_3XXX_GPT1_IRQ],
                                        omap_findclk(s, "omap3_gp1_fclk"),
                                        omap_findclk(s, "omap3_wkup_l4_iclk"));
     s->gptimer[1] = omap_gp_timer_init(omap3_l4ta_init(s->l4, L4A_GPTIMER2),
-                                       s->irq[0][OMAP_INT_35XX_GPT2_IRQ],
+                                       s->irq[0][OMAP_INT_3XXX_GPT2_IRQ],
                                        omap_findclk(s, "omap3_gp2_fclk"),
                                        omap_findclk(s, "omap3_per_l4_iclk"));
     s->gptimer[2] = omap_gp_timer_init(omap3_l4ta_init(s->l4, L4A_GPTIMER3),
-                                       s->irq[0][OMAP_INT_35XX_GPT3_IRQ],
+                                       s->irq[0][OMAP_INT_3XXX_GPT3_IRQ],
                                        omap_findclk(s, "omap3_gp3_fclk"),
                                        omap_findclk(s, "omap3_per_l4_iclk"));
     s->gptimer[3] = omap_gp_timer_init(omap3_l4ta_init(s->l4, L4A_GPTIMER4),
-                                       s->irq[0][OMAP_INT_35XX_GPT4_IRQ],
+                                       s->irq[0][OMAP_INT_3XXX_GPT4_IRQ],
                                        omap_findclk(s, "omap3_gp4_fclk"),
                                        omap_findclk(s, "omap3_per_l4_iclk"));
     s->gptimer[4] = omap_gp_timer_init(omap3_l4ta_init(s->l4, L4A_GPTIMER5),
-                                       s->irq[0][OMAP_INT_35XX_GPT5_IRQ],
+                                       s->irq[0][OMAP_INT_3XXX_GPT5_IRQ],
                                        omap_findclk(s, "omap3_gp5_fclk"),
                                        omap_findclk(s, "omap3_per_l4_iclk"));
     s->gptimer[5] = omap_gp_timer_init(omap3_l4ta_init(s->l4, L4A_GPTIMER6),
-                                       s->irq[0][OMAP_INT_35XX_GPT6_IRQ],
+                                       s->irq[0][OMAP_INT_3XXX_GPT6_IRQ],
                                        omap_findclk(s, "omap3_gp6_fclk"),
                                        omap_findclk(s, "omap3_per_l4_iclk"));
     s->gptimer[6] = omap_gp_timer_init(omap3_l4ta_init(s->l4, L4A_GPTIMER7),
-                                       s->irq[0][OMAP_INT_35XX_GPT7_IRQ],
+                                       s->irq[0][OMAP_INT_3XXX_GPT7_IRQ],
                                        omap_findclk(s, "omap3_gp7_fclk"),
                                        omap_findclk(s, "omap3_per_l4_iclk"));
     s->gptimer[7] = omap_gp_timer_init(omap3_l4ta_init(s->l4, L4A_GPTIMER8),
-                                       s->irq[0][OMAP_INT_35XX_GPT8_IRQ],
+                                       s->irq[0][OMAP_INT_3XXX_GPT8_IRQ],
                                        omap_findclk(s, "omap3_gp8_fclk"),
                                        omap_findclk(s, "omap3_per_l4_iclk"));
     s->gptimer[8] = omap_gp_timer_init(omap3_l4ta_init(s->l4, L4A_GPTIMER9),
-                                       s->irq[0][OMAP_INT_35XX_GPT9_IRQ],
+                                       s->irq[0][OMAP_INT_3XXX_GPT9_IRQ],
                                        omap_findclk(s, "omap3_gp9_fclk"),
                                        omap_findclk(s, "omap3_per_l4_iclk"));
     s->gptimer[9] = omap_gp_timer_init(omap3_l4ta_init(s->l4, L4A_GPTIMER10),
-                                       s->irq[0][OMAP_INT_35XX_GPT10_IRQ],
+                                       s->irq[0][OMAP_INT_3XXX_GPT10_IRQ],
                                        omap_findclk(s, "omap3_gp10_fclk"),
                                        omap_findclk(s, "omap3_core_l4_iclk"));
     s->gptimer[10] = omap_gp_timer_init(omap3_l4ta_init(s->l4, L4A_GPTIMER11),
-                                       s->irq[0][OMAP_INT_35XX_GPT11_IRQ],
+                                       s->irq[0][OMAP_INT_3XXX_GPT11_IRQ],
                                        omap_findclk(s, "omap3_gp12_fclk"),
                                        omap_findclk(s, "omap3_core_l4_iclk"));
     s->gptimer[11] = omap_gp_timer_init(omap3_l4ta_init(s->l4, L4A_GPTIMER12),
-                                        s->irq[0][OMAP_INT_35XX_GPT12_IRQ],
+                                        s->irq[0][OMAP_INT_3XXX_GPT12_IRQ],
                                         omap_findclk(s, "omap3_gp12_fclk"),
                                         omap_findclk(s, "omap3_wkup_l4_iclk"));
     
@@ -4238,87 +4281,87 @@ struct omap_mpu_state_s *omap3530_mpu_init(unsigned long sdram_size,
 
     s->sdrc = omap_sdrc_init(0x6d000000);
     
-    s->gpmc = omap_gpmc_init(s, 0x6e000000, s->irq[0][OMAP_INT_35XX_GPMC_IRQ]);
+    s->gpmc = omap_gpmc_init(s, 0x6e000000, s->irq[0][OMAP_INT_3XXX_GPMC_IRQ]);
     
 
     s->uart[0] = omap2_uart_init(omap3_l4ta_init(s->l4, L4A_UART1),
-                                 s->irq[0][OMAP_INT_35XX_UART1_IRQ],
+                                 s->irq[0][OMAP_INT_3XXX_UART1_IRQ],
                                  omap_findclk(s, "omap3_uart1_fclk"),
                                  omap_findclk(s, "omap3_uart1_iclk"),
-                                 s->drq[OMAP35XX_DMA_UART1_TX],
-                                 s->drq[OMAP35XX_DMA_UART1_RX], 0);
+                                 s->drq[OMAP3XXX_DMA_UART1_TX],
+                                 s->drq[OMAP3XXX_DMA_UART1_RX], 0);
     s->uart[1] = omap2_uart_init(omap3_l4ta_init(s->l4, L4A_UART2),
-                                 s->irq[0][OMAP_INT_35XX_UART2_IRQ],
+                                 s->irq[0][OMAP_INT_3XXX_UART2_IRQ],
                                  omap_findclk(s, "omap3_uart2_fclk"),
                                  omap_findclk(s, "omap3_uart2_iclk"),
-                                 s->drq[OMAP35XX_DMA_UART2_TX],
-                                 s->drq[OMAP35XX_DMA_UART2_RX], 0);
+                                 s->drq[OMAP3XXX_DMA_UART2_TX],
+                                 s->drq[OMAP3XXX_DMA_UART2_RX], 0);
     s->uart[2] = omap2_uart_init(omap3_l4ta_init(s->l4, L4A_UART3),
-                                 s->irq[0][OMAP_INT_35XX_UART3_IRQ],
+                                 s->irq[0][OMAP_INT_3XXX_UART3_IRQ],
                                  omap_findclk(s, "omap3_uart2_fclk"),
                                  omap_findclk(s, "omap3_uart3_iclk"),
-                                 s->drq[OMAP35XX_DMA_UART3_TX],
-                                 s->drq[OMAP35XX_DMA_UART3_RX], 0);
+                                 s->drq[OMAP3XXX_DMA_UART3_TX],
+                                 s->drq[OMAP3XXX_DMA_UART3_RX], 0);
     
     s->dss = omap_dss_init(s, omap3_l4ta_init(s->l4, L4A_DSS), 
-                    s->irq[0][OMAP_INT_35XX_DSS_IRQ], s->drq[OMAP24XX_DMA_DSS],
+                    s->irq[0][OMAP_INT_3XXX_DSS_IRQ], s->drq[OMAP24XX_DMA_DSS],
                    NULL,NULL,NULL,NULL,NULL);
 
     s->gpif = omap3_gpif_init();
     omap3_gpio_init(s, s->gpif ,omap3_l4ta_init(s->l4, L4A_GPIO1),
-                    &s->irq[0][OMAP_INT_35XX_GPIO1_MPU_IRQ], 
+                    &s->irq[0][OMAP_INT_3XXX_GPIO1_MPU_IRQ], 
                     NULL,NULL,0);
     omap3_gpio_init(s, s->gpif ,omap3_l4ta_init(s->l4, L4A_GPIO2),
-                    &s->irq[0][OMAP_INT_35XX_GPIO2_MPU_IRQ], 
+                    &s->irq[0][OMAP_INT_3XXX_GPIO2_MPU_IRQ], 
                     NULL,NULL,1);
     omap3_gpio_init(s, s->gpif ,omap3_l4ta_init(s->l4, L4A_GPIO3),
-                    &s->irq[0][OMAP_INT_35XX_GPIO3_MPU_IRQ], 
+                    &s->irq[0][OMAP_INT_3XXX_GPIO3_MPU_IRQ], 
                     NULL,NULL,2);
     omap3_gpio_init(s, s->gpif ,omap3_l4ta_init(s->l4, L4A_GPIO4),
-                    &s->irq[0][OMAP_INT_35XX_GPIO4_MPU_IRQ], 
+                    &s->irq[0][OMAP_INT_3XXX_GPIO4_MPU_IRQ], 
                     NULL,NULL,3);
     omap3_gpio_init(s, s->gpif ,omap3_l4ta_init(s->l4, L4A_GPIO5),
-                    &s->irq[0][OMAP_INT_35XX_GPIO5_MPU_IRQ], 
+                    &s->irq[0][OMAP_INT_3XXX_GPIO5_MPU_IRQ], 
                     NULL,NULL,4);
     omap3_gpio_init(s, s->gpif ,omap3_l4ta_init(s->l4, L4A_GPIO6),
-                    &s->irq[0][OMAP_INT_35XX_GPIO6_MPU_IRQ], 
+                    &s->irq[0][OMAP_INT_3XXX_GPIO6_MPU_IRQ], 
                     NULL,NULL,5);
 
     omap_tap_init(omap3_l4ta_init(s->l4, L4A_TAP), s);
 
     s->omap3_mmc[0] = omap3_mmc_init(omap3_l4ta_init(s->l4, L4A_MMC1),
-                                     s->irq[0][OMAP_INT_35XX_MMC1_IRQ],
-                                     &s->drq[OMAP35XX_DMA_MMC1_TX],
+                                     s->irq[0][OMAP_INT_3XXX_MMC1_IRQ],
+                                     &s->drq[OMAP3XXX_DMA_MMC1_TX],
                                      omap_findclk(s, "omap3_mmc1_fclk"),
                                      omap_findclk(s, "omap3_mmc1_iclk"));
 
     s->omap3_mmc[1] = omap3_mmc_init(omap3_l4ta_init(s->l4, L4A_MMC2),
-                                     s->irq[0][OMAP_INT_35XX_MMC2_IRQ],
-                                     &s->drq[OMAP35XX_DMA_MMC2_TX],
+                                     s->irq[0][OMAP_INT_3XXX_MMC2_IRQ],
+                                     &s->drq[OMAP3XXX_DMA_MMC2_TX],
                                      omap_findclk(s, "omap3_mmc2_fclk"),
                                      omap_findclk(s, "omap3_mmc2_iclk"));
 
     s->omap3_mmc[2] = omap3_mmc_init(omap3_l4ta_init(s->l4, L4A_MMC3),
-                                     s->irq[0][OMAP_INT_35XX_MMC3_IRQ],
-                                     &s->drq[OMAP35XX_DMA_MMC3_TX],
+                                     s->irq[0][OMAP_INT_3XXX_MMC3_IRQ],
+                                     &s->drq[OMAP3XXX_DMA_MMC3_TX],
                                      omap_findclk(s, "omap3_mmc3_fclk"),
                                      omap_findclk(s, "omap3_mmc3_iclk"));
 
     s->i2c[0] = omap3_i2c_init(omap3_l4ta_init(s->l4, L4A_I2C1),
-                               s->irq[0][OMAP_INT_35XX_I2C1_IRQ],
-                               &s->drq[OMAP35XX_DMA_I2C1_TX],
+                               s->irq[0][OMAP_INT_3XXX_I2C1_IRQ],
+                               &s->drq[OMAP3XXX_DMA_I2C1_TX],
                                omap_findclk(s, "omap3_i2c1_fclk"),
                                omap_findclk(s, "omap3_i2c1_iclk"),
                                8);
     s->i2c[1] = omap3_i2c_init(omap3_l4ta_init(s->l4, L4A_I2C2),
-                               s->irq[0][OMAP_INT_35XX_I2C2_IRQ],
-                               &s->drq[OMAP35XX_DMA_I2C2_TX],
+                               s->irq[0][OMAP_INT_3XXX_I2C2_IRQ],
+                               &s->drq[OMAP3XXX_DMA_I2C2_TX],
                                omap_findclk(s, "omap3_i2c2_fclk"),
                                omap_findclk(s, "omap3_i2c2_iclk"),
                                8);
     s->i2c[2] = omap3_i2c_init(omap3_l4ta_init(s->l4, L4A_I2C3),
-                               s->irq[0][OMAP_INT_35XX_I2C3_IRQ],
-                               &s->drq[OMAP35XX_DMA_I2C3_TX],
+                               s->irq[0][OMAP_INT_3XXX_I2C3_IRQ],
+                               &s->drq[OMAP3XXX_DMA_I2C3_TX],
                                omap_findclk(s, "omap3_i2c3_fclk"),
                                omap_findclk(s, "omap3_i2c3_iclk"),
                                64);
@@ -4326,11 +4369,11 @@ struct omap_mpu_state_s *omap3530_mpu_init(unsigned long sdram_size,
     s->omap3_usb = omap3_hsusb_init(omap3_l4ta_init(s->l4, L4A_USBHS_OTG),
                                     omap3_l4ta_init(s->l4, L4A_USBHS_HOST),
                                     omap3_l4ta_init(s->l4, L4A_USBHS_TLL),
-                                    s->irq[0][OMAP_INT_35XX_HSUSB_MC],
-                                    s->irq[0][OMAP_INT_35XX_HSUSB_DMA],
-                                    s->irq[0][OMAP_INT_35XX_OHCI_IRQ],
-                                    s->irq[0][OMAP_INT_35XX_EHCI_IRQ],
-                                    s->irq[0][OMAP_INT_35XX_TLL_IRQ]);
+                                    s->irq[0][OMAP_INT_3XXX_HSUSB_MC],
+                                    s->irq[0][OMAP_INT_3XXX_HSUSB_DMA],
+                                    s->irq[0][OMAP_INT_3XXX_OHCI_IRQ],
+                                    s->irq[0][OMAP_INT_3XXX_EHCI_IRQ],
+                                    s->irq[0][OMAP_INT_3XXX_TLL_IRQ]);
     return s;
 }
 

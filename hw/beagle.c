@@ -1,7 +1,8 @@
 /*
  * Beagle board emulation. http://beagleboard.org/
  * 
- * Copyright (C) 2008 yajin(yajin@vm-kernel.org)
+ * Original code Copyright (C) 2008 yajin(yajin@vm-kernel.org)
+ * Rewrite Copyright (C) 2009 Nokia Corporation
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License as
@@ -23,17 +24,14 @@
 #include "sysemu.h"
 #include "omap.h"
 #include "arm-misc.h"
-#include "irq.h"
-#include "console.h"
 #include "boards.h"
 #include "i2c.h"
 #include "devices.h"
 #include "flash.h"
-#include "hw.h"
-#include "block.h"
 
 #define BEAGLE_NAND_CS       0
 #define BEAGLE_NAND_PAGESIZE 0x800
+#define BEAGLE_SDRAM_SIZE    (128 * 1024 * 1024) /* 128MB */
 
 /* Beagle board support */
 struct beagle_s {
@@ -43,10 +41,6 @@ struct beagle_s {
     struct omap3_lcd_panel_s *lcd_panel;
     i2c_bus *i2c;
     struct twl4030_s *twl4030;
-};
-
-static struct arm_boot_info beagle_binfo = {
-    .ram_size = 0x08000000,
 };
 
 static void beagle_nand_pread(struct nand_flash_s *nand,
@@ -97,20 +91,18 @@ static void beagle_init(ram_addr_t ram_size, int vga_ram_size,
                 const char *initrd_filename, const char *cpu_model)
 {
     struct beagle_s *s = (struct beagle_s *) qemu_mallocz(sizeof(*s));
-    int sdram_size = beagle_binfo.ram_size;
     int sdindex = drive_get_index(IF_SD, 0, 0);
     
     if (sdindex == -1) {
-        fprintf(stderr, "qemu: missing SecureDigital device\n");
+        fprintf(stderr, "%s: missing SecureDigital device\n", __FUNCTION__);
         exit(1);
     }
-    
-   	if (ram_size < sdram_size +  OMAP3530_SRAM_SIZE) {
-        fprintf(stderr, "This architecture uses %i bytes of memory\n",
-                        sdram_size + OMAP3530_SRAM_SIZE);
+   	if (ram_size < (beagle_machine.ram_require & ~RAMSIZE_FIXED)) {
+        fprintf(stderr, "%s: This architecture uses %lu bytes of memory\n",
+                __FUNCTION__, (beagle_machine.ram_require & ~RAMSIZE_FIXED));
         exit(1);
     }
-   	s->cpu = omap3530_mpu_init(sdram_size, NULL);
+   	s->cpu = omap3530_mpu_init(BEAGLE_SDRAM_SIZE, NULL);
     
     if (serial_hds[0])
         omap_uart_attach(s->cpu->uart[2], serial_hds[0]);
@@ -121,11 +113,11 @@ static void beagle_init(ram_addr_t ram_size, int vga_ram_size,
     omap3_mmc_attach(s->cpu->omap3_mmc[0], drives_table[sdindex].bdrv);
 
     s->i2c = omap_i2c_bus(s->cpu->i2c[0]);
-    s->twl4030 = twl4030_init(s->i2c, s->cpu->irq[0][OMAP_INT_35XX_SYS_NIRQ]);
+    s->twl4030 = twl4030_init(s->i2c, s->cpu->irq[0][OMAP_INT_3XXX_SYS_NIRQ]);
 
 	s->lcd_panel = omap3_lcd_panel_init();
 	omap3_lcd_panel_attach(s->cpu->dss, 0, s->lcd_panel);
-
+    
     if (!omap3_mmc_boot(s->cpu) 
         && !omap3_nand_boot(s->cpu, s->nand, beagle_nand_pread)) {
         fprintf(stderr, "%s: boot from MMC and NAND failed\n",
@@ -135,9 +127,11 @@ static void beagle_init(ram_addr_t ram_size, int vga_ram_size,
 }
 
 QEMUMachine beagle_machine = {
-    .name = "beagle",
-    .desc =     "Beagle board (OMAP3530)",
-    .init =     beagle_init,
-    .ram_require =     (0x08000000 +  OMAP3530_SRAM_SIZE) | RAMSIZE_FIXED,
+    .name =        "beagle",
+    .desc =        "Beagle board (OMAP3530)",
+    .init =        beagle_init,
+    .ram_require = (BEAGLE_SDRAM_SIZE
+                    + OMAP3XXX_SRAM_SIZE
+                    + OMAP3XXX_BOOTROM_SIZE) | RAMSIZE_FIXED,
 };
 
