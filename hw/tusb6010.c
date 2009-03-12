@@ -26,6 +26,15 @@
 #include "irq.h"
 #include "devices.h"
 
+#define OMAP3_HSUSB_DEBUG
+
+#ifdef OMAP3_HSUSB_DEBUG
+#define TRACE(fmt,...) fprintf(stderr, "%s: " fmt "\n", __FUNCTION__, ##__VA_ARGS__)
+#else
+#define TRACE(...)
+#endif
+
+
 struct tusb_s {
     int iomemtype[2];
     qemu_irq irq;
@@ -686,9 +695,11 @@ static void tusb_musb_core_intr(void *opaque, int source, int level)
 {
     struct tusb_s *s = (struct tusb_s *) opaque;
     uint16_t otg_status = s->otg_status;
+    TRACE("intr 0x%08x, 0x%08x, 0x%08x", source, level, musb_core_intr_get(s->musb));
 
     switch (source) {
     case musb_set_vbus:
+        TRACE("dealing with VBUS");
         if (level)
             otg_status |= TUSB_DEV_OTG_STAT_VBUS_VALID;
         else
@@ -704,6 +715,7 @@ static void tusb_musb_core_intr(void *opaque, int source, int level)
         break;
 
     case musb_set_session:
+        TRACE("dealing with SESSION");
         /* XXX: only if TUSB_PHY_OTG_CTRL_OTG_SESS_END_EN set?  */
         /* XXX: only if TUSB_PRCM_MNGMT_OTG_SESS_END_EN set?  */
         if (level) {
@@ -719,6 +731,7 @@ static void tusb_musb_core_intr(void *opaque, int source, int level)
 
     case musb_irq_tx:
     case musb_irq_rx:
+        TRACE("rxtx");
         s->usbip_intr = musb_core_intr_get(s->musb);
         /* Fall through.  */
     default:
