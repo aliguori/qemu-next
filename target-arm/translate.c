@@ -6024,10 +6024,10 @@ static void disas_arm_insn(CPUState * env, DisasContext *s)
                 s->is_jmp = DISAS_JUMP;
             } else if (op1 == 3) {
                 /* smi/smc */
-                if (!(env->cp15.c0_c2[4] & 0xf000))
+                if (!(env->cp15.c0_c2[4] & 0xf000) || IS_USER(s))
                     goto illegal_op;
-                fprintf(stderr,"smc [0x%08x] pc=0x%08x\n", insn, s->pc);
-                /* unsupported at the moment, ignore. */
+                /* TODO: real implementation; execute as NOP for now */
+                /*fprintf(stderr, "smc [0x%08x] pc=0x%08x\n", insn, s->pc);*/
             } else {
                 goto illegal_op;
             }
@@ -6219,9 +6219,15 @@ static void disas_arm_insn(CPUState * env, DisasContext *s)
                 gen_op_movl_T0_T1();
                 gen_exception_return(s);
             } else {
-                gen_movl_reg_T1(s, rd);
-                if (logic_cc)
-                    gen_op_logic_T1_cc();
+                if (rd == 15 && ENABLE_ARCH_7) {
+                    tmp = new_tmp();
+                    tcg_gen_mov_i32(tmp, cpu_T[1]);
+                    gen_bx(s, tmp); 
+                } else {
+                    gen_movl_reg_T1(s, rd);
+                    if (logic_cc)
+                        gen_op_logic_T1_cc();
+                }
             }
             break;
         case 0x0e:
