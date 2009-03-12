@@ -43,48 +43,6 @@ struct beagle_s {
     struct twl4030_s *twl4030;
 };
 
-static void beagle_nand_pread(struct nand_flash_s *nand,
-                              uint64_t addr,
-                              uint8_t *data,
-                              uint32_t len)
-{
-    uint16_t x;
-    uint32_t i;
-    
-    if ((len&1) || (addr&1)) {
-        fprintf(stderr, "%s: read byte length and address must be even (x16 device!)\n",
-                __FUNCTION__);
-        exit(-1);
-    }
-    /* send command: reset */
-    nand_setpins(nand, 1, 0, 0, 1, 0);
-    nand_setio(nand, 0xff);
-    while (len) {
-        /* send command: read page (cycle1) */
-        nand_setpins(nand, 1, 0, 0, 1, 0);
-        nand_setio(nand, 0);
-        /* send address */
-        nand_setpins(nand, 0, 1, 0, 1, 0);
-        nand_setio(nand, (uint32_t)((addr >> 1) & 0xff));
-        nand_setio(nand, (uint32_t)((addr >> 9) & 0x3));
-        nand_setio(nand, (uint32_t)((addr >> 11) & 0xff));
-        nand_setio(nand, (uint32_t)((addr >> 19) & 0xff));
-        nand_setio(nand, (uint32_t)((addr >> 27) & 0x1));
-        /* send command: read page (cycle2) */
-        nand_setpins(nand, 1, 0, 0, 1, 0);
-        nand_setio(nand, 0x30);
-        /* read page data */
-        nand_setpins(nand, 0, 0, 0, 1, 0);
-        for (i = (BEAGLE_NAND_PAGESIZE / 2) - (addr & 0x3ff); i && len; i--) {
-            x = nand_getio(nand);
-            *(data++) = (uint8_t)(x & 0xff);
-            *(data++) = (uint8_t)((x >> 8) & 0xff);
-            len -= 2;
-            addr += 2;
-        }
-    }
-}
-
 static void beagle_init(ram_addr_t ram_size, int vga_ram_size,
                 const char *boot_device,
                 const char *kernel_filename, const char *kernel_cmdline,
@@ -118,12 +76,7 @@ static void beagle_init(ram_addr_t ram_size, int vga_ram_size,
 	s->lcd_panel = omap3_lcd_panel_init();
 	omap3_lcd_panel_attach(s->cpu->dss, 0, s->lcd_panel);
     
-    if (!omap3_mmc_boot(s->cpu) 
-        && !omap3_nand_boot(s->cpu, s->nand, beagle_nand_pread)) {
-        fprintf(stderr, "%s: boot from MMC and NAND failed\n",
-                __FUNCTION__);
-        exit(-1);
-    }
+    omap3_boot_rom_emu(s->cpu);
 }
 
 QEMUMachine beagle_machine = {
