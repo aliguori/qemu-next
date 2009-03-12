@@ -1239,13 +1239,9 @@ struct omap_mpu_state_s *omap2420_mpu_init(unsigned long sdram_size,
 struct omap_mpu_state_s *omap3530_mpu_init(unsigned long sdram_size,
                 const char *core);
 void omap3_set_mem_type(struct omap_mpu_state_s *s, int bootfrom);
-int omap3_mmc_boot(struct omap_mpu_state_s *s);
-int omap3_nand_boot(struct omap_mpu_state_s *mpu,
-                    struct nand_flash_s *nand,
-                    void (*nand_pread_f)(struct nand_flash_s *nand,
-                                         uint64_t address,
-                                         uint8_t *data,
-                                         uint32_t len));
+
+/* omap3_boot.c */
+void omap3_boot_rom_emu(struct omap_mpu_state_s *s);
 
 # if TARGET_PHYS_ADDR_BITS == 32
 #  define OMAP_FMT_plx "0x%08x"
