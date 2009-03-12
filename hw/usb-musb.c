@@ -249,6 +249,15 @@
 #define MGC_M_ULPI_REGCTL_COMPLETE	0x02
 #define MGC_M_ULPI_REGCTL_REG		0x01
 
+#define MUSB_DEBUG
+
+#ifdef MUSB_DEBUG
+#define TRACE(fmt,...) fprintf(stderr, "%s: " fmt "\n", __FUNCTION__, ##__VA_ARGS__)
+#else
+#define TRACE(...)
+#endif
+
+
 static void musb_attach(USBPort *port, USBDevice *dev);
 
 struct musb_s {
@@ -879,6 +888,7 @@ static void musb_ep_frame_cancel(struct musb_ep_s *ep, int dir)
 static uint8_t musb_busctl_readb(void *opaque, int ep, int addr)
 {
     struct musb_s *s = (struct musb_s *) opaque;
+    TRACE("ADDR = 0x%08x", addr);
 
     switch (addr) {
     /* For USB2.0 HS hubs only */
@@ -1144,6 +1154,7 @@ static uint32_t musb_readb(void *opaque, target_phys_addr_t addr)
     struct musb_s *s = (struct musb_s *) opaque;
     int ep, i;
     uint8_t ret;
+    TRACE("ADDR = 0x%08x", addr);
 
     switch (addr) {
     case MUSB_HDRC_FADDR:
@@ -1201,6 +1212,7 @@ static void musb_writeb(void *opaque, target_phys_addr_t addr, uint32_t value)
 {
     struct musb_s *s = (struct musb_s *) opaque;
     int ep;
+    TRACE("ADDR = 0x%08x = %08x", addr, value);
 
     switch (addr) {
     case MUSB_HDRC_FADDR:
@@ -1283,6 +1295,7 @@ static uint32_t musb_readh(void *opaque, target_phys_addr_t addr)
     struct musb_s *s = (struct musb_s *) opaque;
     int ep, i;
     uint16_t ret;
+    TRACE("ADDR = 0x%08x", addr);
 
     switch (addr) {
     case MUSB_HDRC_INTRTX:
@@ -1332,6 +1345,7 @@ static void musb_writeh(void *opaque, target_phys_addr_t addr, uint32_t value)
 {
     struct musb_s *s = (struct musb_s *) opaque;
     int ep;
+    TRACE("ADDR = 0x%08x = %08x", addr, value);
 
     switch (addr) {
     case MUSB_HDRC_INTRTXE:
@@ -1383,6 +1397,7 @@ static uint32_t musb_readw(void *opaque, target_phys_addr_t addr)
     struct musb_s *s = (struct musb_s *) opaque;
     struct musb_ep_s *ep;
     int epnum;
+    TRACE("ADDR = 0x%08x", addr);
 
     switch (addr) {
     case MUSB_HDRC_FIFO ... (MUSB_HDRC_FIFO + 0x3f):
@@ -1412,6 +1427,7 @@ static void musb_writew(void *opaque, target_phys_addr_t addr, uint32_t value)
     struct musb_s *s = (struct musb_s *) opaque;
     struct musb_ep_s *ep;
     int epnum;
+    TRACE("ADDR = 0x%08x = %08x", addr, value);
 
     switch (addr) {
     case MUSB_HDRC_FIFO ... (MUSB_HDRC_FIFO + 0x3f):
