@@ -205,10 +205,12 @@ static void omap3_hsusb_musb_core_intr(void *opaque, int source, int level)
     case musb_irq_tx:
     case musb_irq_rx:
        TRACE("rxtx");
+       break;
        /* Fall through */
     default:
-    	qemu_set_irq(s->mc_irq, value);
+       TRACE("other");
     }
+    qemu_set_irq(s->mc_irq, level);
 }
 
 static void omap3_hsusb_otg_init(struct omap_target_agent_s *otg_ta,
