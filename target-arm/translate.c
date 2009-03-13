@@ -6212,23 +6212,24 @@ static void disas_arm_insn(CPUState * env, DisasContext *s)
                 gen_op_logic_T0_cc();
             break;
         case 0x0d:
-            if (logic_cc && rd == 15) {
-                /* MOVS r15, ... is used for exception return.  */
-                if (IS_USER(s))
-                    goto illegal_op;
-                gen_op_movl_T0_T1();
-                gen_exception_return(s);
-            } else {
-                if (rd == 15 && ENABLE_ARCH_7) {
+            if (rd == 15) {
+                if (logic_cc) {
+                    /* MOVS r15, ... is used for exception return.  */
+                    if (IS_USER(s))
+                        goto illegal_op;
+                    gen_op_movl_T0_T1();
+                    gen_exception_return(s);
+                    break;
+                } else if (ENABLE_ARCH_7) {
                     tmp = new_tmp();
                     tcg_gen_mov_i32(tmp, cpu_T[1]);
                     gen_bx(s, tmp); 
-                } else {
-                    gen_movl_reg_T1(s, rd);
-                    if (logic_cc)
-                        gen_op_logic_T1_cc();
+                    break;
                 }
             }
+            gen_movl_reg_T1(s, rd);
+            if (logic_cc)
+                gen_op_logic_T1_cc();
             break;
         case 0x0e:
             gen_op_bicl_T0_T1();
