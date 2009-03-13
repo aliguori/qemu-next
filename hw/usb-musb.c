@@ -912,6 +912,12 @@ static void musb_busctl_writeb(void *opaque, int ep, int addr, uint8_t value)
     struct musb_s *s = (struct musb_s *) opaque;
 
     switch (addr) {
+    case MUSB_HDRC_TXFUNCADDR:
+        s->ep[ep].faddr[0] = value;
+        break;
+    case MUSB_HDRC_RXFUNCADDR:
+        s->ep[ep].faddr[1] = value;
+        break;
     case MUSB_HDRC_TXHUBADDR:
         s->ep[ep].haddr[0] = value;
         break;
@@ -982,6 +988,8 @@ static uint8_t musb_ep_readb(void *opaque, int ep, int addr)
         return 0x00;
     case MUSB_HDRC_FIFOSIZE:
         return ep ? s->ep[ep].fifosize : s->ep[ep].config;
+    case MUSB_HDRC_RXCOUNT:
+        return s->ep[ep].rxcount;
 
     default:
         printf("%s: unknown register at %02x\n", __FUNCTION__, addr);
@@ -1015,7 +1023,6 @@ static void musb_ep_writeb(void *opaque, int ep, int addr, uint8_t value)
                         __FUNCTION__, value);
         s->ep[ep].fifosize = value;
         break;
-
     default:
         printf("%s: unknown register at %02x\n", __FUNCTION__, addr);
     };
