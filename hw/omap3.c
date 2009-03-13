@@ -1802,138 +1802,134 @@ struct omap3_prm_s *omap3_prm_init(struct omap_target_agent_s *ta,
     return s;
 }
 
-
-struct omap3_cm_s
-{
+struct omap3_cm_s {
     qemu_irq irq[3];
     struct omap_mpu_state_s *mpu;
 
-    /*IVA2_CM Register */
-    uint32_t cm_fclken_iva2;    /*0x4800 4000 */
-    uint32_t cm_clken_pll_iva2; /*0x4800 4004 */
-    uint32_t cm_idlest_iva2;    /*0x4800 4020 */
-    uint32_t cm_idlest_pll_iva2;        /*0x4800 4024 */
-    uint32_t cm_autoidle_pll_iva2;      /*0x4800 4034 */
-    uint32_t cm_clksel1_pll_iva2;       /*0x4800 4040 */
-    uint32_t cm_clksel2_pll_iva2;       /*0x4800 4044 */
-    uint32_t cm_clkstctrl_iva2; /*0x4800 4048 */
-    uint32_t cm_clkstst_iva2;   /*0x4800 404c */
+    /* IVA2_CM: base + 0x0000 */
+    uint32_t cm_fclken_iva2;       /* 00 */
+    uint32_t cm_clken_pll_iva2;    /* 04 */
+    uint32_t cm_idlest_iva2;       /* 20 */
+    uint32_t cm_idlest_pll_iva2;   /* 24 */
+    uint32_t cm_autoidle_pll_iva2; /* 34 */
+    uint32_t cm_clksel1_pll_iva2;  /* 40 */
+    uint32_t cm_clksel2_pll_iva2;  /* 44 */
+    uint32_t cm_clkstctrl_iva2;    /* 48 */
+    uint32_t cm_clkstst_iva2;      /* 4c */
 
-    /*OCP_System_Reg_CM */
-    uint32_t cm_revision;       /*0x4800 4800 */
-    uint32_t cm_sysconfig;      /*0x4800 4810 */
+    /* OCP_System_Reg_CM: base + 0x0800 */
+    uint32_t cm_revision;  /* 00 */
+    uint32_t cm_sysconfig; /* 10 */
 
-    /*MPU_CM Register */
-    uint32_t cm_clken_pll_mpu;  /*0x4800 4904 */
-    uint32_t cm_idlest_mpu;     /*0x4800 4920 */
-    uint32_t cm_idlest_pll_mpu; /*0x4800 4924 */
-    uint32_t cm_autoidle_pll_mpu;       /*0x4800 4934 */
-    uint32_t cm_clksel1_pll_mpu;        /*0x4800 4940 */
-    uint32_t cm_clksel2_pll_mpu;        /*0x4800 4944 */
-    uint32_t cm_clkstctrl_mpu;  /*0x4800 4948 */
-    uint32_t cm_clkstst_mpu;    /*0x4800 494c */
+    /* MPU_CM: base + 0x0900 */
+    uint32_t cm_clken_pll_mpu;    /* 04 */
+    uint32_t cm_idlest_mpu;       /* 20 */
+    uint32_t cm_idlest_pll_mpu;   /* 24 */
+    uint32_t cm_autoidle_pll_mpu; /* 34 */
+    uint32_t cm_clksel1_pll_mpu;  /* 40 */
+    uint32_t cm_clksel2_pll_mpu;  /* 44 */
+    uint32_t cm_clkstctrl_mpu;    /* 48 */
+    uint32_t cm_clkstst_mpu;      /* 4c */
 
-    /*CORE_CM Register */
-    uint32_t cm_fclken1_core;   /*0x4800 4a00 */
-    uint32_t cm_fclken3_core;   /*0x4800 4a08 */
-    uint32_t cm_iclken1_core;   /*0x4800 4a10 */
-    uint32_t cm_iclken2_core;   /*0x4800 4a14 */
-    uint32_t cm_iclken3_core;   /*0x4800 4a18 */
-    uint32_t cm_idlest1_core;   /*0x4800 4a20 */
-    uint32_t cm_idlest2_core;   /*0x4800 4a24 */
-    uint32_t cm_idlest3_core;   /*0x4800 4a28 */
-    uint32_t cm_autoidle1_core; /*0x4800 4a30 */
-    uint32_t cm_autoidle2_core; /*0x4800 4a34 */
-    uint32_t cm_autoidle3_core; /*0x4800 4a38 */
-    uint32_t cm_clksel_core;    /*0x4800 4a40 */
-    uint32_t cm_clkstctrl_core; /*0x4800 4a48 */
-    uint32_t cm_clkstst_core;   /*0x4800 4a4c */
+    /* CORE_CM: base + 0x0a00 */
+    uint32_t cm_fclken1_core;   /* 0a00 */
+    uint32_t cm_fclken3_core;   /* 0a08 */
+    uint32_t cm_iclken1_core;   /* 0a10 */
+    uint32_t cm_iclken2_core;   /* 0a14 */
+    uint32_t cm_iclken3_core;   /* 0a18 */
+    uint32_t cm_idlest1_core;   /* 0a20 */
+    uint32_t cm_idlest2_core;   /* 0a24 */
+    uint32_t cm_idlest3_core;   /* 0a28 */
+    uint32_t cm_autoidle1_core; /* 0a30 */
+    uint32_t cm_autoidle2_core; /* 0a34 */
+    uint32_t cm_autoidle3_core; /* 0a38 */
+    uint32_t cm_clksel_core;    /* 0a40 */
+    uint32_t cm_clkstctrl_core; /* 0a48 */
+    uint32_t cm_clkstst_core;   /* 0a4c */
 
-    /*SGX_CM Register */
-    uint32_t cm_fclken_sgx;     /*0x4800 4b00 */
-    uint32_t cm_iclken_sgx;     /*0x4800 4b10 */
-    uint32_t cm_idlest_sgx;     /*0x4800 4b20 */
-    uint32_t cm_clksel_sgx;     /*0x4800 4b40 */
-    uint32_t cm_sleepdep_sgx;   /*0x4800 4b44 */
-    uint32_t cm_clkstctrl_sgx;  /*0x4800 4b48 */
-    uint32_t cm_clkstst_sgx;    /*0x4800 4b4c */
+    /* SGX_CM: base + 0x0b00 */
+    uint32_t cm_fclken_sgx;    /* 00 */
+    uint32_t cm_iclken_sgx;    /* 10 */
+    uint32_t cm_idlest_sgx;    /* 20 */
+    uint32_t cm_clksel_sgx;    /* 40 */
+    uint32_t cm_sleepdep_sgx;  /* 44 */
+    uint32_t cm_clkstctrl_sgx; /* 48 */
+    uint32_t cm_clkstst_sgx;   /* 4c */
 
-    /*WKUP_CM Register */
-    uint32_t cm_fclken_wkup;    /*0x4800 4c00 */
-    uint32_t cm_iclken_wkup;    /*0x4800 4c10 */
-    uint32_t cm_idlest_wkup;    /*0x4800 4c20 */
-    uint32_t cm_autoidle_wkup;  /*0x4800 4c30 */
-    uint32_t cm_clksel_wkup;    /*0x4800 4c40 */
-    uint32_t cm_c48;                  /*0x4800 4c48 */
+    /* WKUP_CM: base + 0x0c00 */
+    uint32_t cm_fclken_wkup;   /* 00 */
+    uint32_t cm_iclken_wkup;   /* 10 */
+    uint32_t cm_idlest_wkup;   /* 20 */
+    uint32_t cm_autoidle_wkup; /* 30 */
+    uint32_t cm_clksel_wkup;   /* 40 */
+    uint32_t cm_c48;           /* 48 */
 
-    /*Clock_Control_Reg_CM Register */
-    uint32_t cm_clken_pll;      /*0x4800 4d00 */
-    uint32_t cm_clken2_pll;     /*0x4800 4d04 */
-    uint32_t cm_idlest_ckgen;   /*0x4800 4d20 */
-    uint32_t cm_idlest2_ckgen;  /*0x4800 4d24 */
-    uint32_t cm_autoidle_pll;   /*0x4800 4d30 */
-    uint32_t cm_autoidle2_pll;  /*0x4800 4d34 */
-    uint32_t cm_clksel1_pll;    /*0x4800 4d40 */
-    uint32_t cm_clksel2_pll;    /*0x4800 4d44 */
-    uint32_t cm_clksel3_pll;    /*0x4800 4d48 */
-    uint32_t cm_clksel4_pll;    /*0x4800 4d4c */
-    uint32_t cm_clksel5_pll;    /*0x4800 4d50 */
-    uint32_t cm_clkout_ctrl;    /*0x4800 4d70 */
+    /* Clock_Control_Reg_CM: base + 0x0d00 */
+    uint32_t cm_clken_pll;     /* 00 */
+    uint32_t cm_clken2_pll;    /* 04 */
+    uint32_t cm_idlest_ckgen;  /* 20 */
+    uint32_t cm_idlest2_ckgen; /* 24 */
+    uint32_t cm_autoidle_pll;  /* 30 */
+    uint32_t cm_autoidle2_pll; /* 34 */
+    uint32_t cm_clksel1_pll;   /* 40 */
+    uint32_t cm_clksel2_pll;   /* 44 */
+    uint32_t cm_clksel3_pll;   /* 48 */
+    uint32_t cm_clksel4_pll;   /* 4c */
+    uint32_t cm_clksel5_pll;   /* 50 */
+    uint32_t cm_clkout_ctrl;   /* 70 */
 
-    /*DSS_CM Register */
-    uint32_t cm_fclken_dss;     /*0x4800 4e00 */
-    uint32_t cm_iclken_dss;     /*0x4800 4e10 */
-    uint32_t cm_idlest_dss;     /*0x4800 4e20 */
-    uint32_t cm_autoidle_dss;   /*0x4800 4e30 */
-    uint32_t cm_clksel_dss;     /*0x4800 4e40 */
-    uint32_t cm_sleepdep_dss;   /*0x4800 4e44 */
-    uint32_t cm_clkstctrl_dss;  /*0x4800 4e48 */
-    uint32_t cm_clkstst_dss;    /*0x4800 4e4c */
+    /* DSS_CM: base + 0x0e00 */
+    uint32_t cm_fclken_dss;    /* 00 */
+    uint32_t cm_iclken_dss;    /* 10 */
+    uint32_t cm_idlest_dss;    /* 20 */
+    uint32_t cm_autoidle_dss;  /* 30 */
+    uint32_t cm_clksel_dss;    /* 40 */
+    uint32_t cm_sleepdep_dss;  /* 44 */
+    uint32_t cm_clkstctrl_dss; /* 48 */
+    uint32_t cm_clkstst_dss;   /* 4c */
 
+   /* CAM_CM: base + 0x0f00 */
+    uint32_t cm_fclken_cam;    /* 00 */
+    uint32_t cm_iclken_cam;    /* 10 */
+    uint32_t cm_idlest_cam;    /* 20 */
+    uint32_t cm_autoidle_cam;  /* 30 */
+    uint32_t cm_clksel_cam;    /* 40 */
+    uint32_t cm_sleepdep_cam;  /* 44 */
+    uint32_t cm_clkstctrl_cam; /* 48 */
+    uint32_t cm_clkstst_cam;   /* 4c */
 
-    /*CAM_CM Register */
-    uint32_t cm_fclken_cam;     /*0x4800 4f00 */
-    uint32_t cm_iclken_cam;     /*0x4800 4f10 */
-    uint32_t cm_idlest_cam;     /*0x4800 4f20 */
-    uint32_t cm_autoidle_cam;   /*0x4800 4f30 */
-    uint32_t cm_clksel_cam;     /*0x4800 4f40 */
-    uint32_t cm_sleepdep_cam;   /*0x4800 4f44 */
-    uint32_t cm_clkstctrl_cam;  /*0x4800 4f48 */
-    uint32_t cm_clkstst_cam;    /*0x4800 4f4c */
+    /* PER_CM: base + 0x1000 */
+    uint32_t cm_fclken_per;    /* 00 */
+    uint32_t cm_iclken_per;    /* 10 */
+    uint32_t cm_idlest_per;    /* 20 */
+    uint32_t cm_autoidle_per;  /* 30 */
+    uint32_t cm_clksel_per;    /* 40 */
+    uint32_t cm_sleepdep_per;  /* 44 */
+    uint32_t cm_clkstctrl_per; /* 48 */
+    uint32_t cm_clkstst_per;   /* 4c */
 
-    /*PER_CM Register */
-    uint32_t cm_fclken_per;     /*0x4800 5000 */
-    uint32_t cm_iclken_per;     /*0x4800 5010 */
-    uint32_t cm_idlest_per;     /*0x4800 5020 */
-    uint32_t cm_autoidle_per;   /*0x4800 5030 */
-    uint32_t cm_clksel_per;     /*0x4800 5040 */
-    uint32_t cm_sleepdep_per;   /*0x4800 5044 */
-    uint32_t cm_clkstctrl_per;  /*0x4800 5048 */
-    uint32_t cm_clkstst_per;    /*0x4800 504c */
+    /* EMU_CM: base + 0x1100 */
+    uint32_t cm_clksel1_emu;   /* 40 */
+    uint32_t cm_clkstctrl_emu; /* 48 */
+    uint32_t cm_clkstst_emu;   /* 4c */
+    uint32_t cm_clksel2_emu;   /* 50 */
+    uint32_t cm_clksel3_emu;   /* 54 */
 
-    /*EMU_CM Register */
-    uint32_t cm_clksel1_emu;    /*0x4800 5140 */
-    uint32_t cm_clkstctrl_emu;  /*0x4800 5148 */
-    uint32_t cm_clkstst_emu;    /*0x4800 514c */
-    uint32_t cm_clksel2_emu;    /*0x4800 5150 */
-    uint32_t cm_clksel3_emu;    /*0x4800 5154 */
+    /* Global_Reg_CM: base + 0x1200 */
+    uint32_t cm_polctrl; /* 9c */
 
-    /*Global_Reg_CM Register */
-    uint32_t cm_polctrl;        /*0x4800 529c */
+    /* NEON_CM: base + 0x1300 */
+    uint32_t cm_idlest_neon;    /* 20 */
+    uint32_t cm_clkstctrl_neon; /* 48 */
 
-    /*NEON_CM Register */
-    uint32_t cm_idlest_neon;    /*0x4800 5320 */
-    uint32_t cm_clkstctrl_neon; /*0x4800 5348 */
-
-    /*USBHOST_CM Register */
-    uint32_t cm_fclken_usbhost; /*0x4800 5400 */
-    uint32_t cm_iclken_usbhost; /*0x4800 5410 */
-    uint32_t cm_idlest_usbhost; /*0x4800 5420 */
-    uint32_t cm_autoidle_usbhost;       /*0x4800 5430 */
-    uint32_t cm_sleepdep_usbhost;       /*0x4800 5444 */
-    uint32_t cm_clkstctrl_usbhost;      /*0x4800 5448 */
-    uint32_t cm_clkstst_usbhost;        /*0x4800 544c */
-
+    /* USBHOST_CM: base + 0x1400 */
+    uint32_t cm_fclken_usbhost;    /* 00 */
+    uint32_t cm_iclken_usbhost;    /* 10 */
+    uint32_t cm_idlest_usbhost;    /* 20 */
+    uint32_t cm_autoidle_usbhost;  /* 30 */
+    uint32_t cm_sleepdep_usbhost;  /* 44 */
+    uint32_t cm_clkstctrl_usbhost; /* 48 */
+    uint32_t cm_clkstst_usbhost;   /* 4c */
 };
 
 /*
@@ -1981,249 +1977,191 @@ static inline void omap3_cm_clksel_wkup_update(struct omap3_cm_s *s,
     /*TODO:CM_USIM_CLK CLKSEL_RM */
 }
 
-static inline void omap3_cm_mpu_update(struct omap3_cm_s *s)
-{
-    uint32_t m, n, divide, m2, cm_clken_pll_mpu;
-    uint32_t bypass = 1;
-
-    cm_clken_pll_mpu = s->cm_clken_pll_mpu;
-    omap_clk mpu_clk = omap_findclk(s->mpu, "omap3_mpu_clk");
-
-    if ((cm_clken_pll_mpu & 0x7) == 0x5)
-    {
-        bypass = 1;
-    }
-    else if ((cm_clken_pll_mpu & 0x7) == 0x7)
-    {
-        m = (s->cm_clksel1_pll_mpu & 0x7ff00) >> 8;
-        if ((m == 0) || (m == 1))
-            bypass = 1;
-        else
-            bypass = 0;
-    }
-    if (bypass == 1)
-    {
-        /*BYPASS Model */
-        divide = (s->cm_clksel1_pll_mpu & 0x380000) >> 19;
-        //OMAP3_DEBUG(("divide %d\n",divide));
-        omap_clk_reparent(mpu_clk, omap_findclk(s->mpu, "omap3_core_clk"));
-        omap_clk_setrate(mpu_clk, divide, 1);
-
-    }
-    else
-    {
-        n = (s->cm_clksel1_pll_mpu & 0x7F);
-        m2 = (s->cm_clksel2_pll_mpu & 0x1F);
-        //OMAP3_DEBUG(("M  %d N %d M2 %d \n",m,n,m2 ));
-        omap_clk_reparent(mpu_clk, omap_findclk(s->mpu, "omap3_sys_clk"));
-        omap_clk_setrate(mpu_clk, (n + 1) * m2, m);
-        //OMAP3_DEBUG(("mpu %d \n",omap_clk_getrate(mpu_clk)));
-
-    }
-
-}
-
 static inline void omap3_cm_iva2_update(struct omap3_cm_s *s)
 {
-    uint32_t m, n, divide, m2, cm_clken_pll_iva2;
-    uint32_t bypass = 1;
-
-    cm_clken_pll_iva2 = s->cm_clken_pll_iva2;
+    uint32_t m = ((s->cm_clksel1_pll_iva2 >> 8) & 0x7ff);
+    uint32_t n, divide, m2;
     omap_clk iva2_clk = omap_findclk(s->mpu, "omap3_iva2_clk");
 
-    if (((cm_clken_pll_iva2 & 0x7) == 0x5)
-        || ((cm_clken_pll_iva2 & 0x7) == 0x1))
-    {
-        bypass = 1;
+    switch ((s->cm_clken_pll_iva2 & 0x7)) {
+        case 0x01: /* low power stop mode */
+        case 0x05: /* low power bypass mode */
+            s->cm_idlest_pll_iva2 &= ~1;
+            break;
+        case 0x07: /* locked */
+            if (m < 2)
+                s->cm_idlest_pll_iva2 &= ~1;
+            else
+                s->cm_idlest_pll_iva2 |= 1;
+            break;
+        default:
+            break;
     }
-    else if ((cm_clken_pll_iva2 & 0x7) == 0x7)
-    {
-        m = (s->cm_clksel1_pll_iva2 & 0x7ff00) >> 8;
-        if ((m == 0) || (m == 1))
-            bypass = 1;
-        else
-            bypass = 0;
-    }
-    if (bypass == 1)
-    {
-        /*BYPASS Model */
-        divide = (s->cm_clksel1_pll_iva2 & 0x380000) >> 19;
-        //OMAP3_DEBUG(("divide %d\n",divide));
-        omap_clk_reparent(iva2_clk, omap_findclk(s->mpu, "omap3_core_clk"));
-        omap_clk_setrate(iva2_clk, divide, 1);
-
-    }
-    else
-    {
-        n = (s->cm_clksel1_pll_iva2 & 0x7F);
-        m2 = (s->cm_clksel2_pll_iva2 & 0x1F);
-        //OMAP3_DEBUG(("M  %d N %d M2 %d \n",m,n,m2 ));
+    
+    if (s->cm_idlest_pll_iva2 & 1) {
+        n = (s->cm_clksel1_pll_iva2 & 0x7f);
+        m2 = (s->cm_clksel2_pll_iva2 & 0x1f);
         omap_clk_reparent(iva2_clk, omap_findclk(s->mpu, "omap3_sys_clk"));
         omap_clk_setrate(iva2_clk, (n + 1) * m2, m);
-        //OMAP3_DEBUG(("iva2_clk %d \n",omap_clk_getrate(iva2_clk)));
-
+    } else {
+        /* bypass mode */
+        divide = (s->cm_clksel1_pll_iva2 & 0x380000) >> 19;
+        omap_clk_reparent(iva2_clk, omap_findclk(s->mpu, "omap3_core_clk"));
+        omap_clk_setrate(iva2_clk, divide, 1);
     }
+}
 
+static inline void omap3_cm_mpu_update(struct omap3_cm_s *s)
+{
+    uint32_t m = ((s->cm_clksel1_pll_mpu >> 8) & 0x7ff);
+    uint32_t n, divide, m2;
+    omap_clk mpu_clk = omap_findclk(s->mpu, "omap3_mpu_clk");
+    
+    switch ((s->cm_clken_pll_mpu & 0x7)) {
+        case 0x05: /* low power bypass mode */
+            s->cm_idlest_pll_mpu &= ~1;
+            break;
+        case 0x07: /* locked */
+            if (m < 2)
+                s->cm_idlest_pll_mpu &= ~1;
+            else
+                s->cm_idlest_pll_mpu |= 1;
+            break;
+        default:
+            break;
+    }
+    
+    if (s->cm_idlest_pll_mpu & 1) {
+        n = (s->cm_clksel1_pll_mpu & 0x7f);
+        m2 = (s->cm_clksel2_pll_mpu & 0x1f);
+        omap_clk_reparent(mpu_clk, omap_findclk(s->mpu, "omap3_sys_clk"));
+        omap_clk_setrate(mpu_clk, (n + 1) * m2, m);
+    } else {
+        /* bypass mode */
+        divide = (s->cm_clksel1_pll_mpu & 0x380000) >> 19;
+        omap_clk_reparent(mpu_clk, omap_findclk(s->mpu, "omap3_core_clk"));
+        omap_clk_setrate(mpu_clk, divide, 1);
+    }
 }
 
 static inline void omap3_cm_dpll3_update(struct omap3_cm_s *s)
 {
-    uint32_t m, n, m2, m3, cm_clken_pll;
-    uint32_t bypass = 1;
+    uint32_t m = ((s->cm_clksel1_pll >> 16) & 0x7ff);
+    uint32_t n, m2, m3;
 
-    cm_clken_pll = s->cm_clken_pll;
+    switch ((s->cm_clken_pll & 0x7)) {
+        case 0x05: /* low power bypass */
+        case 0x06: /* fast relock bypass */
+            s->cm_idlest_ckgen &= ~1;
+            break;
+        case 0x07: /* locked */
+            if (m < 2)
+                s->cm_idlest_ckgen &= ~1;
+            else
+                s->cm_idlest_ckgen |= 1;
+            break;
+        default:
+            break;
+    }
 
-    /*dpll3 bypass mode. parent clock is always omap3_sys_clk */
-    if (((cm_clken_pll & 0x7) == 0x5) || ((cm_clken_pll & 0x7) == 0x6))
-    {
-        bypass = 1;
-    }
-    else if ((cm_clken_pll & 0x7) == 0x7)
-    {
-        m = (s->cm_clksel1_pll & 0x7ff0000) >> 16;
-        if ((m == 0) || (m == 1))
-            bypass = 1;
-        else
-            bypass = 0;
-    }
-    if (bypass == 1)
-    {
-        omap_clk_setrate(omap_findclk(s->mpu, "omap3_core_clk"), 1, 1);
-        omap_clk_setrate(omap_findclk(s->mpu, "omap3_core2_clk"), 1, 1);
-        omap_clk_setrate(omap_findclk(s->mpu, "omap3_emu_core_alwon_clk"), 1,
-                         1);
-    }
-    else
-    {
+    if (s->cm_idlest_ckgen & 1) {
         n = (s->cm_clksel1_pll & 0x3f00) >> 8;
         m2 = (s->cm_clksel1_pll & 0xf8000000) >> 27;
         m3 = (s->cm_clksel1_emu & 0x1f0000) >> 16;
-
-        if (s->cm_clksel2_emu&0x80000)
-        {
-        	/*override control of DPLL3*/
-        	m = (s->cm_clksel2_emu&0x7ff)>>8;
-        	n =  s->cm_clksel2_emu&0x7f;
-        	TRACE("DPLL3 override, m 0x%x n 0x%x",m,n);
+        
+        if (s->cm_clksel2_emu & 0x80000) {
+        	/* override control of DPLL3 */
+        	m = (s->cm_clksel2_emu & 0x7ff) >> 8;
+        	n = s->cm_clksel2_emu & 0x7f;
         }
-
-        //OMAP3_DEBUG(("dpll3 cm_clksel1_pll %x m  %d n %d m2 %d  m3 %d\n",s->cm_clksel1_pll,m,n,m2,m3 ));
-        omap_clk_setrate(omap_findclk(s->mpu, "omap3_core_clk"), (n + 1) * m2,
-                         m);
-        omap_clk_setrate(omap_findclk(s->mpu, "omap3_core2_clk"), (n + 1) * m2,
-                         m * 2);
-        omap_clk_setrate(omap_findclk(s->mpu, "omap3_emu_core_alwon_clk"),
-                         (n + 1) * m3, m * 2);
-        TRACE("coreclk %lld",
-              omap_clk_getrate(omap_findclk(s->mpu, "omap3_core_clk")));
+        
+        omap_clk_setrate(omap_findclk(s->mpu, "omap3_core_clk"), (n + 1) * m2, m);
+        omap_clk_setrate(omap_findclk(s->mpu, "omap3_core2_clk"), (n + 1) * m2, m * 2);
+        omap_clk_setrate(omap_findclk(s->mpu, "omap3_emu_core_alwon_clk"), (n + 1) * m3, m * 2);
+    } else {
+        /* bypass mode */
+        omap_clk_setrate(omap_findclk(s->mpu, "omap3_core_clk"), 1, 1);
+        omap_clk_setrate(omap_findclk(s->mpu, "omap3_core2_clk"), 1, 1);
+        omap_clk_setrate(omap_findclk(s->mpu, "omap3_emu_core_alwon_clk"), 1, 1);
     }
-
-
 }
 
 static inline void omap3_cm_dpll4_update(struct omap3_cm_s *s)
 {
-    uint32_t m, n, m2, m3, m4, m5, m6, cm_clken_pll;
-    cm_clken_pll = s->cm_clken_pll;
-    uint32_t bypass = 1;
+    uint32_t m = ((s->cm_clksel2_pll >> 8) & 0x7ff);
+    uint32_t n, m2, m3, m4, m5, m6;
 
-    /*dpll3 bypass mode. parent clock is always omap3_sys_clk */
-    /*DPLL4 */
-    if ((cm_clken_pll & 0x70000) == 0x10000)
-    {
-        bypass = 1;
+    switch (((s->cm_clken_pll >> 16) & 0x7)) {
+        case 0x01: /* lower power stop mode */
+            s->cm_idlest_ckgen &= ~2;
+            break;
+        case 0x07: /* locked */
+            if (m < 2)
+                s->cm_idlest_ckgen &= ~2;
+            else
+                s->cm_idlest_ckgen |= 2;
+            break;
+        default:
+            break;
     }
-    else if ((cm_clken_pll & 0x70000) == 0x70000)
-    {
-        m = (s->cm_clksel2_pll & 0x7ff00) >> 8;
-        if ((m == 0) || (m == 1))
-            bypass = 1;
-        else
-            bypass = 0;
-    }
-    if (bypass == 1)
-    {
-        omap_clk_setrate(omap_findclk(s->mpu, "omap3_96m_fclk"), 1, 1);
-        omap_clk_setrate(omap_findclk(s->mpu, "omap3_54m_fclk"), 1, 1);
-        omap_clk_setrate(omap_findclk(s->mpu, "omap3_dss1_alwon_fclk"), 1, 1);
-        omap_clk_setrate(omap_findclk(s->mpu, "omap3_cam_mclk"), 1, 1);
-        omap_clk_setrate(omap_findclk(s->mpu, "omap3_per_alwon_clk"), 1, 1);
-    }
-    else
-    {
+
+    if (s->cm_idlest_ckgen & 2) {
         n = (s->cm_clksel2_pll & 0x7f);
         m2 = s->cm_clksel3_pll & 0x1f;
         m3 = (s->cm_clksel_dss & 0x1f00) >> 8;
         m4 = s->cm_clksel_dss & 0x1f;
         m5 = s->cm_clksel_cam & 0x1f;
         m6 = (s->cm_clksel1_emu & 0x1f000000) >> 24;
-
-        if (s->cm_clksel3_emu&0x80000)
-        {
-        	/*override control of DPLL4*/
-        	m = (s->cm_clksel3_emu&0x7ff)>>8;
-        	n =  s->cm_clksel3_emu&0x7f;
-        	TRACE("DPLL4 override, m 0x%x n 0x%x",m,n);
+        
+        if (s->cm_clksel3_emu & 0x80000) {
+        	/* override control of DPLL4 */
+        	m = (s->cm_clksel3_emu & 0x7ff) >> 8;
+        	n =  s->cm_clksel3_emu & 0x7f;
         }
-
-
-        //OMAP3_DEBUG(("dpll4 m  %d n %d m2 %d  m3 %d m4 %d m5 %d m6 %d \n",m,n,m2,m3,m4,m5,m6 ));
-        omap_clk_setrate(omap_findclk(s->mpu, "omap3_96m_fclk"), (n + 1) * m2,
-                         m * 2);
-        omap_clk_setrate(omap_findclk(s->mpu, "omap3_54m_fclk"), (n + 1) * m3,
-                         m * 2);
-        omap_clk_setrate(omap_findclk(s->mpu, "omap3_dss1_alwon_fclk"),
-                         (n + 1) * m4, m * 2);
-        omap_clk_setrate(omap_findclk(s->mpu, "omap3_cam_mclk"), (n + 1) * m5,
-                         m * 2);
-        omap_clk_setrate(omap_findclk(s->mpu, "omap3_per_alwon_clk"),
-                         (n + 1) * m6, m * 2);
-
-        TRACE("omap3_96m_fclk %lld",
-              omap_clk_getrate(omap_findclk(s->mpu, "omap3_96m_fclk")));
-        TRACE("omap3_54m_fclk %lld",
-              omap_clk_getrate(omap_findclk(s->mpu, "omap3_54m_fclk")));
-        TRACE("omap3_dss1_alwon_fclk %lld",
-              omap_clk_getrate(omap_findclk(s->mpu, "omap3_dss1_alwon_fclk")));
-        TRACE("omap3_cam_mclk %lld",
-              omap_clk_getrate(omap_findclk(s->mpu, "omap3_cam_mclk")));
-        TRACE("omap3_per_alwon_clk %lld",
-              omap_clk_getrate(omap_findclk(s->mpu, "omap3_per_alwon_clk")));
-        TRACE("omap3_48m_fclk %lld",
-              omap_clk_getrate(omap_findclk(s->mpu, "omap3_48m_fclk")));
-        TRACE("omap3_12m_fclk %lld",
-              omap_clk_getrate(omap_findclk(s->mpu, "omap3_12m_fclk")));
+        
+        omap_clk_setrate(omap_findclk(s->mpu, "omap3_96m_fclk"), (n + 1) * m2, m * 2);
+        omap_clk_setrate(omap_findclk(s->mpu, "omap3_54m_fclk"), (n + 1) * m3, m * 2);
+        omap_clk_setrate(omap_findclk(s->mpu, "omap3_dss1_alwon_fclk"), (n + 1) * m4, m * 2);
+        omap_clk_setrate(omap_findclk(s->mpu, "omap3_cam_mclk"), (n + 1) * m5, m * 2);
+        omap_clk_setrate(omap_findclk(s->mpu, "omap3_per_alwon_clk"), (n + 1) * m6, m * 2);
+    } else {
+        /* bypass mode */
+        omap_clk_setrate(omap_findclk(s->mpu, "omap3_96m_fclk"), 1, 1);
+        omap_clk_setrate(omap_findclk(s->mpu, "omap3_54m_fclk"), 1, 1);
+        omap_clk_setrate(omap_findclk(s->mpu, "omap3_dss1_alwon_fclk"), 1, 1);
+        omap_clk_setrate(omap_findclk(s->mpu, "omap3_cam_mclk"), 1, 1);
+        omap_clk_setrate(omap_findclk(s->mpu, "omap3_per_alwon_clk"), 1, 1);
     }
 }
 
 static inline void omap3_cm_dpll5_update(struct omap3_cm_s *s)
 {
-	 uint32_t m, n, m2, cm_idlest2_ckgen;
-    uint32_t bypass = 1;
+    uint32_t m = ((s->cm_clksel4_pll >> 8) & 0x7ff);
+    uint32_t n, m2;
 
-    cm_idlest2_ckgen = s->cm_idlest2_ckgen;;
-
-    /*dpll5 bypass mode */
-    if ((cm_idlest2_ckgen & 0x1) == 0x0) 
-    {
-        bypass = 1;
+    switch ((s->cm_clken2_pll & 0x7)) {
+        case 0x01: /* low power stop mode */
+            s->cm_idlest2_ckgen &= ~1;
+            break;
+        case 0x07: /* locked */
+            if (m < 2)
+                s->cm_idlest2_ckgen &= ~1;
+            else
+                s->cm_idlest2_ckgen |= 1;
+            break;
+        default:
+            break;
     }
 
-    if (bypass == 1)
-    {
-        omap_clk_setrate(omap_findclk(s->mpu, "omap3_120m_fclk"), 1, 1);
-    }
-    else
-    {
-    	 m = (s->cm_clksel4_pll & 0x7ff00)>>8;
+    if (s->cm_idlest2_ckgen & 1) {
+        m = (s->cm_clksel4_pll & 0x7ff00)>>8;
         n = s->cm_clksel4_pll & 0x3f00;
         m2 = s->cm_clksel5_pll & 0x1f;
-
-        TRACE("dpll5 m %d n %d m2 %d",m,n,m2);
-        omap_clk_setrate(omap_findclk(s->mpu, "omap3_120m_fclk"), (n + 1) * m2,
-                         m);
-        TRACE("omap3_120m_fclk %lld",
-              omap_clk_getrate(omap_findclk(s->mpu, "omap3_120m_fclk")));
+        
+        omap_clk_setrate(omap_findclk(s->mpu, "omap3_120m_fclk"), (n + 1) * m2, m);
+    } else {
+        /* bypass mode */
+        omap_clk_setrate(omap_findclk(s->mpu, "omap3_120m_fclk"), 1, 1);
     }
 }
 
@@ -2425,7 +2363,7 @@ static void omap3_cm_reset(struct omap3_cm_s *s)
     s->cm_fclken_iva2 = 0x0;
     s->cm_clken_pll_iva2 = 0x11;
     s->cm_idlest_iva2 = 0x1;
-    s->cm_idlest_pll_iva2 = 0x0;
+    s->cm_idlest_pll_iva2 = 0;
     s->cm_autoidle_pll_iva2 = 0x0;
     s->cm_clksel1_pll_iva2 = 0x80000;
     s->cm_clksel2_pll_iva2 = 0x1;
@@ -2437,7 +2375,7 @@ static void omap3_cm_reset(struct omap3_cm_s *s)
 
     s->cm_clken_pll_mpu = 0x15;
     s->cm_idlest_mpu = 0x1;
-    s->cm_idlest_pll_mpu = 0x0;
+    s->cm_idlest_pll_mpu = 0;
     s->cm_autoidle_pll_mpu = 0x0;
     s->cm_clksel1_pll_mpu = 0x80000;
     s->cm_clksel2_pll_mpu = 0x1;
@@ -2478,8 +2416,8 @@ static void omap3_cm_reset(struct omap3_cm_s *s)
 
     s->cm_clken_pll = 0x110015;
     s->cm_clken2_pll = 0x11;
-    s->cm_idlest_ckgen = 0x0;
-    s->cm_idlest2_ckgen = 0x0;
+    s->cm_idlest_ckgen = 0x3f3c; /* FIXME: provide real clock statuses */
+    s->cm_idlest2_ckgen = 0xa; /* FIXME: provide real clock statuses */
     s->cm_autoidle_pll = 0x0;
     s->cm_autoidle2_pll = 0x0;
     s->cm_clksel1_pll = 0x8000040;
@@ -2542,603 +2480,309 @@ static void omap3_cm_reset(struct omap3_cm_s *s)
 static uint32_t omap3_cm_read(void *opaque, target_phys_addr_t addr)
 {
     struct omap3_cm_s *s = (struct omap3_cm_s *) opaque;
-    uint32_t ret;
-    uint32_t bypass = 0, m;
 
-    TRACE("%04x", addr);
-    switch (addr)
-    {
-    case 0x0:
-    	return s->cm_fclken_iva2;
-    case 0x04:
-        return s->cm_clken_pll_iva2;
-    case 0x20:
-    	return s->cm_idlest_iva2;
-    case 0x24:
-        if (((s->cm_clken_pll_iva2 & 0x7) == 0x5)
-            || ((s->cm_clken_pll_iva2 & 0x7) == 0x1))
-        {
-            bypass = 1;
-        }
-        else if ((s->cm_clken_pll_iva2 & 0x7) == 0x7)
-        {
-            m = (s->cm_clksel1_pll_iva2 & 0x7ff00) >> 8;
-            if ((m == 0) || (m == 1))
-                bypass = 1;
-            else
-                bypass = 0;
-        }
-        if (bypass)
-            return 0;
-        else
-            return 1;
-    case 0x34:
-    	return s->cm_autoidle_pll_iva2;
-    case 0x40:
-        return s->cm_clksel1_pll_iva2;
-    case 0x44:
-        return s->cm_clksel2_pll_iva2;
-    case 0x48:
-    	return s->cm_clkstctrl_iva2;
-    case 0x4c:
-    	return s->cm_clkstst_iva2;
-
-   case 0x800:
-   		return s->cm_revision;
-   	case 0x810:
-   		return s->cm_sysconfig;
-
-    	
-    case 0x904:                /*CM_CLKEN_PLL_MPU */
-        return s->cm_clken_pll_mpu;
-   case 0x920:
-   		return s->cm_idlest_mpu & 0x0;  /*MPU is active*/
-    case 0x924:
-        if ((s->cm_clken_pll_mpu & 0x7) == 0x5)
-        {
-            bypass = 1;
-        }
-        else if ((s->cm_clken_pll_mpu & 0x7) == 0x7)
-        {
-            m = (s->cm_clksel1_pll_mpu & 0x7ff00) >> 8;
-            if ((m == 0) || (m == 1))
-                bypass = 1;
-            else
-                bypass = 0;
-        }
-        if (bypass)
-            return 0;
-        else
-            return 1;
-    case 0x934:
-    	return s->cm_autoidle_pll_mpu;
-    case 0x940:
-        return s->cm_clksel1_pll_mpu;
-    case 0x944:
-        return s->cm_clksel2_pll_mpu;
-     case 0x948:
-     	return s->cm_clkstctrl_mpu;
-     case 0x94c:
-     	return s->cm_clkstst_mpu;
-
-
-     	
-    case 0xa00:
-        return s->cm_fclken1_core;
-    case 0xa08:
-    	return s->cm_fclken3_core;
-    case 0xa10:
-        return s->cm_iclken1_core;
-    case 0xa14:
-    	 return s->cm_iclken2_core;
-    case 0xa20:
-    	return s->cm_idlest1_core;
-    case 0xa24:
-    	return s->cm_idlest2_core;
-    case 0xa28:
-    	return s->cm_idlest3_core;
-    case 0xa30:
-    	return s->cm_autoidle1_core;
-    case 0xa34:
-    	return s->cm_autoidle2_core;
-    case 0xa38:
-    	return s->cm_autoidle3_core;
-    case 0xa40:                /*CM_CLKSEL_CORE */
-        return s->cm_clksel_core;
-    case 0xa48:
-    	 return s->cm_clkstctrl_core;
-     case 0xa4c:
-     	return s->cm_clkstst_core;
-
-   case 0xb00:
-   		return s->cm_fclken_sgx;
-   	case 0xb10:
-   		return s->cm_iclken_sgx;
-   	case 0xb20:
-   		return s->cm_idlest_sgx&0x0;
-   case 0xb40:                /*CM_CLKSEL_SGX */
-        return s->cm_clksel_sgx;
-   case 0xb48:
-   		return s->cm_clkstctrl_sgx;
-   	case 0xb4c:
-   		return s->cm_clkstst_sgx;
-
-   		
-    case 0xc00:                /*CM_FCLKEN_WKUP */
-        return s->cm_fclken_wkup;
-    case 0xc10:                /*CM_ICLKEN_WKUP */
-        return s->cm_iclken_wkup;
-    case 0xc20:                /*CM_IDLEST_WKUP */
-        /*TODO: Check whether the timer can be accessed. */
-        return 0x0;
-    case 0xc30:
-    	return s->cm_idlest_wkup;
-    case 0xc40:
-        return s->cm_clksel_wkup;
-    case 0xc48:
-    	return s->cm_c48;
-
-    	
-    case 0xd00:                /*CM_CLKEN_PLL */
-        return s->cm_clken_pll;
-    case 0xd04:
-    	return s->cm_clken2_pll;
-    case 0xd20:
-    	 /*FIXME: all clock is active. we do not care it. */
-        ret = 0x3ffff;
-
-    	/*DPLL3*/
-    	bypass = 0;
-    	if (((s->cm_clken_pll & 0x7) == 0x5) || ((s->cm_clken_pll & 0x7) == 0x6))
-	        bypass = 1;
-        else if ((s->cm_clken_pll & 0x7) == 0x7) {
-            m = (s->cm_clksel1_pll & 0x7ff0000) >> 16;
-            if ((m == 0) || (m == 1))
-                bypass = 1;
-            else
-                bypass = 0;
-        }
-        if (bypass)
-            ret &= 0xfffe;
-        
-        /*DPLL4*/
-	    bypass = 0;
-	    if ((s->cm_clken_pll & 0x70000) == 0x10000)
-            bypass = 1;
-        else if ((s->cm_clken_pll & 0x70000) == 0x70000) {
-            m = (s->cm_clksel2_pll & 0x7ff00) >> 8;
-            if ((m == 0) || (m == 1))
-                bypass = 1;
-            else
-                bypass = 0;
-        }
-        if (bypass)
-            ret &= 0xfffd;
-    	return ret;
-    	
-    case 0xd24:
-    	return s->cm_idlest2_ckgen;
-    case 0xd30:
-    	return s->cm_autoidle_pll;
-    case 0xd34:
-    	return s->cm_autoidle2_pll;
-    case 0xd40:                /*CM_CLKSEL1_PLL */
-        return s->cm_clksel1_pll;
-    case 0xd44:
-        return s->cm_clksel2_pll;
-    case 0xd48:                /*CM_CLKSEL3_PLL */
-        return s->cm_clksel3_pll;
-    case 0xd4c:
-        return s->cm_clksel4_pll;
-    case 0xd50:                /*CM_CLKSEL5_PLL */
-        return s->cm_clksel5_pll;
-    case 0xd70:
-    	 return s->cm_clkout_ctrl;
-
-    	 
-    case 0xe00:
-    	return s->cm_fclken_dss;
-   	case 0xe10:
-    	return s->cm_iclken_dss;
-    case 0xe20:
-    	return s->cm_idlest_dss;
-    case 0xe30:
-    	return s->cm_autoidle_dss;
-    case 0xe40:
-        return s->cm_clksel_dss;
-    case 0xe44:
-        return s->cm_sleepdep_dss;
-    case 0xe48:
-        return s->cm_clkstctrl_dss;
-    case 0xe4c:
-        return s->cm_clkstst_dss;
-
-        
-    case 0xf00:
-    	return s->cm_fclken_cam;
-    case 0xf10:
-    	return s->cm_iclken_cam;
-    case 0xf20:
-    	return s->cm_idlest_cam&0x0;
-    case 0xf30:
-    	return s->cm_autoidle_cam;
-    case 0xf40:
-        return s->cm_clksel_cam;
-    case 0xf44:
-    	return s->cm_sleepdep_cam;
-    case 0xf48:
-    	return s->cm_clkstctrl_cam;
-    case 0xf4c:
-    	return s->cm_clkstst_cam;
-
-    	
-    case 0x1000:
-        return s->cm_fclken_per;
-    case 0x1010:
-        return s->cm_iclken_per;
-    case 0x1020:
-    	return s->cm_idlest_per ;
-    case 0x1030:
-    	return s->cm_autoidle_per;
-    case 0x1040:
-        return s->cm_clksel_per;
-    case 0x1044:
-    	return s->cm_sleepdep_per;
-    case 0x1048:
-    	return s->cm_clkstctrl_per;
-    case 0x104c:
-		return s->cm_clkstst_per;
-
-    	
-    case 0x1140:               /*CM_CLKSEL1_EMU */
-        return s->cm_clksel1_emu;
-    case 0x1148:
-    	 return s->cm_clkstctrl_emu;
-    case 0x114c:
-    	return s->cm_clkstst_emu&0x0;
-    case 0x1150:
-    	return s->cm_clksel2_emu;
-    case 0x1154:
-    	return s->cm_clksel3_emu;
-
-   case 0x129c:
-   		return s->cm_polctrl;
-
-   	case 0x1320:
-   		return s->cm_idlest_neon&0x0;
-   	case 0x1348:
-   		return s->cm_clkstctrl_neon;
-
-   	case 0x1400:
-   		return s->cm_fclken_usbhost;
-   	case 0x1410:
-   		return s->cm_iclken_usbhost;
-   	case 0x1420:
-   		return s->cm_idlest_usbhost&0x0;
-    case 0x1430:
-    	return s->cm_autoidle_usbhost;
-    case 0x1444:
-    	return s->cm_sleepdep_usbhost;
-    case 0x1448:
-    	return s->cm_clkstctrl_usbhost;
-    case 0x144c:
-    	return s->cm_clkstst_usbhost;
-
-    default:
-        OMAP_BAD_REG(addr);
-        exit(-1);
+    switch (addr) {
+        /* IVA2_CM */
+        case 0x0000: return s->cm_fclken_iva2;
+        case 0x0004: return s->cm_clken_pll_iva2;
+        case 0x0020: return s->cm_idlest_iva2;
+        case 0x0024: return s->cm_idlest_pll_iva2;
+        case 0x0034: return s->cm_autoidle_pll_iva2;
+        case 0x0040: return s->cm_clksel1_pll_iva2;
+        case 0x0044: return s->cm_clksel2_pll_iva2;
+        case 0x0048: return s->cm_clkstctrl_iva2;
+        case 0x004c: return s->cm_clkstst_iva2;
+        /* OCP_System_Reg_CM */
+        case 0x0800: return s->cm_revision;
+        case 0x0810: return s->cm_sysconfig;
+        /* MPU_CM */
+        case 0x0904: return s->cm_clken_pll_mpu;
+        case 0x0920: return s->cm_idlest_mpu & 0x0; /*MPU is active*/
+        case 0x0924: return s->cm_idlest_pll_mpu;
+        case 0x0934: return s->cm_autoidle_pll_mpu;
+        case 0x0940: return s->cm_clksel1_pll_mpu;
+        case 0x0944: return s->cm_clksel2_pll_mpu;
+        case 0x0948: return s->cm_clkstctrl_mpu;
+        case 0x094c: return s->cm_clkstst_mpu;
+        /* CORE_CM */
+        case 0x0a00: return s->cm_fclken1_core;
+        case 0x0a08: return s->cm_fclken3_core;
+        case 0x0a10: return s->cm_iclken1_core;
+        case 0x0a14: return s->cm_iclken2_core;
+        case 0x0a20: return s->cm_idlest1_core;
+        case 0x0a24: return s->cm_idlest2_core;
+        case 0x0a28: return s->cm_idlest3_core;
+        case 0x0a30: return s->cm_autoidle1_core;
+        case 0x0a34: return s->cm_autoidle2_core;
+        case 0x0a38: return s->cm_autoidle3_core;
+        case 0x0a40: return s->cm_clksel_core;
+        case 0x0a48: return s->cm_clkstctrl_core;
+        case 0x0a4c: return s->cm_clkstst_core;
+        /* SGX_CM */
+        case 0x0b00: return s->cm_fclken_sgx;
+        case 0x0b10: return s->cm_iclken_sgx;
+        case 0x0b20: return s->cm_idlest_sgx & 0x0;
+        case 0x0b40: return s->cm_clksel_sgx;
+        case 0x0b48: return s->cm_clkstctrl_sgx;
+        case 0x0b4c: return s->cm_clkstst_sgx;
+        /* WKUP_CM */
+        case 0x0c00: return s->cm_fclken_wkup;
+        case 0x0c10: return s->cm_iclken_wkup;
+        case 0x0c20: return 0; /* TODO: Check if the timer can be accessed. */
+        case 0x0c30: return s->cm_idlest_wkup;
+        case 0x0c40: return s->cm_clksel_wkup;
+        case 0x0c48: return s->cm_c48;
+        /* Clock_Control_Reg_CM */
+        case 0x0d00: return s->cm_clken_pll;
+        case 0x0d04: return s->cm_clken2_pll;
+        case 0x0d20: return s->cm_idlest_ckgen;
+        case 0x0d24: return s->cm_idlest2_ckgen;
+        case 0x0d30: return s->cm_autoidle_pll;
+        case 0x0d34: return s->cm_autoidle2_pll;
+        case 0x0d40: return s->cm_clksel1_pll;
+        case 0x0d44: return s->cm_clksel2_pll;
+        case 0x0d48: return s->cm_clksel3_pll;
+        case 0x0d4c: return s->cm_clksel4_pll;
+        case 0x0d50: return s->cm_clksel5_pll;
+        case 0x0d70: return s->cm_clkout_ctrl;
+        /* DSS_CM */
+        case 0x0e00: return s->cm_fclken_dss;
+        case 0x0e10: return s->cm_iclken_dss;
+        case 0x0e20: return s->cm_idlest_dss;
+        case 0x0e30: return s->cm_autoidle_dss;
+        case 0x0e40: return s->cm_clksel_dss;
+        case 0x0e44: return s->cm_sleepdep_dss;
+        case 0x0e48: return s->cm_clkstctrl_dss;
+        case 0x0e4c: return s->cm_clkstst_dss;
+        /* CAM_CM */
+        case 0x0f00: return s->cm_fclken_cam;
+        case 0x0f10: return s->cm_iclken_cam;
+        case 0x0f20: return s->cm_idlest_cam & 0x0;
+        case 0x0f30: return s->cm_autoidle_cam;
+        case 0x0f40: return s->cm_clksel_cam;
+        case 0x0f44: return s->cm_sleepdep_cam;
+        case 0x0f48: return s->cm_clkstctrl_cam;
+        case 0x0f4c: return s->cm_clkstst_cam;
+        /* PER_CM */
+        case 0x1000: return s->cm_fclken_per;
+        case 0x1010: return s->cm_iclken_per;
+        case 0x1020: return s->cm_idlest_per ;
+        case 0x1030: return s->cm_autoidle_per;
+        case 0x1040: return s->cm_clksel_per;
+        case 0x1044: return s->cm_sleepdep_per;
+        case 0x1048: return s->cm_clkstctrl_per;
+        case 0x104c: return s->cm_clkstst_per;
+        /* EMU_CM */
+        case 0x1140: return s->cm_clksel1_emu;
+        case 0x1148: return s->cm_clkstctrl_emu;
+        case 0x114c: return s->cm_clkstst_emu & 0x0;
+        case 0x1150: return s->cm_clksel2_emu;
+        case 0x1154: return s->cm_clksel3_emu;
+        /* Global_Reg_CM */
+        case 0x129c: return s->cm_polctrl;
+        /* NEON_CM */
+        case 0x1320: return s->cm_idlest_neon & 0x0;
+        case 0x1348: return s->cm_clkstctrl_neon;
+        /* USBHOST_CM */
+        case 0x1400: return s->cm_fclken_usbhost;
+        case 0x1410: return s->cm_iclken_usbhost;
+        case 0x1420: return s->cm_idlest_usbhost & 0x0;
+        case 0x1430: return s->cm_autoidle_usbhost;
+        case 0x1444: return s->cm_sleepdep_usbhost;
+        case 0x1448: return s->cm_clkstctrl_usbhost;
+        case 0x144c: return s->cm_clkstst_usbhost;
+        /* unknown */
+        default: break;
     }
+    OMAP_BAD_REG(addr);
+    return 0;
 }
 
-
-static void omap3_cm_write(void *opaque, target_phys_addr_t addr,
+static void omap3_cm_write(void *opaque,
+                           target_phys_addr_t addr,
                            uint32_t value)
 {
-    struct omap3_cm_s *s = (struct omap3_cm_s *) opaque;
+    struct omap3_cm_s *s = (struct omap3_cm_s *)opaque;
 
-    switch (addr)
-    {
-    case 0x20:
-    case 0x24:
-    case 0x4c:
-    case 0x800:
-    case 0x920:
-    case 0x924:
-    case 0x94c:
-    case 0xa20:
-    case 0xa24:
-    case 0xa28:
-    case 0xa4c:
-    case 0xb20:
-    case 0xb4c:
-    case 0xc20:                /*CM_IDLEST_WKUP */
-    case 0xd20:
-    case 0xd24:
-    case 0xe20:
-    case 0xe4c:
-    case 0xf20:
-    case 0xf4c:
-    case 0x1020:
-    case 0x104c:
-    case 0x114c:
-    case 0x1320:
-    case 0x1420:
-    case 0x144c:
-        OMAP_RO_REGV(addr, value);
-        exit(-1);
-        break;
-        
-    case 0x0:
-    	s->cm_fclken_iva2 = value & 0x1;
-    	break;
-    case 0x4:                  /*CM_CLKEN_PLL_IVA2 */
-        s->cm_clken_pll_iva2 = value & 0x7ff;
-        omap3_cm_iva2_update(s);
-        break;
-    case 0x34:
-    	s->cm_autoidle_pll_iva2 = value & 0x7;
-    	break;
-    case 0x40:
-        s->cm_clksel1_pll_iva2 = value & 0x3fff7f;
-        //printf("value %x s->cm_clksel1_pll_iva2 %x \n",value,s->cm_clksel1_pll_iva2);
-        omap3_cm_iva2_update(s);
-        break;
-    case 0x44:
-        s->cm_clksel2_pll_iva2 = value & 0x1f;
-        omap3_cm_iva2_update(s);
-        break;
-    case 0x48:
-    	s->cm_clkstctrl_iva2 = value& 0x3;
-    	break;
-
-    case 0x810:
-    	s->cm_sysconfig = value & 0x1;
-    	break;
-
-        
-    case 0x904:                /*CM_CLKEN_PLL_MPU */
-        s->cm_clken_pll_mpu = value & 0x7ff;
-        omap3_cm_mpu_update(s);
-        break;
-    case 0x934:
-    	s->cm_autoidle_pll_mpu = value & 0x7;
-    	break;
-    case 0x940:
-        //printf("s->cm_clksel1_pll_mpu  %x\n",s->cm_clksel1_pll_mpu );
-        s->cm_clksel1_pll_mpu = value & 0x3fff7f;
-        omap3_cm_mpu_update(s);
-        break;
-    case 0x944:
-        s->cm_clksel2_pll_mpu = value & 0x1f;
-        omap3_cm_mpu_update(s);
-        break;
-    case 0x948:
-    	s->cm_clkstctrl_mpu = value & 0x3;
-    	break;
-
-    	
-    case 0xa00:
-        s->cm_fclken1_core = value & 0x43fffe00;
-         break;
-    case 0xa08:
-    	 s->cm_fclken3_core = value & 0x7;
-    	 break;
-    case 0xa10:
-        s->cm_iclken1_core = value & 0x637ffed2;
-        s->cm_idlest1_core = ~s->cm_iclken1_core;
-        /* TODO: replace code below with real implementation */
-        s->cm_idlest1_core &= ~0x20; /* HS OTG USB idle */
-        s->cm_idlest1_core |= 4; /* SDMA in standby */
-        break;
-    case 0xa14:
-    	 s->cm_iclken2_core = value & 0x1f;
-    	 break;
-    case 0xa18:
-    	s->cm_iclken3_core = value & 0x4;
-        s->cm_idlest3_core = 0xd & ~(s->cm_iclken3_core & 4);
-    	break;
-    case 0xa30:
-    	s->cm_autoidle1_core = value & 0x7ffffed0;
-    	break;
-    case 0xa34:
-    	s->cm_autoidle2_core = value & 0x1f;
-    	break;
-    case 0xa38:
-    	s->cm_autoidle3_core = value & 0x2;
-    	break;
-    case 0xa40:                /*CM_CLKSEL_CORE */
-        s->cm_clksel_core = (value & 0xff);
-        s->cm_clksel_core |= 0x100;
-        omap3_cm_gp10_update(s);
-        omap3_cm_gp11_update(s);
-        omap3_cm_l3clk_update(s);
-        omap3_cm_l4clk_update(s);
-        break;
-    case 0xa48:
-    	s->cm_clkstctrl_core = value & 0xf;
-    	break;
-
-    case 0xb00:
-    	s->cm_fclken_sgx = value &0x2;
-    	break;
-    case 0xb10:
-    	s->cm_iclken_sgx = value & 0x1;
-    	break;
-    case 0xb40:                /*CM_CLKSEL_SGX */
-        /*TODO: SGX Clock!! */
-        s->cm_clksel_sgx = value;
-        break;
-    case 0xb44:
-    	s->cm_sleepdep_sgx = value &0x2;
-    	break;
-    case 0xb48:
-    	s->cm_clkstctrl_sgx = value & 0x3;
-    	break;
-
-    
-    case 0xc00:                /*CM_FCLKEN_WKUP */
-        s->cm_fclken_wkup = value & 0x2e9;
-        break;
-    case 0xc10:                /*CM_ICLKEN_WKUP */
-        s->cm_iclken_wkup = value & 0x2ff;
-        break;
-    case 0xc30:
-    	s->cm_autoidle_wkup = value & 0x23f;
-    	break;
-    case 0xc40:                /*CM_CLKSEL_WKUP */
-        s->cm_clksel_wkup = value & 0x7f;
-        omap3_cm_clksel_wkup_update(s, s->cm_clksel_wkup);
-        break;
-
-        
-    case 0xd00:                /*CM_CLKEN_PLL */
-        s->cm_clken_pll = value & 0xffff17ff;
-        omap3_cm_dpll3_update(s);
-        omap3_cm_dpll4_update(s);
-        break;
-    case 0xd04:
-    	s->cm_clken2_pll = value & 0x7ff;
-    	break;
-    case 0xd30:
-    	s->cm_autoidle_pll = value & 0x3f;
-    	break;
-    case 0xd34:
-    	s->cm_autoidle2_pll = value & 0x7;
-    	break;
-    case 0xd40:                /*CM_CLKSEL1_PLL */
-        //OMAP3_DEBUG(("WD40 value %x \n",value));
-        s->cm_clksel1_pll = value & 0xffffbffc;
-        //OMAP3_DEBUG(("WD40 value %x \n",value));
-        omap3_cm_dpll3_update(s);
-        omap3_cm_48m_update(s);
-        break;
-    case 0xd44:
-        s->cm_clksel2_pll = value & 0x7ff7f;
-        omap3_cm_dpll4_update(s);
-        break;
-    case 0xd48:                /*CM_CLKSEL3_PLL */
-        s->cm_clksel3_pll = value & 0x1f;
-        omap3_cm_dpll4_update(s);
-        break;
-    case 0xd4c:                /*CM_CLKSEL4_PLL */  
-      	s->cm_clksel4_pll = value & 0x7ff7f;
-        omap3_cm_dpll5_update(s);
-        break;
-     case 0xd50:                /*CM_CLKSEL5_PLL */
-        s->cm_clksel5_pll = value & 0x1f;
-        omap3_cm_dpll5_update(s);
-        break;
-    case 0xd70:
-    	s->cm_clkout_ctrl = value & 0xbb;
-    	omap3_cm_clkout2_update(s);
-    	break;
-        
-    case 0xe00:
-    	s->cm_fclken_dss = value & 0x7;
-    	break;
-   	case 0xe10:
-    	s->cm_iclken_dss = value & 0x1;
-    	break;
-    case 0xe30:
-    	s->cm_autoidle_dss = value & 0x1;
-    	break;
-    case 0xe40:
-        s->cm_clksel_dss = value & 0x1f1f;
-        omap3_cm_dpll4_update(s);
-        break;
-   case 0xe44:
-   		s->cm_sleepdep_dss = value & 0x7;
-       break;
-   case 0xe48:
-   		s->cm_clkstctrl_dss = value & 0x3;
-       break;
-        
-    case 0xf00:
-    	s->cm_fclken_cam = value & 0x3;
-    	break;
-    case 0xf10:
-    	s->cm_iclken_cam = value & 0x1;
-    	break;
-    case 0xf30:
-    	s->cm_autoidle_cam = value & 0x1;
-    	break;
-    case 0xf40:
-        s->cm_clksel_cam = value & 0x1f;
-        omap3_cm_dpll4_update(s);
-        break;
-    case 0xf44:
-    	s->cm_sleepdep_cam = value & 0x2;
-    	break;
-    case 0xf48:
-    	s->cm_clkstctrl_cam = value & 0x3;
-    	break;
-   
-    case 0x1000:
-        s->cm_fclken_per = value & 0x3ffff;
-        break;
-    case 0x1010:
-        s->cm_iclken_per = value & 0x3ffff;
-        break;
-    
-    case 0x1030:
-    	s->cm_autoidle_per = value &0x3ffff;
-    	break;
-    case 0x1040:
-        s->cm_clksel_per = value & 0xff;
-        omap3_cm_per_gptimer_update(s);
-        break;
-    case 0x1044:
-    	s->cm_sleepdep_per = value & 0x6;
-    	break;
-    case 0x1048:
-    	 s->cm_clkstctrl_per = value &0x7;
-    	 break;
-    	 
-    case 0x1140:               /*CM_CLKSEL1_EMU */
-        s->cm_clksel1_emu = value & 0x1f1f3fff;
-        //printf("cm_clksel1_emu %x\n",s->cm_clksel1_emu);
-        omap3_cm_dpll3_update(s);
-        omap3_cm_dpll4_update(s);
-        break;
-    case 0x1148:
-    	s->cm_clkstctrl_emu = value & 0x3;
-    	break;
-	 case 0x1150:
-	 	 s->cm_clksel2_emu = value & 0xfff7f;
-	 	 omap3_cm_dpll3_update(s);
-        break;
-    case 0x1154:
-    	 s->cm_clksel3_emu = value & 0xfff7f;
-	 	 omap3_cm_dpll4_update(s);
-        break;
-
-    case 0x129c:
-    	 s->cm_polctrl = value & 0x1;
-    	 break;
-
-   case 0x1348:
-   		s->cm_clkstctrl_neon = value & 0x3;
-   		break;
-
-   	case 0x1400:
-   		s->cm_fclken_usbhost = value & 0x3;
-   		break;
-   	case 0x1410:
-   		s->cm_iclken_usbhost = value & 0x1;
-   		break;
-    case 0x1430:
-    	s->cm_autoidle_usbhost = value & 0x1;
-    	break;
-    case 0x1444:
-    	s->cm_sleepdep_usbhost = value & 0x6;
-    	break;
-    case 0x1448:
-    	s->cm_clkstctrl_usbhost = value & 0x3;
-    	break;
-   
-    default:
-        OMAP_BAD_REGV(addr, value);
-        exit(-1);
+    switch (addr) {
+        case 0x0020:
+        case 0x0024:
+        case 0x004c:
+        case 0x0800:
+        case 0x0920:
+        case 0x0924:
+        case 0x094c:
+        case 0x0a20:
+        case 0x0a24:
+        case 0x0a28:
+        case 0x0a4c:
+        case 0x0b20:
+        case 0x0b4c:
+        case 0x0c20:
+        case 0x0d20:
+        case 0x0d24:
+        case 0x0e20:
+        case 0x0e4c:
+        case 0x0f20:
+        case 0x0f4c:
+        case 0x1020:
+        case 0x104c:
+        case 0x114c:
+        case 0x1320:
+        case 0x1420:
+        case 0x144c:
+            OMAP_RO_REGV(addr, value);
+            break;
+        /* IVA2_CM */
+        case 0x0000: s->cm_fclken_iva2 = value & 0x1; break;
+        case 0x0004: s->cm_clken_pll_iva2 = value & 0x7ff; omap3_cm_iva2_update(s); break;
+        case 0x0034: s->cm_autoidle_pll_iva2 = value & 0x7; break;
+        case 0x0040: s->cm_clksel1_pll_iva2 = value & 0x3fff7f; omap3_cm_iva2_update(s); break;
+        case 0x0044: s->cm_clksel2_pll_iva2 = value & 0x1f; omap3_cm_iva2_update(s); break;
+        case 0x0048: s->cm_clkstctrl_iva2 = value & 0x3; break;
+        /* OCP_System_Reg_CM */
+        case 0x0810: s->cm_sysconfig = value & 0x1; break;
+        /* MPU_CM */
+        case 0x0904: s->cm_clken_pll_mpu = value & 0x7ff; omap3_cm_mpu_update(s); break;
+        case 0x0934: s->cm_autoidle_pll_mpu = value & 0x7; break;
+        case 0x0940: s->cm_clksel1_pll_mpu = value & 0x3fff7f; omap3_cm_mpu_update(s); break;
+        case 0x0944: s->cm_clksel2_pll_mpu = value & 0x1f; omap3_cm_mpu_update(s); break;
+        case 0x0948: s->cm_clkstctrl_mpu = value & 0x3; break;
+        /* CORE_CM */
+        case 0xa00: s->cm_fclken1_core = value & 0x43fffe00; break;
+        case 0xa08: s->cm_fclken3_core = value & 0x7; break;
+        case 0xa10:
+            s->cm_iclken1_core = value & 0x637ffed2;
+            s->cm_idlest1_core = ~s->cm_iclken1_core;
+            /* TODO: replace code below with real implementation */
+            s->cm_idlest1_core &= ~0x20; /* HS OTG USB idle */
+            s->cm_idlest1_core |= 4; /* SDMA in standby */
+            break;
+        case 0xa14: s->cm_iclken2_core = value & 0x1f; break;
+        case 0xa18:
+            s->cm_iclken3_core = value & 0x4;
+            s->cm_idlest3_core = 0xd & ~(s->cm_iclken3_core & 4);
+            break;
+        case 0xa30: s->cm_autoidle1_core = value & 0x7ffffed0; break;
+        case 0xa34: s->cm_autoidle2_core = value & 0x1f; break;
+        case 0xa38: s->cm_autoidle3_core = value & 0x2; break;
+        case 0xa40:
+            s->cm_clksel_core = (value & 0xff);
+            s->cm_clksel_core |= 0x100;
+            omap3_cm_gp10_update(s);
+            omap3_cm_gp11_update(s);
+            omap3_cm_l3clk_update(s);
+            omap3_cm_l4clk_update(s);
+            break;
+        case 0xa48: s->cm_clkstctrl_core = value & 0xf; break;
+        /* SGX_CM */
+        case 0xb00: s->cm_fclken_sgx = value & 0x2; break;
+        case 0xb10: s->cm_iclken_sgx = value & 0x1; break;
+        case 0xb40: s->cm_clksel_sgx = value; break; /* TODO: SGX clock */
+        case 0xb44: s->cm_sleepdep_sgx = value &0x2; break;
+        case 0xb48: s->cm_clkstctrl_sgx = value & 0x3; break;
+        /* WKUP_CM */
+        case 0xc00: s->cm_fclken_wkup = value & 0x2e9; break;
+        case 0xc10: s->cm_iclken_wkup = value & 0x2ff; break;
+        case 0xc30: s->cm_autoidle_wkup = value & 0x23f; break;
+        case 0xc40:
+            s->cm_clksel_wkup = value & 0x7f;
+            omap3_cm_clksel_wkup_update(s, s->cm_clksel_wkup);
+            break;
+        /* Clock_Control_Reg_CM */
+        case 0xd00:
+            s->cm_clken_pll = value & 0xffff17ff;
+            omap3_cm_dpll3_update(s);
+            omap3_cm_dpll4_update(s);
+            break;
+        case 0xd04:
+            s->cm_clken2_pll = value & 0x7ff;
+            omap3_cm_dpll5_update(s);
+            break;
+        case 0xd30: s->cm_autoidle_pll = value & 0x3f; break;
+        case 0xd34: s->cm_autoidle2_pll = value & 0x7; break;
+        case 0xd40:
+            s->cm_clksel1_pll = value & 0xffffbffc;
+            omap3_cm_dpll3_update(s);
+            omap3_cm_48m_update(s);
+            break;
+        case 0xd44:
+            s->cm_clksel2_pll = value & 0x7ff7f;
+            omap3_cm_dpll4_update(s);
+            break;
+        case 0xd48:                /*CM_CLKSEL3_PLL */
+            s->cm_clksel3_pll = value & 0x1f;
+            omap3_cm_dpll4_update(s);
+            break;
+        case 0xd4c:                /*CM_CLKSEL4_PLL */  
+            s->cm_clksel4_pll = value & 0x7ff7f;
+            omap3_cm_dpll5_update(s);
+            break;
+        case 0xd50:                /*CM_CLKSEL5_PLL */
+            s->cm_clksel5_pll = value & 0x1f;
+            omap3_cm_dpll5_update(s);
+            break;
+        case 0xd70:
+            s->cm_clkout_ctrl = value & 0xbb;
+            omap3_cm_clkout2_update(s);
+            break;
+        /* DSS_CM */
+        case 0xe00: s->cm_fclken_dss = value & 0x7; break;
+        case 0xe10: s->cm_iclken_dss = value & 0x1; break;
+        case 0xe30: s->cm_autoidle_dss = value & 0x1; break;
+        case 0xe40:
+            s->cm_clksel_dss = value & 0x1f1f;
+            omap3_cm_dpll4_update(s);
+            break;
+        case 0xe44: s->cm_sleepdep_dss = value & 0x7; break;
+        case 0xe48: s->cm_clkstctrl_dss = value & 0x3; break;
+        /* CAM_CM */
+        case 0xf00: s->cm_fclken_cam = value & 0x3; break;
+        case 0xf10: s->cm_iclken_cam = value & 0x1; break;
+        case 0xf30: s->cm_autoidle_cam = value & 0x1; break;
+        case 0xf40:
+            s->cm_clksel_cam = value & 0x1f;
+            omap3_cm_dpll4_update(s);
+            break;
+        case 0xf44: s->cm_sleepdep_cam = value & 0x2; break;
+        case 0xf48: s->cm_clkstctrl_cam = value & 0x3; break;
+        /* PER_CM */
+        case 0x1000: s->cm_fclken_per = value & 0x3ffff; break;
+        case 0x1010: s->cm_iclken_per = value & 0x3ffff; break;
+        case 0x1030: s->cm_autoidle_per = value &0x3ffff; break;
+        case 0x1040:
+            s->cm_clksel_per = value & 0xff;
+            omap3_cm_per_gptimer_update(s);
+            break;
+        case 0x1044: s->cm_sleepdep_per = value & 0x6; break;
+        case 0x1048: s->cm_clkstctrl_per = value &0x7; break;
+        /* EMU_CM */
+        case 0x1140:
+            s->cm_clksel1_emu = value & 0x1f1f3fff;
+            omap3_cm_dpll3_update(s);
+            omap3_cm_dpll4_update(s);
+            break;
+        case 0x1148: s->cm_clkstctrl_emu = value & 0x3; break;
+        case 0x1150:
+            s->cm_clksel2_emu = value & 0xfff7f;
+            omap3_cm_dpll3_update(s);
+            break;
+        case 0x1154:
+            s->cm_clksel3_emu = value & 0xfff7f;
+            omap3_cm_dpll4_update(s);
+            break;
+        /* Global_Reg_CM */
+        case 0x129c: s->cm_polctrl = value & 0x1; break;
+        /* NEON_CM */
+        case 0x1348: s->cm_clkstctrl_neon = value & 0x3; break;
+        /* USBHOST_CM */
+        case 0x1400: s->cm_fclken_usbhost = value & 0x3; break;
+        case 0x1410: s->cm_iclken_usbhost = value & 0x1; break;
+        case 0x1430: s->cm_autoidle_usbhost = value & 0x1; break;
+        case 0x1444: s->cm_sleepdep_usbhost = value & 0x6; break;
+        case 0x1448: s->cm_clkstctrl_usbhost = value & 0x3; break;
+        /* unknown */
+        default: OMAP_BAD_REGV(addr, value); break;
     }
 }
 
