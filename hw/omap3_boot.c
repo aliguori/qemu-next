@@ -59,22 +59,7 @@ struct omap3_nand_boot_desc_s {
     uint8_t bus16;
 };
 
-/* first 80kB (reserved section) */
-static const uint8_t omap3_boot_rom_block1[] = { /* 0x40000000-0x40013fff */
-    /* this gets mapped to zero at power-up so let's have a branch
-     * table to the upper block ROM exception vectors here */
-    0xfe, 0x4f, 0x00, 0xea, /* b 0x40014000 */
-    0xfe, 0x4f, 0x00, 0xea, /* b 0x40014004 */
-    0xfe, 0x4f, 0x00, 0xea, /* b 0x40014008 */
-    0xfe, 0x4f, 0x00, 0xea, /* b 0x4001400c */
-    0xfe, 0x4f, 0x00, 0xea, /* b 0x40014010 */
-    0xfe, 0x4f, 0x00, 0xea, /* b 0x40014014 */
-    0xfe, 0x4f, 0x00, 0xea, /* b 0x40014018 */
-    0xfe, 0x4f, 0x00, 0xea, /* b 0x4001401c */
-};
-
-/* upper 32kB */
-static const uint8_t omap3_boot_rom_block2[] = { /* 0x40014000-0x4001bfff */
+static const uint8_t omap3_boot_rom[] = { /* 0x40014000-0x4001bfff */
     /* 0x40014000: ROM Exception vectors */
     0x3e, 0x00, 0x00, 0xea, /* b 0x40014100 */
     0x18, 0xf0, 0x9f, 0xe5, /* ldr pc, [pc, #0x18] */
@@ -796,12 +781,9 @@ void omap3_boot_rom_emu(struct omap_mpu_state_s *s)
     uint8_t x[4] = {0, 0, 0, 0};
     int result = 0;
     
-    cpu_physical_memory_write_rom(OMAP3_Q1_BASE,
-                                  omap3_boot_rom_block1,
-                                  sizeof(omap3_boot_rom_block1));
     cpu_physical_memory_write_rom(OMAP3_Q1_BASE + 0x14000,
-                                  omap3_boot_rom_block2,
-                                  sizeof(omap3_boot_rom_block2));
+                                  omap3_boot_rom,
+                                  sizeof(omap3_boot_rom));
     cpu_physical_memory_write_rom(OMAP3_Q1_BASE + 0x1bffc,
                                   rom_version,
                                   sizeof(rom_version));

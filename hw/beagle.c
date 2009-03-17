@@ -55,12 +55,7 @@ static void beagle_init(ram_addr_t ram_size, int vga_ram_size,
         fprintf(stderr, "%s: missing SecureDigital device\n", __FUNCTION__);
         exit(1);
     }
-   	if (ram_size < (beagle_machine.ram_require & ~RAMSIZE_FIXED)) {
-        fprintf(stderr, "%s: This architecture uses %lu bytes of memory\n",
-                __FUNCTION__, (beagle_machine.ram_require & ~RAMSIZE_FIXED));
-        exit(1);
-    }
-   	s->cpu = omap3530_mpu_init(BEAGLE_SDRAM_SIZE, NULL);
+   	s->cpu = omap3530_mpu_init(ram_size, NULL);
     
     if (serial_hds[0])
         omap_uart_attach(s->cpu->uart[2], serial_hds[0]);
@@ -83,8 +78,6 @@ QEMUMachine beagle_machine = {
     .name =        "beagle",
     .desc =        "Beagle board (OMAP3530)",
     .init =        beagle_init,
-    .ram_require = (BEAGLE_SDRAM_SIZE
-                    + OMAP3XXX_SRAM_SIZE
-                    + OMAP3XXX_BOOTROM_SIZE) | RAMSIZE_FIXED,
+    .ram_require = OMAP3XXX_SRAM_SIZE + OMAP3XXX_BOOTROM_SIZE,
 };
 

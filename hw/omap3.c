@@ -3756,7 +3756,7 @@ struct omap_mpu_state_s *omap3530_mpu_init(unsigned long sdram_size,
     cpu_register_physical_memory(OMAP3_SRAM_BASE, s->sram_size,
                                  sram_base | IO_MEM_RAM);
     bootrom_base = qemu_ram_alloc(OMAP3XXX_BOOTROM_SIZE);
-    cpu_register_physical_memory(OMAP3_Q1_BASE, OMAP3_BOOT_ROM_SIZE,
+    cpu_register_physical_memory(OMAP3_Q1_BASE + 0x14000, OMAP3_BOOT_ROM_SIZE,
                                  bootrom_base | IO_MEM_ROM);
     cpu_register_physical_memory(0, OMAP3_BOOT_ROM_SIZE,
                                  bootrom_base | IO_MEM_ROM);

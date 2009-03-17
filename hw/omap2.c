@@ -4109,9 +4109,10 @@ static void omap_sdrc_write(void *opaque, target_phys_addr_t addr,
         break;
 
     case 0x10:	/* SDRC_SYSCONFIG */
-        if ((value >> 3) != 0x2)
+        /* ignore invalid idle mode settings */
+        /*if ((value >> 3) != 0x2)
             fprintf(stderr, "%s: bad SDRAM idle mode %i for SDRC_SYSCONFIG (full value 0x%08x)\n",
-                            __FUNCTION__, value >> 3, value);
+                            __FUNCTION__, value >> 3, value);*/
         if (value & 2)
             omap_sdrc_reset(s);
         s->config = value & 0x18;
@@ -4119,7 +4120,6 @@ static void omap_sdrc_write(void *opaque, target_phys_addr_t addr,
 
     case 0x40:	/* SDRC_CS_CFG */
         s->cscfg = value & 0x30f;
-        fprintf(stderr, "%s: SDRC_CS_CFG = 0x%08x\n", __FUNCTION__, s->cscfg);
         break;
 
     case 0x44:	/* SDRC_SHARING */
@@ -4136,7 +4136,8 @@ static void omap_sdrc_write(void *opaque, target_phys_addr_t addr,
         break;
 
     case 0x68:	/* SDRC_DLLB_CTRL */
-        OMAP_BAD_REGV(addr, value);
+        /* silently ignore */
+        /*OMAP_BAD_REGV(addr, value);*/
         break;
         
     case 0x70:	/* SDRC_POWER_REG */
