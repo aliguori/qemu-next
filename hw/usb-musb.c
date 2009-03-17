@@ -878,6 +878,24 @@ static void musb_rx_req(struct musb_s *s, int epnum)
                     total, musb_rx_packet_complete, 1);
 }
 
+static uint32_t musb_read_fifo(struct musb_ep_s *ep)
+{
+    uint32_t value;
+    if (ep->fifolen[1] >= 16) {
+        /* We have a FIFO underrun */
+        printf("%s: EP FIFO is now empty, stop reading\n",
+                __FUNCTION__);
+        return 0x00000000;
+    }
+    /* In DMA mode clear RXPKTRDY and set REQPKT automatically
+     * (if AUTOREQ is set) */
+
+    ep->csr[1] &= ~MGC_M_RXCSR_FIFOFULL;
+    value=ep->buf[1][ep->fifostart[1] + ep->fifolen[1] ++];
+    TRACE("fifo_read 0x%08x, %d", value, ep->fifolen[1] );
+    return value;
+}
+
 static void musb_ep_frame_cancel(struct musb_ep_s *ep, int dir)
 {
     if (ep->intv_timer[dir])
@@ -1209,6 +1227,10 @@ static uint32_t musb_readb(void *opaque, target_phys_addr_t addr)
         ep = (addr >> 4) & 0xf;
         return musb_ep_readb(s, ep, addr & 0xf);
 
+    case MUSB_HDRC_FIFO ... (MUSB_HDRC_FIFO + 0x3f):
+        ep = ((addr - MUSB_HDRC_FIFO) >> 2) & 0xf;
+        return musb_read_fifo(s->ep + ep);
+
     default:
         printf("%s: unknown register at %02x\n", __FUNCTION__, (int) addr);
         return 0x00;
@@ -1343,6 +1365,10 @@ static uint32_t musb_readh(void *opaque, target_phys_addr_t addr)
         ep = (addr >> 4) & 0xf;
         return musb_ep_readh(s, ep, addr & 0xf);
 
+    case MUSB_HDRC_FIFO ... (MUSB_HDRC_FIFO + 0x3f):
+        ep = ((addr - MUSB_HDRC_FIFO) >> 2) & 0xf;
+        return musb_read_fifo(s->ep + ep);
+
     default:
         return musb_readb(s, addr) | (musb_readb(s, addr | 1) << 8);
     };
@@ -1402,27 +1428,12 @@ static void musb_writeh(void *opaque, target_phys_addr_t addr, uint32_t value)
 static uint32_t musb_readw(void *opaque, target_phys_addr_t addr)
 {
     struct musb_s *s = (struct musb_s *) opaque;
-    struct musb_ep_s *ep;
     int epnum;
-    TRACE("ADDR = 0x%08x", addr);
 
     switch (addr) {
     case MUSB_HDRC_FIFO ... (MUSB_HDRC_FIFO + 0x3f):
         epnum = ((addr - MUSB_HDRC_FIFO) >> 2) & 0xf;
-        ep = s->ep + epnum;
-
-        if (ep->fifolen[1] >= 16) {
-            /* We have a FIFO underrun */
-            printf("%s: EP%i FIFO is now empty, stop reading\n",
-                            __FUNCTION__, epnum);
-            return 0x00000000;
-        }
-        /* In DMA mode clear RXPKTRDY and set REQPKT automatically
-         * (if AUTOREQ is set) */
-
-        ep->csr[1] &= ~MGC_M_RXCSR_FIFOFULL;
-        return ep->buf[1][ep->fifostart[1] + ep->fifolen[1] ++];
-
+        return musb_read_fifo(s->ep + epnum);
     default:
         printf("%s: unknown register at %02x\n", __FUNCTION__, (int) addr);
         return 0x00000000;
