@@ -1067,13 +1067,13 @@ static struct clk omap3_iva2_clk = {
 static struct clk omap3_96m_fclk = {
     .name	= "omap3_96m_fclk",
     .flags	= CLOCK_IN_OMAP3XXX ,
-    .parent	= &omap3_sys_clk,	           
+    .parent	= &omap3_sys_clk,
 };
 
 static struct clk omap3_54m_fclk = {
     .name	= "omap3_54m_fclk",
-    .flags	= CLOCK_IN_OMAP3XXX ,
-    .parent	= &omap3_sys_clk,	    
+    .flags	= CLOCK_IN_OMAP3XXX,
+    .parent	= &omap3_sys_clk,
 };
 
 static struct clk omap3_dss1_alwon_fclk = {
@@ -1108,13 +1108,17 @@ static struct clk omap3_120m_fclk = {
 static struct clk omap3_48m_fclk = {
     .name	= "omap3_48m_fclk",
     .flags	= CLOCK_IN_OMAP3XXX ,
-    .parent	= &omap3_96m_fclk,	    /*omap3_96m_fclk and omap3_sys_altclk*/
+    .parent	= &omap3_96m_fclk, /* omap3_96m_fclk and omap3_sys_altclk */
+    .divisor = 2,
+    .multiplier = 1, 
 };
 
 static struct clk omap3_12m_fclk = {
     .name	= "omap3_12m_fclk",
     .flags	= CLOCK_IN_OMAP3XXX ,
-    .parent	= &omap3_48m_fclk,	    /*omap3_48m_fclk and omap3_sys_altclk*/
+    .parent	= &omap3_96m_fclk, /*omap3_96m_fclk and omap3_sys_altclk */
+    .divisor = 8,
+    .multiplier = 1,
 };
 
 /*Common interface clock*/
