@@ -195,10 +195,10 @@ static void store_reg(DisasContext *s, int reg, TCGv var)
    to r15 in ARM architecture v7 and above. The source must be a temporary
    and will be marked as dead. */
 #define store_reg_bx(dc, reg, var) \
-    if (ENABLE_ARCH_7 && reg == 15) \
-        gen_bx(dc, var); \
+    if ((reg) == 15 && ENABLE_ARCH_7) \
+        gen_bx((dc), (var)); \
     else \
-        store_reg(dc, reg, var);
+        store_reg((dc), (reg), (var));
 
 /* Basic operations.  */
 #define gen_op_movl_T0_T1() tcg_gen_mov_i32(cpu_T[0], cpu_T[1])
