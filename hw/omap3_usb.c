@@ -49,7 +49,7 @@ struct omap3_hsusb_otg_s {
 
 static void omap3_hsusb_otg_reset(struct omap3_hsusb_otg_s *s)
 {
-    s->rev = 0;
+    s->rev = 0x33;
     s->sysconfig = 0;
     s->interfsel = 0x1;
     s->simenable = 0;
@@ -165,7 +165,8 @@ static void omap3_hsusb_otg_write(void *opaque, target_phys_addr_t addr,
             break;
         case 0x410: /* OTG_SIMENABLE */
             TRACE("OTG_SIMENABLE = 0x%08x", value);
-            s->simenable = value & 1;
+            cpu_abort(cpu_single_env, "%s: USB simulation mode not supported\n",
+                      __FUNCTION__);
             break;
         case 0x414: /* OTG_FORCESTDBY */
             TRACE("OTG_FORCESTDBY = 0x%08x", value);
@@ -192,8 +193,24 @@ static CPUWriteMemoryFunc *omap3_hsusb_otg_writefn[] = {
 static void omap3_hsusb_musb_core_intr(void *opaque, int source, int level)
 {
     struct omap3_hsusb_otg_s *s = (struct omap3_hsusb_otg_s *)opaque;
-    
-    qemu_set_irq(s->mc_irq, musb_core_intr_get(s->musb));
+    uint32_t value = musb_core_intr_get(s->musb);
+    TRACE("intr 0x%08x, 0x%08x, 0x%08x", source, level, value);
+    switch (source) {
+    case musb_set_vbus:
+       TRACE("ignoring VBUS");
+       break;
+    case musb_set_session:
+       TRACE("ignoring SESSION");
+       break;
+    case musb_irq_tx:
+    case musb_irq_rx:
+       TRACE("rxtx");
+       break;
+       /* Fall through */
+    default:
+       TRACE("other");
+    }
+    qemu_set_irq(s->mc_irq, level);
 }
 
 static void omap3_hsusb_otg_init(struct omap_target_agent_s *otg_ta,
@@ -305,3 +322,4 @@ struct omap3_hsusb_s *omap3_hsusb_init(struct omap_target_agent_s *otg_ta,
     omap3_hsusb_host_init(host_ta, tll_ta, ohci_irq, ehci_irq, tll_irq, &s->host);
     return s;
 }
+
