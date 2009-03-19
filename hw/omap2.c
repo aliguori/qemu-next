@@ -489,6 +489,89 @@ static CPUWriteMemoryFunc *omap_gp_timer_writefn[] = {
     omap_gp_timer_write,
 };
 
+static void omap_gp_timer_save_state(QEMUFile *f, void *opaque)
+{
+    struct omap_gp_timer_s *s = (struct omap_gp_timer_s *)opaque;
+    
+    qemu_put_timer(f, s->timer);
+    qemu_put_timer(f, s->match);
+    qemu_put_sbe32(f, s->in_val);
+    qemu_put_sbe32(f, s->out_val);
+    qemu_put_sbe64(f, s->time);
+    qemu_put_sbe64(f, s->rate);
+    qemu_put_sbe64(f, s->ticks_per_sec);
+    qemu_put_sbe16(f, s->config);
+    qemu_put_sbe32(f, s->status);
+    qemu_put_sbe32(f, s->it_ena);
+    qemu_put_sbe32(f, s->wu_ena);
+    qemu_put_sbe32(f, s->enable);
+    qemu_put_sbe32(f, s->inout);
+    qemu_put_sbe32(f, s->capt2);
+    qemu_put_sbe32(f, s->pt);
+    qemu_put_sbe32(f, s->trigger);
+    qemu_put_sbe32(f, s->capture);
+    qemu_put_sbe32(f, s->scpwm);
+    qemu_put_sbe32(f, s->ce);
+    qemu_put_sbe32(f, s->pre);
+    qemu_put_sbe32(f, s->ptv);
+    qemu_put_sbe32(f, s->ar);
+    qemu_put_sbe32(f, s->st);
+    qemu_put_sbe32(f, s->posted);
+    qemu_put_be32(f, s->val);
+    qemu_put_be32(f, s->load_val);
+    qemu_put_be32(f, s->capture_val[0]);
+    qemu_put_be32(f, s->capture_val[1]);
+    qemu_put_be32(f, s->match_val);
+    qemu_put_sbe32(f, s->capt_num);
+    qemu_put_be16(f, s->writeh);
+    qemu_put_be16(f, s->readh);
+}
+
+static int omap_gp_timer_load_state(QEMUFile *f, void *opaque, int version_id)
+{
+    struct omap_gp_timer_s *s = (struct omap_gp_timer_s *)opaque;
+    
+    if (version_id)
+        return -EINVAL;
+    
+    qemu_get_timer(f, s->timer);
+    qemu_get_timer(f, s->match);
+    s->in_val = qemu_get_sbe32(f);
+    s->out_val = qemu_get_sbe32(f);
+    s->time = qemu_get_sbe64(f);
+    s->rate = qemu_get_sbe64(f);
+    s->ticks_per_sec = qemu_get_sbe64(f);
+    s->config = qemu_get_sbe16(f);
+    s->status = qemu_get_sbe32(f);
+    s->it_ena = qemu_get_sbe32(f);
+    s->wu_ena = qemu_get_sbe32(f);
+    s->enable = qemu_get_sbe32(f);
+    s->inout = qemu_get_sbe32(f);
+    s->capt2 = qemu_get_sbe32(f);
+    s->pt = qemu_get_sbe32(f);
+    s->trigger = qemu_get_sbe32(f);
+    s->capture = qemu_get_sbe32(f);
+    s->scpwm = qemu_get_sbe32(f);
+    s->ce = qemu_get_sbe32(f);
+    s->pre = qemu_get_sbe32(f);
+    s->ptv = qemu_get_sbe32(f);
+    s->ar = qemu_get_sbe32(f);
+    s->st = qemu_get_sbe32(f);
+    s->posted = qemu_get_sbe32(f);
+    s->val = qemu_get_be32(f);
+    s->load_val = qemu_get_be32(f);
+    s->capture_val[0] = qemu_get_be32(f);
+    s->capture_val[1] = qemu_get_be32(f);
+    s->match_val = qemu_get_be32(f);
+    s->capt_num = qemu_get_sbe32(f);
+    s->writeh = qemu_get_be16(f);
+    s->readh = qemu_get_be16(f);
+    
+    omap_gp_timer_update(s);
+    
+    return 0;
+}
+
 struct omap_gp_timer_s *omap_gp_timer_init(struct omap_target_agent_s *ta,
                 qemu_irq irq, omap_clk fclk, omap_clk iclk)
 {
@@ -509,6 +592,8 @@ struct omap_gp_timer_s *omap_gp_timer_init(struct omap_target_agent_s *ta,
                     omap_gp_timer_writefn, s);
     omap_l4_attach(ta, 0, iomemtype);
 
+    register_savevm("omap_gp_timer", (ta->base >> 12) & 0xfffff, 0,
+                    omap_gp_timer_save_state, omap_gp_timer_load_state, s);
     return s;
 }
 
@@ -611,6 +696,31 @@ static CPUWriteMemoryFunc *omap3_synctimer_writefn[] = {
     omap3_synctimer_write,
 };
 
+static void omap_synctimer_save_state(QEMUFile *f, void *opaque)
+{
+    struct omap_synctimer_s *s = (struct omap_synctimer_s *)opaque;
+    
+    qemu_put_be32(f, s->val);
+    qemu_put_be16(f, s->readh);
+    qemu_put_be32(f, s->sysconfig);
+}
+
+static int omap_synctimer_load_state(QEMUFile *f, void *opaque, int version_id)
+{
+    struct omap_synctimer_s *s = (struct omap_synctimer_s *)opaque;
+    
+    if (version_id)
+        return -EINVAL;
+    
+    s->val = qemu_get_be32(f);
+    s->readh = qemu_get_be16(f);
+    s->sysconfig = qemu_get_be32(f);
+    
+    omap_synctimer_reset(s);
+    
+    return 0;
+}
+
 void omap_synctimer_init(struct omap_target_agent_s *ta,
                 struct omap_mpu_state_s *mpu, omap_clk fclk, omap_clk iclk)
 {
@@ -623,6 +733,9 @@ void omap_synctimer_init(struct omap_target_agent_s *ta,
     else
         omap_l4_attach(ta, 0, l4_register_io_memory(0,
                     omap_synctimer_readfn, omap_synctimer_writefn, s));
+    
+    register_savevm("omap_synctimer", -1, 0,
+                    omap_synctimer_save_state, omap_synctimer_load_state, s);
 }
 
 /* General-Purpose Interface of OMAP2 */
@@ -1035,6 +1148,65 @@ struct omap_gpif_s {
     int gpo;
 };
 
+static void omap_gpif_save_state(QEMUFile *f, void *opaque)
+{
+    struct omap_gpif_s *s = (struct omap_gpif_s *)opaque;
+    int i, j;
+    
+    qemu_put_sbe32(f, s->autoidle);
+    qemu_put_sbe32(f, s->gpo);
+    qemu_put_sbe32(f, s->modules);
+    for (i = 0; i < s->modules; i++) {
+        for (j = 0; j < 2; j++) {
+            qemu_put_byte(f, s->module[i].config[j]);
+            qemu_put_be32(f, s->module[i].level[j]);
+            qemu_put_be32(f, s->module[i].edge[j]);
+            qemu_put_be32(f, s->module[i].mask[j]);
+            qemu_put_be32(f, s->module[i].ints[j]);
+        }
+        qemu_put_be32(f, s->module[i].inputs);
+        qemu_put_be32(f, s->module[i].outputs);
+        qemu_put_be32(f, s->module[i].dir);
+        qemu_put_be32(f, s->module[i].wumask);
+        qemu_put_be32(f, s->module[i].debounce);
+        qemu_put_byte(f, s->module[i].delay);
+    }
+}
+
+static int omap_gpif_load_state(QEMUFile *f, void *opaque, int version_id)
+{
+    struct omap_gpif_s *s = (struct omap_gpif_s *)opaque;
+    int i, j;
+
+    if (version_id)
+        return -EINVAL;
+    
+    s->autoidle = qemu_get_sbe32(f);
+    s->gpo = qemu_get_sbe32(f);
+    if (qemu_get_sbe32(f) != s->modules)
+        return -EINVAL;
+    for (i = 0; i < s->modules; i++) {
+        for (j = 0; j < 2; j++) {
+            s->module[i].config[j] = qemu_get_byte(f);
+            s->module[i].level[j] = qemu_get_be32(f);
+            s->module[i].edge[j] = qemu_get_be32(f);
+            s->module[i].mask[j] = qemu_get_be32(f);
+            s->module[i].ints[j] = qemu_get_be32(f);
+        }
+        s->module[i].inputs = qemu_get_be32(f);
+        s->module[i].outputs = qemu_get_be32(f);
+        s->module[i].dir = qemu_get_be32(f);
+        s->module[i].wumask = qemu_get_be32(f);
+        s->module[i].debounce = qemu_get_be32(f);
+        s->module[i].delay = qemu_get_byte(f);
+
+        omap_gpio_module_level_update(&s->module[i], 0);
+        omap_gpio_module_level_update(&s->module[i], 1);
+    }
+    
+    return 0;
+}
+
 static void omap_gpif_reset(struct omap_gpif_s *s)
 {
     int i;
@@ -1143,6 +1315,9 @@ struct omap_gpif_s *omap3_gpif_init()
     struct omap_gpif_s *s = (struct omap_gpif_s *)
         qemu_mallocz(sizeof(struct omap_gpif_s));
     omap_gpif_reset(s);
+    
+    register_savevm("omap_gpif", -1, 0,
+                    omap_gpif_save_state, omap_gpif_load_state, s);
     return s;
 }
 
@@ -3987,6 +4162,53 @@ struct omap_sdrc_s {
     } cs[2];
 };
 
+static void omap_sdrc_save_state(QEMUFile *f, void *opaque)
+{
+    struct omap_sdrc_s *s = (struct omap_sdrc_s *)opaque;
+    int i;
+    
+    qemu_put_byte(f, s->config);
+    qemu_put_be32(f, s->cscfg);
+    qemu_put_be32(f, s->sharing);
+    qemu_put_be32(f, s->dlla_ctrl);
+    qemu_put_be32(f, s->power_reg);
+    for (i = 0; i < 2; i++) {
+        qemu_put_be32(f, s->cs[i].mcfg);
+        qemu_put_be32(f, s->cs[i].mr);
+        qemu_put_be32(f, s->cs[i].emr2);
+        qemu_put_be32(f, s->cs[i].actim_ctrla);
+        qemu_put_be32(f, s->cs[i].actim_ctrlb);
+        qemu_put_be32(f, s->cs[i].rfr_ctrl);
+        qemu_put_be32(f, s->cs[i].manual);
+    }
+}
+
+static int omap_sdrc_load_state(QEMUFile *f, void *opaque, int version_id)
+{
+    struct omap_sdrc_s *s = (struct omap_sdrc_s *)opaque;
+    int i;
+    
+    if (version_id)
+        return -EINVAL;
+    
+    s->config = qemu_get_byte(f);
+    s->cscfg = qemu_get_be32(f);
+    s->sharing = qemu_get_be32(f);
+    s->dlla_ctrl = qemu_get_be32(f);
+    s->power_reg = qemu_get_be32(f);
+    for (i = 0; i < 2; i++) {
+        s->cs[i].mcfg = qemu_get_be32(f);
+        s->cs[i].mr = qemu_get_be32(f);
+        s->cs[i].emr2 = qemu_get_be32(f);
+        s->cs[i].actim_ctrla = qemu_get_be32(f);
+        s->cs[i].actim_ctrlb = qemu_get_be32(f);
+        s->cs[i].rfr_ctrl = qemu_get_be32(f);
+        s->cs[i].manual = qemu_get_be32(f);
+    }
+    
+    return 0;
+}
+
 static void omap_sdrc_reset(struct omap_sdrc_s *s)
 {
     s->config    = 0x10;
@@ -4230,6 +4452,8 @@ struct omap_sdrc_s *omap_sdrc_init(target_phys_addr_t base)
                     omap_sdrc_writefn, s);
     cpu_register_physical_memory(base, 0x1000, iomemtype);
 
+    register_savevm("omap_sdrc", -1, 0,
+                    omap_sdrc_save_state, omap_sdrc_load_state, s);
     return s;
 }
 
@@ -4343,6 +4567,76 @@ static void omap_gpmc_reset(struct omap_gpmc_s *s)
     s->ecc_cfg = 0x3fcff000;
     for (i = 0; i < 9; i ++)
         ecc_reset(&s->ecc[i]);
+}
+
+static void omap_gpmc_save_state(QEMUFile *f, void *opaque)
+{
+    struct omap_gpmc_s *s = (struct omap_gpmc_s *)opaque;
+    int i, j;
+    
+    qemu_put_byte(f, s->sysconfig);
+    qemu_put_be16(f, s->irqst);
+    qemu_put_be16(f, s->irqen);
+    qemu_put_be16(f, s->timeout);
+    qemu_put_be16(f, s->config);
+    qemu_put_be32(f, s->prefconfig[0]);
+    qemu_put_be32(f, s->prefconfig[1]);
+    qemu_put_sbe32(f, s->prefcontrol);
+    qemu_put_sbe32(f, s->preffifo);
+    qemu_put_sbe32(f, s->prefcount);
+    for (i = 0; i < 8; i++)
+        for (j = 0; j < 7; j++)
+            qemu_put_be32(f, s->cs_file[i].config[j]);
+    qemu_put_sbe32(f, s->ecc_cs);
+    qemu_put_sbe32(f, s->ecc_ptr);
+    qemu_put_be32(f, s->ecc_cfg);
+    for (i = 0; i < 9; i++) {
+        qemu_put_byte(f, s->ecc[i].cp);
+        qemu_put_be16(f, s->ecc[i].lp[0]);
+        qemu_put_be16(f, s->ecc[i].lp[1]);
+        qemu_put_be16(f, s->ecc[i].count);
+    }
+}
+
+static int omap_gpmc_load_state(QEMUFile *f, void *opaque, int version_id)
+{
+    struct omap_gpmc_s *s = (struct omap_gpmc_s *)opaque;
+    int i, j;
+    
+    if (version_id)
+        return -EINVAL;
+    
+    s->sysconfig = qemu_get_byte(f);
+    s->irqst = qemu_get_be16(f);
+    s->irqen = qemu_get_be16(f);
+    s->timeout = qemu_get_be16(f);
+    s->config = qemu_get_be16(f);
+    s->prefconfig[0] = qemu_get_be32(f);
+    s->prefconfig[1] = qemu_get_be32(f);
+    s->prefcontrol = qemu_get_sbe32(f);
+    s->preffifo = qemu_get_sbe32(f);
+    s->prefcount = qemu_get_sbe32(f);
+    for (i = 0; i < 8; i++) {
+        for (j = 0; j < 7; j++)
+            s->cs_file[i].config[j] = qemu_get_be32(f);
+        if (s->cs_file[i].config[6] & (1 << 6)) /* CSVALID */
+            omap_gpmc_cs_map(&s->cs_file[i],
+                             s->cs_file[i].config[6] & 0x3f, /* MASKADDR */
+                             (s->cs_file[i].config[6] >> 8 & 0xf));	/* BASE */
+    }        
+    s->ecc_cs = qemu_get_sbe32(f);
+    s->ecc_ptr = qemu_get_sbe32(f);
+    s->ecc_cfg = qemu_get_be32(f);
+    for (i = 0; i < 9; i++) {
+        s->ecc[i].cp = qemu_get_byte(f);
+        s->ecc[i].lp[0] = qemu_get_be16(f);
+        s->ecc[i].lp[1] = qemu_get_be16(f);
+        s->ecc[i].count = qemu_get_be16(f);
+    }
+    
+    omap_gpmc_int_update(s);
+    
+    return 0;
 }
 
 static uint32_t omap_gpmc_read(void *opaque, target_phys_addr_t addr)
@@ -4846,6 +5140,8 @@ struct omap_gpmc_s *omap_gpmc_init(struct omap_mpu_state_s *mpu,
                     omap_gpmc_writefn, s);
     cpu_register_physical_memory(base, 0x1000, iomemtype);
 
+    register_savevm("omap_gpmc", -1, 0,
+                    omap_gpmc_save_state, omap_gpmc_load_state, s);
     return s;
 }
 

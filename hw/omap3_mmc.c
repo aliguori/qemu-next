@@ -668,6 +668,96 @@ static CPUWriteMemoryFunc *omap3_mmc_writefn[] = {
     omap3_mmc_write,
 };
 
+static void omap3_mmc_save_state(QEMUFile *f, void *opaque)
+{
+    struct omap3_mmc_s *s = (struct omap3_mmc_s *)opaque;
+    int i;
+    
+    qemu_put_be32(f, s->sysconfig);
+    qemu_put_be32(f, s->sysstatus);
+    qemu_put_be32(f, s->csre);
+    qemu_put_be32(f, s->systest);
+    qemu_put_be32(f, s->con);
+    qemu_put_be32(f, s->pwcnt);
+    qemu_put_be32(f, s->blk);
+    qemu_put_be32(f, s->arg);
+    qemu_put_be32(f, s->cmd);
+    qemu_put_be32(f, s->rsp10);
+    qemu_put_be32(f, s->rsp32);
+    qemu_put_be32(f, s->rsp54);
+    qemu_put_be32(f, s->rsp76);
+    qemu_put_be32(f, s->data);
+    qemu_put_be32(f, s->pstate);
+    qemu_put_be32(f, s->hctl);
+    qemu_put_be32(f, s->sysctl);
+    qemu_put_be32(f, s->stat);
+    qemu_put_be32(f, s->ie);
+    qemu_put_be32(f, s->ise);
+    qemu_put_be32(f, s->ac12);
+    qemu_put_be32(f, s->capa);
+    qemu_put_be32(f, s->cur_capa);
+    qemu_put_be32(f, s->rev);
+    qemu_put_be16(f, s->blen_counter);
+    qemu_put_be16(f, s->nblk_counter);
+    for (i = 0; i < sizeof(s->fifo)/sizeof(uint32_t); i++)
+        qemu_put_be32(f, s->fifo[i]);
+    qemu_put_sbe32(f, s->fifo_start);
+    qemu_put_sbe32(f, s->fifo_len);
+    qemu_put_sbe32(f, s->ddir);
+    qemu_put_sbe32(f, s->transfer);
+    qemu_put_sbe32(f, s->stop);
+    qemu_put_be32(f, s->stat_pending);
+}
+
+static int omap3_mmc_load_state(QEMUFile *f, void *opaque, int version_id)
+{
+    struct omap3_mmc_s *s = (struct omap3_mmc_s *)opaque;
+    int i;
+    
+    if (version_id)
+        return -EINVAL;
+    
+    s->sysconfig = qemu_get_be32(f);
+    s->sysstatus = qemu_get_be32(f);
+    s->csre = qemu_get_be32(f);
+    s->systest = qemu_get_be32(f);
+    s->con = qemu_get_be32(f);
+    s->pwcnt = qemu_get_be32(f);
+    s->blk = qemu_get_be32(f);
+    s->arg = qemu_get_be32(f);
+    s->cmd = qemu_get_be32(f);
+    s->rsp10 = qemu_get_be32(f);
+    s->rsp32 = qemu_get_be32(f);
+    s->rsp54 = qemu_get_be32(f);
+    s->rsp76 = qemu_get_be32(f);
+    s->data = qemu_get_be32(f);
+    s->pstate = qemu_get_be32(f);
+    s->hctl = qemu_get_be32(f);
+    s->sysctl = qemu_get_be32(f);
+    s->stat = qemu_get_be32(f);
+    s->ie = qemu_get_be32(f);
+    s->ise = qemu_get_be32(f);
+    s->ac12 = qemu_get_be32(f);
+    s->capa = qemu_get_be32(f);
+    s->cur_capa = qemu_get_be32(f);
+    s->rev = qemu_get_be32(f);
+    s->blen_counter = qemu_get_be16(f);
+    s->nblk_counter = qemu_get_be16(f);
+    for (i = 0; i < sizeof(s->fifo)/sizeof(uint32_t); i++)
+        s->fifo[i] = qemu_get_be32(f);
+    s->fifo_start = qemu_get_sbe32(f);
+    s->fifo_len = qemu_get_sbe32(f);
+    s->ddir = qemu_get_sbe32(f);
+    s->transfer = qemu_get_sbe32(f);
+    s->stop = qemu_get_sbe32(f);
+    s->stat_pending = qemu_get_be32(f);
+    
+    omap3_mmc_fifolevel_update(s);
+    omap3_mmc_interrupts_update(s);
+    
+    return 0;
+}
+
 struct omap3_mmc_s *omap3_mmc_init(struct omap_target_agent_s *ta,
                                    qemu_irq irq, qemu_irq dma[],
                                    omap_clk fclk, omap_clk iclk)
@@ -686,6 +776,8 @@ struct omap3_mmc_s *omap3_mmc_init(struct omap_target_agent_s *ta,
                                       omap3_mmc_writefn, s);
     omap_l4_attach(ta, 0, iomemtype);
 
+    register_savevm("omap3_mmc", (ta->base >> 12) & 0xff, 0,
+                    omap3_mmc_save_state, omap3_mmc_load_state, s);
     return s;
 }
 

@@ -369,14 +369,14 @@ static void sd_reset(SDState *sd, BlockDriverState *bdrv)
 
     bdrv_get_geometry(bdrv, &sect);
     sect <<= 9;
-
+    
     if (sect > 0x40000000)
         size = 0x40000000;	/* 1 gig */
     else
         size = sect + 1;
-
+    
     sect = (size >> (HWBLOCK_SHIFT + SECTOR_SHIFT + WPGROUP_SHIFT)) + 1;
-
+    
     sd->state = sd_idle_state;
     sd->rca = 0x0000;
     sd_set_ocr(sd);
@@ -410,6 +410,95 @@ static void sd_cardchange(void *opaque)
     }
 }
 
+static void sd_save_state(QEMUFile *f, void *opaque)
+{
+    struct SDState *s = (struct SDState *)opaque;
+    int i;
+    uint32_t wpgc = (s->size >> (HWBLOCK_SHIFT + SECTOR_SHIFT + WPGROUP_SHIFT)) + 1;
+    char *filename;
+    
+    filename = qemu_mallocz(1024);
+    bdrv_get_backing_filename(s->bdrv, filename, 1024);
+    qemu_put_buffer(f, (uint8_t *)filename, 1024);
+    free(filename);
+    
+    qemu_put_sbe32(f, s->mode);
+    qemu_put_sbe32(f, s->state);
+    qemu_put_be32(f, s->ocr);
+    qemu_put_buffer(f, s->scr, sizeof(s->scr));
+    qemu_put_buffer(f, s->cid, sizeof(s->cid));
+    qemu_put_buffer(f, s->csd, sizeof(s->csd));
+    qemu_put_be16(f, s->rca);
+    qemu_put_be32(f, s->card_status);
+    qemu_put_buffer(f, s->sd_status, sizeof(s->sd_status));
+    qemu_put_be32(f, s->vhs);
+    for (i = 0; i < wpgc; i++)
+        qemu_put_sbe32(f, s->wp_groups[i]);
+    qemu_put_sbe32(f, s->blk_len);
+    qemu_put_be32(f, s->erase_start);
+    qemu_put_be32(f, s->erase_end);
+    qemu_put_buffer(f, s->pwd, sizeof(s->pwd));
+    qemu_put_sbe32(f, s->pwd_len);
+    for (i = 0; i < 6; i++)
+        qemu_put_sbe32(f, s->function_group[i]);
+    qemu_put_sbe32(f, s->current_cmd);
+    qemu_put_sbe32(f, s->blk_written);
+    qemu_put_be32(f, s->data_start);
+    qemu_put_be32(f, s->data_offset);
+    qemu_put_buffer(f, s->data, sizeof(s->data));
+    qemu_put_buffer(f, s->buf, 512);
+    qemu_put_sbe32(f, s->enable);
+}
+
+static int sd_load_state(QEMUFile *f, void *opaque, int version_id)
+{
+    struct SDState *s = (struct SDState *)opaque;
+    int i;
+    uint32_t wpgc = (s->size >> (HWBLOCK_SHIFT + SECTOR_SHIFT + WPGROUP_SHIFT)) + 1;
+    char *filename1, *filename2;
+    int result = 0;
+    
+    if (version_id)
+        return -EINVAL;
+    
+    filename1 = qemu_mallocz(1024);
+    filename2 = qemu_mallocz(1024);
+    bdrv_get_backing_filename(s->bdrv, filename1, 1024);
+    qemu_get_buffer(f, (uint8_t *)filename2, 1024);
+    if (!strcmp(filename1, filename2)) {
+        s->mode = qemu_get_sbe32(f);
+        s->state = qemu_get_sbe32(f);
+        s->ocr = qemu_get_be32(f);
+        qemu_get_buffer(f, s->scr, sizeof(s->scr));
+        qemu_get_buffer(f, s->cid, sizeof(s->cid));
+        qemu_get_buffer(f, s->csd, sizeof(s->csd));
+        s->rca = qemu_get_be16(f);
+        s->card_status = qemu_get_be32(f);
+        qemu_get_buffer(f, s->sd_status, sizeof(s->sd_status));
+        s->vhs = qemu_get_be32(f);
+        for (i = 0; i < wpgc; i++)
+            s->wp_groups[i] = qemu_get_sbe32(f);
+        s->blk_len = qemu_get_sbe32(f);
+        s->erase_start = qemu_get_be32(f);
+        s->erase_end = qemu_get_be32(f);
+        qemu_get_buffer(f, s->pwd, sizeof(s->pwd));
+        s->pwd_len = qemu_get_sbe32(f);
+        for (i = 0; i < 6; i++)
+            s->function_group[i] = qemu_get_sbe32(f);
+        s->current_cmd = qemu_get_sbe32(f);
+        s->blk_written = qemu_get_sbe32(f);
+        s->data_start = qemu_get_be32(f);
+        s->data_offset = qemu_get_be32(f);
+        qemu_get_buffer(f, s->data, sizeof(s->data));
+        qemu_get_buffer(f, s->buf, 512);
+        s->enable = qemu_get_sbe32(f);
+    } else 
+        result = -EINVAL;
+    free(filename2);
+    free(filename1);
+    return result;
+}
+
 /* We do not model the chip select pin, so allow the board to select
    whether card should be in SSI or MMC/SD mode.  It is also up to the
    board to ensure that ssi transfers only occur when the chip select
@@ -417,6 +506,7 @@ static void sd_cardchange(void *opaque)
 SDState *sd_init(BlockDriverState *bs, int is_spi)
 {
     SDState *sd;
+    static int instance_number = 1;
 
     sd = (SDState *) qemu_mallocz(sizeof(SDState));
     sd->buf = qemu_memalign(512, 512);
@@ -424,6 +514,8 @@ SDState *sd_init(BlockDriverState *bs, int is_spi)
     sd->enable = 1;
     sd_reset(sd, bs);
     bdrv_set_change_cb(sd->bdrv, sd_cardchange, sd);
+    register_savevm("sd", instance_number++, 0,
+                    sd_save_state, sd_load_state, sd);
     return sd;
 }
 

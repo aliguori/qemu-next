@@ -21,6 +21,7 @@
 #include "qemu-common.h"
 #include "qemu-timer.h"
 #include "soc_dma.h"
+#include "hw.h"
 
 static void transfer_mem2mem(struct soc_dma_ch_s *ch)
 {
@@ -235,6 +236,73 @@ void soc_dma_reset(struct soc_dma_s *soc)
     soc_dma_ch_freq_update(s);
 }
 
+static void soc_dma_save_state(QEMUFile *f, void *opaque)
+{
+    struct dma_s *s = (struct dma_s *)opaque;
+    int i;
+    
+    qemu_put_be64(f, s->soc.drqbmp);
+    qemu_put_sbe64(f, s->soc.freq);
+    qemu_put_be64(f, s->ch_enable_mask);
+    qemu_put_sbe64(f, s->channel_freq);
+    qemu_put_sbe32(f, s->enabled_count);
+    for (i = 0; i < s->chnum; i++) {
+        qemu_put_timer(f, s->ch[i].timer);
+        qemu_put_sbe32(f, s->ch[i].enable);
+        qemu_put_sbe32(f, s->ch[i].update);
+        qemu_put_sbe32(f, s->ch[i].bytes);
+        qemu_put_sbe32(f, s->ch[i].type[0]);
+        qemu_put_sbe32(f, s->ch[i].type[1]);
+#if TARGET_PHYS_ADDR_BITS == 32
+        qemu_put_be32(f, s->ch[i].vaddr[0]);
+        qemu_put_be32(f, s->ch[i].vaddr[1]);
+#elif TARGET_PHYS_ADDR_BITS == 64
+        qemu_put_be64(f, s->ch[i].vaddr[0]);
+        qemu_put_be64(f, s->ch[i].vaddr[1]);
+#else
+#error TARGET_PHYS_ADDR_BITS undefined
+#endif
+        qemu_put_sbe32(f, s->ch[i].running);
+    }
+}
+
+static int soc_dma_load_state(QEMUFile *f, void *opaque, int version_id)
+{
+    struct dma_s *s = (struct dma_s *)opaque;
+    int i;
+    
+    if (version_id)
+        return -EINVAL;
+    
+    s->soc.drqbmp = qemu_get_be64(f);
+    s->soc.freq = qemu_get_sbe64(f);
+    s->ch_enable_mask = qemu_get_be64(f);
+    s->channel_freq = qemu_get_sbe64(f);
+    s->enabled_count = qemu_get_sbe32(f);
+    for (i = 0; i < s->chnum; i++) {
+        qemu_get_timer(f, s->ch[i].timer);
+        s->ch[i].enable = qemu_get_sbe32(f);
+        s->ch[i].update = qemu_get_sbe32(f);
+        s->ch[i].bytes = qemu_get_sbe32(f);
+        s->ch[i].type[0] = qemu_get_sbe32(f);
+        s->ch[i].type[1] = qemu_get_sbe32(f);
+#if TARGET_PHYS_ADDR_BITS == 32
+        s->ch[i].vaddr[0] = qemu_get_be32(f);
+        s->ch[i].vaddr[1] = qemu_get_be32(f);
+#elif TARGET_PHYS_ADDR_BITS == 64
+        s->ch[i].vaddr[0] = qemu_get_be64(f);
+        s->ch[i].vaddr[1] = qemu_get_be64(f);
+#else
+#error TARGET_PHYS_ADDR_BITS undefined
+#endif
+        s->ch[i].running = qemu_get_sbe32(f);
+        
+        soc_dma_ch_update(&s->ch[i]);
+    }
+    
+    return 0;
+}
+
 /* TODO: take a functional-clock argument */
 struct soc_dma_s *soc_dma_init(int n)
 {
@@ -252,6 +320,8 @@ struct soc_dma_s *soc_dma_init(int n)
     soc_dma_reset(&s->soc);
     fifo_size = 0;
 
+    register_savevm("soc_dma", -1, 0,
+                    soc_dma_save_state, soc_dma_load_state, s);
     return &s->soc;
 }
 

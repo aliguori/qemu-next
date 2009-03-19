@@ -225,11 +225,37 @@ static void omap3_l3ia_write(void *opaque, target_phys_addr_t addr,
     }
 }
 
+static void omap3_l3ia_save_state(QEMUFile *f, void *opaque)
+{
+    struct omap3_l3_initiator_agent_s *s =
+        (struct omap3_l3_initiator_agent_s *)opaque;
+
+    qemu_put_be32(f, s->control);
+    qemu_put_be32(f, s->status);
+}
+
+static int omap3_l3ia_load_state(QEMUFile *f, void *opaque, int version_id)
+{
+    struct omap3_l3_initiator_agent_s *s =
+        (struct omap3_l3_initiator_agent_s *)opaque;
+    
+    if (version_id)
+        return -EINVAL;
+    
+    s->control = qemu_get_be32(f);
+    s->status = qemu_get_be32(f);
+    
+    return 0;
+}
+
 static void omap3_l3ia_init(struct omap3_l3_initiator_agent_s *s)
 {
     s->component = ('Q' << 24) | ('E' << 16) | ('M' << 8) | ('U' << 0);
     s->control = 0x3e000000;
     s->status = 0;
+    
+    register_savevm("omap3_l3ia", (s->base >> 8) & 0xffff, 0,
+                    omap3_l3ia_save_state, omap3_l3ia_load_state, s);
 }
 
 static CPUReadMemoryFunc *omap3_l3ia_readfn[] = {
@@ -326,11 +352,37 @@ static void omap3_l3ta_write(void *opaque, target_phys_addr_t addr,
     }
 }
 
+static void omap3_l3ta_save_state(QEMUFile *f, void *opaque)
+{
+    struct omap_target_agent_s *s =
+        (struct omap_target_agent_s *)opaque;
+    
+    qemu_put_be32(f, s->control);
+    qemu_put_be32(f, s->status);
+}
+
+static int omap3_l3ta_load_state(QEMUFile *f, void *opaque, int version_id)
+{
+    struct omap_target_agent_s *s =
+        (struct omap_target_agent_s *)opaque;
+    
+    if (version_id)
+        return -EINVAL;
+    
+    s->control = qemu_get_be32(f);
+    s->status = qemu_get_be32(f);
+    
+    return 0;
+}
+
 static void omap3_l3ta_init(struct omap_target_agent_s *s)
 {
     s->component = ('Q' << 24) | ('E' << 16) | ('M' << 8) | ('U' << 0);
     s->control = 0x03000000;
     s->status = 0;
+
+    register_savevm("omap3_l3ta", (s->base >> 8) & 0xffff, 0,
+                    omap3_l3ta_save_state, omap3_l3ta_load_state, s);
 }
 
 static CPUReadMemoryFunc *omap3_l3ta_readfn[] = {
@@ -519,6 +571,42 @@ static void omap3_l3pm_write32(void *opaque, target_phys_addr_t addr,
     omap3_l3pm_write16(opaque, addr + 2, (value >> 16) & 0xffff);
 }
 
+static void omap3_l3pm_save_state(QEMUFile *f, void *opaque)
+{
+    struct omap3_l3pm_s *s = (struct omap3_l3pm_s *)opaque;
+    int i;
+    
+    qemu_put_be32(f, s->error_log);
+    qemu_put_byte(f, s->control);
+    for (i = 0; i < 8; i++) {
+        qemu_put_be16(f, s->req_info_permission[i]);
+        qemu_put_be16(f, s->read_permission[i]);
+        qemu_put_be16(f, s->write_permission[i]);
+        if (i < 7)
+            qemu_put_be32(f, s->addr_match[i]);
+    }
+}
+
+static int omap3_l3pm_load_state(QEMUFile *f, void *opaque, int version_id)
+{
+    struct omap3_l3pm_s *s = (struct omap3_l3pm_s *)opaque;
+    int i;
+    
+    if (version_id)
+        return -EINVAL;
+    
+    s->error_log = qemu_get_be32(f);
+    s->control = qemu_get_byte(f);
+    for (i = 0; i < 8; i++) {
+        s->req_info_permission[i] = qemu_get_be16(f);
+        s->read_permission[i] = qemu_get_be16(f);
+        s->write_permission[i] = qemu_get_be16(f);
+        if (i < 7)
+            s->addr_match[i] = qemu_get_be32(f);
+    }
+    return 0;
+}
+
 static void omap3_l3pm_init(struct omap3_l3pm_s *s)
 {
     int i;
@@ -577,6 +665,9 @@ static void omap3_l3pm_init(struct omap3_l3pm_s *s)
             exit(-1);
             break;
     }
+
+    register_savevm("omap3_l3pm", (s->base >> 8) & 0xffff, 0,
+                    omap3_l3pm_save_state, omap3_l3pm_load_state, s);
 }
 
 static CPUReadMemoryFunc *omap3_l3pm_readfn[] = {
@@ -1245,6 +1336,29 @@ static void omap3_l4ta_write(void *opaque, target_phys_addr_t addr,
     }
 }
 
+static void omap3_l4ta_save_state(QEMUFile *f, void *opaque)
+{
+    struct omap_target_agent_s *s = (struct omap_target_agent_s *)opaque;
+    
+    qemu_put_be32(f, s->control);
+    qemu_put_be32(f, s->control_h);
+    qemu_put_be32(f, s->status);
+}
+
+static int omap3_l4ta_load_state(QEMUFile *f, void *opaque, int version_id)
+{
+    struct omap_target_agent_s *s = (struct omap_target_agent_s *)opaque;
+    
+    if (version_id)
+        return -EINVAL;
+    
+    s->control = qemu_get_be32(f);
+    s->control_h = qemu_get_be32(f);
+    s->status = qemu_get_be32(f);
+    
+    return 0;
+}
+
 static CPUReadMemoryFunc *omap3_l4ta_readfn[] = {
     omap_badwidth_read32,
     omap_badwidth_read32,
@@ -1299,6 +1413,9 @@ static struct omap_target_agent_s *omap3_l4ta_init(struct omap_l4_s *bus, int cs
     iomemtype = l4_register_io_memory(0, omap3_l4ta_readfn,
                                       omap3_l4ta_writefn, ta);
     ta->base = omap_l4_attach(ta, i, iomemtype);
+
+    register_savevm("omap3_l4ta", ta->base >> 8, 0,
+                    omap3_l4ta_save_state, omap3_l4ta_load_state, ta);
 
     return ta;
 }
@@ -1570,9 +1687,10 @@ static uint32_t omap3_prm_read(void *opaque, target_phys_addr_t addr)
     return 0;
 }
 
-static inline void omap3_prm_clksrc_ctrl_update(struct omap3_prm_s *s,
-                                                uint32_t value)
+static inline void omap3_prm_clksrc_ctrl_update(struct omap3_prm_s *s)
 {
+    uint32_t value = s->gr.prm_clksrc_ctrl;
+    
     if ((value & 0xd0) == 0x40)
         omap_clk_setrate(omap_findclk(s->omap, "omap3_sys_clk"), 1, 1);
     else if ((value & 0xd0) == 0x80)
@@ -1720,7 +1838,7 @@ static void omap3_prm_write(void *opaque, target_phys_addr_t addr,
         case 0x1264: s->gr.prm_sram_pcharge = value & 0xff; break;
         case 0x1270:
             s->gr.prm_clksrc_ctrl = value & 0xd8; /* set osc bypass mode */ 
-            omap3_prm_clksrc_ctrl_update(s, s->gr.prm_clksrc_ctrl);
+            omap3_prm_clksrc_ctrl_update(s);
             break;
         case 0x1280: OMAP_RO_REG(addr); break;
         case 0x1290: s->gr.prm_voltsetup1 = value; break;
@@ -1748,6 +1866,159 @@ static void omap3_prm_write(void *opaque, target_phys_addr_t addr,
             OMAP_BAD_REGV(addr, value);
             break;
     }
+}
+
+static void omap3_prm_save_domain_state(QEMUFile *f,
+                                        struct omap3_prm_domain_s *s)
+{
+    qemu_put_be32(f, s->rm_rstctrl);
+    qemu_put_be32(f, s->rm_rstst);
+    qemu_put_be32(f, s->pm_wken);
+    qemu_put_be32(f, s->pm_mpugrpsel);
+    qemu_put_be32(f, s->pm_ivagrpsel);
+    qemu_put_be32(f, s->pm_wkst);
+    qemu_put_be32(f, s->pm_wkst3);
+    qemu_put_be32(f, s->pm_wkdep);
+    qemu_put_be32(f, s->pm_evgenctrl);
+    qemu_put_be32(f, s->pm_evgenontim);
+    qemu_put_be32(f, s->pm_evgenofftim);
+    qemu_put_be32(f, s->pm_pwstctrl);
+    qemu_put_be32(f, s->pm_pwstst);
+    qemu_put_be32(f, s->pm_prepwstst);
+    qemu_put_be32(f, s->pm_wken3);
+}
+
+static void omap3_prm_load_domain_state(QEMUFile *f,
+                                        struct omap3_prm_domain_s *s)
+{
+    s->rm_rstctrl = qemu_get_be32(f);
+    s->rm_rstst = qemu_get_be32(f);
+    s->pm_wken = qemu_get_be32(f);
+    s->pm_mpugrpsel = qemu_get_be32(f);
+    s->pm_ivagrpsel = qemu_get_be32(f);
+    s->pm_wkst = qemu_get_be32(f);
+    s->pm_wkst3 = qemu_get_be32(f);
+    s->pm_wkdep = qemu_get_be32(f);
+    s->pm_evgenctrl = qemu_get_be32(f);
+    s->pm_evgenontim = qemu_get_be32(f);
+    s->pm_evgenofftim = qemu_get_be32(f);
+    s->pm_pwstctrl = qemu_get_be32(f);
+    s->pm_pwstst = qemu_get_be32(f);
+    s->pm_prepwstst = qemu_get_be32(f);
+    s->pm_wken3 = qemu_get_be32(f);
+}
+
+static void omap3_prm_save_state(QEMUFile *f, void *opaque)
+{
+    struct omap3_prm_s *s = (struct omap3_prm_s *)opaque;
+    
+    omap3_prm_save_domain_state(f, &s->iva2);
+    omap3_prm_save_domain_state(f, &s->mpu);
+    omap3_prm_save_domain_state(f, &s->core);
+    omap3_prm_save_domain_state(f, &s->sgx);
+    omap3_prm_save_domain_state(f, &s->wkup);
+    omap3_prm_save_domain_state(f, &s->dss);
+    omap3_prm_save_domain_state(f, &s->cam);
+    omap3_prm_save_domain_state(f, &s->per);
+    omap3_prm_save_domain_state(f, &s->emu);
+    omap3_prm_save_domain_state(f, &s->neon);
+    omap3_prm_save_domain_state(f, &s->usbhost);
+    
+    qemu_put_be32(f, s->prm_irqstatus_iva2);
+    qemu_put_be32(f, s->prm_irqenable_iva2);
+    qemu_put_be32(f, s->pm_iva2grpsel3_core);
+    qemu_put_be32(f, s->pm_mpugrpsel3_core);
+    
+    qemu_put_be32(f, s->ocp.prm_revision);
+    qemu_put_be32(f, s->ocp.prm_sysconfig);
+    qemu_put_be32(f, s->ocp.prm_irqstatus_mpu);
+    qemu_put_be32(f, s->ocp.prm_irqenable_mpu);
+    
+    qemu_put_be32(f, s->ccr.prm_clksel);
+    qemu_put_be32(f, s->ccr.prm_clkout_ctrl);
+    
+    qemu_put_be32(f, s->gr.prm_vc_smps_sa);
+    qemu_put_be32(f, s->gr.prm_vc_smps_vol_ra);
+    qemu_put_be32(f, s->gr.prm_vc_smps_cmd_ra);
+    qemu_put_be32(f, s->gr.prm_vc_cmd_val_0);
+    qemu_put_be32(f, s->gr.prm_vc_cmd_val_1);
+    qemu_put_be32(f, s->gr.prm_vc_hc_conf);
+    qemu_put_be32(f, s->gr.prm_vc_i2c_cfg);
+    qemu_put_be32(f, s->gr.prm_vc_bypass_val);
+    qemu_put_be32(f, s->gr.prm_rstctrl);
+    qemu_put_be32(f, s->gr.prm_rsttimer);
+    qemu_put_be32(f, s->gr.prm_rstst);
+    qemu_put_be32(f, s->gr.prm_voltctrl);
+    qemu_put_be32(f, s->gr.prm_sram_pcharge);
+    qemu_put_be32(f, s->gr.prm_clksrc_ctrl);
+    qemu_put_be32(f, s->gr.prm_obs);
+    qemu_put_be32(f, s->gr.prm_voltsetup1);
+    qemu_put_be32(f, s->gr.prm_voltoffset);
+    qemu_put_be32(f, s->gr.prm_clksetup);
+    qemu_put_be32(f, s->gr.prm_polctrl);
+    qemu_put_be32(f, s->gr.prm_voltsetup2);
+}
+
+static int omap3_prm_load_state(QEMUFile *f, void *opaque, int version_id)
+{
+    struct omap3_prm_s *s = (struct omap3_prm_s *)opaque;
+    
+    if (version_id)
+        return -EINVAL;
+    
+    omap3_prm_load_domain_state(f, &s->iva2);
+    omap3_prm_load_domain_state(f, &s->mpu);
+    omap3_prm_load_domain_state(f, &s->core);
+    omap3_prm_load_domain_state(f, &s->sgx);
+    omap3_prm_load_domain_state(f, &s->wkup);
+    omap3_prm_load_domain_state(f, &s->dss);
+    omap3_prm_load_domain_state(f, &s->cam);
+    omap3_prm_load_domain_state(f, &s->per);
+    omap3_prm_load_domain_state(f, &s->emu);
+    omap3_prm_load_domain_state(f, &s->neon);
+    omap3_prm_load_domain_state(f, &s->usbhost);
+    
+    s->prm_irqstatus_iva2 = qemu_get_be32(f);
+    s->prm_irqenable_iva2 = qemu_get_be32(f);
+    s->pm_iva2grpsel3_core = qemu_get_be32(f);
+    s->pm_mpugrpsel3_core = qemu_get_be32(f);
+    
+    s->ocp.prm_revision = qemu_get_be32(f);
+    s->ocp.prm_sysconfig = qemu_get_be32(f);
+    s->ocp.prm_irqstatus_mpu = qemu_get_be32(f);
+    s->ocp.prm_irqenable_mpu = qemu_get_be32(f);
+    
+    s->ccr.prm_clksel = qemu_get_be32(f);
+    s->ccr.prm_clkout_ctrl = qemu_get_be32(f);
+    
+    s->gr.prm_vc_smps_sa = qemu_get_be32(f);
+    s->gr.prm_vc_smps_vol_ra = qemu_get_be32(f);
+    s->gr.prm_vc_smps_cmd_ra = qemu_get_be32(f);
+    s->gr.prm_vc_cmd_val_0 = qemu_get_be32(f);
+    s->gr.prm_vc_cmd_val_1 = qemu_get_be32(f);
+    s->gr.prm_vc_hc_conf = qemu_get_be32(f);
+    s->gr.prm_vc_i2c_cfg = qemu_get_be32(f);
+    s->gr.prm_vc_bypass_val = qemu_get_be32(f);
+    s->gr.prm_rstctrl = qemu_get_be32(f);
+    s->gr.prm_rsttimer = qemu_get_be32(f);
+    s->gr.prm_rstst = qemu_get_be32(f);
+    s->gr.prm_voltctrl = qemu_get_be32(f);
+    s->gr.prm_sram_pcharge = qemu_get_be32(f);
+    s->gr.prm_clksrc_ctrl = qemu_get_be32(f);
+    s->gr.prm_obs = qemu_get_be32(f);
+    s->gr.prm_voltsetup1 = qemu_get_be32(f);
+    s->gr.prm_voltoffset = qemu_get_be32(f);
+    s->gr.prm_clksetup = qemu_get_be32(f);
+    s->gr.prm_polctrl = qemu_get_be32(f);
+    s->gr.prm_voltsetup2 = qemu_get_be32(f);
+    
+    omap3_prm_int_update(s);
+    omap3_prm_clksrc_ctrl_update(s);
+    omap3_prm_clksel_update(s);
+    omap_clk_onoff(omap_findclk(s->omap, "omap3_sys_clkout1"),
+                   s->ccr.prm_clkout_ctrl & 0x80);
+    
+    return 0;
 }
 
 static CPUReadMemoryFunc *omap3_prm_readfn[] = {
@@ -1778,6 +2049,9 @@ struct omap3_prm_s *omap3_prm_init(struct omap_target_agent_s *ta,
                                       omap3_prm_writefn, s);
     omap_l4_attach(ta, 0, iomemtype);
     omap_l4_attach(ta, 1, iomemtype);
+
+    register_savevm("omap3_prm", -1, 0,
+                    omap3_prm_save_state, omap3_prm_load_state, s);
 
     return s;
 }
@@ -2249,6 +2523,14 @@ static inline void omap3_cm_iclken1_core_update(struct omap3_cm_s *s)
     s->cm_idlest1_core = ~v;
 }
 
+static inline void omap3_cm_l3l4iclk_update(struct omap3_cm_s *s)
+{
+    omap_clk_setrate(omap_findclk(s->mpu, "omap3_l3_iclk"),
+                     s->cm_clksel_core & 0x3, 1);
+    omap_clk_setrate(omap_findclk(s->mpu, "omap3_l4_iclk"),
+                     (s->cm_clksel_core >> 2) & 0x3, 1);
+}
+
 static void omap3_cm_reset(struct omap3_cm_s *s)
 {
     s->cm_fclken_iva2 = 0x0;
@@ -2602,10 +2884,7 @@ static void omap3_cm_write(void *opaque,
         case 0xa40:
             s->cm_clksel_core = (value & 0xff) | 0x100;
             omap3_cm_gp10gp11_update(s);
-            omap_clk_setrate(omap_findclk(s->mpu, "omap3_l3_iclk"),
-                             s->cm_clksel_core & 0x3, 1);
-            omap_clk_setrate(omap_findclk(s->mpu, "omap3_l4_iclk"),
-                             (s->cm_clksel_core >> 2) & 0x3, 1);
+            omap3_cm_l3l4iclk_update(s);
             break;
         case 0xa48:
             s->cm_clkstctrl_core = value & 0xf;
@@ -2728,11 +3007,266 @@ static void omap3_cm_write(void *opaque,
         case 0x1444: s->cm_sleepdep_usbhost = value & 0x6; break;
         case 0x1448: s->cm_clkstctrl_usbhost = value & 0x3; break;
         /* unknown */
-        default: OMAP_BAD_REGV(addr, value); break;
+        default:
+            OMAP_BAD_REGV(addr, value);
+            break;
     }
 }
 
+static void omap3_cm_save_state(QEMUFile *f, void *opaque)
+{
+    struct omap3_cm_s *s = (struct omap3_cm_s *)opaque;
+    
+    qemu_put_be32(f, s->cm_fclken_iva2);
+    qemu_put_be32(f, s->cm_clken_pll_iva2);
+    qemu_put_be32(f, s->cm_idlest_iva2);
+    qemu_put_be32(f, s->cm_idlest_pll_iva2);
+    qemu_put_be32(f, s->cm_autoidle_pll_iva2);
+    qemu_put_be32(f, s->cm_clksel1_pll_iva2);
+    qemu_put_be32(f, s->cm_clksel2_pll_iva2);
+    qemu_put_be32(f, s->cm_clkstctrl_iva2);
+    qemu_put_be32(f, s->cm_clkstst_iva2);
+    
+    qemu_put_be32(f, s->cm_revision);
+    qemu_put_be32(f, s->cm_sysconfig);
+    
+    qemu_put_be32(f, s->cm_clken_pll_mpu);
+    qemu_put_be32(f, s->cm_idlest_mpu);
+    qemu_put_be32(f, s->cm_idlest_pll_mpu);
+    qemu_put_be32(f, s->cm_autoidle_pll_mpu);
+    qemu_put_be32(f, s->cm_clksel1_pll_mpu);
+    qemu_put_be32(f, s->cm_clksel2_pll_mpu);
+    qemu_put_be32(f, s->cm_clkstctrl_mpu);
+    qemu_put_be32(f, s->cm_clkstst_mpu);
+    
+    qemu_put_be32(f, s->cm_fclken1_core);
+    qemu_put_be32(f, s->cm_fclken3_core);
+    qemu_put_be32(f, s->cm_iclken1_core);
+    qemu_put_be32(f, s->cm_iclken2_core);
+    qemu_put_be32(f, s->cm_iclken3_core);
+    qemu_put_be32(f, s->cm_idlest1_core);
+    qemu_put_be32(f, s->cm_idlest2_core);
+    qemu_put_be32(f, s->cm_idlest3_core);
+    qemu_put_be32(f, s->cm_autoidle1_core);
+    qemu_put_be32(f, s->cm_autoidle2_core);
+    qemu_put_be32(f, s->cm_autoidle3_core);
+    qemu_put_be32(f, s->cm_clksel_core);
+    qemu_put_be32(f, s->cm_clkstctrl_core);
+    qemu_put_be32(f, s->cm_clkstst_core);
+    
+    qemu_put_be32(f, s->cm_fclken_sgx);
+    qemu_put_be32(f, s->cm_iclken_sgx);
+    qemu_put_be32(f, s->cm_idlest_sgx);
+    qemu_put_be32(f, s->cm_clksel_sgx);
+    qemu_put_be32(f, s->cm_sleepdep_sgx);
+    qemu_put_be32(f, s->cm_clkstctrl_sgx);
+    qemu_put_be32(f, s->cm_clkstst_sgx);
+    
+    qemu_put_be32(f, s->cm_fclken_wkup);
+    qemu_put_be32(f, s->cm_iclken_wkup);
+    qemu_put_be32(f, s->cm_idlest_wkup);
+    qemu_put_be32(f, s->cm_autoidle_wkup);
+    qemu_put_be32(f, s->cm_clksel_wkup);
+    qemu_put_be32(f, s->cm_c48);
+    
+    qemu_put_be32(f, s->cm_clken_pll);
+    qemu_put_be32(f, s->cm_clken2_pll);
+    qemu_put_be32(f, s->cm_idlest_ckgen);
+    qemu_put_be32(f, s->cm_idlest2_ckgen);
+    qemu_put_be32(f, s->cm_autoidle_pll);
+    qemu_put_be32(f, s->cm_autoidle2_pll);
+    qemu_put_be32(f, s->cm_clksel1_pll);
+    qemu_put_be32(f, s->cm_clksel2_pll);
+    qemu_put_be32(f, s->cm_clksel3_pll);
+    qemu_put_be32(f, s->cm_clksel4_pll);
+    qemu_put_be32(f, s->cm_clksel5_pll);
+    qemu_put_be32(f, s->cm_clkout_ctrl);
+    
+    qemu_put_be32(f, s->cm_fclken_dss);
+    qemu_put_be32(f, s->cm_iclken_dss);
+    qemu_put_be32(f, s->cm_idlest_dss);
+    qemu_put_be32(f, s->cm_autoidle_dss);
+    qemu_put_be32(f, s->cm_clksel_dss);
+    qemu_put_be32(f, s->cm_sleepdep_dss);
+    qemu_put_be32(f, s->cm_clkstctrl_dss);
+    qemu_put_be32(f, s->cm_clkstst_dss);
+    
+    qemu_put_be32(f, s->cm_fclken_cam);
+    qemu_put_be32(f, s->cm_iclken_cam);
+    qemu_put_be32(f, s->cm_idlest_cam);
+    qemu_put_be32(f, s->cm_autoidle_cam);
+    qemu_put_be32(f, s->cm_clksel_cam);
+    qemu_put_be32(f, s->cm_sleepdep_cam);
+    qemu_put_be32(f, s->cm_clkstctrl_cam);
+    qemu_put_be32(f, s->cm_clkstst_cam);
 
+    qemu_put_be32(f, s->cm_fclken_per);
+    qemu_put_be32(f, s->cm_iclken_per);
+    qemu_put_be32(f, s->cm_idlest_per);
+    qemu_put_be32(f, s->cm_autoidle_per);
+    qemu_put_be32(f, s->cm_clksel_per);
+    qemu_put_be32(f, s->cm_sleepdep_per);
+    qemu_put_be32(f, s->cm_clkstctrl_per);
+    qemu_put_be32(f, s->cm_clkstst_per);
+    
+    qemu_put_be32(f, s->cm_clksel1_emu);
+    qemu_put_be32(f, s->cm_clkstctrl_emu);
+    qemu_put_be32(f, s->cm_clkstst_emu);
+    qemu_put_be32(f, s->cm_clksel2_emu);
+    qemu_put_be32(f, s->cm_clksel3_emu);
+    
+    qemu_put_be32(f, s->cm_polctrl);
+
+    qemu_put_be32(f, s->cm_idlest_neon);
+    qemu_put_be32(f, s->cm_clkstctrl_neon);
+
+    qemu_put_be32(f, s->cm_fclken_usbhost);
+    qemu_put_be32(f, s->cm_iclken_usbhost);
+    qemu_put_be32(f, s->cm_idlest_usbhost);
+    qemu_put_be32(f, s->cm_autoidle_usbhost);
+    qemu_put_be32(f, s->cm_sleepdep_usbhost);
+    qemu_put_be32(f, s->cm_clkstctrl_usbhost);
+    qemu_put_be32(f, s->cm_clkstst_usbhost);
+}
+
+static int omap3_cm_load_state(QEMUFile *f, void *opaque, int version_id)
+{
+    struct omap3_cm_s *s = (struct omap3_cm_s *)opaque;
+    
+    if (version_id)
+        return -EINVAL;
+    
+    s->cm_fclken_iva2 = qemu_get_be32(f);
+    s->cm_clken_pll_iva2 = qemu_get_be32(f);
+    s->cm_idlest_iva2 = qemu_get_be32(f);
+    s->cm_idlest_pll_iva2 = qemu_get_be32(f);
+    s->cm_autoidle_pll_iva2 = qemu_get_be32(f);
+    s->cm_clksel1_pll_iva2 = qemu_get_be32(f);
+    s->cm_clksel2_pll_iva2 = qemu_get_be32(f);
+    s->cm_clkstctrl_iva2 = qemu_get_be32(f);
+    s->cm_clkstst_iva2 = qemu_get_be32(f);
+    
+    s->cm_revision = qemu_get_be32(f);
+    s->cm_sysconfig = qemu_get_be32(f);
+    
+    s->cm_clken_pll_mpu = qemu_get_be32(f);
+    s->cm_idlest_mpu = qemu_get_be32(f);
+    s->cm_idlest_pll_mpu = qemu_get_be32(f);
+    s->cm_autoidle_pll_mpu = qemu_get_be32(f);
+    s->cm_clksel1_pll_mpu = qemu_get_be32(f);
+    s->cm_clksel2_pll_mpu = qemu_get_be32(f);
+    s->cm_clkstctrl_mpu = qemu_get_be32(f);
+    s->cm_clkstst_mpu = qemu_get_be32(f);
+    
+    s->cm_fclken1_core = qemu_get_be32(f);
+    s->cm_fclken3_core = qemu_get_be32(f);
+    s->cm_iclken1_core = qemu_get_be32(f);
+    s->cm_iclken2_core = qemu_get_be32(f);
+    s->cm_iclken3_core = qemu_get_be32(f);
+    s->cm_idlest1_core = qemu_get_be32(f);
+    s->cm_idlest2_core = qemu_get_be32(f);
+    s->cm_idlest3_core = qemu_get_be32(f);
+    s->cm_autoidle1_core = qemu_get_be32(f);
+    s->cm_autoidle2_core = qemu_get_be32(f);
+    s->cm_autoidle3_core = qemu_get_be32(f);
+    s->cm_clksel_core = qemu_get_be32(f);
+    s->cm_clkstctrl_core = qemu_get_be32(f);
+    s->cm_clkstst_core = qemu_get_be32(f);
+    
+    s->cm_fclken_sgx = qemu_get_be32(f);
+    s->cm_iclken_sgx = qemu_get_be32(f);
+    s->cm_idlest_sgx = qemu_get_be32(f);
+    s->cm_clksel_sgx = qemu_get_be32(f);
+    s->cm_sleepdep_sgx = qemu_get_be32(f);
+    s->cm_clkstctrl_sgx = qemu_get_be32(f);
+    s->cm_clkstst_sgx = qemu_get_be32(f);
+    
+    s->cm_fclken_wkup = qemu_get_be32(f);
+    s->cm_iclken_wkup = qemu_get_be32(f);
+    s->cm_idlest_wkup = qemu_get_be32(f);
+    s->cm_autoidle_wkup = qemu_get_be32(f);
+    s->cm_clksel_wkup = qemu_get_be32(f);
+    s->cm_c48 = qemu_get_be32(f);
+    
+    s->cm_clken_pll = qemu_get_be32(f);
+    s->cm_clken2_pll = qemu_get_be32(f);
+    s->cm_idlest_ckgen = qemu_get_be32(f);
+    s->cm_idlest2_ckgen = qemu_get_be32(f);
+    s->cm_autoidle_pll = qemu_get_be32(f);
+    s->cm_autoidle2_pll = qemu_get_be32(f);
+    s->cm_clksel1_pll = qemu_get_be32(f);
+    s->cm_clksel2_pll = qemu_get_be32(f);
+    s->cm_clksel3_pll = qemu_get_be32(f);
+    s->cm_clksel4_pll = qemu_get_be32(f);
+    s->cm_clksel5_pll = qemu_get_be32(f);
+    s->cm_clkout_ctrl = qemu_get_be32(f);
+    
+    s->cm_fclken_dss = qemu_get_be32(f);
+    s->cm_iclken_dss = qemu_get_be32(f);
+    s->cm_idlest_dss = qemu_get_be32(f);
+    s->cm_autoidle_dss = qemu_get_be32(f);
+    s->cm_clksel_dss = qemu_get_be32(f);
+    s->cm_sleepdep_dss = qemu_get_be32(f);
+    s->cm_clkstctrl_dss = qemu_get_be32(f);
+    s->cm_clkstst_dss = qemu_get_be32(f);
+    
+    s->cm_fclken_cam = qemu_get_be32(f);
+    s->cm_iclken_cam = qemu_get_be32(f);
+    s->cm_idlest_cam = qemu_get_be32(f);
+    s->cm_autoidle_cam = qemu_get_be32(f);
+    s->cm_clksel_cam = qemu_get_be32(f);
+    s->cm_sleepdep_cam = qemu_get_be32(f);
+    s->cm_clkstctrl_cam = qemu_get_be32(f);
+    s->cm_clkstst_cam = qemu_get_be32(f);
+    
+    s->cm_fclken_per = qemu_get_be32(f);
+    s->cm_iclken_per = qemu_get_be32(f);
+    s->cm_idlest_per = qemu_get_be32(f);
+    s->cm_autoidle_per = qemu_get_be32(f);
+    s->cm_clksel_per = qemu_get_be32(f);
+    s->cm_sleepdep_per = qemu_get_be32(f);
+    s->cm_clkstctrl_per = qemu_get_be32(f);
+    s->cm_clkstst_per = qemu_get_be32(f);
+    
+    s->cm_clksel1_emu = qemu_get_be32(f);
+    s->cm_clkstctrl_emu = qemu_get_be32(f);
+    s->cm_clkstst_emu = qemu_get_be32(f);
+    s->cm_clksel2_emu = qemu_get_be32(f);
+    s->cm_clksel3_emu = qemu_get_be32(f);
+    
+    s->cm_polctrl = qemu_get_be32(f);
+    
+    s->cm_idlest_neon = qemu_get_be32(f);
+    s->cm_clkstctrl_neon = qemu_get_be32(f);
+    
+    s->cm_fclken_usbhost = qemu_get_be32(f);
+    s->cm_iclken_usbhost = qemu_get_be32(f);
+    s->cm_idlest_usbhost = qemu_get_be32(f);
+    s->cm_autoidle_usbhost = qemu_get_be32(f);
+    s->cm_sleepdep_usbhost = qemu_get_be32(f);
+    s->cm_clkstctrl_usbhost = qemu_get_be32(f);
+    s->cm_clkstst_usbhost = qemu_get_be32(f);
+
+    omap3_cm_iva2_update(s);
+    omap3_cm_mpu_update(s);
+    omap3_cm_fclken1_core_update(s);
+    omap3_cm_iclken1_core_update(s);
+    omap3_cm_gp10gp11_update(s);
+    omap3_cm_l3l4iclk_update(s);
+    omap_clk_onoff(omap_findclk(s->mpu, "omap3_gp1_fclk"),
+                   s->cm_fclken_wkup & 1);
+    omap_clk_onoff(omap_findclk(s->mpu, "omap3_wkup_l4_iclk"),
+                   s->cm_iclken_wkup ? 1 : 0);
+    omap3_cm_clksel_wkup_update(s);
+    omap3_cm_dpll3_update(s);
+    omap3_cm_dpll4_update(s);
+    omap3_cm_dpll5_update(s);
+    omap3_cm_48m_update(s);
+    omap3_cm_clkout2_update(s);
+    omap3_cm_per_gptimer_update(s);
+    
+    return 0;
+}
 
 static CPUReadMemoryFunc *omap3_cm_readfn[] = {
     omap_badwidth_read32,
@@ -2763,6 +3297,8 @@ struct omap3_cm_s *omap3_cm_init(struct omap_target_agent_s *ta,
     omap_l4_attach(ta, 0, iomemtype);
     omap_l4_attach(ta, 1, iomemtype);
 
+    register_savevm("omap3_cm", -1, 0,
+                    omap3_cm_save_state, omap3_cm_load_state, s);
     return s;
 }
 
@@ -3037,6 +3573,59 @@ static void omap3_mpu_wdt_timer_tick(void *opaque)
     omap3_wdt_timer_update(wdt_timer);
 }
 
+static void omap3_mpu_wdt_save_state(QEMUFile *f, void *opaque)
+{
+    struct omap3_wdt_s *s = (struct omap3_wdt_s *)opaque;
+
+    qemu_put_timer(f, s->timer);
+    qemu_put_sbe32(f, s->active);
+    qemu_put_be64(f, s->rate);
+    qemu_put_be64(f, s->time);
+    qemu_put_be32(f, s->wd_sysconfig);
+    qemu_put_be32(f, s->wd_sysstatus);
+    qemu_put_be32(f, s->wisr);
+    qemu_put_be32(f, s->wier);
+    qemu_put_be32(f, s->wclr);
+    qemu_put_be32(f, s->wcrr);
+    qemu_put_be32(f, s->wldr);
+    qemu_put_be32(f, s->wtgr);
+    qemu_put_be32(f, s->wwps);
+    qemu_put_be32(f, s->wspr);
+    qemu_put_be32(f, s->pre);
+    qemu_put_be32(f, s->ptv);
+    qemu_put_be16(f, s->writeh);
+    qemu_put_be16(f, s->readh);
+}
+
+static int omap3_mpu_wdt_load_state(QEMUFile *f, void *opaque, int version_id)
+{
+    struct omap3_wdt_s *s = (struct omap3_wdt_s *)opaque;
+    
+    if (version_id)
+        return -EINVAL;
+    
+    qemu_get_timer(f, s->timer);
+    s->active = qemu_get_sbe32(f);
+    s->rate = qemu_get_be64(f);
+    s->time = qemu_get_be64(f);
+    s->wd_sysconfig = qemu_get_be32(f);
+    s->wd_sysstatus = qemu_get_be32(f);
+    s->wisr = qemu_get_be32(f);
+    s->wier = qemu_get_be32(f);
+    s->wclr = qemu_get_be32(f);
+    s->wcrr = qemu_get_be32(f);
+    s->wldr = qemu_get_be32(f);
+    s->wtgr = qemu_get_be32(f);
+    s->wwps = qemu_get_be32(f);
+    s->wspr = qemu_get_be32(f);
+    s->pre = qemu_get_be32(f);
+    s->ptv = qemu_get_be32(f);
+    s->writeh = qemu_get_be16(f);
+    s->readh = qemu_get_be16(f);
+    
+    return 0;
+}
+
 static struct omap3_wdt_s *omap3_mpu_wdt_init(struct omap_target_agent_s *ta,
                                               qemu_irq irq, omap_clk fclk,
                                               omap_clk iclk,
@@ -3057,8 +3646,9 @@ static struct omap3_wdt_s *omap3_mpu_wdt_init(struct omap_target_agent_s *ta,
                                       omap3_mpu_wdt_writefn, s);
     omap_l4_attach(ta, 0, iomemtype);
 
+    register_savevm("omap3_mpu_wdt", -1, 0,
+                    omap3_mpu_wdt_save_state, omap3_mpu_wdt_load_state, s);
     return s;
-
 }
 
 struct omap3_scm_s {
@@ -3071,6 +3661,41 @@ struct omap3_scm_s {
 	uint8 padconfs_wkup[84]; /*0x4800 2a00*/
 	uint32 general_wkup[8];  /*0x4800 2a60*/
 };
+
+static void omap3_scm_save_state(QEMUFile *f, void *opaque)
+{
+    struct omap3_scm_s *s = (struct omap3_scm_s *)opaque;
+    int i;
+
+    qemu_put_buffer(f, s->interface, sizeof(s->interface));
+    qemu_put_buffer(f, s->padconfs, sizeof(s->padconfs));
+    for (i = 0; i < sizeof(s->general)/sizeof(uint32); i++)
+        qemu_put_be32(f, s->general[i]);
+    qemu_put_buffer(f, s->mem_wkup, sizeof(s->mem_wkup));
+    qemu_put_buffer(f, s->padconfs_wkup, sizeof(s->padconfs_wkup));
+    for (i = 0; i < sizeof(s->general_wkup)/sizeof(uint32); i++)
+        qemu_put_be32(f, s->general_wkup[i]);
+}
+
+static int omap3_scm_load_state(QEMUFile *f, void *opaque, int version_id)
+{
+    struct omap3_scm_s *s = (struct omap3_scm_s *)opaque;
+    int i;
+    
+    if (version_id)
+        return -EINVAL;
+    
+    qemu_get_buffer(f, s->interface, sizeof(s->interface));
+    qemu_get_buffer(f, s->padconfs, sizeof(s->padconfs));
+    for (i = 0; i < sizeof(s->general)/sizeof(uint32); i++)
+        s->general[i] = qemu_get_be32(f);
+    qemu_get_buffer(f, s->mem_wkup, sizeof(s->mem_wkup));
+    qemu_get_buffer(f, s->padconfs_wkup, sizeof(s->padconfs_wkup));
+    for (i = 0; i < sizeof(s->general_wkup)/sizeof(uint32); i++)
+        s->general_wkup[i] = qemu_get_be32(f);
+
+    return 0;
+}
 
 #define PADCONFS_VALUE(wakeup0,wakeup1,offmode0,offmode1, \
 						inputenable0,inputenable1,pupd0,pupd1,muxmode0,muxmode1,offset) \
@@ -3379,6 +4004,8 @@ static struct omap3_scm_s *omap3_scm_init(struct omap_target_agent_s *ta,
                                       omap3_scm_writefn, s);
     omap_l4_attach(ta, 0, iomemtype);
     
+    register_savevm("omap3_scm", -1, 0,
+                    omap3_scm_save_state, omap3_scm_load_state, s);
     return s;
 }
 
@@ -3407,6 +4034,79 @@ struct omap3_sms_s
     uint32 sms_rot_size[12];
     uint32 sms_rot_physical_ba[12];
 };
+
+static void omap3_sms_save_state(QEMUFile *f, void *opaque)
+{
+    struct omap3_sms_s *s = (struct omap3_sms_s *)opaque;
+    int i;
+
+    qemu_put_be32(f, s->sms_sysconfig);
+    qemu_put_be32(f, s->sms_sysstatus);
+    for (i = 0; i < 8; i++) {
+        qemu_put_be32(f, s->sms_rg_att[i]);
+        qemu_put_be32(f, s->sms_rg_rdperm[i]);
+        qemu_put_be32(f, s->sms_rg_wrperm[i]);
+        if (i < 7) {
+            qemu_put_be32(f, s->sms_rg_start[i]);
+            qemu_put_be32(f, s->sms_rg_end[i]);
+        }
+    }
+    qemu_put_be32(f, s->sms_security_control);
+    qemu_put_be32(f, s->sms_class_arbiter0);
+    qemu_put_be32(f, s->sms_class_arbiter1);
+    qemu_put_be32(f, s->sms_class_arbiter2);
+    qemu_put_be32(f, s->sms_interclass_arbiter);
+    qemu_put_be32(f, s->sms_class_rotation[0]);
+    qemu_put_be32(f, s->sms_class_rotation[1]);
+    qemu_put_be32(f, s->sms_class_rotation[2]);
+    qemu_put_be32(f, s->sms_err_addr);
+    qemu_put_be32(f, s->sms_err_type);
+    qemu_put_be32(f, s->sms_pow_ctrl);
+    for (i = 0; i< 12; i++) {
+        qemu_put_be32(f, s->sms_rot_control[i]);
+        qemu_put_be32(f, s->sms_rot_size[i]);
+        qemu_put_be32(f, s->sms_rot_physical_ba[i]);
+    }
+}
+
+static int omap3_sms_load_state(QEMUFile *f, void *opaque, int version_id)
+{
+    struct omap3_sms_s *s = (struct omap3_sms_s *)opaque;
+    int i;
+    
+    if (version_id)
+        return -EINVAL;
+    
+    s->sms_sysconfig = qemu_get_be32(f);
+    s->sms_sysstatus = qemu_get_be32(f);
+    for (i = 0; i < 8; i++) {
+        s->sms_rg_att[i] = qemu_get_be32(f);
+        s->sms_rg_rdperm[i] = qemu_get_be32(f);
+        s->sms_rg_wrperm[i] = qemu_get_be32(f);
+        if (i < 7) {
+            s->sms_rg_start[i] = qemu_get_be32(f);
+            s->sms_rg_end[i] = qemu_get_be32(f);
+        }
+    }
+    s->sms_security_control = qemu_get_be32(f);
+    s->sms_class_arbiter0 = qemu_get_be32(f);
+    s->sms_class_arbiter1 = qemu_get_be32(f);
+    s->sms_class_arbiter2 = qemu_get_be32(f);
+    s->sms_interclass_arbiter = qemu_get_be32(f);
+    s->sms_class_rotation[0] = qemu_get_be32(f);
+    s->sms_class_rotation[1] = qemu_get_be32(f);
+    s->sms_class_rotation[2] = qemu_get_be32(f);
+    s->sms_err_addr = qemu_get_be32(f);
+    s->sms_err_type = qemu_get_be32(f);
+    s->sms_pow_ctrl = qemu_get_be32(f);
+    for (i = 0; i< 12; i++) {
+        s->sms_rot_control[i] = qemu_get_be32(f);
+        s->sms_rot_size[i] = qemu_get_be32(f);
+        s->sms_rot_physical_ba[i] = qemu_get_be32(f);
+    }
+    
+    return 0;
+}
 
 static uint32_t omap3_sms_read32(void *opaque, target_phys_addr_t addr)
 {
@@ -3707,10 +4407,10 @@ static struct omap3_sms_s *omap3_sms_init(struct omap_mpu_state_s *mpu)
                                        omap3_sms_writefn, s);
     cpu_register_physical_memory(0x6c000000, 0x10000, iomemtype);
 
+    register_savevm("omap3_sms", -1, 0,
+                    omap3_sms_save_state, omap3_sms_load_state, s);
     return s;
 }
-
-#define OMAP3_BOOT_ROM_SIZE 0x1c000 /* 80 + 32 kB */
 
 static const struct dma_irq_map omap3_dma_irq_map[] = {
     {0, OMAP_INT_3XXX_SDMA_IRQ0},
@@ -3756,9 +4456,10 @@ struct omap_mpu_state_s *omap3530_mpu_init(unsigned long sdram_size,
     cpu_register_physical_memory(OMAP3_SRAM_BASE, s->sram_size,
                                  sram_base | IO_MEM_RAM);
     bootrom_base = qemu_ram_alloc(OMAP3XXX_BOOTROM_SIZE);
-    cpu_register_physical_memory(OMAP3_Q1_BASE + 0x14000, OMAP3_BOOT_ROM_SIZE,
+    cpu_register_physical_memory(OMAP3_Q1_BASE + 0x14000,
+                                 OMAP3XXX_BOOTROM_SIZE,
                                  bootrom_base | IO_MEM_ROM);
-    cpu_register_physical_memory(0, OMAP3_BOOT_ROM_SIZE,
+    cpu_register_physical_memory(0, OMAP3XXX_BOOTROM_SIZE,
                                  bootrom_base | IO_MEM_ROM);
 
     s->l4 = omap_l4_init(OMAP3_L4_BASE, 

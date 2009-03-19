@@ -154,6 +154,217 @@ static void omap_dss_interrupt_update(struct omap_dss_s *s)
                  | (s->dispc.irqst & s->dispc.irqen));
 }
 
+static void omap_dss_save_state(QEMUFile *f, void *opaque)
+{
+    struct omap_dss_s *s = (struct omap_dss_s *)opaque;
+    int i, j;
+    
+    qemu_put_sbe32(f, s->autoidle);
+    qemu_put_sbe32(f, s->control);
+    qemu_put_be32(f, s->sdi_control);
+    qemu_put_be32(f, s->pll_control);
+    qemu_put_sbe32(f, s->enable);
+    qemu_put_sbe32(f, s->dig.enable);
+    qemu_put_sbe32(f, s->dig.nx);
+    qemu_put_sbe32(f, s->dig.ny);
+    qemu_put_sbe32(f, s->dig.x);
+    qemu_put_sbe32(f, s->dig.y);
+    qemu_put_sbe32(f, s->lcd.enable);
+    qemu_put_sbe32(f, s->lcd.nx);
+    qemu_put_sbe32(f, s->lcd.ny);
+    qemu_put_sbe32(f, s->lcd.x);
+    qemu_put_sbe32(f, s->lcd.y);
+    qemu_put_be32(f, s->dispc.idlemode);
+    qemu_put_be32(f, s->dispc.irqst);
+    qemu_put_be32(f, s->dispc.irqen);
+    qemu_put_be32(f, s->dispc.control);
+    qemu_put_be32(f, s->dispc.config);
+    qemu_put_be32(f, s->dispc.capable);
+    qemu_put_be32(f, s->dispc.timing[0]);
+    qemu_put_be32(f, s->dispc.timing[1]);
+    qemu_put_be32(f, s->dispc.timing[2]);
+    qemu_put_be32(f, s->dispc.timing[3]);
+    qemu_put_sbe32(f, s->dispc.line);
+    qemu_put_be32(f, s->dispc.bg[0]);
+    qemu_put_be32(f, s->dispc.bg[1]);
+    qemu_put_be32(f, s->dispc.trans[0]);
+    qemu_put_be32(f, s->dispc.trans[1]);
+    qemu_put_be32(f, s->dispc.global_alpha);
+    qemu_put_be32(f, s->dispc.cpr_coef_r);
+    qemu_put_be32(f, s->dispc.cpr_coef_g);
+    qemu_put_be32(f, s->dispc.cpr_coef_b);
+    for (i = 0; i < 3; i++) {
+        qemu_put_sbe32(f, s->dispc.l[i].enable);
+        qemu_put_sbe32(f, s->dispc.l[i].bpp);
+        qemu_put_sbe32(f, s->dispc.l[i].posx);
+        qemu_put_sbe32(f, s->dispc.l[i].posy);
+        qemu_put_sbe32(f, s->dispc.l[i].nx);
+        qemu_put_sbe32(f, s->dispc.l[i].ny);
+        qemu_put_sbe32(f, s->dispc.l[i].rotation_flag);
+        qemu_put_sbe32(f, s->dispc.l[i].gfx_format);
+        qemu_put_sbe32(f, s->dispc.l[i].gfx_channel);
+        for (j = 0; j < 3; j++) {
+#if TARGET_PHYS_ADDR_BITS == 32
+            qemu_put_be32(f, s->dispc.l[i].addr[j]);
+#elif TARGET_PHYS_ADDR_BITS == 64
+            qemu_put_be64(f, s->dispc.l[i].addr[j]);
+#else
+#error TARGET_PHYS_ADDR_BITS undefined
+#endif
+        }
+        qemu_put_be32(f, s->dispc.l[i].attr);
+        qemu_put_be32(f, s->dispc.l[i].tresh);
+        qemu_put_sbe32(f, s->dispc.l[i].rowinc);
+        qemu_put_sbe32(f, s->dispc.l[i].colinc);
+        qemu_put_sbe32(f, s->dispc.l[i].wininc);
+        qemu_put_be32(f, s->dispc.l[i].preload);
+        qemu_put_be32(f, s->dispc.l[i].fir);
+        for (j = 0; j < 8; j++) {
+            qemu_put_be32(f, s->dispc.l[i].fir_coef_h[j]);
+            qemu_put_be32(f, s->dispc.l[i].fir_coef_hv[j]);
+            qemu_put_be32(f, s->dispc.l[i].fir_coef_v[j]);
+            if (j < 5)
+                qemu_put_be32(f, s->dispc.l[i].conv_coef[j]);
+        }
+        qemu_put_be32(f, s->dispc.l[i].picture_size);
+        qemu_put_be32(f, s->dispc.l[i].accu[0]);
+        qemu_put_be32(f, s->dispc.l[i].accu[1]);
+    }
+    qemu_put_sbe32(f, s->dispc.invalidate);
+    for (i = 0; i < 256; i++)
+        qemu_put_be16(f, s->dispc.palette[i]);
+    qemu_put_sbe32(f, s->rfbi.idlemode);
+    qemu_put_be32(f, s->rfbi.control);
+    qemu_put_sbe32(f, s->rfbi.enable);
+    qemu_put_sbe32(f, s->rfbi.pixels);
+    qemu_put_sbe32(f, s->rfbi.busy);
+    qemu_put_sbe32(f, s->rfbi.skiplines);
+    qemu_put_be16(f, s->rfbi.rxbuf);
+    for (i = 0; i < 6; i++) {
+        if (i < 2)
+            qemu_put_be32(f, s->rfbi.config[i]);
+        if (i < 4)
+            qemu_put_be32(f, s->rfbi.time[i]);
+        qemu_put_be32(f, s->rfbi.data[i]);
+    }
+    qemu_put_be16(f, s->rfbi.vsync);
+    qemu_put_be16(f, s->rfbi.hsync);
+    qemu_put_be32(f, s->dsi.irqst);
+    qemu_put_be32(f, s->dsi.irqen);
+}
+
+static int omap_dss_load_state(QEMUFile *f, void *opaque, int version_id)
+{
+    struct omap_dss_s *s = (struct omap_dss_s *)opaque;
+    int i, j;
+    
+    if (version_id)
+        return -EINVAL;
+    
+    s->autoidle = qemu_get_sbe32(f);
+    s->control = qemu_get_sbe32(f);
+    s->sdi_control = qemu_get_be32(f);
+    s->pll_control = qemu_get_be32(f);
+    s->enable = qemu_get_sbe32(f);
+    s->dig.enable = qemu_get_sbe32(f);
+    s->dig.nx = qemu_get_sbe32(f);
+    s->dig.ny = qemu_get_sbe32(f);
+    s->dig.x = qemu_get_sbe32(f);
+    s->dig.y = qemu_get_sbe32(f);
+    s->lcd.enable = qemu_get_sbe32(f);
+    s->lcd.nx = qemu_get_sbe32(f);
+    s->lcd.ny = qemu_get_sbe32(f);
+    s->lcd.x = qemu_get_sbe32(f);
+    s->lcd.y = qemu_get_sbe32(f);
+    s->dispc.idlemode = qemu_get_be32(f);
+    s->dispc.irqst = qemu_get_be32(f);
+    s->dispc.irqen = qemu_get_be32(f);
+    s->dispc.control = qemu_get_be32(f);
+    s->dispc.config = qemu_get_be32(f);
+    s->dispc.capable = qemu_get_be32(f);
+    s->dispc.timing[0] = qemu_get_be32(f);
+    s->dispc.timing[1] = qemu_get_be32(f);
+    s->dispc.timing[2] = qemu_get_be32(f);
+    s->dispc.timing[3] = qemu_get_be32(f);
+    s->dispc.line = qemu_get_sbe32(f);
+    s->dispc.bg[0] = qemu_get_be32(f);
+    s->dispc.bg[1] = qemu_get_be32(f);
+    s->dispc.trans[0] = qemu_get_be32(f);
+    s->dispc.trans[1] = qemu_get_be32(f);
+    s->dispc.global_alpha = qemu_get_be32(f);
+    s->dispc.cpr_coef_r = qemu_get_be32(f);
+    s->dispc.cpr_coef_g = qemu_get_be32(f);
+    s->dispc.cpr_coef_b = qemu_get_be32(f);
+    for (i = 0; i < 3; i++) {
+        s->dispc.l[i].enable = qemu_get_sbe32(f);
+        s->dispc.l[i].bpp = qemu_get_sbe32(f);
+        s->dispc.l[i].posx = qemu_get_sbe32(f);
+        s->dispc.l[i].posy = qemu_get_sbe32(f);
+        s->dispc.l[i].nx = qemu_get_sbe32(f);
+        s->dispc.l[i].ny = qemu_get_sbe32(f);
+        s->dispc.l[i].rotation_flag = qemu_get_sbe32(f);
+        s->dispc.l[i].gfx_format = qemu_get_sbe32(f);
+        s->dispc.l[i].gfx_channel = qemu_get_sbe32(f);
+        for (j = 0; j < 3; j++) {
+#if TARGET_PHYS_ADDR_BITS == 32
+            s->dispc.l[i].addr[j] = qemu_get_be32(f);
+#elif TARGET_PHYS_ADDR_BITS == 64
+            s->dispc.l[i].addr[j] = qemu_get_be64(f);
+#else
+#error TARGET_PHYS_ADDR_BITS undefined
+#endif
+        }
+        s->dispc.l[i].attr = qemu_get_be32(f);
+        s->dispc.l[i].tresh = qemu_get_be32(f);
+        s->dispc.l[i].rowinc = qemu_get_sbe32(f);
+        s->dispc.l[i].colinc = qemu_get_sbe32(f);
+        s->dispc.l[i].wininc = qemu_get_sbe32(f);
+        s->dispc.l[i].preload = qemu_get_be32(f);
+        s->dispc.l[i].fir = qemu_get_be32(f);
+        for (j = 0; j < 8; j++) {
+            s->dispc.l[i].fir_coef_h[j] = qemu_get_be32(f);
+            s->dispc.l[i].fir_coef_hv[j] = qemu_get_be32(f);
+            s->dispc.l[i].fir_coef_v[j] = qemu_get_be32(f);
+            if (j < 5)
+                s->dispc.l[i].conv_coef[j] = qemu_get_be32(f);
+        }
+        s->dispc.l[i].picture_size = qemu_get_be32(f);
+        s->dispc.l[i].accu[0] = qemu_get_be32(f);
+        s->dispc.l[i].accu[1] = qemu_get_be32(f);
+    }
+    s->dispc.invalidate = qemu_get_sbe32(f);
+    for (i = 0; i < 256; i++)
+        s->dispc.palette[i] = qemu_get_be16(f);
+    s->rfbi.idlemode = qemu_get_sbe32(f);
+    s->rfbi.control = qemu_get_be32(f);
+    s->rfbi.enable = qemu_get_sbe32(f);
+    s->rfbi.pixels = qemu_get_sbe32(f);
+    s->rfbi.busy = qemu_get_sbe32(f);
+    s->rfbi.skiplines = qemu_get_sbe32(f);
+    s->rfbi.rxbuf = qemu_get_be16(f);
+    for (i = 0; i < 6; i++) {
+        if (i < 2)
+            s->rfbi.config[i] = qemu_get_be32(f);
+        if (i < 4)
+            s->rfbi.time[i] = qemu_get_be32(f);
+        s->rfbi.data[i] = qemu_get_be32(f);
+    }
+    s->rfbi.vsync = qemu_get_be16(f);
+    s->rfbi.hsync = qemu_get_be16(f);
+    s->dsi.irqst = qemu_get_be32(f);
+    s->dsi.irqen = qemu_get_be32(f);
+    
+    s->dispc.invalidate = 1; /* force refresh of display parameters */
+    if (s->omap_lcd_panel[0])
+        s->omap_lcd_panel[0]->invalidate = 1;
+    if (s->omap_lcd_panel[1])
+        s->omap_lcd_panel[1]->invalidate = 1;
+    
+    omap_dss_interrupt_update(s);
+
+    return 0;
+}
+
 static void omap_rfbi_reset(struct omap_dss_s *s)
 {
     s->rfbi.idlemode = 0;
@@ -1498,6 +1709,9 @@ struct omap_dss_s *omap_dss_init(struct omap_mpu_state_s *mpu,
                                     omap_invalidate_display, omap_screen_dump, s);
 #endif
 
+    register_savevm("omap_dss", -1, 0,
+                    omap_dss_save_state, omap_dss_load_state, s);
+    
     return s;
 }
 

@@ -645,6 +645,71 @@ static CPUWriteMemoryFunc *omap_i2c_writefn[] = {
     omap_badwidth_write16,
 };
 
+static void omap_i2c_save_state(QEMUFile *f, void *opaque)
+{
+    struct omap_i2c_s *s = (struct omap_i2c_s *)opaque;
+    
+    /* TODO: slave setup(s) */
+    qemu_put_be16(f, s->mask);
+    qemu_put_be16(f, s->stat);
+    qemu_put_be16(f, s->we);
+    qemu_put_be16(f, s->dma);
+    qemu_put_be16(f, s->count);
+    qemu_put_sbe32(f, s->count_cur);
+    qemu_put_be16(f, s->sysc);
+    qemu_put_be16(f, s->control);
+    qemu_put_be16(f, s->own_addr[0]);
+    qemu_put_be16(f, s->own_addr[1]);
+    qemu_put_be16(f, s->own_addr[2]);
+    qemu_put_be16(f, s->own_addr[3]);
+    qemu_put_be16(f, s->slave_addr);
+    qemu_put_byte(f, s->sblock);
+    qemu_put_byte(f, s->divider);
+    qemu_put_be16(f, s->times[0]);
+    qemu_put_be16(f, s->times[1]);
+    qemu_put_be16(f, s->test);
+    qemu_put_sbe32(f, s->fifostart);
+    qemu_put_sbe32(f, s->fifolen);
+    qemu_put_sbe32(f, s->fifosize);
+    qemu_put_buffer(f, s->fifo, sizeof(s->fifo));
+}
+
+static int omap_i2c_load_state(QEMUFile *f, void *opaque, int version_id)
+{
+    struct omap_i2c_s *s = (struct omap_i2c_s *)opaque;
+    
+    if (version_id)
+        return -EINVAL;
+    
+    /* TODO: slave setup(s) */
+    s->mask = qemu_get_be16(f);
+    s->stat = qemu_get_be16(f);
+    s->we = qemu_get_be16(f);
+    s->dma = qemu_get_be16(f);
+    s->count = qemu_get_be16(f);
+    s->count_cur = qemu_get_sbe32(f);
+    s->sysc = qemu_get_be16(f);
+    s->control = qemu_get_be16(f);
+    s->own_addr[0] = qemu_get_be16(f);
+    s->own_addr[1] = qemu_get_be16(f);
+    s->own_addr[2] = qemu_get_be16(f);
+    s->own_addr[3] = qemu_get_be16(f);
+    s->slave_addr = qemu_get_be16(f);
+    s->sblock = qemu_get_byte(f);
+    s->divider = qemu_get_byte(f);
+    s->times[0] = qemu_get_be16(f);
+    s->times[1] = qemu_get_be16(f);
+    s->test = qemu_get_be16(f);
+    s->fifostart = qemu_get_sbe32(f);
+    s->fifolen = qemu_get_sbe32(f);
+    s->fifosize = qemu_get_sbe32(f);
+    qemu_get_buffer(f, s->fifo, sizeof(s->fifo));
+
+    omap_i2c_interrupts_update(s);
+    
+    return 0;
+}
+
 struct omap_i2c_s *omap_i2c_init(target_phys_addr_t base,
                 qemu_irq irq, qemu_irq *dma, omap_clk clk)
 {
@@ -725,6 +790,8 @@ struct omap_i2c_s *omap3_i2c_init(struct omap_target_agent_s *ta,
                                       omap_i2c_writefn, s);
     omap_l4_attach(ta, 0, iomemtype);
     
+    register_savevm("omap3_i2c", (ta->base >> 12) & 0xff, 0,
+                    omap_i2c_save_state, omap_i2c_load_state, s);
     return s;
 }
 

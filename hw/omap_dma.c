@@ -23,6 +23,7 @@
 #include "omap.h"
 #include "irq.h"
 #include "soc_dma.h"
+#include "hw.h"
 
 //#define OMAP_DMA_DEBUG
 
@@ -2031,8 +2032,7 @@ static void omap_dma4_write(void *opaque, target_phys_addr_t addr,
     case 0x40:	/* DMA4_CCFN */
         /* f.ex. linux kernel writes zeroes to these registers as well
            when performing a DMA channel reset. let's just ignore the
-           writes instead of reporting "dummy" errors; that's what the
-           real hardware does as well */
+           writes instead of reporting "dummy" errors */
         /*OMAP_RO_REG(0x80 + chnum * 0x60 + addr);*/
         break;
 
@@ -2053,6 +2053,185 @@ static CPUWriteMemoryFunc *omap_dma4_writefn[] = {
     omap_dma4_write,
 };
 
+static void omap_dma4_save_state(QEMUFile *f, void *opaque)
+{
+    struct omap_dma_s *s = (struct omap_dma_s *)opaque;
+    int i, j;
+        
+    qemu_put_be32(f, s->gcr);
+    qemu_put_be32(f, s->ocp);
+    for (i = 0; i < 5; i++) {
+        qemu_put_be32(f, s->caps[i]);
+        if (i < 4) {
+            qemu_put_be32(f, s->irqen[i]);
+            qemu_put_be32(f, s->irqstat[i]);
+        }
+    }
+    for (i = 0; i < 32; i++) {
+        qemu_put_be32(f, s->ch[i].elements);
+        qemu_put_be16(f, s->ch[i].frames);
+        qemu_put_sbe32(f, s->ch[i].data_type);
+        for (j = 0; j < 2; j++) {
+            qemu_put_sbe32(f, s->ch[i].burst[j]);
+            qemu_put_sbe32(f, s->ch[i].pack[j]);
+            qemu_put_sbe32(f, s->ch[i].endian[j]);
+            qemu_put_sbe32(f, s->ch[i].endian_lock[j]);
+            qemu_put_sbe32(f, s->ch[i].translate[j]);
+            qemu_put_sbe32(f, s->ch[i].port[j]);
+#if TARGET_PHYS_ADDR_BITS == 32
+            qemu_put_be32(f, s->ch[i].addr[j]);
+#elif TARGET_PHYS_ADDR_BITS == 64
+            qemu_put_be64(f, s->ch[i].addr[j]);
+#else
+#error TARGET_PHYS_ADDR_BITS undefined
+#endif
+            qemu_put_sbe32(f, s->ch[i].mode[j]);
+            qemu_put_sbe32(f, s->ch[i].frame_index[j]);
+            qemu_put_sbe16(f, s->ch[i].element_index[j]);
+        }
+        qemu_put_sbe32(f, s->ch[i].transparent_copy);
+        qemu_put_sbe32(f, s->ch[i].constant_fill);
+        qemu_put_be32(f, s->ch[i].color);
+        qemu_put_sbe32(f, s->ch[i].prefetch);
+        qemu_put_sbe32(f, s->ch[i].end_prog);
+        qemu_put_sbe32(f, s->ch[i].repeat);
+        qemu_put_sbe32(f, s->ch[i].auto_init);
+        qemu_put_sbe32(f, s->ch[i].link_enabled);
+        qemu_put_sbe32(f, s->ch[i].link_next_ch);
+        qemu_put_sbe32(f, s->ch[i].interrupts);
+        qemu_put_sbe32(f, s->ch[i].status);
+        qemu_put_sbe32(f, s->ch[i].cstatus);
+        qemu_put_sbe32(f, s->ch[i].active);
+        qemu_put_sbe32(f, s->ch[i].enable);
+        qemu_put_sbe32(f, s->ch[i].sync);
+        qemu_put_sbe32(f, s->ch[i].src_sync);
+        qemu_put_sbe32(f, s->ch[i].pending_request);
+        qemu_put_sbe32(f, s->ch[i].waiting_end_prog);
+        qemu_put_be16(f, s->ch[i].cpc);
+        qemu_put_sbe32(f, s->ch[i].set_update);
+        qemu_put_sbe32(f, s->ch[i].fs);
+        qemu_put_sbe32(f, s->ch[i].bs);
+        qemu_put_sbe32(f, s->ch[i].omap_3_1_compatible_disable);
+#if TARGET_PHYS_ADDR_BITS == 32
+        qemu_put_be32(f, s->ch[i].active_set.src);
+        qemu_put_be32(f, s->ch[i].active_set.dest);
+#elif TARGET_PHYS_ADDR_BITS == 64
+        qemu_put_be64(f, s->ch[i].active_set.src);
+        qemu_put_be64(f, s->ch[i].active_set.dest);
+#else
+#error TARGET_PHYS_ADDR_BITS undefined
+#endif
+        qemu_put_sbe32(f, s->ch[i].active_set.frame);
+        qemu_put_sbe32(f, s->ch[i].active_set.element);
+        qemu_put_sbe32(f, s->ch[i].active_set.pck_element);
+        qemu_put_sbe32(f, s->ch[i].active_set.frame_delta[0]);
+        qemu_put_sbe32(f, s->ch[i].active_set.frame_delta[1]);
+        qemu_put_sbe32(f, s->ch[i].active_set.elem_delta[0]);
+        qemu_put_sbe32(f, s->ch[i].active_set.elem_delta[1]);
+        qemu_put_sbe32(f, s->ch[i].active_set.frames);
+        qemu_put_sbe32(f, s->ch[i].active_set.elements);
+        qemu_put_sbe32(f, s->ch[i].active_set.pck_elements);
+        qemu_put_sbe32(f, s->ch[i].write_mode);
+        qemu_put_sbe32(f, s->ch[i].priority);
+        qemu_put_sbe32(f, s->ch[i].interleave_disabled);
+        qemu_put_sbe32(f, s->ch[i].type);
+        qemu_put_sbe32(f, s->ch[i].suspend);
+        qemu_put_sbe32(f, s->ch[i].buf_disable);
+    }
+}
+
+static int omap_dma4_load_state(QEMUFile *f, void *opaque, int version_id)
+{
+    struct omap_dma_s *s = (struct omap_dma_s *)opaque;
+    int i, j;
+
+    if (version_id)
+        return -EINVAL;
+
+    s->gcr = qemu_get_be32(f);
+    s->ocp = qemu_get_be32(f);
+    for (i = 0; i < 5; i++) {
+        s->caps[i] = qemu_get_be32(f);
+        if (i < 4) {
+            s->irqen[i] = qemu_get_be32(f);
+            s->irqstat[i] = qemu_get_be32(f);
+        }
+    }
+    for (i = 0; i < 32; i++) {
+        s->ch[i].elements = qemu_get_be32(f);
+        s->ch[i].frames = qemu_get_be16(f);
+        s->ch[i].data_type = qemu_get_sbe32(f);
+        for (j = 0; j < 2; j++) {
+            s->ch[i].burst[j] = qemu_get_sbe32(f);
+            s->ch[i].pack[j] = qemu_get_sbe32(f);
+            s->ch[i].endian[j] = qemu_get_sbe32(f);
+            s->ch[i].endian_lock[j] = qemu_get_sbe32(f);
+            s->ch[i].translate[j] = qemu_get_sbe32(f);
+            s->ch[i].port[j] = qemu_get_sbe32(f);
+#if TARGET_PHYS_ADDR_BITS == 32
+            s->ch[i].addr[j] = qemu_get_be32(f);
+#elif TARGET_PHYS_ADDR_BITS == 64
+            s->ch[i].addr[j] = qemu_get_be64(f);
+#else
+#error TARGET_PHYS_ADDR_BITS undefined
+#endif
+            s->ch[i].mode[j] = qemu_get_sbe32(f);
+            s->ch[i].frame_index[j] = qemu_get_sbe32(f);
+            s->ch[i].element_index[j] = qemu_get_sbe16(f);
+        }
+        s->ch[i].transparent_copy = qemu_get_sbe32(f);
+        s->ch[i].constant_fill = qemu_get_sbe32(f);
+        s->ch[i].color = qemu_get_be32(f);
+        s->ch[i].prefetch = qemu_get_sbe32(f);
+        s->ch[i].end_prog = qemu_get_sbe32(f);
+        s->ch[i].repeat = qemu_get_sbe32(f);
+        s->ch[i].auto_init = qemu_get_sbe32(f);
+        s->ch[i].link_enabled = qemu_get_sbe32(f);
+        s->ch[i].link_next_ch = qemu_get_sbe32(f);
+        s->ch[i].interrupts = qemu_get_sbe32(f);
+        s->ch[i].status = qemu_get_sbe32(f);
+        s->ch[i].cstatus = qemu_get_sbe32(f);
+        s->ch[i].active = qemu_get_sbe32(f);
+        s->ch[i].enable = qemu_get_sbe32(f);
+        s->ch[i].sync = qemu_get_sbe32(f);
+        s->ch[i].src_sync = qemu_get_sbe32(f);
+        s->ch[i].pending_request = qemu_get_sbe32(f);
+        s->ch[i].waiting_end_prog = qemu_get_sbe32(f);
+        s->ch[i].cpc = qemu_get_be16(f);
+        s->ch[i].set_update = qemu_get_sbe32(f);
+        s->ch[i].fs = qemu_get_sbe32(f);
+        s->ch[i].bs = qemu_get_sbe32(f);
+        s->ch[i].omap_3_1_compatible_disable = qemu_get_sbe32(f);
+#if TARGET_PHYS_ADDR_BITS == 32
+        s->ch[i].active_set.src = qemu_get_be32(f);
+        s->ch[i].active_set.dest = qemu_get_be32(f);
+#elif TARGET_PHYS_ADDR_BITS == 64
+        s->ch[i].active_set.src = qemu_get_be64(f);
+        s->ch[i].active_set.dest = qemu_get_be64(f);
+#else
+#error TARGET_PHYS_ADDR_BITS undefined
+#endif
+        s->ch[i].active_set.frame = qemu_get_sbe32(f);
+        s->ch[i].active_set.element = qemu_get_sbe32(f);
+        s->ch[i].active_set.pck_element = qemu_get_sbe32(f);
+        s->ch[i].active_set.frame_delta[0] = qemu_get_sbe32(f);
+        s->ch[i].active_set.frame_delta[1] = qemu_get_sbe32(f);
+        s->ch[i].active_set.elem_delta[0] = qemu_get_sbe32(f);
+        s->ch[i].active_set.elem_delta[1] = qemu_get_sbe32(f);
+        s->ch[i].active_set.frames = qemu_get_sbe32(f);
+        s->ch[i].active_set.elements = qemu_get_sbe32(f);
+        s->ch[i].active_set.pck_elements = qemu_get_sbe32(f);
+        s->ch[i].write_mode = qemu_get_sbe32(f);
+        s->ch[i].priority = qemu_get_sbe32(f);
+        s->ch[i].interleave_disabled = qemu_get_sbe32(f);
+        s->ch[i].type = qemu_get_sbe32(f);
+        s->ch[i].suspend = qemu_get_sbe32(f);
+        s->ch[i].buf_disable = qemu_get_sbe32(f);
+    }
+    
+    return 0;
+}
+    
 struct soc_dma_s *omap_dma4_init(target_phys_addr_t base, qemu_irq *irqs,
                 struct omap_mpu_state_s *mpu, int fifo,
                 int chans, omap_clk iclk, omap_clk fclk)
@@ -2091,6 +2270,9 @@ struct soc_dma_s *omap_dma4_init(target_phys_addr_t base, qemu_irq *irqs,
 
     mpu->drq = s->dma->drq;
 
+    register_savevm("omap_dma4", -1, 0,
+                    omap_dma4_save_state, omap_dma4_load_state, s);
+    
     return s->dma;
 }
 
