@@ -1,10 +1,29 @@
+qemu (0.10.0-0maemo3) unstable; urgency=low
+
+  * debian/
+    make building sb1-qemu conditional
+  * MW:
+    linux-user: removed unnecessary MAX_SOCK_ADDR checks for socket syscalls
+  * Riku:
+    Convert musb fifo to 8bit to allow 8/16/32bit access
+    Make USB devices self-powered
+    add some USB registers
+    fix omap3_usb interrupt raising
+  * Juha
+    let beagleboard understand the -m switch
+    arm core emulation performance improvement
+    omap3 prcm and clocks clean-up
+    omap3 bootrom emulations
+
+ -- Riku Voipio <riku.voipio@iki.fi>  Thu, 19 Mar 2009 16:33:06 +0200
+
 qemu (0.10.0-0maemo2) unstable; urgency=low
 
   * Add guest-base support
   * merge upstream
   * more omap3 fixes
 
- -- Riku Voipio <voipio@absurd.research.nokia.com>  Mon, 09 Mar 2009 14:53:44 +0200
+ -- Riku Voipio <riku.voipio@iki.fi>  Mon, 09 Mar 2009 14:53:44 +0200
 
 qemu (0.10.0-0maemo1) unstable; urgency=low
 
