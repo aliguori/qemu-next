@@ -21,7 +21,7 @@ TARGET_SYSTEM_TCG    = arm-softmmu i386-softmmu
 TARGET_LINUX_TCG     = arm-linux-user i386-linux-user
 package_list         = obj-sb2/config-host.mak obj-system/config-host.mak
 install_list         = sb2-qemu-install sb-system-qemu-install
-sb1_prefix           = /scratchbox/devkits/cputransp
+sb1_prefix           = /scratchbox/devkits/qemu
 
 target_system_list = $(TARGET_SYSTEM_TCG)
 
@@ -101,10 +101,12 @@ clean:
 
 # cputransp-methods should be generated at postinst
 sb1-qemu-install:
-	mkdir -p debian/sb1-qemu/$(sb1_prefix)/{bin,etc}
-	cp debian/cputransp-methods debian/sb1-qemu/$(sb1_prefix)/etc
-	cp obj-sb1/*-linux-user/qemu-* debian/sb1-qemu/$(sb1_prefix)/bin
-	ln -s qemu-arm debian/sb1-qemu/$(sb1_prefix)/bin/qemu-cvs-arm-m
+	mkdir -p debian/scratchbox-devkit-qemu/$(sb1_prefix)/{bin,etc}
+	cp debian/cputransp-methods \
+		debian/scratchbox-devkit-qemu/$(sb1_prefix)/etc
+	for i in obj-sb1/*-linux-user/qemu-* ; do \
+		install -m 755 $$i debian/scratchbox-devkit-qemu/$(sb1_prefix)/bin/`basename $$i`-sb ; \
+	done
 
 sb2-qemu-install:
 	mkdir -p debian/sb2-qemu-arm/usr/bin
