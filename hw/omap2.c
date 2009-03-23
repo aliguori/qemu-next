@@ -1441,7 +1441,7 @@ static void omap_mcspi_reset(struct omap_mcspi_s *s)
     s->wken = 0;
     s->control = 4;
 
-    for (ch = 0; ch < 4; ch ++) {
+    for (ch = 0; ch < s->chnum; ch ++) {
         s->ch[ch].config = 0x060000;
         s->ch[ch].status = 2;				/* TXS */
         s->ch[ch].control = 0;

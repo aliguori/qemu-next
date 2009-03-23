@@ -1481,7 +1481,56 @@ static struct clk omap3_i2c3_fclk = {
 static struct clk omap3_i2c3_iclk = {
     .name	= "omap3_i2c3_iclk",
     .flags	= CLOCK_IN_OMAP3XXX ,
-    .parent	= &omap3_core_l4_iclk,       
+    .parent	= &omap3_core_l4_iclk,
+};
+
+/* SPI clocks */
+static struct clk omap3_spi1_fclk = {
+    .name   = "omap3_spi1_fclk",
+    .flags  = CLOCK_IN_OMAP3XXX,
+    .parent = &omap3_core_48m_fclk,
+};
+
+static struct clk omap3_spi1_iclk = {
+    .name   = "omap3_spi1_iclk",
+    .flags  = CLOCK_IN_OMAP3XXX,
+    .parent = &omap3_core_l4_iclk,
+};
+
+static struct clk omap3_spi2_fclk = {
+    .name   = "omap3_spi2_fclk",
+    .flags  = CLOCK_IN_OMAP3XXX,
+    .parent = &omap3_core_48m_fclk,
+};
+
+static struct clk omap3_spi2_iclk = {
+    .name   = "omap3_spi2_iclk",
+    .flags  = CLOCK_IN_OMAP3XXX,
+    .parent = &omap3_core_l4_iclk,
+};
+
+static struct clk omap3_spi3_fclk = {
+    .name   = "omap3_spi3_fclk",
+    .flags  = CLOCK_IN_OMAP3XXX,
+    .parent = &omap3_core_48m_fclk,
+};
+
+static struct clk omap3_spi3_iclk = {
+    .name   = "omap3_spi3_iclk",
+    .flags  = CLOCK_IN_OMAP3XXX,
+    .parent = &omap3_core_l4_iclk,
+};
+
+static struct clk omap3_spi4_fclk = {
+    .name   = "omap3_spi4_fclk",
+    .flags  = CLOCK_IN_OMAP3XXX,
+    .parent = &omap3_core_48m_fclk,
+};
+
+static struct clk omap3_spi4_iclk = {
+    .name   = "omap3_spi4_iclk",
+    .flags  = CLOCK_IN_OMAP3XXX,
+    .parent = &omap3_core_l4_iclk,
 };
 
 
@@ -1706,6 +1755,14 @@ static struct clk *onchip_clks[] = {
     &omap3_i2c2_iclk,
     &omap3_i2c3_fclk,
     &omap3_i2c3_iclk,
+    &omap3_spi1_fclk,
+    &omap3_spi1_iclk,
+    &omap3_spi2_fclk,
+    &omap3_spi2_iclk,
+    &omap3_spi3_fclk,
+    &omap3_spi3_iclk,
+    &omap3_spi4_fclk,
+    &omap3_spi4_iclk,
 
     0
 };

@@ -441,9 +441,9 @@ void omap_gpmc_attach(struct omap_gpmc_s *s, int cs, int iomemtype,
 #define OMAP_INT_3XXX_BENCH         3  /* MPU emulation */
 #define OMAP_INT_3XXX_MCBSP2_ST_IRQ 4  /* Sidetone MCBSP2 overflow */
 #define OMAP_INT_3XXX_MCBSP3_ST_IRQ 5  /* Sidetone MCBSP3 overflow */
-/* IRQ6 is reserved */
+#define OMAP_INT_3XXX_SSM_ABORT_IRQ 6
 #define OMAP_INT_3XXX_SYS_NIRQ      7  /* External source (active low) */
-/* IRQ8 is reserved */
+#define OMAP_INT_3XXX_D2D_FW_IRQ    8
 #define OMAP_INT_3XXX_SMX_DBG_IRQ   9  /* L3 interconnect error for debug */
 #define OMAP_INT_3XXX_SMX_APP_IRQ   10 /* L3 interconnect error for application */
 #define OMAP_INT_3XXX_PRCM_MPU_IRQ  11 /* PRCM module IRQ */
@@ -470,7 +470,7 @@ void omap_gpmc_attach(struct omap_gpmc_s *s, int cs, int iomemtype,
 #define OMAP_INT_3XXX_GPIO4_MPU_IRQ 32 /* GPIO module 4 */
 #define OMAP_INT_3XXX_GPIO5_MPU_IRQ 33 /* GPIO module 5 */
 #define OMAP_INT_3XXX_GPIO6_MPU_IRQ 34 /* GPIO module 6 */
-/* IRQ35 is reserved */
+#define OMAP_INT_3XXX_USIM_IRQ      35
 #define OMAP_INT_3XXX_WDT3_IRQ      36 /* Watchdog timer module 3 overflow */
 #define OMAP_INT_3XXX_GPT1_IRQ      37 /* General-purpose timer module 1 */
 #define OMAP_INT_3XXX_GPT2_IRQ      38 /* General-purpose timer module 2 */
@@ -483,11 +483,11 @@ void omap_gpmc_attach(struct omap_gpmc_s *s, int cs, int iomemtype,
 #define OMAP_INT_3XXX_GPT9_IRQ      45 /* General-purpose timer module 9 */
 #define OMAP_INT_3XXX_GPT10_IRQ     46 /* General-purpose timer module 10 */
 #define OMAP_INT_3XXX_GPT11_IRQ     47 /* General-purpose timer module 11 */
-#define OMAP_INT_3XXX_SPI4_IRQ      48 /* MCSPI module 4 */
-/* IRQ49 is reserved */
-/* IRQ50 is reserved */
-/* IRQ51 is reserved */
-/* IRQ52 is reserved */
+#define OMAP_INT_3XXX_MCSPI4_IRQ    48 /* MCSPI module 4 */
+#define OMAP_INT_3XXX_SHA1MD52_IRQ  49
+#define OMAP_INT_3XXX_FPKA_READY    50
+#define OMAP_INT_3XXX_SHA1MD51_IRQ  51
+#define OMAP_INT_3XXX_RNG_IRQ       52
 #define OMAP_INT_3XXX_MG_IRQ        53
 #define OMAP_INT_3XXX_MCBSP4_IRQ_TX 54 /* MCBSP module 4 transmit */
 #define OMAP_INT_3XXX_MCBSP4_IRQ_RX 55 /* MCBSP module 4 receive */
@@ -499,7 +499,7 @@ void omap_gpmc_attach(struct omap_gpmc_s *s, int cs, int iomemtype,
 #define OMAP_INT_3XXX_I2C3_IRQ      61 /* I2C module 3 */
 #define OMAP_INT_3XXX_MCBSP2_IRQ_TX 62 /* MCBSP module 2 transmit */
 #define OMAP_INT_3XXX_MCBSP2_IRQ_RX 63 /* MCBSP module 2 receive */
-/* IRQ64 is reserved */
+#define OMAP_INT_3XXX_FPKA_ERROR    64
 #define OMAP_INT_3XXX_MCSPI1_IRQ    65 /* MCSPI module 1 */
 #define OMAP_INT_3XXX_MCSPI2_IRQ    66 /* MCSPI module 2 */
 /* IRQ67 is reserved */
@@ -547,6 +547,10 @@ struct soc_dma_s *omap_dma_init(target_phys_addr_t base, qemu_irq *irqs,
 struct soc_dma_s *omap_dma4_init(target_phys_addr_t base, qemu_irq *irqs,
                 struct omap_mpu_state_s *mpu, int fifo,
                 int chans, omap_clk iclk, omap_clk fclk);
+struct soc_dma_s *omap3_dma4_init(struct omap_target_agent_s *ta,
+                                  struct omap_mpu_state_s *mpu,
+                                  qemu_irq *irqs, int chans,
+                                  omap_clk iclk, omap_clk fclk);
 void omap_dma_reset(struct soc_dma_s *s);
 
 struct dma_irq_map {
@@ -794,7 +798,7 @@ struct omap_dma_lcd_channel_s {
 #define OMAP3XXX_DMA_SPI1_TX2         39
 #define OMAP3XXX_DMA_SPI1_RX2         40
 #define OMAP3XXX_DMA_SPI1_TX3         41
-#define OMAP3XXX_DMA_SPI1_RX4         42
+#define OMAP3XXX_DMA_SPI1_RX3         42
 #define OMAP3XXX_DMA_SPI2_TX0         43
 #define OMAP3XXX_DMA_SPI2_RX0         44
 #define OMAP3XXX_DMA_SPI2_TX1         45
@@ -812,7 +816,11 @@ struct omap_dma_lcd_channel_s {
 #define OMAP3XXX_DMA_MMC1_RX          62
 #define OMAP3XXX_DMA_MS               63
 #define OMAP3XXX_DMA_EXT_DMAREQ3      64
-
+#define OMAP3XXX_DMA_AES2_TX          65
+#define OMAP3XXX_DMA_AES2_RX          66
+#define OMAP3XXX_DMA_DES2_TX          67
+#define OMAP3XXX_DMA_DES2_RX          68
+#define OMAP3XXX_DMA_SHA1MD5_RX       69
 #define OMAP3XXX_DMA_SPI4_TX0         70
 #define OMAP3XXX_DMA_SPI4_RX0         71
 #define OMAP3XXX_DMA_DSS0             72
@@ -822,6 +830,8 @@ struct omap_dma_lcd_channel_s {
 
 #define OMAP3XXX_DMA_MMC3_TX          77
 #define OMAP3XXX_DMA_MMC3_RX          78
+#define OMAP3XXX_DMA_USIM_TX          79
+#define OMAP3XXX_DMA_USIM_RX          80
 
 
 /* omap[123].c */
@@ -1180,7 +1190,7 @@ struct omap_mpu_state_s {
 
     struct omap_gpif_s *gpif;
 
-    struct omap_mcspi_s *mcspi[2];
+    struct omap_mcspi_s *mcspi[4];
 
     struct omap_dss_s *dss;
 

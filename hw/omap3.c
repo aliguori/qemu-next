@@ -1212,7 +1212,12 @@ typedef enum {
     L4A_TAP,
     L4A_USBHS_OTG,
     L4A_USBHS_HOST,
-    L4A_USBHS_TLL
+    L4A_USBHS_TLL,
+    L4A_MCSPI1,
+    L4A_MCSPI2,
+    L4A_MCSPI3,
+    L4A_MCSPI4,
+    L4A_SDMA
 } omap3_l4_agent_info_id_t;
 
 struct omap3_l4_agent_info_s {
@@ -1237,16 +1242,16 @@ static const struct omap3_l4_agent_info_s omap3_l4_agent_info[] = {
     /* TODO: McBSP5 */
     {L4A_GPTIMER10,  L4ID_GPTIMER10, 2},
     {L4A_GPTIMER11,  L4ID_GPTIMER11, 2},
-    /* TODO: SPI1 */
-    /* TODO: SPI2 */
+    {L4A_MCSPI1,     L4ID_MCSPI1,    2},
+    {L4A_MCSPI2,     L4ID_MCSPI2,    2},
     {L4A_MMC1,       L4ID_MMCSDIO1,  2},
     {L4A_MMC2,       L4ID_MMCSDIO2,  2},
     {L4A_MMC3,       L4ID_MMCSDIO3,  2},
     /* TODO: HDQ/1-Wire */
     /* TODO: Mailbox */
-    /* TODO: SPI3 */
-    /* TODO: SPI4 */
-    /* TODO: SDMA */
+    {L4A_MCSPI3,     L4ID_MCSPI3,    2},
+    {L4A_MCSPI4,     L4ID_MCSPI4,    2},
+    {L4A_SDMA,       L4ID_SDMA,      2},
     {L4A_CM,         L4ID_CM_A,      3},
     {L4A_SCM,        L4ID_SCM,       2},
     {L4A_TAP,        L4ID_TAP,       2},
@@ -4434,7 +4439,7 @@ struct omap_mpu_state_s *omap3530_mpu_init(unsigned long sdram_size,
         qemu_mallocz(sizeof(struct omap_mpu_state_s));
     ram_addr_t sram_base, q2_base, bootrom_base;
     qemu_irq *cpu_irq;
-    qemu_irq dma_irqs[4];
+    qemu_irq drqs[4];
     int i;
 
     s->mpu_model = omap3530;
@@ -4476,14 +4481,11 @@ struct omap_mpu_state_s *omap3530_mpu_init(unsigned long sdram_size,
                                omap_findclk(s, "omap3_mpu_intc_iclk"));
 
     for (i = 0; i < 4; i++)
-        dma_irqs[i] =
-            s->irq[omap3_dma_irq_map[i].ih][omap3_dma_irq_map[i].intr];
-    s->dma = omap_dma4_init(0x48056000, dma_irqs, s, 256, 32,
-                            omap_findclk(s, "omap3_sdma_fclk"),
-                            omap_findclk(s, "omap3_sdma_iclk"));
+        drqs[i] = s->irq[omap3_dma_irq_map[i].ih][omap3_dma_irq_map[i].intr];
+    s->dma = omap3_dma4_init(omap3_l4ta_init(s->l4, L4A_SDMA), s, drqs, 32,
+                             omap_findclk(s, "omap3_sdma_fclk"),
+                             omap_findclk(s, "omap3_sdma_iclk"));
     s->port->addr_valid = omap3_validate_addr;
-
-    /* Register SDRAM and SRAM ports for fast DMA transfers.  */
     soc_dma_port_add_mem_ram(s->dma, q2_base, OMAP2_Q2_BASE, s->sdram_size);
     soc_dma_port_add_mem_ram(s->dma, sram_base, OMAP2_SRAM_BASE, s->sram_size);
 
@@ -4659,5 +4661,31 @@ struct omap_mpu_state_s *omap3530_mpu_init(unsigned long sdram_size,
                                     s->irq[0][OMAP_INT_3XXX_OHCI_IRQ],
                                     s->irq[0][OMAP_INT_3XXX_EHCI_IRQ],
                                     s->irq[0][OMAP_INT_3XXX_TLL_IRQ]);
+
+    s->mcspi[0] = omap_mcspi_init(omap3_l4ta_init(s->l4, L4A_MCSPI1), 4,
+                                  s->irq[0][OMAP_INT_3XXX_MCSPI1_IRQ],
+                                  &s->drq[OMAP3XXX_DMA_SPI1_TX0],
+                                  omap_findclk(s, "omap3_spi1_fclk"),
+                                  omap_findclk(s, "omap3_spi1_iclk"));
+    s->mcspi[1] = omap_mcspi_init(omap3_l4ta_init(s->l4, L4A_MCSPI2), 2,
+                                  s->irq[0][OMAP_INT_3XXX_MCSPI2_IRQ],
+                                  &s->drq[OMAP3XXX_DMA_SPI2_TX0],
+                                  omap_findclk(s, "omap3_spi2_fclk"),
+                                  omap_findclk(s, "omap3_spi2_iclk"));
+    drqs[0] = s->drq[OMAP3XXX_DMA_SPI3_TX0];
+    drqs[1] = s->drq[OMAP3XXX_DMA_SPI3_RX0];
+    drqs[2] = s->drq[OMAP3XXX_DMA_SPI3_TX1];
+    drqs[3] = s->drq[OMAP3XXX_DMA_SPI3_RX1];
+    s->mcspi[2] = omap_mcspi_init(omap3_l4ta_init(s->l4, L4A_MCSPI3), 2,
+                                  s->irq[0][OMAP_INT_3XXX_MCSPI3_IRQ],
+                                  drqs,
+                                  omap_findclk(s, "omap3_spi3_fclk"),
+                                  omap_findclk(s, "omap3_spi3_iclk"));
+    s->mcspi[3] = omap_mcspi_init(omap3_l4ta_init(s->l4, L4A_MCSPI4), 1,
+                                  s->irq[0][OMAP_INT_3XXX_MCSPI4_IRQ],
+                                  &s->drq[OMAP3XXX_DMA_SPI4_TX0],
+                                  omap_findclk(s, "omap3_spi4_fclk"),
+                                  omap_findclk(s, "omap3_spi4_iclk"));
+    
     return s;
 }

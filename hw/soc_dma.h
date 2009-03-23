@@ -19,6 +19,8 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
+#define DMA_MAX_DRQ 96
+
 struct soc_dma_s;
 struct soc_dma_ch_s;
 typedef void (*soc_dma_io_t)(void *opaque, uint8_t *buf, int len);
@@ -66,7 +68,7 @@ struct soc_dma_ch_s {
 struct soc_dma_s {
     /* Following fields are set by the SoC DMA module and can be used
      * by anybody.  */
-    uint64_t drqbmp;	/* Is zeroed by soc_dma_reset() */
+    uint8_t drqst[DMA_MAX_DRQ]; /* Is zeroed by soc_dma_reset() */
     qemu_irq *drq;
     void *opaque;
     int64_t freq;

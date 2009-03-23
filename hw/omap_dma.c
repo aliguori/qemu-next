@@ -257,7 +257,7 @@ static void omap_dma_deactivate_channel(struct omap_dma_s *s,
 
     /* Don't deactive the channel if it is synchronized and the DMA request is
        active */
-    if (ch->sync && ch->enable && (s->dma->drqbmp & (1 << ch->sync)))
+    if (ch->sync && ch->enable && s->dma->drqst[ch->sync])
         return;
 
     if (ch->active) {
@@ -275,9 +275,9 @@ static void omap_dma_enable_channel(struct omap_dma_s *s,
         ch->waiting_end_prog = 0;
         omap_dma_channel_load(ch);
         /* TODO: theoretically if ch->sync && ch->prefetch &&
-         * !s->dma->drqbmp[ch->sync], we should also activate and fetch
+         * !s->dma->drqst[ch->sync], we should also activate and fetch
          * from source and then stall until signalled.  */
-        if ((!ch->sync) || (s->dma->drqbmp & (1 << ch->sync)))
+        if ((!ch->sync) || s->dma->drqst[ch->sync])
             omap_dma_activate_channel(s, ch);
     }
 }
@@ -1554,12 +1554,12 @@ static void omap_dma_request(void *opaque, int drq, int req)
     struct omap_dma_s *s = (struct omap_dma_s *) opaque;
     /* The request pins are level triggered in QEMU.  */
     if (req) {
-        if (~s->dma->drqbmp & (1 << drq)) {
-            s->dma->drqbmp |= 1 << drq;
+        if (!s->dma->drqst[drq]) {
+            s->dma->drqst[drq] = 1;
             omap_dma_process_request(s, drq);
         }
     } else
-        s->dma->drqbmp &= ~(1 << drq);
+        s->dma->drqst[drq] = 0;
 }
 
 /* XXX: this won't be needed once soc_dma knows about clocks.  */
@@ -2231,48 +2231,71 @@ static int omap_dma4_load_state(QEMUFile *f, void *opaque, int version_id)
     
     return 0;
 }
-    
-struct soc_dma_s *omap_dma4_init(target_phys_addr_t base, qemu_irq *irqs,
-                struct omap_mpu_state_s *mpu, int fifo,
-                int chans, omap_clk iclk, omap_clk fclk)
-{
-    int iomemtype, i;
-    struct omap_dma_s *s = (struct omap_dma_s *)
-            qemu_mallocz(sizeof(struct omap_dma_s));
 
+static struct omap_dma_s *omap_dma4_init_internal(struct omap_mpu_state_s *mpu,
+                                                  qemu_irq *irqs,
+                                                  int chans, int drq_count,
+                                                  omap_clk iclk, omap_clk fclk)
+{
+    int i;
+    struct omap_dma_s *s = (struct omap_dma_s *)
+        qemu_mallocz(sizeof(struct omap_dma_s));
+    
     s->model = omap_dma_4;
     s->chans = chans;
     s->mpu = mpu;
     s->clk = fclk;
-
+    
     s->dma = soc_dma_init(s->chans);
     s->dma->freq = omap_clk_getrate(fclk);
     s->dma->transfer_fn = omap_dma_transfer_generic;
     s->dma->setup_fn = omap_dma_transfer_setup;
-    s->dma->drq = qemu_allocate_irqs(omap_dma_request, s, 64);
+    s->dma->drq = qemu_allocate_irqs(omap_dma_request, s, drq_count);
     s->dma->opaque = s;
     for (i = 0; i < s->chans; i ++) {
         s->ch[i].dma = &s->dma->ch[i];
         s->dma->ch[i].opaque = &s->ch[i];
     }
-
+    
     memcpy(&s->irq, irqs, sizeof(s->irq));
     s->intr_update = omap_dma_interrupts_4_update;
-
+    
     omap_dma_setcaps(s);
     omap_clk_adduser(s->clk, qemu_allocate_irqs(omap_dma_clk_update, s, 1)[0]);
     omap_dma_reset(s->dma);
     omap_dma_clk_update(s, 0, !!s->dma->freq);
 
+    mpu->drq = s->dma->drq;
+    
+    register_savevm("omap_dma4", -1, 0,
+                    omap_dma4_save_state, omap_dma4_load_state, s);
+    return s;
+}
+    
+struct soc_dma_s *omap_dma4_init(target_phys_addr_t base, qemu_irq *irqs,
+                struct omap_mpu_state_s *mpu, int fifo,
+                int chans, omap_clk iclk, omap_clk fclk)
+{
+    int iomemtype;
+    struct omap_dma_s *s = omap_dma4_init_internal(mpu, irqs, chans, 64,
+                                                   iclk, fclk);
+
     iomemtype = cpu_register_io_memory(0, omap_dma4_readfn,
                     omap_dma4_writefn, s);
     cpu_register_physical_memory(base, 0x1000, iomemtype);
-
-    mpu->drq = s->dma->drq;
-
-    register_savevm("omap_dma4", -1, 0,
-                    omap_dma4_save_state, omap_dma4_load_state, s);
     
+    return s->dma;
+}
+
+struct soc_dma_s *omap3_dma4_init(struct omap_target_agent_s *ta,
+                                  struct omap_mpu_state_s *mpu,
+                                  qemu_irq *irqs, int chans,
+                                  omap_clk iclk, omap_clk fclk)
+{
+    struct omap_dma_s *s = omap_dma4_init_internal(mpu, irqs, chans, 96,
+                                                   iclk, fclk);
+    omap_l4_attach(ta, 0, cpu_register_io_memory(0, omap_dma4_readfn,
+                                                 omap_dma4_writefn, s));
     return s->dma;
 }
 

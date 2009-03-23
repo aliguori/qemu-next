@@ -230,7 +230,7 @@ void soc_dma_reset(struct soc_dma_s *soc)
 {
     struct dma_s *s = (struct dma_s *) soc;
 
-    s->soc.drqbmp = 0;
+    memset(s->soc.drqst, 0, sizeof(s->soc.drqst));
     s->ch_enable_mask = 0;
     s->enabled_count = 0;
     soc_dma_ch_freq_update(s);
@@ -241,7 +241,7 @@ static void soc_dma_save_state(QEMUFile *f, void *opaque)
     struct dma_s *s = (struct dma_s *)opaque;
     int i;
     
-    qemu_put_be64(f, s->soc.drqbmp);
+    qemu_put_buffer(f, s->soc.drqst, sizeof(s->soc.drqst));
     qemu_put_sbe64(f, s->soc.freq);
     qemu_put_be64(f, s->ch_enable_mask);
     qemu_put_sbe64(f, s->channel_freq);
@@ -274,7 +274,7 @@ static int soc_dma_load_state(QEMUFile *f, void *opaque, int version_id)
     if (version_id)
         return -EINVAL;
     
-    s->soc.drqbmp = qemu_get_be64(f);
+    qemu_get_buffer(f, s->soc.drqst, sizeof(s->soc.drqst));
     s->soc.freq = qemu_get_sbe64(f);
     s->ch_enable_mask = qemu_get_be64(f);
     s->channel_freq = qemu_get_sbe64(f);
