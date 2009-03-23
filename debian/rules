@@ -33,10 +33,14 @@ ifeq ($(DEB_HOST_ARCH_OS),kfreebsd)
        conf_arch += --audio-drv-list=oss,sdl,esd,pa
 endif
 
+BUILD_SB1_QEMU=$(shell test -r /scratchbox/tools/lib/libsb.a ; echo YES || echo NO)
+
 ifeq ($(DEB_HOST_ARCH_CPU),i386)
        conf_arch += --cpu=i386
+ifeq ($(BUILD_SB1_QEMU),YES)
        package_list += obj-sb1/config-host.mak
        install_list += sb1-qemu-install
+endif
 endif
 ifeq ($(DEB_HOST_ARCH_CPU),sparc)
        conf_arch += --cpu=sparc

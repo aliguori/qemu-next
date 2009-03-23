@@ -56,7 +56,7 @@ static void beagle_init(ram_addr_t ram_size, int vga_ram_size,
         exit(1);
     }
    	s->cpu = omap3530_mpu_init(ram_size, NULL, NULL, serial_hds[0]);
-    
+
 	s->nand = nand_init(NAND_MFR_MICRON, 0xba); /* MT29F2G16ABC */
 	nand_setpins(s->nand, 0, 0, 0, 1, 0); /* no write-protect */
     omap_gpmc_attach(s->cpu->gpmc, BEAGLE_NAND_CS, 0, NULL, NULL, s, s->nand);
