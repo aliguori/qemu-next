@@ -1567,6 +1567,7 @@ void bdrv_init(void)
     bdrv_register(&bdrv_qcow2);
     bdrv_register(&bdrv_parallels);
     bdrv_register(&bdrv_nbd);
+    bdrv_register(&bdrv_vmstate);
 }
 
 void *qemu_aio_get(BlockDriverState *bs, BlockDriverCompletionFunc *cb,
