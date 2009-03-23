@@ -23,6 +23,7 @@
 #include "omap.h"
 #include "irq.h"
 #include "devices.h"
+#include "hw.h"
 
 #define OMAP3_HSUSB_DEBUG
 
@@ -46,6 +47,31 @@ struct omap3_hsusb_otg_s {
     uint8_t simenable;
     uint8_t forcestdby;
 };
+
+static void omap3_hsusb_otg_save_state(QEMUFile *f, void *opaque)
+{
+    struct omap3_hsusb_otg_s *s = (struct omap3_hsusb_otg_s *)opaque;
+    
+    qemu_put_be16(f, s->sysconfig);
+    qemu_put_byte(f, s->interfsel);
+    qemu_put_byte(f, s->simenable);
+    qemu_put_byte(f, s->forcestdby);
+}
+
+static int omap3_hsusb_otg_load_state(QEMUFile *f, void *opaque, int version_id)
+{
+    struct omap3_hsusb_otg_s *s = (struct omap3_hsusb_otg_s *)opaque;
+    
+    if (version_id)
+        return -EINVAL;
+    
+    s->sysconfig = qemu_get_be16(f);
+    s->interfsel = qemu_get_byte(f);
+    s->simenable = qemu_get_byte(f);
+    s->forcestdby = qemu_get_byte(f);
+    
+    return 0;
+}
 
 static void omap3_hsusb_otg_reset(struct omap3_hsusb_otg_s *s)
 {
@@ -226,6 +252,11 @@ static void omap3_hsusb_otg_init(struct omap_target_agent_s *otg_ta,
     
     s->musb = musb_init(qemu_allocate_irqs(omap3_hsusb_musb_core_intr, s, __musb_irq_max));
     omap3_hsusb_otg_reset(s);
+    
+    register_savevm("omap3_hsusb_otg", -1, 0,
+                    omap3_hsusb_otg_save_state,
+                    omap3_hsusb_otg_load_state,
+                    s);
 }
 
 struct omap3_hsusb_host_s {
