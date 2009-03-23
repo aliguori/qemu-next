@@ -2202,9 +2202,12 @@ struct omap_uart_s *omap2_uart_init(struct omap_target_agent_s *ta,
 void omap_uart_attach(struct omap_uart_s *s, CharDriverState *chr)
 {
     /* TODO: Should reuse or destroy current s->serial */
+    fprintf(stderr, "%s: WARNING - this function is broken, avoid using it\n",
+            __FUNCTION__);
     s->serial = serial_mm_init(s->base, 2, s->irq,
-                    omap_clk_getrate(s->fclk) / 16,
-                    chr ?: qemu_chr_open("null", "null", NULL), 1);
+                               omap_clk_getrate(s->fclk) / 16,
+                               chr ?: qemu_chr_open("null", "null", NULL),
+                               1);
 }
 
 /* MPU Clock/Reset/Power Mode Control */
