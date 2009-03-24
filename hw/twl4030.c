@@ -221,12 +221,12 @@ static uint8_t twl4030_48_read(void *opaque, uint8_t addr)
             return s->reg_data[0xfe] & 0x1;
         default:
 #ifdef VERBOSE
-            printf("%s: unknown register %02x pc %x \n", __FUNCTION__, addr,cpu_single_env->regs[15] );
-	        //printf("%s: unknown register %02x \n", __FUNCTION__, addr);
+            fprintf(stderr, "%s: unknown register %02x pc %x\n",
+                    __FUNCTION__, addr, cpu_single_env->regs[15]);
 #endif
-            exit(-1);
             break;
     }
+    return 0;
 }
 
 static void twl4030_48_write(void *opaque, uint8_t addr, uint8_t value)
@@ -269,10 +269,9 @@ static void twl4030_48_write(void *opaque, uint8_t addr, uint8_t value)
             break;
         default:
 #ifdef VERBOSE
-            printf("%s: unknown register %02x pc %x \n", __FUNCTION__, addr,cpu_single_env->regs[15] );
-            //printf("%s: unknown register %02x \n", __FUNCTION__, addr);
+            fprintf(stderr, "%s: unknown register %02x pc %x\n",
+                    __FUNCTION__, addr,cpu_single_env->regs[15]);
 #endif
-			exit(-1);
 			break;
     }
 }
@@ -337,8 +336,9 @@ static uint8_t twl4030_49_read(void *opaque, uint8_t addr)
             fprintf(stderr, "%s: unknown register %02x pc %x\n",
                     __FUNCTION__, addr,cpu_single_env->regs[15]);
 #endif
-			exit(-1);
+			break;
     }
+    return 0;
 }
 
 static void twl4030_49_write(void *opaque, uint8_t addr, uint8_t value)
@@ -390,11 +390,9 @@ static void twl4030_49_write(void *opaque, uint8_t addr, uint8_t value)
             break;
         default:
 #ifdef VERBOSE
-            printf("%s: unknown register %02x pc %x \n", __FUNCTION__, addr,
-                   cpu_single_env->regs[15]);
-            //printf("%s: unknown register %02x \n", __FUNCTION__, addr);
+            fprintf(stderr, "%s: unknown register %02x pc %x\n",
+                    __FUNCTION__, addr, cpu_single_env->regs[15]);
 #endif
-            exit(-1);
             break;
     }
 }
@@ -448,11 +446,12 @@ static uint8_t twl4030_4a_read(void *opaque, uint8_t addr)
             return s->reg_data[addr];
         default:
 #ifdef VERBOSE
-	        printf("%s: unknown register %02x pc %x \n", __FUNCTION__, addr,cpu_single_env->regs[15] );
+	        fprintf(stderr, "%s: unknown register %02x pc %x\n",
+                    __FUNCTION__, addr,cpu_single_env->regs[15] );
 #endif
-            exit(-1);
             break;
     }
+    return 0;
 }
 
 static void twl4030_4a_write(void *opaque, uint8_t addr, uint8_t value)
@@ -500,9 +499,9 @@ static void twl4030_4a_write(void *opaque, uint8_t addr, uint8_t value)
             break;
         default:
 #ifdef VERBOSE
-	        printf("%s: unknown register %02x pc %x \n", __FUNCTION__, addr,cpu_single_env->regs[15] );
+	        fprintf(stderr, "%s: unknown register %02x pc %x\n",
+                    __FUNCTION__, addr,cpu_single_env->regs[15]);
 #endif
-            exit(-1);
             break;
     }
 }
@@ -573,12 +572,12 @@ static uint8_t twl4030_4b_read(void *opaque, uint8_t addr)
             return 0x4;
         default:
 #ifdef VERBOSE
-	        printf("%s: unknown register %02x pc %x \n", __FUNCTION__, addr,cpu_single_env->regs[15] );
-	        //printf("%s: unknown register %02x \n", __FUNCTION__, addr);
+	        fprintf(stderr, "%s: unknown register %02x pc %x \n",
+                    __FUNCTION__, addr,cpu_single_env->regs[15] );
 #endif
-            exit(-1);
             break;
     }
+    return 0;
 }
 
 
@@ -735,9 +734,8 @@ static void twl4030_4b_write(void *opaque, uint8_t addr, uint8_t value)
             break;
             
         default:
-	        fprintf(stderr, "%s: unknown register %02x value %0x pc %x \n", __FUNCTION__, 
-                    addr, value, cpu_single_env->regs[15]);
-            exit(-1);
+	        fprintf(stderr, "%s: unknown register %02x value %0x pc %x\n",
+                    __FUNCTION__, addr, value, cpu_single_env->regs[15]);
             break;
     }
 }
