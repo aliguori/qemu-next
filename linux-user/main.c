@@ -2287,6 +2287,7 @@ int main(int argc, char **argv, char **envp)
     int drop_ld_preload = 0;
     envlist_t *envlist = NULL;
     const char *argv0 = NULL;
+    int argskip = 0;
     int i;
 
     if (argc <= 1)
@@ -2348,9 +2349,7 @@ int main(int argc, char **argv, char **envp)
             r = argv[optind++];
             argv0 = r;
         } else if (!strcmp(r,"-sbox-call")) {
-           r = argv[optind++];
-           filename = r;
-           exec_path = r;
+            argskip++;
         } else if (!strcmp(r, "s")) {
             if (optind >= argc)
                 break;
@@ -2527,7 +2526,7 @@ int main(int argc, char **argv, char **envp)
     }
     target_argv[target_argc] = NULL;
 
-    if (loader_exec(filename, target_argv, target_environ, regs, info) != 0) {
+    if (loader_exec(filename, target_argv+argskip, target_environ, regs, info) != 0) {
         printf("Error loading %s\n", filename);
         _exit(1);
     }
