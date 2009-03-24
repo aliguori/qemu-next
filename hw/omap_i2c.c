@@ -183,9 +183,6 @@ static void omap_i2c_fifo_run(struct omap_i2c_s *s)
         if ((s->control >> 9) & 1) {                /* TRX */
             TRACE("master transmit, count_cur=%d, fifolen=%d",
                   s->count_cur, s->fifolen);
-            /* this implementation actually always transfers everything
-               in the FIFO if acknowledged by the slave; thus a situation
-               where we would set XDR status never really happens */
             for (; ack && s->count_cur && s->fifolen; s->count_cur--) {
                 ack = (i2c_send(s->bus, s->fifo[s->fifostart++]) >= 0);
                 s->fifostart &= I2C_FIFO_SIZE_MASK;
@@ -710,69 +707,18 @@ static int omap_i2c_load_state(QEMUFile *f, void *opaque, int version_id)
     return 0;
 }
 
-struct omap_i2c_s *omap_i2c_init(target_phys_addr_t base,
-                qemu_irq irq, qemu_irq *dma, omap_clk clk)
+static struct omap_i2c_s *omap_i2c_common_init(uint8_t rev, int fifosize,
+                                               qemu_irq irq, qemu_irq *dma)
 {
-    int iomemtype;
     struct omap_i2c_s *s = (struct omap_i2c_s *)
-            qemu_mallocz(sizeof(struct omap_i2c_s));
-
-    /* TODO: set a value greater or equal to real hardware */
-    s->revision = 0x11;
-    s->irq = irq;
-    s->drq[0] = dma[0];
-    s->drq[1] = dma[1];
-    s->slave[0].event = omap_i2c_event;
-    s->slave[0].recv = omap_i2c_rx;
-    s->slave[0].send = omap_i2c_tx;
-    s->bus = i2c_init_bus();
-    s->fifosize = 4;
-    omap_i2c_reset(s);
-
-    iomemtype = cpu_register_io_memory(0, omap_i2c_readfn,
-                    omap_i2c_writefn, s);
-    cpu_register_physical_memory(base, 0x800, iomemtype);
-
-    return s;
-}
-
-struct omap_i2c_s *omap2_i2c_init(struct omap_target_agent_s *ta,
-                qemu_irq irq, qemu_irq *dma, omap_clk fclk, omap_clk iclk)
-{
-    int iomemtype;
-    struct omap_i2c_s *s = (struct omap_i2c_s *)
-            qemu_mallocz(sizeof(struct omap_i2c_s));
-
-    s->revision = 0x34;
-    s->irq = irq;
-    s->drq[0] = dma[0];
-    s->drq[1] = dma[1];
-    s->slave[0].event = omap_i2c_event;
-    s->slave[0].recv = omap_i2c_rx;
-    s->slave[0].send = omap_i2c_tx;
-    s->bus = i2c_init_bus();
-    s->fifosize = 4;
-    omap_i2c_reset(s);
-
-    iomemtype = l4_register_io_memory(0, omap_i2c_readfn,
-                    omap_i2c_writefn, s);
-    omap_l4_attach(ta, 0, iomemtype);
-
-    return s;
-}
-
-struct omap_i2c_s *omap3_i2c_init(struct omap_target_agent_s *ta,
-                                  qemu_irq irq, qemu_irq *dma,
-                                  omap_clk fclk, omap_clk iclk,
-                                  int fifosize)
-{
-    int iomemtype;
-    struct omap_i2c_s *s = (struct omap_i2c_s *)qemu_mallocz(sizeof(struct omap_i2c_s));
+        qemu_mallocz(sizeof(struct omap_i2c_s));
     
-    if (fifosize != 8 && fifosize != 16 && fifosize != 32 && fifosize != 64)
-        fprintf(stderr, "%s: unsupported FIFO depth specified (%d)\n",
-                __FUNCTION__, fifosize);
-    s->revision = OMAP3_INTR_REV;
+    if (fifosize > I2C_MAX_FIFO_SIZE) {
+        fprintf(stderr, "%s: maximum FIFO size is %d (tried to use %d)\n",
+                __FUNCTION__, I2C_MAX_FIFO_SIZE, fifosize);
+        exit(-1);
+    }
+    s->revision = rev;
     s->irq = irq;
     s->drq[0] = dma[0];
     s->drq[1] = dma[1];
@@ -785,11 +731,46 @@ struct omap_i2c_s *omap3_i2c_init(struct omap_target_agent_s *ta,
     s->bus = i2c_init_bus();
     s->fifosize = fifosize;
     omap_i2c_reset(s);
+    return s;
+}
+
+struct omap_i2c_s *omap_i2c_init(target_phys_addr_t base,
+                qemu_irq irq, qemu_irq *dma, omap_clk clk)
+{
+    struct omap_i2c_s *s = omap_i2c_common_init(0x11, 4, irq, dma);
+
+    cpu_register_physical_memory(base, 0x800,
+                                 cpu_register_io_memory(0, omap_i2c_readfn,
+                                                        omap_i2c_writefn, s));
+    return s;
+}
+
+struct omap_i2c_s *omap2_i2c_init(struct omap_target_agent_s *ta,
+                qemu_irq irq, qemu_irq *dma, omap_clk fclk, omap_clk iclk)
+{
+    struct omap_i2c_s *s = omap_i2c_common_init(0x34, 4, irq, dma);
+
+    omap_l4_attach(ta, 0, l4_register_io_memory(0, omap_i2c_readfn,
+                                                omap_i2c_writefn, s));
+    return s;
+}
+
+struct omap_i2c_s *omap3_i2c_init(struct omap_target_agent_s *ta,
+                                  qemu_irq irq, qemu_irq *dma,
+                                  omap_clk fclk, omap_clk iclk,
+                                  int fifosize)
+{
+    struct omap_i2c_s *s;
     
-    iomemtype = l4_register_io_memory(0, omap_i2c_readfn,
-                                      omap_i2c_writefn, s);
-    omap_l4_attach(ta, 0, iomemtype);
+    if (fifosize != 8 && fifosize != 16 && fifosize != 32 && fifosize != 64) {
+        fprintf(stderr, "%s: unsupported FIFO depth specified (%d)\n",
+                __FUNCTION__, fifosize);
+        exit(-1);
+    }
+    s = omap_i2c_common_init(OMAP3_INTR_REV, fifosize, irq, dma);
     
+    omap_l4_attach(ta, 0, l4_register_io_memory(0, omap_i2c_readfn,
+                                                omap_i2c_writefn, s));
     register_savevm("omap3_i2c", (ta->base >> 12) & 0xff, 0,
                     omap_i2c_save_state, omap_i2c_load_state, s);
     return s;
