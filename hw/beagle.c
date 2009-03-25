@@ -52,6 +52,7 @@ static void beagle_init(ram_addr_t ram_size, int vga_ram_size,
 {
     struct beagle_s *s = (struct beagle_s *) qemu_mallocz(sizeof(*s));
     int sdindex = drive_get_index(IF_SD, 0, 0);
+    void *opaque;
     
     if (sdindex == -1) {
         fprintf(stderr, "%s: missing SecureDigital device\n", __FUNCTION__);
@@ -66,9 +67,9 @@ static void beagle_init(ram_addr_t ram_size, int vga_ram_size,
 
     s->i2c = omap_i2c_bus(s->cpu->i2c[0]);
     s->twl4030 = twl4030_init(s->i2c, s->cpu->irq[0][OMAP_INT_3XXX_SYS_NIRQ]);
-    smc91c111_init(&nd_table[0], 0x01000000,
-                    omap2_gpio_in_get(s->cpu->gpif, 51)[0]);
-/*  omap_gpmc_attach(s->cpu->gpmc, BEAGLE_SMC_CS, 0, 0, 0, NULL, NULL); */
+    opaque = smc91c111_init(&nd_table[0], 0x08000000,
+                    omap2_gpio_in_get(s->cpu->gpif, 54)[0], 0);
+    omap_gpmc_attach(s->cpu->gpmc, BEAGLE_SMC_CS, smc91c111_iomemtype(opaque), 0, 0, opaque, NULL);
 
 	s->lcd_panel = omap3_lcd_panel_init();
 	omap3_lcd_panel_attach(s->cpu->dss, 0, s->lcd_panel);

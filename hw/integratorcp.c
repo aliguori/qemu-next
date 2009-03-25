@@ -496,7 +496,7 @@ static void integratorcp_init(ram_addr_t ram_size, int vga_ram_size,
     }
     pl181_init(0x1c000000, drives_table[sd].bdrv, pic[23], pic[24]);
     if (nd_table[0].vlan)
-        smc91c111_init(&nd_table[0], 0xc8000000, pic[27]);
+        smc91c111_init(&nd_table[0], 0xc8000000, pic[27], 1);
     pl110_init(0xc0000000, pic[22], 0);
 
     integrator_binfo.ram_size = ram_size;

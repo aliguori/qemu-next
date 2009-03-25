@@ -4,7 +4,8 @@
 /* Devices that have nowhere better to go.  */
 
 /* smc91c111.c */
-void smc91c111_init(NICInfo *, uint32_t, qemu_irq);
+void *smc91c111_init(NICInfo *, uint32_t, qemu_irq, int phys_alloc);
+int smc91c111_iomemtype(void *opaque);
 
 /* ssd0323.c */
 int ssd0323_xfer_ssi(void *opaque, int data);

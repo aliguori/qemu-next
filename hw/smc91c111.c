@@ -37,6 +37,7 @@ typedef struct {
     int rx_fifo[NUM_PACKETS];
     int tx_fifo_done_len;
     int tx_fifo_done[NUM_PACKETS];
+    int iomemtype;
     /* Packet buffer memory.  */
     uint8_t data[NUM_PACKETS][2048];
     uint8_t int_level;
@@ -690,17 +691,22 @@ static CPUWriteMemoryFunc *smc91c111_writefn[] = {
     smc91c111_writel
 };
 
-void smc91c111_init(NICInfo *nd, uint32_t base, qemu_irq irq)
+int smc91c111_iomemtype(void *opaque) {
+    smc91c111_state *s=(smc91c111_state *) opaque;
+    return s->iomemtype;
+}
+
+void *smc91c111_init(NICInfo *nd, uint32_t base, qemu_irq irq, int phys_alloc)
 {
     smc91c111_state *s;
-    int iomemtype;
 
     qemu_check_nic_model(nd, "smc91c111");
 
     s = (smc91c111_state *)qemu_mallocz(sizeof(smc91c111_state));
-    iomemtype = cpu_register_io_memory(0, smc91c111_readfn,
-                                       smc91c111_writefn, s);
-    cpu_register_physical_memory(base, 16, iomemtype);
+    s->iomemtype = cpu_register_io_memory(0, smc91c111_readfn,
+                                          smc91c111_writefn, s);
+    if (phys_alloc)
+        cpu_register_physical_memory(base, 16, s->iomemtype);
     s->irq = irq;
     memcpy(s->macaddr, nd->macaddr, 6);
 
@@ -710,4 +716,5 @@ void smc91c111_init(NICInfo *nd, uint32_t base, qemu_irq irq)
                                  smc91c111_receive, smc91c111_can_receive, s);
     qemu_format_nic_info_str(s->vc, s->macaddr);
     /* ??? Save/restore.  */
+    return s;
 }

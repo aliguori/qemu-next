@@ -78,7 +78,7 @@ static void connex_init(ram_addr_t ram_size, int vga_ram_size,
 
     /* Interrupt line of NIC is connected to GPIO line 36 */
     smc91c111_init(&nd_table[0], 0x04000300,
-                    pxa2xx_gpio_in_get(cpu->gpio)[36]);
+                    pxa2xx_gpio_in_get(cpu->gpio)[36], 1);
 }
 
 static void verdex_init(ram_addr_t ram_size, int vga_ram_size,
@@ -118,7 +118,7 @@ static void verdex_init(ram_addr_t ram_size, int vga_ram_size,
 
     /* Interrupt line of NIC is connected to GPIO line 99 */
     smc91c111_init(&nd_table[0], 0x04000300,
-                    pxa2xx_gpio_in_get(cpu->gpio)[99]);
+                    pxa2xx_gpio_in_get(cpu->gpio)[99], 1);
 }
 
 QEMUMachine connex_machine = {
