@@ -890,7 +890,7 @@ struct omap_gpif_s *omap2_gpio_init(struct omap_mpu_state_s *mpu,
 struct omap_gpif_s *omap3_gpif_init(void);
 void omap3_gpio_init(struct omap_mpu_state_s *mpu,
                      struct omap_gpif_s *s, struct omap_target_agent_s *ta,
-                     qemu_irq *irq, omap_clk *fclk, omap_clk iclk, int module_index);
+                     qemu_irq irq, omap_clk *fclk, omap_clk iclk, int module_index);
 qemu_irq *omap2_gpio_in_get(struct omap_gpif_s *s, int start);
 void omap2_gpio_out_set(struct omap_gpif_s *s, int line, qemu_irq handler);
 
@@ -904,13 +904,6 @@ struct omap_uwire_s *omap_uwire_init(target_phys_addr_t base,
                 qemu_irq *irq, qemu_irq dma, omap_clk clk);
 void omap_uwire_attach(struct omap_uwire_s *s,
                 struct uwire_slave_s *slave, int chipselect);
-
-struct omap_mcspi_s;
-struct omap_mcspi_s *omap_mcspi_init(struct omap_target_agent_s *ta, int chnum,
-                qemu_irq irq, qemu_irq *drq, omap_clk fclk, omap_clk iclk);
-void omap_mcspi_attach(struct omap_mcspi_s *s,
-                uint32_t (*txrx)(void *opaque, uint32_t, int), void *opaque,
-                int chipselect);
 
 struct omap_rtc_s;
 struct omap_rtc_s *omap_rtc_init(target_phys_addr_t base,
@@ -1013,6 +1006,17 @@ struct omap_i2c_s *omap3_i2c_init(struct omap_target_agent_s *ta,
                 int fifosize);
 void omap_i2c_reset(struct omap_i2c_s *s);
 i2c_bus *omap_i2c_bus(struct omap_i2c_s *s);
+
+/* omap_spi.c */
+struct omap_mcspi_s;
+struct omap_mcspi_s *omap_mcspi_init(struct omap_target_agent_s *ta,
+                                     struct omap_mpu_state_s *mpu,
+                                     int chnum, qemu_irq irq, qemu_irq *drq,
+                                     omap_clk fclk, omap_clk iclk);
+void omap_mcspi_attach(struct omap_mcspi_s *s,
+                       uint32_t (*txrx)(void *opaque, uint32_t, int),
+                       void *opaque, int chipselect);
+void omap_mcspi_reset(struct omap_mcspi_s *s);
 
 /* omap3_usb.c */
 struct omap3_hsusb_s;

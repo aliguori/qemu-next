@@ -4595,23 +4595,23 @@ struct omap_mpu_state_s *omap3530_mpu_init(unsigned long sdram_size,
                    NULL,NULL,NULL,NULL,NULL);
 
     s->gpif = omap3_gpif_init();
-    omap3_gpio_init(s, s->gpif ,omap3_l4ta_init(s->l4, L4A_GPIO1),
-                    &s->irq[0][OMAP_INT_3XXX_GPIO1_MPU_IRQ], 
+    omap3_gpio_init(s, s->gpif, omap3_l4ta_init(s->l4, L4A_GPIO1),
+                    s->irq[0][OMAP_INT_3XXX_GPIO1_MPU_IRQ], 
                     NULL,NULL,0);
-    omap3_gpio_init(s, s->gpif ,omap3_l4ta_init(s->l4, L4A_GPIO2),
-                    &s->irq[0][OMAP_INT_3XXX_GPIO2_MPU_IRQ], 
+    omap3_gpio_init(s, s->gpif, omap3_l4ta_init(s->l4, L4A_GPIO2),
+                    s->irq[0][OMAP_INT_3XXX_GPIO2_MPU_IRQ], 
                     NULL,NULL,1);
-    omap3_gpio_init(s, s->gpif ,omap3_l4ta_init(s->l4, L4A_GPIO3),
-                    &s->irq[0][OMAP_INT_3XXX_GPIO3_MPU_IRQ], 
+    omap3_gpio_init(s, s->gpif, omap3_l4ta_init(s->l4, L4A_GPIO3),
+                    s->irq[0][OMAP_INT_3XXX_GPIO3_MPU_IRQ], 
                     NULL,NULL,2);
-    omap3_gpio_init(s, s->gpif ,omap3_l4ta_init(s->l4, L4A_GPIO4),
-                    &s->irq[0][OMAP_INT_3XXX_GPIO4_MPU_IRQ], 
+    omap3_gpio_init(s, s->gpif, omap3_l4ta_init(s->l4, L4A_GPIO4),
+                    s->irq[0][OMAP_INT_3XXX_GPIO4_MPU_IRQ], 
                     NULL,NULL,3);
-    omap3_gpio_init(s, s->gpif ,omap3_l4ta_init(s->l4, L4A_GPIO5),
-                    &s->irq[0][OMAP_INT_3XXX_GPIO5_MPU_IRQ], 
+    omap3_gpio_init(s, s->gpif, omap3_l4ta_init(s->l4, L4A_GPIO5),
+                    s->irq[0][OMAP_INT_3XXX_GPIO5_MPU_IRQ], 
                     NULL,NULL,4);
-    omap3_gpio_init(s, s->gpif ,omap3_l4ta_init(s->l4, L4A_GPIO6),
-                    &s->irq[0][OMAP_INT_3XXX_GPIO6_MPU_IRQ], 
+    omap3_gpio_init(s, s->gpif, omap3_l4ta_init(s->l4, L4A_GPIO6),
+                    s->irq[0][OMAP_INT_3XXX_GPIO6_MPU_IRQ], 
                     NULL,NULL,5);
 
     omap_tap_init(omap3_l4ta_init(s->l4, L4A_TAP), s);
@@ -4662,12 +4662,12 @@ struct omap_mpu_state_s *omap3530_mpu_init(unsigned long sdram_size,
                                     s->irq[0][OMAP_INT_3XXX_EHCI_IRQ],
                                     s->irq[0][OMAP_INT_3XXX_TLL_IRQ]);
 
-    s->mcspi[0] = omap_mcspi_init(omap3_l4ta_init(s->l4, L4A_MCSPI1), 4,
+    s->mcspi[0] = omap_mcspi_init(omap3_l4ta_init(s->l4, L4A_MCSPI1), s, 4,
                                   s->irq[0][OMAP_INT_3XXX_MCSPI1_IRQ],
                                   &s->drq[OMAP3XXX_DMA_SPI1_TX0],
                                   omap_findclk(s, "omap3_spi1_fclk"),
                                   omap_findclk(s, "omap3_spi1_iclk"));
-    s->mcspi[1] = omap_mcspi_init(omap3_l4ta_init(s->l4, L4A_MCSPI2), 2,
+    s->mcspi[1] = omap_mcspi_init(omap3_l4ta_init(s->l4, L4A_MCSPI2), s, 2,
                                   s->irq[0][OMAP_INT_3XXX_MCSPI2_IRQ],
                                   &s->drq[OMAP3XXX_DMA_SPI2_TX0],
                                   omap_findclk(s, "omap3_spi2_fclk"),
@@ -4676,12 +4676,12 @@ struct omap_mpu_state_s *omap3530_mpu_init(unsigned long sdram_size,
     drqs[1] = s->drq[OMAP3XXX_DMA_SPI3_RX0];
     drqs[2] = s->drq[OMAP3XXX_DMA_SPI3_TX1];
     drqs[3] = s->drq[OMAP3XXX_DMA_SPI3_RX1];
-    s->mcspi[2] = omap_mcspi_init(omap3_l4ta_init(s->l4, L4A_MCSPI3), 2,
+    s->mcspi[2] = omap_mcspi_init(omap3_l4ta_init(s->l4, L4A_MCSPI3), s, 2,
                                   s->irq[0][OMAP_INT_3XXX_MCSPI3_IRQ],
                                   drqs,
                                   omap_findclk(s, "omap3_spi3_fclk"),
                                   omap_findclk(s, "omap3_spi3_iclk"));
-    s->mcspi[3] = omap_mcspi_init(omap3_l4ta_init(s->l4, L4A_MCSPI4), 1,
+    s->mcspi[3] = omap_mcspi_init(omap3_l4ta_init(s->l4, L4A_MCSPI4), s, 1,
                                   s->irq[0][OMAP_INT_3XXX_MCSPI4_IRQ],
                                   &s->drq[OMAP3XXX_DMA_SPI4_TX0],
                                   omap_findclk(s, "omap3_spi4_fclk"),
