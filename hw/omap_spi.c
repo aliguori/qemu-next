@@ -186,11 +186,13 @@ static int omap_mcspi_load_state(QEMUFile *f, void *opaque, int version_id)
     return 0;
 }
 
+/* returns next word in FIFO or the n first bytes if there is not
+ * enough data in FIFO */
 static uint32_t omap_mcspi_fifo_get(struct omap_mcspi_fifo_s *s, int wl)
 {
     uint32_t v, sh;
     
-    for (v = 0, sh = 0; wl > 0; wl -= 8, s->len--, sh += 8) {
+    for (v = 0, sh = 0; wl > 0 && s->len; wl -= 8, s->len--, sh += 8) {
         v |= ((uint32_t)s->buf[s->start++]) << sh;
         if (s->start >= s->size)
             s->start = 0;
@@ -198,12 +200,14 @@ static uint32_t omap_mcspi_fifo_get(struct omap_mcspi_fifo_s *s, int wl)
     return v;
 }
 
+/* pushes a word to FIFO or the first n bytes of the word if the FIFO
+ * is too full to hold the full word */
 static void omap_mcspi_fifo_put(struct omap_mcspi_fifo_s *s, int wl,
                                 uint32_t v)
 {
-    int p;
+    int p = s->start + s->len;
 
-    for (p = s->start + s->len; wl > 0; wl -=8, v >>= 8, s->len++) {
+    for (; wl > 0 && s->len < s->size; wl -=8, v >>= 8, s->len++) {
         if (p >= s->size)
             p -= s->size;
         s->buf[p++] = (uint8_t)(v & 0xff);
@@ -213,62 +217,63 @@ static void omap_mcspi_fifo_put(struct omap_mcspi_fifo_s *s, int wl,
 static void omap_mcspi_transfer_run(struct omap_mcspi_s *s, int chnum)
 {
     struct omap_mcspi_ch_s *ch = s->ch + chnum;
+    int trm = (ch->config >> 12) & 3;
     int wl;
     
-    if (!(ch->control & 1))				/* EN */
+    if (!(ch->control & 1))                  /* EN */
         return;
-    if ((ch->status & (1 << 0)) &&			/* RXS */
-        ((ch->config >> 12) & 3) != 2 &&	/* TRM */
-        !(ch->config & (1 << 19)))		/* TURBO */
+    if ((ch->status & 1) && trm != 2 &&      /* RXS */
+        !(ch->config & (1 << 19)))           /* TURBO */
         goto intr_update;
-    if ((ch->status & (1 << 1)) &&			/* TXS */
-        ((ch->config >> 12) & 3) != 1)	/* TRM */
+    if ((ch->status & (1 << 1)) && trm != 1) /* TXS */
         goto intr_update;
     
-    if (!(s->control & 1) ||				/* SINGLE */
-        (ch->config & (1 << 20))) {		/* FORCE */
+    if (!(s->control & 1) ||        /* SINGLE */
+        (ch->config & (1 << 20))) { /* FORCE */
         if (ch->txrx) {
             wl = 1 + (0x1f & (ch->config >> 7)); /* WL */
             if (!IS_OMAP3_SPI(s) || s->fifo_ch != chnum ||
-                !((ch->config >> 27) & 3))
+                !((ch->config >> 27) & 3))       /* FFER | FFEW */
                 ch->rx = ch->txrx(ch->opaque, ch->tx, wl);
             else {
                 switch ((ch->config >> 27) & 3) {
                     case 1: /* !FFER, FFEW */
-                        ch->rx = ch->txrx(ch->opaque,
-                                          omap_mcspi_fifo_get(&s->tx_fifo, wl),
-                                          wl);
+                        if (trm != 1)
+                            ch->tx = omap_mcspi_fifo_get(&s->tx_fifo, wl);
+                        ch->rx = ch->txrx(ch->opaque, ch->tx, wl);
                         s->fifo_wcnt--;
                         break;
                     case 2: /* FFER, !FFEW */
-                        omap_mcspi_fifo_put(&s->rx_fifo, wl,
-                                            ch->txrx(ch->opaque, ch->tx, wl));
+                        ch->rx = ch->txrx(ch->opaque, ch->tx, wl);
+                        if (trm != 2)
+                            omap_mcspi_fifo_put(&s->rx_fifo, wl, ch->rx);
                         s->fifo_wcnt--;
                         break;
                     case 3: /* FFER, FFEW */
                         while (s->rx_fifo.len < s->rx_fifo.size &&
                                s->tx_fifo.len && s->fifo_wcnt) {
-                            omap_mcspi_fifo_put(
-                                &s->rx_fifo, wl,
-                                ch->txrx(ch->opaque,
-                                         omap_mcspi_fifo_get(&s->tx_fifo, wl),
-                                         wl));
+                            if (trm != 1)
+                                ch->tx = omap_mcspi_fifo_get(&s->tx_fifo, wl);
+                            ch->rx = ch->txrx(ch->opaque, ch->tx, wl);
+                            if (trm != 2)
+                                omap_mcspi_fifo_put(&s->rx_fifo, wl, ch->rx);
                             s->fifo_wcnt--;
                         }
                         break;
                     default:
                         break;
                 }
-                if ((ch->config & (1 << 28)) && /* FFER */
+                if ((ch->config & (1 << 28)) &&        /* FFER */
                     s->rx_fifo.len >= s->rx_fifo.size)
-                    ch->status |= 1 << 6;       /* RXFFF */
-                ch->status &= ~(1 << 5);        /* RXFFE */
-                ch->status &= ~(1 << 4);        /* TXFFF */
-                if ((ch->config & (1 << 27)) && /* FFEW */
+                    ch->status |= 1 << 6;              /* RXFFF */
+                ch->status &= ~(1 << 5);               /* RXFFE */
+                ch->status &= ~(1 << 4);               /* TXFFF */
+                if ((ch->config & (1 << 27)) &&        /* FFEW */
                     !s->tx_fifo.len)
-                    ch->status |= 1 << 3;       /* TXFFE */
-                if (!s->fifo_wcnt)
-                    s->irqst |= 1 << 17;        /* EOW */
+                    ch->status |= 1 << 3;              /* TXFFE */
+                if (!s->fifo_wcnt &&
+                    ((s->xferlevel >> 16) & 0xffff))   /* WCNT */
+                    s->irqst |= 1 << 17;               /* EOW */
             }
         }
     }
@@ -276,23 +281,21 @@ static void omap_mcspi_transfer_run(struct omap_mcspi_s *s, int chnum)
     ch->tx = 0;
     ch->status |= 1 << 2;               /* EOT */
     ch->status |= 1 << 1;               /* TXS */
-    if (((ch->config >> 12) & 3) != 2)  /* TRM */
+    if (trm != 2)
         ch->status |= 1;                /* RXS */
         
 intr_update:
-    if ((ch->status & 1) &&			/* RXS */
-        ((ch->config >> 12) & 3) != 2 &&	/* TRM */
-        !(ch->config & (1 << 19)))		/* TURBO */
+    if ((ch->status & 1) &&	trm != 2 &&                     /* RXS */
+        !(ch->config & (1 << 19)))                          /* TURBO */
         if (!IS_OMAP3_SPI(s) || s->fifo_ch != chnum ||
-            !((ch->config >> 28) & 1) || /* FFER */
+            !((ch->config >> 28) & 1) ||                    /* FFER */
             s->rx_fifo.len >= ((s->xferlevel >> 8) & 0x3f)) /* AFL */
-            s->irqst |= 1 << (2 + 4 * chnum);		/* RX_FULL */
-    if ((ch->status & (1 << 1)) &&			/* TXS */
-        ((ch->config >> 12) & 3) != 1)	/* TRM */
+            s->irqst |= 1 << (2 + 4 * chnum);               /* RX_FULL */
+    if ((ch->status & (1 << 1)) && trm != 1)                /* TXS */
         if (!IS_OMAP3_SPI(s) || s->fifo_ch != chnum ||
-            !((ch->config >> 27) & 1) || /* FFEW */
-            s->tx_fifo.len <= (s->xferlevel & 0x3f)) /* AEL */
-            s->irqst |= 1 << (4 * chnum);		/* TX_EMPTY */
+            !((ch->config >> 27) & 1) ||                    /* FFEW */
+            s->tx_fifo.len <= (s->xferlevel & 0x3f))        /* AEL */
+            s->irqst |= 1 << (4 * chnum);                   /* TX_EMPTY */
     omap_mcspi_interrupt_update(s);
     omap_mcspi_dmarequest_update(s, chnum);
 }
@@ -375,12 +378,8 @@ static uint32_t omap_mcspi_read(void *opaque, target_phys_addr_t addr)
         case 0x60: ch ++;
         case 0x4c: ch ++;
         case 0x38:	/* MCSPI_TX */
-            if (ch < s->chnum) {
-                if (!IS_OMAP3_SPI(s) || ch != s->fifo_ch ||
-                    !(s->ch[ch].config & (1 << 27))) /* FFEW */
-                    return s->ch[ch].tx;
-                return s->tx_fifo.buf[s->tx_fifo.start];
-            }
+            if (ch < s->chnum)
+                return s->ch[ch].tx;
             break;
             
         case 0x78: ch ++;
@@ -399,9 +398,12 @@ static uint32_t omap_mcspi_read(void *opaque, target_phys_addr_t addr)
                     fprintf(stderr, "%s: rxfifo underflow!\n", __FUNCTION__);
                 else {
                     qemu_irq_lower(s->ch[ch].rxdrq);
-                    s->ch[ch].status &= ~(1 << 6);  /* RXFFF */
-                    ret = omap_mcspi_fifo_get(&s->rx_fifo,
+                    s->ch[ch].status &= ~(1 << 6);                 /* RXFFF */
+                    if (((s->ch[ch].config >> 12) & 3) != 2)        /* TRM */
+                        ret = omap_mcspi_fifo_get(&s->rx_fifo,
                             1 + ((s->ch[ch].config >> 7) & 0x1f)); /* WL */
+                    else
+                        ret = s->ch[ch].rx;
                     if (!s->rx_fifo.len) {
                         s->ch[ch].status &= ~1;     /* RXS */
                         s->ch[ch].status |= 1 << 5; /* RXFFE */
@@ -413,9 +415,13 @@ static uint32_t omap_mcspi_read(void *opaque, target_phys_addr_t addr)
             return 0;
         
         case 0x7c: /* MCSPI_XFERLEVEL */
-            if (IS_OMAP3_SPI(s))
-                return (s->xferlevel & 0xffff) |
-                    ((s->xferlevel & 0xffff0000) - (s->fifo_wcnt << 16));
+            if (IS_OMAP3_SPI(s)) {
+                if ((s->xferlevel >> 16) & 0xffff) /* WCNT */
+                    ret = ((s->xferlevel & 0xffff0000) - (s->fifo_wcnt << 16));
+                else
+                    ret = ((-s->fifo_wcnt) & 0xffff) << 16;
+                return (s->xferlevel & 0xffff) | ret;
+            }
             break;
             
         default:
@@ -538,9 +544,9 @@ static void omap_mcspi_write(void *opaque, target_phys_addr_t addr,
         case 0x38:	/* MCSPI_TX */
             if (ch < s->chnum) {
                 if (!IS_OMAP3_SPI(s) || s->fifo_ch != ch ||
-                    !(s->ch[ch].config & (1 << 27))) {  /* FFEW */
+                    !(s->ch[ch].config & (1 << 27))) { /* FFEW */
                     s->ch[ch].tx = value;
-                    s->ch[ch].status &= ~(1 << 1);      /* TXS */
+                    s->ch[ch].status &= ~(1 << 1);     /* TXS */
                     omap_mcspi_transfer_run(s, ch);
                 } else {
                     if (s->tx_fifo.len >= s->tx_fifo.size)
@@ -548,16 +554,20 @@ static void omap_mcspi_write(void *opaque, target_phys_addr_t addr,
                                 __FUNCTION__);
                     else {
                         qemu_irq_lower(s->ch[ch].txdrq);
-                        s->ch[ch].status &= ~(1 << 3);  /* TXFFE */
-                        omap_mcspi_fifo_put(
-                            &s->tx_fifo,
-                            1 + ((s->ch[ch].config >> 7) & 0x1f), /* WL */
-                            value);
-                        if (s->tx_fifo.len >= s->tx_fifo.size)
-                            s->ch[ch].status |= 1 << 4; /* TXFFF */
-                        s->ch[ch].status &= ~2;         /* TXS */
-                        if (s->tx_fifo.len >= (s->xferlevel & 0x3f))
+                        s->ch[ch].status &= ~0x0a;            /* TXFFE | TXS */
+                        if (((s->ch[ch].config >> 12) & 3) != 1) {    /* TRM */
+                            omap_mcspi_fifo_put(
+                                &s->tx_fifo,
+                                1 + ((s->ch[ch].config >> 7) & 0x1f), /* WL */
+                                value);
+                            if (s->tx_fifo.len >= s->tx_fifo.size)
+                                s->ch[ch].status |= 1 << 4;        /* TXFFF */
+                            if (s->tx_fifo.len >= (s->xferlevel & 0x3f))
+                                omap_mcspi_transfer_run(s, ch);
+                        } else {
+                            s->ch[ch].tx = value;
                             omap_mcspi_transfer_run(s, ch);
+                        }
                     }
                 }
             }
