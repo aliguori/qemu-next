@@ -1,9 +1,7 @@
 Source: qemu
 Section: misc
 Priority: optional
-Maintainer: Debian QEMU Team <pkg-qemu-devel@lists.alioth.debian.org>
-Uploaders: Aurelien Jarno <aurel32@debian.org>, Riku Voipio <riku@debian.org>,
- Josh Triplett <josh@psas.pdx.edu>
+Maintainer: Maemo Integration <integration@maemo.org>
 Build-Depends: debhelper (>= 5), quilt (>= 0.40), binutils (>= 2.16), nasm,
  libx11-dev, libsdl1.2-dev (>> 1.2.1), libncurses5-dev, zlib1g-dev,
  texi2html, sharutils, libgnutls-dev, libesd0-dev, etherboot,
@@ -26,3 +24,11 @@ Architecture: i386
 Depends: ${shlibs:Depends}, ${misc:Depends}, scratchbox-core (>= 1.0.12)
 Description: Qemu scratchbox devkit
  The qemu for the scratchbox1 lovers.
+
+Package: sb-system-qemu
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}
+Recommends: sbrsh
+Description: System qemu for scratchbox
+ This package includes system qemu to be used with scratchbox and sbrsh
+ for cpu transparency.
