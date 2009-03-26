@@ -19,8 +19,8 @@ DEB_HOST_ARCH_CPU = $(shell dpkg-architecture -qDEB_HOST_ARCH_CPU)
 
 TARGET_SYSTEM_TCG    = arm-softmmu i386-softmmu
 TARGET_LINUX_TCG     = arm-linux-user i386-linux-user
-package_list		 = obj-sb2/config-host.mak
-install_list		 = sb2-qemu-install
+package_list		 = obj-sb2/config-host.mak obj-system/config-host.mak
+install_list		 = sb2-qemu-install sb-system-qemu-install
 sb1_prefix			 = /scratchbox/devkits/cputransp
 
 target_system_list = $(TARGET_SYSTEM_TCG)
@@ -33,13 +33,14 @@ ifeq ($(DEB_HOST_ARCH_OS),kfreebsd)
        conf_arch += --audio-drv-list=oss,sdl,esd,pa
 endif
 
-BUILD_SB1_QEMU=$(shell test -r /scratchbox/tools/lib/libsb.a ; echo YES || echo NO)
+BUILD_SB1_QEMU=$(shell test -r /scratchbox/tools/lib/libsb.a && echo YES || echo NO)
 
 ifeq ($(DEB_HOST_ARCH_CPU),i386)
        conf_arch += --cpu=i386
 ifeq ($(BUILD_SB1_QEMU),YES)
        package_list += obj-sb1/config-host.mak
        install_list += sb1-qemu-install
+       sb1_target_list += arm-linux-user ppc-linux-user sparc-linux-user i386-linux-user armeb-linux-user mips-linux-user mipsel-linux-user
 endif
 endif
 ifeq ($(DEB_HOST_ARCH_CPU),sparc)
@@ -60,7 +61,7 @@ obj-sb2/config-host.mak: configure
 		--interp-prefix=/ \
 		--disable-blobs \
 		--enable-guest-base \
-		--target-list="$(target_system_list) $(target_linux_list)" \
+		--target-list="$(target_linux_list)" \
 		$(conf_arch) )
 	( cd obj-sb2; $(MAKE) $(NJOBS) )
 
@@ -72,9 +73,21 @@ obj-sb1/config-host.mak: configure
 		--interp-prefix=/ \
 		--static \
 		--enable-guest-base \
-		--target-list="arm-linux-user" \
+		--target-list="$(sb1_target_list)"\
 		--disable-kqemu --disable-sdl )
 	( cd obj-sb1; $(MAKE) $(NJOBS) )
+
+obj-system/config-host.mak: configure
+	dh_testdir
+	mkdir obj-system
+	( cd obj-system; CFLAGS="$(CFLAGS)" ../configure \
+		--prefix=/usr \
+		--interp-prefix=/ \
+		--disable-blobs \
+		--enable-guest-base \
+		--target-list="$(target_system_list)" \
+		$(conf_arch) )
+	( cd obj-system; $(MAKE) $(NJOBS) )
 
 build: $(package_list)
 
@@ -84,7 +97,7 @@ clean:
 	
 	[ ! -f config-host.mak ] || $(MAKE) distclean
 	
-	rm -rf obj-sb1 obj-sb2
+	rm -rf obj-sb1 obj-sb2 obj-system
 	rm -f $(qemu_docs)
 	
 	dh_clean
@@ -94,14 +107,17 @@ sb1-qemu-install:
 	mkdir -p debian/sb1-qemu/$(sb1_prefix)/{bin,etc}
 	cp debian/cputransp-methods debian/sb1-qemu/$(sb1_prefix)/etc
 	cp obj-sb1/*-linux-user/qemu-* debian/sb1-qemu/$(sb1_prefix)/bin
-	ln -sf $(sb1_prefix)/bin/qemu-arm debian/sb1-qemu/$(sb1_prefix)/bin/qemu-arm-cvs-m
+	ln -s qemu-arm debian/sb1-qemu/$(sb1_prefix)/bin/qemu-cvs-arm-m
 
 sb2-qemu-install:
 	mkdir -p debian/sb2-qemu-arm/usr/bin
 	cp obj-sb2/arm-linux-user/qemu-arm debian/sb2-qemu-arm/usr/bin/sb2-qemu-arm
 	cp obj-sb2/i386-linux-user/qemu-i386  debian/sb2-qemu-arm/usr/bin/sb2-qemu-i386
-	cp obj-sb2/arm-softmmu/qemu-system-arm  debian/sb2-qemu-arm/usr/bin/sb2-qemu-system-arm
-	cp obj-sb2/i386-softmmu/qemu  debian/sb2-qemu-arm/usr/bin/sb2-qemu-system-i386
+
+sb-system-qemu-install:
+	mkdir -p debian/sb-system-qemu/usr/bin
+	cp obj-system/arm-softmmu/qemu-system-arm  debian/sb-system-qemu/usr/bin/sb-qemu-system-arm
+	cp obj-system/i386-softmmu/qemu  debian/sb-system-qemu/usr/bin/sb-qemu-system-i386
 
 install: build $(install_list)
 	dh_testdir
