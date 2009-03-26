@@ -31,6 +31,14 @@
 #include "audio/audio.h"
 #include "block.h"
 
+/*
+ * When the flag below is defined, the "less important" I/O regions
+ * will not be mapped -- this is needed because the current maximum
+ * number of I/O regions in qemu-system-arm (128) is easily reached
+ * when everything is mapped.
+ */
+#define OMAP3_REDUCE_IOREGIONS
+
 //#define OMAP3_DEBUG_
 
 #ifdef OMAP3_DEBUG_
@@ -153,6 +161,7 @@ static struct omap_l3_region_s omap3_l3_region[] = {
     [L3ID_IVA_PM       ] = {0x00014000, 0x0400, L3TYPE_PM},
 };
 
+#ifndef OMAP3_REDUCE_IOREGIONS
 static uint32_t omap3_l3ia_read(void *opaque, target_phys_addr_t addr)
 {
     struct omap3_l3_initiator_agent_s *s = (struct omap3_l3_initiator_agent_s *)opaque;
@@ -735,11 +744,15 @@ static CPUWriteMemoryFunc *omap3_l3undef_writefn[] = {
     omap3_l3undef_write16,
     omap3_l3undef_write32,
 };
+#endif
 
 static struct omap_l3_s *omap3_l3_init(target_phys_addr_t base,
                                        struct omap_l3_region_s *regions,
                                        int n)
 {
+#ifdef OMAP3_REDUCE_IOREGIONS
+    return NULL;
+#else
     int i, iomemtype = 0;
     
     struct omap_l3_s *bus = qemu_mallocz(sizeof(*bus) + n * sizeof(*bus->region));
@@ -790,6 +803,7 @@ static struct omap_l3_s *omap3_l3_init(target_phys_addr_t base,
     }
     
     return bus;
+#endif
 }
 
 typedef enum {
@@ -1281,6 +1295,7 @@ static const struct omap3_l4_agent_info_s omap3_l4_agent_info[] = {
     {L4A_GPIO6,      L4ID_GPIO6,     2},
 };
 
+#ifndef OMAP3_REDUCE_IOREGIONS
 static uint32_t omap3_l4ta_read(void *opaque, target_phys_addr_t addr)
 {
     struct omap_target_agent_s *s = (struct omap_target_agent_s *)opaque;
@@ -1375,10 +1390,14 @@ static CPUWriteMemoryFunc *omap3_l4ta_writefn[] = {
     omap_badwidth_write32,
     omap3_l4ta_write,
 };
+#endif
 
 static struct omap_target_agent_s *omap3_l4ta_init(struct omap_l4_s *bus, int cs)
 {
-    int i, iomemtype;
+#ifndef OMAP3_REDUCE_IOREGIONS
+    int iomemtype;
+#endif
+    int i;
     struct omap_target_agent_s *ta = 0;
     const struct omap3_l4_agent_info_s *info = 0;
 
@@ -1415,12 +1434,14 @@ static struct omap_target_agent_s *omap3_l4ta_init(struct omap_l4_s *bus, int cs
         exit(-1);
     }
     
+#ifndef OMAP3_REDUCE_IOREGIONS
     iomemtype = l4_register_io_memory(0, omap3_l4ta_readfn,
                                       omap3_l4ta_writefn, ta);
     ta->base = omap_l4_attach(ta, i, iomemtype);
 
     register_savevm("omap3_l4ta", ta->base >> 8, 0,
                     omap3_l4ta_save_state, omap3_l4ta_load_state, ta);
+#endif
 
     return ta;
 }
