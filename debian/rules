@@ -19,9 +19,9 @@ DEB_HOST_ARCH_CPU = $(shell dpkg-architecture -qDEB_HOST_ARCH_CPU)
 
 TARGET_SYSTEM_TCG    = arm-softmmu i386-softmmu
 TARGET_LINUX_TCG     = arm-linux-user i386-linux-user
-package_list		 = obj-sb2/config-host.mak obj-system/config-host.mak
-install_list		 = sb2-qemu-install sb-system-qemu-install
-sb1_prefix			 = /scratchbox/devkits/cputransp
+package_list         = obj-sb2/config-host.mak obj-system/config-host.mak
+install_list         = sb2-qemu-install sb-system-qemu-install
+sb1_prefix           = /scratchbox/devkits/cputransp
 
 target_system_list = $(TARGET_SYSTEM_TCG)
 
@@ -94,12 +94,9 @@ build: $(package_list)
 clean:
 	dh_testdir
 	dh_testroot
-	
 	[ ! -f config-host.mak ] || $(MAKE) distclean
-	
 	rm -rf obj-sb1 obj-sb2 obj-system
 	rm -f $(qemu_docs)
-	
 	dh_clean
 
 # cputransp-methods should be generated at postinst
