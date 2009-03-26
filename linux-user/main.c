@@ -2276,6 +2276,7 @@ int main(int argc, char **argv, char **envp)
     const char *cpu_model;
     struct target_pt_regs regs1, *regs = &regs1;
     struct image_info info1, *info = &info1;
+    struct linux_binprm bprm;
     TaskState ts1, *ts = &ts1;
     CPUState *env;
     int optind;
@@ -2420,6 +2421,8 @@ int main(int argc, char **argv, char **envp)
     /* Zero out image_info */
     memset(info, 0, sizeof(struct image_info));
 
+    memset(&bprm, 0, sizeof (bprm));
+
     /* Scan interp_prefix dir for replacement files. */
     init_paths(interp_prefix);
 
@@ -2526,7 +2529,15 @@ int main(int argc, char **argv, char **envp)
     }
     target_argv[target_argc] = NULL;
 
-    if (loader_exec(filename, target_argv+argskip, target_environ, regs, info) != 0) {
+    memset(ts, 0, sizeof(TaskState));
+    init_task_state(ts);
+    /* build Task State */
+    ts->info = info;
+    ts->bprm = &bprm;
+    env->opaque = ts;
+
+    if (loader_exec(filename, target_argv+argskip, target_environ, regs,
+        info, &bprm) != 0) {
         printf("Error loading %s\n", filename);
         _exit(1);
     }
@@ -2573,12 +2584,6 @@ int main(int argc, char **argv, char **envp)
     target_set_brk(info->brk);
     syscall_init();
     signal_init();
-
-    /* build Task State */
-    memset(ts, 0, sizeof(TaskState));
-    init_task_state(ts);
-    ts->info = info;
-    env->opaque = ts;
 
 #if defined(TARGET_I386)
     cpu_x86_set_cpl(env, 3);
