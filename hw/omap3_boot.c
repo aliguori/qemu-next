@@ -4,6 +4,11 @@
  *
  * Copyright (C) 2009 Nokia Corporation
  *
+ * The OMAP3 boot ROM service routines accessed via ARM SMC instruction
+ * are not available in this emulation due to the limited availability
+ * of public documentation on the ARM TrustZone functionality. However
+ * it seems executing the SMC instruction as a NOP causes no harm.
+ *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License as
  * published by the Free Software Foundation; either version 2 or
@@ -774,13 +779,89 @@ static int omap3_nand_boot(struct omap_mpu_state_s *mpu, int bus16)
     return result;
 }
 
+static inline void omap3_onenand_writereg(uint16_t reg, uint16_t value)
+{
+    cpu_to_le16s(&value);
+    cpu_physical_memory_write(0x08000000 + (reg << 1), (void *)&value, 2);
+}
+
+static inline uint16_t omap3_onenand_readreg(uint16_t reg)
+{
+    uint16_t value;
+    cpu_physical_memory_read(0x08000000 + (reg << 1), (void *)&value, 2);
+    return le16_to_cpu(value);
+}
+
+static int omap3_onenand_readpage(uint16_t pagesize,
+                                  uint16_t b,
+                                  uint16_t p,
+                                  uint8_t *d)
+{
+    omap3_onenand_writereg(0xf100, b);
+    omap3_onenand_writereg(0xf107, (p & 0x3f) << 2);
+    omap3_onenand_writereg(0xf200, 0x0800);
+    omap3_onenand_writereg(0xf101, 0);
+    omap3_onenand_writereg(0xf241, 0);
+    omap3_onenand_writereg(0xf220, 0);
+    if (!(omap3_onenand_readreg(0xf241) & 0x8000) ||
+        (omap3_onenand_readreg(0xf240) & 0x0400))
+        return 0;
+    cpu_physical_memory_read(0x08000400, (void *)d, pagesize);
+    return 1;
+}
+
+static int omap3_onenand_boot(struct omap_mpu_state_s *s)
+{
+    uint32_t x;
+    uint16_t i, j, pagesize;
+    uint8_t *page;
+    struct omap3_boot_s *boot;
+    int result = 0;
+    
+    /* reset device type at cs0: 16bit NOR, no wait monitoring */
+    cpu_to_le32wu(&x, 0x79001000);
+    cpu_physical_memory_write(0x6e000060, (void *)&x, 4); /* GPMC_CONFIG1_0 */
+    /* map cs0 at 0x08000000 */
+    cpu_to_le32wu(&x, 0x00000848);
+    cpu_physical_memory_write(0x6e000078, (void *)&x, 4); /* GPMC_CONFIG7_0 */
+    /* try to read onenand registers */
+    if (omap3_onenand_readreg(0xf000) != 0x00ec) /* manufacturer id */
+        return 0;
+    pagesize = omap3_onenand_readreg(0xf003);
+    if (pagesize != 2048 && pagesize != 1024) {
+        fprintf(stderr, "%s: OneNAND page size %d not supported\n",
+                __FUNCTION__, pagesize);
+        return 0;
+    }
+    /* search for boot loader */
+    page = qemu_mallocz(pagesize);
+    for (i = 0; i < 4; i++) { /* search 4 blocks */
+        if (omap3_onenand_readpage(pagesize, i, 0, page)) {
+            boot = omap3_boot_init(s, onenand, page, pagesize);
+            for (j = 1; omap3_boot_block(page, pagesize, boot); j++)
+                if (!omap3_onenand_readpage(pagesize, i, j, page))
+                    break;
+            result = omap3_boot_finish(boot);
+            if (result)
+                break;
+        }
+    }
+    free(page);
+    return result;
+}
+
 
 void omap3_boot_rom_emu(struct omap_mpu_state_s *s)
 {
     const uint8_t rom_version[4] = { 0x00, 0x14, 0x00, 0x00 }; /* v. 14.00 */
     uint8_t x[4] = {0, 0, 0, 0};
     int result = 0;
+    ram_addr_t bootrom_base;
     
+    bootrom_base = qemu_ram_alloc(OMAP3XXX_BOOTROM_SIZE);
+    cpu_register_physical_memory(OMAP3_Q1_BASE + 0x14000,
+                                 OMAP3XXX_BOOTROM_SIZE,
+                                 bootrom_base | IO_MEM_ROM);
     cpu_physical_memory_write_rom(OMAP3_Q1_BASE + 0x14000,
                                   omap3_boot_rom,
                                   sizeof(omap3_boot_rom));
@@ -791,18 +872,27 @@ void omap3_boot_rom_emu(struct omap_mpu_state_s *s)
                               omap3_sram_vectors,
                               sizeof(omap3_sram_vectors));
 
-    /* if we have NAND in GPMC CS0, try to read boot loader from there.
-     * here we are relying on all memories to be attached and gpmc_attach
+    /* here we are relying on all memories to be attached and gpmc_attach
      * to fill in DEVICETYPE field correctly for CS0 for us */
     cpu_physical_memory_read(0x6e000060, x, 4); /* GPMC_CONFIG1_0 */
-    if (((x[1] >> 2) & 3) == 2) /* DEVICETYPE == NAND? */
-        result = omap3_nand_boot(s, ((x[1] >> 4) & 3) == 1);
+    switch (((x[1] >> 2) & 3)) {
+        case 0: /* NOR */
+            result = omap3_onenand_boot(s);
+            break;
+        case 2: /* NAND */
+            result = omap3_nand_boot(s, ((x[1] >> 4) & 3) == 1);
+            break;
+        default:
+            break;
+    }
 
-    /* TODO: support OneNAND and XIP */
-    
     /* if no boot loader found yet, try the MMC/SD card... */
     if (!result)
         result = omap3_mmc_boot(s);
+    
+    /* ensure boot ROM is mapped at zero address */
+    cpu_register_physical_memory(0, OMAP3XXX_BOOTROM_SIZE,
+                                 bootrom_base | IO_MEM_ROM);
     
     if (!result) { /* no boot device found */
         /* move PC to the appropriate ROM dead loop address */

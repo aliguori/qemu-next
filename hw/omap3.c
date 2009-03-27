@@ -4458,7 +4458,7 @@ struct omap_mpu_state_s *omap3530_mpu_init(unsigned long sdram_size,
 {
     struct omap_mpu_state_s *s = (struct omap_mpu_state_s *)
         qemu_mallocz(sizeof(struct omap_mpu_state_s));
-    ram_addr_t sram_base, q2_base, bootrom_base;
+    ram_addr_t sram_base, q2_base;
     qemu_irq *cpu_irq;
     qemu_irq drqs[4];
     int i;
@@ -4476,19 +4476,12 @@ struct omap_mpu_state_s *omap3530_mpu_init(unsigned long sdram_size,
     omap_clk_init(s);
 
     /* Memory-mapped stuff */
-
     q2_base = qemu_ram_alloc(s->sdram_size);
     cpu_register_physical_memory(OMAP3_Q2_BASE, s->sdram_size,
                                  q2_base | IO_MEM_RAM);
     sram_base = qemu_ram_alloc(s->sram_size);
     cpu_register_physical_memory(OMAP3_SRAM_BASE, s->sram_size,
                                  sram_base | IO_MEM_RAM);
-    bootrom_base = qemu_ram_alloc(OMAP3XXX_BOOTROM_SIZE);
-    cpu_register_physical_memory(OMAP3_Q1_BASE + 0x14000,
-                                 OMAP3XXX_BOOTROM_SIZE,
-                                 bootrom_base | IO_MEM_ROM);
-    cpu_register_physical_memory(0, OMAP3XXX_BOOTROM_SIZE,
-                                 bootrom_base | IO_MEM_ROM);
 
     s->l4 = omap_l4_init(OMAP3_L4_BASE, 
                          sizeof(omap3_l4_agent_info) 
