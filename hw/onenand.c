@@ -24,6 +24,7 @@
 #include "irq.h"
 #include "sysemu.h"
 #include "block.h"
+#include "hw.h"
 
 /* 11 for 2kB-page OneNAND ("2nd generation") and 10 for 1kB-page chips */
 #define PAGE_SHIFT	11
@@ -127,6 +128,85 @@ void onenand_base_unmap(void *opaque)
 static void onenand_intr_update(struct onenand_s *s)
 {
     qemu_set_irq(s->intr, ((s->intstatus >> 15) ^ (~s->config[0] >> 6)) & 1);
+}
+
+static void onenand_save_state(QEMUFile *f, void *opaque)
+{
+    struct onenand_s *s = (struct onenand_s *)opaque;
+    int i;
+    
+    if (s->current == s->otp)
+        qemu_put_byte(f, 1);
+    else if (s->current == s->image)
+        qemu_put_byte(f, 2);
+    else
+        qemu_put_byte(f, 0);
+    qemu_put_sbe32(f, s->cycle);
+    qemu_put_sbe32(f, s->otpmode);
+    for (i = 0; i < 8; i++) {
+        qemu_put_be16(f, s->addr[i]);
+        qemu_put_be16(f, s->unladdr[i]);
+    }
+    qemu_put_sbe32(f, s->bufaddr);
+    qemu_put_sbe32(f, s->count);
+    qemu_put_be16(f, s->command);
+    qemu_put_be16(f, s->config[0]);
+    qemu_put_be16(f, s->config[1]);
+    qemu_put_be16(f, s->status);
+    qemu_put_be16(f, s->intstatus);
+    qemu_put_be16(f, s->wpstatus);
+    qemu_put_sbe32(f, s->secs_cur);
+    qemu_put_buffer(f, s->blockwp, s->blocks);
+    qemu_put_byte(f, s->ecc.cp);
+    qemu_put_be16(f, s->ecc.lp[0]);
+    qemu_put_be16(f, s->ecc.lp[1]);
+    qemu_put_be16(f, s->ecc.count);
+    qemu_put_buffer(f, s->otp, (64 + 2) << PAGE_SHIFT);
+}
+
+static int onenand_load_state(QEMUFile *f, void *opaque, int version_id)
+{
+    struct onenand_s *s = (struct onenand_s *)opaque;
+    int i;
+    
+    if (version_id)
+        return -EINVAL;
+    
+    switch (qemu_get_byte(f)) {
+        case 1:
+            s->current = s->otp;
+            break;
+        case 2:
+            s->current = s->image;
+            break;
+        default:
+            break;
+    }
+    s->cycle = qemu_get_sbe32(f);
+    s->otpmode = qemu_get_sbe32(f);
+    for (i = 0; i < 8; i++) {
+        s->addr[i] = qemu_get_be16(f);
+        s->unladdr[i] = qemu_get_be16(f);
+    }
+    s->bufaddr = qemu_get_sbe32(f);
+    s->count = qemu_get_sbe32(f);
+    s->command = qemu_get_be16(f);
+    s->config[0] = qemu_get_be16(f);
+    s->config[1] = qemu_get_be16(f);
+    s->status = qemu_get_be16(f);
+    s->intstatus = qemu_get_be16(f);
+    s->wpstatus = qemu_get_be16(f);
+    s->secs_cur = qemu_get_sbe32(f);
+    qemu_get_buffer(f, s->blockwp, s->blocks);
+    s->ecc.cp = qemu_get_byte(f);
+    s->ecc.lp[0] = qemu_get_be16(f);
+    s->ecc.lp[1] = qemu_get_be16(f);
+    s->ecc.count = qemu_get_be16(f);
+    qemu_get_buffer(f, s->otp, (64 + 2) << PAGE_SHIFT);
+    
+    onenand_intr_update(s);
+    
+    return 0;
 }
 
 /* Hot reset (Reset OneNAND command) or warm reset (RP pin low) */
@@ -651,6 +731,9 @@ void *onenand_init(uint32_t id, int regshift, qemu_irq irq)
     s->data[1][1] = ram + ((0x8010 + (1 << (PAGE_SHIFT - 6))) << s->shift);
 
     onenand_reset(s, 1);
+    
+    register_savevm("onenand", id | ((regshift & 0x7f) << 24), 0,
+                    onenand_save_state, onenand_load_state, s);
 
     return s;
 }
