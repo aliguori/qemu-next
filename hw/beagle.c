@@ -59,7 +59,7 @@ static void beagle_init(ram_addr_t ram_size, int vga_ram_size,
 
 	s->nand = nand_init(NAND_MFR_MICRON, 0xba); /* MT29F2G16ABC */
 	nand_setpins(s->nand, 0, 0, 0, 1, 0); /* no write-protect */
-    omap_gpmc_attach(s->cpu->gpmc, BEAGLE_NAND_CS, 0, NULL, NULL, s, s->nand);
+    omap_gpmc_attach(s->cpu->gpmc, BEAGLE_NAND_CS, 0, NULL, NULL, s->nand, 2);
     omap3_mmc_attach(s->cpu->omap3_mmc[0], drives_table[sdindex].bdrv);
 
     s->i2c = omap_i2c_bus(s->cpu->i2c[0]);
