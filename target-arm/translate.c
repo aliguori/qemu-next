@@ -5182,7 +5182,7 @@ static int disas_neon_data_insn(CPUState * env, DisasContext *s, uint32_t insn)
                         NEON_GET_REG(T0, rm, pass * 2);
                         NEON_GET_REG(T1, rm, pass * 2 + 1);
                         switch (size) {
-                        case 0: tcg_gen_bswap_i32(cpu_T[0], cpu_T[0]); break;
+                        case 0: tcg_gen_bswap32_i32(cpu_T[0], cpu_T[0]); break;
                         case 1: gen_swap_half(cpu_T[0]); break;
                         case 2: /* no-op */ break;
                         default: abort();
@@ -5193,7 +5193,7 @@ static int disas_neon_data_insn(CPUState * env, DisasContext *s, uint32_t insn)
                         } else {
                             gen_op_movl_T0_T1();
                             switch (size) {
-                            case 0: tcg_gen_bswap_i32(cpu_T[0], cpu_T[0]); break;
+                            case 0: tcg_gen_bswap32_i32(cpu_T[0], cpu_T[0]); break;
                             case 1: gen_swap_half(cpu_T[0]); break;
                             default: abort();
                             }
@@ -5335,7 +5335,7 @@ static int disas_neon_data_insn(CPUState * env, DisasContext *s, uint32_t insn)
                         switch (op) {
                         case 1: /* VREV32 */
                             switch (size) {
-                            case 0: tcg_gen_bswap_i32(cpu_T[0], cpu_T[0]); break;
+                            case 0: tcg_gen_bswap32_i32(cpu_T[0], cpu_T[0]); break;
                             case 1: gen_swap_half(cpu_T[0]); break;
                             default: return 1;
                             }
@@ -6604,7 +6604,7 @@ static void disas_arm_insn(CPUState * env, DisasContext *s)
                             if (insn & (1 << 7))
                                 gen_rev16(tmp);
                             else
-                                tcg_gen_bswap_i32(tmp, tmp);
+                                tcg_gen_bswap32_i32(tmp, tmp);
                         }
                         store_reg(s, rd, tmp);
                     } else {
@@ -7420,7 +7420,7 @@ static int disas_thumb2_insn(CPUState *env, DisasContext *s, uint16_t insn_hw1)
                     gen_helper_rbit(tmp, tmp);
                     break;
                 case 0x08: /* rev */
-                    tcg_gen_bswap_i32(tmp, tmp);
+                    tcg_gen_bswap32_i32(tmp, tmp);
                     break;
                 case 0x09: /* rev16 */
                     gen_rev16(tmp);
@@ -8554,7 +8554,7 @@ static void disas_thumb_insn(CPUState *env, DisasContext *s)
             rd = insn & 0x7;
             tmp = load_reg(s, rn);
             switch ((insn >> 6) & 3) {
-            case 0: tcg_gen_bswap_i32(tmp, tmp); break;
+            case 0: tcg_gen_bswap32_i32(tmp, tmp); break;
             case 1: gen_rev16(tmp); break;
             case 3: gen_revsh(tmp); break;
             default: goto illegal_op;

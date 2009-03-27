@@ -63,9 +63,6 @@
 
 #define SMC_BITMAP_USE_THRESHOLD 10
 
-#define MMAP_AREA_START        0x00000000
-#define MMAP_AREA_END          0xa8000000
-
 #if defined(TARGET_SPARC64)
 #define TARGET_PHYS_ADDR_SPACE_BITS 41
 #elif defined(TARGET_SPARC)
@@ -1457,9 +1454,13 @@ void cpu_single_step(CPUState *env, int enabled)
 #if defined(TARGET_HAS_ICE)
     if (env->singlestep_enabled != enabled) {
         env->singlestep_enabled = enabled;
-        /* must flush all the translated code to avoid inconsistancies */
-        /* XXX: only flush what is necessary */
-        tb_flush(env);
+        if (kvm_enabled())
+            kvm_update_guest_debug(env, 0);
+        else {
+            /* must flush all the translated code to avoid inconsistancies */
+            /* XXX: only flush what is necessary */
+            tb_flush(env);
+        }
     }
 #endif
 }

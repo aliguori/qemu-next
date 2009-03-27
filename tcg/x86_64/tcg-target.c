@@ -194,6 +194,8 @@ static inline int tcg_target_const_match(tcg_target_long val,
 #define ARITH_XOR 6
 #define ARITH_CMP 7
 
+#define SHIFT_ROL 0
+#define SHIFT_ROR 1
 #define SHIFT_SHL 4
 #define SHIFT_SHR 5
 #define SHIFT_SAR 7
@@ -1061,7 +1063,13 @@ static inline void tcg_out_op(TCGContext *s, int opc, const TCGArg *args,
     case INDEX_op_sar_i32:
         c = SHIFT_SAR;
         goto gen_shift32;
-        
+    case INDEX_op_rotl_i32:
+        c = SHIFT_ROL;
+        goto gen_shift32;
+    case INDEX_op_rotr_i32:
+        c = SHIFT_ROR;
+        goto gen_shift32;
+
     case INDEX_op_shl_i64:
         c = SHIFT_SHL;
     gen_shift64:
@@ -1082,7 +1090,13 @@ static inline void tcg_out_op(TCGContext *s, int opc, const TCGArg *args,
     case INDEX_op_sar_i64:
         c = SHIFT_SAR;
         goto gen_shift64;
-        
+    case INDEX_op_rotl_i64:
+        c = SHIFT_ROL;
+        goto gen_shift64;
+    case INDEX_op_rotr_i64:
+        c = SHIFT_ROR;
+        goto gen_shift64;
+
     case INDEX_op_brcond_i32:
         tcg_out_brcond(s, args[2], args[0], args[1], const_args[1], 
                        args[3], 0);
@@ -1092,10 +1106,17 @@ static inline void tcg_out_op(TCGContext *s, int opc, const TCGArg *args,
                        args[3], P_REXW);
         break;
 
-    case INDEX_op_bswap_i32:
+    case INDEX_op_bswap16_i32:
+    case INDEX_op_bswap16_i64:
+        tcg_out8(s, 0x66);
+        tcg_out_modrm(s, 0xc1, SHIFT_ROL, args[0]);
+        tcg_out8(s, 8);
+        break;
+    case INDEX_op_bswap32_i32:
+    case INDEX_op_bswap32_i64:
         tcg_out_opc(s, (0xc8 + (args[0] & 7)) | P_EXT, 0, args[0], 0);
         break;
-    case INDEX_op_bswap_i64:
+    case INDEX_op_bswap64_i64:
         tcg_out_opc(s, (0xc8 + (args[0] & 7)) | P_EXT | P_REXW, 0, args[0], 0);
         break;
 
@@ -1104,6 +1125,13 @@ static inline void tcg_out_op(TCGContext *s, int opc, const TCGArg *args,
         break;
     case INDEX_op_neg_i64:
         tcg_out_modrm(s, 0xf7 | P_REXW, 3, args[0]);
+        break;
+
+    case INDEX_op_not_i32:
+        tcg_out_modrm(s, 0xf7, 2, args[0]);
+        break;
+    case INDEX_op_not_i64:
+        tcg_out_modrm(s, 0xf7 | P_REXW, 2, args[0]);
         break;
 
     case INDEX_op_ext8s_i32:
@@ -1242,6 +1270,8 @@ static const TCGTargetOpDef x86_64_op_defs[] = {
     { INDEX_op_shl_i32, { "r", "0", "ci" } },
     { INDEX_op_shr_i32, { "r", "0", "ci" } },
     { INDEX_op_sar_i32, { "r", "0", "ci" } },
+    { INDEX_op_rotl_i32, { "r", "0", "ci" } },
+    { INDEX_op_rotr_i32, { "r", "0", "ci" } },
 
     { INDEX_op_brcond_i32, { "r", "ri" } },
 
@@ -1271,14 +1301,22 @@ static const TCGTargetOpDef x86_64_op_defs[] = {
     { INDEX_op_shl_i64, { "r", "0", "ci" } },
     { INDEX_op_shr_i64, { "r", "0", "ci" } },
     { INDEX_op_sar_i64, { "r", "0", "ci" } },
+    { INDEX_op_rotl_i64, { "r", "0", "ci" } },
+    { INDEX_op_rotr_i64, { "r", "0", "ci" } },
 
     { INDEX_op_brcond_i64, { "r", "re" } },
 
-    { INDEX_op_bswap_i32, { "r", "0" } },
-    { INDEX_op_bswap_i64, { "r", "0" } },
+    { INDEX_op_bswap16_i32, { "r", "0" } },
+    { INDEX_op_bswap16_i64, { "r", "0" } },
+    { INDEX_op_bswap32_i32, { "r", "0" } },
+    { INDEX_op_bswap32_i64, { "r", "0" } },
+    { INDEX_op_bswap64_i64, { "r", "0" } },
 
     { INDEX_op_neg_i32, { "r", "0" } },
     { INDEX_op_neg_i64, { "r", "0" } },
+
+    { INDEX_op_not_i32, { "r", "0" } },
+    { INDEX_op_not_i64, { "r", "0" } },
 
     { INDEX_op_ext8s_i32, { "r", "r"} },
     { INDEX_op_ext16s_i32, { "r", "r"} },

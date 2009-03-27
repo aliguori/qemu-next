@@ -56,15 +56,22 @@ enum {
 #define TCG_TARGET_CALL_STACK_OFFSET 0
 
 /* optional instructions */
-#define TCG_TARGET_HAS_bswap_i32
-#define TCG_TARGET_HAS_bswap_i64
+#define TCG_TARGET_HAS_bswap16_i32
+#define TCG_TARGET_HAS_bswap16_i64
+#define TCG_TARGET_HAS_bswap32_i32
+#define TCG_TARGET_HAS_bswap32_i64
+#define TCG_TARGET_HAS_bswap64_i64
 #define TCG_TARGET_HAS_neg_i32
 #define TCG_TARGET_HAS_neg_i64
+#define TCG_TARGET_HAS_not_i32
+#define TCG_TARGET_HAS_not_i64
 #define TCG_TARGET_HAS_ext8s_i32
 #define TCG_TARGET_HAS_ext16s_i32
 #define TCG_TARGET_HAS_ext8s_i64
 #define TCG_TARGET_HAS_ext16s_i64
 #define TCG_TARGET_HAS_ext32s_i64
+#define TCG_TARGET_HAS_rot_i32
+#define TCG_TARGET_HAS_rot_i64
 
 /* Note: must be synced with dyngen-exec.h */
 #define TCG_AREG0 TCG_REG_R14

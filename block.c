@@ -47,6 +47,8 @@
 #define SECTOR_BITS 9
 #define SECTOR_SIZE (1 << SECTOR_BITS)
 
+static AIOPool vectored_aio_pool;
+
 typedef struct BlockDriverAIOCBSync {
     BlockDriverAIOCB common;
     QEMUBH *bh;
@@ -142,11 +144,12 @@ static void bdrv_register(BlockDriver *bdrv)
         bdrv->bdrv_aio_write = bdrv_aio_write_em;
         bdrv->bdrv_aio_cancel = bdrv_aio_cancel_em;
         bdrv->aiocb_size = sizeof(BlockDriverAIOCBSync);
-    } else if (!bdrv->bdrv_read && !bdrv->bdrv_pread) {
+    } else if (!bdrv->bdrv_read) {
         /* add synchronous IO emulation layer */
         bdrv->bdrv_read = bdrv_read_em;
         bdrv->bdrv_write = bdrv_write_em;
     }
+    aio_pool_init(&bdrv->aio_pool, bdrv->aiocb_size, bdrv->bdrv_aio_cancel);
     bdrv->next = first_drv;
     first_drv = bdrv;
 }
@@ -568,22 +571,7 @@ int bdrv_read(BlockDriverState *bs, int64_t sector_num,
     if (bdrv_check_request(bs, sector_num, nb_sectors))
         return -EIO;
 
-    if (drv->bdrv_pread) {
-        int ret, len;
-        len = nb_sectors * 512;
-        ret = drv->bdrv_pread(bs, sector_num * 512, buf, len);
-        if (ret < 0)
-            return ret;
-        else if (ret != len)
-            return -EINVAL;
-        else {
-	    bs->rd_bytes += (unsigned) len;
-	    bs->rd_ops ++;
-            return 0;
-	}
-    } else {
-        return drv->bdrv_read(bs, sector_num, buf, nb_sectors);
-    }
+    return drv->bdrv_read(bs, sector_num, buf, nb_sectors);
 }
 
 /* Return < 0 if error. Important errors are:
@@ -603,27 +591,11 @@ int bdrv_write(BlockDriverState *bs, int64_t sector_num,
     if (bdrv_check_request(bs, sector_num, nb_sectors))
         return -EIO;
 
-    if (drv->bdrv_pwrite) {
-        int ret, len, count = 0;
-        len = nb_sectors * 512;
-        do {
-            ret = drv->bdrv_pwrite(bs, sector_num * 512, buf, len - count);
-            if (ret < 0) {
-                printf("bdrv_write ret=%d\n", ret);
-                return ret;
-            }
-            count += ret;
-            buf += ret;
-        } while (count != len);
-        bs->wr_bytes += (unsigned) len;
-        bs->wr_ops ++;
-        return 0;
-    }
     return drv->bdrv_write(bs, sector_num, buf, nb_sectors);
 }
 
-static int bdrv_pread_em(BlockDriverState *bs, int64_t offset,
-                         uint8_t *buf, int count1)
+int bdrv_pread(BlockDriverState *bs, int64_t offset,
+               void *buf, int count1)
 {
     uint8_t tmp_buf[SECTOR_SIZE];
     int len, nb_sectors, count;
@@ -666,8 +638,8 @@ static int bdrv_pread_em(BlockDriverState *bs, int64_t offset,
     return count1;
 }
 
-static int bdrv_pwrite_em(BlockDriverState *bs, int64_t offset,
-                          const uint8_t *buf, int count1)
+int bdrv_pwrite(BlockDriverState *bs, int64_t offset,
+                const void *buf, int count1)
 {
     uint8_t tmp_buf[SECTOR_SIZE];
     int len, nb_sectors, count;
@@ -712,42 +684,6 @@ static int bdrv_pwrite_em(BlockDriverState *bs, int64_t offset,
             return -EIO;
     }
     return count1;
-}
-
-/**
- * Read with byte offsets (needed only for file protocols)
- */
-int bdrv_pread(BlockDriverState *bs, int64_t offset,
-               void *buf1, int count1)
-{
-    BlockDriver *drv = bs->drv;
-
-    if (!drv)
-        return -ENOMEDIUM;
-    if (bdrv_check_byte_request(bs, offset, count1))
-        return -EIO;
-
-    if (!drv->bdrv_pread)
-        return bdrv_pread_em(bs, offset, buf1, count1);
-    return drv->bdrv_pread(bs, offset, buf1, count1);
-}
-
-/**
- * Write with byte offsets (needed only for file protocols)
- */
-int bdrv_pwrite(BlockDriverState *bs, int64_t offset,
-                const void *buf1, int count1)
-{
-    BlockDriver *drv = bs->drv;
-
-    if (!drv)
-        return -ENOMEDIUM;
-    if (bdrv_check_byte_request(bs, offset, count1))
-        return -EIO;
-
-    if (!drv->bdrv_pwrite)
-        return bdrv_pwrite_em(bs, offset, buf1, count1);
-    return drv->bdrv_pwrite(bs, offset, buf1, count1);
 }
 
 /**
@@ -1140,7 +1076,6 @@ void bdrv_info(Monitor *mon)
 void bdrv_info_stats(Monitor *mon)
 {
     BlockDriverState *bs;
-    BlockDriverInfo bdi;
 
     for (bs = bdrv_first; bs != NULL; bs = bs->next) {
         monitor_printf(mon, "%s:"
@@ -1148,15 +1083,10 @@ void bdrv_info_stats(Monitor *mon)
                        " wr_bytes=%" PRIu64
                        " rd_operations=%" PRIu64
                        " wr_operations=%" PRIu64
-                       ,
+                       "\n",
                        bs->device_name,
                        bs->rd_bytes, bs->wr_bytes,
                        bs->rd_ops, bs->wr_ops);
-        if (bdrv_get_info(bs, &bdi) == 0)
-            monitor_printf(mon, " high=%" PRId64
-                           " bytes_free=%" PRId64,
-                           bdi.highest_alloc, bdi.num_free_bytes);
-        monitor_printf(mon, "\n");
     }
 }
 
@@ -1325,24 +1255,32 @@ char *bdrv_snapshot_dump(char *buf, int buf_size, QEMUSnapshotInfo *sn)
 /**************************************************************/
 /* async I/Os */
 
-typedef struct VectorTranslationState {
+typedef struct VectorTranslationAIOCB {
+    BlockDriverAIOCB common;
     QEMUIOVector *iov;
     uint8_t *bounce;
     int is_write;
     BlockDriverAIOCB *aiocb;
-    BlockDriverAIOCB *this_aiocb;
-} VectorTranslationState;
+} VectorTranslationAIOCB;
+
+static void bdrv_aio_cancel_vector(BlockDriverAIOCB *_acb)
+{
+    VectorTranslationAIOCB *acb
+        = container_of(_acb, VectorTranslationAIOCB, common);
+
+    bdrv_aio_cancel(acb->aiocb);
+}
 
 static void bdrv_aio_rw_vector_cb(void *opaque, int ret)
 {
-    VectorTranslationState *s = opaque;
+    VectorTranslationAIOCB *s = (VectorTranslationAIOCB *)opaque;
 
     if (!s->is_write) {
         qemu_iovec_from_buffer(s->iov, s->bounce, s->iov->size);
     }
     qemu_vfree(s->bounce);
-    s->this_aiocb->cb(s->this_aiocb->opaque, ret);
-    qemu_aio_release(s->this_aiocb);
+    s->common.cb(s->common.opaque, ret);
+    qemu_aio_release(s);
 }
 
 static BlockDriverAIOCB *bdrv_aio_rw_vector(BlockDriverState *bs,
@@ -1354,10 +1292,9 @@ static BlockDriverAIOCB *bdrv_aio_rw_vector(BlockDriverState *bs,
                                             int is_write)
 
 {
-    VectorTranslationState *s = qemu_mallocz(sizeof(*s));
-    BlockDriverAIOCB *aiocb = qemu_aio_get(bs, cb, opaque);
+    VectorTranslationAIOCB *s = qemu_aio_get_pool(&vectored_aio_pool, bs,
+                                                  cb, opaque);
 
-    s->this_aiocb = aiocb;
     s->iov = iov;
     s->bounce = qemu_memalign(512, nb_sectors * 512);
     s->is_write = is_write;
@@ -1369,7 +1306,7 @@ static BlockDriverAIOCB *bdrv_aio_rw_vector(BlockDriverState *bs,
         s->aiocb = bdrv_aio_read(bs, sector_num, s->bounce, nb_sectors,
                                  bdrv_aio_rw_vector_cb, s);
     }
-    return aiocb;
+    return &s->common;
 }
 
 BlockDriverAIOCB *bdrv_aio_readv(BlockDriverState *bs, int64_t sector_num,
@@ -1444,14 +1381,7 @@ BlockDriverAIOCB *bdrv_aio_write(BlockDriverState *bs, int64_t sector_num,
 
 void bdrv_aio_cancel(BlockDriverAIOCB *acb)
 {
-    BlockDriver *drv = acb->bs->drv;
-
-    if (acb->cb == bdrv_aio_rw_vector_cb) {
-        VectorTranslationState *s = acb->opaque;
-        acb = s->aiocb;
-    }
-
-    drv->bdrv_aio_cancel(acb);
+    acb->pool->cancel(acb);
 }
 
 
@@ -1552,6 +1482,9 @@ static int bdrv_write_em(BlockDriverState *bs, int64_t sector_num,
 
 void bdrv_init(void)
 {
+    aio_pool_init(&vectored_aio_pool, sizeof(VectorTranslationAIOCB),
+                  bdrv_aio_cancel_vector);
+
     bdrv_register(&bdrv_raw);
     bdrv_register(&bdrv_host_device);
 #ifndef _WIN32
@@ -1570,18 +1503,25 @@ void bdrv_init(void)
     bdrv_register(&bdrv_vmstate);
 }
 
-void *qemu_aio_get(BlockDriverState *bs, BlockDriverCompletionFunc *cb,
-                   void *opaque)
+void aio_pool_init(AIOPool *pool, int aiocb_size,
+                   void (*cancel)(BlockDriverAIOCB *acb))
 {
-    BlockDriver *drv;
+    pool->aiocb_size = aiocb_size;
+    pool->cancel = cancel;
+    pool->free_aiocb = NULL;
+}
+
+void *qemu_aio_get_pool(AIOPool *pool, BlockDriverState *bs,
+                        BlockDriverCompletionFunc *cb, void *opaque)
+{
     BlockDriverAIOCB *acb;
 
-    drv = bs->drv;
-    if (drv->free_aiocb) {
-        acb = drv->free_aiocb;
-        drv->free_aiocb = acb->next;
+    if (pool->free_aiocb) {
+        acb = pool->free_aiocb;
+        pool->free_aiocb = acb->next;
     } else {
-        acb = qemu_mallocz(drv->aiocb_size);
+        acb = qemu_mallocz(pool->aiocb_size);
+        acb->pool = pool;
     }
     acb->bs = bs;
     acb->cb = cb;
@@ -1589,12 +1529,18 @@ void *qemu_aio_get(BlockDriverState *bs, BlockDriverCompletionFunc *cb,
     return acb;
 }
 
+void *qemu_aio_get(BlockDriverState *bs, BlockDriverCompletionFunc *cb,
+                   void *opaque)
+{
+    return qemu_aio_get_pool(&bs->drv->aio_pool, bs, cb, opaque);
+}
+
 void qemu_aio_release(void *p)
 {
-    BlockDriverAIOCB *acb = p;
-    BlockDriver *drv = acb->bs->drv;
-    acb->next = drv->free_aiocb;
-    drv->free_aiocb = acb;
+    BlockDriverAIOCB *acb = (BlockDriverAIOCB *)p;
+    AIOPool *pool = acb->pool;
+    acb->next = pool->free_aiocb;
+    pool->free_aiocb = acb;
 }
 
 /**************************************************************/
@@ -1681,4 +1627,26 @@ int bdrv_ioctl(BlockDriverState *bs, unsigned long int req, void *buf)
     if (drv && drv->bdrv_ioctl)
         return drv->bdrv_ioctl(bs, req, buf);
     return -ENOTSUP;
+}
+
+int bdrv_sg_send_command(BlockDriverState *bs, void *buf, int count)
+{
+    return bs->drv->bdrv_sg_send_command(bs, buf, count);
+}
+
+int bdrv_sg_recv_response(BlockDriverState *bs, void *buf, int count)
+{
+    return bs->drv->bdrv_sg_recv_response(bs, buf, count);
+}
+
+BlockDriverAIOCB *bdrv_sg_aio_read(BlockDriverState *bs, void *buf, int count,
+                                   BlockDriverCompletionFunc *cb, void *opaque)
+{
+    return bs->drv->bdrv_sg_aio_read(bs, buf, count, cb, opaque);
+}
+
+BlockDriverAIOCB *bdrv_sg_aio_write(BlockDriverState *bs, void *buf, int count,
+                                    BlockDriverCompletionFunc *cb, void *opaque)
+{
+    return bs->drv->bdrv_sg_aio_write(bs, buf, count, cb, opaque);
 }

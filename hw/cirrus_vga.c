@@ -49,8 +49,6 @@
  *
  ***************************************/
 
-#define qemu_MIN(a,b) ((a) < (b) ? (a) : (b))
-
 // ID
 #define CIRRUS_ID_CLGD5422  (0x23<<2)
 #define CIRRUS_ID_CLGD5426  (0x24<<2)
@@ -172,10 +170,6 @@
 #define CIRRUS_MMIO_BRESENHAM_DIRECTION 0x38	// byte
 #define CIRRUS_MMIO_LINEDRAW_MODE     0x39	// byte
 #define CIRRUS_MMIO_BLTSTATUS         0x40	// byte
-
-// PCI 0x02: device
-#define PCI_DEVICE_CLGD5462           0x00d0
-#define PCI_DEVICE_CLGD5465           0x00d6
 
 // PCI 0x04: command(word), 0x06(word): status
 #define PCI_COMMAND_IOACCESS                0x0001
@@ -2637,11 +2631,16 @@ static void map_linear_vram(CirrusVGAState *s)
 
     s->lfb_vram_mapped = 0;
 
+    cpu_register_physical_memory(isa_mem_base + 0xa0000, 0x8000,
+                                (s->vram_offset + s->cirrus_bank_base[0]) | IO_MEM_UNASSIGNED);
+    cpu_register_physical_memory(isa_mem_base + 0xa8000, 0x8000,
+                                (s->vram_offset + s->cirrus_bank_base[1]) | IO_MEM_UNASSIGNED);
     if (!(s->cirrus_srcptr != s->cirrus_srcptr_end)
         && !((s->sr[0x07] & 0x01) == 0)
         && !((s->gr[0x0B] & 0x14) == 0x14)
         && !(s->gr[0x0B] & 0x02)) {
 
+        vga_dirty_log_stop((VGAState *)s);
         cpu_register_physical_memory(isa_mem_base + 0xa0000, 0x8000,
                                     (s->vram_offset + s->cirrus_bank_base[0]) | IO_MEM_RAM);
         cpu_register_physical_memory(isa_mem_base + 0xa8000, 0x8000,

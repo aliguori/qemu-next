@@ -138,6 +138,7 @@ int main(int argc, char **argv)
 #include "hw/isa.h"
 #include "hw/baum.h"
 #include "hw/bt.h"
+#include "bt-host.h"
 #include "net.h"
 #include "monitor.h"
 #include "console.h"
@@ -2873,6 +2874,12 @@ void pcmcia_info(Monitor *mon)
 /***********************************************************/
 /* register display */
 
+struct DisplayAllocator default_allocator = {
+    defaultallocator_create_displaysurface,
+    defaultallocator_resize_displaysurface,
+    defaultallocator_free_displaysurface
+};
+
 void register_displaystate(DisplayState *ds)
 {
     DisplayState **s;
@@ -2888,19 +2895,24 @@ DisplayState *get_displaystate(void)
     return display_state;
 }
 
+DisplayAllocator *register_displayallocator(DisplayState *ds, DisplayAllocator *da)
+{
+    if(ds->allocator ==  &default_allocator) ds->allocator = da;
+    return ds->allocator;
+}
+
 /* dumb display */
 
 static void dumb_display_init(void)
 {
     DisplayState *ds = qemu_mallocz(sizeof(DisplayState));
-    ds->surface = qemu_create_displaysurface(640, 480, 32, 640 * 4);
+    ds->allocator = &default_allocator;
+    ds->surface = qemu_create_displaysurface(ds, 640, 480);
     register_displaystate(ds);
 }
 
 /***********************************************************/
 /* I/O handling */
-
-#define MAX_IO_HANDLERS 64
 
 typedef struct IOHandlerRecord {
     int fd;
@@ -5503,6 +5515,7 @@ int main(int argc, char **argv, char **envp)
     cpu_exec_init_all(tb_size * 1024 * 1024);
 
     bdrv_init();
+    dma_helper_init();
 
     /* we always create the cdrom drive, even if no disk is there */
 
