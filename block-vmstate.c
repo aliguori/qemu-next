@@ -120,8 +120,6 @@ static int vmstate_get_info(BlockDriverState *bs, BlockDriverInfo *bdi)
     
     bdi->cluster_size = 0;//VMSTATE_BLOCK_SIZE;
     bdi->vm_state_offset = s->state_offset;
-    bdi->highest_alloc = s->state_offset;
-    bdi->num_free_bytes = 0;
     return 0;
 }
 
