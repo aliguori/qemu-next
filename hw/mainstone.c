@@ -125,7 +125,7 @@ static void mainstone_common_init(ram_addr_t ram_size, int vga_ram_size,
     /* MMC/SD host */
     pxa2xx_mmci_handlers(cpu->mmc, NULL, mst_irq[MMC_IRQ]);
 
-    smc91c111_init(&nd_table[0], MST_ETH_PHYS, mst_irq[ETHERNET_IRQ]);
+    smc91c111_init(&nd_table[0], MST_ETH_PHYS, mst_irq[ETHERNET_IRQ], 1);
 
     mainstone_binfo.kernel_filename = kernel_filename;
     mainstone_binfo.kernel_cmdline = kernel_cmdline;

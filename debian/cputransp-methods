@@ -1,2 +1,7 @@
-qemu-arm-cvs-m
-sbrsh
+qemu-arm-sb
+qemu-armeb-sb
+qemu-i386-sb
+qemu-mips-sb
+qemu-mipsel-sb
+qemu-ppc-sb
+qemu-sparc-sb

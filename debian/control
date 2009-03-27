@@ -1,9 +1,7 @@
 Source: qemu
 Section: misc
 Priority: optional
-Maintainer: Debian QEMU Team <pkg-qemu-devel@lists.alioth.debian.org>
-Uploaders: Aurelien Jarno <aurel32@debian.org>, Riku Voipio <riku@debian.org>,
- Josh Triplett <josh@psas.pdx.edu>
+Maintainer: Maemo Integration <integration@maemo.org>
 Build-Depends: debhelper (>= 5), quilt (>= 0.40), binutils (>= 2.16), nasm,
  libx11-dev, libsdl1.2-dev (>> 1.2.1), libncurses5-dev, zlib1g-dev,
  texi2html, sharutils, libgnutls-dev, libesd0-dev, etherboot,
@@ -12,7 +10,6 @@ Build-Depends: debhelper (>= 5), quilt (>= 0.40), binutils (>= 2.16), nasm,
  libasound2-dev [!kfreebsd-i386 !kfreebsd-amd64],
  libbluetooth-dev [!kfreebsd-i386 !kfreebsd-amd64],
  libgpmg1-dev [amd64 arm armel hppa i386 powerpc sparc ppc64],
- scratchbox-core (>= 1.0.12) [i386]
 Standards-Version: 3.8.0
 
 Package: sb2-qemu-arm
@@ -22,10 +19,16 @@ Description: Qemu for scratchbox2
  Qemu packaging for sb2. This should become eventually temporary
  when mainstream qemu merges any remaining patches.
 
-Package: sb1-qemu
+Package: scratchbox-devkit-qemu
 Architecture: i386
-Depends: ${shlibs:Depends}, ${misc:Depends}
-Replaces: scratchbox-devkit-cputransp
-Conflicts: scratchbox-devkit-cputransp
+Depends: ${shlibs:Depends}, ${misc:Depends}, scratchbox-core (>= 1.0.12)
 Description: Qemu scratchbox devkit
  The qemu for the scratchbox1 lovers.
+
+Package: sb-system-qemu
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}
+Recommends: sbrsh
+Description: System qemu for scratchbox
+ This package includes system qemu to be used with scratchbox and sbrsh
+ for cpu transparency.

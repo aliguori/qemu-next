@@ -1,3 +1,21 @@
+qemu (0.10.0-0maemo4) unstable; urgency=low
+
+  * Riku voipio
+     - fix conditional sb1-qemu build
+     - split system qemu to a different package, so sb2-qemu has less
+       dependencies
+     - basic usb-musb support for omap3
+     - smc91x networking support
+  * Jussi Hakala:
+     - fix sbox-call
+     - make sb1 packaging more scratchboxy
+  * Juha Riihimäki
+     - SPI support
+     - lots of fixes and cleanups
+     - qemu snapshotting support
+
+ -- Riku Voipio <riku.voipio@iki.fi>  Thu, 26 Mar 2009 14:46:21 +0200
+
 qemu (0.10.0-0maemo3) unstable; urgency=low
 
   * debian/
