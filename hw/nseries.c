@@ -1420,3 +1420,50 @@ QEMUMachine n810_machine = {
     .ram_require = (0x08000000 + 0x00010000 + OMAP242X_SRAM_SIZE) |
             RAMSIZE_FIXED,
 };
+
+
+#define N00_SDRAM_SIZE (256 * 1024 * 1024)
+#define N00_ONENAND_CS 0
+#define N00_ONENAND_GPIO N8X0_ONENAND_GPIO
+#define N00_ONENAND_BUFSIZE (0xc000 << 1)
+
+struct n00_s {
+    struct omap_mpu_state_s *cpu;
+    struct twl4030_s *twl4030;
+    struct omap3_lcd_panel_s *lcd;
+    void *nand;
+};
+
+static void n00_init(ram_addr_t ram_size, int vga_ram_size,
+                     const char *boot_device, const char *kernel_filename,
+                     const char *kernel_cmdline, const char *initrd_filename,
+                     const char *cpu_model)
+{
+    struct n00_s *s = (struct n00_s *)qemu_mallocz(sizeof(*s));
+    int sdindex = drive_get_index(IF_SD, 0, 0);
+    if (sdindex < 0) {
+        fprintf(stderr, "%s: missing SecureDigital device\n", __FUNCTION__);
+        exit(1);
+    }
+    s->cpu = omap3530_mpu_init(256*1024*1024, NULL, NULL, serial_hds[0]);
+    s->twl4030 = twl4030_init(omap_i2c_bus(s->cpu->i2c[0]),
+                              s->cpu->irq[0][OMAP_INT_3XXX_SYS_NIRQ]);
+    s->lcd = omap3_lcd_panel_init();
+    omap3_lcd_panel_attach(s->cpu->dss, 0, s->lcd);
+    s->nand = onenand_init(0xec4800, 1, 
+                           omap2_gpio_in_get(s->cpu->gpif, N00_ONENAND_GPIO)[0]);
+    omap_gpmc_attach(s->cpu->gpmc, N00_ONENAND_CS, 0, onenand_base_update,
+                     onenand_base_unmap, s->nand, 0);
+    omap3_mmc_attach(s->cpu->omap3_mmc[0], drives_table[sdindex].bdrv);
+    omap3_boot_rom_emu(s->cpu);
+}
+
+QEMUMachine n00_machine = {
+    .name = "n00",
+    .desc = "Nokia N00 aka. RX-51 (OMAP3430)",
+    .init = n00_init,
+    .ram_require = (N00_SDRAM_SIZE
+                    + N00_ONENAND_BUFSIZE
+                    + OMAP3XXX_SRAM_SIZE
+                    + OMAP3XXX_BOOTROM_SIZE) | RAMSIZE_FIXED,
+};
