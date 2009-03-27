@@ -332,7 +332,6 @@ static int cocoa_keycode_to_qemu(int keycode)
             0, //interpolate
             kCGRenderingIntentDefault //intent
         );
-
 // test if host support "CGImageCreateWithImageInRect" at compiletime
 #if (MAC_OS_X_VERSION_MAX_ALLOWED >= MAC_OS_X_VERSION_10_4)
         if (CGImageCreateWithImageInRect == NULL) { // test if "CGImageCreateWithImageInRect" is supported on host at runtime
@@ -343,7 +342,7 @@ static int cocoa_keycode_to_qemu(int keycode)
         } else {
             // selective drawing code (draws only dirty rectangles) (OS X >= 10.4)
             const NSRect *rectList;
-            int rectCount;
+            NSInteger rectCount;
             int i;
             CGImageRef clipImageRef;
             CGRect clipRect;
@@ -354,9 +353,12 @@ static int cocoa_keycode_to_qemu(int keycode)
                 clipRect.origin.y = (float)screen.height - (rectList[i].origin.y + rectList[i].size.height) / cdy;
                 clipRect.size.width = rectList[i].size.width / cdx;
                 clipRect.size.height = rectList[i].size.height / cdy;
-                clipImageRef = CGImageCreateWithImageInRect(imageRef, clipRect);
-                CGContextDrawImage(viewContextRef, cgrect(rectList[i]), clipImageRef);
-                CGImageRelease(clipImageRef);
+                clipImageRef = CGImageCreateWithImageInRect(
+                    imageRef,
+                    clipRect
+                );
+                CGContextDrawImage (viewContextRef, cgrect(rectList[i]), clipImageRef);
+                CGImageRelease (clipImageRef);
             }
         }
 #endif
@@ -907,6 +909,7 @@ int main (int argc, const char * argv[]) {
 
     return 0;
 }
+
 
 
 #pragma mark qemu
