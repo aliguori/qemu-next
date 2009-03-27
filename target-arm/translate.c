@@ -6138,7 +6138,7 @@ static void disas_arm_insn(CPUState * env, DisasContext *s)
         }
         if (op1 != 0x0f && op1 != 0x0d) {
             rn = (insn >> 16) & 0xf;
-            gen_movl_T0_reg(s, rn); tmp = load_reg(s, rn);
+            tmp = load_reg(s, rn);
         } else
             tmp = new_tmp();
         rd = (insn >> 12) & 0xf;
