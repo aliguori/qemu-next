@@ -41,6 +41,10 @@
 char *exec_path;
 
 int singlestep;
+#if defined(CONFIG_USE_GUEST_BASE)
+unsigned long mmap_min_addr = 0;
+unsigned long guest_base = 0;
+#endif
 
 static const char *interp_prefix = CONFIG_QEMU_PREFIX;
 const char *qemu_uname_release = CONFIG_UNAME_RELEASE;
@@ -2217,6 +2221,9 @@ static void usage(void)
            "-E var=value      sets/modifies targets environment variable(s)\n"
            "-U var            unsets targets environment variable(s)\n"
            "-0 argv0          forces target process argv[0] to be argv0\n"
+#if defined(CONFIG_USE_GUEST_BASE)
+           "-B address        set guest_base address to address\n"
+#endif
            "\n"
            "Debug options:\n"
            "-d options   activate log (logfile=%s)\n"
@@ -2233,6 +2240,15 @@ static void usage(void)
            "    -E var1=val2 -E var2=val2 -U LD_PRELOAD -U LD_DEBUG\n"
            "Note that if you provide several changes to single variable\n"
            "last change will stay in effect.\n"
+#if defined(CONFIG_USE_GUEST_BASE)
+           "\n"
+           "You can use -B option to load target binary into different\n"
+           "address that is specified in elf headers.  This can be useful\n"
+           "when target binary would be loaded to low addresses and\n"
+           "/proc/sys/vm/mmap_min_addr is set to higher.  For example\n"
+           "     qemu-" TARGET_ARCH " -B 0x100000 ...\n"
+           "loads target binary starting from the first meg.\n"
+#endif
            ,
            TARGET_ARCH,
            interp_prefix,
@@ -2391,6 +2407,10 @@ int main(int argc, char **argv, char **envp)
 #endif
                 exit(1);
             }
+#if defined(CONFIG_USE_GUEST_BASE)
+        } else if (!strcmp(r, "B")) {
+           guest_base = strtol(argv[optind++], NULL, 0);
+#endif
         } else if (!strcmp(r, "drop-ld-preload")) {
             (void) envlist_unsetenv(envlist, "LD_PRELOAD");
         } else if (!strcmp(r, "singlestep")) {
@@ -2468,6 +2488,36 @@ int main(int argc, char **argv, char **envp)
     target_environ = envlist_to_environ(envlist, NULL);
     envlist_free(envlist);
 
+#if defined(CONFIG_USE_GUEST_BASE)
+    /*
+     * Now that page sizes are configured in cpu_init() we can do
+     * proper page alignment for guest_base.
+     */
+    guest_base = HOST_PAGE_ALIGN(guest_base);
+
+    /*
+     * Read in mmap_min_addr kernel parameter and check
+     * whether it is set to some value > 0.  This value is used
+     * later on when doing mmap(2)s to calculate where guest_base
+     * is to set, if needed.
+     *
+     * When user has explicitly set the quest base, we skip this
+     * test.
+     */
+    if (guest_base == 0) {
+        FILE *fp;
+
+        if ((fp = fopen("/proc/sys/vm/mmap_min_addr", "r")) != NULL) {
+            unsigned long tmp;
+            if (fscanf(fp, "%lu", &tmp) == 1) {
+                mmap_min_addr = tmp;
+                qemu_log("kernel mmap_min_addr=%lu\n", mmap_min_addr);
+            }
+            fclose(fp);
+        }
+    }
+#endif /* CONFIG_USE_GUEST_BASE */
+
     /*
      * Prepare copy of argv vector for target.
      */
@@ -2517,6 +2567,18 @@ int main(int argc, char **argv, char **envp)
     free(target_environ);
 
     if (qemu_log_enabled()) {
+#if defined(CONFIG_USE_GUEST_BASE)
+        if (guest_base > 0) {
+            qemu_log("guest_base is set to 0x%lx\n", guest_base);
+            qemu_log(
+                "==========================================================\n"
+                "Note that all target addresses below are given in target\n"
+                "address space which is different from host by guest_base.\n"
+                "For example: target address 0x%lx becomes 0x%lx and so on.\n"
+                "==========================================================\n",
+                (uintptr_t)0x8000, (uintptr_t)g2h(0x8000));
+        }
+#endif
         log_page_dump();
 
         qemu_log("start_brk   0x" TARGET_ABI_FMT_lx "\n", info->start_brk);
