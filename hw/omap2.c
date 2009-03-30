@@ -2539,6 +2539,16 @@ target_phys_addr_t omap_l4_attach(struct omap_target_agent_s *ta, int region,
     return base;
 }
 
+target_phys_addr_t omap_l4_base(struct omap_target_agent_s *ta, int region)
+{
+    return ta->bus->base + ta->start[region].offset;
+}
+
+uint32_t omap_l4_size(struct omap_target_agent_s *ta, int region)
+{
+    return ta->start[region].size;
+}
+
 /* TEST-Chip-level TAP */
 static uint32_t omap_tap_read(void *opaque, target_phys_addr_t addr)
 {

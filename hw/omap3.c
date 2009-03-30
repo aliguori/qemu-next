@@ -836,8 +836,10 @@ typedef enum {
     /* 48061000-48061FFF */ L4ID_I2C3_TA,
     /* 48062000-48062FFF */ L4ID_USBTLL,
     /* 48063000-48063FFF */ L4ID_USBTLL_TA,
-    /* 48064000-48064FFF */ L4ID_HSUSBHOST,
-    /* 48065000-48065FFF */ L4ID_HSUSBHOST_TA,
+    /* 48064000-480643FF */ L4ID_USBHOST,
+    /* 48064400-480647FF */ L4ID_USBHOST_OHCI,
+    /* 48064800-4806BFFF */ L4ID_USBHOST_EHCI,
+    /* 48065000-48065FFF */ L4ID_USBHOST_TA,
     /* 48066000-48069FFF */
     /* 4806A000-4806AFFF */ L4ID_UART1,
     /* 4806B000-4806BFFF */ L4ID_UART1_TA,
@@ -1047,8 +1049,10 @@ static struct omap_l4_region_s omap3_l4_region[] = {
     [L4ID_I2C3_TA     ] = {0x00061000, 0x1000, L4TYPE_TA},
     [L4ID_USBTLL      ] = {0x00062000, 0x1000, L4TYPE_GENERIC},
     [L4ID_USBTLL_TA   ] = {0x00063000, 0x1000, L4TYPE_TA},
-    [L4ID_HSUSBHOST   ] = {0x00064000, 0x1000, L4TYPE_GENERIC},
-    [L4ID_HSUSBHOST_TA] = {0x00065000, 0x1000, L4TYPE_TA},
+    [L4ID_USBHOST     ] = {0x00064000, 0x0400, L4TYPE_GENERIC},
+    [L4ID_USBHOST_OHCI] = {0x00064400, 0x0400, L4TYPE_GENERIC},
+    [L4ID_USBHOST_EHCI] = {0x00064800, 0x0400, L4TYPE_GENERIC},
+    [L4ID_USBHOST_TA  ] = {0x00065000, 0x1000, L4TYPE_TA},
     [L4ID_UART1       ] = {0x0006a000, 0x1000, L4TYPE_GENERIC},
     [L4ID_UART1_TA    ] = {0x0006b000, 0x1000, L4TYPE_TA},
     [L4ID_UART2       ] = {0x0006c000, 0x1000, L4TYPE_GENERIC},
@@ -1245,7 +1249,7 @@ static const struct omap3_l4_agent_info_s omap3_l4_agent_info[] = {
     {L4A_DSS,        L4ID_DSI,       6},
     /* TODO: camera */
     {L4A_USBHS_OTG,  L4ID_HSUSBOTG,  2},
-    {L4A_USBHS_HOST, L4ID_HSUSBHOST, 2},
+    {L4A_USBHS_HOST, L4ID_USBHOST,   4},
     {L4A_USBHS_TLL,  L4ID_USBTLL,    2},
     {L4A_UART1,      L4ID_UART1,     2},
     {L4A_UART2,      L4ID_UART2,     2},
@@ -1441,6 +1445,8 @@ static struct omap_target_agent_s *omap3_l4ta_init(struct omap_l4_s *bus, int cs
 
     register_savevm("omap3_l4ta", ta->base >> 8, 0,
                     omap3_l4ta_save_state, omap3_l4ta_load_state, ta);
+#else
+    ta->base = ta->bus->base + ta->start[i].offset;
 #endif
 
     return ta;
