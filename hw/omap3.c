@@ -2065,9 +2065,9 @@ static CPUWriteMemoryFunc *omap3_prm_writefn[] = {
     omap3_prm_write,
 };
 
-struct omap3_prm_s *omap3_prm_init(struct omap_target_agent_s *ta,
-                                   qemu_irq mpu_int, qemu_irq iva_int,
-                                   struct omap_mpu_state_s *mpu)
+static struct omap3_prm_s *omap3_prm_init(struct omap_target_agent_s *ta,
+                                          qemu_irq mpu_int, qemu_irq iva_int,
+                                          struct omap_mpu_state_s *mpu)
 {
     int iomemtype;
     struct omap3_prm_s *s = (struct omap3_prm_s *) qemu_mallocz(sizeof(*s));
@@ -3312,9 +3312,10 @@ static CPUWriteMemoryFunc *omap3_cm_writefn[] = {
     omap3_cm_write,
 };
 
-struct omap3_cm_s *omap3_cm_init(struct omap_target_agent_s *ta,
-                                 qemu_irq mpu_int, qemu_irq dsp_int,
-                                 qemu_irq iva_int, struct omap_mpu_state_s *mpu)
+static struct omap3_cm_s *omap3_cm_init(struct omap_target_agent_s *ta,
+                                        qemu_irq mpu_int, qemu_irq dsp_int,
+                                        qemu_irq iva_int,
+                                        struct omap_mpu_state_s *mpu)
 {
     int iomemtype;
     struct omap3_cm_s *s = (struct omap3_cm_s *) qemu_mallocz(sizeof(*s));

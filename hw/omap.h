@@ -76,7 +76,6 @@ struct omap_l3_s;
 struct omap_l4_s *omap_l4_init(target_phys_addr_t base, int ta_num);
 
 struct omap_target_agent_s;
-struct omap_target_agent_s *omap_l4ta_get(struct omap_l4_s *bus, int cs);
 target_phys_addr_t omap_l4_attach(struct omap_target_agent_s *ta, int region,
                 int iotype);
 target_phys_addr_t omap_l4_base(struct omap_target_agent_s *ta, int region);
@@ -96,16 +95,6 @@ void omap_inth_reset(struct omap_intr_handler_s *s);
 
 struct omap_prcm_s;
 struct omap_prcm_s *omap_prcm_init(struct omap_target_agent_s *ta,
-                qemu_irq mpu_int, qemu_irq dsp_int, qemu_irq iva_int,
-                struct omap_mpu_state_s *mpu);
-
-struct omap3_prm_s;
-struct omap3_prm_s *omap3_prm_init(struct omap_target_agent_s *ta,
-                                   qemu_irq mpu_int, qemu_irq iva_int,
-                                   struct omap_mpu_state_s *mpu);
-
-struct omap3_cm_s;
-struct omap3_cm_s *omap3_cm_init(struct omap_target_agent_s *ta,
                 qemu_irq mpu_int, qemu_irq dsp_int, qemu_irq iva_int,
                 struct omap_mpu_state_s *mpu);
 

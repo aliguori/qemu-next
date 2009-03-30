@@ -2470,7 +2470,7 @@ static struct omap_l4_agent_info_s omap_l4_agent_info[54] = {
 #define omap_l4ta(bus, cs)	omap_l4ta_get(bus, L4TA(cs))
 #define omap_l4tao(bus, cs)	omap_l4ta_get(bus, L4TAO(cs))
 
-struct omap_target_agent_s *omap_l4ta_get(struct omap_l4_s *bus, int cs)
+static struct omap_target_agent_s *omap_l4ta_get(struct omap_l4_s *bus, int cs)
 {
     int i, iomemtype;
     struct omap_target_agent_s *ta = 0;

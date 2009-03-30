@@ -59,7 +59,8 @@ static void omap3_hsusb_otg_save_state(QEMUFile *f, void *opaque)
     qemu_put_byte(f, s->forcestdby);
 }
 
-static int omap3_hsusb_otg_load_state(QEMUFile *f, void *opaque, int version_id)
+static int omap3_hsusb_otg_load_state(QEMUFile *f, void *opaque,
+                                      int version_id)
 {
     struct omap3_hsusb_otg_s *s = (struct omap3_hsusb_otg_s *)opaque;
     
@@ -192,7 +193,8 @@ static void omap3_hsusb_otg_write(void *opaque, target_phys_addr_t addr,
             break;
         case 0x410: /* OTG_SIMENABLE */
             TRACE("OTG_SIMENABLE = 0x%08x", value);
-            cpu_abort(cpu_single_env, "%s: USB simulation mode not supported\n",
+            cpu_abort(cpu_single_env,
+                      "%s: USB simulation mode not supported\n",
                       __FUNCTION__);
             break;
         case 0x414: /* OTG_FORCESTDBY */
@@ -248,10 +250,13 @@ static void omap3_hsusb_otg_init(struct omap_target_agent_s *otg_ta,
     s->mc_irq = mc_irq;
     s->dma_irq = dma_irq;
     
-    omap_l4_attach(otg_ta, 0, l4_register_io_memory(0, omap3_hsusb_otg_readfn,
-                                                    omap3_hsusb_otg_writefn, s));
+    omap_l4_attach(otg_ta, 0, l4_register_io_memory(0,
+                                                    omap3_hsusb_otg_readfn,
+                                                    omap3_hsusb_otg_writefn,
+                                                    s));
     
-    s->musb = musb_init(qemu_allocate_irqs(omap3_hsusb_musb_core_intr, s, __musb_irq_max));
+    s->musb = musb_init(qemu_allocate_irqs(omap3_hsusb_musb_core_intr, s,
+                                           __musb_irq_max));
     omap3_hsusb_otg_reset(s);
     
     register_savevm("omap3_hsusb_otg", -1, 0,
@@ -268,6 +273,30 @@ struct omap3_hsusb_host_s {
     uint32_t uhh_hostconfig;
     uint32_t uhh_debug_csr;
 };
+
+static void omap3_hsusb_host_save_state(QEMUFile *f, void *opaque)
+{
+    struct omap3_hsusb_host_s *s = (struct omap3_hsusb_host_s *)opaque;
+    
+    qemu_put_be32(f, s->uhh_sysconfig);
+    qemu_put_be32(f, s->uhh_hostconfig);
+    qemu_put_be32(f, s->uhh_debug_csr);
+}
+
+static int omap3_hsusb_host_load_state(QEMUFile *f, void *opaque,
+                                       int version_id)
+{
+    struct omap3_hsusb_host_s *s = (struct omap3_hsusb_host_s *)opaque;
+    
+    if (version_id)
+        return -EINVAL;
+    
+    s->uhh_sysconfig = qemu_get_be32(f);
+    s->uhh_hostconfig = qemu_get_be32(f);
+    s->uhh_debug_csr = qemu_get_be32(f);
+    
+    return 0;
+}
 
 static void omap3_hsusb_host_reset(struct omap3_hsusb_host_s *s)
 {
@@ -414,6 +443,10 @@ static void omap3_hsusb_host_init(struct omap_target_agent_s *host_ta,
                                                      s));
     
     omap3_hsusb_host_reset(s);
+    
+    register_savevm("omap3_hsusb_host", -1, 0,
+                    omap3_hsusb_host_save_state,
+                    omap3_hsusb_host_load_state, s);
 }
 
 struct omap3_hsusb_s {
@@ -432,7 +465,9 @@ struct omap3_hsusb_s *omap3_hsusb_init(struct omap_target_agent_s *otg_ta,
 {
     struct omap3_hsusb_s *s = qemu_mallocz(sizeof(struct omap3_hsusb_s));
     omap3_hsusb_otg_init(otg_ta, mc_irq, dma_irq, &s->otg);
-    omap3_hsusb_host_init(host_ta, tll_ta, ohci_irq, ehci_irq, tll_irq, &s->host);
+    omap3_hsusb_host_init(host_ta, tll_ta,
+                          ohci_irq, ehci_irq, tll_irq,
+                          &s->host);
     return s;
 }
 
