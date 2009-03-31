@@ -1527,6 +1527,16 @@ struct omap3_prm_s {
         uint32_t prm_clksetup;
         uint32_t prm_polctrl;
         uint32_t prm_voltsetup2;
+        /* the following smartreflex control registers taken from linux kernel
+         * source as their descriptions are missing in the OMAP3 TRM */
+        struct {
+            uint32_t config;
+            uint32_t vstepmin;
+            uint32_t vstepmax;
+            uint32_t vlimitto;
+            uint32_t voltage;
+            uint32_t status;
+        } prm_vp[2];
     } gr; /* global_reg */
 };
 
@@ -1617,6 +1627,7 @@ static void omap3_prm_reset(struct omap3_prm_s *s)
     s->gr.prm_sram_pcharge   = 0x50;
     s->gr.prm_clksrc_ctrl    = 0x43;
     s->gr.prm_polctrl        = 0xa;
+    /* TODO: figure out reset values for prm_vp[1,2] registers */
 
     bzero(&s->neon, sizeof(s->neon));
     s->neon.rm_rstst     = 0x1;
@@ -1712,6 +1723,18 @@ static uint32_t omap3_prm_read(void *opaque, target_phys_addr_t addr)
         case 0x1298: return s->gr.prm_clksetup;
         case 0x129c: return s->gr.prm_polctrl;
         case 0x12a0: return s->gr.prm_voltsetup2;
+        case 0x12b0: return s->gr.prm_vp[0].config;
+        case 0x12b4: return s->gr.prm_vp[0].vstepmin;
+        case 0x12b8: return s->gr.prm_vp[0].vstepmax;
+        case 0x12bc: return s->gr.prm_vp[0].vlimitto;
+        case 0x12c0: return s->gr.prm_vp[0].voltage;
+        case 0x12c4: return s->gr.prm_vp[0].status;
+        case 0x12d0: return s->gr.prm_vp[1].config;
+        case 0x12d4: return s->gr.prm_vp[1].vstepmin;
+        case 0x12d8: return s->gr.prm_vp[1].vstepmax;
+        case 0x12dc: return s->gr.prm_vp[1].vlimitto;
+        case 0x12e0: return s->gr.prm_vp[1].voltage;
+        case 0x12e4: return s->gr.prm_vp[1].status;
         default: break;
     }
 
@@ -1878,6 +1901,20 @@ static void omap3_prm_write(void *opaque, target_phys_addr_t addr,
         case 0x1298: s->gr.prm_clksetup = value & 0xffff; break;
         case 0x129c: s->gr.prm_polctrl = value & 0xf; break;
         case 0x12a0: s->gr.prm_voltsetup2 = value & 0xffff; break;
+        /* TODO: check if any functionality is needed behind writes to the
+         * prm_vp[1,2] registers */
+        case 0x12b0: s->gr.prm_vp[0].config = value; break;
+        case 0x12b4: s->gr.prm_vp[0].vstepmin = value; break;
+        case 0x12b8: s->gr.prm_vp[0].vstepmax = value; break;
+        case 0x12bc: s->gr.prm_vp[0].vlimitto = value; break;
+        case 0x12c0: s->gr.prm_vp[0].voltage = value; break;
+        case 0x12c4: s->gr.prm_vp[0].status = value; break;
+        case 0x12d0: s->gr.prm_vp[1].config = value; break;
+        case 0x12d4: s->gr.prm_vp[1].vstepmin = value; break;
+        case 0x12d8: s->gr.prm_vp[1].vstepmax = value; break;
+        case 0x12dc: s->gr.prm_vp[1].vlimitto = value; break;
+        case 0x12e0: s->gr.prm_vp[1].voltage = value; break;
+        case 0x12e4: s->gr.prm_vp[1].status = value; break;
         /* NEON_PRM */
         case 0x1358: s->neon.rm_rstst &= ~(value & 0xf); break;
         case 0x13c8: s->neon.pm_wkdep = value & 0x2; break;
@@ -1943,6 +1980,7 @@ static void omap3_prm_load_domain_state(QEMUFile *f,
 static void omap3_prm_save_state(QEMUFile *f, void *opaque)
 {
     struct omap3_prm_s *s = (struct omap3_prm_s *)opaque;
+    int i;
     
     omap3_prm_save_domain_state(f, &s->iva2);
     omap3_prm_save_domain_state(f, &s->mpu);
@@ -1989,11 +2027,20 @@ static void omap3_prm_save_state(QEMUFile *f, void *opaque)
     qemu_put_be32(f, s->gr.prm_clksetup);
     qemu_put_be32(f, s->gr.prm_polctrl);
     qemu_put_be32(f, s->gr.prm_voltsetup2);
+    for (i = 0; i < 2; i++) {
+        qemu_put_be32(f, s->gr.prm_vp[i].config);
+        qemu_put_be32(f, s->gr.prm_vp[i].vstepmin);
+        qemu_put_be32(f, s->gr.prm_vp[i].vstepmax);
+        qemu_put_be32(f, s->gr.prm_vp[i].vlimitto);
+        qemu_put_be32(f, s->gr.prm_vp[i].voltage);
+        qemu_put_be32(f, s->gr.prm_vp[i].status);
+    }
 }
 
 static int omap3_prm_load_state(QEMUFile *f, void *opaque, int version_id)
 {
     struct omap3_prm_s *s = (struct omap3_prm_s *)opaque;
+    int i;
     
     if (version_id)
         return -EINVAL;
@@ -2043,6 +2090,14 @@ static int omap3_prm_load_state(QEMUFile *f, void *opaque, int version_id)
     s->gr.prm_clksetup = qemu_get_be32(f);
     s->gr.prm_polctrl = qemu_get_be32(f);
     s->gr.prm_voltsetup2 = qemu_get_be32(f);
+    for (i = 0; i < 2; i++) {
+        s->gr.prm_vp[i].config = qemu_get_be32(f);
+        s->gr.prm_vp[i].vstepmin = qemu_get_be32(f);
+        s->gr.prm_vp[i].vstepmax = qemu_get_be32(f);
+        s->gr.prm_vp[i].vlimitto = qemu_get_be32(f);
+        s->gr.prm_vp[i].voltage = qemu_get_be32(f);
+        s->gr.prm_vp[i].status = qemu_get_be32(f);
+    }
     
     omap3_prm_int_update(s);
     omap3_prm_clksrc_ctrl_update(s);
