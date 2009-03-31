@@ -2714,6 +2714,7 @@ static uint32_t omap3_cm_read(void *opaque, target_phys_addr_t addr)
         case 0x0a08: return s->cm_fclken3_core;
         case 0x0a10: return s->cm_iclken1_core;
         case 0x0a14: return s->cm_iclken2_core;
+        case 0x0a18: return s->cm_iclken3_core;
         case 0x0a20: return s->cm_idlest1_core;
         case 0x0a24: return s->cm_idlest2_core;
         case 0x0a28: return s->cm_idlest3_core;
