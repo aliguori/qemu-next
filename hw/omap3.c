@@ -2174,6 +2174,7 @@ struct omap3_cm_s {
 
     /* CORE_CM: base + 0x0a00 */
     uint32_t cm_fclken1_core;   /* 0a00 */
+    uint32_t cm_fclken2_core;   /* 0a04 */
     uint32_t cm_fclken3_core;   /* 0a08 */
     uint32_t cm_iclken1_core;   /* 0a10 */
     uint32_t cm_iclken2_core;   /* 0a14 */
@@ -2643,6 +2644,7 @@ static void omap3_cm_reset(struct omap3_cm_s *s)
     s->cm_clkstst_mpu = 0x0;
 
     s->cm_fclken1_core = 0x0;
+    s->cm_fclken2_core = 0x0;
     s->cm_fclken3_core = 0x0;
     s->cm_iclken1_core = 0x42;
     s->cm_iclken2_core = 0x0;
@@ -2766,6 +2768,7 @@ static uint32_t omap3_cm_read(void *opaque, target_phys_addr_t addr)
         case 0x094c: return s->cm_clkstst_mpu;
         /* CORE_CM */
         case 0x0a00: return s->cm_fclken1_core;
+        case 0x0a04: return s->cm_fclken2_core;
         case 0x0a08: return s->cm_fclken3_core;
         case 0x0a10: return s->cm_iclken1_core;
         case 0x0a14: return s->cm_iclken2_core;
@@ -2944,6 +2947,10 @@ static void omap3_cm_write(void *opaque,
         case 0xa00:
             s->cm_fclken1_core = value & 0x43fffe00;
             omap3_cm_fclken1_core_update(s);
+            break;
+        case 0xa04:
+            /* TODO: check if modifying this has any effect */
+            s->cm_fclken2_core = value;
             break;
         case 0xa08:
             s->cm_fclken3_core = value & 0x7;
