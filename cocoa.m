@@ -58,6 +58,7 @@ int qemu_main(int argc, char **argv); // main defined in qemu/vl.c
 NSWindow *normalWindow;
 id cocoaView;
 static DisplayChangeListener *dcl;
+static int last_vm_running;
 
 int gArgc;
 char **gArgv;
@@ -269,6 +270,7 @@ static int cocoa_keycode_to_qemu(int keycode)
 - (float) cdx;
 - (float) cdy;
 - (QEMUScreen) gscreen;
+- (void) updateCaption;
 @end
 
 @implementation QemuCocoaView
@@ -406,10 +408,9 @@ static int cocoa_keycode_to_qemu(int keycode)
         [[fullScreenWindow contentView] setFrame:[[NSScreen mainScreen] frame]];
         [normalWindow setFrame:NSMakeRect([normalWindow frame].origin.x, [normalWindow frame].origin.y - h + screen.height, w, h + [normalWindow frame].size.height - screen.height) display:NO animate:NO];
     } else {
-        if (qemu_name)
-            [normalWindow setTitle:[NSString stringWithFormat:@"QEMU %s", qemu_name]];
         [normalWindow setFrame:NSMakeRect([normalWindow frame].origin.x, [normalWindow frame].origin.y - h + screen.height, w, h + [normalWindow frame].size.height - screen.height) display:YES animate:NO];
     }
+    [self updateCaption];
     screen.width = w;
     screen.height = h;
 	[normalWindow center];
@@ -651,31 +652,34 @@ static int cocoa_keycode_to_qemu(int keycode)
 - (void) grabMouse
 {
     COCOA_DEBUG("QemuCocoaView: grabMouse\n");
-
-    if (!isFullscreen) {
-        if (qemu_name)
-            [normalWindow setTitle:[NSString stringWithFormat:@"QEMU %s - (Press ctrl + alt to release Mouse)", qemu_name]];
-        else
-            [normalWindow setTitle:@"QEMU - (Press ctrl + alt to release Mouse)"];
-    }
     if (cursor_hide) [NSCursor hide];
     CGAssociateMouseAndMouseCursorPosition(FALSE);
     isMouseGrabed = TRUE; // while isMouseGrabed = TRUE, QemuCocoaApp sends all events to [cocoaView handleEvent:]
+    [self updateCaption];
 }
 
 - (void) ungrabMouse
 {
     COCOA_DEBUG("QemuCocoaView: ungrabMouse\n");
 
-    if (!isFullscreen) {
-        if (qemu_name)
-            [normalWindow setTitle:[NSString stringWithFormat:@"QEMU %s", qemu_name]];
-        else
-            [normalWindow setTitle:@"QEMU"];
-    }
     if (cursor_hide) [NSCursor unhide];
     CGAssociateMouseAndMouseCursorPosition(TRUE);
     isMouseGrabed = FALSE;
+    [self updateCaption];
+}
+
+- (void) updateCaption
+{
+    //if (!isFullScreen)...
+    NSMutableString *caption = [NSMutableString stringWithCapacity:10];
+    [caption appendFormat:@"QEMU"];
+    if (qemu_name)
+        [caption appendFormat:@" (%s)", qemu_name];
+    if (!vm_running)
+        [caption appendString:@" [Stopped]"];
+    else if (isMouseGrabed)
+        [caption appendString:@" - Press Ctrl-Alt to release mouse"];
+    [normalWindow setTitle:caption];
 }
 
 - (void) setAbsoluteEnabled:(BOOL)tIsAbsoluteEnabled {isAbsoluteEnabled = tIsAbsoluteEnabled;}
@@ -731,7 +735,7 @@ static int cocoa_keycode_to_qemu(int keycode)
         [normalWindow setContentView:cocoaView];
         [normalWindow makeKeyAndOrderFront:self];
 		[normalWindow center];
-
+        [cocoaView updateCaption];
     }
     return self;
 }
@@ -941,6 +945,11 @@ static void cocoa_refresh(DisplayState *ds)
 {
     COCOA_DEBUG("qemu_cocoa: cocoa_refresh\n");
 
+    if (last_vm_running != vm_running) {
+        last_vm_running = vm_running;
+        [cocoaView updateCaption];
+    }
+    
     if (kbd_mouse_is_absolute()) {
         if (![cocoaView isAbsoluteEnabled]) {
             if ([cocoaView isMouseGrabed]) {
