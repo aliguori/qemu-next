@@ -3135,6 +3135,7 @@ static void omap3_cm_save_state(QEMUFile *f, void *opaque)
     qemu_put_be32(f, s->cm_clkstst_mpu);
     
     qemu_put_be32(f, s->cm_fclken1_core);
+    qemu_put_be32(f, s->cm_fclken2_core);
     qemu_put_be32(f, s->cm_fclken3_core);
     qemu_put_be32(f, s->cm_iclken1_core);
     qemu_put_be32(f, s->cm_iclken2_core);
@@ -3254,6 +3255,7 @@ static int omap3_cm_load_state(QEMUFile *f, void *opaque, int version_id)
     s->cm_clkstst_mpu = qemu_get_be32(f);
     
     s->cm_fclken1_core = qemu_get_be32(f);
+    s->cm_fclken2_core = qemu_get_be32(f);
     s->cm_fclken3_core = qemu_get_be32(f);
     s->cm_iclken1_core = qemu_get_be32(f);
     s->cm_iclken2_core = qemu_get_be32(f);
