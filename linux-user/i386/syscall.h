@@ -3,21 +3,23 @@
 #define __USER_DS	(0x2B)
 
 struct target_pt_regs {
-	long ebx;
-	long ecx;
-	long edx;
-	long esi;
-	long edi;
-	long ebp;
-	long eax;
-	int  xds;
-	int  xes;
-	long orig_eax;
-	long eip;
-	int  xcs;
-	long eflags;
-	long esp;
-	int  xss;
+    abi_ulong ebx;
+    abi_ulong ecx;
+    abi_ulong edx;
+    abi_ulong esi;
+    abi_ulong edi;
+    abi_ulong ebp;
+    abi_ulong eax;
+    abi_ulong xds;
+    abi_ulong xes;
+    abi_ulong xfs;
+    abi_ulong xgs;
+    abi_ulong orig_eax;
+    abi_ulong eip;
+    abi_ulong xcs;
+    abi_ulong eflags;
+    abi_ulong esp;
+    abi_ulong xss;
 };
 
 /* ioctls */

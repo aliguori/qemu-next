@@ -2,30 +2,36 @@
 #define __USER_DS	(0x2B)
 
 struct target_pt_regs {
-	abi_ulong r15;
-	abi_ulong r14;
-	abi_ulong r13;
-	abi_ulong r12;
-	abi_ulong rbp;
-	abi_ulong rbx;
+    abi_ulong r15;
+    abi_ulong r14;
+    abi_ulong r13;
+    abi_ulong r12;
+    abi_ulong rbp;
+    abi_ulong rbx;
 /* arguments: non interrupts/non tracing syscalls only save upto here*/
- 	abi_ulong r11;
-	abi_ulong r10;
-	abi_ulong r9;
-	abi_ulong r8;
-	abi_ulong rax;
-	abi_ulong rcx;
-	abi_ulong rdx;
-	abi_ulong rsi;
-	abi_ulong rdi;
-	abi_ulong orig_rax;
+    abi_ulong r11;
+    abi_ulong r10;
+    abi_ulong r9;
+    abi_ulong r8;
+    abi_ulong rax;
+    abi_ulong rcx;
+    abi_ulong rdx;
+    abi_ulong rsi;
+    abi_ulong rdi;
+    abi_ulong orig_rax;
 /* end of arguments */
 /* cpu exception frame or undefined */
-	abi_ulong rip;
-	abi_ulong cs;
-	abi_ulong eflags;
-	abi_ulong rsp;
-	abi_ulong ss;
+    abi_ulong rip;
+    abi_ulong cs;
+    abi_ulong eflags;
+    abi_ulong rsp;
+    abi_ulong ss;
+    abi_ulong fs_base;
+    abi_ulong gs_base;
+    abi_ulong ds;
+    abi_ulong es;
+    abi_ulong fs;
+    abi_ulong gs;
 /* top of stack page */
 };
 
