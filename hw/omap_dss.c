@@ -1465,53 +1465,54 @@ static CPUWriteMemoryFunc *omap_rfbi1_writefn[] = {
 static uint32_t omap_venc_read(void *opaque, target_phys_addr_t addr)
 {
     switch (addr) {
-    case 0x00:	/* REV_ID */
-    case 0x04:	/* STATUS */
-    case 0x08:	/* F_CONTROL */
-    case 0x10:	/* VIDOUT_CTRL */
-    case 0x14:	/* SYNC_CTRL */
-    case 0x1c:	/* LLEN */
-    case 0x20:	/* FLENS */
-    case 0x24:	/* HFLTR_CTRL */
-    case 0x28:	/* CC_CARR_WSS_CARR */
-    case 0x2c:	/* C_PHASE */
-    case 0x30:	/* GAIN_U */
-    case 0x34:	/* GAIN_V */
-    case 0x38:	/* GAIN_Y */
-    case 0x3c:	/* BLACK_LEVEL */
-    case 0x40:	/* BLANK_LEVEL */
-    case 0x44:	/* X_COLOR */
-    case 0x48:	/* M_CONTROL */
-    case 0x4c:	/* BSTAMP_WSS_DATA */
-    case 0x50:	/* S_CARR */
-    case 0x54:	/* LINE21 */
-    case 0x58:	/* LN_SEL */
-    case 0x5c:	/* L21__WC_CTL */
-    case 0x60:	/* HTRIGGER_VTRIGGER */
-    case 0x64:	/* SAVID__EAVID */
-    case 0x68:	/* FLEN__FAL */
-    case 0x6c:	/* LAL__PHASE_RESET */
-    case 0x70:	/* HS_INT_START_STOP_X */
-    case 0x74:	/* HS_EXT_START_STOP_X */
-    case 0x78:	/* VS_INT_START_X */
-    case 0x7c:	/* VS_INT_STOP_X__VS_INT_START_Y */
-    case 0x80:	/* VS_INT_STOP_Y__VS_INT_START_X */
-    case 0x84:	/* VS_EXT_STOP_X__VS_EXT_START_Y */
-    case 0x88:	/* VS_EXT_STOP_Y */
-    case 0x90:	/* AVID_START_STOP_X */
-    case 0x94:	/* AVID_START_STOP_Y */
-    case 0xa0:	/* FID_INT_START_X__FID_INT_START_Y */
-    case 0xa4:	/* FID_INT_OFFSET_Y__FID_EXT_START_X */
-    case 0xa8:	/* FID_EXT_START_Y__FID_EXT_OFFSET_Y */
-    case 0xb0:	/* TVDETGP_INT_START_STOP_X */
-    case 0xb4:	/* TVDETGP_INT_START_STOP_Y */
-    case 0xb8:	/* GEN_CTRL */
-    case 0xc4:	/* DAC_TST__DAC_A */
-    case 0xc8:	/* DAC_B__DAC_C */
-        return 0;
-
-    default:
-        break;
+        case 0x00:	/* REV_ID */
+            return 0x2;
+        case 0x04:	/* STATUS */
+        case 0x08:	/* F_CONTROL */
+        case 0x10:	/* VIDOUT_CTRL */
+        case 0x14:	/* SYNC_CTRL */
+        case 0x1c:	/* LLEN */
+        case 0x20:	/* FLENS */
+        case 0x24:	/* HFLTR_CTRL */
+        case 0x28:	/* CC_CARR_WSS_CARR */
+        case 0x2c:	/* C_PHASE */
+        case 0x30:	/* GAIN_U */
+        case 0x34:	/* GAIN_V */
+        case 0x38:	/* GAIN_Y */
+        case 0x3c:	/* BLACK_LEVEL */
+        case 0x40:	/* BLANK_LEVEL */
+        case 0x44:	/* X_COLOR */
+        case 0x48:	/* M_CONTROL */
+        case 0x4c:	/* BSTAMP_WSS_DATA */
+        case 0x50:	/* S_CARR */
+        case 0x54:	/* LINE21 */
+        case 0x58:	/* LN_SEL */
+        case 0x5c:	/* L21__WC_CTL */
+        case 0x60:	/* HTRIGGER_VTRIGGER */
+        case 0x64:	/* SAVID__EAVID */
+        case 0x68:	/* FLEN__FAL */
+        case 0x6c:	/* LAL__PHASE_RESET */
+        case 0x70:	/* HS_INT_START_STOP_X */
+        case 0x74:	/* HS_EXT_START_STOP_X */
+        case 0x78:	/* VS_INT_START_X */
+        case 0x7c:	/* VS_INT_STOP_X__VS_INT_START_Y */
+        case 0x80:	/* VS_INT_STOP_Y__VS_INT_START_X */
+        case 0x84:	/* VS_EXT_STOP_X__VS_EXT_START_Y */
+        case 0x88:	/* VS_EXT_STOP_Y */
+        case 0x90:	/* AVID_START_STOP_X */
+        case 0x94:	/* AVID_START_STOP_Y */
+        case 0xa0:	/* FID_INT_START_X__FID_INT_START_Y */
+        case 0xa4:	/* FID_INT_OFFSET_Y__FID_EXT_START_X */
+        case 0xa8:	/* FID_EXT_START_Y__FID_EXT_OFFSET_Y */
+        case 0xb0:	/* TVDETGP_INT_START_STOP_X */
+        case 0xb4:	/* TVDETGP_INT_START_STOP_Y */
+        case 0xb8:	/* GEN_CTRL */
+        case 0xc4:	/* DAC_TST__DAC_A */
+        case 0xc8:	/* DAC_B__DAC_C */
+            return 0;
+            
+        default:
+            break;
     }
     OMAP_BAD_REG(addr);
     return 0;
@@ -1521,52 +1522,56 @@ static void omap_venc_write(void *opaque, target_phys_addr_t addr,
                 uint32_t value)
 {
     switch (addr) {
-    case 0x08:	/* F_CONTROL */
-    case 0x10:	/* VIDOUT_CTRL */
-    case 0x14:	/* SYNC_CTRL */
-    case 0x1c:	/* LLEN */
-    case 0x20:	/* FLENS */
-    case 0x24:	/* HFLTR_CTRL */
-    case 0x28:	/* CC_CARR_WSS_CARR */
-    case 0x2c:	/* C_PHASE */
-    case 0x30:	/* GAIN_U */
-    case 0x34:	/* GAIN_V */
-    case 0x38:	/* GAIN_Y */
-    case 0x3c:	/* BLACK_LEVEL */
-    case 0x40:	/* BLANK_LEVEL */
-    case 0x44:	/* X_COLOR */
-    case 0x48:	/* M_CONTROL */
-    case 0x4c:	/* BSTAMP_WSS_DATA */
-    case 0x50:	/* S_CARR */
-    case 0x54:	/* LINE21 */
-    case 0x58:	/* LN_SEL */
-    case 0x5c:	/* L21__WC_CTL */
-    case 0x60:	/* HTRIGGER_VTRIGGER */
-    case 0x64:	/* SAVID__EAVID */
-    case 0x68:	/* FLEN__FAL */
-    case 0x6c:	/* LAL__PHASE_RESET */
-    case 0x70:	/* HS_INT_START_STOP_X */
-    case 0x74:	/* HS_EXT_START_STOP_X */
-    case 0x78:	/* VS_INT_START_X */
-    case 0x7c:	/* VS_INT_STOP_X__VS_INT_START_Y */
-    case 0x80:	/* VS_INT_STOP_Y__VS_INT_START_X */
-    case 0x84:	/* VS_EXT_STOP_X__VS_EXT_START_Y */
-    case 0x88:	/* VS_EXT_STOP_Y */
-    case 0x90:	/* AVID_START_STOP_X */
-    case 0x94:	/* AVID_START_STOP_Y */
-    case 0xa0:	/* FID_INT_START_X__FID_INT_START_Y */
-    case 0xa4:	/* FID_INT_OFFSET_Y__FID_EXT_START_X */
-    case 0xa8:	/* FID_EXT_START_Y__FID_EXT_OFFSET_Y */
-    case 0xb0:	/* TVDETGP_INT_START_STOP_X */
-    case 0xb4:	/* TVDETGP_INT_START_STOP_Y */
-    case 0xb8:	/* GEN_CTRL */
-    case 0xc4:	/* DAC_TST__DAC_A */
-    case 0xc8:	/* DAC_B__DAC_C */
-        break;
-
-    default:
-        OMAP_BAD_REGV(addr, value);
-        break;
+        case 0x00: /* REV_ID */
+        case 0x04: /* STATUS */
+            /* read-only, ignore */
+            break;
+        case 0x08:	/* F_CONTROL */
+        case 0x10:	/* VIDOUT_CTRL */
+        case 0x14:	/* SYNC_CTRL */
+        case 0x1c:	/* LLEN */
+        case 0x20:	/* FLENS */
+        case 0x24:	/* HFLTR_CTRL */
+        case 0x28:	/* CC_CARR_WSS_CARR */
+        case 0x2c:	/* C_PHASE */
+        case 0x30:	/* GAIN_U */
+        case 0x34:	/* GAIN_V */
+        case 0x38:	/* GAIN_Y */
+        case 0x3c:	/* BLACK_LEVEL */
+        case 0x40:	/* BLANK_LEVEL */
+        case 0x44:	/* X_COLOR */
+        case 0x48:	/* M_CONTROL */
+        case 0x4c:	/* BSTAMP_WSS_DATA */
+        case 0x50:	/* S_CARR */
+        case 0x54:	/* LINE21 */
+        case 0x58:	/* LN_SEL */
+        case 0x5c:	/* L21__WC_CTL */
+        case 0x60:	/* HTRIGGER_VTRIGGER */
+        case 0x64:	/* SAVID__EAVID */
+        case 0x68:	/* FLEN__FAL */
+        case 0x6c:	/* LAL__PHASE_RESET */
+        case 0x70:	/* HS_INT_START_STOP_X */
+        case 0x74:	/* HS_EXT_START_STOP_X */
+        case 0x78:	/* VS_INT_START_X */
+        case 0x7c:	/* VS_INT_STOP_X__VS_INT_START_Y */
+        case 0x80:	/* VS_INT_STOP_Y__VS_INT_START_X */
+        case 0x84:	/* VS_EXT_STOP_X__VS_EXT_START_Y */
+        case 0x88:	/* VS_EXT_STOP_Y */
+        case 0x90:	/* AVID_START_STOP_X */
+        case 0x94:	/* AVID_START_STOP_Y */
+        case 0xa0:	/* FID_INT_START_X__FID_INT_START_Y */
+        case 0xa4:	/* FID_INT_OFFSET_Y__FID_EXT_START_X */
+        case 0xa8:	/* FID_EXT_START_Y__FID_EXT_OFFSET_Y */
+        case 0xb0:	/* TVDETGP_INT_START_STOP_X */
+        case 0xb4:	/* TVDETGP_INT_START_STOP_Y */
+        case 0xb8:	/* GEN_CTRL */
+        case 0xc4:	/* DAC_TST__DAC_A */
+        case 0xc8:	/* DAC_B__DAC_C */
+            break;
+            
+        default:
+            OMAP_BAD_REGV(addr, value);
+            break;
     }
 }
 
@@ -1635,16 +1640,168 @@ static CPUWriteMemoryFunc *omap_im3_writefn[] = {
 
 static uint32_t omap_dsi_read(void *opaque, target_phys_addr_t addr)
 {
-    fprintf(stderr, "%s: DSI register " OMAP_FMT_plx " not implemented!\n",
-            __FUNCTION__, addr);
+    switch (addr) {
+        case 0x000: /* DSI_REVISION */
+            return 0x10;
+        case 0x014: /* DSI_SYSSTATUS */
+            return 1; /* RESET_DONE */
+        case 0x010: /* DSI_SYSCONFIG */
+        case 0x018: /* DSI_IRQSTATUS */
+        case 0x01c: /* DSI_IRQENABLE */
+        case 0x040: /* DSI_CTRL */
+        case 0x048: /* DSI_COMPLEXIO_CFG_1 */
+        case 0x04c: /* DSI_COMPLEXIO_IRQ_STATUS */
+        case 0x050: /* DSI_COMPLEXIO_IRQ_ENABLE */
+        case 0x054: /* DSI_CLK_CTRL */
+        case 0x058: /* DSI_TIMING1 */
+        case 0x05c: /* DSI_TIMING2 */
+        case 0x060: /* DSI_VM_TIMING1 */
+        case 0x064: /* DSI_VM_TIMING2 */
+        case 0x068: /* DSI_VM_TIMING3 */
+        case 0x06c: /* DSI_CLK_TIMING */
+        case 0x070: /* DSI_TX_FIFO_VC_SIZE */
+        case 0x074: /* DSI_RX_FIFO_VC_SIZE */
+        case 0x078: /* DSI_COMPLEXIO_CFG_2 */
+        case 0x07c: /* DSI_RX_FIFO_VC_FULLNESS */
+        case 0x080: /* DSI_VM_TIMING4 */
+        case 0x084: /* DSI_TX_FIFO_VC_EMPTINESS */
+        case 0x088: /* DSI_VM_TIMING5 */
+        case 0x08c: /* DSI_VM_TIMING6 */
+        case 0x090: /* DSI_VM_TIMING7 */
+        case 0x094: /* DSI_STOPCLK_TIMING */
+        case 0x100: /* DSI_VC0_CTRL */
+        case 0x104: /* DSI_VC0_TE */
+        case 0x108: /* DSI_VC0_LONG_PACKET_HEADER */
+        case 0x10c: /* DSI_VC0_LONG_PACKET_PAYLOAD */
+        case 0x110: /* DSI_VC0_SHORT_PACKET_HEADER */
+        case 0x118: /* DSI_VC0_IRQSTATUS */
+        case 0x11c: /* DSI_VC0_IRQENABLE */
+        case 0x120: /* DSI_VC1_CTRL */
+        case 0x124: /* DSI_VC1_TE */
+        case 0x128: /* DSI_VC1_LONG_PACKET_HEADER */
+        case 0x12c: /* DSI_VC1_LONG_PACKET_PAYLOAD */
+        case 0x130: /* DSI_VC1_SHORT_PACKET_HEADER */
+        case 0x138: /* DSI_VC1_IRQSTATUS */
+        case 0x13c: /* DSI_VC1_IRQENABLE */
+        case 0x140: /* DSI_VC2_CTRL */
+        case 0x144: /* DSI_VC2_TE */
+        case 0x148: /* DSI_VC2_LONG_PACKET_HEADER */
+        case 0x14c: /* DSI_VC2_LONG_PACKET_PAYLOAD */
+        case 0x150: /* DSI_VC2_SHORT_PACKET_HEADER */
+        case 0x158: /* DSI_VC2_IRQSTATUS */
+        case 0x15c: /* DSI_VC2_IRQENABLE */
+        case 0x160: /* DSI_VC3_CTRL */
+        case 0x164: /* DSI_VC3_TE */
+        case 0x168: /* DSI_VC3_LONG_PACKET_HEADER */
+        case 0x16c: /* DSI_VC3_LONG_PACKET_PAYLOAD */
+        case 0x170: /* DSI_VC3_SHORT_PACKET_HEADER */
+        case 0x178: /* DSI_VC3_IRQSTATUS */
+        case 0x17c: /* DSI_VC3_IRQENABLE */
+        
+        case 0x200: /* DSI_PHY_CFG0 */
+        case 0x204: /* DSI_PHY_CFG1 */
+        case 0x208: /* DSI_PHY_CFG2 */
+        case 0x214: /* DSI_PHY_CFG5 */
+            
+        case 0x300: /* DSI_PLL_CONTROL */
+        case 0x304: /* DSI_PLL_STATUS */
+        case 0x308: /* DSI_PLL_GO */
+        case 0x30c: /* DSI_PLL_CONFIGURATION1 */
+        case 0x310: /* DSI_PLL_CONFIGURATION2 */
+            
+            fprintf(stderr,
+                    "%s: DSI register " OMAP_FMT_plx " not implemented!\n",
+                    __FUNCTION__, addr);
+            return 0;
+            
+        default:
+            break;
+    }
+    OMAP_BAD_REG(addr);
     return 0;
 }
 
 static void omap_dsi_write(void *opaque, target_phys_addr_t addr,
                            uint32_t value)
 {
-    fprintf(stderr, "%s: DSI register " OMAP_FMT_plx " not implemented!\n",
-            __FUNCTION__, addr);
+    switch (addr) {
+        case 0x000: /* DSI_REVISION */
+        case 0x014: /* DSI_SYSSTATUS */
+        case 0x07c: /* DSI_RX_FIFO_VC_FULLNESS */
+        case 0x084: /* DSI_RX_FIFO_VC_EMPTINESS */
+        case 0x214: /* DSI_PHY_CFG5 */
+        case 0x304: /* DSI_PLL_STATUS */
+            /* read-only, ignore */
+            break;
+        case 0x010: /* DSI_SYSCONFIG */
+        case 0x018: /* DSI_IRQSTATUS */
+        case 0x01c: /* DSI_IRQENABLE */
+        case 0x040: /* DSI_CTRL */
+        case 0x048: /* DSI_COMPLEXIO_CFG_1 */
+        case 0x04c: /* DSI_COMPLEXIO_IRQ_STATUS */
+        case 0x050: /* DSI_COMPLEXIO_IRQ_ENABLE */
+        case 0x054: /* DSI_CLK_CTRL */
+        case 0x058: /* DSI_TIMING1 */
+        case 0x05c: /* DSI_TIMING2 */
+        case 0x060: /* DSI_VM_TIMING1 */
+        case 0x064: /* DSI_VM_TIMING2 */
+        case 0x068: /* DSI_VM_TIMING3 */
+        case 0x06c: /* DSI_CLK_TIMING */
+        case 0x070: /* DSI_TX_FIFO_VC_SIZE */
+        case 0x074: /* DSI_RX_FIFO_VC_SIZE */
+        case 0x078: /* DSI_COMPLEXIO_CFG_2 */
+        case 0x080: /* DSI_VM_TIMING4 */
+        case 0x088: /* DSI_VM_TIMING5 */
+        case 0x08c: /* DSI_VM_TIMING6 */
+        case 0x090: /* DSI_VM_TIMING7 */
+        case 0x094: /* DSI_STOPCLK_TIMING */
+        case 0x100: /* DSI_VC0_CTRL */
+        case 0x104: /* DSI_VC0_TE */
+        case 0x108: /* DSI_VC0_LONG_PACKET_HEADER */
+        case 0x10c: /* DSI_VC0_LONG_PACKET_PAYLOAD */
+        case 0x110: /* DSI_VC0_SHORT_PACKET_HEADER */
+        case 0x118: /* DSI_VC0_IRQSTATUS */
+        case 0x11c: /* DSI_VC0_IRQENABLE */
+        case 0x120: /* DSI_VC1_CTRL */
+        case 0x124: /* DSI_VC1_TE */
+        case 0x128: /* DSI_VC1_LONG_PACKET_HEADER */
+        case 0x12c: /* DSI_VC1_LONG_PACKET_PAYLOAD */
+        case 0x130: /* DSI_VC1_SHORT_PACKET_HEADER */
+        case 0x138: /* DSI_VC1_IRQSTATUS */
+        case 0x13c: /* DSI_VC1_IRQENABLE */
+        case 0x140: /* DSI_VC2_CTRL */
+        case 0x144: /* DSI_VC2_TE */
+        case 0x148: /* DSI_VC2_LONG_PACKET_HEADER */
+        case 0x14c: /* DSI_VC2_LONG_PACKET_PAYLOAD */
+        case 0x150: /* DSI_VC2_SHORT_PACKET_HEADER */
+        case 0x158: /* DSI_VC2_IRQSTATUS */
+        case 0x15c: /* DSI_VC2_IRQENABLE */
+        case 0x160: /* DSI_VC3_CTRL */
+        case 0x164: /* DSI_VC3_TE */
+        case 0x168: /* DSI_VC3_LONG_PACKET_HEADER */
+        case 0x16c: /* DSI_VC3_LONG_PACKET_PAYLOAD */
+        case 0x170: /* DSI_VC3_SHORT_PACKET_HEADER */
+        case 0x178: /* DSI_VC3_IRQSTATUS */
+        case 0x17c: /* DSI_VC3_IRQENABLE */
+            
+        case 0x200: /* DSI_PHY_CFG0 */
+        case 0x204: /* DSI_PHY_CFG1 */
+        case 0x208: /* DSI_PHY_CFG2 */
+            
+        case 0x300: /* DSI_PLL_CONTROL */
+        case 0x308: /* DSI_PLL_GO */
+        case 0x30c: /* DSI_PLL_CONFIGURATION1 */
+        case 0x310: /* DSI_PLL_CONFIGURATION2 */
+            
+            fprintf(stderr,
+                    "%s: DSI register " OMAP_FMT_plx " not implemented!\n",
+                    __FUNCTION__, addr);
+            break;
+            
+        default:
+            OMAP_BAD_REGV(addr, value);
+            break;
+    }
 }
 
 static CPUReadMemoryFunc *omap_dsi_readfn[] = {

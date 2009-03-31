@@ -2470,7 +2470,7 @@ static struct omap_l4_agent_info_s omap_l4_agent_info[54] = {
 #define omap_l4ta(bus, cs)	omap_l4ta_get(bus, L4TA(cs))
 #define omap_l4tao(bus, cs)	omap_l4ta_get(bus, L4TAO(cs))
 
-struct omap_target_agent_s *omap_l4ta_get(struct omap_l4_s *bus, int cs)
+static struct omap_target_agent_s *omap_l4ta_get(struct omap_l4_s *bus, int cs)
 {
     int i, iomemtype;
     struct omap_target_agent_s *ta = 0;
@@ -2537,6 +2537,16 @@ target_phys_addr_t omap_l4_attach(struct omap_target_agent_s *ta, int region,
     }
 
     return base;
+}
+
+target_phys_addr_t omap_l4_base(struct omap_target_agent_s *ta, int region)
+{
+    return ta->bus->base + ta->start[region].offset;
+}
+
+uint32_t omap_l4_size(struct omap_target_agent_s *ta, int region)
+{
+    return ta->start[region].size;
 }
 
 /* TEST-Chip-level TAP */

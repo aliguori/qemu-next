@@ -836,8 +836,10 @@ typedef enum {
     /* 48061000-48061FFF */ L4ID_I2C3_TA,
     /* 48062000-48062FFF */ L4ID_USBTLL,
     /* 48063000-48063FFF */ L4ID_USBTLL_TA,
-    /* 48064000-48064FFF */ L4ID_HSUSBHOST,
-    /* 48065000-48065FFF */ L4ID_HSUSBHOST_TA,
+    /* 48064000-480643FF */ L4ID_USBHOST,
+    /* 48064400-480647FF */ L4ID_USBHOST_OHCI,
+    /* 48064800-4806BFFF */ L4ID_USBHOST_EHCI,
+    /* 48065000-48065FFF */ L4ID_USBHOST_TA,
     /* 48066000-48069FFF */
     /* 4806A000-4806AFFF */ L4ID_UART1,
     /* 4806B000-4806BFFF */ L4ID_UART1_TA,
@@ -1047,8 +1049,10 @@ static struct omap_l4_region_s omap3_l4_region[] = {
     [L4ID_I2C3_TA     ] = {0x00061000, 0x1000, L4TYPE_TA},
     [L4ID_USBTLL      ] = {0x00062000, 0x1000, L4TYPE_GENERIC},
     [L4ID_USBTLL_TA   ] = {0x00063000, 0x1000, L4TYPE_TA},
-    [L4ID_HSUSBHOST   ] = {0x00064000, 0x1000, L4TYPE_GENERIC},
-    [L4ID_HSUSBHOST_TA] = {0x00065000, 0x1000, L4TYPE_TA},
+    [L4ID_USBHOST     ] = {0x00064000, 0x0400, L4TYPE_GENERIC},
+    [L4ID_USBHOST_OHCI] = {0x00064400, 0x0400, L4TYPE_GENERIC},
+    [L4ID_USBHOST_EHCI] = {0x00064800, 0x0400, L4TYPE_GENERIC},
+    [L4ID_USBHOST_TA  ] = {0x00065000, 0x1000, L4TYPE_TA},
     [L4ID_UART1       ] = {0x0006a000, 0x1000, L4TYPE_GENERIC},
     [L4ID_UART1_TA    ] = {0x0006b000, 0x1000, L4TYPE_TA},
     [L4ID_UART2       ] = {0x0006c000, 0x1000, L4TYPE_GENERIC},
@@ -1245,7 +1249,7 @@ static const struct omap3_l4_agent_info_s omap3_l4_agent_info[] = {
     {L4A_DSS,        L4ID_DSI,       6},
     /* TODO: camera */
     {L4A_USBHS_OTG,  L4ID_HSUSBOTG,  2},
-    {L4A_USBHS_HOST, L4ID_HSUSBHOST, 2},
+    {L4A_USBHS_HOST, L4ID_USBHOST,   4},
     {L4A_USBHS_TLL,  L4ID_USBTLL,    2},
     {L4A_UART1,      L4ID_UART1,     2},
     {L4A_UART2,      L4ID_UART2,     2},
@@ -1441,6 +1445,8 @@ static struct omap_target_agent_s *omap3_l4ta_init(struct omap_l4_s *bus, int cs
 
     register_savevm("omap3_l4ta", ta->base >> 8, 0,
                     omap3_l4ta_save_state, omap3_l4ta_load_state, ta);
+#else
+    ta->base = ta->bus->base + ta->start[i].offset;
 #endif
 
     return ta;
@@ -1521,6 +1527,16 @@ struct omap3_prm_s {
         uint32_t prm_clksetup;
         uint32_t prm_polctrl;
         uint32_t prm_voltsetup2;
+        /* the following smartreflex control registers taken from linux kernel
+         * source as their descriptions are missing in the OMAP3 TRM */
+        struct {
+            uint32_t config;
+            uint32_t vstepmin;
+            uint32_t vstepmax;
+            uint32_t vlimitto;
+            uint32_t voltage;
+            uint32_t status;
+        } prm_vp[2];
     } gr; /* global_reg */
 };
 
@@ -1611,6 +1627,7 @@ static void omap3_prm_reset(struct omap3_prm_s *s)
     s->gr.prm_sram_pcharge   = 0x50;
     s->gr.prm_clksrc_ctrl    = 0x43;
     s->gr.prm_polctrl        = 0xa;
+    /* TODO: figure out reset values for prm_vp[1,2] registers */
 
     bzero(&s->neon, sizeof(s->neon));
     s->neon.rm_rstst     = 0x1;
@@ -1706,6 +1723,18 @@ static uint32_t omap3_prm_read(void *opaque, target_phys_addr_t addr)
         case 0x1298: return s->gr.prm_clksetup;
         case 0x129c: return s->gr.prm_polctrl;
         case 0x12a0: return s->gr.prm_voltsetup2;
+        case 0x12b0: return s->gr.prm_vp[0].config;
+        case 0x12b4: return s->gr.prm_vp[0].vstepmin;
+        case 0x12b8: return s->gr.prm_vp[0].vstepmax;
+        case 0x12bc: return s->gr.prm_vp[0].vlimitto;
+        case 0x12c0: return s->gr.prm_vp[0].voltage;
+        case 0x12c4: return s->gr.prm_vp[0].status;
+        case 0x12d0: return s->gr.prm_vp[1].config;
+        case 0x12d4: return s->gr.prm_vp[1].vstepmin;
+        case 0x12d8: return s->gr.prm_vp[1].vstepmax;
+        case 0x12dc: return s->gr.prm_vp[1].vlimitto;
+        case 0x12e0: return s->gr.prm_vp[1].voltage;
+        case 0x12e4: return s->gr.prm_vp[1].status;
         default: break;
     }
 
@@ -1872,6 +1901,20 @@ static void omap3_prm_write(void *opaque, target_phys_addr_t addr,
         case 0x1298: s->gr.prm_clksetup = value & 0xffff; break;
         case 0x129c: s->gr.prm_polctrl = value & 0xf; break;
         case 0x12a0: s->gr.prm_voltsetup2 = value & 0xffff; break;
+        /* TODO: check if any functionality is needed behind writes to the
+         * prm_vp[1,2] registers */
+        case 0x12b0: s->gr.prm_vp[0].config = value; break;
+        case 0x12b4: s->gr.prm_vp[0].vstepmin = value; break;
+        case 0x12b8: s->gr.prm_vp[0].vstepmax = value; break;
+        case 0x12bc: s->gr.prm_vp[0].vlimitto = value; break;
+        case 0x12c0: s->gr.prm_vp[0].voltage = value; break;
+        case 0x12c4: s->gr.prm_vp[0].status = value; break;
+        case 0x12d0: s->gr.prm_vp[1].config = value; break;
+        case 0x12d4: s->gr.prm_vp[1].vstepmin = value; break;
+        case 0x12d8: s->gr.prm_vp[1].vstepmax = value; break;
+        case 0x12dc: s->gr.prm_vp[1].vlimitto = value; break;
+        case 0x12e0: s->gr.prm_vp[1].voltage = value; break;
+        case 0x12e4: s->gr.prm_vp[1].status = value; break;
         /* NEON_PRM */
         case 0x1358: s->neon.rm_rstst &= ~(value & 0xf); break;
         case 0x13c8: s->neon.pm_wkdep = value & 0x2; break;
@@ -1937,6 +1980,7 @@ static void omap3_prm_load_domain_state(QEMUFile *f,
 static void omap3_prm_save_state(QEMUFile *f, void *opaque)
 {
     struct omap3_prm_s *s = (struct omap3_prm_s *)opaque;
+    int i;
     
     omap3_prm_save_domain_state(f, &s->iva2);
     omap3_prm_save_domain_state(f, &s->mpu);
@@ -1983,11 +2027,20 @@ static void omap3_prm_save_state(QEMUFile *f, void *opaque)
     qemu_put_be32(f, s->gr.prm_clksetup);
     qemu_put_be32(f, s->gr.prm_polctrl);
     qemu_put_be32(f, s->gr.prm_voltsetup2);
+    for (i = 0; i < 2; i++) {
+        qemu_put_be32(f, s->gr.prm_vp[i].config);
+        qemu_put_be32(f, s->gr.prm_vp[i].vstepmin);
+        qemu_put_be32(f, s->gr.prm_vp[i].vstepmax);
+        qemu_put_be32(f, s->gr.prm_vp[i].vlimitto);
+        qemu_put_be32(f, s->gr.prm_vp[i].voltage);
+        qemu_put_be32(f, s->gr.prm_vp[i].status);
+    }
 }
 
 static int omap3_prm_load_state(QEMUFile *f, void *opaque, int version_id)
 {
     struct omap3_prm_s *s = (struct omap3_prm_s *)opaque;
+    int i;
     
     if (version_id)
         return -EINVAL;
@@ -2037,6 +2090,14 @@ static int omap3_prm_load_state(QEMUFile *f, void *opaque, int version_id)
     s->gr.prm_clksetup = qemu_get_be32(f);
     s->gr.prm_polctrl = qemu_get_be32(f);
     s->gr.prm_voltsetup2 = qemu_get_be32(f);
+    for (i = 0; i < 2; i++) {
+        s->gr.prm_vp[i].config = qemu_get_be32(f);
+        s->gr.prm_vp[i].vstepmin = qemu_get_be32(f);
+        s->gr.prm_vp[i].vstepmax = qemu_get_be32(f);
+        s->gr.prm_vp[i].vlimitto = qemu_get_be32(f);
+        s->gr.prm_vp[i].voltage = qemu_get_be32(f);
+        s->gr.prm_vp[i].status = qemu_get_be32(f);
+    }
     
     omap3_prm_int_update(s);
     omap3_prm_clksrc_ctrl_update(s);
@@ -2059,9 +2120,9 @@ static CPUWriteMemoryFunc *omap3_prm_writefn[] = {
     omap3_prm_write,
 };
 
-struct omap3_prm_s *omap3_prm_init(struct omap_target_agent_s *ta,
-                                   qemu_irq mpu_int, qemu_irq iva_int,
-                                   struct omap_mpu_state_s *mpu)
+static struct omap3_prm_s *omap3_prm_init(struct omap_target_agent_s *ta,
+                                          qemu_irq mpu_int, qemu_irq iva_int,
+                                          struct omap_mpu_state_s *mpu)
 {
     int iomemtype;
     struct omap3_prm_s *s = (struct omap3_prm_s *) qemu_mallocz(sizeof(*s));
@@ -2113,6 +2174,7 @@ struct omap3_cm_s {
 
     /* CORE_CM: base + 0x0a00 */
     uint32_t cm_fclken1_core;   /* 0a00 */
+    uint32_t cm_fclken2_core;   /* 0a04 */
     uint32_t cm_fclken3_core;   /* 0a08 */
     uint32_t cm_iclken1_core;   /* 0a10 */
     uint32_t cm_iclken2_core;   /* 0a14 */
@@ -2582,6 +2644,7 @@ static void omap3_cm_reset(struct omap3_cm_s *s)
     s->cm_clkstst_mpu = 0x0;
 
     s->cm_fclken1_core = 0x0;
+    s->cm_fclken2_core = 0x0;
     s->cm_fclken3_core = 0x0;
     s->cm_iclken1_core = 0x42;
     s->cm_iclken2_core = 0x0;
@@ -2705,9 +2768,11 @@ static uint32_t omap3_cm_read(void *opaque, target_phys_addr_t addr)
         case 0x094c: return s->cm_clkstst_mpu;
         /* CORE_CM */
         case 0x0a00: return s->cm_fclken1_core;
+        case 0x0a04: return s->cm_fclken2_core;
         case 0x0a08: return s->cm_fclken3_core;
         case 0x0a10: return s->cm_iclken1_core;
         case 0x0a14: return s->cm_iclken2_core;
+        case 0x0a18: return s->cm_iclken3_core;
         case 0x0a20: return s->cm_idlest1_core;
         case 0x0a24: return s->cm_idlest2_core;
         case 0x0a28: return s->cm_idlest3_core;
@@ -2882,6 +2947,10 @@ static void omap3_cm_write(void *opaque,
         case 0xa00:
             s->cm_fclken1_core = value & 0x43fffe00;
             omap3_cm_fclken1_core_update(s);
+            break;
+        case 0xa04:
+            /* TODO: check if modifying this has any effect */
+            s->cm_fclken2_core = value;
             break;
         case 0xa08:
             s->cm_fclken3_core = value & 0x7;
@@ -3066,6 +3135,7 @@ static void omap3_cm_save_state(QEMUFile *f, void *opaque)
     qemu_put_be32(f, s->cm_clkstst_mpu);
     
     qemu_put_be32(f, s->cm_fclken1_core);
+    qemu_put_be32(f, s->cm_fclken2_core);
     qemu_put_be32(f, s->cm_fclken3_core);
     qemu_put_be32(f, s->cm_iclken1_core);
     qemu_put_be32(f, s->cm_iclken2_core);
@@ -3185,6 +3255,7 @@ static int omap3_cm_load_state(QEMUFile *f, void *opaque, int version_id)
     s->cm_clkstst_mpu = qemu_get_be32(f);
     
     s->cm_fclken1_core = qemu_get_be32(f);
+    s->cm_fclken2_core = qemu_get_be32(f);
     s->cm_fclken3_core = qemu_get_be32(f);
     s->cm_iclken1_core = qemu_get_be32(f);
     s->cm_iclken2_core = qemu_get_be32(f);
@@ -3306,9 +3377,10 @@ static CPUWriteMemoryFunc *omap3_cm_writefn[] = {
     omap3_cm_write,
 };
 
-struct omap3_cm_s *omap3_cm_init(struct omap_target_agent_s *ta,
-                                 qemu_irq mpu_int, qemu_irq dsp_int,
-                                 qemu_irq iva_int, struct omap_mpu_state_s *mpu)
+static struct omap3_cm_s *omap3_cm_init(struct omap_target_agent_s *ta,
+                                        qemu_irq mpu_int, qemu_irq dsp_int,
+                                        qemu_irq iva_int,
+                                        struct omap_mpu_state_s *mpu)
 {
     int iomemtype;
     struct omap3_cm_s *s = (struct omap3_cm_s *) qemu_mallocz(sizeof(*s));
