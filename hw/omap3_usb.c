@@ -464,10 +464,12 @@ struct omap3_hsusb_s *omap3_hsusb_init(struct omap_target_agent_s *otg_ta,
                                        qemu_irq tll_irq)
 {
     struct omap3_hsusb_s *s = qemu_mallocz(sizeof(struct omap3_hsusb_s));
-    omap3_hsusb_otg_init(otg_ta, mc_irq, dma_irq, &s->otg);
+    /* NOTE: init host controller first and OTG controller last in order to
+     * make qemu put the attached usb devices on a hub connected to the OTG */
     omap3_hsusb_host_init(host_ta, tll_ta,
                           ohci_irq, ehci_irq, tll_irq,
                           &s->host);
+    omap3_hsusb_otg_init(otg_ta, mc_irq, dma_irq, &s->otg);
     return s;
 }
 
