@@ -2070,29 +2070,36 @@ int tlb_set_page_exec(CPUState *env, target_ulong vaddr,
     return 0;
 }
 
-void walk_memory_regions(void *priv,
-    int (*fn)(void *, unsigned long, unsigned long, unsigned long))
+/* dump memory mappings */
+void page_dump(FILE *f)
 {
     unsigned long start, end;
-    PageDesc *p = NULL;
     int i, j, prot, prot1;
+    PageDesc *p;
 
-    start = end = -1;
+    fprintf(f, "%-8s %-8s %-8s %s\n",
+            "start", "end", "size", "prot");
+    start = -1;
+    end = -1;
     prot = 0;
-
-    for (i = 0; i <= L1_SIZE; i++) {
-        p = (i < L1_SIZE) ? l1_map[i] : NULL;
-        for (j = 0; j < L2_SIZE; j++) {
-            prot1 = (p == NULL) ? 0 : p[j].flags;
-            /*
-             * "region" is one continuous chunk of memory
-             * that has same protection flags set.
-             */
+    for(i = 0; i <= L1_SIZE; i++) {
+        if (i < L1_SIZE)
+            p = l1_map[i];
+        else
+            p = NULL;
+        for(j = 0;j < L2_SIZE; j++) {
+            if (!p)
+                prot1 = 0;
+            else
+                prot1 = p[j].flags;
             if (prot1 != prot) {
                 end = (i << (32 - L1_BITS)) | (j << TARGET_PAGE_BITS);
                 if (start != -1) {
-                    if ((*fn)(priv, start, end, prot) != 0)
-                        goto out;
+                    fprintf(f, "%08lx-%08lx %08lx %c%c%c\n",
+                            start, end, end - start,
+                            prot & PAGE_READ ? 'r' : '-',
+                            prot & PAGE_WRITE ? 'w' : '-',
+                            prot & PAGE_EXEC ? 'x' : '-');
                 }
                 if (prot1 != 0)
                     start = end;
@@ -2100,34 +2107,10 @@ void walk_memory_regions(void *priv,
                     start = -1;
                 prot = prot1;
             }
-            if (p == NULL)
+            if (!p)
                 break;
         }
     }
-out:
-    ; /* null statement to make compiler happy */
-}
-
-static int dump_region(void *priv, unsigned long start,
-    unsigned long end, unsigned long prot)
-{
-    FILE *f = (FILE *)priv;
-
-    (void) fprintf(f, "%08lx-%08lx %08lx %c%c%c\n",
-        start, end, end - start,
-        ((prot & PAGE_READ) ? 'r' : '-'),
-        ((prot & PAGE_WRITE) ? 'w' : '-'),
-        ((prot & PAGE_EXEC) ? 'x' : '-'));
-
-    return (0);
-}
-
-/* dump memory mappings */
-void page_dump(FILE *f)
-{
-    (void) fprintf(f, "%-8s %-8s %-8s %s\n",
-            "start", "end", "size", "prot");
-    walk_memory_regions(f, dump_region);
 }
 
 int page_get_flags(target_ulong address)
