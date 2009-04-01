@@ -99,6 +99,9 @@ static void glue(omap3_lcd_panel_draw_line24b_, DEPTH)(PIXEL_TYPE *dest,
                                                        const uint8_t *src,
                                                        unsigned int width)
 {
+#if DEPTH == 24
+    memcpy(dest, src, width);
+#else
     unsigned int r, g, b;
     const uint8_t *end = (const void *) src + width;
     while (src < end) {
@@ -107,6 +110,7 @@ static void glue(omap3_lcd_panel_draw_line24b_, DEPTH)(PIXEL_TYPE *dest,
         r = *(src++);
         COPY_PIXEL1(dest, glue(rgb_to_pixel, DEPTH)(r, g, b));
     }
+#endif
 }
 
 /* No rotation */
