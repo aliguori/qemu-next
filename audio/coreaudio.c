@@ -47,6 +47,9 @@ typedef struct coreaudioVoiceOut {
     pthread_mutex_t mutex;
     int isAtexit;
     AudioDeviceID outputDeviceID;
+#if defined(MAC_OS_X_VERSION_10_5) && (MAC_OS_X_VERSION_MIN_REQUIRED>=MAC_OS_X_VERSION_10_5)
+    AudioDeviceIOProcID ioProcID;
+#endif
     UInt32 audioDevicePropertyBufferFrameSize;
     AudioStreamBasicDescription outputStreamBasicDescription;
     int live;
@@ -56,7 +59,7 @@ typedef struct coreaudioVoiceOut {
 
 static void coreaudio_logstatus (OSStatus status)
 {
-    char *str = "BUG";
+    const char *str = "BUG";
 
     switch(status) {
     case kAudioHardwareNoError:
@@ -104,7 +107,7 @@ static void coreaudio_logstatus (OSStatus status)
         break;
 
     default:
-        AUD_log (AUDIO_CAP, "Reason: status code %ld\n", status);
+        AUD_log (AUDIO_CAP, "Reason: status code %d\n", status);
         return;
     }
 
@@ -362,7 +365,7 @@ static int coreaudio_init_out (HWVoiceOut *hw, struct audsettings *as)
         &core->audioDevicePropertyBufferFrameSize);
     if (status != kAudioHardwareNoError) {
         coreaudio_logerr2 (status, typ,
-                           "Could not set device buffer frame size %ld\n",
+                           "Could not set device buffer frame size %d\n",
                            core->audioDevicePropertyBufferFrameSize);
         return -1;
     }
@@ -418,7 +421,14 @@ static int coreaudio_init_out (HWVoiceOut *hw, struct audsettings *as)
     }
 
     /* set Callback */
+#if defined(MAC_OS_X_VERSION_10_5) && (MAC_OS_X_VERSION_MIN_REQUIRED>=MAC_OS_X_VERSION_10_5)
+    status = AudioDeviceCreateIOProcID(core->outputDeviceID,
+                                       audioDeviceIOProc,
+                                       hw,
+                                       &core->ioProcID);
+#else
     status = AudioDeviceAddIOProc(core->outputDeviceID, audioDeviceIOProc, hw);
+#endif
     if (status != kAudioHardwareNoError) {
         coreaudio_logerr2 (status, typ, "Could not set IOProc\n");
         core->outputDeviceID = kAudioDeviceUnknown;
@@ -430,7 +440,11 @@ static int coreaudio_init_out (HWVoiceOut *hw, struct audsettings *as)
         status = AudioDeviceStart(core->outputDeviceID, audioDeviceIOProc);
         if (status != kAudioHardwareNoError) {
             coreaudio_logerr2 (status, typ, "Could not start playback\n");
+#if defined(MAC_OS_X_VERSION_10_5) && (MAC_OS_X_VERSION_MIN_REQUIRED>=MAC_OS_X_VERSION_10_5)
+            AudioDeviceDestroyIOProcID(core->outputDeviceID, core->ioProcID);
+#else
             AudioDeviceRemoveIOProc(core->outputDeviceID, audioDeviceIOProc);
+#endif
             core->outputDeviceID = kAudioDeviceUnknown;
             return -1;
         }
@@ -455,8 +469,13 @@ static void coreaudio_fini_out (HWVoiceOut *hw)
         }
 
         /* remove callback */
+#if defined(MAC_OS_X_VERSION_10_5) && (MAC_OS_X_VERSION_MIN_REQUIRED>=MAC_OS_X_VERSION_10_5)
+        status = AudioDeviceDestroyIOProcID(core->outputDeviceID,
+                                            core->ioProcID);
+#else
         status = AudioDeviceRemoveIOProc(core->outputDeviceID,
                                          audioDeviceIOProc);
+#endif
         if (status != kAudioHardwareNoError) {
             coreaudio_logerr (status, "Could not remove IOProc\n");
         }

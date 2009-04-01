@@ -1903,8 +1903,8 @@ static const int omap3_lcd_panel_bpp[0x10] = {
     0,  /* 0x7: reserved */
     4,  /* 0x8: RGB24 (unpacked in 32-bit container) */
     3,  /* 0x9: RGB24 (packed in 24-bit container) */
-    0,  /* 0xa: reserved */
-    0,  /* 0xb: reserved */
+    2,  /* 0xa: YUV2 422 */
+    2,  /* 0xb: UYVY 422 */
     4,  /* 0xc: ARGB32 */
     4,  /* 0xd: RGBA32 */
     4,  /* 0xe: RGBx32 (24-bit RGB aligned on MSB of the 32-bit container) */
@@ -1947,7 +1947,9 @@ static void omap3_lcd_panel_update_display(void *opaque)
             exit(1);
         }
         if (!s->line_fn) {
-            fprintf(stderr, "%s:s->line_fn is NULL. Not supported gfx_format \n", __FUNCTION__);
+            fprintf(stderr,
+                    "%s: line_fn is NULL - unsupported gfx_format (%d)\n",
+                    __FUNCTION__, dss->dispc.l[0].gfx_format);
             exit(1);
         }
         if (lcd_width != ds_get_width(s->state) 
