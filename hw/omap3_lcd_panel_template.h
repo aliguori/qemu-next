@@ -95,6 +95,20 @@ static void glue(omap3_lcd_panel_draw_line24a_, DEPTH)(PIXEL_TYPE *dest,
 #endif
 }
 
+static void glue(omap3_lcd_panel_draw_line24b_, DEPTH)(PIXEL_TYPE *dest,
+                                                       const uint8_t *src,
+                                                       unsigned int width)
+{
+    unsigned int r, g, b;
+    const uint8_t *end = (const void *) src + width;
+    while (src < end) {
+        b = *(src++);
+        g = *(src++);
+        r = *(src++);
+        COPY_PIXEL1(dest, glue(rgb_to_pixel, DEPTH)(r, g, b));
+    }
+}
+
 /* No rotation */
 static omap3_lcd_panel_fn_t glue(omap3_lcd_panel_draw_fn_, DEPTH)[0x10] = {
     NULL,
@@ -106,7 +120,7 @@ static omap3_lcd_panel_fn_t glue(omap3_lcd_panel_draw_fn_, DEPTH)[0x10] = {
     (omap3_lcd_panel_fn_t)glue(omap3_lcd_panel_draw_line16_, DEPTH),
     NULL,
     (omap3_lcd_panel_fn_t)glue(omap3_lcd_panel_draw_line24a_, DEPTH),
-    NULL,
+    (omap3_lcd_panel_fn_t)glue(omap3_lcd_panel_draw_line24b_, DEPTH),
     NULL,
     NULL,
     NULL,
