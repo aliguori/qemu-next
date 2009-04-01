@@ -1947,7 +1947,9 @@ static void omap3_lcd_panel_update_display(void *opaque)
             exit(1);
         }
         if (!s->line_fn) {
-            fprintf(stderr, "%s:s->line_fn is NULL. Not supported gfx_format \n", __FUNCTION__);
+            fprintf(stderr,
+                    "%s: line_fn is NULL - unsupported gfx_format (%d)\n",
+                    __FUNCTION__, dss->dispc.l[0].gfx_format);
             exit(1);
         }
         if (lcd_width != ds_get_width(s->state) 

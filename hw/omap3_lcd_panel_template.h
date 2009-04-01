@@ -54,7 +54,8 @@
 
 
 static void glue(omap3_lcd_panel_draw_line16_, DEPTH)(PIXEL_TYPE *dest,
-                const uint16_t *src, unsigned int width)
+                                                      const uint16_t *src,
+                                                      unsigned int width)
 {
 #if !defined(SWAP_WORDS) && DEPTH == 16
     memcpy(dest, src, width);
@@ -75,38 +76,43 @@ static void glue(omap3_lcd_panel_draw_line16_, DEPTH)(PIXEL_TYPE *dest,
 #endif
 }
 
-/*
-LCD: 0x4: RGB 12      
-        0x5: ARGB16
-        0x6: RGB 16
-        0x8: RGB 24 (un-packed in 32-bit container)
-        0x9: RGB 24 (packed in 24-bit container)
-        0xc: ARGB32
-        0xd: RGBA32
-        0xe: RGBx 32 (24-bit RGB aligned on MSB of the 32-bit container)
-
-SDL:  8/16/24/32
-
-*/
+static void glue(omap3_lcd_panel_draw_line24a_, DEPTH)(PIXEL_TYPE *dest,
+                                                       const uint8_t *src,
+                                                       unsigned int width)
+{
+#if !defined(SWAP_WORDS) && DEPTH == 32
+    memcpy(dest, src, width);
+#else
+    unsigned int r, g, b;
+    const uint8_t *end = (const void *) src + width;
+    while (src < end) {
+        b = *(src++);
+        g = *(src++);
+        r = *(src++);
+        src++;
+        COPY_PIXEL1(dest, glue(rgb_to_pixel, DEPTH)(r, g, b));
+    }
+#endif
+}
 
 /* No rotation */
 static omap3_lcd_panel_fn_t glue(omap3_lcd_panel_draw_fn_, DEPTH)[0x10] = {
-    NULL,   /*0x0*/
-    NULL,   /*0x1*/
-    NULL,   /*0x2*/
-    NULL,   /*0x3*/
-    NULL,  /*0x4:RGB 12 */
-    NULL,  /*0x5: ARGB16 */
-    (omap3_lcd_panel_fn_t)glue(omap3_lcd_panel_draw_line16_, DEPTH),  /*0x6: RGB 16 */
-    NULL,  /*0x7*/
-    NULL,  /*0x8: RGB 24 (un-packed in 32-bit container) */
-    NULL,  /*0x9: RGB 24 (packed in 24-bit container) */
-    NULL,  /*0xa */
-    NULL,  /*0xb */
-    NULL,  /*0xc: ARGB32 */
-    NULL,  /*0xd: RGBA32 */
-    NULL,  /*0xe: RGBx 32 (24-bit RGB aligned on MSB of the 32-bit container) */
-    NULL,  /*0xf */
+    NULL,
+    NULL,
+    NULL,
+    NULL,
+    NULL,
+    NULL,
+    (omap3_lcd_panel_fn_t)glue(omap3_lcd_panel_draw_line16_, DEPTH),
+    NULL,
+    (omap3_lcd_panel_fn_t)glue(omap3_lcd_panel_draw_line24a_, DEPTH),
+    NULL,
+    NULL,
+    NULL,
+    NULL,
+    NULL,
+    NULL,
+    NULL,
 };
 
 /* 90deg, 180deg and 270deg rotation */
