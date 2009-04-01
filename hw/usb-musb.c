@@ -250,7 +250,7 @@
 #define MGC_M_ULPI_REGCTL_COMPLETE	0x02
 #define MGC_M_ULPI_REGCTL_REG		0x01
 
-#define MUSB_DEBUG
+/* #define MUSB_DEBUG */
 
 #ifdef MUSB_DEBUG
 #define TRACE(fmt,...) fprintf(stderr, "%s: " fmt "\n", __FUNCTION__, ##__VA_ARGS__)

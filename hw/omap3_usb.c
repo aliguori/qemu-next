@@ -28,7 +28,7 @@
 #define OMAP3_HSUSB_OTG
 //#define OMAP3_HSUSB_HOST
 
-#define OMAP3_HSUSB_DEBUG
+/* #define OMAP3_HSUSB_DEBUG */
 
 #ifdef OMAP3_HSUSB_DEBUG
 #define TRACE(fmt,...) fprintf(stderr, "%s: " fmt "\n", __FUNCTION__, ##__VA_ARGS__)
