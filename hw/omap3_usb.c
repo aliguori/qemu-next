@@ -25,6 +25,9 @@
 #include "devices.h"
 #include "hw.h"
 
+#define OMAP3_HSUSB_OTG
+//#define OMAP3_HSUSB_HOST
+
 #define OMAP3_HSUSB_DEBUG
 
 #ifdef OMAP3_HSUSB_DEBUG
@@ -33,6 +36,7 @@
 #define TRACE(...)
 #endif
 
+#ifdef OMAP3_HSUSB_OTG
 /* usb-musb.c */
 extern CPUReadMemoryFunc *musb_read[];
 extern CPUWriteMemoryFunc *musb_write[];
@@ -264,7 +268,9 @@ static void omap3_hsusb_otg_init(struct omap_target_agent_s *otg_ta,
                     omap3_hsusb_otg_load_state,
                     s);
 }
+#endif
 
+#ifdef OMAP3_HSUSB_HOST
 struct omap3_hsusb_host_s {
     qemu_irq ehci_irq;
     qemu_irq tll_irq;
@@ -448,10 +454,15 @@ static void omap3_hsusb_host_init(struct omap_target_agent_s *host_ta,
                     omap3_hsusb_host_save_state,
                     omap3_hsusb_host_load_state, s);
 }
+#endif
 
 struct omap3_hsusb_s {
+#ifdef OMAP3_HSUSB_OTG
     struct omap3_hsusb_otg_s otg;
+#endif
+#ifdef OMAP3_HSUSB_HOST
     struct omap3_hsusb_host_s host;
+#endif
 };
 
 struct omap3_hsusb_s *omap3_hsusb_init(struct omap_target_agent_s *otg_ta,
@@ -464,12 +475,14 @@ struct omap3_hsusb_s *omap3_hsusb_init(struct omap_target_agent_s *otg_ta,
                                        qemu_irq tll_irq)
 {
     struct omap3_hsusb_s *s = qemu_mallocz(sizeof(struct omap3_hsusb_s));
-    /* NOTE: init host controller first and OTG controller last in order to
-     * make qemu put the attached usb devices on a hub connected to the OTG */
+#ifdef OMAP3_HSUSB_HOST
     omap3_hsusb_host_init(host_ta, tll_ta,
                           ohci_irq, ehci_irq, tll_irq,
                           &s->host);
+#endif
+#ifdef OMAP3_HSUSB_OTG
     omap3_hsusb_otg_init(otg_ta, mc_irq, dma_irq, &s->otg);
+#endif
     return s;
 }
 

@@ -1903,8 +1903,8 @@ static const int omap3_lcd_panel_bpp[0x10] = {
     0,  /* 0x7: reserved */
     4,  /* 0x8: RGB24 (unpacked in 32-bit container) */
     3,  /* 0x9: RGB24 (packed in 24-bit container) */
-    0,  /* 0xa: reserved */
-    0,  /* 0xb: reserved */
+    2,  /* 0xa: YUV2 422 */
+    2,  /* 0xb: UYVY 422 */
     4,  /* 0xc: ARGB32 */
     4,  /* 0xd: RGBA32 */
     4,  /* 0xe: RGBx32 (24-bit RGB aligned on MSB of the 32-bit container) */
