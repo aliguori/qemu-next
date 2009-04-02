@@ -226,8 +226,7 @@ static CPUWriteMemoryFunc *omap3_hsusb_otg_writefn[] = {
 static void omap3_hsusb_musb_core_intr(void *opaque, int source, int level)
 {
     struct omap3_hsusb_otg_s *s = (struct omap3_hsusb_otg_s *)opaque;
-    uint32_t value = musb_core_intr_get(s->musb);
-    TRACE("intr 0x%08x, 0x%08x, 0x%08x", source, level, value);
+    TRACE("intr 0x%08x, 0x%08x, 0x%08x", source, level, musb_core_intr_get(s->musb));
     switch (source) {
     case musb_set_vbus:
        TRACE("ignoring VBUS");
