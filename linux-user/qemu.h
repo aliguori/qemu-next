@@ -1,8 +1,6 @@
 #ifndef QEMU_H
 #define QEMU_H
 
-#include <sys/queue.h>
-
 #include <signal.h>
 #include <string.h>
 
