@@ -32,7 +32,7 @@
 //#define VERBOSE 1
 
 #ifdef VERBOSE
-#define TRACE(fmt, ...) fprintf(stderr, "%s: " fmt "\n", __FUNCTION__, __##VA_ARGS__)
+#define TRACE(fmt, ...) fprintf(stderr, "%s: " fmt "\n", __FUNCTION__, ##__VA_ARGS__)
 #else
 #define TRACE(...)
 #endif
@@ -224,7 +224,7 @@ static uint8_t twl4030_48_read(void *opaque, uint8_t addr)
         case 0xff: /* PHY_CLK_CTRL */
             return s->reg_data[0xfe] & 0x1;
         default:
-            fprintf(stderr, "%s: unknown register 0x%02x pc %x\n",
+            fprintf(stderr, "%s: unknown register 0x%02x pc 0x%x\n",
                     __FUNCTION__, addr, cpu_single_env->regs[15]);
             break;
     }
@@ -271,7 +271,7 @@ static void twl4030_48_write(void *opaque, uint8_t addr, uint8_t value)
             s->reg_data[addr] = value & 0x7;
             break;
         default:
-            fprintf(stderr, "%s: unknown register 0x%02x pc %x\n",
+            fprintf(stderr, "%s: unknown register 0x%02x pc 0x%x\n",
                     __FUNCTION__, addr, cpu_single_env->regs[15]);
 			break;
     }
@@ -319,170 +319,24 @@ static uint8_t twl4030_49_read(void *opaque, uint8_t addr)
     TRACE("addr=0x%02x", addr);
     switch (addr) {
         /* AUDIO_VOICE region */
-        case 0x01: /* CODEC_MODE */
-        case 0x02: /* OPTION */
-        case 0x04: /* MICBIAS_CTL */
-        case 0x05: /* ANAMICL */
-        case 0x06: /* ANAMICR */
-        case 0x07: /* AVADC_CTL */
-        case 0x08: /* ADCMICSEL */
-        case 0x09: /* DIGMIXING */
-        case 0x0a: /* ATXL1PGA */
-        case 0x0b: /* ATXR1PGA */
-        case 0x0c: /* AVTXL2PGA */
-        case 0x0d: /* AVTXR2PGA */
-        case 0x0e: /* AUDIO_IF */
-        case 0x0f: /* VOICE_IF */
-        case 0x10: /* ARXR1PGA */
-        case 0x11: /* ARXL1PGA */
-        case 0x12: /* ARXR2PGA */
-        case 0x13: /* ARXL2PGA */
-        case 0x14: /* VRXPGA */
-        case 0x15: /* VSTPGA */
-        case 0x16: /* VRX2ARXPGA */
-        case 0x17: /* AVDAC_CTL */
-        case 0x18: /* ARX2VTXPGA */
-        case 0x19: /* ARXL1_APGA_CTL */
-        case 0x1a: /* ARXR1_APGA_CTL */
-        case 0x1b: /* ARXL2_APGA_CTL */
-        case 0x1c: /* ARXR2_APGA_CTL */
-        case 0x1d: /* ATX2ARXPGA */
-        case 0x1e: /* BT_IF */
-        case 0x1f: /* BTPGA */
-        case 0x20: /* BTSTPGA */
-        case 0x21: /* EAR_CTL */
-        case 0x22: /* HS_SEL */
-        case 0x23: /* HS_GAIN_SET */
-        case 0x24: /* HS_POPN_SET */
-        case 0x25: /* PREDL_CTL */
-        case 0x26: /* PREDR_CTL */
-        case 0x27: /* PRECKL_CTL */
-        case 0x28: /* PRECKR_CTL */
-        case 0x29: /* HFL_CTL */
-        case 0x2a: /* HFR_CTL */
-        case 0x2b: /* ALC_CTL */
-        case 0x2c: /* ALC_SET1 */
-        case 0x2d: /* ALC_SET2 */
-        case 0x2e: /* BOOST_CTL */
-        case 0x2f: /* SOFTVOL_CTL */
-        case 0x30: /* DTMF_FREQSEL */
-        case 0x31: /* DTMF_TONEXT1H */
-        case 0x32: /* DTMF_TONEXT1L */
-        case 0x33: /* DTMF_TONEXT2H */
-        case 0x34: /* DTMF_TONEXT2L */
-        case 0x35: /* DTMF_TONOFF */
-        case 0x36: /* DTMF_WANONOFF */
-        case 0x37: /* CODEC_RX_SCRAMBLE_H */
-        case 0x38: /* CODEC_RX_SCRAMBLE_M */
-        case 0x39: /* CODEC_RX_SCRAMBLE_L */
-        case 0x3a: /* APLL_CTL */
-        case 0x3b: /* DTMF_CTL */
-        case 0x3c: /* DTMF_PGA_CTL2 */
-        case 0x3d: /* DTMF_PGA_CTL1 */
-        case 0x3e: /* MISC_SET_1 */
-        case 0x3f: /* PCMBTMUX */
-        case 0x43: /* RX_PATH_SEL */
-        case 0x44: /* VDL_APGA_CTL */
-        case 0x45: /* VIBRA_CTL */
-        case 0x46: /* VIBRA_SET */
-        case 0x48: /* ANAMIC_GAIN */
-        case 0x49: /* MISC_SET_2 */
+        case 0x01 ... 0x49:
+            return s->reg_data[addr];
         /* Test region */
-        case 0x4c: /* AUDIO_TEST_CTL */
-        case 0x4d: /* INT_TEST_CTL */
-        case 0x4e: /* DAC_ADC_TEST_CTL */
-        case 0x4f: /* RXTX_TRIM_IB */
-        case 0x50: /* CLD_CONTROL */
-        case 0x51: /* CLD_MODE_TIMING */
-        case 0x52: /* CLD_TRIM_RAMP */
-        case 0x53: /* CLD_TESTV_CTL */
-        case 0x54: /* APLL_TEST_CTL */
-        case 0x55: /* APLL_TEST_DIV */
-        case 0x56: /* APLL_TEST_CTL2 */
-        case 0x57: /* APLL_TEST_CUR */
-        case 0x58: /* DIGIMIC_BIAS1_CTL */
-        case 0x59: /* DIGIMIC_BIAS2_CTL */
-        case 0x5a: /* RX_OFFSET_VOICE */
-        case 0x5b: /* RX_OFFSET_AL1 */
-        case 0x5c: /* RX_OFFSET_AR1 */
-        case 0x5d: /* RX_OFFSET_AL2 */
-        case 0x5e: /* RX_OFFSET_AR2 */
-        case 0x5f: /* OFFSET1 */
-        case 0x60: /* OFFSET2 */
+        case 0x4c ... 0x60:
+            return s->reg_data[addr];
         /* PIH region */
         case 0x81: /* PIH_ISR_P1 */
         case 0x82: /* PIH_ISR_P2 */
         case 0x83: /* PIH_SIR */
+            return s->reg_data[addr];
         /* INTBR region */
-        case 0x85: /* IDCODE_7_0 */
-        case 0x86: /* IDCODE_15_8 */
-        case 0x87: /* IDCODE_23_16 */
-        case 0x88: /* IDCODE_31_24 */
-        case 0x89: /* DIEID_7_0 */
-        case 0x8a: /* DIEID_15_8 */
-        case 0x8b: /* DIEID_23_16 */
-        case 0x8c: /* DIEID_31_24 */
-        case 0x8d: /* DIEID_39_32 */
-        case 0x8e: /* DIEID_47_40 */
-        case 0x8f: /* DIEID_55_48 */
-        case 0x90: /* DIEID_63_56 */
-        case 0x91: /* GPBR1 */
-        case 0x92: /* PMBR1 */
-        case 0x93: /* PMBR2 */
-        case 0x94: /* GPPUPDCTR1 */
-        case 0x95: /* GPPUPDCTR2 */
-        case 0x96: /* GPPUPDCTR3 */
-        case 0x97: /* UNLOCK_TEST_REG */
+        case 0x85 ... 0x97:
+            return s->reg_data[addr];
         /* GPIO region */
-        case 0x98: /* GPIO_DATAIN1 */
-        case 0x99: /* GPIO_DATAIN2 */
-        case 0x9a: /* GPIO_DATAIN3 */
-        case 0x9b: /* GPIO_DATADIR1 */
-        case 0x9c: /* GPIO_DATADIR2 */
-        case 0x9d: /* GPIO_DATADIR3 */
-        case 0x9e: /* GPIO_DATAOUT1 */
-        case 0x9f: /* GPIO_DATAOUT2 */
-        case 0xa0: /* GPIO_DATAOUT3 */
-        case 0xa1: /* GPIO_CLEARGPIODATAOUT1 */
-        case 0xa2: /* GPIO_CLEARGPIODATAOUT2 */
-        case 0xa3: /* GPIO_CLEARGPIODATAOUT3 */
-        case 0xa4: /* GPIO_SETGPIODATAOUT1 */
-        case 0xa5: /* GPIO_SETGPIODATAOUT2 */
-        case 0xa6: /* GPIO_SETGPIODATAOUT3 */
-        case 0xa7: /* GPIO_DEBEN1 */
-        case 0xa8: /* GPIO_DEBEN2 */
-        case 0xa9: /* GPIO_DEBEN3 */
-        case 0xaa: /* GPIO_CTRL */
-        case 0xab: /* GPIO_PUPDCTR1 */
-        case 0xac: /* GPIO_PUPDCTR2 */
-        case 0xad: /* GPIO_PUPDCTR3 */
-        case 0xae: /* GPIO_PUPDCTR4 */
-        case 0xaf: /* GPIO_PUPDCTR5 */
-        case 0xb0: /* GPIO_TEST */
-        case 0xb1: /* GPIO_ISR1A */
-        case 0xb2: /* GPIO_ISR2A */
-        case 0xb3: /* GPIO_ISR3A */
-        case 0xb4: /* GPIO_IMR1A */
-        case 0xb5: /* GPIO_IMR2A */
-        case 0xb6: /* GPIO_IMR3A */
-        case 0xb7: /* GPIO_ISR1B */
-        case 0xb8: /* GPIO_ISR2B */
-        case 0xb9: /* GPIO_ISR3B */
-        case 0xba: /* GPIO_IMR1B */
-        case 0xbb: /* GPIO_IMR2B */
-        case 0xbc: /* GPIO_IMR3B */
-        case 0xbd: /* GPIO_SIR1 */
-        case 0xbe: /* GPIO_SIR2 */
-        case 0xbf: /* GPIO_SIR3 */
-        case 0xc0: /* GPIO_EDR1 */
-        case 0xc1: /* GPIO_EDR2 */
-        case 0xc2: /* GPIO_EDR3 */
-        case 0xc3: /* GPIO_EDR4 */
-        case 0xc4: /* GPIO_EDR5 */
-        case 0xc5: /* GPIO_SIH_CTRL */
+        case 0x98 ... 0xc5:
             return s->reg_data[addr];
         default:
-            fprintf(stderr, "%s: unknown register 0x%02x pc %x\n",
+            fprintf(stderr, "%s: unknown register 0x%02x pc 0x%x\n",
                     __FUNCTION__, addr, cpu_single_env->regs[15]);
 			break;
     }
@@ -496,100 +350,14 @@ static void twl4030_49_write(void *opaque, uint8_t addr, uint8_t value)
     TRACE("addr=0x%02x, value=0x%02x", addr, value);
     switch (addr) {
         /* AUDIO_VOICE region */
-        case 0x01: /* CODEC_MODE */
-        case 0x02: /* OPTION */
-        case 0x04: /* MICBIAS_CTL */
-        case 0x05: /* ANAMICL */
-        case 0x06: /* ANAMICR */
-        case 0x07: /* AVADC_CTL */
-        case 0x08: /* ADCMICSEL */
-        case 0x09: /* DIGMIXING */
-        case 0x0a: /* ATXL1PGA */
-        case 0x0b: /* ATXR1PGA */
-        case 0x0c: /* AVTXL2PGA */
-        case 0x0d: /* AVTXR2PGA */
-        case 0x0e: /* AUDIO_IF */
-        case 0x0f: /* VOICE_IF */
-        case 0x10: /* ARXR1PGA */
-        case 0x11: /* ARXL1PGA */
-        case 0x12: /* ARXR2PGA */
-        case 0x13: /* ARXL2PGA */
-        case 0x14: /* VRXPGA */
-        case 0x15: /* VSTPGA */
-        case 0x16: /* VRX2ARXPGA */
-        case 0x17: /* AVDAC_CTL */
-        case 0x18: /* ARX2VTXPGA */
-        case 0x19: /* ARXL1_APGA_CTL */
-        case 0x1a: /* ARXR1_APGA_CTL */
-        case 0x1b: /* ARXL2_APGA_CTL */
-        case 0x1c: /* ARXR2_APGA_CTL */
-        case 0x1d: /* ATX2ARXPGA */
-        case 0x1e: /* BT_IF */
-        case 0x1f: /* BTPGA */
-        case 0x20: /* BTSTPGA */
-        case 0x21: /* EAR_CTL */
-        case 0x22: /* HS_SEL */
-        case 0x23: /* HS_GAIN_SET */
-        case 0x24: /* HS_POPN_SET */
-        case 0x25: /* PREDL_CTL */
-        case 0x26: /* PREDR_CTL */
-        case 0x27: /* PRECKL_CTL */
-        case 0x28: /* PRECKR_CTL */
-        case 0x29: /* HFL_CTL */
-        case 0x2a: /* HFR_CTL */
-        case 0x2b: /* ALC_CTL */
-        case 0x2c: /* ALC_SET1 */
-        case 0x2d: /* ALC_SET2 */
-        case 0x2e: /* BOOST_CTL */
-        case 0x2f: /* SOFTVOL_CTL */
-        case 0x30: /* DTMF_FREQSEL */
-        case 0x31: /* DTMF_TONEXT1H */
-        case 0x32: /* DTMF_TONEXT1L */
-        case 0x33: /* DTMF_TONEXT2H */
-        case 0x34: /* DTMF_TONEXT2L */
-        case 0x35: /* DTMF_TONOFF */
-        case 0x36: /* DTMF_WANONOFF */
-        case 0x37: /* CODEC_RX_SCRAMBLE_H */
-        case 0x38: /* CODEC_RX_SCRAMBLE_M */
-        case 0x39: /* CODEC_RX_SCRAMBLE_L */
-        case 0x3a: /* APLL_CTL */
-        case 0x3b: /* DTMF_CTL */
-        case 0x3c: /* DTMF_PGA_CTL2 */
-        case 0x3d: /* DTMF_PGA_CTL1 */
-        case 0x3e: /* MISC_SET_1 */
-        case 0x3f: /* PCMBTMUX */
-        case 0x43: /* RX_PATH_SEL */
-        case 0x44: /* VDL_APGA_CTL */
-        case 0x45: /* VIBRA_CTL */
-        case 0x46: /* VIBRA_SET */
-        case 0x48: /* ANAMIC_GAIN */
-        case 0x49: /* MISC_SET_2 */
+        case 0x01 ... 0x49:
             s->reg_data[addr] = value;
             break;
         /* Test region */
-        case 0x4c: /* AUDIO_TEST_CTL */
-        case 0x4d: /* INT_TEST_CTL */
-        case 0x4e: /* DAC_ADC_TEST_CTL */
-        case 0x4f: /* RXTX_TRIM_IB */
-        case 0x50: /* CLD_CONTROL */
-        case 0x51: /* CLD_MODE_TIMING */
-        case 0x52: /* CLD_TRIM_RAMP */
-        case 0x53: /* CLD_TESTV_CTL */
-        case 0x54: /* APLL_TEST_CTL */
-        case 0x55: /* APLL_TEST_DIV */
-        case 0x56: /* APLL_TEST_CTL2 */
-        case 0x57: /* APLL_TEST_CUR */
-        case 0x58: /* DIGIMIC_BIAS1_CTL */
-        case 0x59: /* DIGIMIC_BIAS2_CTL */
+        case 0x4c ... 0x59:
             s->reg_data[addr] = value;
             break;
-        case 0x5a: /* RX_OFFSET_VOICE */
-        case 0x5b: /* RX_OFFSET_AL1 */
-        case 0x5c: /* RX_OFFSET_AR1 */
-        case 0x5d: /* RX_OFFSET_AL2 */
-        case 0x5e: /* RX_OFFSET_AR2 */
-        case 0x5f: /* OFFSET1 */
-        case 0x60: /* OFFSET2 */
+        case 0x5a ... 0x60:
             /* read-only, ignore */
             break;
         /* PIH region */
@@ -599,92 +367,36 @@ static void twl4030_49_write(void *opaque, uint8_t addr, uint8_t value)
             s->reg_data[addr] = value;
             break;
         /* INTBR region */
-        case 0x85: /* IDCODE_7_0 */
-        case 0x86: /* IDCODE_15_8 */
-        case 0x87: /* IDCODE_23_16 */
-        case 0x88: /* IDCODE_31_24 */
-        case 0x89: /* DIEID_7_0 */
-        case 0x8a: /* DIEID_15_8 */
-        case 0x8b: /* DIEID_23_16 */
-        case 0x8c: /* DIEID_31_24 */
-        case 0x8d: /* DIEID_39_32 */
-        case 0x8e: /* DIEID_47_40 */
-        case 0x8f: /* DIEID_55_48 */
-        case 0x90: /* DIEID_63_56 */
+        case 0x85 ... 0x90:
             /* read-only, ignore */
             break;
-        case 0x91: /* GPBR1 */
-        case 0x92: /* PMBR1 */
-        case 0x93: /* PMBR2 */
-        case 0x94: /* GPPUPDCTR1 */
-        case 0x95: /* GPPUPDCTR2 */
-        case 0x96: /* GPPUPDCTR3 */
-        case 0x97: /* UNLOCK_TEST_REG */
+        case 0x91 ... 0x97:
             s->reg_data[addr] = value;
             break;
         /* GPIO region */
-        case 0x98: /* GPIODATAIN1 */
-        case 0x99: /* GPIODATAIN2 */
-        case 0x9a: /* GPIODATAIN3 */
+        case 0x98 ... 0x9a:
             /* read-only, ignore */
             break;
-        case 0x9b: /* GPIODATADIR1 */
-        case 0x9c: /* GPIODATADIR2 */
-        case 0x9d: /* GPIODATADIR3 */
-        case 0x9e: /* GPIODATAOUT1 */
-        case 0x9f: /* GPIODATAOUT2 */
-        case 0xa0: /* GPIODATAOUT3 */
-        case 0xa1: /* CLEARGPIODATAOUT1 */
-        case 0xa2: /* CLEARGPIODATAOUT2 */
-        case 0xa3: /* CLEARGPIODATAOUT3 */
-        case 0xa4: /* SETGPIODATAOUT1 */
-        case 0xa5: /* SETGPIODATAOUT2 */
-        case 0xa6: /* SETGPIODATAOUT3 */
-        case 0xa7: /* GPIO_DEBEN1 */
-        case 0xa8: /* GPIO_DEBEN2 */
-        case 0xa9: /* GPIO_DEBEN3 */
-        case 0xaa: /* GPIO_CTRL */
-        case 0xab: /* GPIOPUPDCTR1 */
-        case 0xac: /* GPIOPUPDCTR2 */
-        case 0xad: /* GPIOPUPDCTR3 */
-        case 0xae: /* GPIOPUPDCTR4 */
+        case 0x9b ... 0xae:
             s->reg_data[addr] = value;
             break;
         case 0xaf: /* GPIOPUPDCTR5 */
             s->reg_data[addr] = value & 0x0f;
             break;
-        case 0xb0: /* GPIO_TEST */
-        case 0xb1: /* GPIO_ISR1A */
-        case 0xb2: /* GPIO_ISR2A */
-        case 0xb3: /* GPIO_ISR3A */
-	    case 0xb4: /* GPIO_IMR1A */
-	    case 0xb5: /* GPIO_IMR2A */
+        case 0xb0 ... 0xb5:
             s->reg_data[addr] = value;
             break;
 	    case 0xb6: /* GPIO_IMR3A */
             s->reg_data[addr] = value & 0x03;
             break;
-        case 0xb7: /* GPIO_ISR1B */
-        case 0xb8: /* GPIO_ISR2B */
-        case 0xb9: /* GPIO_ISR3B */
-        case 0xba: /* GPIO_IMR1B */
-        case 0xbb: /* GPIO_IMR2B */
-        case 0xbc: /* GPIO_IMR3B */
-        case 0xbd: /* GPIO_SIR1 */
-        case 0xbe: /* GPIO_SIR2 */
-        case 0xbf: /* GPIO_SIR3 */
-	    case 0xc0: /* GPIO_EDR1 */
-	    case 0xc1: /* GPIO_EDR2 */
-	    case 0xc2: /* GPIO_EDR3 */
-	    case 0xc3: /* GPIO_EDR4 */
-	    case 0xc4: /* GPIO_EDR5 */
+        case 0xb7 ... 0xc4:
             s->reg_data[addr] = value;
             break;
 	    case 0xc5: /* GPIO_SIH_CTRL */
             s->reg_data[addr] = value & 0x07;
             break;
         default:
-            fprintf(stderr, "%s: unknown register 0x%02x pc %x\n",
+            fprintf(stderr, "%s: unknown register 0x%02x pc 0x%x\n",
                     __FUNCTION__, addr, cpu_single_env->regs[15]);
             break;
     }
@@ -732,14 +444,39 @@ static uint8_t twl4030_4a_read(void *opaque, uint8_t addr)
 	
     TRACE("addr=0x%02x", addr);
     switch (addr) {
-        case 0x61: /* MADC_ISR1 */
-        case 0xb9: /* BCIISR1A */
-        case 0xba: /* BCIISR2A */
-        case 0xe3: /* KEYP_ISR1 */
+        /* MADC region */
+        case 0x00 ... 0x67:
+            return s->reg_data[addr];
+        /* MAIN_CHARGE region */
+        case 0x74 ... 0xa6:
+            return s->reg_data[addr];
+        /* Interrupt region */
+        case 0xb9 ... 0xc6:
+            return s->reg_data[addr];
+        /* KEYPAD region */
+        case 0xd2 ... 0xe9:
+            return s->reg_data[addr];
+        /* LED region */
         case 0xee: /* LEDEN */
             return s->reg_data[addr];
+        /* PWMA region */
+        case 0xef: /* PWMAON */
+        case 0xf0: /* PWMAOFF */
+            return s->reg_data[addr];
+        /* PWMB region */
+        case 0xf1: /* PWMBON */
+        case 0xf2: /* PWMBOFF */
+            return s->reg_data[addr];
+        /* PWM0 region */
+        case 0xf8: /* PWM0ON */
+        case 0xf9: /* PWM0OFF */
+            return s->reg_data[addr];
+        /* PWM1 region */
+        case 0xfb: /* PWM1ON */
+        case 0xfc: /* PWM1OFF */
+            return s->reg_data[addr];
         default:
-	        fprintf(stderr, "%s: unknown register %02x pc %x\n",
+	        fprintf(stderr, "%s: unknown register 0x%02x pc 0x%x\n",
                     __FUNCTION__, addr, cpu_single_env->regs[15] );
             break;
     }
@@ -789,7 +526,7 @@ static void twl4030_4a_write(void *opaque, uint8_t addr, uint8_t value)
             s->reg_data[addr] = value & 0x7f;
             break;
         default:
-	        fprintf(stderr, "%s: unknown register %02x pc %x\n",
+	        fprintf(stderr, "%s: unknown register 0x%02x pc 0x%x\n",
                     __FUNCTION__, addr, cpu_single_env->regs[15]);
             break;
     }
@@ -836,32 +573,30 @@ static uint8_t twl4030_4b_read(void *opaque, uint8_t addr)
 
 	TRACE("addr=0x%02x", addr);
     switch (addr) {
-        case 0x1c: /* RTC */
-        case 0x1d:
-        case 0x1e:
-        case 0x1f:
-        case 0x20:
-        case 0x21:
-        case 0x22:
-        case 0x23:
-        case 0x24:
-        case 0x25:
-        case 0x26:
-        case 0x27:
-        case 0x28:
-        case 0x29:
-        case 0x2a:
-        case 0x2b:
-        case 0x2c:
-        case 0x2d: /*RTC end */
-        case 0x2e: /* PWR_ISR1 */
-        case 0x33: /* PWR_EDR1 */
-        case 0x34: /* PWR_EDR2 */
+        /* SECURED_REG region */
+        case 0x00 ... 0x13:
+            return s->reg_data[addr];
+        /* BACKUP_REG region */
+        case 0x14 ... 0x1b:
+            return s->reg_data[addr];
+        /* RTC region */
+        case 0x1c ... 0x2d:
+            return s->reg_data[addr];
+        /* INT region */
+        case 0x2e ... 0x35:
+            return s->reg_data[addr];
+        /* PM_MASTER region */
+        case 0x36 ... 0x44:
             return s->reg_data[addr];
         case 0x45: /* STS_HW_CONDITIONS - USB plugged, no VBUS -> host usb */
             return 0x4;
+        case 0x46 ... 0x5a:
+            return s->reg_data[addr];
+        /* PM_RECEIVER region */
+        case 0x5b ... 0xf1: 
+            return s->reg_data[addr];
         default:
-	        fprintf(stderr, "%s: unknown register %02x pc %x \n",
+	        fprintf(stderr, "%s: unknown register 0x%02x pc 0x%x\n",
                     __FUNCTION__, addr, cpu_single_env->regs[15] );
             break;
     }
@@ -943,10 +678,12 @@ static void twl4030_4b_write(void *opaque, uint8_t addr, uint8_t value)
                 seq_addr = s->reg_data[0x59];
                 seq_sub = seq_addr & 3;
                 seq_addr >>= 2;
-                if ((seq_addr >= 0x2b && seq_addr <= 0x3e) || (seq_addr <= 0x0e && seq_sub == 3))
+                if ((seq_addr >= 0x2b && seq_addr <= 0x3e) ||
+                    (seq_addr <= 0x0e && seq_sub == 3))
                     s->twl4030->seq_mem[seq_addr][seq_sub] = value;
             }
-            s->reg_data[0x59]++; /* TODO: check if autoincrement is write-protected as well */
+            /* TODO: check if autoincrement is write-protected as well */
+            s->reg_data[0x59]++; 
             break;
         case 0x7a: /* VAUX3_DEV_GRP */
         case 0x82: /* VMMC1_DEV_GRP */
@@ -1023,7 +760,8 @@ static void twl4030_4b_write(void *opaque, uint8_t addr, uint8_t value)
             break;
             
         default:
-	        fprintf(stderr, "%s: unknown register %02x value %0x pc %x\n",
+	        fprintf(stderr,
+                    "%s: unknown register 0x%02x value 0x%02x pc 0x%x\n",
                     __FUNCTION__, addr, value, cpu_single_env->regs[15]);
             break;
     }
