@@ -1,5 +1,5 @@
 /*
- * TI TWL4030 for beagle board
+ * TI TWL4030 emulation
  *
  * Copyright (C) 2008 yajin<yajin@vm-kernel.org>
  * Copyright (C) 2009 Nokia Corporation
@@ -29,7 +29,7 @@
 #include "console.h"
 #include "cpu-all.h"
 
-//#define VERBOSE 1
+#define VERBOSE 1
 
 #ifdef VERBOSE
 #define TRACE(fmt, ...) fprintf(stderr, "%s: " fmt "\n", __FUNCTION__, ##__VA_ARGS__)
@@ -243,28 +243,46 @@ static void twl4030_48_write(void *opaque, uint8_t addr, uint8_t value)
             s->reg_data[0x04] = value & 0x80;
             break;
         case 0x05: /* IFC_CRTL_SET */
-            s->reg_data[0x04] =  (s->reg_data[0x04] | value) & 0x80;
+            s->reg_data[0x04] = (s->reg_data[0x04] | value) & 0x80;
             break;
         case 0x06: /* IFC_CRTL_CLEAR */
-            s->reg_data[0x04] =  (s->reg_data[0x04] & ~value) & 0x80;
+            s->reg_data[0x04] = (s->reg_data[0x04] & ~value) & 0x80;
             break;
         case 0x07: /* IFC_CTRL */
             s->reg_data[0x07] = value & 0x61;
             break;
         case 0x08: /* IFC_CRTL_SET */
-            s->reg_data[0x07] =  (s->reg_data[0x07] | value) & 0x61;
+            s->reg_data[0x07] = (s->reg_data[0x07] | value) & 0x61;
             break;
         case 0x09: /* IFC_CRTL_CLEAR */
-            s->reg_data[0x07] =  (s->reg_data[0x07] & ~value) & 0x61;
+            s->reg_data[0x07] = (s->reg_data[0x07] & ~value) & 0x61;
+            break;
+        case 0xa1: /* CARKIT_SM_CTRL */
+            s->reg_data[0xa1] = value & 0x3f;
+            break;
+        case 0xa2: /* CARKIT_SM_CTRL_SET */
+            s->reg_data[0xa1] = (s->reg_data[0xa1] | value) & 0x3f;
+            break;
+        case 0xa3: /* CARKIT_SM_CTRL_CLR */
+            s->reg_data[0xa1] = (s->reg_data[0xa1] & ~value) & 0x3f;
             break;
         case 0xac: /* POWER_CTRL */
             s->reg_data[0xac] = value & 0x20;
             break;
         case 0xad: /* POWER_SET */
-            s->reg_data[0xac] =  (s->reg_data[0xac] | value) & 0x20;
+            s->reg_data[0xac] = (s->reg_data[0xac] | value) & 0x20;
             break;
         case 0xae: /* POWER_CLEAR */
-            s->reg_data[0xac] =  (s->reg_data[0xac] & ~value) & 0x20;
+            s->reg_data[0xac] = (s->reg_data[0xac] & ~value) & 0x20;
+            break;
+        case 0xbb: /* CARKIT_ANA_CTRL */
+            s->reg_data[0xbb] = value;
+            break;
+        case 0xbc: /* CARKIT_ANA_CTRL_SET */
+            s->reg_data[0xbb] |= value;
+            break;
+        case 0xbd: /* CARKIT_ANA_CTRL_CLR */
+            s->reg_data[0xbb] &= ~value;
             break;
         case 0xfd: /* PHY_PWR_CTRL */
             s->reg_data[addr] = value & 0x1;
@@ -447,8 +465,15 @@ static uint8_t twl4030_4a_read(void *opaque, uint8_t addr)
     TRACE("addr=0x%02x", addr);
     switch (addr) {
         /* MADC region */
-        case 0x00 ... 0x67:
+        case 0x00 ... 0x3e:
+        case 0x41 ... 0x4e:
+        case 0x51 ... 0x67:
             return s->reg_data[addr];
+        case 0x3f: /* GPCH4_LSB */
+        case 0x40: /* GPCH4_MSB */
+        case 0x4f: /* GPCH12_LSB */
+        case 0x50: /* GPCH12_MSB */
+            return 1;
         /* MAIN_CHARGE region */
         case 0x74 ... 0xa6:
             return s->reg_data[addr];
@@ -491,23 +516,41 @@ static void twl4030_4a_write(void *opaque, uint8_t addr, uint8_t value)
 
     TRACE("addr=0x%02x, value=0x%02x", addr, value);
     switch (addr) {
+        case 0x00: /* CTRL1 */
+            s->reg_data[addr] = value;
+            break;
+        case 0x06: /* SW1SELECT_LSB */
+        case 0x07: /* SW1SELECT_MSB */
+        case 0x08: /* SW1AVERAGE_LSB */
+        case 0x09: /* SW1AVERAGE_MSB */
+            s->reg_data[addr] = value;
+            break;
+        case 0x12: /* CTRL_SW1 */
+            s->reg_data[addr] = 0xde;
+            break;
         case 0x61: /* MADC_ISR1 */
-            s->reg_data[value] &= ~(value & 0x0f);
+            s->reg_data[addr] &= ~(value & 0x0f);
             break;
         case 0x62: /* MADC_IMR1 */
-            s->reg_data[value] = value & 0x0f;
+            s->reg_data[addr] = value & 0x0f;
+            break;
+        case 0x97: /* BCICTL1 */
+            s->reg_data[addr] = value;
             break;
         case 0xb9: /* BCIISR1A */
-            s->reg_data[value] &= ~value;
+            s->reg_data[addr] &= ~value;
             break;
         case 0xba: /* BCIISR2A */
-            s->reg_data[value] &= ~(value & 0x0f);
+            s->reg_data[addr] &= ~(value & 0x0f);
             break;
         case 0xbb: /* BCIIMR1A */
             s->reg_data[addr] = value;
             break;
         case 0xbc: /* BCIIMR2A */
             s->reg_data[addr] = value & 0x0f;
+            break;
+        case 0xd2: /* KEYP_CTRL_REG */
+            s->reg_data[addr] = value & 0x7f;
             break;
         case 0xe4: /* KEYP_IMR1 */
             s->reg_data[addr] = value & 0x0f;
@@ -522,9 +565,13 @@ static void twl4030_4a_write(void *opaque, uint8_t addr, uint8_t value)
                     value & 0x20 ? "on" : "off", value & 0x02 ? "yes" : "no");
             break;
         case 0xef: /* PWMAON */
+        case 0xf8: /* PWM0ON */
+        case 0xfb: /* PWM1ON */
             s->reg_data[addr] = value;
             break;
         case 0xf0: /* PWMAOFF */
+        case 0xf9: /* PWM0OFF */
+        case 0xfc: /* PWM1OFF */
             s->reg_data[addr] = value & 0x7f;
             break;
         default:
@@ -651,8 +698,42 @@ static void twl4030_4b_write(void *opaque, uint8_t addr, uint8_t value)
         case 0x2d: /* RTC_COMP_MSB_REG */
             s->reg_data[addr] = value;
             break;
+        case 0x2e: /* PWR_ISR1 */
+        case 0x2f: /* PWR_IMR1 */
+            s->reg_data[addr] = value;
+            break;
         case 0x33: /* PWR_EDR1 */
         case 0x34: /* PWR_EDR2 */
+            s->reg_data[addr] = value;
+            break;
+        case 0x35: /* PWR_SIH_CTRL */
+            s->reg_data[addr] = value & 0x07;
+            break;
+        case 0x3b: /* CFG_BOOT */
+            if (s->twl4030->key_cfg)
+                s->reg_data[addr] = (s->reg_data[addr] & 0x70) | (value & 0x8f);
+            break;
+        case 0x44: /* PROTECT_KEY */
+            s->twl4030->key_cfg = 0;
+            s->twl4030->key_tst = 0;
+            switch (value) {
+                case 0x0C: 
+                    if (s->reg_data[addr] == 0xC0)
+                        s->twl4030->key_cfg = 1;
+                    break;
+                case 0xE0:
+                    if (s->reg_data[addr] == 0x0E)
+                        s->twl4030->key_tst = 1;
+                    break;
+                case 0xEC:
+                    if (s->reg_data[addr] == 0xCE) {
+                        s->twl4030->key_cfg = 1;
+                        s->twl4030->key_tst = 1;
+                    }
+                    break;
+                default:
+                    break;
+            }
             s->reg_data[addr] = value;
             break;
         case 0x46: /* P1_SW_EVENTS */
@@ -687,6 +768,9 @@ static void twl4030_4b_write(void *opaque, uint8_t addr, uint8_t value)
             /* TODO: check if autoincrement is write-protected as well */
             s->reg_data[0x59]++; 
             break;
+        case 0x68: /* MISC_CFG */
+            s->reg_data[addr] = value;
+            break;
         case 0x7a: /* VAUX3_DEV_GRP */
         case 0x82: /* VMMC1_DEV_GRP */
         case 0x8e: /* VPLL2_DEV_GRP */
@@ -697,44 +781,20 @@ static void twl4030_4b_write(void *opaque, uint8_t addr, uint8_t value)
         case 0xe6: /* HFCLKOUT_DEV_GRP */
             s->reg_data[addr] = (s->reg_data[addr] & 0x0f) | (value & 0xf0); 
             break;
-        case 0x2f: /* PWR_IMR1 */
-            s->reg_data[addr] = value;
-            break;
-        case 0x35: /* PWR_SIH_CTRL */
-            s->reg_data[addr] = value & 0x07;
-            break;
-        case 0x3b: /* CFG_BOOT */
-            if (s->twl4030->key_cfg)
-                s->reg_data[addr] = (s->reg_data[addr] & 0x70) | (value & 0x8f);
-            break;
-        case 0x44: /* PROTECT_KEY */
-            s->twl4030->key_cfg = 0;
-            s->twl4030->key_tst = 0;
-            switch (value) {
-                case 0x0C: 
-                    if (s->reg_data[addr] == 0xC0)
-                        s->twl4030->key_cfg = 1;
-                    break;
-                case 0xE0:
-                    if (s->reg_data[addr] == 0x0E)
-                        s->twl4030->key_tst = 1;
-                    break;
-                case 0xEC:
-                    if (s->reg_data[addr] == 0xCE) {
-                        s->twl4030->key_cfg = 1;
-                        s->twl4030->key_tst = 1;
-                    }
-                    break;
-                default:
-                    break;
-            }
-            s->reg_data[addr] = value;
-            break;
+        case 0x75: /* VAUX1_DEDICATED */
         case 0x7d: /* VAUX3_DEDICATED */
             if (s->twl4030->key_tst)
                 s->reg_data[addr] = value & 0x77;
             else
                 s->reg_data[addr] = (s->reg_data[addr] & 0x70) | (value & 0x07);
+            break;
+        case 0x79: /* VAUX2_DEDICATED */
+        case 0x81: /* VAUX4_DEDICATED */
+        case 0x91: /* VPLL2_DEDICATED */
+            if (s->twl4030->key_tst)
+                s->reg_data[addr] = value & 0x7f;
+            else
+                s->reg_data[addr] = (s->reg_data[addr] & 0x70) | (value & 0x0f);
             break;
         case 0x85: /* VMMC1_DEDICATED */
         case 0x99: /* VDAC_DEDICATED */
@@ -743,11 +803,12 @@ static void twl4030_4b_write(void *opaque, uint8_t addr, uint8_t value)
             else
                 s->reg_data[addr] = (s->reg_data[addr] & 0x70) | (value & 0x03);
             break;
-        case 0x91: /* VPLL2_DEDICATED */
-            if (s->twl4030->key_tst)
-                s->reg_data[addr] = value & 0x7f;
-            else
-                s->reg_data[addr] = (s->reg_data[addr] & 0x70) | (value & 0x0f);
+        case 0x74: /* VAUX1_REMAP */
+        case 0x78: /* VAUX2_REMAP */
+        case 0x7c: /* VAUX3_REMAP */
+        case 0x80: /* VAUX4_REMAP */
+        case 0x90: /* VPLL2_REMAP */
+            s->reg_data[addr] = value;
             break;
         case 0xcd: /* VUSB1V5_TYPE */
         case 0xd0: /* VUSB1V8_TYPE */
