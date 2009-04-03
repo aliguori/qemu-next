@@ -1460,7 +1460,7 @@ static void n00_init(ram_addr_t ram_size, int vga_ram_size,
 
 QEMUMachine n00_machine = {
     .name = "n00",
-    .desc = "Nokia N00 aka. RX-51 (OMAP3430)",
+    .desc = "Nokia N00 aka. RX-71 (OMAP3430)",
     .init = n00_init,
     .ram_require = (N00_SDRAM_SIZE
                     + N00_ONENAND_BUFSIZE

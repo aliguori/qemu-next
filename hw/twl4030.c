@@ -32,7 +32,7 @@
 //#define VERBOSE 1
 
 #ifdef VERBOSE
-#define TRACE(fmt, ...) fprintf(stderr, "%s: " fmt "\n", __FUNCTION__, __##VA_ARGS__)
+#define TRACE(fmt, ...) fprintf(stderr, "%s: " fmt "\n", __FUNCTION__, ##__VA_ARGS__)
 #else
 #define TRACE(...)
 #endif
@@ -836,30 +836,95 @@ static uint8_t twl4030_4b_read(void *opaque, uint8_t addr)
 
 	TRACE("addr=0x%02x", addr);
     switch (addr) {
-        case 0x1c: /* RTC */
-        case 0x1d:
-        case 0x1e:
-        case 0x1f:
-        case 0x20:
-        case 0x21:
-        case 0x22:
-        case 0x23:
-        case 0x24:
-        case 0x25:
-        case 0x26:
-        case 0x27:
-        case 0x28:
-        case 0x29:
-        case 0x2a:
-        case 0x2b:
-        case 0x2c:
-        case 0x2d: /*RTC end */
+        /* SECURED_REG region */
+        case 0x00: /* SECURED_REG_A */
+        case 0x01: /* SECURED_REG_B */
+        case 0x02: /* SECURED_REG_C */
+        case 0x03: /* SECURED_REG_D */
+        case 0x04: /* SECURED_REG_E */
+        case 0x05: /* SECURED_REG_F */
+        case 0x06: /* SECURED_REG_G */
+        case 0x07: /* SECURED_REG_H */
+        case 0x08: /* SECURED_REG_I */
+        case 0x09: /* SECURED_REG_J */
+        case 0x0a: /* SECURED_REG_K */
+        case 0x0b: /* SECURED_REG_L */
+        case 0x0c: /* SECURED_REG_M */
+        case 0x0d: /* SECURED_REG_N */
+        case 0x0e: /* SECURED_REG_O */
+        case 0x0f: /* SECURED_REG_P */
+        case 0x10: /* SECURED_REG_Q */
+        case 0x11: /* SECURED_REG_R */
+        case 0x12: /* SECURED_REG_S */
+        case 0x13: /* SECURED_REG_U */
+            return s->reg_data[addr];
+        /* BACKUP_REG region */
+        case 0x14: /* BACKUP_REG_A */
+        case 0x15: /* BACKUP_REG_B */
+        case 0x16: /* BACKUP_REG_C */
+        case 0x17: /* BACKUP_REG_D */
+        case 0x18: /* BACKUP_REG_E */
+        case 0x19: /* BACKUP_REG_F */
+        case 0x1a: /* BACKUP_REG_G */
+        case 0x1b: /* BACKUP_REG_H */
+            return s->reg_data[addr];
+        /* RTC region */
+        case 0x1c: /* SECONDS_REG */
+        case 0x1d: /* MINUTES_REG */
+        case 0x1e: /* HOURS_REG */
+        case 0x1f: /* DAYS_REG */
+        case 0x20: /* MONTHS_REG */
+        case 0x21: /* YEARS_REG */
+        case 0x22: /* WEEKS_REG */
+        case 0x23: /* ALARM_SECONDS_REG */
+        case 0x24: /* ALARM_MINUTES_REG */
+        case 0x25: /* ALARM_HOURS_REG */
+        case 0x26: /* ALARM_DAYS_REG */
+        case 0x27: /* ALARM_MONTHS_REG */
+        case 0x28: /* ALARM_YEARS_REG */
+        case 0x29: /* RTC_CTRL_REG */
+        case 0x2a: /* RTC_STATUS_REG */
+        case 0x2b: /* RTC_INTERRUPTS_REG */
+        case 0x2c: /* RTC_COMP_LSB_REG */
+        case 0x2d: /* RTC_COMP_MSB_REG */
+            return s->reg_data[addr];
+        /* INT region */
         case 0x2e: /* PWR_ISR1 */
+        case 0x2f: /* PWR_IMR1 */
+        case 0x30: /* PWR_ISR2 */
+        case 0x31: /* PWR_IMR2 */
+        case 0x32: /* PWR_SIR */
         case 0x33: /* PWR_EDR1 */
         case 0x34: /* PWR_EDR2 */
+        case 0x35: /* PWR_SIH_CTRL */
+            return s->reg_data[addr];
+        /* PM_MASTER region */
+        case 0x36: /* CFG_P1_TRANSITION */
+        case 0x37: /* CFG_P2_TRANSITION */
+        case 0x38: /* CFG_P3_TRANSITION */
+        case 0x39: /* CFG_P123_TRANSITION */
+        case 0x3a: /* STS_BOOT */
+        case 0x3b: /* CFG_BOOT */
+        case 0x3c: /* SHUNDAN */
+        case 0x3d: /* BOOT_BCI */
+        case 0x3e: /* CFG_PWRANA1 */
+        case 0x3f: /* CFG_PWRANA2 */
+        case 0x40: /* BGAP_TRIM */
+        case 0x41: /* BACKUP_MISC_STS */
+        case 0x42: /* BACKUP_MISC_CFG */
+        case 0x43: /* BACKUP_MISC_TST */
+        case 0x44: /* PROTECT_KEY */
             return s->reg_data[addr];
         case 0x45: /* STS_HW_CONDITIONS - USB plugged, no VBUS -> host usb */
             return 0x4;
+        case 0x46: /* P1_SW_EVENTS */
+        case 0x47: /* P2_SW_EVENTS */
+        case 0x48: /* P3_SW_EVENTS */
+        case 0x49: /* P123_SW_EVENTS */
+        case 0x4a: /* PB_CFG */
+        case 0x4b: /* PB_WORD_MSB */
+        case 0x4c: /* PB_WORD_LSB */
+            return s->reg_data[addr];
         default:
 	        fprintf(stderr, "%s: unknown register %02x pc %x \n",
                     __FUNCTION__, addr, cpu_single_env->regs[15] );
