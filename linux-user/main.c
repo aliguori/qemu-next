@@ -25,6 +25,7 @@
 #include <errno.h>
 #include <unistd.h>
 #include <sys/mman.h>
+#include <sys/syscall.h>
 
 #include "qemu.h"
 #include "qemu-common.h"
@@ -2257,6 +2258,29 @@ static void usage(void)
 
 THREAD CPUState *thread_env;
 
+void task_settid(TaskState *ts)
+{
+    if (ts->ts_tid == 0) {
+#ifdef USE_NPTL
+        ts->ts_tid = (pid_t)syscall(SYS_gettid);
+#else
+        /* when no threads are used, tid becomes pid */
+        ts->ts_tid = getpid();
+#endif
+    }
+}
+
+void stop_all_tasks(void)
+{
+    /*
+     * We trust that when using NPTL, start_exclusive()
+     * handles thread stopping correctly.  Note that there
+     * is no way out of this state as we don't provide
+     * any suspend routine.
+     */
+    start_exclusive();
+}
+
 /* Assumes contents are already zeroed.  */
 void init_task_state(TaskState *ts)
 {
@@ -2532,9 +2556,10 @@ int main(int argc, char **argv, char **envp)
     memset(ts, 0, sizeof(TaskState));
     init_task_state(ts);
     /* build Task State */
-    ts->info = info;
-    ts->bprm = &bprm;
     env->opaque = ts;
+    ts->bprm = &bprm;
+    ts->info = info;
+    task_settid(ts);
 
     if (loader_exec(filename, target_argv+argskip, target_environ, regs,
         info, &bprm) != 0) {

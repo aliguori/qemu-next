@@ -23,7 +23,6 @@
  */
 #include "qemu-common.h"
 #include "usb.h"
-#include "hw.h"
 
 //#define DEBUG
 
@@ -40,37 +39,6 @@ typedef struct USBHubState {
     int nb_ports;
     USBHubPort ports[MAX_PORTS];
 } USBHubState;
-
-static void usb_hub_save_state(QEMUFile *f, void *opaque)
-{
-    USBHubState *s = (USBHubState *)opaque;
-    int i;
-    
-    qemu_put_sbe32(f, s->nb_ports);
-    for (i = 0; i < s->nb_ports; i++) {
-        qemu_put_be16(f, s->ports[i].wPortStatus);
-        qemu_put_be16(f, s->ports[i].wPortChange);
-    }
-}
-
-static int usb_hub_load_state(QEMUFile *f, void *opaque, int version_id)
-{
-    USBHubState *s = (USBHubState *)opaque;
-    int i;
-    
-    if (version_id)
-        return -EINVAL;
-    
-    if (qemu_get_sbe32(f) != s->nb_ports)
-        return -EINVAL;
-    
-    for (i = 0; i < s->nb_ports; i++) {
-        s->ports[i].wPortStatus = qemu_get_be16(f);
-        s->ports[i].wPortChange = qemu_get_be16(f);
-    }
-    
-    return 0;
-}
 
 #define ClearHubFeature		(0x2000 | USB_REQ_CLEAR_FEATURE)
 #define ClearPortFeature	(0x2300 | USB_REQ_CLEAR_FEATURE)
@@ -580,9 +548,5 @@ USBDevice *usb_hub_init(int nb_ports)
         port->wPortStatus = PORT_STAT_POWER;
         port->wPortChange = 0;
     }
-    
-    register_savevm("usb hub", -1, 0,
-                    usb_hub_save_state, usb_hub_load_state, s);
-    
     return (USBDevice *)s;
 }

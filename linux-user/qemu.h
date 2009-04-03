@@ -1,6 +1,8 @@
 #ifndef QEMU_H
 #define QEMU_H
 
+#include <sys/queue.h>
+
 #include <signal.h>
 #include <string.h>
 
@@ -48,7 +50,7 @@ struct image_info {
         abi_ulong       arg_start;
         abi_ulong       arg_end;
         char            **host_argv;
-        int	            personality;
+	int		personality;
 };
 
 #ifdef TARGET_I386
@@ -87,10 +89,12 @@ struct emulated_sigtable {
                              first signal, we put it here */
 };
 
+struct process;
+
 /* NOTE: we force a big alignment so that the stack stored after is
    aligned too */
 typedef struct TaskState {
-    struct TaskState *next;
+    pid_t ts_tid;     /* tid (or pid) of this task */
 #ifdef TARGET_ARM
     /* FPA state */
     FPA11 fpa;
@@ -124,11 +128,13 @@ typedef struct TaskState {
     struct sigqueue *first_free; /* first free siginfo queue entry */
     int signal_pending; /* non zero if a signal may be pending */
 
-    uint8_t stack[0];
+    uint8_t stack[];
 } __attribute__((aligned(16))) TaskState;
 
 extern const char *exec_path;
 void init_task_state(TaskState *ts);
+extern void task_settid(TaskState *);
+extern void stop_all_tasks(void);
 extern const char *qemu_uname_release;
 #if defined(CONFIG_USE_GUEST_BASE)
 extern unsigned long mmap_min_addr;
@@ -150,7 +156,7 @@ struct linux_binprm {
         char buf[128];
         void *page[MAX_ARG_PAGES];
         abi_ulong p;
-        int fd;
+	int fd;
         int e_uid, e_gid;
         int argc, envc;
         char **argv;

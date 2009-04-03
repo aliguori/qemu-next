@@ -2787,6 +2787,7 @@ static uint32_t omap3_cm_read(void *opaque, target_phys_addr_t addr)
         case 0x0b10: return s->cm_iclken_sgx;
         case 0x0b20: return s->cm_idlest_sgx & 0x0;
         case 0x0b40: return s->cm_clksel_sgx;
+        case 0x0b44: return s->cm_sleepdep_sgx;
         case 0x0b48: return s->cm_clkstctrl_sgx;
         case 0x0b4c: return s->cm_clkstst_sgx;
         /* WKUP_CM */
@@ -2988,7 +2989,7 @@ static void omap3_cm_write(void *opaque,
         case 0xb00: s->cm_fclken_sgx = value & 0x2; break;
         case 0xb10: s->cm_iclken_sgx = value & 0x1; break;
         case 0xb40: s->cm_clksel_sgx = value; break; /* TODO: SGX clock */
-        case 0xb44: s->cm_sleepdep_sgx = value &0x2; break;
+        case 0xb44: s->cm_sleepdep_sgx = value & 0x2; break;
         case 0xb48: s->cm_clkstctrl_sgx = value & 0x3; break;
         /* WKUP_CM */
         case 0xc00:

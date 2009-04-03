@@ -376,10 +376,13 @@ static void QEMU_NORETURN force_sig(int sig)
     gdb_signalled(thread_env, sig);
 
     /* dump core if supported by target binary format */
-    if (core_dump_signal(sig) && (ts->bprm->core_dump != NULL))
-        core_dumped = ((*ts->bprm->core_dump)(sig, thread_env) == 0);
+    if (core_dump_signal(sig) && (ts->bprm->core_dump != NULL)) {
+        stop_all_tasks();
+        core_dumped =
+            ((*ts->bprm->core_dump)(sig, thread_env) == 0);
+    }
 
-    fprintf(stderr, "qemu: uncaught target signal %d (%s) - %s\n",
+    (void) fprintf(stderr, "qemu: uncaught target signal %d (%s) - %s\n",
         sig, strsignal(host_sig),
         ((core_dumped) ? "core dumped" : "exiting"));
 
