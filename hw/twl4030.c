@@ -221,8 +221,10 @@ static uint8_t twl4030_48_read(void *opaque, uint8_t addr)
         case 0xfd: /* PHY_PWR_CTRL */
         case 0xfe: /* PHY_CLK_CTRL */
             return s->reg_data[addr];
-        case 0xff: /* PHY_CLK_CTRL */
-            return s->reg_data[0xfe] & 0x1;
+        case 0xff: /* PHY_CLK_CTRL_STS */
+            if (s->reg_data[0xfe] & 1) /* REQ_PHY_DPLL_CLK */
+                return 1;
+            return (s->reg_data[0x04] >> 6) & 1; /* SUSPENDM */
         default:
             fprintf(stderr, "%s: unknown register 0x%02x pc 0x%x\n",
                     __FUNCTION__, addr, cpu_single_env->regs[15]);
