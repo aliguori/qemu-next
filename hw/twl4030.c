@@ -222,6 +222,8 @@ static uint8_t twl4030_48_read(void *opaque, uint8_t addr)
         case 0xfe: /* PHY_CLK_CTRL */
             return s->reg_data[addr];
         case 0xff: /* PHY_CLK_CTRL_STS */
+            if (s->reg_data[0xfd] & 1) /* PHY_PWR_CTRL */
+                return 0;
             if (s->reg_data[0xfe] & 1) /* REQ_PHY_DPLL_CLK */
                 return 1;
             return (s->reg_data[0x04] >> 6) & 1; /* SUSPENDM */
