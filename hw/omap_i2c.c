@@ -191,7 +191,6 @@ static void omap_i2c_fifo_run(struct omap_i2c_s *s)
             s->stat &= ~0x4410;                     /* XDR | XUDF | XRDY */
             if (ack && s->count_cur) {              /* send more? */
                 /* we know that FIFO is empty */
-                s->stat |= 1 << 10;                 /* XUDF */
                 if (s->revision < OMAP3_INTR_REV)
                     s->stat |= 1 << 4;              /* XRDY */
                 else {
@@ -580,7 +579,7 @@ static void omap_i2c_write(void *opaque, target_phys_addr_t addr,
                 OMAP_BAD_REG(addr);
             else {
                 addr = (addr >> 2) & 3;
-                TRACE("OA%d = %04x", addr, value);
+                TRACE("OA%d = %04x", (int)addr, value);
                 s->own_addr[addr] = value & 0x3ff;
                 i2c_set_slave_address(&s->slave[addr], 
                                       value & ((s->control & (0x80 >> addr)) 
