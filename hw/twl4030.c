@@ -29,7 +29,7 @@
 #include "console.h"
 #include "cpu-all.h"
 
-#define VERBOSE 1
+//#define VERBOSE 1
 
 #ifdef VERBOSE
 #define TRACE(fmt, ...) fprintf(stderr, "%s: " fmt "\n", __FUNCTION__, ##__VA_ARGS__)
@@ -241,23 +241,23 @@ static void twl4030_48_write(void *opaque, uint8_t addr, uint8_t value)
 	
     TRACE("addr=0x%02x, value=0x%02x", addr, value);
     switch (addr) {
-        case 0x04: /* IFC_CTRL */
-            s->reg_data[0x04] = value & 0x80;
+        case 0x04: /* FUNC_CTRL */
+            s->reg_data[0x04] = value & 0x7f;
             break;
-        case 0x05: /* IFC_CRTL_SET */
-            s->reg_data[0x04] = (s->reg_data[0x04] | value) & 0x80;
+        case 0x05: /* FUNC_CRTL_SET */
+            s->reg_data[0x04] = (s->reg_data[0x04] | value) & 0x7f;
             break;
-        case 0x06: /* IFC_CRTL_CLEAR */
-            s->reg_data[0x04] = (s->reg_data[0x04] & ~value) & 0x80;
+        case 0x06: /* FUNC_CTRL_CLEAR */
+            s->reg_data[0x04] = (s->reg_data[0x04] & ~value) & 0x7f;
             break;
         case 0x07: /* IFC_CTRL */
-            s->reg_data[0x07] = value & 0x61;
+            s->reg_data[0x07] = value & 0x9e;
             break;
         case 0x08: /* IFC_CRTL_SET */
-            s->reg_data[0x07] = (s->reg_data[0x07] | value) & 0x61;
+            s->reg_data[0x07] = (s->reg_data[0x07] | value) & 0x9e;
             break;
         case 0x09: /* IFC_CRTL_CLEAR */
-            s->reg_data[0x07] = (s->reg_data[0x07] & ~value) & 0x61;
+            s->reg_data[0x07] = (s->reg_data[0x07] & ~value) & 0x9e;
             break;
         case 0xa1: /* CARKIT_SM_CTRL */
             s->reg_data[0xa1] = value & 0x3f;
