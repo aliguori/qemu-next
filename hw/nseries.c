@@ -1445,7 +1445,10 @@ static void n00_init(ram_addr_t ram_size, int vga_ram_size,
         fprintf(stderr, "%s: missing SecureDigital device\n", __FUNCTION__);
         exit(1);
     }
-    s->cpu = omap3530_mpu_init(256*1024*1024, NULL, NULL, serial_hds[0]);
+    s->cpu = omap3530_mpu_init(256*1024*1024,
+                               serial_hds[1],
+                               serial_hds[2],
+                               serial_hds[0]);
     s->twl4030 = twl4030_init(omap_i2c_bus(s->cpu->i2c[0]),
                               s->cpu->irq[0][OMAP_INT_3XXX_SYS_NIRQ]);
     s->lcd = omap3_lcd_panel_init();
