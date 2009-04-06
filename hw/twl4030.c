@@ -467,15 +467,13 @@ static uint8_t twl4030_4a_read(void *opaque, uint8_t addr)
     TRACE("addr=0x%02x", addr);
     switch (addr) {
         /* MADC region */
-        case 0x00 ... 0x3e:
-        case 0x41 ... 0x4e:
-        case 0x51 ... 0x67:
+        case 0x00 ... 0x13:
+        case 0x61 ... 0x67:
             return s->reg_data[addr];
-        case 0x3f: /* GPCH4_LSB */
-        case 0x40: /* GPCH4_MSB */
-        case 0x4f: /* GPCH12_LSB */
-        case 0x50: /* GPCH12_MSB */
-            return 1;
+        case 0x17 ... 0x36: /* RT conversion registers */
+        case 0x37 ... 0x56: /* GP conversion registers */
+        case 0x57 ... 0x60: /* BCI conversion registers */
+            return (addr & 1) ? 0 : 10;
         /* MAIN_CHARGE region */
         case 0x74 ... 0xa6:
             return s->reg_data[addr];
