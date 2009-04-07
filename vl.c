@@ -4004,7 +4004,7 @@ static void help(int exitcode)
 {
     /* Please keep in synch with QEMU_OPTION_ enums, qemu_options[]
        and qemu-doc.texi */
-    printf("QEMU PC emulator version " QEMU_VERSION " (" KVM_VERSION ")"
+    printf("QEMU PC emulator version " QEMU_VERSION QEMU_PKGVERSION
 	   ", Copyright (c) 2003-2008 Fabrice Bellard\n"
            "usage: %s [options] [disk_image]\n"
            "\n"

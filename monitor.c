@@ -248,7 +248,7 @@ static void do_info(const char *item)
 
 static void do_info_version(void)
 {
-  term_printf("%s\n", QEMU_VERSION);
+    term_printf("%s\n", QEMU_VERSION QEMU_PKGVERSION);
 }
 
 static void do_info_name(void)
