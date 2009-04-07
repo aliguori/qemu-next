@@ -236,6 +236,7 @@ int win2k_install_hack = 0;
 int rtc_td_hack = 0;
 #endif
 int usb_enabled = 0;
+int singlestep = 0;
 int smp_cpus = 1;
 const char *vnc_display;
 int acpi_enabled = 1;
@@ -245,7 +246,9 @@ int no_reboot = 0;
 int no_shutdown = 0;
 int cursor_hide = 1;
 int graphic_rotate = 0;
+#ifndef _WIN32
 int daemonize = 0;
+#endif
 const char *option_rom[MAX_OPTION_ROMS];
 int nb_option_roms;
 int semihosting_enabled = 0;
@@ -1297,8 +1300,9 @@ static int timer_load(QEMUFile *f, void *opaque, int version_id)
 }
 
 #ifdef _WIN32
-void CALLBACK host_alarm_handler(UINT uTimerID, UINT uMsg,
-                                 DWORD_PTR dwUser, DWORD_PTR dw1, DWORD_PTR dw2)
+static void CALLBACK host_alarm_handler(UINT uTimerID, UINT uMsg,
+                                        DWORD_PTR dwUser, DWORD_PTR dw1,
+                                        DWORD_PTR dw2)
 #else
 static void host_alarm_handler(int host_signum)
 #endif
@@ -3249,10 +3253,10 @@ static int ram_save_live(QEMUFile *f, int stage, void *opaque)
     /* try transferring iterative blocks of memory */
 
     if (stage == 3) {
-        cpu_physical_memory_set_dirty_tracking(0);
 
         /* flush all remaining blocks regardless of rate limiting */
         while (ram_save_block(f) != 0);
+        cpu_physical_memory_set_dirty_tracking(0);
     }
 
     qemu_put_be64(f, RAM_SAVE_FLAG_EOS);
@@ -4230,8 +4234,7 @@ static void termsig_setup(void)
 int main(int argc, char **argv, char **envp)
 {
 #ifdef CONFIG_GDBSTUB
-    int use_gdbstub;
-    const char *gdbstub_port;
+    const char *gdbstub_dev = NULL;
 #endif
     uint32_t boot_devices_bitmap = 0;
     int i;
@@ -4262,14 +4265,18 @@ int main(int argc, char **argv, char **envp)
     const char *cpu_model;
     const char *usb_devices[MAX_USB_CMDLINE];
     int usb_devices_index;
+#ifndef _WIN32
     int fds[2];
+#endif
     int tb_size;
     const char *pid_file = NULL;
     const char *incoming = NULL;
+#ifndef _WIN32
     int fd = 0;
     struct passwd *pwd = NULL;
     const char *chroot_dir = NULL;
     const char *run_as = NULL;
+#endif
 
     qemu_cache_utils_init(envp);
 
@@ -4310,10 +4317,6 @@ int main(int argc, char **argv, char **envp)
     initrd_filename = NULL;
     ram_size = 0;
     vga_ram_size = VGA_RAM_SIZE;
-#ifdef CONFIG_GDBSTUB
-    use_gdbstub = 0;
-    gdbstub_port = DEFAULT_GDBSTUB_PORT;
-#endif
     snapshot = 0;
     nographic = 0;
     curses = 0;
@@ -4646,10 +4649,10 @@ int main(int argc, char **argv, char **envp)
                 break;
 #ifdef CONFIG_GDBSTUB
             case QEMU_OPTION_s:
-                use_gdbstub = 1;
+                gdbstub_dev = "tcp::" DEFAULT_GDBSTUB_PORT;
                 break;
-            case QEMU_OPTION_p:
-                gdbstub_port = optarg;
+            case QEMU_OPTION_gdb:
+                gdbstub_dev = optarg;
                 break;
 #endif
             case QEMU_OPTION_L:
@@ -4657,6 +4660,9 @@ int main(int argc, char **argv, char **envp)
                 break;
             case QEMU_OPTION_bios:
                 bios_name = optarg;
+                break;
+            case QEMU_OPTION_singlestep:
+                singlestep = 1;
                 break;
             case QEMU_OPTION_S:
                 autostart = 0;
@@ -5015,7 +5021,6 @@ int main(int argc, char **argv, char **envp)
         signal(SIGTTOU, SIG_IGN);
         signal(SIGTTIN, SIG_IGN);
     }
-#endif
 
     if (pid_file && qemu_create_pidfile(pid_file) != 0) {
         if (daemonize) {
@@ -5025,6 +5030,7 @@ int main(int argc, char **argv, char **envp)
             fprintf(stderr, "Could not acquire pid file\n");
         exit(1);
     }
+#endif
 
 #ifdef USE_KQEMU
     if (smp_cpus > 1)
@@ -5363,14 +5369,10 @@ int main(int argc, char **argv, char **envp)
     }
 
 #ifdef CONFIG_GDBSTUB
-    if (use_gdbstub) {
-        /* XXX: use standard host:port notation and modify options
-           accordingly. */
-        if (gdbserver_start(gdbstub_port) < 0) {
-            fprintf(stderr, "qemu: could not open gdbstub device on port '%s'\n",
-                    gdbstub_port);
-            exit(1);
-        }
+    if (gdbstub_dev && gdbserver_start(gdbstub_dev) < 0) {
+        fprintf(stderr, "qemu: could not open gdbserver on device '%s'\n",
+                gdbstub_dev);
+        exit(1);
     }
 #endif
 
@@ -5385,6 +5387,7 @@ int main(int argc, char **argv, char **envp)
     if (autostart)
         vm_start();
 
+#ifndef _WIN32
     if (daemonize) {
 	uint8_t status = 0;
 	ssize_t len;
@@ -5403,7 +5406,6 @@ int main(int argc, char **argv, char **envp)
 	    exit(1);
     }
 
-#ifndef _WIN32
     if (run_as) {
         pwd = getpwnam(run_as);
         if (!pwd) {
@@ -5434,7 +5436,6 @@ int main(int argc, char **argv, char **envp)
             exit(1);
         }
     }
-#endif
 
     if (daemonize) {
         dup2(fd, 0);
@@ -5443,6 +5444,7 @@ int main(int argc, char **argv, char **envp)
 
         close(fd);
     }
+#endif
 
     main_loop();
     quit_timers();
