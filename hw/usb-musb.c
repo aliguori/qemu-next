@@ -906,7 +906,7 @@ static uint8_t musb_busctl_readb(void *opaque, int ep, int addr)
         return s->ep[ep].hport[1];
 
     default:
-        printf("%s: unknown register at %02x\n", __FUNCTION__, addr);
+        fprintf(stderr ,"%s: unknown register at %02x\n", __FUNCTION__, addr);
         return 0x00;
     };
 }
@@ -936,7 +936,7 @@ static void musb_busctl_writeb(void *opaque, int ep, int addr, uint8_t value)
         break;
 
     default:
-        printf("%s: unknown register at %02x\n", __FUNCTION__, addr);
+        fprintf(stderr, "%s: unknown register at %02x\n", __FUNCTION__, addr);
     };
 }
 
@@ -996,7 +996,7 @@ static uint8_t musb_ep_readb(void *opaque, int ep, int addr)
         return s->ep[ep].rxcount;
 
     default:
-        printf("%s: unknown register at %02x\n", __FUNCTION__, addr);
+        fprintf(stderr, "%s: unknown register at %02x\n", __FUNCTION__, addr);
         return 0x00;
     };
 }
@@ -1023,12 +1023,12 @@ static void musb_ep_writeb(void *opaque, int ep, int addr, uint8_t value)
     case (MUSB_HDRC_FIFOSIZE & ~1):
         break;
     case MUSB_HDRC_FIFOSIZE:
-        printf("%s: somebody messes with fifosize (now %i bytes)\n",
+        fprintf(stderr, "%s: somebody messes with fifosize (now %i bytes)\n",
                         __FUNCTION__, value);
         s->ep[ep].fifosize = value;
         break;
     default:
-        printf("%s: unknown register at %02x\n", __FUNCTION__, addr);
+        fprintf(stderr, "%s: unknown register at %02x\n", __FUNCTION__, addr);
     };
 }
 
@@ -1218,7 +1218,7 @@ static uint32_t musb_readb(void *opaque, target_phys_addr_t addr)
         return musb_read_fifo(s->ep + ep);
 
     default:
-        printf("%s: unknown register at %02x\n", __FUNCTION__, (int) addr);
+        fprintf(stderr, "%s: unknown register at %02x\n", __FUNCTION__, (int) addr);
         return 0x00;
     };
 }
@@ -1306,7 +1306,7 @@ static void musb_writeb(void *opaque, target_phys_addr_t addr, uint32_t value)
         break;
 
     default:
-        printf("%s: unknown register at %02x\n", __FUNCTION__, (int) addr);
+        fprintf(stderr, "%s: unknown register at %02x\n", __FUNCTION__, (int) addr);
     };
 }
 
@@ -1437,7 +1437,7 @@ static uint32_t musb_readw(void *opaque, target_phys_addr_t addr)
                  musb_read_fifo(s->ep + ep) << 16 |
                  musb_read_fifo(s->ep + ep) << 24 );
     default:
-        printf("%s: unknown register at %02x\n", __FUNCTION__, (int) addr);
+        fprintf(stderr, "%s: unknown register at %02x\n", __FUNCTION__, (int) addr);
         return 0x00000000;
     };
 }
@@ -1457,7 +1457,7 @@ static void musb_writew(void *opaque, target_phys_addr_t addr, uint32_t value)
         musb_write_fifo(s->ep + ep, (value >> 24) & 0xff);
         break;
     default:
-        printf("%s: unknown register at %02x\n", __FUNCTION__, (int) addr);
+        fprintf(stderr, "%s: unknown register at %02x\n", __FUNCTION__, (int) addr);
     };
 }
 
