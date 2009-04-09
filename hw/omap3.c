@@ -39,7 +39,7 @@
  */
 #define OMAP3_REDUCE_IOREGIONS
 
-//#define OMAP3_DEBUG_
+#define OMAP3_DEBUG_
 
 #ifdef OMAP3_DEBUG_
 #define TRACE(fmt, ...) fprintf(stderr, "%s " fmt "\n", __FUNCTION__, ##__VA_ARGS__)
@@ -1566,6 +1566,7 @@ static void omap3_prm_reset(struct omap3_prm_s *s)
     s->mpu.pm_wkdep       = 0xa5;
     s->mpu.pm_pwstctrl    = 0x30107;
     s->mpu.pm_pwstst      = 0xc7;
+    s->mpu.pm_prepwstst   = 0x3;
     s->mpu.pm_evgenctrl   = 0x12;
 
     bzero(&s->core, sizeof(s->core));
@@ -1647,6 +1648,52 @@ static void omap3_prm_reset(struct omap3_prm_s *s)
     omap3_prm_int_update(s);
 }
 
+static uint32_t omap3_powerdomain_read(struct omap3_prm_domain_s *d, 
+	 target_phys_addr_t addr)
+{
+        switch (addr & 0xff) {
+            case 0x50: return d->rm_rstctrl;
+            case 0x58: return d->rm_rstst;
+            case 0xa0: return d->pm_wken;
+            case 0xa4: return d->pm_mpugrpsel;
+            case 0xa8: return d->pm_ivagrpsel;
+            case 0xb0: return d->pm_wkst;
+            case 0xb8: return d->pm_wkst3;
+            case 0xc8: return d->pm_wkdep;
+            case 0xd4: return d->pm_evgenctrl;
+            case 0xd8: return d->pm_evgenontim;
+            case 0xdc: return d->pm_evgenofftim;
+            case 0xe0: return d->pm_pwstctrl;
+            case 0xe4: return d->pm_pwstst;
+            case 0xe8: return d->pm_prepwstst;
+            case 0xf0: return d->pm_wken3;
+            default: break;
+        }
+}
+
+static uint32_t omap3_powerdomain_write(struct omap3_prm_domain_s *d, 
+	 target_phys_addr_t addr)
+{
+        switch (addr & 0xff) {
+            case 0x50: d->rm_rstctrl= ;
+            case 0x58: d->rm_rstst=;
+            case 0xa0: d->pm_wken=;
+            case 0xa4: d->pm_mpugrpsel=;
+            case 0xa8: d->pm_ivagrpsel=;
+            case 0xb0: d->pm_wkst=;
+            case 0xb8: d->pm_wkst3=;
+            case 0xc8: d->pm_wkdep=;
+            case 0xd4: d->pm_evgenctrl=;
+            case 0xd8: d->pm_evgenontim=;
+            case 0xdc: d->pm_evgenofftim=;
+            case 0xe0: d->pm_pwstctrl=;
+            case 0xe4: d->pm_pwstst=;
+            case 0xe8: d->pm_prepwstst=;
+            case 0xf0: d->pm_wken3==;
+            default: break;
+        }
+}
+
 static uint32_t omap3_prm_read(void *opaque, target_phys_addr_t addr)
 {
     struct omap3_prm_s *s = (struct omap3_prm_s *)opaque;
@@ -1670,25 +1717,6 @@ static uint32_t omap3_prm_read(void *opaque, target_phys_addr_t addr)
         case 0x14: d = &s->usbhost; break;
         default: break;
     }
-    if (d)
-        switch (addr & 0xff) {
-            case 0x50: return d->rm_rstctrl;
-            case 0x58: return d->rm_rstst;
-            case 0xa0: return d->pm_wken;
-            case 0xa4: return d->pm_mpugrpsel;
-            case 0xa8: return d->pm_ivagrpsel;
-            case 0xb0: return d->pm_wkst;
-            case 0xb8: return d->pm_wkst3;
-            case 0xc8: return d->pm_wkdep;
-            case 0xd4: return d->pm_evgenctrl;
-            case 0xd8: return d->pm_evgenontim;
-            case 0xdc: return d->pm_evgenofftim;
-            case 0xe0: return d->pm_pwstctrl;
-            case 0xe4: return d->pm_pwstst;
-            case 0xe8: return d->pm_prepwstst;
-            case 0xf0: return d->pm_wken3;
-            default: break;
-        }
 
     /* okay, not a common domain register so let's take a closer look */
     switch (addr) {
@@ -1737,6 +1765,9 @@ static uint32_t omap3_prm_read(void *opaque, target_phys_addr_t addr)
         case 0x12e4: return s->gr.prm_vp[1].status;
         default: break;
     }
+    if (d)
+       omap3_powerdomain_read(d,addr);
+		
 
     OMAP_BAD_REG(addr);
     return 0;
@@ -1815,7 +1846,8 @@ static void omap3_prm_write(void *opaque, target_phys_addr_t addr,
         case 0x09dc: s->mpu.pm_evgenofftim = value; break;
         case 0x09e0: s->mpu.pm_pwstctrl = value & 0x3010f; break;
         case 0x09e4: OMAP_RO_REG(addr); break;
-        case 0x09e8: s->mpu.pm_prepwstst = value & 0xc7; break;
+ /*     case 0x09e8: OMAP_RO_REG(addr); break; */
+        case 0x09e8: s->mpu.pm_prepwstst = ( value & 0xc7 ) | 0x3; break;
         /* CORE_PRM */
         case 0x0a50: s->core.rm_rstctrl = value & 0x3; break; /* TODO: check if available on real hw */
         case 0x0a58: s->core.rm_rstst &= ~(value & 0x7); break;
