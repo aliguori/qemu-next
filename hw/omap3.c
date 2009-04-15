@@ -1607,6 +1607,7 @@ static void omap3_prm_reset(struct omap3_prm_s *s)
     s->wkup.pm_wken      = 0x3cb;
     s->wkup.pm_mpugrpsel = 0x3cb;
     s->wkup.pm_pwstst    = 0x3; /* TODO: check on real hardware */
+    s->wkup.pm_prepwstst = 0x3; /* TODO: check on real hardware */
 
     bzero(&s->ccr, sizeof(s->ccr));
     s->ccr.prm_clksel      = 0x3; /* TRM says 0x4, but on HW this is 0x3 */
@@ -1833,9 +1834,27 @@ static void omap3_prm_write(void *opaque, target_phys_addr_t addr,
         case 0x09dc: s->mpu.pm_evgenofftim = value; break;
         case 0x09e0:
             s->mpu.pm_pwstctrl = value & 0x3010f;
+            /* in fact we always stay in ON state so if another state is
+             * requested pretend that we just woke up */
+            switch (value & 3) { /* POWERSTATE */
+                case 0: /* OFF */
+                case 2: /* INACTIVE */
+                    s->mpu.pm_prepwstst = 0;
+                    break;
+                case 1: /* RETENTION */
+                    s->mpu.pm_prepwstst = ((value & 0x100) >> 2) |
+                                          (value & 0x04) | 0x01;
+                    break;
+                case 3: /* ON */
+                    s->mpu.pm_prepwstst = ((value >> 10) & 0xc0) | 0x07;
+                    break;
+                default:
+                    break;
+            }
+            s->mpu.pm_pwstst = ((value >> 10) & 0xc0) | 0x07;
             break;
         case 0x09e4: OMAP_RO_REG(addr); break;
-        case 0x09e8: s->mpu.pm_prepwstst = value & 0xc7; break;
+        case 0x09e8: /* ignore, we set the value in PWSTCTRL write */ break;
         /* CORE_PRM */
         case 0x0a50: s->core.rm_rstctrl = value & 0x3; break; /* TODO: check if available on real hw */
         case 0x0a58: s->core.rm_rstst &= ~(value & 0x7); break;
@@ -1861,6 +1880,7 @@ static void omap3_prm_write(void *opaque, target_phys_addr_t addr,
         case 0x0ca4: s->wkup.pm_mpugrpsel = 0x0102 | (value & 0x02c9); break;
         case 0x0ca8: s->wkup.pm_ivagrpsel = value & 0x03cb; break;
         case 0x0cb0: s->wkup.pm_wkst &= ~(value & 0x0103cb); break;
+        case 0x0ce8: /* ignore */ break;
         /* Clock_Control_Reg_PRM */
         case 0x0d40: 
             s->ccr.prm_clksel = value & 0x7;
@@ -1871,6 +1891,7 @@ static void omap3_prm_write(void *opaque, target_phys_addr_t addr,
             omap_clk_onoff(omap_findclk(s->omap, "omap3_sys_clkout1"),
                            s->ccr.prm_clkout_ctrl & 0x80);
             break;
+        case 0x0de8: /* ignore */ break;
         /* DSS_PRM */
         case 0x0e58: s->dss.rm_rstst &= ~(value & 0xf); break;
         case 0x0ea0: s->dss.pm_wken = value & 1; break;
@@ -1897,6 +1918,7 @@ static void omap3_prm_write(void *opaque, target_phys_addr_t addr,
         /* EMU_PRM */
         case 0x1158: s->emu.rm_rstst &= ~(value & 7); break;
         case 0x11e4: OMAP_RO_REG(addr); break;
+        case 0x11e8: /* ignore */ break;
         /* Global_Reg_PRM */
         case 0x1220: s->gr.prm_vc_smps_sa = value & 0x7f007f; break;
         case 0x1224: s->gr.prm_vc_smps_vol_ra = value & 0xff00ff; break;
