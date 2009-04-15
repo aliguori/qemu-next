@@ -1230,12 +1230,19 @@ static struct clk omap3_core_l3_iclk = {
     .parent	= &omap3_l3_iclk, 
 };
 
-
 static struct clk omap3_core_l4_iclk = {
     .name	= "omap3_core_l4_iclk",
     .flags	= CLOCK_IN_OMAP3XXX | ALWAYS_ENABLED,
     .parent	= &omap3_l4_iclk, 
 };
+
+/* CORE_L3 interface clock based clocks */
+static struct clk omap3_sdrc_iclk = {
+    .name	= "omap3_sdrc_iclk",
+    .flags	= CLOCK_IN_OMAP3XXX ,
+    .parent	= &omap3_core_l3_iclk, 
+};
+
 
 /*WKUP Power Domain*/
 static struct clk omap3_wkup_32k_fclk = {
@@ -1716,6 +1723,7 @@ static struct clk *onchip_clks[] = {
     &omap3_core_12m_fclk,
     &omap3_core_l3_iclk,
     &omap3_core_l4_iclk,
+    &omap3_sdrc_iclk,
     &omap3_wkup_32k_fclk,
     &omap3_wkup_l4_iclk,
     &omap3_gp1_fclk,

@@ -39,12 +39,30 @@
  */
 #define OMAP3_REDUCE_IOREGIONS
 
-//#define OMAP3_DEBUG_
+//#define OMAP3_DEBUG
+#define OMAP3_DEBUG_SCM
+//#define OMAP3_DEBUG_CM
+#define OMAP3_DEBUG_PRM
 
-#ifdef OMAP3_DEBUG_
+#ifdef OMAP3_DEBUG
 #define TRACE(fmt, ...) fprintf(stderr, "%s " fmt "\n", __FUNCTION__, ##__VA_ARGS__)
 #else
 #define TRACE(...) 
+#endif
+#ifdef OMAP3_DEBUG_SCM
+#define TRACE_SCM(...) TRACE(__VA_ARGS__)
+#else
+#define TRACE_SCM(...)
+#endif
+#ifdef OMAP3_DEBUG_CM
+#define TRACE_CM(...) TRACE(__VA_ARGS__)
+#else
+#define TRACE_CM(...)
+#endif
+#ifdef OMAP3_DEBUG_PRM
+#define TRACE_PRM(...) TRACE(__VA_ARGS__)
+#else
+#define TRACE_PRM(...)
 #endif
 
 typedef enum {
@@ -1652,7 +1670,7 @@ static uint32_t omap3_prm_read(void *opaque, target_phys_addr_t addr)
     struct omap3_prm_s *s = (struct omap3_prm_s *)opaque;
     struct omap3_prm_domain_s *d = 0;
 
-    TRACE("%04x", addr);
+    TRACE_PRM(OMAP_FMT_plx, addr);
     
     /* handle common domain registers first - all domains may not
        have all common registers though but we're returning zeroes there */
@@ -1779,7 +1797,7 @@ static void omap3_prm_write(void *opaque, target_phys_addr_t addr,
 {
     struct omap3_prm_s *s = (struct omap3_prm_s *)opaque;
 
-    TRACE("%04x = %08x", addr, value);
+    TRACE_PRM(OMAP_FMT_plx " = %08x", addr, value);
     switch (addr) {
         /* IVA2_PRM */
         case 0x0050: s->iva2.rm_rstctrl = value & 0x7; break;
@@ -1813,7 +1831,9 @@ static void omap3_prm_write(void *opaque, target_phys_addr_t addr,
         case 0x09d4: s->mpu.pm_evgenctrl = value & 0x1f; break;
         case 0x09d8: s->mpu.pm_evgenontim = value; break;
         case 0x09dc: s->mpu.pm_evgenofftim = value; break;
-        case 0x09e0: s->mpu.pm_pwstctrl = value & 0x3010f; break;
+        case 0x09e0:
+            s->mpu.pm_pwstctrl = value & 0x3010f;
+            break;
         case 0x09e4: OMAP_RO_REG(addr); break;
         case 0x09e8: s->mpu.pm_prepwstst = value & 0xc7; break;
         /* CORE_PRM */
@@ -2288,8 +2308,8 @@ static inline void omap3_cm_clksel_wkup_update(struct omap3_cm_s *s)
     /* Tell GPTIMER to generate new clk rate */
     omap_gp_timer_change_clk(s->mpu->gptimer[0]);
 
-    TRACE("gptimer1 fclk=%lld",
-          omap_clk_getrate(omap_findclk(s->mpu, "omap3_gp1_fclk")));
+    TRACE_CM("gptimer1 fclk=%lld",
+             omap_clk_getrate(omap_findclk(s->mpu, "omap3_gp1_fclk")));
 
     /* TODO: CM_USIM_CLK */
 }
@@ -2526,8 +2546,8 @@ static inline void omap3_cm_gp10gp11_update(struct omap3_cm_s *s)
     omap_gp_timer_change_clk(s->mpu->gptimer[9]);
     omap_gp_timer_change_clk(s->mpu->gptimer[10]);
     
-    TRACE("gptimer10 fclk = %lld", omap_clk_getrate(gp10));
-    TRACE("gptimer11 fclk = %lld", omap_clk_getrate(gp11));
+    TRACE_CM("gptimer10 fclk = %lld", omap_clk_getrate(gp10));
+    TRACE_CM("gptimer11 fclk = %lld", omap_clk_getrate(gp11));
 }
 
 static inline void omap3_cm_per_gptimer_update(struct omap3_cm_s *s)
@@ -2543,8 +2563,8 @@ static inline void omap3_cm_per_gptimer_update(struct omap3_cm_s *s)
         omap_clk_reparent(omap_findclk(s->mpu, clkname),
                           (cm_clksel_per & 1) ? sys : f32k);
         omap_gp_timer_change_clk(s->mpu->gptimer[n]);
-        TRACE("gptimer%d fclk = %lld", n + 1,
-              omap_clk_getrate(omap_findclk(s->mpu, clkname)));
+        TRACE_CM("gptimer%d fclk = %lld", n + 1,
+                 omap_clk_getrate(omap_findclk(s->mpu, clkname)));
     }
 }
 
@@ -2594,7 +2614,8 @@ static inline void omap3_cm_iclken1_core_update(struct omap3_cm_s *s)
 {
     uint32_t v = s->cm_iclken1_core;
     
-    /* TODO: EN_SDRC, EN_HSOTGUSB, EN_OMAPCTRL, EN_MAILBOXES, EN_MCBSP1,5 */
+    omap_clk_onoff(omap_findclk(s->mpu, "omap3_sdrc_iclk"),  (v >> 1) & 1);
+    /* TODO: EN_HSOTGUSB, EN_OMAPCTRL, EN_MAILBOXES, EN_MCBSP1,5 */
     /* TODO: EN_GPT10, EN_GPT11 */
     omap_clk_onoff(omap_findclk(s->mpu, "omap3_uart1_iclk"), (v >> 13) & 1);
     omap_clk_onoff(omap_findclk(s->mpu, "omap3_uart2_iclk"), (v >> 14) & 1);
@@ -2605,18 +2626,31 @@ static inline void omap3_cm_iclken1_core_update(struct omap3_cm_s *s)
     omap_clk_onoff(omap_findclk(s->mpu, "omap3_mmc1_iclk"),  (v >> 24) & 1);
     omap_clk_onoff(omap_findclk(s->mpu, "omap3_mmc2_iclk"),  (v >> 25) & 1);
     omap_clk_onoff(omap_findclk(s->mpu, "omap3_mmc3_iclk"),  (v >> 30) & 1);
-    /* set USB OTG idle if iclk is enabled and SDMA always in standby */
-    v &= ~0x24;
-    v |= (v & 0x10) << 1;
+
+    v &= ~0x24;           /* ST_SDMA | ST_HSOTGUSB_IDLE */
+    v |= (v & 0x10) << 1; /* ST_HSOTGUSB_STDBY */
     s->cm_idlest1_core = ~v;
 }
 
 static inline void omap3_cm_l3l4iclk_update(struct omap3_cm_s *s)
 {
-    omap_clk_setrate(omap_findclk(s->mpu, "omap3_l3_iclk"),
-                     s->cm_clksel_core & 0x3, 1);
-    omap_clk_setrate(omap_findclk(s->mpu, "omap3_l4_iclk"),
-                     (s->cm_clksel_core >> 2) & 0x3, 1);
+    int div = s->cm_clksel_core & 0x3;
+    if (div != 1 && div != 2) {
+        fprintf(stderr, "%s: invalid CLKSEL_L3 value (%d)\n",
+                __FUNCTION__, div);
+        div = (div > 2) ? 2 : 1;
+        s->cm_clksel_core = (s->cm_clksel_core & ~0x3) | div;
+    }
+    omap_clk_setrate(omap_findclk(s->mpu, "omap3_l3_iclk"), div, 1);
+    
+    div = (s->cm_clksel_core >> 2) & 0x3;
+    if (div != 1 && div != 2) {
+        fprintf(stderr, "%s: invalid CLKSEL_L4 value (%d)\n",
+                __FUNCTION__, div);
+        div = (div > 2) ? 2 : 1;
+        s->cm_clksel_core = (s->cm_clksel_core & ~(0x3 << 2)) | (div << 2);
+    }
+    omap_clk_setrate(omap_findclk(s->mpu, "omap3_l4_iclk"), div, 1);
 }
 
 static void omap3_cm_reset(struct omap3_cm_s *s)
@@ -2649,10 +2683,8 @@ static void omap3_cm_reset(struct omap3_cm_s *s)
     s->cm_iclken1_core = 0x42;
     s->cm_iclken2_core = 0x0;
     s->cm_iclken3_core = 0x0;
-    /*allow access to devices*/
-    s->cm_idlest1_core = 0x0;
+    s->cm_idlest1_core = 0xffffffff;
     s->cm_idlest2_core = 0x0;
-    /*ide status =0 */
     s->cm_idlest3_core = 0xa; 
     s->cm_autoidle1_core = 0x0;
     s->cm_autoidle2_core = 0x0;
@@ -2743,6 +2775,7 @@ static uint32_t omap3_cm_read(void *opaque, target_phys_addr_t addr)
 {
     struct omap3_cm_s *s = (struct omap3_cm_s *) opaque;
 
+    TRACE_CM(OMAP_FMT_plx, addr);
     switch (addr) {
         /* IVA2_CM */
         case 0x0000: return s->cm_fclken_iva2;
@@ -2869,6 +2902,7 @@ static void omap3_cm_write(void *opaque,
 {
     struct omap3_cm_s *s = (struct omap3_cm_s *)opaque;
 
+    TRACE_CM(OMAP_FMT_plx " = 0x%08x", addr, value);
     switch (addr) {
         case 0x0020:
         case 0x0024:
@@ -2946,7 +2980,7 @@ static void omap3_cm_write(void *opaque,
             break;
         /* CORE_CM */
         case 0xa00:
-            s->cm_fclken1_core = value & 0x43fffe00;
+            s->cm_fclken1_core = value & 0x437ffe00;
             omap3_cm_fclken1_core_update(s);
             break;
         case 0xa04:
@@ -2978,7 +3012,7 @@ static void omap3_cm_write(void *opaque,
             s->cm_autoidle3_core = value & 0x2;
             break;
         case 0xa40:
-            s->cm_clksel_core = (value & 0xff) | 0x100;
+            s->cm_clksel_core = (value & 0xcf) | 0x100;
             omap3_cm_gp10gp11_update(s);
             omap3_cm_l3l4iclk_update(s);
             break;
@@ -4041,6 +4075,7 @@ static uint32_t omap3_scm_read32(void *opaque, target_phys_addr_t addr)
     v |= omap3_scm_read8(opaque, addr + 1) << 8;
     v |= omap3_scm_read8(opaque, addr + 2) << 16;
     v |= omap3_scm_read8(opaque, addr + 3) << 24;
+    TRACE_SCM(OMAP_FMT_plx " = 0x%08x", addr, v);
     return v;
 }
 
@@ -4071,6 +4106,7 @@ static void omap3_scm_write16(void *opaque, target_phys_addr_t addr,
 static void omap3_scm_write32(void *opaque, target_phys_addr_t addr,
                               uint32_t value)
 {
+    TRACE_SCM(OMAP_FMT_plx " = 0x%08x", addr, value);
     omap3_scm_write8(opaque, addr + 0, (value) & 0xff);
     omap3_scm_write8(opaque, addr + 1, (value >> 8) & 0xff);
     omap3_scm_write8(opaque, addr + 2, (value >> 16) & 0xff);
