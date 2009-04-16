@@ -2062,9 +2062,16 @@ static void omap3_prm_write(void *opaque, target_phys_addr_t addr,
         case 0x14a8: s->usbhost.pm_ivagrpsel = value & 1; break;
         case 0x14b0: s->usbhost.pm_wkst &= ~(value & 1); break;
         case 0x14c8: s->usbhost.pm_wkdep = value & 0x17; break;
-        case 0x14e0: s->usbhost.pm_pwstctrl = 0x030104 | (value & 0x13); break;
+        case 0x14e0:
+            s->usbhost.pm_pwstctrl = 0x030104 | (value & 0x13);
+            /* TODO: support USBHOST wakeup control. For now let's keep the
+             * USBHOST domain always in ON state and if another state is
+             * requested pretend that we just woke up */
+            s->usbhost.pm_pwstst = 0x3;
+            s->usbhost.pm_prepwstst = value & 3;
+            break;
         case 0x14e4: OMAP_RO_REG(addr); break;
-        case 0x14e8: s->usbhost.pm_prepwstst = value & 3; break;
+        case 0x14e8: /* ignore, we set the value in PWSTCTRL write */ break;
         default:
             OMAP_BAD_REGV(addr, value);
             break;
