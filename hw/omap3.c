@@ -1934,7 +1934,26 @@ static void omap3_prm_write(void *opaque, target_phys_addr_t addr,
         case 0x10a8: s->per.pm_ivagrpsel = value & 0x03efff; break;
         case 0x10b0: s->per.pm_wkst &= ~(value & 0x03efff); break;
         case 0x10c8: s->per.pm_wkdep = value & 0x17; break;
-        case 0x10e0: s->per.pm_pwstctrl = 0x030100 | (value & 7); break;
+        case 0x10e0:
+            s->per.pm_pwstctrl = 0x030100 | (value & 7);
+            /* TODO: support PER wakeup control. For now let's keep the
+             * PER domain always in ON state and if another state is
+             * requested pretend that we just woke up */
+            s->per.pm_pwstst = 0x07;
+            switch (value & 3) { /* POWERSTATE */
+                case 0: /* OFF */
+                    s->per.pm_prepwstst = 0;
+                    break;
+                case 1: /* RETENTION */
+                    s->per.pm_prepwstst = (value & 0x04) | 0x1;
+                    break;
+                case 3: /* ON */
+                    s->per.pm_prepwstst = s->per.pm_pwstst;
+                    break;
+                default:
+                    break;
+            }
+            break;
         case 0x10e4: OMAP_RO_REG(addr); break;
         case 0x10e8: s->per.pm_prepwstst = value & 0x7; break;
         /* EMU_PRM */
