@@ -473,7 +473,7 @@ static uint8_t twl4030_4a_read(void *opaque, uint8_t addr)
         case 0x17 ... 0x36: /* RT conversion registers */
         case 0x37 ... 0x56: /* GP conversion registers */
         case 0x57 ... 0x60: /* BCI conversion registers */
-            return (addr & 1) ? 0 : 10;
+            return (addr & 1) ? 0 : 0x60;
         /* MAIN_CHARGE region */
         case 0x74 ... 0xa6:
             return s->reg_data[addr];
