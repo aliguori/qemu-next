@@ -1918,9 +1918,16 @@ static void omap3_prm_write(void *opaque, target_phys_addr_t addr,
         case 0x0e58: s->dss.rm_rstst &= ~(value & 0xf); break;
         case 0x0ea0: s->dss.pm_wken = value & 1; break;
         case 0x0ec8: s->dss.pm_wkdep = value & 0x16; break;
-        case 0x0ee0: s->dss.pm_pwstctrl = 0x030104 | (value & 3); break;
+        case 0x0ee0:
+            s->dss.pm_pwstctrl = 0x030104 | (value & 3);
+            /* TODO: support DSS wakeup control. For now let's keep the
+             * DSS domain always in ON state and if another state is
+             * requested pretend that we just woke up */
+            s->dss.pm_pwstst = 0x3;
+            s->dss.pm_prepwstst = value & 3;
+            break;
         case 0x0ee4: OMAP_RO_REG(addr); break;
-        case 0x0ee8: s->dss.pm_prepwstst = value & 3; break;
+        case 0x0ee8: /* ignore, we set the value in PWSTCTRL write */ break;
         /* CAM_PRM */
         case 0x0f58: s->cam.rm_rstst &= (value & 0xf); break;
         case 0x0fc8: s->cam.pm_wkdep = value & 0x16; break;
@@ -1955,7 +1962,7 @@ static void omap3_prm_write(void *opaque, target_phys_addr_t addr,
             }
             break;
         case 0x10e4: OMAP_RO_REG(addr); break;
-        case 0x10e8: s->per.pm_prepwstst = value & 0x7; break;
+        case 0x10e8: /* ignore, we set the value in PWSTCTRL write */ break;
         /* EMU_PRM */
         case 0x1158: s->emu.rm_rstst &= ~(value & 7); break;
         case 0x11e4: OMAP_RO_REG(addr); break;
