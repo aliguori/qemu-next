@@ -1722,6 +1722,7 @@ static uint32_t omap3_prm_read(void *opaque, target_phys_addr_t addr)
         case 0x0d40: return s->ccr.prm_clksel;
         case 0x0d70: return s->ccr.prm_clkout_ctrl;
         case 0x0de4: return 0x3; /* TODO: check on real hardware */
+        case 0x0de8: return 0x3; /* TODO: check on real hardware */
         case 0x1220: return s->gr.prm_vc_smps_sa;
         case 0x1224: return s->gr.prm_vc_smps_vol_ra;
         case 0x1228: return s->gr.prm_vc_smps_cmd_ra;
