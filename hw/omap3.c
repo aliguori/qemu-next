@@ -1829,7 +1829,7 @@ static void omap3_prm_write(void *opaque, target_phys_addr_t addr,
             }
             break;
         case 0x00e4: OMAP_RO_REG(addr); break;
-        case 0x00e8: /* ingore, we set the value in PWSTCTRL write */ break;
+        case 0x00e8: /* ignore, we set the value in PWSTCTRL write */ break;
         case 0x00f8:
             s->prm_irqstatus_iva2 &= ~(value & 0x7);
             omap3_prm_int_update(s);
@@ -2038,9 +2038,16 @@ static void omap3_prm_write(void *opaque, target_phys_addr_t addr,
         /* NEON_PRM */
         case 0x1358: s->neon.rm_rstst &= ~(value & 0xf); break;
         case 0x13c8: s->neon.pm_wkdep = value & 0x2; break;
-        case 0x13e0: s->neon.pm_pwstctrl = 0x4 | (value & 3); break;
+        case 0x13e0:
+            s->neon.pm_pwstctrl = 0x4 | (value & 3);
+            /* TODO: support NEON wakeup control. For now let's keep the
+             * NEON domain always in ON state and if another state is
+             * requested pretend that we just woke up */
+            s->neon.pm_pwstst = 0x3;
+            s->neon.pm_prepwstst = value & 3;
+            break;
         case 0x13e4: OMAP_RO_REG(addr); break;
-        case 0x13e8: s->neon.pm_prepwstst = value & 3; break;
+        case 0x13e8: /* ignore, we set the value in PWSTCTRL write */ break;
         /* USBHOST_PRM */
         case 0x1458: s->usbhost.rm_rstst &= ~(value & 0xf); break;
         case 0x14a0: s->usbhost.pm_wken = value & 1; break;
