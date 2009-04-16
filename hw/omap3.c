@@ -1610,7 +1610,7 @@ static void omap3_prm_reset(struct omap3_prm_s *s)
     s->wkup.pm_prepwstst = 0x3; /* TODO: check on real hardware */
 
     bzero(&s->ccr, sizeof(s->ccr));
-    s->ccr.prm_clksel      = 0x3; /* TRM says 0x4, but on HW this is 0x3 */
+    s->ccr.prm_clksel      = 0x3; /* depends on the hw board, 0x3 for beagle */
     s->ccr.prm_clkout_ctrl = 0x80;
 
     bzero(&s->dss, sizeof(s->dss));
@@ -1642,7 +1642,7 @@ static void omap3_prm_reset(struct omap3_prm_s *s)
     bzero(&s->gr, sizeof(s->gr));
     s->gr.prm_vc_i2c_cfg     = 0x18;
     s->gr.prm_rsttimer       = 0x1006;
-    s->gr.prm_rstst          = 0x1;
+    s->gr.prm_rstst          = 0x1; /* POR */
     s->gr.prm_sram_pcharge   = 0x50;
     s->gr.prm_clksrc_ctrl    = 0x43;
     s->gr.prm_polctrl        = 0xa;
@@ -1834,8 +1834,10 @@ static void omap3_prm_write(void *opaque, target_phys_addr_t addr,
         case 0x09dc: s->mpu.pm_evgenofftim = value; break;
         case 0x09e0:
             s->mpu.pm_pwstctrl = value & 0x3010f;
-            /* in fact we always stay in ON state so if another state is
+            /* TODO: support MPU wakeup contol. For now let's keep the
+             * MPU domain always in ON state and if another state is
              * requested pretend that we just woke up */
+            s->mpu.pm_pwstst = ((value >> 10) & 0xc0) | 0x07;
             switch (value & 3) { /* POWERSTATE */
                 case 0: /* OFF */
                 case 2: /* INACTIVE */
@@ -1846,12 +1848,11 @@ static void omap3_prm_write(void *opaque, target_phys_addr_t addr,
                                           (value & 0x04) | 0x01;
                     break;
                 case 3: /* ON */
-                    s->mpu.pm_prepwstst = ((value >> 10) & 0xc0) | 0x07;
+                    s->mpu.pm_prepwstst = s->mpu.pm_pwstst;
                     break;
                 default:
                     break;
             }
-            s->mpu.pm_pwstst = ((value >> 10) & 0xc0) | 0x07;
             break;
         case 0x09e4: OMAP_RO_REG(addr); break;
         case 0x09e8: /* ignore, we set the value in PWSTCTRL write */ break;
@@ -1863,9 +1864,30 @@ static void omap3_prm_write(void *opaque, target_phys_addr_t addr,
         case 0x0aa8: s->core.pm_ivagrpsel = 0x80000008 | (value & 0x433ffe10); break;
         case 0x0ab0: s->core.pm_wkst = value & 0x433ffe10; break;
         case 0x0ab8: s->core.pm_wkst3 &= ~(value & 0x4); break;
-        case 0x0ae0: s->core.pm_pwstctrl = (value & 0x0f031f); break;
+        case 0x0ae0:
+            s->core.pm_pwstctrl = value & 0x0f031f;
+            /* TODO: support CORE wakeup control. For now let's keep the
+             * CORE domain always in ON state and if another state is
+             * requested pretend that we just woke up */
+            s->core.pm_pwstst = ((value >> 12) & 0xf0) | 0x07;
+            switch (value & 3) { /* POWERSTATE */
+                case 0: /* OFF */
+                    s->core.pm_prepwstst = 0;
+                    break;
+                case 1: /* RETENTION */
+                    s->core.pm_prepwstst = ((value & 0x200) >> 3) |
+                                           ((value & 0x100) >> 4) |
+                                           (value & 0x04) | 0x1;
+                    break;
+                case 3: /* ON */
+                    s->core.pm_prepwstst = s->core.pm_pwstst;
+                    break;
+                default:
+                    break;
+            }
+            break;
         case 0x0ae4: OMAP_RO_REG(addr); break;
-        case 0x0ae8: s->core.pm_prepwstst = value & 0xf7; break;
+        case 0x0ae8: /* ignore, we set the value in PWSTCTRL write */; break;
         case 0x0af0: s->core.pm_wken3 = value & 0x4; break;
         case 0x0af4: s->pm_iva2grpsel3_core = value & 0x4; break;
         case 0x0af8: s->pm_mpugrpsel3_core = value & 0x4; break;
