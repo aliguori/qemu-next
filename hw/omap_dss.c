@@ -2034,12 +2034,27 @@ static void omap_dsi_write(void *opaque, target_phys_addr_t addr,
             switch (addr & 0x1f) {
                 case 0x00: /* DSI_VCx_CTRL */
                     TRACEDSI("DSI_VC%d_CTRL = 0x%08x", x, value);
-                    value &= 0x3fee03df;
-                    s->dsi.vc[x].ctrl = (s->dsi.vc[x].ctrl & 0x11c020) | value;
+                    if (value & 1) { /* VC_EN */
+                        s->dsi.vc[x].ctrl &= ~0x40; /* BTA_EN */
+                        s->dsi.vc[x].ctrl |= 0x1;   /* VC_EN */
+                    } else {
+                        s->dsi.vc[x].ctrl = (s->dsi.vc[x].ctrl & 0x11c020) |
+                                            (value & 0x3fee039f);
+                    }
+                    if (value & 0x40) { /* BTA_EN */
+                        s->dsi.irqst |= 1 << x;     /* VIRTUAL_CHANNELx_IRQ */
+                        s->dsi.vc[x].irqst |= 0x20; /* BTA_IRQ */
+                        omap_dss_interrupt_update(s);
+                    }
                     break;
                 case 0x04: /* DSI_VCx_TE */
                     TRACEDSI("DSI_VC%d_TE = 0x%08x", x, value);
-                    s->dsi.vc[x].te = value & 0xc0ffffff;
+                    value &= 0xc0ffffff;
+                    if (s->dsi.vc[x].ctrl & 1) { /* VC_EN */
+                        value &= ~(1 << 30);     /* TE_EN */
+                        value |= s->dsi.vc[x].te & (1 << 30);
+                    }
+                    s->dsi.vc[x].te = value;
                     break;
                 case 0x08: /* DSI_VCx_LONG_PACKET_HEADER */
                     TRACEDSI("DSI_VC%d_LONG_PACKET_HEADER = 0x%08x", x, value);
