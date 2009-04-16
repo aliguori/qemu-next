@@ -1961,9 +1961,16 @@ static void omap3_prm_write(void *opaque, target_phys_addr_t addr,
         /* CAM_PRM */
         case 0x0f58: s->cam.rm_rstst &= (value & 0xf); break;
         case 0x0fc8: s->cam.pm_wkdep = value & 0x16; break;
-        case 0x0fe0: s->cam.pm_pwstctrl = 0x030104 | (value & 3); break;
+        case 0x0fe0:
+            s->cam.pm_pwstctrl = 0x030104 | (value & 3);
+            /* TODO: support CAM wakeup control. For now let's keep the
+             * CAM domain always in ON state and if another state is
+             * requested pretend that we just woke up */
+            s->cam.pm_pwstst = 0x3;
+            s->cam.pm_prepwstst = value & 3;
+            break;
         case 0x0fe4: OMAP_RO_REG(addr); break;
-        case 0x0fe8: s->cam.pm_prepwstst = value & 0x3; break;
+        case 0x0fe8: /* ignore, we set the value in PWSTCTRL write */ break;
         /* PER_PRM */
         case 0x1058: s->per.rm_rstst &= ~(value & 0xf); break;
         case 0x10a0: s->per.pm_wken = value & 0x03efff; break;
