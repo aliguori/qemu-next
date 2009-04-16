@@ -1829,7 +1829,7 @@ static void omap3_prm_write(void *opaque, target_phys_addr_t addr,
             }
             break;
         case 0x00e4: OMAP_RO_REG(addr); break;
-        case 0x00e8: s->iva2.pm_prepwstst = value & 0xff7;
+        case 0x00e8: /* ingore, we set the value in PWSTCTRL write */ break;
         case 0x00f8:
             s->prm_irqstatus_iva2 &= ~(value & 0x7);
             omap3_prm_int_update(s);
