@@ -1804,7 +1804,30 @@ static void omap3_prm_write(void *opaque, target_phys_addr_t addr,
         case 0x0050: s->iva2.rm_rstctrl = value & 0x7; break;
         case 0x0058: s->iva2.rm_rstst &= ~(value & 0x3f0f); break;
         case 0x00c8: s->iva2.pm_wkdep = value & 0xb3; break;
-        case 0x00e0: s->iva2.pm_pwstctrl = 0xcff000 | (value & 0x300f0f); break;
+        case 0x00e0:
+            s->iva2.pm_pwstctrl = 0xcff000 | (value & 0x300f0f);
+            /* TODO: support IVA2 wakeup contol. For now let's keep the
+             * IVA2 domain always in ON state and if another state is
+             * requested pretend that we just woke up */
+            s->iva2.pm_pwstst = ((s->iva2.pm_pwstctrl >> 12) & 0xff0) | 0x07;
+            switch (value & 3) { /* POWERSTATE */
+                case 0: /* OFF */
+                    s->iva2.pm_prepwstst = 0;
+                    break;
+                case 1: /* RETENTION */
+                    s->iva2.pm_prepwstst = ((value & 0x800) >> 1) |
+                                           ((value & 0x400) >> 2) |
+                                           ((value & 0x200) >> 3) |
+                                           ((value & 0x100) >> 4) |
+                                           (value & 0x04) | 0x01;
+                    break;
+                case 3: /* ON */
+                    s->iva2.pm_prepwstst = s->iva2.pm_pwstst;
+                    break;
+                default:
+                    break;
+            }
+            break;
         case 0x00e4: OMAP_RO_REG(addr); break;
         case 0x00e8: s->iva2.pm_prepwstst = value & 0xff7;
         case 0x00f8:
