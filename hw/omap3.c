@@ -1894,9 +1894,16 @@ static void omap3_prm_write(void *opaque, target_phys_addr_t addr,
         /* SGX_PRM */
         case 0x0b58: s->sgx.rm_rstst &= ~(value & 0xf); break;
         case 0x0bc8: s->sgx.pm_wkdep = value & 0x16; break;
-        case 0x0be0: s->sgx.pm_pwstctrl = 0x030104 | (value & 0x3); break;
+        case 0x0be0:
+            s->sgx.pm_pwstctrl = 0x030104 | (value & 0x3);
+            /* TODO: support SGX wakeup control. For now let's keep the
+             * SGX domain always in ON state and if another state is
+             * requested pretend that we just woke up */
+            s->sgx.pm_pwstst = 0x3;
+            s->sgx.pm_prepwstst = value & 3;
+            break;
         case 0x0be4: OMAP_RO_REG(addr); break;
-        case 0x0be8: s->sgx.pm_prepwstst = value & 0x3; break;
+        case 0x0be8: /* ignore, we set the value in PWSTCTRL write */ break;
         /* WKUP_PRM */
         case 0x0ca0: s->wkup.pm_wken = 0x2 | (value & 0x0103c9); break;
         case 0x0ca4: s->wkup.pm_mpugrpsel = 0x0102 | (value & 0x02c9); break;
