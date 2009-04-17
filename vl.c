@@ -30,6 +30,7 @@
 #include "hw/isa.h"
 #include "hw/baum.h"
 #include "hw/bt.h"
+#include "hw/smbios.h"
 #include "net.h"
 #include "console.h"
 #include "sysemu.h"
@@ -4221,6 +4222,15 @@ static void help(int exitcode)
            "                enable virtual hardware watchdog [default=none]\n"
            "-watchdog-action reset|shutdown|poweroff|pause|debug|none\n"
            "                action when watchdog fires [default=reset]\n"
+#ifdef TARGET_I386
+           "-smbios file=binary\n"
+           "                Load SMBIOS entry from binary file\n"
+           "-smbios type=0[,vendor=str][,version=str][,date=str][,release=%%d.%%d]\n"
+           "                Specify SMBIOS type 0 fields\n"
+           "-smbios type=1[,manufacturer=str][,product=str][,version=str][,serial=str]\n"
+           "              [,uuid=uuid][,sku=str][,family=str]\n"
+           "                Specify SMBIOS type 1 fields\n"
+#endif
            "\n"
            "During emulation, the following keys are useful:\n"
            "ctrl-alt-f      toggle full screen\n"
@@ -4358,6 +4368,7 @@ enum {
 #endif
     QEMU_OPTION_watchdog,
     QEMU_OPTION_watchdog_action,
+    QEMU_OPTION_smbios,
 };
 
 typedef struct QEMUOption {
@@ -4510,6 +4521,9 @@ static const QEMUOption qemu_options[] = {
 #endif
     { "watchdog", HAS_ARG, QEMU_OPTION_watchdog },
     { "watchdog-action", HAS_ARG, QEMU_OPTION_watchdog_action },
+#ifdef TARGET_I386
+    { "smbios", HAS_ARG, QEMU_OPTION_smbios },
+#endif
     { NULL },
 };
 
@@ -4715,6 +4729,10 @@ int qemu_uuid_parse(const char *str, uint8_t *uuid)
 
     if(ret != 16)
         return -1;
+
+#ifdef TARGET_I386
+    smbios_add_field(1, offsetof(struct smbios_type_1, uuid), 16, uuid);
+#endif
 
     return 0;
 }
@@ -5418,6 +5436,12 @@ int main(int argc, char **argv, char **envp)
             case QEMU_OPTION_acpitable:
                 if(acpi_table_add(optarg) < 0) {
                     fprintf(stderr, "Wrong acpi table provided\n");
+                    exit(1);
+                }
+                break;
+            case QEMU_OPTION_smbios:
+                if(smbios_entry_add(optarg) < 0) {
+                    fprintf(stderr, "Wrong smbios provided\n");
                     exit(1);
                 }
                 break;
