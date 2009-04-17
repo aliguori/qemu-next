@@ -1131,7 +1131,6 @@ fi
 # don't provide them even if kernel supports them.
 #
 atfile=no
-if [ "$linux_user" = "yes" ] ; then
   cat > $TMPC << EOF
 #define _ATFILE_SOURCE
 #include <sys/types.h>
@@ -1148,7 +1147,6 @@ EOF
   if $cc $ARCH_CFLAGS -o $TMPE $TMPC 2> /dev/null ; then
     atfile=yes
   fi
-fi
 
 # Check if tools are available to build documentation.
 if [ -x "`which texi2html 2>/dev/null`" ] && \
