@@ -88,37 +88,16 @@ static void omap3_hsusb_otg_reset(struct omap3_hsusb_otg_s *s)
     s->forcestdby = 1;
 }
 
-static uint32_t omap3_hsusb_otg_readb(void *opaque, target_phys_addr_t addr)
-{
-    struct omap3_hsusb_otg_s *s = (struct omap3_hsusb_otg_s *)opaque;
-    if (addr < 0x200)
-        return musb_read[0](s->musb, addr);
-    if (addr < 0x400)
-        return musb_read[0](s->musb, 0x20 + ((addr >> 3 ) & 0x3c));
-    OMAP_BAD_REG(addr);
-    return 0;
-}
-
-static uint32_t omap3_hsusb_otg_readh(void *opaque, target_phys_addr_t addr)
-{
-    struct omap3_hsusb_otg_s *s = (struct omap3_hsusb_otg_s *)opaque;
-    if (addr < 0x200)
-        return musb_read[1](s->musb, addr);
-    if (addr < 0x400)
-        return musb_read[1](s->musb, 0x20 + ((addr >> 3 ) & 0x3c));
-    OMAP_BAD_REG(addr);
-    return 0;
-}
-
-static uint32_t omap3_hsusb_otg_read(void *opaque, target_phys_addr_t addr)
+static uint32_t omap3_hsusb_otg_read(int access,
+                                     void *opaque,
+                                     target_phys_addr_t addr)
 {
     struct omap3_hsusb_otg_s *s = (struct omap3_hsusb_otg_s *)opaque;
     
     if (addr < 0x200)
-        return musb_read[2](s->musb, addr);
+        return musb_read[access](s->musb, addr);
     if (addr < 0x400)
-        return musb_read[2](s->musb, 0x20 + ((addr >> 3 ) & 0x3c));
-    
+        return musb_read[access](s->musb, 0x20 + ((addr >> 3) & 0x3c));
     switch (addr) {
         case 0x400: /* OTG_REVISION */
             TRACE("OTG_REVISION: 0x%08x", s->rev);
@@ -145,41 +124,17 @@ static uint32_t omap3_hsusb_otg_read(void *opaque, target_phys_addr_t addr)
     return 0;
 }
 
-static void omap3_hsusb_otg_writeb(void *opaque, target_phys_addr_t addr,
-                                   uint32_t value)
-{
-    struct omap3_hsusb_otg_s *s = (struct omap3_hsusb_otg_s *)opaque;
-    
-    if (addr < 0x200)
-        musb_write[0](s->musb, addr, value);
-    else if (addr < 0x400)
-        musb_write[0](s->musb, 0x20 + ((addr >> 3) & 0x3c), value);
-    else
-        OMAP_BAD_REG(addr);
-}
-
-static void omap3_hsusb_otg_writeh(void *opaque, target_phys_addr_t addr,
-                                   uint32_t value)
-{
-    struct omap3_hsusb_otg_s *s = (struct omap3_hsusb_otg_s *)opaque;
-    
-    if (addr < 0x200)
-        musb_write[1](s->musb, addr, value);
-    else if (addr < 0x400)
-        musb_write[1](s->musb, 0x20 + ((addr >> 3) & 0x3c), value);
-    else
-        OMAP_BAD_REG(addr);
-}
-
-static void omap3_hsusb_otg_write(void *opaque, target_phys_addr_t addr,
+static void omap3_hsusb_otg_write(int access,
+                                  void *opaque,
+                                  target_phys_addr_t addr,
                                   uint32_t value)
 {
     struct omap3_hsusb_otg_s *s = (struct omap3_hsusb_otg_s *)opaque;
     
     if (addr < 0x200)
-        musb_write[2](s->musb, addr, value);
+        musb_write[access](s->musb, addr, value);
     else if (addr < 0x400)
-        musb_write[2](s->musb, 0x20 + ((addr >> 3) & 0x3c), value);
+        musb_write[access](s->musb, 0x20 + ((addr >> 3) & 0x3c), value);
     else switch (addr) {
         case 0x400: /* OTG_REVISION */
         case 0x408: /* OTG_SYSSTATUS */
@@ -211,16 +166,49 @@ static void omap3_hsusb_otg_write(void *opaque, target_phys_addr_t addr,
     }
 }
 
+static uint32_t omap3_hsusb_otg_readb(void *opaque, target_phys_addr_t addr)
+{
+    return omap3_hsusb_otg_read(0, opaque, addr);
+}
+
+static uint32_t omap3_hsusb_otg_readh(void *opaque, target_phys_addr_t addr)
+{
+    return omap3_hsusb_otg_read(1, opaque, addr);
+}
+
+static uint32_t omap3_hsusb_otg_readw(void *opaque, target_phys_addr_t addr)
+{
+    return omap3_hsusb_otg_read(2, opaque, addr);
+}
+
+static void omap3_hsusb_otg_writeb(void *opaque, target_phys_addr_t addr,
+                                   uint32_t value)
+{
+    omap3_hsusb_otg_write(0, opaque, addr, value);
+}
+
+static void omap3_hsusb_otg_writeh(void *opaque, target_phys_addr_t addr,
+                                   uint32_t value)
+{
+    omap3_hsusb_otg_write(1, opaque, addr, value);
+}
+
+static void omap3_hsusb_otg_writew(void *opaque, target_phys_addr_t addr,
+                                   uint32_t value)
+{
+    omap3_hsusb_otg_write(2, opaque, addr, value);
+}
+
 static CPUReadMemoryFunc *omap3_hsusb_otg_readfn[] = {
     omap3_hsusb_otg_readb,
     omap3_hsusb_otg_readh,
-    omap3_hsusb_otg_read,
+    omap3_hsusb_otg_readw,
 };
 
 static CPUWriteMemoryFunc *omap3_hsusb_otg_writefn[] = {
     omap3_hsusb_otg_writeb,
     omap3_hsusb_otg_writeh,
-    omap3_hsusb_otg_write,
+    omap3_hsusb_otg_writew,
 };
 
 static void omap3_hsusb_musb_core_intr(void *opaque, int source, int level)

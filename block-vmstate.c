@@ -24,6 +24,14 @@
 #include "qemu-common.h"
 #include "block_int.h"
 
+//#define VMSTATE_DEBUG
+
+#ifdef VMSTATE_DEBUG
+#define TRACE(fmt,...) fprintf(stderr, "%s: " fmt "\n", __FUNCTION__, ##__VA_ARGS__)
+#else
+#define TRACE(...)
+#endif
+
 #define VMSTATE_MAGIC 0x564D53544154451ALL
 #define VMSTATE_VERSION 1
 
@@ -56,6 +64,7 @@ static int vmstate_open(BlockDriverState *bs, const char *filename, int flags)
     BDRVVMState *s = bs->opaque;
     VMStateHeader header;
     
+    TRACE("open \"%s\"...", filename);
     s->fd = open(filename, O_RDWR | O_BINARY);
     if (s->fd < 0)
         return -errno;
@@ -66,6 +75,7 @@ static int vmstate_open(BlockDriverState *bs, const char *filename, int flags)
         s->state_size = be64_to_cpu(header.state_size);
         
         s->write_offset = s->state_offset;
+        TRACE("open ok, state_offset=%lld", s->state_offset);
         return 0;
     }
     close(s->fd);
@@ -74,12 +84,14 @@ static int vmstate_open(BlockDriverState *bs, const char *filename, int flags)
 
 static void vmstate_flush(BlockDriverState *bs)
 {
+    TRACE("flushing");
 }
 
 static void vmstate_close(BlockDriverState *bs)
 {
     BDRVVMState *s = bs->opaque;
     
+    TRACE("closing");
     vmstate_flush(bs);
     close(s->fd);
 }
@@ -104,6 +116,7 @@ static int vmstate_refresh_header(BDRVVMState *s)
 {
     VMStateHeader header;
     
+    TRACE("state_size = %lld", s->state_size);
     if (!lseek(s->fd, 0, SEEK_SET) &&
         read(s->fd, &header, sizeof(header)) == sizeof(header)) {
         header.state_size = cpu_to_be64(s->state_size);
@@ -118,9 +131,21 @@ static int vmstate_get_info(BlockDriverState *bs, BlockDriverInfo *bdi)
 {
     BDRVVMState *s = bs->opaque;
     
+    TRACE("vm_state_offset = %llx", s->state_offset);
     bdi->cluster_size = 0;//VMSTATE_BLOCK_SIZE;
     bdi->vm_state_offset = s->state_offset;
     return 0;
+}
+
+static int vmstate_get_buffer(BlockDriverState *bs, uint8_t *buf,
+                              int64_t pos, int size)
+{
+    BDRVVMState *s = bs->opaque;
+    
+    TRACE("pos=%lld, size=%d", pos, size);
+    if (lseek(s->fd, pos, SEEK_SET) != pos)
+        return -EIO;
+    return read(s->fd, buf, size);
 }
 
 static int vmstate_read(BlockDriverState *bs, int64_t sector_num,
@@ -128,9 +153,21 @@ static int vmstate_read(BlockDriverState *bs, int64_t sector_num,
 {
     BDRVVMState *s = bs->opaque;
     
+    TRACE("sector_num=%lld, nb_sectors=%d", sector_num, nb_sectors);
     if (lseek(s->fd, sector_num * 512, SEEK_SET) != sector_num * 512)
         return -EIO;
     return read(s->fd, buf, nb_sectors * 512);
+}
+
+static int vmstate_put_buffer(BlockDriverState *bs, const uint8_t *buf,
+                              int64_t pos, int size)
+{
+    BDRVVMState *s = bs->opaque;
+    
+    TRACE("pos=%lld, size=%d", pos, size);
+    if (lseek(s->fd, pos, SEEK_SET) != pos)
+        return -EIO;
+    return write(s->fd, buf, size);
 }
 
 static int vmstate_write(BlockDriverState *bs, int64_t sector_num,
@@ -138,6 +175,7 @@ static int vmstate_write(BlockDriverState *bs, int64_t sector_num,
 {
     BDRVVMState *s = bs->opaque;
     
+    TRACE("sector_num=%lld, nb_sectors=%d", sector_num, nb_sectors);
     if (lseek(s->fd, sector_num * 512, SEEK_SET) != sector_num * 512)
         return -EIO;
     return write(s->fd, buf, nb_sectors * 512);
@@ -147,6 +185,7 @@ static int vmstate_snapshot_goto(BlockDriverState *bs, const char *snapshot_id)
 {
     BDRVVMState *s = bs->opaque;
 
+    TRACE("state_size = %lld", s->state_size);
     return s->state_size ? 0 : -ENOENT;
 }
 
@@ -154,6 +193,7 @@ static int vmstate_snapshot_delete(BlockDriverState *bs, const char *snapshot_id
 {
     BDRVVMState *s = bs->opaque;
     
+    TRACE("delete snapshot \"%s\"...", snapshot_id);
     if (s->state_size) {
         s->state_size = 0;
         vmstate_refresh_header(s);
@@ -167,6 +207,7 @@ static int vmstate_snapshot_create(BlockDriverState *bs, QEMUSnapshotInfo *sn_in
 {
     BDRVVMState *s = bs->opaque;
     
+    TRACE("create snapshot size %u", sn_info->vm_state_size);
     if (s->state_size)
         vmstate_snapshot_delete(bs, NULL);
     s->state_size = sn_info->vm_state_size;
@@ -179,6 +220,7 @@ static int vmstate_snapshot_list(BlockDriverState *bs, QEMUSnapshotInfo **psn_ta
     BDRVVMState *s = bs->opaque;
     QEMUSnapshotInfo *sn_info;
     
+    TRACE("state_size = %lld", s->state_size);
     sn_info = qemu_mallocz(sizeof(QEMUSnapshotInfo));
     if (s->state_size) {
         pstrcpy(sn_info->id_str, sizeof(sn_info->id_str), "vmstate");
@@ -191,6 +233,7 @@ static int vmstate_snapshot_list(BlockDriverState *bs, QEMUSnapshotInfo **psn_ta
 
 static int64_t vmstate_getlength(BlockDriverState *bs)
 {
+    TRACE("returning big enough number...");
     return 1LL << 63; /* big enough? */
 }
 
@@ -209,5 +252,7 @@ BlockDriver bdrv_vmstate = {
     .bdrv_snapshot_goto = vmstate_snapshot_goto,
     .bdrv_snapshot_delete = vmstate_snapshot_delete,
     .bdrv_snapshot_list = vmstate_snapshot_list,
-    .bdrv_get_info = vmstate_get_info
+    .bdrv_get_info = vmstate_get_info,
+    .bdrv_put_buffer = vmstate_put_buffer,
+    .bdrv_get_buffer = vmstate_get_buffer,
 };
