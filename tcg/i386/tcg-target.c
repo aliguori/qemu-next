@@ -560,12 +560,6 @@ static void tcg_out_qemu_ld(TCGContext *s, const TCGArg *args,
     /* add x(r1), r0 */
     tcg_out_modrm_offset(s, 0x03, r0, r1, offsetof(CPUTLBEntry, addend) - 
                          offsetof(CPUTLBEntry, addr_read));
-#elif defined(CONFIG_USE_GUEST_BASE)
-    /*
-     * Add guest_base to all loads.
-     */
-    tcg_out_mov(s, r0, addr_reg);    /* movl addr_reg, r0 */
-    tcg_out_addi(s, r0, GUEST_BASE); /* addl $GUEST_BASE, r0 */
 #else
     r0 = addr_reg;
 #endif
@@ -800,12 +794,6 @@ static void tcg_out_qemu_st(TCGContext *s, const TCGArg *args,
     /* add x(r1), r0 */
     tcg_out_modrm_offset(s, 0x03, r0, r1, offsetof(CPUTLBEntry, addend) - 
                          offsetof(CPUTLBEntry, addr_write));
-#elif defined(CONFIG_USE_GUEST_BASE)
-    /*
-     * Add guest_base to all stores.
-     */
-    tcg_out_mov(s, r0, addr_reg);    /* movl addr_reg, r0 */
-    tcg_out_addi(s, r0, GUEST_BASE); /* addl $GUEST_BASE, r0 */
 #else
     r0 = addr_reg;
 #endif

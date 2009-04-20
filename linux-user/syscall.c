@@ -2592,8 +2592,6 @@ static inline abi_long do_shmat(int shmid, abi_ulong shmaddr, int shmflg,
         }
     }
 
-    *raddr = h2g(*raddr);
-
     mmap_unlock();
     return 0;
 }

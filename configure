@@ -177,7 +177,6 @@ softmmu="yes"
 linux_user="no"
 darwin_user="no"
 bsd_user="no"
-guest_base="no"
 build_docs="no"
 uname_release=""
 curses="yes"
@@ -441,8 +440,6 @@ for opt do
   ;;
   --enable-bsd-user) bsd_user="yes"
   ;;
-  --enable-guest-base) guest_base="yes"
-  ;;
   --enable-uname-release=*) uname_release="$optarg"
   ;;
   --sparc_cpu=*)
@@ -586,8 +583,6 @@ echo "  --enable-darwin-user     enable all darwin usermode emulation targets"
 echo "  --disable-darwin-user    disable all darwin usermode emulation targets"
 echo "  --enable-bsd-user        enable all BSD usermode emulation targets"
 echo "  --disable-bsd-user       disable all BSD usermode emulation targets"
-echo "  --enable-guest-base      enable GUEST_BASE support for usermode"
-echo "                           emulation targets"
 echo "  --fmod-lib               path to FMOD library"
 echo "  --fmod-inc               path to FMOD includes"
 echo "  --oss-lib                path to OSS library"
@@ -1124,7 +1119,7 @@ EOF
   fi
 fi
 
-##########################################
+#
 # Check for xxxat() functions when we are building linux-user
 # emulator.  This is done because older glibc versions don't
 # have syscall stubs for these implemented.  In that case we
@@ -1192,9 +1187,9 @@ else
   binsuffix="/bin"
 fi
 
-echo "Install prefix     $prefix"
-echo "BIOS directory     $prefix$datasuffix"
-echo "binary directory   $prefix$binsuffix"
+echo "Install prefix    $prefix"
+echo "BIOS directory    $prefix$datasuffix"
+echo "binary directory  $prefix$binsuffix"
 if test "$mingw32" = "no" ; then
 echo "Manual directory  $prefix$mansuffix"
 echo "ELF interp prefix $interp_prefix"
@@ -1215,22 +1210,22 @@ echo "profiler          $profiler"
 echo "static build      $static"
 echo "-Werror enabled   $werror"
 if test "$darwin" = "yes" ; then
-    echo "Cocoa support      $cocoa"
+    echo "Cocoa support     $cocoa"
 fi
-echo "SDL support        $sdl"
+echo "SDL support       $sdl"
 if test "$sdl" != "no" ; then
-    echo "SDL static link    $sdl_static"
+    echo "SDL static link   $sdl_static"
 fi
-echo "curses support     $curses"
-echo "atfile support     $atfile"
-echo "mingw32 support    $mingw32"
-echo "Audio drivers      $audio_drv_list"
-echo "Extra audio cards  $audio_card_list"
-echo "Mixer emulation    $mixemu"
-echo "VNC TLS support    $vnc_tls"
+echo "curses support    $curses"
+echo "atfile support    $atfile"
+echo "mingw32 support   $mingw32"
+echo "Audio drivers     $audio_drv_list"
+echo "Extra audio cards $audio_card_list"
+echo "Mixer emulation   $mixemu"
+echo "VNC TLS support   $vnc_tls"
 if test "$vnc_tls" = "yes" ; then
-    echo "    TLS CFLAGS     $vnc_tls_cflags"
-    echo "    TLS LIBS       $vnc_tls_libs"
+    echo "    TLS CFLAGS    $vnc_tls_cflags"
+    echo "    TLS LIBS      $vnc_tls_libs"
 fi
 echo "VNC SASL support  $vnc_sasl"
 if test "$vnc_sasl" = "yes" ; then
@@ -1238,20 +1233,19 @@ if test "$vnc_sasl" = "yes" ; then
     echo "    SASL LIBS      $vnc_sasl_libs"
 fi
 if test -n "$sparc_cpu"; then
-    echo "Target Sparc Arch  $sparc_cpu"
+    echo "Target Sparc Arch $sparc_cpu"
 fi
-echo "kqemu support      $kqemu"
-echo "brlapi support     $brlapi"
-echo "Documentation      $build_docs"
+echo "kqemu support     $kqemu"
+echo "brlapi support    $brlapi"
+echo "Documentation     $build_docs"
 [ ! -z "$uname_release" ] && \
-echo "uname -r           $uname_release"
-echo "NPTL support       $nptl"
-echo "vde support        $vde"
-echo "AIO support        $aio"
-echo "Install blobs      $blobs"
-echo "KVM support        $kvm"
-echo "fdt support        $fdt"
-echo "GUEST_BASE support $guest_base"
+echo "uname -r          $uname_release"
+echo "NPTL support      $nptl"
+echo "vde support       $vde"
+echo "AIO support       $aio"
+echo "Install blobs     $blobs"
+echo "KVM support       $kvm"
+echo "fdt support       $fdt"
 
 if test $sdl_too_old = "yes"; then
 echo "-> Your SDL version is too old - please upgrade to have SDL support"
@@ -1897,9 +1891,6 @@ fi
 if test "$target_user_only" = "yes" -a "$elfload32" = "yes"; then
   echo "TARGET_HAS_ELFLOAD32=yes" >> $config_mak
   echo "#define TARGET_HAS_ELFLOAD32 1" >> $config_h
-fi
-if test "$target_user_only" = "yes" -a "$guest_base" = "yes"; then
-  echo "#define CONFIG_USE_GUEST_BASE 1" >> $config_h
 fi
 if test "$target_bsd_user" = "yes" ; then
   echo "CONFIG_BSD_USER=yes" >> $config_mak

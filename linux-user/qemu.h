@@ -123,12 +123,9 @@ typedef struct TaskState {
     uint8_t stack[0];
 } __attribute__((aligned(16))) TaskState;
 
-extern const char *exec_path;
+extern char *exec_path;
 void init_task_state(TaskState *ts);
 extern const char *qemu_uname_release;
-#if defined(CONFIG_USE_GUEST_BASE)
-extern unsigned long mmap_min_addr;
-#endif
 
 /* ??? See if we can avoid exposing so much of the loader internals.  */
 /*
