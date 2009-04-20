@@ -1,8 +1,6 @@
 #ifndef QEMU_H
 #define QEMU_H
 
-#include <sys/queue.h>
-
 #include <signal.h>
 #include <string.h>
 
@@ -46,9 +44,6 @@ struct image_info {
         abi_ulong       entry;
         abi_ulong       code_offset;
         abi_ulong       data_offset;
-        abi_ulong       saved_auxv;
-        abi_ulong       arg_start;
-        abi_ulong       arg_end;
         char            **host_argv;
 	int		personality;
 };
@@ -89,12 +84,10 @@ struct emulated_sigtable {
                              first signal, we put it here */
 };
 
-struct process;
-
 /* NOTE: we force a big alignment so that the stack stored after is
    aligned too */
 typedef struct TaskState {
-    pid_t ts_tid;     /* tid (or pid) of this task */
+    struct TaskState *next;
 #ifdef TARGET_ARM
     /* FPA state */
     FPA11 fpa;
@@ -121,20 +114,17 @@ typedef struct TaskState {
 #endif
     int used; /* non zero if used */
     struct image_info *info;
-    struct linux_binprm *bprm;
 
     struct emulated_sigtable sigtab[TARGET_NSIG];
     struct sigqueue sigqueue_table[MAX_SIGQUEUE_SIZE]; /* siginfo queue */
     struct sigqueue *first_free; /* first free siginfo queue entry */
     int signal_pending; /* non zero if a signal may be pending */
 
-    uint8_t stack[];
+    uint8_t stack[0];
 } __attribute__((aligned(16))) TaskState;
 
 extern const char *exec_path;
 void init_task_state(TaskState *ts);
-extern void task_settid(TaskState *);
-extern void stop_all_tasks(void);
 extern const char *qemu_uname_release;
 #if defined(CONFIG_USE_GUEST_BASE)
 extern unsigned long mmap_min_addr;
@@ -162,15 +152,13 @@ struct linux_binprm {
         char **argv;
         char **envp;
         char * filename;        /* Name of binary */
-        int (*core_dump)(int, const CPUState *); /* coredump routine */
 };
 
 void do_init_thread(struct target_pt_regs *regs, struct image_info *infop);
 abi_ulong loader_build_argptr(int envc, int argc, abi_ulong sp,
                               abi_ulong stringp, int push_ptr);
 int loader_exec(const char * filename, char ** argv, char ** envp,
-             struct target_pt_regs * regs, struct image_info *infop,
-             struct linux_binprm *);
+             struct target_pt_regs * regs, struct image_info *infop);
 
 int load_elf_binary(struct linux_binprm * bprm, struct target_pt_regs * regs,
                     struct image_info * info);
