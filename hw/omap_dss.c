@@ -27,9 +27,9 @@
 #include "vga_int.h"
 #include "pixel_ops.h"
 
-//#define OMAP_DSS_DEBUG
-//#define OMAP_DSS_DEBUG_DISPC
-//#define OMAP_DSS_DEBUG_DISS
+#define OMAP_DSS_DEBUG
+#define OMAP_DSS_DEBUG_DISPC
+#define OMAP_DSS_DEBUG_DISS
 #define OMAP_DSS_DEBUG_DSI
 //#define OMAP_DSS_DEBUG_RFBI
 //#define OMAP_DSS_DEBUG_VENC
@@ -70,6 +70,8 @@
 #define TRACERFBI(...)
 #define TRACEVENC(...)
 #endif
+
+#define OMAP_DSI_RX_FIFO_SIZE 32 /* FIXME: imaginary value */
 
 struct omap3_lcd_panel_s {
     struct omap_dss_s *dss;
@@ -192,9 +194,13 @@ struct omap_dss_s {
             uint32_t te;
             uint32_t lp_header;
             uint32_t lp_payload;
+            int lp_counter;
             uint32_t sp_header;
             uint32_t irqst;
             uint32_t irqen;
+            uint32_t rx_fifo[OMAP_DSI_RX_FIFO_SIZE];
+            int rx_fifo_pos;
+            int rx_fifo_len;
         } vc[4];
         /* phy registers */
         uint32_t phy_cfg0;
@@ -336,6 +342,7 @@ static void omap_dss_save_state(QEMUFile *f, void *opaque)
         qemu_put_be32(f, s->dsi.vc[i].te);
         qemu_put_be32(f, s->dsi.vc[i].lp_header);
         qemu_put_be32(f, s->dsi.vc[i].lp_payload);
+        qemu_put_sbe32(f, s->dsi.vc[i].lp_counter);
         qemu_put_be32(f, s->dsi.vc[i].sp_header);
         qemu_put_be32(f, s->dsi.vc[i].irqst);
         qemu_put_be32(f, s->dsi.vc[i].irqen);
@@ -468,6 +475,7 @@ static int omap_dss_load_state(QEMUFile *f, void *opaque, int version_id)
         s->dsi.vc[i].te = qemu_get_be32(f);
         s->dsi.vc[i].lp_header = qemu_get_be32(f);
         s->dsi.vc[i].lp_payload = qemu_get_be32(f);
+        s->dsi.vc[i].lp_counter = qemu_get_sbe32(f);
         s->dsi.vc[i].sp_header = qemu_get_be32(f);
         s->dsi.vc[i].irqst = qemu_get_be32(f);
         s->dsi.vc[i].irqen = qemu_get_be32(f);
@@ -503,6 +511,7 @@ static void omap_dsi_reset(struct omap_dss_s *s)
     s->dsi.phy_cfg0 = 0x1a3c1a28;
     s->dsi.phy_cfg1 = 0x420a1875;
     s->dsi.phy_cfg2 = 0xb800001b;
+    omap_dss_interrupt_update(s);
 }
 
 static void omap_rfbi_reset(struct omap_dss_s *s)
@@ -604,7 +613,7 @@ void omap_dss_reset(struct omap_dss_s *s)
 static uint32_t omap_diss_read(void *opaque, target_phys_addr_t addr)
 {
     struct omap_dss_s *s = (struct omap_dss_s *) opaque;
-
+    uint32_t x;
 
     switch (addr) {
     case 0x00:	/* DSS_REVISIONNUMBER */
@@ -617,14 +626,19 @@ static uint32_t omap_diss_read(void *opaque, target_phys_addr_t addr)
 
     case 0x14:	/* DSS_SYSSTATUS */
         TRACEDISS("DSS_SYSSTATUS: 0x1");
-        return 1;						/* RESETDONE */
+        return 1; /* RESETDONE */
             
     case 0x18:  /* DSS_IRQSTATUS */
-        TRACEDISS("DSS_IRQSTATUS: 0x%08x",
-                 ((s->dsi.irqst & s->dsi.irqen) ? 2 : 0) 
-                 | ((s->dispc.irqst & s->dispc.irqen) ? 1 : 0));
-        return ((s->dsi.irqst & s->dsi.irqen) ? 2 : 0) 
-            | ((s->dispc.irqst & s->dispc.irqen) ? 1 : 0);
+        x = (s->dispc.irqst & s->dispc.irqen) ? 1 : 0;
+        if ((s->dsi.irqst & s->dsi.irqen)
+            | (s->dsi.complexio_irqst & s->dsi.complexio_irqen)
+            | (s->dsi.vc[0].irqst & s->dsi.vc[0].irqen)
+            | (s->dsi.vc[1].irqst & s->dsi.vc[1].irqen)
+            | (s->dsi.vc[2].irqst & s->dsi.vc[2].irqen)
+            | (s->dsi.vc[3].irqst & s->dsi.vc[3].irqen))
+            x |= 2;
+        TRACEDISS("DSS_IRQSTATUS: 0x%08x", x);
+        return x;
             
     case 0x40:	/* DSS_CONTROL */
         TRACEDISS("DSS_CONTROL: 0x%08x", s->control);
@@ -1777,10 +1791,43 @@ static CPUWriteMemoryFunc *omap_im3_writefn[] = {
     omap_im3_write,
 };
 
+static void omap_dsi_push_rx_fifo(struct omap_dss_s *s, int ch, uint32_t value)
+{
+    int p;
+    
+    if (s->dsi.vc[ch].rx_fifo_len < OMAP_DSI_RX_FIFO_SIZE) {
+        p = s->dsi.vc[ch].rx_fifo_pos + s->dsi.vc[ch].rx_fifo_len;
+        if (p >= OMAP_DSI_RX_FIFO_SIZE)
+            p -= OMAP_DSI_RX_FIFO_SIZE;
+        s->dsi.vc[ch].rx_fifo[p] = value;
+        s->dsi.vc[ch].rx_fifo_len++;
+    } else {
+        fprintf(stderr, "%s: vc%d rx fifo overflow!\n",
+                __FUNCTION__, ch);
+    }
+}
+
+static uint32_t omap_dsi_pull_rx_fifo(struct omap_dss_s *s, int ch)
+{
+    int v = 0;
+    
+    if (!s->dsi.vc[ch].rx_fifo_len) {
+        fprintf(stderr, "%s: vc%d rx fifo underflow!\n",
+                __FUNCTION__, ch);
+    } else {
+        v = s->dsi.vc[ch].rx_fifo[s->dsi.vc[ch].rx_fifo_pos++];
+        s->dsi.vc[ch].rx_fifo_len--;
+        if (s->dsi.vc[ch].rx_fifo_pos >= OMAP_DSI_RX_FIFO_SIZE)
+            s->dsi.vc[ch].rx_fifo_pos = 0;
+    }
+    
+    return v;
+}
+
 static uint32_t omap_dsi_read(void *opaque, target_phys_addr_t addr)
 {
     struct omap_dss_s *s = (struct omap_dss_s *)opaque;
-    uint32_t x;
+    uint32_t x, y;
     
     switch (addr) {
         case 0x000: /* DSI_REVISION */
@@ -1865,8 +1912,15 @@ static uint32_t omap_dsi_read(void *opaque, target_phys_addr_t addr)
                     TRACEDSI("DSI_VC%d_LONG_PACKET_PAYLOAD = 0", x);
                     return 0;
                 case 0x10: /* DSI_VCx_SHORT_PACKET_HEADER */
-                    /* TODO: this should return value from RX FIFO */
-                    TRACEDSI("DSI_VC%d_SHORT_PACKET_HEADER = 0", x);
+                    if (s->dsi.vc[x].ctrl & (1 << 20)) { /* RX_FIFO_NOT_EMPTY */
+                        y = omap_dsi_pull_rx_fifo(s, x);
+                        TRACEDSI("DSI_VC%d_SHORT_PACKET_HEADER = 0x%08x", x, y);
+                        if (!s->dsi.vc[x].rx_fifo_len)
+                            s->dsi.vc[x].ctrl &= ~(1 << 20); /* RX_FIFO_NOT_EMPTY */
+                        return y;
+                    }
+                    fprintf(stderr, "%s: vc%d rx fifo underflow!\n",
+                            __FUNCTION__, x);
                     return 0;
                 case 0x18: /* DSI_VCx_IRQSTATUS */
                     TRACEDSI("DSI_VC%d_IRQSTATUS = 0x%08x", x, s->dsi.vc[x].irqst);
@@ -1926,6 +1980,107 @@ static uint32_t omap_dsi_read(void *opaque, target_phys_addr_t addr)
     return 0;
 }
 
+static void omap_dsi_txdone(struct omap_dss_s *s, int ch, int bta)
+{
+    if (bta) {
+        s->dsi.vc[ch].irqst |= 0x20;       /* BTA_IRQ */
+        if (s->dsi.vc[ch].rx_fifo_len)
+            s->dsi.vc[ch].ctrl |= 1 << 20; /* RX_FIFO_NOT_EMPTY */
+    } else {
+        s->dsi.vc[ch].irqst |= 0x04;       /* PACKET_SENT_IRQ */
+    }
+    s->dsi.irqst |= 1 << ch;               /* VIRTUAL_CHANNELx_IRQ */
+    omap_dss_interrupt_update(s);
+}
+
+static void omap_dsi_short_write(struct omap_dss_s *s, int ch)
+{
+    uint32_t data = s->dsi.vc[ch].sp_header;
+    
+    switch (data & 0xff) { /* id */
+        case 0x05: /* short_write_0 */
+            switch ((data >> 8) & 0xff) {
+                case 0x11: /* exit sleep */
+                    TRACEDSI("exit sleep");
+                    break;
+                case 0x28: /* display off */
+                    TRACEDSI("display off");
+                    break;
+                case 0x29: /* display on */
+                    TRACEDSI("display on");
+                    break;
+                default:
+                    fprintf(stderr, "%s: unknown command 0x%02x for id 0x%02x\n",
+                            __FUNCTION__, (data >> 8) & 0xff, data & 0xff);
+                    break;
+            }
+            break;
+        case 0x06: /* read */
+            switch ((data >> 8) & 0xff) {
+                case 0x0a: /* power mode */
+                    TRACEDSI("get power mode");
+                    omap_dsi_push_rx_fifo(s, ch, 0x00000021);
+                    break;
+                case 0x0b: /* address mode */
+                    TRACEDSI("get address mode");
+                    omap_dsi_push_rx_fifo(s, ch, 0x00000021);
+                    break;
+                case 0xda: /* id1 */
+                case 0xdb: /* id2 */
+                case 0xdc: /* id3 */
+                    TRACEDSI("get id%d", ((data >> 8) & 0xff) - 0xd9);
+                    omap_dsi_push_rx_fifo(s, ch, 0x00000021);
+                    break;
+                default:
+                    fprintf(stderr, "%s: read unknown register 0x%02x\n",
+                            __FUNCTION__, (data >> 8) & 0xff);
+                    omap_dsi_push_rx_fifo(s, ch, 0x00000021);
+                    break;
+            }
+            break;
+        case 0x09: /* null packet */
+            break;
+        case 0x15: /* short_write_1 */
+            switch ((data >> 8) & 0xff) {
+                case 0x36: /* set address mode */
+                    TRACEDSI("set address mode 0x%02x - ignored", (data >> 16) & 0xff);
+                    break;
+                default:
+                    TRACEDSI("short write 0x%04x - ignored", (data >> 8) & 0xffff);
+                    break;
+            }
+            break;
+        default:
+            fprintf(stderr, "%s: unknown id (0x%02x)\n",
+                    __FUNCTION__, data & 0xff);
+            break;
+    }
+
+    omap_dsi_txdone(s, ch, (s->dsi.vc[ch].ctrl & 0x04)); /* BTA_SHORT_EN */
+}
+
+static void omap_dsi_long_write(struct omap_dss_s *s, int ch)
+{
+    uint32_t hdr = s->dsi.vc[ch].lp_header;
+    
+    switch (hdr & 0xff) { /* id */
+        case 0x09: /* null packet */
+            TRACEDSI("null packet");
+            break;
+        case 0x39: /* long write */
+            TRACEDSI("long write, payload = 0x%08x - ignored", s->dsi.vc[ch].lp_payload);
+            break;
+        default:
+            fprintf(stderr, "%s: unknown id (0x%02x)\n",
+                    __FUNCTION__, hdr & 0xff);
+            break;
+    }
+    if (s->dsi.vc[ch].lp_counter > 0)
+        s->dsi.vc[ch].lp_counter -= 4;
+    if (s->dsi.vc[ch].lp_counter <= 0)
+        omap_dsi_txdone(s, ch, (s->dsi.vc[ch].ctrl & 0x08)); /* BTA_LONG_EN */
+}
+
 static void omap_dsi_write(void *opaque, target_phys_addr_t addr,
                            uint32_t value)
 {
@@ -1951,10 +2106,12 @@ static void omap_dsi_write(void *opaque, target_phys_addr_t addr,
         case 0x018: /* DSI_IRQSTATUS */
             TRACEDSI("DSI_IRQSTATUS = 0x%08x", value);
             s->dsi.irqst &= ~(value & 0x1fc3b0);
+            omap_dss_interrupt_update(s);
             break;
         case 0x01c: /* DSI_IRQENABLE */
             TRACEDSI("DSI_IRQENABLE = 0x%08x", value);
             s->dsi.irqen = value & 0x1fc3b0;
+            omap_dss_interrupt_update(s);
             break;
         case 0x040: /* DSI_CTRL */
             TRACEDSI("DSI_CTRL = 0x%08x", value);
@@ -1976,10 +2133,12 @@ static void omap_dsi_write(void *opaque, target_phys_addr_t addr,
                 s->dsi.irqst |= (1 << 10);  /* COMPLEXIO_ERR_IRQ */
             else
                 s->dsi.irqst &= ~(1 << 10); /* COMPLEXIO_ERR_IRQ */
+            omap_dss_interrupt_update(s);
             break;
         case 0x050: /* DSI_COMPLEXIO_IRQENABLE */
             TRACEDSI("DSI_COMPLEXIO_IRQENABLE = 0x%08x", value);
             s->dsi.complexio_irqen = value & 0xc3f39ce7;
+            omap_dss_interrupt_update(s);
             break;
         case 0x054: /* DSI_CLK_CTRL */
             TRACEDSI("DSI_CLK_CTRL = 0x%08x", value);
@@ -2034,6 +2193,10 @@ static void omap_dsi_write(void *opaque, target_phys_addr_t addr,
             switch (addr & 0x1f) {
                 case 0x00: /* DSI_VCx_CTRL */
                     TRACEDSI("DSI_VC%d_CTRL = 0x%08x", x, value);
+                    if (((value >> 27) & 7) != 4)
+                        fprintf(stderr, "%s: RX DMA mode not implemented\n", __FUNCTION__);
+                    if (((value >> 21) & 7) != 4)
+                        fprintf(stderr, "%s: TX DMA mode not implemented\n", __FUNCTION__);
                     if (value & 1) { /* VC_EN */
                         s->dsi.vc[x].ctrl &= ~0x40; /* BTA_EN */
                         s->dsi.vc[x].ctrl |= 0x1;   /* VC_EN */
@@ -2041,11 +2204,8 @@ static void omap_dsi_write(void *opaque, target_phys_addr_t addr,
                         s->dsi.vc[x].ctrl = (s->dsi.vc[x].ctrl & 0x11c020) |
                                             (value & 0x3fee039f);
                     }
-//                    if (value & 0x40) { /* BTA_EN */
-//                        s->dsi.irqst |= 1 << x;     /* VIRTUAL_CHANNELx_IRQ */
-//                        s->dsi.vc[x].irqst |= 0x20; /* BTA_IRQ */
-//                        omap_dss_interrupt_update(s);
-//                    }
+                    if (value & 0x40) /* BTA_EN */
+                        omap_dsi_txdone(s, x, 1);
                     break;
                 case 0x04: /* DSI_VCx_TE */
                     TRACEDSI("DSI_VC%d_TE = 0x%08x", x, value);
@@ -2057,16 +2217,20 @@ static void omap_dsi_write(void *opaque, target_phys_addr_t addr,
                     s->dsi.vc[x].te = value;
                     break;
                 case 0x08: /* DSI_VCx_LONG_PACKET_HEADER */
-                    TRACEDSI("DSI_VC%d_LONG_PACKET_HEADER = 0x%08x", x, value);
+                    TRACEDSI("DSI_VC%d_LONG_PACKET_HEADER id=0x%02x, len=0x%04x, ecc=0x%02x",
+                             x, value & 0xff, (value >> 8) & 0xffff, (value >> 24) & 0xff);
                     s->dsi.vc[x].lp_header = value;
+                    s->dsi.vc[x].lp_counter = (value >> 8) & 0xffff;
                     break;
                 case 0x0c: /* DSI_VCx_LONG_PACKET_PAYLOAD */
                     TRACEDSI("DSI_VC%d_LONG_PACKET_PAYLOAD = 0x%08x", x, value);
                     s->dsi.vc[x].lp_payload = value;
+                    omap_dsi_long_write(s, x);
                     break;
                 case 0x10: /* DSI_VCx_SHORT_PACKET_HEADER */
                     TRACEDSI("DSI_VC%d_SHORT_PACKET_HEADER = 0x%08x", x, value);
                     s->dsi.vc[x].sp_header = value;
+                    omap_dsi_short_write(s, x);
                     break;
                 case 0x18: /* DSI_VCx_IRQSTATUS */
                     TRACEDSI("DSI_VC%d_IRQSTATUS = 0x%08x", x, value);
@@ -2075,10 +2239,12 @@ static void omap_dsi_write(void *opaque, target_phys_addr_t addr,
                         s->dsi.irqst |= 1 << x;    /* VIRTUAL_CHANNELx_IRQ */
                     else
                         s->dsi.irqst &= ~(1 << x); /* VIRTUAL_CHANNELx_IRQ */
+                    omap_dss_interrupt_update(s);
                     break;
                 case 0x1c: /* DSI_VCx_IRQENABLE */
                     TRACEDSI("DSI_VC%d_IRQENABLE = 0x%08x", x, value);
                     s->dsi.vc[x].irqen = value & 0x1ff;
+                    omap_dss_interrupt_update(s);
                     break;
                 default:
                     OMAP_BAD_REG(addr);
