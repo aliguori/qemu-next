@@ -93,12 +93,6 @@
 
 //#define DEBUG
 
-#if defined(TARGET_I386) || defined(TARGET_ARM) || defined(TARGET_SPARC) \
-    || defined(TARGET_M68K) || defined(TARGET_SH4) || defined(TARGET_CRIS)
-/* 16 bit uid wrappers emulation */
-#define USE_UID16
-#endif
-
 //#include <linux/msdos_fs.h>
 #define	VFAT_IOCTL_READDIR_BOTH		_IOR('r', 1, struct linux_dirent [2])
 #define	VFAT_IOCTL_READDIR_SHORT	_IOR('r', 2, struct linux_dirent [2])
@@ -1932,14 +1926,12 @@ static abi_long do_socketcall(int num, abi_ulong vptr)
 }
 #endif
 
-#ifdef TARGET_NR_ipc
 #define N_SHM_REGIONS	32
 
 static struct shm_region {
     abi_ulong	start;
     abi_ulong	size;
 } shm_regions[N_SHM_REGIONS];
-#endif
 
 struct target_ipc_perm
 {
@@ -2432,6 +2424,224 @@ end:
     return ret;
 }
 
+struct target_shmid_ds
+{
+    struct target_ipc_perm shm_perm;
+    abi_ulong shm_segsz;
+    abi_ulong shm_atime;
+#if TARGET_ABI_BITS == 32
+    abi_ulong __unused1;
+#endif
+    abi_ulong shm_dtime;
+#if TARGET_ABI_BITS == 32
+    abi_ulong __unused2;
+#endif
+    abi_ulong shm_ctime;
+#if TARGET_ABI_BITS == 32
+    abi_ulong __unused3;
+#endif
+    int shm_cpid;
+    int shm_lpid;
+    abi_ulong shm_nattch;
+    unsigned long int __unused4;
+    unsigned long int __unused5;
+};
+
+static inline abi_long target_to_host_shmid_ds(struct shmid_ds *host_sd,
+                                               abi_ulong target_addr)
+{
+    struct target_shmid_ds *target_sd;
+
+    if (!lock_user_struct(VERIFY_READ, target_sd, target_addr, 1))
+        return -TARGET_EFAULT;
+    if (target_to_host_ipc_perm(&(host_sd->shm_perm), target_addr))
+        return -TARGET_EFAULT;
+    __put_user(target_sd->shm_segsz, &host_sd->shm_segsz);
+    __put_user(target_sd->shm_atime, &host_sd->shm_atime);
+    __put_user(target_sd->shm_dtime, &host_sd->shm_dtime);
+    __put_user(target_sd->shm_ctime, &host_sd->shm_ctime);
+    __put_user(target_sd->shm_cpid, &host_sd->shm_cpid);
+    __put_user(target_sd->shm_lpid, &host_sd->shm_lpid);
+    __put_user(target_sd->shm_nattch, &host_sd->shm_nattch);
+    unlock_user_struct(target_sd, target_addr, 0);
+    return 0;
+}
+
+static inline abi_long host_to_target_shmid_ds(abi_ulong target_addr,
+                                               struct shmid_ds *host_sd)
+{
+    struct target_shmid_ds *target_sd;
+
+    if (!lock_user_struct(VERIFY_WRITE, target_sd, target_addr, 0))
+        return -TARGET_EFAULT;
+    if (host_to_target_ipc_perm(target_addr, &(host_sd->shm_perm)))
+        return -TARGET_EFAULT;
+    __put_user(host_sd->shm_segsz, &target_sd->shm_segsz);
+    __put_user(host_sd->shm_atime, &target_sd->shm_atime);
+    __put_user(host_sd->shm_dtime, &target_sd->shm_dtime);
+    __put_user(host_sd->shm_ctime, &target_sd->shm_ctime);
+    __put_user(host_sd->shm_cpid, &target_sd->shm_cpid);
+    __put_user(host_sd->shm_lpid, &target_sd->shm_lpid);
+    __put_user(host_sd->shm_nattch, &target_sd->shm_nattch);
+    unlock_user_struct(target_sd, target_addr, 1);
+    return 0;
+}
+
+struct  target_shminfo {
+    abi_ulong shmmax;
+    abi_ulong shmmin;
+    abi_ulong shmmni;
+    abi_ulong shmseg;
+    abi_ulong shmall;
+};
+
+static inline abi_long host_to_target_shminfo(abi_ulong target_addr,
+                                              struct shminfo *host_shminfo)
+{
+    struct target_shminfo *target_shminfo;
+    if (!lock_user_struct(VERIFY_WRITE, target_shminfo, target_addr, 0))
+        return -TARGET_EFAULT;
+    __put_user(host_shminfo->shmmax, &target_shminfo->shmmax);
+    __put_user(host_shminfo->shmmin, &target_shminfo->shmmin);
+    __put_user(host_shminfo->shmmni, &target_shminfo->shmmni);
+    __put_user(host_shminfo->shmseg, &target_shminfo->shmseg);
+    __put_user(host_shminfo->shmall, &target_shminfo->shmall);
+    unlock_user_struct(target_shminfo, target_addr, 1);
+    return 0;
+}
+
+struct target_shm_info {
+    int used_ids;
+    abi_ulong shm_tot;
+    abi_ulong shm_rss;
+    abi_ulong shm_swp;
+    abi_ulong swap_attempts;
+    abi_ulong swap_successes;
+};
+
+static inline abi_long host_to_target_shm_info(abi_ulong target_addr,
+                                               struct shm_info *host_shm_info)
+{
+    struct target_shm_info *target_shm_info;
+    if (!lock_user_struct(VERIFY_WRITE, target_shm_info, target_addr, 0))
+        return -TARGET_EFAULT;
+    __put_user(host_shm_info->used_ids, &target_shm_info->used_ids);
+    __put_user(host_shm_info->shm_tot, &target_shm_info->shm_tot);
+    __put_user(host_shm_info->shm_rss, &target_shm_info->shm_rss);
+    __put_user(host_shm_info->shm_swp, &target_shm_info->shm_swp);
+    __put_user(host_shm_info->swap_attempts, &target_shm_info->swap_attempts);
+    __put_user(host_shm_info->swap_successes, &target_shm_info->swap_successes);
+    unlock_user_struct(target_shm_info, target_addr, 1);
+    return 0;
+}
+
+static inline abi_long do_shmctl(int shmid, int cmd, abi_long buf)
+{
+    struct shmid_ds dsarg;
+    struct shminfo shminfo;
+    struct shm_info shm_info;
+    abi_long ret = -TARGET_EINVAL;
+
+    cmd &= 0xff;
+
+    switch(cmd) {
+    case IPC_STAT:
+    case IPC_SET:
+    case SHM_STAT:
+        if (target_to_host_shmid_ds(&dsarg, buf))
+            return -TARGET_EFAULT;
+        ret = get_errno(shmctl(shmid, cmd, &dsarg));
+        if (host_to_target_shmid_ds(buf, &dsarg))
+            return -TARGET_EFAULT;
+        break;
+    case IPC_INFO:
+        ret = get_errno(shmctl(shmid, cmd, (struct shmid_ds *)&shminfo));
+        if (host_to_target_shminfo(buf, &shminfo))
+            return -TARGET_EFAULT;
+        break;
+    case SHM_INFO:
+        ret = get_errno(shmctl(shmid, cmd, (struct shmid_ds *)&shm_info));
+        if (host_to_target_shm_info(buf, &shm_info))
+            return -TARGET_EFAULT;
+        break;
+    case IPC_RMID:
+    case SHM_LOCK:
+    case SHM_UNLOCK:
+        ret = get_errno(shmctl(shmid, cmd, NULL));
+        break;
+    }
+
+    return ret;
+}
+
+static inline abi_ulong do_shmat(int shmid, abi_ulong shmaddr, int shmflg)
+{
+    abi_long raddr;
+    void *host_raddr;
+    struct shmid_ds shm_info;
+    int i,ret;
+
+    /* find out the length of the shared memory segment */
+    ret = get_errno(shmctl(shmid, IPC_STAT, &shm_info));
+    if (is_error(ret)) {
+        /* can't get length, bail out */
+        return ret;
+    }
+
+    mmap_lock();
+
+    if (shmaddr)
+        host_raddr = shmat(shmid, (void *)g2h(shmaddr), shmflg);
+    else {
+        abi_ulong mmap_start;
+
+        mmap_start = mmap_find_vma(0, shm_info.shm_segsz);
+
+        if (mmap_start == -1) {
+            errno = ENOMEM;
+            host_raddr = (void *)-1;
+        } else
+            host_raddr = shmat(shmid, g2h(mmap_start), shmflg | SHM_REMAP);
+    }
+
+    if (host_raddr == (void *)-1) {
+        mmap_unlock();
+        return get_errno((long)host_raddr);
+    }
+    raddr=h2g((unsigned long)host_raddr);
+
+    page_set_flags(raddr, raddr + shm_info.shm_segsz,
+                   PAGE_VALID | PAGE_READ |
+                   ((shmflg & SHM_RDONLY)? 0 : PAGE_WRITE));
+
+    for (i = 0; i < N_SHM_REGIONS; i++) {
+        if (shm_regions[i].start == 0) {
+            shm_regions[i].start = raddr;
+            shm_regions[i].size = shm_info.shm_segsz;
+            break;
+        }
+    }
+
+    mmap_unlock();
+    return raddr;
+
+}
+
+static inline abi_long do_shmdt(abi_ulong shmaddr)
+{
+    int i;
+
+    for (i = 0; i < N_SHM_REGIONS; ++i) {
+        if (shm_regions[i].start == shmaddr) {
+            shm_regions[i].start = 0;
+            page_set_flags(shmaddr, shm_regions[i].size, 0);
+            break;
+        }
+    }
+
+    return get_errno(shmdt(g2h(shmaddr)));
+}
+
 #ifdef TARGET_NR_ipc
 /* ??? This only works with linear mappings.  */
 /* do_ipc() must return target values and target errnos. */
@@ -2441,8 +2651,6 @@ static abi_long do_ipc(unsigned int call, int first,
 {
     int version;
     abi_long ret = 0;
-    struct shmid_ds shm_info;
-    int i;
 
     version = call >> 16;
     call &= 0xffff;
@@ -2497,48 +2705,24 @@ static abi_long do_ipc(unsigned int call, int first,
         break;
 
     case IPCOP_shmat:
+        switch (version) {
+        default:
         {
             abi_ulong raddr;
-            void *host_addr;
-            /* SHM_* flags are the same on all linux platforms */
-            host_addr = shmat(first, (void *)g2h(ptr), second);
-            if (host_addr == (void *)-1) {
-                ret = get_errno((long)host_addr);
-                break;
-            }
-            raddr = h2g((unsigned long)host_addr);
-            /* find out the length of the shared memory segment */
-            
-            ret = get_errno(shmctl(first, IPC_STAT, &shm_info));
-            if (is_error(ret)) {
-                /* can't get length, bail out */
-                shmdt(host_addr);
-                break;
-            }
-            page_set_flags(raddr, raddr + shm_info.shm_segsz,
-                           PAGE_VALID | PAGE_READ |
-                           ((second & SHM_RDONLY)? 0: PAGE_WRITE));
-            for (i = 0; i < N_SHM_REGIONS; ++i) {
-                if (shm_regions[i].start == 0) {
-                    shm_regions[i].start = raddr;
-                    shm_regions[i].size = shm_info.shm_segsz;
-                    break;
-                }
-            }
+            raddr = do_shmat(first, ptr, second);
+            if (is_error(raddr))
+                return get_errno(raddr);
             if (put_user_ual(raddr, third))
                 return -TARGET_EFAULT;
-            ret = 0;
+            break;
+        }
+        case 1:
+            ret = -TARGET_EINVAL;
+            break;
         }
 	break;
     case IPCOP_shmdt:
-	for (i = 0; i < N_SHM_REGIONS; ++i) {
-	    if (shm_regions[i].start == ptr) {
-		shm_regions[i].start = 0;
-		page_set_flags(ptr, shm_regions[i].size, 0);
-		break;
-	    }
-	}
-	ret = get_errno(shmdt((void *)g2h(ptr)));
+        ret = do_shmdt(ptr);
 	break;
 
     case IPCOP_shmget:
@@ -2548,18 +2732,9 @@ static abi_long do_ipc(unsigned int call, int first,
 
 	/* IPC_* and SHM_* command values are the same on all linux platforms */
     case IPCOP_shmctl:
-        switch(second) {
-        case IPC_RMID:
-        case SHM_LOCK:
-        case SHM_UNLOCK:
-            ret = get_errno(shmctl(first, second, NULL));
-            break;
-        default:
-            goto unimplemented;
-        }
+        ret = do_shmctl(first, second, third);
         break;
     default:
-    unimplemented:
 	gemu_log("Unsupported ipc call: %d (version %d)\n", call, version);
 	ret = -TARGET_ENOSYS;
 	break;
@@ -2805,6 +2980,7 @@ static void target_to_host_termios (void *dst, const void *src)
         target_to_host_bitmask(tswap32(target->c_lflag), lflag_tbl);
     host->c_line = target->c_line;
 
+    memset(host->c_cc, 0, sizeof(host->c_cc));
     host->c_cc[VINTR] = target->c_cc[TARGET_VINTR];
     host->c_cc[VQUIT] = target->c_cc[TARGET_VQUIT];
     host->c_cc[VERASE] = target->c_cc[TARGET_VERASE];
@@ -2839,6 +3015,7 @@ static void host_to_target_termios (void *dst, const void *src)
         tswap32(host_to_target_bitmask(host->c_lflag, lflag_tbl));
     target->c_line = host->c_line;
 
+    memset(target->c_cc, 0, sizeof(target->c_cc));
     target->c_cc[TARGET_VINTR] = host->c_cc[VINTR];
     target->c_cc[TARGET_VQUIT] = host->c_cc[VQUIT];
     target->c_cc[TARGET_VERASE] = host->c_cc[VERASE];
@@ -3207,10 +3384,13 @@ static void *clone_func(void *arg)
 {
     new_thread_info *info = arg;
     CPUState *env;
+    TaskState *ts;
 
     env = info->env;
     thread_env = env;
+    ts = (TaskState *)thread_env->opaque;
     info->tid = gettid();
+    task_settid(ts);
     if (info->child_tidptr)
         put_user_u32(info->tid, info->child_tidptr);
     if (info->parent_tidptr)
@@ -3262,6 +3442,7 @@ static int do_fork(CPUState *env, unsigned int flags, abi_ulong newsp,
         flags &= ~(CLONE_VFORK | CLONE_VM);
 
     if (flags & CLONE_VM) {
+        TaskState *parent_ts = (TaskState *)env->opaque;
 #if defined(USE_NPTL)
         new_thread_info info;
         pthread_attr_t attr;
@@ -3274,6 +3455,8 @@ static int do_fork(CPUState *env, unsigned int flags, abi_ulong newsp,
         /* Init regs that differ from the parent.  */
         cpu_clone_regs(new_env, newsp);
         new_env->opaque = ts;
+        ts->bprm = parent_ts->bprm;
+        ts->info = parent_ts->info;
 #if defined(USE_NPTL)
         nptl_flags = flags;
         flags &= ~CLONE_NPTL_FLAGS2;
@@ -3385,7 +3568,7 @@ static abi_long do_fcntl(int fd, int cmd, abi_ulong arg)
         fl.l_len = tswapl(target_fl->l_len);
         fl.l_pid = tswapl(target_fl->l_pid);
         unlock_user_struct(target_fl, arg, 0);
-        ret = get_errno(fcntl(fd, cmd, &fl));
+        ret = get_errno(fcntl(fd, F_GETLK, &fl));
         if (ret == 0) {
             if (!lock_user_struct(VERIFY_WRITE, target_fl, arg, 0))
                 return -TARGET_EFAULT;
@@ -3408,7 +3591,7 @@ static abi_long do_fcntl(int fd, int cmd, abi_ulong arg)
         fl.l_len = tswapl(target_fl->l_len);
         fl.l_pid = tswapl(target_fl->l_pid);
         unlock_user_struct(target_fl, arg, 0);
-        ret = get_errno(fcntl(fd, cmd, &fl));
+        ret = get_errno(fcntl(fd, F_SETLK+(cmd-TARGET_F_SETLK), &fl));
         break;
 
     case TARGET_F_GETLK64:
@@ -3420,7 +3603,7 @@ static abi_long do_fcntl(int fd, int cmd, abi_ulong arg)
         fl64.l_len = tswapl(target_fl64->l_len);
         fl64.l_pid = tswap16(target_fl64->l_pid);
         unlock_user_struct(target_fl64, arg, 0);
-        ret = get_errno(fcntl(fd, cmd >> 1, &fl64));
+        ret = get_errno(fcntl(fd, F_GETLK64, &fl64));
         if (ret == 0) {
             if (!lock_user_struct(VERIFY_WRITE, target_fl64, arg, 0))
                 return -TARGET_EFAULT;
@@ -3442,7 +3625,7 @@ static abi_long do_fcntl(int fd, int cmd, abi_ulong arg)
         fl64.l_len = tswapl(target_fl64->l_len);
         fl64.l_pid = tswap16(target_fl64->l_pid);
         unlock_user_struct(target_fl64, arg, 0);
-        ret = get_errno(fcntl(fd, cmd >> 1, &fl64));
+        ret = get_errno(fcntl(fd, F_SETLK64+(cmd-TARGET_F_SETLK64), &fl64));
         break;
 
     case F_GETFL:
@@ -5319,6 +5502,26 @@ abi_long do_syscall(void *cpu_env, int num, abi_long arg1,
         ret = do_msgsnd(arg1, arg2, arg3, arg4);
         break;
 #endif
+#ifdef TARGET_NR_shmget
+    case TARGET_NR_shmget:
+        ret = get_errno(shmget(arg1, arg2, arg3));
+        break;
+#endif
+#ifdef TARGET_NR_shmctl
+    case TARGET_NR_shmctl:
+        ret = do_shmctl(arg1, arg2, arg3);
+        break;
+#endif
+#ifdef TARGET_NR_shmat
+    case TARGET_NR_shmat:
+        ret = do_shmat(arg1, arg2, arg3);
+        break;
+#endif
+#ifdef TARGET_NR_shmdt
+    case TARGET_NR_shmdt:
+        ret = do_shmdt(arg1);
+        break;
+#endif
     case TARGET_NR_fsync:
         ret = get_errno(fsync(arg1));
         break;
@@ -6324,7 +6527,7 @@ abi_long do_syscall(void *cpu_env, int num, abi_long arg1,
             ret = get_errno(fcntl(arg1, cmd, &fl));
 	    break;
         default:
-            ret = do_fcntl(arg1, cmd, arg3);
+            ret = do_fcntl(arg1, arg2, arg3);
             break;
         }
 	break;

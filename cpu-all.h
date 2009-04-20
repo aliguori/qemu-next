@@ -629,8 +629,12 @@ static inline void stfq_be_p(void *ptr, float64 v)
 /* On some host systems the guest address space is reserved on the host.
  * This allows the guest address space to be offset to a convenient location.
  */
-//#define GUEST_BASE 0x20000000
+#if defined(CONFIG_USE_GUEST_BASE)
+extern unsigned long guest_base;
+#define GUEST_BASE guest_base
+#else
 #define GUEST_BASE 0
+#endif
 
 /* All direct uses of g2h and h2g need to go away for usermode softmmu.  */
 #define g2h(x) ((void *)((unsigned long)(x) + GUEST_BASE))
@@ -739,6 +743,8 @@ extern unsigned long qemu_host_page_mask;
 #define PAGE_RESERVED  0x0020
 
 void page_dump(FILE *f);
+int walk_memory_regions(void *,
+    int (*fn)(void *, unsigned long, unsigned long, unsigned long));
 int page_get_flags(target_ulong address);
 void page_set_flags(target_ulong start, target_ulong end, int flags);
 int page_check_range(target_ulong start, target_ulong len, int flags);
