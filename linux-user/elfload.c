@@ -133,45 +133,7 @@ static inline void init_thread(struct target_pt_regs *regs, struct image_info *i
     regs->rip = infop->entry;
 }
 
-#define USE_ELF_CORE_DUMP
-
-typedef struct target_pt_regs elf_gregset_t;
-
-/*
- * For register format that gdb uses, see <sys/reg.h>.  These
- * should be in same format (which is usually same as target_pt_regs).
- */
-static void elf_core_copy_regs(elf_gregset_t *elfregs, const CPUState *env)
-{
-    (void) memset(elfregs, 0, sizeof (*elfregs));
-
-    /* GPRs */
-    elfregs->r15 = env->regs[15];
-    elfregs->r14 = env->regs[14];
-    elfregs->r13 = env->regs[13];
-    elfregs->r12 = env->regs[12];
-    elfregs->rbp = env->regs[R_EBP];
-    elfregs->rbx = env->regs[R_EBX];
-    elfregs->r11 = env->regs[11];
-    elfregs->r10 = env->regs[10];
-    elfregs->r9 = env->regs[9];
-    elfregs->r8 = env->regs[8];
-    elfregs->rax = env->regs[R_EAX];
-    elfregs->rcx = env->regs[R_ECX];
-    elfregs->rdx = env->regs[R_EDX];
-    elfregs->rsi = env->regs[R_ESI];
-    elfregs->rdi = env->regs[R_EDI];
-    elfregs->orig_rax = env->regs[R_EAX];
-    elfregs->rip = env->eip;
-    elfregs->rsp = env->regs[R_ESP];
-    elfregs->eflags = env->eflags;
-
-    /* segment registers */
-    elfregs->cs = env->segs[R_CS].selector;
-    elfregs->ss = env->segs[R_SS].selector;
-}
-
-#else /* !TARGET_X86_64 */
+#else
 
 #define ELF_START_MMAP 0x80000000
 
@@ -201,38 +163,7 @@ static inline void init_thread(struct target_pt_regs *regs, struct image_info *i
        A value of 0 tells we have no such handler.  */
     regs->edx = 0;
 }
-
-#define USE_ELF_CORE_DUMP
-
-typedef struct target_pt_regs elf_gregset_t;
-
-static void elf_core_copy_regs(elf_gregset_t *elfregs, const CPUState *env)
-{
-    (void) memset(elfregs, 0, sizeof (*elfregs));
-
-    /* GPRs */
-    elfregs->ebx = env->regs[R_EBX];
-    elfregs->ecx = env->regs[R_ECX];
-    elfregs->edx = env->regs[R_EDX];
-    elfregs->esi = env->regs[R_ESI];
-    elfregs->edi = env->regs[R_EDI];
-    elfregs->ebp = env->regs[R_EBP];
-    elfregs->eax = env->regs[R_EAX];
-    elfregs->orig_eax = env->regs[R_EAX]; /* XXX */
-    elfregs->esp = env->regs[R_ESP];
-    elfregs->eip = env->eip;
-    elfregs->eflags = env->eflags;
-
-    /* segment registers */
-    elfregs->xds = env->segs[R_DS].selector;
-    elfregs->xes = env->segs[R_ES].selector;
-    elfregs->xcs = env->segs[R_CS].selector;
-    elfregs->xss = env->segs[R_SS].selector;
-    elfregs->xfs = env->segs[R_FS].selector;
-    elfregs->xgs = env->segs[R_GS].selector;
-}
-
-#endif /* TARGET_i386 */
+#endif
 
 #define ELF_EXEC_PAGESIZE	4096
 
@@ -275,10 +206,10 @@ static inline void init_thread(struct target_pt_regs *regs, struct image_info *i
 
 typedef struct target_pt_regs elf_gregset_t;
 
+static void elf_core_copy_regs(elf_gregset_t *, const CPUState *);
+
 static void elf_core_copy_regs(elf_gregset_t *elfregs, const CPUState *env)
 {
-    (void) memset(elfregs, 0, sizeof (*elfregs));
-
     elfregs->ARM_r0 = env->regs[0];
     elfregs->ARM_r1 = env->regs[1];
     elfregs->ARM_r2 = env->regs[2];
@@ -1681,9 +1612,9 @@ struct memelfnote {
 };
 
 struct elf_siginfo {
-    int  si_signo; /* signal number */
-    int  si_code;  /* extra code */
-    int  si_errno; /* errno */
+    abi_long  si_signo; /* signal number */
+    abi_long  si_code;  /* extra code */
+    abi_long  si_errno; /* errno */
 };
 
 struct elf_prstatus {
@@ -1691,10 +1622,10 @@ struct elf_prstatus {
     short              pr_cursig;    /* Current signal */
     target_ulong       pr_sigpend;   /* XXX */
     target_ulong       pr_sighold;   /* XXX */
-    int                pr_pid;
-    int                pr_ppid;
-    int                pr_pgrp;
-    int                pr_sid;
+    abi_long           pr_pid;
+    abi_long           pr_ppid;
+    abi_long           pr_pgrp;
+    abi_long           pr_sid;
     struct target_timeval pr_utime;  /* XXX User time */
     struct target_timeval pr_stime;  /* XXX System time */
     struct target_timeval pr_cutime; /* XXX Cumulative user time */
