@@ -138,6 +138,7 @@ int main(int argc, char **argv)
 #include "hw/isa.h"
 #include "hw/baum.h"
 #include "hw/bt.h"
+#include "hw/smbios.h"
 #include "bt-host.h"
 #include "net.h"
 #include "monitor.h"
@@ -434,7 +435,7 @@ void cpu_outb(CPUState *env, int addr, int val)
 {
     LOG_IOPORT("outb: %04x %02x\n", addr, val);
     ioport_write(0, addr, val);
-#ifdef USE_KQEMU
+#ifdef CONFIG_KQEMU
     if (env)
         env->last_io_time = cpu_get_time_fast();
 #endif
@@ -444,7 +445,7 @@ void cpu_outw(CPUState *env, int addr, int val)
 {
     LOG_IOPORT("outw: %04x %04x\n", addr, val);
     ioport_write(1, addr, val);
-#ifdef USE_KQEMU
+#ifdef CONFIG_KQEMU
     if (env)
         env->last_io_time = cpu_get_time_fast();
 #endif
@@ -454,7 +455,7 @@ void cpu_outl(CPUState *env, int addr, int val)
 {
     LOG_IOPORT("outl: %04x %08x\n", addr, val);
     ioport_write(2, addr, val);
-#ifdef USE_KQEMU
+#ifdef CONFIG_KQEMU
     if (env)
         env->last_io_time = cpu_get_time_fast();
 #endif
@@ -465,7 +466,7 @@ int cpu_inb(CPUState *env, int addr)
     int val;
     val = ioport_read(0, addr);
     LOG_IOPORT("inb : %04x %02x\n", addr, val);
-#ifdef USE_KQEMU
+#ifdef CONFIG_KQEMU
     if (env)
         env->last_io_time = cpu_get_time_fast();
 #endif
@@ -477,7 +478,7 @@ int cpu_inw(CPUState *env, int addr)
     int val;
     val = ioport_read(1, addr);
     LOG_IOPORT("inw : %04x %04x\n", addr, val);
-#ifdef USE_KQEMU
+#ifdef CONFIG_KQEMU
     if (env)
         env->last_io_time = cpu_get_time_fast();
 #endif
@@ -489,7 +490,7 @@ int cpu_inl(CPUState *env, int addr)
     int val;
     val = ioport_read(2, addr);
     LOG_IOPORT("inl : %04x %08x\n", addr, val);
-#ifdef USE_KQEMU
+#ifdef CONFIG_KQEMU
     if (env)
         env->last_io_time = cpu_get_time_fast();
 #endif
@@ -1356,7 +1357,7 @@ static void host_alarm_handler(int host_signum)
         if (env) {
             /* stop the currently executing cpu because a timer occured */
             cpu_exit(env);
-#ifdef USE_KQEMU
+#ifdef CONFIG_KQEMU
             if (env->kqemu_enabled) {
                 kqemu_cpu_interrupt(env);
             }
@@ -3094,10 +3095,10 @@ static int ram_load_v1(QEMUFile *f, void *opaque)
     int ret;
     ram_addr_t i;
 
-    if (qemu_get_be32(f) != phys_ram_size)
+    if (qemu_get_be32(f) != last_ram_offset)
         return -EINVAL;
-    for(i = 0; i < phys_ram_size; i+= TARGET_PAGE_SIZE) {
-        ret = ram_get_page(f, phys_ram_base + i, TARGET_PAGE_SIZE);
+    for(i = 0; i < last_ram_offset; i+= TARGET_PAGE_SIZE) {
+        ret = ram_get_page(f, qemu_get_ram_ptr(i), TARGET_PAGE_SIZE);
         if (ret)
             return ret;
     }
@@ -3182,29 +3183,29 @@ static int ram_save_block(QEMUFile *f)
     ram_addr_t addr = 0;
     int found = 0;
 
-    while (addr < phys_ram_size) {
+    while (addr < last_ram_offset) {
         if (cpu_physical_memory_get_dirty(current_addr, MIGRATION_DIRTY_FLAG)) {
-            uint8_t ch;
+            uint8_t *p;
 
             cpu_physical_memory_reset_dirty(current_addr,
                                             current_addr + TARGET_PAGE_SIZE,
                                             MIGRATION_DIRTY_FLAG);
 
-            ch = *(phys_ram_base + current_addr);
+            p = qemu_get_ram_ptr(current_addr);
 
-            if (is_dup_page(phys_ram_base + current_addr, ch)) {
+            if (is_dup_page(p, *p)) {
                 qemu_put_be64(f, current_addr | RAM_SAVE_FLAG_COMPRESS);
-                qemu_put_byte(f, ch);
+                qemu_put_byte(f, *p);
             } else {
                 qemu_put_be64(f, current_addr | RAM_SAVE_FLAG_PAGE);
-                qemu_put_buffer(f, phys_ram_base + current_addr, TARGET_PAGE_SIZE);
+                qemu_put_buffer(f, p, TARGET_PAGE_SIZE);
             }
 
             found = 1;
             break;
         }
         addr += TARGET_PAGE_SIZE;
-        current_addr = (saved_addr + addr) % phys_ram_size;
+        current_addr = (saved_addr + addr) % last_ram_offset;
     }
 
     return found;
@@ -3217,7 +3218,7 @@ static ram_addr_t ram_save_remaining(void)
     ram_addr_t addr;
     ram_addr_t count = 0;
 
-    for (addr = 0; addr < phys_ram_size; addr += TARGET_PAGE_SIZE) {
+    for (addr = 0; addr < last_ram_offset; addr += TARGET_PAGE_SIZE) {
         if (cpu_physical_memory_get_dirty(addr, MIGRATION_DIRTY_FLAG))
             count++;
     }
@@ -3231,7 +3232,7 @@ static int ram_save_live(QEMUFile *f, int stage, void *opaque)
 
     if (stage == 1) {
         /* Make sure all dirty bits are set */
-        for (addr = 0; addr < phys_ram_size; addr += TARGET_PAGE_SIZE) {
+        for (addr = 0; addr < last_ram_offset; addr += TARGET_PAGE_SIZE) {
             if (!cpu_physical_memory_get_dirty(addr, MIGRATION_DIRTY_FLAG))
                 cpu_physical_memory_set_dirty(addr);
         }
@@ -3239,7 +3240,7 @@ static int ram_save_live(QEMUFile *f, int stage, void *opaque)
         /* Enable dirty memory tracking */
         cpu_physical_memory_set_dirty_tracking(1);
 
-        qemu_put_be64(f, phys_ram_size | RAM_SAVE_FLAG_MEM_SIZE);
+        qemu_put_be64(f, last_ram_offset | RAM_SAVE_FLAG_MEM_SIZE);
     }
 
     while (!qemu_file_rate_limit(f)) {
@@ -3272,13 +3273,14 @@ static int ram_load_dead(QEMUFile *f, void *opaque)
 
     if (ram_decompress_open(s, f) < 0)
         return -EINVAL;
-    for(i = 0; i < phys_ram_size; i+= BDRV_HASH_BLOCK_SIZE) {
+    for(i = 0; i < last_ram_offset; i+= BDRV_HASH_BLOCK_SIZE) {
         if (ram_decompress_buf(s, buf, 1) < 0) {
             fprintf(stderr, "Error while reading ram block header\n");
             goto error;
         }
         if (buf[0] == 0) {
-            if (ram_decompress_buf(s, phys_ram_base + i, BDRV_HASH_BLOCK_SIZE) < 0) {
+            if (ram_decompress_buf(s, qemu_get_ram_ptr(i),
+                                   BDRV_HASH_BLOCK_SIZE) < 0) {
                 fprintf(stderr, "Error while reading ram block address=0x%08" PRIx64, (uint64_t)i);
                 goto error;
             }
@@ -3302,7 +3304,7 @@ static int ram_load(QEMUFile *f, void *opaque, int version_id)
         return ram_load_v1(f, opaque);
 
     if (version_id == 2) {
-        if (qemu_get_be32(f) != phys_ram_size)
+        if (qemu_get_be32(f) != last_ram_offset)
             return -EINVAL;
         return ram_load_dead(f, opaque);
     }
@@ -3317,7 +3319,7 @@ static int ram_load(QEMUFile *f, void *opaque, int version_id)
         addr &= TARGET_PAGE_MASK;
 
         if (flags & RAM_SAVE_FLAG_MEM_SIZE) {
-            if (addr != phys_ram_size)
+            if (addr != last_ram_offset)
                 return -EINVAL;
         }
 
@@ -3328,9 +3330,9 @@ static int ram_load(QEMUFile *f, void *opaque, int version_id)
         
         if (flags & RAM_SAVE_FLAG_COMPRESS) {
             uint8_t ch = qemu_get_byte(f);
-            memset(phys_ram_base + addr, ch, TARGET_PAGE_SIZE);
+            memset(qemu_get_ram_ptr(addr), ch, TARGET_PAGE_SIZE);
         } else if (flags & RAM_SAVE_FLAG_PAGE)
-            qemu_get_buffer(f, phys_ram_base + addr, TARGET_PAGE_SIZE);
+            qemu_get_buffer(f, qemu_get_ram_ptr(addr), TARGET_PAGE_SIZE);
     } while (!(flags & RAM_SAVE_FLAG_EOS));
 
     return 0;
@@ -3341,7 +3343,7 @@ void qemu_service_io(void)
     CPUState *env = cpu_single_env;
     if (env) {
         cpu_exit(env);
-#ifdef USE_KQEMU
+#ifdef CONFIG_KQEMU
         if (env->kqemu_enabled) {
             kqemu_cpu_interrupt(env);
         }
@@ -3622,6 +3624,8 @@ void qemu_system_reset(void)
     for(re = first_reset_entry; re != NULL; re = re->next) {
         re->func(re->opaque);
     }
+    if (kvm_enabled())
+        kvm_sync_vcpus();
 }
 
 void qemu_system_reset_request(void)
@@ -3940,10 +3944,15 @@ static int main_loop(void)
     return ret;
 }
 
+static void version(void)
+{
+    printf("QEMU PC emulator version " QEMU_VERSION QEMU_PKGVERSION ", Copyright (c) 2003-2008 Fabrice Bellard\n");
+}
+
 static void help(int exitcode)
 {
-    printf("QEMU PC emulator version " QEMU_VERSION ", Copyright (c) 2003-2008 Fabrice Bellard\n"
-           "usage: %s [options] [disk_image]\n"
+    version();
+    printf("usage: %s [options] [disk_image]\n"
            "\n"
            "'disk_image' is a raw hard image image for IDE hard disk 0\n"
            "\n"
@@ -4192,7 +4201,7 @@ static BOOL WINAPI qemu_ctrl_handler(DWORD type)
 }
 #endif
 
-static int qemu_uuid_parse(const char *str, uint8_t *uuid)
+int qemu_uuid_parse(const char *str, uint8_t *uuid)
 {
     int ret;
 
@@ -4205,6 +4214,10 @@ static int qemu_uuid_parse(const char *str, uint8_t *uuid)
 
     if(ret != 16)
         return -1;
+
+#ifdef TARGET_I386
+    smbios_add_field(1, offsetof(struct smbios_type_1, uuid), 16, uuid);
+#endif
 
     return 0;
 }
@@ -4598,6 +4611,10 @@ int main(int argc, char **argv, char **envp)
             case QEMU_OPTION_h:
                 help(0);
                 break;
+            case QEMU_OPTION_version:
+                version();
+                exit(0);
+                break;
             case QEMU_OPTION_m: {
                 uint64_t value;
                 char *ptr;
@@ -4617,7 +4634,7 @@ int main(int argc, char **argv, char **envp)
 
                 /* On 32-bit hosts, QEMU is limited by virtual address space */
                 if (value > (2047 << 20)
-#ifndef USE_KQEMU
+#ifndef CONFIG_KQEMU
                     && HOST_LONG_BITS == 32
 #endif
                     ) {
@@ -4785,8 +4802,14 @@ int main(int argc, char **argv, char **envp)
                     exit(1);
                 }
                 break;
+            case QEMU_OPTION_smbios:
+                if(smbios_entry_add(optarg) < 0) {
+                    fprintf(stderr, "Wrong smbios provided\n");
+                    exit(1);
+                }
+                break;
 #endif
-#ifdef USE_KQEMU
+#ifdef CONFIG_KQEMU
             case QEMU_OPTION_no_kqemu:
                 kqemu_allowed = 0;
                 break;
@@ -4797,7 +4820,7 @@ int main(int argc, char **argv, char **envp)
 #ifdef CONFIG_KVM
             case QEMU_OPTION_enable_kvm:
                 kvm_allowed = 1;
-#ifdef USE_KQEMU
+#ifdef CONFIG_KQEMU
                 kqemu_allowed = 0;
 #endif
                 break;
@@ -4953,7 +4976,7 @@ int main(int argc, char **argv, char **envp)
         }
     }
 
-#if defined(CONFIG_KVM) && defined(USE_KQEMU)
+#if defined(CONFIG_KVM) && defined(CONFIG_KQEMU)
     if (kvm_allowed && kqemu_allowed) {
         fprintf(stderr,
                 "You can not enable both KVM and kqemu at the same time\n");
@@ -5032,7 +5055,7 @@ int main(int argc, char **argv, char **envp)
     }
 #endif
 
-#ifdef USE_KQEMU
+#ifdef CONFIG_KQEMU
     if (smp_cpus > 1)
         kqemu_allowed = 0;
 #endif
@@ -5122,31 +5145,21 @@ int main(int argc, char **argv, char **envp)
             exit(1);
 
     /* init the memory */
-    phys_ram_size = machine->ram_require & ~RAMSIZE_FIXED;
+    if (ram_size == 0)
+        ram_size = DEFAULT_RAM_SIZE * 1024 * 1024;
 
-    if (machine->ram_require & RAMSIZE_FIXED) {
-        if (ram_size > 0) {
-            if (ram_size < phys_ram_size) {
-                fprintf(stderr, "Machine `%s' requires %llu bytes of memory\n",
-                                machine->name, (unsigned long long) phys_ram_size);
-                exit(-1);
-            }
-
-            phys_ram_size = ram_size;
-        } else
-            ram_size = phys_ram_size;
-    } else {
-        if (ram_size == 0)
-            ram_size = DEFAULT_RAM_SIZE * 1024 * 1024;
-
-        phys_ram_size += ram_size;
+#ifdef CONFIG_KQEMU
+    /* FIXME: This is a nasty hack because kqemu can't cope with dynamic
+       guest ram allocation.  It needs to go away.  */
+    if (kqemu_allowed) {
+        kqemu_phys_ram_size = ram_size + VGA_RAM_SIZE + 4 * 1024 * 1024;
+        kqemu_phys_ram_base = qemu_vmalloc(kqemu_phys_ram_size);
+        if (!kqemu_phys_ram_base) {
+            fprintf(stderr, "Could not allocate physical memory\n");
+            exit(1);
+        }
     }
-
-    phys_ram_base = qemu_vmalloc(phys_ram_size);
-    if (!phys_ram_base) {
-        fprintf(stderr, "Could not allocate physical memory\n");
-        exit(1);
-    }
+#endif
 
     /* init the dynamic translator */
     cpu_exec_init_all(tb_size * 1024 * 1024);
