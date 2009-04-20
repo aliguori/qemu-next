@@ -3559,7 +3559,7 @@ static abi_long do_fcntl(int fd, int cmd, abi_ulong arg)
         fl.l_len = tswapl(target_fl->l_len);
         fl.l_pid = tswapl(target_fl->l_pid);
         unlock_user_struct(target_fl, arg, 0);
-        ret = get_errno(fcntl(fd, cmd, &fl));
+        ret = get_errno(fcntl(fd, F_GETLK, &fl));
         if (ret == 0) {
             if (!lock_user_struct(VERIFY_WRITE, target_fl, arg, 0))
                 return -TARGET_EFAULT;
@@ -3582,7 +3582,7 @@ static abi_long do_fcntl(int fd, int cmd, abi_ulong arg)
         fl.l_len = tswapl(target_fl->l_len);
         fl.l_pid = tswapl(target_fl->l_pid);
         unlock_user_struct(target_fl, arg, 0);
-        ret = get_errno(fcntl(fd, cmd, &fl));
+        ret = get_errno(fcntl(fd, F_SETLK+(cmd-TARGET_F_SETLK), &fl));
         break;
 
     case TARGET_F_GETLK64:
@@ -3594,7 +3594,7 @@ static abi_long do_fcntl(int fd, int cmd, abi_ulong arg)
         fl64.l_len = tswapl(target_fl64->l_len);
         fl64.l_pid = tswap16(target_fl64->l_pid);
         unlock_user_struct(target_fl64, arg, 0);
-        ret = get_errno(fcntl(fd, cmd >> 1, &fl64));
+        ret = get_errno(fcntl(fd, F_GETLK64, &fl64));
         if (ret == 0) {
             if (!lock_user_struct(VERIFY_WRITE, target_fl64, arg, 0))
                 return -TARGET_EFAULT;
@@ -3616,7 +3616,7 @@ static abi_long do_fcntl(int fd, int cmd, abi_ulong arg)
         fl64.l_len = tswapl(target_fl64->l_len);
         fl64.l_pid = tswap16(target_fl64->l_pid);
         unlock_user_struct(target_fl64, arg, 0);
-        ret = get_errno(fcntl(fd, cmd >> 1, &fl64));
+        ret = get_errno(fcntl(fd, F_SETLK64+(cmd-TARGET_F_SETLK64), &fl64));
         break;
 
     case F_GETFL:
@@ -6518,7 +6518,7 @@ abi_long do_syscall(void *cpu_env, int num, abi_long arg1,
             ret = get_errno(fcntl(arg1, cmd, &fl));
 	    break;
         default:
-            ret = do_fcntl(arg1, cmd, arg3);
+            ret = do_fcntl(arg1, arg2, arg3);
             break;
         }
 	break;
