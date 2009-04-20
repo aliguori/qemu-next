@@ -63,7 +63,7 @@ typedef struct OHCIPort {
 enum ohci_type {
     OHCI_TYPE_PCI,
     OHCI_TYPE_PXA,
-    OHCI_TYPE_OMAP
+    OHCI_TYPE_OMAP,
     OHCI_TYPE_SM501,
 };
 
@@ -1749,13 +1749,14 @@ void usb_ohci_init_pxa(target_phys_addr_t base, int num_ports, int devfn,
     cpu_register_physical_memory(base, 0x1000, ohci->mem);
 }
 
-int usb_ohci_init_omap(target_phys_addr_t base, uint32_t region_size,
+void usb_ohci_init_omap(target_phys_addr_t base, uint32_t region_size,
                        int num_ports, qemu_irq irq)
 {
     OHCIState *ohci = (OHCIState *)qemu_mallocz(sizeof(OHCIState));
     
-    usb_ohci_init(ohci, num_ports, -1, irq, OHCI_TYPE_OMAP, "OHCI USB");
-    return ohci->mem;
+    usb_ohci_init(ohci, num_ports, -1, irq, OHCI_TYPE_OMAP, "OHCI USB" ,0);
+
+    cpu_register_physical_memory(base, 0x1000, ohci->mem);
 }
 
 void usb_ohci_init_sm501(uint32_t mmio_base, uint32_t localmem_base,
