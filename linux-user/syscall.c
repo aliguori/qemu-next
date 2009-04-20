@@ -318,7 +318,7 @@ sys_getcwd1(char *buf, size_t size)
       /* getcwd() sets errno */
       return (-1);
   }
-  return strlen(buf)+1;
+  return (0);
 }
 
 #ifdef CONFIG_ATFILE
