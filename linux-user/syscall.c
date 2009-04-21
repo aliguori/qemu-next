@@ -6683,17 +6683,22 @@ abi_long do_syscall(void *cpu_env, int num, abi_long arg1,
 #if defined(TARGET_NR_utimensat) && defined(__NR_utimensat)
     case TARGET_NR_utimensat:
         {
-            struct timespec ts[2];
-            target_to_host_timespec(ts, arg3);
-            target_to_host_timespec(ts+1, arg3+sizeof(struct target_timespec));
+            struct timespec *tsp, ts[2];
+            if (!arg3) {
+                tsp = NULL;
+            } else {
+                target_to_host_timespec(ts, arg3);
+                target_to_host_timespec(ts+1, arg3+sizeof(struct target_timespec));
+                tsp = ts;
+            }
             if (!arg2)
-                ret = get_errno(sys_utimensat(arg1, NULL, ts, arg4));
+                ret = get_errno(sys_utimensat(arg1, NULL, tsp, arg4));
             else {
                 if (!(p = lock_user_string(arg2))) {
                     ret = -TARGET_EFAULT;
                     goto fail;
                 }
-                ret = get_errno(sys_utimensat(arg1, path(p), ts, arg4));
+                ret = get_errno(sys_utimensat(arg1, path(p), tsp, arg4));
                 unlock_user(p, arg2, 0);
             }
         }
