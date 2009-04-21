@@ -956,12 +956,17 @@ typedef void (*omap3_lcd_panel_fn_t)(uint8_t *, const uint8_t *, unsigned int);
 struct omap3_lcd_panel_s;
 struct omap_dss_s;
 void omap_dss_reset(struct omap_dss_s *s);
-struct omap_dss_s *omap_dss_init(struct omap_mpu_state_s *mpu,
-                                 struct omap_target_agent_s *ta,
+struct omap_dss_s *omap_dss_init(struct omap_target_agent_s *ta,
                                  qemu_irq irq, qemu_irq drq,
                                  omap_clk fck1, omap_clk fck2, omap_clk ck54m,
                                  omap_clk ick1, omap_clk ick2);
+struct omap_dss_s *omap3_dss_init(struct omap_target_agent_s *ta,
+                                  qemu_irq irq, qemu_irq line_trigger,
+                                  qemu_irq dma0, qemu_irq dma1,
+                                  qemu_irq dma2, qemu_irq dma3);
 void omap_rfbi_attach(struct omap_dss_s *s, int cs, struct rfbi_chip_s *chip);
+void omap_dsi_attach(struct omap_dss_s *s, int vc, void *,
+                     uint32_t (*txrx)(void *, uint32_t, int));
 void omap3_lcd_panel_attach(struct omap_dss_s *s, int cs, struct omap3_lcd_panel_s *lcd_panel);
 void *omap3_lcd_panel_init(void);
 

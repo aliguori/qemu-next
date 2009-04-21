@@ -4835,9 +4835,13 @@ struct omap_mpu_state_s *omap3530_mpu_init(unsigned long sdram_size,
                                  s->drq[OMAP3XXX_DMA_UART3_RX],
                                  chr_uart3);
     
-    s->dss = omap_dss_init(s, omap3_l4ta_init(s->l4, L4A_DSS), 
-                    s->irq[0][OMAP_INT_3XXX_DSS_IRQ], s->drq[OMAP24XX_DMA_DSS],
-                   NULL,NULL,NULL,NULL,NULL);
+    s->dss = omap3_dss_init(omap3_l4ta_init(s->l4, L4A_DSS),
+                            s->irq[0][OMAP_INT_3XXX_DSS_IRQ],
+                            s->drq[OMAP3XXX_DMA_DSS_LINETRIGGER],
+                            s->drq[OMAP3XXX_DMA_DSS0],
+                            s->drq[OMAP3XXX_DMA_DSS1],
+                            s->drq[OMAP3XXX_DMA_DSS2],
+                            s->drq[OMAP3XXX_DMA_DSS3]);
 
     s->gpif = omap3_gpif_init();
     omap3_gpio_init(s, s->gpif, omap3_l4ta_init(s->l4, L4A_GPIO1),

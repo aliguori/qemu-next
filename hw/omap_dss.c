@@ -71,7 +71,7 @@
 #define TRACEVENC(...)
 #endif
 
-#define OMAP_DSI_RX_FIFO_SIZE 32 /* FIXME: imaginary value */
+#define OMAP_DSI_RX_FIFO_SIZE 32
 
 struct omap3_lcd_panel_s {
     struct omap_dss_s *dss;
@@ -172,6 +172,7 @@ struct omap_dss_s {
     } rfbi;
     
     struct {
+        qemu_irq drq[4];
         /* protocol engine registers */
         uint32_t sysconfig;
         uint32_t irqst;
@@ -201,6 +202,9 @@ struct omap_dss_s {
             uint32_t rx_fifo[OMAP_DSI_RX_FIFO_SIZE];
             int rx_fifo_pos;
             int rx_fifo_len;
+            /* device interface */
+            void *opaque;
+            uint32_t (*txrx)(void *, uint32_t, int);
         } vc[4];
         /* phy registers */
         uint32_t phy_cfg0;
@@ -501,16 +505,43 @@ static int omap_dss_load_state(QEMUFile *f, void *opaque, int version_id)
 
 static void omap_dsi_reset(struct omap_dss_s *s)
 {
-    bzero(&s->dsi, sizeof(s->dsi));
+    int i;
+    
     s->dsi.sysconfig = 0x11;
+    s->dsi.irqst = 0;
+    s->dsi.irqen = 0;
     s->dsi.ctrl = 0x100;
     s->dsi.complexio_cfg1 = 0x20000000;
+    s->dsi.complexio_irqst = 0;
+    s->dsi.complexio_irqen = 0;
+    s->dsi.clk_ctrl = 1;
     s->dsi.timing1 = 0x7fff7fff;
     s->dsi.timing2 = 0x7fff7fff;
+    s->dsi.vm_timing1 = 0;
+    s->dsi.vm_timing2 = 0;
+    s->dsi.vm_timing3 = 0;
     s->dsi.clk_timing = 0x0101;
+    s->dsi.tx_fifo_vc_size = 0;
+    s->dsi.rx_fifo_vc_size = 0;
+    for (i = 0; i < 4; i++) {
+        s->dsi.vc[i].ctrl = 0;
+        s->dsi.vc[i].te = 0;
+        s->dsi.vc[i].lp_header = 0;
+        s->dsi.vc[i].lp_payload = 0;
+        s->dsi.vc[i].lp_counter = 0;
+        s->dsi.vc[i].sp_header = 0;
+        s->dsi.vc[i].irqst = 0;
+        s->dsi.vc[i].irqen = 0;
+        s->dsi.vc[i].rx_fifo_pos = 0;
+        s->dsi.vc[i].rx_fifo_len = 0;
+    }
     s->dsi.phy_cfg0 = 0x1a3c1a28;
     s->dsi.phy_cfg1 = 0x420a1875;
     s->dsi.phy_cfg2 = 0xb800001b;
+    s->dsi.pll_control = 0;
+    s->dsi.pll_go = 0;
+    s->dsi.pll_config1 = 0;
+    s->dsi.pll_config2 = 0;
     omap_dss_interrupt_update(s);
 }
 
@@ -1997,88 +2028,92 @@ static void omap_dsi_short_write(struct omap_dss_s *s, int ch)
 {
     uint32_t data = s->dsi.vc[ch].sp_header;
     
-    switch (data & 0xff) { /* id */
-        case 0x05: /* short_write_0 */
-            switch ((data >> 8) & 0xff) {
-                case 0x11: /* exit sleep */
-                    TRACEDSI("exit sleep");
+    if (((data >> 6) & 0x03) != ch) {
+        fprintf(stderr, "%s: error - vc%d != %d\n",
+                __FUNCTION__, ch, (data >> 6) & 0x03);
+    } else {
+        if (s->dsi.vc[ch].txrx) {
+            switch (data & 0x3f) { /* id */
+                case 0x05: /* short_write_0 */
+                case 0x06: /* read */
+                    data = s->dsi.vc[ch].txrx(s->dsi.vc[ch].opaque,
+                                              (data >> 8) & 0xff, 1);
                     break;
-                case 0x28: /* display off */
-                    TRACEDSI("display off");
-                    break;
-                case 0x29: /* display on */
-                    TRACEDSI("display on");
-                    break;
-                default:
-                    fprintf(stderr, "%s: unknown command 0x%02x for id 0x%02x\n",
-                            __FUNCTION__, (data >> 8) & 0xff, data & 0xff);
-                    break;
-            }
-            break;
-        case 0x06: /* read */
-            switch ((data >> 8) & 0xff) {
-                case 0x0a: /* power mode */
-                    TRACEDSI("get power mode");
-                    omap_dsi_push_rx_fifo(s, ch, 0x00000021);
-                    break;
-                case 0x0b: /* address mode */
-                    TRACEDSI("get address mode");
-                    omap_dsi_push_rx_fifo(s, ch, 0x00000021);
-                    break;
-                case 0xda: /* id1 */
-                case 0xdb: /* id2 */
-                case 0xdc: /* id3 */
-                    TRACEDSI("get id%d", ((data >> 8) & 0xff) - 0xd9);
-                    omap_dsi_push_rx_fifo(s, ch, 0x00000021);
+                case 0x15: /* short_write_1 */
+                    data = s->dsi.vc[ch].txrx(s->dsi.vc[ch].opaque,
+                                              (data >> 8) & 0xffff, 2);
                     break;
                 default:
-                    fprintf(stderr, "%s: read unknown register 0x%02x\n",
-                            __FUNCTION__, (data >> 8) & 0xff);
-                    omap_dsi_push_rx_fifo(s, ch, 0x00000021);
+                    fprintf(stderr, "%s: unknown DSI id (0x%02x)\n",
+                            __FUNCTION__, data & 0x3f);
+                    data = 0;
                     break;
             }
-            break;
-        case 0x09: /* null packet */
-            break;
-        case 0x15: /* short_write_1 */
-            switch ((data >> 8) & 0xff) {
-                case 0x36: /* set address mode */
-                    TRACEDSI("set address mode 0x%02x - ignored", (data >> 16) & 0xff);
-                    break;
-                default:
-                    TRACEDSI("short write 0x%04x - ignored", (data >> 8) & 0xffff);
-                    break;
+            /* responses cannot be all-zero so it is safe to use that as
+             * a no-reply value */
+            if (data) {
+                omap_dsi_push_rx_fifo(s, ch, data);
             }
-            break;
-        default:
-            fprintf(stderr, "%s: unknown id (0x%02x)\n",
-                    __FUNCTION__, data & 0xff);
-            break;
+        } else {
+            fprintf(stderr, "%s: error - no device attached on dsi virtual channel %d\n",
+                    __FUNCTION__, ch);
+        }
+        omap_dsi_txdone(s, ch, (s->dsi.vc[ch].ctrl & 0x04)); /* BTA_SHORT_EN */
     }
-
-    omap_dsi_txdone(s, ch, (s->dsi.vc[ch].ctrl & 0x04)); /* BTA_SHORT_EN */
 }
 
 static void omap_dsi_long_write(struct omap_dss_s *s, int ch)
 {
     uint32_t hdr = s->dsi.vc[ch].lp_header;
-    
-    switch (hdr & 0xff) { /* id */
-        case 0x09: /* null packet */
-            TRACEDSI("null packet");
-            break;
-        case 0x39: /* long write */
-            TRACEDSI("long write, payload = 0x%08x - ignored", s->dsi.vc[ch].lp_payload);
-            break;
-        default:
-            fprintf(stderr, "%s: unknown id (0x%02x)\n",
-                    __FUNCTION__, hdr & 0xff);
-            break;
+    uint32_t data = 0, size;
+
+    /* TODO: implement packet footer sending (16bit checksum).
+     * Currently none is sent and receiver is supposed to not expect one */
+    if (((hdr >> 6) & 0x03) != ch) {
+        fprintf(stderr, "%s: error - vc%d != %d\n",
+                __FUNCTION__, ch, (hdr >> 6) & 0x03);
+    } else {
+        if (s->dsi.vc[ch].txrx) {
+            switch (hdr & 0x3f) { /* id */
+                case 0x09: /* null packet */
+                    TRACEDSI("null packet");
+                    break;
+                case 0x39: /* long write */
+                    data = s->dsi.vc[ch].txrx(s->dsi.vc[ch].opaque,
+                                              s->dsi.vc[ch].lp_payload,
+                                              s->dsi.vc[ch].lp_counter > 4
+                                              ? 4 : s->dsi.vc[ch].lp_counter);
+                    break;
+                default:
+                    fprintf(stderr, "%s: unknown DSI id (0x%02x)\n",
+                            __FUNCTION__, hdr & 0x3f);
+                    break;
+            }
+            /* responses cannot be all-zero so it is safe to use that as
+             * a no-reply value */
+            if (data) {
+                omap_dsi_push_rx_fifo(s, ch, data);
+            }
+        } else {
+            fprintf(stderr, "%s: error - no device attached on dsi virtual channel %d\n",
+                    __FUNCTION__, ch);
+        }
+        if ((s->dsi.vc[ch].te >> 30) & 3) {     /* TE_START | TE_EN */
+            size = s->dsi.vc[ch].te & 0xffffff; /* TE_SIZE */
+            if (size > 4) {
+                size -= 4;
+                s->dsi.vc[ch].te = (s->dsi.vc[ch].te & (3 << 30)) | size;
+            } else {
+                s->dsi.vc[ch].te = 0;
+                /* TODO: what next? */
+            }
+        } else {
+            if (s->dsi.vc[ch].lp_counter > 0)
+                s->dsi.vc[ch].lp_counter -= 4;
+            if (s->dsi.vc[ch].lp_counter <= 0)
+                omap_dsi_txdone(s, ch, (s->dsi.vc[ch].ctrl & 0x08)); /* BTA_LONG_EN */
+        }
     }
-    if (s->dsi.vc[ch].lp_counter > 0)
-        s->dsi.vc[ch].lp_counter -= 4;
-    if (s->dsi.vc[ch].lp_counter <= 0)
-        omap_dsi_txdone(s, ch, (s->dsi.vc[ch].ctrl & 0x08)); /* BTA_LONG_EN */
 }
 
 static void omap_dsi_write(void *opaque, target_phys_addr_t addr,
@@ -2215,6 +2250,10 @@ static void omap_dsi_write(void *opaque, target_phys_addr_t addr,
                         value |= s->dsi.vc[x].te & (1 << 30);
                     }
                     s->dsi.vc[x].te = value;
+                    if ((value >> 31) & 3) { /* TE_START | TE_EN */
+                        if (((s->dsi.vc[x].ctrl >> 21) & 7) < 4)
+                            qemu_irq_raise(s->dsi.drq[(s->dsi.vc[x].ctrl >> 21) & 7]);
+                    }
                     break;
                 case 0x08: /* DSI_VCx_LONG_PACKET_HEADER */
                     TRACEDSI("DSI_VC%d_LONG_PACKET_HEADER id=0x%02x, len=0x%04x, ecc=0x%02x",
@@ -2225,6 +2264,10 @@ static void omap_dsi_write(void *opaque, target_phys_addr_t addr,
                 case 0x0c: /* DSI_VCx_LONG_PACKET_PAYLOAD */
                     TRACEDSI("DSI_VC%d_LONG_PACKET_PAYLOAD = 0x%08x", x, value);
                     s->dsi.vc[x].lp_payload = value;
+                    if ((s->dsi.vc[x].te >> 31) & 3) {
+                        if (((s->dsi.vc[x].ctrl >> 21) & 7) < 4)
+                            qemu_irq_lower(s->dsi.drq[(s->dsi.vc[x].ctrl >> 21) & 7]);
+                    }
                     omap_dsi_long_write(s, x);
                     break;
                 case 0x10: /* DSI_VCx_SHORT_PACKET_HEADER */
@@ -2301,14 +2344,11 @@ static CPUWriteMemoryFunc *omap_dsi_writefn[] = {
     omap_dsi_write,
 };
 
-struct omap_dss_s *omap_dss_init(struct omap_mpu_state_s *mpu,
-                                 struct omap_target_agent_s *ta,
-                                 qemu_irq irq, qemu_irq drq,
-                                 omap_clk fck1, omap_clk fck2, omap_clk ck54m,
-                                 omap_clk ick1, omap_clk ick2)
+static struct omap_dss_s *omap_dss_init_internal(struct omap_target_agent_s *ta,
+                                                 int region_base,
+                                                 qemu_irq irq, qemu_irq drq)
 {
     int iomemtype[5];
-    int region_base = 0;
     struct omap_dss_s *s = (struct omap_dss_s *)
             qemu_mallocz(sizeof(struct omap_dss_s));
 
@@ -2324,28 +2364,10 @@ struct omap_dss_s *omap_dss_init(struct omap_mpu_state_s *mpu,
     iomemtype[3] = l4_register_io_memory(0, omap_venc1_readfn,
                                          omap_venc1_writefn, s);
 
-    if (cpu_class_omap3(mpu)) {
-        s->dispc.rev = 0x30;
-        omap_dsi_reset(s);
-        
-        iomemtype[4] = l4_register_io_memory(0, omap_dsi_readfn,
-                                             omap_dsi_writefn, s);
-        omap_l4_attach(ta, 0, iomemtype[4]);
-        region_base = 1;
-    } else {
-        s->dispc.rev = 0x20;
-        
-        iomemtype[4] = cpu_register_io_memory(0, omap_im3_readfn,
-                                              omap_im3_writefn, s);
-        cpu_register_physical_memory(0x68000800, 0x1000, iomemtype[4]);
-    }
-    
-    omap_l4_attach(ta, region_base+0, iomemtype[0]); /* DISS */
-    omap_l4_attach(ta, region_base+1, iomemtype[1]); /* DISC */
-    omap_l4_attach(ta, region_base+2, iomemtype[2]); /* RFBI */
-    omap_l4_attach(ta, region_base+3, iomemtype[3]); /* VENC */
-
-    omap_dss_reset(s);
+    omap_l4_attach(ta, region_base + 0, iomemtype[0]); /* DISS */
+    omap_l4_attach(ta, region_base + 1, iomemtype[1]); /* DISC */
+    omap_l4_attach(ta, region_base + 2, iomemtype[2]); /* RFBI */
+    omap_l4_attach(ta, region_base + 3, iomemtype[3]); /* VENC */
 
 #if 0
     s->state = graphic_console_init(omap_update_display,
@@ -2358,11 +2380,58 @@ struct omap_dss_s *omap_dss_init(struct omap_mpu_state_s *mpu,
     return s;
 }
 
+struct omap_dss_s *omap_dss_init(struct omap_target_agent_s *ta,
+                                 qemu_irq irq, qemu_irq drq,
+                                 omap_clk fck1, omap_clk fck2, omap_clk ck54m,
+                                 omap_clk ick1, omap_clk ick2)
+{
+    int iomemtype;
+    struct omap_dss_s *s = omap_dss_init_internal(ta, 0, irq, drq);
+    
+    s->dispc.rev = 0x20;
+    iomemtype = cpu_register_io_memory(0, omap_im3_readfn,
+                                       omap_im3_writefn, s);
+    cpu_register_physical_memory(0x68000800, 0x1000, iomemtype);
+
+    omap_dss_reset(s);
+    return s;
+}    
+
+struct omap_dss_s *omap3_dss_init(struct omap_target_agent_s *ta,
+                                  qemu_irq irq, qemu_irq line_trigger,
+                                  qemu_irq dma0, qemu_irq dma1,
+                                  qemu_irq dma2, qemu_irq dma3)
+{
+    int iomemtype;
+    struct omap_dss_s *s = omap_dss_init_internal(ta, 1, irq, line_trigger);
+    
+    s->dispc.rev = 0x30;
+    s->dsi.drq[0] = dma0;
+    s->dsi.drq[1] = dma1;
+    s->dsi.drq[2] = dma2;
+    s->dsi.drq[3] = dma3;
+    iomemtype = l4_register_io_memory(0, omap_dsi_readfn,
+                                      omap_dsi_writefn, s);
+    omap_l4_attach(ta, 0, iomemtype);
+
+    omap_dss_reset(s);
+    return s;
+}    
+
 void omap_rfbi_attach(struct omap_dss_s *s, int cs, struct rfbi_chip_s *chip)
 {
     if (cs < 0 || cs > 1)
         cpu_abort(cpu_single_env, "%s: wrong CS %i\n", __FUNCTION__, cs);
     s->rfbi.chip[cs] = chip;
+}
+
+void omap_dsi_attach(struct omap_dss_s *s, int vc, void *opaque,
+                     uint32_t (*txrx)(void *, uint32_t, int))
+{
+    if (vc < 0 || vc > 3)
+        cpu_abort(cpu_single_env, "%s: invalid vc %d\n", __FUNCTION__, vc);
+    s->dsi.vc[vc].opaque = opaque;
+    s->dsi.vc[vc].txrx = txrx;
 }
 
 void omap3_lcd_panel_attach(struct omap_dss_s *dss,
