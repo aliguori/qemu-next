@@ -25,6 +25,8 @@ sb1_prefix           = /scratchbox/devkits/qemu
 
 target_system_list = $(TARGET_SYSTEM_TCG)
 
+source_version = $(shell dpkg-parsechangelog | grep ^Version | head -n1 | cut -d ' ' -f 2)
+
 ifeq ($(DEB_HOST_ARCH_OS),linux)
        conf_arch += --audio-drv-list=sdl
        target_linux_list += $(TARGET_LINUX_TCG)
@@ -149,6 +151,11 @@ binary-arch: install
 	dh_builddeb -s
 
 binary: binary-indep binary-arch
+
+sb1-qemu-tarball: build sb1-qemu-install
+	tar czf ../scratchbox-devkit-qemu-$(source_version).tar.gz \
+		-C debian/scratchbox-devkit-qemu \
+		$(shell ls -1 debian/scratchbox-devkit-qemu)
 
 .PHONY: build clean binary-indep binary-arch binary install
 

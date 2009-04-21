@@ -1,8 +1,6 @@
 #ifndef QEMU_H
 #define QEMU_H
 
-#include <sys/queue.h>
-
 #include <signal.h>
 #include <string.h>
 
@@ -20,6 +18,7 @@
 #include "syscall.h"
 #include "target_signal.h"
 #include "gdbstub.h"
+#include "sys-queue.h"
 
 #if defined(USE_NPTL)
 #define THREAD __thread
@@ -89,8 +88,6 @@ struct emulated_sigtable {
                              first signal, we put it here */
 };
 
-struct process;
-
 /* NOTE: we force a big alignment so that the stack stored after is
    aligned too */
 typedef struct TaskState {
@@ -128,13 +125,13 @@ typedef struct TaskState {
     struct sigqueue *first_free; /* first free siginfo queue entry */
     int signal_pending; /* non zero if a signal may be pending */
 
-    uint8_t stack[];
+    uint8_t stack[0];
 } __attribute__((aligned(16))) TaskState;
 
-extern const char *exec_path;
+extern char *exec_path;
 void init_task_state(TaskState *ts);
-extern void task_settid(TaskState *);
-extern void stop_all_tasks(void);
+void task_settid(TaskState *);
+void stop_all_tasks(void);
 extern const char *qemu_uname_release;
 #if defined(CONFIG_USE_GUEST_BASE)
 extern unsigned long mmap_min_addr;
@@ -216,6 +213,7 @@ int queue_signal(CPUState *env, int sig, target_siginfo_t *info);
 void host_to_target_siginfo(target_siginfo_t *tinfo, const siginfo_t *info);
 void target_to_host_siginfo(siginfo_t *info, const target_siginfo_t *tinfo);
 int target_to_host_signal(int sig);
+int host_to_target_signal(int sig);
 long do_sigreturn(CPUState *env);
 long do_rt_sigreturn(CPUState *env);
 abi_long do_sigaltstack(abi_ulong uss_addr, abi_ulong uoss_addr, abi_ulong sp);
@@ -243,6 +241,7 @@ int target_msync(abi_ulong start, abi_ulong len, int flags);
 extern unsigned long last_brk;
 void mmap_lock(void);
 void mmap_unlock(void);
+abi_ulong mmap_find_vma(abi_ulong, abi_ulong);
 void cpu_list_lock(void);
 void cpu_list_unlock(void);
 #if defined(USE_NPTL)

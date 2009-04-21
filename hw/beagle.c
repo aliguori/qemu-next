@@ -82,6 +82,6 @@ QEMUMachine beagle_machine = {
     .name =        "beagle",
     .desc =        "Beagle board (OMAP3530)",
     .init =        beagle_init,
-    .ram_require = OMAP3XXX_SRAM_SIZE + OMAP3XXX_BOOTROM_SIZE,
+/*    .ram_require = OMAP3XXX_SRAM_SIZE + OMAP3XXX_BOOTROM_SIZE, */
 };
 

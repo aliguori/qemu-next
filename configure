@@ -153,6 +153,7 @@ case "$cpu" in
   ;;
 esac
 gprof="no"
+debug_tcg="no"
 sparse="no"
 strip_opt="yes"
 bigendian="no"
@@ -191,12 +192,17 @@ aix="no"
 blobs="yes"
 fdt="yes"
 sdl_x11="no"
+pkgversion=""
 
 # OS specific
 if check_define __linux__ ; then
   targetos="Linux"
 elif check_define _WIN32 ; then
   targetos='MINGW32'
+elif check_define __OpenBSD__ ; then
+  targetos='OpenBSD'
+elif check_define __sun__ ; then
+  targetos='SunOS'
 else
   targetos=`uname -s`
 fi
@@ -278,6 +284,7 @@ SunOS)
     make="gmake"
     install="ginstall"
     needs_libsunmath="no"
+    kvm="no"
     solarisrev=`uname -r | cut -f2 -d.`
     # have to select again, because `uname -m` returns i86pc
     # even on an x86_64 box.
@@ -305,6 +312,7 @@ SunOS)
         audio_drv_list="oss"
     fi
     audio_possible_drivers="oss sdl"
+    OS_CFLAGS=-std=gnu99
 ;;
 AIX)
 aix="yes"
@@ -394,6 +402,10 @@ for opt do
   ;;
   --audio-drv-list=*) audio_drv_list="$optarg"
   ;;
+  --enable-debug-tcg) debug_tcg="yes"
+  ;;
+  --disable-debug-tcg) debug_tcg="no"
+  ;;
   --enable-sparse) sparse="yes"
   ;;
   --disable-sparse) sparse="no"
@@ -472,6 +484,8 @@ for opt do
   --disable-blobs) blobs="no"
   ;;
   --kerneldir=*) kerneldir="$optarg"
+  ;;
+  --with-pkgversion=*) pkgversion=" ($optarg)"
   ;;
   *) echo "ERROR: unknown option $opt"; show_help="yes"
   ;;
@@ -557,9 +571,13 @@ echo "  --source-path=PATH       path of source code [$source_path]"
 echo "  --cross-prefix=PREFIX    use PREFIX for compile tools [$cross_prefix]"
 echo "  --cc=CC                  use C compiler CC [$cc]"
 echo "  --host-cc=CC             use C compiler CC [$host_cc] for dyngen etc."
+echo "  --extra-cflags=CFLAGS    add C compiler flags CFLAGS"
+echo "  --extra-ldflags=LDFLAGS  add linker flags LDFLAGS"
 echo "  --make=MAKE              use specified make [$make]"
 echo "  --install=INSTALL        use specified install [$install]"
 echo "  --static                 enable static build [$static]"
+echo "  --enable-debug-tcg       enable TCG debugging"
+echo "  --disable-debug-tcg      disable TCG debugging (default)"
 echo "  --enable-sparse          enable sparse checker"
 echo "  --disable-sparse         disable sparse checker (default)"
 echo "  --disable-strip          disable stripping binaries"
@@ -693,6 +711,9 @@ sparc32plus-linux-user \
 # the following are BSD specific
     if [ "$bsd_user" = "yes" ] ; then
         target_list="${target_list}\
+i386-bsd-user \
+x86_64-bsd-user \
+sparc-bsd-user \
 sparc64-bsd-user \
 "
     fi
@@ -1007,7 +1028,10 @@ if test "$curses" = "yes" ; then
   curses=no
   cat > $TMPC << EOF
 #include <curses.h>
-int main(void) { return curses_version(); }
+#ifdef __OpenBSD__
+#define resize_term resizeterm
+#endif
+int main(void) { resize_term(0, 0); return curses_version(); }
 EOF
   if $cc $ARCH_CFLAGS -o $TMPE $TMPC -lcurses > /dev/null 2> /dev/null ; then
     curses=yes
@@ -1113,6 +1137,19 @@ if $cc $ARCH_CFLAGS -o $TMPE $TMPC > /dev/null 2> /dev/null ; then
 fi
 
 ##########################################
+# preadv probe
+cat > $TMPC <<EOF
+#include <sys/types.h>
+#include <sys/uio.h>
+#include <unistd.h>
+int main(void) { preadv; }
+EOF
+preadv=no
+if $cc $ARCH_CFLAGS -o $TMPE $TMPC > /dev/null 2> /dev/null ; then
+  preadv=yes
+fi
+
+##########################################
 # fdt probe
 if test "$fdt" = "yes" ; then
     fdt=no
@@ -1124,11 +1161,10 @@ EOF
   fi
 fi
 
-##########################################
+#
 # Check for xxxat() functions when we are building linux-user
 # emulator.  This is done because older glibc versions don't
-# have syscall stubs for these implemented.  In that case we
-# don't provide them even if kernel supports them.
+# have syscall stubs for these implemented.
 #
 atfile=no
 if [ "$linux_user" = "yes" ] ; then
@@ -1140,13 +1176,35 @@ if [ "$linux_user" = "yes" ] ; then
 
 int
 main(void)
-{ 
+{
 	/* try to unlink nonexisting file */
 	return (unlinkat(AT_FDCWD, "nonexistent_file", 0));
 }
 EOF
   if $cc $ARCH_CFLAGS -o $TMPE $TMPC 2> /dev/null ; then
     atfile=yes
+  fi
+fi
+
+# Check for inotify functions when we are building linux-user
+# emulator.  This is done because older glibc versions don't
+# have syscall stubs for these implemented.  In that case we
+# don't provide them even if kernel supports them.
+#
+inotify=no
+if [ "$linux_user" = "yes" ] ; then
+  cat > $TMPC << EOF
+#include <sys/inotify.h>
+
+int
+main(void)
+{
+	/* try to start inotify */
+	return inotify_init();
+}
+EOF
+  if $cc $ARCH_CFLAGS -o $TMPE $TMPC 2> /dev/null ; then
+    inotify=yes
   fi
 fi
 
@@ -1194,9 +1252,9 @@ else
   binsuffix="/bin"
 fi
 
-echo "Install prefix     $prefix"
-echo "BIOS directory     $prefix$datasuffix"
-echo "binary directory   $prefix$binsuffix"
+echo "Install prefix    $prefix"
+echo "BIOS directory    $prefix$datasuffix"
+echo "binary directory  $prefix$binsuffix"
 if test "$mingw32" = "no" ; then
 echo "Manual directory  $prefix$mansuffix"
 echo "ELF interp prefix $interp_prefix"
@@ -1210,6 +1268,7 @@ echo "install           $install"
 echo "host CPU          $cpu"
 echo "host big endian   $bigendian"
 echo "target list       $target_list"
+echo "tcg debug enabled $debug_tcg"
 echo "gprof enabled     $gprof"
 echo "sparse enabled    $sparse"
 echo "strip binaries    $strip_opt"
@@ -1217,22 +1276,21 @@ echo "profiler          $profiler"
 echo "static build      $static"
 echo "-Werror enabled   $werror"
 if test "$darwin" = "yes" ; then
-    echo "Cocoa support      $cocoa"
+    echo "Cocoa support     $cocoa"
 fi
-echo "SDL support        $sdl"
+echo "SDL support       $sdl"
 if test "$sdl" != "no" ; then
-    echo "SDL static link    $sdl_static"
+    echo "SDL static link   $sdl_static"
 fi
-echo "curses support     $curses"
-echo "atfile support     $atfile"
-echo "mingw32 support    $mingw32"
-echo "Audio drivers      $audio_drv_list"
-echo "Extra audio cards  $audio_card_list"
-echo "Mixer emulation    $mixemu"
-echo "VNC TLS support    $vnc_tls"
+echo "curses support    $curses"
+echo "mingw32 support   $mingw32"
+echo "Audio drivers     $audio_drv_list"
+echo "Extra audio cards $audio_card_list"
+echo "Mixer emulation   $mixemu"
+echo "VNC TLS support   $vnc_tls"
 if test "$vnc_tls" = "yes" ; then
-    echo "    TLS CFLAGS     $vnc_tls_cflags"
-    echo "    TLS LIBS       $vnc_tls_libs"
+    echo "    TLS CFLAGS    $vnc_tls_cflags"
+    echo "    TLS LIBS      $vnc_tls_libs"
 fi
 echo "VNC SASL support  $vnc_sasl"
 if test "$vnc_sasl" = "yes" ; then
@@ -1240,20 +1298,21 @@ if test "$vnc_sasl" = "yes" ; then
     echo "    SASL LIBS      $vnc_sasl_libs"
 fi
 if test -n "$sparc_cpu"; then
-    echo "Target Sparc Arch  $sparc_cpu"
+    echo "Target Sparc Arch $sparc_cpu"
 fi
-echo "kqemu support      $kqemu"
-echo "brlapi support     $brlapi"
-echo "Documentation      $build_docs"
+echo "kqemu support     $kqemu"
+echo "brlapi support    $brlapi"
+echo "Documentation     $build_docs"
 [ ! -z "$uname_release" ] && \
-echo "uname -r           $uname_release"
-echo "NPTL support       $nptl"
-echo "vde support        $vde"
-echo "AIO support        $aio"
-echo "Install blobs      $blobs"
-echo "KVM support        $kvm"
-echo "fdt support        $fdt"
-echo "GUEST_BASE support $guest_base"
+echo "uname -r          $uname_release"
+echo "NPTL support      $nptl"
+echo "GUEST_BASE        $guest_base"
+echo "vde support       $vde"
+echo "AIO support       $aio"
+echo "Install blobs     $blobs"
+echo "KVM support       $kvm"
+echo "fdt support       $fdt"
+echo "preadv support    $preadv"
 
 if test $sdl_too_old = "yes"; then
 echo "-> Your SDL version is too old - please upgrade to have SDL support"
@@ -1286,6 +1345,9 @@ echo "docdir=\${prefix}$docsuffix" >> $config_mak
 echo "#define CONFIG_QEMU_SHAREDIR \"$prefix$datasuffix\"" >> $config_h
 echo "MAKE=$make" >> $config_mak
 echo "INSTALL=$install" >> $config_mak
+echo "INSTALL_DIR=$install -d -m0755 -p" >> $config_mak
+echo "INSTALL_DATA=$install -m0644 -p" >> $config_mak
+echo "INSTALL_PROG=$install -m0755 -p" >> $config_mak
 echo "CC=$cc" >> $config_mak
 echo "HOST_CC=$host_cc" >> $config_mak
 echo "AR=$ar" >> $config_mak
@@ -1370,6 +1432,9 @@ case "$cpu" in
     exit 1
   ;;
 esac
+if test "$debug_tcg" = "yes" ; then
+  echo "#define DEBUG_TCG 1" >> $config_h
+fi
 if test "$sparse" = "yes" ; then
   echo "CC      := REAL_CC=\"\$(CC)\" cgcc"       >> $config_mak
   echo "HOST_CC := REAL_CC=\"\$(HOST_CC)\" cgcc"  >> $config_mak
@@ -1496,6 +1561,8 @@ qemu_version=`head $source_path/VERSION`
 echo "VERSION=$qemu_version" >>$config_mak
 echo "#define QEMU_VERSION \"$qemu_version\"" >> $config_h
 
+echo "#define QEMU_PKGVERSION \"$pkgversion\"" >> $config_h
+
 echo "SRC_PATH=$source_path" >> $config_mak
 if [ "$source_path_used" = "yes" ]; then
   echo "VPATH=$source_path" >> $config_mak
@@ -1537,6 +1604,9 @@ fi
 if test "$atfile" = "yes" ; then
   echo "#define CONFIG_ATFILE 1" >> $config_h
 fi
+if test "$inotify" = "yes" ; then
+  echo "#define CONFIG_INOTIFY 1" >> $config_h
+fi
 if test "$brlapi" = "yes" ; then
   echo "CONFIG_BRLAPI=yes" >> $config_mak
   echo "#define CONFIG_BRLAPI 1" >> $config_h
@@ -1557,6 +1627,9 @@ if test "$blobs" = "yes" ; then
 fi
 if test "$iovec" = "yes" ; then
   echo "#define HAVE_IOVEC 1" >> $config_h
+fi
+if test "$preadv" = "yes" ; then
+  echo "#define HAVE_PREADV 1" >> $config_h
 fi
 if test "$fdt" = "yes" ; then
   echo "#define HAVE_FDT 1" >> $config_h
@@ -1702,7 +1775,8 @@ case "$target_cpu" in
     echo "#define TARGET_I386 1" >> $config_h
     if test $kqemu = "yes" -a "$target_softmmu" = "yes"
     then
-      echo "#define USE_KQEMU 1" >> $config_h
+      echo "CONFIG_KQEMU=yes" >> $config_mak
+      echo "#define CONFIG_KQEMU 1" >> $config_h
     fi
     if test "$kvm" = "yes" ; then
       echo "CONFIG_KVM=yes" >> $config_mak
@@ -1717,7 +1791,8 @@ case "$target_cpu" in
     echo "#define TARGET_X86_64 1" >> $config_h
     if test $kqemu = "yes" -a "$target_softmmu" = "yes" -a $cpu = "x86_64"
     then
-      echo "#define USE_KQEMU 1" >> $config_h
+      echo "CONFIG_KQEMU=yes" >> $config_mak
+      echo "#define CONFIG_KQEMU 1" >> $config_h
     fi
     if test "$kvm" = "yes" ; then
       echo "CONFIG_KVM=yes" >> $config_mak

@@ -27,6 +27,7 @@
 #include <errno.h>
 #include <assert.h>
 #include <sys/ucontext.h>
+#include <sys/resource.h>
 
 #include "qemu.h"
 #include "qemu-common.h"
@@ -102,7 +103,7 @@ static inline int sas_ss_flags(unsigned long sp)
             : on_sig_stack(sp) ? SS_ONSTACK : 0);
 }
 
-static inline int host_to_target_signal(int sig)
+int host_to_target_signal(int sig)
 {
     if (sig > 64)
         return sig;
@@ -381,10 +382,16 @@ static void QEMU_NORETURN force_sig(int sig)
         core_dumped =
             ((*ts->bprm->core_dump)(sig, thread_env) == 0);
     }
-
-    (void) fprintf(stderr, "qemu: uncaught target signal %d (%s) - %s\n",
-        sig, strsignal(host_sig),
-        ((core_dumped) ? "core dumped" : "exiting"));
+    if (core_dumped) {
+        /* we already dumped the core of target process, we don't want
+         * a coredump of qemu itself */
+        struct rlimit nodump;
+        getrlimit(RLIMIT_CORE, &nodump);
+        nodump.rlim_cur=0;
+        setrlimit(RLIMIT_CORE, &nodump);
+        (void) fprintf(stderr, "qemu: uncaught target signal %d (%s) - %s\n",
+            sig, strsignal(host_sig), "core dumped" );
+    }
 
     /* The proper exit code for dieing from an uncaught signal is
      * -<signal>.  The kernel doesn't allow exit() or _exit() to pass

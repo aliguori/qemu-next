@@ -38,14 +38,13 @@
 
 #define DEBUG_LOGFILE "/tmp/qemu.log"
 
-const char *exec_path;
+char *exec_path;
 
+int singlestep;
 #if defined(CONFIG_USE_GUEST_BASE)
 unsigned long mmap_min_addr = 0;
 unsigned long guest_base = 0;
 #endif
-
-int singlestep;
 
 static const char *interp_prefix = CONFIG_QEMU_PREFIX;
 const char *qemu_uname_release = CONFIG_UNAME_RELEASE;
@@ -2208,7 +2207,7 @@ void cpu_loop (CPUState *env)
 
 static void usage(void)
 {
-    printf("qemu-" TARGET_ARCH " version " QEMU_VERSION ", Copyright (c) 2003-2008 Fabrice Bellard\n"
+    printf("qemu-" TARGET_ARCH " version " QEMU_VERSION QEMU_PKGVERSION ", Copyright (c) 2003-2008 Fabrice Bellard\n"
            "usage: qemu-" TARGET_ARCH " [options] program [arguments...]\n"
            "Linux CPU emulator (compiled for %s emulation)\n"
            "\n"
@@ -2235,7 +2234,6 @@ static void usage(void)
            "Environment variables:\n"
            "QEMU_STRACE       Print system calls and arguments similar to the\n"
            "                  'strace' program.  Enable by setting to any value.\n"
-           "\n"
            "You can use -E and -U options to set/unset environment variables\n"
            "for target process.  It is possible to provide several variables\n"
            "by repeating the option.  For example:\n"
@@ -2277,9 +2275,7 @@ void stop_all_tasks(void)
 {
     /*
      * We trust that when using NPTL, start_exclusive()
-     * handles thread stopping correctly.  Note that there
-     * is no way out of this state as we don't provide
-     * any suspend routine.
+     * handles thread stopping correctly.
      */
     start_exclusive();
 }
@@ -2299,7 +2295,7 @@ void init_task_state(TaskState *ts)
  
 int main(int argc, char **argv, char **envp)
 {
-    const char *filename = NULL;
+    char *filename = NULL;
     const char *cpu_model;
     struct target_pt_regs regs1, *regs = &regs1;
     struct image_info info1, *info = &info1;
@@ -2561,9 +2557,9 @@ int main(int argc, char **argv, char **envp)
     memset(ts, 0, sizeof(TaskState));
     init_task_state(ts);
     /* build Task State */
-    env->opaque = ts;
-    ts->bprm = &bprm;
     ts->info = info;
+    ts->bprm = &bprm;
+    env->opaque = ts;
     task_settid(ts);
 
     if (loader_exec(filename, target_argv+argskip, target_environ, regs,
@@ -2591,7 +2587,7 @@ int main(int argc, char **argv, char **envp)
                 "==========================================================\n"
                 "Note that all target addresses below are given in target\n"
                 "address space which is different from host by guest_base.\n"
-                "For example: target address 0x%x becomes 0x%x and so on.\n"
+                "For example: target address 0x%lx becomes 0x%lx and so on.\n"
                 "==========================================================\n",
                 (uintptr_t)0x8000, (uintptr_t)g2h(0x8000));
         }

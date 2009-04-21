@@ -1,3 +1,15 @@
+qemu (0.10.0-0sb6) unstable; urgency=low
+
+  * W16 release
+
+ -- Riku Voipio <riku.voipio@iki.fi>  Fri, 17 Apr 2009 16:59:31 +0300
+
+qemu (0.10.0-0sb5) unstable; urgency=low
+
+  * Change version tag to sb for political correctness
+
+ -- Jussi Hakala <jussi.hakala@movial.com>  Thu, 09 Apr 2009 15:30:14 +0300
+
 qemu (0.10.0-0maemo4) unstable; urgency=low
 
   * Riku voipio
