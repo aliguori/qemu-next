@@ -1241,6 +1241,25 @@ EOF
   fi
 fi
 
+# check if utimensat and futimens are supported
+utimens=no
+cat > $TMPC << EOF
+#define _ATFILE_SOURCE
+#define _GNU_SOURCE
+#include <stddef.h>
+#include <fcntl.h>
+
+int main(void)
+{
+    utimensat(AT_FDCWD, "foo", NULL, 0);
+    futimens(0, NULL);
+    return 0;
+}
+EOF
+if $cc $ARCH_CFLAGS -o $TMPE $TMPC 2> /dev/null ; then
+  utimens=yes
+fi
+
 # Check if tools are available to build documentation.
 if [ -x "`which texi2html 2>/dev/null`" ] && \
    [ -x "`which pod2man 2>/dev/null`" ]; then
@@ -1639,6 +1658,9 @@ if test "$curses" = "yes" ; then
 fi
 if test "$atfile" = "yes" ; then
   echo "#define CONFIG_ATFILE 1" >> $config_h
+fi
+if test "$utimens" = "yes" ; then
+  echo "#define CONFIG_UTIMENSAT 1" >> $config_h
 fi
 if test "$inotify" = "yes" ; then
   echo "#define CONFIG_INOTIFY 1" >> $config_h

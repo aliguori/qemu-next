@@ -406,13 +406,6 @@ static int sys_unlinkat(int dirfd, const char *pathname, int flags)
   return (unlinkat(dirfd, pathname, flags));
 }
 #endif
-#ifdef TARGET_NR_utimensat
-static int sys_utimensat(int dirfd, const char *pathname,
-    const struct timespec times[2], int flags)
-{
-  return (utimensat(dirfd, pathname, times, flags));
-}
-#endif
 #else /* !CONFIG_ATFILE */
 
 /*
@@ -476,12 +469,24 @@ _syscall3(int,sys_symlinkat,const char *,oldpath,
 #if defined(TARGET_NR_unlinkat) && defined(__NR_unlinkat)
 _syscall3(int,sys_unlinkat,int,dirfd,const char *,pathname,int,flags)
 #endif
+
+#endif /* CONFIG_ATFILE */
+
+#ifdef CONFIG_UTIMENSAT
+static int sys_utimensat(int dirfd, const char *pathname,
+    const struct timespec times[2], int flags)
+{
+    if (pathname == NULL)
+        return futimens(dirfd, times);
+    else
+        return utimensat(dirfd, pathname, times, flags);
+}
+#else
 #if defined(TARGET_NR_utimensat) && defined(__NR_utimensat)
 _syscall4(int,sys_utimensat,int,dirfd,const char *,pathname,
           const struct timespec *,tsp,int,flags)
 #endif
-
-#endif /* CONFIG_ATFILE */
+#endif /* CONFIG_UTIMENSAT  */
 
 #ifdef CONFIG_INOTIFY
 #include <sys/inotify.h>
