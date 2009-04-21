@@ -2252,6 +2252,7 @@ static void omap3_lcd_panel_update_display(void *opaque)
     uint32_t linesize, y;
     uint32_t copy_width, copy_height;
     uint8_t *src, *dest;
+    target_phys_addr_t size;
 
     if (!dss->lcd.enable
         || dss->dispc.l[0].gfx_channel /* 24bit digital out */
@@ -2287,8 +2288,6 @@ static void omap3_lcd_panel_update_display(void *opaque)
     start_x = dss->dispc.l[0].posx;
     start_y = dss->dispc.l[0].posy;
 
-    /*use the rfbi function*/
-    src = (uint8_t *)omap_rfbi_get_buffer(dss);
     dest = ds_get_data(s->state);
     linesize = ds_get_linesize(s->state);
 
@@ -2301,15 +2300,21 @@ static void omap3_lcd_panel_update_display(void *opaque)
         copy_width = lcd_width - start_x;
     else
     	copy_width = graphic_width;
-    copy_height = lcd_height>graphic_height ? graphic_height:lcd_height;
+    copy_height = lcd_height > graphic_height ? graphic_height : lcd_height;
 
-    for (y = start_y; y < copy_height; y++) {
-        s->line_fn(dest, src, copy_width * lcd_Bpp);
-        src += graphic_width * lcd_Bpp;
-        dest += linesize;
+    size = copy_height * copy_width * lcd_Bpp;
+    src = cpu_physical_memory_map(dss->dispc.l[0].addr[0], &size, 0);
+    if (src) {
+        if (size == copy_height * copy_width * lcd_Bpp) {
+            for (y = start_y; y < copy_height; y++) {
+                s->line_fn(dest, src, copy_width * lcd_Bpp);
+                src += graphic_width * lcd_Bpp;
+                dest += linesize;
+            }
+            dpy_update(s->state, start_x, start_y, graphic_width, graphic_height);
+        }
+        cpu_physical_memory_unmap(src, size, 0, size);
     }
-
-    dpy_update(s->state, start_x, start_y, graphic_width, graphic_height);
     s->invalidate = 0;
     
     dss->dispc.irqst |= 1; /* FRAMEDONE */
