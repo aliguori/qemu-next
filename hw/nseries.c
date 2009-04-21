@@ -1712,8 +1712,4 @@ QEMUMachine n00_machine = {
     .name = "n00",
     .desc = "Nokia N00 aka. RX-71 (OMAP3430)",
     .init = n00_init,
-    .ram_require = (N00_SDRAM_SIZE
-                    + N00_ONENAND_BUFSIZE
-                    + OMAP3XXX_SRAM_SIZE
-                    + OMAP3XXX_BOOTROM_SIZE) | RAMSIZE_FIXED,
 };
