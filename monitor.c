@@ -26,6 +26,7 @@
 #include "hw/pcmcia.h"
 #include "hw/pc.h"
 #include "hw/pci.h"
+#include "hw/watchdog.h"
 #include "gdbstub.h"
 #include "net.h"
 #include "qemu-char.h"
@@ -552,6 +553,13 @@ static void do_gdbserver(const char *port)
     }
 }
 #endif
+
+static void do_watchdog_action(const char *action)
+{
+    if (select_watchdog_action(action) == -1) {
+        term_printf("Unknown watchdog action '%s'\n", action);
+    }
+}
 
 static void term_printc(int c)
 {
@@ -1602,7 +1610,8 @@ static const term_cmd_t term_cmds[] = {
       "target", "request VM to change it's memory allocation (in MB)" },
     { "set_link", "ss", do_set_link,
       "name [up|down]", "change the link status of a network adapter" },
-    { "set_link", "ss", do_set_link, "name [up|down]" },
+    { "watchdog_action", "s", do_watchdog_action,
+      "[reset|shutdown|poweroff|pause|debug|none]", "change watchdog action" },
     { "cpu_set", "is", do_cpu_set_nr, "cpu [online|offline]", "change cpu state" },
 #if defined(TARGET_I386) || defined(TARGET_X86_64)
     { "drive_add", "iss", drive_hot_add, "pcibus pcidevfn [file=file][,if=type][,bus=n]\n"

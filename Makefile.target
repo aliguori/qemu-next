@@ -636,6 +636,9 @@ OBJS += e1000.o
 # Serial mouse
 OBJS += msmouse.o
 
+OBJS += watchdog.o
+OBJS += wdt_ib700.o wdt_i6300esb.o
+
 ifeq ($(USE_KVM_DEVICE_ASSIGNMENT), 1)
 OBJS+= device-assignment.o
 endif

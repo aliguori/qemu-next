@@ -43,6 +43,7 @@
 #include "migration.h"
 #include "kvm.h"
 #include "balloon.h"
+#include "hw/watchdog.h"
 #include "qemu-kvm.h"
 
 #include <unistd.h>
@@ -247,6 +248,8 @@ int cursor_hide = 1;
 int graphic_rotate = 0;
 int daemonize = 0;
 const char *incoming;
+WatchdogTimerModel *watchdog = NULL;
+int watchdog_action = WDT_RESET;
 const char *option_rom[MAX_OPTION_ROMS];
 int nb_option_roms;
 int semihosting_enabled = 0;
@@ -4214,6 +4217,10 @@ static void help(int exitcode)
            "-chroot dir     Chroot to dir just before starting the VM.\n"
            "-runas user     Change to user id user just before starting the VM.\n"
 #endif
+           "-watchdog i6300esb|ib700\n"
+           "                enable virtual hardware watchdog [default=none]\n"
+           "-watchdog-action reset|shutdown|poweroff|pause|debug|none\n"
+           "                action when watchdog fires [default=reset]\n"
            "\n"
            "During emulation, the following keys are useful:\n"
            "ctrl-alt-f      toggle full screen\n"
@@ -4349,6 +4356,8 @@ enum {
 #ifdef MAP_POPULATE
     QEMU_OPTION_mem_prealloc,
 #endif
+    QEMU_OPTION_watchdog,
+    QEMU_OPTION_watchdog_action,
 };
 
 typedef struct QEMUOption {
@@ -4499,6 +4508,8 @@ static const QEMUOption qemu_options[] = {
 #ifdef MAP_POPULATE
     { "mem-prealloc", 0, QEMU_OPTION_mem_prealloc },
 #endif
+    { "watchdog", HAS_ARG, QEMU_OPTION_watchdog },
+    { "watchdog-action", HAS_ARG, QEMU_OPTION_watchdog_action },
     { NULL },
 };
 
@@ -4972,6 +4983,8 @@ int main(int argc, char **argv, char **envp)
     tb_size = 0;
     autostart= 1;
 
+    register_watchdogs();
+
     optind = 1;
     for(;;) {
         if (optind >= argc)
@@ -5344,6 +5357,17 @@ int main(int argc, char **argv, char **envp)
                 }
                 serial_devices[serial_device_index] = optarg;
                 serial_device_index++;
+                break;
+            case QEMU_OPTION_watchdog:
+                i = select_watchdog(optarg);
+                if (i > 0)
+                    exit (i == 1 ? 1 : 0);
+                break;
+            case QEMU_OPTION_watchdog_action:
+                if (select_watchdog_action(optarg) == -1) {
+                    fprintf(stderr, "Unknown -watchdog-action parameter\n");
+                    exit(1);
+                }
                 break;
             case QEMU_OPTION_virtiocon:
                 if (virtio_console_index >= MAX_VIRTIO_CONSOLES) {

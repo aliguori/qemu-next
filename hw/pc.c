@@ -37,6 +37,7 @@
 #include "virtio-balloon.h"
 #include "virtio-console.h"
 #include "hpet_emul.h"
+#include "watchdog.h"
 #include "device-assignment.h"
 
 #include "qemu-kvm.h"
@@ -1072,6 +1073,8 @@ vga_bios_error:
                           parallel_hds[i]);
         }
     }
+
+    watchdog_pc_init(pci_bus);
 
     for(i = 0; i < nb_nics; i++) {
         NICInfo *nd = &nd_table[i];
