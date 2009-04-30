@@ -1432,21 +1432,22 @@ QEMUMachine n810_machine = {
 #define DSIPIXELFORMAT(x)
 #endif
 
-struct zonda_s {
+#define N00_DSI_EXTRACTPARAM(var, data, nb) \
+    { \
+        var = 0; \
+        int i; \
+        for (i = (nbytes - 1) * 8; nbytes--; i -= 8, data >>= 8) \
+            var |= (data & 0xff) << i; \
+    }
+
+#define N00_DSI_MAKERETURNBYTE(b) ((((b) & 0xff) << 8) | 0x21)
+
+struct taal_s {
     enum { bs_cmd, bs_data } bs;
     uint8_t cmd;
     uint8_t powermode;
     uint8_t addrmode;
     uint8_t bpp;
-    uint8_t ioctrl;
-    uint8_t vfp;
-    uint8_t vs;
-    uint8_t vbp;
-    uint8_t hfp;
-    uint8_t hs;
-    uint8_t hbp;
-    uint32_t yres;
-    uint32_t xres;
     uint32_t sc;
     uint32_t ec;
     uint32_t cc;
@@ -1457,16 +1458,16 @@ struct zonda_s {
     uint8_t buffer[N00_DISPLAY_BUFSIZE];
 };
 
-static void zonda_reset(struct zonda_s *s)
+static void taal_reset(struct taal_s *s)
 {
-    bzero(s, sizeof(struct zonda_s));
+    bzero(s, sizeof(struct taal_s));
     s->bs = bs_cmd;
 }
 
-static struct zonda_s *zonda_init(void)
+static struct taal_s *taal_init(void)
 {
-    struct zonda_s *s = qemu_mallocz(sizeof(struct zonda_s));
-    zonda_reset(s);
+    struct taal_s *s = qemu_mallocz(sizeof(struct taal_s));
+    taal_reset(s);
     return s;
 }
 
@@ -1492,7 +1493,7 @@ static uint32_t n00_dsi_txrx(void *opaque, uint32_t data, int len)
     }
     switch (s->cmd) {
         case 0x0a: /* get power mode */
-            ret = 0x21 | (s->powermode << 8);
+            ret = N00_DSI_MAKERETURNBYTE(s->powermode);
             TRACEDSI("get power mode (0x%04x)", ret);
             break;
         case 0x0b: /* get address mode */
@@ -1513,7 +1514,7 @@ static uint32_t n00_dsi_txrx(void *opaque, uint32_t data, int len)
         case 0x2a: /* set column address */
             if (s->bs == bs_cmd) {
                 s->bs = bs_data;
-                s->sc = n00_dsi_readparam(data, 3);
+                s->sc = n00_dsi_readparam(data, 2);
             } else {
                 s->bs = bs_cmd;
                 s->ec = n00_dsi_readparam(data, 3);
@@ -1554,7 +1555,7 @@ static uint32_t n00_dsi_txrx(void *opaque, uint32_t data, int len)
             TRACEDSI("set pixel format: dpi=%s, dbi=%s",
                      DSIPIXELFORMAT((data >> 4) & 7),
                      DSIPIXELFORMAT(data & 7));
-            switch ((data >> 4) & 7) {
+            switch ((data & 7)) {
                 case 2: /* 8bpp */
                     s->bpp = 1;
                     break;
@@ -1565,103 +1566,15 @@ static uint32_t n00_dsi_txrx(void *opaque, uint32_t data, int len)
                     s->bpp = 3;
                     break;
                 default:
-                    fprintf(stderr, "%s: unsupported dpi pixel format %d\n",
-                            __FUNCTION__, (data >> 4) & 7);
+                    fprintf(stderr, "%s: unsupported dbi pixel format %d\n",
+                            __FUNCTION__, data & 7);
                     break;
             }
             break;
-        case 0x80: /* zonda: thssi off */
-            s->ioctrl &= ~0x80;
-            break;
-        case 0x81: /* zonda: thssi on */
-            s->ioctrl |= 0x80;
-            break;
-        case 0x82: /* zonda: set ioctrl */
-            s->ioctrl = (s->ioctrl & ~3) | (data & 3);
-            break;
-        case 0x83: /* zonda: get ioctrl */
-            ret = 0x21 | (s->ioctrl << 8);
-            break;
-        case 0x84: /* zonda: set te timing */
-            if (s->bs == bs_cmd) {
-                s->bs = bs_data;
-                /* ignore values */
-            } else {
-                s->bs = bs_cmd;
-                /* ignore values */
-            }
-            break;
-        case 0x8b: /* zonda: set vtiming */
-            if (s->bs == bs_cmd) {
-                s->bs = bs_data;
-                s->vfp = data & 0xff;
-                s->vs = (data >> 8) & 0xff;
-                s->vbp = (data >> 16) & 0xff;
-            } else {
-                s->bs = bs_cmd;
-                s->yres = n00_dsi_readparam(data, 3);
-                TRACEDSI("vtiming yres=%d, vfp=%d, vs=%d, vbp=%d",
-                         s->yres, s->vfp, s->vs, s->vbp);
-            }
-            break;
-        case 0x8c: /* zonda: get vfp */
-            ret = 0x21 | (s->vfp << 8);
-            break;
-        case 0x8d: /* zonda: get vs */
-            ret = 0x21 | (s->vs << 8);
-            break;
-        case 0x8e: /* zonda: get vbp */
-            ret = 0x21 | (s->vbp << 8);
-            break;
-        case 0x8f: /* zonda: get yres msb */
-            ret = 0x21 | (((s->yres >> 16) & 0xff) << 8);
-            break;
-        case 0x90: /* zonda: get yres csb */
-            ret = 0x21 | (((s->yres >> 8) & 0xff) << 8);
-            break;
-        case 0x91: /* zonda: get yres lsb */
-            ret = 0x21 | ((s->yres & 0xff) << 8);
-            break;
-        case 0x92: /* zonda: set htiming */
-            if (s->bs == bs_cmd) {
-                s->bs = bs_data;
-                s->hfp = data & 0xff;
-                s->hs = (data >> 8) & 0xff;
-                s->hbp = (data >> 16) & 0xff;
-            } else {
-                s->bs = bs_cmd;
-                s->xres = n00_dsi_readparam(data, 3);
-                TRACEDSI("htiming xres=%d, hfp=%d, hs=%d, hbp=%d",
-                         s->xres, s->hfp, s->hs, s->hbp);
-            }
-            break;
-        case 0x93: /* zonda: get hfp */
-            ret = 0x21 | (s->hfp << 8);
-            break;
-        case 0x94: /* zonda: get hs */
-            ret = 0x21 | (s->hs << 8);
-            break;
-        case 0x95: /* zonda: get hbp */
-            ret = 0x21 | (s->hbp << 8);
-            break;
-        case 0x96: /* zonda: get xres msb */
-            ret = 0x21 | (((s->xres >> 16) & 0xff) << 8);
-            break;
-        case 0x97: /* zonda: get xres csb */
-            ret = 0x21 | (((s->xres >> 8) & 0xff) << 8);
-            break;
-        case 0x98: /* zonda: get xres lsb */
-            ret = 0x21 | ((s->xres & 0xff) << 8);
-            break;
-        case 0x9e: /* zonda: set pixel clock */
-            TRACEDSI("set pixel clock 0x%02x", n00_dsi_readparam(data, len));
-            break;
         case 0xda: /* get id1 */
-            ret = 0x0121;
-            break;
         case 0xdb: /* get id2 */
         case 0xdc: /* get id3 */
-            ret = 0x21;
+            ret = 0x21; /* single zero byte */
             break;
         default:
             fprintf(stderr, "%s: unknown command 0x%02x\n",
@@ -1676,7 +1589,7 @@ struct n00_s {
     struct twl4030_s *twl4030;
     struct omap3_lcd_panel_s *omap3_lcd;
     void *nand;
-    struct zonda_s *lcd;
+    struct taal_s *lcd;
 };
 
 static void n00_init(ram_addr_t ram_size, int vga_ram_size,
@@ -1698,7 +1611,7 @@ static void n00_init(ram_addr_t ram_size, int vga_ram_size,
                               s->cpu->irq[0][OMAP_INT_3XXX_SYS_NIRQ]);
     s->omap3_lcd = omap3_lcd_panel_init();
     omap3_lcd_panel_attach(s->cpu->dss, 0, s->omap3_lcd);
-    s->lcd = zonda_init();
+    s->lcd = taal_init();
     omap_dsi_attach(s->cpu->dss, 0, s->lcd, n00_dsi_txrx);
     s->nand = onenand_init(0xec4800, 1, 
                            omap2_gpio_in_get(s->cpu->gpif, N00_ONENAND_GPIO)[0]);
