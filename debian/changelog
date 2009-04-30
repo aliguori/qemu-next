@@ -1,3 +1,9 @@
+qemu (0.10.0-0sb7) jaunty; urgency=low
+
+  * Wappu release
+
+ -- Riku Voipio <riku.voipio@iki.fi>  Thu, 30 Apr 2009 15:17:32 +0300
+
 qemu (0.10.0-0sb6) unstable; urgency=low
 
   * W16 release
