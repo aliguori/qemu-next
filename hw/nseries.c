@@ -1434,10 +1434,9 @@ QEMUMachine n810_machine = {
 
 #define N00_DSI_EXTRACTPARAM(var, data, nb) \
     { \
-        var = 0; \
         int i; \
-        for (i = (nbytes - 1) * 8; nbytes--; i -= 8, data >>= 8) \
-            var |= (data & 0xff) << i; \
+        for (i = nb; i--; data >>= 8) \
+            var = (var << 8) | (data & 0xff); \
     }
 
 #define N00_DSI_MAKERETURNBYTE(b) ((((b) & 0xff) << 8) | 0x21)
@@ -1471,20 +1470,10 @@ static struct taal_s *taal_init(void)
     return s;
 }
 
-static uint32_t n00_dsi_readparam(uint32_t data, int nbytes)
-{
-    uint32_t v = 0;
-    int i;
-
-    for (i = (nbytes - 1) * 8; nbytes--; i -= 8, data >>= 8)
-        v |= (data & 0xff) << i;
-    return v;
-}
-
 static uint32_t n00_dsi_txrx(void *opaque, uint32_t data, int len)
 {
-    struct zonda_s *s = (struct zonda_s *)opaque;
-    uint32_t ret = 0, x;
+    struct taal_s *s = (struct taal_s *)opaque;
+    uint32_t ret = 0;
     
     if  (s->bs == bs_cmd) {
         s->cmd = data & 0xff;
@@ -1497,27 +1486,34 @@ static uint32_t n00_dsi_txrx(void *opaque, uint32_t data, int len)
             TRACEDSI("get power mode (0x%04x)", ret);
             break;
         case 0x0b: /* get address mode */
-            ret = 0x21 | (s->addrmode << 8);
+            ret = N00_DSI_MAKERETURNBYTE(s->addrmode);
             TRACEDSI("get address mode (0x%04x)", ret);
             break;
         case 0x11: /* exit sleep */
+            TRACEDSI("exit sleep mode");
             if (!(s->powermode & 0x20)) /* sleep mode? */
                 s->powermode |= 0x08;   /* normal mode */
             s->powermode |= 0x20;
             break;
         case 0x28: /* display off */
+            TRACEDSI("display off");
             s->powermode &= ~0x04;
             break;
         case 0x29: /* display on */
+            TRACEDSI("display on");
             s->powermode |= 0x04;
             break;
         case 0x2a: /* set column address */
             if (s->bs == bs_cmd) {
                 s->bs = bs_data;
-                s->sc = n00_dsi_readparam(data, 2);
+                s->sc = 0;
+                s->ec = 0;
+                s->cc = 0;
+                N00_DSI_EXTRACTPARAM(s->sc, data, 2);
+                N00_DSI_EXTRACTPARAM(s->ec, data, 1);
             } else {
                 s->bs = bs_cmd;
-                s->ec = n00_dsi_readparam(data, 3);
+                N00_DSI_EXTRACTPARAM(s->ec, data, 1);
                 s->cc = s->sc;
                 TRACEDSI("set column address = %d to %d", s->sc ,s->ec);
             }
@@ -1525,27 +1521,27 @@ static uint32_t n00_dsi_txrx(void *opaque, uint32_t data, int len)
         case 0x2b: /* set page address */
             if (s->bs == bs_cmd) {
                 s->bs = bs_data;
-                s->sp = n00_dsi_readparam(data, 3);
+                s->sp = 0;
+                s->ep = 0;
+                s->cp = 0;
+                N00_DSI_EXTRACTPARAM(s->sp, data, 2);
+                N00_DSI_EXTRACTPARAM(s->ep, data, 1);
             } else {
                 s->bs = bs_cmd;
-                s->ep = n00_dsi_readparam(data, 3);
+                N00_DSI_EXTRACTPARAM(s->ep, data, 1);
                 s->cp = s->sp;
                 TRACEDSI("set page address = %d to %d", s->sp, s->ep);
             }
             break;
         case 0x2c: /* write memory */
-            for (; len--; data >>= 8) {
-                x = (s->cp * s->xres + s->cc) * s->bpp;
-                s->buffer[x] = data & 0xff;
-                if (++(s->cc) > s->ec) {
-                    s->cc = s->sc;
-                    if (++(s->cp) > s->ep) {
-                        fprintf(stderr, "%s: memory write beyond defined area!\n",
-                                __FUNCTION__);
-                        break;
-                    }
-                }
-            }
+            TRACEDSI("write to memory -- not implemented so far");
+            break;
+        case 0x34: /* disable tear effect control */
+            TRACEDSI("disable tear effect control");
+            break;
+        case 0x35: /* enable tear effect control */
+            TRACEDSI("enable tear effect control");
+            /* ignore parameter */
             break;
         case 0x36: /* set address mode */
             TRACEDSI("set address mode 0x%02x", data & 0xff);
@@ -1574,7 +1570,8 @@ static uint32_t n00_dsi_txrx(void *opaque, uint32_t data, int len)
         case 0xda: /* get id1 */
         case 0xdb: /* get id2 */
         case 0xdc: /* get id3 */
-            ret = 0x21; /* single zero byte */
+            TRACEDSI("get id%d", s->cmd - 0xda);
+            ret = N00_DSI_MAKERETURNBYTE(0);
             break;
         default:
             fprintf(stderr, "%s: unknown command 0x%02x\n",

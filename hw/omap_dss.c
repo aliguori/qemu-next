@@ -31,7 +31,7 @@
 #define OMAP_DSS_DEBUG_DISPC
 #define OMAP_DSS_DEBUG_DISS
 #define OMAP_DSS_DEBUG_DSI
-//#define OMAP_DSS_DEBUG_RFBI
+#define OMAP_DSS_DEBUG_RFBI
 //#define OMAP_DSS_DEBUG_VENC
 
 #ifdef OMAP_DSS_DEBUG
@@ -1022,8 +1022,8 @@ static void omap_disc_write(void *opaque, target_phys_addr_t addr,
             s->dispc.control = value & 0x07ff9fff;
         else
             s->dispc.control = (value & 0xffff9bff) | (s->dispc.control & 0x6000);
-        s->dig.enable = (value >> 1) & 1;
-        s->lcd.enable = (value >> 0) & 1;
+        s->dig.enable = (value >> 1) & 1; /* DIGITALENABLE */
+        s->lcd.enable = (value >> 0) & 1; /* LCDENABLE */
         if (value & (1 << 12))			/* OVERLAY_OPTIMIZATION */
             if (~((s->dispc.l[1].attr | s->dispc.l[2].attr) & 1))
                  fprintf(stderr, "%s: Overlay Optimization when no overlay "
@@ -2230,15 +2230,16 @@ static void omap_dsi_write(void *opaque, target_phys_addr_t addr,
             switch (addr & 0x1f) {
                 case 0x00: /* DSI_VCx_CTRL */
                     TRACEDSI("DSI_VC%d_CTRL = 0x%08x", x, value);
-                    if (((value >> 27) & 7) != 4)
+                    if (((value >> 27) & 7) != 4) /* DMA_RX_REQ_NB */
                         fprintf(stderr, "%s: RX DMA mode not implemented\n", __FUNCTION__);
-                    if (((value >> 21) & 7) != 4)
+                    if (((value >> 21) & 7) != 4) /* DMA_TX_REQ_NB */
                         fprintf(stderr, "%s: TX DMA mode not implemented\n", __FUNCTION__);
                     if (value & 1) { /* VC_EN */
-                        s->dsi.vc[x].ctrl &= ~0x40; /* BTA_EN */
-                        s->dsi.vc[x].ctrl |= 0x1;   /* VC_EN */
+                        s->dsi.vc[x].ctrl &= ~0x40;  /* BTA_EN */
+                        s->dsi.vc[x].ctrl |= 0x8001; /* VC_BUSY | VC_EN */
                     } else {
-                        s->dsi.vc[x].ctrl = (s->dsi.vc[x].ctrl & 0x11c020) |
+                        /* clear VC_BUSY and VC_EN, assign writable bits */
+                        s->dsi.vc[x].ctrl = (s->dsi.vc[x].ctrl & 0x114020) |
                                             (value & 0x3fee039f);
                     }
                     if (value & 0x40) /* BTA_EN */
@@ -2247,14 +2248,17 @@ static void omap_dsi_write(void *opaque, target_phys_addr_t addr,
                 case 0x04: /* DSI_VCx_TE */
                     TRACEDSI("DSI_VC%d_TE = 0x%08x", x, value);
                     value &= 0xc0ffffff;
-                    if (s->dsi.vc[x].ctrl & 1) { /* VC_EN */
-                        value &= ~(1 << 30);     /* TE_EN */
-                        value |= s->dsi.vc[x].te & (1 << 30);
-                    }
+                    /* according to the TRM the TE_EN bit in this register is
+                     * protected by VCx_CTRL VC_EN bit but let's forget that */
                     s->dsi.vc[x].te = value;
-                    if ((value >> 31) & 3) { /* TE_START | TE_EN */
-                        if (((s->dsi.vc[x].ctrl >> 21) & 7) < 4)
-                            qemu_irq_raise(s->dsi.drq[(s->dsi.vc[x].ctrl >> 21) & 7]);
+                    if ((value >> 30) & 3) { /* TE_START | TE_EN */
+                        TRACEDSI("start data transfer!!");
+                        TRACEDSI("vc%d   irqenable=0x%08x", x, s->dsi.vc[x].irqen);
+                        TRACEDSI("dsi   irqenable=0x%08x", s->dsi.irqen);
+                        TRACEDSI("dispc irqenable=0x%08x", s->dispc.irqen);
+//                        int tx_dma = (s->dsi.vc[x].ctrl >> 21) & 7; /* DMA_TX_REQ_NB */
+//                        if (tx_dma < 4) 
+//                            qemu_irq_raise(s->dsi.drq[tx_dma]);
                     }
                     break;
                 case 0x08: /* DSI_VCx_LONG_PACKET_HEADER */
@@ -2491,9 +2495,29 @@ static void omap3_lcd_panel_update_display(void *opaque)
 
     if (!dss->lcd.enable
         || dss->dispc.l[0].gfx_channel /* 24bit digital out */
-        || ((dss->dispc.control & (1 << 11))) /* RFBI */
         || !lcd_Bpp)
         return;
+    if ((dss->dispc.control & (1 << 11))) {      /* STALLMODE */
+        if ((dss->dsi.ctrl & 1)) {               /* IF_EN */
+            for (y = 0; y < 4; y++) {
+                if ((dss->dsi.vc[y].ctrl & 3) == 3) {   /* VC_EN, SOURCE=1 */
+                    if (dss->dsi.vc[y].te & 0xffffff) { /* TE_SIZE */
+                        dss->dsi.vc[y].te &= ~0xffffff;
+                        dss->dispc.control &= ~1; /* LCDENABLE */
+                        dss->lcd.enable = 0;
+                    }
+                    break;
+                }
+            }
+            if (y >= 4) {
+                /* no active VC found */
+                return;
+            }
+        } else {
+            /* in STALL mode but DSI not active -> RFBI */
+            return;
+        }
+    }
     
     /* check for setup changes since last visit only if flagged */
     if (dss->dispc.invalidate) {
