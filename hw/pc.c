@@ -875,7 +875,7 @@ static void pc_init1(ram_addr_t ram_size,
             /* XXX: enable it in all cases */
             env->cpuid_features |= CPUID_APIC;
         }
-        qemu_register_reset(main_cpu_reset, env);
+        qemu_register_reset(main_cpu_reset, 0, env);
         if (pci_enabled) {
             apic_init(env);
         }
