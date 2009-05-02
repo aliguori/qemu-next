@@ -124,9 +124,6 @@ CFLAGS+=-I/opt/SUNWspro/prod/include/cc
 endif
 endif
 
-kvm.o: CFLAGS+=$(KVM_CFLAGS)
-kvm-all.o: CFLAGS+=$(KVM_CFLAGS)
-
 all: $(PROGS)
 
 #########################################################

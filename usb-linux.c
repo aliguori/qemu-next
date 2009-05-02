@@ -39,7 +39,6 @@
 #include <signal.h>
 
 #include <linux/usbdevice_fs.h>
-#include <linux/version.h>
 #include "hw/usb.h"
 
 /* We redefine it to avoid version problems */

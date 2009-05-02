@@ -1,0 +1,19 @@
+This directory contains a snapshot of Linux kernel headers.  The included
+Makefile was used to import these headers into QEMU.
+
+This process is intended for use by the QEMU maintainers.  It is not intended
+to work against arbitrary kernel versions nor is the intention for end-users to
+use this to update the included headers.
+
+If a contributor needs a newer kernel header for a feature implemented
+by a particular patch, please run the appropriate make sync-* command and
+send the results of that command as a separate patch.  Also make sure to update
+this file to reflect the kernel version used.
+
+While it is okay for development versions of QEMU to contain headers from
+non-release versions of the Linux kernel, any official release of QEMU must use
+headers from a released version of the Linux kernel to ensure ABI compatibility.
+
+Kernel versions used:
+
+git://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux-2.6.git v2.6.30-rc4
