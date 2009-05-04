@@ -1422,7 +1422,7 @@ QEMUMachine n810_machine = {
 #define N00_ONENAND_BUFSIZE (0xc000 << 1)
 #define N00_DISPLAY_BUFSIZE (640 * 480 * 3)
 
-#define N00_DEBUG_DSI
+//#define N00_DEBUG_DSI
 
 #ifdef N00_DEBUG_DSI
 #define TRACEDSI(fmt, ...) fprintf(stderr, "%s: " fmt "\n", __FUNCTION__, ##__VA_ARGS__)

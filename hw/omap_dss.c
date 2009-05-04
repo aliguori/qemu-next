@@ -22,12 +22,13 @@
 #include "console.h"
 #include "omap.h"
 #include "qemu-common.h"
+#include "qemu-timer.h"
 #include "sysemu.h"
 #include "devices.h"
 #include "vga_int.h"
 #include "pixel_ops.h"
 
-#define OMAP_DSS_DEBUG
+//#define OMAP_DSS_DEBUG
 #define OMAP_DSS_DEBUG_DISPC
 #define OMAP_DSS_DEBUG_DISS
 #define OMAP_DSS_DEBUG_DSI
@@ -103,6 +104,8 @@ struct omap_dss_s {
     struct omap3_lcd_panel_s *omap_lcd_panel[2];
 
     struct {
+        QEMUTimer *lcdframer;
+        
         uint8_t rev;
         uint32_t idlemode;
         uint32_t irqst;
@@ -230,6 +233,35 @@ static void omap_dss_interrupt_update(struct omap_dss_s *s)
                  | (s->dispc.irqst & s->dispc.irqen));
 }
 
+static void omap3_dss_lcd_framedone(void *opaque)
+{
+    struct omap_dss_s *s = (struct omap_dss_s *)opaque;
+    if (s->dispc.control & 1) { /* LCDENABLE */
+        if ((s->dispc.control & (1 << 11))) { /* STALLMODE */
+            s->dispc.control &= ~1; /* LCDENABLE */
+            /* let's not set lcd.enable to zero here so that our update_display
+             * function can update the host frame buffer... */
+            //s->lcd.enable = 0;
+            /* if DSI is enabled and there are any TE transfers pending,
+             * mark them as done. */
+            if ((s->dsi.ctrl & 1)) { /* IF_EN */
+                int n = 0;
+                for (; n < 4; n++) {
+                    if ((s->dsi.vc[n].ctrl & 1) &&       /* VC_EN */
+                        (s->dsi.vc[n].te & (3 << 30))) { /* TE_START | TE_EN */
+                        s->dsi.vc[n].te = 0;   /* TE_START,TE_EN,TE_SIZE = 0 */
+                    }
+                }
+            }
+        } else {
+            qemu_mod_timer(s->dispc.lcdframer,
+                           qemu_get_clock(vm_clock) + ticks_per_sec / 10);
+        }
+        s->dispc.irqst |= 1;    /* FRAMEDONE */
+        omap_dss_interrupt_update(s);
+    }
+}
+
 static void omap_dss_save_state(QEMUFile *f, void *opaque)
 {
     struct omap_dss_s *s = (struct omap_dss_s *)opaque;
@@ -250,6 +282,12 @@ static void omap_dss_save_state(QEMUFile *f, void *opaque)
     qemu_put_sbe32(f, s->lcd.ny);
     qemu_put_sbe32(f, s->lcd.x);
     qemu_put_sbe32(f, s->lcd.y);
+    if (s->dispc.lcdframer) {
+        qemu_put_byte(f, 1);
+        qemu_put_timer(f, s->dispc.lcdframer);
+    } else {
+        qemu_put_byte(f, 0);
+    }
     qemu_put_be32(f, s->dispc.idlemode);
     qemu_put_be32(f, s->dispc.irqst);
     qemu_put_be32(f, s->dispc.irqen);
@@ -350,6 +388,10 @@ static void omap_dss_save_state(QEMUFile *f, void *opaque)
         qemu_put_be32(f, s->dsi.vc[i].sp_header);
         qemu_put_be32(f, s->dsi.vc[i].irqst);
         qemu_put_be32(f, s->dsi.vc[i].irqen);
+        qemu_put_buffer(f, (const uint8_t *)s->dsi.vc[i].rx_fifo,
+                        sizeof(s->dsi.vc[i].rx_fifo));
+        qemu_put_sbe32(f, s->dsi.vc[i].rx_fifo_pos);
+        qemu_put_sbe32(f, s->dsi.vc[i].rx_fifo_len);
     }
     qemu_put_be32(f, s->dsi.phy_cfg0);
     qemu_put_be32(f, s->dsi.phy_cfg1);
@@ -383,6 +425,9 @@ static int omap_dss_load_state(QEMUFile *f, void *opaque, int version_id)
     s->lcd.ny = qemu_get_sbe32(f);
     s->lcd.x = qemu_get_sbe32(f);
     s->lcd.y = qemu_get_sbe32(f);
+    if (qemu_get_byte(f)) {
+        qemu_get_timer(f, s->dispc.lcdframer);
+    }
     s->dispc.idlemode = qemu_get_be32(f);
     s->dispc.irqst = qemu_get_be32(f);
     s->dispc.irqen = qemu_get_be32(f);
@@ -483,6 +528,10 @@ static int omap_dss_load_state(QEMUFile *f, void *opaque, int version_id)
         s->dsi.vc[i].sp_header = qemu_get_be32(f);
         s->dsi.vc[i].irqst = qemu_get_be32(f);
         s->dsi.vc[i].irqen = qemu_get_be32(f);
+        qemu_get_buffer(f, (uint8_t *)s->dsi.vc[i].rx_fifo,
+                        sizeof(s->dsi.vc[i].rx_fifo));
+        s->dsi.vc[i].rx_fifo_pos = qemu_get_sbe32(f);
+        s->dsi.vc[i].rx_fifo_len = qemu_get_sbe32(f);
     }
     s->dsi.phy_cfg0 = qemu_get_be32(f);
     s->dsi.phy_cfg1 = qemu_get_be32(f);
@@ -1066,6 +1115,11 @@ static void omap_disc_write(void *opaque, target_phys_addr_t addr,
             s->dispc.control &= ~(1 << 5); /* GOLCD finished */
         }
         s->dispc.invalidate = 1;
+        if (s->lcd.enable && s->dispc.lcdframer) {
+            qemu_mod_timer(s->dispc.lcdframer,
+                           qemu_get_clock(vm_clock) + ticks_per_sec / 10);
+//            omap3_dss_lcd_framedone(s);
+        }
         break;
     case 0x044:	/* DISPC_CONFIG */
         TRACEDISPC("DISPC_CONFIG = 0x%08x", value);
@@ -2067,7 +2121,7 @@ static void omap_dsi_short_write(struct omap_dss_s *s, int ch)
 static void omap_dsi_long_write(struct omap_dss_s *s, int ch)
 {
     uint32_t hdr = s->dsi.vc[ch].lp_header;
-    uint32_t data = 0, size;
+    uint32_t data = 0;
 
     /* TODO: implement packet footer sending (16bit checksum).
      * Currently none is sent and receiver is supposed to not expect one */
@@ -2101,14 +2155,9 @@ static void omap_dsi_long_write(struct omap_dss_s *s, int ch)
                     __FUNCTION__, ch);
         }
         if ((s->dsi.vc[ch].te >> 30) & 3) {     /* TE_START | TE_EN */
-            size = s->dsi.vc[ch].te & 0xffffff; /* TE_SIZE */
-            if (size > 4) {
-                size -= 4;
-                s->dsi.vc[ch].te = (s->dsi.vc[ch].te & (3 << 30)) | size;
-            } else {
-                s->dsi.vc[ch].te = 0;
-                /* TODO: what next? */
-            }
+            /* TODO: do we really need to implement something for this?
+             * Should writes decrease the TE_SIZE counter, for example?
+             * For now, the TE transfers are completed immediately */
         } else {
             if (s->dsi.vc[ch].lp_counter > 0)
                 s->dsi.vc[ch].lp_counter -= 4;
@@ -2248,11 +2297,13 @@ static void omap_dsi_write(void *opaque, target_phys_addr_t addr,
                 case 0x04: /* DSI_VCx_TE */
                     TRACEDSI("DSI_VC%d_TE = 0x%08x", x, value);
                     value &= 0xc0ffffff;
-                    /* according to the TRM the TE_EN bit in this register is
-                     * protected by VCx_CTRL VC_EN bit but let's forget that */
+                    /* according to the OMAP3 TRM the TE_EN bit in this
+                     * register is protected by VCx_CTRL VC_EN bit but
+                     * let's forget that */
                     s->dsi.vc[x].te = value;
                     if ((value >> 30) & 3) { /* TE_START | TE_EN */
-                        TRACEDSI("start data transfer!!");
+                        TRACEDSI("start TE data transfer for %d bytes",
+                                 s->dsi.vc[x].te & 0xffffff);
                         TRACEDSI("vc%d   irqenable=0x%08x", x, s->dsi.vc[x].irqen);
                         TRACEDSI("dsi   irqenable=0x%08x", s->dsi.irqen);
                         TRACEDSI("dispc irqenable=0x%08x", s->dispc.irqen);
@@ -2419,6 +2470,8 @@ struct omap_dss_s *omap3_dss_init(struct omap_target_agent_s *ta,
     iomemtype = l4_register_io_memory(0, omap_dsi_readfn,
                                       omap_dsi_writefn, s);
     omap_l4_attach(ta, 0, iomemtype);
+    
+    s->dispc.lcdframer = qemu_new_timer(vm_clock, omap3_dss_lcd_framedone, s);
 
     omap_dss_reset(s);
     return s;
@@ -2497,26 +2550,10 @@ static void omap3_lcd_panel_update_display(void *opaque)
         || dss->dispc.l[0].gfx_channel /* 24bit digital out */
         || !lcd_Bpp)
         return;
-    if ((dss->dispc.control & (1 << 11))) {      /* STALLMODE */
-        if ((dss->dsi.ctrl & 1)) {               /* IF_EN */
-            for (y = 0; y < 4; y++) {
-                if ((dss->dsi.vc[y].ctrl & 3) == 3) {   /* VC_EN, SOURCE=1 */
-                    if (dss->dsi.vc[y].te & 0xffffff) { /* TE_SIZE */
-                        dss->dsi.vc[y].te &= ~0xffffff;
-                        dss->dispc.control &= ~1; /* LCDENABLE */
-                        dss->lcd.enable = 0;
-                    }
-                    break;
-                }
-            }
-            if (y >= 4) {
-                /* no active VC found */
-                return;
-            }
-        } else {
-            /* in STALL mode but DSI not active -> RFBI */
-            return;
-        }
+    if ((dss->dispc.control & (1 << 11)) && /* STALLMODE */
+        !(dss->dsi.ctrl & 1)) {             /* IF_EN */
+        /* in STALL mode but DSI not enabled -> RFBI */
+        return;
     }
     
     /* check for setup changes since last visit only if flagged */
@@ -2576,8 +2613,9 @@ static void omap3_lcd_panel_update_display(void *opaque)
     }
     s->invalidate = 0;
     
-    dss->dispc.irqst |= 1; /* FRAMEDONE */
-    omap_dss_interrupt_update(dss);
+    if ((dss->dispc.control & (1 << 11))) { /* STALLMODE */
+        dss->lcd.enable = 0;
+    }
 }
 
 /*omap lcd stuff*/
