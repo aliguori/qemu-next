@@ -948,6 +948,52 @@ static abi_long do_select(int n,
 
     return ret;
 }
+static abi_long pipe_set_flag(int fd, int readcmd, int writecmd, long newflag)
+{
+    int flags = fcntl(fd, readcmd);
+    if (flags<0)
+        return get_errno(flags);
+    flags |= newflag;
+    flags = fcntl(fd, writecmd, flags);
+    return get_errno(flags);
+}
+
+static abi_long do_pipe(void *cpu_env, int pipedes, int flags)
+{
+    int host_pipe[2];
+    abi_long ret;
+    ret = pipe(host_pipe);
+    if (is_error(ret))
+        return get_errno(ret);
+#if defined(TARGET_MIPS)
+    ((CPUMIPSState*)cpu_env)->active_tc.gpr[3] = host_pipe[1];
+    ret = host_pipe[0];
+#elif defined(TARGET_SH4)
+    ((CPUSH4State*)cpu_env)->gregs[1] = host_pipe[1];
+    ret = host_pipe[0];
+#else
+    if (put_user_s32(host_pipe[0], pipedes)
+        || put_user_s32(host_pipe[1], pipedes + sizeof(host_pipe[0])))
+        return -TARGET_EFAULT;
+#endif
+    if (flags & O_NONBLOCK) {
+        ret = pipe_set_flag(host_pipe[0], F_GETFL, F_SETFL, O_NONBLOCK);
+        if (is_error(ret))
+            return get_errno(ret);
+        ret = pipe_set_flag(host_pipe[1], F_GETFL, F_SETFL, O_NONBLOCK);
+        if (is_error(ret))
+            return get_errno(ret);
+    }
+    if (flags & O_CLOEXEC) {
+        ret = pipe_set_flag(host_pipe[0], F_GETFD, F_SETFD, FD_CLOEXEC);
+        if (is_error(ret))
+            return get_errno(ret);
+        ret = pipe_set_flag(host_pipe[1], F_GETFD, F_SETFD, FD_CLOEXEC);
+        if (is_error(ret))
+            return get_errno(ret);
+    }
+    return get_errno(ret);
+}
 
 static inline abi_long target_to_host_ip_mreq(struct ip_mreqn *mreqn,
                                               abi_ulong target_addr,
@@ -4534,25 +4580,13 @@ abi_long do_syscall(void *cpu_env, int num, abi_long arg1,
         ret = get_errno(dup(arg1));
         break;
     case TARGET_NR_pipe:
-        {
-            int host_pipe[2];
-            ret = get_errno(pipe(host_pipe));
-            if (!is_error(ret)) {
-#if defined(TARGET_MIPS)
-                CPUMIPSState *env = (CPUMIPSState*)cpu_env;
-		env->active_tc.gpr[3] = host_pipe[1];
-		ret = host_pipe[0];
-#elif defined(TARGET_SH4)
-		((CPUSH4State*)cpu_env)->gregs[1] = host_pipe[1];
-		ret = host_pipe[0];
-#else
-                if (put_user_s32(host_pipe[0], arg1)
-                    || put_user_s32(host_pipe[1], arg1 + sizeof(host_pipe[0])))
-                    goto efault;
-#endif
-            }
-        }
+        ret = do_pipe(cpu_env, arg1, 0);
         break;
+#ifdef TARGET_NR_pipe2
+    case TARGET_NR_pipe2:
+        ret = do_pipe(cpu_env, arg1, arg2);
+        break;
+#endif
     case TARGET_NR_times:
         {
             struct target_tms *tmsp;
