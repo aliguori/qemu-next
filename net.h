@@ -121,6 +121,7 @@ void net_host_device_remove(Monitor *mon, int vlan_id, const char *device);
 
 #define DEFAULT_NETWORK_SCRIPT "/etc/qemu-ifup"
 #define DEFAULT_NETWORK_DOWN_SCRIPT "/etc/qemu-ifdown"
+#define DEFAULT_NETWORK_CREATE_SCRIPT "/etc/qemu-tapcreate"
 #ifdef __sun__
 #define SMBD_COMMAND "/usr/sfw/sbin/smbd"
 #else

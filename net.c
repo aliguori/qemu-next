@@ -1020,6 +1020,120 @@ static int tap_open(char *ifname, int ifname_size)
 }
 #endif
 
+static int send_hello(int s)
+{
+    uint8_t req[1] = { 0x00 };
+    ssize_t len;
+
+    do {
+        len = send(s, req, sizeof(req), 0);
+    } while (len == -1 && errno == EINTR);
+
+    if (len <= 0)
+        return -1;
+
+    return 0;
+}
+
+static int recv_fd(int s)
+{
+    int fd;
+    uint8_t msgbuf[CMSG_SPACE(sizeof(fd))];
+    struct msghdr msg = {
+        .msg_control = msgbuf,
+        .msg_controllen = sizeof(msgbuf),
+    };
+    struct cmsghdr *cmsg;
+    struct iovec iov;
+    uint8_t req[1];
+    ssize_t len;
+
+    iov.iov_base = req;
+    iov.iov_len = sizeof(req);
+
+    msg.msg_iov = &iov;
+    msg.msg_iovlen = 1;
+
+    do {
+        len = recvmsg(s, &msg, 0);
+    } while (len == -1 && errno == EINTR);
+
+    if (len <= 0)
+        return -1;
+
+    fd = -1;
+    for (cmsg = CMSG_FIRSTHDR(&msg); cmsg; cmsg = CMSG_NXTHDR(&msg, cmsg)) {
+        if (cmsg->cmsg_level != SOL_SOCKET)
+            continue;
+
+        switch (cmsg->cmsg_type) {
+        case SCM_RIGHTS:
+            memcpy(&fd, CMSG_DATA(cmsg), sizeof(fd));
+            break;
+        default:
+            break;
+        }
+    }
+
+    return fd;
+}
+
+static int launch_script_and_get_fd(const char *setup_script)
+{
+    int pid, status;
+    char *args[3];
+    char **parg;
+    int fds[2], fd = -1;
+
+    if (socketpair(PF_UNIX, SOCK_STREAM, 0, fds)) {
+        return -1;
+    }
+
+    /* try to launch network script */
+    pid = fork();
+    if (pid >= 0) {
+        if (pid == 0) {
+            int open_max = sysconf (_SC_OPEN_MAX), i;
+            char buf[32];
+
+            for (i = 0; i < open_max; i++)
+                if (i != STDIN_FILENO &&
+                    i != STDOUT_FILENO &&
+                    i != STDERR_FILENO &&
+                    i != fds[1])
+                    close(i);
+            
+            snprintf(buf, sizeof(buf), "%d", fds[1]);
+
+            parg = args;
+            *parg++ = (char *)setup_script;
+            *parg++ = buf;
+            *parg++ = NULL;
+            execv(setup_script, args);
+            _exit(1);
+        }
+
+        send_hello(fds[0]);
+
+        fd = recv_fd(fds[0]);
+
+        while (waitpid(pid, &status, 0) != pid);
+        if (!WIFEXITED(status) ||
+            WEXITSTATUS(status) != 0) {
+            fprintf(stderr, "%s: could not launch network script\n",
+                    setup_script);
+            if (fd != -1)
+                close(fd);
+            fd = -1;
+        }
+    }
+
+    close(fds[0]);
+    close(fds[1]);
+
+    return fd;
+}
+
 static int launch_script(const char *setup_script, const char *ifname, int fd)
 {
     int pid, status;
@@ -1058,7 +1172,8 @@ static int launch_script(const char *setup_script, const char *ifname, int fd)
 
 static int net_tap_init(VLANState *vlan, const char *model,
                         const char *name, const char *ifname1,
-                        const char *setup_script, const char *down_script)
+                        const char *setup_script, const char *down_script,
+                        const char *helper_script)
 {
     TAPState *s;
     int fd;
@@ -1068,9 +1183,25 @@ static int net_tap_init(VLANState *vlan, const char *model,
         pstrcpy(ifname, sizeof(ifname), ifname1);
     else
         ifname[0] = '\0';
-    TFR(fd = tap_open(ifname, sizeof(ifname)));
-    if (fd < 0)
-        return -1;
+
+    if (helper_script[0] != 0) {
+        fd = launch_script_and_get_fd(helper_script);
+        if (fd != -1) {
+            struct ifreq ifr;
+
+            fcntl(fd, F_SETFL, O_NONBLOCK);
+            ioctl(fd, TUNGETIFF, (void *)&ifr);
+            pstrcpy(ifname, sizeof(ifname), ifr.ifr_name);
+        }
+    } else {
+        fd = -1;
+    }
+
+    if (fd == -1) {
+        TFR(fd = tap_open(ifname, sizeof(ifname)));
+        if (fd < 0)
+            return -1;
+    }
 
     if (!setup_script || !strcmp(setup_script, "no"))
         setup_script = "";
@@ -1911,6 +2042,7 @@ int net_client_init(const char *device, const char *p)
     if (!strcmp(device, "tap")) {
         char ifname[64];
         char setup_script[1024], down_script[1024];
+        char helper_script[1024];
         int fd;
         vlan->nb_host_devs++;
         if (get_param_value(buf, sizeof(buf), "fd", p) > 0) {
@@ -1925,7 +2057,7 @@ int net_client_init(const char *device, const char *p)
             ret = 0;
         } else {
             static const char * const tap_params[] = {
-                "vlan", "name", "ifname", "script", "downscript", NULL
+                "vlan", "name", "ifname", "script", "downscript", "create", NULL
             };
             if (check_params(tap_params, p) < 0) {
                 fprintf(stderr, "qemu: invalid parameter '%s' in '%s'\n",
@@ -1941,7 +2073,10 @@ int net_client_init(const char *device, const char *p)
             if (get_param_value(down_script, sizeof(down_script), "downscript", p) == 0) {
                 pstrcpy(down_script, sizeof(down_script), DEFAULT_NETWORK_DOWN_SCRIPT);
             }
-            ret = net_tap_init(vlan, device, name, ifname, setup_script, down_script);
+            if (get_param_value(helper_script, sizeof(helper_script), "create", p) == 0) {
+                pstrcpy(helper_script, sizeof(helper_script), DEFAULT_NETWORK_CREATE_SCRIPT);
+            }
+            ret = net_tap_init(vlan, device, name, ifname, setup_script, down_script, helper_script);
         }
     } else
 #endif
