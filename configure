@@ -795,6 +795,10 @@ if test "$kvm" = "yes" ; then
 kvm_cflags="-I$source_path/kvm/kernel/include"
 kvm_cflags="$kvm_cflags -I$source_path/kvm/kernel/arch/$kvm_arch/include"
 
+# anything that includes kvm.h includes libkvm.h and libkvm.h needs to have
+# kernel/ in it's search directory
+OS_CFLAGS="$OS_CFLAGS $kvm_cflags"
+
 # test for KVM_CAP_PIT
 
 cat > $TMPC <<EOF
