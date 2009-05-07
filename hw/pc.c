@@ -37,6 +37,7 @@
 #include "virtio-balloon.h"
 #include "virtio-console.h"
 #include "hpet_emul.h"
+#include "watchdog.h"
 #include "smbios.h"
 
 /* output Bochs bios info messages */
@@ -424,11 +425,15 @@ static void bochs_bios_write(void *opaque, uint32_t addr, uint32_t val)
     }
 }
 
+extern uint64_t node_cpumask[MAX_NODES];
+
 static void bochs_bios_init(void)
 {
     void *fw_cfg;
     uint8_t *smbios_table;
     size_t smbios_len;
+    uint64_t *numa_fw_cfg;
+    int i, j;
 
     register_ioport_write(0x400, 1, 2, bochs_bios_write, NULL);
     register_ioport_write(0x401, 1, 2, bochs_bios_write, NULL);
@@ -451,6 +456,26 @@ static void bochs_bios_init(void)
     if (smbios_table)
         fw_cfg_add_bytes(fw_cfg, FW_CFG_SMBIOS_ENTRIES,
                          smbios_table, smbios_len);
+
+    /* allocate memory for the NUMA channel: one (64bit) word for the number
+     * of nodes, one word for each VCPU->node and one word for each node to
+     * hold the amount of memory.
+     */
+    numa_fw_cfg = qemu_mallocz((1 + smp_cpus + nb_numa_nodes) * 8);
+    numa_fw_cfg[0] = cpu_to_le64(nb_numa_nodes);
+    for (i = 0; i < smp_cpus; i++) {
+        for (j = 0; j < nb_numa_nodes; j++) {
+            if (node_cpumask[j] & (1 << i)) {
+                numa_fw_cfg[i + 1] = cpu_to_le64(j);
+                break;
+            }
+        }
+    }
+    for (i = 0; i < nb_numa_nodes; i++) {
+        numa_fw_cfg[smp_cpus + 1 + i] = cpu_to_le64(node_mem[i]);
+    }
+    fw_cfg_add_bytes(fw_cfg, FW_CFG_NUMA, (uint8_t *)numa_fw_cfg,
+                     (1 + smp_cpus + nb_numa_nodes) * 8);
 }
 
 /* Generate an initial boot sector which sets state and jump to
@@ -895,8 +920,7 @@ static void pc_init1(ram_addr_t ram_size, int vga_ram_size,
 
     option_rom_offset = qemu_ram_alloc(0x20000);
     oprom_area_size = 0;
-    cpu_register_physical_memory(0xc0000, 0x20000,
-                                 option_rom_offset | IO_MEM_ROM);
+    cpu_register_physical_memory(0xc0000, 0x20000, option_rom_offset);
 
     if (using_vga) {
         /* VGA BIOS load */
@@ -998,6 +1022,8 @@ static void pc_init1(ram_addr_t ram_size, int vga_ram_size,
                           parallel_hds[i]);
         }
     }
+
+    watchdog_pc_init(pci_bus);
 
     for(i = 0; i < nb_nics; i++) {
         NICInfo *nd = &nd_table[i];
