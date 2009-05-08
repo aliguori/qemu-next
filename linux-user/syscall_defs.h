@@ -110,6 +110,28 @@ struct target_sockaddr {
     uint8_t sa_data[14];
 };
 
+struct target_in_addr {
+    uint32_t s_addr; /* big endian */
+};
+
+struct target_ip_mreq {
+    struct target_in_addr imr_multiaddr;
+    struct target_in_addr imr_address;
+};
+
+struct target_ip_mreqn {
+    struct target_in_addr imr_multiaddr;
+    struct target_in_addr imr_address;
+    abi_long imr_ifindex;
+};
+
+struct target_ip_mreq_source {
+    /* big endian */
+    uint32_t imr_multiaddr;
+    uint32_t imr_interface;
+    uint32_t imr_sourceaddr;
+};
+
 struct target_timeval {
     abi_long tv_sec;
     abi_long tv_usec;
@@ -510,9 +532,15 @@ typedef struct {
 #define TARGET_SI_PAD_SIZE	((TARGET_SI_MAX_SIZE/sizeof(int)) - 3)
 
 typedef struct target_siginfo {
+#ifdef TARGET_MIPS
+	int si_signo;
+	int si_code;
+	int si_errno;
+#else
 	int si_signo;
 	int si_errno;
 	int si_code;
+#endif
 
 	union {
 		int _pad[TARGET_SI_PAD_SIZE];

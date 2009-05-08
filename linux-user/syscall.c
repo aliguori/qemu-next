@@ -77,6 +77,7 @@
 #include <linux/soundcard.h>
 #include <linux/kd.h>
 #include <linux/mtio.h>
+#include <linux/fs.h>
 #include "linux_loop.h"
 
 #include "qemu.h"
@@ -406,13 +407,6 @@ static int sys_unlinkat(int dirfd, const char *pathname, int flags)
   return (unlinkat(dirfd, pathname, flags));
 }
 #endif
-#ifdef TARGET_NR_utimensat
-static int sys_utimensat(int dirfd, const char *pathname,
-    const struct timespec times[2], int flags)
-{
-  return (utimensat(dirfd, pathname, times, flags));
-}
-#endif
 #else /* !CONFIG_ATFILE */
 
 /*
@@ -476,12 +470,24 @@ _syscall3(int,sys_symlinkat,const char *,oldpath,
 #if defined(TARGET_NR_unlinkat) && defined(__NR_unlinkat)
 _syscall3(int,sys_unlinkat,int,dirfd,const char *,pathname,int,flags)
 #endif
+
+#endif /* CONFIG_ATFILE */
+
+#ifdef CONFIG_UTIMENSAT
+static int sys_utimensat(int dirfd, const char *pathname,
+    const struct timespec times[2], int flags)
+{
+    if (pathname == NULL)
+        return futimens(dirfd, times);
+    else
+        return utimensat(dirfd, pathname, times, flags);
+}
+#else
 #if defined(TARGET_NR_utimensat) && defined(__NR_utimensat)
 _syscall4(int,sys_utimensat,int,dirfd,const char *,pathname,
           const struct timespec *,tsp,int,flags)
 #endif
-
-#endif /* CONFIG_ATFILE */
+#endif /* CONFIG_UTIMENSAT  */
 
 #ifdef CONFIG_INOTIFY
 #include <sys/inotify.h>
@@ -942,6 +948,70 @@ static abi_long do_select(int n,
 
     return ret;
 }
+static abi_long pipe_set_flag(int fd, int readcmd, int writecmd, long newflag)
+{
+    int flags = fcntl(fd, readcmd);
+    if (flags<0)
+        return get_errno(flags);
+    flags |= newflag;
+    flags = fcntl(fd, writecmd, flags);
+    return get_errno(flags);
+}
+
+static abi_long do_pipe(void *cpu_env, int pipedes, int flags)
+{
+    int host_pipe[2];
+    abi_long ret;
+    ret = pipe(host_pipe);
+    if (is_error(ret))
+        return get_errno(ret);
+#if defined(TARGET_MIPS)
+    ((CPUMIPSState*)cpu_env)->active_tc.gpr[3] = host_pipe[1];
+    ret = host_pipe[0];
+#elif defined(TARGET_SH4)
+    ((CPUSH4State*)cpu_env)->gregs[1] = host_pipe[1];
+    ret = host_pipe[0];
+#else
+    if (put_user_s32(host_pipe[0], pipedes)
+        || put_user_s32(host_pipe[1], pipedes + sizeof(host_pipe[0])))
+        return -TARGET_EFAULT;
+#endif
+    if (flags & O_NONBLOCK) {
+        ret = pipe_set_flag(host_pipe[0], F_GETFL, F_SETFL, O_NONBLOCK);
+        if (is_error(ret))
+            return get_errno(ret);
+        ret = pipe_set_flag(host_pipe[1], F_GETFL, F_SETFL, O_NONBLOCK);
+        if (is_error(ret))
+            return get_errno(ret);
+    }
+    if (flags & O_CLOEXEC) {
+        ret = pipe_set_flag(host_pipe[0], F_GETFD, F_SETFD, FD_CLOEXEC);
+        if (is_error(ret))
+            return get_errno(ret);
+        ret = pipe_set_flag(host_pipe[1], F_GETFD, F_SETFD, FD_CLOEXEC);
+        if (is_error(ret))
+            return get_errno(ret);
+    }
+    return get_errno(ret);
+}
+
+static inline abi_long target_to_host_ip_mreq(struct ip_mreqn *mreqn,
+                                              abi_ulong target_addr,
+                                              socklen_t len)
+{
+    struct target_ip_mreqn *target_smreqn;
+
+    target_smreqn = lock_user(VERIFY_READ, target_addr, len, 1);
+    if (!target_smreqn)
+        return -TARGET_EFAULT;
+    mreqn->imr_multiaddr.s_addr = target_smreqn->imr_multiaddr.s_addr;
+    mreqn->imr_address.s_addr = target_smreqn->imr_address.s_addr;
+    if (len == sizeof(struct target_ip_mreqn))
+        mreqn->imr_ifindex = tswapl(target_smreqn->imr_ifindex);
+    unlock_user(target_smreqn, target_addr, 0);
+
+    return 0;
+}
 
 static inline abi_long target_to_host_sockaddr(struct sockaddr *addr,
                                                abi_ulong target_addr,
@@ -1118,6 +1188,8 @@ static abi_long do_setsockopt(int sockfd, int level, int optname,
 {
     abi_long ret;
     int val;
+    struct ip_mreqn *ip_mreq;
+    struct ip_mreq_source *ip_mreq_source;
 
     switch(level) {
     case SOL_TCP:
@@ -1156,6 +1228,29 @@ static abi_long do_setsockopt(int sockfd, int level, int optname,
             }
             ret = get_errno(setsockopt(sockfd, level, optname, &val, sizeof(val)));
             break;
+        case IP_ADD_MEMBERSHIP:
+        case IP_DROP_MEMBERSHIP:
+            if (optlen < sizeof (struct target_ip_mreq) ||
+                optlen > sizeof (struct target_ip_mreqn))
+                return -TARGET_EINVAL;
+
+            ip_mreq = (struct ip_mreqn *) alloca(optlen);
+            target_to_host_ip_mreq(ip_mreq, optval_addr, optlen);
+            ret = get_errno(setsockopt(sockfd, level, optname, ip_mreq, optlen));
+            break;
+
+        case IP_BLOCK_SOURCE:
+        case IP_UNBLOCK_SOURCE:
+        case IP_ADD_SOURCE_MEMBERSHIP:
+        case IP_DROP_SOURCE_MEMBERSHIP:
+            if (optlen != sizeof (struct target_ip_mreq_source))
+                return -TARGET_EINVAL;
+
+            ip_mreq_source = lock_user(VERIFY_READ, optval_addr, optlen, 1);
+            ret = get_errno(setsockopt(sockfd, level, optname, ip_mreq_source, optlen));
+            unlock_user (ip_mreq_source, optval_addr, 0);
+            break;
+
         default:
             goto unimplemented;
         }
@@ -3885,7 +3980,11 @@ static int do_futex(target_ulong uaddr, int op, int val, target_ulong timeout,
 
     /* ??? We assume FUTEX_* constants are the same on both host
        and target.  */
+#ifdef FUTEX_CMD_MASK
+    switch ((op&FUTEX_CMD_MASK)) {
+#else
     switch (op) {
+#endif
     case FUTEX_WAIT:
         if (timeout) {
             pts = &ts;
@@ -3893,17 +3992,17 @@ static int do_futex(target_ulong uaddr, int op, int val, target_ulong timeout,
         } else {
             pts = NULL;
         }
-        return get_errno(sys_futex(g2h(uaddr), FUTEX_WAIT, tswap32(val),
+        return get_errno(sys_futex(g2h(uaddr), op, tswap32(val),
                          pts, NULL, 0));
     case FUTEX_WAKE:
-        return get_errno(sys_futex(g2h(uaddr), FUTEX_WAKE, val, NULL, NULL, 0));
+        return get_errno(sys_futex(g2h(uaddr), op, val, NULL, NULL, 0));
     case FUTEX_FD:
-        return get_errno(sys_futex(g2h(uaddr), FUTEX_FD, val, NULL, NULL, 0));
+        return get_errno(sys_futex(g2h(uaddr), op, val, NULL, NULL, 0));
     case FUTEX_REQUEUE:
-        return get_errno(sys_futex(g2h(uaddr), FUTEX_REQUEUE, val,
+        return get_errno(sys_futex(g2h(uaddr), op, val,
                          NULL, g2h(uaddr2), 0));
     case FUTEX_CMP_REQUEUE:
-        return get_errno(sys_futex(g2h(uaddr), FUTEX_CMP_REQUEUE, val,
+        return get_errno(sys_futex(g2h(uaddr), op, val,
                          NULL, g2h(uaddr2), tswap32(val3)));
     default:
         return -TARGET_ENOSYS;
@@ -4481,25 +4580,13 @@ abi_long do_syscall(void *cpu_env, int num, abi_long arg1,
         ret = get_errno(dup(arg1));
         break;
     case TARGET_NR_pipe:
-        {
-            int host_pipe[2];
-            ret = get_errno(pipe(host_pipe));
-            if (!is_error(ret)) {
-#if defined(TARGET_MIPS)
-                CPUMIPSState *env = (CPUMIPSState*)cpu_env;
-		env->active_tc.gpr[3] = host_pipe[1];
-		ret = host_pipe[0];
-#elif defined(TARGET_SH4)
-		((CPUSH4State*)cpu_env)->gregs[1] = host_pipe[1];
-		ret = host_pipe[0];
-#else
-                if (put_user_s32(host_pipe[0], arg1)
-                    || put_user_s32(host_pipe[1], arg1 + sizeof(host_pipe[0])))
-                    goto efault;
-#endif
-            }
-        }
+        ret = do_pipe(cpu_env, arg1, 0);
         break;
+#ifdef TARGET_NR_pipe2
+    case TARGET_NR_pipe2:
+        ret = do_pipe(cpu_env, arg1, arg2);
+        break;
+#endif
     case TARGET_NR_times:
         {
             struct target_tms *tmsp;
@@ -6581,7 +6668,8 @@ abi_long do_syscall(void *cpu_env, int num, abi_long arg1,
     case TARGET_NR_removexattr:
     case TARGET_NR_lremovexattr:
     case TARGET_NR_fremovexattr:
-        goto unimplemented_nowarn;
+        ret = -TARGET_EOPNOTSUPP;
+        break;
 #endif
 #ifdef TARGET_NR_set_thread_area
     case TARGET_NR_set_thread_area:
@@ -6678,17 +6766,22 @@ abi_long do_syscall(void *cpu_env, int num, abi_long arg1,
 #if defined(TARGET_NR_utimensat) && defined(__NR_utimensat)
     case TARGET_NR_utimensat:
         {
-            struct timespec ts[2];
-            target_to_host_timespec(ts, arg3);
-            target_to_host_timespec(ts+1, arg3+sizeof(struct target_timespec));
+            struct timespec *tsp, ts[2];
+            if (!arg3) {
+                tsp = NULL;
+            } else {
+                target_to_host_timespec(ts, arg3);
+                target_to_host_timespec(ts+1, arg3+sizeof(struct target_timespec));
+                tsp = ts;
+            }
             if (!arg2)
-                ret = get_errno(sys_utimensat(arg1, NULL, ts, arg4));
+                ret = get_errno(sys_utimensat(arg1, NULL, tsp, arg4));
             else {
                 if (!(p = lock_user_string(arg2))) {
                     ret = -TARGET_EFAULT;
                     goto fail;
                 }
-                ret = get_errno(sys_utimensat(arg1, path(p), ts, arg4));
+                ret = get_errno(sys_utimensat(arg1, path(p), tsp, arg4));
                 unlock_user(p, arg2, 0);
             }
         }
