@@ -21,9 +21,26 @@
 #define MAC_TABLE_ENTRIES    32
 #define MAX_VLAN    (1 << 12)   /* Per 802.1Q definition */
 
+typedef struct VirtIONetStats
+{
+    QSTAT_DECLARE(tx_packets);
+    QSTAT_DECLARE(tx_bytes);
+    QSTAT_DECLARE(rx_packets);
+    QSTATE_DECLARE(rx_bytes);
+} VirtIONetStats;
+
+static QStatDescription qstats[] = {
+    { QSTAT_DESC(VirtIONetStats, tx_packets) },
+    { QSTAT_DESC(VirtIONetStats, tx_bytes) },
+    { QSTAT_DESC(VirtIONetStats, rx_packets) },
+    { QSTAT_DESC(VirtIONetStats, rx_bytes) },
+};
+
 typedef struct VirtIONet
 {
     VirtIODevice vdev;
+    VirtIONetStats stats;
+    int instance_id;
     uint8_t mac[ETH_ALEN];
     uint16_t status;
     VirtQueue *rx_vq;
@@ -373,6 +390,9 @@ static void virtio_net_receive(void *opaque, const uint8_t *buf, int size)
     if (!receive_filter(n, buf, size))
         return;
 
+    n->stats.rx_packets++;
+    n->stats.rx_bytes += size;
+
     /* hdr_len refers to the header we supply to the guest */
     hdr_len = n->mergeable_rx_bufs ?
         sizeof(struct virtio_net_hdr_mrg_rxbuf) : sizeof(struct virtio_net_hdr);
@@ -470,6 +490,7 @@ static void virtio_net_flush_tx(VirtIONet *n, VirtQueue *vq)
             len += hdr_len;
         }
 
+        n->stats.tx_packets++;
         len += qemu_sendv_packet(n->vc, out_sg, out_num);
 
         virtqueue_push(vq, &elem, len);
@@ -574,6 +595,7 @@ static void virtio_net_cleanup(VLANClientState *vc)
 {
     VirtIONet *n = vc->opaque;
 
+    unregister_qstat("virtio-net", n->instance_id);
     unregister_savevm("virtio-net", n);
 
     qemu_free(n->mac_table.macs);
@@ -628,6 +650,8 @@ PCIDevice *virtio_net_init(PCIBus *bus, NICInfo *nd, int devfn)
     n->mac_table.macs = qemu_mallocz(MAC_TABLE_ENTRIES * ETH_ALEN);
 
     n->vlans = qemu_mallocz(MAX_VLAN >> 3);
+
+    n->instance_id = register_qstat("virtio-net", virtio_net_id, qstats, ARRAY_SIZE(qstats), &n->stats);
 
     register_savevm("virtio-net", virtio_net_id++, VIRTIO_NET_VM_VERSION,
                     virtio_net_save, virtio_net_load, n);

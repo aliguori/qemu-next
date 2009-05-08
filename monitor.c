@@ -1778,6 +1778,7 @@ static const mon_cmd_t mon_cmds[] = {
                                "acl allow vnc.username fred\n"
                                "acl deny vnc.username bob\n"
                                "acl reset vnc.username\n" },
+    { "stat", "s?i?", do_stat, "[class] [instance]", "show internal QEMU statistics" },
     { NULL, NULL, },
 };
 
