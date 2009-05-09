@@ -25,6 +25,7 @@
 #include "qemu-timer.h"
 #include "qemu-char.h"
 #include "block_int.h"
+#include "module.h"
 #include <assert.h>
 #ifdef CONFIG_AIO
 #include "posix-aio-compat.h"
@@ -846,7 +847,7 @@ static void raw_flush(BlockDriverState *bs)
     fsync(s->fd);
 }
 
-BlockDriver bdrv_raw = {
+static BlockDriver bdrv_raw = {
     .format_name = "raw",
     .instance_size = sizeof(BDRVRawState),
     .bdrv_probe = NULL, /* no probe for protocols */
@@ -1398,7 +1399,7 @@ static int hdev_create(const char *filename, int64_t total_size,
 }
 #endif
 
-BlockDriver bdrv_host_device = {
+static BlockDriver bdrv_host_device = {
     .format_name	= "host_device",
     .instance_size	= sizeof(BDRVRawState),
     .bdrv_open		= hdev_open,
@@ -1428,3 +1429,12 @@ BlockDriver bdrv_host_device = {
     .bdrv_aio_ioctl	= raw_aio_ioctl,
 #endif
 };
+
+static int bdrv_raw_init(void)
+{
+    bdrv_register(&bdrv_raw);
+    bdrv_register(&bdrv_host_device);
+    return 0;
+}
+
+block_init(bdrv_raw_init);
