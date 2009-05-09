@@ -8,10 +8,13 @@
 %.o: %.m
 	$(call quiet-command,$(CC) $(CFLAGS) $(CPPFLAGS) -c -o $@ $<,"  OBJC  $(TARGET_DIR)$@")
 
-LINK = $(call quiet-command,$(CC) $(LDFLAGS) -o $@ $^ $(LIBS),"  LINK  $(TARGET_DIR)$@")
+WAS=-Wl,--whole-archive
+WAE=-Wl,--no-whole-archive
+
+LINK = $(call quiet-command,$(CC) $(LDFLAGS) -o $@ $(1) $(WAS) $(ARLIBS) $(WAE) $(LIBS),"  LINK  $(TARGET_DIR)$@")
 
 %$(EXESUF): %.o
-	$(LINK)
+	$(call LINK,$^)
 
 %.a:
 	$(call quiet-command,rm -f $@ && $(AR) rcs $@ $^,"  AR    $(TARGET_DIR)$@")
