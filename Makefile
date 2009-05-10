@@ -78,7 +78,7 @@ BLOCK_OBJS=cutils.o cache-utils.o qemu-malloc.o module.o aes.o nbd.o block.o
 BLOCK_OBJS+=aio.o
 
 obj-y=
-include $(SRC_PATH)/block/Makefile
+-include $(SRC_PATH)/block/Makefile
 BLOCK_OBJS+=$(addprefix block/, $(obj-y))
 
 ifndef CONFIG_WIN32

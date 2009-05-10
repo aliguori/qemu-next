@@ -2124,98 +2124,351 @@ static CharDriverState *qemu_chr_open_tcp(const char *host_str,
     return NULL;
 }
 
-CharDriverState *qemu_chr_open(const char *label, const char *filename, void (*init)(struct CharDriverState *s))
+typedef struct CharDriverEntry
 {
-    const char *p;
-    CharDriverState *chr;
+    CharDriver *drv;
+    TAILQ_ENTRY(CharDriverEntry) node;
+} CharDriverEntry;
 
-    if (!strcmp(filename, "vc")) {
-        chr = text_console_init(0);
-    } else
-    if (strstart(filename, "vc:", &p)) {
-        chr = text_console_init(p);
-    } else
-    if (!strcmp(filename, "null")) {
-        chr = qemu_chr_open_null();
-    } else
-    if (strstart(filename, "tcp:", &p)) {
-        chr = qemu_chr_open_tcp(p, 0, 0);
-    } else
-    if (strstart(filename, "telnet:", &p)) {
-        chr = qemu_chr_open_tcp(p, 1, 0);
-    } else
-    if (strstart(filename, "udp:", &p)) {
-        chr = qemu_chr_open_udp(p);
-    } else
-    if (strstart(filename, "mon:", &p)) {
-        chr = qemu_chr_open(label, p, NULL);
-        if (chr) {
-            chr = qemu_chr_open_mux(chr);
-            monitor_init(chr, MONITOR_USE_READLINE);
-        } else {
-            printf("Unable to open driver: %s\n", p);
-        }
-    } else if (!strcmp(filename, "msmouse")) {
-        chr = qemu_chr_open_msmouse();
-    } else
-#ifndef _WIN32
-    if (strstart(filename, "unix:", &p)) {
-	chr = qemu_chr_open_tcp(p, 0, 1);
-    } else if (strstart(filename, "file:", &p)) {
-        chr = qemu_chr_open_file_out(p);
-    } else if (strstart(filename, "pipe:", &p)) {
-        chr = qemu_chr_open_pipe(p);
-    } else if (!strcmp(filename, "pty")) {
-        chr = qemu_chr_open_pty();
-    } else if (!strcmp(filename, "stdio")) {
-        chr = qemu_chr_open_stdio();
-    } else
-#if defined(__linux__)
-    if (strstart(filename, "/dev/parport", NULL)) {
-        chr = qemu_chr_open_pp(filename);
-    } else
-#elif defined(__FreeBSD__) || defined(__DragonFly__)
-    if (strstart(filename, "/dev/ppi", NULL)) {
-        chr = qemu_chr_open_pp(filename);
-    } else
-#endif
-#if defined(__linux__) || defined(__sun__) || defined(__FreeBSD__) \
-    || defined(__NetBSD__) || defined(__OpenBSD__) || defined(__DragonFly__)
-    if (strstart(filename, "/dev/", NULL)) {
-        chr = qemu_chr_open_tty(filename);
-    } else
-#endif
-#else /* !_WIN32 */
-    if (strstart(filename, "COM", NULL)) {
-        chr = qemu_chr_open_win(filename);
-    } else
-    if (strstart(filename, "pipe:", &p)) {
-        chr = qemu_chr_open_win_pipe(p);
-    } else
-    if (strstart(filename, "con:", NULL)) {
-        chr = qemu_chr_open_win_con(filename);
-    } else
-    if (strstart(filename, "file:", &p)) {
-        chr = qemu_chr_open_win_file_out(p);
-    } else
-#endif
-#ifdef CONFIG_BRLAPI
-    if (!strcmp(filename, "braille")) {
-        chr = chr_baum_init();
-    } else
-#endif
-    {
-        chr = NULL;
+static TAILQ_HEAD(, CharDriverEntry) char_drivers = TAILQ_HEAD_INITIALIZER(char_drivers);
+
+int qemu_chr_register_driver(CharDriver *drv)
+{
+    CharDriverEntry *e;
+
+    e = qemu_mallocz(sizeof(*e));
+    e->drv = drv;
+    TAILQ_INSERT_HEAD(&char_drivers, e, node);
+
+    return 0;
+}
+
+void qemu_chr_unregister_driver(CharDriver *drv)
+{
+    CharDriverEntry *e;
+
+    TAILQ_FOREACH(e, &char_drivers, node) {
+        if (e->drv == drv)
+            break;
     }
 
-    if (chr) {
+    if (e) {
+        TAILQ_REMOVE(&char_drivers, e, node);
+        qemu_free(e);
+    }
+}
+
+CharDriverState *qemu_chr_open(const char *label, const char *filename, void (*init)(struct CharDriverState *s))
+{
+    const char *p = NULL;
+    CharDriverState *chr = NULL;
+    CharDriverEntry *e;
+
+    TAILQ_FOREACH(e, &char_drivers, node) {
+        if ((e->drv->flags & CHAR_DRIVER_NO_ARGS)) {
+            if (strcmp(filename, e->drv->name) == 0) {
+                break;
+            }
+        } else {
+            if (strstart(filename, e->drv->name, &p)) {
+                break;
+            }
+        }
+    }
+
+    if (e) {
+        if (e->drv->flags & CHAR_DRIVER_FULL_ARGS)
+            p = filename;
+
+        chr = e->drv->init(label, p);
         if (!chr->filename)
             chr->filename = qemu_strdup(filename);
         chr->init = init;
         chr->label = qemu_strdup(label);
         TAILQ_INSERT_TAIL(&chardevs, chr, next);
     }
+
     return chr;
+}
+
+static CharDriverState *chr_drv_vc_init(const char *label, const char *filename)
+{
+    return text_console_init(0);
+}
+
+static CharDriver chr_drv_vc = {
+    .name = "vc",
+    .flags = CHAR_DRIVER_NO_ARGS,
+    .init = chr_drv_vc_init,
+};
+
+static CharDriverState *chr_drv_vc_init_with_args(const char *label, const char *filename)
+{
+    return text_console_init(filename);
+}
+
+static CharDriver chr_drv_vc_args = {
+    .name = "vc:",
+    .init = chr_drv_vc_init_with_args,
+};
+
+static CharDriverState *chr_drv_null_init(const char *label, const char *filename)
+{
+    return qemu_chr_open_null();
+}
+
+static CharDriver chr_drv_null = {
+    .name = "null",
+    .flags = CHAR_DRIVER_NO_ARGS,
+    .init = chr_drv_null_init,
+};
+
+static CharDriverState *chr_drv_tcp_init(const char *label, const char *filename)
+{
+    return qemu_chr_open_tcp(filename, 0, 0);
+}
+
+static CharDriver chr_drv_tcp = {
+    .name = "tcp:",
+    .init = chr_drv_tcp_init,
+};
+
+static CharDriverState *chr_drv_telnet_init(const char *label, const char *filename)
+{
+    return qemu_chr_open_tcp(filename, 1, 0);
+}
+
+static CharDriver chr_drv_telnet = {
+    .name = "telnet:",
+    .init = chr_drv_telnet_init,
+};
+
+static CharDriverState *chr_drv_udp_init(const char *label, const char *filename)
+{
+    return qemu_chr_open_udp(filename);
+}
+
+static CharDriver chr_drv_udp = {
+    .name = "udp:",
+    .init = chr_drv_udp_init,
+};
+
+static CharDriverState *chr_drv_mon_init(const char *label, const char *filename)
+{
+    CharDriverState *chr;
+
+    chr = qemu_chr_open(label, filename, NULL);
+    if (chr) {
+        chr = qemu_chr_open_mux(chr);
+        monitor_init(chr, MONITOR_USE_READLINE);
+    } else {
+        printf("Unable to open driver: %s\n", filename);
+    }
+
+    return chr;
+}
+
+static CharDriver chr_drv_mon = {
+    .name = "mon:",
+    .init = chr_drv_mon_init,
+};
+
+static CharDriverState *chr_drv_msmouse_init(const char *label, const char *filename)
+{
+    return qemu_chr_open_msmouse();
+}
+
+static CharDriver chr_drv_msmouse = {
+    .name = "msmouse",
+    .flags = CHAR_DRIVER_NO_ARGS,
+    .init = chr_drv_msmouse_init,
+};
+
+#ifndef _WIN32
+static CharDriverState *chr_drv_unix_init(const char *label, const char *filename)
+{
+    return qemu_chr_open_tcp(filename, 0, 1);
+}
+
+static CharDriver chr_drv_unix = {
+    .name = "unix:",
+    .init = chr_drv_unix_init,
+};
+
+static CharDriverState *chr_drv_file_init(const char *label, const char *filename)
+{
+    return qemu_chr_open_file_out(filename);
+}
+
+static CharDriver chr_drv_file = {
+    .name = "file:",
+    .init = chr_drv_file_init,
+};
+
+static CharDriverState *chr_drv_pipe_init(const char *label, const char *filename)
+{
+    return qemu_chr_open_pipe(filename);
+}
+
+static CharDriver chr_drv_pipe = {
+    .name = "pipe:",
+    .init = chr_drv_pipe_init,
+};
+
+static CharDriverState *chr_drv_pty_init(const char *label, const char *filename)
+{
+    return qemu_chr_open_pty();
+}
+
+static CharDriver chr_drv_pty = {
+    .name = "pty",
+    .flags = CHAR_DRIVER_NO_ARGS,
+    .init = chr_drv_pty_init,
+};
+
+static CharDriverState *chr_drv_stdio_init(const char *label, const char *filename)
+{
+    return qemu_chr_open_stdio();
+}
+
+static CharDriver chr_drv_stdio = {
+    .name = "stdio",
+    .flags = CHAR_DRIVER_NO_ARGS,
+    .init = chr_drv_stdio_init,
+};
+
+#if defined(__linux__)
+static CharDriverState *chr_drv_pp_init(const char *label, const char *filename)
+{
+    return qemu_chr_open_pp(filename);
+}
+
+static CharDriver chr_drv_pp = {
+    .name = "/dev/parport",
+    .flags = CHAR_DRIVER_FULL_ARGS,
+    .init = chr_drv_pp_init,
+};
+#elif defined(__FreeBSD__) || defined(__DragonFly__)
+static CharDriverState *chr_drv_pp_init(const char *label, const char *filename)
+{
+    return qemu_chr_open_pp(filename);
+}
+
+static CharDriver chr_drv_pp = {
+    .name = "/dev/ppi",
+    .flags = CHAR_DRIVER_FULL_ARGS,
+    .init = chr_drv_pp_init,
+};
+#endif
+
+#if defined(__linux__) || defined(__sun__) || defined(__FreeBSD__) \
+    || defined(__NetBSD__) || defined(__OpenBSD__) || defined(__DragonFly__)
+static CharDriverState *chr_drv_tty_init(const char *label, const char *filename)
+{
+    return qemu_chr_open_tty(filename);
+}
+
+/* FIXME need priority for this */
+static CharDriver chr_drv_tty = {
+    .name = "/dev/",
+    .flags = CHAR_DRIVER_FULL_ARGS,
+    .init = chr_drv_tty_init,
+};
+#endif
+#else /* !_WIN32 */
+static CharDriverState *chr_drv_com_init(const char *label, const char *filename)
+{
+    return qemu_chr_open_win(filename);
+}
+
+static CharDriver chr_drv_com = {
+    .name = "COM",
+    .flags = CHAR_DRIVER_FULL_ARGS,
+    .init = chr_drv_com_init,
+};
+
+static CharDriverState *chr_drv_pipe_init(const char *label, const char *filename)
+{
+    return qemu_chr_open_win_pipe(filename);
+}
+
+static CharDriver chr_drv_pipe = {
+    .name = "pipe:",
+    .init = chr_drv_pipe_init,
+};
+
+static CharDriverState *chr_drv_con_init(const char *label, const char *filename)
+{
+    return qemu_chr_open_win_con(filename);
+}
+
+static CharDriver chr_drv_con = {
+    .name = "con:",
+    .init = chr_drv_con_init,
+};
+
+static CharDriverState *chr_drv_file_init(const char *label, const char *filename)
+{
+    return qemu_chr_open_win_file_out(filename);
+}
+
+static CharDriver chr_drv_file = {
+    .name = "file:",
+    .init = chr_drv_file_init,
+};
+#endif
+
+#ifdef CONFIG_BRLAPI
+static CharDriverState *chr_drv_braille_init(const char *label, const char *filename)
+{
+    return chr_baum_init();
+}
+
+static CharDriver chr_drv_braille = {
+    .name = "braille",
+    .flags = CHAR_DRIVER_NO_ARGS,
+    .init = chr_drv_braille_init,
+};
+#endif
+
+int qemu_chr_drv_init(void)
+{
+    int ret = 0;
+
+    ret |= qemu_chr_register_driver(&chr_drv_vc);
+    ret |= qemu_chr_register_driver(&chr_drv_vc_args);
+    ret |= qemu_chr_register_driver(&chr_drv_null);
+    ret |= qemu_chr_register_driver(&chr_drv_tcp);
+    ret |= qemu_chr_register_driver(&chr_drv_telnet);
+    ret |= qemu_chr_register_driver(&chr_drv_udp);
+    ret |= qemu_chr_register_driver(&chr_drv_mon);
+    ret |= qemu_chr_register_driver(&chr_drv_msmouse);
+#ifndef _WIN32
+    ret |= qemu_chr_register_driver(&chr_drv_unix);
+    ret |= qemu_chr_register_driver(&chr_drv_file);
+    ret |= qemu_chr_register_driver(&chr_drv_pipe);
+    ret |= qemu_chr_register_driver(&chr_drv_pty);
+    ret |= qemu_chr_register_driver(&chr_drv_stdio);
+#if defined(__linux__)
+    ret |= qemu_chr_register_driver(&chr_drv_pp);
+#elif defined(__FreeBSD__) || defined(__DragonFly__)
+    ret |= qemu_chr_register_driver(&chr_drv_pp);
+#endif
+#if defined(__linux__) || defined(__sun__) || defined(__FreeBSD__) \
+    || defined(__NetBSD__) || defined(__OpenBSD__) || defined(__DragonFly__)
+    ret |= qemu_chr_register_driver(&chr_drv_tty);
+#endif
+#else
+    ret |= qemu_chr_register_driver(&chr_drv_com);
+    ret |= qemu_chr_register_driver(&chr_drv_pipe);
+    ret |= qemu_chr_register_driver(&chr_drv_con);
+    ret |= qemu_chr_register_driver(&chr_drv_file);
+#endif
+#ifdef CONFIG_BRLAPI
+    ret |= qemu_chr_register_driver(&chr_drv_braille);
+#endif
+
+    return ret;
 }
 
 void qemu_chr_close(CharDriverState *chr)

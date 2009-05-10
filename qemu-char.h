@@ -66,6 +66,16 @@ struct CharDriverState {
     TAILQ_ENTRY(CharDriverState) next;
 };
 
+#define CHAR_DRIVER_NO_ARGS    0x01
+#define CHAR_DRIVER_FULL_ARGS  0x02
+
+typedef struct CharDriver
+{
+    const char *name;
+    int flags;
+    CharDriverState *(*init)(const char *label, const char *args);
+} CharDriver;
+
 CharDriverState *qemu_chr_open(const char *label, const char *filename, void (*init)(struct CharDriverState *s));
 void qemu_chr_close(CharDriverState *chr);
 void qemu_chr_printf(CharDriverState *s, const char *fmt, ...);
@@ -85,6 +95,10 @@ void qemu_chr_accept_input(CharDriverState *s);
 void qemu_chr_info(Monitor *mon);
 
 extern int term_escape_char;
+
+int qemu_chr_drv_init(void);
+int qemu_chr_register_driver(CharDriver *drv);
+void qemu_chr_unregister_driver(CharDriver *drv);
 
 /* async I/O support */
 
