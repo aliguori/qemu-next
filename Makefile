@@ -41,7 +41,16 @@ ifdef CONFIG_WIN32
 LIBS+=-lwinmm -lws2_32 -liphlpapi
 endif
 
-all: $(TOOLS) $(DOCS) recurse-all
+ifdef CONFIG_WIN32
+DEFCONFIG=$(SRC_PATH)/configs/win32/defconfig
+else
+DEFCONFIG=$(SRC_PATH)/configs/unix/defconfig
+endif
+
+all: .config $(TOOLS) $(DOCS) recurse-all
+
+.config: $(DEFCONFIG)
+	$(call quiet-command,cp $< $@,)
 
 config-host.mak: configure
 ifneq ($(wildcard config-host.mak),)
@@ -60,22 +69,22 @@ $(filter %-user,$(SUBDIR_RULES)): libqemu_user.a
 
 recurse-all: $(SUBDIR_RULES)
 
+-include .config
+
 #######################################################################
 # BLOCK_OBJS is code used by both qemu system emulation and qemu-img
 
-BLOCK_OBJS=cutils.o cache-utils.o qemu-malloc.o module.o
-BLOCK_OBJS+=block/cow.o block/qcow.o aes.o block/vmdk.o block/cloop.o
-BLOCK_OBJS+=block/dmg.o block/bochs.o block/vpc.o block/vvfat.o
-BLOCK_OBJS+=block/qcow2.o block/parallels.o block/nbd.o
-BLOCK_OBJS+=nbd.o block.o aio.o
+BLOCK_OBJS=cutils.o cache-utils.o qemu-malloc.o module.o aes.o nbd.o block.o
+BLOCK_OBJS+=aio.o
 
-ifdef CONFIG_WIN32
-BLOCK_OBJS += block/raw-win32.o
-else
+obj-y=
+include $(SRC_PATH)/block/Makefile
+BLOCK_OBJS+=$(addprefix block/, $(obj-y))
+
+ifndef CONFIG_WIN32
 ifdef CONFIG_AIO
 BLOCK_OBJS += posix-aio-compat.o
 endif
-BLOCK_OBJS += block/raw-posix.o
 endif
 
 ######################################################################

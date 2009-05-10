@@ -1,0 +1,13 @@
+obj-$(CONFIG_BDRV_RAW_POSIX)	+= raw-posix.o
+obj-$(CONFIG_BDRV_RAW_WIN32)	+= raw-win32.o
+obj-$(CONFIG_BDRV_BOCHS)	+= bochs.o
+obj-$(CONFIG_BDRV_CLOOP)	+= cloop.o
+obj-$(CONFIG_BDRV_COW)		+= cow.o
+obj-$(CONFIG_BDRV_DMG)		+= dmg.o
+obj-$(CONFIG_BDRV_NBD)		+= nbd.o
+obj-$(CONFIG_BDRV_PARALLELS)	+= parallels.o
+obj-$(CONFIG_BDRV_QCOW2)	+= qcow2.o
+obj-$(CONFIG_BDRV_QCOW)		+= qcow.o
+obj-$(CONFIG_BDRV_VMDK)		+= vmdk.o
+obj-$(CONFIG_BDRV_VPC)		+= vpc.o
+obj-$(CONFIG_BDRV_VVFAT)	+= vvfat.o

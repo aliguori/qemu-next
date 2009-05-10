@@ -21,7 +21,6 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef _WIN32
 #include "qemu-common.h"
 #include "block_int.h"
 #include "module.h"
@@ -273,4 +272,3 @@ static int bdrv_cow_init(void)
 }
 
 block_init(bdrv_cow_init);
-#endif
