@@ -64,7 +64,7 @@ static void msmouse_chr_close (struct CharDriverState *chr)
     qemu_free (chr);
 }
 
-CharDriverState *qemu_chr_open_msmouse(void)
+static CharDriverState *qemu_chr_open_msmouse(const char *label, const char *filename)
 {
     CharDriverState *chr;
 
@@ -76,3 +76,16 @@ CharDriverState *qemu_chr_open_msmouse(void)
 
     return chr;
 }
+
+static CharDriver chr_drv_msmouse = {
+    .name = "msmouse",
+    .flags = CHAR_DRIVER_NO_ARGS,
+    .init = qemu_chr_open_msmouse,
+};
+
+static int msmouse_init(void)
+{
+    return qemu_chr_register_driver(&chr_drv_msmouse);
+}
+
+char_driver_init(msmouse_init);

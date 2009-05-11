@@ -564,7 +564,7 @@ static void baum_chr_read(void *opaque)
     }
 }
 
-CharDriverState *chr_baum_init(void)
+static CharDriverState *chr_baum_init(void)
 {
     BaumDriverState *baum;
     CharDriverState *chr;
@@ -627,6 +627,24 @@ fail_handle:
     free(baum);
     return NULL;
 }
+
+static CharDriverState *chr_drv_braille_init(const char *label, const char *filename)
+{
+    return chr_baum_init();
+}
+
+static CharDriver chr_drv_braille = {
+    .name = "braille",
+    .flags = CHAR_DRIVER_NO_ARGS,
+    .init = chr_drv_braille_init,
+};
+
+static int braille_init(void)
+{
+    return qemu_chr_register_driver(&chr_drv_braille);
+}
+
+char_driver_init(braille_init);
 
 USBDevice *usb_baum_init(void)
 {

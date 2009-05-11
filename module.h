@@ -24,11 +24,15 @@ static void __attribute__((constructor)) qemu_exit_ ## function(void) {  \
    register_module_exit(function, priority);                             \
 }
 
-#define MOD_PRI_HIGHEST    0
-#define MOD_PRI_BLOCK      (MOD_PRI_HIGHEST + 1)
+#define MOD_PRI_HIGHEST     0
+#define MOD_PRI_BLOCK       (MOD_PRI_HIGHEST + 1)
+#define MOD_PRI_CHAR_DRIVER (MOD_PRI_BLOCK + 1)
 
 #define block_init(function) module_init(function, MOD_PRI_BLOCK)
 #define block_exit(function) module_exit(function, MOD_PRI_BLOCK)
+
+#define char_driver_init(function) module_init(function, MOD_PRI_CHAR_DRIVER)
+#define char_driver_exit(function) module_exit(function, MOD_PRI_CHAR_DRIVER)
 
 void register_module_init(int (*fn)(void), int priority);
 
