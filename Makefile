@@ -34,7 +34,11 @@ ifdef CONFIG_WIN32
 LIBS+=-lwinmm -lws2_32 -liphlpapi
 endif
 
-all: $(TOOLS) $(DOCS) recurse-all
+BIOS=kvm/bios/BIOS-bochs-latest
+VGABIOS=kvm/vgabios/VGABIOS-lgpl-latest.bin
+CIRRUS_VGABIOS=kvm/vgabios/VGABIOS-lgpl-latest.cirrus.bin
+
+all: $(TOOLS) $(DOCS) $(BIOS) $(VGABIOS) $(CIRRUS_VGABIOS) recurse-all
 
 SUBDIR_RULES=$(patsubst %,subdir-%, $(TARGET_DIRS))
 
@@ -45,6 +49,15 @@ $(filter %-softmmu,$(SUBDIR_RULES)): libqemu_common.a
 $(filter %-user,$(SUBDIR_RULES)): libqemu_user.a
 
 recurse-all: $(SUBDIR_RULES)
+
+$(BIOS):
+	$(call quiet-command,$(MAKE) -C kvm/bios V="$(V)" bios,)
+
+$(VGABIOS):
+	$(call quiet-command,$(MAKE) -C kvm/vgabios V="$(V)" bios,)
+
+$(CIRRUS_VGABIOS):
+	$(call quiet-command,$(MAKE) -C kvm/vgabios V="$(V)" cirrus-bios,)
 
 #######################################################################
 # BLOCK_OBJS is code used by both qemu system emulation and qemu-img
@@ -199,6 +212,8 @@ clean:
 	rm -f *.o *.d *.a $(TOOLS) TAGS cscope.* *.pod *~ */*~
 	rm -f slirp/*.o slirp/*.d audio/*.o audio/*.d
 	$(MAKE) -C tests clean
+	$(MAKE) -C kvm/bios clean
+	$(MAKE) -C kvm/vgabios clean
 	for d in $(TARGET_DIRS); do \
 	$(MAKE) -C $$d $@ || exit 1 ; \
         done
@@ -215,7 +230,7 @@ ar      de     en-us  fi  fr-be  hr     it  lv  nl         pl  ru     th \
 common  de-ch  es     fo  fr-ca  hu     ja  mk  nl-be      pt  sl     tr
 
 ifdef INSTALL_BLOBS
-BLOBS=bios.bin vgabios.bin vgabios-cirrus.bin ppc_rom.bin \
+BLOBS=ppc_rom.bin \
 video.x openbios-sparc32 openbios-sparc64 openbios-ppc \
 pxe-ne2k_pci.bin pxe-rtl8139.bin pxe-pcnet.bin pxe-e1000.bin \
 bamboo.dtb
@@ -253,6 +268,9 @@ ifndef CONFIG_WIN32
 		$(INSTALL) -m 644 $(SRC_PATH)/keymaps/$$x "$(DESTDIR)$(datadir)/keymaps"; \
 	done
 endif
+	$(INSTALL) -m 644 kvm/bios/BIOS-bochs-latest "$(DESTDIR)$(datadir)/bios.bin"
+	$(INSTALL) -m 644 kvm/vgabios/VGABIOS-lgpl-latest.bin "$(DESTDIR)$(datadir)/vgabios.bin"
+	$(INSTALL) -m 644 kvm/vgabios/VGABIOS-lgpl-latest.cirrus.bin "$(DESTDIR)$(datadir)/vgabios-cirrus.bin"
 	for d in $(TARGET_DIRS); do \
 	$(MAKE) -C $$d $@ || exit 1 ; \
         done

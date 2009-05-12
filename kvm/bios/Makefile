@@ -72,6 +72,7 @@ clean:
 	rm -f  *.o *.a *.s _rombios*_.c rombios*.txt rombios*.sym
 	rm -f  usage biossums rombios16.bin
 	rm -f  rombios32.bin rombios32.out acpi-dsdt.hex
+	rm -f  BIOS-bochs-latest BIOS-bochs-legacy
 
 dist-clean: clean
 	rm -f  Makefile
