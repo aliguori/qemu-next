@@ -25,24 +25,18 @@
  */
 
 
-#define SKIP_PIXEL(to)		to += deststep
 #if DEPTH == 8
 # define PIXEL_TYPE		uint8_t
-# define COPY_PIXEL(to, from)	*to = from; SKIP_PIXEL(to)
 # define COPY_PIXEL1(to, from)	*to ++ = from
 #elif DEPTH == 15 || DEPTH == 16
 # define PIXEL_TYPE		uint16_t
-# define COPY_PIXEL(to, from)	*to = from; SKIP_PIXEL(to)
 # define COPY_PIXEL1(to, from)	*to ++ = from
 #elif DEPTH == 24
 # define PIXEL_TYPE		uint8_t
-# define COPY_PIXEL(to, from)	\
-    to[0] = from; to[1] = (from) >> 8; to[2] = (from) >> 16; SKIP_PIXEL(to)
 # define COPY_PIXEL1(to, from)	\
     *to ++ = from; *to ++ = (from) >> 8; *to ++ = (from) >> 16
 #elif DEPTH == 32
 # define PIXEL_TYPE		uint32_t
-# define COPY_PIXEL(to, from)	*to = from; SKIP_PIXEL(to)
 # define COPY_PIXEL1(to, from)	*to ++ = from
 #else
 # error unknown bit depth
