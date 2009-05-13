@@ -26,9 +26,9 @@
 #include "hw.h"
 
 #define OMAP3_HSUSB_OTG
-//#define OMAP3_HSUSB_HOST
+#define OMAP3_HSUSB_HOST
 
-/* #define OMAP3_HSUSB_DEBUG */
+#define OMAP3_HSUSB_DEBUG
 
 #ifdef OMAP3_HSUSB_DEBUG
 #define TRACE(fmt,...) fprintf(stderr, "%s: " fmt "\n", __FUNCTION__, ##__VA_ARGS__)
@@ -214,22 +214,7 @@ static CPUWriteMemoryFunc *omap3_hsusb_otg_writefn[] = {
 static void omap3_hsusb_musb_core_intr(void *opaque, int source, int level)
 {
     struct omap3_hsusb_otg_s *s = (struct omap3_hsusb_otg_s *)opaque;
-    TRACE("intr 0x%08x, 0x%08x, 0x%08x", source, level, musb_core_intr_get(s->musb));
-    switch (source) {
-    case musb_set_vbus:
-       TRACE("ignoring VBUS");
-       break;
-    case musb_set_session:
-       TRACE("ignoring SESSION");
-       break;
-    case musb_irq_tx:
-    case musb_irq_rx:
-       TRACE("rxtx");
-       break;
-       /* Fall through */
-    default:
-       TRACE("other");
-    }
+    /*TRACE("intr 0x%08x, 0x%08x, 0x%08x", source, level, musb_core_intr_get(s->musb));*/
     qemu_set_irq(s->mc_irq, level);
 }
 
@@ -265,6 +250,8 @@ struct omap3_hsusb_host_s {
     uint32_t uhh_sysconfig;
     uint32_t uhh_hostconfig;
     uint32_t uhh_debug_csr;
+    uint32_t tll_sysconfig;
+    uint32_t insnreg05_ulpi;
 };
 
 static void omap3_hsusb_host_save_state(QEMUFile *f, void *opaque)
@@ -274,6 +261,8 @@ static void omap3_hsusb_host_save_state(QEMUFile *f, void *opaque)
     qemu_put_be32(f, s->uhh_sysconfig);
     qemu_put_be32(f, s->uhh_hostconfig);
     qemu_put_be32(f, s->uhh_debug_csr);
+    qemu_put_be32(f, s->tll_sysconfig);
+    qemu_put_be32(f, s->insnreg05_ulpi);
 }
 
 static int omap3_hsusb_host_load_state(QEMUFile *f, void *opaque,
@@ -287,6 +276,8 @@ static int omap3_hsusb_host_load_state(QEMUFile *f, void *opaque,
     s->uhh_sysconfig = qemu_get_be32(f);
     s->uhh_hostconfig = qemu_get_be32(f);
     s->uhh_debug_csr = qemu_get_be32(f);
+    s->tll_sysconfig = qemu_get_be32(f);
+    s->insnreg05_ulpi = qemu_get_be32(f);
     
     return 0;
 }
@@ -297,12 +288,14 @@ static void omap3_hsusb_host_reset(struct omap3_hsusb_host_s *s)
     s->uhh_hostconfig = 0x700;
     s->uhh_debug_csr = 0x20;
     /* TODO: perform OHCI & EHCI reset */
+    s->tll_sysconfig = 1;
 }
 
 static uint32_t omap3_hsusb_host_read(void *opaque, target_phys_addr_t addr)
 {
     struct omap3_hsusb_host_s *s = (struct omap3_hsusb_host_s *)opaque;
-    
+    TRACE(OMAP_FMT_plx, addr);
+
     switch (addr) {
         case 0x00: /* UHH_REVISION */
             return 0x10;
@@ -325,7 +318,8 @@ static void omap3_hsusb_host_write(void *opaque, target_phys_addr_t addr,
                                    uint32_t value)
 {
     struct omap3_hsusb_host_s *s = (struct omap3_hsusb_host_s *)opaque;
-    
+    TRACE(OMAP_FMT_plx " = 0x%08x", addr, value);
+
     switch (addr) {
         case 0x00: /* UHH_REVISION */
         case 0x14: /* UHH_SYSSTATUS */
@@ -363,14 +357,29 @@ static CPUWriteMemoryFunc *omap3_hsusb_host_writefn[] = {
 
 static uint32_t omap3_hsusb_ehci_read(void *opaque, target_phys_addr_t addr)
 {
+    struct omap3_hsusb_host_s *s = (struct omap3_hsusb_host_s *)opaque;
     TRACE(OMAP_FMT_plx, addr);
+    switch (addr) {
+        case 0xa4: /* INSNREG05_ULPI */
+            return s->insnreg05_ulpi;
+        default:
+            break;
+    }
     return 0;
 }
 
 static void omap3_hsusb_ehci_write(void *opaque, target_phys_addr_t addr,
                                    uint32_t value)
 {
+    struct omap3_hsusb_host_s *s = (struct omap3_hsusb_host_s *)opaque;
     TRACE(OMAP_FMT_plx " = 0x%08x", addr, value);
+
+    switch (addr) {
+        case 0xa4: /* INSNREG05_ULPI */
+            s->insnreg05_ulpi = value & 0xF0000000;
+        default:
+            break;
+     }
 }
 
 static CPUReadMemoryFunc *omap3_hsusb_ehci_readfn[] = {
@@ -387,14 +396,42 @@ static CPUWriteMemoryFunc *omap3_hsusb_ehci_writefn[] = {
 
 static uint32_t omap3_hsusb_tll_read(void *opaque, target_phys_addr_t addr)
 {
+    struct omap3_hsusb_host_s *s = (struct omap3_hsusb_host_s *)opaque;
     TRACE(OMAP_FMT_plx, addr);
+
+    switch (addr) {
+        case 0x00: /* USBTLL_REVISION */
+            return 0x1;
+        case 0x10: /* USBTLL_SYSCONFIG */
+            return s->tll_sysconfig;
+        case 0x14: /* USBTLL_SYSSTATUS */
+            return 0x1; /* RESETDONE */
+        case 0x18: /* USBTLL_IRQSTATUS */
+            return 0;
+        case 0x1C: /* USBTLL_IRQENABLE */
+            return 0;
+        default:
+            break;
+    }
     return 0;
 }
 
 static void omap3_hsusb_tll_write(void *opaque, target_phys_addr_t addr,
                                   uint32_t value)
 {
+    struct omap3_hsusb_host_s *s = (struct omap3_hsusb_host_s *)opaque;
     TRACE(OMAP_FMT_plx " = 0x%08x", addr, value);
+
+    switch (addr) {
+        case 0x00: /* USBTLL_REVISION */
+        case 0x14: /* USBTLL_SYSSTATUS */
+            OMAP_RO_REGV(addr, value);
+        case 0x10: /* USBTLL_SYSCONFIG */
+            s->tll_sysconfig = value & 0xFFFFFEE0;;
+        default:
+            OMAP_BAD_REGV(addr, value);
+            break;
+    }
 }
 
 static CPUReadMemoryFunc *omap3_hsusb_tll_readfn[] = {
@@ -427,9 +464,9 @@ static void omap3_hsusb_host_init(struct omap_target_agent_s *host_ta,
                                                      omap3_hsusb_host_readfn,
                                                      omap3_hsusb_host_writefn,
                                                      s));
-    omap_l4_attach(host_ta, 1, usb_ohci_init_omap(omap_l4_base(host_ta, 1),
+/*    omap_l4_attach(host_ta, 1, usb_ohci_init_omap(omap_l4_base(host_ta, 1),
                                                   omap_l4_size(host_ta, 1),
-                                                  3, ohci_irq));
+                                                  3, ohci_irq));*/
     omap_l4_attach(host_ta, 2, l4_register_io_memory(0,
                                                      omap3_hsusb_ehci_readfn,
                                                      omap3_hsusb_ehci_writefn,
