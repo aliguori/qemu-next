@@ -77,7 +77,6 @@
 struct omap3_lcd_panel_s {
     struct omap_dss_s *dss;
     DisplayState *state;
-    omap3_lcd_panel_fn_t *line_fn_tab[2];
     omap3_lcd_panel_fn_t line_fn;
     uint32_t invalidate;
 };
@@ -85,7 +84,6 @@ struct omap3_lcd_panel_s {
 struct omap_dss_s {
     qemu_irq irq;
     qemu_irq drq;
-    DisplayState *state;
 
     int autoidle;
     int control;
@@ -2426,11 +2424,6 @@ static struct omap_dss_s *omap_dss_init_internal(struct omap_target_agent_s *ta,
     omap_l4_attach(ta, region_base + 2, iomemtype[2]); /* RFBI */
     omap_l4_attach(ta, region_base + 3, iomemtype[3]); /* VENC */
 
-#if 0
-    s->state = graphic_console_init(omap_update_display,
-                                    omap_invalidate_display, omap_screen_dump, s);
-#endif
-
     register_savevm("omap_dss", -1, 0,
                     omap_dss_save_state, omap_dss_load_state, s);
     
@@ -2505,6 +2498,17 @@ void omap3_lcd_panel_attach(struct omap_dss_s *dss,
 
 /*omap3 lcd panel stuff*/
 
+#define DEPTH 8
+#include "omap3_lcd_panel_template.h"
+#define DEPTH 15
+#include "omap3_lcd_panel_template.h"
+#define DEPTH 16
+#include "omap3_lcd_panel_template.h"
+#define DEPTH 24
+#include "omap3_lcd_panel_template.h"
+#define DEPTH 32
+#include "omap3_lcd_panel_template.h"
+
 /* Bytes(!) per pixel */
 static const int omap3_lcd_panel_bpp[0x10] = {
     0,  /* 0x0: BITMAP1 (CLUT) */
@@ -2559,23 +2563,39 @@ static void omap3_lcd_panel_update_display(void *opaque)
     /* check for setup changes since last visit only if flagged */
     if (dss->dispc.invalidate) {
         dss->dispc.invalidate = 0;
-        if (!(dss->dispc.l[0].rotation_flag)) {	  /* rotation*/
-            s->line_fn = s->line_fn_tab[0][dss->dispc.l[0].gfx_format];
-        } else {
-            fprintf(stderr, "%s: rotation is not supported \n", __FUNCTION__);
-            exit(1);
-        }
-        if (!s->line_fn) {
-            fprintf(stderr,
-                    "%s: line_fn is NULL - unsupported gfx_format (%d)\n",
-                    __FUNCTION__, dss->dispc.l[0].gfx_format);
-            exit(1);
-        }
         if (lcd_width != ds_get_width(s->state) 
             || lcd_height != ds_get_height(s->state)) {
             qemu_console_resize(s->state, lcd_width, lcd_height);
             s->invalidate = 1;
         }
+        int gf = dss->dispc.l[0].gfx_format;
+        if (!(dss->dispc.l[0].rotation_flag)) {	  /* rotation*/
+            switch (ds_get_bits_per_pixel(s->state)) {
+            	case 8:  s->line_fn = omap3_lcd_panel_draw_fn_8[gf]; break;
+            	case 15: s->line_fn = omap3_lcd_panel_draw_fn_15[gf]; break;
+            	case 16: s->line_fn = omap3_lcd_panel_draw_fn_16[gf]; break;
+            	case 24: s->line_fn = omap3_lcd_panel_draw_fn_24[gf]; break;
+            	case 32: s->line_fn = omap3_lcd_panel_draw_fn_32[gf]; break;
+            	default: s->line_fn = 0; break;
+            }
+        } else {
+        	switch (ds_get_bits_per_pixel(s->state)) {
+            	case 8:  s->line_fn = omap3_lcd_panel_draw_fn_r_8[gf]; break;
+            	case 15: s->line_fn = omap3_lcd_panel_draw_fn_r_15[gf]; break;
+            	case 16: s->line_fn = omap3_lcd_panel_draw_fn_r_16[gf]; break;
+            	case 24: s->line_fn = omap3_lcd_panel_draw_fn_r_24[gf]; break;
+            	case 32: s->line_fn = omap3_lcd_panel_draw_fn_r_32[gf]; break;
+            	default: s->line_fn = 0; break;
+            }
+        }
+    }
+    if (!s->line_fn) {
+        fprintf(stderr,
+                "%s: line_fn is NULL - host bpp=%d, omap3 lcd gfx_format=%d\n",
+                __FUNCTION__,
+                ds_get_bits_per_pixel(s->state),
+                dss->dispc.l[0].gfx_format);
+        exit(1);
     }
     
     /* Resolution */
@@ -2618,18 +2638,6 @@ static void omap3_lcd_panel_update_display(void *opaque)
     }
 }
 
-/*omap lcd stuff*/
-#define DEPTH 8
-#include "omap3_lcd_panel_template.h"
-#define DEPTH 15
-#include "omap3_lcd_panel_template.h"
-#define DEPTH 16
-#include "omap3_lcd_panel_template.h"
-#define DEPTH 24
-#include "omap3_lcd_panel_template.h"
-#define DEPTH 32
-#include "omap3_lcd_panel_template.h"
-
 void *omap3_lcd_panel_init()
 {
     struct omap3_lcd_panel_s *s = (struct omap3_lcd_panel_s *) qemu_mallocz(sizeof(*s));
@@ -2637,36 +2645,5 @@ void *omap3_lcd_panel_init()
     s->state = graphic_console_init(omap3_lcd_panel_update_display,
                                     omap3_lcd_panel_invalidate_display,
                                     NULL, NULL, s);
-
-    switch (ds_get_bits_per_pixel(s->state)) {
-    case 0:
-        s->line_fn_tab[0] = s->line_fn_tab[1] =
-            qemu_mallocz(sizeof(omap3_lcd_panel_fn_t) * 0x10);
-        break;
-    case 8:
-        s->line_fn_tab[0] =  omap3_lcd_panel_draw_fn_8;
-        s->line_fn_tab[1] =  omap3_lcd_panel_draw_fn_r_8;
-        break;
-    case 15:
-        s->line_fn_tab[0] =  omap3_lcd_panel_draw_fn_15;
-        s->line_fn_tab[1] =  omap3_lcd_panel_draw_fn_r_15;
-        break;
-    case 16:
-        s->line_fn_tab[0] =  omap3_lcd_panel_draw_fn_16;
-        s->line_fn_tab[1] =  omap3_lcd_panel_draw_fn_r_16;
-        break;
-    case 24:
-        s->line_fn_tab[0] =  omap3_lcd_panel_draw_fn_24;
-        s->line_fn_tab[1] =  omap3_lcd_panel_draw_fn_r_24;
-        break;
-    case 32:
-        s->line_fn_tab[0] =  omap3_lcd_panel_draw_fn_32;
-        s->line_fn_tab[1] =  omap3_lcd_panel_draw_fn_r_32;
-        break;
-    default:
-        fprintf(stderr, "%s: Bad color depth\n", __FUNCTION__);
-        exit(1);
-    }
-
     return s;
 }
