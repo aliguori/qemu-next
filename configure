@@ -186,7 +186,7 @@ softmmu="yes"
 linux_user="no"
 darwin_user="no"
 bsd_user="no"
-build_docs="no"
+build_docs="yes"
 uname_release=""
 curses="yes"
 aio="yes"
@@ -487,6 +487,8 @@ for opt do
   --with-pkgversion=*) pkgversion=" ($optarg)"
   ;;
   --disable-cpu-emulation) cpu_emulation="no"
+  ;;
+  --disable-docs) build_docs="no"
   ;;
   *) echo "ERROR: unknown option $opt"; exit 1
   ;;
@@ -1165,9 +1167,8 @@ if $cc $ARCH_CFLAGS -o $TMPE $TMPC 2> /dev/null ; then
 fi
 
 # Check if tools are available to build documentation.
-if [ -x "`which texi2html 2>/dev/null`" ] && \
-   [ -x "`which pod2man 2>/dev/null`" ]; then
-  build_docs="yes"
+if test "$build_docs" = "yes" -a \( ! -x "`which texi2html 2>/dev/null`" -o ! -x "`which pod2man 2>/dev/null`" \) ; then
+  build_docs="no"
 fi
 
 ##########################################
