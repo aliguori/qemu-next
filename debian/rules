@@ -16,6 +16,8 @@ endif
 DEB_HOST_ARCH_OS = $(shell dpkg-architecture -qDEB_HOST_ARCH_OS)
 DEB_HOST_ARCH_CPU = $(shell dpkg-architecture -qDEB_HOST_ARCH_CPU)
 
+SHELL = /bin/bash
+
 
 TARGET_SYSTEM_TCG    = arm-softmmu i386-softmmu
 TARGET_LINUX_TCG     = arm-linux-user i386-linux-user
