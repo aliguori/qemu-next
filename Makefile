@@ -37,8 +37,11 @@ endif
 BIOS=kvm/bios/BIOS-bochs-latest
 VGABIOS=kvm/vgabios/VGABIOS-lgpl-latest.bin
 CIRRUS_VGABIOS=kvm/vgabios/VGABIOS-lgpl-latest.cirrus.bin
+EXTBOOT=kvm/extboot/extboot.bin
 
-all: $(TOOLS) $(DOCS) $(BIOS) $(VGABIOS) $(CIRRUS_VGABIOS) recurse-all
+ROMS=$(BIOS) $(VGABIOS) $(CIRRUS_VGABIOS) $(EXTBOOT)
+
+all: $(TOOLS) $(DOCS) $(ROMS) recurse-all
 
 SUBDIR_RULES=$(patsubst %,subdir-%, $(TARGET_DIRS))
 
@@ -58,6 +61,9 @@ $(VGABIOS):
 
 $(CIRRUS_VGABIOS):
 	$(call quiet-command,$(MAKE) -C kvm/vgabios V="$(V)" cirrus-bios,)
+
+$(EXTBOOT):
+	$(call quiet-command,$(MAKE) -C kvm/extboot V="$(V)" all,)
 
 #######################################################################
 # BLOCK_OBJS is code used by both qemu system emulation and qemu-img
@@ -214,6 +220,7 @@ clean:
 	$(MAKE) -C tests clean
 	$(MAKE) -C kvm/bios clean
 	$(MAKE) -C kvm/vgabios clean
+	$(MAKE) -C kvm/extboot clean
 	for d in $(TARGET_DIRS); do \
 	$(MAKE) -C $$d $@ || exit 1 ; \
         done
@@ -271,6 +278,7 @@ endif
 	$(INSTALL) -m 644 kvm/bios/BIOS-bochs-latest "$(DESTDIR)$(datadir)/bios.bin"
 	$(INSTALL) -m 644 kvm/vgabios/VGABIOS-lgpl-latest.bin "$(DESTDIR)$(datadir)/vgabios.bin"
 	$(INSTALL) -m 644 kvm/vgabios/VGABIOS-lgpl-latest.cirrus.bin "$(DESTDIR)$(datadir)/vgabios-cirrus.bin"
+	$(INSTALL) -m 644 kvm/extboot/extboot.bin "$(DESTDIR)$(datadir)/extboot.bin"
 	for d in $(TARGET_DIRS); do \
 	$(MAKE) -C $$d $@ || exit 1 ; \
         done
