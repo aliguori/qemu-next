@@ -1,3 +1,6 @@
 [submodule "roms/gplbios"]
 	path = roms/gplbios
 	url = git://repo.or.cz/gplbios/qemu.git
+[submodule "roms/vgabios"]
+	path = roms/vgabios
+	url = git://repo.or.cz/vgabios/qemu.git
