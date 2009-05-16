@@ -712,6 +712,12 @@ LDFLAGS+=-p
 main.o: CFLAGS+=-p
 endif
 
+#  Per architecture ROMS
+ROMS=
+ifeq ($(TARGET_BASE_ARCH),i386)
+ROMS+=gplbios vgabios
+endif
+
 vl.o: qemu-options.h
 
 $(QEMU_PROG): LIBS += $(SDL_LIBS) $(COCOA_LIBS) $(CURSES_LIBS) $(BRLAPI_LIBS) $(VDE_LIBS)
@@ -731,9 +737,21 @@ endif
 qemu-options.h: $(SRC_PATH)/qemu-options.hx
 	$(call quiet-command,sh $(SRC_PATH)/hxtool -h < $< > $@,"  GEN   $(TARGET_DIR)$@")
 
+.PHONY: roms
+
+roms:
+	@if test "$(ROMS)" ; then \
+	  for subdir in $(ROMS); do \
+	    $(MAKE) -C roms/$${subdir} VPATH=$(SRC_PATH)/roms/$${subdir} ;\
+	  done; \
+	fi
+
 clean:
 	rm -f *.o *.a *~ $(PROGS) nwfpe/*.o fpu/*.o qemu-options.h gdbstub-xml.c
 	rm -f *.d */*.d tcg/*.o
+	for subdir in $(ROMS); do \
+	    $(MAKE) -C $${subdir} clean \
+	done
 
 install: all
 ifneq ($(PROGS),)

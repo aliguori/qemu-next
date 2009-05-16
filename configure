@@ -1791,6 +1791,14 @@ if test "$target" = "arm-linux-user" -o "$target" = "armeb-linux-user" -o "$targ
   mkdir -p $target_dir/nwfpe
 fi
 
+if test "$target" = "i386-softmmu" -o "$target" = "x86_64-softmmu" ; then
+    for rom in gplbios vgabios ; do
+	mkdir -p $target_dir/roms/$rom
+	rm -f $target_dir/roms/$rom/Makefile
+	ln -s $source_path/roms/$rom/Makefile $target_dir/roms/$rom/Makefile
+    done
+fi
+
 #
 # don't use ln -sf as not all "ln -sf" over write the file/link
 #

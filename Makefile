@@ -10,7 +10,7 @@ config-host.mak:
 endif
 
 .PHONY: all clean cscope distclean dvi html info install install-doc \
-	recurse-all speed tar tarbin test
+	recurse-all speed tar tarbin test roms
 
 VPATH=$(SRC_PATH):$(SRC_PATH)/hw
 
@@ -230,6 +230,11 @@ qemu-nbd$(EXESUF):  qemu-nbd.o qemu-tool.o tool-osdep.o $(BLOCK_OBJS)
 qemu-io$(EXESUF):  qemu-io.o qemu-tool.o tool-osdep.o cmd.o $(BLOCK_OBJS)
 
 qemu-img$(EXESUF) qemu-nbd$(EXESUF) qemu-io$(EXESUF): LIBS += -lz
+
+roms:
+	@for d in $(TARGET_DIRS); do \
+	$(MAKE) -C $$d $@ || exit 1 ; \
+        done
 
 clean:
 # avoid old build problems by removing potentially incorrect old files
