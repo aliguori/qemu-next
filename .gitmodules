@@ -1,0 +1,3 @@
+[submodule "roms/gplbios"]
+	path = roms/gplbios
+	url = git://repo.or.cz/gplbios/qemu.git
