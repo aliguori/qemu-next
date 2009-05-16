@@ -194,6 +194,10 @@ fdt="yes"
 sdl_x11="no"
 xen="yes"
 pkgversion=""
+have_bcc="yes"
+bcc="bcc"
+have_gcc_i386="yes"
+gcc_i386="gcc -m32 -fno-stack-protector"
 
 # OS specific
 if check_define __linux__ ; then
@@ -1262,6 +1266,40 @@ if test "$rt" = "yes" ; then
   CLOCKLIBS="-lrt"
 fi
 
+# FIXME
+# check for iasl and as86
+
+#########################################
+# Check for BCC
+cat > $TMPC <<EOF
+int main(argc, argv) int argc; char **argv; { return 0; }
+EOF
+
+if test "$have_bcc" = "yes" ; then
+  if $bcc -o $TMPE $TMPC > /dev/null 2> /dev/null ; then
+    :
+  else
+    have_bcc="no"
+  fi
+fi
+
+#########################################
+# Check for GCC on i386
+cat > $TMPC <<EOF
+#ifndef __i386__
+#error Not i386
+#endif
+int main(void) { return 0; }
+EOF
+
+if test "$have_gcc_i386" = "yes" ; then
+  if $gcc_i386 -o $TMPE $TMPC > /dev/null 2> /dev/null ; then
+    :
+  else
+    have_gcc_i386="no"
+  fi
+fi
+
 if test "$mingw32" = "yes" ; then
   if test -z "$prefix" ; then
       prefix="c:\\\\Program Files\\\\Qemu"
@@ -1712,6 +1750,14 @@ else
     echo "Error: your linker does not support --whole-archive or -z."
     echo "Please report to qemu-devel@nongnu.org"
     exit 1
+fi
+
+if test "$have_bcc" = "yes" ; then
+    echo "BCC=$bcc" >> $config_mak
+fi
+
+if test "$have_gcc_i386" = "yes" ; then
+    echo "GCC_I386=$gcc_i386" >> $config_mak
 fi
 
 tools=

@@ -715,7 +715,11 @@ endif
 #  Per architecture ROMS
 ROMS=
 ifeq ($(TARGET_BASE_ARCH),i386)
+ifneq ($(BCC),)
+ifneq ($(GCC_I386),)
 ROMS+=gplbios vgabios
+endif
+endif
 endif
 
 vl.o: qemu-options.h
@@ -742,7 +746,7 @@ qemu-options.h: $(SRC_PATH)/qemu-options.hx
 roms:
 	@if test "$(ROMS)" ; then \
 	  for subdir in $(ROMS); do \
-	    $(MAKE) -C roms/$${subdir} VPATH=$(SRC_PATH)/roms/$${subdir} ;\
+	    $(MAKE) -C roms/$${subdir} VPATH=$(SRC_PATH)/roms/$${subdir} "BCC=$(BCC)" "GCC32=$(GCC_I386)";\
 	  done; \
 	fi
 
@@ -750,7 +754,7 @@ clean:
 	rm -f *.o *.a *~ $(PROGS) nwfpe/*.o fpu/*.o qemu-options.h gdbstub-xml.c
 	rm -f *.d */*.d tcg/*.o
 	for subdir in $(ROMS); do \
-	    $(MAKE) -C $${subdir} clean \
+	    $(MAKE) -C roms/$${subdir} clean; \
 	done
 
 install: all
