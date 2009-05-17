@@ -1862,6 +1862,114 @@ static void vga_update_display(void *opaque)
     }
 }
 
+/* FIXME
+ * deal with cursor position
+ * detect cursor position updates
+ * be smarter
+ */
+
+static QEMUTimer *cga_timer;
+static uint16_t old_display[25 * 80];
+static int last_attr = -1;
+
+static void show_display(uint16_t *display, int h)
+{
+    static const uint8_t colormap[] = {0, 4, 2, 6, 1, 5, 3, 7};
+    int y;
+
+    for (y = 0; y < h; y++) {
+        uint8_t character, attribute;
+        int x;
+
+        if (y)
+            printf("\n");
+
+        for (x = 0; x < 80; x++) {
+            character = display[x] & 0xFF;
+            attribute = (display[x] >> 8) & 0xFF;
+
+            if (last_attr != attribute) {
+                printf("\e[%s%d;%dm",
+                       (attribute & 0x08) ? "1;" : "",
+                       30 + colormap[(attribute & 0x07)],
+                       40 + colormap[((attribute >> 4) & 0x07)]);
+                last_attr = attribute;
+            }
+            printf("%c", character);
+        }
+        display += 80;
+    }
+    fflush(stdout);
+}
+
+static void cga_timer_cb(void *opaque)
+{
+    VGAState *s = opaque;
+    uint8_t *ptr;
+    int w, h, cw, ch;
+    int y;
+    uint16_t new_display[25 * 80];
+    int dirty_rows[25];
+    int last_row;
+
+
+    qemu_mod_timer(cga_timer, qemu_get_clock(rt_clock) + (1000 / 30));
+
+    /* fixme deal with changes */
+    if (!(s->ar_index & 0x20) || (s->gr[6] & 1) != GMODE_TEXT) {
+        return;
+    }
+
+    vga_get_text_resolution(s, &w, &h, &cw, &ch);
+
+    ptr = s->vram_ptr + (s->start_addr * 4);
+
+    for (y = 0; y < h; y++) {
+        int x;
+
+        for (x = 0; x < w; x++) {
+            uint8_t character, attribute;
+
+            character = ptr[x * 4 + 0];
+            attribute = ptr[x * 4 + 1];
+
+            new_display[y * 80 + x] = (attribute << 8) | character;
+        }
+
+        ptr += s->line_offset;
+    }
+
+    for (y = 0; y < 25; y++) {
+        if (memcmp(old_display + (y * 80), new_display + (y * 80), 80 * 2) == 0) {
+            dirty_rows[y] = 0;
+        } else {
+            dirty_rows[y] = 1;
+        }
+    }
+
+    last_row = 0;
+    while (last_row < 25) {
+        /* skip past clean rows */
+        while (last_row < 25 && dirty_rows[last_row] == 0) {
+            last_row++;
+        }
+
+        /* find block of dirty rows */
+        for (y = last_row; y < 25; y++) {
+            if (dirty_rows[y] == 0)
+                break;
+        }
+
+        if (last_row != y) {
+            printf("\e[%d;1H", last_row + 1);
+            show_display(new_display + (last_row * 80), y - last_row);
+        }
+        last_row = y;
+    }
+
+    memcpy(old_display, new_display, sizeof(old_display));
+}
+
 /* force a full display refresh */
 static void vga_invalidate_display(void *opaque)
 {
@@ -2299,6 +2407,10 @@ void vga_common_init(VGAState *s, int vga_ram_size)
         break;
     }
     vga_reset(s);
+    cga_timer = qemu_new_timer(rt_clock, cga_timer_cb, s);
+    qemu_mod_timer(cga_timer, qemu_get_clock(rt_clock) + (1000 / 30));
+    printf("\e[?25l");
+    fflush(stdout);
 }
 
 /* used by both ISA and PCI */
