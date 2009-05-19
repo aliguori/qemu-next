@@ -49,9 +49,11 @@ static void apic_send_sipi(int vcpu)
 
 static void apic_send_ipi(int vcpu)
 {
+        pending_interrupt = value;
+        cpu_interrupt(cpu_single_env, CPU_INTERRUPT_HARD);
 }
 
-static uint32_t apic_io_read(void *opaque, uint32_t addr)
+static uint32_t apic_io_read(void *opaque, target_phys_addr_t addr)
 {
     uint32_t value = -1u;
 
@@ -73,7 +75,7 @@ static uint32_t apic_io_read(void *opaque, uint32_t addr)
     return value;
 }
 
-static void apic_io_write(void *opaque, uint32_t addr, uint32_t value)
+static void apic_io_write(void *opaque, target_phys_addr_t addr, uint32_t value)
 {
     switch (addr - APIC_BASE) {
     case APIC_REG_SIPI_ADDR:
@@ -93,8 +95,8 @@ static void apic_io_write(void *opaque, uint32_t addr, uint32_t value)
 
 static void do_apic_init(void)
 {
-    register_ioport_read(APIC_BASE, APIC_SIZE, 1, apic_io_read, NULL);
-    register_ioport_write(APIC_BASE, APIC_SIZE, 1, apic_io_write, NULL);
+    register_ioport_read(APIC_BASE, APIC_SIZE, 4, apic_io_read, NULL);
+    register_ioport_write(APIC_BASE, APIC_SIZE, 4, apic_io_write, NULL);
 }
 
 static void misc_io(void *opaque, uint32_t addr, uint32_t value)
