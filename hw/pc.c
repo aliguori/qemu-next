@@ -124,11 +124,15 @@ void cpu_smm_update(CPUState *env)
         i440fx_set_smm(i440fx_state, (env->hflags >> HF_SMM_SHIFT) & 1);
 }
 
+int (*cpu_get_pic_interrupt_override)(CPUState *env);
 
 /* IRQ handling */
 int cpu_get_pic_interrupt(CPUState *env)
 {
     int intno;
+
+    if (cpu_get_pic_interrupt_override)
+        return cpu_get_pic_interrupt_override(env);
 
     intno = apic_get_interrupt(env);
     if (intno >= 0) {
@@ -1189,16 +1193,24 @@ void cmos_set_s3_resume(void)
         rtc_set_memory(rtc_state, 0xF, 0xFE);
 }
 
-QEMUMachine pc_machine = {
+static QEMUMachine pc_machine = {
     .name = "pc",
     .desc = "Standard PC",
     .init = pc_init_pci,
     .max_cpus = 255,
 };
 
-QEMUMachine isapc_machine = {
+static QEMUMachine isapc_machine = {
     .name = "isapc",
     .desc = "ISA-only PC",
     .init = pc_init_isa,
     .max_cpus = 1,
 };
+
+static void pc_init_machine(void)
+{
+    qemu_register_machine(&pc_machine);
+    qemu_register_machine(&isapc_machine);
+}
+
+machine_init(pc_init_machine);

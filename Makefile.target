@@ -569,7 +569,7 @@ OBJS += wdt_ib700.o wdt_i6300esb.o
 ifeq ($(TARGET_BASE_ARCH), i386)
 # Hardware support
 OBJS+= ide.o pckbd.o vga.o $(SOUND_HW) dma.o
-OBJS+= fdc.o mc146818rtc.o serial.o i8259.o i8254.o pcspk.o pc.o
+OBJS+= fdc.o mc146818rtc.o serial.o i8259.o i8254.o pcspk.o pc.o pc-test.o
 OBJS+= cirrus_vga.o apic.o ioapic.o parallel.o acpi.o piix_pci.o
 OBJS+= usb-uhci.o vmmouse.o vmport.o vmware_vga.o hpet.o
 OBJS += device-hotplug.o pci-hotplug.o smbios.o
