@@ -1566,7 +1566,7 @@ static void omap3_prm_int_update(struct omap3_prm_s *s)
 
 static void omap3_prm_reset(struct omap3_prm_s *s)
 {
-    bzero(&s->iva2, sizeof(s->iva2));
+    memset(&s->iva2, 0, sizeof(s->iva2));
     s->iva2.rm_rstctrl    = 0x7;
     s->iva2.rm_rstst      = 0x1;
     s->iva2.pm_wkdep      = 0xb3;
@@ -1575,18 +1575,18 @@ static void omap3_prm_reset(struct omap3_prm_s *s)
     s->prm_irqstatus_iva2 = 0x0;
     s->prm_irqenable_iva2 = 0x0;
 
-    bzero(&s->ocp, sizeof(s->ocp));
+    memset(&s->ocp, 0, sizeof(s->ocp));
     s->ocp.prm_revision      = 0x10;
     s->ocp.prm_sysconfig     = 0x1;
     
-    bzero(&s->mpu, sizeof(s->mpu));
+    memset(&s->mpu, 0, sizeof(s->mpu));
     s->mpu.rm_rstst       = 0x1;
     s->mpu.pm_wkdep       = 0xa5;
     s->mpu.pm_pwstctrl    = 0x30107;
     s->mpu.pm_pwstst      = 0xc7;
     s->mpu.pm_evgenctrl   = 0x12;
 
-    bzero(&s->core, sizeof(s->core));
+    memset(&s->core, 0, sizeof(s->core));
     s->core.rm_rstst       = 0x1;
     s->core.pm_wken        = 0xc33ffe18;
     s->core.pm_mpugrpsel   = 0xc33ffe18;
@@ -1597,36 +1597,36 @@ static void omap3_prm_reset(struct omap3_prm_s *s)
     s->pm_iva2grpsel3_core = 0x4;
     s->pm_mpugrpsel3_core  = 0x4;
 
-    bzero(&s->sgx, sizeof(s->sgx));
+    memset(&s->sgx, 0, sizeof(s->sgx));
     s->sgx.rm_rstst     = 0x1;
     s->sgx.pm_wkdep     = 0x16;
     s->sgx.pm_pwstctrl  = 0x30107;
     s->sgx.pm_pwstst    = 0x3;
 
-    bzero(&s->wkup, sizeof(s->wkup));
+    memset(&s->wkup, 0, sizeof(s->wkup));
     s->wkup.pm_wken      = 0x3cb;
     s->wkup.pm_mpugrpsel = 0x3cb;
     s->wkup.pm_pwstst    = 0x3; /* TODO: check on real hardware */
     s->wkup.pm_prepwstst = 0x3; /* TODO: check on real hardware */
 
-    bzero(&s->ccr, sizeof(s->ccr));
+    memset(&s->ccr, 0, sizeof(s->ccr));
     s->ccr.prm_clksel      = 0x3; /* depends on the hw board, 0x3 for beagle */
     s->ccr.prm_clkout_ctrl = 0x80;
 
-    bzero(&s->dss, sizeof(s->dss));
+    memset(&s->dss, 0, sizeof(s->dss));
     s->dss.rm_rstst     = 0x1;
     s->dss.pm_wken      = 0x1;
     s->dss.pm_wkdep     = 0x16;
     s->dss.pm_pwstctrl  = 0x30107;
     s->dss.pm_pwstst    = 0x3;
 
-    bzero(&s->cam, sizeof(s->cam));
+    memset(&s->cam, 0, sizeof(s->cam));
     s->cam.rm_rstst     = 0x1;
     s->cam.pm_wkdep     = 0x16;
     s->cam.pm_pwstctrl  = 0x30107;
     s->cam.pm_pwstst    = 0x3;
 
-    bzero(&s->per, sizeof(s->per));
+    memset(&s->per, 0, sizeof(s->per));
     s->per.rm_rstst     = 0x1;
     s->per.pm_wken      = 0x3efff;
     s->per.pm_mpugrpsel = 0x3efff;
@@ -1635,11 +1635,11 @@ static void omap3_prm_reset(struct omap3_prm_s *s)
     s->per.pm_pwstctrl  = 0x30107;
     s->per.pm_pwstst    = 0x7;
 
-    bzero(&s->emu, sizeof(s->emu));
+    memset(&s->emu, 0, sizeof(s->emu));
     s->emu.rm_rstst  = 0x1;
     s->emu.pm_pwstst = 0x13;
 
-    bzero(&s->gr, sizeof(s->gr));
+    memset(&s->gr, 0, sizeof(s->gr));
     s->gr.prm_vc_i2c_cfg     = 0x18;
     s->gr.prm_rsttimer       = 0x1006;
     s->gr.prm_rstst          = 0x1; /* POR */
@@ -1648,13 +1648,13 @@ static void omap3_prm_reset(struct omap3_prm_s *s)
     s->gr.prm_polctrl        = 0xa;
     /* TODO: figure out reset values for prm_vp[1,2] registers */
 
-    bzero(&s->neon, sizeof(s->neon));
+    memset(&s->neon, 0, sizeof(s->neon));
     s->neon.rm_rstst     = 0x1;
     s->neon.pm_wkdep     = 0x2;
     s->neon.pm_pwstctrl  = 0x7;
     s->neon.pm_pwstst    = 0x3;
 
-    bzero(&s->usbhost, sizeof(s->usbhost));
+    memset(&s->usbhost, 0, sizeof(s->usbhost));
     s->usbhost.rm_rstst     = 0x1;
     s->usbhost.pm_wken      = 0x1;
     s->usbhost.pm_mpugrpsel = 0x1;

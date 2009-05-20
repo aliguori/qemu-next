@@ -128,10 +128,10 @@ static omap3_lcd_panel_fn_t glue(omap3_lcd_panel_draw_fn_, DEPTH)[0x10] = {
 };
 
 /* 90deg, 180deg and 270deg rotation */
-static omap3_lcd_panel_fn_t glue(omap3_lcd_panel_draw_fn_r_, DEPTH)[0x10] = {
-    /* TODO */
-    [0 ... 0xf] = NULL,
-};
+//static omap3_lcd_panel_fn_t glue(omap3_lcd_panel_draw_fn_r_, DEPTH)[0x10] = {
+//    /* TODO */
+//    [0 ... 0xf] = NULL,
+//};
 
 #undef DEPTH
 #undef SKIP_PIXEL

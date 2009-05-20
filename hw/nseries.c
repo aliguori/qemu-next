@@ -1420,7 +1420,9 @@ QEMUMachine n810_machine = {
 #define N00_ONENAND_CS 0
 #define N00_ONENAND_GPIO N8X0_ONENAND_GPIO
 #define N00_ONENAND_BUFSIZE (0xc000 << 1)
-#define N00_DISPLAY_BUFSIZE (640 * 480 * 3)
+#define N00_DISPLAY_WIDTH 864
+#define N00_DISPLAY_HEIGHT 480
+#define N00_DISPLAY_BUFSIZE (N00_DISPLAY_WIDTH * N00_DISPLAY_HEIGHT * 4)
 
 //#define N00_DEBUG_DSI
 
@@ -1441,7 +1443,22 @@ QEMUMachine n810_machine = {
 
 #define N00_DSI_MAKERETURNBYTE(b) ((((b) & 0xff) << 8) | 0x21)
 
+#include "omap_dss.h"
+
 struct taal_s {
+    struct omap_dss_s *dss;
+    DisplayState *ds;
+    struct dsi_chip_s chip;
+    int force_update;
+    struct {
+        uint32_t posx;
+        uint32_t posy;
+        uint32_t width;
+        uint32_t height;
+        uint32_t attrib;
+        target_phys_addr_t addr;
+    } fake;
+    
     enum { bs_cmd, bs_data } bs;
     uint8_t cmd;
     uint8_t powermode;
@@ -1454,32 +1471,38 @@ struct taal_s {
     uint32_t ep;
     uint32_t cp;
     int counter;
-    uint8_t buffer[N00_DISPLAY_BUFSIZE];
+    //uint8_t buffer[N00_DISPLAY_BUFSIZE];
 };
 
 static void taal_reset(struct taal_s *s)
 {
-    bzero(s, sizeof(struct taal_s));
     s->bs = bs_cmd;
+    s->cmd = 0;
+    s->powermode = 0x08;
+    s->addrmode = 0;
+    s->bpp = 0;
+    s->sc = 0;
+    s->ec = 0;
+    s->cc = 0;
+    s->sp = 0;
+    s->ep = 0;
+    s->cp = 0;
+    s->counter = 0;
+    //memset(s->buffer, 0, N00_DISPLAY_BUFSIZE);
 }
 
-static struct taal_s *taal_init(void)
-{
-    struct taal_s *s = qemu_mallocz(sizeof(struct taal_s));
-    taal_reset(s);
-    return s;
-}
-
-static uint32_t n00_dsi_txrx(void *opaque, uint32_t data, int len)
+static uint32_t taal_read(void *opaque, uint32_t data, int len)
 {
     struct taal_s *s = (struct taal_s *)opaque;
     uint32_t ret = 0;
     
-    if  (s->bs == bs_cmd) {
-        s->cmd = data & 0xff;
-        data >>= 8;
-        len--;
+    if (s->bs != bs_cmd) {
+        fprintf(stderr, "%s: previous WRITE command not completed\n",
+                __FUNCTION__);
     }
+    s->cmd = data & 0xff;
+    data >>= 8;
+    len--;
     switch (s->cmd) {
         case 0x0a: /* get power mode */
             ret = N00_DSI_MAKERETURNBYTE(s->powermode);
@@ -1489,11 +1512,37 @@ static uint32_t n00_dsi_txrx(void *opaque, uint32_t data, int len)
             ret = N00_DSI_MAKERETURNBYTE(s->addrmode);
             TRACEDSI("get address mode (0x%04x)", ret);
             break;
+        case 0xda: /* get id1 */
+        case 0xdb: /* get id2 */
+        case 0xdc: /* get id3 */
+            TRACEDSI("get id%d", s->cmd - 0xda);
+            ret = N00_DSI_MAKERETURNBYTE(0);
+            break;
+        default:
+            fprintf(stderr, "%s: unknown command 0x%02x\n",
+                    __FUNCTION__, s->cmd);
+            break;
+    }
+    return ret;
+}
+
+static void taal_write(void *opaque, uint32_t data, int len)
+{
+    struct taal_s *s = (struct taal_s *)opaque;
+    
+    if  (s->bs == bs_cmd) {
+        s->cmd = data & 0xff;
+        data >>= 8;
+        len--;
+    }
+    switch (s->cmd) {
+        case 0x10: /* enter sleep */
+            TRACEDSI("enter sleep mode");
+            s->powermode &= 0x10;
+            break;
         case 0x11: /* exit sleep */
             TRACEDSI("exit sleep mode");
-            if (!(s->powermode & 0x20)) /* sleep mode? */
-                s->powermode |= 0x08;   /* normal mode */
-            s->powermode |= 0x20;
+            s->powermode |= 0x10;
             break;
         case 0x28: /* display off */
             TRACEDSI("display off");
@@ -1508,14 +1557,29 @@ static uint32_t n00_dsi_txrx(void *opaque, uint32_t data, int len)
                 s->bs = bs_data;
                 s->sc = 0;
                 s->ec = 0;
-                s->cc = 0;
                 N00_DSI_EXTRACTPARAM(s->sc, data, 2);
                 N00_DSI_EXTRACTPARAM(s->ec, data, 1);
+                if (s->sc >= N00_DISPLAY_WIDTH) {
+                    fprintf(stderr, "%s: invalid start column (%d)\n",
+                            __FUNCTION__, s->sc);
+                    s->sc = N00_DISPLAY_WIDTH - 1;
+                }
+                s->cc = s->sc;
             } else {
                 s->bs = bs_cmd;
                 N00_DSI_EXTRACTPARAM(s->ec, data, 1);
+                if (s->ec >= N00_DISPLAY_WIDTH) {
+                    fprintf(stderr, "%s: invalid end column (%d)\n",
+                            __FUNCTION__, s->ec);
+                    s->ec = N00_DISPLAY_WIDTH - 1;
+                }
+                if (s->ec < s->sc) {
+                    fprintf(stderr, "%s: invlid end column (%d)\n",
+                            __FUNCTION__, s->ec);
+                    s->ec = s->sc;
+                }
                 s->cc = s->sc;
-                TRACEDSI("set column address = %d to %d", s->sc ,s->ec);
+                //TRACEDSI("set column address = %d to %d", s->sc ,s->ec);
             }
             break;
         case 0x2b: /* set page address */
@@ -1523,14 +1587,29 @@ static uint32_t n00_dsi_txrx(void *opaque, uint32_t data, int len)
                 s->bs = bs_data;
                 s->sp = 0;
                 s->ep = 0;
-                s->cp = 0;
                 N00_DSI_EXTRACTPARAM(s->sp, data, 2);
                 N00_DSI_EXTRACTPARAM(s->ep, data, 1);
+                if (s->sp >= N00_DISPLAY_HEIGHT) {
+                    fprintf(stderr, "%s: invalid start page (%d)\n",
+                            __FUNCTION__, s->sp);
+                    s->sp = N00_DISPLAY_HEIGHT - 1;
+                }
+                s->cp = s->sp;
             } else {
                 s->bs = bs_cmd;
                 N00_DSI_EXTRACTPARAM(s->ep, data, 1);
+                if (s->ep >= N00_DISPLAY_HEIGHT) {
+                    fprintf(stderr, "%s: invalid end page (%d)\n",
+                            __FUNCTION__, s->ep);
+                    s->ep = N00_DISPLAY_HEIGHT - 1;
+                }
+                if (s->ep < s->sp) {
+                    fprintf(stderr, "%s: invalid end page (%d)\n",
+                            __FUNCTION__, s->ep);
+                    s->ep = s->sp;
+                }
                 s->cp = s->sp;
-                TRACEDSI("set page address = %d to %d", s->sp, s->ep);
+                //TRACEDSI("set page address = %d to %d", s->sp, s->ep);
             }
             break;
         case 0x2c: /* write memory */
@@ -1559,7 +1638,7 @@ static uint32_t n00_dsi_txrx(void *opaque, uint32_t data, int len)
                     s->bpp = 2;
                     break;
                 case 7: /* 24bpp */
-                    s->bpp = 3;
+                    s->bpp = 4; /* faster to process than 3 */
                     break;
                 default:
                     fprintf(stderr, "%s: unsupported dbi pixel format %d\n",
@@ -1567,24 +1646,68 @@ static uint32_t n00_dsi_txrx(void *opaque, uint32_t data, int len)
                     break;
             }
             break;
-        case 0xda: /* get id1 */
-        case 0xdb: /* get id2 */
-        case 0xdc: /* get id3 */
-            TRACEDSI("get id%d", s->cmd - 0xda);
-            ret = N00_DSI_MAKERETURNBYTE(0);
-            break;
         default:
             fprintf(stderr, "%s: unknown command 0x%02x\n",
                     __FUNCTION__, s->cmd);
             break;
     }
-    return ret;
+}
+
+static void taal_block_fake(void *opaque, const struct omap_dss_dispc_s *dispc)
+{
+    struct taal_s *s = (struct taal_s *)opaque;
+    
+    s->fake.posx = dispc->l[0].posx;
+    s->fake.posy = dispc->l[0].posy;
+    s->fake.width = dispc->l[0].nx;
+    s->fake.height = dispc->l[0].ny;
+    s->fake.attrib = dispc->l[0].attr;
+    s->fake.addr = dispc->l[0].addr[0];
+}
+
+static void taal_invalidate_display(void *opaque)
+{
+    struct taal_s *s = (struct taal_s *)opaque;
+    s->force_update = 1;
+}
+
+static void taal_update_display(void *opaque)
+{
+    struct taal_s *s = (struct taal_s *)opaque;
+    
+    if (s->force_update || (s->powermode & 0x04)) {
+        s->force_update = 0;
+        /* TODO: draw background color */
+        omap3_lcd_panel_layer_update(s->ds,
+                                     N00_DISPLAY_WIDTH, N00_DISPLAY_HEIGHT,
+                                     s->fake.posx, s->fake.posy,
+                                     s->fake.width, s->fake.height,
+                                     s->fake.attrib,
+                                     s->fake.addr);
+        /* TODO: draw VID1 & VID2 layers */
+        dpy_update(s->ds, 0, 0, N00_DISPLAY_WIDTH, N00_DISPLAY_HEIGHT);
+    }
+}
+
+static struct taal_s *taal_init(struct omap_dss_s *dss)
+{
+    struct taal_s *s = qemu_mallocz(sizeof(struct taal_s));
+    s->dss = dss;
+    s->chip.opaque = s;
+    s->chip.write = taal_write;
+    s->chip.read = taal_read;
+    s->chip.block_fake = taal_block_fake;
+    s->ds = graphic_console_init(taal_update_display,
+                                 taal_invalidate_display,
+                                 NULL, NULL, s);
+    qemu_console_resize(s->ds, N00_DISPLAY_WIDTH, N00_DISPLAY_HEIGHT);
+    taal_reset(s);
+    return s;
 }
 
 struct n00_s {
     struct omap_mpu_state_s *cpu;
     struct twl4030_s *twl4030;
-    struct omap3_lcd_panel_s *omap3_lcd;
     void *nand;
     struct taal_s *lcd;
 };
@@ -1606,10 +1729,8 @@ static void n00_init(ram_addr_t ram_size, int vga_ram_size,
                                serial_hds[0]);
     s->twl4030 = twl4030_init(omap_i2c_bus(s->cpu->i2c[0]),
                               s->cpu->irq[0][OMAP_INT_3XXX_SYS_NIRQ]);
-    s->omap3_lcd = omap3_lcd_panel_init();
-    omap3_lcd_panel_attach(s->cpu->dss, 0, s->omap3_lcd);
-    s->lcd = taal_init();
-    omap_dsi_attach(s->cpu->dss, 0, s->lcd, n00_dsi_txrx);
+    s->lcd = taal_init(s->cpu->dss);
+    omap_dsi_attach(s->cpu->dss, 0, &s->lcd->chip);
     s->nand = onenand_init(0xec4800, 1, 
                            omap2_gpio_in_get(s->cpu->gpif, N00_ONENAND_GPIO)[0]);
     omap_gpmc_attach(s->cpu->gpmc, N00_ONENAND_CS, 0, onenand_base_update,

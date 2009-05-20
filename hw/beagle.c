@@ -72,8 +72,8 @@ static void beagle_init(ram_addr_t ram_size, int vga_ram_size,
     omap_gpmc_attach(s->cpu->gpmc, BEAGLE_SMC_CS, smc91c111_iomemtype(opaque),
                      0, 0, opaque, 0);
 
-	s->lcd_panel = omap3_lcd_panel_init();
-	omap3_lcd_panel_attach(s->cpu->dss, 0, s->lcd_panel);
+	s->lcd_panel = omap3_lcd_panel_init(s->cpu->dss);
+    omap_lcd_panel_attach(s->cpu->dss, omap3_lcd_panel_get(s->lcd_panel));
     
     omap3_boot_rom_emu(s->cpu);
 }
