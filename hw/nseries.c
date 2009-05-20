@@ -1712,6 +1712,37 @@ struct n00_s {
     struct taal_s *lcd;
 };
 
+static uint32_t ssi_read(void *opaque, target_phys_addr_t addr)
+{
+    switch (addr) {
+        case 0x00: /* REVISION */
+            return 0x10;
+        case 0x14: /* SYSSTATUS */
+            return 1; /* RESETDONE */
+        default:
+            break;
+    }
+    //printf("%s: addr= " OMAP_FMT_plx "\n", __FUNCTION__, addr);
+    return 0;
+}
+
+static void ssi_write(void *opaque, target_phys_addr_t addr, uint32_t value)
+{
+    //printf("%s: addr=" OMAP_FMT_plx ", value=0x%08x\n", __FUNCTION__, addr, value);
+}
+
+static CPUReadMemoryFunc *ssi_read_func[] = {
+    ssi_read,
+    ssi_read,
+    ssi_read,
+};
+
+static CPUWriteMemoryFunc *ssi_write_func[] = {
+    ssi_write,
+    ssi_write,
+    ssi_write,
+};
+
 static void n00_init(ram_addr_t ram_size, int vga_ram_size,
                      const char *boot_device, const char *kernel_filename,
                      const char *kernel_cmdline, const char *initrd_filename,
@@ -1736,6 +1767,14 @@ static void n00_init(ram_addr_t ram_size, int vga_ram_size,
     omap_gpmc_attach(s->cpu->gpmc, N00_ONENAND_CS, 0, onenand_base_update,
                      onenand_base_unmap, s->nand, 0);
     omap3_mmc_attach(s->cpu->omap3_mmc[0], drives_table[sdindex].bdrv);
+    
+    cpu_register_physical_memory(0x48058000, 0x3c00,
+                                 cpu_register_io_memory(0,
+                                                        ssi_read_func,
+                                                        ssi_write_func,
+                                                        0));
+    
+    
     omap3_boot_rom_emu(s->cpu);
 }
 
