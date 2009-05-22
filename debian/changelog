@@ -1,3 +1,9 @@
+qemu (0.10.0-0sb8) unstable; urgency=low
+
+  * ascension release
+
+ -- Riku Voipio <riku.voipio@iki.fi>  Fri, 22 May 2009 17:28:55 +0300
+
 qemu (0.10.0-0sb7) jaunty; urgency=low
 
   * Wappu release
