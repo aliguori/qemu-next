@@ -291,13 +291,19 @@ UNUSED static struct flags access_flags[] = {
 };
 
 UNUSED static struct flags at_file_flags[] = {
+#ifdef AT_EACCESS
     FLAG_GENERIC(AT_EACCESS),
+#endif
+#ifdef AT_SYMLINK_NOFOLLOW
     FLAG_GENERIC(AT_SYMLINK_NOFOLLOW),
+#endif
     FLAG_END,
 };
 
 UNUSED static struct flags unlinkat_flags[] = {
+#ifdef AT_REMOVEDIR
     FLAG_GENERIC(AT_REMOVEDIR),
+#endif
     FLAG_END,
 };
 
@@ -467,10 +473,13 @@ print_at_dirfd(abi_long tdirfd, int last)
 {
     int dirfd = tswap32(tdirfd);
 
-    if (dirfd == AT_FDCWD)
+#ifdef AT_FDCWD
+    if (dirfd == AT_FDCWD) {
         gemu_log("AT_FDCWD%s", get_comma(last));
-    else
-        gemu_log("%d%s", dirfd, get_comma(last));
+        return;
+    }
+#endif
+    gemu_log("%d%s", dirfd, get_comma(last));
 }
 
 static void
