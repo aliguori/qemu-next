@@ -324,7 +324,7 @@ static uint32_t omap_i2c_read(void *opaque, target_phys_addr_t addr)
                     ret = s->fifo[s->fifostart++];
                     s->fifostart &= I2C_FIFO_SIZE_MASK;
                     if (--s->fifolen) {
-                        if (s->fifolen < ((s->dma & 0x3f) >> 8)) {
+                        if (s->fifolen < ((s->dma >> 8) & 0x3f)) {
                             s->stat &= ~(1 << 3); /* RRDY */
                             s->stat |= 1 << 13;   /* RDR */
                         }
