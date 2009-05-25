@@ -1705,13 +1705,6 @@ static struct taal_s *taal_init(struct omap_dss_s *dss)
     return s;
 }
 
-struct n00_s {
-    struct omap_mpu_state_s *cpu;
-    struct twl4030_s *twl4030;
-    void *nand;
-    struct taal_s *lcd;
-};
-
 static uint32_t ssi_read(void *opaque, target_phys_addr_t addr)
 {
     switch (addr) {
@@ -1741,6 +1734,281 @@ static CPUWriteMemoryFunc *ssi_write_func[] = {
     ssi_write,
     ssi_write,
     ssi_write,
+};
+
+#define DEBUG_TM12XX
+#ifdef DEBUG_TM12XX
+#define TRACE_TM12XX(fmt, ...) fprintf(stderr, "%s: " fmt "\n", __FUNCTION__, ##__VA_ARGS__)
+#else
+#define TRACE_TM12XX(...)
+#endif
+
+#define DCTR_Q    0x10
+#define DCTR_CMD  (DCTR_Q + 21)
+#define DCTR_CTRL (DCTR_CMD + 1)
+#define DCTR_DATA (DCTR_CTRL + 2)
+#define BIST_Q    (DCTR_DATA + 2)
+#define BIST_CMD  (BIST_Q + 1)
+#define BIST_CTRL (BIST_CMD + 1)
+#define BIST_DATA (BIST_CTRL + 1)
+#define FN2D_Q    (BIST_DATA + 1)
+#define FN2D_CMD  (FN2D_Q + 6)
+#define FN2D_CTRL (FN2D_CMD + 1)
+#define FN2D_DATA (FN2D_CTRL + 11 + 2 * (1 + 1))
+#define BTNS_Q    (FN2D_DATA + 1)
+#define BTNS_CMD  (BTNS_Q + 2)
+#define BTNS_CTRL (BTNS_CMD + 1)
+#define BTNS_DATA (BTNS_CTRL + 1)
+#define TIMR_Q    (BTNS_DATA + 4)
+#define TIMR_CMD  (TIMR_Q + 1)
+#define TIMR_CTRL (TIMR_CMD + 1)
+#define TIMR_DATA (TIMR_CTRL + 1)
+#define FLSH_Q    (TIMR_DATA + 1)
+#define FLSH_CMD  (FLSH_Q + 9)
+#define FLSH_CTRL (FLSH_CMD + 1)
+#define FLSH_DATA (FLSH_CTRL + 1)
+
+struct tm12xx_s {
+    i2c_slave i2c;
+    qemu_irq irq;
+    int firstbyte;
+    int reg;
+    uint8_t irqen;
+    uint8_t irqst;
+    uint8_t dc_ctrl;
+    uint8_t dc_st;
+};
+
+static void tm12xx_interrupt_update(struct tm12xx_s *s)
+{
+    qemu_set_irq(s->irq, !(s->irqst & s->irqen));
+}
+
+static void tm12xx_reset(struct tm12xx_s *s)
+{
+    s->firstbyte = 0;
+    s->reg = 0;
+    s->irqen = 0;
+    s->irqst = 0;
+    s->dc_ctrl = 0x80; /* UNCONFIGURED */
+    s->dc_st = 0x80; /* UNCONFIGURED */
+    
+    tm12xx_interrupt_update(s);
+}
+
+static void tm12xx_event(i2c_slave *i2c, enum i2c_event event)
+{
+    struct tm12xx_s *s = (struct tm12xx_s *)i2c;
+    if (event == I2C_START_SEND)
+        s->firstbyte = 1;
+}
+
+static int tm12xx_rx(i2c_slave *i2c)
+{
+    static const uint8_t func_desc[] = {
+        DCTR_Q, DCTR_CMD, DCTR_CTRL, DCTR_DATA, 0x20, 0x01,
+        BIST_Q, BIST_CMD, BIST_CTRL, BIST_DATA, 0x20, 0x08,
+        FN2D_Q, FN2D_CMD, FN2D_CTRL, FN2D_DATA, 0x20, 0x11,
+        BTNS_Q, BTNS_CMD, BTNS_CTRL, BTNS_DATA, 0x20, 0x19,
+        TIMR_Q, TIMR_CMD, TIMR_CTRL, TIMR_DATA, 0x20, 0x32,
+        FLSH_Q, FLSH_CMD, FLSH_CTRL, FLSH_DATA, 0x20, 0x34,
+    };
+    struct tm12xx_s *s = (struct tm12xx_s *)i2c;
+    int value = 0;
+    switch (s->reg) {
+        case DCTR_Q + 0: /* DC_MANID */
+            value = 'Q';
+            break;
+        case DCTR_Q + 1: /* DC_PROD_PROPERTIES */
+            value = 0;
+            break;
+        case DCTR_Q + 2: /* DC_PROD_FAMILY */
+            value = 0;
+            break;
+        case DCTR_Q + 3: /* DC_FW_VER */
+            value = 1;
+            break;
+        case DCTR_Q + 11: /* DC_PROD_ID */
+            value = 'Q';
+            break;
+        case DCTR_Q + 12:
+            value = 'E';
+            break;
+        case DCTR_Q + 13:
+            value = 'M';
+            break;
+        case DCTR_Q + 14:
+            value = 'U';
+            break;
+        case DCTR_Q + 15 ... DCTR_Q + 20:
+            value = 0;
+            break;
+        case DCTR_CTRL + 0: /* DC_CTRL */
+            value = s->dc_ctrl;
+            TRACE_TM12XX("DEVICE_CONTROL = 0x%02x", value);
+            break;
+        case DCTR_CTRL + 1: /* DC_INTR_ENABLE */
+            value = s->irqen;
+            break;
+        case DCTR_DATA + 0: /* DC_STATUS */
+            value = s->dc_st;
+            TRACE_TM12XX("STATUS = 0x%02x", value);
+            break;
+        case DCTR_DATA + 1: /* DC_INTR_STATUS */
+            value = s->irqst;
+            s->irqst = 0;
+            tm12xx_interrupt_update(s);
+            TRACE_TM12XX("INTR_STATUS = 0x%02x", value);
+            break;
+        case FN2D_Q + 0: /* TOUCH_NUM_SENSORS */
+            value = 0;
+            break;
+        case FN2D_Q + 1:
+            value = 0x91; /* configurable, absolute mode, 2 touch points */
+            break;
+        case FN2D_Q + 2:
+            value = 1;
+            break;
+        case FN2D_Q + 3:
+            value = 1;
+            break;
+        case FN2D_Q + 4:
+            value = 1 + 1;
+            break;
+        case FN2D_Q + 5:
+            value = 0;
+            break;
+        case FN2D_CTRL + 6: /* TOUCH_SENSOR_MAX_X LSB */
+            value = N00_DISPLAY_WIDTH & 0xff;
+            break;
+        case FN2D_CTRL + 7: /* TOUCH_SENSOR_MAX_X MSB */
+            value = (N00_DISPLAY_WIDTH >> 8) & 0xff;
+            break;
+        case FN2D_CTRL + 8: /* TOUCH_SENSOR_MAX_Y LSB */
+            value = N00_DISPLAY_HEIGHT & 0xff;
+            break;
+        case FN2D_CTRL + 9: /* TOUCH_SENSOR_MAX_Y MSB */
+            value = (N00_DISPLAY_HEIGHT >> 8) & 0xff;
+            break;
+        case BTNS_Q + 0: /* BUTTON_QUERY0 */
+            value = 1; /* configurable */
+            break;
+        case BTNS_Q + 1: /* BUTTON_COUNT */
+            value = 31;
+            break;
+        case BTNS_DATA + 0:
+        case BTNS_DATA + 1:
+        case BTNS_DATA + 2:
+        case BTNS_DATA + 3:
+            value = 0;
+            break;
+        case FLSH_Q + 0: /* FLASH_BOOTLOADER_ID LSB */
+        case FLSH_Q + 1: /* FLASH_BOOTLOADER_ID MSB */
+            value = 'Q';
+            break;
+        case FLSH_Q + 2: /* FLASH_PROPERTIES */
+            value = 1; /* regmap version */
+            break;
+        case FLSH_Q + 3: /* FLASH_BLOCK_SIZE LSB*/
+            value = 1;
+            break;
+        case FLSH_Q + 4: /* FLASH_BLOCK_SIZE MSB */
+            value = 0;
+            break;
+        case FLSH_Q + 5: /* FLASH_FW_BLOCK_COUNT LSB */
+            value = 1;
+            break;
+        case FLSH_Q + 6: /* FLASH_FW_BLOCK_COUNT MSB */
+            value = 0;
+            break;
+        case FLSH_Q + 7: /* FLASH_CONF_BLOCK_COUNT LSB */
+            value = 1;
+            break;
+        case FLSH_Q + 8: /* FLASH_CONF_BLOCK_COUNT MSB */
+            value = 0;
+            break;
+        case 0xcb ... 0xee:
+            value = func_desc[s->reg - 0xcb];
+            break;
+        case 0xef: /* PDT_PROPERTIES */
+            value = 0;
+            break;
+        case 0xff: /* PAGE_SELECT */
+            value = 0;
+            break;
+        default:
+            printf("%s: unknown reg 0x%02x\n", __FUNCTION__, s->reg);
+            break;
+    }
+    s->reg++;
+    return value;
+}
+
+static int tm12xx_tx(i2c_slave *i2c, uint8_t data)
+{
+    struct tm12xx_s *s = (struct tm12xx_s *)i2c;
+    if (s->firstbyte) {
+        s->reg = data;
+        s->firstbyte = 0;
+    } else {
+        switch (s->reg) {
+            case DCTR_CMD: /* DC_COMMAND */
+                TRACE_TM12XX("COMMAND = 0x%02x", data);
+                if (data & 1) {
+                    tm12xx_reset(s);
+                    /* in reality we should not raise the irq immediately */
+                    s->dc_st = 0x01;    /* RESET */
+                    s->irqst |= 1 << 2; /* STATUS */
+                    tm12xx_interrupt_update(s);
+                }
+                break;
+            case DCTR_CTRL + 0: /* DC_CTRL */
+                TRACE_TM12XX("DEVICE_CONTROL = 0x%02x", data);
+                s->dc_ctrl &= ~data;
+                break;
+            case DCTR_CTRL + 1: /* DC_INTR_ENABLE */
+                TRACE_TM12XX("INTR_ENABLE = 0x%02x", data);
+                s->irqen = data;
+                tm12xx_interrupt_update(s);
+                break;
+            case FLSH_DATA + 0: /* FLASH_BLOCK_NUM LSB*/
+                TRACE_TM12XX("FLASH_BLOCK_NUM LSB = 0x%02x", data);
+                break;
+            case FLSH_DATA + 1: /* FLASH_BLOCK_NUM MSB */
+                TRACE_TM12XX("FLASH_BLOCK_NUM MSB = 0x%02x", data);
+                break;
+            case FLSH_DATA + 2: /* FLASH_BLOCK_DATA */
+                TRACE_TM12XX("FLASH_BLOCK_DATA = 0x%02x", data);
+                break;
+            case FLSH_DATA + 3: /* FLASH_COMMAND */
+                TRACE_TM12XX("FLASH_COMMAND = 0x%02x", data);
+                break;
+            default:
+                printf("%s: unknown reg[0x%02x]=0x%02x\n", __FUNCTION__, s->reg, data);
+                break;
+        }
+        s->reg++;
+    }
+    return 1;
+}
+
+static struct tm12xx_s *tm12xx_init(i2c_bus *bus, qemu_irq irq)
+{
+    struct tm12xx_s *s = (struct tm12xx_s *)i2c_slave_init(bus, 0x4b, sizeof(*s));
+    s->i2c.event = tm12xx_event;
+    s->i2c.recv = tm12xx_rx;
+    s->i2c.send = tm12xx_tx;
+    s->irq = irq;
+    tm12xx_reset(s);
+    return s;
+}
+
+struct n00_s {
+    struct omap_mpu_state_s *cpu;
+    struct twl4030_s *twl4030;
+    void *nand;
+    struct taal_s *lcd;
+    void *tm12xx;
 };
 
 static void n00_init(ram_addr_t ram_size, int vga_ram_size,
@@ -1773,8 +2041,9 @@ static void n00_init(ram_addr_t ram_size, int vga_ram_size,
                                                         ssi_read_func,
                                                         ssi_write_func,
                                                         0));
-    
-    
+    s->tm12xx = tm12xx_init(omap_i2c_bus(s->cpu->i2c[1]),
+                            omap2_gpio_in_get(s->cpu->gpif, 61)[0]);
+
     omap3_boot_rom_emu(s->cpu);
 }
 
