@@ -8,6 +8,7 @@
 #include <sys/types.h>
 #include <sys/mount.h>
 #include <sys/mman.h>
+#include <linux/futex.h>
 #include <unistd.h>
 #include "qemu.h"
 
@@ -431,6 +432,39 @@ static const char *
 get_comma(int last)
 {
     return ((last) ? "" : ",");
+}
+
+static void
+print_futex_op(abi_long tflag, int last)
+{
+#define print_op(val) \
+if( cmd == val ) { \
+    gemu_log(#val); \
+    return; \
+}
+
+    int cmd = (int)tswap32(tflag);
+#ifdef FUTEX_PRIVATE_FLAG
+    if (cmd == FUTEX_PRIVATE_FLAG)
+        qemu_log("FUTEX_PRIVATE_FLAG|");
+#endif
+    print_op(FUTEX_WAIT)
+    print_op(FUTEX_WAKE)
+    print_op(FUTEX_FD)
+    print_op(FUTEX_REQUEUE)
+    print_op(FUTEX_CMP_REQUEUE)
+    print_op(FUTEX_WAKE_OP)
+    print_op(FUTEX_LOCK_PI)
+    print_op(FUTEX_UNLOCK_PI)
+    print_op(FUTEX_TRYLOCK_PI)
+#ifdef FUTEX_WAIT_BITSET
+    print_op(FUTEX_WAIT_BITSET)
+#endif
+#ifdef FUTEX_WAKE_BITSET
+    print_op(FUTEX_WAKE_BITSET)
+#endif
+    /* unknown values */
+    gemu_log("%d",cmd);
 }
 
 static void
@@ -1237,6 +1271,23 @@ print_munmap(const struct syscallname *name,
     print_syscall_prologue(name);
     print_pointer(arg0, 0);
     print_raw_param("%d", tswapl(arg1), 1);
+    print_syscall_epilogue(name);
+}
+#endif
+
+#ifdef TARGET_NR_futex
+static void
+print_futex(const struct syscallname *name,
+    abi_long arg0, abi_long arg1, abi_long arg2,
+    abi_long arg3, abi_long arg4, abi_long arg5)
+{
+    print_syscall_prologue(name);
+    print_pointer(arg0, 0);
+    print_futex_op(arg1, 0);
+    print_raw_param(",%d", tswapl(arg2), 0);
+    print_pointer(arg3, 0); /* struct timespec */
+    print_pointer(arg4, 0);
+    print_raw_param("%d", tswapl(arg4), 1);
     print_syscall_epilogue(name);
 }
 #endif
