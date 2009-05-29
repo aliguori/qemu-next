@@ -223,7 +223,7 @@
 { TARGET_NR_ftruncate64, "ftruncate64" , NULL, NULL, NULL },
 #endif
 #ifdef TARGET_NR_futex
-{ TARGET_NR_futex, "futex" , NULL, NULL, NULL },
+{ TARGET_NR_futex, "futex" , NULL, print_futex, NULL },
 #endif
 #ifdef TARGET_NR_futimesat
 { TARGET_NR_futimesat, "futimesat" , NULL, print_futimesat, NULL },

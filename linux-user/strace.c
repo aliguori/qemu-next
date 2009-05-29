@@ -8,6 +8,7 @@
 #include <sys/types.h>
 #include <sys/mount.h>
 #include <sys/mman.h>
+#include <linux/futex.h>
 #include <unistd.h>
 #include "qemu.h"
 
@@ -291,13 +292,19 @@ UNUSED static struct flags access_flags[] = {
 };
 
 UNUSED static struct flags at_file_flags[] = {
+#ifdef AT_EACCESS
     FLAG_GENERIC(AT_EACCESS),
+#endif
+#ifdef AT_SYMLINK_NOFOLLOW
     FLAG_GENERIC(AT_SYMLINK_NOFOLLOW),
+#endif
     FLAG_END,
 };
 
 UNUSED static struct flags unlinkat_flags[] = {
+#ifdef AT_REMOVEDIR
     FLAG_GENERIC(AT_REMOVEDIR),
+#endif
     FLAG_END,
 };
 
@@ -428,6 +435,39 @@ get_comma(int last)
 }
 
 static void
+print_futex_op(abi_long tflag, int last)
+{
+#define print_op(val) \
+if( cmd == val ) { \
+    gemu_log(#val); \
+    return; \
+}
+
+    int cmd = (int)tswap32(tflag);
+#ifdef FUTEX_PRIVATE_FLAG
+    if (cmd == FUTEX_PRIVATE_FLAG)
+        qemu_log("FUTEX_PRIVATE_FLAG|");
+#endif
+    print_op(FUTEX_WAIT)
+    print_op(FUTEX_WAKE)
+    print_op(FUTEX_FD)
+    print_op(FUTEX_REQUEUE)
+    print_op(FUTEX_CMP_REQUEUE)
+    print_op(FUTEX_WAKE_OP)
+    print_op(FUTEX_LOCK_PI)
+    print_op(FUTEX_UNLOCK_PI)
+    print_op(FUTEX_TRYLOCK_PI)
+#ifdef FUTEX_WAIT_BITSET
+    print_op(FUTEX_WAIT_BITSET)
+#endif
+#ifdef FUTEX_WAKE_BITSET
+    print_op(FUTEX_WAKE_BITSET)
+#endif
+    /* unknown values */
+    gemu_log("%d",cmd);
+}
+
+static void
 print_flags(const struct flags *f, abi_long tflags, int last)
 {
     const char *sep = "";
@@ -467,10 +507,13 @@ print_at_dirfd(abi_long tdirfd, int last)
 {
     int dirfd = tswap32(tdirfd);
 
-    if (dirfd == AT_FDCWD)
+#ifdef AT_FDCWD
+    if (dirfd == AT_FDCWD) {
         gemu_log("AT_FDCWD%s", get_comma(last));
-    else
-        gemu_log("%d%s", dirfd, get_comma(last));
+        return;
+    }
+#endif
+    gemu_log("%d%s", dirfd, get_comma(last));
 }
 
 static void
@@ -1228,6 +1271,23 @@ print_munmap(const struct syscallname *name,
     print_syscall_prologue(name);
     print_pointer(arg0, 0);
     print_raw_param("%d", tswapl(arg1), 1);
+    print_syscall_epilogue(name);
+}
+#endif
+
+#ifdef TARGET_NR_futex
+static void
+print_futex(const struct syscallname *name,
+    abi_long arg0, abi_long arg1, abi_long arg2,
+    abi_long arg3, abi_long arg4, abi_long arg5)
+{
+    print_syscall_prologue(name);
+    print_pointer(arg0, 0);
+    print_futex_op(arg1, 0);
+    print_raw_param(",%d", tswapl(arg2), 0);
+    print_pointer(arg3, 0); /* struct timespec */
+    print_pointer(arg4, 0);
+    print_raw_param("%d", tswapl(arg4), 1);
     print_syscall_epilogue(name);
 }
 #endif

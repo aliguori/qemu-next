@@ -948,21 +948,22 @@ static abi_long do_select(int n,
 
     return ret;
 }
-static abi_long pipe_set_flag(int fd, int readcmd, int writecmd, long newflag)
+
+static abi_long do_pipe2(int host_pipe[], int flags)
 {
-    int flags = fcntl(fd, readcmd);
-    if (flags<0)
-        return get_errno(flags);
-    flags |= newflag;
-    flags = fcntl(fd, writecmd, flags);
-    return get_errno(flags);
+#ifdef CONFIG_PIPE2
+    return pipe2(host_pipe, flags);
+#else
+    return -ENOSYS;
+#endif
 }
 
 static abi_long do_pipe(void *cpu_env, int pipedes, int flags)
 {
     int host_pipe[2];
     abi_long ret;
-    ret = pipe(host_pipe);
+    ret = flags ? do_pipe2(host_pipe, flags) : pipe(host_pipe);
+
     if (is_error(ret))
         return get_errno(ret);
 #if defined(TARGET_MIPS)
@@ -976,22 +977,6 @@ static abi_long do_pipe(void *cpu_env, int pipedes, int flags)
         || put_user_s32(host_pipe[1], pipedes + sizeof(host_pipe[0])))
         return -TARGET_EFAULT;
 #endif
-    if (flags & O_NONBLOCK) {
-        ret = pipe_set_flag(host_pipe[0], F_GETFL, F_SETFL, O_NONBLOCK);
-        if (is_error(ret))
-            return get_errno(ret);
-        ret = pipe_set_flag(host_pipe[1], F_GETFL, F_SETFL, O_NONBLOCK);
-        if (is_error(ret))
-            return get_errno(ret);
-    }
-    if (flags & O_CLOEXEC) {
-        ret = pipe_set_flag(host_pipe[0], F_GETFD, F_SETFD, FD_CLOEXEC);
-        if (is_error(ret))
-            return get_errno(ret);
-        ret = pipe_set_flag(host_pipe[1], F_GETFD, F_SETFD, FD_CLOEXEC);
-        if (is_error(ret))
-            return get_errno(ret);
-    }
     return get_errno(ret);
 }
 
@@ -3996,6 +3981,8 @@ static int do_futex(target_ulong uaddr, int op, int val, target_ulong timeout,
                          pts, NULL, 0));
     case FUTEX_WAKE:
         return get_errno(sys_futex(g2h(uaddr), op, val, NULL, NULL, 0));
+    case FUTEX_WAKE_OP:
+        return get_errno(sys_futex(g2h(uaddr), op, val, NULL, g2h(uaddr2), val3 ));
     case FUTEX_FD:
         return get_errno(sys_futex(g2h(uaddr), op, val, NULL, NULL, 0));
     case FUTEX_REQUEUE:
