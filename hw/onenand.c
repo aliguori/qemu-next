@@ -33,7 +33,11 @@
 #define BLOCK_SHIFT	(PAGE_SHIFT + 6)
 
 struct onenand_s {
-    uint32_t id;
+    struct {
+        uint16_t man;
+        uint16_t dev;
+        uint16_t ver;
+    } id;
     int shift;
     target_phys_addr_t base;
     qemu_irq intr;
@@ -375,6 +379,19 @@ static void onenand_command(struct onenand_s *s, int cmd)
         SETADDR(ONEN_BUF_BLOCK, ONEN_BUF_PAGE)
 
         SETBUF_M()
+
+        /* FIXME: mother-of-all-hacks: prevent UBIFS ec_hdr block corruption */
+        if (!(s->addr[ONEN_BUF_PAGE]>>2 & 0x3f) && s->addr[ONEN_BUF_BLOCK] >= 0x24) {
+            unsigned char *u = (unsigned char *)buf;
+            if (u[0] != 'U' || u[1] != 'B' || u[2] != 'I' || u[3] != '#') {
+                printf("KREEGAH! WTF? fucking up ubifs at block %d, reverting...\n",
+                       s->addr[ONEN_BUF_BLOCK]);
+                sec++;
+                s->count--;
+                buf += 512;
+            }
+        }
+                    
         if (onenand_prog_main(s, sec, s->count, buf))
             s->status |= ONEN_ERR_CMD | ONEN_ERR_PROG;
 
@@ -535,12 +552,12 @@ static uint32_t onenand_read(void *opaque, target_phys_addr_t addr)
         return lduw_le_p(s->boot[0] + addr);
 
     case 0xf000:	/* Manufacturer ID */
-        return (s->id >> 16) & 0xff;
+        return s->id.man;
     case 0xf001:	/* Device ID */
-        return (s->id >>  8) & 0xff;
-    /* TODO: get the following values from a real chip!  */
+        return s->id.dev;
     case 0xf002:	/* Version ID */
-        return (s->id >>  0) & 0xff;
+        return s->id.ver;
+    /* TODO: get the following values from a real chip!  */
     case 0xf003:	/* Data Buffer size */
         return 1 << PAGE_SHIFT;
     case 0xf004:	/* Boot Buffer size */
@@ -623,8 +640,8 @@ static void onenand_write(void *opaque, target_phys_addr_t addr,
 
         case 0x0090:	/* Read Identification Data */
             memset(s->boot[0], 0, 3 << s->shift);
-            s->boot[0][0 << s->shift] = (s->id >> 16) & 0xff;
-            s->boot[0][1 << s->shift] = (s->id >>  8) & 0xff;
+            s->boot[0][0 << s->shift] = s->id.man & 0xff;
+            s->boot[0][1 << s->shift] = s->id.dev & 0xff;
             s->boot[0][2 << s->shift] = s->wpstatus & 0xff;
             break;
 
@@ -697,28 +714,30 @@ static CPUWriteMemoryFunc *onenand_writefn[] = {
     onenand_write,
 };
 
-void *onenand_init(uint32_t id, int regshift, qemu_irq irq)
+void *onenand_init(uint16_t man_id, uint16_t dev_id, uint16_t ver_id,
+                   int regshift, qemu_irq irq, BlockDriverState *bs)
 {
     struct onenand_s *s = (struct onenand_s *) qemu_mallocz(sizeof(*s));
-    int bdrv_index = drive_get_index(IF_MTD, 0, 0);
-    uint32_t size = 1 << (24 + ((id >> 12) & 7));
+    uint32_t size = 1 << (24 + ((dev_id >> 4) & 7));
     void *ram;
 
     s->shift = regshift;
     s->intr = irq;
     s->rdy = 0;
-    s->id = id;
+    s->id.man = man_id;
+    s->id.dev = dev_id;
+    s->id.ver = ver_id;
     s->blocks = size >> BLOCK_SHIFT;
     s->secs = size >> 9;
     s->blockwp = qemu_malloc(s->blocks);
-    s->density_mask = (id & (1 << 11)) ? (1 << (6 + ((id >> 12) & 7))) : 0;
+    s->density_mask = (dev_id & 0x08) ? (1 << (6 + ((dev_id >> 4) & 7))) : 0;
     s->iomemtype = cpu_register_io_memory(0, onenand_readfn,
                     onenand_writefn, s);
-    if (bdrv_index == -1)
+    if (!bs)
         s->image = memset(qemu_malloc(size + (size >> 5)),
                         0xff, size + (size >> 5));
     else
-        s->bdrv = drives_table[bdrv_index].bdrv;
+        s->bdrv = bs;
     s->otp = memset(qemu_malloc((64 + 2) << PAGE_SHIFT),
                     0xff, (64 + 2) << PAGE_SHIFT);
     s->ram = qemu_ram_alloc(0xc000 << s->shift);
@@ -732,7 +751,12 @@ void *onenand_init(uint32_t id, int regshift, qemu_irq irq)
 
     onenand_reset(s, 1);
     
-    register_savevm("onenand", id | ((regshift & 0x7f) << 24), 0,
+    register_savevm("onenand",
+                    ((regshift & 0x7f) << 24)
+                    | ((man_id & 0xff) << 16)
+                    | ((dev_id & 0xff) << 8)
+                    | (ver_id & 0xff),
+                    0,
                     onenand_save_state, onenand_load_state, s);
 
     return s;

@@ -164,12 +164,12 @@ static void n8x0_nand_setup(struct n800_s *s)
 {
     char *otp_region;
 
-    /* Either ec40xx or ec48xx are OK for the ID */
+    /* Either 0x40 or 0x48 are OK for the device ID */
+    s->nand = onenand_init(NAND_MFR_SAMSUNG, 0x48, 0, 1,
+                           omap2_gpio_in_get(s->cpu->gpif,N8X0_ONENAND_GPIO)[0],
+                           drives_table[drive_get_index(IF_MTD, 0, 0)].bdrv);
     omap_gpmc_attach(s->cpu->gpmc, N8X0_ONENAND_CS, 0, onenand_base_update,
-                    onenand_base_unmap,
-                    (s->nand = onenand_init(0xec4800, 1,
-                                            omap2_gpio_in_get(s->cpu->gpif,
-                                                    N8X0_ONENAND_GPIO)[0])),0);
+                     onenand_base_unmap, s->nand, 0);
     otp_region = onenand_raw_otp(s->nand);
 
     memcpy(otp_region + 0x000, n8x0_cal_wlan_mac, sizeof(n8x0_cal_wlan_mac));
@@ -1743,41 +1743,97 @@ static CPUWriteMemoryFunc *ssi_write_func[] = {
 #define TRACE_TM12XX(...)
 #endif
 
-#define DCTR_Q    0x10
-#define DCTR_CMD  (DCTR_Q + 21)
-#define DCTR_CTRL (DCTR_CMD + 1)
-#define DCTR_DATA (DCTR_CTRL + 2)
-#define BIST_Q    (DCTR_DATA + 2)
-#define BIST_CMD  (BIST_Q + 1)
-#define BIST_CTRL (BIST_CMD + 1)
-#define BIST_DATA (BIST_CTRL + 1)
-#define FN2D_Q    (BIST_DATA + 1)
-#define FN2D_CMD  (FN2D_Q + 6)
-#define FN2D_CTRL (FN2D_CMD + 1)
-#define FN2D_DATA (FN2D_CTRL + 11 + 2 * (1 + 1))
-#define BTNS_Q    (FN2D_DATA + 1)
-#define BTNS_CMD  (BTNS_Q + 2)
-#define BTNS_CTRL (BTNS_CMD + 1)
-#define BTNS_DATA (BTNS_CTRL + 1)
-#define TIMR_Q    (BTNS_DATA + 4)
-#define TIMR_CMD  (TIMR_Q + 1)
-#define TIMR_CTRL (TIMR_CMD + 1)
-#define TIMR_DATA (TIMR_CTRL + 1)
-#define FLSH_Q    (TIMR_DATA + 1)
-#define FLSH_CMD  (FLSH_Q + 9)
-#define FLSH_CTRL (FLSH_CMD + 1)
-#define FLSH_DATA (FLSH_CTRL + 1)
+#define TM12XX_FUNC_COUNT 6
+#define TM12XX_FUNC_DCTRL   0x01
+#define TM12XX_FUNC_BIST    0x08
+#define TM12XX_FUNC_2D      0x11
+#define TM12XX_FUNC_BUTTONS 0x19
+#define TM12XX_FUNC_TIMER   0x32
+#define TM12XX_FUNC_FLASH   0x34
+
+struct tm12xx_s;
+struct tm12xx_func_s;
+
+typedef uint8_t (*tm12xx_readf)(struct tm12xx_s *s, struct tm12xx_func_s *f,
+                                uint8_t r);
+typedef void (*tm12xx_writef)(struct tm12xx_s *s, struct tm12xx_func_s *f,
+                              uint8_t r, uint8_t v);
+
+struct tm12xx_func_s {
+    uint8_t fid;
+    uint8_t ints;
+    uint8_t intshift;
+    uint8_t nr_query;
+    uint8_t nr_cmd;
+    uint8_t nr_ctrl;
+    uint8_t nr_data;
+    
+    tm12xx_readf read;
+    tm12xx_writef write;
+};
 
 struct tm12xx_s {
     i2c_slave i2c;
     qemu_irq irq;
     int firstbyte;
     int reg;
-    uint8_t irqen;
+    
     uint8_t irqst;
-    uint8_t dc_ctrl;
-    uint8_t dc_st;
+    uint8_t irqen;
+    uint8_t dctrl;
+    uint8_t status;
+    
+    uint8_t touch_control;
+    uint8_t touch_state;
+    struct {
+        uint16_t x;
+        uint16_t y;
+    } touch_pos[2];
+    
+    struct tm12xx_func_s f[0];
 };
+
+static void tm12xx_func_init(struct tm12xx_s *s,
+                             uint8_t fid, uint8_t ver, uint8_t ints,
+                             uint8_t nr_query, uint8_t nr_cmd,
+                             uint8_t nr_ctrl, uint8_t nr_data,
+                             tm12xx_readf read, tm12xx_writef write)
+{
+    static uint8_t id = 0;
+    static uint8_t ishift = 0;
+    static uint8_t regbase = 0;
+
+    if (regbase + nr_query + nr_ctrl + nr_cmd + nr_data <
+        0xee - 6 * TM12XX_FUNC_COUNT) {
+        s->f[id].fid = fid;
+        
+        s->f[id].ints = (ver << 5) | ints;
+        s->f[id].intshift = ishift;
+        
+        s->f[id].nr_query = nr_query;
+        s->f[id].nr_cmd = nr_cmd;
+        s->f[id].nr_ctrl = nr_ctrl;
+        s->f[id].nr_data = nr_data;
+        
+        s->f[id].read = read;
+        s->f[id].write = write;
+        
+        TRACE_TM12XX("fid=0x%02x, query=0x%02x-0x%02x, cmd=0x%02x-0x%02x, "
+                     "ctrl=0x%02x-0x%02x, data=0x%02x-0x%02x",
+                     fid,
+                     nr_query ? regbase : 0, nr_query ? regbase + nr_query - 1 : 0,
+                     nr_cmd ? regbase + nr_query : 0, nr_cmd ? regbase + nr_query + nr_cmd - 1 : 0,
+                     nr_ctrl ? regbase + nr_query + nr_cmd : 0, nr_ctrl ? regbase + nr_query + nr_cmd + nr_ctrl - 1 : 0,
+                     nr_data ? regbase + nr_query + nr_cmd + nr_ctrl : 0, nr_data ? regbase + nr_query + nr_cmd + nr_ctrl + nr_data - 1 : 0);
+        
+        id++;
+        ishift += ints;
+        regbase += nr_query + nr_ctrl + nr_cmd + nr_data;
+    } else {
+        fprintf(stderr, "%s: insufficient register space\n", __FUNCTION__);
+        exit(-1);
+    }
+}
 
 static void tm12xx_interrupt_update(struct tm12xx_s *s)
 {
@@ -1788,12 +1844,322 @@ static void tm12xx_reset(struct tm12xx_s *s)
 {
     s->firstbyte = 0;
     s->reg = 0;
+    
     s->irqen = 0;
     s->irqst = 0;
-    s->dc_ctrl = 0x80; /* UNCONFIGURED */
-    s->dc_st = 0x80; /* UNCONFIGURED */
+    s->dctrl = 0x00;
+    s->status = 0x80; /* UNCONFIGURED */
+    
+    s->touch_control = 0;
+    s->touch_state = 0;
+    s->touch_pos[0].x = s->touch_pos[0].y = 0;
+    s->touch_pos[1].x = s->touch_pos[1].y = 0;
     
     tm12xx_interrupt_update(s);
+}
+
+static uint8_t tm12xx_flash_read(struct tm12xx_s *s, struct tm12xx_func_s *f,
+                                 uint8_t r)
+{
+    TRACE_TM12XX("0x%02x", r);
+    return 0;
+}
+
+static void tm12xx_flash_write(struct tm12xx_s *s, struct tm12xx_func_s *f,
+                               uint8_t r, uint8_t v)
+{
+    TRACE_TM12XX("0x%02x = 0x%02x", r, v);
+}
+
+static uint8_t tm12xx_dctrl_read(struct tm12xx_s *s, struct tm12xx_func_s *f,
+                                 uint8_t r)
+{
+    static const uint8_t query[21] = {
+        'Q',     /* manufacturer id */
+        0,       /* product properties */
+        0, 1,    /* product info 0 & 1 */
+        0, 0, 0, /* date code year, month, day */
+        0, 0,    /* tester id */
+        0, 0,    /* serial number */
+        'Q', 'E', 'M', 'U', 0, 0, 0, 0, 0, 0 /* product id */
+    };
+    uint8_t value = 0;
+    
+    if (r < sizeof(query)) {
+        value = query[r];
+        TRACE_TM12XX("QUERY%d = 0x%02x", r, value);
+    } else {
+        switch (r) {
+            case 21: /* cmd0: device command */
+                value = 0;
+                break;
+            case 22: /* ctrl0: device control */
+                value = s->dctrl;
+                TRACE_TM12XX("DEVICE_CONTROL = 0x%02x", value);
+                break;
+            case 23: /* ctrl1: interrupt enable */
+                value = s->irqen;
+                TRACE_TM12XX("INTR_ENABLE = 0x%02x", value);
+                break;
+            case 24: /* data0: device status */
+                value = s->status;
+                TRACE_TM12XX("DEVICE_STATUS = 0x%02x", value);
+                break;
+            case 25: /* data1: interrupt status */
+                value = s->irqst;
+                s->irqst = 0;
+                tm12xx_interrupt_update(s);
+                TRACE_TM12XX("INTR_STATUS = 0x%02x", value);
+                break;
+            default:
+                fprintf(stderr, "%s: unknown register 0x%02x\n",
+                        __FUNCTION__, r);
+                break;
+        }
+    }
+    
+    return value;
+}
+
+static void tm12xx_dctrl_write(struct tm12xx_s *s, struct tm12xx_func_s *f,
+                               uint8_t r, uint8_t v)
+{
+    switch (r) {
+        case 0 ... 20: /* query */
+        case 24 ... 25: /* data */
+            break;
+        case 21: /* cmd0: device command */
+            TRACE_TM12XX("DEVICE_COMMAND = 0x%02x", v);
+            if (v & 1) {
+                tm12xx_reset(s);
+                /* in reality we should not raise the irq immediately */
+                s->status = 0x01;    /* RESET */
+                s->irqst |= 1 << (f->intshift);
+                qemu_irq_pulse(s->irq);
+            }
+            break;
+        case 22: /* ctrl0: device control */
+            TRACE_TM12XX("DEVICE_CONTROL = 0x%02x", v);
+            if (v & 0x80) { /* DC_CONFIGURED */
+                s->status &= ~0x8f;
+            }    
+            s->dctrl = v & 0x7f;
+            break;
+        case 23: /* ctrl1: interrupt enable */
+            TRACE_TM12XX("INTR_ENABLE = 0x%02x", v);
+            s->irqen = v;
+            tm12xx_interrupt_update(s);
+            break;
+        default:
+            fprintf(stderr, "%s: unknown register 0x%02x\n",
+                    __FUNCTION__, r);
+            break;
+    }
+}
+
+static uint8_t tm12xx_bist_read(struct tm12xx_s *s, struct tm12xx_func_s *f,
+                                uint8_t r)
+{
+    TRACE_TM12XX("0x%02x", r);
+    return 0;
+}
+
+static void tm12xx_bist_write(struct tm12xx_s *s, struct tm12xx_func_s *f,
+                              uint8_t r, uint8_t v)
+{
+    TRACE_TM12XX("0x%02x = 0x%02x", r, v);
+}
+
+static uint8_t tm12xx_2d_read(struct tm12xx_s *s, struct tm12xx_func_s *f,
+                              uint8_t r)
+{
+    static const uint8_t query[9] = {
+        0,    /* number of sensors - 1 */
+        0x11, /* unconfigurable, absolute mode only, 2 touch points */
+        1, 1, /* number of x and y electrodes */
+        2,    /* maximum number of electrodes */
+        0,    /* abolute position reported as x, y, z, wx and wy */
+        0,    /* relative data source */
+        0, 0  /* gesture information */
+    };
+    uint8_t value = 0;
+    
+    if (r < sizeof(query)) {
+        value = query[r];
+        TRACE_TM12XX("QUERY%d = 0x%02x", r, value);
+    } else {
+        int finger = 0;
+        switch (r) {
+            case 9: /* cmd0 */
+                value = 0;
+                TRACE_TM12XX("CMD0 = 0x%02x", value);
+                break;
+            case 10: /* ctrl0: general control */
+                value = s->touch_control;
+                TRACE_TM12XX("GENERAL_CONTROL = 0x%02x", value);
+                break;
+            case 16: /* ctrl6: max x position LSB */
+                value = N00_DISPLAY_WIDTH & 0xff;
+                TRACE_TM12XX("MAX_X_POSITION LSB = 0x%02x", value);
+                break;
+            case 17: /* ctrl7: max x position MSB */
+                value = (N00_DISPLAY_WIDTH >> 8) & 0xff;
+                TRACE_TM12XX("MAX_X_POSITION MSB = 0x%02x", value);
+                break;
+            case 18: /* ctrl8: max y position LSB */
+                value = N00_DISPLAY_HEIGHT & 0xff;
+                TRACE_TM12XX("MAX_Y_POSITION LSB = 0x%02x", value);
+                break;
+            case 19: /* ctrl9: max y position msb */
+                value = (N00_DISPLAY_HEIGHT >> 8) & 0xff;
+                TRACE_TM12XX("MAX_Y_POSITION MSB = 0x%02x", value);
+                break;
+            case 20: /* sensor mapping control, x electrode 0 */
+                value = 0; /* s0 */
+                TRACE_TM12XX("SENSOR_MAPPING_0 = 0x%02x", value);
+                break;
+            case 21: /* sensor mapping control, y electrode 0 */
+                value = 0x81; /* s1 */
+                TRACE_TM12XX("SENSOR_MAPPING_1 = 0x%02x", value);
+                break;
+            case 22: /* sensitivity control for electrode 0 */
+                value = 0; /* s0 */
+                TRACE_TM12XX("SENSITIVITY_CTRL_0 = 0x%02x", value);
+                break;
+            case 23: /* sensitivity control for electrode 1 */
+                value = 0; /* s1 */
+                TRACE_TM12XX("SENSITIVITY_CTRL_1 = 0x%02x", value);
+                break;
+            case 24: /* data0: finger state */
+                value = s->touch_state;
+                TRACE_TM12XX("FINGER_STATE = 0x%02x", value);
+                break;
+            case 30: /* finger1 x position MSB */
+                finger++;
+            case 25: /* finger0 x position MSB */
+                value = s->touch_pos[finger].x >> 4;
+                TRACE_TM12XX("FINGER%d_X_POS_MSB = 0x%02x", finger, value);
+                break;
+            case 31: /* finger1 y position MSB */
+                finger++;
+            case 26: /* finger0 y position MSB */
+                value = s->touch_pos[finger].y >> 4;
+                TRACE_TM12XX("FINGER%d_Y_POS_MSB = 0x%02x", finger, value);
+                break;
+            case 32: /* finger1 x & y position LSBs */
+                finger++;
+            case 27: /* finger0 x & y position LSBs */
+                value = ((s->touch_pos[finger].y & 0x0f) << 4) |
+                        (s->touch_pos[finger].x & 0x0f);
+                TRACE_TM12XX("FINGER%d_XY_POS_LSB = 0x%02x", finger, value);
+                break;
+            case 33: /* finger1 wx & wy */
+                finger++;
+            case 28: /* finger0 wx & wy */
+                value = 0x22;
+                TRACE_TM12XX("FINGER%d_WX_WY = 0x%02x", finger, value);
+                break;
+            case 34: /* finger1 z */
+                finger++;
+            case 29: /* finger0 z */
+                value = 0x10;
+                TRACE_TM12XX("FINGER%d_Z = 0x%02x", finger, value);
+                break;
+            default:
+                fprintf(stderr, "%s: unknown register 0x%02x\n",
+                        __FUNCTION__, r);
+                break;
+        }
+    }
+    
+    return value;
+}
+
+static void tm12xx_2d_write(struct tm12xx_s *s, struct tm12xx_func_s *f,
+                            uint8_t r, uint8_t v)
+{
+    switch (r) {
+        case 0 ... 8: /* query */
+        case 11 ... 23: /* control */
+        case 24 ... 34: /* data */
+            break;
+        case 9: /* cmd0 */
+            if (v & 1) {
+                /* TODO: zero all touch sensors */
+                fprintf(stderr, "%s: sensor zeroing not implemented\n",
+                        __FUNCTION__);
+            }
+            break;
+        case 10: /* ctrl0: general control */
+            TRACE_TM12XX("GENERAL_CONTROL = 0x%02x", v);
+            s->touch_control = v;
+            break;
+        default:
+            fprintf(stderr, "%s: unknown register 0x%02x (value 0x%02x)\n",
+                    __FUNCTION__, r, v);
+            break;
+    }
+}
+
+static uint8_t tm12xx_buttons_read(struct tm12xx_s *s, struct tm12xx_func_s *f,
+                                   uint8_t r)
+{
+    uint8_t value = 0;
+    
+    switch (r) {
+        case 0: /* query0 */
+            value = 0; /* unconfigurable */
+            TRACE_TM12XX("QUERY0 = 0x%02x", value);
+            break;
+        case 1: /* query1: button count */
+            value = 0;
+            TRACE_TM12XX("QUERY1 = 0x%02x", value);
+            break;
+        case 2: /* cmd0 */
+            value = 0;
+            TRACE_TM12XX("CMD0 = 0x%02x", value);
+            break;
+        case 3: /* ctrl0 */
+            value = 0;
+            TRACE_TM12XX("CTRL0 = 0x%02x", value);
+            break;
+        case 4: /* ctrl1: interrupt enable */
+            value = 0;
+            TRACE_TM12XX("CTRL1 = 0x%02x", value);
+            break;
+        case 5: /* ctrl2 */
+            value = 0;
+            TRACE_TM12XX("CTRL2 = 0x%02x", value);
+            break;
+        case 6: /* data0 */
+            value = 0;
+            TRACE_TM12XX("DATA0 = 0x%02x", value);
+            break;
+        default:
+            fprintf(stderr, "%s: unknown register 0x%02x\n",
+                    __FUNCTION__, r);
+            break;
+    }
+    return value;
+}
+
+static void tm12xx_buttons_write(struct tm12xx_s *s, struct tm12xx_func_s *f,
+                                 uint8_t r, uint8_t v)
+{
+    TRACE_TM12XX("0x%02x = 0x%02x", r, v);
+}
+
+static uint8_t tm12xx_timer_read(struct tm12xx_s *s, struct tm12xx_func_s *f,
+                                uint8_t r)
+{
+    TRACE_TM12XX("0x%02x", r);
+    return 0;
+}
+
+static void tm12xx_timer_write(struct tm12xx_s *s, struct tm12xx_func_s *f,
+                               uint8_t r, uint8_t v)
+{
+    TRACE_TM12XX("0x%02x = 0x%02x", r, v);
 }
 
 static void tm12xx_event(i2c_slave *i2c, enum i2c_event event)
@@ -1805,140 +2171,68 @@ static void tm12xx_event(i2c_slave *i2c, enum i2c_event event)
 
 static int tm12xx_rx(i2c_slave *i2c)
 {
-    static const uint8_t func_desc[] = {
-        DCTR_Q, DCTR_CMD, DCTR_CTRL, DCTR_DATA, 0x20, 0x01,
-        BIST_Q, BIST_CMD, BIST_CTRL, BIST_DATA, 0x20, 0x08,
-        FN2D_Q, FN2D_CMD, FN2D_CTRL, FN2D_DATA, 0x20, 0x11,
-        BTNS_Q, BTNS_CMD, BTNS_CTRL, BTNS_DATA, 0x20, 0x19,
-        TIMR_Q, TIMR_CMD, TIMR_CTRL, TIMR_DATA, 0x20, 0x32,
-        FLSH_Q, FLSH_CMD, FLSH_CTRL, FLSH_DATA, 0x20, 0x34,
-    };
     struct tm12xx_s *s = (struct tm12xx_s *)i2c;
-    int value = 0;
-    switch (s->reg) {
-        case DCTR_Q + 0: /* DC_MANID */
-            value = 'Q';
-            break;
-        case DCTR_Q + 1: /* DC_PROD_PROPERTIES */
-            value = 0;
-            break;
-        case DCTR_Q + 2: /* DC_PROD_FAMILY */
-            value = 0;
-            break;
-        case DCTR_Q + 3: /* DC_FW_VER */
-            value = 1;
-            break;
-        case DCTR_Q + 11: /* DC_PROD_ID */
-            value = 'Q';
-            break;
-        case DCTR_Q + 12:
-            value = 'E';
-            break;
-        case DCTR_Q + 13:
-            value = 'M';
-            break;
-        case DCTR_Q + 14:
-            value = 'U';
-            break;
-        case DCTR_Q + 15 ... DCTR_Q + 20:
-            value = 0;
-            break;
-        case DCTR_CTRL + 0: /* DC_CTRL */
-            value = s->dc_ctrl;
-            TRACE_TM12XX("DEVICE_CONTROL = 0x%02x", value);
-            break;
-        case DCTR_CTRL + 1: /* DC_INTR_ENABLE */
-            value = s->irqen;
-            break;
-        case DCTR_DATA + 0: /* DC_STATUS */
-            value = s->dc_st;
-            TRACE_TM12XX("STATUS = 0x%02x", value);
-            break;
-        case DCTR_DATA + 1: /* DC_INTR_STATUS */
-            value = s->irqst;
-            s->irqst = 0;
-            tm12xx_interrupt_update(s);
-            TRACE_TM12XX("INTR_STATUS = 0x%02x", value);
-            break;
-        case FN2D_Q + 0: /* TOUCH_NUM_SENSORS */
-            value = 0;
-            break;
-        case FN2D_Q + 1:
-            value = 0x91; /* configurable, absolute mode, 2 touch points */
-            break;
-        case FN2D_Q + 2:
-            value = 1;
-            break;
-        case FN2D_Q + 3:
-            value = 1;
-            break;
-        case FN2D_Q + 4:
-            value = 1 + 1;
-            break;
-        case FN2D_Q + 5:
-            value = 0;
-            break;
-        case FN2D_CTRL + 6: /* TOUCH_SENSOR_MAX_X LSB */
-            value = N00_DISPLAY_WIDTH & 0xff;
-            break;
-        case FN2D_CTRL + 7: /* TOUCH_SENSOR_MAX_X MSB */
-            value = (N00_DISPLAY_WIDTH >> 8) & 0xff;
-            break;
-        case FN2D_CTRL + 8: /* TOUCH_SENSOR_MAX_Y LSB */
-            value = N00_DISPLAY_HEIGHT & 0xff;
-            break;
-        case FN2D_CTRL + 9: /* TOUCH_SENSOR_MAX_Y MSB */
-            value = (N00_DISPLAY_HEIGHT >> 8) & 0xff;
-            break;
-        case BTNS_Q + 0: /* BUTTON_QUERY0 */
-            value = 1; /* configurable */
-            break;
-        case BTNS_Q + 1: /* BUTTON_COUNT */
-            value = 31;
-            break;
-        case BTNS_DATA + 0:
-        case BTNS_DATA + 1:
-        case BTNS_DATA + 2:
-        case BTNS_DATA + 3:
-            value = 0;
-            break;
-        case FLSH_Q + 0: /* FLASH_BOOTLOADER_ID LSB */
-        case FLSH_Q + 1: /* FLASH_BOOTLOADER_ID MSB */
-            value = 'Q';
-            break;
-        case FLSH_Q + 2: /* FLASH_PROPERTIES */
-            value = 1; /* regmap version */
-            break;
-        case FLSH_Q + 3: /* FLASH_BLOCK_SIZE LSB*/
-            value = 1;
-            break;
-        case FLSH_Q + 4: /* FLASH_BLOCK_SIZE MSB */
-            value = 0;
-            break;
-        case FLSH_Q + 5: /* FLASH_FW_BLOCK_COUNT LSB */
-            value = 1;
-            break;
-        case FLSH_Q + 6: /* FLASH_FW_BLOCK_COUNT MSB */
-            value = 0;
-            break;
-        case FLSH_Q + 7: /* FLASH_CONF_BLOCK_COUNT LSB */
-            value = 1;
-            break;
-        case FLSH_Q + 8: /* FLASH_CONF_BLOCK_COUNT MSB */
-            value = 0;
-            break;
-        case 0xcb ... 0xee:
-            value = func_desc[s->reg - 0xcb];
-            break;
-        case 0xef: /* PDT_PROPERTIES */
-            value = 0;
-            break;
-        case 0xff: /* PAGE_SELECT */
-            value = 0;
-            break;
-        default:
-            printf("%s: unknown reg 0x%02x\n", __FUNCTION__, s->reg);
-            break;
+    int value = -1;
+    if (s->reg < 0xee - 6 * TM12XX_FUNC_COUNT) {
+        int fn = 0;
+        uint8_t regbase = 0;
+        for (; fn < TM12XX_FUNC_COUNT; fn++) {
+            uint8_t regcount = s->f[fn].nr_query + s->f[fn].nr_ctrl +
+                               s->f[fn].nr_cmd + s->f[fn].nr_data;
+            if (s->reg < regbase + regcount) {
+                value = s->f[fn].read(s, &s->f[fn], s->reg - regbase);
+                break;
+            }
+            regbase += regcount;
+        }
+    } else {
+        if (s->reg < 0xef) {
+            if (s->reg == 0xee - 6 * TM12XX_FUNC_COUNT) { /* EOT */
+                value = 0x00;
+            } else {
+                int fn = 0;
+                uint8_t regbase = 0;
+                for (value = 0xe8; ; value-=6, fn++) {
+                    if (s->reg > value) {
+                        switch (s->reg - value) {
+                            case 1: /* query base */
+                                value = regbase;
+                                break;
+                            case 2: /* cmd base */
+                                value = regbase + s->f[fn].nr_query;
+                                break;
+                            case 3: /* ctrl base */
+                                value = regbase + s->f[fn].nr_query +
+                                        s->f[fn].nr_cmd;
+                                break;
+                            case 4: /* data base */
+                                value = regbase + s->f[fn].nr_query +
+                                        s->f[fn].nr_cmd + s->f[fn].nr_ctrl;
+                                break;
+                            case 5: /* ints */
+                                value = s->f[fn].ints;
+                                break;
+                            case 6: /* function id */
+                                value = s->f[fn].fid;
+                                break;
+                            default:
+                                break;
+                        }
+                        break;
+                    }
+                    regbase += s->f[fn].nr_query + s->f[fn].nr_cmd +
+                               s->f[fn].nr_ctrl + s->f[fn].nr_data;
+                }
+            }
+        } else if (s->reg == 0xef) { /* PDT_PROPERTIES */
+            value = 0x00;
+        } else if (s->reg == 0xff) { /* PAGE_SELECT */
+            value = 0x00;
+        }
+    }
+    if (value < 0) {
+        fprintf(stderr, "%s: unknown register 0x%02x\n", __FUNCTION__, s->reg);
+        value = 0;
     }
     s->reg++;
     return value;
@@ -1951,55 +2245,83 @@ static int tm12xx_tx(i2c_slave *i2c, uint8_t data)
         s->reg = data;
         s->firstbyte = 0;
     } else {
-        switch (s->reg) {
-            case DCTR_CMD: /* DC_COMMAND */
-                TRACE_TM12XX("COMMAND = 0x%02x", data);
-                if (data & 1) {
-                    tm12xx_reset(s);
-                    /* in reality we should not raise the irq immediately */
-                    s->dc_st = 0x01;    /* RESET */
-                    s->irqst |= 1 << 2; /* STATUS */
-                    tm12xx_interrupt_update(s);
+        int value = -1;
+        if (s->reg < 0xee - 6 * TM12XX_FUNC_COUNT) {
+            int fn = 0;
+            uint8_t regbase = 0;
+            for (; fn < TM12XX_FUNC_COUNT; fn++) {
+                uint8_t regcount = s->f[fn].nr_query + s->f[fn].nr_ctrl +
+                                   s->f[fn].nr_cmd + s->f[fn].nr_data;
+                if (s->reg < regbase + regcount) {
+                    s->f[fn].write(s, &s->f[fn], s->reg - regbase, data);
+                    value = 0;
+                    break;
                 }
-                break;
-            case DCTR_CTRL + 0: /* DC_CTRL */
-                TRACE_TM12XX("DEVICE_CONTROL = 0x%02x", data);
-                s->dc_ctrl &= ~data;
-                break;
-            case DCTR_CTRL + 1: /* DC_INTR_ENABLE */
-                TRACE_TM12XX("INTR_ENABLE = 0x%02x", data);
-                s->irqen = data;
-                tm12xx_interrupt_update(s);
-                break;
-            case FLSH_DATA + 0: /* FLASH_BLOCK_NUM LSB*/
-                TRACE_TM12XX("FLASH_BLOCK_NUM LSB = 0x%02x", data);
-                break;
-            case FLSH_DATA + 1: /* FLASH_BLOCK_NUM MSB */
-                TRACE_TM12XX("FLASH_BLOCK_NUM MSB = 0x%02x", data);
-                break;
-            case FLSH_DATA + 2: /* FLASH_BLOCK_DATA */
-                TRACE_TM12XX("FLASH_BLOCK_DATA = 0x%02x", data);
-                break;
-            case FLSH_DATA + 3: /* FLASH_COMMAND */
-                TRACE_TM12XX("FLASH_COMMAND = 0x%02x", data);
-                break;
-            default:
-                printf("%s: unknown reg[0x%02x]=0x%02x\n", __FUNCTION__, s->reg, data);
-                break;
+                regbase += regcount;
+            }
+        } else if (s->reg == 0xff) { /* PAGE_SELECT */
+            fprintf(stderr, "%s: only page 0 is supported\n", __FUNCTION__);
+            value = 0;
+        }
+        if (value < 0) {
+            fprintf(stderr, "%s: unknown register 0x%02x\n", __FUNCTION__, s->reg);
         }
         s->reg++;
     }
     return 1;
 }
 
+static void tm12xx_mouse(void *opaque, int x, int y, int z, int bs)
+{
+    struct tm12xx_s *s = (struct tm12xx_s *)opaque;
+    
+    uint8_t state = ((bs & 1) << 1) | ((bs & 2) << 2);
+    if (state || s->touch_state) {
+        TRACE_TM12XX("x = %d, y = %d, z = %d, bs = %d", x, y, z, bs);
+        s->touch_state = state;
+        if (bs & 1) {
+            s->touch_pos[0].x = x >> 4;
+            s->touch_pos[0].y = y >> 4;
+        }
+        if (bs & 2) {
+            s->touch_pos[1].x = x >> 4;
+            s->touch_pos[1].y = y >> 4;
+        }
+        int i = 0;
+        for (; i < TM12XX_FUNC_COUNT; i++) {
+            if (s->f[i].fid == TM12XX_FUNC_2D) {
+                s->irqst |= 1 << s->f[i].intshift;
+                break;
+            }
+        }
+        tm12xx_interrupt_update(s);
+    }
+}
+
 static struct tm12xx_s *tm12xx_init(i2c_bus *bus, qemu_irq irq)
 {
-    struct tm12xx_s *s = (struct tm12xx_s *)i2c_slave_init(bus, 0x4b, sizeof(*s));
+    struct tm12xx_s *s = (struct tm12xx_s *)i2c_slave_init(
+        bus, 0x4b, sizeof(*s) + TM12XX_FUNC_COUNT * sizeof(struct tm12xx_func_s));
     s->i2c.event = tm12xx_event;
     s->i2c.recv = tm12xx_rx;
     s->i2c.send = tm12xx_tx;
     s->irq = irq;
+    
+    tm12xx_func_init(s, TM12XX_FUNC_FLASH,   0, 1,  9, 0,  0,  4,
+                     tm12xx_flash_read, tm12xx_flash_write);
+    tm12xx_func_init(s, TM12XX_FUNC_DCTRL,   0, 1, 21, 1,  2,  2,
+                     tm12xx_dctrl_read, tm12xx_dctrl_write);
+    tm12xx_func_init(s, TM12XX_FUNC_BIST,    0, 1,  2, 1,  3,  3,
+                     tm12xx_bist_read, tm12xx_bist_write);
+    tm12xx_func_init(s, TM12XX_FUNC_2D,      0, 1,  9, 1, 14, 11,
+                     tm12xx_2d_read, tm12xx_2d_write);
+    tm12xx_func_init(s, TM12XX_FUNC_BUTTONS, 0, 1,  2, 1,  3,  1,
+                     tm12xx_buttons_read, tm12xx_buttons_write);
+    tm12xx_func_init(s, TM12XX_FUNC_TIMER,   0, 1,  1, 0,  2,  2,
+                     tm12xx_timer_read, tm12xx_timer_write);
+    
     tm12xx_reset(s);
+    qemu_add_mouse_event_handler(tm12xx_mouse, s, 1, "TM12xx Touchscreen");
     return s;
 }
 
@@ -2017,9 +2339,9 @@ static void n00_init(ram_addr_t ram_size, int vga_ram_size,
                      const char *cpu_model)
 {
     struct n00_s *s = (struct n00_s *)qemu_mallocz(sizeof(*s));
-    int sdindex = drive_get_index(IF_SD, 0, 0);
-    if (sdindex < 0) {
-        fprintf(stderr, "%s: missing SecureDigital device\n", __FUNCTION__);
+    if (drive_get_index(IF_SD, 0, 0) < 0 ||
+        drive_get_index(IF_MTD, 0, 0) < 0) {
+        fprintf(stderr, "%s: missing SD and/or NAND device\n", __FUNCTION__);
         exit(1);
     }
     s->cpu = omap3530_mpu_init(256*1024*1024,
@@ -2030,11 +2352,19 @@ static void n00_init(ram_addr_t ram_size, int vga_ram_size,
                               s->cpu->irq[0][OMAP_INT_3XXX_SYS_NIRQ]);
     s->lcd = taal_init(s->cpu->dss);
     omap_dsi_attach(s->cpu->dss, 0, &s->lcd->chip);
-    s->nand = onenand_init(0xec4800, 1, 
-                           omap2_gpio_in_get(s->cpu->gpif, N00_ONENAND_GPIO)[0]);
+    s->nand = onenand_init(NAND_MFR_SAMSUNG, 0x40, 0x121, 1, 
+                           omap2_gpio_in_get(s->cpu->gpif, N00_ONENAND_GPIO)[0],
+                           drives_table[drive_get_index(IF_MTD, 0, 0)].bdrv);
     omap_gpmc_attach(s->cpu->gpmc, N00_ONENAND_CS, 0, onenand_base_update,
                      onenand_base_unmap, s->nand, 0);
-    omap3_mmc_attach(s->cpu->omap3_mmc[0], drives_table[sdindex].bdrv);
+    
+    int sdindex;
+    if ((sdindex = drive_get_index(IF_SD, 0, 0)) >= 0)
+        omap3_mmc_attach(s->cpu->omap3_mmc[0], drives_table[sdindex].bdrv);
+    if ((sdindex = drive_get_index(IF_SD, 0, 1)) >= 0)
+        omap3_mmc_attach(s->cpu->omap3_mmc[1], drives_table[sdindex].bdrv);
+    if ((sdindex = drive_get_index(IF_SD, 0, 2)) >= 0)
+        omap3_mmc_attach(s->cpu->omap3_mmc[2], drives_table[sdindex].bdrv);
     
     cpu_register_physical_memory(0x48058000, 0x3c00,
                                  cpu_register_io_memory(0,
@@ -2049,6 +2379,6 @@ static void n00_init(ram_addr_t ram_size, int vga_ram_size,
 
 QEMUMachine n00_machine = {
     .name = "n00",
-    .desc = "Nokia N00 aka. RX-71 (OMAP3430)",
+    .desc = "Nokia N00 (OMAP3430)",
     .init = n00_init,
 };
