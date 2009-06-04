@@ -2291,6 +2291,7 @@ static void tm12xx_mouse(void *opaque, int x, int y, int z, int bs)
         for (; i < TM12XX_FUNC_COUNT; i++) {
             if (s->f[i].fid == TM12XX_FUNC_2D) {
                 s->irqst |= 1 << s->f[i].intshift;
+                TRACE_TM12XX("irqst changed to 0x%02x (irqen=0x%02x)", s->irqst, s->irqen);
                 break;
             }
         }
