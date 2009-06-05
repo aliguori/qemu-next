@@ -24,6 +24,7 @@
 #ifndef _WIN32
 #include "qemu-common.h"
 #include "block_int.h"
+#include "module.h"
 #include <sys/mman.h>
 
 /**************************************************************/
@@ -201,15 +202,23 @@ static void cow_close(BlockDriverState *bs)
     close(s->fd);
 }
 
-static int cow_create(const char *filename, int64_t image_sectors,
-                      const char *image_filename, int flags)
+static int cow_create(const char *filename, QEMUOptionParameter *options)
 {
     int fd, cow_fd;
     struct cow_header_v2 cow_header;
     struct stat st;
+    int64_t image_sectors = 0;
+    const char *image_filename = NULL;
 
-    if (flags)
-        return -ENOTSUP;
+    /* Read out options */
+    while (options && options->name) {
+        if (!strcmp(options->name, BLOCK_OPT_SIZE)) {
+            image_sectors = options->value.n / 512;
+        } else if (!strcmp(options->name, BLOCK_OPT_BACKING_FILE)) {
+            image_filename = options->value.s;
+        }
+        options++;
+    }
 
     cow_fd = open(filename, O_WRONLY | O_CREAT | O_TRUNC | O_BINARY,
               0644);
@@ -252,7 +261,13 @@ static void cow_flush(BlockDriverState *bs)
     fsync(s->fd);
 }
 
-BlockDriver bdrv_cow = {
+static QEMUOptionParameter cow_create_options[] = {
+    { BLOCK_OPT_SIZE,           OPT_SIZE },
+    { BLOCK_OPT_BACKING_FILE,   OPT_STRING },
+    { NULL }
+};
+
+static BlockDriver bdrv_cow = {
     .format_name	= "cow",
     .instance_size	= sizeof(BDRVCowState),
     .bdrv_probe		= cow_probe,
@@ -263,5 +278,14 @@ BlockDriver bdrv_cow = {
     .bdrv_create	= cow_create,
     .bdrv_flush		= cow_flush,
     .bdrv_is_allocated	= cow_is_allocated,
+
+    .create_options = cow_create_options,
 };
+
+static void bdrv_cow_init(void)
+{
+    bdrv_register(&bdrv_cow);
+}
+
+block_init(bdrv_cow_init);
 #endif

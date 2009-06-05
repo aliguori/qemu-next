@@ -37,20 +37,33 @@
 #define TRACE(...)
 #endif
 
-struct twl4030_i2c_s {
+typedef struct TWL4030State TWL4030State;
+typedef struct TWL4030NodeState TWL4030NodeState;
+
+typedef uint8_t (*twl4030_read_func)(TWL4030NodeState *s,
+                                     uint8_t addr);
+typedef void (*twl4030_write_func)(TWL4030NodeState *s,
+                                   uint8_t addr, uint8_t value);
+
+struct TWL4030NodeState {
     i2c_slave i2c;
     int firstbyte;
     uint8_t reg;
-    qemu_irq irq;
+
+    twl4030_read_func read_func;
+    twl4030_write_func write_func;
+    TWL4030State *twl4030;
+
     uint8 reg_data[256];
-    struct twl4030_s *twl4030;
 };
 
-struct twl4030_s {
-    struct twl4030_i2c_s *i2c[5];
-    
+struct TWL4030State {
+    qemu_irq irq;
+
     int key_cfg;
     int key_tst;
+    
+    TWL4030NodeState *i2c[5];
     
     uint8_t seq_mem[64][4]; /* power-management sequencing memory */
 };
@@ -195,10 +208,8 @@ static const uint8_t addr_4b_reset_values[256] = {
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00  /* 0xf8...0xff */
 };
 
-static uint8_t twl4030_48_read(void *opaque, uint8_t addr)
+static uint8_t twl4030_48_read(TWL4030NodeState *s, uint8_t addr)
 {
-    struct twl4030_i2c_s *s = (struct twl4030_i2c_s *) opaque;
-	
     TRACE("addr=0x%02x", addr);
     switch (addr) {
         case 0x00: /* VENDOR_ID_LO */
@@ -228,17 +239,15 @@ static uint8_t twl4030_48_read(void *opaque, uint8_t addr)
                 return 1;
             return (s->reg_data[0x04] >> 6) & 1; /* SUSPENDM */
         default:
-            fprintf(stderr, "%s: unknown register 0x%02x pc 0x%x\n",
-                    __FUNCTION__, addr, cpu_single_env->regs[15]);
+            fprintf(stderr, "%s: unknown register 0x%02x\n",
+                    __FUNCTION__, addr);
             break;
     }
     return 0;
 }
 
-static void twl4030_48_write(void *opaque, uint8_t addr, uint8_t value)
+static void twl4030_48_write(TWL4030NodeState *s, uint8_t addr, uint8_t value)
 {
-    struct twl4030_i2c_s *s = (struct twl4030_i2c_s *) opaque;
-	
     TRACE("addr=0x%02x, value=0x%02x", addr, value);
     switch (addr) {
         case 0x04: /* FUNC_CTRL */
@@ -293,51 +302,14 @@ static void twl4030_48_write(void *opaque, uint8_t addr, uint8_t value)
             s->reg_data[addr] = value & 0x7;
             break;
         default:
-            fprintf(stderr, "%s: unknown register 0x%02x pc 0x%x\n",
-                    __FUNCTION__, addr, cpu_single_env->regs[15]);
+            fprintf(stderr, "%s: unknown register 0x%02x\n",
+                    __FUNCTION__, addr);
 			break;
     }
 }
 
-static int twl4030_48_tx(i2c_slave *i2c, uint8_t data)
+static uint8_t twl4030_49_read(TWL4030NodeState *s, uint8_t addr)
 {
-    struct twl4030_i2c_s *s = (struct twl4030_i2c_s *) i2c;
-    /* Interpret register address byte */
-    if (s->firstbyte) {
-        s->reg = data;
-        s->firstbyte = 0;
-    } else
-        twl4030_48_write(s, s->reg++, data);
-	
-    return 0;
-}
-
-static int twl4030_48_rx(i2c_slave *i2c)
-{
-    struct twl4030_i2c_s *s = (struct twl4030_i2c_s *) i2c;
-	
-    return twl4030_48_read(s, s->reg++);
-}
-
-static void twl4030_48_reset(i2c_slave *i2c)
-{
-    struct twl4030_i2c_s *s = (struct twl4030_i2c_s *) i2c;
-    s->reg = 0x00;
-    memcpy(s->reg_data, addr_48_reset_values, 256);
-}
-
-static void twl4030_48_event(i2c_slave *i2c, enum i2c_event event)
-{
-    struct twl4030_i2c_s *s = (struct twl4030_i2c_s *) i2c;
-    
-    if (event == I2C_START_SEND)
-        s->firstbyte = 1;
-}
-
-static uint8_t twl4030_49_read(void *opaque, uint8_t addr)
-{
-    struct twl4030_i2c_s *s = (struct twl4030_i2c_s *) opaque;
-
     TRACE("addr=0x%02x", addr);
     switch (addr) {
         /* AUDIO_VOICE region */
@@ -358,17 +330,15 @@ static uint8_t twl4030_49_read(void *opaque, uint8_t addr)
         case 0x98 ... 0xc5:
             return s->reg_data[addr];
         default:
-            fprintf(stderr, "%s: unknown register 0x%02x pc 0x%x\n",
-                    __FUNCTION__, addr, cpu_single_env->regs[15]);
+            fprintf(stderr, "%s: unknown register 0x%02x\n",
+                    __FUNCTION__, addr);
 			break;
     }
     return 0;
 }
 
-static void twl4030_49_write(void *opaque, uint8_t addr, uint8_t value)
+static void twl4030_49_write(TWL4030NodeState *s, uint8_t addr, uint8_t value)
 {
-    struct twl4030_i2c_s *s = (struct twl4030_i2c_s *) opaque;
-	
     TRACE("addr=0x%02x, value=0x%02x", addr, value);
     switch (addr) {
         /* AUDIO_VOICE region */
@@ -418,52 +388,14 @@ static void twl4030_49_write(void *opaque, uint8_t addr, uint8_t value)
             s->reg_data[addr] = value & 0x07;
             break;
         default:
-            fprintf(stderr, "%s: unknown register 0x%02x pc 0x%x\n",
-                    __FUNCTION__, addr, cpu_single_env->regs[15]);
+            fprintf(stderr, "%s: unknown register 0x%02x\n",
+                    __FUNCTION__, addr);
             break;
     }
 }
 
-
-static int twl4030_49_tx(i2c_slave *i2c, uint8_t data)
+static uint8_t twl4030_4a_read(TWL4030NodeState *s, uint8_t addr)
 {
-    struct twl4030_i2c_s *s = (struct twl4030_i2c_s *) i2c;
-    /* Interpret register address byte */
-    if (s->firstbyte) {
-        s->reg = data;
-        s->firstbyte = 0;
-    } else
-        twl4030_49_write(s, s->reg++, data);
-	
-    return 0;
-}
-
-static int twl4030_49_rx(i2c_slave *i2c)
-{
-    struct twl4030_i2c_s *s = (struct twl4030_i2c_s *) i2c;
-	
-    return twl4030_49_read(s, s->reg++);
-}
-
-static void twl4030_49_reset(i2c_slave *i2c)
-{
-    struct twl4030_i2c_s *s = (struct twl4030_i2c_s *) i2c;
-    s->reg = 0x00;
-    memcpy(s->reg_data, addr_49_reset_values, 256);
-}
-
-static void twl4030_49_event(i2c_slave *i2c, enum i2c_event event)
-{
-    struct twl4030_i2c_s *s = (struct twl4030_i2c_s *) i2c;
-	
-    if (event == I2C_START_SEND)
-        s->firstbyte = 1;
-}
-
-static uint8_t twl4030_4a_read(void *opaque, uint8_t addr)
-{
-    struct twl4030_i2c_s *s = (struct twl4030_i2c_s *) opaque;
-	
     TRACE("addr=0x%02x", addr);
     switch (addr) {
         /* MADC region */
@@ -503,17 +435,15 @@ static uint8_t twl4030_4a_read(void *opaque, uint8_t addr)
         case 0xfc: /* PWM1OFF */
             return s->reg_data[addr];
         default:
-	        fprintf(stderr, "%s: unknown register 0x%02x pc 0x%x\n",
-                    __FUNCTION__, addr, cpu_single_env->regs[15] );
+	        fprintf(stderr, "%s: unknown register 0x%02x\n",
+                    __FUNCTION__, addr);
             break;
     }
     return 0;
 }
 
-static void twl4030_4a_write(void *opaque, uint8_t addr, uint8_t value)
+static void twl4030_4a_write(TWL4030NodeState *s, uint8_t addr, uint8_t value)
 {
-    struct twl4030_i2c_s *s = (struct twl4030_i2c_s *) opaque;
-
     TRACE("addr=0x%02x, value=0x%02x", addr, value);
     switch (addr) {
         case 0x00: /* CTRL1 */
@@ -575,51 +505,14 @@ static void twl4030_4a_write(void *opaque, uint8_t addr, uint8_t value)
             s->reg_data[addr] = value & 0x7f;
             break;
         default:
-	        fprintf(stderr, "%s: unknown register 0x%02x pc 0x%x\n",
-                    __FUNCTION__, addr, cpu_single_env->regs[15]);
+	        fprintf(stderr, "%s: unknown register 0x%02x\n",
+                    __FUNCTION__, addr);
             break;
     }
 }
 
-static int twl4030_4a_tx(i2c_slave *i2c, uint8_t data)
+static uint8_t twl4030_4b_read(TWL4030NodeState *s, uint8_t addr)
 {
-    struct twl4030_i2c_s *s = (struct twl4030_i2c_s *) i2c;
-    /* Interpret register address byte */
-    if (s->firstbyte) {
-        s->reg = data;
-        s->firstbyte = 0;
-    } else
-        twl4030_4a_write(s, s->reg++, data);
-	
-    return 0;
-}
-
-static int twl4030_4a_rx(i2c_slave *i2c)
-{
-    struct twl4030_i2c_s *s = (struct twl4030_i2c_s *) i2c;
-	
-    return twl4030_4a_read(s, s->reg++);
-}
-
-static void twl4030_4a_reset(i2c_slave *i2c)
-{
-    struct twl4030_i2c_s *s = (struct twl4030_i2c_s *) i2c;
-    s->reg = 0x00;
-    memcpy(s->reg_data, addr_4a_reset_values, 256);
-}
-
-static void twl4030_4a_event(i2c_slave *i2c, enum i2c_event event)
-{
-    struct twl4030_i2c_s *s = (struct twl4030_i2c_s *) i2c;
-	
-    if (event == I2C_START_SEND)
-        s->firstbyte = 1;
-}
-
-static uint8_t twl4030_4b_read(void *opaque, uint8_t addr)
-{
-    struct twl4030_i2c_s *s = (struct twl4030_i2c_s *) opaque;
-
 	TRACE("addr=0x%02x", addr);
     switch (addr) {
         /* SECURED_REG region */
@@ -645,17 +538,16 @@ static uint8_t twl4030_4b_read(void *opaque, uint8_t addr)
         case 0x5b ... 0xf1: 
             return s->reg_data[addr];
         default:
-	        fprintf(stderr, "%s: unknown register 0x%02x pc 0x%x\n",
-                    __FUNCTION__, addr, cpu_single_env->regs[15] );
+	        fprintf(stderr, "%s: unknown register 0x%02x\n",
+                    __FUNCTION__, addr);
             break;
     }
     return 0;
 }
 
 
-static void twl4030_4b_write(void *opaque, uint8_t addr, uint8_t value)
+static void twl4030_4b_write(TWL4030NodeState *s, uint8_t addr, uint8_t value)
 {
-    struct twl4030_i2c_s *s = (struct twl4030_i2c_s *) opaque;
     uint8_t seq_addr, seq_sub;
 
 	TRACE("addr=0x%02x, value=0x%02x", addr, value);
@@ -824,52 +716,80 @@ static void twl4030_4b_write(void *opaque, uint8_t addr, uint8_t value)
             
         default:
 	        fprintf(stderr,
-                    "%s: unknown register 0x%02x value 0x%02x pc 0x%x\n",
-                    __FUNCTION__, addr, value, cpu_single_env->regs[15]);
+                    "%s: unknown register 0x%02x value 0x%02x\n",
+                    __FUNCTION__, addr, value);
             break;
     }
 }
 
-static int twl4030_4b_tx(i2c_slave *i2c, uint8_t data)
+static void twl4030_node_init(TWL4030NodeState *s,
+                              twl4030_read_func read,
+                              twl4030_write_func write,
+                              const uint8_t *reset_values)
 {
-    struct twl4030_i2c_s *s = (struct twl4030_i2c_s *) i2c;
-    /* Interpret register address byte */
+    s->read_func = read;
+    s->write_func = write;
+    s->reg = 0x00;
+    memcpy(s->reg_data, reset_values, 256);
+}
+
+static void twl4030_48_init(i2c_slave *i2c)
+{
+    twl4030_node_init(FROM_I2C_SLAVE(TWL4030NodeState, i2c),
+                      twl4030_48_read, twl4030_48_write,
+                      addr_48_reset_values);
+}
+
+static void twl4030_49_init(i2c_slave *i2c)
+{
+    twl4030_node_init(FROM_I2C_SLAVE(TWL4030NodeState, i2c),
+                      twl4030_49_read, twl4030_49_write,
+                      addr_49_reset_values);
+}
+
+static void twl4030_4a_init(i2c_slave *i2c)
+{
+    twl4030_node_init(FROM_I2C_SLAVE(TWL4030NodeState, i2c),
+                      twl4030_4a_read, twl4030_4a_write,
+                      addr_4a_reset_values);
+}
+
+static void twl4030_4b_init(i2c_slave *i2c)
+{
+    twl4030_node_init(FROM_I2C_SLAVE(TWL4030NodeState, i2c),
+                      twl4030_4b_read, twl4030_4b_write,
+                      addr_4b_reset_values);
+}
+
+static void twl4030_event(i2c_slave *i2c, enum i2c_event event)
+{
+    if (event == I2C_START_SEND) {
+        TWL4030NodeState *s = FROM_I2C_SLAVE(TWL4030NodeState, i2c);
+        s->firstbyte = 1;
+    }
+}
+
+static int twl4030_rx(i2c_slave *i2c)
+{
+    TWL4030NodeState *s = FROM_I2C_SLAVE(TWL4030NodeState, i2c);
+    return s->read_func(s, s->reg++);
+}
+
+static int twl4030_tx(i2c_slave *i2c, uint8_t data)
+{
+    TWL4030NodeState *s = FROM_I2C_SLAVE(TWL4030NodeState, i2c);
     if (s->firstbyte) {
         s->reg = data;
         s->firstbyte = 0;
-    } else
-        twl4030_4b_write(s, s->reg++, data);
-	
+    } else {
+        s->write_func(s, s->reg++, data);
+	}
     return 1;
-}
-
-static int twl4030_4b_rx(i2c_slave *i2c)
-{
-    struct twl4030_i2c_s *s = (struct twl4030_i2c_s *) i2c;
-	
-    return twl4030_4b_read(s, s->reg++);
-}
-
-static void twl4030_4b_reset(i2c_slave *i2c)
-{
-    struct twl4030_i2c_s *s = (struct twl4030_i2c_s *) i2c;
-    s->reg = 0x00;
-    memcpy(s->reg_data, addr_4b_reset_values, 256);
-    s->twl4030->key_cfg = 0;
-    s->twl4030->key_tst = 0;
-}
-
-static void twl4030_4b_event(i2c_slave *i2c, enum i2c_event event)
-{
-    struct twl4030_i2c_s *s = (struct twl4030_i2c_s *) i2c;
-	
-    if (event == I2C_START_SEND)
-        s->firstbyte = 1;
 }
 
 static void twl4030_save_state(QEMUFile *f, void *opaque)
 {
-    struct twl4030_s *s = (struct twl4030_s *)opaque;
+    TWL4030State *s = (TWL4030State *)opaque;
     int i;
     
     qemu_put_sbe32(f, s->key_cfg);
@@ -885,7 +805,7 @@ static void twl4030_save_state(QEMUFile *f, void *opaque)
 
 static int twl4030_load_state(QEMUFile *f, void *opaque, int version_id)
 {
-    struct twl4030_s *s = (struct twl4030_s *)opaque;
+    TWL4030State *s = (TWL4030State *)opaque;
     int i;
     
     if (version_id)
@@ -904,44 +824,65 @@ static int twl4030_load_state(QEMUFile *f, void *opaque, int version_id)
     return 0;
 }
 
-struct twl4030_s *twl4030_init(i2c_bus *bus, qemu_irq irq)
+void *twl4030_init(i2c_bus *gp_bus, qemu_irq irq)
 {
+    TWL4030State *s = (TWL4030State *)qemu_mallocz(sizeof(*s));
+	
+    s->irq = irq;
+    s->key_cfg = 0;
+    s->key_tst = 0;
+    
     int i;
-	
-    struct twl4030_s *s = (struct twl4030_s *) qemu_mallocz(sizeof(*s));
-	
-    for (i = 0; i < 5; i++) {
-        s->i2c[i]=(struct twl4030_i2c_s *)i2c_slave_init(
-            bus, 0, sizeof(struct twl4030_i2c_s));
-        s->i2c[i]->irq = irq;
+    for (i = 0; i < 4; i++) {
+        char name[16];
+        sprintf(name, "twl4030_id%d", i + 1);
+        DeviceState *ds = i2c_create_slave(gp_bus, name, 0x48 + i);
+        s->i2c[i] = FROM_I2C_SLAVE(TWL4030NodeState, I2C_SLAVE_FROM_QDEV(ds));
         s->i2c[i]->twl4030 = s;
     }
-    s->i2c[0]->i2c.event = twl4030_48_event;
-    s->i2c[0]->i2c.recv = twl4030_48_rx;
-    s->i2c[0]->i2c.send = twl4030_48_tx;
-    twl4030_48_reset(&s->i2c[0]->i2c);
-    i2c_set_slave_address((i2c_slave *)&s->i2c[0]->i2c,0x48);
-	
-    s->i2c[1]->i2c.event = twl4030_49_event;
-    s->i2c[1]->i2c.recv = twl4030_49_rx;
-    s->i2c[1]->i2c.send = twl4030_49_tx;
-    twl4030_49_reset(&s->i2c[1]->i2c);
-    i2c_set_slave_address((i2c_slave *)&s->i2c[1]->i2c,0x49);
-	
-    s->i2c[2]->i2c.event = twl4030_4a_event;
-    s->i2c[2]->i2c.recv = twl4030_4a_rx;
-    s->i2c[2]->i2c.send = twl4030_4a_tx;
-    twl4030_4a_reset(&s->i2c[2]->i2c);
-    i2c_set_slave_address((i2c_slave *)&s->i2c[2]->i2c,0x4a);
-	
-    s->i2c[3]->i2c.event = twl4030_4b_event;
-    s->i2c[3]->i2c.recv = twl4030_4b_rx;
-    s->i2c[3]->i2c.send = twl4030_4b_tx;
-    twl4030_4b_reset(&s->i2c[3]->i2c);
-    i2c_set_slave_address((i2c_slave *)&s->i2c[3]->i2c,0x4b);
-	
+
     register_savevm("twl4030", -1, 0,
                     twl4030_save_state, twl4030_load_state, s);
 
     return s;
 }
+
+static I2CSlaveInfo twl4030_info[4] = {
+    {
+        .init = twl4030_48_init,
+        .event = twl4030_event,
+        .recv = twl4030_rx,
+        .send = twl4030_tx
+    },
+    {
+        .init = twl4030_49_init,
+        .event = twl4030_event,
+        .recv = twl4030_rx,
+        .send = twl4030_tx
+    },
+    {
+        .init = twl4030_4a_init,
+        .event = twl4030_event,
+        .recv = twl4030_rx,
+        .send = twl4030_tx
+    },
+    {
+        .init = twl4030_4b_init,
+        .event = twl4030_event,
+        .recv = twl4030_rx,
+        .send = twl4030_tx
+    },
+};
+
+static void twl4030_register_devices(void)
+{
+    I2CSlaveInfo *p = twl4030_info;
+    int i;
+    for (i = 0; i < 4; p++, i++) {
+        char name[16];
+        sprintf(name, "twl4030_id%d", i + 1);
+        i2c_register_slave(name, sizeof(TWL4030NodeState), p);
+    }
+}
+
+device_init(twl4030_register_devices);

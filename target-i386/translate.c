@@ -23,7 +23,6 @@
 #include <string.h>
 #include <inttypes.h>
 #include <signal.h>
-#include <assert.h>
 
 #include "cpu.h"
 #include "exec-all.h"
@@ -42,7 +41,7 @@
 
 #ifdef TARGET_X86_64
 #define X86_64_ONLY(x) x
-#define X86_64_DEF(x...) x
+#define X86_64_DEF(...)  __VA_ARGS__
 #define CODE64(s) ((s)->code64)
 #define REX_X(s) ((s)->rex_x)
 #define REX_B(s) ((s)->rex_b)
@@ -52,7 +51,7 @@
 #endif
 #else
 #define X86_64_ONLY(x) NULL
-#define X86_64_DEF(x...)
+#define X86_64_DEF(...)
 #define CODE64(s) 0
 #define REX_X(s) 0
 #define REX_B(s) 0
@@ -2704,6 +2703,9 @@ static void gen_eob(DisasContext *s)
         gen_op_set_cc_op(s->cc_op);
     if (s->tb->flags & HF_INHIBIT_IRQ_MASK) {
         gen_helper_reset_inhibit_irq();
+    }
+    if (s->tb->flags & HF_RF_MASK) {
+        gen_helper_reset_rf();
     }
     if (s->singlestep_enabled) {
         gen_helper_debug();
@@ -7688,7 +7690,8 @@ static inline void gen_intermediate_code_internal(CPUState *env,
     for(;;) {
         if (unlikely(!TAILQ_EMPTY(&env->breakpoints))) {
             TAILQ_FOREACH(bp, &env->breakpoints, entry) {
-                if (bp->pc == pc_ptr) {
+                if (bp->pc == pc_ptr &&
+                    !((bp->flags & BP_CPU) && (tb->flags & HF_RF_MASK))) {
                     gen_debug(dc, pc_ptr - dc->cs_base);
                     break;
                 }

@@ -31,10 +31,10 @@
 //#define DEBUG_NVR
 
 #ifdef DEBUG_NVR
-#define NVR_DPRINTF(fmt, args...) \
-do { printf("NVR: " fmt , ##args); } while (0)
+#define NVR_DPRINTF(fmt, ...)                                   \
+    do { printf("NVR: " fmt , ## __VA_ARGS__); } while (0)
 #else
-#define NVR_DPRINTF(fmt, args...)
+#define NVR_DPRINTF(fmt, ...)
 #endif
 
 struct MacIONVRAMState {
@@ -142,7 +142,7 @@ MacIONVRAMState *macio_nvram_init (int *mem_index, target_phys_addr_t size,
     *mem_index = s->mem_index;
     register_savevm("macio_nvram", -1, 1, macio_nvram_save, macio_nvram_load,
                     s);
-    qemu_register_reset(macio_nvram_reset, s);
+    qemu_register_reset(macio_nvram_reset, 0, s);
     macio_nvram_reset(s);
 
     return s;

@@ -23,6 +23,7 @@
  */
 #include "qemu-common.h"
 #include "block_int.h"
+#include "module.h"
 #include <zlib.h>
 #include "aes.h"
 
@@ -766,12 +767,26 @@ static void qcow_close(BlockDriverState *bs)
     bdrv_delete(s->hd);
 }
 
-static int qcow_create(const char *filename, int64_t total_size,
-                      const char *backing_file, int flags)
+static int qcow_create(const char *filename, QEMUOptionParameter *options)
 {
     int fd, header_size, backing_filename_len, l1_size, i, shift;
     QCowHeader header;
     uint64_t tmp;
+    int64_t total_size = 0;
+    const char *backing_file = NULL;
+    int flags = 0;
+
+    /* Read out options */
+    while (options && options->name) {
+        if (!strcmp(options->name, BLOCK_OPT_SIZE)) {
+            total_size = options->value.n / 512;
+        } else if (!strcmp(options->name, BLOCK_OPT_BACKING_FILE)) {
+            backing_file = options->value.s;
+        } else if (!strcmp(options->name, BLOCK_OPT_ENCRYPT)) {
+            flags |= options->value.n ? BLOCK_FLAG_ENCRYPT : 0;
+        }
+        options++;
+    }
 
     fd = open(filename, O_WRONLY | O_CREAT | O_TRUNC | O_BINARY, 0644);
     if (fd < 0)
@@ -917,7 +932,15 @@ static int qcow_get_info(BlockDriverState *bs, BlockDriverInfo *bdi)
     return 0;
 }
 
-BlockDriver bdrv_qcow = {
+
+static QEMUOptionParameter qcow_create_options[] = {
+    { BLOCK_OPT_SIZE,           OPT_SIZE },
+    { BLOCK_OPT_BACKING_FILE,   OPT_STRING },
+    { BLOCK_OPT_ENCRYPT,        OPT_FLAG },
+    { NULL }
+};
+
+static BlockDriver bdrv_qcow = {
     .format_name	= "qcow",
     .instance_size	= sizeof(BDRVQcowState),
     .bdrv_probe		= qcow_probe,
@@ -934,4 +957,13 @@ BlockDriver bdrv_qcow = {
     .aiocb_size		= sizeof(QCowAIOCB),
     .bdrv_write_compressed = qcow_write_compressed,
     .bdrv_get_info	= qcow_get_info,
+
+    .create_options = qcow_create_options,
 };
+
+static void bdrv_qcow_init(void)
+{
+    bdrv_register(&bdrv_qcow);
+}
+
+block_init(bdrv_qcow_init);

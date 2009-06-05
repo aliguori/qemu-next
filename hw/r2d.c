@@ -193,7 +193,7 @@ static int r2d_pci_map_irq(PCIDevice *d, int irq_num)
     return intx[d->devfn >> 3];
 }
 
-static void r2d_init(ram_addr_t ram_size, int vga_ram_size,
+static void r2d_init(ram_addr_t ram_size,
               const char *boot_device,
 	      const char *kernel_filename, const char *kernel_cmdline,
 	      const char *initrd_filename, const char *cpu_model)
@@ -258,8 +258,15 @@ static void r2d_init(ram_addr_t ram_size, int vga_ram_size,
     }
 }
 
-QEMUMachine r2d_machine = {
+static QEMUMachine r2d_machine = {
     .name = "r2d",
     .desc = "r2d-plus board",
     .init = r2d_init,
 };
+
+static void r2d_machine_init(void)
+{
+    qemu_register_machine(&r2d_machine);
+}
+
+machine_init(r2d_machine_init);

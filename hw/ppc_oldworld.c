@@ -114,7 +114,7 @@ static int fw_cfg_boot_set(void *opaque, const char *boot_device)
     return 0;
 }
 
-static void ppc_heathrow_init (ram_addr_t ram_size, int vga_ram_size,
+static void ppc_heathrow_init (ram_addr_t ram_size,
                                const char *boot_device,
                                const char *kernel_filename,
                                const char *kernel_cmdline,
@@ -154,7 +154,7 @@ static void ppc_heathrow_init (ram_addr_t ram_size, int vga_ram_size,
         /* Set time-base frequency to 16.6 Mhz */
         cpu_ppc_tb_init(env,  16600000UL);
         env->osi_call = vga_osi_call;
-        qemu_register_reset(&cpu_ppc_reset, env);
+        qemu_register_reset(&cpu_ppc_reset, 0, env);
         envs[i] = env;
     }
 
@@ -179,7 +179,7 @@ static void ppc_heathrow_init (ram_addr_t ram_size, int vga_ram_size,
     /* Load OpenBIOS (ELF) */
     bios_size = load_elf(buf, 0, NULL, NULL, NULL);
     if (bios_size < 0 || bios_size > BIOS_SIZE) {
-        cpu_abort(env, "qemu: could not load PowerPC bios '%s'\n", buf);
+        hw_error("qemu: could not load PowerPC bios '%s'\n", buf);
         exit(1);
     }
 
@@ -222,7 +222,7 @@ static void ppc_heathrow_init (ram_addr_t ram_size, int vga_ram_size,
                                               kernel_base,
                                               ram_size - kernel_base);
         if (kernel_size < 0) {
-            cpu_abort(env, "qemu: could not load kernel '%s'\n",
+            hw_error("qemu: could not load kernel '%s'\n",
                       kernel_filename);
             exit(1);
         }
@@ -232,8 +232,8 @@ static void ppc_heathrow_init (ram_addr_t ram_size, int vga_ram_size,
             initrd_size = load_image_targphys(initrd_filename, initrd_base,
                                               ram_size - initrd_base);
             if (initrd_size < 0) {
-                cpu_abort(env, "qemu: could not load initial ram disk '%s'\n",
-                          initrd_filename);
+                hw_error("qemu: could not load initial ram disk '%s'\n",
+                         initrd_filename);
                 exit(1);
             }
         } else {
@@ -288,20 +288,17 @@ static void ppc_heathrow_init (ram_addr_t ram_size, int vga_ram_size,
                 ((qemu_irq *)env->irq_inputs)[PPC6xx_INPUT_INT];
             break;
         default:
-            cpu_abort(env, "Bus model not supported on OldWorld Mac machine\n");
-            exit(1);
+            hw_error("Bus model not supported on OldWorld Mac machine\n");
         }
     }
 
     /* init basic PC hardware */
     if (PPC_INPUT(env) != PPC_FLAGS_INPUT_6xx) {
-        cpu_abort(env, "Only 6xx bus is supported on heathrow machine\n");
-        exit(1);
+        hw_error("Only 6xx bus is supported on heathrow machine\n");
     }
     pic = heathrow_pic_init(&pic_mem_index, 1, heathrow_irqs);
     pci_bus = pci_grackle_init(0xfec00000, pic);
-    pci_vga_init(pci_bus, vga_ram_size,
-                 vga_bios_offset, vga_bios_size);
+    pci_vga_init(pci_bus, vga_bios_offset, vga_bios_size);
 
     escc_mem_index = escc_init(0x80013000, pic[0x0f], pic[0x10], serial_hds[0],
                                serial_hds[1], ESCC_CLOCK, 4);
@@ -384,9 +381,17 @@ static void ppc_heathrow_init (ram_addr_t ram_size, int vga_ram_size,
     qemu_register_boot_set(fw_cfg_boot_set, fw_cfg);
 }
 
-QEMUMachine heathrow_machine = {
+static QEMUMachine heathrow_machine = {
     .name = "g3beige",
     .desc = "Heathrow based PowerMAC",
     .init = ppc_heathrow_init,
     .max_cpus = MAX_CPUS,
+    .is_default = 1,
 };
+
+static void heathrow_machine_init(void)
+{
+    qemu_register_machine(&heathrow_machine);
+}
+
+machine_init(heathrow_machine_init);

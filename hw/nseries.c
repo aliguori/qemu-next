@@ -40,14 +40,14 @@ struct n800_s {
     struct {
         void *opaque;
         uint32_t (*txrx)(void *opaque, uint32_t value, int len);
-        struct uwire_slave_s *chip;
+        uWireSlave *chip;
     } ts;
     i2c_bus *i2c;
 
     int keymap[0x80];
     i2c_slave *kbd;
 
-    struct tusb_s *usb;
+    TUSBState *usb;
     void *retu;
     void *tahvo;
     void *nand;
@@ -179,29 +179,29 @@ static void n8x0_nand_setup(struct n800_s *s)
 
 static void n8x0_i2c_setup(struct n800_s *s)
 {
+    DeviceState *dev;
     qemu_irq tmp_irq = omap2_gpio_in_get(s->cpu->gpif, N8X0_TMP105_GPIO)[0];
 
     /* Attach the CPU on one end of our I2C bus.  */
     s->i2c = omap_i2c_bus(s->cpu->i2c[0]);
 
     /* Attach a menelaus PM chip */
-    i2c_set_slave_address(
-                    twl92230_init(s->i2c,
-                            s->cpu->irq[0][OMAP_INT_24XX_SYS_NIRQ]),
-                    N8X0_MENELAUS_ADDR);
+    dev = i2c_create_slave(s->i2c, "twl92230", N8X0_MENELAUS_ADDR);
+    qdev_connect_gpio_out(dev, 3, s->cpu->irq[0][OMAP_INT_24XX_SYS_NIRQ]);
 
     /* Attach a TMP105 PM chip (A0 wired to ground) */
-    i2c_set_slave_address(tmp105_init(s->i2c, tmp_irq), N8X0_TMP105_ADDR);
+    dev = i2c_create_slave(s->i2c, "tmp105", N8X0_TMP105_ADDR);
+    qdev_connect_gpio_out(dev, 0, tmp_irq);
 }
 
 /* Touchscreen and keypad controller */
-static struct mouse_transform_info_s n800_pointercal = {
+static MouseTransformInfo n800_pointercal = {
     .x = 800,
     .y = 480,
     .a = { 14560, -68, -3455208, -39, -9621, 35152972, 65536 },
 };
 
-static struct mouse_transform_info_s n810_pointercal = {
+static MouseTransformInfo n810_pointercal = {
     .x = 800,
     .y = 480,
     .a = { 15041, 148, -4731056, 171, -10238, 35933380, 65536 },
@@ -252,7 +252,7 @@ static void n800_tsc_kbd_setup(struct n800_s *s)
     qemu_irq kbirq = omap2_gpio_in_get(s->cpu->gpif, N800_TSC_KP_IRQ_GPIO)[0];
     qemu_irq dav = omap2_gpio_in_get(s->cpu->gpif, N800_TSC_TS_GPIO)[0];
 
-    s->ts.chip = tsc2301_init(penirq, kbirq, dav, 0);
+    s->ts.chip = tsc2301_init(penirq, kbirq, dav);
     s->ts.opaque = s->ts.chip->opaque;
     s->ts.txrx = tsc210x_txrx;
 
@@ -362,6 +362,7 @@ static int n810_keys[0x80] = {
 static void n810_kbd_setup(struct n800_s *s)
 {
     qemu_irq kbd_irq = omap2_gpio_in_get(s->cpu->gpif, N810_KEYBOARD_GPIO)[0];
+    DeviceState *dev;
     int i;
 
     for (i = 0; i < 0x80; i ++)
@@ -374,8 +375,8 @@ static void n810_kbd_setup(struct n800_s *s)
 
     /* Attach the LM8322 keyboard to the I2C bus,
      * should happen in n8x0_i2c_setup and s->kbd be initialised here.  */
-    s->kbd = lm8323_init(s->i2c, kbd_irq);
-    i2c_set_slave_address(s->kbd, N810_LM8323_ADDR);
+    dev = i2c_create_slave(s->i2c, "lm8323", N810_LM8323_ADDR);
+    qdev_connect_gpio_out(dev, 0, kbd_irq);
 }
 
 /* LCD MIPI DBI-C controller (URAL) */
@@ -428,8 +429,7 @@ static uint32_t mipid_txrx(void *opaque, uint32_t cmd, int len)
     uint8_t ret;
 
     if (len > 9)
-        cpu_abort(cpu_single_env, "%s: FIXME: bad SPI word width %i\n",
-                        __FUNCTION__, len);
+        hw_error("%s: FIXME: bad SPI word width %i\n", __FUNCTION__, len);
 
     if (s->p >= ARRAY_SIZE(s->resp))
         ret = 0;
@@ -730,7 +730,7 @@ static void n8x0_cbus_setup(struct n800_s *s)
     qemu_irq retu_irq = omap2_gpio_in_get(s->cpu->gpif, N8X0_RETU_GPIO)[0];
     qemu_irq tahvo_irq = omap2_gpio_in_get(s->cpu->gpif, N8X0_TAHVO_GPIO)[0];
 
-    struct cbus_s *cbus = cbus_init(dat_out);
+    CBus *cbus = cbus_init(dat_out);
 
     omap2_gpio_out_set(s->cpu->gpif, N8X0_CBUS_CLK_GPIO, cbus->clk);
     omap2_gpio_out_set(s->cpu->gpif, N8X0_CBUS_DAT_GPIO, cbus->dat);
@@ -765,7 +765,7 @@ static void n8x0_usb_setup(struct n800_s *s)
 {
     qemu_irq tusb_irq = omap2_gpio_in_get(s->cpu->gpif, N8X0_TUSB_INT_GPIO)[0];
     qemu_irq tusb_pwr = qemu_allocate_irqs(n8x0_usb_power_cb, s, 1)[0];
-    struct tusb_s *tusb = tusb6010_init(tusb_irq);
+    TUSBState *tusb = tusb6010_init(tusb_irq);
 
     /* Using the NOR interface */
     omap_gpmc_attach(s->cpu->gpmc, N8X0_USB_ASYNC_CS,
@@ -1329,7 +1329,7 @@ static void n8x0_init(ram_addr_t ram_size, const char *boot_device,
         binfo->initrd_filename = initrd_filename;
         arm_load_kernel(s->cpu->env, binfo);
 
-        qemu_register_reset(n8x0_boot_init, s);
+        qemu_register_reset(n8x0_boot_init, 0, s);
         n8x0_boot_init(s);
     }
 
@@ -1383,7 +1383,7 @@ static struct arm_boot_info n810_binfo = {
     .atag_board = n810_atag_setup,
 };
 
-static void n800_init(ram_addr_t ram_size, int vga_ram_size,
+static void n800_init(ram_addr_t ram_size,
                 const char *boot_device,
                 const char *kernel_filename, const char *kernel_cmdline,
                 const char *initrd_filename, const char *cpu_model)
@@ -1393,7 +1393,7 @@ static void n800_init(ram_addr_t ram_size, int vga_ram_size,
                     cpu_model, &n800_binfo, 800);
 }
 
-static void n810_init(ram_addr_t ram_size, int vga_ram_size,
+static void n810_init(ram_addr_t ram_size,
                 const char *boot_device,
                 const char *kernel_filename, const char *kernel_cmdline,
                 const char *initrd_filename, const char *cpu_model)
@@ -1403,18 +1403,17 @@ static void n810_init(ram_addr_t ram_size, int vga_ram_size,
                     cpu_model, &n810_binfo, 810);
 }
 
-QEMUMachine n800_machine = {
+static QEMUMachine n800_machine = {
     .name = "n800",
     .desc = "Nokia N800 tablet aka. RX-34 (OMAP2420)",
     .init = n800_init,
 };
 
-QEMUMachine n810_machine = {
+static QEMUMachine n810_machine = {
     .name = "n810",
     .desc = "Nokia N810 tablet aka. RX-44 (OMAP2420)",
     .init = n810_init,
 };
-
 
 #define N00_SDRAM_SIZE (256 * 1024 * 1024)
 #define N00_ONENAND_CS 0
@@ -1751,15 +1750,15 @@ static CPUWriteMemoryFunc *ssi_write_func[] = {
 #define TM12XX_FUNC_TIMER   0x32
 #define TM12XX_FUNC_FLASH   0x34
 
-struct tm12xx_s;
-struct tm12xx_func_s;
+typedef struct TM12XXState TM12XXState;
+typedef struct TM12XXFunc TM12XXFunc;
 
-typedef uint8_t (*tm12xx_readf)(struct tm12xx_s *s, struct tm12xx_func_s *f,
+typedef uint8_t (*tm12xx_readf)(TM12XXState *s, TM12XXFunc *f,
                                 uint8_t r);
-typedef void (*tm12xx_writef)(struct tm12xx_s *s, struct tm12xx_func_s *f,
+typedef void (*tm12xx_writef)(TM12XXState *s, TM12XXFunc *f,
                               uint8_t r, uint8_t v);
 
-struct tm12xx_func_s {
+struct TM12XXFunc {
     uint8_t fid;
     uint8_t ints;
     uint8_t intshift;
@@ -1772,7 +1771,7 @@ struct tm12xx_func_s {
     tm12xx_writef write;
 };
 
-struct tm12xx_s {
+struct TM12XXState {
     i2c_slave i2c;
     qemu_irq irq;
     int firstbyte;
@@ -1790,10 +1789,10 @@ struct tm12xx_s {
         uint16_t y;
     } touch_pos[2];
     
-    struct tm12xx_func_s f[0];
+    TM12XXFunc f[TM12XX_FUNC_COUNT];
 };
 
-static void tm12xx_func_init(struct tm12xx_s *s,
+static void tm12xx_func_init(TM12XXState *s,
                              uint8_t fid, uint8_t ver, uint8_t ints,
                              uint8_t nr_query, uint8_t nr_cmd,
                              uint8_t nr_ctrl, uint8_t nr_data,
@@ -1835,12 +1834,12 @@ static void tm12xx_func_init(struct tm12xx_s *s,
     }
 }
 
-static void tm12xx_interrupt_update(struct tm12xx_s *s)
+static void tm12xx_interrupt_update(TM12XXState *s)
 {
     qemu_set_irq(s->irq, !(s->irqst & s->irqen));
 }
 
-static void tm12xx_reset(struct tm12xx_s *s)
+static void tm12xx_reset(TM12XXState *s)
 {
     s->firstbyte = 0;
     s->reg = 0;
@@ -1858,20 +1857,20 @@ static void tm12xx_reset(struct tm12xx_s *s)
     tm12xx_interrupt_update(s);
 }
 
-static uint8_t tm12xx_flash_read(struct tm12xx_s *s, struct tm12xx_func_s *f,
+static uint8_t tm12xx_flash_read(TM12XXState *s, TM12XXFunc *f,
                                  uint8_t r)
 {
     TRACE_TM12XX("0x%02x", r);
     return 0;
 }
 
-static void tm12xx_flash_write(struct tm12xx_s *s, struct tm12xx_func_s *f,
+static void tm12xx_flash_write(TM12XXState *s, TM12XXFunc *f,
                                uint8_t r, uint8_t v)
 {
     TRACE_TM12XX("0x%02x = 0x%02x", r, v);
 }
 
-static uint8_t tm12xx_dctrl_read(struct tm12xx_s *s, struct tm12xx_func_s *f,
+static uint8_t tm12xx_dctrl_read(TM12XXState *s, TM12XXFunc *f,
                                  uint8_t r)
 {
     static const uint8_t query[21] = {
@@ -1921,7 +1920,7 @@ static uint8_t tm12xx_dctrl_read(struct tm12xx_s *s, struct tm12xx_func_s *f,
     return value;
 }
 
-static void tm12xx_dctrl_write(struct tm12xx_s *s, struct tm12xx_func_s *f,
+static void tm12xx_dctrl_write(TM12XXState *s, TM12XXFunc *f,
                                uint8_t r, uint8_t v)
 {
     switch (r) {
@@ -1957,20 +1956,20 @@ static void tm12xx_dctrl_write(struct tm12xx_s *s, struct tm12xx_func_s *f,
     }
 }
 
-static uint8_t tm12xx_bist_read(struct tm12xx_s *s, struct tm12xx_func_s *f,
+static uint8_t tm12xx_bist_read(TM12XXState *s, TM12XXFunc *f,
                                 uint8_t r)
 {
     TRACE_TM12XX("0x%02x", r);
     return 0;
 }
 
-static void tm12xx_bist_write(struct tm12xx_s *s, struct tm12xx_func_s *f,
+static void tm12xx_bist_write(TM12XXState *s, TM12XXFunc *f,
                               uint8_t r, uint8_t v)
 {
     TRACE_TM12XX("0x%02x = 0x%02x", r, v);
 }
 
-static uint8_t tm12xx_2d_read(struct tm12xx_s *s, struct tm12xx_func_s *f,
+static uint8_t tm12xx_2d_read(TM12XXState *s, TM12XXFunc *f,
                               uint8_t r)
 {
     static const uint8_t query[9] = {
@@ -2075,7 +2074,7 @@ static uint8_t tm12xx_2d_read(struct tm12xx_s *s, struct tm12xx_func_s *f,
     return value;
 }
 
-static void tm12xx_2d_write(struct tm12xx_s *s, struct tm12xx_func_s *f,
+static void tm12xx_2d_write(TM12XXState *s, TM12XXFunc *f,
                             uint8_t r, uint8_t v)
 {
     switch (r) {
@@ -2101,7 +2100,7 @@ static void tm12xx_2d_write(struct tm12xx_s *s, struct tm12xx_func_s *f,
     }
 }
 
-static uint8_t tm12xx_buttons_read(struct tm12xx_s *s, struct tm12xx_func_s *f,
+static uint8_t tm12xx_buttons_read(TM12XXState *s, TM12XXFunc *f,
                                    uint8_t r)
 {
     uint8_t value = 0;
@@ -2143,20 +2142,20 @@ static uint8_t tm12xx_buttons_read(struct tm12xx_s *s, struct tm12xx_func_s *f,
     return value;
 }
 
-static void tm12xx_buttons_write(struct tm12xx_s *s, struct tm12xx_func_s *f,
+static void tm12xx_buttons_write(TM12XXState *s, TM12XXFunc *f,
                                  uint8_t r, uint8_t v)
 {
     TRACE_TM12XX("0x%02x = 0x%02x", r, v);
 }
 
-static uint8_t tm12xx_timer_read(struct tm12xx_s *s, struct tm12xx_func_s *f,
+static uint8_t tm12xx_timer_read(TM12XXState *s, TM12XXFunc *f,
                                 uint8_t r)
 {
     TRACE_TM12XX("0x%02x", r);
     return 0;
 }
 
-static void tm12xx_timer_write(struct tm12xx_s *s, struct tm12xx_func_s *f,
+static void tm12xx_timer_write(TM12XXState *s, TM12XXFunc *f,
                                uint8_t r, uint8_t v)
 {
     TRACE_TM12XX("0x%02x = 0x%02x", r, v);
@@ -2164,14 +2163,14 @@ static void tm12xx_timer_write(struct tm12xx_s *s, struct tm12xx_func_s *f,
 
 static void tm12xx_event(i2c_slave *i2c, enum i2c_event event)
 {
-    struct tm12xx_s *s = (struct tm12xx_s *)i2c;
+    TM12XXState *s = (TM12XXState *)i2c;
     if (event == I2C_START_SEND)
         s->firstbyte = 1;
 }
 
 static int tm12xx_rx(i2c_slave *i2c)
 {
-    struct tm12xx_s *s = (struct tm12xx_s *)i2c;
+    TM12XXState *s = (TM12XXState *)i2c;
     int value = -1;
     if (s->reg < 0xee - 6 * TM12XX_FUNC_COUNT) {
         int fn = 0;
@@ -2240,7 +2239,7 @@ static int tm12xx_rx(i2c_slave *i2c)
 
 static int tm12xx_tx(i2c_slave *i2c, uint8_t data)
 {
-    struct tm12xx_s *s = (struct tm12xx_s *)i2c;
+    TM12XXState *s = (TM12XXState *)i2c;
     if (s->firstbyte) {
         s->reg = data;
         s->firstbyte = 0;
@@ -2273,7 +2272,7 @@ static int tm12xx_tx(i2c_slave *i2c, uint8_t data)
 
 static void tm12xx_mouse(void *opaque, int x, int y, int z, int bs)
 {
-    struct tm12xx_s *s = (struct tm12xx_s *)opaque;
+    TM12XXState *s = (TM12XXState *)opaque;
     
     uint8_t state = ((bs & 1) << 1) | ((bs & 2) << 2);
     if (state || s->touch_state) {
@@ -2299,14 +2298,9 @@ static void tm12xx_mouse(void *opaque, int x, int y, int z, int bs)
     }
 }
 
-static struct tm12xx_s *tm12xx_init(i2c_bus *bus, qemu_irq irq)
+static void tm12xx_init(i2c_slave *i2c)
 {
-    struct tm12xx_s *s = (struct tm12xx_s *)i2c_slave_init(
-        bus, 0x4b, sizeof(*s) + TM12XX_FUNC_COUNT * sizeof(struct tm12xx_func_s));
-    s->i2c.event = tm12xx_event;
-    s->i2c.recv = tm12xx_rx;
-    s->i2c.send = tm12xx_tx;
-    s->irq = irq;
+    TM12XXState *s = FROM_I2C_SLAVE(TM12XXState, i2c);
     
     tm12xx_func_init(s, TM12XX_FUNC_FLASH,   0, 1,  9, 0,  0,  4,
                      tm12xx_flash_read, tm12xx_flash_write);
@@ -2322,21 +2316,37 @@ static struct tm12xx_s *tm12xx_init(i2c_bus *bus, qemu_irq irq)
                      tm12xx_timer_read, tm12xx_timer_write);
     
     tm12xx_reset(s);
+}
+
+static I2CSlaveInfo tm12xx_info = {
+    .init = tm12xx_init,
+    .event = tm12xx_event,
+    .recv = tm12xx_rx,
+    .send = tm12xx_tx
+};
+
+static void *n00_tm12xx_init(i2c_bus *bus, qemu_irq irq)
+{
+    DeviceState *ds = i2c_create_slave(bus, "tm12xx", 0x4b);
+    TM12XXState *s = FROM_I2C_SLAVE(TM12XXState, I2C_SLAVE_FROM_QDEV(ds));
+    s->irq = irq;
     qemu_add_mouse_event_handler(tm12xx_mouse, s, 1, "TM12xx Touchscreen");
     return s;
 }
 
 struct n00_s {
     struct omap_mpu_state_s *cpu;
-    struct twl4030_s *twl4030;
+    void *twl4030;
     void *nand;
     struct taal_s *lcd;
     void *tm12xx;
 };
 
-static void n00_init(ram_addr_t ram_size, int vga_ram_size,
-                     const char *boot_device, const char *kernel_filename,
-                     const char *kernel_cmdline, const char *initrd_filename,
+static void n00_init(ram_addr_t ram_size,
+                     const char *boot_device,
+                     const char *kernel_filename,
+                     const char *kernel_cmdline,
+                     const char *initrd_filename,
                      const char *cpu_model)
 {
     struct n00_s *s = (struct n00_s *)qemu_mallocz(sizeof(*s));
@@ -2372,14 +2382,29 @@ static void n00_init(ram_addr_t ram_size, int vga_ram_size,
                                                         ssi_read_func,
                                                         ssi_write_func,
                                                         0));
-    s->tm12xx = tm12xx_init(omap_i2c_bus(s->cpu->i2c[1]),
-                            omap2_gpio_in_get(s->cpu->gpif, 61)[0]);
+    s->tm12xx = n00_tm12xx_init(omap_i2c_bus(s->cpu->i2c[1]),
+                                omap2_gpio_in_get(s->cpu->gpif, 61)[0]);
 
     omap3_boot_rom_emu(s->cpu);
 }
 
-QEMUMachine n00_machine = {
+static QEMUMachine n00_machine = {
     .name = "n00",
     .desc = "Nokia N00 (OMAP3430)",
     .init = n00_init,
 };
+
+static void n00_register_devices(void)
+{
+    i2c_register_slave("tm12xx", sizeof(TM12XXState), &tm12xx_info);
+}
+
+static void nseries_machine_init(void)
+{
+    qemu_register_machine(&n800_machine);
+    qemu_register_machine(&n810_machine);
+    qemu_register_machine(&n00_machine);
+}
+
+device_init(n00_register_devices);
+machine_init(nseries_machine_init);

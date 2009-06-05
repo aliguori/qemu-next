@@ -2384,7 +2384,7 @@ void omap_rfbi_attach(struct omap_dss_s *s, int cs,
                       const struct rfbi_chip_s *chip)
 {
     if (cs < 0 || cs > 1) {
-        cpu_abort(cpu_single_env, "%s: wrong CS %i\n", __FUNCTION__, cs);
+        hw_error("%s: wrong CS %i\n", __FUNCTION__, cs);
     }
     if (s->rfbi.chip[cs]) {
         fprintf(stderr,
@@ -2399,7 +2399,7 @@ void omap_dsi_attach(struct omap_dss_s *s, int vc,
                      const struct dsi_chip_s *chip)
 {
     if (vc < 0 || vc > 3) {
-        cpu_abort(cpu_single_env, "%s: invalid vc %d\n", __FUNCTION__, vc);
+        hw_error("%s: invalid vc %d\n", __FUNCTION__, vc);
     }
     if (s->dsi.vc[vc].chip) {
         fprintf(stderr,

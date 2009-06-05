@@ -29,10 +29,10 @@
 //#define DEBUG_PIC
 
 #ifdef DEBUG_PIC
-#define PIC_DPRINTF(fmt, args...) \
-do { printf("PIC: " fmt , ##args); } while (0)
+#define PIC_DPRINTF(fmt, ...)                                   \
+    do { printf("PIC: " fmt , ## __VA_ARGS__); } while (0)
 #else
-#define PIC_DPRINTF(fmt, args...)
+#define PIC_DPRINTF(fmt, ...)
 #endif
 
 typedef struct HeathrowPIC {
@@ -230,7 +230,7 @@ qemu_irq *heathrow_pic_init(int *pmem_index,
 
     register_savevm("heathrow_pic", -1, 1, heathrow_pic_save,
                     heathrow_pic_load, s);
-    qemu_register_reset(heathrow_pic_reset, s);
+    qemu_register_reset(heathrow_pic_reset, 0, s);
     heathrow_pic_reset(s);
     return qemu_allocate_irqs(heathrow_pic_set_irq, s, 64);
 }

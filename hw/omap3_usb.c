@@ -44,7 +44,7 @@ extern CPUWriteMemoryFunc *musb_write[];
 struct omap3_hsusb_otg_s {
     qemu_irq mc_irq;
     qemu_irq dma_irq;
-    struct musb_s *musb;
+    MUSBState *musb;
     
     uint8_t rev;
     uint16_t sysconfig;

@@ -24,7 +24,7 @@
 #include "qemu-common.h"
 #include "qemu-timer.h"
 #include "block_int.h"
-#include <assert.h>
+#include "module.h"
 #include <windows.h>
 #include <winioctl.h>
 
@@ -210,13 +210,18 @@ static int64_t raw_getlength(BlockDriverState *bs)
     return l.QuadPart;
 }
 
-static int raw_create(const char *filename, int64_t total_size,
-                      const char *backing_file, int flags)
+static int raw_create(const char *filename, QEMUOptionParameter *options)
 {
     int fd;
+    int64_t total_size = 0;
 
-    if (flags || backing_file)
-        return -ENOTSUP;
+    /* Read out options */
+    while (options && options->name) {
+        if (!strcmp(options->name, BLOCK_OPT_SIZE)) {
+            total_size = options->value.n / 512;
+        }
+        options++;
+    }
 
     fd = open(filename, O_WRONLY | O_CREAT | O_TRUNC | O_BINARY,
               0644);
@@ -228,7 +233,12 @@ static int raw_create(const char *filename, int64_t total_size,
     return 0;
 }
 
-BlockDriver bdrv_raw = {
+static QEMUOptionParameter raw_create_options[] = {
+    { BLOCK_OPT_SIZE,           OPT_SIZE },
+    { NULL }
+};
+
+static BlockDriver bdrv_raw = {
     .format_name	= "raw",
     .instance_size	= sizeof(BDRVRawState),
     .bdrv_open		= raw_open,
@@ -239,6 +249,8 @@ BlockDriver bdrv_raw = {
     .bdrv_write		= raw_write,
     .bdrv_truncate	= raw_truncate,
     .bdrv_getlength	= raw_getlength,
+
+    .create_options = raw_create_options,
 };
 
 /***********************************************/
@@ -372,7 +384,7 @@ static int raw_set_locked(BlockDriverState *bs, int locked)
 }
 #endif
 
-BlockDriver bdrv_host_device = {
+static BlockDriver bdrv_host_device = {
     .format_name	= "host_device",
     .instance_size	= sizeof(BDRVRawState),
     .bdrv_open		= hdev_open,
@@ -383,3 +395,11 @@ BlockDriver bdrv_host_device = {
     .bdrv_write	        = raw_write,
     .bdrv_getlength	= raw_getlength,
 };
+
+static void bdrv_raw_init(void)
+{
+    bdrv_register(&bdrv_raw);
+    bdrv_register(&bdrv_host_device);
+}
+
+block_init(bdrv_raw_init);

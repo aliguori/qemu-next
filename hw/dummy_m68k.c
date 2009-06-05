@@ -14,7 +14,7 @@
 
 /* Board init.  */
 
-static void dummy_m68k_init(ram_addr_t ram_size, int vga_ram_size,
+static void dummy_m68k_init(ram_addr_t ram_size,
                      const char *boot_device,
                      const char *kernel_filename, const char *kernel_cmdline,
                      const char *initrd_filename, const char *cpu_model)
@@ -63,8 +63,15 @@ static void dummy_m68k_init(ram_addr_t ram_size, int vga_ram_size,
     env->pc = entry;
 }
 
-QEMUMachine dummy_m68k_machine = {
+static QEMUMachine dummy_m68k_machine = {
     .name = "dummy",
     .desc = "Dummy board",
     .init = dummy_m68k_init,
 };
+
+static void dummy_m68k_machine_init(void)
+{
+    qemu_register_machine(&dummy_m68k_machine);
+}
+
+machine_init(dummy_m68k_machine_init);

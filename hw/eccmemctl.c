@@ -28,10 +28,10 @@
 //#define DEBUG_ECC
 
 #ifdef DEBUG_ECC
-#define DPRINTF(fmt, args...)                           \
-    do { printf("ECC: " fmt , ##args); } while (0)
+#define DPRINTF(fmt, ...)                                       \
+    do { printf("ECC: " fmt , ## __VA_ARGS__); } while (0)
 #else
-#define DPRINTF(fmt, args...)
+#define DPRINTF(fmt, ...)
 #endif
 
 /* There are 3 versions of this chip used in SMP sun4m systems:
@@ -334,7 +334,7 @@ void * ecc_init(target_phys_addr_t base, qemu_irq irq, uint32_t version)
                                      ecc_io_memory);
     }
     register_savevm("ECC", base, 3, ecc_save, ecc_load, s);
-    qemu_register_reset(ecc_reset, s);
+    qemu_register_reset(ecc_reset, 0, s);
     ecc_reset(s);
     return s;
 }

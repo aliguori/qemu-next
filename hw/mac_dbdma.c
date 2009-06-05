@@ -44,10 +44,10 @@
 //#define DEBUG_DBDMA
 
 #ifdef DEBUG_DBDMA
-#define DBDMA_DPRINTF(fmt, args...) \
-do { printf("DBDMA: " fmt , ##args); } while (0)
+#define DBDMA_DPRINTF(fmt, ...)                                 \
+    do { printf("DBDMA: " fmt , ## __VA_ARGS__); } while (0)
 #else
-#define DBDMA_DPRINTF(fmt, args...)
+#define DBDMA_DPRINTF(fmt, ...)
 #endif
 
 /*
@@ -839,7 +839,7 @@ void* DBDMA_init (int *dbdma_mem_index)
 
     *dbdma_mem_index = cpu_register_io_memory(0, dbdma_read, dbdma_write, s);
     register_savevm("dbdma", -1, 1, dbdma_save, dbdma_load, s);
-    qemu_register_reset(dbdma_reset, s);
+    qemu_register_reset(dbdma_reset, 0, s);
     dbdma_reset(s);
 
     dbdma_bh = qemu_bh_new(DBDMA_run_bh, s);

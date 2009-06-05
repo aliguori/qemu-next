@@ -3330,7 +3330,7 @@ void pci_cmd646_ide_init(PCIBus *bus, BlockDriverState **hd_table,
     ide_init2(&d->ide_if[2], hd_table[2], hd_table[3], irq[1]);
 
     register_savevm("ide", 0, 2, pci_ide_save, pci_ide_load, d);
-    qemu_register_reset(cmd646_reset, d);
+    qemu_register_reset(cmd646_reset, 0, d);
     cmd646_reset(d);
 }
 
@@ -3373,7 +3373,7 @@ void pci_piix3_ide_init(PCIBus *bus, BlockDriverState **hd_table, int devfn,
     pci_config_set_class(pci_conf, PCI_CLASS_STORAGE_IDE);
     pci_conf[PCI_HEADER_TYPE] = PCI_HEADER_TYPE_NORMAL; // header_type
 
-    qemu_register_reset(piix3_reset, d);
+    qemu_register_reset(piix3_reset, 0, d);
     piix3_reset(d);
 
     pci_register_io_region((PCIDevice *)d, 4, 0x10,
@@ -3413,7 +3413,7 @@ void pci_piix4_ide_init(PCIBus *bus, BlockDriverState **hd_table, int devfn,
     pci_config_set_class(pci_conf, PCI_CLASS_STORAGE_IDE);
     pci_conf[PCI_HEADER_TYPE] = PCI_HEADER_TYPE_NORMAL; // header_type
 
-    qemu_register_reset(piix3_reset, d);
+    qemu_register_reset(piix3_reset, 0, d);
     piix3_reset(d);
 
     pci_register_io_region((PCIDevice *)d, 4, 0x10,
@@ -3754,7 +3754,7 @@ int pmac_ide_init (BlockDriverState **hd_table, qemu_irq irq,
     pmac_ide_memory = cpu_register_io_memory(0, pmac_ide_read,
                                              pmac_ide_write, d);
     register_savevm("ide", 0, 1, pmac_ide_save, pmac_ide_load, d);
-    qemu_register_reset(pmac_ide_reset, d);
+    qemu_register_reset(pmac_ide_reset, 0, d);
     pmac_ide_reset(d);
 
     return pmac_ide_memory;
@@ -3859,9 +3859,9 @@ void mmio_ide_init (target_phys_addr_t membase, target_phys_addr_t membase2,
 #define METADATA_SIZE	0x20
 
 /* DSCM-1XXXX Microdrive hard disk with CF+ II / PCMCIA interface.  */
-struct md_s {
+typedef struct {
     IDEState ide[2];
-    struct pcmcia_card_s card;
+    PCMCIACardState card;
     uint32_t attr_base;
     uint32_t io_base;
 
@@ -3873,7 +3873,7 @@ struct md_s {
     uint8_t ctrl;
     uint16_t io;
     int cycle;
-};
+} MicroDriveState;
 
 /* Register bitfields */
 enum md_opt {
@@ -3902,7 +3902,7 @@ enum md_ctrl {
     CTRL_SRST		= 0x04,
 };
 
-static inline void md_interrupt_update(struct md_s *s)
+static inline void md_interrupt_update(MicroDriveState *s)
 {
     if (!s->card.slot)
         return;
@@ -3915,7 +3915,7 @@ static inline void md_interrupt_update(struct md_s *s)
 
 static void md_set_irq(void *opaque, int irq, int level)
 {
-    struct md_s *s = (struct md_s *) opaque;
+    MicroDriveState *s = (MicroDriveState *) opaque;
     if (level)
         s->stat |= STAT_INT;
     else
@@ -3924,7 +3924,7 @@ static void md_set_irq(void *opaque, int irq, int level)
     md_interrupt_update(s);
 }
 
-static void md_reset(struct md_s *s)
+static void md_reset(MicroDriveState *s)
 {
     s->opt = OPT_MODE_MMAP;
     s->stat = 0;
@@ -3936,7 +3936,7 @@ static void md_reset(struct md_s *s)
 
 static uint8_t md_attr_read(void *opaque, uint32_t at)
 {
-    struct md_s *s = (struct md_s *) opaque;
+    MicroDriveState *s = (MicroDriveState *) opaque;
     if (at < s->attr_base) {
         if (at < s->card.cis_len)
             return s->card.cis[at];
@@ -3969,7 +3969,7 @@ static uint8_t md_attr_read(void *opaque, uint32_t at)
 
 static void md_attr_write(void *opaque, uint32_t at, uint8_t value)
 {
-    struct md_s *s = (struct md_s *) opaque;
+    MicroDriveState *s = (MicroDriveState *) opaque;
     at -= s->attr_base;
 
     switch (at) {
@@ -4000,7 +4000,7 @@ static void md_attr_write(void *opaque, uint32_t at, uint8_t value)
 
 static uint16_t md_common_read(void *opaque, uint32_t at)
 {
-    struct md_s *s = (struct md_s *) opaque;
+    MicroDriveState *s = (MicroDriveState *) opaque;
     uint16_t ret;
     at -= s->io_base;
 
@@ -4059,7 +4059,7 @@ static uint16_t md_common_read(void *opaque, uint32_t at)
 
 static void md_common_write(void *opaque, uint32_t at, uint16_t value)
 {
-    struct md_s *s = (struct md_s *) opaque;
+    MicroDriveState *s = (MicroDriveState *) opaque;
     at -= s->io_base;
 
     switch (s->opt & OPT_MODE) {
@@ -4120,7 +4120,7 @@ static void md_common_write(void *opaque, uint32_t at, uint16_t value)
 
 static void md_save(QEMUFile *f, void *opaque)
 {
-    struct md_s *s = (struct md_s *) opaque;
+    MicroDriveState *s = (MicroDriveState *) opaque;
     int i;
     uint8_t drive1_selected;
 
@@ -4142,7 +4142,7 @@ static void md_save(QEMUFile *f, void *opaque)
 
 static int md_load(QEMUFile *f, void *opaque, int version_id)
 {
-    struct md_s *s = (struct md_s *) opaque;
+    MicroDriveState *s = (MicroDriveState *) opaque;
     int i;
     uint8_t drive1_selected;
 
@@ -4351,7 +4351,7 @@ static const uint8_t dscm1xxxx_cis[0x14a] = {
 
 static int dscm1xxxx_attach(void *opaque)
 {
-    struct md_s *md = (struct md_s *) opaque;
+    MicroDriveState *md = (MicroDriveState *) opaque;
     md->card.attr_read = md_attr_read;
     md->card.attr_write = md_attr_write;
     md->card.common_read = md_common_read;
@@ -4371,14 +4371,14 @@ static int dscm1xxxx_attach(void *opaque)
 
 static int dscm1xxxx_detach(void *opaque)
 {
-    struct md_s *md = (struct md_s *) opaque;
+    MicroDriveState *md = (MicroDriveState *) opaque;
     md_reset(md);
     return 0;
 }
 
-struct pcmcia_card_s *dscm1xxxx_init(BlockDriverState *bdrv)
+PCMCIACardState *dscm1xxxx_init(BlockDriverState *bdrv)
 {
-    struct md_s *md = (struct md_s *) qemu_mallocz(sizeof(struct md_s));
+    MicroDriveState *md = (MicroDriveState *) qemu_mallocz(sizeof(MicroDriveState));
     md->card.state = md;
     md->card.attach = dscm1xxxx_attach;
     md->card.detach = dscm1xxxx_detach;

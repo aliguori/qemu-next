@@ -30,9 +30,9 @@
 //#define DEBUG_NVRAM
 
 #if defined(DEBUG_NVRAM)
-#define NVRAM_PRINTF(fmt, args...) do { printf(fmt , ##args); } while (0)
+#define NVRAM_PRINTF(fmt, ...) do { printf(fmt , ## __VA_ARGS__); } while (0)
 #else
-#define NVRAM_PRINTF(fmt, args...) do { } while (0)
+#define NVRAM_PRINTF(fmt, ...) do { } while (0)
 #endif
 
 /*
@@ -641,7 +641,7 @@ m48t59_t *m48t59_init (qemu_irq IRQ, target_phys_addr_t mem_base,
     }
     qemu_get_timedate(&s->alarm, 0);
 
-    qemu_register_reset(m48t59_reset, s);
+    qemu_register_reset(m48t59_reset, 0, s);
     save_base = mem_base ? mem_base : io_base;
     register_savevm("m48t59", save_base, 1, m48t59_save, m48t59_load, s);
 

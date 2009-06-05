@@ -31,10 +31,10 @@
 //#define DEBUG_GRACKLE
 
 #ifdef DEBUG_GRACKLE
-#define GRACKLE_DPRINTF(fmt, args...) \
-do { printf("GRACKLE: " fmt , ##args); } while (0)
+#define GRACKLE_DPRINTF(fmt, ...)                               \
+    do { printf("GRACKLE: " fmt , ## __VA_ARGS__); } while (0)
 #else
-#define GRACKLE_DPRINTF(fmt, args...)
+#define GRACKLE_DPRINTF(fmt, ...)
 #endif
 
 typedef target_phys_addr_t pci_addr_t;
@@ -133,7 +133,8 @@ PCIBus *pci_grackle_init(uint32_t base, qemu_irq *pic)
     int pci_mem_config, pci_mem_data;
 
     s = qemu_mallocz(sizeof(GrackleState));
-    s->bus = pci_register_bus(pci_grackle_set_irq, pci_grackle_map_irq,
+    s->bus = pci_register_bus(NULL, "pci",
+                              pci_grackle_set_irq, pci_grackle_map_irq,
                               pic, 0, 4);
 
     pci_mem_config = cpu_register_io_memory(0, pci_grackle_config_read,
@@ -176,7 +177,7 @@ PCIBus *pci_grackle_init(uint32_t base, qemu_irq *pic)
     d->config[0x27] = 0x85;
 #endif
     register_savevm("grackle", 0, 1, pci_grackle_save, pci_grackle_load, d);
-    qemu_register_reset(pci_grackle_reset, d);
+    qemu_register_reset(pci_grackle_reset, 0, d);
     pci_grackle_reset(d);
 
     return s->bus;

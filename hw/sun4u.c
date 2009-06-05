@@ -36,10 +36,10 @@
 //#define DEBUG_IRQ
 
 #ifdef DEBUG_IRQ
-#define DPRINTF(fmt, args...)                           \
-    do { printf("CPUIRQ: " fmt , ##args); } while (0)
+#define DPRINTF(fmt, ...)                                       \
+    do { printf("CPUIRQ: " fmt , ## __VA_ARGS__); } while (0)
 #else
-#define DPRINTF(fmt, args...)
+#define DPRINTF(fmt, ...)
 #endif
 
 #define KERNEL_LOAD_ADDR     0x00404000
@@ -326,7 +326,7 @@ pci_ebus_init(PCIBus *bus, int devfn)
                            ebus_mmio_mapfunc);
 }
 
-static void sun4uv_init(ram_addr_t RAM_size, int vga_ram_size,
+static void sun4uv_init(ram_addr_t RAM_size,
                         const char *boot_devices,
                         const char *kernel_filename, const char *kernel_cmdline,
                         const char *initrd_filename, const char *cpu_model,
@@ -374,7 +374,7 @@ static void sun4uv_init(ram_addr_t RAM_size, int vga_ram_size,
     reset_info = qemu_mallocz(sizeof(ResetData));
     reset_info->env = env;
     reset_info->reset_addr = hwdef->prom_addr + 0x40ULL;
-    qemu_register_reset(main_cpu_reset, reset_info);
+    qemu_register_reset(main_cpu_reset, 0, reset_info);
     main_cpu_reset(reset_info);
     // Override warm reset address with cold start address
     env->pc = hwdef->prom_addr + 0x20ULL;
@@ -447,7 +447,7 @@ static void sun4uv_init(ram_addr_t RAM_size, int vga_ram_size,
     pci_bus = pci_apb_init(APB_SPECIAL_BASE, APB_MEM_BASE, NULL, &pci_bus2,
                            &pci_bus3);
     isa_mem_base = VGA_BASE;
-    pci_vga_init(pci_bus, vga_ram_size, 0, 0);
+    pci_vga_init(pci_bus, 0, 0);
 
     // XXX Should be pci_bus3
     pci_ebus_init(pci_bus, -1);
@@ -560,52 +560,62 @@ static const struct hwdef hwdefs[] = {
 };
 
 /* Sun4u hardware initialisation */
-static void sun4u_init(ram_addr_t RAM_size, int vga_ram_size,
+static void sun4u_init(ram_addr_t RAM_size,
                        const char *boot_devices,
                        const char *kernel_filename, const char *kernel_cmdline,
                        const char *initrd_filename, const char *cpu_model)
 {
-    sun4uv_init(RAM_size, vga_ram_size, boot_devices, kernel_filename,
+    sun4uv_init(RAM_size, boot_devices, kernel_filename,
                 kernel_cmdline, initrd_filename, cpu_model, &hwdefs[0]);
 }
 
 /* Sun4v hardware initialisation */
-static void sun4v_init(ram_addr_t RAM_size, int vga_ram_size,
+static void sun4v_init(ram_addr_t RAM_size,
                        const char *boot_devices,
                        const char *kernel_filename, const char *kernel_cmdline,
                        const char *initrd_filename, const char *cpu_model)
 {
-    sun4uv_init(RAM_size, vga_ram_size, boot_devices, kernel_filename,
+    sun4uv_init(RAM_size, boot_devices, kernel_filename,
                 kernel_cmdline, initrd_filename, cpu_model, &hwdefs[1]);
 }
 
 /* Niagara hardware initialisation */
-static void niagara_init(ram_addr_t RAM_size, int vga_ram_size,
+static void niagara_init(ram_addr_t RAM_size,
                          const char *boot_devices,
                          const char *kernel_filename, const char *kernel_cmdline,
                          const char *initrd_filename, const char *cpu_model)
 {
-    sun4uv_init(RAM_size, vga_ram_size, boot_devices, kernel_filename,
+    sun4uv_init(RAM_size, boot_devices, kernel_filename,
                 kernel_cmdline, initrd_filename, cpu_model, &hwdefs[2]);
 }
 
-QEMUMachine sun4u_machine = {
+static QEMUMachine sun4u_machine = {
     .name = "sun4u",
     .desc = "Sun4u platform",
     .init = sun4u_init,
     .max_cpus = 1, // XXX for now
+    .is_default = 1,
 };
 
-QEMUMachine sun4v_machine = {
+static QEMUMachine sun4v_machine = {
     .name = "sun4v",
     .desc = "Sun4v platform",
     .init = sun4v_init,
     .max_cpus = 1, // XXX for now
 };
 
-QEMUMachine niagara_machine = {
+static QEMUMachine niagara_machine = {
     .name = "Niagara",
     .desc = "Sun4v platform, Niagara",
     .init = niagara_init,
     .max_cpus = 1, // XXX for now
 };
+
+static void sun4u_machine_init(void)
+{
+    qemu_register_machine(&sun4u_machine);
+    qemu_register_machine(&sun4v_machine);
+    qemu_register_machine(&niagara_machine);
+}
+
+machine_init(sun4u_machine_init);

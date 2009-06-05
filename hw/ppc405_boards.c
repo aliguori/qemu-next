@@ -32,7 +32,6 @@
 #include "qemu-log.h"
 
 #define BIOS_FILENAME "ppc405_rom.bin"
-#undef BIOS_SIZE
 #define BIOS_SIZE (2048 * 1024)
 
 #define KERNEL_LOAD_ADDR 0x00000000
@@ -166,10 +165,10 @@ static void ref405ep_fpga_init (uint32_t base)
                                          ref405ep_fpga_write, fpga);
     cpu_register_physical_memory(base, 0x00000100, fpga_memory);
     ref405ep_fpga_reset(fpga);
-    qemu_register_reset(&ref405ep_fpga_reset, fpga);
+    qemu_register_reset(&ref405ep_fpga_reset, 0, fpga);
 }
 
-static void ref405ep_init (ram_addr_t ram_size, int vga_ram_size,
+static void ref405ep_init (ram_addr_t ram_size,
                            const char *boot_device,
                            const char *kernel_filename,
                            const char *kernel_cmdline,
@@ -345,7 +344,7 @@ static void ref405ep_init (ram_addr_t ram_size, int vga_ram_size,
     printf("bdloc %016lx\n", (unsigned long)bdloc);
 }
 
-QEMUMachine ref405ep_machine = {
+static QEMUMachine ref405ep_machine = {
     .name = "ref405ep",
     .desc = "ref405ep",
     .init = ref405ep_init,
@@ -484,10 +483,10 @@ static void taihu_cpld_init (uint32_t base)
                                          taihu_cpld_write, cpld);
     cpu_register_physical_memory(base, 0x00000100, cpld_memory);
     taihu_cpld_reset(cpld);
-    qemu_register_reset(&taihu_cpld_reset, cpld);
+    qemu_register_reset(&taihu_cpld_reset, 0, cpld);
 }
 
-static void taihu_405ep_init(ram_addr_t ram_size, int vga_ram_size,
+static void taihu_405ep_init(ram_addr_t ram_size,
                              const char *boot_device,
                              const char *kernel_filename,
                              const char *kernel_cmdline,
@@ -625,8 +624,16 @@ static void taihu_405ep_init(ram_addr_t ram_size, int vga_ram_size,
 #endif
 }
 
-QEMUMachine taihu_machine = {
+static QEMUMachine taihu_machine = {
     .name = "taihu",
     .desc = "taihu",
     .init = taihu_405ep_init,
 };
+
+static void ppc405_machine_init(void)
+{
+    qemu_register_machine(&ref405ep_machine);
+    qemu_register_machine(&taihu_machine);
+}
+
+machine_init(ppc405_machine_init);

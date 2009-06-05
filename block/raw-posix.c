@@ -25,7 +25,7 @@
 #include "qemu-timer.h"
 #include "qemu-char.h"
 #include "block_int.h"
-#include <assert.h>
+#include "module.h"
 #ifdef CONFIG_AIO
 #include "posix-aio-compat.h"
 #endif
@@ -73,10 +73,10 @@
 
 //#define DEBUG_BLOCK
 #if defined(DEBUG_BLOCK)
-#define DEBUG_BLOCK_PRINT(formatCstr, args...) do { if (qemu_log_enabled())	\
-    { qemu_log(formatCstr, ##args); qemu_log_flush(); } } while (0)
+#define DEBUG_BLOCK_PRINT(formatCstr, ...) do { if (qemu_log_enabled()) \
+    { qemu_log(formatCstr, ## __VA_ARGS__); qemu_log_flush(); } } while (0)
 #else
-#define DEBUG_BLOCK_PRINT(formatCstr, args...)
+#define DEBUG_BLOCK_PRINT(formatCstr, ...)
 #endif
 
 /* OS X does not have O_DSYNC */
@@ -823,13 +823,18 @@ again:
 }
 #endif
 
-static int raw_create(const char *filename, int64_t total_size,
-                      const char *backing_file, int flags)
+static int raw_create(const char *filename, QEMUOptionParameter *options)
 {
     int fd;
+    int64_t total_size = 0;
 
-    if (flags || backing_file)
-        return -ENOTSUP;
+    /* Read out options */
+    while (options && options->name) {
+        if (!strcmp(options->name, BLOCK_OPT_SIZE)) {
+            total_size = options->value.n / 512;
+        }
+        options++;
+    }
 
     fd = open(filename, O_WRONLY | O_CREAT | O_TRUNC | O_BINARY,
               0644);
@@ -846,7 +851,13 @@ static void raw_flush(BlockDriverState *bs)
     fsync(s->fd);
 }
 
-BlockDriver bdrv_raw = {
+
+static QEMUOptionParameter raw_create_options[] = {
+    { BLOCK_OPT_SIZE,           OPT_SIZE },
+    { NULL }
+};
+
+static BlockDriver bdrv_raw = {
     .format_name = "raw",
     .instance_size = sizeof(BDRVRawState),
     .bdrv_probe = NULL, /* no probe for protocols */
@@ -866,6 +877,8 @@ BlockDriver bdrv_raw = {
 
     .bdrv_truncate = raw_truncate,
     .bdrv_getlength = raw_getlength,
+
+    .create_options = raw_create_options,
 };
 
 /***********************************************/
@@ -1364,15 +1377,20 @@ static BlockDriverAIOCB *raw_aio_ioctl(BlockDriverState *bs,
 #endif /* !linux && !FreeBSD */
 
 #if defined(__linux__) || defined(__FreeBSD__)
-static int hdev_create(const char *filename, int64_t total_size,
-                       const char *backing_file, int flags)
+static int hdev_create(const char *filename, QEMUOptionParameter *options)
 {
     int fd;
     int ret = 0;
     struct stat stat_buf;
+    int64_t total_size = 0;
 
-    if (flags || backing_file)
-        return -ENOTSUP;
+    /* Read out options */
+    while (options && options->name) {
+        if (!strcmp(options->name, "size")) {
+            total_size = options->value.n / 512;
+        }
+        options++;
+    }
 
     fd = open(filename, O_WRONLY | O_BINARY);
     if (fd < 0)
@@ -1391,14 +1409,13 @@ static int hdev_create(const char *filename, int64_t total_size,
 
 #else  /* !(linux || freebsd) */
 
-static int hdev_create(const char *filename, int64_t total_size,
-                       const char *backing_file, int flags)
+static int hdev_create(const char *filename, QEMUOptionParameter *options)
 {
     return -ENOTSUP;
 }
 #endif
 
-BlockDriver bdrv_host_device = {
+static BlockDriver bdrv_host_device = {
     .format_name	= "host_device",
     .instance_size	= sizeof(BDRVRawState),
     .bdrv_open		= hdev_open,
@@ -1428,3 +1445,11 @@ BlockDriver bdrv_host_device = {
     .bdrv_aio_ioctl	= raw_aio_ioctl,
 #endif
 };
+
+static void bdrv_raw_init(void)
+{
+    bdrv_register(&bdrv_raw);
+    bdrv_register(&bdrv_host_device);
+}
+
+block_init(bdrv_raw_init);

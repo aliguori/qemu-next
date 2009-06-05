@@ -46,7 +46,7 @@ void pic_info(Monitor *mon)
     /* XXXXX */
 }
 
-static void shix_init(ram_addr_t ram_size, int vga_ram_size,
+static void shix_init(ram_addr_t ram_size,
                const char *boot_device,
 	       const char *kernel_filename, const char *kernel_cmdline,
 	       const char *initrd_filename, const char *cpu_model)
@@ -88,8 +88,16 @@ static void shix_init(ram_addr_t ram_size, int vga_ram_size,
     fprintf(stderr, "initialization terminated\n");
 }
 
-QEMUMachine shix_machine = {
+static QEMUMachine shix_machine = {
     .name = "shix",
     .desc = "shix card",
     .init = shix_init,
+    .is_default = 1,
 };
+
+static void shix_machine_init(void)
+{
+    qemu_register_machine(&shix_machine);
+}
+
+machine_init(shix_machine_init);

@@ -96,8 +96,8 @@ static void vmstate_close(BlockDriverState *bs)
     close(s->fd);
 }
 
-static int vmstate_create(const char *filename, int64_t total_size,
-                          const char *backing_file, int flags)
+static int vmstate_create(const char *filename,
+                          QEMUOptionParameter *options)
 {
     VMStateHeader header;
     int fd = open(filename, O_WRONLY | O_CREAT | O_TRUNC | O_BINARY, 0644);
@@ -237,7 +237,7 @@ static int64_t vmstate_getlength(BlockDriverState *bs)
     return 1LL << 63; /* big enough? */
 }
 
-BlockDriver bdrv_vmstate = {
+static BlockDriver bdrv_vmstate = {
     .format_name = "vmstate",
     .instance_size = sizeof(BDRVVMState),
     .bdrv_probe = vmstate_probe,
@@ -256,3 +256,10 @@ BlockDriver bdrv_vmstate = {
     .bdrv_put_buffer = vmstate_put_buffer,
     .bdrv_get_buffer = vmstate_get_buffer,
 };
+
+static void bdrv_vmstate_init(void)
+{
+    bdrv_register(&bdrv_vmstate);
+}
+
+block_init(bdrv_vmstate_init);

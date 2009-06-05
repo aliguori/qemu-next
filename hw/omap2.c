@@ -1333,15 +1333,14 @@ void omap3_gpio_init(struct omap_mpu_state_s *mpu,
 qemu_irq *omap2_gpio_in_get(struct omap_gpif_s *s, int start)
 {
     if (start >= s->modules * 32 || start < 0)
-        cpu_abort(cpu_single_env, "%s: No GPIO line %i\n",
-                        __FUNCTION__, start);
+        hw_error("%s: No GPIO line %i\n", __FUNCTION__, start);
     return s->module[start >> 5].in + (start & 31);
 }
 
 void omap2_gpio_out_set(struct omap_gpif_s *s, int line, qemu_irq handler)
 {
     if (line >= s->modules * 32 || line < 0)
-        cpu_abort(cpu_single_env, "%s: No GPIO line %i\n", __FUNCTION__, line);
+        hw_error("%s: No GPIO line %i\n", __FUNCTION__, line);
     s->module[line >> 5].handler[line & 31] = handler;
 }
 
@@ -1914,8 +1913,7 @@ struct omap_eac_s *omap_eac_init(struct omap_target_agent_s *ta,
     omap_eac_reset(s);
 
 #ifdef HAS_AUDIO
-    /* TODO: do AUD_init globally for machine */
-    AUD_register_card(AUD_init(), "OMAP EAC", &s->codec.card);
+    AUD_register_card("OMAP EAC", &s->codec.card);
 
     iomemtype = cpu_register_io_memory(0, omap_eac_readfn,
                     omap_eac_writefn, s);
@@ -2568,7 +2566,7 @@ static uint32_t omap_tap_read(void *opaque, target_phys_addr_t addr)
         case omap3530:
             return 0x3b7ae02f;  /* ES 3.0 */
         default:
-            cpu_abort(cpu_single_env, "%s: Bad mpu model\n", __FUNCTION__);
+            hw_error("%s: Bad mpu model\n", __FUNCTION__);
         }
 
     case 0x208:	/* PRODUCTION_ID_reg for OMAP2 */
@@ -2587,7 +2585,7 @@ static uint32_t omap_tap_read(void *opaque, target_phys_addr_t addr)
         case omap3530:
             return 0x000f00f0;
         default:
-            cpu_abort(cpu_single_env, "%s: Bad mpu model\n", __FUNCTION__);
+            hw_error("%s: Bad mpu model\n", __FUNCTION__);
         }
 
     case 0x20c:
@@ -2602,7 +2600,7 @@ static uint32_t omap_tap_read(void *opaque, target_phys_addr_t addr)
         case omap3530:
             return 0xcafeb7ae;	/* ES 2 */
         default:
-            cpu_abort(cpu_single_env, "%s: Bad mpu model\n", __FUNCTION__);
+            hw_error("%s: Bad mpu model\n", __FUNCTION__);
         }
 
     case 0x218:	/* DIE_ID_reg */
@@ -4169,7 +4167,7 @@ struct omap_gpmc_s {
     int ecc_cs;
     int ecc_ptr;
     uint32_t ecc_cfg;
-    struct ecc_state_s ecc[9];
+    ECCState ecc[9];
 };
 
 static void omap_gpmc_int_update(struct omap_gpmc_s *s)
@@ -5292,7 +5290,7 @@ struct omap_mpu_state_s *omap2420_mpu_init(unsigned long sdram_size,
      * GPMC registers	6800a000   6800afff
      */
 
-    qemu_register_reset(omap2_mpu_reset, s);
+    qemu_register_reset(omap2_mpu_reset, 0, s);
 
     return s;
 }

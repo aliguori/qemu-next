@@ -33,10 +33,10 @@
 //#define DEBUG_APB
 
 #ifdef DEBUG_APB
-#define APB_DPRINTF(fmt, args...) \
-do { printf("APB: " fmt , ##args); } while (0)
+#define APB_DPRINTF(fmt, ...) \
+do { printf("APB: " fmt , ## __VA_ARGS__); } while (0)
 #else
-#define APB_DPRINTF(fmt, args...)
+#define APB_DPRINTF(fmt, ...)
 #endif
 
 typedef target_phys_addr_t pci_addr_t;
@@ -231,7 +231,8 @@ PCIBus *pci_apb_init(target_phys_addr_t special_base,
 
     s = qemu_mallocz(sizeof(APBState));
     /* Ultrasparc PBM main bus */
-    s->bus = pci_register_bus(pci_apb_set_irq, pci_pbm_map_irq, pic, 0, 32);
+    s->bus = pci_register_bus(NULL, "pci",
+                              pci_apb_set_irq, pci_pbm_map_irq, pic, 0, 32);
 
     pci_mem_config = cpu_register_io_memory(0, pci_apb_config_read,
                                             pci_apb_config_write, s);

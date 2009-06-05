@@ -33,10 +33,7 @@ target_read_memory (bfd_vma memaddr,
                     int length,
                     struct disassemble_info *info)
 {
-    int i;
-    for(i = 0; i < length; i++) {
-        myaddr[i] = ldub_code(memaddr + i);
-    }
+    cpu_memory_rw_debug(cpu_single_env, memaddr, myaddr, length, 0);
     return 0;
 }
 
@@ -198,6 +195,9 @@ void target_disas(FILE *out, target_ulong code, target_ulong size, int flags)
 #elif defined(TARGET_CRIS)
     disasm_info.mach = bfd_mach_cris_v32;
     print_insn = print_insn_crisv32;
+#elif defined(TARGET_MICROBLAZE)
+    disasm_info.mach = bfd_arch_microblaze;
+    print_insn = print_insn_microblaze;
 #elif defined(TARGET_Z80)
     print_insn = print_insn_z80;
 #else

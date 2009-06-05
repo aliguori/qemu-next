@@ -41,12 +41,12 @@
 
 static const int sector_len = 128 * 1024;
 
-static void connex_init(ram_addr_t ram_size, int vga_ram_size,
+static void connex_init(ram_addr_t ram_size,
                 const char *boot_device,
                 const char *kernel_filename, const char *kernel_cmdline,
                 const char *initrd_filename, const char *cpu_model)
 {
-    struct pxa2xx_state_s *cpu;
+    PXA2xxState *cpu;
     int index;
 
     uint32_t connex_rom = 0x01000000;
@@ -72,15 +72,15 @@ static void connex_init(ram_addr_t ram_size, int vga_ram_size,
 
     /* Interrupt line of NIC is connected to GPIO line 36 */
     smc91c111_init(&nd_table[0], 0x04000300,
-                    pxa2xx_gpio_in_get(cpu->gpio)[36], 1);
+                    pxa2xx_gpio_in_get(cpu->gpio)[36]);
 }
 
-static void verdex_init(ram_addr_t ram_size, int vga_ram_size,
+static void verdex_init(ram_addr_t ram_size,
                 const char *boot_device,
                 const char *kernel_filename, const char *kernel_cmdline,
                 const char *initrd_filename, const char *cpu_model)
 {
-    struct pxa2xx_state_s *cpu;
+    PXA2xxState *cpu;
     int index;
 
     uint32_t verdex_rom = 0x02000000;
@@ -106,17 +106,25 @@ static void verdex_init(ram_addr_t ram_size, int vga_ram_size,
 
     /* Interrupt line of NIC is connected to GPIO line 99 */
     smc91c111_init(&nd_table[0], 0x04000300,
-                    pxa2xx_gpio_in_get(cpu->gpio)[99], 1);
+                    pxa2xx_gpio_in_get(cpu->gpio)[99]);
 }
 
-QEMUMachine connex_machine = {
+static QEMUMachine connex_machine = {
     .name = "connex",
     .desc = "Gumstix Connex (PXA255)",
     .init = connex_init,
 };
 
-QEMUMachine verdex_machine = {
+static QEMUMachine verdex_machine = {
     .name = "verdex",
     .desc = "Gumstix Verdex (PXA270)",
     .init = verdex_init,
 };
+
+static void gumstix_machine_init(void)
+{
+    qemu_register_machine(&connex_machine);
+    qemu_register_machine(&verdex_machine);
+}
+
+machine_init(gumstix_machine_init);

@@ -29,10 +29,10 @@
 //#define DEBUG_IRQ
 
 #ifdef DEBUG_IRQ
-#define DPRINTF(fmt, args...) \
-do { printf("IRQ: " fmt , ##args); } while (0)
+#define DPRINTF(fmt, ...)                                       \
+    do { printf("IRQ: " fmt , ## __VA_ARGS__); } while (0)
 #else
-#define DPRINTF(fmt, args...)
+#define DPRINTF(fmt, ...)
 #endif
 
 /*
@@ -407,7 +407,7 @@ void *slavio_intctl_init(target_phys_addr_t addr, target_phys_addr_t addrg,
 
     register_savevm("slavio_intctl", addr, 1, slavio_intctl_save,
                     slavio_intctl_load, s);
-    qemu_register_reset(slavio_intctl_reset, s);
+    qemu_register_reset(slavio_intctl_reset, 0, s);
     *irq = qemu_allocate_irqs(slavio_set_irq, s, 32);
 
     *cpu_irq = qemu_allocate_irqs(slavio_set_timer_irq_cpu, s, MAX_CPUS);

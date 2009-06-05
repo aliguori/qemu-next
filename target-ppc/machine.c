@@ -1,21 +1,13 @@
 #include "hw/hw.h"
 #include "hw/boards.h"
-
-void register_machines(void)
-{
-    qemu_register_machine(&heathrow_machine);
-    qemu_register_machine(&core99_machine);
-    qemu_register_machine(&prep_machine);
-    qemu_register_machine(&ref405ep_machine);
-    qemu_register_machine(&taihu_machine);
-    qemu_register_machine(&bamboo_machine);
-    qemu_register_machine(&mpc8544ds_machine);
-}
+#include "kvm.h"
 
 void cpu_save(QEMUFile *f, void *opaque)
 {
     CPUState *env = (CPUState *)opaque;
     unsigned int i, j;
+
+    cpu_synchronize_state(env, 0);
 
     for (i = 0; i < 32; i++)
         qemu_put_betls(f, &env->gpr[i]);
@@ -184,6 +176,8 @@ int cpu_load(QEMUFile *f, void *opaque, int version_id)
     qemu_get_betls(f, &env->hflags_nmsr);
     qemu_get_sbe32s(f, &env->mmu_idx);
     qemu_get_sbe32s(f, &env->power_mode);
+
+    cpu_synchronize_state(env, 1);
 
     return 0;
 }

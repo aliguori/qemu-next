@@ -35,7 +35,7 @@ void kbd_put_keycode(int keycode);
 void kbd_mouse_event(int dx, int dy, int dz, int buttons_state);
 int kbd_mouse_is_absolute(void);
 
-struct mouse_transform_info_s {
+struct MouseTransformInfo {
     /* Touchscreen resolution */
     int x;
     int y;
@@ -320,6 +320,7 @@ void vnc_display_close(DisplayState *ds);
 int vnc_display_open(DisplayState *ds, const char *display);
 int vnc_display_password(DisplayState *ds, const char *password);
 void do_info_vnc(Monitor *mon);
+char *vnc_display_local_addr(DisplayState *ds);
 
 /* curses.c */
 void curses_display_init(DisplayState *ds, int full_screen);

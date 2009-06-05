@@ -24,9 +24,9 @@ typedef target_phys_addr_t pci_addr_t;
 #include "qemu-log.h"
 
 #ifdef DEBUG_PCI
-#define pci_debug(fmt, arg...) fprintf(stderr, fmt, ##arg)
+#define pci_debug(fmt, ...) fprintf(stderr, fmt, ## __VA_ARGS__)
 #else
-#define pci_debug(fmt, arg...)
+#define pci_debug(fmt, ...)
 #endif
 
 #define PCIE500_CFGADDR       0x0
@@ -317,7 +317,8 @@ PCIBus *ppce500_pci_init(qemu_irq pci_irqs[4], target_phys_addr_t registers)
 
     controller = qemu_mallocz(sizeof(PPCE500PCIState));
 
-    controller->pci_state.bus = pci_register_bus(mpc85xx_pci_set_irq,
+    controller->pci_state.bus = pci_register_bus(NULL, "pci",
+                                                 mpc85xx_pci_set_irq,
                                                  mpc85xx_pci_map_irq,
                                                  pci_irqs, 0x88, 4);
     d = pci_register_device(controller->pci_state.bus,

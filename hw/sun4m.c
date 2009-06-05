@@ -21,7 +21,7 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#include "hw.h"
+#include "sysbus.h"
 #include "qemu-timer.h"
 #include "sun4m.h"
 #include "nvram.h"
@@ -68,10 +68,10 @@
  */
 
 #ifdef DEBUG_IRQ
-#define DPRINTF(fmt, args...)                           \
-    do { printf("CPUIRQ: " fmt , ##args); } while (0)
+#define DPRINTF(fmt, ...)                                       \
+    do { printf("CPUIRQ: " fmt , ## __VA_ARGS__); } while (0)
 #else
-#define DPRINTF(fmt, args...)
+#define DPRINTF(fmt, ...)
 #endif
 
 #define KERNEL_LOAD_ADDR     0x00004000
@@ -364,6 +364,24 @@ static unsigned long sun4m_load_kernel(const char *kernel_filename,
     return kernel_size;
 }
 
+static void lance_init(NICInfo *nd, target_phys_addr_t leaddr,
+                       void *dma_opaque, qemu_irq irq, qemu_irq *reset)
+{
+    DeviceState *dev;
+    SysBusDevice *s;
+
+    qemu_check_nic_model(&nd_table[0], "lance");
+
+    dev = qdev_create(NULL, "lance");
+    qdev_set_netdev(dev, nd);
+    qdev_set_prop_ptr(dev, "dma", dma_opaque);
+    qdev_init(dev);
+    s = sysbus_from_qdev(dev);
+    sysbus_mmio_map(s, 0, leaddr);
+    sysbus_connect_irq(s, 0, irq);
+    *reset = qdev_get_gpio_in(dev, 0);
+}
+
 static void sun4m_hw_init(const struct sun4m_hwdef *hwdef, ram_addr_t RAM_size,
                           const char *boot_device,
                           const char *kernel_filename,
@@ -373,7 +391,7 @@ static void sun4m_hw_init(const struct sun4m_hwdef *hwdef, ram_addr_t RAM_size,
 {
     CPUState *env, *envs[MAX_CPUS];
     unsigned int i;
-    void *iommu, *espdma, *ledma, *main_esp, *nvram;
+    void *iommu, *espdma, *ledma, *nvram;
     qemu_irq *cpu_irqs[MAX_CPUS], *slavio_irq, *slavio_cpu_irq,
         *espdma_irq, *ledma_irq;
     qemu_irq *esp_reset, *le_reset;
@@ -400,9 +418,9 @@ static void sun4m_hw_init(const struct sun4m_hwdef *hwdef, ram_addr_t RAM_size,
         cpu_sparc_set_id(env, i);
         envs[i] = env;
         if (i == 0) {
-            qemu_register_reset(main_cpu_reset, env);
+            qemu_register_reset(main_cpu_reset, 0, env);
         } else {
-            qemu_register_reset(secondary_cpu_reset, env);
+            qemu_register_reset(secondary_cpu_reset, 0, env);
             env->halted = 1;
         }
         cpu_irqs[i] = qemu_allocate_irqs(cpu_set_irq, envs[i], MAX_PILS);
@@ -487,7 +505,7 @@ static void sun4m_hw_init(const struct sun4m_hwdef *hwdef, ram_addr_t RAM_size,
                           slavio_cpu_irq, smp_cpus);
 
     slavio_serial_ms_kbd_init(hwdef->ms_kb_base, slavio_irq[hwdef->ms_kb_irq],
-                              nographic, ESCC_CLOCK, 1);
+                              display_type == DT_NOGRAPHIC, ESCC_CLOCK, 1);
     // Slavio TTYA (base+4, Linux ttyS0) is the first Qemu serial device
     // Slavio TTYB (base+0, Linux ttyS1) is the second Qemu serial device
     escc_init(hwdef->serial_base, slavio_irq[hwdef->ser_irq], slavio_irq[hwdef->ser_irq],
@@ -515,16 +533,9 @@ static void sun4m_hw_init(const struct sun4m_hwdef *hwdef, ram_addr_t RAM_size,
         exit(1);
     }
 
-    main_esp = esp_init(hwdef->esp_base, 2,
-                        espdma_memory_read, espdma_memory_write,
-                        espdma, *espdma_irq, esp_reset);
-
-    for (i = 0; i < ESP_MAX_DEVS; i++) {
-        drive_index = drive_get_index(IF_SCSI, 0, i);
-        if (drive_index == -1)
-            continue;
-        esp_scsi_attach(main_esp, drives_table[drive_index].bdrv, i);
-    }
+    esp_init(hwdef->esp_base, 2,
+             espdma_memory_read, espdma_memory_write,
+             espdma, *espdma_irq, esp_reset);
 
     if (hwdef->cs_base)
         cs_init(hwdef->cs_base, hwdef->cs_irq, slavio_intctl);
@@ -931,7 +942,7 @@ static const struct sun4m_hwdef sun4m_hwdefs[] = {
 };
 
 /* SPARCstation 5 hardware initialisation */
-static void ss5_init(ram_addr_t RAM_size, int vga_ram_size,
+static void ss5_init(ram_addr_t RAM_size,
                      const char *boot_device,
                      const char *kernel_filename, const char *kernel_cmdline,
                      const char *initrd_filename, const char *cpu_model)
@@ -941,7 +952,7 @@ static void ss5_init(ram_addr_t RAM_size, int vga_ram_size,
 }
 
 /* SPARCstation 10 hardware initialisation */
-static void ss10_init(ram_addr_t RAM_size, int vga_ram_size,
+static void ss10_init(ram_addr_t RAM_size,
                       const char *boot_device,
                       const char *kernel_filename, const char *kernel_cmdline,
                       const char *initrd_filename, const char *cpu_model)
@@ -951,7 +962,7 @@ static void ss10_init(ram_addr_t RAM_size, int vga_ram_size,
 }
 
 /* SPARCserver 600MP hardware initialisation */
-static void ss600mp_init(ram_addr_t RAM_size, int vga_ram_size,
+static void ss600mp_init(ram_addr_t RAM_size,
                          const char *boot_device,
                          const char *kernel_filename,
                          const char *kernel_cmdline,
@@ -962,7 +973,7 @@ static void ss600mp_init(ram_addr_t RAM_size, int vga_ram_size,
 }
 
 /* SPARCstation 20 hardware initialisation */
-static void ss20_init(ram_addr_t RAM_size, int vga_ram_size,
+static void ss20_init(ram_addr_t RAM_size,
                       const char *boot_device,
                       const char *kernel_filename, const char *kernel_cmdline,
                       const char *initrd_filename, const char *cpu_model)
@@ -972,7 +983,7 @@ static void ss20_init(ram_addr_t RAM_size, int vga_ram_size,
 }
 
 /* SPARCstation Voyager hardware initialisation */
-static void vger_init(ram_addr_t RAM_size, int vga_ram_size,
+static void vger_init(ram_addr_t RAM_size,
                       const char *boot_device,
                       const char *kernel_filename, const char *kernel_cmdline,
                       const char *initrd_filename, const char *cpu_model)
@@ -982,7 +993,7 @@ static void vger_init(ram_addr_t RAM_size, int vga_ram_size,
 }
 
 /* SPARCstation LX hardware initialisation */
-static void ss_lx_init(ram_addr_t RAM_size, int vga_ram_size,
+static void ss_lx_init(ram_addr_t RAM_size,
                        const char *boot_device,
                        const char *kernel_filename, const char *kernel_cmdline,
                        const char *initrd_filename, const char *cpu_model)
@@ -992,7 +1003,7 @@ static void ss_lx_init(ram_addr_t RAM_size, int vga_ram_size,
 }
 
 /* SPARCstation 4 hardware initialisation */
-static void ss4_init(ram_addr_t RAM_size, int vga_ram_size,
+static void ss4_init(ram_addr_t RAM_size,
                      const char *boot_device,
                      const char *kernel_filename, const char *kernel_cmdline,
                      const char *initrd_filename, const char *cpu_model)
@@ -1002,7 +1013,7 @@ static void ss4_init(ram_addr_t RAM_size, int vga_ram_size,
 }
 
 /* SPARCClassic hardware initialisation */
-static void scls_init(ram_addr_t RAM_size, int vga_ram_size,
+static void scls_init(ram_addr_t RAM_size,
                       const char *boot_device,
                       const char *kernel_filename, const char *kernel_cmdline,
                       const char *initrd_filename, const char *cpu_model)
@@ -1012,7 +1023,7 @@ static void scls_init(ram_addr_t RAM_size, int vga_ram_size,
 }
 
 /* SPARCbook hardware initialisation */
-static void sbook_init(ram_addr_t RAM_size, int vga_ram_size,
+static void sbook_init(ram_addr_t RAM_size,
                        const char *boot_device,
                        const char *kernel_filename, const char *kernel_cmdline,
                        const char *initrd_filename, const char *cpu_model)
@@ -1021,14 +1032,15 @@ static void sbook_init(ram_addr_t RAM_size, int vga_ram_size,
                   kernel_cmdline, initrd_filename, cpu_model);
 }
 
-QEMUMachine ss5_machine = {
+static QEMUMachine ss5_machine = {
     .name = "SS-5",
     .desc = "Sun4m platform, SPARCstation 5",
     .init = ss5_init,
     .use_scsi = 1,
+    .is_default = 1,
 };
 
-QEMUMachine ss10_machine = {
+static QEMUMachine ss10_machine = {
     .name = "SS-10",
     .desc = "Sun4m platform, SPARCstation 10",
     .init = ss10_init,
@@ -1036,7 +1048,7 @@ QEMUMachine ss10_machine = {
     .max_cpus = 4,
 };
 
-QEMUMachine ss600mp_machine = {
+static QEMUMachine ss600mp_machine = {
     .name = "SS-600MP",
     .desc = "Sun4m platform, SPARCserver 600MP",
     .init = ss600mp_init,
@@ -1044,7 +1056,7 @@ QEMUMachine ss600mp_machine = {
     .max_cpus = 4,
 };
 
-QEMUMachine ss20_machine = {
+static QEMUMachine ss20_machine = {
     .name = "SS-20",
     .desc = "Sun4m platform, SPARCstation 20",
     .init = ss20_init,
@@ -1052,35 +1064,35 @@ QEMUMachine ss20_machine = {
     .max_cpus = 4,
 };
 
-QEMUMachine voyager_machine = {
+static QEMUMachine voyager_machine = {
     .name = "Voyager",
     .desc = "Sun4m platform, SPARCstation Voyager",
     .init = vger_init,
     .use_scsi = 1,
 };
 
-QEMUMachine ss_lx_machine = {
+static QEMUMachine ss_lx_machine = {
     .name = "LX",
     .desc = "Sun4m platform, SPARCstation LX",
     .init = ss_lx_init,
     .use_scsi = 1,
 };
 
-QEMUMachine ss4_machine = {
+static QEMUMachine ss4_machine = {
     .name = "SS-4",
     .desc = "Sun4m platform, SPARCstation 4",
     .init = ss4_init,
     .use_scsi = 1,
 };
 
-QEMUMachine scls_machine = {
+static QEMUMachine scls_machine = {
     .name = "SPARCClassic",
     .desc = "Sun4m platform, SPARCClassic",
     .init = scls_init,
     .use_scsi = 1,
 };
 
-QEMUMachine sbook_machine = {
+static QEMUMachine sbook_machine = {
     .name = "SPARCbook",
     .desc = "Sun4m platform, SPARCbook",
     .init = sbook_init,
@@ -1166,7 +1178,7 @@ static void sun4d_hw_init(const struct sun4d_hwdef *hwdef, ram_addr_t RAM_size,
 {
     CPUState *env, *envs[MAX_CPUS];
     unsigned int i;
-    void *iounits[MAX_IOUNITS], *espdma, *ledma, *main_esp, *nvram, *sbi;
+    void *iounits[MAX_IOUNITS], *espdma, *ledma, *nvram, *sbi;
     qemu_irq *cpu_irqs[MAX_CPUS], *sbi_irq, *sbi_cpu_irq,
         *espdma_irq, *ledma_irq;
     qemu_irq *esp_reset, *le_reset;
@@ -1174,7 +1186,6 @@ static void sun4d_hw_init(const struct sun4d_hwdef *hwdef, ram_addr_t RAM_size,
     unsigned long kernel_size;
     int ret;
     char buf[1024];
-    int drive_index;
     void *fw_cfg;
 
     /* init CPUs */
@@ -1190,9 +1201,9 @@ static void sun4d_hw_init(const struct sun4d_hwdef *hwdef, ram_addr_t RAM_size,
         cpu_sparc_set_id(env, i);
         envs[i] = env;
         if (i == 0) {
-            qemu_register_reset(main_cpu_reset, env);
+            qemu_register_reset(main_cpu_reset, 0, env);
         } else {
-            qemu_register_reset(secondary_cpu_reset, env);
+            qemu_register_reset(secondary_cpu_reset, 0, env);
             env->halted = 1;
         }
         cpu_irqs[i] = qemu_allocate_irqs(cpu_set_irq, envs[i], MAX_PILS);
@@ -1263,7 +1274,7 @@ static void sun4d_hw_init(const struct sun4d_hwdef *hwdef, ram_addr_t RAM_size,
                           sbi_cpu_irq, smp_cpus);
 
     slavio_serial_ms_kbd_init(hwdef->ms_kb_base, sbi_irq[hwdef->ms_kb_irq],
-                              nographic, ESCC_CLOCK, 1);
+                              display_type == DT_NOGRAPHIC, ESCC_CLOCK, 1);
     // Slavio TTYA (base+4, Linux ttyS0) is the first Qemu serial device
     // Slavio TTYB (base+0, Linux ttyS1) is the second Qemu serial device
     escc_init(hwdef->serial_base, sbi_irq[hwdef->ser_irq], sbi_irq[hwdef->ser_irq],
@@ -1274,16 +1285,9 @@ static void sun4d_hw_init(const struct sun4d_hwdef *hwdef, ram_addr_t RAM_size,
         exit(1);
     }
 
-    main_esp = esp_init(hwdef->esp_base, 2,
-                        espdma_memory_read, espdma_memory_write,
-                        espdma, *espdma_irq, esp_reset);
-
-    for (i = 0; i < ESP_MAX_DEVS; i++) {
-        drive_index = drive_get_index(IF_SCSI, 0, i);
-        if (drive_index == -1)
-            continue;
-        esp_scsi_attach(main_esp, drives_table[drive_index].bdrv, i);
-    }
+    esp_init(hwdef->esp_base, 2,
+             espdma_memory_read, espdma_memory_write,
+             espdma, *espdma_irq, esp_reset);
 
     kernel_size = sun4m_load_kernel(kernel_filename, initrd_filename,
                                     RAM_size);
@@ -1313,7 +1317,7 @@ static void sun4d_hw_init(const struct sun4d_hwdef *hwdef, ram_addr_t RAM_size,
 }
 
 /* SPARCserver 1000 hardware initialisation */
-static void ss1000_init(ram_addr_t RAM_size, int vga_ram_size,
+static void ss1000_init(ram_addr_t RAM_size,
                         const char *boot_device,
                         const char *kernel_filename, const char *kernel_cmdline,
                         const char *initrd_filename, const char *cpu_model)
@@ -1323,7 +1327,7 @@ static void ss1000_init(ram_addr_t RAM_size, int vga_ram_size,
 }
 
 /* SPARCcenter 2000 hardware initialisation */
-static void ss2000_init(ram_addr_t RAM_size, int vga_ram_size,
+static void ss2000_init(ram_addr_t RAM_size,
                         const char *boot_device,
                         const char *kernel_filename, const char *kernel_cmdline,
                         const char *initrd_filename, const char *cpu_model)
@@ -1332,7 +1336,7 @@ static void ss2000_init(ram_addr_t RAM_size, int vga_ram_size,
                   kernel_cmdline, initrd_filename, cpu_model);
 }
 
-QEMUMachine ss1000_machine = {
+static QEMUMachine ss1000_machine = {
     .name = "SS-1000",
     .desc = "Sun4d platform, SPARCserver 1000",
     .init = ss1000_init,
@@ -1340,7 +1344,7 @@ QEMUMachine ss1000_machine = {
     .max_cpus = 8,
 };
 
-QEMUMachine ss2000_machine = {
+static QEMUMachine ss2000_machine = {
     .name = "SS-2000",
     .desc = "Sun4d platform, SPARCcenter 2000",
     .init = ss2000_init,
@@ -1388,8 +1392,7 @@ static void sun4c_hw_init(const struct sun4c_hwdef *hwdef, ram_addr_t RAM_size,
                           const char *initrd_filename, const char *cpu_model)
 {
     CPUState *env;
-    unsigned int i;
-    void *iommu, *espdma, *ledma, *main_esp, *nvram;
+    void *iommu, *espdma, *ledma, *nvram;
     qemu_irq *cpu_irqs, *slavio_irq, *espdma_irq, *ledma_irq;
     qemu_irq *esp_reset, *le_reset;
     qemu_irq *fdc_tc;
@@ -1413,7 +1416,7 @@ static void sun4c_hw_init(const struct sun4c_hwdef *hwdef, ram_addr_t RAM_size,
 
     cpu_sparc_set_id(env, 0);
 
-    qemu_register_reset(main_cpu_reset, env);
+    qemu_register_reset(main_cpu_reset, 0, env);
     cpu_irqs = qemu_allocate_irqs(cpu_set_irq, env, MAX_PILS);
     env->prom_addr = hwdef->slavio_base;
 
@@ -1474,7 +1477,7 @@ static void sun4c_hw_init(const struct sun4c_hwdef *hwdef, ram_addr_t RAM_size,
                         hwdef->nvram_size, 2);
 
     slavio_serial_ms_kbd_init(hwdef->ms_kb_base, slavio_irq[hwdef->ms_kb_irq],
-                              nographic, ESCC_CLOCK, 1);
+                              display_type == DT_NOGRAPHIC, ESCC_CLOCK, 1);
     // Slavio TTYA (base+4, Linux ttyS0) is the first Qemu serial device
     // Slavio TTYB (base+0, Linux ttyS1) is the second Qemu serial device
     escc_init(hwdef->serial_base, slavio_irq[hwdef->ser_irq],
@@ -1500,16 +1503,9 @@ static void sun4c_hw_init(const struct sun4c_hwdef *hwdef, ram_addr_t RAM_size,
         exit(1);
     }
 
-    main_esp = esp_init(hwdef->esp_base, 2,
-                        espdma_memory_read, espdma_memory_write,
-                        espdma, *espdma_irq, esp_reset);
-
-    for (i = 0; i < ESP_MAX_DEVS; i++) {
-        drive_index = drive_get_index(IF_SCSI, 0, i);
-        if (drive_index == -1)
-            continue;
-        esp_scsi_attach(main_esp, drives_table[drive_index].bdrv, i);
-    }
+    esp_init(hwdef->esp_base, 2,
+             espdma_memory_read, espdma_memory_write,
+             espdma, *espdma_irq, esp_reset);
 
     kernel_size = sun4m_load_kernel(kernel_filename, initrd_filename,
                                     RAM_size);
@@ -1539,7 +1535,7 @@ static void sun4c_hw_init(const struct sun4c_hwdef *hwdef, ram_addr_t RAM_size,
 }
 
 /* SPARCstation 2 hardware initialisation */
-static void ss2_init(ram_addr_t RAM_size, int vga_ram_size,
+static void ss2_init(ram_addr_t RAM_size,
                      const char *boot_device,
                      const char *kernel_filename, const char *kernel_cmdline,
                      const char *initrd_filename, const char *cpu_model)
@@ -1548,9 +1544,27 @@ static void ss2_init(ram_addr_t RAM_size, int vga_ram_size,
                   kernel_cmdline, initrd_filename, cpu_model);
 }
 
-QEMUMachine ss2_machine = {
+static QEMUMachine ss2_machine = {
     .name = "SS-2",
     .desc = "Sun4c platform, SPARCstation 2",
     .init = ss2_init,
     .use_scsi = 1,
 };
+
+static void ss2_machine_init(void)
+{
+    qemu_register_machine(&ss5_machine);
+    qemu_register_machine(&ss10_machine);
+    qemu_register_machine(&ss600mp_machine);
+    qemu_register_machine(&ss20_machine);
+    qemu_register_machine(&voyager_machine);
+    qemu_register_machine(&ss_lx_machine);
+    qemu_register_machine(&ss4_machine);
+    qemu_register_machine(&scls_machine);
+    qemu_register_machine(&sbook_machine);
+    qemu_register_machine(&ss1000_machine);
+    qemu_register_machine(&ss2000_machine);
+    qemu_register_machine(&ss2_machine);
+}
+
+machine_init(ss2_machine_init);

@@ -127,6 +127,9 @@ case "$cpu" in
   m68k)
     cpu="m68k"
   ;;
+  microblaze)
+    cpu="microblaze"
+  ;;
   mips)
     cpu="mips"
   ;;
@@ -159,7 +162,6 @@ strip_opt="yes"
 bigendian="no"
 mingw32="no"
 EXESUF=""
-gdbstub="yes"
 slirp="yes"
 libspectrum="no"
 vde="yes"
@@ -174,15 +176,15 @@ solaris="no"
 kqemu="no"
 profiler="no"
 cocoa="no"
-check_gfx="yes"
 softmmu="yes"
 linux_user="no"
 darwin_user="no"
 bsd_user="no"
 guest_base="no"
-build_docs="no"
+build_docs="yes"
 uname_release=""
 curses="yes"
+curl="yes"
 pthread="yes"
 aio="yes"
 io_thread="no"
@@ -194,6 +196,7 @@ kerneldir=""
 aix="no"
 blobs="yes"
 fdt="yes"
+sdl="yes"
 sdl_x11="no"
 xen="yes"
 pkgversion=""
@@ -443,8 +446,6 @@ for opt do
       sdl="no" ;
       audio_drv_list="coreaudio `echo $audio_drv_list | sed s,coreaudio,,g`"
   ;;
-  --disable-gfx-check) check_gfx="no"
-  ;;
   --disable-system) softmmu="no"
   ;;
   --enable-system) softmmu="yes"
@@ -483,6 +484,8 @@ for opt do
   ;;
   --disable-curses) curses="no"
   ;;
+  --disable-curl) curl="no"
+  ;;
   --disable-nptl) nptl="no"
   ;;
   --enable-mixemu) mixemu="yes"
@@ -498,6 +501,8 @@ for opt do
   --kerneldir=*) kerneldir="$optarg"
   ;;
   --with-pkgversion=*) pkgversion=" ($optarg)"
+  ;;
+  --disable-docs) build_docs="no"
   ;;
   *) echo "ERROR: unknown option $opt"; show_help="yes"
   ;;
@@ -607,6 +612,7 @@ echo "  --disable-brlapi         disable BrlAPI"
 echo "  --disable-vnc-tls        disable TLS encryption for VNC server"
 echo "  --disable-vnc-sasl       disable SASL encryption for VNC server"
 echo "  --disable-curses         disable curses output"
+echo "  --disable-curl           disable curl connectivity"
 echo "  --disable-bluez          disable bluez stack connectivity"
 echo "  --disable-kvm            disable KVM acceleration support"
 echo "  --disable-nptl           disable usermode NPTL support"
@@ -686,6 +692,7 @@ x86_64-softmmu \
 arm-softmmu \
 cris-softmmu \
 m68k-softmmu \
+microblaze-softmmu \
 mips-softmmu \
 mipsel-softmmu \
 mips64-softmmu \
@@ -709,6 +716,7 @@ arm-linux-user \
 armeb-linux-user \
 cris-linux-user \
 m68k-linux-user \
+microblaze-linux-user \
 mips-linux-user \
 mipsel-linux-user \
 ppc-linux-user \
@@ -844,7 +852,7 @@ fi
 
 sdl_too_old=no
 
-if test -z "$sdl" ; then
+if test "$sdl" = "yes" ; then
     sdl_config="sdl-config"
     sdl=no
     sdl_static=no
@@ -1072,6 +1080,21 @@ EOF
 fi # test "$curses"
 
 ##########################################
+# curl probe
+
+if test "$curl" = "yes" ; then
+  curl=no
+  cat > $TMPC << EOF
+#include <curl/curl.h>
+int main(void) { return curl_easy_init(); }
+EOF
+  curl_libs=`curl-config --libs 2>/dev/null`
+ if $cc $ARCH_CFLAGS $curl_libs -o $TMPE $TMPC > /dev/null 2> /dev/null ; then
+    curl=yes
+  fi
+fi # test "$curl"
+
+##########################################
 # bluez support probe
 if test "$bluez" = "yes" ; then
   `pkg-config bluez 2> /dev/null` || bluez="no"
@@ -1266,9 +1289,8 @@ if $cc $ARCH_CFLAGS -o $TMPE $TMPC 2> /dev/null ; then
 fi
 
 # Check if tools are available to build documentation.
-if [ -x "`which texi2html 2>/dev/null`" ] && \
-   [ -x "`which pod2man 2>/dev/null`" ]; then
-  build_docs="yes"
+if test "$build_docs" = "yes" -a \( ! -x "`which texi2html 2>/dev/null`" -o ! -x "`which pod2man 2>/dev/null`" \) ; then
+  build_docs="no"
 fi
 
 ##########################################
@@ -1340,6 +1362,7 @@ if test "$sdl" != "no" ; then
     echo "SDL static link   $sdl_static"
 fi
 echo "curses support    $curses"
+echo "curl support      $curl"
 echo "mingw32 support   $mingw32"
 echo "Audio drivers     $audio_drv_list"
 echo "Extra audio cards $audio_card_list"
@@ -1376,10 +1399,6 @@ echo "preadv support    $preadv"
 
 if test $sdl_too_old = "yes"; then
 echo "-> Your SDL version is too old - please upgrade to have SDL support"
-fi
-if [ -s $TMPSDLLOG ]; then
-  echo "The error log from compiling the libSDL test is: "
-  cat $TMPSDLLOG
 fi
 #if test "$sdl_static" = "no"; then
 #  echo "WARNING: cannot compile statically with SDL - qemu-fast won't have a graphical output"
@@ -1459,6 +1478,10 @@ case "$cpu" in
   m68k)
     echo "ARCH=m68k" >> $config_mak
     echo "#define HOST_M68K 1" >> $config_h
+  ;;
+  microblaze)
+    echo "ARCH=microblaze" >> $config_mak
+    echo "#define HOST_MICROBLAZE 1" >> $config_h
   ;;
   mips)
     echo "ARCH=mips" >> $config_mak
@@ -1556,10 +1579,6 @@ fi
 if test -n "$sparc_cpu"; then
   echo "CONFIG__sparc_${sparc_cpu}__=yes" >> $config_mak
   echo "#define __sparc_${sparc_cpu}__ 1" >> $config_h
-fi
-if test "$gdbstub" = "yes" ; then
-  echo "CONFIG_GDBSTUB=yes" >> $config_mak
-  echo "#define CONFIG_GDBSTUB 1" >> $config_h
 fi
 if test "$gprof" = "yes" ; then
   echo "TARGET_GPROF=yes" >> $config_mak
@@ -1675,6 +1694,11 @@ fi
 if test "$inotify" = "yes" ; then
   echo "#define CONFIG_INOTIFY 1" >> $config_h
 fi
+if test "$curl" = "yes" ; then
+  echo "CONFIG_CURL=yes" >> $config_mak
+  echo "CURL_LIBS=$curl_libs" >> $config_mak
+  echo "#define CONFIG_CURL 1" >> $config_h
+fi
 if test "$brlapi" = "yes" ; then
   echo "CONFIG_BRLAPI=yes" >> $config_mak
   echo "#define CONFIG_BRLAPI 1" >> $config_h
@@ -1733,6 +1757,39 @@ bsd)
 ;;
 esac
 
+# Determine what linker flags to use to force archive inclusion
+check_linker_flags()
+{
+    $cc $ARCH_CFLAGS -o $TMPE $OS_CFLAGS $TMPC -Wl,$1 -Wl,$2 >/dev/null 2>/dev/null
+}
+
+cat > $TMPC << EOF
+int main(void) { }
+EOF
+if check_linker_flags --whole-archive --no-whole-archive ; then
+    # GNU ld
+    echo "ARLIBS_BEGIN=-Wl,--whole-archive" >> $config_mak
+    echo "ARLIBS_END=-Wl,--no-whole-archive" >> $config_mak
+elif check_linker_flags -z,allextract -z,defaultextract ; then
+    # Solaris ld
+    echo "ARLIBS_BEGIN=-Wl,-z,allextract" >> $config_mak
+    echo "ARLIBS_END=-Wl,-z,defaultextract" >> $config_mak
+elif check_linker_flags -all_load -noall_load ; then
+    echo "ARLIBS_BEGIN=-all_load" >> $config_mak
+    # This is technically obsolete but it seems like it would be necessary
+#    echo "ARLIBS_END=-noall_load" >> $config_mak
+    echo "ARLIBS_END=" >> $config_mak
+else
+    echo "Error: your linker does not support --whole-archive or -z."
+    echo "Please report to qemu-devel@nongnu.org"
+    exit 1
+fi
+
+if test "$xen" = "yes" ;
+    then
+    echo "CONFIG_XEN=yes" >> $config_mak
+fi
+
 tools=
 if test `expr "$target_list" : ".*softmmu.*"` != 0 ; then
   tools="qemu-img\$(EXESUF) $tools"
@@ -1742,7 +1799,15 @@ if test `expr "$target_list" : ".*softmmu.*"` != 0 ; then
 fi
 echo "TOOLS=$tools" >> $config_mak
 
-test -f ${config_h}~ && cmp -s $config_h ${config_h}~ && mv ${config_h}~ $config_h
+if test -f ${config_h}~ ; then
+  if cmp -s $config_h ${config_h}~ ; then
+    mv ${config_h}~ $config_h
+  else
+    rm ${config_h}~
+  fi
+fi
+
+config_host_mak=${config_mak}
 
 for target in $target_list; do
 target_dir="$target"
@@ -1752,6 +1817,7 @@ target_cpu=`echo $target | cut -d '-' -f 1`
 target_bigendian="no"
 [ "$target_cpu" = "armeb" ] && target_bigendian=yes
 [ "$target_cpu" = "m68k" ] && target_bigendian=yes
+[ "$target_cpu" = "microblaze" ] && target_bigendian=yes
 [ "$target_cpu" = "mips" ] && target_bigendian=yes
 [ "$target_cpu" = "mipsn32" ] && target_bigendian=yes
 [ "$target_cpu" = "mips64" ] && target_bigendian=yes
@@ -1789,15 +1855,6 @@ case "$target" in
     exit 1
     ;;
 esac
-
-if test "$target_user_only" = "no" -a "$check_gfx" = "yes" \
-        -a "$sdl" = "no" -a "$cocoa" = "no" ; then
-    echo "ERROR: QEMU requires SDL or Cocoa for graphical output"
-    echo "To build QEMU without graphical output configure with --disable-gfx-check"
-    echo "Note that this will disable all output from the virtual graphics card"
-    echo "except through VNC or curses."
-    exit 1;
-fi
 
 #echo "Creating $config_mak, $config_h and $target_dir/Makefile"
 
@@ -1863,6 +1920,7 @@ case "$target_cpu" in
       echo "CONFIG_XEN=yes" >> $config_mak
       echo "#define CONFIG_XEN 1" >> $config_h
     fi
+    target_phys_bits=32
   ;;
   x86_64)
     echo "TARGET_ARCH=x86_64" >> $config_mak
@@ -1884,11 +1942,13 @@ case "$target_cpu" in
       echo "CONFIG_XEN=yes" >> $config_mak
       echo "#define CONFIG_XEN 1" >> $config_h
     fi
+    target_phys_bits=64
   ;;
   alpha)
     echo "TARGET_ARCH=alpha" >> $config_mak
     echo "#define TARGET_ARCH \"alpha\"" >> $config_h
     echo "#define TARGET_ALPHA 1" >> $config_h
+    target_phys_bits=64
   ;;
   arm|armeb)
     echo "TARGET_ARCH=arm" >> $config_mak
@@ -1897,12 +1957,14 @@ case "$target_cpu" in
     bflt="yes"
     target_nptl="yes"
     gdb_xml_files="arm-core.xml arm-vfp.xml arm-vfp3.xml arm-neon.xml"
+    target_phys_bits=32
   ;;
   cris)
     echo "TARGET_ARCH=cris" >> $config_mak
     echo "#define TARGET_ARCH \"cris\"" >> $config_h
     echo "#define TARGET_CRIS 1" >> $config_h
     target_nptl="yes"
+    target_phys_bits=32
   ;;
   m68k)
     echo "TARGET_ARCH=m68k" >> $config_mak
@@ -1910,18 +1972,29 @@ case "$target_cpu" in
     echo "#define TARGET_M68K 1" >> $config_h
     bflt="yes"
     gdb_xml_files="cf-core.xml cf-fp.xml"
+    target_phys_bits=32
   ;;
-  mips|mipsel)
+  microblaze)
+    echo "TARGET_ARCH=microblaze" >> $config_mak
+    echo "#define TARGET_ARCH \"microblaze\"" >> $config_h
+    echo "#define TARGET_MICROBLAZE 1" >> $config_h
+    bflt="yes"
+    target_nptl="yes"
+    target_phys_bits=32
+  ;;
+ mips|mipsel)
     echo "TARGET_ARCH=mips" >> $config_mak
     echo "#define TARGET_ARCH \"mips\"" >> $config_h
     echo "#define TARGET_MIPS 1" >> $config_h
     echo "#define TARGET_ABI_MIPSO32 1" >> $config_h
+    target_phys_bits=64
   ;;
   mipsn32|mipsn32el)
     echo "TARGET_ARCH=mipsn32" >> $config_mak
     echo "#define TARGET_ARCH \"mipsn32\"" >> $config_h
     echo "#define TARGET_MIPS 1" >> $config_h
     echo "#define TARGET_ABI_MIPSN32 1" >> $config_h
+    target_phys_bits=64
   ;;
   mips64|mips64el)
     echo "TARGET_ARCH=mips64" >> $config_mak
@@ -1929,12 +2002,14 @@ case "$target_cpu" in
     echo "#define TARGET_MIPS 1" >> $config_h
     echo "#define TARGET_MIPS64 1" >> $config_h
     echo "#define TARGET_ABI_MIPSN64 1" >> $config_h
+    target_phys_bits=64
   ;;
   ppc)
     echo "TARGET_ARCH=ppc" >> $config_mak
     echo "#define TARGET_ARCH \"ppc\"" >> $config_h
     echo "#define TARGET_PPC 1" >> $config_h
     gdb_xml_files="power-core.xml power-fpu.xml power-altivec.xml power-spe.xml"
+    target_phys_bits=32
   ;;
   ppcemb)
     echo "TARGET_ARCH=ppcemb" >> $config_mak
@@ -1948,6 +2023,7 @@ case "$target_cpu" in
       echo "#define CONFIG_KVM 1" >> $config_h
     fi
     gdb_xml_files="power-core.xml power-fpu.xml power-altivec.xml power-spe.xml"
+    target_phys_bits=64
   ;;
   ppc64)
     echo "TARGET_ARCH=ppc64" >> $config_mak
@@ -1956,6 +2032,7 @@ case "$target_cpu" in
     echo "#define TARGET_PPC 1" >> $config_h
     echo "#define TARGET_PPC64 1" >> $config_h
     gdb_xml_files="power64-core.xml power-fpu.xml power-altivec.xml power-spe.xml"
+    target_phys_bits=64
   ;;
   ppc64abi32)
     echo "TARGET_ARCH=ppc64" >> $config_mak
@@ -1966,6 +2043,7 @@ case "$target_cpu" in
     echo "#define TARGET_PPC64 1" >> $config_h
     echo "#define TARGET_ABI32 1" >> $config_h
     gdb_xml_files="power64-core.xml power-fpu.xml power-altivec.xml power-spe.xml"
+    target_phys_bits=64
   ;;
   sh4|sh4eb)
     echo "TARGET_ARCH=sh4" >> $config_mak
@@ -1973,11 +2051,13 @@ case "$target_cpu" in
     echo "#define TARGET_SH4 1" >> $config_h
     bflt="yes"
     target_nptl="yes"
+    target_phys_bits=32
   ;;
   sparc)
     echo "TARGET_ARCH=sparc" >> $config_mak
     echo "#define TARGET_ARCH \"sparc\"" >> $config_h
     echo "#define TARGET_SPARC 1" >> $config_h
+    target_phys_bits=64
   ;;
   sparc64)
     echo "TARGET_ARCH=sparc64" >> $config_mak
@@ -1985,6 +2065,7 @@ case "$target_cpu" in
     echo "#define TARGET_SPARC 1" >> $config_h
     echo "#define TARGET_SPARC64 1" >> $config_h
     elfload32="yes"
+    target_phys_bits=64
   ;;
   sparc32plus)
     echo "TARGET_ARCH=sparc64" >> $config_mak
@@ -1994,6 +2075,7 @@ case "$target_cpu" in
     echo "#define TARGET_SPARC 1" >> $config_h
     echo "#define TARGET_SPARC64 1" >> $config_h
     echo "#define TARGET_ABI32 1" >> $config_h
+    target_phys_bits=64
   ;;
   z80)
     echo "TARGET_ARCH=z80" >> $config_mak
@@ -2006,6 +2088,12 @@ case "$target_cpu" in
     exit 1
   ;;
 esac
+if [ $target_phys_bits -lt $hostlongbits ] ; then
+  target_phys_bits=$hostlongbits
+fi
+echo "HWLIB=../libhw$target_phys_bits/libqemuhw$target_phys_bits.a" >> $config_mak
+echo "#define TARGET_PHYS_ADDR_BITS $target_phys_bits" >> $config_h
+echo "subdir-$target: subdir-libhw$target_phys_bits" >> $config_host_mak
 if test "$target_bigendian" = "yes" ; then
   echo "TARGET_WORDS_BIGENDIAN=yes" >> $config_mak
   echo "#define TARGET_WORDS_BIGENDIAN 1" >> $config_h
@@ -2037,6 +2125,7 @@ echo "TARGET_XML_FILES=$list" >> $config_mak
 if test "$target_cpu" = "arm" \
      -o "$target_cpu" = "armeb" \
      -o "$target_cpu" = "m68k" \
+     -o "$target_cpu" = "microblaze" \
      -o "$target_cpu" = "mips" \
      -o "$target_cpu" = "mipsel" \
      -o "$target_cpu" = "mipsn32" \
@@ -2080,7 +2169,7 @@ done # for target in $targets
 
 # build tree in object directory if source path is different from current one
 if test "$source_path_used" = "yes" ; then
-    DIRS="tests tests/cris slirp audio"
+    DIRS="tests tests/cris slirp audio block"
     FILES="Makefile tests/Makefile"
     FILES="$FILES tests/cris/Makefile tests/cris/.gdbinit"
     FILES="$FILES tests/test-mmap.c"
@@ -2093,3 +2182,12 @@ if test "$source_path_used" = "yes" ; then
         ln -s $source_path/$f $f
     done
 fi
+
+for hwlib in 32 64; do
+  d=libhw$hwlib
+  mkdir -p $d
+  rm -f $d/Makefile
+  ln -s $source_path/Makefile.hw $d/Makefile
+  echo "HWLIB=libqemuhw$hwlib.a" > $d/config.mak
+  echo "CPPFLAGS=-DTARGET_PHYS_ADDR_BITS=$hwlib" >> $d/config.mak
+done

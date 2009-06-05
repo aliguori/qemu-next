@@ -30,6 +30,7 @@
 #include "qemu-common.h"
 #include "monitor.h"
 #include "block_int.h"
+#include "module.h"
 
 #ifdef HOST_BSD
 #include <sys/types.h>
@@ -138,7 +139,7 @@ void path_combine(char *dest, int dest_size,
 }
 
 
-static void bdrv_register(BlockDriver *bdrv)
+void bdrv_register(BlockDriver *bdrv)
 {
     if (!bdrv->bdrv_aio_readv) {
         /* add AIO emulation layer */
@@ -188,22 +189,44 @@ int bdrv_create2(BlockDriver *drv,
                 const char *backing_file, const char *backing_format,
                 int flags)
 {
-    if (drv->bdrv_create2)
-        return drv->bdrv_create2(filename, size_in_sectors, backing_file,
-                                 backing_format, flags);
-    if (drv->bdrv_create)
-        return drv->bdrv_create(filename, size_in_sectors, backing_file,
-                                flags);
-    return -ENOTSUP;
+    QEMUOptionParameter *options;
+
+    options = parse_option_parameters("", drv->create_options, NULL);
+
+    // Process flags
+    if (flags & ~(BLOCK_FLAG_ENCRYPT | BLOCK_FLAG_COMPAT6 | BLOCK_FLAG_COMPRESS)) {
+        return -ENOTSUP;
+    }
+
+    if (flags & BLOCK_FLAG_ENCRYPT) {
+        set_option_parameter_int(options, BLOCK_OPT_ENCRYPT, 1);
+    }
+    if (flags & BLOCK_FLAG_COMPAT6) {
+        set_option_parameter_int(options, BLOCK_OPT_COMPAT6, 1);
+    }
+
+    // Add size to options
+    set_option_parameter_int(options, BLOCK_OPT_SIZE, size_in_sectors * 512);
+
+    // Backing files
+    if ((backing_file != NULL && set_option_parameter(options,
+            BLOCK_OPT_BACKING_FILE, backing_file))
+        || (backing_format != NULL && set_option_parameter(options,
+            BLOCK_OPT_BACKING_FMT, backing_format)))
+    {
+        return -ENOTSUP;
+    }
+
+    return bdrv_create(drv, filename, options);
 }
 
-int bdrv_create(BlockDriver *drv,
-                const char *filename, int64_t size_in_sectors,
-                const char *backing_file, int flags)
+int bdrv_create(BlockDriver *drv, const char* filename,
+    QEMUOptionParameter *options)
 {
     if (!drv->bdrv_create)
         return -ENOTSUP;
-    return drv->bdrv_create(filename, size_in_sectors, backing_file, flags);
+
+    return drv->bdrv_create(filename, options);
 }
 
 #ifdef _WIN32
@@ -259,11 +282,11 @@ static BlockDriver *find_protocol(const char *filename)
 #ifdef _WIN32
     if (is_windows_drive(filename) ||
         is_windows_drive_prefix(filename))
-        return &bdrv_raw;
+        return bdrv_find_format("raw");
 #endif
     p = strchr(filename, ':');
     if (!p)
-        return &bdrv_raw;
+        return bdrv_find_format("raw");
     len = p - filename;
     if (len > sizeof(protocol) - 1)
         len = sizeof(protocol) - 1;
@@ -289,23 +312,23 @@ static BlockDriver *find_image_format(const char *filename)
     /* detect host devices. By convention, /dev/cdrom[N] is always
        recognized as a host CDROM */
     if (strstart(filename, "/dev/cdrom", NULL))
-        return &bdrv_host_device;
+        return bdrv_find_format("host_device");
 #ifdef _WIN32
     if (is_windows_drive(filename))
-        return &bdrv_host_device;
+        return bdrv_find_format("host_device");
 #else
     {
         struct stat st;
         if (stat(filename, &st) >= 0 &&
             (S_ISCHR(st.st_mode) || S_ISBLK(st.st_mode))) {
-            return &bdrv_host_device;
+            return bdrv_find_format("host_device");
         }
     }
 #endif
 
     drv = find_protocol(filename);
     /* no need to test disk image formats for vvfat */
-    if (drv == &bdrv_vvfat)
+    if (drv && strcmp(drv->format_name, "vvfat") == 0)
         return drv;
 
     ret = bdrv_file_open(&bs, filename, BDRV_O_RDONLY);
@@ -396,14 +419,14 @@ int bdrv_open2(BlockDriverState *bs, const char *filename, int flags,
         else
             realpath(filename, backing_filename);
 
-        ret = bdrv_create2(&bdrv_qcow2, tmp_filename,
+        ret = bdrv_create2(bdrv_find_format("qcow2"), tmp_filename,
                            total_size, backing_filename, 
                            (drv ? drv->format_name : NULL), 0);
         if (ret < 0) {
             return ret;
         }
         filename = tmp_filename;
-        drv = &bdrv_qcow2;
+        drv = bdrv_find_format("qcow2");
         bs->is_temporary = 1;
     }
 
@@ -578,7 +601,10 @@ static int bdrv_check_byte_request(BlockDriverState *bs, int64_t offset,
 
     len = bdrv_getlength(bs);
 
-    if ((offset + size) > len)
+    if (offset < 0)
+        return -EIO;
+
+    if ((offset > len) || (len - offset < size))
         return -EIO;
 
     return 0;
@@ -1150,6 +1176,8 @@ int bdrv_write_compressed(BlockDriverState *bs, int64_t sector_num,
         return -ENOMEDIUM;
     if (!drv->bdrv_write_compressed)
         return -ENOTSUP;
+    if (bdrv_check_request(bs, sector_num, nb_sectors))
+        return -EIO;
     return drv->bdrv_write_compressed(bs, sector_num, buf, nb_sectors);
 }
 
@@ -1489,22 +1517,7 @@ static int bdrv_write_em(BlockDriverState *bs, int64_t sector_num,
 
 void bdrv_init(void)
 {
-    bdrv_register(&bdrv_raw);
-    bdrv_register(&bdrv_host_device);
-#ifndef _WIN32
-    bdrv_register(&bdrv_cow);
-#endif
-    bdrv_register(&bdrv_qcow);
-    bdrv_register(&bdrv_vmdk);
-    bdrv_register(&bdrv_cloop);
-    bdrv_register(&bdrv_dmg);
-    bdrv_register(&bdrv_bochs);
-    bdrv_register(&bdrv_vpc);
-    bdrv_register(&bdrv_vvfat);
-    bdrv_register(&bdrv_qcow2);
-    bdrv_register(&bdrv_parallels);
-    bdrv_register(&bdrv_nbd);
-    bdrv_register(&bdrv_vmstate);
+    module_call_init(MODULE_INIT_BLOCK);
 }
 
 void aio_pool_init(AIOPool *pool, int aiocb_size,

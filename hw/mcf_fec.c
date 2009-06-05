@@ -14,10 +14,10 @@
 //#define DEBUG_FEC 1
 
 #ifdef DEBUG_FEC
-#define DPRINTF(fmt, args...) \
-do { printf("mcf_fec: " fmt , ##args); } while (0)
+#define DPRINTF(fmt, ...) \
+do { printf("mcf_fec: " fmt , ## __VA_ARGS__); } while (0)
 #else
-#define DPRINTF(fmt, args...) do {} while(0)
+#define DPRINTF(fmt, ...) do {} while(0)
 #endif
 
 #define FEC_MAX_FRAME_SIZE 2032
@@ -246,8 +246,7 @@ static uint32_t mcf_fec_read(void *opaque, target_phys_addr_t addr)
     case 0x184: return s->etdsr;
     case 0x188: return s->emrbr;
     default:
-        cpu_abort(cpu_single_env, "mcf_fec_read: Bad address 0x%x\n",
-                  (int)addr);
+        hw_error("mcf_fec_read: Bad address 0x%x\n", (int)addr);
         return 0;
     }
 }
@@ -343,8 +342,7 @@ static void mcf_fec_write(void *opaque, target_phys_addr_t addr, uint32_t value)
         s->emrbr = value & 0x7f0;
         break;
     default:
-        cpu_abort(cpu_single_env, "mcf_fec_write Bad address 0x%x\n",
-                  (int)addr);
+        hw_error("mcf_fec_write Bad address 0x%x\n", (int)addr);
     }
     mcf_fec_update(s);
 }

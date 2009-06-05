@@ -30,10 +30,10 @@
 //#define DEBUG_FW_CFG
 
 #ifdef DEBUG_FW_CFG
-#define FW_CFG_DPRINTF(fmt, args...)                     \
-    do { printf("FW_CFG: " fmt , ##args); } while (0)
+#define FW_CFG_DPRINTF(fmt, ...)                        \
+    do { printf("FW_CFG: " fmt , ## __VA_ARGS__); } while (0)
 #else
-#define FW_CFG_DPRINTF(fmt, args...)
+#define FW_CFG_DPRINTF(fmt, ...)
 #endif
 
 #define FW_CFG_SIZE 2
@@ -277,11 +277,11 @@ void *fw_cfg_init(uint32_t ctl_port, uint32_t data_port,
     }
     fw_cfg_add_bytes(s, FW_CFG_SIGNATURE, (uint8_t *)"QEMU", 4);
     fw_cfg_add_bytes(s, FW_CFG_UUID, qemu_uuid, 16);
-    fw_cfg_add_i16(s, FW_CFG_NOGRAPHIC, (uint16_t)nographic);
+    fw_cfg_add_i16(s, FW_CFG_NOGRAPHIC, (uint16_t)(display_type == DT_NOGRAPHIC));
     fw_cfg_add_i16(s, FW_CFG_NB_CPUS, (uint16_t)smp_cpus);
 
     register_savevm("fw_cfg", -1, 1, fw_cfg_save, fw_cfg_load, s);
-    qemu_register_reset(fw_cfg_reset, s);
+    qemu_register_reset(fw_cfg_reset, 0, s);
     fw_cfg_reset(s);
 
     return s;

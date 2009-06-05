@@ -3,24 +3,10 @@
 
 #include "qemu-aio.h"
 #include "qemu-common.h"
+#include "qemu-option.h"
 
 /* block.c */
 typedef struct BlockDriver BlockDriver;
-
-extern BlockDriver bdrv_raw;
-extern BlockDriver bdrv_host_device;
-extern BlockDriver bdrv_cow;
-extern BlockDriver bdrv_qcow;
-extern BlockDriver bdrv_vmdk;
-extern BlockDriver bdrv_cloop;
-extern BlockDriver bdrv_dmg;
-extern BlockDriver bdrv_bochs;
-extern BlockDriver bdrv_vpc;
-extern BlockDriver bdrv_vvfat;
-extern BlockDriver bdrv_qcow2;
-extern BlockDriver bdrv_parallels;
-extern BlockDriver bdrv_nbd;
-extern BlockDriver bdrv_vmstate;
 
 typedef struct BlockDriverInfo {
     /* in bytes, 0 if irrelevant */
@@ -60,9 +46,8 @@ void bdrv_info_stats(Monitor *mon);
 
 void bdrv_init(void);
 BlockDriver *bdrv_find_format(const char *format_name);
-int bdrv_create(BlockDriver *drv,
-                const char *filename, int64_t size_in_sectors,
-                const char *backing_file, int flags);
+int bdrv_create(BlockDriver *drv, const char* filename,
+    QEMUOptionParameter *options);
 int bdrv_create2(BlockDriver *drv,
                  const char *filename, int64_t size_in_sectors,
                  const char *backing_file, const char *backing_format,
@@ -88,6 +73,8 @@ int64_t bdrv_getlength(BlockDriverState *bs);
 void bdrv_get_geometry(BlockDriverState *bs, uint64_t *nb_sectors_ptr);
 void bdrv_guess_geometry(BlockDriverState *bs, int *pcyls, int *pheads, int *psecs);
 int bdrv_commit(BlockDriverState *bs);
+void bdrv_register(BlockDriver *bdrv);
+
 /* async block I/O */
 typedef struct BlockDriverAIOCB BlockDriverAIOCB;
 typedef void BlockDriverCompletionFunc(void *opaque, int ret);

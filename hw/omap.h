@@ -884,7 +884,7 @@ void omap3_gpio_init(struct omap_mpu_state_s *mpu,
 qemu_irq *omap2_gpio_in_get(struct omap_gpif_s *s, int start);
 void omap2_gpio_out_set(struct omap_gpif_s *s, int line, qemu_irq handler);
 
-struct uwire_slave_s {
+struct uWireSlave {
     uint16_t (*receive)(void *opaque);
     void (*send)(void *opaque, uint16_t data);
     void *opaque;
@@ -893,13 +893,13 @@ struct omap_uwire_s;
 struct omap_uwire_s *omap_uwire_init(target_phys_addr_t base,
                 qemu_irq *irq, qemu_irq dma, omap_clk clk);
 void omap_uwire_attach(struct omap_uwire_s *s,
-                struct uwire_slave_s *slave, int chipselect);
+                uWireSlave *slave, int chipselect);
 
 struct omap_rtc_s;
 struct omap_rtc_s *omap_rtc_init(target_phys_addr_t base,
                 qemu_irq *irq, omap_clk clk);
 
-struct i2s_codec_s {
+struct I2SCodec {
     void *opaque;
 
     /* The CPU can call this if it is generating the clock signal on the
@@ -926,7 +926,7 @@ struct i2s_codec_s {
 struct omap_mcbsp_s;
 struct omap_mcbsp_s *omap_mcbsp_init(target_phys_addr_t base,
                 qemu_irq *irq, qemu_irq *dma, omap_clk clk);
-void omap_mcbsp_i2s_attach(struct omap_mcbsp_s *s, struct i2s_codec_s *slave);
+void omap_mcbsp_i2s_attach(struct omap_mcbsp_s *s, I2SCodec *slave);
 
 struct omap_lpg_s;
 struct omap_lpg_s *omap_lpg_init(target_phys_addr_t base, omap_clk clk);
