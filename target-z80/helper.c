@@ -162,10 +162,10 @@ void cpu_dump_state(CPUState *env, FILE *f,
 }
 
 /***********************************************************/
-static void cpu_z80_flush_tlb(CPUZ80State *env, target_ulong addr)
+/*static void cpu_z80_flush_tlb(CPUZ80State *env, target_ulong addr)
 {
     tlb_flush_page(env, addr);
-}
+}*/
 
 /* return value:
    -1 = cannot handle fault

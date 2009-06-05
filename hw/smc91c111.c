@@ -690,11 +690,6 @@ static CPUWriteMemoryFunc *smc91c111_writefn[] = {
     smc91c111_writel
 };
 
-int smc91c111_iomemtype(void *opaque) {
-    smc91c111_state *s=(smc91c111_state *) opaque;
-    return s->mmio_index;
-}
-
 static void smc91c111_save_state(QEMUFile *f, void *opaque)
 {
     smc91c111_state *s = (smc91c111_state *)opaque;
@@ -811,6 +806,27 @@ void smc91c111_init(NICInfo *nd, uint32_t base, qemu_irq irq)
     s = sysbus_from_qdev(dev);
     sysbus_mmio_map(s, 0, base);
     sysbus_connect_irq(s, 0, irq);
+}
+
+void *smc91c111_init_lite(NICInfo *nd, qemu_irq irq)
+{
+    DeviceState *dev;
+    SysBusDevice *s;
+    
+    qemu_check_nic_model(nd, "smc91c111");
+    dev = qdev_create(NULL, "smc91c111");
+    qdev_set_netdev(dev, nd);
+    qdev_init(dev);
+    s = sysbus_from_qdev(dev);
+    //sysbus_mmio_map(s, 0, base);
+    sysbus_connect_irq(s, 0, irq);
+    return s;
+}
+
+int smc91c111_iomemtype(void *opaque)
+{
+    SysBusDevice *s = (SysBusDevice *)opaque;
+    return (FROM_SYSBUS(smc91c111_state, s))->mmio_index;
 }
 
 device_init(smc91c111_register_devices)

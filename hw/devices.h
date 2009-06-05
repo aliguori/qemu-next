@@ -5,6 +5,7 @@
 
 /* smc91c111.c */
 void smc91c111_init(NICInfo *nd, uint32_t base, qemu_irq irq);
+void *smc91c111_init_lite(NICInfo *nd, qemu_irq irq);
 int smc91c111_iomemtype(void *opaque);
 
 /* tsc210x.c */

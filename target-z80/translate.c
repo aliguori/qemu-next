@@ -70,8 +70,8 @@ typedef struct DisasContext {
 } DisasContext;
 
 static void gen_eob(DisasContext *s);
-static void gen_jmp(DisasContext *s, target_ulong pc);
-static void gen_jmp_tb(DisasContext *s, target_ulong pc, int tb_num);
+//static void gen_jmp(DisasContext *s, target_ulong pc);
+//static void gen_jmp_tb(DisasContext *s, target_ulong pc, int tb_num);
 
 enum {
     /* 8-bit registers */
@@ -545,12 +545,12 @@ static void gen_eob(DisasContext *s)
     s->is_jmp = 3;
 }
 
-static void gen_exception(DisasContext *s, int trapno, target_ulong cur_pc)
+/*static void gen_exception(DisasContext *s, int trapno, target_ulong cur_pc)
 {
     gen_jmp_im(cur_pc);
     gen_helper_raise_exception(trapno);
     s->is_jmp = 3;
-}
+}*/
 
 /* Conditions */
 
@@ -778,7 +778,7 @@ next_byte:
         s->pc++;
 
         int x, y, z, p, q;
-        int n, d;
+        int n, d = 0;
         int r1, r2;
 
         x = (b >> 6) & 0x03;
@@ -1296,8 +1296,8 @@ next_byte:
         /* cb mode: */
 
         int x, y, z, p, q;
-        int d;
-        int r1, r2;
+        int d = 0;
+        int r1, r2 = 0;
 
         if (m != MODE_NORMAL) {
             d = ldsb_code(s->pc);
@@ -1653,10 +1653,10 @@ next_byte:
 //    }
     /* lock generation */
     return s->pc;
- illegal_op:
+// illegal_op:
     /* XXX: ensure that no lock was generated */
-    gen_exception(s, EXCP06_ILLOP, pc_start - s->cs_base);
-    return s->pc;
+//    gen_exception(s, EXCP06_ILLOP, pc_start - s->cs_base);
+//    return s->pc;
 }
 
 #define CC_SZHPNC (CC_S | CC_Z | CC_H | CC_P | CC_N | CC_C)
