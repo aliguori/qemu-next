@@ -249,6 +249,7 @@ int cpu_exec(CPUState *env1)
 #elif defined(TARGET_MIPS)
 #elif defined(TARGET_SH4)
 #elif defined(TARGET_CRIS)
+#elif defined(TARGET_Z80)
     /* XXXXX */
 #else
 #error unsupported target CPU
@@ -530,6 +531,12 @@ int cpu_exec(CPUState *env1)
                         do_interrupt(1);
                         next_tb = 0;
                     }
+#elif defined(TARGET_Z80)
+                    if (interrupt_request & CPU_INTERRUPT_HARD) {
+			env->interrupt_request &= ~CPU_INTERRUPT_HARD;
+                        /* TODO: Add support for NMIs */
+                        do_interrupt(env);
+                    }
 #endif
                    /* Don't use the cached interupt_request value,
                       do_interrupt may have updated the EXITTB flag. */
@@ -572,6 +579,8 @@ int cpu_exec(CPUState *env1)
 #elif defined(TARGET_ALPHA)
                     log_cpu_state(env, 0);
 #elif defined(TARGET_CRIS)
+                    log_cpu_state(env, 0);
+#elif defined(TARGET_Z80)
                     log_cpu_state(env, 0);
 #else
 #error unsupported target CPU
@@ -686,6 +695,7 @@ int cpu_exec(CPUState *env1)
 #elif defined(TARGET_SH4)
 #elif defined(TARGET_ALPHA)
 #elif defined(TARGET_CRIS)
+#elif defined(TARGET_Z80)
     /* XXXXX */
 #else
 #error unsupported target CPU
