@@ -1577,6 +1577,13 @@ static void vga_sync_dirty_bitmap(VGAState *s)
         cpu_physical_sync_dirty_bitmap(isa_mem_base + 0xa0000, 0xa8000);
         cpu_physical_sync_dirty_bitmap(isa_mem_base + 0xa8000, 0xb0000);
     }
+
+#ifdef CONFIG_BOCHS_VBE
+    if (s->vbe_mapped) {
+        cpu_physical_sync_dirty_bitmap(VBE_DISPI_LFB_PHYSICAL_ADDRESS,
+                                       VBE_DISPI_LFB_PHYSICAL_ADDRESS + s->vram_size);
+    }
+#endif
 }
 
 /*
@@ -2233,6 +2240,12 @@ void vga_dirty_log_start(VGAState *s)
         kvm_log_start(isa_mem_base + 0xa0000, 0x8000);
         kvm_log_start(isa_mem_base + 0xa8000, 0x8000);
     }
+
+#ifdef CONFIG_BOCHS_VBE
+    if (kvm_enabled() && s->vbe_mapped) {
+        kvm_log_start(VBE_DISPI_LFB_PHYSICAL_ADDRESS, s->vram_size);
+    }
+#endif
 }
 
 static void vga_map(PCIDevice *pci_dev, int region_num,
@@ -2428,6 +2441,16 @@ static void vga_mm_init(VGAState *s, target_phys_addr_t vram_base,
     qemu_register_coalesced_mmio(vram_base + 0x000a0000, 0x20000);
 }
 
+void vga_init_vbe(VGAState *s)
+{
+#ifdef CONFIG_BOCHS_VBE
+    /* XXX: use optimized standard vga accesses */
+    cpu_register_physical_memory(VBE_DISPI_LFB_PHYSICAL_ADDRESS,
+                                 VGA_RAM_SIZE, s->vram_offset);
+    s->vbe_mapped = 1;
+#endif
+}
+
 int isa_vga_init(void)
 {
     VGAState *s;
@@ -2439,12 +2462,8 @@ int isa_vga_init(void)
 
     s->ds = graphic_console_init(s->update, s->invalidate,
                                  s->screen_dump, s->text_update, s);
+    vga_init_vbe(s);
 
-#ifdef CONFIG_BOCHS_VBE
-    /* XXX: use optimized standard vga accesses */
-    cpu_register_physical_memory(VBE_DISPI_LFB_PHYSICAL_ADDRESS,
-                                 VGA_RAM_SIZE, s->vram_offset);
-#endif
     return 0;
 }
 
@@ -2460,12 +2479,8 @@ int isa_vga_mm_init(target_phys_addr_t vram_base,
 
     s->ds = graphic_console_init(s->update, s->invalidate,
                                  s->screen_dump, s->text_update, s);
+    vga_init_vbe(s);
 
-#ifdef CONFIG_BOCHS_VBE
-    /* XXX: use optimized standard vga accesses */
-    cpu_register_physical_memory(VBE_DISPI_LFB_PHYSICAL_ADDRESS,
-                                 VGA_RAM_SIZE, s->vram_offset);
-#endif
     return 0;
 }
 
