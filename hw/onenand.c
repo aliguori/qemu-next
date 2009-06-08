@@ -284,7 +284,7 @@ static inline int onenand_prog_main(OneNANDState *s, int sec, int secn,
                 dp[i] &= sp[i];
             }
             if (s->bdrv_cur) {
-                result = bdrv_write(s->bdrv_cur, sec, src, secn) < 0;
+                result = bdrv_write(s->bdrv_cur, sec, dp, secn) < 0;
             }
         }
         if (dp && s->bdrv_cur) {
