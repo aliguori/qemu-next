@@ -19,14 +19,14 @@
 //#define DEBUG_LSI_REG
 
 #ifdef DEBUG_LSI
-#define DPRINTF(fmt, args...) \
-do { printf("lsi_scsi: " fmt , ##args); } while (0)
-#define BADF(fmt, args...) \
-do { fprintf(stderr, "lsi_scsi: error: " fmt , ##args); exit(1);} while (0)
+#define DPRINTF(fmt, ...) \
+do { printf("lsi_scsi: " fmt , ## __VA_ARGS__); } while (0)
+#define BADF(fmt, ...) \
+do { fprintf(stderr, "lsi_scsi: error: " fmt , ## __VA_ARGS__); exit(1);} while (0)
 #else
-#define DPRINTF(fmt, args...) do {} while(0)
-#define BADF(fmt, args...) \
-do { fprintf(stderr, "lsi_scsi: error: " fmt , ##args);} while (0)
+#define DPRINTF(fmt, ...) do {} while(0)
+#define BADF(fmt, ...) \
+do { fprintf(stderr, "lsi_scsi: error: " fmt , ## __VA_ARGS__);} while (0)
 #endif
 
 #define LSI_SCNTL0_TRG    0x01
@@ -841,14 +841,15 @@ static inline int32_t sxt24(int32_t n)
     return (n << 8) >> 8;
 }
 
+#define LSI_BUF_SIZE 4096
 static void lsi_memcpy(LSIState *s, uint32_t dest, uint32_t src, int count)
 {
     int n;
-    uint8_t buf[TARGET_PAGE_SIZE];
+    uint8_t buf[LSI_BUF_SIZE];
 
     DPRINTF("memcpy dest 0x%08x src 0x%08x count %d\n", dest, src, count);
     while (count) {
-        n = (count > TARGET_PAGE_SIZE) ? TARGET_PAGE_SIZE : count;
+        n = (count > LSI_BUF_SIZE) ? LSI_BUF_SIZE : count;
         cpu_physical_memory_read(src, buf, n);
         cpu_physical_memory_write(dest, buf, n);
         src += n;
@@ -1939,9 +1940,9 @@ static void lsi_mmio_mapfunc(PCIDevice *pci_dev, int region_num,
     cpu_register_physical_memory(addr + 0, 0x400, s->mmio_io_addr);
 }
 
-void lsi_scsi_attach(void *opaque, BlockDriverState *bd, int id)
+void lsi_scsi_attach(DeviceState *host, BlockDriverState *bd, int id)
 {
-    LSIState *s = (LSIState *)opaque;
+    LSIState *s = (LSIState *)host;
 
     if (id < 0) {
         for (id = 0; id < LSI_MAX_DEVS; id++) {
@@ -1976,17 +1977,10 @@ static int lsi_scsi_uninit(PCIDevice *d)
     return 0;
 }
 
-void *lsi_scsi_init(PCIBus *bus, int devfn)
+static void lsi_scsi_init(PCIDevice *dev)
 {
-    LSIState *s;
+    LSIState *s = (LSIState *)dev;
     uint8_t *pci_conf;
-
-    s = (LSIState *)pci_register_device(bus, "LSI53C895A SCSI HBA",
-                                        sizeof(*s), devfn, NULL, NULL);
-    if (s == NULL) {
-        fprintf(stderr, "lsi-scsi: Failed to register PCI device\n");
-        return NULL;
-    }
 
     pci_conf = s->pci_dev.config;
 
@@ -2022,5 +2016,12 @@ void *lsi_scsi_init(PCIBus *bus, int devfn)
 
     lsi_soft_reset(s);
 
-    return s;
+    scsi_bus_new(&dev->qdev, lsi_scsi_attach);
 }
+
+static void lsi53c895a_register_devices(void)
+{
+    pci_qdev_register("lsi53c895a", sizeof(LSIState), lsi_scsi_init);
+}
+
+device_init(lsi53c895a_register_devices);

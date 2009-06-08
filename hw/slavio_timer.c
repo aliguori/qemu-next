@@ -28,10 +28,10 @@
 //#define DEBUG_TIMER
 
 #ifdef DEBUG_TIMER
-#define DPRINTF(fmt, args...) \
-do { printf("TIMER: " fmt , ##args); } while (0)
+#define DPRINTF(fmt, ...)                                       \
+    do { printf("TIMER: " fmt , ## __VA_ARGS__); } while (0)
 #else
-#define DPRINTF(fmt, args...) do {} while (0)
+#define DPRINTF(fmt, ...) do {} while (0)
 #endif
 
 /*
@@ -391,7 +391,7 @@ static SLAVIO_TIMERState *slavio_timer_init(target_phys_addr_t addr,
                                      slavio_timer_io_memory);
     register_savevm("slavio_timer", addr, 3, slavio_timer_save,
                     slavio_timer_load, s);
-    qemu_register_reset(slavio_timer_reset, s);
+    qemu_register_reset(slavio_timer_reset, 0, s);
     slavio_timer_reset(s);
 
     return s;

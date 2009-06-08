@@ -1566,7 +1566,7 @@ static void omap3_prm_int_update(struct omap3_prm_s *s)
 
 static void omap3_prm_reset(struct omap3_prm_s *s)
 {
-    bzero(&s->iva2, sizeof(s->iva2));
+    memset(&s->iva2, 0, sizeof(s->iva2));
     s->iva2.rm_rstctrl    = 0x7;
     s->iva2.rm_rstst      = 0x1;
     s->iva2.pm_wkdep      = 0xb3;
@@ -1575,18 +1575,18 @@ static void omap3_prm_reset(struct omap3_prm_s *s)
     s->prm_irqstatus_iva2 = 0x0;
     s->prm_irqenable_iva2 = 0x0;
 
-    bzero(&s->ocp, sizeof(s->ocp));
+    memset(&s->ocp, 0, sizeof(s->ocp));
     s->ocp.prm_revision      = 0x10;
     s->ocp.prm_sysconfig     = 0x1;
     
-    bzero(&s->mpu, sizeof(s->mpu));
+    memset(&s->mpu, 0, sizeof(s->mpu));
     s->mpu.rm_rstst       = 0x1;
     s->mpu.pm_wkdep       = 0xa5;
     s->mpu.pm_pwstctrl    = 0x30107;
     s->mpu.pm_pwstst      = 0xc7;
     s->mpu.pm_evgenctrl   = 0x12;
 
-    bzero(&s->core, sizeof(s->core));
+    memset(&s->core, 0, sizeof(s->core));
     s->core.rm_rstst       = 0x1;
     s->core.pm_wken        = 0xc33ffe18;
     s->core.pm_mpugrpsel   = 0xc33ffe18;
@@ -1597,36 +1597,36 @@ static void omap3_prm_reset(struct omap3_prm_s *s)
     s->pm_iva2grpsel3_core = 0x4;
     s->pm_mpugrpsel3_core  = 0x4;
 
-    bzero(&s->sgx, sizeof(s->sgx));
+    memset(&s->sgx, 0, sizeof(s->sgx));
     s->sgx.rm_rstst     = 0x1;
     s->sgx.pm_wkdep     = 0x16;
     s->sgx.pm_pwstctrl  = 0x30107;
     s->sgx.pm_pwstst    = 0x3;
 
-    bzero(&s->wkup, sizeof(s->wkup));
+    memset(&s->wkup, 0, sizeof(s->wkup));
     s->wkup.pm_wken      = 0x3cb;
     s->wkup.pm_mpugrpsel = 0x3cb;
     s->wkup.pm_pwstst    = 0x3; /* TODO: check on real hardware */
     s->wkup.pm_prepwstst = 0x3; /* TODO: check on real hardware */
 
-    bzero(&s->ccr, sizeof(s->ccr));
-    s->ccr.prm_clksel      = 0x3; /* TRM says 0x4, but on HW this is 0x3 */
+    memset(&s->ccr, 0, sizeof(s->ccr));
+    s->ccr.prm_clksel      = 0x3; /* depends on the hw board, 0x3 for beagle */
     s->ccr.prm_clkout_ctrl = 0x80;
 
-    bzero(&s->dss, sizeof(s->dss));
+    memset(&s->dss, 0, sizeof(s->dss));
     s->dss.rm_rstst     = 0x1;
     s->dss.pm_wken      = 0x1;
     s->dss.pm_wkdep     = 0x16;
     s->dss.pm_pwstctrl  = 0x30107;
     s->dss.pm_pwstst    = 0x3;
 
-    bzero(&s->cam, sizeof(s->cam));
+    memset(&s->cam, 0, sizeof(s->cam));
     s->cam.rm_rstst     = 0x1;
     s->cam.pm_wkdep     = 0x16;
     s->cam.pm_pwstctrl  = 0x30107;
     s->cam.pm_pwstst    = 0x3;
 
-    bzero(&s->per, sizeof(s->per));
+    memset(&s->per, 0, sizeof(s->per));
     s->per.rm_rstst     = 0x1;
     s->per.pm_wken      = 0x3efff;
     s->per.pm_mpugrpsel = 0x3efff;
@@ -1635,26 +1635,26 @@ static void omap3_prm_reset(struct omap3_prm_s *s)
     s->per.pm_pwstctrl  = 0x30107;
     s->per.pm_pwstst    = 0x7;
 
-    bzero(&s->emu, sizeof(s->emu));
+    memset(&s->emu, 0, sizeof(s->emu));
     s->emu.rm_rstst  = 0x1;
     s->emu.pm_pwstst = 0x13;
 
-    bzero(&s->gr, sizeof(s->gr));
+    memset(&s->gr, 0, sizeof(s->gr));
     s->gr.prm_vc_i2c_cfg     = 0x18;
     s->gr.prm_rsttimer       = 0x1006;
-    s->gr.prm_rstst          = 0x1;
+    s->gr.prm_rstst          = 0x1; /* POR */
     s->gr.prm_sram_pcharge   = 0x50;
     s->gr.prm_clksrc_ctrl    = 0x43;
     s->gr.prm_polctrl        = 0xa;
     /* TODO: figure out reset values for prm_vp[1,2] registers */
 
-    bzero(&s->neon, sizeof(s->neon));
+    memset(&s->neon, 0, sizeof(s->neon));
     s->neon.rm_rstst     = 0x1;
     s->neon.pm_wkdep     = 0x2;
     s->neon.pm_pwstctrl  = 0x7;
     s->neon.pm_pwstst    = 0x3;
 
-    bzero(&s->usbhost, sizeof(s->usbhost));
+    memset(&s->usbhost, 0, sizeof(s->usbhost));
     s->usbhost.rm_rstst     = 0x1;
     s->usbhost.pm_wken      = 0x1;
     s->usbhost.pm_mpugrpsel = 0x1;
@@ -1722,6 +1722,7 @@ static uint32_t omap3_prm_read(void *opaque, target_phys_addr_t addr)
         case 0x0d40: return s->ccr.prm_clksel;
         case 0x0d70: return s->ccr.prm_clkout_ctrl;
         case 0x0de4: return 0x3; /* TODO: check on real hardware */
+        case 0x0de8: return 0x3; /* TODO: check on real hardware */
         case 0x1220: return s->gr.prm_vc_smps_sa;
         case 0x1224: return s->gr.prm_vc_smps_vol_ra;
         case 0x1228: return s->gr.prm_vc_smps_cmd_ra;
@@ -1804,9 +1805,32 @@ static void omap3_prm_write(void *opaque, target_phys_addr_t addr,
         case 0x0050: s->iva2.rm_rstctrl = value & 0x7; break;
         case 0x0058: s->iva2.rm_rstst &= ~(value & 0x3f0f); break;
         case 0x00c8: s->iva2.pm_wkdep = value & 0xb3; break;
-        case 0x00e0: s->iva2.pm_pwstctrl = 0xcff000 | (value & 0x300f0f); break;
+        case 0x00e0:
+            s->iva2.pm_pwstctrl = 0xcff000 | (value & 0x300f0f);
+            /* TODO: support IVA2 wakeup contol. For now let's keep the
+             * IVA2 domain always in ON state and if another state is
+             * requested pretend that we just woke up */
+            s->iva2.pm_pwstst = ((s->iva2.pm_pwstctrl >> 12) & 0xff0) | 0x07;
+            switch (value & 3) { /* POWERSTATE */
+                case 0: /* OFF */
+                    s->iva2.pm_prepwstst = 0;
+                    break;
+                case 1: /* RETENTION */
+                    s->iva2.pm_prepwstst = ((value & 0x800) >> 1) |
+                                           ((value & 0x400) >> 2) |
+                                           ((value & 0x200) >> 3) |
+                                           ((value & 0x100) >> 4) |
+                                           (value & 0x04) | 0x01;
+                    break;
+                case 3: /* ON */
+                    s->iva2.pm_prepwstst = s->iva2.pm_pwstst;
+                    break;
+                default:
+                    break;
+            }
+            break;
         case 0x00e4: OMAP_RO_REG(addr); break;
-        case 0x00e8: s->iva2.pm_prepwstst = value & 0xff7;
+        case 0x00e8: /* ignore, we set the value in PWSTCTRL write */ break;
         case 0x00f8:
             s->prm_irqstatus_iva2 &= ~(value & 0x7);
             omap3_prm_int_update(s);
@@ -1834,8 +1858,10 @@ static void omap3_prm_write(void *opaque, target_phys_addr_t addr,
         case 0x09dc: s->mpu.pm_evgenofftim = value; break;
         case 0x09e0:
             s->mpu.pm_pwstctrl = value & 0x3010f;
-            /* in fact we always stay in ON state so if another state is
+            /* TODO: support MPU wakeup contol. For now let's keep the
+             * MPU domain always in ON state and if another state is
              * requested pretend that we just woke up */
+            s->mpu.pm_pwstst = ((value >> 10) & 0xc0) | 0x07;
             switch (value & 3) { /* POWERSTATE */
                 case 0: /* OFF */
                 case 2: /* INACTIVE */
@@ -1846,12 +1872,11 @@ static void omap3_prm_write(void *opaque, target_phys_addr_t addr,
                                           (value & 0x04) | 0x01;
                     break;
                 case 3: /* ON */
-                    s->mpu.pm_prepwstst = ((value >> 10) & 0xc0) | 0x07;
+                    s->mpu.pm_prepwstst = s->mpu.pm_pwstst;
                     break;
                 default:
                     break;
             }
-            s->mpu.pm_pwstst = ((value >> 10) & 0xc0) | 0x07;
             break;
         case 0x09e4: OMAP_RO_REG(addr); break;
         case 0x09e8: /* ignore, we set the value in PWSTCTRL write */ break;
@@ -1863,18 +1888,46 @@ static void omap3_prm_write(void *opaque, target_phys_addr_t addr,
         case 0x0aa8: s->core.pm_ivagrpsel = 0x80000008 | (value & 0x433ffe10); break;
         case 0x0ab0: s->core.pm_wkst = value & 0x433ffe10; break;
         case 0x0ab8: s->core.pm_wkst3 &= ~(value & 0x4); break;
-        case 0x0ae0: s->core.pm_pwstctrl = (value & 0x0f031f); break;
+        case 0x0ae0:
+            s->core.pm_pwstctrl = value & 0x0f031f;
+            /* TODO: support CORE wakeup control. For now let's keep the
+             * CORE domain always in ON state and if another state is
+             * requested pretend that we just woke up */
+            s->core.pm_pwstst = ((value >> 12) & 0xf0) | 0x07;
+            switch (value & 3) { /* POWERSTATE */
+                case 0: /* OFF */
+                    s->core.pm_prepwstst = 0;
+                    break;
+                case 1: /* RETENTION */
+                    s->core.pm_prepwstst = ((value & 0x200) >> 3) |
+                                           ((value & 0x100) >> 4) |
+                                           (value & 0x04) | 0x1;
+                    break;
+                case 3: /* ON */
+                    s->core.pm_prepwstst = s->core.pm_pwstst;
+                    break;
+                default:
+                    break;
+            }
+            break;
         case 0x0ae4: OMAP_RO_REG(addr); break;
-        case 0x0ae8: s->core.pm_prepwstst = value & 0xf7; break;
+        case 0x0ae8: /* ignore, we set the value in PWSTCTRL write */; break;
         case 0x0af0: s->core.pm_wken3 = value & 0x4; break;
         case 0x0af4: s->pm_iva2grpsel3_core = value & 0x4; break;
         case 0x0af8: s->pm_mpugrpsel3_core = value & 0x4; break;
         /* SGX_PRM */
         case 0x0b58: s->sgx.rm_rstst &= ~(value & 0xf); break;
         case 0x0bc8: s->sgx.pm_wkdep = value & 0x16; break;
-        case 0x0be0: s->sgx.pm_pwstctrl = 0x030104 | (value & 0x3); break;
+        case 0x0be0:
+            s->sgx.pm_pwstctrl = 0x030104 | (value & 0x3);
+            /* TODO: support SGX wakeup control. For now let's keep the
+             * SGX domain always in ON state and if another state is
+             * requested pretend that we just woke up */
+            s->sgx.pm_pwstst = 0x3;
+            s->sgx.pm_prepwstst = value & 3;
+            break;
         case 0x0be4: OMAP_RO_REG(addr); break;
-        case 0x0be8: s->sgx.pm_prepwstst = value & 0x3; break;
+        case 0x0be8: /* ignore, we set the value in PWSTCTRL write */ break;
         /* WKUP_PRM */
         case 0x0ca0: s->wkup.pm_wken = 0x2 | (value & 0x0103c9); break;
         case 0x0ca4: s->wkup.pm_mpugrpsel = 0x0102 | (value & 0x02c9); break;
@@ -1896,15 +1949,29 @@ static void omap3_prm_write(void *opaque, target_phys_addr_t addr,
         case 0x0e58: s->dss.rm_rstst &= ~(value & 0xf); break;
         case 0x0ea0: s->dss.pm_wken = value & 1; break;
         case 0x0ec8: s->dss.pm_wkdep = value & 0x16; break;
-        case 0x0ee0: s->dss.pm_pwstctrl = 0x030104 | (value & 3); break;
+        case 0x0ee0:
+            s->dss.pm_pwstctrl = 0x030104 | (value & 3);
+            /* TODO: support DSS wakeup control. For now let's keep the
+             * DSS domain always in ON state and if another state is
+             * requested pretend that we just woke up */
+            s->dss.pm_pwstst = 0x3;
+            s->dss.pm_prepwstst = value & 3;
+            break;
         case 0x0ee4: OMAP_RO_REG(addr); break;
-        case 0x0ee8: s->dss.pm_prepwstst = value & 3; break;
+        case 0x0ee8: /* ignore, we set the value in PWSTCTRL write */ break;
         /* CAM_PRM */
         case 0x0f58: s->cam.rm_rstst &= (value & 0xf); break;
         case 0x0fc8: s->cam.pm_wkdep = value & 0x16; break;
-        case 0x0fe0: s->cam.pm_pwstctrl = 0x030104 | (value & 3); break;
+        case 0x0fe0:
+            s->cam.pm_pwstctrl = 0x030104 | (value & 3);
+            /* TODO: support CAM wakeup control. For now let's keep the
+             * CAM domain always in ON state and if another state is
+             * requested pretend that we just woke up */
+            s->cam.pm_pwstst = 0x3;
+            s->cam.pm_prepwstst = value & 3;
+            break;
         case 0x0fe4: OMAP_RO_REG(addr); break;
-        case 0x0fe8: s->cam.pm_prepwstst = value & 0x3; break;
+        case 0x0fe8: /* ignore, we set the value in PWSTCTRL write */ break;
         /* PER_PRM */
         case 0x1058: s->per.rm_rstst &= ~(value & 0xf); break;
         case 0x10a0: s->per.pm_wken = value & 0x03efff; break;
@@ -1912,9 +1979,28 @@ static void omap3_prm_write(void *opaque, target_phys_addr_t addr,
         case 0x10a8: s->per.pm_ivagrpsel = value & 0x03efff; break;
         case 0x10b0: s->per.pm_wkst &= ~(value & 0x03efff); break;
         case 0x10c8: s->per.pm_wkdep = value & 0x17; break;
-        case 0x10e0: s->per.pm_pwstctrl = 0x030100 | (value & 7); break;
+        case 0x10e0:
+            s->per.pm_pwstctrl = 0x030100 | (value & 7);
+            /* TODO: support PER wakeup control. For now let's keep the
+             * PER domain always in ON state and if another state is
+             * requested pretend that we just woke up */
+            s->per.pm_pwstst = 0x07;
+            switch (value & 3) { /* POWERSTATE */
+                case 0: /* OFF */
+                    s->per.pm_prepwstst = 0;
+                    break;
+                case 1: /* RETENTION */
+                    s->per.pm_prepwstst = (value & 0x04) | 0x1;
+                    break;
+                case 3: /* ON */
+                    s->per.pm_prepwstst = s->per.pm_pwstst;
+                    break;
+                default:
+                    break;
+            }
+            break;
         case 0x10e4: OMAP_RO_REG(addr); break;
-        case 0x10e8: s->per.pm_prepwstst = value & 0x7; break;
+        case 0x10e8: /* ignore, we set the value in PWSTCTRL write */ break;
         /* EMU_PRM */
         case 0x1158: s->emu.rm_rstst &= ~(value & 7); break;
         case 0x11e4: OMAP_RO_REG(addr); break;
@@ -1960,9 +2046,16 @@ static void omap3_prm_write(void *opaque, target_phys_addr_t addr,
         /* NEON_PRM */
         case 0x1358: s->neon.rm_rstst &= ~(value & 0xf); break;
         case 0x13c8: s->neon.pm_wkdep = value & 0x2; break;
-        case 0x13e0: s->neon.pm_pwstctrl = 0x4 | (value & 3); break;
+        case 0x13e0:
+            s->neon.pm_pwstctrl = 0x4 | (value & 3);
+            /* TODO: support NEON wakeup control. For now let's keep the
+             * NEON domain always in ON state and if another state is
+             * requested pretend that we just woke up */
+            s->neon.pm_pwstst = 0x3;
+            s->neon.pm_prepwstst = value & 3;
+            break;
         case 0x13e4: OMAP_RO_REG(addr); break;
-        case 0x13e8: s->neon.pm_prepwstst = value & 3; break;
+        case 0x13e8: /* ignore, we set the value in PWSTCTRL write */ break;
         /* USBHOST_PRM */
         case 0x1458: s->usbhost.rm_rstst &= ~(value & 0xf); break;
         case 0x14a0: s->usbhost.pm_wken = value & 1; break;
@@ -1970,9 +2063,16 @@ static void omap3_prm_write(void *opaque, target_phys_addr_t addr,
         case 0x14a8: s->usbhost.pm_ivagrpsel = value & 1; break;
         case 0x14b0: s->usbhost.pm_wkst &= ~(value & 1); break;
         case 0x14c8: s->usbhost.pm_wkdep = value & 0x17; break;
-        case 0x14e0: s->usbhost.pm_pwstctrl = 0x030104 | (value & 0x13); break;
+        case 0x14e0:
+            s->usbhost.pm_pwstctrl = 0x030104 | (value & 0x13);
+            /* TODO: support USBHOST wakeup control. For now let's keep the
+             * USBHOST domain always in ON state and if another state is
+             * requested pretend that we just woke up */
+            s->usbhost.pm_pwstst = 0x3;
+            s->usbhost.pm_prepwstst = value & 3;
+            break;
         case 0x14e4: OMAP_RO_REG(addr); break;
-        case 0x14e8: s->usbhost.pm_prepwstst = value & 3; break;
+        case 0x14e8: /* ignore, we set the value in PWSTCTRL write */ break;
         default:
             OMAP_BAD_REGV(addr, value);
             break;
@@ -4735,9 +4835,13 @@ struct omap_mpu_state_s *omap3530_mpu_init(unsigned long sdram_size,
                                  s->drq[OMAP3XXX_DMA_UART3_RX],
                                  chr_uart3);
     
-    s->dss = omap_dss_init(s, omap3_l4ta_init(s->l4, L4A_DSS), 
-                    s->irq[0][OMAP_INT_3XXX_DSS_IRQ], s->drq[OMAP24XX_DMA_DSS],
-                   NULL,NULL,NULL,NULL,NULL);
+    s->dss = omap3_dss_init(omap3_l4ta_init(s->l4, L4A_DSS),
+                            s->irq[0][OMAP_INT_3XXX_DSS_IRQ],
+                            s->drq[OMAP3XXX_DMA_DSS_LINETRIGGER],
+                            s->drq[OMAP3XXX_DMA_DSS0],
+                            s->drq[OMAP3XXX_DMA_DSS1],
+                            s->drq[OMAP3XXX_DMA_DSS2],
+                            s->drq[OMAP3XXX_DMA_DSS3]);
 
     s->gpif = omap3_gpif_init();
     omap3_gpio_init(s, s->gpif, omap3_l4ta_init(s->l4, L4A_GPIO1),

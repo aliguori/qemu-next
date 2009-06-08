@@ -28,7 +28,7 @@
 
 typedef void (*blizzard_fn_t)(uint8_t *, const uint8_t *, unsigned int);
 
-struct blizzard_s {
+typedef struct {
     uint8_t reg;
     uint32_t addr;
     int swallow;
@@ -72,7 +72,6 @@ struct blizzard_s {
     uint8_t iformat;
     uint8_t source;
     DisplayState *state;
-    blizzard_fn_t *line_fn_tab[2];
     void *fb;
 
     uint8_t hssi_config[3];
@@ -118,9 +117,8 @@ struct blizzard_s {
         uint16_t *ptr;
         int angle;
         int pitch;
-        blizzard_fn_t line_fn;
     } data;
-};
+} BlizzardState;
 
 /* Bytes(!) per pixel */
 static const int blizzard_iformat_bpp[0x10] = {
@@ -136,6 +134,17 @@ static const int blizzard_iformat_bpp[0x10] = {
     0, 0, 0, 0, 0, 0,
 };
 
+#define DEPTH 8
+#include "blizzard_template.h"
+#define DEPTH 15
+#include "blizzard_template.h"
+#define DEPTH 16
+#include "blizzard_template.h"
+#define DEPTH 24
+#include "blizzard_template.h"
+#define DEPTH 32
+#include "blizzard_template.h"
+
 static inline void blizzard_rgb2yuv(int r, int g, int b,
                 int *y, int *u, int *v)
 {
@@ -144,14 +153,49 @@ static inline void blizzard_rgb2yuv(int r, int g, int b,
     *v = 0x80 + ((0xe0e * r - 0x0bc7 * g - 0x247 * b) >> 13);
 }
 
-static void blizzard_window(struct blizzard_s *s)
+static void blizzard_window(BlizzardState *s)
 {
     uint8_t *src, *dst;
     int bypp[2];
     int bypl[3];
     int y;
-    blizzard_fn_t fn = s->data.line_fn;
+    blizzard_fn_t fn = 0;
 
+    /* FIXME: this is a hack - but nseries.c will use this function
+     * before correct DisplayState is initialized so we need a way to
+     * avoid drawing something when we actually have no clue about host bpp */
+	if (!s->state->listeners)
+		return;
+		
+    switch (ds_get_bits_per_pixel(s->state)) {
+        case 8:
+            fn = s->data.angle
+                ? blizzard_draw_fn_r_8[s->iformat]
+                : blizzard_draw_fn_8[s->iformat];
+            break;
+        case 15:
+            fn = s->data.angle
+                ? blizzard_draw_fn_r_15[s->iformat]
+                : blizzard_draw_fn_15[s->iformat];
+            break;
+        case 16:
+            fn = s->data.angle
+                ? blizzard_draw_fn_r_16[s->iformat]
+                : blizzard_draw_fn_16[s->iformat];
+            break;
+        case 24:
+            fn = s->data.angle
+                ? blizzard_draw_fn_r_24[s->iformat]
+                : blizzard_draw_fn_24[s->iformat];
+            break;
+        case 32:
+            fn = s->data.angle
+                ? blizzard_draw_fn_r_32[s->iformat]
+                : blizzard_draw_fn_32[s->iformat];
+            break;
+        default:
+        	break;
+    }
     if (!fn)
         return;
     if (s->mx[0] > s->data.x)
@@ -175,14 +219,13 @@ static void blizzard_window(struct blizzard_s *s)
         fn(dst, src, bypl[2]);
 }
 
-static int blizzard_transfer_setup(struct blizzard_s *s)
+static int blizzard_transfer_setup(BlizzardState *s)
 {
     if (s->source > 3 || !s->bpp ||
                     s->ix[1] < s->ix[0] || s->iy[1] < s->iy[0])
         return 0;
 
     s->data.angle = s->effect & 3;
-    s->data.line_fn = s->line_fn_tab[!!s->data.angle][s->iformat];
     s->data.x = s->ix[0];
     s->data.y = s->iy[0];
     s->data.dx = s->ix[1] - s->ix[0] + 1;
@@ -199,7 +242,7 @@ static int blizzard_transfer_setup(struct blizzard_s *s)
     return 1;
 }
 
-static void blizzard_reset(struct blizzard_s *s)
+static void blizzard_reset(BlizzardState *s)
 {
     s->reg = 0;
     s->swallow = 0;
@@ -280,14 +323,14 @@ static void blizzard_reset(struct blizzard_s *s)
 }
 
 static inline void blizzard_invalidate_display(void *opaque) {
-    struct blizzard_s *s = (struct blizzard_s *) opaque;
+    BlizzardState *s = (BlizzardState *) opaque;
 
     s->invalidate = 1;
 }
 
 static uint16_t blizzard_reg_read(void *opaque, uint8_t reg)
 {
-    struct blizzard_s *s = (struct blizzard_s *) opaque;
+    BlizzardState *s = (BlizzardState *) opaque;
 
     switch (reg) {
     case 0x00:	/* Revision Code */
@@ -490,7 +533,7 @@ static uint16_t blizzard_reg_read(void *opaque, uint8_t reg)
 
 static void blizzard_reg_write(void *opaque, uint8_t reg, uint16_t value)
 {
-    struct blizzard_s *s = (struct blizzard_s *) opaque;
+    BlizzardState *s = (BlizzardState *) opaque;
 
     switch (reg) {
     case 0x04:	/* PLL M-Divider */
@@ -831,7 +874,7 @@ static void blizzard_reg_write(void *opaque, uint8_t reg, uint16_t value)
 
 uint16_t s1d13745_read(void *opaque, int dc)
 {
-    struct blizzard_s *s = (struct blizzard_s *) opaque;
+    BlizzardState *s = (BlizzardState *) opaque;
     uint16_t value = blizzard_reg_read(s, s->reg);
 
     if (s->swallow -- > 0)
@@ -844,7 +887,7 @@ uint16_t s1d13745_read(void *opaque, int dc)
 
 void s1d13745_write(void *opaque, int dc, uint16_t value)
 {
-    struct blizzard_s *s = (struct blizzard_s *) opaque;
+    BlizzardState *s = (BlizzardState *) opaque;
 
     if (s->swallow -- > 0)
         return;
@@ -860,7 +903,7 @@ void s1d13745_write(void *opaque, int dc, uint16_t value)
 void s1d13745_write_block(void *opaque, int dc,
                 void *buf, size_t len, int pitch)
 {
-    struct blizzard_s *s = (struct blizzard_s *) opaque;
+    BlizzardState *s = (BlizzardState *) opaque;
 
     while (len > 0) {
         if (s->reg == 0x90 && dc &&
@@ -886,7 +929,7 @@ void s1d13745_write_block(void *opaque, int dc,
 
 static void blizzard_update_display(void *opaque)
 {
-    struct blizzard_s *s = (struct blizzard_s *) opaque;
+    BlizzardState *s = (BlizzardState *) opaque;
     int y, bypp, bypl, bwidth;
     uint8_t *src, *dst;
 
@@ -935,65 +978,26 @@ static void blizzard_update_display(void *opaque)
 }
 
 static void blizzard_screen_dump(void *opaque, const char *filename) {
-    struct blizzard_s *s = (struct blizzard_s *) opaque;
+    BlizzardState *s = (BlizzardState *) opaque;
 
     blizzard_update_display(opaque);
     if (s && ds_get_data(s->state))
         ppm_save(filename, s->state->surface);
 }
 
-#define DEPTH 8
-#include "blizzard_template.h"
-#define DEPTH 15
-#include "blizzard_template.h"
-#define DEPTH 16
-#include "blizzard_template.h"
-#define DEPTH 24
-#include "blizzard_template.h"
-#define DEPTH 32
-#include "blizzard_template.h"
-
 void *s1d13745_init(qemu_irq gpio_int)
 {
-    struct blizzard_s *s = (struct blizzard_s *) qemu_mallocz(sizeof(*s));
+    BlizzardState *s = (BlizzardState *) qemu_mallocz(sizeof(*s));
 
     s->fb = qemu_malloc(0x180000);
-
+    /* Fill the framebuffer with white color here because the corresponding
+     * code in nseries.c is broken since the DisplayState change in QEMU.
+     * This is supposedly ok since nseries.c is the only user of blizzard.c */
+    memset(s->fb, 0xff, 0x180000);
+    
     s->state = graphic_console_init(blizzard_update_display,
                                  blizzard_invalidate_display,
                                  blizzard_screen_dump, NULL, s);
-
-    switch (ds_get_bits_per_pixel(s->state)) {
-    case 0:
-        s->line_fn_tab[0] = s->line_fn_tab[1] =
-                qemu_mallocz(sizeof(blizzard_fn_t) * 0x10);
-        break;
-    case 8:
-        s->line_fn_tab[0] = blizzard_draw_fn_8;
-        s->line_fn_tab[1] = blizzard_draw_fn_r_8;
-        break;
-    case 15:
-        s->line_fn_tab[0] = blizzard_draw_fn_15;
-        s->line_fn_tab[1] = blizzard_draw_fn_r_15;
-        break;
-    case 16:
-        s->line_fn_tab[0] = blizzard_draw_fn_16;
-        s->line_fn_tab[1] = blizzard_draw_fn_r_16;
-        break;
-    case 24:
-        s->line_fn_tab[0] = blizzard_draw_fn_24;
-        s->line_fn_tab[1] = blizzard_draw_fn_r_24;
-        break;
-    case 32:
-        s->line_fn_tab[0] = blizzard_draw_fn_32;
-        s->line_fn_tab[1] = blizzard_draw_fn_r_32;
-        break;
-    default:
-        fprintf(stderr, "%s: Bad color depth\n", __FUNCTION__);
-        exit(1);
-    }
-
     blizzard_reset(s);
-
     return s;
 }

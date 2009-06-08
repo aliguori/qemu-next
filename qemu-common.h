@@ -23,6 +23,7 @@
 #include <unistd.h>
 #include <fcntl.h>
 #include <sys/stat.h>
+#include <assert.h>
 #include "config-host.h"
 
 #ifndef O_LARGEFILE
@@ -177,7 +178,12 @@ typedef struct PCIBus PCIBus;
 typedef struct PCIDevice PCIDevice;
 typedef struct SerialState SerialState;
 typedef struct IRQState *qemu_irq;
-struct pcmcia_card_s;
+typedef struct PCMCIACardState PCMCIACardState;
+typedef struct MouseTransformInfo MouseTransformInfo;
+typedef struct uWireSlave uWireSlave;
+typedef struct I2SCodec I2SCodec;
+typedef struct DeviceState DeviceState;
+typedef struct SSIBus SSIBus;
 
 /* CPU save/load.  */
 void cpu_save(QEMUFile *f, void *opaque);
@@ -185,6 +191,19 @@ int cpu_load(QEMUFile *f, void *opaque, int version_id);
 
 /* Force QEMU to stop what it's doing and service IO */
 void qemu_service_io(void);
+
+/* Force QEMU to process pending events */
+void qemu_notify_event(void);
+
+/* Unblock cpu */
+void qemu_cpu_kick(void *env);
+int qemu_cpu_self(void *env);
+
+#ifdef CONFIG_USER_ONLY
+#define qemu_init_vcpu(env) do { } while (0)
+#else
+void qemu_init_vcpu(void *env);
+#endif
 
 typedef struct QEMUIOVector {
     struct iovec *iov;
@@ -203,6 +222,8 @@ void qemu_iovec_from_buffer(QEMUIOVector *qiov, const void *buf, size_t count);
 
 struct Monitor;
 typedef struct Monitor Monitor;
+
+#include "module.h"
 
 #endif /* dyngen-exec.h hack */
 

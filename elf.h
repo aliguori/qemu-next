@@ -119,6 +119,8 @@ typedef int64_t  Elf64_Sxword;
  */
 #define EM_S390_OLD     0xA390
 
+#define EM_XILINX_MICROBLAZE    0xBAAB
+
 /* This is the info that is needed to parse the dynamic section of the file */
 #define DT_NULL		0
 #define DT_NEEDED	1
@@ -1079,7 +1081,7 @@ typedef struct elf64_shdr {
 #define	EI_CLASS	4
 #define	EI_DATA		5
 #define	EI_VERSION	6
-#define	EI_OSABI	7
+#define EI_OSABI	7
 #define	EI_PAD		8
 
 #define ELFOSABI_NONE           0       /* UNIX System V ABI */

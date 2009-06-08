@@ -81,6 +81,7 @@ void ppc_translate_init(void)
 {
     int i;
     char* p;
+    size_t cpu_reg_names_size;
     static int done_init = 0;
 
     if (done_init)
@@ -89,32 +90,37 @@ void ppc_translate_init(void)
     cpu_env = tcg_global_reg_new_ptr(TCG_AREG0, "env");
 
     p = cpu_reg_names;
+    cpu_reg_names_size = sizeof(cpu_reg_names);
 
     for (i = 0; i < 8; i++) {
-        sprintf(p, "crf%d", i);
+        snprintf(p, cpu_reg_names_size, "crf%d", i);
         cpu_crf[i] = tcg_global_mem_new_i32(TCG_AREG0,
                                             offsetof(CPUState, crf[i]), p);
         p += 5;
+        cpu_reg_names_size -= 5;
     }
 
     for (i = 0; i < 32; i++) {
-        sprintf(p, "r%d", i);
+        snprintf(p, cpu_reg_names_size, "r%d", i);
         cpu_gpr[i] = tcg_global_mem_new(TCG_AREG0,
                                         offsetof(CPUState, gpr[i]), p);
         p += (i < 10) ? 3 : 4;
+        cpu_reg_names_size -= (i < 10) ? 3 : 4;
 #if !defined(TARGET_PPC64)
-        sprintf(p, "r%dH", i);
+        snprintf(p, cpu_reg_names_size, "r%dH", i);
         cpu_gprh[i] = tcg_global_mem_new_i32(TCG_AREG0,
                                              offsetof(CPUState, gprh[i]), p);
         p += (i < 10) ? 4 : 5;
+        cpu_reg_names_size -= (i < 10) ? 4 : 5;
 #endif
 
-        sprintf(p, "fp%d", i);
+        snprintf(p, cpu_reg_names_size, "fp%d", i);
         cpu_fpr[i] = tcg_global_mem_new_i64(TCG_AREG0,
                                             offsetof(CPUState, fpr[i]), p);
         p += (i < 10) ? 4 : 5;
+        cpu_reg_names_size -= (i < 10) ? 4 : 5;
 
-        sprintf(p, "avr%dH", i);
+        snprintf(p, cpu_reg_names_size, "avr%dH", i);
 #ifdef WORDS_BIGENDIAN
         cpu_avrh[i] = tcg_global_mem_new_i64(TCG_AREG0,
                                              offsetof(CPUState, avr[i].u64[0]), p);
@@ -123,8 +129,9 @@ void ppc_translate_init(void)
                                              offsetof(CPUState, avr[i].u64[1]), p);
 #endif
         p += (i < 10) ? 6 : 7;
+        cpu_reg_names_size -= (i < 10) ? 6 : 7;
 
-        sprintf(p, "avr%dL", i);
+        snprintf(p, cpu_reg_names_size, "avr%dL", i);
 #ifdef WORDS_BIGENDIAN
         cpu_avrl[i] = tcg_global_mem_new_i64(TCG_AREG0,
                                              offsetof(CPUState, avr[i].u64[1]), p);
@@ -133,6 +140,7 @@ void ppc_translate_init(void)
                                              offsetof(CPUState, avr[i].u64[0]), p);
 #endif
         p += (i < 10) ? 6 : 7;
+        cpu_reg_names_size -= (i < 10) ? 6 : 7;
     }
 
     cpu_nip = tcg_global_mem_new(TCG_AREG0,
@@ -447,144 +455,6 @@ static always_inline target_ulong MASK (uint32_t start, uint32_t end)
 
     return ret;
 }
-
-/*****************************************************************************/
-/* PowerPC Instructions types definitions                                    */
-enum {
-    PPC_NONE           = 0x0000000000000000ULL,
-    /* PowerPC base instructions set                                         */
-    PPC_INSNS_BASE     = 0x0000000000000001ULL,
-    /*   integer operations instructions                                     */
-#define PPC_INTEGER PPC_INSNS_BASE
-    /*   flow control instructions                                           */
-#define PPC_FLOW    PPC_INSNS_BASE
-    /*   virtual memory instructions                                         */
-#define PPC_MEM     PPC_INSNS_BASE
-    /*   ld/st with reservation instructions                                 */
-#define PPC_RES     PPC_INSNS_BASE
-    /*   spr/msr access instructions                                         */
-#define PPC_MISC    PPC_INSNS_BASE
-    /* Deprecated instruction sets                                           */
-    /*   Original POWER instruction set                                      */
-    PPC_POWER          = 0x0000000000000002ULL,
-    /*   POWER2 instruction set extension                                    */
-    PPC_POWER2         = 0x0000000000000004ULL,
-    /*   Power RTC support                                                   */
-    PPC_POWER_RTC      = 0x0000000000000008ULL,
-    /*   Power-to-PowerPC bridge (601)                                       */
-    PPC_POWER_BR       = 0x0000000000000010ULL,
-    /* 64 bits PowerPC instruction set                                       */
-    PPC_64B            = 0x0000000000000020ULL,
-    /*   New 64 bits extensions (PowerPC 2.0x)                               */
-    PPC_64BX           = 0x0000000000000040ULL,
-    /*   64 bits hypervisor extensions                                       */
-    PPC_64H            = 0x0000000000000080ULL,
-    /*   New wait instruction (PowerPC 2.0x)                                 */
-    PPC_WAIT           = 0x0000000000000100ULL,
-    /*   Time base mftb instruction                                          */
-    PPC_MFTB           = 0x0000000000000200ULL,
-
-    /* Fixed-point unit extensions                                           */
-    /*   PowerPC 602 specific                                                */
-    PPC_602_SPEC       = 0x0000000000000400ULL,
-    /*   isel instruction                                                    */
-    PPC_ISEL           = 0x0000000000000800ULL,
-    /*   popcntb instruction                                                 */
-    PPC_POPCNTB        = 0x0000000000001000ULL,
-    /*   string load / store                                                 */
-    PPC_STRING         = 0x0000000000002000ULL,
-
-    /* Floating-point unit extensions                                        */
-    /*   Optional floating point instructions                                */
-    PPC_FLOAT          = 0x0000000000010000ULL,
-    /* New floating-point extensions (PowerPC 2.0x)                          */
-    PPC_FLOAT_EXT      = 0x0000000000020000ULL,
-    PPC_FLOAT_FSQRT    = 0x0000000000040000ULL,
-    PPC_FLOAT_FRES     = 0x0000000000080000ULL,
-    PPC_FLOAT_FRSQRTE  = 0x0000000000100000ULL,
-    PPC_FLOAT_FRSQRTES = 0x0000000000200000ULL,
-    PPC_FLOAT_FSEL     = 0x0000000000400000ULL,
-    PPC_FLOAT_STFIWX   = 0x0000000000800000ULL,
-
-    /* Vector/SIMD extensions                                                */
-    /*   Altivec support                                                     */
-    PPC_ALTIVEC        = 0x0000000001000000ULL,
-    /*   PowerPC 2.03 SPE extension                                          */
-    PPC_SPE            = 0x0000000002000000ULL,
-    /*   PowerPC 2.03 SPE single-precision floating-point extension          */
-    PPC_SPE_SINGLE     = 0x0000000004000000ULL,
-    /*   PowerPC 2.03 SPE double-precision floating-point extension          */
-    PPC_SPE_DOUBLE     = 0x0000000008000000ULL,
-
-    /* Optional memory control instructions                                  */
-    PPC_MEM_TLBIA      = 0x0000000010000000ULL,
-    PPC_MEM_TLBIE      = 0x0000000020000000ULL,
-    PPC_MEM_TLBSYNC    = 0x0000000040000000ULL,
-    /*   sync instruction                                                    */
-    PPC_MEM_SYNC       = 0x0000000080000000ULL,
-    /*   eieio instruction                                                   */
-    PPC_MEM_EIEIO      = 0x0000000100000000ULL,
-
-    /* Cache control instructions                                            */
-    PPC_CACHE          = 0x0000000200000000ULL,
-    /*   icbi instruction                                                    */
-    PPC_CACHE_ICBI     = 0x0000000400000000ULL,
-    /*   dcbz instruction with fixed cache line size                         */
-    PPC_CACHE_DCBZ     = 0x0000000800000000ULL,
-    /*   dcbz instruction with tunable cache line size                       */
-    PPC_CACHE_DCBZT    = 0x0000001000000000ULL,
-    /*   dcba instruction                                                    */
-    PPC_CACHE_DCBA     = 0x0000002000000000ULL,
-    /*   Freescale cache locking instructions                                */
-    PPC_CACHE_LOCK     = 0x0000004000000000ULL,
-
-    /* MMU related extensions                                                */
-    /*   external control instructions                                       */
-    PPC_EXTERN         = 0x0000010000000000ULL,
-    /*   segment register access instructions                                */
-    PPC_SEGMENT        = 0x0000020000000000ULL,
-    /*   PowerPC 6xx TLB management instructions                             */
-    PPC_6xx_TLB        = 0x0000040000000000ULL,
-    /* PowerPC 74xx TLB management instructions                              */
-    PPC_74xx_TLB       = 0x0000080000000000ULL,
-    /*   PowerPC 40x TLB management instructions                             */
-    PPC_40x_TLB        = 0x0000100000000000ULL,
-    /*   segment register access instructions for PowerPC 64 "bridge"        */
-    PPC_SEGMENT_64B    = 0x0000200000000000ULL,
-    /*   SLB management                                                      */
-    PPC_SLBI           = 0x0000400000000000ULL,
-
-    /* Embedded PowerPC dedicated instructions                               */
-    PPC_WRTEE          = 0x0001000000000000ULL,
-    /* PowerPC 40x exception model                                           */
-    PPC_40x_EXCP       = 0x0002000000000000ULL,
-    /* PowerPC 405 Mac instructions                                          */
-    PPC_405_MAC        = 0x0004000000000000ULL,
-    /* PowerPC 440 specific instructions                                     */
-    PPC_440_SPEC       = 0x0008000000000000ULL,
-    /* BookE (embedded) PowerPC specification                                */
-    PPC_BOOKE          = 0x0010000000000000ULL,
-    /* mfapidi instruction                                                   */
-    PPC_MFAPIDI        = 0x0020000000000000ULL,
-    /* tlbiva instruction                                                    */
-    PPC_TLBIVA         = 0x0040000000000000ULL,
-    /* tlbivax instruction                                                   */
-    PPC_TLBIVAX        = 0x0080000000000000ULL,
-    /* PowerPC 4xx dedicated instructions                                    */
-    PPC_4xx_COMMON     = 0x0100000000000000ULL,
-    /* PowerPC 40x ibct instructions                                         */
-    PPC_40x_ICBT       = 0x0200000000000000ULL,
-    /* rfmci is not implemented in all BookE PowerPC                         */
-    PPC_RFMCI          = 0x0400000000000000ULL,
-    /* rfdi instruction                                                      */
-    PPC_RFDI           = 0x0800000000000000ULL,
-    /* DCR accesses                                                          */
-    PPC_DCR            = 0x1000000000000000ULL,
-    /* DCR extended accesse                                                  */
-    PPC_DCRX           = 0x2000000000000000ULL,
-    /* user-mode DCR access, implemented in PowerPC 460                      */
-    PPC_DCRUX          = 0x4000000000000000ULL,
-};
 
 /*****************************************************************************/
 /* PowerPC instructions table                                                */

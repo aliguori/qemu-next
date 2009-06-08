@@ -884,7 +884,7 @@ void omap3_gpio_init(struct omap_mpu_state_s *mpu,
 qemu_irq *omap2_gpio_in_get(struct omap_gpif_s *s, int start);
 void omap2_gpio_out_set(struct omap_gpif_s *s, int line, qemu_irq handler);
 
-struct uwire_slave_s {
+struct uWireSlave {
     uint16_t (*receive)(void *opaque);
     void (*send)(void *opaque, uint16_t data);
     void *opaque;
@@ -893,13 +893,13 @@ struct omap_uwire_s;
 struct omap_uwire_s *omap_uwire_init(target_phys_addr_t base,
                 qemu_irq *irq, qemu_irq dma, omap_clk clk);
 void omap_uwire_attach(struct omap_uwire_s *s,
-                struct uwire_slave_s *slave, int chipselect);
+                uWireSlave *slave, int chipselect);
 
 struct omap_rtc_s;
 struct omap_rtc_s *omap_rtc_init(target_phys_addr_t base,
                 qemu_irq *irq, omap_clk clk);
 
-struct i2s_codec_s {
+struct I2SCodec {
     void *opaque;
 
     /* The CPU can call this if it is generating the clock signal on the
@@ -926,7 +926,7 @@ struct i2s_codec_s {
 struct omap_mcbsp_s;
 struct omap_mcbsp_s *omap_mcbsp_init(target_phys_addr_t base,
                 qemu_irq *irq, qemu_irq *dma, omap_clk clk);
-void omap_mcbsp_i2s_attach(struct omap_mcbsp_s *s, struct i2s_codec_s *slave);
+void omap_mcbsp_i2s_attach(struct omap_mcbsp_s *s, I2SCodec *slave);
 
 struct omap_lpg_s;
 struct omap_lpg_s *omap_lpg_init(target_phys_addr_t base, omap_clk clk);
@@ -938,32 +938,58 @@ struct omap_eac_s;
 struct omap_eac_s *omap_eac_init(struct omap_target_agent_s *ta,
                 qemu_irq irq, qemu_irq *drq, omap_clk fclk, omap_clk iclk);
 
-/* omap_lcdc.c */
-struct omap_lcd_panel_s;
-void omap_lcdc_reset(struct omap_lcd_panel_s *s);
-struct omap_lcd_panel_s *omap_lcdc_init(target_phys_addr_t base, qemu_irq irq,
-                struct omap_dma_lcd_channel_s *dma,
-                ram_addr_t imif_base, ram_addr_t emiff_base, omap_clk clk);
-
 /* omap_dss.c */
+struct omap_dss_s;
+struct omap_dss_dispc_s;
 struct rfbi_chip_s {
     void *opaque;
     void (*write)(void *opaque, int dc, uint16_t value);
     void (*block)(void *opaque, int dc, void *buf, size_t len, int pitch);
     uint16_t (*read)(void *opaque, int dc);
 };
-typedef void (*omap3_lcd_panel_fn_t)(uint8_t *, const uint8_t *, unsigned int);
-struct omap3_lcd_panel_s;
-struct omap_dss_s;
+struct dsi_chip_s {
+    void *opaque;
+    void (*write)(void *opaque, uint32_t data, int len);
+    uint32_t (*read)(void *opaque, uint32_t data, int len);
+    /*void (*block)(void *opaque, void *buf, size_t len);*/
+    void (*block_fake)(void *opaque, const struct omap_dss_dispc_s *dispc);
+};
+struct omap_dss_panel_s {
+    void *opaque;
+    void (*controlupdate)(void *opaque,
+                          const struct omap_dss_dispc_s *dispc);
+};
+extern const int omap_lcd_Bpp[0x10];
 void omap_dss_reset(struct omap_dss_s *s);
-struct omap_dss_s *omap_dss_init(struct omap_mpu_state_s *mpu,
-                                 struct omap_target_agent_s *ta,
+struct omap_dss_s *omap_dss_init(struct omap_target_agent_s *ta,
                                  qemu_irq irq, qemu_irq drq,
                                  omap_clk fck1, omap_clk fck2, omap_clk ck54m,
                                  omap_clk ick1, omap_clk ick2);
-void omap_rfbi_attach(struct omap_dss_s *s, int cs, struct rfbi_chip_s *chip);
-void omap3_lcd_panel_attach(struct omap_dss_s *s, int cs, struct omap3_lcd_panel_s *lcd_panel);
-void *omap3_lcd_panel_init(void);
+struct omap_dss_s *omap3_dss_init(struct omap_target_agent_s *ta,
+                                  qemu_irq irq, qemu_irq line_trigger,
+                                  qemu_irq dma0, qemu_irq dma1,
+                                  qemu_irq dma2, qemu_irq dma3);
+void omap_rfbi_attach(struct omap_dss_s *s, int cs, const struct rfbi_chip_s *chip);
+void omap_dsi_attach(struct omap_dss_s *s, int vc, const struct dsi_chip_s *chip);
+void omap_lcd_panel_attach(struct omap_dss_s *s, const struct omap_dss_panel_s *p);
+
+/* omap_lcdc.c */
+struct omap_lcd_panel_s;
+void omap_lcdc_reset(struct omap_lcd_panel_s *s);
+struct omap_lcd_panel_s *omap_lcdc_init(target_phys_addr_t base, qemu_irq irq,
+                                        struct omap_dma_lcd_channel_s *dma,
+                                        ram_addr_t imif_base, ram_addr_t emiff_base, omap_clk clk);
+
+/* omap3_lcd.c */
+struct omap3_lcd_panel_s;
+struct omap3_lcd_panel_s *omap3_lcd_panel_init(struct omap_dss_s *dss);
+const struct omap_dss_panel_s *omap3_lcd_panel_get(struct omap3_lcd_panel_s *lcd);
+void omap3_lcd_panel_layer_update(DisplayState *ds,
+                                  uint32_t lcd_width, uint32_t lcd_height,
+                                  uint32_t posx, uint32_t posy,
+                                  uint32_t width, uint32_t height,
+                                  uint32_t attrib,
+                                  target_phys_addr_t addr);
 
 /* omap_mmc.c */
 struct omap_mmc_s;
@@ -1020,7 +1046,7 @@ struct omap3_hsusb_s *omap3_hsusb_init(struct omap_target_agent_s *otg_ta,
                                        qemu_irq tll_irq);
 
 /* usb-ohci.c */
-int usb_ohci_init_omap(target_phys_addr_t base, uint32_t region_size,
+void usb_ohci_init_omap(target_phys_addr_t base, uint32_t region_size,
                        int num_ports, qemu_irq irq);
 
 

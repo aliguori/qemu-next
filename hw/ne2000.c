@@ -140,6 +140,7 @@ typedef struct NE2000State {
     uint8_t curpag;
     uint8_t mult[8]; /* multicast mask array */
     qemu_irq irq;
+    int isa_io_base;
     PCIDevice *pci_dev;
     VLANClientState *vc;
     uint8_t macaddr[6];
@@ -718,6 +719,19 @@ static int ne2000_load(QEMUFile* f,void* opaque,int version_id)
 	return 0;
 }
 
+static void isa_ne2000_cleanup(VLANClientState *vc)
+{
+    NE2000State *s = vc->opaque;
+
+    unregister_savevm("ne2000", s);
+
+    isa_unassign_ioport(s->isa_io_base, 16);
+    isa_unassign_ioport(s->isa_io_base + 0x10, 2);
+    isa_unassign_ioport(s->isa_io_base + 0x1f, 1);
+
+    qemu_free(s);
+}
+
 void isa_ne2000_init(int base, qemu_irq irq, NICInfo *nd)
 {
     NE2000State *s;
@@ -736,13 +750,15 @@ void isa_ne2000_init(int base, qemu_irq irq, NICInfo *nd)
 
     register_ioport_write(base + 0x1f, 1, 1, ne2000_reset_ioport_write, s);
     register_ioport_read(base + 0x1f, 1, 1, ne2000_reset_ioport_read, s);
+    s->isa_io_base = base;
     s->irq = irq;
     memcpy(s->macaddr, nd->macaddr, 6);
 
     ne2000_reset(s);
 
     s->vc = qemu_new_vlan_client(nd->vlan, nd->model, nd->name,
-                                 ne2000_receive, ne2000_can_receive, s);
+                                 ne2000_receive, ne2000_can_receive,
+                                 isa_ne2000_cleanup, s);
 
     qemu_format_nic_info_str(s->vc, s->macaddr);
 
@@ -777,21 +793,24 @@ static void ne2000_map(PCIDevice *pci_dev, int region_num,
     register_ioport_read(addr + 0x1f, 1, 1, ne2000_reset_ioport_read, s);
 }
 
-PCIDevice *pci_ne2000_init(PCIBus *bus, NICInfo *nd, int devfn)
+static void ne2000_cleanup(VLANClientState *vc)
 {
-    PCINE2000State *d;
+    NE2000State *s = vc->opaque;
+
+    unregister_savevm("ne2000", s);
+}
+
+static void pci_ne2000_init(PCIDevice *pci_dev)
+{
+    PCINE2000State *d = (PCINE2000State *)pci_dev;
     NE2000State *s;
     uint8_t *pci_conf;
 
-    d = (PCINE2000State *)pci_register_device(bus,
-                                              "NE2000", sizeof(PCINE2000State),
-                                              devfn,
-                                              NULL, NULL);
     pci_conf = d->dev.config;
     pci_config_set_vendor_id(pci_conf, PCI_VENDOR_ID_REALTEK);
     pci_config_set_device_id(pci_conf, PCI_DEVICE_ID_REALTEK_8029);
     pci_config_set_class(pci_conf, PCI_CLASS_NETWORK_ETHERNET);
-    pci_conf[0x0e] = 0x00; // header_type
+    pci_conf[PCI_HEADER_TYPE] = PCI_HEADER_TYPE_NORMAL; // header_type
     pci_conf[0x3d] = 1; // interrupt pin 0
 
     pci_register_io_region(&d->dev, 0, 0x100,
@@ -799,14 +818,20 @@ PCIDevice *pci_ne2000_init(PCIBus *bus, NICInfo *nd, int devfn)
     s = &d->ne2000;
     s->irq = d->dev.irq[0];
     s->pci_dev = (PCIDevice *)d;
-    memcpy(s->macaddr, nd->macaddr, 6);
+    qdev_get_macaddr(&d->dev.qdev, s->macaddr);
     ne2000_reset(s);
-    s->vc = qemu_new_vlan_client(nd->vlan, nd->model, nd->name,
-                                 ne2000_receive, ne2000_can_receive, s);
+    s->vc = qdev_get_vlan_client(&d->dev.qdev,
+                                 ne2000_receive, ne2000_can_receive,
+                                 ne2000_cleanup, s);
 
     qemu_format_nic_info_str(s->vc, s->macaddr);
 
     register_savevm("ne2000", -1, 3, ne2000_save, ne2000_load, s);
-
-    return (PCIDevice *)d;
 }
+
+static void ne2000_register_devices(void)
+{
+    pci_qdev_register("ne2k_pci", sizeof(PCINE2000State), pci_ne2000_init);
+}
+
+device_init(ne2000_register_devices)

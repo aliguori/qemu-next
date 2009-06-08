@@ -38,14 +38,13 @@
 
 #define DEBUG_LOGFILE "/tmp/qemu.log"
 
-const char *exec_path;
+char *exec_path;
 
+int singlestep;
 #if defined(CONFIG_USE_GUEST_BASE)
 unsigned long mmap_min_addr = 0;
 unsigned long guest_base = 0;
 #endif
-
-int singlestep;
 
 static const char *interp_prefix = CONFIG_QEMU_PREFIX;
 const char *qemu_uname_release = CONFIG_UNAME_RELEASE;
@@ -1086,12 +1085,12 @@ int ppc_dcr_write (ppc_dcr_t *dcr_env, int dcrn, target_ulong val)
     return -1;
 }
 
-#define EXCP_DUMP(env, fmt, args...)                                         \
-do {                                                                          \
-    fprintf(stderr, fmt , ##args);                                            \
-    cpu_dump_state(env, stderr, fprintf, 0);                                  \
-    qemu_log(fmt, ##args);                                                   \
-    log_cpu_state(env, 0);                                                      \
+#define EXCP_DUMP(env, fmt, ...)                                        \
+do {                                                                    \
+    fprintf(stderr, fmt , ## __VA_ARGS__);                              \
+    cpu_dump_state(env, stderr, fprintf, 0);                            \
+    qemu_log(fmt, ## __VA_ARGS__);                                      \
+    log_cpu_state(env, 0);                                              \
 } while (0)
 
 void cpu_loop(CPUPPCState *env)
@@ -1467,6 +1466,11 @@ void cpu_loop(CPUPPCState *env)
             ret = do_syscall(env, env->gpr[0], env->gpr[3], env->gpr[4],
                              env->gpr[5], env->gpr[6], env->gpr[7],
                              env->gpr[8]);
+            if (ret == (uint32_t)(-TARGET_QEMU_ESIGRETURN)) {
+                /* Returning from a successful sigreturn syscall.
+                   Avoid corrupting register state.  */
+                break;
+            }
             if (ret > (uint32_t)(-515)) {
                 env->crf[0] |= 0x1;
                 ret = -ret;
@@ -1864,6 +1868,11 @@ void cpu_loop(CPUMIPSState *env)
                                  env->active_tc.gpr[7],
                                  arg5, arg6/*, arg7, arg8*/);
             }
+            if (ret == -TARGET_QEMU_ESIGRETURN) {
+                /* Returning from a successful sigreturn syscall.
+                   Avoid clobbering register state.  */
+                break;
+            }
             if ((unsigned int)ret >= (unsigned int)(-1133)) {
                 env->active_tc.gpr[7] = 1; /* error flag */
                 ret = -ret;
@@ -1874,6 +1883,13 @@ void cpu_loop(CPUMIPSState *env)
             break;
         case EXCP_TLBL:
         case EXCP_TLBS:
+            info.si_signo = TARGET_SIGSEGV;
+            info.si_errno = 0;
+            /* XXX: check env->error_code */
+            info.si_code = TARGET_SEGV_MAPERR;
+            info._sifields._sigfault._addr = env->CP0_BadVAddr;
+            queue_signal(env, info.si_signo, &info);
+            break;
         case EXCP_CpU:
         case EXCP_RI:
             info.si_signo = TARGET_SIGILL;
@@ -2000,6 +2016,66 @@ void cpu_loop (CPUState *env)
                              env->pregs[7], 
                              env->pregs[11]);
             env->regs[10] = ret;
+            break;
+        case EXCP_DEBUG:
+            {
+                int sig;
+
+                sig = gdb_handlesig (env, TARGET_SIGTRAP);
+                if (sig)
+                  {
+                    info.si_signo = sig;
+                    info.si_errno = 0;
+                    info.si_code = TARGET_TRAP_BRKPT;
+                    queue_signal(env, info.si_signo, &info);
+                  }
+            }
+            break;
+        default:
+            printf ("Unhandled trap: 0x%x\n", trapnr);
+            cpu_dump_state(env, stderr, fprintf, 0);
+            exit (1);
+        }
+        process_pending_signals (env);
+    }
+}
+#endif
+
+#ifdef TARGET_MICROBLAZE
+void cpu_loop (CPUState *env)
+{
+    int trapnr, ret;
+    target_siginfo_t info;
+    
+    while (1) {
+        trapnr = cpu_mb_exec (env);
+        switch (trapnr) {
+        case 0xaa:
+            {
+                info.si_signo = SIGSEGV;
+                info.si_errno = 0;
+                /* XXX: check env->error_code */
+                info.si_code = TARGET_SEGV_MAPERR;
+                info._sifields._sigfault._addr = 0;
+                queue_signal(env, info.si_signo, &info);
+            }
+            break;
+	case EXCP_INTERRUPT:
+	  /* just indicate that signals should be handled asap */
+	  break;
+        case EXCP_BREAK:
+            /* Return address is 4 bytes after the call.  */
+            env->regs[14] += 4;
+            ret = do_syscall(env, 
+                             env->regs[12], 
+                             env->regs[5], 
+                             env->regs[6], 
+                             env->regs[7], 
+                             env->regs[8], 
+                             env->regs[9], 
+                             env->regs[10]);
+            env->regs[3] = ret;
+            env->sregs[SR_PC] = env->regs[14];
             break;
         case EXCP_DEBUG:
             {
@@ -2208,7 +2284,7 @@ void cpu_loop (CPUState *env)
 
 static void usage(void)
 {
-    printf("qemu-" TARGET_ARCH " version " QEMU_VERSION ", Copyright (c) 2003-2008 Fabrice Bellard\n"
+    printf("qemu-" TARGET_ARCH " version " QEMU_VERSION QEMU_PKGVERSION ", Copyright (c) 2003-2008 Fabrice Bellard\n"
            "usage: qemu-" TARGET_ARCH " [options] program [arguments...]\n"
            "Linux CPU emulator (compiled for %s emulation)\n"
            "\n"
@@ -2235,7 +2311,6 @@ static void usage(void)
            "Environment variables:\n"
            "QEMU_STRACE       Print system calls and arguments similar to the\n"
            "                  'strace' program.  Enable by setting to any value.\n"
-           "\n"
            "You can use -E and -U options to set/unset environment variables\n"
            "for target process.  It is possible to provide several variables\n"
            "by repeating the option.  For example:\n"
@@ -2277,9 +2352,7 @@ void stop_all_tasks(void)
 {
     /*
      * We trust that when using NPTL, start_exclusive()
-     * handles thread stopping correctly.  Note that there
-     * is no way out of this state as we don't provide
-     * any suspend routine.
+     * handles thread stopping correctly.
      */
     start_exclusive();
 }
@@ -2299,7 +2372,7 @@ void init_task_state(TaskState *ts)
  
 int main(int argc, char **argv, char **envp)
 {
-    const char *filename = NULL;
+    char *filename = NULL;
     const char *cpu_model;
     struct target_pt_regs regs1, *regs = &regs1;
     struct image_info info1, *info = &info1;
@@ -2561,9 +2634,9 @@ int main(int argc, char **argv, char **envp)
     memset(ts, 0, sizeof(TaskState));
     init_task_state(ts);
     /* build Task State */
-    env->opaque = ts;
-    ts->bprm = &bprm;
     ts->info = info;
+    ts->bprm = &bprm;
+    env->opaque = ts;
     task_settid(ts);
 
     if (loader_exec(filename, target_argv+argskip, target_environ, regs,
@@ -2591,7 +2664,7 @@ int main(int argc, char **argv, char **envp)
                 "==========================================================\n"
                 "Note that all target addresses below are given in target\n"
                 "address space which is different from host by guest_base.\n"
-                "For example: target address 0x%x becomes 0x%x and so on.\n"
+                "For example: target address 0x%lx becomes 0x%lx and so on.\n"
                 "==========================================================\n",
                 (uintptr_t)0x8000, (uintptr_t)g2h(0x8000));
         }
@@ -2787,6 +2860,42 @@ int main(int argc, char **argv, char **envp)
         env->aregs[7] = regs->usp;
         env->sr = regs->sr;
         ts->sim_syscalls = 1;
+    }
+#elif defined(TARGET_MICROBLAZE)
+    {
+        env->regs[0] = regs->r0;
+        env->regs[1] = regs->r1;
+        env->regs[2] = regs->r2;
+        env->regs[3] = regs->r3;
+        env->regs[4] = regs->r4;
+        env->regs[5] = regs->r5;
+        env->regs[6] = regs->r6;
+        env->regs[7] = regs->r7;
+        env->regs[8] = regs->r8;
+        env->regs[9] = regs->r9;
+        env->regs[10] = regs->r10;
+        env->regs[11] = regs->r11;
+        env->regs[12] = regs->r12;
+        env->regs[13] = regs->r13;
+        env->regs[14] = regs->r14;
+        env->regs[15] = regs->r15;	    
+        env->regs[16] = regs->r16;	    
+        env->regs[17] = regs->r17;	    
+        env->regs[18] = regs->r18;	    
+        env->regs[19] = regs->r19;	    
+        env->regs[20] = regs->r20;	    
+        env->regs[21] = regs->r21;	    
+        env->regs[22] = regs->r22;	    
+        env->regs[23] = regs->r23;	    
+        env->regs[24] = regs->r24;	    
+        env->regs[25] = regs->r25;	    
+        env->regs[26] = regs->r26;	    
+        env->regs[27] = regs->r27;	    
+        env->regs[28] = regs->r28;	    
+        env->regs[29] = regs->r29;	    
+        env->regs[30] = regs->r30;	    
+        env->regs[31] = regs->r31;	    
+        env->sregs[SR_PC] = regs->pc;
     }
 #elif defined(TARGET_MIPS)
     {

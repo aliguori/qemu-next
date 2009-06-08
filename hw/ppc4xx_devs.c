@@ -60,7 +60,7 @@ CPUState *ppc4xx_init (const char *cpu_model,
     tb_clk->opaque = env;
     ppc_dcr_init(env, NULL, NULL);
     /* Register qemu callbacks */
-    qemu_register_reset(&cpu_ppc_reset, env);
+    qemu_register_reset(&cpu_ppc_reset, 0, env);
 
     return env;
 }
@@ -498,7 +498,7 @@ qemu_irq *ppcuic_init (CPUState *env, qemu_irq *irqs,
         ppc_dcr_register(env, dcr_base + i, uic,
                          &dcr_read_uic, &dcr_write_uic);
     }
-    qemu_register_reset(ppcuic_reset, uic);
+    qemu_register_reset(ppcuic_reset, 0, uic);
     ppcuic_reset(uic);
 
     return qemu_allocate_irqs(&ppcuic_set_irq, uic, UIC_MAX_IRQ);
@@ -834,7 +834,7 @@ void ppc4xx_sdram_init (CPUState *env, qemu_irq irq, int nbanks,
     memcpy(sdram->ram_sizes, ram_sizes,
            nbanks * sizeof(target_phys_addr_t));
     sdram_reset(sdram);
-    qemu_register_reset(&sdram_reset, sdram);
+    qemu_register_reset(&sdram_reset, 0, sdram);
     ppc_dcr_register(env, SDRAM0_CFGADDR,
                      sdram, &dcr_read_sdram, &dcr_write_sdram);
     ppc_dcr_register(env, SDRAM0_CFGDATA,
@@ -855,7 +855,7 @@ ram_addr_t ppc4xx_sdram_adjust(ram_addr_t ram_size, int nr_banks,
                                target_phys_addr_t ram_sizes[],
                                const unsigned int sdram_bank_sizes[])
 {
-    ram_addr_t ram_end = 0;
+    ram_addr_t size_left = ram_size;
     int i;
     int j;
 
@@ -863,24 +863,24 @@ ram_addr_t ppc4xx_sdram_adjust(ram_addr_t ram_size, int nr_banks,
         for (j = 0; sdram_bank_sizes[j] != 0; j++) {
             unsigned int bank_size = sdram_bank_sizes[j];
 
-            if (bank_size <= ram_size) {
-                ram_bases[i] = ram_end;
+            if (bank_size <= size_left) {
+                ram_bases[i] = qemu_ram_alloc(bank_size);
                 ram_sizes[i] = bank_size;
-                ram_end += bank_size;
-                ram_size -= bank_size;
+                size_left -= bank_size;
                 break;
             }
         }
 
-        if (!ram_size) {
+        if (!size_left) {
             /* No need to use the remaining banks. */
             break;
         }
     }
 
+    ram_size -= size_left;
     if (ram_size)
         printf("Truncating memory to %d MiB to fit SDRAM controller limits.\n",
-               (int)(ram_end >> 20));
+               (int)(ram_size >> 20));
 
-    return ram_end;
+    return ram_size;
 }

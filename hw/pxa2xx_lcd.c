@@ -15,7 +15,7 @@
 #include "sysemu.h"
 #include "framebuffer.h"
 
-struct pxa2xx_lcdc_s {
+struct PXA2xxLCDState {
     qemu_irq irq;
     int irqlevel;
 
@@ -55,7 +55,7 @@ struct pxa2xx_lcdc_s {
         int up;
         uint8_t palette[1024];
         uint8_t pbuffer[1024];
-        void (*redraw)(struct pxa2xx_lcdc_s *s, target_phys_addr_t addr,
+        void (*redraw)(PXA2xxLCDState *s, target_phys_addr_t addr,
                         int *miny, int *maxy);
 
         target_phys_addr_t descriptor;
@@ -68,12 +68,12 @@ struct pxa2xx_lcdc_s {
     int orientation;
 };
 
-struct __attribute__ ((__packed__)) pxa_frame_descriptor_s {
+typedef struct __attribute__ ((__packed__)) {
     uint32_t fdaddr;
     uint32_t fsaddr;
     uint32_t fidr;
     uint32_t ldcmd;
-};
+} PXAFrameDescriptor;
 
 #define LCCR0	0x000	/* LCD Controller Control register 0 */
 #define LCCR1	0x004	/* LCD Controller Control register 1 */
@@ -177,7 +177,7 @@ struct __attribute__ ((__packed__)) pxa_frame_descriptor_s {
 #define LDCMD_PAL	(1 << 26)
 
 /* Route internal interrupt lines to the global IC */
-static void pxa2xx_lcdc_int_update(struct pxa2xx_lcdc_s *s)
+static void pxa2xx_lcdc_int_update(PXA2xxLCDState *s)
 {
     int level = 0;
     level |= (s->status[0] & LCSR0_LDD)    && !(s->control[0] & LCCR0_LDM);
@@ -197,7 +197,7 @@ static void pxa2xx_lcdc_int_update(struct pxa2xx_lcdc_s *s)
 }
 
 /* Set Branch Status interrupt high and poke associated registers */
-static inline void pxa2xx_dma_bs_set(struct pxa2xx_lcdc_s *s, int ch)
+static inline void pxa2xx_dma_bs_set(PXA2xxLCDState *s, int ch)
 {
     int unmasked;
     if (ch == 0) {
@@ -217,7 +217,7 @@ static inline void pxa2xx_dma_bs_set(struct pxa2xx_lcdc_s *s, int ch)
 }
 
 /* Set Start Of Frame Status interrupt high and poke associated registers */
-static inline void pxa2xx_dma_sof_set(struct pxa2xx_lcdc_s *s, int ch)
+static inline void pxa2xx_dma_sof_set(PXA2xxLCDState *s, int ch)
 {
     int unmasked;
     if (!(s->dma_ch[ch].command & LDCMD_SOFINT))
@@ -240,7 +240,7 @@ static inline void pxa2xx_dma_sof_set(struct pxa2xx_lcdc_s *s, int ch)
 }
 
 /* Set End Of Frame Status interrupt high and poke associated registers */
-static inline void pxa2xx_dma_eof_set(struct pxa2xx_lcdc_s *s, int ch)
+static inline void pxa2xx_dma_eof_set(PXA2xxLCDState *s, int ch)
 {
     int unmasked;
     if (!(s->dma_ch[ch].command & LDCMD_EOFINT))
@@ -263,7 +263,7 @@ static inline void pxa2xx_dma_eof_set(struct pxa2xx_lcdc_s *s, int ch)
 }
 
 /* Set Bus Error Status interrupt high and poke associated registers */
-static inline void pxa2xx_dma_ber_set(struct pxa2xx_lcdc_s *s, int ch)
+static inline void pxa2xx_dma_ber_set(PXA2xxLCDState *s, int ch)
 {
     s->status[0] |= LCSR0_BERCH(ch) | LCSR0_BER;
     if (s->irqlevel)
@@ -273,7 +273,7 @@ static inline void pxa2xx_dma_ber_set(struct pxa2xx_lcdc_s *s, int ch)
 }
 
 /* Set Read Status interrupt high and poke associated registers */
-static inline void pxa2xx_dma_rdst_set(struct pxa2xx_lcdc_s *s)
+static inline void pxa2xx_dma_rdst_set(PXA2xxLCDState *s)
 {
     s->status[0] |= LCSR0_RDST;
     if (s->irqlevel && !(s->control[0] & LCCR0_RDSTM))
@@ -281,14 +281,13 @@ static inline void pxa2xx_dma_rdst_set(struct pxa2xx_lcdc_s *s)
 }
 
 /* Load new Frame Descriptors from DMA */
-static void pxa2xx_descriptor_load(struct pxa2xx_lcdc_s *s)
+static void pxa2xx_descriptor_load(PXA2xxLCDState *s)
 {
-    struct pxa_frame_descriptor_s *desc[PXA_LCDDMA_CHANS];
+    PXAFrameDescriptor desc;
     target_phys_addr_t descptr;
     int i;
 
     for (i = 0; i < PXA_LCDDMA_CHANS; i ++) {
-        desc[i] = 0;
         s->dma_ch[i].source = 0;
 
         if (!s->dma_ch[i].up)
@@ -303,21 +302,20 @@ static void pxa2xx_descriptor_load(struct pxa2xx_lcdc_s *s)
             descptr = s->dma_ch[i].descriptor;
 
         if (!(descptr >= PXA2XX_SDRAM_BASE && descptr +
-                    sizeof(*desc[i]) <= PXA2XX_SDRAM_BASE + phys_ram_size))
+                    sizeof(desc) <= PXA2XX_SDRAM_BASE + ram_size))
             continue;
 
-        descptr -= PXA2XX_SDRAM_BASE;
-        desc[i] = (struct pxa_frame_descriptor_s *) (phys_ram_base + descptr);
-        s->dma_ch[i].descriptor = desc[i]->fdaddr;
-        s->dma_ch[i].source = desc[i]->fsaddr;
-        s->dma_ch[i].id = desc[i]->fidr;
-        s->dma_ch[i].command = desc[i]->ldcmd;
+        cpu_physical_memory_read(descptr, (void *)&desc, sizeof(desc));
+        s->dma_ch[i].descriptor = tswap32(desc.fdaddr);
+        s->dma_ch[i].source = tswap32(desc.fsaddr);
+        s->dma_ch[i].id = tswap32(desc.fidr);
+        s->dma_ch[i].command = tswap32(desc.ldcmd);
     }
 }
 
 static uint32_t pxa2xx_lcdc_read(void *opaque, target_phys_addr_t offset)
 {
-    struct pxa2xx_lcdc_s *s = (struct pxa2xx_lcdc_s *) opaque;
+    PXA2xxLCDState *s = (PXA2xxLCDState *) opaque;
     int ch;
 
     switch (offset) {
@@ -402,8 +400,7 @@ static uint32_t pxa2xx_lcdc_read(void *opaque, target_phys_addr_t offset)
 
     default:
     fail:
-        cpu_abort(cpu_single_env,
-                "%s: Bad offset " REG_FMT "\n", __FUNCTION__, offset);
+        hw_error("%s: Bad offset " REG_FMT "\n", __FUNCTION__, offset);
     }
 
     return 0;
@@ -412,7 +409,7 @@ static uint32_t pxa2xx_lcdc_read(void *opaque, target_phys_addr_t offset)
 static void pxa2xx_lcdc_write(void *opaque,
                 target_phys_addr_t offset, uint32_t value)
 {
-    struct pxa2xx_lcdc_s *s = (struct pxa2xx_lcdc_s *) opaque;
+    PXA2xxLCDState *s = (PXA2xxLCDState *) opaque;
     int ch;
 
     switch (offset) {
@@ -558,8 +555,7 @@ static void pxa2xx_lcdc_write(void *opaque,
 
     default:
     fail:
-        cpu_abort(cpu_single_env,
-                "%s: Bad offset " REG_FMT "\n", __FUNCTION__, offset);
+        hw_error("%s: Bad offset " REG_FMT "\n", __FUNCTION__, offset);
     }
 }
 
@@ -576,7 +572,7 @@ static CPUWriteMemoryFunc *pxa2xx_lcdc_writefn[] = {
 };
 
 /* Load new palette for a given DMA channel, convert to internal format */
-static void pxa2xx_palette_parse(struct pxa2xx_lcdc_s *s, int ch, int bpp)
+static void pxa2xx_palette_parse(PXA2xxLCDState *s, int ch, int bpp)
 {
     int i, n, format, r, g, b, alpha;
     uint32_t *dest, *src;
@@ -667,7 +663,7 @@ static void pxa2xx_palette_parse(struct pxa2xx_lcdc_s *s, int ch, int bpp)
     }
 }
 
-static void pxa2xx_lcdc_dma0_redraw_horiz(struct pxa2xx_lcdc_s *s,
+static void pxa2xx_lcdc_dma0_redraw_horiz(PXA2xxLCDState *s,
                 target_phys_addr_t addr, int *miny, int *maxy)
 {
     int src_width, dest_width;
@@ -694,7 +690,7 @@ static void pxa2xx_lcdc_dma0_redraw_horiz(struct pxa2xx_lcdc_s *s,
                                fn, s->dma_ch[0].palette, miny, maxy);
 }
 
-static void pxa2xx_lcdc_dma0_redraw_vert(struct pxa2xx_lcdc_s *s,
+static void pxa2xx_lcdc_dma0_redraw_vert(PXA2xxLCDState *s,
                target_phys_addr_t addr, int *miny, int *maxy)
 {
     int src_width, dest_width;
@@ -722,7 +718,7 @@ static void pxa2xx_lcdc_dma0_redraw_vert(struct pxa2xx_lcdc_s *s,
                                miny, maxy);
 }
 
-static void pxa2xx_lcdc_resize(struct pxa2xx_lcdc_s *s)
+static void pxa2xx_lcdc_resize(PXA2xxLCDState *s)
 {
     int width, height;
     if (!(s->control[0] & LCCR0_ENB))
@@ -744,7 +740,7 @@ static void pxa2xx_lcdc_resize(struct pxa2xx_lcdc_s *s)
 
 static void pxa2xx_update_display(void *opaque)
 {
-    struct pxa2xx_lcdc_s *s = (struct pxa2xx_lcdc_s *) opaque;
+    PXA2xxLCDState *s = (PXA2xxLCDState *) opaque;
     target_phys_addr_t fbptr;
     int miny, maxy;
     int ch;
@@ -766,7 +762,7 @@ static void pxa2xx_update_display(void *opaque)
             }
             fbptr = s->dma_ch[ch].source;
             if (!(fbptr >= PXA2XX_SDRAM_BASE &&
-                    fbptr <= PXA2XX_SDRAM_BASE + phys_ram_size)) {
+                    fbptr <= PXA2XX_SDRAM_BASE + ram_size)) {
                 pxa2xx_dma_ber_set(s, ch);
                 continue;
             }
@@ -811,7 +807,7 @@ static void pxa2xx_update_display(void *opaque)
 
 static void pxa2xx_invalidate_display(void *opaque)
 {
-    struct pxa2xx_lcdc_s *s = (struct pxa2xx_lcdc_s *) opaque;
+    PXA2xxLCDState *s = (PXA2xxLCDState *) opaque;
     s->invalidated = 1;
 }
 
@@ -822,7 +818,7 @@ static void pxa2xx_screen_dump(void *opaque, const char *filename)
 
 static void pxa2xx_lcdc_orientation(void *opaque, int angle)
 {
-    struct pxa2xx_lcdc_s *s = (struct pxa2xx_lcdc_s *) opaque;
+    PXA2xxLCDState *s = (PXA2xxLCDState *) opaque;
 
     if (angle) {
         s->dma_ch[0].redraw = pxa2xx_lcdc_dma0_redraw_vert;
@@ -837,7 +833,7 @@ static void pxa2xx_lcdc_orientation(void *opaque, int angle)
 
 static void pxa2xx_lcdc_save(QEMUFile *f, void *opaque)
 {
-    struct pxa2xx_lcdc_s *s = (struct pxa2xx_lcdc_s *) opaque;
+    PXA2xxLCDState *s = (PXA2xxLCDState *) opaque;
     int i;
 
     qemu_put_be32(f, s->irqlevel);
@@ -872,7 +868,7 @@ static void pxa2xx_lcdc_save(QEMUFile *f, void *opaque)
 
 static int pxa2xx_lcdc_load(QEMUFile *f, void *opaque, int version_id)
 {
-    struct pxa2xx_lcdc_s *s = (struct pxa2xx_lcdc_s *) opaque;
+    PXA2xxLCDState *s = (PXA2xxLCDState *) opaque;
     int i;
 
     s->irqlevel = qemu_get_be32(f);
@@ -921,12 +917,12 @@ static int pxa2xx_lcdc_load(QEMUFile *f, void *opaque, int version_id)
 #define BITS 32
 #include "pxa2xx_template.h"
 
-struct pxa2xx_lcdc_s *pxa2xx_lcdc_init(target_phys_addr_t base, qemu_irq irq)
+PXA2xxLCDState *pxa2xx_lcdc_init(target_phys_addr_t base, qemu_irq irq)
 {
     int iomemtype;
-    struct pxa2xx_lcdc_s *s;
+    PXA2xxLCDState *s;
 
-    s = (struct pxa2xx_lcdc_s *) qemu_mallocz(sizeof(struct pxa2xx_lcdc_s));
+    s = (PXA2xxLCDState *) qemu_mallocz(sizeof(PXA2xxLCDState));
     s->invalidated = 1;
     s->irq = irq;
 
@@ -980,7 +976,7 @@ struct pxa2xx_lcdc_s *pxa2xx_lcdc_init(target_phys_addr_t base, qemu_irq irq)
     return s;
 }
 
-void pxa2xx_lcd_vsync_notifier(struct pxa2xx_lcdc_s *s, qemu_irq handler)
+void pxa2xx_lcd_vsync_notifier(PXA2xxLCDState *s, qemu_irq handler)
 {
     s->vsync_cb = handler;
 }

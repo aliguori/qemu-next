@@ -114,7 +114,7 @@ static int fw_cfg_boot_set(void *opaque, const char *boot_device)
     return 0;
 }
 
-static void ppc_heathrow_init (ram_addr_t ram_size, int vga_ram_size,
+static void ppc_heathrow_init (ram_addr_t ram_size,
                                const char *boot_device,
                                const char *kernel_filename,
                                const char *kernel_cmdline,
@@ -125,7 +125,7 @@ static void ppc_heathrow_init (ram_addr_t ram_size, int vga_ram_size,
     char buf[1024];
     qemu_irq *pic, **heathrow_irqs;
     int linux_boot, i;
-    ram_addr_t ram_offset, vga_ram_offset, bios_offset, vga_bios_offset;
+    ram_addr_t ram_offset, bios_offset, vga_bios_offset;
     uint32_t kernel_base, initrd_base;
     int32_t kernel_size, initrd_size;
     PCIBus *pci_bus;
@@ -138,6 +138,7 @@ static void ppc_heathrow_init (ram_addr_t ram_size, int vga_ram_size,
     int index;
     void *fw_cfg;
     void *dbdma;
+    uint8_t *vga_bios_ptr;
 
     linux_boot = (kernel_filename != NULL);
 
@@ -153,7 +154,7 @@ static void ppc_heathrow_init (ram_addr_t ram_size, int vga_ram_size,
         /* Set time-base frequency to 16.6 Mhz */
         cpu_ppc_tb_init(env,  16600000UL);
         env->osi_call = vga_osi_call;
-        qemu_register_reset(&cpu_ppc_reset, env);
+        qemu_register_reset(&cpu_ppc_reset, 0, env);
         envs[i] = env;
     }
 
@@ -168,9 +169,6 @@ static void ppc_heathrow_init (ram_addr_t ram_size, int vga_ram_size,
     ram_offset = qemu_ram_alloc(ram_size);
     cpu_register_physical_memory(0, ram_size, ram_offset);
 
-    /* allocate VGA RAM */
-    vga_ram_offset = qemu_ram_alloc(vga_ram_size);
-
     /* allocate and load BIOS */
     bios_offset = qemu_ram_alloc(BIOS_SIZE);
     if (bios_name == NULL)
@@ -181,14 +179,15 @@ static void ppc_heathrow_init (ram_addr_t ram_size, int vga_ram_size,
     /* Load OpenBIOS (ELF) */
     bios_size = load_elf(buf, 0, NULL, NULL, NULL);
     if (bios_size < 0 || bios_size > BIOS_SIZE) {
-        cpu_abort(env, "qemu: could not load PowerPC bios '%s'\n", buf);
+        hw_error("qemu: could not load PowerPC bios '%s'\n", buf);
         exit(1);
     }
 
     /* allocate and load VGA BIOS */
     vga_bios_offset = qemu_ram_alloc(VGA_BIOS_SIZE);
+    vga_bios_ptr = qemu_get_ram_ptr(vga_bios_offset);
     snprintf(buf, sizeof(buf), "%s/%s", bios_dir, VGABIOS_FILENAME);
-    vga_bios_size = load_image(buf, phys_ram_base + vga_bios_offset + 8);
+    vga_bios_size = load_image(buf, vga_bios_ptr + 8);
     if (vga_bios_size < 0) {
         /* if no bios is present, we can still work */
         fprintf(stderr, "qemu: warning: could not load VGA bios '%s'\n", buf);
@@ -196,12 +195,11 @@ static void ppc_heathrow_init (ram_addr_t ram_size, int vga_ram_size,
     } else {
         /* set a specific header (XXX: find real Apple format for NDRV
            drivers) */
-        phys_ram_base[vga_bios_offset] = 'N';
-        phys_ram_base[vga_bios_offset + 1] = 'D';
-        phys_ram_base[vga_bios_offset + 2] = 'R';
-        phys_ram_base[vga_bios_offset + 3] = 'V';
-        cpu_to_be32w((uint32_t *)(phys_ram_base + vga_bios_offset + 4),
-                     vga_bios_size);
+        vga_bios_ptr[0] = 'N';
+        vga_bios_ptr[1] = 'D';
+        vga_bios_ptr[2] = 'R';
+        vga_bios_ptr[3] = 'V';
+        cpu_to_be32w((uint32_t *)(vga_bios_ptr + 4), vga_bios_size);
         vga_bios_size += 8;
     }
 
@@ -224,18 +222,18 @@ static void ppc_heathrow_init (ram_addr_t ram_size, int vga_ram_size,
                                               kernel_base,
                                               ram_size - kernel_base);
         if (kernel_size < 0) {
-            cpu_abort(env, "qemu: could not load kernel '%s'\n",
+            hw_error("qemu: could not load kernel '%s'\n",
                       kernel_filename);
             exit(1);
         }
         /* load initrd */
         if (initrd_filename) {
             initrd_base = INITRD_LOAD_ADDR;
-            initrd_size = load_image(initrd_filename,
-                                     phys_ram_base + initrd_base);
+            initrd_size = load_image_targphys(initrd_filename, initrd_base,
+                                              ram_size - initrd_base);
             if (initrd_size < 0) {
-                cpu_abort(env, "qemu: could not load initial ram disk '%s'\n",
-                          initrd_filename);
+                hw_error("qemu: could not load initial ram disk '%s'\n",
+                         initrd_filename);
                 exit(1);
             }
         } else {
@@ -290,21 +288,17 @@ static void ppc_heathrow_init (ram_addr_t ram_size, int vga_ram_size,
                 ((qemu_irq *)env->irq_inputs)[PPC6xx_INPUT_INT];
             break;
         default:
-            cpu_abort(env, "Bus model not supported on OldWorld Mac machine\n");
-            exit(1);
+            hw_error("Bus model not supported on OldWorld Mac machine\n");
         }
     }
 
     /* init basic PC hardware */
     if (PPC_INPUT(env) != PPC_FLAGS_INPUT_6xx) {
-        cpu_abort(env, "Only 6xx bus is supported on heathrow machine\n");
-        exit(1);
+        hw_error("Only 6xx bus is supported on heathrow machine\n");
     }
     pic = heathrow_pic_init(&pic_mem_index, 1, heathrow_irqs);
     pci_bus = pci_grackle_init(0xfec00000, pic);
-    pci_vga_init(pci_bus, phys_ram_base + vga_ram_offset,
-                 vga_ram_offset, vga_ram_size,
-                 vga_bios_offset, vga_bios_size);
+    pci_vga_init(pci_bus, vga_bios_offset, vga_bios_size);
 
     escc_mem_index = escc_init(0x80013000, pic[0x0f], pic[0x10], serial_hds[0],
                                serial_hds[1], ESCC_CLOCK, 4);
@@ -387,10 +381,17 @@ static void ppc_heathrow_init (ram_addr_t ram_size, int vga_ram_size,
     qemu_register_boot_set(fw_cfg_boot_set, fw_cfg);
 }
 
-QEMUMachine heathrow_machine = {
+static QEMUMachine heathrow_machine = {
     .name = "g3beige",
     .desc = "Heathrow based PowerMAC",
     .init = ppc_heathrow_init,
-    .ram_require = BIOS_SIZE + VGA_BIOS_SIZE + VGA_RAM_SIZE,
     .max_cpus = MAX_CPUS,
+    .is_default = 1,
 };
+
+static void heathrow_machine_init(void)
+{
+    qemu_register_machine(&heathrow_machine);
+}
+
+machine_init(heathrow_machine_init);

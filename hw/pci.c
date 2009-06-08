@@ -25,12 +25,12 @@
 #include "pci.h"
 #include "monitor.h"
 #include "net.h"
-#include "virtio-net.h"
 #include "sysemu.h"
 
 //#define DEBUG_PCI
 
 struct PCIBus {
+    BusState qbus;
     int bus_num;
     int devfn_min;
     pci_set_irq_fn set_irq;
@@ -88,18 +88,22 @@ static int  pcibus_load(QEMUFile *f, void *opaque, int version_id)
     return 0;
 }
 
-PCIBus *pci_register_bus(pci_set_irq_fn set_irq, pci_map_irq_fn map_irq,
+PCIBus *pci_register_bus(DeviceState *parent, const char *name,
+                         pci_set_irq_fn set_irq, pci_map_irq_fn map_irq,
                          qemu_irq *pic, int devfn_min, int nirq)
 {
     PCIBus *bus;
     static int nbus = 0;
 
-    bus = qemu_mallocz(sizeof(PCIBus) + (nirq * sizeof(int)));
+    bus = FROM_QBUS(PCIBus, qbus_create(BUS_TYPE_PCI,
+                                        sizeof(PCIBus) + (nirq * sizeof(int)),
+                                        parent, name));
     bus->set_irq = set_irq;
     bus->map_irq = map_irq;
     bus->irq_opaque = pic;
     bus->devfn_min = devfn_min;
     bus->nirq = nirq;
+    bus->next = first_bus;
     first_bus = bus;
     register_savevm("PCIBUS", nbus++, 1, pcibus_save, pcibus_load, bus);
     return bus;
@@ -236,13 +240,11 @@ int pci_assign_devaddr(const char *addr, int *domp, int *busp, unsigned *slotp)
 }
 
 /* -1 for devfn means auto assign */
-PCIDevice *pci_register_device(PCIBus *bus, const char *name,
-                               int instance_size, int devfn,
-                               PCIConfigReadFunc *config_read,
-                               PCIConfigWriteFunc *config_write)
+static PCIDevice *do_pci_register_device(PCIDevice *pci_dev, PCIBus *bus,
+                                         const char *name, int devfn,
+                                         PCIConfigReadFunc *config_read,
+                                         PCIConfigWriteFunc *config_write)
 {
-    PCIDevice *pci_dev;
-
     if (pci_irq_index >= PCI_DEVICES_MAX)
         return NULL;
 
@@ -254,7 +256,6 @@ PCIDevice *pci_register_device(PCIBus *bus, const char *name,
         return NULL;
     found: ;
     }
-    pci_dev = qemu_mallocz(instance_size);
     pci_dev->bus = bus;
     pci_dev->devfn = devfn;
     pstrcpy(pci_dev->name, sizeof(pci_dev->name), name);
@@ -273,6 +274,18 @@ PCIDevice *pci_register_device(PCIBus *bus, const char *name,
     return pci_dev;
 }
 
+PCIDevice *pci_register_device(PCIBus *bus, const char *name,
+                               int instance_size, int devfn,
+                               PCIConfigReadFunc *config_read,
+                               PCIConfigWriteFunc *config_write)
+{
+    PCIDevice *pci_dev;
+
+    pci_dev = qemu_mallocz(instance_size);
+    pci_dev = do_pci_register_device(pci_dev, bus, name, devfn,
+                                     config_read, config_write);
+    return pci_dev;
+}
 static target_phys_addr_t pci_to_cpu_addr(target_phys_addr_t addr)
 {
     return addr + pci_mem_base;
@@ -311,7 +324,7 @@ int pci_unregister_device(PCIDevice *pci_dev)
     qemu_free_irqs(pci_dev->irq);
     pci_irq_index--;
     pci_dev->bus->devices[pci_dev->devfn] = NULL;
-    qemu_free(pci_dev);
+    qdev_free(&pci_dev->qdev);
     return 0;
 }
 
@@ -494,6 +507,8 @@ void pci_default_write_config(PCIDevice *d,
             case 0x01:
             case 0x02:
             case 0x03:
+            case 0x06:
+            case 0x07:
             case 0x08:
             case 0x09:
             case 0x0a:
@@ -517,6 +532,8 @@ void pci_default_write_config(PCIDevice *d,
             case 0x01:
             case 0x02:
             case 0x03:
+            case 0x06:
+            case 0x07:
             case 0x08:
             case 0x09:
             case 0x0a:
@@ -785,17 +802,15 @@ static const char * const pci_nic_models[] = {
     NULL
 };
 
-typedef PCIDevice *(*PCINICInitFn)(PCIBus *, NICInfo *, int);
-
-static PCINICInitFn pci_nic_init_fns[] = {
-    pci_ne2000_init,
-    pci_i82551_init,
-    pci_i82557b_init,
-    pci_i82559er_init,
-    pci_rtl8139_init,
-    pci_e1000_init,
-    pci_pcnet_init,
-    virtio_net_init,
+static const char * const pci_nic_names[] = {
+    "ne2k_pci",
+    "i82551",
+    "i82557b",
+    "i82559er",
+    "rtl8139",
+    "e1000",
+    "pcnet",
+    "virtio-net-pci",
     NULL
 };
 
@@ -803,18 +818,21 @@ static PCINICInitFn pci_nic_init_fns[] = {
 PCIDevice *pci_nic_init(PCIBus *bus, NICInfo *nd, int devfn,
                   const char *default_model)
 {
-    PCIDevice *pci_dev;
+    DeviceState *dev;
     int i;
 
     qemu_check_nic_model_list(nd, pci_nic_models, default_model);
 
-    for (i = 0; pci_nic_models[i]; i++)
+    for (i = 0; pci_nic_models[i]; i++) {
         if (strcmp(nd->model, pci_nic_models[i]) == 0) {
-            pci_dev = pci_nic_init_fns[i](bus, nd, devfn);
-            if (pci_dev)
-                nd->private = pci_dev;
-            return pci_dev;
+            dev = qdev_create(&bus->qbus, pci_nic_names[i]);
+            qdev_set_prop_int(dev, "devfn", devfn);
+            qdev_set_netdev(dev, nd);
+            qdev_init(dev);
+            nd->private = dev;
+            return (PCIDevice *)dev;
         }
+    }
 
     return NULL;
 }
@@ -879,9 +897,53 @@ PCIBus *pci_bridge_init(PCIBus *bus, int devfn, uint16_t vid, uint16_t did,
     s->dev.config[0x09] = 0x00; // programming i/f
     pci_config_set_class(s->dev.config, PCI_CLASS_BRIDGE_PCI);
     s->dev.config[0x0D] = 0x10; // latency_timer
-    s->dev.config[0x0E] = 0x81; // header_type
+    s->dev.config[PCI_HEADER_TYPE] =
+        PCI_HEADER_TYPE_MULTI_FUNCTION | PCI_HEADER_TYPE_BRIDGE; // header_type
     s->dev.config[0x1E] = 0xa0; // secondary status
 
     s->bus = pci_register_secondary_bus(&s->dev, map_irq);
     return s->bus;
+}
+
+typedef struct {
+    DeviceInfo qdev;
+    pci_qdev_initfn init;
+} PCIDeviceInfo;
+
+static void pci_qdev_init(DeviceState *qdev, DeviceInfo *base)
+{
+    PCIDevice *pci_dev = (PCIDevice *)qdev;
+    PCIDeviceInfo *info = container_of(base, PCIDeviceInfo, qdev);
+    PCIBus *bus;
+    int devfn;
+
+    bus = FROM_QBUS(PCIBus, qdev_get_parent_bus(qdev));
+    devfn = qdev_get_prop_int(qdev, "devfn", -1);
+    pci_dev = do_pci_register_device(pci_dev, bus, "FIXME", devfn,
+                                     NULL, NULL);//FIXME:config_read, config_write);
+    assert(pci_dev);
+    info->init(pci_dev);
+}
+
+void pci_qdev_register(const char *name, int size, pci_qdev_initfn init)
+{
+    PCIDeviceInfo *info;
+
+    info = qemu_mallocz(sizeof(*info));
+    info->init = init;
+    info->qdev.init = pci_qdev_init;
+    info->qdev.bus_type = BUS_TYPE_PCI;
+
+    qdev_register(name, size, &info->qdev);
+}
+
+PCIDevice *pci_create_simple(PCIBus *bus, int devfn, const char *name)
+{
+    DeviceState *dev;
+
+    dev = qdev_create(&bus->qbus, name);
+    qdev_set_prop_int(dev, "devfn", devfn);
+    qdev_init(dev);
+
+    return (PCIDevice *)dev;
 }

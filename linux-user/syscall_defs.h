@@ -48,6 +48,12 @@
 #define TARGET_IOC_NRBITS	8
 #define TARGET_IOC_TYPEBITS	8
 
+#if defined(TARGET_I386) || defined(TARGET_ARM) || defined(TARGET_SPARC) \
+    || defined(TARGET_M68K) || defined(TARGET_SH4) || defined(TARGET_CRIS)
+    /* 16 bit uid wrappers emulation */
+#define USE_UID16
+#endif
+
 #if defined(TARGET_I386) || defined(TARGET_ARM) || defined(TARGET_SH4) \
     || defined(TARGET_M68K) || defined(TARGET_CRIS)
 
@@ -59,7 +65,8 @@
 #define TARGET_IOC_READ	  2U
 
 #elif defined(TARGET_PPC) || defined(TARGET_ALPHA) || \
-      defined(TARGET_SPARC) || defined(TARGET_MIPS)
+      defined(TARGET_SPARC) || defined(TARGET_MICROBLAZE) || \
+      defined(TARGET_MIPS)
 
 #define TARGET_IOC_SIZEBITS	13
 #define TARGET_IOC_DIRBITS	3
@@ -102,6 +109,28 @@
 struct target_sockaddr {
     uint16_t sa_family;
     uint8_t sa_data[14];
+};
+
+struct target_in_addr {
+    uint32_t s_addr; /* big endian */
+};
+
+struct target_ip_mreq {
+    struct target_in_addr imr_multiaddr;
+    struct target_in_addr imr_address;
+};
+
+struct target_ip_mreqn {
+    struct target_in_addr imr_multiaddr;
+    struct target_in_addr imr_address;
+    abi_long imr_ifindex;
+};
+
+struct target_ip_mreq_source {
+    /* big endian */
+    uint32_t imr_multiaddr;
+    uint32_t imr_interface;
+    uint32_t imr_sourceaddr;
 };
 
 struct target_timeval {
@@ -286,7 +315,7 @@ struct target_sigaction;
 int do_sigaction(int sig, const struct target_sigaction *act,
                  struct target_sigaction *oact);
 
-#if defined(TARGET_I386) || defined(TARGET_ARM) || defined(TARGET_SPARC) || defined(TARGET_PPC) || defined(TARGET_MIPS) || defined (TARGET_SH4) || defined(TARGET_M68K) || defined(TARGET_ALPHA) || defined(TARGET_CRIS)
+#if defined(TARGET_I386) || defined(TARGET_ARM) || defined(TARGET_SPARC) || defined(TARGET_PPC) || defined(TARGET_MIPS) || defined (TARGET_SH4) || defined(TARGET_M68K) || defined(TARGET_ALPHA) || defined(TARGET_CRIS) || defined(TARGET_MICROBLAZE)
 
 #if defined(TARGET_SPARC)
 #define TARGET_SA_NOCLDSTOP    8u
@@ -504,9 +533,15 @@ typedef struct {
 #define TARGET_SI_PAD_SIZE	((TARGET_SI_MAX_SIZE/sizeof(int)) - 3)
 
 typedef struct target_siginfo {
+#ifdef TARGET_MIPS
+	int si_signo;
+	int si_code;
+	int si_errno;
+#else
 	int si_signo;
 	int si_errno;
 	int si_code;
+#endif
 
 	union {
 		int _pad[TARGET_SI_PAD_SIZE];
@@ -1164,6 +1199,54 @@ struct __attribute__((__packed__)) target_stat64 {
         unsigned int   __unused5;
 };
 
+#elif defined(TARGET_MICROBLAZE)
+
+struct target_stat {
+	abi_ulong st_dev;
+	abi_ulong st_ino;
+	unsigned int st_mode;
+	unsigned short st_nlink;
+	unsigned int st_uid;
+	unsigned int st_gid;
+	abi_ulong  st_rdev;
+	abi_ulong  st_size;
+	abi_ulong  st_blksize;
+	abi_ulong  st_blocks;
+	abi_ulong  target_st_atime;
+	abi_ulong  target_st_atime_nsec;
+	abi_ulong  target_st_mtime;
+	abi_ulong  target_st_mtime_nsec;
+	abi_ulong  target_st_ctime;
+	abi_ulong  target_st_ctime_nsec;
+	abi_ulong  __unused4;
+	abi_ulong  __unused5;
+};
+
+/* FIXME: Microblaze no-mmu user-space has a difference stat64 layout...  */
+struct __attribute__((__packed__)) target_stat64 {
+	uint64_t st_dev;
+        uint64_t st_ino;
+	uint32_t st_mode;
+	uint32_t st_nlink;
+	uint32_t st_uid;
+	uint32_t st_gid;
+	uint64_t st_rdev;
+	uint32_t __pad2;
+
+	int64_t  st_size;
+	int32_t st_blksize;
+	int64_t st_blocks;	/* Number 512-byte blocks allocated. */
+
+	int	       target_st_atime;
+        unsigned int   target_st_atime_nsec;
+	int	       target_st_mtime;
+        unsigned int   target_st_mtime_nsec;
+	int            target_st_ctime;
+        unsigned int   target_st_ctime_nsec;
+        uint32_t   __unused4;
+        uint32_t   __unused5;
+};
+
 #elif defined(TARGET_M68K)
 
 struct target_stat {
@@ -1713,6 +1796,24 @@ struct target_statfs64 {
 #define TARGET_O_NOFOLLOW      0100000 /* don't follow links */
 #define TARGET_O_LARGEFILE     0200000
 #define TARGET_O_DIRECT        0400000 /* direct disk access hint */
+#elif defined (TARGET_MICROBLAZE)
+#define TARGET_O_ACCMODE          0003
+#define TARGET_O_RDONLY             00
+#define TARGET_O_WRONLY             01
+#define TARGET_O_RDWR               02
+#define TARGET_O_CREAT            0100 /* not fcntl */
+#define TARGET_O_EXCL             0200 /* not fcntl */
+#define TARGET_O_NOCTTY           0400 /* not fcntl */
+#define TARGET_O_TRUNC           01000 /* not fcntl */
+#define TARGET_O_APPEND          02000
+#define TARGET_O_NONBLOCK        04000
+#define TARGET_O_NDELAY        TARGET_O_NONBLOCK
+#define TARGET_O_SYNC           010000
+#define TARGET_FASYNC           020000 /* fcntl, for BSD compatibility */
+#define TARGET_O_DIRECTORY      040000 /* must be a directory */
+#define TARGET_O_NOFOLLOW      0100000 /* don't follow links */
+#define TARGET_O_LARGEFILE     0200000
+#define TARGET_O_DIRECT        0400000 /* direct disk access hint */
 #elif defined (TARGET_SPARC)
 #define TARGET_O_RDONLY        0x0000
 #define TARGET_O_WRONLY        0x0001
@@ -1800,7 +1901,7 @@ struct target_flock {
 struct target_flock64 {
 	short  l_type;
 	short  l_whence;
-#if defined(TARGET_PPC) || defined(TARGET_X86_64) || defined(TARGET_MIPS) || defined(TARGET_SPARC) || defined(TARGET_HPPA)
+#if defined(TARGET_PPC) || defined(TARGET_X86_64) || defined(TARGET_MIPS) || defined(TARGET_SPARC) || defined(TARGET_HPPA) || defined (TARGET_MICROBLAZE)
         int __pad;
 #endif
 	unsigned long long l_start;

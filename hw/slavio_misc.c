@@ -37,10 +37,10 @@
  */
 
 #ifdef DEBUG_MISC
-#define MISC_DPRINTF(fmt, args...) \
-do { printf("MISC: " fmt , ##args); } while (0)
+#define MISC_DPRINTF(fmt, ...)                                  \
+    do { printf("MISC: " fmt , ## __VA_ARGS__); } while (0)
 #else
-#define MISC_DPRINTF(fmt, args...)
+#define MISC_DPRINTF(fmt, ...)
 #endif
 
 typedef struct MiscState {
@@ -501,7 +501,7 @@ void *slavio_misc_init(target_phys_addr_t base, target_phys_addr_t power_base,
 
     register_savevm("slavio_misc", base, 1, slavio_misc_save, slavio_misc_load,
                     s);
-    qemu_register_reset(slavio_misc_reset, s);
+    qemu_register_reset(slavio_misc_reset, 0, s);
     slavio_misc_reset(s);
 
     return s;

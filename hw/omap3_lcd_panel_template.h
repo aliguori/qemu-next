@@ -25,24 +25,18 @@
  */
 
 
-#define SKIP_PIXEL(to)		to += deststep
 #if DEPTH == 8
 # define PIXEL_TYPE		uint8_t
-# define COPY_PIXEL(to, from)	*to = from; SKIP_PIXEL(to)
 # define COPY_PIXEL1(to, from)	*to ++ = from
 #elif DEPTH == 15 || DEPTH == 16
 # define PIXEL_TYPE		uint16_t
-# define COPY_PIXEL(to, from)	*to = from; SKIP_PIXEL(to)
 # define COPY_PIXEL1(to, from)	*to ++ = from
 #elif DEPTH == 24
 # define PIXEL_TYPE		uint8_t
-# define COPY_PIXEL(to, from)	\
-    to[0] = from; to[1] = (from) >> 8; to[2] = (from) >> 16; SKIP_PIXEL(to)
 # define COPY_PIXEL1(to, from)	\
     *to ++ = from; *to ++ = (from) >> 8; *to ++ = (from) >> 16
 #elif DEPTH == 32
 # define PIXEL_TYPE		uint32_t
-# define COPY_PIXEL(to, from)	*to = from; SKIP_PIXEL(to)
 # define COPY_PIXEL1(to, from)	*to ++ = from
 #else
 # error unknown bit depth
@@ -134,10 +128,10 @@ static omap3_lcd_panel_fn_t glue(omap3_lcd_panel_draw_fn_, DEPTH)[0x10] = {
 };
 
 /* 90deg, 180deg and 270deg rotation */
-static omap3_lcd_panel_fn_t glue(omap3_lcd_panel_draw_fn_r_, DEPTH)[0x10] = {
-    /* TODO */
-    [0 ... 0xf] = NULL,
-};
+//static omap3_lcd_panel_fn_t glue(omap3_lcd_panel_draw_fn_r_, DEPTH)[0x10] = {
+//    /* TODO */
+//    [0 ... 0xf] = NULL,
+//};
 
 #undef DEPTH
 #undef SKIP_PIXEL

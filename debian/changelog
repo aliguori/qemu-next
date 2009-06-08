@@ -1,3 +1,27 @@
+qemu (0.10.0-0sb8) unstable; urgency=low
+
+  * ascension release
+
+ -- Riku Voipio <riku.voipio@iki.fi>  Fri, 22 May 2009 17:28:55 +0300
+
+qemu (0.10.0-0sb7) jaunty; urgency=low
+
+  * Wappu release
+
+ -- Riku Voipio <riku.voipio@iki.fi>  Thu, 30 Apr 2009 15:17:32 +0300
+
+qemu (0.10.0-0sb6) unstable; urgency=low
+
+  * W16 release
+
+ -- Riku Voipio <riku.voipio@iki.fi>  Fri, 17 Apr 2009 16:59:31 +0300
+
+qemu (0.10.0-0sb5) unstable; urgency=low
+
+  * Change version tag to sb for political correctness
+
+ -- Jussi Hakala <jussi.hakala@movial.com>  Thu, 09 Apr 2009 15:30:14 +0300
+
 qemu (0.10.0-0maemo4) unstable; urgency=low
 
   * Riku voipio

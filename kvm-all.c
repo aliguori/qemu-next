@@ -22,6 +22,7 @@
 
 #include "qemu-common.h"
 #include "sysemu.h"
+#include "hw/hw.h"
 #include "gdbstub.h"
 #include "kvm.h"
 
@@ -57,6 +58,8 @@ struct KVMState
     int fd;
     int vmfd;
     int coalesced_mmio;
+    int broken_set_mem_region;
+    int migration_log;
 #ifdef KVM_CAP_SET_GUEST_DEBUG
     struct kvm_sw_breakpoint_head kvm_sw_breakpoints;
 #endif
@@ -76,22 +79,53 @@ static KVMSlot *kvm_alloc_slot(KVMState *s)
             return &s->slots[i];
     }
 
-    return NULL;
+    fprintf(stderr, "%s: no free slot available\n", __func__);
+    abort();
 }
 
-static KVMSlot *kvm_lookup_slot(KVMState *s, target_phys_addr_t start_addr)
+static KVMSlot *kvm_lookup_matching_slot(KVMState *s,
+                                         target_phys_addr_t start_addr,
+                                         target_phys_addr_t end_addr)
 {
     int i;
 
     for (i = 0; i < ARRAY_SIZE(s->slots); i++) {
         KVMSlot *mem = &s->slots[i];
 
-        if (start_addr >= mem->start_addr &&
-            start_addr < (mem->start_addr + mem->memory_size))
+        if (start_addr == mem->start_addr &&
+            end_addr == mem->start_addr + mem->memory_size) {
             return mem;
+        }
     }
 
     return NULL;
+}
+
+/*
+ * Find overlapping slot with lowest start address
+ */
+static KVMSlot *kvm_lookup_overlapping_slot(KVMState *s,
+                                            target_phys_addr_t start_addr,
+                                            target_phys_addr_t end_addr)
+{
+    KVMSlot *found = NULL;
+    int i;
+
+    for (i = 0; i < ARRAY_SIZE(s->slots); i++) {
+        KVMSlot *mem = &s->slots[i];
+
+        if (mem->memory_size == 0 ||
+            (found && found->start_addr < mem->start_addr)) {
+            continue;
+        }
+
+        if (end_addr > mem->start_addr &&
+            start_addr < mem->start_addr + mem->memory_size) {
+            found = mem;
+        }
+    }
+
+    return found;
 }
 
 static int kvm_set_user_memory_region(KVMState *s, KVMSlot *slot)
@@ -101,9 +135,11 @@ static int kvm_set_user_memory_region(KVMState *s, KVMSlot *slot)
     mem.slot = slot->slot;
     mem.guest_phys_addr = slot->start_addr;
     mem.memory_size = slot->memory_size;
-    mem.userspace_addr = (unsigned long)phys_ram_base + slot->phys_offset;
+    mem.userspace_addr = (unsigned long)qemu_get_ram_ptr(slot->phys_offset);
     mem.flags = slot->flags;
-
+    if (s->migration_log) {
+        mem.flags |= KVM_MEM_LOG_DIRTY_PAGES;
+    }
     return kvm_vm_ioctl(s, KVM_SET_USER_MEMORY_REGION, &mem);
 }
 
@@ -145,6 +181,26 @@ err:
     return ret;
 }
 
+int kvm_put_mp_state(CPUState *env)
+{
+    struct kvm_mp_state mp_state = { .mp_state = env->mp_state };
+
+    return kvm_vcpu_ioctl(env, KVM_SET_MP_STATE, &mp_state);
+}
+
+int kvm_get_mp_state(CPUState *env)
+{
+    struct kvm_mp_state mp_state;
+    int ret;
+
+    ret = kvm_vcpu_ioctl(env, KVM_GET_MP_STATE, &mp_state);
+    if (ret < 0) {
+        return ret;
+    }
+    env->mp_state = mp_state.mp_state;
+    return 0;
+}
+
 int kvm_sync_vcpus(void)
 {
     CPUState *env;
@@ -163,39 +219,70 @@ int kvm_sync_vcpus(void)
 /*
  * dirty pages logging control
  */
-static int kvm_dirty_pages_log_change(target_phys_addr_t phys_addr, target_phys_addr_t end_addr,
-                                      unsigned flags,
-                                      unsigned mask)
+static int kvm_dirty_pages_log_change(target_phys_addr_t phys_addr,
+                                      ram_addr_t size, int flags, int mask)
 {
     KVMState *s = kvm_state;
-    KVMSlot *mem = kvm_lookup_slot(s, phys_addr);
+    KVMSlot *mem = kvm_lookup_matching_slot(s, phys_addr, phys_addr + size);
+    int old_flags;
+
     if (mem == NULL)  {
-            dprintf("invalid parameters %llx-%llx\n", phys_addr, end_addr);
+            fprintf(stderr, "BUG: %s: invalid parameters " TARGET_FMT_plx "-"
+                    TARGET_FMT_plx "\n", __func__, phys_addr,
+                    phys_addr + size - 1);
             return -EINVAL;
     }
 
-    flags = (mem->flags & ~mask) | flags;
-    /* Nothing changed, no need to issue ioctl */
-    if (flags == mem->flags)
-            return 0;
+    old_flags = mem->flags;
 
+    flags = (mem->flags & ~mask) | flags;
     mem->flags = flags;
+
+    /* If nothing changed effectively, no need to issue ioctl */
+    if (s->migration_log) {
+        flags |= KVM_MEM_LOG_DIRTY_PAGES;
+    }
+    if (flags == old_flags) {
+            return 0;
+    }
 
     return kvm_set_user_memory_region(s, mem);
 }
 
-int kvm_log_start(target_phys_addr_t phys_addr, target_phys_addr_t end_addr)
+int kvm_log_start(target_phys_addr_t phys_addr, ram_addr_t size)
 {
-        return kvm_dirty_pages_log_change(phys_addr, end_addr,
+        return kvm_dirty_pages_log_change(phys_addr, size,
                                           KVM_MEM_LOG_DIRTY_PAGES,
                                           KVM_MEM_LOG_DIRTY_PAGES);
 }
 
-int kvm_log_stop(target_phys_addr_t phys_addr, target_phys_addr_t end_addr)
+int kvm_log_stop(target_phys_addr_t phys_addr, ram_addr_t size)
 {
-        return kvm_dirty_pages_log_change(phys_addr, end_addr,
+        return kvm_dirty_pages_log_change(phys_addr, size,
                                           0,
                                           KVM_MEM_LOG_DIRTY_PAGES);
+}
+
+int kvm_set_migration_log(int enable)
+{
+    KVMState *s = kvm_state;
+    KVMSlot *mem;
+    int i, err;
+
+    s->migration_log = enable;
+
+    for (i = 0; i < ARRAY_SIZE(s->slots); i++) {
+        mem = &s->slots[i];
+
+        if (!!(mem->flags & KVM_MEM_LOG_DIRTY_PAGES) == enable) {
+            continue;
+        }
+        err = kvm_set_user_memory_region(s, mem);
+        if (err) {
+            return err;
+        }
+    }
+    return 0;
 }
 
 /**
@@ -203,47 +290,61 @@ int kvm_log_stop(target_phys_addr_t phys_addr, target_phys_addr_t end_addr)
  * This function updates qemu's dirty bitmap using cpu_physical_memory_set_dirty().
  * This means all bits are set to dirty.
  *
- * @start_add: start of logged region. This is what we use to search the memslot
+ * @start_add: start of logged region.
  * @end_addr: end of logged region.
  */
-void kvm_physical_sync_dirty_bitmap(target_phys_addr_t start_addr, target_phys_addr_t end_addr)
+int kvm_physical_sync_dirty_bitmap(target_phys_addr_t start_addr,
+                                   target_phys_addr_t end_addr)
 {
     KVMState *s = kvm_state;
-    KVMDirtyLog d;
-    KVMSlot *mem = kvm_lookup_slot(s, start_addr);
-    unsigned long alloc_size;
+    unsigned long size, allocated_size = 0;
+    target_phys_addr_t phys_addr;
     ram_addr_t addr;
-    target_phys_addr_t phys_addr = start_addr;
+    KVMDirtyLog d;
+    KVMSlot *mem;
+    int ret = 0;
 
-    dprintf("sync addr: %llx into %lx\n", start_addr, mem->phys_offset);
-    if (mem == NULL) {
-            fprintf(stderr, "BUG: %s: invalid parameters\n", __func__);
-            return;
+    d.dirty_bitmap = NULL;
+    while (start_addr < end_addr) {
+        mem = kvm_lookup_overlapping_slot(s, start_addr, end_addr);
+        if (mem == NULL) {
+            break;
+        }
+
+        size = ((mem->memory_size >> TARGET_PAGE_BITS) + 7) / 8;
+        if (!d.dirty_bitmap) {
+            d.dirty_bitmap = qemu_malloc(size);
+        } else if (size > allocated_size) {
+            d.dirty_bitmap = qemu_realloc(d.dirty_bitmap, size);
+        }
+        allocated_size = size;
+        memset(d.dirty_bitmap, 0, allocated_size);
+
+        d.slot = mem->slot;
+
+        if (kvm_vm_ioctl(s, KVM_GET_DIRTY_LOG, &d) == -1) {
+            dprintf("ioctl failed %d\n", errno);
+            ret = -1;
+            break;
+        }
+
+        for (phys_addr = mem->start_addr, addr = mem->phys_offset;
+             phys_addr < mem->start_addr + mem->memory_size;
+             phys_addr += TARGET_PAGE_SIZE, addr += TARGET_PAGE_SIZE) {
+            unsigned long *bitmap = (unsigned long *)d.dirty_bitmap;
+            unsigned nr = (phys_addr - mem->start_addr) >> TARGET_PAGE_BITS;
+            unsigned word = nr / (sizeof(*bitmap) * 8);
+            unsigned bit = nr % (sizeof(*bitmap) * 8);
+
+            if ((bitmap[word] >> bit) & 1) {
+                cpu_physical_memory_set_dirty(addr);
+            }
+        }
+        start_addr = phys_addr;
     }
-
-    alloc_size = mem->memory_size >> TARGET_PAGE_BITS / sizeof(d.dirty_bitmap);
-    d.dirty_bitmap = qemu_mallocz(alloc_size);
-
-    d.slot = mem->slot;
-    dprintf("slot %d, phys_addr %llx, uaddr: %llx\n",
-            d.slot, mem->start_addr, mem->phys_offset);
-
-    if (kvm_vm_ioctl(s, KVM_GET_DIRTY_LOG, &d) == -1) {
-        dprintf("ioctl failed %d\n", errno);
-        goto out;
-    }
-
-    phys_addr = start_addr;
-    for (addr = mem->phys_offset; phys_addr < end_addr; phys_addr+= TARGET_PAGE_SIZE, addr += TARGET_PAGE_SIZE) {
-        unsigned long *bitmap = (unsigned long *)d.dirty_bitmap;
-        unsigned nr = (phys_addr - start_addr) >> TARGET_PAGE_BITS;
-        unsigned word = nr / (sizeof(*bitmap) * 8);
-        unsigned bit = nr % (sizeof(*bitmap) * 8);
-        if ((bitmap[word] >> bit) & 1)
-            cpu_physical_memory_set_dirty(addr);
-    }
-out:
     qemu_free(d.dirty_bitmap);
+
+    return ret;
 }
 
 int kvm_coalesce_mmio_region(target_phys_addr_t start, ram_addr_t size)
@@ -284,14 +385,33 @@ int kvm_uncoalesce_mmio_region(target_phys_addr_t start, ram_addr_t size)
     return ret;
 }
 
+int kvm_check_extension(KVMState *s, unsigned int extension)
+{
+    int ret;
+
+    ret = kvm_ioctl(s, KVM_CHECK_EXTENSION, extension);
+    if (ret < 0) {
+        ret = 0;
+    }
+
+    return ret;
+}
+
+static void kvm_reset_vcpus(void *opaque)
+{
+    kvm_sync_vcpus();
+}
+
 int kvm_init(int smp_cpus)
 {
     KVMState *s;
     int ret;
     int i;
 
-    if (smp_cpus > 1)
+    if (smp_cpus > 1) {
+        fprintf(stderr, "No SMP KVM support, use '-smp 1'\n");
         return -EINVAL;
+    }
 
     s = qemu_mallocz(sizeof(KVMState));
 
@@ -329,13 +449,11 @@ int kvm_init(int smp_cpus)
 
     /* initially, KVM allocated its own memory and we had to jump through
      * hooks to make phys_ram_base point to this.  Modern versions of KVM
-     * just use a user allocated buffer so we can use phys_ram_base
+     * just use a user allocated buffer so we can use regular pages
      * unmodified.  Make sure we have a sufficiently modern version of KVM.
      */
-    ret = kvm_ioctl(s, KVM_CHECK_EXTENSION, KVM_CAP_USER_MEMORY);
-    if (ret <= 0) {
-        if (ret == 0)
-            ret = -EINVAL;
+    if (!kvm_check_extension(s, KVM_CAP_USER_MEMORY)) {
+        ret = -EINVAL;
         fprintf(stderr, "kvm does not support KVM_CAP_USER_MEMORY\n");
         goto err;
     }
@@ -343,11 +461,8 @@ int kvm_init(int smp_cpus)
     /* There was a nasty bug in < kvm-80 that prevents memory slots from being
      * destroyed properly.  Since we rely on this capability, refuse to work
      * with any kernel without this capability. */
-    ret = kvm_ioctl(s, KVM_CHECK_EXTENSION,
-                    KVM_CAP_DESTROY_MEMORY_REGION_WORKS);
-    if (ret <= 0) {
-        if (ret == 0)
-            ret = -EINVAL;
+    if (!kvm_check_extension(s, KVM_CAP_DESTROY_MEMORY_REGION_WORKS)) {
+        ret = -EINVAL;
 
         fprintf(stderr,
                 "KVM kernel module broken (DESTROY_MEMORY_REGION)\n"
@@ -355,16 +470,25 @@ int kvm_init(int smp_cpus)
         goto err;
     }
 
-    s->coalesced_mmio = 0;
 #ifdef KVM_CAP_COALESCED_MMIO
-    ret = kvm_ioctl(s, KVM_CHECK_EXTENSION, KVM_CAP_COALESCED_MMIO);
-    if (ret > 0)
-        s->coalesced_mmio = ret;
+    s->coalesced_mmio = kvm_check_extension(s, KVM_CAP_COALESCED_MMIO);
+#else
+    s->coalesced_mmio = 0;
+#endif
+
+    s->broken_set_mem_region = 1;
+#ifdef KVM_CAP_JOIN_MEMORY_REGIONS_WORKS
+    ret = kvm_ioctl(s, KVM_CHECK_EXTENSION, KVM_CAP_JOIN_MEMORY_REGIONS_WORKS);
+    if (ret > 0) {
+        s->broken_set_mem_region = 0;
+    }
 #endif
 
     ret = kvm_arch_init(s, smp_cpus);
     if (ret < 0)
         goto err;
+
+    qemu_register_reset(kvm_reset_vcpus, INT_MAX, NULL);
 
     kvm_state = s;
 
@@ -543,60 +667,120 @@ void kvm_set_phys_mem(target_phys_addr_t start_addr,
 {
     KVMState *s = kvm_state;
     ram_addr_t flags = phys_offset & ~TARGET_PAGE_MASK;
-    KVMSlot *mem;
+    KVMSlot *mem, old;
+    int err;
+
+    if (start_addr & ~TARGET_PAGE_MASK) {
+        if (flags >= IO_MEM_UNASSIGNED) {
+            if (!kvm_lookup_overlapping_slot(s, start_addr,
+                                             start_addr + size)) {
+                return;
+            }
+            fprintf(stderr, "Unaligned split of a KVM memory slot\n");
+        } else {
+            fprintf(stderr, "Only page-aligned memory slots supported\n");
+        }
+        abort();
+    }
 
     /* KVM does not support read-only slots */
     phys_offset &= ~IO_MEM_ROM;
 
-    mem = kvm_lookup_slot(s, start_addr);
-    if (mem) {
-        if ((flags == IO_MEM_UNASSIGNED) || (flags >= TLB_MMIO)) {
-            mem->memory_size = 0;
-            mem->start_addr = start_addr;
-            mem->phys_offset = 0;
-            mem->flags = 0;
+    while (1) {
+        mem = kvm_lookup_overlapping_slot(s, start_addr, start_addr + size);
+        if (!mem) {
+            break;
+        }
 
-            kvm_set_user_memory_region(s, mem);
-        } else if (start_addr >= mem->start_addr &&
-                   (start_addr + size) <= (mem->start_addr +
-                                           mem->memory_size)) {
-            KVMSlot slot;
-            target_phys_addr_t mem_start;
-            ram_addr_t mem_size, mem_offset;
-
-            /* Not splitting */
-            if ((phys_offset - (start_addr - mem->start_addr)) == 
-                mem->phys_offset)
-                return;
-
-            /* unregister whole slot */
-            memcpy(&slot, mem, sizeof(slot));
-            mem->memory_size = 0;
-            kvm_set_user_memory_region(s, mem);
-
-            /* register prefix slot */
-            mem_start = slot.start_addr;
-            mem_size = start_addr - slot.start_addr;
-            mem_offset = slot.phys_offset;
-            if (mem_size)
-                kvm_set_phys_mem(mem_start, mem_size, mem_offset);
-
-            /* register new slot */
-            kvm_set_phys_mem(start_addr, size, phys_offset);
-
-            /* register suffix slot */
-            mem_start = start_addr + size;
-            mem_offset += mem_size + size;
-            mem_size = slot.memory_size - mem_size - size;
-            if (mem_size)
-                kvm_set_phys_mem(mem_start, mem_size, mem_offset);
-
+        if (flags < IO_MEM_UNASSIGNED && start_addr >= mem->start_addr &&
+            (start_addr + size <= mem->start_addr + mem->memory_size) &&
+            (phys_offset - start_addr == mem->phys_offset - mem->start_addr)) {
+            /* The new slot fits into the existing one and comes with
+             * identical parameters - nothing to be done. */
             return;
-        } else {
-            printf("Registering overlapping slot\n");
+        }
+
+        old = *mem;
+
+        /* unregister the overlapping slot */
+        mem->memory_size = 0;
+        err = kvm_set_user_memory_region(s, mem);
+        if (err) {
+            fprintf(stderr, "%s: error unregistering overlapping slot: %s\n",
+                    __func__, strerror(-err));
             abort();
         }
+
+        /* Workaround for older KVM versions: we can't join slots, even not by
+         * unregistering the previous ones and then registering the larger
+         * slot. We have to maintain the existing fragmentation. Sigh.
+         *
+         * This workaround assumes that the new slot starts at the same
+         * address as the first existing one. If not or if some overlapping
+         * slot comes around later, we will fail (not seen in practice so far)
+         * - and actually require a recent KVM version. */
+        if (s->broken_set_mem_region &&
+            old.start_addr == start_addr && old.memory_size < size &&
+            flags < IO_MEM_UNASSIGNED) {
+            mem = kvm_alloc_slot(s);
+            mem->memory_size = old.memory_size;
+            mem->start_addr = old.start_addr;
+            mem->phys_offset = old.phys_offset;
+            mem->flags = 0;
+
+            err = kvm_set_user_memory_region(s, mem);
+            if (err) {
+                fprintf(stderr, "%s: error updating slot: %s\n", __func__,
+                        strerror(-err));
+                abort();
+            }
+
+            start_addr += old.memory_size;
+            phys_offset += old.memory_size;
+            size -= old.memory_size;
+            continue;
+        }
+
+        /* register prefix slot */
+        if (old.start_addr < start_addr) {
+            mem = kvm_alloc_slot(s);
+            mem->memory_size = start_addr - old.start_addr;
+            mem->start_addr = old.start_addr;
+            mem->phys_offset = old.phys_offset;
+            mem->flags = 0;
+
+            err = kvm_set_user_memory_region(s, mem);
+            if (err) {
+                fprintf(stderr, "%s: error registering prefix slot: %s\n",
+                        __func__, strerror(-err));
+                abort();
+            }
+        }
+
+        /* register suffix slot */
+        if (old.start_addr + old.memory_size > start_addr + size) {
+            ram_addr_t size_delta;
+
+            mem = kvm_alloc_slot(s);
+            mem->start_addr = start_addr + size;
+            size_delta = mem->start_addr - old.start_addr;
+            mem->memory_size = old.memory_size - size_delta;
+            mem->phys_offset = old.phys_offset + size_delta;
+            mem->flags = 0;
+
+            err = kvm_set_user_memory_region(s, mem);
+            if (err) {
+                fprintf(stderr, "%s: error registering suffix slot: %s\n",
+                        __func__, strerror(-err));
+                abort();
+            }
+        }
     }
+
+    /* in case the KVM bug workaround already "consumed" the new slot */
+    if (!size)
+        return;
+
     /* KVM does not need to know about this memory */
     if (flags >= IO_MEM_UNASSIGNED)
         return;
@@ -607,8 +791,12 @@ void kvm_set_phys_mem(target_phys_addr_t start_addr,
     mem->phys_offset = phys_offset;
     mem->flags = 0;
 
-    kvm_set_user_memory_region(s, mem);
-    /* FIXME deal with errors */
+    err = kvm_set_user_memory_region(s, mem);
+    if (err) {
+        fprintf(stderr, "%s: error registering slot: %s\n", __func__,
+                strerror(-err));
+        abort();
+    }
 }
 
 int kvm_ioctl(KVMState *s, int type, ...)
@@ -667,11 +855,28 @@ int kvm_has_sync_mmu(void)
 #ifdef KVM_CAP_SYNC_MMU
     KVMState *s = kvm_state;
 
-    if (kvm_ioctl(s, KVM_CHECK_EXTENSION, KVM_CAP_SYNC_MMU) > 0)
-        return 1;
-#endif
-
+    return kvm_check_extension(s, KVM_CAP_SYNC_MMU);
+#else
     return 0;
+#endif
+}
+
+void kvm_setup_guest_memory(void *start, size_t size)
+{
+    if (!kvm_has_sync_mmu()) {
+#ifdef MADV_DONTFORK
+        int ret = madvise(start, size, MADV_DONTFORK);
+
+        if (ret) {
+            perror("madvice");
+            exit(1);
+        }
+#else
+        fprintf(stderr,
+                "Need MADV_DONTFORK in absence of synchronous KVM MMU\n");
+        exit(1);
+#endif
+    }
 }
 
 #ifdef KVM_CAP_SET_GUEST_DEBUG

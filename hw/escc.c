@@ -62,22 +62,22 @@
  */
 
 #ifdef DEBUG_SERIAL
-#define SER_DPRINTF(fmt, args...) \
-do { printf("SER: " fmt , ##args); } while (0)
+#define SER_DPRINTF(fmt, ...)                                   \
+    do { printf("SER: " fmt , ## __VA_ARGS__); } while (0)
 #else
-#define SER_DPRINTF(fmt, args...)
+#define SER_DPRINTF(fmt, ...)
 #endif
 #ifdef DEBUG_KBD
-#define KBD_DPRINTF(fmt, args...) \
-do { printf("KBD: " fmt , ##args); } while (0)
+#define KBD_DPRINTF(fmt, ...)                                   \
+    do { printf("KBD: " fmt , ## __VA_ARGS__); } while (0)
 #else
-#define KBD_DPRINTF(fmt, args...)
+#define KBD_DPRINTF(fmt, ...)
 #endif
 #ifdef DEBUG_MOUSE
-#define MS_DPRINTF(fmt, args...) \
-do { printf("MSC: " fmt , ##args); } while (0)
+#define MS_DPRINTF(fmt, ...)                                    \
+    do { printf("MSC: " fmt , ## __VA_ARGS__); } while (0)
 #else
-#define MS_DPRINTF(fmt, args...)
+#define MS_DPRINTF(fmt, ...)
 #endif
 
 typedef enum {
@@ -758,7 +758,7 @@ int escc_init(target_phys_addr_t base, qemu_irq irqA, qemu_irq irqB,
         register_savevm("escc", base, 2, escc_save, escc_load, s);
     else
         register_savevm("escc", -1, 2, escc_save, escc_load, s);
-    qemu_register_reset(escc_reset, s);
+    qemu_register_reset(escc_reset, 0, s);
     escc_reset(s);
     return escc_io_memory;
 }
@@ -932,6 +932,6 @@ void slavio_serial_ms_kbd_init(target_phys_addr_t base, qemu_irq irq,
                                  "QEMU Sun Mouse");
     qemu_add_kbd_event_handler(sunkbd_event, &s->chn[1]);
     register_savevm("slavio_serial_mouse", base, 2, escc_save, escc_load, s);
-    qemu_register_reset(escc_reset, s);
+    qemu_register_reset(escc_reset, 0, s);
     escc_reset(s);
 }

@@ -29,10 +29,10 @@
 //#define DEBUG_ADB
 
 #ifdef DEBUG_ADB
-#define ADB_DPRINTF(fmt, args...) \
-do { printf("ADB: " fmt , ##args); } while (0)
+#define ADB_DPRINTF(fmt, ...) \
+do { printf("ADB: " fmt , ## __VA_ARGS__); } while (0)
 #else
-#define ADB_DPRINTF(fmt, args...)
+#define ADB_DPRINTF(fmt, ...)
 #endif
 
 /* ADB commands */
@@ -122,7 +122,7 @@ ADBDevice *adb_register_device(ADBBusState *s, int devaddr,
     d->devreq = devreq;
     d->devreset = devreset;
     d->opaque = opaque;
-    qemu_register_reset((QEMUResetHandler *)devreset, d);
+    qemu_register_reset((QEMUResetHandler *)devreset, 0, d);
     d->devreset(d);
     return d;
 }

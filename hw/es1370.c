@@ -1005,7 +1005,7 @@ static void es1370_on_reset (void *opaque)
     es1370_reset (s);
 }
 
-int es1370_init (PCIBus *bus, AudioState *audio)
+int es1370_init (PCIBus *bus)
 {
     PCIES1370State *d;
     ES1370State *s;
@@ -1013,11 +1013,6 @@ int es1370_init (PCIBus *bus, AudioState *audio)
 
     if (!bus) {
         dolog ("No PCI bus\n");
-        return -1;
-    }
-
-    if (!audio) {
-        dolog ("No audio state\n");
         return -1;
     }
 
@@ -1060,9 +1055,9 @@ int es1370_init (PCIBus *bus, AudioState *audio)
 
     pci_register_io_region (&d->dev, 0, 256, PCI_ADDRESS_SPACE_IO, es1370_map);
     register_savevm ("es1370", 0, 2, es1370_save, es1370_load, s);
-    qemu_register_reset (es1370_on_reset, s);
+    qemu_register_reset (es1370_on_reset, 0, s);
 
-    AUD_register_card (audio, "es1370", &s->card);
+    AUD_register_card ("es1370", &s->card);
     es1370_reset (s);
     return 0;
 }

@@ -16,6 +16,8 @@ endif
 DEB_HOST_ARCH_OS = $(shell dpkg-architecture -qDEB_HOST_ARCH_OS)
 DEB_HOST_ARCH_CPU = $(shell dpkg-architecture -qDEB_HOST_ARCH_CPU)
 
+SHELL = /bin/bash
+
 
 TARGET_SYSTEM_TCG    = arm-softmmu i386-softmmu
 TARGET_LINUX_TCG     = arm-linux-user i386-linux-user
@@ -24,6 +26,8 @@ install_list         = sb2-qemu-install sb-system-qemu-install
 sb1_prefix           = /scratchbox/devkits/qemu
 
 target_system_list = $(TARGET_SYSTEM_TCG)
+
+source_version = $(shell dpkg-parsechangelog | grep ^Version | head -n1 | cut -d ' ' -f 2)
 
 ifeq ($(DEB_HOST_ARCH_OS),linux)
        conf_arch += --audio-drv-list=sdl
@@ -41,6 +45,8 @@ ifeq ($(BUILD_SB1_QEMU),YES)
        package_list += obj-sb1/config-host.mak
        install_list += sb1-qemu-install
        sb1_target_list += arm-linux-user ppc-linux-user sparc-linux-user i386-linux-user armeb-linux-user mips-linux-user mipsel-linux-user
+else
+       nopackages += -Nscratchbox-devkit-qemu
 endif
 endif
 ifeq ($(DEB_HOST_ARCH_CPU),sparc)
@@ -132,23 +138,28 @@ binary-arch: install
 	dh_testroot
 #	dh_install -a
 #	dh_installdebconf -a
-	dh_installdocs -s
-	dh_installexamples -s
-#	dh_installlogrotate -a
-	dh_installman -s
-	dh_installinfo -s
-	dh_installchangelogs -s Changelog
-	dh_link -s
-	dh_strip -s
-	dh_compress -s
-	dh_fixperms -s
-	dh_installdeb -s
-	dh_shlibdeps -s
-	dh_gencontrol -s
-	dh_md5sums -s
-	dh_builddeb -s
+	dh_installdocs -s $(nopackages)
+	dh_installexamples -s $(nopackages)
+#	dh_installlogrotate -a $(nopackages)
+	dh_installman -s $(nopackages)
+	dh_installinfo -s $(nopackages)
+	dh_installchangelogs -s Changelog $(nopackages)
+	dh_link -s $(nopackages)
+	dh_strip -s $(nopackages)
+	dh_compress -s $(nopackages)
+	dh_fixperms -s $(nopackages)
+	dh_installdeb -s $(nopackages)
+	dh_shlibdeps -s $(nopackages)
+	dh_gencontrol -s $(nopackages)
+	dh_md5sums -s $(nopackages)
+	dh_builddeb -s $(nopackages)
 
 binary: binary-indep binary-arch
+
+sb1-qemu-tarball: build sb1-qemu-install
+	tar czf ../scratchbox-devkit-qemu-$(source_version).tar.gz \
+		-C debian/scratchbox-devkit-qemu \
+		$(shell ls -1 debian/scratchbox-devkit-qemu)
 
 .PHONY: build clean binary-indep binary-arch binary install
 

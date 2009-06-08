@@ -1596,7 +1596,7 @@ static uint32_t omap_id_read(void *opaque, target_phys_addr_t addr)
         case omap1510:
             return 0x03310115;
         default:
-            cpu_abort(cpu_single_env, "%s: bad mpu model\n", __FUNCTION__);
+            hw_error("%s: bad mpu model\n", __FUNCTION__);
         }
         break;
 
@@ -1607,7 +1607,7 @@ static uint32_t omap_id_read(void *opaque, target_phys_addr_t addr)
         case omap1510:
             return 0xfb47002f;
         default:
-            cpu_abort(cpu_single_env, "%s: bad mpu model\n", __FUNCTION__);
+            hw_error("%s: bad mpu model\n", __FUNCTION__);
         }
         break;
     }
@@ -2878,15 +2878,14 @@ qemu_irq *omap_mpuio_in_get(struct omap_mpuio_s *s)
 void omap_mpuio_out_set(struct omap_mpuio_s *s, int line, qemu_irq handler)
 {
     if (line >= 16 || line < 0)
-        cpu_abort(cpu_single_env, "%s: No GPIO line %i\n", __FUNCTION__, line);
+        hw_error("%s: No GPIO line %i\n", __FUNCTION__, line);
     s->handler[line] = handler;
 }
 
 void omap_mpuio_key(struct omap_mpuio_s *s, int row, int col, int down)
 {
     if (row >= 5 || row < 0)
-        cpu_abort(cpu_single_env, "%s: No key %i-%i\n",
-                        __FUNCTION__, col, row);
+        hw_error("%s: No key %i-%i\n", __FUNCTION__, col, row);
 
     if (down)
         s->buttons[row] |= 1 << col;
@@ -3073,7 +3072,7 @@ qemu_irq *omap_gpio_in_get(struct omap_gpio_s *s)
 void omap_gpio_out_set(struct omap_gpio_s *s, int line, qemu_irq handler)
 {
     if (line >= 16 || line < 0)
-        cpu_abort(cpu_single_env, "%s: No GPIO line %i\n", __FUNCTION__, line);
+        hw_error("%s: No GPIO line %i\n", __FUNCTION__, line);
     s->handler[line] = handler;
 }
 
@@ -3088,13 +3087,13 @@ struct omap_uwire_s {
     uint16_t control;
     uint16_t setup[5];
 
-    struct uwire_slave_s *chip[4];
+    uWireSlave *chip[4];
 };
 
 static void omap_uwire_transfer_start(struct omap_uwire_s *s)
 {
     int chipselect = (s->control >> 10) & 3;		/* INDEX */
-    struct uwire_slave_s *slave = s->chip[chipselect];
+    uWireSlave *slave = s->chip[chipselect];
 
     if ((s->control >> 5) & 0x1f) {			/* NB_BITS_WR */
         if (s->control & (1 << 12))			/* CS_CMD */
@@ -3236,7 +3235,7 @@ struct omap_uwire_s *omap_uwire_init(target_phys_addr_t base,
 }
 
 void omap_uwire_attach(struct omap_uwire_s *s,
-                struct uwire_slave_s *slave, int chipselect)
+                uWireSlave *slave, int chipselect)
 {
     if (chipselect < 0 || chipselect > 3) {
         fprintf(stderr, "%s: Bad chipselect %i\n", __FUNCTION__, chipselect);
@@ -3874,7 +3873,7 @@ struct omap_mcbsp_s {
     int tx_req;
     int rx_req;
 
-    struct i2s_codec_s *codec;
+    I2SCodec *codec;
     QEMUTimer *source_timer;
     QEMUTimer *sink_timer;
 };
@@ -4394,7 +4393,7 @@ static void omap_mcbsp_i2s_start(void *opaque, int line, int level)
     }
 }
 
-void omap_mcbsp_i2s_attach(struct omap_mcbsp_s *s, struct i2s_codec_s *slave)
+void omap_mcbsp_i2s_attach(struct omap_mcbsp_s *s, I2SCodec *slave)
 {
     s->codec = slave;
     slave->rx_swallow = qemu_allocate_irqs(omap_mcbsp_i2s_swallow, s, 1)[0];
@@ -4901,7 +4900,7 @@ struct omap_mpu_state_s *omap310_mpu_init(unsigned long sdram_size,
     omap_setup_dsp_mapping(omap15xx_dsp_mm);
     omap_setup_mpui_io(s);
 
-    qemu_register_reset(omap1_mpu_reset, s);
+    qemu_register_reset(omap1_mpu_reset, 0, s);
 
     return s;
 }

@@ -251,9 +251,9 @@ static int check_for_evdev(void)
     keycodes = XGetAtomName(info.info.x11.display, desc->names->keycodes);
     if (keycodes == NULL)
         fprintf(stderr, "could not lookup keycode name\n");
-    else if (strstart(keycodes, "evdev_", NULL))
+    else if (strstart(keycodes, "evdev", NULL))
         has_evdev = 1;
-    else if (!strstart(keycodes, "xfree86_", NULL))
+    else if (!strstart(keycodes, "xfree86", NULL))
         fprintf(stderr,
                 "unknown keycodes `%s', please report to qemu-devel@nongnu.org\n",
                 keycodes);
@@ -753,7 +753,7 @@ static void sdl_cleanup(void)
 {
     if (guest_sprite)
         SDL_FreeCursor(guest_sprite);
-    SDL_Quit();
+    SDL_QuitSubSystem(SDL_INIT_VIDEO);
 }
 
 void sdl_display_init(DisplayState *ds, int full_screen, int no_frame)

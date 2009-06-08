@@ -29,10 +29,10 @@
 //#define DEBUG_UNIN
 
 #ifdef DEBUG_UNIN
-#define UNIN_DPRINTF(fmt, args...) \
-do { printf("UNIN: " fmt , ##args); } while (0)
+#define UNIN_DPRINTF(fmt, ...)                                  \
+    do { printf("UNIN: " fmt , ## __VA_ARGS__); } while (0)
 #else
-#define UNIN_DPRINTF(fmt, args...)
+#define UNIN_DPRINTF(fmt, ...)
 #endif
 
 typedef target_phys_addr_t pci_addr_t;
@@ -175,7 +175,8 @@ PCIBus *pci_pmac_init(qemu_irq *pic)
     /* Use values found on a real PowerMac */
     /* Uninorth main bus */
     s = qemu_mallocz(sizeof(UNINState));
-    s->bus = pci_register_bus(pci_unin_set_irq, pci_unin_map_irq,
+    s->bus = pci_register_bus(NULL, "pci",
+                              pci_unin_set_irq, pci_unin_map_irq,
                               pic, 11 << 3, 4);
 
     pci_mem_config = cpu_register_io_memory(0, pci_unin_main_config_read,
@@ -192,7 +193,7 @@ PCIBus *pci_pmac_init(qemu_irq *pic)
     pci_config_set_class(d->config, PCI_CLASS_BRIDGE_HOST);
     d->config[0x0C] = 0x08; // cache_line_size
     d->config[0x0D] = 0x10; // latency_timer
-    d->config[0x0E] = 0x00; // header_type
+    d->config[PCI_HEADER_TYPE] = PCI_HEADER_TYPE_NORMAL; // header_type
     d->config[0x34] = 0x00; // capabilities_pointer
 
 #if 0 // XXX: not activated as PPC BIOS doesn't handle multiple buses properly
@@ -205,7 +206,7 @@ PCIBus *pci_pmac_init(qemu_irq *pic)
     pci_config_set_class(d->config, PCI_CLASS_BRIDGE_PCI);
     d->config[0x0C] = 0x08; // cache_line_size
     d->config[0x0D] = 0x20; // latency_timer
-    d->config[0x0E] = 0x01; // header_type
+    d->config[PCI_HEADER_TYPE] = PCI_HEADER_TYPE_BRIDGE; // header_type
 
     d->config[0x18] = 0x01; // primary_bus
     d->config[0x19] = 0x02; // secondary_bus
@@ -240,7 +241,7 @@ PCIBus *pci_pmac_init(qemu_irq *pic)
     pci_config_set_class(d->config, PCI_CLASS_BRIDGE_HOST);
     d->config[0x0C] = 0x08; // cache_line_size
     d->config[0x0D] = 0x10; // latency_timer
-    d->config[0x0E] = 0x00; // header_type
+    d->config[PCI_HEADER_TYPE] = PCI_HEADER_TYPE_NORMAL; // header_type
     //    d->config[0x34] = 0x80; // capabilities_pointer
 
 #if 0 // XXX: not needed for now
@@ -261,11 +262,11 @@ PCIBus *pci_pmac_init(qemu_irq *pic)
     pci_config_set_class(d->config, PCI_CLASS_BRIDGE_HOST);
     d->config[0x0C] = 0x08; // cache_line_size
     d->config[0x0D] = 0x10; // latency_timer
-    d->config[0x0E] = 0x00; // header_type
+    d->config[PCI_HEADER_TYPE] = PCI_HEADER_TYPE_NORMAL; // header_type
     d->config[0x34] = 0x00; // capabilities_pointer
 #endif
     register_savevm("uninorth", 0, 1, pci_unin_save, pci_unin_load, d);
-    qemu_register_reset(pci_unin_reset, d);
+    qemu_register_reset(pci_unin_reset, 0, d);
     pci_unin_reset(d);
 
     return s->bus;

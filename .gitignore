@@ -4,6 +4,8 @@ i386
 *-darwin-user
 *-linux-user
 *-bsd-user
+libhw32
+libhw64
 qemu-doc.html
 qemu-tech.html
 qemu-doc.info
@@ -16,6 +18,8 @@ qemu-img
 qemu-nbd
 qemu-nbd.8
 qemu-nbd.pod
+qemu-options.texi
+qemu-io
 .gdbinit
 *.a
 *.aux

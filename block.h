@@ -3,24 +3,10 @@
 
 #include "qemu-aio.h"
 #include "qemu-common.h"
+#include "qemu-option.h"
 
 /* block.c */
 typedef struct BlockDriver BlockDriver;
-
-extern BlockDriver bdrv_raw;
-extern BlockDriver bdrv_host_device;
-extern BlockDriver bdrv_cow;
-extern BlockDriver bdrv_qcow;
-extern BlockDriver bdrv_vmdk;
-extern BlockDriver bdrv_cloop;
-extern BlockDriver bdrv_dmg;
-extern BlockDriver bdrv_bochs;
-extern BlockDriver bdrv_vpc;
-extern BlockDriver bdrv_vvfat;
-extern BlockDriver bdrv_qcow2;
-extern BlockDriver bdrv_parallels;
-extern BlockDriver bdrv_nbd;
-extern BlockDriver bdrv_vmstate;
 
 typedef struct BlockDriverInfo {
     /* in bytes, 0 if irrelevant */
@@ -60,9 +46,8 @@ void bdrv_info_stats(Monitor *mon);
 
 void bdrv_init(void);
 BlockDriver *bdrv_find_format(const char *format_name);
-int bdrv_create(BlockDriver *drv,
-                const char *filename, int64_t size_in_sectors,
-                const char *backing_file, int flags);
+int bdrv_create(BlockDriver *drv, const char* filename,
+    QEMUOptionParameter *options);
 int bdrv_create2(BlockDriver *drv,
                  const char *filename, int64_t size_in_sectors,
                  const char *backing_file, const char *backing_format,
@@ -74,6 +59,7 @@ int bdrv_open(BlockDriverState *bs, const char *filename, int flags);
 int bdrv_open2(BlockDriverState *bs, const char *filename, int flags,
                BlockDriver *drv);
 void bdrv_close(BlockDriverState *bs);
+int bdrv_check(BlockDriverState *bs);
 int bdrv_read(BlockDriverState *bs, int64_t sector_num,
               uint8_t *buf, int nb_sectors);
 int bdrv_write(BlockDriverState *bs, int64_t sector_num,
@@ -87,6 +73,8 @@ int64_t bdrv_getlength(BlockDriverState *bs);
 void bdrv_get_geometry(BlockDriverState *bs, uint64_t *nb_sectors_ptr);
 void bdrv_guess_geometry(BlockDriverState *bs, int *pcyls, int *pheads, int *psecs);
 int bdrv_commit(BlockDriverState *bs);
+void bdrv_register(BlockDriver *bdrv);
+
 /* async block I/O */
 typedef struct BlockDriverAIOCB BlockDriverAIOCB;
 typedef void BlockDriverCompletionFunc(void *opaque, int ret);
@@ -97,13 +85,6 @@ BlockDriverAIOCB *bdrv_aio_readv(BlockDriverState *bs, int64_t sector_num,
 BlockDriverAIOCB *bdrv_aio_writev(BlockDriverState *bs, int64_t sector_num,
                                   QEMUIOVector *iov, int nb_sectors,
                                   BlockDriverCompletionFunc *cb, void *opaque);
-
-BlockDriverAIOCB *bdrv_aio_read(BlockDriverState *bs, int64_t sector_num,
-                                uint8_t *buf, int nb_sectors,
-                                BlockDriverCompletionFunc *cb, void *opaque);
-BlockDriverAIOCB *bdrv_aio_write(BlockDriverState *bs, int64_t sector_num,
-                                 const uint8_t *buf, int nb_sectors,
-                                 BlockDriverCompletionFunc *cb, void *opaque);
 void bdrv_aio_cancel(BlockDriverAIOCB *acb);
 
 /* sg packet commands */

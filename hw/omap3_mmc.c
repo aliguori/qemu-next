@@ -265,7 +265,7 @@ static void omap3_mmc_command(struct omap3_mmc_s *host)
 {
     uint32_t rspstatus, mask;
     int rsplen, timeout;
-    struct sd_request_s request;
+    SDRequest request;
     uint8_t response[16];
     int cmd = (host->cmd >> 24) & 0x3f; /* INDX */
     

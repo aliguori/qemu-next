@@ -16,8 +16,6 @@
 #include "net.h"
 #include "hw.h"
 #include "pci.h"
-#include "virtio-blk.h"
-#include "virtio-console.h"
 #include "boards.h"
 #include "sysemu.h"
 #include "ppc440.h"
@@ -27,7 +25,7 @@
 
 #define BINARY_DEVICE_TREE_FILE "bamboo.dtb"
 
-static void *bamboo_load_device_tree(void *addr,
+static void *bamboo_load_device_tree(target_phys_addr_t addr,
                                      uint32_t ramsize,
                                      target_phys_addr_t initrd_base,
                                      target_phys_addr_t initrd_size,
@@ -37,6 +35,7 @@ static void *bamboo_load_device_tree(void *addr,
 #ifdef HAVE_FDT
     uint32_t mem_reg_property[] = { 0, 0, ramsize };
     char *path;
+    int fdt_size;
     int pathlen;
     int ret;
 
@@ -45,7 +44,7 @@ static void *bamboo_load_device_tree(void *addr,
 
     snprintf(path, pathlen, "%s/%s", bios_dir, BINARY_DEVICE_TREE_FILE);
 
-    fdt = load_device_tree(path, addr);
+    fdt = load_device_tree(path, &fdt_size);
     free(path);
     if (fdt == NULL)
         goto out;
@@ -75,13 +74,15 @@ static void *bamboo_load_device_tree(void *addr,
     if (kvm_enabled())
         kvmppc_fdt_update(fdt);
 
+    cpu_physical_memory_write (addr, (void *)fdt, fdt_size);
+
 out:
 #endif
 
     return fdt;
 }
 
-static void bamboo_init(ram_addr_t ram_size, int vga_ram_size,
+static void bamboo_init(ram_addr_t ram_size,
                         const char *boot_device,
                         const char *kernel_filename,
                         const char *kernel_cmdline,
@@ -110,14 +111,15 @@ static void bamboo_init(ram_addr_t ram_size, int vga_ram_size,
 
         /* Add virtio block devices. */
         while ((i = drive_get_index(IF_VIRTIO, 0, unit_id)) != -1) {
-            virtio_blk_init(pcibus, drives_table[i].bdrv);
+            pci_create_simple(pcibus, -1, "virtio-blk-pci");
             unit_id++;
         }
 
         /* Add virtio console devices */
         for(i = 0; i < MAX_VIRTIO_CONSOLES; i++) {
-            if (virtcon_hds[i])
-                virtio_console_init(pcibus, virtcon_hds[i]);
+            if (virtcon_hds[i]) {
+                pci_create_simple(pcibus, -1, "virtio-console-pci");
+            }
         }
 
         /* Register network interfaces. */
@@ -148,7 +150,8 @@ static void bamboo_init(ram_addr_t ram_size, int vga_ram_size,
     /* Load initrd. */
     if (initrd_filename) {
         initrd_base = kernel_size + loadaddr;
-        initrd_size = load_image(initrd_filename, phys_ram_base + initrd_base);
+        initrd_size = load_image_targphys(initrd_filename, initrd_base,
+                                          ram_size - initrd_base);
 
         if (initrd_size < 0) {
             fprintf(stderr, "qemu: could not load initial ram disk '%s'\n",
@@ -164,7 +167,7 @@ static void bamboo_init(ram_addr_t ram_size, int vga_ram_size,
         else
             dt_base = kernel_size + loadaddr;
 
-        fdt = bamboo_load_device_tree(phys_ram_base + dt_base, ram_size,
+        fdt = bamboo_load_device_tree(dt_base, ram_size,
                                       initrd_base, initrd_size, kernel_cmdline);
         if (fdt == NULL) {
             fprintf(stderr, "couldn't load device tree\n");
@@ -182,9 +185,15 @@ static void bamboo_init(ram_addr_t ram_size, int vga_ram_size,
         kvmppc_init();
 }
 
-QEMUMachine bamboo_machine = {
+static QEMUMachine bamboo_machine = {
     .name = "bamboo",
     .desc = "bamboo",
     .init = bamboo_init,
-    .ram_require = 8<<20 | RAMSIZE_FIXED,
 };
+
+static void bamboo_machine_init(void)
+{
+    qemu_register_machine(&bamboo_machine);
+}
+
+machine_init(bamboo_machine_init);

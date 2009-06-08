@@ -261,7 +261,36 @@
 
 static void musb_attach(USBPort *port, USBDevice *dev);
 
-struct musb_s {
+typedef struct {
+    uint16_t faddr[2];
+    uint8_t haddr[2];
+    uint8_t hport[2];
+    uint16_t csr[2];
+    uint16_t maxp[2];
+    uint16_t rxcount;
+    uint8_t type[2];
+    uint8_t interval[2];
+    uint8_t config;
+    uint8_t fifosize;
+    int timeout[2];	/* Always in microframes */
+
+    uint8_t *buf[2];
+    int fifolen[2];
+    int fifostart[2];
+    int fifoaddr[2];
+    USBPacket packey[2];
+    int status[2];
+    int ext_size[2];
+
+    /* For callbacks' use */
+    int epnum;
+    int interrupt[2];
+    MUSBState *musb;
+    USBCallback *delayed_cb[2];
+    QEMUTimer *intv_timer[2];
+} MUSBEndPoint;
+
+struct MUSBState {
     qemu_irq *irqs;
     USBPort port;
 
@@ -282,39 +311,12 @@ struct musb_s {
 
     uint8_t buf[0x8000];
 
-    struct musb_ep_s {
-        uint16_t faddr[2];
-        uint8_t haddr[2];
-        uint8_t hport[2];
-        uint16_t csr[2];
-        uint16_t maxp[2];
-        uint16_t rxcount;
-        uint8_t type[2];
-        uint8_t interval[2];
-        uint8_t config;
-        uint8_t fifosize;
-        int timeout[2];	/* Always in microframes */
-
-        uint8_t *buf[2];
-        int fifolen[2];
-        int fifostart[2];
-        int fifoaddr[2];
-        USBPacket packey[2];
-        int status[2];
-        int ext_size[2];
-
-        /* For callbacks' use */
-        int epnum;
-        int interrupt[2];
-        struct musb_s *musb;
-        USBCallback *delayed_cb[2];
-        QEMUTimer *intv_timer[2];
         /* Duplicating the world since 2008!...  probably we should have 32
          * logical, single endpoints instead.  */
-    } ep[16];
+    MUSBEndPoint ep[16];
 };
 
-static void musb_vbus_set(struct musb_s *s, int level)
+static void musb_vbus_set(MUSBState *s, int level)
 {
     if (level)
         s->devctl |= 3 << MGC_S_DEVCTL_VBUS;
@@ -324,7 +326,7 @@ static void musb_vbus_set(struct musb_s *s, int level)
     qemu_set_irq(s->irqs[musb_set_vbus], level);
 }
 
-static void musb_intr_set(struct musb_s *s, int line, int level)
+static void musb_intr_set(MUSBState *s, int line, int level)
 {
     if (!level) {
         s->intr &= ~(1 << line);
@@ -335,7 +337,7 @@ static void musb_intr_set(struct musb_s *s, int line, int level)
     }
 }
 
-static void musb_tx_intr_set(struct musb_s *s, int line, int level)
+static void musb_tx_intr_set(MUSBState *s, int line, int level)
 {
     if (!level) {
         s->tx_intr &= ~(1 << line);
@@ -347,7 +349,7 @@ static void musb_tx_intr_set(struct musb_s *s, int line, int level)
     }
 }
 
-static void musb_rx_intr_set(struct musb_s *s, int line, int level)
+static void musb_rx_intr_set(MUSBState *s, int line, int level)
 {
     if (line) {
         if (!level) {
@@ -362,12 +364,12 @@ static void musb_rx_intr_set(struct musb_s *s, int line, int level)
         musb_tx_intr_set(s, line, level);
 }
 
-uint32_t musb_core_intr_get(struct musb_s *s)
+uint32_t musb_core_intr_get(MUSBState *s)
 {
     return (s->rx_intr << 15) | s->tx_intr;
 }
 
-void musb_core_intr_clear(struct musb_s *s, uint32_t mask)
+void musb_core_intr_clear(MUSBState *s, uint32_t mask)
 {
     if (s->rx_intr) {
         s->rx_intr &= mask >> 15;
@@ -382,7 +384,7 @@ void musb_core_intr_clear(struct musb_s *s, uint32_t mask)
     }
 }
 
-void musb_set_size(struct musb_s *s, int epnum, int size, int is_tx)
+void musb_set_size(MUSBState *s, int epnum, int size, int is_tx)
 {
     s->ep[epnum].ext_size[!is_tx] = size;
     s->ep[epnum].fifostart[0] = 0;
@@ -391,7 +393,7 @@ void musb_set_size(struct musb_s *s, int epnum, int size, int is_tx)
     s->ep[epnum].fifolen[1] = 0;
 }
 
-static void musb_session_update(struct musb_s *s, int prev_dev, int prev_sess)
+static void musb_session_update(MUSBState *s, int prev_dev, int prev_sess)
 {
     int detect_prev = prev_dev && prev_sess;
     int detect = !!s->port.dev && s->session;
@@ -428,7 +430,7 @@ static void musb_session_update(struct musb_s *s, int prev_dev, int prev_sess)
 /* Attach or detach a device on our only port.  */
 static void musb_attach(USBPort *port, USBDevice *dev)
 {
-    struct musb_s *s = (struct musb_s *) port->opaque;
+    MUSBState *s = (MUSBState *) port->opaque;
     USBDevice *curr;
 
     port = &s->port;
@@ -458,14 +460,14 @@ static void musb_attach(USBPort *port, USBDevice *dev)
 
 static inline void musb_cb_tick0(void *opaque)
 {
-    struct musb_ep_s *ep = (struct musb_ep_s *) opaque;
+    MUSBEndPoint *ep = (MUSBEndPoint *) opaque;
 
     ep->delayed_cb[0](&ep->packey[0], opaque);
 }
 
 static inline void musb_cb_tick1(void *opaque)
 {
-    struct musb_ep_s *ep = (struct musb_ep_s *) opaque;
+    MUSBEndPoint *ep = (MUSBEndPoint *) opaque;
 
     ep->delayed_cb[1](&ep->packey[1], opaque);
 }
@@ -474,7 +476,7 @@ static inline void musb_cb_tick1(void *opaque)
 
 static inline void musb_schedule_cb(USBPacket *packey, void *opaque, int dir)
 {
-    struct musb_ep_s *ep = (struct musb_ep_s *) opaque;
+    MUSBEndPoint *ep = (MUSBEndPoint *) opaque;
     int timeout = 0;
 
     if (ep->status[dir] == USB_RET_NAK)
@@ -536,10 +538,10 @@ static int musb_timeout(int ttype, int speed, int val)
         /* TODO: what with low-speed Bulk and Isochronous?  */
     }
 
-    cpu_abort(cpu_single_env, "bad interval\n");
+    hw_error("bad interval\n");
 }
 
-static inline void musb_packet(struct musb_s *s, struct musb_ep_s *ep,
+static inline void musb_packet(MUSBState *s, MUSBEndPoint *ep,
                 int epnum, int pid, int len, USBCallback cb, int dir)
 {
     int ret;
@@ -586,9 +588,9 @@ static void musb_tx_packet_complete(USBPacket *packey, void *opaque)
 {
     /* Unfortunately we can't use packey->devep because that's the remote
      * endpoint number and may be different than our local.  */
-    struct musb_ep_s *ep = (struct musb_ep_s *) opaque;
+    MUSBEndPoint *ep = (MUSBEndPoint *) opaque;
     int epnum = ep->epnum;
-    struct musb_s *s = ep->musb;
+    MUSBState *s = ep->musb;
 
     ep->fifostart[0] = 0;
     ep->fifolen[0] = 0;
@@ -666,9 +668,9 @@ static void musb_rx_packet_complete(USBPacket *packey, void *opaque)
 {
     /* Unfortunately we can't use packey->devep because that's the remote
      * endpoint number and may be different than our local.  */
-    struct musb_ep_s *ep = (struct musb_ep_s *) opaque;
+    MUSBEndPoint *ep = (MUSBEndPoint *) opaque;
     int epnum = ep->epnum;
-    struct musb_s *s = ep->musb;
+    MUSBState *s = ep->musb;
 
     ep->fifostart[1] = 0;
     ep->fifolen[1] = 0;
@@ -746,9 +748,9 @@ static void musb_rx_packet_complete(USBPacket *packey, void *opaque)
     musb_rx_intr_set(s, epnum, 1);
 }
 
-static void musb_tx_rdy(struct musb_s *s, int epnum)
+static void musb_tx_rdy(MUSBState *s, int epnum)
 {
-    struct musb_ep_s *ep = s->ep + epnum;
+    MUSBEndPoint *ep = s->ep + epnum;
     int pid;
     int total, valid = 0;
     TRACE("start %d, len %d",  ep->fifostart[0], ep->fifolen[0] );
@@ -786,9 +788,9 @@ static void musb_tx_rdy(struct musb_s *s, int epnum)
                     total, musb_tx_packet_complete, 0);
 }
 
-static void musb_rx_req(struct musb_s *s, int epnum)
+static void musb_rx_req(MUSBState *s, int epnum)
 {
-    struct musb_ep_s *ep = s->ep + epnum;
+    MUSBEndPoint *ep = s->ep + epnum;
     int total;
 
     /* If we already have a packet, which didn't fit into the
@@ -850,7 +852,7 @@ static void musb_rx_req(struct musb_s *s, int epnum)
                     total, musb_rx_packet_complete, 1);
 }
 
-static uint8_t musb_read_fifo(struct musb_ep_s *ep)
+static uint8_t musb_read_fifo(MUSBEndPoint *ep)
 {
     uint8_t value;
     if (ep->fifolen[1] >= 64) {
@@ -868,7 +870,7 @@ static uint8_t musb_read_fifo(struct musb_ep_s *ep)
     return value;
 }
 
-static void musb_write_fifo(struct musb_ep_s *ep, uint8_t value)
+static void musb_write_fifo(MUSBEndPoint *ep, uint8_t value)
 {
     TRACE("EP%d = %02x", ep->epnum, value);
     if (ep->fifolen[0] >= 64) {
@@ -882,7 +884,7 @@ static void musb_write_fifo(struct musb_ep_s *ep, uint8_t value)
      ep->csr[0] |= MGC_M_TXCSR_FIFONOTEMPTY;
 }
 
-static void musb_ep_frame_cancel(struct musb_ep_s *ep, int dir)
+static void musb_ep_frame_cancel(MUSBEndPoint *ep, int dir)
 {
     if (ep->intv_timer[dir])
         qemu_del_timer(ep->intv_timer[dir]);
@@ -891,8 +893,8 @@ static void musb_ep_frame_cancel(struct musb_ep_s *ep, int dir)
 /* Bus control */
 static uint8_t musb_busctl_readb(void *opaque, int ep, int addr)
 {
-    struct musb_s *s = (struct musb_s *) opaque;
-//    TRACE("ADDR = 0x%08x", addr);
+    MUSBState *s = (MUSBState *) opaque;
+    //    TRACE("ADDR = 0x%08x", addr);
 
     switch (addr) {
     /* For USB2.0 HS hubs only */
@@ -913,7 +915,7 @@ static uint8_t musb_busctl_readb(void *opaque, int ep, int addr)
 
 static void musb_busctl_writeb(void *opaque, int ep, int addr, uint8_t value)
 {
-    struct musb_s *s = (struct musb_s *) opaque;
+    MUSBState *s = (MUSBState *) opaque;
 
     switch (addr) {
     case MUSB_HDRC_TXFUNCADDR:
@@ -942,7 +944,7 @@ static void musb_busctl_writeb(void *opaque, int ep, int addr, uint8_t value)
 
 static uint16_t musb_busctl_readh(void *opaque, int ep, int addr)
 {
-    struct musb_s *s = (struct musb_s *) opaque;
+    MUSBState *s = (MUSBState *) opaque;
 
     switch (addr) {
     case MUSB_HDRC_TXFUNCADDR:
@@ -958,7 +960,7 @@ static uint16_t musb_busctl_readh(void *opaque, int ep, int addr)
 
 static void musb_busctl_writeh(void *opaque, int ep, int addr, uint16_t value)
 {
-    struct musb_s *s = (struct musb_s *) opaque;
+    MUSBState *s = (MUSBState *) opaque;
 
     switch (addr) {
     case MUSB_HDRC_TXFUNCADDR:
@@ -977,7 +979,7 @@ static void musb_busctl_writeh(void *opaque, int ep, int addr, uint16_t value)
 /* Endpoint control */
 static uint8_t musb_ep_readb(void *opaque, int ep, int addr)
 {
-    struct musb_s *s = (struct musb_s *) opaque;
+    MUSBState *s = (MUSBState *) opaque;
 
     switch (addr) {
     case MUSB_HDRC_TXTYPE:
@@ -1003,7 +1005,7 @@ static uint8_t musb_ep_readb(void *opaque, int ep, int addr)
 
 static void musb_ep_writeb(void *opaque, int ep, int addr, uint8_t value)
 {
-    struct musb_s *s = (struct musb_s *) opaque;
+    MUSBState *s = (MUSBState *) opaque;
 
     switch (addr) {
     case MUSB_HDRC_TXTYPE:
@@ -1034,7 +1036,7 @@ static void musb_ep_writeb(void *opaque, int ep, int addr, uint8_t value)
 
 static uint16_t musb_ep_readh(void *opaque, int ep, int addr)
 {
-    struct musb_s *s = (struct musb_s *) opaque;
+    MUSBState *s = (MUSBState *) opaque;
     uint16_t ret;
 
     switch (addr) {
@@ -1064,7 +1066,7 @@ static uint16_t musb_ep_readh(void *opaque, int ep, int addr)
 
 static void musb_ep_writeh(void *opaque, int ep, int addr, uint16_t value)
 {
-    struct musb_s *s = (struct musb_s *) opaque;
+    MUSBState *s = (MUSBState *) opaque;
 
     switch (addr) {
     case MUSB_HDRC_TXMAXP:
@@ -1162,7 +1164,7 @@ static void musb_ep_writeh(void *opaque, int ep, int addr, uint16_t value)
 /* Generic control */
 static uint32_t musb_readb(void *opaque, target_phys_addr_t addr)
 {
-    struct musb_s *s = (struct musb_s *) opaque;
+    MUSBState *s = (MUSBState *) opaque;
     int ep, i;
     uint8_t ret;
 //    TRACE("ADDR = 0x%08x", addr);
@@ -1225,7 +1227,7 @@ static uint32_t musb_readb(void *opaque, target_phys_addr_t addr)
 
 static void musb_writeb(void *opaque, target_phys_addr_t addr, uint32_t value)
 {
-    struct musb_s *s = (struct musb_s *) opaque;
+    MUSBState *s = (MUSBState *) opaque;
     int ep;
 //    TRACE("ADDR = 0x%08x = %08x", addr, value);
 
@@ -1312,7 +1314,7 @@ static void musb_writeb(void *opaque, target_phys_addr_t addr, uint32_t value)
 
 static uint32_t musb_readh(void *opaque, target_phys_addr_t addr)
 {
-    struct musb_s *s = (struct musb_s *) opaque;
+    MUSBState *s = (MUSBState *) opaque;
     int ep, i;
     uint16_t ret;
 //    TRACE("ADDR = 0x%08x", addr);
@@ -1367,7 +1369,7 @@ static uint32_t musb_readh(void *opaque, target_phys_addr_t addr)
 
 static void musb_writeh(void *opaque, target_phys_addr_t addr, uint32_t value)
 {
-    struct musb_s *s = (struct musb_s *) opaque;
+    MUSBState *s = (MUSBState *) opaque;
     int ep;
     //TRACE("ADDR = 0x%08x = %08x", addr, value);
 
@@ -1426,7 +1428,7 @@ static void musb_writeh(void *opaque, target_phys_addr_t addr, uint32_t value)
 
 static uint32_t musb_readw(void *opaque, target_phys_addr_t addr)
 {
-    struct musb_s *s = (struct musb_s *) opaque;
+    MUSBState *s = (MUSBState *) opaque;
     int ep;
 
     switch (addr) {
@@ -1444,7 +1446,7 @@ static uint32_t musb_readw(void *opaque, target_phys_addr_t addr)
 
 static void musb_writew(void *opaque, target_phys_addr_t addr, uint32_t value)
 {
-    struct musb_s *s = (struct musb_s *) opaque;
+    MUSBState *s = (MUSBState *) opaque;
     int ep;
 //    TRACE("ADDR = 0x%08x = %08x", addr, value);
 
@@ -1475,7 +1477,7 @@ CPUWriteMemoryFunc *musb_write[] = {
 
 static void musb_save_state(QEMUFile *f, void *opaque)
 {
-    struct musb_s *s = (struct musb_s *)opaque;
+    MUSBState *s = (MUSBState *)opaque;
     int i, j;
     
     qemu_put_sbe32(f, s->idx);
@@ -1535,7 +1537,7 @@ static void musb_save_state(QEMUFile *f, void *opaque)
 
 static int musb_load_state(QEMUFile *f, void *opaque, int version_id)
 {
-    struct musb_s *s = (struct musb_s *)opaque;
+    MUSBState *s = (MUSBState *)opaque;
     int i, j;
     uint32_t x;
     
@@ -1620,9 +1622,9 @@ static int musb_load_state(QEMUFile *f, void *opaque, int version_id)
     return 0;
 }
 
-struct musb_s *musb_init(qemu_irq *irqs)
+MUSBState *musb_init(qemu_irq *irqs)
 {
-    struct musb_s *s = qemu_mallocz(sizeof(*s));
+    MUSBState *s = qemu_mallocz(sizeof(*s));
     int i;
     
     s->irqs = irqs;

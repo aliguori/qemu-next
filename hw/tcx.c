@@ -197,7 +197,7 @@ static void tcx_update_display(void *opaque)
         return;
     page = ts->vram_offset;
     y_start = -1;
-    page_min = 0xffffffff;
+    page_min = -1;
     page_max = 0;
     d = ds_get_data(ts->ds);
     s = ts->vram;
@@ -257,7 +257,7 @@ static void tcx_update_display(void *opaque)
                    ts->width, y - y_start);
     }
     /* reset modified pages */
-    if (page_min <= page_max) {
+    if (page_max >= page_min) {
         cpu_physical_memory_reset_dirty(page_min, page_max + TARGET_PAGE_SIZE,
                                         VGA_DIRTY_FLAG);
     }
@@ -277,7 +277,7 @@ static void tcx24_update_display(void *opaque)
     page24 = ts->vram24_offset;
     cpage = ts->cplane_offset;
     y_start = -1;
-    page_min = 0xffffffff;
+    page_min = -1;
     page_max = 0;
     d = ds_get_data(ts->ds);
     s = ts->vram;
@@ -334,7 +334,7 @@ static void tcx24_update_display(void *opaque)
                    ts->width, y - y_start);
     }
     /* reset modified pages */
-    if (page_min <= page_max) {
+    if (page_max >= page_min) {
         reset_dirty(ts, page_min, page_max, page24, cpage);
     }
 }
@@ -497,13 +497,17 @@ static CPUWriteMemoryFunc *tcx_dummy_write[3] = {
     tcx_dummy_writel,
 };
 
-void tcx_init(target_phys_addr_t addr, uint8_t *vram_base,
-              unsigned long vram_offset, int vram_size, int width, int height,
+void tcx_init(target_phys_addr_t addr, int vram_size, int width, int height,
               int depth)
 {
     TCXState *s;
     int io_memory, dummy_memory;
+    ram_addr_t vram_offset;
     int size;
+    uint8_t *vram_base;
+
+    vram_offset = qemu_ram_alloc(vram_size * (1 + 4 + 4));
+    vram_base = qemu_get_ram_ptr(vram_offset);
 
     s = qemu_mallocz(sizeof(TCXState));
     s->addr = addr;
@@ -556,7 +560,7 @@ void tcx_init(target_phys_addr_t addr, uint8_t *vram_base,
                                  dummy_memory);
 
     register_savevm("tcx", addr, 4, tcx_save, tcx_load, s);
-    qemu_register_reset(tcx_reset, s);
+    qemu_register_reset(tcx_reset, 0, s);
     tcx_reset(s);
     qemu_console_resize(s->ds, width, height);
 }

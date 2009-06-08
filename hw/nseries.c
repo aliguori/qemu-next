@@ -2,7 +2,7 @@
  * Nokia N-series internet tablets.
  *
  * Copyright (C) 2007 Nokia Corporation
- * Written by Andrzej Zaborowski <andrew@openedhand.com>
+ * RX-34/44 support written by Andrzej Zaborowski <andrew@openedhand.com>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License as
@@ -40,14 +40,14 @@ struct n800_s {
     struct {
         void *opaque;
         uint32_t (*txrx)(void *opaque, uint32_t value, int len);
-        struct uwire_slave_s *chip;
+        uWireSlave *chip;
     } ts;
     i2c_bus *i2c;
 
     int keymap[0x80];
     i2c_slave *kbd;
 
-    struct tusb_s *usb;
+    TUSBState *usb;
     void *retu;
     void *tahvo;
     void *nand;
@@ -164,12 +164,12 @@ static void n8x0_nand_setup(struct n800_s *s)
 {
     char *otp_region;
 
-    /* Either ec40xx or ec48xx are OK for the ID */
+    /* Either 0x40 or 0x48 are OK for the device ID */
+    s->nand = onenand_init(NAND_MFR_SAMSUNG, 0x48, 0, 1,
+                           omap2_gpio_in_get(s->cpu->gpif,N8X0_ONENAND_GPIO)[0],
+                           drives_table[drive_get_index(IF_MTD, 0, 0)].bdrv);
     omap_gpmc_attach(s->cpu->gpmc, N8X0_ONENAND_CS, 0, onenand_base_update,
-                    onenand_base_unmap,
-                    (s->nand = onenand_init(0xec4800, 1,
-                                            omap2_gpio_in_get(s->cpu->gpif,
-                                                    N8X0_ONENAND_GPIO)[0])),0);
+                     onenand_base_unmap, s->nand, 0);
     otp_region = onenand_raw_otp(s->nand);
 
     memcpy(otp_region + 0x000, n8x0_cal_wlan_mac, sizeof(n8x0_cal_wlan_mac));
@@ -179,29 +179,29 @@ static void n8x0_nand_setup(struct n800_s *s)
 
 static void n8x0_i2c_setup(struct n800_s *s)
 {
+    DeviceState *dev;
     qemu_irq tmp_irq = omap2_gpio_in_get(s->cpu->gpif, N8X0_TMP105_GPIO)[0];
 
     /* Attach the CPU on one end of our I2C bus.  */
     s->i2c = omap_i2c_bus(s->cpu->i2c[0]);
 
     /* Attach a menelaus PM chip */
-    i2c_set_slave_address(
-                    twl92230_init(s->i2c,
-                            s->cpu->irq[0][OMAP_INT_24XX_SYS_NIRQ]),
-                    N8X0_MENELAUS_ADDR);
+    dev = i2c_create_slave(s->i2c, "twl92230", N8X0_MENELAUS_ADDR);
+    qdev_connect_gpio_out(dev, 3, s->cpu->irq[0][OMAP_INT_24XX_SYS_NIRQ]);
 
     /* Attach a TMP105 PM chip (A0 wired to ground) */
-    i2c_set_slave_address(tmp105_init(s->i2c, tmp_irq), N8X0_TMP105_ADDR);
+    dev = i2c_create_slave(s->i2c, "tmp105", N8X0_TMP105_ADDR);
+    qdev_connect_gpio_out(dev, 0, tmp_irq);
 }
 
 /* Touchscreen and keypad controller */
-static struct mouse_transform_info_s n800_pointercal = {
+static MouseTransformInfo n800_pointercal = {
     .x = 800,
     .y = 480,
     .a = { 14560, -68, -3455208, -39, -9621, 35152972, 65536 },
 };
 
-static struct mouse_transform_info_s n810_pointercal = {
+static MouseTransformInfo n810_pointercal = {
     .x = 800,
     .y = 480,
     .a = { 15041, 148, -4731056, 171, -10238, 35933380, 65536 },
@@ -252,7 +252,7 @@ static void n800_tsc_kbd_setup(struct n800_s *s)
     qemu_irq kbirq = omap2_gpio_in_get(s->cpu->gpif, N800_TSC_KP_IRQ_GPIO)[0];
     qemu_irq dav = omap2_gpio_in_get(s->cpu->gpif, N800_TSC_TS_GPIO)[0];
 
-    s->ts.chip = tsc2301_init(penirq, kbirq, dav, 0);
+    s->ts.chip = tsc2301_init(penirq, kbirq, dav);
     s->ts.opaque = s->ts.chip->opaque;
     s->ts.txrx = tsc210x_txrx;
 
@@ -362,6 +362,7 @@ static int n810_keys[0x80] = {
 static void n810_kbd_setup(struct n800_s *s)
 {
     qemu_irq kbd_irq = omap2_gpio_in_get(s->cpu->gpif, N810_KEYBOARD_GPIO)[0];
+    DeviceState *dev;
     int i;
 
     for (i = 0; i < 0x80; i ++)
@@ -374,8 +375,8 @@ static void n810_kbd_setup(struct n800_s *s)
 
     /* Attach the LM8322 keyboard to the I2C bus,
      * should happen in n8x0_i2c_setup and s->kbd be initialised here.  */
-    s->kbd = lm8323_init(s->i2c, kbd_irq);
-    i2c_set_slave_address(s->kbd, N810_LM8323_ADDR);
+    dev = i2c_create_slave(s->i2c, "lm8323", N810_LM8323_ADDR);
+    qdev_connect_gpio_out(dev, 0, kbd_irq);
 }
 
 /* LCD MIPI DBI-C controller (URAL) */
@@ -428,8 +429,7 @@ static uint32_t mipid_txrx(void *opaque, uint32_t cmd, int len)
     uint8_t ret;
 
     if (len > 9)
-        cpu_abort(cpu_single_env, "%s: FIXME: bad SPI word width %i\n",
-                        __FUNCTION__, len);
+        hw_error("%s: FIXME: bad SPI word width %i\n", __FUNCTION__, len);
 
     if (s->p >= ARRAY_SIZE(s->resp))
         ret = 0;
@@ -730,7 +730,7 @@ static void n8x0_cbus_setup(struct n800_s *s)
     qemu_irq retu_irq = omap2_gpio_in_get(s->cpu->gpif, N8X0_RETU_GPIO)[0];
     qemu_irq tahvo_irq = omap2_gpio_in_get(s->cpu->gpif, N8X0_TAHVO_GPIO)[0];
 
-    struct cbus_s *cbus = cbus_init(dat_out);
+    CBus *cbus = cbus_init(dat_out);
 
     omap2_gpio_out_set(s->cpu->gpif, N8X0_CBUS_CLK_GPIO, cbus->clk);
     omap2_gpio_out_set(s->cpu->gpif, N8X0_CBUS_DAT_GPIO, cbus->dat);
@@ -765,7 +765,7 @@ static void n8x0_usb_setup(struct n800_s *s)
 {
     qemu_irq tusb_irq = omap2_gpio_in_get(s->cpu->gpif, N8X0_TUSB_INT_GPIO)[0];
     qemu_irq tusb_pwr = qemu_allocate_irqs(n8x0_usb_power_cb, s, 1)[0];
-    struct tusb_s *tusb = tusb6010_init(tusb_irq);
+    TUSBState *tusb = tusb6010_init(tusb_irq);
 
     /* Using the NOR interface */
     omap_gpmc_attach(s->cpu->gpmc, N8X0_USB_ASYNC_CS,
@@ -1241,7 +1241,7 @@ static int n8x0_atag_setup(void *p, int model)
     stw_raw(w ++, 24);				/* u16 len */
     strcpy((void *) w, "hw-build");		/* char component[12] */
     w += 6;
-    strcpy((void *) w, "QEMU " QEMU_VERSION);	/* char version[12] */
+    strcpy((void *) w, "QEMU");	/* char version[12] */
     w += 6;
 
     tag = (model == 810) ? "1.1.10-qemu" : "1.1.6-qemu";
@@ -1272,14 +1272,7 @@ static void n8x0_init(ram_addr_t ram_size, const char *boot_device,
 {
     struct n800_s *s = (struct n800_s *) qemu_mallocz(sizeof(*s));
     int sdram_size = binfo->ram_size;
-    int onenandram_size = 0x00010000;
     DisplayState *ds;
-
-    if (ram_size < sdram_size + onenandram_size + OMAP242X_SRAM_SIZE) {
-        fprintf(stderr, "This architecture uses %i bytes of memory\n",
-                        sdram_size + onenandram_size + OMAP242X_SRAM_SIZE);
-        exit(1);
-    }
 
     s->cpu = omap2420_mpu_init(sdram_size, cpu_model);
 
@@ -1336,11 +1329,13 @@ static void n8x0_init(ram_addr_t ram_size, const char *boot_device,
         binfo->initrd_filename = initrd_filename;
         arm_load_kernel(s->cpu->env, binfo);
 
-        qemu_register_reset(n8x0_boot_init, s);
+        qemu_register_reset(n8x0_boot_init, 0, s);
         n8x0_boot_init(s);
     }
 
     if (option_rom[0] && (boot_device[0] == 'n' || !kernel_filename)) {
+        int rom_size;
+        uint8_t nolo_tags[0x10000];
         /* No, wait, better start at the ROM.  */
         s->cpu->env->regs[15] = OMAP2_Q2_BASE + 0x400000;
 
@@ -1353,10 +1348,13 @@ static void n8x0_init(ram_addr_t ram_size, const char *boot_device,
          *
          * The code above is for loading the `zImage' file from Nokia
          * images.  */
-        printf("%i bytes of image loaded\n", load_image(option_rom[0],
-                                phys_ram_base + 0x400000));
+        rom_size = load_image_targphys(option_rom[0],
+                                       OMAP2_Q2_BASE + 0x400000,
+                                       sdram_size - 0x400000);
+        printf("%i bytes of image loaded\n", rom_size);
 
-        n800_setup_nolo_tags(phys_ram_base + sdram_size);
+        n800_setup_nolo_tags(nolo_tags);
+        cpu_physical_memory_write(OMAP2_SRAM_BASE, nolo_tags, 0x10000);
     }
     /* FIXME: We shouldn't really be doing this here.  The LCD controller
        will set the size once configured, so this just sets an initial
@@ -1385,7 +1383,7 @@ static struct arm_boot_info n810_binfo = {
     .atag_board = n810_atag_setup,
 };
 
-static void n800_init(ram_addr_t ram_size, int vga_ram_size,
+static void n800_init(ram_addr_t ram_size,
                 const char *boot_device,
                 const char *kernel_filename, const char *kernel_cmdline,
                 const char *initrd_filename, const char *cpu_model)
@@ -1395,7 +1393,7 @@ static void n800_init(ram_addr_t ram_size, int vga_ram_size,
                     cpu_model, &n800_binfo, 800);
 }
 
-static void n810_init(ram_addr_t ram_size, int vga_ram_size,
+static void n810_init(ram_addr_t ram_size,
                 const char *boot_device,
                 const char *kernel_filename, const char *kernel_cmdline,
                 const char *initrd_filename, const char *cpu_model)
@@ -1405,44 +1403,1040 @@ static void n810_init(ram_addr_t ram_size, int vga_ram_size,
                     cpu_model, &n810_binfo, 810);
 }
 
-QEMUMachine n800_machine = {
+static QEMUMachine n800_machine = {
     .name = "n800",
     .desc = "Nokia N800 tablet aka. RX-34 (OMAP2420)",
     .init = n800_init,
-    .ram_require = (0x08000000 + 0x00010000 + OMAP242X_SRAM_SIZE) |
-            RAMSIZE_FIXED,
 };
 
-QEMUMachine n810_machine = {
+static QEMUMachine n810_machine = {
     .name = "n810",
     .desc = "Nokia N810 tablet aka. RX-44 (OMAP2420)",
     .init = n810_init,
-    .ram_require = (0x08000000 + 0x00010000 + OMAP242X_SRAM_SIZE) |
-            RAMSIZE_FIXED,
 };
-
 
 #define N00_SDRAM_SIZE (256 * 1024 * 1024)
 #define N00_ONENAND_CS 0
 #define N00_ONENAND_GPIO N8X0_ONENAND_GPIO
 #define N00_ONENAND_BUFSIZE (0xc000 << 1)
+#define N00_DISPLAY_WIDTH 864
+#define N00_DISPLAY_HEIGHT 480
+#define N00_DISPLAY_BUFSIZE (N00_DISPLAY_WIDTH * N00_DISPLAY_HEIGHT * 4)
+
+//#define N00_DEBUG_DSI
+
+#ifdef N00_DEBUG_DSI
+#define TRACEDSI(fmt, ...) fprintf(stderr, "%s: " fmt "\n", __FUNCTION__, ##__VA_ARGS__)
+#define DSIPIXELFORMAT(x) ((x)==0)?"none":((x)==1)?"3bpp":((x)==2)?"8bpp":((x)==3)?"12bpp":((x)==4)?"none":((x)==5)?"16bpp":((x)==6)?"18bpp":((x)==7)?"24bpp":"unknown"
+#else
+#define TRACEDSI(...)
+#define DSIPIXELFORMAT(x)
+#endif
+
+#define N00_DSI_EXTRACTPARAM(var, data, nb) \
+    { \
+        int i; \
+        for (i = nb; i--; data >>= 8) \
+            var = (var << 8) | (data & 0xff); \
+    }
+
+#define N00_DSI_MAKERETURNBYTE(b) ((((b) & 0xff) << 8) | 0x21)
+
+#include "omap_dss.h"
+
+struct taal_s {
+    struct omap_dss_s *dss;
+    DisplayState *ds;
+    struct dsi_chip_s chip;
+    int force_update;
+    struct {
+        uint32_t posx;
+        uint32_t posy;
+        uint32_t width;
+        uint32_t height;
+        uint32_t attrib;
+        target_phys_addr_t addr;
+    } fake;
+    
+    enum { bs_cmd, bs_data } bs;
+    uint8_t cmd;
+    uint8_t powermode;
+    uint8_t addrmode;
+    uint8_t bpp;
+    uint32_t sc;
+    uint32_t ec;
+    uint32_t cc;
+    uint32_t sp;
+    uint32_t ep;
+    uint32_t cp;
+    int counter;
+    //uint8_t buffer[N00_DISPLAY_BUFSIZE];
+};
+
+static void taal_reset(struct taal_s *s)
+{
+    s->bs = bs_cmd;
+    s->cmd = 0;
+    s->powermode = 0x08;
+    s->addrmode = 0;
+    s->bpp = 0;
+    s->sc = 0;
+    s->ec = 0;
+    s->cc = 0;
+    s->sp = 0;
+    s->ep = 0;
+    s->cp = 0;
+    s->counter = 0;
+    //memset(s->buffer, 0, N00_DISPLAY_BUFSIZE);
+}
+
+static uint32_t taal_read(void *opaque, uint32_t data, int len)
+{
+    struct taal_s *s = (struct taal_s *)opaque;
+    uint32_t ret = 0;
+    
+    if (s->bs != bs_cmd) {
+        fprintf(stderr, "%s: previous WRITE command not completed\n",
+                __FUNCTION__);
+    }
+    s->cmd = data & 0xff;
+    data >>= 8;
+    len--;
+    switch (s->cmd) {
+        case 0x0a: /* get power mode */
+            ret = N00_DSI_MAKERETURNBYTE(s->powermode);
+            TRACEDSI("get power mode (0x%04x)", ret);
+            break;
+        case 0x0b: /* get address mode */
+            ret = N00_DSI_MAKERETURNBYTE(s->addrmode);
+            TRACEDSI("get address mode (0x%04x)", ret);
+            break;
+        case 0xda: /* get id1 */
+        case 0xdb: /* get id2 */
+        case 0xdc: /* get id3 */
+            TRACEDSI("get id%d", s->cmd - 0xda);
+            ret = N00_DSI_MAKERETURNBYTE(0);
+            break;
+        default:
+            fprintf(stderr, "%s: unknown command 0x%02x\n",
+                    __FUNCTION__, s->cmd);
+            break;
+    }
+    return ret;
+}
+
+static void taal_write(void *opaque, uint32_t data, int len)
+{
+    struct taal_s *s = (struct taal_s *)opaque;
+    
+    if  (s->bs == bs_cmd) {
+        s->cmd = data & 0xff;
+        data >>= 8;
+        len--;
+    }
+    switch (s->cmd) {
+        case 0x10: /* enter sleep */
+            TRACEDSI("enter sleep mode");
+            s->powermode &= 0x10;
+            break;
+        case 0x11: /* exit sleep */
+            TRACEDSI("exit sleep mode");
+            s->powermode |= 0x10;
+            break;
+        case 0x28: /* display off */
+            TRACEDSI("display off");
+            s->powermode &= ~0x04;
+            break;
+        case 0x29: /* display on */
+            TRACEDSI("display on");
+            s->powermode |= 0x04;
+            break;
+        case 0x2a: /* set column address */
+            if (s->bs == bs_cmd) {
+                s->bs = bs_data;
+                s->sc = 0;
+                s->ec = 0;
+                N00_DSI_EXTRACTPARAM(s->sc, data, 2);
+                N00_DSI_EXTRACTPARAM(s->ec, data, 1);
+                if (s->sc >= N00_DISPLAY_WIDTH) {
+                    fprintf(stderr, "%s: invalid start column (%d)\n",
+                            __FUNCTION__, s->sc);
+                    s->sc = N00_DISPLAY_WIDTH - 1;
+                }
+                s->cc = s->sc;
+            } else {
+                s->bs = bs_cmd;
+                N00_DSI_EXTRACTPARAM(s->ec, data, 1);
+                if (s->ec >= N00_DISPLAY_WIDTH) {
+                    fprintf(stderr, "%s: invalid end column (%d)\n",
+                            __FUNCTION__, s->ec);
+                    s->ec = N00_DISPLAY_WIDTH - 1;
+                }
+                if (s->ec < s->sc) {
+                    fprintf(stderr, "%s: invlid end column (%d)\n",
+                            __FUNCTION__, s->ec);
+                    s->ec = s->sc;
+                }
+                s->cc = s->sc;
+                //TRACEDSI("set column address = %d to %d", s->sc ,s->ec);
+            }
+            break;
+        case 0x2b: /* set page address */
+            if (s->bs == bs_cmd) {
+                s->bs = bs_data;
+                s->sp = 0;
+                s->ep = 0;
+                N00_DSI_EXTRACTPARAM(s->sp, data, 2);
+                N00_DSI_EXTRACTPARAM(s->ep, data, 1);
+                if (s->sp >= N00_DISPLAY_HEIGHT) {
+                    fprintf(stderr, "%s: invalid start page (%d)\n",
+                            __FUNCTION__, s->sp);
+                    s->sp = N00_DISPLAY_HEIGHT - 1;
+                }
+                s->cp = s->sp;
+            } else {
+                s->bs = bs_cmd;
+                N00_DSI_EXTRACTPARAM(s->ep, data, 1);
+                if (s->ep >= N00_DISPLAY_HEIGHT) {
+                    fprintf(stderr, "%s: invalid end page (%d)\n",
+                            __FUNCTION__, s->ep);
+                    s->ep = N00_DISPLAY_HEIGHT - 1;
+                }
+                if (s->ep < s->sp) {
+                    fprintf(stderr, "%s: invalid end page (%d)\n",
+                            __FUNCTION__, s->ep);
+                    s->ep = s->sp;
+                }
+                s->cp = s->sp;
+                //TRACEDSI("set page address = %d to %d", s->sp, s->ep);
+            }
+            break;
+        case 0x2c: /* write memory */
+            TRACEDSI("write to memory -- not implemented so far");
+            break;
+        case 0x34: /* disable tear effect control */
+            TRACEDSI("disable tear effect control");
+            break;
+        case 0x35: /* enable tear effect control */
+            TRACEDSI("enable tear effect control");
+            /* ignore parameter */
+            break;
+        case 0x36: /* set address mode */
+            TRACEDSI("set address mode 0x%02x", data & 0xff);
+            s->addrmode = data & 0xff;
+            break;
+        case 0x3a: /* set pixel format */
+            TRACEDSI("set pixel format: dpi=%s, dbi=%s",
+                     DSIPIXELFORMAT((data >> 4) & 7),
+                     DSIPIXELFORMAT(data & 7));
+            switch ((data & 7)) {
+                case 2: /* 8bpp */
+                    s->bpp = 1;
+                    break;
+                case 5: /* 16bpp */
+                    s->bpp = 2;
+                    break;
+                case 7: /* 24bpp */
+                    s->bpp = 4; /* faster to process than 3 */
+                    break;
+                default:
+                    fprintf(stderr, "%s: unsupported dbi pixel format %d\n",
+                            __FUNCTION__, data & 7);
+                    break;
+            }
+            break;
+        default:
+            fprintf(stderr, "%s: unknown command 0x%02x\n",
+                    __FUNCTION__, s->cmd);
+            break;
+    }
+}
+
+static void taal_block_fake(void *opaque, const struct omap_dss_dispc_s *dispc)
+{
+    struct taal_s *s = (struct taal_s *)opaque;
+    
+    s->fake.posx = dispc->l[0].posx;
+    s->fake.posy = dispc->l[0].posy;
+    s->fake.width = dispc->l[0].nx;
+    s->fake.height = dispc->l[0].ny;
+    s->fake.attrib = dispc->l[0].attr;
+    s->fake.addr = dispc->l[0].addr[0];
+}
+
+static void taal_invalidate_display(void *opaque)
+{
+    struct taal_s *s = (struct taal_s *)opaque;
+    s->force_update = 1;
+}
+
+static void taal_update_display(void *opaque)
+{
+    struct taal_s *s = (struct taal_s *)opaque;
+    
+//    if (s->force_update || (s->powermode & 0x04)) {
+        s->force_update = 0;
+        /* TODO: draw background color */
+        omap3_lcd_panel_layer_update(s->ds,
+                                     N00_DISPLAY_WIDTH, N00_DISPLAY_HEIGHT,
+                                     s->fake.posx, s->fake.posy,
+                                     s->fake.width, s->fake.height,
+                                     s->fake.attrib,
+                                     s->fake.addr);
+        /* TODO: draw VID1 & VID2 layers */
+        dpy_update(s->ds, 0, 0, N00_DISPLAY_WIDTH, N00_DISPLAY_HEIGHT);
+//    }
+}
+
+static struct taal_s *taal_init(struct omap_dss_s *dss)
+{
+    struct taal_s *s = qemu_mallocz(sizeof(struct taal_s));
+    s->dss = dss;
+    s->chip.opaque = s;
+    s->chip.write = taal_write;
+    s->chip.read = taal_read;
+    s->chip.block_fake = taal_block_fake;
+    s->ds = graphic_console_init(taal_update_display,
+                                 taal_invalidate_display,
+                                 NULL, NULL, s);
+    qemu_console_resize(s->ds, N00_DISPLAY_WIDTH, N00_DISPLAY_HEIGHT);
+    taal_reset(s);
+    return s;
+}
+
+static uint32_t ssi_read(void *opaque, target_phys_addr_t addr)
+{
+    switch (addr) {
+        case 0x00: /* REVISION */
+            return 0x10;
+        case 0x14: /* SYSSTATUS */
+            return 1; /* RESETDONE */
+        default:
+            break;
+    }
+    //printf("%s: addr= " OMAP_FMT_plx "\n", __FUNCTION__, addr);
+    return 0;
+}
+
+static void ssi_write(void *opaque, target_phys_addr_t addr, uint32_t value)
+{
+    //printf("%s: addr=" OMAP_FMT_plx ", value=0x%08x\n", __FUNCTION__, addr, value);
+}
+
+static CPUReadMemoryFunc *ssi_read_func[] = {
+    ssi_read,
+    ssi_read,
+    ssi_read,
+};
+
+static CPUWriteMemoryFunc *ssi_write_func[] = {
+    ssi_write,
+    ssi_write,
+    ssi_write,
+};
+
+//#define DEBUG_TM12XX
+
+#ifdef DEBUG_TM12XX
+#define TRACE_TM12XX(fmt, ...) fprintf(stderr, "%s: " fmt "\n", __FUNCTION__, ##__VA_ARGS__)
+#else
+#define TRACE_TM12XX(...)
+#endif
+
+#define TM12XX_FUNC_COUNT 6
+#define TM12XX_FUNC_DCTRL   0x01
+#define TM12XX_FUNC_BIST    0x08
+#define TM12XX_FUNC_2D      0x11
+#define TM12XX_FUNC_BUTTONS 0x19
+#define TM12XX_FUNC_TIMER   0x32
+#define TM12XX_FUNC_FLASH   0x34
+
+typedef struct TM12XXState TM12XXState;
+typedef struct TM12XXFunc TM12XXFunc;
+
+typedef uint8_t (*tm12xx_readf)(TM12XXState *s, TM12XXFunc *f,
+                                uint8_t r);
+typedef void (*tm12xx_writef)(TM12XXState *s, TM12XXFunc *f,
+                              uint8_t r, uint8_t v);
+
+struct TM12XXFunc {
+    uint8_t fid;
+    uint8_t ints;
+    uint8_t intshift;
+    uint8_t nr_query;
+    uint8_t nr_cmd;
+    uint8_t nr_ctrl;
+    uint8_t nr_data;
+    
+    tm12xx_readf read;
+    tm12xx_writef write;
+};
+
+struct TM12XXState {
+    i2c_slave i2c;
+    qemu_irq irq;
+    int firstbyte;
+    int reg;
+    int swapxy;
+    
+    uint8_t irqst;
+    uint8_t irqen;
+    uint8_t dctrl;
+    uint8_t status;
+    
+    uint8_t touch_control;
+    uint8_t touch_state;
+    struct {
+        uint16_t x;
+        uint16_t y;
+    } touch_pos[2], touch_max;
+    
+    TM12XXFunc f[TM12XX_FUNC_COUNT];
+};
+
+static void tm12xx_func_init(TM12XXState *s,
+                             uint8_t fid, uint8_t ver, uint8_t ints,
+                             uint8_t nr_query, uint8_t nr_cmd,
+                             uint8_t nr_ctrl, uint8_t nr_data,
+                             tm12xx_readf read, tm12xx_writef write)
+{
+    static uint8_t id = 0;
+    static uint8_t ishift = 0;
+    static uint8_t regbase = 0;
+
+    if (regbase + nr_query + nr_ctrl + nr_cmd + nr_data <
+        0xee - 6 * TM12XX_FUNC_COUNT) {
+        s->f[id].fid = fid;
+        
+        s->f[id].ints = (ver << 5) | ints;
+        s->f[id].intshift = ishift;
+        
+        s->f[id].nr_query = nr_query;
+        s->f[id].nr_cmd = nr_cmd;
+        s->f[id].nr_ctrl = nr_ctrl;
+        s->f[id].nr_data = nr_data;
+        
+        s->f[id].read = read;
+        s->f[id].write = write;
+        
+        TRACE_TM12XX("fid=0x%02x, query=0x%02x-0x%02x, cmd=0x%02x-0x%02x, "
+                     "ctrl=0x%02x-0x%02x, data=0x%02x-0x%02x",
+                     fid,
+                     nr_query ? regbase : 0, nr_query ? regbase + nr_query - 1 : 0,
+                     nr_cmd ? regbase + nr_query : 0, nr_cmd ? regbase + nr_query + nr_cmd - 1 : 0,
+                     nr_ctrl ? regbase + nr_query + nr_cmd : 0, nr_ctrl ? regbase + nr_query + nr_cmd + nr_ctrl - 1 : 0,
+                     nr_data ? regbase + nr_query + nr_cmd + nr_ctrl : 0, nr_data ? regbase + nr_query + nr_cmd + nr_ctrl + nr_data - 1 : 0);
+        
+        id++;
+        ishift += ints;
+        regbase += nr_query + nr_ctrl + nr_cmd + nr_data;
+    } else {
+        fprintf(stderr, "%s: insufficient register space\n", __FUNCTION__);
+        exit(-1);
+    }
+}
+
+static void tm12xx_interrupt_update(TM12XXState *s)
+{
+    TRACE_TM12XX("irqst = 0x%02x, irqen = 0x%02x", s->irqst, s->irqen);
+    qemu_set_irq(s->irq, !(s->irqst & s->irqen));
+}
+
+static uint8_t tm12xx_get_intmask_forfunc(TM12XXState *s, uint8_t fid)
+{
+    uint8_t mask = 0;
+    int i;
+    for (i = 0; i < TM12XX_FUNC_COUNT; i++) {
+        if (s->f[i].fid == fid) {
+            mask = ((1 << s->f[i].ints) - 1) << s->f[i].intshift;
+            break;
+        }
+    }
+    return mask;
+}
+
+static void tm12xx_reset(TM12XXState *s)
+{
+    s->firstbyte = 0;
+    s->reg = 0;
+    
+    s->irqen = 0x3f; /* enable all interrupts by default */
+    s->irqst = tm12xx_get_intmask_forfunc(s, TM12XX_FUNC_DCTRL);
+    s->dctrl = 0x00;
+    s->status = 0x81; /* unconfigured, status = reset occurred */
+    
+    s->touch_control = 0;
+    s->touch_state = 0;
+    s->touch_pos[0].x = s->touch_pos[0].y = 0;
+    s->touch_pos[1].x = s->touch_pos[1].y = 0;
+    s->touch_max.x = N00_DISPLAY_WIDTH;
+    s->touch_max.y = N00_DISPLAY_HEIGHT;
+    
+    tm12xx_interrupt_update(s);
+}
+
+static uint8_t tm12xx_flash_read(TM12XXState *s, TM12XXFunc *f,
+                                 uint8_t r)
+{
+    TRACE_TM12XX("0x%02x", r);
+    return 0;
+}
+
+static void tm12xx_flash_write(TM12XXState *s, TM12XXFunc *f,
+                               uint8_t r, uint8_t v)
+{
+    TRACE_TM12XX("0x%02x = 0x%02x", r, v);
+}
+
+static uint8_t tm12xx_dctrl_read(TM12XXState *s, TM12XXFunc *f,
+                                 uint8_t r)
+{
+    static const uint8_t query[21] = {
+        'Q',     /* manufacturer id */
+        0,       /* product properties */
+        0, 1,    /* product info 0 & 1 */
+        0, 0, 0, /* date code year, month, day */
+        0, 0,    /* tester id */
+        0, 0,    /* serial number */
+        'Q', 'E', 'M', 'U', 0, 0, 0, 0, 0, 0 /* product id */
+    };
+    uint8_t value = 0;
+    
+    if (r < sizeof(query)) {
+        value = query[r];
+        TRACE_TM12XX("QUERY%d = 0x%02x", r, value);
+    } else {
+        switch (r) {
+            case 21: /* cmd0: device command */
+                value = 0;
+                break;
+            case 22: /* ctrl0: device control */
+                value = s->dctrl;
+                TRACE_TM12XX("DEVICE_CONTROL = 0x%02x", value);
+                break;
+            case 23: /* ctrl1: interrupt enable */
+                value = s->irqen;
+                TRACE_TM12XX("INTR_ENABLE = 0x%02x", value);
+                break;
+            case 24: /* data0: device status */
+                value = s->status;
+                TRACE_TM12XX("DEVICE_STATUS = 0x%02x", value);
+                break;
+            case 25: /* data1: interrupt status */
+                value = s->irqst;
+                s->irqst = 0;
+                tm12xx_interrupt_update(s);
+                TRACE_TM12XX("INTR_STATUS = 0x%02x", value);
+                break;
+            default:
+                fprintf(stderr, "%s: unknown register 0x%02x\n",
+                        __FUNCTION__, r);
+                break;
+        }
+    }
+    
+    return value;
+}
+
+static void tm12xx_dctrl_write(TM12XXState *s, TM12XXFunc *f,
+                               uint8_t r, uint8_t v)
+{
+    switch (r) {
+        case 0 ... 20: /* query */
+        case 24 ... 25: /* data */
+            break;
+        case 21: /* cmd0: device command */
+            TRACE_TM12XX("DEVICE_COMMAND = 0x%02x", v);
+            if (v & 1) {
+                tm12xx_reset(s);
+                /* in reality we should not raise the irq immediately */
+                s->status = 0x01;    /* RESET */
+                s->irqst |= 1 << (f->intshift);
+                qemu_irq_pulse(s->irq);
+            }
+            break;
+        case 22: /* ctrl0: device control */
+            TRACE_TM12XX("DEVICE_CONTROL = 0x%02x", v);
+            if (v & 0x80) { /* DC_CONFIGURED */
+                s->status &= ~0x8f;
+            }    
+            s->dctrl = v & 0x7f;
+            break;
+        case 23: /* ctrl1: interrupt enable */
+            TRACE_TM12XX("INTR_ENABLE = 0x%02x", v);
+            s->irqen = v;
+            tm12xx_interrupt_update(s);
+            break;
+        default:
+            fprintf(stderr, "%s: unknown register 0x%02x\n",
+                    __FUNCTION__, r);
+            break;
+    }
+}
+
+static uint8_t tm12xx_bist_read(TM12XXState *s, TM12XXFunc *f,
+                                uint8_t r)
+{
+    TRACE_TM12XX("0x%02x", r);
+    return 0;
+}
+
+static void tm12xx_bist_write(TM12XXState *s, TM12XXFunc *f,
+                              uint8_t r, uint8_t v)
+{
+    TRACE_TM12XX("0x%02x = 0x%02x", r, v);
+}
+
+static uint8_t tm12xx_2d_read(TM12XXState *s, TM12XXFunc *f,
+                              uint8_t r)
+{
+    static const uint8_t query[9] = {
+        0,    /* number of sensors - 1 */
+        0x11, /* unconfigurable, absolute mode only, 2 touch points */
+        1, 1, /* number of x and y electrodes */
+        2,    /* maximum number of electrodes */
+        0,    /* abolute position reported as x, y, z, wx and wy */
+        0,    /* relative data source */
+        0, 0  /* gesture information */
+    };
+    uint8_t value = 0;
+    
+    if (r < sizeof(query)) {
+        value = query[r];
+        TRACE_TM12XX("QUERY%d = 0x%02x", r, value);
+    } else {
+        int finger = 0;
+        switch (r) {
+            case 9: /* cmd0 */
+                value = 0;
+                TRACE_TM12XX("CMD0 = 0x%02x", value);
+                break;
+            case 10: /* ctrl0: general control */
+                value = s->touch_control;
+                TRACE_TM12XX("GENERAL_CONTROL = 0x%02x", value);
+                break;
+            case 16: /* ctrl6: max x position LSB */
+                if (s->swapxy) {
+                    value = s->touch_max.y & 0xff;
+                } else {
+                    value = s->touch_max.x & 0xff;
+                }
+                TRACE_TM12XX("MAX_X_POSITION LSB = 0x%02x", value);
+                break;
+            case 17: /* ctrl7: max x position MSB */
+                if (s->swapxy) {
+                    value = (s->touch_max.y >> 8) & 0xff;
+                } else {
+                    value = (s->touch_max.x >> 8) & 0xff;
+                }
+                TRACE_TM12XX("MAX_X_POSITION MSB = 0x%02x", value);
+                break;
+            case 18: /* ctrl8: max y position LSB */
+                if (s->swapxy) {
+                    value = s->touch_max.x & 0xff;
+                } else {
+                    value = s->touch_max.y & 0xff;
+                }
+                TRACE_TM12XX("MAX_Y_POSITION LSB = 0x%02x", value);
+                break;
+            case 19: /* ctrl9: max y position msb */
+                if (s->swapxy) {
+                    value = (s->touch_max.x >> 8) & 0xff;
+                } else {
+                    value = (s->touch_max.y >> 8) & 0xff;
+                }
+                TRACE_TM12XX("MAX_Y_POSITION MSB = 0x%02x", value);
+                break;
+            case 20: /* sensor mapping control, x electrode 0 */
+                value = 0; /* s0 */
+                TRACE_TM12XX("SENSOR_MAPPING_0 = 0x%02x", value);
+                break;
+            case 21: /* sensor mapping control, y electrode 0 */
+                value = 0x81; /* s1 */
+                TRACE_TM12XX("SENSOR_MAPPING_1 = 0x%02x", value);
+                break;
+            case 22: /* sensitivity control for electrode 0 */
+                value = 0; /* s0 */
+                TRACE_TM12XX("SENSITIVITY_CTRL_0 = 0x%02x", value);
+                break;
+            case 23: /* sensitivity control for electrode 1 */
+                value = 0; /* s1 */
+                TRACE_TM12XX("SENSITIVITY_CTRL_1 = 0x%02x", value);
+                break;
+            case 24: /* data0: finger state */
+                value = s->touch_state;
+                TRACE_TM12XX("FINGER_STATE = 0x%02x", value);
+                break;
+            case 30: /* finger1 x position MSB */
+                finger++;
+            case 25: /* finger0 x position MSB */
+                if (s->swapxy) {
+                    value = s->touch_pos[finger].y >> 4;
+                } else {
+                    value = s->touch_pos[finger].x >> 4;
+                }
+                TRACE_TM12XX("FINGER%d_X_POS_MSB = 0x%02x", finger, value);
+                break;
+            case 31: /* finger1 y position MSB */
+                finger++;
+            case 26: /* finger0 y position MSB */
+                if (s->swapxy) {
+                    value = s->touch_pos[finger].x >> 4;
+                } else {
+                    value = s->touch_pos[finger].y >> 4;
+                }
+                TRACE_TM12XX("FINGER%d_Y_POS_MSB = 0x%02x", finger, value);
+                break;
+            case 32: /* finger1 x & y position LSBs */
+                finger++;
+            case 27: /* finger0 x & y position LSBs */
+                if (s->swapxy) {
+                    value = ((s->touch_pos[finger].x & 0x0f) << 4) |
+                            (s->touch_pos[finger].y & 0x0f);
+                } else {
+                    value = ((s->touch_pos[finger].y & 0x0f) << 4) |
+                            (s->touch_pos[finger].x & 0x0f);
+                }
+                TRACE_TM12XX("FINGER%d_XY_POS_LSB = 0x%02x", finger, value);
+                break;
+            case 33: /* finger1 wx & wy */
+                finger++;
+            case 28: /* finger0 wx & wy */
+                value = 0x22;
+                TRACE_TM12XX("FINGER%d_WX_WY = 0x%02x", finger, value);
+                break;
+            case 34: /* finger1 z */
+                finger++;
+            case 29: /* finger0 z */
+                value = 0x10;
+                TRACE_TM12XX("FINGER%d_Z = 0x%02x", finger, value);
+                break;
+            default:
+                fprintf(stderr, "%s: unknown register 0x%02x\n",
+                        __FUNCTION__, r);
+                break;
+        }
+    }
+    
+    return value;
+}
+
+static void tm12xx_2d_write(TM12XXState *s, TM12XXFunc *f,
+                            uint8_t r, uint8_t v)
+{
+    switch (r) {
+        case 0 ... 8: /* query */
+        case 11 ... 15: /* control */
+        case 20 ... 23: /* control */
+        case 24 ... 34: /* data */
+            break;
+        case 9: /* cmd0 */
+            if (v & 1) {
+                /* TODO: zero all touch sensors */
+                fprintf(stderr, "%s: sensor zeroing not implemented\n",
+                        __FUNCTION__);
+            }
+            break;
+        case 10: /* ctrl0: general control */
+            TRACE_TM12XX("GENERAL_CONTROL = 0x%02x", v);
+            s->touch_control = v;
+            break;
+        case 16: /* ctrl6: max x position LSB */
+            TRACE_TM12XX("MAX_X_POSITION_LSB = 0x%02x", v);
+            if (s->swapxy) {
+                s->touch_max.y &= ~0xff;
+                s->touch_max.y |= v;
+            } else {
+                s->touch_max.x &= ~0xff;
+                s->touch_max.x |= v;
+            }
+            break;
+        case 17: /* ctrl7: max x position MSB */
+            TRACE_TM12XX("MAX_X_POSITION_MSB = 0x%02x", v);
+            if (s->swapxy) {
+                s->touch_max.y &= ~0xff00;
+                s->touch_max.y |= v << 8;
+            } else {
+                s->touch_max.x &= ~0xff00;
+                s->touch_max.x |= v << 8;
+            }
+            break;
+        case 18: /* ctrl8: max y position LSB */
+            TRACE_TM12XX("MAX_Y_POSITION_LSB = 0x%02x", v);
+            if (s->swapxy) {
+                s->touch_max.x &= ~0xff;
+                s->touch_max.x |= v;
+            } else {
+                s->touch_max.y &= ~0xff;
+                s->touch_max.y |= v;
+            }
+            break;
+        case 19: /* ctrl9: max y position MSB */
+            TRACE_TM12XX("MAX_Y_POSITION_MSB = 0x%02x", v);
+            if (s->swapxy) {
+                s->touch_max.x &= ~0xff00;
+                s->touch_max.x |= v << 8;
+            } else {
+                s->touch_max.y &= ~0xff00;
+                s->touch_max.y |= v << 8;
+            }
+            break;
+        default:
+            fprintf(stderr, "%s: unknown register 0x%02x (value 0x%02x)\n",
+                    __FUNCTION__, r, v);
+            break;
+    }
+}
+
+static uint8_t tm12xx_buttons_read(TM12XXState *s, TM12XXFunc *f,
+                                   uint8_t r)
+{
+    uint8_t value = 0;
+    
+    switch (r) {
+        case 0: /* query0 */
+            value = 0; /* unconfigurable */
+            TRACE_TM12XX("QUERY0 = 0x%02x", value);
+            break;
+        case 1: /* query1: button count */
+            value = 0;
+            TRACE_TM12XX("QUERY1 = 0x%02x", value);
+            break;
+        case 2: /* cmd0 */
+            value = 0;
+            TRACE_TM12XX("CMD0 = 0x%02x", value);
+            break;
+        case 3: /* ctrl0 */
+            value = 0;
+            TRACE_TM12XX("CTRL0 = 0x%02x", value);
+            break;
+        case 4: /* ctrl1: interrupt enable */
+            value = 0;
+            TRACE_TM12XX("CTRL1 = 0x%02x", value);
+            break;
+        case 5: /* ctrl2 */
+            value = 0;
+            TRACE_TM12XX("CTRL2 = 0x%02x", value);
+            break;
+        case 6: /* data0 */
+            value = 0;
+            TRACE_TM12XX("DATA0 = 0x%02x", value);
+            break;
+        default:
+            fprintf(stderr, "%s: unknown register 0x%02x\n",
+                    __FUNCTION__, r);
+            break;
+    }
+    return value;
+}
+
+static void tm12xx_buttons_write(TM12XXState *s, TM12XXFunc *f,
+                                 uint8_t r, uint8_t v)
+{
+    TRACE_TM12XX("0x%02x = 0x%02x", r, v);
+}
+
+static uint8_t tm12xx_timer_read(TM12XXState *s, TM12XXFunc *f,
+                                uint8_t r)
+{
+    TRACE_TM12XX("0x%02x", r);
+    return 0;
+}
+
+static void tm12xx_timer_write(TM12XXState *s, TM12XXFunc *f,
+                               uint8_t r, uint8_t v)
+{
+    TRACE_TM12XX("0x%02x = 0x%02x", r, v);
+}
+
+static void tm12xx_event(i2c_slave *i2c, enum i2c_event event)
+{
+    TM12XXState *s = (TM12XXState *)i2c;
+    if (event == I2C_START_SEND)
+        s->firstbyte = 1;
+}
+
+static int tm12xx_rx(i2c_slave *i2c)
+{
+    TM12XXState *s = (TM12XXState *)i2c;
+    int value = -1;
+    if (s->reg < 0xee - 6 * TM12XX_FUNC_COUNT) {
+        int fn = 0;
+        uint8_t regbase = 0;
+        for (; fn < TM12XX_FUNC_COUNT; fn++) {
+            uint8_t regcount = s->f[fn].nr_query + s->f[fn].nr_ctrl +
+                               s->f[fn].nr_cmd + s->f[fn].nr_data;
+            if (s->reg < regbase + regcount) {
+                value = s->f[fn].read(s, &s->f[fn], s->reg - regbase);
+                break;
+            }
+            regbase += regcount;
+        }
+    } else {
+        if (s->reg < 0xef) {
+            if (s->reg == 0xee - 6 * TM12XX_FUNC_COUNT) { /* EOT */
+                value = 0x00;
+            } else {
+                int fn = 0;
+                uint8_t regbase = 0;
+                for (value = 0xe8; ; value-=6, fn++) {
+                    if (s->reg > value) {
+                        switch (s->reg - value) {
+                            case 1: /* query base */
+                                value = regbase;
+                                break;
+                            case 2: /* cmd base */
+                                value = regbase + s->f[fn].nr_query;
+                                break;
+                            case 3: /* ctrl base */
+                                value = regbase + s->f[fn].nr_query +
+                                        s->f[fn].nr_cmd;
+                                break;
+                            case 4: /* data base */
+                                value = regbase + s->f[fn].nr_query +
+                                        s->f[fn].nr_cmd + s->f[fn].nr_ctrl;
+                                break;
+                            case 5: /* ints */
+                                value = s->f[fn].ints;
+                                break;
+                            case 6: /* function id */
+                                value = s->f[fn].fid;
+                                break;
+                            default:
+                                break;
+                        }
+                        break;
+                    }
+                    regbase += s->f[fn].nr_query + s->f[fn].nr_cmd +
+                               s->f[fn].nr_ctrl + s->f[fn].nr_data;
+                }
+            }
+        } else if (s->reg == 0xef) { /* PDT_PROPERTIES */
+            value = 0x00;
+        } else if (s->reg == 0xff) { /* PAGE_SELECT */
+            value = 0x00;
+        }
+    }
+    if (value < 0) {
+        fprintf(stderr, "%s: unknown register 0x%02x\n", __FUNCTION__, s->reg);
+        value = 0;
+    }
+    s->reg++;
+    return value;
+}
+
+static int tm12xx_tx(i2c_slave *i2c, uint8_t data)
+{
+    TM12XXState *s = (TM12XXState *)i2c;
+    if (s->firstbyte) {
+        s->reg = data;
+        s->firstbyte = 0;
+    } else {
+        int value = -1;
+        if (s->reg < 0xee - 6 * TM12XX_FUNC_COUNT) {
+            int fn = 0;
+            uint8_t regbase = 0;
+            for (; fn < TM12XX_FUNC_COUNT; fn++) {
+                uint8_t regcount = s->f[fn].nr_query + s->f[fn].nr_ctrl +
+                                   s->f[fn].nr_cmd + s->f[fn].nr_data;
+                if (s->reg < regbase + regcount) {
+                    s->f[fn].write(s, &s->f[fn], s->reg - regbase, data);
+                    value = 0;
+                    break;
+                }
+                regbase += regcount;
+            }
+        } else if (s->reg == 0xff) { /* PAGE_SELECT */
+            fprintf(stderr, "%s: only page 0 is supported\n", __FUNCTION__);
+            value = 0;
+        }
+        if (value < 0) {
+            fprintf(stderr, "%s: unknown register 0x%02x\n", __FUNCTION__, s->reg);
+        }
+        s->reg++;
+    }
+    return 1;
+}
+
+static void tm12xx_mouse(void *opaque, int x, int y, int z, int bs)
+{
+    TM12XXState *s = (TM12XXState *)opaque;
+    
+    uint8_t state = ((bs & 1) << 1) | ((bs & 2) << 2);
+    if (state || s->touch_state) {
+        x = ((x + 1) * s->touch_max.x) >> 15;
+        y = ((y + 1) * s->touch_max.y) >> 15;
+        TRACE_TM12XX("x = %d, y = %d, z = %d, bs = %d", x, y, z, bs);
+        s->touch_state = state;
+        if (bs & 1) {
+            s->touch_pos[0].x = x;
+            s->touch_pos[0].y = y;
+        }
+        if (bs & 2) {
+            s->touch_pos[1].x = x;
+            s->touch_pos[1].y = y;
+        }
+        s->irqst |= tm12xx_get_intmask_forfunc(s, TM12XX_FUNC_2D);
+        tm12xx_interrupt_update(s);
+    }
+}
+
+static void tm12xx_init(i2c_slave *i2c)
+{
+    TM12XXState *s = FROM_I2C_SLAVE(TM12XXState, i2c);
+    
+    tm12xx_func_init(s, TM12XX_FUNC_FLASH,   0, 1,  9, 0,  0,  4,
+                     tm12xx_flash_read, tm12xx_flash_write);
+    tm12xx_func_init(s, TM12XX_FUNC_DCTRL,   0, 1, 21, 1,  2,  2,
+                     tm12xx_dctrl_read, tm12xx_dctrl_write);
+    tm12xx_func_init(s, TM12XX_FUNC_BIST,    0, 1,  2, 1,  3,  3,
+                     tm12xx_bist_read, tm12xx_bist_write);
+    tm12xx_func_init(s, TM12XX_FUNC_2D,      0, 1,  9, 1, 14, 11,
+                     tm12xx_2d_read, tm12xx_2d_write);
+    tm12xx_func_init(s, TM12XX_FUNC_BUTTONS, 0, 1,  2, 1,  3,  1,
+                     tm12xx_buttons_read, tm12xx_buttons_write);
+    tm12xx_func_init(s, TM12XX_FUNC_TIMER,   0, 1,  1, 0,  2,  2,
+                     tm12xx_timer_read, tm12xx_timer_write);
+    
+    tm12xx_reset(s);
+}
+
+static I2CSlaveInfo tm12xx_info = {
+    .init = tm12xx_init,
+    .event = tm12xx_event,
+    .recv = tm12xx_rx,
+    .send = tm12xx_tx
+};
+
+static void *n00_tm12xx_init(i2c_bus *bus, qemu_irq irq, int swapxy)
+{
+    DeviceState *ds = i2c_create_slave(bus, "tm12xx", 0x4b);
+    TM12XXState *s = FROM_I2C_SLAVE(TM12XXState, I2C_SLAVE_FROM_QDEV(ds));
+    s->irq = irq;
+    s->swapxy = swapxy;
+    qemu_add_mouse_event_handler(tm12xx_mouse, s, 1, "TM12xx Touchscreen");
+    return s;
+}
 
 struct n00_s {
     struct omap_mpu_state_s *cpu;
-    struct twl4030_s *twl4030;
-    struct omap3_lcd_panel_s *lcd;
+    void *twl4030;
     void *nand;
+    struct taal_s *lcd;
+    void *tm12xx;
 };
 
-static void n00_init(ram_addr_t ram_size, int vga_ram_size,
-                     const char *boot_device, const char *kernel_filename,
-                     const char *kernel_cmdline, const char *initrd_filename,
+static void n00_init(ram_addr_t ram_size,
+                     const char *boot_device,
+                     const char *kernel_filename,
+                     const char *kernel_cmdline,
+                     const char *initrd_filename,
                      const char *cpu_model)
 {
     struct n00_s *s = (struct n00_s *)qemu_mallocz(sizeof(*s));
-    int sdindex = drive_get_index(IF_SD, 0, 0);
-    if (sdindex < 0) {
-        fprintf(stderr, "%s: missing SecureDigital device\n", __FUNCTION__);
+    if (drive_get_index(IF_SD, 0, 0) < 0 ||
+        drive_get_index(IF_MTD, 0, 0) < 0) {
+        fprintf(stderr, "%s: missing SD and/or NAND device\n", __FUNCTION__);
         exit(1);
     }
     s->cpu = omap3530_mpu_init(256*1024*1024,
@@ -1451,22 +2445,51 @@ static void n00_init(ram_addr_t ram_size, int vga_ram_size,
                                serial_hds[0]);
     s->twl4030 = twl4030_init(omap_i2c_bus(s->cpu->i2c[0]),
                               s->cpu->irq[0][OMAP_INT_3XXX_SYS_NIRQ]);
-    s->lcd = omap3_lcd_panel_init();
-    omap3_lcd_panel_attach(s->cpu->dss, 0, s->lcd);
-    s->nand = onenand_init(0xec4800, 1, 
-                           omap2_gpio_in_get(s->cpu->gpif, N00_ONENAND_GPIO)[0]);
+    s->lcd = taal_init(s->cpu->dss);
+    omap_dsi_attach(s->cpu->dss, 0, &s->lcd->chip);
+    s->nand = onenand_init(NAND_MFR_SAMSUNG, 0x40, 0x121, 1, 
+                           omap2_gpio_in_get(s->cpu->gpif, N00_ONENAND_GPIO)[0],
+                           drives_table[drive_get_index(IF_MTD, 0, 0)].bdrv);
     omap_gpmc_attach(s->cpu->gpmc, N00_ONENAND_CS, 0, onenand_base_update,
                      onenand_base_unmap, s->nand, 0);
-    omap3_mmc_attach(s->cpu->omap3_mmc[0], drives_table[sdindex].bdrv);
+    
+    int sdindex;
+    if ((sdindex = drive_get_index(IF_SD, 0, 0)) >= 0)
+        omap3_mmc_attach(s->cpu->omap3_mmc[0], drives_table[sdindex].bdrv);
+    if ((sdindex = drive_get_index(IF_SD, 0, 1)) >= 0)
+        omap3_mmc_attach(s->cpu->omap3_mmc[1], drives_table[sdindex].bdrv);
+    if ((sdindex = drive_get_index(IF_SD, 0, 2)) >= 0)
+        omap3_mmc_attach(s->cpu->omap3_mmc[2], drives_table[sdindex].bdrv);
+    
+    cpu_register_physical_memory(0x48058000, 0x3c00,
+                                 cpu_register_io_memory(0,
+                                                        ssi_read_func,
+                                                        ssi_write_func,
+                                                        0));
+    s->tm12xx = n00_tm12xx_init(omap_i2c_bus(s->cpu->i2c[1]),
+                                omap2_gpio_in_get(s->cpu->gpif, 61)[0],
+                                1);
+
     omap3_boot_rom_emu(s->cpu);
 }
 
-QEMUMachine n00_machine = {
+static QEMUMachine n00_machine = {
     .name = "n00",
-    .desc = "Nokia N00 aka. RX-71 (OMAP3430)",
+    .desc = "Nokia N00 (OMAP3430)",
     .init = n00_init,
-    .ram_require = (N00_SDRAM_SIZE
-                    + N00_ONENAND_BUFSIZE
-                    + OMAP3XXX_SRAM_SIZE
-                    + OMAP3XXX_BOOTROM_SIZE) | RAMSIZE_FIXED,
 };
+
+static void n00_register_devices(void)
+{
+    i2c_register_slave("tm12xx", sizeof(TM12XXState), &tm12xx_info);
+}
+
+static void nseries_machine_init(void)
+{
+    qemu_register_machine(&n800_machine);
+    qemu_register_machine(&n810_machine);
+    qemu_register_machine(&n00_machine);
+}
+
+device_init(n00_register_devices);
+machine_init(nseries_machine_init);

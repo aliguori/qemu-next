@@ -8,6 +8,7 @@
 #include <errno.h>
 #include <unistd.h>
 #include <sys/mman.h>
+#include <sys/resource.h>
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
@@ -24,7 +25,7 @@
 #undef ELF_ARCH
 #endif
 
-#define ELF_OSABI	ELFOSABI_SYSV
+#define ELF_OSABI   ELFOSABI_SYSV
 
 /* from personality.h */
 
@@ -133,45 +134,53 @@ static inline void init_thread(struct target_pt_regs *regs, struct image_info *i
     regs->rip = infop->entry;
 }
 
-#define USE_ELF_CORE_DUMP
+typedef target_ulong    elf_greg_t;
+typedef uint32_t        target_uid_t;
+typedef uint32_t        target_gid_t;
+typedef int32_t         target_pid_t;
 
-typedef struct target_pt_regs elf_gregset_t;
+#define ELF_NREG    27
+typedef elf_greg_t  elf_gregset_t[ELF_NREG];
 
 /*
- * For register format that gdb uses, see <sys/reg.h>.  These
- * should be in same format (which is usually same as target_pt_regs).
- */
-static void elf_core_copy_regs(elf_gregset_t *elfregs, const CPUState *env)
+ * Note that ELF_NREG should be 29 as there should be place for
+ * TRAPNO and ERR "registers" as well but linux doesn't dump
+ * those.
+ *
+ * See linux kernel: arch/x86/include/asm/elf.h
+ */ 
+static void elf_core_copy_regs(elf_gregset_t *regs, const CPUState *env)
 {
-    (void) memset(elfregs, 0, sizeof (*elfregs));
-
-    /* GPRs */
-    elfregs->r15 = env->regs[15];
-    elfregs->r14 = env->regs[14];
-    elfregs->r13 = env->regs[13];
-    elfregs->r12 = env->regs[12];
-    elfregs->rbp = env->regs[R_EBP];
-    elfregs->rbx = env->regs[R_EBX];
-    elfregs->r11 = env->regs[11];
-    elfregs->r10 = env->regs[10];
-    elfregs->r9 = env->regs[9];
-    elfregs->r8 = env->regs[8];
-    elfregs->rax = env->regs[R_EAX];
-    elfregs->rcx = env->regs[R_ECX];
-    elfregs->rdx = env->regs[R_EDX];
-    elfregs->rsi = env->regs[R_ESI];
-    elfregs->rdi = env->regs[R_EDI];
-    elfregs->orig_rax = env->regs[R_EAX];
-    elfregs->rip = env->eip;
-    elfregs->rsp = env->regs[R_ESP];
-    elfregs->eflags = env->eflags;
-
-    /* segment registers */
-    elfregs->cs = env->segs[R_CS].selector;
-    elfregs->ss = env->segs[R_SS].selector;
+    (*regs)[0] = env->regs[15];
+    (*regs)[1] = env->regs[14];
+    (*regs)[2] = env->regs[13];
+    (*regs)[3] = env->regs[12];
+    (*regs)[4] = env->regs[R_EBP];
+    (*regs)[5] = env->regs[R_EBX];
+    (*regs)[6] = env->regs[11];
+    (*regs)[7] = env->regs[10];
+    (*regs)[8] = env->regs[9];
+    (*regs)[9] = env->regs[8];
+    (*regs)[10] = env->regs[R_EAX];
+    (*regs)[11] = env->regs[R_ECX];
+    (*regs)[12] = env->regs[R_EDX];
+    (*regs)[13] = env->regs[R_ESI];
+    (*regs)[14] = env->regs[R_EDI];
+    (*regs)[15] = env->regs[R_EAX]; /* XXX */
+    (*regs)[16] = env->eip;
+    (*regs)[17] = env->segs[R_CS].selector & 0xffff;
+    (*regs)[18] = env->eflags;
+    (*regs)[19] = env->regs[R_ESP];
+    (*regs)[20] = env->segs[R_SS].selector & 0xffff;
+    (*regs)[21] = env->segs[R_FS].selector & 0xffff;
+    (*regs)[22] = env->segs[R_GS].selector & 0xffff;
+    (*regs)[23] = env->segs[R_DS].selector & 0xffff;
+    (*regs)[24] = env->segs[R_ES].selector & 0xffff;
+    (*regs)[25] = env->segs[R_FS].selector & 0xffff;
+    (*regs)[26] = env->segs[R_GS].selector & 0xffff;
 }
 
-#else /* !TARGET_X86_64 */
+#else
 
 #define ELF_START_MMAP 0x80000000
 
@@ -202,38 +211,44 @@ static inline void init_thread(struct target_pt_regs *regs, struct image_info *i
     regs->edx = 0;
 }
 
-#define USE_ELF_CORE_DUMP
+typedef target_ulong    elf_greg_t;
+typedef uint16_t        target_uid_t;
+typedef uint16_t        target_gid_t;
+typedef int32_t         target_pid_t;
 
-typedef struct target_pt_regs elf_gregset_t;
+#define ELF_NREG    17
+typedef elf_greg_t  elf_gregset_t[ELF_NREG];
 
-static void elf_core_copy_regs(elf_gregset_t *elfregs, const CPUState *env)
+/*
+ * Note that ELF_NREG should be 19 as there should be place for
+ * TRAPNO and ERR "registers" as well but linux doesn't dump
+ * those.
+ *
+ * See linux kernel: arch/x86/include/asm/elf.h
+ */ 
+static void elf_core_copy_regs(elf_gregset_t *regs, const CPUState *env)
 {
-    (void) memset(elfregs, 0, sizeof (*elfregs));
-
-    /* GPRs */
-    elfregs->ebx = env->regs[R_EBX];
-    elfregs->ecx = env->regs[R_ECX];
-    elfregs->edx = env->regs[R_EDX];
-    elfregs->esi = env->regs[R_ESI];
-    elfregs->edi = env->regs[R_EDI];
-    elfregs->ebp = env->regs[R_EBP];
-    elfregs->eax = env->regs[R_EAX];
-    elfregs->orig_eax = env->regs[R_EAX]; /* XXX */
-    elfregs->esp = env->regs[R_ESP];
-    elfregs->eip = env->eip;
-    elfregs->eflags = env->eflags;
-
-    /* segment registers */
-    elfregs->xds = env->segs[R_DS].selector;
-    elfregs->xes = env->segs[R_ES].selector;
-    elfregs->xcs = env->segs[R_CS].selector;
-    elfregs->xss = env->segs[R_SS].selector;
-    elfregs->xfs = env->segs[R_FS].selector;
-    elfregs->xgs = env->segs[R_GS].selector;
+    (*regs)[0] = env->regs[R_EBX];
+    (*regs)[1] = env->regs[R_ECX];
+    (*regs)[2] = env->regs[R_EDX];
+    (*regs)[3] = env->regs[R_ESI];
+    (*regs)[4] = env->regs[R_EDI];
+    (*regs)[5] = env->regs[R_EBP];
+    (*regs)[6] = env->regs[R_EAX];
+    (*regs)[7] = env->segs[R_DS].selector & 0xffff;
+    (*regs)[8] = env->segs[R_ES].selector & 0xffff;
+    (*regs)[9] = env->segs[R_FS].selector & 0xffff;
+    (*regs)[10] = env->segs[R_GS].selector & 0xffff;
+    (*regs)[11] = env->regs[R_EAX]; /* XXX */
+    (*regs)[12] = env->eip;
+    (*regs)[13] = env->segs[R_CS].selector & 0xffff;
+    (*regs)[14] = env->eflags;
+    (*regs)[15] = env->regs[R_ESP];
+    (*regs)[16] = env->segs[R_SS].selector & 0xffff;
 }
+#endif
 
-#endif /* TARGET_i386 */
-
+#define USE_ELF_CORE_DUMP
 #define ELF_EXEC_PAGESIZE	4096
 
 #endif
@@ -271,35 +286,38 @@ static inline void init_thread(struct target_pt_regs *regs, struct image_info *i
     regs->ARM_r10 = infop->start_data;
 }
 
-#define USE_ELF_CORE_DUMP
+typedef uint32_t elf_greg_t;
+typedef uint16_t target_uid_t;
+typedef uint16_t target_gid_t;
+typedef int32_t  target_pid_t;
 
-typedef struct target_pt_regs elf_gregset_t;
+#define ELF_NREG    18
+typedef elf_greg_t  elf_gregset_t[ELF_NREG];
 
-static void elf_core_copy_regs(elf_gregset_t *elfregs, const CPUState *env)
+static void elf_core_copy_regs(elf_gregset_t *regs, const CPUState *env)
 {
-    (void) memset(elfregs, 0, sizeof (*elfregs));
+    (*regs)[0] = env->regs[0];
+    (*regs)[1] = env->regs[1];
+    (*regs)[2] = env->regs[2];
+    (*regs)[3] = env->regs[3]; 
+    (*regs)[4] = env->regs[4];
+    (*regs)[5] = env->regs[5];
+    (*regs)[6] = env->regs[6];
+    (*regs)[7] = env->regs[7];
+    (*regs)[8] = env->regs[8];
+    (*regs)[9] = env->regs[9];
+    (*regs)[10] = env->regs[10];
+    (*regs)[11] = env->regs[11];
+    (*regs)[12] = env->regs[12];
+    (*regs)[13] = env->regs[13]; 
+    (*regs)[14] = env->regs[14];
+    (*regs)[15] = env->regs[15];
 
-    elfregs->ARM_r0 = env->regs[0];
-    elfregs->ARM_r1 = env->regs[1];
-    elfregs->ARM_r2 = env->regs[2];
-    elfregs->ARM_r3 = env->regs[3];
-    elfregs->ARM_r4 = env->regs[4];
-    elfregs->ARM_r5 = env->regs[5];
-    elfregs->ARM_r6 = env->regs[6];
-    elfregs->ARM_r7 = env->regs[7];
-    elfregs->ARM_r8 = env->regs[8];
-    elfregs->ARM_r9 = env->regs[9];
-    elfregs->ARM_r10 = env->regs[10];
-    elfregs->ARM_fp = env->regs[11];
-    elfregs->ARM_ip = env->regs[12];
-    elfregs->ARM_sp = env->regs[13];
-    elfregs->ARM_lr = env->regs[14];
-    elfregs->ARM_pc = env->regs[15];
-
-    elfregs->ARM_cpsr = cpsr_read((CPUState *)env);
-    elfregs->ARM_ORIG_r0 = env->regs[0]; /* XXX */
+    (*regs)[16] = cpsr_read((CPUState *)env);
+    (*regs)[17] = env->regs[0]; /* XXX */
 }
 
+#define USE_ELF_CORE_DUMP
 #define ELF_EXEC_PAGESIZE	4096
 
 enum
@@ -401,6 +419,64 @@ static inline void init_thread(struct target_pt_regs *regs, struct image_info *i
 #endif
 #define ELF_ARCH	EM_PPC
 
+/* Feature masks for the Aux Vector Hardware Capabilities (AT_HWCAP).
+   See arch/powerpc/include/asm/cputable.h.  */
+enum {
+    PPC_FEATURE_32 = 0x80000000,
+    PPC_FEATURE_64 = 0x40000000,
+    PPC_FEATURE_601_INSTR = 0x20000000,
+    PPC_FEATURE_HAS_ALTIVEC = 0x10000000,
+    PPC_FEATURE_HAS_FPU = 0x08000000,
+    PPC_FEATURE_HAS_MMU = 0x04000000,
+    PPC_FEATURE_HAS_4xxMAC = 0x02000000,
+    PPC_FEATURE_UNIFIED_CACHE = 0x01000000,
+    PPC_FEATURE_HAS_SPE = 0x00800000,
+    PPC_FEATURE_HAS_EFP_SINGLE = 0x00400000,
+    PPC_FEATURE_HAS_EFP_DOUBLE = 0x00200000,
+    PPC_FEATURE_NO_TB = 0x00100000,
+    PPC_FEATURE_POWER4 = 0x00080000,
+    PPC_FEATURE_POWER5 = 0x00040000,
+    PPC_FEATURE_POWER5_PLUS = 0x00020000,
+    PPC_FEATURE_CELL = 0x00010000,
+    PPC_FEATURE_BOOKE = 0x00008000,
+    PPC_FEATURE_SMT = 0x00004000,
+    PPC_FEATURE_ICACHE_SNOOP = 0x00002000,
+    PPC_FEATURE_ARCH_2_05 = 0x00001000,
+    PPC_FEATURE_PA6T = 0x00000800,
+    PPC_FEATURE_HAS_DFP = 0x00000400,
+    PPC_FEATURE_POWER6_EXT = 0x00000200,
+    PPC_FEATURE_ARCH_2_06 = 0x00000100,
+    PPC_FEATURE_HAS_VSX = 0x00000080,
+    PPC_FEATURE_PSERIES_PERFMON_COMPAT = 0x00000040,
+
+    PPC_FEATURE_TRUE_LE = 0x00000002,
+    PPC_FEATURE_PPC_LE = 0x00000001,
+};
+
+#define ELF_HWCAP get_elf_hwcap()
+
+static uint32_t get_elf_hwcap(void)
+{
+    CPUState *e = thread_env;
+    uint32_t features = 0;
+
+    /* We don't have to be terribly complete here; the high points are
+       Altivec/FP/SPE support.  Anything else is just a bonus.  */
+#define GET_FEATURE(flag, feature)              \
+    do {if (e->insns_flags & flag) features |= feature; } while(0)
+    GET_FEATURE(PPC_64B, PPC_FEATURE_64);
+    GET_FEATURE(PPC_FLOAT, PPC_FEATURE_HAS_FPU);
+    GET_FEATURE(PPC_ALTIVEC, PPC_FEATURE_HAS_ALTIVEC);
+    GET_FEATURE(PPC_SPE, PPC_FEATURE_HAS_SPE);
+    GET_FEATURE(PPC_SPE_SINGLE, PPC_FEATURE_HAS_EFP_SINGLE);
+    GET_FEATURE(PPC_SPE_DOUBLE, PPC_FEATURE_HAS_EFP_DOUBLE);
+    GET_FEATURE(PPC_BOOKE, PPC_FEATURE_BOOKE);
+    GET_FEATURE(PPC_405_MAC, PPC_FEATURE_HAS_4xxMAC);
+#undef GET_FEATURE
+
+    return features;
+}
+
 /*
  * We need to put in some extra aux table entries to tell glibc what
  * the cache block size is, so it can use the dcbz instruction safely.
@@ -493,6 +569,28 @@ static inline void init_thread(struct target_pt_regs *regs, struct image_info *i
 #define ELF_EXEC_PAGESIZE        4096
 
 #endif /* TARGET_MIPS */
+
+#ifdef TARGET_MICROBLAZE
+
+#define ELF_START_MMAP 0x80000000
+
+#define elf_check_arch(x) ( (x) == EM_XILINX_MICROBLAZE )
+
+#define ELF_CLASS   ELFCLASS32
+#define ELF_DATA	ELFDATA2MSB
+#define ELF_ARCH    EM_MIPS
+
+static inline void init_thread(struct target_pt_regs *regs, struct image_info *infop)
+{
+    regs->pc = infop->entry;
+    regs->r1 = infop->start_stack;
+
+}
+
+#define USE_ELF_CORE_DUMP
+#define ELF_EXEC_PAGESIZE        4096
+
+#endif /* TARGET_MICROBLAZE */
 
 #ifdef TARGET_SH4
 
@@ -693,7 +791,6 @@ static void bswap_sym(struct elf_sym *sym)
     bswaptls(&sym->st_size);
     bswap16s(&sym->st_shndx);
 }
-
 #endif
 
 #ifdef USE_ELF_CORE_DUMP
@@ -1646,7 +1743,6 @@ int load_elf_binary(struct linux_binprm * bprm, struct target_pt_regs * regs,
     bprm->core_dump = &elf_core_dump;
 #endif
 
-
     return 0;
 }
 
@@ -1663,10 +1759,38 @@ int load_elf_binary(struct linux_binprm * bprm, struct target_pt_regs * regs,
  * Fields we don't dump (their contents is zero) in linux-user qemu
  * are marked with XXX.
  *
- * TODO: check that dumped field types are correct (e.g should we
- * use abi_long or something else).
- *
  * Core dump code is copied from linux kernel (fs/binfmt_elf.c).
+ *
+ * Porting ELF coredump for target is (quite) simple process.  First you
+ * define ELF_USE_CORE_DUMP in target ELF code (where init_thread() for
+ * the target resides):
+ *
+ * #define USE_ELF_CORE_DUMP
+ *
+ * Next you define type of register set used for dumping.  ELF specification
+ * says that it needs to be array of elf_greg_t that has size of ELF_NREG.
+ *
+ * typedef <target_regtype> elf_greg_t;
+ * #define ELF_NREG <number of registers>
+ * typedef elf_greg_t elf_gregset_t[ELF_NREG];
+ *
+ * Then define following types to match target types.  Actual types can
+ * be found from linux kernel (arch/<ARCH>/include/asm/posix_types.h):
+ *
+ * typedef <target_uid_type> target_uid_t;
+ * typedef <target_gid_type> target_gid_t;
+ * typedef <target_pid_type> target_pid_t;
+ *
+ * Last step is to implement target specific function that copies registers
+ * from given cpu into just specified register set.  Prototype is:
+ *
+ * static void elf_core_copy_regs(elf_gregset_t *regs, const CPUState *env);
+ *
+ * Parameters:
+ *     regs - copy register values into here (allocated and zeroed by caller)
+ *     env - copy registers from here
+ *
+ * Example for ARM target is provided in this file.
  */
 
 /* An ELF note in memory */
@@ -1691,16 +1815,16 @@ struct elf_prstatus {
     short              pr_cursig;    /* Current signal */
     target_ulong       pr_sigpend;   /* XXX */
     target_ulong       pr_sighold;   /* XXX */
-    int                pr_pid;
-    int                pr_ppid;
-    int                pr_pgrp;
-    int                pr_sid;
+    target_pid_t       pr_pid;
+    target_pid_t       pr_ppid;
+    target_pid_t       pr_pgrp;
+    target_pid_t       pr_sid;
     struct target_timeval pr_utime;  /* XXX User time */
     struct target_timeval pr_stime;  /* XXX System time */
     struct target_timeval pr_cutime; /* XXX Cumulative user time */
     struct target_timeval pr_cstime; /* XXX Cumulative system time */
     elf_gregset_t      pr_reg;       /* GP registers */
-    abi_long           pr_fpvalid;   /* XXX */
+    int                pr_fpvalid;   /* XXX */
 };
 
 #define ELF_PRARGSZ     (80) /* Number of chars for args */
@@ -1711,9 +1835,9 @@ struct elf_prpsinfo {
     char         pr_zomb;        /* zombie */
     char         pr_nice;        /* nice val */
     target_ulong pr_flag;        /* flags */
-    short        pr_uid;
-    short        pr_gid;
-    abi_long     pr_pid, pr_ppid, pr_pgrp, pr_sid;
+    target_uid_t pr_uid;
+    target_gid_t pr_gid;
+    target_pid_t pr_pid, pr_ppid, pr_pgrp, pr_sid;
     /* Lots missing */
     char    pr_fname[16];           /* filename of executable */
     char    pr_psargs[ELF_PRARGSZ]; /* initial part of arg list */
@@ -1803,13 +1927,13 @@ static void bswap_prstatus(struct elf_prstatus *prstatus)
     prstatus->pr_cursig = tswap16(prstatus->pr_cursig);
     prstatus->pr_sigpend = tswapl(prstatus->pr_sigpend);
     prstatus->pr_sighold = tswapl(prstatus->pr_sighold);
-    prstatus->pr_pid = tswapl(prstatus->pr_pid);
-    prstatus->pr_ppid = tswapl(prstatus->pr_ppid);
-    prstatus->pr_pgrp = tswapl(prstatus->pr_pgrp);
-    prstatus->pr_sid = tswapl(prstatus->pr_sid);
+    prstatus->pr_pid = tswap32(prstatus->pr_pid);
+    prstatus->pr_ppid = tswap32(prstatus->pr_ppid);
+    prstatus->pr_pgrp = tswap32(prstatus->pr_pgrp);
+    prstatus->pr_sid = tswap32(prstatus->pr_sid);
     /* cpu times are not filled, so we skip them */
     /* regs should be in correct format already */
-    prstatus->pr_fpvalid = tswapl(prstatus->pr_fpvalid);
+    prstatus->pr_fpvalid = tswap32(prstatus->pr_fpvalid);
 }
 
 static void bswap_psinfo(struct elf_prpsinfo *psinfo)
@@ -1817,10 +1941,10 @@ static void bswap_psinfo(struct elf_prpsinfo *psinfo)
     psinfo->pr_flag = tswapl(psinfo->pr_flag);
     psinfo->pr_uid = tswap16(psinfo->pr_uid);
     psinfo->pr_gid = tswap16(psinfo->pr_gid);
-    psinfo->pr_pid = tswapl(psinfo->pr_pid);
-    psinfo->pr_ppid = tswapl(psinfo->pr_ppid);
-    psinfo->pr_pgrp = tswapl(psinfo->pr_pgrp);
-    psinfo->pr_sid = tswapl(psinfo->pr_sid);
+    psinfo->pr_pid = tswap32(psinfo->pr_pid);
+    psinfo->pr_ppid = tswap32(psinfo->pr_ppid);
+    psinfo->pr_pgrp = tswap32(psinfo->pr_pgrp);
+    psinfo->pr_sid = tswap32(psinfo->pr_sid);
 }
 #endif /* BSWAP_NEEDED */
 
@@ -1952,6 +2076,10 @@ static void fill_note(struct memelfnote *note, const char *name, int type,
     note->datasz = roundup(sz, sizeof (int32_t));;
     note->data = data;
 
+    /*
+     * We calculate rounded up note size here as specified by
+     * ELF document.
+     */
     note->notesz = sizeof (struct elf_note) +
         note->namesz_rounded + note->datasz;
 }
@@ -2026,10 +2154,10 @@ static int fill_psinfo(struct elf_prpsinfo *psinfo, const TaskState *ts)
 
     len = ts->info->arg_end - ts->info->arg_start;
     if (len >= ELF_PRARGSZ)
-        len = ELF_PRARGSZ-1;
+        len = ELF_PRARGSZ - 1;
     if (copy_from_user(&psinfo->pr_psargs, ts->info->arg_start, len))
         return -EFAULT;
-    for(i = 0; i < len; i++)
+    for (i = 0; i < len; i++)
         if (psinfo->pr_psargs[i] == 0)
             psinfo->pr_psargs[i] = ' ';
     psinfo->pr_psargs[len] = 0;
@@ -2045,7 +2173,6 @@ static int fill_psinfo(struct elf_prpsinfo *psinfo, const TaskState *ts)
     base_filename = strdup(basename(filename));
     (void) strncpy(psinfo->pr_fname, base_filename,
         sizeof(psinfo->pr_fname));
-
     free(base_filename);
     free(filename);
 
@@ -2110,15 +2237,12 @@ static int core_dump_filename(const TaskState *ts, char *buf,
         return (-1);
     }
 
-    /* XXX: use qemu_malloc() */
     filename = strdup(ts->bprm->filename);
     base_filename = strdup(basename(filename));
-
     (void) strftime(timestamp, sizeof (timestamp), "%Y%m%d-%H%M%S",
         localtime_r(&tv.tv_sec, &tm));
     (void) snprintf(buf, bufsize, "qemu_%s_%s_%d.core",
         base_filename, timestamp, (int)getpid());
-
     free(base_filename);
     free(filename);
 
@@ -2129,9 +2253,27 @@ static int dump_write(int fd, const void *ptr, size_t size)
 {
     const char *bufp = (const char *)ptr;
     ssize_t bytes_written, bytes_left;
+    struct rlimit dumpsize;
+    off_t pos;
 
     bytes_written = 0;
-    bytes_left = size;
+    getrlimit(RLIMIT_CORE, &dumpsize);
+    if ((pos = lseek(fd, 0, SEEK_CUR))==-1) {
+        if (errno == ESPIPE) { /* not a seekable stream */
+            bytes_left = size;
+        } else {
+            return pos;
+        }
+    } else {
+        if (dumpsize.rlim_cur <= pos) {
+            return -1;
+        } else if (dumpsize.rlim_cur == RLIM_INFINITY) {
+            bytes_left = size;
+        } else {
+            size_t limit_left=dumpsize.rlim_cur - pos;
+            bytes_left = limit_left >= size ? size : limit_left ;
+        }
+    }
 
     /*
      * In normal conditions, single write(2) should do but
@@ -2189,7 +2331,6 @@ static void fill_thread_info(struct elf_note_info *info, const CPUState *env)
 
     TAILQ_INSERT_TAIL(&info->thread_list, ets, ets_link);
 
-    /* increase size of the note segment */
     info->notes_size += note_size(&ets->notes[0]);
 }
 
@@ -2331,12 +2472,16 @@ static int elf_core_dump(int signr, const CPUState *env)
     struct elf_note_info info;
     struct elfhdr elf;
     struct elf_phdr phdr;
+    struct rlimit dumpsize;
     struct mm_struct *mm = NULL;
     off_t offset = 0, data_offset = 0;
     int segs = 0;
     int fd = -1;
 
     errno = 0;
+    getrlimit(RLIMIT_CORE, &dumpsize);
+    if (dumpsize.rlim_cur == 0)
+       return 0;
 
     if (core_dump_filename(ts, corefile, sizeof (corefile)) < 0)
         return (-errno);

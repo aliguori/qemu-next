@@ -25,10 +25,18 @@
 #define BLOCK_INT_H
 
 #include "block.h"
+#include "qemu-option.h"
 
 #define BLOCK_FLAG_ENCRYPT	1
 #define BLOCK_FLAG_COMPRESS	2
 #define BLOCK_FLAG_COMPAT6	4
+
+#define BLOCK_OPT_SIZE          "size"
+#define BLOCK_OPT_ENCRYPT       "encryption"
+#define BLOCK_OPT_COMPAT6       "compat6"
+#define BLOCK_OPT_BACKING_FILE  "backing_file"
+#define BLOCK_OPT_BACKING_FMT   "backing_fmt"
+#define BLOCK_OPT_CLUSTER_SIZE  "cluster_size"
 
 typedef struct AIOPool {
     void (*cancel)(BlockDriverAIOCB *acb);
@@ -46,19 +54,18 @@ struct BlockDriver {
     int (*bdrv_write)(BlockDriverState *bs, int64_t sector_num,
                       const uint8_t *buf, int nb_sectors);
     void (*bdrv_close)(BlockDriverState *bs);
-    int (*bdrv_create)(const char *filename, int64_t total_sectors,
-                       const char *backing_file, int flags);
+    int (*bdrv_create)(const char *filename, QEMUOptionParameter *options);
     void (*bdrv_flush)(BlockDriverState *bs);
     int (*bdrv_is_allocated)(BlockDriverState *bs, int64_t sector_num,
                              int nb_sectors, int *pnum);
     int (*bdrv_set_key)(BlockDriverState *bs, const char *key);
     int (*bdrv_make_empty)(BlockDriverState *bs);
     /* aio */
-    BlockDriverAIOCB *(*bdrv_aio_read)(BlockDriverState *bs,
-        int64_t sector_num, uint8_t *buf, int nb_sectors,
+    BlockDriverAIOCB *(*bdrv_aio_readv)(BlockDriverState *bs,
+        int64_t sector_num, QEMUIOVector *qiov, int nb_sectors,
         BlockDriverCompletionFunc *cb, void *opaque);
-    BlockDriverAIOCB *(*bdrv_aio_write)(BlockDriverState *bs,
-        int64_t sector_num, const uint8_t *buf, int nb_sectors,
+    BlockDriverAIOCB *(*bdrv_aio_writev)(BlockDriverState *bs,
+        int64_t sector_num, QEMUIOVector *qiov, int nb_sectors,
         BlockDriverCompletionFunc *cb, void *opaque);
     void (*bdrv_aio_cancel)(BlockDriverAIOCB *acb);
     int aiocb_size;
@@ -97,10 +104,12 @@ struct BlockDriver {
 
     AIOPool aio_pool;
 
-    /* new create with backing file format */
-    int (*bdrv_create2)(const char *filename, int64_t total_sectors,
-                        const char *backing_file, const char *backing_format,
-                        int flags);
+    /* List of options for creating images, terminated by name == NULL */
+    QEMUOptionParameter *create_options;
+
+
+    /* Returns number of errors in image, -errno for internal errors */
+    int (*bdrv_check)(BlockDriverState* bs);
 
     struct BlockDriver *next;
 };
@@ -142,6 +151,9 @@ struct BlockDriverState {
     /* Whether the disk can expand beyond total_sectors */
     int growable;
 
+    /* the memory alignment required for the buffers handled by this driver */
+    int buffer_alignment;
+
     /* NOTE: the following infos are only hints for real hardware
        drivers. They are not used by the block driver */
     int cyls, heads, secs, translation;
@@ -169,6 +181,8 @@ void *qemu_aio_get(BlockDriverState *bs, BlockDriverCompletionFunc *cb,
 void *qemu_aio_get_pool(AIOPool *pool, BlockDriverState *bs,
                         BlockDriverCompletionFunc *cb, void *opaque);
 void qemu_aio_release(void *p);
+
+void *qemu_blockalign(BlockDriverState *bs, size_t size);
 
 extern BlockDriverState *bdrv_first;
 

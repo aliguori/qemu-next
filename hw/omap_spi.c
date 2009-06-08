@@ -636,8 +636,7 @@ void omap_mcspi_attach(struct omap_mcspi_s *s,
                        int chipselect)
 {
     if (chipselect < 0 || chipselect >= s->chnum)
-        cpu_abort(cpu_single_env, "%s: Bad chipselect %i\n",
-                  __FUNCTION__, chipselect);
+        hw_error("%s: Bad chipselect %i\n", __FUNCTION__, chipselect);
     
     s->ch[chipselect].txrx = txrx;
     s->ch[chipselect].opaque = opaque;

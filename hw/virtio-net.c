@@ -313,7 +313,7 @@ static int iov_fill(struct iovec *iov, int iovcnt, const void *buf, int count)
 static int receive_header(VirtIONet *n, struct iovec *iov, int iovcnt,
                           const void *buf, size_t size, size_t hdr_len)
 {
-    struct virtio_net_hdr *hdr = iov[0].iov_base;
+    struct virtio_net_hdr *hdr = (struct virtio_net_hdr *)iov[0].iov_base;
     int offset = 0;
 
     hdr->flags = 0;
@@ -337,11 +337,6 @@ static int receive_filter(VirtIONet *n, const uint8_t *buf, int size)
 
     if (n->promisc)
         return 1;
-
-#ifdef TAP_VNET_HDR
-    if (tap_has_vnet_hdr(n->vc->vlan->first_client))
-        ptr += sizeof(struct virtio_net_hdr);
-#endif
 
     if (!memcmp(&ptr[12], vlan, sizeof(vlan))) {
         int vid = be16_to_cpup((uint16_t *)(ptr + 14)) & 0xfff;
@@ -575,21 +570,29 @@ static int virtio_net_load(QEMUFile *f, void *opaque, int version_id)
     return 0;
 }
 
-PCIDevice *virtio_net_init(PCIBus *bus, NICInfo *nd, int devfn)
+static void virtio_net_cleanup(VLANClientState *vc)
+{
+    VirtIONet *n = vc->opaque;
+
+    unregister_savevm("virtio-net", n);
+
+    qemu_free(n->mac_table.macs);
+    qemu_free(n->vlans);
+
+    qemu_del_timer(n->tx_timer);
+    qemu_free_timer(n->tx_timer);
+
+    virtio_cleanup(&n->vdev);
+}
+
+VirtIODevice *virtio_net_init(DeviceState *dev)
 {
     VirtIONet *n;
     static int virtio_net_id;
 
-    n = (VirtIONet *)virtio_init_pci(bus, "virtio-net",
-                                     PCI_VENDOR_ID_REDHAT_QUMRANET,
-                                     PCI_DEVICE_ID_VIRTIO_NET,
-                                     PCI_VENDOR_ID_REDHAT_QUMRANET,
-                                     VIRTIO_ID_NET,
-                                     PCI_CLASS_NETWORK_ETHERNET, 0x00,
-                                     sizeof(struct virtio_net_config),
-                                     sizeof(VirtIONet));
-    if (!n)
-        return NULL;
+    n = (VirtIONet *)virtio_common_init("virtio-net", VIRTIO_ID_NET,
+                                        sizeof(struct virtio_net_config),
+                                        sizeof(VirtIONet));
 
     n->vdev.get_config = virtio_net_get_config;
     n->vdev.set_config = virtio_net_set_config;
@@ -600,10 +603,12 @@ PCIDevice *virtio_net_init(PCIBus *bus, NICInfo *nd, int devfn)
     n->rx_vq = virtio_add_queue(&n->vdev, 256, virtio_net_handle_rx);
     n->tx_vq = virtio_add_queue(&n->vdev, 256, virtio_net_handle_tx);
     n->ctrl_vq = virtio_add_queue(&n->vdev, 16, virtio_net_handle_ctrl);
-    memcpy(n->mac, nd->macaddr, ETH_ALEN);
+    qdev_get_macaddr(dev, n->mac);
     n->status = VIRTIO_NET_S_LINK_UP;
-    n->vc = qemu_new_vlan_client(nd->vlan, nd->model, nd->name,
-                                 virtio_net_receive, virtio_net_can_receive, n);
+    n->vc = qdev_get_vlan_client(dev,
+                                 virtio_net_receive,
+                                 virtio_net_can_receive,
+                                 virtio_net_cleanup, n);
     n->vc->link_status_changed = virtio_net_set_link_status;
 
     qemu_format_nic_info_str(n->vc, n->mac);
@@ -619,5 +624,6 @@ PCIDevice *virtio_net_init(PCIBus *bus, NICInfo *nd, int devfn)
 
     register_savevm("virtio-net", virtio_net_id++, VIRTIO_NET_VM_VERSION,
                     virtio_net_save, virtio_net_load, n);
-    return (PCIDevice *)n;
+
+    return &n->vdev;
 }
