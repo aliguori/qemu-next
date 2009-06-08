@@ -1674,7 +1674,7 @@ static void taal_update_display(void *opaque)
 {
     struct taal_s *s = (struct taal_s *)opaque;
     
-    if (s->force_update || (s->powermode & 0x04)) {
+//    if (s->force_update || (s->powermode & 0x04)) {
         s->force_update = 0;
         /* TODO: draw background color */
         omap3_lcd_panel_layer_update(s->ds,
@@ -1685,7 +1685,7 @@ static void taal_update_display(void *opaque)
                                      s->fake.addr);
         /* TODO: draw VID1 & VID2 layers */
         dpy_update(s->ds, 0, 0, N00_DISPLAY_WIDTH, N00_DISPLAY_HEIGHT);
-    }
+//    }
 }
 
 static struct taal_s *taal_init(struct omap_dss_s *dss)
@@ -1776,6 +1776,7 @@ struct TM12XXState {
     qemu_irq irq;
     int firstbyte;
     int reg;
+    int swapxy;
     
     uint8_t irqst;
     uint8_t irqen;
@@ -1787,7 +1788,7 @@ struct TM12XXState {
     struct {
         uint16_t x;
         uint16_t y;
-    } touch_pos[2];
+    } touch_pos[2], touch_max;
     
     TM12XXFunc f[TM12XX_FUNC_COUNT];
 };
@@ -1836,7 +1837,21 @@ static void tm12xx_func_init(TM12XXState *s,
 
 static void tm12xx_interrupt_update(TM12XXState *s)
 {
+    TRACE_TM12XX("irqst = 0x%02x, irqen = 0x%02x", s->irqst, s->irqen);
     qemu_set_irq(s->irq, !(s->irqst & s->irqen));
+}
+
+static uint8_t tm12xx_get_intmask_forfunc(TM12XXState *s, uint8_t fid)
+{
+    uint8_t mask = 0;
+    int i;
+    for (i = 0; i < TM12XX_FUNC_COUNT; i++) {
+        if (s->f[i].fid == fid) {
+            mask = ((1 << s->f[i].ints) - 1) << s->f[i].intshift;
+            break;
+        }
+    }
+    return mask;
 }
 
 static void tm12xx_reset(TM12XXState *s)
@@ -1844,15 +1859,17 @@ static void tm12xx_reset(TM12XXState *s)
     s->firstbyte = 0;
     s->reg = 0;
     
-    s->irqen = 0;
-    s->irqst = 0;
+    s->irqen = 0x3f; /* enable all interrupts by default */
+    s->irqst = tm12xx_get_intmask_forfunc(s, TM12XX_FUNC_DCTRL);
     s->dctrl = 0x00;
-    s->status = 0x80; /* UNCONFIGURED */
+    s->status = 0x81; /* unconfigured, status = reset occurred */
     
     s->touch_control = 0;
     s->touch_state = 0;
     s->touch_pos[0].x = s->touch_pos[0].y = 0;
     s->touch_pos[1].x = s->touch_pos[1].y = 0;
+    s->touch_max.x = N00_DISPLAY_WIDTH;
+    s->touch_max.y = N00_DISPLAY_HEIGHT;
     
     tm12xx_interrupt_update(s);
 }
@@ -1998,19 +2015,35 @@ static uint8_t tm12xx_2d_read(TM12XXState *s, TM12XXFunc *f,
                 TRACE_TM12XX("GENERAL_CONTROL = 0x%02x", value);
                 break;
             case 16: /* ctrl6: max x position LSB */
-                value = N00_DISPLAY_WIDTH & 0xff;
+                if (s->swapxy) {
+                    value = s->touch_max.y & 0xff;
+                } else {
+                    value = s->touch_max.x & 0xff;
+                }
                 TRACE_TM12XX("MAX_X_POSITION LSB = 0x%02x", value);
                 break;
             case 17: /* ctrl7: max x position MSB */
-                value = (N00_DISPLAY_WIDTH >> 8) & 0xff;
+                if (s->swapxy) {
+                    value = (s->touch_max.y >> 8) & 0xff;
+                } else {
+                    value = (s->touch_max.x >> 8) & 0xff;
+                }
                 TRACE_TM12XX("MAX_X_POSITION MSB = 0x%02x", value);
                 break;
             case 18: /* ctrl8: max y position LSB */
-                value = N00_DISPLAY_HEIGHT & 0xff;
+                if (s->swapxy) {
+                    value = s->touch_max.x & 0xff;
+                } else {
+                    value = s->touch_max.y & 0xff;
+                }
                 TRACE_TM12XX("MAX_Y_POSITION LSB = 0x%02x", value);
                 break;
             case 19: /* ctrl9: max y position msb */
-                value = (N00_DISPLAY_HEIGHT >> 8) & 0xff;
+                if (s->swapxy) {
+                    value = (s->touch_max.x >> 8) & 0xff;
+                } else {
+                    value = (s->touch_max.y >> 8) & 0xff;
+                }
                 TRACE_TM12XX("MAX_Y_POSITION MSB = 0x%02x", value);
                 break;
             case 20: /* sensor mapping control, x electrode 0 */
@@ -2036,20 +2069,33 @@ static uint8_t tm12xx_2d_read(TM12XXState *s, TM12XXFunc *f,
             case 30: /* finger1 x position MSB */
                 finger++;
             case 25: /* finger0 x position MSB */
-                value = s->touch_pos[finger].x >> 4;
+                if (s->swapxy) {
+                    value = s->touch_pos[finger].y >> 4;
+                } else {
+                    value = s->touch_pos[finger].x >> 4;
+                }
                 TRACE_TM12XX("FINGER%d_X_POS_MSB = 0x%02x", finger, value);
                 break;
             case 31: /* finger1 y position MSB */
                 finger++;
             case 26: /* finger0 y position MSB */
-                value = s->touch_pos[finger].y >> 4;
+                if (s->swapxy) {
+                    value = s->touch_pos[finger].x >> 4;
+                } else {
+                    value = s->touch_pos[finger].y >> 4;
+                }
                 TRACE_TM12XX("FINGER%d_Y_POS_MSB = 0x%02x", finger, value);
                 break;
             case 32: /* finger1 x & y position LSBs */
                 finger++;
             case 27: /* finger0 x & y position LSBs */
-                value = ((s->touch_pos[finger].y & 0x0f) << 4) |
-                        (s->touch_pos[finger].x & 0x0f);
+                if (s->swapxy) {
+                    value = ((s->touch_pos[finger].x & 0x0f) << 4) |
+                            (s->touch_pos[finger].y & 0x0f);
+                } else {
+                    value = ((s->touch_pos[finger].y & 0x0f) << 4) |
+                            (s->touch_pos[finger].x & 0x0f);
+                }
                 TRACE_TM12XX("FINGER%d_XY_POS_LSB = 0x%02x", finger, value);
                 break;
             case 33: /* finger1 wx & wy */
@@ -2079,7 +2125,8 @@ static void tm12xx_2d_write(TM12XXState *s, TM12XXFunc *f,
 {
     switch (r) {
         case 0 ... 8: /* query */
-        case 11 ... 23: /* control */
+        case 11 ... 15: /* control */
+        case 20 ... 23: /* control */
         case 24 ... 34: /* data */
             break;
         case 9: /* cmd0 */
@@ -2092,6 +2139,46 @@ static void tm12xx_2d_write(TM12XXState *s, TM12XXFunc *f,
         case 10: /* ctrl0: general control */
             TRACE_TM12XX("GENERAL_CONTROL = 0x%02x", v);
             s->touch_control = v;
+            break;
+        case 16: /* ctrl6: max x position LSB */
+            TRACE_TM12XX("MAX_X_POSITION_LSB = 0x%02x", v);
+            if (s->swapxy) {
+                s->touch_max.y &= ~0xff;
+                s->touch_max.y |= v;
+            } else {
+                s->touch_max.x &= ~0xff;
+                s->touch_max.x |= v;
+            }
+            break;
+        case 17: /* ctrl7: max x position MSB */
+            TRACE_TM12XX("MAX_X_POSITION_MSB = 0x%02x", v);
+            if (s->swapxy) {
+                s->touch_max.y &= ~0xff00;
+                s->touch_max.y |= v << 8;
+            } else {
+                s->touch_max.x &= ~0xff00;
+                s->touch_max.x |= v << 8;
+            }
+            break;
+        case 18: /* ctrl8: max y position LSB */
+            TRACE_TM12XX("MAX_Y_POSITION_LSB = 0x%02x", v);
+            if (s->swapxy) {
+                s->touch_max.x &= ~0xff;
+                s->touch_max.x |= v;
+            } else {
+                s->touch_max.y &= ~0xff;
+                s->touch_max.y |= v;
+            }
+            break;
+        case 19: /* ctrl9: max y position MSB */
+            TRACE_TM12XX("MAX_Y_POSITION_MSB = 0x%02x", v);
+            if (s->swapxy) {
+                s->touch_max.x &= ~0xff00;
+                s->touch_max.x |= v << 8;
+            } else {
+                s->touch_max.y &= ~0xff00;
+                s->touch_max.y |= v << 8;
+            }
             break;
         default:
             fprintf(stderr, "%s: unknown register 0x%02x (value 0x%02x)\n",
@@ -2276,24 +2363,19 @@ static void tm12xx_mouse(void *opaque, int x, int y, int z, int bs)
     
     uint8_t state = ((bs & 1) << 1) | ((bs & 2) << 2);
     if (state || s->touch_state) {
+        x = ((x + 1) * s->touch_max.x) >> 15;
+        y = ((y + 1) * s->touch_max.y) >> 15;
         TRACE_TM12XX("x = %d, y = %d, z = %d, bs = %d", x, y, z, bs);
         s->touch_state = state;
         if (bs & 1) {
-            s->touch_pos[0].x = x >> 4;
-            s->touch_pos[0].y = y >> 4;
+            s->touch_pos[0].x = x;
+            s->touch_pos[0].y = y;
         }
         if (bs & 2) {
-            s->touch_pos[1].x = x >> 4;
-            s->touch_pos[1].y = y >> 4;
+            s->touch_pos[1].x = x;
+            s->touch_pos[1].y = y;
         }
-        int i = 0;
-        for (; i < TM12XX_FUNC_COUNT; i++) {
-            if (s->f[i].fid == TM12XX_FUNC_2D) {
-                s->irqst |= 1 << s->f[i].intshift;
-                TRACE_TM12XX("irqst changed to 0x%02x (irqen=0x%02x)", s->irqst, s->irqen);
-                break;
-            }
-        }
+        s->irqst |= tm12xx_get_intmask_forfunc(s, TM12XX_FUNC_2D);
         tm12xx_interrupt_update(s);
     }
 }
@@ -2325,11 +2407,12 @@ static I2CSlaveInfo tm12xx_info = {
     .send = tm12xx_tx
 };
 
-static void *n00_tm12xx_init(i2c_bus *bus, qemu_irq irq)
+static void *n00_tm12xx_init(i2c_bus *bus, qemu_irq irq, int swapxy)
 {
     DeviceState *ds = i2c_create_slave(bus, "tm12xx", 0x4b);
     TM12XXState *s = FROM_I2C_SLAVE(TM12XXState, I2C_SLAVE_FROM_QDEV(ds));
     s->irq = irq;
+    s->swapxy = swapxy;
     qemu_add_mouse_event_handler(tm12xx_mouse, s, 1, "TM12xx Touchscreen");
     return s;
 }
@@ -2383,7 +2466,8 @@ static void n00_init(ram_addr_t ram_size,
                                                         ssi_write_func,
                                                         0));
     s->tm12xx = n00_tm12xx_init(omap_i2c_bus(s->cpu->i2c[1]),
-                                omap2_gpio_in_get(s->cpu->gpif, 61)[0]);
+                                omap2_gpio_in_get(s->cpu->gpif, 61)[0],
+                                1);
 
     omap3_boot_rom_emu(s->cpu);
 }
