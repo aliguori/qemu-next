@@ -1,0 +1,5 @@
+1) run-guest ought to look at some sort of config file to define a guest if
+   no explicit definition is given
+2) run-test should look for a default test parameters file for a guest.
+   explicit parameters override defaults
+3) need to validate that this works with windows

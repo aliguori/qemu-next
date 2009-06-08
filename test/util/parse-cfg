@@ -1,0 +1,37 @@
+#!/usr/bin/python
+
+from ConfigParser import SafeConfigParser
+from getopt import getopt
+import sys
+
+opts, args = getopt(sys.argv[1:], 's:', ['section='])
+
+section='DEFAULT'
+
+for opt, val in opts:
+    if opt in ['-s', '--section']:
+        section=val
+
+if len(args) == 1:
+    config = SafeConfigParser()
+    config.read([args[0]])
+
+    arg_list=[]
+    if config.has_section(section):
+        for name, value in config.items(section):
+            arg_list.append('--%s="%s"' % (name, value))
+
+    print ' '.join(arg_list)
+elif len(args) == 3:
+    config = SafeConfigParser()
+    config.read([args[0]])
+    if not config.has_section(section):
+        config.add_section(section)
+    config.set(section, args[1], args[2])
+    config.write(open(args[0], 'w'))
+else:
+    print 'Usage: %s [OPTIONS] FILE' % (sys.argv[0])
+    sys.exit(1)
+    
+
+

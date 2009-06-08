@@ -1,0 +1,45 @@
+#!/bin/bash
+
+name=$1
+testname=$2
+shift; shift
+
+MONITOR_CMD=util/monitor-cmd
+PARSE_CFG=util/parse-cfg
+QEMU_GUEST_DEV="/tmp/qemu-test-guest-$name.sock"
+QEMU_MONITOR="/tmp/qemu-test-monitor-$name.sock"
+QEMU_CONF="/tmp/qemu-test-config-$name.conf"
+
+opts=()
+vals=()
+n_opts=0
+
+if test -e "$QEMU_CONF" ; then
+    config=`$PARSE_CFG --section=$testname "$QEMU_CONF"`
+    set -- $config "$@"
+fi
+
+while test "$1" ; do
+    arg="$1"
+    shift
+    if [ "${arg:0:2}" = "--" ] ; then
+	arg="${arg:2}"
+	opt=$(echo "${arg}" | cut -f1 -d=)
+	val=$(echo "${arg}" | cut -f2- -d=)
+    elif [ "${arg:0:1}" = "-" ] ; then
+	opt="${arg:1:1}"
+	if [ "${arg:2}" ] ; then
+	    val="${arg:2}"
+	else
+	    val="$1"
+	    shift
+	fi
+    fi
+
+    opts[$n_opts]="$opt"
+    vals[$n_opts]="$val"
+    n_opts=$(($n_opts + 1))
+done
+
+. lib/functions.sh
+. tests/$testname.sh

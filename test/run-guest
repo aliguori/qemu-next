@@ -1,0 +1,73 @@
+#!/bin/sh
+
+name=$1
+cfg="$HOME/.qemu-test/guests/${name}.sh"
+shift
+
+opts=()
+vals=()
+n_opts=0
+
+if test -e "$cfg" ; then
+    while test "$1" ; do
+	arg="$1"
+	shift
+	if [ "${arg:0:2}" = "--" ] ; then
+	    arg="${arg:2}"
+	    opt=$(echo "${arg}" | cut -f1 -d=)
+	    val=$(echo "${arg}" | cut -f2- -d=)
+	elif [ "${arg:0:1}" = "-" ] ; then
+	    opt="${arg:1:1}"
+	    if [ "${arg:2}" ] ; then
+		val="${arg:2}"
+	    else
+		val="$1"
+		shift
+	    fi
+	fi
+
+	opts[$n_opts]="$opt"
+	vals[$n_opts]="$val"
+	n_opts=$(($n_opts + 1))
+    done
+
+    . lib/functions.sh
+
+    qemu_dir=$(get_config qemu-path "")
+    qemu_arch=$(get_config target-arch x86_64)
+
+    if test "$qemu_arch" = "i386" ; then
+	qemu_name="qemu"
+    else
+	qemu_name="qemu-system-$qemu_arch"
+    fi
+
+    run_qemu_extra_opts=""
+    if test "$qemu_dir" -a -d "$qemu_dir/pc-bios" ; then
+	run_qemu_extra_opts="-L $qemu_dir/pc-bios"
+	qemu_name="$qemu_arch-softmmu/$qemu_name"
+    fi
+
+    if test "$qemu_dir" ; then
+	qemu="$qemu_dir"/"$qemu_name"
+    else
+	qemu="$qemu_name"
+    fi
+
+    qemu=$(get_config qemu "$qemu")
+    run_qemu() {
+	"$qemu" $run_qemu_extra_opts "$@" -monitor unix:/tmp/qemu-test-monitor-$name.sock,server,nowait \
+	-serial vc -serial none \
+	-serial unix:/tmp/qemu-test-guest-$name.sock,server,nowait
+    }
+    
+    . "$cfg"
+elif test -x "$1" ; then
+    "$@" -monitor unix:/tmp/qemu-test-monitor-$name.sock,server,nowait \
+	-serial vc -serial none \
+	-serial unix:/tmp/qemu-test-guest-$name.sock,server,nowait
+else
+    echo "Undefined guest \`$name'"
+    exit 1
+fi
+
