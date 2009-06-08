@@ -1735,7 +1735,8 @@ static CPUWriteMemoryFunc *ssi_write_func[] = {
     ssi_write,
 };
 
-#define DEBUG_TM12XX
+//#define DEBUG_TM12XX
+
 #ifdef DEBUG_TM12XX
 #define TRACE_TM12XX(fmt, ...) fprintf(stderr, "%s: " fmt "\n", __FUNCTION__, ##__VA_ARGS__)
 #else
