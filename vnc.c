@@ -65,7 +65,7 @@ static char *addr_to_string(const char *format,
     }
 
     /* Enough for the existing format + the 2 vars we're
-     * subsituting in. */
+     * substituting in. */
     addrlen = strlen(format) + strlen(host) + strlen(serv);
     addr = qemu_malloc(addrlen + 1);
     snprintf(addr, addrlen, format, host, serv);
@@ -2033,9 +2033,8 @@ static void vnc_listen_read(void *opaque)
 
 void vnc_display_init(DisplayState *ds)
 {
-    VncDisplay *vs;
+    VncDisplay *vs = qemu_mallocz(sizeof(*vs));
 
-    vs = qemu_mallocz(sizeof(VncState));
     dcl = qemu_mallocz(sizeof(DisplayChangeListener));
 
     ds->opaque = vs;

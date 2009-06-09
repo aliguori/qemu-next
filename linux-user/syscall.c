@@ -4070,6 +4070,7 @@ abi_long do_syscall(void *cpu_env, int num, abi_long arg1,
       /* FIXME: This probably breaks if a signal arrives.  We should probably
          be disabling signals.  */
       if (first_cpu->next_cpu) {
+          TaskState *ts;
           CPUState **lastp;
           CPUState *p;
 
@@ -4087,7 +4088,7 @@ abi_long do_syscall(void *cpu_env, int num, abi_long arg1,
           /* Remove the CPU from the list.  */
           *lastp = p->next_cpu;
           cpu_list_unlock();
-          TaskState *ts = ((CPUState *)cpu_env)->opaque;
+          ts = ((CPUState *)cpu_env)->opaque;
           if (ts->child_tidptr) {
               put_user_u32(0, ts->child_tidptr);
               sys_futex(g2h(ts->child_tidptr), FUTEX_WAKE, INT_MAX,
