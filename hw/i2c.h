@@ -82,6 +82,12 @@ void tmp105_set(i2c_slave *i2c, int temp);
 void lm832x_key_event(i2c_slave *i2c, int key, int state);
 
 /* twl4030.c */
-void *twl4030_init(i2c_bus *gp_bus, qemu_irq irq);
+typedef struct {
+    int code;
+    int column;
+    int row;
+} TWL4030KeyMap;
+void *twl4030_init(i2c_bus *gp_bus, qemu_irq irq1, qemu_irq irq2,
+                   const TWL4030KeyMap *keymap);
 
 #endif

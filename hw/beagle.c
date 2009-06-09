@@ -69,7 +69,9 @@ static void beagle_init(ram_addr_t ram_size,
                      drives_table[drive_get_index(IF_SD, 0, 0)].bdrv);
 
     s->i2c = omap_i2c_bus(s->cpu->i2c[0]);
-    s->twl4030 = twl4030_init(s->i2c, s->cpu->irq[0][OMAP_INT_3XXX_SYS_NIRQ]);
+    s->twl4030 = twl4030_init(s->i2c,
+                              s->cpu->irq[0][OMAP_INT_3XXX_SYS_NIRQ],
+                              NULL, NULL);
     opaque = smc91c111_init_lite(&nd_table[0], /*0x08000000,*/
                     omap2_gpio_in_get(s->cpu->gpif, 54)[0]);
     omap_gpmc_attach(s->cpu->gpmc, BEAGLE_SMC_CS, smc91c111_iomemtype(opaque),
