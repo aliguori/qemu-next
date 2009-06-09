@@ -18,8 +18,6 @@
 # include "hw.h"
 # include "flash.h"
 # include "block.h"
-/* FIXME: Pass block device as an argument.  */
-# include "sysemu.h"
 
 # define NAND_CMD_READ0		0x00
 # define NAND_CMD_READ1		0x01
@@ -496,20 +494,17 @@ uint32_t nand_getbuswidth(NANDFlashState *s)
     return (s->buswidth << 3);
 }
 
-NANDFlashState *nand_init(int manf_id, int chip_id)
+NANDFlashState *nand_init(int manf_id, int chip_id, BlockDriverState *bdrv)
 {
     int pagesize;
     NANDFlashState *s;
-    int index;
 
     if (nand_flash_ids[chip_id].size == 0) {
         hw_error("%s: Unsupported NAND chip ID.\n", __FUNCTION__);
     }
 
     s = (NANDFlashState *) qemu_mallocz(sizeof(NANDFlashState));
-    index = drive_get_index(IF_MTD, 0, 0);
-    if (index != -1)
-        s->bdrv = drives_table[index].bdrv;
+    s->bdrv = bdrv;
     s->manf_id = manf_id;
     s->chip_id = chip_id;
     s->buswidth = (uint8_t)(nand_flash_ids[s->chip_id].width >> 3);
@@ -582,8 +577,12 @@ static void glue(nand_blk_write_, PAGE_SIZE)(NANDFlashState *s)
         return;
 
     if (!s->bdrv) {
-        memcpy(s->storage + PAGE_START(s->addr) + (s->addr & PAGE_MASK) +
-                        s->offset, s->io, s->iolen);
+        uint8_t *p = s->storage + PAGE_START(s->addr) + (s->addr & PAGE_MASK) +
+                     s->offset;
+        int i;
+        for (i = 0; i < s->iolen; i++) {
+            p[i] &= s->io[i];
+        }
     } else if (s->mem_oob) {
         sector = SECTOR(s->addr);
         off = (s->addr & PAGE_MASK) + s->offset;
@@ -593,11 +592,19 @@ static void glue(nand_blk_write_, PAGE_SIZE)(NANDFlashState *s)
             return;
         }
 
-        memcpy(iobuf + (soff | off), s->io, MIN(s->iolen, PAGE_SIZE - off));
+        uint8_t *p = iobuf + (soff | off);
+        int i, count = MIN(s->iolen, PAGE_SIZE - off);
+        for (i = 0; i < count; i++) {
+            p[i] &= s->io[i];
+        }
         if (off + s->iolen > PAGE_SIZE) {
             page = PAGE(s->addr);
-            memcpy(s->storage + (page << OOB_SHIFT), s->io + PAGE_SIZE - off,
-                            MIN(OOB_SIZE, off + s->iolen - PAGE_SIZE));
+            p = s->storage + (page << OOB_SHIFT);
+            uint8_t *q = s->io + PAGE_SIZE - off;
+            count = MIN(OOB_SIZE, off + s->iolen - PAGE_SIZE);
+            for (i = 0; i < count; i++) {
+                p[i] &= q[i];
+            }
         }
 
         if (bdrv_write(s->bdrv, sector, iobuf, PAGE_SECTORS) == -1)
@@ -611,7 +618,11 @@ static void glue(nand_blk_write_, PAGE_SIZE)(NANDFlashState *s)
             return;
         }
 
-        memcpy(iobuf + soff, s->io, s->iolen);
+        uint8_t *p = iobuf + soff;
+        int i;
+        for (i = 0; i < s->iolen; i++) {
+            p[i] &= s->io[i];
+        }
 
         if (bdrv_write(s->bdrv, sector, iobuf, PAGE_SECTORS + 2) == -1)
             printf("%s: write error in sector %lli\n", __FUNCTION__, sector);

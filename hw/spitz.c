@@ -173,10 +173,14 @@ static void sl_flash_register(PXA2xxState *cpu, int size)
 
     s = (SLNANDState *) qemu_mallocz(sizeof(SLNANDState));
     s->ctl = 0;
+    BlockDriverState *bdrv = NULL;
+    if (drive_get_index(IF_MTD, 0, 0) >= 0) {
+        bdrv = drives_table[drive_get_index(IF_MTD, 0, 0)].bdrv;
+    }
     if (size == FLASH_128M)
-        s->nand = nand_init(NAND_MFR_SAMSUNG, 0x73);
+        s->nand = nand_init(NAND_MFR_SAMSUNG, 0x73, bdrv);
     else if (size == FLASH_1024M)
-        s->nand = nand_init(NAND_MFR_SAMSUNG, 0xf1);
+        s->nand = nand_init(NAND_MFR_SAMSUNG, 0xf1, bdrv);
 
     iomemtype = cpu_register_io_memory(0, sl_readfn,
                     sl_writefn, s);

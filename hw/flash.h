@@ -18,7 +18,7 @@ pflash_t *pflash_cfi02_register(target_phys_addr_t base, ram_addr_t off,
 
 /* nand.c */
 typedef struct NANDFlashState NANDFlashState;
-NANDFlashState *nand_init(int manf_id, int chip_id);
+NANDFlashState *nand_init(int manf_id, int chip_id, BlockDriverState *bdrv);
 void nand_done(NANDFlashState *s);
 void nand_setpins(NANDFlashState *s,
                 int cle, int ale, int ce, int wp, int gnd);

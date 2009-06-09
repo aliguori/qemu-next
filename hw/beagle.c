@@ -53,19 +53,20 @@ static void beagle_init(ram_addr_t ram_size,
                         const char *cpu_model)
 {
     struct beagle_s *s = (struct beagle_s *) qemu_mallocz(sizeof(*s));
-    int sdindex = drive_get_index(IF_SD, 0, 0);
     void *opaque;
     
-    if (sdindex == -1) {
-        fprintf(stderr, "%s: missing SecureDigital device\n", __FUNCTION__);
-        exit(1);
+    if (drive_get_index(IF_SD, 0, 0) < 0 ||
+        drive_get_index(IF_MTD, 0, 0) < 0) {
+        hw_error("%s: missing SD or NAND device\n", __FUNCTION__);
     }
    	s->cpu = omap3530_mpu_init(ram_size, NULL, NULL, serial_hds[0]);
 
-	s->nand = nand_init(NAND_MFR_MICRON, 0xba); /* MT29F2G16ABC */
+	s->nand = nand_init(NAND_MFR_MICRON, 0xba,
+                        drives_table[drive_get_index(IF_MTD, 0, 0)].bdrv);
 	nand_setpins(s->nand, 0, 0, 0, 1, 0); /* no write-protect */
     omap_gpmc_attach(s->cpu->gpmc, BEAGLE_NAND_CS, 0, NULL, NULL, s->nand, 2);
-    omap3_mmc_attach(s->cpu->omap3_mmc[0], drives_table[sdindex].bdrv);
+    omap3_mmc_attach(s->cpu->omap3_mmc[0],
+                     drives_table[drive_get_index(IF_SD, 0, 0)].bdrv);
 
     s->i2c = omap_i2c_bus(s->cpu->i2c[0]);
     s->twl4030 = twl4030_init(s->i2c, s->cpu->irq[0][OMAP_INT_3XXX_SYS_NIRQ]);

@@ -2436,8 +2436,7 @@ static void n00_init(ram_addr_t ram_size,
     struct n00_s *s = (struct n00_s *)qemu_mallocz(sizeof(*s));
     if (drive_get_index(IF_SD, 0, 0) < 0 ||
         drive_get_index(IF_MTD, 0, 0) < 0) {
-        fprintf(stderr, "%s: missing SD and/or NAND device\n", __FUNCTION__);
-        exit(1);
+        hw_error("%s: missing SD and/or NAND device\n", __FUNCTION__);
     }
     s->cpu = omap3530_mpu_init(256*1024*1024,
                                serial_hds[1],
