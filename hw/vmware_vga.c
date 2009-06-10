@@ -777,8 +777,12 @@ static void vmsvga_value_write(void *opaque, uint32_t address, uint32_t value)
 #ifdef EMBED_STDVGA
         s->vga.invalidate(&s->vga);
 #endif
-        if (s->enable)
+        if (s->enable) {
             s->fb_size = ((s->depth + 7) >> 3) * s->new_width * s->new_height;
+            vga_dirty_log_stop((VGAState *)s);
+        } else {
+            vga_dirty_log_start((VGAState *)s);
+        }
         break;
 
     case SVGA_REG_WIDTH:
@@ -956,6 +960,8 @@ static void vmsvga_reset(struct vmsvga_state_s *s)
         break;
     }
     s->syncing = 0;
+
+    vga_dirty_log_start((VGAState *)s);
 }
 
 static void vmsvga_invalidate_display(void *opaque)
@@ -1131,8 +1137,6 @@ static void vmsvga_init(struct vmsvga_state_s *s, int vga_ram_size)
                                      vmsvga_screen_dump,
                                      vmsvga_text_update, &s->vga);
 
-    vmsvga_reset(s);
-
 #ifdef EMBED_STDVGA
     vga_common_init((VGAState *) s, vga_ram_size);
     vga_init((VGAState *) s);
@@ -1143,6 +1147,8 @@ static void vmsvga_init(struct vmsvga_state_s *s, int vga_ram_size)
 #endif
 
     vga_init_vbe((VGAState *)s);
+
+    vmsvga_reset(s);
 }
 
 static void pci_vmsvga_save(QEMUFile *f, void *opaque)
@@ -1207,7 +1213,8 @@ static void pci_vmsvga_map_mem(PCIDevice *pci_dev, int region_num,
 
     s->vga.map_addr = addr;
     s->vga.map_end = addr + s->vga.vram_size;
-    vga_dirty_log_start(&s->vga);
+
+    vga_dirty_log_restart(&s->vga);
 }
 
 void pci_vmsvga_init(PCIBus *bus)
