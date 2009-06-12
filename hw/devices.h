@@ -69,4 +69,12 @@ void sm501_init(uint32_t base, uint32_t local_mem_bytes, qemu_irq irq,
 /* usb-ohci.c */
 void usb_ohci_init_sm501(uint32_t mmio_base, uint32_t localmem_base,
                          int num_ports, int devfn, qemu_irq irq);
+
+/* v9918.c */
+void *v9918_init(qemu_irq irq);
+void v9918_reset(void *opaque);
+uint32_t v9918_read(void *opaque, uint32_t addr);
+void v9918_write(void *opaque, uint32_t addr, uint32_t value);
+void v9918_change_zoom(void *opaque);
+
 #endif
