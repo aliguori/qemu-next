@@ -59,6 +59,7 @@ static RTCState *rtc_state;
 static PITState *pit;
 static IOAPICState *ioapic;
 static PCIDevice *i440fx_state;
+static void *fw_cfg;
 
 typedef struct rom_reset_data {
     uint8_t *data;
@@ -450,7 +451,6 @@ extern uint64_t node_cpumask[MAX_NODES];
 
 static void bochs_bios_init(void)
 {
-    void *fw_cfg;
     uint8_t *smbios_table;
     size_t smbios_len;
     uint64_t *numa_fw_cfg;
@@ -499,86 +499,6 @@ static void bochs_bios_init(void)
                      (1 + smp_cpus + nb_numa_nodes) * 8);
 }
 
-/* Generate an initial boot sector which sets state and jump to
-   a specified vector */
-static void generate_bootsect(target_phys_addr_t option_rom,
-                              uint32_t gpr[8], uint16_t segs[6], uint16_t ip)
-{
-    uint8_t rom[512], *p, *reloc;
-    uint8_t sum;
-    int i;
-
-    memset(rom, 0, sizeof(rom));
-
-    p = rom;
-    /* Make sure we have an option rom signature */
-    *p++ = 0x55;
-    *p++ = 0xaa;
-
-    /* ROM size in sectors*/
-    *p++ = 1;
-
-    /* Hook int19 */
-
-    *p++ = 0x50;		/* push ax */
-    *p++ = 0x1e;		/* push ds */
-    *p++ = 0x31; *p++ = 0xc0;	/* xor ax, ax */
-    *p++ = 0x8e; *p++ = 0xd8;	/* mov ax, ds */
-
-    *p++ = 0xc7; *p++ = 0x06;   /* movvw _start,0x64 */
-    *p++ = 0x64; *p++ = 0x00;
-    reloc = p;
-    *p++ = 0x00; *p++ = 0x00;
-
-    *p++ = 0x8c; *p++ = 0x0e;   /* mov cs,0x66 */
-    *p++ = 0x66; *p++ = 0x00;
-
-    *p++ = 0x1f;		/* pop ds */
-    *p++ = 0x58;		/* pop ax */
-    *p++ = 0xcb;		/* lret */
-    
-    /* Actual code */
-    *reloc = (p - rom);
-
-    *p++ = 0xfa;		/* CLI */
-    *p++ = 0xfc;		/* CLD */
-
-    for (i = 0; i < 6; i++) {
-	if (i == 1)		/* Skip CS */
-	    continue;
-
-	*p++ = 0xb8;		/* MOV AX,imm16 */
-	*p++ = segs[i];
-	*p++ = segs[i] >> 8;
-	*p++ = 0x8e;		/* MOV <seg>,AX */
-	*p++ = 0xc0 + (i << 3);
-    }
-
-    for (i = 0; i < 8; i++) {
-	*p++ = 0x66;		/* 32-bit operand size */
-	*p++ = 0xb8 + i;	/* MOV <reg>,imm32 */
-	*p++ = gpr[i];
-	*p++ = gpr[i] >> 8;
-	*p++ = gpr[i] >> 16;
-	*p++ = gpr[i] >> 24;
-    }
-
-    *p++ = 0xea;		/* JMP FAR */
-    *p++ = ip;			/* IP */
-    *p++ = ip >> 8;
-    *p++ = segs[1];		/* CS */
-    *p++ = segs[1] >> 8;
-
-    /* sign rom */
-    sum = 0;
-    for (i = 0; i < (sizeof(rom) - 1); i++)
-        sum += rom[i];
-    rom[sizeof(rom) - 1] = -sum;
-
-    cpu_physical_memory_write_rom(option_rom, rom, sizeof(rom));
-    option_rom_setup_reset(option_rom, sizeof (rom));
-}
-
 static long get_file_size(FILE *f)
 {
     long where, size;
@@ -600,9 +520,6 @@ static void load_linux(target_phys_addr_t option_rom,
                target_phys_addr_t max_ram_size)
 {
     uint16_t protocol;
-    uint32_t gpr[8];
-    uint16_t seg[6];
-    uint16_t real_seg;
     int setup_size, kernel_size, initrd_size = 0, cmdline_size;
     uint32_t initrd_max;
     uint8_t header[1024];
@@ -735,20 +652,14 @@ static void load_linux(target_phys_addr_t option_rom,
     }
     fclose(f);
 
-    /* generate bootsector to set up the initial register state */
-    real_seg = real_addr >> 4;
-    seg[0] = seg[2] = seg[3] = seg[4] = seg[4] = real_seg;
-    seg[1] = real_seg+0x20;	/* CS */
-    memset(gpr, 0, sizeof gpr);
-    gpr[4] = cmdline_addr-real_addr-16;	/* SP (-16 is paranoia) */
-
     option_rom_setup_reset(real_addr, setup_size);
     option_rom_setup_reset(prot_addr, kernel_size);
     option_rom_setup_reset(cmdline_addr, cmdline_size);
     if (initrd_filename)
         option_rom_setup_reset(initrd_addr, initrd_size);
 
-    generate_bootsect(option_rom, gpr, seg, 0);
+    fw_cfg_add_i32(fw_cfg, FW_CFG_KERNEL_ADDR, real_addr);
+    fw_cfg_add_i32(fw_cfg, FW_CFG_KERNEL_CMDLINE, cmdline_addr);
 }
 
 static void main_cpu_reset(void *opaque)
@@ -940,6 +851,8 @@ static void pc_init1(ram_addr_t ram_size,
     if (filename) {
         qemu_free(filename);
     }
+    bochs_bios_init();
+
     /* map the last 128KB of the BIOS in ISA space */
     isa_bios_size = bios_size;
     if (isa_bios_size > (128 * 1024))
@@ -947,8 +860,6 @@ static void pc_init1(ram_addr_t ram_size,
     cpu_register_physical_memory(0x100000 - isa_bios_size,
                                  isa_bios_size,
                                  (bios_offset + bios_size - isa_bios_size) | IO_MEM_ROM);
-
-
 
     option_rom_offset = qemu_ram_alloc(0x20000);
     oprom_area_size = 0;
@@ -984,8 +895,6 @@ static void pc_init1(ram_addr_t ram_size,
     /* map all the bios at the top of memory */
     cpu_register_physical_memory((uint32_t)(-bios_size),
                                  bios_size, bios_offset | IO_MEM_ROM);
-
-    bochs_bios_init();
 
     cpu_irq = qemu_allocate_irqs(pic_irq_request, NULL, 1);
     i8259 = i8259_init(cpu_irq[0]);

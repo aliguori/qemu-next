@@ -27,7 +27,7 @@
 #include "fw_cfg.h"
 
 /* debug firmware config */
-//#define DEBUG_FW_CFG
+#define DEBUG_FW_CFG
 
 #ifdef DEBUG_FW_CFG
 #define FW_CFG_DPRINTF(fmt, ...)                        \
