@@ -644,6 +644,25 @@ static int cocoa_keycode_to_qemu(int keycode)
                 [NSApp sendEvent:event];
             }
             break;
+        case NSAppKitDefined:
+            switch ([event subtype]) {
+                case NSApplicationActivatedEventType:
+                    if (dcl) {
+                        dcl->gui_timer_interval = 0;
+                        dcl->idle = 0;
+                    }
+                    break;
+                case NSApplicationDeactivatedEventType:
+                    if (dcl) {
+                        dcl->gui_timer_interval = 500;
+                        dcl->idle = 1;
+                    }
+                    break;
+                default:
+                    break;
+            }
+            [NSApp sendEvent:event];
+            break;
         default:
             [NSApp sendEvent:event];
     }

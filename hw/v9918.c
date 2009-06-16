@@ -1,5 +1,5 @@
 /*
- * Texas Instruments TMS9918 Video Processor emulation
+ * Texas Instruments TMS9918A Video Display Processor emulation
  *
  * Copyright (c) 2009 Juha Riihimäki
  * Sprite code based on fMSX X11 screen drivers written by Arnold Metselaar
@@ -20,6 +20,8 @@ typedef struct {
     qemu_irq irq;
     DisplayState *ds;
     int invalidate;
+    int render_dirty;
+    int vdp_dirty;
     int zoom;
     QEMUTimer *timer;
     
@@ -78,6 +80,7 @@ void v9918_write(void *opaque, uint32_t addr, uint32_t value)
             s->addr_seq = 1;
             if (value & 0x80) {
                 v9918_ctrl(s, value, s->addr_latch);
+                s->vdp_dirty = 1;
             } else {
                 s->addr = ((value << 8) + s->addr_latch) & 0x3fff;
                 s->addr_mode = value & 0x40;
@@ -97,6 +100,7 @@ void v9918_write(void *opaque, uint32_t addr, uint32_t value)
             s->addr = (s->addr + 1) & 0x3ff;
             s->vram[s->addr] = value;
         }
+        s->vdp_dirty = 1;
     }
 }
 
@@ -318,30 +322,7 @@ static uint8_t *v9918_render_sprites(V9918State *s, int scanline)
 }
 
 #include "pixel_ops.h"
-#define SCREEN_ZOOM 1
-#define DEPTH 8
 #include "v9918_render_template.h"
-#define DEPTH 15
-#include "v9918_render_template.h"
-#define DEPTH 16
-#include "v9918_render_template.h"
-#define DEPTH 24
-#include "v9918_render_template.h"
-#define DEPTH 32
-#include "v9918_render_template.h"
-#undef SCREEN_ZOOM
-#define SCREEN_ZOOM 2
-#define DEPTH 8
-#include "v9918_render_template.h"
-#define DEPTH 15
-#include "v9918_render_template.h"
-#define DEPTH 16
-#include "v9918_render_template.h"
-#define DEPTH 24
-#include "v9918_render_template.h"
-#define DEPTH 32
-#include "v9918_render_template.h"
-#undef SCREEN_ZOOM
 
 static void v9918_render_screen(V9918State *s)
 {
@@ -391,14 +372,19 @@ static void v9918_render_screen(V9918State *s)
         render_fn(s, i, fb, linesize);
         fb += linesize * s->zoom;
     }
+    
+    s->render_dirty = 1;
 }
 
 static void v9918_vertical_retrace(V9918State *s)
 {
-    if (!(s->status & 0x20)) {
-        v9918_sprite_collision_check(s);
+    if (s->vdp_dirty) {
+        if (!(s->status & 0x20)) {
+            v9918_sprite_collision_check(s);
+        }
+        v9918_render_screen(s);
+        s->vdp_dirty = 0;
     }
-    v9918_render_screen(s);
     s->status |= 0x80;
     if (s->ctrl[1] & 0x20) {
         qemu_irq_raise(s->irq);
@@ -432,8 +418,11 @@ static void v9918_update_display(void *opaque)
         }
         v9918_render_screen(s);
     }
-    
-    dpy_update(s->ds, 0, 0, ds_get_width(s->ds), ds_get_height(s->ds));
+
+    if (s->render_dirty) {
+        s->render_dirty = 0;
+        dpy_update(s->ds, 0, 0, ds_get_width(s->ds), ds_get_height(s->ds));
+    }
 }
 
 void v9918_change_zoom(void *opaque)

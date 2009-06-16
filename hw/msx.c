@@ -23,16 +23,140 @@
 #define PAGESIZE 0x2000
 #define NUMPAGES (0x10000 / PAGESIZE)
 
+typedef void (*msx_mapper_fn_t)(void *opaque, int page, int slot);
+
 typedef struct {
-    ram_addr_t pageslotaddr[NUMPAGES][4];
+    ram_addr_t page;
+    int pagenum;
+    int io_index;
+} MMUMegaCartMapper;
+
+typedef struct {
+    struct {
+        ram_addr_t page[NUMPAGES];
+        struct {
+            int pagecount;
+            ram_addr_t *pages;
+            msx_mapper_fn_t mapper_fn;
+            MMUMegaCartMapper mapper[NUMPAGES];
+        } megacart;
+    } slot[4];
+    int slot_for_page[NUMPAGES];
 } MMUState;
+
+static void msx_mmu_readcart(ram_addr_t page, target_phys_addr_t offset,
+                             void *buf, int len)
+{
+    void *ptr = qemu_get_ram_ptr(page);
+    memcpy(buf, ptr + offset, len);
+}
+
+static uint32_t msx_mmio_generic_readb(void *opaque, target_phys_addr_t addr)
+{
+    uint8_t value = 0;
+    MMUMegaCartMapper *s = opaque;
+    msx_mmu_readcart(s->page, addr, &value, sizeof(value));
+    return value;
+}
+
+static uint32_t msx_mmio_generic_readh(void *opaque, target_phys_addr_t addr)
+{
+    uint16_t value = 0;
+    MMUMegaCartMapper *s = opaque;
+    msx_mmu_readcart(s->page, addr, &value, sizeof(value));
+    return value;
+}
+
+static uint32_t msx_mmio_generic_readw(void *opaque, target_phys_addr_t addr)
+{
+    uint32_t value = 0;
+    MMUMegaCartMapper *s = opaque;
+    msx_mmu_readcart(s->page, addr, &value, sizeof(value));
+    return value;
+}
+
+static CPUReadMemoryFunc *msx_mmio_generic_read[] = {
+    msx_mmio_generic_readb,
+    msx_mmio_generic_readh,
+    msx_mmio_generic_readw,
+};
+
+static void msx_mmio_konami_noscc_writeb(void *opaque,
+                                         target_phys_addr_t addr,
+                                         uint32_t value)
+{
+}
+
+static void msx_mmio_konami_noscc_writeh(void *opaque,
+                                         target_phys_addr_t addr,
+                                         uint32_t value)
+{
+}
+
+static void msx_mmio_konami_noscc_writew(void *opaque,
+                                         target_phys_addr_t addr,
+                                         uint32_t value)
+{
+}
+
+static CPUWriteMemoryFunc *msx_mmio_konami_noscc_write[] = {
+    msx_mmio_konami_noscc_writeb,
+    msx_mmio_konami_noscc_writeh,
+    msx_mmio_konami_noscc_writew,
+};
+
+static void msx_mapper_konami_noscc(void *opaque, int page, int slot)
+{
+    /* mapper access at 0x6000 ... 0xa000 */
+    if (page > 2 && page < 6) {
+        MMUState *s = (MMUState *)opaque;
+        if (s->slot[slot].megacart.mapper[page].io_index < 0) {
+            int io_index = cpu_register_io_memory(0, msx_mmio_generic_read,
+                msx_mmio_konami_noscc_write, &s->slot[slot].megacart.mapper[page]);
+            if (io_index < 0) {
+                hw_error("%s: ran out of io regions\n", __FUNCTION__);
+            }
+            s->slot[slot].megacart.mapper[page].io_index = io_index;
+        }
+        cpu_register_physical_memory(page * PAGESIZE, 1,
+            s->slot[slot].megacart.mapper[page].io_index);
+    }
+}
+
+#define MSX_NB_MAPPERS 1
+static const msx_mapper_fn_t msx_mapper_fn_table[MSX_NB_MAPPERS] = {
+    msx_mapper_konami_noscc,
+};
 
 static inline void msx_mmu_map(void *opaque, int page, int slot)
 {
     TRACE("[0x%04x] -> slot%d", page * PAGESIZE, slot);
     MMUState *s = (MMUState *)opaque;
-    cpu_register_physical_memory(page * PAGESIZE, PAGESIZE,
-                                 s->pageslotaddr[page][slot]);
+    /* for megarom cartridges, call handler function to map mmio */
+    if (s->slot[slot].megacart.pagecount && (page > 1 || page < 6)) {
+        cpu_register_physical_memory(page * PAGESIZE, PAGESIZE,
+                                     s->slot[slot].megacart.mapper[page].page);
+        s->slot[slot].megacart.mapper_fn(s, page, slot);
+    } else {
+        cpu_register_physical_memory(page * PAGESIZE, PAGESIZE,
+                                     s->slot[slot].page[page]);
+    }
+}
+
+static void msx_mmu_slot_select(void *opaque, uint32_t value)
+{
+    MMUState *s = (MMUState *)opaque;
+    int i;
+    for (i = 0; i < 4; i++, value >>= 2) {
+        if (s->slot_for_page[i * 2] != (value & 3)) {
+            msx_mmu_map(s, i * 2, value & 3);
+            s->slot_for_page[i * 2] = value & 3;
+        }
+        if (s->slot_for_page[i * 2 + 1] != (value & 3)) {
+            msx_mmu_map(s, i * 2 + 1, value & 3);
+            s->slot_for_page[i * 2 + 1] = value & 3;
+        }
+    }
 }
 
 static inline ram_addr_t msx_mmu_alloc_page(void)
@@ -65,11 +189,11 @@ static void msx_mmu_load_rom(void *opaque, int addr, int slot,
     int page = addr / PAGESIZE;
     int i;
     for (i = 0; i < rom_size; i += PAGESIZE, page++) {
-        if (s->pageslotaddr[page][slot] != IO_MEM_UNASSIGNED) {
+        if (s->slot[slot].page[page] != IO_MEM_UNASSIGNED) {
             hw_error("%s: page %d in slot %d is already assigned\n",
                      __FUNCTION__, page, slot);
         }
-        s->pageslotaddr[page][slot] = msx_mmu_alloc_page() | IO_MEM_ROM;
+        s->slot[slot].page[page] = msx_mmu_alloc_page() | IO_MEM_ROM;
         msx_mmu_map(s, page, slot);
     }
     if (load_image_targphys(path, addr, rom_size) != rom_size) {
@@ -78,15 +202,9 @@ static void msx_mmu_load_rom(void *opaque, int addr, int slot,
     qemu_free(path);
 }
 
-static void msx_mmu_load_cartridge(void *opaque, int slot,
-                                   const char *filename)
+static void msx_mmu_load_plain_cartridge(void *opaque, int slot, int fd,
+                                         uint32_t rom_size)
 {
-    uint32_t rom_size = get_image_size(filename);
-    if (rom_size > 0x10000) {
-        hw_error("%s: mega ROM cartridges are not supported\n", __FUNCTION__);
-    }
-    
-    TRACE("loading '%s' in slot %d (size %d)", filename, slot, rom_size);
     ram_addr_t page[NUMPAGES];
     MMUState *s = (MMUState *)opaque;
     switch (rom_size / PAGESIZE) {
@@ -133,21 +251,127 @@ static void msx_mmu_load_cartridge(void *opaque, int slot,
     }
     int i;
     for (i = 0; i < NUMPAGES; i++) {
-        s->pageslotaddr[i][slot] = page[i];
+        s->slot[slot].page[i] = page[i];
         msx_mmu_map(s, i, slot);
     }
     int loadcount = 0;
     switch (rom_size / PAGESIZE) {
         case 0 ... 2:
         case 5 ... 7:
-            loadcount = load_image_targphys(filename, 0, rom_size);
+            loadcount = read_targphys(fd, 0, rom_size);
             break;
         case 3 ... 4:
-            loadcount = load_image_targphys(filename, 0x4000, rom_size);
+            loadcount = read_targphys(fd, 0x4000, rom_size);
             break;
     }
     if (loadcount != rom_size) {
-        hw_error("%s: unable to load MSX cartridge '%s'\n", __FUNCTION__, filename);
+        hw_error("%s: could not read %d bytes\n", __FUNCTION__, rom_size);
+    }
+}
+
+static void msx_mmu_load_mega_cartridge(void *opaque, int slot, int fd,
+                                        uint32_t rom_size, int req_mapper)
+{
+    printf("req_mapper = %d\n", req_mapper);
+    if (req_mapper >= MSX_NB_MAPPERS) {
+        req_mapper = 0;
+    }
+    MMUState *s = (MMUState *)opaque;
+    const int pagecount = (rom_size + PAGESIZE - 1) / PAGESIZE;
+    s->slot[slot].megacart.pagecount = 0; // so that we can use msx_mmu_map
+    s->slot[slot].megacart.pages = qemu_mallocz(sizeof(ram_addr_t)*pagecount);
+    s->slot[slot].megacart.mapper_fn = msx_mapper_fn_table[req_mapper];
+    uint32_t i;
+    int lastfirst = 1;
+    for (i = 0; i < rom_size; i += PAGESIZE) {
+        ram_addr_t page = msx_mmu_alloc_page() | IO_MEM_ROM;
+        s->slot[slot].megacart.pages[i / PAGESIZE] = page;
+        s->slot[slot].page[2] = page;
+        msx_mmu_map(s, 2, slot);
+        uint32_t count = (rom_size - i) > PAGESIZE ? PAGESIZE : (rom_size - i);
+        if (read_targphys(fd, 0x4000, count) != count) {
+            hw_error("%s: error while reading cartridge file\n", __FUNCTION__);
+        }
+        if (!i) {
+            uint8_t signature[2];
+            cpu_physical_memory_read(0x4000, signature, 2);
+            if (signature[0] == 'A' && signature[1] == 'B') {
+                lastfirst = 0;
+            }
+        }
+    }
+    if (lastfirst) {
+        s->slot[slot].megacart.mapper[2].pagenum = pagecount - 2;
+        s->slot[slot].megacart.mapper[3].pagenum = pagecount - 1;
+        s->slot[slot].megacart.mapper[4].pagenum = pagecount - 2;
+        s->slot[slot].megacart.mapper[5].pagenum = pagecount - 1;
+    } else {
+        s->slot[slot].megacart.mapper[2].pagenum = 0;
+        s->slot[slot].megacart.mapper[3].pagenum = 1;
+        s->slot[slot].megacart.mapper[4].pagenum = 2;
+        s->slot[slot].megacart.mapper[5].pagenum = 3;
+    }
+    for (i = 2; i < 6; i++) {
+        s->slot[slot].megacart.mapper[i].page =
+            s->slot[slot].megacart.pages[s->slot[slot].megacart.mapper[i].pagenum];
+        s->slot[slot].megacart.mapper[i].io_index = -1;
+    }
+    /* this must be done after loading so that msx_mmu_map function
+     * doesn't get confused */
+    s->slot[slot].megacart.pagecount = pagecount;
+    hw_error("%s: megarom loading not implemented yet\n", __FUNCTION__);
+}
+
+static int msx_is_mega_cartridge(int fd, uint32_t size)
+{
+    int result = 0;
+    volatile char signature[2];
+    if (size >= 0x10000 && lseek(fd, 0, SEEK_SET) >=0 &&
+        read(fd, (char *)signature, 2) == 2 &&
+        ((signature[0] == 'A' && signature[1] == 'B') ||
+         (lseek(fd, size - 0x4000, SEEK_SET) >= 0 &&
+          read(fd, (char *)signature, 2) == 2 &&
+          signature[0] == 'A' && signature[1] == 'B'))) {
+        result = 1;
+    }
+    lseek(fd, 0, SEEK_SET);
+    return result;
+}
+
+static void msx_mmu_load_cartridge(void *opaque, int slot,
+                                   const char *filename)
+{
+    MMUState *s = (MMUState *)opaque;
+    int i;
+    for (i = 0; i < NUMPAGES; i++) {
+        if (s->slot[slot].page[i] != IO_MEM_UNASSIGNED) {
+            hw_error("%s: slot %d is already occupied\n",
+                     __FUNCTION__, slot);
+        }
+    }
+    const char *p = strchr(filename,',');
+    int req_mapper = 0;
+    if (p) {
+        char *s = qemu_mallocz(p - filename + 1);
+        strncpy(s, filename, p - filename);
+        filename = s;
+        req_mapper = atoi(p + 1);
+    }
+    uint32_t rom_size = get_image_size(filename);
+    TRACE("loading '%s' in slot %d (size %d)", filename, slot, rom_size);
+    int fd = open(filename, O_RDONLY);
+    if (fd < 0) {
+        hw_error("%s: unable to open '%s' for reading\n", __FUNCTION__,
+                 filename);
+    }
+    if (msx_is_mega_cartridge(fd, rom_size)) {
+        msx_mmu_load_mega_cartridge(opaque, slot, fd, rom_size, req_mapper);
+    } else {
+        msx_mmu_load_plain_cartridge(opaque, slot, fd, rom_size);
+    }
+    close(fd);
+    if (p) {
+        qemu_free((void *)filename);
     }
 }
 
@@ -164,9 +388,9 @@ static void *msx_mmu_init(int ramslot)
 {
     MMUState *s = qemu_mallocz(sizeof(*s));
     int page, slot;
-    for (page = 0; page < NUMPAGES; page++) {
-        for (slot = 0; slot < 4; slot++) {
-            s->pageslotaddr[page][slot] = (slot == ramslot)
+    for (slot = 0; slot < 4; slot++) {
+        for (page = 0; page < NUMPAGES; page++) {
+            s->slot[slot].page[page] = (slot == ramslot)
                 ? (msx_mmu_alloc_page() | IO_MEM_RAM)
                 : IO_MEM_UNASSIGNED;
         }
@@ -189,20 +413,6 @@ typedef struct {
 #define PPI_PORT_B_INPUT (s->control & 0x02)
 #define PPI_PORT_C_LSB_INPUT (s->control & 0x01)
 #define PPI_PORT_C_MSB_INPUT (s->control & 0x08)
-
-static void ppi_primary_slot_select(void *opaque, uint8_t value)
-{
-    PPIState *s = (PPIState *)opaque;
-    uint8_t old = s->port[0];
-    s->port[0] = value;
-    int i;
-    for (i = 0; i < 4; i++, old >>= 2, value >>= 2) {
-        if ((old & 3) != (value & 3)) {
-            msx_mmu_map(s->mmu, i * 2,     value & 3);
-            msx_mmu_map(s->mmu, i * 2 + 1, value & 3);
-        }
-    }
-}
 
 static uint32_t ppi_read(void *opaque, uint32_t addr)
 {
@@ -252,7 +462,8 @@ static void ppi_write(void *opaque, uint32_t addr, uint32_t value)
         case 0: /* port A */
             if (PPI_GROUP_A_MODE == 0) {
                 if (!PPI_PORT_A_INPUT) {
-                    ppi_primary_slot_select(s, value);
+                    s->port[0] = value;
+                    msx_mmu_slot_select(s->mmu, value);
                 }
             } else {
                 /* TODO: other modes */
