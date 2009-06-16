@@ -276,7 +276,7 @@ ifdef INSTALL_BLOBS
 BLOBS=bios.bin vgabios.bin vgabios-cirrus.bin ppc_rom.bin \
 video.x openbios-sparc32 openbios-sparc64 openbios-ppc \
 pxe-ne2k_pci.bin pxe-rtl8139.bin pxe-pcnet.bin pxe-e1000.bin \
-bamboo.dtb petalogix-s3adsp1800.dtb zx-rom.bin
+bamboo.dtb petalogix-s3adsp1800.dtb
 else
 BLOBS=
 endif
@@ -399,7 +399,6 @@ tarbin:
 	$(bindir)/qemu-system-sh4 \
 	$(bindir)/qemu-system-sh4eb \
 	$(bindir)/qemu-system-sparc \
-	$(bindir)/qemu-system-z80 \
 	$(bindir)/qemu-i386 \
 	$(bindir)/qemu-x86_64 \
 	$(bindir)/qemu-alpha \

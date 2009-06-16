@@ -164,7 +164,6 @@ bigendian="no"
 mingw32="no"
 EXESUF=""
 slirp="yes"
-libspectrum="no"
 vde="yes"
 fmod_lib=""
 fmod_inc=""
@@ -400,8 +399,6 @@ for opt do
   ;;
   --disable-sdl) sdl="no"
   ;;
-  --enable-libspectrum) libspectrum="yes"
-  ;;
   --fmod-lib=*) fmod_lib="$optarg"
   ;;
   --fmod-inc=*) fmod_inc="$optarg"
@@ -612,7 +609,6 @@ echo "  --disable-strip          disable stripping binaries"
 echo "  --disable-werror         disable compilation abort on warning"
 echo "  --disable-sdl            disable SDL"
 echo "  --enable-cocoa           enable COCOA (Mac OS X only)"
-echo "  --enable-libspectrum     enable ZX Spectrum snapshot loading"
 echo "  --audio-drv-list=LIST    set audio drivers list:"
 echo "                           Available drivers: $audio_possible_drivers"
 echo "  --audio-card-list=LIST   set list of emulated audio cards [$audio_card_list]"
@@ -714,7 +710,6 @@ ppc64-softmmu \
 sh4-softmmu \
 sh4eb-softmmu \
 sparc-softmmu \
-z80-softmmu \
 "
     fi
 # the following are Linux specific
@@ -1397,7 +1392,6 @@ fi
 if test -n "$sparc_cpu"; then
     echo "Target Sparc Arch $sparc_cpu"
 fi
-echo "libspec. support  $libspectrum"
 echo "kqemu support     $kqemu"
 echo "xen support       $xen"
 echo "brlapi support    $brlapi"
@@ -1641,10 +1635,6 @@ echo "" >>$config_h
 if test "$mixemu" = "yes" ; then
   echo "CONFIG_MIXEMU=yes" >> $config_mak
   echo "#define CONFIG_MIXEMU 1" >> $config_h
-fi
-if test "$libspectrum" = "yes" ; then
-  echo "CONFIG_LIBSPECTRUM=yes" >> $config_mak
-  echo "#define CONFIG_LIBSPECTRUM 1" >> $config_h
 fi
 if test "$vnc_tls" = "yes" ; then
   echo "CONFIG_VNC_TLS=yes" >> $config_mak
@@ -2097,12 +2087,6 @@ case "$target_cpu" in
     echo "#define TARGET_SPARC64 1" >> $config_h
     echo "#define TARGET_ABI32 1" >> $config_h
     target_phys_bits=64
-  ;;
-  z80)
-    echo "TARGET_ARCH=z80" >> $config_mak
-    echo "#define TARGET_ARCH \"z80\"" >> $config_h
-    echo "#define TARGET_Z80 1" >> $config_h
-    target_phys_bits=32
   ;;
   *)
     echo "Unsupported target CPU"
