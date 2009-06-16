@@ -82,7 +82,7 @@ set_config() {
     var="$2"
     val="$3"
 
-    util/parse-cfg --section=$section "$cfg" "$var" "$val"
+    util/parse-cfg --section=$section "$guest_config" "$var" "$val"
 }
 
 die() {

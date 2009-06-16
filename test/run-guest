@@ -2,6 +2,7 @@
 
 name=$1
 cfg="$HOME/.qemu-test/guests/${name}.sh"
+guest_config="/tmp/qemu-test-conf-${name}.conf"
 shift
 
 opts=()
@@ -33,8 +34,9 @@ if test -e "$cfg" ; then
 
     . lib/functions.sh
 
-    qemu_dir=$(get_config qemu-path "")
+    qemu_dir=$(get_config qemu-dir "")
     qemu_arch=$(get_config target-arch x86_64)
+    bios_dir=$(get_config bios-dir "")
 
     if test "$qemu_arch" = "i386" ; then
 	qemu_name="qemu"
@@ -43,9 +45,16 @@ if test -e "$cfg" ; then
     fi
 
     run_qemu_extra_opts=""
-    if test "$qemu_dir" -a -d "$qemu_dir/pc-bios" ; then
-	run_qemu_extra_opts="-L $qemu_dir/pc-bios"
-	qemu_name="$qemu_arch-softmmu/$qemu_name"
+    if test "$qemu_dir" ; then
+	if test -d "$qemu_dir/pc-bios" ; then
+	    run_qemu_extra_opts="-L $qemu_dir/pc-bios"
+	fi
+	if test -x "$qemu_dir/$qemu_arch-softmmu/$qemu_name" ; then
+	    qemu_name="$qemu_arch-softmmu/$qemu_name"
+	fi
+    fi
+    if test "$bios_dir" ; then
+	run_qemu_extra_opts="-L $bios_dir"
     fi
 
     if test "$qemu_dir" ; then
@@ -61,6 +70,7 @@ if test -e "$cfg" ; then
 	-serial unix:/tmp/qemu-test-guest-$name.sock,server,nowait
     }
     
+    rm -f "$guest_config"
     . "$cfg"
 elif test -x "$1" ; then
     "$@" -monitor unix:/tmp/qemu-test-monitor-$name.sock,server,nowait \
