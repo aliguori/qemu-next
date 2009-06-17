@@ -253,14 +253,14 @@ static BlockDriver *find_protocol(const char *filename)
  * Detect host devices. By convention, /dev/cdrom[N] is always
  * recognized as a host CDROM.
  */
-static BlockDriver *find_hdev_driver(const char *filename)
+static BlockDriver *find_hdev_driver(BlockDriverState *bs, const char *filename)
 {
     int score_max = 0, score;
     BlockDriver *drv = NULL, *d;
 
     for (d = first_drv; d; d = d->next) {
         if (d->bdrv_probe_device) {
-            score = d->bdrv_probe_device(filename);
+            score = d->bdrv_probe_device(bs, filename);
             if (score > score_max) {
                 score_max = score;
                 drv = d;
@@ -397,7 +397,7 @@ int bdrv_open2(BlockDriverState *bs, const char *filename, int flags,
     if (flags & BDRV_O_FILE) {
         drv = find_protocol(filename);
     } else if (!drv) {
-        drv = find_hdev_driver(filename);
+        drv = find_hdev_driver(bs, filename);
         if (!drv) {
             drv = find_image_format(filename);
         }

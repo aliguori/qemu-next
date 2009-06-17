@@ -955,7 +955,7 @@ kern_return_t GetBSDPath( io_iterator_t mediaIterator, char *bsdPath, CFIndex ma
 
 #endif
 
-static int hdev_probe_device(const char *filename)
+static int hdev_probe_device(BlockDriverState *bs, const char *filename)
 {
     struct stat st;
 
@@ -1201,7 +1201,7 @@ static int floppy_open(BlockDriverState *bs, const char *filename, int flags)
     return 0;
 }
 
-static int floppy_probe_device(const char *filename)
+static int floppy_probe_device(BlockDriverState *bs, const char *filename)
 {
     if (strstart(filename, "/dev/fd", NULL))
         return 100;
@@ -1285,7 +1285,7 @@ static int cdrom_open(BlockDriverState *bs, const char *filename, int flags)
     return raw_open_common(bs, filename, flags, O_NONBLOCK);
 }
 
-static int cdrom_probe_device(const char *filename)
+static int cdrom_probe_device(BlockDriverState *bs, const char *filename)
 {
     if (strstart(filename, "/dev/cd", NULL))
         return 100;
@@ -1381,7 +1381,7 @@ static int cdrom_open(BlockDriverState *bs, const char *filename, int flags)
     return 0;
 }
 
-static int cdrom_probe_device(const char *filename)
+static int cdrom_probe_device(BlockDriverState *bs, const char *filename)
 {
     if (strstart(filename, "/dev/cd", NULL) ||
             strstart(filename, "/dev/acd", NULL))

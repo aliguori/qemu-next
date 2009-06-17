@@ -306,7 +306,7 @@ static int find_device_type(BlockDriverState *bs, const char *filename)
     }
 }
 
-static int hdev_probe_device(const char *filename)
+static int hdev_probe_device(BlockDriverState *bs, const char *filename)
 {
     if (strstart(filename, "/dev/cdrom", NULL))
         return 100;
