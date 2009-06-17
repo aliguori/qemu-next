@@ -45,6 +45,7 @@ do { fprintf(stderr, "scsi-disk: " fmt , ## __VA_ARGS__); } while (0)
 #define SCSI_REQ_STATUS_RETRY 0x01
 
 typedef struct SCSIRequest {
+    SCSIBus *bus;
     SCSIDeviceState *dev;
     uint32_t tag;
     /* ??? We should probably keep track of whether the data transfer is
@@ -68,19 +69,15 @@ struct SCSIDeviceState
     int cluster_size;
     uint64_t max_lba;
     int sense;
-    int tcq;
-    /* Completion functions may be called from either scsi_{read,write}_data
-       or from the AIO completion routines.  */
-    scsi_completionfn completion;
-    void *opaque;
     char drive_serial_str[21];
 };
 
 /* Global pool of SCSIRequest structures.  */
 static SCSIRequest *free_requests = NULL;
 
-static SCSIRequest *scsi_new_request(SCSIDeviceState *s, uint32_t tag)
+static SCSIRequest *scsi_new_request(SCSIDevice *d, uint32_t tag)
 {
+    SCSIDeviceState *s = d->state;
     SCSIRequest *r;
 
     if (free_requests) {
@@ -90,6 +87,7 @@ static SCSIRequest *scsi_new_request(SCSIDeviceState *s, uint32_t tag)
         r = qemu_malloc(sizeof(SCSIRequest));
         r->iov.iov_base = qemu_memalign(512, SCSI_DMA_BUF_SIZE);
     }
+    r->bus = scsi_bus_from_device(d);
     r->dev = s;
     r->tag = tag;
     r->sector_count = 0;
@@ -143,7 +141,7 @@ static void scsi_command_complete(SCSIRequest *r, int status, int sense)
     s->sense = sense;
     tag = r->tag;
     scsi_remove_request(r);
-    s->completion(s->opaque, SCSI_REASON_DONE, tag, status);
+    r->bus->complete(r->bus, SCSI_REASON_DONE, tag, status);
 }
 
 /* Cancel a pending data transfer.  */
@@ -164,17 +162,16 @@ static void scsi_cancel_io(SCSIDevice *d, uint32_t tag)
 static void scsi_read_complete(void * opaque, int ret)
 {
     SCSIRequest *r = (SCSIRequest *)opaque;
-    SCSIDeviceState *s = r->dev;
 
     if (ret) {
         DPRINTF("IO error\n");
-        s->completion(s->opaque, SCSI_REASON_DATA, r->tag, 0);
+        r->bus->complete(r->bus, SCSI_REASON_DATA, r->tag, 0);
         scsi_command_complete(r, STATUS_CHECK_CONDITION, SENSE_NO_SENSE);
         return;
     }
     DPRINTF("Data ready tag=0x%x len=%d\n", r->tag, r->iov.iov_len);
 
-    s->completion(s->opaque, SCSI_REASON_DATA, r->tag, r->iov.iov_len);
+    r->bus->complete(r->bus, SCSI_REASON_DATA, r->tag, r->iov.iov_len);
 }
 
 /* Read more data from scsi device into buffer.  */
@@ -194,7 +191,7 @@ static void scsi_read_data(SCSIDevice *d, uint32_t tag)
     if (r->sector_count == (uint32_t)-1) {
         DPRINTF("Read buf_len=%d\n", r->iov.iov_len);
         r->sector_count = 0;
-        s->completion(s->opaque, SCSI_REASON_DATA, r->tag, r->iov.iov_len);
+        r->bus->complete(r->bus, SCSI_REASON_DATA, r->tag, r->iov.iov_len);
         return;
     }
     DPRINTF("Read sector_count=%d\n", r->sector_count);
@@ -239,7 +236,6 @@ static int scsi_handle_write_error(SCSIRequest *r, int error)
 static void scsi_write_complete(void * opaque, int ret)
 {
     SCSIRequest *r = (SCSIRequest *)opaque;
-    SCSIDeviceState *s = r->dev;
     uint32_t len;
     uint32_t n;
 
@@ -262,7 +258,7 @@ static void scsi_write_complete(void * opaque, int ret)
         }
         r->iov.iov_len = len;
         DPRINTF("Write complete tag=0x%x more=%d\n", r->tag, len);
-        s->completion(s->opaque, SCSI_REASON_DATA, r->tag, len);
+        r->bus->complete(r->bus, SCSI_REASON_DATA, r->tag, len);
     }
 }
 
@@ -364,7 +360,7 @@ static int32_t scsi_send_command(SCSIDevice *d, uint32_t tag,
     }
     /* ??? Tags are not unique for different luns.  We only implement a
        single lun, so this should not matter.  */
-    r = scsi_new_request(s, tag);
+    r = scsi_new_request(d, tag);
     outbuf = (uint8_t *)r->iov.iov_base;
     is_write = 0;
     DPRINTF("Command: lun=%d tag=0x%x data=0x%02x", lun, tag, buf[0]);
@@ -592,7 +588,7 @@ static int32_t scsi_send_command(SCSIDevice *d, uint32_t tag,
 	outbuf[3] = 2; /* Format 2 */
 	outbuf[4] = len - 5; /* Additional Length = (Len - 1) - 4 */
         /* Sync data transfer and TCQ.  */
-        outbuf[7] = 0x10 | (s->tcq ? 0x02 : 0);
+        outbuf[7] = 0x10 | (r->bus->tcq ? 0x02 : 0);
 	r->iov.iov_len = len;
 	break;
     case 0x16:
@@ -926,8 +922,7 @@ static void scsi_destroy(SCSIDevice *d)
     qemu_free(d);
 }
 
-SCSIDevice *scsi_disk_init(BlockDriverState *bdrv, int tcq,
-                           scsi_completionfn completion, void *opaque)
+SCSIDevice *scsi_disk_init(SCSIBus *bus, BlockDriverState *bdrv)
 {
     SCSIDevice *d;
     SCSIDeviceState *s;
@@ -935,9 +930,6 @@ SCSIDevice *scsi_disk_init(BlockDriverState *bdrv, int tcq,
 
     s = (SCSIDeviceState *)qemu_mallocz(sizeof(SCSIDeviceState));
     s->bdrv = bdrv;
-    s->tcq = tcq;
-    s->completion = completion;
-    s->opaque = opaque;
     if (bdrv_get_type_hint(s->bdrv) == BDRV_TYPE_CDROM) {
         s->cluster_size = 4;
     } else {
@@ -953,14 +945,37 @@ SCSIDevice *scsi_disk_init(BlockDriverState *bdrv, int tcq,
     if (strlen(s->drive_serial_str) == 0)
         pstrcpy(s->drive_serial_str, sizeof(s->drive_serial_str), "0");
     qemu_add_vm_change_state_handler(scsi_dma_restart_cb, s);
-    d = (SCSIDevice *)qemu_mallocz(sizeof(SCSIDevice));
+
+    if (bus) {
+        d = scsi_create_simple(bus, "scsi-disk");
+    } else {
+        /* temporary until usb is qdev-ified */
+        d = (SCSIDevice *)qemu_mallocz(sizeof(SCSIDevice));
+    }
     d->state = s;
-    d->destroy = scsi_destroy;
-    d->send_command = scsi_send_command;
-    d->read_data = scsi_read_data;
-    d->write_data = scsi_write_data;
-    d->cancel_io = scsi_cancel_io;
-    d->get_buf = scsi_get_buf;
 
     return d;
 }
+
+static void scsi_disk_initfn(SCSIDevice *dev)
+{
+    /* TODO */
+}
+
+static SCSIDeviceInfo scsi_disk_info = {
+    .qdev.name    = "scsi-disk",
+    .qdev.size    = sizeof(SCSIDevice),
+    .init         = scsi_disk_initfn,
+    .destroy      = scsi_destroy,
+    .send_command = scsi_send_command,
+    .read_data    = scsi_read_data,
+    .write_data   = scsi_write_data,
+    .cancel_io    = scsi_cancel_io,
+    .get_buf      = scsi_get_buf,
+};
+
+static void scsi_disk_register_devices(void)
+{
+    scsi_qdev_register(&scsi_disk_info);
+}
+device_init(scsi_disk_register_devices)

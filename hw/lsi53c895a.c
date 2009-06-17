@@ -12,6 +12,7 @@
 
 #include "hw.h"
 #include "pci.h"
+#include "scsi.h"
 #include "scsi-disk.h"
 #include "block_int.h"
 
@@ -190,6 +191,7 @@ typedef struct {
      * 2 if processing DMA from lsi_execute_script.
      * 3 if a DMA operation is in progress.  */
     int waiting;
+    SCSIBus *bus;
     SCSIDevice *scsi_dev[LSI_MAX_DEVS];
     SCSIDevice *current_dev;
     int current_lun;
@@ -508,8 +510,8 @@ static void lsi_do_dma(LSIState *s, int out)
     s->dbc -= count;
 
     if (s->dma_buf == NULL) {
-        s->dma_buf = s->current_dev->get_buf(s->current_dev,
-                                             s->current_tag);
+        s->dma_buf = s->current_dev->info->get_buf(s->current_dev,
+                                                   s->current_tag);
     }
 
     /* ??? Set SFBR to first data byte.  */
@@ -523,10 +525,10 @@ static void lsi_do_dma(LSIState *s, int out)
         s->dma_buf = NULL;
         if (out) {
             /* Write the data.  */
-            s->current_dev->write_data(s->current_dev, s->current_tag);
+            s->current_dev->info->write_data(s->current_dev, s->current_tag);
         } else {
             /* Request any remaining data.  */
-            s->current_dev->read_data(s->current_dev, s->current_tag);
+            s->current_dev->info->read_data(s->current_dev, s->current_tag);
         }
     } else {
         s->dma_buf += count;
@@ -630,10 +632,10 @@ static int lsi_queue_tag(LSIState *s, uint32_t tag, uint32_t arg)
 }
 
 /* Callback to indicate that the SCSI layer has completed a transfer.  */
-static void lsi_command_complete(void *opaque, int reason, uint32_t tag,
+static void lsi_command_complete(SCSIBus *bus, int reason, uint32_t tag,
                                  uint32_t arg)
 {
-    LSIState *s = (LSIState *)opaque;
+    LSIState *s = DO_UPCAST(LSIState, pci_dev.qdev, bus->qbus.parent);
     int out;
 
     out = (s->sstat1 & PHASE_MASK) == PHASE_DO;
@@ -678,14 +680,14 @@ static void lsi_do_command(LSIState *s)
     cpu_physical_memory_read(s->dnad, buf, s->dbc);
     s->sfbr = buf[0];
     s->command_complete = 0;
-    n = s->current_dev->send_command(s->current_dev, s->current_tag, buf,
-                                     s->current_lun);
+    n = s->current_dev->info->send_command(s->current_dev, s->current_tag, buf,
+                                           s->current_lun);
     if (n > 0) {
         lsi_set_phase(s, PHASE_DI);
-        s->current_dev->read_data(s->current_dev, s->current_tag);
+        s->current_dev->info->read_data(s->current_dev, s->current_tag);
     } else if (n < 0) {
         lsi_set_phase(s, PHASE_DO);
-        s->current_dev->write_data(s->current_dev, s->current_tag);
+        s->current_dev->info->write_data(s->current_dev, s->current_tag);
     }
 
     if (!s->command_complete) {
@@ -1972,12 +1974,12 @@ void lsi_scsi_attach(DeviceState *host, BlockDriverState *bd, int id)
     }
     if (s->scsi_dev[id]) {
         DPRINTF("Destroying device %d\n", id);
-        s->scsi_dev[id]->destroy(s->scsi_dev[id]);
+        s->scsi_dev[id]->info->destroy(s->scsi_dev[id]);
     }
     DPRINTF("Attaching block device %d\n", id);
-    s->scsi_dev[id] = scsi_generic_init(bd, 1, lsi_command_complete, s);
+    s->scsi_dev[id] = scsi_generic_init(s->bus, bd);
     if (s->scsi_dev[id] == NULL)
-        s->scsi_dev[id] = scsi_disk_init(bd, 1, lsi_command_complete, s);
+        s->scsi_dev[id] = scsi_disk_init(s->bus, bd);
     bd->private = &s->pci_dev;
 }
 
@@ -2032,7 +2034,8 @@ static void lsi_scsi_init(PCIDevice *dev)
 
     lsi_soft_reset(s);
 
-    scsi_bus_new(&dev->qdev, lsi_scsi_attach);
+    s->bus = scsi_bus_new(&dev->qdev, 1, lsi_scsi_attach, lsi_command_complete);
+    scsi_bus_attach_cmdline(s->bus);
 }
 
 static PCIDeviceInfo lsi_info = {

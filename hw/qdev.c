@@ -288,25 +288,6 @@ BusState *qdev_get_child_bus(DeviceState *dev, const char *name)
     return NULL;
 }
 
-static int next_scsi_bus;
-
-/* Create a scsi bus, and attach devices to it.  */
-/* TODO: Actually create a scsi bus for hotplug to use.  */
-void scsi_bus_new(DeviceState *host, SCSIAttachFn attach)
-{
-   int bus = next_scsi_bus++;
-   int unit;
-   int index;
-
-   for (unit = 0; unit < MAX_SCSI_DEVS; unit++) {
-       index = drive_get_index(IF_SCSI, bus, unit);
-       if (index == -1) {
-           continue;
-       }
-       attach(host, drives_table[index].bdrv, unit);
-   }
-}
-
 BusState *qbus_create(BusInfo *info, DeviceState *parent, const char *name)
 {
     BusState *bus;
