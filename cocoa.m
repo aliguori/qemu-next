@@ -856,31 +856,19 @@ static int cocoa_keycode_to_qemu(int keycode)
 @end
 
 
-
-// Dock Connection
-typedef struct CPSProcessSerNum
-{
-        UInt32                lo;
-        UInt32                hi;
-} CPSProcessSerNum;
-
-extern OSErr    CPSGetCurrentProcess( CPSProcessSerNum *psn);
-extern OSErr    CPSEnableForegroundOperation( CPSProcessSerNum *psn, UInt32 _arg2, UInt32 _arg3, UInt32 _arg4, UInt32 _arg5);
-extern OSErr    CPSSetFrontProcess( CPSProcessSerNum *psn);
-
 int main (int argc, const char * argv[]) {
 
     gArgc = argc;
     gArgv = (char **)argv;
-    CPSProcessSerNum PSN;
 
     NSAutoreleasePool * pool = [[NSAutoreleasePool alloc] init];
     [NSApplication sharedApplication];
 
-    if (!CPSGetCurrentProcess(&PSN))
-        if (!CPSEnableForegroundOperation(&PSN,0x03,0x3C,0x2C,0x1103))
-            if (!CPSSetFrontProcess(&PSN))
-                [NSApplication sharedApplication];
+    ProcessSerialNumber PSN;
+    if (!GetCurrentProcess(&PSN) &&
+        !TransformProcessType(&PSN, kProcessTransformToForegroundApplication) &&
+        !SetFrontProcess(&PSN))
+        [NSApplication sharedApplication];
 
     // Add menus
     NSMenu      *menu;
