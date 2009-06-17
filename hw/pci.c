@@ -834,6 +834,7 @@ PCIDevice *pci_nic_init(PCIBus *bus, NICInfo *nd, int devfn,
         if (strcmp(nd->model, pci_nic_models[i]) == 0) {
             dev = qdev_create(&bus->qbus, pci_nic_names[i]);
             qdev_set_prop_int(dev, "devfn", devfn);
+            qdev_set_prop_ptr(dev, "name", (void *)pci_nic_names[i]);
             qdev_set_netdev(dev, nd);
             qdev_init(dev);
             nd->private = dev;
@@ -918,10 +919,13 @@ static void pci_qdev_init(DeviceState *qdev, DeviceInfo *base)
     PCIDeviceInfo *info = container_of(base, PCIDeviceInfo, qdev);
     PCIBus *bus;
     int devfn;
+    void *name;
 
     bus = FROM_QBUS(PCIBus, qdev_get_parent_bus(qdev));
     devfn = qdev_get_prop_int(qdev, "devfn", -1);
-    pci_dev = do_pci_register_device(pci_dev, bus, "FIXME", devfn,
+    name = qdev_get_prop_ptr(qdev, "name");
+
+    pci_dev = do_pci_register_device(pci_dev, bus, name, devfn,
                                      info->config_read, info->config_write);
     assert(pci_dev);
     info->init(pci_dev);
@@ -944,6 +948,7 @@ PCIDevice *pci_create_simple(PCIBus *bus, int devfn, const char *name)
 
     dev = qdev_create(&bus->qbus, name);
     qdev_set_prop_int(dev, "devfn", devfn);
+    qdev_set_prop_ptr(dev, "name", (void *)name);
     qdev_init(dev);
 
     return (PCIDevice *)dev;
