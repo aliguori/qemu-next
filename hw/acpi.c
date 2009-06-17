@@ -497,15 +497,11 @@ static void piix4_reset(void *opaque)
     }
 }
 
-i2c_bus *piix4_pm_init(PCIBus *bus, int devfn, uint32_t smb_io_base,
-                       qemu_irq sci_irq)
+static void piix4_pm_initfn(PCIDevice *dev)
 {
-    PIIX4PMState *s;
-    uint8_t *pci_conf;
+    PIIX4PMState *s = DO_UPCAST(PIIX4PMState, dev, dev);
+    uint8_t *pci_conf = s->dev.config;
 
-    s = (PIIX4PMState *)pci_register_device(bus,
-                                         "PM", sizeof(PIIX4PMState),
-                                         devfn, NULL, pm_write_config);
     pm_state = s;
     pci_conf = s->dev.config;
     pci_config_set_vendor_id(pci_conf, PCI_VENDOR_ID_INTEL);
@@ -538,22 +534,48 @@ i2c_bus *piix4_pm_init(PCIBus *bus, int devfn, uint32_t smb_io_base,
     pci_conf[0x67] = (serial_hds[0] != NULL ? 0x08 : 0) |
 	(serial_hds[1] != NULL ? 0x90 : 0);
 
+    s->tmr_timer = qemu_new_timer(vm_clock, pm_tmr_timer, s);
+
+    register_savevm("piix4_pm", 0, 1, pm_save, pm_load, s);
+
+}
+
+i2c_bus *piix4_pm_init(PCIBus *bus, int devfn, uint32_t smb_io_base,
+                       qemu_irq sci_irq)
+{
+    PCIDevice *dev;
+    PIIX4PMState *s;
+    uint8_t *pci_conf;
+
+    dev = pci_create_simple(bus, devfn, "PM");
+    s = DO_UPCAST(PIIX4PMState, dev, dev);
+
+    pci_conf = s->dev.config;
     pci_conf[0x90] = smb_io_base | 1;
     pci_conf[0x91] = smb_io_base >> 8;
     pci_conf[0xd2] = 0x09;
     register_ioport_write(smb_io_base, 64, 1, smb_ioport_writeb, s);
     register_ioport_read(smb_io_base, 64, 1, smb_ioport_readb, s);
+    s->smbus = i2c_init_bus(&s->dev.qdev, "i2c");
 
-    s->tmr_timer = qemu_new_timer(vm_clock, pm_tmr_timer, s);
-
-    register_savevm("piix4_pm", 0, 1, pm_save, pm_load, s);
-
-    s->smbus = i2c_init_bus(NULL, "i2c");
     s->irq = sci_irq;
     qemu_register_reset(piix4_reset, 0, s);
 
     return s->smbus;
 }
+
+static PCIDeviceInfo acpi_info = {
+    .qdev.name    = "PM",
+    .qdev.size    = sizeof(PIIX4PMState),
+    .init         = piix4_pm_initfn,
+    .config_write = pm_write_config,
+};
+
+static void acpi_register(void)
+{
+    pci_qdev_register(&acpi_info, 1);
+}
+device_init(acpi_register);
 
 #if defined(TARGET_I386)
 void qemu_system_powerdown(void)
