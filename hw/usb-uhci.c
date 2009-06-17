@@ -122,6 +122,7 @@ typedef struct UHCIPort {
 
 typedef struct UHCIState {
     PCIDevice dev;
+    USBBus *bus;
     uint16_t cmd; /* cmd register */
     uint16_t status;
     uint16_t intr; /* interrupt enable register */
@@ -660,7 +661,7 @@ static int uhci_broadcast_packet(UHCIState *s, USBPacket *p)
         USBDevice *dev = port->port.dev;
 
         if (dev && (port->ctrl & UHCI_PORT_EN))
-            ret = dev->handle_packet(dev, p);
+            ret = dev->info->handle_packet(dev, p);
     }
 
     dprintf("uhci: packet exit. ret %d len %d\n", ret, p->len);
@@ -1095,6 +1096,7 @@ static void usb_uhci_common_initfn(UHCIState *s)
     pci_register_bar(&s->dev, 4, 0x20,
                            PCI_ADDRESS_SPACE_IO, uhci_map);
 
+    s->bus = usb_bus_new(&s->dev.qdev);
     register_savevm("uhci", 0, 1, uhci_save, uhci_load, s);
 }
 
