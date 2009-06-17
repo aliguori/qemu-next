@@ -147,6 +147,7 @@ void qdev_set_netdev(DeviceState *dev, NICInfo *nd)
 {
     assert(!dev->nd);
     dev->nd = nd;
+    nd->private = dev;
 }
 
 

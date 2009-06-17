@@ -841,20 +841,16 @@ static const char * const pci_nic_names[] = {
 PCIDevice *pci_nic_init(PCIBus *bus, NICInfo *nd, int devfn,
                   const char *default_model)
 {
-    DeviceState *dev;
     int i;
 
     qemu_check_nic_model_list(nd, pci_nic_models, default_model);
 
     for (i = 0; pci_nic_models[i]; i++) {
         if (strcmp(nd->model, pci_nic_models[i]) == 0) {
-            dev = qdev_create(&bus->qbus, pci_nic_names[i]);
-            qdev_set_prop_int(dev, "devfn", devfn);
-            qdev_set_prop_ptr(dev, "name", (void *)pci_nic_names[i]);
-            qdev_set_netdev(dev, nd);
-            qdev_init(dev);
-            nd->private = dev;
-            return (PCIDevice *)dev;
+            PCIDevice *d;
+            d = pci_create_simple(bus, devfn, pci_nic_names[i]);
+            qdev_set_netdev((DeviceState *)d, nd);
+            return d;
         }
     }
 
