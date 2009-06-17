@@ -101,6 +101,12 @@ PCIBus *pci_register_bus(DeviceState *parent, const char *name,
 {
     PCIBus *bus;
     static int nbus = 0;
+    char defname[32];
+
+    if (!name) {
+        snprintf(defname, sizeof(defname), "pci%d", nbus);
+        name = defname;
+    }
 
     bus = FROM_QBUS(PCIBus, qbus_create(&pci_bus_info, parent, name));
     bus->set_irq = set_irq;
