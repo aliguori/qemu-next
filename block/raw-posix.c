@@ -959,13 +959,12 @@ static int hdev_probe_device(BlockDriverState *bs, const char *filename)
 {
     struct stat st;
 
-    /* allow a dedicated CD-ROM driver to match with a higher priority */
-    if (strstart(filename, "/dev/cdrom", NULL))
-        return 50;
-
     if (stat(filename, &st) >= 0 &&
             (S_ISCHR(st.st_mode) || S_ISBLK(st.st_mode))) {
-        return 100;
+        /* allow a dedicated driver (e.g. cdrom, floppy) to match with a higher
+         * priority
+         */
+        return 90;
     }
 
     return 0;
@@ -1203,8 +1202,15 @@ static int floppy_open(BlockDriverState *bs, const char *filename, int flags)
 
 static int floppy_probe_device(BlockDriverState *bs, const char *filename)
 {
+    struct stat st;
+
     if (strstart(filename, "/dev/fd", NULL))
         return 100;
+
+    if (bs->type == BDRV_TYPE_FLOPPY &&
+        stat(filename, &st) >= 0 && S_ISBLK(st.st_mode))
+        return 100;
+
     return 0;
 }
 
@@ -1287,8 +1293,15 @@ static int cdrom_open(BlockDriverState *bs, const char *filename, int flags)
 
 static int cdrom_probe_device(BlockDriverState *bs, const char *filename)
 {
+    struct stat st;
+
     if (strstart(filename, "/dev/cd", NULL))
         return 100;
+
+    if (bs->type == BDRV_TYPE_CDROM &&
+        stat(filename, &st) >= 0 && S_ISBLK(st.st_mode))
+        return 100;
+
     return 0;
 }
 
@@ -1383,9 +1396,16 @@ static int cdrom_open(BlockDriverState *bs, const char *filename, int flags)
 
 static int cdrom_probe_device(BlockDriverState *bs, const char *filename)
 {
+    struct stat st;
+
     if (strstart(filename, "/dev/cd", NULL) ||
             strstart(filename, "/dev/acd", NULL))
         return 100;
+
+    if (bs->type == BDRV_TYPE_CDROM &&
+        stat(filename, &st) >= 0 && S_ISBLK(st.st_mode))
+        return 100;
+
     return 0;
 }
 
