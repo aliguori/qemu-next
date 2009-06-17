@@ -3360,20 +3360,11 @@ static void piix3_reset(void *opaque)
     pci_conf[0x20] = 0x01; /* BMIBA: 20-23h */
 }
 
-/* hd_table must contain 4 block drivers */
-/* NOTE: for the PIIX3, the IRQs and IOports are hardcoded */
-void pci_piix3_ide_init(PCIBus *bus, BlockDriverState **hd_table, int devfn,
-                        qemu_irq *pic)
+static void pci_piix3_ide_initfn(PCIDevice *dev)
 {
-    PCIIDEState *d;
+    PCIIDEState *d = DO_UPCAST(PCIIDEState, dev, dev);
     uint8_t *pci_conf;
-    int i;
 
-    /* register a function 1 of PIIX3 */
-    d = (PCIIDEState *)pci_register_device(bus, "PIIX3 IDE",
-                                           sizeof(PCIIDEState),
-                                           devfn,
-                                           NULL, NULL);
     d->type = IDE_TYPE_PIIX3;
 
     pci_conf = d->dev.config;
@@ -3389,31 +3380,14 @@ void pci_piix3_ide_init(PCIBus *bus, BlockDriverState **hd_table, int devfn,
     pci_register_bar((PCIDevice *)d, 4, 0x10,
                            PCI_ADDRESS_SPACE_IO, bmdma_map);
 
-    ide_init2(&d->ide_if[0], hd_table[0], hd_table[1], pic[14]);
-    ide_init2(&d->ide_if[2], hd_table[2], hd_table[3], pic[15]);
-    ide_init_ioport(&d->ide_if[0], 0x1f0, 0x3f6);
-    ide_init_ioport(&d->ide_if[2], 0x170, 0x376);
-
-    for (i = 0; i < 4; i++)
-        if (hd_table[i])
-            hd_table[i]->private = &d->dev;
-
     register_savevm("ide", 0, 2, pci_ide_save, pci_ide_load, d);
 }
 
-/* hd_table must contain 4 block drivers */
-/* NOTE: for the PIIX4, the IRQs and IOports are hardcoded */
-void pci_piix4_ide_init(PCIBus *bus, BlockDriverState **hd_table, int devfn,
-                        qemu_irq *pic)
+static void pci_piix4_ide_initfn(PCIDevice *dev)
 {
-    PCIIDEState *d;
+    PCIIDEState *d = DO_UPCAST(PCIIDEState, dev, dev);
     uint8_t *pci_conf;
 
-    /* register a function 1 of PIIX4 */
-    d = (PCIIDEState *)pci_register_device(bus, "PIIX4 IDE",
-                                           sizeof(PCIIDEState),
-                                           devfn,
-                                           NULL, NULL);
     d->type = IDE_TYPE_PIIX4;
 
     pci_conf = d->dev.config;
@@ -3429,13 +3403,67 @@ void pci_piix4_ide_init(PCIBus *bus, BlockDriverState **hd_table, int devfn,
     pci_register_bar((PCIDevice *)d, 4, 0x10,
                            PCI_ADDRESS_SPACE_IO, bmdma_map);
 
+    register_savevm("ide", 0, 2, pci_ide_save, pci_ide_load, d);
+}
+
+/* hd_table must contain 4 block drivers */
+/* NOTE: for the PIIX3, the IRQs and IOports are hardcoded */
+void pci_piix3_ide_init(PCIBus *bus, BlockDriverState **hd_table, int devfn,
+                        qemu_irq *pic)
+{
+    PCIDevice *dev;
+    PCIIDEState *d;
+    int i;
+
+    dev = pci_create_simple(bus, devfn, "PIIX3 IDE");
+    d = DO_UPCAST(PCIIDEState, dev, dev);
+
+    /* TODO: ide bus */
     ide_init2(&d->ide_if[0], hd_table[0], hd_table[1], pic[14]);
     ide_init2(&d->ide_if[2], hd_table[2], hd_table[3], pic[15]);
     ide_init_ioport(&d->ide_if[0], 0x1f0, 0x3f6);
     ide_init_ioport(&d->ide_if[2], 0x170, 0x376);
 
-    register_savevm("ide", 0, 2, pci_ide_save, pci_ide_load, d);
+    for (i = 0; i < 4; i++)
+        if (hd_table[i])
+            hd_table[i]->private = &d->dev;
 }
+
+/* hd_table must contain 4 block drivers */
+/* NOTE: for the PIIX4, the IRQs and IOports are hardcoded */
+void pci_piix4_ide_init(PCIBus *bus, BlockDriverState **hd_table, int devfn,
+                        qemu_irq *pic)
+{
+    PCIDevice *dev;
+    PCIIDEState *d;
+
+    dev = pci_create_simple(bus, devfn, "PIIX4 IDE");
+    d = DO_UPCAST(PCIIDEState, dev, dev);
+
+    /* TODO: ide bus */
+    ide_init2(&d->ide_if[0], hd_table[0], hd_table[1], pic[14]);
+    ide_init2(&d->ide_if[2], hd_table[2], hd_table[3], pic[15]);
+    ide_init_ioport(&d->ide_if[0], 0x1f0, 0x3f6);
+    ide_init_ioport(&d->ide_if[2], 0x170, 0x376);
+}
+
+static PCIDeviceInfo piix_ide_info[] = {
+    {
+        .qdev.name    = "PIIX3 IDE",
+        .qdev.size    = sizeof(PCIIDEState),
+        .init         = pci_piix3_ide_initfn,
+    },{
+        .qdev.name    = "PIIX4 IDE",
+        .qdev.size    = sizeof(PCIIDEState),
+        .init         = pci_piix4_ide_initfn,
+    }
+};
+
+static void piix_ide_register(void)
+{
+    pci_qdev_register(piix_ide_info, ARRAY_SIZE(piix_ide_info));
+}
+device_init(piix_ide_register);
 
 #if defined(TARGET_PPC)
 /***********************************************************/
