@@ -273,14 +273,14 @@ static void dmg_close(BlockDriverState *bs)
     BDRVDMGState *s = bs->opaque;
     close(s->fd);
     if(s->n_chunks>0) {
-	free(s->types);
-	free(s->offsets);
-	free(s->lengths);
-	free(s->sectors);
-	free(s->sectorcounts);
+	qemu_free(s->types);
+	qemu_free(s->offsets);
+	qemu_free(s->lengths);
+	qemu_free(s->sectors);
+	qemu_free(s->sectorcounts);
     }
-    free(s->compressed_chunk);
-    free(s->uncompressed_chunk);
+    qemu_free(s->compressed_chunk);
+    qemu_free(s->uncompressed_chunk);
     inflateEnd(&s->zstream);
 }
 

@@ -2166,7 +2166,7 @@ static inline abi_long target_to_host_semarray(int semid, unsigned short **host_
 
     nsems = semid_ds.sem_nsems;
 
-    *host_array = malloc(nsems*sizeof(unsigned short));
+    *host_array = qemu_malloc(nsems*sizeof(unsigned short));
     array = lock_user(VERIFY_READ, target_addr,
                       nsems*sizeof(unsigned short), 1);
     if (!array)
@@ -2205,7 +2205,7 @@ static inline abi_long host_to_target_semarray(int semid, abi_ulong target_addr,
     for(i=0; i<nsems; i++) {
         __put_user((*host_array)[i], &array[i]);
     }
-    free(*host_array);
+    qemu_free(*host_array);
     unlock_user(array, target_addr, 1);
 
     return 0;
@@ -2451,11 +2451,11 @@ static inline abi_long do_msgsnd(int msqid, abi_long msgp,
 
     if (!lock_user_struct(VERIFY_READ, target_mb, msgp, 0))
         return -TARGET_EFAULT;
-    host_mb = malloc(msgsz+sizeof(long));
+    host_mb = qemu_malloc(msgsz+sizeof(long));
     host_mb->mtype = (abi_long) tswapl(target_mb->mtype);
     memcpy(host_mb->mtext, target_mb->mtext, msgsz);
     ret = get_errno(msgsnd(msqid, host_mb, msgsz, msgflg));
-    free(host_mb);
+    qemu_free(host_mb);
     unlock_user_struct(target_mb, msgp, 0);
 
     return ret;
@@ -2473,7 +2473,7 @@ static inline abi_long do_msgrcv(int msqid, abi_long msgp,
     if (!lock_user_struct(VERIFY_WRITE, target_mb, msgp, 0))
         return -TARGET_EFAULT;
 
-    host_mb = malloc(msgsz+sizeof(long));
+    host_mb = qemu_malloc(msgsz+sizeof(long));
     ret = get_errno(msgrcv(msqid, host_mb, msgsz, tswapl(msgtyp), msgflg));
 
     if (ret > 0) {
@@ -2488,7 +2488,7 @@ static inline abi_long do_msgrcv(int msqid, abi_long msgp,
     }
 
     target_mb->mtype = tswapl(host_mb->mtype);
-    free(host_mb);
+    qemu_free(host_mb);
 
 end:
     if (target_mb)
@@ -5756,7 +5756,7 @@ abi_long do_syscall(void *cpu_env, int num, abi_long arg1,
             struct linux_dirent *dirp;
             abi_long count = arg3;
 
-	    dirp = malloc(count);
+	    dirp = qemu_malloc(count);
 	    if (!dirp) {
                 ret = -TARGET_ENOMEM;
                 goto fail;
@@ -5794,7 +5794,7 @@ abi_long do_syscall(void *cpu_env, int num, abi_long arg1,
 		ret = count1;
                 unlock_user(target_dirp, arg2, ret);
             }
-	    free(dirp);
+	    qemu_free(dirp);
         }
 #else
         {

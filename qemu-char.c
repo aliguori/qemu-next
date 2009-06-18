@@ -1559,8 +1559,8 @@ static CharDriverState *qemu_chr_open_win(const char *filename)
     chr->chr_close = win_chr_close;
 
     if (win_chr_init(chr, filename) < 0) {
-        free(s);
-        free(chr);
+        qemu_free(s);
+        qemu_free(chr);
         return NULL;
     }
     qemu_chr_reset(chr);
@@ -1658,8 +1658,8 @@ static CharDriverState *qemu_chr_open_win_pipe(const char *filename)
     chr->chr_close = win_chr_close;
 
     if (win_chr_pipe_init(chr, filename) < 0) {
-        free(s);
-        free(chr);
+        qemu_free(s);
+        qemu_free(chr);
         return NULL;
     }
     qemu_chr_reset(chr);
@@ -1814,9 +1814,9 @@ static CharDriverState *qemu_chr_open_udp(const char *def)
 
 return_err:
     if (chr)
-        free(chr);
+        qemu_free(chr);
     if (s)
-        free(s);
+        qemu_free(s);
     if (fd >= 0)
         closesocket(fd);
     return NULL;

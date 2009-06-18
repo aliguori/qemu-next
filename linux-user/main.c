@@ -2549,7 +2549,7 @@ int main(int argc, char **argv, char **envp)
      * Prepare copy of argv vector for target.
      */
     target_argc = argc - optind;
-    target_argv = calloc(target_argc + 1, sizeof (char *));
+    target_argv = qemu_mallocz((target_argc + 1) * sizeof (char *));
     if (target_argv == NULL) {
 	(void) fprintf(stderr, "Unable to allocate memory for target_argv\n");
 	exit(1);
@@ -2583,15 +2583,15 @@ int main(int argc, char **argv, char **envp)
     }
 
     for (i = 0; i < target_argc; i++) {
-        free(target_argv[i]);
+        qemu_free(target_argv[i]);
     }
-    free(target_argv);
+    qemu_free(target_argv);
 
     for (wrk = target_environ; *wrk; wrk++) {
-        free(*wrk);
+        qemu_free(*wrk);
     }
 
-    free(target_environ);
+    qemu_free(target_environ);
 
     if (qemu_log_enabled()) {
         log_page_dump();

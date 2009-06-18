@@ -214,7 +214,7 @@ int parse_host_src_port(struct sockaddr_in *haddr,
                         struct sockaddr_in *saddr,
                         const char *input_str)
 {
-    char *str = strdup(input_str);
+    char *str = qemu_strdup(input_str);
     char *host_str = str;
     char *src_str;
     const char *src_str2;
@@ -243,11 +243,11 @@ int parse_host_src_port(struct sockaddr_in *haddr,
     if (parse_host_port(saddr, src_str2) < 0)
         goto fail;
 
-    free(str);
+    qemu_free(str);
     return(0);
 
 fail:
-    free(str);
+    qemu_free(str);
     return -1;
 }
 
@@ -326,7 +326,7 @@ static char *assign_name(VLANClientState *vc1, const char *model)
 
     snprintf(buf, sizeof(buf), "%s.%d", model, id);
 
-    return strdup(buf);
+    return qemu_strdup(buf);
 }
 
 VLANClientState *qemu_new_vlan_client(VLANState *vlan,
@@ -340,9 +340,9 @@ VLANClientState *qemu_new_vlan_client(VLANState *vlan,
 {
     VLANClientState *vc, **pvc;
     vc = qemu_mallocz(sizeof(VLANClientState));
-    vc->model = strdup(model);
+    vc->model = qemu_strdup(model);
     if (name)
-        vc->name = strdup(name);
+        vc->name = qemu_strdup(name);
     else
         vc->name = assign_name(vc, model);
     vc->can_receive = can_receive;
@@ -370,8 +370,8 @@ void qemu_del_vlan_client(VLANClientState *vc)
             if (vc->cleanup) {
                 vc->cleanup(vc);
             }
-            free(vc->name);
-            free(vc->model);
+            qemu_free(vc->name);
+            qemu_free(vc->model);
             qemu_free(vc);
             break;
         } else
@@ -1462,7 +1462,7 @@ static int net_vde_init(VLANState *vlan, const char *model,
     s = qemu_mallocz(sizeof(VDEState));
     s->vde = vde_open(init_sock, (char *)"QEMU", &args);
     if (!s->vde){
-        free(s);
+        qemu_free(s);
         return -1;
     }
     s->vc = qemu_new_vlan_client(vlan, model, name, NULL, vde_receive,
@@ -1831,8 +1831,8 @@ static int net_socket_listen_init(VLANState *vlan,
         return -1;
     }
     s->vlan = vlan;
-    s->model = strdup(model);
-    s->name = name ? strdup(name) : NULL;
+    s->model = qemu_strdup(model);
+    s->name = name ? qemu_strdup(name) : NULL;
     s->fd = fd;
     qemu_set_fd_handler(fd, net_socket_accept, NULL, s);
     return 0;
@@ -2064,7 +2064,7 @@ void qemu_check_nic_model_list(NICInfo *nd, const char * const *models,
     int i, exit_status = 0;
 
     if (!nd->model)
-        nd->model = strdup(default_model);
+        nd->model = qemu_strdup(default_model);
 
     if (strcmp(nd->model, "?") != 0) {
         for (i = 0 ; models[i]; i++)
@@ -2136,7 +2136,7 @@ int net_client_init(Monitor *mon, const char *device, const char *p)
             }
         }
         if (get_param_value(buf, sizeof(buf), "model", p)) {
-            nd->model = strdup(buf);
+            nd->model = qemu_strdup(buf);
         }
         nd->vlan = vlan;
         nd->name = name;
@@ -2193,7 +2193,7 @@ int net_client_init(Monitor *mon, const char *device, const char *p)
             ret = -1;
             goto out;
         }
-        vmc = malloc(sizeof(struct VMChannel));
+        vmc = qemu_malloc(sizeof(struct VMChannel));
         snprintf(name, 20, "vmchannel%ld", port);
         vmc->hd = qemu_chr_open(name, devname, NULL);
         if (!vmc->hd) {
@@ -2379,7 +2379,7 @@ void net_client_uninit(NICInfo *nd)
     nd->vlan->nb_guest_devs--;
     nb_nics--;
     nd->used = 0;
-    free((void *)nd->model);
+    qemu_free((void *)nd->model);
 }
 
 static int net_host_check_device(const char *device)

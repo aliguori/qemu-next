@@ -229,7 +229,7 @@ static int kvm_has_msr_star(CPUState *env)
             }
         }
 
-        free(kvm_msr_list);
+        qemu_free(kvm_msr_list);
     }
 
     if (has_msr_star == 1)

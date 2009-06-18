@@ -822,7 +822,7 @@ int main(int argc, char **argv)
     while (*(wrk++))
         environ_count++;
 
-    target_environ = malloc((environ_count + 1) * sizeof(char *));
+    target_environ = qemu_malloc((environ_count + 1) * sizeof(char *));
     if (!target_environ)
         abort();
     for (wrk = environ, dst = target_environ; *wrk; wrk++) {
@@ -838,10 +838,10 @@ int main(int argc, char **argv)
     }
 
     for (wrk = target_environ; *wrk; wrk++) {
-        free(*wrk);
+        qemu_free(*wrk);
     }
 
-    free(target_environ);
+    qemu_free(target_environ);
 
     if (qemu_log_enabled()) {
         log_page_dump();

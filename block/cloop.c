@@ -148,9 +148,9 @@ static void cloop_close(BlockDriverState *bs)
     BDRVCloopState *s = bs->opaque;
     close(s->fd);
     if(s->n_blocks>0)
-	free(s->offsets);
-    free(s->compressed_block);
-    free(s->uncompressed_block);
+	qemu_free(s->offsets);
+    qemu_free(s->compressed_block);
+    qemu_free(s->uncompressed_block);
     inflateEnd(&s->zstream);
 }
 

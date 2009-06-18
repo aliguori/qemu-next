@@ -706,8 +706,8 @@ static int cpu_sparc_register(CPUSPARCState *env, const char *cpu_model)
 
 static void cpu_sparc_close(CPUSPARCState *env)
 {
-    free(env->def);
-    free(env);
+    qemu_free(env->def);
+    qemu_free(env);
 }
 
 CPUSPARCState *cpu_sparc_init(const char *cpu_model)
@@ -1333,11 +1333,11 @@ static int cpu_sparc_find_by_name(sparc_def_t *cpu_def, const char *cpu_model)
 #ifdef DEBUG_FEATURES
     print_features(stderr, fprintf, cpu_def->features, NULL);
 #endif
-    free(s);
+    qemu_free(s);
     return 0;
 
  error:
-    free(s);
+    qemu_free(s);
     return -1;
 }
 

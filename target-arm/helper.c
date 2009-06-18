@@ -330,7 +330,7 @@ static uint32_t cpu_arm_find_by_name(const char *name)
 
 void cpu_arm_close(CPUARMState *env)
 {
-    free(env);
+    qemu_free(env);
 }
 
 uint32_t cpsr_read(CPUARMState *env)
@@ -466,7 +466,7 @@ int cpu_arm_handle_mmu_fault (CPUState *env, target_ulong address, int rw,
 
 static void allocate_mmon_state(CPUState *env)
 {
-    env->mmon_entry = malloc(sizeof (mmon_state));
+    env->mmon_entry = qemu_malloc(sizeof (mmon_state));
     memset (env->mmon_entry, 0, sizeof (mmon_state));
     env->mmon_entry->cpu_env = env;
     mmon_head = env->mmon_entry;

@@ -45,8 +45,8 @@ static struct pathelem *new_entry(const char *root,
                                   struct pathelem *parent,
                                   const char *name)
 {
-    struct pathelem *new = malloc(sizeof(*new));
-    new->name = strdup(name);
+    struct pathelem *new = qemu_malloc(sizeof(*new));
+    new->name = qemu_strdup(name);
     asprintf(&new->pathname, "%s/%s", root, name);
     new->num_entries = 0;
     return new;
@@ -75,7 +75,7 @@ static struct pathelem *add_entry(struct pathelem *root, const char *name)
 {
     root->num_entries++;
 
-    root = realloc(root, sizeof(*root)
+    root = qemu_realloc(root, sizeof(*root)
                    + sizeof(root->entries[0])*root->num_entries);
 
     root->entries[root->num_entries-1] = new_entry(root->pathname, root, name);
@@ -137,14 +137,14 @@ void init_paths(const char *prefix)
         pstrcpy(pref_buf, sizeof(pref_buf), cwd);
         pstrcat(pref_buf, pref_buf_len, "/");
         pstrcat(pref_buf, pref_buf_len, prefix);
-        free(cwd);
+        qemu_free(cwd);
     } else
         pstrcpy(pref_buf, sizeof(pref_buf), prefix + 1);
 
     base = new_entry("", NULL, pref_buf);
     base = add_dir_maybe(base);
     if (base->num_entries == 0) {
-        free (base);
+        qemu_free (base);
         base = NULL;
     } else {
         set_parents(base, base);

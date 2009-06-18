@@ -399,11 +399,11 @@ static int cpu_x86_find_by_name(x86_def_t *x86_cpu_def, const char *cpu_model)
     x86_cpu_def->ext_features &= ~minus_ext_features;
     x86_cpu_def->ext2_features &= ~minus_ext2_features;
     x86_cpu_def->ext3_features &= ~minus_ext3_features;
-    free(s);
+    qemu_free(s);
     return 0;
 
 error:
-    free(s);
+    qemu_free(s);
     return -1;
 }
 

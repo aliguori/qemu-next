@@ -341,7 +341,7 @@ static inline int tcg_global_mem_new_internal(TCGType type, int reg,
 #endif
         pstrcpy(buf, sizeof(buf), name);
         pstrcat(buf, sizeof(buf), "_0");
-        ts->name = strdup(buf);
+        ts->name = qemu_strdup(buf);
         ts++;
 
         ts->base_type = type;
@@ -356,7 +356,7 @@ static inline int tcg_global_mem_new_internal(TCGType type, int reg,
 #endif
         pstrcpy(buf, sizeof(buf), name);
         pstrcat(buf, sizeof(buf), "_1");
-        ts->name = strdup(buf);
+        ts->name = qemu_strdup(buf);
 
         s->nb_globals += 2;
     } else
@@ -531,7 +531,7 @@ void tcg_register_helper(void *func, const char *name)
         } else {
             n *= 2;
         }
-        s->helpers = realloc(s->helpers, n * sizeof(TCGHelperInfo));
+        s->helpers = qemu_realloc(s->helpers, n * sizeof(TCGHelperInfo));
         s->allocated_helpers = n;
     }
     s->helpers[s->nb_helpers].func = (tcg_target_ulong)func;

@@ -51,7 +51,7 @@ int kvmppc_read_host_property(const char *node_path, const char *prop,
 close:
     fclose(f);
 free:
-    free(path);
+    qemu_free(path);
 out:
     return ret;
 }

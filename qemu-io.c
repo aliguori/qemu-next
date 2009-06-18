@@ -310,15 +310,15 @@ read_f(int argc, char **argv)
 		return 0;
 	}
 
-	if (Pflag) {
-		void* cmp_buf = malloc(pattern_count);
+	if (Pflag && pattern_count) {
+		void* cmp_buf = qemu_malloc(pattern_count);
 		memset(cmp_buf, pattern, pattern_count);
 		if (memcmp(buf + pattern_offset, cmp_buf, pattern_count)) {
 			printf("Pattern verification failed at offset %lld, "
 				"%d bytes\n",
 				(long long) offset + pattern_offset, pattern_count);
 		}
-		free(cmp_buf);
+		qemu_free(cmp_buf);
 	}
 
 	if (qflag)
@@ -464,15 +464,15 @@ readv_f(int argc, char **argv)
 		return 0;
 	}
 
-	if (Pflag) {
-		void* cmp_buf = malloc(count);
+	if (Pflag && count) {
+		void* cmp_buf = qemu_malloc(count);
 		memset(cmp_buf, pattern, count);
 		if (memcmp(buf, cmp_buf, count)) {
 			printf("Pattern verification failed at offset %lld, "
 				"%d bytes\n",
 				(long long) offset, count);
 		}
-		free(cmp_buf);
+		qemu_free(cmp_buf);
 	}
 
 	if (qflag)

@@ -87,7 +87,7 @@ static inline void array_init(array_t* array,unsigned int item_size)
 static inline void array_free(array_t* array)
 {
     if(array->pointer)
-        free(array->pointer);
+        qemu_free(array->pointer);
     array->size=array->next=0;
 }
 
@@ -169,7 +169,7 @@ static inline int array_roll(array_t* array,int index_to,int index_from,int coun
 
     memcpy(to,buf,is*count);
 
-    free(buf);
+    qemu_free(buf);
 
     return 0;
 }
@@ -732,7 +732,7 @@ static int read_directory(BDRVVVFATState* s, int mapping_index)
 	snprintf(buffer,length,"%s/%s",dirname,entry->d_name);
 
 	if(stat(buffer,&st)<0) {
-	    free(buffer);
+	    qemu_free(buffer);
             continue;
 	}
 
@@ -755,7 +755,7 @@ static int read_directory(BDRVVVFATState* s, int mapping_index)
 	    direntry->begin=0; /* do that later */
         if (st.st_size > 0x7fffffff) {
 	    fprintf(stderr, "File %s is larger than 2GB\n", buffer);
-	    free(buffer);
+	    qemu_free(buffer);
 	    return -2;
         }
 	direntry->size=cpu_to_le32(S_ISDIR(st.st_mode)?0:st.st_size);
@@ -882,7 +882,7 @@ static int init_directories(BDRVVVFATState* s,
     mapping->dir_index = 0;
     mapping->info.dir.parent_mapping_index = -1;
     mapping->first_mapping_index = -1;
-    mapping->path = strdup(dirname);
+    mapping->path = qemu_strdup(dirname);
     i = strlen(mapping->path);
     if (i > 0 && mapping->path[i - 1] == '/')
 	mapping->path[i - 1] = '\0';
@@ -1369,7 +1369,7 @@ DLOG(fprintf(stderr, "clear_commits (%d commits)\n", s->commits.next));
 	assert(commit->path || commit->action == ACTION_WRITEOUT);
 	if (commit->action != ACTION_WRITEOUT) {
 	    assert(commit->path);
-	    free(commit->path);
+	    qemu_free(commit->path);
 	} else
 	    assert(commit->path == NULL);
     }
@@ -1632,10 +1632,10 @@ static uint32_t get_cluster_count_for_direntry(BDRVVVFATState* s,
 
 	    /* rename */
 	    if (strcmp(basename, basename2))
-		schedule_rename(s, cluster_num, strdup(path));
+		schedule_rename(s, cluster_num, qemu_strdup(path));
 	} else if (is_file(direntry))
 	    /* new file */
-	    schedule_new_file(s, strdup(path), cluster_num);
+	    schedule_new_file(s, qemu_strdup(path), cluster_num);
 	else {
 	    assert(0);
 	    return 0;
@@ -1752,10 +1752,10 @@ static int check_directory_consistency(BDRVVVFATState *s,
 	mapping->mode &= ~MODE_DELETED;
 
 	if (strcmp(basename, basename2))
-	    schedule_rename(s, cluster_num, strdup(path));
+	    schedule_rename(s, cluster_num, qemu_strdup(path));
     } else
 	/* new directory */
-	schedule_mkdir(s, cluster_num, strdup(path));
+	schedule_mkdir(s, cluster_num, qemu_strdup(path));
 
     lfn_init(&lfn);
     do {
@@ -1776,7 +1776,7 @@ DLOG(fprintf(stderr, "read cluster %d (sector %d)\n", (int)cluster_num, (int)clu
 	if (subret) {
 	    fprintf(stderr, "Error fetching direntries\n");
 	fail:
-	    free(cluster);
+	    qemu_free(cluster);
 	    return 0;
 	}
 
@@ -1844,7 +1844,7 @@ DLOG(fprintf(stderr, "check direntry %d: \n", i); print_direntry(direntries + i)
 	cluster_num = modified_fat_get(s, cluster_num);
     } while(!fat_eof(s, cluster_num));
 
-    free(cluster);
+    qemu_free(cluster);
     return ret;
 }
 
@@ -1990,7 +1990,7 @@ static int remove_mapping(BDRVVVFATState* s, int mapping_index)
 
     /* free mapping */
     if (mapping->first_mapping_index < 0)
-	free(mapping->path);
+	qemu_free(mapping->path);
 
     /* remove from s->mapping */
     array_remove(&(s->mapping), mapping_index);
@@ -2390,7 +2390,7 @@ static int handle_renames_and_mkdirs(BDRVVVFATState* s)
 		}
 	    }
 
-	    free(old_path);
+	    qemu_free(old_path);
 	    array_remove(&(s->commits), i);
 	    continue;
 	} else if (commit->action == ACTION_MKDIR) {
@@ -2758,7 +2758,7 @@ static int write_target_commit(BlockDriverState *bs, int64_t sector_num,
 static void write_target_close(BlockDriverState *bs) {
     BDRVVVFATState* s = bs->opaque;
     bdrv_delete(s->qcow);
-    free(s->qcow_filename);
+    qemu_free(s->qcow_filename);
 }
 
 static BlockDriver vvfat_write_target = {
@@ -2772,7 +2772,7 @@ static int enable_write_target(BDRVVVFATState *s)
     BlockDriver *bdrv_qcow;
     QEMUOptionParameter *options;
     int size = sector2cluster(s, s->sector_count);
-    s->used_clusters = calloc(size, 1);
+    s->used_clusters = qemu_mallocz(size);
 
     array_init(&(s->commits), sizeof(commit_t));
 
@@ -2794,7 +2794,7 @@ static int enable_write_target(BDRVVVFATState *s)
     unlink(s->qcow_filename);
 #endif
 
-    s->bs->backing_hd = calloc(sizeof(BlockDriverState), 1);
+    s->bs->backing_hd = qemu_mallocz(sizeof(BlockDriverState));
     s->bs->backing_hd->drv = &vvfat_write_target;
     s->bs->backing_hd->opaque = s;
 
@@ -2810,7 +2810,7 @@ static void vvfat_close(BlockDriverState *bs)
     array_free(&(s->directory));
     array_free(&(s->mapping));
     if(s->cluster_buffer)
-        free(s->cluster_buffer);
+        qemu_free(s->cluster_buffer);
 }
 
 static BlockDriver bdrv_vvfat = {

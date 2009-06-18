@@ -787,7 +787,7 @@ static int img_convert(int argc, char **argv)
     bdrv_delete(out_bs);
     for (bs_i = 0; bs_i < bs_n; bs_i++)
         bdrv_delete(bs[bs_i]);
-    free(bs);
+    qemu_free(bs);
     return 0;
 }
 

@@ -246,7 +246,7 @@ static void readline_hist_add(ReadLineState *rs, const char *cmdline)
     }
     if (idx == READLINE_MAX_CMDS) {
 	/* Need to get one free slot */
-	free(rs->history[0]);
+	qemu_free(rs->history[0]);
 	memcpy(rs->history, &rs->history[1],
 	       (READLINE_MAX_CMDS - 1) * sizeof(char *));
 	rs->history[READLINE_MAX_CMDS - 1] = NULL;

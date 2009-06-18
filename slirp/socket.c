@@ -53,7 +53,7 @@ socreate(void)
 {
   struct socket *so;
 
-  so = (struct socket *)malloc(sizeof(struct socket));
+  so = (struct socket *)qemu_malloc(sizeof(struct socket));
   if(so) {
     memset(so, 0, sizeof(struct socket));
     so->so_state = SS_NOFDREF;
@@ -82,7 +82,7 @@ sofree(struct socket *so)
   if(so->so_next && so->so_prev)
     remque(so);  /* crashes if so is not in a queue */
 
-  free(so);
+  qemu_free(so);
 }
 
 size_t sopreprbuf(struct socket *so, struct iovec *iov, int *np)
@@ -606,13 +606,13 @@ solisten(u_int port, u_int32_t laddr, u_int lport, int flags)
 	DEBUG_ARG("flags = %x", flags);
 
 	if ((so = socreate()) == NULL) {
-	  /* free(so);      Not sofree() ??? free(NULL) == NOP */
+	  /* qemu_free(so);      Not sofree() ??? qemu_free(NULL) == NOP */
 	  return NULL;
 	}
 
 	/* Don't tcp_attach... we don't need so_snd nor so_rcv */
 	if ((so->so_tcpcb = tcp_newtcpcb(so)) == NULL) {
-		free(so);
+		qemu_free(so);
 		return NULL;
 	}
 	insque(so,&tcb);
