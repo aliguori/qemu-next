@@ -402,7 +402,6 @@ extern int print_insn_ppc		PARAMS ((bfd_vma, disassemble_info*));
 extern int print_insn_s390		PARAMS ((bfd_vma, disassemble_info*));
 extern int print_insn_crisv32           PARAMS ((bfd_vma, disassemble_info*));
 extern int print_insn_microblaze        PARAMS ((bfd_vma, disassemble_info*));
-extern int print_insn_z80		PARAMS ((bfd_vma, disassemble_info*));
 
 #if 0
 /* Fetch the disassembler for a given BFD, if that support is available.  */

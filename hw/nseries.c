@@ -2426,6 +2426,28 @@ struct n00_s {
     void *tm12xx;
 };
 
+static const TWL4030KeyMap n00_twl4030_keymap[] = {
+    {0x05, 4, 6}, /* 4 */
+    {0x06, 2, 4}, /* 5 */
+    {0x07, 3, 3}, /* 6 */
+    {0x08, 3, 4}, /* 7 */
+    {0x09, 4, 3}, /* 8 */
+    {0x0a, 2, 5}, /* 9 */
+    {0x0b, 3, 5}, /* 0 */
+    {0x0e, 5, 0}, /* BACKSPACE */
+    {0x1c, 4, 4}, /* ENTER */
+    {0x32, 0, 5}, /* M */
+    {0x37, 2, 6}, /* KP* */
+    {0x3c, 5, 2}, /* F2 */
+    {0x3d, 5, 3}, /* F3 */
+    {0x3e, 5, 5}, /* F4 */
+    {0x3f, 5, 4}, /* F5 */
+    {0x4a, 0, 6}, /* KP- */
+    {0x4e, 1, 3}, /* KP+ */
+    {0x53, 1, 4}, /* DELETE/KP. */
+    {-1, -1, -1}
+};
+
 static void n00_init(ram_addr_t ram_size,
                      const char *boot_device,
                      const char *kernel_filename,
@@ -2436,15 +2458,15 @@ static void n00_init(ram_addr_t ram_size,
     struct n00_s *s = (struct n00_s *)qemu_mallocz(sizeof(*s));
     if (drive_get_index(IF_SD, 0, 0) < 0 ||
         drive_get_index(IF_MTD, 0, 0) < 0) {
-        fprintf(stderr, "%s: missing SD and/or NAND device\n", __FUNCTION__);
-        exit(1);
+        hw_error("%s: missing SD and/or NAND device\n", __FUNCTION__);
     }
     s->cpu = omap3530_mpu_init(256*1024*1024,
                                serial_hds[1],
                                serial_hds[2],
                                serial_hds[0]);
     s->twl4030 = twl4030_init(omap_i2c_bus(s->cpu->i2c[0]),
-                              s->cpu->irq[0][OMAP_INT_3XXX_SYS_NIRQ]);
+                              s->cpu->irq[0][OMAP_INT_3XXX_SYS_NIRQ],
+                              NULL, n00_twl4030_keymap);
     s->lcd = taal_init(s->cpu->dss);
     omap_dsi_attach(s->cpu->dss, 0, &s->lcd->chip);
     s->nand = onenand_init(NAND_MFR_SAMSUNG, 0x40, 0x121, 1, 

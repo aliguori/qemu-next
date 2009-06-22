@@ -58,12 +58,14 @@ struct TWL4030NodeState {
 };
 
 struct TWL4030State {
-    qemu_irq irq;
-
+    qemu_irq irq1;
+    qemu_irq irq2;
+    const TWL4030KeyMap *keymap;
+    
     int key_cfg;
     int key_tst;
     
-    TWL4030NodeState *i2c[5];
+    TWL4030NodeState *i2c[4];
     
     uint8_t seq_mem[64][4]; /* power-management sequencing memory */
 };
@@ -207,6 +209,33 @@ static const uint8_t addr_4b_reset_values[256] = {
     0x00, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, /* 0xf0...0xf7 */
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00  /* 0xf8...0xff */
 };
+
+static void twl4030_interrupt_update(TWL4030State *s)
+{
+    /* TODO: other interrupt blocks than KEYPAD */
+    if (s->irq1) {
+        s->i2c[1]->reg_data[0x81] = 0x00; /* PIH_ISR_P1 */
+        int keyp = ((s->i2c[2]->reg_data[0xda] & 0x10) /* SIR_EN */
+                    ? s->i2c[2]->reg_data[0xe7] : 0)   /* KEYP_SIR */
+                   | (s->i2c[2]->reg_data[0xe3] &      /* KEYP_ISR1 */
+                      ~s->i2c[2]->reg_data[0xe4]);     /* KEYP_IMR1 */
+        if (keyp) {
+            s->i2c[1]->reg_data[0x81] |= 0x02;  /* PIH_ISR1 */
+        }
+        qemu_set_irq(s->irq1, s->i2c[1]->reg_data[0x81]);
+    }
+    if (s->irq2) {
+        s->i2c[1]->reg_data[0x82] = 0x00; /* PIH_ISR_P2 */
+        int keyp = ((s->i2c[2]->reg_data[0xda] & 0x10) /* SIR_EN */
+                    ? s->i2c[2]->reg_data[0xe7] : 0)   /* KEYP_SIR */
+                   | (s->i2c[2]->reg_data[0xe5] &      /* KEYP_ISR2 */
+                      ~s->i2c[2]->reg_data[0xe6]);     /* KEYP_IMR2 */
+        if (keyp) {
+            s->i2c[1]->reg_data[0x82] |= 0x02; /* PIH_ISR1 */
+        }
+        qemu_set_irq(s->irq2, s->i2c[1]->reg_data[0x82]);
+    }
+}
 
 static uint8_t twl4030_48_read(TWL4030NodeState *s, uint8_t addr)
 {
@@ -357,6 +386,7 @@ static void twl4030_49_write(TWL4030NodeState *s, uint8_t addr, uint8_t value)
         case 0x82: /* PIH_ISR_P2 */
         case 0x83: /* PIH_SIR */
             s->reg_data[addr] = value;
+            twl4030_interrupt_update(s->twl4030);
             break;
         /* INTBR region */
         case 0x85 ... 0x90:
@@ -413,8 +443,20 @@ static uint8_t twl4030_4a_read(TWL4030NodeState *s, uint8_t addr)
         case 0xb9 ... 0xc6:
             return s->reg_data[addr];
         /* KEYPAD region */
-        case 0xd2 ... 0xe9:
+        case 0xd2 ... 0xe2:
+        case 0xe4:
+        case 0xe6 ... 0xe9:
             return s->reg_data[addr];
+        case 0xe3: /* KEYP_ISR1 */
+        case 0xe5: /* KEYP_ISR2 */
+            {
+                uint8_t data = s->reg_data[addr];
+                if (s->reg_data[0xe9] & 0x04) { /* COR */
+                    s->reg_data[addr] = 0x00;
+                    twl4030_interrupt_update(s->twl4030);
+                }
+                return data;
+            }
         /* LED region */
         case 0xee: /* LEDEN */
             return s->reg_data[addr];
@@ -446,6 +488,8 @@ static void twl4030_4a_write(TWL4030NodeState *s, uint8_t addr, uint8_t value)
 {
     TRACE("addr=0x%02x, value=0x%02x", addr, value);
     switch (addr) {
+        /* MADC region */
+
         case 0x00: /* CTRL1 */
             s->reg_data[addr] = value;
             break;
@@ -464,9 +508,15 @@ static void twl4030_4a_write(TWL4030NodeState *s, uint8_t addr, uint8_t value)
         case 0x62: /* MADC_IMR1 */
             s->reg_data[addr] = value & 0x0f;
             break;
+
+        /* MAIN_CHARGE region */
+
         case 0x97: /* BCICTL1 */
             s->reg_data[addr] = value;
             break;
+
+        /* Interrupt region */
+
         case 0xb9: /* BCIISR1A */
             s->reg_data[addr] &= ~value;
             break;
@@ -479,21 +529,61 @@ static void twl4030_4a_write(TWL4030NodeState *s, uint8_t addr, uint8_t value)
         case 0xbc: /* BCIIMR2A */
             s->reg_data[addr] = value & 0x0f;
             break;
+
+        /* KEYPAD region */
+
         case 0xd2: /* KEYP_CTRL_REG */
             s->reg_data[addr] = value & 0x7f;
             break;
+        case 0xd3: /* KEYP_DEB_REG */
+            s->reg_data[addr] = value & 0x3f;
+            break;
+        case 0xd5: /* LK_PTV_REG */
+            s->reg_data[addr] = value & 0xef;
+            break;
+        case 0xda: /* KEYP_SMS */
+            s->reg_data[addr] = value & 0x30;
+            twl4030_interrupt_update(s->twl4030);
+            break;
+        case 0xe3: /* KEYP_ISR1 */
+        case 0xe5: /* KEYP_ISR2 */
+            if (!(s->reg_data[0xe9] & 0x04)) { /* COR */
+                s->reg_data[addr] &= value;
+                twl4030_interrupt_update(s->twl4030);
+            }
+            break;
         case 0xe4: /* KEYP_IMR1 */
+        case 0xe6: /* KEYP_IMR2 */
+        case 0xe7: /* KEYP_SIR */
             s->reg_data[addr] = value & 0x0f;
+            twl4030_interrupt_update(s->twl4030);
             break;
         case 0xe9: /* KEYP_SIH_CTRL */
             s->reg_data[addr] = value & 0x07;
             break;
+        case 0xd4: /* LONG_KEY_REG1 */
+        case 0xd6: /* TIME_OUT_REG1 */
+        case 0xd7: /* TIME_OUT_REG2 */
+        case 0xd8: /* KBC_REG */
+        case 0xe8: /* KEYP_EDR */
+            s->reg_data[addr] = value;
+            break;
+        case 0xd9: /* KBR_REG */
+        case 0xdb ... 0xe2: /* FULL_CODE_xx_yy */
+            /* read-only, ignore */
+            break;
+
+        /* LED region */
+
         case 0xee: /* LEDEN */
             s->reg_data[addr] = value;
             TRACE("LEDA power=%s/enable=%s, LEDB power=%s/enable=%s",
                     value & 0x10 ? "on" : "off", value & 0x01 ? "yes" : "no",
                     value & 0x20 ? "on" : "off", value & 0x02 ? "yes" : "no");
             break;
+
+        /* PWMA/B/0/1 regions */
+
         case 0xef: /* PWMAON */
         case 0xf8: /* PWM0ON */
         case 0xfb: /* PWM1ON */
@@ -504,6 +594,7 @@ static void twl4030_4a_write(TWL4030NodeState *s, uint8_t addr, uint8_t value)
         case 0xfc: /* PWM1OFF */
             s->reg_data[addr] = value & 0x7f;
             break;
+
         default:
 	        fprintf(stderr, "%s: unknown register 0x%02x\n",
                     __FUNCTION__, addr);
@@ -722,6 +813,40 @@ static void twl4030_4b_write(TWL4030NodeState *s, uint8_t addr, uint8_t value)
     }
 }
 
+static void twl4030_key_setstate(TWL4030NodeState *s,
+                                 int col, int row, int state)
+{
+    TRACE("col=%d, row=%d, state=%d", col, row, state);
+    if (col >= 0 && col < 8 && row >= 0 && row < 8) {
+        s->reg_data[0xd8] = col; /* KBC_REG */
+        s->reg_data[0xd9] = row; /* KBR_REG */
+        int gen_int = 0;
+        if (state) {
+            s->reg_data[0xdb + row] |= 1 << col; /* FULL_CODE_xx_yy */
+            gen_int = s->reg_data[0xe8] & 0x02;  /* ITKPRISING */
+        } else {
+            s->reg_data[0xdb + row] &= ~(1 << col); /* FULL_CODE_xx_yy */
+            gen_int = s->reg_data[0xe8] & 0x01;     /* ITKPFALLING */
+        }
+        if (gen_int) {
+            s->reg_data[0xe3] |= 0x01; /* ITKPISR1 */
+            s->reg_data[0xe5] |= 0x01; /* ITKPISR2 */
+            twl4030_interrupt_update(s->twl4030);
+        }
+    }
+}
+
+static void twl4030_key_handler(void *opaque, int keycode)
+{
+    TWL4030NodeState *s = (TWL4030NodeState *)opaque;
+    const TWL4030KeyMap *k = s->twl4030->keymap;
+    for (; k && k->code >= 0; k++) {
+        if (k->code == (keycode & 0x7f)) {
+            twl4030_key_setstate(s, k->column, k->row, !(keycode & 0x80));
+        }
+    }
+}
+
 static void twl4030_node_init(TWL4030NodeState *s,
                               twl4030_read_func read,
                               twl4030_write_func write,
@@ -749,9 +874,11 @@ static void twl4030_49_init(i2c_slave *i2c)
 
 static void twl4030_4a_init(i2c_slave *i2c)
 {
-    twl4030_node_init(FROM_I2C_SLAVE(TWL4030NodeState, i2c),
+    TWL4030NodeState *s = FROM_I2C_SLAVE(TWL4030NodeState, i2c);
+    twl4030_node_init(s,
                       twl4030_4a_read, twl4030_4a_write,
                       addr_4a_reset_values);
+    qemu_add_kbd_event_handler(twl4030_key_handler, s);
 }
 
 static void twl4030_4b_init(i2c_slave *i2c)
@@ -824,13 +951,16 @@ static int twl4030_load_state(QEMUFile *f, void *opaque, int version_id)
     return 0;
 }
 
-void *twl4030_init(i2c_bus *gp_bus, qemu_irq irq)
+void *twl4030_init(i2c_bus *gp_bus, qemu_irq irq1, qemu_irq irq2,
+                   const TWL4030KeyMap *keymap)
 {
     TWL4030State *s = (TWL4030State *)qemu_mallocz(sizeof(*s));
 	
-    s->irq = irq;
+    s->irq1 = irq1;
+    s->irq2 = irq2;
     s->key_cfg = 0;
     s->key_tst = 0;
+    s->keymap = keymap;
     
     int i;
     for (i = 0; i < 4; i++) {
