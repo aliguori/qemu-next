@@ -31,6 +31,7 @@
 #include "flash.h"
 #include "hw.h"
 #include "bt.h"
+#include "net.h"
 
 /* Nokia N8x0 support */
 struct n800_s {
@@ -1419,6 +1420,8 @@ static QEMUMachine n810_machine = {
 #define N00_ONENAND_CS 0
 #define N00_ONENAND_GPIO N8X0_ONENAND_GPIO
 #define N00_ONENAND_BUFSIZE (0xc000 << 1)
+#define N00_SMC_CS        1
+
 #define N00_DISPLAY_WIDTH 864
 #define N00_DISPLAY_HEIGHT 480
 #define N00_DISPLAY_BUFSIZE (N00_DISPLAY_WIDTH * N00_DISPLAY_HEIGHT * 4)
@@ -2456,6 +2459,8 @@ static void n00_init(ram_addr_t ram_size,
                      const char *cpu_model)
 {
     struct n00_s *s = (struct n00_s *)qemu_mallocz(sizeof(*s));
+    void *opaque;
+
     if (drive_get_index(IF_SD, 0, 0) < 0 ||
         drive_get_index(IF_MTD, 0, 0) < 0) {
         hw_error("%s: missing SD and/or NAND device\n", __FUNCTION__);
@@ -2491,6 +2496,12 @@ static void n00_init(ram_addr_t ram_size,
     s->tm12xx = n00_tm12xx_init(omap_i2c_bus(s->cpu->i2c[1]),
                                 omap2_gpio_in_get(s->cpu->gpif, 61)[0],
                                 1);
+
+    opaque = smc91c111_init_lite(&nd_table[0], /*0x08000000,*/
+                    omap2_gpio_in_get(s->cpu->gpif, 54)[0]);
+
+    omap_gpmc_attach(s->cpu->gpmc, N00_SMC_CS, smc91c111_iomemtype(opaque),
+                     NULL, NULL, opaque, 0);
 
     omap3_boot_rom_emu(s->cpu);
 }
