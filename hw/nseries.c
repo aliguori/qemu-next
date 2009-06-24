@@ -2362,19 +2362,40 @@ static void tm12xx_mouse(void *opaque, int x, int y, int z, int bs)
 {
     TM12XXState *s = (TM12XXState *)opaque;
     
-    uint8_t state = ((bs & 1) << 1) | ((bs & 2) << 2);
+    uint8_t state = ((bs & 1) << 1) | (bs & 8);
     if (state || s->touch_state) {
-        x = ((x + 1) * s->touch_max.x) >> 15;
-        y = ((y + 1) * s->touch_max.y) >> 15;
-        TRACE_TM12XX("x = %d, y = %d, z = %d, bs = %d", x, y, z, bs);
+        int x1 = ((x + 1) * s->touch_max.x) >> 15;
+        int y1 = ((y + 1) * s->touch_max.y) >> 15;
+        if (x1 < 1) {
+            x1 = 1;
+        }
+        if (y1 < 1) {
+            y1 = 1;
+        }
+        if (x1 > s->touch_max.x) {
+            x1 = s->touch_max.x;
+        }
+        if (y1 > s->touch_max.y) {
+            y1 = s->touch_max.y;
+        }
+        int x2 = s->touch_max.x - x1;
+        int y2 = s->touch_max.y - y1;
+        if (x2 < 1) {
+            x2 = 1;
+        }
+        if (y2 < 1) {
+            y2 = 1;
+        }
+        TRACE_TM12XX("1:(%d,%d), 2:(%d,%d), state=0x%02x",
+                     x1, y1, x2, y2, state);
         s->touch_state = state;
         if (bs & 1) {
-            s->touch_pos[0].x = x;
-            s->touch_pos[0].y = y;
+            s->touch_pos[0].x = x1;
+            s->touch_pos[0].y = y1;
         }
-        if (bs & 2) {
-            s->touch_pos[1].x = x;
-            s->touch_pos[1].y = y;
+        if (bs & 8) {
+            s->touch_pos[1].x = x2;
+            s->touch_pos[1].y = y2;
         }
         s->irqst |= tm12xx_get_intmask_forfunc(s, TM12XX_FUNC_2D);
         tm12xx_interrupt_update(s);
@@ -2399,6 +2420,8 @@ static void tm12xx_init(i2c_slave *i2c)
                      tm12xx_timer_read, tm12xx_timer_write);
     
     tm12xx_reset(s);
+    
+    multitouch_enabled = 1;
 }
 
 static I2CSlaveInfo tm12xx_info = {

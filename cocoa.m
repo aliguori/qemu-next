@@ -250,6 +250,8 @@ static int cocoa_keycode_to_qemu(int keycode)
     NSWindow *fullScreenWindow;
     float cx,cy,cw,ch,cdx,cdy;
     CGDataProviderRef dataProviderRef;
+    void *dataRawPtr;
+    int mouseX, mouseY;
     int modifiers_state[256];
     BOOL isMouseGrabed;
     BOOL isFullscreen;
@@ -268,6 +270,7 @@ static int cocoa_keycode_to_qemu(int keycode)
 - (float) cdy;
 - (QEMUScreen) gscreen;
 - (void) updateCaption;
+- (void) checkAndDisplayAltCursor;
 @end
 
 @implementation QemuCocoaView
@@ -302,6 +305,34 @@ static int cocoa_keycode_to_qemu(int keycode)
     return YES;
 }
 
+- (void) checkAndDisplayAltCursor
+{
+    if (multitouch_enabled && !isMouseGrabed && !cursor_hide &&
+        dataRawPtr && modifiers_state[56]) {
+        unsigned char *p = (unsigned char *)dataRawPtr;
+        int altX = screen.width - mouseX;
+        int altY = mouseY;
+        int x, y;
+        int bytesperpixel = screen.bitsPerPixel / 8;
+        p += (altY * screen.width) * bytesperpixel;
+        for (y = 0; y < 8; y++) {
+            if (y + altY > 0 && y + altY < screen.height) {
+                unsigned char *q = p + altX * bytesperpixel;
+                for (x = 0; x < 8; x++) {
+                    if (x + altX > 0 && x + altX < screen.width) {
+                        int i;
+                        for (i = 0; i < bytesperpixel; i++) {
+                            q[i] ^= 0xff;
+                        }
+                    }
+                    q += bytesperpixel;
+                }
+            }
+            p += screen.width * bytesperpixel;
+        }
+    }
+}
+
 - (void) drawRect:(NSRect) rect
 {
     COCOA_DEBUG("QemuCocoaView: drawRect\n");
@@ -313,6 +344,7 @@ static int cocoa_keycode_to_qemu(int keycode)
 
     // draw screen bitmap directly to Core Graphics context
     if (dataProviderRef) {
+        [self checkAndDisplayAltCursor];
         CGImageRef imageRef = CGImageCreate(
             screen.width, //width
             screen.height, //height
@@ -398,6 +430,7 @@ static int cocoa_keycode_to_qemu(int keycode)
 	screen.bitsPerPixel = ds_get_bits_per_pixel(ds);
 	screen.bitsPerComponent = ds_get_bytes_per_pixel(ds) * 2;
 
+    dataRawPtr = is_graphic_console() ? ds_get_data(ds) : 0;
     dataProviderRef = CGDataProviderCreateWithData(NULL, ds_get_data(ds), w * 4 * h, NULL);
 
     // update windows
@@ -568,6 +601,8 @@ static int cocoa_keycode_to_qemu(int keycode)
             }
             break;
         case NSMouseMoved:
+            mouseX = p.x;
+            mouseY = p.y;
             if (isAbsoluteEnabled) {
                 if (p.x < 0 || p.x > screen.width || p.y < 0 || p.y > screen.height || ![[self window] isKeyWindow]) {
                     if (isTabletEnabled) { // if we leave the window, deactivate the tablet
@@ -589,6 +624,9 @@ static int cocoa_keycode_to_qemu(int keycode)
             } else {
                 buttons |= MOUSE_EVENT_LBUTTON;
             }
+            if ([event modifierFlags] & NSAlternateKeyMask) {
+                buttons |= MOUSE_EVENT_MBUTTON << 1;
+            }
             COCOA_MOUSE_EVENT
             break;
         case NSRightMouseDown:
@@ -600,10 +638,15 @@ static int cocoa_keycode_to_qemu(int keycode)
             COCOA_MOUSE_EVENT
             break;
         case NSLeftMouseDragged:
+            mouseX = p.x;
+            mouseY = p.y;
             if ([event modifierFlags] & NSCommandKeyMask) {
                 buttons |= MOUSE_EVENT_RBUTTON;
             } else {
                 buttons |= MOUSE_EVENT_LBUTTON;
+            }
+            if ([event modifierFlags] & NSAlternateKeyMask) {
+                buttons |= MOUSE_EVENT_MBUTTON << 1;
             }
             COCOA_MOUSE_EVENT
             break;
