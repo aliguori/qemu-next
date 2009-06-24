@@ -80,11 +80,6 @@ static void kvm_set_pit_ch2(PITState *pit,
         kvm_set_pit(kvm_context, inkernel_state);
     }
 }
-#else
-static inline void kvm_get_pit_ch2(PITState *pit,
-                                   kvm_pit_state *inkernel_state) { }
-static inline void kvm_set_pit_ch2(PITState *pit,
-                                   kvm_pit_state *inkernel_state) { }
 #endif
 
 static inline void generate_samples(PCSpkState *s)
@@ -111,7 +106,9 @@ static void pcspk_callback(void *opaque, int free)
     PCSpkState *s = opaque;
     unsigned int n;
 
+#ifdef USE_KVM_PIT
     kvm_get_pit_ch2(s->pit, NULL);
+#endif
 
     if (pit_get_mode(s->pit, 2) != 3)
         return;
@@ -158,7 +155,9 @@ static uint32_t pcspk_ioport_read(void *opaque, uint32_t addr)
     PCSpkState *s = opaque;
     int out;
 
+#ifdef USE_KVM_PIT
     kvm_get_pit_ch2(s->pit, NULL);
+#endif
 
     s->dummy_refresh_clock ^= (1 << 4);
     out = pit_get_out(s->pit, 2, qemu_get_clock(vm_clock)) << 5;
@@ -168,11 +167,13 @@ static uint32_t pcspk_ioport_read(void *opaque, uint32_t addr)
 
 static void pcspk_ioport_write(void *opaque, uint32_t addr, uint32_t val)
 {
-    struct kvm_pit_state inkernel_state;
     PCSpkState *s = opaque;
     const int gate = val & 1;
+#ifdef USE_KVM_PIT
+    struct kvm_pit_state inkernel_state;
 
     kvm_get_pit_ch2(s->pit, &inkernel_state);
+#endif
 
     s->data_on = (val >> 1) & 1;
     pit_set_gate(s->pit, 2, gate);
@@ -182,7 +183,9 @@ static void pcspk_ioport_write(void *opaque, uint32_t addr, uint32_t val)
         AUD_set_active_out(s->voice, gate & s->data_on);
     }
 
+#ifdef USE_KVM_PIT
     kvm_set_pit_ch2(s->pit, &inkernel_state);
+#endif
 }
 
 void pcspk_init(PITState *pit)
