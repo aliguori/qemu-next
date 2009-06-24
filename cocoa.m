@@ -77,7 +77,7 @@ int keymap[] =
     45, //  7       0x07    0x2d            X       QZ_x
     46, //  8       0x08    0x2e            C       QZ_c
     47, //  9       0x09    0x2f            V       QZ_v
-    0,  //  10      0x0A    Undefined
+    0,  //  10      0x0A    Undefined       (paragraph)
     48, //  11      0x0B    0x30            B       QZ_b
     16, //  12      0x0C    0x10            Q       QZ_q
     17, //  13      0x0D    0x11            W       QZ_w
@@ -121,8 +121,8 @@ int keymap[] =
     14, //  51      0x33    0x0e            BKSP    QZ_BACKSPACE
     0,  //  52      0x34    Undefined
     1,  //  53      0x35    0x01            ESC     QZ_ESCAPE
-    0,  //  54      0x36                            QZ_RMETA
-    0,  //  55      0x37                            QZ_LMETA
+    220,//  54      0xdc            e0,5c   R GUI   QZ_RMETA
+    219,//  55      0xdb            e0,5b   L GUI   QZ_LMETA
     42, //  56      0x38    0x2a            L SHFT  QZ_LSHIFT
     58, //  57      0x39    0x3a            CAPS    QZ_CAPSLOCK
     56, //  58      0x3A    0x38            L ALT   QZ_LALT
@@ -130,9 +130,9 @@ int keymap[] =
     54, //  60      0x3C    0x36            R SHFT  QZ_RSHIFT
     184,//  61      0x3D    0xb8    E0,38   R ALT   QZ_RALT
     157,//  62      0x3E    0x9d    E0,1D   R CTRL  QZ_RCTRL
-    0,  //  63      0x3F    Undefined
-    0,  //  64      0x40    Undefined
-    0,  //  65      0x41    Undefined
+    0,  //  63      0x3F    Undefined       (fn)
+    0,  //  64      0x40    Undefined       (f17)
+    83, //  65      0x53    0x53            KP .
     0,  //  66      0x42    Undefined
     55, //  67      0x43    0x37            KP *    QZ_KP_MULTIPLY
     0,  //  68      0x44    Undefined
@@ -146,9 +146,9 @@ int keymap[] =
     152,//  76      0x4C    0x9c    E0,1C   KP EN   QZ_KP_ENTER
     0,  //  77      0x4D    undefined
     74, //  78      0x4E    0x4a            KP -    QZ_KP_MINUS
-    0,  //  79      0x4F    Undefined
-    0,  //  80      0x50    Undefined
-    0,  //  81      0x51                            QZ_KP_EQUALS
+    0,  //  79      0x4F    Undefined       (f18)
+    0,  //  80      0x50    Undefined       (f19)
+    0,  //  81      0x51                    (kp =)  QZ_KP_EQUALS
     82, //  82      0x52    0x52            KP 0    QZ_KP0
     79, //  83      0x53    0x4f            KP 1    QZ_KP1
     80, //  84      0x54    0x50            KP 2    QZ_KP2
@@ -172,15 +172,15 @@ int keymap[] =
     0,  //  102     0x66    Undefined
     87, //  103     0x67    0x57            F11     QZ_F11
     0,  //  104     0x68    Undefined
-    183,//  105     0x69    0xb7                    QZ_PRINT
+    183,//  105     0x69    0xb7            (f13)   QZ_PRINT
     0,  //  106     0x6A    Undefined
-    70, //  107     0x6B    0x46            SCROLL  QZ_SCROLLOCK
+    70, //  107     0x6B    0x46            SCROLL(f14)  QZ_SCROLLOCK
     0,  //  108     0x6C    Undefined
     68, //  109     0x6D    0x44            F10     QZ_F10
     0,  //  110     0x6E    Undefined
     88, //  111     0x6F    0x58            F12     QZ_F12
     0,  //  112     0x70    Undefined
-    110,//  113     0x71    0x0                     QZ_PAUSE
+    110,//  113     0x71    0x0             (f15)   QZ_PAUSE
     210,//  114     0x72    0xd2    E0,52   INSERT  QZ_INSERT
     199,//  115     0x73    0xc7    E0,47   HOME    QZ_HOME
     201,//  116     0x74    0xc9    E0,49   PG UP   QZ_PAGEUP
@@ -198,12 +198,9 @@ int keymap[] =
 
 /* Aditional 104 Key XP-Keyboard Scancodes from http://www.computer-engineering.org/ps2keyboard/scancodes1.html */
 /*
-    219 //          0xdb            e0,5b   L GUI
-    220 //          0xdc            e0,5c   R GUI
     221 //          0xdd            e0,5d   APPS
         //              E0,2A,E0,37         PRNT SCRN
         //              E1,1D,45,E1,9D,C5   PAUSE
-    83  //          0x53    0x53            KP .
 // ACPI Scan Codes
     222 //          0xde            E0, 5E  Power
     223 //          0xdf            E0, 5F  Sleep
@@ -253,6 +250,8 @@ static int cocoa_keycode_to_qemu(int keycode)
     NSWindow *fullScreenWindow;
     float cx,cy,cw,ch,cdx,cdy;
     CGDataProviderRef dataProviderRef;
+    void *dataRawPtr;
+    int mouseX, mouseY;
     int modifiers_state[256];
     BOOL isMouseGrabed;
     BOOL isFullscreen;
@@ -271,6 +270,7 @@ static int cocoa_keycode_to_qemu(int keycode)
 - (float) cdy;
 - (QEMUScreen) gscreen;
 - (void) updateCaption;
+- (void) checkAndDisplayAltCursor;
 @end
 
 @implementation QemuCocoaView
@@ -305,6 +305,34 @@ static int cocoa_keycode_to_qemu(int keycode)
     return YES;
 }
 
+- (void) checkAndDisplayAltCursor
+{
+    if (multitouch_enabled && !isMouseGrabed && !cursor_hide &&
+        dataRawPtr && modifiers_state[56]) {
+        unsigned char *p = (unsigned char *)dataRawPtr;
+        int altX = screen.width - mouseX;
+        int altY = mouseY;
+        int x, y;
+        int bytesperpixel = screen.bitsPerPixel / 8;
+        p += (altY * screen.width) * bytesperpixel;
+        for (y = 0; y < 8; y++) {
+            if (y + altY > 0 && y + altY < screen.height) {
+                unsigned char *q = p + altX * bytesperpixel;
+                for (x = 0; x < 8; x++) {
+                    if (x + altX > 0 && x + altX < screen.width) {
+                        int i;
+                        for (i = 0; i < bytesperpixel; i++) {
+                            q[i] ^= 0xff;
+                        }
+                    }
+                    q += bytesperpixel;
+                }
+            }
+            p += screen.width * bytesperpixel;
+        }
+    }
+}
+
 - (void) drawRect:(NSRect) rect
 {
     COCOA_DEBUG("QemuCocoaView: drawRect\n");
@@ -316,6 +344,7 @@ static int cocoa_keycode_to_qemu(int keycode)
 
     // draw screen bitmap directly to Core Graphics context
     if (dataProviderRef) {
+        [self checkAndDisplayAltCursor];
         CGImageRef imageRef = CGImageCreate(
             screen.width, //width
             screen.height, //height
@@ -401,6 +430,7 @@ static int cocoa_keycode_to_qemu(int keycode)
 	screen.bitsPerPixel = ds_get_bits_per_pixel(ds);
 	screen.bitsPerComponent = ds_get_bytes_per_pixel(ds) * 2;
 
+    dataRawPtr = is_graphic_console() ? ds_get_data(ds) : 0;
     dataProviderRef = CGDataProviderCreateWithData(NULL, ds_get_data(ds), w * 4 * h, NULL);
 
     // update windows
@@ -571,6 +601,8 @@ static int cocoa_keycode_to_qemu(int keycode)
             }
             break;
         case NSMouseMoved:
+            mouseX = p.x;
+            mouseY = p.y;
             if (isAbsoluteEnabled) {
                 if (p.x < 0 || p.x > screen.width || p.y < 0 || p.y > screen.height || ![[self window] isKeyWindow]) {
                     if (isTabletEnabled) { // if we leave the window, deactivate the tablet
@@ -592,6 +624,9 @@ static int cocoa_keycode_to_qemu(int keycode)
             } else {
                 buttons |= MOUSE_EVENT_LBUTTON;
             }
+            if ([event modifierFlags] & NSAlternateKeyMask) {
+                buttons |= MOUSE_EVENT_MBUTTON << 1;
+            }
             COCOA_MOUSE_EVENT
             break;
         case NSRightMouseDown:
@@ -603,10 +638,15 @@ static int cocoa_keycode_to_qemu(int keycode)
             COCOA_MOUSE_EVENT
             break;
         case NSLeftMouseDragged:
+            mouseX = p.x;
+            mouseY = p.y;
             if ([event modifierFlags] & NSCommandKeyMask) {
                 buttons |= MOUSE_EVENT_RBUTTON;
             } else {
                 buttons |= MOUSE_EVENT_LBUTTON;
+            }
+            if ([event modifierFlags] & NSAlternateKeyMask) {
+                buttons |= MOUSE_EVENT_MBUTTON << 1;
             }
             COCOA_MOUSE_EVENT
             break;
@@ -856,31 +896,19 @@ static int cocoa_keycode_to_qemu(int keycode)
 @end
 
 
-
-// Dock Connection
-typedef struct CPSProcessSerNum
-{
-        UInt32                lo;
-        UInt32                hi;
-} CPSProcessSerNum;
-
-extern OSErr    CPSGetCurrentProcess( CPSProcessSerNum *psn);
-extern OSErr    CPSEnableForegroundOperation( CPSProcessSerNum *psn, UInt32 _arg2, UInt32 _arg3, UInt32 _arg4, UInt32 _arg5);
-extern OSErr    CPSSetFrontProcess( CPSProcessSerNum *psn);
-
 int main (int argc, const char * argv[]) {
 
     gArgc = argc;
     gArgv = (char **)argv;
-    CPSProcessSerNum PSN;
 
     NSAutoreleasePool * pool = [[NSAutoreleasePool alloc] init];
     [NSApplication sharedApplication];
 
-    if (!CPSGetCurrentProcess(&PSN))
-        if (!CPSEnableForegroundOperation(&PSN,0x03,0x3C,0x2C,0x1103))
-            if (!CPSSetFrontProcess(&PSN))
-                [NSApplication sharedApplication];
+    ProcessSerialNumber PSN;
+    if (!GetCurrentProcess(&PSN) &&
+        !TransformProcessType(&PSN, kProcessTransformToForegroundApplication) &&
+        !SetFrontProcess(&PSN))
+        [NSApplication sharedApplication];
 
     // Add menus
     NSMenu      *menu;

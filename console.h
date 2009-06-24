@@ -8,6 +8,7 @@
 #define MOUSE_EVENT_LBUTTON 0x01
 #define MOUSE_EVENT_RBUTTON 0x02
 #define MOUSE_EVENT_MBUTTON 0x04
+extern int multitouch_enabled;
 
 /* in ms */
 #define GUI_REFRESH_INTERVAL 30
