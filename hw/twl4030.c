@@ -724,6 +724,11 @@ static void twl4030_4b_write(TWL4030NodeState *s, uint8_t addr, uint8_t value)
         case 0x48: /* P3_SW_EVENTS */
             s->reg_data[addr] = value & 0x78;
             break;
+        case 0x4a: /* PB_CFG */
+            s->reg_data[addr] = value & 0xf;
+        case 0x4b: /* PB_MSB */
+        case 0x4c: /* PB_LSB */
+            s->reg_data[addr] = value;
         case 0x52: /* SEQ_ADD_W2P */
         case 0x53: /* SEQ_ADD_P2A */
         case 0x54: /* SEQ_ADD_A2W */
@@ -751,12 +756,17 @@ static void twl4030_4b_write(TWL4030NodeState *s, uint8_t addr, uint8_t value)
             /* TODO: check if autoincrement is write-protected as well */
             s->reg_data[0x59]++; 
             break;
+        case 0x5e: /* WATCHDOG_CFG */
+            s->reg_data[addr] = value & 0x1f;
         case 0x68: /* MISC_CFG */
             s->reg_data[addr] = value;
             break;
+        case 0x76: /* VAUX1_DEV_GRP */
         case 0x7a: /* VAUX3_DEV_GRP */
         case 0x82: /* VMMC1_DEV_GRP */
+        case 0x86: /* VMMC2_DEV_GRP */
         case 0x8e: /* VPLL2_DEV_GRP */
+        case 0x92: /* VSIM_DEV_GRP */
         case 0x96: /* VDAC_DEV_GRP */
         case 0xcc: /* VUSB1V5_DEV_GRP */
         case 0xcf: /* VUSB1V8_DEV_GRP */
@@ -766,6 +776,7 @@ static void twl4030_4b_write(TWL4030NodeState *s, uint8_t addr, uint8_t value)
             break;
         case 0x75: /* VAUX1_DEDICATED */
         case 0x7d: /* VAUX3_DEDICATED */
+        case 0x95: /* VSIM_DEDICATED */
             if (s->twl4030->key_tst)
                 s->reg_data[addr] = value & 0x77;
             else
