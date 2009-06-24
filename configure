@@ -1747,7 +1747,7 @@ if test "$cocoa" = "yes" ; then
 fi
 if test "$curses" = "yes" ; then
   echo "#define CONFIG_CURSES 1" >> $config_h
-  echo "CONFIG_CURSES=y" >> $config_mak
+  echo "CONFIG_CURSES=yes" >> $config_mak
   if test "$ncurses" = "yes" ; then
     echo "CURSES_LIBS=-lncurses" >> $config_mak
   else
