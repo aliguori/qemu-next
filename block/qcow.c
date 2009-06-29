@@ -101,6 +101,11 @@ static int qcow_open(BlockDriverState *bs, const char *filename, int flags)
         return ret;
     if (bdrv_pread(s->hd, 0, &header, sizeof(header)) != sizeof(header))
         goto fail;
+
+    fprintf(stderr,
+            "WARNING: the qcow file format is no longer supported.\n"
+            "         Please convert your images to qcow2.\n");
+
     be32_to_cpus(&header.magic);
     be32_to_cpus(&header.version);
     be64_to_cpus(&header.backing_file_offset);
