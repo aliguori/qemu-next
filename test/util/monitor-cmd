@@ -34,7 +34,7 @@ for opt, val in opts:
     elif opt in ['-w', '--no-wait']:
         nowait = True
 
-if len(args) != 2:
+if len(args) < 2:
     help()
     sys.exit(1)
 
@@ -67,7 +67,14 @@ if banner:
     while not buf.endswith('\n(qemu) '):
         buf += recv_byte_or_timeout(s)
 
-s.sendall('%s\n' % args[1])
+newargs=[]
+for arg in args:
+    if arg.find(' ') != -1:
+        arg = '"%s"' % arg
+    newargs.append(arg)
+args=newargs
+
+s.sendall('%s\n' % ' '.join(args[1:]))
 
 while not buf.endswith('\n'):
     buf += recv_byte_or_timeout(s)

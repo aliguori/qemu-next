@@ -22,13 +22,13 @@ guest() {
 	timeout=""
     fi
 
-    "$MONITOR_CMD" $timeout $n $w "$QEMU_GUEST_DEV" "$*"
+    "$MONITOR_CMD" $timeout $n $w "$QEMU_GUEST_DEV" "$@"
     if test "$?" = "2" ; then
 	return 2
     fi
 
     if test -z "$n" -a -z "$w" ; then
-	status=$("$MONITOR_CMD" -n "$QEMU_GUEST_DEV" 'echo $?')
+	status=$("$MONITOR_CMD" -n "$QEMU_GUEST_DEV" echo '$?')
 	return $status
     fi
 }
@@ -41,7 +41,7 @@ monitor() {
 	shift
     fi
 
-    "$MONITOR_CMD" $w "$QEMU_MONITOR" "$*"
+    "$MONITOR_CMD" $w "$QEMU_MONITOR" "$@"
 }
 
 monitor_is_paused() {

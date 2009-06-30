@@ -1,6 +1,6 @@
 TIMEOUT=$(get_config timeout 60)
 
-guest -w 'reboot; exit' > /dev/null
+guest -w /bin/sh -c 'reboot; exit' > /dev/null
 
 hello=$(guest -n -t $TIMEOUT echo 'hello world')
 if test "$?" -ne 0 ; then
