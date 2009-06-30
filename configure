@@ -863,8 +863,17 @@ fi
 
 sdl_too_old=no
 
+# Before we use sdl-config, check if it is there
 if test "$sdl" = "yes" ; then
-    sdl_config="sdl-config"
+    sdl_config=`which sdl-config`
+    if test $? -ne 0 ; then
+        # Clear content if sdl isn't installed.
+        # For example, Solaris 'which' prints "no sdl-config in $PATH"
+        sdl_config=""
+        sdl="no"
+    fi
+fi
+if test "$sdl" = "yes" -a -n "$sdl_config" ; then
     sdl=no
     sdl_static=no
 
