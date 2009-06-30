@@ -123,5 +123,6 @@ BusState *qbus_create(BusInfo *info, DeviceState *parent, const char *name);
 /*** monitor commands ***/
 
 void do_info_qtree(Monitor *mon);
+void do_info_qdrv(Monitor *mon);
 
 #endif

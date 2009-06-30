@@ -380,3 +380,13 @@ void do_info_qtree(Monitor *mon)
     if (main_system_bus)
         qbus_print(mon, main_system_bus, 0);
 }
+
+void do_info_qdrv(Monitor *mon)
+{
+    DeviceInfo *info;
+
+    for (info = device_info_list; info != NULL; info = info->next) {
+        monitor_printf(mon, "name \"%s\", bus %s\n",
+                       info->name, info->bus_info->name);
+    }
+}
