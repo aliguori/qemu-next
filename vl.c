@@ -266,6 +266,9 @@ static QEMUTimer *nographic_timer;
 
 uint8_t qemu_uuid[16];
 
+static QEMUBootSetHandler *boot_set_handler;
+static void *boot_set_opaque;
+
 /***********************************************************/
 /* x86 ISA bus support */
 
@@ -2355,6 +2358,20 @@ DriveInfo *drive_init(struct drive_opt *arg, int snapshot, void *opaque,
         autostart = 0;
     *fatal_error = 0;
     return dinfo;
+}
+
+void qemu_register_boot_set(QEMUBootSetHandler *func, void *opaque)
+{
+    boot_set_handler = func;
+    boot_set_opaque = opaque;
+}
+
+int qemu_boot_set(const char *boot_devices)
+{
+    if (!boot_set_handler) {
+        return -EINVAL;
+    }
+    return boot_set_handler(boot_set_opaque, boot_devices);
 }
 
 static int parse_bootdevices(char *devices)
