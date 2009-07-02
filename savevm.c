@@ -1027,12 +1027,12 @@ static int bdrv_has_snapshot(BlockDriverState *bs)
 static BlockDriverState *get_bs_snapshots(void)
 {
     BlockDriverState *bs;
-    int i;
+    DriveInfo *dinfo;
 
     if (bs_snapshots)
         return bs_snapshots;
-    for(i = 0; i <= nb_drives; i++) {
-        bs = drives_table[i].bdrv;
+    TAILQ_FOREACH(dinfo, &drives, next) {
+        bs = dinfo->bdrv;
         if (bdrv_can_snapshot(bs))
             goto ok;
     }
@@ -1066,9 +1066,10 @@ static int bdrv_snapshot_find(BlockDriverState *bs, QEMUSnapshotInfo *sn_info,
 
 void do_savevm(Monitor *mon, const char *name)
 {
+    DriveInfo *dinfo;
     BlockDriverState *bs, *bs1;
     QEMUSnapshotInfo sn1, *sn = &sn1, old_sn1, *old_sn = &old_sn1;
-    int must_delete, ret, i;
+    int must_delete, ret;
     BlockDriverInfo bdi1, *bdi = &bdi1;
     QEMUFile *f;
     int saved_vm_running;
@@ -1141,8 +1142,8 @@ void do_savevm(Monitor *mon, const char *name)
 
     /* create the snapshots */
 
-    for(i = 0; i < nb_drives; i++) {
-        bs1 = drives_table[i].bdrv;
+    TAILQ_FOREACH(dinfo, &drives, next) {
+        bs1 = dinfo->bdrv;
         if (bdrv_has_snapshot(bs1)) {
             if (must_delete) {
                 ret = bdrv_snapshot_delete(bs1, old_sn->id_str);
@@ -1169,11 +1170,12 @@ void do_savevm(Monitor *mon, const char *name)
 
 void do_loadvm(Monitor *mon, const char *name)
 {
+    DriveInfo *dinfo;
     BlockDriverState *bs, *bs1;
     BlockDriverInfo bdi1, *bdi = &bdi1;
     QEMUSnapshotInfo sn;
     QEMUFile *f;
-    int i, ret;
+    int ret;
     int saved_vm_running;
 
     bs = get_bs_snapshots();
@@ -1188,8 +1190,8 @@ void do_loadvm(Monitor *mon, const char *name)
     saved_vm_running = vm_running;
     vm_stop(0);
 
-    for(i = 0; i <= nb_drives; i++) {
-        bs1 = drives_table[i].bdrv;
+    TAILQ_FOREACH(dinfo, &drives, next) {
+        bs1 = dinfo->bdrv;
         if (bdrv_has_snapshot(bs1)) {
             ret = bdrv_snapshot_goto(bs1, name);
             if (ret < 0) {
@@ -1247,8 +1249,9 @@ void do_loadvm(Monitor *mon, const char *name)
 
 void do_delvm(Monitor *mon, const char *name)
 {
+    DriveInfo *dinfo;
     BlockDriverState *bs, *bs1;
-    int i, ret;
+    int ret;
 
     bs = get_bs_snapshots();
     if (!bs) {
@@ -1256,8 +1259,8 @@ void do_delvm(Monitor *mon, const char *name)
         return;
     }
 
-    for(i = 0; i <= nb_drives; i++) {
-        bs1 = drives_table[i].bdrv;
+    TAILQ_FOREACH(dinfo, &drives, next) {
+        bs1 = dinfo->bdrv;
         if (bdrv_has_snapshot(bs1)) {
             ret = bdrv_snapshot_delete(bs1, name);
             if (ret < 0) {
@@ -1275,6 +1278,7 @@ void do_delvm(Monitor *mon, const char *name)
 
 void do_info_snapshots(Monitor *mon)
 {
+    DriveInfo *dinfo;
     BlockDriverState *bs, *bs1;
     QEMUSnapshotInfo *sn_tab, *sn;
     int nb_sns, i;
@@ -1286,8 +1290,8 @@ void do_info_snapshots(Monitor *mon)
         return;
     }
     monitor_printf(mon, "Snapshot devices:");
-    for(i = 0; i <= nb_drives; i++) {
-        bs1 = drives_table[i].bdrv;
+    TAILQ_FOREACH(dinfo, &drives, next) {
+        bs1 = dinfo->bdrv;
         if (bdrv_has_snapshot(bs1)) {
             if (bs == bs1)
                 monitor_printf(mon, " %s", bdrv_get_device_name(bs1));

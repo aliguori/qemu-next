@@ -345,10 +345,12 @@ static int mux_proc_byte(CharDriverState *chr, MuxDriver *d, int ch)
             }
         case 's':
             {
+#if 0
                 int i;
                 for (i = 0; i < nb_drives; i++) {
                         bdrv_commit(drives_table[i].bdrv);
                 }
+#endif
             }
             break;
         case 'b':
