@@ -158,6 +158,7 @@ typedef enum {
 
 typedef struct DriveInfo {
     BlockDriverState *bdrv;
+    char name[32];
     const char *devaddr;
     BlockInterfaceType type;
     int bus;
@@ -175,6 +176,7 @@ typedef struct DriveInfo {
 extern TAILQ_HEAD(drivelist, DriveInfo) drives;
 
 extern DriveInfo *drive_get(BlockInterfaceType type, int bus, int unit);
+extern DriveInfo *drive_get_byname(char *name);
 extern int drive_get_max_bus(BlockInterfaceType type);
 extern void drive_uninit(BlockDriverState *bdrv);
 extern void drive_remove(int index);
