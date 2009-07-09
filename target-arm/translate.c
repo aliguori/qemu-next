@@ -863,6 +863,12 @@ static inline TCGv gen_ld32(TCGv addr, int index)
     tcg_gen_qemu_ld32u(tmp, addr, index);
     return tmp;
 }
+static inline TCGv_i64 gen_ld64(TCGv addr, int index)
+{
+    TCGv_i64 tmp = tcg_temp_new_i64();
+    tcg_gen_qemu_ld64(tmp, addr, index);
+    return tmp;
+}
 static inline void gen_st8(TCGv val, TCGv addr, int index)
 {
     tcg_gen_qemu_st8(val, addr, index);
@@ -877,6 +883,10 @@ static inline void gen_st32(TCGv val, TCGv addr, int index)
 {
     tcg_gen_qemu_st32(val, addr, index);
     dead_tmp(val);
+}
+static inline void gen_st64(TCGv_i64 val, TCGv addr, int index)
+{
+    tcg_gen_qemu_st64(val, addr, index);
 }
 
 static inline void gen_movl_T0_reg(DisasContext *s, int reg)
@@ -3714,7 +3724,7 @@ static int disas_neon_ls_insn(CPUState * env, DisasContext *s, uint32_t insn)
         /* Load store all elements.  */
         op = (insn >> 8) & 0xf;
         size = (insn >> 6) & 3;
-        if (op > 10 || size == 3)
+        if (op > 10)
             return 1;
         nregs = neon_ls_element_type[op].nregs;
         interleave = neon_ls_element_type[op].interleave;
@@ -3728,6 +3738,18 @@ static int disas_neon_ls_insn(CPUState * env, DisasContext *s, uint32_t insn)
                 gen_movl_T1_reg(s, rn);
                 gen_op_addl_T1_im(1 << size);
             }
+                if (size == 3) {
+                   TCGv_i64 tmp64;
+                   if (load) {
+                       tmp64 = gen_ld64(cpu_T[1], IS_USER(s));
+                       neon_store_reg64(tmp64, rd);
+                   } else { /* bookmark */
+                       tmp64 = tcg_temp_new_i64();
+                       neon_load_reg64(tmp64, rd);
+                       gen_st64(tmp64, cpu_T[1], IS_USER(s));
+                   }
+                   gen_op_addl_T1_im(stride);
+                } else {
             for (pass = 0; pass < 2; pass++) {
                 if (size == 2) {
                     if (load) {
@@ -3785,7 +3807,7 @@ static int disas_neon_ls_insn(CPUState * env, DisasContext *s, uint32_t insn)
                         dead_tmp(tmp2);
                     }
                 }
-            }
+            } }
             rd += neon_ls_element_type[op].spacing;
         }
         stride = nregs * 8;
