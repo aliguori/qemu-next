@@ -51,10 +51,22 @@ static DeviceInfo *qdev_find_info(BusInfo *bus_info, const char *name)
 {
     DeviceInfo *info;
 
+    /* first check device names */
     for (info = device_info_list; info != NULL; info = info->next) {
         if (bus_info && info->bus_info != bus_info)
             continue;
         if (strcmp(info->name, name) != 0)
+            continue;
+        return info;
+    }
+
+    /* failing that check the aliases */
+    for (info = device_info_list; info != NULL; info = info->next) {
+        if (bus_info && info->bus_info != bus_info)
+            continue;
+        if (!info->alias)
+            continue;
+        if (strcmp(info->alias, name) != 0)
             continue;
         return info;
     }
@@ -105,7 +117,14 @@ DeviceState *qdev_device_add(const char *cmdline)
     }
     if (strcmp(driver, "?") == 0) {
         for (info = device_info_list; info != NULL; info = info->next) {
-            fprintf(stderr, "name \"%s\", bus %s\n", info->name, info->bus_info->name);
+            fprintf(stderr, "name \"%s\", bus %s", info->name, info->bus_info->name);
+            if (info->alias)
+                fprintf(stderr, ", alias \"%s\"", info->alias);
+            if (info->desc)
+                fprintf(stderr, ", desc \"%s\"", info->desc);
+            if (info->no_user)
+                fprintf(stderr, ", no-user");
+            fprintf(stderr, "\n");
         }
         return NULL;
     }
@@ -123,6 +142,11 @@ DeviceState *qdev_device_add(const char *cmdline)
     if (!info->bus_info->add_dev) {
         fprintf(stderr, "bus \"%s\" can't add devices.\n",
                 info->bus_info->name);
+        return NULL;
+    }
+    if (info->no_user) {
+        fprintf(stderr, "device \"%s\" can't be added via command line\n",
+                info->name);
         return NULL;
     }
 
