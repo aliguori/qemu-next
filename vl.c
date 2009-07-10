@@ -223,8 +223,6 @@ int smp_cpus = 1;
 const char *vnc_display;
 int acpi_enabled = 1;
 int no_hpet = 0;
-int virtio_balloon = 1;
-const char *virtio_balloon_devaddr;
 int fd_bootchk = 1;
 int no_reboot = 0;
 int no_shutdown = 0;
@@ -4550,29 +4548,6 @@ static void select_vgahw (const char *p)
     }
 }
 
-#ifdef TARGET_I386
-static int balloon_parse(const char *arg)
-{
-    char buf[128];
-    const char *p;
-
-    if (!strcmp(arg, "none")) {
-        virtio_balloon = 0;
-    } else if (!strncmp(arg, "virtio", 6)) {
-        virtio_balloon = 1;
-        if (arg[6] == ',')  {
-            p = arg + 7;
-            if (get_param_value(buf, sizeof(buf), "addr", p)) {
-                virtio_balloon_devaddr = strdup(buf);
-            }
-        }
-    } else {
-        return -1;
-    }
-    return 0;
-}
-#endif
-
 #ifdef _WIN32
 static BOOL WINAPI qemu_ctrl_handler(DWORD type)
 {
@@ -4778,6 +4753,24 @@ static void add_device_config(int type, const char *cmdline)
     TAILQ_INSERT_TAIL(&device_configs, conf, next);
 }
 
+#ifdef TARGET_I386
+static void add_device_config_params(int type, const char *driver,
+                                     const char *params)
+{
+    char *buf;
+    size_t len,pos;
+
+    len = strlen(driver) + 1;
+    if (params)
+        len += strlen(params) + 1;
+    buf = qemu_mallocz(len);
+    pos = snprintf(buf, len, "%s", driver);
+    if (params)
+        pos += snprintf(buf+pos, len-pos, ",%s", params);
+    add_device_config(type, buf);
+}
+#endif
+
 static int foreach_device_config(int type, int (*func)(const char *cmdline))
 {
     struct device_config *conf;
@@ -4802,6 +4795,26 @@ static int generic_parse(const char *cmdline)
         return -1;
     return 0;
 }
+
+#ifdef TARGET_I386
+static int add_device_balloon(const char *arg)
+{
+    const char *name = NULL, *params = NULL;
+
+    if (!strcmp(arg, "none"))
+        return 0;
+    if (!strncmp(arg, "virtio", 6)) {
+        name = "virtio-balloon-pci";
+        if (arg[6] == ',')
+            params = arg+7;
+    }
+    if (!name)
+        return -1;
+
+    add_device_config_params(DEV_GENERIC, name, params);
+    return 0;
+}
+#endif
 
 int main(int argc, char **argv, char **envp)
 {
@@ -5423,7 +5436,7 @@ int main(int argc, char **argv, char **envp)
                 no_hpet = 1;
                 break;
             case QEMU_OPTION_balloon:
-                if (balloon_parse(optarg) < 0) {
+                if (add_device_balloon(optarg) < 0) {
                     fprintf(stderr, "Unknown -balloon argument %s\n", optarg);
                     exit(1);
                 }
