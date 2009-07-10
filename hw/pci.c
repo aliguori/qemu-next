@@ -54,6 +54,7 @@ static struct BusInfo pci_bus_info = {
     .name       = "PCI",
     .size       = sizeof(PCIBus),
     .print_dev  = pcibus_dev_print,
+    .add_dev    = pci_create,
     .props      = (Property[]) {
         {
             .name   = "devfn",

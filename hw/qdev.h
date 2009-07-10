@@ -29,10 +29,12 @@ struct DeviceState {
 };
 
 typedef void (*bus_dev_printfn)(Monitor *mon, DeviceState *dev, int indent);
+typedef DeviceState* (*bus_dev_addfn)(const char *name, const char *addr);
 struct BusInfo {
     const char *name;
     size_t size;
     bus_dev_printfn print_dev;
+    bus_dev_addfn add_dev;
     Property *props;
 };
 
@@ -61,6 +63,7 @@ struct PropertyInfo {
 /*** Board API.  This should go away once we have a machine config file.  ***/
 
 DeviceState *qdev_create(BusState *bus, const char *name);
+DeviceState *qdev_device_add(const char *cmdline);
 void qdev_init(DeviceState *dev);
 void qdev_free(DeviceState *dev);
 

@@ -90,6 +90,57 @@ DeviceState *qdev_create(BusState *bus, const char *name)
     return dev;
 }
 
+DeviceState *qdev_device_add(const char *cmdline)
+{
+    DeviceInfo *info;
+    DeviceState *qdev;
+    char driver[32], addr[32] = "";
+    char tag[32], value[256];
+    const char *params = NULL;
+    int n = 0;
+
+    if (1 != sscanf(cmdline, "%32[^,],%n", driver, &n)) {
+        fprintf(stderr, "device parse error: \"%s\"\n", cmdline);
+        return NULL;
+    }
+    if (strcmp(driver, "?") == 0) {
+        for (info = device_info_list; info != NULL; info = info->next) {
+            fprintf(stderr, "name \"%s\", bus %s\n", info->name, info->bus_info->name);
+        }
+        return NULL;
+    }
+    if (n) {
+        params = cmdline + n;
+        get_param_value(addr, sizeof(addr), "addr", params);
+    }
+    info = qdev_find_info(NULL, driver);
+
+    if (!info->bus_info->add_dev) {
+        fprintf(stderr, "bus \"%s\" can't add devices.\n",
+                info->bus_info->name);
+        return NULL;
+    }
+
+    qdev = info->bus_info->add_dev(driver, strlen(addr) ? addr : NULL);
+
+    if (params) {
+        while (params[0]) {
+            if (2 != sscanf(params, "%31[^=]=%255[^,]%n", tag, value, &n))
+                break;
+            params += n;
+            if (strcmp(tag, "addr") == 0)
+                continue;
+            if (-1 == qdev_prop_parse(qdev, tag, value)) {
+                fprintf(stderr, "can't set property \"%s\" to \"%s\" for \"%s\"\n",
+                        tag, value, driver);
+            }
+        }
+    }
+
+    qdev_init(qdev);
+    return qdev;
+}
+
 /* Initialize a device.  Device properties should be set before calling
    this function.  IRQs and MMIO regions should be connected/mapped after
    calling this function.  */
