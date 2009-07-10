@@ -820,6 +820,8 @@ PCIDevice *pci_nic_init(NICInfo *nd, const char *default_model,
     for (i = 0; pci_nic_models[i]; i++) {
         if (strcmp(nd->model, pci_nic_models[i]) == 0) {
             dev = pci_create(pci_nic_names[i], devaddr);
+            if (nd->id)
+                snprintf(dev->id, sizeof(dev->id), "%s", nd->id);
             dev->nd = nd;
             qdev_init(dev);
             nd->private = dev;
