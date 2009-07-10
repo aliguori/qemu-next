@@ -115,6 +115,11 @@ DeviceState *qdev_device_add(const char *cmdline)
     }
     info = qdev_find_info(NULL, driver);
 
+    if (!info) {
+        fprintf(stderr, "Device \"%s\" not found.  Try -device '?' for a list.\n",
+                driver);
+        return NULL;
+    }
     if (!info->bus_info->add_dev) {
         fprintf(stderr, "bus \"%s\" can't add devices.\n",
                 info->bus_info->name);
@@ -125,8 +130,10 @@ DeviceState *qdev_device_add(const char *cmdline)
 
     if (params) {
         while (params[0]) {
-            if (2 != sscanf(params, "%31[^=]=%255[^,]%n", tag, value, &n))
+            if (2 != sscanf(params, "%31[^=]=%255[^,]%n", tag, value, &n)) {
+                fprintf(stderr, "parse error at \"%s\"\n", params);
                 break;
+            }
             params += n;
             if (strcmp(tag, "addr") == 0)
                 continue;
