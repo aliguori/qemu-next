@@ -153,6 +153,7 @@ DeviceState *qdev_device_add(const char *cmdline)
     qdev = info->bus_info->add_dev(driver, strlen(addr) ? addr : NULL);
 
     if (params) {
+        get_param_value(qdev->id, sizeof(qdev->id), "id", params);
         while (params[0]) {
             if (2 != sscanf(params, "%31[^=]=%255[^,]%n", tag, value, &n)) {
                 fprintf(stderr, "parse error at \"%s\"\n", params);
@@ -160,6 +161,8 @@ DeviceState *qdev_device_add(const char *cmdline)
             }
             params += n;
             if (strcmp(tag, "addr") == 0)
+                continue;
+            if (strcmp(tag, "id") == 0)
                 continue;
             if (-1 == qdev_prop_parse(qdev, tag, value)) {
                 fprintf(stderr, "can't set property \"%s\" to \"%s\" for \"%s\"\n",
@@ -336,7 +339,7 @@ static void qdev_print_props(Monitor *mon, DeviceState *dev, Property *props,
 static void qdev_print(Monitor *mon, DeviceState *dev, int indent)
 {
     BusState *child;
-    qdev_printf("dev: %s\n", dev->info->name);
+    qdev_printf("dev: %s, id \"%s\"\n", dev->info->name, dev->id);
     indent += 2;
     if (dev->num_gpio_in) {
         qdev_printf("gpio-in %d\n", dev->num_gpio_in);
