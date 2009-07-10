@@ -324,7 +324,7 @@ typedef struct {
 void pci_qdev_register(PCIDeviceInfo *info);
 void pci_qdev_register_many(PCIDeviceInfo *info);
 
-PCIDevice *pci_create(const char *name, const char *devaddr);
+DeviceState *pci_create(const char *name, const char *devaddr);
 PCIDevice *pci_create_simple(PCIBus *bus, int devfn, const char *name);
 
 /* lsi53c895a.c */

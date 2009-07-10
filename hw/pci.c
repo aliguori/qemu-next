@@ -764,7 +764,7 @@ void pci_info(Monitor *mon)
     pci_for_each_device(0, pci_info_device);
 }
 
-PCIDevice *pci_create(const char *name, const char *devaddr)
+DeviceState *pci_create(const char *name, const char *devaddr)
 {
     PCIBus *bus;
     int devfn;
@@ -779,7 +779,7 @@ PCIDevice *pci_create(const char *name, const char *devaddr)
 
     dev = qdev_create(&bus->qbus, name);
     qdev_prop_set_uint32(dev, "devfn", devfn);
-    return (PCIDevice *)dev;
+    return dev;
 }
 
 static const char * const pci_nic_models[] = {
@@ -811,7 +811,6 @@ PCIDevice *pci_nic_init(NICInfo *nd, const char *default_model,
                         const char *default_devaddr)
 {
     const char *devaddr = nd->devaddr ? nd->devaddr : default_devaddr;
-    PCIDevice *pci_dev;
     DeviceState *dev;
     int i;
 
@@ -819,12 +818,11 @@ PCIDevice *pci_nic_init(NICInfo *nd, const char *default_model,
 
     for (i = 0; pci_nic_models[i]; i++) {
         if (strcmp(nd->model, pci_nic_models[i]) == 0) {
-            pci_dev = pci_create(pci_nic_names[i], devaddr);
-            dev = &pci_dev->qdev;
+            dev = pci_create(pci_nic_names[i], devaddr);
             dev->nd = nd;
             qdev_init(dev);
             nd->private = dev;
-            return pci_dev;
+            return DO_UPCAST(PCIDevice, qdev, dev);
         }
     }
 

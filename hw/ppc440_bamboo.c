@@ -90,7 +90,7 @@ static void bamboo_init(ram_addr_t ram_size,
 {
     unsigned int pci_irq_nrs[4] = { 28, 27, 26, 25 };
     PCIBus *pcibus;
-    PCIDevice *pci_dev;
+    DeviceState *qdev;
     CPUState *env;
     uint64_t elf_entry;
     uint64_t elf_lowaddr;
@@ -111,8 +111,8 @@ static void bamboo_init(ram_addr_t ram_size,
 
         /* Add virtio block devices. */
         while ((i = drive_get_index(IF_VIRTIO, 0, unit_id)) != -1) {
-            pci_dev = pci_create("virtio-blk-pci", drives_table[i].devaddr);
-            qdev_init(&pci_dev->qdev);
+            qdev = pci_create("virtio-blk-pci", drives_table[i].devaddr);
+            qdev_init(qdev);
             unit_id++;
         }
 

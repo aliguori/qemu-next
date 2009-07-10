@@ -1102,7 +1102,7 @@ static void pc_init1(ram_addr_t ram_size,
     ram_addr_t below_4g_mem_size, above_4g_mem_size = 0;
     int bios_size, isa_bios_size, oprom_area_size;
     PCIBus *pci_bus;
-    PCIDevice *pci_dev;
+    DeviceState *qdev;
     int piix3_devfn = -1;
     CPUState *env;
     qemu_irq *cpu_irq;
@@ -1422,17 +1422,17 @@ static void pc_init1(ram_addr_t ram_size,
         int unit_id = 0;
 
         while ((index = drive_get_index(IF_VIRTIO, 0, unit_id)) != -1) {
-            pci_dev = pci_create(virtio_blk_name,
-                                 drives_table[index].devaddr);
-            qdev_init(&pci_dev->qdev);
+            qdev = pci_create(virtio_blk_name,
+                              drives_table[index].devaddr);
+            qdev_init(qdev);
             unit_id++;
         }
     }
 
     /* Add virtio balloon device */
     if (pci_enabled && virtio_balloon) {
-        pci_dev = pci_create("virtio-balloon-pci", virtio_balloon_devaddr);
-        qdev_init(&pci_dev->qdev);
+        qdev = pci_create("virtio-balloon-pci", virtio_balloon_devaddr);
+        qdev_init(qdev);
     }
 
     /* Add virtio console devices */

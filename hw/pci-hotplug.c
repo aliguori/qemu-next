@@ -97,7 +97,7 @@ static PCIDevice *qemu_pci_hot_add_storage(Monitor *mon,
                                            const char *devaddr,
                                            const char *opts)
 {
-    PCIDevice *dev;
+    DeviceState *dev;
     int type = -1, drive_idx = -1;
     char buf[128];
 
@@ -139,8 +139,8 @@ static PCIDevice *qemu_pci_hot_add_storage(Monitor *mon,
         dev = NULL;
     }
     if (dev)
-        qdev_init(&dev->qdev);
-    return dev;
+        qdev_init(dev);
+    return DO_UPCAST(PCIDevice, qdev, dev);
 }
 
 void pci_device_hot_add(Monitor *mon, const char *pci_addr, const char *type,
