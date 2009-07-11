@@ -1,8 +1,8 @@
 all: build-all
 
-include ../../config-host.mak
+include config.mak
 
-VPATH=$(SRC_PATH)/roms/multiboot
+VPATH=$(SRC_PATH)
 
 # from kernel sources - scripts/Kbuild.include
 # try-run
@@ -20,7 +20,7 @@ try-run = $(shell set -e;		\
 # cc-option-yn
 # Usage: flag := $(call cc-option-yn,-march=winchip-c6)
 cc-option-yn = $(call try-run,\
-	$(CC) $(KBUILD_CFLAGS) $(1) -S -xc /dev/null -o "$$TMP",y,n)
+	$(I386_CROSS_PREFIX)$(CC) $(KBUILD_CFLAGS) $(1) -S -xc /dev/null -o "$$TMP",y,n)
 
 CFLAGS = -Wall -Wstrict-prototypes -Werror -fomit-frame-pointer -fno-builtin
 CFLAGS += -I$(SRC_PATH)
@@ -31,16 +31,16 @@ endif
 build-all: multiboot.bin
 
 %.o: %.S
-	$(CC) $(CFLAGS) -o $@ -c $<
+	$(I386_CROSS_PREFIX)$(CC) $(CFLAGS) -o $@ -c $<
 
 %.img: %.o
-	$(LD) -Ttext 0 -e _start -s -o $@ $<
+	$(I386_CROSS_PREFIX)$(LD) -Ttext 0 -e _start -s -o $@ $<
 
 %.raw: %.img
-	$(OBJCOPY) -O binary -j .text $< $@
+	$(I386_CROSS_PREFIX)$(OBJCOPY) -O binary -j .text $< $@
 
 %.bin: %.raw
-	$(SRC_PATH)/roms/multiboot/signrom.sh $< $@
+	$(SRC_PATH)/signrom.sh $< $@
 
 clean:
-	$(RM) *.o *.img *.bin *~
+	$(I386_CROSS_PREFIX)$(RM) *.o *.img *.bin *~
