@@ -1872,7 +1872,7 @@ echo "TOOLS=$tools" >> $config_mak
 
 roms=
 if test "$cpu" = "i386" -o "$cpu" = "x86_64" ; then
-  roms="pc-bios/optionrom"
+  roms="roms/multiboot"
 fi
 echo "ROMS=$roms" >> $config_mak
 
@@ -2239,11 +2239,11 @@ done # for target in $targets
 
 # build tree in object directory if source path is different from current one
 if test "$source_path_used" = "yes" ; then
-    DIRS="tests tests/cris slirp audio block pc-bios/optionrom"
+    DIRS="tests tests/cris slirp audio block roms/multiboot"
     FILES="Makefile tests/Makefile"
     FILES="$FILES tests/cris/Makefile tests/cris/.gdbinit"
     FILES="$FILES tests/test-mmap.c"
-    FILES="$FILES pc-bios/optionrom/Makefile"
+    FILES="$FILES roms/multiboot/Makefile"
     for dir in $DIRS ; do
             mkdir -p $dir
     done

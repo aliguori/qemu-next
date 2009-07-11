@@ -2,7 +2,7 @@ all: build-all
 
 include ../../config-host.mak
 
-VPATH=$(SRC_PATH)/pc-bios/optionrom
+VPATH=$(SRC_PATH)/roms/multiboot
 
 # from kernel sources - scripts/Kbuild.include
 # try-run
@@ -40,7 +40,7 @@ build-all: multiboot.bin
 	$(OBJCOPY) -O binary -j .text $< $@
 
 %.bin: %.raw
-	$(SRC_PATH)/pc-bios/optionrom/signrom.sh $< $@
+	$(SRC_PATH)/roms/multiboot/signrom.sh $< $@
 
 clean:
 	$(RM) *.o *.img *.bin *~
