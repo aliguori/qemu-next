@@ -1870,9 +1870,8 @@ if test `expr "$target_list" : ".*softmmu.*"` != 0 ; then
 fi
 echo "TOOLS=$tools" >> $config_mak
 
-roms=
 if test "$cpu" = "i386" -o "$cpu" = "x86_64" ; then
-  roms="roms/multiboot"
+  roms="multiboot"
 fi
 echo "ROMS=$roms" >> $config_mak
 
@@ -2237,13 +2236,22 @@ test -f ${config_h}~ && cmp -s $config_h ${config_h}~ && mv ${config_h}~ $config
 
 done # for target in $targets
 
+for rom in $roms; do
+  case "$rom" in
+    *)
+      mkdir -p "pc-bios/$rom"
+      rm -f "pc-bios/$rom/Makefile"
+      ln -s "$source_path/roms/$rom/Makefile" "pc-bios/$rom/Makefile"
+      ;;
+  esac
+done
+
 # build tree in object directory if source path is different from current one
 if test "$source_path_used" = "yes" ; then
-    DIRS="tests tests/cris slirp audio block roms/multiboot"
+    DIRS="tests tests/cris slirp audio block"
     FILES="Makefile tests/Makefile"
     FILES="$FILES tests/cris/Makefile tests/cris/.gdbinit"
     FILES="$FILES tests/test-mmap.c"
-    FILES="$FILES roms/multiboot/Makefile"
     for dir in $DIRS ; do
             mkdir -p $dir
     done

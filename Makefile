@@ -287,11 +287,11 @@ ifneq ($(BLOBS),)
 		$(INSTALL_DATA) $(SRC_PATH)/pc-bios/$$x "$(DESTDIR)$(datadir)"; \
 	done
 endif
-	for rom in multiboot.bin; do \
-	  if test -e pc-bios/optionrom/$$rom ; then \
-	    $(INSTALL_DATA) pc-bios/optionrom/$$rom "$(DESTDIR)$(datadir)"; \
+	for rom in multiboot/multiboot.bin; do \
+	  if test -e pc-bios/$$rom ; then \
+	    $(INSTALL_DATA) pc-bios/$$rom "$(DESTDIR)$(datadir)"; \
 	  elif test "$(INSTALL_BLOBS)" = "yes"; then \
-	    $(INSTALL_DATA) $(SRC_PATH)/pc-bios/$$rom "$(DESTDIR)$(datadir)"; \
+	    $(INSTALL_DATA) $(SRC_PATH)/pc-bios/`basename $$rom` "$(DESTDIR)$(datadir)"; \
 	  fi; \
 	done
 	$(INSTALL_DIR) "$(DESTDIR)$(datadir)/keymaps"
