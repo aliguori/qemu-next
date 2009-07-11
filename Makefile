@@ -44,9 +44,9 @@ $(filter %-user,$(SUBDIR_RULES)): libqemu_user.a
 
 ROMSUBDIR_RULES=$(patsubst %,romsubdir-%, $(ROMS))
 romsubdir-%:
-	$(call quiet-command,$(MAKE) $(SUBDIR_MAKEFLAGS) -C pc-bios/$* V="$(V)" TARGET_DIR="$*/",)
+	$(call quiet-command,$(MAKE) $(SUBDIR_MAKEFLAGS) -C roms/$* V="$(V)" TARGET_DIR="$*/",)
 
-ALL_SUBDIRS=$(TARGET_DIRS) $(patsubst %,pc-bios/%, $(ROMS))
+ALL_SUBDIRS=$(TARGET_DIRS) $(patsubst %,roms/%, $(ROMS))
 
 recurse-all: $(SUBDIR_RULES) $(ROMSUBDIR_RULES)
 
