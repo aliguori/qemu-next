@@ -17,14 +17,17 @@ TMPE="${TMPDIR1}/qemu-conf-${RANDOM}-$$-${RANDOM}"
 TMPS="${TMPDIR1}/qemu-conf-${RANDOM}-$$-${RANDOM}.S"
 TMPI="${TMPDIR1}/qemu-conf-${RANDOM}-$$-${RANDOM}.i"
 TMPSDLLOG="${TMPDIR1}/qemu-conf-sdl-$$-${RANDOM}.log"
+TMPDSL="${TMPDIR1}/qemu-conf-${RANDOM}-$$-${RANDOM}.dsl"
+TMPAML="${TMPDIR1}/qemu-conf-${RANDOM}-$$-${RANDOM}.aml"
 
-trap "rm -f $TMPC $TMPO $TMPE $TMPS $TMPI $TMPSDLLOG; exit" 0 2 3 15
+trap "rm -f $TMPC $TMPO $TMPE $TMPS $TMPI $TMPSDLLOG $TMPDSL $TMPAML; exit" 0 2 3 15
 
 # default parameters
 prefix=""
 interp_prefix="/usr/gnemul/qemu-%M"
 static="no"
 cross_prefix=""
+i386_cross_prefix=""
 cc="gcc"
 audio_drv_list=""
 audio_card_list="ac97 es1370 sb16"
@@ -42,6 +45,8 @@ for opt do
   optarg=`expr "x$opt" : 'x[^=]*=\(.*\)'`
   case "$opt" in
   --cross-prefix=*) cross_prefix="$optarg"
+  ;;
+  --i386-cross-prefix=*) i386_cross_prefix="$optarg"
   ;;
   --cc=*) cc="$optarg"
   ;;
@@ -203,6 +208,8 @@ sdl="yes"
 sdl_x11="no"
 xen="yes"
 pkgversion=""
+bcc="yes"
+iasl="yes"
 
 # OS specific
 if check_define __linux__ ; then
@@ -376,6 +383,8 @@ for opt do
   ;;
   --cross-prefix=*)
   ;;
+  --i386-cross-prefix=*)
+  ;;
   --cc=*)
   ;;
   --host-cc=*) host_cc="$optarg"
@@ -505,6 +514,10 @@ for opt do
   ;;
   --disable-docs) build_docs="no"
   ;;
+  --disable-bcc) bcc="no"
+  ;;
+  --disable-isal) iasl="no"
+  ;;
   *) echo "ERROR: unknown option $opt"; show_help="yes"
   ;;
   esac
@@ -603,6 +616,7 @@ echo ""
 echo "Advanced options (experts only):"
 echo "  --source-path=PATH       path of source code [$source_path]"
 echo "  --cross-prefix=PREFIX    use PREFIX for compile tools [$cross_prefix]"
+echo "  --i386-cross-prefix=P    use P for i386 compile tools"
 echo "  --cc=CC                  use C compiler CC [$cc]"
 echo "  --host-cc=CC             use C compiler CC [$host_cc] for dyngen etc."
 echo "  --extra-cflags=CFLAGS    append extra C compiler flags CFLAGS"
@@ -827,6 +841,32 @@ if $cc $ARCH_CFLAGS -c -o $TMPO $TMPC > /dev/null 2> /dev/null ; then
   :
 else
    nptl="no"
+fi
+
+##########################################
+# bcc check
+cat > $TMPC <<EOF
+int main() { return 0; }
+EOF
+if test "$bcc" = "yes" ; then
+    if bcc -o $TMPE $TMPC > /dev/null 2> /dev/null ; then
+	:
+    else
+	bcc="no"
+    fi
+fi
+
+#########################################
+# iasl check
+cat > $TMPDSL <<EOF
+DefinitionBlock("$TMPAML", "DSDT", 0x01, "BXPC", "BXDSDT", 0x1) { }
+EOF
+if test "$iasl" = "yes" ; then
+    if iasl $TMPDSL > /dev/null 2> /dev/null ; then
+	:
+    else
+	iasl="no"
+    fi
 fi
 
 ##########################################
@@ -1489,6 +1529,7 @@ echo "HOST_CC=$host_cc" >> $config_mak
 echo "AR=$ar" >> $config_mak
 echo "OBJCOPY=$objcopy" >> $config_mak
 echo "LD=$ld" >> $config_mak
+echo "I386_CROSS_PREFIX=$i386_cross_prefix" >> $config_mak
 # XXX: only use CFLAGS and LDFLAGS ?  
 # XXX: should export HOST_CFLAGS and HOST_LDFLAGS for cross
 # compilation of dyngen tool (useful for win32 build on Linux host)
@@ -1870,9 +1911,14 @@ if test `expr "$target_list" : ".*softmmu.*"` != 0 ; then
 fi
 echo "TOOLS=$tools" >> $config_mak
 
-if test "$cpu" = "i386" -o "$cpu" = "x86_64" ; then
-  roms="multiboot"
+roms=
+if test "$cpu" = "i386" -o "$cpu" = "x86_64" -o "$i386_cross_prefix" ; then
+  roms="$roms multiboot"
+  if test "$bcc" = "yes" -a "$iasl" = "yes" ; then
+      roms="$roms pc-bios"
+  fi
 fi
+
 echo "ROMS=$roms" >> $config_mak
 
 if test -f ${config_h}~ ; then
