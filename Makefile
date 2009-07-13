@@ -290,7 +290,7 @@ ifneq ($(BLOBS),)
 		$(INSTALL_DATA) $(SRC_PATH)/pc-bios/$$x "$(DESTDIR)$(datadir)"; \
 	done
 endif
-	for rom in multiboot/multiboot.bin pc-bios/bios.bin; do \
+	for rom in multiboot/multiboot.bin pc-bios/bios.bin vgabios/vgabios.bin vgabios/vgabios-cirrus.bin; do \
 	  if test -e pc-bios/$$rom ; then \
 	    $(INSTALL_DATA) pc-bios/$$rom "$(DESTDIR)$(datadir)"; \
 	  elif test "$(INSTALL_BLOBS)" = "yes"; then \
