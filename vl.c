@@ -225,6 +225,7 @@ int rtc_td_hack = 0;
 int usb_enabled = 0;
 int singlestep = 0;
 int smp_cpus = 1;
+int max_cpus = 16;
 const char *vnc_display;
 int acpi_enabled = 1;
 int no_hpet = 0;
@@ -5372,12 +5373,29 @@ int main(int argc, char **argv, char **envp)
                 usb_devices_index++;
                 break;
             case QEMU_OPTION_smp:
-                smp_cpus = atoi(optarg);
+            {
+                char *p;
+                char option[128];
+                smp_cpus = strtol(optarg, &p, 10);
                 if (smp_cpus < 1) {
                     fprintf(stderr, "Invalid number of CPUs\n");
                     exit(1);
                 }
+                if (*p++ != ',')
+                    break;
+                if (get_param_value(option, 128, "maxcpus", p))
+                    max_cpus = strtol(option, NULL, 0);
+                if (max_cpus < smp_cpus) {
+                    fprintf(stderr, "maxcpus must be equal to or greater than "
+                            "smp\n");
+                    exit(1);
+                }
+                if (max_cpus > 255) {
+                    fprintf(stderr, "Unsupported number of maxcpus\n");
+                    exit(1);
+                }
                 break;
+            }
 	    case QEMU_OPTION_vnc:
                 display_type = DT_VNC;
 		vnc_display = optarg;
