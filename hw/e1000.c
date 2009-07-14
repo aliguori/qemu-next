@@ -885,6 +885,45 @@ static const struct {
 } mac_regarraystosave[] = { {32, RA}, {128, MTA}, {128, VFTA} };
 enum { MAC_NARRAYS = ARRAY_SIZE(mac_regarraystosave) };
 
+static SaveVMFields fields[] = {
+    SAVEVM_FIELD_OPT(E1000State, unused0, QSVM_Z32, 1),
+    SAVEVM_FIELD(E1000State, unused1, QSVM_Z32),
+    SAVEVM_FIELD(E1000State, rxbuf_size, QSVM_U32),
+    SAVEVM_FIELD(E1000State, rxbuf_min_shift, QSVM_U32),
+    SAVEVM_FIELD(E1000State, eecd_state.val_in, QSVM_U32),
+    SAVEVM_FIELD(E1000State, eecd_state.bitnum_in, QSVM_U16),
+    SAVEVM_FIELD(E1000State, eecd_state.bitnum_out, QSVM_U16),
+    SAVEVM_FIELD(E1000State, eecd_state.reading, QSVM_U16),
+    SAVEVM_FIELD(E1000State, eecd_state.old_eecd, QSVM_U32),
+    SAVEVM_FIELD(E1000State, tx.ipcss, QSVM_U8),
+    SAVEVM_FIELD(E1000State, tx.ipcso, QSVM_U8),
+    SAVEVM_FIELD(E1000State, tx.ipcse, QSVM_U16),
+    SAVEVM_FIELD(E1000State, tx.tucss, QSVM_U8),
+    SAVEVM_FIELD(E1000State, tx.tucso, QSVM_U8),
+    SAVEVM_FIELD(E1000State, tx.tucse, QSVM_U16),
+    SAVEVM_FIELD(E1000State, tx.paylen, QSVM_U32),
+    SAVEVM_FIELD(E1000State, tx.hdr_len, QSVM_U8),
+    SAVEVM_FIELD(E1000State, tx.mss, QSVM_U16),
+    SAVEVM_FIELD(E1000State, tx.size, QSVM_U16),
+    SAVEVM_FIELD(E1000State, tx.tso_frames, QSVM_U16),
+    SAVEVM_FIELD(E1000State, tx.sum_needed, QSVM_U8),
+    SAVEVM_FIELD(E1000State, tx.ip, QSVM_S8),
+    SAVEVM_FIELD(E1000State, tx.tcp, QSVM_S8),
+    SAVEVM_FIELD(E1000State, tx.header, QSVME_TX_HEADER),
+    SAVEVM_FIELD(E1000State, tx.data, QSVME_TX_DATA),
+    SAVEVM_FIELD(E1000State, eeprom_data, QSVME_EEPROM_DATA),
+    SAVEVM_FIELD(E1000State, phy_reg, QSVME_PHYS_REG),
+    SAVEVM_FIELD(E1000State, mac_reg, QSVME_MAC_REG),
+};
+
+static SaveVMDescriptions savevm_desc[] = {
+    .name = "e1000",
+    .fields = fields,
+    .n_fields = ARRAY_SIZE(fields),
+    .version = 2,
+};
+    
+
 static void
 nic_save(QEMUFile *f, void *opaque)
 {
@@ -1119,7 +1158,6 @@ static void pci_e1000_init(PCIDevice *pci_dev)
 
     qemu_format_nic_info_str(d->vc, macaddr);
 
-    register_savevm(info_str, -1, 2, nic_save, nic_load, d);
     d->dev.unregister = pci_e1000_uninit;
     qemu_register_reset(e1000_reset, d);
     e1000_reset(d);
@@ -1129,6 +1167,7 @@ static PCIDeviceInfo e1000_info = {
     .qdev.name = "e1000",
     .qdev.size = sizeof(E1000State),
     .init      = pci_e1000_init,
+    .savevm    = savevm_desc,
 };
 
 static void e1000_register_devices(void)

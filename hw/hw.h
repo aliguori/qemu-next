@@ -258,6 +258,41 @@ int register_savevm_live(const char *idstr,
 
 void unregister_savevm(const char *idstr, void *opaque);
 
+typedef struct SaveVMField
+{
+    size_t offset;
+    const char *name;
+    int type;
+} SaveVMField;
+
+typedef struct SaveVMDescription
+{
+    const char *name;
+    SaveVMField *fields;
+    int n_fields;
+    int version;
+} SaveVMDescription;
+
+/* FIXME: allow custom types to be registered by introducing a fix QSVM_CUSTOM
+ * offset.  This would be a namespace unique to each savevm description.  Custom
+ * types would be useful for register bitmap types.  This would allow pretty
+ * printing actual field names and values verses just a hex value. */
+#define QSVM_U8   0
+#define QSVM_U16  1
+#define QSVM_U32  2
+#define QSVM_U64  3
+
+#define SAVEVM_FIELD(type, field, kind)  \
+    { offsetof(type, field), stringify(field), kind }
+
+/* FIXME: registering desc should be part of qdev registration.  A separate
+ * init step should then associate the instance_id with the actual state.  If we
+ * change field[i].offset to be relative to the parent qdev pointer, and we make
+ * instance_id be automaticly associated with the device tree path, then we can
+ * eliminate a separate init step and automatically fold it into qdev_init.
+ */
+void qemu_savevm_register(SaveVMDescription *desc, int instance_id, void *state);
+
 typedef void QEMUResetHandler(void *opaque);
 
 void qemu_register_reset(QEMUResetHandler *func, void *opaque);

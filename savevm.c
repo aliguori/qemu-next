@@ -706,6 +706,69 @@ void unregister_savevm(const char *idstr, void *opaque)
     }
 }
 
+typedef struct ProxyState
+{
+    void *state;
+    SaveVMDescription *desc;
+} ProxyState;
+
+static void proxy_save(QEMUFile *f, void *opaque)
+{
+    ProxyState *proxy = opaque;
+    SaveVMDescription *desc = proxy->desc;
+    int i;
+
+    for (i = 0; i < desc->n_fields; i++) {
+        switch (desc->fields[i].type) {
+        case QSVM_U8: {
+            uint8_t value;
+            memcpy(&value, proxy->state + desc->fields[i].offset, sizeof(value));
+            qemu_put_8s(f, &value);
+            break;
+        }
+        default:
+            abort();
+            break;
+        }
+    }
+}
+
+static int proxy_load(QEMUFile *f, void *opaque, int version)
+{
+    ProxyState *proxy = opaque;
+    SaveVMDescription *desc = proxy->desc;
+    int i;
+
+    if (desc->version != version)
+        return -EINVAL;
+
+    for (i = 0; i < desc->n_fields; i++) {
+        switch (desc->fields[i].type) {
+        case QSVM_U8: {
+            uint8_t value;
+            qemu_get_8s(f, &value);
+            memcpy(proxy->state + desc->fields[i].offset, &value, sizeof(value));
+            break;
+        }
+        default:
+            abort();
+            break;
+        }
+    }
+
+    return 0;
+}
+
+void qemu_savevm_register(SaveVMDescription *desc, int instance_id, void *state)
+{
+    ProxyState *proxy = qemu_mallocz(sizeof(*proxy));
+
+    proxy->state = state;
+    proxy->desc = desc;
+
+    register_savevm(desc->name, instance_id, desc->version, proxy_save, proxy_load, proxy);
+}
+
 #define QEMU_VM_FILE_MAGIC           0x5145564d
 #define QEMU_VM_FILE_VERSION_COMPAT  0x00000002
 #define QEMU_VM_FILE_VERSION         0x00000003

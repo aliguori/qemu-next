@@ -450,53 +450,30 @@ static uint32_t elcr_ioport_read(void *opaque, uint32_t addr1)
     return s->elcr;
 }
 
-static void pic_save(QEMUFile *f, void *opaque)
-{
-    PicState *s = opaque;
+static SaveVMField pic_fields[] = {
+    SAVEVM_FIELD(PicState, last_irr, QSVM_U8),
+    SAVEVM_FIELD(PicState, irr, QSVM_U8),
+    SAVEVM_FIELD(PicState, imr, QSVM_U8),
+    SAVEVM_FIELD(PicState, isr, QSVM_U8),
+    SAVEVM_FIELD(PicState, priority_add, QSVM_U8),
+    SAVEVM_FIELD(PicState, irq_base, QSVM_U8),
+    SAVEVM_FIELD(PicState, read_reg_select, QSVM_U8),
+    SAVEVM_FIELD(PicState, poll, QSVM_U8),
+    SAVEVM_FIELD(PicState, special_mask, QSVM_U8),
+    SAVEVM_FIELD(PicState, auto_eoi, QSVM_U8),
+    SAVEVM_FIELD(PicState, rotate_on_auto_eoi, QSVM_U8),
+    SAVEVM_FIELD(PicState, special_fully_nested_mode, QSVM_U8),
+    SAVEVM_FIELD(PicState, init4, QSVM_U8),
+    SAVEVM_FIELD(PicState, single_mode, QSVM_U8),
+    SAVEVM_FIELD(PicState, elcr, QSVM_U8),
+};
 
-    qemu_put_8s(f, &s->last_irr);
-    qemu_put_8s(f, &s->irr);
-    qemu_put_8s(f, &s->imr);
-    qemu_put_8s(f, &s->isr);
-    qemu_put_8s(f, &s->priority_add);
-    qemu_put_8s(f, &s->irq_base);
-    qemu_put_8s(f, &s->read_reg_select);
-    qemu_put_8s(f, &s->poll);
-    qemu_put_8s(f, &s->special_mask);
-    qemu_put_8s(f, &s->init_state);
-    qemu_put_8s(f, &s->auto_eoi);
-    qemu_put_8s(f, &s->rotate_on_auto_eoi);
-    qemu_put_8s(f, &s->special_fully_nested_mode);
-    qemu_put_8s(f, &s->init4);
-    qemu_put_8s(f, &s->single_mode);
-    qemu_put_8s(f, &s->elcr);
-}
-
-static int pic_load(QEMUFile *f, void *opaque, int version_id)
-{
-    PicState *s = opaque;
-
-    if (version_id != 1)
-        return -EINVAL;
-
-    qemu_get_8s(f, &s->last_irr);
-    qemu_get_8s(f, &s->irr);
-    qemu_get_8s(f, &s->imr);
-    qemu_get_8s(f, &s->isr);
-    qemu_get_8s(f, &s->priority_add);
-    qemu_get_8s(f, &s->irq_base);
-    qemu_get_8s(f, &s->read_reg_select);
-    qemu_get_8s(f, &s->poll);
-    qemu_get_8s(f, &s->special_mask);
-    qemu_get_8s(f, &s->init_state);
-    qemu_get_8s(f, &s->auto_eoi);
-    qemu_get_8s(f, &s->rotate_on_auto_eoi);
-    qemu_get_8s(f, &s->special_fully_nested_mode);
-    qemu_get_8s(f, &s->init4);
-    qemu_get_8s(f, &s->single_mode);
-    qemu_get_8s(f, &s->elcr);
-    return 0;
-}
+static SaveVMDescription pic_desc = {
+    .name = "i8529",
+    .fields = pic_fields,
+    .n_fields = ARRAY_SIZE(pic_fields),
+    .version = 1,
+};
 
 /* XXX: add generic master/slave system */
 static void pic_init1(int io_addr, int elcr_addr, PicState *s)
@@ -507,7 +484,7 @@ static void pic_init1(int io_addr, int elcr_addr, PicState *s)
         register_ioport_write(elcr_addr, 1, 1, elcr_ioport_write, s);
         register_ioport_read(elcr_addr, 1, 1, elcr_ioport_read, s);
     }
-    register_savevm("i8259", io_addr, 1, pic_save, pic_load, s);
+    qemu_savevm_register(&pic_desc, io_addr, s);
     qemu_register_reset(pic_reset, s);
 }
 
