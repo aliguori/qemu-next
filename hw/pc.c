@@ -1279,6 +1279,28 @@ enum {
     COMPAT_0_10, /* compatible with qemu 0.10.x */
 };
 
+static void pc_vga_init(PCIBus *pci_bus)
+{
+    if (cirrus_vga_enabled) {
+        if (pci_bus) {
+            pci_cirrus_vga_init(pci_bus);
+        } else {
+            isa_cirrus_vga_init();
+        }
+    } else if (vmsvga_enabled) {
+        if (pci_bus)
+            pci_vmsvga_init(pci_bus);
+        else
+            fprintf(stderr, "%s: vmware_vga: no PCI bus\n", __FUNCTION__);
+    } else if (std_vga_enabled) {
+        if (pci_bus) {
+            pci_vga_init(pci_bus, 0, 0);
+        } else {
+            isa_vga_init();
+        }
+    }
+}
+
 /* PC hardware initialisation */
 static void pc_init1(ram_addr_t ram_size,
                      const char *boot_device,
@@ -1330,24 +1352,7 @@ static void pc_init1(ram_addr_t ram_size,
 
     register_ioport_write(0xf0, 1, 1, ioportF0_write, NULL);
 
-    if (cirrus_vga_enabled) {
-        if (pci_enabled) {
-            pci_cirrus_vga_init(pci_bus);
-        } else {
-            isa_cirrus_vga_init();
-        }
-    } else if (vmsvga_enabled) {
-        if (pci_enabled)
-            pci_vmsvga_init(pci_bus);
-        else
-            fprintf(stderr, "%s: vmware_vga: no PCI bus\n", __FUNCTION__);
-    } else if (std_vga_enabled) {
-        if (pci_enabled) {
-            pci_vga_init(pci_bus, 0, 0);
-        } else {
-            isa_vga_init();
-        }
-    }
+    pc_vga_init(pci_enabled? pci_bus: NULL);
 
     rtc_state = rtc_init(0x70, i8259[8], 2000);
     cmos_set_s3_resume_init(rtc_state);
