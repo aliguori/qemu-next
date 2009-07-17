@@ -53,15 +53,24 @@ enum {
 
 typedef struct {
     SysBusDevice busdev;
+
+    /* public */
+    uint32_t freq;
+
+    /* private */
     ptimer_state *timer;
     int running;
     int oneshot;
     uint32_t limit;
-    uint32_t freq;
     uint32_t int_level;
     uint32_t int_enabled;
     qemu_irq irq;
 } SyborgTimerState;
+
+static Property syborg_timer_properties[] = {
+    QDEV_PROP_NAME(SyborgTimerState, freq, "frequency"),
+    {}
+};
 
 static void syborg_timer_update(SyborgTimerState *s)
 {
@@ -229,10 +238,7 @@ static SysBusDeviceInfo syborg_timer_info = {
     .init = syborg_timer_init,
     .qdev.name  = "syborg,timer",
     .qdev.size  = sizeof(SyborgTimerState),
-    .qdev.props = (Property[]) {
-        QDEV_PROP_NAME(SyborgTimerState, freq, "frequency"),
-        {/* end of list */}
-    }
+    .qdev.props = syborg_timer_properties,
 };
 
 static void syborg_timer_register_devices(void)

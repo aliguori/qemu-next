@@ -124,6 +124,17 @@ struct SerialState {
     uint32_t frequency;
 };
 
+static Property serial_properties[] = {
+    QDEV_PROP(SerialState, frequency),
+    QDEV_PROP(SerialState, it_shift),
+    QDEV_PROP(SerialState, disabled),
+    QDEV_PROP_NAME(SerialState, chn[1].chr, "chrB"),
+    QDEV_PROP_NAME(SerialState, chn[0].chr, "chrA"),
+    QDEV_PROP_NAME(SerialState, chn[1].type, "chrBtype"),
+    QDEV_PROP_NAME(SerialState, chn[0].type, "chrAtype"),
+    {}
+};
+
 #define SERIAL_CTRL 0
 #define SERIAL_DATA 1
 
@@ -951,16 +962,7 @@ static SysBusDeviceInfo escc_info = {
     .init = escc_init1,
     .qdev.name  = "escc",
     .qdev.size  = sizeof(SerialState),
-    .qdev.props = (Property[]) {
-        QDEV_PROP(SerialState, frequency),
-        QDEV_PROP(SerialState, it_shift),
-        QDEV_PROP(SerialState, disabled),
-        QDEV_PROP_NAME(SerialState, chn[1].chr, "chrB"),
-        QDEV_PROP_NAME(SerialState, chn[0].chr, "chrA"),
-        QDEV_PROP_NAME(SerialState, chn[1].type, "chrBtype"),
-        QDEV_PROP_NAME(SerialState, chn[0].type, "chrAtype"),
-        {/* end of list */}
-    }
+    .qdev.props = serial_properties,
 };
 
 static void escc_register_devices(void)

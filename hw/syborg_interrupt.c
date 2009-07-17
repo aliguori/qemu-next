@@ -55,11 +55,20 @@ typedef struct {
 
 typedef struct {
     SysBusDevice busdev;
-    int pending_count;
+
+    /* public */
     uint32_t num_irqs;
+
+    /* private */
+    int pending_count;
     syborg_int_flags *flags;
     qemu_irq parent_irq;
 } SyborgIntState;
+
+static Property syborg_int_properties[] = {
+    QDEV_PROP_NAME_DEFVAL(SyborgIntState, num_irqs, "num-interrupts", 64),
+    {}
+};
 
 static void syborg_int_update(SyborgIntState *s)
 {
@@ -221,10 +230,7 @@ static SysBusDeviceInfo syborg_int_info = {
     .init = syborg_int_init,
     .qdev.name  = "syborg,interrupt",
     .qdev.size  = sizeof(SyborgIntState),
-    .qdev.props = (Property[]) {
-        QDEV_PROP_NAME_DEFVAL(SyborgIntState, num_irqs, "num-interrupts", 64),
-        {/* end of list */}
-    }
+    .qdev.props = syborg_int_properties,
 };
 
 static void syborg_interrupt_register_devices(void)

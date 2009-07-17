@@ -44,13 +44,23 @@ typedef struct {
 
 typedef struct {
     SysBusDevice busdev;
-    int int_enabled;
+
+    /* public */
     uint32_t fifo_size;
+    uint32_t absolute;
+
+    /* private */
+    int int_enabled;
     event_data *event_fifo;
     int read_pos, read_count;
     qemu_irq irq;
-    uint32_t absolute;
 } SyborgPointerState;
+
+static Property syborg_pointer_properties[] = {
+    QDEV_PROP_NAME_DEFVAL(SyborgPointerState, fifo_size, "fifo-size", 16),
+    QDEV_PROP_DEFVAL(SyborgPointerState, absolute, 1),
+    {}
+};
 
 static void syborg_pointer_update(SyborgPointerState *s)
 {
@@ -226,11 +236,7 @@ static SysBusDeviceInfo syborg_pointer_info = {
     .init = syborg_pointer_init,
     .qdev.name  = "syborg,pointer",
     .qdev.size  = sizeof(SyborgPointerState),
-    .qdev.props = (Property[]) {
-        QDEV_PROP_NAME_DEFVAL(SyborgPointerState, fifo_size, "fifo-size", 16),
-        QDEV_PROP_DEFVAL(SyborgPointerState, absolute, 1),
-        {/* end of list */}
-    }
+    .qdev.props = syborg_pointer_properties,
 };
 
 static void syborg_pointer_register_devices(void)

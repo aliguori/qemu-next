@@ -51,13 +51,22 @@ enum {
 
 typedef struct {
     SysBusDevice busdev;
+
+    /* public */
+    uint32_t fifo_size;
+
+    /* private */
     int int_enabled;
     int extension_bit;
-    uint32_t fifo_size;
     uint32_t *key_fifo;
     int read_pos, read_count;
     qemu_irq irq;
 } SyborgKeyboardState;
+
+static Property syborg_keyboard_properties[] = {
+    QDEV_PROP_NAME_DEFVAL(SyborgKeyboardState, fifo_size, "fifo-size", 16),
+    {}
+};
 
 static void syborg_keyboard_update(SyborgKeyboardState *s)
 {
@@ -228,10 +237,7 @@ static SysBusDeviceInfo syborg_keyboard_info = {
     .init = syborg_keyboard_init,
     .qdev.name  = "syborg,keyboard",
     .qdev.size  = sizeof(SyborgKeyboardState),
-    .qdev.props = (Property[]) {
-        QDEV_PROP_NAME_DEFVAL(SyborgKeyboardState, fifo_size, "fifo-size", 16),
-        {/* end of list */}
-    }
+    .qdev.props = syborg_keyboard_properties,
 };
 
 static void syborg_keyboard_register_devices(void)

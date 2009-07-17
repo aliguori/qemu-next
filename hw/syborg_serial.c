@@ -58,8 +58,12 @@ enum {
 
 typedef struct {
     SysBusDevice busdev;
-    uint32_t int_enable;
+
+    /* public */
     uint32_t fifo_size;
+
+    /* private */
+    uint32_t int_enable;
     uint32_t *read_fifo;
     int read_pos;
     int read_count;
@@ -69,6 +73,11 @@ typedef struct {
     uint32_t dma_rx_ptr;
     uint32_t dma_rx_size;
 } SyborgSerialState;
+
+static Property syborg_serial_properties[] = {
+    QDEV_PROP_NAME_DEFVAL(SyborgSerialState, fifo_size, "fifo-size", 16),
+    {}
+};
 
 static void syborg_serial_update(SyborgSerialState *s)
 {
@@ -343,10 +352,7 @@ static SysBusDeviceInfo syborg_serial_info = {
     .init = syborg_serial_init,
     .qdev.name  = "syborg,serial",
     .qdev.size  = sizeof(SyborgSerialState),
-    .qdev.props = (Property[]) {
-        QDEV_PROP_NAME_DEFVAL(SyborgSerialState, fifo_size, "fifo-size", 16),
-        {/* end of list */}
-    }
+    .qdev.props = syborg_serial_properties,
 };
 
 static void syborg_serial_register_devices(void)

@@ -65,6 +65,12 @@ enum {
 
 typedef struct {
     SysBusDevice busdev;
+
+    /* public */
+    uint32_t cols;
+    uint32_t rows;
+
+    /* private */
     DisplayState *ds;
     /*QEMUConsole *console;*/
     uint32_t need_update : 1;
@@ -76,8 +82,6 @@ typedef struct {
 
     uint32_t base;
     uint32_t pitch;
-    uint32_t rows;
-    uint32_t cols;
     int blank;
     int bpp;
     int rgb; /* 0 = BGR, 1 = RGB */
@@ -85,6 +89,12 @@ typedef struct {
     uint32_t raw_palette[256];
     uint32_t palette[256];
 } SyborgFBState;
+
+static Property syborg_fb_properties[] = {
+    QDEV_PROP_NAME(SyborgFBState, cols, "width"),
+    QDEV_PROP_NAME(SyborgFBState, rows, "height"),
+    {}
+};
 
 enum {
     BPP_SRC_1,
@@ -534,11 +544,7 @@ static SysBusDeviceInfo syborg_fb_info = {
     .init = syborg_fb_init,
     .qdev.name  = "syborg,framebuffer",
     .qdev.size  = sizeof(SyborgFBState),
-    .qdev.props = (Property[]) {
-        QDEV_PROP_NAME(SyborgFBState, cols, "width"),
-        QDEV_PROP_NAME(SyborgFBState, rows, "height"),
-        {/* end of list */}
-    }
+    .qdev.props = syborg_fb_properties,
 };
 
 static void syborg_fb_register_devices(void)

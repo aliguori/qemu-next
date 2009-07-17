@@ -479,8 +479,15 @@ device_init(prom_register_devices);
 typedef struct RamDevice
 {
     SysBusDevice busdev;
+
+    /* public */
     uint32_t size;
 } RamDevice;
+
+static Property ram_device_properties[] = {
+    QDEV_PROP(RamDevice, size),
+    {}
+};
 
 /* System RAM */
 static void ram_init1(SysBusDevice *dev)
@@ -523,10 +530,7 @@ static SysBusDeviceInfo ram_info = {
     .init = ram_init1,
     .qdev.name  = "memory",
     .qdev.size  = sizeof(RamDevice),
-    .qdev.props = (Property[]) {
-        QDEV_PROP(RamDevice, size),
-        {/* end of property list */}
-    }
+    .qdev.props = ram_device_properties,
 };
 
 static void ram_register_devices(void)
