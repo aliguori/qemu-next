@@ -54,13 +54,6 @@ endif
 CPPFLAGS+=-D_GNU_SOURCE -D_FILE_OFFSET_BITS=64 -D_LARGEFILE_SOURCE
 CPPFLAGS+=-U_FORTIFY_SOURCE
 LIBS+=-lm
-ifdef CONFIG_SOLARIS
-ifdef NEEDS_LIBSUNMATH
-LIBS+=-lsunmath
-LDFLAGS+=-L/opt/SUNWspro/prod/lib -R/opt/SUNWspro/prod/lib
-CFLAGS+=-I/opt/SUNWspro/prod/include/cc
-endif
-endif
 
 kvm.o: CFLAGS+=$(KVM_CFLAGS)
 kvm-all.o: CFLAGS+=$(KVM_CFLAGS)

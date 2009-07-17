@@ -1562,6 +1562,9 @@ if test "$solaris" = "yes" ; then
   if test "$needs_libsunmath" = "yes" ; then
     echo "NEEDS_LIBSUNMATH=yes" >> $config_host_mak
     echo "#define NEEDS_LIBSUNMATH 1" >> $config_host_h
+    LIBS="$LIBS -lsunmath"
+    LDFLAGS="$LDFLAGS -L/opt/SUNWspro/prod/lib -R/opt/SUNWspro/prod/lib"
+    CFLAGS="$CFLAGS -I/opt/SUNWspro/prod/include/cc"
   fi
 fi
 if test -n "$sparc_cpu"; then
