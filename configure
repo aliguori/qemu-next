@@ -1587,7 +1587,7 @@ fi
 if test "$vde" = "yes" ; then
   echo "CONFIG_VDE=y" >> $config_host_mak
   echo "#define CONFIG_VDE 1" >> $config_host_h
-  echo "VDE_LIBS=-lvdeplug" >> $config_host_mak
+  LIBS="$LIBS -lvdeplug"
 fi
 for card in $audio_card_list; do
     def=CONFIG_`echo $card | tr '[:lower:]' '[:upper:]'`
