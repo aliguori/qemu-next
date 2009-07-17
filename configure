@@ -1697,7 +1697,7 @@ fi
 if test "$brlapi" = "yes" ; then
   echo "CONFIG_BRLAPI=y" >> $config_host_mak
   echo "#define CONFIG_BRLAPI 1" >> $config_host_h
-  echo "BRLAPI_LIBS=-lbrlapi" >> $config_host_mak
+  LIBS="$LIBS -lbrlapi"
 fi
 if test "$bluez" = "yes" ; then
   echo "CONFIG_BLUEZ=y" >> $config_host_mak
