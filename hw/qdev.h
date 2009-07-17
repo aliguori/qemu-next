@@ -3,6 +3,7 @@
 
 #include "hw.h"
 #include "sys-queue.h"
+#include "qemu-char.h"
 
 typedef struct Property Property;
 
@@ -61,6 +62,7 @@ enum PropertyType {
     PROP_TYPE_TADDR,
     PROP_TYPE_MACADDR,
     PROP_TYPE_PTR,
+    PROP_TYPE_CHRDEV,
 };
 
 struct PropertyInfo {
@@ -148,6 +150,7 @@ extern PropertyInfo qdev_prop_uint32;
 extern PropertyInfo qdev_prop_hex32;
 extern PropertyInfo qdev_prop_ptr;
 extern PropertyInfo qdev_prop_macaddr;
+extern PropertyInfo qdev_prop_chrdev;
 
 /* Set properties between creation and init.  */
 void *qdev_get_prop_ptr(DeviceState *dev, Property *prop);
@@ -157,6 +160,7 @@ void qdev_prop_set_uint16(DeviceState *dev, const char *name, uint16_t value);
 void qdev_prop_set_uint32(DeviceState *dev, const char *name, uint32_t value);
 /* FIXME: Remove opaque pointer properties.  */
 void qdev_prop_set_ptr(DeviceState *dev, const char *name, void *value);
+void qdev_prop_set_chrdev(DeviceState *dev, const char *name, CharDriverState *chr);
 void qdev_prop_set_defaults(DeviceState *dev, Property *props);
 
 void qdev_prop_register_compat(CompatProperty *props);

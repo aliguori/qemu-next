@@ -145,6 +145,24 @@ PropertyInfo qdev_prop_macaddr = {
     .print = print_mac,
 };
 
+/* -- character device --- */
+
+static int print_chrdev(DeviceState *dev, Property *prop, char *dest, size_t len)
+{
+    void **ptr = qdev_get_prop_ptr(dev, prop);
+    CharDriverState *chr = *ptr;
+
+    return snprintf(dest, len, "chr: %s", chr->label);
+}
+
+PropertyInfo qdev_prop_chrdev = {
+    .name  = "chrdev",
+    .type  = PROP_TYPE_CHRDEV,
+    .size  = sizeof(CharDriverState*),
+    .print = print_chrdev,
+};
+
+
 /* --- public helpers --- */
 
 static Property *qdev_prop_walk(Property *props, const char *name)
@@ -227,6 +245,11 @@ void qdev_prop_set_uint32(DeviceState *dev, const char *name, uint32_t value)
 void qdev_prop_set_ptr(DeviceState *dev, const char *name, void *value)
 {
     qdev_prop_set(dev, name, &value, PROP_TYPE_PTR);
+}
+
+void qdev_prop_set_chrdev(DeviceState *dev, const char *name, CharDriverState *value)
+{
+    qdev_prop_set(dev, name, &value, PROP_TYPE_CHRDEV);
 }
 
 void qdev_prop_set_defaults(DeviceState *dev, Property *props)
