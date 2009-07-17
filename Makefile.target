@@ -640,7 +640,7 @@ vl.o: qemu-options.h
 
 monitor.o: qemu-monitor.h
 
-LIBS += $(SDL_LIBS) $(COCOA_LIBS) $(CURSES_LIBS)
+LIBS += $(SDL_LIBS) $(COCOA_LIBS)
 ARLIBS=../libqemu_common.a libqemu.a $(HWLIB)
 
 endif # !CONFIG_USER_ONLY

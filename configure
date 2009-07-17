@@ -1669,9 +1669,9 @@ if test "$curses" = "yes" ; then
   echo "#define CONFIG_CURSES 1" >> $config_host_h
   echo "CONFIG_CURSES=y" >> $config_host_mak
   if test "$ncurses" = "yes" ; then
-    echo "CURSES_LIBS=-lncurses" >> $config_host_mak
+    LIBS="$LIBS -lncurses"
   else
-    echo "CURSES_LIBS=-lcurses" >> $config_host_mak
+    LIBS="$LIBS -lcurses"
   fi
 fi
 if test "$atfile" = "yes" ; then
