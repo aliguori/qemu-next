@@ -1301,6 +1301,60 @@ static void pc_vga_init(PCIBus *pci_bus)
     }
 }
 
+static void pc_basic_device_init(qemu_irq *i8259,
+                                 fdctrl_t **floppy_controller,
+                                 RTCState **rtc_state)
+{
+    int i;
+    int index;
+    BlockDriverState *fd[MAX_FD];
+    PITState *pit;
+
+    register_ioport_write(0x80, 1, 1, ioport80_write, NULL);
+
+    register_ioport_write(0xf0, 1, 1, ioportF0_write, NULL);
+
+    *rtc_state = rtc_init(0x70, i8259[8], 2000);
+    cmos_set_s3_resume_init(*rtc_state);
+
+    qemu_register_boot_set(pc_boot_set, *rtc_state);
+
+    register_ioport_read(0x92, 1, 1, ioport92_read, NULL);
+    register_ioport_write(0x92, 1, 1, ioport92_write, NULL);
+
+    pit = pit_init(0x40, i8259[0]);
+    pcspk_init(pit);
+    if (!no_hpet) {
+        hpet_init(i8259);
+    }
+
+    for(i = 0; i < MAX_SERIAL_PORTS; i++) {
+        if (serial_hds[i]) {
+            serial_init(serial_io[i], i8259[serial_irq[i]], 115200,
+                        serial_hds[i]);
+        }
+    }
+
+    for(i = 0; i < MAX_PARALLEL_PORTS; i++) {
+        if (parallel_hds[i]) {
+            parallel_init(parallel_io[i], i8259[parallel_irq[i]],
+                          parallel_hds[i]);
+        }
+    }
+
+    i8042_init(i8259[1], i8259[12], 0x60);
+    DMA_init(0);
+
+    for(i = 0; i < MAX_FD; i++) {
+        index = drive_get_index(IF_FLOPPY, 0, i);
+        if (index != -1)
+            fd[i] = drives_table[index].bdrv;
+        else
+            fd[i] = NULL;
+    }
+    *floppy_controller = fdctrl_init(i8259[6], 2, 0, 0x3f0, fd);
+}
+
 /* PC hardware initialisation */
 static void pc_init1(ram_addr_t ram_size,
                      const char *boot_device,
@@ -1321,12 +1375,9 @@ static void pc_init1(ram_addr_t ram_size,
     qemu_irq *i8259;
     int index;
     BlockDriverState *hd[MAX_IDE_BUS * MAX_IDE_DEVS];
-    BlockDriverState *fd[MAX_FD];
     const char *virtio_blk_name, *virtio_console_name;
     fdctrl_t *floppy_controller;
     RTCState *rtc_state;
-    PITState *pit;
-    IOAPICState *ioapic = NULL;
 
     pc_cpus_init(cpu_model);
 
@@ -1347,45 +1398,14 @@ static void pc_init1(ram_addr_t ram_size,
         pci_bus = NULL;
     }
 
-    /* init basic PC hardware */
-    register_ioport_write(0x80, 1, 1, ioport80_write, NULL);
-
-    register_ioport_write(0xf0, 1, 1, ioportF0_write, NULL);
-
     pc_vga_init(pci_enabled? pci_bus: NULL);
 
-    rtc_state = rtc_init(0x70, i8259[8], 2000);
-    cmos_set_s3_resume_init(rtc_state);
-
-    qemu_register_boot_set(pc_boot_set, rtc_state);
-
-    register_ioport_read(0x92, 1, 1, ioport92_read, NULL);
-    register_ioport_write(0x92, 1, 1, ioport92_write, NULL);
+    /* init basic PC hardware */
+    pc_basic_device_init(i8259, &floppy_controller, &rtc_state);
 
     if (pci_enabled) {
-        ioapic = ioapic_init();
-    }
-    pit = pit_init(0x40, i8259[0]);
-    pcspk_init(pit);
-    if (!no_hpet) {
-        hpet_init(i8259);
-    }
-    if (pci_enabled) {
+        IOAPICState *ioapic = ioapic_init();
         pic_set_alt_irq_func(isa_pic, ioapic_set_irq, ioapic);
-    }
-
-    for(i = 0; i < MAX_SERIAL_PORTS; i++) {
-        if (serial_hds[i]) {
-            serial_init(serial_io[i], i8259[serial_irq[i]], 115200,
-                        serial_hds[i]);
-        }
-    }
-
-    for(i = 0; i < MAX_PARALLEL_PORTS; i++) {
-        if (parallel_hds[i]) {
-            parallel_init(parallel_io[i], i8259[parallel_irq[i]],
-                          parallel_hds[i]);
-        }
     }
 
     watchdog_pc_init(pci_bus);
@@ -1423,20 +1443,9 @@ static void pc_init1(ram_addr_t ram_size,
         }
     }
 
-    i8042_init(i8259[1], i8259[12], 0x60);
-    DMA_init(0);
 #ifdef HAS_AUDIO
     audio_init(pci_enabled ? pci_bus : NULL, i8259);
 #endif
-
-    for(i = 0; i < MAX_FD; i++) {
-        index = drive_get_index(IF_FLOPPY, 0, i);
-	if (index != -1)
-	    fd[i] = drives_table[index].bdrv;
-	else
-	    fd[i] = NULL;
-    }
-    floppy_controller = fdctrl_init(i8259[6], 2, 0, 0x3f0, fd);
 
     cmos_init(below_4g_mem_size, above_4g_mem_size, boot_device, hd,
               floppy_controller, rtc_state);
