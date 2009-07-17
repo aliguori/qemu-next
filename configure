@@ -1660,11 +1660,13 @@ if test "$sdl1" = "yes" ; then
   echo "#define CONFIG_SDL 1" >> $config_host_h
   echo "CONFIG_SDL=y" >> $config_host_mak
   if test "$target_softmmu" = "no" -o "$static" = "yes"; then
-    echo "SDL_LIBS=$sdl_static_libs" >> $config_host_mak
+    LIBS="$LIBS $sdl_static_libs"
   elif test "$sdl_x11" = "yes" ; then
-    echo "SDL_LIBS=`$sdl_config --libs` -lX11" >> $config_host_mak
+    LIBS="$LIBS `$sdl_config --libs` -lX11"
+  elif test "$mingw32" = "yes" ; then
+    LIBS="$LIBS `$sdl_config --libs | sed s/-mwindows//g` -mconsole"
   else
-    echo "SDL_LIBS=`$sdl_config --libs`" >> $config_host_mak
+    LIBS="$LIBS `$sdl_config --libs`"
   fi
   if [ "${aa}" = "yes" ] ; then
     echo "SDL_CFLAGS=`$sdl_config --cflags` `aalib-config --cflags`" >> $config_host_mak

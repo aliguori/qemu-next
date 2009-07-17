@@ -578,10 +578,6 @@ ifeq ($(ARCH),ia64)
 LDFLAGS+=-Wl,-G0 -Wl,-T,$(SRC_PATH)/ia64.ld
 endif
 
-ifdef CONFIG_WIN32
-SDL_LIBS := $(filter-out -mwindows, $(SDL_LIBS)) -mconsole
-endif
-
 # profiling code
 ifdef TARGET_GPROF
 LDFLAGS+=-p
@@ -594,7 +590,6 @@ vl.o: qemu-options.h
 
 monitor.o: qemu-monitor.h
 
-LIBS += $(SDL_LIBS)
 ARLIBS=../libqemu_common.a libqemu.a $(HWLIB)
 
 endif # !CONFIG_USER_ONLY
