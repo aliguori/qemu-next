@@ -401,9 +401,6 @@ obj-y += virtio-blk.o virtio-balloon.o virtio-net.o virtio-console.o
 obj-$(CONFIG_KVM) += kvm.o kvm-all.o
 
 LIBS+=-lz
-ifdef CONFIG_ESD
-LIBS += -lesd
-endif
 
 sound-obj-y =
 sound-obj-$(CONFIG_SB16) += sb16.o

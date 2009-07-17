@@ -1613,6 +1613,8 @@ for drv in $audio_drv_list; do
         LIBS="$LIBS -lole32 -ldxguid"
     elif test "$drv" = "pa"; then
         LIBS="$LIBS -lpulse-simple"
+    elif test "$drv" = "esd"; then
+        LIBS="$LIBS -lesd"
     fi
 done
 echo "" >>$config_host_h
