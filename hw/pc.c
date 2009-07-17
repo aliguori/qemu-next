@@ -55,8 +55,6 @@
 #define FW_CFG_ACPI_TABLES (FW_CFG_ARCH_LOCAL + 0)
 #define FW_CFG_SMBIOS_ENTRIES (FW_CFG_ARCH_LOCAL + 1)
 
-#define MAX_IDE_BUS 2
-
 typedef struct rom_reset_data {
     uint8_t *data;
     target_phys_addr_t addr;
@@ -269,9 +267,9 @@ static int pc_boot_set(void *opaque, const char *boot_device)
 }
 
 /* hd_table must contain 4 block drivers */
-static void cmos_init(ram_addr_t ram_size, ram_addr_t above_4g_mem_size,
-                      const char *boot_device, BlockDriverState **hd_table,
-                      fdctrl_t *floppy_controller, RTCState *s)
+void pc_cmos_init(ram_addr_t ram_size, ram_addr_t above_4g_mem_size,
+                  const char *boot_device, BlockDriverState **hd_table,
+                  fdctrl_t *floppy_controller, RTCState *s)
 {
     int nbds, bds[3] = { 0, };
     int val;
@@ -1015,10 +1013,6 @@ static void load_linux(void *fw_cfg,
     generate_bootsect(option_rom, gpr, seg, 0);
 }
 
-static const int ide_iobase[2] = { 0x1f0, 0x170 };
-static const int ide_iobase2[2] = { 0x3f6, 0x376 };
-static const int ide_irq[2] = { 14, 15 };
-
 #define NE2000_NB_MAX 6
 
 static int ne2000_io[NE2000_NB_MAX] = { 0x300, 0x320, 0x340, 0x360, 0x280, 0x380 };
@@ -1031,7 +1025,7 @@ static int parallel_io[MAX_PARALLEL_PORTS] = { 0x378, 0x278, 0x3bc };
 static int parallel_irq[MAX_PARALLEL_PORTS] = { 7, 7, 7 };
 
 #ifdef HAS_AUDIO
-static void audio_init (PCIBus *pci_bus, qemu_irq *pic)
+void pc_audio_init (PCIBus *pci_bus, qemu_irq *pic)
 {
     struct soundhw *c;
 
@@ -1049,7 +1043,7 @@ static void audio_init (PCIBus *pci_bus, qemu_irq *pic)
 }
 #endif
 
-static void pc_init_ne2k_isa(NICInfo *nd, qemu_irq *pic)
+void pc_init_ne2k_isa(NICInfo *nd, qemu_irq *pic)
 {
     static int nb_ne2k = 0;
 
@@ -1112,7 +1106,7 @@ static CPUState *pc_new_cpu(const char *cpu_model)
     return env;
 }
 
-static void pc_cpus_init(const char *cpu_model)
+void pc_cpus_init(const char *cpu_model)
 {
     int i;
 
@@ -1130,17 +1124,12 @@ static void pc_cpus_init(const char *cpu_model)
     }
 }
 
-static qemu_irq *pc_allocate_cpu_irq(void)
-{
-    return qemu_allocate_irqs(pic_irq_request, NULL, 1);
-}
-
-static void pc_memory_init(ram_addr_t ram_size,
-                           const char *kernel_filename,
-                           const char *kernel_cmdline,
-                           const char *initrd_filename,
-                           ram_addr_t *below_4g_mem_size_p,
-                           ram_addr_t *above_4g_mem_size_p)
+void pc_memory_init(ram_addr_t ram_size,
+                    const char *kernel_filename,
+                    const char *kernel_cmdline,
+                    const char *initrd_filename,
+                    ram_addr_t *below_4g_mem_size_p,
+                    ram_addr_t *above_4g_mem_size_p)
 {
     char *filename;
     int ret, linux_boot, i;
@@ -1274,12 +1263,12 @@ static void pc_memory_init(ram_addr_t ram_size,
     }
 }
 
-enum {
-    COMPAT_DEFAULT = 0,
-    COMPAT_0_10, /* compatible with qemu 0.10.x */
-};
+qemu_irq *pc_allocate_cpu_irq(void)
+{
+    return qemu_allocate_irqs(pic_irq_request, NULL, 1);
+}
 
-static void pc_vga_init(PCIBus *pci_bus)
+void pc_vga_init(PCIBus *pci_bus)
 {
     if (cirrus_vga_enabled) {
         if (pci_bus) {
@@ -1301,9 +1290,9 @@ static void pc_vga_init(PCIBus *pci_bus)
     }
 }
 
-static void pc_basic_device_init(qemu_irq *i8259,
-                                 fdctrl_t **floppy_controller,
-                                 RTCState **rtc_state)
+void pc_basic_device_init(qemu_irq *i8259,
+                          fdctrl_t **floppy_controller,
+                          RTCState **rtc_state)
 {
     int i;
     int index;
@@ -1355,9 +1344,9 @@ static void pc_basic_device_init(qemu_irq *i8259,
     *floppy_controller = fdctrl_init(i8259[6], 2, 0, 0x3f0, fd);
 }
 
-static void pc_pci_device_init1(PCIBus *pci_bus,
-                                const char* virtio_blk_name,
-                                const char* virtio_console_name)
+void pc_pci_device_init1(PCIBus *pci_bus,
+                         const char *virtio_blk_name,
+                         const char *virtio_console_name)
 {
     PCIDevice *pci_dev;
     int i;
@@ -1391,191 +1380,9 @@ static void pc_pci_device_init1(PCIBus *pci_bus,
     }
 }
 
-static void pc_pci_device_init_compat(PCIBus *pci_bus, int compat_level)
-{
-    const char *virtio_blk_name, *virtio_console_name;
-
-    switch (compat_level) {
-    case COMPAT_DEFAULT:
-    default:
-        virtio_blk_name = "virtio-blk-pci";
-        virtio_console_name = "virtio-console-pci";
-        break;
-
-    case COMPAT_0_10:
-        virtio_blk_name = "virtio-blk-pci-0-10";
-        virtio_console_name = "virtio-console-pci-0-10";
-        break;
-    }
-
-    pc_pci_device_init1(pci_bus, virtio_blk_name, virtio_console_name);
-}
-
-#if 0
 void pc_pci_device_init(PCIBus *pci_bus)
 {
-    pc_pci_device_init(pci_bus, "virtio-blk-pci", "virtio-console-pci");
-}
-#endif
-
-/* PC hardware initialisation */
-static void pc_init1(ram_addr_t ram_size,
-                     const char *boot_device,
-                     const char *kernel_filename,
-                     const char *kernel_cmdline,
-                     const char *initrd_filename,
-                     const char *cpu_model,
-                     int pci_enabled,
-                     int compat_level)
-{
-    int i;
-    ram_addr_t below_4g_mem_size, above_4g_mem_size;
-    PCIBus *pci_bus;
-    PCIDevice *i440fx_state;
-    int piix3_devfn = -1;
-    qemu_irq *cpu_irq;
-    qemu_irq *i8259;
-    int index;
-    BlockDriverState *hd[MAX_IDE_BUS * MAX_IDE_DEVS];
-    fdctrl_t *floppy_controller;
-    RTCState *rtc_state;
-
-    pc_cpus_init(cpu_model);
-
-    vmport_init();
-
-    /* allocate ram and load rom/bios */
-    pc_memory_init(ram_size, kernel_filename, kernel_cmdline, initrd_filename,
-                   &below_4g_mem_size, &above_4g_mem_size);
-
-    cpu_irq = pc_allocate_cpu_irq();
-    i8259 = i8259_init(cpu_irq[0]);
-    pc_register_ferr_irq(i8259[13]);
-
-    if (pci_enabled) {
-        pci_bus = i440fx_init(&i440fx_state, i8259);
-        piix3_devfn = piix3_init(pci_bus, -1);
-    } else {
-        pci_bus = NULL;
-    }
-
-    pc_vga_init(pci_enabled? pci_bus: NULL);
-
-    /* init basic PC hardware */
-    pc_basic_device_init(i8259, &floppy_controller, &rtc_state);
-
-    if (pci_enabled) {
-        IOAPICState *ioapic = ioapic_init();
-        pic_set_alt_irq_func(isa_pic, ioapic_set_irq, ioapic);
-    }
-
-    watchdog_pc_init(pci_bus);
-
-    for(i = 0; i < nb_nics; i++) {
-        NICInfo *nd = &nd_table[i];
-
-        if (!pci_enabled || (nd->model && strcmp(nd->model, "ne2k_isa") == 0))
-            pc_init_ne2k_isa(nd, i8259);
-        else
-            pci_nic_init(nd, "ne2k_pci", NULL);
-    }
-
-    piix4_acpi_system_hot_add_init();
-
-    if (drive_get_max_bus(IF_IDE) >= MAX_IDE_BUS) {
-        fprintf(stderr, "qemu: too many IDE bus\n");
-        exit(1);
-    }
-
-    for(i = 0; i < MAX_IDE_BUS * MAX_IDE_DEVS; i++) {
-        index = drive_get_index(IF_IDE, i / MAX_IDE_DEVS, i % MAX_IDE_DEVS);
-	if (index != -1)
-	    hd[i] = drives_table[index].bdrv;
-	else
-	    hd[i] = NULL;
-    }
-
-    if (pci_enabled) {
-        pci_piix3_ide_init(pci_bus, hd, piix3_devfn + 1, i8259);
-    } else {
-        for(i = 0; i < MAX_IDE_BUS; i++) {
-            isa_ide_init(ide_iobase[i], ide_iobase2[i], i8259[ide_irq[i]],
-	                 hd[MAX_IDE_DEVS * i], hd[MAX_IDE_DEVS * i + 1]);
-        }
-    }
-
-#ifdef HAS_AUDIO
-    audio_init(pci_enabled ? pci_bus : NULL, i8259);
-#endif
-
-    cmos_init(below_4g_mem_size, above_4g_mem_size, boot_device, hd,
-              floppy_controller, rtc_state);
-
-    if (pci_enabled && usb_enabled) {
-        usb_uhci_piix3_init(pci_bus, piix3_devfn + 2);
-    }
-
-    if (pci_enabled && acpi_enabled) {
-        uint8_t *eeprom_buf = qemu_mallocz(8 * 256); /* XXX: make this persistent */
-        i2c_bus *smbus;
-
-        /* TODO: Populate SPD eeprom data.  */
-        smbus = piix4_pm_init(pci_bus, piix3_devfn + 3, 0xb100, i8259[9]);
-        for (i = 0; i < 8; i++) {
-            DeviceState *eeprom;
-            eeprom = qdev_create((BusState *)smbus, "smbus-eeprom");
-            qdev_prop_set_uint32(eeprom, "address", 0x50 + i);
-            qdev_prop_set_ptr(eeprom, "data", eeprom_buf + (i * 256));
-            qdev_init(eeprom);
-        }
-    }
-
-    if (i440fx_state) {
-        i440fx_init_memory_mappings(i440fx_state);
-    }
-
-    if (pci_enabled) {
-        pc_pci_device_init_compat(pci_bus, compat_level);
-    }
-}
-
-static void pc_init_pci(ram_addr_t ram_size,
-                        const char *boot_device,
-                        const char *kernel_filename,
-                        const char *kernel_cmdline,
-                        const char *initrd_filename,
-                        const char *cpu_model)
-{
-    pc_init1(ram_size, boot_device,
-             kernel_filename, kernel_cmdline,
-             initrd_filename, cpu_model,
-             1, COMPAT_DEFAULT);
-}
-
-static void pc_init_isa(ram_addr_t ram_size,
-                        const char *boot_device,
-                        const char *kernel_filename,
-                        const char *kernel_cmdline,
-                        const char *initrd_filename,
-                        const char *cpu_model)
-{
-    pc_init1(ram_size, boot_device,
-             kernel_filename, kernel_cmdline,
-             initrd_filename, cpu_model,
-             0, COMPAT_DEFAULT);
-}
-
-static void pc_init_pci_0_10(ram_addr_t ram_size,
-                             const char *boot_device,
-                             const char *kernel_filename,
-                             const char *kernel_cmdline,
-                             const char *initrd_filename,
-                             const char *cpu_model)
-{
-    pc_init1(ram_size, boot_device,
-             kernel_filename, kernel_cmdline,
-             initrd_filename, cpu_model,
-             1, COMPAT_0_10);
+    pc_pci_device_init1(pci_bus, "virtio-blk-pci", "virtio-console-pci");
 }
 
 /* set CMOS shutdown status register (index 0xF) as S3_resume(0xFE)
@@ -1593,60 +1400,3 @@ void cmos_set_s3_resume(void)
         rtc_set_memory(rtc_state, 0xF, 0xFE);
 #endif
 }
-
-static QEMUMachine pc_machine = {
-    .name = "pc",
-    .desc = "Standard PC",
-    .init = pc_init_pci,
-    .max_cpus = 255,
-    .is_default = 1,
-};
-
-static QEMUMachine pc_machine_v0_10 = {
-    .name = "pc-0.10",
-    .desc = "Standard PC, qemu 0.10",
-    .init = pc_init_pci,
-    .max_cpus = 255,
-    .compat_props = (CompatProperty[]) {
-        {
-            .driver   = "virtio-blk-pci",
-            .property = "class",
-            .value    = stringify(PCI_CLASS_STORAGE_OTHER),
-        },{
-            .driver   = "virtio-console-pci",
-            .property = "class",
-            .value    = stringify(PCI_CLASS_DISPLAY_OTHER),
-        },{
-            .driver   = "virtio-net-pci",
-            .property = "vectors",
-            .value    = stringify(0),
-        },
-        { /* end of list */ }
-    },
-};
-
-static QEMUMachine isapc_machine = {
-    .name = "isapc",
-    .desc = "ISA-only PC",
-    .init = pc_init_isa,
-    .max_cpus = 1,
-};
-
-static QEMUMachine pc_0_10_machine = {
-    .name = "pc-0-10",
-    .desc = "Standard PC compatible with qemu 0.10.x",
-    .init = pc_init_pci_0_10,
-    .max_cpus = 255,
-};
-
-static void pc_machine_init(void)
-{
-    qemu_register_machine(&pc_machine);
-    qemu_register_machine(&pc_machine_v0_10);
-    qemu_register_machine(&isapc_machine);
-
-    /* For compatibility with 0.10.x */
-    qemu_register_machine(&pc_0_10_machine);
-}
-
-machine_init(pc_machine_init);

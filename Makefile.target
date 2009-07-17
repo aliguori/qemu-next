@@ -494,7 +494,7 @@ obj-i386-y += fdc.o mc146818rtc.o serial.o i8259.o i8254.o pcspk.o pc.o
 obj-i386-y += cirrus_vga.o apic.o ioapic.o parallel.o acpi.o piix_pci.o
 obj-i386-y += usb-uhci.o vmmouse.o vmport.o vmware_vga.o hpet.o
 obj-i386-y += device-hotplug.o pci-hotplug.o smbios.o
-obj-i386-y += pc_smbus.o pc_apm.o acpi_piix4.o
+obj-i386-y += pc_smbus.o pc_apm.o acpi_piix4.o pc_piix.o
 
 ifeq ($(TARGET_BASE_ARCH), i386)
 CPPFLAGS += -DHAS_AUDIO -DHAS_AUDIO_CHOICE
