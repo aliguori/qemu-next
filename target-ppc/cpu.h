@@ -659,6 +659,10 @@ struct CPUPPCState {
     target_ulong hreset_vector;
 #endif
 
+#ifdef CONFIG_KVM
+    uint32_t mp_state;
+#endif
+
     /* Those resources are used only during code translation */
     /* Next instruction pointer */
     target_ulong nip;
