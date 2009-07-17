@@ -59,8 +59,6 @@
 
 static fdctrl_t *floppy_controller;
 static RTCState *rtc_state;
-static PITState *pit;
-static IOAPICState *ioapic;
 
 typedef struct rom_reset_data {
     uint8_t *data;
@@ -1144,6 +1142,8 @@ static void pc_init1(ram_addr_t ram_size,
     int using_vga = cirrus_vga_enabled || std_vga_enabled || vmsvga_enabled;
     void *fw_cfg;
     const char *virtio_blk_name, *virtio_console_name;
+    PITState *pit;
+    IOAPICState *ioapic = NULL;
 
     if (ram_size >= 0xe0000000 ) {
         above_4g_mem_size = ram_size - 0xe0000000;
