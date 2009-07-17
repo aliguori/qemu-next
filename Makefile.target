@@ -413,9 +413,6 @@ endif
 ifdef CONFIG_DSOUND
 LIBS += -lole32 -ldxguid
 endif
-ifdef CONFIG_OSS
-LIBS += $(OSS_LIBS)
-endif
 
 sound-obj-y =
 sound-obj-$(CONFIG_SB16) += sb16.o

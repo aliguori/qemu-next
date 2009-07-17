@@ -1606,7 +1606,7 @@ for drv in $audio_drv_list; do
         LIBS="$LIBS $fmod_lib"
         echo "FMOD_CFLAGS=$fmod_inc" >> $config_host_mak
     elif test "$drv" = "oss"; then
-        echo "OSS_LIBS=$oss_lib" >> $config_host_mak
+        LIBS="$LIBS $oss_lib"
     fi
 done
 echo "" >>$config_host_h
