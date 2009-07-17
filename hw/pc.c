@@ -1355,6 +1355,69 @@ static void pc_basic_device_init(qemu_irq *i8259,
     *floppy_controller = fdctrl_init(i8259[6], 2, 0, 0x3f0, fd);
 }
 
+static void pc_pci_device_init1(PCIBus *pci_bus,
+                                const char* virtio_blk_name,
+                                const char* virtio_console_name)
+{
+    PCIDevice *pci_dev;
+    int i;
+    int max_bus;
+    int unit_id;
+
+    max_bus = drive_get_max_bus(IF_SCSI);
+    for (i = 0; i <= max_bus; i++) {
+        pci_create_simple(pci_bus, -1, "lsi53c895a");
+    }
+
+    /* Add virtio block devices */
+    unit_id = 0;
+    while ((i = drive_get_index(IF_VIRTIO, 0, unit_id)) != -1) {
+        pci_dev = pci_create(virtio_blk_name, drives_table[i].devaddr);
+        qdev_init(&pci_dev->qdev);
+        unit_id++;
+    }
+
+    /* Add virtio balloon device */
+    if (virtio_balloon) {
+        pci_dev = pci_create("virtio-balloon-pci", virtio_balloon_devaddr);
+        qdev_init(&pci_dev->qdev);
+    }
+
+    /* Add virtio console devices */
+    for(i = 0; i < MAX_VIRTIO_CONSOLES; i++) {
+        if (virtcon_hds[i]) {
+            pci_create_simple(pci_bus, -1, virtio_console_name);
+        }
+    }
+}
+
+static void pc_pci_device_init_compat(PCIBus *pci_bus, int compat_level)
+{
+    const char *virtio_blk_name, *virtio_console_name;
+
+    switch (compat_level) {
+    case COMPAT_DEFAULT:
+    default:
+        virtio_blk_name = "virtio-blk-pci";
+        virtio_console_name = "virtio-console-pci";
+        break;
+
+    case COMPAT_0_10:
+        virtio_blk_name = "virtio-blk-pci-0-10";
+        virtio_console_name = "virtio-console-pci-0-10";
+        break;
+    }
+
+    pc_pci_device_init1(pci_bus, virtio_blk_name, virtio_console_name);
+}
+
+#if 0
+void pc_pci_device_init(PCIBus *pci_bus)
+{
+    pc_pci_device_init(pci_bus, "virtio-blk-pci", "virtio-console-pci");
+}
+#endif
+
 /* PC hardware initialisation */
 static void pc_init1(ram_addr_t ram_size,
                      const char *boot_device,
@@ -1368,14 +1431,12 @@ static void pc_init1(ram_addr_t ram_size,
     int i;
     ram_addr_t below_4g_mem_size, above_4g_mem_size;
     PCIBus *pci_bus;
-    PCIDevice *pci_dev;
     PCIDevice *i440fx_state;
     int piix3_devfn = -1;
     qemu_irq *cpu_irq;
     qemu_irq *i8259;
     int index;
     BlockDriverState *hd[MAX_IDE_BUS * MAX_IDE_DEVS];
-    const char *virtio_blk_name, *virtio_console_name;
     fdctrl_t *floppy_controller;
     RTCState *rtc_state;
 
@@ -1474,54 +1535,7 @@ static void pc_init1(ram_addr_t ram_size,
     }
 
     if (pci_enabled) {
-	int max_bus;
-        int bus;
-
-        max_bus = drive_get_max_bus(IF_SCSI);
-	for (bus = 0; bus <= max_bus; bus++) {
-            pci_create_simple(pci_bus, -1, "lsi53c895a");
-        }
-    }
-
-    switch (compat_level) {
-    case COMPAT_DEFAULT:
-    default:
-        virtio_blk_name = "virtio-blk-pci";
-        virtio_console_name = "virtio-console-pci";
-        break;
-
-    case COMPAT_0_10:
-        virtio_blk_name = "virtio-blk-pci-0-10";
-        virtio_console_name = "virtio-console-pci-0-10";
-        break;
-    }
-
-    /* Add virtio block devices */
-    if (pci_enabled) {
-        int index;
-        int unit_id = 0;
-
-        while ((index = drive_get_index(IF_VIRTIO, 0, unit_id)) != -1) {
-            pci_dev = pci_create(virtio_blk_name,
-                                 drives_table[index].devaddr);
-            qdev_init(&pci_dev->qdev);
-            unit_id++;
-        }
-    }
-
-    /* Add virtio balloon device */
-    if (pci_enabled && virtio_balloon) {
-        pci_dev = pci_create("virtio-balloon-pci", virtio_balloon_devaddr);
-        qdev_init(&pci_dev->qdev);
-    }
-
-    /* Add virtio console devices */
-    if (pci_enabled) {
-        for(i = 0; i < MAX_VIRTIO_CONSOLES; i++) {
-            if (virtcon_hds[i]) {
-                pci_create_simple(pci_bus, -1, virtio_console_name);
-            }
-        }
+        pc_pci_device_init_compat(pci_bus, compat_level);
     }
 }
 
