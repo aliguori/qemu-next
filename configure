@@ -1691,8 +1691,8 @@ if test "$inotify" = "yes" ; then
 fi
 if test "$curl" = "yes" ; then
   echo "CONFIG_CURL=y" >> $config_host_mak
-  echo "CURL_LIBS=$curl_libs" >> $config_host_mak
   echo "#define CONFIG_CURL 1" >> $config_host_h
+  LIBS="$LIBS $curl_libs"
 fi
 if test "$brlapi" = "yes" ; then
   echo "CONFIG_BRLAPI=y" >> $config_host_mak

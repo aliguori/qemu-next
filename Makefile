@@ -159,8 +159,6 @@ obj-$(CONFIG_SLIRP) += $(addprefix slirp/, $(slirp-obj-y))
 obj-$(CONFIG_XEN) += xen_backend.o xen_devconfig.o
 obj-$(CONFIG_XEN) += xen_console.o xenfb.o xen_disk.o xen_nic.o
 
-LIBS+=$(CURL_LIBS)
-
 cocoa.o: cocoa.m
 
 keymaps.o: keymaps.c keymaps.h
