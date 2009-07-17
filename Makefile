@@ -29,9 +29,6 @@ else
 DOCS=
 endif
 
-LIBS+=$(PTHREADLIBS)
-LIBS+=$(CLOCKLIBS)
-
 ifdef CONFIG_SOLARIS
 LIBS+=-lsocket -lnsl -lresolv
 endif

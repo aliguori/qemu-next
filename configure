@@ -1200,7 +1200,6 @@ fi
 ##########################################
 # pthread probe
 PTHREADLIBS_LIST="-lpthread -lpthreadGC2"
-PTHREADLIBS=""
 
 if test "$pthread" = yes; then
   pthread=no
@@ -1211,7 +1210,7 @@ EOF
   for pthread_lib in $PTHREADLIBS_LIST; do
     if $cc $ARCH_CFLAGS -o $TMPE $TMPC $pthread_lib 2> /dev/null > /dev/null ; then
       pthread=yes
-      PTHREADLIBS="$pthread_lib"
+      LIBS="$LIBS $pthread_lib"
       break
     fi
   done
@@ -1367,7 +1366,6 @@ fi
 
 ##########################################
 # Do we need librt
-CLOCKLIBS=""
 cat > $TMPC <<EOF
 #include <signal.h>
 #include <time.h>
@@ -1382,7 +1380,7 @@ elif $cc $ARCH_CFLAGS -o $TMPE $TMPC -lrt > /dev/null 2> /dev/null ; then
 fi
 
 if test "$rt" = "yes" ; then
-  CLOCKLIBS="-lrt"
+  LIBS="$LIBS -lrt"
 fi
 
 if test "$mingw32" = "yes" ; then
@@ -1827,8 +1825,6 @@ echo "LDFLAGS=$LDFLAGS $OS_LDFLAGS $ARCH_LDFLAGS $EXTRA_LDFLAGS" >> $config_host
 echo "CPPFLAGS=$CPPFLAGS" >> $config_host_mak
 echo "LIBS=$LIBS" >> $config_host_mak
 echo "EXESUF=$EXESUF" >> $config_host_mak
-echo "PTHREADLIBS=$PTHREADLIBS" >> $config_host_mak
-echo "CLOCKLIBS=$CLOCKLIBS" >> $config_host_mak
 
 if test -f ${config_host_h}~ ; then
   if cmp -s $config_host_h ${config_host_h}~ ; then
