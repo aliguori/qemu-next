@@ -1106,6 +1106,11 @@ static CPUState *pc_new_cpu(const char *cpu_model)
     return env;
 }
 
+static qemu_irq *pc_allocate_cpu_irq(void)
+{
+    return qemu_allocate_irqs(pic_irq_request, NULL, 1);
+}
+
 enum {
     COMPAT_DEFAULT = 0,
     COMPAT_0_10, /* compatible with qemu 0.10.x */
@@ -1280,7 +1285,7 @@ static void pc_init1(ram_addr_t ram_size,
                                            0xe0000);
     }
 
-    cpu_irq = qemu_allocate_irqs(pic_irq_request, NULL, 1);
+    cpu_irq = pc_allocate_cpu_irq();
     i8259 = i8259_init(cpu_irq[0]);
     ferr_irq = i8259[13];
 
