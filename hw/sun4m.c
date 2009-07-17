@@ -524,11 +524,7 @@ static SysBusDeviceInfo ram_info = {
     .qdev.name  = "memory",
     .qdev.size  = sizeof(RamDevice),
     .qdev.props = (Property[]) {
-        {
-            .name = "size",
-            .info = &qdev_prop_uint32,
-            .offset = offsetof(RamDevice, size),
-        },
+        QDEV_PROP(RamDevice, size),
         {/* end of property list */}
     }
 };

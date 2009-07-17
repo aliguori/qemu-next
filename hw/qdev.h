@@ -145,6 +145,55 @@ void do_info_qtree(Monitor *mon);
 
 /*** qdev-properties.c ***/
 
+#define CHOOSE(a, b, c) __builtin_choose_expr(a, b, c)
+#define TYPES_COMPAT(a, b) __builtin_types_compatible_p(a, b)
+#define TYPEOF_FIELD(type, field) typeof(((type *)0)->field)
+
+#define QDEV_PROP_TYPE_INFER(type, field)                          \
+        CHOOSE(TYPES_COMPAT(TYPEOF_FIELD(type, field), uint16_t),  \
+        &qdev_prop_uint16,                                         \
+        CHOOSE(TYPES_COMPAT(TYPEOF_FIELD(type, field), int16_t),   \
+        &qdev_prop_uint16,                                         \
+        CHOOSE(TYPES_COMPAT(TYPEOF_FIELD(type, field), uint32_t),  \
+        &qdev_prop_uint32,                                         \
+        CHOOSE(TYPES_COMPAT(TYPEOF_FIELD(type, field), int32_t),   \
+        &qdev_prop_uint32,                                         \
+        CHOOSE(TYPES_COMPAT(TYPEOF_FIELD(type, field), CharDriverState *), \
+        &qdev_prop_chrdev,                                         \
+        /* force a build break when inference fails */             \
+       (double)3.14159265)))))
+
+#define QDEV_PROP_FULL_DEF(type, field, label, kind, def) \
+    {                                                     \
+        .name = label,                                    \
+        .offset = offsetof(type, field),                  \
+        .info = kind,                                     \
+        .defval = (TYPEOF_FIELD(type, field)[]){def},        \
+    }
+
+#define QDEV_PROP_FULL(type, field, label, kind)      \
+    {                                                 \
+        .name = label,                                \
+        .offset = offsetof(type, field),              \
+        .info = kind,                                 \
+        .defval = 0,                                  \
+    }
+
+#define QDEV_PROP_NAME(type, field, name) \
+    QDEV_PROP_FULL(type, field, name, QDEV_PROP_TYPE_INFER(type, field))
+
+#define QDEV_PROP(type, field)                         \
+    QDEV_PROP_FULL(type, field, stringify(field),      \
+                   QDEV_PROP_TYPE_INFER(type, field))
+
+#define QDEV_PROP_DEFVAL(type, field, defval)                     \
+    QDEV_PROP_FULL_DEF(type, field, stringify(field),             \
+                       QDEV_PROP_TYPE_INFER(type, field), defval)
+
+#define QDEV_PROP_NAME_DEFVAL(type, field, name, defval)          \
+    QDEV_PROP_FULL_DEF(type, field, name,                         \
+                       QDEV_PROP_TYPE_INFER(type, field), defval)
+
 extern PropertyInfo qdev_prop_uint16;
 extern PropertyInfo qdev_prop_uint32;
 extern PropertyInfo qdev_prop_hex32;

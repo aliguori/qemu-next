@@ -230,11 +230,7 @@ static SysBusDeviceInfo syborg_timer_info = {
     .qdev.name  = "syborg,timer",
     .qdev.size  = sizeof(SyborgTimerState),
     .qdev.props = (Property[]) {
-        {
-            .name   = "frequency",
-            .info   = &qdev_prop_uint32,
-            .offset = offsetof(SyborgTimerState, freq),
-        },
+        QDEV_PROP_NAME(SyborgTimerState, freq, "frequency"),
         {/* end of list */}
     }
 };

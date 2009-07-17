@@ -344,12 +344,7 @@ static SysBusDeviceInfo syborg_serial_info = {
     .qdev.name  = "syborg,serial",
     .qdev.size  = sizeof(SyborgSerialState),
     .qdev.props = (Property[]) {
-        {
-            .name   = "fifo-size",
-            .info   = &qdev_prop_uint32,
-            .offset = offsetof(SyborgSerialState, fifo_size),
-            .defval = (uint32_t[]) { 16 },
-        },
+        QDEV_PROP_NAME_DEFVAL(SyborgSerialState, fifo_size, "fifo-size", 16),
         {/* end of list */}
     }
 };

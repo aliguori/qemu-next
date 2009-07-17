@@ -737,8 +737,8 @@ int escc_init(target_phys_addr_t base, qemu_irq irqA, qemu_irq irqB,
     qdev_prop_set_uint32(dev, "disabled", 0);
     qdev_prop_set_uint32(dev, "frequency", clock);
     qdev_prop_set_uint32(dev, "it_shift", it_shift);
-    qdev_prop_set_ptr(dev, "chrB", chrB);
-    qdev_prop_set_ptr(dev, "chrA", chrA);
+    qdev_prop_set_chrdev(dev, "chrB", chrB);
+    qdev_prop_set_chrdev(dev, "chrA", chrA);
     qdev_prop_set_uint32(dev, "chnBtype", ser);
     qdev_prop_set_uint32(dev, "chnAtype", ser);
     qdev_init(dev);
@@ -900,8 +900,8 @@ void slavio_serial_ms_kbd_init(target_phys_addr_t base, qemu_irq irq,
     qdev_prop_set_uint32(dev, "disabled", disabled);
     qdev_prop_set_uint32(dev, "frequency", clock);
     qdev_prop_set_uint32(dev, "it_shift", it_shift);
-    qdev_prop_set_ptr(dev, "chrB", NULL);
-    qdev_prop_set_ptr(dev, "chrA", NULL);
+    qdev_prop_set_chrdev(dev, "chrB", NULL);
+    qdev_prop_set_chrdev(dev, "chrA", NULL);
     qdev_prop_set_uint32(dev, "chnBtype", mouse);
     qdev_prop_set_uint32(dev, "chnAtype", kbd);
     qdev_init(dev);
@@ -952,41 +952,13 @@ static SysBusDeviceInfo escc_info = {
     .qdev.name  = "escc",
     .qdev.size  = sizeof(SerialState),
     .qdev.props = (Property[]) {
-        {
-            .name = "frequency",
-            .info = &qdev_prop_uint32,
-            .offset = offsetof(SerialState, frequency),
-        },
-        {
-            .name = "it_shift",
-            .info = &qdev_prop_uint32,
-            .offset = offsetof(SerialState, it_shift),
-        },
-        {
-            .name = "disabled",
-            .info = &qdev_prop_uint32,
-            .offset = offsetof(SerialState, disabled),
-        },
-        {
-            .name = "chrB",
-            .info = &qdev_prop_ptr,
-            .offset = offsetof(SerialState, chn[1].chr),
-        },
-        {
-            .name = "chrA",
-            .info = &qdev_prop_ptr,
-            .offset = offsetof(SerialState, chn[0].chr),
-        },
-        {
-            .name = "chnBtype",
-            .info = &qdev_prop_uint32,
-            .offset = offsetof(SerialState, chn[1].type),
-        },
-        {
-            .name = "chnAtype",
-            .info = &qdev_prop_uint32,
-            .offset = offsetof(SerialState, chn[0].type),
-        },
+        QDEV_PROP(SerialState, frequency),
+        QDEV_PROP(SerialState, it_shift),
+        QDEV_PROP(SerialState, disabled),
+        QDEV_PROP_NAME(SerialState, chn[1].chr, "chrB"),
+        QDEV_PROP_NAME(SerialState, chn[0].chr, "chrA"),
+        QDEV_PROP_NAME(SerialState, chn[1].type, "chrBtype"),
+        QDEV_PROP_NAME(SerialState, chn[0].type, "chrAtype"),
         {/* end of list */}
     }
 };
