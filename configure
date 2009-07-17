@@ -1728,7 +1728,7 @@ fi
 if test "$fdt" = "yes" ; then
   echo "CONFIG_FDT=y" >> $config_host_mak
   echo "#define CONFIG_FDT 1" >> $config_host_h
-  echo "FDT_LIBS=-lfdt" >> $config_host_mak
+  LIBS="$LIBS -lfdt"
 fi
 
 # XXX: suppress that
