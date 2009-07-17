@@ -1520,6 +1520,7 @@ echo "#define HOST_LONG_BITS $hostlongbits" >> $config_host_h
 if test "$mingw32" = "yes" ; then
   echo "CONFIG_WIN32=y" >> $config_host_mak
   echo "#define CONFIG_WIN32 1" >> $config_host_h
+  LIBS="$LIBS -lwinmm -lws2_32 -liphlpapi"
 else
   cat > $TMPC << EOF
 #include <byteswap.h>
