@@ -200,7 +200,7 @@ static void cpu_set_irq(void *opaque, int irq, int level)
     }
 }
 
-void qemu_system_powerdown(void)
+static void system_powerdown(void *unused)
 {
 }
 
@@ -550,6 +550,7 @@ static void sun4uv_init(ram_addr_t RAM_size,
     fw_cfg_add_i32(fw_cfg, FW_CFG_INITRD_SIZE, initrd_size);
     fw_cfg_add_i16(fw_cfg, FW_CFG_BOOT_DEVICE, boot_devices[0]);
     qemu_register_boot_set(fw_cfg_boot_set, fw_cfg);
+    qemu_system_powerdown_register(&system_powerdown, NULL);
 }
 
 enum {

@@ -283,11 +283,11 @@ static void dummy_cpu_set_irq(void *opaque, int irq, int level)
 {
 }
 
-static void *slavio_misc;
-
-void qemu_system_powerdown(void)
+static void system_powerdown(void *slavio_misc)
 {
-    slavio_set_power_fail(slavio_misc, 1);
+    if (slavio_misc) {
+        slavio_set_power_fail(slavio_misc, 1);
+    }
 }
 
 static void main_cpu_reset(void *opaque)
@@ -573,6 +573,7 @@ static void sun4m_hw_init(const struct sun4m_hwdef *hwdef, ram_addr_t RAM_size,
     CPUState *envs[MAX_CPUS];
     unsigned int i;
     void *iommu, *espdma, *ledma, *nvram;
+    void *slavio_misc;
     qemu_irq *cpu_irqs[MAX_CPUS], slavio_irq[32], slavio_cpu_irq[MAX_CPUS],
         espdma_irq, ledma_irq;
     qemu_irq *esp_reset, *le_reset;
@@ -712,6 +713,7 @@ static void sun4m_hw_init(const struct sun4m_hwdef *hwdef, ram_addr_t RAM_size,
     fw_cfg_add_i32(fw_cfg, FW_CFG_INITRD_SIZE, 0); // not used
     fw_cfg_add_i16(fw_cfg, FW_CFG_BOOT_DEVICE, boot_device[0]);
     qemu_register_boot_set(fw_cfg_boot_set, fw_cfg);
+    qemu_system_powerdown_register(&system_powerdown, slavio_misc);
 }
 
 enum {
@@ -1414,6 +1416,7 @@ static void sun4d_hw_init(const struct sun4d_hwdef *hwdef, ram_addr_t RAM_size,
     fw_cfg_add_i32(fw_cfg, FW_CFG_INITRD_SIZE, 0); // not used
     fw_cfg_add_i16(fw_cfg, FW_CFG_BOOT_DEVICE, boot_device[0]);
     qemu_register_boot_set(fw_cfg_boot_set, fw_cfg);
+    qemu_system_powerdown_register(&system_powerdown, NULL);
 }
 
 /* SPARCserver 1000 hardware initialisation */
@@ -1493,6 +1496,7 @@ static void sun4c_hw_init(const struct sun4c_hwdef *hwdef, ram_addr_t RAM_size,
 {
     CPUState *env;
     void *iommu, *espdma, *ledma, *nvram;
+    void *slavio_misc;
     qemu_irq *cpu_irqs, *slavio_irq, espdma_irq, ledma_irq;
     qemu_irq *esp_reset, *le_reset;
     qemu_irq fdc_tc;
@@ -1593,6 +1597,7 @@ static void sun4c_hw_init(const struct sun4c_hwdef *hwdef, ram_addr_t RAM_size,
     fw_cfg_add_i32(fw_cfg, FW_CFG_INITRD_SIZE, 0); // not used
     fw_cfg_add_i16(fw_cfg, FW_CFG_BOOT_DEVICE, boot_device[0]);
     qemu_register_boot_set(fw_cfg_boot_set, fw_cfg);
+    qemu_system_powerdown_register(&system_powerdown, slavio_misc);
 }
 
 /* SPARCstation 2 hardware initialisation */

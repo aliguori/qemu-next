@@ -3465,6 +3465,9 @@ static int shutdown_requested;
 static int powerdown_requested;
 static int debug_requested;
 static int vmstop_requested;
+static qemu_powerdown_t powerdown_callback;
+static void *powerdown_arg;
+static int powerdown_requested_before_register;
 
 int qemu_shutdown_requested(void)
 {
@@ -3563,6 +3566,25 @@ void qemu_system_powerdown_request(void)
 {
     powerdown_requested = 1;
     qemu_notify_event();
+}
+
+void qemu_system_powerdown_register(qemu_powerdown_t callback, void *arg)
+{
+    powerdown_callback = callback;
+    powerdown_arg = arg;
+    if (powerdown_requested_before_register) {
+        powerdown_requested_before_register = 0;
+        qemu_system_shutdown_request();
+    }
+}
+
+void qemu_system_powerdown(void)
+{
+    if (!powerdown_callback) {
+        powerdown_requested_before_register = 1;
+    } else {
+        powerdown_callback(powerdown_arg);
+    }
 }
 
 #ifdef CONFIG_IOTHREAD
