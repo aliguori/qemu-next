@@ -522,6 +522,11 @@ for opt do
   esac
 done
 
+# LIBS = libraries that we want to use for linking
+# CPPFFLAGS = flags for cpp, they are passed both to .c and .s files
+# CFLAGS = flags for CC, they are passed to .c files
+# LDFLAGS = flags passed to ld
+
 # default flags for all hosts
 CFLAGS="$CFLAGS -g -fno-strict-aliasing"
 if test "$debug" = "no" ; then
@@ -529,6 +534,8 @@ if test "$debug" = "no" ; then
 fi
 CFLAGS="$CFLAGS -Wall -Wundef -Wendif-labels -Wwrite-strings -Wmissing-prototypes -Wstrict-prototypes -Wredundant-decls"
 LDFLAGS="$LDFLAGS -g"
+CPPFLAGS=
+LIBS=
 
 # Consult white-list to determine whether to enable werror
 # by default.  Only enable by default for git builds
@@ -1817,6 +1824,8 @@ echo "OBJCOPY=$objcopy" >> $config_host_mak
 echo "LD=$ld" >> $config_host_mak
 echo "CFLAGS=$CFLAGS $OS_CFLAGS $ARCH_CFLAGS $EXTRA_CFLAGS" >> $config_host_mak
 echo "LDFLAGS=$LDFLAGS $OS_LDFLAGS $ARCH_LDFLAGS $EXTRA_LDFLAGS" >> $config_host_mak
+echo "CPPFLAGS=$CPPFLAGS" >> $config_host_mak
+echo "LIBS=$LIBS" >> $config_host_mak
 echo "EXESUF=$EXESUF" >> $config_host_mak
 echo "PTHREADLIBS=$PTHREADLIBS" >> $config_host_mak
 echo "CLOCKLIBS=$CLOCKLIBS" >> $config_host_mak
@@ -2119,5 +2128,5 @@ for hwlib in 32 64; do
   rm -f $d/Makefile
   ln -s $source_path/Makefile.hw $d/Makefile
   echo "HWLIB=libqemuhw$hwlib.a" > $d/config.mak
-  echo "CPPFLAGS=-DTARGET_PHYS_ADDR_BITS=$hwlib" >> $d/config.mak
+  echo "CPPFLAGS+=-DTARGET_PHYS_ADDR_BITS=$hwlib" >> $d/config.mak
 done
