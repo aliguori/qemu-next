@@ -57,8 +57,6 @@
 
 #define MAX_IDE_BUS 2
 
-static RTCState *rtc_state;
-
 typedef struct rom_reset_data {
     uint8_t *data;
     target_phys_addr_t addr;
@@ -202,9 +200,9 @@ static int cmos_get_fd_drive_type(int fd0)
     return val;
 }
 
-static void cmos_init_hd(int type_ofs, int info_ofs, BlockDriverState *hd)
+static void cmos_init_hd(int type_ofs, int info_ofs, BlockDriverState *hd,
+                         RTCState *s)
 {
-    RTCState *s = rtc_state;
     int cylinders, heads, sectors;
     bdrv_get_geometry_hint(hd, &cylinders, &heads, &sectors);
     rtc_set_memory(s, type_ofs, 47);
@@ -267,9 +265,8 @@ static int pc_boot_set(void *opaque, const char *boot_device)
 /* hd_table must contain 4 block drivers */
 static void cmos_init(ram_addr_t ram_size, ram_addr_t above_4g_mem_size,
                       const char *boot_device, BlockDriverState **hd_table,
-                      fdctrl_t *floppy_controller)
+                      fdctrl_t *floppy_controller, RTCState *s)
 {
-    RTCState *s = rtc_state;
     int nbds, bds[3] = { 0, };
     int val;
     int fd0, fd1, nb;
@@ -358,9 +355,9 @@ static void cmos_init(ram_addr_t ram_size, ram_addr_t above_4g_mem_size,
 
     rtc_set_memory(s, 0x12, (hd_table[0] ? 0xf0 : 0) | (hd_table[1] ? 0x0f : 0));
     if (hd_table[0])
-        cmos_init_hd(0x19, 0x1b, hd_table[0]);
+        cmos_init_hd(0x19, 0x1b, hd_table[0], s);
     if (hd_table[1])
-        cmos_init_hd(0x1a, 0x24, hd_table[1]);
+        cmos_init_hd(0x1a, 0x24, hd_table[1], s);
 
     val = 0;
     for (i = 0; i < 4; i++) {
@@ -1143,6 +1140,7 @@ static void pc_init1(ram_addr_t ram_size,
     void *fw_cfg;
     const char *virtio_blk_name, *virtio_console_name;
     fdctrl_t *floppy_controller;
+    RTCState *rtc_state;
     PITState *pit;
     IOAPICState *ioapic = NULL;
 
@@ -1318,6 +1316,7 @@ static void pc_init1(ram_addr_t ram_size,
     }
 
     rtc_state = rtc_init(0x70, i8259[8], 2000);
+    cmos_set_s3_resume_init(rtc_state);
 
     qemu_register_boot_set(pc_boot_set, rtc_state);
 
@@ -1401,7 +1400,7 @@ static void pc_init1(ram_addr_t ram_size,
     floppy_controller = fdctrl_init(i8259[6], 2, 0, 0x3f0, fd);
 
     cmos_init(below_4g_mem_size, above_4g_mem_size, boot_device, hd,
-              floppy_controller);
+              floppy_controller, rtc_state);
 
     if (pci_enabled && usb_enabled) {
         usb_uhci_piix3_init(pci_bus, piix3_devfn + 2);
@@ -1519,10 +1518,18 @@ static void pc_init_pci_0_10(ram_addr_t ram_size,
 
 /* set CMOS shutdown status register (index 0xF) as S3_resume(0xFE)
    BIOS will read it and start S3 resume at POST Entry */
+static RTCState *rtc_state;
+void cmos_set_s3_resume_init(RTCState *s)
+{
+    rtc_state = s;
+}
+
 void cmos_set_s3_resume(void)
 {
+#if defined(TARGET_I386)
     if (rtc_state)
         rtc_set_memory(rtc_state, 0xF, 0xFE);
+#endif
 }
 
 static QEMUMachine pc_machine = {
