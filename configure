@@ -1372,14 +1372,9 @@ cat > $TMPC <<EOF
 int main(void) { clockid_t id; return clock_gettime(id, NULL); }
 EOF
 
-rt=no
 if $cc $ARCH_CFLAGS -o $TMPE $TMPC > /dev/null 2> /dev/null ; then
   :
 elif $cc $ARCH_CFLAGS -o $TMPE $TMPC -lrt > /dev/null 2> /dev/null ; then
-  rt=yes
-fi
-
-if test "$rt" = "yes" ; then
   LIBS="$LIBS -lrt"
 fi
 
