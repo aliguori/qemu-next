@@ -57,7 +57,6 @@
 
 #define MAX_IDE_BUS 2
 
-static fdctrl_t *floppy_controller;
 static RTCState *rtc_state;
 
 typedef struct rom_reset_data {
@@ -267,7 +266,8 @@ static int pc_boot_set(void *opaque, const char *boot_device)
 
 /* hd_table must contain 4 block drivers */
 static void cmos_init(ram_addr_t ram_size, ram_addr_t above_4g_mem_size,
-                      const char *boot_device, BlockDriverState **hd_table)
+                      const char *boot_device, BlockDriverState **hd_table,
+                      fdctrl_t *floppy_controller)
 {
     RTCState *s = rtc_state;
     int nbds, bds[3] = { 0, };
@@ -1142,6 +1142,7 @@ static void pc_init1(ram_addr_t ram_size,
     int using_vga = cirrus_vga_enabled || std_vga_enabled || vmsvga_enabled;
     void *fw_cfg;
     const char *virtio_blk_name, *virtio_console_name;
+    fdctrl_t *floppy_controller;
     PITState *pit;
     IOAPICState *ioapic = NULL;
 
@@ -1399,7 +1400,8 @@ static void pc_init1(ram_addr_t ram_size,
     }
     floppy_controller = fdctrl_init(i8259[6], 2, 0, 0x3f0, fd);
 
-    cmos_init(below_4g_mem_size, above_4g_mem_size, boot_device, hd);
+    cmos_init(below_4g_mem_size, above_4g_mem_size, boot_device, hd,
+              floppy_controller);
 
     if (pci_enabled && usb_enabled) {
         usb_uhci_piix3_init(pci_bus, piix3_devfn + 2);
