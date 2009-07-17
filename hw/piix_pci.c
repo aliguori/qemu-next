@@ -107,15 +107,15 @@ static void i440fx_update_memory_mappings(PCIDevice *d)
     }
 }
 
-void i440fx_set_smm(PCIDevice *d, int val)
+static void i440fx_set_smm(int smm, void *arg)
 {
-    val = (val != 0);
+    int val = (smm != 0);
+    PCIDevice *d = (PCIDevice*)arg;
     if (smm_enabled != val) {
         smm_enabled = val;
         i440fx_update_memory_mappings(d);
     }
 }
-
 
 /* XXX: suppress when better memory API. We make the assumption that
    no device (in particular the VGA) changes the memory mappings in
@@ -202,6 +202,7 @@ PCIBus *i440fx_init(PCIDevice **pi440fx_state, qemu_irq *pic)
     d->config[0x72] = 0x02; /* SMRAM */
 
     register_savevm("I440FX", 0, 2, i440fx_save, i440fx_load, d);
+    cpu_smm_register(&i440fx_set_smm, d);
     *pi440fx_state = d;
     return b;
 }

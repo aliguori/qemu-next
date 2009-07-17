@@ -61,7 +61,6 @@ static fdctrl_t *floppy_controller;
 static RTCState *rtc_state;
 static PITState *pit;
 static IOAPICState *ioapic;
-static PCIDevice *i440fx_state;
 
 typedef struct rom_reset_data {
     uint8_t *data;
@@ -121,10 +120,22 @@ uint64_t cpu_get_tsc(CPUX86State *env)
 }
 
 /* SMM support */
+
+static cpu_set_smm_t smm_set;
+static void *smm_arg;
+
+void cpu_smm_register(cpu_set_smm_t callback, void *arg)
+{
+    assert(smm_set == NULL);
+    assert(smm_arg == NULL);
+    smm_set = callback;
+    smm_arg = arg;
+}
+
 void cpu_smm_update(CPUState *env)
 {
-    if (i440fx_state && env == first_cpu)
-        i440fx_set_smm(i440fx_state, (env->hflags >> HF_SMM_SHIFT) & 1);
+    if (smm_set && smm_arg && env == first_cpu)
+        smm_set(!!(env->hflags & HF_SMM_MASK), smm_arg);
 }
 
 
@@ -1122,6 +1133,7 @@ static void pc_init1(ram_addr_t ram_size,
     int bios_size, isa_bios_size, oprom_area_size;
     PCIBus *pci_bus;
     PCIDevice *pci_dev;
+    PCIDevice *i440fx_state;
     int piix3_devfn = -1;
     CPUState *env;
     qemu_irq *cpu_irq;

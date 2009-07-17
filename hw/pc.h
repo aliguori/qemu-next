@@ -103,6 +103,13 @@ extern int fd_bootchk;
 void ioport_set_a20(int enable);
 int ioport_get_a20(void);
 
+typedef void (*cpu_set_smm_t)(int smm, void *arg);
+#if defined(TARGET_I386)
+void cpu_smm_register(cpu_set_smm_t callback, void *arg);
+#else
+static inline void cpu_smm_register(cpu_set_smm_t callback, void *arg) { };
+#endif
+
 /* acpi.c */
 extern int acpi_enabled;
 extern char *acpi_tables;
@@ -126,7 +133,6 @@ int pcspk_audio_init(qemu_irq *pic);
 
 /* piix_pci.c */
 PCIBus *i440fx_init(PCIDevice **pi440fx_state, qemu_irq *pic);
-void i440fx_set_smm(PCIDevice *d, int val);
 int piix3_init(PCIBus *bus, int devfn);
 void i440fx_init_memory_mappings(PCIDevice *d);
 
