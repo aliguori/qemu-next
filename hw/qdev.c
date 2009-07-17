@@ -36,11 +36,28 @@ extern struct BusInfo system_bus_info;
 
 static DeviceInfo *device_info_list;
 
+static void qdev_print_properties(DeviceInfo *info)
+{
+    int i;
+    printf("%s:\n", info->name);
+    for (i = 0; info->props && info->props[i].name; i++) {
+        Property *prop = &info->props[i];
+
+        printf(" .name = %s\n", prop->name);
+        printf(" .offset = %d\n", prop->offset);
+        printf(" .info = %p\n", prop->info);
+        printf(" .info.name = %s\n", prop->info->name);
+        printf("\n");
+    }
+}
+
 /* Register a new device type.  */
 void qdev_register(DeviceInfo *info)
 {
     assert(info->size >= sizeof(DeviceState));
     assert(!info->next);
+
+    qdev_print_properties(info);
 
     info->next = device_info_list;
     device_info_list = info;
