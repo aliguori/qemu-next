@@ -441,7 +441,6 @@ endif
 
 ifdef CONFIG_VNC_TLS
 CPPFLAGS += $(VNC_TLS_CFLAGS)
-LIBS += $(VNC_TLS_LIBS)
 endif
 
 ifdef CONFIG_VNC_SASL
