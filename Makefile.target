@@ -404,9 +404,6 @@ LIBS+=-lz
 ifdef CONFIG_ESD
 LIBS += -lesd
 endif
-ifdef CONFIG_PA
-LIBS += -lpulse-simple
-endif
 
 sound-obj-y =
 sound-obj-$(CONFIG_SB16) += sb16.o

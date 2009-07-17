@@ -1611,6 +1611,8 @@ for drv in $audio_drv_list; do
         LIBS="$LIBS -lasound"
     elif test "$drv" = "dsound"; then
         LIBS="$LIBS -lole32 -ldxguid"
+    elif test "$drv" = "pa"; then
+        LIBS="$LIBS -lpulse-simple"
     fi
 done
 echo "" >>$config_host_h
