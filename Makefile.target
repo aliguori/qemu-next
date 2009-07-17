@@ -449,10 +449,6 @@ CPPFLAGS += $(VNC_SASL_CFLAGS)
 LIBS += $(VNC_SASL_LIBS)
 endif
 
-ifdef CONFIG_BLUEZ
-LIBS += $(BLUEZ_LIBS)
-endif
-
 # xen backend driver support
 obj-$(CONFIG_XEN) += xen_machine_pv.o xen_domainbuild.o
 

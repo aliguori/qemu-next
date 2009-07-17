@@ -1701,9 +1701,9 @@ if test "$brlapi" = "yes" ; then
 fi
 if test "$bluez" = "yes" ; then
   echo "CONFIG_BLUEZ=y" >> $config_host_mak
-  echo "BLUEZ_CFLAGS=$bluez_cflags" >> $config_host_mak
-  echo "BLUEZ_LIBS=$bluez_libs" >> $config_host_mak
   echo "#define CONFIG_BLUEZ 1" >> $config_host_h
+  echo "BLUEZ_CFLAGS=$bluez_cflags" >> $config_host_mak
+  LIBS="$LIBS $bluez_libs"
 fi
 if test "$xen" = "yes" ; then
   LIBS="$LIBS -lxenstore -lxenctrl -lxenguest"
