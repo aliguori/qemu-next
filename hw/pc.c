@@ -1135,42 +1135,20 @@ static qemu_irq *pc_allocate_cpu_irq(void)
     return qemu_allocate_irqs(pic_irq_request, NULL, 1);
 }
 
-enum {
-    COMPAT_DEFAULT = 0,
-    COMPAT_0_10, /* compatible with qemu 0.10.x */
-};
-
-/* PC hardware initialisation */
-static void pc_init1(ram_addr_t ram_size,
-                     const char *boot_device,
-                     const char *kernel_filename,
-                     const char *kernel_cmdline,
-                     const char *initrd_filename,
-                     const char *cpu_model,
-                     int pci_enabled,
-                     int compat_level)
+static void pc_memory_init(ram_addr_t ram_size,
+                           const char *kernel_filename,
+                           const char *kernel_cmdline,
+                           const char *initrd_filename,
+                           ram_addr_t *below_4g_mem_size_p,
+                           ram_addr_t *above_4g_mem_size_p)
 {
     char *filename;
     int ret, linux_boot, i;
     ram_addr_t ram_addr, bios_offset, option_rom_offset;
     ram_addr_t below_4g_mem_size, above_4g_mem_size = 0;
     int bios_size, isa_bios_size, oprom_area_size;
-    PCIBus *pci_bus;
-    PCIDevice *pci_dev;
-    PCIDevice *i440fx_state;
-    int piix3_devfn = -1;
-    qemu_irq *cpu_irq;
-    qemu_irq *i8259;
-    int index;
-    BlockDriverState *hd[MAX_IDE_BUS * MAX_IDE_DEVS];
-    BlockDriverState *fd[MAX_FD];
     int using_vga = cirrus_vga_enabled || std_vga_enabled || vmsvga_enabled;
     void *fw_cfg;
-    const char *virtio_blk_name, *virtio_console_name;
-    fdctrl_t *floppy_controller;
-    RTCState *rtc_state;
-    PITState *pit;
-    IOAPICState *ioapic = NULL;
 
     if (ram_size >= 0xe0000000 ) {
         above_4g_mem_size = ram_size - 0xe0000000;
@@ -1178,12 +1156,10 @@ static void pc_init1(ram_addr_t ram_size,
     } else {
         below_4g_mem_size = ram_size;
     }
+    *above_4g_mem_size_p = above_4g_mem_size;
+    *below_4g_mem_size_p = below_4g_mem_size;
 
     linux_boot = (kernel_filename != NULL);
-
-    pc_cpus_init(cpu_model);
-
-    vmport_init();
 
     /* allocate RAM */
     ram_addr = qemu_ram_alloc(0xa0000);
@@ -1296,6 +1272,47 @@ static void pc_init1(ram_addr_t ram_size,
         oprom_area_size += load_option_rom(nic_oprom, 0xc0000 + oprom_area_size,
                                            0xe0000);
     }
+}
+
+enum {
+    COMPAT_DEFAULT = 0,
+    COMPAT_0_10, /* compatible with qemu 0.10.x */
+};
+
+/* PC hardware initialisation */
+static void pc_init1(ram_addr_t ram_size,
+                     const char *boot_device,
+                     const char *kernel_filename,
+                     const char *kernel_cmdline,
+                     const char *initrd_filename,
+                     const char *cpu_model,
+                     int pci_enabled,
+                     int compat_level)
+{
+    int i;
+    ram_addr_t below_4g_mem_size, above_4g_mem_size;
+    PCIBus *pci_bus;
+    PCIDevice *pci_dev;
+    PCIDevice *i440fx_state;
+    int piix3_devfn = -1;
+    qemu_irq *cpu_irq;
+    qemu_irq *i8259;
+    int index;
+    BlockDriverState *hd[MAX_IDE_BUS * MAX_IDE_DEVS];
+    BlockDriverState *fd[MAX_FD];
+    const char *virtio_blk_name, *virtio_console_name;
+    fdctrl_t *floppy_controller;
+    RTCState *rtc_state;
+    PITState *pit;
+    IOAPICState *ioapic = NULL;
+
+    pc_cpus_init(cpu_model);
+
+    vmport_init();
+
+    /* allocate ram and load rom/bios */
+    pc_memory_init(ram_size, kernel_filename, kernel_cmdline, initrd_filename,
+                   &below_4g_mem_size, &above_4g_mem_size);
 
     cpu_irq = pc_allocate_cpu_irq();
     i8259 = i8259_init(cpu_irq[0]);
