@@ -1660,7 +1660,7 @@ fi
 if test "$sdl1" = "yes" ; then
   echo "#define CONFIG_SDL 1" >> $config_host_h
   echo "CONFIG_SDL=y" >> $config_host_mak
-  if test "$target_softmmu" = "no" -o $static" = "yes"; then
+  if test "$static" = "yes"; then
     LIBS="$LIBS $sdl_static_libs"
   elif test "$sdl_x11" = "yes" ; then
     LIBS="$LIBS `sdl-config --libs` -lX11"
