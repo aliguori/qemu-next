@@ -137,8 +137,6 @@ vnc.h: vnc-tls.h vnc-auth-vencrypt.h vnc-auth-sasl.h keymaps.h
 
 vnc.o: vnc.c vnc.h vnc_keysym.h vnchextile.h d3des.c d3des.h acl.h
 
-vnc.o: CFLAGS += $(VNC_TLS_CFLAGS)
-
 vnc-tls.o: vnc-tls.c vnc.h
 
 vnc-auth-vencrypt.o: vnc-auth-vencrypt.c vnc.h

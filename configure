@@ -948,9 +948,10 @@ EOF
     vnc_tls_libs=`pkg-config --libs gnutls 2> /dev/null`
     if $cc $ARCH_CFLAGS -o $TMPE ${OS_CFLAGS} $vnc_tls_cflags $TMPC \
            $vnc_tls_libs > /dev/null 2> /dev/null ; then
-	:
+        CPPFLAGS="$CPPFLAGS $vnc_tls_cflags"
+        LIBS="$LIBS $vnc_tls_libs"
     else
-	vnc_tls="no"
+        vnc_tls="no"
     fi
 fi
 
@@ -1634,9 +1635,7 @@ if test "$mixemu" = "yes" ; then
 fi
 if test "$vnc_tls" = "yes" ; then
   echo "CONFIG_VNC_TLS=y" >> $config_host_mak
-  echo "VNC_TLS_CFLAGS=$vnc_tls_cflags" >> $config_host_mak
   echo "#define CONFIG_VNC_TLS 1" >> $config_host_h
- LIBS="$LIBS $vnc_tls_libs"
 fi
 if test "$vnc_sasl" = "yes" ; then
   echo "CONFIG_VNC_SASL=y" >> $config_host_mak
