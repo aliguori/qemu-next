@@ -1610,6 +1610,8 @@ for drv in $audio_drv_list; do
         LIBS="$LIBS -lpulse-simple"
     elif test "$drv" = "esd"; then
         LIBS="$LIBS -lesd"
+    elif test "$drv" = "coreaudio"; then
+	LIBS="$LIBS -framework CoreAudio"
     fi
 done
 echo "" >>$config_host_h
@@ -1673,8 +1675,6 @@ if test "$cocoa" = "yes" ; then
   echo "#define CONFIG_COCOA 1" >> $config_host_h
   echo "CONFIG_COCOA=y" >> $config_host_mak
   LIBS="$LIBS -F/System/Library/Frameworks -framework Cocoa -framework IOKit"
-  # You can't configure coreaudio out for cocoa at this moment
-  LIBS="$LIBS -framework CoreAudio"
 fi
 if test "$curses" = "yes" ; then
   echo "#define CONFIG_CURSES 1" >> $config_host_h
