@@ -905,8 +905,10 @@ EOF
             aa="no"
             `sdl-config --static-libs 2>/dev/null | grep \\\-laa > /dev/null` && aa="yes"
             sdl_static_libs=`sdl-config --static-libs 2>/dev/null`
+            sdl_cflags=`sdl-config --cflags`
             if [ "$aa" = "yes" ] ; then
                 sdl_static_libs="$sdl_static_libs `aalib-config --static-libs`"
+                sdl_cflags="$sdl_cflags `aalib-config --cflags`"
             fi
 
             if $cc -o $TMPE ${OS_CFLAGS} `sdl-config --cflags 2> /dev/null` $TMPC $sdl_static_libs > /dev/null 2> /dev/null; then
@@ -1658,7 +1660,7 @@ fi
 if test "$sdl1" = "yes" ; then
   echo "#define CONFIG_SDL 1" >> $config_host_h
   echo "CONFIG_SDL=y" >> $config_host_mak
-  if test "$target_softmmu" = "no" -o "$static" = "yes"; then
+  if test "$target_softmmu" = "no" -o $static" = "yes"; then
     LIBS="$LIBS $sdl_static_libs"
   elif test "$sdl_x11" = "yes" ; then
     LIBS="$LIBS `sdl-config --libs` -lX11"
@@ -1667,11 +1669,7 @@ if test "$sdl1" = "yes" ; then
   else
     LIBS="$LIBS `sdl-config --libs`"
   fi
-  if [ "${aa}" = "yes" ] ; then
-    echo "SDL_CFLAGS=`sdl-config --cflags` `aalib-config --cflags`" >> $config_host_mak
-  else
-    echo "SDL_CFLAGS=`sdl-config --cflags`" >> $config_host_mak
-  fi
+  echo "SDL_CFLAGS=$sdl_cflags" >> $config_host_mak
 fi
 if test "$cocoa" = "yes" ; then
   echo "#define CONFIG_COCOA 1" >> $config_host_h
