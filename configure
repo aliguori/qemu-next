@@ -1517,6 +1517,7 @@ if test "$mingw32" = "yes" ; then
   echo "#define CONFIG_WIN32 1" >> $config_host_h
   LIBS="$LIBS -lwinmm -lws2_32 -liphlpapi"
 else
+  echo "CONFIG_NOWIN32=y" >> $config_host_mak
   cat > $TMPC << EOF
 #include <byteswap.h>
 int main(void) { return bswap_32(0); }
