@@ -1607,13 +1607,24 @@ for drv in $audio_drv_list; do
     elif test "$drv" = "dsound"; then
         LIBS="$LIBS -lole32 -ldxguid"
     elif test "$drv" = "pa"; then
+        audio_pt="yes"
+        audio_pt_int="yes"
         LIBS="$LIBS -lpulse-simple"
     elif test "$drv" = "esd"; then
+        audio_pt="yes"
+        audio_pt_int="yes"
         LIBS="$LIBS -lesd"
     elif test "$drv" = "coreaudio"; then
+        audio_pt="yes"
 	LIBS="$LIBS -framework CoreAudio"
     fi
 done
+if test "$audio_pt" == "yes" ; then
+  LDFLAGS="$LDFLAGS -pthread"
+fi
+if test "$audio_pt_int" == "yes" ; then
+  echo "CONFIG_AUDIO_PT_INT=y" >> $config_host_mak
+fi
 echo "" >>$config_host_h
 if test "$mixemu" = "yes" ; then
   echo "CONFIG_MIXEMU=y" >> $config_host_mak

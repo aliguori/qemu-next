@@ -102,23 +102,10 @@ else
 obj-y += migration-exec.o
 endif
 
-ifdef CONFIG_COREAUDIO
-AUDIO_PT = y
-endif
 ifdef CONFIG_FMOD
 audio/audio.o audio/fmodaudio.o: CPPFLAGS := -I$(FMOD_CFLAGS) $(CPPFLAGS)
 endif
-ifdef CONFIG_ESD
-AUDIO_PT = y
-AUDIO_PT_INT = y
-endif
-ifdef CONFIG_PA
-AUDIO_PT = y
-AUDIO_PT_INT = y
-endif
-ifdef AUDIO_PT
-LDFLAGS += -pthread
-endif
+
 
 audio-obj-y = audio.o noaudio.o wavaudio.o mixeng.o
 audio-obj-$(CONFIG_SDL) += sdlaudio.o
@@ -129,7 +116,7 @@ audio-obj-$(CONFIG_DSOUND) += dsoundaudio.o
 audio-obj-$(CONFIG_FMOD) += fmodaudio.o
 audio-obj-$(CONFIG_ESD) += esdaudio.o
 audio-obj-$(CONFIG_PA) += paaudio.o
-audio-obj-$(AUDIO_PT_INT) += audio_pt_int.o
+audio-obj-$(CONFIG_AUDIO_PT_INT) += audio_pt_int.o
 audio-obj-y += wavcapture.o
 obj-y += $(addprefix audio/, $(audio-obj-y))
 
