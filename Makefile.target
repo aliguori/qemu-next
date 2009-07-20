@@ -414,10 +414,6 @@ ifdef CONFIG_ADLIB
 adlib.o fmopl.o: CFLAGS := ${CFLAGS} -DBUILD_Y8950=0
 endif
 
-ifdef CONFIG_VNC_SASL
-CPPFLAGS += $(VNC_SASL_CFLAGS)
-endif
-
 # xen backend driver support
 obj-$(CONFIG_XEN) += xen_machine_pv.o xen_domainbuild.o
 
