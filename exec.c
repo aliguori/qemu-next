@@ -31,6 +31,7 @@
 #include <unistd.h>
 #include <inttypes.h>
 
+#include "sysemu.h"
 #include "cpu.h"
 #include "exec-all.h"
 #include "qemu-common.h"
@@ -555,6 +556,27 @@ CPUState *qemu_get_cpu(int cpu)
     }
 
     return env;
+}
+
+int qemu_cpu_stopped(CPUState *env)
+{
+    return !vm_running || env->stopped;
+}
+
+/* Returns the number of cpus that are in the stopped state.
+ * It is a 32-bit value, because if it weren't SGI would */
+uint32_t qemu_cpus_running(void)
+{
+    uint32_t count = 0;
+
+    if (!vm_running)
+        return count;
+
+    CPUState *penv = first_cpu;
+    while (penv) {
+        count += !penv->stopped;
+    }
+    return count;
 }
 
 void cpu_exec_init(CPUState *env)
