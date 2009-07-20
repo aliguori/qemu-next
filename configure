@@ -1002,8 +1002,9 @@ int main(void)
     return 0;
 }
 EOF
-    if $cc $ARCH_CFLAGS -o $TMPE $TMPC -lvdeplug > /dev/null 2> /dev/null ; then
-        :
+    vde_libs="-lvdeplug"
+    if $cc $ARCH_CFLAGS -o $TMPE $TMPC $vde_libs > /dev/null 2> /dev/null ; then
+        LIBS="$LIBS $vde_libs"
     else
         vde="no"
     fi
@@ -1589,7 +1590,6 @@ fi
 if test "$vde" = "yes" ; then
   echo "CONFIG_VDE=y" >> $config_host_mak
   echo "#define CONFIG_VDE 1" >> $config_host_h
-  LIBS="$LIBS -lvdeplug"
 fi
 for card in $audio_card_list; do
     def=CONFIG_`echo $card | tr '[:lower:]' '[:upper:]'`
