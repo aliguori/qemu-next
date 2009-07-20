@@ -1582,6 +1582,7 @@ fi
 if test "$slirp" = "yes" ; then
   echo "CONFIG_SLIRP=y" >> $config_host_mak
   echo "#define CONFIG_SLIRP 1" >> $config_host_h
+  CPPFLAGS="$CPPFLAGS -I$source_path/slirp"
 fi
 if test "$vde" = "yes" ; then
   echo "CONFIG_VDE=y" >> $config_host_mak
