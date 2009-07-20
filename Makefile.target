@@ -400,8 +400,6 @@ obj-y = vl.o osdep.o monitor.o pci.o loader.o isa_mmio.o machine.o \
 obj-y += virtio-blk.o virtio-balloon.o virtio-net.o virtio-console.o
 obj-$(CONFIG_KVM) += kvm.o kvm-all.o
 
-LIBS+=-lz
-
 sound-obj-y =
 sound-obj-$(CONFIG_SB16) += sb16.o
 sound-obj-$(CONFIG_ES1370) += es1370.o

@@ -850,7 +850,7 @@ cat > $TMPC << EOF
 int main(void) { zlibVersion(); return 0; }
 EOF
 if $cc $ARCH_CFLAGS -o $TMPE ${OS_CFLAGS} $TMPC -lz > /dev/null 2> /dev/null ; then
-    :
+    LIBS="$LIBS -lz"
 else
     echo
     echo "Error: zlib check failed"
