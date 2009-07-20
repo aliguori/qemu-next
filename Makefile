@@ -90,11 +90,6 @@ obj-$(CONFIG_BRLAPI) += baum.o
 obj-$(CONFIG_WIN32) += tap-win32.o
 obj-$(CONFIG_NOWIN32) += migration-exec.o
 
-ifdef CONFIG_FMOD
-audio/audio.o audio/fmodaudio.o: CPPFLAGS := -I$(FMOD_CFLAGS) $(CPPFLAGS)
-endif
-
-
 audio-obj-y = audio.o noaudio.o wavaudio.o mixeng.o
 audio-obj-$(CONFIG_SDL) += sdlaudio.o
 audio-obj-$(CONFIG_OSS) += ossaudio.o
