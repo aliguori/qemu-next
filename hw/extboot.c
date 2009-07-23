@@ -18,24 +18,9 @@
 
 /* Extended Boot ROM suport */
 
-union extboot_cmd
-{
-    uint16_t type;
-    struct {
-	uint16_t type;
-	uint16_t cylinders;
-	uint16_t heads;
-	uint16_t sectors;
-	uint64_t nb_sectors;
-    } query_geometry;
-    struct {
-	uint16_t type;
-	uint16_t nb_sectors;
-	uint16_t segment;
-	uint16_t offset;
-	uint64_t sector;
-    } xfer;
-};
+#define EXTBOOT_QUERY_GEOMETRY 0x00
+#define EXTBOOT_XFER_IN        0x02
+#define EXTBOOT_XFER_OUT       0x02
 
 static void get_translated_chs(BlockDriverState *bs, int *c, int *h, int *s)
 {
@@ -65,35 +50,51 @@ static void get_translated_chs(BlockDriverState *bs, int *c, int *h, int *s)
     }
 }
 
-static uint32_t extboot_read(void *opaque, uint32_t addr)
+static void extboot_query_geometry(BlockDriverState *bs, int *pcylinders,
+                                   int *pheads, int *psectors,
+                                   uint64_t *pnb_sectors)
 {
-    int *pcmd = opaque;
-    return *pcmd;
+    int cylinders, heads, sectors, err;
+    uint64_t nb_sectors;
+
+    get_translated_chs(bs, pcylinders, pheads, psectors);
+    bdrv_get_geometry(bs, pnb_sectors);
 }
 
 static void extboot_write_cmd(void *opaque, uint32_t addr, uint32_t value)
 {
-    union extboot_cmd cmd;
     BlockDriverState *bs = opaque;
-    int cylinders, heads, sectors, err;
-    uint64_t nb_sectors;
+    target_phys_addr_t cmd_addr;
     target_phys_addr_t pa = 0;
     int blen = 0;
     void *buf = NULL;
 
-    cpu_physical_memory_read((value & 0xFFFF) << 4, (uint8_t *)&cmd,
-                             sizeof(cmd));
+    cmd_addr = (value & 0xFFFF);
 
-    if (cmd.type == 0x01 || cmd.type == 0x02) {
-	pa = cmd.xfer.segment * 16 + cmd.xfer.offset;
-        blen = cmd.xfer.nb_sectors * 512;
-        buf = qemu_memalign(512, blen);
+    type = lduw_phys(cmd_addr);
+    switch (type) {
+    case EXTBOOT_QUERY_GEOMETRY:
+        extboot_query_geometry(bs, &cylinders, &heads, &sectors, &nb_sectors);
+
+        stw_phys(cmd_addr + 2, cylinders);
+        stw_phys(cmd_addr + 4, heads);
+        stw_phys(cmd_addr + 6, sectors);
+        stq_phys(cmd_addr + 8, nb_sectors);
+        break;
+    case EXTBOOT_XFER_IN:
+    case EXTBOOT_XFER_OUT:
+        nb_sectors = lduw(cmd_addr + 2);
+        segment = lduw(cmd_addr + 4);
+        offset = lduw(cmd_addr + 6);
+        sector = ldq(cmd_addr + 8);
+
+        extboot_xfer(bs, !!(type == EXTBOOT_XFER_IN), nb_sectors, segment, offset, sector);
+
+        break;
     }
 
     switch (cmd.type) {
     case 0x00:
-        get_translated_chs(bs, &cylinders, &heads, &sectors);
-	bdrv_get_geometry(bs, &nb_sectors);
 	cmd.query_geometry.cylinders = cylinders;
 	cmd.query_geometry.heads = heads;
 	cmd.query_geometry.sectors = sectors;
@@ -123,13 +124,7 @@ static void extboot_write_cmd(void *opaque, uint32_t addr, uint32_t value)
         qemu_free(buf);
 }
 
-void extboot_init(BlockDriverState *bs, int cmd)
+void extboot_init(BlockDriverState *bs)
 {
-    int *pcmd;
-
-    pcmd = qemu_mallocz(sizeof(int));
-
-    *pcmd = cmd;
-    register_ioport_read(0x404, 1, 1, extboot_read, pcmd);
     register_ioport_write(0x405, 1, 2, extboot_write_cmd, bs);
 }
