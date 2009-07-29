@@ -242,8 +242,7 @@ ifdef INSTALL_BLOBS
 BLOBS=bios.bin vgabios.bin vgabios-cirrus.bin ppc_rom.bin \
 video.x openbios-sparc32 openbios-sparc64 openbios-ppc \
 pxe-ne2k_pci.bin pxe-rtl8139.bin pxe-pcnet.bin pxe-e1000.bin \
-bamboo.dtb petalogix-s3adsp1800.dtb \
-multiboot.bin
+bamboo.dtb petalogix-s3adsp1800.dtb
 else
 BLOBS=
 endif
@@ -274,6 +273,20 @@ ifneq ($(BLOBS),)
 		$(INSTALL_DATA) $(SRC_PATH)/pc-bios/$$x "$(DESTDIR)$(datadir)"; \
 	done
 endif
+        # FIXME: this is terrible
+	for rom in multiboot; do \
+	  case $$rom in \
+	    multiboot) srcbin=multiboot.bin ;; \
+	  esac; \
+	  if test -z "$$dstbin" ; then \
+	    dstbin=$$srcbin ; \
+	  fi; \
+	  if test -e pc-bios/$$rom/$$srcbin ; then \
+	    $(INSTALL_DATA) pc-bios/$$rom/$$srcbin "$(DESTDIR)$(datadir)/$$dstbin"; \
+	  else \
+	    $(INSTALL_DATA) $(SRC_PATH)/pc-bios/$$dstbin "$(DESTDIR)$(datadir)"; \
+	  fi; \
+	done
 	$(INSTALL_DIR) "$(DESTDIR)$(datadir)/keymaps"
 	set -e; for x in $(KEYMAPS); do \
 		$(INSTALL_DATA) $(SRC_PATH)/pc-bios/keymaps/$$x "$(DESTDIR)$(datadir)/keymaps"; \
