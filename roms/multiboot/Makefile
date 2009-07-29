@@ -1,12 +1,11 @@
 all: build-all
 
-include ../../config-host.mak
-include $(SRC_PATH)/rules.mak
+include config.mak
 
-VPATH=$(SRC_PATH)/roms/multiboot
+VPATH=$(SRC_PATH)
 
 CPPFLAGS = -Wall -Wstrict-prototypes -Werror -fomit-frame-pointer -fno-builtin
-CPPFLAGS += -I$(SRC_PATH)
+CPPFLAGS += -I$(TOP_DIR)
 CPPFLAGS += $(call cc-option, $(CFLAGS), -fno-stack-protector,"")
 
 build-all: multiboot.bin
@@ -18,7 +17,7 @@ build-all: multiboot.bin
 	$(call quiet-command,$(OBJCOPY) -O binary -j .text $< $@,"  Building $(TARGET_DIR)$@")
 
 %.bin: %.raw
-	$(call quiet-command,$(SRC_PATH)/roms/multiboot/signrom.sh $< $@,"  Signing $(TARGET_DIR)$@")
+	$(call quiet-command,$(SRC_PATH)/signrom.sh $< $@,"  Signing $(TARGET_DIR)$@")
 
 clean:
 	$(RM) *.o *.img *.bin *~
