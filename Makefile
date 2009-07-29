@@ -239,7 +239,7 @@ ar      de     en-us  fi  fr-be  hr     it  lv  nl         pl  ru     th \
 common  de-ch  es     fo  fr-ca  hu     ja  mk  nl-be      pt  sl     tr
 
 ifdef INSTALL_BLOBS
-BLOBS=bios.bin vgabios.bin vgabios-cirrus.bin ppc_rom.bin \
+BLOBS=vgabios.bin vgabios-cirrus.bin ppc_rom.bin \
 video.x openbios-sparc32 openbios-sparc64 openbios-ppc \
 pxe-ne2k_pci.bin pxe-rtl8139.bin pxe-pcnet.bin pxe-e1000.bin \
 bamboo.dtb petalogix-s3adsp1800.dtb
@@ -274,9 +274,10 @@ ifneq ($(BLOBS),)
 	done
 endif
         # FIXME: this is terrible
-	for rom in multiboot; do \
+	for rom in $(ROMS); do \
 	  case $$rom in \
 	    multiboot) srcbin=multiboot.bin ;; \
+	    pc-bios) srcbin=BIOS-bochs-latest; dstbin=bios.bin ;; \
 	  esac; \
 	  if test -z "$$dstbin" ; then \
 	    dstbin=$$srcbin ; \
