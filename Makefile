@@ -12,7 +12,7 @@ config-host.mak:
 endif
 
 .PHONY: all clean cscope distclean dvi html info install install-doc \
-	recurse-all speed tar tarbin test
+	recurse-all speed tar tarbin test roms
 
 VPATH=$(SRC_PATH):$(SRC_PATH)/hw
 
@@ -220,9 +220,12 @@ clean:
 	rm -f slirp/*.o slirp/*.d audio/*.o audio/*.d block/*.o block/*.d
 	rm -f qemu-img-cmds.h
 	$(MAKE) -C tests clean
-	for d in $(TARGET_DIRS) $(ROMS) libhw32 libhw64; do \
+	for d in $(TARGET_DIRS) libhw32 libhw64; do \
 	$(MAKE) -C $$d $@ || exit 1 ; \
         done
+	for d in $(ROMS); do \
+	$(MAKE) -C pc-bios/$$d $@ || exit 1 ; \
+	done
 
 distclean: clean
 	rm -f config-host.mak config-host.h config-host.ld $(DOCS) qemu-options.texi qemu-img-cmds.texi
@@ -247,7 +250,7 @@ endif
 
 roms:
 	for d in $(ROMS); do \
-	$(MAKE) -C $$d || exit 1 ; \
+	$(MAKE) -C pc-bios/$$d || exit 1 ; \
         done
 
 install-doc: $(DOCS)

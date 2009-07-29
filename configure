@@ -1743,7 +1743,7 @@ echo "TOOLS=$tools" >> $config_host_mak
 roms=
 if test \( "$cpu" = "i386" -o "$cpu" = "x86_64" \) -a \
         "$targetos" != "Darwin" ; then
-  roms="roms/multiboot"
+  roms="multiboot"
 fi
 echo "ROMS=$roms" >> $config_host_mak
 
@@ -2109,13 +2109,20 @@ fi
 
 done # for target in $targets
 
+# make directories for roms
+for rom in $roms; do
+    mkdir -p pc-bios/$rom
+    rm -f pc-bios/$rom/Makefile
+    ln -s $source_path/roms/$rom/Makefile pc-bios/$rom/Makefile
+done
+
 # build tree in object directory if source path is different from current one
 if test "$source_path_used" = "yes" ; then
-    DIRS="tests tests/cris slirp audio block roms/multiboot"
+    DIRS="tests tests/cris slirp audio block"
     FILES="Makefile tests/Makefile"
     FILES="$FILES tests/cris/Makefile tests/cris/.gdbinit"
     FILES="$FILES tests/test-mmap.c"
-    FILES="$FILES roms/multiboot/Makefile pc-bios/keymaps pc-bios/video.x"
+    FILES="$FILES pc-bios/keymaps pc-bios/video.x"
     for bios_file in $source_path/pc-bios/*.bin $source_path/pc-bios/*.dtb $source_path/pc-bios/openbios-*; do
         FILES="$FILES pc-bios/`basename $bios_file`"
     done
