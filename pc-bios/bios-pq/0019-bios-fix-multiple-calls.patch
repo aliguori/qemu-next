@@ -1,4 +1,7 @@
-bios: Fix multiple calls into smbios_load_ex
+From e1e8f35a4f59d82ab9a5361c3990c8dadd2e7678 Mon Sep 17 00:00:00 2001
+Date: Fri, 10 Jul 2009 14:52:56 -0500
+Subject: bios: Fix multiple calls into smbios_load_ex
+From: Alex Williamson <alex.williamson@hp.com>
 
 We're marking the used entry bitmap in smbios_load_external() for each
 type we check, regardless of whether we loaded anything.  This makes

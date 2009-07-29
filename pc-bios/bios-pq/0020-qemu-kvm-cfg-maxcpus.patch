@@ -1,7 +1,10 @@
-Read max_cpus variable from QEMU_CFG. If not provided, use value of
-smp_cpus.
+From baef8a666c137fae513a195c8abeb80e1806d7bd Mon Sep 17 00:00:00 2001
+Date: Thu, 23 Jul 2009 17:03:43 +0200
+Subject: Read max_cpus variable from QEMU_CFG. If not provided, use value of smp_cpus.
+From: Jes Sorensen <jes@sgi.com>
 
 Signed-off-by: Jes Sorensen <jes@sgi.com>
+Signed-off-by: Anthony Liguori <aliguori@us.ibm.com>
 
 diff --git a/bios/rombios.h b/bios/rombios.h
 index 8ece2ee..dbf3bd3 100644

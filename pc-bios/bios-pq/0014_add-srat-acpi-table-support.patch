@@ -1,4 +1,7 @@
-add SRAT ACPI table support (Andre Przywara)
+From 11c2fd3e01835fe8562a7dae4842a645c9fe8bb5 Mon Sep 17 00:00:00 2001
+Date: Tue, 21 Apr 2009 22:31:41 +0000
+Subject: add SRAT ACPI table support
+From: Andre Przywara <andre.przywara@amd.com>
 
 Take NUMA topology info from the QEMU firmware configuration interface
 (number of nodes, node for each (V)CPU and amount of memory) and build

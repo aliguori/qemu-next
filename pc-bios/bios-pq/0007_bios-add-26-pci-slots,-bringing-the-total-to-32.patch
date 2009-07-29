@@ -1,4 +1,7 @@
-bios: add 26 pci slots, bringing the total to 32 (Avi Kivity)
+From 6d2550ea5002feac408ed252f45066aaa0af8b19 Mon Sep 17 00:00:00 2001
+Date: Wed, 11 Feb 2009 15:11:43 +0000
+Subject: bios: add 26 pci slots, bringing the total to 32
+From: Avi Kivity <avi@qumranet.com>
 
 lack of pci slots causes Windows to complain when installing too many devices.
 

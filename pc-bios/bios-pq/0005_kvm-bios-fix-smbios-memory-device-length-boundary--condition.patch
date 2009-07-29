@@ -1,4 +1,7 @@
-fix smbios memory device length boundary  condition (Bill Rieske)
+From 7217e1240340ab49878c4e415df40aa0c6376eb9 Mon Sep 17 00:00:00 2001
+Date: Wed, 11 Feb 2009 14:55:47 +0000
+Subject: fix smbios memory device length boundary  condition
+From: Bill Rieske <brieske@novell.com>
 
 dev_memsize ends up 0 when it shouldn't be on 16G boundary conditions.
     

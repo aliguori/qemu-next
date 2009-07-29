@@ -1,4 +1,7 @@
-generate mptable unconditionally (Avi Kivity)
+From 9a717b55df29b2b0dd0553ccfa656671bad043d1 Mon Sep 17 00:00:00 2001
+Date: Wed, 21 Jan 2009 21:46:20 +0000
+Subject: generate mptable unconditionally
+From: Avi Kivity <avi@qumranet.com>
 
 VMware ESX requires an mptable even for uniprocessor guests.
 

@@ -1,4 +1,7 @@
-Enable power button event generation.
+From a6d6552426dcbf726e5549f08b70c9318d6be14b Mon Sep 17 00:00:00 2001
+Date: Fri, 8 May 2009 10:13:01 -0500
+Subject: Enable power button event generation.
+From: Gleb Natapov <gleb@redhat.com>
 
 Signed-off-by: Gleb Natapov <gleb@redhat.com>
 Signed-off-by: Anthony Liguori <aliguori@us.ibm.com>

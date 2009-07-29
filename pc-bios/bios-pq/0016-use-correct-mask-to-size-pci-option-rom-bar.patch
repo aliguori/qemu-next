@@ -1,5 +1,7 @@
+From 00070396b06392fadcee0e19d499a43b81c63c45 Mon Sep 17 00:00:00 2001
+Date: Fri, 22 May 2009 09:57:32 -0500
 Subject: [PATCH] bios: Use the correct mask to size the PCI option ROM BAR
-From:	Alex Williamson <alex.williamson@hp.com>
+From: Alex Williamson <alex.williamson@hp.com>
 
 Bit 0 is the enable bit, which we not only don't want to set, but
 it will stick and make us think it's an I/O port resource.

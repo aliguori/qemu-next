@@ -1,4 +1,7 @@
-bios: mark the acpi sci interrupt as connected to irq 9 (Avi Kivity)
+From 6d2550ea5002feac408ed252f45066aaa0af8b19 Mon Sep 17 00:00:00 2001
+Date: Wed, 11 Feb 2009 15:11:43 +0000
+Subject: bios: mark the acpi sci interrupt as connected to irq 9
+From: Avi Kivity <avi@qumranet.com>
 
 Due to a chipset bug, the sci interrupt is hardwired to irq 9.  Set the
 pci interrupt line register accordingly.

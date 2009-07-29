@@ -1,6 +1,10 @@
-Use max_cpus when building bios tables.
+From baef8a666c137fae513a195c8abeb80e1806d7bd Mon Sep 17 00:00:00 2001
+Date: Thu, 23 Jul 2009 17:03:43 +0200
+Subject: Use max_cpus when building bios tables.
+From: Jes Sorensen <jes@sgi.com>
 
 Signed-off-by: Jes Sorensen <jes@sgi.com>
+Signed-off-by: Anthony Liguori <aliguori@us.ibm.com>
 
 diff --git a/bios/rombios32.c b/bios/rombios32.c
 index e6bb164..3d15283 100644

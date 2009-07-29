@@ -1,4 +1,7 @@
-resolve memory device roll over reporting  issues with >32G guests (Bill Rieske)
+From 7217e1240340ab49878c4e415df40aa0c6376eb9 Mon Sep 17 00:00:00 2001
+Date: Wed, 11 Feb 2009 14:55:47 +0000
+Subject: resolve memory device roll over reporting issues with >32G guests
+From: Bill Rieske <brieske@novell.com>
 
 The field within the Memory Device type 17 is only a word with the MSB being
 used to report MB/KB.  Thereby, a guest with 32G and greater would report

@@ -1,4 +1,7 @@
-qemu: bios: use preprocessor for pci link routing (Avi Kivity)
+From 6d2550ea5002feac408ed252f45066aaa0af8b19 Mon Sep 17 00:00:00 2001
+Date: Wed, 11 Feb 2009 15:11:43 +0000
+Subject: qemu: bios: use preprocessor for pci link routing
+From: Avi Kivity <avi@qumranet.com>
 
 Signed-off-by: Avi Kivity <avi@qumranet.com>
 Signed-off-by: Anthony Liguori <aliguori@us.ibm.com>

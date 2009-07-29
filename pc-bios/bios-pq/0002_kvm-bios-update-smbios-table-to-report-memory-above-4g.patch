@@ -1,4 +1,7 @@
-update SMBIOS table to report memory above 4G (Alex Williamson)
+From 9a717b55df29b2b0dd0553ccfa656671bad043d1 Mon Sep 17 00:00:00 2001
+Date: Wed, 11 Feb 2009 14:55:47 +0000
+Subject: update SMBIOS table to report memory above 4G
+From: Alex Williamson <alex.williamson@hp.com>
 
 Signed-off-by: Alex Williamson <alex.williamson@hp.com>
 Signed-off-by: Avi Kivity <avi@redhat.com>

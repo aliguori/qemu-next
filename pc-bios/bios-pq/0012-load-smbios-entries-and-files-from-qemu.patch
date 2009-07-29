@@ -1,4 +1,7 @@
-qemu:bios: Load SMBIOS entries and files from qemu (Alex Williamson)
+From b6f6e3d3a71cee61320216a42940cfaa9b42a162 Mon Sep 17 00:00:00 2001
+Date: Fri, 17 Apr 2009 18:59:56 +0000
+Subject: qemu:bios: Load SMBIOS entries and files from qemu
+From: Alex Williamson <alex.williamson@hp.com>
 
 Allow SMBIOS fields to be overridden and entries replaced by those
 read from qemu.

@@ -1,4 +1,7 @@
-Read additional ACPI tables from a VM (Gleb Natapov)
+From 8a92ea2f2c7b3e185ef6f4d8d3c376b752275ec7 Mon Sep 17 00:00:00 2001
+Date: Fri, 10 Apr 2009 20:48:17 +0000
+Subject: Read additional ACPI tables from a VM
+From: Gleb Natapov <gleb@redhat.com>
 
 Signed-off-by: Gleb Natapov <gleb@redhat.com>
 Signed-off-by: Anthony Liguori <aliguori@us.ibm.com>
