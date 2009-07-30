@@ -224,7 +224,9 @@ clean:
 	$(MAKE) -C $$d $@ || exit 1 ; \
         done
 	for d in $(ROMS); do \
-	$(MAKE) -C pc-bios/$$d $@ || exit 1 ; \
+	  if test -e "`readlink pc-bios/$$d/Makefile`" ; then \
+	    $(MAKE) -C pc-bios/$$d $@ || exit 1 ; \
+	  fi; \
 	done
 
 distclean: clean
@@ -249,7 +251,9 @@ endif
 
 roms:
 	for d in $(ROMS); do \
-	$(MAKE) -C pc-bios/$$d || exit 1 ; \
+	  if test -e "`readlink pc-bios/$$d/Makefile`" ; then \
+	    $(MAKE) -C pc-bios/$$d || exit 1 ; \
+	  fi; \
         done
 
 install-doc: $(DOCS)
