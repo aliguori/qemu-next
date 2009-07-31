@@ -47,12 +47,16 @@ uint32_t hpet_in_legacy_mode(void)
         return 0;
 }
 
-static uint32_t timer_int_route(struct HPETTimer *timer)
-{
-    uint32_t route;
-    route = (timer->config & HPET_TN_INT_ROUTE_MASK) >> HPET_TN_INT_ROUTE_SHIFT;
-    return route;
-}
+/* future code for when non-legacy interrupts are supported
+ * (when spare ioapic interrupts are available)
+ * static uint32_t timer_int_route(struct HPETTimer *timer)
+ * {
+ *    uint32_t route;
+ *    route = (timer->config & HPET_TN_INT_ROUTE_CNF_MASK) 
+ *                              >> HPET_TN_INT_ROUTE_CNF_SHIFT;
+ *    return route;
+ *}
+ */
 
 static uint32_t hpet_enabled(void)
 {
@@ -137,7 +141,6 @@ static inline uint64_t hpet_calculate_diff(HPETTimer *t, uint64_t current)
 static void update_irq(struct HPETTimer *timer)
 {
     qemu_irq irq;
-    int route;
 
     if (timer->tn <= 1 && hpet_in_legacy_mode()) {
         /* if LegacyReplacementRoute bit is set, HPET specification requires
@@ -149,8 +152,15 @@ static void update_irq(struct HPETTimer *timer)
         } else
             irq=timer->state->irqs[8];
     } else {
-        route=timer_int_route(timer);
-        irq=timer->state->irqs[route];
+        /* hpet implementation does not currently support 
+         * non-legacy interrupts due to unavailability of 
+         * IOAPIC interrupts */
+        printf("qemu: hpet only supports legacy interrupts\n");
+        exit (-1);
+        /* future code for when non-legacy interrupts are supported
+         * replace above printf and exit with 2 lines below
+         * route=timer_int_route(timer);
+         * irq=timer->state->irqs[route]; */
     }
     if (timer_enabled(timer) && hpet_enabled()) {
         qemu_irq_pulse(irq);
@@ -372,6 +382,7 @@ static void hpet_ram_writel(void *opaque, target_phys_addr_t addr,
     int i;
     HPETState *s = (HPETState *)opaque;
     uint64_t old_val, new_val, val, index;
+    uint32_t route_cap, route_req;
 
     dprintf("qemu: Enter hpet_ram_writel at %" PRIx64 " = %#x\n", addr, value);
     index = addr;
@@ -388,6 +399,14 @@ static void hpet_ram_writel(void *opaque, target_phys_addr_t addr,
             case HPET_TN_CFG:
                 dprintf("qemu: hpet_ram_writel HPET_TN_CFG\n");
                 val = hpet_fixup_reg(new_val, old_val, HPET_TN_CFG_WRITE_MASK);
+                route_cap = timer->config >> 32;
+                route_req = (val & HPET_TN_INT_ROUTE_CNF_MASK) >> 
+                                                  HPET_TN_INT_ROUTE_CNF_SHIFT;
+                /* check if requested route is included in advertised 
+                 * route capabilities. If  not, set route cnf to 0 */
+                if (!((route_cap >> route_req) & 1)) {
+                    val = val & ~HPET_TN_INT_ROUTE_CNF_MASK;
+                }
                 timer->config = (timer->config & 0xffffffff00000000ULL) | val;
                 if (new_val & HPET_TN_32BIT) {
                     timer->cmp = (uint32_t)timer->cmp;
@@ -542,7 +561,7 @@ static void hpet_reset(void *opaque) {
         timer->cmp = ~0ULL;
         timer->config =  HPET_TN_PERIODIC_CAP | HPET_TN_SIZE_CAP;
         /* advertise availability of ioapic inti2 */
-        timer->config |=  0x00000004ULL << 32;
+        timer->config |=  HPET_TN_INT_ROUTE_CAP << 32;
         timer->state = s;
         timer->period = 0ULL;
         timer->wrap_flag = 0;
@@ -550,8 +569,8 @@ static void hpet_reset(void *opaque) {
 
     s->hpet_counter = 0ULL;
     s->hpet_offset = 0ULL;
-    /* 64-bit main counter; 3 timers supported; LegacyReplacementRoute. */
-    s->capability = 0x8086a201ULL;
+    /* 64-bit main counter; 2 timers supported; LegacyReplacementRoute. */
+    s->capability = 0x8086a101ULL;
     s->capability |= ((HPET_CLK_PERIOD) << 32);
     s->config = 0ULL;
     if (count > 0)
