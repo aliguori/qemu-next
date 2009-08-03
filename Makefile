@@ -180,6 +180,10 @@ qemu-io$(EXESUF):  qemu-io.o qemu-tool.o tool-osdep.o cmd.o $(block-obj-y)
 qemu-img-cmds.h: $(SRC_PATH)/qemu-img-cmds.hx
 	$(call quiet-command,sh $(SRC_PATH)/hxtool -h < $< > $@,"  GEN   $@")
 
+ifdef CONFIG_CHECK
+LIBS += $(CHECK_LIBS)
+endif
+
 clean:
 # avoid old build problems by removing potentially incorrect old files
 	rm -f config.mak config.h op-i386.h opc-i386.h gen-op-i386.h op-arm.h opc-arm.h gen-op-arm.h

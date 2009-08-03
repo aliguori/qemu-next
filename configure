@@ -197,6 +197,7 @@ build_docs="yes"
 uname_release=""
 curses="yes"
 curl="yes"
+check="no"
 pthread="yes"
 posix_aio="yes"
 io_thread="no"
@@ -499,6 +500,8 @@ for opt do
   ;;
   --disable-curl) curl="no"
   ;;
+  --enable-check) check="yes"
+  ;;
   --disable-nptl) nptl="no"
   ;;
   --enable-mixemu) mixemu="yes"
@@ -624,6 +627,7 @@ echo "  --disable-vnc-tls        disable TLS encryption for VNC server"
 echo "  --disable-vnc-sasl       disable SASL encryption for VNC server"
 echo "  --disable-curses         disable curses output"
 echo "  --disable-curl           disable curl connectivity"
+echo "  --enable-check           enable check unit-tests"
 echo "  --disable-bluez          disable bluez stack connectivity"
 echo "  --disable-kvm            disable KVM acceleration support"
 echo "  --disable-nptl           disable usermode NPTL support"
@@ -1113,6 +1117,25 @@ EOF
 fi # test "$curl"
 
 ##########################################
+# check probe
+
+if test "$check" = "yes" ; then
+    `pkg-config --libs check > /dev/null 2> /dev/null` || check="no"
+fi
+
+if test "$check" = "yes" ; then
+    check="no"
+    cat > $TMPC << EOF
+#include <check.h>
+int main(void) { suite_create("yeah"); return 0; }
+EOF
+    check_libs=`pkg-config --libs check`
+    if $cc ${ARCH_CFLAGS} $check_libs -o $TMPE $TMPC > /dev/null 2> /dev/null ; then
+        check="yes"
+    fi
+fi # test "$check"
+
+##########################################
 # bluez support probe
 if test "$bluez" = "yes" ; then
   `pkg-config bluez 2> /dev/null` || bluez="no"
@@ -1509,6 +1532,7 @@ fi
 echo "SDL support       $sdl"
 echo "curses support    $curses"
 echo "curl support      $curl"
+echo "check support     $check"
 echo "mingw32 support   $mingw32"
 echo "Audio drivers     $audio_drv_list"
 echo "Extra audio cards $audio_card_list"
@@ -1697,6 +1721,11 @@ if test "$curl" = "yes" ; then
   echo "CONFIG_CURL=y" >> $config_host_mak
   echo "CURL_CFLAGS=$curl_cflags" >> $config_host_mak
 fi
+if test "$check" = "yes" ; then
+  echo "CONFIG_CHECK=y" >> $config_host_mak
+  echo "CHECK_LIBS=$check_libs" >> $config_host_mak
+  echo "#define CONFIG_CHECK 1" >> $config_host_h
+fi
 if test "$brlapi" = "yes" ; then
   echo "CONFIG_BRLAPI=y" >> $config_host_mak
 fi
@@ -1751,6 +1780,9 @@ if test `expr "$target_list" : ".*softmmu.*"` != 0 ; then
   tools="qemu-img\$(EXESUF) $tools"
   if [ "$linux" = "yes" ] ; then
       tools="qemu-nbd\$(EXESUF) qemu-io\$(EXESUF) $tools"
+    if [ "$check" = "yes" ]; then
+      tools="$tools"
+    fi
   fi
 fi
 echo "TOOLS=$tools" >> $config_host_mak
