@@ -2699,12 +2699,11 @@ static const mon_cmd_t *monitor_parse_command(Monitor *mon,
                                               QDict *qdict)
 {
     const char *p, *typestr;
-    int c, nb_args, has_arg, str_idx;
+    int c, nb_args, str_idx;
     const mon_cmd_t *cmd;
     char cmdname[256];
     char buf[1024];
     char *key;
-    void *args[MAX_ARGS];
 
 #ifdef DEBUG
     monitor_printf(mon, "command='%s'\n", cmdline);
@@ -2779,9 +2778,10 @@ static const mon_cmd_t *monitor_parse_command(Monitor *mon,
                     monitor_printf(mon, "%s: too many arguments\n", cmdname);
                     goto fail;
                 }
-                args[nb_args++] = str;
-                if (str)
+                if (str) {
                     qdict_add(qdict, key, str);
+                    nb_args++;
+                }
             }
             break;
         case '/':
@@ -2860,78 +2860,65 @@ static const mon_cmd_t *monitor_parse_command(Monitor *mon,
                 }
                 if (nb_args + 3 > MAX_ARGS)
                     goto error_args;
-                args[nb_args++] = (void*)(long)count;
-                args[nb_args++] = (void*)(long)format;
-                args[nb_args++] = (void*)(long)size;
                 qdict_add(qdict, "count", (void*)(long)count);
                 qdict_add(qdict, "format", (void*)(long)format);
                 qdict_add(qdict, "size", (void*)(long)size);
+                nb_args += 3;
             }
             break;
         case 'i':
         case 'l':
             {
                 int64_t val;
-                int dict_add = 1;
 
                 while (qemu_isspace(*p))
                     p++;
                 if (*typestr == '?' || *typestr == '.') {
                     if (*typestr == '?') {
-                        if (*p == '\0')
-                            has_arg = 0;
-                        else
-                            has_arg = 1;
+                        if (*p == '\0') {
+                            typestr++;
+                            break;
+                        }
                     } else {
                         if (*p == '.') {
                             p++;
                             while (qemu_isspace(*p))
                                 p++;
-                            has_arg = 1;
                         } else {
-                            has_arg = 0;
+                            typestr++;
+                            break;
                         }
                     }
                     typestr++;
                     if (nb_args >= MAX_ARGS)
                         goto error_args;
-                    dict_add = has_arg;
-                    args[nb_args++] = (void *)(long)has_arg;
-                    if (!has_arg) {
-                        if (nb_args >= MAX_ARGS)
-                            goto error_args;
-                        val = -1;
-                        goto add_num;
-                    }
                 }
                 if (get_expr(mon, &val, &p))
                     goto fail;
-            add_num:
                 if (c == 'i') {
                     if (nb_args >= MAX_ARGS)
                         goto error_args;
-                    args[nb_args++] = (void *)(long)val;
-                    if (dict_add)
-                        qdict_add(qdict, key, (void *)(long) val);
+                    qdict_add(qdict, key, (void *)(long) val);
+                    nb_args++;
                 } else {
                     char *lkey;
                     if ((nb_args + 1) >= MAX_ARGS)
                         goto error_args;
                     lkey = key_append_high(key);
 #if TARGET_PHYS_ADDR_BITS > 32
-                    args[nb_args++] = (void *)(long)((val >> 32) & 0xffffffff);
                     qdict_add(qdict, lkey,
                                     (void *)(long)((val >> 32) & 0xffffffff));
                     qemu_free(lkey);
+                    nb_args++;
 #else
-                    args[nb_args++] = (void *)0;
                     qdict_add(qdict, lkey, (void *)0);
                     qemu_free(lkey);
+                    nb_args++;
 #endif
-                    args[nb_args++] = (void *)(long)(val & 0xffffffff);
                     lkey = key_append_low(key);
                     qdict_add(qdict, lkey,(void *)(long)(val & 0xffffffff));
                     qemu_free(lkey);
+                    nb_args++;
                 }
             }
             break;
@@ -2958,8 +2945,8 @@ static const mon_cmd_t *monitor_parse_command(Monitor *mon,
                 }
                 if (nb_args >= MAX_ARGS)
                     goto error_args;
-                args[nb_args++] = (void *)(long)has_option;
                 qdict_add(qdict, key, (void *)(long)has_option);
+                nb_args++;
             }
             break;
         default:
