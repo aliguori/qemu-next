@@ -61,6 +61,7 @@ typedef struct SLAVIO_TIMERState {
     // processor only
     uint32_t running;
     struct SLAVIO_TIMERState *master;
+    void *m;
     uint32_t slave_index;
     // system only
     uint32_t num_slaves;
@@ -395,6 +396,7 @@ static void slavio_timer_init1(SysBusDevice *dev)
 
     sysbus_init_irq(dev, &s->irq);
 
+    s->master = s->m; /* hack alert: ptr property */
     if (!s->master || s->slave_index < s->master->num_slaves) {
         bh = qemu_bh_new(slavio_timer_irq, s);
         s->timer = ptimer_init(bh);
@@ -436,22 +438,10 @@ static SysBusDeviceInfo slavio_timer_info = {
     .qdev.name  = "slavio_timer",
     .qdev.size  = sizeof(SLAVIO_TIMERState),
     .qdev.props = (Property[]) {
-        {
-            .name = "num_slaves",
-            .info = &qdev_prop_uint32,
-            .offset = offsetof(SLAVIO_TIMERState, num_slaves),
-        },
-        {
-            .name = "slave_index",
-            .info = &qdev_prop_uint32,
-            .offset = offsetof(SLAVIO_TIMERState, slave_index),
-        },
-        {
-            .name = "master",
-            .info = &qdev_prop_ptr,
-            .offset = offsetof(SLAVIO_TIMERState, master),
-        },
-        {/* end of property list */}
+        DEFINE_PROP_UINT32("num_slaves",  SLAVIO_TIMERState, num_slaves,  0),
+        DEFINE_PROP_UINT32("slave_index", SLAVIO_TIMERState, slave_index, 0),
+        DEFINE_PROP_PTR("master",         SLAVIO_TIMERState, m),
+        DEFINE_PROP_END_OF_LIST(),
     }
 };
 
