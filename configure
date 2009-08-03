@@ -198,7 +198,7 @@ uname_release=""
 curses="yes"
 curl="yes"
 pthread="yes"
-aio="yes"
+posix_aio="yes"
 io_thread="no"
 nptl="yes"
 mixemu="no"
@@ -257,7 +257,7 @@ DragonFly)
   if [ "$cpu" = "i386" -o "$cpu" = "x86_64" ] ; then
     kqemu="yes"
   fi
-  aio="no"
+  posix_aio="no"
 ;;
 NetBSD)
   bsd="yes"
@@ -364,7 +364,7 @@ if test "$mingw32" = "yes" ; then
   EXESUF=".exe"
   QEMU_CFLAGS="-DWIN32_LEAN_AND_MEAN -DWINVER=0x501 $QEMU_CFLAGS"
   LIBS="-lwinmm -lws2_32 -liphlpapi $LIBS"
-  aio=no
+  posix_aio=no
 fi
 
 # find source path
@@ -505,7 +505,7 @@ for opt do
   ;;
   --disable-pthread) pthread="no"
   ;;
-  --disable-aio) aio="no"
+  --disable-aio) posix_aio="no"
   ;;
   --enable-io-thread) io_thread="yes"
   ;;
@@ -645,7 +645,7 @@ echo "  --enable-uname-release=R Return R for uname -r in usermode emulation"
 echo "  --sparc_cpu=V            Build qemu for Sparc architecture v7, v8, v8plus, v8plusa, v9"
 echo "  --disable-vde            disable support for vde network"
 echo "  --disable-pthread        disable pthread support"
-echo "  --disable-aio            disable AIO support"
+echo "  --disable-aio            disable POSIX AIO support"
 echo "  --enable-io-thread       enable IO thread"
 echo "  --disable-blobs          disable installing provided firmware blobs"
 echo "  --kerneldir=PATH         look for kernel includes in PATH"
@@ -1201,7 +1201,7 @@ EOF
 fi
 
 if test "$pthread" = no; then
-   aio=no
+   posix_aio=no
    io_thread=no
 fi
 
@@ -1535,7 +1535,7 @@ echo "uname -r          $uname_release"
 echo "NPTL support      $nptl"
 echo "GUEST_BASE        $guest_base"
 echo "vde support       $vde"
-echo "AIO support       $aio"
+echo "POSIX AIO support $posix_aio"
 echo "IO thread         $io_thread"
 echo "Install blobs     $blobs"
 echo -e "KVM support       $kvm"
@@ -1707,8 +1707,8 @@ fi
 if test "$xen" = "yes" ; then
   echo "CONFIG_XEN=y" >> $config_host_mak
 fi
-if test "$aio" = "yes" ; then
-  echo "CONFIG_AIO=y" >> $config_host_mak
+if test "$posix_aio" = "yes" ; then
+  echo "CONFIG_POSIX_AIO=y" >> $config_host_mak
 fi
 if test "$io_thread" = "yes" ; then
   echo "CONFIG_IOTHREAD=y" >> $config_host_mak
