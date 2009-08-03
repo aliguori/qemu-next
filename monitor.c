@@ -2693,18 +2693,18 @@ static int default_fmt_size = 4;
 
 #define MAX_ARGS 16
 
-static void monitor_handle_command(Monitor *mon, const char *cmdline)
+static const mon_cmd_t *monitor_parse_command(Monitor *mon,
+                                              const char *cmdline,
+                                              void *str_allocated[],
+                                              QDict *qdict)
 {
     const char *p, *typestr;
-    int c, nb_args, i, has_arg;
+    int c, nb_args, has_arg;
     const mon_cmd_t *cmd;
     char cmdname[256];
     char buf[1024];
     char *key;
-    void *str_allocated[MAX_ARGS];
     void *args[MAX_ARGS];
-    QDict *qdict;
-    void (*handler_d)(Monitor *mon, const QDict *qdict);
 
 #ifdef DEBUG
     monitor_printf(mon, "command='%s'\n", cmdline);
@@ -2713,7 +2713,7 @@ static void monitor_handle_command(Monitor *mon, const char *cmdline)
     /* extract the command name */
     p = get_command_name(cmdline, cmdname, sizeof(cmdname));
     if (!p)
-        return;
+        return NULL;
 
     /* find the command */
     for(cmd = mon_cmds; cmd->name != NULL; cmd++) {
@@ -2723,13 +2723,8 @@ static void monitor_handle_command(Monitor *mon, const char *cmdline)
 
     if (cmd->name == NULL) {
         monitor_printf(mon, "unknown command: '%s'\n", cmdname);
-        return;
+        return NULL;
     }
-
-    qdict = qdict_new();
-
-    for(i = 0; i < MAX_ARGS; i++)
-        str_allocated[i] = NULL;
 
     /* parse the parameters */
     typestr = cmd->args_type;
@@ -2984,27 +2979,34 @@ static void monitor_handle_command(Monitor *mon, const char *cmdline)
         goto fail;
     }
 
-    switch(nb_args) {
-    case 0:
-    case 1:
-    case 2:
-    case 3:
-    case 4:
-    case 5:
-    case 6:
-    case 7:
-    case 10:
-        handler_d = cmd->handler;
-        handler_d(mon, qdict);
-        break;
-    default:
-        monitor_printf(mon, "unsupported number of arguments: %d\n", nb_args);
-        goto fail;
-    }
- fail:
+    return cmd;
+
+fail:
     qemu_free(key);
+    return NULL;
+}
+
+static void monitor_handle_command(Monitor *mon, const char *cmdline)
+{
+    int i;
+    QDict *qdict;
+    const mon_cmd_t *cmd;
+    void *str_allocated[MAX_ARGS];
+
+    qdict = qdict_new();
+
+    for (i = 0; i < MAX_ARGS; i++)
+        str_allocated[i] = NULL;
+
+    cmd = monitor_parse_command(mon, cmdline, str_allocated, qdict);
+    if (cmd) {
+        void (*handler)(Monitor *mon, const QDict *qdict);
+        handler = cmd->handler;
+        handler(mon, qdict);
+    }
+
     qdict_destroy(qdict);
-    for(i = 0; i < MAX_ARGS; i++)
+    for (i = 0; i < MAX_ARGS; i++)
         qemu_free(str_allocated[i]);
 }
 
