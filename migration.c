@@ -48,10 +48,12 @@ void qemu_start_incoming_migration(const char *uri)
         fprintf(stderr, "unknown migration protocol: %s\n", uri);
 }
 
-void do_migrate(Monitor *mon, int detach, const char *uri)
+void do_migrate(Monitor *mon, const QDict *qdict)
 {
     MigrationState *s = NULL;
     const char *p;
+    int detach = (long) qdict_get(qdict, "detach");
+    const char *uri = qdict_get(qdict, "uri");
 
     if (strstart(uri, "tcp:", &p))
         s = tcp_start_outgoing_migration(p, max_throttle, detach);
