@@ -1048,7 +1048,7 @@ static int bdrv_snapshot_find(BlockDriverState *bs, QEMUSnapshotInfo *sn_info,
     return ret;
 }
 
-void do_savevm(Monitor *mon, const char *name)
+void do_savevm(Monitor *mon, const QDict *qdict)
 {
     DriveInfo *dinfo;
     BlockDriverState *bs, *bs1;
@@ -1062,6 +1062,7 @@ void do_savevm(Monitor *mon, const char *name)
 #else
     struct timeval tv;
 #endif
+    const char *name = qdict_get(qdict, "name");
 
     bs = get_bs_snapshots();
     if (!bs) {
@@ -1217,16 +1218,17 @@ void qemu_loadvm(Monitor *mon, const char *name)
         vm_start();
 }
 
-void do_loadvm(Monitor *mon, const char *name)
+void do_loadvm(Monitor *mon, const QDict *qdict)
 {
-    qemu_loadvm(mon, name);
+    qemu_loadvm(mon, qdict_get(qdict, "name"));
 }
 
-void do_delvm(Monitor *mon, const char *name)
+void do_delvm(Monitor *mon, const QDict *qdict)
 {
     DriveInfo *dinfo;
     BlockDriverState *bs, *bs1;
     int ret;
+    const char *name = qdict_get(qdict, "name");
 
     bs = get_bs_snapshots();
     if (!bs) {

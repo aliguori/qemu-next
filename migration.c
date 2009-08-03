@@ -80,11 +80,12 @@ void do_migrate_cancel(Monitor *mon, const QDict *qdict)
         s->cancel(s);
 }
 
-void do_migrate_set_speed(Monitor *mon, const char *value)
+void do_migrate_set_speed(Monitor *mon, const QDict *qdict)
 {
     double d;
     char *ptr;
     FdMigrationState *s;
+    const char *value = qdict_get(qdict, "value");
 
     d = strtod(value, &ptr);
     switch (*ptr) {
@@ -118,10 +119,11 @@ uint64_t migrate_max_downtime(void)
     return max_downtime;
 }
 
-void do_migrate_set_downtime(Monitor *mon, const char *value)
+void do_migrate_set_downtime(Monitor *mon, const QDict *qdict)
 {
     char *ptr;
     double d;
+    const char *value = qdict_get(qdict, "value");
 
     d = strtod(value, &ptr);
     if (!strcmp(ptr,"ms")) {
