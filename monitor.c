@@ -1588,11 +1588,15 @@ static void do_stop_capture(Monitor *mon, const QDict *qdict)
     }
 }
 
-static void do_wav_capture(Monitor *mon, const char *path,
-                           int has_freq, int freq,
-                           int has_bits, int bits,
-                           int has_channels, int nchannels)
+static void do_wav_capture(Monitor *mon, const QDict *qdict)
 {
+    const char *path = qdict_get(qdict, "path");
+    int has_freq = qdict_exists(qdict, "freq");
+    int freq = (long) qdict_get(qdict, "freq");
+    int has_bits = qdict_exists(qdict, "bits");
+    int bits = (long) qdict_get(qdict, "bits");
+    int has_channels = qdict_exists(qdict, "nchannels");
+    int nchannels = (long) qdict_get(qdict, "nchannels");
     CaptureState *s;
 
     s = qemu_mallocz (sizeof (*s));
@@ -2696,8 +2700,6 @@ static void monitor_handle_command(Monitor *mon, const char *cmdline)
     void *args[MAX_ARGS];
     QDict *qdict;
     void (*handler_d)(Monitor *mon, const QDict *qdict);
-    void (*handler_7)(Monitor *mon, void *arg0, void *arg1, void *arg2,
-                      void *arg3, void *arg4, void *arg5, void *arg6);
     void (*handler_8)(Monitor *mon, void *arg0, void *arg1, void *arg2,
                       void *arg3, void *arg4, void *arg5, void *arg6,
                       void *arg7);
@@ -2994,13 +2996,9 @@ static void monitor_handle_command(Monitor *mon, const char *cmdline)
     case 4:
     case 5:
     case 6:
+    case 7:
         handler_d = cmd->handler;
         handler_d(mon, qdict);
-        break;
-    case 7:
-        handler_7 = cmd->handler;
-        handler_7(mon, args[0], args[1], args[2], args[3], args[4], args[5],
-                  args[6]);
         break;
     case 8:
         handler_8 = cmd->handler;
