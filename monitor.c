@@ -778,7 +778,11 @@ static void memory_dump(Monitor *mon, int count, int format, int wsize,
 #if TARGET_LONG_BITS == 64
 #define GET_TLONG(h, l) (((uint64_t)(h) << 32) | (l))
 #else
-#define GET_TLONG(h, l) (l)
+static inline uint32_t GET_TLONG(uint32_t h, uint32_t l)
+{
+    h = h; /* avoid build error */
+    return l;
+}
 #endif
 
 static void do_memory_dump(Monitor *mon, int count, int format, int size,
@@ -791,7 +795,11 @@ static void do_memory_dump(Monitor *mon, int count, int format, int size,
 #if TARGET_PHYS_ADDR_BITS > 32
 #define GET_TPHYSADDR(h, l) (((uint64_t)(h) << 32) | (l))
 #else
-#define GET_TPHYSADDR(h, l) (l)
+static inline uint32_t GET_TPHYSADDR(uint32_t h, uint32_t l)
+{
+    h = h; /* avoid build error */
+    return l;
+}
 #endif
 
 static void do_physical_memory_dump(Monitor *mon, int count, int format,
