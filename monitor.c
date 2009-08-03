@@ -2699,7 +2699,7 @@ static const mon_cmd_t *monitor_parse_command(Monitor *mon,
                                               QDict *qdict)
 {
     const char *p, *typestr;
-    int c, nb_args, str_idx;
+    int c, str_idx;
     const mon_cmd_t *cmd;
     char cmdname[256];
     char buf[1024];
@@ -2727,7 +2727,7 @@ static const mon_cmd_t *monitor_parse_command(Monitor *mon,
 
     /* parse the parameters */
     typestr = cmd->args_type;
-    nb_args = str_idx = 0;
+    str_idx = 0;
     for(;;) {
         typestr = key_get_info(typestr, &key);
         if (!typestr)
@@ -2773,14 +2773,12 @@ static const mon_cmd_t *monitor_parse_command(Monitor *mon,
                 pstrcpy(str, sizeof(buf), buf);
                 str_allocated[str_idx++] = str;
             add_str:
-                if (nb_args >= MAX_ARGS) {
-                error_args:
-                    monitor_printf(mon, "%s: too many arguments\n", cmdname);
-                    goto fail;
-                }
                 if (str) {
+                    if (str_idx >= MAX_ARGS) {
+                        monitor_printf(mon, "%s: too many arguments\n",cmdname);
+                        goto fail;
+                    }
                     qdict_add(qdict, key, str);
-                    nb_args++;
                 }
             }
             break;
@@ -2858,12 +2856,9 @@ static const mon_cmd_t *monitor_parse_command(Monitor *mon,
                         size = -1;
                     }
                 }
-                if (nb_args + 3 > MAX_ARGS)
-                    goto error_args;
                 qdict_add(qdict, "count", (void*)(long)count);
                 qdict_add(qdict, "format", (void*)(long)format);
                 qdict_add(qdict, "size", (void*)(long)size);
-                nb_args += 3;
             }
             break;
         case 'i':
@@ -2890,35 +2885,25 @@ static const mon_cmd_t *monitor_parse_command(Monitor *mon,
                         }
                     }
                     typestr++;
-                    if (nb_args >= MAX_ARGS)
-                        goto error_args;
                 }
                 if (get_expr(mon, &val, &p))
                     goto fail;
                 if (c == 'i') {
-                    if (nb_args >= MAX_ARGS)
-                        goto error_args;
                     qdict_add(qdict, key, (void *)(long) val);
-                    nb_args++;
                 } else {
                     char *lkey;
-                    if ((nb_args + 1) >= MAX_ARGS)
-                        goto error_args;
                     lkey = key_append_high(key);
 #if TARGET_PHYS_ADDR_BITS > 32
                     qdict_add(qdict, lkey,
                                     (void *)(long)((val >> 32) & 0xffffffff));
                     qemu_free(lkey);
-                    nb_args++;
 #else
                     qdict_add(qdict, lkey, (void *)0);
                     qemu_free(lkey);
-                    nb_args++;
 #endif
                     lkey = key_append_low(key);
                     qdict_add(qdict, lkey,(void *)(long)(val & 0xffffffff));
                     qemu_free(lkey);
-                    nb_args++;
                 }
             }
             break;
@@ -2943,10 +2928,7 @@ static const mon_cmd_t *monitor_parse_command(Monitor *mon,
                     p++;
                     has_option = 1;
                 }
-                if (nb_args >= MAX_ARGS)
-                    goto error_args;
                 qdict_add(qdict, key, (void *)(long)has_option);
-                nb_args++;
             }
             break;
         default:
