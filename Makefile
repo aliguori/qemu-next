@@ -182,6 +182,7 @@ qemu-img-cmds.h: $(SRC_PATH)/qemu-img-cmds.hx
 
 ifdef CONFIG_CHECK
 LIBS += $(CHECK_LIBS)
+check-qdict: check-qdict.o qdict.o qemu-malloc.o
 endif
 
 clean:
