@@ -148,10 +148,12 @@ static PCIDevice *qemu_pci_hot_add_storage(Monitor *mon,
     return dev;
 }
 
-void pci_device_hot_add(Monitor *mon, const char *pci_addr, const char *type,
-                        const char *opts)
+void pci_device_hot_add(Monitor *mon, const QDict *qdict)
 {
     PCIDevice *dev = NULL;
+    const char *pci_addr = qdict_get(qdict, "pci_addr");
+    const char *type = qdict_get(qdict, "type");
+    const char *opts = qdict_get(qdict, "opts");
 
     /* strip legacy tag */
     if (!strncmp(pci_addr, "pci_addr=", 9)) {
