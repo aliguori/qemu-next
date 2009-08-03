@@ -1768,14 +1768,19 @@ static void do_acl_remove(Monitor *mon, const QDict *qdict)
 }
 
 #if defined(TARGET_I386)
-static void do_inject_mce(Monitor *mon,
-                          int cpu_index, int bank,
-                          unsigned status_hi, unsigned status_lo,
-                          unsigned mcg_status_hi, unsigned mcg_status_lo,
-                          unsigned addr_hi, unsigned addr_lo,
-                          unsigned misc_hi, unsigned misc_lo)
+static void do_inject_mce(Monitor *mon, const QDict *qdict)
 {
     CPUState *cenv;
+    int cpu_index = (long) qdict_get(qdict, "cpu_index");
+    int bank = (long) qdict_get(qdict, "bank");
+    unsigned status_hi = (long) qdict_get(qdict, "status_h");
+    unsigned status_lo = (long) qdict_get(qdict, "status_l");
+    unsigned mcg_status_hi = (long) qdict_get(qdict, "mcg_status_h");
+    unsigned mcg_status_lo = (long) qdict_get(qdict, "mcg_status_l");
+    unsigned addr_hi = (long) qdict_get(qdict, "addr_h");
+    unsigned addr_lo = (long) qdict_get(qdict, "addr_l");
+    unsigned misc_hi = (long) qdict_get(qdict, "misc_h");
+    unsigned misc_lo = (long) qdict_get(qdict, "misc_l");
     uint64_t status = ((uint64_t)status_hi << 32) | status_lo;
     uint64_t mcg_status = ((uint64_t)mcg_status_hi << 32) | mcg_status_lo;
     uint64_t addr = ((uint64_t)addr_hi << 32) | addr_lo;
@@ -2700,9 +2705,6 @@ static void monitor_handle_command(Monitor *mon, const char *cmdline)
     void *args[MAX_ARGS];
     QDict *qdict;
     void (*handler_d)(Monitor *mon, const QDict *qdict);
-    void (*handler_10)(Monitor *mon, void *arg0, void *arg1, void *arg2,
-                       void *arg3, void *arg4, void *arg5, void *arg6,
-                       void *arg7, void *arg8, void *arg9);
 
 #ifdef DEBUG
     monitor_printf(mon, "command='%s'\n", cmdline);
@@ -2991,13 +2993,9 @@ static void monitor_handle_command(Monitor *mon, const char *cmdline)
     case 5:
     case 6:
     case 7:
+    case 10:
         handler_d = cmd->handler;
         handler_d(mon, qdict);
-        break;
-    case 10:
-        handler_10 = cmd->handler;
-        handler_10(mon, args[0], args[1], args[2], args[3], args[4], args[5],
-                   args[6], args[7], args[8], args[9]);
         break;
     default:
         monitor_printf(mon, "unsupported number of arguments: %d\n", nb_args);
