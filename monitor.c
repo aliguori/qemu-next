@@ -867,10 +867,13 @@ static void do_print(Monitor *mon, int count, int format, int size,
     monitor_printf(mon, "\n");
 }
 
-static void do_memory_save(Monitor *mon, unsigned int valh, unsigned int vall,
-                           uint32_t size, const char *filename)
+static void do_memory_save(Monitor *mon, const QDict *qdict)
 {
     FILE *f;
+    unsigned int valh = (long) qdict_get(qdict, "val_h");
+    unsigned int vall = (long) qdict_get(qdict, "val_l");
+    uint32_t size = (long) qdict_get(qdict, "size");
+    const char *filename = qdict_get(qdict, "filename");
     target_long addr = GET_TLONG(valh, vall);
     uint32_t l;
     CPUState *env;
@@ -897,13 +900,15 @@ static void do_memory_save(Monitor *mon, unsigned int valh, unsigned int vall,
     fclose(f);
 }
 
-static void do_physical_memory_save(Monitor *mon, unsigned int valh,
-                                    unsigned int vall, uint32_t size,
-                                    const char *filename)
+static void do_physical_memory_save(Monitor *mon, const QDict *qdict)
 {
     FILE *f;
     uint32_t l;
     uint8_t buf[1024];
+    unsigned int valh = (long) qdict_get(qdict, "val_h");
+    unsigned int vall = (long) qdict_get(qdict, "val_l");
+    uint32_t size = (long) qdict_get(qdict, "size");
+    const char *filename = qdict_get(qdict, "filename");
     target_phys_addr_t addr = GET_TPHYSADDR(valh, vall); 
 
     f = fopen(filename, "wb");
@@ -2670,8 +2675,6 @@ static void monitor_handle_command(Monitor *mon, const char *cmdline)
     void *args[MAX_ARGS];
     QDict *qdict;
     void (*handler_d)(Monitor *mon, const QDict *qdict);
-    void (*handler_4)(Monitor *mon, void *arg0, void *arg1, void *arg2,
-                      void *arg3);
     void (*handler_5)(Monitor *mon, void *arg0, void *arg1, void *arg2,
                       void *arg3, void *arg4);
     void (*handler_6)(Monitor *mon, void *arg0, void *arg1, void *arg2,
@@ -2971,12 +2974,9 @@ static void monitor_handle_command(Monitor *mon, const char *cmdline)
     case 1:
     case 2:
     case 3:
+    case 4:
         handler_d = cmd->handler;
         handler_d(mon, qdict);
-        break;
-    case 4:
-        handler_4 = cmd->handler;
-        handler_4(mon, args[0], args[1], args[2], args[3]);
         break;
     case 5:
         handler_5 = cmd->handler;
