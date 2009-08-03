@@ -68,6 +68,7 @@ typedef struct SLAVIO_INTCTLState {
 #endif
     qemu_irq cpu_irqs[MAX_CPUS][MAX_PILS];
     const uint32_t *intbit_to_level;
+    void *i_to_l;
     uint32_t cputimer_lbit, cputimer_mbit;
     uint32_t cputimer_bit;
     uint32_t pil_out[MAX_CPUS];
@@ -392,6 +393,7 @@ static void slavio_intctl_init1(SysBusDevice *dev)
     int io_memory;
     unsigned int i, j;
 
+    s->intbit_to_level = s->i_to_l; /* hack alert: ptr property */
     qdev_init_gpio_in(&dev->qdev, slavio_set_irq_all, 32 + MAX_CPUS);
     io_memory = cpu_register_io_memory(slavio_intctlm_mem_read,
                                        slavio_intctlm_mem_write, s);
@@ -450,17 +452,9 @@ static SysBusDeviceInfo slavio_intctl_info = {
     .qdev.name  = "slavio_intctl",
     .qdev.size  = sizeof(SLAVIO_INTCTLState),
     .qdev.props = (Property[]) {
-        {
-            .name = "intbit_to_level",
-            .info = &qdev_prop_ptr,
-            .offset = offsetof(SLAVIO_INTCTLState, intbit_to_level),
-        },
-        {
-            .name = "cputimer_bit",
-            .info = &qdev_prop_uint32,
-            .offset = offsetof(SLAVIO_INTCTLState, cputimer_bit),
-        },
-        {/* end of property list */}
+        DEFINE_PROP_PTR("intbit_to_level", SLAVIO_INTCTLState, i_to_l),
+        DEFINE_PROP_UINT32("cputimer_bit", SLAVIO_INTCTLState, cputimer_bit, 0),
+        DEFINE_PROP_END_OF_LIST(),
     }
 };
 
