@@ -2699,7 +2699,7 @@ static const mon_cmd_t *monitor_parse_command(Monitor *mon,
                                               QDict *qdict)
 {
     const char *p, *typestr;
-    int c, nb_args, has_arg;
+    int c, nb_args, has_arg, str_idx;
     const mon_cmd_t *cmd;
     char cmdname[256];
     char buf[1024];
@@ -2728,7 +2728,7 @@ static const mon_cmd_t *monitor_parse_command(Monitor *mon,
 
     /* parse the parameters */
     typestr = cmd->args_type;
-    nb_args = 0;
+    nb_args = str_idx = 0;
     for(;;) {
         typestr = key_get_info(typestr, &key);
         if (!typestr)
@@ -2772,7 +2772,7 @@ static const mon_cmd_t *monitor_parse_command(Monitor *mon,
                 }
                 str = qemu_malloc(strlen(buf) + 1);
                 pstrcpy(str, sizeof(buf), buf);
-                str_allocated[nb_args] = str;
+                str_allocated[str_idx++] = str;
             add_str:
                 if (nb_args >= MAX_ARGS) {
                 error_args:
