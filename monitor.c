@@ -41,6 +41,7 @@
 #include "disas.h"
 #include "balloon.h"
 #include "qemu-timer.h"
+#include "qdict.h"
 #include "migration.h"
 #include "kvm.h"
 #include "acl.h"
@@ -2584,6 +2585,37 @@ static char *key_get_info(const char *type, char **key)
     return ++p;
 }
 
+/**
+ * Append '_' plus the character from 'c' to 'key' and returns
+ * the new string.
+ */
+static char *key_append_chr(const char *key, int c)
+{
+    char *p;
+    size_t len;
+
+    len = strlen(key);
+    p = qemu_malloc(len + 3);
+    memcpy(p, key, len);
+    p[len++] = '_';
+    p[len++] = c;
+    p[len] = '\0';
+
+    return p;
+}
+
+/* Append "_l" to 'key' */
+static char *key_append_low(const char *key)
+{
+    return key_append_chr(key, 'l');
+}
+
+/* Append "_h" to 'key' */
+static char *key_append_high(const char *key)
+{
+    return key_append_chr(key, 'h');
+}
+
 static int default_fmt_format = 'x';
 static int default_fmt_size = 4;
 
@@ -2599,6 +2631,7 @@ static void monitor_handle_command(Monitor *mon, const char *cmdline)
     char *key;
     void *str_allocated[MAX_ARGS];
     void *args[MAX_ARGS];
+    QDict *qdict;
     void (*handler_0)(Monitor *mon);
     void (*handler_1)(Monitor *mon, void *arg0);
     void (*handler_2)(Monitor *mon, void *arg0, void *arg1);
@@ -2640,6 +2673,8 @@ static void monitor_handle_command(Monitor *mon, const char *cmdline)
         monitor_printf(mon, "unknown command: '%s'\n", cmdname);
         return;
     }
+
+    qdict = qdict_new();
 
     for(i = 0; i < MAX_ARGS; i++)
         str_allocated[i] = NULL;
@@ -2698,6 +2733,8 @@ static void monitor_handle_command(Monitor *mon, const char *cmdline)
                     goto fail;
                 }
                 args[nb_args++] = str;
+                if (str)
+                    qdict_add(qdict, key, str);
             }
             break;
         case '/':
@@ -2779,12 +2816,16 @@ static void monitor_handle_command(Monitor *mon, const char *cmdline)
                 args[nb_args++] = (void*)(long)count;
                 args[nb_args++] = (void*)(long)format;
                 args[nb_args++] = (void*)(long)size;
+                qdict_add(qdict, "count", (void*)(long)count);
+                qdict_add(qdict, "format", (void*)(long)format);
+                qdict_add(qdict, "size", (void*)(long)size);
             }
             break;
         case 'i':
         case 'l':
             {
                 int64_t val;
+                int dict_add = 1;
 
                 while (qemu_isspace(*p))
                     p++;
@@ -2807,6 +2848,7 @@ static void monitor_handle_command(Monitor *mon, const char *cmdline)
                     typestr++;
                     if (nb_args >= MAX_ARGS)
                         goto error_args;
+                    dict_add = has_arg;
                     args[nb_args++] = (void *)(long)has_arg;
                     if (!has_arg) {
                         if (nb_args >= MAX_ARGS)
@@ -2822,15 +2864,27 @@ static void monitor_handle_command(Monitor *mon, const char *cmdline)
                     if (nb_args >= MAX_ARGS)
                         goto error_args;
                     args[nb_args++] = (void *)(long)val;
+                    if (dict_add)
+                        qdict_add(qdict, key, (void *)(long) val);
                 } else {
+                    char *lkey;
                     if ((nb_args + 1) >= MAX_ARGS)
                         goto error_args;
+                    lkey = key_append_high(key);
 #if TARGET_PHYS_ADDR_BITS > 32
                     args[nb_args++] = (void *)(long)((val >> 32) & 0xffffffff);
+                    qdict_add(qdict, lkey,
+                                    (void *)(long)((val >> 32) & 0xffffffff));
+                    qemu_free(lkey);
 #else
                     args[nb_args++] = (void *)0;
+                    qdict_add(qdict, lkey, (void *)0);
+                    qemu_free(lkey);
 #endif
                     args[nb_args++] = (void *)(long)(val & 0xffffffff);
+                    lkey = key_append_low(key);
+                    qdict_add(qdict, lkey,(void *)(long)(val & 0xffffffff));
+                    qemu_free(lkey);
                 }
             }
             break;
@@ -2858,6 +2912,7 @@ static void monitor_handle_command(Monitor *mon, const char *cmdline)
                 if (nb_args >= MAX_ARGS)
                     goto error_args;
                 args[nb_args++] = (void *)(long)has_option;
+                qdict_add(qdict, key, (void *)(long)has_option);
             }
             break;
         default:
@@ -2932,6 +2987,7 @@ static void monitor_handle_command(Monitor *mon, const char *cmdline)
     }
  fail:
     qemu_free(key);
+    qdict_destroy(qdict);
     for(i = 0; i < MAX_ARGS; i++)
         qemu_free(str_allocated[i]);
 }
