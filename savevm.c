@@ -1145,7 +1145,7 @@ void do_savevm(Monitor *mon, const char *name)
         vm_start();
 }
 
-void do_loadvm(Monitor *mon, const char *name)
+void qemu_loadvm(Monitor *mon, const char *name)
 {
     DriveInfo *dinfo;
     BlockDriverState *bs, *bs1;
@@ -1215,6 +1215,11 @@ void do_loadvm(Monitor *mon, const char *name)
  the_end:
     if (saved_vm_running)
         vm_start();
+}
+
+void do_loadvm(Monitor *mon, const char *name)
+{
+    qemu_loadvm(mon, name);
 }
 
 void do_delvm(Monitor *mon, const char *name)

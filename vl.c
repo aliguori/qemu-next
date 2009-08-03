@@ -6034,7 +6034,7 @@ int main(int argc, char **argv, char **envp)
     }
 
     if (loadvm)
-        do_loadvm(cur_mon, loadvm);
+        qemu_loadvm(cur_mon, loadvm);
 
     if (incoming) {
         autostart = 0;
