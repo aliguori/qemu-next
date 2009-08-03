@@ -796,9 +796,14 @@ static inline uint32_t GET_TLONG(uint32_t h, uint32_t l)
 }
 #endif
 
-static void do_memory_dump(Monitor *mon, int count, int format, int size,
-                           uint32_t addrh, uint32_t addrl)
+static void do_memory_dump(Monitor *mon, const QDict *qdict)
 {
+    int count = (long) qdict_get(qdict, "count");
+    int format = (long) qdict_get(qdict, "format");
+    int size = (long) qdict_get(qdict, "size");
+
+    uint32_t addrh = (long) qdict_get(qdict, "addr_h");
+    uint32_t addrl = (long) qdict_get(qdict, "addr_l");
     target_long addr = GET_TLONG(addrh, addrl);
     memory_dump(mon, count, format, size, addr, 0);
 }
@@ -813,17 +818,24 @@ static inline uint32_t GET_TPHYSADDR(uint32_t h, uint32_t l)
 }
 #endif
 
-static void do_physical_memory_dump(Monitor *mon, int count, int format,
-                                    int size, uint32_t addrh, uint32_t addrl)
-
+static void do_physical_memory_dump(Monitor *mon, const QDict *qdict)
 {
+    int count = (long) qdict_get(qdict, "count");
+    int format = (long) qdict_get(qdict, "format");
+    int size = (long) qdict_get(qdict, "size");
+    uint32_t addrh = (long) qdict_get(qdict, "addr_h");
+    uint32_t addrl = (long) qdict_get(qdict, "addr_l");
+
     target_phys_addr_t addr = GET_TPHYSADDR(addrh, addrl);
     memory_dump(mon, count, format, size, addr, 1);
 }
 
-static void do_print(Monitor *mon, int count, int format, int size,
-                     unsigned int valh, unsigned int vall)
+static void do_print(Monitor *mon, const QDict *qdict)
 {
+    int format = (long) qdict_get(qdict, "format");
+    unsigned int valh = (long) qdict_get(qdict, "val_h");
+    unsigned int vall = (long) qdict_get(qdict, "val_l");
+
     target_phys_addr_t val = GET_TPHYSADDR(valh, vall);
 #if TARGET_PHYS_ADDR_BITS == 32
     switch(format) {
@@ -1235,9 +1247,12 @@ static void do_ioport_read(Monitor *mon, int count, int format, int size,
                    suffix, addr, size * 2, val);
 }
 
-static void do_ioport_write(Monitor *mon, int count, int format, int size,
-                            int addr, int val)
+static void do_ioport_write(Monitor *mon, const QDict *qdict)
 {
+    int size = (long) qdict_get(qdict, "size");
+    int addr = (long) qdict_get(qdict, "addr");
+    int val = (long) qdict_get(qdict, "val");
+
     addr &= IOPORTS_MASK;
 
     switch (size) {
@@ -1698,10 +1713,13 @@ static void do_acl_policy(Monitor *mon, const QDict *qdict)
     }
 }
 
-static void do_acl_add(Monitor *mon, const char *aclname,
-                       const char *match, const char *policy,
-                       int has_index, int index)
+static void do_acl_add(Monitor *mon, const QDict *qdict)
 {
+    const char *aclname = qdict_get(qdict, "aclname");
+    const char *match = qdict_get(qdict, "match");
+    const char *policy = qdict_get(qdict, "policy");
+    int has_index = qdict_exists(qdict, "index");
+    int index = (long) qdict_get(qdict, "index");
     qemu_acl *acl = find_acl(mon, aclname);
     int deny, ret;
 
@@ -2675,8 +2693,6 @@ static void monitor_handle_command(Monitor *mon, const char *cmdline)
     void *args[MAX_ARGS];
     QDict *qdict;
     void (*handler_d)(Monitor *mon, const QDict *qdict);
-    void (*handler_5)(Monitor *mon, void *arg0, void *arg1, void *arg2,
-                      void *arg3, void *arg4);
     void (*handler_6)(Monitor *mon, void *arg0, void *arg1, void *arg2,
                       void *arg3, void *arg4, void *arg5);
     void (*handler_7)(Monitor *mon, void *arg0, void *arg1, void *arg2,
@@ -2975,12 +2991,9 @@ static void monitor_handle_command(Monitor *mon, const char *cmdline)
     case 2:
     case 3:
     case 4:
+    case 5:
         handler_d = cmd->handler;
         handler_d(mon, qdict);
-        break;
-    case 5:
-        handler_5 = cmd->handler;
-        handler_5(mon, args[0], args[1], args[2], args[3], args[4]);
         break;
     case 6:
         handler_6 = cmd->handler;
