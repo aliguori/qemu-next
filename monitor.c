@@ -59,6 +59,8 @@
  * '/'          optional gdb-like print format (like "/10x")
  *
  * '?'          optional type (for 'F', 's' and 'i')
+ * '.'          other form of optional type (for 'i' and 'l')
+ * '-'          optional parameter (eg. '-f')
  *
  */
 
