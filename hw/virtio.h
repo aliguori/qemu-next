@@ -167,4 +167,14 @@ VirtIODevice *virtio_net_init(DeviceState *dev);
 VirtIODevice *virtio_console_init(DeviceState *dev);
 VirtIODevice *virtio_balloon_init(DeviceState *dev);
 
+static inline uint32_t virtio_common_features(void)
+{
+    uint32_t features = 0;
+    features |= (1 << VIRTIO_F_NOTIFY_ON_EMPTY);
+    features |= (1 << VIRTIO_RING_F_INDIRECT_DESC);
+    features |= (1 << VIRTIO_F_BAD_FEATURE);
+
+    return features;
+}
+
 #endif

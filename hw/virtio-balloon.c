@@ -126,7 +126,7 @@ static void virtio_balloon_set_config(VirtIODevice *vdev,
 
 static uint32_t virtio_balloon_get_features(VirtIODevice *vdev)
 {
-    return 0;
+    return virtio_common_features();
 }
 
 static ram_addr_t virtio_balloon_to_target(void *opaque, ram_addr_t target)

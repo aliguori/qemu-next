@@ -53,7 +53,7 @@ static void virtio_console_handle_input(VirtIODevice *vdev, VirtQueue *vq)
 
 static uint32_t virtio_console_get_features(VirtIODevice *vdev)
 {
-    return 0;
+    return virtio_common_features();
 }
 
 static int vcon_can_read(void *opaque)

@@ -378,7 +378,7 @@ static uint32_t virtio_blk_get_features(VirtIODevice *vdev)
     if (strcmp(s->serial_str, "0"))
         features |= 1 << VIRTIO_BLK_F_IDENTIFY;
 
-    return features;
+    return features | virtio_common_features();
 }
 
 static void virtio_blk_save(QEMUFile *f, void *opaque)

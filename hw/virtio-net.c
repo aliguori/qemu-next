@@ -130,7 +130,7 @@ static uint32_t virtio_net_get_features(VirtIODevice *vdev)
                         (1 << VIRTIO_NET_F_CTRL_VLAN) |
                         (1 << VIRTIO_NET_F_CTRL_RX_EXTRA);
 
-    return features;
+    return features | virtio_common_features();
 }
 
 static uint32_t virtio_net_bad_features(VirtIODevice *vdev)
