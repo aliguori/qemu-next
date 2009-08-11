@@ -1249,7 +1249,11 @@ static void eepro100_write1(EEPRO100State * s, uint32_t addr, uint8_t val)
 static void eepro100_write2(EEPRO100State * s, uint32_t addr, uint16_t val)
 {
     if (addr <= sizeof(s->mem) - sizeof(val)) {
+        ru_state_t rtmp = get_ru_state(s);
+        cu_state_t ctmp = get_cu_state(s);
         memcpy(&s->mem[addr], &val, sizeof(val));
+        set_cu_state(s, ctmp);
+        set_ru_state(s, rtmp);
     }
 
     logout("addr=%s val=0x%04x\n", regname(addr), val);
