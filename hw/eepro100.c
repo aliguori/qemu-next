@@ -153,6 +153,14 @@ typedef struct {
     char packet[MAX_ETH_FRAME_SIZE + 4];
 } eepro100_rx_t;
 
+/* Receive buffer descriptor. */
+typedef struct {
+    uint32_t count;
+    uint32_t link;
+    uint32_t buffer;
+    uint32_t size;
+} eepro100_rbd_t;
+
 typedef struct {
     uint32_t tx_good_frames, tx_max_collisions, tx_late_collisions,
         tx_underruns, tx_lost_crs, tx_deferred, tx_single_collisions,
@@ -218,6 +226,7 @@ typedef struct {
     /* (ru_base + ru_offset) address the RFD in the Receive Frame Area. */
     uint32_t ru_base;           /* RU base address */
     uint32_t ru_offset;         /* RU address offset */
+    uint32_t rbd_addr;
     uint32_t statsaddr;         /* pointer to eepro100_stats_t */
     eepro100_stats_t statistics;        /* statistical counters */
 #if 0
@@ -843,6 +852,7 @@ static void eepro100_ru_command(EEPRO100State * s, uint8_t val)
         }
         set_ru_state(s, ru_ready);
         s->ru_offset = s->pointer;
+        s->rbd_addr = 0;
         logout("val=0x%02x (rx start)\n", val);
         break;
     case RX_RESUME:
@@ -1512,7 +1522,19 @@ static ssize_t nic_receive(VLANClientState *vc, const uint8_t * buf, size_t size
     cpu_physical_memory_read(s->ru_base + s->ru_offset, (uint8_t *) & rx,
                              offsetof(eepro100_rx_t, packet));
     uint16_t rfd_command = le16_to_cpu(rx.command);
-    uint16_t rfd_size = le16_to_cpu(rx.size);
+    uint32_t rfd_size = le16_to_cpu(rx.size);
+    uint32_t dst_addr = s->ru_base + s->ru_offset + offsetof(eepro100_rx_t, packet);
+    if (rfd_command & 8) {
+        // argh! Flexible mode. Intel docs say it is not support but the Mac OS driver uses it anyway.
+        eepro100_rbd_t rbd;
+        if (!s->rbd_addr)
+            s->rbd_addr = le32_to_cpu(rx.rx_buf_addr);
+        cpu_physical_memory_read(s->rbd_addr, (uint8_t *) & rbd, sizeof(rbd));
+        rfd_size = le32_to_cpu(rbd.size);
+        dst_addr = le32_to_cpu(rbd.buffer);
+        stl_phys(s->rbd_addr + offsetof(eepro100_rbd_t, count), size | 0x8000);
+        s->rbd_addr = le32_to_cpu(rbd.link);
+    }
     assert(size <= rfd_size);
     if (size < 64) {
         rfd_status |= 0x0080;
@@ -1528,8 +1550,7 @@ static ssize_t nic_receive(VLANClientState *vc, const uint8_t * buf, size_t size
     assert(!(s->configuration[18] & 4));
     /* TODO: check stripping enable bit. */
     //~ assert(!(s->configuration[17] & 1));
-    cpu_physical_memory_write(s->ru_base + s->ru_offset +
-                              offsetof(eepro100_rx_t, packet), buf, size);
+    cpu_physical_memory_write(dst_addr, buf, size);
     s->statistics.rx_good_frames++;
     eepro100_fr_interrupt(s);
     s->ru_offset = le32_to_cpu(rx.link);
