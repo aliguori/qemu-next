@@ -1558,7 +1558,7 @@ static ssize_t nic_receive(VLANClientState *vc, const uint8_t * buf, size_t size
     s->ru_offset = le32_to_cpu(rx.link);
     if (rfd_command & 0x8000) {
         /* EL bit is set, so this was the last frame. */
-        assert(0);
+        set_ru_state(s, ru_no_resources);
     }
     if (rfd_command & 0x4000) {
         /* S bit is set. */
