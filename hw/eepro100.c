@@ -1043,9 +1043,7 @@ static void eepro100_write_mdi(EEPRO100State * s, uint32_t val)
             }
             data = s->mdimem[reg];
         }
-        /* Emulation takes no time to finish MDI transaction.
-         * Set MDI bit in SCB status register. */
-        s->mem[SCBAck] |= 0x08;
+        /* Emulation takes no time to finish MDI transaction. */
         val |= BIT(28);
         if (raiseint) {
             eepro100_mdi_interrupt(s);
