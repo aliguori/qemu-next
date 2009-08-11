@@ -1452,6 +1452,8 @@ static int nic_can_receive(VLANClientState *vc)
     //~ return !eepro100_buffer_full(s);
 }
 
+#define MIN_BUF_SIZE 60
+
 static ssize_t nic_receive(VLANClientState *vc, const uint8_t * buf, size_t size)
 {
     /* TODO:
@@ -1459,6 +1461,7 @@ static ssize_t nic_receive(VLANClientState *vc, const uint8_t * buf, size_t size
      * - Interesting packets should set bit 29 in power management driver register.
      */
     EEPRO100State *s = vc->opaque;
+    uint8_t buf1[MIN_BUF_SIZE];
     uint16_t rfd_status = 0xa000;
     static const uint8_t broadcast_macaddr[6] =
         { 0xff, 0xff, 0xff, 0xff, 0xff, 0xff };
@@ -1466,16 +1469,18 @@ static ssize_t nic_receive(VLANClientState *vc, const uint8_t * buf, size_t size
     /* TODO: check multiple IA bit. */
     assert(!(s->configuration[20] & BIT(6)));
 
+    /* Short frames can not happen on virtual hardware, so expand them. */
+    if (size < MIN_BUF_SIZE) {
+        memcpy(buf1, buf, size);
+        memset(buf1 + size, 0, MIN_BUF_SIZE - size);
+        buf = buf1;
+        size = MIN_BUF_SIZE;
+    }
+
     if (s->configuration[8] & 0x80) {
         /* CSMA is disabled. */
         logout("%p received while CSMA is disabled\n", s);
         return -1;
-    } else if (size < 64 && (s->configuration[7] & 1)) {
-        /* Short frame and configuration byte 7/0 (discard short receive) set:
-         * Short frame is discarded */
-        logout("%p received short frame (%d byte)\n", s, size);
-        s->statistics.rx_short_frame_errors++;
-        //~ return -1;
     } else if ((size > MAX_ETH_FRAME_SIZE + 4) && !(s->configuration[18] & 8)) {
         /* Long frame and configuration byte 18/3 (long receive ok) not set:
          * Long frames are discarded. */
@@ -1536,9 +1541,6 @@ static ssize_t nic_receive(VLANClientState *vc, const uint8_t * buf, size_t size
         s->rbd_addr = le32_to_cpu(rbd.link);
     }
     assert(size <= rfd_size);
-    if (size < 64) {
-        rfd_status |= 0x0080;
-    }
     logout("command 0x%04x, link 0x%08x, addr 0x%08x, size %u\n", rfd_command,
            rx.link, rx.rx_buf_addr, rfd_size);
     stw_phys(s->ru_base + s->ru_offset + offsetof(eepro100_rx_t, status),
