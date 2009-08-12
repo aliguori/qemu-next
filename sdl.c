@@ -55,6 +55,7 @@ static int guest_x, guest_y;
 static SDL_Cursor *guest_sprite = 0;
 static uint8_t allocator;
 static uint8_t hostbpp;
+static int mouseX = 0, mouseY = 0;
 
 static void sdl_update(DisplayState *ds, int x, int y, int w, int h)
 {
@@ -66,6 +67,30 @@ static void sdl_update(DisplayState *ds, int x, int y, int w, int h)
         rec.w = w;
         rec.h = h;
         SDL_BlitSurface(guest_screen, &rec, real_screen, &rec);
+    }
+    if (multitouch_enabled && !cursor_hide && !gui_grab &&
+        modifiers_state[56] && real_screen && real_screen->pixels) {
+            unsigned char *p = (unsigned char *)real_screen->pixels;
+            int altX = real_screen->w - mouseX;
+            int altY = real_screen->h - mouseY;
+            int x, y;
+            int bytesperpixel = real_screen->format->BytesPerPixel;
+            p += altY * real_screen->pitch;
+            for (y = 0; y < 8; y++) {
+                if (y + altY > 0 && y + altY < real_screen->h) {
+                    unsigned char *q = p + altX * bytesperpixel;
+                    for (x = 0; x < 8; x++) {
+                        if (x + altX > 0 && x + altX < real_screen->w) {
+                            int i;
+                            for (i = 0; i < bytesperpixel; i++) {
+                                q[i] ^= 0xff;
+                            }
+                        }
+                    q += bytesperpixel;
+                }
+            }
+            p += real_screen->pitch;
+        }
     }
     SDL_UpdateRect(real_screen, x, y, w, h);
 }
@@ -452,6 +477,9 @@ static void sdl_send_mouse_event(int dx, int dy, int dz, int x, int y, int state
         buttons |= MOUSE_EVENT_RBUTTON;
     if (state & SDL_BUTTON(SDL_BUTTON_MIDDLE))
         buttons |= MOUSE_EVENT_MBUTTON;
+    if (modifiers_state[56] &&
+        (buttons & (MOUSE_EVENT_LBUTTON | MOUSE_EVENT_RBUTTON)))
+        buttons |= MOUSE_EVENT_MBUTTON << 1;
 
     if (kbd_mouse_is_absolute()) {
 	if (!absolute_enabled) {
@@ -475,6 +503,9 @@ static void sdl_send_mouse_event(int dx, int dy, int dz, int x, int y, int state
         dx = x;
         dy = y;
     }
+
+    mouseX = x;
+    mouseY = y;
 
     kbd_mouse_event(dx, dy, dz, buttons);
 }
