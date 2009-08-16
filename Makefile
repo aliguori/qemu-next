@@ -12,7 +12,7 @@ config-host.mak:
 endif
 
 .PHONY: all clean cscope distclean dvi html info install install-doc \
-	recurse-all speed tar tarbin test
+	recurse-all speed tar tarbin test roms
 
 VPATH=$(SRC_PATH):$(SRC_PATH)/hw
 
