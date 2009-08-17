@@ -23,7 +23,6 @@
  */
 
 #include "qemu-common.h"
-#include "exec.h"
 #include "opengl_func_parse.h"
 #include "helper_opengl.h"
 #include "opengl_exec.h"
@@ -42,8 +41,6 @@
 #define MAX_GLFUNC_NB_ARGS 50
 
 extern int last_process_id;
-
-extern void sdl_set_opengl_window(int x, int y, int width, int height);
 
 int get_phys_addr(CPUState *env, uint32_t address,
                                 int access_type, int is_user,
