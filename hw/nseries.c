@@ -2,7 +2,7 @@
  * Nokia N-series internet tablets.
  *
  * Copyright (C) 2007 Nokia Corporation
- * RX-34/44 support written by Andrzej Zaborowski <andrew@openedhand.com>
+ * Written by Andrzej Zaborowski <andrew@openedhand.com>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License as

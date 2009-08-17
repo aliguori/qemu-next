@@ -200,6 +200,8 @@ sdl="yes"
 sdl_x11="no"
 xen="yes"
 pkgversion=""
+glhw="no"
+osmesa="no"
 
 # OS specific
 if check_define __linux__ ; then
@@ -284,7 +286,7 @@ darwin_user="yes"
 cocoa="yes"
 audio_drv_list="coreaudio"
 audio_possible_drivers="coreaudio sdl fmod"
-OS_LDFLAGS="-framework CoreFoundation -framework IOKit"
+OS_LDFLAGS="-framework CoreFoundation -framework IOKit -framework OpenGL"
 ;;
 SunOS)
     solaris="yes"
@@ -508,6 +510,10 @@ for opt do
   ;;
   --disable-docs) build_docs="no"
   ;;
+  --enable-glhw) glhw="yes"
+  ;;
+  --enable-osmesa) osmesa="yes"
+  ;;
   *) echo "ERROR: unknown option $opt"; show_help="yes"
   ;;
   esac
@@ -644,6 +650,8 @@ echo "  --disable-aio            disable AIO support"
 echo "  --enable-io-thread       enable IO thread"
 echo "  --disable-blobs          disable installing provided firmware blobs"
 echo "  --kerneldir=PATH         look for kernel includes in PATH"
+echo "  --enable-glhw            enable OpenGL hardware emulation"
+echo "  --enable-osmesa          enable OSMesa OpenGL instead of default OpenGL library"
 echo ""
 echo "NOTE: The object files are built at the place where configure is launched"
 exit 1
@@ -1422,6 +1430,8 @@ echo "Install blobs     $blobs"
 echo -e "KVM support       $kvm"
 echo "fdt support       $fdt"
 echo "preadv support    $preadv"
+echo "glhw support      $glhw"
+echo "osmesa support    $osmesa"
 
 if test $sdl_too_old = "yes"; then
 echo "-> Your SDL version is too old - please upgrade to have SDL support"
@@ -1761,6 +1771,14 @@ fi
 if test "$fdt" = "yes" ; then
   echo "#define HAVE_FDT 1" >> $config_h
   echo "FDT_LIBS=-lfdt" >> $config_mak
+fi
+if test "$glhw" = "yes" ; then
+  echo "#define CONFIG_GLHW 1" >>$config_h
+  echo "CONFIG_GLHW=yes" >>$config_mak
+  if test "$osmesa" = "yes" ; then
+    echo "#define CONFIG_OSMESA 1" >>$config_h
+    echo "CONFIG_OSMESA=yes" >>$config_mak
+  fi
 fi
 
 # XXX: suppress that

@@ -679,6 +679,32 @@ OBJS+= framebuffer.o
 OBJS+= syborg.o syborg_fb.o syborg_interrupt.o syborg_keyboard.o
 OBJS+= syborg_serial.o syborg_timer.o syborg_pointer.o syborg_rtc.o
 OBJS+= syborg_virtio.o
+ifdef CONFIG_GLHW
+VPATH+=:$(SRC_PATH)/hw/gl
+CPPFLAGS+=-I$(SRC_PATH)/hw/gl
+parse_gl_h: parse_gl_h.c
+	$(CC) -g -o $@ $<
+server_stub.c: parse_gl_h
+	./parse_gl_h
+gl_func.h: parse_gl_h
+	./parse_gl_h
+helper_opengl.o: helper_opengl.c opengl_func.h server_stub.c
+opengl_exec.o: opengl_exec.c server_stub.c gl_func.h opengl_func.h
+OBJS+= helper_opengl.o opengl_exec.o
+ifdef CONFIG_OSMESA
+LIBS+=-lOSMesa
+else
+ifdef CONFIG_COCOA
+COCOA_LIBS+=-framework OpenGL
+else
+ifdef CONFIG_WIN32
+LIBS+=-lopengl32
+else
+LIBS+=-lGL
+endif
+endif
+endif
+endif
 CPPFLAGS += -DHAS_AUDIO
 endif
 ifeq ($(TARGET_BASE_ARCH), sh4)
@@ -694,6 +720,10 @@ ifdef CONFIG_COCOA
 COCOA_LIBS=-F/System/Library/Frameworks -framework Cocoa -framework IOKit
 ifdef CONFIG_COREAUDIO
 COCOA_LIBS+=-framework CoreAudio
+endif
+else
+ifdef CONFIG_WIN32
+LIBS+=-lgdi32
 endif
 endif
 ifdef CONFIG_SLIRP

@@ -30,6 +30,10 @@
 #include "devices.h"
 #include "flash.h"
 
+#ifdef CONFIG_GLHW
+#include "helper_opengl.h"
+#endif
+
 #define BEAGLE_NAND_CS       0
 #define BEAGLE_SMC_CS        1
 #define BEAGLE_NAND_PAGESIZE 0x800
@@ -43,6 +47,9 @@ struct beagle_s {
     struct omap3_lcd_panel_s *lcd_panel;
     i2c_bus *i2c;
     void *twl4030;
+#ifdef CONFIG_GLHW
+    void *gl;
+#endif
 };
 
 static void beagle_init(ram_addr_t ram_size,
@@ -79,6 +86,10 @@ static void beagle_init(ram_addr_t ram_size,
 
 	s->lcd_panel = omap3_lcd_panel_init(s->cpu->dss);
     omap_lcd_panel_attach(s->cpu->dss, omap3_lcd_panel_get(s->lcd_panel));
+
+#ifdef CONFIG_GLHW
+    s->gl = helper_opengl_init(s->cpu->env, 0x4fff0000);
+#endif
     
     omap3_boot_rom_emu(s->cpu);
 }

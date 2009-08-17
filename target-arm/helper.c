@@ -1201,7 +1201,12 @@ static int get_phys_addr_mpu(CPUState *env, uint32_t address, int access_type,
     return 0;
 }
 
-static inline int get_phys_addr(CPUState *env, uint32_t address,
+#ifdef CONFIG_GLHW
+int get_phys_addr(CPUState *, uint32_t, int, int, uint32_t *, int *);
+#else
+static
+#endif
+int get_phys_addr(CPUState *env, uint32_t address,
                                 int access_type, int is_user,
                                 uint32_t *phys_ptr, int *prot)
 {
