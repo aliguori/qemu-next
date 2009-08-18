@@ -2444,12 +2444,19 @@ static void *n00_tm12xx_init(i2c_bus *bus, qemu_irq irq, int swapxy)
     return s;
 }
 
+#ifdef CONFIG_GLHW
+#include "helper_opengl.h"
+#endif
+
 struct n00_s {
     struct omap_mpu_state_s *cpu;
     void *twl4030;
     void *nand;
     struct taal_s *lcd;
     void *tm12xx;
+#ifdef CONFIG_GLHW
+    void *gl;
+#endif
 };
 
 static const TWL4030KeyMap n00_twl4030_keymap[] = {
@@ -2525,6 +2532,10 @@ static void n00_init(ram_addr_t ram_size,
 
     omap_gpmc_attach(s->cpu->gpmc, N00_SMC_CS, smc91c111_iomemtype(opaque),
                      NULL, NULL, opaque, 0);
+    
+#ifdef CONFIG_GLHW
+    s->gl = helper_opengl_init(s->cpu->env, 0x4fff0000);
+#endif
 
     omap3_boot_rom_emu(s->cpu);
 }
