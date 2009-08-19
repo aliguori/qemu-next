@@ -1225,7 +1225,7 @@ struct omap_mpu_state_s {
     struct omap3_prm_s *omap3_prm;
     struct omap3_cm_s *omap3_cm;
     struct omap3_wdt_s *omap3_mpu_wdt;
-    struct omap_l3_s *omap3_l3;
+    struct omap3_l3_s *omap3_l3;
     struct omap3_scm_s *omap3_scm;
     struct omap3_sms_s *omap3_sms;
     struct omap3_mmc_s *omap3_mmc[3];

@@ -31,14 +31,6 @@
 #include "audio/audio.h"
 #include "block.h"
 
-/*
- * When the flag below is defined, the "less important" I/O regions
- * will not be mapped -- this is needed because the current maximum
- * number of I/O regions in qemu-system-arm (128) is easily reached
- * when everything is mapped.
- */
-#define OMAP3_REDUCE_IOREGIONS
-
 //#define OMAP3_DEBUG
 #define OMAP3_DEBUG_SCM
 //#define OMAP3_DEBUG_CM
@@ -65,55 +57,60 @@
 #define TRACE_PRM(...)
 #endif
 
-typedef enum {
-    /* 68000000-680003FF */ L3ID_L3RT = 0,
-    /* 68000400-680007FF */ L3ID_L3SI,
-    /* 68000800-680013FF */
-    /* 68001400-680017FF */ L3ID_MPUSS_IA,
-    /* 68001800-68001BFF */ L3ID_IVASS_IA,
-    /* 68001C00-68001FFF */ L3ID_SGXSS_IA,
-    /* 68002000-680023FF */ L3ID_SMS_TA,
-    /* 68002400-680027FF */ L3ID_GPMC_TA,
-    /* 68002800-68002BFF */ L3ID_OCM_RAM_TA,
-    /* 68002C00-68002FFF */ L3ID_OCM_ROM_TA,
-    /* 68003000-680033FF */ L3ID_D2D_IA,
-    /* 68003400-680037FF */ L3ID_D2D_TA,
-    /* 68003800-68003FFF */
-    /* 68004000-680043FF */ L3ID_HSUSB_HOST_IA,
-    /* 68004400-680047FF */ L3ID_HSUSB_OTG_IA,
-    /* 68004800-68004BFF */
-    /* 68004C00-68004FFF */ L3ID_SDMA_RD_IA,
-    /* 68005000-680053FF */ L3ID_SDMA_WR_IA,
-    /* 68005400-680057FF */ L3ID_DSS_IA,
-    /* 68005800-68005BFF */ L3ID_CAMISP_IA,
-    /* 68005C00-68005FFF */ L3ID_DAP_IA,
-    /* 68006000-680063FF */ L3ID_IVASS_TA,
-    /* 68006400-680067FF */ L3ID_SGXSS_TA,
-    /* 68006800-68006BFF */ L3ID_L4_CORE_TA,
-    /* 68006C00-68006FFF */ L3ID_L4_PER_TA,
-    /* 68007000-680073FF */ L3ID_L4_EMU_TA,
-    /* 68007400-6800FFFF */
-    /* 68010000-680103FF */ L3ID_RT_PM,
-    /* 68010400-680123FF */
-    /* 68012400-680127FF */ L3ID_GPMC_PM,
-    /* 68012800-68012BFF */ L3ID_OCM_RAM_PM,
-    /* 68012C00-68012FFF */ L3ID_OCM_ROM_PM,
-    /* 68013000-680133FF */ L3ID_D2D_PM,
-    /* 68013400-68013FFF */
-    /* 68014000-680143FF */ L3ID_IVA_PM,
-    /* 68014400-68FFFFFF */
-} omap3_l3_region_id_t;
+/*
+ * When the flag below is defined, some I/O regions will not be mapped
+ * this is needed because the current maximum number of I/O regions in
+ * qemu-system-arm (128) is easily reached when everything is mapped.
+ */
+#define OMAP3_REDUCE_IOREGIONS
 
-struct omap_l3_region_s {
-    target_phys_addr_t offset;
-    size_t size;
+struct omap3_l3_region_s {
+    uint32_t size;
     enum {
-        L3TYPE_GENERIC = 0, /* needs to be mapped separately */
-        L3TYPE_IA,          /* initiator agent */
-        L3TYPE_TA,          /* target agent */
-        L3TYPE_PM,          /* protection mechanism */
-        L3TYPE_UNDEFINED,   /* every access will emit an error message */
+        L3TYPE_IA = 0, /* initiator agent */
+        L3TYPE_TA,     /* target agent */
+        L3TYPE_PM,     /* protection mechanism */
+        L3TYPE_UNDEF,  /* every access will emit an error message */
     } type;
+};
+
+static const struct omap3_l3_region_s omap3_l3_region[] = {
+    {0x0400, L3TYPE_UNDEF},  /* L3RT */
+    {0x0400, L3TYPE_UNDEF},  /* L3SI */
+    {0x0c00, L3TYPE_UNDEF},  /* reserved */
+    {0x0400, L3TYPE_IA},     /* MPUSS_IA */
+    {0x0400, L3TYPE_IA},     /* IVASS_IA */
+    {0x0400, L3TYPE_IA},     /* SGXSS_IA */
+    {0x0400, L3TYPE_TA},     /* SMS_TA */
+    {0x0400, L3TYPE_TA},     /* GPMC_TA */
+    {0x0400, L3TYPE_TA},     /* OCM_RAM_TA */
+    {0x0400, L3TYPE_TA},     /* OCM_ROM_TA */
+    {0x0400, L3TYPE_IA},     /* D2D_IA */
+    {0x0400, L3TYPE_TA},     /* D2D_TA */
+    {0x0800, L3TYPE_UNDEF},  /* reserved */
+    {0x0400, L3TYPE_IA},     /* HSUSB_HOST_IA */
+    {0x0400, L3TYPE_IA},     /* HSUSB_OTG_IA */
+    {0x0400, L3TYPE_UNDEF},  /* reserved */
+    {0x0400, L3TYPE_IA},     /* SDMA_RD_IA */
+    {0x0400, L3TYPE_IA},     /* SDMA_WR_IA */
+    {0x0400, L3TYPE_IA},     /* DSS_IA */
+    {0x0400, L3TYPE_IA},     /* CAMISP_IA */
+    {0x0400, L3TYPE_IA},     /* DAP_IA */
+    {0x0400, L3TYPE_TA},     /* IVASS_TA */
+    {0x0400, L3TYPE_TA},     /* SGXSS_TA */
+    {0x0400, L3TYPE_TA},     /* L4_CORE_TA */
+    {0x0400, L3TYPE_TA},     /* L4_PER_TA */
+    {0x0400, L3TYPE_TA},     /* L4_EMU_TA */
+    {0x8c00, L3TYPE_UNDEF},  /* reserved */
+    {0x0400, L3TYPE_PM},     /* RT_PM */
+    {0x2000, L3TYPE_UNDEF},  /* reserved */
+    {0x0400, L3TYPE_PM},     /* GPMC_PM */
+    {0x0400, L3TYPE_PM},     /* OCM_RAM_PM */
+    {0x0400, L3TYPE_PM},     /* OCM_ROM_PM */
+    {0x0400, L3TYPE_PM},     /* D2D_PM */
+    {0x0c00, L3TYPE_UNDEF},  /* reserved */
+    {0x0400, L3TYPE_PM},     /* IVA_PM */
+    {0xfebc00, L3TYPE_UNDEF} /* reserved */
 };
 
 struct omap3_l3_initiator_agent_s {
@@ -124,62 +121,6 @@ struct omap3_l3_initiator_agent_s {
     uint32_t status;
 };
 
-struct omap3_l3pm_s {
-    target_phys_addr_t base;
-    
-    uint32_t error_log;
-    uint8_t  control;
-    uint16_t req_info_permission[8];
-    uint16_t read_permission[8];
-    uint16_t write_permission[8];
-    uint32_t addr_match[7];
-};
-
-union omap3_l3_port_s {
-    struct omap_target_agent_s ta;
-    struct omap3_l3_initiator_agent_s ia;
-    struct omap3_l3pm_s pm;
-};
-
-struct omap_l3_s {
-    target_phys_addr_t base;
-    int region_count;
-    union omap3_l3_port_s region[0];
-};
-
-static struct omap_l3_region_s omap3_l3_region[] = {
-    [L3ID_L3RT         ] = {0x00000000, 0x0400, L3TYPE_UNDEFINED},
-    [L3ID_L3SI         ] = {0x00000400, 0x0400, L3TYPE_UNDEFINED},
-    [L3ID_MPUSS_IA     ] = {0x00001400, 0x0400, L3TYPE_IA},
-    [L3ID_IVASS_IA     ] = {0x00001800, 0x0400, L3TYPE_IA},
-    [L3ID_SGXSS_IA     ] = {0x00001c00, 0x0400, L3TYPE_IA},
-    [L3ID_SMS_TA       ] = {0x00002000, 0x0400, L3TYPE_TA},
-    [L3ID_GPMC_TA      ] = {0x00002400, 0x0400, L3TYPE_TA},
-    [L3ID_OCM_RAM_TA   ] = {0x00002800, 0x0400, L3TYPE_TA},
-    [L3ID_OCM_ROM_TA   ] = {0x00002c00, 0x0400, L3TYPE_TA},
-    [L3ID_D2D_IA       ] = {0x00003000, 0x0400, L3TYPE_IA},
-    [L3ID_D2D_TA       ] = {0x00003400, 0x0400, L3TYPE_TA},
-    [L3ID_HSUSB_HOST_IA] = {0x00004000, 0x0400, L3TYPE_IA},
-    [L3ID_HSUSB_OTG_IA ] = {0x00004400, 0x0400, L3TYPE_IA},
-    [L3ID_SDMA_RD_IA   ] = {0x00004c00, 0x0400, L3TYPE_IA},
-    [L3ID_SDMA_WR_IA   ] = {0x00005000, 0x0400, L3TYPE_IA},
-    [L3ID_DSS_IA       ] = {0x00005400, 0x0400, L3TYPE_IA},
-    [L3ID_CAMISP_IA    ] = {0x00005800, 0x0400, L3TYPE_IA},
-    [L3ID_DAP_IA       ] = {0x00005c00, 0x0400, L3TYPE_IA},
-    [L3ID_IVASS_TA     ] = {0x00006000, 0x0400, L3TYPE_TA},
-    [L3ID_SGXSS_TA     ] = {0x00006400, 0x0400, L3TYPE_TA},
-    [L3ID_L4_CORE_TA   ] = {0x00006800, 0x0400, L3TYPE_TA},
-    [L3ID_L4_PER_TA    ] = {0x00006c00, 0x0400, L3TYPE_TA},
-    [L3ID_L4_EMU_TA    ] = {0x00007000, 0x0400, L3TYPE_TA},
-    [L3ID_RT_PM        ] = {0x00010000, 0x0400, L3TYPE_PM},
-    [L3ID_GPMC_PM      ] = {0x00012400, 0x0400, L3TYPE_PM},
-    [L3ID_OCM_RAM_PM   ] = {0x00012800, 0x0400, L3TYPE_PM},
-    [L3ID_OCM_ROM_PM   ] = {0x00012c00, 0x0400, L3TYPE_PM},
-    [L3ID_D2D_PM       ] = {0x00013000, 0x0400, L3TYPE_PM},
-    [L3ID_IVA_PM       ] = {0x00014000, 0x0400, L3TYPE_PM},
-};
-
-#ifndef OMAP3_REDUCE_IOREGIONS
 static uint32_t omap3_l3ia_read(void *opaque, target_phys_addr_t addr)
 {
     struct omap3_l3_initiator_agent_s *s = (struct omap3_l3_initiator_agent_s *)opaque;
@@ -275,14 +216,18 @@ static int omap3_l3ia_load_state(QEMUFile *f, void *opaque, int version_id)
     return 0;
 }
 
-static void omap3_l3ia_init(struct omap3_l3_initiator_agent_s *s)
+static void *omap3_l3ia_init(target_phys_addr_t base)
 {
+    struct omap3_l3_initiator_agent_s *s = qemu_mallocz(sizeof(*s));
+    s->base = base;
     s->component = ('Q' << 24) | ('E' << 16) | ('M' << 8) | ('U' << 0);
     s->control = 0x3e000000;
     s->status = 0;
     
     register_savevm("omap3_l3ia", (s->base >> 8) & 0xffff, 0,
                     omap3_l3ia_save_state, omap3_l3ia_load_state, s);
+    
+    return s;
 }
 
 static CPUReadMemoryFunc *omap3_l3ia_readfn[] = {
@@ -356,19 +301,20 @@ static void omap3_l3ta_write(void *opaque, target_phys_addr_t addr,
             s->control = value & 0x03000711;
             break;
         case 0x28: /* AGENT_STATUS_L */
-            if (s->base == OMAP3_L3_BASE + omap3_l3_region[L3ID_L4_CORE_TA].offset
-                || s->base == OMAP3_L3_BASE + omap3_l3_region[L3ID_L4_PER_TA].offset
-                || s->base == OMAP3_L3_BASE + omap3_l3_region[L3ID_L4_EMU_TA].offset) {
+            if ((s->base & 0xff00) == 0x6800       /* L4_CORE */
+                || (s->base & 0xff00) == 0x6c00    /* L4_PER */
+                || (s->base & 0xff00) == 0x7000) { /* L4_EMU */
                 s->status &= ~(value & (1 << 24));
             } else
                 OMAP_RO_REG(s->base + addr);
             break;
         case 0x2c: /* AGENT_STATUS_H */
-            if (s->base != OMAP3_L3_BASE + omap3_l3_region[L3ID_L4_CORE_TA].offset
-                && s->base != OMAP3_L3_BASE + omap3_l3_region[L3ID_L4_PER_TA].offset
-                && s->base != OMAP3_L3_BASE + omap3_l3_region[L3ID_L4_EMU_TA].offset)
+            if ((s->base & 0xff00) != 0x6800       /* L4_CORE */
+                && (s->base & 0xff00) != 0x6c00    /* L4_PER */
+                && (s->base & 0xff00) != 0x7000) { /* L4_EMU */
                 OMAP_RO_REG(s->base + addr);
-            /* for L4 core, per, emu TAs this is RW reg */
+            }
+            /* upper 32 bits are marked as reserved, don't save the value */
             break;
         case 0x58: /* ERROR_LOG_L */
             /* error logging is not implemented, so ignore */
@@ -402,14 +348,18 @@ static int omap3_l3ta_load_state(QEMUFile *f, void *opaque, int version_id)
     return 0;
 }
 
-static void omap3_l3ta_init(struct omap_target_agent_s *s)
+static void *omap3_l3ta_init(target_phys_addr_t base)
 {
+    struct omap_target_agent_s *s = qemu_mallocz(sizeof(*s));
+    s->base = base;
     s->component = ('Q' << 24) | ('E' << 16) | ('M' << 8) | ('U' << 0);
     s->control = 0x03000000;
     s->status = 0;
 
     register_savevm("omap3_l3ta", (s->base >> 8) & 0xffff, 0,
                     omap3_l3ta_save_state, omap3_l3ta_load_state, s);
+    
+    return s;
 }
 
 static CPUReadMemoryFunc *omap3_l3ta_readfn[] = {
@@ -422,6 +372,17 @@ static CPUWriteMemoryFunc *omap3_l3ta_writefn[] = {
     omap_badwidth_write32,
     omap_badwidth_write32,
     omap3_l3ta_write,
+};
+
+struct omap3_l3pm_s {
+    target_phys_addr_t base;
+    
+    uint32_t error_log;
+    uint8_t  control;
+    uint16_t req_info_permission[8];
+    uint16_t read_permission[8];
+    uint16_t write_permission[8];
+    uint32_t addr_match[7];
 };
 
 static uint32_t omap3_l3pm_read8(void *opaque, target_phys_addr_t addr)
@@ -634,10 +595,12 @@ static int omap3_l3pm_load_state(QEMUFile *f, void *opaque, int version_id)
     return 0;
 }
 
-static void omap3_l3pm_init(struct omap3_l3pm_s *s)
+static void *omap3_l3pm_init(target_phys_addr_t base)
 {
+    struct omap3_l3pm_s *s = qemu_mallocz(sizeof(*s));
     int i;
     
+    s->base = base;
     s->error_log = 0;
     s->control = 0x03;
     switch (s->base) {
@@ -687,14 +650,15 @@ static void omap3_l3pm_init(struct omap3_l3pm_s *s)
                 s->read_permission[i] = s->write_permission[i] = 0x140e;
             break;
         default:
-            fprintf(stderr, "%s: unknown PM region (0x%08llx)\n",
-                    __FUNCTION__, s->base);
-            exit(-1);
+            hw_error("%s: unknown PM region " OMAP_FMT_plx, __FUNCTION__,
+                     s->base);
             break;
     }
 
     register_savevm("omap3_l3pm", (s->base >> 8) & 0xffff, 0,
                     omap3_l3pm_save_state, omap3_l3pm_load_state, s);
+    
+    return s;
 }
 
 static CPUReadMemoryFunc *omap3_l3pm_readfn[] = {
@@ -709,119 +673,157 @@ static CPUWriteMemoryFunc *omap3_l3pm_writefn[] = {
     omap3_l3pm_write32,
 };
 
-static uint32_t omap3_l3undef_read8(void *opaque, target_phys_addr_t addr)
-{
-    fprintf(stderr, "%s: unsupported register at " OMAP_FMT_plx "\n",
-            __FUNCTION__, addr);
-    return 0;
-}
-
-static uint32_t omap3_l3undef_read16(void *opaque, target_phys_addr_t addr)
-{
-    fprintf(stderr, "%s: unsupported register at " OMAP_FMT_plx "\n",
-            __FUNCTION__, addr);
-    return 0;
-}
-
-static uint32_t omap3_l3undef_read32(void *opaque, target_phys_addr_t addr)
-{
-    fprintf(stderr, "%s: unsupported register at " OMAP_FMT_plx "\n",
-            __FUNCTION__, addr);
-    return 0;
-}
-
-static void omap3_l3undef_write8(void *opaque, target_phys_addr_t addr,
-                               uint32_t value)
-{
-    fprintf(stderr, "%s: unsupported register at " OMAP_FMT_plx ", value %02x\n",
-            __FUNCTION__, addr, value);
-}
-
-static void omap3_l3undef_write16(void *opaque, target_phys_addr_t addr,
-                                uint32_t value)
-{
-    fprintf(stderr, "%s: unsupported register at " OMAP_FMT_plx ", value %04x\n",
-            __FUNCTION__, addr, value);
-}
-
-static void omap3_l3undef_write32(void *opaque, target_phys_addr_t addr,
-                                uint32_t value)
-{
-    fprintf(stderr, "%s: unsupported register at " OMAP_FMT_plx ", value %08x\n",
-            __FUNCTION__, addr, value);
-}
-
-static CPUReadMemoryFunc *omap3_l3undef_readfn[] = {
-    omap3_l3undef_read8,
-    omap3_l3undef_read16,
-    omap3_l3undef_read32,
+struct omap3_l3_s {
+    target_phys_addr_t base;
+    int region_count;
+    void *region[0];
 };
 
-static CPUWriteMemoryFunc *omap3_l3undef_writefn[] = {
-    omap3_l3undef_write8,
-    omap3_l3undef_write16,
-    omap3_l3undef_write32,
-};
-#endif
-
-static struct omap_l3_s *omap3_l3_init(target_phys_addr_t base,
-                                       struct omap_l3_region_s *regions,
-                                       int n)
+static int omap3_l3_findregion(struct omap3_l3_s *l3, target_phys_addr_t addr)
 {
-#ifdef OMAP3_REDUCE_IOREGIONS
-    return NULL;
-#else
-    int i, iomemtype = 0;
-    
-    struct omap_l3_s *bus = qemu_mallocz(sizeof(*bus) + n * sizeof(*bus->region));
+    target_phys_addr_t limit = 0;
+    int i;
+    for (i = 0; i < l3->region_count; i++) {
+        limit += omap3_l3_region[i].size;
+        if (addr < limit) {
+            return i;
+        }
+    }
+    return -1;
+}
+
+static uint32_t omap3_l3_read(void *opaque, target_phys_addr_t addr, int size)
+{
+    struct omap3_l3_s *s = (struct omap3_l3_s *)opaque;
+    int i = omap3_l3_findregion(s, addr);
+    if (i < 0) {
+        hw_error("%s: unknown region addr " OMAP_FMT_plx, __FUNCTION__, addr);
+    }
+    switch (omap3_l3_region[i].type) {
+        case L3TYPE_IA:
+            return omap3_l3ia_readfn[size](s->region[i], addr);
+        case L3TYPE_TA:
+            return omap3_l3ta_readfn[size](s->region[i], addr);
+        case L3TYPE_PM:
+            return omap3_l3pm_readfn[size](s->region[i], addr);
+        case L3TYPE_UNDEF:
+            TRACE("unsupported register at " OMAP_FMT_plx, addr);
+            return 0;
+        default:
+            break;
+    }
+    hw_error("%s: unknown region type %d, addr " OMAP_FMT_plx,
+             __FUNCTION__, omap3_l3_region[i].type, addr);
+}
+
+static void omap3_l3_write(void *opaque, target_phys_addr_t addr,
+                           uint32_t value, int size)
+{
+    struct omap3_l3_s *s = (struct omap3_l3_s *)opaque;
+    int i = omap3_l3_findregion(s, addr);
+    if (i < 0) {
+        hw_error("%s: unknown region addr" OMAP_FMT_plx, __FUNCTION__, addr);
+    }
+    switch (omap3_l3_region[i].type) {
+        case L3TYPE_IA:
+            omap3_l3ia_writefn[size](s->region[i], addr, value);
+            break;
+        case L3TYPE_TA:
+            omap3_l3ta_writefn[size](s->region[i], addr, value);
+            break;
+        case L3TYPE_PM:
+            omap3_l3pm_writefn[size](s->region[i], addr, value);
+            break;
+        case L3TYPE_UNDEF:
+            TRACE("unsupported register at " OMAP_FMT_plx, addr, value);
+            break;
+        default:
+            hw_error("%s: unknown region type %d, addr " OMAP_FMT_plx,
+                     __FUNCTION__, omap3_l3_region[i].type, addr);
+            break;
+    }
+}
+
+static uint32_t omap3_l3_read8(void *opaque, target_phys_addr_t addr)
+{
+    return omap3_l3_read(opaque, addr, 0);
+}
+
+static uint32_t omap3_l3_read16(void *opaque, target_phys_addr_t addr)
+{
+    return omap3_l3_read(opaque, addr, 1);
+}
+
+static uint32_t omap3_l3_read32(void *opaque, target_phys_addr_t addr)
+{
+    return omap3_l3_read(opaque, addr, 2);
+}
+
+static void omap3_l3_write8(void *opaque, target_phys_addr_t addr,
+                            uint32_t value)
+{
+    omap3_l3_write(opaque, addr, value, 0);
+}
+
+static void omap3_l3_write16(void *opaque, target_phys_addr_t addr,
+                             uint32_t value)
+{
+    omap3_l3_write(opaque, addr, value, 1);
+}
+
+static void omap3_l3_write32(void *opaque, target_phys_addr_t addr,
+                             uint32_t value)
+{
+    omap3_l3_write(opaque, addr, value, 2);
+}
+
+static CPUReadMemoryFunc *omap3_l3_readfn[] = {
+    omap3_l3_read8,
+    omap3_l3_read16,
+    omap3_l3_read32,
+};
+
+static CPUWriteMemoryFunc *omap3_l3_writefn[] = {
+    omap3_l3_write8,
+    omap3_l3_write16,
+    omap3_l3_write32,
+};
+
+static struct omap3_l3_s *omap3_l3_init(target_phys_addr_t base)
+{
+    const int n = sizeof(omap3_l3_region) / sizeof(struct omap3_l3_region_s);
+    struct omap3_l3_s *bus = qemu_mallocz(sizeof(*bus) + n * sizeof(void *));
     bus->region_count = n;
     bus->base = base;
-    
+ 
+    int i;
     for (i = 0; i < n; i++) {
-        switch (regions[i].type) {
-            case L3TYPE_GENERIC:
-                /* not mapped for now, mapping will be done later by
-                   specialized code */
-                break;
+        switch (omap3_l3_region[i].type) {
             case L3TYPE_IA:
-                iomemtype = cpu_register_io_memory(0, omap3_l3ia_readfn,
-                                                   omap3_l3ia_writefn,
-                                                   &bus->region[i].ia);
-                bus->region[i].ia.base = base + regions[i].offset;
-                omap3_l3ia_init(&bus->region[i].ia);
+                bus->region[i] = omap3_l3ia_init(base);
                 break;
             case L3TYPE_TA:
-                iomemtype = cpu_register_io_memory(0, omap3_l3ta_readfn,
-                                                   omap3_l3ta_writefn,
-                                                   &bus->region[i].ta);
-                bus->region[i].ta.base = base + regions[i].offset;
-                omap3_l3ta_init(&bus->region[i].ta);
+                bus->region[i] = omap3_l3ta_init(base);
                 break;
             case L3TYPE_PM:
-                iomemtype = cpu_register_io_memory(0, omap3_l3pm_readfn,
-                                                   omap3_l3pm_writefn,
-                                                   &bus->region[i].pm);
-                bus->region[i].pm.base = base + regions[i].offset;
-                omap3_l3pm_init(&bus->region[i].pm);
+                bus->region[i] = omap3_l3pm_init(base);
                 break;
-            case L3TYPE_UNDEFINED:
-                iomemtype = cpu_register_io_memory(0, omap3_l3undef_readfn,
-                                                   omap3_l3undef_writefn,
-                                                   &bus->region[i]);
+            case L3TYPE_UNDEF:
+                bus->region[i] = 0;
                 break;
             default:
-                fprintf(stderr, "%s: unknown L3 region type: %d\n",
-                        __FUNCTION__, regions[i].type);
-                exit(-1);
+                hw_error("%s: unknown region type %d", __FUNCTION__,
+                         omap3_l3_region[i].type);
                 break;
         }
-        cpu_register_physical_memory(base + regions[i].offset,
-                                     regions[i].size,
-                                     iomemtype);
+        base += omap3_l3_region[i].size;
     }
     
+    cpu_register_physical_memory(base, 0x01000000,
+                                 cpu_register_io_memory(0, omap3_l3_readfn,
+                                                        omap3_l3_writefn,
+                                                        bus));
     return bus;
-#endif
 }
 
 typedef enum {
@@ -1430,13 +1432,11 @@ static struct omap_target_agent_s *omap3_l4ta_init(struct omap_l4_s *bus, int cs
             break;
         }
     if (!ta) {
-        fprintf(stderr, "%s: invalid agent id (%i)\n", __FUNCTION__, cs);
-        exit(-1);
+        hw_error("%s: invalid agent id (%i)", __FUNCTION__, cs);
     }
     if (ta->bus) {
-        fprintf(stderr, "%s: target agent (%d) already initialized\n",
-                __FUNCTION__, cs);
-        exit(-1);
+        hw_error("%s: target agent (%d) already initialized", __FUNCTION__,
+                 cs);
     }
 
     ta->bus = bus;
@@ -1451,9 +1451,8 @@ static struct omap_target_agent_s *omap3_l4ta_init(struct omap_l4_s *bus, int cs
         if (omap3_l4_region[info->first_region_id + i].access == L4TYPE_TA)
             break;
     if (i >= info->region_count) {
-        fprintf(stderr, "%s: specified agent (%d) has no TA region\n",
-                __FUNCTION__, cs);
-        exit(-1);
+        hw_error("%s: specified agent (%d) has no TA region", __FUNCTION__,
+                 cs);
     }
     
 #ifndef OMAP3_REDUCE_IOREGIONS
@@ -4747,10 +4746,7 @@ struct omap_mpu_state_s *omap3530_mpu_init(unsigned long sdram_size,
                                           omap_findclk(s, "omap3_wkup_l4_iclk"),
                                           s);
 
-    s->omap3_l3 = omap3_l3_init(OMAP3_L3_BASE, 
-                                omap3_l3_region,
-                                sizeof(omap3_l3_region)
-                                / sizeof(struct omap_l3_region_s));
+    s->omap3_l3 = omap3_l3_init(OMAP3_L3_BASE);
     s->omap3_scm = omap3_scm_init(omap3_l4ta_init(s->l4, L4A_SCM), s);
 
     s->omap3_sms = omap3_sms_init(s);
