@@ -2454,6 +2454,7 @@ struct n00_s {
     void *nand;
     struct taal_s *lcd;
     void *tm12xx;
+    void *smc;
 #ifdef CONFIG_GLHW
     void *gl;
 #endif
@@ -2489,11 +2490,11 @@ static void n00_init(ram_addr_t ram_size,
                      const char *cpu_model)
 {
     struct n00_s *s = (struct n00_s *)qemu_mallocz(sizeof(*s));
-    void *opaque;
+    int mtd_i = drive_get_index(IF_MTD, 0, 0);
+    int sd_i = drive_get_index(IF_SD, 0, 0);
 
-    if (drive_get_index(IF_SD, 0, 0) < 0 ||
-        drive_get_index(IF_MTD, 0, 0) < 0) {
-        hw_error("%s: missing SD and/or NAND device\n", __FUNCTION__);
+    if (mtd_i < 0 && sd_i < 0) {
+        hw_error("%s: SD or NAND image required", __FUNCTION__);
     }
     s->cpu = omap3530_mpu_init(256*1024*1024,
                                serial_hds[1],
@@ -2506,17 +2507,16 @@ static void n00_init(ram_addr_t ram_size,
     omap_dsi_attach(s->cpu->dss, 0, &s->lcd->chip);
     s->nand = onenand_init(NAND_MFR_SAMSUNG, 0x40, 0x121, 1, 
                            omap2_gpio_in_get(s->cpu->gpif, N00_ONENAND_GPIO)[0],
-                           drives_table[drive_get_index(IF_MTD, 0, 0)].bdrv);
+                           mtd_i < 0 ? 0 : drives_table[mtd_i].bdrv);
     omap_gpmc_attach(s->cpu->gpmc, N00_ONENAND_CS, 0, onenand_base_update,
                      onenand_base_unmap, s->nand, 0);
     
-    int sdindex;
-    if ((sdindex = drive_get_index(IF_SD, 0, 0)) >= 0)
-        omap3_mmc_attach(s->cpu->omap3_mmc[0], drives_table[sdindex].bdrv);
-    if ((sdindex = drive_get_index(IF_SD, 0, 1)) >= 0)
-        omap3_mmc_attach(s->cpu->omap3_mmc[1], drives_table[sdindex].bdrv);
-    if ((sdindex = drive_get_index(IF_SD, 0, 2)) >= 0)
-        omap3_mmc_attach(s->cpu->omap3_mmc[2], drives_table[sdindex].bdrv);
+    if (sd_i >= 0)
+        omap3_mmc_attach(s->cpu->omap3_mmc[0], drives_table[sd_i].bdrv);
+    if ((sd_i = drive_get_index(IF_SD, 0, 1)) >= 0)
+        omap3_mmc_attach(s->cpu->omap3_mmc[1], drives_table[sd_i].bdrv);
+    if ((sd_i = drive_get_index(IF_SD, 0, 2)) >= 0)
+        omap3_mmc_attach(s->cpu->omap3_mmc[2], drives_table[sd_i].bdrv);
     
     cpu_register_physical_memory(0x48058000, 0x3c00,
                                  cpu_register_io_memory(0,
@@ -2527,11 +2527,11 @@ static void n00_init(ram_addr_t ram_size,
                                 omap2_gpio_in_get(s->cpu->gpif, 61)[0],
                                 1);
 
-    opaque = smc91c111_init_lite(&nd_table[0], /*0x08000000,*/
-                    omap2_gpio_in_get(s->cpu->gpif, 54)[0]);
+    s->smc = smc91c111_init_lite(&nd_table[0], /*0x08000000,*/
+                                 omap2_gpio_in_get(s->cpu->gpif, 54)[0]);
 
-    omap_gpmc_attach(s->cpu->gpmc, N00_SMC_CS, smc91c111_iomemtype(opaque),
-                     NULL, NULL, opaque, 0);
+    omap_gpmc_attach(s->cpu->gpmc, N00_SMC_CS, smc91c111_iomemtype(s->smc),
+                     NULL, NULL, s->smc, 0);
     
 #ifdef CONFIG_GLHW
     s->gl = helper_opengl_init(s->cpu->env, 0x4fff0000);

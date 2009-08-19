@@ -47,6 +47,7 @@ struct beagle_s {
     struct omap3_lcd_panel_s *lcd_panel;
     i2c_bus *i2c;
     void *twl4030;
+    void *smc;
 #ifdef CONFIG_GLHW
     void *gl;
 #endif
@@ -60,29 +61,30 @@ static void beagle_init(ram_addr_t ram_size,
                         const char *cpu_model)
 {
     struct beagle_s *s = (struct beagle_s *) qemu_mallocz(sizeof(*s));
-    void *opaque;
+    int mtd_i = drive_get_index(IF_MTD, 0, 0);
+    int sd_i = drive_get_index(IF_SD, 0, 0);
     
-    if (drive_get_index(IF_SD, 0, 0) < 0 ||
-        drive_get_index(IF_MTD, 0, 0) < 0) {
-        hw_error("%s: missing SD or NAND device\n", __FUNCTION__);
+    if (mtd_i < 0 && sd_i < 0) {
+        hw_error("%s: SD or NAND image required", __FUNCTION__);
     }
    	s->cpu = omap3530_mpu_init(ram_size, NULL, NULL, serial_hds[0]);
 
 	s->nand = nand_init(NAND_MFR_MICRON, 0xba,
-                        drives_table[drive_get_index(IF_MTD, 0, 0)].bdrv);
+                        mtd_i < 0 ? 0 : drives_table[mtd_i].bdrv);
 	nand_setpins(s->nand, 0, 0, 0, 1, 0); /* no write-protect */
     omap_gpmc_attach(s->cpu->gpmc, BEAGLE_NAND_CS, 0, NULL, NULL, s->nand, 2);
-    omap3_mmc_attach(s->cpu->omap3_mmc[0],
-                     drives_table[drive_get_index(IF_SD, 0, 0)].bdrv);
+    if (sd_i >= 0) {
+        omap3_mmc_attach(s->cpu->omap3_mmc[0], drives_table[sd_i].bdrv);
+    }
 
     s->i2c = omap_i2c_bus(s->cpu->i2c[0]);
     s->twl4030 = twl4030_init(s->i2c,
                               s->cpu->irq[0][OMAP_INT_3XXX_SYS_NIRQ],
                               NULL, NULL);
-    opaque = smc91c111_init_lite(&nd_table[0], /*0x08000000,*/
-                    omap2_gpio_in_get(s->cpu->gpif, 54)[0]);
-    omap_gpmc_attach(s->cpu->gpmc, BEAGLE_SMC_CS, smc91c111_iomemtype(opaque),
-                     NULL, NULL, opaque, 0);
+    s->smc = smc91c111_init_lite(&nd_table[0], /*0x08000000,*/
+                                 omap2_gpio_in_get(s->cpu->gpif, 54)[0]);
+    omap_gpmc_attach(s->cpu->gpmc, BEAGLE_SMC_CS, smc91c111_iomemtype(s->smc),
+                     NULL, NULL, s->smc, 0);
 
 	s->lcd_panel = omap3_lcd_panel_init(s->cpu->dss);
     omap_lcd_panel_attach(s->cpu->dss, omap3_lcd_panel_get(s->lcd_panel));
