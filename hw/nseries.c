@@ -1499,8 +1499,7 @@ static uint32_t taal_read(void *opaque, uint32_t data, int len)
     uint32_t ret = 0;
     
     if (s->bs != bs_cmd) {
-        fprintf(stderr, "%s: previous WRITE command not completed\n",
-                __FUNCTION__);
+        hw_error("%s: previous WRITE command not completed", __FUNCTION__);
     }
     s->cmd = data & 0xff;
     data >>= 8;
@@ -1521,8 +1520,7 @@ static uint32_t taal_read(void *opaque, uint32_t data, int len)
             ret = N00_DSI_MAKERETURNBYTE(0);
             break;
         default:
-            fprintf(stderr, "%s: unknown command 0x%02x\n",
-                    __FUNCTION__, s->cmd);
+            hw_error("%s: unknown command 0x%02x", __FUNCTION__, s->cmd);
             break;
     }
     return ret;
@@ -1562,7 +1560,7 @@ static void taal_write(void *opaque, uint32_t data, int len)
                 N00_DSI_EXTRACTPARAM(s->sc, data, 2);
                 N00_DSI_EXTRACTPARAM(s->ec, data, 1);
                 if (s->sc >= N00_DISPLAY_WIDTH) {
-                    fprintf(stderr, "%s: invalid start column (%d)\n",
+                    hw_error("%s: invalid start column (%d)",
                             __FUNCTION__, s->sc);
                     s->sc = N00_DISPLAY_WIDTH - 1;
                 }
@@ -1571,12 +1569,12 @@ static void taal_write(void *opaque, uint32_t data, int len)
                 s->bs = bs_cmd;
                 N00_DSI_EXTRACTPARAM(s->ec, data, 1);
                 if (s->ec >= N00_DISPLAY_WIDTH) {
-                    fprintf(stderr, "%s: invalid end column (%d)\n",
+                    hw_error("%s: invalid end column (%d)",
                             __FUNCTION__, s->ec);
                     s->ec = N00_DISPLAY_WIDTH - 1;
                 }
                 if (s->ec < s->sc) {
-                    fprintf(stderr, "%s: invlid end column (%d)\n",
+                    hw_error("%s: invlid end column (%d)",
                             __FUNCTION__, s->ec);
                     s->ec = s->sc;
                 }
@@ -1592,8 +1590,8 @@ static void taal_write(void *opaque, uint32_t data, int len)
                 N00_DSI_EXTRACTPARAM(s->sp, data, 2);
                 N00_DSI_EXTRACTPARAM(s->ep, data, 1);
                 if (s->sp >= N00_DISPLAY_HEIGHT) {
-                    fprintf(stderr, "%s: invalid start page (%d)\n",
-                            __FUNCTION__, s->sp);
+                    hw_error("%s: invalid start page (%d)",
+                             __FUNCTION__, s->sp);
                     s->sp = N00_DISPLAY_HEIGHT - 1;
                 }
                 s->cp = s->sp;
@@ -1601,12 +1599,12 @@ static void taal_write(void *opaque, uint32_t data, int len)
                 s->bs = bs_cmd;
                 N00_DSI_EXTRACTPARAM(s->ep, data, 1);
                 if (s->ep >= N00_DISPLAY_HEIGHT) {
-                    fprintf(stderr, "%s: invalid end page (%d)\n",
+                    hw_error("%s: invalid end page (%d)",
                             __FUNCTION__, s->ep);
                     s->ep = N00_DISPLAY_HEIGHT - 1;
                 }
                 if (s->ep < s->sp) {
-                    fprintf(stderr, "%s: invalid end page (%d)\n",
+                    hw_error("%s: invalid end page (%d)",
                             __FUNCTION__, s->ep);
                     s->ep = s->sp;
                 }
@@ -1643,14 +1641,13 @@ static void taal_write(void *opaque, uint32_t data, int len)
                     s->bpp = 4; /* faster to process than 3 */
                     break;
                 default:
-                    fprintf(stderr, "%s: unsupported dbi pixel format %d\n",
+                    hw_error("%s: unsupported dbi pixel format %d",
                             __FUNCTION__, data & 7);
                     break;
             }
             break;
         default:
-            fprintf(stderr, "%s: unknown command 0x%02x\n",
-                    __FUNCTION__, s->cmd);
+            hw_error("%s: unknown command 0x%02x", __FUNCTION__, s->cmd);
             break;
     }
 }
@@ -1834,8 +1831,7 @@ static void tm12xx_func_init(TM12XXState *s,
         ishift += ints;
         regbase += nr_query + nr_ctrl + nr_cmd + nr_data;
     } else {
-        fprintf(stderr, "%s: insufficient register space\n", __FUNCTION__);
-        exit(-1);
+        hw_error("%s: insufficient register space", __FUNCTION__);
     }
 }
 
@@ -1932,8 +1928,7 @@ static uint8_t tm12xx_dctrl_read(TM12XXState *s, TM12XXFunc *f,
                 TRACE_TM12XX("INTR_STATUS = 0x%02x", value);
                 break;
             default:
-                fprintf(stderr, "%s: unknown register 0x%02x\n",
-                        __FUNCTION__, r);
+                hw_error("%s: unknown register 0x%02x", __FUNCTION__, r);
                 break;
         }
     }
@@ -1971,8 +1966,7 @@ static void tm12xx_dctrl_write(TM12XXState *s, TM12XXFunc *f,
             tm12xx_interrupt_update(s);
             break;
         default:
-            fprintf(stderr, "%s: unknown register 0x%02x\n",
-                    __FUNCTION__, r);
+            hw_error("%s: unknown register 0x%02x", __FUNCTION__, r);
             break;
     }
 }
@@ -2115,8 +2109,7 @@ static uint8_t tm12xx_2d_read(TM12XXState *s, TM12XXFunc *f,
                 TRACE_TM12XX("FINGER%d_Z = 0x%02x", finger, value);
                 break;
             default:
-                fprintf(stderr, "%s: unknown register 0x%02x\n",
-                        __FUNCTION__, r);
+                hw_error("%s: unknown register 0x%02x", __FUNCTION__, r);
                 break;
         }
     }
@@ -2136,8 +2129,7 @@ static void tm12xx_2d_write(TM12XXState *s, TM12XXFunc *f,
         case 9: /* cmd0 */
             if (v & 1) {
                 /* TODO: zero all touch sensors */
-                fprintf(stderr, "%s: sensor zeroing not implemented\n",
-                        __FUNCTION__);
+                hw_error("%s: sensor zeroing not implemented", __FUNCTION__);
             }
             break;
         case 10: /* ctrl0: general control */
@@ -2185,7 +2177,7 @@ static void tm12xx_2d_write(TM12XXState *s, TM12XXFunc *f,
             }
             break;
         default:
-            fprintf(stderr, "%s: unknown register 0x%02x (value 0x%02x)\n",
+            hw_error("%s: unknown register 0x%02x (value 0x%02x)",
                     __FUNCTION__, r, v);
             break;
     }
@@ -2226,8 +2218,7 @@ static uint8_t tm12xx_buttons_read(TM12XXState *s, TM12XXFunc *f,
             TRACE_TM12XX("DATA0 = 0x%02x", value);
             break;
         default:
-            fprintf(stderr, "%s: unknown register 0x%02x\n",
-                    __FUNCTION__, r);
+            hw_error("%s: unknown register 0x%02x", __FUNCTION__, r);
             break;
     }
     return value;
@@ -2321,7 +2312,7 @@ static int tm12xx_rx(i2c_slave *i2c)
         }
     }
     if (value < 0) {
-        fprintf(stderr, "%s: unknown register 0x%02x\n", __FUNCTION__, s->reg);
+        hw_error("%s: unknown register 0x%02x", __FUNCTION__, s->reg);
         value = 0;
     }
     s->reg++;
@@ -2350,11 +2341,11 @@ static int tm12xx_tx(i2c_slave *i2c, uint8_t data)
                 regbase += regcount;
             }
         } else if (s->reg == 0xff) { /* PAGE_SELECT */
-            fprintf(stderr, "%s: only page 0 is supported\n", __FUNCTION__);
+            hw_error("%s: only page 0 is supported", __FUNCTION__);
             value = 0;
         }
         if (value < 0) {
-            fprintf(stderr, "%s: unknown register 0x%02x\n", __FUNCTION__, s->reg);
+            hw_error("%s: unknown register 0x%02x", __FUNCTION__, s->reg);
         }
         s->reg++;
     }
