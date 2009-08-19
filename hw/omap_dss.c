@@ -35,7 +35,8 @@
 //#define OMAP_DSS_DEBUG_VENC
 
 #ifdef OMAP_DSS_DEBUG
-#define TRACE(fmt,...) fprintf(stderr, "%s: " fmt "\n", __FUNCTION__, ##__VA_ARGS__)
+#define TRACE(fmt,...) fprintf(stderr, "%s@%d: " fmt "\n", __FUNCTION__, \
+                               __LINE__, ##__VA_ARGS__)
 #define LAYERNAME(n) ((!(n)) ? "GFX" : ((n)==1) ? "VID1" : "VID2")
 #ifdef OMAP_DSS_DEBUG_DISPC
 #define TRACEDISPC(fmt,...) TRACE(fmt, ##__VA_ARGS__)
@@ -69,6 +70,14 @@
 #define TRACEDSI(...)
 #define TRACERFBI(...)
 #define TRACEVENC(...)
+#undef OMAP_RO_REG
+#undef OMAP_RO_REGV
+#undef OMAP_BAD_REG
+#undef OMAP_BAD_REGV
+#define OMAP_RO_REG(...)
+#define OMAP_RO_REGV(...)
+#define OMAP_BAD_REG(...)
+#define OMAP_BAD_REGV(...)
 #endif
 
 #define OMAP_DSI_RX_FIFO_SIZE 32
@@ -238,8 +247,7 @@ static void omap_rfbi_transfer_start(struct omap_dss_s *s)
     if (s->rfbi.control & (1 << 1)) {				/* BYPASS */
         /* TODO: in non-Bypass mode we probably need to just assert the
          * DRQ and wait for DMA to write the pixels.  */
-        fprintf(stderr, "%s: Bypass mode unimplemented\n", __FUNCTION__);
-        return;
+        hw_error("%s: Bypass mode unimplemented", __FUNCTION__);
     }
     
     if (!(s->dispc.control & (1 << 11))) /* STALLMODE */
@@ -293,8 +301,7 @@ static void omap_dsi_transfer_start(struct omap_dss_s *s, int ch)
         TRACEDSI("dsi   irqenable=0x%08x", s->dsi.irqen);
         TRACEDSI("dispc irqenable=0x%08x", s->dispc.irqen);
         if (!s->dsi.vc[ch].chip) {
-            fprintf(stderr, "%s: ERROR - no DSI chip attached on channel %d\n",
-                    __FUNCTION__, ch);
+            TRACEDSI("ERROR - no DSI chip attached on channel %d", ch);
         }
         int tx_dma = (s->dsi.vc[ch].ctrl >> 21) & 7; /* DMA_TX_REQ_NB */
         if (tx_dma < 4) {
@@ -1098,10 +1105,11 @@ static void omap_disc_write(void *opaque, target_phys_addr_t addr,
         else
             s->dispc.control = (value & 0xffff9b9f) | (s->dispc.control & 0x6000);
         if (value & (1 << 12))			/* OVERLAY_OPTIMIZATION */
-            if (~((s->dispc.l[1].attr | s->dispc.l[2].attr) & 1))
-                 fprintf(stderr, "%s: Overlay Optimization when no overlay "
-                                 "region effectively exists leads to "
-                                 "unpredictable behaviour!\n", __FUNCTION__);
+            if (~((s->dispc.l[1].attr | s->dispc.l[2].attr) & 1)) {
+                 TRACEDISPC("Overlay Optimization when no overlay "
+                            "region effectively exists leads to "
+                            "unpredictable behaviour!");
+            }
         if ((value & 0x21) && s->lcd) /* GOLCD | LCDENABLE */
             s->lcd->controlupdate(s->lcd->opaque, &s->dispc);
         if ((value & 0x42) && s->dig) /* GODIGITAL | DIGITALENABLE */
@@ -1226,9 +1234,10 @@ static void omap_disc_write(void *opaque, target_phys_addr_t addr,
     case 0x0a0:	/* DISPC_GFX_ATTRIBUTES */
         TRACEDISPC("DISPC_GFX_ATTRIBUTES = 0x%08x", value);
         s->dispc.l[0].attr = value & 0xffff;
-        if (value & (3 << 9))
-            fprintf(stderr, "%s: Big-endian pixel format not supported\n",
-                            __FUNCTION__);
+        if (value & (3 << 9)) {
+            hw_error("%s: Big-endian pixel format not supported",
+                     __FUNCTION__);
+        }
         s->dispc.l[0].enable = value & 1;
         s->dispc.l[0].bpp = (value >> 1) & 0xf;
         s->dispc.l[0].rotation_flag = (value >> 12) & 0x3;
@@ -1807,8 +1816,7 @@ static void omap_dsi_push_rx_fifo(struct omap_dss_s *s, int ch, uint32_t value)
         s->dsi.vc[ch].rx_fifo[p] = value;
         s->dsi.vc[ch].rx_fifo_len++;
     } else {
-        fprintf(stderr, "%s: vc%d rx fifo overflow!\n",
-                __FUNCTION__, ch);
+        TRACEDSI("vc%d rx fifo overflow!", ch);
     }
 }
 
@@ -1817,8 +1825,7 @@ static uint32_t omap_dsi_pull_rx_fifo(struct omap_dss_s *s, int ch)
     int v = 0;
     
     if (!s->dsi.vc[ch].rx_fifo_len) {
-        fprintf(stderr, "%s: vc%d rx fifo underflow!\n",
-                __FUNCTION__, ch);
+        TRACEDSI("vc%d rx fifo underflow!", ch);
     } else {
         v = s->dsi.vc[ch].rx_fifo[s->dsi.vc[ch].rx_fifo_pos++];
         s->dsi.vc[ch].rx_fifo_len--;
@@ -1924,8 +1931,7 @@ static uint32_t omap_dsi_read(void *opaque, target_phys_addr_t addr)
                             s->dsi.vc[x].ctrl &= ~(1 << 20); /* RX_FIFO_NOT_EMPTY */
                         return y;
                     }
-                    fprintf(stderr, "%s: vc%d rx fifo underflow!\n",
-                            __FUNCTION__, x);
+                    TRACEDSI("vc%d rx fifo underflow!", x);
                     return 0;
                 case 0x18: /* DSI_VCx_IRQSTATUS */
                     TRACEDSI("DSI_VC%d_IRQSTATUS = 0x%08x", x, s->dsi.vc[x].irqst);
@@ -2003,8 +2009,7 @@ static void omap_dsi_short_write(struct omap_dss_s *s, int ch)
     uint32_t data = s->dsi.vc[ch].sp_header;
     
     if (((data >> 6) & 0x03) != ch) {
-        fprintf(stderr, "%s: error - vc%d != %d\n",
-                __FUNCTION__, ch, (data >> 6) & 0x03);
+        TRACEDSI("error - vc%d != %d", ch, (data >> 6) & 0x03);
     } else {
         if (s->dsi.vc[ch].chip) {
             switch (data & 0x3f) { /* id */
@@ -2026,13 +2031,12 @@ static void omap_dsi_short_write(struct omap_dss_s *s, int ch)
                                               (data >> 8) & 0xffff, 2);
                     break;
                 default:
-                    fprintf(stderr, "%s: unknown DSI id (0x%02x)\n",
+                    hw_error("%s: unknown DSI id (0x%02x)",
                             __FUNCTION__, data & 0x3f);
                     break;
             }
         } else {
-            fprintf(stderr, "%s: ERROR - no DSI chip attached on channel %d\n",
-                    __FUNCTION__, ch);
+            TRACEDSI("ERROR - no DSI chip attached on channel %d", ch);
         }
         omap_dsi_txdone(s, ch, (s->dsi.vc[ch].ctrl & 0x04)); /* BTA_SHORT_EN */
     }
@@ -2045,8 +2049,7 @@ static void omap_dsi_long_write(struct omap_dss_s *s, int ch)
     /* TODO: implement packet footer sending (16bit checksum).
      * Currently none is sent and receiver is supposed to not expect one */
     if (((hdr >> 6) & 0x03) != ch) {
-        fprintf(stderr, "%s: error - vc%d != %d\n",
-                __FUNCTION__, ch, (hdr >> 6) & 0x03);
+        TRACEDSI("error - vc%d != %d", ch, (hdr >> 6) & 0x03);
     } else {
         if (s->dsi.vc[ch].chip) {
             switch (hdr & 0x3f) { /* id */
@@ -2060,13 +2063,12 @@ static void omap_dsi_long_write(struct omap_dss_s *s, int ch)
                                               ? 4 : s->dsi.vc[ch].lp_counter);
                     break;
                 default:
-                    fprintf(stderr, "%s: unknown DSI id (0x%02x)\n",
+                    hw_error("%s: unknown DSI id (0x%02x)",
                             __FUNCTION__, hdr & 0x3f);
                     break;
             }
         } else {
-            fprintf(stderr, "%s: ERROR - no DSI chip attached on channel %d\n",
-                    __FUNCTION__, ch);
+            TRACEDSI("ERROR - no DSI chip attached on channel %d", ch);
         }
         if ((s->dsi.vc[ch].te >> 30) & 3) {     /* TE_START | TE_EN */
             /* TODO: do we really need to implement something for this?
@@ -2194,9 +2196,9 @@ static void omap_dsi_write(void *opaque, target_phys_addr_t addr,
                 case 0x00: /* DSI_VCx_CTRL */
                     TRACEDSI("DSI_VC%d_CTRL = 0x%08x", x, value);
                     if (((value >> 27) & 7) != 4) /* DMA_RX_REQ_NB */
-                        fprintf(stderr, "%s: RX DMA mode not implemented\n", __FUNCTION__);
+                        hw_error("%s: RX DMA mode not implemented", __FUNCTION__);
                     if (((value >> 21) & 7) != 4) /* DMA_TX_REQ_NB */
-                        fprintf(stderr, "%s: TX DMA mode not implemented\n", __FUNCTION__);
+                        hw_error("%s: TX DMA mode not implemented", __FUNCTION__);
                     if (value & 1) { /* VC_EN */
                         s->dsi.vc[x].ctrl &= ~0x40;  /* BTA_EN */
                         s->dsi.vc[x].ctrl |= 0x8001; /* VC_BUSY | VC_EN */
@@ -2387,10 +2389,8 @@ void omap_rfbi_attach(struct omap_dss_s *s, int cs,
         hw_error("%s: wrong CS %i\n", __FUNCTION__, cs);
     }
     if (s->rfbi.chip[cs]) {
-        fprintf(stderr,
-                "%s: warning - replacing previously attached "
-                "RFBI chip on CS%d\n",
-                __FUNCTION__, cs);
+        TRACERFBI("warning - replacing previously attached "
+                  "RFBI chip on CS%d", cs);
     }
     s->rfbi.chip[cs] = chip;
 }
@@ -2402,10 +2402,8 @@ void omap_dsi_attach(struct omap_dss_s *s, int vc,
         hw_error("%s: invalid vc %d\n", __FUNCTION__, vc);
     }
     if (s->dsi.vc[vc].chip) {
-        fprintf(stderr,
-                "%s: warning - replacing previously attached "
-                "DSI chip on VC%d\n",
-                __FUNCTION__, vc);
+        TRACEDSI("warning - replacing previously attached "
+                 "DSI chip on VC%d", vc);
     }
     s->dsi.vc[vc].chip = chip;
 }
@@ -2414,9 +2412,7 @@ void omap_lcd_panel_attach(struct omap_dss_s *s,
                            const struct omap_dss_panel_s *p)
 {
     if (s->lcd) {
-        fprintf(stderr,
-                "%s: warning - replacing previously attached LCD panel\n",
-                __FUNCTION__);
+        TRACE("warning - replacing previously attached LCD panel");
     }
     s->lcd = p;
 }

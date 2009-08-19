@@ -39,8 +39,17 @@
 #ifdef OMAP3_DEBUG
 #define TRACE(fmt, ...) fprintf(stderr, "%s " fmt "\n", __FUNCTION__, ##__VA_ARGS__)
 #else
-#define TRACE(...) 
+#define TRACE(...)
+#undef OMAP_RO_REG
+#undef OMAP_RO_REGV
+#undef OMAP_BAD_REG
+#undef OMAP_BAD_REGV
+#define OMAP_RO_REG(...)
+#define OMAP_RO_REGV(...)
+#define OMAP_BAD_REG(...)
+#define OMAP_BAD_REGV(...)
 #endif
+
 #ifdef OMAP3_DEBUG_SCM
 #define TRACE_SCM(...) TRACE(__VA_ARGS__)
 #else
@@ -305,8 +314,9 @@ static void omap3_l3ta_write(void *opaque, target_phys_addr_t addr,
                 || (s->base & 0xff00) == 0x6c00    /* L4_PER */
                 || (s->base & 0xff00) == 0x7000) { /* L4_EMU */
                 s->status &= ~(value & (1 << 24));
-            } else
+            } else {
                 OMAP_RO_REG(s->base + addr);
+            }
             break;
         case 0x2c: /* AGENT_STATUS_H */
             if ((s->base & 0xff00) != 0x6800       /* L4_CORE */
@@ -1783,8 +1793,8 @@ static void omap3_prm_clksel_update(struct omap3_prm_s *s)
         case 4: newparent = omap_findclk(s->omap, "omap3_osc_sys_clk384"); break;
         case 5: newparent = omap_findclk(s->omap, "omap3_osc_sys_clk168"); break;
         default:
-            fprintf(stderr, "%s: invalid sys_clk input selection (%d) - ignored\n",
-                    __FUNCTION__, s->ccr.prm_clksel & 7);
+            TRACE_PRM("invalid sys_clk input selection (%d) - ignored",
+                      s->ccr.prm_clksel & 7);
             break;
     }
     if (newparent) {
@@ -2757,8 +2767,7 @@ static inline void omap3_cm_l3l4iclk_update(struct omap3_cm_s *s)
 {
     int div = s->cm_clksel_core & 0x3;
     if (div != 1 && div != 2) {
-        fprintf(stderr, "%s: invalid CLKSEL_L3 value (%d)\n",
-                __FUNCTION__, div);
+        TRACE_CM("invalid CLKSEL_L3 value (%d)", div);
         div = (div > 2) ? 2 : 1;
         s->cm_clksel_core = (s->cm_clksel_core & ~0x3) | div;
     }
@@ -2766,8 +2775,7 @@ static inline void omap3_cm_l3l4iclk_update(struct omap3_cm_s *s)
     
     div = (s->cm_clksel_core >> 2) & 0x3;
     if (div != 1 && div != 2) {
-        fprintf(stderr, "%s: invalid CLKSEL_L4 value (%d)\n",
-                __FUNCTION__, div);
+        TRACE_CM("invalid CLKSEL_L4 value (%d)", div);
         div = (div > 2) ? 2 : 1;
         s->cm_clksel_core = (s->cm_clksel_core & ~(0x3 << 2)) | (div << 2);
     }
@@ -4696,8 +4704,7 @@ struct omap_mpu_state_s *omap3530_mpu_init(unsigned long sdram_size,
     s->mpu_model = omap3530;
     s->env = cpu_init("cortex-a8-r2");
     if (!s->env) {
-        fprintf(stderr, "Unable to find CPU definition\n");
-        exit(1);
+        hw_error("%s: Unable to find CPU definition", __FUNCTION__);
     }
     s->sdram_size = sdram_size;
     s->sram_size = OMAP3XXX_SRAM_SIZE;

@@ -31,6 +31,15 @@
 #include "flash.h"
 #include "block.h"
 
+//#define OMAP3_BOOT_DEBUG
+
+#ifdef OMAP3_BOOT_DEBUG
+#define TRACE(fmt,...) fprintf(stderr, "%s@%d: " fmt "\n", __FUNCTION__, \
+                               __LINE__, ##__VA_ARGS__);
+#else
+#define TRACE(...)
+#endif
+
 /* list of supported NAND devices according to the OMAP34xx TRM */
 static const struct {
     uint8_t id;
@@ -250,15 +259,14 @@ static void omap3_boot_chsettings(struct omap3_boot_s *boot,
     uint32_t flags, x;
     
     if (omap3_get_le32(chtoc) != 0xc0c0c0c1) {
-        fprintf(stderr, "%s: invalid section verification key\n", __FUNCTION__);
+        TRACE("invalid section verification key");
         return;
     }
     if (!chtoc[4]) { /* section disabled? */
         return;
     }
     if (omap3_get_le16(chtoc + 5) != 0x0001) {
-        fprintf(stderr, "%s: unsupported CH version (0x%04x)\n", __FUNCTION__,
-                omap3_get_le16(chtoc));
+        TRACE("unsupported CH version (0x%04x)", omap3_get_le16(chtoc));
         return;
     }
     boot->chflags |= 0x01;
@@ -313,12 +321,12 @@ static void omap3_boot_chsettings(struct omap3_boot_s *boot,
             case 0x05: x = 3; break; /* 26MHz */
             case 0x06: x = 4; break; /* 38.4MHz */
             default:
-                fprintf(stderr, "%s: unsupported SYS.CLK setting\n", __FUNCTION__);
+                TRACE("unsupported SYS.CLK setting (0x%02x)", (flags >> 24) & 0xff);
                 x = 1;
                 break;
         }
         if (x != omap3_get_le32(chtoc + 0x04)) {
-            fprintf(stderr, "%s: mismatch in SYS.CLK id and PRM_CLKSEL value\n", __FUNCTION__);
+            TRACE("mismatch in SYS.CLK id and PRM_CLKSEL value");
         }
     }
 }
@@ -327,7 +335,7 @@ static void omap3_boot_chram(struct omap3_boot_s *boot,
                              const uint8_t *chtoc)
 {
     if (omap3_get_le32(chtoc) != 0xc0c0c0c2) {
-        fprintf(stderr, "%s: invalid section verification key\n", __FUNCTION__);
+        TRACE("invalid section verification key");
         return;
     }
     if (!chtoc[4]) { /* section disabled? */
@@ -361,7 +369,7 @@ static void omap3_boot_chflash(struct omap3_boot_s *boot,
                                const uint8_t *chtoc)
 {
     if (omap3_get_le32(chtoc) != 0xc0c0c0c3) {
-        fprintf(stderr, "%s: invalid section verification key\n", __FUNCTION__);
+        TRACE("invalid section verification key");
         return;
     }
     if (!chtoc[4]) { /* section disabled? */
@@ -389,7 +397,7 @@ static void omap3_boot_chmmcsd(struct omap3_boot_s *boot,
                                const uint8_t *chtoc)
 {
     if (omap3_get_le32(chtoc) != 0xc0c0c0c4) {
-        fprintf(stderr, "%s: invalid section verification key\n", __FUNCTION__);
+        TRACE("invalid section verification key");
         return;
     }
     if (!chtoc[4]) { /* section disabled? */
@@ -419,9 +427,9 @@ static uint32_t omap3_boot_block(const uint8_t *data,
                     omap3_boot_chflash(s, p + omap3_get_le32(p));
                 else if (!strcasecmp((char *)(p + 0x14), "chmmcsd"))
                     omap3_boot_chmmcsd(s, p + omap3_get_le32(p));
-                else
-                    fprintf(stderr, "%s: unknown CHTOC item \"%s\"\n",
-                            __FUNCTION__, (char *)(p + 0x14));
+                else {
+                    TRACE("unknown CHTOC item \"%s\"", (char *)(p + 0x14));
+                }
             }
             data += 512;
             data_len -= 512;
@@ -525,8 +533,7 @@ static uint32_t omap3_read_fat_cluster(uint8_t *data,
     
     switch (drv->ptype) { /* determine next cluster # */
         case 12:
-            fprintf(stderr, "%s: FAT12 parsing not implemented!\n",
-                    __FUNCTION__);
+            hw_error("%s: FAT12 parsing not implemented!", __FUNCTION__);
             break;
         case 16:
             return (bdrv_pread(drv->bs, drv->fat + cl * 2, buf, 2) != 2)
@@ -608,14 +615,13 @@ static int omap3_mmc_fat_boot(BlockDriverState *bs,
             while (omap3_boot_block(data, j, boot))
                 i = omap3_read_fat_cluster(data, &drv, i);
             result = omap3_boot_finish(boot);
-        } else
-            fprintf(stderr, "%s: unable to read MLO file contents from SD card\n",
-                    __FUNCTION__);
+        } else {
+            TRACE("unable to read MLO file contents from SD card");
+        }
         free(data);
-    } else
-        fprintf(stderr, "%s: MLO file not found in the root directory\n",
-                __FUNCTION__);
-    
+    } else {
+        TRACE("MLO file not found in the root directory");
+    }
     return result;
 }
 
@@ -632,8 +638,7 @@ static int omap3_mmc_raw_boot(BlockDriverState *bs,
         if (boot->state == confighdr) { /* CH must be present for raw boot */
             while (omap3_boot_block(sector, 0x200, boot)) {
                 if (bdrv_pread(bs, ++i, sector, 0x200) != 0x200) {
-                    fprintf(stderr, "%s: error trying to read sector %u on boot device\n",
-                            __FUNCTION__, i);
+                    TRACE("error trying to read sector %u on boot device", i);
                     break;
                 }
             }
@@ -829,7 +834,7 @@ static int omap3_onenand_boot(struct omap_mpu_state_s *s)
         return 0;
     pagesize = omap3_onenand_readreg(0xf003);
     if (pagesize != 2048 && pagesize != 1024) {
-        fprintf(stderr, "%s: OneNAND page size %d not supported\n",
+        hw_error("%s: OneNAND page size %d not supported",
                 __FUNCTION__, pagesize);
         return 0;
     }

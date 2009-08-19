@@ -135,7 +135,7 @@ void omap3_lcd_panel_layer_update(DisplayState *ds,
                 dest += linesize;
             }
         } else {
-            fprintf(stderr, "%s: rendering uncontiguous framebuffer is not supported\n",
+            hw_error("%s: rendering uncontiguous framebuffer is not supported",
                     __FUNCTION__);
         }
         cpu_physical_memory_unmap(src, size, 0, size);
@@ -158,8 +158,7 @@ static void omap3_lcd_panel_update_display(void *opaque)
             qemu_console_resize(s->state, s->width, s->height);
         }
         if ((s->gfx_attr >> 12) & 0x3) { /* GFXROTATION */
-            fprintf(stderr, "%s: GFX rotation is not supported\n",
-                    __FUNCTION__);
+            hw_error("%s: GFX rotation is not supported", __FUNCTION__);
         }
     }
     

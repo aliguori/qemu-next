@@ -253,7 +253,8 @@
 /* #define MUSB_DEBUG */
 
 #ifdef MUSB_DEBUG
-#define TRACE(fmt,...) fprintf(stderr, "%s: " fmt "\n", __FUNCTION__, ##__VA_ARGS__)
+#define TRACE(fmt,...) fprintf(stderr, "%s@%d: " fmt "\n", __FUNCTION__, \
+                               __LINE__, ##__VA_ARGS__)
 #else
 #define TRACE(...)
 #endif
@@ -777,9 +778,9 @@ static void musb_tx_rdy(MUSBState *s, int epnum)
     pid = USB_TOKEN_OUT;
     if (!epnum && (ep->csr[0] & MGC_M_CSR0_H_SETUPPKT)) {
         pid = USB_TOKEN_SETUP;
-        if (total != 8)
-            printf("%s: illegal SETUPPKT length of %i bytes\n",
-                            __FUNCTION__, total);
+        if (total != 8) {
+            TRACE("illegal SETUPPKT length of %i bytes", total);
+        }
         /* Controller should retry SETUP packets three times on errors
          * but it doesn't make sense for us to do that.  */
     }
@@ -857,8 +858,7 @@ static uint8_t musb_read_fifo(MUSBEndPoint *ep)
     uint8_t value;
     if (ep->fifolen[1] >= 64) {
         /* We have a FIFO underrun */
-        printf("%s: EP%d FIFO is now empty, stop reading\n",
-                __FUNCTION__, ep->epnum);
+        TRACE("EP%d FIFO is now empty, stop reading", ep->epnum);
         return 0x00000000;
     }
     /* In DMA mode clear RXPKTRDY and set REQPKT automatically
@@ -875,8 +875,7 @@ static void musb_write_fifo(MUSBEndPoint *ep, uint8_t value)
     TRACE("EP%d = %02x", ep->epnum, value);
     if (ep->fifolen[0] >= 64) {
         /* We have a FIFO overrun */
-        printf("%s: EP%d FIFO exceeded 64 bytes, stop feeding data\n",
-                __FUNCTION__, ep->epnum);
+        TRACE("EP%d FIFO exceeded 64 bytes, stop feeding data", ep->epnum);
         return;
      }
 
@@ -908,7 +907,7 @@ static uint8_t musb_busctl_readb(void *opaque, int ep, int addr)
         return s->ep[ep].hport[1];
 
     default:
-        fprintf(stderr ,"%s: unknown register at %02x\n", __FUNCTION__, addr);
+        TRACE("unknown register 0x%02x", addr);
         return 0x00;
     };
 }
@@ -938,7 +937,8 @@ static void musb_busctl_writeb(void *opaque, int ep, int addr, uint8_t value)
         break;
 
     default:
-        fprintf(stderr, "%s: unknown register at %02x\n", __FUNCTION__, addr);
+        TRACE("unknown register 0x%02x", addr);
+        break;
     };
 }
 
@@ -998,7 +998,7 @@ static uint8_t musb_ep_readb(void *opaque, int ep, int addr)
         return s->ep[ep].rxcount;
 
     default:
-        fprintf(stderr, "%s: unknown register at %02x\n", __FUNCTION__, addr);
+        TRACE("unknown register 0x%02x", addr);
         return 0x00;
     };
 }
@@ -1025,12 +1025,12 @@ static void musb_ep_writeb(void *opaque, int ep, int addr, uint8_t value)
     case (MUSB_HDRC_FIFOSIZE & ~1):
         break;
     case MUSB_HDRC_FIFOSIZE:
-        fprintf(stderr, "%s: somebody messes with fifosize (now %i bytes)\n",
-                        __FUNCTION__, value);
+        TRACE("somebody messes with fifosize (now %i bytes)", value);
         s->ep[ep].fifosize = value;
         break;
     default:
-        fprintf(stderr, "%s: unknown register at %02x\n", __FUNCTION__, addr);
+        TRACE("unknown register 0x%02x", addr);
+        break;
     };
 }
 
@@ -1220,7 +1220,7 @@ static uint32_t musb_readb(void *opaque, target_phys_addr_t addr)
         return musb_read_fifo(s->ep + ep);
 
     default:
-        fprintf(stderr, "%s: unknown register at %02x\n", __FUNCTION__, (int) addr);
+        TRACE("unknown register 0x%02x", (int) addr);
         return 0x00;
     };
 }
@@ -1308,7 +1308,8 @@ static void musb_writeb(void *opaque, target_phys_addr_t addr, uint32_t value)
         break;
 
     default:
-        fprintf(stderr, "%s: unknown register at %02x\n", __FUNCTION__, (int) addr);
+        TRACE("unknown register 0x%02x", (int) addr);
+        break;
     };
 }
 
@@ -1439,7 +1440,7 @@ static uint32_t musb_readw(void *opaque, target_phys_addr_t addr)
                  musb_read_fifo(s->ep + ep) << 16 |
                  musb_read_fifo(s->ep + ep) << 24 );
     default:
-        fprintf(stderr, "%s: unknown register at %02x\n", __FUNCTION__, (int) addr);
+        TRACE("unknown register 0x%02x", (int) addr);
         return 0x00000000;
     };
 }
@@ -1459,7 +1460,8 @@ static void musb_writew(void *opaque, target_phys_addr_t addr, uint32_t value)
         musb_write_fifo(s->ep + ep, (value >> 24) & 0xff);
         break;
     default:
-        fprintf(stderr, "%s: unknown register at %02x\n", __FUNCTION__, (int) addr);
+        TRACE("unknown register 0x%02x", (int) addr);
+        break;
     };
 }
 
@@ -1601,8 +1603,7 @@ static int musb_load_state(QEMUFile *f, void *opaque, int version_id)
                     s->ep[i].packey[j].complete_cb = musb_tx_packet_complete;
                     break;
                 default:
-                    fprintf(stderr, "%s: unknown delayed_cb\n", __FUNCTION__);
-                    exit(-1);
+                    hw_error("%s: unknown delayed_cb", __FUNCTION__);
                     break;
             }
             if (qemu_get_byte(f)) {

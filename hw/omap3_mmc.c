@@ -25,19 +25,26 @@
 
 /* debug levels:
    0 - no debug
-   1 - print out all commands in processing order
-   2 - dump all register accesses and buffer management */
+   1 - print non-fatal errors
+   2 - print out all commands in processing order
+   3 - dump all register accesses and buffer management */
 #define MMC_DEBUG_LEVEL 0
 
 #if MMC_DEBUG_LEVEL>0
 #define TRACE(fmt,...) fprintf(stderr, "%s: " fmt "\n", __FUNCTION__, ##__VA_ARGS__)
-#if MMC_DEBUG_LEVEL>1
-#define TRACE2(...) TRACE(__VA_ARGS__)
-#else
-#define TRACE2(...)
-#endif
 #else
 #define TRACE(...)
+#endif
+
+#if MMC_DEBUG_LEVEL>1
+#define TRACE1(...) TRACE(__VA_ARGS__)
+#else
+#define TRACE1(...)
+#endif
+
+#if MMC_DEBUG_LEVEL>2
+#define TRACE2(...) TRACE(__VA_ARGS__)
+#else
 #define TRACE2(...)
 #endif
 
@@ -269,9 +276,9 @@ static void omap3_mmc_command(struct omap3_mmc_s *host)
     uint8_t response[16];
     int cmd = (host->cmd >> 24) & 0x3f; /* INDX */
     
-    TRACE("%d type=%d arg=0x%08x blk=0x%08x, fifo=%d/%d",
-          cmd, (host->cmd >> 22) & 3, host->arg, host->blk,
-          host->fifo_start, host->fifo_len);
+    TRACE1("%d type=%d arg=0x%08x blk=0x%08x, fifo=%d/%d",
+           cmd, (host->cmd >> 22) & 3, host->arg, host->blk,
+           host->fifo_start, host->fifo_len);
 
     if ((host->con & 2) && !cmd) { /* INIT and CMD0 */
         host->stat_pending |= 0x1;
@@ -441,7 +448,7 @@ static uint32_t omap3_mmc_read(void *opaque, target_phys_addr_t addr)
                 i = s->fifo[s->fifo_start];
                 s->fifo[s->fifo_start] = 0;
                 if (s->fifo_len == 0) {
-                    fprintf(stderr, "%s: FIFO underrun\n", __FUNCTION__);
+                    TRACE("FIFO underrun");
                     return i;
                 }
                 s->fifo_start++;
@@ -527,15 +534,15 @@ static void omap3_mmc_write(void *opaque, target_phys_addr_t addr,
             break;
         case 0x02c: /* MMCHS_CON */
             TRACE2("CON = %08x", value);
-            if (value & 0x10)   /* MODE */
-                fprintf(stderr, "%s: SYSTEST mode is not supported\n",
-                        __FUNCTION__);
-            if (value & 0x20)   /* DW8 */
-                fprintf(stderr, "%s: 8-bit data width is not supported\n",
-                        __FUNCTION__);
-            if (value & 0x1000) /* CEATA */
-                fprintf(stderr, "%s: CE-ATA control mode not supported\n",
-                        __FUNCTION__);
+            if (value & 0x10) {   /* MODE */
+                TRACE("SYSTEST mode is not supported");
+            }
+            if (value & 0x20) {   /* DW8 */
+                TRACE("8-bit data width is not supported");
+            }
+            if (value & 0x1000) { /* CEATA */
+                TRACE("CE-ATA control mode not supported");
+            }
             s->con = value & 0x1ffff;
             break;
         case 0x030:
@@ -578,7 +585,7 @@ static void omap3_mmc_write(void *opaque, target_phys_addr_t addr,
                 s->stat_pending |= 1 << 29; /* BADA */
             } else {
                 if (s->fifo_len == 256) {
-                    fprintf(stderr, "%s: FIFO overrun\n", __FUNCTION__);
+                    TRACE("FIFO overrun");
                     break;
                 }
                 s->fifo[(s->fifo_start + s->fifo_len) & 255] = value;
@@ -591,8 +598,9 @@ static void omap3_mmc_write(void *opaque, target_phys_addr_t addr,
         case 0x128: /* MMCHS_HCTL */
             TRACE2("HCTL = %08x", value);
             s->hctl = value & 0xf0f0f02;
-            if (s->hctl & (1 << 16)) /* SBGR */
-                fprintf(stderr, "%s: Stop at block gap feature not implemented!\n", __FUNCTION__);
+            if (s->hctl & (1 << 16)) { /* SBGR */
+                TRACE("Stop at block gap feature not implemented!");
+            }
             break;
         case 0x12c: /* MMCHS_SYSCTL */
             TRACE2("SYSCTL = %08x", value);
@@ -781,12 +789,10 @@ struct omap3_mmc_s *omap3_mmc_init(struct omap_target_agent_s *ta,
     return s;
 }
 
-void omap3_mmc_attach(struct omap3_mmc_s *s,
-                      BlockDriverState *bd)
+void omap3_mmc_attach(struct omap3_mmc_s *s, BlockDriverState *bd)
 {
     if (s->card) {
-        fprintf(stderr, "%s: SD card already attached!\n", __FUNCTION__);
-        exit(-1);
+        hw_error("%s: SD card already attached!", __FUNCTION__);
     }
     s->card = sd_init(bd, 0);
     sd_enable(s->card, 1);

@@ -32,7 +32,8 @@
 //#define VERBOSE 1
 
 #ifdef VERBOSE
-#define TRACE(fmt, ...) fprintf(stderr, "%s: " fmt "\n", __FUNCTION__, ##__VA_ARGS__)
+#define TRACE(fmt, ...) fprintf(stderr, "%s@%d: " fmt "\n", __FUNCTION__, \
+                                __LINE__, ##__VA_ARGS__)
 #else
 #define TRACE(...)
 #endif
@@ -268,8 +269,7 @@ static uint8_t twl4030_48_read(TWL4030NodeState *s, uint8_t addr)
                 return 1;
             return (s->reg_data[0x04] >> 6) & 1; /* SUSPENDM */
         default:
-            fprintf(stderr, "%s: unknown register 0x%02x\n",
-                    __FUNCTION__, addr);
+            hw_error("%s: unknown register 0x%02x", __FUNCTION__, addr);
             break;
     }
     return 0;
@@ -331,8 +331,7 @@ static void twl4030_48_write(TWL4030NodeState *s, uint8_t addr, uint8_t value)
             s->reg_data[addr] = value & 0x7;
             break;
         default:
-            fprintf(stderr, "%s: unknown register 0x%02x\n",
-                    __FUNCTION__, addr);
+            hw_error("%s: unknown register 0x%02x", __FUNCTION__, addr);
 			break;
     }
 }
@@ -359,8 +358,7 @@ static uint8_t twl4030_49_read(TWL4030NodeState *s, uint8_t addr)
         case 0x98 ... 0xc5:
             return s->reg_data[addr];
         default:
-            fprintf(stderr, "%s: unknown register 0x%02x\n",
-                    __FUNCTION__, addr);
+            hw_error("%s: unknown register 0x%02x", __FUNCTION__, addr);
 			break;
     }
     return 0;
@@ -418,8 +416,7 @@ static void twl4030_49_write(TWL4030NodeState *s, uint8_t addr, uint8_t value)
             s->reg_data[addr] = value & 0x07;
             break;
         default:
-            fprintf(stderr, "%s: unknown register 0x%02x\n",
-                    __FUNCTION__, addr);
+            hw_error("%s: unknown register 0x%02x", __FUNCTION__, addr);
             break;
     }
 }
@@ -477,8 +474,7 @@ static uint8_t twl4030_4a_read(TWL4030NodeState *s, uint8_t addr)
         case 0xfc: /* PWM1OFF */
             return s->reg_data[addr];
         default:
-	        fprintf(stderr, "%s: unknown register 0x%02x\n",
-                    __FUNCTION__, addr);
+	        hw_error("%s: unknown register 0x%02x", __FUNCTION__, addr);
             break;
     }
     return 0;
@@ -511,6 +507,23 @@ static void twl4030_4a_write(TWL4030NodeState *s, uint8_t addr, uint8_t value)
 
         /* MAIN_CHARGE region */
 
+        case 0x74: /* BCIMDEN */
+            /* read-only */
+            break;
+        case 0x75: /* BCIMDKEY */
+            s->reg_data[addr] = value;
+            switch (value) {
+                case 0x25: s->reg_data[0x74] = 0x12; break;
+                case 0x26: s->reg_data[0x74] = 0x11; break;
+                case 0x27: s->reg_data[0x74] = 0x0a; break;
+                case 0x28: s->reg_data[0x74] = 0x06; break;
+                case 0x29: s->reg_data[0x74] = 0x05; break;
+                default: s->reg_data[0x74] = 0; break;
+            }
+            break;
+        case 0x76 ... 0x84:
+            /* read-only registers */
+            break;
         case 0x97: /* BCICTL1 */
             s->reg_data[addr] = value;
             break;
@@ -596,8 +609,7 @@ static void twl4030_4a_write(TWL4030NodeState *s, uint8_t addr, uint8_t value)
             break;
 
         default:
-	        fprintf(stderr, "%s: unknown register 0x%02x\n",
-                    __FUNCTION__, addr);
+	        hw_error("%s: unknown register 0x%02x", __FUNCTION__, addr);
             break;
     }
 }
@@ -629,8 +641,7 @@ static uint8_t twl4030_4b_read(TWL4030NodeState *s, uint8_t addr)
         case 0x5b ... 0xf1: 
             return s->reg_data[addr];
         default:
-	        fprintf(stderr, "%s: unknown register 0x%02x\n",
-                    __FUNCTION__, addr);
+	        hw_error("%s: unknown register 0x%02x", __FUNCTION__, addr);
             break;
     }
     return 0;
@@ -726,9 +737,11 @@ static void twl4030_4b_write(TWL4030NodeState *s, uint8_t addr, uint8_t value)
             break;
         case 0x4a: /* PB_CFG */
             s->reg_data[addr] = value & 0xf;
+            break;
         case 0x4b: /* PB_MSB */
         case 0x4c: /* PB_LSB */
             s->reg_data[addr] = value;
+            break;
         case 0x52: /* SEQ_ADD_W2P */
         case 0x53: /* SEQ_ADD_P2A */
         case 0x54: /* SEQ_ADD_A2W */
@@ -758,6 +771,10 @@ static void twl4030_4b_write(TWL4030NodeState *s, uint8_t addr, uint8_t value)
             break;
         case 0x5e: /* WATCHDOG_CFG */
             s->reg_data[addr] = value & 0x1f;
+            break;
+        case 0x61: /* DC/DC_GLOBAL_CFG */
+            s->reg_data[addr] = value;
+            break;
         case 0x68: /* MISC_CFG */
             s->reg_data[addr] = value;
             break;
@@ -797,13 +814,23 @@ static void twl4030_4b_write(TWL4030NodeState *s, uint8_t addr, uint8_t value)
             else
                 s->reg_data[addr] = (s->reg_data[addr] & 0x70) | (value & 0x03);
             break;
+        case 0x89: /* VMMC2_DEDICATED */
+            if (s->twl4030->key_tst)
+                s->reg_data[addr] = value & 0x7f;
+            else
+                s->reg_data[addr] = (s->reg_data[addr] & 0x70) | (value & 0x0f);
+            break;
         case 0x74: /* VAUX1_REMAP */
         case 0x78: /* VAUX2_REMAP */
         case 0x7c: /* VAUX3_REMAP */
         case 0x80: /* VAUX4_REMAP */
+        case 0x84: /* VMMC1_REMAP */
+        case 0x88: /* VMMC2_REMAP */
         case 0x90: /* VPLL2_REMAP */
             s->reg_data[addr] = value;
             break;
+        case 0x83: /* VMMC1_TYPE */
+        case 0x87: /* VMMC2_TYPE */
         case 0xcd: /* VUSB1V5_TYPE */
         case 0xd0: /* VUSB1V8_TYPE */
         case 0xd3: /* VUSB3V1_TYPE */
@@ -817,8 +844,7 @@ static void twl4030_4b_write(TWL4030NodeState *s, uint8_t addr, uint8_t value)
             break;
             
         default:
-	        fprintf(stderr,
-                    "%s: unknown register 0x%02x value 0x%02x\n",
+	        hw_error("%s: unknown register 0x%02x value 0x%02x",
                     __FUNCTION__, addr, value);
             break;
     }

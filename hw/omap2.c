@@ -923,7 +923,8 @@ static void omap_gpio_module_write(void *opaque, target_phys_addr_t addr,
     case 0x00:	/* GPIO_REVISION */
     case 0x14:	/* GPIO_SYSSTATUS */
     case 0x38:	/* GPIO_DATAIN */
-        OMAP_RO_REGV(addr, value);
+        /* read-only, ignore quietly */
+        //OMAP_RO_REGV(addr, value);
         break;
 
     case 0x10:	/* GPIO_SYSCONFIG */
