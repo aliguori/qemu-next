@@ -178,7 +178,7 @@ static void store_reg(DisasContext *s, int reg, TCGv var)
         tcg_gen_andi_i32(var, var, ~1);
         s->is_jmp = DISAS_JUMP;
     }
-    tcg_gen_mov_i32(cpu_R[reg], var);
+    tcg_gen_st_i32(var, cpu_env, offsetof(CPUState, regs[reg]));
     dead_tmp(var);
 }
 
@@ -686,13 +686,14 @@ static inline void gen_bx_im(DisasContext *s, uint32_t addr)
     TCGv tmp;
 
     s->is_jmp = DISAS_UPDATE;
+    tmp = new_tmp();
     if (s->thumb != (addr & 1)) {
-        tmp = new_tmp();
         tcg_gen_movi_i32(tmp, addr & 1);
         tcg_gen_st_i32(tmp, cpu_env, offsetof(CPUState, thumb));
-        dead_tmp(tmp);
     }
-    tcg_gen_mov_i32(cpu_R[15], addr & ~1);
+    tcg_gen_movi_i32(tmp, addr & ~1);
+    tcg_gen_st_i32(tmp, cpu_env, offsetof(CPUState, regs[15]));
+    dead_tmp(tmp);
 }
 
 /* Set PC and Thumb state from var.  var is marked as dead.  */
