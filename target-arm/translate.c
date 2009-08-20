@@ -3751,16 +3751,17 @@ static int disas_neon_ls_insn(CPUState * env, DisasContext *s, uint32_t insn)
                 tcg_gen_add_i32(addr, cpu_R[rn], 1 << size);
             }
             if (size == 3) {
-               TCGv_i64 tmp64;
-               if (load) {
-                   tmp64 = gen_ld64(addr, IS_USER(s));
-                   neon_store_reg64(tmp64, rd);
-               } else { /* bookmark */
-                   tmp64 = tcg_temp_new_i64();
-                   neon_load_reg64(tmp64, rd);
-                   gen_st64(tmp64, addr, IS_USER(s));
-               }
-               tcg_gen_addi_i32(addr, addr, stride);
+                TCGv_i64 tmp64;
+                if (load) {
+                    tmp64 = gen_ld64(addr, IS_USER(s));
+                    neon_store_reg64(tmp64, rd);
+                } else { /* bookmark */
+                    tmp64 = tcg_temp_new_i64();
+                    neon_load_reg64(tmp64, rd);
+                    gen_st64(tmp64, addr, IS_USER(s));
+                }
+                dead_tmp(tmp64);
+                tcg_gen_addi_i32(addr, addr, stride);
             } else {
                 for (pass = 0; pass < 2; pass++) {
                     if (size == 2) {
