@@ -178,7 +178,7 @@ static void store_reg(DisasContext *s, int reg, TCGv var)
         tcg_gen_andi_i32(var, var, ~1);
         s->is_jmp = DISAS_JUMP;
     }
-    tcg_gen_st_i32(var, cpu_env, offsetof(CPUState, regs[reg]));
+    tcg_gen_mov_i32(cpu_R[reg], var);
     dead_tmp(var);
 }
 
