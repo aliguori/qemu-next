@@ -8309,7 +8309,9 @@ static void disas_thumb_insn(CPUState *env, DisasContext *s)
         if (rd != 16) {
             if (val) {
                 store_reg(s, rm, tmp2);
-                dead_tmp(tmp);
+                if (op != 0xf) {
+                    dead_tmp(tmp);
+                }
             } else {
                 store_reg(s, rd, tmp);
                 dead_tmp(tmp2);
