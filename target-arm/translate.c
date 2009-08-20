@@ -3223,6 +3223,7 @@ static int disas_vfp_insn(CPUState * env, DisasContext *s, uint32_t insn)
                     gen_mov_F0_vreg(dp, rd);
                     gen_vfp_st(s, dp, addr);
                 }
+                dead_tmp(addr);
             } else {
                 /* load/store multiple */
                 if (dp)
