@@ -1426,7 +1426,7 @@ static QEMUMachine n810_machine = {
 #define N00_DISPLAY_HEIGHT 480
 #define N00_DISPLAY_BUFSIZE (N00_DISPLAY_WIDTH * N00_DISPLAY_HEIGHT * 4)
 
-//#define N00_DEBUG_DSI
+#define N00_DEBUG_DSI
 
 #ifdef N00_DEBUG_DSI
 #define TRACEDSI(fmt, ...) fprintf(stderr, "%s: " fmt "\n", __FUNCTION__, ##__VA_ARGS__)
@@ -1645,6 +1645,15 @@ static void taal_write(void *opaque, uint32_t data, int len)
                             __FUNCTION__, data & 7);
                     break;
             }
+            break;
+        case 0x51: /* set brightness */
+            TRACEDSI("set brightness to %d", data & 0xff);
+            break;
+        case 0x53: /* display control */
+            TRACEDSI("display control 0x%02x", data & 0xff);
+            break;
+        case 0x55: /* write cabc */
+            TRACEDSI("write cabc 0x%02x", data & 0xff);
             break;
         default:
             hw_error("%s: unknown command 0x%02x", __FUNCTION__, s->cmd);
