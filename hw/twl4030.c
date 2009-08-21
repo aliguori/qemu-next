@@ -530,6 +530,12 @@ static void twl4030_4a_write(TWL4030NodeState *s, uint8_t addr, uint8_t value)
         case 0x97: /* BCICTL1 */
             s->reg_data[addr] = value;
             break;
+            
+        /* PRECHARGE region */
+        
+        case 0xaa ... 0xb8: /* FIXME: unknown registers */
+            s->reg_data[addr] = value;
+            break;
 
         /* Interrupt region */
 
