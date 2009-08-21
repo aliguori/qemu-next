@@ -434,7 +434,10 @@ static uint8_t twl4030_4a_read(TWL4030NodeState *s, uint8_t addr)
         case 0x57 ... 0x60: /* BCI conversion registers */
             return (addr & 1) ? 0 : 0x60;
         /* MAIN_CHARGE region */
-        case 0x74 ... 0xa6:
+        case 0x74 ... 0xa9:
+            return s->reg_data[addr];
+        /* PRECHARGE region */
+        case 0xaa ... 0xb8:
             return s->reg_data[addr];
         /* Interrupt region */
         case 0xb9 ... 0xc6:
