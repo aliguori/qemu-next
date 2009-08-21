@@ -778,8 +778,10 @@ static void twl4030_4b_write(TWL4030NodeState *s, uint8_t addr, uint8_t value)
         case 0x68: /* MISC_CFG */
             s->reg_data[addr] = value;
             break;
-        case 0x76: /* VAUX1_DEV_GRP */
+        case 0x72: /* VAUX1_DEV_GRP */
+        case 0x76: /* VAUX2_DEV_GRP */
         case 0x7a: /* VAUX3_DEV_GRP */
+        case 0x7e: /* VAUX4_DEV_GRP */
         case 0x82: /* VMMC1_DEV_GRP */
         case 0x86: /* VMMC2_DEV_GRP */
         case 0x8e: /* VPLL2_DEV_GRP */
@@ -790,6 +792,12 @@ static void twl4030_4b_write(TWL4030NodeState *s, uint8_t addr, uint8_t value)
         case 0xd2: /* VUSB3V1_DEV_GRP */
         case 0xe6: /* HFCLKOUT_DEV_GRP */
             s->reg_data[addr] = (s->reg_data[addr] & 0x0f) | (value & 0xf0); 
+            break;
+        case 0x73: /* VAUX1_TYPE */
+        case 0x77: /* VAUX2_TYPE */
+        case 0x7b: /* VAUX3_TYPE */
+        case 0x7f: /* VAUX4_TYPE */
+            s->reg_data[addr] = value & 0x1f;
             break;
         case 0x75: /* VAUX1_DEDICATED */
         case 0x7d: /* VAUX3_DEDICATED */
