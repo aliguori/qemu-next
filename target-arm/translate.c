@@ -4488,6 +4488,7 @@ static int disas_neon_data_insn(CPUState * env, DisasContext *s, uint32_t insn)
     } else if (insn & (1 << 4)) {
         if ((insn & 0x00380080) != 0) {
             /* Two registers and shift.  */
+            uint32_t shift_imm;
             op = (insn >> 8) & 0xf;
             if (insn & (1 << 7)) {
                 /* 64-bit shift.   */
@@ -4514,17 +4515,17 @@ static int disas_neon_data_insn(CPUState * env, DisasContext *s, uint32_t insn)
                 }
                 switch (size) {
                 case 0:
-                    imm = (uint8_t) shift;
-                    imm |= imm << 8;
-                    imm |= imm << 16;
+                    shift_imm = (uint8_t) shift;
+                    shift_imm |= shift_imm << 8;
+                    shift_imm |= shift_imm << 16;
                     break;
                 case 1:
-                    imm = (uint16_t) shift;
-                    imm |= imm << 16;
+                    shift_imm = (uint16_t) shift;
+                    shift_imm |= shift_imm << 16;
                     break;
                 case 2:
                 case 3:
-                    imm = shift;
+                    shift_imm = shift;
                     break;
                 default:
                     abort();
@@ -4533,7 +4534,7 @@ static int disas_neon_data_insn(CPUState * env, DisasContext *s, uint32_t insn)
                 for (pass = 0; pass < count; pass++) {
                     if (size == 3) {
                         neon_load_reg64(cpu_V0, rm + pass);
-                        tcg_gen_movi_i64(cpu_V1, imm);
+                        tcg_gen_movi_i64(cpu_V1, shift_imm);
                         switch (op) {
                         case 0:  /* VSHR */
                         case 1:  /* VSRA */
@@ -4578,7 +4579,7 @@ static int disas_neon_data_insn(CPUState * env, DisasContext *s, uint32_t insn)
                         neon_store_reg64(cpu_V0, rd + pass);
                     } else { /* size < 3 */
                         /* Operands in T0 and T1.  */
-                        gen_op_movl_T1_im(imm);
+                        gen_op_movl_T1_im(shift_imm);
                         NEON_GET_REG(T0, rm, pass);
                         switch (op) {
                         case 0:  /* VSHR */
