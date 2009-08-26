@@ -14,8 +14,7 @@
  * Lesser General Public License for more details.
  *
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston MA  02110-1301 USA
+ * License along with this library; if not, see <http://www.gnu.org/licenses/>.
  */
 
 /* A lot of PowerPC definition have been included here.
@@ -544,8 +543,8 @@ static inline void spr_register (CPUPPCState *env, int num,
         exit(1);
     }
 #if defined(PPC_DEBUG_SPR)
-    printf("*** register spr %d (%03x) %s val " ADDRX "\n", num, num, name,
-           initial_value);
+    printf("*** register spr %d (%03x) %s val " TARGET_FMT_lx "\n", num, num,
+           name, initial_value);
 #endif
     spr->name = name;
     spr->uea_read = uea_read;
@@ -3381,7 +3380,7 @@ static void init_proc_405 (CPUPPCState *env)
                               PPC_DCR | PPC_WRTEE | PPC_RFMCI |               \
                               PPC_CACHE | PPC_CACHE_ICBI |                    \
                               PPC_CACHE_DCBZ | PPC_CACHE_DCBA |               \
-                              PPC_MEM_TLBSYNC |                               \
+                              PPC_MEM_TLBSYNC | PPC_MFTB |                    \
                               PPC_BOOKE | PPC_4xx_COMMON | PPC_405_MAC |      \
                               PPC_440_SPEC)
 #define POWERPC_MSRM_440EP   (0x000000000006D630ULL)
@@ -3461,7 +3460,7 @@ static void init_proc_440EP (CPUPPCState *env)
                               PPC_DCR | PPC_DCRX | PPC_WRTEE | PPC_MFAPIDI |  \
                               PPC_CACHE | PPC_CACHE_ICBI |                    \
                               PPC_CACHE_DCBZ | PPC_CACHE_DCBA |               \
-                              PPC_MEM_TLBSYNC | PPC_TLBIVA |                  \
+                              PPC_MEM_TLBSYNC | PPC_TLBIVA | PPC_MFTB |       \
                               PPC_BOOKE | PPC_4xx_COMMON | PPC_405_MAC |      \
                               PPC_440_SPEC)
 #define POWERPC_MSRM_440GP   (0x000000000006FF30ULL)
@@ -3523,7 +3522,7 @@ static void init_proc_440GP (CPUPPCState *env)
                               PPC_DCR | PPC_WRTEE |                           \
                               PPC_CACHE | PPC_CACHE_ICBI |                    \
                               PPC_CACHE_DCBZ | PPC_CACHE_DCBA |               \
-                              PPC_MEM_TLBSYNC |                               \
+                              PPC_MEM_TLBSYNC | PPC_MFTB |                    \
                               PPC_BOOKE | PPC_4xx_COMMON | PPC_405_MAC |      \
                               PPC_440_SPEC)
 #define POWERPC_MSRM_440x4   (0x000000000006FF30ULL)
@@ -3585,7 +3584,7 @@ static void init_proc_440x4 (CPUPPCState *env)
                               PPC_DCR | PPC_WRTEE | PPC_RFMCI |               \
                               PPC_CACHE | PPC_CACHE_ICBI |                    \
                               PPC_CACHE_DCBZ | PPC_CACHE_DCBA |               \
-                              PPC_MEM_TLBSYNC |                               \
+                              PPC_MEM_TLBSYNC | PPC_MFTB |                    \
                               PPC_BOOKE | PPC_4xx_COMMON | PPC_405_MAC |      \
                               PPC_440_SPEC)
 #define POWERPC_MSRM_440x5   (0x000000000006FF30ULL)
@@ -3663,7 +3662,7 @@ static void init_proc_440x5 (CPUPPCState *env)
 /* PowerPC 460 (guessed)                                                     */
 #define POWERPC_INSNS_460    (PPC_INSNS_BASE | PPC_STRING |                   \
                               PPC_DCR | PPC_DCRX  | PPC_DCRUX |               \
-                              PPC_WRTEE | PPC_MFAPIDI |                       \
+                              PPC_WRTEE | PPC_MFAPIDI | PPC_MFTB |            \
                               PPC_CACHE | PPC_CACHE_ICBI |                    \
                               PPC_CACHE_DCBZ | PPC_CACHE_DCBA |               \
                               PPC_MEM_TLBSYNC | PPC_TLBIVA |                  \
@@ -3750,7 +3749,7 @@ static void init_proc_460 (CPUPPCState *env)
 #define POWERPC_INSNS_460F   (PPC_INSNS_BASE | PPC_STRING |                   \
                               PPC_FLOAT | PPC_FLOAT_FRES | PPC_FLOAT_FSEL |   \
                               PPC_FLOAT_FSQRT | PPC_FLOAT_FRSQRTE |           \
-                              PPC_FLOAT_STFIWX |                              \
+                              PPC_FLOAT_STFIWX | PPC_MFTB |                   \
                               PPC_DCR | PPC_DCRX | PPC_DCRUX |                \
                               PPC_WRTEE | PPC_MFAPIDI |                       \
                               PPC_CACHE | PPC_CACHE_ICBI |                    \
@@ -8903,7 +8902,13 @@ static void init_ppc_proc (CPUPPCState *env, const ppc_def_t *def)
     /* Register SPR common to all PowerPC implementations */
     gen_spr_generic(env);
     spr_register(env, SPR_PVR, "PVR",
-                 SPR_NOACCESS, SPR_NOACCESS,
+                 /* Linux permits userspace to read PVR */
+#if defined(CONFIG_LINUX_USER)
+                 &spr_read_generic,
+#else
+                 SPR_NOACCESS,
+#endif
+                 SPR_NOACCESS,
                  &spr_read_generic, SPR_NOACCESS,
                  def->pvr);
     /* Register SVR if it's defined to anything else than POWERPC_SVR_NONE */
@@ -9260,17 +9265,10 @@ static void fix_opcode_tables (opc_handler_t **ppc_opcodes)
 /*****************************************************************************/
 static int create_ppc_opcodes (CPUPPCState *env, const ppc_def_t *def)
 {
-    opcode_t *opc, *start, *end;
+    opcode_t *opc;
 
     fill_new_table(env->opcodes, 0x40);
-    if (&opc_start < &opc_end) {
-        start = &opc_start;
-        end = &opc_end;
-    } else {
-        start = &opc_end;
-        end = &opc_start;
-    }
-    for (opc = start + 1; opc != end; opc++) {
+    for (opc = opcodes; opc < &opcodes[ARRAY_SIZE(opcodes)]; opc++) {
         if ((opc->handler.type & def->insns_flags) != 0) {
             if (register_insn(env->opcodes, opc) < 0) {
                 printf("*** ERROR initializing PowerPC instruction "
@@ -9390,7 +9388,7 @@ static int gdb_set_float_reg(CPUState *env, uint8_t *mem_buf, int n)
 static int gdb_get_avr_reg(CPUState *env, uint8_t *mem_buf, int n)
 {
     if (n < 32) {
-#ifdef WORDS_BIGENDIAN
+#ifdef HOST_WORDS_BIGENDIAN
         stq_p(mem_buf, env->avr[n].u64[0]);
         stq_p(mem_buf+8, env->avr[n].u64[1]);
 #else
@@ -9413,7 +9411,7 @@ static int gdb_get_avr_reg(CPUState *env, uint8_t *mem_buf, int n)
 static int gdb_set_avr_reg(CPUState *env, uint8_t *mem_buf, int n)
 {
     if (n < 32) {
-#ifdef WORDS_BIGENDIAN
+#ifdef HOST_WORDS_BIGENDIAN
         env->avr[n].u64[0] = ldq_p(mem_buf);
         env->avr[n].u64[1] = ldq_p(mem_buf+8);
 #else

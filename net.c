@@ -29,7 +29,7 @@
 #include <sys/time.h>
 #include <zlib.h>
 
-/* Needed early for HOST_BSD etc. */
+/* Needed early for CONFIG_BSD etc. */
 #include "config-host.h"
 
 #ifndef _WIN32
@@ -52,7 +52,7 @@
 #include <dirent.h>
 #include <netdb.h>
 #include <sys/select.h>
-#ifdef HOST_BSD
+#ifdef CONFIG_BSD
 #include <sys/stat.h>
 #if defined(__FreeBSD__) || defined(__DragonFly__)
 #include <libutil.h>
@@ -101,15 +101,6 @@
 #include <libvdeplug.h>
 #endif
 
-#ifdef _WIN32
-#include <windows.h>
-#include <malloc.h>
-#include <sys/timeb.h>
-#include <mmsystem.h>
-#define getopt_long_only getopt_long
-#define memalign(align, size) malloc(size)
-#endif
-
 #include "qemu-common.h"
 #include "net.h"
 #include "monitor.h"
@@ -120,9 +111,7 @@
 #include "qemu_socket.h"
 #include "qemu-log.h"
 
-#if defined(CONFIG_SLIRP)
-#include "libslirp.h"
-#endif
+#include "slirp/libslirp.h"
 
 
 static VLANState *first_vlan;
@@ -281,26 +270,6 @@ int parse_host_port(struct sockaddr_in *saddr, const char *str)
     return 0;
 }
 
-#if !defined(_WIN32) && 0
-static int parse_unix_path(struct sockaddr_un *uaddr, const char *str)
-{
-    const char *p;
-    int len;
-
-    len = MIN(108, strlen(str));
-    p = strchr(str, ',');
-    if (p)
-	len = MIN(len, p - str);
-
-    memset(uaddr, 0, sizeof(*uaddr));
-
-    uaddr->sun_family = AF_UNIX;
-    memcpy(uaddr->sun_path, str, len);
-
-    return 0;
-}
-#endif
-
 void qemu_format_nic_info_str(VLANClientState *vc, uint8_t macaddr[6])
 {
     snprintf(vc->info_str, sizeof(vc->info_str),
@@ -332,8 +301,9 @@ static char *assign_name(VLANClientState *vc1, const char *model)
 VLANClientState *qemu_new_vlan_client(VLANState *vlan,
                                       const char *model,
                                       const char *name,
-                                      IOReadHandler *fd_read,
-                                      IOCanRWHandler *fd_can_read,
+                                      NetCanReceive *can_receive,
+                                      NetReceive *receive,
+                                      NetReceiveIOV *receive_iov,
                                       NetCleanup *cleanup,
                                       void *opaque)
 {
@@ -344,8 +314,9 @@ VLANClientState *qemu_new_vlan_client(VLANState *vlan,
         vc->name = strdup(name);
     else
         vc->name = assign_name(vc, model);
-    vc->fd_read = fd_read;
-    vc->fd_can_read = fd_can_read;
+    vc->can_receive = can_receive;
+    vc->receive = receive;
+    vc->receive_iov = receive_iov;
     vc->cleanup = cleanup;
     vc->opaque = opaque;
     vc->vlan = vlan;
@@ -389,61 +360,168 @@ VLANClientState *qemu_find_vlan_client(VLANState *vlan, void *opaque)
     return NULL;
 }
 
-int qemu_can_send_packet(VLANClientState *vc1)
+static VLANClientState *
+qemu_find_vlan_client_by_name(Monitor *mon, int vlan_id,
+                              const char *client_str)
 {
-    VLANState *vlan = vc1->vlan;
+    VLANState *vlan;
     VLANClientState *vc;
 
-    for(vc = vlan->first_client; vc != NULL; vc = vc->next) {
-        if (vc != vc1) {
-            if (vc->fd_can_read && vc->fd_can_read(vc->opaque))
-                return 1;
+    vlan = qemu_find_vlan(vlan_id, 0);
+    if (!vlan) {
+        monitor_printf(mon, "unknown VLAN %d\n", vlan_id);
+        return NULL;
+    }
+
+    for (vc = vlan->first_client; vc != NULL; vc = vc->next) {
+        if (!strcmp(vc->name, client_str)) {
+            break;
+        }
+    }
+    if (!vc) {
+        monitor_printf(mon, "can't find device %s on VLAN %d\n",
+                       client_str, vlan_id);
+    }
+
+    return vc;
+}
+
+int qemu_can_send_packet(VLANClientState *sender)
+{
+    VLANState *vlan = sender->vlan;
+    VLANClientState *vc;
+
+    for (vc = vlan->first_client; vc != NULL; vc = vc->next) {
+        if (vc == sender) {
+            continue;
+        }
+
+        /* no can_receive() handler, they can always receive */
+        if (!vc->can_receive || vc->can_receive(vc)) {
+            return 1;
         }
     }
     return 0;
 }
 
-static void
+static int
 qemu_deliver_packet(VLANClientState *sender, const uint8_t *buf, int size)
 {
     VLANClientState *vc;
+    int ret = -1;
+
+    sender->vlan->delivering = 1;
 
     for (vc = sender->vlan->first_client; vc != NULL; vc = vc->next) {
-        if (vc != sender && !vc->link_down) {
-            vc->fd_read(vc->opaque, buf, size);
+        ssize_t len;
+
+        if (vc == sender) {
+            continue;
+        }
+
+        if (vc->link_down) {
+            ret = size;
+            continue;
+        }
+
+        len = vc->receive(vc, buf, size);
+
+        ret = (ret >= 0) ? ret : len;
+    }
+
+    sender->vlan->delivering = 0;
+
+    return ret;
+}
+
+void qemu_purge_queued_packets(VLANClientState *vc)
+{
+    VLANPacket **pp = &vc->vlan->send_queue;
+
+    while (*pp != NULL) {
+        VLANPacket *packet = *pp;
+
+        if (packet->sender == vc) {
+            *pp = packet->next;
+            qemu_free(packet);
+        } else {
+            pp = &packet->next;
         }
     }
 }
 
-void qemu_send_packet(VLANClientState *vc, const uint8_t *buf, int size)
+void qemu_flush_queued_packets(VLANClientState *vc)
 {
-    VLANState *vlan = vc->vlan;
     VLANPacket *packet;
 
-    if (vc->link_down)
-        return;
+    while ((packet = vc->vlan->send_queue) != NULL) {
+        int ret;
+
+        vc->vlan->send_queue = packet->next;
+
+        ret = qemu_deliver_packet(packet->sender, packet->data, packet->size);
+        if (ret == 0 && packet->sent_cb != NULL) {
+            packet->next = vc->vlan->send_queue;
+            vc->vlan->send_queue = packet;
+            break;
+        }
+
+        if (packet->sent_cb)
+            packet->sent_cb(packet->sender, ret);
+
+        qemu_free(packet);
+    }
+}
+
+static void qemu_enqueue_packet(VLANClientState *sender,
+                                const uint8_t *buf, int size,
+                                NetPacketSent *sent_cb)
+{
+    VLANPacket *packet;
+
+    packet = qemu_malloc(sizeof(VLANPacket) + size);
+    packet->next = sender->vlan->send_queue;
+    packet->sender = sender;
+    packet->size = size;
+    packet->sent_cb = sent_cb;
+    memcpy(packet->data, buf, size);
+    sender->vlan->send_queue = packet;
+}
+
+ssize_t qemu_send_packet_async(VLANClientState *sender,
+                               const uint8_t *buf, int size,
+                               NetPacketSent *sent_cb)
+{
+    int ret;
+
+    if (sender->link_down) {
+        return size;
+    }
 
 #ifdef DEBUG_NET
-    printf("vlan %d send:\n", vlan->id);
+    printf("vlan %d send:\n", sender->vlan->id);
     hex_dump(stdout, buf, size);
 #endif
-    if (vlan->delivering) {
-        packet = qemu_malloc(sizeof(VLANPacket) + size);
-        packet->next = vlan->send_queue;
-        packet->sender = vc;
-        packet->size = size;
-        memcpy(packet->data, buf, size);
-        vlan->send_queue = packet;
-    } else {
-        vlan->delivering = 1;
-        qemu_deliver_packet(vc, buf, size);
-        while ((packet = vlan->send_queue) != NULL) {
-            qemu_deliver_packet(packet->sender, packet->data, packet->size);
-            vlan->send_queue = packet->next;
-            qemu_free(packet);
-        }
-        vlan->delivering = 0;
+
+    if (sender->vlan->delivering) {
+        qemu_enqueue_packet(sender, buf, size, NULL);
+        return size;
     }
+
+    ret = qemu_deliver_packet(sender, buf, size);
+    if (ret == 0 && sent_cb != NULL) {
+        qemu_enqueue_packet(sender, buf, size, sent_cb);
+        return 0;
+    }
+
+    qemu_flush_queued_packets(sender);
+
+    return ret;
+}
+
+void qemu_send_packet(VLANClientState *vc, const uint8_t *buf, int size)
+{
+    qemu_send_packet_async(vc, buf, size, NULL);
 }
 
 static ssize_t vc_sendv_compat(VLANClientState *vc, const struct iovec *iov,
@@ -461,9 +539,7 @@ static ssize_t vc_sendv_compat(VLANClientState *vc, const struct iovec *iov,
         offset += len;
     }
 
-    vc->fd_read(vc->opaque, buffer, offset);
-
-    return offset;
+    return vc->receive(vc, buffer, offset);
 }
 
 static ssize_t calc_iov_length(const struct iovec *iov, int iovcnt)
@@ -476,151 +552,383 @@ static ssize_t calc_iov_length(const struct iovec *iov, int iovcnt)
     return offset;
 }
 
-ssize_t qemu_sendv_packet(VLANClientState *vc1, const struct iovec *iov,
-                          int iovcnt)
+static int qemu_deliver_packet_iov(VLANClientState *sender,
+                                   const struct iovec *iov, int iovcnt)
 {
-    VLANState *vlan = vc1->vlan;
     VLANClientState *vc;
-    ssize_t max_len = 0;
+    int ret = -1;
 
-    if (vc1->link_down)
-        return calc_iov_length(iov, iovcnt);
+    sender->vlan->delivering = 1;
 
-    for (vc = vlan->first_client; vc != NULL; vc = vc->next) {
-        ssize_t len = 0;
+    for (vc = sender->vlan->first_client; vc != NULL; vc = vc->next) {
+        ssize_t len;
 
-        if (vc == vc1)
+        if (vc == sender) {
             continue;
+        }
 
-        if (vc->link_down)
-            len = calc_iov_length(iov, iovcnt);
-        if (vc->fd_readv)
-            len = vc->fd_readv(vc->opaque, iov, iovcnt);
-        else if (vc->fd_read)
+        if (vc->link_down) {
+            ret = calc_iov_length(iov, iovcnt);
+            continue;
+        }
+
+        if (vc->receive_iov) {
+            len = vc->receive_iov(vc, iov, iovcnt);
+        } else {
             len = vc_sendv_compat(vc, iov, iovcnt);
+        }
 
-        max_len = MAX(max_len, len);
+        ret = (ret >= 0) ? ret : len;
     }
 
-    return max_len;
+    sender->vlan->delivering = 0;
+
+    return ret;
+}
+
+static ssize_t qemu_enqueue_packet_iov(VLANClientState *sender,
+                                       const struct iovec *iov, int iovcnt,
+                                       NetPacketSent *sent_cb)
+{
+    VLANPacket *packet;
+    size_t max_len = 0;
+    int i;
+
+    max_len = calc_iov_length(iov, iovcnt);
+
+    packet = qemu_malloc(sizeof(VLANPacket) + max_len);
+    packet->next = sender->vlan->send_queue;
+    packet->sender = sender;
+    packet->sent_cb = sent_cb;
+    packet->size = 0;
+
+    for (i = 0; i < iovcnt; i++) {
+        size_t len = iov[i].iov_len;
+
+        memcpy(packet->data + packet->size, iov[i].iov_base, len);
+        packet->size += len;
+    }
+
+    sender->vlan->send_queue = packet;
+
+    return packet->size;
+}
+
+ssize_t qemu_sendv_packet_async(VLANClientState *sender,
+                                const struct iovec *iov, int iovcnt,
+                                NetPacketSent *sent_cb)
+{
+    int ret;
+
+    if (sender->link_down) {
+        return calc_iov_length(iov, iovcnt);
+    }
+
+    if (sender->vlan->delivering) {
+        return qemu_enqueue_packet_iov(sender, iov, iovcnt, NULL);
+    }
+
+    ret = qemu_deliver_packet_iov(sender, iov, iovcnt);
+    if (ret == 0 && sent_cb != NULL) {
+        qemu_enqueue_packet_iov(sender, iov, iovcnt, sent_cb);
+        return 0;
+    }
+
+    qemu_flush_queued_packets(sender);
+
+    return ret;
+}
+
+ssize_t
+qemu_sendv_packet(VLANClientState *vc, const struct iovec *iov, int iovcnt)
+{
+    return qemu_sendv_packet_async(vc, iov, iovcnt, NULL);
+}
+
+static void config_error(Monitor *mon, const char *fmt, ...)
+{
+    va_list ap;
+
+    va_start(ap, fmt);
+    if (mon) {
+        monitor_vprintf(mon, fmt, ap);
+    } else {
+        fprintf(stderr, "qemu: ");
+        vfprintf(stderr, fmt, ap);
+        exit(1);
+    }
+    va_end(ap);
 }
 
 #if defined(CONFIG_SLIRP)
 
 /* slirp network adapter */
 
-static int slirp_inited;
-static int slirp_restrict;
-static char *slirp_ip;
-static VLANClientState *slirp_vc;
+#define SLIRP_CFG_HOSTFWD 1
+#define SLIRP_CFG_LEGACY  2
 
-int slirp_can_output(void)
+struct slirp_config_str {
+    struct slirp_config_str *next;
+    int flags;
+    char str[1024];
+    int legacy_format;
+};
+
+typedef struct SlirpState {
+    TAILQ_ENTRY(SlirpState) entry;
+    VLANClientState *vc;
+    Slirp *slirp;
+#ifndef _WIN32
+    char smb_dir[128];
+#endif
+} SlirpState;
+
+static struct slirp_config_str *slirp_configs;
+const char *legacy_tftp_prefix;
+const char *legacy_bootp_filename;
+static TAILQ_HEAD(slirp_stacks, SlirpState) slirp_stacks =
+    TAILQ_HEAD_INITIALIZER(slirp_stacks);
+
+static void slirp_hostfwd(SlirpState *s, Monitor *mon, const char *redir_str,
+                          int legacy_format);
+static void slirp_guestfwd(SlirpState *s, Monitor *mon, const char *config_str,
+                           int legacy_format);
+
+#ifndef _WIN32
+static const char *legacy_smb_export;
+
+static void slirp_smb(SlirpState *s, Monitor *mon, const char *exported_dir,
+                      struct in_addr vserver_addr);
+static void slirp_smb_cleanup(SlirpState *s);
+#else
+static inline void slirp_smb_cleanup(SlirpState *s) { }
+#endif
+
+int slirp_can_output(void *opaque)
 {
-    return !slirp_vc || qemu_can_send_packet(slirp_vc);
+    SlirpState *s = opaque;
+
+    return qemu_can_send_packet(s->vc);
 }
 
-void slirp_output(const uint8_t *pkt, int pkt_len)
+void slirp_output(void *opaque, const uint8_t *pkt, int pkt_len)
 {
+    SlirpState *s = opaque;
+
 #ifdef DEBUG_SLIRP
     printf("slirp output:\n");
     hex_dump(stdout, pkt, pkt_len);
 #endif
-    if (!slirp_vc)
-        return;
-    qemu_send_packet(slirp_vc, pkt, pkt_len);
+    qemu_send_packet(s->vc, pkt, pkt_len);
 }
 
-int slirp_is_inited(void)
+static ssize_t slirp_receive(VLANClientState *vc, const uint8_t *buf, size_t size)
 {
-    return slirp_inited;
-}
+    SlirpState *s = vc->opaque;
 
-static void slirp_receive(void *opaque, const uint8_t *buf, int size)
-{
 #ifdef DEBUG_SLIRP
     printf("slirp input:\n");
     hex_dump(stdout, buf, size);
 #endif
-    slirp_input(buf, size);
+    slirp_input(s->slirp, buf, size);
+    return size;
 }
-
-static int slirp_in_use;
 
 static void net_slirp_cleanup(VLANClientState *vc)
 {
-    slirp_in_use = 0;
+    SlirpState *s = vc->opaque;
+
+    slirp_cleanup(s->slirp);
+    slirp_smb_cleanup(s);
+    TAILQ_REMOVE(&slirp_stacks, s, entry);
+    qemu_free(s);
 }
 
-static int net_slirp_init(VLANState *vlan, const char *model, const char *name)
+static int net_slirp_init(Monitor *mon, VLANState *vlan, const char *model,
+                          const char *name, int restricted,
+                          const char *vnetwork, const char *vhost,
+                          const char *vhostname, const char *tftp_export,
+                          const char *bootfile, const char *vdhcp_start,
+                          const char *vnameserver, const char *smb_export,
+                          const char *vsmbserver)
 {
-    if (slirp_in_use) {
-        /* slirp only supports a single instance so far */
+    /* default settings according to historic slirp */
+    struct in_addr net  = { .s_addr = htonl(0x0a000200) }; /* 10.0.2.0 */
+    struct in_addr mask = { .s_addr = htonl(0xffffff00) }; /* 255.255.255.0 */
+    struct in_addr host = { .s_addr = htonl(0x0a000202) }; /* 10.0.2.2 */
+    struct in_addr dhcp = { .s_addr = htonl(0x0a00020f) }; /* 10.0.2.15 */
+    struct in_addr dns  = { .s_addr = htonl(0x0a000203) }; /* 10.0.2.3 */
+#ifndef _WIN32
+    struct in_addr smbsrv = { .s_addr = 0 };
+#endif
+    SlirpState *s;
+    char buf[20];
+    uint32_t addr;
+    int shift;
+    char *end;
+
+    if (!tftp_export) {
+        tftp_export = legacy_tftp_prefix;
+    }
+    if (!bootfile) {
+        bootfile = legacy_bootp_filename;
+    }
+
+    if (vnetwork) {
+        if (get_str_sep(buf, sizeof(buf), &vnetwork, '/') < 0) {
+            if (!inet_aton(vnetwork, &net)) {
+                return -1;
+            }
+            addr = ntohl(net.s_addr);
+            if (!(addr & 0x80000000)) {
+                mask.s_addr = htonl(0xff000000); /* class A */
+            } else if ((addr & 0xfff00000) == 0xac100000) {
+                mask.s_addr = htonl(0xfff00000); /* priv. 172.16.0.0/12 */
+            } else if ((addr & 0xc0000000) == 0x80000000) {
+                mask.s_addr = htonl(0xffff0000); /* class B */
+            } else if ((addr & 0xffff0000) == 0xc0a80000) {
+                mask.s_addr = htonl(0xffff0000); /* priv. 192.168.0.0/16 */
+            } else if ((addr & 0xffff0000) == 0xc6120000) {
+                mask.s_addr = htonl(0xfffe0000); /* tests 198.18.0.0/15 */
+            } else if ((addr & 0xe0000000) == 0xe0000000) {
+                mask.s_addr = htonl(0xffffff00); /* class C */
+            } else {
+                mask.s_addr = htonl(0xfffffff0); /* multicast/reserved */
+            }
+        } else {
+            if (!inet_aton(buf, &net)) {
+                return -1;
+            }
+            shift = strtol(vnetwork, &end, 10);
+            if (*end != '\0') {
+                if (!inet_aton(vnetwork, &mask)) {
+                    return -1;
+                }
+            } else if (shift < 4 || shift > 32) {
+                return -1;
+            } else {
+                mask.s_addr = htonl(0xffffffff << (32 - shift));
+            }
+        }
+        net.s_addr &= mask.s_addr;
+        host.s_addr = net.s_addr | (htonl(0x0202) & ~mask.s_addr);
+        dhcp.s_addr = net.s_addr | (htonl(0x020f) & ~mask.s_addr);
+        dns.s_addr  = net.s_addr | (htonl(0x0203) & ~mask.s_addr);
+    }
+
+    if (vhost && !inet_aton(vhost, &host)) {
         return -1;
     }
-    if (!slirp_inited) {
-        slirp_inited = 1;
-        slirp_init(slirp_restrict, slirp_ip);
+    if ((host.s_addr & mask.s_addr) != net.s_addr) {
+        return -1;
     }
-    slirp_vc = qemu_new_vlan_client(vlan, model, name,
-                                    slirp_receive, NULL, net_slirp_cleanup, NULL);
-    slirp_vc->info_str[0] = '\0';
-    slirp_in_use = 1;
+
+    if (vdhcp_start && !inet_aton(vdhcp_start, &dhcp)) {
+        return -1;
+    }
+    if ((dhcp.s_addr & mask.s_addr) != net.s_addr ||
+        dhcp.s_addr == host.s_addr || dhcp.s_addr == dns.s_addr) {
+        return -1;
+    }
+
+    if (vnameserver && !inet_aton(vnameserver, &dns)) {
+        return -1;
+    }
+    if ((dns.s_addr & mask.s_addr) != net.s_addr ||
+        dns.s_addr == host.s_addr) {
+        return -1;
+    }
+
+#ifndef _WIN32
+    if (vsmbserver && !inet_aton(vsmbserver, &smbsrv)) {
+        return -1;
+    }
+#endif
+
+    s = qemu_mallocz(sizeof(SlirpState));
+    s->slirp = slirp_init(restricted, net, mask, host, vhostname,
+                          tftp_export, bootfile, dhcp, dns, s);
+    TAILQ_INSERT_TAIL(&slirp_stacks, s, entry);
+
+    while (slirp_configs) {
+        struct slirp_config_str *config = slirp_configs;
+
+        if (config->flags & SLIRP_CFG_HOSTFWD) {
+            slirp_hostfwd(s, mon, config->str,
+                          config->flags & SLIRP_CFG_LEGACY);
+        } else {
+            slirp_guestfwd(s, mon, config->str,
+                           config->flags & SLIRP_CFG_LEGACY);
+        }
+        slirp_configs = config->next;
+        qemu_free(config);
+    }
+#ifndef _WIN32
+    if (!smb_export) {
+        smb_export = legacy_smb_export;
+    }
+    if (smb_export) {
+        slirp_smb(s, mon, smb_export, smbsrv);
+    }
+#endif
+
+    s->vc = qemu_new_vlan_client(vlan, model, name, NULL, slirp_receive, NULL,
+                                 net_slirp_cleanup, s);
+    snprintf(s->vc->info_str, sizeof(s->vc->info_str),
+             "net=%s, restricted=%c", inet_ntoa(net), restricted ? 'y' : 'n');
     return 0;
 }
 
-static void net_slirp_redir_print(void *opaque, int is_udp,
-                                  struct in_addr *laddr, u_int lport,
-                                  struct in_addr *faddr, u_int fport)
+static SlirpState *slirp_lookup(Monitor *mon, const char *vlan,
+                                const char *stack)
 {
-    Monitor *mon = (Monitor *)opaque;
-    uint32_t h_addr;
-    uint32_t g_addr;
-    char buf[16];
+    VLANClientState *vc;
 
-    h_addr = ntohl(faddr->s_addr);
-    g_addr = ntohl(laddr->s_addr);
-
-    monitor_printf(mon, "  %s |", is_udp ? "udp" : "tcp" );
-    snprintf(buf, 15, "%d.%d.%d.%d", (h_addr >> 24) & 0xff,
-                                     (h_addr >> 16) & 0xff,
-                                     (h_addr >> 8) & 0xff,
-                                     (h_addr) & 0xff);
-    monitor_printf(mon, " %15s |", buf);
-    monitor_printf(mon, " %5d |", fport);
-
-    snprintf(buf, 15, "%d.%d.%d.%d", (g_addr >> 24) & 0xff,
-                                     (g_addr >> 16) & 0xff,
-                                     (g_addr >> 8) & 0xff,
-                                     (g_addr) & 0xff);
-    monitor_printf(mon, " %15s |", buf);
-    monitor_printf(mon, " %5d\n", lport);
-
+    if (vlan) {
+        vc = qemu_find_vlan_client_by_name(mon, strtol(vlan, NULL, 0), stack);
+        if (!vc) {
+            return NULL;
+        }
+        if (strcmp(vc->model, "user")) {
+            monitor_printf(mon, "invalid device specified\n");
+            return NULL;
+        }
+        return vc->opaque;
+    } else {
+        if (TAILQ_EMPTY(&slirp_stacks)) {
+            monitor_printf(mon, "user mode network stack not in use\n");
+            return NULL;
+        }
+        return TAILQ_FIRST(&slirp_stacks);
+    }
 }
 
-static void net_slirp_redir_list(Monitor *mon)
+void net_slirp_hostfwd_remove(Monitor *mon, const char *arg1,
+                              const char *arg2, const char *arg3)
 {
-    if (!mon)
-        return;
-
-    monitor_printf(mon, " Prot |    Host Addr    | HPort |    Guest Addr   | GPort\n");
-    monitor_printf(mon, "      |                 |       |                 |      \n");
-    slirp_redir_loop(net_slirp_redir_print, mon);
-}
-
-static void net_slirp_redir_rm(Monitor *mon, const char *port_str)
-{
+    struct in_addr host_addr = { .s_addr = INADDR_ANY };
     int host_port;
     char buf[256] = "";
-    const char *p = port_str;
+    const char *src_str, *p;
+    SlirpState *s;
     int is_udp = 0;
-    int n;
+    int err;
 
-    if (!mon)
+    if (arg2) {
+        s = slirp_lookup(mon, arg1, arg2);
+        src_str = arg3;
+    } else {
+        s = slirp_lookup(mon, NULL, NULL);
+        src_str = arg1;
+    }
+    if (!s) {
         return;
+    }
 
-    if (!port_str || !port_str[0])
+    if (!src_str || !src_str[0])
         goto fail_syntax;
 
+    p = src_str;
     get_str_sep(buf, sizeof(buf), &p, ':');
 
     if (!strcmp(buf, "tcp") || buf[0] == '\0') {
@@ -631,44 +939,41 @@ static void net_slirp_redir_rm(Monitor *mon, const char *port_str)
         goto fail_syntax;
     }
 
+    if (get_str_sep(buf, sizeof(buf), &p, ':') < 0) {
+        goto fail_syntax;
+    }
+    if (buf[0] != '\0' && !inet_aton(buf, &host_addr)) {
+        goto fail_syntax;
+    }
+
     host_port = atoi(p);
 
-    n = slirp_redir_rm(is_udp, host_port);
+    err = slirp_remove_hostfwd(TAILQ_FIRST(&slirp_stacks)->slirp, is_udp,
+                               host_addr, host_port);
 
-    monitor_printf(mon, "removed %d redirections to %s port %d\n", n,
-                        is_udp ? "udp" : "tcp", host_port);
+    monitor_printf(mon, "host forwarding rule for %s %s\n", src_str,
+                   err ? "removed" : "not found");
     return;
 
  fail_syntax:
     monitor_printf(mon, "invalid format\n");
 }
 
-void net_slirp_redir(Monitor *mon, const char *redir_str, const char *redir_opt2)
+static void slirp_hostfwd(SlirpState *s, Monitor *mon, const char *redir_str,
+                          int legacy_format)
 {
-    int is_udp;
-    char buf[256], *r;
-    const char *p, *errmsg;
-    struct in_addr guest_addr;
+    struct in_addr host_addr = { .s_addr = INADDR_ANY };
+    struct in_addr guest_addr = { .s_addr = 0 };
     int host_port, guest_port;
-
-    if (!slirp_inited) {
-        slirp_inited = 1;
-        slirp_init(slirp_restrict, slirp_ip);
-    }
-
-    if (!strcmp(redir_str, "remove")) {
-        net_slirp_redir_rm(mon, redir_opt2);
-        return;
-    }
-
-    if (!strcmp(redir_str, "list")) {
-        net_slirp_redir_list(mon);
-        return;
-    }
+    const char *p;
+    char buf[256];
+    int is_udp;
+    char *end;
 
     p = redir_str;
-    if (get_str_sep(buf, sizeof(buf), &p, ':') < 0)
+    if (!p || get_str_sep(buf, sizeof(buf), &p, ':') < 0) {
         goto fail_syntax;
+    }
     if (!strcmp(buf, "tcp") || buf[0] == '\0') {
         is_udp = 0;
     } else if (!strcmp(buf, "udp")) {
@@ -677,100 +982,118 @@ void net_slirp_redir(Monitor *mon, const char *redir_str, const char *redir_opt2
         goto fail_syntax;
     }
 
-    if (get_str_sep(buf, sizeof(buf), &p, ':') < 0)
-        goto fail_syntax;
-    host_port = strtol(buf, &r, 0);
-    if (r == buf)
-        goto fail_syntax;
-
-    if (get_str_sep(buf, sizeof(buf), &p, ':') < 0)
-        goto fail_syntax;
-    if (buf[0] == '\0') {
-        pstrcpy(buf, sizeof(buf), "10.0.2.15");
+    if (!legacy_format) {
+        if (get_str_sep(buf, sizeof(buf), &p, ':') < 0) {
+            goto fail_syntax;
+        }
+        if (buf[0] != '\0' && !inet_aton(buf, &host_addr)) {
+            goto fail_syntax;
+        }
     }
-    if (!inet_aton(buf, &guest_addr))
-        goto fail_syntax;
 
-    guest_port = strtol(p, &r, 0);
-    if (r == p)
+    if (get_str_sep(buf, sizeof(buf), &p, legacy_format ? ':' : '-') < 0) {
         goto fail_syntax;
+    }
+    host_port = strtol(buf, &end, 0);
+    if (*end != '\0' || host_port < 1 || host_port > 65535) {
+        goto fail_syntax;
+    }
 
-    if (slirp_redir(is_udp, host_port, guest_addr, guest_port) < 0) {
-        errmsg = "could not set up redirection\n";
-        goto fail;
+    if (get_str_sep(buf, sizeof(buf), &p, ':') < 0) {
+        goto fail_syntax;
+    }
+    if (buf[0] != '\0' && !inet_aton(buf, &guest_addr)) {
+        goto fail_syntax;
+    }
+
+    guest_port = strtol(p, &end, 0);
+    if (*end != '\0' || guest_port < 1 || guest_port > 65535) {
+        goto fail_syntax;
+    }
+
+    if (slirp_add_hostfwd(s->slirp, is_udp, host_addr, host_port, guest_addr,
+                          guest_port) < 0) {
+        config_error(mon, "could not set up host forwarding rule '%s'\n",
+                     redir_str);
     }
     return;
 
  fail_syntax:
-    errmsg = "invalid redirection format\n";
- fail:
-    if (mon) {
-        monitor_printf(mon, "%s", errmsg);
+    config_error(mon, "invalid host forwarding rule '%s'\n", redir_str);
+}
+
+void net_slirp_hostfwd_add(Monitor *mon, const char *arg1,
+                           const char *arg2, const char *arg3)
+{
+    const char *redir_str;
+    SlirpState *s;
+
+    if (arg2) {
+        s = slirp_lookup(mon, arg1, arg2);
+        redir_str = arg3;
     } else {
-        fprintf(stderr, "qemu: %s", errmsg);
-        exit(1);
+        s = slirp_lookup(mon, NULL, NULL);
+        redir_str = arg1;
     }
+    if (s) {
+        slirp_hostfwd(s, mon, redir_str, 0);
+    }
+
+}
+
+void net_slirp_redir(const char *redir_str)
+{
+    struct slirp_config_str *config;
+
+    if (TAILQ_EMPTY(&slirp_stacks)) {
+        config = qemu_malloc(sizeof(*config));
+        pstrcpy(config->str, sizeof(config->str), redir_str);
+        config->flags = SLIRP_CFG_HOSTFWD | SLIRP_CFG_LEGACY;
+        config->next = slirp_configs;
+        slirp_configs = config;
+        return;
+    }
+
+    slirp_hostfwd(TAILQ_FIRST(&slirp_stacks), NULL, redir_str, 1);
 }
 
 #ifndef _WIN32
 
-static char smb_dir[1024];
-
-static void erase_dir(char *dir_name)
+/* automatic user mode samba server configuration */
+static void slirp_smb_cleanup(SlirpState *s)
 {
-    DIR *d;
-    struct dirent *de;
-    char filename[1024];
+    char cmd[128];
 
-    /* erase all the files in the directory */
-    if ((d = opendir(dir_name)) != NULL) {
-        for(;;) {
-            de = readdir(d);
-            if (!de)
-                break;
-            if (strcmp(de->d_name, ".") != 0 &&
-                strcmp(de->d_name, "..") != 0) {
-                snprintf(filename, sizeof(filename), "%s/%s",
-                         smb_dir, de->d_name);
-                if (unlink(filename) != 0)  /* is it a directory? */
-                    erase_dir(filename);
-            }
-        }
-        closedir(d);
-        rmdir(dir_name);
+    if (s->smb_dir[0] != '\0') {
+        snprintf(cmd, sizeof(cmd), "rm -rf %s", s->smb_dir);
+        system(cmd);
+        s->smb_dir[0] = '\0';
     }
 }
 
-/* automatic user mode samba server configuration */
-static void smb_exit(void)
+static void slirp_smb(SlirpState* s, Monitor *mon, const char *exported_dir,
+                      struct in_addr vserver_addr)
 {
-    erase_dir(smb_dir);
-}
-
-/* automatic user mode samba server configuration */
-void net_slirp_smb(const char *exported_dir)
-{
-    char smb_conf[1024];
-    char smb_cmdline[1024];
+    static int instance;
+    char smb_conf[128];
+    char smb_cmdline[128];
     FILE *f;
 
-    if (!slirp_inited) {
-        slirp_inited = 1;
-        slirp_init(slirp_restrict, slirp_ip);
+    snprintf(s->smb_dir, sizeof(s->smb_dir), "/tmp/qemu-smb.%ld-%d",
+             (long)getpid(), instance++);
+    if (mkdir(s->smb_dir, 0700) < 0) {
+        config_error(mon, "could not create samba server dir '%s'\n",
+                     s->smb_dir);
+        return;
     }
-
-    /* XXX: better tmp dir construction */
-    snprintf(smb_dir, sizeof(smb_dir), "/tmp/qemu-smb.%ld", (long)getpid());
-    if (mkdir(smb_dir, 0700) < 0) {
-        fprintf(stderr, "qemu: could not create samba server dir '%s'\n", smb_dir);
-        exit(1);
-    }
-    snprintf(smb_conf, sizeof(smb_conf), "%s/%s", smb_dir, "smb.conf");
+    snprintf(smb_conf, sizeof(smb_conf), "%s/%s", s->smb_dir, "smb.conf");
 
     f = fopen(smb_conf, "w");
     if (!f) {
-        fprintf(stderr, "qemu: could not create samba server configuration file '%s'\n", smb_conf);
-        exit(1);
+        slirp_smb_cleanup(s);
+        config_error(mon, "could not create samba server "
+                     "configuration file '%s'\n", smb_conf);
+        return;
     }
     fprintf(f,
             "[global]\n"
@@ -786,43 +1109,134 @@ void net_slirp_smb(const char *exported_dir)
             "path=%s\n"
             "read only=no\n"
             "guest ok=yes\n",
-            smb_dir,
-            smb_dir,
-            smb_dir,
-            smb_dir,
-            smb_dir,
+            s->smb_dir,
+            s->smb_dir,
+            s->smb_dir,
+            s->smb_dir,
+            s->smb_dir,
             exported_dir
             );
     fclose(f);
-    atexit(smb_exit);
 
     snprintf(smb_cmdline, sizeof(smb_cmdline), "%s -s %s",
              SMBD_COMMAND, smb_conf);
 
-    slirp_add_exec(0, smb_cmdline, 4, 139);
+    if (slirp_add_exec(s->slirp, 0, smb_cmdline, &vserver_addr, 139) < 0) {
+        slirp_smb_cleanup(s);
+        config_error(mon, "conflicting/invalid smbserver address\n");
+    }
+}
+
+/* automatic user mode samba server configuration (legacy interface) */
+void net_slirp_smb(const char *exported_dir)
+{
+    struct in_addr vserver_addr = { .s_addr = 0 };
+
+    if (legacy_smb_export) {
+        fprintf(stderr, "-smb given twice\n");
+        exit(1);
+    }
+    legacy_smb_export = exported_dir;
+    if (!TAILQ_EMPTY(&slirp_stacks)) {
+        slirp_smb(TAILQ_FIRST(&slirp_stacks), NULL, exported_dir,
+                  vserver_addr);
+    }
 }
 
 #endif /* !defined(_WIN32) */
-void do_info_slirp(Monitor *mon)
-{
-    slirp_stats();
-}
 
-struct VMChannel {
+struct GuestFwd {
     CharDriverState *hd;
+    struct in_addr server;
     int port;
+    Slirp *slirp;
 };
 
-static int vmchannel_can_read(void *opaque)
+static int guestfwd_can_read(void *opaque)
 {
-    struct VMChannel *vmc = (struct VMChannel*)opaque;
-    return slirp_socket_can_recv(4, vmc->port);
+    struct GuestFwd *fwd = opaque;
+    return slirp_socket_can_recv(fwd->slirp, fwd->server, fwd->port);
 }
 
-static void vmchannel_read(void *opaque, const uint8_t *buf, int size)
+static void guestfwd_read(void *opaque, const uint8_t *buf, int size)
 {
-    struct VMChannel *vmc = (struct VMChannel*)opaque;
-    slirp_socket_recv(4, vmc->port, buf, size);
+    struct GuestFwd *fwd = opaque;
+    slirp_socket_recv(fwd->slirp, fwd->server, fwd->port, buf, size);
+}
+
+static void slirp_guestfwd(SlirpState *s, Monitor *mon, const char *config_str,
+                           int legacy_format)
+{
+    struct in_addr server = { .s_addr = 0 };
+    struct GuestFwd *fwd;
+    const char *p;
+    char buf[128];
+    char *end;
+    int port;
+
+    p = config_str;
+    if (legacy_format) {
+        if (get_str_sep(buf, sizeof(buf), &p, ':') < 0) {
+            goto fail_syntax;
+        }
+    } else {
+        if (get_str_sep(buf, sizeof(buf), &p, ':') < 0) {
+            goto fail_syntax;
+        }
+        if (strcmp(buf, "tcp") && buf[0] != '\0') {
+            goto fail_syntax;
+        }
+        if (get_str_sep(buf, sizeof(buf), &p, ':') < 0) {
+            goto fail_syntax;
+        }
+        if (buf[0] != '\0' && !inet_aton(buf, &server)) {
+            goto fail_syntax;
+        }
+        if (get_str_sep(buf, sizeof(buf), &p, '-') < 0) {
+            goto fail_syntax;
+        }
+    }
+    port = strtol(buf, &end, 10);
+    if (*end != '\0' || port < 1 || port > 65535) {
+        goto fail_syntax;
+    }
+
+    fwd = qemu_malloc(sizeof(struct GuestFwd));
+    snprintf(buf, sizeof(buf), "guestfwd.tcp:%d", port);
+    fwd->hd = qemu_chr_open(buf, p, NULL);
+    if (!fwd->hd) {
+        config_error(mon, "could not open guest forwarding device '%s'\n",
+                     buf);
+        qemu_free(fwd);
+        return;
+    }
+
+    if (slirp_add_exec(s->slirp, 3, fwd->hd, &server, port) < 0) {
+        config_error(mon, "conflicting/invalid host:port in guest forwarding "
+                     "rule '%s'\n", config_str);
+        qemu_free(fwd);
+        return;
+    }
+    fwd->server = server;
+    fwd->port = port;
+    fwd->slirp = s->slirp;
+
+    qemu_chr_add_handlers(fwd->hd, guestfwd_can_read, guestfwd_read,
+                          NULL, fwd);
+    return;
+
+ fail_syntax:
+    config_error(mon, "invalid guest forwarding rule '%s'\n", config_str);
+}
+
+void do_info_usernet(Monitor *mon)
+{
+    SlirpState *s;
+
+    TAILQ_FOREACH(s, &slirp_stacks, entry) {
+        monitor_printf(mon, "VLAN %d (%s):\n", s->vc->vlan->id, s->vc->name);
+        slirp_connection_info(s->slirp, mon);
+    }
 }
 
 #endif /* CONFIG_SLIRP */
@@ -834,64 +1248,171 @@ typedef struct TAPState {
     int fd;
     char down_script[1024];
     char down_script_arg[128];
+    uint8_t buf[4096];
+    unsigned int read_poll : 1;
+    unsigned int write_poll : 1;
 } TAPState;
 
 static int launch_script(const char *setup_script, const char *ifname, int fd);
 
-static ssize_t tap_receive_iov(void *opaque, const struct iovec *iov,
-                               int iovcnt)
+static int tap_can_send(void *opaque);
+static void tap_send(void *opaque);
+static void tap_writable(void *opaque);
+
+static void tap_update_fd_handler(TAPState *s)
+{
+    qemu_set_fd_handler2(s->fd,
+                         s->read_poll  ? tap_can_send : NULL,
+                         s->read_poll  ? tap_send     : NULL,
+                         s->write_poll ? tap_writable : NULL,
+                         s);
+}
+
+static void tap_read_poll(TAPState *s, int enable)
+{
+    s->read_poll = !!enable;
+    tap_update_fd_handler(s);
+}
+
+static void tap_write_poll(TAPState *s, int enable)
+{
+    s->write_poll = !!enable;
+    tap_update_fd_handler(s);
+}
+
+static void tap_writable(void *opaque)
 {
     TAPState *s = opaque;
+
+    tap_write_poll(s, 0);
+
+    qemu_flush_queued_packets(s->vc);
+}
+
+static ssize_t tap_receive_iov(VLANClientState *vc, const struct iovec *iov,
+                               int iovcnt)
+{
+    TAPState *s = vc->opaque;
     ssize_t len;
 
     do {
         len = writev(s->fd, iov, iovcnt);
+    } while (len == -1 && errno == EINTR);
+
+    if (len == -1 && errno == EAGAIN) {
+        tap_write_poll(s, 1);
+        return 0;
+    }
+
+    return len;
+}
+
+static ssize_t tap_receive(VLANClientState *vc, const uint8_t *buf, size_t size)
+{
+    TAPState *s = vc->opaque;
+    ssize_t len;
+
+    do {
+        len = write(s->fd, buf, size);
     } while (len == -1 && (errno == EINTR || errno == EAGAIN));
 
     return len;
 }
 
-static void tap_receive(void *opaque, const uint8_t *buf, int size)
+static int tap_can_send(void *opaque)
 {
     TAPState *s = opaque;
-    int ret;
-    for(;;) {
-        ret = write(s->fd, buf, size);
-        if (ret < 0 && (errno == EINTR || errno == EAGAIN)) {
-        } else {
-            break;
-        }
-    }
+
+    return qemu_can_send_packet(s->vc);
+}
+
+#ifdef __sun__
+static ssize_t tap_read_packet(int tapfd, uint8_t *buf, int maxlen)
+{
+    struct strbuf sbuf;
+    int f = 0;
+
+    sbuf.maxlen = maxlen;
+    sbuf.buf = (char *)buf;
+
+    return getmsg(tapfd, NULL, &sbuf, &f) >= 0 ? sbuf.len : -1;
+}
+#else
+static ssize_t tap_read_packet(int tapfd, uint8_t *buf, int maxlen)
+{
+    return read(tapfd, buf, maxlen);
+}
+#endif
+
+static void tap_send_completed(VLANClientState *vc, ssize_t len)
+{
+    TAPState *s = vc->opaque;
+    tap_read_poll(s, 1);
 }
 
 static void tap_send(void *opaque)
 {
     TAPState *s = opaque;
-    uint8_t buf[4096];
     int size;
 
-#ifdef __sun__
-    struct strbuf sbuf;
-    int f = 0;
-    sbuf.maxlen = sizeof(buf);
-    sbuf.buf = (char *)buf;
-    size = getmsg(s->fd, NULL, &sbuf, &f) >=0 ? sbuf.len : -1;
-#else
-    size = read(s->fd, buf, sizeof(buf));
-#endif
-    if (size > 0) {
-        qemu_send_packet(s->vc, buf, size);
+    do {
+        size = tap_read_packet(s->fd, s->buf, sizeof(s->buf));
+        if (size <= 0) {
+            break;
+        }
+
+        size = qemu_send_packet_async(s->vc, s->buf, size, tap_send_completed);
+        if (size == 0) {
+            tap_read_poll(s, 0);
+        }
+    } while (size > 0);
+}
+
+#ifdef TUNSETSNDBUF
+/* sndbuf should be set to a value lower than the tx queue
+ * capacity of any destination network interface.
+ * Ethernet NICs generally have txqueuelen=1000, so 1Mb is
+ * a good default, given a 1500 byte MTU.
+ */
+#define TAP_DEFAULT_SNDBUF 1024*1024
+
+static void tap_set_sndbuf(TAPState *s, const char *sndbuf_str, Monitor *mon)
+{
+    int sndbuf = TAP_DEFAULT_SNDBUF;
+
+    if (sndbuf_str) {
+        sndbuf = atoi(sndbuf_str);
+    }
+
+    if (!sndbuf) {
+        sndbuf = INT_MAX;
+    }
+
+    if (ioctl(s->fd, TUNSETSNDBUF, &sndbuf) == -1 && sndbuf_str) {
+        config_error(mon, "TUNSETSNDBUF ioctl failed: %s\n",
+                     strerror(errno));
     }
 }
+#else
+static void tap_set_sndbuf(TAPState *s, const char *sndbuf_str, Monitor *mon)
+{
+    if (sndbuf_str) {
+        config_error(mon, "No '-net tap,sndbuf=<nbytes>' support available\n");
+    }
+}
+#endif /* TUNSETSNDBUF */
 
 static void tap_cleanup(VLANClientState *vc)
 {
     TAPState *s = vc->opaque;
 
+    qemu_purge_queued_packets(vc);
+
     if (s->down_script[0])
         launch_script(s->down_script, s->down_script_arg, s->fd);
 
-    qemu_set_fd_handler(s->fd, NULL, NULL, NULL);
+    tap_read_poll(s, 0);
+    tap_write_poll(s, 0);
     close(s->fd);
     qemu_free(s);
 }
@@ -907,15 +1428,14 @@ static TAPState *net_tap_fd_init(VLANState *vlan,
 
     s = qemu_mallocz(sizeof(TAPState));
     s->fd = fd;
-    s->vc = qemu_new_vlan_client(vlan, model, name, tap_receive,
-                                 NULL, tap_cleanup, s);
-    s->vc->fd_readv = tap_receive_iov;
-    qemu_set_fd_handler(s->fd, tap_send, NULL, s);
+    s->vc = qemu_new_vlan_client(vlan, model, name, NULL, tap_receive,
+                                 tap_receive_iov, tap_cleanup, s);
+    tap_read_poll(s, 1);
     snprintf(s->vc->info_str, sizeof(s->vc->info_str), "fd=%d", fd);
     return s;
 }
 
-#if defined (HOST_BSD) || defined (__FreeBSD_kernel__)
+#if defined (CONFIG_BSD) || defined (__FreeBSD_kernel__)
 static int tap_open(char *ifname, int ifname_size)
 {
     int fd;
@@ -1107,43 +1627,51 @@ static int tap_open(char *ifname, int ifname_size)
 
 static int launch_script(const char *setup_script, const char *ifname, int fd)
 {
+    sigset_t oldmask, mask;
     int pid, status;
     char *args[3];
     char **parg;
 
-        /* try to launch network script */
-        pid = fork();
-        if (pid >= 0) {
-            if (pid == 0) {
-                int open_max = sysconf (_SC_OPEN_MAX), i;
-                for (i = 0; i < open_max; i++)
-                    if (i != STDIN_FILENO &&
-                        i != STDOUT_FILENO &&
-                        i != STDERR_FILENO &&
-                        i != fd)
-                        close(i);
+    sigemptyset(&mask);
+    sigaddset(&mask, SIGCHLD);
+    sigprocmask(SIG_BLOCK, &mask, &oldmask);
 
-                parg = args;
-                *parg++ = (char *)setup_script;
-                *parg++ = (char *)ifname;
-                *parg++ = NULL;
-                execv(setup_script, args);
-                _exit(1);
-            }
-            while (waitpid(pid, &status, 0) != pid);
-            if (!WIFEXITED(status) ||
-                WEXITSTATUS(status) != 0) {
-                fprintf(stderr, "%s: could not launch network script\n",
-                        setup_script);
-                return -1;
+    /* try to launch network script */
+    pid = fork();
+    if (pid == 0) {
+        int open_max = sysconf(_SC_OPEN_MAX), i;
+
+        for (i = 0; i < open_max; i++) {
+            if (i != STDIN_FILENO &&
+                i != STDOUT_FILENO &&
+                i != STDERR_FILENO &&
+                i != fd) {
+                close(i);
             }
         }
-    return 0;
+        parg = args;
+        *parg++ = (char *)setup_script;
+        *parg++ = (char *)ifname;
+        *parg++ = NULL;
+        execv(setup_script, args);
+        _exit(1);
+    } else if (pid > 0) {
+        while (waitpid(pid, &status, 0) != pid) {
+            /* loop */
+        }
+        sigprocmask(SIG_SETMASK, &oldmask, NULL);
+
+        if (WIFEXITED(status) && WEXITSTATUS(status) == 0) {
+            return 0;
+        }
+    }
+    fprintf(stderr, "%s: could not launch network script\n", setup_script);
+    return -1;
 }
 
-static int net_tap_init(VLANState *vlan, const char *model,
-                        const char *name, const char *ifname1,
-                        const char *setup_script, const char *down_script)
+static TAPState *net_tap_init(VLANState *vlan, const char *model,
+                              const char *name, const char *ifname1,
+                              const char *setup_script, const char *down_script)
 {
     TAPState *s;
     int fd;
@@ -1155,13 +1683,13 @@ static int net_tap_init(VLANState *vlan, const char *model,
         ifname[0] = '\0';
     TFR(fd = tap_open(ifname, sizeof(ifname)));
     if (fd < 0)
-        return -1;
+        return NULL;
 
     if (!setup_script || !strcmp(setup_script, "no"))
         setup_script = "";
-    if (setup_script[0] != '\0') {
-	if (launch_script(setup_script, ifname, fd))
-	    return -1;
+    if (setup_script[0] != '\0' &&
+        launch_script(setup_script, ifname, fd)) {
+        return NULL;
     }
     s = net_tap_fd_init(vlan, model, name, fd);
     snprintf(s->vc->info_str, sizeof(s->vc->info_str),
@@ -1171,7 +1699,7 @@ static int net_tap_init(VLANState *vlan, const char *model,
         snprintf(s->down_script, sizeof(s->down_script), "%s", down_script);
         snprintf(s->down_script_arg, sizeof(s->down_script_arg), "%s", ifname);
     }
-    return 0;
+    return s;
 }
 
 #endif /* !_WIN32 */
@@ -1194,17 +1722,16 @@ static void vde_to_qemu(void *opaque)
     }
 }
 
-static void vde_from_qemu(void *opaque, const uint8_t *buf, int size)
+static ssize_t vde_receive(VLANClientState *vc, const uint8_t *buf, size_t size)
 {
-    VDEState *s = opaque;
-    int ret;
-    for(;;) {
-        ret = vde_send(s->vde, (const char *)buf, size, 0);
-        if (ret < 0 && errno == EINTR) {
-        } else {
-            break;
-        }
-    }
+    VDEState *s = vc->opaque;
+    ssize_t ret;
+
+    do {
+      ret = vde_send(s->vde, (const char *)buf, size, 0);
+    } while (ret < 0 && errno == EINTR);
+
+    return ret;
 }
 
 static void vde_cleanup(VLANClientState *vc)
@@ -1235,7 +1762,7 @@ static int net_vde_init(VLANState *vlan, const char *model,
         free(s);
         return -1;
     }
-    s->vc = qemu_new_vlan_client(vlan, model, name, vde_from_qemu,
+    s->vc = qemu_new_vlan_client(vlan, model, name, NULL, vde_receive,
                                  NULL, vde_cleanup, s);
     qemu_set_fd_handler(vde_datafd(s->vde), vde_to_qemu, NULL, s);
     snprintf(s->vc->info_str, sizeof(s->vc->info_str), "sock=%s,fd=%d",
@@ -1263,21 +1790,22 @@ typedef struct NetSocketListenState {
 } NetSocketListenState;
 
 /* XXX: we consider we can send the whole packet without blocking */
-static void net_socket_receive(void *opaque, const uint8_t *buf, int size)
+static ssize_t net_socket_receive(VLANClientState *vc, const uint8_t *buf, size_t size)
 {
-    NetSocketState *s = opaque;
+    NetSocketState *s = vc->opaque;
     uint32_t len;
     len = htonl(size);
 
     send_all(s->fd, (const uint8_t *)&len, sizeof(len));
-    send_all(s->fd, buf, size);
+    return send_all(s->fd, buf, size);
 }
 
-static void net_socket_receive_dgram(void *opaque, const uint8_t *buf, int size)
+static ssize_t net_socket_receive_dgram(VLANClientState *vc, const uint8_t *buf, size_t size)
 {
-    NetSocketState *s = opaque;
-    sendto(s->fd, buf, size, 0,
-           (struct sockaddr *)&s->dgram_dst, sizeof(s->dgram_dst));
+    NetSocketState *s = vc->opaque;
+
+    return sendto(s->fd, (const void *)buf, size, 0,
+                  (struct sockaddr *)&s->dgram_dst, sizeof(s->dgram_dst));
 }
 
 static void net_socket_send(void *opaque)
@@ -1288,7 +1816,7 @@ static void net_socket_send(void *opaque)
     uint8_t buf1[4096];
     const uint8_t *buf;
 
-    size = recv(s->fd, buf1, sizeof(buf1), 0);
+    size = recv(s->fd, (void *)buf1, sizeof(buf1), 0);
     if (size < 0) {
         err = socket_error();
         if (err != EWOULDBLOCK)
@@ -1350,7 +1878,7 @@ static void net_socket_send_dgram(void *opaque)
     NetSocketState *s = opaque;
     int size;
 
-    size = recv(s->fd, s->buf, sizeof(s->buf), 0);
+    size = recv(s->fd, (void *)s->buf, sizeof(s->buf), 0);
     if (size < 0)
         return;
     if (size == 0) {
@@ -1473,7 +2001,7 @@ static NetSocketState *net_socket_fd_init_dgram(VLANState *vlan,
     s = qemu_mallocz(sizeof(NetSocketState));
     s->fd = fd;
 
-    s->vc = qemu_new_vlan_client(vlan, model, name, net_socket_receive_dgram,
+    s->vc = qemu_new_vlan_client(vlan, model, name, NULL, net_socket_receive_dgram,
                                  NULL, net_socket_cleanup, s);
     qemu_set_fd_handler(s->fd, net_socket_send_dgram, NULL, s);
 
@@ -1501,7 +2029,7 @@ static NetSocketState *net_socket_fd_init_stream(VLANState *vlan,
     NetSocketState *s;
     s = qemu_mallocz(sizeof(NetSocketState));
     s->fd = fd;
-    s->vc = qemu_new_vlan_client(vlan, model, name, net_socket_receive,
+    s->vc = qemu_new_vlan_client(vlan, model, name, NULL, net_socket_receive,
                                  NULL, net_socket_cleanup, s);
     snprintf(s->vc->info_str, sizeof(s->vc->info_str),
              "socket: fd=%d", fd);
@@ -1714,16 +2242,16 @@ struct pcap_sf_pkthdr {
     uint32_t len;
 };
 
-static void dump_receive(void *opaque, const uint8_t *buf, int size)
+static ssize_t dump_receive(VLANClientState *vc, const uint8_t *buf, size_t size)
 {
-    DumpState *s = opaque;
+    DumpState *s = vc->opaque;
     struct pcap_sf_pkthdr hdr;
     int64_t ts;
     int caplen;
 
     /* Early return in case of previous error. */
     if (s->fd < 0) {
-        return;
+        return size;
     }
 
     ts = muldiv64(qemu_get_clock(vm_clock), 1000000, ticks_per_sec);
@@ -1739,6 +2267,8 @@ static void dump_receive(void *opaque, const uint8_t *buf, int size)
         close(s->fd);
         s->fd = -1;
     }
+
+    return size;
 }
 
 static void net_dump_cleanup(VLANClientState *vc)
@@ -1749,7 +2279,7 @@ static void net_dump_cleanup(VLANClientState *vc)
     qemu_free(s);
 }
 
-static int net_dump_init(VLANState *vlan, const char *device,
+static int net_dump_init(Monitor *mon, VLANState *vlan, const char *device,
                          const char *name, const char *filename, int len)
 {
     struct pcap_file_hdr hdr;
@@ -1757,9 +2287,9 @@ static int net_dump_init(VLANState *vlan, const char *device,
 
     s = qemu_malloc(sizeof(DumpState));
 
-    s->fd = open(filename, O_CREAT | O_WRONLY, 0644);
+    s->fd = open(filename, O_CREAT | O_WRONLY | O_BINARY, 0644);
     if (s->fd < 0) {
-        fprintf(stderr, "-net dump: can't open %s\n", filename);
+        config_error(mon, "-net dump: can't open %s\n", filename);
         return -1;
     }
 
@@ -1774,13 +2304,13 @@ static int net_dump_init(VLANState *vlan, const char *device,
     hdr.linktype = 1;
 
     if (write(s->fd, &hdr, sizeof(hdr)) < sizeof(hdr)) {
-        perror("-net dump write error");
+        config_error(mon, "-net dump write error: %s\n", strerror(errno));
         close(s->fd);
         qemu_free(s);
         return -1;
     }
 
-    s->pcap_vc = qemu_new_vlan_client(vlan, device, name, dump_receive, NULL,
+    s->pcap_vc = qemu_new_vlan_client(vlan, device, name, NULL, dump_receive, NULL,
                                       net_dump_cleanup, s);
     snprintf(s->pcap_vc->info_str, sizeof(s->pcap_vc->info_str),
              "dump to %s (len=%d)", filename, len);
@@ -1788,12 +2318,15 @@ static int net_dump_init(VLANState *vlan, const char *device,
 }
 
 /* find or alloc a new VLAN */
-VLANState *qemu_find_vlan(int id)
+VLANState *qemu_find_vlan(int id, int allocate)
 {
     VLANState **pvlan, *vlan;
     for(vlan = first_vlan; vlan != NULL; vlan = vlan->next) {
         if (vlan->id == id)
             return vlan;
+    }
+    if (!allocate) {
+        return NULL;
     }
     vlan = qemu_mallocz(sizeof(VLANState));
     vlan->id = id;
@@ -1849,11 +2382,25 @@ void qemu_check_nic_model_list(NICInfo *nd, const char * const *models,
     exit(exit_status);
 }
 
-int net_client_init(const char *device, const char *p)
+static int net_handle_fd_param(Monitor *mon, const char *param)
 {
-    static const char * const fd_params[] = {
-        "vlan", "name", "fd", NULL
-    };
+    if (!qemu_isdigit(param[0])) {
+        int fd;
+
+        fd = monitor_get_fd(mon, param);
+        if (fd == -1) {
+            config_error(mon, "No file descriptor named %s found", param);
+            return -1;
+        }
+
+        return fd;
+    } else {
+        return strtol(param, NULL, 0);
+    }
+}
+
+int net_client_init(Monitor *mon, const char *device, const char *p)
+{
     char buf[1024];
     int vlan_id, ret;
     VLANState *vlan;
@@ -1863,25 +2410,26 @@ int net_client_init(const char *device, const char *p)
     if (get_param_value(buf, sizeof(buf), "vlan", p)) {
         vlan_id = strtol(buf, NULL, 0);
     }
-    vlan = qemu_find_vlan(vlan_id);
+    vlan = qemu_find_vlan(vlan_id, 1);
 
     if (get_param_value(buf, sizeof(buf), "name", p)) {
-        name = strdup(buf);
+        name = qemu_strdup(buf);
     }
     if (!strcmp(device, "nic")) {
         static const char * const nic_params[] = {
-            "vlan", "name", "macaddr", "model", NULL
+            "vlan", "name", "macaddr", "model", "addr", "id", "vectors", NULL
         };
         NICInfo *nd;
         uint8_t *macaddr;
         int idx = nic_get_free_idx();
 
-        if (check_params(nic_params, p) < 0) {
-            fprintf(stderr, "qemu: invalid parameter in '%s'\n", p);
-            return -1;
+        if (check_params(buf, sizeof(buf), nic_params, p) < 0) {
+            config_error(mon, "invalid parameter '%s' in '%s'\n", buf, p);
+            ret = -1;
+            goto out;
         }
         if (idx == -1 || nb_nics >= MAX_NICS) {
-            fprintf(stderr, "Too Many NICs\n");
+            config_error(mon, "Too Many NICs\n");
             ret = -1;
             goto out;
         }
@@ -1896,13 +2444,35 @@ int net_client_init(const char *device, const char *p)
 
         if (get_param_value(buf, sizeof(buf), "macaddr", p)) {
             if (parse_macaddr(macaddr, buf) < 0) {
-                fprintf(stderr, "invalid syntax for ethernet address\n");
+                config_error(mon, "invalid syntax for ethernet address\n");
                 ret = -1;
                 goto out;
             }
         }
         if (get_param_value(buf, sizeof(buf), "model", p)) {
             nd->model = strdup(buf);
+        }
+        if (get_param_value(buf, sizeof(buf), "addr", p)) {
+            nd->devaddr = strdup(buf);
+        }
+        if (get_param_value(buf, sizeof(buf), "id", p)) {
+            nd->id = strdup(buf);
+        }
+        nd->nvectors = NIC_NVECTORS_UNSPECIFIED;
+        if (get_param_value(buf, sizeof(buf), "vectors", p)) {
+            char *endptr;
+            long vectors = strtol(buf, &endptr, 0);
+            if (*endptr) {
+                config_error(mon, "invalid syntax for # of vectors\n");
+                ret = -1;
+                goto out;
+            }
+            if (vectors < 0 || vectors > 0x7ffffff) {
+                config_error(mon, "invalid # of vectors\n");
+                ret = -1;
+                goto out;
+            }
+            nd->nvectors = vectors;
         }
         nd->vlan = vlan;
         nd->name = name;
@@ -1914,8 +2484,9 @@ int net_client_init(const char *device, const char *p)
     } else
     if (!strcmp(device, "none")) {
         if (*p != '\0') {
-            fprintf(stderr, "qemu: 'none' takes no parameters\n");
-            return -1;
+            config_error(mon, "'none' takes no parameters\n");
+            ret = -1;
+            goto out;
         }
         /* does nothing. It is needed to signal that no network cards
            are wanted */
@@ -1924,48 +2495,115 @@ int net_client_init(const char *device, const char *p)
 #ifdef CONFIG_SLIRP
     if (!strcmp(device, "user")) {
         static const char * const slirp_params[] = {
-            "vlan", "name", "hostname", "restrict", "ip", NULL
+            "vlan", "name", "hostname", "restrict", "ip", "net", "host",
+            "tftp", "bootfile", "dhcpstart", "dns", "smb", "smbserver",
+            "hostfwd", "guestfwd", NULL
         };
-        if (check_params(slirp_params, p) < 0) {
-            fprintf(stderr, "qemu: invalid parameter in '%s'\n", p);
-            return -1;
-        }
-        if (get_param_value(buf, sizeof(buf), "hostname", p)) {
-            pstrcpy(slirp_hostname, sizeof(slirp_hostname), buf);
-        }
-        if (get_param_value(buf, sizeof(buf), "restrict", p)) {
-            slirp_restrict = (buf[0] == 'y') ? 1 : 0;
+        struct slirp_config_str *config;
+        int restricted = 0;
+        char *vnet = NULL;
+        char *vhost = NULL;
+        char *vhostname = NULL;
+        char *tftp_export = NULL;
+        char *bootfile = NULL;
+        char *vdhcp_start = NULL;
+        char *vnamesrv = NULL;
+        char *smb_export = NULL;
+        char *vsmbsrv = NULL;
+        const char *q;
+
+        if (check_params(buf, sizeof(buf), slirp_params, p) < 0) {
+            config_error(mon, "invalid parameter '%s' in '%s'\n", buf, p);
+            ret = -1;
+            goto out;
         }
         if (get_param_value(buf, sizeof(buf), "ip", p)) {
-            slirp_ip = strdup(buf);
+            int vnet_buflen = strlen(buf) + strlen("/24") + 1;
+            /* emulate legacy parameter */
+            vnet = qemu_malloc(vnet_buflen);
+            pstrcpy(vnet, vnet_buflen, buf);
+            pstrcat(vnet, vnet_buflen, "/24");
         }
+        if (get_param_value(buf, sizeof(buf), "net", p)) {
+            vnet = qemu_strdup(buf);
+        }
+        if (get_param_value(buf, sizeof(buf), "host", p)) {
+            vhost = qemu_strdup(buf);
+        }
+        if (get_param_value(buf, sizeof(buf), "hostname", p)) {
+            vhostname = qemu_strdup(buf);
+        }
+        if (get_param_value(buf, sizeof(buf), "restrict", p)) {
+            restricted = (buf[0] == 'y') ? 1 : 0;
+        }
+        if (get_param_value(buf, sizeof(buf), "dhcpstart", p)) {
+            vdhcp_start = qemu_strdup(buf);
+        }
+        if (get_param_value(buf, sizeof(buf), "dns", p)) {
+            vnamesrv = qemu_strdup(buf);
+        }
+        if (get_param_value(buf, sizeof(buf), "tftp", p)) {
+            tftp_export = qemu_strdup(buf);
+        }
+        if (get_param_value(buf, sizeof(buf), "bootfile", p)) {
+            bootfile = qemu_strdup(buf);
+        }
+        if (get_param_value(buf, sizeof(buf), "smb", p)) {
+            smb_export = qemu_strdup(buf);
+            if (get_param_value(buf, sizeof(buf), "smbserver", p)) {
+                vsmbsrv = qemu_strdup(buf);
+            }
+        }
+        q = p;
+        while (1) {
+            config = qemu_malloc(sizeof(*config));
+            if (!get_next_param_value(config->str, sizeof(config->str),
+                                      "hostfwd", &q)) {
+                break;
+            }
+            config->flags = SLIRP_CFG_HOSTFWD;
+            config->next = slirp_configs;
+            slirp_configs = config;
+            config = NULL;
+        }
+        q = p;
+        while (1) {
+            config = qemu_malloc(sizeof(*config));
+            if (!get_next_param_value(config->str, sizeof(config->str),
+                                      "guestfwd", &q)) {
+                break;
+            }
+            config->flags = 0;
+            config->next = slirp_configs;
+            slirp_configs = config;
+            config = NULL;
+        }
+        qemu_free(config);
         vlan->nb_host_devs++;
-        ret = net_slirp_init(vlan, device, name);
+        ret = net_slirp_init(mon, vlan, device, name, restricted, vnet, vhost,
+                             vhostname, tftp_export, bootfile, vdhcp_start,
+                             vnamesrv, smb_export, vsmbsrv);
+        qemu_free(vnet);
+        qemu_free(vhost);
+        qemu_free(vhostname);
+        qemu_free(tftp_export);
+        qemu_free(bootfile);
+        qemu_free(vdhcp_start);
+        qemu_free(vnamesrv);
+        qemu_free(smb_export);
+        qemu_free(vsmbsrv);
     } else if (!strcmp(device, "channel")) {
-        long port;
-        char name[20], *devname;
-        struct VMChannel *vmc;
+        if (TAILQ_EMPTY(&slirp_stacks)) {
+            struct slirp_config_str *config;
 
-        port = strtol(p, &devname, 10);
-        devname++;
-        if (port < 1 || port > 65535) {
-            fprintf(stderr, "vmchannel wrong port number\n");
-            ret = -1;
-            goto out;
+            config = qemu_malloc(sizeof(*config));
+            pstrcpy(config->str, sizeof(config->str), p);
+            config->flags = SLIRP_CFG_LEGACY;
+            config->next = slirp_configs;
+            slirp_configs = config;
+        } else {
+            slirp_guestfwd(TAILQ_FIRST(&slirp_stacks), mon, p, 1);
         }
-        vmc = malloc(sizeof(struct VMChannel));
-        snprintf(name, 20, "vmchannel%ld", port);
-        vmc->hd = qemu_chr_open(name, devname, NULL);
-        if (!vmc->hd) {
-            fprintf(stderr, "qemu: could not open vmchannel device"
-                    "'%s'\n", devname);
-            ret = -1;
-            goto out;
-        }
-        vmc->port = port;
-        slirp_add_exec(3, vmc->hd, 4, port);
-        qemu_chr_add_handlers(vmc->hd, vmchannel_can_read, vmchannel_read,
-                NULL, vmc);
         ret = 0;
     } else
 #endif
@@ -1976,12 +2614,13 @@ int net_client_init(const char *device, const char *p)
         };
         char ifname[64];
 
-        if (check_params(tap_params, p) < 0) {
-            fprintf(stderr, "qemu: invalid parameter in '%s'\n", p);
-            return -1;
+        if (check_params(buf, sizeof(buf), tap_params, p) < 0) {
+            config_error(mon, "invalid parameter '%s' in '%s'\n", buf, p);
+            ret = -1;
+            goto out;
         }
         if (get_param_value(ifname, sizeof(ifname), "ifname", p) <= 0) {
-            fprintf(stderr, "tap: no interface name\n");
+            config_error(mon, "tap: no interface name\n");
             ret = -1;
             goto out;
         }
@@ -1991,26 +2630,37 @@ int net_client_init(const char *device, const char *p)
 #elif defined (_AIX)
 #else
     if (!strcmp(device, "tap")) {
-        char ifname[64];
+        char ifname[64], chkbuf[64];
         char setup_script[1024], down_script[1024];
+        TAPState *s;
         int fd;
         vlan->nb_host_devs++;
         if (get_param_value(buf, sizeof(buf), "fd", p) > 0) {
-            if (check_params(fd_params, p) < 0) {
-                fprintf(stderr, "qemu: invalid parameter in '%s'\n", p);
-                return -1;
+            static const char * const fd_params[] = {
+                "vlan", "name", "fd", "sndbuf", NULL
+            };
+            ret = -1;
+            if (check_params(chkbuf, sizeof(chkbuf), fd_params, p) < 0) {
+                config_error(mon, "invalid parameter '%s' in '%s'\n", chkbuf, p);
+                goto out;
             }
-            fd = strtol(buf, NULL, 0);
+            fd = net_handle_fd_param(mon, buf);
+            if (fd == -1) {
+                goto out;
+            }
             fcntl(fd, F_SETFL, O_NONBLOCK);
-            net_tap_fd_init(vlan, device, name, fd);
-            ret = 0;
+            s = net_tap_fd_init(vlan, device, name, fd);
+            if (!s) {
+                close(fd);
+            }
         } else {
             static const char * const tap_params[] = {
-                "vlan", "name", "ifname", "script", "downscript", NULL
+                "vlan", "name", "ifname", "script", "downscript", "sndbuf", NULL
             };
-            if (check_params(tap_params, p) < 0) {
-                fprintf(stderr, "qemu: invalid parameter in '%s'\n", p);
-                return -1;
+            if (check_params(chkbuf, sizeof(chkbuf), tap_params, p) < 0) {
+                config_error(mon, "invalid parameter '%s' in '%s'\n", chkbuf, p);
+                ret = -1;
+                goto out;
             }
             if (get_param_value(ifname, sizeof(ifname), "ifname", p) <= 0) {
                 ifname[0] = '\0';
@@ -2021,50 +2671,73 @@ int net_client_init(const char *device, const char *p)
             if (get_param_value(down_script, sizeof(down_script), "downscript", p) == 0) {
                 pstrcpy(down_script, sizeof(down_script), DEFAULT_NETWORK_DOWN_SCRIPT);
             }
-            ret = net_tap_init(vlan, device, name, ifname, setup_script, down_script);
+            s = net_tap_init(vlan, device, name, ifname, setup_script, down_script);
+        }
+        if (s != NULL) {
+            const char *sndbuf_str = NULL;
+            if (get_param_value(buf, sizeof(buf), "sndbuf", p)) {
+                sndbuf_str = buf;
+            }
+            tap_set_sndbuf(s, sndbuf_str, mon);
+            ret = 0;
+        } else {
+            ret = -1;
         }
     } else
 #endif
     if (!strcmp(device, "socket")) {
+        char chkbuf[64];
         if (get_param_value(buf, sizeof(buf), "fd", p) > 0) {
+            static const char * const fd_params[] = {
+                "vlan", "name", "fd", NULL
+            };
             int fd;
-            if (check_params(fd_params, p) < 0) {
-                fprintf(stderr, "qemu: invalid parameter in '%s'\n", p);
-                return -1;
-            }
-            fd = strtol(buf, NULL, 0);
             ret = -1;
-            if (net_socket_fd_init(vlan, device, name, fd, 1))
-                ret = 0;
+            if (check_params(chkbuf, sizeof(chkbuf), fd_params, p) < 0) {
+                config_error(mon, "invalid parameter '%s' in '%s'\n", chkbuf, p);
+                goto out;
+            }
+            fd = net_handle_fd_param(mon, buf);
+            if (fd == -1) {
+                goto out;
+            }
+            if (!net_socket_fd_init(vlan, device, name, fd, 1)) {
+                close(fd);
+                goto out;
+            }
+            ret = 0;
         } else if (get_param_value(buf, sizeof(buf), "listen", p) > 0) {
             static const char * const listen_params[] = {
                 "vlan", "name", "listen", NULL
             };
-            if (check_params(listen_params, p) < 0) {
-                fprintf(stderr, "qemu: invalid parameter in '%s'\n", p);
-                return -1;
+            if (check_params(chkbuf, sizeof(chkbuf), listen_params, p) < 0) {
+                config_error(mon, "invalid parameter '%s' in '%s'\n", chkbuf, p);
+                ret = -1;
+                goto out;
             }
             ret = net_socket_listen_init(vlan, device, name, buf);
         } else if (get_param_value(buf, sizeof(buf), "connect", p) > 0) {
             static const char * const connect_params[] = {
                 "vlan", "name", "connect", NULL
             };
-            if (check_params(connect_params, p) < 0) {
-                fprintf(stderr, "qemu: invalid parameter in '%s'\n", p);
-                return -1;
+            if (check_params(chkbuf, sizeof(chkbuf), connect_params, p) < 0) {
+                config_error(mon, "invalid parameter '%s' in '%s'\n", chkbuf, p);
+                ret = -1;
+                goto out;
             }
             ret = net_socket_connect_init(vlan, device, name, buf);
         } else if (get_param_value(buf, sizeof(buf), "mcast", p) > 0) {
             static const char * const mcast_params[] = {
                 "vlan", "name", "mcast", NULL
             };
-            if (check_params(mcast_params, p) < 0) {
-                fprintf(stderr, "qemu: invalid parameter in '%s'\n", p);
-                return -1;
+            if (check_params(chkbuf, sizeof(chkbuf), mcast_params, p) < 0) {
+                config_error(mon, "invalid parameter '%s' in '%s'\n", chkbuf, p);
+                ret = -1;
+                goto out;
             }
             ret = net_socket_mcast_init(vlan, device, name, buf);
         } else {
-            fprintf(stderr, "Unknown socket options: %s\n", p);
+            config_error(mon, "Unknown socket options: %s\n", p);
             ret = -1;
             goto out;
         }
@@ -2078,9 +2751,10 @@ int net_client_init(const char *device, const char *p)
         char vde_sock[1024], vde_group[512];
 	int vde_port, vde_mode;
 
-        if (check_params(vde_params, p) < 0) {
-            fprintf(stderr, "qemu: invalid parameter in '%s'\n", p);
-            return -1;
+        if (check_params(buf, sizeof(buf), vde_params, p) < 0) {
+            config_error(mon, "invalid parameter '%s' in '%s'\n", buf, p);
+            ret = -1;
+            goto out;
         }
         vlan->nb_host_devs++;
         if (get_param_value(vde_sock, sizeof(vde_sock), "sock", p) <= 0) {
@@ -2111,18 +2785,17 @@ int net_client_init(const char *device, const char *p)
         if (!get_param_value(buf, sizeof(buf), "file", p)) {
             snprintf(buf, sizeof(buf), "qemu-vlan%d.pcap", vlan_id);
         }
-        ret = net_dump_init(vlan, device, name, buf, len);
+        ret = net_dump_init(mon, vlan, device, name, buf, len);
     } else {
-        fprintf(stderr, "Unknown network device: %s\n", device);
+        config_error(mon, "Unknown network device: %s\n", device);
         ret = -1;
         goto out;
     }
     if (ret < 0) {
-        fprintf(stderr, "Could not initialize device '%s'\n", device);
+        config_error(mon, "Could not initialize device '%s'\n", device);
     }
 out:
-    if (name)
-        free(name);
+    qemu_free(name);
     return ret;
 }
 
@@ -2160,26 +2833,17 @@ void net_host_device_add(Monitor *mon, const char *device, const char *opts)
         monitor_printf(mon, "invalid host network device %s\n", device);
         return;
     }
-    if (net_client_init(device, opts ? opts : "") < 0) {
+    if (net_client_init(mon, device, opts ? opts : "") < 0) {
         monitor_printf(mon, "adding host network device %s failed\n", device);
     }
 }
 
 void net_host_device_remove(Monitor *mon, int vlan_id, const char *device)
 {
-    VLANState *vlan;
     VLANClientState *vc;
 
-    vlan = qemu_find_vlan(vlan_id);
-
-    for (vc = vlan->first_client; vc != NULL; vc = vc->next) {
-        if (!strcmp(vc->name, device)) {
-            break;
-        }
-    }
-
+    vc = qemu_find_vlan_client_by_name(mon, vlan_id, device);
     if (!vc) {
-        monitor_printf(mon, "can't find device %s\n", device);
         return;
     }
     if (!net_host_check_device(vc->model)) {
@@ -2206,7 +2870,27 @@ int net_client_parse(const char *str)
     if (*p == ',')
         p++;
 
-    return net_client_init(device, p);
+    return net_client_init(NULL, device, p);
+}
+
+void net_set_boot_mask(int net_boot_mask)
+{
+    int i;
+
+    /* Only the first four NICs may be bootable */
+    net_boot_mask = net_boot_mask & 0xF;
+
+    for (i = 0; i < nb_nics; i++) {
+        if (net_boot_mask & (1 << i)) {
+            nd_table[i].bootable = 1;
+            net_boot_mask &= ~(1 << i);
+        }
+    }
+
+    if (net_boot_mask) {
+        fprintf(stderr, "Cannot boot from non-existent NIC\n");
+        exit(1);
+    }
 }
 
 void do_info_network(Monitor *mon)
@@ -2221,7 +2905,7 @@ void do_info_network(Monitor *mon)
     }
 }
 
-int do_set_link(Monitor *mon, const char *name, const char *up_or_down)
+void do_set_link(Monitor *mon, const char *name, const char *up_or_down)
 {
     VLANState *vlan;
     VLANClientState *vc = NULL;
@@ -2234,7 +2918,7 @@ done:
 
     if (!vc) {
         monitor_printf(mon, "could not find network device '%s'", name);
-        return 0;
+        return;
     }
 
     if (strcmp(up_or_down, "up") == 0)
@@ -2247,8 +2931,6 @@ done:
 
     if (vc->link_status_changed)
         vc->link_status_changed(vc);
-
-    return 1;
 }
 
 void net_cleanup(void)

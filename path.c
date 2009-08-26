@@ -11,7 +11,6 @@
 #include <string.h>
 #include <errno.h>
 #include <stdio.h>
-#include "qemu.h"
 #include "qemu-common.h"
 
 struct pathelem
@@ -156,7 +155,7 @@ const char *path(const char *name)
 {
     /* Only do absolute paths: quick and dirty, but should mostly be OK.
        Could do relative by tracking cwd. */
-    if (!base || name[0] != '/')
+    if (!base || !name || name[0] != '/')
         return name;
 
     return follow_path(base, name) ?: name;

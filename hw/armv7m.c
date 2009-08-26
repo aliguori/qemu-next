@@ -127,8 +127,7 @@ static void bitband_init(SysBusDevice *dev)
     BitBandState *s = FROM_SYSBUS(BitBandState, dev);
     int iomemtype;
 
-    s->base = qdev_get_prop_int(&dev->qdev, "base", 0);
-    iomemtype = cpu_register_io_memory(0, bitband_readfn, bitband_writefn,
+    iomemtype = cpu_register_io_memory(bitband_readfn, bitband_writefn,
                                        &s->base);
     sysbus_init_mmio(dev, 0x02000000, iomemtype);
 }
@@ -138,12 +137,12 @@ static void armv7m_bitband_init(void)
     DeviceState *dev;
 
     dev = qdev_create(NULL, "ARM,bitband-memory");
-    qdev_set_prop_int(dev, "base", 0x20000000);
+    qdev_prop_set_uint32(dev, "base", 0x20000000);
     qdev_init(dev);
     sysbus_mmio_map(sysbus_from_qdev(dev), 0, 0x22000000);
 
     dev = qdev_create(NULL, "ARM,bitband-memory");
-    qdev_set_prop_int(dev, "base", 0x40000000);
+    qdev_prop_set_uint32(dev, "base", 0x40000000);
     qdev_init(dev);
     sysbus_mmio_map(sysbus_from_qdev(dev), 0, 0x42000000);
 }
@@ -238,10 +237,19 @@ qemu_irq *armv7m_init(int flash_size, int sram_size,
     return pic;
 }
 
+static SysBusDeviceInfo bitband_info = {
+    .init = bitband_init,
+    .qdev.name  = "ARM,bitband-memory",
+    .qdev.size  = sizeof(BitBandState),
+    .qdev.props = (Property[]) {
+        DEFINE_PROP_UINT32("base", BitBandState, base, 0),
+        DEFINE_PROP_END_OF_LIST(),
+    }
+};
+
 static void armv7m_register_devices(void)
 {
-    sysbus_register_dev("ARM,bitband-memory", sizeof(BitBandState),
-                        bitband_init);
+    sysbus_register_withprop(&bitband_info);
 }
 
 device_init(armv7m_register_devices)

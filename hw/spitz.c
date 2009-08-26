@@ -24,11 +24,7 @@
 #include "boards.h"
 
 #undef REG_FMT
-#if TARGET_PHYS_ADDR_BITS == 32
-#define REG_FMT			"0x%02x"
-#else
-#define REG_FMT			"0x%02llx"
-#endif
+#define REG_FMT			"0x%02lx"
 
 /* Spitz Flash */
 #define FLASH_BASE		0x0c000000
@@ -87,7 +83,7 @@ static uint32_t sl_readb(void *opaque, target_phys_addr_t addr)
         return ecc_digest(&s->ecc, nand_getio(s->nand));
 
     default:
-        zaurus_printf("Bad register offset " REG_FMT "\n", addr);
+        zaurus_printf("Bad register offset " REG_FMT "\n", (unsigned long)addr);
     }
     return 0;
 }
@@ -129,7 +125,7 @@ static void sl_writeb(void *opaque, target_phys_addr_t addr,
         break;
 
     default:
-        zaurus_printf("Bad register offset " REG_FMT "\n", addr);
+        zaurus_printf("Bad register offset " REG_FMT "\n", (unsigned long)addr);
     }
 }
 
@@ -173,16 +169,12 @@ static void sl_flash_register(PXA2xxState *cpu, int size)
 
     s = (SLNANDState *) qemu_mallocz(sizeof(SLNANDState));
     s->ctl = 0;
-    BlockDriverState *bdrv = NULL;
-    if (drive_get_index(IF_MTD, 0, 0) >= 0) {
-        bdrv = drives_table[drive_get_index(IF_MTD, 0, 0)].bdrv;
-    }
     if (size == FLASH_128M)
-        s->nand = nand_init(NAND_MFR_SAMSUNG, 0x73, bdrv);
+        s->nand = nand_init(NAND_MFR_SAMSUNG, 0x73, drive_get(IF_MTD, 0, 0));
     else if (size == FLASH_1024M)
-        s->nand = nand_init(NAND_MFR_SAMSUNG, 0xf1, bdrv);
+        s->nand = nand_init(NAND_MFR_SAMSUNG, 0xf1, drive_get(IF_MTD, 0, 0));
 
-    iomemtype = cpu_register_io_memory(0, sl_readfn,
+    iomemtype = cpu_register_io_memory(sl_readfn,
                     sl_writefn, s);
     cpu_register_physical_memory(FLASH_BASE, 0x40, iomemtype);
 
@@ -752,13 +744,13 @@ static void spitz_ssp_attach(PXA2xxState *cpu)
 static void spitz_microdrive_attach(PXA2xxState *cpu, int slot)
 {
     PCMCIACardState *md;
-    int index;
     BlockDriverState *bs;
+    DriveInfo *dinfo;
 
-    index = drive_get_index(IF_IDE, 0, 0);
-    if (index == -1)
+    dinfo = drive_get(IF_IDE, 0, 0);
+    if (!dinfo)
         return;
-    bs = drives_table[index].bdrv;
+    bs = dinfo->bdrv;
     if (bdrv_is_inserted(bs) && !bdrv_is_removable(bs)) {
         md = dscm1xxxx_init(bs);
         pxa2xx_pcmcia_attach(cpu->pcmcia[slot], md);
@@ -1045,7 +1037,7 @@ static void terrier_init(ram_addr_t ram_size,
                 kernel_cmdline, initrd_filename, cpu_model, terrier, 0x33f);
 }
 
-QEMUMachine akitapda_machine = {
+static QEMUMachine akitapda_machine = {
     .name = "akita",
     .desc = "Akita PDA (PXA270)",
     .init = akita_init,
@@ -1080,19 +1072,23 @@ static void spitz_machine_init(void)
 machine_init(spitz_machine_init);
 
 static SSISlaveInfo corgi_ssp_info = {
+    .qdev.name = "corgi-ssp",
+    .qdev.size = sizeof(CorgiSSPState),
     .init = corgi_ssp_init,
     .transfer = corgi_ssp_transfer
 };
 
 static SSISlaveInfo spitz_lcdtg_info = {
+    .qdev.name = "spitz-lcdtg",
+    .qdev.size = sizeof(SpitzLCDTG),
     .init = spitz_lcdtg_init,
     .transfer = spitz_lcdtg_transfer
 };
 
 static void spitz_register_devices(void)
 {
-    ssi_register_slave("corgi-ssp", sizeof(CorgiSSPState), &corgi_ssp_info);
-    ssi_register_slave("spitz-lcdtg", sizeof(SpitzLCDTG), &spitz_lcdtg_info);
+    ssi_register_slave(&corgi_ssp_info);
+    ssi_register_slave(&spitz_lcdtg_info);
 }
 
 device_init(spitz_register_devices)

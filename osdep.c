@@ -28,7 +28,7 @@
 #include <errno.h>
 #include <unistd.h>
 #include <fcntl.h>
-#ifdef HOST_SOLARIS
+#ifdef CONFIG_SOLARIS
 #include <sys/types.h>
 #include <sys/statvfs.h>
 #endif
@@ -36,12 +36,12 @@
 /* FIXME: This file should be target independent. However it has kqemu
    hacks, so must be built for every target.  */
 
-/* Needed early for HOST_BSD etc. */
+/* Needed early for CONFIG_BSD etc. */
 #include "config-host.h"
 
 #ifdef _WIN32
 #include <windows.h>
-#elif defined(HOST_BSD)
+#elif defined(CONFIG_BSD)
 #include <stdlib.h>
 #else
 #include <malloc.h>
@@ -51,10 +51,23 @@
 #include "sysemu.h"
 #include "qemu_socket.h"
 
+#if !defined(_POSIX_C_SOURCE) || defined(_WIN32)
+static void *oom_check(void *ptr)
+{
+    if (ptr == NULL) {
+        abort();
+    }
+    return ptr;
+}
+#endif
+
 #if defined(_WIN32)
 void *qemu_memalign(size_t alignment, size_t size)
 {
-    return VirtualAlloc(NULL, size, MEM_COMMIT, PAGE_READWRITE);
+    if (!size) {
+        abort();
+    }
+    return oom_check(VirtualAlloc(NULL, size, MEM_COMMIT, PAGE_READWRITE));
 }
 
 void *qemu_vmalloc(size_t size)
@@ -62,7 +75,10 @@ void *qemu_vmalloc(size_t size)
     /* FIXME: this is not exactly optimal solution since VirtualAlloc
        has 64Kb granularity, but at least it guarantees us that the
        memory is page aligned. */
-    return VirtualAlloc(NULL, size, MEM_COMMIT, PAGE_READWRITE);
+    if (!size) {
+        abort();
+    }
+    return oom_check(VirtualAlloc(NULL, size, MEM_COMMIT, PAGE_READWRITE));
 }
 
 void qemu_vfree(void *ptr)
@@ -100,16 +116,20 @@ static void *kqemu_vmalloc(size_t size)
     int map_anon = 0;
     const char *tmpdir;
     char phys_ram_file[1024];
-#ifdef HOST_SOLARIS
+#ifdef CONFIG_SOLARIS
     struct statvfs stfs;
 #else
     struct statfs stfs;
 #endif
 
+    if (!size) {
+        abort ();
+    }
+
     if (phys_ram_fd < 0) {
         tmpdir = getenv("QEMU_TMPDIR");
         if (!tmpdir)
-#ifdef HOST_SOLARIS
+#ifdef CONFIG_SOLARIS
             tmpdir = "/tmp";
         if (statvfs(tmpdir, &stfs) == 0) {
 #else
@@ -188,12 +208,12 @@ void *qemu_memalign(size_t alignment, size_t size)
     void *ptr;
     ret = posix_memalign(&ptr, alignment, size);
     if (ret != 0)
-        return NULL;
+        abort();
     return ptr;
-#elif defined(HOST_BSD)
-    return valloc(size);
+#elif defined(CONFIG_BSD)
+    return oom_check(valloc(size));
 #else
-    return memalign(alignment, size);
+    return oom_check(memalign(alignment, size));
 #endif
 }
 

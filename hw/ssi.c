@@ -13,6 +13,11 @@ struct SSIBus {
     BusState qbus;
 };
 
+static struct BusInfo ssi_bus_info = {
+    .name = "SSI",
+    .size = sizeof(SSIBus),
+};
+
 static void ssi_slave_init(DeviceState *dev, DeviceInfo *base_info)
 {
     SSISlaveInfo *info = container_of(base_info, SSISlaveInfo, qdev);
@@ -29,12 +34,12 @@ static void ssi_slave_init(DeviceState *dev, DeviceInfo *base_info)
     info->init(s);
 }
 
-void ssi_register_slave(const char *name, int size, SSISlaveInfo *info)
+void ssi_register_slave(SSISlaveInfo *info)
 {
-    assert(size >= sizeof(SSISlave));
+    assert(info->qdev.size >= sizeof(SSISlave));
     info->qdev.init = ssi_slave_init;
-    info->qdev.bus_type = BUS_TYPE_SSI;
-    qdev_register(name, size, &info->qdev);
+    info->qdev.bus_info = &ssi_bus_info;
+    qdev_register(&info->qdev);
 }
 
 DeviceState *ssi_create_slave(SSIBus *bus, const char *name)
@@ -48,7 +53,7 @@ DeviceState *ssi_create_slave(SSIBus *bus, const char *name)
 SSIBus *ssi_create_bus(DeviceState *parent, const char *name)
 {
     BusState *bus;
-    bus = qbus_create(BUS_TYPE_SSI, sizeof(SSIBus), parent, name);
+    bus = qbus_create(&ssi_bus_info, parent, name);
     return FROM_QBUS(SSIBus, bus);
 }
 

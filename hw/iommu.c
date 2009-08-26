@@ -21,8 +21,9 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#include "hw.h"
+
 #include "sun4m.h"
+#include "sysbus.h"
 
 /* debug iommu */
 //#define DEBUG_IOMMU
@@ -127,6 +128,7 @@
 #define IOMMU_PAGE_MASK     ~(IOMMU_PAGE_SIZE - 1)
 
 typedef struct IOMMUState {
+    SysBusDevice busdev;
     uint32_t regs[IOMMU_NREGS];
     target_phys_addr_t iostart;
     uint32_t version;
@@ -362,25 +364,36 @@ static void iommu_reset(void *opaque)
     s->regs[IOMMU_AFSR] = IOMMU_AFSR_RESV;
     s->regs[IOMMU_AER] = IOMMU_AER_EN_P0_ARB | IOMMU_AER_EN_P1_ARB;
     s->regs[IOMMU_MASK_ID] = IOMMU_TS_MASK;
-    qemu_irq_lower(s->irq);
 }
 
-void *iommu_init(target_phys_addr_t addr, uint32_t version, qemu_irq irq)
+static void iommu_init1(SysBusDevice *dev)
 {
-    IOMMUState *s;
-    int iommu_io_memory;
+    IOMMUState *s = FROM_SYSBUS(IOMMUState, dev);
+    int io;
 
-    s = qemu_mallocz(sizeof(IOMMUState));
+    sysbus_init_irq(dev, &s->irq);
 
-    s->version = version;
-    s->irq = irq;
+    io = cpu_register_io_memory(iommu_mem_read, iommu_mem_write, s);
+    sysbus_init_mmio(dev, IOMMU_NREGS * sizeof(uint32_t), io);
 
-    iommu_io_memory = cpu_register_io_memory(0, iommu_mem_read,
-                                             iommu_mem_write, s);
-    cpu_register_physical_memory(addr, IOMMU_NREGS * 4, iommu_io_memory);
-
-    register_savevm("iommu", addr, 2, iommu_save, iommu_load, s);
-    qemu_register_reset(iommu_reset, 0, s);
+    register_savevm("iommu", -1, 2, iommu_save, iommu_load, s);
+    qemu_register_reset(iommu_reset, s);
     iommu_reset(s);
-    return s;
 }
+
+static SysBusDeviceInfo iommu_info = {
+    .init = iommu_init1,
+    .qdev.name  = "iommu",
+    .qdev.size  = sizeof(IOMMUState),
+    .qdev.props = (Property[]) {
+        DEFINE_PROP_HEX32("version", IOMMUState, version, 0),
+        DEFINE_PROP_END_OF_LIST(),
+    }
+};
+
+static void iommu_register_devices(void)
+{
+    sysbus_register_withprop(&iommu_info);
+}
+
+device_init(iommu_register_devices)

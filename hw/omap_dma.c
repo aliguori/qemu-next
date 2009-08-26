@@ -15,8 +15,7 @@
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License along
- * with this program; if not, write to the Free Software Foundation, Inc.,
- * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+ * with this program; if not, see <http://www.gnu.org/licenses/>.
  */
 #include "qemu-common.h"
 #include "qemu-timer.h"
@@ -1665,7 +1664,7 @@ struct soc_dma_s *omap_dma_init(target_phys_addr_t base, qemu_irq *irqs,
     omap_dma_reset(s->dma);
     omap_dma_clk_update(s, 0, 1);
 
-    iomemtype = cpu_register_io_memory(0, omap_dma_readfn,
+    iomemtype = cpu_register_io_memory(omap_dma_readfn,
                     omap_dma_writefn, s);
     cpu_register_physical_memory(base, memsize, iomemtype);
 
@@ -2280,8 +2279,8 @@ struct soc_dma_s *omap_dma4_init(target_phys_addr_t base, qemu_irq *irqs,
     struct omap_dma_s *s = omap_dma4_init_internal(mpu, irqs, chans, 64,
                                                    iclk, fclk);
 
-    iomemtype = cpu_register_io_memory(0, omap_dma4_readfn,
-                    omap_dma4_writefn, s);
+    iomemtype = cpu_register_io_memory(omap_dma4_readfn,
+                                       omap_dma4_writefn, s);
     cpu_register_physical_memory(base, 0x1000, iomemtype);
     
     return s->dma;
@@ -2294,7 +2293,7 @@ struct soc_dma_s *omap3_dma4_init(struct omap_target_agent_s *ta,
 {
     struct omap_dma_s *s = omap_dma4_init_internal(mpu, irqs, chans, 96,
                                                    iclk, fclk);
-    omap_l4_attach(ta, 0, cpu_register_io_memory(0, omap_dma4_readfn,
+    omap_l4_attach(ta, 0, cpu_register_io_memory(omap_dma4_readfn,
                                                  omap_dma4_writefn, s));
     return s->dma;
 }

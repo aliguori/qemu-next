@@ -1062,9 +1062,9 @@ static int pcnet_tdte_poll(PCNetState *s)
     return !!(CSR_CXST(s) & 0x8000);
 }
 
-static int pcnet_can_receive(void *opaque)
+static int pcnet_can_receive(VLANClientState *vc)
 {
-    PCNetState *s = opaque;
+    PCNetState *s = vc->opaque;
     if (CSR_STOP(s) || CSR_SPND(s))
         return 0;
 
@@ -1076,16 +1076,17 @@ static int pcnet_can_receive(void *opaque)
 
 #define MIN_BUF_SIZE 60
 
-static void pcnet_receive(void *opaque, const uint8_t *buf, int size)
+static ssize_t pcnet_receive(VLANClientState *vc, const uint8_t *buf, size_t size_)
 {
-    PCNetState *s = opaque;
+    PCNetState *s = vc->opaque;
     int is_padr = 0, is_bcast = 0, is_ladr = 0;
     uint8_t buf1[60];
     int remaining;
     int crc_err = 0;
+    int size = size_;
 
     if (CSR_DRX(s) || CSR_STOP(s) || CSR_SPND(s) || !size)
-        return;
+        return -1;
 
 #ifdef PCNET_DEBUG
     printf("pcnet_receive size=%d\n", size);
@@ -1252,6 +1253,8 @@ static void pcnet_receive(void *opaque, const uint8_t *buf, int size)
 
     pcnet_poll(s);
     pcnet_update_irq(s);
+
+    return size_;
 }
 
 static void pcnet_transmit(PCNetState *s)
@@ -1302,7 +1305,7 @@ static void pcnet_transmit(PCNetState *s)
                 if (BCR_SWSTYLE(s) == 1)
                     add_crc = !GET_FIELD(tmd.status, TMDS, NOFCS);
                 s->looptest = add_crc ? PCNET_LOOPTEST_CRC : PCNET_LOOPTEST_NOCRC;
-                pcnet_receive(s, s->buffer, s->xmit_pos);
+                pcnet_receive(s->vc, s->buffer, s->xmit_pos);
                 s->looptest = 0;
             } else
                 if (s->vc)
@@ -1952,7 +1955,7 @@ static void pcnet_common_init(DeviceState *dev, PCNetState *s,
 
     qdev_get_macaddr(dev, s->macaddr);
     s->vc = qdev_get_vlan_client(dev,
-                                 pcnet_receive, pcnet_can_receive,
+                                 pcnet_can_receive, pcnet_receive, NULL,
                                  cleanup, s);
     pcnet_h_reset(s);
     register_savevm("pcnet", -1, 2, pcnet_save, pcnet_load, s);
@@ -2045,12 +2048,12 @@ static void pci_pcnet_init(PCIDevice *pci_dev)
 
     /* Handler for memory-mapped I/O */
     s->mmio_index =
-      cpu_register_io_memory(0, pcnet_mmio_read, pcnet_mmio_write, &d->state);
+      cpu_register_io_memory(pcnet_mmio_read, pcnet_mmio_write, &d->state);
 
-    pci_register_io_region((PCIDevice *)d, 0, PCNET_IOPORT_SIZE,
+    pci_register_bar((PCIDevice *)d, 0, PCNET_IOPORT_SIZE,
                            PCI_ADDRESS_SPACE_IO, pcnet_ioport_map);
 
-    pci_register_io_region((PCIDevice *)d, 1, PCNET_PNPMMIO_SIZE,
+    pci_register_bar((PCIDevice *)d, 1, PCNET_PNPMMIO_SIZE,
                            PCI_ADDRESS_SPACE_MEM, pcnet_mmio_map);
 
     s->irq = pci_dev->irq[0];
@@ -2123,9 +2126,7 @@ static void lance_init(SysBusDevice *dev)
     PCNetState *s = &d->state;
 
     s->mmio_index =
-        cpu_register_io_memory(0, lance_mem_read, lance_mem_write, d);
-
-    s->dma_opaque = qdev_get_prop_ptr(&dev->qdev, "dma");
+        cpu_register_io_memory(lance_mem_read, lance_mem_write, d);
 
     qdev_init_gpio_in(&dev->qdev, parent_lance_reset, 1);
 
@@ -2138,13 +2139,30 @@ static void lance_init(SysBusDevice *dev)
 
     pcnet_common_init(&dev->qdev, s, lance_cleanup);
 }
+
+static SysBusDeviceInfo lance_info = {
+    .init = lance_init,
+    .qdev.name  = "lance",
+    .qdev.size  = sizeof(SysBusPCNetState),
+    .qdev.props = (Property[]) {
+        DEFINE_PROP_PTR("dma", SysBusPCNetState, state.dma_opaque),
+        DEFINE_PROP_END_OF_LIST(),
+    }
+};
+
 #endif /* TARGET_SPARC */
+
+static PCIDeviceInfo pcnet_info = {
+    .qdev.name = "pcnet",
+    .qdev.size = sizeof(PCIPCNetState),
+    .init      = pci_pcnet_init,
+};
 
 static void pcnet_register_devices(void)
 {
-    pci_qdev_register("pcnet", sizeof(PCIPCNetState), pci_pcnet_init);
+    pci_qdev_register(&pcnet_info);
 #if defined (TARGET_SPARC) && !defined(TARGET_SPARC64)
-    sysbus_register_dev("lance", sizeof(SysBusPCNetState), lance_init);
+    sysbus_register_withprop(&lance_info);
 #endif
 }
 

@@ -89,8 +89,8 @@ static uint32_t pcie500_cfgaddr_readl(void *opaque, target_phys_addr_t addr)
 {
     PPCE500PCIState *pci = opaque;
 
-    pci_debug("%s: (addr:%Lx) -> value:%x\n", __func__, addr,
-                    pci->pci_state.config_reg);
+    pci_debug("%s: (addr:" TARGET_FMT_plx ") -> value:%x\n", __func__, addr,
+              pci->pci_state.config_reg);
     return pci->pci_state.config_reg;
 }
 
@@ -105,7 +105,8 @@ static void pcie500_cfgaddr_writel(void *opaque, target_phys_addr_t addr,
 {
     PPCE500PCIState *controller = opaque;
 
-    pci_debug("%s: value:%x -> (addr%Lx)\n", __func__, value, addr);
+    pci_debug("%s: value:%x -> (addr:" TARGET_FMT_plx ")\n", __func__, value,
+              addr);
     controller->pci_state.config_reg = value & ~0x3;
 }
 
@@ -169,7 +170,8 @@ static uint32_t pci_reg_read4(void *opaque, target_phys_addr_t addr)
         break;
     }
 
-    pci_debug("%s: win:%lx(addr:%Lx) -> value:%x\n",__func__,win,addr,value);
+    pci_debug("%s: win:%lx(addr:" TARGET_FMT_plx ") -> value:%x\n", __func__,
+              win, addr, value);
     return value;
 }
 
@@ -187,7 +189,8 @@ static void pci_reg_write4(void *opaque, target_phys_addr_t addr,
 
     win = addr & 0xfe0;
 
-    pci_debug("%s: value:%x -> win:%lx(addr:%Lx)\n",__func__,value,win,addr);
+    pci_debug("%s: value:%x -> win:%lx(addr:" TARGET_FMT_plx ")\n",
+              __func__, value, win, addr);
 
     switch (win) {
     case PPCE500_PCI_OW1:
@@ -332,21 +335,21 @@ PCIBus *ppce500_pci_init(qemu_irq pci_irqs[4], target_phys_addr_t registers)
     controller->pci_dev = d;
 
     /* CFGADDR */
-    index = cpu_register_io_memory(0, pcie500_cfgaddr_read,
+    index = cpu_register_io_memory(pcie500_cfgaddr_read,
                                    pcie500_cfgaddr_write, controller);
     if (index < 0)
         goto free;
     cpu_register_physical_memory(registers + PCIE500_CFGADDR, 4, index);
 
     /* CFGDATA */
-    index = cpu_register_io_memory(0, pcie500_cfgdata_read,
+    index = cpu_register_io_memory(pcie500_cfgdata_read,
                                    pcie500_cfgdata_write,
                                    &controller->pci_state);
     if (index < 0)
         goto free;
     cpu_register_physical_memory(registers + PCIE500_CFGDATA, 4, index);
 
-    index = cpu_register_io_memory(0, e500_pci_reg_read,
+    index = cpu_register_io_memory(e500_pci_reg_read,
                                    e500_pci_reg_write, controller);
     if (index < 0)
         goto free;

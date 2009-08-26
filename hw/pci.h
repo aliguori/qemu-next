@@ -92,28 +92,39 @@ typedef struct PCIIORegion {
 #define PCI_ROM_SLOT 6
 #define PCI_NUM_REGIONS 7
 
-#define PCI_DEVICES_MAX 64
-
 /* Declarations from linux/pci_regs.h */
 #define PCI_VENDOR_ID		0x00	/* 16 bits */
 #define PCI_DEVICE_ID		0x02	/* 16 bits */
 #define PCI_COMMAND		0x04	/* 16 bits */
 #define  PCI_COMMAND_IO		0x1	/* Enable response in I/O space */
 #define  PCI_COMMAND_MEMORY	0x2	/* Enable response in Memory space */
+#define  PCI_COMMAND_MASTER	0x4	/* Enable bus master */
 #define PCI_STATUS              0x06    /* 16 bits */
 #define PCI_REVISION_ID         0x08    /* 8 bits  */
+#define PCI_CLASS_PROG		0x09	/* Reg. Level Programming Interface */
 #define PCI_CLASS_DEVICE        0x0a    /* Device class */
+#define PCI_CACHE_LINE_SIZE	0x0c	/* 8 bits */
+#define PCI_LATENCY_TIMER	0x0d	/* 8 bits */
 #define PCI_HEADER_TYPE         0x0e    /* 8 bits */
 #define  PCI_HEADER_TYPE_NORMAL		0
 #define  PCI_HEADER_TYPE_BRIDGE		1
 #define  PCI_HEADER_TYPE_CARDBUS	2
 #define  PCI_HEADER_TYPE_MULTI_FUNCTION 0x80
+#define PCI_BASE_ADDRESS_0	0x10	/* 32 bits */
+#define PCI_PRIMARY_BUS		0x18	/* Primary bus number */
+#define PCI_SECONDARY_BUS	0x19	/* Secondary bus number */
+#define PCI_SEC_STATUS		0x1e	/* Secondary status register, only bit 14 used */
 #define PCI_SUBSYSTEM_VENDOR_ID 0x2c    /* 16 bits */
 #define PCI_SUBSYSTEM_ID        0x2e    /* 16 bits */
+#define PCI_CAPABILITY_LIST	0x34	/* Offset of first capability list entry */
 #define PCI_INTERRUPT_LINE	0x3c	/* 8 bits */
 #define PCI_INTERRUPT_PIN	0x3d	/* 8 bits */
 #define PCI_MIN_GNT		0x3e	/* 8 bits */
 #define PCI_MAX_LAT		0x3f	/* 8 bits */
+
+/* Capability lists */
+#define PCI_CAP_LIST_ID		0	/* Capability ID */
+#define PCI_CAP_LIST_NEXT	1	/* Next capability in the list */
 
 #define PCI_REVISION            0x08    /* obsolete, use PCI_REVISION_ID */
 #define PCI_SUBVENDOR_ID        0x2c    /* obsolete, use PCI_SUBSYSTEM_VENDOR_ID */
@@ -122,7 +133,7 @@ typedef struct PCIIORegion {
 /* Bits in the PCI Status Register (PCI 2.3 spec) */
 #define PCI_STATUS_RESERVED1	0x007
 #define PCI_STATUS_INT_STATUS	0x008
-#define PCI_STATUS_CAPABILITIES	0x010
+#define PCI_STATUS_CAP_LIST	0x010
 #define PCI_STATUS_66MHZ	0x020
 #define PCI_STATUS_RESERVED2	0x040
 #define PCI_STATUS_FAST_BACK	0x080
@@ -139,14 +150,34 @@ typedef struct PCIIORegion {
 
 #define PCI_COMMAND_RESERVED_MASK_HI (PCI_COMMAND_RESERVED >> 8)
 
+/* Size of the standard PCI config header */
+#define PCI_CONFIG_HEADER_SIZE 0x40
+/* Size of the standard PCI config space */
+#define PCI_CONFIG_SPACE_SIZE 0x100
+
+/* Bits in cap_present field. */
+enum {
+    QEMU_PCI_CAP_MSIX = 0x1,
+};
+
 struct PCIDevice {
     DeviceState qdev;
     /* PCI config space */
-    uint8_t config[256];
+    uint8_t config[PCI_CONFIG_SPACE_SIZE];
+
+    /* Used to enable config checks on load. Note that writeable bits are
+     * never checked even if set in cmask. */
+    uint8_t cmask[PCI_CONFIG_SPACE_SIZE];
+
+    /* Used to implement R/W bytes */
+    uint8_t wmask[PCI_CONFIG_SPACE_SIZE];
+
+    /* Used to allocate config space for capabilities. */
+    uint8_t used[PCI_CONFIG_SPACE_SIZE];
 
     /* the following fields are read only */
     PCIBus *bus;
-    int devfn;
+    uint32_t devfn;
     char name[64];
     PCIIORegion io_regions[PCI_NUM_REGIONS];
 
@@ -154,14 +185,30 @@ struct PCIDevice {
     PCIConfigReadFunc *config_read;
     PCIConfigWriteFunc *config_write;
     PCIUnregisterFunc *unregister;
-    /* ??? This is a PC-specific hack, and should be removed.  */
-    int irq_index;
 
     /* IRQ objects for the INTA-INTD pins.  */
     qemu_irq *irq;
 
     /* Current IRQ levels.  Used internally by the generic PCI code.  */
     int irq_state[4];
+
+    /* Capability bits */
+    uint32_t cap_present;
+
+    /* Offset of MSI-X capability in config space */
+    uint8_t msix_cap;
+
+    /* MSI-X entries */
+    int msix_entries_nr;
+
+    /* Space to store MSIX table */
+    uint8_t *msix_table_page;
+    /* MMIO index used to map MSIX table and pending bit entries. */
+    int msix_mmio_index;
+    /* Reference-count for entries actually in use by driver. */
+    unsigned *msix_entry_used;
+    /* Region including the MSI-X table */
+    uint32_t msix_bar_size;
 };
 
 PCIDevice *pci_register_device(PCIBus *bus, const char *name,
@@ -170,9 +217,18 @@ PCIDevice *pci_register_device(PCIBus *bus, const char *name,
                                PCIConfigWriteFunc *config_write);
 int pci_unregister_device(PCIDevice *pci_dev);
 
-void pci_register_io_region(PCIDevice *pci_dev, int region_num,
+void pci_register_bar(PCIDevice *pci_dev, int region_num,
                             uint32_t size, int type,
                             PCIMapIORegionFunc *map_func);
+
+int pci_add_capability(PCIDevice *pci_dev, uint8_t cap_id, uint8_t cap_size);
+
+void pci_del_capability(PCIDevice *pci_dev, uint8_t cap_id, uint8_t cap_size);
+
+void pci_reserve_capability(PCIDevice *pci_dev, uint8_t offset, uint8_t size);
+
+uint8_t pci_find_capability(PCIDevice *pci_dev, uint8_t cap_id);
+
 
 uint32_t pci_default_read_config(PCIDevice *d,
                                  uint32_t address, int len);
@@ -187,8 +243,8 @@ PCIBus *pci_register_bus(DeviceState *parent, const char *name,
                          pci_set_irq_fn set_irq, pci_map_irq_fn map_irq,
                          qemu_irq *pic, int devfn_min, int nirq);
 
-PCIDevice *pci_nic_init(PCIBus *bus, NICInfo *nd, int devfn,
-                  const char *default_model);
+PCIDevice *pci_nic_init(NICInfo *nd, const char *default_model,
+                        const char *default_devaddr);
 void pci_data_write(void *opaque, uint32_t addr, uint32_t val, int len);
 uint32_t pci_data_read(void *opaque, uint32_t addr, int len);
 int pci_bus_num(PCIBus *s);
@@ -196,34 +252,79 @@ void pci_for_each_device(int bus_num, void (*fn)(PCIDevice *d));
 PCIBus *pci_find_bus(int bus_num);
 PCIDevice *pci_find_device(int bus_num, int slot, int function);
 
-int pci_read_devaddr(const char *addr, int *domp, int *busp, unsigned *slotp);
-int pci_assign_devaddr(const char *addr, int *domp, int *busp, unsigned *slotp);
+int pci_read_devaddr(Monitor *mon, const char *addr, int *domp, int *busp,
+                     unsigned *slotp);
 
 void pci_info(Monitor *mon);
 PCIBus *pci_bridge_init(PCIBus *bus, int devfn, uint16_t vid, uint16_t did,
                         pci_map_irq_fn map_irq, const char *name);
 
 static inline void
+pci_set_byte(uint8_t *config, uint8_t val)
+{
+    *config = val;
+}
+
+static inline uint8_t
+pci_get_byte(uint8_t *config)
+{
+    return *config;
+}
+
+static inline void
+pci_set_word(uint8_t *config, uint16_t val)
+{
+    cpu_to_le16wu((uint16_t *)config, val);
+}
+
+static inline uint16_t
+pci_get_word(uint8_t *config)
+{
+    return le16_to_cpupu((uint16_t *)config);
+}
+
+static inline void
+pci_set_long(uint8_t *config, uint32_t val)
+{
+    cpu_to_le32wu((uint32_t *)config, val);
+}
+
+static inline uint32_t
+pci_get_long(uint8_t *config)
+{
+    return le32_to_cpupu((uint32_t *)config);
+}
+
+static inline void
 pci_config_set_vendor_id(uint8_t *pci_config, uint16_t val)
 {
-    cpu_to_le16wu((uint16_t *)&pci_config[PCI_VENDOR_ID], val);
+    pci_set_word(&pci_config[PCI_VENDOR_ID], val);
 }
 
 static inline void
 pci_config_set_device_id(uint8_t *pci_config, uint16_t val)
 {
-    cpu_to_le16wu((uint16_t *)&pci_config[PCI_DEVICE_ID], val);
+    pci_set_word(&pci_config[PCI_DEVICE_ID], val);
 }
 
 static inline void
 pci_config_set_class(uint8_t *pci_config, uint16_t val)
 {
-    cpu_to_le16wu((uint16_t *)&pci_config[PCI_CLASS_DEVICE], val);
+    pci_set_word(&pci_config[PCI_CLASS_DEVICE], val);
 }
 
 typedef void (*pci_qdev_initfn)(PCIDevice *dev);
-void pci_qdev_register(const char *name, int size, pci_qdev_initfn init);
+typedef struct {
+    DeviceInfo qdev;
+    pci_qdev_initfn init;
+    PCIConfigReadFunc *config_read;
+    PCIConfigWriteFunc *config_write;
+} PCIDeviceInfo;
 
+void pci_qdev_register(PCIDeviceInfo *info);
+void pci_qdev_register_many(PCIDeviceInfo *info);
+
+PCIDevice *pci_create(const char *name, const char *devaddr);
 PCIDevice *pci_create_simple(PCIBus *bus, int devfn, const char *name);
 
 /* lsi53c895a.c */

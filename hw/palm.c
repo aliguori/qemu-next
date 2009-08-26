@@ -14,8 +14,7 @@
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License along
- * with this program; if not, write to the Free Software Foundation, Inc.,
- * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+ * with this program; if not, see <http://www.gnu.org/licenses/>.
  */
 #include "hw.h"
 #include "audio/audio.h"
@@ -216,14 +215,14 @@ static void palmte_init(ram_addr_t ram_size,
     cpu_register_physical_memory(OMAP_CS0_BASE, flash_size,
                     (phys_flash = qemu_ram_alloc(flash_size)) | IO_MEM_ROM);
 
-    io = cpu_register_io_memory(0, static_readfn, static_writefn, &cs0val);
+    io = cpu_register_io_memory(static_readfn, static_writefn, &cs0val);
     cpu_register_physical_memory(OMAP_CS0_BASE + flash_size,
                     OMAP_CS0_SIZE - flash_size, io);
-    io = cpu_register_io_memory(0, static_readfn, static_writefn, &cs1val);
+    io = cpu_register_io_memory(static_readfn, static_writefn, &cs1val);
     cpu_register_physical_memory(OMAP_CS1_BASE, OMAP_CS1_SIZE, io);
-    io = cpu_register_io_memory(0, static_readfn, static_writefn, &cs2val);
+    io = cpu_register_io_memory(static_readfn, static_writefn, &cs2val);
     cpu_register_physical_memory(OMAP_CS2_BASE, OMAP_CS2_SIZE, io);
-    io = cpu_register_io_memory(0, static_readfn, static_writefn, &cs3val);
+    io = cpu_register_io_memory(static_readfn, static_writefn, &cs3val);
     cpu_register_physical_memory(OMAP_CS3_BASE, OMAP_CS3_SIZE, io);
 
     palmte_microwire_setup(cpu);

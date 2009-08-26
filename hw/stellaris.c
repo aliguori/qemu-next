@@ -347,7 +347,7 @@ static void stellaris_gptm_init(SysBusDevice *dev)
     sysbus_init_irq(dev, &s->irq);
     qdev_init_gpio_out(&dev->qdev, &s->trigger, 1);
 
-    iomemtype = cpu_register_io_memory(0, gptm_readfn,
+    iomemtype = cpu_register_io_memory(gptm_readfn,
                                        gptm_writefn, s);
     sysbus_init_mmio(dev, 0x1000, iomemtype);
 
@@ -668,7 +668,7 @@ static void stellaris_sys_init(uint32_t base, qemu_irq irq,
     s->user0 = macaddr[0] | (macaddr[1] << 8) | (macaddr[2] << 16);
     s->user1 = macaddr[3] | (macaddr[4] << 8) | (macaddr[5] << 16);
 
-    iomemtype = cpu_register_io_memory(0, ssys_readfn,
+    iomemtype = cpu_register_io_memory(ssys_readfn,
                                        ssys_writefn, s);
     cpu_register_physical_memory(base, 0x00001000, iomemtype);
     ssys_reset(s);
@@ -880,7 +880,7 @@ static void stellaris_i2c_init(SysBusDevice * dev)
     bus = i2c_init_bus(&dev->qdev, "i2c");
     s->bus = bus;
 
-    iomemtype = cpu_register_io_memory(0, stellaris_i2c_readfn,
+    iomemtype = cpu_register_io_memory(stellaris_i2c_readfn,
                                        stellaris_i2c_writefn, s);
     sysbus_init_mmio(dev, 0x1000, iomemtype);
     /* ??? For now we only implement the master interface.  */
@@ -1188,7 +1188,7 @@ static void stellaris_adc_init(SysBusDevice *dev)
         sysbus_init_irq(dev, &s->irq[n]);
     }
 
-    iomemtype = cpu_register_io_memory(0, stellaris_adc_readfn,
+    iomemtype = cpu_register_io_memory(stellaris_adc_readfn,
                                        stellaris_adc_writefn, s);
     sysbus_init_mmio(dev, 0x1000, iomemtype);
     stellaris_adc_reset(s);
@@ -1378,7 +1378,7 @@ static void stellaris_init(const char *kernel_filename, const char *cpu_model,
         qemu_check_nic_model(&nd_table[0], "stellaris");
 
         enet = qdev_create(NULL, "stellaris_enet");
-        qdev_set_netdev(enet, &nd_table[0]);
+        enet->nd = &nd_table[0];
         qdev_init(enet);
         sysbus_mmio_map(sysbus_from_qdev(enet), 0, 0x40048000);
         sysbus_connect_irq(sysbus_from_qdev(enet), 0, pic[42]);
@@ -1444,6 +1444,8 @@ static void stellaris_machine_init(void)
 machine_init(stellaris_machine_init);
 
 static SSISlaveInfo stellaris_ssi_bus_info = {
+    .qdev.name = "evb6965-ssi",
+    .qdev.size = sizeof(stellaris_ssi_bus_state),
     .init = stellaris_ssi_bus_init,
     .transfer = stellaris_ssi_bus_transfer
 };
@@ -1456,8 +1458,7 @@ static void stellaris_register_devices(void)
                         stellaris_gptm_init);
     sysbus_register_dev("stellaris-adc", sizeof(stellaris_adc_state),
                         stellaris_adc_init);
-    ssi_register_slave("evb6965-ssi", sizeof(stellaris_ssi_bus_state),
-                       &stellaris_ssi_bus_info);
+    ssi_register_slave(&stellaris_ssi_bus_info);
 }
 
 device_init(stellaris_register_devices)

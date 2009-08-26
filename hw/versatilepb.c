@@ -140,7 +140,7 @@ static void vpb_sic_init(SysBusDevice *dev)
         sysbus_init_irq(dev, &s->parent[i]);
     }
     s->irq = 31;
-    iomemtype = cpu_register_io_memory(0, vpb_sic_readfn,
+    iomemtype = cpu_register_io_memory(vpb_sic_readfn,
                                        vpb_sic_writefn, s);
     sysbus_init_mmio(dev, 0x1000, iomemtype);
     /* ??? Save/restore.  */
@@ -212,7 +212,7 @@ static void versatile_init(ram_addr_t ram_size,
             smc91c111_init(nd, 0x10010000, sic[25]);
             done_smc = 1;
         } else {
-            pci_nic_init(pci_bus, nd, -1, "rtl8139");
+            pci_nic_init(nd, "rtl8139", NULL);
         }
     }
     if (usb_enabled) {

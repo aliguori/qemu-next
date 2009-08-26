@@ -857,7 +857,7 @@ static void pxa2xx_ssp_init(SysBusDevice *dev)
 
     sysbus_init_irq(dev, &s->irq);
 
-    iomemtype = cpu_register_io_memory(0, pxa2xx_ssp_readfn,
+    iomemtype = cpu_register_io_memory(pxa2xx_ssp_readfn,
                                        pxa2xx_ssp_writefn, s);
     sysbus_init_mmio(dev, 0x1000, iomemtype);
     register_savevm("pxa2xx_ssp", -1, 0,
@@ -1485,6 +1485,8 @@ static void pxa2xx_i2c_slave_init(i2c_slave *i2c)
 }
 
 static I2CSlaveInfo pxa2xx_i2c_slave_info = {
+    .qdev.name = "pxa2xx-i2c-slave",
+    .qdev.size = sizeof(PXA2xxI2CSlaveState),
     .init = pxa2xx_i2c_slave_init,
     .event = pxa2xx_i2c_event,
     .recv = pxa2xx_i2c_rx,
@@ -1507,7 +1509,7 @@ PXA2xxI2CState *pxa2xx_i2c_init(target_phys_addr_t base,
     s->bus = i2c_init_bus(NULL, "i2c");
     s->offset = base - (base & (~region_size) & TARGET_PAGE_MASK);
 
-    iomemtype = cpu_register_io_memory(0, pxa2xx_i2c_readfn,
+    iomemtype = cpu_register_io_memory(pxa2xx_i2c_readfn,
                     pxa2xx_i2c_writefn, s);
     cpu_register_physical_memory(base & ~region_size,
                     region_size + 1, iomemtype);
@@ -1745,7 +1747,7 @@ static PXA2xxI2SState *pxa2xx_i2s_init(target_phys_addr_t base,
 
     pxa2xx_i2s_reset(s);
 
-    iomemtype = cpu_register_io_memory(0, pxa2xx_i2s_readfn,
+    iomemtype = cpu_register_io_memory(pxa2xx_i2s_readfn,
                     pxa2xx_i2s_writefn, s);
     cpu_register_physical_memory(base, 0x100000, iomemtype);
 
@@ -2004,7 +2006,7 @@ static PXA2xxFIrState *pxa2xx_fir_init(target_phys_addr_t base,
 
     pxa2xx_fir_reset(s);
 
-    iomemtype = cpu_register_io_memory(0, pxa2xx_fir_readfn,
+    iomemtype = cpu_register_io_memory(pxa2xx_fir_readfn,
                     pxa2xx_fir_writefn, s);
     cpu_register_physical_memory(base, 0x1000, iomemtype);
 
@@ -2032,7 +2034,7 @@ PXA2xxState *pxa270_init(unsigned int sdram_size, const char *revision)
 {
     PXA2xxState *s;
     int iomemtype, i;
-    int index;
+    DriveInfo *dinfo;
     s = (PXA2xxState *) qemu_mallocz(sizeof(PXA2xxState));
 
     if (revision && strncmp(revision, "pxa27", 5)) {
@@ -2064,12 +2066,12 @@ PXA2xxState *pxa270_init(unsigned int sdram_size, const char *revision)
 
     s->gpio = pxa2xx_gpio_init(0x40e00000, s->env, s->pic, 121);
 
-    index = drive_get_index(IF_SD, 0, 0);
-    if (index == -1) {
+    dinfo = drive_get(IF_SD, 0, 0);
+    if (!dinfo) {
         fprintf(stderr, "qemu: missing SecureDigital device\n");
         exit(1);
     }
-    s->mmc = pxa2xx_mmci_init(0x41100000, drives_table[index].bdrv,
+    s->mmc = pxa2xx_mmci_init(0x41100000, dinfo->bdrv,
                               s->pic[PXA2XX_PIC_MMC], s->dma);
 
     for (i = 0; pxa270_serial[i].io_base; i ++)
@@ -2088,7 +2090,7 @@ PXA2xxState *pxa270_init(unsigned int sdram_size, const char *revision)
     s->cm_base = 0x41300000;
     s->cm_regs[CCCR >> 2] = 0x02000210;	/* 416.0 MHz */
     s->clkcfg = 0x00000009;		/* Turbo mode active */
-    iomemtype = cpu_register_io_memory(0, pxa2xx_cm_readfn,
+    iomemtype = cpu_register_io_memory(pxa2xx_cm_readfn,
                     pxa2xx_cm_writefn, s);
     cpu_register_physical_memory(s->cm_base, 0x1000, iomemtype);
     register_savevm("pxa2xx_cm", 0, 0, pxa2xx_cm_save, pxa2xx_cm_load, s);
@@ -2099,13 +2101,13 @@ PXA2xxState *pxa270_init(unsigned int sdram_size, const char *revision)
     s->mm_regs[MDMRS >> 2] = 0x00020002;
     s->mm_regs[MDREFR >> 2] = 0x03ca4000;
     s->mm_regs[MECR >> 2] = 0x00000001;	/* Two PC Card sockets */
-    iomemtype = cpu_register_io_memory(0, pxa2xx_mm_readfn,
+    iomemtype = cpu_register_io_memory(pxa2xx_mm_readfn,
                     pxa2xx_mm_writefn, s);
     cpu_register_physical_memory(s->mm_base, 0x1000, iomemtype);
     register_savevm("pxa2xx_mm", 0, 0, pxa2xx_mm_save, pxa2xx_mm_load, s);
 
     s->pm_base = 0x40f00000;
-    iomemtype = cpu_register_io_memory(0, pxa2xx_pm_readfn,
+    iomemtype = cpu_register_io_memory(pxa2xx_pm_readfn,
                     pxa2xx_pm_writefn, s);
     cpu_register_physical_memory(s->pm_base, 0x100, iomemtype);
     register_savevm("pxa2xx_pm", 0, 0, pxa2xx_pm_save, pxa2xx_pm_load, s);
@@ -2127,7 +2129,7 @@ PXA2xxState *pxa270_init(unsigned int sdram_size, const char *revision)
     s->pcmcia[1] = pxa2xx_pcmcia_init(0x30000000);
 
     s->rtc_base = 0x40900000;
-    iomemtype = cpu_register_io_memory(0, pxa2xx_rtc_readfn,
+    iomemtype = cpu_register_io_memory(pxa2xx_rtc_readfn,
                     pxa2xx_rtc_writefn, s);
     cpu_register_physical_memory(s->rtc_base, 0x1000, iomemtype);
     pxa2xx_rtc_init(s);
@@ -2151,7 +2153,7 @@ PXA2xxState *pxa255_init(unsigned int sdram_size)
 {
     PXA2xxState *s;
     int iomemtype, i;
-    int index;
+    DriveInfo *dinfo;
 
     s = (PXA2xxState *) qemu_mallocz(sizeof(PXA2xxState));
 
@@ -2176,12 +2178,12 @@ PXA2xxState *pxa255_init(unsigned int sdram_size)
 
     s->gpio = pxa2xx_gpio_init(0x40e00000, s->env, s->pic, 85);
 
-    index = drive_get_index(IF_SD, 0, 0);
-    if (index == -1) {
+    dinfo = drive_get(IF_SD, 0, 0);
+    if (!dinfo) {
         fprintf(stderr, "qemu: missing SecureDigital device\n");
         exit(1);
     }
-    s->mmc = pxa2xx_mmci_init(0x41100000, drives_table[index].bdrv,
+    s->mmc = pxa2xx_mmci_init(0x41100000, dinfo->bdrv,
                               s->pic[PXA2XX_PIC_MMC], s->dma);
 
     for (i = 0; pxa255_serial[i].io_base; i ++)
@@ -2200,7 +2202,7 @@ PXA2xxState *pxa255_init(unsigned int sdram_size)
     s->cm_base = 0x41300000;
     s->cm_regs[CCCR >> 2] = 0x02000210;	/* 416.0 MHz */
     s->clkcfg = 0x00000009;		/* Turbo mode active */
-    iomemtype = cpu_register_io_memory(0, pxa2xx_cm_readfn,
+    iomemtype = cpu_register_io_memory(pxa2xx_cm_readfn,
                     pxa2xx_cm_writefn, s);
     cpu_register_physical_memory(s->cm_base, 0x1000, iomemtype);
     register_savevm("pxa2xx_cm", 0, 0, pxa2xx_cm_save, pxa2xx_cm_load, s);
@@ -2211,13 +2213,13 @@ PXA2xxState *pxa255_init(unsigned int sdram_size)
     s->mm_regs[MDMRS >> 2] = 0x00020002;
     s->mm_regs[MDREFR >> 2] = 0x03ca4000;
     s->mm_regs[MECR >> 2] = 0x00000001;	/* Two PC Card sockets */
-    iomemtype = cpu_register_io_memory(0, pxa2xx_mm_readfn,
+    iomemtype = cpu_register_io_memory(pxa2xx_mm_readfn,
                     pxa2xx_mm_writefn, s);
     cpu_register_physical_memory(s->mm_base, 0x1000, iomemtype);
     register_savevm("pxa2xx_mm", 0, 0, pxa2xx_mm_save, pxa2xx_mm_load, s);
 
     s->pm_base = 0x40f00000;
-    iomemtype = cpu_register_io_memory(0, pxa2xx_pm_readfn,
+    iomemtype = cpu_register_io_memory(pxa2xx_pm_readfn,
                     pxa2xx_pm_writefn, s);
     cpu_register_physical_memory(s->pm_base, 0x100, iomemtype);
     register_savevm("pxa2xx_pm", 0, 0, pxa2xx_pm_save, pxa2xx_pm_load, s);
@@ -2239,7 +2241,7 @@ PXA2xxState *pxa255_init(unsigned int sdram_size)
     s->pcmcia[1] = pxa2xx_pcmcia_init(0x30000000);
 
     s->rtc_base = 0x40900000;
-    iomemtype = cpu_register_io_memory(0, pxa2xx_rtc_readfn,
+    iomemtype = cpu_register_io_memory(pxa2xx_rtc_readfn,
                     pxa2xx_rtc_writefn, s);
     cpu_register_physical_memory(s->rtc_base, 0x1000, iomemtype);
     pxa2xx_rtc_init(s);
@@ -2258,8 +2260,7 @@ PXA2xxState *pxa255_init(unsigned int sdram_size)
 
 static void pxa2xx_register_devices(void)
 {
-    i2c_register_slave("pxa2xx-i2c-slave", sizeof(PXA2xxI2CSlaveState),
-                       &pxa2xx_i2c_slave_info);
+    i2c_register_slave(&pxa2xx_i2c_slave_info);
     sysbus_register_dev("pxa2xx-ssp", sizeof(PXA2xxSSPState), pxa2xx_ssp_init);
 }
 

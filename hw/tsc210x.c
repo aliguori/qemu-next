@@ -16,8 +16,7 @@
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License along
- * with this program; if not, write to the Free Software Foundation, Inc.,
- * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+ * with this program; if not, see <http://www.gnu.org/licenses/>.
  */
 
 #include "hw.h"
@@ -1143,7 +1142,7 @@ uWireSlave *tsc2102_init(qemu_irq pint)
 
     AUD_register_card(s->name, &s->card);
 
-    qemu_register_reset((void *) tsc210x_reset, 0, s);
+    qemu_register_reset((void *) tsc210x_reset, s);
     register_savevm(s->name, -1, 0,
                     tsc210x_save, tsc210x_load, s);
 
@@ -1194,7 +1193,7 @@ uWireSlave *tsc2301_init(qemu_irq penirq, qemu_irq kbirq, qemu_irq dav)
 
     AUD_register_card(s->name, &s->card);
 
-    qemu_register_reset((void *) tsc210x_reset, 0, s);
+    qemu_register_reset((void *) tsc210x_reset, s);
     register_savevm(s->name, -1, 0, tsc210x_save, tsc210x_load, s);
 
     return &s->chip;

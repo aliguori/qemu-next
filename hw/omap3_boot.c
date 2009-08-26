@@ -652,8 +652,7 @@ static int omap3_mmc_raw_boot(BlockDriverState *bs,
 /* returns non-zero if successful, zero if unsuccessful */
 static int omap3_mmc_boot(struct omap_mpu_state_s *s)
 {
-    BlockDriverState *bs;
-    int sdindex = drive_get_index(IF_SD, 0, 0);
+    DriveInfo *di = drive_get(IF_SD, 0, 0);
     uint8_t *sector, *p;
     uint32_t pstart, i;
     int result = 0;
@@ -663,22 +662,22 @@ static int omap3_mmc_boot(struct omap_mpu_state_s *s)
      1. MBR partition table with an active FAT partition
      and boot loader file (MLO) in its root directory, or
      2. CH sector located on first sector, followed by boot loader image */
-    if (sdindex >= 0) {
-        bs = drives_table[sdindex].bdrv;
+    if (di) {
         sector = qemu_mallocz(0x200);
-        if (bdrv_pread(bs, 0, sector, 0x200) == 0x200) {
+        if (bdrv_pread(di->bdrv, 0, sector, 0x200) == 0x200) {
             for (i = 0, p = sector + 0x1be; i < 4; i++, p += 0x10) 
                 if (p[0] == 0x80) break;
             if (sector[0x1fe] == 0x55 && sector[0x1ff] == 0xaa /* signature */
                 && i < 4 /* active partition exists */
                 && (p[4] == 1 || p[4] == 4 || p[4] == 6 || p[4] == 11
                     || p[4] == 12 || p[4] == 14 || p[4] == 15) /* FAT */
-                && bdrv_pread(bs, (pstart = omap3_get_le32(p + 8)) * 0x200,
+                && bdrv_pread(di->bdrv,
+                              (pstart = omap3_get_le32(p + 8)) * 0x200,
                               sector, 0x200) == 0x200
                 && sector[0x1fe] == 0x55 && sector[0x1ff] == 0xaa)
-                result = omap3_mmc_fat_boot(bs, sector, pstart, s);
+                result = omap3_mmc_fat_boot(di->bdrv, sector, pstart, s);
             else
-                result = omap3_mmc_raw_boot(bs, sector, s);
+                result = omap3_mmc_raw_boot(di->bdrv, sector, s);
         }
         free(sector);
     }
@@ -688,8 +687,7 @@ static int omap3_mmc_boot(struct omap_mpu_state_s *s)
 static inline void omap3_nand_sendcmd(struct omap3_nand_boot_desc_s *nd,
                                       uint8_t cmd)
 {
-    uint8_t x[2] = { cmd, 0 };
-    
+    uint8_t x[2] = {cmd, 0};
     cpu_physical_memory_write(0x6e00007c, x, nd->bus16 ? 2 : 1);
 }
 

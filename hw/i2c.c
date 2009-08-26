@@ -17,6 +17,15 @@ struct i2c_bus
     int saved_address;
 };
 
+static struct BusInfo i2c_bus_info = {
+    .name = "I2C",
+    .size = sizeof(i2c_bus),
+    .props = (Property[]) {
+        DEFINE_PROP_UINT32("address", struct i2c_slave, address, 0),
+        DEFINE_PROP_END_OF_LIST(),
+    }
+};
+
 static void i2c_bus_save(QEMUFile *f, void *opaque)
 {
     i2c_bus *bus = (i2c_bus *)opaque;
@@ -44,8 +53,7 @@ i2c_bus *i2c_init_bus(DeviceState *parent, const char *name)
 {
     i2c_bus *bus;
 
-    bus = FROM_QBUS(i2c_bus, qbus_create(BUS_TYPE_I2C, sizeof(i2c_bus),
-                                         parent, name));
+    bus = FROM_QBUS(i2c_bus, qbus_create(&i2c_bus_info, parent, name));
     register_savevm("i2c_bus", -1, 1, i2c_bus_save, i2c_bus_load, bus);
     return bus;
 }
@@ -149,17 +157,16 @@ static void i2c_slave_qdev_init(DeviceState *dev, DeviceInfo *base)
     i2c_slave *s = I2C_SLAVE_FROM_QDEV(dev);
 
     s->info = info;
-    s->address = qdev_get_prop_int(dev, "address", 0);
 
     info->init(s);
 }
 
-void i2c_register_slave(const char *name, int size, I2CSlaveInfo *info)
+void i2c_register_slave(I2CSlaveInfo *info)
 {
-    assert(size >= sizeof(i2c_slave));
+    assert(info->qdev.size >= sizeof(i2c_slave));
     info->qdev.init = i2c_slave_qdev_init;
-    info->qdev.bus_type = BUS_TYPE_I2C;
-    qdev_register(name, size, &info->qdev);
+    info->qdev.bus_info = &i2c_bus_info;
+    qdev_register(&info->qdev);
 }
 
 DeviceState *i2c_create_slave(i2c_bus *bus, const char *name, int addr)
@@ -167,7 +174,7 @@ DeviceState *i2c_create_slave(i2c_bus *bus, const char *name, int addr)
     DeviceState *dev;
 
     dev = qdev_create(&bus->qbus, name);
-    qdev_set_prop_int(dev, "address", addr);
+    qdev_prop_set_uint32(dev, "address", addr);
     qdev_init(dev);
     return dev;
 }

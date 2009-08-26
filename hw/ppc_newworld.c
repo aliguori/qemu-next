@@ -106,7 +106,7 @@ static void ppc_core99_init (ram_addr_t ram_size,
     qemu_irq *dummy_irq;
     int pic_mem_index, dbdma_mem_index, cuda_mem_index, escc_mem_index;
     int ppc_boot_device;
-    int index;
+    DriveInfo *dinfo;
     BlockDriverState *hd[MAX_IDE_BUS * MAX_IDE_DEVS];
     void *fw_cfg;
     void *dbdma;
@@ -128,7 +128,7 @@ static void ppc_core99_init (ram_addr_t ram_size,
 #if 0
         env->osi_call = vga_osi_call;
 #endif
-        qemu_register_reset(&cpu_ppc_reset, 0, env);
+        qemu_register_reset(&cpu_ppc_reset, env);
         envs[i] = env;
     }
 
@@ -179,6 +179,10 @@ static void ppc_core99_init (ram_addr_t ram_size,
         vga_bios_ptr[3] = 'V';
         cpu_to_be32w((uint32_t *)(vga_bios_ptr + 4), vga_bios_size);
         vga_bios_size += 8;
+
+        /* Round to page boundary */
+        vga_bios_size = (vga_bios_size + TARGET_PAGE_SIZE - 1) &
+            TARGET_PAGE_MASK;
     }
 
     if (linux_boot) {
@@ -191,7 +195,7 @@ static void ppc_core99_init (ram_addr_t ram_size,
         kernel_size = load_elf(kernel_filename, kernel_base, NULL, &lowaddr, NULL);
         if (kernel_size > 0 && lowaddr != KERNEL_LOAD_ADDR) {
             kernel_size = load_elf(kernel_filename, (2 * kernel_base) - lowaddr,
-                                   NULL, 0, NULL);
+                                   NULL, NULL, NULL);
         }
         if (kernel_size < 0)
             kernel_size = load_aout(kernel_filename, kernel_base,
@@ -246,7 +250,7 @@ static void ppc_core99_init (ram_addr_t ram_size,
     isa_mmio_init(0xf2000000, 0x00800000);
 
     /* UniN init */
-    unin_memory = cpu_register_io_memory(0, unin_read, unin_write, NULL);
+    unin_memory = cpu_register_io_memory(unin_read, unin_write, NULL);
     cpu_register_physical_memory(0xf8000000, 0x00001000, unin_memory);
 
     openpic_irqs = qemu_mallocz(smp_cpus * sizeof(qemu_irq *));
@@ -304,18 +308,15 @@ static void ppc_core99_init (ram_addr_t ram_size,
                                serial_hds[0], serial_hds[1], ESCC_CLOCK, 4);
 
     for(i = 0; i < nb_nics; i++)
-        pci_nic_init(pci_bus, &nd_table[i], -1, "ne2k_pci");
+        pci_nic_init(&nd_table[i], "ne2k_pci", NULL);
 
     if (drive_get_max_bus(IF_IDE) >= MAX_IDE_BUS) {
         fprintf(stderr, "qemu: too many IDE bus\n");
         exit(1);
     }
     for(i = 0; i < MAX_IDE_BUS * MAX_IDE_DEVS; i++) {
-        index = drive_get_index(IF_IDE, i / MAX_IDE_DEVS, i % MAX_IDE_DEVS);
-        if (index != -1)
-            hd[i] = drives_table[index].bdrv;
-        else
-            hd[i] = NULL;
+        dinfo = drive_get(IF_IDE, i / MAX_IDE_DEVS, i % MAX_IDE_DEVS);
+        hd[i] = dinfo ? dinfo->bdrv : NULL;
     }
     dbdma = DBDMA_init(&dbdma_mem_index);
     pci_cmd646_ide_init(pci_bus, hd, 0);
@@ -359,6 +360,11 @@ static void ppc_core99_init (ram_addr_t ram_size,
     fw_cfg_add_i32(fw_cfg, FW_CFG_INITRD_ADDR, initrd_base);
     fw_cfg_add_i32(fw_cfg, FW_CFG_INITRD_SIZE, initrd_size);
     fw_cfg_add_i16(fw_cfg, FW_CFG_BOOT_DEVICE, ppc_boot_device);
+
+    fw_cfg_add_i16(fw_cfg, FW_CFG_PPC_WIDTH, graphic_width);
+    fw_cfg_add_i16(fw_cfg, FW_CFG_PPC_HEIGHT, graphic_height);
+    fw_cfg_add_i16(fw_cfg, FW_CFG_PPC_DEPTH, graphic_depth);
+
     qemu_register_boot_set(fw_cfg_boot_set, fw_cfg);
 }
 

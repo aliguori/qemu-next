@@ -2029,7 +2029,7 @@ static uint32_t cirrus_vga_mem_readb(void *opaque, target_phys_addr_t addr)
     } else {
 	val = 0xff;
 #ifdef DEBUG_CIRRUS
-	printf("cirrus: mem_readb %06x\n", addr);
+	printf("cirrus: mem_readb " TARGET_FMT_plx "\n", addr);
 #endif
     }
     return val;
@@ -2124,7 +2124,8 @@ static void cirrus_vga_mem_writeb(void *opaque, target_phys_addr_t addr,
 	}
     } else {
 #ifdef DEBUG_CIRRUS
-	printf("cirrus: mem_writeb %06x value %02x\n", addr, mem_value);
+        printf("cirrus: mem_writeb " TARGET_FMT_plx " value %02x\n", addr,
+               mem_value);
 #endif
     }
 }
@@ -3196,7 +3197,7 @@ static void cirrus_init_common(CirrusVGAState * s, int device_id, int is_pci)
     register_ioport_read(0x3ba, 1, 1, vga_ioport_read, s);
     register_ioport_read(0x3da, 1, 1, vga_ioport_read, s);
 
-    s->vga.vga_io_memory = cpu_register_io_memory(0, cirrus_vga_mem_read,
+    s->vga.vga_io_memory = cpu_register_io_memory(cirrus_vga_mem_read,
                                                   cirrus_vga_mem_write, s);
     cpu_register_physical_memory(isa_mem_base + 0x000a0000, 0x20000,
                                  s->vga.vga_io_memory);
@@ -3204,16 +3205,16 @@ static void cirrus_init_common(CirrusVGAState * s, int device_id, int is_pci)
 
     /* I/O handler for LFB */
     s->cirrus_linear_io_addr =
-        cpu_register_io_memory(0, cirrus_linear_read, cirrus_linear_write, s);
+        cpu_register_io_memory(cirrus_linear_read, cirrus_linear_write, s);
 
     /* I/O handler for LFB */
     s->cirrus_linear_bitblt_io_addr =
-        cpu_register_io_memory(0, cirrus_linear_bitblt_read,
+        cpu_register_io_memory(cirrus_linear_bitblt_read,
                                cirrus_linear_bitblt_write, s);
 
     /* I/O handler for memory-mapped I/O */
     s->cirrus_mmio_io_addr =
-        cpu_register_io_memory(0, cirrus_mmio_read, cirrus_mmio_write, s);
+        cpu_register_io_memory(cirrus_mmio_read, cirrus_mmio_write, s);
 
     s->real_vram_size =
         (s->device_id == CIRRUS_ID_CLGD5446) ? 4096 * 1024 : 2048 * 1024;
@@ -3228,7 +3229,7 @@ static void cirrus_init_common(CirrusVGAState * s, int device_id, int is_pci)
     s->vga.cursor_invalidate = cirrus_cursor_invalidate;
     s->vga.cursor_draw_line = cirrus_cursor_draw_line;
 
-    qemu_register_reset(cirrus_reset, 0, s);
+    qemu_register_reset(cirrus_reset, s);
     cirrus_reset(s);
     register_savevm("cirrus_vga", 0, 2, cirrus_vga_save, cirrus_vga_load, s);
 }
@@ -3301,46 +3302,55 @@ static void pci_cirrus_write_config(PCIDevice *d,
     cirrus_update_memory_access(s);
 }
 
+static void pci_cirrus_vga_initfn(PCIDevice *dev)
+{
+     PCICirrusVGAState *d = DO_UPCAST(PCICirrusVGAState, dev, dev);
+     CirrusVGAState *s = &d->cirrus_vga;
+     uint8_t *pci_conf = d->dev.config;
+     int device_id = CIRRUS_ID_CLGD5446;
+
+     /* setup VGA */
+     vga_common_init(&s->vga, VGA_RAM_SIZE);
+     cirrus_init_common(s, device_id, 1);
+     s->vga.pci_dev = (PCIDevice *)d;
+     s->vga.ds = graphic_console_init(s->vga.update, s->vga.invalidate,
+                                      s->vga.screen_dump, s->vga.text_update,
+                                      &s->vga);
+
+     /* setup PCI */
+     pci_config_set_vendor_id(pci_conf, PCI_VENDOR_ID_CIRRUS);
+     pci_config_set_device_id(pci_conf, device_id);
+     pci_conf[0x04] = PCI_COMMAND_IOACCESS | PCI_COMMAND_MEMACCESS;
+     pci_config_set_class(pci_conf, PCI_CLASS_DISPLAY_VGA);
+     pci_conf[PCI_HEADER_TYPE] = PCI_HEADER_TYPE_NORMAL;
+
+     /* setup memory space */
+     /* memory #0 LFB */
+     /* memory #1 memory-mapped I/O */
+     /* XXX: s->vga.vram_size must be a power of two */
+     pci_register_bar((PCIDevice *)d, 0, 0x2000000,
+                      PCI_ADDRESS_SPACE_MEM_PREFETCH, cirrus_pci_lfb_map);
+     if (device_id == CIRRUS_ID_CLGD5446) {
+         pci_register_bar((PCIDevice *)d, 1, CIRRUS_PNPMMIO_SIZE,
+                          PCI_ADDRESS_SPACE_MEM, cirrus_pci_mmio_map);
+     }
+     /* XXX: ROM BIOS */
+}
+
 void pci_cirrus_vga_init(PCIBus *bus)
 {
-    PCICirrusVGAState *d;
-    uint8_t *pci_conf;
-    CirrusVGAState *s;
-    int device_id;
-
-    device_id = CIRRUS_ID_CLGD5446;
-
-    /* setup PCI configuration registers */
-    d = (PCICirrusVGAState *)pci_register_device(bus, "Cirrus VGA",
-                                                 sizeof(PCICirrusVGAState),
-                                                 -1, NULL, pci_cirrus_write_config);
-    pci_conf = d->dev.config;
-    pci_config_set_vendor_id(pci_conf, PCI_VENDOR_ID_CIRRUS);
-    pci_config_set_device_id(pci_conf, device_id);
-    pci_conf[0x04] = PCI_COMMAND_IOACCESS | PCI_COMMAND_MEMACCESS;
-    pci_config_set_class(pci_conf, PCI_CLASS_DISPLAY_VGA);
-    pci_conf[PCI_HEADER_TYPE] = PCI_HEADER_TYPE_NORMAL;
-
-    /* setup VGA */
-    s = &d->cirrus_vga;
-    vga_common_init(&s->vga, VGA_RAM_SIZE);
-    cirrus_init_common(s, device_id, 1);
-
-    s->vga.ds = graphic_console_init(s->vga.update, s->vga.invalidate,
-                                     s->vga.screen_dump, s->vga.text_update,
-                                     &s->vga);
-
-    s->vga.pci_dev = (PCIDevice *)d;
-
-    /* setup memory space */
-    /* memory #0 LFB */
-    /* memory #1 memory-mapped I/O */
-    /* XXX: s->vga.vram_size must be a power of two */
-    pci_register_io_region((PCIDevice *)d, 0, 0x2000000,
-			   PCI_ADDRESS_SPACE_MEM_PREFETCH, cirrus_pci_lfb_map);
-    if (device_id == CIRRUS_ID_CLGD5446) {
-        pci_register_io_region((PCIDevice *)d, 1, CIRRUS_PNPMMIO_SIZE,
-                               PCI_ADDRESS_SPACE_MEM, cirrus_pci_mmio_map);
-    }
-    /* XXX: ROM BIOS */
+    pci_create_simple(bus, -1, "Cirrus VGA");
 }
+
+static PCIDeviceInfo cirrus_vga_info = {
+    .qdev.name    = "Cirrus VGA",
+    .qdev.size    = sizeof(PCICirrusVGAState),
+    .init         = pci_cirrus_vga_initfn,
+    .config_write = pci_cirrus_write_config,
+};
+
+static void cirrus_vga_register(void)
+{
+    pci_qdev_register(&cirrus_vga_info);
+}
+device_init(cirrus_vga_register);

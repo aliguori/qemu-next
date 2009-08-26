@@ -1005,6 +1005,41 @@ static int twl4030_load_state(QEMUFile *f, void *opaque, int version_id)
     return 0;
 }
 
+static I2CSlaveInfo twl4030_info[4] = {
+    {
+        .qdev.name = "twl4030_48",
+        .qdev.size = sizeof(TWL4030NodeState),
+        .init = twl4030_48_init,
+        .event = twl4030_event,
+        .recv = twl4030_rx,
+        .send = twl4030_tx
+    },
+    {
+        .qdev.name = "twl4030_49",
+        .qdev.size = sizeof(TWL4030NodeState),
+        .init = twl4030_49_init,
+        .event = twl4030_event,
+        .recv = twl4030_rx,
+        .send = twl4030_tx
+    },
+    {
+        .qdev.name = "twl4030_4a",
+        .qdev.size = sizeof(TWL4030NodeState),
+        .init = twl4030_4a_init,
+        .event = twl4030_event,
+        .recv = twl4030_rx,
+        .send = twl4030_tx
+    },
+    {
+        .qdev.name = "twl4030_4b",
+        .qdev.size = sizeof(TWL4030NodeState),
+        .init = twl4030_4b_init,
+        .event = twl4030_event,
+        .recv = twl4030_rx,
+        .send = twl4030_tx
+    },
+};
+
 void *twl4030_init(i2c_bus *gp_bus, qemu_irq irq1, qemu_irq irq2,
                    const TWL4030KeyMap *keymap)
 {
@@ -1018,9 +1053,8 @@ void *twl4030_init(i2c_bus *gp_bus, qemu_irq irq1, qemu_irq irq2,
     
     int i;
     for (i = 0; i < 4; i++) {
-        char name[16];
-        sprintf(name, "twl4030_id%d", i + 1);
-        DeviceState *ds = i2c_create_slave(gp_bus, name, 0x48 + i);
+        DeviceState *ds = i2c_create_slave(gp_bus, twl4030_info[i].qdev.name,
+                                           0x48 + i);
         s->i2c[i] = FROM_I2C_SLAVE(TWL4030NodeState, I2C_SLAVE_FROM_QDEV(ds));
         s->i2c[i]->twl4030 = s;
     }
@@ -1031,41 +1065,12 @@ void *twl4030_init(i2c_bus *gp_bus, qemu_irq irq1, qemu_irq irq2,
     return s;
 }
 
-static I2CSlaveInfo twl4030_info[4] = {
-    {
-        .init = twl4030_48_init,
-        .event = twl4030_event,
-        .recv = twl4030_rx,
-        .send = twl4030_tx
-    },
-    {
-        .init = twl4030_49_init,
-        .event = twl4030_event,
-        .recv = twl4030_rx,
-        .send = twl4030_tx
-    },
-    {
-        .init = twl4030_4a_init,
-        .event = twl4030_event,
-        .recv = twl4030_rx,
-        .send = twl4030_tx
-    },
-    {
-        .init = twl4030_4b_init,
-        .event = twl4030_event,
-        .recv = twl4030_rx,
-        .send = twl4030_tx
-    },
-};
-
 static void twl4030_register_devices(void)
 {
     I2CSlaveInfo *p = twl4030_info;
     int i;
     for (i = 0; i < 4; p++, i++) {
-        char name[16];
-        sprintf(name, "twl4030_id%d", i + 1);
-        i2c_register_slave(name, sizeof(TWL4030NodeState), p);
+        i2c_register_slave(p);
     }
 }
 

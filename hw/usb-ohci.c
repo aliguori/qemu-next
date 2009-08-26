@@ -15,8 +15,7 @@
  * Lesser General Public License for more details.
  *
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston MA  02110-1301 USA
+ * License along with this library; if not, see <http://www.gnu.org/licenses/>.
  *
  * TODO:
  *  o Isochronous transfers
@@ -908,7 +907,7 @@ static int ohci_service_td(OHCIState *ohci, struct ohci_ed *ed)
 
     flag_r = (td.flags & OHCI_TD_R) != 0;
 #ifdef DEBUG_PACKET
-    dprintf(" TD @ 0x%.8x %u bytes %s r=%d cbp=0x%.8x be=0x%.8x\n",
+    dprintf(" TD @ 0x%.8x %" PRId64 " bytes %s r=%d cbp=0x%.8x be=0x%.8x\n",
             addr, len, str, flag_r, td.cbp, td.be);
 
     if (len > 0 && dir != OHCI_TD_DIR_IN) {
@@ -1152,9 +1151,9 @@ static void ohci_frame_boundary(void *opaque)
     /* Frame boundary, so do EOF stuf here */
     ohci->frt = ohci->fit;
 
-    /* XXX: endianness */
+    /* Increment frame number and take care of endianness. */
     ohci->frame_number = (ohci->frame_number + 1) & 0xffff;
-    hcca.frame = cpu_to_le32(ohci->frame_number);
+    hcca.frame = cpu_to_le16(ohci->frame_number);
 
     if (ohci->done_count == 0 && !(ohci->intr_status & OHCI_INTR_WD)) {
         if (!ohci->done)
@@ -1680,11 +1679,11 @@ static void usb_ohci_init(OHCIState *ohci, int num_ports, int devfn,
             usb_bit_time = 1;
         }
 #endif
-        dprintf("usb-ohci: usb_bit_time=%lli usb_frame_time=%lli\n",
+        dprintf("usb-ohci: usb_bit_time=%" PRId64 " usb_frame_time=%" PRId64 "\n",
                 usb_frame_time, usb_bit_time);
     }
 
-    ohci->mem = cpu_register_io_memory(0, ohci_readfn, ohci_writefn, ohci);
+    ohci->mem = cpu_register_io_memory(ohci_readfn, ohci_writefn, ohci);
     ohci->localmem_base = localmem_base;
     ohci->name = name;
 
@@ -1697,7 +1696,7 @@ static void usb_ohci_init(OHCIState *ohci, int num_ports, int devfn,
     }
 
     ohci->async_td = 0;
-    qemu_register_reset(ohci_reset, 0, ohci);
+    qemu_register_reset(ohci_reset, ohci);
     ohci_reset(ohci);
 }
 
@@ -1734,7 +1733,7 @@ void usb_ohci_init_pci(struct PCIBus *bus, int num_ports, int devfn)
     usb_ohci_init(&ohci->state, num_ports, devfn, ohci->pci_dev.irq[0],
                   OHCI_TYPE_PCI, ohci->pci_dev.name, 0);
 
-    pci_register_io_region((struct PCIDevice *)ohci, 0, 256,
+    pci_register_bar((struct PCIDevice *)ohci, 0, 256,
                            PCI_ADDRESS_SPACE_MEM, ohci_mapfunc);
 }
 

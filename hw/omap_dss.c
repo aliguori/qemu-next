@@ -15,8 +15,7 @@
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License along
- * with this program; if not, write to the Free Software Foundation, Inc.,
- * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+ * with this program; if not, see <http://www.gnu.org/licenses/>.
  */
 #include "hw.h"
 #include "console.h"
@@ -2322,13 +2321,13 @@ static struct omap_dss_s *omap_dss_init_internal(struct omap_target_agent_s *ta,
     s->irq = irq;
     s->drq = drq;
 
-    iomemtype[0] = l4_register_io_memory(0, omap_diss1_readfn,
+    iomemtype[0] = l4_register_io_memory(omap_diss1_readfn,
                                          omap_diss1_writefn, s);
-    iomemtype[1] = l4_register_io_memory(0, omap_disc1_readfn,
+    iomemtype[1] = l4_register_io_memory(omap_disc1_readfn,
                                          omap_disc1_writefn, s);
-    iomemtype[2] = l4_register_io_memory(0, omap_rfbi1_readfn,
+    iomemtype[2] = l4_register_io_memory(omap_rfbi1_readfn,
                                          omap_rfbi1_writefn, s);
-    iomemtype[3] = l4_register_io_memory(0, omap_venc1_readfn,
+    iomemtype[3] = l4_register_io_memory(omap_venc1_readfn,
                                          omap_venc1_writefn, s);
 
     omap_l4_attach(ta, region_base + 0, iomemtype[0]); /* DISS */
@@ -2351,7 +2350,7 @@ struct omap_dss_s *omap_dss_init(struct omap_target_agent_s *ta,
     struct omap_dss_s *s = omap_dss_init_internal(ta, 0, irq, drq);
     
     s->dispc.rev = 0x20;
-    iomemtype = cpu_register_io_memory(0, omap_im3_readfn,
+    iomemtype = cpu_register_io_memory(omap_im3_readfn,
                                        omap_im3_writefn, s);
     cpu_register_physical_memory(0x68000800, 0x1000, iomemtype);
 
@@ -2372,7 +2371,7 @@ struct omap_dss_s *omap3_dss_init(struct omap_target_agent_s *ta,
     s->dsi.drq[1] = dma1;
     s->dsi.drq[2] = dma2;
     s->dsi.drq[3] = dma3;
-    iomemtype = l4_register_io_memory(0, omap_dsi_readfn,
+    iomemtype = l4_register_io_memory(omap_dsi_readfn,
                                       omap_dsi_writefn, s);
     omap_l4_attach(ta, 0, iomemtype);
     

@@ -15,8 +15,7 @@
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License along
- * with this program; if not, write to the Free Software Foundation, Inc.,
- * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+ * with this program; if not, see <http://www.gnu.org/licenses/>.
  */
 #include "hw.h"
 #include "i2c.h"
@@ -657,7 +656,7 @@ struct omap_i2c_s *omap_i2c_init(target_phys_addr_t base,
     struct omap_i2c_s *s = omap_i2c_common_init(0x11, 4, irq, dma);
 
     cpu_register_physical_memory(base, 0x800,
-                                 cpu_register_io_memory(0, omap_i2c_readfn,
+                                 cpu_register_io_memory(omap_i2c_readfn,
                                                         omap_i2c_writefn, s));
     return s;
 }
@@ -667,7 +666,7 @@ struct omap_i2c_s *omap2_i2c_init(struct omap_target_agent_s *ta,
 {
     struct omap_i2c_s *s = omap_i2c_common_init(0x34, 4, irq, dma);
 
-    omap_l4_attach(ta, 0, l4_register_io_memory(0, omap_i2c_readfn,
+    omap_l4_attach(ta, 0, l4_register_io_memory(omap_i2c_readfn,
                                                 omap_i2c_writefn, s));
     return s;
 }
@@ -686,7 +685,7 @@ struct omap_i2c_s *omap3_i2c_init(struct omap_target_agent_s *ta,
     }
     s = omap_i2c_common_init(OMAP3_INTR_REV, fifosize, irq, dma);
     
-    omap_l4_attach(ta, 0, l4_register_io_memory(0, omap_i2c_readfn,
+    omap_l4_attach(ta, 0, l4_register_io_memory(omap_i2c_readfn,
                                                 omap_i2c_writefn, s));
     register_savevm("omap3_i2c", (ta->base >> 12) & 0xff, 0,
                     omap_i2c_save_state, omap_i2c_load_state, s);

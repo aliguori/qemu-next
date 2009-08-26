@@ -14,18 +14,25 @@
  * Lesser General Public License for more details.
  *
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston MA  02110-1301 USA
+ * License along with this library; if not, see <http://www.gnu.org/licenses/>.
  */
 
 #include "sysbus.h"
 #include "sysemu.h"
 #include "monitor.h"
 
+static void sysbus_dev_print(Monitor *mon, DeviceState *dev, int indent);
+
+struct BusInfo system_bus_info = {
+    .name       = "System",
+    .size       = sizeof(BusState),
+    .print_dev  = sysbus_dev_print,
+};
+
 void sysbus_connect_irq(SysBusDevice *dev, int n, qemu_irq irq)
 {
     assert(n >= 0 && n < dev->num_irq);
-    dev->irqs[n] = 0;
+    dev->irqs[n] = NULL;
     if (dev->irqp[n]) {
         *dev->irqp[n] = irq;
     }
@@ -105,14 +112,13 @@ static void sysbus_device_init(DeviceState *dev, DeviceInfo *base)
     info->init(sysbus_from_qdev(dev));
 }
 
-void sysbus_register_withprop(const char *name, size_t size,
-                              SysBusDeviceInfo *info)
+void sysbus_register_withprop(SysBusDeviceInfo *info)
 {
     info->qdev.init = sysbus_device_init;
-    info->qdev.bus_type = BUS_TYPE_SYSTEM;
+    info->qdev.bus_info = &system_bus_info;
 
-    assert(size >= sizeof(SysBusDevice));
-    qdev_register(name, size, &info->qdev);
+    assert(info->qdev.size >= sizeof(SysBusDevice));
+    qdev_register(&info->qdev);
 }
 
 void sysbus_register_dev(const char *name, size_t size, sysbus_initfn init)
@@ -120,8 +126,10 @@ void sysbus_register_dev(const char *name, size_t size, sysbus_initfn init)
     SysBusDeviceInfo *info;
 
     info = qemu_mallocz(sizeof(*info));
+    info->qdev.name = qemu_strdup(name);
+    info->qdev.size = size;
     info->init = init;
-    sysbus_register_withprop(name, size, info);
+    sysbus_register_withprop(info);
 }
 
 DeviceState *sysbus_create_varargs(const char *name,
@@ -152,7 +160,7 @@ DeviceState *sysbus_create_varargs(const char *name,
     return dev;
 }
 
-void sysbus_dev_print(Monitor *mon, DeviceState *dev, int indent)
+static void sysbus_dev_print(Monitor *mon, DeviceState *dev, int indent)
 {
     SysBusDevice *s = sysbus_from_qdev(dev);
     int i;

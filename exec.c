@@ -14,8 +14,7 @@
  * Lesser General Public License for more details.
  *
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston MA  02110-1301 USA
+ * License along with this library; if not, see <http://www.gnu.org/licenses/>.
  */
 #include "config.h"
 #ifdef _WIN32
@@ -94,6 +93,10 @@ spinlock_t tb_lock = SPIN_LOCK_UNLOCKED;
 #define code_gen_section                                \
     __attribute__((__section__(".gen_code")))           \
     __attribute__((aligned (32)))
+#elif defined(_WIN32)
+/* Maximum alignment for Win32 is 16. */
+#define code_gen_section                                \
+    __attribute__((aligned (16)))
 #else
 #define code_gen_section                                \
     __attribute__((aligned (32)))
@@ -317,7 +320,7 @@ static inline PageDesc *page_find_alloc(target_ulong index)
 #if defined(CONFIG_USER_ONLY)
         size_t len = sizeof(PageDesc) * L2_SIZE;
         /* Don't use qemu_malloc because it may recurse.  */
-        p = mmap(0, len, PROT_READ | PROT_WRITE,
+        p = mmap(NULL, len, PROT_READ | PROT_WRITE,
                  MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
         *lp = p;
         if (h2g_valid(p)) {
@@ -342,8 +345,9 @@ static inline PageDesc *page_find(target_ulong index)
         return NULL;
 
     p = *lp;
-    if (!p)
-        return 0;
+    if (!p) {
+        return NULL;
+    }
     return p + (index & (L2_SIZE - 1));
 }
 
@@ -545,6 +549,19 @@ static int cpu_common_load(QEMUFile *f, void *opaque, int version_id)
 }
 #endif
 
+CPUState *qemu_get_cpu(int cpu)
+{
+    CPUState *env = first_cpu;
+
+    while (env) {
+        if (env->cpu_index == cpu)
+            break;
+        env = env->next_cpu;
+    }
+
+    return env;
+}
+
 void cpu_exec_init(CPUState *env)
 {
     CPUState **penv;
@@ -643,7 +660,8 @@ static void tb_invalidate_check(target_ulong address)
         for(tb = tb_phys_hash[i]; tb != NULL; tb = tb->phys_hash_next) {
             if (!(address + TARGET_PAGE_SIZE <= tb->pc ||
                   address >= tb->pc + tb->size)) {
-                printf("ERROR invalidate: address=%08lx PC=%08lx size=%04x\n",
+                printf("ERROR invalidate: address=" TARGET_FMT_lx
+                       " PC=%08lx size=%04x\n",
                        address, (long)tb->pc, tb->size);
             }
         }
@@ -665,26 +683,6 @@ static void tb_page_check(void)
                        (long)tb->pc, tb->size, flags1, flags2);
             }
         }
-    }
-}
-
-static void tb_jmp_check(TranslationBlock *tb)
-{
-    TranslationBlock *tb1;
-    unsigned int n1;
-
-    /* suppress any remaining jumps to this TB */
-    tb1 = tb->jmp_first;
-    for(;;) {
-        n1 = (long)tb1 & 3;
-        tb1 = (TranslationBlock *)((long)tb1 & ~3);
-        if (n1 == 2)
-            break;
-        tb1 = tb1->jmp_next[n1];
-    }
-    /* check end of list */
-    if (tb1 != tb) {
-        printf("ERROR: jmp_list from 0x%08lx\n", (long)tb);
     }
 }
 
@@ -1498,7 +1496,8 @@ void cpu_set_log(int log_flags)
             static char logfile_buf[4096];
             setvbuf(logfile, logfile_buf, _IOLBF, sizeof(logfile_buf));
         }
-#else
+#elif !defined(_WIN32)
+        /* Win32 doesn't support line-buffering and requires size >= 2 */
         setvbuf(logfile, NULL, _IOLBF, 0);
 #endif
         log_append = 1;
@@ -1521,7 +1520,7 @@ void cpu_set_log_filename(const char *filename)
 
 static void cpu_unlink_tb(CPUState *env)
 {
-#if defined(USE_NPTL)
+#if defined(CONFIG_USE_NPTL)
     /* FIXME: TB unchaining isn't SMP safe.  For now just ignore the
        problem and hope the cpu will stop of its own accord.  For userspace
        emulation this often isn't actually as bad as it sounds.  Often
@@ -1739,6 +1738,13 @@ static inline void tlb_flush_jmp_cache(CPUState *env, target_ulong addr)
 	    TB_JMP_PAGE_SIZE * sizeof(TranslationBlock *));
 }
 
+static CPUTLBEntry s_cputlb_empty_entry = {
+    .addr_read  = -1,
+    .addr_write = -1,
+    .addr_code  = -1,
+    .addend     = -1,
+};
+
 /* NOTE: if flush_global is true, also flush global entries (not
    implemented yet) */
 void tlb_flush(CPUState *env, int flush_global)
@@ -1753,28 +1759,10 @@ void tlb_flush(CPUState *env, int flush_global)
     env->current_tb = NULL;
 
     for(i = 0; i < CPU_TLB_SIZE; i++) {
-        env->tlb_table[0][i].addr_read = -1;
-        env->tlb_table[0][i].addr_write = -1;
-        env->tlb_table[0][i].addr_code = -1;
-        env->tlb_table[1][i].addr_read = -1;
-        env->tlb_table[1][i].addr_write = -1;
-        env->tlb_table[1][i].addr_code = -1;
-#if (NB_MMU_MODES >= 3)
-        env->tlb_table[2][i].addr_read = -1;
-        env->tlb_table[2][i].addr_write = -1;
-        env->tlb_table[2][i].addr_code = -1;
-#endif
-#if (NB_MMU_MODES >= 4)
-        env->tlb_table[3][i].addr_read = -1;
-        env->tlb_table[3][i].addr_write = -1;
-        env->tlb_table[3][i].addr_code = -1;
-#endif
-#if (NB_MMU_MODES >= 5)
-        env->tlb_table[4][i].addr_read = -1;
-        env->tlb_table[4][i].addr_write = -1;
-        env->tlb_table[4][i].addr_code = -1;
-#endif
-
+        int mmu_idx;
+        for (mmu_idx = 0; mmu_idx < NB_MMU_MODES; mmu_idx++) {
+            env->tlb_table[mmu_idx][i] = s_cputlb_empty_entry;
+        }
     }
 
     memset (env->tb_jmp_cache, 0, TB_JMP_CACHE_SIZE * sizeof (void *));
@@ -1795,15 +1783,14 @@ static inline void tlb_flush_entry(CPUTLBEntry *tlb_entry, target_ulong addr)
                  (TARGET_PAGE_MASK | TLB_INVALID_MASK)) ||
         addr == (tlb_entry->addr_code &
                  (TARGET_PAGE_MASK | TLB_INVALID_MASK))) {
-        tlb_entry->addr_read = -1;
-        tlb_entry->addr_write = -1;
-        tlb_entry->addr_code = -1;
+        *tlb_entry = s_cputlb_empty_entry;
     }
 }
 
 void tlb_flush_page(CPUState *env, target_ulong addr)
 {
     int i;
+    int mmu_idx;
 
 #if defined(DEBUG_TLB)
     printf("tlb_flush_page: " TARGET_FMT_lx "\n", addr);
@@ -1814,17 +1801,8 @@ void tlb_flush_page(CPUState *env, target_ulong addr)
 
     addr &= TARGET_PAGE_MASK;
     i = (addr >> TARGET_PAGE_BITS) & (CPU_TLB_SIZE - 1);
-    tlb_flush_entry(&env->tlb_table[0][i], addr);
-    tlb_flush_entry(&env->tlb_table[1][i], addr);
-#if (NB_MMU_MODES >= 3)
-    tlb_flush_entry(&env->tlb_table[2][i], addr);
-#endif
-#if (NB_MMU_MODES >= 4)
-    tlb_flush_entry(&env->tlb_table[3][i], addr);
-#endif
-#if (NB_MMU_MODES >= 5)
-    tlb_flush_entry(&env->tlb_table[4][i], addr);
-#endif
+    for (mmu_idx = 0; mmu_idx < NB_MMU_MODES; mmu_idx++)
+        tlb_flush_entry(&env->tlb_table[mmu_idx][i], addr);
 
     tlb_flush_jmp_cache(env, addr);
 
@@ -1908,22 +1886,12 @@ void cpu_physical_memory_reset_dirty(ram_addr_t start, ram_addr_t end,
     }
 
     for(env = first_cpu; env != NULL; env = env->next_cpu) {
-        for(i = 0; i < CPU_TLB_SIZE; i++)
-            tlb_reset_dirty_range(&env->tlb_table[0][i], start1, length);
-        for(i = 0; i < CPU_TLB_SIZE; i++)
-            tlb_reset_dirty_range(&env->tlb_table[1][i], start1, length);
-#if (NB_MMU_MODES >= 3)
-        for(i = 0; i < CPU_TLB_SIZE; i++)
-            tlb_reset_dirty_range(&env->tlb_table[2][i], start1, length);
-#endif
-#if (NB_MMU_MODES >= 4)
-        for(i = 0; i < CPU_TLB_SIZE; i++)
-            tlb_reset_dirty_range(&env->tlb_table[3][i], start1, length);
-#endif
-#if (NB_MMU_MODES >= 5)
-        for(i = 0; i < CPU_TLB_SIZE; i++)
-            tlb_reset_dirty_range(&env->tlb_table[4][i], start1, length);
-#endif
+        int mmu_idx;
+        for (mmu_idx = 0; mmu_idx < NB_MMU_MODES; mmu_idx++) {
+            for(i = 0; i < CPU_TLB_SIZE; i++)
+                tlb_reset_dirty_range(&env->tlb_table[mmu_idx][i],
+                                      start1, length);
+        }
     }
 }
 
@@ -1970,22 +1938,11 @@ static inline void tlb_update_dirty(CPUTLBEntry *tlb_entry)
 void cpu_tlb_update_dirty(CPUState *env)
 {
     int i;
-    for(i = 0; i < CPU_TLB_SIZE; i++)
-        tlb_update_dirty(&env->tlb_table[0][i]);
-    for(i = 0; i < CPU_TLB_SIZE; i++)
-        tlb_update_dirty(&env->tlb_table[1][i]);
-#if (NB_MMU_MODES >= 3)
-    for(i = 0; i < CPU_TLB_SIZE; i++)
-        tlb_update_dirty(&env->tlb_table[2][i]);
-#endif
-#if (NB_MMU_MODES >= 4)
-    for(i = 0; i < CPU_TLB_SIZE; i++)
-        tlb_update_dirty(&env->tlb_table[3][i]);
-#endif
-#if (NB_MMU_MODES >= 5)
-    for(i = 0; i < CPU_TLB_SIZE; i++)
-        tlb_update_dirty(&env->tlb_table[4][i]);
-#endif
+    int mmu_idx;
+    for (mmu_idx = 0; mmu_idx < NB_MMU_MODES; mmu_idx++) {
+        for(i = 0; i < CPU_TLB_SIZE; i++)
+            tlb_update_dirty(&env->tlb_table[mmu_idx][i]);
+    }
 }
 
 static inline void tlb_set_dirty1(CPUTLBEntry *tlb_entry, target_ulong vaddr)
@@ -1999,20 +1956,12 @@ static inline void tlb_set_dirty1(CPUTLBEntry *tlb_entry, target_ulong vaddr)
 static inline void tlb_set_dirty(CPUState *env, target_ulong vaddr)
 {
     int i;
+    int mmu_idx;
 
     vaddr &= TARGET_PAGE_MASK;
     i = (vaddr >> TARGET_PAGE_BITS) & (CPU_TLB_SIZE - 1);
-    tlb_set_dirty1(&env->tlb_table[0][i], vaddr);
-    tlb_set_dirty1(&env->tlb_table[1][i], vaddr);
-#if (NB_MMU_MODES >= 3)
-    tlb_set_dirty1(&env->tlb_table[2][i], vaddr);
-#endif
-#if (NB_MMU_MODES >= 4)
-    tlb_set_dirty1(&env->tlb_table[3][i], vaddr);
-#endif
-#if (NB_MMU_MODES >= 5)
-    tlb_set_dirty1(&env->tlb_table[4][i], vaddr);
-#endif
+    for (mmu_idx = 0; mmu_idx < NB_MMU_MODES; mmu_idx++)
+        tlb_set_dirty1(&env->tlb_table[mmu_idx][i], vaddr);
 }
 
 /* add a new TLB entry. At most one entry for a given virtual address
@@ -2977,7 +2926,7 @@ static int subpage_register (subpage_t *mmio, uint32_t start, uint32_t end,
     idx = SUBPAGE_IDX(start);
     eidx = SUBPAGE_IDX(end);
 #if defined(DEBUG_SUBPAGE)
-    printf("%s: %p start %08x end %08x idx %08x eidx %08x mem %d\n", __func__,
+    printf("%s: %p start %08x end %08x idx %08x eidx %08x mem %ld\n", __func__,
            mmio, start, end, idx, eidx, memory);
 #endif
     memory >>= IO_MEM_SHIFT;
@@ -3008,7 +2957,7 @@ static void *subpage_init (target_phys_addr_t base, ram_addr_t *phys,
     mmio = qemu_mallocz(sizeof(subpage_t));
 
     mmio->base = base;
-    subpage_memory = cpu_register_io_memory(0, subpage_read, subpage_write, mmio);
+    subpage_memory = cpu_register_io_memory(subpage_read, subpage_write, mmio);
 #if defined(DEBUG_SUBPAGE)
     printf("%s: %p base " TARGET_FMT_plx " len %08x %d\n", __func__,
            mmio, base, TARGET_PAGE_SIZE, subpage_memory);
@@ -3033,27 +2982,6 @@ static int get_free_io_mem_idx(void)
     return -1;
 }
 
-static void io_mem_init(void)
-{
-    int i;
-
-    cpu_register_io_memory(IO_MEM_ROM >> IO_MEM_SHIFT, error_mem_read, unassigned_mem_write, NULL);
-    cpu_register_io_memory(IO_MEM_UNASSIGNED >> IO_MEM_SHIFT, unassigned_mem_read, unassigned_mem_write, NULL);
-    cpu_register_io_memory(IO_MEM_NOTDIRTY >> IO_MEM_SHIFT, error_mem_read, notdirty_mem_write, NULL);
-    for (i=0; i<5; i++)
-        io_mem_used[i] = 1;
-
-    io_mem_watch = cpu_register_io_memory(0, watch_mem_read,
-                                          watch_mem_write, NULL);
-#ifdef CONFIG_KQEMU
-    if (kqemu_phys_ram_base) {
-        /* alloc dirty bits array */
-        phys_ram_dirty = qemu_vmalloc(kqemu_phys_ram_size >> TARGET_PAGE_BITS);
-        memset(phys_ram_dirty, 0xff, kqemu_phys_ram_size >> TARGET_PAGE_BITS);
-    }
-#endif
-}
-
 /* mem_read and mem_write are arrays of functions containing the
    function to access byte (index 0), word (index 1) and dword (index
    2). Functions can be omitted with a NULL function pointer.
@@ -3061,10 +2989,10 @@ static void io_mem_init(void)
    modified. If it is zero, a new io zone is allocated. The return
    value can be used with cpu_register_physical_memory(). (-1) is
    returned if error. */
-int cpu_register_io_memory(int io_index,
-                           CPUReadMemoryFunc **mem_read,
-                           CPUWriteMemoryFunc **mem_write,
-                           void *opaque)
+static int cpu_register_io_memory_fixed(int io_index,
+                                        CPUReadMemoryFunc **mem_read,
+                                        CPUWriteMemoryFunc **mem_write,
+                                        void *opaque)
 {
     int i, subwidth = 0;
 
@@ -3073,6 +3001,7 @@ int cpu_register_io_memory(int io_index,
         if (io_index == -1)
             return io_index;
     } else {
+        io_index >>= IO_MEM_SHIFT;
         if (io_index >= IO_MEM_NB_ENTRIES)
             return -1;
     }
@@ -3087,6 +3016,13 @@ int cpu_register_io_memory(int io_index,
     return (io_index << IO_MEM_SHIFT) | subwidth;
 }
 
+int cpu_register_io_memory(CPUReadMemoryFunc **mem_read,
+                           CPUWriteMemoryFunc **mem_write,
+                           void *opaque)
+{
+    return cpu_register_io_memory_fixed(0, mem_read, mem_write, opaque);
+}
+
 void cpu_unregister_io_memory(int io_table_address)
 {
     int i;
@@ -3098,6 +3034,27 @@ void cpu_unregister_io_memory(int io_table_address)
     }
     io_mem_opaque[io_index] = NULL;
     io_mem_used[io_index] = 0;
+}
+
+static void io_mem_init(void)
+{
+    int i;
+
+    cpu_register_io_memory_fixed(IO_MEM_ROM, error_mem_read, unassigned_mem_write, NULL);
+    cpu_register_io_memory_fixed(IO_MEM_UNASSIGNED, unassigned_mem_read, unassigned_mem_write, NULL);
+    cpu_register_io_memory_fixed(IO_MEM_NOTDIRTY, error_mem_read, notdirty_mem_write, NULL);
+    for (i=0; i<5; i++)
+        io_mem_used[i] = 1;
+
+    io_mem_watch = cpu_register_io_memory(watch_mem_read,
+                                          watch_mem_write, NULL);
+#ifdef CONFIG_KQEMU
+    if (kqemu_phys_ram_base) {
+        /* alloc dirty bits array */
+        phys_ram_dirty = qemu_vmalloc(kqemu_phys_ram_size >> TARGET_PAGE_BITS);
+        memset(phys_ram_dirty, 0xff, kqemu_phys_ram_size >> TARGET_PAGE_BITS);
+    }
+#endif
 }
 
 #endif /* !defined(CONFIG_USER_ONLY) */
@@ -3313,6 +3270,7 @@ void cpu_unregister_map_client(void *_client)
     MapClient *client = (MapClient *)_client;
 
     LIST_REMOVE(client, link);
+    qemu_free(client);
 }
 
 static void cpu_notify_map_clients(void)
@@ -3322,7 +3280,7 @@ static void cpu_notify_map_clients(void)
     while (!LIST_EMPTY(&map_client_list)) {
         client = LIST_FIRST(&map_client_list);
         client->callback(client->opaque);
-        LIST_REMOVE(client, link);
+        cpu_unregister_map_client(client);
     }
 }
 

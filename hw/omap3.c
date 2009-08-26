@@ -830,7 +830,7 @@ static struct omap3_l3_s *omap3_l3_init(target_phys_addr_t base)
     }
     
     cpu_register_physical_memory(base, 0x01000000,
-                                 cpu_register_io_memory(0, omap3_l3_readfn,
+                                 cpu_register_io_memory(omap3_l3_readfn,
                                                         omap3_l3_writefn,
                                                         bus));
     return bus;
@@ -2283,7 +2283,7 @@ static struct omap3_prm_s *omap3_prm_init(struct omap_target_agent_s *ta,
     s->omap = mpu;
     omap3_prm_reset(s);
 
-    iomemtype = l4_register_io_memory(0, omap3_prm_readfn,
+    iomemtype = l4_register_io_memory(omap3_prm_readfn,
                                       omap3_prm_writefn, s);
     omap_l4_attach(ta, 0, iomemtype);
     omap_l4_attach(ta, 1, iomemtype);
@@ -3555,7 +3555,7 @@ static struct omap3_cm_s *omap3_cm_init(struct omap_target_agent_s *ta,
     s->mpu = mpu;
     omap3_cm_reset(s);
 
-    iomemtype = l4_register_io_memory(0, omap3_cm_readfn, omap3_cm_writefn, s);
+    iomemtype = l4_register_io_memory(omap3_cm_readfn, omap3_cm_writefn, s);
     omap_l4_attach(ta, 0, iomemtype);
     omap_l4_attach(ta, 1, iomemtype);
 
@@ -3904,7 +3904,7 @@ static struct omap3_wdt_s *omap3_mpu_wdt_init(struct omap_target_agent_s *ta,
     if (irq != NULL)
         omap3_wdt_clk_setup(s);
 
-    iomemtype = l4_register_io_memory(0, omap3_mpu_wdt_readfn,
+    iomemtype = l4_register_io_memory(omap3_mpu_wdt_readfn,
                                       omap3_mpu_wdt_writefn, s);
     omap_l4_attach(ta, 0, iomemtype);
 
@@ -4264,7 +4264,7 @@ static struct omap3_scm_s *omap3_scm_init(struct omap_target_agent_s *ta,
 
     omap3_scm_reset(s);
 
-    iomemtype = l4_register_io_memory(0, omap3_scm_readfn,
+    iomemtype = l4_register_io_memory(omap3_scm_readfn,
                                       omap3_scm_writefn, s);
     omap_l4_attach(ta, 0, iomemtype);
     
@@ -4667,7 +4667,7 @@ static struct omap3_sms_s *omap3_sms_init(struct omap_mpu_state_s *mpu)
 
     omap3_sms_reset(s);
     
-    iomemtype = cpu_register_io_memory(0, omap3_sms_readfn,
+    iomemtype = cpu_register_io_memory(omap3_sms_readfn,
                                        omap3_sms_writefn, s);
     cpu_register_physical_memory(0x6c000000, 0x10000, iomemtype);
 

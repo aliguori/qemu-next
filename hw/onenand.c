@@ -15,8 +15,7 @@
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License along
- * with this program; if not, write to the Free Software Foundation, Inc.,
- * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+ * with this program; if not, see <http://www.gnu.org/licenses/>.
  */
 
 #include "qemu-common.h"
@@ -779,7 +778,7 @@ static CPUWriteMemoryFunc *onenand_writefn[] = {
 };
 
 void *onenand_init(uint16_t man_id, uint16_t dev_id, uint16_t ver_id,
-                   int regshift, qemu_irq irq, BlockDriverState *bs)
+                   int regshift, qemu_irq irq, DriveInfo *dinfo)
 {
     OneNANDState *s = (OneNANDState *) qemu_mallocz(sizeof(*s));
     uint32_t size = 1 << (24 + ((dev_id >> 4) & 7));
@@ -795,13 +794,13 @@ void *onenand_init(uint16_t man_id, uint16_t dev_id, uint16_t ver_id,
     s->secs = size >> 9;
     s->blockwp = qemu_malloc(s->blocks);
     s->density_mask = (dev_id & 0x08) ? (1 << (6 + ((dev_id >> 4) & 7))) : 0;
-    s->iomemtype = cpu_register_io_memory(0, onenand_readfn,
-                    onenand_writefn, s);
-    if (!bs)
+    s->iomemtype = cpu_register_io_memory(onenand_readfn,
+                                          onenand_writefn, s);
+    if (!dinfo)
         s->image = memset(qemu_malloc(size + (size >> 5)),
                         0xff, size + (size >> 5));
     else
-        s->bdrv = bs;
+        s->bdrv = dinfo->bdrv;
     s->otp = memset(qemu_malloc((64 + 2) << PAGE_SHIFT),
                     0xff, (64 + 2) << PAGE_SHIFT);
     s->ram = qemu_ram_alloc(0xc000 << s->shift);

@@ -1057,7 +1057,7 @@ static int get_tag_value(char *buf, int buf_size,
  */
 static int usb_host_scan_dev(void *opaque, USBScanFunc *func)
 {
-    FILE *f = 0;
+    FILE *f = NULL;
     char line[1024];
     char buf[1024];
     int bus_num, addr, speed, device_count, class_id, product_id, vendor_id;
@@ -1178,7 +1178,7 @@ static int usb_host_read_file(char *line, size_t line_size, const char *device_f
  */
 static int usb_host_scan_sys(void *opaque, USBScanFunc *func)
 {
-    DIR *dir = 0;
+    DIR *dir = NULL;
     char line[1024];
     int bus_num, addr, speed, class_id, product_id, vendor_id;
     int ret = 0;
@@ -1257,14 +1257,23 @@ static int usb_host_scan_sys(void *opaque, USBScanFunc *func)
 static int usb_host_scan(void *opaque, USBScanFunc *func)
 {
     Monitor *mon = cur_mon;
-    FILE *f = 0;
-    DIR *dir = 0;
+    FILE *f = NULL;
+    DIR *dir = NULL;
     int ret = 0;
     const char *fs_type[] = {"unknown", "proc", "dev", "sys"};
     char devpath[PATH_MAX];
 
     /* only check the host once */
     if (!usb_fs_type) {
+        dir = opendir(USBSYSBUS_PATH "/devices");
+        if (dir) {
+            /* devices found in /dev/bus/usb/ (yes - not a mistake!) */
+            strcpy(devpath, USBDEVBUS_PATH);
+            usb_fs_type = USB_FS_SYS;
+            closedir(dir);
+            dprintf(USBDBG_DEVOPENED, USBSYSBUS_PATH);
+            goto found_devices;
+        }
         f = fopen(USBPROCBUS_PATH "/devices", "r");
         if (f) {
             /* devices found in /proc/bus/usb/ */
@@ -1282,15 +1291,6 @@ static int usb_host_scan(void *opaque, USBScanFunc *func)
             usb_fs_type = USB_FS_DEV;
             fclose(f);
             dprintf(USBDBG_DEVOPENED, USBDEVBUS_PATH);
-            goto found_devices;
-        }
-        dir = opendir(USBSYSBUS_PATH "/devices");
-        if (dir) {
-            /* devices found in /dev/bus/usb/ (yes - not a mistake!) */
-            strcpy(devpath, USBDEVBUS_PATH);
-            usb_fs_type = USB_FS_SYS;
-            closedir(dir);
-            dprintf(USBDBG_DEVOPENED, USBSYSBUS_PATH);
             goto found_devices;
         }
     found_devices:

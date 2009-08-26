@@ -124,7 +124,7 @@ static void pci_vpb_init(SysBusDevice *dev)
 
     /* ??? Register memory space.  */
 
-    s->mem_config = cpu_register_io_memory(0, pci_vpb_config_read,
+    s->mem_config = cpu_register_io_memory(pci_vpb_config_read,
                                            pci_vpb_config_write, bus);
     sysbus_init_mmio_cb(dev, 0x04000000, pci_vpb_map);
 
@@ -153,13 +153,18 @@ static void versatile_pci_host_init(PCIDevice *d)
     d->config[0x0D] = 0x10; // latency_timer
 }
 
+static PCIDeviceInfo versatile_pci_host_info = {
+    .qdev.name = "versatile_pci_host",
+    .qdev.size = sizeof(PCIDevice),
+    .init      = versatile_pci_host_init,
+};
+
 static void versatile_pci_register_devices(void)
 {
     sysbus_register_dev("versatile_pci", sizeof(PCIVPBState), pci_vpb_init);
     sysbus_register_dev("realview_pci", sizeof(PCIVPBState),
                         pci_realview_init);
-    pci_qdev_register("versatile_pci_host", sizeof(PCIDevice),
-                      versatile_pci_host_init);
+    pci_qdev_register(&versatile_pci_host_info);
 }
 
 device_init(versatile_pci_register_devices)

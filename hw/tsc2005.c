@@ -15,8 +15,7 @@
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License along
- * with this program; if not, write to the Free Software Foundation, Inc.,
- * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+ * with this program; if not, see <http://www.gnu.org/licenses/>.
  */
 
 #include "hw.h"
@@ -548,7 +547,7 @@ void *tsc2005_init(qemu_irq pintdav)
     qemu_add_mouse_event_handler(tsc2005_touchscreen_event, s, 1,
                     "QEMU TSC2005-driven Touchscreen");
 
-    qemu_register_reset((void *) tsc2005_reset, 0, s);
+    qemu_register_reset((void *) tsc2005_reset, s);
     register_savevm("tsc2005", -1, 0, tsc2005_save, tsc2005_load, s);
 
     return s;

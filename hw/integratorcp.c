@@ -17,6 +17,7 @@
 
 typedef struct {
     SysBusDevice busdev;
+    uint32_t memsz;
     uint32_t flash_offset;
     uint32_t cm_osc;
     uint32_t cm_ctrl;
@@ -230,23 +231,21 @@ static void integratorcm_init(SysBusDevice *dev)
 {
     int iomemtype;
     integratorcm_state *s = FROM_SYSBUS(integratorcm_state, dev);
-    int memsz;
 
-    memsz = qdev_get_prop_int(&dev->qdev, "memsz", 0);
     s->cm_osc = 0x01000048;
     /* ??? What should the high bits of this value be?  */
     s->cm_auxosc = 0x0007feff;
     s->cm_sdram = 0x00011122;
-    if (memsz >= 256) {
+    if (s->memsz >= 256) {
         integrator_spd[31] = 64;
         s->cm_sdram |= 0x10;
-    } else if (memsz >= 128) {
+    } else if (s->memsz >= 128) {
         integrator_spd[31] = 32;
         s->cm_sdram |= 0x0c;
-    } else if (memsz >= 64) {
+    } else if (s->memsz >= 64) {
         integrator_spd[31] = 16;
         s->cm_sdram |= 0x08;
-    } else if (memsz >= 32) {
+    } else if (s->memsz >= 32) {
         integrator_spd[31] = 4;
         s->cm_sdram |= 0x04;
     } else {
@@ -256,7 +255,7 @@ static void integratorcm_init(SysBusDevice *dev)
     s->cm_init = 0x00000112;
     s->flash_offset = qemu_ram_alloc(0x100000);
 
-    iomemtype = cpu_register_io_memory(0, integratorcm_readfn,
+    iomemtype = cpu_register_io_memory(integratorcm_readfn,
                                        integratorcm_writefn, s);
     sysbus_init_mmio(dev, 0x00800000, iomemtype);
     integratorcm_do_remap(s, 1);
@@ -381,7 +380,7 @@ static void icp_pic_init(SysBusDevice *dev)
     qdev_init_gpio_in(&dev->qdev, icp_pic_set_irq, 32);
     sysbus_init_irq(dev, &s->parent_irq);
     sysbus_init_irq(dev, &s->parent_fiq);
-    iomemtype = cpu_register_io_memory(0, icp_pic_readfn,
+    iomemtype = cpu_register_io_memory(icp_pic_readfn,
                                        icp_pic_writefn, s);
     sysbus_init_mmio(dev, 0x00800000, iomemtype);
 }
@@ -433,7 +432,7 @@ static void icp_control_init(uint32_t base)
 {
     int iomemtype;
 
-    iomemtype = cpu_register_io_memory(0, icp_control_readfn,
+    iomemtype = cpu_register_io_memory(icp_control_readfn,
                                        icp_control_writefn, NULL);
     cpu_register_physical_memory(base, 0x00800000, iomemtype);
     /* ??? Save/restore.  */
@@ -475,7 +474,7 @@ static void integratorcp_init(ram_addr_t ram_size,
     cpu_register_physical_memory(0x80000000, ram_size, ram_offset | IO_MEM_RAM);
 
     dev = qdev_create(NULL, "integrator_core");
-    qdev_set_prop_int(dev, "memsz", ram_size >> 20);
+    qdev_prop_set_uint32(dev, "memsz", ram_size >> 20);
     qdev_init(dev);
     sysbus_mmio_map((SysBusDevice *)dev, 0, 0x10000000);
 
@@ -522,11 +521,20 @@ static void integratorcp_machine_init(void)
 
 machine_init(integratorcp_machine_init);
 
+static SysBusDeviceInfo core_info = {
+    .init = integratorcm_init,
+    .qdev.name  = "integrator_core",
+    .qdev.size  = sizeof(integratorcm_state),
+    .qdev.props = (Property[]) {
+        DEFINE_PROP_UINT32("memsz", integratorcm_state, memsz, 0),
+        DEFINE_PROP_END_OF_LIST(),
+    }
+};
+
 static void integratorcp_register_devices(void)
 {
     sysbus_register_dev("integrator_pic", sizeof(icp_pic_state), icp_pic_init);
-    sysbus_register_dev("integrator_core", sizeof(integratorcm_state),
-                        integratorcm_init);
+    sysbus_register_withprop(&core_info);
 }
 
 device_init(integratorcp_register_devices)

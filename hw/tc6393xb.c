@@ -588,13 +588,9 @@ TC6393xbState *tc6393xb_init(uint32_t base, qemu_irq irq)
 
     s->sub_irqs = qemu_allocate_irqs(tc6393xb_sub_irq, s, TC6393XB_NR_IRQS);
 
-    BlockDriverState *bdrv = NULL;
-    if (drive_get_index(IF_MTD, 0, 0) >= 0) {
-        bdrv = drives_table[drive_get_index(IF_MTD, 0, 0)].bdrv;
-    }
-    s->flash = nand_init(NAND_MFR_TOSHIBA, 0x76, bdrv);
+    s->flash = nand_init(NAND_MFR_TOSHIBA, 0x76, drive_get(IF_MTD, 0, 0));
 
-    iomemtype = cpu_register_io_memory(0, tc6393xb_readfn,
+    iomemtype = cpu_register_io_memory(tc6393xb_readfn,
                     tc6393xb_writefn, s);
     cpu_register_physical_memory(base, 0x10000, iomemtype);
 

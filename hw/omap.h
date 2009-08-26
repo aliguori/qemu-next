@@ -14,11 +14,12 @@
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License along
- * with this program; if not, write to the Free Software Foundation, Inc.,
- * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+ * with this program; if not, see <http://www.gnu.org/licenses/>.
  */
 #ifndef hw_omap_h
 # define hw_omap_h		"omap.h"
+
+#include "sysemu.h"
 
 # define OMAP_EMIFS_BASE	0x00000000
 # define OMAP2_Q0_BASE		0x00000000
@@ -1008,8 +1009,7 @@ struct omap3_mmc_s;
 struct omap3_mmc_s *omap3_mmc_init(struct omap_target_agent_s *ta,
                                    qemu_irq irq, qemu_irq dma[],
                                    omap_clk fclk, omap_clk iclk);
-void omap3_mmc_attach(struct omap3_mmc_s *s,
-                      BlockDriverState *bd);
+void omap3_mmc_attach(struct omap3_mmc_s *s, DriveInfo *dinfo);
 
 /* omap_i2c.c */
 struct omap_i2c_s;
@@ -1440,7 +1440,7 @@ static void io_writew(void *opaque, target_phys_addr_t addr, uint32_t value)
 static CPUReadMemoryFunc *io_readfn[] = { io_readb, io_readh, io_readw, };
 static CPUWriteMemoryFunc *io_writefn[] = { io_writeb, io_writeh, io_writew, };
 
-inline static int debug_register_io_memory(int io_index,
+inline static int debug_register_io_memory(
                 CPUReadMemoryFunc **mem_read, CPUWriteMemoryFunc **mem_write,
                 void *opaque)
 {
@@ -1450,7 +1450,7 @@ inline static int debug_register_io_memory(int io_index,
     s->mem_write = mem_write;
     s->opaque = opaque;
     s->in = 0;
-    return cpu_register_io_memory(io_index, io_readfn, io_writefn, s);
+    return cpu_register_io_memory(io_readfn, io_writefn, s);
 }
 #  define cpu_register_io_memory	debug_register_io_memory
 # endif
@@ -1460,7 +1460,7 @@ inline static int debug_register_io_memory(int io_index,
 
 # ifdef L4_MUX_HACK
 #  undef l4_register_io_memory
-int l4_register_io_memory(int io_index, CPUReadMemoryFunc **mem_read,
+int l4_register_io_memory(CPUReadMemoryFunc **mem_read,
                 CPUWriteMemoryFunc **mem_write, void *opaque);
 # endif
 

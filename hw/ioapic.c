@@ -17,8 +17,7 @@
  * Lesser General Public License for more details.
  *
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston MA  02110-1301 USA
+ * License along with this library; if not, see <http://www.gnu.org/licenses/>.
  */
 
 #include "hw.h"
@@ -250,12 +249,12 @@ IOAPICState *ioapic_init(void)
     s = qemu_mallocz(sizeof(IOAPICState));
     ioapic_reset(s);
 
-    io_memory = cpu_register_io_memory(0, ioapic_mem_read,
+    io_memory = cpu_register_io_memory(ioapic_mem_read,
                                        ioapic_mem_write, s);
     cpu_register_physical_memory(0xfec00000, 0x1000, io_memory);
 
     register_savevm("ioapic", 0, 1, ioapic_save, ioapic_load, s);
-    qemu_register_reset(ioapic_reset, 0, s);
+    qemu_register_reset(ioapic_reset, s);
 
     return s;
 }

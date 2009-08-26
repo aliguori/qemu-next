@@ -176,7 +176,7 @@ static qemu_irq *r2d_fpga_init(target_phys_addr_t base, qemu_irq irl)
 
     s->irl = irl;
 
-    iomemtype = cpu_register_io_memory(0, r2d_fpga_readfn,
+    iomemtype = cpu_register_io_memory(r2d_fpga_readfn,
 				       r2d_fpga_writefn, s);
     cpu_register_physical_memory(base, 0x40, iomemtype);
     return qemu_allocate_irqs(r2d_fpga_irq_set, s, NR_IRQS);
@@ -203,6 +203,7 @@ static void r2d_init(ram_addr_t ram_size,
     ram_addr_t sdram_addr;
     qemu_irq *irq;
     PCIBus *pci;
+    DriveInfo *dinfo;
     int i;
 
     if (!cpu_model)
@@ -225,13 +226,13 @@ static void r2d_init(ram_addr_t ram_size,
     sm501_init(0x10000000, SM501_VRAM_SIZE, irq[SM501], serial_hds[2]);
 
     /* onboard CF (True IDE mode, Master only). */
-    if ((i = drive_get_index(IF_IDE, 0, 0)) != -1)
+    if ((dinfo = drive_get(IF_IDE, 0, 0)) != NULL)
 	mmio_ide_init(0x14001000, 0x1400080c, irq[CF_IDE], 1,
-		      drives_table[i].bdrv, NULL);
+		      dinfo->bdrv, NULL);
 
     /* NIC: rtl8139 on-board, and 2 slots. */
     for (i = 0; i < nb_nics; i++)
-        pci_nic_init(pci, &nd_table[i], (i==0)? 2<<3: -1, "rtl8139");
+        pci_nic_init(&nd_table[i], "rtl8139", i==0 ? "2" : NULL);
 
     /* Todo: register on board registers */
     if (kernel_filename) {

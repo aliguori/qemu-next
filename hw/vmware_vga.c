@@ -1201,7 +1201,7 @@ static void pci_vmsvga_map_mem(PCIDevice *pci_dev, int region_num,
 
     s->vram_base = addr;
 #ifdef DIRECT_VRAM
-    iomemtype = cpu_register_io_memory(0, vmsvga_vram_read,
+    iomemtype = cpu_register_io_memory(vmsvga_vram_read,
                     vmsvga_vram_write, s);
 #else
     iomemtype = s->vga.vram_offset | IO_MEM_RAM;
@@ -1210,14 +1210,11 @@ static void pci_vmsvga_map_mem(PCIDevice *pci_dev, int region_num,
                     iomemtype);
 }
 
-void pci_vmsvga_init(PCIBus *bus)
+static void pci_vmsvga_initfn(PCIDevice *dev)
 {
-    struct pci_vmsvga_state_s *s;
+    struct pci_vmsvga_state_s *s =
+        DO_UPCAST(struct pci_vmsvga_state_s, card, dev);
 
-    /* Setup PCI configuration */
-    s = (struct pci_vmsvga_state_s *)
-        pci_register_device(bus, "QEMUware SVGA",
-                sizeof(struct pci_vmsvga_state_s), -1, 0, 0);
     pci_config_set_vendor_id(s->card.config, PCI_VENDOR_ID_VMWARE);
     pci_config_set_device_id(s->card.config, SVGA_PCI_DEVICE_ID);
     s->card.config[PCI_COMMAND]		= 0x07;		/* I/O + Memory */
@@ -1231,12 +1228,29 @@ void pci_vmsvga_init(PCIBus *bus)
     s->card.config[0x2f]		= SVGA_PCI_DEVICE_ID >> 8;
     s->card.config[0x3c]		= 0xff;		/* End */
 
-    pci_register_io_region(&s->card, 0, 0x10,
+    pci_register_bar(&s->card, 0, 0x10,
                     PCI_ADDRESS_SPACE_IO, pci_vmsvga_map_ioport);
-    pci_register_io_region(&s->card, 1, VGA_RAM_SIZE,
+    pci_register_bar(&s->card, 1, VGA_RAM_SIZE,
                     PCI_ADDRESS_SPACE_MEM_PREFETCH, pci_vmsvga_map_mem);
 
     vmsvga_init(&s->chip, VGA_RAM_SIZE);
 
     register_savevm("vmware_vga", 0, 0, pci_vmsvga_save, pci_vmsvga_load, s);
 }
+
+void pci_vmsvga_init(PCIBus *bus)
+{
+    pci_create_simple(bus, -1, "QEMUware SVGA");
+}
+
+static PCIDeviceInfo vmsvga_info = {
+    .qdev.name    = "QEMUware SVGA",
+    .qdev.size    = sizeof(struct pci_vmsvga_state_s),
+    .init         = pci_vmsvga_initfn,
+};
+
+static void vmsvga_register(void)
+{
+    pci_qdev_register(&vmsvga_info);
+}
+device_init(vmsvga_register);

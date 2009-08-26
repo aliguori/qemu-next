@@ -720,7 +720,7 @@ static void serial_init_core(SerialState *s, qemu_irq irq, int baudbase,
     s->fifo_timeout_timer = qemu_new_timer(vm_clock, (QEMUTimerCB *) fifo_timeout_int, s);
     s->transmit_timer = qemu_new_timer(vm_clock, (QEMUTimerCB *) serial_xmit, s);
 
-    qemu_register_reset(serial_reset, 0, s);
+    qemu_register_reset(serial_reset, s);
     serial_reset(s);
 
     qemu_chr_add_handlers(s->chr, serial_can_receive1, serial_receive1,
@@ -745,22 +745,22 @@ SerialState *serial_init(int base, qemu_irq irq, int baudbase,
 }
 
 /* Memory mapped interface */
-uint32_t serial_mm_readb (void *opaque, target_phys_addr_t addr)
+static uint32_t serial_mm_readb(void *opaque, target_phys_addr_t addr)
 {
     SerialState *s = opaque;
 
     return serial_ioport_read(s, addr >> s->it_shift) & 0xFF;
 }
 
-void serial_mm_writeb (void *opaque,
-                       target_phys_addr_t addr, uint32_t value)
+static void serial_mm_writeb(void *opaque, target_phys_addr_t addr,
+                             uint32_t value)
 {
     SerialState *s = opaque;
 
     serial_ioport_write(s, addr >> s->it_shift, value & 0xFF);
 }
 
-uint32_t serial_mm_readw (void *opaque, target_phys_addr_t addr)
+static uint32_t serial_mm_readw(void *opaque, target_phys_addr_t addr)
 {
     SerialState *s = opaque;
     uint32_t val;
@@ -772,8 +772,8 @@ uint32_t serial_mm_readw (void *opaque, target_phys_addr_t addr)
     return val;
 }
 
-void serial_mm_writew (void *opaque,
-                       target_phys_addr_t addr, uint32_t value)
+static void serial_mm_writew(void *opaque, target_phys_addr_t addr,
+                             uint32_t value)
 {
     SerialState *s = opaque;
 #ifdef TARGET_WORDS_BIGENDIAN
@@ -782,7 +782,7 @@ void serial_mm_writew (void *opaque,
     serial_ioport_write(s, addr >> s->it_shift, value & 0xFFFF);
 }
 
-uint32_t serial_mm_readl (void *opaque, target_phys_addr_t addr)
+static uint32_t serial_mm_readl(void *opaque, target_phys_addr_t addr)
 {
     SerialState *s = opaque;
     uint32_t val;
@@ -794,8 +794,8 @@ uint32_t serial_mm_readl (void *opaque, target_phys_addr_t addr)
     return val;
 }
 
-void serial_mm_writel (void *opaque,
-                       target_phys_addr_t addr, uint32_t value)
+static void serial_mm_writel(void *opaque, target_phys_addr_t addr,
+                             uint32_t value)
 {
     SerialState *s = opaque;
 #ifdef TARGET_WORDS_BIGENDIAN
@@ -831,7 +831,7 @@ SerialState *serial_mm_init (target_phys_addr_t base, int it_shift,
     register_savevm("serial", base, 3, serial_save, serial_load, s);
 
     if (ioregister) {
-        s_io_memory = cpu_register_io_memory(0, serial_mm_read,
+        s_io_memory = cpu_register_io_memory(serial_mm_read,
                                              serial_mm_write, s);
         cpu_register_physical_memory(base, 8 << it_shift, s_io_memory);
     }

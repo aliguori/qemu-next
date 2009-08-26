@@ -1231,10 +1231,11 @@ struct __attribute__((__packed__)) target_stat64 {
 	uint32_t st_uid;
 	uint32_t st_gid;
 	uint64_t st_rdev;
-	uint32_t __pad2;
+	uint64_t __pad1;
 
 	int64_t  st_size;
-	int32_t st_blksize;
+	int32_t  st_blksize;
+	uint32_t __pad2;
 	int64_t st_blocks;	/* Number 512-byte blocks allocated. */
 
 	int	       target_st_atime;
@@ -1745,6 +1746,12 @@ struct target_statfs64 {
 #define TARGET_F_SETLKW        9
 #define TARGET_F_SETOWN        5       /*  for sockets. */
 #define TARGET_F_GETOWN        6       /*  for sockets. */
+#elif defined(TARGET_MIPS)
+#define TARGET_F_GETLK         14
+#define TARGET_F_SETLK         6
+#define TARGET_F_SETLKW        7
+#define TARGET_F_SETOWN        24       /*  for sockets. */
+#define TARGET_F_GETOWN        25       /*  for sockets. */
 #else
 #define TARGET_F_GETLK         5
 #define TARGET_F_SETLK         6
@@ -1756,10 +1763,15 @@ struct target_statfs64 {
 #define TARGET_F_SETSIG        10      /*  for sockets. */
 #define TARGET_F_GETSIG        11      /*  for sockets. */
 
+#if defined(TARGET_MIPS)
+#define TARGET_F_GETLK64       33      /*  using 'struct flock64' */
+#define TARGET_F_SETLK64       34
+#define TARGET_F_SETLKW64      35
+#else
 #define TARGET_F_GETLK64       12      /*  using 'struct flock64' */
 #define TARGET_F_SETLK64       13
 #define TARGET_F_SETLKW64      14
-
+#endif
 #if defined (TARGET_ARM)
 #define TARGET_O_ACCMODE          0003
 #define TARGET_O_RDONLY             00
@@ -2109,3 +2121,20 @@ struct target_mq_attr {
 #include "socket.h"
 
 #include "errno_defs.h"
+
+#define FUTEX_WAIT              0
+#define FUTEX_WAKE              1
+#define FUTEX_FD                2
+#define FUTEX_REQUEUE           3
+#define FUTEX_CMP_REQUEUE       4
+#define FUTEX_WAKE_OP           5
+#define FUTEX_LOCK_PI           6
+#define FUTEX_UNLOCK_PI         7
+#define FUTEX_TRYLOCK_PI        8
+#define FUTEX_WAIT_BITSET       9
+#define FUTEX_WAKE_BITSET       10
+
+#define FUTEX_PRIVATE_FLAG      128
+#define FUTEX_CLOCK_REALTIME    256
+#define FUTEX_CMD_MASK          ~(FUTEX_PRIVATE_FLAG | FUTEX_CLOCK_REALTIME)
+

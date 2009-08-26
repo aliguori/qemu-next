@@ -381,7 +381,7 @@ void i8042_init(qemu_irq kbd_irq, qemu_irq mouse_irq, uint32_t io_base)
 #ifdef TARGET_I386
     vmmouse_init(s->mouse);
 #endif
-    qemu_register_reset(kbd_reset, 0, s);
+    qemu_register_reset(kbd_reset, s);
 }
 
 /* Memory mapped interface */
@@ -430,7 +430,7 @@ void i8042_mm_init(qemu_irq kbd_irq, qemu_irq mouse_irq,
 
     kbd_reset(s);
     register_savevm("pckbd", 0, 3, kbd_save, kbd_load, s);
-    s_io_memory = cpu_register_io_memory(0, kbd_mm_read, kbd_mm_write, s);
+    s_io_memory = cpu_register_io_memory(kbd_mm_read, kbd_mm_write, s);
     cpu_register_physical_memory(base, size, s_io_memory);
 
     s->kbd = ps2_kbd_init(kbd_update_kbd_irq, s);
@@ -438,5 +438,45 @@ void i8042_mm_init(qemu_irq kbd_irq, qemu_irq mouse_irq,
 #ifdef TARGET_I386
     vmmouse_init(s->mouse);
 #endif
-    qemu_register_reset(kbd_reset, 0, s);
+    qemu_register_reset(kbd_reset, s);
 }
+
+typedef struct ISAKBDState {
+    ISADevice dev;
+    KBDState  kbd;
+} ISAKBDState;
+
+static void i8042_initfn(ISADevice *dev)
+{
+    KBDState *s = &(DO_UPCAST(ISAKBDState, dev, dev)->kbd);
+
+    isa_init_irq(dev, &s->irq_kbd);
+    isa_init_irq(dev, &s->irq_mouse);
+
+    kbd_reset(s);
+    register_savevm("pckbd", 0, 3, kbd_save, kbd_load, s);
+    register_ioport_read(dev->iobase[0], 1, 1, kbd_read_data, s);
+    register_ioport_write(dev->iobase[0], 1, 1, kbd_write_data, s);
+    register_ioport_read(dev->iobase[1], 1, 1, kbd_read_status, s);
+    register_ioport_write(dev->iobase[1], 1, 1, kbd_write_command, s);
+
+    s->kbd = ps2_kbd_init(kbd_update_kbd_irq, s);
+    s->mouse = ps2_mouse_init(kbd_update_aux_irq, s);
+#ifdef TARGET_I386
+    vmmouse_init(s->mouse);
+#endif
+    qemu_register_reset(kbd_reset, s);
+}
+
+static ISADeviceInfo i8042_info = {
+    .qdev.name     = "i8042",
+    .qdev.size     = sizeof(ISAKBDState),
+    .qdev.no_user  = 1,
+    .init          = i8042_initfn,
+};
+
+static void i8042_register(void)
+{
+    isa_qdev_register(&i8042_info);
+}
+device_init(i8042_register)

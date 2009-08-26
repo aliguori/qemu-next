@@ -32,7 +32,6 @@ struct kvm_run;
 int kvm_init(int smp_cpus);
 
 int kvm_init_vcpu(CPUState *env);
-int kvm_sync_vcpus(void);
 
 int kvm_cpu_exec(CPUState *env);
 
@@ -60,6 +59,9 @@ int kvm_remove_breakpoint(CPUState *current_env, target_ulong addr,
                           target_ulong len, int type);
 void kvm_remove_all_breakpoints(CPUState *current_env);
 int kvm_update_guest_debug(CPUState *env, unsigned long reinject_trap);
+
+int kvm_pit_in_kernel(void);
+int kvm_irqchip_in_kernel(void);
 
 /* internal API */
 

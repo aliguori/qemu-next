@@ -454,7 +454,9 @@ typedef struct {
 #define R_PPC_SECTOFF_HI	35
 #define R_PPC_SECTOFF_HA	36
 /* Keep this the last entry.  */
+#ifndef R_PPC_NUM
 #define R_PPC_NUM		37
+#endif
 
 /* ARM specific declarations */
 
@@ -1081,7 +1083,7 @@ typedef struct elf64_shdr {
 #define	EI_CLASS	4
 #define	EI_DATA		5
 #define	EI_VERSION	6
-#define EI_OSABI	7
+#define	EI_OSABI	7
 #define	EI_PAD		8
 
 #define ELFOSABI_NONE           0       /* UNIX System V ABI */

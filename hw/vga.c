@@ -74,19 +74,19 @@ const uint8_t gr_mask[16] = {
 		(((uint32_t)(__x) & (uint32_t)0x00ff0000UL) >>  8) | \
 		(((uint32_t)(__x) & (uint32_t)0xff000000UL) >> 24) ))
 
-#ifdef WORDS_BIGENDIAN
+#ifdef HOST_WORDS_BIGENDIAN
 #define PAT(x) cbswap_32(x)
 #else
 #define PAT(x) (x)
 #endif
 
-#ifdef WORDS_BIGENDIAN
+#ifdef HOST_WORDS_BIGENDIAN
 #define BIG 1
 #else
 #define BIG 0
 #endif
 
-#ifdef WORDS_BIGENDIAN
+#ifdef HOST_WORDS_BIGENDIAN
 #define GET_PLANE(data, p) (((data) >> (24 - (p) * 8)) & 0xff)
 #else
 #define GET_PLANE(data, p) (((data) >> ((p) * 8)) & 0xff)
@@ -113,7 +113,7 @@ static const uint32_t mask16[16] = {
 
 #undef PAT
 
-#ifdef WORDS_BIGENDIAN
+#ifdef HOST_WORDS_BIGENDIAN
 #define PAT(x) (x)
 #else
 #define PAT(x) cbswap_32(x)
@@ -799,7 +799,7 @@ void vga_mem_writeb(void *opaque, target_phys_addr_t addr, uint32_t val)
     uint32_t write_mask, bit_mask, set_mask;
 
 #ifdef DEBUG_VGA_MEM
-    printf("vga: [0x%x] = 0x%02x\n", addr, val);
+    printf("vga: [0x" TARGET_FMT_plx "] = 0x%02x\n", addr, val);
 #endif
     /* convert to VGA memory offset */
     memory_map_mode = (s->gr[6] >> 2) & 3;
@@ -832,7 +832,7 @@ void vga_mem_writeb(void *opaque, target_phys_addr_t addr, uint32_t val)
         if (s->sr[2] & mask) {
             s->vram_ptr[addr] = val;
 #ifdef DEBUG_VGA_MEM
-            printf("vga: chain4: [0x%x]\n", addr);
+            printf("vga: chain4: [0x" TARGET_FMT_plx "]\n", addr);
 #endif
             s->plane_updated |= mask; /* only used to detect font change */
             cpu_physical_memory_set_dirty(s->vram_offset + addr);
@@ -845,7 +845,7 @@ void vga_mem_writeb(void *opaque, target_phys_addr_t addr, uint32_t val)
             addr = ((addr & ~1) << 1) | plane;
             s->vram_ptr[addr] = val;
 #ifdef DEBUG_VGA_MEM
-            printf("vga: odd/even: [0x%x]\n", addr);
+            printf("vga: odd/even: [0x" TARGET_FMT_plx "]\n", addr);
 #endif
             s->plane_updated |= mask; /* only used to detect font change */
             cpu_physical_memory_set_dirty(s->vram_offset + addr);
@@ -919,10 +919,10 @@ void vga_mem_writeb(void *opaque, target_phys_addr_t addr, uint32_t val)
             (((uint32_t *)s->vram_ptr)[addr] & ~write_mask) |
             (val & write_mask);
 #ifdef DEBUG_VGA_MEM
-            printf("vga: latch: [0x%x] mask=0x%08x val=0x%08x\n",
-                   addr * 4, write_mask, val);
+        printf("vga: latch: [0x" TARGET_FMT_plx "] mask=0x%08x val=0x%08x\n",
+               addr * 4, write_mask, val);
 #endif
-            cpu_physical_memory_set_dirty(s->vram_offset + (addr << 2));
+        cpu_physical_memory_set_dirty(s->vram_offset + (addr << 2));
     }
 }
 
@@ -1369,7 +1369,7 @@ static void vga_draw_text(VGAState *s, int full_update)
                 if (cx > cx_max)
                     cx_max = cx;
                 *ch_attr_ptr = ch_attr;
-#ifdef WORDS_BIGENDIAN
+#ifdef HOST_WORDS_BIGENDIAN
                 ch = ch_attr >> 8;
                 cattr = ch_attr & 0xff;
 #else
@@ -1632,7 +1632,7 @@ static void vga_draw_graphic(VGAState *s, int full_update)
         disp_width != s->last_width ||
         height != s->last_height ||
         s->last_depth != depth) {
-#if defined(WORDS_BIGENDIAN) == defined(TARGET_WORDS_BIGENDIAN)
+#if defined(HOST_WORDS_BIGENDIAN) == defined(TARGET_WORDS_BIGENDIAN)
         if (depth == 16 || depth == 32) {
 #else
         if (depth == 32) {
@@ -1641,7 +1641,7 @@ static void vga_draw_graphic(VGAState *s, int full_update)
             s->ds->surface = qemu_create_displaysurface_from(disp_width, height, depth,
                     s->line_offset,
                     s->vram_ptr + (s->start_addr * 4));
-#if defined(WORDS_BIGENDIAN) != defined(TARGET_WORDS_BIGENDIAN)
+#if defined(HOST_WORDS_BIGENDIAN) != defined(TARGET_WORDS_BIGENDIAN)
             s->ds->surface->pf = qemu_different_endianness_pixelformat(depth);
 #endif
             dpy_resize(s->ds);
@@ -1837,7 +1837,8 @@ static void vga_update_display(void *opaque)
     if (ds_get_bits_per_pixel(s->ds) == 0) {
         /* nothing to do */
     } else {
-        full_update = 0;
+        full_update = s->full_update;
+        s->full_update = 0;
         if (!(s->ar_index & 0x20)) {
             graphic_mode = GMODE_BLANK;
         } else {
@@ -1867,8 +1868,7 @@ static void vga_invalidate_display(void *opaque)
 {
     VGAState *s = (VGAState *)opaque;
 
-    s->last_width = -1;
-    s->last_height = -1;
+    s->full_update = 1;
 }
 
 void vga_reset(void *opaque)
@@ -2306,7 +2306,7 @@ void vga_init(VGAState *s)
 {
     int vga_io_memory;
 
-    qemu_register_reset(vga_reset, 0, s);
+    qemu_register_reset(vga_reset, s);
     register_savevm("vga", 0, 2, vga_save, vga_load, s);
 
     register_ioport_write(0x3c0, 16, 1, vga_ioport_write, s);
@@ -2347,7 +2347,7 @@ void vga_init(VGAState *s)
 #endif
 #endif /* CONFIG_BOCHS_VBE */
 
-    vga_io_memory = cpu_register_io_memory(0, vga_mem_read, vga_mem_write, s);
+    vga_io_memory = cpu_register_io_memory(vga_mem_read, vga_mem_write, s);
     cpu_register_physical_memory(isa_mem_base + 0x000a0000, 0x20000,
                                  vga_io_memory);
     qemu_register_coalesced_mmio(isa_mem_base + 0x000a0000, 0x20000);
@@ -2417,8 +2417,8 @@ static void vga_mm_init(VGAState *s, target_phys_addr_t vram_base,
     int s_ioport_ctrl, vga_io_memory;
 
     s->it_shift = it_shift;
-    s_ioport_ctrl = cpu_register_io_memory(0, vga_mm_read_ctrl, vga_mm_write_ctrl, s);
-    vga_io_memory = cpu_register_io_memory(0, vga_mem_read, vga_mem_write, s);
+    s_ioport_ctrl = cpu_register_io_memory(vga_mm_read_ctrl, vga_mm_write_ctrl, s);
+    vga_io_memory = cpu_register_io_memory(vga_mem_read, vga_mem_write, s);
 
     register_savevm("vga", 0, 2, vga_save, vga_load, s);
 
@@ -2480,51 +2480,70 @@ static void pci_vga_write_config(PCIDevice *d,
         s->map_addr = 0;
 }
 
+static void pci_vga_initfn(PCIDevice *dev)
+{
+     PCIVGAState *d = DO_UPCAST(PCIVGAState, dev, dev);
+     VGAState *s = &d->vga_state;
+     uint8_t *pci_conf = d->dev.config;
+
+     // vga + console init
+     vga_common_init(s, VGA_RAM_SIZE);
+     vga_init(s);
+     s->pci_dev = &d->dev;
+     s->ds = graphic_console_init(s->update, s->invalidate,
+                                  s->screen_dump, s->text_update, s);
+
+     // dummy VGA (same as Bochs ID)
+     pci_config_set_vendor_id(pci_conf, PCI_VENDOR_ID_QEMU);
+     pci_config_set_device_id(pci_conf, PCI_DEVICE_ID_QEMU_VGA);
+     pci_config_set_class(pci_conf, PCI_CLASS_DISPLAY_VGA);
+     pci_conf[PCI_HEADER_TYPE] = PCI_HEADER_TYPE_NORMAL; // header_type
+
+     /* XXX: VGA_RAM_SIZE must be a power of two */
+     pci_register_bar(&d->dev, 0, VGA_RAM_SIZE,
+                      PCI_ADDRESS_SPACE_MEM_PREFETCH, vga_map);
+
+     if (s->bios_size) {
+        unsigned int bios_total_size;
+        /* must be a power of two */
+        bios_total_size = 1;
+        while (bios_total_size < s->bios_size)
+            bios_total_size <<= 1;
+        pci_register_bar(&d->dev, PCI_ROM_SLOT, bios_total_size,
+                         PCI_ADDRESS_SPACE_MEM_PREFETCH, vga_map);
+    }
+}
+
 int pci_vga_init(PCIBus *bus,
                  unsigned long vga_bios_offset, int vga_bios_size)
 {
-    PCIVGAState *d;
-    VGAState *s;
-    uint8_t *pci_conf;
+    PCIDevice *dev;
 
-    d = (PCIVGAState *)pci_register_device(bus, "VGA",
-                                           sizeof(PCIVGAState),
-                                           -1, NULL, pci_vga_write_config);
-    if (!d)
-        return -1;
-    s = &d->vga_state;
+    dev = pci_create("VGA", NULL);
+    qdev_prop_set_uint32(&dev->qdev, "bios-offset", vga_bios_offset);
+    qdev_prop_set_uint32(&dev->qdev, "bios-size", vga_bios_offset);
+    qdev_init(&dev->qdev);
 
-    vga_common_init(s, VGA_RAM_SIZE);
-    vga_init(s);
-
-    s->ds = graphic_console_init(s->update, s->invalidate,
-                                 s->screen_dump, s->text_update, s);
-
-    s->pci_dev = &d->dev;
-
-    pci_conf = d->dev.config;
-    // dummy VGA (same as Bochs ID)
-    pci_config_set_vendor_id(pci_conf, PCI_VENDOR_ID_QEMU);
-    pci_config_set_device_id(pci_conf, PCI_DEVICE_ID_QEMU_VGA);
-    pci_config_set_class(pci_conf, PCI_CLASS_DISPLAY_VGA);
-    pci_conf[PCI_HEADER_TYPE] = PCI_HEADER_TYPE_NORMAL; // header_type
-
-    /* XXX: VGA_RAM_SIZE must be a power of two */
-    pci_register_io_region(&d->dev, 0, VGA_RAM_SIZE,
-                           PCI_ADDRESS_SPACE_MEM_PREFETCH, vga_map);
-    if (vga_bios_size != 0) {
-        unsigned int bios_total_size;
-        s->bios_offset = vga_bios_offset;
-        s->bios_size = vga_bios_size;
-        /* must be a power of two */
-        bios_total_size = 1;
-        while (bios_total_size < vga_bios_size)
-            bios_total_size <<= 1;
-        pci_register_io_region(&d->dev, PCI_ROM_SLOT, bios_total_size,
-                               PCI_ADDRESS_SPACE_MEM_PREFETCH, vga_map);
-    }
     return 0;
 }
+
+static PCIDeviceInfo vga_info = {
+    .qdev.name    = "VGA",
+    .qdev.size    = sizeof(PCIVGAState),
+    .init         = pci_vga_initfn,
+    .config_write = pci_vga_write_config,
+    .qdev.props   = (Property[]) {
+        DEFINE_PROP_HEX32("bios-offset", PCIVGAState, vga_state.bios_offset, 0),
+        DEFINE_PROP_HEX32("bios-size",   PCIVGAState, vga_state.bios_size,   0),
+        DEFINE_PROP_END_OF_LIST(),
+    }
+};
+
+static void vga_register(void)
+{
+    pci_qdev_register(&vga_info);
+}
+device_init(vga_register);
 
 /********************************************************/
 /* vga screen dump */
@@ -2584,8 +2603,9 @@ static void vga_screen_dump_blank(VGAState *s, const char *filename)
 {
     FILE *f;
     unsigned int y, x, w, h;
+    unsigned char blank_sample[3] = { 0, 0, 0 };
 
-    w = s->last_scr_width * sizeof(uint32_t);
+    w = s->last_scr_width;
     h = s->last_scr_height;
 
     f = fopen(filename, "wb");
@@ -2594,7 +2614,7 @@ static void vga_screen_dump_blank(VGAState *s, const char *filename)
     fprintf(f, "P6\n%d %d\n%d\n", w, h, 255);
     for (y = 0; y < h; y++) {
         for (x = 0; x < w; x++) {
-            fputc(0, f);
+            fwrite(blank_sample, 3, 1, f);
         }
     }
     fclose(f);

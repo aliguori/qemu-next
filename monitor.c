@@ -70,6 +70,14 @@ typedef struct mon_cmd_t {
     const char *help;
 } mon_cmd_t;
 
+/* file descriptors passed via SCM_RIGHTS */
+typedef struct mon_fd_t mon_fd_t;
+struct mon_fd_t {
+    char *name;
+    int fd;
+    LIST_ENTRY(mon_fd_t) next;
+};
+
 struct Monitor {
     CharDriverState *chr;
     int flags;
@@ -80,6 +88,7 @@ struct Monitor {
     CPUState *mon_cpu;
     BlockDriverCompletionFunc *password_completion_cb;
     void *password_opaque;
+    LIST_HEAD(,mon_fd_t) fds;
     LIST_ENTRY(Monitor) entry;
 };
 
@@ -244,13 +253,15 @@ static void help_cmd(Monitor *mon, const char *name)
 
 static void do_commit(Monitor *mon, const char *device)
 {
-    int i, all_devices;
+    int all_devices;
+    DriveInfo *dinfo;
 
     all_devices = !strcmp(device, "all");
-    for (i = 0; i < nb_drives; i++) {
-            if (all_devices ||
-                !strcmp(bdrv_get_device_name(drives_table[i].bdrv), device))
-                bdrv_commit(drives_table[i].bdrv);
+    TAILQ_FOREACH(dinfo, &drives, next) {
+        if (!all_devices)
+            if (strcmp(bdrv_get_device_name(dinfo->bdrv), device))
+                continue;
+        bdrv_commit(dinfo->bdrv);
     }
 }
 
@@ -1161,7 +1172,7 @@ static void do_ioport_read(Monitor *mon, int count, int format, int size,
     int suffix;
 
     if (has_index) {
-        cpu_outb(NULL, addr & 0xffff, index & 0xff);
+        cpu_outb(NULL, addr & IOPORTS_MASK, index & 0xff);
         addr++;
     }
     addr &= 0xffff;
@@ -1185,28 +1196,34 @@ static void do_ioport_read(Monitor *mon, int count, int format, int size,
                    suffix, addr, size * 2, val);
 }
 
-/* boot_set handler */
-static QEMUBootSetHandler *qemu_boot_set_handler = NULL;
-static void *boot_opaque;
-
-void qemu_register_boot_set(QEMUBootSetHandler *func, void *opaque)
+static void do_ioport_write(Monitor *mon, int count, int format, int size,
+                            int addr, int val)
 {
-    qemu_boot_set_handler = func;
-    boot_opaque = opaque;
+    addr &= IOPORTS_MASK;
+
+    switch (size) {
+    default:
+    case 1:
+        cpu_outb(NULL, addr, val);
+        break;
+    case 2:
+        cpu_outw(NULL, addr, val);
+        break;
+    case 4:
+        cpu_outl(NULL, addr, val);
+        break;
+    }
 }
 
 static void do_boot_set(Monitor *mon, const char *bootdevice)
 {
     int res;
 
-    if (qemu_boot_set_handler)  {
-        res = qemu_boot_set_handler(boot_opaque, bootdevice);
-        if (res == 0)
-            monitor_printf(mon, "boot device list now set to %s\n",
-                           bootdevice);
-        else
-            monitor_printf(mon, "setting boot device list failed with "
-                           "error %i\n", res);
+    res = qemu_boot_set(bootdevice);
+    if (res == 0) {
+        monitor_printf(mon, "boot device list now set to %s\n", bootdevice);
+    } else if (res > 0) {
+        monitor_printf(mon, "setting boot device list failed\n");
     } else {
         monitor_printf(mon, "no function defined to set boot device list for "
                        "this architecture\n");
@@ -1579,60 +1596,79 @@ static void do_info_balloon(Monitor *mon)
         monitor_printf(mon, "balloon: actual=%d\n", (int)(actual >> 20));
 }
 
-static void do_acl(Monitor *mon,
-                   const char *command,
-                   const char *aclname,
-                   const char *match,
-                   int has_index,
-                   int index)
+static qemu_acl *find_acl(Monitor *mon, const char *name)
 {
-    qemu_acl *acl;
+    qemu_acl *acl = qemu_acl_find(name);
 
-    acl = qemu_acl_find(aclname);
     if (!acl) {
-        monitor_printf(mon, "acl: unknown list '%s'\n", aclname);
-        return;
+        monitor_printf(mon, "acl: unknown list '%s'\n", name);
     }
+    return acl;
+}
 
-    if (strcmp(command, "show") == 0) {
-        int i = 0;
-        qemu_acl_entry *entry;
+static void do_acl_show(Monitor *mon, const char *aclname)
+{
+    qemu_acl *acl = find_acl(mon, aclname);
+    qemu_acl_entry *entry;
+    int i = 0;
+
+    if (acl) {
         monitor_printf(mon, "policy: %s\n",
                        acl->defaultDeny ? "deny" : "allow");
         TAILQ_FOREACH(entry, &acl->entries, next) {
             i++;
             monitor_printf(mon, "%d: %s %s\n", i,
-                           entry->deny ? "deny" : "allow",
-                           entry->match);
+                           entry->deny ? "deny" : "allow", entry->match);
         }
-    } else if (strcmp(command, "reset") == 0) {
+    }
+}
+
+static void do_acl_reset(Monitor *mon, const char *aclname)
+{
+    qemu_acl *acl = find_acl(mon, aclname);
+
+    if (acl) {
         qemu_acl_reset(acl);
         monitor_printf(mon, "acl: removed all rules\n");
-    } else if (strcmp(command, "policy") == 0) {
-        if (!match) {
-            monitor_printf(mon, "acl: missing policy parameter\n");
-            return;
-        }
+    }
+}
 
-        if (strcmp(match, "allow") == 0) {
+static void do_acl_policy(Monitor *mon, const char *aclname,
+                          const char *policy)
+{
+    qemu_acl *acl = find_acl(mon, aclname);
+
+    if (acl) {
+        if (strcmp(policy, "allow") == 0) {
             acl->defaultDeny = 0;
             monitor_printf(mon, "acl: policy set to 'allow'\n");
-        } else if (strcmp(match, "deny") == 0) {
+        } else if (strcmp(policy, "deny") == 0) {
             acl->defaultDeny = 1;
             monitor_printf(mon, "acl: policy set to 'deny'\n");
         } else {
-            monitor_printf(mon, "acl: unknown policy '%s', expected 'deny' or 'allow'\n", match);
+            monitor_printf(mon, "acl: unknown policy '%s', "
+                           "expected 'deny' or 'allow'\n", policy);
         }
-    } else if ((strcmp(command, "allow") == 0) ||
-               (strcmp(command, "deny") == 0)) {
-        int deny = strcmp(command, "deny") == 0 ? 1 : 0;
-        int ret;
+    }
+}
 
-        if (!match) {
-            monitor_printf(mon, "acl: missing match parameter\n");
+static void do_acl_add(Monitor *mon, const char *aclname,
+                       const char *match, const char *policy,
+                       int has_index, int index)
+{
+    qemu_acl *acl = find_acl(mon, aclname);
+    int deny, ret;
+
+    if (acl) {
+        if (strcmp(policy, "allow") == 0) {
+            deny = 0;
+        } else if (strcmp(policy, "deny") == 0) {
+            deny = 1;
+        } else {
+            monitor_printf(mon, "acl: unknown policy '%s', "
+                           "expected 'deny' or 'allow'\n", policy);
             return;
         }
-
         if (has_index)
             ret = qemu_acl_insert(acl, deny, match, index);
         else
@@ -1641,22 +1677,127 @@ static void do_acl(Monitor *mon,
             monitor_printf(mon, "acl: unable to add acl entry\n");
         else
             monitor_printf(mon, "acl: added rule at position %d\n", ret);
-    } else if (strcmp(command, "remove") == 0) {
-        int ret;
+    }
+}
 
-        if (!match) {
-            monitor_printf(mon, "acl: missing match parameter\n");
-            return;
-        }
+static void do_acl_remove(Monitor *mon, const char *aclname, const char *match)
+{
+    qemu_acl *acl = find_acl(mon, aclname);
+    int ret;
 
+    if (acl) {
         ret = qemu_acl_remove(acl, match);
         if (ret < 0)
             monitor_printf(mon, "acl: no matching acl entry\n");
         else
             monitor_printf(mon, "acl: removed rule at position %d\n", ret);
-    } else {
-        monitor_printf(mon, "acl: unknown command '%s'\n", command);
     }
+}
+
+#if defined(TARGET_I386)
+static void do_inject_mce(Monitor *mon,
+                          int cpu_index, int bank,
+                          unsigned status_hi, unsigned status_lo,
+                          unsigned mcg_status_hi, unsigned mcg_status_lo,
+                          unsigned addr_hi, unsigned addr_lo,
+                          unsigned misc_hi, unsigned misc_lo)
+{
+    CPUState *cenv;
+    uint64_t status = ((uint64_t)status_hi << 32) | status_lo;
+    uint64_t mcg_status = ((uint64_t)mcg_status_hi << 32) | mcg_status_lo;
+    uint64_t addr = ((uint64_t)addr_hi << 32) | addr_lo;
+    uint64_t misc = ((uint64_t)misc_hi << 32) | misc_lo;
+
+    for (cenv = first_cpu; cenv != NULL; cenv = cenv->next_cpu)
+        if (cenv->cpu_index == cpu_index && cenv->mcg_cap) {
+            cpu_inject_x86_mce(cenv, bank, status, mcg_status, addr, misc);
+            break;
+        }
+}
+#endif
+
+static void do_getfd(Monitor *mon, const char *fdname)
+{
+    mon_fd_t *monfd;
+    int fd;
+
+    fd = qemu_chr_get_msgfd(mon->chr);
+    if (fd == -1) {
+        monitor_printf(mon, "getfd: no file descriptor supplied via SCM_RIGHTS\n");
+        return;
+    }
+
+    if (qemu_isdigit(fdname[0])) {
+        monitor_printf(mon, "getfd: monitor names may not begin with a number\n");
+        return;
+    }
+
+    fd = dup(fd);
+    if (fd == -1) {
+        monitor_printf(mon, "Failed to dup() file descriptor: %s\n",
+                       strerror(errno));
+        return;
+    }
+
+    LIST_FOREACH(monfd, &mon->fds, next) {
+        if (strcmp(monfd->name, fdname) != 0) {
+            continue;
+        }
+
+        close(monfd->fd);
+        monfd->fd = fd;
+        return;
+    }
+
+    monfd = qemu_mallocz(sizeof(mon_fd_t));
+    monfd->name = qemu_strdup(fdname);
+    monfd->fd = fd;
+
+    LIST_INSERT_HEAD(&mon->fds, monfd, next);
+}
+
+static void do_closefd(Monitor *mon, const char *fdname)
+{
+    mon_fd_t *monfd;
+
+    LIST_FOREACH(monfd, &mon->fds, next) {
+        if (strcmp(monfd->name, fdname) != 0) {
+            continue;
+        }
+
+        LIST_REMOVE(monfd, next);
+        close(monfd->fd);
+        qemu_free(monfd->name);
+        qemu_free(monfd);
+        return;
+    }
+
+    monitor_printf(mon, "Failed to find file descriptor named %s\n",
+                   fdname);
+}
+
+int monitor_get_fd(Monitor *mon, const char *fdname)
+{
+    mon_fd_t *monfd;
+
+    LIST_FOREACH(monfd, &mon->fds, next) {
+        int fd;
+
+        if (strcmp(monfd->name, fdname) != 0) {
+            continue;
+        }
+
+        fd = monfd->fd;
+
+        /* caller takes ownership of fd */
+        LIST_REMOVE(monfd, next);
+        qemu_free(monfd->name);
+        qemu_free(monfd);
+
+        return fd;
+    }
+
+    return -1;
 }
 
 static const mon_cmd_t mon_cmds[] = {
@@ -1733,14 +1874,16 @@ static const mon_cmd_t info_cmds[] = {
       "", "show CPU statistics", },
 #endif
 #if defined(CONFIG_SLIRP)
-    { "slirp", "", do_info_slirp,
-      "", "show SLIRP statistics", },
+    { "usernet", "", do_info_usernet,
+      "", "show user network stack connection states", },
 #endif
     { "migrate", "", do_info_migrate, "", "show migration status" },
     { "balloon", "", do_info_balloon,
       "", "show balloon information" },
     { "qtree", "", do_info_qtree,
       "", "show device tree" },
+    { "qdm", "", do_info_qdm,
+      "", "show qdev device model list" },
     { NULL, NULL, },
 };
 
@@ -2129,7 +2272,7 @@ static int get_monitor_def(target_long *pval, const char *name)
 
 static void next(void)
 {
-    if (pch != '\0') {
+    if (*pch != '\0') {
         pch++;
         while (qemu_isspace(*pch))
             pch++;
@@ -2381,6 +2524,32 @@ static int get_str(char *buf, int buf_size, const char **pp)
     return 0;
 }
 
+/*
+ * Store the command-name in cmdname, and return a pointer to
+ * the remaining of the command string.
+ */
+static const char *get_command_name(const char *cmdline,
+                                    char *cmdname, size_t nlen)
+{
+    size_t len;
+    const char *p, *pstart;
+
+    p = cmdline;
+    while (qemu_isspace(*p))
+        p++;
+    if (*p == '\0')
+        return NULL;
+    pstart = p;
+    while (*p != '\0' && *p != '/' && !qemu_isspace(*p))
+        p++;
+    len = p - pstart;
+    if (len > nlen - 1)
+        len = nlen - 1;
+    memcpy(cmdname, pstart, len);
+    cmdname[len] = '\0';
+    return p;
+}
+
 static int default_fmt_format = 'x';
 static int default_fmt_size = 4;
 
@@ -2388,9 +2557,8 @@ static int default_fmt_size = 4;
 
 static void monitor_handle_command(Monitor *mon, const char *cmdline)
 {
-    const char *p, *pstart, *typestr;
-    char *q;
-    int c, nb_args, len, i, has_arg;
+    const char *p, *typestr;
+    int c, nb_args, i, has_arg;
     const mon_cmd_t *cmd;
     char cmdname[256];
     char buf[1024];
@@ -2408,35 +2576,35 @@ static void monitor_handle_command(Monitor *mon, const char *cmdline)
                       void *arg3, void *arg4, void *arg5);
     void (*handler_7)(Monitor *mon, void *arg0, void *arg1, void *arg2,
                       void *arg3, void *arg4, void *arg5, void *arg6);
+    void (*handler_8)(Monitor *mon, void *arg0, void *arg1, void *arg2,
+                      void *arg3, void *arg4, void *arg5, void *arg6,
+                      void *arg7);
+    void (*handler_9)(Monitor *mon, void *arg0, void *arg1, void *arg2,
+                      void *arg3, void *arg4, void *arg5, void *arg6,
+                      void *arg7, void *arg8);
+    void (*handler_10)(Monitor *mon, void *arg0, void *arg1, void *arg2,
+                       void *arg3, void *arg4, void *arg5, void *arg6,
+                       void *arg7, void *arg8, void *arg9);
 
 #ifdef DEBUG
     monitor_printf(mon, "command='%s'\n", cmdline);
 #endif
 
     /* extract the command name */
-    p = cmdline;
-    q = cmdname;
-    while (qemu_isspace(*p))
-        p++;
-    if (*p == '\0')
+    p = get_command_name(cmdline, cmdname, sizeof(cmdname));
+    if (!p)
         return;
-    pstart = p;
-    while (*p != '\0' && *p != '/' && !qemu_isspace(*p))
-        p++;
-    len = p - pstart;
-    if (len > sizeof(cmdname) - 1)
-        len = sizeof(cmdname) - 1;
-    memcpy(cmdname, pstart, len);
-    cmdname[len] = '\0';
 
     /* find the command */
     for(cmd = mon_cmds; cmd->name != NULL; cmd++) {
         if (compare_cmd(cmdname, cmd->name))
-            goto found;
+            break;
     }
-    monitor_printf(mon, "unknown command: '%s'\n", cmdname);
-    return;
- found:
+
+    if (cmd->name == NULL) {
+        monitor_printf(mon, "unknown command: '%s'\n", cmdname);
+        return;
+    }
 
     for(i = 0; i < MAX_ARGS; i++)
         str_allocated[i] = NULL;
@@ -2705,6 +2873,21 @@ static void monitor_handle_command(Monitor *mon, const char *cmdline)
         handler_7(mon, args[0], args[1], args[2], args[3], args[4], args[5],
                   args[6]);
         break;
+    case 8:
+        handler_8 = cmd->handler;
+        handler_8(mon, args[0], args[1], args[2], args[3], args[4], args[5],
+                  args[6], args[7]);
+        break;
+    case 9:
+        handler_9 = cmd->handler;
+        handler_9(mon, args[0], args[1], args[2], args[3], args[4], args[5],
+                  args[6], args[7], args[8]);
+        break;
+    case 10:
+        handler_10 = cmd->handler;
+        handler_10(mon, args[0], args[1], args[2], args[3], args[4], args[5],
+                   args[6], args[7], args[8], args[9]);
+        break;
     default:
         monitor_printf(mon, "unsupported number of arguments: %d\n", nb_args);
         goto fail;
@@ -2712,7 +2895,6 @@ static void monitor_handle_command(Monitor *mon, const char *cmdline)
  fail:
     for(i = 0; i < MAX_ARGS; i++)
         qemu_free(str_allocated[i]);
-    return;
 }
 
 static void cmd_completion(const char *name, const char *list)
@@ -2905,6 +3087,11 @@ static void monitor_find_completion(const char *cmdline)
                 readline_set_completion_index(cur_mon->rs, strlen(str));
                 for(key = key_defs; key->name != NULL; key++) {
                     cmd_completion(str, key->name);
+                }
+            } else if (!strcmp(cmd->name, "help|?")) {
+                readline_set_completion_index(cur_mon->rs, strlen(str));
+                for (cmd = mon_cmds; cmd->name != NULL; cmd++) {
+                    cmd_completion(str, cmd->name);
                 }
             }
             break;

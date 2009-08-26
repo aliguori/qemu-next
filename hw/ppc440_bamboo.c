@@ -32,7 +32,7 @@ static void *bamboo_load_device_tree(target_phys_addr_t addr,
                                      const char *kernel_cmdline)
 {
     void *fdt = NULL;
-#ifdef HAVE_FDT
+#ifdef CONFIG_FDT
     uint32_t mem_reg_property[] = { 0, 0, ramsize };
     char *filename;
     int fdt_size;
@@ -103,17 +103,9 @@ static void bamboo_init(ram_addr_t ram_size,
     int i;
 
     /* Setup CPU. */
-    env = ppc440ep_init(&ram_size, &pcibus, pci_irq_nrs, 1);
+    env = ppc440ep_init(&ram_size, &pcibus, pci_irq_nrs, 1, cpu_model);
 
     if (pcibus) {
-        int unit_id = 0;
-
-        /* Add virtio block devices. */
-        while ((i = drive_get_index(IF_VIRTIO, 0, unit_id)) != -1) {
-            pci_create_simple(pcibus, -1, "virtio-blk-pci");
-            unit_id++;
-        }
-
         /* Add virtio console devices */
         for(i = 0; i < MAX_VIRTIO_CONSOLES; i++) {
             if (virtcon_hds[i]) {
@@ -125,7 +117,7 @@ static void bamboo_init(ram_addr_t ram_size,
         for (i = 0; i < nb_nics; i++) {
             /* There are no PCI NICs on the Bamboo board, but there are
              * PCI slots, so we can pick whatever default model we want. */
-            pci_nic_init(pcibus, &nd_table[i], -1, "e1000");
+            pci_nic_init(&nd_table[i], "e1000", NULL);
         }
     }
 

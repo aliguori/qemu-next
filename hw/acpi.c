@@ -13,8 +13,7 @@
  * Lesser General Public License for more details.
  *
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston MA  02110-1301 USA
+ * License along with this library; if not, see <http://www.gnu.org/licenses/>
  */
 #include "hw.h"
 #include "pc.h"
@@ -497,6 +496,20 @@ static void piix4_reset(void *opaque)
     }
 }
 
+static void piix4_powerdown(void *opaque, int irq, int power_failing)
+{
+#if defined(TARGET_I386)
+    PIIX4PMState *s = opaque;
+
+    if (!s) {
+        qemu_system_shutdown_request();
+    } else if (s->pmen & PWRBTN_EN) {
+        s->pmsts |= PWRBTN_EN;
+        pm_update_sci(s);
+    }
+#endif
+}
+
 i2c_bus *piix4_pm_init(PCIBus *bus, int devfn, uint32_t smb_io_base,
                        qemu_irq sci_irq)
 {
@@ -546,26 +559,16 @@ i2c_bus *piix4_pm_init(PCIBus *bus, int devfn, uint32_t smb_io_base,
 
     s->tmr_timer = qemu_new_timer(vm_clock, pm_tmr_timer, s);
 
+    qemu_system_powerdown = *qemu_allocate_irqs(piix4_powerdown, s, 1);
+
     register_savevm("piix4_pm", 0, 1, pm_save, pm_load, s);
 
     s->smbus = i2c_init_bus(NULL, "i2c");
     s->irq = sci_irq;
-    qemu_register_reset(piix4_reset, 0, s);
+    qemu_register_reset(piix4_reset, s);
 
     return s->smbus;
 }
-
-#if defined(TARGET_I386)
-void qemu_system_powerdown(void)
-{
-    if (!pm_state) {
-        qemu_system_shutdown_request();
-    } else if (pm_state->pmen & PWRBTN_EN) {
-        pm_state->pmsts |= PWRBTN_EN;
-	pm_update_sci(pm_state);
-    }
-}
-#endif
 
 #define GPE_BASE 0xafe0
 #define PCI_BASE 0xae00
@@ -714,7 +717,9 @@ static void pciej_write(void *opaque, uint32_t addr, uint32_t val)
 #endif
 }
 
-void qemu_system_hot_add_init(void)
+static void piix4_device_hot_add(int bus, int slot, int state);
+
+void piix4_acpi_system_hot_add_init(void)
 {
     register_ioport_write(GPE_BASE, 4, 1, gpe_writeb, &gpe);
     register_ioport_read(GPE_BASE, 4, 1,  gpe_readb, &gpe);
@@ -724,6 +729,8 @@ void qemu_system_hot_add_init(void)
 
     register_ioport_write(PCI_EJ_BASE, 4, 4, pciej_write, NULL);
     register_ioport_read(PCI_EJ_BASE, 4, 4,  pciej_read, NULL);
+
+    qemu_system_device_hot_add_register(piix4_device_hot_add);
 }
 
 static void enable_device(struct pci_status *p, struct gpe_regs *g, int slot)
@@ -738,7 +745,7 @@ static void disable_device(struct pci_status *p, struct gpe_regs *g, int slot)
     p->down |= (1 << slot);
 }
 
-void qemu_system_device_hot_add(int bus, int slot, int state)
+static void piix4_device_hot_add(int bus, int slot, int state)
 {
     pci0_status.up = 0;
     pci0_status.down = 0;
@@ -750,6 +757,18 @@ void qemu_system_device_hot_add(int bus, int slot, int state)
         qemu_set_irq(pm_state->irq, 1);
         qemu_set_irq(pm_state->irq, 0);
     }
+}
+
+static qemu_system_device_hot_add_t device_hot_add_callback;
+void qemu_system_device_hot_add_register(qemu_system_device_hot_add_t callback)
+{
+    device_hot_add_callback = callback;
+}
+
+void qemu_system_device_hot_add(int pcibus, int slot, int state)
+{
+    if (device_hot_add_callback)
+        device_hot_add_callback(pcibus, slot, state);
 }
 
 struct acpi_table_header

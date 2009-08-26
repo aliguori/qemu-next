@@ -14,8 +14,7 @@
  * Lesser General Public License for more details.
  *
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston MA  02110-1301 USA
+ * License along with this library; if not, see <http://www.gnu.org/licenses/>.
  */
 #if !defined (__CPU_PPC_H__)
 #define __CPU_PPC_H__
@@ -56,10 +55,6 @@
 #define CPUState struct CPUPPCState
 
 #include "cpu-defs.h"
-
-#define REGX "%016" PRIx64
-#define ADDRX TARGET_FMT_lx
-#define PADDRX TARGET_FMT_plx
 
 #include <setjmp.h>
 
@@ -219,6 +214,7 @@ enum {
     /* Qemu exceptions: special cases we want to stop translation            */
     POWERPC_EXCP_SYNC         = 0x202, /* context synchronizing instruction  */
     POWERPC_EXCP_SYSCALL_USER = 0x203, /* System call in user mode only      */
+    POWERPC_EXCP_STCX         = 0x204 /* Conditional stores in user mode     */
 };
 
 /* Exceptions error codes                                                    */
@@ -562,7 +558,13 @@ struct CPUPPCState {
     /* XER */
     target_ulong xer;
     /* Reservation address */
-    target_ulong reserve;
+    target_ulong reserve_addr;
+    /* Reservation value */
+    target_ulong reserve_val;
+    /* Reservation store address */
+    target_ulong reserve_ea;
+    /* Reserved store source register and size */
+    target_ulong reserve_info;
 
     /* Those ones are used in supervisor mode only */
     /* machine state register */
@@ -775,7 +777,7 @@ int ppcemb_tlb_search (CPUPPCState *env, target_ulong address, uint32_t pid);
 #endif
 #endif
 
-static always_inline uint64_t ppc_dump_gpr (CPUPPCState *env, int gprn)
+static inline uint64_t ppc_dump_gpr(CPUPPCState *env, int gprn)
 {
     uint64_t gprv;
 
@@ -818,11 +820,9 @@ static inline int cpu_mmu_index (CPUState *env)
 #if defined(CONFIG_USER_ONLY)
 static inline void cpu_clone_regs(CPUState *env, target_ulong newsp)
 {
-    int i;
     if (newsp)
         env->gpr[1] = newsp;
-    for (i = 7; i < 32; i++)
-        env->gpr[i] = 0;
+    env->gpr[3] = 0;
 }
 #endif
 
@@ -1590,6 +1590,17 @@ static inline void cpu_get_tb_cpu_state(CPUState *env, target_ulong *pc,
     *pc = env->nip;
     *cs_base = 0;
     *flags = env->hflags;
+}
+
+static inline void cpu_set_tls(CPUState *env, target_ulong newtls)
+{
+#if defined(TARGET_PPC64)
+    /* The kernel checks TIF_32BIT here; we don't support loading 32-bit
+       binaries on PPC64 yet. */
+    env->gpr[13] = newtls;
+#else
+    env->gpr[2] = newtls;
+#endif
 }
 
 #endif /* !defined (__CPU_PPC_H__) */

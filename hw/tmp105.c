@@ -15,8 +15,7 @@
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License along
- * with this program; if not, write to the Free Software Foundation, Inc.,
- * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+ * with this program; if not, see <http://www.gnu.org/licenses/>.
  */
 
 #include "hw.h"
@@ -239,6 +238,8 @@ static void tmp105_init(i2c_slave *i2c)
 }
 
 static I2CSlaveInfo tmp105_info = {
+    .qdev.name = "tmp105",
+    .qdev.size = sizeof(TMP105State),
     .init = tmp105_init,
     .event = tmp105_event,
     .recv = tmp105_rx,
@@ -247,7 +248,7 @@ static I2CSlaveInfo tmp105_info = {
 
 static void tmp105_register_devices(void)
 {
-    i2c_register_slave("tmp105", sizeof(TMP105State), &tmp105_info);
+    i2c_register_slave(&tmp105_info);
 }
 
 device_init(tmp105_register_devices)

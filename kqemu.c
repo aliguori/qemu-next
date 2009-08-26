@@ -14,8 +14,7 @@
  * Lesser General Public License for more details.
  *
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston MA  02110-1301 USA
+ * License along with this library; if not, see <http://www.gnu.org/licenses/>.
  */
 #include "config.h"
 #ifdef _WIN32
@@ -26,7 +25,7 @@
 #include <sys/mman.h>
 #include <sys/ioctl.h>
 #endif
-#ifdef HOST_SOLARIS
+#ifdef CONFIG_SOLARIS
 #include <sys/ioccom.h>
 #endif
 #include <stdlib.h>
@@ -81,7 +80,7 @@ int kqemu_fd = KQEMU_INVALID_FD;
    1 = user kqemu
    2 = kernel kqemu
 */
-int kqemu_allowed = 1;
+int kqemu_allowed = 0;
 uint64_t *pages_to_flush;
 unsigned int nb_pages_to_flush;
 uint64_t *ram_pages_to_update;
@@ -990,7 +989,7 @@ static CPUWriteMemoryFunc *qpi_mem_write[3] = {
 static void qpi_init(void)
 {
     kqemu_comm_base = 0xff000000 | 1;
-    qpi_io_memory = cpu_register_io_memory(0, 
+    qpi_io_memory = cpu_register_io_memory(
                                            qpi_mem_read, 
                                            qpi_mem_write, NULL);
     cpu_register_physical_memory(kqemu_comm_base & ~0xfff, 

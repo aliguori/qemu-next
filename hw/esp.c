@@ -401,8 +401,6 @@ static void esp_reset(void *opaque)
 {
     ESPState *s = opaque;
 
-    esp_lower_irq(s);
-
     memset(s->rregs, 0, ESP_REGS);
     memset(s->wregs, 0, ESP_REGS);
     s->rregs[ESP_TCHI] = TCHI_FAS100A; // Indicate fas100a
@@ -424,7 +422,7 @@ static void parent_esp_reset(void *opaque, int irq, int level)
 static uint32_t esp_mem_readb(void *opaque, target_phys_addr_t addr)
 {
     ESPState *s = opaque;
-    uint32_t saddr;
+    uint32_t saddr, old_val;
 
     saddr = addr >> s->it_shift;
     DPRINTF("read reg[%d]: 0x%2.2x\n", saddr, s->rregs[saddr]);
@@ -447,10 +445,15 @@ static uint32_t esp_mem_readb(void *opaque, target_phys_addr_t addr)
         }
         break;
     case ESP_RINTR:
-        // Clear interrupt/error status bits
-        s->rregs[ESP_RSTAT] &= ~(STAT_GE | STAT_PE);
+        /* Clear sequence step, interrupt register and all status bits
+           except TC */
+        old_val = s->rregs[ESP_RINTR];
+        s->rregs[ESP_RINTR] = 0;
+        s->rregs[ESP_RSTAT] &= ~STAT_TC;
+        s->rregs[ESP_RSEQ] = SEQ_CD;
         esp_lower_irq(s);
-        break;
+
+        return old_val;
     default:
         break;
     }
@@ -652,16 +655,19 @@ void esp_init(target_phys_addr_t espaddr, int it_shift,
 {
     DeviceState *dev;
     SysBusDevice *s;
+    ESPState *esp;
 
     dev = qdev_create(NULL, "esp");
-    qdev_set_prop_ptr(dev, "dma_memory_read", dma_memory_read);
-    qdev_set_prop_ptr(dev, "dma_memory_write", dma_memory_write);
-    qdev_set_prop_ptr(dev, "dma_opaque", dma_opaque);
-    qdev_set_prop_int(dev, "it_shift", it_shift);
+    esp = DO_UPCAST(ESPState, busdev.qdev, dev);
+    esp->dma_memory_read = dma_memory_read;
+    esp->dma_memory_write = dma_memory_write;
+    esp->dma_opaque = dma_opaque;
+    esp->it_shift = it_shift;
     qdev_init(dev);
     s = sysbus_from_qdev(dev);
     sysbus_connect_irq(s, 0, irq);
     sysbus_mmio_map(s, 0, espaddr);
+    *reset = qdev_get_gpio_in(dev, 0);
 }
 
 static void esp_init1(SysBusDevice *dev)
@@ -670,19 +676,15 @@ static void esp_init1(SysBusDevice *dev)
     int esp_io_memory;
 
     sysbus_init_irq(dev, &s->irq);
-    s->it_shift = qdev_get_prop_int(&dev->qdev, "it_shift", -1);
     assert(s->it_shift != -1);
-    s->dma_memory_read = qdev_get_prop_ptr(&dev->qdev, "dma_memory_read");
-    s->dma_memory_write = qdev_get_prop_ptr(&dev->qdev, "dma_memory_write");
-    s->dma_opaque = qdev_get_prop_ptr(&dev->qdev, "dma_opaque");
 
-    esp_io_memory = cpu_register_io_memory(0, esp_mem_read, esp_mem_write, s);
+    esp_io_memory = cpu_register_io_memory(esp_mem_read, esp_mem_write, s);
     sysbus_init_mmio(dev, ESP_REGS << s->it_shift, esp_io_memory);
 
     esp_reset(s);
 
     register_savevm("esp", -1, 3, esp_save, esp_load, s);
-    qemu_register_reset(esp_reset, 0, s);
+    qemu_register_reset(esp_reset, s);
 
     qdev_init_gpio_in(&dev->qdev, parent_esp_reset, 1);
 

@@ -23,21 +23,14 @@
  *
  *  You should have received a copy of the GNU General Public License
  *  along with this program (see the file COPYING included with this
- *  distribution); if not, write to the Free Software Foundation, Inc.,
- *  51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+ *  distribution); if not, see <http://www.gnu.org/licenses/>.
  */
 #include "qemu-common.h"
 #include "net.h"
 #include "sysemu.h"
 #include <stdio.h>
 #include <windows.h>
-
-/* NOTE: PCIBus is redefined in winddk.h */
-#define PCIBus _PCIBus
-#include <ddk/ntapi.h>
-#include <ddk/winddk.h>
-#include <ddk/ntddk.h>
-#undef PCIBus
+#include <winioctl.h>
 
 //=============
 // TAP IOCTLs
@@ -650,11 +643,11 @@ static void tap_cleanup(VLANClientState *vc)
     qemu_free(s);
 }
 
-static void tap_receive(void *opaque, const uint8_t *buf, int size)
+static ssize_t tap_receive(VLANClientState *vc, const uint8_t *buf, size_t size)
 {
-    TAPState *s = opaque;
+    TAPState *s = vc->opaque;
 
-    tap_win32_write(s->handle, buf, size);
+    return tap_win32_write(s->handle, buf, size);
 }
 
 static void tap_win32_send(void *opaque)
@@ -684,7 +677,7 @@ int tap_win32_init(VLANState *vlan, const char *model,
         return -1;
     }
 
-    s->vc = qemu_new_vlan_client(vlan, model, name, tap_receive,
+    s->vc = qemu_new_vlan_client(vlan, model, name, NULL, tap_receive,
                                  NULL, tap_cleanup, s);
 
     snprintf(s->vc->info_str, sizeof(s->vc->info_str),

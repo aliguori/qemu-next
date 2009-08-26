@@ -37,9 +37,8 @@ typedef struct QEMUSnapshotInfo {
                                      bdrv_file_open()) */
 #define BDRV_O_NOCACHE     0x0020 /* do not use the host page cache */
 #define BDRV_O_CACHE_WB    0x0040 /* use write-back caching */
-#define BDRV_O_CACHE_DEF   0x0080 /* use default caching */
 
-#define BDRV_O_CACHE_MASK  (BDRV_O_NOCACHE | BDRV_O_CACHE_WB | BDRV_O_CACHE_DEF)
+#define BDRV_O_CACHE_MASK  (BDRV_O_NOCACHE | BDRV_O_CACHE_WB)
 
 void bdrv_info(Monitor *mon);
 void bdrv_info_stats(Monitor *mon);
@@ -124,7 +123,7 @@ int bdrv_is_inserted(BlockDriverState *bs);
 int bdrv_media_changed(BlockDriverState *bs);
 int bdrv_is_locked(BlockDriverState *bs);
 void bdrv_set_locked(BlockDriverState *bs, int locked);
-void bdrv_eject(BlockDriverState *bs, int eject_flag);
+int bdrv_eject(BlockDriverState *bs, int eject_flag);
 void bdrv_set_change_cb(BlockDriverState *bs,
                         void (*change_cb)(void *opaque), void *opaque);
 void bdrv_get_format(BlockDriverState *bs, char *buf, int buf_size);
@@ -160,9 +159,10 @@ void path_combine(char *dest, int dest_size,
                   const char *base_path,
                   const char *filename);
 
-int bdrv_put_buffer(BlockDriverState *bs, const uint8_t *buf,
-                    int64_t pos, int size);
+int bdrv_save_vmstate(BlockDriverState *bs, const uint8_t *buf,
+                      int64_t pos, int size);
 
-int bdrv_get_buffer(BlockDriverState *bs, uint8_t *buf, int64_t pos, int size);
+int bdrv_load_vmstate(BlockDriverState *bs, uint8_t *buf,
+                      int64_t pos, int size);
 
 #endif

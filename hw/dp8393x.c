@@ -14,8 +14,7 @@
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License along
- * with this program; if not, write to the Free Software Foundation, Inc.,
- * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+ * with this program; if not, see <http://www.gnu.org/licenses/>.
  */
 
 #include "hw.h"
@@ -407,9 +406,9 @@ static void do_transmit_packets(dp8393xState *s)
         if (s->regs[SONIC_RCR] & (SONIC_RCR_LB1 | SONIC_RCR_LB0)) {
             /* Loopback */
             s->regs[SONIC_TCR] |= SONIC_TCR_CRSL;
-            if (s->vc->fd_can_read(s)) {
+            if (s->vc->can_receive(s->vc)) {
                 s->loopback_packet = 1;
-                s->vc->fd_read(s, s->tx_buffer, tx_len);
+                s->vc->receive(s->vc, s->tx_buffer, tx_len);
             }
         } else {
             /* Transmit packet */
@@ -676,9 +675,9 @@ static CPUWriteMemoryFunc *dp8393x_write[3] = {
     dp8393x_writel,
 };
 
-static int nic_can_receive(void *opaque)
+static int nic_can_receive(VLANClientState *vc)
 {
-    dp8393xState *s = opaque;
+    dp8393xState *s = vc->opaque;
 
     if (!(s->regs[SONIC_CR] & SONIC_CR_RXEN))
         return 0;
@@ -725,10 +724,10 @@ static int receive_filter(dp8393xState *s, const uint8_t * buf, int size)
     return -1;
 }
 
-static void nic_receive(void *opaque, const uint8_t * buf, int size)
+static ssize_t nic_receive(VLANClientState *vc, const uint8_t * buf, size_t size)
 {
     uint16_t data[10];
-    dp8393xState *s = opaque;
+    dp8393xState *s = vc->opaque;
     int packet_type;
     uint32_t available, address;
     int width, rx_len = size;
@@ -742,7 +741,7 @@ static void nic_receive(void *opaque, const uint8_t * buf, int size)
     packet_type = receive_filter(s, buf, size);
     if (packet_type < 0) {
         DPRINTF("packet not for netcard\n");
-        return;
+        return -1;
     }
 
     /* XXX: Check byte ordering */
@@ -755,7 +754,7 @@ static void nic_receive(void *opaque, const uint8_t * buf, int size)
         s->memory_rw(s->mem_opaque, address, (uint8_t*)data, size, 0);
         if (data[0 * width] & 0x1) {
             /* Still EOL ; stop reception */
-            return;
+            return -1;
         } else {
             s->regs[SONIC_CRDA] = s->regs[SONIC_LLFA];
         }
@@ -833,6 +832,8 @@ static void nic_receive(void *opaque, const uint8_t * buf, int size)
 
     /* Done */
     dp8393x_update_irq(s);
+
+    return size;
 }
 
 static void nic_reset(void *opaque)
@@ -888,13 +889,14 @@ void dp83932_init(NICInfo *nd, target_phys_addr_t base, int it_shift,
     s->watchdog = qemu_new_timer(vm_clock, dp8393x_watchdog, s);
     s->regs[SONIC_SR] = 0x0004; /* only revision recognized by Linux */
 
-    s->vc = qemu_new_vlan_client(nd->vlan, nd->model, nd->name,
-                                 nic_receive, nic_can_receive, nic_cleanup, s);
+    s->vc = nd->vc = qemu_new_vlan_client(nd->vlan, nd->model, nd->name,
+                                          nic_can_receive, nic_receive, NULL,
+                                          nic_cleanup, s);
 
     qemu_format_nic_info_str(s->vc, nd->macaddr);
-    qemu_register_reset(nic_reset, 0, s);
+    qemu_register_reset(nic_reset, s);
     nic_reset(s);
 
-    s->mmio_index = cpu_register_io_memory(0, dp8393x_read, dp8393x_write, s);
+    s->mmio_index = cpu_register_io_memory(dp8393x_read, dp8393x_write, s);
     cpu_register_physical_memory(base, 0x40 << it_shift, s->mmio_index);
 }

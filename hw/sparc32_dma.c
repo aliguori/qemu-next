@@ -21,9 +21,11 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
+
 #include "hw.h"
 #include "sparc32_dma.h"
 #include "sun4m.h"
+#include "sysbus.h"
 
 /* debug DMA */
 //#define DEBUG_DMA
@@ -60,6 +62,7 @@
 typedef struct DMAState DMAState;
 
 struct DMAState {
+    SysBusDevice busdev;
     uint32_t dmaregs[DMA_REGS];
     qemu_irq irq;
     void *iommu;
@@ -241,25 +244,36 @@ static int dma_load(QEMUFile *f, void *opaque, int version_id)
     return 0;
 }
 
-void *sparc32_dma_init(target_phys_addr_t daddr, qemu_irq parent_irq,
-                       void *iommu, qemu_irq **dev_irq, qemu_irq **reset)
+static void sparc32_dma_init1(SysBusDevice *dev)
 {
-    DMAState *s;
+    DMAState *s = FROM_SYSBUS(DMAState, dev);
     int dma_io_memory;
 
-    s = qemu_mallocz(sizeof(DMAState));
+    sysbus_init_irq(dev, &s->irq);
 
-    s->irq = parent_irq;
-    s->iommu = iommu;
+    dma_io_memory = cpu_register_io_memory(dma_mem_read, dma_mem_write, s);
+    sysbus_init_mmio(dev, DMA_SIZE, dma_io_memory);
 
-    dma_io_memory = cpu_register_io_memory(0, dma_mem_read, dma_mem_write, s);
-    cpu_register_physical_memory(daddr, DMA_SIZE, dma_io_memory);
+    register_savevm("sparc32_dma", -1, 2, dma_save, dma_load, s);
+    qemu_register_reset(dma_reset, s);
 
-    register_savevm("sparc32_dma", daddr, 2, dma_save, dma_load, s);
-    qemu_register_reset(dma_reset, 0, s);
-    *dev_irq = qemu_allocate_irqs(dma_set_irq, s, 1);
-
-    *reset = &s->dev_reset;
-
-    return s;
+    qdev_init_gpio_in(&dev->qdev, dma_set_irq, 1);
+    qdev_init_gpio_out(&dev->qdev, &s->dev_reset, 1);
 }
+
+static SysBusDeviceInfo sparc32_dma_info = {
+    .init = sparc32_dma_init1,
+    .qdev.name  = "sparc32_dma",
+    .qdev.size  = sizeof(DMAState),
+    .qdev.props = (Property[]) {
+        DEFINE_PROP_PTR("iommu_opaque", DMAState, iommu),
+        DEFINE_PROP_END_OF_LIST(),
+    }
+};
+
+static void sparc32_dma_register_devices(void)
+{
+    sysbus_register_withprop(&sparc32_dma_info);
+}
+
+device_init(sparc32_dma_register_devices)

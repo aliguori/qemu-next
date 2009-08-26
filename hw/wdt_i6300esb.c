@@ -14,9 +14,7 @@
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301,
- * USA.
+ * along with this program; if not, see <http://www.gnu.org/licenses/>.
  *
  * By Richard W.M. Jones (rjones@redhat.com).
  */
@@ -368,7 +366,7 @@ static void i6300esb_map(PCIDevice *dev, int region_num,
 
     i6300esb_debug("addr = %x, size = %x, type = %d\n", addr, size, type);
 
-    io_mem = cpu_register_io_memory (0, mem_read, mem_write, d);
+    io_mem = cpu_register_io_memory(mem_read, mem_write, d);
     cpu_register_physical_memory (addr, 0x10, io_mem);
     /* qemu_register_coalesced_mmio (addr, 0x10); ? */
 }
@@ -451,7 +449,7 @@ static void i6300esb_pc_init(PCIBus *pci_bus)
     pci_config_set_class(pci_conf, PCI_CLASS_SYSTEM_OTHER);
     pci_conf[0x0e] = 0x00;
 
-    pci_register_io_region(&d->dev, 0, 0x10,
+    pci_register_bar(&d->dev, 0, 0x10,
                             PCI_ADDRESS_SPACE_MEM, i6300esb_map);
 
     register_savevm("i6300esb_wdt", -1, sizeof(I6300State),

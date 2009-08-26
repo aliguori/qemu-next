@@ -25,6 +25,7 @@
 #include "pc.h"
 #include "isa.h"
 #include "monitor.h"
+#include "qemu-timer.h"
 
 /* debug PIC */
 //#define DEBUG_PIC
@@ -508,7 +509,7 @@ static void pic_init1(int io_addr, int elcr_addr, PicState *s)
         register_ioport_read(elcr_addr, 1, 1, elcr_ioport_read, s);
     }
     register_savevm("i8259", io_addr, 1, pic_save, pic_load, s);
-    qemu_register_reset(pic_reset, 0, s);
+    qemu_register_reset(pic_reset, s);
 }
 
 void pic_info(Monitor *mon)

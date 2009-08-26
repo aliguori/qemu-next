@@ -437,11 +437,11 @@ static i2c_interface *musicpal_audio_init(qemu_irq irq)
     s->wm = i2c_create_slave(i2c->bus, "wm8750", MP_WM_ADDR);
     wm8750_data_req_set(s->wm, audio_callback, s);
 
-    iomemtype = cpu_register_io_memory(0, musicpal_audio_readfn,
+    iomemtype = cpu_register_io_memory(musicpal_audio_readfn,
                        musicpal_audio_writefn, s);
     cpu_register_physical_memory(MP_AUDIO_BASE, MP_AUDIO_SIZE, iomemtype);
 
-    qemu_register_reset(musicpal_audio_reset, 0, s);
+    qemu_register_reset(musicpal_audio_reset, s);
 
     return i2c;
 }
@@ -557,14 +557,14 @@ static void eth_rx_desc_get(uint32_t addr, mv88w8618_rx_desc *desc)
     le32_to_cpus(&desc->next);
 }
 
-static int eth_can_receive(void *opaque)
+static int eth_can_receive(VLANClientState *vc)
 {
     return 1;
 }
 
-static void eth_receive(void *opaque, const uint8_t *buf, int size)
+static ssize_t eth_receive(VLANClientState *vc, const uint8_t *buf, size_t size)
 {
-    mv88w8618_eth_state *s = opaque;
+    mv88w8618_eth_state *s = vc->opaque;
     uint32_t desc_addr;
     mv88w8618_rx_desc desc;
     int i;
@@ -586,11 +586,12 @@ static void eth_receive(void *opaque, const uint8_t *buf, int size)
                 if (s->icr & s->imr)
                     qemu_irq_raise(s->irq);
                 eth_rx_desc_put(desc_addr, &desc);
-                return;
+                return size;
             }
             desc_addr = desc.next;
         } while (desc_addr != s->rx_queue[i]);
     }
+    return size;
 }
 
 static void eth_tx_desc_put(uint32_t addr, mv88w8618_tx_desc *desc)
@@ -753,9 +754,9 @@ static void mv88w8618_eth_init(SysBusDevice *dev)
 
     sysbus_init_irq(dev, &s->irq);
     s->vc = qdev_get_vlan_client(&dev->qdev,
-                                 eth_receive, eth_can_receive,
+                                 eth_can_receive, eth_receive, NULL,
                                  eth_cleanup, s);
-    s->mmio_index = cpu_register_io_memory(0, mv88w8618_eth_readfn,
+    s->mmio_index = cpu_register_io_memory(mv88w8618_eth_readfn,
                                            mv88w8618_eth_writefn, s);
     sysbus_init_mmio(dev, MP_ETH_SIZE, s->mmio_index);
 }
@@ -945,7 +946,7 @@ static void musicpal_lcd_init(SysBusDevice *dev)
     musicpal_lcd_state *s = FROM_SYSBUS(musicpal_lcd_state, dev);
     int iomemtype;
 
-    iomemtype = cpu_register_io_memory(0, musicpal_lcd_readfn,
+    iomemtype = cpu_register_io_memory(musicpal_lcd_readfn,
                                        musicpal_lcd_writefn, s);
     sysbus_init_mmio(dev, MP_LCD_SIZE, iomemtype);
     cpu_register_physical_memory(MP_LCD_BASE, MP_LCD_SIZE, iomemtype);
@@ -1042,11 +1043,11 @@ static void mv88w8618_pic_init(SysBusDevice *dev)
 
     qdev_init_gpio_in(&dev->qdev, mv88w8618_pic_set_irq, 32);
     sysbus_init_irq(dev, &s->parent_irq);
-    iomemtype = cpu_register_io_memory(0, mv88w8618_pic_readfn,
+    iomemtype = cpu_register_io_memory(mv88w8618_pic_readfn,
                                        mv88w8618_pic_writefn, s);
     sysbus_init_mmio(dev, MP_PIC_SIZE, iomemtype);
 
-    qemu_register_reset(mv88w8618_pic_reset, 0, s);
+    qemu_register_reset(mv88w8618_pic_reset, s);
 }
 
 /* PIT register offsets */
@@ -1166,7 +1167,7 @@ static void mv88w8618_pit_init(SysBusDevice *dev)
         mv88w8618_timer_init(dev, &s->timer[i], 1000000);
     }
 
-    iomemtype = cpu_register_io_memory(0, mv88w8618_pit_readfn,
+    iomemtype = cpu_register_io_memory(mv88w8618_pit_readfn,
                                        mv88w8618_pit_writefn, s);
     sysbus_init_mmio(dev, MP_PIT_SIZE, iomemtype);
 }
@@ -1223,7 +1224,7 @@ static void mv88w8618_flashcfg_init(SysBusDevice *dev)
     mv88w8618_flashcfg_state *s = FROM_SYSBUS(mv88w8618_flashcfg_state, dev);
 
     s->cfgr0 = 0xfffe4285; /* Default as set by U-Boot for 8 MB flash */
-    iomemtype = cpu_register_io_memory(0, mv88w8618_flashcfg_readfn,
+    iomemtype = cpu_register_io_memory(mv88w8618_flashcfg_readfn,
                        mv88w8618_flashcfg_writefn, s);
     sysbus_init_mmio(dev, MP_FLASHCFG_SIZE, iomemtype);
 }
@@ -1265,7 +1266,7 @@ static void musicpal_misc_init(void)
 {
     int iomemtype;
 
-    iomemtype = cpu_register_io_memory(0, musicpal_misc_readfn,
+    iomemtype = cpu_register_io_memory(musicpal_misc_readfn,
                                        musicpal_misc_writefn, NULL);
     cpu_register_physical_memory(MP_MISC_BASE, MP_MISC_SIZE, iomemtype);
 }
@@ -1310,7 +1311,7 @@ static void mv88w8618_wlan_init(SysBusDevice *dev)
 {
     int iomemtype;
 
-    iomemtype = cpu_register_io_memory(0, mv88w8618_wlan_readfn,
+    iomemtype = cpu_register_io_memory(mv88w8618_wlan_readfn,
                                        mv88w8618_wlan_writefn, NULL);
     sysbus_init_mmio(dev, MP_WLAN_SIZE, iomemtype);
 }
@@ -1411,7 +1412,7 @@ static void musicpal_gpio_init(void)
 {
     int iomemtype;
 
-    iomemtype = cpu_register_io_memory(0, musicpal_gpio_readfn,
+    iomemtype = cpu_register_io_memory(musicpal_gpio_readfn,
                                        musicpal_gpio_writefn, NULL);
     cpu_register_physical_memory(MP_GPIO_BASE, MP_GPIO_SIZE, iomemtype);
 }
@@ -1511,8 +1512,8 @@ static void musicpal_init(ram_addr_t ram_size,
     qemu_irq pic[32];
     DeviceState *dev;
     int i;
-    int index;
     unsigned long flash_size;
+    DriveInfo *dinfo;
 
     if (!cpu_model)
         cpu_model = "arm926";
@@ -1548,9 +1549,9 @@ static void musicpal_init(ram_addr_t ram_size,
                    serial_hds[1], 1);
 
     /* Register flash */
-    index = drive_get_index(IF_PFLASH, 0, 0);
-    if (index != -1) {
-        flash_size = bdrv_getlength(drives_table[index].bdrv);
+    dinfo = drive_get(IF_PFLASH, 0, 0);
+    if (dinfo) {
+        flash_size = bdrv_getlength(dinfo->bdrv);
         if (flash_size != 8*1024*1024 && flash_size != 16*1024*1024 &&
             flash_size != 32*1024*1024) {
             fprintf(stderr, "Invalid flash image size\n");
@@ -1563,7 +1564,7 @@ static void musicpal_init(ram_addr_t ram_size,
          * image is smaller than 32 MB.
          */
         pflash_cfi02_register(0-MP_FLASH_SIZE_MAX, qemu_ram_alloc(flash_size),
-                              drives_table[index].bdrv, 0x10000,
+                              dinfo->bdrv, 0x10000,
                               (flash_size + 0xffff) >> 16,
                               MP_FLASH_SIZE_MAX / flash_size,
                               2, 0x00BF, 0x236D, 0x0000, 0x0000,
@@ -1577,7 +1578,7 @@ static void musicpal_init(ram_addr_t ram_size,
 
     qemu_check_nic_model(&nd_table[0], "mv88w8618");
     dev = qdev_create(NULL, "mv88w8618_eth");
-    qdev_set_netdev(dev, &nd_table[0]);
+    dev->nd = &nd_table[0];
     qdev_init(dev);
     sysbus_mmio_map(sysbus_from_qdev(dev), 0, MP_ETH_BASE);
     sysbus_connect_irq(sysbus_from_qdev(dev), 0, pic[MP_ETH_IRQ]);

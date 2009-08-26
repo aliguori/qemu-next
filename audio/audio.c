@@ -37,8 +37,13 @@
 
 #define SW_NAME(sw) (sw)->name ? (sw)->name : "unknown"
 
+
+/* Order of CONFIG_AUDIO_DRIVERS is import.
+   The 1st one is the one used by default, that is the reason
+    that we generate the list.
+*/
 static struct audio_driver *drvtab[] = {
-    AUDIO_DRIVERS
+    CONFIG_AUDIO_DRIVERS
     &no_audio_driver,
     &wav_audio_driver
 };
@@ -60,45 +65,45 @@ static struct {
     int plive;
     int log_to_monitor;
 } conf = {
-    {                           /* DAC fixed settings */
-        1,                      /* enabled */
-        1,                      /* nb_voices */
-        1,                      /* greedy */
-        {
-            44100,              /* freq */
-            2,                  /* nchannels */
-            AUD_FMT_S16,        /* fmt */
-            AUDIO_HOST_ENDIANNESS
+    .fixed_out = { /* DAC fixed settings */
+        .enabled = 1,
+        .nb_voices = 1,
+        .greedy = 1,
+        .settings = {
+            .freq = 44100,
+            .nchannels = 2,
+            .fmt = AUD_FMT_S16,
+            .endianness =  AUDIO_HOST_ENDIANNESS,
         }
     },
 
-    {                           /* ADC fixed settings */
-        1,                      /* enabled */
-        1,                      /* nb_voices */
-        1,                      /* greedy */
-        {
-            44100,              /* freq */
-            2,                  /* nchannels */
-            AUD_FMT_S16,        /* fmt */
-            AUDIO_HOST_ENDIANNESS
+    .fixed_in = { /* ADC fixed settings */
+        .enabled = 1,
+        .nb_voices = 1,
+        .greedy = 1,
+        .settings = {
+            .freq = 44100,
+            .nchannels = 2,
+            .fmt = AUD_FMT_S16,
+            .endianness = AUDIO_HOST_ENDIANNESS,
         }
     },
 
-    { 250 },                    /* period */
-    0,                          /* plive */
-    0                           /* log_to_monitor */
+    .period = { .hertz = 250 },
+    .plive = 0,
+    .log_to_monitor = 0,
 };
 
 static AudioState glob_audio_state;
 
 struct mixeng_volume nominal_volume = {
-    0,
+    .mute = 0,
 #ifdef FLOAT_MIXENG
-    1.0,
-    1.0
+    .r = 1.0,
+    .l = 1.0,
 #else
-    1ULL << 32,
-    1ULL << 32
+    .r = 1ULL << 32,
+    .l = 1ULL << 32,
 #endif
 };
 
@@ -1488,48 +1493,87 @@ static void audio_timer (void *opaque)
 
 static struct audio_option audio_options[] = {
     /* DAC */
-    {"DAC_FIXED_SETTINGS", AUD_OPT_BOOL, &conf.fixed_out.enabled,
-     "Use fixed settings for host DAC", NULL, 0},
-
-    {"DAC_FIXED_FREQ", AUD_OPT_INT, &conf.fixed_out.settings.freq,
-     "Frequency for fixed host DAC", NULL, 0},
-
-    {"DAC_FIXED_FMT", AUD_OPT_FMT, &conf.fixed_out.settings.fmt,
-     "Format for fixed host DAC", NULL, 0},
-
-    {"DAC_FIXED_CHANNELS", AUD_OPT_INT, &conf.fixed_out.settings.nchannels,
-     "Number of channels for fixed DAC (1 - mono, 2 - stereo)", NULL, 0},
-
-    {"DAC_VOICES", AUD_OPT_INT, &conf.fixed_out.nb_voices,
-     "Number of voices for DAC", NULL, 0},
-
+    {
+        .name  = "DAC_FIXED_SETTINGS",
+        .tag   = AUD_OPT_BOOL,
+        .valp  = &conf.fixed_out.enabled,
+        .descr = "Use fixed settings for host DAC"
+    },
+    {
+        .name  = "DAC_FIXED_FREQ",
+        .tag   = AUD_OPT_INT,
+        .valp  = &conf.fixed_out.settings.freq,
+        .descr = "Frequency for fixed host DAC"
+    },
+    {
+        .name  = "DAC_FIXED_FMT",
+        .tag   = AUD_OPT_FMT,
+        .valp  = &conf.fixed_out.settings.fmt,
+        .descr = "Format for fixed host DAC"
+    },
+    {
+        .name  = "DAC_FIXED_CHANNELS",
+        .tag   = AUD_OPT_INT,
+        .valp  = &conf.fixed_out.settings.nchannels,
+        .descr = "Number of channels for fixed DAC (1 - mono, 2 - stereo)"
+    },
+    {
+        .name  = "DAC_VOICES",
+        .tag   = AUD_OPT_INT,
+        .valp  = &conf.fixed_out.nb_voices,
+        .descr = "Number of voices for DAC"
+    },
     /* ADC */
-    {"ADC_FIXED_SETTINGS", AUD_OPT_BOOL, &conf.fixed_in.enabled,
-     "Use fixed settings for host ADC", NULL, 0},
-
-    {"ADC_FIXED_FREQ", AUD_OPT_INT, &conf.fixed_in.settings.freq,
-     "Frequency for fixed host ADC", NULL, 0},
-
-    {"ADC_FIXED_FMT", AUD_OPT_FMT, &conf.fixed_in.settings.fmt,
-     "Format for fixed host ADC", NULL, 0},
-
-    {"ADC_FIXED_CHANNELS", AUD_OPT_INT, &conf.fixed_in.settings.nchannels,
-     "Number of channels for fixed ADC (1 - mono, 2 - stereo)", NULL, 0},
-
-    {"ADC_VOICES", AUD_OPT_INT, &conf.fixed_in.nb_voices,
-     "Number of voices for ADC", NULL, 0},
-
+    {
+        .name  = "ADC_FIXED_SETTINGS",
+        .tag   = AUD_OPT_BOOL,
+        .valp  = &conf.fixed_in.enabled,
+        .descr = "Use fixed settings for host ADC"
+    },
+    {
+        .name  = "ADC_FIXED_FREQ",
+        .tag   = AUD_OPT_INT,
+        .valp  = &conf.fixed_in.settings.freq,
+        .descr = "Frequency for fixed host ADC"
+    },
+    {
+        .name  = "ADC_FIXED_FMT",
+        .tag   = AUD_OPT_FMT,
+        .valp  = &conf.fixed_in.settings.fmt,
+        .descr = "Format for fixed host ADC"
+    },
+    {
+        .name  = "ADC_FIXED_CHANNELS",
+        .tag   = AUD_OPT_INT,
+        .valp  = &conf.fixed_in.settings.nchannels,
+        .descr = "Number of channels for fixed ADC (1 - mono, 2 - stereo)"
+    },
+    {
+        .name  = "ADC_VOICES",
+        .tag   = AUD_OPT_INT,
+        .valp  = &conf.fixed_in.nb_voices,
+        .descr = "Number of voices for ADC"
+    },
     /* Misc */
-    {"TIMER_PERIOD", AUD_OPT_INT, &conf.period.hertz,
-     "Timer period in HZ (0 - use lowest possible)", NULL, 0},
-
-    {"PLIVE", AUD_OPT_BOOL, &conf.plive,
-     "(undocumented)", NULL, 0},
-
-    {"LOG_TO_MONITOR", AUD_OPT_BOOL, &conf.log_to_monitor,
-     "print logging messages to monitor instead of stderr", NULL, 0},
-
-    {NULL, 0, NULL, NULL, NULL, 0}
+    {
+        .name  = "TIMER_PERIOD",
+        .tag   = AUD_OPT_INT,
+        .valp  = &conf.period.hertz,
+        .descr = "Timer period in HZ (0 - use lowest possible)"
+    },
+    {
+        .name  = "PLIVE",
+        .tag   = AUD_OPT_BOOL,
+        .valp  = &conf.plive,
+        .descr = "(undocumented)"
+    },
+    {
+        .name  = "LOG_TO_MONITOR",
+        .tag   = AUD_OPT_BOOL,
+        .valp  = &conf.log_to_monitor,
+        .descr = "print logging messages to monitor instead of stderr"
+    },
+    { /* End of list */ }
 };
 
 static void audio_pp_nb_voices (const char *typ, int nb)

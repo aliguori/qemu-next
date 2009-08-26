@@ -780,7 +780,7 @@ struct omap3_mmc_s *omap3_mmc_init(struct omap_target_agent_s *ta,
 
     omap3_mmc_reset(s);
 
-    iomemtype = l4_register_io_memory(0, omap3_mmc_readfn,
+    iomemtype = l4_register_io_memory(omap3_mmc_readfn,
                                       omap3_mmc_writefn, s);
     omap_l4_attach(ta, 0, iomemtype);
 
@@ -789,11 +789,11 @@ struct omap3_mmc_s *omap3_mmc_init(struct omap_target_agent_s *ta,
     return s;
 }
 
-void omap3_mmc_attach(struct omap3_mmc_s *s, BlockDriverState *bd)
+void omap3_mmc_attach(struct omap3_mmc_s *s, DriveInfo *dinfo)
 {
     if (s->card) {
         hw_error("%s: SD card already attached!", __FUNCTION__);
     }
-    s->card = sd_init(bd, 0);
+    s->card = sd_init(dinfo ? dinfo->bdrv : NULL, 0);
     sd_enable(s->card, 1);
 }

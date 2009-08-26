@@ -48,7 +48,9 @@ static int vga_osi_call (CPUState *env)
     static int vga_vbl_enabled;
     int linesize;
 
-    //    printf("osi_call R5=" REGX "\n", ppc_dump_gpr(env, 5));
+#if 0
+    printf("osi_call R5=%016" PRIx64 "\n", ppc_dump_gpr(env, 5));
+#endif
 
     /* same handler as PearPC, coming from the original MOL video
        driver. */
@@ -100,7 +102,7 @@ static int vga_osi_call (CPUState *env)
         /* R6 = x, R7 = y, R8 = visible, R9 = data */
         break;
     default:
-        fprintf(stderr, "unsupported OSI call R5=" REGX "\n",
+        fprintf(stderr, "unsupported OSI call R5=%016" PRIx64 "\n",
                 ppc_dump_gpr(env, 5));
         break;
     }
@@ -135,7 +137,7 @@ static void ppc_heathrow_init (ram_addr_t ram_size,
     int escc_mem_index, ide_mem_index[2];
     uint16_t ppc_boot_device;
     BlockDriverState *hd[MAX_IDE_BUS * MAX_IDE_DEVS];
-    int index;
+    DriveInfo *dinfo;
     void *fw_cfg;
     void *dbdma;
     uint8_t *vga_bios_ptr;
@@ -154,7 +156,7 @@ static void ppc_heathrow_init (ram_addr_t ram_size,
         /* Set time-base frequency to 16.6 Mhz */
         cpu_ppc_tb_init(env,  16600000UL);
         env->osi_call = vga_osi_call;
-        qemu_register_reset(&cpu_ppc_reset, 0, env);
+        qemu_register_reset(&cpu_ppc_reset, env);
         envs[i] = env;
     }
 
@@ -212,6 +214,10 @@ static void ppc_heathrow_init (ram_addr_t ram_size,
         vga_bios_ptr[3] = 'V';
         cpu_to_be32w((uint32_t *)(vga_bios_ptr + 4), vga_bios_size);
         vga_bios_size += 8;
+
+        /* Round to page boundary */
+        vga_bios_size = (vga_bios_size + TARGET_PAGE_SIZE - 1) &
+            TARGET_PAGE_MASK;
     }
 
     if (linux_boot) {
@@ -223,7 +229,7 @@ static void ppc_heathrow_init (ram_addr_t ram_size,
         kernel_size = load_elf(kernel_filename, kernel_base, NULL, &lowaddr, NULL);
         if (kernel_size > 0 && lowaddr != KERNEL_LOAD_ADDR) {
             kernel_size = load_elf(kernel_filename, (2 * kernel_base) - lowaddr,
-                                   NULL, 0, NULL);
+                                   NULL, NULL, NULL);
         }
         if (kernel_size < 0)
             kernel_size = load_aout(kernel_filename, kernel_base,
@@ -315,7 +321,7 @@ static void ppc_heathrow_init (ram_addr_t ram_size,
                                serial_hds[1], ESCC_CLOCK, 4);
 
     for(i = 0; i < nb_nics; i++)
-        pci_nic_init(pci_bus, &nd_table[i], -1, "ne2k_pci");
+        pci_nic_init(&nd_table[i], "ne2k_pci", NULL);
 
 
     if (drive_get_max_bus(IF_IDE) >= MAX_IDE_BUS) {
@@ -324,31 +330,19 @@ static void ppc_heathrow_init (ram_addr_t ram_size,
     }
 
     /* First IDE channel is a MAC IDE on the MacIO bus */
-    index = drive_get_index(IF_IDE, 0, 0);
-    if (index == -1)
-        hd[0] = NULL;
-    else
-        hd[0] =  drives_table[index].bdrv;
-    index = drive_get_index(IF_IDE, 0, 1);
-    if (index == -1)
-        hd[1] = NULL;
-    else
-        hd[1] =  drives_table[index].bdrv;
+    dinfo = drive_get(IF_IDE, 0, 0);
+    hd[0] = dinfo ? dinfo->bdrv : NULL;
+    dinfo = drive_get(IF_IDE, 0, 1);
+    hd[1] = dinfo ? dinfo->bdrv : NULL;
     dbdma = DBDMA_init(&dbdma_mem_index);
     ide_mem_index[0] = -1;
     ide_mem_index[1] = pmac_ide_init(hd, pic[0x0D], dbdma, 0x16, pic[0x02]);
 
     /* Second IDE channel is a CMD646 on the PCI bus */
-    index = drive_get_index(IF_IDE, 1, 0);
-    if (index == -1)
-        hd[0] = NULL;
-    else
-        hd[0] =  drives_table[index].bdrv;
-    index = drive_get_index(IF_IDE, 1, 1);
-    if (index == -1)
-        hd[1] = NULL;
-    else
-        hd[1] =  drives_table[index].bdrv;
+    dinfo = drive_get(IF_IDE, 1, 0);
+    hd[0] = dinfo ? dinfo->bdrv : NULL;
+    dinfo = drive_get(IF_IDE, 1, 1);
+    hd[1] = dinfo ? dinfo->bdrv : NULL;
     hd[3] = hd[2] = NULL;
     pci_cmd646_ide_init(pci_bus, hd, 0);
 
@@ -389,6 +383,11 @@ static void ppc_heathrow_init (ram_addr_t ram_size,
     fw_cfg_add_i32(fw_cfg, FW_CFG_INITRD_ADDR, initrd_base);
     fw_cfg_add_i32(fw_cfg, FW_CFG_INITRD_SIZE, initrd_size);
     fw_cfg_add_i16(fw_cfg, FW_CFG_BOOT_DEVICE, ppc_boot_device);
+
+    fw_cfg_add_i16(fw_cfg, FW_CFG_PPC_WIDTH, graphic_width);
+    fw_cfg_add_i16(fw_cfg, FW_CFG_PPC_HEIGHT, graphic_height);
+    fw_cfg_add_i16(fw_cfg, FW_CFG_PPC_DEPTH, graphic_depth);
+
     qemu_register_boot_set(fw_cfg_boot_set, fw_cfg);
 }
 

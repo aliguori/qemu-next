@@ -226,8 +226,7 @@ static void omap3_hsusb_otg_init(struct omap_target_agent_s *otg_ta,
     s->mc_irq = mc_irq;
     s->dma_irq = dma_irq;
     
-    omap_l4_attach(otg_ta, 0, l4_register_io_memory(0,
-                                                    omap3_hsusb_otg_readfn,
+    omap_l4_attach(otg_ta, 0, l4_register_io_memory(omap3_hsusb_otg_readfn,
                                                     omap3_hsusb_otg_writefn,
                                                     s));
     
@@ -456,19 +455,16 @@ static void omap3_hsusb_host_init(struct omap_target_agent_s *host_ta,
     s->ehci_irq = ehci_irq;
     s->tll_irq  = tll_irq;
     
-    omap_l4_attach(tll_ta, 0, l4_register_io_memory(0,
-                                                    omap3_hsusb_tll_readfn,
+    omap_l4_attach(tll_ta, 0, l4_register_io_memory(omap3_hsusb_tll_readfn,
                                                     omap3_hsusb_tll_writefn,
                                                     s));
-    omap_l4_attach(host_ta, 0, l4_register_io_memory(0,
-                                                     omap3_hsusb_host_readfn,
+    omap_l4_attach(host_ta, 0, l4_register_io_memory(omap3_hsusb_host_readfn,
                                                      omap3_hsusb_host_writefn,
                                                      s));
 /*    omap_l4_attach(host_ta, 1, usb_ohci_init_omap(omap_l4_base(host_ta, 1),
                                                   omap_l4_size(host_ta, 1),
                                                   3, ohci_irq));*/
-    omap_l4_attach(host_ta, 2, l4_register_io_memory(0,
-                                                     omap3_hsusb_ehci_readfn,
+    omap_l4_attach(host_ta, 2, l4_register_io_memory(omap3_hsusb_ehci_readfn,
                                                      omap3_hsusb_ehci_writefn,
                                                      s));
     

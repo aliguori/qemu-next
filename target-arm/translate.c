@@ -16,8 +16,7 @@
  * Lesser General Public License for more details.
  *
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston MA  02110-1301 USA
+ * License along with this library; if not, see <http://www.gnu.org/licenses/>.
  */
 #include <stdarg.h>
 #include <stdlib.h>
@@ -810,14 +809,6 @@ static inline void gen_bx(DisasContext *s, TCGv var)
     store_cpu_field(tmp, thumb);
     tcg_gen_andi_i32(var, var, ~1);
     store_cpu_field(var, regs[15]);
-}
-
-/* TODO: This should be removed.  Use gen_bx instead.  */
-static inline void gen_bx_T0(DisasContext *s)
-{
-    TCGv tmp = new_tmp();
-    tcg_gen_mov_i32(tmp, cpu_T[0]);
-    gen_bx(s, tmp);
 }
 
 /* Variant of store_reg which uses branch&exchange logic when storing

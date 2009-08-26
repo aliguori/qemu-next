@@ -14,8 +14,7 @@
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License along
- * with this program; if not, write to the Free Software Foundation, Inc.,
- * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+ * with this program; if not, see <http://www.gnu.org/licenses/>.
  */
 #include "hw.h"
 #include "arm-misc.h"
@@ -483,7 +482,7 @@ struct omap_intr_handler_s *omap_inth_init(target_phys_addr_t base,
 
     omap_inth_reset(s);
 
-    iomemtype = cpu_register_io_memory(0, omap_inth_readfn,
+    iomemtype = cpu_register_io_memory(omap_inth_readfn,
                     omap_inth_writefn, s);
     cpu_register_physical_memory(base, size, iomemtype);
 
@@ -708,7 +707,7 @@ struct omap_intr_handler_s *omap2_inth_init(
 
     omap_inth_reset(s);
 
-    iomemtype = cpu_register_io_memory(0, omap2_inth_readfn,
+    iomemtype = cpu_register_io_memory(omap2_inth_readfn,
                     omap2_inth_writefn, s);
     cpu_register_physical_memory(base, size, iomemtype);
 
@@ -899,7 +898,7 @@ struct omap_mpu_timer_s *omap_mpu_timer_init(target_phys_addr_t base,
     omap_mpu_timer_reset(s);
     omap_timer_clk_setup(s);
 
-    iomemtype = cpu_register_io_memory(0, omap_mpu_timer_readfn,
+    iomemtype = cpu_register_io_memory(omap_mpu_timer_readfn,
                     omap_mpu_timer_writefn, s);
     cpu_register_physical_memory(base, 0x100, iomemtype);
 
@@ -1022,7 +1021,7 @@ struct omap_watchdog_timer_s *omap_wd_timer_init(target_phys_addr_t base,
     omap_wd_timer_reset(s);
     omap_timer_clk_setup(&s->timer);
 
-    iomemtype = cpu_register_io_memory(0, omap_wd_timer_readfn,
+    iomemtype = cpu_register_io_memory(omap_wd_timer_readfn,
                     omap_wd_timer_writefn, s);
     cpu_register_physical_memory(base, 0x100, iomemtype);
 
@@ -1124,7 +1123,7 @@ struct omap_32khz_timer_s *omap_os_timer_init(target_phys_addr_t base,
     omap_os_timer_reset(s);
     omap_timer_clk_setup(&s->timer);
 
-    iomemtype = cpu_register_io_memory(0, omap_os_timer_readfn,
+    iomemtype = cpu_register_io_memory(omap_os_timer_readfn,
                     omap_os_timer_writefn, s);
     cpu_register_physical_memory(base, 0x800, iomemtype);
 
@@ -1351,7 +1350,7 @@ static void omap_ulpd_pm_reset(struct omap_mpu_state_s *mpu)
 static void omap_ulpd_pm_init(target_phys_addr_t base,
                 struct omap_mpu_state_s *mpu)
 {
-    int iomemtype = cpu_register_io_memory(0, omap_ulpd_pm_readfn,
+    int iomemtype = cpu_register_io_memory(omap_ulpd_pm_readfn,
                     omap_ulpd_pm_writefn, mpu);
 
     cpu_register_physical_memory(base, 0x800, iomemtype);
@@ -1566,7 +1565,7 @@ static void omap_pin_cfg_reset(struct omap_mpu_state_s *mpu)
 static void omap_pin_cfg_init(target_phys_addr_t base,
                 struct omap_mpu_state_s *mpu)
 {
-    int iomemtype = cpu_register_io_memory(0, omap_pin_cfg_readfn,
+    int iomemtype = cpu_register_io_memory(omap_pin_cfg_readfn,
                     omap_pin_cfg_writefn, mpu);
 
     cpu_register_physical_memory(base, 0x800, iomemtype);
@@ -1636,7 +1635,7 @@ static CPUWriteMemoryFunc *omap_id_writefn[] = {
 
 static void omap_id_init(struct omap_mpu_state_s *mpu)
 {
-    int iomemtype = cpu_register_io_memory(0, omap_id_readfn,
+    int iomemtype = cpu_register_io_memory(omap_id_readfn,
                     omap_id_writefn, mpu);
     cpu_register_physical_memory_offset(0xfffe1800, 0x800, iomemtype, 0xfffe1800);
     cpu_register_physical_memory_offset(0xfffed400, 0x100, iomemtype, 0xfffed400);
@@ -1719,7 +1718,7 @@ static void omap_mpui_reset(struct omap_mpu_state_s *s)
 static void omap_mpui_init(target_phys_addr_t base,
                 struct omap_mpu_state_s *mpu)
 {
-    int iomemtype = cpu_register_io_memory(0, omap_mpui_readfn,
+    int iomemtype = cpu_register_io_memory(omap_mpui_readfn,
                     omap_mpui_writefn, mpu);
 
     cpu_register_physical_memory(base, 0x100, iomemtype);
@@ -1828,7 +1827,7 @@ struct omap_tipb_bridge_s *omap_tipb_bridge_init(target_phys_addr_t base,
     s->abort = abort_irq;
     omap_tipb_bridge_reset(s);
 
-    iomemtype = cpu_register_io_memory(0, omap_tipb_bridge_readfn,
+    iomemtype = cpu_register_io_memory(omap_tipb_bridge_readfn,
                     omap_tipb_bridge_writefn, s);
     cpu_register_physical_memory(base, 0x100, iomemtype);
 
@@ -1934,7 +1933,7 @@ static void omap_tcmi_reset(struct omap_mpu_state_s *mpu)
 static void omap_tcmi_init(target_phys_addr_t base,
                 struct omap_mpu_state_s *mpu)
 {
-    int iomemtype = cpu_register_io_memory(0, omap_tcmi_readfn,
+    int iomemtype = cpu_register_io_memory(omap_tcmi_readfn,
                     omap_tcmi_writefn, mpu);
 
     cpu_register_physical_memory(base, 0x100, iomemtype);
@@ -2007,7 +2006,7 @@ static void omap_dpll_reset(struct dpll_ctl_s *s)
 static void omap_dpll_init(struct dpll_ctl_s *s, target_phys_addr_t base,
                 omap_clk clk)
 {
-    int iomemtype = cpu_register_io_memory(0, omap_dpll_readfn,
+    int iomemtype = cpu_register_io_memory(omap_dpll_readfn,
                     omap_dpll_writefn, s);
 
     s->dpll = clk;
@@ -2189,7 +2188,7 @@ struct omap_uart_s *omap2_uart_init(struct omap_target_agent_s *ta,
     target_phys_addr_t base = omap_l4_attach(ta, 0, 0);
     struct omap_uart_s *s = omap_uart_init(base, irq,
                     fclk, iclk, txdma, rxdma, chr);
-    int iomemtype = cpu_register_io_memory(0, omap_uart_readfn,
+    int iomemtype = cpu_register_io_memory(omap_uart_readfn,
                     omap_uart_writefn, s);
 
     s->ta = ta;
@@ -2607,8 +2606,8 @@ static void omap_clkm_init(target_phys_addr_t mpu_base,
                 target_phys_addr_t dsp_base, struct omap_mpu_state_s *s)
 {
     int iomemtype[2] = {
-        cpu_register_io_memory(0, omap_clkm_readfn, omap_clkm_writefn, s),
-        cpu_register_io_memory(0, omap_clkdsp_readfn, omap_clkdsp_writefn, s),
+        cpu_register_io_memory(omap_clkm_readfn, omap_clkm_writefn, s),
+        cpu_register_io_memory(omap_clkdsp_readfn, omap_clkdsp_writefn, s),
     };
 
     s->clkm.arm_idlect1 = 0x03ff;
@@ -2861,7 +2860,7 @@ struct omap_mpuio_s *omap_mpuio_init(target_phys_addr_t base,
     s->in = qemu_allocate_irqs(omap_mpuio_set, s, 16);
     omap_mpuio_reset(s);
 
-    iomemtype = cpu_register_io_memory(0, omap_mpuio_readfn,
+    iomemtype = cpu_register_io_memory(omap_mpuio_readfn,
                     omap_mpuio_writefn, s);
     cpu_register_physical_memory(base, 0x800, iomemtype);
 
@@ -3057,7 +3056,7 @@ struct omap_gpio_s *omap_gpio_init(target_phys_addr_t base,
     s->in = qemu_allocate_irqs(omap_gpio_set, s, 16);
     omap_gpio_reset(s);
 
-    iomemtype = cpu_register_io_memory(0, omap_gpio_readfn,
+    iomemtype = cpu_register_io_memory(omap_gpio_readfn,
                     omap_gpio_writefn, s);
     cpu_register_physical_memory(base, 0x1000, iomemtype);
 
@@ -3227,7 +3226,7 @@ struct omap_uwire_s *omap_uwire_init(target_phys_addr_t base,
     s->txdrq = dma;
     omap_uwire_reset(s);
 
-    iomemtype = cpu_register_io_memory(0, omap_uwire_readfn,
+    iomemtype = cpu_register_io_memory(omap_uwire_readfn,
                     omap_uwire_writefn, s);
     cpu_register_physical_memory(base, 0x800, iomemtype);
 
@@ -3328,7 +3327,7 @@ static void omap_pwl_init(target_phys_addr_t base, struct omap_mpu_state_s *s,
 
     omap_pwl_reset(s);
 
-    iomemtype = cpu_register_io_memory(0, omap_pwl_readfn,
+    iomemtype = cpu_register_io_memory(omap_pwl_readfn,
                     omap_pwl_writefn, s);
     cpu_register_physical_memory(base, 0x800, iomemtype);
 
@@ -3423,7 +3422,7 @@ static void omap_pwt_init(target_phys_addr_t base, struct omap_mpu_state_s *s,
     s->pwt.clk = clk;
     omap_pwt_reset(s);
 
-    iomemtype = cpu_register_io_memory(0, omap_pwt_readfn,
+    iomemtype = cpu_register_io_memory(omap_pwt_readfn,
                     omap_pwt_writefn, s);
     cpu_register_physical_memory(base, 0x800, iomemtype);
 }
@@ -3846,7 +3845,7 @@ struct omap_rtc_s *omap_rtc_init(target_phys_addr_t base,
 
     omap_rtc_reset(s);
 
-    iomemtype = cpu_register_io_memory(0, omap_rtc_readfn,
+    iomemtype = cpu_register_io_memory(omap_rtc_readfn,
                     omap_rtc_writefn, s);
     cpu_register_physical_memory(base, 0x800, iomemtype);
 
@@ -4366,7 +4365,7 @@ struct omap_mcbsp_s *omap_mcbsp_init(target_phys_addr_t base,
     s->source_timer = qemu_new_timer(vm_clock, omap_mcbsp_source_tick, s);
     omap_mcbsp_reset(s);
 
-    iomemtype = cpu_register_io_memory(0, omap_mcbsp_readfn,
+    iomemtype = cpu_register_io_memory(omap_mcbsp_readfn,
                     omap_mcbsp_writefn, s);
     cpu_register_physical_memory(base, 0x800, iomemtype);
 
@@ -4538,7 +4537,7 @@ struct omap_lpg_s *omap_lpg_init(target_phys_addr_t base, omap_clk clk)
 
     omap_lpg_reset(s);
 
-    iomemtype = cpu_register_io_memory(0, omap_lpg_readfn,
+    iomemtype = cpu_register_io_memory(omap_lpg_readfn,
                     omap_lpg_writefn, s);
     cpu_register_physical_memory(base, 0x800, iomemtype);
 
@@ -4571,7 +4570,7 @@ static CPUWriteMemoryFunc *omap_mpui_io_writefn[] = {
 
 static void omap_setup_mpui_io(struct omap_mpu_state_s *mpu)
 {
-    int iomemtype = cpu_register_io_memory(0, omap_mpui_io_readfn,
+    int iomemtype = cpu_register_io_memory(omap_mpui_io_readfn,
                     omap_mpui_io_writefn, mpu);
     cpu_register_physical_memory(OMAP_MPUI_BASE, 0x7fff, iomemtype);
 }
@@ -4732,7 +4731,7 @@ struct omap_mpu_state_s *omap310_mpu_init(unsigned long sdram_size,
     ram_addr_t imif_base, emiff_base;
     qemu_irq *cpu_irq;
     qemu_irq dma_irqs[6];
-    int sdindex;
+    DriveInfo *dinfo;
 
     if (!core)
         core = "ti925t";
@@ -4844,12 +4843,12 @@ struct omap_mpu_state_s *omap310_mpu_init(unsigned long sdram_size,
     omap_dpll_init(&s->dpll[1], 0xfffed000, omap_findclk(s, "dpll2"));
     omap_dpll_init(&s->dpll[2], 0xfffed100, omap_findclk(s, "dpll3"));
 
-    sdindex = drive_get_index(IF_SD, 0, 0);
-    if (sdindex == -1) {
+    dinfo = drive_get(IF_SD, 0, 0);
+    if (!dinfo) {
         fprintf(stderr, "qemu: missing SecureDigital device\n");
         exit(1);
     }
-    s->mmc = omap_mmc_init(0xfffb7800, drives_table[sdindex].bdrv,
+    s->mmc = omap_mmc_init(0xfffb7800, dinfo->bdrv,
                     s->irq[1][OMAP_INT_OQN], &s->drq[OMAP_DMA_MMC_TX],
                     omap_findclk(s, "mmc_ck"));
 
@@ -4900,7 +4899,7 @@ struct omap_mpu_state_s *omap310_mpu_init(unsigned long sdram_size,
     omap_setup_dsp_mapping(omap15xx_dsp_mm);
     omap_setup_mpui_io(s);
 
-    qemu_register_reset(omap1_mpu_reset, 0, s);
+    qemu_register_reset(omap1_mpu_reset, s);
 
     return s;
 }

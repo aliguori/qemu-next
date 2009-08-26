@@ -13,19 +13,14 @@
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License along
- * with this program; if not, write to the Free Software Foundation, Inc.,
- * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+ * with this program; if not, see <http://www.gnu.org/licenses/>.
  */
 #include "hw.h"
 #include "pxa.h"
 #include "sharpsl.h"
 
 #undef REG_FMT
-#if TARGET_PHYS_ADDR_BITS == 32
-#define REG_FMT			"0x%02x"
-#else
-#define REG_FMT			"0x%02llx"
-#endif
+#define REG_FMT			"0x%02lx"
 
 /* SCOOP devices */
 
@@ -98,7 +93,7 @@ static uint32_t scoop_readb(void *opaque, target_phys_addr_t addr)
     case SCOOP_GPRR:
         return s->gpio_level;
     default:
-        zaurus_printf("Bad register offset " REG_FMT "\n", addr);
+        zaurus_printf("Bad register offset " REG_FMT "\n", (unsigned long)addr);
     }
 
     return 0;
@@ -143,7 +138,7 @@ static void scoop_writeb(void *opaque, target_phys_addr_t addr, uint32_t value)
         scoop_gpio_handler_update(s);
         break;
     default:
-        zaurus_printf("Bad register offset " REG_FMT "\n", addr);
+        zaurus_printf("Bad register offset " REG_FMT "\n", (unsigned long)addr);
     }
 }
 
@@ -232,7 +227,7 @@ ScoopInfo *scoop_init(PXA2xxState *cpu,
 
     s->status = 0x02;
     s->in = qemu_allocate_irqs(scoop_gpio_set, s, 16);
-    iomemtype = cpu_register_io_memory(0, scoop_readfn,
+    iomemtype = cpu_register_io_memory(scoop_readfn,
                     scoop_writefn, s);
     cpu_register_physical_memory(target_base, 0x1000, iomemtype);
     register_savevm("scoop", instance, 1, scoop_save, scoop_load, s);

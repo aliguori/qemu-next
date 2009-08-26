@@ -61,20 +61,19 @@ static void beagle_init(ram_addr_t ram_size,
                         const char *cpu_model)
 {
     struct beagle_s *s = (struct beagle_s *) qemu_mallocz(sizeof(*s));
-    int mtd_i = drive_get_index(IF_MTD, 0, 0);
-    int sd_i = drive_get_index(IF_SD, 0, 0);
+    DriveInfo *dmtd = drive_get(IF_MTD, 0, 0);
+    DriveInfo *dsd  = drive_get(IF_SD, 0, 0);
     
-    if (mtd_i < 0 && sd_i < 0) {
+    if (!dmtd && !dsd) {
         hw_error("%s: SD or NAND image required", __FUNCTION__);
     }
    	s->cpu = omap3530_mpu_init(ram_size, NULL, NULL, serial_hds[0]);
 
-	s->nand = nand_init(NAND_MFR_MICRON, 0xba,
-                        mtd_i < 0 ? 0 : drives_table[mtd_i].bdrv);
+	s->nand = nand_init(NAND_MFR_MICRON, 0xba, dmtd);
 	nand_setpins(s->nand, 0, 0, 0, 1, 0); /* no write-protect */
     omap_gpmc_attach(s->cpu->gpmc, BEAGLE_NAND_CS, 0, NULL, NULL, s->nand, 2);
-    if (sd_i >= 0) {
-        omap3_mmc_attach(s->cpu->omap3_mmc[0], drives_table[sd_i].bdrv);
+    if (dsd) {
+        omap3_mmc_attach(s->cpu->omap3_mmc[0], dsd);
     }
 
     s->i2c = omap_i2c_bus(s->cpu->i2c[0]);

@@ -60,7 +60,8 @@ do {                                                     \
     }                                                    \
 } while (0)
 #elif defined (DEBUG_PPC_IO)
-#define PPC_IO_DPRINTF(fmt, ...) qemu_log_mask(CPU_LOG_IOPORT, ## __VA_ARGS__)
+#define PPC_IO_DPRINTF(fmt, ...) \
+qemu_log_mask(CPU_LOG_IOPORT, fmt, ## __VA_ARGS__)
 #else
 #define PPC_IO_DPRINTF(fmt, ...) do { } while (0)
 #endif
@@ -111,16 +112,22 @@ static uint32_t speaker_ioport_read (void *opaque, uint32_t addr)
 static void _PPC_intack_write (void *opaque,
                                target_phys_addr_t addr, uint32_t value)
 {
-//    printf("%s: 0x" PADDRX " => 0x%08" PRIx32 "\n", __func__, addr, value);
+#if 0
+    printf("%s: 0x" TARGET_FMT_plx " => 0x%08" PRIx32 "\n", __func__, addr,
+           value);
+#endif
 }
 
-static always_inline uint32_t _PPC_intack_read (target_phys_addr_t addr)
+static inline uint32_t _PPC_intack_read(target_phys_addr_t addr)
 {
     uint32_t retval = 0;
 
     if ((addr & 0xf) == 0)
         retval = pic_intack_read(isa_pic);
-//   printf("%s: 0x" PADDRX " <= %08" PRIx32 "\n", __func__, addr, retval);
+#if 0
+    printf("%s: 0x" TARGET_FMT_plx " <= %08" PRIx32 "\n", __func__, addr,
+           retval);
+#endif
 
     return retval;
 }
@@ -190,7 +197,8 @@ static struct {
 static void PPC_XCSR_writeb (void *opaque,
                              target_phys_addr_t addr, uint32_t value)
 {
-    printf("%s: 0x" PADDRX " => 0x%08" PRIx32 "\n", __func__, addr, value);
+    printf("%s: 0x" TARGET_FMT_plx " => 0x%08" PRIx32 "\n", __func__, addr,
+           value);
 }
 
 static void PPC_XCSR_writew (void *opaque,
@@ -199,7 +207,8 @@ static void PPC_XCSR_writew (void *opaque,
 #ifdef TARGET_WORDS_BIGENDIAN
     value = bswap16(value);
 #endif
-    printf("%s: 0x" PADDRX " => 0x%08" PRIx32 "\n", __func__, addr, value);
+    printf("%s: 0x" TARGET_FMT_plx " => 0x%08" PRIx32 "\n", __func__, addr,
+           value);
 }
 
 static void PPC_XCSR_writel (void *opaque,
@@ -208,14 +217,16 @@ static void PPC_XCSR_writel (void *opaque,
 #ifdef TARGET_WORDS_BIGENDIAN
     value = bswap32(value);
 #endif
-    printf("%s: 0x" PADDRX " => 0x%08" PRIx32 "\n", __func__, addr, value);
+    printf("%s: 0x" TARGET_FMT_plx " => 0x%08" PRIx32 "\n", __func__, addr,
+           value);
 }
 
 static uint32_t PPC_XCSR_readb (void *opaque, target_phys_addr_t addr)
 {
     uint32_t retval = 0;
 
-    printf("%s: 0x" PADDRX " <= %08" PRIx32 "\n", __func__, addr, retval);
+    printf("%s: 0x" TARGET_FMT_plx " <= %08" PRIx32 "\n", __func__, addr,
+           retval);
 
     return retval;
 }
@@ -224,7 +235,8 @@ static uint32_t PPC_XCSR_readw (void *opaque, target_phys_addr_t addr)
 {
     uint32_t retval = 0;
 
-    printf("%s: 0x" PADDRX " <= %08" PRIx32 "\n", __func__, addr, retval);
+    printf("%s: 0x" TARGET_FMT_plx " <= %08" PRIx32 "\n", __func__, addr,
+           retval);
 #ifdef TARGET_WORDS_BIGENDIAN
     retval = bswap16(retval);
 #endif
@@ -236,7 +248,8 @@ static uint32_t PPC_XCSR_readl (void *opaque, target_phys_addr_t addr)
 {
     uint32_t retval = 0;
 
-    printf("%s: 0x" PADDRX " <= %08" PRIx32 "\n", __func__, addr, retval);
+    printf("%s: 0x" TARGET_FMT_plx " <= %08" PRIx32 "\n", __func__, addr,
+           retval);
 #ifdef TARGET_WORDS_BIGENDIAN
     retval = bswap32(retval);
 #endif
@@ -425,9 +438,8 @@ static uint32_t PREP_io_800_readb (void *opaque, uint32_t addr)
     return retval;
 }
 
-static always_inline target_phys_addr_t prep_IO_address (sysctrl_t *sysctrl,
-                                                         target_phys_addr_t
-                                                         addr)
+static inline target_phys_addr_t prep_IO_address(sysctrl_t *sysctrl,
+                                                 target_phys_addr_t addr)
 {
     if (sysctrl->contiguous_map == 0) {
         /* 64 KB contiguous space for IOs */
@@ -469,7 +481,7 @@ static void PPC_prep_io_writew (void *opaque, target_phys_addr_t addr,
 #ifdef TARGET_WORDS_BIGENDIAN
     value = bswap16(value);
 #endif
-    PPC_IO_DPRINTF("0x" PADDRX " => 0x%08" PRIx32 "\n", addr, value);
+    PPC_IO_DPRINTF("0x" TARGET_FMT_plx " => 0x%08" PRIx32 "\n", addr, value);
     cpu_outw(NULL, addr, value);
 }
 
@@ -483,7 +495,7 @@ static uint32_t PPC_prep_io_readw (void *opaque, target_phys_addr_t addr)
 #ifdef TARGET_WORDS_BIGENDIAN
     ret = bswap16(ret);
 #endif
-    PPC_IO_DPRINTF("0x" PADDRX " <= 0x%08" PRIx32 "\n", addr, ret);
+    PPC_IO_DPRINTF("0x" TARGET_FMT_plx " <= 0x%08" PRIx32 "\n", addr, ret);
 
     return ret;
 }
@@ -497,7 +509,7 @@ static void PPC_prep_io_writel (void *opaque, target_phys_addr_t addr,
 #ifdef TARGET_WORDS_BIGENDIAN
     value = bswap32(value);
 #endif
-    PPC_IO_DPRINTF("0x" PADDRX " => 0x%08" PRIx32 "\n", addr, value);
+    PPC_IO_DPRINTF("0x" TARGET_FMT_plx " => 0x%08" PRIx32 "\n", addr, value);
     cpu_outl(NULL, addr, value);
 }
 
@@ -511,7 +523,7 @@ static uint32_t PPC_prep_io_readl (void *opaque, target_phys_addr_t addr)
 #ifdef TARGET_WORDS_BIGENDIAN
     ret = bswap32(ret);
 #endif
-    PPC_IO_DPRINTF("0x" PADDRX " <= 0x%08" PRIx32 "\n", addr, ret);
+    PPC_IO_DPRINTF("0x" TARGET_FMT_plx " <= 0x%08" PRIx32 "\n", addr, ret);
 
     return ret;
 }
@@ -549,7 +561,7 @@ static void ppc_prep_init (ram_addr_t ram_size,
     PCIBus *pci_bus;
     qemu_irq *i8259;
     int ppc_boot_device;
-    int index;
+    DriveInfo *dinfo;
     BlockDriverState *hd[MAX_IDE_BUS * MAX_IDE_DEVS];
     BlockDriverState *fd[MAX_FD];
 
@@ -573,7 +585,7 @@ static void ppc_prep_init (ram_addr_t ram_size,
             /* Set time-base frequency to 100 Mhz */
             cpu_ppc_tb_init(env, 100UL * 1000UL * 1000UL);
         }
-        qemu_register_reset(&cpu_ppc_reset, 0, env);
+        qemu_register_reset(&cpu_ppc_reset, env);
         envs[i] = env;
     }
 
@@ -659,7 +671,7 @@ static void ppc_prep_init (ram_addr_t ram_size,
     pci_bus = pci_prep_init(i8259);
     //    pci_bus = i440fx_init();
     /* Register 8 MB of ISA IO space (needed for non-contiguous map) */
-    PPC_io_memory = cpu_register_io_memory(0, PPC_prep_io_read,
+    PPC_io_memory = cpu_register_io_memory(PPC_prep_io_read,
                                            PPC_prep_io_write, sysctrl);
     cpu_register_physical_memory(0x80000000, 0x00800000, PPC_io_memory);
 
@@ -680,7 +692,7 @@ static void ppc_prep_init (ram_addr_t ram_size,
         if (strcmp(nd_table[i].model, "ne2k_isa") == 0) {
             isa_ne2000_init(ne2000_io[i], i8259[ne2000_irq[i]], &nd_table[i]);
         } else {
-            pci_nic_init(pci_bus, &nd_table[i], -1, "ne2k_pci");
+            pci_nic_init(&nd_table[i], "ne2k_pci", NULL);
         }
     }
 
@@ -690,11 +702,8 @@ static void ppc_prep_init (ram_addr_t ram_size,
     }
 
     for(i = 0; i < MAX_IDE_BUS * MAX_IDE_DEVS; i++) {
-        index = drive_get_index(IF_IDE, i / MAX_IDE_DEVS, i % MAX_IDE_DEVS);
-        if (index != -1)
-            hd[i] = drives_table[index].bdrv;
-        else
-            hd[i] = NULL;
+        dinfo = drive_get(IF_IDE, i / MAX_IDE_DEVS, i % MAX_IDE_DEVS);
+        hd[i] = dinfo ? dinfo->bdrv : NULL;
     }
 
     for(i = 0; i < MAX_IDE_BUS; i++) {
@@ -707,11 +716,8 @@ static void ppc_prep_init (ram_addr_t ram_size,
     //    SB16_init();
 
     for(i = 0; i < MAX_FD; i++) {
-        index = drive_get_index(IF_FLOPPY, 0, i);
-        if (index != -1)
-            fd[i] = drives_table[index].bdrv;
-        else
-            fd[i] = NULL;
+        dinfo = drive_get(IF_FLOPPY, 0, i);
+        fd[i] = dinfo ? dinfo->bdrv : NULL;
     }
     fdctrl_init(i8259[6], 2, 0, 0x3f0, fd);
 
@@ -728,12 +734,12 @@ static void ppc_prep_init (ram_addr_t ram_size,
     register_ioport_read(0x0800, 0x52, 1, &PREP_io_800_readb, sysctrl);
     register_ioport_write(0x0800, 0x52, 1, &PREP_io_800_writeb, sysctrl);
     /* PCI intack location */
-    PPC_io_memory = cpu_register_io_memory(0, PPC_intack_read,
+    PPC_io_memory = cpu_register_io_memory(PPC_intack_read,
                                            PPC_intack_write, NULL);
     cpu_register_physical_memory(0xBFFFFFF0, 0x4, PPC_io_memory);
     /* PowerPC control and status register group */
 #if 0
-    PPC_io_memory = cpu_register_io_memory(0, PPC_XCSR_read, PPC_XCSR_write,
+    PPC_io_memory = cpu_register_io_memory(PPC_XCSR_read, PPC_XCSR_write,
                                            NULL);
     cpu_register_physical_memory(0xFEFF0000, 0x1000, PPC_io_memory);
 #endif

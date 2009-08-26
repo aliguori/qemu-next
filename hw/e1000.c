@@ -18,8 +18,7 @@
  * Lesser General Public License for more details.
  *
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston MA  02110-1301 USA
+ * License along with this library; if not, see <http://www.gnu.org/licenses/>.
  */
 
 
@@ -155,6 +154,7 @@ set_interrupt_cause(E1000State *s, int index, uint32_t val)
     if (val)
         val |= E1000_ICR_INT_ASSERTED;
     s->mac_reg[ICR] = val;
+    s->mac_reg[ICS] = val;
     qemu_set_irq(s->dev.irq[0], (s->mac_reg[IMS] & s->mac_reg[ICR]) != 0);
 }
 
@@ -262,6 +262,11 @@ set_eecd(E1000State *s, int index, uint32_t val)
     }
     if (!(val & E1000_EECD_CS)) {		// rising, no CS (EEPROM reset)
         memset(&s->eecd_state, 0, sizeof s->eecd_state);
+        /*
+         * restore old_eecd's E1000_EECD_SK (known to be on)
+         * to avoid false detection of a clock edge
+         */
+        s->eecd_state.old_eecd = E1000_EECD_SK;
         return;
     }
     s->eecd_state.val_in <<= 1;
@@ -282,10 +287,14 @@ flash_eerd_read(E1000State *s, int x)
 {
     unsigned int index, r = s->mac_reg[EERD] & ~E1000_EEPROM_RW_REG_START;
 
+    if ((s->mac_reg[EERD] & E1000_EEPROM_RW_REG_START) == 0)
+        return (s->mac_reg[EERD]);
+
     if ((index = r >> E1000_EEPROM_RW_ADDR_SHIFT) > EEPROM_CHECKSUM_REG)
-        return 0;
-    return (s->eeprom_data[index] << E1000_EEPROM_RW_REG_DATA) |
-           E1000_EEPROM_RW_REG_DONE | r;
+        return (E1000_EEPROM_RW_REG_DONE | r);
+
+    return ((s->eeprom_data[index] << E1000_EEPROM_RW_REG_DATA) |
+           E1000_EEPROM_RW_REG_DONE | r);
 }
 
 static void
@@ -592,17 +601,17 @@ e1000_set_link_status(VLANClientState *vc)
 }
 
 static int
-e1000_can_receive(void *opaque)
+e1000_can_receive(VLANClientState *vc)
 {
-    E1000State *s = opaque;
+    E1000State *s = vc->opaque;
 
     return (s->mac_reg[RCTL] & E1000_RCTL_EN);
 }
 
-static void
-e1000_receive(void *opaque, const uint8_t *buf, int size)
+static ssize_t
+e1000_receive(VLANClientState *vc, const uint8_t *buf, size_t size)
 {
-    E1000State *s = opaque;
+    E1000State *s = vc->opaque;
     struct e1000_rx_desc desc;
     target_phys_addr_t base;
     unsigned int n, rdt;
@@ -611,16 +620,16 @@ e1000_receive(void *opaque, const uint8_t *buf, int size)
     uint8_t vlan_status = 0, vlan_offset = 0;
 
     if (!(s->mac_reg[RCTL] & E1000_RCTL_EN))
-        return;
+        return -1;
 
     if (size > s->rxbuf_size) {
-        DBGOUT(RX, "packet too large for buffers (%d > %d)\n", size,
-               s->rxbuf_size);
-        return;
+        DBGOUT(RX, "packet too large for buffers (%lu > %d)\n",
+               (unsigned long)size, s->rxbuf_size);
+        return -1;
     }
 
     if (!receive_filter(s, buf, size))
-        return;
+        return size;
 
     if (vlan_enabled(s) && is_vlan_packet(s, buf)) {
         vlan_special = cpu_to_le16(be16_to_cpup((uint16_t *)(buf + 14)));
@@ -635,7 +644,7 @@ e1000_receive(void *opaque, const uint8_t *buf, int size)
     do {
         if (s->mac_reg[RDH] == s->mac_reg[RDT] && s->check_rxov) {
             set_ics(s, 0, E1000_ICS_RXO);
-            return;
+            return -1;
         }
         base = ((uint64_t)s->mac_reg[RDBAH] << 32) + s->mac_reg[RDBAL] +
                sizeof(desc) * s->mac_reg[RDH];
@@ -659,7 +668,7 @@ e1000_receive(void *opaque, const uint8_t *buf, int size)
             DBGOUT(RXERR, "RDH wraparound @%x, RDT %x, RDLEN %x\n",
                    rdh_start, s->mac_reg[RDT], s->mac_reg[RDLEN]);
             set_ics(s, 0, E1000_ICS_RXO);
-            return;
+            return -1;
         }
     } while (desc.buffer_addr == 0);
 
@@ -677,6 +686,8 @@ e1000_receive(void *opaque, const uint8_t *buf, int size)
         n |= E1000_ICS_RXDMT0;
 
     set_ics(s, 0, n);
+
+    return size;
 }
 
 static uint32_t
@@ -774,7 +785,7 @@ static uint32_t (*macreg_readops[])(E1000State *, int) = {
     getreg(WUFC),	getreg(TDT),	getreg(CTRL),	getreg(LEDCTL),
     getreg(MANC),	getreg(MDIC),	getreg(SWSM),	getreg(STATUS),
     getreg(TORL),	getreg(TOTL),	getreg(IMS),	getreg(TCTL),
-    getreg(RDH),	getreg(RDT),	getreg(VET),
+    getreg(RDH),	getreg(RDT),	getreg(VET),	getreg(ICS),
 
     [TOTH] = mac_read_clr8,	[TORH] = mac_read_clr8,	[GPRC] = mac_read_clr4,
     [GPTC] = mac_read_clr4,	[TPR] = mac_read_clr4,	[TPT] = mac_read_clr4,
@@ -1058,6 +1069,18 @@ pci_e1000_uninit(PCIDevice *dev)
     return 0;
 }
 
+static void e1000_reset(void *opaque)
+{
+    E1000State *d = opaque;
+
+    memset(d->phy_reg, 0, sizeof d->phy_reg);
+    memmove(d->phy_reg, phy_reg_init, sizeof phy_reg_init);
+    memset(d->mac_reg, 0, sizeof d->mac_reg);
+    memmove(d->mac_reg, mac_reg_init, sizeof mac_reg_init);
+    d->rxbuf_min_shift = 1;
+    memset(&d->tx, 0, sizeof d->tx);
+}
+
 static void pci_e1000_init(PCIDevice *pci_dev)
 {
     E1000State *d = (E1000State *)pci_dev;
@@ -1079,13 +1102,13 @@ static void pci_e1000_init(PCIDevice *pci_dev)
 
     pci_conf[0x3d] = 1; // interrupt pin 0
 
-    d->mmio_index = cpu_register_io_memory(0, e1000_mmio_read,
+    d->mmio_index = cpu_register_io_memory(e1000_mmio_read,
             e1000_mmio_write, d);
 
-    pci_register_io_region((PCIDevice *)d, 0, PNPMMIO_SIZE,
+    pci_register_bar((PCIDevice *)d, 0, PNPMMIO_SIZE,
                            PCI_ADDRESS_SPACE_MEM, e1000_mmio_map);
 
-    pci_register_io_region((PCIDevice *)d, 1, IOPORT_SIZE,
+    pci_register_bar((PCIDevice *)d, 1, IOPORT_SIZE,
                            PCI_ADDRESS_SPACE_IO, ioport_map);
 
     memmove(d->eeprom_data, e1000_eeprom_template,
@@ -1098,27 +1121,28 @@ static void pci_e1000_init(PCIDevice *pci_dev)
     checksum = (uint16_t) EEPROM_SUM - checksum;
     d->eeprom_data[EEPROM_CHECKSUM_REG] = checksum;
 
-    memset(d->phy_reg, 0, sizeof d->phy_reg);
-    memmove(d->phy_reg, phy_reg_init, sizeof phy_reg_init);
-    memset(d->mac_reg, 0, sizeof d->mac_reg);
-    memmove(d->mac_reg, mac_reg_init, sizeof mac_reg_init);
-    d->rxbuf_min_shift = 1;
-    memset(&d->tx, 0, sizeof d->tx);
-
     d->vc = qdev_get_vlan_client(&d->dev.qdev,
-                                 e1000_receive, e1000_can_receive,
-                                 e1000_cleanup, d);
+                                 e1000_can_receive, e1000_receive,
+                                 NULL, e1000_cleanup, d);
     d->vc->link_status_changed = e1000_set_link_status;
 
     qemu_format_nic_info_str(d->vc, macaddr);
 
     register_savevm(info_str, -1, 2, nic_save, nic_load, d);
     d->dev.unregister = pci_e1000_uninit;
+    qemu_register_reset(e1000_reset, d);
+    e1000_reset(d);
 }
+
+static PCIDeviceInfo e1000_info = {
+    .qdev.name = "e1000",
+    .qdev.size = sizeof(E1000State),
+    .init      = pci_e1000_init,
+};
 
 static void e1000_register_devices(void)
 {
-    pci_qdev_register("e1000", sizeof(E1000State), pci_e1000_init);
+    pci_qdev_register(&e1000_info);
 }
 
 device_init(e1000_register_devices)

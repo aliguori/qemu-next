@@ -14,13 +14,15 @@
  * Lesser General Public License for more details.
  *
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston MA  02110-1301 USA
+ * License along with this library; if not, see <http://www.gnu.org/licenses/>
  */
 #include "hw.h"
 #include "pc.h"
+#include "pci.h"
+#include "msix.h"
 #include "qemu-timer.h"
 #include "host-utils.h"
+#include "kvm.h"
 
 //#define DEBUG_APIC
 
@@ -63,6 +65,19 @@
 #define MAX_APICS 255
 #define MAX_APIC_WORDS 8
 
+/* Intel APIC constants: from include/asm/msidef.h */
+#define MSI_DATA_VECTOR_SHIFT		0
+#define MSI_DATA_VECTOR_MASK		0x000000ff
+#define MSI_DATA_DELIVERY_MODE_SHIFT	8
+#define MSI_DATA_TRIGGER_SHIFT		15
+#define MSI_DATA_LEVEL_SHIFT		14
+#define MSI_ADDR_DEST_MODE_SHIFT	2
+#define MSI_ADDR_DEST_ID_SHIFT		12
+#define	MSI_ADDR_DEST_ID_MASK		0x00ffff0
+
+#define MSI_ADDR_BASE                   0xfee00000
+#define MSI_ADDR_SIZE                   0x100000
+
 typedef struct APICState {
     CPUState *cpu_env;
     uint32_t apicbase;
@@ -83,16 +98,18 @@ typedef struct APICState {
     int count_shift;
     uint32_t initial_count;
     int64_t initial_count_load_time, next_time;
+    uint32_t idx;
     QEMUTimer *timer;
+    int sipi_vector;
+    int wait_for_sipi;
 } APICState;
 
 static int apic_io_memory;
 static APICState *local_apics[MAX_APICS + 1];
-static int last_apic_id = 0;
+static int last_apic_idx = 0;
 static int apic_irq_delivered;
 
 
-static void apic_init_ipi(APICState *s);
 static void apic_set_irq(APICState *s, int vector_num, int trigger_mode);
 static void apic_update_irq(APICState *s);
 static void apic_get_delivery_bitmask(uint32_t *deliver_bitmask,
@@ -248,7 +265,7 @@ static void apic_bus_deliver(const uint32_t *deliver_bitmask,
         case APIC_DM_INIT:
             /* normal INIT IPI sent to processors */
             foreach_apic(apic_iter, deliver_bitmask,
-                         apic_init_ipi(apic_iter) );
+                         cpu_interrupt(apic_iter->cpu_env, CPU_INTERRUPT_INIT) );
             return;
 
         case APIC_DM_EXTINT:
@@ -400,6 +417,23 @@ static void apic_eoi(APICState *s)
     apic_update_irq(s);
 }
 
+static int apic_find_dest(uint8_t dest)
+{
+    APICState *apic = local_apics[dest];
+    int i;
+
+    if (apic && apic->id == dest)
+        return dest;  /* shortcut in case apic->id == apic->idx */
+
+    for (i = 0; i < MAX_APICS; i++) {
+        apic = local_apics[i];
+	if (apic && apic->id == dest)
+            return i;
+    }
+
+    return -1;
+}
+
 static void apic_get_delivery_bitmask(uint32_t *deliver_bitmask,
                                       uint8_t dest, uint8_t dest_mode)
 {
@@ -410,8 +444,10 @@ static void apic_get_delivery_bitmask(uint32_t *deliver_bitmask,
         if (dest == 0xff) {
             memset(deliver_bitmask, 0xff, MAX_APIC_WORDS * sizeof(uint32_t));
         } else {
+            int idx = apic_find_dest(dest);
             memset(deliver_bitmask, 0x00, MAX_APIC_WORDS * sizeof(uint32_t));
-            set_bit(deliver_bitmask, dest);
+            if (idx >= 0)
+                set_bit(deliver_bitmask, idx);
         }
     } else {
         /* XXX: cluster mode */
@@ -434,9 +470,13 @@ static void apic_get_delivery_bitmask(uint32_t *deliver_bitmask,
 }
 
 
-static void apic_init_ipi(APICState *s)
+void apic_init_reset(CPUState *env)
 {
+    APICState *s = env->apic_state;
     int i;
+
+    if (!s)
+        return;
 
     s->tpr = 0;
     s->spurious_vec = 0xff;
@@ -454,23 +494,31 @@ static void apic_init_ipi(APICState *s)
     s->initial_count = 0;
     s->initial_count_load_time = 0;
     s->next_time = 0;
+    s->wait_for_sipi = 1;
 
-    cpu_reset(s->cpu_env);
-
-    if (!(s->apicbase & MSR_IA32_APICBASE_BSP))
-        s->cpu_env->halted = 1;
+    env->halted = !(s->apicbase & MSR_IA32_APICBASE_BSP);
 }
 
-/* send a SIPI message to the CPU to start it */
 static void apic_startup(APICState *s, int vector_num)
 {
-    CPUState *env = s->cpu_env;
-    if (!env->halted)
+    s->sipi_vector = vector_num;
+    cpu_interrupt(s->cpu_env, CPU_INTERRUPT_SIPI);
+}
+
+void apic_sipi(CPUState *env)
+{
+    APICState *s = env->apic_state;
+
+    cpu_reset_interrupt(env, CPU_INTERRUPT_SIPI);
+
+    if (!s->wait_for_sipi)
         return;
+
     env->eip = 0;
-    cpu_x86_load_seg_cache(env, R_CS, vector_num << 8, vector_num << 12,
+    cpu_x86_load_seg_cache(env, R_CS, s->sipi_vector << 8, s->sipi_vector << 12,
                            0xffff, 0);
     env->halted = 0;
+    s->wait_for_sipi = 0;
 }
 
 static void apic_deliver(APICState *s, uint8_t dest, uint8_t dest_mode,
@@ -487,14 +535,14 @@ static void apic_deliver(APICState *s, uint8_t dest, uint8_t dest_mode,
         break;
     case 1:
         memset(deliver_bitmask, 0x00, sizeof(deliver_bitmask));
-        set_bit(deliver_bitmask, s->id);
+        set_bit(deliver_bitmask, s->idx);
         break;
     case 2:
         memset(deliver_bitmask, 0xff, sizeof(deliver_bitmask));
         break;
     case 3:
         memset(deliver_bitmask, 0xff, sizeof(deliver_bitmask));
-        reset_bit(deliver_bitmask, s->id);
+        reset_bit(deliver_bitmask, s->idx);
         break;
     }
 
@@ -712,11 +760,31 @@ static uint32_t apic_mem_readl(void *opaque, target_phys_addr_t addr)
     return val;
 }
 
+static void apic_send_msi(target_phys_addr_t addr, uint32 data)
+{
+    uint8_t dest = (addr & MSI_ADDR_DEST_ID_MASK) >> MSI_ADDR_DEST_ID_SHIFT;
+    uint8_t vector = (data & MSI_DATA_VECTOR_MASK) >> MSI_DATA_VECTOR_SHIFT;
+    uint8_t dest_mode = (addr >> MSI_ADDR_DEST_MODE_SHIFT) & 0x1;
+    uint8_t trigger_mode = (data >> MSI_DATA_TRIGGER_SHIFT) & 0x1;
+    uint8_t delivery = (data >> MSI_DATA_DELIVERY_MODE_SHIFT) & 0x7;
+    /* XXX: Ignore redirection hint. */
+    apic_deliver_irq(dest, dest_mode, delivery, vector, 0, trigger_mode);
+}
+
 static void apic_mem_writel(void *opaque, target_phys_addr_t addr, uint32_t val)
 {
     CPUState *env;
     APICState *s;
-    int index;
+    int index = (addr >> 4) & 0xff;
+    if (addr > 0xfff || !index) {
+        /* MSI and MMIO APIC are at the same memory location,
+         * but actually not on the global bus: MSI is on PCI bus
+         * APIC is connected directly to the CPU.
+         * Mapping them on the global bus happens to work because
+         * MSI registers are reserved in APIC MMIO and vice versa. */
+        apic_send_msi(addr, val);
+        return;
+    }
 
     env = cpu_single_env;
     if (!env)
@@ -727,7 +795,6 @@ static void apic_mem_writel(void *opaque, target_phys_addr_t addr, uint32_t val)
     printf("APIC write: %08x = %08x\n", (uint32_t)addr, val);
 #endif
 
-    index = (addr >> 4) & 0xff;
     switch(index) {
     case 0x02:
         s->id = (val >> 24);
@@ -870,13 +937,15 @@ static int apic_load(QEMUFile *f, void *opaque, int version_id)
 static void apic_reset(void *opaque)
 {
     APICState *s = opaque;
+    int bsp = cpu_is_bsp(s->cpu_env);
 
     s->apicbase = 0xfee00000 |
-        (s->id ? 0 : MSR_IA32_APICBASE_BSP) | MSR_IA32_APICBASE_ENABLE;
+        (bsp ? MSR_IA32_APICBASE_BSP : 0) | MSR_IA32_APICBASE_ENABLE;
 
-    apic_init_ipi(s);
+    cpu_reset(s->cpu_env);
+    apic_init_reset(s->cpu_env);
 
-    if (s->id == 0) {
+    if (bsp) {
         /*
          * LINT0 delivery mode on CPU #0 is set to ExtInt at initialization
          * time typically by BIOS, so PIC interrupt can be delivered to the
@@ -884,6 +953,8 @@ static void apic_reset(void *opaque)
          */
         s->lvt[APIC_LVT_LINT0] = 0x700;
     }
+
+    cpu_synchronize_state(s->cpu_env, 1);
 }
 
 static CPUReadMemoryFunc *apic_mem_read[3] = {
@@ -902,31 +973,32 @@ int apic_init(CPUState *env)
 {
     APICState *s;
 
-    if (last_apic_id >= MAX_APICS)
+    if (last_apic_idx >= MAX_APICS)
         return -1;
     s = qemu_mallocz(sizeof(APICState));
     env->apic_state = s;
-    s->id = last_apic_id++;
-    env->cpuid_apic_id = s->id;
+    s->idx = last_apic_idx++;
+    s->id = env->cpuid_apic_id;
     s->cpu_env = env;
 
     apic_reset(s);
+    msix_supported = 1;
 
     /* XXX: mapping more APICs at the same memory location */
     if (apic_io_memory == 0) {
         /* NOTE: the APIC is directly connected to the CPU - it is not
            on the global memory bus. */
-        apic_io_memory = cpu_register_io_memory(0, apic_mem_read,
+        apic_io_memory = cpu_register_io_memory(apic_mem_read,
                                                 apic_mem_write, NULL);
-        cpu_register_physical_memory(s->apicbase & ~0xfff, 0x1000,
+        /* XXX: what if the base changes? */
+        cpu_register_physical_memory(MSI_ADDR_BASE, MSI_ADDR_SIZE,
                                      apic_io_memory);
     }
     s->timer = qemu_new_timer(vm_clock, apic_timer, s);
 
-    register_savevm("apic", s->id, 2, apic_save, apic_load, s);
-    qemu_register_reset(apic_reset, 0, s);
+    register_savevm("apic", s->idx, 2, apic_save, apic_load, s);
+    qemu_register_reset(apic_reset, s);
 
-    local_apics[s->id] = s;
+    local_apics[s->idx] = s;
     return 0;
 }
-

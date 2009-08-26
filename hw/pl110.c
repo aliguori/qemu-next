@@ -169,6 +169,9 @@ static void pl110_invalidate_display(void * opaque)
 {
     pl110_state *s = (pl110_state *)opaque;
     s->invalidate = 1;
+    if (pl110_enabled(s)) {
+        qemu_console_resize(s->ds, s->cols, s->rows);
+    }
 }
 
 static void pl110_update_pallette(pl110_state *s, int n)
@@ -354,7 +357,7 @@ static void pl110_init(SysBusDevice *dev)
     pl110_state *s = FROM_SYSBUS(pl110_state, dev);
     int iomemtype;
 
-    iomemtype = cpu_register_io_memory(0, pl110_readfn,
+    iomemtype = cpu_register_io_memory(pl110_readfn,
                                        pl110_writefn, s);
     sysbus_init_mmio(dev, 0x1000, iomemtype);
     sysbus_init_irq(dev, &s->irq);

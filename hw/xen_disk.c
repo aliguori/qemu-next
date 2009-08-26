@@ -13,8 +13,7 @@
  *  GNU General Public License for more details.
  *
  *  You should have received a copy of the GNU General Public License along
- *  with this program; if not, write to the Free Software Foundation, Inc.,
- *  51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+ *  with this program; if not, see <http://www.gnu.org/licenses/>.
  */
 
 #include <stdio.h>
@@ -108,7 +107,7 @@ struct XenBlkDev {
     int                 requests_finished;
 
     /* qemu block driver */
-    int                 index;
+    DriveInfo           *dinfo;
     BlockDriverState    *bs;
     QEMUBH              *bh;
 };
@@ -179,10 +178,6 @@ static int ioreq_parse(struct ioreq *ioreq)
     switch (ioreq->req.operation) {
     case BLKIF_OP_READ:
 	ioreq->prot = PROT_WRITE; /* to memory */
-        if (ioreq->req.operation != BLKIF_OP_READ && blkdev->mode[0] != 'w') {
-	    xen_be_printf(&blkdev->xendev, 0, "error: write req for ro device\n");
-	    goto err;
-	}
 	break;
     case BLKIF_OP_WRITE_BARRIER:
 	if (!syncwrite)
@@ -198,6 +193,11 @@ static int ioreq_parse(struct ioreq *ioreq)
 		      ioreq->req.operation);
 	goto err;
     };
+
+    if (ioreq->req.operation != BLKIF_OP_READ && blkdev->mode[0] != 'w') {
+        xen_be_printf(&blkdev->xendev, 0, "error: write req for ro device\n");
+        goto err;
+    }
 
     ioreq->start = ioreq->req.sector_number * blkdev->file_blk;
     for (i = 0; i < ioreq->req.nr_segments; i++) {
@@ -575,7 +575,7 @@ static void blk_alloc(struct XenDevice *xendev)
 static int blk_init(struct XenDevice *xendev)
 {
     struct XenBlkDev *blkdev = container_of(xendev, struct XenBlkDev, xendev);
-    int mode, qflags, have_barriers, info = 0;
+    int index, mode, qflags, have_barriers, info = 0;
     char *h;
 
     /* read xenstore entries */
@@ -622,9 +622,9 @@ static int blk_init(struct XenDevice *xendev)
 	info  |= VDISK_CDROM;
 
     /* init qemu block driver */
-    blkdev->index = (blkdev->xendev.dev - 202 * 256) / 16;
-    blkdev->index = drive_get_index(IF_XEN, 0, blkdev->index);
-    if (blkdev->index == -1) {
+    index = (blkdev->xendev.dev - 202 * 256) / 16;
+    blkdev->dinfo = drive_get(IF_XEN, 0, index);
+    if (!blkdev->dinfo) {
         /* setup via xenbus -> create new block driver instance */
         xen_be_printf(&blkdev->xendev, 2, "create new bdrv (xenbus setup)\n");
 	blkdev->bs = bdrv_new(blkdev->dev);
@@ -640,7 +640,7 @@ static int blk_init(struct XenDevice *xendev)
     } else {
         /* setup via qemu cmdline -> already setup for us */
         xen_be_printf(&blkdev->xendev, 2, "get configured bdrv (cmdline setup)\n");
-	blkdev->bs = drives_table[blkdev->index].bdrv;
+	blkdev->bs = blkdev->dinfo->bdrv;
     }
     blkdev->file_blk  = BLOCK_SIZE;
     blkdev->file_size = bdrv_getlength(blkdev->bs);
@@ -729,7 +729,7 @@ static void blk_disconnect(struct XenDevice *xendev)
     struct XenBlkDev *blkdev = container_of(xendev, struct XenBlkDev, xendev);
 
     if (blkdev->bs) {
-        if (blkdev->index == -1) {
+        if (!blkdev->dinfo) {
             /* close/delete only if we created it ourself */
             bdrv_close(blkdev->bs);
             bdrv_delete(blkdev->bs);

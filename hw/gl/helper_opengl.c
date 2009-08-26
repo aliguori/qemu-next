@@ -766,8 +766,7 @@ void *helper_opengl_init(CPUState *env, target_phys_addr_t base)
         sizeof(struct helper_opengl_s));
     s->env=env;
     cpu_register_physical_memory(base, 0x100, 
-                                 cpu_register_io_memory(0,
-                                                        helper_opengl_readfn,
+                                 cpu_register_io_memory(helper_opengl_readfn,
                                                         helper_opengl_writefn,
                                                         s));
     TRACE("registered IO memory at base address 0x%08x", (target_ulong)base);

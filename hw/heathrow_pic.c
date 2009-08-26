@@ -226,11 +226,11 @@ qemu_irq *heathrow_pic_init(int *pmem_index,
     s = qemu_mallocz(sizeof(HeathrowPICS));
     /* only 1 CPU */
     s->irqs = irqs[0];
-    *pmem_index = cpu_register_io_memory(0, pic_read, pic_write, s);
+    *pmem_index = cpu_register_io_memory(pic_read, pic_write, s);
 
     register_savevm("heathrow_pic", -1, 1, heathrow_pic_save,
                     heathrow_pic_load, s);
-    qemu_register_reset(heathrow_pic_reset, 0, s);
+    qemu_register_reset(heathrow_pic_reset, s);
     heathrow_pic_reset(s);
     return qemu_allocate_irqs(heathrow_pic_set_irq, s, 64);
 }

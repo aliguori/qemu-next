@@ -451,14 +451,14 @@ static void pl181_init(SysBusDevice *dev)
     pl181_state *s = FROM_SYSBUS(pl181_state, dev);
     BlockDriverState *bd;
 
-    iomemtype = cpu_register_io_memory(0, pl181_readfn,
+    iomemtype = cpu_register_io_memory(pl181_readfn,
                                        pl181_writefn, s);
     sysbus_init_mmio(dev, 0x1000, iomemtype);
     sysbus_init_irq(dev, &s->irq[0]);
     sysbus_init_irq(dev, &s->irq[1]);
     bd = qdev_init_bdrv(&dev->qdev, IF_SD);
     s->card = sd_init(bd, 0);
-    qemu_register_reset(pl181_reset, 0, s);
+    qemu_register_reset(pl181_reset, s);
     pl181_reset(s);
     /* ??? Save/restore.  */
 }

@@ -107,6 +107,36 @@ void do_migrate_set_speed(Monitor *mon, const char *value)
     
 }
 
+/* amount of nanoseconds we are willing to wait for migration to be down.
+ * the choice of nanoseconds is because it is the maximum resolution that
+ * get_clock() can achieve. It is an internal measure. All user-visible
+ * units must be in seconds */
+static uint64_t max_downtime = 30000000;
+
+uint64_t migrate_max_downtime(void)
+{
+    return max_downtime;
+}
+
+void do_migrate_set_downtime(Monitor *mon, const char *value)
+{
+    char *ptr;
+    double d;
+
+    d = strtod(value, &ptr);
+    if (!strcmp(ptr,"ms")) {
+        d *= 1000000;
+    } else if (!strcmp(ptr,"us")) {
+        d *= 1000;
+    } else if (!strcmp(ptr,"ns")) {
+    } else {
+        /* all else considered to be seconds */
+        d *= 1000000000;
+    }
+
+    max_downtime = (uint64_t)d;
+}
+
 void do_info_migrate(Monitor *mon)
 {
     MigrationState *s = current_migration;
@@ -231,12 +261,17 @@ void migrate_fd_put_ready(void *opaque)
     dprintf("iterate\n");
     if (qemu_savevm_state_iterate(s->file) == 1) {
         int state;
+        int old_vm_running = vm_running;
+
         dprintf("done iterating\n");
         vm_stop(0);
 
+        qemu_aio_flush();
         bdrv_flush_all();
         if ((qemu_savevm_state_complete(s->file)) < 0) {
-            vm_start();
+            if (old_vm_running) {
+                vm_start();
+            }
             state = MIG_STATE_ERROR;
         } else {
             state = MIG_STATE_COMPLETED;
@@ -301,5 +336,7 @@ void migrate_fd_wait_for_unfreeze(void *opaque)
 int migrate_fd_close(void *opaque)
 {
     FdMigrationState *s = opaque;
+
+    qemu_set_fd_handler2(s->fd, NULL, NULL, NULL, NULL);
     return s->close(s);
 }

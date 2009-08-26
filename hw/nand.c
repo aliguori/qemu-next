@@ -494,7 +494,7 @@ uint32_t nand_getbuswidth(NANDFlashState *s)
     return (s->buswidth << 3);
 }
 
-NANDFlashState *nand_init(int manf_id, int chip_id, BlockDriverState *bdrv)
+NANDFlashState *nand_init(int manf_id, int chip_id, DriveInfo *dinfo)
 {
     int pagesize;
     NANDFlashState *s;
@@ -504,7 +504,8 @@ NANDFlashState *nand_init(int manf_id, int chip_id, BlockDriverState *bdrv)
     }
 
     s = (NANDFlashState *) qemu_mallocz(sizeof(NANDFlashState));
-    s->bdrv = bdrv;
+    if (dinfo)
+        s->bdrv = dinfo->bdrv;
     s->manf_id = manf_id;
     s->chip_id = chip_id;
     s->buswidth = (uint8_t)(nand_flash_ids[s->chip_id].width >> 3);

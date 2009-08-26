@@ -14,8 +14,7 @@
  * Lesser General Public License for more details.
  *
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston MA  02110-1301 USA
+ * License along with this library; if not, see <http://www.gnu.org/licenses/>.
  */
 #ifndef CPU_I386_H
 #define CPU_I386_H
@@ -204,6 +203,7 @@
 #define CR4_DE_MASK   (1 << 3)
 #define CR4_PSE_MASK  (1 << 4)
 #define CR4_PAE_MASK  (1 << 5)
+#define CR4_MCE_MASK  (1 << 6)
 #define CR4_PGE_MASK  (1 << 7)
 #define CR4_PCE_MASK  (1 << 8)
 #define CR4_OSFXSR_SHIFT 9
@@ -250,6 +250,17 @@
 #define PG_ERROR_RSVD_MASK 0x08
 #define PG_ERROR_I_D_MASK  0x10
 
+#define MCG_CTL_P	(1UL<<8)   /* MCG_CAP register available */
+
+#define MCE_CAP_DEF	MCG_CTL_P
+#define MCE_BANKS_DEF	10
+
+#define MCG_STATUS_MCIP	(1ULL<<2)   /* machine check in progress */
+
+#define MCI_STATUS_VAL	(1ULL<<63)  /* valid error */
+#define MCI_STATUS_OVER	(1ULL<<62)  /* previous errors lost */
+#define MCI_STATUS_UC	(1ULL<<61)  /* uncorrected error */
+
 #define MSR_IA32_TSC                    0x10
 #define MSR_IA32_APICBASE               0x1b
 #define MSR_IA32_APICBASE_BSP           (1<<8)
@@ -289,6 +300,11 @@
 #define MSR_PAT                         0x277
 
 #define MSR_MTRRdefType			0x2ff
+
+#define MSR_MC0_CTL			0x400
+#define MSR_MC0_STATUS			0x401
+#define MSR_MC0_ADDR			0x402
+#define MSR_MC0_MISC			0x403
 
 #define MSR_EFER                        0xc0000080
 
@@ -362,6 +378,7 @@
 #define CPUID_EXT_POPCNT   (1 << 23)
 #define CPUID_EXT_XSAVE    (1 << 26)
 #define CPUID_EXT_OSXSAVE  (1 << 27)
+#define CPUID_EXT_HYPERVISOR  (1 << 31)
 
 #define CPUID_EXT2_SYSCALL (1 << 11)
 #define CPUID_EXT2_MP      (1 << 19)
@@ -511,7 +528,7 @@ typedef union {
     uint64_t q;
 } MMXReg;
 
-#ifdef WORDS_BIGENDIAN
+#ifdef HOST_WORDS_BIGENDIAN
 #define XMM_B(n) _b[15 - (n)]
 #define XMM_W(n) _w[7 - (n)]
 #define XMM_L(n) _l[3 - (n)]
@@ -655,6 +672,7 @@ typedef struct CPUX86State {
     uint32_t cpuid_ext2_features;
     uint32_t cpuid_ext3_features;
     uint32_t cpuid_apic_id;
+    int cpuid_vendor_override;
 
     /* MTRRs */
     uint64_t mtrr_fixed[11];
@@ -676,6 +694,11 @@ typedef struct CPUX86State {
     /* in order to simplify APIC support, we leave this pointer to the
        user */
     struct APICState *apic_state;
+
+    uint64 mcg_cap;
+    uint64 mcg_status;
+    uint64 mcg_ctl;
+    uint64 *mce_banks;
 } CPUX86State;
 
 CPUX86State *cpu_x86_init(const char *cpu_model);
@@ -745,6 +768,10 @@ static inline void cpu_x86_load_seg_cache(CPUX86State *env,
                        ~(HF_SS32_MASK | HF_ADDSEG_MASK)) | new_hflags;
     }
 }
+
+int cpu_x86_get_descr_debug(CPUX86State *env, unsigned int selector,
+                            target_ulong *base, unsigned int *limit,
+                            unsigned int *flags);
 
 /* wrapper, just in case memory mappings must be changed */
 static inline void cpu_x86_set_cpl(CPUX86State *s, int cpl)
@@ -840,7 +867,7 @@ static inline int cpu_get_time_fast(void)
 #define cpu_signal_handler cpu_x86_signal_handler
 #define cpu_list x86_cpu_list
 
-#define CPU_SAVE_VERSION 9
+#define CPU_SAVE_VERSION 10
 
 /* MMU modes definitions */
 #define MMU_MODE0_SUFFIX _kernel
@@ -887,4 +914,8 @@ static inline void cpu_get_tb_cpu_state(CPUState *env, target_ulong *pc,
         (env->eflags & (IOPL_MASK | TF_MASK | RF_MASK | VM_MASK));
 }
 
+void apic_init_reset(CPUState *env);
+void apic_sipi(CPUState *env);
+void do_cpu_init(CPUState *env);
+void do_cpu_sipi(CPUState *env);
 #endif /* CPU_I386_H */

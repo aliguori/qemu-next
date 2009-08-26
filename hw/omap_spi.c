@@ -623,7 +623,7 @@ struct omap_mcspi_s *omap_mcspi_init(struct omap_target_agent_s *ta,
     }
     omap_mcspi_reset(s);
     
-    omap_l4_attach(ta, 0, l4_register_io_memory(0, omap_mcspi_readfn,
+    omap_l4_attach(ta, 0, l4_register_io_memory(omap_mcspi_readfn,
                                                 omap_mcspi_writefn, s));
     register_savevm("omap_mcspi", (ta->base >> 8), 0,
                     omap_mcspi_save_state, omap_mcspi_load_state, s);

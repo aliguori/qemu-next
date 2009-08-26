@@ -14,9 +14,7 @@
  *  GNU General Public License for more details.
  *
  *  You should have received a copy of the GNU General Public License
- *  along with this program; if not, write to the Free Software
- *  Foundation, Inc., 51 Franklin Street - Fifth Floor, Boston,
- *  MA 02110-1301, USA.
+ *  along with this program; if not, see <http://www.gnu.org/licenses/>.
  */
 #include <stdlib.h>
 #include <stdio.h>
@@ -42,8 +40,9 @@ char *exec_path;
 
 int singlestep;
 #if defined(CONFIG_USE_GUEST_BASE)
-unsigned long mmap_min_addr = 0;
-unsigned long guest_base = 0;
+unsigned long mmap_min_addr;
+unsigned long guest_base;
+int have_guest_base;
 #endif
 
 static const char *interp_prefix = CONFIG_QEMU_PREFIX;
@@ -89,39 +88,6 @@ void gemu_log(const char *fmt, ...)
     va_end(ap);
 }
 
-void cpu_outb(CPUState *env, int addr, int val)
-{
-    fprintf(stderr, "outb: port=0x%04x, data=%02x\n", addr, val);
-}
-
-void cpu_outw(CPUState *env, int addr, int val)
-{
-    fprintf(stderr, "outw: port=0x%04x, data=%04x\n", addr, val);
-}
-
-void cpu_outl(CPUState *env, int addr, int val)
-{
-    fprintf(stderr, "outl: port=0x%04x, data=%08x\n", addr, val);
-}
-
-int cpu_inb(CPUState *env, int addr)
-{
-    fprintf(stderr, "inb: port=0x%04x\n", addr);
-    return 0;
-}
-
-int cpu_inw(CPUState *env, int addr)
-{
-    fprintf(stderr, "inw: port=0x%04x\n", addr);
-    return 0;
-}
-
-int cpu_inl(CPUState *env, int addr)
-{
-    fprintf(stderr, "inl: port=0x%04x\n", addr);
-    return 0;
-}
-
 #if defined(TARGET_I386)
 int cpu_get_pic_interrupt(CPUState *env)
 {
@@ -142,7 +108,7 @@ int64_t cpu_get_real_ticks(void)
 
 #endif
 
-#if defined(USE_NPTL)
+#if defined(CONFIG_USE_NPTL)
 /***********************************************************/
 /* Helper routines for implementing atomic operations.  */
 
@@ -256,7 +222,7 @@ void cpu_list_unlock(void)
 {
     pthread_mutex_unlock(&cpu_list_mutex);
 }
-#else /* if !USE_NPTL */
+#else /* if !CONFIG_USE_NPTL */
 /* These are no-ops because we are not threadsafe.  */
 static inline void cpu_exec_start(CPUState *env)
 {
@@ -996,7 +962,7 @@ void cpu_loop (CPUSPARCState *env)
                 if (trapnr == TT_DFAULT)
                     info._sifields._sigfault._addr = env->dmmuregs[4];
                 else
-                    info._sifields._sigfault._addr = env->tsptr->tpc;
+                    info._sifields._sigfault._addr = cpu_tsptr(env)->tpc;
                 queue_signal(env, info.si_signo, &info);
             }
             break;
@@ -1090,8 +1056,66 @@ do {                                                                    \
     fprintf(stderr, fmt , ## __VA_ARGS__);                              \
     cpu_dump_state(env, stderr, fprintf, 0);                            \
     qemu_log(fmt, ## __VA_ARGS__);                                      \
-    log_cpu_state(env, 0);                                              \
+    if (logfile)                                                        \
+        log_cpu_state(env, 0);                                          \
 } while (0)
+
+static int do_store_exclusive(CPUPPCState *env)
+{
+    target_ulong addr;
+    target_ulong page_addr;
+    target_ulong val;
+    int flags;
+    int segv = 0;
+
+    addr = env->reserve_ea;
+    page_addr = addr & TARGET_PAGE_MASK;
+    start_exclusive();
+    mmap_lock();
+    flags = page_get_flags(page_addr);
+    if ((flags & PAGE_READ) == 0) {
+        segv = 1;
+    } else {
+        int reg = env->reserve_info & 0x1f;
+        int size = (env->reserve_info >> 5) & 0xf;
+        int stored = 0;
+
+        if (addr == env->reserve_addr) {
+            switch (size) {
+            case 1: segv = get_user_u8(val, addr); break;
+            case 2: segv = get_user_u16(val, addr); break;
+            case 4: segv = get_user_u32(val, addr); break;
+#if defined(TARGET_PPC64)
+            case 8: segv = get_user_u64(val, addr); break;
+#endif
+            default: abort();
+            }
+            if (!segv && val == env->reserve_val) {
+                val = env->gpr[reg];
+                switch (size) {
+                case 1: segv = put_user_u8(val, addr); break;
+                case 2: segv = put_user_u16(val, addr); break;
+                case 4: segv = put_user_u32(val, addr); break;
+#if defined(TARGET_PPC64)
+                case 8: segv = put_user_u64(val, addr); break;
+#endif
+                default: abort();
+                }
+                if (!segv) {
+                    stored = 1;
+                }
+            }
+        }
+        env->crf[0] = (stored << 1) | xer_so;
+        env->reserve_addr = (target_ulong)-1;
+    }
+    if (!segv) {
+        env->nip += 4;
+    }
+    mmap_unlock();
+    end_exclusive();
+    return segv;
+}
 
 void cpu_loop(CPUPPCState *env)
 {
@@ -1100,7 +1124,9 @@ void cpu_loop(CPUPPCState *env)
     uint32_t ret;
 
     for(;;) {
+        cpu_exec_start(env);
         trapnr = cpu_ppc_exec(env);
+        cpu_exec_end(env);
         switch(trapnr) {
         case POWERPC_EXCP_NONE:
             /* Just go on */
@@ -1114,7 +1140,7 @@ void cpu_loop(CPUPPCState *env)
                       "Aborting\n");
             break;
         case POWERPC_EXCP_DSI:      /* Data storage exception                */
-            EXCP_DUMP(env, "Invalid data memory access: 0x" ADDRX "\n",
+            EXCP_DUMP(env, "Invalid data memory access: 0x" TARGET_FMT_lx "\n",
                       env->spr[SPR_DAR]);
             /* XXX: check this. Seems bugged */
             switch (env->error_code & 0xFF000000) {
@@ -1146,8 +1172,8 @@ void cpu_loop(CPUPPCState *env)
             queue_signal(env, info.si_signo, &info);
             break;
         case POWERPC_EXCP_ISI:      /* Instruction storage exception         */
-            EXCP_DUMP(env, "Invalid instruction fetch: 0x\n" ADDRX "\n",
-                      env->spr[SPR_SRR0]);
+            EXCP_DUMP(env, "Invalid instruction fetch: 0x\n" TARGET_FMT_lx
+                      "\n", env->spr[SPR_SRR0]);
             /* XXX: check this */
             switch (env->error_code & 0xFF000000) {
             case 0x40000000:
@@ -1480,6 +1506,15 @@ void cpu_loop(CPUPPCState *env)
             printf("syscall returned 0x%08x (%d)\n", ret, ret);
 #endif
             break;
+        case POWERPC_EXCP_STCX:
+            if (do_store_exclusive(env)) {
+                info.si_signo = TARGET_SIGSEGV;
+                info.si_errno = 0;
+                info.si_code = TARGET_SEGV_MAPERR;
+                info._sifields._sigfault._addr = env->nip;
+                queue_signal(env, info.si_signo, &info);
+            }
+            break;
         case EXCP_DEBUG:
             {
                 int sig;
@@ -1630,7 +1665,7 @@ static const uint8_t mips_syscall_args[] = {
 	MIPS_SYS(sys_ipc		, 6)
 	MIPS_SYS(sys_fsync	, 1)
 	MIPS_SYS(sys_sigreturn	, 0)
-	MIPS_SYS(sys_clone	, 0)	/* 4120 */
+	MIPS_SYS(sys_clone	, 6)	/* 4120 */
 	MIPS_SYS(sys_setdomainname, 2)
 	MIPS_SYS(sys_newuname	, 1)
 	MIPS_SYS(sys_ni_syscall	, 0)	/* sys_modify_ldt */
@@ -1830,6 +1865,55 @@ static const uint8_t mips_syscall_args[] = {
 
 #undef MIPS_SYS
 
+static int do_store_exclusive(CPUMIPSState *env)
+{
+    target_ulong addr;
+    target_ulong page_addr;
+    target_ulong val;
+    int flags;
+    int segv = 0;
+    int reg;
+    int d;
+
+    addr = env->CP0_LLAddr;
+    page_addr = addr & TARGET_PAGE_MASK;
+    start_exclusive();
+    mmap_lock();
+    flags = page_get_flags(page_addr);
+    if ((flags & PAGE_READ) == 0) {
+        segv = 1;
+    } else {
+        reg = env->llreg & 0x1f;
+        d = (env->llreg & 0x20) != 0;
+        if (d) {
+            segv = get_user_s64(val, addr);
+        } else {
+            segv = get_user_s32(val, addr);
+        }
+        if (!segv) {
+            if (val != env->llval) {
+                env->active_tc.gpr[reg] = 0;
+            } else {
+                if (d) {
+                    segv = put_user_u64(env->llnewval, addr);
+                } else {
+                    segv = put_user_u32(env->llnewval, addr);
+                }
+                if (!segv) {
+                    env->active_tc.gpr[reg] = 1;
+                }
+            }
+        }
+    }
+    env->CP0_LLAddr = -1;
+    if (!segv) {
+        env->active_tc.PC += 4;
+    }
+    mmap_unlock();
+    end_exclusive();
+    return segv;
+}
+
 void cpu_loop(CPUMIPSState *env)
 {
     target_siginfo_t info;
@@ -1837,7 +1921,9 @@ void cpu_loop(CPUMIPSState *env)
     unsigned int syscall_num;
 
     for(;;) {
+        cpu_exec_start(env);
         trapnr = cpu_mips_exec(env);
+        cpu_exec_end(env);
         switch(trapnr) {
         case EXCP_SYSCALL:
             syscall_num = env->active_tc.gpr[2] - 4000;
@@ -1912,6 +1998,15 @@ void cpu_loop(CPUMIPSState *env)
                     info.si_code = TARGET_TRAP_BRKPT;
                     queue_signal(env, info.si_signo, &info);
                   }
+            }
+            break;
+        case EXCP_SC:
+            if (do_store_exclusive(env)) {
+                info.si_signo = TARGET_SIGSEGV;
+                info.si_errno = 0;
+                info.si_code = TARGET_SEGV_MAPERR;
+                info._sifields._sigfault._addr = env->active_tc.PC;
+                queue_signal(env, info.si_signo, &info);
             }
             break;
         default:
@@ -2339,7 +2434,7 @@ THREAD CPUState *thread_env;
 void task_settid(TaskState *ts)
 {
     if (ts->ts_tid == 0) {
-#ifdef USE_NPTL
+#ifdef CONFIG_USE_NPTL
         ts->ts_tid = (pid_t)syscall(SYS_gettid);
 #else
         /* when no threads are used, tid becomes pid */
@@ -2390,6 +2485,7 @@ int main(int argc, char **argv, char **envp)
     const char *argv0 = NULL;
     int argskip = 0;
     int i;
+    int ret;
 
     if (argc <= 1)
         usage();
@@ -2491,6 +2587,7 @@ int main(int argc, char **argv, char **envp)
 #if defined(CONFIG_USE_GUEST_BASE)
         } else if (!strcmp(r, "B")) {
            guest_base = strtol(argv[optind++], NULL, 0);
+           have_guest_base = 1;
 #endif
         } else if (!strcmp(r, "drop-ld-preload")) {
             drop_ld_preload = 1;
@@ -2586,22 +2683,21 @@ int main(int argc, char **argv, char **envp)
     guest_base = HOST_PAGE_ALIGN(guest_base);
 
     /*
-     * Read in mmap_min_addr kernel parameter and check
-     * whether it is set to some value > 0.  This value is used
-     * later on when doing mmap(2)s to calculate where guest_base
-     * is to set, if needed.
+     * Read in mmap_min_addr kernel parameter.  This value is used
+     * When loading the ELF image to determine whether guest_base
+     * is needed.
      *
      * When user has explicitly set the quest base, we skip this
      * test.
      */
-    if (guest_base == 0) {
+    if (!have_guest_base) {
         FILE *fp;
 
         if ((fp = fopen("/proc/sys/vm/mmap_min_addr", "r")) != NULL) {
             unsigned long tmp;
             if (fscanf(fp, "%lu", &tmp) == 1) {
                 mmap_min_addr = tmp;
-                qemu_log("kernel mmap_min_addr=%lu\n", mmap_min_addr);
+                qemu_log("host mmap_min_addr=0x%lx\n", mmap_min_addr);
             }
             fclose(fp);
         }
@@ -2639,9 +2735,10 @@ int main(int argc, char **argv, char **envp)
     env->opaque = ts;
     task_settid(ts);
 
-    if (loader_exec(filename, target_argv+argskip, target_environ, regs,
-        info, &bprm) != 0) {
-        printf("Error loading %s\n", filename);
+    ret = loader_exec(filename, target_argv, target_environ, regs,
+        info, &bprm);
+    if (ret != 0) {
+        printf("Error %d while loading %s\n", ret, filename);
         _exit(1);
     }
 
@@ -2658,16 +2755,7 @@ int main(int argc, char **argv, char **envp)
 
     if (qemu_log_enabled()) {
 #if defined(CONFIG_USE_GUEST_BASE)
-        if (guest_base > 0) {
-            qemu_log("guest_base is set to 0x%lx\n", guest_base);
-            qemu_log(
-                "==========================================================\n"
-                "Note that all target addresses below are given in target\n"
-                "address space which is different from host by guest_base.\n"
-                "For example: target address 0x%lx becomes 0x%lx and so on.\n"
-                "==========================================================\n",
-                (uintptr_t)0x8000, (uintptr_t)g2h(0x8000));
-        }
+        qemu_log("guest_base  0x%lx\n", guest_base);
 #endif
         log_page_dump();
 

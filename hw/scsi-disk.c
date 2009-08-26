@@ -74,6 +74,7 @@ struct SCSIDeviceState
     scsi_completionfn completion;
     void *opaque;
     char drive_serial_str[21];
+    QEMUBH *bh;
 };
 
 /* Global pool of SCSIRequest structures.  */
@@ -172,7 +173,7 @@ static void scsi_read_complete(void * opaque, int ret)
         scsi_command_complete(r, STATUS_CHECK_CONDITION, SENSE_NO_SENSE);
         return;
     }
-    DPRINTF("Data ready tag=0x%x len=%d\n", r->tag, r->iov.iov_len);
+    DPRINTF("Data ready tag=0x%x len=%" PRId64 "\n", r->tag, r->iov.iov_len);
 
     s->completion(s->opaque, SCSI_REASON_DATA, r->tag, r->iov.iov_len);
 }
@@ -192,7 +193,7 @@ static void scsi_read_data(SCSIDevice *d, uint32_t tag)
         return;
     }
     if (r->sector_count == (uint32_t)-1) {
-        DPRINTF("Read buf_len=%d\n", r->iov.iov_len);
+        DPRINTF("Read buf_len=%" PRId64 "\n", r->iov.iov_len);
         r->sector_count = 0;
         s->completion(s->opaque, SCSI_REASON_DATA, r->tag, r->iov.iov_len);
         return;
@@ -308,12 +309,13 @@ static int scsi_write_data(SCSIDevice *d, uint32_t tag)
     return 0;
 }
 
-static void scsi_dma_restart_cb(void *opaque, int running, int reason)
+static void scsi_dma_restart_bh(void *opaque)
 {
     SCSIDeviceState *s = opaque;
     SCSIRequest *r = s->requests;
-    if (!running)
-        return;
+
+    qemu_bh_delete(s->bh);
+    s->bh = NULL;
 
     while (r) {
         if (r->status & SCSI_REQ_STATUS_RETRY) {
@@ -321,6 +323,19 @@ static void scsi_dma_restart_cb(void *opaque, int running, int reason)
             scsi_write_request(r); 
         }
         r = r->next;
+    }
+}
+
+static void scsi_dma_restart_cb(void *opaque, int running, int reason)
+{
+    SCSIDeviceState *s = opaque;
+
+    if (!running)
+        return;
+
+    if (!s->bh) {
+        s->bh = qemu_bh_new(scsi_dma_restart_bh, s);
+        qemu_bh_schedule(s->bh);
     }
 }
 
@@ -777,7 +792,7 @@ static int32_t scsi_send_command(SCSIDevice *d, uint32_t tag,
     case 0x08:
     case 0x28:
     case 0x88:
-        DPRINTF("Read (sector %lld, count %d)\n", lba, len);
+        DPRINTF("Read (sector %" PRId64 ", count %d)\n", lba, len);
         if (lba > s->max_lba)
             goto illegal_lba;
         r->sector = lba * s->cluster_size;
@@ -786,7 +801,7 @@ static int32_t scsi_send_command(SCSIDevice *d, uint32_t tag,
     case 0x0a:
     case 0x2a:
     case 0x8a:
-        DPRINTF("Write (sector %lld, count %d)\n", lba, len);
+        DPRINTF("Write (sector %" PRId64 ", count %d)\n", lba, len);
         if (lba > s->max_lba)
             goto illegal_lba;
         r->sector = lba * s->cluster_size;
@@ -794,7 +809,7 @@ static int32_t scsi_send_command(SCSIDevice *d, uint32_t tag,
         is_write = 1;
         break;
     case 0x35:
-        DPRINTF("Synchronise cache (sector %d, count %d)\n", lba, len);
+        DPRINTF("Synchronise cache (sector %" PRId64 ", count %d)\n", lba, len);
         bdrv_flush(s->bdrv);
         break;
     case 0x43:
@@ -896,7 +911,7 @@ static int32_t scsi_send_command(SCSIDevice *d, uint32_t tag,
         r->iov.iov_len = 16;
         break;
     case 0x2f:
-        DPRINTF("Verify (sector %d, count %d)\n", lba, len);
+        DPRINTF("Verify (sector %" PRId64 ", count %d)\n", lba, len);
         break;
     default:
 	DPRINTF("Unknown SCSI command (%2.2x)\n", buf[0]);

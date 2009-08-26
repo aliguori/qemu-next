@@ -53,8 +53,8 @@ struct xlx_ethlite
     qemu_irq irq;
     VLANClientState *vc;
 
-    unsigned int c_tx_pingpong;
-    unsigned int c_rx_pingpong;
+    uint32_t c_tx_pingpong;
+    uint32_t c_rx_pingpong;
     unsigned int txbuf;
     unsigned int rxbuf;
 
@@ -160,28 +160,27 @@ static CPUWriteMemoryFunc *eth_write[] = {
     NULL, NULL, &eth_writel,
 };
 
-static int eth_can_rx(void *opaque)
+static int eth_can_rx(VLANClientState *vc)
 {
-    struct xlx_ethlite *s = opaque;
+    struct xlx_ethlite *s = vc->opaque;
     int r;
     r = !(s->regs[R_RX_CTRL0] & CTRL_S);
-    qemu_log("%s %d\n", __func__, r);
     return r;
 }
 
-static void eth_rx(void *opaque, const uint8_t *buf, int size)
+static ssize_t eth_rx(VLANClientState *vc, const uint8_t *buf, size_t size)
 {
-    struct xlx_ethlite *s = opaque;
+    struct xlx_ethlite *s = vc->opaque;
     unsigned int rxbase = s->rxbuf * (0x800 / 4);
     int i;
 
     /* DA filter.  */
     if (!(buf[0] & 0x80) && memcmp(&s->macaddr[0], buf, 6))
-        return;
+        return size;
 
     if (s->regs[rxbase + R_RX_CTRL0] & CTRL_S) {
         D(qemu_log("ethlite lost packet %x\n", s->regs[R_RX_CTRL0]));
-        return;
+        return -1;
     }
 
     D(qemu_log("%s %d rxbase=%x\n", __func__, size, rxbase));
@@ -199,7 +198,7 @@ static void eth_rx(void *opaque, const uint8_t *buf, int size)
 
     /* If c_rx_pingpong was set flip buffers.  */
     s->rxbuf ^= s->c_rx_pingpong;
-    return;
+    return size;
 }
 
 static void eth_cleanup(VLANClientState *vc)
@@ -214,22 +213,30 @@ static void xilinx_ethlite_init(SysBusDevice *dev)
     int regs;
 
     sysbus_init_irq(dev, &s->irq);
-    s->c_tx_pingpong = qdev_get_prop_int(&dev->qdev, "txpingpong", 1);
-    s->c_rx_pingpong = qdev_get_prop_int(&dev->qdev, "rxpingpong", 1);
     s->rxbuf = 0;
 
-    regs = cpu_register_io_memory(0, eth_read, eth_write, s);
+    regs = cpu_register_io_memory(eth_read, eth_write, s);
     sysbus_init_mmio(dev, R_MAX * 4, regs);
 
     qdev_get_macaddr(&dev->qdev, s->macaddr);
     s->vc = qdev_get_vlan_client(&dev->qdev,
-                                 eth_rx, eth_can_rx, eth_cleanup, s);
+                                 eth_can_rx, eth_rx, NULL, eth_cleanup, s);
 }
+
+static SysBusDeviceInfo xilinx_ethlite_info = {
+    .init = xilinx_ethlite_init,
+    .qdev.name  = "xilinx,ethlite",
+    .qdev.size  = sizeof(struct xlx_ethlite),
+    .qdev.props = (Property[]) {
+        DEFINE_PROP_UINT32("txpingpong", struct xlx_ethlite, c_tx_pingpong, 1),
+        DEFINE_PROP_UINT32("rxpingpong", struct xlx_ethlite, c_rx_pingpong, 1),
+        DEFINE_PROP_END_OF_LIST(),
+    }
+};
 
 static void xilinx_ethlite_register(void)
 {
-    sysbus_register_dev("xilinx,ethlite", sizeof (struct xlx_ethlite),
-                        xilinx_ethlite_init);
+    sysbus_register_withprop(&xilinx_ethlite_info);
 }
 
 device_init(xilinx_ethlite_register)

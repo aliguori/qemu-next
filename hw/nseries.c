@@ -15,8 +15,7 @@
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License along
- * with this program; if not, write to the Free Software Foundation, Inc.,
- * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+ * with this program; if not, see <http://www.gnu.org/licenses/>.
  */
 
 #include "qemu-common.h"
@@ -168,7 +167,7 @@ static void n8x0_nand_setup(struct n800_s *s)
     /* Either 0x40 or 0x48 are OK for the device ID */
     s->nand = onenand_init(NAND_MFR_SAMSUNG, 0x48, 0, 1,
                            omap2_gpio_in_get(s->cpu->gpif,N8X0_ONENAND_GPIO)[0],
-                           drives_table[drive_get_index(IF_MTD, 0, 0)].bdrv);
+                           drive_get(IF_MTD, 0, 0));
     omap_gpmc_attach(s->cpu->gpmc, N8X0_ONENAND_CS, 0, onenand_base_update,
                      onenand_base_unmap, s->nand, 0);
     otp_region = onenand_raw_otp(s->nand);
@@ -1330,7 +1329,7 @@ static void n8x0_init(ram_addr_t ram_size, const char *boot_device,
         binfo->initrd_filename = initrd_filename;
         arm_load_kernel(s->cpu->env, binfo);
 
-        qemu_register_reset(n8x0_boot_init, 0, s);
+        qemu_register_reset(n8x0_boot_init, s);
         n8x0_boot_init(s);
     }
 
@@ -2428,6 +2427,8 @@ static void tm12xx_init(i2c_slave *i2c)
 }
 
 static I2CSlaveInfo tm12xx_info = {
+    .qdev.name = "tm12xx",
+    .qdev.size = sizeof(TM12XXState), 
     .init = tm12xx_init,
     .event = tm12xx_event,
     .recv = tm12xx_rx,
@@ -2490,10 +2491,10 @@ static void n00_init(ram_addr_t ram_size,
                      const char *cpu_model)
 {
     struct n00_s *s = (struct n00_s *)qemu_mallocz(sizeof(*s));
-    int mtd_i = drive_get_index(IF_MTD, 0, 0);
-    int sd_i = drive_get_index(IF_SD, 0, 0);
+    DriveInfo *dmtd = drive_get(IF_MTD, 0, 0);
+    DriveInfo *dsd  = drive_get(IF_SD, 0, 0);
 
-    if (mtd_i < 0 && sd_i < 0) {
+    if (!dmtd && !dsd) {
         hw_error("%s: SD or NAND image required", __FUNCTION__);
     }
     s->cpu = omap3530_mpu_init(256*1024*1024,
@@ -2507,20 +2508,19 @@ static void n00_init(ram_addr_t ram_size,
     omap_dsi_attach(s->cpu->dss, 0, &s->lcd->chip);
     s->nand = onenand_init(NAND_MFR_SAMSUNG, 0x40, 0x121, 1, 
                            omap2_gpio_in_get(s->cpu->gpif, N00_ONENAND_GPIO)[0],
-                           mtd_i < 0 ? 0 : drives_table[mtd_i].bdrv);
+                           dmtd);
     omap_gpmc_attach(s->cpu->gpmc, N00_ONENAND_CS, 0, onenand_base_update,
                      onenand_base_unmap, s->nand, 0);
     
-    if (sd_i >= 0)
-        omap3_mmc_attach(s->cpu->omap3_mmc[0], drives_table[sd_i].bdrv);
-    if ((sd_i = drive_get_index(IF_SD, 0, 1)) >= 0)
-        omap3_mmc_attach(s->cpu->omap3_mmc[1], drives_table[sd_i].bdrv);
-    if ((sd_i = drive_get_index(IF_SD, 0, 2)) >= 0)
-        omap3_mmc_attach(s->cpu->omap3_mmc[2], drives_table[sd_i].bdrv);
+    if (dsd)
+        omap3_mmc_attach(s->cpu->omap3_mmc[0], dsd);
+    if ((dsd = drive_get(IF_SD, 0, 1)) >= 0)
+        omap3_mmc_attach(s->cpu->omap3_mmc[1], dsd);
+    if ((dsd = drive_get(IF_SD, 0, 2)) >= 0)
+        omap3_mmc_attach(s->cpu->omap3_mmc[2], dsd);
     
     cpu_register_physical_memory(0x48058000, 0x3c00,
-                                 cpu_register_io_memory(0,
-                                                        ssi_read_func,
+                                 cpu_register_io_memory(ssi_read_func,
                                                         ssi_write_func,
                                                         0));
     s->tm12xx = n00_tm12xx_init(omap_i2c_bus(s->cpu->i2c[1]),
@@ -2542,13 +2542,13 @@ static void n00_init(ram_addr_t ram_size,
 
 static QEMUMachine n00_machine = {
     .name = "n00",
-    .desc = "Nokia N00 (OMAP3430)",
+    .desc = "Nokia N00 (OMAP3)",
     .init = n00_init,
 };
 
 static void n00_register_devices(void)
 {
-    i2c_register_slave("tm12xx", sizeof(TM12XXState), &tm12xx_info);
+    i2c_register_slave(&tm12xx_info);
 }
 
 static void nseries_machine_init(void)

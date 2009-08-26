@@ -15,8 +15,7 @@
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License along
- * with this program; if not, write to the Free Software Foundation, Inc.,
- * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+ * with this program; if not, see <http://www.gnu.org/licenses/>.
  */
 
 #include "hw.h"
@@ -501,7 +500,7 @@ static void lm8323_init(i2c_slave *i2c)
 
     lm_kbd_reset(s);
 
-    qemu_register_reset((void *) lm_kbd_reset, 0, s);
+    qemu_register_reset((void *) lm_kbd_reset, s);
     register_savevm("LM8323", -1, 0, lm_kbd_save, lm_kbd_load, s);
 }
 
@@ -526,6 +525,8 @@ void lm832x_key_event(struct i2c_slave *i2c, int key, int state)
 }
 
 static I2CSlaveInfo lm8323_info = {
+    .qdev.name = "lm8323",
+    .qdev.size = sizeof(LM823KbdState),
     .init = lm8323_init,
     .event = lm_i2c_event,
     .recv = lm_i2c_rx,
@@ -534,7 +535,7 @@ static I2CSlaveInfo lm8323_info = {
 
 static void lm832x_register_devices(void)
 {
-    i2c_register_slave("lm8323", sizeof(LM823KbdState), &lm8323_info);
+    i2c_register_slave(&lm8323_info);
 }
 
 device_init(lm832x_register_devices)
