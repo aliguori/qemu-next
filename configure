@@ -1372,21 +1372,6 @@ if $cc $ARCH_CFLAGS -o $TMPE $TMPC 2> /dev/null ; then
   utimens=yes
 fi
 
-# check if eventfd is supported
-eventfd=no
-cat > $TMPC << EOF
-#include <sys/eventfd.h>
-
-int main(void)
-{
-    int efd = eventfd(0, 0);
-    return 0;
-}
-EOF
-if $cc $ARCH_CFLAGS -o $TMPE $TMPC 2> /dev/null ; then
-  eventfd=yes
-fi
-
 # Check if tools are available to build documentation.
 if test "$build_docs" = "yes" -a \( ! -x "`which texi2html 2>/dev/null`" -o ! -x "`which pod2man 2>/dev/null`" \) ; then
   build_docs="no"
@@ -1730,9 +1715,6 @@ if test "$splice" = "yes" ; then
 fi
 if test "$utimens" = "yes" ; then
   echo "#define CONFIG_UTIMENSAT 1" >> $config_h
-fi
-if test "$eventfd" = "yes" ; then
-  echo "#define CONFIG_EVENTFD 1" >> $config_h
 fi
 if test "$inotify" = "yes" ; then
   echo "CONFIG_INOTIFY=y" >> $config_host_mak

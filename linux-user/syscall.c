@@ -6864,18 +6864,7 @@ abi_long do_syscall(void *cpu_env, int num, abi_long arg1,
         ret = get_errno(sys_inotify_rm_watch(arg1, arg2));
         break;
 #endif
-#ifdef CONFIG_EVENTFD
-#if defined(TARGET_NR_eventfd)
-    case TARGET_NR_eventfd:
-        ret = get_errno(eventfd(arg1, 0));
-        break;
-#endif
-#if defined(TARGET_NR_eventfd2)
-    case TARGET_NR_eventfd2:
-        ret = get_errno(eventfd(arg1, arg2));
-        break;
-#endif
-#endif
+
 #ifdef TARGET_NR_mq_open
     case TARGET_NR_mq_open:
         {
