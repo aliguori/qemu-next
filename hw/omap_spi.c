@@ -22,6 +22,15 @@
 #include "hw.h"
 #include "omap.h"
 
+//#define SPI_DEBUG
+
+#ifdef SPI_DEBUG
+#define TRACE(fmt,...) fprintf(stderr, "%s@%d: " fmt "\n", __FUNCTION__, \
+                               __LINE__, ##__VA_ARGS__);
+#else
+#define TRACE(...)
+#endif
+
 #define SPI_FIFOSIZE 64
 #define SPI_REV_OMAP2420 0x14
 #define SPI_REV_OMAP3530 0x21
@@ -394,9 +403,9 @@ static uint32_t omap_mcspi_read(void *opaque, target_phys_addr_t addr)
                     omap_mcspi_transfer_run(s, ch);
                     return ret;
                 }
-                if (!s->rx_fifo.len)
-                    fprintf(stderr, "%s: rxfifo underflow!\n", __FUNCTION__);
-                else {
+                if (!s->rx_fifo.len) {
+                    TRACE("rxfifo underflow!");
+                } else {
                     qemu_irq_lower(s->ch[ch].rxdrq);
                     s->ch[ch].status &= ~(1 << 6);                 /* RXFFF */
                     if (((s->ch[ch].config >> 12) & 3) != 2)        /* TRM */
@@ -450,7 +459,8 @@ static void omap_mcspi_write(void *opaque, target_phys_addr_t addr,
         case 0x64:	/* MCSPI_RX2 */
         case 0x6c:	/* MCSPI_CHSTAT3 */
         case 0x78:	/* MCSPI_RX3 */
-            OMAP_RO_REGV(addr, value);
+            /* silently ignore */
+            //OMAP_RO_REGV(addr, value);
             return;
             
         case 0x10:	/* MCSPI_SYSCONFIG */
@@ -510,16 +520,15 @@ static void omap_mcspi_write(void *opaque, target_phys_addr_t addr,
                     (IS_OMAP3_SPI(s) &&
                      ((value ^ old) & (3 << 27)))) /* FFER | FFEW */
                     omap_mcspi_dmarequest_update(s, ch);
-                if (((value >> 12) & 3) == 3)			/* TRM */
-                    fprintf(stderr, "%s: invalid TRM value (3)\n",
-                            __FUNCTION__);
-                if (((value >> 7) & 0x1f) < 3)			/* WL */
-                    fprintf(stderr, "%s: invalid WL value (%i)\n",
-                            __FUNCTION__, (value >> 7) & 0x1f);
-                if (IS_OMAP3_SPI(s) &&
-                    ((value >> 23) & 1))               /* SBE */
-                    fprintf(stderr, "%s: start-bit mode is not supported\n",
-                            __FUNCTION__);
+                if (((value >> 12) & 3) == 3) {   /* TRM */
+                    TRACE("invalid TRM value (3)");
+                }
+                if (((value >> 7) & 0x1f) < 3) {  /* WL */
+                    TRACE("invalid WL value (%i)", (value >> 7) & 0x1f);
+                }
+                if (IS_OMAP3_SPI(s) && ((value >> 23) & 1)) { /* SBE */
+                    TRACE("start-bit mode is not supported");
+                }
             }
             break;
             
@@ -549,10 +558,9 @@ static void omap_mcspi_write(void *opaque, target_phys_addr_t addr,
                     s->ch[ch].status &= ~(1 << 1);     /* TXS */
                     omap_mcspi_transfer_run(s, ch);
                 } else {
-                    if (s->tx_fifo.len >= s->tx_fifo.size)
-                        fprintf(stderr, "%s: txfifo overflow!\n",
-                                __FUNCTION__);
-                    else {
+                    if (s->tx_fifo.len >= s->tx_fifo.size) {
+                        TRACE("txfifo overflow!");
+                    } else {
                         qemu_irq_lower(s->ch[ch].txdrq);
                         s->ch[ch].status &= ~0x0a;            /* TXFFE | TXS */
                         if (((s->ch[ch].config >> 12) & 3) != 1) {    /* TRM */
