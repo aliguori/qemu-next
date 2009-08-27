@@ -199,6 +199,7 @@ void omap_dss_lcd_framedone(void *opaque)
                     if ((s->dsi.vc[n].ctrl & 1) &&       /* VC_EN */
                         (s->dsi.vc[n].te & (3 << 30))) { /* TE_START | TE_EN */
                         s->dsi.vc[n].te = 0;   /* TE_START,TE_EN,TE_SIZE = 0 */
+                        s->dsi.irqst |= 1 << 16; /* TE_TRIGGER_IRQ */
                     }
                 }
             }
