@@ -273,12 +273,12 @@ static abi_ulong mmap_next_start = 0x40000000;
 
 unsigned long last_brk;
 
-/* find a free memory area of size 'size'. The search starts at
-   'start'. If 'start' == 0, then a default start address is used.
-   Return -1 if error.
-*/
-/* page_init() marks pages used by the host as reserved to be sure not
-   to use them. */
+/*
+ * Find and reserve a free memory area of size 'size'. The search
+ * starts at 'start'.
+ * It must be called with mmap_lock() held.
+ * Return -1 if error.
+ */
 abi_ulong mmap_find_vma(abi_ulong start, abi_ulong size)
 {
     void *ptr;
