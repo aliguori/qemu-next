@@ -1353,25 +1353,6 @@ if compile_prog "" "" ; then
   splice=yes
 fi
 
-# check if utimensat and futimens are supported
-utimens=no
-cat > $TMPC << EOF
-#define _ATFILE_SOURCE
-#define _GNU_SOURCE
-#include <stddef.h>
-#include <fcntl.h>
-
-int main(void)
-{
-    utimensat(AT_FDCWD, "foo", NULL, 0);
-    futimens(0, NULL);
-    return 0;
-}
-EOF
-if $cc $ARCH_CFLAGS -o $TMPE $TMPC 2> /dev/null ; then
-  utimens=yes
-fi
-
 # Check if tools are available to build documentation.
 if test "$build_docs" = "yes" -a \( ! -x "`which texi2html 2>/dev/null`" -o ! -x "`which pod2man 2>/dev/null`" \) ; then
   build_docs="no"
@@ -1712,9 +1693,6 @@ if test "$pipe2" = "yes" ; then
 fi
 if test "$splice" = "yes" ; then
   echo "CONFIG_SPLICE=y" >> $config_host_mak
-fi
-if test "$utimens" = "yes" ; then
-  echo "#define CONFIG_UTIMENSAT 1" >> $config_h
 fi
 if test "$inotify" = "yes" ; then
   echo "CONFIG_INOTIFY=y" >> $config_host_mak
