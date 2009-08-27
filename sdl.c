@@ -57,7 +57,6 @@ static SDL_Cursor *guest_sprite = NULL;
 static uint8_t allocator;
 static SDL_PixelFormat host_format;
 static int scaling_active = 0;
-static uint8_t hostbpp;
 static int mouseX = 0, mouseY = 0;
 
 static void sdl_update(DisplayState *ds, int x, int y, int w, int h)
