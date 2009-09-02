@@ -20,6 +20,9 @@
 #ifndef HELPER_OPENGL_H__
 #define HELPER_OPENGL_H__
 
+#include "qemu-common.h"
+#include "qemugl.h"
+
 #ifdef CONFIG_OSMESA
 #define USE_OSMESA
 #define GLX_OSMESA_FORCE_32BPP
@@ -34,15 +37,22 @@ struct helper_opengl_s {
     uint32_t result;
     uint32_t bufsize;
     uint32_t bufpixelsize;
-#if defined(USE_OSMESA) || defined(WIN32)
     uint32_t bufwidth;
+#if defined(USE_OSMESA) || defined(WIN32)
     uint32_t bufcol;
+#endif
+#ifndef QEMUGL_IO_FRAMEBUFFER
+    uint32_t qemugl_bufbytesperline;
+    target_ulong qemugl_buf;
 #endif
     void *buf;
     CPUState *env;
 };
 
 /* helper_opengl.c */
-void *helper_opengl_init(CPUState *env, target_phys_addr_t base);
+void *helper_opengl_init(CPUState *env);
+#ifndef QEMUGL_IO_FRAMEBUFFER
+void helper_opengl_copyframe(struct helper_opengl_s *);
+#endif // QEMUGL_IO_FRAMEBUFFER
 
 #endif

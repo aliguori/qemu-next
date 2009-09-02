@@ -576,24 +576,27 @@ static void doSwapBuffers(struct helper_opengl_s *s, ProcessStruct *process,
         if ((s->buf = glhost_swapbuffers(drawable))) {
             s->bufpixelsize = (process->depth + 7) / 8;
             s->bufsize = process->width * process->height;
+            s->bufwidth = process->width;
 #if defined(USE_OSMESA) || defined(WIN32)
             /* win32 and osmesa render scanlines in reverse order (bottom-up)
              * win32 further aligns buffer width on 32bit boundary */
-            s->bufwidth = process->width;
             s->bufcol = 0;
 #ifdef USE_OSMESA
 #ifdef GLX_OSMESA_FORCE_32BPP
             s->buf += (process->width * 4) * (process->height - 1);
 #else
             s->buf += (process->width * s->bufpixelsize) * (process->height - 1);
-#endif
+#endif // GLX_OSMESA_FORCE_32BPPP
 #else
 #ifdef WIN32
             s->buf += (((process->width * s->bufpixelsize) + 3) & ~3)
                       * (process->height - 1);
-#endif
-#endif
-#endif
+#endif // WIN32
+#endif // USE_OSMESA
+#endif // USE_OSMESA || WIN32
+#ifndef QEMUGL_IO_FRAMEBUFFER
+            helper_opengl_copyframe(s);
+#endif // QEMUGL_IO_FRAMEBUFFER
         }
     }
 }

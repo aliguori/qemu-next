@@ -2535,7 +2535,7 @@ static void n00_init(ram_addr_t ram_size,
                      NULL, NULL, s->smc, 0);
     
 #ifdef CONFIG_GLHW
-    s->gl = helper_opengl_init(s->cpu->env, 0x4fff0000);
+    s->gl = helper_opengl_init(s->cpu->env);
 #endif
 
     omap3_boot_rom_emu(s->cpu);

@@ -61,6 +61,8 @@
 
 #include <mesa_glx.h>
 
+#include "qemugl.h"
+
 #define ENABLE_THREAD_SAFETY
 
 #define GLENV_ERRFILE "GL_ERR_FILE"
@@ -384,6 +386,11 @@ static int debug_gl = 0;
 #include <sys/types.h>
 #include <sys/stat.h>
 
+#ifdef QEMUGL_MODULE
+#include <sys/ioctl.h>
+#include <fcntl.h>
+int glfd = 0;
+#else
 #ifdef __arm__
 #include <sys/types.h>
 #include <sys/mman.h>
@@ -392,10 +399,20 @@ static int debug_gl = 0;
 #define MAP_MASK (MAP_SIZE - 1)
 unsigned int *virt_addr;
 #endif
+#endif
     
 static int call_opengl(int func_number, int pid, void *ret_string, void *args,
                        void *args_size)
 {
+#ifdef QEMUGL_MODULE
+    unsigned int devargs[5] = {func_number, pid, (unsigned int)ret_string,
+                               (unsigned int)args, (unsigned int)args_size};
+    int result = 0;
+    if (!(result = ioctl(glfd, QEMUGL_FIORNCMD, &devargs))) {
+        ioctl(glfd, QEMUGL_FIORDSTA, &result);
+    }
+    return result;
+#else
 #ifdef __arm__
     volatile unsigned int *p = virt_addr;
     p[0] = func_number;
@@ -403,27 +420,19 @@ static int call_opengl(int func_number, int pid, void *ret_string, void *args,
     p[2] = (unsigned int)ret_string;
     p[3] = (unsigned int)args;
     p[4] = (unsigned int)args_size;
-    p[5] = 0xdeadbeef;
+    p[5] = QEMUGL_HWCMD_GLCALL;
     return p[6];
 #else
 #error unsupported architecture!
 #endif
-}
-
-static int reset_opengl(void)
-{
-    DEBUGLOG_GL("%s\n", __FUNCTION__);
-#ifdef __arm__
-    volatile unsigned int *p = virt_addr;
-    p[5] = 0xfeedcafe;
-    return p[6];
-#else
-#error unsupported architecture!
-#endif
+#endif // QEMUGL_MODULE
 }
 
 static void do_init(void)
 {
+#ifdef QEMUGL_MODULE
+    glfd = open("/dev/" QEMUGL_DEVICE_NAME, O_RDONLY);
+#else
 #ifdef __arm__
     void *mmap_base;
     int fd;
@@ -431,10 +440,13 @@ static void do_init(void)
     fd = open("/dev/mem", O_RDWR | O_SYNC);
     mmap_base = mmap(0, MAP_SIZE, PROT_READ | PROT_WRITE, MAP_SHARED, fd, target & ~MAP_MASK);
     virt_addr = mmap_base + (target & MAP_MASK);
+    // FIXME: hack to ensure there's only one client at a time
+    volatile unsigned int *p = virt_addr;
+    p[5] = 0xfeedcafe;
 #else
 #error unsupported architecture!
 #endif
-    reset_opengl(); // FIXME: hack!
+#endif // QEMUGL_MODULE
 }
 
 static int try_to_put_into_phys_memory(void *addr, int len)
@@ -482,7 +494,7 @@ static void glReadPixels_no_lock  ( GLint x, GLint y,
                                     GLenum format, GLenum type,
                                     GLvoid *pixels );
 
-static __GLXextFuncPtr glXGetProcAddress_no_lock(const GLubyte * name);
+static __GLXextFuncPtr glXGetProcAddress_no_lock(const char * name);
 
 static void display_gl_call(int func_number, long* args, int* args_size)
 {
@@ -715,7 +727,7 @@ static void do_opengl_call_no_lock(int func_number, void *ret_ptr,
                 break;
             CASE_IN_LENGTH_DEPENDING_ON_PREVIOUS_ARGS:
             CASE_OUT_LENGTH_DEPENDING_ON_PREVIOUS_ARGS:
-                args_size[i] = compute_arg_length(get_err_file(), func_number, i, args);
+                args_size[i] = compute_arg_length(get_err_file(), func_number, i, (unsigned long *)args);
                 break;
             case TYPE_IN_IGNORED_POINTER:
                 args_size[i] = 0;
@@ -983,7 +995,7 @@ GLAPI const GLubyte * APIENTRY glGetString(GLenum name)
         long args[] = {INT_TO_ARG(name)};
         do_opengl_call_no_lock(glGetString_func, &glStrings[i], args, NULL);
         DEBUGLOG_GL("glGetString(0x%X) = %s\n", name, glStrings[i]);
-        glStrings[name - GL_VENDOR] = strdup(glStrings[i]);
+        glStrings[name - GL_VENDOR] = (GLubyte *)strdup((char *)glStrings[i]);
     }
     UNLOCK(glGetString_func);
     return glStrings[i];
@@ -3011,6 +3023,15 @@ static Bool create_drawable(GLState *state, Display *dpy, GLXDrawable drawable)
                     state->ximage->data = state->shm_info->shmaddr;
                     if (XShmAttach(dpy, state->shm_info)) {
                         ret = True;
+#ifdef QEMUGL_MODULE
+                        unsigned int devargs[4] = {
+                            state->drawable_width,
+                            state->drawable_height,
+                            (state->drawable_depth + 7) / 8,
+                            state->ximage->bytes_per_line
+                        };
+                        ioctl(glfd, QEMUGL_FIOSTBUF, &devargs);
+#endif // QEMUGL_MODULE
                     }
                 } else {
                     log_gl("shmat failed with result %d\n",
@@ -3025,6 +3046,7 @@ static Bool create_drawable(GLState *state, Display *dpy, GLXDrawable drawable)
     return ret;
 }
 
+#ifndef QEMUGL_MODULE
 #define WINCPY(name, type) \
 static void wincpy_##name(void *p, volatile unsigned int *hw, \
                           int width, int height, int pitch) \
@@ -3049,11 +3071,15 @@ static void wincpy_##name(void *p, volatile unsigned int *hw, \
 WINCPY(byte, uint8_t);
 WINCPY(short, uint16_t);
 WINCPY(word, uint32_t);
+#endif // QEMUGL_MODULE
 
 static void update_win(Display *dpy, Window win)
 {
     GET_CURRENT_STATE();
     if (state->ximage) {
+#ifdef QEMUGL_MODULE
+        ioctl(glfd, QEMUGL_FIOCPBUF, state->ximage->data);
+#else
 #ifdef __arm__
         volatile unsigned int *hw = virt_addr;
 #else
@@ -3078,6 +3104,7 @@ static void update_win(Display *dpy, Window win)
                 log_gl("unsupported buffer depth %d bytes/pixel\n", bpp);
                 break;
         }
+#endif // QEMUGL_MODULE
         XShmPutImage(dpy, win, state->xgc, state->ximage, 0, 0, 0, 0,
                      state->drawable_width, state->drawable_height, False);
         XFlush(dpy);
@@ -5288,7 +5315,7 @@ typedef struct {
 #define UNSET_FOUND_ON_CLIENT(i) tab_assoc[i].flag &= ~0x02
 #define UNSET_QUERIED_ONCE(i)    tab_assoc[i].flag &= ~0x04
 
-static __GLXextFuncPtr glXGetProcAddress_no_lock(const GLubyte *_name)
+static __GLXextFuncPtr glXGetProcAddress_no_lock(const char *_name)
 {
     if (_name == NULL) {
         return NULL;
@@ -5427,7 +5454,7 @@ static __GLXextFuncPtr glXGetProcAddress_no_lock(const GLubyte *_name)
 __GLXextFuncPtr glXGetProcAddress(const GLubyte *name)
 {
     LOCK(glXGetProcAddress_fake_func);
-    __GLXextFuncPtr ret = glXGetProcAddress_no_lock(name);
+    __GLXextFuncPtr ret = glXGetProcAddress_no_lock((const char *)name);
     UNLOCK(glXGetProcAddress_fake_func);
     return ret;
 }

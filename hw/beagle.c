@@ -89,7 +89,7 @@ static void beagle_init(ram_addr_t ram_size,
     omap_lcd_panel_attach(s->cpu->dss, omap3_lcd_panel_get(s->lcd_panel));
 
 #ifdef CONFIG_GLHW
-    s->gl = helper_opengl_init(s->cpu->env, 0x4fff0000);
+    s->gl = helper_opengl_init(s->cpu->env);
 #endif
     
     omap3_boot_rom_emu(s->cpu);

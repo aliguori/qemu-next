@@ -22,9 +22,8 @@
  * THE SOFTWARE.
  */
 
-#include "qemu-common.h"
-#include "opengl_func_parse.h"
 #include "helper_opengl.h"
+#include "opengl_func_parse.h"
 #include "opengl_exec.h"
 
 //#define GL_EXCESS_DEBUG
@@ -43,8 +42,8 @@
 extern int last_process_id;
 
 int get_phys_addr(CPUState *env, uint32_t address,
-                                int access_type, int is_user,
-                                uint32_t *phys_ptr, int *prot);
+                  int access_type, int is_user,
+                  uint32_t *phys_ptr, int *prot);
 
 static inline target_ulong get_phys_mem_addr(CPUState *env, target_ulong addr)
 {
@@ -613,18 +612,18 @@ static uint32_t opengl_buffer_read(struct helper_opengl_s *s)
         int linesize = s->bufwidth * 4;
 #else
         int linesize = s->bufwidth * s->bufpixelsize;
-#endif
+#endif // USE_OSMESA && GLX_OSMESA_FORCE_32BPP
 #ifdef USE_OSMESA
         s->buf -= linesize * 2;
 #else
 #ifdef WIN32
         s->buf -= linesize + ((linesize + 3) & ~3);
-#endif
-#endif
+#endif // WIN32
+#endif // USE_OSMESA
         s->bufcol = 0;
     }
     s->bufcol++;
-#endif
+#endif // USE_OSMESA || WIN32
     switch (s->bufpixelsize) {
 #ifndef USE_OSMESA
         case 1:
@@ -633,7 +632,7 @@ static uint32_t opengl_buffer_read(struct helper_opengl_s *s)
                 s->buf++;
                 return *p;
             }
-#endif
+#endif // USE_OSMESA
         case 2:
             {
 #if defined(USE_OSMESA) && defined(GLX_OSMESA_FORCE_32BPP)
@@ -652,8 +651,8 @@ static uint32_t opengl_buffer_read(struct helper_opengl_s *s)
                 return ((v & 0x7fe0) << 1) | (v & 0x001f);
 #else
                 return *p;
-#endif
-#endif
+#endif // !USE_OSMESA && (CONFIG_COCOA || WIN32)
+#endif // USE_OSMESA && GLX_OSMESA_FORCE_32BPP
             }
         case 4:
             {
@@ -667,7 +666,7 @@ static uint32_t opengl_buffer_read(struct helper_opengl_s *s)
                 return v;
 #else
                 return *p;
-#endif
+#endif // USE_OSMESA
             }
         default:
             GL_ERROR("unsupported pixel size %d bytes",
@@ -676,50 +675,81 @@ static uint32_t opengl_buffer_read(struct helper_opengl_s *s)
     return 0;
 }
 
+#ifndef QEMUGL_IO_FRAMEBUFFER
+void helper_opengl_copyframe(struct helper_opengl_s *s)
+{
+    target_ulong addr = 0;
+    int prot = 0;
+    get_phys_addr(s->env, s->qemugl_buf, 0, 0, &addr, &prot);
+    const uint32_t pixelsize = s->bufpixelsize;
+    uint32_t extra = s->qemugl_bufbytesperline - s->bufwidth * pixelsize;
+    while (s->bufsize) { /* this decreases as we call opengl_buffer_read() */
+        uint32_t n = s->bufwidth;
+        uint32_t x;
+        for (; n--; addr += pixelsize) {
+            x = opengl_buffer_read(s);
+            cpu_physical_memory_write(addr, &x, pixelsize);
+        }
+        for (n = extra, x = 0; n--;) {
+            cpu_physical_memory_write(addr, &x, pixelsize);
+        }
+    }
+}
+#endif // QEMUGL_IO_FRAMEBUFFER
+
 static void helper_opengl_write(void *opaque, target_phys_addr_t addr, uint32_t value)
 {
     struct helper_opengl_s *s = (struct helper_opengl_s *)opaque;
     
-    //fprintf(stderr, "%s: 0x%02x = 0x%08x\n", __FUNCTION__, (int)(addr & 0xff), value);
     switch (addr) {
-        case 0x00: /* function id */
+        case QEMUGL_HWREG_FID: /* function id */
             s->fid = value;
             break;
-        case 0x04: /* pid */
+        case QEMUGL_HWREG_PID: /* pid */
             s->pid = value;
             break;
-        case 0x08: /* return string ptr */
+        case QEMUGL_HWREG_RSP: /* return string ptr */
             s->rsp = value;
             break;
-        case 0x0c: /* input args ptr */
+        case QEMUGL_HWREG_IAP: /* input args ptr */
             s->iap = value;
             break;
-        case 0x10: /* input args size */
+        case QEMUGL_HWREG_IAS: /* input args size */
             s->ias = value;
             break;
-        case 0x14: /* launch */
+        case QEMUGL_HWREG_CMD: /* launch */
             switch (value) {
-                case 0xfeedcafe:
+                case QEMUGL_HWCMD_RESET:
+#ifndef QEMUGL_MODULE
                     if (!last_process_id)
                         break;
-                    s->fid = _exit_process_func;
                     s->pid = last_process_id;
+#endif // QEMUGL_MODULE
+                    s->fid = _exit_process_func;
                     s->rsp = 0;
                     s->iap = 0;
                     s->ias = 0;
                     /* fallthrough */
-                case 0xdeadbeef:
+                case QEMUGL_HWCMD_GLCALL:
                     doing_opengl = 1;
                     s->result = decode_call(s);
                     doing_opengl = 0;
+                    break;
+                case QEMUGL_HWCMD_SETBUF:
+#ifndef QEMUGL_IO_FRAMEBUFFER
+                    s->qemugl_buf = s->iap;
+                    s->qemugl_bufbytesperline = s->ias;
+#else
+                    /* ignored */
+#endif // QEMUGL_IO_FRAMEBUFFER
                     break;
                 default:
                     GL_ERROR("unknown launch command 0x%08x", value);
                     break;
             }
             break;
-        case 0x18: /* result */
-        case 0x1c: /* drawable buffer */
+        case QEMUGL_HWREG_STA: /* result */
+        case QEMUGL_HWREG_BUF: /* drawable buffer */
             /* read-only registers, ignore */
             break;
         default:
@@ -733,14 +763,19 @@ static uint32_t helper_opengl_read(void *opaque, target_phys_addr_t addr)
     struct helper_opengl_s *s = (struct helper_opengl_s *)opaque;
     
     switch (addr) {
-        case 0x00: return s->fid;
-        case 0x04: return s->pid;
-        case 0x08: return s->rsp;
-        case 0x0c: return s->iap;
-        case 0x10: return s->ias;
-        case 0x14: return 0; /* write-only register */
-        case 0x18: return s->result;
-        case 0x1c: return opengl_buffer_read(s);
+        case QEMUGL_HWREG_FID: return s->fid;
+        case QEMUGL_HWREG_PID: return s->pid;
+        case QEMUGL_HWREG_RSP: return s->rsp;
+        case QEMUGL_HWREG_IAP: return s->iap;
+        case QEMUGL_HWREG_IAS: return s->ias;
+        case QEMUGL_HWREG_CMD: return 0; /* write-only register */
+        case QEMUGL_HWREG_STA: return s->result;
+        case QEMUGL_HWREG_BUF:
+#ifdef QEMUGL_IO_FRAMEBUFFER
+            return opengl_buffer_read(s);
+#else
+            return 0; /* not used */
+#endif // QEMUGL_IO_FRAMEBUFFER
         default:
             GL_ERROR("unknown register " TARGET_FMT_plx, addr);
             break;
@@ -760,12 +795,12 @@ static CPUWriteMemoryFunc *helper_opengl_writefn[] = {
     helper_opengl_write,
 };
 
-void *helper_opengl_init(CPUState *env, target_phys_addr_t base)
+void *helper_opengl_init(CPUState *env)
 {
-    struct helper_opengl_s *s = (struct helper_opengl_s *)qemu_mallocz(
-        sizeof(struct helper_opengl_s));
+    struct helper_opengl_s *s = qemu_mallocz(sizeof(*s));
     s->env=env;
-    cpu_register_physical_memory(base, 0x100, 
+    cpu_register_physical_memory(QEMUGL_HWREG_REGIONBASE,
+                                 QEMUGL_HWREG_REGIONSIZE, 
                                  cpu_register_io_memory(helper_opengl_readfn,
                                                         helper_opengl_writefn,
                                                         s));
