@@ -73,7 +73,7 @@ static void beagle_init(ram_addr_t ram_size,
 	nand_setpins(s->nand, 0, 0, 0, 1, 0); /* no write-protect */
     omap_gpmc_attach(s->cpu->gpmc, BEAGLE_NAND_CS, 0, NULL, NULL, s->nand, 2);
     if (dsd) {
-        omap3_mmc_attach(s->cpu->omap3_mmc[0], dsd);
+        omap3_mmc_attach(s->cpu->omap3_mmc[0], dsd, 0);
     }
 
     s->i2c = omap_i2c_bus(s->cpu->i2c[0]);

@@ -1420,6 +1420,7 @@ static QEMUMachine n810_machine = {
 #define N00_ONENAND_GPIO N8X0_ONENAND_GPIO
 #define N00_ONENAND_BUFSIZE (0xc000 << 1)
 #define N00_SMC_CS        1
+#define N00_SDCOVER_GPIO 160
 
 #define N00_DISPLAY_WIDTH 864
 #define N00_DISPLAY_HEIGHT 480
@@ -2512,12 +2513,12 @@ static void n00_init(ram_addr_t ram_size,
     omap_gpmc_attach(s->cpu->gpmc, N00_ONENAND_CS, 0, onenand_base_update,
                      onenand_base_unmap, s->nand, 0);
     
-    if (dsd)
-        omap3_mmc_attach(s->cpu->omap3_mmc[0], dsd);
+    if (dsd) {
+        omap3_mmc_attach(s->cpu->omap3_mmc[0], dsd, 0);
+        qemu_irq_raise(omap2_gpio_in_get(s->cpu->gpif, N00_SDCOVER_GPIO)[0]);
+    }
     if ((dsd = drive_get(IF_SD, 0, 1)) >= 0)
-        omap3_mmc_attach(s->cpu->omap3_mmc[1], dsd);
-    if ((dsd = drive_get(IF_SD, 0, 2)) >= 0)
-        omap3_mmc_attach(s->cpu->omap3_mmc[2], dsd);
+        omap3_mmc_attach(s->cpu->omap3_mmc[1], dsd, 1);
     
     cpu_register_physical_memory(0x48058000, 0x3c00,
                                  cpu_register_io_memory(ssi_read_func,

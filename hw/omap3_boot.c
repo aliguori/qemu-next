@@ -901,6 +901,6 @@ void omap3_boot_rom_emu(struct omap_mpu_state_s *s)
         /* move PC to the appropriate ROM dead loop address */
         s->env->regs[15] = 0x400140a4;
         /* ...on second thought, let's just call it a day and quit */
-        cpu_abort(s->env, "no boot device found");
+        hw_error("no boot device found");
     }
 }

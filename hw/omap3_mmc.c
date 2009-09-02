@@ -789,11 +789,11 @@ struct omap3_mmc_s *omap3_mmc_init(struct omap_target_agent_s *ta,
     return s;
 }
 
-void omap3_mmc_attach(struct omap3_mmc_s *s, DriveInfo *dinfo)
+void omap3_mmc_attach(struct omap3_mmc_s *s, DriveInfo *dinfo, int is_spi)
 {
     if (s->card) {
         hw_error("%s: SD card already attached!", __FUNCTION__);
     }
-    s->card = sd_init(dinfo ? dinfo->bdrv : NULL, 0);
+    s->card = sd_init(dinfo ? dinfo->bdrv : NULL, is_spi);
     sd_enable(s->card, 1);
 }
