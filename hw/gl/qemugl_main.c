@@ -65,7 +65,7 @@ static struct cdev *qemugl_cdev = NULL;
 static struct class *qemugl_class = NULL;
 static struct device *qemugl_device = NULL;
 static struct mutex qemugl_mutex;
-static unsigned int __iomem *qemugl_hw_base;
+static void __iomem *qemugl_hw_base;
 static struct qemugl_client *qemugl_clients = NULL;
 
 static struct qemugl_client *qemugl_getclient(pid_t pid)

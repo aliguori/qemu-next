@@ -3027,7 +3027,7 @@ static Bool create_drawable(GLState *state, Display *dpy, GLXDrawable drawable)
                         unsigned int devargs[4] = {
                             state->drawable_width,
                             state->drawable_height,
-                            (state->drawable_depth + 7) / 8,
+                            state->ximage->bits_per_pixel / 8,
                             state->ximage->bytes_per_line
                         };
                         ioctl(glfd, QEMUGL_FIOSTBUF, &devargs);
@@ -3164,7 +3164,7 @@ static Bool glXMakeCurrent_no_lock(Display *dpy, GLXDrawable drawable,
                 if (ret) {
                     long args[] = {INT_TO_ARG(drawable),
                                    INT_TO_ARG(state->shm_info->shmaddr),
-                                   INT_TO_ARG(state->drawable_depth),
+                                   INT_TO_ARG(state->ximage->bits_per_pixel),
                                    INT_TO_ARG(state->drawable_width),
                                    INT_TO_ARG(state->drawable_height)};
                     do_opengl_call_no_lock(_createDrawable_func, NULL, args, NULL);
