@@ -5636,16 +5636,18 @@ int main(int argc, char **argv, char **envp)
         signal(SIGTTOU, SIG_IGN);
         signal(SIGTTIN, SIG_IGN);
     }
+#endif
 
     if (pid_file && qemu_create_pidfile(pid_file) != 0) {
+#ifndef _WIN32
         if (daemonize) {
             uint8_t status = 1;
             write(fds[1], &status, 1);
         } else
+#endif
             fprintf(stderr, "Could not acquire pid file\n");
         exit(1);
     }
-#endif
 
     if (qemu_init_main_loop()) {
         fprintf(stderr, "qemu_init_main_loop failed\n");
