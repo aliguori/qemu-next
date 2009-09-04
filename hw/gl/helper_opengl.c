@@ -602,7 +602,7 @@ static uint32_t opengl_buffer_read(struct helper_opengl_s *s)
         GL_ERROR("buffer access out of bounds");
         return 0;
     }
-
+    
     s->bufsize--;
 #if defined(USE_OSMESA) || defined(WIN32)
     /* win32 and osmesa render scanlines in reverse order (bottom-up)
@@ -676,24 +676,70 @@ static uint32_t opengl_buffer_read(struct helper_opengl_s *s)
 }
 
 #ifndef QEMUGL_IO_FRAMEBUFFER
+static void opengl_init_copyframe(struct helper_opengl_s *s)
+{
+    target_ulong a = TARGET_ADDR_LOW_ALIGN(s->qemugl_buf);
+    if (a != s->qemugl_buf) {
+        s->framecopy.count = a + TARGET_PAGE_SIZE - s->qemugl_buf;
+    } else {
+        s->framecopy.count = TARGET_PAGE_SIZE;
+    }
+    s->framecopy.addr = a;
+    a = get_phys_mem_addr(s->env, s->qemugl_buf);
+    if (a) {
+        s->framecopy.mapped_len = s->framecopy.count;
+        s->framecopy.ptr = s->framecopy.mapped_ptr = 
+            cpu_physical_memory_map(a, &s->framecopy.mapped_len, 1);
+    } else {
+        s->framecopy.ptr = s->framecopy.mapped_ptr = NULL;
+    }
+}
+
+static void opengl_finish_copyframe(struct helper_opengl_s *s)
+{
+    if (s->framecopy.mapped_ptr) {
+        cpu_physical_memory_unmap(s->framecopy.mapped_ptr,
+                                  s->framecopy.mapped_len, 1,
+                                  s->framecopy.mapped_len);
+        s->framecopy.ptr = s->framecopy.mapped_ptr = NULL;
+    }
+}
+
+static void opengl_copyframe_bytes(struct helper_opengl_s *s,
+                                   unsigned int le_data, int nbytes)
+{
+    for (; nbytes--; s->framecopy.count--, le_data >>= 8) {
+        if (!s->framecopy.count) {
+            opengl_finish_copyframe(s);
+            s->framecopy.count = TARGET_PAGE_SIZE;
+            s->framecopy.addr += s->framecopy.count;
+            s->framecopy.mapped_len = s->framecopy.count;
+            target_ulong addr = get_phys_mem_addr(s->env, s->framecopy.addr);
+            s->framecopy.ptr = s->framecopy.mapped_ptr =
+                cpu_physical_memory_map(addr, &s->framecopy.mapped_len, 1);
+        }
+        if (s->framecopy.ptr) {
+            *(s->framecopy.ptr++) = (unsigned char)(le_data & 0xff);
+        }
+    }
+}
+
 void helper_opengl_copyframe(struct helper_opengl_s *s)
 {
-    target_ulong addr = 0;
-    int prot = 0;
-    get_phys_addr(s->env, s->qemugl_buf, 0, 0, &addr, &prot);
+    opengl_init_copyframe(s);
     const uint32_t pixelsize = s->bufpixelsize;
     uint32_t extra = s->qemugl_bufbytesperline - s->bufwidth * pixelsize;
     while (s->bufsize) { /* this decreases as we call opengl_buffer_read() */
         uint32_t n = s->bufwidth;
-        uint32_t x;
-        for (; n--; addr += pixelsize) {
-            x = opengl_buffer_read(s);
-            cpu_physical_memory_write(addr, &x, pixelsize);
+        while (n--) {
+            uint32_t x = opengl_buffer_read(s);
+            opengl_copyframe_bytes(s, x, pixelsize);
         }
-        for (n = extra, x = 0; n--;) {
-            cpu_physical_memory_write(addr, &x, pixelsize);
+        for (n = extra; n--;) {
+            opengl_copyframe_bytes(s, 0, pixelsize);
         }
     }
+    opengl_finish_copyframe(s);
 }
 #endif // QEMUGL_IO_FRAMEBUFFER
 
@@ -737,7 +783,6 @@ static void helper_opengl_write(void *opaque, target_phys_addr_t addr, uint32_t 
                     break;
                 case QEMUGL_HWCMD_SETBUF:
 #ifndef QEMUGL_IO_FRAMEBUFFER
-                    s->qemugl_buf = s->iap;
                     s->qemugl_bufbytesperline = s->ias;
 #else
                     /* ignored */

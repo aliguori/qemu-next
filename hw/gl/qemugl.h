@@ -12,7 +12,7 @@
  * if undefined, the frame buffer is owned by the guest and qemu host draws
  * directly into it.
  */
-#define QEMUGL_IO_FRAMEBUFFER
+//#define QEMUGL_IO_FRAMEBUFFER
 
 #define QEMUGL_HWREG_REGIONBASE 0x4fff0000
 #define QEMUGL_HWREG_REGIONSIZE 0x100

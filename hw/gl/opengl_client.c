@@ -3023,6 +3023,8 @@ static Bool create_drawable(GLState *state, Display *dpy, GLXDrawable drawable)
                     state->ximage->data = state->shm_info->shmaddr;
                     if (XShmAttach(dpy, state->shm_info)) {
                         ret = True;
+                        memset(state->ximage->data, 0xff, 
+                               state->ximage->height * state->ximage->bytes_per_line);
 #ifdef QEMUGL_MODULE
                         unsigned int devargs[4] = {
                             state->drawable_width,
@@ -3078,7 +3080,9 @@ static void update_win(Display *dpy, Window win)
     GET_CURRENT_STATE();
     if (state->ximage) {
 #ifdef QEMUGL_MODULE
+#ifdef QEMUGL_IO_FRAMEBUFFER
         ioctl(glfd, QEMUGL_FIOCPBUF, state->ximage->data);
+#endif
 #else
 #ifdef __arm__
         volatile unsigned int *hw = virt_addr;

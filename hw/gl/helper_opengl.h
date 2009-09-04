@@ -43,7 +43,15 @@ struct helper_opengl_s {
 #endif
 #ifndef QEMUGL_IO_FRAMEBUFFER
     uint32_t qemugl_bufbytesperline;
-    target_ulong qemugl_buf;
+    uint32_t qemugl_buf;
+    
+    struct {
+        uint32_t count;
+        uint32_t addr;
+        uint8_t *ptr;
+        void *mapped_ptr;
+        target_phys_addr_t mapped_len;
+    } framecopy;
 #endif
     void *buf;
     CPUState *env;
@@ -54,5 +62,6 @@ void *helper_opengl_init(CPUState *env);
 #ifndef QEMUGL_IO_FRAMEBUFFER
 void helper_opengl_copyframe(struct helper_opengl_s *);
 #endif // QEMUGL_IO_FRAMEBUFFER
+
 
 #endif

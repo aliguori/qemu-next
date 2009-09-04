@@ -54,7 +54,9 @@ struct qemugl_client {
 	int height;
 	int bytesperpixel;
 	int bytesperline;
+#ifdef QEMUGL_IO_FRAMEBUFFER
 	void *data;
+#endif
   } fb;
 
   struct qemugl_client *next;
@@ -118,10 +120,12 @@ static void qemugl_deleteclient(pid_t pid)
 	}
   }
   if (c) {
+#ifdef QEMUGL_IO_FRAMEBUFFER
 	if (c->fb.data) {
 	  kfree(c->fb.data);
 	  c->fb.data = NULL;
 	}
+#endif
 	kfree(c);
   }
 }
@@ -154,10 +158,12 @@ static int qemugl_hw_command(struct qemugl_client *c, void __user *args)
 
 static int qemugl_realloc_framebuffer(struct qemugl_client *c, void __user *arg)
 {
+#ifdef QEMUGL_IO_FRAMEBUFFER
   if (c->fb.data) {
 	kfree(c->fb.data);
 	c->fb.data = NULL;
   }
+#endif
   if (copy_from_user(&c->fb.width, arg, sizeof(int)) ||
 	  copy_from_user(&c->fb.height, arg + sizeof(int), sizeof(int)) ||
 	  copy_from_user(&c->fb.bytesperpixel, arg + 2 * sizeof(int), sizeof(int))||
@@ -173,21 +179,18 @@ static int qemugl_realloc_framebuffer(struct qemugl_client *c, void __user *arg)
 	return -EFAULT;
   }
 #ifdef QEMUGL_IO_FRAMEBUFFER
-  c->fb.data = kzalloc(c->fb.bytesperline, GFP_KERNEL);
+  if ((c->fb.data = kzalloc(c->fb.bytesperline, GFP_KERNEL)) == NULL) {
+      QEMUGL_ERROR("unable to allocate memory for frame buffer");
+      return -EFAULT;
+  }
 #else
-  c->fb.data = kzalloc(c->fb.height * c->fb.bytesperline, GFP_KERNEL);
-  // assume <=32bit pointers:
-  QEMUGL_WRITE_REG((unsigned int)c->fb.data, QEMUGL_HWREG_IAP);
   QEMUGL_WRITE_REG(c->fb.bytesperline, QEMUGL_HWREG_IAS);
   QEMUGL_WRITE_REG(QEMUGL_HWCMD_SETBUF, QEMUGL_HWREG_CMD);
 #endif
-  if (c->fb.data == NULL) {
-	QEMUGL_ERROR("unable to allocate memory for frame buffer");
-	return -EFAULT;
-  }
   return 0;
 }
 
+#ifdef QEMUGL_IO_FRAMEBUFFER
 static int qemugl_copy_framebuffer(struct qemugl_client *c, void __user *arg)
 {
   int result = 0;
@@ -195,7 +198,6 @@ static int qemugl_copy_framebuffer(struct qemugl_client *c, void __user *arg)
 	QEMUGL_ERROR("frame buffer dimensions not defined");
 	result = -EIO;
   } else {
-#ifdef QEMUGL_IO_FRAMEBUFFER
 #define QEMUGL_COPYFRAME(type)											\
 	{																	\
 	  int extra = c->fb.bytesperline / c->fb.bytesperpixel - c->fb.width; \
@@ -231,14 +233,10 @@ static int qemugl_copy_framebuffer(struct qemugl_client *c, void __user *arg)
 				   c->fb.bytesperpixel);
 	  break;
 	}
-#else
-	if (copy_to_user(arg, c->fb.data, c->fb.height * c->fb.bytesperline)) {
-	  result = -EFAULT;
-	}
-#endif // QEMUGL_IO_FRAMEBUFFER
   }
   return result;
 }
+#endif // QEMUGL_IO_FRAMEBUFFER
 
 static long qemugl_ioctl(struct file *file,
 						 unsigned int cmd, unsigned long arg)
@@ -255,9 +253,11 @@ static long qemugl_ioctl(struct file *file,
 	case QEMUGL_FIORDSTA:
 	  result = qemugl_hw_status(c, (void __user *)arg);
 	  break;
-	case QEMUGL_FIOCPBUF:
+#ifdef QEMUGL_IO_FRAMEBUFFER
+    case QEMUGL_FIOCPBUF:
 	  result = qemugl_copy_framebuffer(c, (void __user *)arg);
 	  break;
+#endif
 	case QEMUGL_FIOSTBUF:
 	  result = qemugl_realloc_framebuffer(c, (void __user *)arg);
 	  break;
@@ -270,7 +270,7 @@ static long qemugl_ioctl(struct file *file,
   return result;
 }
 
-#ifdef QEMUGL_ENABLE_READ
+#if defined(QEMUGL_IO_FRAMEBUFFER) && defined(QEMUGL_ENABLE_READ)
 static ssize_t qemugl_read(struct file *file, char __user *buf,
 						   size_t count, loff_t *pos)
 {
@@ -296,7 +296,7 @@ static ssize_t qemugl_read(struct file *file, char __user *buf,
   mutex_unlock(&qemugl_mutex);
   return result;
 }
-#endif // QEMUGL_ENABLE_READ
+#endif // QEMUGL_IO_FRAMEBUFFER && QEMUGL_ENABLE_READ
 
 static int qemugl_open(struct inode *inode, struct file *file)
 {
@@ -324,7 +324,7 @@ static const struct file_operations qemugl_fops = {
   .unlocked_ioctl = qemugl_ioctl,
   .open = qemugl_open,
   .release = qemugl_release,
-#ifdef QEMUGL_ENABLE_READ
+#if defined(QEMUGL_IO_FRAMEBUFFER) && defined(QEMUGL_ENABLE_READ)
   .read = qemugl_read,
 #endif
 };

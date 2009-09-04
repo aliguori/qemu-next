@@ -595,6 +595,7 @@ static void doSwapBuffers(struct helper_opengl_s *s, ProcessStruct *process,
 #endif // USE_OSMESA
 #endif // USE_OSMESA || WIN32
 #ifndef QEMUGL_IO_FRAMEBUFFER
+            s->qemugl_buf = process->shmaddr;
             helper_opengl_copyframe(s);
 #endif // QEMUGL_IO_FRAMEBUFFER
         }
