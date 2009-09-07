@@ -182,7 +182,7 @@ static const uint8_t addr_4b_reset_values[256] = {
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, /* 0x10...0x17 */
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, /* 0x18...0x1f */
     0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x01, /* 0x20...0x27 */
-    0x00, 0x00, 0x80, 0x00, 0x00, 0x00, 0x60, 0x00, /* 0x28...0x2f */
+    0x00, 0x00, 0x80, 0x00, 0x00, 0x00, 0x01, 0x00, /* 0x28...0x2f */
     0x00, 0x00, 0x00, 0xff, 0xff, 0x01, 0xbf, 0xbf, /* 0x30...0x37 */
     0xbf, 0xab, 0x00, 0x08, 0x3f, 0x15, 0x40, 0x0e, /* 0x38...0x3f */
     0x24, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, /* 0x40...0x47 */
@@ -712,6 +712,19 @@ static void twl4030_4b_write(TWL4030NodeState *s, uint8_t addr, uint8_t value)
         case 0x35: /* PWR_SIH_CTRL */
             s->reg_data[addr] = value & 0x07;
             break;
+        case 0x36: /* CFG_P1_TRANSITION */
+        case 0x37: /* CFG_P2_TRANSITION */
+        case 0x38: /* CFG_P3_TRANSITION */
+            if (s->twl4030->key_cfg)
+                s->reg_data[addr] = (s->reg_data[addr] & 0x40) | (value & 0xbf);
+            break;
+        case 0x39: /* CFG_P123_TRANSITION */
+            if (s->twl4030->key_cfg)
+                s->reg_data[addr] = value;
+            break;
+        case 0x3a: /* STS_BOOT */
+            s->reg_data[addr] = value;
+            break;
         case 0x3b: /* CFG_BOOT */
             if (s->twl4030->key_cfg)
                 s->reg_data[addr] = (s->reg_data[addr] & 0x70) | (value & 0x8f);
@@ -779,13 +792,28 @@ static void twl4030_4b_write(TWL4030NodeState *s, uint8_t addr, uint8_t value)
             s->reg_data[0x59]++; 
             break;
         case 0x5e: /* WATCHDOG_CFG */
+        case 0x60: /* VIBRATOR_CFG */
+        case 0x6d: /* BB_CFG */
             s->reg_data[addr] = value & 0x1f;
             break;
-        case 0x61: /* DC/DC_GLOBAL_CFG */
-            s->reg_data[addr] = value;
+        case 0x5f: /* IT_CHECK_CFG */
+            s->reg_data[addr] = value & 0x7f;
             break;
+        case 0x61: /* DC/DC_GLOBAL_CFG */
         case 0x68: /* MISC_CFG */
             s->reg_data[addr] = value;
+            break;
+        case 0x62: /* VDD1_TRIM1 */
+        case 0x64: /* VDD2_TRIM1 */
+        case 0x66: /* VIO_TRIM1 */
+            if (s->twl4030->key_tst)
+                s->reg_data[addr] = value & 0x7f;
+            break;
+        case 0x63: /* VDD1_TRIM2 */
+        case 0x65: /* VDD2_TRIM2 */
+        case 0x67: /* VIO_TRIM2 */
+            if (s->twl4030->key_tst)
+                s->reg_data[addr] = value & 0x3f;
             break;
         case 0x72: /* VAUX1_DEV_GRP */
         case 0x76: /* VAUX2_DEV_GRP */
