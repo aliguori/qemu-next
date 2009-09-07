@@ -1911,6 +1911,18 @@ uint32_t HELPER(get_cp15)(CPUState *env, uint32_t insn)
         return 0;
     case 11: /* TCM DMA control.  */
     case 12: /* Reserved.  */
+        if (!op1) {
+            switch (crm) {
+            case 0: /* secure or nonsecure vector base address */
+                if (arm_feature(env, ARM_FEATURE_TRUSTZONE)) {
+                    /* FIXME: implement true vector base addressing */
+                    return 0; /* reset value according to ARM Cortex-A8 TRM */
+                }
+                break;
+            default:
+                break;
+            }
+        }
         goto bad_reg;
     case 13: /* Process ID.  */
         switch (op2) {
