@@ -794,9 +794,47 @@ static void twl4030_4b_write(TWL4030NodeState *s, uint8_t addr, uint8_t value)
         case 0x5e: /* WATCHDOG_CFG */
         case 0x60: /* VIBRATOR_CFG */
         case 0x6d: /* BB_CFG */
+        case 0x73: /* VAUX1_TYPE */
+        case 0x77: /* VAUX2_TYPE */
+        case 0x7b: /* VAUX3_TYPE */
+        case 0x7f: /* VAUX4_TYPE */
+        case 0x83: /* VMMC1_TYPE */
+        case 0x87: /* VMMC2_TYPE */
+        case 0x8b: /* VPLL1_TYPE */
+        case 0x8f: /* VPLL2_TYPE */
+        case 0x93: /* VSIM_TYPE */
+        case 0x97: /* VDAC_TYPE */
+        case 0x9b: /* VINTANA1_TYPE */
+        case 0x9f: /* VINTANA2_TYPE */
+        case 0xa3: /* VINTDIG_TYPE */
+        case 0xa7: /* VIO_TYPE */
+        case 0xaa: /* VIO_MISC_CFG */
+        case 0xb1: /* VDD1_TYPE */
+        case 0xb4: /* VDD1_MISC_CFG */
+        case 0xbd: /* VDD1_STEP */
+        case 0xbf: /* VDD2_TYPE */
+        case 0xc2: /* VDD2_MISC_CFG */
+        case 0xcb: /* VDD2_STEP */
+        case 0xcd: /* VUSB1V5_TYPE */
+        case 0xd0: /* VUSB1V8_TYPE */
+        case 0xd3: /* VUSB3V1_TYPE */
+        case 0xdb: /* REGEN_TYPE */
+        case 0xde: /* NRESPWRON_TYPE */
+        case 0xe1: /* CLKEN_TYPE */
+        case 0xe4: /* SYSEN_TYPE */
+        case 0xe7: /* HFCLKOUT_TYPE */
+        case 0xea: /* 2KCLKOUT_TYPE */
+        case 0xed: /* TRITON_RESET_TYPE */
+        case 0xf0: /* MAINREF_TYPE */
             s->reg_data[addr] = value & 0x1f;
             break;
         case 0x5f: /* IT_CHECK_CFG */
+        case 0xb9: /* VDD1_VSEL */
+        case 0xbb: /* VDD1_VFLOOR */
+        case 0xbc: /* VDD1_VROOF */
+        case 0xc7: /* VDD2_VSEL */
+        case 0xc9: /* VDD2_VFLOOR */
+        case 0xca: /* VDD2_VROOF */
             s->reg_data[addr] = value & 0x7f;
             break;
         case 0x61: /* DC/DC_GLOBAL_CFG */
@@ -806,6 +844,9 @@ static void twl4030_4b_write(TWL4030NodeState *s, uint8_t addr, uint8_t value)
         case 0x62: /* VDD1_TRIM1 */
         case 0x64: /* VDD2_TRIM1 */
         case 0x66: /* VIO_TRIM1 */
+        case 0xac: /* VIO_TEST2 */
+        case 0xb6: /* VDD1_TEST2 */
+        case 0xc4: /* VDD2_TEST2 */
             if (s->twl4030->key_tst)
                 s->reg_data[addr] = value & 0x7f;
             break;
@@ -821,23 +862,32 @@ static void twl4030_4b_write(TWL4030NodeState *s, uint8_t addr, uint8_t value)
         case 0x7e: /* VAUX4_DEV_GRP */
         case 0x82: /* VMMC1_DEV_GRP */
         case 0x86: /* VMMC2_DEV_GRP */
+        case 0x8a: /* VPLL1_DEV_GRP */
         case 0x8e: /* VPLL2_DEV_GRP */
         case 0x92: /* VSIM_DEV_GRP */
         case 0x96: /* VDAC_DEV_GRP */
+        case 0x9a: /* VINTANA1_DEV_GRP */
+        case 0x9e: /* VINTANA2_DEV_GRP */
+        case 0xa2: /* VINTDIG_DEV_GRP */
+        case 0xa6: /* VIO_DEV_GRP */
+        case 0xb0: /* VDD1_DEV_GRP */
+        case 0xbe: /* VDD2_DEV_GRP */
         case 0xcc: /* VUSB1V5_DEV_GRP */
         case 0xcf: /* VUSB1V8_DEV_GRP */
         case 0xd2: /* VUSB3V1_DEV_GRP */
+        case 0xda: /* REGEN_DEV_GRP */
+        case 0xdd: /* NRESPWRON_DEV_GRP */
+        case 0xe0: /* CLKEN_DEV_GRP */
+        case 0xe3: /* SYSEN_DEV_GRP */
         case 0xe6: /* HFCLKOUT_DEV_GRP */
+        case 0xe9: /* 2KCLKOUT_DEV_GRP */
+        case 0xec: /* TRITON_RESET_DEV_GRP */
+        case 0xef: /* MAINREF_DEV_GRP */
             s->reg_data[addr] = (s->reg_data[addr] & 0x0f) | (value & 0xf0); 
-            break;
-        case 0x73: /* VAUX1_TYPE */
-        case 0x77: /* VAUX2_TYPE */
-        case 0x7b: /* VAUX3_TYPE */
-        case 0x7f: /* VAUX4_TYPE */
-            s->reg_data[addr] = value & 0x1f;
             break;
         case 0x75: /* VAUX1_DEDICATED */
         case 0x7d: /* VAUX3_DEDICATED */
+        case 0x8d: /* VPLL1_DEDICATED */
         case 0x95: /* VSIM_DEDICATED */
             if (s->twl4030->key_tst)
                 s->reg_data[addr] = value & 0x77;
@@ -847,6 +897,7 @@ static void twl4030_4b_write(TWL4030NodeState *s, uint8_t addr, uint8_t value)
         case 0x79: /* VAUX2_DEDICATED */
         case 0x81: /* VAUX4_DEDICATED */
         case 0x91: /* VPLL2_DEDICATED */
+        case 0xa5: /* VINTDIG_DEDICATED */
             if (s->twl4030->key_tst)
                 s->reg_data[addr] = value & 0x7f;
             else
@@ -865,21 +916,68 @@ static void twl4030_4b_write(TWL4030NodeState *s, uint8_t addr, uint8_t value)
             else
                 s->reg_data[addr] = (s->reg_data[addr] & 0x70) | (value & 0x0f);
             break;
+        case 0x9d: /* VINTANA1_DEDICATED */
+            if (s->twl4030->key_tst)
+                s->reg_data[addr] = value & 0x70;
+            break;
+        case 0xa1: /* VINTANA2_DEDICATED */
+            if (s->twl4030->key_tst)
+                s->reg_data[addr] = value & 0x71;
+            else
+                s->reg_data[addr] = (s->reg_data[addr] & 0x70) | (value & 0x01);
+            break;
         case 0x74: /* VAUX1_REMAP */
         case 0x78: /* VAUX2_REMAP */
         case 0x7c: /* VAUX3_REMAP */
         case 0x80: /* VAUX4_REMAP */
         case 0x84: /* VMMC1_REMAP */
         case 0x88: /* VMMC2_REMAP */
+        case 0x8c: /* VPLL1_REMAP */
         case 0x90: /* VPLL2_REMAP */
+        case 0x94: /* VSIM_REMAP */
+        case 0x98: /* VDAC_REMAP */
+        case 0x9c: /* VINTANA1_REMAP */
+        case 0xa0: /* VINTANA2_REMAP */
+        case 0xa4: /* VINTDIG_REMAP */
+        case 0xa8: /* VIO_REMAP */
+        case 0xb2: /* VDD1_REMAP */
+        case 0xc0: /* VDD2_REMAP */
+        case 0xdc: /* REGEN_REMAP */
+        case 0xdf: /* NRESPWRON_REMAP */
+        case 0xe2: /* CLKEN_REMAP */
+        case 0xe5: /* SYSEN_REMAP */
+        case 0xe8: /* HFCLKOUT_REMAP */
+        case 0xeb: /* 2KCLKOUT_REMAP */
+        case 0xee: /* TRITON_RESET_REMAP */
+        case 0xf1: /* MAINREF_REMAP */
             s->reg_data[addr] = value;
             break;
-        case 0x83: /* VMMC1_TYPE */
-        case 0x87: /* VMMC2_TYPE */
-        case 0xcd: /* VUSB1V5_TYPE */
-        case 0xd0: /* VUSB1V8_TYPE */
-        case 0xd3: /* VUSB3V1_TYPE */
-            s->reg_data[addr] = value & 0x1f;
+        case 0xa9: /* VIO_CFG */
+        case 0xb3: /* VDD1_CFG */
+        case 0xc1: /* VDD2_CFG */
+            s->reg_data[addr] = value & 0x03;
+            break;
+        case 0xab: /* VIO_TEST1 */
+        case 0xb5: /* VDD1_TEST1 */
+        case 0xc3: /* VDD2_TEST1 */
+            if (s->twl4030->key_tst)
+                s->reg_data[addr] = value;
+            break;
+        case 0xad: /* VIO_OSC */
+        case 0xb7: /* VDD1_OSC */
+        case 0xc5: /* VDD2_OSC */
+            s->reg_data[addr] = value & 0x5f;
+            break;
+        case 0xae: /* VIO_RESERVED */
+        case 0xb8: /* VDD1_RESERVED */
+        case 0xc6: /* VDD2_RESERVED */
+            break;
+        case 0xaf: /* VIO_VSEL */
+            s->reg_data[addr] = value & 0x01;
+            break;
+        case 0xba: /* VDD1_VMODE_CFG */
+        case 0xc8: /* VDD2_VMODE_CFG */
+            s->reg_data[addr] = (s->reg_data[addr] & 0x38) | (value & 0x07);
             break;
         case 0xd8: /* VUSB_DEDICATED1 */
             s->reg_data[addr] = value & 0x1f;
