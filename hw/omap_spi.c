@@ -342,54 +342,68 @@ static uint32_t omap_mcspi_read(void *opaque, target_phys_addr_t addr)
     
     switch (addr) {
         case 0x00:	/* MCSPI_REVISION */
+            TRACE("REVISION = 0x%08x", s->revision);
             return s->revision;
             
         case 0x10:	/* MCSPI_SYSCONFIG */
+            TRACE("SYSCONFIG = 0x%08x", s->sysconfig);
             return s->sysconfig;
             
         case 0x14:	/* MCSPI_SYSSTATUS */
+            TRACE("SYSSTATUS = 0x00000001");
             return 1;					/* RESETDONE */
             
         case 0x18:	/* MCSPI_IRQSTATUS */
+            TRACE("IRQSTATUS = 0x%08x", s->irqst);
             return s->irqst;
             
         case 0x1c:	/* MCSPI_IRQENABLE */
+            TRACE("IRQENABLE = 0x%08x", s->irqen);
             return s->irqen;
             
         case 0x20:	/* MCSPI_WAKEUPENABLE */
+            TRACE("WAKEUPENABLE = 0x%08x", s->wken);
             return s->wken;
             
         case 0x24:	/* MCSPI_SYST */
+            TRACE("SYST = 0x%08x", s->systest);
             return s->systest;
             
         case 0x28:	/* MCSPI_MODULCTRL */
+            TRACE("MODULCTRL = 0x%08x", s->control);
             return s->control;
             
         case 0x68: ch ++;
         case 0x54: ch ++;
         case 0x40: ch ++;
         case 0x2c:	/* MCSPI_CHCONF */
+            TRACE("CHCONF%d = 0x%08x", ch,
+                  (ch < s->chnum) ? s->ch[ch].config : 0);
             return (ch < s->chnum) ? s->ch[ch].config : 0;
             
         case 0x6c: ch ++;
         case 0x58: ch ++;
         case 0x44: ch ++;
         case 0x30:	/* MCSPI_CHSTAT */
+            TRACE("CHSTAT%d = 0x%08x", ch,
+                  (ch < s->chnum) ? s->ch[ch].status : 0);
             return (ch < s->chnum) ? s->ch[ch].status : 0;
             
         case 0x70: ch ++;
         case 0x5c: ch ++;
         case 0x48: ch ++;
         case 0x34:	/* MCSPI_CHCTRL */
+            TRACE("CHCTRL%d = 0x%08x", ch,
+                  (ch < s->chnum) ? s->ch[ch].control : 0);
             return (ch < s->chnum) ? s->ch[ch].control : 0;
             
         case 0x74: ch ++;
         case 0x60: ch ++;
         case 0x4c: ch ++;
         case 0x38:	/* MCSPI_TX */
-            if (ch < s->chnum)
-                return s->ch[ch].tx;
-            break;
+            TRACE("TX%d = 0x%08x", ch,
+                  (ch < s->chnum) ? s->ch[ch].tx : 0);
+            return (ch < s->chnum) ? s->ch[ch].tx : 0;
             
         case 0x78: ch ++;
         case 0x64: ch ++;
@@ -400,6 +414,7 @@ static uint32_t omap_mcspi_read(void *opaque, target_phys_addr_t addr)
                     !(s->ch[ch].config & (1 << 28))) { /* FFER */
                     s->ch[ch].status &= ~1;            /* RXS */
                     ret = s->ch[ch].rx;
+                    TRACE("RX%d = 0x%08x", ch, ret);
                     omap_mcspi_transfer_run(s, ch);
                     return ret;
                 }
@@ -413,6 +428,7 @@ static uint32_t omap_mcspi_read(void *opaque, target_phys_addr_t addr)
                             1 + ((s->ch[ch].config >> 7) & 0x1f)); /* WL */
                     else
                         ret = s->ch[ch].rx;
+                    TRACE("RX%d = 0x%08x", ch, ret);
                     if (!s->rx_fifo.len) {
                         s->ch[ch].status &= ~1;     /* RXS */
                         s->ch[ch].status |= 1 << 5; /* RXFFE */
@@ -421,6 +437,7 @@ static uint32_t omap_mcspi_read(void *opaque, target_phys_addr_t addr)
                     return ret;
                 }
             }
+            TRACE("RX%d = 0x00000000", ch);
             return 0;
         
         case 0x7c: /* MCSPI_XFERLEVEL */
@@ -429,6 +446,7 @@ static uint32_t omap_mcspi_read(void *opaque, target_phys_addr_t addr)
                     ret = ((s->xferlevel & 0xffff0000) - (s->fifo_wcnt << 16));
                 else
                     ret = ((-s->fifo_wcnt) & 0xffff) << 16;
+                TRACE("XFERLEVEL = 0x%08x", (s->xferlevel & 0xffff) | ret);
                 return (s->xferlevel & 0xffff) | ret;
             }
             break;
@@ -464,12 +482,14 @@ static void omap_mcspi_write(void *opaque, target_phys_addr_t addr,
             return;
             
         case 0x10:	/* MCSPI_SYSCONFIG */
+            TRACE("SYSCONFIG = 0x%08x", value);
             if (value & (1 << 1))				/* SOFTRESET */
                 omap_mcspi_reset(s);
             s->sysconfig = value & 0x31d;
             break;
             
         case 0x18:	/* MCSPI_IRQSTATUS */
+            TRACE("IRQSTATUS = 0x%08x", value);
             if (!((s->control & (1 << 3)) && (s->systest & (1 << 11)))) {
                 s->irqst &= ~value;
                 omap_mcspi_interrupt_update(s);
@@ -477,15 +497,18 @@ static void omap_mcspi_write(void *opaque, target_phys_addr_t addr,
             break;
             
         case 0x1c:	/* MCSPI_IRQENABLE */
+            TRACE("IRQENABLE = 0x%08x", value);
             s->irqen = value & (IS_OMAP3_SPI(s) ? 0x3777f : 0x1777f);
             omap_mcspi_interrupt_update(s);
             break;
             
         case 0x20:	/* MCSPI_WAKEUPENABLE */
+            TRACE("WAKEUPENABLE = 0x%08x", value);
             s->wken = value & 1;
             break;
             
         case 0x24:	/* MCSPI_SYST */
+            TRACE("SYST = 0x%08x", value);
             if (s->control & (1 << 3))			/* SYSTEM_TEST */
                 if (value & (1 << 11)) {			/* SSB */
                     s->irqst |= 0x1777f;
@@ -495,6 +518,7 @@ static void omap_mcspi_write(void *opaque, target_phys_addr_t addr,
             break;
             
         case 0x28:	/* MCSPI_MODULCTRL */
+            TRACE("MODULCTRL = 0x%08x", value);
             if (value & (1 << 3))				/* SYSTEM_TEST */
                 if (s->systest & (1 << 11)) {		/* SSB */
                     s->irqst |= IS_OMAP3_SPI(s) ? 0x3777f : 0x1777f;
@@ -507,6 +531,7 @@ static void omap_mcspi_write(void *opaque, target_phys_addr_t addr,
         case 0x54: ch ++;
         case 0x40: ch ++;
         case 0x2c:	/* MCSPI_CHCONF */
+            TRACE("CHCONF%d = 0x%08x", ch, value);
             if (ch < s->chnum) {
                 old = s->ch[ch].config;
                 s->ch[ch].config = value & (IS_OMAP3_SPI(s)
@@ -536,6 +561,7 @@ static void omap_mcspi_write(void *opaque, target_phys_addr_t addr,
         case 0x5c: ch ++;
         case 0x48: ch ++;
         case 0x34:	/* MCSPI_CHCTRL */
+            TRACE("CHCTRL%d = 0x%08x", ch, value);
             if (ch < s->chnum) {
                 old = s->ch[ch].control;
                 s->ch[ch].control = value & (IS_OMAP3_SPI(s) ? 0xff01 : 1);
@@ -551,18 +577,19 @@ static void omap_mcspi_write(void *opaque, target_phys_addr_t addr,
         case 0x60: ch ++;
         case 0x4c: ch ++;
         case 0x38:	/* MCSPI_TX */
+            TRACE("TX%d = 0x%08x", ch, value);
             if (ch < s->chnum) {
                 if (!IS_OMAP3_SPI(s) || s->fifo_ch != ch ||
                     !(s->ch[ch].config & (1 << 27))) { /* FFEW */
                     s->ch[ch].tx = value;
-                    s->ch[ch].status &= ~(1 << 1);     /* TXS */
+                    s->ch[ch].status &= ~0x06;         /* EOT | TXS */
                     omap_mcspi_transfer_run(s, ch);
                 } else {
                     if (s->tx_fifo.len >= s->tx_fifo.size) {
                         TRACE("txfifo overflow!");
                     } else {
                         qemu_irq_lower(s->ch[ch].txdrq);
-                        s->ch[ch].status &= ~0x0a;            /* TXFFE | TXS */
+                        s->ch[ch].status &= ~0x0e;      /* TXFFE | EOT | TXS */
                         if (((s->ch[ch].config >> 12) & 3) != 1) {    /* TRM */
                             omap_mcspi_fifo_put(
                                 &s->tx_fifo,
@@ -581,7 +608,8 @@ static void omap_mcspi_write(void *opaque, target_phys_addr_t addr,
             }
             break;
             
-        case 0x7c:
+        case 0x7c: /* MCSPI_XFERLEVEL */
+            TRACE("XFERLEVEL = 0x%08x", value);
             if (IS_OMAP3_SPI(s)) {
                 if (value != s->xferlevel) {
                     s->fifo_wcnt = (value >> 16) & 0xffff;

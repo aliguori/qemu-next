@@ -89,6 +89,7 @@ struct omap_dss_s {
     int control;
     uint32_t sdi_control;
     uint32_t pll_control;
+    uint32_t sdi_status;
     int enable;
     
     struct omap_dss_dispc_s dispc;
@@ -333,6 +334,7 @@ static void omap_dss_save_state(QEMUFile *f, void *opaque)
     qemu_put_sbe32(f, s->control);
     qemu_put_be32(f, s->sdi_control);
     qemu_put_be32(f, s->pll_control);
+    qemu_put_be32(f, s->sdi_status);
     qemu_put_sbe32(f, s->enable);
     qemu_put_be32(f, s->dispc.size_dig);
     qemu_put_be32(f, s->dispc.size_lcd);
@@ -467,6 +469,7 @@ static int omap_dss_load_state(QEMUFile *f, void *opaque, int version_id)
     s->control = qemu_get_sbe32(f);
     s->sdi_control = qemu_get_be32(f);
     s->pll_control = qemu_get_be32(f);
+    s->sdi_status = qemu_get_be32(f);
     s->enable = qemu_get_sbe32(f);
     s->dispc.size_dig = qemu_get_be32(f);
     s->dispc.size_lcd = qemu_get_be32(f);
@@ -664,6 +667,7 @@ void omap_dss_reset(struct omap_dss_s *s)
     s->control = 0;
     s->sdi_control = 0;
     s->pll_control = 0;
+    s->sdi_status = 0x81; /* bit 7 is not present prior to OMAP3 */
     s->enable = 0;
 
     s->dispc.idlemode = 0;
@@ -772,9 +776,10 @@ static uint32_t omap_diss_read(void *opaque, target_phys_addr_t addr)
         return 0;
 
     case 0x5c:	/* DSS_SDI_STATUS */
-        /* TODO: check and implement missing OMAP3 bits */
-        TRACEDISS("DSS_STATUS: 0x%08x", 1 + (s->control & 1));
-        return 1 + (s->control & 1);
+        x = s->sdi_status;
+        s->sdi_status &= ~(1 << 6); /* SDI_PLL_BUSYFLAG */
+        TRACEDISS("DSS_STATUS: 0x%08x", x);
+        return x;
 
     default:
         break;
@@ -810,6 +815,8 @@ static void omap_diss_write(void *opaque, target_phys_addr_t addr,
     case 0x40:	/* DSS_CONTROL */
         TRACEDISS("DSS_CONTROL = 0x%08x", value);
         s->control = value & 0x3ff; /* was 0x3dd for OMAP2 */
+        s->sdi_status &= ~0x3;
+        s->sdi_status |= 1 + (s->control & 1);
         break;
 
     case 0x44: /* DSS_SDI_CONTROL */
@@ -819,6 +826,20 @@ static void omap_diss_write(void *opaque, target_phys_addr_t addr,
 
     case 0x48: /* DSS_PLL_CONTROL */
         TRACEDISS("DSS_PLL_CONTROL = 0x%08x", value);
+        if (value & (1 << 18)) { /* SDI_PLL_SYSRESET */
+            s->sdi_status |= 1 << 2;    /* SDI_PLL_RESETDONE */
+        } else {
+            s->sdi_status &= ~(1 << 2); /* SDI_PLL_RESETDONE */
+        }
+        if (value & (1 << 28)) { /* SDI_PLL_GOBIT */
+            s->sdi_status |= 1 << 6;    /* SDI_PLL_BUSYFLAG */
+            s->sdi_status &= ~(1 << 5); /* SDI_PLL_LOCK */
+        } else {
+            if (s->pll_control & (1 << 28)) { /* SDI_PLL_GOBIT */
+                s->sdi_status &= ~(1 << 6); /* SDI_PLL_BUSYFLAG */
+                s->sdi_status |= 1 << 5;    /* SDI_PLL_LOCK */
+            }
+        }
         s->pll_control = value;
         break;
             

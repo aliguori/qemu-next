@@ -398,6 +398,11 @@ struct mipid_s {
     int onoff;
     int gamma;
     uint32_t id;
+    
+    int n900;
+    int cabc;
+    int brightness;
+    int ctrl;
 };
 
 static void mipid_reset(struct mipid_s *s)
@@ -428,6 +433,11 @@ static uint32_t mipid_txrx(void *opaque, uint32_t cmd, int len)
     struct mipid_s *s = (struct mipid_s *) opaque;
     uint8_t ret;
 
+    if (s->n900 && len == 10) {
+        cmd >>= 1;
+        len--;
+    }
+    
     if (len > 9)
         hw_error("%s: FIXME: bad SPI word width %i\n", __FUNCTION__, len);
 
@@ -589,9 +599,67 @@ static uint32_t mipid_txrx(void *opaque, uint32_t cmd, int len)
 
     case 0x38:	/* IDMOFF */
     case 0x39:	/* IDMON */
-    case 0x3a:	/* COLMOD */
         goto bad_cmd;
-
+    case 0x3a:	/* COLMOD */
+        if (s->pm < 0)
+            s->pm = 1;
+        break;
+    
+    case 0x51: /* WRITE_BRIGHTNESS */
+        if (s->n900) {
+            if (!s->pm)
+                s->brightness = s->param[0] & 0xff;
+            else if (s->pm < 0)
+                s->pm = 1;
+        } else {
+            goto bad_cmd;
+        }
+        break;
+    case 0x52: /* READ_BRIGHTNESS */
+        if (s->n900) {
+            s->p = 0;
+            s->resp[0] = s->brightness;
+        } else {
+            goto bad_cmd;
+        }
+        break;
+    case 0x53: /* WRITE_CTRL */
+        if (s->n900) {
+            if (!s->pm)
+                s->ctrl = s->param[0] & 0xff;
+            else if (s->pm < 0)
+                s->pm = 1;
+        } else {
+            goto bad_cmd;
+        }
+        break;
+    case 0x54: /* READ_CTRL */
+        if (s->n900) {
+            s->p = 0;
+            s->resp[0] = s->ctrl;
+        } else {
+            goto bad_cmd;
+        }
+        break;
+    case 0x55: /* WRITE_CABC */
+        if (s->n900) {
+            if (!s->pm)
+                s->cabc = s->param[0] & 0xff;
+            else if (s->pm < 0)
+                s->pm = 1;
+        } else {
+            goto bad_cmd;
+        }
+        break;
+    case 0x56: /* READ_CABC */
+        if (s->n900) {
+            s->p = 0;
+            s->resp[0] = s->cabc;
+        } else {
+            goto bad_cmd;
+        }
+        break;
+            
     case 0xb0:	/* CLKINT / DISCTL */
     case 0xb1:	/* CLKEXT */
         if (s->pm < 0)
@@ -617,7 +685,7 @@ static uint32_t mipid_txrx(void *opaque, uint32_t cmd, int len)
 
     case 0xc2:	/* IFMOD */
         if (s->pm < 0)
-            s->pm = 2;
+            s->pm = (s->n900) ? 3 : 2;
         break;
 
     case 0xc6:	/* PWRCTL */
@@ -643,7 +711,7 @@ static uint32_t mipid_txrx(void *opaque, uint32_t cmd, int len)
 
     default:
     bad_cmd:
-        fprintf(stderr, "%s: unknown command %02x\n", __FUNCTION__, s->cmd);
+        fprintf(stderr, "%s: unknown command 0x%02x\n", __FUNCTION__, s->cmd);
         break;
     }
 
@@ -1415,15 +1483,197 @@ static QEMUMachine n810_machine = {
     .init = n810_init,
 };
 
-#define N00_SDRAM_SIZE (256 * 1024 * 1024)
-#define N00_ONENAND_CS 0
-#define N00_ONENAND_GPIO N8X0_ONENAND_GPIO
-#define N00_ONENAND_BUFSIZE (0xc000 << 1)
-#define N00_SMC_CS        1
-#define N00_SDCOVER_GPIO 160
+#ifdef CONFIG_GLHW
+#include "helper_opengl.h"
+#endif
 
-#define N00_DISPLAY_WIDTH 864
-#define N00_DISPLAY_HEIGHT 480
+#define N900_SDRAM_SIZE (256 * 1024 * 1024)
+#define N900_ONENAND_CS 0
+#define N900_ONENAND_BUFSIZE (0xc000 << 1)
+#define N900_SMC_CS 1
+
+#define N900_ONENAND_GPIO       N8X0_ONENAND_GPIO
+#define N900_TSC2005_IRQ_GPIO   100
+#define N900_TSC2005_RESET_GPIO 104
+#define N900_SLIDE_GPIO         71
+#define N900_PROXIMITY_GPIO     89
+#define N900_KBLOCK_GPIO        113
+#define N900_HEADPHONE_GPIO     177
+#define N900_CAMSHUTTER_GPIO    110
+#define N900_CAMLAUNCH_GPIO     69
+#define N900_CAMFOCUS_GPIO      68
+
+static uint32_t ssi_read(void *opaque, target_phys_addr_t addr)
+{
+    switch (addr) {
+        case 0x00: /* REVISION */
+            return 0x10;
+        case 0x14: /* SYSSTATUS */
+            return 1; /* RESETDONE */
+        default:
+            break;
+    }
+    //printf("%s: addr= " OMAP_FMT_plx "\n", __FUNCTION__, addr);
+    return 0;
+}
+
+static void ssi_write(void *opaque, target_phys_addr_t addr, uint32_t value)
+{
+    //printf("%s: addr=" OMAP_FMT_plx ", value=0x%08x\n", __FUNCTION__, addr, value);
+}
+
+static CPUReadMemoryFunc *ssi_read_func[] = {
+    ssi_read,
+    ssi_read,
+    ssi_read,
+};
+
+static CPUWriteMemoryFunc *ssi_write_func[] = {
+    ssi_write,
+    ssi_write,
+    ssi_write,
+};
+
+struct n900_s {
+    struct omap_mpu_state_s *cpu;
+    void *twl4030;
+    void *nand;
+    void *lcd;
+    struct mipid_s *mipid;
+    void *tsc2005;
+    void *smc;
+#ifdef CONFIG_GLHW
+    void *gl;
+#endif
+};
+
+static const TWL4030KeyMap n900_twl4030_keymap[] = {
+    {0x10, 0, 0}, /* Q */
+    {0x11, 0, 1}, /* W */
+    {0x12, 0, 2}, /* E */
+    {0x13, 0, 3}, /* R */
+    {0x14, 0, 4}, /* T */
+    {0x15, 0, 5}, /* Y */
+    {0x16, 0, 6}, /* U */
+    {0x17, 0, 7}, /* I */
+    {0x18, 1, 0}, /* O */
+    {0x20, 1, 1}, /* D */
+    {0x34, 1, 2}, /* . */
+    {0x2f, 1, 3}, /* V */
+    {0xd0, 1, 4}, /* DOWN */
+    {0x41, 1, 7}, /* F7 */
+    {0x19, 2, 0}, /* P */
+    {0x21, 2, 1}, /* F */
+    {0xc8, 2, 2}, /* UP */
+    {0x30, 2, 3}, /* B */
+    {0xcd, 2, 4}, /* RIGHT */
+    {0x42, 2, 7}, /* F8 */
+    {0x33, 3, 0}, /* , */
+    {0x22, 3, 1}, /* G */
+    {0x1c, 3, 2}, /* ENTER */
+    {0x31, 3, 3}, /* N */
+    {0x0e, 4, 0}, /* BACKSPACE */
+    {0x23, 4, 1}, /* H */
+    {0x32, 4, 3}, /* M */
+    {0x1d, 4, 4}, /* LEFTCTRL */
+    {0x24, 5, 1}, /* J */
+    {0x2c, 5, 2}, /* Z */
+    {0x39, 5, 3}, /* SPACE */
+    {0xb8, 5, 4}, /* RIGHTALT */
+    {0x1e, 6, 0}, /* A */
+    {0x25, 6, 1}, /* K */
+    {0x2d, 6, 2}, /* X */
+    {0x39, 6, 3}, /* SPACE */
+    {0x2a, 6, 4}, /* LEFTSHIFT */
+    {0x1f, 7, 0}, /* S */
+    {0x26, 7, 1}, /* L */
+    {0x2e, 7, 2}, /* C */
+    {0xcb, 7, 3}, /* LEFT */
+    //    {0x10, 0xff, 2}, /* F9 */
+    //    {0x10, 0xff, 4}, /* F10 */
+    //    {0x10, 0xff, 5}, /* F11 */
+    {-1, -1, -1}
+};
+
+static void n900_init(ram_addr_t ram_size,
+                      const char *boot_device,
+                      const char *kernel_filename,
+                      const char *kernel_cmdline,
+                      const char *initrd_filename,
+                      const char *cpu_model)
+{
+    struct n900_s *s = (struct n900_s *)qemu_mallocz(sizeof(*s));
+    DriveInfo *dmtd = drive_get(IF_MTD, 0, 0);
+    DriveInfo *dsd  = drive_get(IF_SD, 0, 0);
+    
+    if (!dmtd && !dsd) {
+        hw_error("%s: SD or NAND image required", __FUNCTION__);
+    }
+    s->cpu = omap3530_mpu_init(N900_SDRAM_SIZE,
+                               serial_hds[1],
+                               serial_hds[2],
+                               serial_hds[0]);
+    s->twl4030 = twl4030_init(omap_i2c_bus(s->cpu->i2c[0]),
+                              s->cpu->irq[0][OMAP_INT_3XXX_SYS_NIRQ],
+                              NULL, n900_twl4030_keymap);
+    s->lcd = omap3_lcd_panel_init(s->cpu->dss);
+    omap_lcd_panel_attach(s->cpu->dss, omap3_lcd_panel_get(s->lcd));
+    
+    s->tsc2005 = tsc2005_init(omap2_gpio_in_get(s->cpu->gpif,
+                                                N900_TSC2005_IRQ_GPIO)[0]);
+    tsc2005_set_transform(s->tsc2005, &n810_pointercal);
+    omap_mcspi_attach(s->cpu->mcspi[0], tsc2005_txrx, s->tsc2005, 0);
+    
+    s->mipid = mipid_init();
+    s->mipid->n900 = 1;
+    s->mipid->id = 0x101234;
+    omap_mcspi_attach(s->cpu->mcspi[0], mipid_txrx, s->mipid, 2);
+    
+    s->nand = onenand_init(NAND_MFR_SAMSUNG, 0x40, 0x121, 1, 
+                           omap2_gpio_in_get(s->cpu->gpif, N900_ONENAND_GPIO)[0],
+                           dmtd);
+    omap_gpmc_attach(s->cpu->gpmc, N900_ONENAND_CS, 0, onenand_base_update,
+                     onenand_base_unmap, s->nand, 0);
+    
+    if (dsd) {
+        omap3_mmc_attach(s->cpu->omap3_mmc[0], dsd, 0);
+        //qemu_irq_raise(omap2_gpio_in_get(s->cpu->gpif, N900_SDCOVER_GPIO)[0]);
+    }
+    if ((dsd = drive_get(IF_SD, 0, 1)) >= 0)
+        omap3_mmc_attach(s->cpu->omap3_mmc[1], dsd, 1);
+    
+    cpu_register_physical_memory(0x48058000, 0x3c00,
+                                 cpu_register_io_memory(ssi_read_func,
+                                                        ssi_write_func,
+                                                        0));
+    s->smc = smc91c111_init_lite(&nd_table[0], /*0x08000000,*/
+                                 omap2_gpio_in_get(s->cpu->gpif, 54)[0]);
+    
+    omap_gpmc_attach(s->cpu->gpmc, N900_SMC_CS, smc91c111_iomemtype(s->smc),
+                     NULL, NULL, s->smc, 0);
+    
+    qemu_irq_raise(omap2_gpio_in_get(s->cpu->gpif, N900_KBLOCK_GPIO)[0]);
+    qemu_irq_raise(omap2_gpio_in_get(s->cpu->gpif, N900_HEADPHONE_GPIO)[0]);
+    qemu_irq_raise(omap2_gpio_in_get(s->cpu->gpif, N900_CAMLAUNCH_GPIO)[0]);
+    qemu_irq_raise(omap2_gpio_in_get(s->cpu->gpif, N900_CAMFOCUS_GPIO)[0]);
+    
+#ifdef CONFIG_GLHW
+    s->gl = helper_opengl_init(s->cpu->env);
+#endif
+    
+    omap3_boot_rom_emu(s->cpu);
+}
+
+#define N00_SDRAM_SIZE      N900_SDRAM_SIZE
+#define N00_ONENAND_CS      N900_ONENAND_CS
+#define N00_ONENAND_BUFSIZE N900_ONENAND_BUFSIZE
+#define N00_SMC_CS          N900_SMC_CS
+
+#define N00_ONENAND_GPIO    N8X0_ONENAND_GPIO
+#define N00_SDCOVER_GPIO    160
+
+#define N00_DISPLAY_WIDTH   864
+#define N00_DISPLAY_HEIGHT  480
 #define N00_DISPLAY_BUFSIZE (N00_DISPLAY_WIDTH * N00_DISPLAY_HEIGHT * 4)
 
 //#define N00_DEBUG_DSI
@@ -1712,37 +1962,6 @@ static struct taal_s *taal_init(struct omap_dss_s *dss)
     taal_reset(s);
     return s;
 }
-
-static uint32_t ssi_read(void *opaque, target_phys_addr_t addr)
-{
-    switch (addr) {
-        case 0x00: /* REVISION */
-            return 0x10;
-        case 0x14: /* SYSSTATUS */
-            return 1; /* RESETDONE */
-        default:
-            break;
-    }
-    //printf("%s: addr= " OMAP_FMT_plx "\n", __FUNCTION__, addr);
-    return 0;
-}
-
-static void ssi_write(void *opaque, target_phys_addr_t addr, uint32_t value)
-{
-    //printf("%s: addr=" OMAP_FMT_plx ", value=0x%08x\n", __FUNCTION__, addr, value);
-}
-
-static CPUReadMemoryFunc *ssi_read_func[] = {
-    ssi_read,
-    ssi_read,
-    ssi_read,
-};
-
-static CPUWriteMemoryFunc *ssi_write_func[] = {
-    ssi_write,
-    ssi_write,
-    ssi_write,
-};
 
 //#define DEBUG_TM12XX
 
@@ -2446,10 +2665,6 @@ static void *n00_tm12xx_init(i2c_bus *bus, qemu_irq irq, int swapxy)
     return s;
 }
 
-#ifdef CONFIG_GLHW
-#include "helper_opengl.h"
-#endif
-
 struct n00_s {
     struct omap_mpu_state_s *cpu;
     void *twl4030;
@@ -2498,7 +2713,7 @@ static void n00_init(ram_addr_t ram_size,
     if (!dmtd && !dsd) {
         hw_error("%s: SD or NAND image required", __FUNCTION__);
     }
-    s->cpu = omap3530_mpu_init(256*1024*1024,
+    s->cpu = omap3530_mpu_init(N00_SDRAM_SIZE,
                                serial_hds[1],
                                serial_hds[2],
                                serial_hds[0]);
@@ -2541,6 +2756,12 @@ static void n00_init(ram_addr_t ram_size,
     omap3_boot_rom_emu(s->cpu);
 }
 
+static QEMUMachine n900_machine = {
+    .name = "n900",
+    .desc = "Nokia N900 (OMAP3)",
+    .init = n900_init,
+};
+
 static QEMUMachine n00_machine = {
     .name = "n00",
     .desc = "Nokia N00 (OMAP3)",
@@ -2556,6 +2777,7 @@ static void nseries_machine_init(void)
 {
     qemu_register_machine(&n800_machine);
     qemu_register_machine(&n810_machine);
+    qemu_register_machine(&n900_machine);
     qemu_register_machine(&n00_machine);
 }
 
