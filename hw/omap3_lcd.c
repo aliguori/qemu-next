@@ -135,8 +135,10 @@ void omap3_lcd_panel_layer_update(DisplayState *ds,
                 dest += linesize;
             }
         } else {
-            hw_error("%s: rendering uncontiguous framebuffer is not supported",
-                    __FUNCTION__);
+            fprintf(stderr, "%s: %lld bytes of framebuffer mappable, need %d bytes\n",
+                    __FUNCTION__, size, copy_height * copy_width * lcd_Bpp);
+            //hw_error("%s: rendering uncontiguous framebuffer is not supported",
+            //        __FUNCTION__);
         }
         cpu_physical_memory_unmap(src, size, 0, size);
     }
