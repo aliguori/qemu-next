@@ -135,7 +135,8 @@ void omap3_lcd_panel_layer_update(DisplayState *ds,
                 dest += linesize;
             }
         } else {
-            fprintf(stderr, "%s: %lld bytes of framebuffer mappable, need %d bytes\n",
+            fprintf(stderr, "%s: " OMAP_FMT_plx " bytes of framebuffer "
+                    "mappable, need 0x%08x bytes\n",
                     __FUNCTION__, size, copy_height * copy_width * lcd_Bpp);
             //hw_error("%s: rendering uncontiguous framebuffer is not supported",
             //        __FUNCTION__);
