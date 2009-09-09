@@ -1397,6 +1397,8 @@ for pthread_lib in $PTHREADLIBS_LIST; do
   fi
 done
 
+
+
 if test "$mingw32" != yes -a "$pthread" = no; then
   echo
   echo "Error: pthread check failed"
@@ -1935,6 +1937,8 @@ fi
 if test "$static" = "yes" ; then
   echo "CONFIG_STATIC=y" >> $config_host_mak
   LDFLAGS="-static $LDFLAGS"
+#scratchbox HACK - we need -lsb after -lpthread
+  LIBS="-L/scratchbox/tools/lib -lsb $LIBS"
 fi
 if test $profiler = "yes" ; then
   echo "CONFIG_PROFILER=y" >> $config_host_mak
