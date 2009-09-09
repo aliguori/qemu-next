@@ -1959,7 +1959,11 @@ static void omap3_prm_write(void *opaque, target_phys_addr_t addr,
         case 0x1230: s->gr.prm_vc_cmd_val_1 = value; break;
         case 0x1234: s->gr.prm_vc_hc_conf = value & 0x1f001f; break;
         case 0x1238: s->gr.prm_vc_i2c_cfg = value & 0x3f; break;
-        case 0x123c: s->gr.prm_vc_bypass_val = value & 0x01ffff7f; break;
+        case 0x123c: 
+            s->gr.prm_vc_bypass_val = value & 0x01ffff7f;
+            /* bzzzzzt.... command acknowledged! */
+            s->gr.prm_vc_bypass_val &= ~(1 << 24); /* VALID */
+            break;
         case 0x1250: s->gr.prm_rstctrl = 0; break; /* TODO: resets */
         case 0x1254: s->gr.prm_rsttimer = value & 0x1fff; break;
         case 0x1258: s->gr.prm_rstst &= ~(value & 0x7fb); break;
