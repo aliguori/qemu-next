@@ -412,6 +412,7 @@ static int pci_cmd646_ide_initfn(PCIDevice *dev)
         /* XXX: if not enabled, really disable the seconday IDE controller */
         pci_conf[0x51] |= 0x08; /* enable IDE1 */
     }
+    pci_conf[0x3d] = 0x01; // interrupt on pin 1
 
     pci_register_bar((PCIDevice *)d, 0, 0x8,
                      PCI_ADDRESS_SPACE_IO, ide_map);
@@ -424,17 +425,17 @@ static int pci_cmd646_ide_initfn(PCIDevice *dev)
     pci_register_bar((PCIDevice *)d, 4, 0x10,
                      PCI_ADDRESS_SPACE_IO, bmdma_map);
 
-    pci_conf[0x3d] = 0x01; // interrupt on pin 1
+    register_savevm("ide", 0, 3, pci_ide_save, pci_ide_load, d);
 
-    irq = qemu_allocate_irqs(cmd646_set_irq, d, 2);
     d->bus[0] = ide_bus_new(&d->dev.qdev);
     d->bus[1] = ide_bus_new(&d->dev.qdev);
-    ide_init2(d->bus[0], NULL, NULL, irq[0]);
-    ide_init2(d->bus[1], NULL, NULL, irq[1]);
 
-    register_savevm("ide", 0, 3, pci_ide_save, pci_ide_load, d);
     qemu_register_reset(cmd646_reset, d);
     cmd646_reset(d);
+
+    irq = qemu_allocate_irqs(cmd646_set_irq, d, 2);
+    ide_init2(d->bus[0], NULL, NULL, irq[0]);
+    ide_init2(d->bus[1], NULL, NULL, irq[1]);
     return 0;
 }
 
