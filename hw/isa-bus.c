@@ -26,6 +26,7 @@ struct ISABus {
     BusState qbus;
     qemu_irq *irqs;
     uint32_t assigned;
+    DeviceInfo *irq_owner[16];
 };
 static ISABus *isabus;
 
@@ -71,7 +72,9 @@ qemu_irq isa_reserve_irq(int isairq)
         exit(1);
     }
     if (isabus->assigned & (1 << isairq)) {
-        fprintf(stderr, "isa irq %d already assigned\n", isairq);
+        DeviceInfo *owner = isabus->irq_owner[isairq];
+        fprintf(stderr, "isa irq %d already assigned (%s)\n",
+                isairq, owner ? owner->name : "unknown");
         exit(1);
     }
     isabus->assigned |= (1 << isairq);
@@ -82,10 +85,17 @@ void isa_init_irq(ISADevice *dev, qemu_irq *p, int isairq)
 {
     assert(dev->nirqs < ARRAY_SIZE(dev->isairq));
     if (isabus->assigned & (1 << isairq)) {
-        fprintf(stderr, "isa irq %d already assigned\n", isairq);
-        exit(1);
+        DeviceInfo *owner = isabus->irq_owner[isairq];
+        if (owner == dev->qdev.info) {
+            /* irq sharing is ok in case the same driver handles both */;
+        } else {
+            fprintf(stderr, "isa irq %d already assigned (%s)\n",
+                    isairq, owner ? owner->name : "unknown");
+            exit(1);
+        }
     }
     isabus->assigned |= (1 << isairq);
+    isabus->irq_owner[isairq] = dev->qdev.info;
     dev->isairq[dev->nirqs] = isairq;
     *p = isabus->irqs[isairq];
     dev->nirqs++;
