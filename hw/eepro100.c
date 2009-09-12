@@ -769,6 +769,10 @@ static void eepro100_cu_command(EEPRO100State * s, uint8_t val)
             /* Starting with offset 8, the command contains
              * 64 dwords microcode which we just ignore here. */
             break;
+        case CmdDiagnose:
+            logout("diagnose\n");
+            status = 0; // make sure error flag is not set
+            break;
         default:
             missing("undefined command");
         }
@@ -860,6 +864,9 @@ static void eepro100_ru_command(EEPRO100State * s, uint8_t val)
             //~ assert(!"wrong RU state");
         }
         set_ru_state(s, ru_ready);
+        break;
+    case RX_ABORT:
+        set_ru_state(s, ru_idle);
         break;
     case RX_ADDR_LOAD:
         /* Load RU base. */
