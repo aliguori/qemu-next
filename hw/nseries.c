@@ -407,8 +407,8 @@ struct mipid_s {
 
 static void mipid_reset(struct mipid_s *s)
 {
-    if (!s->sleep)
-        fprintf(stderr, "%s: Display off\n", __FUNCTION__);
+    //if (!s->sleep)
+    //    fprintf(stderr, "%s: Display off\n", __FUNCTION__);
 
     s->pm = 0;
     s->cmd = 0;
@@ -562,11 +562,11 @@ static uint32_t mipid_txrx(void *opaque, uint32_t cmd, int len)
 
     case 0x28:	/* DISPOFF */
         s->onoff = 0;
-        fprintf(stderr, "%s: Display off\n", __FUNCTION__);
+        //fprintf(stderr, "%s: Display off\n", __FUNCTION__);
         break;
     case 0x29:	/* DISPON */
         s->onoff = 1;
-        fprintf(stderr, "%s: Display on\n", __FUNCTION__);
+        //fprintf(stderr, "%s: Display on\n", __FUNCTION__);
         break;
 
     case 0x2a:	/* CASET */

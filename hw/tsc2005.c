@@ -198,8 +198,8 @@ static void tsc2005_write(TSC2005State *s, int reg, uint16_t data)
         s->host_mode = data >> 15;
         if (s->enabled != !(data & 0x4000)) {
             s->enabled = !(data & 0x4000);
-            fprintf(stderr, "%s: touchscreen sense %sabled\n",
-                            __FUNCTION__, s->enabled ? "en" : "dis");
+            //fprintf(stderr, "%s: touchscreen sense %sabled\n",
+            //                __FUNCTION__, s->enabled ? "en" : "dis");
             if (s->busy && !s->enabled)
                 qemu_del_timer(s->timer);
             s->busy &= s->enabled;
