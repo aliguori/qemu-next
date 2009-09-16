@@ -1493,23 +1493,32 @@ static QEMUMachine n810_machine = {
 #define N900_SMC_CS 1
 
 #define N900_ONENAND_GPIO       N8X0_ONENAND_GPIO
-#define N900_TSC2005_IRQ_GPIO   100
-#define N900_TSC2005_RESET_GPIO 104
-#define N900_SLIDE_GPIO         71
-#define N900_PROXIMITY_GPIO     89
-#define N900_KBLOCK_GPIO        113
-#define N900_HEADPHONE_GPIO     177
-#define N900_CAMSHUTTER_GPIO    110
 #define N900_CAMLAUNCH_GPIO     69
 #define N900_CAMFOCUS_GPIO      68
+#define N900_SLIDE_GPIO         71
+#define N900_PROXIMITY_GPIO     89
+#define N900_HEADPHONE_EN_GPIO  98
+#define N900_TSC2005_IRQ_GPIO   100
+#define N900_TSC2005_RESET_GPIO 104
+#define N900_CAMSHUTTER_GPIO    110
+#define N900_KBLOCK_GPIO        113
+#define N900_HEADPHONE_GPIO     177
 
-#define DEBUG_BQ2415X
+//#define DEBUG_BQ2415X
+//#define DEBUG_TPA6130
+
+#define N900_TRACE(fmt, ...) \
+    fprintf(stderr, "%s@%d: " fmt "\n", __FUNCTION__, __LINE__, ##__VA_ARGS__)
 
 #ifdef DEBUG_BQ2415X
-#define TRACE_BQ2415X(fmt, ...) fprintf(stderr, "%s@%d: " fmt "\n", \
-                                        __FUNCTION__, __LINE__, ##__VA_ARGS__)
+#define TRACE_BQ2415X(fmt, ...) N900_TRACE(fmt, ##__VA_ARGS__)
 #else
 #define TRACE_BQ2415X(...)
+#endif
+#ifdef DEBUG_TPA6130
+#define TRACE_TPA6130(fmt, ...) N900_TRACE(fmt, ##__VA_ARGS__)
+#else
+#define TRACE_TPA6130(...)
 #endif
 
 static uint32_t ssi_read(void *opaque, target_phys_addr_t addr)
@@ -1578,17 +1587,26 @@ static int bq2415x_rx(i2c_slave *i2c)
     int value = -1;
     switch (s->reg) {
         case 0x00:
-            return s->st_ctrl;
+            value = s->st_ctrl;
+            TRACE_BQ2415X("st_ctrl = 0x%02x", value);
+            break;
         case 0x01:
-            return s->ctrl;
+            value = s->ctrl;
+            TRACE_BQ2415X("ctrl = 0x%02x", value);
+            break;
         case 0x02:
-            return s->bat_v;
+            value = s->bat_v;
+            TRACE_BQ2415X("bat_v = 0x%02x", value);
+            break;
         case 0x03:
         case 0x3b:
             value = 0x49;
+            TRACE_BQ2415X("id = 0x%02x", value);
             break;
         case 0x04:
-            return s->tcc;
+            value = s->tcc;
+            TRACE_BQ2415X("tcc = 0x%02x", value);
+            break;
         default:
             TRACE_BQ2415X("unknown register 0x%02x", s->reg);
             value = 0;
@@ -1607,15 +1625,19 @@ static int bq2415x_tx(i2c_slave *i2c, uint8_t data)
     } else {
         switch (s->reg) {
             case 0x00:
+                TRACE_BQ2415X("st_ctrl = 0x%02x", data);
                 s->st_ctrl = (s->st_ctrl & 0xbf) | (data & 0x40);
                 break;
             case 0x01:
+                TRACE_BQ2415X("ctrl = 0x%02x", data);
                 s->ctrl = data;
                 break;
             case 0x02:
+                TRACE_BQ2415X("bat_v = 0x%02x", data);
                 s->bat_v = data;
                 break;
             case 0x04:
+                TRACE_BQ2415X("tcc = 0x%02x", data);
                 s->tcc = data;
                 break;
             default:
@@ -1643,6 +1665,96 @@ static I2CSlaveInfo bq2415x_info = {
     .send = bq2415x_tx
 };
 
+typedef struct tpa6130_s {
+    i2c_slave i2c;
+    qemu_irq *handlers;
+    int firstbyte;
+    int reg;
+    uint8_t data[3];
+} TPA6130State;
+
+static void tpa6130_event(i2c_slave *i2c, enum i2c_event event)
+{
+    TPA6130State *s = FROM_I2C_SLAVE(TPA6130State, i2c);
+    if (event == I2C_START_SEND)
+        s->firstbyte = 1;
+}
+
+static int tpa6130_rx(i2c_slave *i2c)
+{
+    TPA6130State *s = FROM_I2C_SLAVE(TPA6130State, i2c);
+    int value = 0;
+    switch (s->reg) {
+        case 1 ... 3:
+            value = s->data[s->reg - 1];
+            TRACE_TPA6130("reg %d = 0x%02x", s->reg, value);
+            break;
+        case 4: /* VERSION */
+            value = 0x01;
+            TRACE_TPA6130("version = 0x%02x", value);
+            break;
+        default:
+            TRACE_TPA6130("unknown register 0x%02x", s->reg);
+            break;
+    }
+    s->reg++;
+    return value;
+}
+
+static int tpa6130_tx(i2c_slave *i2c, uint8_t data)
+{
+    TPA6130State *s = FROM_I2C_SLAVE(TPA6130State, i2c);
+    if (s->firstbyte) {
+        s->reg = data;
+        s->firstbyte = 0;
+    } else {
+        switch (s->reg) {
+            case 1 ... 3:
+                TRACE_TPA6130("reg %d = 0x%02x", s->reg, data);
+                s->data[s->reg - 1] = data;
+                break;
+            default:
+                TRACE_TPA6130("unknown register 0x%02x", s->reg);
+                break;
+        }
+        s->reg++;
+    }
+    return 1;
+}
+
+static void tpa6130_irq(void *opaque, int n, int level)
+{
+    if (n) {
+        hw_error("%s: unknown interrupt source %d\n", __FUNCTION__, n);
+    } else {
+        /* headphone enable */
+        TRACE_TPA6130("enable = %d", level);
+    }
+}
+
+static qemu_irq tpa6130_get_irq(void *opaque, int n)
+{
+    if (n) {
+        hw_error("%s: unknown interrupt handler %d", __FUNCTION__, n);
+    }
+    return ((TPA6130State *)opaque)->handlers[n];
+}
+
+static void tpa6130_init(i2c_slave *i2c)
+{
+    TPA6130State *s = FROM_I2C_SLAVE(TPA6130State, i2c);
+    s->handlers = qemu_allocate_irqs(tpa6130_irq, s, 1);
+}
+
+static I2CSlaveInfo tpa6130_info = {
+    .qdev.name = "tpa6130",
+    .qdev.size = sizeof(TPA6130State), 
+    .init = tpa6130_init,
+    .event = tpa6130_event,
+    .recv = tpa6130_rx,
+    .send = tpa6130_tx
+};
+
 struct n900_s {
     struct omap_mpu_state_s *cpu;
     void *twl4030;
@@ -1651,6 +1763,7 @@ struct n900_s {
     struct mipid_s *mipid;
     void *tsc2005;
     void *bq2415x;
+    void *tpa6130;
     void *smc;
 #ifdef CONFIG_GLHW
     void *gl;
@@ -1759,6 +1872,10 @@ static void n900_init(ram_addr_t ram_size,
     
     s->bq2415x = i2c_create_slave(omap_i2c_bus(s->cpu->i2c[1]),
                                   "bq2415x", 0x6b);
+    s->tpa6130 = i2c_create_slave(omap_i2c_bus(s->cpu->i2c[1]),
+                                  "tpa6130", 0x60);
+    omap2_gpio_out_set(s->cpu->gpif, N900_HEADPHONE_EN_GPIO,
+                       tpa6130_get_irq(s->tpa6130, 0));
     
     s->smc = smc91c111_init_lite(&nd_table[0], /*0x08000000,*/
                                  omap2_gpio_in_get(s->cpu->gpif, 54)[0]);
@@ -2885,6 +3002,7 @@ static QEMUMachine n00_machine = {
 static void nseries_register_devices(void)
 {
     i2c_register_slave(&bq2415x_info);
+    i2c_register_slave(&tpa6130_info);
     i2c_register_slave(&tm12xx_info);
 }
 
