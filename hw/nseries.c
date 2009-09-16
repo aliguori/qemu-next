@@ -1503,6 +1503,15 @@ static QEMUMachine n810_machine = {
 #define N900_CAMLAUNCH_GPIO     69
 #define N900_CAMFOCUS_GPIO      68
 
+#define DEBUG_BQ2415X
+
+#ifdef DEBUG_BQ2415X
+#define TRACE_BQ2415X(fmt, ...) fprintf(stderr, "%s@%d: " fmt "\n", \
+                                        __FUNCTION__, __LINE__, ##__VA_ARGS__)
+#else
+#define TRACE_BQ2415X(...)
+#endif
+
 static uint32_t ssi_read(void *opaque, target_phys_addr_t addr)
 {
     switch (addr) {
@@ -1534,6 +1543,106 @@ static CPUWriteMemoryFunc *ssi_write_func[] = {
     ssi_write,
 };
 
+typedef struct BQ2415XState_s {
+    i2c_slave i2c;
+    int firstbyte;
+    uint8 reg;
+    
+    uint8 st_ctrl;
+    uint8 ctrl;
+    uint8 bat_v;
+    uint8 tcc;
+} BQ2415XState;
+
+static void bq2415x_reset(BQ2415XState *s)
+{
+    s->firstbyte = 0;
+    s->reg = 0;
+
+    s->st_ctrl = 0x40;
+    s->ctrl = 0x30;
+    s->bat_v = 0x0a;
+    s->tcc = 0x89;
+}
+
+static void bq2415x_event(i2c_slave *i2c, enum i2c_event event)
+{
+    BQ2415XState *s = FROM_I2C_SLAVE(BQ2415XState, i2c);
+    if (event == I2C_START_SEND)
+        s->firstbyte = 1;
+}
+
+static int bq2415x_rx(i2c_slave *i2c)
+{
+    BQ2415XState *s = FROM_I2C_SLAVE(BQ2415XState, i2c);
+    int value = -1;
+    switch (s->reg) {
+        case 0x00:
+            return s->st_ctrl;
+        case 0x01:
+            return s->ctrl;
+        case 0x02:
+            return s->bat_v;
+        case 0x03:
+        case 0x3b:
+            value = 0x49;
+            break;
+        case 0x04:
+            return s->tcc;
+        default:
+            TRACE_BQ2415X("unknown register 0x%02x", s->reg);
+            value = 0;
+            break;
+    }
+    s->reg++;
+    return value;
+}
+
+static int bq2415x_tx(i2c_slave *i2c, uint8_t data)
+{
+    BQ2415XState *s = FROM_I2C_SLAVE(BQ2415XState, i2c);
+    if (s->firstbyte) {
+        s->reg = data;
+        s->firstbyte = 0;
+    } else {
+        switch (s->reg) {
+            case 0x00:
+                s->st_ctrl = (s->st_ctrl & 0xbf) | (data & 0x40);
+                break;
+            case 0x01:
+                s->ctrl = data;
+                break;
+            case 0x02:
+                s->bat_v = data;
+                break;
+            case 0x04:
+                s->tcc = data;
+                break;
+            default:
+                TRACE_BQ2415X("unknown register 0x%02x (value 0x%02x)",
+                              s->reg, data);
+                break;
+        }
+        s->reg++;
+    }
+    return 1;
+}
+
+static void bq2415x_init(i2c_slave *i2c)
+{
+    BQ2415XState *s = FROM_I2C_SLAVE(BQ2415XState, i2c);
+    bq2415x_reset(s);
+}
+
+static I2CSlaveInfo bq2415x_info = {
+    .qdev.name = "bq2415x",
+    .qdev.size = sizeof(BQ2415XState), 
+    .init = bq2415x_init,
+    .event = bq2415x_event,
+    .recv = bq2415x_rx,
+    .send = bq2415x_tx
+};
+
 struct n900_s {
     struct omap_mpu_state_s *cpu;
     void *twl4030;
@@ -1541,6 +1650,7 @@ struct n900_s {
     void *lcd;
     struct mipid_s *mipid;
     void *tsc2005;
+    void *bq2415x;
     void *smc;
 #ifdef CONFIG_GLHW
     void *gl;
@@ -1646,6 +1756,10 @@ static void n900_init(ram_addr_t ram_size,
                                  cpu_register_io_memory(ssi_read_func,
                                                         ssi_write_func,
                                                         0));
+    
+    s->bq2415x = i2c_create_slave(omap_i2c_bus(s->cpu->i2c[1]),
+                                  "bq2415x", 0x6b);
+    
     s->smc = smc91c111_init_lite(&nd_table[0], /*0x08000000,*/
                                  omap2_gpio_in_get(s->cpu->gpif, 54)[0]);
     
@@ -2768,8 +2882,9 @@ static QEMUMachine n00_machine = {
     .init = n00_init,
 };
 
-static void n00_register_devices(void)
+static void nseries_register_devices(void)
 {
+    i2c_register_slave(&bq2415x_info);
     i2c_register_slave(&tm12xx_info);
 }
 
@@ -2781,5 +2896,5 @@ static void nseries_machine_init(void)
     qemu_register_machine(&n00_machine);
 }
 
-device_init(n00_register_devices);
+device_init(nseries_register_devices);
 machine_init(nseries_machine_init);
