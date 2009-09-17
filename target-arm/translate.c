@@ -3677,7 +3677,7 @@ static int disas_neon_ls_insn(CPUState * env, DisasContext *s, uint32_t insn)
                     neon_load_reg64(tmp64, rd);
                     gen_st64(tmp64, addr, IS_USER(s));
                 }
-                dead_tmp(tmp64);
+                tcg_temp_free_i64(tmp64);
                 tcg_gen_addi_i32(addr, addr, stride);
             } else {
                 for (pass = 0; pass < 2; pass++) {
