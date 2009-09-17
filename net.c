@@ -2434,6 +2434,7 @@ int net_client_init(Monitor *mon, const char *device, const char *p)
             goto out;
         }
         nd = &nd_table[idx];
+        memset(nd, 0, sizeof(*nd));
         macaddr = nd->macaddr;
         macaddr[0] = 0x52;
         macaddr[1] = 0x54;
@@ -2803,8 +2804,13 @@ void net_client_uninit(NICInfo *nd)
 {
     nd->vlan->nb_guest_devs--;
     nb_nics--;
-    nd->used = 0;
+
     qemu_free(nd->model);
+    qemu_free(nd->name);
+    qemu_free(nd->devaddr);
+    qemu_free(nd->id);
+
+    nd->used = 0;
 }
 
 static int net_host_check_device(const char *device)
