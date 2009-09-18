@@ -528,12 +528,15 @@ static const char* ignore_func[] = {
     NULL,
 };
 
-void get_func_dealt_by_hand()
+void get_func_dealt_by_hand( char * path )
 {
-    FILE* f = fopen("../hw/gl/gl_func_perso.h", "r");
-    char buffer[256];
+    FILE* f;
+    char buffer[256], *filename;
     int i = 0;
     char* c;
+    filename=malloc(strlen(path)+50);
+    sprintf(filename, "%s/hw/gl/gl_func_perso.h",path );
+    f = fopen(filename, "r");
     while(fgets(buffer, 256, f)) {
         if (strstr(buffer, "MAGIC_MACRO(")) {
             func_dealt_by_hand[i] = strdup(strstr(buffer, "MAGIC_MACRO(") + strlen("MAGIC_MACRO("));
@@ -544,6 +547,7 @@ void get_func_dealt_by_hand()
         }
     }
     fclose(f);
+    free(filename);
     
     int j = 0;
     while(ignore_func[j]) {
@@ -707,7 +711,7 @@ static int just_for_server_side_func(char* funcname)
     return 0;
 }
 
-int parse(FILE* f, FuncDesc* funcDesc, int funcDescCount, int ignoreEXT)
+int parse(FILE* f, FuncDesc* funcDesc, int funcDescCount, int ignoreEXT, char *path)
 {
     char buffer[256];
     while(fgets(buffer, 256, f)) {
@@ -715,7 +719,7 @@ int parse(FILE* f, FuncDesc* funcDesc, int funcDescCount, int ignoreEXT)
             int i = 0;
             int skip = 0;
             if (func_dealt_by_hand[0] == 0) {
-                get_func_dealt_by_hand();
+                get_func_dealt_by_hand(path);
             }
             while (func_dealt_by_hand[i]) {
                 if (strstr(buffer, func_dealt_by_hand[i])) {
@@ -1002,21 +1006,31 @@ int main(int argc, char* argv[])
 {
     FuncDesc funcDesc[3000];
     int funcDescCount = 0;
+    char *path,*filename;
     FILE* f;
+    if (argc != 2) {
+        printf("usage: ./parse_gl_h sourcepath\n");
+        return 1;
+    }
+    path=argv[1];
+    filename=malloc(strlen(path)+50);
+    sprintf(filename, "%s/hw/gl/mesa_gl.h",path );
     
-    f = fopen("../hw/gl/mesa_gl.h", "r");
+    f = fopen(filename, "r");
     assert(f);
     /*if (!f)
      f = fopen("/usr/include/GL/gl.h", "r");*/
-    funcDescCount = parse(f, funcDesc, 0, 1);
+    funcDescCount = parse(f, funcDesc, 0, 1, path);
     fclose(f);
     
-    f = fopen("../hw/gl/mesa_glext.h", "r");
+    sprintf(filename, "%s/hw/gl/mesa_glext.h",path );
+    f = fopen(filename, "r");
     assert(f);
     /*if (!f)
      f = fopen("/usr/include/GL/glext.h", "r");*/
-    funcDescCount = parse(f, funcDesc, funcDescCount, 0);
+    funcDescCount = parse(f, funcDesc, funcDescCount, 0, path);
     fclose(f);
+    free(filename);
     
     FILE* header = fopen("gl_func.h", "w");
     FILE* client_stub = fopen("client_stub.c", "w");
