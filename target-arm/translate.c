@@ -6779,7 +6779,9 @@ static void disas_arm_insn(CPUState * env, DisasContext *s)
                 }
                 rn = (insn >> 16) & 0xf;
                 addr = load_reg(s, rn);
-
+                tmp2 = new_tmp();
+                tcg_gen_movi_i32(tmp2, 4);
+                
                 /* compute total size */
                 loaded_base = 0;
                 TCGV_UNUSED(loaded_var);
@@ -6792,7 +6794,7 @@ static void disas_arm_insn(CPUState * env, DisasContext *s)
                 if (insn & (1 << 23)) {
                     if (insn & (1 << 24)) {
                         /* pre increment */
-                        tcg_gen_addi_i32(addr, addr, 4);
+                        tcg_gen_add_i32(addr, addr, tmp2);
                     } else {
                         /* post increment */
                     }
@@ -6841,7 +6843,7 @@ static void disas_arm_insn(CPUState * env, DisasContext *s)
                         j++;
                         /* no need to add after the last transfer */
                         if (j != n)
-                            tcg_gen_addi_i32(addr, addr, 4);
+                            tcg_gen_add_i32(addr, addr, tmp2);
                     }
                 }
                 if (insn & (1 << 21)) {
@@ -6851,7 +6853,7 @@ static void disas_arm_insn(CPUState * env, DisasContext *s)
                             /* pre increment */
                         } else {
                             /* post increment */
-                            tcg_gen_addi_i32(addr, addr, 4);
+                            tcg_gen_add_i32(addr, addr, tmp2);
                         }
                     } else {
                         if (insn & (1 << 24)) {
@@ -6867,6 +6869,7 @@ static void disas_arm_insn(CPUState * env, DisasContext *s)
                 } else {
                     dead_tmp(addr);
                 }
+                dead_tmp(tmp2);
                 if (loaded_base) {
                     store_reg(s, rn, loaded_var);
                 }
@@ -7288,6 +7291,8 @@ static int disas_thumb2_insn(CPUState *env, DisasContext *s, uint16_t insn_hw1)
                     tcg_gen_addi_i32(addr, addr, -offset);
                 }
 
+                tmp2 = new_tmp();
+                tcg_gen_movi_i32(tmp2, 4);
                 for (i = 0; i < 16; i++) {
                     if ((insn & (1 << i)) == 0)
                         continue;
@@ -7304,8 +7309,9 @@ static int disas_thumb2_insn(CPUState *env, DisasContext *s, uint16_t insn_hw1)
                         tmp = load_reg(s, i);
                         gen_st32(tmp, addr, IS_USER(s));
                     }
-                    tcg_gen_addi_i32(addr, addr, 4);
+                    tcg_gen_add_i32(addr, addr, tmp2);
                 }
+                dead_tmp(tmp2);
                 if (insn & (1 << 21)) {
                     /* Base register writeback.  */
                     if (insn & (1 << 24)) {
@@ -8502,6 +8508,8 @@ static void disas_thumb_insn(CPUState *env, DisasContext *s)
             if ((insn & (1 << 11)) == 0) {
                 tcg_gen_addi_i32(addr, addr, -offset);
             }
+            tmp2 = new_tmp();
+            tcg_gen_movi_i32(tmp2, 4);
             for (i = 0; i < 8; i++) {
                 if (insn & (1 << i)) {
                     if (insn & (1 << 11)) {
@@ -8514,7 +8522,7 @@ static void disas_thumb_insn(CPUState *env, DisasContext *s)
                         gen_st32(tmp, addr, IS_USER(s));
                     }
                     /* advance to the next address.  */
-                    tcg_gen_addi_i32(addr, addr, 4);
+                    tcg_gen_add_i32(addr, addr, tmp2);
                 }
             }
             TCGV_UNUSED(tmp);
@@ -8529,8 +8537,9 @@ static void disas_thumb_insn(CPUState *env, DisasContext *s)
                     tmp = load_reg(s, 14);
                     gen_st32(tmp, addr, IS_USER(s));
                 }
-                tcg_gen_addi_i32(addr, addr, 4);
+                tcg_gen_add_i32(addr, addr, tmp2);
             }
+            dead_tmp(tmp2);
             if ((insn & (1 << 11)) == 0) {
                 tcg_gen_addi_i32(addr, addr, -offset);
             }
