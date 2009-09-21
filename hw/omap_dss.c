@@ -1152,6 +1152,10 @@ static void omap_disc_write(void *opaque, target_phys_addr_t addr,
                 qemu_mod_timer(s->dispc.lcdframer,
                                qemu_get_clock(vm_clock) + ticks_per_sec / 10);
             }
+        } else {
+            /* !LCDENABLE, ack last frame */
+            s->dispc.irqst |= 1; /* FRAMEDONE */
+            omap_dss_interrupt_update(s);
         }
         break;
     case 0x044:	/* DISPC_CONFIG */
