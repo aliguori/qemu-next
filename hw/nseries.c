@@ -2209,12 +2209,12 @@ static void taal_block_fake(void *opaque, const struct omap_dss_dispc_s *dispc)
 {
     struct taal_s *s = (struct taal_s *)opaque;
     
-    s->fake.posx = dispc->l[0].posx;
-    s->fake.posy = dispc->l[0].posy;
-    s->fake.width = dispc->l[0].nx;
-    s->fake.height = dispc->l[0].ny;
-    s->fake.attrib = dispc->l[0].attr;
-    s->fake.addr = dispc->l[0].addr[0];
+    s->fake.posx = dispc->plane[0].posx;
+    s->fake.posy = dispc->plane[0].posy;
+    s->fake.width = dispc->plane[0].nx;
+    s->fake.height = dispc->plane[0].ny;
+    s->fake.attrib = dispc->plane[0].attr;
+    s->fake.addr = dispc->plane[0].addr[0];
 }
 
 static void taal_invalidate_display(void *opaque)

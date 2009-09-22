@@ -2,7 +2,8 @@
  * OMAP2/3 Display Subsystem.
  *
  * Copyright (C) 2008,2009 Nokia Corporation
- * OMAP2 support written by Andrzej Zaborowski <andrew@openedhand.com>
+ * Original OMAP2 support written by Andrzej Zaborowski <andrew@openedhand.com>
+ * Enhancements and OMAP3 support written by Juha Riihimäki
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License as
@@ -85,12 +86,11 @@ struct omap_dss_s {
     qemu_irq irq;
     qemu_irq drq;
     
-    int autoidle;
-    int control;
+    uint32_t autoidle;
+    uint32_t control;
     uint32_t sdi_control;
     uint32_t pll_control;
     uint32_t sdi_status;
-    int enable;
     
     struct omap_dss_dispc_s dispc;
     const struct omap_dss_panel_s *dig, *lcd;
@@ -258,7 +258,7 @@ static void omap_rfbi_transfer_start(struct omap_dss_s *s)
     
     len = s->rfbi.pixels * 2;
     
-    data_addr = s->dispc.l[0].addr[0];
+    data_addr = s->dispc.plane[0].addr[0];
     data = cpu_physical_memory_map(data_addr, &len, 0);
     if (data && len != s->rfbi.pixels * 2) {
         cpu_physical_memory_unmap(data, len, 0, 0);
@@ -274,7 +274,7 @@ static void omap_rfbi_transfer_start(struct omap_dss_s *s)
     }
     
     /* TODO: negative values */
-    pitch = s->dispc.l[0].nx + (s->dispc.l[0].rowinc - 1) / 2;
+    pitch = s->dispc.plane[0].nx + (s->dispc.plane[0].rowinc - 1) / 2;
     
     if ((s->rfbi.control & (1 << 2)) && s->rfbi.chip[0])
         s->rfbi.chip[0]->block(s->rfbi.chip[0]->opaque, 1, data, len, pitch);
@@ -323,274 +323,6 @@ static void omap_dsi_transfer_start(struct omap_dss_s *s, int ch)
             }
         }
     }
-}
-
-static void omap_dss_save_state(QEMUFile *f, void *opaque)
-{
-    struct omap_dss_s *s = (struct omap_dss_s *)opaque;
-    int i, j;
-    
-    qemu_put_sbe32(f, s->autoidle);
-    qemu_put_sbe32(f, s->control);
-    qemu_put_be32(f, s->sdi_control);
-    qemu_put_be32(f, s->pll_control);
-    qemu_put_be32(f, s->sdi_status);
-    qemu_put_sbe32(f, s->enable);
-    qemu_put_be32(f, s->dispc.size_dig);
-    qemu_put_be32(f, s->dispc.size_lcd);
-    if (s->dispc.lcdframer) {
-        qemu_put_byte(f, 1);
-        qemu_put_timer(f, s->dispc.lcdframer);
-    } else {
-        qemu_put_byte(f, 0);
-    }
-    qemu_put_be32(f, s->dispc.idlemode);
-    qemu_put_be32(f, s->dispc.irqst);
-    qemu_put_be32(f, s->dispc.irqen);
-    qemu_put_be32(f, s->dispc.control);
-    qemu_put_be32(f, s->dispc.config);
-    qemu_put_be32(f, s->dispc.capable);
-    qemu_put_be32(f, s->dispc.timing[0]);
-    qemu_put_be32(f, s->dispc.timing[1]);
-    qemu_put_be32(f, s->dispc.timing[2]);
-    qemu_put_be32(f, s->dispc.timing[3]);
-    qemu_put_sbe32(f, s->dispc.line);
-    qemu_put_be32(f, s->dispc.bg[0]);
-    qemu_put_be32(f, s->dispc.bg[1]);
-    qemu_put_be32(f, s->dispc.trans[0]);
-    qemu_put_be32(f, s->dispc.trans[1]);
-    qemu_put_be32(f, s->dispc.global_alpha);
-    qemu_put_be32(f, s->dispc.cpr_coef_r);
-    qemu_put_be32(f, s->dispc.cpr_coef_g);
-    qemu_put_be32(f, s->dispc.cpr_coef_b);
-    for (i = 0; i < 3; i++) {
-        qemu_put_sbe32(f, s->dispc.l[i].enable);
-        qemu_put_sbe32(f, s->dispc.l[i].bpp);
-        qemu_put_sbe32(f, s->dispc.l[i].posx);
-        qemu_put_sbe32(f, s->dispc.l[i].posy);
-        qemu_put_sbe32(f, s->dispc.l[i].nx);
-        qemu_put_sbe32(f, s->dispc.l[i].ny);
-        qemu_put_sbe32(f, s->dispc.l[i].rotation_flag);
-        qemu_put_sbe32(f, s->dispc.l[i].gfx_format);
-        qemu_put_sbe32(f, s->dispc.l[i].gfx_channel);
-        for (j = 0; j < 3; j++) {
-#if TARGET_PHYS_ADDR_BITS == 32
-            qemu_put_be32(f, s->dispc.l[i].addr[j]);
-#elif TARGET_PHYS_ADDR_BITS == 64
-            qemu_put_be64(f, s->dispc.l[i].addr[j]);
-#else
-#error TARGET_PHYS_ADDR_BITS undefined
-#endif
-        }
-        qemu_put_be32(f, s->dispc.l[i].attr);
-        qemu_put_be32(f, s->dispc.l[i].tresh);
-        qemu_put_sbe32(f, s->dispc.l[i].rowinc);
-        qemu_put_sbe32(f, s->dispc.l[i].colinc);
-        qemu_put_sbe32(f, s->dispc.l[i].wininc);
-        qemu_put_be32(f, s->dispc.l[i].preload);
-        qemu_put_be32(f, s->dispc.l[i].fir);
-        for (j = 0; j < 8; j++) {
-            qemu_put_be32(f, s->dispc.l[i].fir_coef_h[j]);
-            qemu_put_be32(f, s->dispc.l[i].fir_coef_hv[j]);
-            qemu_put_be32(f, s->dispc.l[i].fir_coef_v[j]);
-            if (j < 5)
-                qemu_put_be32(f, s->dispc.l[i].conv_coef[j]);
-        }
-        qemu_put_be32(f, s->dispc.l[i].picture_size);
-        qemu_put_be32(f, s->dispc.l[i].accu[0]);
-        qemu_put_be32(f, s->dispc.l[i].accu[1]);
-    }
-    for (i = 0; i < 256; i++)
-        qemu_put_be16(f, s->dispc.palette[i]);
-    qemu_put_sbe32(f, s->rfbi.idlemode);
-    qemu_put_be32(f, s->rfbi.control);
-    qemu_put_sbe32(f, s->rfbi.enable);
-    qemu_put_sbe32(f, s->rfbi.pixels);
-    qemu_put_sbe32(f, s->rfbi.busy);
-    qemu_put_sbe32(f, s->rfbi.skiplines);
-    qemu_put_be16(f, s->rfbi.rxbuf);
-    for (i = 0; i < 6; i++) {
-        if (i < 2)
-            qemu_put_be32(f, s->rfbi.config[i]);
-        if (i < 4)
-            qemu_put_be32(f, s->rfbi.time[i]);
-        qemu_put_be32(f, s->rfbi.data[i]);
-    }
-    qemu_put_be16(f, s->rfbi.vsync);
-    qemu_put_be16(f, s->rfbi.hsync);
-    qemu_put_be32(f, s->dsi.sysconfig);
-    qemu_put_be32(f, s->dsi.irqst);
-    qemu_put_be32(f, s->dsi.irqen);
-    qemu_put_be32(f, s->dsi.ctrl);
-    qemu_put_be32(f, s->dsi.complexio_cfg1);
-    qemu_put_be32(f, s->dsi.complexio_irqst);
-    qemu_put_be32(f, s->dsi.complexio_irqen);
-    qemu_put_be32(f, s->dsi.clk_ctrl);
-    qemu_put_be32(f, s->dsi.timing1);
-    qemu_put_be32(f, s->dsi.timing2);
-    qemu_put_be32(f, s->dsi.vm_timing1);
-    qemu_put_be32(f, s->dsi.vm_timing2);
-    qemu_put_be32(f, s->dsi.vm_timing3);
-    qemu_put_be32(f, s->dsi.clk_timing);
-    qemu_put_be32(f, s->dsi.tx_fifo_vc_size);
-    qemu_put_be32(f, s->dsi.rx_fifo_vc_size);
-    for (i = 0; i < 4; i++) {
-        qemu_put_be32(f, s->dsi.vc[i].ctrl);
-        qemu_put_be32(f, s->dsi.vc[i].te);
-        qemu_put_be32(f, s->dsi.vc[i].lp_header);
-        qemu_put_be32(f, s->dsi.vc[i].lp_payload);
-        qemu_put_sbe32(f, s->dsi.vc[i].lp_counter);
-        qemu_put_be32(f, s->dsi.vc[i].sp_header);
-        qemu_put_be32(f, s->dsi.vc[i].irqst);
-        qemu_put_be32(f, s->dsi.vc[i].irqen);
-        qemu_put_buffer(f, (const uint8_t *)s->dsi.vc[i].rx_fifo,
-                        sizeof(s->dsi.vc[i].rx_fifo));
-        qemu_put_sbe32(f, s->dsi.vc[i].rx_fifo_pos);
-        qemu_put_sbe32(f, s->dsi.vc[i].rx_fifo_len);
-    }
-    qemu_put_be32(f, s->dsi.phy_cfg0);
-    qemu_put_be32(f, s->dsi.phy_cfg1);
-    qemu_put_be32(f, s->dsi.phy_cfg2);
-    qemu_put_be32(f, s->dsi.pll_control);
-    qemu_put_be32(f, s->dsi.pll_go);
-    qemu_put_be32(f, s->dsi.pll_config1);
-    qemu_put_be32(f, s->dsi.pll_config2);
-}
-
-static int omap_dss_load_state(QEMUFile *f, void *opaque, int version_id)
-{
-    struct omap_dss_s *s = (struct omap_dss_s *)opaque;
-    int i, j;
-    
-    if (version_id)
-        return -EINVAL;
-    
-    s->autoidle = qemu_get_sbe32(f);
-    s->control = qemu_get_sbe32(f);
-    s->sdi_control = qemu_get_be32(f);
-    s->pll_control = qemu_get_be32(f);
-    s->sdi_status = qemu_get_be32(f);
-    s->enable = qemu_get_sbe32(f);
-    s->dispc.size_dig = qemu_get_be32(f);
-    s->dispc.size_lcd = qemu_get_be32(f);
-    if (qemu_get_byte(f)) {
-        qemu_get_timer(f, s->dispc.lcdframer);
-    }
-    s->dispc.idlemode = qemu_get_be32(f);
-    s->dispc.irqst = qemu_get_be32(f);
-    s->dispc.irqen = qemu_get_be32(f);
-    s->dispc.control = qemu_get_be32(f);
-    s->dispc.config = qemu_get_be32(f);
-    s->dispc.capable = qemu_get_be32(f);
-    s->dispc.timing[0] = qemu_get_be32(f);
-    s->dispc.timing[1] = qemu_get_be32(f);
-    s->dispc.timing[2] = qemu_get_be32(f);
-    s->dispc.timing[3] = qemu_get_be32(f);
-    s->dispc.line = qemu_get_sbe32(f);
-    s->dispc.bg[0] = qemu_get_be32(f);
-    s->dispc.bg[1] = qemu_get_be32(f);
-    s->dispc.trans[0] = qemu_get_be32(f);
-    s->dispc.trans[1] = qemu_get_be32(f);
-    s->dispc.global_alpha = qemu_get_be32(f);
-    s->dispc.cpr_coef_r = qemu_get_be32(f);
-    s->dispc.cpr_coef_g = qemu_get_be32(f);
-    s->dispc.cpr_coef_b = qemu_get_be32(f);
-    for (i = 0; i < 3; i++) {
-        s->dispc.l[i].enable = qemu_get_sbe32(f);
-        s->dispc.l[i].bpp = qemu_get_sbe32(f);
-        s->dispc.l[i].posx = qemu_get_sbe32(f);
-        s->dispc.l[i].posy = qemu_get_sbe32(f);
-        s->dispc.l[i].nx = qemu_get_sbe32(f);
-        s->dispc.l[i].ny = qemu_get_sbe32(f);
-        s->dispc.l[i].rotation_flag = qemu_get_sbe32(f);
-        s->dispc.l[i].gfx_format = qemu_get_sbe32(f);
-        s->dispc.l[i].gfx_channel = qemu_get_sbe32(f);
-        for (j = 0; j < 3; j++) {
-#if TARGET_PHYS_ADDR_BITS == 32
-            s->dispc.l[i].addr[j] = qemu_get_be32(f);
-#elif TARGET_PHYS_ADDR_BITS == 64
-            s->dispc.l[i].addr[j] = qemu_get_be64(f);
-#else
-#error TARGET_PHYS_ADDR_BITS undefined
-#endif
-        }
-        s->dispc.l[i].attr = qemu_get_be32(f);
-        s->dispc.l[i].tresh = qemu_get_be32(f);
-        s->dispc.l[i].rowinc = qemu_get_sbe32(f);
-        s->dispc.l[i].colinc = qemu_get_sbe32(f);
-        s->dispc.l[i].wininc = qemu_get_sbe32(f);
-        s->dispc.l[i].preload = qemu_get_be32(f);
-        s->dispc.l[i].fir = qemu_get_be32(f);
-        for (j = 0; j < 8; j++) {
-            s->dispc.l[i].fir_coef_h[j] = qemu_get_be32(f);
-            s->dispc.l[i].fir_coef_hv[j] = qemu_get_be32(f);
-            s->dispc.l[i].fir_coef_v[j] = qemu_get_be32(f);
-            if (j < 5)
-                s->dispc.l[i].conv_coef[j] = qemu_get_be32(f);
-        }
-        s->dispc.l[i].picture_size = qemu_get_be32(f);
-        s->dispc.l[i].accu[0] = qemu_get_be32(f);
-        s->dispc.l[i].accu[1] = qemu_get_be32(f);
-    }
-    for (i = 0; i < 256; i++)
-        s->dispc.palette[i] = qemu_get_be16(f);
-    s->rfbi.idlemode = qemu_get_sbe32(f);
-    s->rfbi.control = qemu_get_be32(f);
-    s->rfbi.enable = qemu_get_sbe32(f);
-    s->rfbi.pixels = qemu_get_sbe32(f);
-    s->rfbi.busy = qemu_get_sbe32(f);
-    s->rfbi.skiplines = qemu_get_sbe32(f);
-    s->rfbi.rxbuf = qemu_get_be16(f);
-    for (i = 0; i < 6; i++) {
-        if (i < 2)
-            s->rfbi.config[i] = qemu_get_be32(f);
-        if (i < 4)
-            s->rfbi.time[i] = qemu_get_be32(f);
-        s->rfbi.data[i] = qemu_get_be32(f);
-    }
-    s->rfbi.vsync = qemu_get_be16(f);
-    s->rfbi.hsync = qemu_get_be16(f);
-    s->dsi.sysconfig = qemu_get_be32(f);
-    s->dsi.irqst = qemu_get_be32(f);
-    s->dsi.irqen = qemu_get_be32(f);
-    s->dsi.ctrl = qemu_get_be32(f);
-    s->dsi.complexio_cfg1 = qemu_get_be32(f);
-    s->dsi.complexio_irqst = qemu_get_be32(f);
-    s->dsi.complexio_irqen = qemu_get_be32(f);
-    s->dsi.clk_ctrl = qemu_get_be32(f);
-    s->dsi.timing1 = qemu_get_be32(f);
-    s->dsi.timing2 = qemu_get_be32(f);
-    s->dsi.vm_timing1 = qemu_get_be32(f);
-    s->dsi.vm_timing2 = qemu_get_be32(f);
-    s->dsi.vm_timing3 = qemu_get_be32(f);
-    s->dsi.clk_timing = qemu_get_be32(f);
-    s->dsi.tx_fifo_vc_size = qemu_get_be32(f);
-    s->dsi.rx_fifo_vc_size = qemu_get_be32(f);
-    for (i = 0; i < 4; i++) {
-        s->dsi.vc[i].ctrl = qemu_get_be32(f);
-        s->dsi.vc[i].te = qemu_get_be32(f);
-        s->dsi.vc[i].lp_header = qemu_get_be32(f);
-        s->dsi.vc[i].lp_payload = qemu_get_be32(f);
-        s->dsi.vc[i].lp_counter = qemu_get_sbe32(f);
-        s->dsi.vc[i].sp_header = qemu_get_be32(f);
-        s->dsi.vc[i].irqst = qemu_get_be32(f);
-        s->dsi.vc[i].irqen = qemu_get_be32(f);
-        qemu_get_buffer(f, (uint8_t *)s->dsi.vc[i].rx_fifo,
-                        sizeof(s->dsi.vc[i].rx_fifo));
-        s->dsi.vc[i].rx_fifo_pos = qemu_get_sbe32(f);
-        s->dsi.vc[i].rx_fifo_len = qemu_get_sbe32(f);
-    }
-    s->dsi.phy_cfg0 = qemu_get_be32(f);
-    s->dsi.phy_cfg1 = qemu_get_be32(f);
-    s->dsi.phy_cfg2 = qemu_get_be32(f);
-    s->dsi.pll_control = qemu_get_be32(f);
-    s->dsi.pll_go = qemu_get_be32(f);
-    s->dsi.pll_config1 = qemu_get_be32(f);
-    s->dsi.pll_config2 = qemu_get_be32(f);
-    
-    omap_dss_interrupt_update(s);
-
-    return 0;
 }
 
 static void omap_dsi_reset(struct omap_dss_s *s)
@@ -668,7 +400,6 @@ void omap_dss_reset(struct omap_dss_s *s)
     s->sdi_control = 0;
     s->pll_control = 0;
     s->sdi_status = 0x81; /* bit 7 is not present prior to OMAP3 */
-    s->enable = 0;
 
     s->dispc.idlemode = 0;
     s->dispc.irqst = 0;
@@ -693,31 +424,31 @@ void omap_dss_reset(struct omap_dss_s *s)
     s->dispc.cpr_coef_b = 0;
 
     for (i = 0; i < 3; i++) {
-        s->dispc.l[i].enable = 0;
-        s->dispc.l[i].bpp = 0;
-        s->dispc.l[i].addr[0] = 0;
-        s->dispc.l[i].addr[1] = 0;
-        s->dispc.l[i].addr[2] = 0;
-        s->dispc.l[i].posx = 0;
-        s->dispc.l[i].posy = 0;
-        s->dispc.l[i].nx = 1;
-        s->dispc.l[i].ny = 1;
-        s->dispc.l[i].attr = 0;
-        s->dispc.l[i].tresh = (s->dispc.rev < 0x30) ? 0 : 0x03ff03c0;
-        s->dispc.l[i].rowinc = 1;
-        s->dispc.l[i].colinc = 1;
-        s->dispc.l[i].wininc = 0;
-        s->dispc.l[i].preload = 0x100;
-        s->dispc.l[i].fir = 0;
-        s->dispc.l[i].picture_size = 0;
-        s->dispc.l[i].accu[0] = 0;
-        s->dispc.l[i].accu[1] = 0;
+        s->dispc.plane[i].enable = 0;
+        s->dispc.plane[i].bpp = 0;
+        s->dispc.plane[i].addr[0] = 0;
+        s->dispc.plane[i].addr[1] = 0;
+        s->dispc.plane[i].addr[2] = 0;
+        s->dispc.plane[i].posx = 0;
+        s->dispc.plane[i].posy = 0;
+        s->dispc.plane[i].nx = 1;
+        s->dispc.plane[i].ny = 1;
+        s->dispc.plane[i].attr = 0;
+        s->dispc.plane[i].tresh = (s->dispc.rev < 0x30) ? 0 : 0x03ff03c0;
+        s->dispc.plane[i].rowinc = 1;
+        s->dispc.plane[i].colinc = 1;
+        s->dispc.plane[i].wininc = 0;
+        s->dispc.plane[i].preload = 0x100;
+        s->dispc.plane[i].fir = 0;
+        s->dispc.plane[i].picture_size = 0;
+        s->dispc.plane[i].accu[0] = 0;
+        s->dispc.plane[i].accu[1] = 0;
         for (j = 0; j < 5; j++)
-            s->dispc.l[i].conv_coef[j] = 0;
+            s->dispc.plane[i].conv_coef[j] = 0;
         for (j = 0; j < 8; j++) {
-            s->dispc.l[i].fir_coef_h[j] = 0;
-            s->dispc.l[i].fir_coef_hv[j] = 0;
-            s->dispc.l[i].fir_coef_v[j] = 0;
+            s->dispc.plane[i].fir_coef_h[j] = 0;
+            s->dispc.plane[i].fir_coef_hv[j] = 0;
+            s->dispc.plane[i].fir_coef_v[j] = 0;
         }
     }
         
@@ -935,47 +666,50 @@ static uint32_t omap_disc_read(void *opaque, target_phys_addr_t addr)
     case 0x0bc:	/* DISPC_VID1_BA0 */
         n++;
     case 0x080:	/* DISPC_GFX_BA0 */
-        TRACEDISPC("DISPC_%s_BA0: " OMAP_FMT_plx, LAYERNAME(n), s->dispc.l[n].addr[0]);
-        return s->dispc.l[n].addr[0];
+        TRACEDISPC("DISPC_%s_BA0: " OMAP_FMT_plx, LAYERNAME(n),
+                   s->dispc.plane[n].addr[0]);
+        return s->dispc.plane[n].addr[0];
     case 0x150:	/* DISPC_VID2_BA1 */
         n++;
     case 0x0c0:	/* DISPC_VID1_BA1 */
         n++;
     case 0x084:	/* DISPC_GFX_BA1 */
-        TRACEDISPC("DISPC_%s_BA1: " OMAP_FMT_plx, LAYERNAME(n), s->dispc.l[n].addr[1]);
-        return s->dispc.l[n].addr[1];
+        TRACEDISPC("DISPC_%s_BA1: " OMAP_FMT_plx, LAYERNAME(n),
+                   s->dispc.plane[n].addr[1]);
+        return s->dispc.plane[n].addr[1];
     case 0x154:	/* DISPC_VID2_POSITION */
         n++;
     case 0x0c4:	/* DISPC_VID1_POSITION */
         n++;
     case 0x088:	/* DISPC_GFX_POSITION */
         TRACEDISPC("DISPC_%s_POSITION: 0x%08x", LAYERNAME(n),
-                   (s->dispc.l[n].posy << 16) | s->dispc.l[n].posx);
-        return (s->dispc.l[n].posy << 16) | s->dispc.l[n].posx;
+                   (s->dispc.plane[n].posy << 16) | s->dispc.plane[n].posx);
+        return (s->dispc.plane[n].posy << 16) | s->dispc.plane[n].posx;
     case 0x158:	/* DISPC_VID2_SIZE */
         n++;
     case 0x0c8:	/* DISPC_VID1_SIZE */
         n++;
     case 0x08c:	/* DISPC_GFX_SIZE */
         TRACEDISPC("DISPC_%s_SIZE: 0x%08x", LAYERNAME(n),
-                   ((s->dispc.l[n].ny - 1) << 16) | (s->dispc.l[n].nx - 1));
-        return ((s->dispc.l[n].ny - 1) << 16) | (s->dispc.l[n].nx - 1);
+                   ((s->dispc.plane[n].ny - 1) << 16)
+                   | (s->dispc.plane[n].nx - 1));
+        return ((s->dispc.plane[n].ny - 1) << 16) | (s->dispc.plane[n].nx - 1);
     case 0x15c:	/* DISPC_VID2_ATTRIBUTES */
         n++;
     case 0x0cc:	/* DISPC_VID1_ATTRIBUTES */
         n++;
     case 0x0a0:	/* DISPC_GFX_ATTRIBUTES */
         TRACEDISPC("DISPC_%s_ATTRIBUTES: 0x%08x", LAYERNAME(n),
-                   s->dispc.l[n].attr);
-        return s->dispc.l[n].attr;
+                   s->dispc.plane[n].attr);
+        return s->dispc.plane[n].attr;
     case 0x160:	/* DISPC_VID2_FIFO_THRESHOLD */
         n++;
     case 0x0d0:	/* DISPC_VID1_FIFO_THRESHOLD */
         n++;
     case 0x0a4:	/* DISPC_GFX_FIFO_TRESHOLD */
         TRACEDISPC("DISPC_%s_THRESHOLD: 0x%08x", LAYERNAME(n),
-                   s->dispc.l[n].tresh);
-        return s->dispc.l[n].tresh;
+                   s->dispc.plane[n].tresh);
+        return s->dispc.plane[n].tresh;
     case 0x164:	/* DISPC_VID2_FIFO_SIZE_STATUS */
         n++;
     case 0x0d4:	/* DISPC_VID1_FIFO_SIZE_STATUS */
@@ -990,36 +724,37 @@ static uint32_t omap_disc_read(void *opaque, target_phys_addr_t addr)
         n++;
     case 0x0ac:	/* DISPC_GFX_ROW_INC */
         TRACEDISPC("DISPC_%s_ROW_INC: 0x%08x", LAYERNAME(n),
-                   s->dispc.l[n].rowinc);
-        return s->dispc.l[n].rowinc;
+                   s->dispc.plane[n].rowinc);
+        return s->dispc.plane[n].rowinc;
     case 0x16c:	/* DISPC_VID2_PIXEL_INC */
         n++;
     case 0x0dc:	/* DISPC_VID1_PIXEL_INC */
         n++;
     case 0x0b0:	/* DISPC_GFX_PIXEL_INC */
         TRACEDISPC("DISPC_%s_PIXEL_INC: 0x%08x", LAYERNAME(n),
-                   s->dispc.l[n].colinc);
-        return s->dispc.l[n].colinc;
+                   s->dispc.plane[n].colinc);
+        return s->dispc.plane[n].colinc;
     case 0x0b4:	/* DISPC_GFX_WINDOW_SKIP */
-        TRACEDISPC("DISPC_GFX_WINDOW_SKIP: 0x%08x", s->dispc.l[0].wininc);
-        return s->dispc.l[0].wininc;
+        TRACEDISPC("DISPC_GFX_WINDOW_SKIP: 0x%08x", s->dispc.plane[0].wininc);
+        return s->dispc.plane[0].wininc;
     case 0x0b8:	/* DISPC_GFX_TABLE_BA */
-        TRACEDISPC("DISPC_GFX_TABLE_BA: " OMAP_FMT_plx, s->dispc.l[0].addr[2]);
-        return s->dispc.l[0].addr[2];
+        TRACEDISPC("DISPC_GFX_TABLE_BA: " OMAP_FMT_plx,
+                   s->dispc.plane[0].addr[2]);
+        return s->dispc.plane[0].addr[2];
     case 0x170:	/* DISPC_VID2_FIR */
         n++;
     case 0x0e0:	/* DISPC_VID1_FIR */
         n++;
         TRACEDISPC("DISPC_%s_FIR: 0x%08x", LAYERNAME(n),
-                   s->dispc.l[n].fir);
-        return s->dispc.l[n].fir;
+                   s->dispc.plane[n].fir);
+        return s->dispc.plane[n].fir;
     case 0x174:	/* DISPC_VID2_PICTURE_SIZE */
         n++;
     case 0x0e4:	/* DISPC_VID1_PICTURE_SIZE */
         n++;
         TRACEDISPC("DISPC_%s_PICTURE_SIZE: 0x%08x", LAYERNAME(n),
-                   s->dispc.l[n].picture_size);
-        return s->dispc.l[n].picture_size;
+                   s->dispc.plane[n].picture_size);
+        return s->dispc.plane[n].picture_size;
     case 0x178:	/* DISPC_VID2_ACCU0 */
     case 0x17c:	/* DISPC_VID2_ACCU1 */
         n++;
@@ -1027,8 +762,9 @@ static uint32_t omap_disc_read(void *opaque, target_phys_addr_t addr)
     case 0x0ec:	/* DISPC_VID1_ACCU1 */
         n++;
         TRACEDISPC("DISPC_%s_ACCU%d: 0x%08x", LAYERNAME(n),
-                   (int)((addr >> 1) & 1), s->dispc.l[n].accu[(addr >> 1 ) & 1]);
-        return s->dispc.l[n].accu[(addr >> 1) & 1];
+                   (int)((addr >> 1) & 1),
+                   s->dispc.plane[n].accu[(addr >> 1 ) & 1]);
+        return s->dispc.plane[n].accu[(addr >> 1) & 1];
     case 0x180 ... 0x1bc:	/* DISPC_VID2_FIR_COEF */
         n++;
     case 0x0f0 ... 0x12c:	/* DISPC_VID1_FIR_COEF */
@@ -1036,21 +772,27 @@ static uint32_t omap_disc_read(void *opaque, target_phys_addr_t addr)
         if (addr & 4) {
             TRACEDISPC("DISPC_%s_FIR_COEF_HV%d: 0x%08x", LAYERNAME(n),
                        (int)((addr - ((n > 1) ? 0x180 : 0xf0)) / 8),
-                       s->dispc.l[n].fir_coef_hv[(addr - ((n > 1) ? 0x180 : 0xf0)) / 8]);
-            return s->dispc.l[n].fir_coef_hv[(addr - ((n > 1) ? 0x180 : 0xf0)) / 8];
+                       s->dispc.plane[n].fir_coef_hv[
+                           (addr - ((n > 1) ? 0x180 : 0xf0)) / 8]);
+            return s->dispc.plane[n].fir_coef_hv[
+                (addr - ((n > 1) ? 0x180 : 0xf0)) / 8];
         }
         TRACEDISPC("DISPC_%s_FIR_COEF_H%d: 0x%08x", LAYERNAME(n),
                    (int)((addr - ((n > 1) ? 0x180 : 0xf0)) / 8),
-                   s->dispc.l[n].fir_coef_h[(addr - ((n > 1) ? 0x180 : 0xf0)) / 8]);
-        return s->dispc.l[n].fir_coef_h[(addr - ((n > 1) ? 0x180 : 0xf0)) / 8];
+                   s->dispc.plane[n].fir_coef_h[
+                       (addr - ((n > 1) ? 0x180 : 0xf0)) / 8]);
+        return s->dispc.plane[n].fir_coef_h[
+            (addr - ((n > 1) ? 0x180 : 0xf0)) / 8];
     case 0x1c0 ... 0x1d0: /* DISPC_VID2_CONV_COEFi */
         n++;
     case 0x130 ... 0x140: /* DISPC_VID1_CONV_COEFi */
         n++;
         TRACEDISPC("DISPC_%s_CONV_COEF%d: 0x%08x", LAYERNAME(n),
                    (int)((addr - ((n > 1) ? 0x1c0 : 0x130)) / 4),
-                   s->dispc.l[n].conv_coef[(addr - ((n > 1) ? 0x1c0 : 0x130)) / 4]);
-        return s->dispc.l[n].conv_coef[(addr - ((n > 1) ? 0x1c0 : 0x130)) / 4];
+                   s->dispc.plane[n].conv_coef[
+                       (addr - ((n > 1) ? 0x1c0 : 0x130)) / 4]);
+        return s->dispc.plane[n].conv_coef[
+            (addr - ((n > 1) ? 0x1c0 : 0x130)) / 4];
     case 0x1d4:	/* DISPC_DATA_CYCLE1 */
     case 0x1d8:	/* DISPC_DATA_CYCLE2 */
     case 0x1dc:	/* DISPC_DATA_CYCLE3 */
@@ -1062,8 +804,8 @@ static uint32_t omap_disc_read(void *opaque, target_phys_addr_t addr)
         n++;
         TRACEDISPC("DISPC_%s_FIR_COEF_V%d: 0x%08x", LAYERNAME(n),
                    (int)((addr & 0x01f) / 4),
-                   s->dispc.l[n].fir_coef_v[(addr & 0x01f) / 4]);
-        return s->dispc.l[n].fir_coef_v[(addr & 0x01f) / 4];
+                   s->dispc.plane[n].fir_coef_v[(addr & 0x01f) / 4]);
+        return s->dispc.plane[n].fir_coef_v[(addr & 0x01f) / 4];
     case 0x220: /* DISPC_CPR_COEF_R */
         TRACEDISPC("DISPC_CPR_COEF_R: 0x%08x", s->dispc.cpr_coef_r);
         return s->dispc.cpr_coef_r;
@@ -1079,8 +821,8 @@ static uint32_t omap_disc_read(void *opaque, target_phys_addr_t addr)
         n++;
     case 0x22c: /* DISPC_GFX_PRELOAD */
         TRACEDISPC("DISPC_%s_PRELOAD: 0x%08x", LAYERNAME(n),
-                   s->dispc.l[n].preload);
-        return s->dispc.l[n].preload;
+                   s->dispc.plane[n].preload);
+        return s->dispc.plane[n].preload;
     default:
         break;
     }
@@ -1092,7 +834,7 @@ static void omap_disc_write(void *opaque, target_phys_addr_t addr,
                 uint32_t value)
 {
     struct omap_dss_s *s = (struct omap_dss_s *) opaque;
-    int n = 0;
+    uint32_t n = 0;
 
     switch (addr) {
     case 0x000: /* DISPC_REVISION */
@@ -1104,8 +846,9 @@ static void omap_disc_write(void *opaque, target_phys_addr_t addr,
         break;
     case 0x010:	/* DISPC_SYSCONFIG */
         TRACEDISPC("DISPC_SYSCONFIG = 0x%08x", value);
-        if (value & 2)						/* SOFTRESET */
+        if (value & 2) { /* SOFTRESET */
             omap_dss_reset(s);
+        }
         s->dispc.idlemode = value & ((s->dispc.rev < 0x30) ? 0x301b : 0x331f);
         break;
     case 0x018:	/* DISPC_IRQSTATUS */
@@ -1120,42 +863,49 @@ static void omap_disc_write(void *opaque, target_phys_addr_t addr,
         break;
     case 0x040:	/* DISPC_CONTROL */
         TRACEDISPC("DISPC_CONTROL = 0x%08x", value);
+        n = s->dispc.control; /* cache old value */
         /* always clear GODIGITAL and GOLCD to signal completed shadowing */
-        if (s->dispc.rev < 0x30)
+        if (s->dispc.rev < 0x30) {
             s->dispc.control = value & 0x07ff9f9f;
-        else
-            s->dispc.control = (value & 0xffff9b9f) | (s->dispc.control & 0x6000);
+        } else {
+            s->dispc.control = (value & 0xffff9b9f)
+                | (s->dispc.control & 0x6000);
+        }
         if (value & (1 << 12))			/* OVERLAY_OPTIMIZATION */
-            if (~((s->dispc.l[1].attr | s->dispc.l[2].attr) & 1)) {
+            if (~((s->dispc.plane[1].attr | s->dispc.plane[2].attr) & 1)) {
                  TRACEDISPC("Overlay Optimization when no overlay "
                             "region effectively exists leads to "
                             "unpredictable behaviour!");
             }
-        if ((value & 0x21) && s->lcd) /* GOLCD | LCDENABLE */
+        if ((value & 0x21) && s->lcd) { /* GOLCD | LCDENABLE */
             s->lcd->controlupdate(s->lcd->opaque, &s->dispc);
-        if ((value & 0x42) && s->dig) /* GODIGITAL | DIGITALENABLE */
+        }
+        if ((value & 0x42) && s->dig) { /* GODIGITAL | DIGITALENABLE */
             s->dig->controlupdate(s->dig->opaque, &s->dispc);
+        }
         if (value & 1) { /* LCDENABLE */
             if ((value & (1 << 11))) { /* STALLMODE */
                 if ((s->rfbi.control & 0x11) && /* ITE | ENABLE */
-                    !(s->rfbi.config[0] & s->rfbi.config[1] & 0xc)) /* TRIGGERMODE */
+                    !(s->rfbi.config[0] & s->rfbi.config[1] & 0xc)) { /* TRIGGERMODE */
                     omap_rfbi_transfer_start(s);
+                }
                 if (s->dsi.ctrl & 1) { /* IF_EN */
                     int ch;
                     for (ch = 0; ch < 4; ch++) {
-                        if ((s->dsi.vc[ch].ctrl & 1) &&   /* VC_EN */
-                            (s->dsi.vc[ch].te >> 30) & 3) /* TE_START | TE_EN */
+                        if ((s->dsi.vc[ch].ctrl & 1) &&     /* VC_EN */
+                            (s->dsi.vc[ch].te >> 30) & 3) { /* TE_START | TE_EN */
                             omap_dsi_transfer_start(s, ch);
+                        }
                     }
                 }
             } else if (s->dispc.lcdframer) {
                 qemu_mod_timer(s->dispc.lcdframer,
                                qemu_get_clock(vm_clock) + ticks_per_sec / 10);
             }
-        } else {
-            /* !LCDENABLE, ack last frame */
-            s->dispc.irqst |= 1; /* FRAMEDONE */
-            omap_dss_interrupt_update(s);
+        } else if (n & 1) { /* enable -> disable, signal wip frame done */
+            s->dispc.control |= 1;
+            omap_dss_lcd_framedone(s);
+            s->dispc.control &= ~1;
         }
         break;
     case 0x044:	/* DISPC_CONFIG */
@@ -1226,7 +976,7 @@ static void omap_disc_write(void *opaque, target_phys_addr_t addr,
         n++;
     case 0x080:	/* DISPC_GFX_BA0 */
         TRACEDISPC("DISPC_%s_BA0 = 0x%08x", LAYERNAME(n), value);
-        s->dispc.l[n].addr[0] = (target_phys_addr_t) value;
+        s->dispc.plane[n].addr[0] = (target_phys_addr_t) value;
         break;
     case 0x150:	/* DISPC_VID2_BA1 */
         n++;
@@ -1234,40 +984,40 @@ static void omap_disc_write(void *opaque, target_phys_addr_t addr,
         n++;
     case 0x084:	/* DISPC_GFX_BA1 */
         TRACEDISPC("DISPC_%s_BA1 = 0x%08x", LAYERNAME(n), value);
-        s->dispc.l[n].addr[1] = (target_phys_addr_t) value;
+        s->dispc.plane[n].addr[1] = (target_phys_addr_t) value;
         break;
     case 0x154:	/* DISPC_VID2_POSITION */
         n++;
     case 0x0c4:	/* DISPC_VID1_POSITION */
         n++;
     case 0x088:	/* DISPC_GFX_POSITION */
-        s->dispc.l[n].posx = ((value >>  0) & 0x7ff);		/* GFXPOSX */
-        s->dispc.l[n].posy = ((value >> 16) & 0x7ff);		/* GFXPOSY */
+        s->dispc.plane[n].posx = ((value >>  0) & 0x7ff);		/* GFXPOSX */
+        s->dispc.plane[n].posy = ((value >> 16) & 0x7ff);		/* GFXPOSY */
         TRACEDISPC("DISPC_%s_POSITION = 0x%08x (%d,%d)", LAYERNAME(n),
-                 value, s->dispc.l[n].posx, s->dispc.l[n].posy);
+                 value, s->dispc.plane[n].posx, s->dispc.plane[n].posy);
         break;
     case 0x158:	/* DISPC_VID2_SIZE */
         n++;
     case 0x0c8:	/* DISPC_VID1_SIZE */
         n++;
     case 0x08c:	/* DISPC_GFX_SIZE */
-        s->dispc.l[n].nx = ((value >>  0) & 0x7ff) + 1;		/* GFXSIZEX */
-        s->dispc.l[n].ny = ((value >> 16) & 0x7ff) + 1;		/* GFXSIZEY */
+        s->dispc.plane[n].nx = ((value >>  0) & 0x7ff) + 1;		/* GFXSIZEX */
+        s->dispc.plane[n].ny = ((value >> 16) & 0x7ff) + 1;		/* GFXSIZEY */
         TRACEDISPC("DISPC_%s_SIZE = 0x%08x (%dx%d)", LAYERNAME(n),
-                 value, s->dispc.l[n].nx, s->dispc.l[n].ny);
+                 value, s->dispc.plane[n].nx, s->dispc.plane[n].ny);
         break;
     case 0x0a0:	/* DISPC_GFX_ATTRIBUTES */
         TRACEDISPC("DISPC_GFX_ATTRIBUTES = 0x%08x", value);
-        s->dispc.l[0].attr = value & 0xffff;
+        s->dispc.plane[0].attr = value & 0xffff;
         if (value & (3 << 9)) {
             hw_error("%s: Big-endian pixel format not supported",
                      __FUNCTION__);
         }
-        s->dispc.l[0].enable = value & 1;
-        s->dispc.l[0].bpp = (value >> 1) & 0xf;
-        s->dispc.l[0].rotation_flag = (value >> 12) & 0x3;
-        s->dispc.l[0].gfx_format = (value >> 1) & 0xf;
-        s->dispc.l[0].gfx_channel = (value >> 8) & 0x1;
+        s->dispc.plane[0].enable = value & 1;
+        s->dispc.plane[0].bpp = (value >> 1) & 0xf;
+        s->dispc.plane[0].rotation_flag = (value >> 12) & 0x3;
+        s->dispc.plane[0].gfx_format = (value >> 1) & 0xf;
+        s->dispc.plane[0].gfx_channel = (value >> 8) & 0x1;
         break;
     case 0x160:	/* DISPC_VID2_FIFO_TRESHOLD */
         n++;
@@ -1275,7 +1025,7 @@ static void omap_disc_write(void *opaque, target_phys_addr_t addr,
         n++;
     case 0x0a4:	/* DISPC_GFX_FIFO_THRESHOLD */
         TRACEDISPC("DISPC_%s_FIFO_THRESHOLD = 0x%08x", LAYERNAME(n), value);
-        s->dispc.l[n].tresh = value & ((s->dispc.rev < 0x30) 
+        s->dispc.plane[n].tresh = value & ((s->dispc.rev < 0x30) 
                                        ? 0x01ff01ff : 0x0fff0fff);
         break;
     case 0x168:	/* DISPC_VID2_ROW_INC */
@@ -1284,7 +1034,7 @@ static void omap_disc_write(void *opaque, target_phys_addr_t addr,
         n++;
     case 0x0ac:	/* DISPC_GFX_ROW_INC */
         TRACEDISPC("DISPC_%s_ROW_INC = 0x%08x", LAYERNAME(n), value);
-        s->dispc.l[n].rowinc = value;
+        s->dispc.plane[n].rowinc = value;
         break;
     case 0x16c:	/* DISPC_VID2_PIXEL_INC */
         n++;
@@ -1292,36 +1042,36 @@ static void omap_disc_write(void *opaque, target_phys_addr_t addr,
         n++;
     case 0x0b0:	/* DISPC_GFX_PIXEL_INC */
         TRACEDISPC("DISPC_%s_PIXEL_INC = 0x%08x", LAYERNAME(n), value);
-        s->dispc.l[n].colinc = value;
+        s->dispc.plane[n].colinc = value;
         break;
     case 0x0b4:	/* DISPC_GFX_WINDOW_SKIP */
         TRACEDISPC("DISPC_GFX_WINDOW_SKIP = 0x%08x", value);
-        s->dispc.l[0].wininc = value;
+        s->dispc.plane[0].wininc = value;
         break;
     case 0x0b8:	/* DISPC_GFX_TABLE_BA */
         TRACEDISPC("DISPC_GFX_TABLE_BA = 0x%08x", value);
-        s->dispc.l[0].addr[2] = (target_phys_addr_t) value;
+        s->dispc.plane[0].addr[2] = (target_phys_addr_t) value;
         break;
     case 0x15c:	/* DISPC_VID2_ATTRIBUTES */
         n++;
     case 0x0cc:	/* DISPC_VID1_ATTRIBUTES */
         n++;
         TRACEDISPC("DISPC_%s_ATTRIBUTES = 0x%08x", LAYERNAME(n), value);
-        s->dispc.l[n].attr = value & 0x1fffffff;
+        s->dispc.plane[n].attr = value & 0x1fffffff;
         break;
     case 0x170:	/* DISPC_VID2_FIR */
         n++;
     case 0x0e0:	/* DISPC_VID1_FIR */
         n++;
         TRACEDISPC("DISPC_%s_FIR = 0x%08x", LAYERNAME(n), value);
-        s->dispc.l[n].fir = value & 0x1fff1fff;
+        s->dispc.plane[n].fir = value & 0x1fff1fff;
         break;
     case 0x174:	/* DISPC_VID2_PICTURE_SIZE */
         n++;
     case 0x0e4:	/* DISPC_VID1_PICTURE_SIZE */
         n++;
         TRACEDISPC("DISPC_%s_PICTURE_SIZE = 0x%08x", LAYERNAME(n), value);
-        s->dispc.l[n].picture_size = value & 0x07ff07ff;
+        s->dispc.plane[n].picture_size = value & 0x07ff07ff;
         break;
     case 0x178:	/* DISPC_VID2_ACCU0 */
     case 0x17c:	/* DISPC_VID2_ACCU1 */
@@ -1331,7 +1081,7 @@ static void omap_disc_write(void *opaque, target_phys_addr_t addr,
         n++;
         TRACEDISPC("DISPC_%s_ACCU%d = 0x%08x", LAYERNAME(n),
                  (int)((addr >> 1) & 1), value);
-        s->dispc.l[n].accu[(addr >> 1) & 1] = value & 0x03ff03ff;
+        s->dispc.plane[n].accu[(addr >> 1) & 1] = value & 0x03ff03ff;
         break;
     case 0x180 ... 0x1bc:	/* DISPC_VID2_FIR_COEF */
         n++;
@@ -1340,11 +1090,11 @@ static void omap_disc_write(void *opaque, target_phys_addr_t addr,
         if (addr & 4) {
             TRACEDISPC("DISPC_%s_FIR_COEF_HV%d = 0x%08x", LAYERNAME(n),
                      (int)((addr - ((n > 1) ? 0x180 : 0xf0)) / 8), value);
-            s->dispc.l[n].fir_coef_hv[(addr - ((n > 1) ? 0x180 : 0xf0)) / 8] = value;
+            s->dispc.plane[n].fir_coef_hv[(addr - ((n > 1) ? 0x180 : 0xf0)) / 8] = value;
         } else {
             TRACEDISPC("DISPC_%s_FIR_COEF_H%d = 0x%08x", LAYERNAME(n),
                      (int)((addr - ((n > 1) ? 0x180 : 0xf0)) / 8), value);
-            s->dispc.l[n].fir_coef_h[(addr - ((n > 1) ? 0x180 : 0xf0)) / 8] = value;
+            s->dispc.plane[n].fir_coef_h[(addr - ((n > 1) ? 0x180 : 0xf0)) / 8] = value;
         }
         break;
     case 0x1c0 ... 0x1d0: /* DISPC_VID2_CONV_COEFi */
@@ -1353,7 +1103,7 @@ static void omap_disc_write(void *opaque, target_phys_addr_t addr,
         n++;
         TRACEDISPC("DISPC_%s_CONV_COEF%d = 0x%08x", LAYERNAME(n),
                  (int)((addr - ((n > 1) ? 0x1c0 : 0x130)) / 4), value);
-        s->dispc.l[n].conv_coef[(addr - ((n > 1) ? 0x1c0 : 0x130)) / 4] = value;
+        s->dispc.plane[n].conv_coef[(addr - ((n > 1) ? 0x1c0 : 0x130)) / 4] = value;
         break;
     case 0x1d4:	/* DISPC_DATA_CYCLE1 */
     case 0x1d8:	/* DISPC_DATA_CYCLE2 */
@@ -1367,7 +1117,7 @@ static void omap_disc_write(void *opaque, target_phys_addr_t addr,
         n++;
         TRACEDISPC("DISPC_%s_FIR_COEF_V%d = 0x%08x", LAYERNAME(n),
                  (int)((addr & 0x01f) / 4), value);
-        s->dispc.l[n].fir_coef_v[(addr & 0x01f) / 4] = value & 0x0000ffff;
+        s->dispc.plane[n].fir_coef_v[(addr & 0x01f) / 4] = value & 0x0000ffff;
         break;
     case 0x220: /* DISPC_CPR_COEF_R */
         TRACEDISPC("DISPC_CPR_COEF_R = 0x%08x", value);
@@ -1387,7 +1137,7 @@ static void omap_disc_write(void *opaque, target_phys_addr_t addr,
         n++;
     case 0x22c: /* DISPC_GFX_PRELOAD */
         TRACEDISPC("DISPC_%s_PRELOAD = 0x%08x", LAYERNAME(n), value);
-        s->dispc.l[n].preload = value & 0x0fff;
+        s->dispc.plane[n].preload = value & 0x0fff;
         break;
     default:
         OMAP_BAD_REGV(addr, value);
@@ -2361,9 +2111,6 @@ static struct omap_dss_s *omap_dss_init_internal(struct omap_target_agent_s *ta,
     omap_l4_attach(ta, region_base + 2, iomemtype[2]); /* RFBI */
     omap_l4_attach(ta, region_base + 3, iomemtype[3]); /* VENC */
 
-    register_savevm("omap_dss", -1, 0,
-                    omap_dss_save_state, omap_dss_load_state, s);
-    
     return s;
 }
 

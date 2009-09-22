@@ -66,12 +66,12 @@ static void omap3_lcd_panel_control_update(void *opaque,
     s->control = dispc->control;
     s->width = (dispc->size_lcd & 0x7ff) + 1;
     s->height = ((dispc->size_lcd >> 16) & 0x7ff) + 1;
-    s->gfx_attr = dispc->l[0].attr;
-    s->gfx_width = dispc->l[0].nx;
-    s->gfx_height = dispc->l[0].ny;
-    s->gfx_posx = dispc->l[0].posx;
-    s->gfx_posy = dispc->l[0].posy;
-    s->gfx_addr = dispc->l[0].addr[0];
+    s->gfx_attr = dispc->plane[0].attr;
+    s->gfx_width = dispc->plane[0].nx;
+    s->gfx_height = dispc->plane[0].ny;
+    s->gfx_posx = dispc->plane[0].posx;
+    s->gfx_posy = dispc->plane[0].posy;
+    s->gfx_addr = dispc->plane[0].addr[0];
 }
 
 static void omap3_lcd_panel_invalidate_display(void *opaque) 

@@ -2,7 +2,8 @@
  * OMAP2/3 Display Subsystem internal interfaces.
  *
  * Copyright (C) 2008,2009 Nokia Corporation
- * OMAP2 support written by Andrzej Zaborowski <andrew@openedhand.com>
+ * Original OMAP2 support written by Andrzej Zaborowski <andrew@openedhand.com>
+ * Enhancements and OMAP3 support written by Juha Riihimäki
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License as
@@ -35,7 +36,7 @@ struct omap_dss_dispc_s {
     uint32_t config;
     uint32_t capable;
     uint32_t timing[4];
-    int line;
+    uint32_t line;
     uint32_t bg[2];
     uint32_t trans[2];
     uint32_t size_dig;
@@ -67,7 +68,7 @@ struct omap_dss_dispc_s {
         
         uint32_t preload;
         
-        /* following for l1 & l2 only (VID1 and VID2) */
+        /* following used for planes 1 and 2 only (VID1 and VID2) */
         uint32_t fir;
         uint32_t fir_coef_h[8];
         uint32_t fir_coef_hv[8];
@@ -75,7 +76,7 @@ struct omap_dss_dispc_s {
         uint32_t conv_coef[5];
         uint32_t picture_size;
         uint32_t accu[2];
-    } l[3]; /* GFX, VID1, VID2 */
+    } plane[3]; /* GFX, VID1, VID2 */
     
     uint16_t palette[256];
 };
