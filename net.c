@@ -2364,7 +2364,7 @@ void qemu_check_nic_model_list(NICInfo *nd, const char * const *models,
     int i, exit_status = 0;
 
     if (!nd->model)
-        nd->model = strdup(default_model);
+        nd->model = qemu_strdup(default_model);
 
     if (strcmp(nd->model, "?") != 0) {
         for (i = 0 ; models[i]; i++)
@@ -2450,13 +2450,13 @@ int net_client_init(Monitor *mon, const char *device, const char *p)
             }
         }
         if (get_param_value(buf, sizeof(buf), "model", p)) {
-            nd->model = strdup(buf);
+            nd->model = qemu_strdup(buf);
         }
         if (get_param_value(buf, sizeof(buf), "addr", p)) {
-            nd->devaddr = strdup(buf);
+            nd->devaddr = qemu_strdup(buf);
         }
         if (get_param_value(buf, sizeof(buf), "id", p)) {
-            nd->id = strdup(buf);
+            nd->id = qemu_strdup(buf);
         }
         nd->nvectors = NIC_NVECTORS_UNSPECIFIED;
         if (get_param_value(buf, sizeof(buf), "vectors", p)) {
@@ -2804,7 +2804,7 @@ void net_client_uninit(NICInfo *nd)
     nd->vlan->nb_guest_devs--;
     nb_nics--;
     nd->used = 0;
-    free((void *)nd->model);
+    qemu_free((void *)nd->model);
 }
 
 static int net_host_check_device(const char *device)
