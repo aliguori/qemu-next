@@ -726,6 +726,10 @@ static void opengl_copyframe_bytes(struct helper_opengl_s *s,
 
 void helper_opengl_copyframe(struct helper_opengl_s *s)
 {
+    if (s->qemugl_bufbytesperline < s->bufwidth * s->bufpixelsize) {
+        GL_ERROR("invalid guest OpenGL framebuffer pitch");
+        return;
+    }
     opengl_init_copyframe(s);
     const uint32_t pixelsize = s->bufpixelsize;
     uint32_t extra = s->qemugl_bufbytesperline - s->bufwidth * pixelsize;
@@ -786,6 +790,7 @@ static void helper_opengl_write(void *opaque, target_phys_addr_t addr, uint32_t 
                     s->qemugl_bufbytesperline = s->ias;
 #else
                     /* ignored */
+                    GL_ERROR("guest issuing meaningless buffer definition");
 #endif // QEMUGL_IO_FRAMEBUFFER
                     break;
                 default:
@@ -819,6 +824,7 @@ static uint32_t helper_opengl_read(void *opaque, target_phys_addr_t addr)
 #ifdef QEMUGL_IO_FRAMEBUFFER
             return opengl_buffer_read(s);
 #else
+            GL_ERROR("guest trying to access OpenGL framebuffer through I/O");
             return 0; /* not used */
 #endif // QEMUGL_IO_FRAMEBUFFER
         default:
