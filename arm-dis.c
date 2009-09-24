@@ -4107,8 +4107,14 @@ print_insn_arm (bfd_vma pc, struct disassemble_info *info)
        In such cases, we can ignore the pc when computing
        addresses, since the addend is not currently pc-relative.  */
     pc = 0;
-
-  printer (pc, info, given);
+    if (size == 2) {
+        info->fprintf_func(info->stream, "[%04lx]      ",
+                           ((unsigned long)given) & 0xffffffff);
+    } else {
+        info->fprintf_func(info->stream, "[%08lx]  ",
+                           ((unsigned long)given) & 0xffffffff);
+    }
+    printer (pc, info, given);
 
   if (is_thumb)
     {

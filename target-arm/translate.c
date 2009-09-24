@@ -6084,6 +6084,7 @@ static void disas_arm_insn(CPUState * env, DisasContext *s)
                 tcg_gen_shri_i64(tmp64, tmp64, 16);
                 tmp = new_tmp();
                 tcg_gen_trunc_i64_i32(tmp, tmp64);
+                dead_tmp64(tmp64);
                 if ((sh & 2) == 0) {
                     tmp2 = load_reg(s, rn);
                     gen_helper_add_setq(tmp, tmp, tmp2);
@@ -6658,6 +6659,7 @@ static void disas_arm_insn(CPUState * env, DisasContext *s)
                         tcg_gen_shri_i64(tmp64, tmp64, 32);
                         tmp = new_tmp();
                         tcg_gen_trunc_i64_i32(tmp, tmp64);
+                        dead_tmp64(tmp64);
                         if (rd != 15) {
                             tmp2 = load_reg(s, rd);
                             if (insn & (1 << 6)) {
@@ -7548,6 +7550,7 @@ static int disas_thumb2_insn(CPUState *env, DisasContext *s, uint16_t insn_hw1)
                 tcg_gen_shri_i64(tmp64, tmp64, 16);
                 tmp = new_tmp();
                 tcg_gen_trunc_i64_i32(tmp, tmp64);
+                dead_tmp64(tmp64);
                 if (rs != 15)
                   {
                     tmp2 = load_reg(s, rs);
@@ -8772,6 +8775,7 @@ static inline void gen_intermediate_code_internal(CPUState *env,
     uint32_t next_page_start;
     int num_insns;
     int max_insns;
+    int force_asmdump = 0;
 
     /* generate intermediate code */
     num_temps = 0;
@@ -8885,8 +8889,7 @@ static inline void gen_intermediate_code_internal(CPUState *env,
         }
         if (num_temps) {
             fprintf(stderr, "Internal resource leak before %08x\n", dc->pc);
-            qemu_log_mask(CPU_LOG_TB_IN_ASM,
-                          "Internal resource leak before 0x%08x\n", dc->pc);
+            force_asmdump = 1;
             num_temps = 0;
         }
 
@@ -8982,6 +8985,12 @@ done_generating:
     gen_icount_end(tb, num_insns);
     *gen_opc_ptr = INDEX_op_end;
 
+    if (force_asmdump) {
+        fprintf(stderr, "----------------\n");
+        fprintf(stderr, "IN: %s\n", lookup_symbol(pc_start));
+        target_disas(stderr, pc_start, dc->pc - pc_start, env->thumb);
+        fprintf(stderr, "\n");
+    }
 #ifdef DEBUG_DISAS
     if (qemu_loglevel_mask(CPU_LOG_TB_IN_ASM)) {
         qemu_log("----------------\n");
