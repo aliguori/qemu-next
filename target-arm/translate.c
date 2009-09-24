@@ -3196,6 +3196,8 @@ static int disas_vfp_insn(CPUState * env, DisasContext *s, uint32_t insn)
                     offset = 8;
                 else
                     offset = 4;
+                TCGv tmp_offset = new_tmp();
+                tcg_gen_movi_i32(tmp_offset, offset);
                 for (i = 0; i < n; i++) {
                     if (insn & ARM_CP_RW_BIT) {
                         /* load */
@@ -3206,8 +3208,9 @@ static int disas_vfp_insn(CPUState * env, DisasContext *s, uint32_t insn)
                         gen_mov_F0_vreg(dp, rd + i);
                         gen_vfp_st(s, dp, addr);
                     }
-                    tcg_gen_addi_i32(addr, addr, offset);
+                    tcg_gen_add_i32(addr, addr, tmp_offset);
                 }
+                dead_tmp(tmp_offset);
                 if (insn & (1 << 21)) {
                     /* writeback */
                     if (insn & (1 << 24))
