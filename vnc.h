@@ -226,6 +226,7 @@ enum {
 #define VNC_ENCODING_POINTER_TYPE_CHANGE  0XFFFFFEFF /* -257 */
 #define VNC_ENCODING_EXT_KEY_EVENT        0XFFFFFEFE /* -258 */
 #define VNC_ENCODING_AUDIO                0XFFFFFEFD /* -259 */
+#define VNC_ENCODING_STREAMS              0xFFFFFEFC /* -260 */
 #define VNC_ENCODING_WMVi                 0x574D5669
 
 /*****************************************************************************
@@ -259,6 +260,7 @@ enum {
 #define VNC_FEATURE_TIGHT                    4
 #define VNC_FEATURE_ZLIB                     5
 #define VNC_FEATURE_COPYRECT                 6
+#define VNC_FEATURE_STREAMS                  7
 
 #define VNC_FEATURE_RESIZE_MASK              (1 << VNC_FEATURE_RESIZE)
 #define VNC_FEATURE_HEXTILE_MASK             (1 << VNC_FEATURE_HEXTILE)
@@ -267,6 +269,7 @@ enum {
 #define VNC_FEATURE_TIGHT_MASK               (1 << VNC_FEATURE_TIGHT)
 #define VNC_FEATURE_ZLIB_MASK                (1 << VNC_FEATURE_ZLIB)
 #define VNC_FEATURE_COPYRECT_MASK            (1 << VNC_FEATURE_COPYRECT)
+#define VNC_FEATURE_STREAMS_MASK             (1 << VNC_FEATURE_STREAMS)
 
 
 /*****************************************************************************
@@ -290,6 +293,7 @@ void vnc_write_u16(VncState *vs, uint16_t value);
 void vnc_write_u8(VncState *vs, uint8_t value);
 void vnc_flush(VncState *vs);
 void vnc_read_when(VncState *vs, VncReadEvent *func, size_t expecting);
+void vnc_framebuffer_update(VncState *vs, int x, int y, int w, int h, int32_t encoding);
 
 
 /* Buffer I/O functions */

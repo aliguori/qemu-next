@@ -29,6 +29,7 @@
 #include "qemu_socket.h"
 #include "qemu-timer.h"
 #include "acl.h"
+#include "vnc-streams.h"
 
 #define VNC_REFRESH_INTERVAL_BASE 30
 #define VNC_REFRESH_INTERVAL_INC  50
@@ -296,8 +297,7 @@ static void vnc_dpy_update(DisplayState *ds, int x, int y, int w, int h)
             vnc_set_bit(s->dirty[y], (x + i) / 16);
 }
 
-static void vnc_framebuffer_update(VncState *vs, int x, int y, int w, int h,
-                                   int32_t encoding)
+void vnc_framebuffer_update(VncState *vs, int x, int y, int w, int h, int32_t encoding)
 {
     vnc_write_u16(vs, x);
     vnc_write_u16(vs, y);
@@ -894,6 +894,8 @@ static void vnc_disconnect_start(VncState *vs)
 
 static void vnc_disconnect_finish(VncState *vs)
 {
+    VncState *p, *parent = NULL;
+
     if (vs->input.buffer) qemu_free(vs->input.buffer);
     if (vs->output.buffer) qemu_free(vs->output.buffer);
 #ifdef CONFIG_VNC_TLS
@@ -904,7 +906,6 @@ static void vnc_disconnect_finish(VncState *vs)
 #endif /* CONFIG_VNC_SASL */
     audio_del(vs);
 
-    VncState *p, *parent = NULL;
     for (p = vs->vd->clients; p != NULL; p = p->next) {
         if (p == vs) {
             if (parent)
@@ -917,6 +918,18 @@ static void vnc_disconnect_finish(VncState *vs)
     }
     if (!vs->vd->clients)
         dcl->idle = 1;
+
+    if (vnc_has_feature(vs, VNC_FEATURE_STREAMS)) {
+        vnc_streams_detach(vs);
+
+        /* Find other candidate to be streams client */
+        for (p = vs->vd->clients; p; p = p->next) {
+            if (vnc_has_feature(p, VNC_FEATURE_STREAMS)) {
+                vnc_streams_enumerate(p);
+                break;
+            }
+        }
+    }
 
     qemu_free(vs);
     vnc_remove_timer(vs->vd);
@@ -1572,6 +1585,8 @@ static void set_encodings(VncState *vs, int32_t *encodings, size_t n_encodings)
         case VNC_ENCODING_QUALITYLEVEL0 ... VNC_ENCODING_QUALITYLEVEL0 + 9:
             vs->tight_quality = (enc & 0x0F);
             break;
+        case VNC_ENCODING_STREAMS:
+            vs->features |= VNC_FEATURE_STREAMS_MASK;
         default:
             VNC_DEBUG("Unknown encoding: %d (0x%.8x): %d\n", i, enc, enc);
             break;
@@ -1579,6 +1594,10 @@ static void set_encodings(VncState *vs, int32_t *encodings, size_t n_encodings)
     }
 
     check_pointer_type_change(vs, kbd_mouse_is_absolute());
+
+    if (vnc_has_feature(vs, VNC_FEATURE_STREAMS)) {
+        vnc_streams_enumerate(vs);
+    }
 }
 
 static void set_pixel_conversion(VncState *vs)
@@ -1824,6 +1843,35 @@ static int protocol_client_msg(VncState *vs, uint8_t *data, size_t len)
             default:
                 printf ("Invalid audio message %d\n", read_u8(data, 4));
                 vnc_client_error(vs);
+                break;
+            }
+            break;
+        case 2:
+            if (len == 2) {
+                return 4;
+            }
+
+            switch (read_u16(data, 2)) {
+            case 1: {
+                uint32_t name_len;
+
+                if (len == 4) {
+                    return 12;
+                }
+
+                name_len = read_u32(data, 8);
+                if (len != (12 + name_len)) {
+                    return (12 + name_len);
+                }
+
+                vnc_streams_read(vs,
+                                 read_u32(data, 4), /* id */
+                                 name_len,          /* len */
+                                 data + 12);        /* data */
+                break;
+            }
+            default:
+                printf("Invalid streams message %d\n", read_u16(data, 2));
                 break;
             }
             break;
