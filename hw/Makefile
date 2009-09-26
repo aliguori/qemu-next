@@ -6,3 +6,4 @@ subdir-$(CONFIG_SYBORG)  += syborg
 subdir-$(CONFIG_ETRAXFS) += etraxfs
 subdir-$(CONFIG_OMAP)    += omap
 subdir-$(CONFIG_PXA2XX)  += pxa2xx
+subdir-$(CONFIG_PPC)     += ppc
