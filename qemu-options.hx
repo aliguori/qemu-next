@@ -1491,15 +1491,6 @@ Load the contents of @var{file} as an option ROM.
 This option is useful to load things like EtherBoot.
 ETEXI
 
-DEF("clock", HAS_ARG, QEMU_OPTION_clock, \
-    "-clock          force the use of the given methods for timer alarm.\n" \
-    "                To see what timers are available use -clock ?\n")
-STEXI
-@item -clock @var{method}
-Force the use of the given methods for timer alarm. To see what timers
-are available use -clock ?.
-ETEXI
-
 DEF("localtime", 0, QEMU_OPTION_localtime, \
     "-localtime      set the real time clock to local time [default=utc]\n")
 STEXI

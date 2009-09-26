@@ -192,8 +192,6 @@ typedef struct CPUWatchpoint {
     void *opaque;                                                       \
                                                                         \
     uint32_t created;                                                   \
-    struct QemuThread *thread;                                          \
-    struct QemuCond *halt_cond;                                         \
     const char *cpu_model_str;                                          \
     struct KVMState *kvm_state;                                         \
     struct kvm_run *kvm_run;                                            \

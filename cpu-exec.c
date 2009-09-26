@@ -38,6 +38,8 @@
 #endif
 #endif
 
+extern void ontb (CPUState *env);
+
 #if defined(__sparc__) && !defined(CONFIG_SOLARIS)
 // Work around ugly bugs in glibc that mangle global register contents
 #undef env
@@ -610,6 +612,7 @@ int cpu_exec(CPUState *env1)
                     env->current_tb = NULL;
 
                 while (env->current_tb) {
+                    ontb (env);
                     tc_ptr = tb->tc_ptr;
                 /* execute the generated code */
 #if defined(__sparc__) && !defined(CONFIG_SOLARIS)

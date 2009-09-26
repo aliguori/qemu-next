@@ -58,7 +58,7 @@ void do_info_snapshots(Monitor *mon);
 
 void qemu_announce_self(void);
 
-void main_loop_wait(int timeout);
+void main_loop_wait(int64_t timeout);
 
 int qemu_savevm_state_begin(QEMUFile *f);
 int qemu_savevm_state_iterate(QEMUFile *f);
