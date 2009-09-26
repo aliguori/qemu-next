@@ -1,0 +1,8 @@
+subdir-$(CONFIG_VIRIO)   += virtio
+subdir-$(CONFIG_XEN)     += xen
+subdir-$(CONFIG_IDE)     += ide
+subdir-$(CONFIG_XIINX)   += xilinx
+subdir-$(CONFIG_SYBORG)  += syborg
+subdir-$(CONFIG_ETRAXFS) += etraxfs
+subdir-$(CONFIG_OMAP)    += omap
+subdir-$(CONFIG_PXA2XX)  += pxa2xx
