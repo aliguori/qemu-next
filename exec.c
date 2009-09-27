@@ -42,6 +42,8 @@
 #include <qemu.h>
 #endif
 
+extern void onpc (target_ulong);
+
 //#define DEBUG_TB_INVALIDATE
 //#define DEBUG_FLUSH
 //#define DEBUG_TLB
@@ -906,6 +908,7 @@ TranslationBlock *tb_gen_code(CPUState *env,
         phys_page2 = get_phys_addr_code(env, virt_page2);
     }
     tb_link_phys(tb, phys_pc, phys_page2);
+    onpc (pc);
     return tb;
 }
 

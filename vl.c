@@ -3136,8 +3136,8 @@ static void __attribute__ ((__format__ (__printf__, 1, 2), unused))
     write (2, buf, n);
 }
 
-extern void ontb (CPUState *env);
-void ontb (CPUState *env)
+extern void onpc (target_ulong pc);
+void onpc (target_ulong pc)
 {
     static int done;
     static double a;
@@ -3147,7 +3147,7 @@ void ontb (CPUState *env)
         a = now ();
         return;
     }
-    if (env->eip == 0x08048054) {
+    if (pc == 0x08048054) {
         printf ("took %f seconds\n", now () - a);
     }
 }
