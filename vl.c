@@ -949,7 +949,7 @@ static int64_t qemu_next_deadline(void)
     return delta;
 }
 
-#define MIN_TIMER_REARM_US (1000000/1000)
+#define MIN_TIMER_REARM_US 0*(1000000/1000)
 
 static uint64_t qemu_next_deadline_dyntick(void)
 {
@@ -969,8 +969,6 @@ static uint64_t qemu_next_deadline_dyntick(void)
     }
 
     if (delta < MIN_TIMER_REARM_US)
-        delta = MIN_TIMER_REARM_US;
-    if (delta > MIN_TIMER_REARM_US)
         delta = MIN_TIMER_REARM_US;
 
     return delta;
@@ -2954,10 +2952,6 @@ void main_loop_wait(int64_t timeout)
     fd_set rfds, wfds, xfds;
     int ret, nfds;
     struct timeval tv;
-    static struct stats s = {
-        .name = "select",
-        .limit = 1000,
-    };
 
     qemu_bh_update_timeout(&timeout);
 
