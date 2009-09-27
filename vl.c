@@ -3142,12 +3142,17 @@ void onpc (target_ulong pc)
     static int done;
     static double a;
 
+    if (pc == 0xc036405a) {
+        a = now ();
+        done = 1;
+        return;
+    }
     if (!done) {
         done = 1;
         a = now ();
         return;
     }
-    if (pc == 0x08048054) {
+    if (pc == 0x08048054 || pc == 0x0804c00c) {
         printf ("took %f seconds\n", now () - a);
     }
 }
@@ -3516,9 +3521,11 @@ static void *exec_thread_loop (void __attribute__ ((unused)) *unused)
                 break;
 
             if (mt.wait_for_cont) {
+#if 0
                 static struct stats s = { .name = "cont", .limit = 1000 };
 
                 smark (&s);
+#endif
                 if (sem_wait (&mt.cont_sem)) {
                     die (errno, "exec_thread_loop: sem_wait/cont");
                 }
