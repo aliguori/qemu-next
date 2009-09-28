@@ -4990,11 +4990,13 @@ int main(int argc, char **argv, char **envp)
                 break;
 #ifndef _WIN32
             case QEMU_OPTION_smb:
-                net_slirp_smb(optarg);
+                if (net_slirp_smb(optarg) < 0)
+                    exit(1);
                 break;
 #endif
             case QEMU_OPTION_redir:
-                net_slirp_redir(optarg);
+                if (net_slirp_redir(optarg) < 0)
+                    exit(1);
                 break;
 #endif
             case QEMU_OPTION_bt:
@@ -5766,7 +5768,8 @@ int main(int argc, char **argv, char **envp)
 
     /* init USB devices */
     if (usb_enabled) {
-        foreach_device_config(DEV_USB, usb_parse);
+        if (foreach_device_config(DEV_USB, usb_parse) < 0)
+            exit(1);
     }
 
     /* init generic devices */
