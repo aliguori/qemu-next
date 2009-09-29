@@ -1,7 +1,11 @@
 /*
- *  Host-side implementation of GL/GLX API
+ * Host-side implementation of GL/GLX API
  * 
- *  Copyright (c) 2006,2007 Even Rouault
+ * Copyright (c) 2006,2007 Even Rouault
+ * Copyright (c) 2009 Nokia Corporation
+ *
+ * NOTE: in its current state this code works only for 32bit guests AND
+ * when guest endianess equals host endianess.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -167,7 +171,9 @@ typedef struct {
 } ProcessStruct;
 
 static ProcessStruct processTab[MAX_HANDLED_PROCESS];
+#ifndef QEMUGL_MULTITHREADED
 int last_process_id = 0;
+#endif
 
 void init_process_tab(void)
 {
@@ -758,7 +764,9 @@ int do_function_call(struct helper_opengl_s *s, int func_number,
     switch (func_number) {
         case _exit_process_func:
             doExitProcess(iProcess);
+#ifndef QEMUGL_MULTITHREADED
             last_process_id = 0;
+#endif
             break;
         case _createDrawable_func:
             doCreateDrawable(process, (int)args[0], (int)args[1],

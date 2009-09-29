@@ -1,7 +1,11 @@
 /*
- *  Host-side implementation of GL/GLX API
+ * Host-side implementation of GL/GLX API
  * 
- *  Copyright (c) 2006,2007 Even Rouault
+ * Copyright (c) 2006,2007 Even Rouault
+ * Copyright (c) 2009 Nokia Corporation
+ *
+ * NOTE: in its current state this code works only for 32bit guests AND
+ * when guest endianess equals host endianess.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -28,6 +32,27 @@
 
 //#define GL_EXCESS_DEBUG
 
+#ifdef QEMUGL_MULTITHREADED
+#include <pthread.h>
+#include "sys-queue.h"
+typedef struct opengl_thread_state_s {
+    struct helper_opengl_s state;
+    pthread_t thread;
+    pthread_mutex_t runlock, finishlock;
+    pthread_cond_t runcond, finishcond;
+    int runstate, finishstate;
+    uint32_t regbase;
+    LIST_ENTRY(opengl_thread_state_s) link;
+} OpenGLThreadState;
+typedef struct OpenGLState {
+    CPUState *env;
+    uint32_t pidquery;
+    LIST_HEAD(guest_list_s, opengl_thread_state_s) guest_list;
+} OpenGLState;
+#else
+typedef struct helper_opengl_s OpenGLState;
+#endif
+
 #define GL_ERROR(fmt,...) fprintf(stderr, "%s@%d: " fmt "\n", __FUNCTION__, \
                                   __LINE__, ##__VA_ARGS__)
 
@@ -39,7 +64,14 @@
 
 #define MAX_GLFUNC_NB_ARGS 50
 
+#ifndef QEMUGL_MULTITHREADED
 extern int last_process_id;
+static int last_func_number = -1;
+#define SET_LAST_PROCESS_ID(n) last_process_id = n
+#else
+#define SET_LAST_PROCESS_ID(n)
+#endif
+static size_t (*my_strlen)(const char *) = NULL;
 
 int get_phys_addr(CPUState *env, uint32_t address,
                   int access_type, int is_user,
@@ -295,10 +327,6 @@ static const void *get_host_read_pointer(CPUState *env, const target_ulong targe
     return NULL;
 }
  
-int doing_opengl = 0;
-static int last_func_number = -1;
-static size_t (*my_strlen)(const char *) = NULL;
-
 static int decode_call_int(struct helper_opengl_s *s)
 {
     int func_number = s->fid;
@@ -321,17 +349,19 @@ static int decode_call_int(struct helper_opengl_s *s)
     static target_ulong args[MAX_GLFUNC_NB_ARGS];
     static target_phys_addr_t pargs[MAX_GLFUNC_NB_ARGS];
     
+#ifndef QEMUGL_MULTITHREADED
     if (last_func_number == _exit_process_func && func_number == _exit_process_func) {
         last_func_number = -1;
         return 0;
     }
-    
+
     if (last_process_id == 0) {
-        last_process_id = pid;
+        SET_LAST_PROCESS_ID(pid);
     } else if (last_process_id != pid) {
         GL_ERROR("opengl calls from parallel processes are not supported");
         return 0;
     }
+#endif
     
     if (!ret_string) {
         init_process_tab();
@@ -346,13 +376,13 @@ static int decode_call_int(struct helper_opengl_s *s)
         if (memcpy_target_to_host(s->env, args, in_args, sizeof(target_ulong) * nb_args) == 0) {
             GL_ERROR("call %s pid=%d\ncannot get call parameters",
                      tab_opengl_calls_name[func_number], pid);
-            last_process_id = 0;
+            SET_LAST_PROCESS_ID(0);
             return 0;
         }
         if (memcpy_target_to_host(s->env, args_size, in_args_size, sizeof(target_ulong) * nb_args) == 0) {
             GL_ERROR("call %s pid=%d\ncannot get call parameters size",
                      tab_opengl_calls_name[func_number], pid);
-            last_process_id = 0;
+            SET_LAST_PROCESS_ID(0);
             return 0;
         }
     }
@@ -388,19 +418,19 @@ static int decode_call_int(struct helper_opengl_s *s)
                     if (!IS_NULL_POINTER_OK_FOR_FUNC(func_number)) {
                         GL_ERROR("call %s arg %d pid=%d",
                                  tab_opengl_calls_name[func_number], i, pid);
-                        last_process_id = 0;
+                        SET_LAST_PROCESS_ID(0);
                         return 0;
                     }
                     pargs[i] = 0;
                 } else if (args[i] == 0 && args_size[i] != 0) {
                     GL_ERROR("call %s arg %d pid=%d args[i] == 0 && args_size[i] != 0",
                              tab_opengl_calls_name[func_number], i, pid);
-                    last_process_id = 0;
+                    SET_LAST_PROCESS_ID(0);
                     return 0;
                 } else if (args[i] != 0 && args_size[i] == 0) {
                     GL_ERROR("call %s arg %d pid=%d args[i] != 0 && args_size[i] == 0",
                              tab_opengl_calls_name[func_number], i, pid);
-                    last_process_id = 0;
+                    SET_LAST_PROCESS_ID(0);
                     return 0;
                 }
                 if (args[i]) {
@@ -411,7 +441,7 @@ static int decode_call_int(struct helper_opengl_s *s)
                         GL_ERROR("call %s arg %d pid=%d can not get %d bytes",
                                  tab_opengl_calls_name[func_number], i, pid,
                                  args_size[i]);
-                        last_process_id = 0;
+                        SET_LAST_PROCESS_ID(0);
                         return 0;
                     }
                 }
@@ -429,7 +459,7 @@ static int decode_call_int(struct helper_opengl_s *s)
                     GL_ERROR("call %s arg %d pid=%d can not get %d bytes",
                              tab_opengl_calls_name[func_number], i, pid,
                              args_size[i]);
-                    last_process_id = 0;
+                    SET_LAST_PROCESS_ID(0);
                     return 0;
                 }
                 break;
@@ -439,23 +469,23 @@ static int decode_call_int(struct helper_opengl_s *s)
                     if (!IS_NULL_POINTER_OK_FOR_FUNC(func_number)) {
                         GL_ERROR("call %s arg %d pid=%d",
                                  tab_opengl_calls_name[func_number], i, pid);
-                        last_process_id = 0;
+                        SET_LAST_PROCESS_ID(0);
                         return 0;
                     }
                     pargs[i] = 0;
                     GL_ERROR("call %s arg %d pid=%d\n",
                              tab_opengl_calls_name[func_number], i, pid);
-                    last_process_id = 0;
+                    SET_LAST_PROCESS_ID(0);
                     return 0;
                 } else if (args[i] == 0 && args_size[i] != 0) {
                     GL_ERROR("call %s arg %d pid=%d args[i] == 0 && args_size[i] != 0",
                              tab_opengl_calls_name[func_number], i, pid);
-                    last_process_id = 0;
+                    SET_LAST_PROCESS_ID(0);
                     return 0;
                 } else if (args[i] != 0 && args_size[i] == 0) {
                     GL_ERROR("call %s arg %d pid=%d args[i] != 0 && args_size[i] == 0",
                              tab_opengl_calls_name[func_number], i, pid);
-                    last_process_id = 0;
+                    SET_LAST_PROCESS_ID(0);
                     return 0;
                 }
                 if (args[i]) { // XXX
@@ -465,7 +495,7 @@ static int decode_call_int(struct helper_opengl_s *s)
                             GL_ERROR("call %s arg %d pid=%d addr=0x%x size=%d NOT_MAPPED",
                                      tab_opengl_calls_name[func_number], i, pid,
                                      args[i], args_size[i]);
-                            last_process_id = 0;
+                            SET_LAST_PROCESS_ID(0);
                             return 0;
                         case MAPPED_CONTIGUOUS:
                             saved_out_ptr[i] = 0;
@@ -474,7 +504,7 @@ static int decode_call_int(struct helper_opengl_s *s)
                                 GL_ERROR("call %s arg %d pid=%d addr=0x%x size=%d cpu_physical_memory_map failed!",
                                          tab_opengl_calls_name[func_number], i, pid,
                                          args[i], args_size[i]);
-                                last_process_id = 0;
+                                SET_LAST_PROCESS_ID(0);
                                 return 0;
                             }
                             break;
@@ -483,7 +513,7 @@ static int decode_call_int(struct helper_opengl_s *s)
                             pargs[i] = (target_phys_addr_t)malloc(args_size[i]);
                             break;
                         default:
-                            last_process_id = 0;
+                            SET_LAST_PROCESS_ID(0);
                             return 0;
                     }
                 } else {
@@ -498,7 +528,7 @@ static int decode_call_int(struct helper_opengl_s *s)
                     GL_ERROR("call %s arg %d pid=%d can not get %d bytes",
                              tab_opengl_calls_name[func_number], i, pid,
                              tab_args_type_length[args_type[i]]);
-                    last_process_id = 0;
+                    SET_LAST_PROCESS_ID(0);
                     return 0;
                 }
                 pargs[i] = (target_phys_addr_t)get_host_read_pointer(s->env, args[i], tab_args_type_length[args_type[i]]);
@@ -506,7 +536,7 @@ static int decode_call_int(struct helper_opengl_s *s)
                     GL_ERROR("call %s arg %d pid=%d can not get %d bytes",
                              tab_opengl_calls_name[func_number], i, pid,
                              tab_args_type_length[args_type[i]]);
-                    last_process_id = 0;
+                    SET_LAST_PROCESS_ID(0);
                     return 0;
                 }
                 break;
@@ -518,7 +548,7 @@ static int decode_call_int(struct helper_opengl_s *s)
                 GL_ERROR("unknown parameter type %d: call %s arg %d pid=%d",
                          args_type[i], tab_opengl_calls_name[func_number],
                          i, pid);
-                last_process_id = 0;
+                SET_LAST_PROCESS_ID(0);
                 return 0;
                 break;
         }
@@ -548,7 +578,7 @@ static int decode_call_int(struct helper_opengl_s *s)
                 if (saved_out_ptr[i]) {
                     if (memcpy_host_to_target(s->env, saved_out_ptr[i], (const void *)pargs[i], args_size[i]) == 0) {
                         GL_ERROR("cannot copy out parameters back to user space");
-                        last_process_id = 0;
+                        SET_LAST_PROCESS_ID(0);
                         return 0;
                     }
                     free((void*)pargs[i]);
@@ -572,7 +602,7 @@ static int decode_call_int(struct helper_opengl_s *s)
             /* the my_strlen stuff is a hack to workaround a GCC bug if using directly strlen... */
             if (memcpy_host_to_target(s->env, target_ret_string, ret_string, my_strlen(ret_string) + 1) == 0) {
                 GL_ERROR("cannot copy out parameters back to user space");
-                last_process_id = 0;
+                SET_LAST_PROCESS_ID(0);
                 return 0;
             }
         }
@@ -747,89 +777,366 @@ void helper_opengl_copyframe(struct helper_opengl_s *s)
 }
 #endif // QEMUGL_IO_FRAMEBUFFER
 
-static void helper_opengl_write(void *opaque, target_phys_addr_t addr, uint32_t value)
+#ifdef QEMUGL_MULTITHREADED
+static void *helper_opengl_thread(void *opaque)
 {
-    struct helper_opengl_s *s = (struct helper_opengl_s *)opaque;
-    
-    switch (addr) {
-        case QEMUGL_HWREG_FID: /* function id */
-            s->fid = value;
-            break;
-        case QEMUGL_HWREG_PID: /* pid */
-            s->pid = value;
-            break;
-        case QEMUGL_HWREG_RSP: /* return string ptr */
-            s->rsp = value;
-            break;
-        case QEMUGL_HWREG_IAP: /* input args ptr */
-            s->iap = value;
-            break;
-        case QEMUGL_HWREG_IAS: /* input args size */
-            s->ias = value;
-            break;
-        case QEMUGL_HWREG_CMD: /* launch */
-            switch (value) {
-                case QEMUGL_HWCMD_RESET:
-#ifndef QEMUGL_MODULE
-                    if (!last_process_id)
-                        break;
-                    s->pid = last_process_id;
-#endif // QEMUGL_MODULE
-                    s->fid = _exit_process_func;
-                    s->rsp = 0;
-                    s->iap = 0;
-                    s->ias = 0;
-                    /* fallthrough */
-                case QEMUGL_HWCMD_GLCALL:
-                    doing_opengl = 1;
-                    s->result = decode_call(s);
-                    doing_opengl = 0;
-                    break;
-                case QEMUGL_HWCMD_SETBUF:
-#ifndef QEMUGL_IO_FRAMEBUFFER
-                    s->qemugl_bufbytesperline = s->ias;
-#else
-                    /* ignored */
-                    GL_ERROR("guest issuing meaningless buffer definition");
-#endif // QEMUGL_IO_FRAMEBUFFER
-                    break;
-                default:
-                    GL_ERROR("unknown launch command 0x%08x", value);
-                    break;
+    OpenGLThreadState *thread_state = opaque;
+    do {
+        if (pthread_mutex_lock(&thread_state->runlock)) {
+            GL_ERROR("pthread_mutex_lock failed for runlock");
+        }
+        while (!thread_state->runstate) {
+            if (pthread_cond_wait(&thread_state->runcond,
+                                  &thread_state->runlock)) {
+                GL_ERROR("pthread_cond_wait failed for runcond");
             }
-            break;
-        case QEMUGL_HWREG_STA: /* result */
-        case QEMUGL_HWREG_BUF: /* drawable buffer */
-            /* read-only registers, ignore */
-            break;
-        default:
-            GL_ERROR("unknown register " TARGET_FMT_plx, addr);
-            break;
+        }
+        thread_state->runstate = 0;
+        if (pthread_mutex_unlock(&thread_state->runlock)) {
+            GL_ERROR("pthread_mutex_unlock failed for runlock");
+        }
+        TRACE("processing request from pid %d (fid=%d)",
+              thread_state->state.pid, thread_state->state.fid);
+        thread_state->state.result = decode_call(&thread_state->state);
+        TRACE("finished request from pid %d (fid=%d), result=%d",
+              thread_state->state.pid, thread_state->state.fid,
+              thread_state->state.result);
+        if (pthread_mutex_lock(&thread_state->finishlock)) {
+            GL_ERROR("pthread_mutex_lock failed for finishlock");
+        }
+        thread_state->finishstate = 1;
+        if (pthread_cond_signal(&thread_state->finishcond)) {
+            GL_ERROR("pthread_cond_signal failed for finishcond");
+        }
+        if (pthread_mutex_unlock(&thread_state->finishlock)) {
+            GL_ERROR("pthread_mutex_unlock failed for finishlock");
+        }
+    } while (thread_state->state.fid != _exit_process_func);
+    return NULL;
+}
+
+static OpenGLThreadState *helper_opengl_newthread(OpenGLState *s, uint32_t pid)
+{
+    OpenGLThreadState *thread_state = qemu_mallocz(sizeof(*thread_state));
+    thread_state->state.env = s->env;
+    thread_state->state.pid = pid;
+    thread_state->regbase = QEMUGL_GLOB_HWREG_SIZE;
+    if (LIST_EMPTY(&s->guest_list)) {
+        LIST_INSERT_HEAD(&s->guest_list, thread_state, link);
+    } else {
+        OpenGLThreadState *old_state;
+        LIST_FOREACH(old_state, &s->guest_list, link) {
+            if (old_state->regbase > thread_state->regbase) {
+                LIST_INSERT_BEFORE(old_state, thread_state, link);
+                break;
+            }
+            thread_state->regbase += QEMUGL_HWREG_MASK + 1;
+            if (thread_state->regbase >
+                QEMUGL_HWREG_REGIONSIZE - (QEMUGL_HWREG_MASK + 1)) {
+                GL_ERROR("too many opengl guest processes");
+                qemu_free(thread_state);
+                return NULL;
+            }
+            if (!LIST_NEXT(old_state, link)) {
+                LIST_INSERT_AFTER(old_state, thread_state, link);
+                break;
+            }
+        }
+    }
+    if (pthread_mutex_init(&thread_state->runlock, NULL) ||
+        pthread_mutex_init(&thread_state->finishlock, NULL)) {
+        hw_error("%s@%d: pthread_mutex_init failed", __FUNCTION__, __LINE__);
+    }
+    if (pthread_cond_init(&thread_state->runcond, NULL) ||
+        pthread_cond_init(&thread_state->finishcond, NULL)) {
+        hw_error("%s@%d: pthread_cond_init failed", __FUNCTION__, __LINE__);
+    }
+    if (pthread_create(&thread_state->thread, NULL, helper_opengl_thread,
+                       thread_state)) {
+        hw_error("%s@%d: pthread_create failed", __FUNCTION__, __LINE__);
+    }
+    s->pidquery = thread_state->regbase;
+    return thread_state;
+}
+
+static void helper_opengl_removethread(OpenGLState *s,
+                                       OpenGLThreadState *thread_state)
+{
+    pthread_join(thread_state->thread, NULL);
+    LIST_REMOVE(thread_state, link);
+    if (pthread_cond_destroy(&thread_state->runcond)) {
+        GL_ERROR("unable to destroy opengl thread runcond for guest "
+                 "process %d", thread_state->state.pid);
+    }
+    if (pthread_cond_destroy(&thread_state->finishcond)) {
+        GL_ERROR("unable to destroy opengl thread finishcond for guest "
+                 "process %d", thread_state->state.pid);
+    }
+    if (pthread_mutex_destroy(&thread_state->runlock)) {
+        GL_ERROR("unable to destroy opengl thread runlock for guest "
+                 "process %d", thread_state->state.pid);
+    }
+    if (pthread_mutex_destroy(&thread_state->finishlock)) {
+        GL_ERROR("unable to destroy opengl thread finishlock for guest "
+                 "process %d", thread_state->state.pid);
+    }
+    qemu_free(thread_state);
+}
+
+static void helper_opengl_runthread(OpenGLThreadState *thread_state)
+{
+    if (pthread_mutex_lock(&thread_state->runlock)) {
+        hw_error("%s@%d: pthread_mutex_lock failed (guest pid %d)",
+                 __FUNCTION__, __LINE__, thread_state->state.pid);
+    }
+    thread_state->runstate = 1;
+    if (pthread_cond_signal(&thread_state->runcond)) {
+        hw_error("%s@%d: pthread_cond_signal failed (guest pid %d)",
+                 __FUNCTION__, __LINE__, thread_state->state.pid);
+    }
+    if (pthread_mutex_unlock(&thread_state->runlock)) {
+        hw_error("%s@%d: pthread_mutex_unlock failed (guest pid %d)",
+                 __FUNCTION__, __LINE__, thread_state->state.pid);
     }
 }
 
+static void helper_opengl_waitthread(OpenGLThreadState *thread_state)
+{
+    if (pthread_mutex_lock(&thread_state->finishlock)) {
+        hw_error("%s@%d: pthread_mutex_lock failed (guest pid %d)",
+                 __FUNCTION__, __LINE__, thread_state->state.pid);
+    }
+    while (!thread_state->finishstate) {
+        if (pthread_cond_wait(&thread_state->finishcond,
+                              &thread_state->finishlock)) {
+            hw_error("%s@%d: pthread_cond_wait failed (guest pid %d)",
+                     __FUNCTION__, __LINE__, thread_state->state.pid);
+        }
+    }
+    thread_state->finishstate = 0;
+    if (pthread_mutex_unlock(&thread_state->finishlock)) {
+        hw_error("%s@%d: pthread_mutex_unlock failed (guest pid %d)",
+                 __FUNCTION__, __LINE__, thread_state->state.pid);
+    }
+}
+
+static OpenGLThreadState *helper_opengl_threadstate(OpenGLState *s,
+                                                    target_phys_addr_t addr)
+{
+    OpenGLThreadState *thread_state;
+    uint32_t base = ((addr - QEMUGL_GLOB_HWREG_SIZE) & ~QEMUGL_HWREG_MASK)
+                    + QEMUGL_GLOB_HWREG_SIZE;
+    LIST_FOREACH(thread_state, &s->guest_list, link) {
+        if (thread_state->regbase == base) {
+            return thread_state;
+        }
+    }
+    return NULL;
+}
+#endif
+
+static void helper_opengl_write(void *opaque, target_phys_addr_t addr,
+                                uint32_t value)
+{
+    struct helper_opengl_s *s;
+#ifdef QEMUGL_MULTITHREADED
+    OpenGLThreadState *ts = helper_opengl_threadstate(opaque, addr);
+    if (addr < QEMUGL_GLOB_HWREG_SIZE) {
+        switch (addr) {
+            case QEMUGL_GLOB_HWREG_PID:
+                TRACE("request new guest for pid %d", value);
+                if (!ts && !(ts = helper_opengl_newthread(opaque, value))) {
+                    GL_ERROR("unable to create new thread for pid 0x%08x",
+                             value);
+                }
+                break;
+            default:
+                GL_ERROR("unknown global opengl register " TARGET_FMT_plx,
+                         addr);
+                break;
+        }
+    } else if (!ts) {
+        GL_ERROR("unknown guest process accessing local opengl register "
+                 "0x%04x", (uint32_t)addr);
+    } else {
+        s = &ts->state;
+#else
+    s = opaque;
+    if (addr < QEMUGL_GLOB_HWREG_SIZE) {
+        switch (addr) {
+            case QEMUGL_GLOB_HWREG_PID:
+                TRACE("pid = 0x%08x", value);
+                s->pid = value;
+                break;
+            default:
+                GL_ERROR("unknown global opengl register " TARGET_FMT_plx,
+                         addr);
+                break;
+        }
+    } else {
+#endif // QEMUGL_MULTITHREADED
+        addr = (addr - QEMUGL_GLOB_HWREG_SIZE) & QEMUGL_HWREG_MASK;
+        switch (addr) {
+            case QEMUGL_HWREG_FID:
+#ifdef QEMUGL_MULTITHREADED
+                TRACE("fid = 0x%08x (guest pid %d)", value, s->pid);
+#else
+                TRACE("fid = 0x%08x", value);
+#endif
+                s->fid = value;
+                break;
+            case QEMUGL_HWREG_RSP:
+#ifdef QEMUGL_MULTITHREADED
+                TRACE("rsp = 0x%08x (guest pid %d)", value, s->pid);
+#else
+                TRACE("rsp = 0x%08x", value);
+#endif
+                s->rsp = value;
+                break;
+            case QEMUGL_HWREG_IAP:
+#ifdef QEMUGL_MULTITHREADED
+                TRACE("iap = 0x%08x (guest pid %d)", value, s->pid);
+#else
+                TRACE("iap = 0x%08x", value);
+#endif
+                s->iap = value;
+                break;
+            case QEMUGL_HWREG_IAS:
+#ifdef QEMUGL_MULTITHREADED
+                TRACE("ias = 0x%08x (guest pid %d)", value, s->pid);
+#else
+                TRACE("ias = 0x%08x", value);
+#endif
+                s->ias = value;
+                break;
+            case QEMUGL_HWREG_CMD:
+                switch (value) {
+                    case QEMUGL_HWCMD_RESET:
+#ifdef QEMUGL_MULTITHREADED
+                        TRACE("cmd = reset (guest pid %d)", s->pid);
+#else
+                        TRACE("cmd = reset");
+#endif
+#ifndef QEMUGL_MULTITHREADED
+#ifndef QEMUGL_MODULE
+                        if (!last_process_id)
+                            break;
+                        s->pid = last_process_id;
+#endif // QEMUGL_MODULE
+#endif // QEMUGL_MULTITHREADED
+                        s->fid = _exit_process_func;
+                        s->rsp = 0;
+                        s->iap = 0;
+                        s->ias = 0;
+#ifdef QEMUGL_MULTITHREADED
+                        helper_opengl_runthread(ts);
+                        helper_opengl_waitthread(ts);
+                        helper_opengl_removethread(opaque, ts);
+                        break;
+#else
+                        /* fallthrough */
+#endif // QEMUGL_MULTITHREADED
+                    case QEMUGL_HWCMD_GLCALL:
+#ifdef QEMUGL_MULTITHREADED
+                        TRACE("cmd = glcall (guest pid %d)", s->pid);
+                        helper_opengl_runthread(ts);
+                        helper_opengl_waitthread(ts);
+#else
+                        if (value != QEMUGL_HWCMD_RESET) {
+                            TRACE("cmd = glcall");
+                        }
+                        s->result = decode_call(s);
+#endif // QEMUGL_MULTITHREADED
+                        break;
+                    case QEMUGL_HWCMD_SETBUF:
+#ifdef QEMUGL_MULTITHREADED
+                        TRACE("cmd = setbuf (guest pid %d)", s->pid);
+#else
+                        TRACE("cmd = setbuf");
+#endif
+#ifndef QEMUGL_IO_FRAMEBUFFER
+                        s->qemugl_bufbytesperline = s->ias;
+#else
+                        /* ignored */
+                        GL_ERROR("guest issuing meaningless buffer definition");
+#endif // QEMUGL_IO_FRAMEBUFFER
+                        break;
+                    default:
+                        GL_ERROR("unknown command 0x%08x", value);
+                        break;
+                }
+                break;
+            case QEMUGL_HWREG_STA: /* result */
+            case QEMUGL_HWREG_BUF: /* drawable buffer */
+                /* read-only registers, ignore */
+                break;
+            default:
+                GL_ERROR("unknown register " TARGET_FMT_plx, addr);
+                break;
+        }
+    }
+}
+    
 static uint32_t helper_opengl_read(void *opaque, target_phys_addr_t addr)
 {
-    struct helper_opengl_s *s = (struct helper_opengl_s *)opaque;
-    
-    switch (addr) {
-        case QEMUGL_HWREG_FID: return s->fid;
-        case QEMUGL_HWREG_PID: return s->pid;
-        case QEMUGL_HWREG_RSP: return s->rsp;
-        case QEMUGL_HWREG_IAP: return s->iap;
-        case QEMUGL_HWREG_IAS: return s->ias;
-        case QEMUGL_HWREG_CMD: return 0; /* write-only register */
-        case QEMUGL_HWREG_STA: return s->result;
-        case QEMUGL_HWREG_BUF:
-#ifdef QEMUGL_IO_FRAMEBUFFER
-            return opengl_buffer_read(s);
+    if (addr < QEMUGL_GLOB_HWREG_SIZE) {
+        switch (addr) {
+            case QEMUGL_GLOB_HWREG_PID:
+#ifdef QEMUGL_MULTITHREADED
+                if (((OpenGLState *)opaque)->pidquery
+                    != QEMUGL_PID_SIGNATURE) {
+                    uint32_t base = ((OpenGLState *)opaque)->pidquery;
+                    ((OpenGLState *)opaque)->pidquery = QEMUGL_PID_SIGNATURE;
+                    TRACE("PID register read, new guest base = 0x%04x", base);
+                    return base;
+                }
+#endif
+                TRACE("PID check, return 0x%08x", QEMUGL_PID_SIGNATURE);
+                return QEMUGL_PID_SIGNATURE;
+            default:
+                GL_ERROR("unknown global opengl register " TARGET_FMT_plx,
+                         addr);
+                break;
+        }
+    } else {
+#ifdef QEMUGL_MULTITHREADED
+        OpenGLThreadState *ts = helper_opengl_threadstate(opaque, addr);
+        if (!ts) {
+            GL_ERROR("unknown guest process accessing local opengl register "
+                     "0x%04x", (uint32_t)addr);
+            return 0;
+        }
+        struct helper_opengl_s *s = &ts->state;
 #else
-            GL_ERROR("guest trying to access OpenGL framebuffer through I/O");
-            return 0; /* not used */
+        struct helper_opengl_s *s = opaque;
+#endif
+        addr = (addr - QEMUGL_GLOB_HWREG_SIZE) & QEMUGL_HWREG_MASK;
+        switch (addr) {
+            case QEMUGL_HWREG_FID: return s->fid;
+            case QEMUGL_HWREG_RSP: return s->rsp;
+            case QEMUGL_HWREG_IAP: return s->iap;
+            case QEMUGL_HWREG_IAS: return s->ias;
+            case QEMUGL_HWREG_CMD: return 0; /* write-only register */
+            case QEMUGL_HWREG_STA:
+/*#ifdef QEMUGL_MULTITHREADED
+                helper_opengl_waitthread(ts);
+                TRACE("result = %d (guest pid %d)", s->result, s->pid);
+#else
+                TRACE("result = %d", s->result);
+#endif*/
+                TRACE("result = %d", s->result);
+                return s->result;
+            case QEMUGL_HWREG_BUF:
+#ifdef QEMUGL_IO_FRAMEBUFFER
+                return opengl_buffer_read(s);
+#else
+                GL_ERROR("guest trying to access OpenGL framebuffer through I/O");
+                break;
 #endif // QEMUGL_IO_FRAMEBUFFER
-        default:
-            GL_ERROR("unknown register " TARGET_FMT_plx, addr);
-            break;
+            default:
+                GL_ERROR("unknown local opengl register " TARGET_FMT_plx, addr);
+                break;
+        }
     }
     return 0;
 }
@@ -848,13 +1155,16 @@ static CPUWriteMemoryFunc *helper_opengl_writefn[] = {
 
 void *helper_opengl_init(CPUState *env)
 {
-    struct helper_opengl_s *s = qemu_mallocz(sizeof(*s));
-    s->env=env;
+    OpenGLState *s = qemu_mallocz(sizeof(*s));
+    s->env = env;
+#ifdef QEMUGL_MULTITHREADED
+    s->pidquery = QEMUGL_PID_SIGNATURE;
+    LIST_INIT(&s->guest_list);
+#endif
     cpu_register_physical_memory(QEMUGL_HWREG_REGIONBASE,
                                  QEMUGL_HWREG_REGIONSIZE, 
                                  cpu_register_io_memory(helper_opengl_readfn,
                                                         helper_opengl_writefn,
                                                         s));
-    TRACE("registered IO memory at base address 0x%08x", (target_ulong)base);
     return s;
 }

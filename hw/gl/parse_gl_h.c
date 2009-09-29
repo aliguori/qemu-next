@@ -535,8 +535,9 @@ void get_func_dealt_by_hand( char * path )
     int i = 0;
     char* c;
     filename=malloc(strlen(path)+50);
-    sprintf(filename, "%s/hw/gl/gl_func_perso.h",path );
+    sprintf(filename, "%s/gl_func_perso.h",path );
     f = fopen(filename, "r");
+    assert(f);
     while(fgets(buffer, 256, f)) {
         if (strstr(buffer, "MAGIC_MACRO(")) {
             func_dealt_by_hand[i] = strdup(strstr(buffer, "MAGIC_MACRO(") + strlen("MAGIC_MACRO("));
@@ -1014,7 +1015,7 @@ int main(int argc, char* argv[])
     }
     path=argv[1];
     filename=malloc(strlen(path)+50);
-    sprintf(filename, "%s/hw/gl/mesa_gl.h",path );
+    sprintf(filename, "%s/mesa_gl.h",path );
     
     f = fopen(filename, "r");
     assert(f);
@@ -1023,7 +1024,7 @@ int main(int argc, char* argv[])
     funcDescCount = parse(f, funcDesc, 0, 1, path);
     fclose(f);
     
-    sprintf(filename, "%s/hw/gl/mesa_glext.h",path );
+    sprintf(filename, "%s/mesa_glext.h",path );
     f = fopen(filename, "r");
     assert(f);
     /*if (!f)

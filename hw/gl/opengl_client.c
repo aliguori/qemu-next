@@ -395,9 +395,12 @@ int glfd = 0;
 #include <sys/types.h>
 #include <sys/mman.h>
 #include <fcntl.h>
-#define MAP_SIZE 4096UL
+#define MAP_SIZE QEMUGL_HWREG_REGIONSIZE
 #define MAP_MASK (MAP_SIZE - 1)
 unsigned int *virt_addr;
+#ifdef QEMUGL_MULTITHREADED
+unsigned int regbase;
+#endif
 #endif
 #endif
     
@@ -405,8 +408,13 @@ static int call_opengl(int func_number, int pid, void *ret_string, void *args,
                        void *args_size)
 {
 #ifdef QEMUGL_MODULE
-    unsigned int devargs[5] = {func_number, pid, (unsigned int)ret_string,
+#ifdef QEMUGL_MULTITHREADED
+    unsigned int devargs[4] = {func_number, (unsigned int)ret_string,
+        (unsigned int)args, (unsigned int)args_size};
+#else
+    unsigned int devargs[5] = {pid, func_number, (unsigned int)ret_string,
                                (unsigned int)args, (unsigned int)args_size};
+#endif // QEMUGL_MULTITHREADED
     int result = 0;
     if (!(result = ioctl(glfd, QEMUGL_FIORNCMD, &devargs))) {
         ioctl(glfd, QEMUGL_FIORDSTA, &result);
@@ -414,14 +422,24 @@ static int call_opengl(int func_number, int pid, void *ret_string, void *args,
     return result;
 #else
 #ifdef __arm__
-    volatile unsigned int *p = virt_addr;
+#ifdef QEMUGL_MULTITHREADED
+    volatile unsigned int *p = virt_addr + regbase;
     p[0] = func_number;
-    p[1] = pid;
+    p[1] = (unsigned int)ret_string;
+    p[2] = (unsigned int)args;
+    p[3] = (unsigned int)args_size;
+    p[4] = QEMUGL_HWCMD_GLCALL;
+    return p[5];
+#else
+    volatile unsigned int *p = virt_addr;
+    p[0] = pid;
+    p[1] = func_number;
     p[2] = (unsigned int)ret_string;
     p[3] = (unsigned int)args;
     p[4] = (unsigned int)args_size;
     p[5] = QEMUGL_HWCMD_GLCALL;
     return p[6];
+#endif // QEMUGL_MULTITHREADED
 #else
 #error unsupported architecture!
 #endif
@@ -436,13 +454,22 @@ static void do_init(void)
 #ifdef __arm__
     void *mmap_base;
     int fd;
-    off_t target=0x4fff0000;
+    off_t target = QEMUGL_HWREG_REGIONBASE;
     fd = open("/dev/mem", O_RDWR | O_SYNC);
     mmap_base = mmap(0, MAP_SIZE, PROT_READ | PROT_WRITE, MAP_SHARED, fd, target & ~MAP_MASK);
     virt_addr = mmap_base + (target & MAP_MASK);
-    // FIXME: hack to ensure there's only one client at a time
     volatile unsigned int *p = virt_addr;
-    p[5] = 0xfeedcafe;
+    if (p[0] != QEMUGL_PID_SIGNATURE) {
+        log_gl("qemugl hardware probe failed");
+    }
+#ifdef QEMUGL_MULTITHREADED
+    // FIXME: ensure atomic operation below
+    p[0] = getpid();
+    regbase = p[0];
+#else
+    // FIXME: hack to ensure there's only one client at a time
+    p[5] = QEMUGL_HWCMD_RESET;
+#endif // QEMUGL_MULTITHREADED
 #else
 #error unsupported architecture!
 #endif

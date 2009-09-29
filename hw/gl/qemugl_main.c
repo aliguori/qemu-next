@@ -18,7 +18,7 @@
  */
 
 /* NOTE: in its current state, doesn NOT work on 64bit machines!
- * Assumes pointer size <= 32bits */
+ * Assumes pointer size <= 32bits and host endianess equals guest endianess */
 
 #include <linux/module.h>
 #include <linux/fs.h>
@@ -48,6 +48,7 @@
 
 struct qemugl_client {
   pid_t pid;
+  unsigned base;
   int last_hw_result;
   struct {
 	int width;
@@ -81,9 +82,39 @@ static struct qemugl_client *qemugl_getclient(pid_t pid)
   return NULL;
 }
 
+static void qemugl_deleteclient(pid_t pid)
+{
+  struct qemugl_client *c = qemugl_clients;
+  if (c->pid == pid) {
+    qemugl_clients = c->next;
+  } else {
+    for (; c; c = c->next) {
+      if (c->next && c->next->pid == pid) {
+        struct qemugl_client *d = c->next;
+        c->next = d->next;
+        c = d;
+        break;
+      }
+    }
+  }
+  if (c) {
+#ifdef QEMUGL_IO_FRAMEBUFFER
+    if (c->fb.data) {
+      kfree(c->fb.data);
+      c->fb.data = NULL;
+    }
+#endif
+    kfree(c);
+  }
+}
+
 static int qemugl_addclient(pid_t pid)
 {
-  struct qemugl_client *c = qemugl_getclient(pid);
+  struct qemugl_client *c;
+  if (QEMUGL_READ_REG(QEMUGL_GLOB_HWREG_PID) != QEMUGL_PID_SIGNATURE) {
+    return -EFAULT;
+  }
+  c = qemugl_getclient(pid);
   if (c) {
 	return 0;
   }
@@ -91,43 +122,28 @@ static int qemugl_addclient(pid_t pid)
   if (!c) {
 	c = qemugl_clients = kzalloc(sizeof(*c), GFP_KERNEL);
   } else {
+#ifdef QEMUGL_MULTITHREADED
 	while (c->next) {
 	  c = c->next;
 	}
 	c->next = kzalloc(sizeof(*c->next), GFP_KERNEL);
 	c = c->next;
+#else
+    return -EACCES;
+#endif
   }
   if (!c) {
 	return -ENOMEM;
   }
   c->pid = pid;
-  return 0;
-}
-
-static void qemugl_deleteclient(pid_t pid)
-{
-  struct qemugl_client *c = qemugl_clients;
-  if (c->pid == pid) {
-	qemugl_clients = c->next;
-  } else {
-	for (; c; c = c->next) {
-	  if (c->next && c->next->pid == pid) {
-		struct qemugl_client *d = c->next;
-		c->next = d->next;
-		c = d;
-		break;
-	  }
-	}
-  }
-  if (c) {
-#ifdef QEMUGL_IO_FRAMEBUFFER
-	if (c->fb.data) {
-	  kfree(c->fb.data);
-	  c->fb.data = NULL;
-	}
+#ifdef QEMUGL_MULTITHREADED
+  QEMUGL_WRITE_REG(pid, QEMUGL_GLOB_HWREG_PID);
+  c->base = QEMUGL_READ_REG(QEMUGL_GLOB_HWREG_PID);
+  QEMUGL_TRACE("regbase for client pid %d is 0x%04x", c->pid, c->base);
+#else
+  c->base = QEMUGL_GLOB_HWREG_SIZE;
 #endif
-	kfree(c);
-  }
+  return 0;
 }
 
 static int qemugl_hw_status(struct qemugl_client *c, void __user *status)
@@ -141,6 +157,13 @@ static int qemugl_hw_status(struct qemugl_client *c, void __user *status)
 static int qemugl_hw_command(struct qemugl_client *c, void __user *args)
 {
   unsigned int x = 0;
+#ifndef QEMUGL_MULTITHREADED
+  if (copy_from_user(&x, args, sizeof(x))) {
+    return -EFAULT;
+  }
+  args += sizeof(x);
+  QEMUGL_WRITE_REG(x, QEMUGL_GLOB_HWREG_PID);
+#endif    
   int i = QEMUGL_HWREG_FID;
   for (; i < QEMUGL_HWREG_CMD; i += 4) {
 	// assume <=32bit pointers:
@@ -148,11 +171,11 @@ static int qemugl_hw_command(struct qemugl_client *c, void __user *args)
 	  return -EFAULT;
 	}
 	args += sizeof(x);
-	QEMUGL_WRITE_REG(x, i);
+	QEMUGL_WRITE_REG(x, c->base + i);
   }
-  QEMUGL_WRITE_REG(QEMUGL_HWCMD_GLCALL, QEMUGL_HWREG_CMD);
+  QEMUGL_WRITE_REG(QEMUGL_HWCMD_GLCALL, c->base + QEMUGL_HWREG_CMD);
   // our hw is *fast*, command result can be read immediately...
-  c->last_hw_result = QEMUGL_READ_REG(QEMUGL_HWREG_STA);
+  c->last_hw_result = QEMUGL_READ_REG(c->base + QEMUGL_HWREG_STA);
   return 0;
 }
 
@@ -184,8 +207,8 @@ static int qemugl_realloc_framebuffer(struct qemugl_client *c, void __user *arg)
       return -EFAULT;
   }
 #else
-  QEMUGL_WRITE_REG(c->fb.bytesperline, QEMUGL_HWREG_IAS);
-  QEMUGL_WRITE_REG(QEMUGL_HWCMD_SETBUF, QEMUGL_HWREG_CMD);
+  QEMUGL_WRITE_REG(c->fb.bytesperline, c->base + QEMUGL_HWREG_IAS);
+  QEMUGL_WRITE_REG(QEMUGL_HWCMD_SETBUF, c->base + QEMUGL_HWREG_CMD);
 #endif
   return 0;
 }
@@ -206,13 +229,13 @@ static int qemugl_copy_framebuffer(struct qemugl_client *c, void __user *arg)
 		int n = c->fb.width;											\
 		type *p = c->fb.data;											\
 		for (; n > 3; n -= 4) {											\
-		  *(p++) = (type)QEMUGL_READ_REG(QEMUGL_HWREG_BUF);				\
-		  *(p++) = (type)QEMUGL_READ_REG(QEMUGL_HWREG_BUF);				\
-		  *(p++) = (type)QEMUGL_READ_REG(QEMUGL_HWREG_BUF);				\
-		  *(p++) = (type)QEMUGL_READ_REG(QEMUGL_HWREG_BUF);				\
+		  *(p++) = (type)QEMUGL_READ_REG(c->base + QEMUGL_HWREG_BUF);	\
+		  *(p++) = (type)QEMUGL_READ_REG(c->base + QEMUGL_HWREG_BUF);	\
+		  *(p++) = (type)QEMUGL_READ_REG(c->base + QEMUGL_HWREG_BUF);	\
+		  *(p++) = (type)QEMUGL_READ_REG(c->base + QEMUGL_HWREG_BUF);	\
 		}																\
 		while (n--) {													\
-		  *(p++) = (type)QEMUGL_READ_REG(QEMUGL_HWREG_BUF);				\
+		  *(p++) = (type)QEMUGL_READ_REG(c->base + QEMUGL_HWREG_BUF);	\
 		}																\
 		for (n = extra; n--;) {											\
 		  *(p++) = 0;													\
@@ -310,11 +333,18 @@ static int qemugl_open(struct inode *inode, struct file *file)
 
 static int qemugl_release(struct inode *inode, struct file *file)
 {
+  struct qemugl_client *c;
   mutex_lock(&qemugl_mutex);
-  QEMUGL_TRACE("client pid=%d", current->pid);
-  QEMUGL_WRITE_REG(current->pid, QEMUGL_HWREG_PID);
-  QEMUGL_WRITE_REG(QEMUGL_HWCMD_RESET, QEMUGL_HWREG_CMD);
-  qemugl_deleteclient(current->pid);
+  if (!(c = qemugl_getclient(current->pid))) {
+     QEMUGL_ERROR("unknown client pid %d", current->pid);
+  } else {
+     QEMUGL_TRACE("client pid=%d", current->pid);
+#ifndef QEMUGL_MULTITHREADED
+     QEMUGL_WRITE_REG(current->pid, QEMUGL_GLOB_HWREG_PID);
+#endif
+     QEMUGL_WRITE_REG(QEMUGL_HWCMD_RESET, c->base + QEMUGL_HWREG_CMD);
+     qemugl_deleteclient(current->pid);
+  }
   mutex_unlock(&qemugl_mutex);
   return 0;
 }

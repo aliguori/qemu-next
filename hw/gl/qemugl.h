@@ -14,17 +14,28 @@
  */
 //#define QEMUGL_IO_FRAMEBUFFER
 
-#define QEMUGL_HWREG_REGIONBASE 0x4fff0000
-#define QEMUGL_HWREG_REGIONSIZE 0x100
+/* if defined, multiple guest processes can use the opengl "hardware"
+ * simultaneously.
+ */
+#define QEMUGL_MULTITHREADED
 
-#define QEMUGL_HWREG_FID 0x00
-#define QEMUGL_HWREG_PID 0x04
-#define QEMUGL_HWREG_RSP 0x08
-#define QEMUGL_HWREG_IAP 0x0c
-#define QEMUGL_HWREG_IAS 0x10
-#define QEMUGL_HWREG_CMD 0x14
-#define QEMUGL_HWREG_STA 0x18
-#define QEMUGL_HWREG_BUF 0x1c
+#define QEMUGL_HWREG_REGIONBASE 0x4fff0000
+#define QEMUGL_HWREG_REGIONSIZE 0x8000
+
+/* global registers */
+#define QEMUGL_GLOB_HWREG_PID 0x00
+#define QEMUGL_GLOB_HWREG_SIZE 0x04 /* size of global register area */
+
+/* local (per-process) registers */
+#define QEMUGL_HWREG_FID 0x00 /* function identifier */
+#define QEMUGL_HWREG_RSP 0x04 /* guest ptr for return string */
+#define QEMUGL_HWREG_IAP 0x08 /* guest ptr for input args table */
+#define QEMUGL_HWREG_IAS 0x0c /* guest ptr for input args size table */
+#define QEMUGL_HWREG_CMD 0x10 /* command */
+#define QEMUGL_HWREG_STA 0x14 /* status / integer return value */
+#define QEMUGL_HWREG_BUF 0x18 /* opengl framebuffer access (i/o mode only) */
+#define QEMUGL_HWREG_UNUSED 0x1c /* not used currently */
+#define QEMUGL_HWREG_MASK 0x1f /* size mask for local register area */
 
 #define QEMUGL_HWCMD_RESET  0xfeedcafe
 #define QEMUGL_HWCMD_GLCALL 0xdeadbeef
@@ -38,5 +49,7 @@
 #define QEMUGL_FIORDSTA 0xc01d1ead
 #define QEMUGL_FIOCPBUF 0xfeedbeef
 #define QEMUGL_FIOSTBUF 0xbabe0000
+
+#define QEMUGL_PID_SIGNATURE 0x51454d55 /* 'QEMU' */
 
 #endif // QEMUGL_H__
