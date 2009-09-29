@@ -242,9 +242,9 @@ static void omap_mcspi_transfer_run(struct omap_mcspi_s *s, int chnum)
         if (ch->txrx) {
             wl = 1 + (0x1f & (ch->config >> 7)); /* WL */
             if (!IS_OMAP3_SPI(s) || s->fifo_ch != chnum ||
-                !((ch->config >> 27) & 3))       /* FFER | FFEW */
+                !((ch->config >> 27) & 3)) {     /* FFER | FFEW */
                 ch->rx = ch->txrx(ch->opaque, ch->tx, wl);
-            else {
+            } else {
                 switch ((ch->config >> 27) & 3) {
                     case 1: /* !FFER, FFEW */
                         if (trm != 1)

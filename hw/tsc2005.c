@@ -23,6 +23,15 @@
 #include "console.h"
 #include "devices.h"
 
+//#define TSC2005_DEBUG
+
+#ifdef TSC2005_DEBUG
+#define TRACE(fmt, ...) fprintf(stderr, "%s@%d: " fmt "\n", \
+                                __FUNCTION__, __LINE__, ##__VA_ARGS__)
+#else
+#define TRACE(...)
+#endif
+
 #define TSC_CUT_RESOLUTION(value, p)	((value) >> (16 - (p ? 12 : 10)))
 
 typedef struct {
@@ -114,33 +123,46 @@ static uint16_t tsc2005_read(TSC2005State *s, int reg)
     switch (reg) {
     case 0x0:	/* X */
         s->dav &= ~mode_regs[TSC_MODE_X];
+        TRACE("X = %d", TSC_CUT_RESOLUTION(X_TRANSFORM(s), s->precision) +
+              (s->noise & 3));
         return TSC_CUT_RESOLUTION(X_TRANSFORM(s), s->precision) +
                 (s->noise & 3);
     case 0x1:	/* Y */
         s->dav &= ~mode_regs[TSC_MODE_Y];
         s->noise ++;
+        TRACE("Y = %d", TSC_CUT_RESOLUTION(Y_TRANSFORM(s), s->precision) ^
+              (s->noise & 3));
         return TSC_CUT_RESOLUTION(Y_TRANSFORM(s), s->precision) ^
                 (s->noise & 3);
     case 0x2:	/* Z1 */
         s->dav &= 0xdfff;
+        TRACE("Z1 = %d", TSC_CUT_RESOLUTION(Z1_TRANSFORM(s), s->precision) -
+              (s->noise & 3));
         return TSC_CUT_RESOLUTION(Z1_TRANSFORM(s), s->precision) -
                 (s->noise & 3);
     case 0x3:	/* Z2 */
         s->dav &= 0xefff;
+        TRACE("Z2 = %d", TSC_CUT_RESOLUTION(Z2_TRANSFORM(s), s->precision) |
+              (s->noise & 3));
         return TSC_CUT_RESOLUTION(Z2_TRANSFORM(s), s->precision) |
                 (s->noise & 3);
 
     case 0x4:	/* AUX */
         s->dav &= ~mode_regs[TSC_MODE_AUX];
+        TRACE("AUX = %d", TSC_CUT_RESOLUTION(AUX_VAL, s->precision));
         return TSC_CUT_RESOLUTION(AUX_VAL, s->precision);
 
     case 0x5:	/* TEMP1 */
         s->dav &= ~mode_regs[TSC_MODE_TEMP1];
+        TRACE("TEMP1 = %d", TSC_CUT_RESOLUTION(TEMP1_VAL, s->precision) -
+              (s->noise & 5));
         return TSC_CUT_RESOLUTION(TEMP1_VAL, s->precision) -
                 (s->noise & 5);
     case 0x6:	/* TEMP2 */
         s->dav &= 0xdfff;
         s->dav &= ~mode_regs[TSC_MODE_TEMP2];
+        TRACE("TEMP2 = %d", TSC_CUT_RESOLUTION(TEMP2_VAL, s->precision) ^
+              (s->noise & 3));
         return TSC_CUT_RESOLUTION(TEMP2_VAL, s->precision) ^
                 (s->noise & 3);
 
@@ -149,31 +171,43 @@ static uint16_t tsc2005_read(TSC2005State *s, int reg)
         s->dav &= ~(mode_regs[TSC_MODE_X_TEST] | mode_regs[TSC_MODE_Y_TEST] |
                         mode_regs[TSC_MODE_TS_TEST]);
         s->reset = 1;
+        TRACE("STATUS = 0x%04x", ret);
         return ret;
 
     case 0x8:	/* AUX high treshold */
+        TRACE("AUX high threshold = 0x%04x", s->aux_thr[1]);
         return s->aux_thr[1];
     case 0x9:	/* AUX low treshold */
+        TRACE("AUX low threshold = 0x%04x", s->aux_thr[0]);
         return s->aux_thr[0];
 
     case 0xa:	/* TEMP high treshold */
+        TRACE("TEMP high threshold = 0x%04x", s->temp_thr[1]);
         return s->temp_thr[1];
     case 0xb:	/* TEMP low treshold */
+        TRACE("TEMP low threshold = 0x%04x", s->temp_thr[0]);
         return s->temp_thr[0];
 
     case 0xc:	/* CFR0 */
+        TRACE("CFR0 = 0x%04x", (s->pressure << 15) | ((!s->busy) << 14) |
+              (s->nextprecision << 13) | s->timing[0]);
         return (s->pressure << 15) | ((!s->busy) << 14) |
                 (s->nextprecision << 13) | s->timing[0]; 
     case 0xd:	/* CFR1 */
+        TRACE("CFR1 = 0x%04x", s->timing[1]);
         return s->timing[1];
     case 0xe:	/* CFR2 */
+        TRACE("CFR2 = 0x%04x", (s->pin_func << 14) | s->filter);
         return (s->pin_func << 14) | s->filter;
 
     case 0xf:	/* Function select status */
+        TRACE("function select status = 0x%04x",
+              s->function >= 0 ? 1 << s->function : 0);
         return s->function >= 0 ? 1 << s->function : 0;
     }
 
     /* Never gets here */
+    TRACE("unknown register = 0xffff");
     return 0xffff;
 }
 
@@ -181,46 +215,52 @@ static void tsc2005_write(TSC2005State *s, int reg, uint16_t data)
 {
     switch (reg) {
     case 0x8:	/* AUX high treshold */
+        TRACE("AUX high threshold = 0x%04x", data);
         s->aux_thr[1] = data;
         break;
     case 0x9:	/* AUX low treshold */
+        TRACE("AUX low threshold = 0x%04x", data);
         s->aux_thr[0] = data;
         break;
 
     case 0xa:	/* TEMP high treshold */
+        TRACE("TEMP high threshold = 0x%04x", data);
         s->temp_thr[1] = data;
         break;
     case 0xb:	/* TEMP low treshold */
+        TRACE("TEMP low threshold = 0x%04x", data);
         s->temp_thr[0] = data;
         break;
 
     case 0xc:	/* CFR0 */
+        TRACE("CFR0 = 0x%04x", data);
         s->host_mode = data >> 15;
         if (s->enabled != !(data & 0x4000)) {
             s->enabled = !(data & 0x4000);
-            //fprintf(stderr, "%s: touchscreen sense %sabled\n",
-            //                __FUNCTION__, s->enabled ? "en" : "dis");
-            if (s->busy && !s->enabled)
+            TRACE("touchscreen sense %sabled", s->enabled ? "en" : "dis");
+            if (s->busy && !s->enabled) {
                 qemu_del_timer(s->timer);
+            }
             s->busy &= s->enabled;
         }
         s->nextprecision = (data >> 13) & 1;
         s->timing[0] = data & 0x1fff;
-        if ((s->timing[0] >> 11) == 3)
-            fprintf(stderr, "%s: illegal conversion clock setting\n",
-                            __FUNCTION__);
+        if ((s->timing[0] >> 11) == 3) {
+            TRACE("illegal conversion clock setting");
+        }
         break;
     case 0xd:	/* CFR1 */
+        TRACE("CFR1 = 0x%04x", data);
         s->timing[1] = data & 0xf07;
         break;
     case 0xe:	/* CFR2 */
+        TRACE("CFR2 = 0x%04x", data);
         s->pin_func = (data >> 14) & 3;
         s->filter = data & 0x3fff;
         break;
 
     default:
-        fprintf(stderr, "%s: write into read-only register %x\n",
-                        __FUNCTION__, reg);
+        TRACE("write into read-only register 0x%x, value 0x%04x", reg, data);
     }
 }
 
@@ -228,7 +268,8 @@ static void tsc2005_write(TSC2005State *s, int reg, uint16_t data)
 static void tsc2005_pin_update(TSC2005State *s)
 {
     int64_t expires;
-
+    TRACE("nextfunction=%d, pressure=%d, enabled=%d, busy=%d, dav=0x%04x",
+          s->nextfunction, s->pressure, s->enabled, s->busy, s->dav);
     switch (s->nextfunction) {
     case TSC_MODE_XYZ_SCAN:
     case TSC_MODE_XY_SCAN:
@@ -264,15 +305,14 @@ static void tsc2005_pin_update(TSC2005State *s)
         return;
     }
 
-    if (!s->enabled || s->busy)
-        return;
-
-    s->busy = 1;
-    s->precision = s->nextprecision;
-    s->function = s->nextfunction;
-    s->pdst = !s->pnd0;	/* Synchronised on internal clock */
-    expires = qemu_get_clock(vm_clock) + (ticks_per_sec >> 7);
-    qemu_mod_timer(s->timer, expires);
+    if (s->enabled && !s->busy) {
+        s->busy = 1;
+        s->precision = s->nextprecision;
+        s->function = s->nextfunction;
+        s->pdst = !s->pnd0;	/* Synchronised on internal clock */
+        expires = qemu_get_clock(vm_clock) + (ticks_per_sec >> 7);
+        qemu_mod_timer(s->timer, expires);
+    }
 }
 
 static void tsc2005_reset(TSC2005State *s)
@@ -303,20 +343,20 @@ static uint8_t tsc2005_txrx_word(void *opaque, uint8_t value)
 {
     TSC2005State *s = opaque;
     uint32_t ret = 0;
-
+    TRACE("value = 0x%08x, state=%d", value, s->state + 1);
     switch (s->state ++) {
     case 0:
         if (value & 0x80) {
             /* Command */
-            if (value & (1 << 1))
+            if (value & (1 << 1)) {
                 tsc2005_reset(s);
-            else {
+            } else {
                 s->nextfunction = (value >> 3) & 0xf;
                 s->nextprecision = (value >> 2) & 1;
                 if (s->enabled != !(value & 1)) {
                     s->enabled = !(value & 1);
-                    fprintf(stderr, "%s: touchscreen sense %sabled\n",
-                                    __FUNCTION__, s->enabled ? "en" : "dis");
+                    TRACE("touchscreen sense %sabled",
+                          s->enabled ? "en" : "dis");
                     if (s->busy && !s->enabled)
                         qemu_del_timer(s->timer);
                     s->busy &= s->enabled;
@@ -367,7 +407,7 @@ static uint8_t tsc2005_txrx_word(void *opaque, uint8_t value)
 uint32_t tsc2005_txrx(void *opaque, uint32_t value, int len)
 {
     uint32_t ret = 0;
-
+    TRACE("value=0x%08x, len=%d", value, len);
     len &= ~7;
     while (len > 0) {
         len -= 8;
@@ -384,12 +424,14 @@ static void tsc2005_timer_tick(void *opaque)
 
     /* Timer ticked -- a set of conversions has been finished.  */
 
-    if (!s->busy)
+    if (!s->busy) {
+        TRACE("not busy -> exit");
         return;
+    }
 
 	switch (s->pin_func) {
 		case 0:
-			pin_state = !s->pressure && !!s->dav;
+			pin_state = !s->pressure && !s->dav;
 			break;
 		case 1:
 		case 3:
@@ -399,13 +441,18 @@ static void tsc2005_timer_tick(void *opaque)
 		case 2:
 			pin_state = !s->pressure;
     }
-	
 	s->busy = 0;
-	if (pin_state && !s->irq) s->dav |= mode_regs[s->function];
+	if (pin_state && !s->irq) {
+        TRACE("report new conversions ready");
+        s->dav |= mode_regs[s->function];
+    }
+    TRACE("pin_func=%d, pin_state=%d, pressure=%d, irq=%d, dav=0x%04x",
+          s->pin_func, pin_state, s->pressure, s->irq, s->dav);
 	s->function = -1;
 	tsc2005_pin_update(s);
 
     if (pin_state != s->irq) {
+        TRACE("changing IRQ state to %d", pin_state);
         s->irq = pin_state;
         qemu_set_irq(s->pint, s->irq);
     }
@@ -418,6 +465,7 @@ static void tsc2005_touchscreen_event(void *opaque,
     int p = s->pressure;
 
     if (buttons_state) {
+        TRACE("touch press event at %d,%d", x, y);
         s->x = x;
         s->y = y;
     }
@@ -428,8 +476,9 @@ static void tsc2005_touchscreen_event(void *opaque,
      * signaling TS events immediately, but for now we simulate
      * the first conversion delay for sake of correctness.
      */
-    if (p != s->pressure)
+    if (p != s->pressure) {
         tsc2005_pin_update(s);
+    }
 }
 
 static void tsc2005_save(QEMUFile *f, void *opaque)
