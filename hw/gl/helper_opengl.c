@@ -713,7 +713,7 @@ static void opengl_map_copyframe(struct helper_opengl_s *s, uint32_t vaddr)
         s->framecopy.ptr = s->framecopy.mapped_ptr =
             cpu_physical_memory_map(paddr, &s->framecopy.mapped_len, 1);
         if (!s->framecopy.ptr) {
-            TRCAE("unable to map guest (pid %d) physical memory address "
+            TRACE("unable to map guest (pid %d) physical memory address "
                   "0x%08x", s->pid, paddr);
         }
     } else {
