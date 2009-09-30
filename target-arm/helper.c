@@ -1068,7 +1068,7 @@ static int get_phys_addr_v6(CPUState *env, uint32_t address, int access_type,
     table = get_level1_table_address(env, address);
     desc = ldl_phys(table);
     type = (desc & 3);
-    if (type == 0) {
+    if (type == 0 || type == 3) {
         /* Section translation fault.  */
         code = 5;
         domain = 0;
