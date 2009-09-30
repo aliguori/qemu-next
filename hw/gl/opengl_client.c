@@ -3148,7 +3148,8 @@ static void update_win(Display *dpy, Window win)
         state->drawable_height = pos.height;
         create_drawable(state, dpy, win);
         long args[] = {INT_TO_ARG(win), INT_TO_ARG(pos.width),
-                       INT_TO_ARG(pos.height)};
+                       INT_TO_ARG(pos.height),
+                       INT_TO_ARG(state->shm_info->shmaddr)};
         do_opengl_call_no_lock(_resizeDrawable_func, NULL, args, NULL);
     }
 }

@@ -365,10 +365,13 @@ static void doCreateDrawable(ProcessStruct *process, int client_drawable,
 }
 
 static void doResizeDrawable(ProcessStruct *process, int client_drawable,
-                             int width, int height)
+                             int width, int height, uint32_t shmaddr)
 {
+    TRACE("client_drawable 0x%x, size %dx%d, addr 0x%08x",
+          client_drawable, width, height, shmaddr);
     process->width = width;
     process->height = height;
+    process->shmaddr = shmaddr;
     GLHostDrawable d = assoc_get_Cdrw_Sdrw(process, client_drawable);
     if (d) {
         glhost_resizedrawable(d, width, height);
@@ -769,12 +772,12 @@ int do_function_call(struct helper_opengl_s *s, int func_number,
 #endif
             break;
         case _createDrawable_func:
-            doCreateDrawable(process, (int)args[0], (int)args[1],
+            doCreateDrawable(process, (int)args[0], (uint32_t)args[1],
                              (int)args[2], (int)args[3], (int)args[4]);
             break;
         case _resizeDrawable_func:
             doResizeDrawable(process, (int)args[0], (int)args[1],
-                             (int)args[2]);
+                             (int)args[2], (uint32_t)args[3]);
             break;
         case glXWaitGL_func:
             glhost_xwaitgl();

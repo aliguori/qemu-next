@@ -143,10 +143,11 @@ static const int _createDrawable_signature[] = {TYPE_NONE, 0, 5,
                                                 TYPE_INT,  // depth
                                                 TYPE_INT,  // width
                                                 TYPE_INT}; // height
-static const int _resizeDrawable_signature[] = {TYPE_NONE, 0, 3,
+static const int _resizeDrawable_signature[] = {TYPE_NONE, 0, 4,
                                                 TYPE_INT,  // drawable
                                                 TYPE_INT,  // width
-                                                TYPE_INT}; // height
+                                                TYPE_INT,  // height
+                                                TYPE_INT}; // shmaddr
 
 /* GLX 1.0 and later */
 

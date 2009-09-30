@@ -699,13 +699,30 @@ static uint32_t opengl_buffer_read(struct helper_opengl_s *s)
 #endif // USE_OSMESA
             }
         default:
-            GL_ERROR("unsupported pixel size %d bytes",
-                     s->bufpixelsize);
+            GL_ERROR("unsupported pixel size %d bytes (guest pid %d)",
+                     s->bufpixelsize, s->pid);
     }
     return 0;
 }
 
 #ifndef QEMUGL_IO_FRAMEBUFFER
+static void opengl_map_copyframe(struct helper_opengl_s *s, uint32_t vaddr)
+{
+    target_ulong paddr = get_phys_mem_addr(s->env, vaddr);
+    if (paddr) {
+        s->framecopy.ptr = s->framecopy.mapped_ptr =
+            cpu_physical_memory_map(paddr, &s->framecopy.mapped_len, 1);
+        if (!s->framecopy.ptr) {
+            TRCAE("unable to map guest (pid %d) physical memory address "
+                  "0x%08x", s->pid, paddr);
+        }
+    } else {
+        TRACE("unable to get guest (pid %d) physical memory address for "
+              "virtual address 0x%08x", s->pid, vaddr);
+        s->framecopy.ptr = s->framecopy.mapped_ptr = NULL;
+    }
+}
+
 static void opengl_init_copyframe(struct helper_opengl_s *s)
 {
     target_ulong a = TARGET_ADDR_LOW_ALIGN(s->qemugl_buf);
@@ -715,14 +732,7 @@ static void opengl_init_copyframe(struct helper_opengl_s *s)
         s->framecopy.count = TARGET_PAGE_SIZE;
     }
     s->framecopy.addr = a;
-    a = get_phys_mem_addr(s->env, s->qemugl_buf);
-    if (a) {
-        s->framecopy.mapped_len = s->framecopy.count;
-        s->framecopy.ptr = s->framecopy.mapped_ptr = 
-            cpu_physical_memory_map(a, &s->framecopy.mapped_len, 1);
-    } else {
-        s->framecopy.ptr = s->framecopy.mapped_ptr = NULL;
-    }
+    opengl_map_copyframe(s, s->qemugl_buf);
 }
 
 static void opengl_finish_copyframe(struct helper_opengl_s *s)
@@ -744,12 +754,10 @@ static void opengl_copyframe_bytes(struct helper_opengl_s *s,
             s->framecopy.count = TARGET_PAGE_SIZE;
             s->framecopy.addr += s->framecopy.count;
             s->framecopy.mapped_len = s->framecopy.count;
-            target_ulong addr = get_phys_mem_addr(s->env, s->framecopy.addr);
-            s->framecopy.ptr = s->framecopy.mapped_ptr =
-                cpu_physical_memory_map(addr, &s->framecopy.mapped_len, 1);
+            opengl_map_copyframe(s, s->framecopy.addr);
         }
         if (s->framecopy.ptr) {
-            *(s->framecopy.ptr++) = (unsigned char)(le_data & 0xff);
+            *(s->framecopy.ptr++) = (uint8_t)(le_data & 0xff);
         }
     }
 }
@@ -757,7 +765,7 @@ static void opengl_copyframe_bytes(struct helper_opengl_s *s,
 void helper_opengl_copyframe(struct helper_opengl_s *s)
 {
     if (s->qemugl_bufbytesperline < s->bufwidth * s->bufpixelsize) {
-        GL_ERROR("invalid guest OpenGL framebuffer pitch");
+        GL_ERROR("invalid guest (pid %d) OpenGL framebuffer pitch", s->pid);
         return;
     }
     opengl_init_copyframe(s);
@@ -1040,6 +1048,9 @@ static void helper_opengl_write(void *opaque, target_phys_addr_t addr,
 #ifdef QEMUGL_MULTITHREADED
                         TRACE("cmd = glcall (guest pid %d)", s->pid);
                         helper_opengl_runthread(ts);
+                        // we must run this synchronously and wait for
+                        // completion here, otherwise guest memory mappings
+                        // may change while opengl thread is processing
                         helper_opengl_waitthread(ts);
 #else
                         if (value != QEMUGL_HWCMD_RESET) {
@@ -1050,15 +1061,17 @@ static void helper_opengl_write(void *opaque, target_phys_addr_t addr,
                         break;
                     case QEMUGL_HWCMD_SETBUF:
 #ifdef QEMUGL_MULTITHREADED
-                        TRACE("cmd = setbuf (guest pid %d)", s->pid);
+                        TRACE("cmd = setbuf (guest pid %d), guest "
+                              "bytes/line=%d", s->pid, s->ias);
 #else
-                        TRACE("cmd = setbuf");
+                        TRACE("cmd = setbuf, guest bytes/line=%d", s->ias);
 #endif
 #ifndef QEMUGL_IO_FRAMEBUFFER
                         s->qemugl_bufbytesperline = s->ias;
 #else
                         /* ignored */
-                        GL_ERROR("guest issuing meaningless buffer definition");
+                        GL_ERROR("guest issuing meaningless buffer "
+                                 "definition");
 #endif // QEMUGL_IO_FRAMEBUFFER
                         break;
                     default:
