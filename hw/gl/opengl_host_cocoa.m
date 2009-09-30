@@ -89,6 +89,12 @@ int glhost_idforvisual(GLHostVisualInfo vis)
 GLHostVisualInfo glhost_choosevisual(int depth, const int *attribs)
 {
     GLXTRACE("creating pixel format object... depth=%d bits/pixel", depth);
+#ifdef QEMUGL_MULTITHREADED
+    /* since we come here from a thread different than the qemu main
+     * thread, we need to setup an autorelease pool ourself
+     */
+    NSAutoreleasePool *pool = [[NSAutoreleasePool alloc] init];
+#endif
     unsigned int ns_attribs[] = {
         NSOpenGLPFAOffScreen,
         NSOpenGLPFAColorSize, depth,
@@ -102,6 +108,9 @@ GLHostVisualInfo glhost_choosevisual(int depth, const int *attribs)
     GLint color_size = 0;
     [pixelformat getValues:&color_size forAttribute:NSOpenGLPFAColorSize
           forVirtualScreen:0];
+#ifdef QEMUGL_MULTITHREADED
+    [pool drain];
+#endif
     GLXTRACE("created pixel format object %p, color size = %d",
              pixelformat, color_size);
     return pixelformat;
