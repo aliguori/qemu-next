@@ -705,7 +705,7 @@ static void sdl_refresh(DisplayState *ds)
                     if (ev->type == SDL_MOUSEBUTTONDOWN &&
                         (bev->button == SDL_BUTTON_LEFT)) {
                         /* start grabbing all events */
-                        if (cursor_grab_allowed) sdl_grab_start();
+                        if (cursor_allow_grab) sdl_grab_start();
                     }
                 } else {
                     int dz;
