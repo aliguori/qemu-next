@@ -283,7 +283,7 @@ static void n810_tsc_setup(struct n800_s *s)
     s->ts.opaque = tsc2005_init(pintdav);
     s->ts.txrx = tsc2005_txrx;
 
-    tsc2005_set_transform(s->ts.opaque, &n810_pointercal);
+    tsc2005_set_transform(s->ts.opaque, &n810_pointercal, 400, 4000);
 }
 
 /* N810 Keyboard controller */
@@ -1885,7 +1885,7 @@ static const TWL4030KeyMap n900_twl4030_keymap[] = {
 static MouseTransformInfo n900_pointercal = {
     .x = 800,
     .y = 480,
-    .a = {-15729, 105, 56148848, 51, -9551, 34549448, 65536 },
+    .a = {14114,  18, -2825064,  34,  -8765, 32972906, 65536},
 };
 
 static void n900_init(ram_addr_t ram_size,
@@ -1914,7 +1914,7 @@ static void n900_init(ram_addr_t ram_size,
     
     s->tsc2005 = tsc2005_init(omap2_gpio_in_get(s->cpu->gpif,
                                                 N900_TSC2005_IRQ_GPIO)[0]);
-    tsc2005_set_transform(s->tsc2005, &n900_pointercal);
+    tsc2005_set_transform(s->tsc2005, &n900_pointercal, 600, 1500);
     omap_mcspi_attach(s->cpu->mcspi[0], tsc2005_txrx, s->tsc2005, 0);
     
     s->mipid = mipid_init();
