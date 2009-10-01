@@ -663,7 +663,7 @@ static int cocoa_keycode_to_qemu(int keycode)
                     COCOA_MOUSE_EVENT
             } else if (!isMouseGrabed) {
                 if (p.x > -1 && p.x < screen.width && p.y > -1 && p.y < screen.height) {
-                    [self grabMouse];
+                    if (cursor_allow_grab) [self grabMouse];
                 } else {
                     [NSApp sendEvent:event];
                 }

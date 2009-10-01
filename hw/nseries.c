@@ -1443,6 +1443,7 @@ static void n8x0_init(ram_addr_t ram_size, const char *boot_device,
         n810_kbd_setup(s);
     }
     cursor_hide = 0; // who wants to use touchscreen without a pointer?
+    cursor_allow_grab = 0; // ...and please, don't stop the host cursor
     n8x0_spi_setup(s);
     n8x0_dss_setup(s);
     n8x0_cbus_setup(s);
@@ -1918,6 +1919,7 @@ static void n900_init(ram_addr_t ram_size,
     tsc2005_set_transform(s->tsc2005, &n900_pointercal, 600, 1500);
     omap_mcspi_attach(s->cpu->mcspi[0], tsc2005_txrx, s->tsc2005, 0);
     cursor_hide = 0; // who wants to use touchscreen without a pointer?
+    cursor_allow_grab = 0; // ...and please, don't stop the host cursor
 
     s->mipid = mipid_init();
     s->mipid->n900 = 1;
@@ -3046,6 +3048,7 @@ static void n00_init(ram_addr_t ram_size,
                                 omap2_gpio_in_get(s->cpu->gpif, 61)[0],
                                 1);
     cursor_hide = 0; // who wants to use touchscreen without a pointer?
+    cursor_allow_grab = 0; // ...and please, don't stop the host cursor
 
     s->smc = smc91c111_init_lite(&nd_table[0], /*0x08000000,*/
                                  omap2_gpio_in_get(s->cpu->gpif, 54)[0]);
