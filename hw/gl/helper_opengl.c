@@ -33,7 +33,78 @@
 //#define GL_EXCESS_DEBUG
 
 #ifdef QEMUGL_MULTITHREADED
+#ifdef CONFIG_WIN32
+#include <windows.h>
+typedef struct {
+    HANDLE thread;
+    void *(*start_routine)(void *);
+    void *start_arg;
+} *pthread_t;
+typedef HANDLE pthread_mutex_t;
+typedef HANDLE pthread_cond_t;
+static DWORD WINAPI pthread_proc(LPVOID parameter)
+{
+    pthread_t p = (pthread_t)parameter;
+    p->start_routine(p->start_arg); /* ignore return value */
+    return 1;
+}
+static int pthread_create(pthread_t *thread, const void *attr,
+                          void *(*start_routine)(void *), void *arg)
+{
+    *thread = qemu_mallocz(sizeof(**thread));
+    (*thread)->start_routine = start_routine;
+    (*thread)->start_arg = arg;
+    return ((*thread)->thread = CreateThread(NULL, 0, pthread_proc,
+                                             *thread, 0, NULL)) ? 0 : -1;
+}
+static int pthread_join(pthread_t thread, void **value_ptr)
+{
+    int result = (WaitForSingleObject(thread->thread,
+                                      INFINITE) != WAIT_OBJECT_0);
+    if (!result) {
+        CloseHandle(thread->thread);
+        qemu_free(thread);
+    }
+    return result;
+}
+static int pthread_mutex_init(pthread_mutex_t *mutex, const void *attr)
+{
+    return (*mutex = CreateMutex(NULL, FALSE, NULL)) ? 0 : -1;
+}
+static int pthread_mutex_destroy(pthread_mutex_t *mutex)
+{
+    return CloseHandle(*mutex) ? 0 : -1;
+}
+static int pthread_mutex_lock(pthread_mutex_t *mutex)
+{
+    return (WaitForSingleObject(*mutex, INFINITE) != WAIT_OBJECT_0);
+}
+static int pthread_mutex_unlock(pthread_mutex_t *mutex)
+{
+    return ReleaseMutex(*mutex) ? 0 : -1;
+}
+static int pthread_cond_init(pthread_cond_t *cond, const void *attr)
+{
+    return (*cond = CreateEvent(NULL, FALSE, FALSE, NULL)) ? 0 : -1;
+}
+static int pthread_cond_destroy(pthread_cond_t *cond)
+{
+	return CloseHandle(*cond) ? 0 : -1;
+}
+static int pthread_cond_wait(pthread_cond_t *cond, pthread_mutex_t *mutex)
+{
+    pthread_mutex_unlock(mutex);
+    int result = (WaitForSingleObject(*cond, INFINITE) != WAIT_OBJECT_0);
+    pthread_mutex_lock(mutex);
+    return result;
+}
+static int pthread_cond_signal(pthread_cond_t *cond)
+{
+    return !SetEvent(*cond);
+}
+#else
 #include <pthread.h>
+#endif
 #include "sys-queue.h"
 typedef struct opengl_thread_state_s {
     struct helper_opengl_s state;
