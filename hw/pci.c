@@ -661,21 +661,25 @@ uint32_t pci_default_read_config(PCIDevice *d,
 
 void pci_default_write_config(PCIDevice *d, uint32_t addr, uint32_t val, int l)
 {
-    uint8_t orig[PCI_CONFIG_SPACE_SIZE];
     int i;
     uint32_t config_size = pcie_config_size(d);
+    uint8_t *orig = pci_write_config_init(d, addr, l);
 
-    /* not efficient, but simple */
-    memcpy(orig, d->config, PCI_CONFIG_SPACE_SIZE);
     for(i = 0; i < l && addr < config_size; val >>= 8, ++i, ++addr) {
         uint8_t wmask = d->wmask[addr];
         d->config[addr] = (d->config[addr] & ~wmask) | (val & wmask);
     }
-    if ((memcmp(orig + PCI_BASE_ADDRESS_0, d->config + PCI_BASE_ADDRESS_0, 24) ||
-         memcmp(orig + PCI_ROM_ADDRESS, d->config + PCI_ROM_ADDRESS, 4))
-        || ((orig[PCI_COMMAND] ^ d->config[PCI_COMMAND])
-            & (PCI_COMMAND_MEMORY | PCI_COMMAND_IO)))
+
+    if (pci_config_changed(orig, d->config, addr, l,
+                           PCI_BASE_ADDRESS_0, PCI_BASE_ADDRESS_5 + 4) ||
+        pci_config_changed_with_size(orig, d->config, addr, l,
+                                     PCI_ROM_ADDRESS, 4) ||
+        pci_config_changed_with_size(orig, d->config, addr, l,
+                                     PCI_COMMAND, 1)) {
         pci_update_mappings(d);
+    }
+
+    pci_write_config_done(orig);
 }
 
 static void pci_data_write_common(PCIDevice *pci_dev,

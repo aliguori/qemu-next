@@ -124,7 +124,12 @@ static inline int pci_bar_is_64bit(const PCIIORegion *r)
 #define  PCI_HEADER_TYPE_BRIDGE		1
 #define  PCI_HEADER_TYPE_CARDBUS	2
 #define  PCI_HEADER_TYPE_MULTI_FUNCTION 0x80
-#define PCI_BASE_ADDRESS_0	0x10	/* 32 bits */
+#define PCI_BASE_ADDRESS_0      0x10    /* 32 bits */
+#define PCI_BASE_ADDRESS_1      0x14    /* 32 bits [htype 0,1 only] */
+#define PCI_BASE_ADDRESS_2      0x18    /* 32 bits [htype 0 only] */
+#define PCI_BASE_ADDRESS_3      0x1c    /* 32 bits */
+#define PCI_BASE_ADDRESS_4      0x20    /* 32 bits */
+#define PCI_BASE_ADDRESS_5      0x24    /* 32 bits */
 #define PCI_PRIMARY_BUS		0x18	/* Primary bus number */
 #define PCI_SECONDARY_BUS	0x19	/* Secondary bus number */
 #define PCI_SEC_STATUS		0x1e	/* Secondary status register, only bit 14 used */
