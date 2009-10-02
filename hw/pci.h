@@ -166,6 +166,9 @@ static inline int pci_bar_is_64bit(const PCIIORegion *r)
 
 #define PCI_COMMAND_RESERVED_MASK_HI (PCI_COMMAND_RESERVED >> 8)
 
+/* Header type 1 (PCI-to-PCI bridges) */
+#define PCI_SUBORDINATE_BUS     0x1a    /* Highest bus number behind the bridge */
+
 /* Size of the standard PCI config header */
 #define PCI_CONFIG_HEADER_SIZE 0x40
 /* Size of the standard PCI config space */
@@ -274,15 +277,17 @@ PCIDevice *pci_nic_init(NICInfo *nd, const char *default_model,
 void pci_data_write(void *opaque, uint32_t addr, uint32_t val, int len);
 uint32_t pci_data_read(void *opaque, uint32_t addr, int len);
 int pci_bus_num(PCIBus *s);
-void pci_for_each_device(int bus_num, void (*fn)(PCIDevice *d));
-PCIBus *pci_find_bus(int bus_num);
-PCIDevice *pci_find_device(int bus_num, int slot, int function);
+void pci_for_each_device(PCIBus *bus, int bus_num, void (*fn)(PCIBus *bus, PCIDevice *d));
+PCIBus *pci_find_host_bus(int domain);
+PCIBus *pci_find_bus(PCIBus *bus, int bus_num);
+PCIDevice *pci_find_device(PCIBus *bus, int bus_num, int slot, int function);
 
 int pci_read_devaddr(Monitor *mon, const char *addr, int *domp, int *busp,
                      unsigned *slotp);
 
 void pci_info(Monitor *mon);
 PCIBus *pci_bridge_init(PCIBus *bus, int devfn, uint16_t vid, uint16_t did,
+                        uint8_t sec_bus, uint8_t sub_bus,
                         pci_map_irq_fn map_irq, const char *name);
 
 static inline void

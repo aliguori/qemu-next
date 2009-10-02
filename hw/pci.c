@@ -34,9 +34,12 @@
 # define PCI_DPRINTF(format, ...)       do { } while (0)
 #endif
 
+#define PCI_BUS_NUM_MAX 255
 struct PCIBus {
     BusState qbus;
     int bus_num;
+    int sub_bus;
+
     int devfn_min;
     pci_set_irq_fn set_irq;
     pci_map_irq_fn map_irq;
@@ -44,7 +47,10 @@ struct PCIBus {
     void *irq_opaque;
     PCIDevice *devices[256];
     PCIDevice *parent_dev;
-    PCIBus *next;
+
+    QLIST_HEAD(, PCIBus) child; /* this will be replaced by qdev later */
+    QLIST_ENTRY(PCIBus) sibling;/* this will be replaced by qdev later */
+
     /* The bus IRQ state is the logical OR of the connected devices.
        Keep a count of the number of devices with raised IRQs.  */
     int nirq;
@@ -69,7 +75,13 @@ static void pci_set_irq(void *opaque, int irq_num, int level);
 target_phys_addr_t pci_mem_base;
 static uint16_t pci_default_sub_vendor_id = PCI_SUBVENDOR_ID_REDHAT_QUMRANET;
 static uint16_t pci_default_sub_device_id = PCI_SUBDEVICE_ID_QEMU;
-static PCIBus *first_bus;
+
+struct PCIHostBus {
+    int domain;
+    struct PCIBus *bus;
+    QLIST_ENTRY(PCIHostBus) next;
+};
+static QLIST_HEAD(, PCIHostBus) host_buses;
 
 static const VMStateDescription vmstate_pcibus = {
     .name = "PCIBUS",
@@ -98,6 +110,28 @@ static void pci_bus_reset(void *opaque)
     }
 }
 
+static void pci_host_bus_register(int domain, PCIBus *bus)
+{
+    struct PCIHostBus *host;
+    host = qemu_mallocz(sizeof(*host));
+    host->domain = domain;
+    host->bus = bus;
+    QLIST_INSERT_HEAD(&host_buses, host, next);
+}
+
+PCIBus *pci_find_host_bus(int domain)
+{
+    struct PCIHostBus *host;
+
+    QLIST_FOREACH(host, &host_buses, next) {
+        if (host->domain == domain) {
+            return host->bus;
+        }
+    }
+
+    return NULL;
+}
+
 PCIBus *pci_register_bus(DeviceState *parent, const char *name,
                          pci_set_irq_fn set_irq, pci_map_irq_fn map_irq,
                          void *irq_opaque, int devfn_min, int nirq)
@@ -112,14 +146,20 @@ PCIBus *pci_register_bus(DeviceState *parent, const char *name,
     bus->devfn_min = devfn_min;
     bus->nirq = nirq;
     bus->irq_count = qemu_mallocz(nirq * sizeof(bus->irq_count[0]));
-    bus->next = first_bus;
-    first_bus = bus;
+
+    /* host bridge */
+    bus->bus_num = 0;
+    bus->sub_bus = PCI_BUS_NUM_MAX;
+    QLIST_INIT(&bus->child);
+    pci_host_bus_register(0, bus); /* for now only pci domain 0 is supported */
+
     vmstate_register(nbus++, &vmstate_pcibus, bus);
     qemu_register_reset(pci_bus_reset, bus);
     return bus;
 }
 
-static PCIBus *pci_register_secondary_bus(PCIDevice *dev,
+static PCIBus *pci_register_secondary_bus(PCIBus *parent,
+                                          PCIDevice *dev,
                                           pci_map_irq_fn map_irq,
                                           const char *name)
 {
@@ -128,8 +168,11 @@ static PCIBus *pci_register_secondary_bus(PCIDevice *dev,
     bus = FROM_QBUS(PCIBus, qbus_create(&pci_bus_info, &dev->qdev, name));
     bus->map_irq = map_irq;
     bus->parent_dev = dev;
-    bus->next = dev->bus->next;
-    dev->bus->next = bus;
+
+    bus->bus_num = dev->config[PCI_SECONDARY_BUS];
+    bus->sub_bus = dev->config[PCI_SUBORDINATE_BUS];
+    QLIST_INIT(&bus->child);
+    QLIST_INSERT_HEAD(&parent->child, bus, sibling);
     return bus;
 }
 
@@ -242,7 +285,7 @@ static int pci_parse_devaddr(const char *addr, int *domp, int *busp, unsigned *s
 	return -1;
 
     /* Note: QEMU doesn't implement domains other than 0 */
-    if (dom != 0 || pci_find_bus(bus) == NULL)
+    if (dom != 0 || pci_find_bus(pci_find_host_bus(0), bus) == NULL)
 	return -1;
 
     *domp = dom;
@@ -272,7 +315,7 @@ static PCIBus *pci_get_bus_devfn(int *devfnp, const char *devaddr)
 
     if (!devaddr) {
         *devfnp = -1;
-        return pci_find_bus(0);
+        return pci_find_bus(pci_find_host_bus(0), 0);
     }
 
     if (pci_parse_devaddr(devaddr, &dom, &bus, &slot) < 0) {
@@ -280,7 +323,7 @@ static PCIBus *pci_get_bus_devfn(int *devfnp, const char *devaddr)
     }
 
     *devfnp = slot << 3;
-    return pci_find_bus(bus);
+    return pci_find_bus(pci_find_host_bus(0), bus);
 }
 
 static void pci_init_cmask(PCIDevice *dev)
@@ -577,8 +620,7 @@ void pci_data_write(void *opaque, uint32_t addr, uint32_t val, int len)
                 addr, val, len);
 #endif
     bus_num = (addr >> 16) & 0xff;
-    while (s && s->bus_num != bus_num)
-        s = s->next;
+    s = pci_find_bus(s, bus_num);
     if (!s)
         return;
     pci_dev = s->devices[(addr >> 8) & 0xff];
@@ -599,8 +641,7 @@ uint32_t pci_data_read(void *opaque, uint32_t addr, int len)
     uint32_t val;
 
     bus_num = (addr >> 16) & 0xff;
-    while (s && s->bus_num != bus_num)
-        s= s->next;
+    s = pci_find_bus(s, bus_num);
     if (!s)
         goto fail;
     pci_dev = s->devices[(addr >> 8) & 0xff];
@@ -707,7 +748,7 @@ static const pci_class_desc pci_class_descriptions[] =
     { 0, NULL}
 };
 
-static void pci_info_device(PCIDevice *d)
+static void pci_info_device(PCIBus *bus, PCIDevice *d)
 {
     Monitor *mon = cur_mon;
     int i, class;
@@ -774,30 +815,32 @@ static void pci_info_device(PCIDevice *d)
     }
     monitor_printf(mon, "      id \"%s\"\n", d->qdev.id ? d->qdev.id : "");
     if (class == 0x0604 && d->config[0x19] != 0) {
-        pci_for_each_device(d->config[0x19], pci_info_device);
+        pci_for_each_device(bus, d->config[0x19], pci_info_device);
     }
 }
 
-void pci_for_each_device(int bus_num, void (*fn)(PCIDevice *d))
+void pci_for_each_device(PCIBus *bus, int bus_num,
+                         void (*fn)(PCIBus *b, PCIDevice *d))
 {
-    PCIBus *bus = first_bus;
     PCIDevice *d;
     int devfn;
 
-    while (bus && bus->bus_num != bus_num)
-        bus = bus->next;
+    bus = pci_find_bus(bus, bus_num);
     if (bus) {
         for(devfn = 0; devfn < 256; devfn++) {
             d = bus->devices[devfn];
             if (d)
-                fn(d);
+                fn(bus, d);
         }
     }
 }
 
 void pci_info(Monitor *mon)
 {
-    pci_for_each_device(0, pci_info_device);
+    struct PCIHostBus *host;
+    QLIST_FOREACH(host, &host_buses, next) {
+        pci_for_each_device(host->bus, 0, pci_info_device);
+    }
 }
 
 PCIDevice *pci_create(const char *name, const char *devaddr)
@@ -881,22 +924,32 @@ static void pci_bridge_write_config(PCIDevice *d,
 
     pci_default_write_config(d, address, val, len);
     s->bus->bus_num = d->config[PCI_SECONDARY_BUS];
+    s->bus->sub_bus = d->config[PCI_SUBORDINATE_BUS];
 }
 
-PCIBus *pci_find_bus(int bus_num)
+PCIBus *pci_find_bus(PCIBus *bus, int bus_num)
 {
-    PCIBus *bus = first_bus;
+    PCIBus *sec;
 
-    while (bus && bus->bus_num != bus_num)
-        bus = bus->next;
+    if (!bus)
+        return NULL;
 
-    return bus;
+    if (bus->bus_num == bus_num) {
+        return bus;
+    }
+
+    /* try child bus */
+    QLIST_FOREACH(sec, &bus->child, sibling) {
+        if (sec->bus_num <= bus_num && bus_num <= sec->sub_bus) {
+            return pci_find_bus(sec, bus_num);
+        }
+    }
+
+    return NULL;
 }
 
-PCIDevice *pci_find_device(int bus_num, int slot, int function)
+PCIDevice *pci_find_device(PCIBus *bus, int bus_num, int slot, int function)
 {
-    PCIBus *bus = pci_find_bus(bus_num);
-
     if (!bus)
         return NULL;
 
@@ -904,6 +957,7 @@ PCIDevice *pci_find_device(int bus_num, int slot, int function)
 }
 
 PCIBus *pci_bridge_init(PCIBus *bus, int devfn, uint16_t vid, uint16_t did,
+                        uint8_t sec_bus, uint8_t sub_bus,
                         pci_map_irq_fn map_irq, const char *name)
 {
     PCIBridge *s;
@@ -925,7 +979,11 @@ PCIBus *pci_bridge_init(PCIBus *bus, int devfn, uint16_t vid, uint16_t did,
         PCI_HEADER_TYPE_MULTI_FUNCTION | PCI_HEADER_TYPE_BRIDGE; // header_type
     s->dev.config[0x1E] = 0xa0; // secondary status
 
-    s->bus = pci_register_secondary_bus(&s->dev, map_irq, name);
+    assert(sec_bus <= sub_bus);
+    s->dev.config[PCI_SECONDARY_BUS] = sec_bus;
+    s->dev.config[PCI_SUBORDINATE_BUS] = sub_bus;
+
+    s->bus = pci_register_secondary_bus(bus, &s->dev, map_irq, name);
     return s->bus;
 }
 
