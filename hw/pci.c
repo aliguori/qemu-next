@@ -671,7 +671,8 @@ void pci_default_write_config(PCIDevice *d, uint32_t addr, uint32_t val, int l)
         uint8_t wmask = d->wmask[addr];
         d->config[addr] = (d->config[addr] & ~wmask) | (val & wmask);
     }
-    if (memcmp(orig + PCI_BASE_ADDRESS_0, d->config + PCI_BASE_ADDRESS_0, 24)
+    if ((memcmp(orig + PCI_BASE_ADDRESS_0, d->config + PCI_BASE_ADDRESS_0, 24) ||
+         memcmp(orig + PCI_ROM_ADDRESS, d->config + PCI_ROM_ADDRESS, 4))
         || ((orig[PCI_COMMAND] ^ d->config[PCI_COMMAND])
             & (PCI_COMMAND_MEMORY | PCI_COMMAND_IO)))
         pci_update_mappings(d);

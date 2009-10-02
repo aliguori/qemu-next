@@ -144,6 +144,7 @@ static inline int pci_bar_is_64bit(const PCIIORegion *r)
 #define PCI_SUBVENDOR_ID        0x2c    /* obsolete, use PCI_SUBSYSTEM_VENDOR_ID */
 #define PCI_SUBDEVICE_ID        0x2e    /* obsolete, use PCI_SUBSYSTEM_ID */
 
+#define PCI_ROM_ADDRESS         0x30    /* Bits 31..11 are address, 10..1 reserved */
 #define  PCI_ROM_ADDRESS_ENABLE 0x01
 
 /* Bits in the PCI Status Register (PCI 2.3 spec) */
