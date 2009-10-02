@@ -400,6 +400,50 @@ static inline uint32_t pcie_config_size(PCIDevice *d)
     return pci_is_pcie(d)? PCIE_CONFIG_SPACE_SIZE: PCI_CONFIG_SPACE_SIZE;
 }
 
+static inline uint8_t *pci_write_config_init(PCIDevice *d,
+                                             uint32_t addr, int len)
+{
+    uint8_t *orig = qemu_malloc(pcie_config_size(d));
+    memcpy(orig + addr, d->config + addr, len);
+    return orig;
+}
+
+static inline void pci_write_config_done(uint8_t *orig)
+{
+    qemu_free(orig);
+}
+
+static inline int pci_config_changed(const uint8_t *orig, const uint8_t *new,
+                                     uint32_t addr, uint32_t len,
+                                     uint32_t base, uint32_t end)
+{
+    uint32_t low = MAX(addr, base);
+    uint32_t high = MIN(addr + len, end);
+
+    /* check if [addr, addr + len) intersects [base, end)
+       the intersection is [log, high) */
+    if (low >= high)
+        return 0;
+
+    return memcmp(orig + low, new + low, high - low);
+}
+
+static inline int pci_config_changed_with_size(const uint8_t *orig,
+                                               const uint8_t *new,
+                                               uint32_t addr, uint32_t len,
+                                               uint32_t base, uint32_t size)
+{
+    uint32_t low = MAX(addr, base);
+    uint32_t high = MIN(addr + len, base + size);
+
+    /* check if [addr, addr + len) intersects [base, base + size)
+       the intersection is [log, high) */
+    if (low >= high)
+        return 0;
+
+    return memcmp(orig + low, new + low, high - low);
+}
+
 /* lsi53c895a.c */
 #define LSI_MAX_DEVS 7
 
