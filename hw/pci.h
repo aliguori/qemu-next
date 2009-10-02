@@ -181,20 +181,26 @@ enum {
     QEMU_PCI_CAP_MSIX = 0x1,
 };
 
+/* Size of the standart PCIe config space: 4KB */
+#define PCIE_CONFIG_SPACE_SIZE  0x1000
+#define PCIE_EXT_CONFIG_SPACE_SIZE                      \
+    (PCIE_CONFIG_SPACE_SIZE - PCI_CONFIG_SPACE_SIZE)
+
 struct PCIDevice {
     DeviceState qdev;
+
     /* PCI config space */
-    uint8_t config[PCI_CONFIG_SPACE_SIZE];
+    uint8_t *config;
 
     /* Used to enable config checks on load. Note that writeable bits are
      * never checked even if set in cmask. */
-    uint8_t cmask[PCI_CONFIG_SPACE_SIZE];
+    uint8_t *cmask;
 
     /* Used to implement R/W bytes */
-    uint8_t wmask[PCI_CONFIG_SPACE_SIZE];
+    uint8_t *wmask;
 
     /* Used to allocate config space for capabilities. */
-    uint8_t used[PCI_CONFIG_SPACE_SIZE];
+    uint8_t *used;
 
     /* the following fields are read only */
     PCIBus *bus;
@@ -276,6 +282,8 @@ PCIDevice *pci_nic_init(NICInfo *nd, const char *default_model,
                         const char *default_devaddr);
 void pci_data_write(void *opaque, uint32_t addr, uint32_t val, int len);
 uint32_t pci_data_read(void *opaque, uint32_t addr, int len);
+void pcie_data_write(void *opaque, uint32_t addr, uint32_t val, int len);
+uint32_t pcie_data_read(void *opaque, uint32_t addr, int len);
 int pci_bus_num(PCIBus *s);
 void pci_for_each_device(PCIBus *bus, int bus_num, void (*fn)(PCIBus *bus, PCIDevice *d));
 PCIBus *pci_find_host_bus(int domain);
@@ -362,6 +370,9 @@ typedef struct {
     pci_qdev_initfn init;
     PCIConfigReadFunc *config_read;
     PCIConfigWriteFunc *config_write;
+
+    /* pcie stuff */
+    int pcie;
 } PCIDeviceInfo;
 
 void pci_qdev_register(PCIDeviceInfo *info);
@@ -370,6 +381,23 @@ void pci_qdev_register_many(PCIDeviceInfo *info);
 PCIDevice *pci_create(const char *name, const char *devaddr);
 PCIDevice *pci_create_noinit(PCIBus *bus, int devfn, const char *name);
 PCIDevice *pci_create_simple(PCIBus *bus, int devfn, const char *name);
+
+static inline int pci_is_pcie(PCIDevice *d)
+{
+    /*
+     * At the moment, all the pci devices aren't qdevfied. So
+     * d->qdev.info might be NULL.
+     * Given that pcie device emulator hasn't exist, we conclude that
+     * such a device isn't pcie.
+     */
+    return d->qdev.info != NULL &&
+        container_of(d->qdev.info, PCIDeviceInfo, qdev)->pcie;
+}
+
+static inline uint32_t pcie_config_size(PCIDevice *d)
+{
+    return pci_is_pcie(d)? PCIE_CONFIG_SPACE_SIZE: PCI_CONFIG_SPACE_SIZE;
+}
 
 /* lsi53c895a.c */
 #define LSI_MAX_DEVS 7

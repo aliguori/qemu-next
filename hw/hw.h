@@ -428,6 +428,18 @@ extern const VMStateDescription vmstate_pci_device;
             + type_check(PCIDevice,typeof_field(_state, _field))     \
 }
 
+extern const VMStateDescription vmstate_pcie_device;
+
+#define VMSTATE_PCIE_DEVICE(_field, _state) {                        \
+    .name       = (stringify(_field)),                               \
+    .version_id = 2,                                                 \
+    .size       = sizeof(PCIDevice),                                 \
+    .vmsd       = &vmstate_pcie_device,                              \
+    .flags      = VMS_STRUCT,                                        \
+    .offset     = offsetof(_state, _field)                           \
+            + type_check(PCIDevice,typeof_field(_state, _field))     \
+}
+
 /* _f : field name
    _f_n : num of elements field_name
    _n : num of elements

@@ -48,4 +48,26 @@ uint32_t pci_host_data_readb_ioport(void* opaque, uint32_t addr);
 uint32_t pci_host_data_readw_ioport(void* opaque, uint32_t addr);
 uint32_t pci_host_data_readl_ioport(void* opaque, uint32_t addr);
 
+typedef struct {
+    PCIHostState pci;
+
+    /* express part */
+    target_phys_addr_t  base_addr;
+#define PCIE_BASE_ADDR_INVALID  ((target_phys_addr_t)-1ULL)
+    target_phys_addr_t  size;
+    int bus_num_order;
+    int mmio_index;
+} PCIExpressHost;
+
+int pcie_host_init(PCIExpressHost *e,
+                   CPUReadMemoryFunc **mmcfg_read,
+                   CPUWriteMemoryFunc **mmcfg_write);
+
+void pcie_host_mmcfg_unmap(PCIExpressHost *e);
+void pcie_host_mmcfg_map(PCIExpressHost *e,
+                         target_phys_addr_t addr, uint32_t size);
+void pcie_host_mmcfg_update(PCIExpressHost *e,
+                            int enable,
+                            target_phys_addr_t addr, uint32_t size);
+
 #endif /* PCI_HOST_H */

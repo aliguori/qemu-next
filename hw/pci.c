@@ -23,6 +23,7 @@
  */
 #include "hw.h"
 #include "pci.h"
+#include "pci_host.h"
 #include "monitor.h"
 #include "net.h"
 #include "sysemu.h"
@@ -184,8 +185,11 @@ int pci_bus_num(PCIBus *s)
 static int get_pci_config_device(QEMUFile *f, void *pv, size_t size)
 {
     PCIDevice *s = container_of(pv, PCIDevice, config);
-    uint8_t config[size];
+    uint8_t *config;
     int i;
+
+    assert(size == pcie_config_size(s));
+    config = qemu_malloc(size * sizeof(config[0]));
 
     qemu_get_buffer(f, config, size);
     for (i = 0; i < size; ++i)
@@ -195,6 +199,7 @@ static int get_pci_config_device(QEMUFile *f, void *pv, size_t size)
 
     pci_update_mappings(s);
 
+    qemu_free(config);
     return 0;
 }
 
@@ -202,6 +207,7 @@ static int get_pci_config_device(QEMUFile *f, void *pv, size_t size)
 static void put_pci_config_device(QEMUFile *f, const void *pv, size_t size)
 {
     const uint8_t *v = pv;
+    assert(size == pcie_config_size(container_of(pv, PCIDevice, config)));
     qemu_put_buffer(f, v, size);
 }
 
@@ -211,6 +217,17 @@ static VMStateInfo vmstate_info_pci_config = {
     .put  = put_pci_config_device,
 };
 
+#define VMSTATE_PCI_CONFIG(_field, _state, _version, _info, _type,   \
+                           _size) {                                  \
+    .name       = (stringify(_field)),                               \
+    .version_id = (_version),                                        \
+    .size       = (_size),                                           \
+    .info       = &(_info),                                          \
+    .flags      = VMS_SINGLE | VMS_POINTER,                          \
+    .offset     = offsetof(_state, _field)                           \
+            + type_check(_type,typeof_field(_state, _field))         \
+}
+
 const VMStateDescription vmstate_pci_device = {
     .name = "PCIDevice",
     .version_id = 2,
@@ -218,21 +235,46 @@ const VMStateDescription vmstate_pci_device = {
     .minimum_version_id_old = 1,
     .fields      = (VMStateField []) {
         VMSTATE_INT32_LE(version_id, PCIDevice),
-        VMSTATE_SINGLE(config, PCIDevice, 0, vmstate_info_pci_config,
-                       typeof_field(PCIDevice,config)),
+        VMSTATE_PCI_CONFIG(config, PCIDevice, 0, vmstate_info_pci_config,
+                           typeof_field(PCIDevice, config),
+                           PCI_CONFIG_SPACE_SIZE),
         VMSTATE_INT32_ARRAY_V(irq_state, PCIDevice, PCI_NUM_PINS, 2),
         VMSTATE_END_OF_LIST()
     }
 };
 
+const VMStateDescription vmstate_pcie_device = {
+    .name = "PCIDevice",
+    .version_id = 2,
+    .minimum_version_id = 1,
+    .minimum_version_id_old = 1,
+    .fields      = (VMStateField []) {
+        VMSTATE_INT32_LE(version_id, PCIDevice),
+        VMSTATE_PCI_CONFIG(config, PCIDevice, 0, vmstate_info_pci_config,
+                           typeof_field(PCIDevice, config),
+                           PCIE_CONFIG_SPACE_SIZE),
+        VMSTATE_INT32_ARRAY_V(irq_state, PCIDevice, PCI_NUM_PINS, 2),
+        VMSTATE_END_OF_LIST()
+    }
+};
+
+static const VMStateDescription *pci_get_vmstate(PCIDevice *s)
+{
+    if (pci_is_pcie(s)) {
+        return &vmstate_pcie_device;
+    }
+
+    return &vmstate_pci_device;
+}
+
 void pci_device_save(PCIDevice *s, QEMUFile *f)
 {
-    vmstate_save_state(f, &vmstate_pci_device, s);
+    vmstate_save_state(f, pci_get_vmstate(s), s);
 }
 
 int pci_device_load(PCIDevice *s, QEMUFile *f)
 {
-    return vmstate_load_state(f, &vmstate_pci_device, s, s->version_id);
+    return vmstate_load_state(f, pci_get_vmstate(s), s, s->version_id);
 }
 
 static int pci_set_default_subsystem_id(PCIDevice *pci_dev)
@@ -341,12 +383,29 @@ static void pci_init_cmask(PCIDevice *dev)
 static void pci_init_wmask(PCIDevice *dev)
 {
     int i;
+    uint32_t config_size = pcie_config_size(dev);
+
     dev->wmask[PCI_CACHE_LINE_SIZE] = 0xff;
     dev->wmask[PCI_INTERRUPT_LINE] = 0xff;
     dev->wmask[PCI_COMMAND] = PCI_COMMAND_IO | PCI_COMMAND_MEMORY
                               | PCI_COMMAND_MASTER;
-    for (i = PCI_CONFIG_HEADER_SIZE; i < PCI_CONFIG_SPACE_SIZE; ++i)
+    for (i = PCI_CONFIG_HEADER_SIZE; i < config_size; ++i)
         dev->wmask[i] = 0xff;
+}
+
+static void pci_config_alloc(PCIDevice *pci_dev)
+{
+    int config_size = pcie_config_size(pci_dev);
+#define PCI_CONFIG_ALLOC(d, member, size)                               \
+    do {                                                                \
+        (d)->member =                                                   \
+            (typeof((d)->member))qemu_mallocz(sizeof((d)->member[0]) *  \
+                                              size);                    \
+    } while (0)
+    PCI_CONFIG_ALLOC(pci_dev, config, config_size);
+    PCI_CONFIG_ALLOC(pci_dev, cmask, config_size);
+    PCI_CONFIG_ALLOC(pci_dev, wmask, config_size);
+    PCI_CONFIG_ALLOC(pci_dev, used, config_size);
 }
 
 /* -1 for devfn means auto assign */
@@ -369,6 +428,7 @@ static PCIDevice *do_pci_register_device(PCIDevice *pci_dev, PCIBus *bus,
     pci_dev->devfn = devfn;
     pstrcpy(pci_dev->name, sizeof(pci_dev->name), name);
     memset(pci_dev->irq_state, 0, sizeof(pci_dev->irq_state));
+    pci_config_alloc(pci_dev);
     pci_set_default_subsystem_id(pci_dev);
     pci_init_cmask(pci_dev);
     pci_init_wmask(pci_dev);
@@ -566,40 +626,48 @@ static void pci_update_mappings(PCIDevice *d)
     }
 }
 
+static uint8_t pcie_config_get_byte(PCIDevice *d, uint32_t addr)
+{
+    uint8_t *conf = &d->config[addr];
+    if (conf != NULL)
+        return *conf;
+    return 0;
+}
+
+static uint32_t pcie_config_get(PCIDevice *d, uint32_t addr, int len)
+{
+    int i;
+    union {
+        uint8_t val8[4];
+        uint32_t val32;
+    } v = { .val32 = 0 };
+
+    for (i = 0; i < len; i++) {
+        v.val8[i] = pcie_config_get_byte(d, addr + i);
+    }
+
+    return le32_to_cpu(v.val32);
+}
+
 uint32_t pci_default_read_config(PCIDevice *d,
                                  uint32_t address, int len)
 {
-    uint32_t val;
+    uint32_t config_size = pcie_config_size(d);
 
-    switch(len) {
-    default:
-    case 4:
-	if (address <= 0xfc) {
-            val = pci_get_long(d->config + address);
-	    break;
-	}
-	/* fall through */
-    case 2:
-        if (address <= 0xfe) {
-            val = pci_get_word(d->config + address);
-	    break;
-	}
-	/* fall through */
-    case 1:
-        val = pci_get_byte(d->config + address);
-        break;
-    }
-    return val;
+    assert(len == 1 || len == 2 || len == 4);
+    len = MIN(len, config_size - MIN(config_size, address));
+    return pcie_config_get(d, address, len);
 }
 
 void pci_default_write_config(PCIDevice *d, uint32_t addr, uint32_t val, int l)
 {
     uint8_t orig[PCI_CONFIG_SPACE_SIZE];
     int i;
+    uint32_t config_size = pcie_config_size(d);
 
     /* not efficient, but simple */
     memcpy(orig, d->config, PCI_CONFIG_SPACE_SIZE);
-    for(i = 0; i < l && addr < PCI_CONFIG_SPACE_SIZE; val >>= 8, ++i, ++addr) {
+    for(i = 0; i < l && addr < config_size; val >>= 8, ++i, ++addr) {
         uint8_t wmask = d->wmask[addr];
         d->config[addr] = (d->config[addr] & ~wmask) | (val & wmask);
     }
@@ -684,6 +752,128 @@ uint32_t pci_data_read(void *opaque, uint32_t addr, int len)
     return pci_data_read_common(pci_addr_to_dev(s, addr),
                                 pci_addr_to_config(addr), len);
 }
+
+#define PCIE_MASK(val, hi_bit, low_bit)                 \
+    (((val) & (((1ULL << (hi_bit)) - 1))) >> (low_bit))
+#define PCIE_VAL(VAL, val)                                              \
+    PCIE_MASK((val), PCIE_MMCFG_ ## VAL ## _HI, PCIE_MMCFG_ ## VAL ## _LOW)
+#define PCIE_MMCFG_BUS_HI               28
+#define PCIE_MMCFG_BUS_LOW              20
+#define PCIE_MMCFG_DEV_HI               19
+#define PCIE_MMCFG_DEV_LOW              15
+#define PCIE_MMCFG_FUNC_HI              14
+#define PCIE_MMCFG_FUNC_LOW             12
+#define PCIE_MMCFG_CONFADDR_HI          11
+#define PCIE_MMCFG_CONFADDR_LOW         0
+#define PCIE_MMCFG_BUS(addr)            PCIE_VAL(BUS, (addr))
+#define PCIE_MMCFG_DEV(addr)            PCIE_VAL(DEV, (addr))
+#define PCIE_MMCFG_FUNC(addr)           PCIE_VAL(FUNC, (addr))
+#define PCIE_MMCFG_CONFADDR(addr)       PCIE_VAL(CONFADDR, (addr))
+
+void pcie_data_write(void *opaque, uint32_t addr, uint32_t val, int len)
+{
+    PCIBus *s = opaque;
+    pci_data_write_common(pci_find_device(s, PCIE_MMCFG_BUS(addr),
+                                          PCIE_MMCFG_DEV(addr),
+                                          PCIE_MMCFG_FUNC(addr)),
+                          PCIE_MMCFG_CONFADDR(addr),
+                          val, len);
+}
+
+uint32_t pcie_data_read(void *opaque, uint32_t addr, int len)
+{
+    PCIBus *s = opaque;
+    return pci_data_read_common(pci_find_device(s, PCIE_MMCFG_BUS(addr),
+                                                PCIE_MMCFG_DEV(addr),
+                                                PCIE_MMCFG_FUNC(addr)),
+                                PCIE_MMCFG_CONFADDR(addr),
+                                len);
+}
+
+#define DEFINE_PCIE_HOST_DATA_READ(len)                         \
+    static uint32_t pcie_host_data_read_ ## len (               \
+        void *opaque, target_phys_addr_t addr)                  \
+    {                                                           \
+        PCIExpressHost *e = (PCIExpressHost *)opaque;           \
+        return pcie_data_read(e->pci.bus,                       \
+                              addr - e->base_addr, (len));      \
+    }
+
+#define DEFINE_PCIE_HOST_DATA_WRITE(len)                        \
+    static void pcie_host_data_write_ ## len (                  \
+        void *opaque, target_phys_addr_t addr, uint32_t value)  \
+    {                                                           \
+        PCIExpressHost *e = (PCIExpressHost *)opaque;           \
+        pcie_data_write(e->pci.bus,                             \
+                        addr - e->base_addr, value, (len));     \
+    }
+
+#define DEFINE_PCIE_HOST_DATA_MMIO(len)      \
+        DEFINE_PCIE_HOST_DATA_READ(len)      \
+        DEFINE_PCIE_HOST_DATA_WRITE(len)
+
+DEFINE_PCIE_HOST_DATA_MMIO(1)
+DEFINE_PCIE_HOST_DATA_MMIO(2)
+DEFINE_PCIE_HOST_DATA_MMIO(4)
+
+#define DEFINE_PCIE_MEMORY_FUNCS(Type, type)                            \
+    static CPU ## Type ## MemoryFunc *pcie_host_data_ ## type [] =      \
+    {                                                                   \
+        &pcie_host_data_ ## type ## _1,                                 \
+        &pcie_host_data_ ## type ## _2,                                 \
+        &pcie_host_data_ ## type ## _4,                                 \
+    };
+
+DEFINE_PCIE_MEMORY_FUNCS(Read, read)
+DEFINE_PCIE_MEMORY_FUNCS(Write, write)
+
+int pcie_host_init(PCIExpressHost *e,
+                   CPUReadMemoryFunc **mmcfg_read,
+                   CPUWriteMemoryFunc **mmcfg_write)
+{
+    e->base_addr = PCIE_BASE_ADDR_INVALID;
+
+    if (mmcfg_read == NULL)
+        mmcfg_read = pcie_host_data_read;
+    if (mmcfg_write == NULL)
+        mmcfg_write = pcie_host_data_write;
+    e->mmio_index = cpu_register_io_memory(mmcfg_read, mmcfg_write, e);
+    if (e->mmio_index < 0) {
+        return -1;
+    }
+
+    return 0;
+}
+
+void pcie_host_mmcfg_unmap(PCIExpressHost *e)
+{
+    if (e->base_addr != PCIE_BASE_ADDR_INVALID) {
+        cpu_register_physical_memory(e->base_addr, e->size, IO_MEM_UNASSIGNED);
+    }
+}
+
+void pcie_host_mmcfg_map(PCIExpressHost *e,
+                         target_phys_addr_t addr, uint32_t size)
+{
+    assert((size & (size - 1)) == 0); /* power of 2 */
+    assert(size >= (1ULL << PCIE_MMCFG_BUS_LOW));
+    assert(size <= (1ULL << PCIE_MMCFG_BUS_HI));
+
+    e->base_addr = addr;
+    e->size = size;
+    cpu_register_physical_memory(e->base_addr, e->size, e->mmio_index);
+}
+
+void pcie_host_mmcfg_update(PCIExpressHost *e,
+                            int enable,
+                            target_phys_addr_t addr, uint32_t size)
+{
+    pcie_host_mmcfg_unmap(e);
+    if (enable) {
+        pcie_host_mmcfg_map(e, addr, size);
+    }
+}
+
 /***********************************************************/
 /* generic PCI irq support */
 
@@ -1045,9 +1235,10 @@ PCIDevice *pci_create_simple(PCIBus *bus, int devfn, const char *name)
 
 static int pci_find_space(PCIDevice *pdev, uint8_t size)
 {
+    int config_size = pcie_config_size(pdev);
     int offset = PCI_CONFIG_HEADER_SIZE;
     int i;
-    for (i = PCI_CONFIG_HEADER_SIZE; i < PCI_CONFIG_SPACE_SIZE; ++i)
+    for (i = PCI_CONFIG_HEADER_SIZE; i < config_size; ++i)
         if (pdev->used[i])
             offset = i + 1;
         else if (i - offset + 1 == size)
