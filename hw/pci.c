@@ -561,7 +561,7 @@ void pci_data_write(void *opaque, uint32_t addr, uint32_t val, int len)
     int config_addr, bus_num;
 
 #if 0
-    PCI_DPRINTF("pci_data_write: addr=%08x val=%08x len=%d\n",
+    PCI_DPRINTF("pci_data_write: addr=%08"PRIx32" val=%08"PRIx32" len=%d\n",
                 addr, val, len);
 #endif
     bus_num = (addr >> 16) & 0xff;
@@ -573,7 +573,8 @@ void pci_data_write(void *opaque, uint32_t addr, uint32_t val, int len)
     if (!pci_dev)
         return;
     config_addr = addr & 0xff;
-    PCI_DPRINTF("pci_config_write: %s: addr=%02x val=%08x len=%d\n",
+    PCI_DPRINTF("pci_config_write: %s: "
+                "addr=%02x val=%08"PRI32x" len=%d\n",
                 pci_dev->name, config_addr, val, len);
     pci_dev->config_write(pci_dev, config_addr, val, len);
 }
@@ -609,11 +610,12 @@ uint32_t pci_data_read(void *opaque, uint32_t addr, int len)
     }
     config_addr = addr & 0xff;
     val = pci_dev->config_read(pci_dev, config_addr, len);
-    PCI_DPRINTF("pci_config_read: %s: addr=%02x val=%08x len=%d\n",
+    PCI_DPRINTF("pci_config_read: %s: "
+                "addr=%02x val=%08"PRIx32" len=%d\n",
                 pci_dev->name, config_addr, val, len);
  the_end:
 #if 0
-    PCI_DPRINTF("pci_data_read: addr=%08x val=%08x len=%d\n",
+    PCI_DPRINTF("pci_data_read: addr=%08"PRIx32" val=%08"PRIx32" len=%d\n",
                 addr, val, len);
 #endif
     return val;
