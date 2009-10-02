@@ -422,7 +422,7 @@ void pci_register_bar(PCIDevice *pci_dev, int region_num,
     if (region_num == PCI_ROM_SLOT) {
         addr = 0x30;
         /* ROM enable bit is writeable */
-        wmask |= 1;
+        wmask |= PCI_ROM_ADDRESS_ENABLE;
     } else {
         addr = 0x10 + region_num * 4;
     }

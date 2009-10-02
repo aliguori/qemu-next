@@ -131,6 +131,8 @@ typedef struct PCIIORegion {
 #define PCI_SUBVENDOR_ID        0x2c    /* obsolete, use PCI_SUBSYSTEM_VENDOR_ID */
 #define PCI_SUBDEVICE_ID        0x2e    /* obsolete, use PCI_SUBSYSTEM_ID */
 
+#define  PCI_ROM_ADDRESS_ENABLE 0x01
+
 /* Bits in the PCI Status Register (PCI 2.3 spec) */
 #define PCI_STATUS_RESERVED1	0x007
 #define PCI_STATUS_INT_STATUS	0x008
