@@ -387,17 +387,33 @@ static void pci_init_cmask(PCIDevice *dev)
     dev->cmask[PCI_CAPABILITY_LIST] = 0xff;
 }
 
-static void pci_init_wmask(PCIDevice *dev)
+static void pci_conf_init_type_00_default(PCIDevice *dev)
 {
     int i;
     uint32_t config_size = pcie_config_size(dev);
 
-    dev->wmask[PCI_CACHE_LINE_SIZE] = 0xff;
-    dev->wmask[PCI_INTERRUPT_LINE] = 0xff;
-    dev->wmask[PCI_COMMAND] = PCI_COMMAND_IO | PCI_COMMAND_MEMORY
-                              | PCI_COMMAND_MASTER;
-    for (i = PCI_CONFIG_HEADER_SIZE; i < config_size; ++i)
-        dev->wmask[i] = 0xff;
+    pci_set_default_subsystem_id(dev);
+
+    pci_conf_initw(dev, PCI_COMMAND,
+                   PCI_COMMAND_IO |
+                   PCI_COMMAND_MEMORY |
+                   PCI_COMMAND_MASTER |
+                   PCI_COMMAND_SPECIAL |
+                   PCI_COMMAND_INVALIDATE |
+                   PCI_COMMAND_VGA_PALETTE |
+                   PCI_COMMAND_PARITY |
+                   PCI_COMMAND_WAIT |
+                   PCI_COMMAND_SERR |
+                   PCI_COMMAND_FAST_BACK |
+                   PCI_COMMAND_INTX_DISABLE);
+
+    pci_conf_initb(dev, PCI_CACHE_LINE_SIZE, ~0);
+    pci_conf_initb(dev, PCI_LATENCY_TIMER, ~0);
+    pci_conf_initb(dev, PCI_INTERRUPT_LINE, ~0);
+
+    /* device dependent part */
+    for (i = PCI_CONFIG_HEADER_SIZE; i < config_size; i++)
+        pci_conf_initb(dev, i, ~0);
 }
 
 static void pci_config_alloc(PCIDevice *pci_dev)
@@ -441,10 +457,12 @@ void pci_conf_initl(PCIDevice *d, uint32_t addr, uint32_t wmask)
 }
 
 /* -1 for devfn means auto assign */
+typedef void (*pci_conf_init_t)(PCIDevice *d);
 static PCIDevice *do_pci_register_device(PCIDevice *pci_dev, PCIBus *bus,
                                          const char *name, int devfn,
                                          PCIConfigReadFunc *config_read,
-                                         PCIConfigWriteFunc *config_write)
+                                         PCIConfigWriteFunc *config_write,
+                                         pci_conf_init_t conf_init)
 {
     if (devfn < 0) {
         for(devfn = bus->devfn_min ; devfn < 256; devfn += 8) {
@@ -461,9 +479,8 @@ static PCIDevice *do_pci_register_device(PCIDevice *pci_dev, PCIBus *bus,
     pstrcpy(pci_dev->name, sizeof(pci_dev->name), name);
     memset(pci_dev->irq_state, 0, sizeof(pci_dev->irq_state));
     pci_config_alloc(pci_dev);
-    pci_set_default_subsystem_id(pci_dev);
     pci_init_cmask(pci_dev);
-    pci_init_wmask(pci_dev);
+    conf_init(pci_dev);
 
     if (!config_read)
         config_read = pci_default_read_config;
@@ -486,9 +503,11 @@ PCIDevice *pci_register_device(PCIBus *bus, const char *name,
 
     pci_dev = qemu_mallocz(instance_size);
     pci_dev = do_pci_register_device(pci_dev, bus, name, devfn,
-                                     config_read, config_write);
+                                     config_read, config_write,
+                                     pci_conf_init_type_00_default);
     return pci_dev;
 }
+
 static target_phys_addr_t pci_to_cpu_addr(target_phys_addr_t addr)
 {
     return addr + pci_mem_base;
@@ -1245,6 +1264,52 @@ PCIDevice *pci_find_device(PCIBus *bus, int bus_num, int slot, int function)
     return bus->devices[PCI_DEVFN(slot, function)];
 }
 
+static void pci_conf_init_type_01_default(PCIDevice *d)
+{
+    uint32_t addr;
+    uint32_t config_size = pcie_config_size(d);
+
+    pci_conf_initw(d, PCI_COMMAND,
+                   PCI_COMMAND_IO |
+                   PCI_COMMAND_MEMORY |
+                   PCI_COMMAND_MASTER |
+                   PCI_COMMAND_SPECIAL |
+                   PCI_COMMAND_INVALIDATE |
+                   PCI_COMMAND_VGA_PALETTE |
+                   PCI_COMMAND_PARITY |
+                   PCI_COMMAND_WAIT |
+                   PCI_COMMAND_SERR |
+                   PCI_COMMAND_FAST_BACK |
+                   PCI_COMMAND_INTX_DISABLE);
+
+    pci_conf_initb(d, PCI_CACHE_LINE_SIZE, ~0);
+    pci_conf_initb(d, PCI_LATENCY_TIMER, ~0);
+
+    pci_conf_initb(d, PCI_PRIMARY_BUS, ~0);
+    pci_conf_initb(d, PCI_SECONDARY_BUS, ~0);
+    pci_conf_initb(d, PCI_SUBORDINATE_BUS, ~0);
+    pci_conf_initb(d, PCI_SEC_LATENCY_TIMER, ~0);
+    pci_conf_initb(d, PCI_IO_BASE, PCI_IO_RANGE_MASK & 0xff);
+    pci_conf_initb(d, PCI_IO_LIMIT, PCI_IO_RANGE_MASK & 0xff);
+
+    /* sec status isn't emulated (yet) */
+    pci_conf_initw(d, PCI_SEC_STATUS, 0);
+
+    pci_conf_initw(d, PCI_MEMORY_BASE, PCI_MEMORY_RANGE_MASK & 0xffff);
+    pci_conf_initw(d, PCI_MEMORY_LIMIT, PCI_MEMORY_RANGE_MASK & 0xffff);
+    pci_conf_initw(d, PCI_PREF_MEMORY_BASE, PCI_PREF_RANGE_MASK & 0xffff);
+    pci_conf_initw(d, PCI_PREF_MEMORY_LIMIT, PCI_PREF_RANGE_MASK & 0xffff);
+    pci_conf_initl(d, PCI_PREF_BASE_UPPER32, ~0);
+    pci_conf_initl(d, PCI_PREF_LIMIT_UPPER32, ~0);
+
+    pci_conf_initb(d, PCI_INTERRUPT_LINE, ~0);
+    pci_conf_initw(d, PCI_BRIDGE_CONTROL, ~0);
+
+    /* device dependent part */
+    for (addr = PCI_CONFIG_HEADER_SIZE; addr < config_size; addr++)
+        pci_conf_initb(d, addr, ~0);
+}
+
 int pci_bridge_initfn(PCIDevice *pci_dev)
 {
     uint8_t *pci_conf;
@@ -1323,6 +1388,21 @@ PCIBus *pci_bridge_init(PCIBus *bus, int devfn, uint16_t vid,
                                     map_irq, name, PCI_BRIDGE_DEFAULT);
 }
 
+static pci_conf_init_t pci_get_config_initfn(uint8_t header_type)
+{
+    switch (header_type & ~PCI_HEADER_TYPE_MULTI_FUNCTION) {
+    case PCI_HEADER_TYPE_NORMAL:
+        return pci_conf_init_type_00_default;
+    case PCI_HEADER_TYPE_BRIDGE:
+        return pci_conf_init_type_01_default;
+    case PCI_HEADER_TYPE_CARDBUS:
+    default:
+        abort();
+        break;
+    }
+    /* NOTREACHED */
+}
+
 static int pci_qdev_init(DeviceState *qdev, DeviceInfo *base)
 {
     PCIDevice *pci_dev = (PCIDevice *)qdev;
@@ -1333,7 +1413,8 @@ static int pci_qdev_init(DeviceState *qdev, DeviceInfo *base)
     bus = FROM_QBUS(PCIBus, qdev_get_parent_bus(qdev));
     devfn = pci_dev->devfn;
     pci_dev = do_pci_register_device(pci_dev, bus, base->name, devfn,
-                                     info->config_read, info->config_write);
+                                     info->config_read, info->config_write,
+                                     pci_get_config_initfn(info->header_type));
     assert(pci_dev);
     return info->init(pci_dev);
 }

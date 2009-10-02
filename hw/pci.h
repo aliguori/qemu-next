@@ -113,6 +113,14 @@ static inline int pci_bar_is_64bit(const PCIIORegion *r)
 #define  PCI_COMMAND_IO		0x1	/* Enable response in I/O space */
 #define  PCI_COMMAND_MEMORY	0x2	/* Enable response in Memory space */
 #define  PCI_COMMAND_MASTER	0x4	/* Enable bus master */
+#define  PCI_COMMAND_SPECIAL	0x8	/* Enable response to special cycles */
+#define  PCI_COMMAND_INVALIDATE 0x10	/* Use memory write and invalidate */
+#define  PCI_COMMAND_VGA_PALETTE 0x20	/* Enable palette snooping */
+#define  PCI_COMMAND_PARITY	0x40	/* Enable parity checking */
+#define  PCI_COMMAND_WAIT	0x80	/* Enable address/data stepping */
+#define  PCI_COMMAND_SERR	0x100	/* Enable SERR */
+#define  PCI_COMMAND_FAST_BACK	0x200	/* Enable back-to-back writes */
+#define  PCI_COMMAND_INTX_DISABLE 0x400 /* INTx Emulation Disable */
 #define PCI_STATUS              0x06    /* 16 bits */
 #define PCI_REVISION_ID         0x08    /* 8 bits  */
 #define PCI_CLASS_PROG		0x09	/* Reg. Level Programming Interface */
@@ -174,9 +182,37 @@ static inline int pci_bar_is_64bit(const PCIIORegion *r)
 
 /* Header type 1 (PCI-to-PCI bridges) */
 #define PCI_SUBORDINATE_BUS     0x1a    /* Highest bus number behind the bridge */
+#define PCI_SEC_LATENCY_TIMER   0x1b    /* Latency timer for secondary interface */
+#define PCI_IO_BASE             0x1c    /* I/O range behind the bridge */
+#define PCI_IO_LIMIT            0x1d
+#define  PCI_IO_RANGE_TYPE_MASK 0x0fUL  /* I/O bridging type */
+#define  PCI_IO_RANGE_TYPE_16   0x00
+#define  PCI_IO_RANGE_TYPE_32   0x01
+#define  PCI_IO_RANGE_MASK      (~0x0fUL)
+#define PCI_MEMORY_BASE         0x20    /* Memory range behind */
+#define PCI_MEMORY_LIMIT        0x22
+#define  PCI_MEMORY_RANGE_TYPE_MASK 0x0fUL
+#define  PCI_MEMORY_RANGE_MASK  (~0x0fUL)
+#define PCI_PREF_MEMORY_BASE    0x24    /* Prefetchable memory range behind */
+#define PCI_PREF_MEMORY_LIMIT   0x26
+#define  PCI_PREF_RANGE_TYPE_MASK 0x0fUL
+#define  PCI_PREF_RANGE_TYPE_32 0x00
+#define  PCI_PREF_RANGE_TYPE_64 0x01
+#define  PCI_PREF_RANGE_MASK    (~0x0fUL)
+#define PCI_PREF_BASE_UPPER32   0x28    /* Upper half of prefetchable memory range */
+#define PCI_PREF_LIMIT_UPPER32  0x2c
+#define PCI_IO_BASE_UPPER16     0x30    /* Upper half of I/O addresses */
+#define PCI_IO_LIMIT_UPPER16    0x32
+/* 0x34 same as for htype 0 */
+/* 0x35-0x3b is reserved */
 #define PCI_ROM_ADDRESS1        0x38    /* Same as PCI_ROM_ADDRESS, but for htype 1 */
-#define PCI_SUBORDINATE_BUS     0x1a    /* Highest bus number behind the bridge */
+/* 0x3c-0x3d are same as for htype 0 */
+#define PCI_BRIDGE_CONTROL      0x3e
 
+/* Bits in the PCI Command Register (PCI 2.3 spec) */
+#define PCI_COMMAND_RESERVED_BRIDGE     0xf880
+
+#define PCI_COMMAND_RESERVED_MASK_HI_BRIDGE (PCI_COMMAND_RESERVED >> 8)
 
 /* Size of the standard PCI config header */
 #define PCI_CONFIG_HEADER_SIZE 0x40
@@ -393,6 +429,9 @@ typedef struct {
     pci_qdev_initfn init;
     PCIConfigReadFunc *config_read;
     PCIConfigWriteFunc *config_write;
+
+    /* pci config header type */
+    uint8_t header_type;
 
     /* pcie stuff */
     int pcie;
