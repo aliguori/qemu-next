@@ -255,6 +255,10 @@ struct PCIDevice {
     target_phys_addr_t msix_page_size;
 };
 
+void pci_conf_initb(PCIDevice *d, uint32_t addr, uint32_t wmask);
+void pci_conf_initw(PCIDevice *d, uint32_t addr, uint32_t wmask);
+void pci_conf_initl(PCIDevice *d, uint32_t addr, uint32_t wmask);
+
 PCIDevice *pci_register_device(PCIBus *bus, const char *name,
                                int instance_size, int devfn,
                                PCIConfigReadFunc *config_read,

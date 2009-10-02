@@ -415,6 +415,31 @@ static void pci_config_alloc(PCIDevice *pci_dev)
     PCI_CONFIG_ALLOC(pci_dev, used, config_size);
 }
 
+static void pci_conf_init(PCIDevice *d, uint32_t addr, uint32_t wmask, int len)
+{
+    int i;
+
+    for (i = 0; i < len; i++) {
+        d->wmask[addr + i] = wmask & 0xff;
+        wmask >>= 8;
+    }
+}
+
+void pci_conf_initb(PCIDevice *d, uint32_t addr, uint32_t wmask)
+{
+    pci_conf_init(d, addr, wmask, 1);
+}
+
+void pci_conf_initw(PCIDevice *d, uint32_t addr, uint32_t wmask)
+{
+    pci_conf_init(d, addr, wmask, 2);
+}
+
+void pci_conf_initl(PCIDevice *d, uint32_t addr, uint32_t wmask)
+{
+    pci_conf_init(d, addr, wmask, 4);
+}
+
 /* -1 for devfn means auto assign */
 static PCIDevice *do_pci_register_device(PCIDevice *pci_dev, PCIBus *bus,
                                          const char *name, int devfn,
