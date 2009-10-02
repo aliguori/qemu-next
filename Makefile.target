@@ -186,11 +186,11 @@ obj-i386-y += fdc.o mc146818rtc.o serial.o i8259.o i8254.o pcspk.o pc.o
 obj-i386-y += cirrus_vga.o apic.o ioapic.o parallel.o acpi.o piix_pci.o
 obj-i386-y += usb-uhci.o vmmouse.o vmport.o vmware_vga.o hpet.o
 obj-i386-y += device-hotplug.o pci-hotplug.o smbios.o wdt_ib700.o
-obj-i386-y += ne2000-isa.o
+obj-i386-y += ne2000-isa.o pci_host.o
 
 # shared objects
 obj-ppc-y = ppc.o ide/core.o ide/qdev.o ide/isa.o ide/pci.o ide/macio.o
-obj-ppc-y += vga.o vga-pci.o $(sound-obj-y) dma.o openpic.o
+obj-ppc-y += vga.o vga-pci.o $(sound-obj-y) dma.o openpic.o pci_host.o
 # PREP target
 obj-ppc-y += pckbd.o serial.o i8259.o i8254.o fdc.o mc146818rtc.o
 obj-ppc-y += prep_pci.o ppc_prep.o ne2000-isa.o
@@ -217,7 +217,7 @@ obj-mips-y += gt64xxx.o pckbd.o fdc.o mc146818rtc.o usb-uhci.o acpi.o ds1225y.o
 obj-mips-y += piix4.o parallel.o cirrus_vga.o pcspk.o $(sound-obj-y)
 obj-mips-y += mipsnet.o ne2000-isa.o
 obj-mips-y += pflash_cfi01.o
-obj-mips-y += vmware_vga.o
+obj-mips-y += vmware_vga.o pci_host.o
 
 obj-microblaze-y = petalogix_s3adsp1800_mmu.o
 
@@ -244,7 +244,7 @@ obj-cris-y += etraxfs_ser.o
 obj-cris-y += pflash_cfi02.o
 
 ifeq ($(TARGET_ARCH), sparc64)
-obj-sparc-y = sun4u.o pckbd.o apb_pci.o
+obj-sparc-y = sun4u.o pckbd.o apb_pci.o pci_host.o
 obj-sparc-y += ide/core.o ide/qdev.o ide/pci.o
 obj-sparc-y += vga.o vga-pci.o
 obj-sparc-y += fdc.o mc146818rtc.o serial.o
