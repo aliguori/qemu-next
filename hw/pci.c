@@ -659,16 +659,24 @@ uint32_t pci_default_read_config(PCIDevice *d,
     return pcie_config_get(d, address, len);
 }
 
-void pci_default_write_config(PCIDevice *d, uint32_t addr, uint32_t val, int l)
+static void pci_default_write_config_common(PCIDevice *d,
+                                            uint32_t addr, uint32_t val, int l)
 {
     int i;
     uint32_t config_size = pcie_config_size(d);
-    uint8_t *orig = pci_write_config_init(d, addr, l);
 
+    assert(l == 1 || l == 2 || l == 4);
     for(i = 0; i < l && addr < config_size; val >>= 8, ++i, ++addr) {
         uint8_t wmask = d->wmask[addr];
         d->config[addr] = (d->config[addr] & ~wmask) | (val & wmask);
     }
+}
+
+void pci_default_write_config(PCIDevice *d, uint32_t addr, uint32_t val, int l)
+{
+    uint8_t *orig = pci_write_config_init(d, addr, l);
+
+    pci_default_write_config_common(d, addr, val, l);
 
     if (pci_config_changed(orig, d->config, addr, l,
                            PCI_BASE_ADDRESS_0, PCI_BASE_ADDRESS_5 + 4) ||
