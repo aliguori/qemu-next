@@ -174,6 +174,7 @@ static inline int pci_bar_is_64bit(const PCIIORegion *r)
 
 /* Header type 1 (PCI-to-PCI bridges) */
 #define PCI_SUBORDINATE_BUS     0x1a    /* Highest bus number behind the bridge */
+#define PCI_ROM_ADDRESS1        0x38    /* Same as PCI_ROM_ADDRESS, but for htype 1 */
 
 /* Size of the standard PCI config header */
 #define PCI_CONFIG_HEADER_SIZE 0x40

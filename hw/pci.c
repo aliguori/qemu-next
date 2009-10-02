@@ -498,6 +498,35 @@ int pci_unregister_device(PCIDevice *pci_dev)
     return 0;
 }
 
+#define PCI_BAR_INVALID  UINT32_MAX
+static uint32_t pci_bar_config_offset(PCIDevice *d, int region_num)
+{
+    switch (d->config[PCI_HEADER_TYPE] & ~PCI_HEADER_TYPE_MULTI_FUNCTION) {
+    case PCI_HEADER_TYPE_NORMAL:
+        /* BAR 0-5 and Expantion ROM*/
+        if (region_num < PCI_ROM_SLOT) {
+            return PCI_BASE_ADDRESS_0 + region_num * 4;
+        } else if (region_num == PCI_ROM_SLOT) {
+            return PCI_ROM_ADDRESS;
+        }
+        break;
+    case PCI_HEADER_TYPE_BRIDGE:
+        /* BAR 0-1 and Expantion ROM */
+        if (region_num < 2) {
+            return PCI_BASE_ADDRESS_0 + region_num * 4;
+        } else if (region_num == PCI_ROM_SLOT) {
+            return PCI_ROM_ADDRESS1;
+        }
+        break;
+    case PCI_HEADER_TYPE_CARDBUS:
+    default:
+        break;
+    }
+    fprintf(stderr, "ERROR: %s: unknow PCI config header type %d or bar %d\n",
+            __func__, d->config[PCI_HEADER_TYPE], region_num);
+    return PCI_BAR_INVALID;
+}
+
 void pci_register_bar(PCIDevice *pci_dev, int region_num,
                             pcibus_t size, int type,
                             PCIMapIORegionFunc *map_func)
@@ -521,13 +550,11 @@ void pci_register_bar(PCIDevice *pci_dev, int region_num,
     r->type = type;
     r->map_func = map_func;
 
+    addr = pci_bar_config_offset(pci_dev, region_num);
     wmask = ~(size - 1);
     if (region_num == PCI_ROM_SLOT) {
-        addr = 0x30;
         /* ROM enable bit is writeable */
         wmask |= PCI_ROM_ADDRESS_ENABLE;
-    } else {
-        addr = 0x10 + region_num * 4;
     }
     pci_set_long(pci_dev->config + addr, type);
     if (pci_bar_is_64bit(r)) {
@@ -549,11 +576,9 @@ static void pci_update_mappings(PCIDevice *d)
     cmd = pci_get_word(d->config + PCI_COMMAND);
     for(i = 0; i < PCI_NUM_REGIONS; i++) {
         r = &d->io_regions[i];
-        if (i == PCI_ROM_SLOT) {
-            config_ofs = 0x30;
-        } else {
-            config_ofs = 0x10 + i * 4;
-        }
+
+        config_ofs = pci_bar_config_offset(d, i);
+
         if (r->size != 0) {
             if (r->type & PCI_ADDRESS_SPACE_IO) {
                 if (cmd & PCI_COMMAND_IO) {
@@ -1134,10 +1159,29 @@ static void pci_bridge_write_config(PCIDevice *d,
                              uint32_t address, uint32_t val, int len)
 {
     PCIBridge *s = (PCIBridge *)d;
+    PCIBus *bus = s->bus;
+    uint8_t *orig = pci_write_config_init(d, address, len);
 
-    pci_default_write_config(d, address, val, len);
-    s->bus->bus_num = d->config[PCI_SECONDARY_BUS];
-    s->bus->sub_bus = d->config[PCI_SUBORDINATE_BUS];
+    pci_default_write_config_common(d, address, val, len);
+
+    if (pci_config_changed(orig, d->config, address, len,
+                           PCI_BASE_ADDRESS_0, PCI_BASE_ADDRESS_2 + 4) ||
+        pci_config_changed_with_size(orig, d->config, address, len,
+                                     PCI_ROM_ADDRESS1, 4) ||
+        pci_config_changed_with_size(orig, d->config, address, len,
+                                     PCI_COMMAND, 1)) {
+        pci_update_mappings(d);
+    }
+    if (pci_config_changed_with_size(orig, d->config, address, len,
+                                     PCI_SECONDARY_BUS, 1)) {
+        bus->bus_num = d->config[PCI_SECONDARY_BUS];
+    }
+    if (pci_config_changed_with_size(orig, d->config, address, len,
+                                     PCI_SECONDARY_BUS, 1)) {
+        bus->sub_bus = d->config[PCI_SUBORDINATE_BUS];
+    }
+
+    pci_write_config_done(orig);
 }
 
 PCIBus *pci_find_bus(PCIBus *bus, int bus_num)
