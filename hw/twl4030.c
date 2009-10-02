@@ -432,7 +432,7 @@ static uint8_t twl4030_4a_read(TWL4030NodeState *s, uint8_t addr)
         case 0x17 ... 0x36: /* RT conversion registers */
         case 0x37 ... 0x56: /* GP conversion registers */
         case 0x57 ... 0x60: /* BCI conversion registers */
-            return (addr & 1) ? 0 : 0xc0;
+            return (addr & 1) ? 0xc0 : 0xff;
         /* MAIN_CHARGE region */
         case 0x74 ... 0xa9:
             return s->reg_data[addr];
@@ -490,6 +490,7 @@ static void twl4030_4a_write(TWL4030NodeState *s, uint8_t addr, uint8_t value)
         /* MADC region */
 
         case 0x00: /* CTRL1 */
+        case 0x01: /* CTRL2 */
             s->reg_data[addr] = value;
             break;
         case 0x06: /* SW1SELECT_LSB */
@@ -499,6 +500,9 @@ static void twl4030_4a_write(TWL4030NodeState *s, uint8_t addr, uint8_t value)
             s->reg_data[addr] = value;
             break;
         case 0x12: /* CTRL_SW1 */
+        case 0x13: /* CTRL_SW2 */
+            /* always set all conversions ready, vbat&usb above ref value */
+            /* TODO: trigger interrupts if requested */
             s->reg_data[addr] = 0xde;
             break;
         case 0x61: /* MADC_ISR1 */
