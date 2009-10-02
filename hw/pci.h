@@ -175,6 +175,8 @@ static inline int pci_bar_is_64bit(const PCIIORegion *r)
 /* Header type 1 (PCI-to-PCI bridges) */
 #define PCI_SUBORDINATE_BUS     0x1a    /* Highest bus number behind the bridge */
 #define PCI_ROM_ADDRESS1        0x38    /* Same as PCI_ROM_ADDRESS, but for htype 1 */
+#define PCI_SUBORDINATE_BUS     0x1a    /* Highest bus number behind the bridge */
+
 
 /* Size of the standard PCI config header */
 #define PCI_CONFIG_HEADER_SIZE 0x40
@@ -304,6 +306,16 @@ void pci_info(Monitor *mon);
 PCIBus *pci_bridge_init(PCIBus *bus, int devfn, uint16_t vid, uint16_t did,
                         uint8_t sec_bus, uint8_t sub_bus,
                         pci_map_irq_fn map_irq, const char *name);
+PCIBus *pci_bridge_create_simple(PCIBus *bus, int devfn,
+                                 uint16_t vid, uint16_t did,
+                                 uint8_t sec_bus, uint8_t sub_bus,
+                                 pci_map_irq_fn map_irq, const char *bus_name,
+                                 const char *name);
+void pci_bridge_write_config(PCIDevice *d,
+                             uint32_t address, uint32_t val, int len);
+int pci_bridge_initfn(PCIDevice *pci_dev);
+void pci_bridge_set_map_irq(PCIBus *bus, pci_map_irq_fn map_irq);
+
 
 static inline void
 pci_set_byte(uint8_t *config, uint8_t val)

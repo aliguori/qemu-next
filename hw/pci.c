@@ -133,12 +133,17 @@ PCIBus *pci_find_host_bus(int domain)
     return NULL;
 }
 
+static int pci_bus_get_instance_id(void)
+{
+    static int nbus = 0;
+    return nbus++;
+}
+
 PCIBus *pci_register_bus(DeviceState *parent, const char *name,
                          pci_set_irq_fn set_irq, pci_map_irq_fn map_irq,
                          void *irq_opaque, int devfn_min, int nirq)
 {
     PCIBus *bus;
-    static int nbus = 0;
 
     bus = FROM_QBUS(PCIBus, qbus_create(&pci_bus_info, parent, name));
     bus->set_irq = set_irq;
@@ -154,7 +159,7 @@ PCIBus *pci_register_bus(DeviceState *parent, const char *name,
     QLIST_INIT(&bus->child);
     pci_host_bus_register(0, bus); /* for now only pci domain 0 is supported */
 
-    vmstate_register(nbus++, &vmstate_pcibus, bus);
+    vmstate_register(pci_bus_get_instance_id(), &vmstate_pcibus, bus);
     qemu_register_reset(pci_bus_reset, bus);
     return bus;
 }
@@ -162,7 +167,7 @@ PCIBus *pci_register_bus(DeviceState *parent, const char *name,
 static PCIBus *pci_register_secondary_bus(PCIBus *parent,
                                           PCIDevice *dev,
                                           pci_map_irq_fn map_irq,
-                                          const char *name)
+                                          const char *name, int devfn_min)
 {
     PCIBus *bus;
 
@@ -172,8 +177,10 @@ static PCIBus *pci_register_secondary_bus(PCIBus *parent,
 
     bus->bus_num = dev->config[PCI_SECONDARY_BUS];
     bus->sub_bus = dev->config[PCI_SUBORDINATE_BUS];
+    bus->devfn_min = devfn_min;
     QLIST_INIT(&bus->child);
     QLIST_INSERT_HEAD(&parent->child, bus, sibling);
+    vmstate_register(pci_bus_get_instance_id(), &vmstate_pcibus, bus);
     return bus;
 }
 
@@ -1155,7 +1162,7 @@ typedef struct {
     PCIBus *bus;
 } PCIBridge;
 
-static void pci_bridge_write_config(PCIDevice *d,
+void pci_bridge_write_config(PCIDevice *d,
                              uint32_t address, uint32_t val, int len)
 {
     PCIBridge *s = (PCIBridge *)d;
@@ -1213,35 +1220,82 @@ PCIDevice *pci_find_device(PCIBus *bus, int bus_num, int slot, int function)
     return bus->devices[PCI_DEVFN(slot, function)];
 }
 
-PCIBus *pci_bridge_init(PCIBus *bus, int devfn, uint16_t vid, uint16_t did,
-                        uint8_t sec_bus, uint8_t sub_bus,
-                        pci_map_irq_fn map_irq, const char *name)
+int pci_bridge_initfn(PCIDevice *pci_dev)
 {
-    PCIBridge *s;
-    s = (PCIBridge *)pci_register_device(bus, name, sizeof(PCIBridge),
-                                         devfn, NULL, pci_bridge_write_config);
+    uint8_t *pci_conf;
 
-    pci_config_set_vendor_id(s->dev.config, vid);
-    pci_config_set_device_id(s->dev.config, did);
-
-    s->dev.config[0x04] = 0x06; // command = bus master, pci mem
-    s->dev.config[0x05] = 0x00;
-    s->dev.config[0x06] = 0xa0; // status = fast back-to-back, 66MHz, no error
-    s->dev.config[0x07] = 0x00; // status = fast devsel
-    s->dev.config[0x08] = 0x00; // revision
-    s->dev.config[0x09] = 0x00; // programming i/f
-    pci_config_set_class(s->dev.config, PCI_CLASS_BRIDGE_PCI);
-    s->dev.config[0x0D] = 0x10; // latency_timer
-    s->dev.config[PCI_HEADER_TYPE] =
+    pci_conf = pci_dev->config;
+    pci_conf[0x04] = 0x06; // command = bus master, pci mem
+    pci_conf[0x05] = 0x00;
+    pci_conf[0x06] = 0xa0; // status = fast back-to-back, 66MHz, no error
+    pci_conf[0x07] = 0x00; // status = fast devsel
+    pci_conf[0x08] = 0x00; // revision
+    pci_conf[0x09] = 0x00; // programming i/f
+    pci_config_set_class(pci_conf, PCI_CLASS_BRIDGE_PCI);
+    pci_conf[0x0D] = 0x10; // latency_timer
+    pci_conf[PCI_HEADER_TYPE] =
         PCI_HEADER_TYPE_MULTI_FUNCTION | PCI_HEADER_TYPE_BRIDGE; // header_type
-    s->dev.config[0x1E] = 0xa0; // secondary status
+    pci_conf[0x18] = pci_dev->bus->bus_num;// primary bus number
+    /* secondary bus and subordinate bus will be set by the caller */
+    pci_conf[0x1E] = 0xa0; // secondary status
+
+    /* vid/did will be set later */
+
+    return 0;
+}
+
+#define PCI_BRIDGE_DEFAULT      "default PCI to PCI bridge"
+static PCIDeviceInfo pci_bridge_info_default = {
+    .qdev.name = PCI_BRIDGE_DEFAULT,
+    .qdev.size = sizeof(PCIBridge),
+    .config_write = pci_bridge_write_config,
+    .init = pci_bridge_initfn,
+    .pcie = 0,
+};
+
+static void pci_bridge_register_device(void)
+{
+    pci_qdev_register(&pci_bridge_info_default);
+}
+device_init(pci_bridge_register_device);
+
+PCIBus *pci_bridge_create_simple(PCIBus *bus, int devfn,
+                                 uint16_t vid, uint16_t did,
+                                 uint8_t sec_bus, uint8_t sub_bus,
+                                 pci_map_irq_fn map_irq, const char *bus_name,
+                                 const char *name)
+{
+    DeviceState *qdev;
+    uint8_t* pci_conf;
+    PCIDevice *d;
+    PCIBridge *br;
+
+    qdev = qdev_create(&bus->qbus, name);
+
+    qdev_prop_set_uint32(qdev, "addr", devfn);
+
+    qdev_init(qdev);
+
+    d = DO_UPCAST(PCIDevice, qdev, qdev);
+    pci_conf = d->config;
+    pci_config_set_vendor_id(pci_conf, vid);
+    pci_config_set_device_id(pci_conf, did);
 
     assert(sec_bus <= sub_bus);
-    s->dev.config[PCI_SECONDARY_BUS] = sec_bus;
-    s->dev.config[PCI_SUBORDINATE_BUS] = sub_bus;
+    pci_set_byte(d->config + PCI_SECONDARY_BUS, sec_bus);
+    pci_set_byte(d->config + PCI_SUBORDINATE_BUS, sub_bus);
 
-    s->bus = pci_register_secondary_bus(bus, &s->dev, map_irq, name);
-    return s->bus;
+    br = DO_UPCAST(PCIBridge, dev, d);
+    br->bus = pci_register_secondary_bus(bus, d, map_irq, name, 0);
+    return br->bus;
+}
+
+PCIBus *pci_bridge_init(PCIBus *bus, int devfn, uint16_t vid,
+                        uint16_t did, uint8_t sec_bus, uint8_t sub_bus,
+                        pci_map_irq_fn map_irq, const char *name)
+{
+    return pci_bridge_create_simple(bus, devfn, vid, did, sec_bus, sub_bus,
+                                    map_irq, name, PCI_BRIDGE_DEFAULT);
 }
 
 static int pci_qdev_init(DeviceState *qdev, DeviceInfo *base)
