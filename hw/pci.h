@@ -84,6 +84,8 @@ typedef int PCIUnregisterFunc(PCIDevice *pci_dev);
 
 #define PCI_ADDRESS_SPACE_MEM		0x00
 #define PCI_ADDRESS_SPACE_IO		0x01
+#define PCI_ADDRESS_SPACE_MEM_64        0x04    /* 64 bit address */
+#define PCI_ADDRESS_SPACE_MEM_TYPE_MASK 0x06
 #define PCI_ADDRESS_SPACE_MEM_PREFETCH	0x08
 
 typedef struct PCIIORegion {
@@ -93,6 +95,13 @@ typedef struct PCIIORegion {
     uint8_t type;
     PCIMapIORegionFunc *map_func;
 } PCIIORegion;
+
+static inline int pci_bar_is_64bit(const PCIIORegion *r)
+{
+    return !(r->type & PCI_ADDRESS_SPACE_IO) &&
+        ((r->type & PCI_ADDRESS_SPACE_MEM_TYPE_MASK) ==
+         PCI_ADDRESS_SPACE_MEM_64);
+}
 
 #define PCI_ROM_SLOT 6
 #define PCI_NUM_REGIONS 7

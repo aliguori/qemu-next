@@ -427,8 +427,13 @@ void pci_register_bar(PCIDevice *pci_dev, int region_num,
         addr = 0x10 + region_num * 4;
     }
     pci_set_long(pci_dev->config + addr, type);
-    pci_set_long(pci_dev->wmask + addr, wmask & 0xffffffff);
-    pci_set_long(pci_dev->cmask + addr, 0xffffffff);
+    if (pci_bar_is_64bit(r)) {
+        pci_set_quad(pci_dev->wmask + addr, wmask);
+        pci_set_quad(pci_dev->cmask + addr, ~0ULL);
+    } else {
+        pci_set_long(pci_dev->wmask + addr, wmask & 0xffffffff);
+        pci_set_long(pci_dev->cmask + addr, 0xffffffff);
+    }
 }
 
 static void pci_update_mappings(PCIDevice *d)
@@ -462,7 +467,11 @@ static void pci_update_mappings(PCIDevice *d)
                 }
             } else {
                 if (cmd & PCI_COMMAND_MEMORY) {
-                    new_addr = pci_get_long(d->config + config_ofs);
+                    if (pci_bar_is_64bit(r)) {
+                        new_addr = pci_get_quad(d->config + config_ofs);
+                    } else {
+                        new_addr = pci_get_long(d->config + config_ofs);
+                    }
                     /* the ROM slot has a specific enable bit */
                     if (i == PCI_ROM_SLOT && !(new_addr & 1))
                         goto no_mem_map;
@@ -477,7 +486,7 @@ static void pci_update_mappings(PCIDevice *d)
 
                         /* keep old behaviour
                          * without this, PC ide doesn't work well. */
-                        last_addr >= UINT32_MAX) {
+                        (!pci_bar_is_64bit(r) && last_addr >= UINT32_MAX)) {
                         new_addr = PCI_BAR_UNMAPPED;
                     }
                 } else {
@@ -736,7 +745,29 @@ static void pci_info_device(PCIDevice *d)
                 monitor_printf(mon, "I/O at 0x%04"FMT_pcibus" [0x%04"FMT_pcibus"].\n",
                                r->addr, r->addr + r->size - 1);
             } else {
-                monitor_printf(mon, "32 bit memory at 0x%08"FMT_pcibus" [0x%08"FMT_pcibus"].\n",
+                const char *type;
+                const char* prefetch;
+
+                switch (r->type & PCI_ADDRESS_SPACE_MEM_TYPE_MASK) {
+                case PCI_ADDRESS_SPACE_MEM:
+                    type = "32 bit";
+                    break;
+                case PCI_ADDRESS_SPACE_MEM_64:
+                    type = "64 bit";
+                    break;
+                default:
+                    type = "unknown";
+                    break;
+                }
+
+                prefetch = "";
+                if (r->type & PCI_ADDRESS_SPACE_MEM_PREFETCH) {
+                    prefetch = " prefetchable";
+                }
+
+                monitor_printf(mon, "%s%s memory at "
+                               "0x%08"FMT_pcibus" [0x%08"FMT_pcibus"].\n",
+                               type, prefetch,
                                r->addr, r->addr + r->size - 1);
             }
         }
