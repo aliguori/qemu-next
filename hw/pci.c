@@ -396,12 +396,12 @@ int pci_unregister_device(PCIDevice *pci_dev)
 }
 
 void pci_register_bar(PCIDevice *pci_dev, int region_num,
-                            uint32_t size, int type,
+                            pcibus_t size, int type,
                             PCIMapIORegionFunc *map_func)
 {
     PCIIORegion *r;
     uint32_t addr;
-    uint32_t wmask;
+    pcibus_t wmask;
 
     if ((unsigned int)region_num >= PCI_NUM_REGIONS)
         return;
@@ -435,7 +435,8 @@ static void pci_update_mappings(PCIDevice *d)
 {
     PCIIORegion *r;
     int cmd, i;
-    uint32_t last_addr, new_addr, config_ofs;
+    pcibus_t last_addr, new_addr;
+    uint32_t config_ofs;
 
     cmd = pci_get_word(d->config + PCI_COMMAND);
     for(i = 0; i < PCI_NUM_REGIONS; i++) {

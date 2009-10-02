@@ -1926,7 +1926,7 @@ static void lsi_io_writel(void *opaque, uint32_t addr, uint32_t val)
 }
 
 static void lsi_io_mapfunc(PCIDevice *pci_dev, int region_num,
-                           uint32_t addr, uint32_t size, int type)
+                           pcibus_t addr, pcibus_t size, int type)
 {
     LSIState *s = DO_UPCAST(LSIState, dev, pci_dev);
 
@@ -1941,7 +1941,7 @@ static void lsi_io_mapfunc(PCIDevice *pci_dev, int region_num,
 }
 
 static void lsi_ram_mapfunc(PCIDevice *pci_dev, int region_num,
-                            uint32_t addr, uint32_t size, int type)
+                            pcibus_t addr, pcibus_t size, int type)
 {
     LSIState *s = DO_UPCAST(LSIState, dev, pci_dev);
 
@@ -1951,7 +1951,7 @@ static void lsi_ram_mapfunc(PCIDevice *pci_dev, int region_num,
 }
 
 static void lsi_mmio_mapfunc(PCIDevice *pci_dev, int region_num,
-                             uint32_t addr, uint32_t size, int type)
+                             pcibus_t addr, pcibus_t size, int type)
 {
     LSIState *s = DO_UPCAST(LSIState, dev, pci_dev);
 

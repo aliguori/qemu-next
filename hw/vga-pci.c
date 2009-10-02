@@ -71,7 +71,7 @@ void vga_dirty_log_start(VGACommonState *s)
 }
 
 static void vga_map(PCIDevice *pci_dev, int region_num,
-                    uint32_t addr, uint32_t size, int type)
+                    pcibus_t addr, pcibus_t size, int type)
 {
     PCIVGAState *d = (PCIVGAState *)pci_dev;
     VGACommonState *s = &d->vga;

@@ -344,7 +344,7 @@ static const int parallel_io[MAX_PARALLEL_PORTS] = { 0x378, 0x278, 0x3bc };
 static const int parallel_irq[MAX_PARALLEL_PORTS] = { 7, 7, 7 };
 
 static void ebus_mmio_mapfunc(PCIDevice *pci_dev, int region_num,
-                              uint32_t addr, uint32_t size, int type)
+                              pcibus_t addr, pcibus_t size, int type)
 {
     DPRINTF("Mapping region %d registers at %08x\n", region_num, addr);
     switch (region_num) {

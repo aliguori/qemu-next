@@ -71,12 +71,14 @@ extern target_phys_addr_t pci_mem_base;
 #define PCI_DEVICE_ID_VIRTIO_BALLOON     0x1002
 #define PCI_DEVICE_ID_VIRTIO_CONSOLE     0x1003
 
+typedef uint32_t pcibus_t;
+
 typedef void PCIConfigWriteFunc(PCIDevice *pci_dev,
                                 uint32_t address, uint32_t data, int len);
 typedef uint32_t PCIConfigReadFunc(PCIDevice *pci_dev,
                                    uint32_t address, int len);
 typedef void PCIMapIORegionFunc(PCIDevice *pci_dev, int region_num,
-                                uint32_t addr, uint32_t size, int type);
+                                pcibus_t addr, pcibus_t size, int type);
 typedef int PCIUnregisterFunc(PCIDevice *pci_dev);
 
 #define PCI_ADDRESS_SPACE_MEM		0x00
@@ -84,9 +86,9 @@ typedef int PCIUnregisterFunc(PCIDevice *pci_dev);
 #define PCI_ADDRESS_SPACE_MEM_PREFETCH	0x08
 
 typedef struct PCIIORegion {
-    uint32_t addr; /* current PCI mapping address. -1 means not mapped */
-#define PCI_BAR_UNMAPPED        (~(uint32_t)0)
-    uint32_t size;
+    pcibus_t addr; /* current PCI mapping address. -1 means not mapped */
+#define PCI_BAR_UNMAPPED        (~(pcibus_t)0)
+    pcibus_t size;
     uint8_t type;
     PCIMapIORegionFunc *map_func;
 } PCIIORegion;
@@ -232,7 +234,7 @@ PCIDevice *pci_register_device(PCIBus *bus, const char *name,
 int pci_unregister_device(PCIDevice *pci_dev);
 
 void pci_register_bar(PCIDevice *pci_dev, int region_num,
-                            uint32_t size, int type,
+                            pcibus_t size, int type,
                             PCIMapIORegionFunc *map_func);
 
 int pci_add_capability(PCIDevice *pci_dev, uint8_t cap_id, uint8_t cap_size);

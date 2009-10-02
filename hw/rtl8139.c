@@ -3324,7 +3324,7 @@ static int rtl8139_load(QEMUFile* f,void* opaque,int version_id)
 /* PCI RTL8139 definitions */
 
 static void rtl8139_mmio_map(PCIDevice *pci_dev, int region_num,
-                       uint32_t addr, uint32_t size, int type)
+                       pcibus_t addr, pcibus_t size, int type)
 {
     RTL8139State *s = DO_UPCAST(RTL8139State, dev, pci_dev);
 
@@ -3332,7 +3332,7 @@ static void rtl8139_mmio_map(PCIDevice *pci_dev, int region_num,
 }
 
 static void rtl8139_ioport_map(PCIDevice *pci_dev, int region_num,
-                       uint32_t addr, uint32_t size, int type)
+                       pcibus_t addr, pcibus_t size, int type)
 {
     RTL8139State *s = DO_UPCAST(RTL8139State, dev, pci_dev);
 
