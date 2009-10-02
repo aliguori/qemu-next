@@ -14,7 +14,7 @@ static uint32_t cortexa8_cp15_c0_c1[8] =
 static uint32_t cortexa8_cp15_c0_c2[8] =
 { 0x00101111, 0x12112111, 0x21232031, 0x11112131, 0x00111142, 0, 0, 0 };
 
-static uint32_t cortexa8r2_cp16_c0_c2[8] =
+static uint32_t cortexa8r2_cp15_c0_c2[8] =
 { 0x00101111, 0x12112111, 0x21232031, 0x11112131, 0x00011142, 0, 0, 0 };
 
 static uint32_t mpcore_cp15_c0_c1[8] =
@@ -119,7 +119,7 @@ static void cpu_reset_model_id(CPUARMState *env, uint32_t id)
         env->vfp.xregs[ARM_VFP_MVFR0] = 0x11110222;
         env->vfp.xregs[ARM_VFP_MVFR1] = 0x00011100; /* should be 0x00011111 */
         memcpy(env->cp15.c0_c1, cortexa8_cp15_c0_c1, 8 * sizeof(uint32_t));
-        memcpy(env->cp15.c0_c2, cortexa8r2_cp16_c0_c2, 8 * sizeof(uint32_t));
+        memcpy(env->cp15.c0_c2, cortexa8r2_cp15_c0_c2, 8 * sizeof(uint32_t));
         env->cp15.c0_cachetype = 0x82048004;
         env->cp15.c0_clid = (1 << 27) | (2 << 24) | (4 << 3) | 3;
         env->cp15.c0_ccsid[0] = 0xe007e01a; /* 16k L1 dcache. */
