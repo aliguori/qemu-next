@@ -1065,7 +1065,50 @@ static void pci_info_device(PCIBus *bus, PCIDevice *d)
                        d->config[PCI_INTERRUPT_LINE]);
     }
     if (class == 0x0604) {
+        int shift;
+        uint64_t base;
+        uint64_t limit;
         monitor_printf(mon, "      BUS %d.\n", d->config[0x19]);
+        monitor_printf(mon, "      SECONDARY BUS %d.\n",
+                       d->config[PCI_SECONDARY_BUS]);
+        monitor_printf(mon, "      SUBORDINATE BUS %d.\n",
+                       d->config[PCI_SUBORDINATE_BUS]);
+
+        if (d->config[PCI_IO_BASE] & PCI_IO_RANGE_TYPE_32) {
+            shift = 16;
+        } else {
+            shift = 8;
+        }
+        base = ((uint32_t)d->config[PCI_IO_BASE] & ~PCI_IO_RANGE_TYPE_MASK)
+            << shift;
+        base |= pci_get_word(d->config + PCI_IO_BASE_UPPER16) << 16;
+        limit = ((uint32_t)d->config[PCI_IO_LIMIT] & ~PCI_IO_RANGE_TYPE_MASK)
+            << shift;
+        limit |= pci_get_word(d->config + PCI_IO_LIMIT_UPPER16) << 16;
+        limit |= 0xfff;
+        monitor_printf(mon, "      IO range [0x%04"PRIx64", 0x%04"PRIx64"]\n",
+                       base, limit);
+
+        shift = 16;
+        base = (pci_get_word(d->config + PCI_MEMORY_BASE) &
+                PCI_MEMORY_RANGE_MASK) << shift;
+        limit = (pci_get_word(d->config + PCI_MEMORY_LIMIT) &
+                 PCI_MEMORY_RANGE_MASK) << shift;
+        limit |= 0xfffff;
+        monitor_printf(mon,
+                       "      MEM range [0x%08"PRIx64", 0x%08"PRIx64"]\n",
+                       base, limit);
+        shift = 16;
+        base = ((uint64_t)pci_get_word(d->config + PCI_PREF_MEMORY_BASE) &
+                PCI_PREF_RANGE_MASK) << shift;
+        limit = ((uint64_t)pci_get_word(d->config + PCI_PREF_MEMORY_LIMIT) &
+                 PCI_PREF_RANGE_MASK) << shift;
+        base |= (uint64_t)pci_get_long(d->config + PCI_PREF_BASE_UPPER32) << 32;
+        limit |= (uint64_t)pci_get_long(d->config + PCI_PREF_LIMIT_UPPER32) << 32;
+        limit |= 0xfffff;
+        monitor_printf(mon,
+                       "      pref MEM range [0x%08"PRIx64", 0x%08"PRIx64"]\n",
+                       base, limit);
     }
     for(i = 0;i < PCI_NUM_REGIONS; i++) {
         r = &d->io_regions[i];
