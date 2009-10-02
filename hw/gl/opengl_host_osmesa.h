@@ -24,7 +24,7 @@ typedef void *GLHostPbuffer;
 
 #include "opengl_host.h"
 
-#define GLX_EXCESS_DEBUG
+//#define GLX_EXCESS_DEBUG
 
 #define GL_ERROR(fmt,...) fprintf(stderr, "%s@%d: " fmt "\n", \
                                   __FUNCTION__, __LINE__, ##__VA_ARGS__)
