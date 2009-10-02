@@ -1378,7 +1378,8 @@ static void pci_map(PCIDevice * pci_dev, int region_num,
 {
     EEPRO100State *s = DO_UPCAST(EEPRO100State, dev, pci_dev);
 
-    TRACE(OTHER, logout("region %d, addr=0x%08x, size=0x%08x, type=%d\n",
+    TRACE(OTHER, logout("region %d, addr=0x%08"FMT_pcibus", "
+          "size=0x%08"FMT_pcibus", type=%d\n",
           region_num, addr, size, type));
 
     assert(region_num == 1);
@@ -1457,7 +1458,8 @@ static void pci_mmio_map(PCIDevice * pci_dev, int region_num,
 {
     EEPRO100State *s = DO_UPCAST(EEPRO100State, dev, pci_dev);
 
-    TRACE(OTHER, logout("region %d, addr=0x%08x, size=0x%08x, type=%d\n",
+    TRACE(OTHER, logout("region %d, addr=0x%08"FMT_pcibus", "
+          "size=0x%08"FMT_pcibus", type=%d\n",
           region_num, addr, size, type));
 
     if (region_num == 0) {

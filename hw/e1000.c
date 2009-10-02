@@ -145,7 +145,8 @@ static void
 ioport_map(PCIDevice *pci_dev, int region_num, pcibus_t addr,
            pcibus_t size, int type)
 {
-    DBGOUT(IO, "e1000_ioport_map addr=0x%04x size=0x%08x\n", addr, size);
+    DBGOUT(IO, "e1000_ioport_map addr=0x%04"FMT_pcibus" size=0x%08"FMT_pcibus"\n",
+           addr, size);
 }
 
 static void
@@ -1040,7 +1041,8 @@ e1000_mmio_map(PCIDevice *pci_dev, int region_num,
     };
 
 
-    DBGOUT(MMIO, "e1000_mmio_map addr=0x%08x 0x%08x\n", addr, size);
+    DBGOUT(MMIO, "e1000_mmio_map addr=0x%08"FMT_pcibus" 0x%08"FMT_pcibus"\n",
+           addr, size);
 
     cpu_register_physical_memory(addr, PNPMMIO_SIZE, d->mmio_index);
     qemu_register_coalesced_mmio(addr, excluded_regs[0]);
