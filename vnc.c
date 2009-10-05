@@ -2318,8 +2318,49 @@ char *vnc_display_local_addr(DisplayState *ds)
 
 int vnc_display_open(DisplayState *ds, const char *display)
 {
+    const char *ptr;
+    char buffer[4096];
+    char *p;
+    QemuOpts *opts;
+    int ret;
+
+    if (strstart(display, "unix:", &ptr)) {
+        snprintf(buffer, sizeof(buffer), "backend=vnc,path=%s", ptr);
+    } else {
+        char *port;
+        int portnum;
+        char addr[1024];
+
+        snprintf(addr, sizeof(addr), "%s", buffer);
+
+        p = strchr(addr, ',');
+        if (p) {
+            *p = 0;
+        }
+
+        port = strchr(addr, ':');
+        if (port == NULL) {
+            portnum = 5900;
+        } else {
+            *port = 0;
+            port++;
+            portnum = atoi(port) + 5900;
+        }
+
+        snprintf(buffer, sizeof(buffer), "backend=vnc,addr=%s,port=%d%s%s",
+                 addr, portnum, (p ? p : ","), p);
+    }
+
+    opts = qemu_opts_parse(&qemu_display_opts, buffer, "backend");
+    ret = vnc_display_open_opts(ds, opts);
+    qemu_opts_del(opts);
+
+    return ret;
+}
+
+int vnc_display_open_opts(DisplayState *ds, QemuOpts *opts)
+{
     VncDisplay *vs = ds ? (VncDisplay *)ds->opaque : vnc_display;
-    const char *options;
     int password = 0;
     int reverse = 0;
     int to_port = 0;
@@ -2331,64 +2372,50 @@ int vnc_display_open(DisplayState *ds, const char *display)
     int saslErr;
 #endif
     int acl = 0;
+    const char *x509path;
 
     if (!vnc_display)
         return -1;
     vnc_display_close(ds);
-    if (strcmp(display, "none") == 0)
-        return 0;
 
-    if (!(vs->display = strdup(display)))
-        return -1;
+    vs->display = qemu_strdup("none");
 
-    options = display;
-    while ((options = strchr(options, ','))) {
-        options++;
-        if (strncmp(options, "password", 8) == 0) {
-            password = 1; /* Require password auth */
-        } else if (strncmp(options, "reverse", 7) == 0) {
-            reverse = 1;
-        } else if (strncmp(options, "to=", 3) == 0) {
-            to_port = atoi(options+3) + 5900;
-#ifdef CONFIG_VNC_SASL
-        } else if (strncmp(options, "sasl", 4) == 0) {
-            sasl = 1; /* Require SASL auth */
-#endif
-#ifdef CONFIG_VNC_TLS
-        } else if (strncmp(options, "tls", 3) == 0) {
-            tls = 1; /* Require TLS */
-        } else if (strncmp(options, "x509", 4) == 0) {
-            char *start, *end;
-            x509 = 1; /* Require x509 certificates */
-            if (strncmp(options, "x509verify", 10) == 0)
-                vs->tls.x509verify = 1; /* ...and verify client certs */
+    password = qemu_opt_get_bool(opts, "password", 0);
+    reverse = qemu_opt_get_bool(opts, "reverse", 0);
+    to_port = qemu_opt_get_number(opts, "to", -1);
+    sasl = qemu_opt_get_bool(opts, "sasl", 0);
+    tls = qemu_opt_get_bool(opts, "tls", 0);
+    acl = qemu_opt_get_bool(opts, "acl", 0);
+    vs->tls.x509verify = qemu_opt_get_bool(opts, "x509verify", 0);
 
-            /* Now check for 'x509=/some/path' postfix
-             * and use that to setup x509 certificate/key paths */
-            start = strchr(options, '=');
-            end = strchr(options, ',');
-            if (start && (!end || (start < end))) {
-                int len = end ? end-(start+1) : strlen(start+1);
-                char *path = qemu_strndup(start + 1, len);
+    x509path = qemu_opt_get(opts, "x509");
+    if (x509path) {
+        if (strcmp(x509path, "off") == 0) {
+            x509 = 0;
+            x509path = NULL;
+        } else if (strcmp(x509path, "on") == 0) {
+            x509 = 1;
+            x509path = NULL;
+        }
+    }
 
-                VNC_DEBUG("Trying certificate path '%s'\n", path);
-                if (vnc_tls_set_x509_creds_dir(vs, path) < 0) {
-                    fprintf(stderr, "Failed to find x509 certificates/keys in %s\n", path);
-                    qemu_free(path);
-                    qemu_free(vs->display);
-                    vs->display = NULL;
-                    return -1;
-                }
-                qemu_free(path);
-            } else {
-                fprintf(stderr, "No certificate path provided\n");
-                qemu_free(vs->display);
-                vs->display = NULL;
-                return -1;
-            }
-#endif
-        } else if (strncmp(options, "acl", 3) == 0) {
-            acl = 1;
+    if (x509path == NULL) {
+        x509path = qemu_opt_get(opts, "x509path");
+        if (x509path) {
+            x509 = 1;
+        }
+    }
+
+    if (to_port != -1) {
+        to_port += 5900;
+    }
+
+    if (x509 && x509path) {
+        if (vnc_tls_set_x509_creds_dir(vs, x509path) < 0) {
+            fprintf(stderr, "Failed to find x509 certificates/keys in %s\n", x509path);
+            qemu_free(vs->display);
+            vs->display = NULL;
+            return -1;
         }
     }
 
@@ -2498,10 +2525,11 @@ int vnc_display_open(DisplayState *ds, const char *display)
 
     if (reverse) {
         /* connect to viewer */
-        if (strncmp(display, "unix:", 5) == 0)
-            vs->lsock = unix_connect(display+5);
-        else
-            vs->lsock = inet_connect(display, SOCK_STREAM);
+        if (qemu_opt_get(opts, "path")) {
+            vs->lsock = unix_connect_opts(opts);
+        } else {
+            vs->lsock = inet_connect_opts(opts);
+        }
         if (-1 == vs->lsock) {
             free(vs->display);
             vs->display = NULL;
@@ -2515,20 +2543,13 @@ int vnc_display_open(DisplayState *ds, const char *display)
 
     } else {
         /* listen for connects */
-        char *dpy;
-        dpy = qemu_malloc(256);
-        if (strncmp(display, "unix:", 5) == 0) {
-            pstrcpy(dpy, 256, "unix:");
-            vs->lsock = unix_listen(display+5, dpy+5, 256-5);
+        if (qemu_opt_get(opts, "path")) {
+            vs->lsock = unix_listen_opts(opts);
         } else {
-            vs->lsock = inet_listen(display, dpy, 256, SOCK_STREAM, 5900);
+            vs->lsock = inet_listen_opts(opts, 5900);
         }
         if (-1 == vs->lsock) {
-            free(dpy);
             return -1;
-        } else {
-            free(vs->display);
-            vs->display = dpy;
         }
     }
     return qemu_set_fd_handler2(vs->lsock, NULL, vnc_listen_read, NULL, vs);

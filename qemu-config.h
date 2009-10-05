@@ -6,6 +6,7 @@ extern QemuOptsList qemu_chardev_opts;
 extern QemuOptsList qemu_device_opts;
 extern QemuOptsList qemu_net_opts;
 extern QemuOptsList qemu_rtc_opts;
+extern QemuOptsList qemu_display_opts;
 
 int qemu_set_option(const char *str);
 
