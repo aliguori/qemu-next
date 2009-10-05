@@ -3,76 +3,43 @@
 #include "qemu-config.h"
 #include "sysemu.h"
 
+#define DEFINE_OPT(i_name, i_type, i_help) { \
+    .name = i_name,                          \
+    .type = i_type,                          \
+    .help = i_help,                          \
+}
+
+#define DEFINE_OPT_NUMBER(name, help) \
+    DEFINE_OPT(name, QEMU_OPT_NUMBER, help)
+#define DEFINE_OPT_STRING(name, help) \
+    DEFINE_OPT(name, QEMU_OPT_STRING, help)
+#define DEFINE_OPT_BOOL(name, help) \
+    DEFINE_OPT(name, QEMU_OPT_BOOL, help)
+
+#define DEFINE_OPT_END_OF_LIST() { }
+
 QemuOptsList qemu_drive_opts = {
     .name = "drive",
     .head = QTAILQ_HEAD_INITIALIZER(qemu_drive_opts.head),
     .desc = {
-        {
-            .name = "bus",
-            .type = QEMU_OPT_NUMBER,
-            .help = "bus number",
-        },{
-            .name = "unit",
-            .type = QEMU_OPT_NUMBER,
-            .help = "unit number (i.e. lun for scsi)",
-        },{
-            .name = "if",
-            .type = QEMU_OPT_STRING,
-            .help = "interface (ide, scsi, sd, mtd, floppy, pflash, virtio)",
-        },{
-            .name = "index",
-            .type = QEMU_OPT_NUMBER,
-        },{
-            .name = "cyls",
-            .type = QEMU_OPT_NUMBER,
-            .help = "number of cylinders (ide disk geometry)",
-        },{
-            .name = "heads",
-            .type = QEMU_OPT_NUMBER,
-            .help = "number of heads (ide disk geometry)",
-        },{
-            .name = "secs",
-            .type = QEMU_OPT_NUMBER,
-            .help = "number of sectors (ide disk geometry)",
-        },{
-            .name = "trans",
-            .type = QEMU_OPT_STRING,
-            .help = "chs translation (auto, lba. none)",
-        },{
-            .name = "media",
-            .type = QEMU_OPT_STRING,
-            .help = "media type (disk, cdrom)",
-        },{
-            .name = "snapshot",
-            .type = QEMU_OPT_BOOL,
-        },{
-            .name = "file",
-            .type = QEMU_OPT_STRING,
-            .help = "disk image",
-        },{
-            .name = "cache",
-            .type = QEMU_OPT_STRING,
-            .help = "host cache usage (none, writeback, writethrough)",
-        },{
-            .name = "aio",
-            .type = QEMU_OPT_STRING,
-            .help = "host AIO implementation (threads, native)",
-        },{
-            .name = "format",
-            .type = QEMU_OPT_STRING,
-            .help = "disk format (raw, qcow2, ...)",
-        },{
-            .name = "serial",
-            .type = QEMU_OPT_STRING,
-        },{
-            .name = "werror",
-            .type = QEMU_OPT_STRING,
-        },{
-            .name = "addr",
-            .type = QEMU_OPT_STRING,
-            .help = "pci address (virtio only)",
-        },
-        { /* end if list */ }
+        DEFINE_OPT_NUMBER("bus", "bus number"),
+        DEFINE_OPT_NUMBER("unit", "unit number (i.e. lun for scsi)"),
+        DEFINE_OPT_STRING("if", "interface (ide, scsi, sd, mtd, floppy, pflash, virtio)"),
+        DEFINE_OPT_NUMBER("index", 0),
+        DEFINE_OPT_NUMBER("cyls", "number of cylinders (ide disk geometry)"),
+        DEFINE_OPT_NUMBER("heads", "number of heads (ide disk geometry)"),
+        DEFINE_OPT_NUMBER("secs", "number of sectors (ide disk geometry)"),
+        DEFINE_OPT_STRING("trans", "chs translation (auto, lba. none)"),
+        DEFINE_OPT_STRING("media", "media type (disk, cdrom)"),
+        DEFINE_OPT_BOOL("snapshot", 0),
+        DEFINE_OPT_STRING("file", "disk image"),
+        DEFINE_OPT_STRING("cache", "host cache usage (none, writeback, writethrough)"),
+        DEFINE_OPT_STRING("aio", "host AIO implementation (threads, native)"),
+        DEFINE_OPT_STRING("format", "disk format (raw, qcow2, ...)"),
+        DEFINE_OPT_STRING("serial", 0),
+        DEFINE_OPT_STRING("werror", 0),
+        DEFINE_OPT_STRING("addr", "pci address (virtio only)"),
+        DEFINE_OPT_END_OF_LIST(),
     },
 };
 
@@ -80,62 +47,25 @@ QemuOptsList qemu_chardev_opts = {
     .name = "chardev",
     .head = QTAILQ_HEAD_INITIALIZER(qemu_chardev_opts.head),
     .desc = {
-        {
-            .name = "backend",
-            .type = QEMU_OPT_STRING,
-        },{
-            .name = "path",
-            .type = QEMU_OPT_STRING,
-        },{
-            .name = "host",
-            .type = QEMU_OPT_STRING,
-        },{
-            .name = "port",
-            .type = QEMU_OPT_STRING,
-        },{
-            .name = "localaddr",
-            .type = QEMU_OPT_STRING,
-        },{
-            .name = "localport",
-            .type = QEMU_OPT_STRING,
-        },{
-            .name = "to",
-            .type = QEMU_OPT_NUMBER,
-        },{
-            .name = "ipv4",
-            .type = QEMU_OPT_BOOL,
-        },{
-            .name = "ipv6",
-            .type = QEMU_OPT_BOOL,
-        },{
-            .name = "wait",
-            .type = QEMU_OPT_BOOL,
-        },{
-            .name = "server",
-            .type = QEMU_OPT_BOOL,
-        },{
-            .name = "delay",
-            .type = QEMU_OPT_BOOL,
-        },{
-            .name = "telnet",
-            .type = QEMU_OPT_BOOL,
-        },{
-            .name = "width",
-            .type = QEMU_OPT_NUMBER,
-        },{
-            .name = "height",
-            .type = QEMU_OPT_NUMBER,
-        },{
-            .name = "cols",
-            .type = QEMU_OPT_NUMBER,
-        },{
-            .name = "rows",
-            .type = QEMU_OPT_NUMBER,
-        },{
-            .name = "mux",
-            .type = QEMU_OPT_BOOL,
-        },
-        { /* end if list */ }
+        DEFINE_OPT_STRING("backend", 0),
+        DEFINE_OPT_STRING("path", 0),
+        DEFINE_OPT_STRING("host", 0),
+        DEFINE_OPT_STRING("port", 0),
+        DEFINE_OPT_STRING("localaddr", 0),
+        DEFINE_OPT_STRING("localport", 0),
+        DEFINE_OPT_NUMBER("to", 0),
+        DEFINE_OPT_BOOL("ipv4", 0),
+        DEFINE_OPT_BOOL("ipv6", 0),
+        DEFINE_OPT_BOOL("wait", 0),
+        DEFINE_OPT_BOOL("server", 0),
+        DEFINE_OPT_BOOL("delay", 0),
+        DEFINE_OPT_BOOL("telnet", 0),
+        DEFINE_OPT_NUMBER("width", 0),
+        DEFINE_OPT_NUMBER("height", 0),
+        DEFINE_OPT_NUMBER("cols", 0),
+        DEFINE_OPT_NUMBER("rows", 0),
+        DEFINE_OPT_BOOL("mux", 0),
+        DEFINE_OPT_END_OF_LIST(),
     },
 };
 
@@ -168,19 +98,12 @@ QemuOptsList qemu_rtc_opts = {
     .name = "rtc",
     .head = QTAILQ_HEAD_INITIALIZER(qemu_rtc_opts.head),
     .desc = {
-        {
-            .name = "base",
-            .type = QEMU_OPT_STRING,
-        },{
-            .name = "clock",
-            .type = QEMU_OPT_STRING,
+        DEFINE_OPT_STRING("base", 0),
+        DEFINE_OPT_STRING("clock", 0),
 #ifdef TARGET_I386
-        },{
-            .name = "driftfix",
-            .type = QEMU_OPT_STRING,
+        DEFINE_OPT_STRING("driftfix", 0),
 #endif
-        },
-        { /* end if list */ }
+        DEFINE_OPT_END_OF_LIST(),
     },
 };
 
@@ -188,56 +111,23 @@ QemuOptsList qemu_display_opts = {
     .name = "display",
     .head = QTAILQ_HEAD_INITIALIZER(qemu_rtc_opts.head),
     .desc = {
-        {
-            .name = "backend",
-            .type = QEMU_OPT_STRING,
-        },{
-            .name = "host",
-            .type = QEMU_OPT_STRING,
-        },{
-            .name = "port",
-            .type = QEMU_OPT_STRING,
-        },{
-            .name = "localaddr",
-            .type = QEMU_OPT_STRING,
-        },{
-            .name = "localport",
-            .type = QEMU_OPT_STRING,
-        },{
-            .name = "to",
-            .type = QEMU_OPT_NUMBER,
-        },{
-            .name = "ipv4",
-            .type = QEMU_OPT_BOOL,
-        },{
-            .name = "ipv6",
-            .type = QEMU_OPT_BOOL,
-        },{
-            .name = "password",
-            .type = QEMU_OPT_BOOL,
-        },{
-            .name = "reverse",
-            .type = QEMU_OPT_BOOL,
-        },{
-            .name = "sasl",
-            .type = QEMU_OPT_BOOL,
-        },{
-            .name = "tls",
-            .type = QEMU_OPT_BOOL,
-        },{
-            .name = "acl",
-            .type = QEMU_OPT_BOOL,
-        },{
-            .name = "x509verify",
-            .type = QEMU_OPT_BOOL,
-        },{
-            .name = "x509",
-            .type = QEMU_OPT_STRING,
-        },{
-            .name = "x509path",
-            .type = QEMU_OPT_STRING,
-        },
-        { /* end of list */ }
+        DEFINE_OPT_STRING("backend", 0),
+        DEFINE_OPT_STRING("host", 0),
+        DEFINE_OPT_STRING("port", 0),
+        DEFINE_OPT_STRING("localaddr", 0),
+        DEFINE_OPT_STRING("localport", 0),
+        DEFINE_OPT_NUMBER("to", 0),
+        DEFINE_OPT_BOOL("ipv4", 0),
+        DEFINE_OPT_BOOL("ipv6", 0),
+        DEFINE_OPT_BOOL("password", 0),
+        DEFINE_OPT_BOOL("reverse", 0),
+        DEFINE_OPT_BOOL("sasl", 0),
+        DEFINE_OPT_BOOL("tls", 0),
+        DEFINE_OPT_BOOL("acl", 0),
+        DEFINE_OPT_BOOL("x509verify", 0),
+        DEFINE_OPT_STRING("x509", 0),
+        DEFINE_OPT_STRING("x509path", 0),
+        DEFINE_OPT_END_OF_LIST(),
     },
 };
 
