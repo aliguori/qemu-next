@@ -2331,7 +2331,7 @@ int vnc_display_open(DisplayState *ds, const char *display)
         int portnum;
         char addr[1024];
 
-        snprintf(addr, sizeof(addr), "%s", buffer);
+        snprintf(addr, sizeof(addr), "%s", display);
 
         p = strchr(addr, ',');
         if (p) {
@@ -2340,15 +2340,19 @@ int vnc_display_open(DisplayState *ds, const char *display)
 
         port = strchr(addr, ':');
         if (port == NULL) {
-            portnum = 5900;
+            portnum = 0;
         } else {
             *port = 0;
             port++;
-            portnum = atoi(port) + 5900;
+            portnum = atoi(port);
         }
 
-        snprintf(buffer, sizeof(buffer), "backend=vnc,addr=%s,port=%d%s%s",
-                 addr, portnum, (p ? p : ","), p);
+        if (addr[0] == 0) {
+            snprintf(addr, sizeof(addr), "0.0.0.0");
+        }
+
+        snprintf(buffer, sizeof(buffer), "backend=vnc,host=%s,port=%d%s%s",
+                 addr, portnum, (p ? "," : ""), (p ? p : ""));
     }
 
     opts = qemu_opts_parse(&qemu_display_opts, buffer, "backend");

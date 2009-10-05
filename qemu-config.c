@@ -192,26 +192,32 @@ QemuOptsList qemu_display_opts = {
             .name = "backend",
             .type = QEMU_OPT_STRING,
         },{
-            .name = "path",
-            .type = QEMU_OPT_STRING,
-        },{
-            .name = "addr",
+            .name = "host",
             .type = QEMU_OPT_STRING,
         },{
             .name = "port",
-            .type = QEMU_OPT_NUMBER,
+            .type = QEMU_OPT_STRING,
+        },{
+            .name = "localaddr",
+            .type = QEMU_OPT_STRING,
+        },{
+            .name = "localport",
+            .type = QEMU_OPT_STRING,
         },{
             .name = "to",
             .type = QEMU_OPT_NUMBER,
+        },{
+            .name = "ipv4",
+            .type = QEMU_OPT_BOOL,
+        },{
+            .name = "ipv6",
+            .type = QEMU_OPT_BOOL,
         },{
             .name = "password",
             .type = QEMU_OPT_BOOL,
         },{
             .name = "reverse",
             .type = QEMU_OPT_BOOL,
-        },{
-            .name = "to",
-            .type = QEMU_OPT_NUMBER,
         },{
             .name = "sasl",
             .type = QEMU_OPT_BOOL,
