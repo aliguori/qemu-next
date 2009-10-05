@@ -4770,6 +4770,7 @@ int main(int argc, char **argv, char **envp)
 #endif
     CPUState *env;
     int show_vnc_port = 0;
+    const char *display_opt = NULL;
 
     init_clocks();
 
@@ -5254,6 +5255,9 @@ int main(int argc, char **argv, char **envp)
                 }
                 monitor_devices[monitor_device_index] = optarg;
                 monitor_device_index++;
+                break;
+            case QEMU_OPTION_display:
+                display_opt = optarg;
                 break;
             case QEMU_OPTION_chardev:
                 opts = qemu_opts_parse(&qemu_chardev_opts, optarg, "backend");
@@ -5862,7 +5866,43 @@ int main(int argc, char **argv, char **envp)
         show_vnc_port = 1;
 #endif
     }
-        
+
+    if (display_opt) {
+        QemuOpts *opts;
+        const char *backend;
+
+        opts = qemu_opts_parse(&qemu_display_opts, display_opt, "backend");
+
+        backend = qemu_opt_get(opts, "backend");
+        if (strcmp(backend, "nographic") == 0) {
+#if defined(CONFIG_CURSES)
+        } else if (strcmp(backend, "curses") == 0) {
+            curses_display_init(ds, qemu_opt_get_bool(opts, "fullscreen", 0));
+#endif
+#if defined(CONFIG_SDL)           
+        } else if (strcmp(backend, "sdl") == 0) {
+            sdl_display_init(ds,
+                             qemu_opt_get_bool(opts, "fullscreen", 0),
+                             !qemu_opt_get_bool(opts, "frame", 1));
+#endif
+#if defined(CONFIG_COCOA)
+        } else if (strcmp(backend, "cocoa") == 0) {
+            cocoa_display_init(ds, qemu_opt_get_bool(opts, "fullscreen", 0));
+#endif
+        } else if (strcmp(backend, "vnc") == 0) {
+            vnc_display_init(ds);
+            if (vnc_display_open_opts(ds, opts) < 0) {
+                exit(1);
+            }
+            
+            if (show_vnc_port) {
+                printf("VNC server running on `%s'\n", vnc_display_local_addr(ds));
+            }
+        } else {
+            fprintf(stderr, "no display backend `%s'\n", backend);
+            exit(1);
+        }
+    } else {
 
     switch (display_type) {
     case DT_NOGRAPHIC:
@@ -5892,6 +5932,7 @@ int main(int argc, char **argv, char **envp)
         break;
     default:
         break;
+    }
     }
     dpy_resize(ds);
 

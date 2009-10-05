@@ -1199,6 +1199,14 @@ STEXI
 @table @option
 ETEXI
 
+DEF("display", HAS_ARG, QEMU_OPTION_display, \
+    "-display spec   create a display device \n")
+STEXI
+@item -display @var{spec}
+Create a display backend using @code{spec}.
+
+ETEXI
+
 DEF("chardev", HAS_ARG, QEMU_OPTION_chardev, \
     "-chardev spec   create unconnected chardev\n")
 DEF("serial", HAS_ARG, QEMU_OPTION_serial, \
