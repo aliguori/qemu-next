@@ -2,7 +2,6 @@
  * TI TSC2005 emulator.
  *
  * Copyright (c) 2006 Andrzej Zaborowski  <balrog@zabor.org>
- * Copyright (C) 2008 Nokia Corporation
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License as
@@ -108,10 +107,15 @@ static const uint16_t mode_regs[16] = {
     ((s->y * s->tr[0] - s->x * s->tr[1]) / s->tr[2] + s->tr[3])
 #define Y_TRANSFORM(s)			\
     ((s->y * s->tr[4] - s->x * s->tr[5]) / s->tr[6] + s->tr[7])
+/*
 #define Z1_TRANSFORM(s)			\
     (((s)->z1_cons - ((s)->x >> 7) + ((s)->pressure << 10)) << 4)
 #define Z2_TRANSFORM(s)			\
     (((s)->z2_cons + ((s)->y >> 7) - ((s)->pressure << 10)) << 4)
+ */
+/* these simpler forms work much better */
+#define Z1_TRANSFORM(s) (((s)->z1_cons) << 4)
+#define Z2_TRANSFORM(s) (((s)->z2_cons) << 4)
 
 #define AUX_VAL				(700 << 4)	/* +/- 3 at 12-bit */
 #define TEMP1_VAL			(1264 << 4)	/* +/- 5 at 12-bit */
@@ -269,11 +273,16 @@ static void tsc2005_write(TSC2005State *s, int reg, uint16_t data)
 static void tsc2005_pin_update(TSC2005State *s)
 {
     int64_t expires;
-    TRACE("nextfunction=%d, pressure=%d, enabled=%d, busy=%d, dav=0x%04x",
-          s->nextfunction, s->pressure, s->enabled, s->busy, s->dav);
+    TRACE("nextf=%d, press=%d, ena=%d, busy=%d, dav=0x%04x, irq=%d",
+          s->nextfunction, s->pressure, s->enabled, s->busy, s->dav, s->irq);
     switch (s->nextfunction) {
     case TSC_MODE_XYZ_SCAN:
     case TSC_MODE_XY_SCAN:
+            if (!s->pin_func && !s->dav) {
+                TRACE("all values read, lowering irq");
+                s->irq = 0;
+                qemu_set_irq(s->pint, s->irq);
+            }
         if (!s->host_mode && s->dav)
             s->enabled = 0;
         if (!s->pressure)
@@ -432,7 +441,7 @@ static void tsc2005_timer_tick(void *opaque)
 
 	switch (s->pin_func) {
 		case 0:
-			pin_state = !s->pressure && !s->dav;
+			pin_state = s->pressure || !s->dav;
 			break;
 		case 1:
 		case 3:
@@ -440,10 +449,10 @@ static void tsc2005_timer_tick(void *opaque)
 			pin_state = !s->dav;
 			break;
 		case 2:
-			pin_state = !s->pressure;
+			pin_state = s->pressure;
     }
 	s->busy = 0;
-	if (pin_state && !s->irq) {
+	if (!s->dav) {
         TRACE("report new conversions ready");
         s->dav |= mode_regs[s->function];
     }
@@ -457,6 +466,7 @@ static void tsc2005_timer_tick(void *opaque)
         s->irq = pin_state;
         qemu_set_irq(s->pint, s->irq);
     }
+    TRACE("done");
 }
 
 static void tsc2005_touchscreen_event(void *opaque,
