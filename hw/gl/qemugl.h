@@ -50,6 +50,7 @@
 #define QEMUGL_FIOCPBUF 0xfeedbeef
 #define QEMUGL_FIOSTBUF 0xbabe0000
 
-#define QEMUGL_PID_SIGNATURE 0x51454d55 /* 'QEMU' */
+#define QEMUGL_PID_SIGNATURE   0x51454d55 /* 'QEMU' */
+#define QEMUGL_INITFUNC_STATUS 0x51       /* 'Q' */
 
 #endif // QEMUGL_H__

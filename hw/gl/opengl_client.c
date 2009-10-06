@@ -68,18 +68,17 @@
 #define GLENV_ERRFILE "GL_ERR_FILE"
 #define GLENV_DEBUG   "GL_DEBUG"
 
-/*void *pthread_getspecific(pthread_key_t key);
-       int pthread_setspecific(pthread_key_t key, const void *value);*/
+#define CHECK_ARGS(x, y) \
+(1 / ((sizeof(x) / sizeof(x[0])) == (sizeof(y) / sizeof(y[0])) ? 1 : 0)) \
+? x : x, y
 
-#define CHECK_ARGS(x, y) (1 / ((sizeof(x)/sizeof(x[0])) == (sizeof(y)/sizeof(y[0])) ? 1 : 0)) ? x : x, y
-
+static int debug_gl = 0;
 static void log_gl(const char *format, ...);
 #define DEBUGLOG_GL(...) if (debug_gl) log_gl(__VA_ARGS__)
 #define NOT_IMPLEMENTED() log_gl("%s: not implemented!\n", __FUNCTION__)
 
 #define CONCAT(a, b) a##b
 #define FUNC_NUM(funcname) CONCAT(funcname, _func)
-//#define DEFINE_EXT(glFunc, paramsDecl, paramsCall)  GLAPI void APIENTRY CONCAT(glFunc,EXT) paramsDecl { glFunc paramsCall; }
 
 #ifndef MIN
 #define MIN(a, b) (((a) < (b)) ? (a) : (b))
@@ -146,18 +145,25 @@ static GLState *new_gl_state(void)
     return state;
 }
 
-/* The access to the following global variables shoud be done under the global lock */
+/* The access to the following global variables shoud be done under
+ * the global lock
+ */
 static GLState *default_gl_state = NULL;
 static int nbGLStates = 0;
 static GLState **glstates = NULL;
 
-/* func numbers below MUST match first & last GLX functions in gl_func_perso.h */
-#define IS_GLX_CALL(x) (x >= glXChooseVisual_func && x <= glXSwapIntervalSGI_func)
+/* func numbers below MUST match first & last GLX functions in
+ * gl_func_perso.h
+ */
+#define IS_GLX_CALL(x) \
+    (x >= glXChooseVisual_func && x <= glXSwapIntervalSGI_func)
 
 #ifdef ENABLE_THREAD_SAFETY
 
-/* Posix threading */
-/* The concepts used here are coming directly from http://www.mesa3d.org/dispatch.html */
+/* Posix threading
+ * The concepts used here are coming directly from
+ * http://www.mesa3d.org/dispatch.html
+ */
 
 #define GET_CURRENT_THREAD() pthread_self()
 
@@ -174,10 +180,9 @@ static inline int is_mt()
         if (!last_current_thread) {
             last_current_thread = current_thread;
         }
-        if (current_thread != last_current_thread)
-        {
+        if (current_thread != last_current_thread) {
             _is_mt = 1;
-            log_gl("-------- Two threads at least are doing OpenGL ---------\n");
+            DEBUGLOG_GL("-------- Two threads at least are doing OpenGL\n");
             pthread_key_create(&key_current_gl_state, NULL);
         }
     }
@@ -186,9 +191,11 @@ static inline int is_mt()
 
 #define IS_MT() is_mt()
 
-/* The idea here is that the first GL/GLX call made in each thread is necessary a GLX call */
-/* So in the case where it's a GLX call we always take the lock and check if we're in MT case */
-/* otherwise (regular GL call), we have to take the lock only in the MT case */
+/* The idea here is that the first GL/GLX call made in each thread is
+ * necessary a GLX call so in the case where it's a GLX call we always take
+ * the lock and check if we're in MT case otherwise (regular GL call), we
+ * have to take the lock only in the MT case
+ */
 #define LOCK(func_number) \
 do { \
     if (IS_GLX_CALL(func_number)) { \
@@ -282,7 +289,8 @@ static void log_gl(const char *format, ...)
     va_start(list, format);
 #ifdef ENABLE_THREAD_SAFETY
     if (IS_MT()) {
-        fprintf(get_err_file(), "[thread %p] : ", (void *)GET_CURRENT_THREAD());
+        fprintf(get_err_file(), "[thread %p] : ",
+                (void *)GET_CURRENT_THREAD());
     }
 #endif
     vfprintf(get_err_file(), format, list);
@@ -353,7 +361,8 @@ static const glXAttrib tabRequestedAttribsPair[] = {
     VAL_AND_NAME(GLX_SAMPLES)
 };
 
-#define N_REQUESTED_ATTRIBS (sizeof(tabRequestedAttribsPair)/sizeof(tabRequestedAttribsPair[0]))
+#define N_REQUESTED_ATTRIBS \
+    (sizeof(tabRequestedAttribsPair) / sizeof(tabRequestedAttribsPair[0]))
 
 static int *getTabRequestedAttribsInt(void)
 {
@@ -381,7 +390,6 @@ static glXConfigs_s configs[N_MAX_CONFIGS];
 static int nbConfigs = 0;
 
 static int pagesize = 0;
-static int debug_gl = 0;
 
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -404,13 +412,16 @@ unsigned int regbase;
 #endif
 #endif
     
-static int call_opengl(int func_number, int pid, void *ret_string, void *args,
-                       void *args_size)
+static int call_opengl(int func_number,
+#ifndef QEMUGL_MULTITHREADED
+                       int pid,
+#endif
+                       void *ret_string, void *args, void *args_size)
 {
 #ifdef QEMUGL_MODULE
 #ifdef QEMUGL_MULTITHREADED
     unsigned int devargs[4] = {func_number, (unsigned int)ret_string,
-        (unsigned int)args, (unsigned int)args_size};
+                               (unsigned int)args, (unsigned int)args_size};
 #else
     unsigned int devargs[5] = {pid, func_number, (unsigned int)ret_string,
                                (unsigned int)args, (unsigned int)args_size};
@@ -456,7 +467,8 @@ static void do_init(void)
     int fd;
     off_t target = QEMUGL_HWREG_REGIONBASE;
     fd = open("/dev/mem", O_RDWR | O_SYNC);
-    mmap_base = mmap(0, MAP_SIZE, PROT_READ | PROT_WRITE, MAP_SHARED, fd, target & ~MAP_MASK);
+    mmap_base = mmap(0, MAP_SIZE, PROT_READ | PROT_WRITE, MAP_SHARED, fd,
+                     target & ~MAP_MASK);
     virt_addr = mmap_base + (target & MAP_MASK);
     volatile unsigned int *p = virt_addr;
     if (p[0] != QEMUGL_PID_SIGNATURE) {
@@ -512,14 +524,15 @@ static int try_to_put_into_phys_memory(void *addr, int len)
 #define FLOAT_TO_ARG(x)          (long)*((int *)(&x))
 #define DOUBLE_TO_ARG(x)         (long)(&x)
 
-static Bool glXMakeCurrent_no_lock( Display *dpy, GLXDrawable drawable, GLXContext ctx);
-static void glXSwapBuffers_no_lock( Display *dpy, GLXDrawable drawable );
+static Bool glXMakeCurrent_no_lock(Display *dpy, GLXDrawable drawable,
+                                   GLXContext ctx);
+static void glXSwapBuffers_no_lock(Display *dpy, GLXDrawable drawable);
 
-static void glGetIntegerv_no_lock( GLenum pname, GLint *params );
-static void glReadPixels_no_lock  ( GLint x, GLint y,
-                                    GLsizei width, GLsizei height,
-                                    GLenum format, GLenum type,
-                                    GLvoid *pixels );
+static void glGetIntegerv_no_lock(GLenum pname, GLint *params);
+static void glReadPixels_no_lock(GLint x, GLint y,
+                                 GLsizei width, GLsizei height,
+                                 GLenum format, GLenum type,
+                                 GLvoid *pixels);
 
 static __GLXextFuncPtr glXGetProcAddress_no_lock(const char * name);
 
@@ -679,8 +692,11 @@ static void do_opengl_call_no_lock(int func_number, void *ret_ptr,
     if (ret_string == NULL) {
         /* Sanity checks */
         assert(tab_args_type_length[TYPE_OUT_128UCHAR] == 128 * sizeof(char));
-        assert(tab_args_type_length[TYPE_OUT_ARRAY_DOUBLE_OF_LENGTH_DEPENDING_ON_PREVIOUS_ARGS] == sizeof(double));
-        assert(sizeof(tab_args_type_length)/sizeof(tab_args_type_length[0]) == TYPE_LAST);
+        assert(tab_args_type_length[
+               TYPE_OUT_ARRAY_DOUBLE_OF_LENGTH_DEPENDING_ON_PREVIOUS_ARGS]
+               == sizeof(double));
+        assert(sizeof(tab_args_type_length) /
+               sizeof(tab_args_type_length[0]) == TYPE_LAST);
         
         memset(exists_on_server_side, 255, sizeof(exists_on_server_side));
         exists_on_server_side[glXGetProcAddress_fake_func] = 1;
@@ -697,10 +713,14 @@ static void do_opengl_call_no_lock(int func_number, void *ret_ptr,
         memset(ret_string, 0, RET_STRING_SIZE);
         mlock(ret_string, RET_STRING_SIZE);
         
-        int result = call_opengl(_init_func, getpid(), NULL, NULL, NULL);
-        if (result != 0x51) {
-            log_gl("Unable to initialize QEMU virtual OpenGL device (code 0x%x)\nexiting...\n",
-                   result);
+        int result = call_opengl(_init_func,
+#ifndef QEMUGL_MULTITHREADED
+                                 getpid(),
+#endif
+                                 NULL, NULL, NULL);
+        if (result != QEMUGL_INITFUNC_STATUS) {
+            log_gl("Unable to initialize QEMU virtual OpenGL device "
+                   "(code 0x%x)\nexiting...\n", result);
             exit(-1);
         }
     }
@@ -709,11 +729,13 @@ static void do_opengl_call_no_lock(int func_number, void *ret_ptr,
         if (strchr(tab_opengl_calls_name[func_number], '_')) {
             exists_on_server_side[func_number] = 1;
         } else {
-            exists_on_server_side[func_number] = glXGetProcAddress_no_lock(tab_opengl_calls_name[func_number]) != NULL;
+            exists_on_server_side[func_number] =
+                glXGetProcAddress_no_lock(tab_opengl_calls_name[func_number])
+                != NULL;
         }
         if (exists_on_server_side[func_number] == 0) {
-            log_gl("oops: symbol \"%s\" not available in QEMU virtual OpenGL device\n",
-                   tab_opengl_calls_name[func_number]);
+            log_gl("oops: symbol \"%s\" not available in QEMU virtual OpenGL "
+                   "device\n", tab_opengl_calls_name[func_number]);
             return;
         }
     } else if (exists_on_server_side[func_number] == 0) {
@@ -726,7 +748,8 @@ static void do_opengl_call_no_lock(int func_number, void *ret_ptr,
     if (last_current_thread != current_thread) {
         last_current_thread = current_thread;
         DEBUGLOG_GL("gl thread switch\n");
-        glXMakeCurrent_no_lock(state->display, state->current_drawable, state->context);
+        glXMakeCurrent_no_lock(state->display, state->current_drawable,
+                               state->context);
     }
 #endif
     
@@ -744,7 +767,8 @@ static void do_opengl_call_no_lock(int func_number, void *ret_ptr,
             CASE_IN_UNKNOWN_SIZE_POINTERS:
                 args_size[i] = args_size_opt[i];
                 if (args_size[i] < 0) {
-                    log_gl("size < 0 : func=%s, param=%d\n", tab_opengl_calls_name[func_number], i);
+                    log_gl("size < 0 : func=%s, param=%d\n",
+                           tab_opengl_calls_name[func_number], i);
                     return;
                 }
                 try_to_put_into_phys_memory((void *)args[i], args_size[i]);
@@ -754,7 +778,8 @@ static void do_opengl_call_no_lock(int func_number, void *ret_ptr,
                 break;
             CASE_IN_LENGTH_DEPENDING_ON_PREVIOUS_ARGS:
             CASE_OUT_LENGTH_DEPENDING_ON_PREVIOUS_ARGS:
-                args_size[i] = compute_arg_length(get_err_file(), func_number, i, (unsigned long *)args);
+                args_size[i] = compute_arg_length(get_err_file(), func_number,
+                                                  i, (unsigned long *)args);
                 break;
             case TYPE_IN_IGNORED_POINTER:
                 args_size[i] = 0;
@@ -762,7 +787,8 @@ static void do_opengl_call_no_lock(int func_number, void *ret_ptr,
             CASE_OUT_UNKNOWN_SIZE_POINTERS:
                 args_size[i] = args_size_opt[i];
                 if (args_size[i] < 0) {
-                    log_gl("size < 0 : func=%s, param=%d\n", tab_opengl_calls_name[func_number], i);
+                    log_gl("size < 0 : func=%s, param=%d\n",
+                           tab_opengl_calls_name[func_number], i);
                     return;
                 }
                 try_to_put_into_phys_memory((void *)args[i], args_size[i]);
@@ -786,7 +812,10 @@ static void do_opengl_call_no_lock(int func_number, void *ret_ptr,
     if (signature->ret_type == TYPE_CONST_CHAR) {
         try_to_put_into_phys_memory(ret_string, RET_STRING_SIZE);
     }
-    ret_int = call_opengl(func_number, getpid(),
+    ret_int = call_opengl(func_number,
+#ifndef QEMUGL_MULTITHREADED
+                          getpid(),
+#endif
                           (signature->ret_type == TYPE_CONST_CHAR)
                           ? ret_string : NULL,
                           args, args_size);
@@ -1450,7 +1479,8 @@ GLAPI void APIENTRY funcname(GLenum target, GLint level, \
 { \
     int size = 0; \
     if (pixels) { \
-        pixels = calc_writesize(width, height, depth, format, type, pixels, &size); \
+        pixels = calc_writesize(width, height, depth, format, type, pixels, \
+                                &size); \
     } \
     long args[] = {INT_TO_ARG(target), INT_TO_ARG(level), \
                    INT_TO_ARG(internalFormat), INT_TO_ARG(width), \
@@ -1644,7 +1674,7 @@ GLAPI void APIENTRY funcname(GLenum target, GLint level, GLint xoffset, \
                              const GLvoid *data) \
 { \
     long args[] = {INT_TO_ARG(target), INT_TO_ARG(level), \
-                   INT_TO_ARG(xoffset), INT_TO_ARG(width), INT_TO_ARG(format), \
+                   INT_TO_ARG(xoffset), INT_TO_ARG(width), INT_TO_ARG(format),\
                    INT_TO_ARG(imageSize), POINTER_TO_ARG(data)}; \
     int args_size[] = {0, 0, 0, 0, 0, 0, imageSize}; \
     do_opengl_call(FUNC_NUM(funcname), NULL, CHECK_ARGS(args, args_size)); \
@@ -1659,8 +1689,8 @@ GLAPI void APIENTRY funcname(GLenum target, GLint level, GLint xoffset, \
                              GLenum format, GLsizei imageSize, \
                              const GLvoid *data) \
 { \
-    long args[] = {INT_TO_ARG(target), INT_TO_ARG(level), INT_TO_ARG(xoffset), \
-                   INT_TO_ARG(yoffset), INT_TO_ARG(width), INT_TO_ARG(height), \
+    long args[] = {INT_TO_ARG(target), INT_TO_ARG(level), INT_TO_ARG(xoffset),\
+                   INT_TO_ARG(yoffset), INT_TO_ARG(width), INT_TO_ARG(height),\
                    INT_TO_ARG(format), INT_TO_ARG(imageSize), \
                    POINTER_TO_ARG(data)}; \
     int args_size[] = {0, 0, 0, 0, 0, 0, 0, 0, imageSize}; \
@@ -1676,7 +1706,7 @@ GLAPI void APIENTRY funcname(GLenum target, GLint level, GLint xoffset, \
                              GLsizei height, GLsizei depth, GLenum format, \
                              GLsizei imageSize, const GLvoid *data) \
 { \
-    long args[] = {INT_TO_ARG(target), INT_TO_ARG(level), INT_TO_ARG(xoffset), \
+    long args[] = {INT_TO_ARG(target), INT_TO_ARG(level), INT_TO_ARG(xoffset),\
                    INT_TO_ARG(yoffset), INT_TO_ARG(zoffset), \
                    INT_TO_ARG(width), INT_TO_ARG(height), INT_TO_ARG(depth), \
                    INT_TO_ARG(format), INT_TO_ARG(imageSize), \
@@ -2731,7 +2761,8 @@ typedef struct {
 } AssocVisualInfoVisualId;
 
 #define MAX_SIZE_TAB_ASSOC_VISUALINFO_VISUALID 100
-AssocVisualInfoVisualId tabAssocVisualInfoVisualId[MAX_SIZE_TAB_ASSOC_VISUALINFO_VISUALID];
+AssocVisualInfoVisualId tabAssocVisualInfoVisualId[
+    MAX_SIZE_TAB_ASSOC_VISUALINFO_VISUALID];
 int nEltTabAssocVisualInfoVisualId = 0;
 
 static const char *get_attrname_fromvalue(int val)
@@ -3050,8 +3081,10 @@ static Bool create_drawable(GLState *state, Display *dpy, GLXDrawable drawable)
                     state->ximage->data = state->shm_info->shmaddr;
                     if (XShmAttach(dpy, state->shm_info)) {
                         ret = True;
+                        /* ensure all pages are committed */
                         memset(state->ximage->data, 0xff, 
-                               state->ximage->height * state->ximage->bytes_per_line);
+                               state->ximage->height
+                               * state->ximage->bytes_per_line);
 #ifdef QEMUGL_MODULE
                         unsigned int devargs[4] = {
                             state->drawable_width,

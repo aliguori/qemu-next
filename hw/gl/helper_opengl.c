@@ -31,6 +31,11 @@
 #include "opengl_exec.h"
 
 //#define GL_EXCESS_DEBUG
+//#define QEMUGL_PROFILE_FRAMECOPY
+
+#ifdef QEMUGL_PROFILE_FRAMECOPY
+#include "qemu-timer.h"
+#endif
 
 #ifdef QEMUGL_MULTITHREADED
 #ifdef CONFIG_WIN32
@@ -631,7 +636,7 @@ static int decode_call_int(struct helper_opengl_s *s)
     
     if (func_number == _init_func) {
         TRACE("_init_func called");
-        ret = 0x51;
+        ret = QEMUGL_INITFUNC_STATUS;
     } else {
         ret = do_function_call(s, func_number, pid, pargs, ret_string);
     }
@@ -697,6 +702,90 @@ static int decode_call(struct helper_opengl_s *s)
     return ret;
 }
 
+#ifdef QEMUGL_OPTIMIZE_FRAMECOPY
+#ifdef USE_OSMESA
+#ifdef GLX_OSMESA_FORCE_32BPP
+#define QEMUGL_BUFFER_READ_PROLOGUE(pixelsize) \
+    s->bufsize--; \
+    if (s->bufcol >= s->bufwidth) { \
+        int linesize = s->bufwidth * 4; \
+        s->buf -= linesize * 2; \
+        s->bufcol = 0; \
+    } \
+    s->bufcol++;
+#else // ! GLX_OSMESA_FORCE_32BPP
+#define QEMUGL_BUFFER_READ_PROLOGUE(pixelsize) \
+    s->bufsize--; \
+    if (s->bufcol >= s->bufwidth) { \
+        int linesize = s->bufwidth * pixelsize; \
+        s->buf -= linesize * 2; \
+        s->bufcol = 0; \
+    } \
+    s->bufcol++;
+#endif // GLX_OSMESA_FORCE_32BPP
+#else // ! USE_OSMESA
+#ifdef CONFIG_WIN32
+#define QEMUGL_BUFFER_READ_PROLOGUE(pixelsize) \
+    s->bufsize--; \
+    if (s->bufcol >= s->bufwidth) { \
+        int linesize = s->bufwidth * pixelsize; \
+        s->buf -= linesize + ((linesize + 3) & ~3); \
+        s->bufcol = 0; \
+    } \
+    s->bufcol++;
+#else // ! CONFIG_WIN32
+#define QEMUGL_BUFFER_READ_PROLOGUE(pixelsize) \
+    s->bufsize--;
+#endif // CONFIG_WIN32
+#endif // USE_OSMESA
+
+static inline uint8_t opengl_buffer_read_uint8_t(struct helper_opengl_s *s)
+{
+    QEMUGL_BUFFER_READ_PROLOGUE(1);
+    uint8_t *p = (uint8_t *)s->buf;
+    s->buf++;
+    return *p;
+}
+
+static inline uint16_t opengl_buffer_read_uint16_t(struct helper_opengl_s *s)
+{
+    QEMUGL_BUFFER_READ_PROLOGUE(2);
+#if defined(USE_OSMESA) && defined(GLX_OSMESA_FORCE_32BPP)
+    uint32_t v = *(uint32_t *)s->buf;
+    s->buf += 4;
+    v = ((v & 0x00f80000) >> 19) |
+        ((v & 0x0000fc00) >> 5) |
+        ((v & 0x000000f8) << 8);
+    return v;
+#else
+    uint16_t *p = (uint16_t *)s->buf;
+    s->buf += 2;
+#if !defined(USE_OSMESA) && (defined(CONFIG_COCOA) || defined(WIN32))
+    /* 16bit buffer actually contains 15bit data */
+    uint16_t v = *p;
+    return ((v & 0x7fe0) << 1) | (v & 0x001f);
+#else
+    return *p;
+#endif // !USE_OSMESA && (CONFIG_COCOA || WIN32)
+#endif // USE_OSMESA && GLX_OSMESA_FORCE_32BPP
+}
+
+static inline uint32_t opengl_buffer_read_uint32_t(struct helper_opengl_s *s)
+{
+    QEMUGL_BUFFER_READ_PROLOGUE(4);
+    uint32_t *p = (uint32_t *)s->buf;
+    s->buf += 4;
+#ifdef USE_OSMESA
+    uint32_t v = *p;
+    v = ((v & 0x00ff0000) >> 16) |
+        (v & 0x0000ff00) |
+        ((v & 0x000000ff) << 16);
+    return v;
+#else
+    return *p;
+#endif // USE_OSMESA
+}
+#else // ! QEMUGL_OPTIMIZE_FRAMECOPY
 static uint32_t opengl_buffer_read(struct helper_opengl_s *s)
 {
     if (!s->bufsize) {
@@ -775,17 +864,30 @@ static uint32_t opengl_buffer_read(struct helper_opengl_s *s)
     }
     return 0;
 }
+#endif // QEMUGL_OPTIMIZE_FRAMECOPY
 
 #ifndef QEMUGL_IO_FRAMEBUFFER
 static void opengl_map_copyframe(struct helper_opengl_s *s, uint32_t vaddr)
 {
     target_ulong paddr = get_phys_mem_addr(s->env, vaddr);
     if (paddr) {
+        /* check contiguous physical memory block size */
+        uint32_t count = s->framecopy.count;
+        target_ulong vnext = vaddr + TARGET_PAGE_SIZE;
+        target_ulong pnext = paddr + TARGET_PAGE_SIZE;
+        while (get_phys_mem_addr(s->env, vnext) == pnext) {
+            count += TARGET_PAGE_SIZE;
+            vnext += TARGET_PAGE_SIZE;
+            pnext += TARGET_PAGE_SIZE;
+        }
+        s->framecopy.mapped_len = s->framecopy.count = count;
         s->framecopy.ptr = s->framecopy.mapped_ptr =
             cpu_physical_memory_map(paddr, &s->framecopy.mapped_len, 1);
         if (!s->framecopy.ptr) {
             TRACE("unable to map guest (pid %d) physical memory address "
                   "0x%08x", s->pid, paddr);
+        } else {
+            s->framecopy.count = s->framecopy.mapped_len;
         }
     } else {
         TRACE("unable to get guest (pid %d) physical memory address for "
@@ -816,6 +918,19 @@ static void opengl_finish_copyframe(struct helper_opengl_s *s)
     }
 }
 
+#ifdef QEMUGL_OPTIMIZE_FRAMECOPY
+#define opengl_copyframe_bytes(s, le_data, nbytes) \
+    if (!s->framecopy.count) { \
+        opengl_finish_copyframe(s); \
+        s->framecopy.count = TARGET_PAGE_SIZE; \
+        opengl_map_copyframe(s, s->framecopy.addr); \
+    } \
+    if (s->framecopy.ptr) { \
+        *(uint16_t *)(s->framecopy.ptr) = (uint16_t)le_data; \
+        s->framecopy.ptr += 2; \
+    } \
+    s->framecopy.count -= 2, s->framecopy.addr += 2;
+#else
 static void opengl_copyframe_bytes(struct helper_opengl_s *s,
                                    unsigned int le_data, int nbytes)
 {
@@ -823,15 +938,15 @@ static void opengl_copyframe_bytes(struct helper_opengl_s *s,
         if (!s->framecopy.count) {
             opengl_finish_copyframe(s);
             s->framecopy.count = TARGET_PAGE_SIZE;
-            s->framecopy.addr += s->framecopy.count;
-            s->framecopy.mapped_len = s->framecopy.count;
             opengl_map_copyframe(s, s->framecopy.addr);
         }
         if (s->framecopy.ptr) {
             *(s->framecopy.ptr++) = (uint8_t)(le_data & 0xff);
         }
+        s->framecopy.addr++;
     }
 }
+#endif
 
 void helper_opengl_copyframe(struct helper_opengl_s *s)
 {
@@ -839,10 +954,53 @@ void helper_opengl_copyframe(struct helper_opengl_s *s)
         GL_ERROR("invalid guest (pid %d) OpenGL framebuffer pitch", s->pid);
         return;
     }
+#ifdef QEMUGL_PROFILE_FRAMECOPY
+    struct timeval tv;
+    gettimeofday(&tv, NULL);
+    int64_t prof_time = tv.tv_sec * 1000000LL + tv.tv_usec;
+#endif
     opengl_init_copyframe(s);
+    const uint32_t extra = s->qemugl_bufbytesperline -
+                           s->bufwidth * s->bufpixelsize;
+#ifdef QEMUGL_OPTIMIZE_FRAMECOPY
+#define QEMUGL_COPYFRAME(type) \
+    while (s->bufsize) { \
+        uint32_t n = s->bufwidth << (sizeof(type) >> 1); \
+        do { \
+            uint32_t m = s->framecopy.count <= n ? s->framecopy.count : n; \
+            if (s->framecopy.ptr) { \
+                type *p = (type *)s->framecopy.ptr; \
+                uint32_t k = m >> (sizeof(type) >> 1); \
+                while (k--) { \
+                    *(p++) = opengl_buffer_read_##type(s); \
+                } \
+                s->framecopy.ptr = (void *)p; \
+            } \
+            n -= m; \
+            s->framecopy.count -= m; \
+            s->framecopy.addr += m; \
+            if (!s->framecopy.count) { \
+                opengl_finish_copyframe(s); \
+                s->framecopy.count = TARGET_PAGE_SIZE; \
+                opengl_map_copyframe(s, s->framecopy.addr); \
+            } \
+        } while (n); \
+        for (n = extra; n--;) { \
+            opengl_copyframe_bytes(s, 0, pixelsize); \
+        } \
+    }
+    switch (s->bufpixelsize) {
+        case 1: QEMUGL_COPYFRAME(uint8_t); break;
+        case 2: QEMUGL_COPYFRAME(uint16_t); break;
+        case 4: QEMUGL_COPYFRAME(uint32_t); break;
+        default:
+            GL_ERROR("unsupported guest opengl buffer pixel size (%d bytes)",
+                     s->bufpixelsize);
+            break;
+    }
+#else
     const uint32_t pixelsize = s->bufpixelsize;
-    uint32_t extra = s->qemugl_bufbytesperline - s->bufwidth * pixelsize;
-    while (s->bufsize) { /* this decreases as we call opengl_buffer_read() */
+    while (s->bufsize) {
         uint32_t n = s->bufwidth;
         while (n--) {
             uint32_t x = opengl_buffer_read(s);
@@ -852,7 +1010,14 @@ void helper_opengl_copyframe(struct helper_opengl_s *s)
             opengl_copyframe_bytes(s, 0, pixelsize);
         }
     }
+#endif
     opengl_finish_copyframe(s);
+#ifdef QEMUGL_PROFILE_FRAMECOPY
+    gettimeofday(&tv, NULL);
+    prof_time = (tv.tv_sec * 1000000LL + tv.tv_usec) - prof_time;
+    printf("%s: buffer for guest pid %d copied in %lldus\n",
+           __FUNCTION__, s->pid, prof_time);
+#endif
 }
 #endif // QEMUGL_IO_FRAMEBUFFER
 

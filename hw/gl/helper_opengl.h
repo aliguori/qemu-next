@@ -28,6 +28,16 @@
 #define GLX_OSMESA_FORCE_32BPP
 #endif
 
+/* the following flags are only usable when I/O framebuffer is not used */
+#ifndef QEMUGL_IO_FRAMEBUFFER
+/* optimize host->guest opengl frame copy routine by assuming:
+ * - host endianess == guest endianess
+ * - single pixel data never crosses page boundary
+ * - no invalid buffer accesses (i.e. no bounds checking)
+ */
+#define QEMUGL_OPTIMIZE_FRAMECOPY
+#endif // QEMUGL_IO_FRAMEBUFFER
+
 struct helper_opengl_s {
     uint32_t fid;
     uint32_t pid;
