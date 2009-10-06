@@ -826,6 +826,14 @@ static void sdl_cleanup(void)
     SDL_QuitSubSystem(SDL_INIT_VIDEO);
 }
 
+void sdl_display_init_opts(DisplayState *ds, QemuOpts *opts)
+{
+    int full_screen = qemu_opt_get(opts, "fullscreen");
+    int no_frame = !qemu_opt_get(opts, "frame");
+
+    sdl_display_init(ds, full_screen, no_frame);
+}
+
 void sdl_display_init(DisplayState *ds, int full_screen, int no_frame)
 {
     int flags;

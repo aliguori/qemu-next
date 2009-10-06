@@ -5011,11 +5011,11 @@ int main(int argc, char **argv, char **envp)
                 numa_add(optarg);
                 break;
             case QEMU_OPTION_nographic:
-                display_type = DT_NOGRAPHIC;
+                display_opts = "nographic";
                 break;
 #ifdef CONFIG_CURSES
             case QEMU_OPTION_curses:
-                display_type = DT_CURSES;
+                display_opts = "curses";
                 break;
 #endif
             case QEMU_OPTION_portrait:
@@ -5327,7 +5327,7 @@ int main(int argc, char **argv, char **envp)
                 no_quit = 1;
                 break;
             case QEMU_OPTION_sdl:
-                display_type = DT_SDL;
+                display_opts = "sdl";
                 break;
 #endif
             case QEMU_OPTION_pidfile:
@@ -5387,7 +5387,6 @@ int main(int argc, char **argv, char **envp)
                 }
                 break;
 	    case QEMU_OPTION_vnc:
-                display_type = DT_VNC;
 		vnc_display = optarg;
 		break;
 #ifdef TARGET_I386
@@ -5881,9 +5880,7 @@ int main(int argc, char **argv, char **envp)
 #endif
 #if defined(CONFIG_SDL)           
         } else if (strcmp(backend, "sdl") == 0) {
-            sdl_display_init(ds,
-                             qemu_opt_get_bool(opts, "fullscreen", 0),
-                             !qemu_opt_get_bool(opts, "frame", 1));
+            sdl_display_init(ds,opts);
 #endif
 #if defined(CONFIG_COCOA)
         } else if (strcmp(backend, "cocoa") == 0) {
@@ -5904,36 +5901,6 @@ int main(int argc, char **argv, char **envp)
         }
     } else {
 
-    switch (display_type) {
-    case DT_NOGRAPHIC:
-        break;
-#if defined(CONFIG_CURSES)
-    case DT_CURSES:
-        curses_display_init(ds, full_screen);
-        break;
-#endif
-#if defined(CONFIG_SDL)
-    case DT_SDL:
-        sdl_display_init(ds, full_screen, no_frame);
-        break;
-#elif defined(CONFIG_COCOA)
-    case DT_SDL:
-        cocoa_display_init(ds, full_screen);
-        break;
-#endif
-    case DT_VNC:
-        vnc_display_init(ds);
-        if (vnc_display_open(ds, vnc_display) < 0)
-            exit(1);
-
-        if (show_vnc_port) {
-            printf("VNC server running on `%s'\n", vnc_display_local_addr(ds));
-        }
-        break;
-    default:
-        break;
-    }
-    }
     dpy_resize(ds);
 
     dcl = ds->listeners;
