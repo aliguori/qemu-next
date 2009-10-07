@@ -2299,11 +2299,12 @@ static void *subpage_init (target_phys_addr_t base, ram_addr_t *phys,
    start_addr and region_offset are rounded down to a page boundary
    before calculating this offset.  This should not be a problem unless
    the low bits of start_addr and region_offset differ.  */
-void cpu_register_physical_memory_offset(target_phys_addr_t start_addr,
+void cpu_register_physical_memory_offset(hw_addr_t hw_start_addr,
                                          ram_addr_t size,
                                          ram_addr_t phys_offset,
                                          ram_addr_t region_offset)
 {
+    target_phys_addr_t start_addr = hw_start_addr;
     target_phys_addr_t addr, end_addr;
     PhysPageDesc *p;
     CPUState *env;
@@ -2382,8 +2383,9 @@ void cpu_register_physical_memory_offset(target_phys_addr_t start_addr,
 }
 
 /* XXX: temporary until new memory mapping API */
-ram_addr_t cpu_get_physical_page_desc(target_phys_addr_t addr)
+ram_addr_t cpu_get_physical_page_desc(hw_addr_t hw_addr)
 {
+    target_phys_addr_t addr = hw_addr;
     PhysPageDesc *p;
 
     p = phys_page_find(addr >> TARGET_PAGE_BITS);
@@ -2982,9 +2984,10 @@ static void io_mem_init(void)
 
 /* physical memory access (slow version, mainly for debug) */
 #if defined(CONFIG_USER_ONLY)
-void cpu_physical_memory_rw(target_phys_addr_t addr, uint8_t *buf,
+void cpu_physical_memory_rw(hw_addr_t hw_addr, uint8_t *buf,
                             int len, int is_write)
 {
+    target_phys_addr_t addr = hw_addr;
     int l, flags;
     target_ulong page;
     void * p;
@@ -3023,9 +3026,10 @@ void cpu_physical_memory_rw(target_phys_addr_t addr, uint8_t *buf,
 }
 
 #else
-void cpu_physical_memory_rw(target_phys_addr_t addr, uint8_t *buf,
+void cpu_physical_memory_rw(hw_addr_t hw_addr, uint8_t *buf,
                             int len, int is_write)
 {
+    target_phys_addr_t addr = hw_addr;
     int l, io_index;
     uint8_t *ptr;
     uint32_t val;
@@ -3121,9 +3125,10 @@ void cpu_physical_memory_rw(target_phys_addr_t addr, uint8_t *buf,
 }
 
 /* used for ROM loading : can write in RAM and ROM */
-void cpu_physical_memory_write_rom(target_phys_addr_t addr,
+void cpu_physical_memory_write_rom(hw_addr_t hw_addr,
                                    const uint8_t *buf, int len)
 {
+    target_phys_addr_t addr = hw_addr;
     int l;
     uint8_t *ptr;
     target_phys_addr_t page;
@@ -3212,11 +3217,12 @@ static void cpu_notify_map_clients(void)
  * Use cpu_register_map_client() to know when retrying the map operation is
  * likely to succeed.
  */
-void *cpu_physical_memory_map(target_phys_addr_t addr,
-                              target_phys_addr_t *plen,
+void *cpu_physical_memory_map(hw_addr_t hw_addr,
+                              hw_addr_t *hw_plen,
                               int is_write)
 {
-    target_phys_addr_t len = *plen;
+    target_phys_addr_t addr = hw_addr;
+    target_phys_addr_t len = *hw_plen;
     target_phys_addr_t done = 0;
     int l;
     uint8_t *ret = NULL;
@@ -3263,7 +3269,7 @@ void *cpu_physical_memory_map(target_phys_addr_t addr,
         addr += l;
         done += l;
     }
-    *plen = done;
+    *hw_plen = done;
     return ret;
 }
 
@@ -3271,8 +3277,8 @@ void *cpu_physical_memory_map(target_phys_addr_t addr,
  * Will also mark the memory as dirty if is_write == 1.  access_len gives
  * the amount of memory that was actually read or written by the caller.
  */
-void cpu_physical_memory_unmap(void *buffer, target_phys_addr_t len,
-                               int is_write, target_phys_addr_t access_len)
+void cpu_physical_memory_unmap(void *buffer, hw_addr_t len,
+                               int is_write, hw_addr_t access_len)
 {
     if (buffer != bounce.buffer) {
         if (is_write) {
@@ -3374,7 +3380,7 @@ uint64_t ldq_phys(target_phys_addr_t addr)
 }
 
 /* XXX: optimize */
-uint32_t ldub_phys(target_phys_addr_t addr)
+uint32_t ldub_phys(hw_addr_t addr)
 {
     uint8_t val;
     cpu_physical_memory_read(addr, &val, 1);
@@ -3382,7 +3388,7 @@ uint32_t ldub_phys(target_phys_addr_t addr)
 }
 
 /* XXX: optimize */
-uint32_t lduw_phys(target_phys_addr_t addr)
+uint32_t lduw_phys(hw_addr_t addr)
 {
     uint16_t val;
     cpu_physical_memory_read(addr, (uint8_t *)&val, 2);
@@ -3392,8 +3398,9 @@ uint32_t lduw_phys(target_phys_addr_t addr)
 /* warning: addr must be aligned. The ram page is not masked as dirty
    and the code inside is not invalidated. It is useful if the dirty
    bits are used to track modified PTEs */
-void stl_phys_notdirty(target_phys_addr_t addr, uint32_t val)
+void stl_phys_notdirty(hw_addr_t hw_addr, uint32_t val)
 {
+    target_phys_addr_t addr = hw_addr;
     int io_index;
     uint8_t *ptr;
     unsigned long pd;
@@ -3428,8 +3435,9 @@ void stl_phys_notdirty(target_phys_addr_t addr, uint32_t val)
     }
 }
 
-void stq_phys_notdirty(target_phys_addr_t addr, uint64_t val)
+void stq_phys_notdirty(hw_addr_t hw_addr, uint64_t val)
 {
+    target_phys_addr_t addr = hw_addr;
     int io_index;
     uint8_t *ptr;
     unsigned long pd;
@@ -3461,8 +3469,9 @@ void stq_phys_notdirty(target_phys_addr_t addr, uint64_t val)
 }
 
 /* warning: addr must be aligned */
-void stl_phys(target_phys_addr_t addr, uint32_t val)
+void stl_phys(hw_addr_t hw_addr, uint32_t val)
 {
+    target_phys_addr_t addr = hw_addr;
     int io_index;
     uint8_t *ptr;
     unsigned long pd;
@@ -3497,21 +3506,21 @@ void stl_phys(target_phys_addr_t addr, uint32_t val)
 }
 
 /* XXX: optimize */
-void stb_phys(target_phys_addr_t addr, uint32_t val)
+void stb_phys(hw_addr_t addr, uint32_t val)
 {
     uint8_t v = val;
     cpu_physical_memory_write(addr, &v, 1);
 }
 
 /* XXX: optimize */
-void stw_phys(target_phys_addr_t addr, uint32_t val)
+void stw_phys(hw_addr_t addr, uint32_t val)
 {
     uint16_t v = tswap16(val);
     cpu_physical_memory_write(addr, (const uint8_t *)&v, 2);
 }
 
 /* XXX: optimize */
-void stq_phys(target_phys_addr_t addr, uint64_t val)
+void stq_phys(hw_addr_t addr, uint64_t val)
 {
     val = tswap64(val);
     cpu_physical_memory_write(addr, (const uint8_t *)&val, 8);

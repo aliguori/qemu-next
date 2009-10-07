@@ -125,7 +125,7 @@ void msix_write_config(PCIDevice *dev, uint32_t addr,
         qemu_set_irq(dev->irq[0], 0);
 }
 
-static uint32_t msix_mmio_readl(void *opaque, target_phys_addr_t addr)
+static uint32_t msix_mmio_readl(void *opaque, hw_addr_t addr)
 {
     PCIDevice *dev = opaque;
     unsigned int offset = addr & (MSIX_PAGE_SIZE - 1);
@@ -137,7 +137,7 @@ static uint32_t msix_mmio_readl(void *opaque, target_phys_addr_t addr)
     return val;
 }
 
-static uint32_t msix_mmio_read_unallowed(void *opaque, target_phys_addr_t addr)
+static uint32_t msix_mmio_read_unallowed(void *opaque, hw_addr_t addr)
 {
     fprintf(stderr, "MSI-X: only dword read is allowed!\n");
     return 0;
@@ -174,7 +174,7 @@ static int msix_is_masked(PCIDevice *dev, int vector)
     return dev->msix_table_page[offset] & MSIX_VECTOR_MASK;
 }
 
-static void msix_mmio_writel(void *opaque, target_phys_addr_t addr,
+static void msix_mmio_writel(void *opaque, hw_addr_t addr,
                              uint32_t val)
 {
     PCIDevice *dev = opaque;
@@ -187,7 +187,7 @@ static void msix_mmio_writel(void *opaque, target_phys_addr_t addr,
     }
 }
 
-static void msix_mmio_write_unallowed(void *opaque, target_phys_addr_t addr,
+static void msix_mmio_write_unallowed(void *opaque, hw_addr_t addr,
                                       uint32_t val)
 {
     fprintf(stderr, "MSI-X: only dword write is allowed!\n");

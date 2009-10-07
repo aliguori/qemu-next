@@ -102,6 +102,10 @@ obj-y += msmouse.o ps2.o
 obj-y += qdev.o qdev-properties.o ssi.o
 obj-y += qint.o qstring.o qdict.o qemu-config.o
 
+obj-y += loader.o virtio.o fw_cfg.o watchdog.o nand.o ecc.o m48t59.o escc.o
+obj-y += wdt_i6300esb.o msix.o ne2000.o lsi53c895a.o esp.o
+obj-y += dma-helpers.o sysbus.o qdev-addr.o isa-bus.o
+
 obj-$(CONFIG_BRLAPI) += baum.o
 obj-$(CONFIG_WIN32) += tap-win32.o
 obj-$(CONFIG_POSIX) += migration-exec.o migration-unix.o migration-fd.o
@@ -195,14 +199,14 @@ clean:
 	rm -f slirp/*.o slirp/*.d audio/*.o audio/*.d block/*.o block/*.d
 	rm -f qemu-img-cmds.h
 	$(MAKE) -C tests clean
-	for d in $(ALL_SUBDIRS) libhw32 libhw64 libuser; do \
+	for d in $(ALL_SUBDIRS) libuser; do \
 	$(MAKE) -C $$d $@ || exit 1 ; \
         done
 
 distclean: clean
 	rm -f config-host.mak config-host.h config-host.ld $(DOCS) qemu-options.texi qemu-img-cmds.texi
 	rm -f qemu-{doc,tech}.{info,aux,cp,dvi,fn,info,ky,log,pg,toc,tp,vr}
-	for d in $(TARGET_DIRS) libhw32 libhw64 libuser; do \
+	for d in $(TARGET_DIRS) libuser; do \
 	rm -rf $$d || exit 1 ; \
         done
 

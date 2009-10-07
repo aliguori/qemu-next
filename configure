@@ -2304,8 +2304,6 @@ fi
 if test "$target_softmmu" = "yes" ; then
   echo "CONFIG_SOFTMMU=y" >> $config_mak
   echo "LIBS+=$libs_softmmu" >> $config_mak
-  echo "HWLIB=../libhw$target_phys_bits/libqemuhw$target_phys_bits.a" >> $config_mak
-  echo "subdir-$target: subdir-libhw$target_phys_bits" >> $config_host_mak
 fi
 if test "$target_user_only" = "yes" ; then
   echo "CONFIG_USER_ONLY=y" >> $config_mak
@@ -2525,15 +2523,6 @@ for rom in seabios vgabios pcbios; do
     echo "IASL=iasl" >> $config_mak
     echo "HOST_CC=$host_cc" >> $config_mak
     echo "LD=$ld" >> $config_mak
-done
-
-for hwlib in 32 64; do
-  d=libhw$hwlib
-  mkdir -p $d
-  rm -f $d/Makefile
-  ln -s $source_path/Makefile.hw $d/Makefile
-  echo "HWLIB=libqemuhw$hwlib.a" > $d/config.mak
-  echo "QEMU_CFLAGS+=-DTARGET_PHYS_ADDR_BITS=$hwlib" >> $d/config.mak
 done
 
 d=libuser
