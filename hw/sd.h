@@ -67,7 +67,7 @@ typedef struct {
 
 typedef struct SDState SDState;
 
-SDState *sd_init(BlockDriverState *bs, int is_spi);
+SDState *sd_init(BlockDriverState *bs, int is_spi, int is_mmc);
 int sd_do_command(SDState *sd, SDRequest *req,
                   uint8_t *response);
 void sd_write_data(SDState *sd, uint8_t value);

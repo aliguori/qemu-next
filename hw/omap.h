@@ -1009,7 +1009,8 @@ struct omap3_mmc_s;
 struct omap3_mmc_s *omap3_mmc_init(struct omap_target_agent_s *ta,
                                    qemu_irq irq, qemu_irq dma[],
                                    omap_clk fclk, omap_clk iclk);
-void omap3_mmc_attach(struct omap3_mmc_s *s, DriveInfo *dinfo, int is_spi);
+void omap3_mmc_attach(struct omap3_mmc_s *s, DriveInfo *dinfo,
+                      int is_spi, int is_mmc);
 
 /* omap_i2c.c */
 struct omap_i2c_s;

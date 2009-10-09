@@ -590,7 +590,7 @@ struct omap_mmc_s *omap_mmc_init(target_phys_addr_t base,
     cpu_register_physical_memory(base, 0x800, iomemtype);
 
     /* Instantiate the storage */
-    s->card = sd_init(bd, 0);
+    s->card = sd_init(bd, 0, 0);
 
     return s;
 }
@@ -616,7 +616,7 @@ struct omap_mmc_s *omap2_mmc_init(struct omap_target_agent_s *ta,
     omap_l4_attach(ta, 0, iomemtype);
 
     /* Instantiate the storage */
-    s->card = sd_init(bd, 0);
+    s->card = sd_init(bd, 0, 0);
 
     s->cdet = qemu_allocate_irqs(omap_mmc_cover_cb, s, 1)[0];
     sd_set_cb(s->card, 0, s->cdet);

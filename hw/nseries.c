@@ -1933,11 +1933,12 @@ static void n900_init(ram_addr_t ram_size,
                      onenand_base_unmap, s->nand, 0);
     
     if (dsd) {
-        omap3_mmc_attach(s->cpu->omap3_mmc[0], dsd, 0);
+        omap3_mmc_attach(s->cpu->omap3_mmc[1], dsd, 0, 1);
+    }
+    if ((dsd = drive_get(IF_SD, 0, 1)) >= 0) {
+        omap3_mmc_attach(s->cpu->omap3_mmc[0], dsd, 0, 0);
         //qemu_irq_raise(omap2_gpio_in_get(s->cpu->gpif, N900_SDCOVER_GPIO)[0]);
     }
-    if ((dsd = drive_get(IF_SD, 0, 1)) >= 0)
-        omap3_mmc_attach(s->cpu->omap3_mmc[1], dsd, 1);
     
     cpu_register_physical_memory(0x48058000, 0x3c00,
                                  cpu_register_io_memory(ssi_read_func,
@@ -3034,11 +3035,11 @@ static void n00_init(ram_addr_t ram_size,
                      onenand_base_unmap, s->nand, 0);
     
     if (dsd) {
-        omap3_mmc_attach(s->cpu->omap3_mmc[0], dsd, 0);
+        omap3_mmc_attach(s->cpu->omap3_mmc[0], dsd, 0, 0);
         qemu_irq_raise(omap2_gpio_in_get(s->cpu->gpif, N00_SDCOVER_GPIO)[0]);
     }
     if ((dsd = drive_get(IF_SD, 0, 1)) >= 0)
-        omap3_mmc_attach(s->cpu->omap3_mmc[1], dsd, 1);
+        omap3_mmc_attach(s->cpu->omap3_mmc[1], dsd, 0, 1);
     
     cpu_register_physical_memory(0x48058000, 0x3c00,
                                  cpu_register_io_memory(ssi_read_func,

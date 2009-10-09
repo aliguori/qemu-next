@@ -89,7 +89,7 @@ struct SDState {
     int pwd_len;
     int function_group[6];
 
-    int spi;
+    int spi, mmc;
     int current_cmd;
     int blk_written;
     uint32_t data_start;
@@ -255,7 +255,11 @@ static void sd_set_csd(SDState *sd, uint32_t size)
     uint32_t sectsize = (1 << (SECTOR_SHIFT + 1)) - 1;
     uint32_t wpsize = (1 << (WPGROUP_SHIFT + 1)) - 1;
 
-    sd->csd[0] = 0x00;		/* CSD structure */
+    if (sd->mmc) {
+        sd->csd[0] = 0x80;  /* CSD structure */
+    } else {
+        sd->csd[0] = 0x00;  /* CSD structure */
+    }
     sd->csd[1] = 0x26;		/* Data read access-time-1 */
     sd->csd[2] = 0x00;		/* Data read access-time-2 */
     sd->csd[3] = 0x5a;		/* Max. data transfer rate */
@@ -505,7 +509,7 @@ static int sd_load_state(QEMUFile *f, void *opaque, int version_id)
    whether card should be in SSI or MMC/SD mode.  It is also up to the
    board to ensure that ssi transfers only occur when the chip select
    is asserted.  */
-SDState *sd_init(BlockDriverState *bs, int is_spi)
+SDState *sd_init(BlockDriverState *bs, int is_spi, int is_mmc)
 {
     SDState *sd;
     static int instance_number = 1;
@@ -513,6 +517,7 @@ SDState *sd_init(BlockDriverState *bs, int is_spi)
     sd = (SDState *) qemu_mallocz(sizeof(SDState));
     sd->buf = qemu_memalign(512, 512);
     sd->spi = is_spi;
+    sd->mmc = is_mmc;
     sd->enable = 1;
     sd_reset(sd, bs);
     if (sd->bdrv) {
@@ -695,9 +700,16 @@ static sd_rsp_type_t sd_normal_command(SDState *sd,
         break;
 
     case 1:	/* CMD1:   SEND_OP_CMD */
-        if (!sd->spi)
+        if (!sd->spi) {
+            if (sd->mmc) {
+                if (sd->state == sd_idle_state) {
+                    sd->state = sd_ready_state;
+                    return sd_r3;
+                }
+                break;
+            }
             goto bad_cmd;
-
+        }
         sd->state = sd_transfer_state;
         return sd_r1;
 
@@ -719,8 +731,12 @@ static sd_rsp_type_t sd_normal_command(SDState *sd,
             goto bad_cmd;
         switch (sd->state) {
         case sd_identification_state:
-        case sd_standby_state:
             sd->state = sd_standby_state;
+        case sd_standby_state:
+            if (sd->mmc) {
+                sd->rca = req.arg >> 16;
+                return sd_r1;
+            }
             sd_set_rca(sd);
             return sd_r6;
 
