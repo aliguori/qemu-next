@@ -426,11 +426,7 @@ static int call_opengl(int func_number,
     unsigned int devargs[5] = {pid, func_number, (unsigned int)ret_string,
                                (unsigned int)args, (unsigned int)args_size};
 #endif // QEMUGL_MULTITHREADED
-    int result = 0;
-    if (!(result = ioctl(glfd, QEMUGL_FIORNCMD, &devargs))) {
-        ioctl(glfd, QEMUGL_FIORDSTA, &result);
-    }
-    return result;
+    return ioctl(glfd, QEMUGL_FIORNCMD, &devargs);
 #else
 #ifdef __arm__
 #ifdef QEMUGL_MULTITHREADED

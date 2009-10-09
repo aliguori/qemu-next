@@ -271,7 +271,9 @@ static long qemugl_ioctl(struct file *file,
 	QEMUGL_TRACE("cmd=0x%08x arg=0x%08lx", cmd, arg);
 	switch (cmd) {
 	case QEMUGL_FIORNCMD:
-	  result = qemugl_hw_command(c, (void __user *)arg);
+      if (!(result = qemugl_hw_command(c, (void __user *)arg))) {
+          result = c->last_hw_result;
+      }
 	  break;
 	case QEMUGL_FIORDSTA:
 	  result = qemugl_hw_status(c, (void __user *)arg);
