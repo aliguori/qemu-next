@@ -316,7 +316,7 @@ ifdef CONFIG_COCOA
 LDFLAGS+=-framework OpenGL
 else
 ifdef CONFIG_WIN32
-LIBS+=-lopengl32
+LIBS+=-lgdi32 -lopengl32
 else
 LIBS+=-lGL
 endif

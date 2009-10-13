@@ -321,7 +321,7 @@ void glhost_destroydrawable(GLHostDrawable drawable)
 	glx_destroydrawable_buffer(drawable);
     GLX_TRACE("releasing dc for drawable %p [bitmap=0x%08x, dc=0x%08x]",
               drawable, drawable->bitmap, drawable->dc);
-    if (!DeleteDC(drawable->dc)) {
+    if (drawable->dc && !DeleteDC(drawable->dc)) {
         GL_ERROR("DeleteDC failed: %s", glx_syserrmsg());
     }
     drawable->dc = 0;
