@@ -918,19 +918,7 @@ static void opengl_finish_copyframe(struct helper_opengl_s *s)
     }
 }
 
-#ifdef QEMUGL_OPTIMIZE_FRAMECOPY
-#define opengl_copyframe_bytes(s, le_data, nbytes) \
-    if (!s->framecopy.count) { \
-        opengl_finish_copyframe(s); \
-        s->framecopy.count = TARGET_PAGE_SIZE; \
-        opengl_map_copyframe(s, s->framecopy.addr); \
-    } \
-    if (s->framecopy.ptr) { \
-        *(uint16_t *)(s->framecopy.ptr) = (uint16_t)le_data; \
-        s->framecopy.ptr += 2; \
-    } \
-    s->framecopy.count -= 2, s->framecopy.addr += 2;
-#else
+#ifndef QEMUGL_OPTIMIZE_FRAMECOPY
 static void opengl_copyframe_bytes(struct helper_opengl_s *s,
                                    unsigned int le_data, int nbytes)
 {
@@ -960,35 +948,44 @@ void helper_opengl_copyframe(struct helper_opengl_s *s)
     int64_t prof_time = tv.tv_sec * 1000000LL + tv.tv_usec;
 #endif
     opengl_init_copyframe(s);
-    const uint32_t extra = s->qemugl_bufbytesperline -
-                           s->bufwidth * s->bufpixelsize;
 #ifdef QEMUGL_OPTIMIZE_FRAMECOPY
+#define QEMUGL_COPYBYTES(type, nvar, pixval) \
+    uint32_t m = s->framecopy.count <= nvar ? s->framecopy.count : nvar; \
+    if (s->framecopy.ptr) { \
+        type *p = (type *)s->framecopy.ptr; \
+        uint32_t k = m >> (sizeof(type) >> 1); \
+        uint32_t l = k >> 2; \
+        while (l--) { \
+            *(p++) = pixval; \
+            *(p++) = pixval; \
+            *(p++) = pixval; \
+            *(p++) = pixval; \
+        } \
+        for (k &= 3; k--;) { \
+            *(p++) = pixval; \
+        } \
+        s->framecopy.ptr = (void *)p; \
+    } \
+    nvar -= m; \
+    s->framecopy.count -= m; \
+    s->framecopy.addr += m; \
+    if (!s->framecopy.count) { \
+        opengl_finish_copyframe(s); \
+        s->framecopy.count = TARGET_PAGE_SIZE; \
+        opengl_map_copyframe(s, s->framecopy.addr); \
+    }
 #define QEMUGL_COPYFRAME(type) \
     while (s->bufsize) { \
         uint32_t n = s->bufwidth << (sizeof(type) >> 1); \
         do { \
-            uint32_t m = s->framecopy.count <= n ? s->framecopy.count : n; \
-            if (s->framecopy.ptr) { \
-                type *p = (type *)s->framecopy.ptr; \
-                uint32_t k = m >> (sizeof(type) >> 1); \
-                while (k--) { \
-                    *(p++) = opengl_buffer_read_##type(s); \
-                } \
-                s->framecopy.ptr = (void *)p; \
-            } \
-            n -= m; \
-            s->framecopy.count -= m; \
-            s->framecopy.addr += m; \
-            if (!s->framecopy.count) { \
-                opengl_finish_copyframe(s); \
-                s->framecopy.count = TARGET_PAGE_SIZE; \
-                opengl_map_copyframe(s, s->framecopy.addr); \
-            } \
+            QEMUGL_COPYBYTES(type, n, opengl_buffer_read_##type(s)); \
         } while (n); \
-        for (n = extra; n--;) { \
-            opengl_copyframe_bytes(s, 0, pixelsize); \
+        for (n = extra; n;) { \
+            QEMUGL_COPYBYTES(type, n, 0); \
         } \
     }
+    const uint32_t extra = s->qemugl_bufbytesperline -
+                           s->bufwidth * s->bufpixelsize;
     switch (s->bufpixelsize) {
         case 1: QEMUGL_COPYFRAME(uint8_t); break;
         case 2: QEMUGL_COPYFRAME(uint16_t); break;
@@ -1000,6 +997,8 @@ void helper_opengl_copyframe(struct helper_opengl_s *s)
     }
 #else
     const uint32_t pixelsize = s->bufpixelsize;
+    const uint32_t extra = (s->qemugl_bufbytesperline / pixelsize) -
+                           s->bufwidth;
     while (s->bufsize) {
         uint32_t n = s->bufwidth;
         while (n--) {
