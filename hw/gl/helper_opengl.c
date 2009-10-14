@@ -875,7 +875,8 @@ static void opengl_map_copyframe(struct helper_opengl_s *s, uint32_t vaddr)
         uint32_t count = s->framecopy.count;
         target_ulong vnext = vaddr + TARGET_PAGE_SIZE;
         target_ulong pnext = paddr + TARGET_PAGE_SIZE;
-        while (get_phys_mem_addr(s->env, vnext) == pnext) {
+        while (get_phys_mem_addr(s->env, vnext) == pnext &&
+               count < 4096 * TARGET_PAGE_SIZE) {
             count += TARGET_PAGE_SIZE;
             vnext += TARGET_PAGE_SIZE;
             pnext += TARGET_PAGE_SIZE;
@@ -949,11 +950,16 @@ void helper_opengl_copyframe(struct helper_opengl_s *s)
 #endif
     opengl_init_copyframe(s);
 #ifdef QEMUGL_OPTIMIZE_FRAMECOPY
-#define QEMUGL_COPYBYTES(type, nvar, pixval) \
+#define QEMUGL_SKIPBYTES_0(pixval)
+#define QEMUGL_SKIPBYTES_1(pixval) \
+    while (k--) { \
+        pixval; \
+    }
+#define QEMUGL_COPYBYTES(type, nvar, pixval, skipseq) \
     uint32_t m = s->framecopy.count <= nvar ? s->framecopy.count : nvar; \
+    uint32_t k = m >> (sizeof(type) >> 1); \
     if (s->framecopy.ptr) { \
         type *p = (type *)s->framecopy.ptr; \
-        uint32_t k = m >> (sizeof(type) >> 1); \
         uint32_t l = k >> 2; \
         while (l--) { \
             *(p++) = pixval; \
@@ -965,6 +971,8 @@ void helper_opengl_copyframe(struct helper_opengl_s *s)
             *(p++) = pixval; \
         } \
         s->framecopy.ptr = (void *)p; \
+    } else { \
+        QEMUGL_SKIPBYTES_##skipseq(pixval); \
     } \
     nvar -= m; \
     s->framecopy.count -= m; \
@@ -978,10 +986,10 @@ void helper_opengl_copyframe(struct helper_opengl_s *s)
     while (s->bufsize) { \
         uint32_t n = s->bufwidth << (sizeof(type) >> 1); \
         do { \
-            QEMUGL_COPYBYTES(type, n, opengl_buffer_read_##type(s)); \
+            QEMUGL_COPYBYTES(type, n, opengl_buffer_read_##type(s), 1); \
         } while (n); \
         for (n = extra; n;) { \
-            QEMUGL_COPYBYTES(type, n, 0); \
+            QEMUGL_COPYBYTES(type, n, 0, 0); \
         } \
     }
     const uint32_t extra = s->qemugl_bufbytesperline -
