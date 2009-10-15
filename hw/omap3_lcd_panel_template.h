@@ -47,18 +47,22 @@
 #endif
 
 
-static void glue(omap3_lcd_panel_draw_line16_, DEPTH)(PIXEL_TYPE *dest,
-                                                      const uint16_t *src,
-                                                      unsigned int width)
+static void glue(omap3_lcd_panel_draw_line16_, DEPTH)(void *opaque,
+                                                      uint8_t *dest_,
+                                                      const uint8_t *src_,
+                                                      int width,
+                                                      int pixelsize)
 {
 #if !defined(SWAP_WORDS) && DEPTH == 16
-    memcpy(dest, src, width);
+    memcpy(dest_, src_, width << 1);
 #else
+    const uint16_t *src = (const uint16_t *)src_;
+    PIXEL_TYPE *dest = (PIXEL_TYPE *)dest_;
     uint16_t data;
     unsigned int r, g, b;
-    const uint16_t *end = (const void *) src + width;
+    const uint16_t *end = src + width;
     while (src < end) {
-        data = lduw_raw(src ++);
+        data = lduw_raw(src++);
         b = (data & 0x1f) << 3;
         data >>= 5;
         g = (data & 0x3f) << 2;
@@ -70,15 +74,18 @@ static void glue(omap3_lcd_panel_draw_line16_, DEPTH)(PIXEL_TYPE *dest,
 #endif
 }
 
-static void glue(omap3_lcd_panel_draw_line24a_, DEPTH)(PIXEL_TYPE *dest,
+static void glue(omap3_lcd_panel_draw_line24a_, DEPTH)(void *opaque,
+                                                       uint8_t *dest_,
                                                        const uint8_t *src,
-                                                       unsigned int width)
+                                                       int width,
+                                                       int pixelsize)
 {
 #if !defined(SWAP_WORDS) && DEPTH == 32
-    memcpy(dest, src, width);
+    memcpy(dest_, src, width << 2);
 #else
+    PIXEL_TYPE *dest = (PIXEL_TYPE *)dest_;
     unsigned int r, g, b;
-    const uint8_t *end = (const void *) src + width;
+    const uint8_t *end = src + (width << 2);
     while (src < end) {
         b = *(src++);
         g = *(src++);
@@ -89,15 +96,18 @@ static void glue(omap3_lcd_panel_draw_line24a_, DEPTH)(PIXEL_TYPE *dest,
 #endif
 }
 
-static void glue(omap3_lcd_panel_draw_line24b_, DEPTH)(PIXEL_TYPE *dest,
+static void glue(omap3_lcd_panel_draw_line24b_, DEPTH)(void *opaque,
+                                                       uint8_t *dest_,
                                                        const uint8_t *src,
-                                                       unsigned int width)
+                                                       int width,
+                                                       int pixelsize)
 {
 #if DEPTH == 24
-    memcpy(dest, src, width);
+    memcpy(dest_, src, width * 3);
 #else
+    PIXEL_TYPE *dest = (PIXEL_TYPE *)dest_;
     unsigned int r, g, b;
-    const uint8_t *end = (const void *) src + width;
+    const uint8_t *end = src + width * 3;
     while (src < end) {
         b = *(src++);
         g = *(src++);
@@ -108,17 +118,17 @@ static void glue(omap3_lcd_panel_draw_line24b_, DEPTH)(PIXEL_TYPE *dest,
 }
 
 /* No rotation */
-static omap3_lcd_panel_fn_t glue(omap3_lcd_panel_draw_fn_, DEPTH)[0x10] = {
+static drawfn glue(omap3_lcd_panel_draw_fn_, DEPTH)[0x10] = {
     NULL,
     NULL,
     NULL,
     NULL,
     NULL,
     NULL,
-    (omap3_lcd_panel_fn_t)glue(omap3_lcd_panel_draw_line16_, DEPTH),
+    (drawfn)glue(omap3_lcd_panel_draw_line16_, DEPTH),
     NULL,
-    (omap3_lcd_panel_fn_t)glue(omap3_lcd_panel_draw_line24a_, DEPTH),
-    (omap3_lcd_panel_fn_t)glue(omap3_lcd_panel_draw_line24b_, DEPTH),
+    (drawfn)glue(omap3_lcd_panel_draw_line24a_, DEPTH),
+    (drawfn)glue(omap3_lcd_panel_draw_line24b_, DEPTH),
     NULL,
     NULL,
     NULL,
@@ -140,5 +150,3 @@ static omap3_lcd_panel_fn_t glue(omap3_lcd_panel_draw_fn_, DEPTH)[0x10] = {
 #undef PIXEL_TYPE
 
 #undef SWAP_WORDS
-
- 

@@ -2238,19 +2238,28 @@ static void taal_invalidate_display(void *opaque)
 static void taal_update_display(void *opaque)
 {
     struct taal_s *s = (struct taal_s *)opaque;
-    
-//    if (s->force_update || (s->powermode & 0x04)) {
-        s->force_update = 0;
-        /* TODO: draw background color */
-        omap3_lcd_panel_layer_update(s->ds,
-                                     N00_DISPLAY_WIDTH, N00_DISPLAY_HEIGHT,
-                                     s->fake.posx, s->fake.posy,
-                                     s->fake.width, s->fake.height,
-                                     s->fake.attrib,
-                                     s->fake.addr);
-        /* TODO: draw VID1 & VID2 layers */
-        dpy_update(s->ds, 0, 0, N00_DISPLAY_WIDTH, N00_DISPLAY_HEIGHT);
-//    }
+    if (s->force_update) {
+        if (ds_get_width(s->ds) != N00_DISPLAY_WIDTH ||
+            ds_get_height(s->ds) != N00_DISPLAY_HEIGHT) {
+            qemu_console_resize(s->ds, N00_DISPLAY_WIDTH,
+                                N00_DISPLAY_HEIGHT);
+        }
+    }
+    /* TODO: draw background color */
+    int first_row = s->fake.posy;
+    int last_row = 0;
+    omap3_lcd_panel_layer_update(s->ds,
+                                 N00_DISPLAY_WIDTH, N00_DISPLAY_HEIGHT,
+                                 s->fake.posx, &first_row, &last_row,
+                                 s->fake.width, s->fake.height,
+                                 s->fake.attrib, s->fake.addr,
+                                 s->force_update);
+    /* TODO: draw VID1 & VID2 layers */
+    s->force_update = 0;
+    if (first_row >= 0) {
+        dpy_update(s->ds, 0, first_row, N00_DISPLAY_WIDTH,
+                   last_row - first_row + 1);
+    }
 }
 
 static struct taal_s *taal_init(struct omap_dss_s *dss)

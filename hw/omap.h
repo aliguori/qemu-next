@@ -987,10 +987,12 @@ struct omap3_lcd_panel_s *omap3_lcd_panel_init(struct omap_dss_s *dss);
 const struct omap_dss_panel_s *omap3_lcd_panel_get(struct omap3_lcd_panel_s *lcd);
 void omap3_lcd_panel_layer_update(DisplayState *ds,
                                   uint32_t lcd_width, uint32_t lcd_height,
-                                  uint32_t posx, uint32_t posy,
+                                  uint32_t posx,
+                                  int *posy, int *endy,
                                   uint32_t width, uint32_t height,
                                   uint32_t attrib,
-                                  target_phys_addr_t addr);
+                                  target_phys_addr_t addr,
+                                  int full_update);
 
 /* omap_mmc.c */
 struct omap_mmc_s;

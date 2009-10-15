@@ -26,8 +26,7 @@
 #include "devices.h"
 #include "pixel_ops.h"
 #include "omap_dss.h"
-
-typedef void (*omap3_lcd_panel_fn_t)(uint8_t *, const uint8_t *, unsigned int);
+#include "framebuffer.h"
 
 struct omap3_lcd_panel_s {
     struct omap_dss_s *dss;
@@ -82,67 +81,51 @@ static void omap3_lcd_panel_invalidate_display(void *opaque)
 
 void omap3_lcd_panel_layer_update(DisplayState *ds,
                                   uint32_t lcd_width, uint32_t lcd_height,
-                                  uint32_t posx, uint32_t posy,
+                                  uint32_t posx,
+                                  int *posy, int *endy,
                                   uint32_t width, uint32_t height,
                                   uint32_t attrib,
-                                  target_phys_addr_t addr)
+                                  target_phys_addr_t addr,
+                                  int full_update)
 {
     if (!(attrib & 1)) { /* layer disabled? */
         return;
     }
     uint32_t format = (attrib >> 1) & 0xf;
-    omap3_lcd_panel_fn_t line_fn = 0;
+    drawfn line_fn = 0;
     switch (ds_get_bits_per_pixel(ds)) {
         case 8:  line_fn = omap3_lcd_panel_draw_fn_8[format]; break;
         case 15: line_fn = omap3_lcd_panel_draw_fn_15[format]; break;
         case 16: line_fn = omap3_lcd_panel_draw_fn_16[format]; break;
         case 24: line_fn = omap3_lcd_panel_draw_fn_24[format]; break;
         case 32: line_fn = omap3_lcd_panel_draw_fn_32[format]; break;
-        default: line_fn = 0; break;
+        default:
+            hw_error("unsupported host display color depth: %d",
+                     ds_get_bits_per_pixel(ds));
+            return;
     }
     if (!line_fn) {
+        hw_error("unsupported omap3 dss color format: %d", format);
         return;
     }
-    
-    const uint32_t lcd_Bpp = omap_lcd_Bpp[format];
 
-    uint32_t graphic_width = width;
-    uint32_t graphic_height = height;
-    uint32_t start_x = posx;
-    uint32_t start_y = posy;
-    
-    uint8_t *dest = ds_get_data(ds);
-    uint32_t linesize = ds_get_linesize(ds);
-    
-    uint32_t host_Bpp = linesize / ds_get_width(ds);
-    
-    dest += linesize * start_y;
-    dest += start_x * host_Bpp;
-    
-    uint32_t copy_width = (start_x + graphic_width) > lcd_width
-                          ? (lcd_width - start_x) : graphic_width;
-    uint32_t copy_height = lcd_height > graphic_height
-                          ? graphic_height : lcd_height;
-    
-    target_phys_addr_t size = copy_height * copy_width * lcd_Bpp;
-    uint8_t *src = cpu_physical_memory_map(addr, &size, 0);
-    if (src) {
-        if (size == copy_height * copy_width * lcd_Bpp) {
-            uint32_t y;
-            for (y = start_y; y < copy_height; y++) {
-                line_fn(dest, src, copy_width * lcd_Bpp);
-                src += graphic_width * lcd_Bpp;
-                dest += linesize;
-            }
-        } else {
-            fprintf(stderr, "%s: " OMAP_FMT_plx " bytes of framebuffer "
-                    "mappable, need 0x%08x bytes\n",
-                    __FUNCTION__, size, copy_height * copy_width * lcd_Bpp);
-            //hw_error("%s: rendering uncontiguous framebuffer is not supported",
-            //        __FUNCTION__);
-        }
-        cpu_physical_memory_unmap(src, size, 0, size);
+    if (posx) {
+        fprintf(stderr, "%s@%d: non-zero layer x-coordinate (%d), "
+                "not currently supported -> using zero\n", __FUNCTION__,
+                __LINE__, posx);
+        posx = 0;
     }
+    
+    uint32_t copy_width = (posx + width) > lcd_width
+                          ? (lcd_width - posx) : width;
+    uint32_t copy_height = ((*posy) + height) > lcd_height
+                          ? (lcd_height - (*posy)) : height;
+    uint32_t linesize = ds_get_linesize(ds);
+    framebuffer_update_display(ds, addr, copy_width, copy_height,
+                               width * omap_lcd_Bpp[format],
+                               linesize, linesize / ds_get_width(ds),
+                               full_update, line_fn, NULL,
+                               posy, endy);
 }
 
 static void omap3_lcd_panel_update_display(void *opaque)
@@ -155,7 +138,6 @@ static void omap3_lcd_panel_update_display(void *opaque)
         return;
     
     if (s->invalidate) {
-        s->invalidate = 0;
         if (s->width != ds_get_width(s->state) 
             || s->height != ds_get_height(s->state)) {
             qemu_console_resize(s->state, s->width, s->height);
@@ -164,19 +146,23 @@ static void omap3_lcd_panel_update_display(void *opaque)
             hw_error("%s: GFX rotation is not supported", __FUNCTION__);
         }
     }
-    
+
     /* TODO: draw background color */
-    
-    omap3_lcd_panel_layer_update(s->state,
-                                 s->width, s->height,
-                                 s->gfx_posx, s->gfx_posy,
+
+    int first_row = s->gfx_posy;
+    int last_row = 0;
+    omap3_lcd_panel_layer_update(s->state, s->width, s->height,
+                                 s->gfx_posx, &first_row, &last_row,
                                  s->gfx_width, s->gfx_height,
-                                 s->gfx_attr,
-                                 s->gfx_addr);
-    
+                                 s->gfx_attr, s->gfx_addr,
+                                 s->invalidate);
     /* TODO: draw VID1 & VID2 layers */
+    s->invalidate = 0;
     
-    dpy_update(s->state, 0, 0, s->width, s->height);
+    if (first_row >= 0) {
+        dpy_update(s->state, 0, first_row, s->width,
+                   last_row - first_row + 1);
+    }
 
     omap_dss_lcd_framedone(s->dss);
 }
