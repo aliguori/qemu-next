@@ -2641,7 +2641,7 @@ int vnc_display_open(DisplayState *ds, const char *display)
     }
 
 #ifdef CONFIG_VNC_SASL
-    if ((saslErr = sasl_server_init(NULL, "qemu")) != SASL_OK) {
+    if ((saslErr = sasl_server_init(NULL, "qemu-kvm")) != SASL_OK) {
         fprintf(stderr, "Failed to initialize SASL auth %s",
                 sasl_errstring(saslErr, NULL, NULL));
         free(vs->display);
