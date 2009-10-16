@@ -3723,9 +3723,9 @@ static int disas_neon_ls_insn(CPUState * env, DisasContext *s, uint32_t insn)
         stride = (1 << size) * interleave;
         for (reg = 0; reg < nregs; reg++) {
             if (interleave > 2 || (interleave == 2 && nregs == 2)) {
-                tcg_gen_add_i32(addr, cpu_R[rn], (1 << size) * reg);
+                tcg_gen_addi_i32(addr, cpu_R[rn], (1 << size) * reg);
             } else if (interleave == 2 && nregs == 4 && reg == 2) {
-                tcg_gen_add_i32(addr, cpu_R[rn], 1 << size);
+                tcg_gen_addi_i32(addr, cpu_R[rn], 1 << size);
             }
             if (size == 3) {
                 TCGv_i64 tmp64;
