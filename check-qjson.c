@@ -551,11 +551,38 @@ START_TEST(simple_whitespace)
 }
 END_TEST
 
+START_TEST(simple_varargs)
+{
+    QObject *embedded_obj;
+    QObject *obj;
+    LiteralQObject decoded = QLIT_QLIST(((LiteralQObject[]){
+            QLIT_QINT(1),
+            QLIT_QINT(2),
+            QLIT_QLIST(((LiteralQObject[]){
+                        QLIT_QINT(32),
+                        QLIT_QINT(42),
+                        {}})),
+            {}}));
+
+    embedded_obj = qobject_from_json("[32, 42]", NULL);
+    fail_unless(embedded_obj != NULL);
+
+    obj = qobject_from_jsonf("[%d, 2, %p]", NULL, 1, embedded_obj);
+    fail_unless(obj != NULL);
+
+    qobject_decref(embedded_obj);
+
+    fail_unless(compare_litqobj_to_qobj(&decoded, obj) == 1);
+
+    qobject_decref(obj);
+}
+END_TEST
+
 static Suite *qjson_suite(void)
 {
     Suite *suite;
     TCase *string_literals, *number_literals, *keyword_literals;
-    TCase *dicts, *lists, *whitespace;
+    TCase *dicts, *lists, *whitespace, *varargs;
 
     string_literals = tcase_create("String Literals");
     tcase_add_test(string_literals, simple_string);
@@ -580,6 +607,9 @@ static Suite *qjson_suite(void)
     whitespace = tcase_create("Whitespace");
     tcase_add_test(whitespace, simple_whitespace);
 
+    varargs = tcase_create("Varargs");
+    tcase_add_test(varargs, simple_varargs);
+
     suite = suite_create("QJSON test-suite");
     suite_add_tcase(suite, string_literals);
     suite_add_tcase(suite, number_literals);
@@ -587,6 +617,7 @@ static Suite *qjson_suite(void)
     suite_add_tcase(suite, dicts);
     suite_add_tcase(suite, lists);
     suite_add_tcase(suite, whitespace);
+    suite_add_tcase(suite, varargs);
 
     return suite;
 }
