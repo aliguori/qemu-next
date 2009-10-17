@@ -339,6 +339,12 @@ static QObject *parse_number(JSONParserContext *ctxt,
                 parse_error(ctxt, ptr, "invalid escape sequence");
                 goto out;
             }
+        } else if (*ptr == 'i') {
+            int val;
+            ptr++;
+            *length = ptr - data;
+            val = va_arg(*ap, int);
+            return QOBJECT(qbool_from_int(val));
         } else if (*ptr == 'f') {
             double val;
             ptr++;
