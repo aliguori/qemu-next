@@ -17,6 +17,7 @@
 #include "qdict.h"
 #include "qlist.h"
 #include "qfloat.h"
+#include "qbool.h"
 #include "qjson.h"
 
 typedef struct JSONParserContext
@@ -627,9 +628,9 @@ static QObject *parse_keyword(JSONParserContext *ctxt, const char *data, size_t 
     }
 
     if (strcmp(qstring_get_str(str), "true") == 0) {
-        obj = QOBJECT(qint_from_int(1));
+        obj = QOBJECT(qbool_from_int(1));
     } else if (strcmp(qstring_get_str(str), "false") == 0) {
-        obj = QOBJECT(qint_from_int(0));
+        obj = QOBJECT(qbool_from_int(0));
     }
 
     if (obj) {

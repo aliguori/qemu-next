@@ -15,6 +15,7 @@
 #include "qdict.h"
 #include "qlist.h"
 #include "qfloat.h"
+#include "qbool.h"
 #include "qjson.h"
 
 #include "qemu-common.h"
@@ -259,28 +260,28 @@ END_TEST
 START_TEST(keyword_literal)
 {
     QObject *obj;
-    QInt *qint;
+    QBool *qbool;
     size_t length = 0;
 
     obj = qobject_from_json("true", &length);
     fail_unless(obj != NULL);
-    fail_unless(qobject_type(obj) == QTYPE_QINT);
+    fail_unless(qobject_type(obj) == QTYPE_QBOOL);
     fail_unless(length == 4);
 
-    qint = qobject_to_qint(obj);
-    fail_unless(qint_get_int(qint) != 0);
+    qbool = qobject_to_qbool(obj);
+    fail_unless(qbool_get_int(qbool) != 0);
 
-    QDECREF(qint);
+    QDECREF(qbool);
 
     obj = qobject_from_json("false", &length);
     fail_unless(obj != NULL);
-    fail_unless(qobject_type(obj) == QTYPE_QINT);
+    fail_unless(qobject_type(obj) == QTYPE_QBOOL);
     fail_unless(length == 5);
 
-    qint = qobject_to_qint(obj);
-    fail_unless(qint_get_int(qint) == 0);
+    qbool = qobject_to_qbool(obj);
+    fail_unless(qbool_get_int(qbool) == 0);
 
-    QDECREF(qint);
+    QDECREF(qbool);
 }
 END_TEST
 
