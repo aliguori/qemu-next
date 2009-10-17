@@ -648,6 +648,28 @@ static QObject *parse_keyword(JSONParserContext *ctxt, const char *data, size_t 
     return obj;
 }
 
+static QObject *parse_qobject(JSONParserContext *ctxt, const char *data, size_t *length, va_list *ap)
+{
+    const char *ptr = data;
+    QObject *obj = NULL;
+
+    ptr += parse_skip(ctxt, ptr);
+
+    if (ap && *ptr == '%') {
+        ptr++;
+        if (*ptr == 'p') {
+            ptr++;
+
+            obj = va_arg(*ap, QObject *);
+            qobject_incref(obj);
+            *length = (ptr - data);
+            return obj;
+        }
+    }
+
+    return NULL;
+}
+
 static QObject *parse_value(JSONParserContext *ctxt, const char *string, size_t *length, va_list *ap)
 {
     QObject *obj;
@@ -664,6 +686,9 @@ static QObject *parse_value(JSONParserContext *ctxt, const char *string, size_t 
     }
     if (obj == NULL) {
         obj = parse_keyword(ctxt, string, length);
+    }
+    if (obj == NULL) {
+        obj = parse_qobject(ctxt, string, length, ap);
     }
 
     return obj;
