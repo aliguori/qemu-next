@@ -9,6 +9,7 @@
  *
  */
 #include <check.h>
+#include <stdbool.h>
 
 #include "qstring.h"
 #include "qint.h"
@@ -280,6 +281,26 @@ START_TEST(keyword_literal)
 
     qbool = qobject_to_qbool(obj);
     fail_unless(qbool_get_int(qbool) == 0);
+
+    QDECREF(qbool);
+
+    obj = qobject_from_jsonf("%i", &length, false);
+    fail_unless(obj != NULL);
+    fail_unless(qobject_type(obj) == QTYPE_QBOOL);
+    fail_unless(length == 2);
+
+    qbool = qobject_to_qbool(obj);
+    fail_unless(qbool_get_int(qbool) == 0);
+
+    QDECREF(qbool);
+    
+    obj = qobject_from_jsonf("%i", &length, true);
+    fail_unless(obj != NULL);
+    fail_unless(qobject_type(obj) == QTYPE_QBOOL);
+    fail_unless(length == 2);
+
+    qbool = qobject_to_qbool(obj);
+    fail_unless(qbool_get_int(qbool) != 0);
 
     QDECREF(qbool);
 }
