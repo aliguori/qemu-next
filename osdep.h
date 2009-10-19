@@ -2,6 +2,7 @@
 #define QEMU_OSDEP_H
 
 #include <stdarg.h>
+#include <stddef.h>
 #ifdef __OpenBSD__
 #include <sys/types.h>
 #include <sys/signal.h>
@@ -27,7 +28,7 @@
 #define unlikely(x)   __builtin_expect(!!(x), 0)
 #endif
 
-#ifndef offsetof
+#ifdef CONFIG_NEED_OFFSETOF
 #define offsetof(TYPE, MEMBER) ((size_t) &((TYPE *) 0)->MEMBER)
 #endif
 #ifndef container_of
@@ -35,6 +36,9 @@
         const typeof(((type *) 0)->member) *__mptr = (ptr);     \
         (type *) ((char *) __mptr - offsetof(type, member));})
 #endif
+
+#define typeof_field(type, field) typeof(((type *)0)->field)
+#define type_check(t1,t2) ((t1*)0 - (t2*)0)
 
 #ifndef MIN
 #define MIN(a, b) (((a) < (b)) ? (a) : (b))

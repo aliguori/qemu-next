@@ -680,84 +680,17 @@ static ssize_t smc91c111_receive(VLANClientState *vc, const uint8_t *buf, size_t
     return size;
 }
 
-static CPUReadMemoryFunc *smc91c111_readfn[] = {
+static CPUReadMemoryFunc * const smc91c111_readfn[] = {
     smc91c111_readb,
     smc91c111_readw,
     smc91c111_readl
 };
 
-static CPUWriteMemoryFunc *smc91c111_writefn[] = {
+static CPUWriteMemoryFunc * const smc91c111_writefn[] = {
     smc91c111_writeb,
     smc91c111_writew,
     smc91c111_writel
 };
-
-static void smc91c111_save_state(QEMUFile *f, void *opaque)
-{
-    smc91c111_state *s = (smc91c111_state *)opaque;
-    int i;
-    
-    qemu_put_be16(f, s->tcr);
-    qemu_put_be16(f, s->rcr);
-    qemu_put_be16(f, s->cr);
-    qemu_put_be16(f, s->ctr);
-    qemu_put_be16(f, s->gpr);
-    qemu_put_be16(f, s->ptr);
-    qemu_put_be16(f, s->ercv);
-    qemu_put_sbe32(f, s->bank);
-    qemu_put_sbe32(f, s->packet_num);
-    qemu_put_sbe32(f, s->tx_alloc);
-    qemu_put_sbe32(f, s->allocated);
-    qemu_put_sbe32(f, s->tx_fifo_len);
-    qemu_put_sbe32(f, s->rx_fifo_len);
-    qemu_put_sbe32(f, s->tx_fifo_done_len);
-    qemu_put_byte(f, s->int_level);
-    qemu_put_byte(f, s->int_mask);
-    qemu_put_buffer(f, s->macaddr, sizeof(s->macaddr));
-    for (i = 0; i < NUM_PACKETS; i++) {
-        qemu_put_sbe32(f, s->tx_fifo[i]);
-        qemu_put_sbe32(f, s->rx_fifo[i]);
-        qemu_put_sbe32(f, s->tx_fifo_done[i]);
-        qemu_put_buffer(f, s->data[i], sizeof(s->data[i]));
-    }
-}
-
-static int smc91c111_load_state(QEMUFile *f, void *opaque, int version_id)
-{
-    smc91c111_state *s = (smc91c111_state *)opaque;
-    int i;
-    
-    if (version_id)
-        return -EINVAL;
-    
-    s->tcr = qemu_get_be16(f);
-    s->rcr = qemu_get_be16(f);
-    s->cr = qemu_get_be16(f);
-    s->ctr = qemu_get_be16(f);
-    s->gpr = qemu_get_be16(f);
-    s->ptr = qemu_get_be16(f);
-    s->ercv = qemu_get_be16(f);
-    s->bank = qemu_get_sbe32(f);
-    s->packet_num = qemu_get_sbe32(f);
-    s->tx_alloc = qemu_get_sbe32(f);
-    s->allocated = qemu_get_sbe32(f);
-    s->tx_fifo_len = qemu_get_sbe32(f);
-    s->rx_fifo_len = qemu_get_sbe32(f);
-    s->tx_fifo_done_len = qemu_get_sbe32(f);
-    s->int_level = qemu_get_byte(f);
-    s->int_mask = qemu_get_byte(f);
-    qemu_get_buffer(f, s->macaddr, sizeof(s->macaddr));
-    for (i = 0; i < NUM_PACKETS; i++) {
-        s->tx_fifo[i] = qemu_get_sbe32(f);
-        s->rx_fifo[i] = qemu_get_sbe32(f);
-        s->tx_fifo_done[i] = qemu_get_sbe32(f);
-        qemu_get_buffer(f, s->data[i], sizeof(s->data[i]));
-    }
-    
-    smc91c111_update(s);
-    
-    return 0;
-}
 
 static void smc91c111_cleanup(VLANClientState *vc)
 {
@@ -767,7 +700,7 @@ static void smc91c111_cleanup(VLANClientState *vc)
     qemu_free(s);
 }
 
-static void smc91c111_init1(SysBusDevice *dev)
+static int smc91c111_init1(SysBusDevice *dev)
 {
     smc91c111_state *s = FROM_SYSBUS(smc91c111_state, dev);
 
@@ -784,9 +717,7 @@ static void smc91c111_init1(SysBusDevice *dev)
                                  smc91c111_cleanup, s);
     qemu_format_nic_info_str(s->vc, s->macaddr);
     /* ??? Save/restore.  */
-    register_savevm("smc91c111", -1, 0,
-                    smc91c111_save_state, smc91c111_load_state, s);
-    /*return s;*/
+    return 0;
 }
 
 static void smc91c111_register_devices(void)
@@ -804,7 +735,7 @@ void smc91c111_init(NICInfo *nd, uint32_t base, qemu_irq irq)
     qemu_check_nic_model(nd, "smc91c111");
     dev = qdev_create(NULL, "smc91c111");
     dev->nd = nd;
-    qdev_init(dev);
+    qdev_init_nofail(dev);
     s = sysbus_from_qdev(dev);
     sysbus_mmio_map(s, 0, base);
     sysbus_connect_irq(s, 0, irq);

@@ -214,7 +214,8 @@ void omap_dss_lcd_framedone(void *opaque)
         } else {
             if (s->dispc.lcdframer) {
                 qemu_mod_timer(s->dispc.lcdframer,
-                               qemu_get_clock(vm_clock) + ticks_per_sec / 10);
+                               qemu_get_clock(vm_clock)
+                               + get_ticks_per_sec() / 10);
             }
         }
         s->dispc.irqst |= 1;    /* FRAMEDONE */
@@ -317,7 +318,8 @@ static void omap_dsi_transfer_start(struct omap_dss_s *s, int ch)
             }
             if (s->dispc.lcdframer) {
                 qemu_mod_timer(s->dispc.lcdframer,
-                               qemu_get_clock(vm_clock) + ticks_per_sec / 10);
+                               qemu_get_clock(vm_clock)
+                               + get_ticks_per_sec() / 10);
             } else {
                 omap_dss_lcd_framedone(s);
             }
@@ -580,13 +582,13 @@ static void omap_diss_write(void *opaque, target_phys_addr_t addr,
     }
 }
 
-static CPUReadMemoryFunc *omap_diss1_readfn[] = {
+static CPUReadMemoryFunc * const omap_diss1_readfn[] = {
     omap_badwidth_read32,
     omap_badwidth_read32,
     omap_diss_read,
 };
 
-static CPUWriteMemoryFunc *omap_diss1_writefn[] = {
+static CPUWriteMemoryFunc * const omap_diss1_writefn[] = {
     omap_badwidth_write32,
     omap_badwidth_write32,
     omap_diss_write,
@@ -900,7 +902,8 @@ static void omap_disc_write(void *opaque, target_phys_addr_t addr,
                 }
             } else if (s->dispc.lcdframer) {
                 qemu_mod_timer(s->dispc.lcdframer,
-                               qemu_get_clock(vm_clock) + ticks_per_sec / 10);
+                               qemu_get_clock(vm_clock)
+                               + get_ticks_per_sec() / 10);
             }
         } else if (n & 1) { /* enable -> disable, signal wip frame done */
             s->dispc.control |= 1;
@@ -1145,13 +1148,13 @@ static void omap_disc_write(void *opaque, target_phys_addr_t addr,
     }
 }
 
-static CPUReadMemoryFunc *omap_disc1_readfn[] = {
+static CPUReadMemoryFunc * const omap_disc1_readfn[] = {
     omap_badwidth_read32,
     omap_badwidth_read32,
     omap_disc_read,
 };
 
-static CPUWriteMemoryFunc *omap_disc1_writefn[] = {
+static CPUWriteMemoryFunc * const omap_disc1_writefn[] = {
     omap_badwidth_write32,
     omap_badwidth_write32,
     omap_disc_write,
@@ -1392,13 +1395,13 @@ static void omap_rfbi_write(void *opaque, target_phys_addr_t addr,
     }
 }
 
-static CPUReadMemoryFunc *omap_rfbi1_readfn[] = {
+static CPUReadMemoryFunc * const omap_rfbi1_readfn[] = {
     omap_badwidth_read32,
     omap_badwidth_read32,
     omap_rfbi_read,
 };
 
-static CPUWriteMemoryFunc *omap_rfbi1_writefn[] = {
+static CPUWriteMemoryFunc * const omap_rfbi1_writefn[] = {
     omap_badwidth_write32,
     omap_badwidth_write32,
     omap_rfbi_write,
@@ -1517,13 +1520,13 @@ static void omap_venc_write(void *opaque, target_phys_addr_t addr,
     }
 }
 
-static CPUReadMemoryFunc *omap_venc1_readfn[] = {
+static CPUReadMemoryFunc * const omap_venc1_readfn[] = {
     omap_badwidth_read32,
     omap_badwidth_read32,
     omap_venc_read,
 };
 
-static CPUWriteMemoryFunc *omap_venc1_writefn[] = {
+static CPUWriteMemoryFunc * const omap_venc1_writefn[] = {
     omap_badwidth_write32,
     omap_badwidth_write32,
     omap_venc_write,
@@ -1568,13 +1571,13 @@ static void omap_im3_write(void *opaque, target_phys_addr_t addr,
     }
 }
 
-static CPUReadMemoryFunc *omap_im3_readfn[] = {
+static CPUReadMemoryFunc * const omap_im3_readfn[] = {
     omap_badwidth_read32,
     omap_badwidth_read32,
     omap_im3_read,
 };
 
-static CPUWriteMemoryFunc *omap_im3_writefn[] = {
+static CPUWriteMemoryFunc * const omap_im3_writefn[] = {
     omap_badwidth_write32,
     omap_badwidth_write32,
     omap_im3_write,

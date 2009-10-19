@@ -12,11 +12,12 @@ SerialState *serial_init(int base, qemu_irq irq, int baudbase,
 SerialState *serial_mm_init (target_phys_addr_t base, int it_shift,
                              qemu_irq irq, int baudbase,
                              CharDriverState *chr, int ioregister);
+SerialState *serial_isa_init(int index, CharDriverState *chr);
 
 /* parallel.c */
 
 typedef struct ParallelState ParallelState;
-ParallelState *parallel_init(int base, qemu_irq irq, CharDriverState *chr);
+ParallelState *parallel_init(int index, CharDriverState *chr);
 ParallelState *parallel_mm_init(target_phys_addr_t base, int it_shift, qemu_irq irq, CharDriverState *chr);
 
 /* i8259.c */
@@ -81,8 +82,7 @@ void i8042_mm_init(qemu_irq kbd_irq, qemu_irq mouse_irq,
 
 typedef struct RTCState RTCState;
 
-RTCState *rtc_init(int base, qemu_irq irq, int base_year);
-RTCState *rtc_init_sqw(int base, qemu_irq irq, qemu_irq sqw_irq, int base_year);
+RTCState *rtc_init(int base_year);
 RTCState *rtc_mm_init(target_phys_addr_t base, int it_shift, qemu_irq irq,
                       int base_year);
 void rtc_set_memory(RTCState *s, int addr, int val);
@@ -107,7 +107,7 @@ int acpi_table_add(const char *table_desc);
 i2c_bus *piix4_pm_init(PCIBus *bus, int devfn, uint32_t smb_io_base,
                        qemu_irq sci_irq);
 void piix4_smbus_register_device(SMBusDevice *dev, uint8_t addr);
-void piix4_acpi_system_hot_add_init(void);
+void piix4_acpi_system_hot_add_init(PCIBus *bus);
 
 /* hpet.c */
 extern int no_hpet;
@@ -117,11 +117,14 @@ void pcspk_init(PITState *);
 int pcspk_audio_init(qemu_irq *pic);
 
 /* piix_pci.c */
-PCIBus *i440fx_init(PCIDevice **pi440fx_state, qemu_irq *pic);
-void i440fx_set_smm(PCIDevice *d, int val);
-int piix3_init(PCIBus *bus, int devfn);
-void i440fx_init_memory_mappings(PCIDevice *d);
+struct PCII440FXState;
+typedef struct PCII440FXState PCII440FXState;
 
+PCIBus *i440fx_init(PCII440FXState **pi440fx_state, int *piix_devfn, qemu_irq *pic);
+void i440fx_set_smm(PCII440FXState *d, int val);
+void i440fx_init_memory_mappings(PCII440FXState *d);
+
+/* piix4.c */
 extern PCIDevice *piix4_dev;
 int piix4_init(PCIBus *bus, int devfn);
 
@@ -143,19 +146,9 @@ int isa_vga_mm_init(target_phys_addr_t vram_base,
 void pci_cirrus_vga_init(PCIBus *bus);
 void isa_cirrus_vga_init(void);
 
-/* ide.c */
-void isa_ide_init(int iobase, int iobase2, qemu_irq irq,
-                  BlockDriverState *hd0, BlockDriverState *hd1);
-void pci_cmd646_ide_init(PCIBus *bus, BlockDriverState **hd_table,
-                         int secondary_ide_enabled);
-void pci_piix3_ide_init(PCIBus *bus, BlockDriverState **hd_table, int devfn,
-                        qemu_irq *pic);
-void pci_piix4_ide_init(PCIBus *bus, BlockDriverState **hd_table, int devfn,
-                        qemu_irq *pic);
-
 /* ne2000.c */
 
-void isa_ne2000_init(int base, qemu_irq irq, NICInfo *nd);
+void isa_ne2000_init(int base, int irq, NICInfo *nd);
 
 int cpu_is_bsp(CPUState *env);
 #endif

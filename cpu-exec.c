@@ -197,7 +197,7 @@ static void cpu_handle_debug_exception(CPUState *env)
     CPUWatchpoint *wp;
 
     if (!env->watchpoint_hit)
-        TAILQ_FOREACH(wp, &env->watchpoints, entry)
+        QTAILQ_FOREACH(wp, &env->watchpoints, entry)
             wp->flags &= ~BP_WATCHPOINT_HIT;
 
     if (debug_excp_handler)
@@ -796,6 +796,20 @@ static inline int handle_cpu_signal(unsigned long pc, unsigned long address,
 # define TRAP_sig(context)    ((context)->uc_mcontext->es.trapno)
 # define ERROR_sig(context)   ((context)->uc_mcontext->es.err)
 # define MASK_sig(context)    ((context)->uc_sigmask)
+#elif defined (__NetBSD__)
+# include <ucontext.h>
+
+# define EIP_sig(context)     ((context)->uc_mcontext.__gregs[_REG_EIP])
+# define TRAP_sig(context)    ((context)->uc_mcontext.__gregs[_REG_TRAPNO])
+# define ERROR_sig(context)   ((context)->uc_mcontext.__gregs[_REG_ERR])
+# define MASK_sig(context)    ((context)->uc_sigmask)
+#elif defined (__FreeBSD__) || defined(__DragonFly__)
+# include <ucontext.h>
+
+# define EIP_sig(context)  (*((unsigned long*)&(context)->uc_mcontext.mc_eip))
+# define TRAP_sig(context)    ((context)->uc_mcontext.mc_trapno)
+# define ERROR_sig(context)   ((context)->uc_mcontext.mc_err)
+# define MASK_sig(context)    ((context)->uc_sigmask)
 #elif defined(__OpenBSD__)
 # define EIP_sig(context)     ((context)->sc_eip)
 # define TRAP_sig(context)    ((context)->sc_trapno)
@@ -812,7 +826,9 @@ int cpu_signal_handler(int host_signum, void *pinfo,
                        void *puc)
 {
     siginfo_t *info = pinfo;
-#if defined(__OpenBSD__)
+#if defined(__NetBSD__) || defined (__FreeBSD__) || defined(__DragonFly__)
+    ucontext_t *uc = puc;
+#elif defined(__OpenBSD__)
     struct sigcontext *uc = puc;
 #else
     struct ucontext *uc = puc;
@@ -846,6 +862,13 @@ int cpu_signal_handler(int host_signum, void *pinfo,
 #define TRAP_sig(context)     ((context)->sc_trapno)
 #define ERROR_sig(context)    ((context)->sc_err)
 #define MASK_sig(context)     ((context)->sc_mask)
+#elif defined (__FreeBSD__) || defined(__DragonFly__)
+#include <ucontext.h>
+
+#define PC_sig(context)  (*((unsigned long*)&(context)->uc_mcontext.mc_rip))
+#define TRAP_sig(context)     ((context)->uc_mcontext.mc_trapno)
+#define ERROR_sig(context)    ((context)->uc_mcontext.mc_err)
+#define MASK_sig(context)     ((context)->uc_sigmask)
 #else
 #define PC_sig(context)       ((context)->uc_mcontext.gregs[REG_RIP])
 #define TRAP_sig(context)     ((context)->uc_mcontext.gregs[REG_TRAPNO])
@@ -858,7 +881,7 @@ int cpu_signal_handler(int host_signum, void *pinfo,
 {
     siginfo_t *info = pinfo;
     unsigned long pc;
-#ifdef __NetBSD__
+#if defined(__NetBSD__) || defined (__FreeBSD__) || defined(__DragonFly__)
     ucontext_t *uc = puc;
 #elif defined(__OpenBSD__)
     struct sigcontext *uc = puc;

@@ -53,7 +53,7 @@
 #include "block_int.h"
 #include "module.h"
 
-#if defined(HAVE_UUID_H)
+#if defined(CONFIG_UUID)
 #include <uuid/uuid.h>
 #else
 /* TODO: move uuid emulation to some central place in QEMU. */
@@ -116,7 +116,7 @@ void uuid_unparse(const uuid_t uu, char *out);
 /* Unallocated blocks use this index (no need to convert endianess). */
 #define VDI_UNALLOCATED UINT32_MAX
 
-#if !defined(HAVE_UUID_H)
+#if !defined(CONFIG_UUID)
 void uuid_generate(uuid_t out)
 {
     memset(out, 0, sizeof(out));
@@ -437,9 +437,9 @@ static int vdi_open(BlockDriverState *bs, const char *filename, int flags)
     s->header = header;
 
     bmap_size = header.blocks_in_image * sizeof(uint32_t);
-    s->bmap = qemu_malloc(bmap_size);
-    if (bdrv_read(s->hd, s->bmap_sector,
-                  (uint8_t *)s->bmap, bmap_size / SECTOR_SIZE) < 0) {
+    bmap_size = (bmap_size + SECTOR_SIZE - 1) / SECTOR_SIZE;
+    s->bmap = qemu_malloc(bmap_size * SECTOR_SIZE);
+    if (bdrv_read(s->hd, s->bmap_sector, (uint8_t *)s->bmap, bmap_size) < 0) {
         goto fail_free_bmap;
     }
 
@@ -690,8 +690,8 @@ static void vdi_aio_write_cb(void *opaque, int ret)
             n_sectors = bmap_last - bmap_first + 1;
             offset = s->bmap_sector + bmap_first;
             acb->bmap_first = VDI_UNALLOCATED;
-            acb->hd_iov.iov_base = (uint8_t *)&s->bmap[0] +
-                                   bmap_first * SECTOR_SIZE;
+            acb->hd_iov.iov_base = (void *)((uint8_t *)&s->bmap[0] +
+                                            bmap_first * SECTOR_SIZE);
             acb->hd_iov.iov_len = n_sectors * SECTOR_SIZE;
             qemu_iovec_init_external(&acb->hd_qiov, &acb->hd_iov, 1);
             logout("will write %u block map sectors starting from entry %u\n",
@@ -742,7 +742,7 @@ static void vdi_aio_write_cb(void *opaque, int ret)
         acb->bmap_last = block_index;
         memcpy(block + sector_in_block * SECTOR_SIZE,
                acb->buf, n_sectors * SECTOR_SIZE);
-        acb->hd_iov.iov_base = block;
+        acb->hd_iov.iov_base = (void *)block;
         acb->hd_iov.iov_len = s->block_size;
         qemu_iovec_init_external(&acb->hd_qiov, &acb->hd_iov, 1);
         acb->hd_aiocb = bdrv_aio_writev(s->hd, offset,
@@ -755,7 +755,7 @@ static void vdi_aio_write_cb(void *opaque, int ret)
         uint64_t offset = s->header.offset_data / SECTOR_SIZE +
                           (uint64_t)bmap_entry * s->block_sectors +
                           sector_in_block;
-        acb->hd_iov.iov_base = acb->buf;
+        acb->hd_iov.iov_base = (void *)acb->buf;
         acb->hd_iov.iov_len = n_sectors * SECTOR_SIZE;
         qemu_iovec_init_external(&acb->hd_qiov, &acb->hd_iov, 1);
         acb->hd_aiocb = bdrv_aio_writev(s->hd, offset, &acb->hd_qiov,
@@ -817,7 +817,9 @@ static int vdi_create(const char *filename, QEMUOptionParameter *options)
 #endif
 #if defined(CONFIG_VDI_STATIC_IMAGE)
         } else if (!strcmp(options->name, BLOCK_OPT_STATIC)) {
-            image_type = VDI_TYPE_STATIC;
+            if (options->value.n) {
+                image_type = VDI_TYPE_STATIC;
+            }
 #endif
         }
         options++;
@@ -845,6 +847,9 @@ static int vdi_create(const char *filename, QEMUOptionParameter *options)
     header.disk_size = bytes;
     header.block_size = block_size;
     header.blocks_in_image = blocks;
+    if (image_type == VDI_TYPE_STATIC) {
+        header.blocks_allocated = blocks;
+    }
     uuid_generate(header.uuid_image);
     uuid_generate(header.uuid_last_snap);
     /* There is no need to set header.uuid_link or header.uuid_parent here. */

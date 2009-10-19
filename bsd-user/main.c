@@ -37,10 +37,16 @@
 #define DEBUG_LOGFILE "/tmp/qemu.log"
 
 int singlestep;
+#if defined(CONFIG_USE_GUEST_BASE)
+unsigned long mmap_min_addr;
+unsigned long guest_base;
+int have_guest_base;
+#endif
 
 static const char *interp_prefix = CONFIG_QEMU_PREFIX;
 const char *qemu_uname_release = CONFIG_UNAME_RELEASE;
 extern char **environ;
+enum BSDType bsd_type;
 
 /* XXX: on x86 MAP_GROWSDOWN only works if ESP <= address + 32, so
    we allocate a bigger stack. Need a better solution, for example
@@ -163,7 +169,7 @@ static void set_idt(int n, unsigned int dpl)
 }
 #endif
 
-void cpu_loop(CPUX86State *env, enum BSDType bsd_type)
+void cpu_loop(CPUX86State *env)
 {
     int trapnr;
     abi_ulong pc;
@@ -174,27 +180,90 @@ void cpu_loop(CPUX86State *env, enum BSDType bsd_type)
         switch(trapnr) {
         case 0x80:
             /* syscall from int $0x80 */
-            env->regs[R_EAX] = do_openbsd_syscall(env,
-                                                  env->regs[R_EAX],
-                                                  env->regs[R_EBX],
-                                                  env->regs[R_ECX],
-                                                  env->regs[R_EDX],
-                                                  env->regs[R_ESI],
-                                                  env->regs[R_EDI],
-                                                  env->regs[R_EBP]);
+            if (bsd_type == target_freebsd) {
+                abi_ulong params = (abi_ulong) env->regs[R_ESP] +
+                    sizeof(int32_t);
+                int32_t syscall_nr = env->regs[R_EAX];
+                int32_t arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8;
+
+                if (syscall_nr == TARGET_FREEBSD_NR_syscall) {
+                    get_user_s32(syscall_nr, params);
+                    params += sizeof(int32_t);
+                } else if (syscall_nr == TARGET_FREEBSD_NR___syscall) {
+                    get_user_s32(syscall_nr, params);
+                    params += sizeof(int64_t);
+                }
+                get_user_s32(arg1, params);
+                params += sizeof(int32_t);
+                get_user_s32(arg2, params);
+                params += sizeof(int32_t);
+                get_user_s32(arg3, params);
+                params += sizeof(int32_t);
+                get_user_s32(arg4, params);
+                params += sizeof(int32_t);
+                get_user_s32(arg5, params);
+                params += sizeof(int32_t);
+                get_user_s32(arg6, params);
+                params += sizeof(int32_t);
+                get_user_s32(arg7, params);
+                params += sizeof(int32_t);
+                get_user_s32(arg8, params);
+                env->regs[R_EAX] = do_freebsd_syscall(env,
+                                                      syscall_nr,
+                                                      arg1,
+                                                      arg2,
+                                                      arg3,
+                                                      arg4,
+                                                      arg5,
+                                                      arg6,
+                                                      arg7,
+                                                      arg8);
+            } else { //if (bsd_type == target_openbsd)
+                env->regs[R_EAX] = do_openbsd_syscall(env,
+                                                      env->regs[R_EAX],
+                                                      env->regs[R_EBX],
+                                                      env->regs[R_ECX],
+                                                      env->regs[R_EDX],
+                                                      env->regs[R_ESI],
+                                                      env->regs[R_EDI],
+                                                      env->regs[R_EBP]);
+            }
+            if (((abi_ulong)env->regs[R_EAX]) >= (abi_ulong)(-515)) {
+                env->regs[R_EAX] = -env->regs[R_EAX];
+                env->eflags |= CC_C;
+            } else {
+                env->eflags &= ~CC_C;
+            }
             break;
 #ifndef TARGET_ABI32
         case EXCP_SYSCALL:
-            /* linux syscall from syscall intruction */
-            env->regs[R_EAX] = do_openbsd_syscall(env,
-                                                  env->regs[R_EAX],
-                                                  env->regs[R_EDI],
-                                                  env->regs[R_ESI],
-                                                  env->regs[R_EDX],
-                                                  env->regs[10],
-                                                  env->regs[8],
-                                                  env->regs[9]);
+            /* syscall from syscall intruction */
+            if (bsd_type == target_freebsd)
+                env->regs[R_EAX] = do_freebsd_syscall(env,
+                                                      env->regs[R_EAX],
+                                                      env->regs[R_EDI],
+                                                      env->regs[R_ESI],
+                                                      env->regs[R_EDX],
+                                                      env->regs[R_ECX],
+                                                      env->regs[8],
+                                                      env->regs[9], 0, 0);
+            else { //if (bsd_type == target_openbsd)
+                env->regs[R_EAX] = do_openbsd_syscall(env,
+                                                      env->regs[R_EAX],
+                                                      env->regs[R_EDI],
+                                                      env->regs[R_ESI],
+                                                      env->regs[R_EDX],
+                                                      env->regs[10],
+                                                      env->regs[8],
+                                                      env->regs[9]);
+            }
             env->eip = env->exception_next_eip;
+            if (((abi_ulong)env->regs[R_EAX]) >= (abi_ulong)(-515)) {
+                env->regs[R_EAX] = -env->regs[R_EAX];
+                env->eflags |= CC_C;
+            } else {
+                env->eflags &= ~CC_C;
+            }
             break;
 #endif
 #if 0
@@ -441,7 +510,7 @@ static void flush_windows(CPUSPARCState *env)
 #endif
 }
 
-void cpu_loop(CPUSPARCState *env, enum BSDType bsd_type)
+void cpu_loop(CPUSPARCState *env)
 {
     int trapnr, ret, syscall_nr;
     //target_siginfo_t info;
@@ -453,6 +522,10 @@ void cpu_loop(CPUSPARCState *env, enum BSDType bsd_type)
 #ifndef TARGET_SPARC64
         case 0x80:
 #else
+        /* FreeBSD uses 0x141 for syscalls too */
+        case 0x141:
+            if (bsd_type != target_freebsd)
+                goto badtrap;
         case 0x100:
 #endif
             syscall_nr = env->gregs[1];
@@ -460,7 +533,7 @@ void cpu_loop(CPUSPARCState *env, enum BSDType bsd_type)
                 ret = do_freebsd_syscall(env, syscall_nr,
                                          env->regwptr[0], env->regwptr[1],
                                          env->regwptr[2], env->regwptr[3],
-                                         env->regwptr[4], env->regwptr[5]);
+                                         env->regwptr[4], env->regwptr[5], 0, 0);
             else if (bsd_type == target_netbsd)
                 ret = do_netbsd_syscall(env, syscall_nr,
                                         env->regwptr[0], env->regwptr[1],
@@ -477,6 +550,7 @@ void cpu_loop(CPUSPARCState *env, enum BSDType bsd_type)
                                          env->regwptr[4], env->regwptr[5]);
             }
             if ((unsigned int)ret >= (unsigned int)(-515)) {
+                ret = -ret;
 #if defined(TARGET_SPARC64) && !defined(TARGET_ABI32)
                 env->xcc |= PSR_CARRY;
 #else
@@ -582,6 +656,9 @@ void cpu_loop(CPUSPARCState *env, enum BSDType bsd_type)
             }
             break;
         default:
+#ifdef TARGET_SPARC64
+        badtrap:
+#endif
             printf ("Unhandled trap: 0x%x\n", trapnr);
             cpu_dump_state(env, stderr, fprintf, 0);
             exit (1);
@@ -607,6 +684,9 @@ static void usage(void)
            "-drop-ld-preload  drop LD_PRELOAD for target process\n"
            "-E var=value      sets/modifies targets environment variable(s)\n"
            "-U var            unsets targets environment variable(s)\n"
+#if defined(CONFIG_USE_GUEST_BASE)
+           "-B address        set guest_base address to address\n"
+#endif
            "-bsd type         select emulated BSD type FreeBSD/NetBSD/OpenBSD (default)\n"
            "\n"
            "Debug options:\n"
@@ -660,7 +740,7 @@ int main(int argc, char **argv)
     int gdbstub_port = 0;
     char **target_environ, **wrk;
     envlist_t *envlist = NULL;
-    enum BSDType bsd_type = target_openbsd;
+    bsd_type = target_openbsd;
 
     if (argc <= 1)
         usage();
@@ -746,6 +826,11 @@ int main(int argc, char **argv)
 #endif
                 exit(1);
             }
+#if defined(CONFIG_USE_GUEST_BASE)
+        } else if (!strcmp(r, "B")) {
+           guest_base = strtol(argv[optind++], NULL, 0);
+           have_guest_base = 1;
+#endif
         } else if (!strcmp(r, "drop-ld-preload")) {
             (void) envlist_unsetenv(envlist, "LD_PRELOAD");
         } else if (!strcmp(r, "bsd")) {
@@ -815,6 +900,34 @@ int main(int argc, char **argv)
     target_environ = envlist_to_environ(envlist, NULL);
     envlist_free(envlist);
 
+#if defined(CONFIG_USE_GUEST_BASE)
+    /*
+     * Now that page sizes are configured in cpu_init() we can do
+     * proper page alignment for guest_base.
+     */
+    guest_base = HOST_PAGE_ALIGN(guest_base);
+
+    /*
+     * Read in mmap_min_addr kernel parameter.  This value is used
+     * When loading the ELF image to determine whether guest_base
+     * is needed.
+     *
+     * When user has explicitly set the quest base, we skip this
+     * test.
+     */
+    if (!have_guest_base) {
+        FILE *fp;
+
+        if ((fp = fopen("/proc/sys/vm/mmap_min_addr", "r")) != NULL) {
+            unsigned long tmp;
+            if (fscanf(fp, "%lu", &tmp) == 1) {
+                mmap_min_addr = tmp;
+                qemu_log("host mmap_min_addr=0x%lx\n", mmap_min_addr);
+            }
+            fclose(fp);
+        }
+    }
+#endif /* CONFIG_USE_GUEST_BASE */
 
     if (loader_exec(filename, argv+optind, target_environ, regs, info) != 0) {
         printf("Error loading %s\n", filename);
@@ -828,6 +941,9 @@ int main(int argc, char **argv)
     free(target_environ);
 
     if (qemu_log_enabled()) {
+#if defined(CONFIG_USE_GUEST_BASE)
+        qemu_log("guest_base  0x%lx\n", guest_base);
+#endif
         log_page_dump();
 
         qemu_log("start_brk   0x" TARGET_ABI_FMT_lx "\n", info->start_brk);
@@ -989,7 +1105,7 @@ int main(int argc, char **argv)
         gdbserver_start (gdbstub_port);
         gdb_handlesig(env, 0);
     }
-    cpu_loop(env, bsd_type);
+    cpu_loop(env);
     /* never exits */
     return 0;
 }

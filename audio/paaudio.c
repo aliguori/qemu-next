@@ -120,16 +120,15 @@ static void *qpa_thread_out (void *arg)
     return NULL;
 }
 
-static int qpa_run_out (HWVoiceOut *hw)
+static int qpa_run_out (HWVoiceOut *hw, int live)
 {
-    int live, decr;
+    int decr;
     PAVoiceOut *pa = (PAVoiceOut *) hw;
 
     if (audio_pt_lock (&pa->pt, AUDIO_FUNC)) {
         return 0;
     }
 
-    live = audio_pcm_hw_get_live_out (hw);
     decr = audio_MIN (live, pa->decr);
     pa->decr -= decr;
     pa->live = live - decr;
@@ -520,7 +519,7 @@ struct audio_driver pa_audio_driver = {
     .init           = qpa_audio_init,
     .fini           = qpa_audio_fini,
     .pcm_ops        = &qpa_pcm_ops,
-    .can_be_default = 0,
+    .can_be_default = 1,
     .max_voices_out = INT_MAX,
     .max_voices_in  = INT_MAX,
     .voice_size_out = sizeof (PAVoiceOut),

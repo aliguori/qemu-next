@@ -37,6 +37,8 @@
 #include <objbase.h>
 #include <dsound.h>
 
+#include "audio_win_int.h"
+
 /* #define DEBUG_DSOUND */
 
 static struct {
@@ -57,7 +59,7 @@ static struct {
     .bufsize_out        = 16384,
     .settings.freq      = 44100,
     .settings.nchannels = 2,
-    .settings.fmt       = AUD_FMT_S16
+    .settings.fmt       = AUD_FMT_S16,
     .latency_millis     = 10
 };
 
@@ -302,101 +304,6 @@ static int dsound_restore_out (LPDIRECTSOUNDBUFFER dsb)
 
     dolog ("%d attempts to restore playback buffer failed\n", i);
     return -1;
-}
-
-static int waveformat_from_audio_settings (WAVEFORMATEX *wfx,
-                                           struct audsettings *as)
-{
-    memset (wfx, 0, sizeof (*wfx));
-
-    wfx->wFormatTag = WAVE_FORMAT_PCM;
-    wfx->nChannels = as->nchannels;
-    wfx->nSamplesPerSec = as->freq;
-    wfx->nAvgBytesPerSec = as->freq << (as->nchannels == 2);
-    wfx->nBlockAlign = 1 << (as->nchannels == 2);
-    wfx->cbSize = 0;
-
-    switch (as->fmt) {
-    case AUD_FMT_S8:
-    case AUD_FMT_U8:
-        wfx->wBitsPerSample = 8;
-        break;
-
-    case AUD_FMT_S16:
-    case AUD_FMT_U16:
-        wfx->wBitsPerSample = 16;
-        wfx->nAvgBytesPerSec <<= 1;
-        wfx->nBlockAlign <<= 1;
-        break;
-
-    case AUD_FMT_S32:
-    case AUD_FMT_U32:
-        wfx->wBitsPerSample = 32;
-        wfx->nAvgBytesPerSec <<= 2;
-        wfx->nBlockAlign <<= 2;
-        break;
-
-    default:
-        dolog ("Internal logic error: Bad audio format %d\n", as->freq);
-        return -1;
-    }
-
-    return 0;
-}
-
-static int waveformat_to_audio_settings (WAVEFORMATEX *wfx,
-                                         struct audsettings *as)
-{
-    if (wfx->wFormatTag != WAVE_FORMAT_PCM) {
-        dolog ("Invalid wave format, tag is not PCM, but %d\n",
-               wfx->wFormatTag);
-        return -1;
-    }
-
-    if (!wfx->nSamplesPerSec) {
-        dolog ("Invalid wave format, frequency is zero\n");
-        return -1;
-    }
-    as->freq = wfx->nSamplesPerSec;
-
-    switch (wfx->nChannels) {
-    case 1:
-        as->nchannels = 1;
-        break;
-
-    case 2:
-        as->nchannels = 2;
-        break;
-
-    default:
-        dolog (
-            "Invalid wave format, number of channels is not 1 or 2, but %d\n",
-            wfx->nChannels
-            );
-        return -1;
-    }
-
-    switch (wfx->wBitsPerSample) {
-    case 8:
-        as->fmt = AUD_FMT_U8;
-        break;
-
-    case 16:
-        as->fmt = AUD_FMT_S16;
-        break;
-
-    case 32:
-        as->fmt = AUD_FMT_S32;
-        break;
-
-    default:
-        dolog ("Invalid wave format, bits per sample is not "
-               "8, 16 or 32, but %d\n",
-               wfx->wBitsPerSample);
-        return -1;
-    }
-
-    return 0;
 }
 
 #include "dsound_template.h"
@@ -658,13 +565,13 @@ static int dsound_write (SWVoiceOut *sw, void *buf, int len)
     return audio_pcm_sw_write (sw, buf, len);
 }
 
-static int dsound_run_out (HWVoiceOut *hw)
+static int dsound_run_out (HWVoiceOut *hw, int live)
 {
     int err;
     HRESULT hr;
     DSoundVoiceOut *ds = (DSoundVoiceOut *) hw;
     LPDIRECTSOUNDBUFFER dsb = ds->dsound_buffer;
-    int live, len, hwshift;
+    int len, hwshift;
     DWORD blen1, blen2;
     DWORD len1, len2;
     DWORD decr;
@@ -679,8 +586,6 @@ static int dsound_run_out (HWVoiceOut *hw)
 
     hwshift = hw->info.shift;
     bufsize = hw->samples << hwshift;
-
-    live = audio_pcm_hw_get_live_out (hw);
 
     hr = IDirectSoundBuffer_GetCurrentPosition (
         dsb,
@@ -1054,7 +959,7 @@ static struct audio_option dsound_options[] = {
     {
         .name  = "SET_PRIMARY",
         .tag   = AUD_OPT_BOOL,
-        .valp  = &conf.set_primary
+        .valp  = &conf.set_primary,
         .descr = "Set the parameters of primary buffer"
     },
     {
@@ -1121,5 +1026,5 @@ struct audio_driver dsound_audio_driver = {
     .max_voices_out = INT_MAX,
     .max_voices_in  = 1,
     .voice_size_out = sizeof (DSoundVoiceOut),
-    .oice_size_in   = sizeof (DSoundVoiceIn)
+    .voice_size_in  = sizeof (DSoundVoiceIn)
 };

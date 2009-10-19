@@ -27,6 +27,7 @@
 #include "sysemu.h"
 #include "nvram.h"
 #include "qemu-log.h"
+#include "loader.h"
 
 //#define PPC_DEBUG_IRQ
 //#define PPC_DEBUG_TB
@@ -397,7 +398,7 @@ static inline uint64_t cpu_ppc_get_tb(ppc_tb_t *tb_env, uint64_t vmclk,
                                       int64_t tb_offset)
 {
     /* TB time in tb periods */
-    return muldiv64(vmclk, tb_env->tb_freq, ticks_per_sec) + tb_offset;
+    return muldiv64(vmclk, tb_env->tb_freq, get_ticks_per_sec()) + tb_offset;
 }
 
 uint32_t cpu_ppc_load_tbl (CPUState *env)
@@ -430,7 +431,7 @@ uint32_t cpu_ppc_load_tbu (CPUState *env)
 static inline void cpu_ppc_store_tb(ppc_tb_t *tb_env, uint64_t vmclk,
                                     int64_t *tb_offsetp, uint64_t value)
 {
-    *tb_offsetp = value - muldiv64(vmclk, tb_env->tb_freq, ticks_per_sec);
+    *tb_offsetp = value - muldiv64(vmclk, tb_env->tb_freq, get_ticks_per_sec());
     LOG_TB("%s: tb %016" PRIx64 " offset %08" PRIx64 "\n",
                 __func__, value, *tb_offsetp);
 }
@@ -557,9 +558,9 @@ static inline uint32_t _cpu_ppc_load_decr(CPUState *env, uint64_t next)
 
     diff = next - qemu_get_clock(vm_clock);
     if (diff >= 0)
-        decr = muldiv64(diff, tb_env->decr_freq, ticks_per_sec);
+        decr = muldiv64(diff, tb_env->decr_freq, get_ticks_per_sec());
     else
-        decr = -muldiv64(-diff, tb_env->decr_freq, ticks_per_sec);
+        decr = -muldiv64(-diff, tb_env->decr_freq, get_ticks_per_sec());
     LOG_TB("%s: %08" PRIx32 "\n", __func__, decr);
 
     return decr;
@@ -586,7 +587,7 @@ uint64_t cpu_ppc_load_purr (CPUState *env)
 
     diff = qemu_get_clock(vm_clock) - tb_env->purr_start;
 
-    return tb_env->purr_load + muldiv64(diff, tb_env->tb_freq, ticks_per_sec);
+    return tb_env->purr_load + muldiv64(diff, tb_env->tb_freq, get_ticks_per_sec());
 }
 
 /* When decrementer expires,
@@ -618,7 +619,7 @@ static void __cpu_ppc_store_decr (CPUState *env, uint64_t *nextp,
     LOG_TB("%s: %08" PRIx32 " => %08" PRIx32 "\n", __func__,
                 decr, value);
     now = qemu_get_clock(vm_clock);
-    next = now + muldiv64(value, ticks_per_sec, tb_env->decr_freq);
+    next = now + muldiv64(value, get_ticks_per_sec(), tb_env->decr_freq);
     if (is_excp)
         next += *nextp - now;
     if (next == now)
@@ -788,7 +789,7 @@ static void cpu_4xx_fit_cb (void *opaque)
         /* Cannot occur, but makes gcc happy */
         return;
     }
-    next = now + muldiv64(next, ticks_per_sec, tb_env->tb_freq);
+    next = now + muldiv64(next, get_ticks_per_sec(), tb_env->tb_freq);
     if (next == now)
         next++;
     qemu_mod_timer(ppcemb_timer->fit_timer, next);
@@ -818,7 +819,7 @@ static void start_stop_pit (CPUState *env, ppc_tb_t *tb_env, int is_excp)
                     __func__, ppcemb_timer->pit_reload);
         now = qemu_get_clock(vm_clock);
         next = now + muldiv64(ppcemb_timer->pit_reload,
-                              ticks_per_sec, tb_env->decr_freq);
+                              get_ticks_per_sec(), tb_env->decr_freq);
         if (is_excp)
             next += tb_env->decr_next - now;
         if (next == now)
@@ -878,7 +879,7 @@ static void cpu_4xx_wdt_cb (void *opaque)
         /* Cannot occur, but makes gcc happy */
         return;
     }
-    next = now + muldiv64(next, ticks_per_sec, tb_env->decr_freq);
+    next = now + muldiv64(next, get_ticks_per_sec(), tb_env->decr_freq);
     if (next == now)
         next++;
     LOG_TB("%s: TCR " TARGET_FMT_lx " TSR " TARGET_FMT_lx "\n", __func__,
@@ -1255,7 +1256,7 @@ int PPC_NVRAM_set_params (nvram_t *nvram, uint16_t NVRAM_size,
     NVRAM_set_lword(nvram,  0x3C, kernel_size);
     if (cmdline) {
         /* XXX: put the cmdline in NVRAM too ? */
-        pstrcpy_targphys(CMDLINE_ADDR, RAM_size - CMDLINE_ADDR, cmdline);
+        pstrcpy_targphys("cmdline", CMDLINE_ADDR, RAM_size - CMDLINE_ADDR, cmdline);
         NVRAM_set_lword(nvram,  0x40, CMDLINE_ADDR);
         NVRAM_set_lword(nvram,  0x44, strlen(cmdline));
     } else {

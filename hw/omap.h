@@ -852,11 +852,13 @@ struct omap_tipb_bridge_s *omap_tipb_bridge_init(target_phys_addr_t base,
 
 struct omap_uart_s;
 struct omap_uart_s *omap_uart_init(target_phys_addr_t base,
-                qemu_irq irq, omap_clk fclk, omap_clk iclk,
-                qemu_irq txdma, qemu_irq rxdma, CharDriverState *chr);
+                                   qemu_irq irq, omap_clk fclk, omap_clk iclk,
+                                   qemu_irq txdma, qemu_irq rxdma,
+                                   CharDriverState *chr, const char *label);
 struct omap_uart_s *omap2_uart_init(struct omap_target_agent_s *ta,
-                qemu_irq irq, omap_clk fclk, omap_clk iclk,
-                qemu_irq txdma, qemu_irq rxdma, CharDriverState *chr);
+                                    qemu_irq irq, omap_clk fclk, omap_clk iclk,
+                                    qemu_irq txdma, qemu_irq rxdma,
+                                    CharDriverState *chr, const char *label);
 void omap_uart_reset(struct omap_uart_s *s);
 void omap_uart_attach(struct omap_uart_s *s, CharDriverState *chr);
 
@@ -1367,8 +1369,8 @@ enum {
 
 # ifdef MEM_VERBOSE
 struct io_fn {
-    CPUReadMemoryFunc **mem_read;
-    CPUWriteMemoryFunc **mem_write;
+    CPUReadMemoryFunc * const *mem_read;
+    CPUWriteMemoryFunc * const *mem_write;
     void *opaque;
     int in;
 };
@@ -1440,12 +1442,12 @@ static void io_writew(void *opaque, target_phys_addr_t addr, uint32_t value)
     s->in --;
 }
 
-static CPUReadMemoryFunc *io_readfn[] = { io_readb, io_readh, io_readw, };
-static CPUWriteMemoryFunc *io_writefn[] = { io_writeb, io_writeh, io_writew, };
+static CPUReadMemoryFunc * const io_readfn[] = { io_readb, io_readh, io_readw, };
+static CPUWriteMemoryFunc * const io_writefn[] = { io_writeb, io_writeh, io_writew, };
 
-inline static int debug_register_io_memory(
-                CPUReadMemoryFunc **mem_read, CPUWriteMemoryFunc **mem_write,
-                void *opaque)
+inline static int debug_register_io_memory(CPUReadMemoryFunc * const *mem_read,
+                                           CPUWriteMemoryFunc * const *mem_write,
+                                           void *opaque)
 {
     struct io_fn *s = qemu_malloc(sizeof(struct io_fn));
 
@@ -1463,8 +1465,8 @@ inline static int debug_register_io_memory(
 
 # ifdef L4_MUX_HACK
 #  undef l4_register_io_memory
-int l4_register_io_memory(CPUReadMemoryFunc **mem_read,
-                CPUWriteMemoryFunc **mem_write, void *opaque);
+int l4_register_io_memory(CPUReadMemoryFunc * const *mem_read,
+                          CPUWriteMemoryFunc * const *mem_write, void *opaque);
 # endif
 
 #endif /* hw_omap_h */

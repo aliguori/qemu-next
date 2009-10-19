@@ -3550,7 +3550,7 @@ static inline void omap3_wdt_timer_update(struct omap3_wdt_s *wdt_timer)
     int64_t expires;
     if (wdt_timer->active) {
         expires = muldiv64(0xffffffffll - wdt_timer->wcrr,
-                           ticks_per_sec, wdt_timer->rate);
+                           get_ticks_per_sec(), wdt_timer->rate);
         qemu_mod_timer(wdt_timer->timer, wdt_timer->time + expires);
     } else
         qemu_del_timer(wdt_timer->timer);
@@ -3567,7 +3567,7 @@ static inline uint32_t omap3_wdt_timer_read(struct omap3_wdt_s *timer)
 
     if (timer->active) {
         distance = qemu_get_clock(vm_clock) - timer->time;
-        distance = muldiv64(distance, timer->rate, ticks_per_sec);
+        distance = muldiv64(distance, timer->rate, get_ticks_per_sec());
 
         if (distance >= 0xffffffff - timer->wcrr)
             return 0xffffffff;
@@ -4767,21 +4767,21 @@ struct omap_mpu_state_s *omap3530_mpu_init(unsigned long sdram_size,
                                  omap_findclk(s, "omap3_uart1_iclk"),
                                  s->drq[OMAP3XXX_DMA_UART1_TX],
                                  s->drq[OMAP3XXX_DMA_UART1_RX],
-                                 chr_uart1);
+                                 chr_uart1, "uart1");
     s->uart[1] = omap2_uart_init(omap3_l4ta_init(s->l4, L4A_UART2),
                                  s->irq[0][OMAP_INT_3XXX_UART2_IRQ],
                                  omap_findclk(s, "omap3_uart2_fclk"),
                                  omap_findclk(s, "omap3_uart2_iclk"),
                                  s->drq[OMAP3XXX_DMA_UART2_TX],
                                  s->drq[OMAP3XXX_DMA_UART2_RX],
-                                 chr_uart2);
+                                 chr_uart2, "uart2");
     s->uart[2] = omap2_uart_init(omap3_l4ta_init(s->l4, L4A_UART3),
                                  s->irq[0][OMAP_INT_3XXX_UART3_IRQ],
                                  omap_findclk(s, "omap3_uart2_fclk"),
                                  omap_findclk(s, "omap3_uart3_iclk"),
                                  s->drq[OMAP3XXX_DMA_UART3_TX],
                                  s->drq[OMAP3XXX_DMA_UART3_RX],
-                                 chr_uart3);
+                                 chr_uart3, "uart3");
     
     s->dss = omap3_dss_init(omap3_l4ta_init(s->l4, L4A_DSS),
                             s->irq[0][OMAP_INT_3XXX_DSS_IRQ],

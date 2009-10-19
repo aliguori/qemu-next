@@ -355,13 +355,13 @@ static void opba_writel (void *opaque,
     opba_writeb(opaque, addr + 1, value >> 16);
 }
 
-static CPUReadMemoryFunc *opba_read[] = {
+static CPUReadMemoryFunc * const opba_read[] = {
     &opba_readb,
     &opba_readw,
     &opba_readl,
 };
 
-static CPUWriteMemoryFunc *opba_write[] = {
+static CPUWriteMemoryFunc * const opba_write[] = {
     &opba_writeb,
     &opba_writew,
     &opba_writel,
@@ -813,13 +813,13 @@ static void ppc405_gpio_writel (void *opaque,
 #endif
 }
 
-static CPUReadMemoryFunc *ppc405_gpio_read[] = {
+static CPUReadMemoryFunc * const ppc405_gpio_read[] = {
     &ppc405_gpio_readb,
     &ppc405_gpio_readw,
     &ppc405_gpio_readl,
 };
 
-static CPUWriteMemoryFunc *ppc405_gpio_write[] = {
+static CPUWriteMemoryFunc * const ppc405_gpio_write[] = {
     &ppc405_gpio_writeb,
     &ppc405_gpio_writew,
     &ppc405_gpio_writel,
@@ -1214,13 +1214,13 @@ static void ppc4xx_i2c_writel (void *opaque,
     ppc4xx_i2c_writeb(opaque, addr + 3, value);
 }
 
-static CPUReadMemoryFunc *i2c_read[] = {
+static CPUReadMemoryFunc * const i2c_read[] = {
     &ppc4xx_i2c_readb,
     &ppc4xx_i2c_readw,
     &ppc4xx_i2c_readl,
 };
 
-static CPUWriteMemoryFunc *i2c_write[] = {
+static CPUWriteMemoryFunc * const i2c_write[] = {
     &ppc4xx_i2c_writeb,
     &ppc4xx_i2c_writew,
     &ppc4xx_i2c_writel,
@@ -1379,7 +1379,7 @@ static uint32_t ppc4xx_gpt_readl (void *opaque, target_phys_addr_t addr)
     case 0x00:
         /* Time base counter */
         ret = muldiv64(qemu_get_clock(vm_clock) + gpt->tb_offset,
-                       gpt->tb_freq, ticks_per_sec);
+                       gpt->tb_freq, get_ticks_per_sec());
         break;
     case 0x10:
         /* Output enable */
@@ -1434,7 +1434,7 @@ static void ppc4xx_gpt_writel (void *opaque,
     switch (addr) {
     case 0x00:
         /* Time base counter */
-        gpt->tb_offset = muldiv64(value, ticks_per_sec, gpt->tb_freq)
+        gpt->tb_offset = muldiv64(value, get_ticks_per_sec(), gpt->tb_freq)
             - qemu_get_clock(vm_clock);
         ppc4xx_gpt_compute_timer(gpt);
         break;
@@ -1482,13 +1482,13 @@ static void ppc4xx_gpt_writel (void *opaque,
     }
 }
 
-static CPUReadMemoryFunc *gpt_read[] = {
+static CPUReadMemoryFunc * const gpt_read[] = {
     &ppc4xx_gpt_readb,
     &ppc4xx_gpt_readw,
     &ppc4xx_gpt_readl,
 };
 
-static CPUWriteMemoryFunc *gpt_write[] = {
+static CPUWriteMemoryFunc * const gpt_write[] = {
     &ppc4xx_gpt_writeb,
     &ppc4xx_gpt_writew,
     &ppc4xx_gpt_writel,

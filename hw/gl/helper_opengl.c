@@ -110,7 +110,7 @@ static int pthread_cond_signal(pthread_cond_t *cond)
 #else
 #include <pthread.h>
 #endif
-#include "sys-queue.h"
+#include "qemu-queue.h"
 typedef struct opengl_thread_state_s {
     struct helper_opengl_s state;
     pthread_t thread;
@@ -118,12 +118,12 @@ typedef struct opengl_thread_state_s {
     pthread_cond_t runcond, finishcond;
     int runstate, finishstate;
     uint32_t regbase;
-    LIST_ENTRY(opengl_thread_state_s) link;
+    QLIST_ENTRY(opengl_thread_state_s) link;
 } OpenGLThreadState;
 typedef struct OpenGLState {
     CPUState *env;
     uint32_t pidquery;
-    LIST_HEAD(guest_list_s, opengl_thread_state_s) guest_list;
+    QLIST_HEAD(guest_list_s, opengl_thread_state_s) guest_list;
 } OpenGLState;
 #else
 typedef struct helper_opengl_s OpenGLState;
@@ -1072,13 +1072,13 @@ static OpenGLThreadState *helper_opengl_newthread(OpenGLState *s, uint32_t pid)
     thread_state->state.env = s->env;
     thread_state->state.pid = pid;
     thread_state->regbase = QEMUGL_GLOB_HWREG_SIZE;
-    if (LIST_EMPTY(&s->guest_list)) {
-        LIST_INSERT_HEAD(&s->guest_list, thread_state, link);
+    if (QLIST_EMPTY(&s->guest_list)) {
+        QLIST_INSERT_HEAD(&s->guest_list, thread_state, link);
     } else {
         OpenGLThreadState *old_state;
-        LIST_FOREACH(old_state, &s->guest_list, link) {
+        QLIST_FOREACH(old_state, &s->guest_list, link) {
             if (old_state->regbase > thread_state->regbase) {
-                LIST_INSERT_BEFORE(old_state, thread_state, link);
+                QLIST_INSERT_BEFORE(old_state, thread_state, link);
                 break;
             }
             thread_state->regbase += QEMUGL_HWREG_MASK + 1;
@@ -1088,8 +1088,8 @@ static OpenGLThreadState *helper_opengl_newthread(OpenGLState *s, uint32_t pid)
                 qemu_free(thread_state);
                 return NULL;
             }
-            if (!LIST_NEXT(old_state, link)) {
-                LIST_INSERT_AFTER(old_state, thread_state, link);
+            if (!QLIST_NEXT(old_state, link)) {
+                QLIST_INSERT_AFTER(old_state, thread_state, link);
                 break;
             }
         }
@@ -1114,7 +1114,7 @@ static void helper_opengl_removethread(OpenGLState *s,
                                        OpenGLThreadState *thread_state)
 {
     pthread_join(thread_state->thread, NULL);
-    LIST_REMOVE(thread_state, link);
+    QLIST_REMOVE(thread_state, link);
     if (pthread_cond_destroy(&thread_state->runcond)) {
         GL_ERROR("unable to destroy opengl thread runcond for guest "
                  "process %d", thread_state->state.pid);
@@ -1177,7 +1177,7 @@ static OpenGLThreadState *helper_opengl_threadstate(OpenGLState *s,
     OpenGLThreadState *thread_state;
     uint32_t base = ((addr - QEMUGL_GLOB_HWREG_SIZE) & ~QEMUGL_HWREG_MASK)
                     + QEMUGL_GLOB_HWREG_SIZE;
-    LIST_FOREACH(thread_state, &s->guest_list, link) {
+    QLIST_FOREACH(thread_state, &s->guest_list, link) {
         if (thread_state->regbase == base) {
             return thread_state;
         }
@@ -1415,7 +1415,7 @@ void *helper_opengl_init(CPUState *env)
     s->env = env;
 #ifdef QEMUGL_MULTITHREADED
     s->pidquery = QEMUGL_PID_SIGNATURE;
-    LIST_INIT(&s->guest_list);
+    QLIST_INIT(&s->guest_list);
 #endif
     cpu_register_physical_memory(QEMUGL_HWREG_REGIONBASE,
                                  QEMUGL_HWREG_REGIONSIZE, 

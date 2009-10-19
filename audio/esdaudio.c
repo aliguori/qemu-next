@@ -131,7 +131,7 @@ static void *qesd_thread_out (void *arg)
                 int wsamples = written >> hw->info.shift;
                 int wbytes = wsamples << hw->info.shift;
                 if (wbytes != written) {
-                    dolog ("warning: Misaligned write %d (requested %d), "
+                    dolog ("warning: Misaligned write %d (requested %zd), "
                            "alignment %d\n",
                            wbytes, written, hw->info.align + 1);
                 }
@@ -158,16 +158,15 @@ static void *qesd_thread_out (void *arg)
     return NULL;
 }
 
-static int qesd_run_out (HWVoiceOut *hw)
+static int qesd_run_out (HWVoiceOut *hw, int live)
 {
-    int live, decr;
+    int decr;
     ESDVoiceOut *esd = (ESDVoiceOut *) hw;
 
     if (audio_pt_lock (&esd->pt, AUDIO_FUNC)) {
         return 0;
     }
 
-    live = audio_pcm_hw_get_live_out (hw);
     decr = audio_MIN (live, esd->decr);
     esd->decr -= decr;
     esd->live = live - decr;
@@ -361,7 +360,7 @@ static void *qesd_thread_in (void *arg)
                 int rsamples = nread >> hw->info.shift;
                 int rbytes = rsamples << hw->info.shift;
                 if (rbytes != nread) {
-                    dolog ("warning: Misaligned write %d (requested %d), "
+                    dolog ("warning: Misaligned write %d (requested %zd), "
                            "alignment %d\n",
                            rbytes, nread, hw->info.align + 1);
                 }

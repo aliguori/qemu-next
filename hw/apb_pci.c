@@ -39,6 +39,15 @@ do { printf("APB: " fmt , ## __VA_ARGS__); } while (0)
 #define APB_DPRINTF(fmt, ...)
 #endif
 
+/*
+ * Chipset docs:
+ * PBM: "UltraSPARC IIi User's Manual",
+ * http://www.sun.com/processors/manuals/805-0087.pdf
+ *
+ * APB: "Advanced PCI Bridge (APB) User's Manual",
+ * http://www.sun.com/processors/manuals/805-1251.pdf
+ */
+
 typedef target_phys_addr_t pci_addr_t;
 #include "pci_host.h"
 
@@ -75,13 +84,13 @@ static uint32_t pci_apb_config_readl (void *opaque,
     return val;
 }
 
-static CPUWriteMemoryFunc *pci_apb_config_write[] = {
+static CPUWriteMemoryFunc * const pci_apb_config_write[] = {
     &pci_apb_config_writel,
     &pci_apb_config_writel,
     &pci_apb_config_writel,
 };
 
-static CPUReadMemoryFunc *pci_apb_config_read[] = {
+static CPUReadMemoryFunc * const pci_apb_config_read[] = {
     &pci_apb_config_readl,
     &pci_apb_config_readl,
     &pci_apb_config_readl,
@@ -124,25 +133,25 @@ static uint32_t apb_config_readl (void *opaque,
     return val;
 }
 
-static CPUWriteMemoryFunc *apb_config_write[] = {
+static CPUWriteMemoryFunc * const apb_config_write[] = {
     &apb_config_writel,
     &apb_config_writel,
     &apb_config_writel,
 };
 
-static CPUReadMemoryFunc *apb_config_read[] = {
+static CPUReadMemoryFunc * const apb_config_read[] = {
     &apb_config_readl,
     &apb_config_readl,
     &apb_config_readl,
 };
 
-static CPUWriteMemoryFunc *pci_apb_write[] = {
+static CPUWriteMemoryFunc * const pci_apb_write[] = {
     &pci_host_data_writeb,
     &pci_host_data_writew,
     &pci_host_data_writel,
 };
 
-static CPUReadMemoryFunc *pci_apb_read[] = {
+static CPUReadMemoryFunc * const pci_apb_read[] = {
     &pci_host_data_readb,
     &pci_host_data_readw,
     &pci_host_data_readl,
@@ -151,26 +160,26 @@ static CPUReadMemoryFunc *pci_apb_read[] = {
 static void pci_apb_iowriteb (void *opaque, target_phys_addr_t addr,
                                   uint32_t val)
 {
-    cpu_outb(NULL, addr & IOPORTS_MASK, val);
+    cpu_outb(addr & IOPORTS_MASK, val);
 }
 
 static void pci_apb_iowritew (void *opaque, target_phys_addr_t addr,
                                   uint32_t val)
 {
-    cpu_outw(NULL, addr & IOPORTS_MASK, val);
+    cpu_outw(addr & IOPORTS_MASK, val);
 }
 
 static void pci_apb_iowritel (void *opaque, target_phys_addr_t addr,
                                 uint32_t val)
 {
-    cpu_outl(NULL, addr & IOPORTS_MASK, val);
+    cpu_outl(addr & IOPORTS_MASK, val);
 }
 
 static uint32_t pci_apb_ioreadb (void *opaque, target_phys_addr_t addr)
 {
     uint32_t val;
 
-    val = cpu_inb(NULL, addr & IOPORTS_MASK);
+    val = cpu_inb(addr & IOPORTS_MASK);
     return val;
 }
 
@@ -178,7 +187,7 @@ static uint32_t pci_apb_ioreadw (void *opaque, target_phys_addr_t addr)
 {
     uint32_t val;
 
-    val = cpu_inw(NULL, addr & IOPORTS_MASK);
+    val = cpu_inw(addr & IOPORTS_MASK);
     return val;
 }
 
@@ -186,17 +195,17 @@ static uint32_t pci_apb_ioreadl (void *opaque, target_phys_addr_t addr)
 {
     uint32_t val;
 
-    val = cpu_inl(NULL, addr & IOPORTS_MASK);
+    val = cpu_inl(addr & IOPORTS_MASK);
     return val;
 }
 
-static CPUWriteMemoryFunc *pci_apb_iowrite[] = {
+static CPUWriteMemoryFunc * const pci_apb_iowrite[] = {
     &pci_apb_iowriteb,
     &pci_apb_iowritew,
     &pci_apb_iowritel,
 };
 
-static CPUReadMemoryFunc *pci_apb_ioread[] = {
+static CPUReadMemoryFunc * const pci_apb_ioread[] = {
     &pci_apb_ioreadb,
     &pci_apb_ioreadw,
     &pci_apb_ioreadl,
@@ -218,8 +227,10 @@ static int pci_pbm_map_irq(PCIDevice *pci_dev, int irq_num)
     return bus_offset + irq_num;
 }
 
-static void pci_apb_set_irq(qemu_irq *pic, int irq_num, int level)
+static void pci_apb_set_irq(void *opaque, int irq_num, int level)
 {
+    qemu_irq *pic = opaque;
+
     /* PCI IRQ map onto the first 32 INO.  */
     qemu_set_irq(pic[irq_num], level);
 }
@@ -234,7 +245,7 @@ PCIBus *pci_apb_init(target_phys_addr_t special_base,
 
     /* Ultrasparc PBM main bus */
     dev = qdev_create(NULL, "pbm");
-    qdev_init(dev);
+    qdev_init_nofail(dev);
     s = sysbus_from_qdev(dev);
     /* apb_config */
     sysbus_mmio_map(s, 0, special_base + 0x2000ULL);
@@ -245,7 +256,7 @@ PCIBus *pci_apb_init(target_phys_addr_t special_base,
     /* mem_data */
     sysbus_mmio_map(s, 3, mem_base);
     d = FROM_SYSBUS(APBState, s);
-    d->host_state.bus = pci_register_bus(NULL, "pci",
+    d->host_state.bus = pci_register_bus(&d->busdev.qdev, "pci",
                                          pci_apb_set_irq, pci_pbm_map_irq, pic,
                                          0, 32);
     pci_create_simple(d->host_state.bus, 0, "pbm");
@@ -260,7 +271,7 @@ PCIBus *pci_apb_init(target_phys_addr_t special_base,
     return d->host_state.bus;
 }
 
-static void pci_pbm_init_device(SysBusDevice *dev)
+static int pci_pbm_init_device(SysBusDevice *dev)
 {
 
     APBState *s;
@@ -283,9 +294,10 @@ static void pci_pbm_init_device(SysBusDevice *dev)
     pci_mem_data = cpu_register_io_memory(pci_apb_read,
                                           pci_apb_write, &s->host_state);
     sysbus_init_mmio(dev, 0x10000000ULL, pci_mem_data);
+    return 0;
 }
 
-static void pbm_pci_host_init(PCIDevice *d)
+static int pbm_pci_host_init(PCIDevice *d)
 {
     pci_config_set_vendor_id(d->config, PCI_VENDOR_ID_SUN);
     pci_config_set_device_id(d->config, PCI_DEVICE_ID_SUN_SABRE);
@@ -298,6 +310,7 @@ static void pbm_pci_host_init(PCIDevice *d)
     pci_config_set_class(d->config, PCI_CLASS_BRIDGE_HOST);
     d->config[0x0D] = 0x10; // latency_timer
     d->config[PCI_HEADER_TYPE] = PCI_HEADER_TYPE_NORMAL; // header_type
+    return 0;
 }
 
 static PCIDeviceInfo pbm_pci_host_info = {

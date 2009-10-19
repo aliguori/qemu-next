@@ -81,6 +81,7 @@ typedef enum fdisk_flags_t {
 } fdisk_flags_t;
 
 typedef struct fdrive_t {
+    DriveInfo *dinfo;
     BlockDriverState *bs;
     /* Drive status */
     fdrive_type_t drive;
@@ -97,10 +98,10 @@ typedef struct fdrive_t {
     uint8_t ro;               /* Is read-only           */
 } fdrive_t;
 
-static void fd_init (fdrive_t *drv, BlockDriverState *bs)
+static void fd_init (fdrive_t *drv)
 {
     /* Drive */
-    drv->bs = bs;
+    drv->bs = drv->dinfo ? drv->dinfo->bdrv : NULL;
     drv->drive = FDRIVE_DRV_NONE;
     drv->perpendicular = 0;
     /* Disk */
@@ -481,6 +482,7 @@ struct fdctrl_t {
     uint8_t sra;
     uint8_t srb;
     uint8_t dor;
+    uint8_t dor_vmstate; /* only used as temp during vmstate */
     uint8_t tdr;
     uint8_t dsr;
     uint8_t msr;
@@ -490,6 +492,7 @@ struct fdctrl_t {
     uint8_t status2;
     /* Command FIFO */
     uint8_t *fifo;
+    int32_t fifo_size;
     uint32_t data_pos;
     uint32_t data_len;
     uint8_t data_state;
@@ -508,6 +511,7 @@ struct fdctrl_t {
     /* Sun4m quirks? */
     int sun4m;
     /* Floppy drives */
+    uint8_t num_floppies;
     fdrive_t drives[MAX_FD];
     int reset_sensei;
 };
@@ -603,132 +607,97 @@ static void fdctrl_write_mem (void *opaque,
     fdctrl_write(opaque, (uint32_t)reg, value);
 }
 
-static CPUReadMemoryFunc *fdctrl_mem_read[3] = {
+static CPUReadMemoryFunc * const fdctrl_mem_read[3] = {
     fdctrl_read_mem,
     fdctrl_read_mem,
     fdctrl_read_mem,
 };
 
-static CPUWriteMemoryFunc *fdctrl_mem_write[3] = {
+static CPUWriteMemoryFunc * const fdctrl_mem_write[3] = {
     fdctrl_write_mem,
     fdctrl_write_mem,
     fdctrl_write_mem,
 };
 
-static CPUReadMemoryFunc *fdctrl_mem_read_strict[3] = {
+static CPUReadMemoryFunc * const fdctrl_mem_read_strict[3] = {
     fdctrl_read_mem,
     NULL,
     NULL,
 };
 
-static CPUWriteMemoryFunc *fdctrl_mem_write_strict[3] = {
+static CPUWriteMemoryFunc * const fdctrl_mem_write_strict[3] = {
     fdctrl_write_mem,
     NULL,
     NULL,
 };
 
-static void fd_save (QEMUFile *f, fdrive_t *fd)
-{
-    qemu_put_8s(f, &fd->head);
-    qemu_put_8s(f, &fd->track);
-    qemu_put_8s(f, &fd->sect);
-}
+static const VMStateDescription vmstate_fdrive = {
+    .name = "fdrive",
+    .version_id = 1,
+    .minimum_version_id = 1,
+    .minimum_version_id_old = 1,
+    .fields      = (VMStateField []) {
+        VMSTATE_UINT8(head, fdrive_t),
+        VMSTATE_UINT8(track, fdrive_t),
+        VMSTATE_UINT8(sect, fdrive_t),
+        VMSTATE_END_OF_LIST()
+    }
+};
 
-static void fdc_save (QEMUFile *f, void *opaque)
+static void fdc_pre_save(void *opaque)
 {
     fdctrl_t *s = opaque;
-    uint8_t tmp;
-    int i;
-    uint8_t dor = s->dor | GET_CUR_DRV(s);
 
-    /* Controller state */
-    qemu_put_8s(f, &s->sra);
-    qemu_put_8s(f, &s->srb);
-    qemu_put_8s(f, &dor);
-    qemu_put_8s(f, &s->tdr);
-    qemu_put_8s(f, &s->dsr);
-    qemu_put_8s(f, &s->msr);
-    qemu_put_8s(f, &s->status0);
-    qemu_put_8s(f, &s->status1);
-    qemu_put_8s(f, &s->status2);
-    /* Command FIFO */
-    qemu_put_buffer(f, s->fifo, FD_SECTOR_LEN);
-    qemu_put_be32s(f, &s->data_pos);
-    qemu_put_be32s(f, &s->data_len);
-    qemu_put_8s(f, &s->data_state);
-    qemu_put_8s(f, &s->data_dir);
-    qemu_put_8s(f, &s->eot);
-    /* States kept only to be returned back */
-    qemu_put_8s(f, &s->timer0);
-    qemu_put_8s(f, &s->timer1);
-    qemu_put_8s(f, &s->precomp_trk);
-    qemu_put_8s(f, &s->config);
-    qemu_put_8s(f, &s->lock);
-    qemu_put_8s(f, &s->pwrd);
-
-    tmp = MAX_FD;
-    qemu_put_8s(f, &tmp);
-    for (i = 0; i < MAX_FD; i++)
-        fd_save(f, &s->drives[i]);
+    s->dor_vmstate = s->dor | GET_CUR_DRV(s);
 }
 
-static int fd_load (QEMUFile *f, fdrive_t *fd)
+static int fdc_post_load(void *opaque, int version_id)
 {
-    qemu_get_8s(f, &fd->head);
-    qemu_get_8s(f, &fd->track);
-    qemu_get_8s(f, &fd->sect);
+    fdctrl_t *s = opaque;
 
+    SET_CUR_DRV(s, s->dor_vmstate & FD_DOR_SELMASK);
+    s->dor = s->dor_vmstate & ~FD_DOR_SELMASK;
     return 0;
 }
 
-static int fdc_load (QEMUFile *f, void *opaque, int version_id)
-{
-    fdctrl_t *s = opaque;
-    int i, ret = 0;
-    uint8_t n;
-
-    if (version_id != 2)
-        return -EINVAL;
-
-    /* Controller state */
-    qemu_get_8s(f, &s->sra);
-    qemu_get_8s(f, &s->srb);
-    qemu_get_8s(f, &s->dor);
-    SET_CUR_DRV(s, s->dor & FD_DOR_SELMASK);
-    s->dor &= ~FD_DOR_SELMASK;
-    qemu_get_8s(f, &s->tdr);
-    qemu_get_8s(f, &s->dsr);
-    qemu_get_8s(f, &s->msr);
-    qemu_get_8s(f, &s->status0);
-    qemu_get_8s(f, &s->status1);
-    qemu_get_8s(f, &s->status2);
-    /* Command FIFO */
-    qemu_get_buffer(f, s->fifo, FD_SECTOR_LEN);
-    qemu_get_be32s(f, &s->data_pos);
-    qemu_get_be32s(f, &s->data_len);
-    qemu_get_8s(f, &s->data_state);
-    qemu_get_8s(f, &s->data_dir);
-    qemu_get_8s(f, &s->eot);
-    /* States kept only to be returned back */
-    qemu_get_8s(f, &s->timer0);
-    qemu_get_8s(f, &s->timer1);
-    qemu_get_8s(f, &s->precomp_trk);
-    qemu_get_8s(f, &s->config);
-    qemu_get_8s(f, &s->lock);
-    qemu_get_8s(f, &s->pwrd);
-    qemu_get_8s(f, &n);
-
-    if (n > MAX_FD)
-        return -EINVAL;
-
-    for (i = 0; i < n; i++) {
-        ret = fd_load(f, &s->drives[i]);
-        if (ret != 0)
-            break;
+static const VMStateDescription vmstate_fdc = {
+    .name = "fdc",
+    .version_id = 2,
+    .minimum_version_id = 2,
+    .minimum_version_id_old = 2,
+    .pre_save = fdc_pre_save,
+    .post_load = fdc_post_load,
+    .fields      = (VMStateField []) {
+        /* Controller State */
+        VMSTATE_UINT8(sra, fdctrl_t),
+        VMSTATE_UINT8(srb, fdctrl_t),
+        VMSTATE_UINT8(dor_vmstate, fdctrl_t),
+        VMSTATE_UINT8(tdr, fdctrl_t),
+        VMSTATE_UINT8(dsr, fdctrl_t),
+        VMSTATE_UINT8(msr, fdctrl_t),
+        VMSTATE_UINT8(status0, fdctrl_t),
+        VMSTATE_UINT8(status1, fdctrl_t),
+        VMSTATE_UINT8(status2, fdctrl_t),
+        /* Command FIFO */
+        VMSTATE_VARRAY(fifo, fdctrl_t, fifo_size, 0, vmstate_info_uint8, uint8),
+        VMSTATE_UINT32(data_pos, fdctrl_t),
+        VMSTATE_UINT32(data_len, fdctrl_t),
+        VMSTATE_UINT8(data_state, fdctrl_t),
+        VMSTATE_UINT8(data_dir, fdctrl_t),
+        VMSTATE_UINT8(eot, fdctrl_t),
+        /* States kept only to be returned back */
+        VMSTATE_UINT8(timer0, fdctrl_t),
+        VMSTATE_UINT8(timer1, fdctrl_t),
+        VMSTATE_UINT8(precomp_trk, fdctrl_t),
+        VMSTATE_UINT8(config, fdctrl_t),
+        VMSTATE_UINT8(lock, fdctrl_t),
+        VMSTATE_UINT8(pwrd, fdctrl_t),
+        VMSTATE_UINT8_EQUAL(num_floppies, fdctrl_t),
+        VMSTATE_STRUCT_ARRAY(drives, fdctrl_t, MAX_FD, 1,
+                             vmstate_fdrive, fdrive_t),
+        VMSTATE_END_OF_LIST()
     }
-
-    return ret;
-}
+};
 
 static void fdctrl_external_reset(void *opaque)
 {
@@ -1541,7 +1510,7 @@ static void fdctrl_handle_readid (fdctrl_t *fdctrl, int direction)
     /* XXX: should set main status register to busy */
     cur_drv->head = (fdctrl->fifo[1] >> 2) & 1;
     qemu_mod_timer(fdctrl->result_timer,
-                   qemu_get_clock(vm_clock) + (ticks_per_sec / 50));
+                   qemu_get_clock(vm_clock) + (get_ticks_per_sec() / 50));
 }
 
 static void fdctrl_handle_format_track (fdctrl_t *fdctrl, int direction)
@@ -1861,71 +1830,69 @@ static void fdctrl_result_timer(void *opaque)
 }
 
 /* Init functions */
-static void fdctrl_connect_drives(fdctrl_t *fdctrl, BlockDriverState **fds)
+static void fdctrl_connect_drives(fdctrl_t *fdctrl)
 {
     unsigned int i;
 
     for (i = 0; i < MAX_FD; i++) {
-        fd_init(&fdctrl->drives[i], fds[i]);
+        fd_init(&fdctrl->drives[i]);
         fd_revalidate(&fdctrl->drives[i]);
     }
 }
 
-fdctrl_t *fdctrl_init (qemu_irq irq, int dma_chann, int mem_mapped,
-                       target_phys_addr_t io_base,
-                       BlockDriverState **fds)
+fdctrl_t *fdctrl_init_isa(DriveInfo **fds)
+{
+    ISADevice *dev;
+
+    dev = isa_create("isa-fdc");
+    qdev_prop_set_drive(&dev->qdev, "driveA", fds[0]);
+    qdev_prop_set_drive(&dev->qdev, "driveB", fds[1]);
+    if (qdev_init(&dev->qdev) < 0)
+        return NULL;
+    return &(DO_UPCAST(fdctrl_isabus_t, busdev, dev)->state);
+}
+
+fdctrl_t *fdctrl_init_sysbus(qemu_irq irq, int dma_chann,
+                             target_phys_addr_t mmio_base,
+                             DriveInfo **fds)
 {
     fdctrl_t *fdctrl;
+    DeviceState *dev;
+    fdctrl_sysbus_t *sys;
 
-    if (mem_mapped) {
-        DeviceState *dev;
-        fdctrl_sysbus_t *sys;
-
-        dev = qdev_create(NULL, "sysbus-fdc");
-        qdev_init(dev);
-        sys = DO_UPCAST(fdctrl_sysbus_t, busdev.qdev, dev);
-        fdctrl = &sys->state;
-        sysbus_connect_irq(&sys->busdev, 0, irq);
-        sysbus_mmio_map(&sys->busdev, 0, io_base);
-    } else {
-        ISADevice *dev;
-
-        dev = isa_create_simple("isa-fdc", io_base, 0);
-        fdctrl = &(DO_UPCAST(fdctrl_isabus_t, busdev, dev)->state);
-        isa_connect_irq(dev, 0, irq);
-    }
-
-    fdctrl->dma_chann = dma_chann;
-    DMA_register_channel(dma_chann, &fdctrl_transfer_handler, fdctrl);
-
-    fdctrl_connect_drives(fdctrl, fds);
+    dev = qdev_create(NULL, "sysbus-fdc");
+    sys = DO_UPCAST(fdctrl_sysbus_t, busdev.qdev, dev);
+    fdctrl = &sys->state;
+    fdctrl->dma_chann = dma_chann; /* FIXME */
+    qdev_prop_set_drive(dev, "driveA", fds[0]);
+    qdev_prop_set_drive(dev, "driveB", fds[1]);
+    qdev_init_nofail(dev);
+    sysbus_connect_irq(&sys->busdev, 0, irq);
+    sysbus_mmio_map(&sys->busdev, 0, mmio_base);
 
     return fdctrl;
 }
 
 fdctrl_t *sun4m_fdctrl_init (qemu_irq irq, target_phys_addr_t io_base,
-                             BlockDriverState **fds, qemu_irq *fdc_tc)
+                             DriveInfo **fds, qemu_irq *fdc_tc)
 {
     DeviceState *dev;
     fdctrl_sysbus_t *sys;
     fdctrl_t *fdctrl;
 
     dev = qdev_create(NULL, "SUNW,fdtwo");
-    qdev_init(dev);
+    qdev_prop_set_drive(dev, "drive", fds[0]);
+    qdev_init_nofail(dev);
     sys = DO_UPCAST(fdctrl_sysbus_t, busdev.qdev, dev);
     fdctrl = &sys->state;
     sysbus_connect_irq(&sys->busdev, 0, irq);
     sysbus_mmio_map(&sys->busdev, 0, io_base);
     *fdc_tc = qdev_get_gpio_in(dev, 0);
 
-    fdctrl->dma_chann = -1;
-
-    fdctrl_connect_drives(fdctrl, fds);
-
     return fdctrl;
 }
 
-static void fdctrl_init_common(fdctrl_t *fdctrl)
+static int fdctrl_init_common(fdctrl_t *fdctrl)
 {
     int i, j;
     static int command_tables_inited = 0;
@@ -1944,36 +1911,47 @@ static void fdctrl_init_common(fdctrl_t *fdctrl)
 
     FLOPPY_DPRINTF("init controller\n");
     fdctrl->fifo = qemu_memalign(512, FD_SECTOR_LEN);
+    fdctrl->fifo_size = 512;
     fdctrl->result_timer = qemu_new_timer(vm_clock,
                                           fdctrl_result_timer, fdctrl);
 
     fdctrl->version = 0x90; /* Intel 82078 controller */
     fdctrl->config = FD_CONFIG_EIS | FD_CONFIG_EFIFO; /* Implicit seek, polling & FIFO enabled */
+    fdctrl->num_floppies = MAX_FD;
+
+    if (fdctrl->dma_chann != -1)
+        DMA_register_channel(fdctrl->dma_chann, &fdctrl_transfer_handler, fdctrl);
+    fdctrl_connect_drives(fdctrl);
 
     fdctrl_external_reset(fdctrl);
-    register_savevm("fdc", -1, 2, fdc_save, fdc_load, fdctrl);
+    vmstate_register(-1, &vmstate_fdc, fdctrl);
     qemu_register_reset(fdctrl_external_reset, fdctrl);
+    return 0;
 }
 
-static void isabus_fdc_init1(ISADevice *dev)
+static int isabus_fdc_init1(ISADevice *dev)
 {
     fdctrl_isabus_t *isa = DO_UPCAST(fdctrl_isabus_t, busdev, dev);
     fdctrl_t *fdctrl = &isa->state;
+    int iobase = 0x3f0;
+    int isairq = 6;
+    int dma_chann = 2;
 
-    register_ioport_read(isa->busdev.iobase[0] + 0x01, 5, 1,
+    register_ioport_read(iobase + 0x01, 5, 1,
                          &fdctrl_read_port, fdctrl);
-    register_ioport_read(isa->busdev.iobase[0] + 0x07, 1, 1,
+    register_ioport_read(iobase + 0x07, 1, 1,
                          &fdctrl_read_port, fdctrl);
-    register_ioport_write(isa->busdev.iobase[0] + 0x01, 5, 1,
+    register_ioport_write(iobase + 0x01, 5, 1,
                           &fdctrl_write_port, fdctrl);
-    register_ioport_write(isa->busdev.iobase[0] + 0x07, 1, 1,
+    register_ioport_write(iobase + 0x07, 1, 1,
                           &fdctrl_write_port, fdctrl);
-    isa_init_irq(&isa->busdev, &fdctrl->irq);
+    isa_init_irq(&isa->busdev, &fdctrl->irq, isairq);
+    fdctrl->dma_chann = dma_chann;
 
-    fdctrl_init_common(fdctrl);
+    return fdctrl_init_common(fdctrl);
 }
 
-static void sysbus_fdc_init1(SysBusDevice *dev)
+static int sysbus_fdc_init1(SysBusDevice *dev)
 {
     fdctrl_t *fdctrl = &(FROM_SYSBUS(fdctrl_sysbus_t, dev)->state);
     int io;
@@ -1982,11 +1960,12 @@ static void sysbus_fdc_init1(SysBusDevice *dev)
     sysbus_init_mmio(dev, 0x08, io);
     sysbus_init_irq(dev, &fdctrl->irq);
     qdev_init_gpio_in(&dev->qdev, fdctrl_handle_tc, 1);
+    fdctrl->dma_chann = -1;
 
-    fdctrl_init_common(fdctrl);
+    return fdctrl_init_common(fdctrl);
 }
 
-static void sun4m_fdc_init1(SysBusDevice *dev)
+static int sun4m_fdc_init1(SysBusDevice *dev)
 {
     fdctrl_t *fdctrl = &(FROM_SYSBUS(fdctrl_sysbus_t, dev)->state);
     int io;
@@ -1998,25 +1977,39 @@ static void sun4m_fdc_init1(SysBusDevice *dev)
     qdev_init_gpio_in(&dev->qdev, fdctrl_handle_tc, 1);
 
     fdctrl->sun4m = 1;
-    fdctrl_init_common(fdctrl);
+    return fdctrl_init_common(fdctrl);
 }
 
 static ISADeviceInfo isa_fdc_info = {
     .init = isabus_fdc_init1,
     .qdev.name  = "isa-fdc",
     .qdev.size  = sizeof(fdctrl_isabus_t),
+    .qdev.props = (Property[]) {
+        DEFINE_PROP_DRIVE("driveA", fdctrl_isabus_t, state.drives[0].dinfo),
+        DEFINE_PROP_DRIVE("driveB", fdctrl_isabus_t, state.drives[1].dinfo),
+        DEFINE_PROP_END_OF_LIST(),
+    },
 };
 
 static SysBusDeviceInfo sysbus_fdc_info = {
     .init = sysbus_fdc_init1,
     .qdev.name  = "sysbus-fdc",
     .qdev.size  = sizeof(fdctrl_sysbus_t),
+    .qdev.props = (Property[]) {
+        DEFINE_PROP_DRIVE("driveA", fdctrl_sysbus_t, state.drives[0].dinfo),
+        DEFINE_PROP_DRIVE("driveB", fdctrl_sysbus_t, state.drives[1].dinfo),
+        DEFINE_PROP_END_OF_LIST(),
+    },
 };
 
 static SysBusDeviceInfo sun4m_fdc_info = {
     .init = sun4m_fdc_init1,
     .qdev.name  = "SUNW,fdtwo",
     .qdev.size  = sizeof(fdctrl_sysbus_t),
+    .qdev.props = (Property[]) {
+        DEFINE_PROP_DRIVE("drive", fdctrl_sysbus_t, state.drives[0].dinfo),
+        DEFINE_PROP_END_OF_LIST(),
+    },
 };
 
 static void fdc_register_devices(void)

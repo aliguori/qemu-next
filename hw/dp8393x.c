@@ -290,7 +290,7 @@ static void set_next_tick(dp8393xState *s)
 
     ticks = s->regs[SONIC_WT1] << 16 | s->regs[SONIC_WT0];
     s->wt_last_update = qemu_get_clock(vm_clock);
-    delay = ticks_per_sec * ticks / 5000000;
+    delay = get_ticks_per_sec() * ticks / 5000000;
     qemu_mod_timer(s->watchdog, s->wt_last_update + delay);
 }
 
@@ -663,13 +663,13 @@ static void dp8393x_writel(void *opaque, target_phys_addr_t addr, uint32_t val)
     dp8393x_writew(opaque, addr + 2, (val >> 16) & 0xffff);
 }
 
-static CPUReadMemoryFunc *dp8393x_read[3] = {
+static CPUReadMemoryFunc * const dp8393x_read[3] = {
     dp8393x_readb,
     dp8393x_readw,
     dp8393x_readl,
 };
 
-static CPUWriteMemoryFunc *dp8393x_write[3] = {
+static CPUWriteMemoryFunc * const dp8393x_write[3] = {
     dp8393x_writeb,
     dp8393x_writew,
     dp8393x_writel,
@@ -889,7 +889,8 @@ void dp83932_init(NICInfo *nd, target_phys_addr_t base, int it_shift,
     s->watchdog = qemu_new_timer(vm_clock, dp8393x_watchdog, s);
     s->regs[SONIC_SR] = 0x0004; /* only revision recognized by Linux */
 
-    s->vc = nd->vc = qemu_new_vlan_client(nd->vlan, nd->model, nd->name,
+    s->vc = nd->vc = qemu_new_vlan_client(nd->vlan, nd->netdev,
+                                          nd->model, nd->name,
                                           nic_can_receive, nic_receive, NULL,
                                           nic_cleanup, s);
 

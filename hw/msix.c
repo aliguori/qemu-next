@@ -41,10 +41,8 @@
 
 /* How much space does an MSIX table need. */
 /* The spec requires giving the table structure
- * a 4K aligned region all by itself. Align it to
- * target pages so that drivers can do passthrough
- * on the rest of the region. */
-#define MSIX_PAGE_SIZE TARGET_PAGE_ALIGN(0x1000)
+ * a 4K aligned region all by itself. */
+#define MSIX_PAGE_SIZE 0x1000
 /* Reserve second half of the page for pending bits */
 #define MSIX_PAGE_PENDING (MSIX_PAGE_SIZE / 2)
 #define MSIX_MAX_ENTRIES 32
@@ -80,13 +78,14 @@ static int msix_add_config(struct PCIDevice *pdev, unsigned short nentries,
         return -ENOSPC;
 
     /* Add space for MSI-X structures */
-    if (!bar_size)
+    if (!bar_size) {
         new_size = MSIX_PAGE_SIZE;
-    else if (bar_size < MSIX_PAGE_SIZE) {
+    } else if (bar_size < MSIX_PAGE_SIZE) {
         bar_size = MSIX_PAGE_SIZE;
         new_size = MSIX_PAGE_SIZE * 2;
-    } else
+    } else {
         new_size = bar_size * 2;
+    }
 
     pdev->msix_bar_size = new_size;
     config_offset = pci_add_capability(pdev, PCI_CAP_ID_MSIX, MSIX_CAP_LENGTH);
@@ -194,11 +193,11 @@ static void msix_mmio_write_unallowed(void *opaque, target_phys_addr_t addr,
     fprintf(stderr, "MSI-X: only dword write is allowed!\n");
 }
 
-static CPUWriteMemoryFunc *msix_mmio_write[] = {
+static CPUWriteMemoryFunc * const msix_mmio_write[] = {
     msix_mmio_write_unallowed, msix_mmio_write_unallowed, msix_mmio_writel
 };
 
-static CPUReadMemoryFunc *msix_mmio_read[] = {
+static CPUReadMemoryFunc * const msix_mmio_read[] = {
     msix_mmio_read_unallowed, msix_mmio_read_unallowed, msix_mmio_readl
 };
 

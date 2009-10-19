@@ -292,6 +292,7 @@ typedef struct {
 
 struct MUSBState {
     qemu_irq *irqs;
+    USBBus bus;
     USBPort port;
 
     int idx;
@@ -314,7 +315,38 @@ struct MUSBState {
         /* Duplicating the world since 2008!...  probably we should have 32
          * logical, single endpoints instead.  */
     MUSBEndPoint ep[16];
-};
+} *musb_init(qemu_irq *irqs)
+{
+    MUSBState *s = qemu_mallocz(sizeof(*s));
+    int i;
+
+    s->irqs = irqs;
+
+    s->faddr = 0x00;
+    s->power = MGC_M_POWER_HSENAB;
+    s->tx_intr = 0x0000;
+    s->rx_intr = 0x0000;
+    s->tx_mask = 0xffff;
+    s->rx_mask = 0xffff;
+    s->intr = 0x00;
+    s->mask = 0x06;
+    s->idx = 0;
+
+    /* TODO: _DW */
+    s->ep[0].config = MGC_M_CONFIGDATA_SOFTCONE | MGC_M_CONFIGDATA_DYNFIFO;
+    for (i = 0; i < 16; i ++) {
+        s->ep[i].fifosize = 64;
+        s->ep[i].maxp[0] = 0x40;
+        s->ep[i].maxp[1] = 0x40;
+        s->ep[i].musb = s;
+        s->ep[i].epnum = i;
+    }
+
+    usb_bus_new(&s->bus, NULL /* FIXME */);
+    usb_register_port(&s->bus, &s->port, s, 0, musb_attach);
+
+    return s;
+}
 
 static void musb_vbus_set(MUSBState *s, int level)
 {
@@ -490,7 +522,7 @@ static inline void musb_schedule_cb(USBPacket *packey, void *opaque, int dir)
         ep->intv_timer[dir] = qemu_new_timer(vm_clock, musb_cb_tick, opaque);
 
     qemu_mod_timer(ep->intv_timer[dir], qemu_get_clock(vm_clock) +
-                    muldiv64(timeout, ticks_per_sec, 8000));
+                   muldiv64(timeout, get_ticks_per_sec(), 8000));
 }
 
 static void musb_schedule0_cb(USBPacket *packey, void *opaque)
@@ -571,7 +603,7 @@ static inline void musb_packet(MUSBState *s, MUSBEndPoint *ep,
     ep->packey[dir].complete_opaque = ep;
 
     if (s->port.dev)
-        ret = s->port.dev->handle_packet(s->port.dev, &ep->packey[dir]);
+        ret = s->port.dev->info->handle_packet(s->port.dev, &ep->packey[dir]);
     else
         ret = USB_RET_NODEV;
 
@@ -1464,192 +1496,14 @@ static void musb_writew(void *opaque, target_phys_addr_t addr, uint32_t value)
     };
 }
 
-CPUReadMemoryFunc *musb_read[] = {
+CPUReadMemoryFunc * const musb_read[] = {
     musb_readb,
     musb_readh,
     musb_readw,
 };
 
-CPUWriteMemoryFunc *musb_write[] = {
+CPUWriteMemoryFunc * const musb_write[] = {
     musb_writeb,
     musb_writeh,
     musb_writew,
 };
-
-static void musb_save_state(QEMUFile *f, void *opaque)
-{
-    MUSBState *s = (MUSBState *)opaque;
-    int i, j;
-    
-    qemu_put_sbe32(f, s->idx);
-    qemu_put_byte(f, s->devctl);
-    qemu_put_byte(f, s->power);
-    qemu_put_byte(f, s->faddr);
-    qemu_put_byte(f, s->intr);
-    qemu_put_byte(f, s->mask);
-    qemu_put_be16(f, s->tx_intr);
-    qemu_put_be16(f, s->tx_mask);
-    qemu_put_be16(f, s->rx_intr);
-    qemu_put_be16(f, s->rx_mask);
-    qemu_put_sbe32(f, s->setup_len);
-    qemu_put_sbe32(f, s->session);
-    qemu_put_buffer(f, s->buf, sizeof(s->buf));
-    for (i = 0; i < 16; i++) {
-        qemu_put_be16(f, s->ep[i].rxcount);
-        qemu_put_byte(f, s->ep[i].config);
-        qemu_put_byte(f, s->ep[i].fifosize);
-        for (j = 0; j < 2; j++) {
-            qemu_put_be16(f, s->ep[i].faddr[j]);
-            qemu_put_byte(f, s->ep[i].haddr[j]);
-            qemu_put_byte(f, s->ep[i].hport[j]);
-            qemu_put_be16(f, s->ep[i].csr[j]);
-            qemu_put_be16(f, s->ep[i].maxp[j]);
-            qemu_put_byte(f, s->ep[i].type[j]);
-            qemu_put_byte(f, s->ep[i].interval[j]);
-            qemu_put_sbe32(f, s->ep[i].timeout[j]);
-            if (s->ep[i].buf[j])
-                qemu_put_be32(f, s->ep[i].buf[j] - s->buf);
-            else
-                qemu_put_be32(f, 0xffffffff);
-            qemu_put_sbe32(f, s->ep[i].fifolen[j]);
-            qemu_put_sbe32(f, s->ep[i].fifostart[j]);
-            qemu_put_sbe32(f, s->ep[i].fifoaddr[j]);
-            qemu_put_sbe32(f, s->ep[i].packey[j].pid);
-            qemu_put_byte(f, s->ep[i].packey[j].devaddr);
-            qemu_put_byte(f, s->ep[i].packey[j].devep);
-            qemu_put_sbe32(f, s->ep[i].packey[j].len);
-            qemu_put_sbe32(f, s->ep[i].status[j]);
-            qemu_put_sbe32(f, s->ep[i].ext_size[j]);
-            qemu_put_sbe32(f, s->ep[i].interrupt[j]);
-            if (s->ep[i].delayed_cb[j] == musb_rx_packet_complete)
-                qemu_put_byte(f, 1);
-            else if (s->ep[i].delayed_cb[j] == musb_tx_packet_complete)
-                qemu_put_byte(f, 2);
-            else
-                qemu_put_byte(f, 0);
-            if (s->ep[i].intv_timer[j]) {
-                qemu_put_byte(f, 1);
-                qemu_put_timer(f, s->ep[i].intv_timer[j]);
-            } else
-                qemu_put_byte(f, 0);
-        }
-    }
-}
-
-static int musb_load_state(QEMUFile *f, void *opaque, int version_id)
-{
-    MUSBState *s = (MUSBState *)opaque;
-    int i, j;
-    uint32_t x;
-    
-    if (version_id)
-        return -EINVAL;
-    
-    s->idx = qemu_get_sbe32(f);
-    s->devctl = qemu_get_byte(f);
-    s->power = qemu_get_byte(f);
-    s->faddr = qemu_get_byte(f);
-    s->intr = qemu_get_byte(f);
-    s->mask = qemu_get_byte(f);
-    s->tx_intr = qemu_get_be16(f);
-    s->tx_mask = qemu_get_be16(f);
-    s->rx_intr = qemu_get_be16(f);
-    s->rx_mask = qemu_get_be16(f);
-    s->setup_len = qemu_get_sbe32(f);
-    s->session = qemu_get_sbe32(f);
-    qemu_get_buffer(f, s->buf, sizeof(s->buf));
-    for (i = 0; i < 16; i++) {
-        s->ep[i].rxcount = qemu_get_be16(f);
-        s->ep[i].config = qemu_get_byte(f);
-        s->ep[i].fifosize = qemu_get_byte(f);
-        for (j = 0; j < 2; j++) {
-            s->ep[i].faddr[j] = qemu_get_be16(f);
-            s->ep[i].haddr[j] = qemu_get_byte(f);
-            s->ep[i].hport[j] = qemu_get_byte(f);
-            s->ep[i].csr[j] = qemu_get_be16(f);
-            s->ep[i].maxp[j] = qemu_get_be16(f);
-            s->ep[i].type[j] = qemu_get_byte(f);
-            s->ep[i].interval[j] = qemu_get_byte(f);
-            s->ep[i].timeout[j] = qemu_get_sbe32(f);
-            x = qemu_get_be32(f);
-            if (x != 0xffffffff)
-                s->ep[i].buf[j] = s->buf + x;
-            else
-                s->ep[i].buf[j] = 0;
-            s->ep[i].fifolen[j] = qemu_get_sbe32(f);
-            s->ep[i].fifostart[j] = qemu_get_sbe32(f);
-            s->ep[i].fifoaddr[j] = qemu_get_sbe32(f);
-            s->ep[i].packey[j].pid = qemu_get_sbe32(f);
-            s->ep[i].packey[j].devaddr = qemu_get_byte(f);
-            s->ep[i].packey[j].devep = qemu_get_byte(f);
-            s->ep[i].packey[j].data = s->ep[i].buf[j];
-            s->ep[i].packey[j].len = qemu_get_sbe32(f);
-            s->ep[i].packey[j].complete_opaque = &s->ep[i];
-            s->ep[i].status[j] = qemu_get_sbe32(f);
-            s->ep[i].ext_size[j] = qemu_get_sbe32(f);
-            s->ep[i].interrupt[j] = qemu_get_sbe32(f);
-            switch (qemu_get_byte(f)) {
-                case 0:
-                    s->ep[i].delayed_cb[j] = 0;
-                    s->ep[i].packey[j].complete_cb = 0;
-                    break;
-                case 1:
-                    s->ep[i].delayed_cb[j] = musb_rx_packet_complete;
-                    s->ep[i].packey[j].complete_cb = musb_rx_packet_complete;
-                    break;
-                case 2:
-                    s->ep[i].delayed_cb[j] = musb_tx_packet_complete;
-                    s->ep[i].packey[j].complete_cb = musb_tx_packet_complete;
-                    break;
-                default:
-                    hw_error("%s: unknown delayed_cb", __FUNCTION__);
-                    break;
-            }
-            if (qemu_get_byte(f)) {
-                if (!s->ep[i].intv_timer[j]) {
-                    s->ep[i].intv_timer[j] =
-                        qemu_new_timer(vm_clock,
-                                       j ? musb_cb_tick1 : musb_cb_tick0,
-                                       &s->ep[i]);
-                }
-                qemu_get_timer(f, s->ep[i].intv_timer[j]);
-            }
-        }
-    }
-    
-    /* TODO: restore interrupt status */
-    
-    return 0;
-}
-
-MUSBState *musb_init(qemu_irq *irqs)
-{
-    MUSBState *s = qemu_mallocz(sizeof(*s));
-    int i;
-    
-    s->irqs = irqs;
-    
-    s->faddr = 0x00;
-    s->power = MGC_M_POWER_HSENAB;
-    s->tx_intr = 0x0000;
-    s->rx_intr = 0x0000;
-    s->tx_mask = 0xffff;
-    s->rx_mask = 0xffff;
-    s->intr = 0x00;
-    s->mask = 0x06;
-    s->idx = 0;
-    
-    /* TODO: _DW */
-    s->ep[0].config = MGC_M_CONFIGDATA_SOFTCONE | MGC_M_CONFIGDATA_DYNFIFO;
-    for (i = 0; i < 16; i ++) {
-        s->ep[i].fifosize = 64;
-        s->ep[i].maxp[0] = 0x40;
-        s->ep[i].maxp[1] = 0x40;
-        s->ep[i].musb = s;
-        s->ep[i].epnum = i;
-    }
-    
-    qemu_register_usb_port(&s->port, s, 0, musb_attach);
-    register_savevm("musb", -1, 0, musb_save_state, musb_load_state, s);
-    return s;
-}

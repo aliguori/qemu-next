@@ -3,6 +3,11 @@
 #define QEMU_COMMON_H
 
 #define QEMU_NORETURN __attribute__ ((__noreturn__))
+#ifdef CONFIG_GCC_ATTRIBUTE_WARN_UNUSED_RESULT
+#define QEMU_WARN_UNUSED_RESULT __attribute__((warn_unused_result))
+#else
+#define QEMU_WARN_UNUSED_RESULT
+#endif
 
 /* Hack around the mess dyngen-exec.h causes: We need QEMU_NORETURN in files that
    cannot include the following headers without conflicts. This condition has
@@ -114,6 +119,7 @@ int stristart(const char *str, const char *val, const char **ptr);
 int qemu_strnlen(const char *s, int max_len);
 time_t mktimegm(struct tm *tm);
 int qemu_fls(int i);
+int qemu_fdatasync(int fd);
 
 /* path.c */
 void init_paths(const char *prefix);
@@ -144,6 +150,9 @@ char *qemu_strndup(const char *str, size_t size);
 
 void *get_mmap_addr(unsigned long size);
 
+
+void qemu_mutex_lock_iothread(void);
+void qemu_mutex_unlock_iothread(void);
 
 /* Error handling.  */
 
@@ -177,6 +186,7 @@ typedef struct TextConsole TextConsole;
 typedef TextConsole QEMUConsole;
 typedef struct CharDriverState CharDriverState;
 typedef struct VLANState VLANState;
+typedef struct VLANClientState VLANClientState;
 typedef struct QEMUFile QEMUFile;
 typedef struct i2c_bus i2c_bus;
 typedef struct i2c_slave i2c_slave;
@@ -223,6 +233,7 @@ typedef struct QEMUIOVector {
 void qemu_iovec_init(QEMUIOVector *qiov, int alloc_hint);
 void qemu_iovec_init_external(QEMUIOVector *qiov, struct iovec *iov, int niov);
 void qemu_iovec_add(QEMUIOVector *qiov, void *base, size_t len);
+void qemu_iovec_concat(QEMUIOVector *dst, QEMUIOVector *src, size_t size);
 void qemu_iovec_destroy(QEMUIOVector *qiov);
 void qemu_iovec_reset(QEMUIOVector *qiov);
 void qemu_iovec_to_buffer(QEMUIOVector *qiov, void *buf);

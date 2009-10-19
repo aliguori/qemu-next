@@ -1,6 +1,8 @@
 # -*- Mode: makefile -*-
 
-include config.mak
+include ../config-host.mak
+include config-devices.mak
+include config-target.mak
 include $(SRC_PATH)/rules.mak
 
 TARGET_PATH=$(SRC_PATH)/target-$(TARGET_BASE_ARCH)
@@ -21,22 +23,26 @@ endif
 
 PROGS=$(QEMU_PROG)
 
-ifeq ($(subst ppc64,ppc,$(ARCH))$(TARGET_BASE_ARCH),ppcppc)
-translate.o: QEMU_CFLAGS += $(call cc-option, $(QEMU_CFLAGS), -fno-unit-at-a-time,)
-endif
-
 LIBS+=-lm
 
 kvm.o kvm-all.o: QEMU_CFLAGS+=$(KVM_CFLAGS)
 
-all: $(PROGS)
+config-target.h: config-target.h-timestamp
+config-target.h-timestamp: config-target.mak
+
+config-devices.h: config-devices.h-timestamp
+config-devices.h-timestamp: config-devices.mak
+
+all: config-target.h config-devices.h
+	$(call quiet-command, $(MAKE) $(PROGS),)
+
 # Dummy command so that make thinks it has done something
 	@true
 
 #########################################################
 # cpu emulator library
 libobj-y = exec.o translate-all.o cpu-exec.o translate.o
-libobj-y += tcg/tcg.o tcg/tcg-runtime.o
+libobj-y += tcg/tcg.o
 libobj-$(CONFIG_SOFTFLOAT) += fpu/softfloat.o
 libobj-$(CONFIG_NOSOFTFLOAT) += fpu/softfloat-native.o
 libobj-y += op_helper.o helper.o
@@ -84,9 +90,8 @@ ifdef CONFIG_LINUX_USER
 
 VPATH+=:$(SRC_PATH)/linux-user:$(SRC_PATH)/linux-user/$(TARGET_ABI_DIR)
 QEMU_CFLAGS+=-I$(SRC_PATH)/linux-user -I$(SRC_PATH)/linux-user/$(TARGET_ABI_DIR)
-
 obj-y = main.o syscall.o strace.o mmap.o signal.o thunk.o \
-      elfload.o linuxload.o uaccess.o gdbstub.o gdbstub-xml.o
+      elfload.o linuxload.o uaccess.o gdbstub.o
 
 obj-$(TARGET_HAS_BFLT) += flatload.o
 obj-$(TARGET_HAS_ELFLOAD32) += elfload32.o
@@ -102,7 +107,8 @@ obj-arm-y += arm-semi.o
 
 obj-m68k-y += m68k-sim.o m68k-semi.o
 
-ARLIBS=../libqemu_user.a libqemu.a
+ARLIBS=../libuser/libuser.a libqemu.a
+
 endif #CONFIG_LINUX_USER
 
 #########################################################
@@ -119,11 +125,11 @@ LDFLAGS+=-Wl,-segaddr,__STD_PROG_ZONE,0x1000 -image_base 0x0e000000
 LIBS+=-lmx
 
 obj-y = main.o commpage.o machload.o mmap.o signal.o syscall.o thunk.o \
-        gdbstub.o gdbstub-xml.o
+        gdbstub.o
 
 obj-i386-y += ioport-user.o
 
-ARLIBS=libqemu.a
+ARLIBS=../libuser/libuser.a libqemu.a
 
 endif #CONFIG_DARWIN_USER
 
@@ -136,11 +142,11 @@ VPATH+=:$(SRC_PATH)/bsd-user
 QEMU_CFLAGS+=-I$(SRC_PATH)/bsd-user -I$(SRC_PATH)/bsd-user/$(TARGET_ARCH)
 
 obj-y = main.o bsdload.o elfload.o mmap.o signal.o strace.o syscall.o \
-        gdbstub.o gdbstub-xml.o uaccess.o
+        gdbstub.o uaccess.o
 
 obj-i386-y += ioport-user.o
 
-ARLIBS=libqemu.a ../libqemu_user.a
+ARLIBS=../libuser/libuser.a libqemu.a
 
 endif #CONFIG_BSD_USER
 
@@ -148,13 +154,12 @@ endif #CONFIG_BSD_USER
 # System emulator target
 ifdef CONFIG_SOFTMMU
 
-obj-y = vl.o monitor.o pci.o loader.o isa_mmio.o machine.o \
-        gdbstub.o gdbstub-xml.o msix.o ioport.o qemu-config.o
+obj-y = vl.o monitor.o pci.o machine.o gdbstub.o
 # virtio has to be here due to weird dependency between PCI and virtio-net.
 # need to fix this properly
 obj-y += virtio-blk.o virtio-balloon.o virtio-net.o virtio-console.o virtio-pci.o
 obj-$(CONFIG_KVM) += kvm.o kvm-all.o
-
+obj-$(CONFIG_ISA_MMIO) += isa_mmio.o
 LIBS+=-lz
 
 sound-obj-y =
@@ -174,30 +179,31 @@ QEMU_CFLAGS += $(VNC_SASL_CFLAGS)
 obj-$(CONFIG_XEN) += xen_machine_pv.o xen_domainbuild.o
 
 # USB layer
-obj-y += usb-ohci.o
+obj-$(CONFIG_USB_OHCI) += usb-ohci.o
 
 # PCI network cards
 obj-y += eepro100.o
-obj-y += ne2000.o
 obj-y += pcnet.o
 obj-y += rtl8139.o
 obj-y += e1000.o
 
-# Generic watchdog support and some watchdog devices
-obj-y += wdt_ib700.o wdt_i6300esb.o
-
 # Hardware support
-obj-i386-y = ide.o pckbd.o vga.o $(sound-obj-y) dma.o isa-bus.o
+obj-i386-y = ide/core.o ide/qdev.o ide/isa.o ide/pci.o ide/piix.o
+obj-i386-y += pckbd.o $(sound-obj-y) dma.o
+obj-i386-y += vga.o vga-pci.o vga-isa.o
 obj-i386-y += fdc.o mc146818rtc.o serial.o i8259.o i8254.o pcspk.o pc.o
 obj-i386-y += cirrus_vga.o apic.o ioapic.o parallel.o acpi.o piix_pci.o
 obj-i386-y += usb-uhci.o vmmouse.o vmport.o vmware_vga.o hpet.o
-obj-i386-y += device-hotplug.o pci-hotplug.o smbios.o
+obj-i386-y += device-hotplug.o pci-hotplug.o smbios.o wdt_ib700.o
+obj-i386-y += ne2000-isa.o
 
 # shared objects
-obj-ppc-y = ppc.o ide.o vga.o $(sound-obj-y) dma.o isa-bus.o openpic.o
+obj-ppc-y = ppc.o ide/core.o ide/qdev.o ide/isa.o ide/pci.o ide/macio.o
+obj-ppc-y += ide/cmd646.o
+obj-ppc-y += vga.o vga-pci.o $(sound-obj-y) dma.o openpic.o
 # PREP target
 obj-ppc-y += pckbd.o serial.o i8259.o i8254.o fdc.o mc146818rtc.o
-obj-ppc-y += prep_pci.o ppc_prep.o
+obj-ppc-y += prep_pci.o ppc_prep.o ne2000-isa.o
 # Mac shared devices
 obj-ppc-y += macio.o cuda.o adb.o mac_nvram.o mac_dbdma.o
 # OldWorld PowerMac
@@ -214,10 +220,12 @@ obj-ppc-$(CONFIG_FDT) += device_tree.o
 
 obj-mips-y = mips_r4k.o mips_jazz.o mips_malta.o mips_mipssim.o
 obj-mips-y += mips_timer.o mips_int.o dma.o vga.o serial.o i8254.o i8259.o rc4030.o
+obj-mips-y += vga-pci.o vga-isa.o vga-isa-mm.o
 obj-mips-y += g364fb.o jazz_led.o dp8393x.o
-obj-mips-y += ide.o gt64xxx.o pckbd.o fdc.o mc146818rtc.o usb-uhci.o acpi.o ds1225y.o
-obj-mips-y += piix_pci.o parallel.o cirrus_vga.o isa-bus.o pcspk.o $(sound-obj-y)
-obj-mips-y += mipsnet.o
+obj-mips-y += ide/core.o ide/qdev.o ide/isa.o ide/pci.o ide/piix.o
+obj-mips-y += gt64xxx.o pckbd.o fdc.o mc146818rtc.o usb-uhci.o acpi.o ds1225y.o
+obj-mips-y += piix4.o parallel.o cirrus_vga.o pcspk.o $(sound-obj-y)
+obj-mips-y += mipsnet.o ne2000-isa.o
 obj-mips-y += pflash_cfi01.o
 obj-mips-y += vmware_vga.o
 
@@ -246,12 +254,14 @@ obj-cris-y += etraxfs_ser.o
 obj-cris-y += pflash_cfi02.o
 
 ifeq ($(TARGET_ARCH), sparc64)
-obj-sparc-y = sun4u.o ide.o isa-bus.o pckbd.o vga.o apb_pci.o
+obj-sparc-y = sun4u.o pckbd.o apb_pci.o
+obj-sparc-y += ide/core.o ide/qdev.o ide/pci.o ide/cmd646.o
+obj-sparc-y += vga.o vga-pci.o
 obj-sparc-y += fdc.o mc146818rtc.o serial.o
 obj-sparc-y += cirrus_vga.o parallel.o
 else
 obj-sparc-y = sun4m.o tcx.o iommu.o slavio_intctl.o
-obj-sparc-y += slavio_timer.o slavio_misc.o fdc.o isa-bus.o sparc32_dma.o
+obj-sparc-y += slavio_timer.o slavio_misc.o fdc.o sparc32_dma.o
 obj-sparc-y += cs4231.o eccmemctl.o sbi.o sun4c_intctl.o
 endif
 
@@ -265,7 +275,7 @@ obj-arm-y += arm-semi.o
 obj-arm-y += pxa2xx.o pxa2xx_pic.o pxa2xx_gpio.o pxa2xx_timer.o pxa2xx_dma.o
 obj-arm-y += pxa2xx_lcd.o pxa2xx_mmci.o pxa2xx_pcmcia.o pxa2xx_keypad.o
 obj-arm-y += pflash_cfi01.o gumstix.o
-obj-arm-y += zaurus.o ide.o serial.o spitz.o tosa.o tc6393xb.o
+obj-arm-y += zaurus.o ide/core.o ide/microdrive.o serial.o spitz.o tosa.o tc6393xb.o
 obj-arm-y += omap1.o omap_lcdc.o omap_dma.o omap_clk.o omap_mmc.o omap_i2c.o
 obj-arm-y += omap2.o omap_dss.o soc_dma.o
 obj-arm-y += omap_spi.o omap3.o omap3_boot.o omap3_mmc.o omap3_usb.o
@@ -281,7 +291,7 @@ obj-arm-y += syborg_virtio.o
 
 obj-sh4-y = shix.o r2d.o sh7750.o sh7750_regnames.o tc58128.o
 obj-sh4-y += sh_timer.o sh_serial.o sh_intc.o sh_pci.o sm501.o serial.o
-obj-sh4-y += ide.o
+obj-sh4-y += ide/core.o ide/mmio.o
 
 obj-m68k-y = an5206.o mcf5206.o mcf_uart.o mcf_intc.o mcf5208.o mcf_fec.o
 obj-m68k-y += m68k-semi.o dummy_m68k.o
@@ -327,16 +337,14 @@ endif # TARGET_BASE_ARCH==arm
 
 endif # CONFIG_SOFTMMU
 
+obj-$(CONFIG_GDBSTUB_XML) += gdbstub-xml.o
+
 $(QEMU_PROG): $(obj-y) $(obj-$(TARGET_BASE_ARCH)-y) $(ARLIBS)
 	$(call LINK,$(obj-y) $(obj-$(TARGET_BASE_ARCH)-y))
 
 
 gdbstub-xml.c: $(TARGET_XML_FILES) feature_to_c.sh
-ifeq ($(TARGET_XML_FILES),)
-	$(call quiet-command,rm -f $@ && echo > $@,"  GEN   $(TARGET_DIR)$@")
-else
 	$(call quiet-command,rm -f $@ && $(SHELL) $(SRC_PATH)/feature_to_c.sh $@ $(TARGET_XML_FILES),"  GEN   $(TARGET_DIR)$@")
-endif
 
 qemu-options.h: $(SRC_PATH)/qemu-options.hx
 	$(call quiet-command,sh $(SRC_PATH)/hxtool -h < $< > $@,"  GEN   $(TARGET_DIR)$@")
@@ -346,7 +354,7 @@ qemu-monitor.h: $(SRC_PATH)/qemu-monitor.hx
 
 clean:
 	rm -f *.o *.a *~ $(PROGS) nwfpe/*.o fpu/*.o
-	rm -f *.d */*.d tcg/*.o
+	rm -f *.d */*.d tcg/*.o ide/*.o
 	rm -f qemu-options.h qemu-monitor.h gdbstub-xml.c
 
 install: all

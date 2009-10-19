@@ -1042,34 +1042,38 @@ static void twl4030_node_init(TWL4030NodeState *s,
     memcpy(s->reg_data, reset_values, 256);
 }
 
-static void twl4030_48_init(i2c_slave *i2c)
+static int twl4030_48_init(i2c_slave *i2c)
 {
     twl4030_node_init(FROM_I2C_SLAVE(TWL4030NodeState, i2c),
                       twl4030_48_read, twl4030_48_write,
                       addr_48_reset_values);
+    return 0;
 }
 
-static void twl4030_49_init(i2c_slave *i2c)
+static int twl4030_49_init(i2c_slave *i2c)
 {
     twl4030_node_init(FROM_I2C_SLAVE(TWL4030NodeState, i2c),
                       twl4030_49_read, twl4030_49_write,
                       addr_49_reset_values);
+    return 0;
 }
 
-static void twl4030_4a_init(i2c_slave *i2c)
+static int twl4030_4a_init(i2c_slave *i2c)
 {
     TWL4030NodeState *s = FROM_I2C_SLAVE(TWL4030NodeState, i2c);
     twl4030_node_init(s,
                       twl4030_4a_read, twl4030_4a_write,
                       addr_4a_reset_values);
     qemu_add_kbd_event_handler(twl4030_key_handler, s);
+    return 0;
 }
 
-static void twl4030_4b_init(i2c_slave *i2c)
+static int twl4030_4b_init(i2c_slave *i2c)
 {
     twl4030_node_init(FROM_I2C_SLAVE(TWL4030NodeState, i2c),
                       twl4030_4b_read, twl4030_4b_write,
                       addr_4b_reset_values);
+    return 0;
 }
 
 static void twl4030_event(i2c_slave *i2c, enum i2c_event event)

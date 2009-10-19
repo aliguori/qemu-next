@@ -1,10 +1,11 @@
 #include "qemu-common.h"
 #include "qemu-option.h"
 #include "qemu-config.h"
+#include "sysemu.h"
 
 QemuOptsList qemu_drive_opts = {
     .name = "drive",
-    .head = TAILQ_HEAD_INITIALIZER(qemu_drive_opts.head),
+    .head = QTAILQ_HEAD_INITIALIZER(qemu_drive_opts.head),
     .desc = {
         {
             .name = "bus",
@@ -53,6 +54,10 @@ QemuOptsList qemu_drive_opts = {
             .type = QEMU_OPT_STRING,
             .help = "host cache usage (none, writeback, writethrough)",
         },{
+            .name = "aio",
+            .type = QEMU_OPT_STRING,
+            .help = "host AIO implementation (threads, native)",
+        },{
             .name = "format",
             .type = QEMU_OPT_STRING,
             .help = "disk format (raw, qcow2, ...)",
@@ -71,9 +76,72 @@ QemuOptsList qemu_drive_opts = {
     },
 };
 
+QemuOptsList qemu_chardev_opts = {
+    .name = "chardev",
+    .head = QTAILQ_HEAD_INITIALIZER(qemu_chardev_opts.head),
+    .desc = {
+        {
+            .name = "backend",
+            .type = QEMU_OPT_STRING,
+        },{
+            .name = "path",
+            .type = QEMU_OPT_STRING,
+        },{
+            .name = "host",
+            .type = QEMU_OPT_STRING,
+        },{
+            .name = "port",
+            .type = QEMU_OPT_STRING,
+        },{
+            .name = "localaddr",
+            .type = QEMU_OPT_STRING,
+        },{
+            .name = "localport",
+            .type = QEMU_OPT_STRING,
+        },{
+            .name = "to",
+            .type = QEMU_OPT_NUMBER,
+        },{
+            .name = "ipv4",
+            .type = QEMU_OPT_BOOL,
+        },{
+            .name = "ipv6",
+            .type = QEMU_OPT_BOOL,
+        },{
+            .name = "wait",
+            .type = QEMU_OPT_BOOL,
+        },{
+            .name = "server",
+            .type = QEMU_OPT_BOOL,
+        },{
+            .name = "delay",
+            .type = QEMU_OPT_BOOL,
+        },{
+            .name = "telnet",
+            .type = QEMU_OPT_BOOL,
+        },{
+            .name = "width",
+            .type = QEMU_OPT_NUMBER,
+        },{
+            .name = "height",
+            .type = QEMU_OPT_NUMBER,
+        },{
+            .name = "cols",
+            .type = QEMU_OPT_NUMBER,
+        },{
+            .name = "rows",
+            .type = QEMU_OPT_NUMBER,
+        },{
+            .name = "mux",
+            .type = QEMU_OPT_BOOL,
+        },
+        { /* end if list */ }
+    },
+};
+
 QemuOptsList qemu_device_opts = {
     .name = "device",
-    .head = TAILQ_HEAD_INITIALIZER(qemu_device_opts.head),
+    .head = QTAILQ_HEAD_INITIALIZER(qemu_device_opts.head),
     .desc = {
         /*
          * no elements => accept any
@@ -84,9 +152,57 @@ QemuOptsList qemu_device_opts = {
     },
 };
 
+QemuOptsList qemu_netdev_opts = {
+    .name = "netdev",
+    .head = QTAILQ_HEAD_INITIALIZER(qemu_netdev_opts.head),
+    .desc = {
+        /*
+         * no elements => accept any params
+         * validation will happen later
+         */
+        { /* end of list */ }
+    },
+};
+
+QemuOptsList qemu_net_opts = {
+    .name = "net",
+    .head = QTAILQ_HEAD_INITIALIZER(qemu_net_opts.head),
+    .desc = {
+        /*
+         * no elements => accept any params
+         * validation will happen later
+         */
+        { /* end of list */ }
+    },
+};
+
+QemuOptsList qemu_rtc_opts = {
+    .name = "rtc",
+    .head = QTAILQ_HEAD_INITIALIZER(qemu_rtc_opts.head),
+    .desc = {
+        {
+            .name = "base",
+            .type = QEMU_OPT_STRING,
+        },{
+            .name = "clock",
+            .type = QEMU_OPT_STRING,
+#ifdef TARGET_I386
+        },{
+            .name = "driftfix",
+            .type = QEMU_OPT_STRING,
+#endif
+        },
+        { /* end if list */ }
+    },
+};
+
 static QemuOptsList *lists[] = {
     &qemu_drive_opts,
+    &qemu_chardev_opts,
     &qemu_device_opts,
+    &qemu_netdev_opts,
+    &qemu_net_opts,
+    &qemu_rtc_opts,
     NULL,
 };
 
@@ -98,7 +214,7 @@ int qemu_set_option(const char *str)
 
     rc = sscanf(str, "%63[^.].%63[^.].%63[^=]%n", group, id, arg, &offset);
     if (rc < 3 || str[offset] != '=') {
-        fprintf(stderr, "can't parse: \"%s\"\n", str);
+        qemu_error("can't parse: \"%s\"\n", str);
         return -1;
     }
 
@@ -107,20 +223,18 @@ int qemu_set_option(const char *str)
             break;
     }
     if (lists[i] == NULL) {
-        fprintf(stderr, "there is no option group \"%s\"\n", group);
+        qemu_error("there is no option group \"%s\"\n", group);
         return -1;
     }
 
     opts = qemu_opts_find(lists[i], id);
     if (!opts) {
-        fprintf(stderr, "there is no %s \"%s\" defined\n",
+        qemu_error("there is no %s \"%s\" defined\n",
                 lists[i]->name, id);
         return -1;
     }
 
-    if (-1 == qemu_opt_set(opts, arg, str+offset+1)) {
-        fprintf(stderr, "failed to set \"%s\" for %s \"%s\"\n",
-                arg, lists[i]->name, id);
+    if (qemu_opt_set(opts, arg, str+offset+1) == -1) {
         return -1;
     }
     return 0;

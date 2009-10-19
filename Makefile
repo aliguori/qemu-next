@@ -5,14 +5,22 @@ ifneq ($(wildcard config-host.mak),)
 all: build-all
 include config-host.mak
 include $(SRC_PATH)/rules.mak
+config-host.mak: configure
+	@echo $@ is out-of-date, running configure
+	@sed -n "/.*Configured with/s/[^:]*: //p" $@ | sh
 else
 config-host.mak:
 	@echo "Please call configure before running make!"
 	@exit 1
 endif
 
+# Don't try to regenerate Makefile or configure
+# We don't generate any of them
+Makefile: ;
+configure: ;
+
 .PHONY: all clean cscope distclean dvi html info install install-doc \
-	recurse-all speed tar tarbin test
+	recurse-all speed tar tarbin test build-all
 
 VPATH=$(SRC_PATH):$(SRC_PATH)/hw
 
@@ -24,23 +32,34 @@ else
 DOCS=
 endif
 
-build-all: $(TOOLS) $(DOCS) recurse-all
-
-config-host.mak: configure
-ifneq ($(wildcard config-host.mak),)
-	@echo $@ is out-of-date, running configure
-	@sed -n "/.*Configured with/s/[^:]*: //p" $@ | sh
-endif
-
 SUBDIR_MAKEFLAGS=$(if $(V),,--no-print-directory)
+SUBDIR_DEVICES_MAK=$(patsubst %, %/config-devices.mak, $(TARGET_DIRS))
+
+config-all-devices.mak: $(SUBDIR_DEVICES_MAK)
+	$(call quiet-command,cat $(SUBDIR_DEVICES_MAK) | grep "=y$$" | sort -u > $@,"  GEN  $@")
+
+-include config-all-devices.mak
+
+build-all: config-host.h config-all-devices.h
+	$(call quiet-command, $(MAKE) $(SUBDIR_MAKEFLAGS) $(TOOLS) $(DOCS) recurse-all,)
+
+config-host.h: config-host.h-timestamp
+config-host.h-timestamp: config-host.mak
+
+config-all-devices.h: config-all-devices.h-timestamp
+config-all-devices.h-timestamp: config-all-devices.mak
+
 SUBDIR_RULES=$(patsubst %,subdir-%, $(TARGET_DIRS))
 
-subdir-%:
+subdir-%: config-host.h config-all-devices.h
 	$(call quiet-command,$(MAKE) $(SUBDIR_MAKEFLAGS) -C $* V="$(V)" TARGET_DIR="$*/" all,)
 
 $(filter %-softmmu,$(SUBDIR_RULES)): libqemu_common.a
-$(filter %-user,$(SUBDIR_RULES)): libqemu_user.a
 
+$(filter %-user,$(SUBDIR_RULES)): libuser.a
+
+libuser.a:
+	$(call quiet-command,$(MAKE) $(SUBDIR_MAKEFLAGS) -C libuser V="$(V)" TARGET_DIR="libuser/" all,)
 
 ROMSUBDIR_RULES=$(patsubst %,romsubdir-%, $(ROMS))
 romsubdir-%:
@@ -56,6 +75,7 @@ recurse-all: $(SUBDIR_RULES) $(ROMSUBDIR_RULES)
 block-obj-y = cutils.o cache-utils.o qemu-malloc.o qemu-option.o module.o
 block-obj-y += nbd.o block.o aio.o aes.o osdep.o
 block-obj-$(CONFIG_POSIX) += posix-aio-compat.o
+block-obj-$(CONFIG_LINUX_AIO) += linux-aio.o
 
 block-nested-y += cow.o qcow.o vdi.o vmdk.o cloop.o dmg.o bochs.o vpc.o vvfat.o
 block-nested-y += qcow2.o qcow2-refcount.o qcow2-cluster.o qcow2-snapshot.o
@@ -73,27 +93,43 @@ block-obj-y +=  $(addprefix block/, $(block-nested-y))
 # CPUs and machines.
 
 obj-y = $(block-obj-y)
-obj-y += readline.o console.o host-utils.o
+obj-y += readline.o console.o
 
-obj-y += irq.o ptimer.o
-obj-y += i2c.o smbus.o smbus_eeprom.o max7310.o max111x.o wm8750.o
-obj-y += ssd0303.o ssd0323.o ads7846.o stellaris_input.o twl92230.o
-obj-y += tmp105.o lm832x.o eeprom93xx.o tsc2005.o
+obj-y += tcg-runtime.o host-utils.o
+obj-y += irq.o ioport.o
+obj-$(CONFIG_PTIMER) += ptimer.o
+obj-$(CONFIG_MAX7310) += max7310.o
+obj-$(CONFIG_WM8750) += wm8750.o
+obj-$(CONFIG_TWL92230) += twl92230.o
+obj-$(CONFIG_TSC2005) += tsc2005.o
+obj-$(CONFIG_LM832X) += lm832x.o
+obj-$(CONFIG_TMP105) += tmp105.o
+obj-$(CONFIG_STELLARIS_INPUT) += stellaris_input.o
+obj-$(CONFIG_SSD0303) += ssd0303.o
+obj-$(CONFIG_SSD0323) += ssd0323.o
+obj-$(CONFIG_ADS7846) += ads7846.o
+obj-$(CONFIG_MAX111X) += max111x.o
+obj-y += i2c.o smbus.o smbus_eeprom.o
+obj-y += eeprom93xx.o
 obj-y += scsi-disk.o cdrom.o
-obj-y += scsi-generic.o
+obj-y += scsi-generic.o scsi-bus.o
 obj-y += usb.o usb-hub.o usb-$(HOST_USB).o usb-hid.o usb-msd.o usb-wacom.o
-obj-y += usb-serial.o usb-net.o
-obj-y += sd.o ssi-sd.o
+obj-y += usb-serial.o usb-net.o usb-bus.o
+obj-$(CONFIG_SSI) += ssi.o
+obj-$(CONFIG_SSI_SD) += ssi-sd.o
+obj-$(CONFIG_SD) += sd.o
 obj-y += bt.o bt-host.o bt-vhci.o bt-l2cap.o bt-sdp.o bt-hci.o bt-hid.o usb-bt.o
 obj-y += bt-hci-csr.o
-obj-y += buffered_file.o migration.o migration-tcp.o net.o qemu-sockets.o
+obj-y += buffered_file.o migration.o migration-tcp.o qemu-sockets.o
+obj-y += net.o net-queue.o
 obj-y += qemu-char.o aio.o net-checksum.o savevm.o
 obj-y += msmouse.o ps2.o
-obj-y += qdev.o qdev-properties.o ssi.o
+obj-y += qdev.o qdev-properties.o
+obj-y += qint.o qstring.o qdict.o qlist.o qemu-config.o
 
 obj-$(CONFIG_BRLAPI) += baum.o
 obj-$(CONFIG_WIN32) += tap-win32.o
-obj-$(CONFIG_POSIX) += migration-exec.o migration-unix.o
+obj-$(CONFIG_POSIX) += migration-exec.o migration-unix.o migration-fd.o
 
 audio/audio.o audio/fmodaudio.o: QEMU_CFLAGS += $(FMOD_CFLAGS)
 
@@ -106,7 +142,9 @@ audio-obj-$(CONFIG_DSOUND) += dsoundaudio.o
 audio-obj-$(CONFIG_FMOD) += fmodaudio.o
 audio-obj-$(CONFIG_ESD) += esdaudio.o
 audio-obj-$(CONFIG_PA) += paaudio.o
+audio-obj-$(CONFIG_WINWAVE) += winwaveaudio.o
 audio-obj-$(CONFIG_AUDIO_PT_INT) += audio_pt_int.o
+audio-obj-$(CONFIG_AUDIO_WIN_INT) += audio_win_int.o
 audio-obj-y += wavcapture.o
 obj-y += $(addprefix audio/, $(audio-obj-y))
 
@@ -160,12 +198,6 @@ bt-host.o: QEMU_CFLAGS += $(BLUEZ_CFLAGS)
 
 libqemu_common.a: $(obj-y)
 
-#######################################################################
-# user-obj-y is code used by qemu userspace emulation
-user-obj-y = cutils.o cache-utils.o path.o envlist.o host-utils.o
-
-libqemu_user.a: $(user-obj-y)
-
 ######################################################################
 
 qemu-img.o: qemu-img-cmds.h
@@ -179,21 +211,27 @@ qemu-io$(EXESUF):  qemu-io.o qemu-tool.o cmd.o $(block-obj-y)
 qemu-img-cmds.h: $(SRC_PATH)/qemu-img-cmds.hx
 	$(call quiet-command,sh $(SRC_PATH)/hxtool -h < $< > $@,"  GEN   $@")
 
+check-qint: check-qint.o qint.o qemu-malloc.o
+check-qstring: check-qstring.o qstring.o qemu-malloc.o
+check-qdict: check-qdict.o qdict.o qint.o qstring.o qemu-malloc.o
+check-qlist: check-qlist.o qlist.o qint.o qemu-malloc.o
+
 clean:
 # avoid old build problems by removing potentially incorrect old files
-	rm -f config.mak config.h op-i386.h opc-i386.h gen-op-i386.h op-arm.h opc-arm.h gen-op-arm.h
+	rm -f config.mak op-i386.h opc-i386.h gen-op-i386.h op-arm.h opc-arm.h gen-op-arm.h
 	rm -f *.o *.d *.a $(TOOLS) TAGS cscope.* *.pod *~ */*~
 	rm -f slirp/*.o slirp/*.d audio/*.o audio/*.d block/*.o block/*.d
 	rm -f qemu-img-cmds.h
 	$(MAKE) -C tests clean
-	for d in $(ALL_SUBDIRS) libhw32 libhw64; do \
+	for d in $(ALL_SUBDIRS) libhw32 libhw64 libuser; do \
 	$(MAKE) -C $$d $@ || exit 1 ; \
         done
 
 distclean: clean
-	rm -f config-host.mak config-host.h config-host.ld $(DOCS) qemu-options.texi qemu-img-cmds.texi
+	rm -f config-host.mak config-host.h* config-host.ld $(DOCS) qemu-options.texi qemu-img-cmds.texi
+	rm -f config-all-devices.mak config-all-devices.h*
 	rm -f qemu-{doc,tech}.{info,aux,cp,dvi,fn,info,ky,log,pg,toc,tp,vr}
-	for d in $(TARGET_DIRS) libhw32 libhw64; do \
+	for d in $(TARGET_DIRS) libhw32 libhw64 libuser; do \
 	rm -rf $$d || exit 1 ; \
         done
 
@@ -316,6 +354,7 @@ tarbin:
 	$(bindir)/qemu-system-arm \
 	$(bindir)/qemu-system-cris \
 	$(bindir)/qemu-system-m68k \
+	$(bindir)/qemu-system-microblaze \
 	$(bindir)/qemu-system-mips \
 	$(bindir)/qemu-system-mipsel \
 	$(bindir)/qemu-system-mips64 \
@@ -333,6 +372,7 @@ tarbin:
 	$(bindir)/qemu-armeb \
 	$(bindir)/qemu-cris \
 	$(bindir)/qemu-m68k \
+	$(bindir)/qemu-microblaze \
 	$(bindir)/qemu-mips \
 	$(bindir)/qemu-mipsel \
 	$(bindir)/qemu-ppc \

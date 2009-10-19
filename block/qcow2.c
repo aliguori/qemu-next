@@ -219,6 +219,8 @@ static int qcow_open(BlockDriverState *bs, const char *filename, int flags)
     if (qcow2_refcount_init(bs) < 0)
         goto fail;
 
+    QLIST_INIT(&s->cluster_allocs);
+
     /* read qcow2 extensions */
     if (header.backing_file_offset)
         ext_end = header.backing_file_offset;
@@ -338,6 +340,7 @@ typedef struct QCowAIOCB {
     QEMUIOVector hd_qiov;
     QEMUBH *bh;
     QCowL2Meta l2meta;
+    QLIST_ENTRY(QCowAIOCB) next_depend;
 } QCowAIOCB;
 
 static void qcow_aio_cancel(BlockDriverAIOCB *blockacb)
@@ -500,6 +503,7 @@ static QCowAIOCB *qcow_aio_setup(BlockDriverState *bs,
     acb->n = 0;
     acb->cluster_offset = 0;
     acb->l2meta.nb_clusters = 0;
+    QLIST_INIT(&acb->l2meta.dependent_requests);
     return acb;
 }
 
@@ -517,6 +521,33 @@ static BlockDriverAIOCB *qcow_aio_readv(BlockDriverState *bs,
     return &acb->common;
 }
 
+static void qcow_aio_write_cb(void *opaque, int ret);
+
+static void run_dependent_requests(QCowL2Meta *m)
+{
+    QCowAIOCB *req;
+    QCowAIOCB *next;
+
+    /* Take the request off the list of running requests */
+    if (m->nb_clusters != 0) {
+        QLIST_REMOVE(m, next_in_flight);
+    }
+
+    /*
+     * Restart all dependent requests.
+     * Can't use QLIST_FOREACH here - the next link might not be the same
+     * any more after the callback  (request could depend on a different
+     * request now)
+     */
+    for (req = m->dependent_requests.lh_first; req != NULL; req = next) {
+        next = req->next_depend.le_next;
+        qcow_aio_write_cb(req, 0);
+    }
+
+    /* Empty the list for the next part of the request */
+    QLIST_INIT(&m->dependent_requests);
+}
+
 static void qcow_aio_write_cb(void *opaque, int ret)
 {
     QCowAIOCB *acb = opaque;
@@ -528,13 +559,14 @@ static void qcow_aio_write_cb(void *opaque, int ret)
 
     acb->hd_aiocb = NULL;
 
+    if (ret >= 0) {
+        ret = qcow2_alloc_cluster_link_l2(bs, acb->cluster_offset, &acb->l2meta);
+    }
+
+    run_dependent_requests(&acb->l2meta);
+
     if (ret < 0)
         goto done;
-
-    if (qcow2_alloc_cluster_link_l2(bs, acb->cluster_offset, &acb->l2meta) < 0) {
-        qcow2_free_any_clusters(bs, acb->cluster_offset, acb->l2meta.nb_clusters);
-        goto done;
-    }
 
     acb->nb_sectors -= acb->n;
     acb->sector_num += acb->n;
@@ -555,6 +587,14 @@ static void qcow_aio_write_cb(void *opaque, int ret)
     acb->cluster_offset = qcow2_alloc_cluster_offset(bs, acb->sector_num << 9,
                                           index_in_cluster,
                                           n_end, &acb->n, &acb->l2meta);
+
+    /* Need to wait for another request? If so, we are done for now. */
+    if (!acb->cluster_offset && acb->l2meta.depends_on != NULL) {
+        QLIST_INSERT_HEAD(&acb->l2meta.depends_on->dependent_requests,
+            acb, next_depend);
+        return;
+    }
+
     if (!acb->cluster_offset || (acb->cluster_offset & 511) != 0) {
         ret = -EIO;
         goto done;
@@ -638,9 +678,61 @@ static int get_bits_from_size(size_t size)
     return res;
 }
 
+
+static int preallocate(BlockDriverState *bs)
+{
+    BDRVQcowState *s = bs->opaque;
+    uint64_t cluster_offset = 0;
+    uint64_t nb_sectors;
+    uint64_t offset;
+    int num;
+    QCowL2Meta meta;
+
+    nb_sectors = bdrv_getlength(bs) >> 9;
+    offset = 0;
+    QLIST_INIT(&meta.dependent_requests);
+
+    while (nb_sectors) {
+        num = MIN(nb_sectors, INT_MAX >> 9);
+        cluster_offset = qcow2_alloc_cluster_offset(bs, offset, 0, num, &num,
+            &meta);
+
+        if (cluster_offset == 0) {
+            return -1;
+        }
+
+        if (qcow2_alloc_cluster_link_l2(bs, cluster_offset, &meta) < 0) {
+            qcow2_free_any_clusters(bs, cluster_offset, meta.nb_clusters);
+            return -1;
+        }
+
+        /* There are no dependent requests, but we need to remove our request
+         * from the list of in-flight requests */
+        run_dependent_requests(&meta);
+
+        /* TODO Preallocate data if requested */
+
+        nb_sectors -= num;
+        offset += num << 9;
+    }
+
+    /*
+     * It is expected that the image file is large enough to actually contain
+     * all of the allocated clusters (otherwise we get failing reads after
+     * EOF). Extend the image to the last allocated sector.
+     */
+    if (cluster_offset != 0) {
+        uint8_t buf[512];
+        memset(buf, 0, 512);
+        bdrv_write(s->hd, (cluster_offset >> 9) + num - 1, buf, 1);
+    }
+
+    return 0;
+}
+
 static int qcow_create2(const char *filename, int64_t total_size,
                         const char *backing_file, const char *backing_format,
-                        int flags, size_t cluster_size)
+                        int flags, size_t cluster_size, int prealloc)
 {
 
     int fd, header_size, backing_filename_len, l1_size, i, shift, l2_bits;
@@ -762,6 +854,16 @@ static int qcow_create2(const char *filename, int64_t total_size,
     qemu_free(s->refcount_table);
     qemu_free(s->refcount_block);
     close(fd);
+
+    /* Preallocate metadata */
+    if (prealloc) {
+        BlockDriverState *bs;
+        bs = bdrv_new("");
+        bdrv_open(bs, filename, BDRV_O_CACHE_WB);
+        preallocate(bs);
+        bdrv_close(bs);
+    }
+
     return 0;
 }
 
@@ -772,6 +874,7 @@ static int qcow_create(const char *filename, QEMUOptionParameter *options)
     uint64_t sectors = 0;
     int flags = 0;
     size_t cluster_size = 65536;
+    int prealloc = 0;
 
     /* Read out options */
     while (options && options->name) {
@@ -787,12 +890,28 @@ static int qcow_create(const char *filename, QEMUOptionParameter *options)
             if (options->value.n) {
                 cluster_size = options->value.n;
             }
+        } else if (!strcmp(options->name, BLOCK_OPT_PREALLOC)) {
+            if (!options->value.s || !strcmp(options->value.s, "off")) {
+                prealloc = 0;
+            } else if (!strcmp(options->value.s, "metadata")) {
+                prealloc = 1;
+            } else {
+                fprintf(stderr, "Invalid preallocation mode: '%s'\n",
+                    options->value.s);
+                return -EINVAL;
+            }
         }
         options++;
     }
 
+    if (backing_file && prealloc) {
+        fprintf(stderr, "Backing file and preallocation cannot be used at "
+            "the same time\n");
+        return -EINVAL;
+    }
+
     return qcow_create2(filename, sectors, backing_file, backing_fmt, flags,
-        cluster_size);
+        cluster_size, prealloc);
 }
 
 static int qcow_make_empty(BlockDriverState *bs)
@@ -812,6 +931,51 @@ static int qcow_make_empty(BlockDriverState *bs)
 
     l2_cache_reset(bs);
 #endif
+    return 0;
+}
+
+static int qcow2_write(BlockDriverState *bs, int64_t sector_num,
+                     const uint8_t *buf, int nb_sectors)
+{
+    BDRVQcowState *s = bs->opaque;
+    int ret, index_in_cluster, n;
+    uint64_t cluster_offset;
+    int n_end;
+    QCowL2Meta l2meta;
+
+    while (nb_sectors > 0) {
+        memset(&l2meta, 0, sizeof(l2meta));
+
+        index_in_cluster = sector_num & (s->cluster_sectors - 1);
+        n_end = index_in_cluster + nb_sectors;
+        if (s->crypt_method &&
+            n_end > QCOW_MAX_CRYPT_CLUSTERS * s->cluster_sectors)
+            n_end = QCOW_MAX_CRYPT_CLUSTERS * s->cluster_sectors;
+        cluster_offset = qcow2_alloc_cluster_offset(bs, sector_num << 9,
+                                              index_in_cluster,
+                                              n_end, &n, &l2meta);
+        if (!cluster_offset)
+            return -1;
+        if (s->crypt_method) {
+            qcow2_encrypt_sectors(s, sector_num, s->cluster_data, buf, n, 1,
+                            &s->aes_encrypt_key);
+            ret = bdrv_pwrite(s->hd, cluster_offset + index_in_cluster * 512,
+                              s->cluster_data, n * 512);
+        } else {
+            ret = bdrv_pwrite(s->hd, cluster_offset + index_in_cluster * 512, buf, n * 512);
+        }
+        if (ret != n * 512 || qcow2_alloc_cluster_link_l2(bs, cluster_offset, &l2meta) < 0) {
+            qcow2_free_any_clusters(bs, cluster_offset, l2meta.nb_clusters);
+            return -1;
+        }
+        nb_sectors -= n;
+        sector_num += n;
+        buf += n * 512;
+        if (l2meta.nb_clusters != 0) {
+            QLIST_REMOVE(&l2meta, next_in_flight);
+        }
+    }
+    s->cluster_cache_offset = -1; /* disable compressed cache */
     return 0;
 }
 
@@ -982,6 +1146,11 @@ static QEMUOptionParameter qcow_create_options[] = {
         .type = OPT_SIZE,
         .help = "qcow2 cluster size"
     },
+    {
+        .name = BLOCK_OPT_PREALLOC,
+        .type = OPT_STRING,
+        .help = "Preallocation mode (allowed values: off, metadata)"
+    },
     { NULL }
 };
 
@@ -997,8 +1166,10 @@ static BlockDriver bdrv_qcow2 = {
     .bdrv_set_key	= qcow_set_key,
     .bdrv_make_empty	= qcow_make_empty,
 
-    .bdrv_aio_readv	= qcow_aio_readv,
-    .bdrv_aio_writev	= qcow_aio_writev,
+    .bdrv_read          = qcow2_read,
+    .bdrv_write         = qcow2_write,
+    .bdrv_aio_readv     = qcow_aio_readv,
+    .bdrv_aio_writev    = qcow_aio_writev,
     .bdrv_write_compressed = qcow_write_compressed,
 
     .bdrv_snapshot_create   = qcow2_snapshot_create,

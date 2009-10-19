@@ -37,6 +37,8 @@
 #include "fw_cfg.h"
 #include "escc.h"
 #include "qdev-addr.h"
+#include "loader.h"
+#include "elf.h"
 
 //#define DEBUG_IRQ
 
@@ -297,16 +299,25 @@ static unsigned long sun4m_load_kernel(const char *kernel_filename,
     int linux_boot;
     unsigned int i;
     long initrd_size, kernel_size;
+    uint8_t *ptr;
 
     linux_boot = (kernel_filename != NULL);
 
     kernel_size = 0;
     if (linux_boot) {
+        int bswap_needed;
+
+#ifdef BSWAP_NEEDED
+        bswap_needed = 1;
+#else
+        bswap_needed = 0;
+#endif
         kernel_size = load_elf(kernel_filename, -0xf0000000ULL, NULL, NULL,
-                               NULL);
+                               NULL, 1, ELF_MACHINE, 0);
         if (kernel_size < 0)
             kernel_size = load_aout(kernel_filename, KERNEL_LOAD_ADDR,
-                                    RAM_size - KERNEL_LOAD_ADDR);
+                                    RAM_size - KERNEL_LOAD_ADDR, bswap_needed,
+                                    TARGET_PAGE_SIZE);
         if (kernel_size < 0)
             kernel_size = load_image_targphys(kernel_filename,
                                               KERNEL_LOAD_ADDR,
@@ -331,9 +342,10 @@ static unsigned long sun4m_load_kernel(const char *kernel_filename,
         }
         if (initrd_size > 0) {
             for (i = 0; i < 64 * TARGET_PAGE_SIZE; i += TARGET_PAGE_SIZE) {
-                if (ldl_phys(KERNEL_LOAD_ADDR + i) == 0x48647253) { // HdrS
-                    stl_phys(KERNEL_LOAD_ADDR + i + 16, INITRD_LOAD_ADDR);
-                    stl_phys(KERNEL_LOAD_ADDR + i + 20, initrd_size);
+                ptr = rom_ptr(KERNEL_LOAD_ADDR + i);
+                if (ldl_p(ptr) == 0x48647253) { // HdrS
+                    stl_p(ptr + 16, INITRD_LOAD_ADDR);
+                    stl_p(ptr + 20, initrd_size);
                     break;
                 }
             }
@@ -349,7 +361,7 @@ static void *iommu_init(target_phys_addr_t addr, uint32_t version, qemu_irq irq)
 
     dev = qdev_create(NULL, "iommu");
     qdev_prop_set_uint32(dev, "version", version);
-    qdev_init(dev);
+    qdev_init_nofail(dev);
     s = sysbus_from_qdev(dev);
     sysbus_connect_irq(s, 0, irq);
     sysbus_mmio_map(s, 0, addr);
@@ -365,7 +377,7 @@ static void *sparc32_dma_init(target_phys_addr_t daddr, qemu_irq parent_irq,
 
     dev = qdev_create(NULL, "sparc32_dma");
     qdev_prop_set_ptr(dev, "iommu_opaque", iommu);
-    qdev_init(dev);
+    qdev_init_nofail(dev);
     s = sysbus_from_qdev(dev);
     sysbus_connect_irq(s, 0, parent_irq);
     *dev_irq = qdev_get_gpio_in(dev, 0);
@@ -386,7 +398,7 @@ static void lance_init(NICInfo *nd, target_phys_addr_t leaddr,
     dev = qdev_create(NULL, "lance");
     dev->nd = nd;
     qdev_prop_set_ptr(dev, "dma", dma_opaque);
-    qdev_init(dev);
+    qdev_init_nofail(dev);
     s = sysbus_from_qdev(dev);
     sysbus_mmio_map(s, 0, leaddr);
     sysbus_connect_irq(s, 0, irq);
@@ -396,16 +408,14 @@ static void lance_init(NICInfo *nd, target_phys_addr_t leaddr,
 
 static DeviceState *slavio_intctl_init(target_phys_addr_t addr,
                                        target_phys_addr_t addrg,
-                                       qemu_irq **parent_irq,
-                                       unsigned int cputimer)
+                                       qemu_irq **parent_irq)
 {
     DeviceState *dev;
     SysBusDevice *s;
     unsigned int i, j;
 
     dev = qdev_create(NULL, "slavio_intctl");
-    qdev_prop_set_uint32(dev, "cputimer_bit", cputimer);
-    qdev_init(dev);
+    qdev_init_nofail(dev);
 
     s = sysbus_from_qdev(dev);
 
@@ -434,7 +444,7 @@ static void slavio_timer_init_all(target_phys_addr_t addr, qemu_irq master_irq,
 
     dev = qdev_create(NULL, "slavio_timer");
     qdev_prop_set_uint32(dev, "num_cpus", num_cpus);
-    qdev_init(dev);
+    qdev_init_nofail(dev);
     s = sysbus_from_qdev(dev);
     sysbus_connect_irq(s, 0, master_irq);
     sysbus_mmio_map(s, 0, addr + SYS_TIMER_OFFSET);
@@ -460,7 +470,7 @@ static void slavio_misc_init(target_phys_addr_t base,
     SysBusDevice *s;
 
     dev = qdev_create(NULL, "slavio_misc");
-    qdev_init(dev);
+    qdev_init_nofail(dev);
     s = sysbus_from_qdev(dev);
     if (base) {
         /* 8 bit registers */
@@ -497,7 +507,7 @@ static void ecc_init(target_phys_addr_t base, qemu_irq irq, uint32_t version)
 
     dev = qdev_create(NULL, "eccmemctl");
     qdev_prop_set_uint32(dev, "version", version);
-    qdev_init(dev);
+    qdev_init_nofail(dev);
     s = sysbus_from_qdev(dev);
     sysbus_connect_irq(s, 0, irq);
     sysbus_mmio_map(s, 0, base);
@@ -512,7 +522,7 @@ static void apc_init(target_phys_addr_t power_base, qemu_irq cpu_halt)
     SysBusDevice *s;
 
     dev = qdev_create(NULL, "apc");
-    qdev_init(dev);
+    qdev_init_nofail(dev);
     s = sysbus_from_qdev(dev);
     /* Power management (APC) XXX: not a Slavio device */
     sysbus_mmio_map(s, 0, power_base);
@@ -531,7 +541,7 @@ static void tcx_init(target_phys_addr_t addr, int vram_size, int width,
     qdev_prop_set_uint16(dev, "width", width);
     qdev_prop_set_uint16(dev, "height", height);
     qdev_prop_set_uint16(dev, "depth", depth);
-    qdev_init(dev);
+    qdev_init_nofail(dev);
     s = sysbus_from_qdev(dev);
     /* 8-bit plane */
     sysbus_mmio_map(s, 0, addr + 0x00800000ULL);
@@ -561,19 +571,20 @@ static void idreg_init(target_phys_addr_t addr)
     SysBusDevice *s;
 
     dev = qdev_create(NULL, "macio_idreg");
-    qdev_init(dev);
+    qdev_init_nofail(dev);
     s = sysbus_from_qdev(dev);
 
     sysbus_mmio_map(s, 0, addr);
     cpu_physical_memory_write_rom(addr, idreg_data, sizeof(idreg_data));
 }
 
-static void idreg_init1(SysBusDevice *dev)
+static int idreg_init1(SysBusDevice *dev)
 {
     ram_addr_t idreg_offset;
 
     idreg_offset = qemu_ram_alloc(sizeof(idreg_data));
     sysbus_init_mmio(dev, sizeof(idreg_data), idreg_offset | IO_MEM_ROM);
+    return 0;
 }
 
 static SysBusDeviceInfo idreg_info = {
@@ -598,7 +609,7 @@ static void prom_init(target_phys_addr_t addr, const char *bios_name)
     int ret;
 
     dev = qdev_create(NULL, "openprom");
-    qdev_init(dev);
+    qdev_init_nofail(dev);
     s = sysbus_from_qdev(dev);
 
     sysbus_mmio_map(s, 0, addr);
@@ -609,7 +620,8 @@ static void prom_init(target_phys_addr_t addr, const char *bios_name)
     }
     filename = qemu_find_file(QEMU_FILE_TYPE_BIOS, bios_name);
     if (filename) {
-        ret = load_elf(filename, addr - PROM_VADDR, NULL, NULL, NULL);
+        ret = load_elf(filename, addr - PROM_VADDR, NULL, NULL, NULL,
+                       1, ELF_MACHINE, 0);
         if (ret < 0 || ret > PROM_SIZE_MAX) {
             ret = load_image_targphys(filename, addr, PROM_SIZE_MAX);
         }
@@ -623,12 +635,13 @@ static void prom_init(target_phys_addr_t addr, const char *bios_name)
     }
 }
 
-static void prom_init1(SysBusDevice *dev)
+static int prom_init1(SysBusDevice *dev)
 {
     ram_addr_t prom_offset;
 
     prom_offset = qemu_ram_alloc(PROM_SIZE_MAX);
     sysbus_init_mmio(dev, PROM_SIZE_MAX, prom_offset | IO_MEM_ROM);
+    return 0;
 }
 
 static SysBusDeviceInfo prom_info = {
@@ -654,7 +667,7 @@ typedef struct RamDevice
 } RamDevice;
 
 /* System RAM */
-static void ram_init1(SysBusDevice *dev)
+static int ram_init1(SysBusDevice *dev)
 {
     ram_addr_t RAM_size, ram_offset;
     RamDevice *d = FROM_SYSBUS(RamDevice, dev);
@@ -663,6 +676,7 @@ static void ram_init1(SysBusDevice *dev)
 
     ram_offset = qemu_ram_alloc(RAM_size);
     sysbus_init_mmio(dev, RAM_size, ram_offset);
+    return 0;
 }
 
 static void ram_init(target_phys_addr_t addr, ram_addr_t RAM_size,
@@ -685,7 +699,7 @@ static void ram_init(target_phys_addr_t addr, ram_addr_t RAM_size,
 
     d = FROM_SYSBUS(RamDevice, s);
     d->size = RAM_size;
-    qdev_init(dev);
+    qdev_init_nofail(dev);
 
     sysbus_mmio_map(s, 0, addr);
 }
@@ -746,9 +760,8 @@ static void sun4m_hw_init(const struct sun4m_hwdef *hwdef, ram_addr_t RAM_size,
     qemu_irq fdc_tc;
     qemu_irq *cpu_halt;
     unsigned long kernel_size;
-    BlockDriverState *fd[MAX_FD];
+    DriveInfo *fd[MAX_FD];
     void *fw_cfg;
-    DriveInfo *dinfo;
 
     /* init CPUs */
     if (!cpu_model)
@@ -769,8 +782,7 @@ static void sun4m_hw_init(const struct sun4m_hwdef *hwdef, ram_addr_t RAM_size,
 
     slavio_intctl = slavio_intctl_init(hwdef->intctl_base,
                                        hwdef->intctl_base + 0x10000ULL,
-                                       cpu_irqs,
-                                       7);
+                                       cpu_irqs);
 
     for (i = 0; i < 32; i++) {
         slavio_irq[i] = qdev_get_gpio_in(slavio_intctl, i);
@@ -823,10 +835,7 @@ static void sun4m_hw_init(const struct sun4m_hwdef *hwdef, ram_addr_t RAM_size,
     if (hwdef->fd_base) {
         /* there is zero or one floppy drive */
         memset(fd, 0, sizeof(fd));
-        dinfo = drive_get(IF_FLOPPY, 0, 0);
-        if (dinfo)
-            fd[0] = dinfo->bdrv;
-
+        fd[0] = drive_get(IF_FLOPPY, 0, 0);
         sun4m_fdctrl_init(slavio_irq[22], hwdef->fd_base, fd,
                           &fdc_tc);
     }
@@ -868,7 +877,7 @@ static void sun4m_hw_init(const struct sun4m_hwdef *hwdef, ram_addr_t RAM_size,
     fw_cfg_add_i32(fw_cfg, FW_CFG_KERNEL_SIZE, kernel_size);
     if (kernel_cmdline) {
         fw_cfg_add_i32(fw_cfg, FW_CFG_KERNEL_CMDLINE, CMDLINE_ADDR);
-        pstrcpy_targphys(CMDLINE_ADDR, TARGET_PAGE_SIZE, kernel_cmdline);
+        pstrcpy_targphys("cmdline", CMDLINE_ADDR, TARGET_PAGE_SIZE, kernel_cmdline);
     } else {
         fw_cfg_add_i32(fw_cfg, FW_CFG_KERNEL_CMDLINE, 0);
     }
@@ -1337,7 +1346,7 @@ static DeviceState *sbi_init(target_phys_addr_t addr, qemu_irq **parent_irq)
     unsigned int i;
 
     dev = qdev_create(NULL, "sbi");
-    qdev_init(dev);
+    qdev_init_nofail(dev);
 
     s = sysbus_from_qdev(dev);
 
@@ -1450,7 +1459,7 @@ static void sun4d_hw_init(const struct sun4d_hwdef *hwdef, ram_addr_t RAM_size,
     fw_cfg_add_i32(fw_cfg, FW_CFG_KERNEL_SIZE, kernel_size);
     if (kernel_cmdline) {
         fw_cfg_add_i32(fw_cfg, FW_CFG_KERNEL_CMDLINE, CMDLINE_ADDR);
-        pstrcpy_targphys(CMDLINE_ADDR, TARGET_PAGE_SIZE, kernel_cmdline);
+        pstrcpy_targphys("cmdline", CMDLINE_ADDR, TARGET_PAGE_SIZE, kernel_cmdline);
     } else {
         fw_cfg_add_i32(fw_cfg, FW_CFG_KERNEL_CMDLINE, 0);
     }
@@ -1527,7 +1536,7 @@ static DeviceState *sun4c_intctl_init(target_phys_addr_t addr,
     unsigned int i;
 
     dev = qdev_create(NULL, "sun4c_intctl");
-    qdev_init(dev);
+    qdev_init_nofail(dev);
 
     s = sysbus_from_qdev(dev);
 
@@ -1551,11 +1560,10 @@ static void sun4c_hw_init(const struct sun4c_hwdef *hwdef, ram_addr_t RAM_size,
     qemu_irq esp_reset;
     qemu_irq fdc_tc;
     unsigned long kernel_size;
-    BlockDriverState *fd[MAX_FD];
+    DriveInfo *fd[MAX_FD];
     void *fw_cfg;
     DeviceState *dev;
     unsigned int i;
-    DriveInfo *dinfo;
 
     /* init CPU */
     if (!cpu_model)
@@ -1607,10 +1615,7 @@ static void sun4c_hw_init(const struct sun4c_hwdef *hwdef, ram_addr_t RAM_size,
     if (hwdef->fd_base != (target_phys_addr_t)-1) {
         /* there is zero or one floppy drive */
         memset(fd, 0, sizeof(fd));
-        dinfo = drive_get(IF_FLOPPY, 0, 0);
-        if (dinfo)
-            fd[0] = dinfo->bdrv;
-
+        fd[0] = drive_get(IF_FLOPPY, 0, 0);
         sun4m_fdctrl_init(slavio_irq[1], hwdef->fd_base, fd,
                           &fdc_tc);
     }
@@ -1642,7 +1647,7 @@ static void sun4c_hw_init(const struct sun4c_hwdef *hwdef, ram_addr_t RAM_size,
     fw_cfg_add_i32(fw_cfg, FW_CFG_KERNEL_SIZE, kernel_size);
     if (kernel_cmdline) {
         fw_cfg_add_i32(fw_cfg, FW_CFG_KERNEL_CMDLINE, CMDLINE_ADDR);
-        pstrcpy_targphys(CMDLINE_ADDR, TARGET_PAGE_SIZE, kernel_cmdline);
+        pstrcpy_targphys("cmdline", CMDLINE_ADDR, TARGET_PAGE_SIZE, kernel_cmdline);
     } else {
         fw_cfg_add_i32(fw_cfg, FW_CFG_KERNEL_CMDLINE, 0);
     }

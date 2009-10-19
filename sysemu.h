@@ -4,7 +4,9 @@
 
 #include "qemu-common.h"
 #include "qemu-option.h"
-#include "sys-queue.h"
+#include "qemu-queue.h"
+#include "qemu-timer.h"
+#include "qdict.h"
 
 #ifdef _WIN32
 #include <windows.h>
@@ -50,9 +52,9 @@ int qemu_powerdown_requested(void);
 extern qemu_irq qemu_system_powerdown;
 void qemu_system_reset(void);
 
-void do_savevm(Monitor *mon, const char *name);
-void do_loadvm(Monitor *mon, const char *name);
-void do_delvm(Monitor *mon, const char *name);
+void do_savevm(Monitor *mon, const QDict *qdict);
+int load_vmstate(Monitor *mon, const char *name);
+void do_delvm(Monitor *mon, const QDict *qdict);
 void do_info_snapshots(Monitor *mon);
 
 void qemu_announce_self(void);
@@ -64,6 +66,11 @@ int qemu_savevm_state_iterate(QEMUFile *f);
 int qemu_savevm_state_complete(QEMUFile *f);
 int qemu_savevm_state(QEMUFile *f);
 int qemu_loadvm_state(QEMUFile *f);
+
+void qemu_errors_to_file(FILE *fp);
+void qemu_errors_to_mon(Monitor *mon);
+void qemu_errors_to_previous(void);
+void qemu_error(const char *fmt, ...) __attribute__ ((format(printf, 1, 2)));
 
 #ifdef _WIN32
 /* Polling handling */
@@ -119,9 +126,8 @@ extern const char *keyboard_layout;
 extern int win2k_install_hack;
 extern int rtc_td_hack;
 extern int alt_grab;
+extern int ctrl_grab;
 extern int usb_enabled;
-extern int virtio_balloon;
-extern const char *virtio_balloon_devaddr;
 extern int smp_cpus;
 extern int max_cpus;
 extern int cursor_hide;
@@ -131,10 +137,12 @@ extern int no_quit;
 extern int semihosting_enabled;
 extern int old_param;
 extern int boot_menu;
+extern QEMUClock *rtc_clock;
 
 #define MAX_NODES 64
 extern int nb_numa_nodes;
 extern uint64_t node_mem[MAX_NODES];
+extern uint64_t node_cpumask[MAX_NODES];
 
 #define MAX_OPTION_ROMS 16
 extern const char *option_rom[MAX_OPTION_ROMS];
@@ -171,20 +179,20 @@ typedef struct DriveInfo {
     QemuOpts *opts;
     BlockInterfaceErrorAction onerror;
     char serial[BLOCK_SERIAL_STRLEN + 1];
-    TAILQ_ENTRY(DriveInfo) next;
+    QTAILQ_ENTRY(DriveInfo) next;
 } DriveInfo;
 
 #define MAX_IDE_DEVS	2
 #define MAX_SCSI_DEVS	7
 #define MAX_DRIVES 32
 
-extern TAILQ_HEAD(drivelist, DriveInfo) drives;
-extern TAILQ_HEAD(driveoptlist, DriveOpt) driveopts;
+extern QTAILQ_HEAD(drivelist, DriveInfo) drives;
+extern QTAILQ_HEAD(driveoptlist, DriveOpt) driveopts;
 
 extern DriveInfo *drive_get(BlockInterfaceType type, int bus, int unit);
 extern DriveInfo *drive_get_by_id(const char *id);
 extern int drive_get_max_bus(BlockInterfaceType type);
-extern void drive_uninit(BlockDriverState *bdrv);
+extern void drive_uninit(DriveInfo *dinfo);
 extern const char *drive_get_serial(BlockDriverState *bdrv);
 extern BlockInterfaceErrorAction drive_get_onerror(BlockDriverState *bdrv);
 
@@ -193,25 +201,19 @@ BlockDriverState *qdev_init_bdrv(DeviceState *dev, BlockInterfaceType type);
 extern QemuOpts *drive_add(const char *file, const char *fmt, ...);
 extern DriveInfo *drive_init(QemuOpts *arg, void *machine, int *fatal_error);
 
-/* acpi */
-typedef void (*qemu_system_device_hot_add_t)(int pcibus, int slot, int state);
-void qemu_system_device_hot_add_register(qemu_system_device_hot_add_t callback);
-void qemu_system_device_hot_add(int pcibus, int slot, int state);
-
 /* device-hotplug */
 
 typedef int (dev_match_fn)(void *dev_private, void *arg);
 
 DriveInfo *add_init_drive(const char *opts);
 void destroy_nic(dev_match_fn *match_fn, void *arg);
-void destroy_bdrvs(dev_match_fn *match_fn, void *arg);
 
 /* pci-hotplug */
-void pci_device_hot_add(Monitor *mon, const char *pci_addr, const char *type,
-                        const char *opts);
-void drive_hot_add(Monitor *mon, const char *pci_addr, const char *opts);
+void pci_device_hot_add(Monitor *mon, const QDict *qdict);
+void drive_hot_add(Monitor *mon, const QDict *qdict);
 void pci_device_hot_remove(Monitor *mon, const char *pci_addr);
-void pci_device_hot_remove_success(int pcibus, int slot);
+void do_pci_device_hot_remove(Monitor *mon, const QDict *qdict);
+void pci_device_hot_remove_success(PCIDevice *dev);
 
 /* serial ports */
 
@@ -233,24 +235,6 @@ extern CharDriverState *virtcon_hds[MAX_VIRTIO_CONSOLES];
 
 #define TFR(expr) do { if ((expr) != -1) break; } while (errno == EINTR)
 
-#ifdef NEED_CPU_H
-/* loader.c */
-int get_image_size(const char *filename);
-int load_image(const char *filename, uint8_t *addr); /* deprecated */
-int load_image_targphys(const char *filename, target_phys_addr_t, int max_sz);
-int load_elf(const char *filename, int64_t address_offset,
-             uint64_t *pentry, uint64_t *lowaddr, uint64_t *highaddr);
-int load_aout(const char *filename, target_phys_addr_t addr, int max_sz);
-int load_uimage(const char *filename, target_ulong *ep, target_ulong *loadaddr,
-                int *is_linux);
-
-int fread_targphys(target_phys_addr_t dst_addr, size_t nbytes, FILE *f);
-int fread_targphys_ok(target_phys_addr_t dst_addr, size_t nbytes, FILE *f);
-int read_targphys(int fd, target_phys_addr_t dst_addr, size_t nbytes);
-void pstrcpy_targphys(target_phys_addr_t dest, int buf_size,
-                      const char *source);
-#endif
-
 #ifdef HAS_AUDIO
 struct soundhw {
     const char *name;
@@ -266,8 +250,8 @@ struct soundhw {
 extern struct soundhw soundhw[];
 #endif
 
-void do_usb_add(Monitor *mon, const char *devname);
-void do_usb_del(Monitor *mon, const char *devname);
+void do_usb_add(Monitor *mon, const QDict *qdict);
+void do_usb_del(Monitor *mon, const QDict *qdict);
 void usb_info(Monitor *mon);
 
 void register_devices(void);
