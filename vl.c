@@ -340,15 +340,53 @@ ram_addr_t qemu_balloon_status(void)
 /***********************************************************/
 /* keyboard/mouse */
 
-static QEMUPutKBDEvent *qemu_put_kbd_event;
-static void *qemu_put_kbd_event_opaque;
+static QEMUPutKBDEntry *qemu_put_kbd_event_head;
 static QEMUPutMouseEntry *qemu_put_mouse_event_head;
 static QEMUPutMouseEntry *qemu_put_mouse_event_current;
 
 void qemu_add_kbd_event_handler(QEMUPutKBDEvent *func, void *opaque)
 {
-    qemu_put_kbd_event_opaque = opaque;
-    qemu_put_kbd_event = func;
+    QEMUPutKBDEntry *s, *cursor;
+    
+    if (func != NULL) {
+        s = qemu_mallocz(sizeof(QEMUPutKBDEntry));
+        
+        s->qemu_put_kbd_event = func;
+        s->qemu_put_kbd_event_opaque = opaque;
+        s->next = NULL;
+        
+        if (!qemu_put_kbd_event_head) {
+            qemu_put_kbd_event_head = s;
+        } else {
+            cursor = qemu_put_kbd_event_head;
+            while (cursor->next != NULL)
+                cursor = cursor->next;
+            cursor->next = s;
+        }
+    }
+}
+
+void qemu_remove_kbd_event_handler(QEMUPutKBDEvent *func)
+{
+    QEMUPutKBDEntry *prev = NULL, *cursor;
+    
+    if (!qemu_put_kbd_event_head || func == NULL)
+        return;
+    
+    cursor = qemu_put_kbd_event_head;
+    while (cursor != NULL && cursor->qemu_put_kbd_event != func) {
+        prev = cursor;
+        cursor = cursor->next;
+    }
+    
+    if (cursor != NULL) {
+        if (prev == NULL) { // entry is head
+            qemu_put_kbd_event_head = cursor->next;
+        } else {
+            prev->next = cursor->next;
+        }
+        qemu_free(cursor);
+    }
 }
 
 QEMUPutMouseEntry *qemu_add_mouse_event_handler(QEMUPutMouseEvent *func,
@@ -356,7 +394,7 @@ QEMUPutMouseEntry *qemu_add_mouse_event_handler(QEMUPutMouseEvent *func,
                                                 const char *name)
 {
     QEMUPutMouseEntry *s, *cursor;
-
+    
     s = qemu_mallocz(sizeof(QEMUPutMouseEntry));
 
     s->qemu_put_mouse_event = func;
@@ -415,8 +453,12 @@ void qemu_remove_mouse_event_handler(QEMUPutMouseEntry *entry)
 
 void kbd_put_keycode(int keycode)
 {
-    if (qemu_put_kbd_event) {
-        qemu_put_kbd_event(qemu_put_kbd_event_opaque, keycode);
+    QEMUPutKBDEntry *cursor = qemu_put_kbd_event_head;
+    for (; cursor != NULL; cursor = cursor->next) {
+        if (cursor->qemu_put_kbd_event) {
+            cursor->qemu_put_kbd_event(cursor->qemu_put_kbd_event_opaque,
+                                       keycode);
+        }
     }
 }
 

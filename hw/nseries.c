@@ -1559,8 +1559,8 @@ static QEMUMachine n810_machine = {
 #define N900_SMC_CS 1
 
 #define N900_ONENAND_GPIO       N8X0_ONENAND_GPIO
-#define N900_CAMLAUNCH_GPIO     69
 #define N900_CAMFOCUS_GPIO      68
+#define N900_CAMLAUNCH_GPIO     69
 #define N900_SLIDE_GPIO         71
 #define N900_PROXIMITY_GPIO     89
 #define N900_HEADPHONE_EN_GPIO  98
@@ -1569,9 +1569,12 @@ static QEMUMachine n810_machine = {
 #define N900_CAMSHUTTER_GPIO    110
 #define N900_KBLOCK_GPIO        113
 #define N900_HEADPHONE_GPIO     177
+#define N900_LIS302DL_INT2_GPIO 180
+#define N900_LIS302DL_INT1_GPIO 181
 
 //#define DEBUG_BQ2415X
 //#define DEBUG_TPA6130
+#define DEBUG_LIS302DL
 
 #define N900_TRACE(fmt, ...) \
     fprintf(stderr, "%s@%d: " fmt "\n", __FUNCTION__, __LINE__, ##__VA_ARGS__)
@@ -1585,6 +1588,11 @@ static QEMUMachine n810_machine = {
 #define TRACE_TPA6130(fmt, ...) N900_TRACE(fmt, ##__VA_ARGS__)
 #else
 #define TRACE_TPA6130(...)
+#endif
+#ifdef DEBUG_LIS302DL
+#define TRACE_LIS302DL(fmt, ...) N900_TRACE(fmt, ##__VA_ARGS__)
+#else
+#define TRACE_LIS302DL(...)
 #endif
 
 static uint32_t ssi_read(void *opaque, target_phys_addr_t addr)
@@ -1616,6 +1624,197 @@ static CPUWriteMemoryFunc *ssi_write_func[] = {
     ssi_write,
     ssi_write,
     ssi_write,
+};
+
+typedef struct LIS302DLState_s {
+    i2c_slave i2c;
+    int firstbyte;
+    uint8_t reg;
+
+    qemu_irq irq[2];
+
+    uint8_t ctrl1, ctrl2, ctrl3;
+    struct {
+        uint8_t cfg, src, ths, dur;
+    } ff_wu[2];
+} LIS302DLState;
+
+static void lis302dl_interrupt_update(LIS302DLState *s)
+{
+    int active = (s->ctrl3 & 0x80) ? 1 : 0;
+    int wu_int[2] = {!active, !active};
+    int i = 0;
+    for (; i < 2; i++) {
+        if (s->ff_wu[i].src & 0x3f) {
+            if (s->ff_wu[i].cfg & 0x80) {
+                if ((s->ff_wu[i].cfg & 0x3f) == (s->ff_wu[i].src & 0x3f)) {
+                    s->ff_wu[i].src |= 0x40;
+                    wu_int[i] = active;
+                }
+            } else {
+                if (s->ff_wu[i].src & s->ff_wu[i].cfg & 0x3f) {
+                    s->ff_wu[i].src |= 0x40;
+                    wu_int[i] = active;
+                }
+            }
+        }
+    }
+    for (i = 0; i < 2; i++) {
+        switch ((s->ctrl3 >> (i * 3)) & 0x07) {
+            case 0:
+                qemu_set_irq(s->irq[i], !active);
+                break;
+            case 1:
+                qemu_set_irq(s->irq[i], wu_int[0]);
+                break;
+            case 2:
+                qemu_set_irq(s->irq[i], wu_int[1]);
+                break;
+            case 3:
+                qemu_set_irq(s->irq[i],
+                             (wu_int[0] == active || wu_int[1] == active)
+                             ? active : !active);
+                break;
+            /* TODO: data ready & click interrupts */
+            default:
+                break;
+        }
+    }
+}
+
+static void lis302dl_reset(LIS302DLState *s)
+{
+    s->firstbyte = 0;
+    s->reg = 0;
+
+    s->ctrl1 = 0x03;
+    s->ctrl2 = 0x00;
+    s->ctrl3 = 0x00;
+
+    memset(s->ff_wu, 0x00, sizeof(s->ff_wu));
+
+    lis302dl_interrupt_update(s);
+}
+
+static void lis302dl_event(i2c_slave *i2c, enum i2c_event event)
+{
+    LIS302DLState *s = FROM_I2C_SLAVE(LIS302DLState, i2c);
+    if (event == I2C_START_SEND)
+        s->firstbyte = 1;
+}
+
+static int lis302dl_rx(i2c_slave *i2c)
+{
+    LIS302DLState *s = FROM_I2C_SLAVE(LIS302DLState, i2c);
+    int value = -1;
+    int n = 0;
+    switch (s->reg) {
+        case 0x0f:
+            value = 0x3b;
+            break;
+        case 0x20:
+            value = s->ctrl1;
+            break;
+        case 0x21:
+            value = s->ctrl2;
+            break;
+        case 0x22:
+            value = s->ctrl3;
+            break;
+        case 0x34: n++;
+        case 0x30:
+            value = s->ff_wu[n].cfg;
+            break;
+        case 0x35: n++;
+        case 0x31:
+            value = s->ff_wu[n].src;
+            if (value & s->ff_wu[n].cfg & 0x40) {
+                s->ff_wu[n].src &= ~0x40;
+                /* TODO: lower interrupt */
+            }
+            break;
+        case 0x36: n++;
+        case 0x32:
+            value = s->ff_wu[n].ths;
+            break;
+        case 0x37: n++;
+        case 0x33:
+            value = s->ff_wu[n].dur;
+            break;
+        default:
+            TRACE_LIS302DL("unknown register 0x%02x", s->reg);
+            value = 0;
+            break;
+    }
+    s->reg++;
+    return value;
+}
+
+static int lis302dl_tx(i2c_slave *i2c, uint8_t data)
+{
+    LIS302DLState *s = FROM_I2C_SLAVE(LIS302DLState, i2c);
+    if (s->firstbyte) {
+        s->reg = data;
+        s->firstbyte = 0;
+    } else {
+        int n = 0;
+        switch (s->reg) {
+            case 0x20:
+                s->ctrl1 = data;
+                if (data & 0x30) {
+                    TRACE_LIS302DL("self test mode is not supported");
+                }
+                break;
+            case 0x21:
+                s->ctrl2 = data;
+                break;
+            case 0x22:
+                s->ctrl3 = data;
+                break;
+            case 0x34: n++;
+            case 0x30:
+                s->ff_wu[n].cfg = data;
+                break;
+            case 0x36: n++;
+            case 0x32:
+                s->ff_wu[n].ths = data;
+                break;
+            case 0x37: n++;
+            case 0x33:
+                s->ff_wu[n].dur = data;
+                break;
+            default:
+                TRACE_LIS302DL("unknown register 0x%02x (value 0x%02x)",
+                               s->reg, data);
+                break;
+        }
+        s->reg++;
+    }
+    return 1;
+}
+
+static void lis302dl_i2c_init(i2c_slave *i2c)
+{
+    //LIS302DLState *s = FROM_I2C_SLAVE(LIS302DLState, i2c);
+}
+
+static void *lis302dl_init(DeviceState *devs, qemu_irq irq1, qemu_irq irq2)
+{
+    LIS302DLState *s = FROM_I2C_SLAVE(LIS302DLState,
+                                      I2C_SLAVE_FROM_QDEV(devs));
+    s->irq[0] = irq1;
+    s->irq[1] = irq2;
+    lis302dl_reset(s);
+    return devs;
+}
+
+static I2CSlaveInfo lis302dl_info = {
+    .qdev.name = "lis302dl",
+    .qdev.size = sizeof(LIS302DLState), 
+    .init = lis302dl_i2c_init,
+    .event = lis302dl_event,
+    .recv = lis302dl_rx,
+    .send = lis302dl_tx
 };
 
 typedef struct BQ2415XState_s {
@@ -1830,11 +2029,31 @@ struct n900_s {
     void *tsc2005;
     void *bq2415x;
     void *tpa6130;
+    void *lis302dl;
     void *smc;
 #ifdef CONFIG_GLHW
     void *gl;
 #endif
+    int slide_open;
 };
+
+static void n900_key_handler(void *opaque, int keycode)
+{
+    struct n900_s *s = opaque;
+    int release = keycode & 0x80;
+    switch (keycode & 0x7f) {
+        case 0x29:
+            if (release) {
+                s->slide_open = !s->slide_open;
+                qemu_set_irq(omap2_gpio_in_get(s->cpu->gpif,
+                                               N900_SLIDE_GPIO)[0],
+                             !s->slide_open);
+            }
+            break;
+        default:
+            break;
+    }
+}
 
 static const TWL4030KeyMap n900_twl4030_keymap[] = {
     {0x10, 0, 0}, /* Q */
@@ -1908,9 +2127,6 @@ static void n900_init(ram_addr_t ram_size,
                                serial_hds[1],
                                serial_hds[2],
                                serial_hds[0]);
-    s->twl4030 = twl4030_init(omap_i2c_bus(s->cpu->i2c[0]),
-                              s->cpu->irq[0][OMAP_INT_3XXX_SYS_NIRQ],
-                              NULL, n900_twl4030_keymap);
     s->lcd = omap3_lcd_panel_init(s->cpu->dss);
     omap_lcd_panel_attach(s->cpu->dss, omap3_lcd_panel_get(s->lcd));
     
@@ -1945,12 +2161,21 @@ static void n900_init(ram_addr_t ram_size,
                                                         ssi_write_func,
                                                         0));
     
+    s->twl4030 = twl4030_init(omap_i2c_bus(s->cpu->i2c[0]),
+                              s->cpu->irq[0][OMAP_INT_3XXX_SYS_NIRQ],
+                              NULL, n900_twl4030_keymap);
     s->bq2415x = i2c_create_slave(omap_i2c_bus(s->cpu->i2c[1]),
                                   "bq2415x", 0x6b);
     s->tpa6130 = i2c_create_slave(omap_i2c_bus(s->cpu->i2c[1]),
                                   "tpa6130", 0x60);
     omap2_gpio_out_set(s->cpu->gpif, N900_HEADPHONE_EN_GPIO,
                        tpa6130_get_irq(s->tpa6130, 0));
+    s->lis302dl = lis302dl_init(i2c_create_slave(omap_i2c_bus(s->cpu->i2c[2]),
+                                                 "lis302dl", 0x1d),
+                                omap2_gpio_in_get(s->cpu->gpif,
+                                                  N900_LIS302DL_INT1_GPIO)[0],
+                                omap2_gpio_in_get(s->cpu->gpif,
+                                                  N900_LIS302DL_INT2_GPIO)[0]);
     
     s->smc = smc91c111_init_lite(&nd_table[0], /*0x08000000,*/
                                  omap2_gpio_in_get(s->cpu->gpif, 54)[0]);
@@ -1962,6 +2187,11 @@ static void n900_init(ram_addr_t ram_size,
     qemu_irq_raise(omap2_gpio_in_get(s->cpu->gpif, N900_HEADPHONE_GPIO)[0]);
     qemu_irq_raise(omap2_gpio_in_get(s->cpu->gpif, N900_CAMLAUNCH_GPIO)[0]);
     qemu_irq_raise(omap2_gpio_in_get(s->cpu->gpif, N900_CAMFOCUS_GPIO)[0]);
+
+    s->slide_open = 1;
+    qemu_irq_lower(omap2_gpio_in_get(s->cpu->gpif, N900_SLIDE_GPIO)[0]);
+    
+    qemu_add_kbd_event_handler(n900_key_handler, s);
     
 #ifdef CONFIG_GLHW
     s->gl = helper_opengl_init(s->cpu->env);
@@ -3089,6 +3319,7 @@ static void nseries_register_devices(void)
 {
     i2c_register_slave(&bq2415x_info);
     i2c_register_slave(&tpa6130_info);
+    i2c_register_slave(&lis302dl_info);
     i2c_register_slave(&tm12xx_info);
 }
 

@@ -32,9 +32,10 @@
 #include "block.h"
 
 //#define OMAP3_DEBUG
-#define OMAP3_DEBUG_SCM
+//#define OMAP3_DEBUG_SCM
 //#define OMAP3_DEBUG_CM
-#define OMAP3_DEBUG_PRM
+//#define OMAP3_DEBUG_PRM
+//#define OMAP3_DEBUG_SMS
 
 #ifdef OMAP3_DEBUG
 #define TRACE(fmt, ...) fprintf(stderr, "%s " fmt "\n", __FUNCTION__, ##__VA_ARGS__)
@@ -64,6 +65,11 @@
 #define TRACE_PRM(...) TRACE(__VA_ARGS__)
 #else
 #define TRACE_PRM(...)
+#endif
+#ifdef OMAP3_DEBUG_SMS
+#define TRACE_SMS(...) TRACE(__VA_ARGS__)
+#else
+#define TRACE_SMS(...)
 #endif
 
 /*
@@ -745,7 +751,7 @@ static void omap3_l3_write(void *opaque, target_phys_addr_t addr,
             omap3_l3pm_writefn[size](s->region[i], addr, value);
             break;
         case L3TYPE_UNDEF:
-            TRACE("unsupported register at " OMAP_FMT_plx, addr, value);
+            TRACE("unsupported register at " OMAP_FMT_plx, addr);
             break;
         default:
             hw_error("%s: unknown region type %d, addr " OMAP_FMT_plx,
@@ -4315,8 +4321,8 @@ static uint32_t omap3_sms_read32(void *opaque, target_phys_addr_t addr)
 {
     struct omap3_sms_s *s = (struct omap3_sms_s *) opaque;
 
-    switch (addr)
-    {
+    TRACE_SMS("addr = 0x%08x", (uint32_t)addr);
+    switch (addr) {
     case 0x10:
     	return s->sms_sysconfig;
     case 0x14:
@@ -4438,8 +4444,8 @@ static void omap3_sms_write32(void *opaque, target_phys_addr_t addr,
     struct omap3_sms_s *s = (struct omap3_sms_s *) opaque;
     //int i;
 
-    switch (addr)
-    {
+    TRACE_SMS("addr = 0x%08x, value = 0x%08x", (uint32_t)addr, value);
+    switch (addr) {
     case 0x14:
     	OMAP_RO_REG(addr);
         return;
