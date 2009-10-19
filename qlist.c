@@ -67,6 +67,29 @@ void qlist_iter(const QList *qlist,
         iter(entry->value, opaque);
 }
 
+QObject *qlist_pop(QList *qlist)
+{
+    QListEntry *entry;
+    QObject *ret;
+
+    if (qlist == NULL || QTAILQ_EMPTY(&qlist->head)) {
+        return NULL;
+    }
+
+    entry = QTAILQ_FIRST(&qlist->head);
+    QTAILQ_REMOVE(&qlist->head, entry, next);
+
+    ret = entry->value;
+    qemu_free(entry);
+
+    return ret;
+}
+
+int qlist_empty(const QList *qlist)
+{
+    return QTAILQ_EMPTY(&qlist->head);
+}
+
 /**
  * qobject_to_qlist(): Convert a QObject into a QList
  */

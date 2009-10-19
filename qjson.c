@@ -106,21 +106,6 @@ static void parse_error(JSONParserContext *ctxt, const char *at, const char *msg
     
 }
 
-static size_t parse_skip(JSONParserContext *ctxt, const char *data)
-{
-    const char *ptr = data;
-
-    while (*ptr == ' ' || *ptr == '\r' || *ptr == '\n' ||
-           *ptr == '\t') {
-        if (*ptr == '\n') {
-            ctxt->lineno++;
-        }
-        ptr++;
-    }
-
-    return (ptr - data);
-}
-
 /**
  * parse_string(): Parse a json string and return a QObject
  *
@@ -144,34 +129,12 @@ static size_t parse_skip(JSONParserContext *ctxt, const char *data)
  *      \t
  *      \u four-hex-digits 
  */
-static QString *parse_string(JSONParserContext *ctxt,
-                             const char *data, size_t *length, va_list *ap)
+static QString *qstring_from_escaped_str(const char *data)
 {
     const char *ptr = data;
-    QString *str = NULL;
+    QString *str;
     int double_quote = 1;
 
-    ptr += parse_skip(ctxt, ptr);
-
-    /* handle string format */
-    if (ap) {
-        if (*ptr != '%') {
-            goto out;
-        }
-        ptr++;
-
-        if (*ptr != 's') {
-            goto out;
-        }
-        ptr++;
-
-        *length = (ptr - data);
-        return qstring_from_str(va_arg(*ap, const char *));
-    }
-
-    if (*ptr != '"' && *ptr != '\'') {
-        goto out;
-    }
     if (*ptr == '"') {
         double_quote = 1;
     } else {
@@ -253,13 +216,7 @@ static QString *parse_string(JSONParserContext *ctxt,
         }
     }
 
-    if ((double_quote && *ptr != '"') || (!double_quote && *ptr != '\'')) {
-        parse_error(ctxt, ptr, "unterminated string literal");
-        goto out;
-    }
     ptr++;
-
-    *length = (ptr - data);
 
     return str;
 
@@ -268,445 +225,272 @@ out:
     return NULL;
 }
 
-/**
- * parse_number(): Parse a json number and return a QObject
- *
- *  number
- *      int
- *      int frac
- *      int exp
- *      int frac exp 
- *  int
- *      digit
- *      digit1-9 digits
- *      - digit
- *      - digit1-9 digits 
- *  frac
- *      . digits
- *  exp
- *      e digits
- *  digits
- *      digit
- *      digit digits
- *  e
- *      e
- *      e+
- *      e-
- *      E
- *      E+
- *      E-
- */
-static QObject *parse_number(JSONParserContext *ctxt,
-                             const char *data, size_t *length, va_list *ap)
+static QObject *token_next(QList *consumed, QList *remaining)
 {
-    const char *ptr = data;
-    const char *number_start;
-    QInt *number = NULL;
-    int64_t value;
-    int factor = 1;
-    int non_integer = 0;
-
-    ptr += parse_skip(ctxt, ptr);
-
-    number_start = ptr;
-
-    /* handle string format */
-    if (ap && *ptr == '%') {
-        int64_t value;
-
-        ptr++;
-
-        if (*ptr == 'd') {
-            /* int */
-            ptr++;
-            value = va_arg(*ap, int);
-        } else if (*ptr == 'l') {
-            ptr++;
-            if (*ptr == 'd') {
-                /* long */
-                ptr++;
-                value = va_arg(*ap, long);
-            } else if (*ptr == 'l') {
-                ptr++;
-                if (*ptr == 'd') {
-                    ptr++;
-                    value = va_arg(*ap, long long);
-                } else {
-                    parse_error(ctxt, ptr, "invalid escape sequence");
-                    goto out;
-                }
-            } else {
-                parse_error(ctxt, ptr, "invalid escape sequence");
-                goto out;
-            }
-        } else if (*ptr == 'i') {
-            int val;
-            ptr++;
-            *length = ptr - data;
-            val = va_arg(*ap, int);
-            return QOBJECT(qbool_from_int(val));
-        } else if (*ptr == 'f') {
-            double val;
-            ptr++;
-            *length = (ptr - data);
-            val = va_arg(*ap, double);
-            return QOBJECT(qfloat_from_double(val));
-        } else {
-            goto out;
-        }
-
-        *length = (ptr - data);
-        return QOBJECT(qint_from_int(value));
-    }
-
-    if (*ptr == '-') {
-        factor = -1;
-        ptr++;
-    }
-
-    if (*ptr == '0') {
-        value = 0;
-        ptr++;
-    } else if (*ptr >= '1' && *ptr <= '9') {
-        value = *ptr - '0';
-        ptr++;
-
-        while (*ptr >= '0' && *ptr <= '9') {
-            value *= 10;
-            value += *ptr - '0';
-            ptr++;
-        }
-
-        value *= factor;
-    } else {
-        goto out;
-    }
-
-    if (*ptr == '.') {
-        ptr++;
-
-        non_integer = 1;
-
-        if (!qemu_isdigit(*ptr)) {
-            parse_error(ctxt, ptr, "expecting mantissa");
-            goto out;
-        }
-        ptr++;
-
-        while (qemu_isdigit(*ptr)) {
-            ptr++;
-        }
-    }
-
-    if (*ptr == 'e' || *ptr == 'E') {
-        ptr++;
-
-        non_integer = 1;
-
-        if (*ptr == '-' || *ptr == '+') {
-            ptr++;
-        }
-
-        if (!qemu_isdigit(*ptr)) {
-            parse_error(ctxt, ptr, "expecting exponent");
-            goto out;
-        }
-        ptr++;
-
-        while (qemu_isdigit(*ptr)) {
-            ptr++;
-        }
-    }
-
-    *length = ptr - data;
-
-    if (non_integer) {
-        char buffer[129];
-
-        if ((ptr - number_start) > 128) {
-            parse_error(ctxt, ptr, "floating point too larger");
-            goto out;
-        }
-
-        memcpy(buffer, number_start, (ptr - number_start));
-        buffer[ptr - number_start] = 0;
-
-        /* floats are hard to parse so punt to libc */
-        return QOBJECT(qfloat_from_double(strtod(buffer, NULL)));
-    } else {
-        return QOBJECT(qint_from_int(value));
-    }
-
-out:
-    QDECREF(number);
-    return NULL;
 }
 
-static int parse_pair(JSONParserContext *ctxt, QDict *dict, const char *data, size_t *length, va_list *ap)
+static const char *token_get_value(QObject *obj)
 {
-    const char *ptr = data;
-    QString *key;
-    QObject *value;
-    size_t len = 0;
+}
 
-    key = parse_string(ctxt, ptr, &len, ap);
-    if (key == NULL) {
-        parse_error(ctxt, ptr, "Dict key requires string");
+static JSONTokenType token_get_type(QObject *obj)
+{
+}
+
+static void tokens_commit(QList *consumed, QList *working)
+{
+}
+
+static void tokens_reset(QList *remaining, QList *working)
+{
+}
+
+static int parse_pair(JSONParserContext *ctxt, QDict *dict, QList *consumed, QList *remaining, va_list *ap)
+{
+    const char *key;
+    QObject *token;
+    QList *working = qlist_new();
+
+    token = token_next(working, remaining);
+    if (!check_type(token, JSON_STRING)) {
+        parse_error(ctxt, "key is not a string in object");
         goto out;
     }
-    ptr += len;
+    key = token_get_value(token);
 
-    ptr += parse_skip(ctxt, ptr);
-
-    if (*ptr != ':') {
-        QDECREF(key);
-        parse_error(ctxt, ptr, "Missing separator in dict");
+    token = next_token(working, remaining);
+    if (!check_operator(token, ':')) {
+        parse_error(ctxt, "missing : in object pair");
         goto out;
     }
-    ptr++;
 
-    value = parse_value(ctxt, ptr, &len, ap);
+    value = parse_value(ctxt, working, remaining, ap);
     if (value == NULL) {
-        QDECREF(key);
-        parse_error(ctxt, ptr, "Missing value in dict");
+        parse_error(ctxt, "Missing value in dict");
         goto out;
     }
-    ptr += len;
 
-    qdict_put_obj(dict, qstring_get_str(key), value);
-    QDECREF(key);
+    qdict_put_obj(dict, key, value);
 
-    *length = ptr - data;
+    tokens_commit(consumed, working);
 
     return 0;
 
 out:
+    tokens_reset(remaining, working);
+
     return -1;
 }
 
-static QObject *parse_object(JSONParserContext *ctxt, const char *data, size_t *length, va_list *ap)
+static QObject *parse_object(JSONParserContext *ctxt, QList *consumed, QList *remaining, va_list *ap)
 {
-    const char *ptr = data;
     QDict *dict = NULL;
+    QList *working = qlist_new();
+    QObject *token;
 
-    ptr += parse_skip(ctxt, ptr);
-
-    if (*ptr != '{') {
+    token = next_token(working, remaining);
+    if (!check_operator(token, '{')) {
         goto out;
     }
-    ptr++;
 
     dict = qdict_new();
 
-    ptr += parse_skip(ctxt, ptr);
-
-    if (*ptr && *ptr != '}') {
-        size_t len = 0;
-
-        if (parse_pair(ctxt, dict, ptr, &len, ap) == -1) {
+    token = token_next(working, remaining);
+    if (!token_is_operator(token, '}')) {
+        if (parse_pair(ctxt, dict, working, remaining, ap) == -1) {
             goto out;
         }
 
-        ptr += len;
-    }
+        token = token_next(working, remaining);
+        while (!token_is_operator(token, '}')) {
+            if (!token_is_operator(token, ',')) {
+                parse_error(ctxt, ptr, "expected separator in dict");
+                goto out;
+            }
 
-    ptr += parse_skip(ctxt, ptr);
+            if (parse_pair(ctxt, dict, working, remaining, ap) == -1) {
+                goto out;
+            }
 
-    while (*ptr && *ptr != '}') {
-        size_t len = 0;
-
-        if (*ptr != ',') {
-            parse_error(ctxt, ptr, "expected separator in dict");
-            goto out;
+            token = token_next(working, remaining);
         }
-        ptr++;
-
-        if (parse_pair(ctxt, dict, ptr, &len, ap) == -1) {
-            goto out;
-        }
-        ptr += len;
-
-        ptr += parse_skip(ctxt, ptr);
     }
 
-    if (*ptr != '}') {
-        parse_error(ctxt, ptr, "unterminated dict");
-        goto out;
-    }
-    ptr++;
-
-    *length = ptr - data;
+    tokens_commit(consumed, working);
 
     return QOBJECT(dict);
 
 out:
+    tokens_reset(remaining, working);
+
     QDECREF(dict);
     return NULL;
 }
 
-static QObject *parse_array(JSONParserContext *ctxt, const char *data, size_t *length, va_list *ap)
+static QObject *parse_array(JSONParserContext *ctxt, QList *consumed, QList *remaining, va_list *ap)
 {
-    const char *ptr = data;
     QList *list = NULL;
+    QObject *token;
+    QList *working = qlist_new();
 
-    ptr += parse_skip(ctxt, ptr);
-
-    if (*ptr != '[') {
+    token = token_next(working, remaining);
+    if (!token_is_operator(token, '[')) {
         goto out;
     }
-    ptr++;
 
     list = qlist_new();
 
-    ptr += parse_skip(ctxt, ptr);
-
-    if (*ptr && *ptr != ']') {
-        size_t len = 0;
+    token = token_next(working, remaining);
+    if (!token_is_operator(token, ']')) {
         QObject *obj;
 
-        obj = parse_value(ctxt, ptr, &len, ap);
+        obj = parse_value(ctxt, working, remaining, ap);
         if (obj == NULL) {
             parse_error(ctxt, ptr, "expecting value");
             goto out;
         }
-        ptr += len;
-
-        qlist_append_obj(list, obj);
-    }
-
-    ptr += parse_skip(ctxt, ptr);
-
-    while (*ptr && *ptr != ']') {
-        size_t len = 0;
-        QObject *obj;
-
-        if (*ptr != ',') {
-            parse_error(ctxt, ptr, "expected separator in list");
-            goto out;
-        }
-        ptr++;
-
-        obj = parse_value(ctxt, ptr, &len, ap);
-        if (obj == NULL) {
-            parse_error(ctxt, ptr, "expecting value");
-            goto out;
-        }
-        ptr += len;
 
         qlist_append_obj(list, obj);
 
-        ptr += parse_skip(ctxt, ptr);
-   }
+        token = token_next(working, remaining);
+        while (!token_is_operator(token, ']')) {
+            if (!token_is_operator(token, ',')) {
+                parse_error(ctxt, ptr, "expected separator in list");
+                goto out;
+            }
 
-    if (*ptr != ']') {
-        parse_error(ctxt, ptr, "unterminated array");
-        goto out;
+            obj = parse_value(ctxt, working, remaining, ap);
+            if (obj == NULL) {
+                parse_error(ctxt, ptr, "expecting value");
+                goto out;
+            }
+
+            token = token_next(working, remaining);
+        }
     }
-    ptr++;
 
-    *length = ptr - data;
+    tokens_commit(consumed, working);
 
     return QOBJECT(list);
 
 out:
+    tokens_reset(remaining, working);
+
     QDECREF(list);
     return NULL;
 }
 
-static QObject *parse_keyword(JSONParserContext *ctxt, const char *data, size_t *length)
+static QObject *parse_keyword(JSONParserContext *ctxt, QList *consumed, QList *remaining)
 {
-    const char *ptr = data;
-    QString *str;
-    QObject *obj = NULL;
+    QObject *token, *ret;
+    QList *working = qlist_new();
 
-    ptr += parse_skip(ctxt, ptr);
+    token = next_token(consumed, remaining);
 
-    str = qstring_new();
-
-    while (*ptr >= 'a' && *ptr <= 'z') {
-        char buf[2];
-
-        buf[0] = *ptr;
-        buf[1] = 0;
-        ptr++;
-
-        qstring_append(str, buf);
+    if (check_keyword(token, "true")) {
+        ret = QOBJECT(qbool_from_int(true));
+    } else if (check_keyword(token, "false")) {
+        ret = QOBJECT(qbool_from_int(false));
+    } else if (check_type(token, JSON_KEYWORD)) {
+        parse_error(ctxt, "invalid keyword `%s'", qstring_get_str(tokeN));
+        goto out;
     }
 
-    if (strcmp(qstring_get_str(str), "true") == 0) {
-        obj = QOBJECT(qbool_from_int(1));
-    } else if (strcmp(qstring_get_str(str), "false") == 0) {
-        obj = QOBJECT(qbool_from_int(0));
-    }
+    qlist_append_list(consumed, working);
 
-    if (obj) {
-        *length = ptr - data;
-    }
+    return ret;
 
-    QDECREF(str);
-
-    return obj;
-}
-
-static QObject *parse_qobject(JSONParserContext *ctxt, const char *data, size_t *length, va_list *ap)
-{
-    const char *ptr = data;
-    QObject *obj = NULL;
-
-    ptr += parse_skip(ctxt, ptr);
-
-    if (ap && *ptr == '%') {
-        ptr++;
-        if (*ptr == 'p') {
-            ptr++;
-
-            obj = va_arg(*ap, QObject *);
-            qobject_incref(obj);
-            *length = (ptr - data);
-            return obj;
-        }
-    }
+out: 
+    qlist_prepend_list(remaining, working);
 
     return NULL;
 }
 
-static QObject *parse_value(JSONParserContext *ctxt, const char *string, size_t *length, va_list *ap)
+static QObject *parse_escape(JSONParserContext *ctxt, QList *consumed, QList *remaining, va_list *ap)
+{
+    QObject *token, *obj;
+    QList *working = qlist_new();
+
+    token = next_token(consumed, remaining);
+
+    if (check_escape(token, "%p")) {
+        obj = va_arg(*ap, QObject *);
+        qobject_incref(obj);
+    } else if (check_escape(token, "%i")) {
+        obj = qbool_from_int(va_arg(*ap, int));
+    } else if (check_escape(token, "%d")) {
+        obj = qint_from_int(va_arg(*ap, int));
+    } else if (check_escape(token, "%ld")) {
+        obj = qint_from_int(va_arg(*ap, long));
+    } else if (check_escape(token, "%lld")) {
+        obj = qint_from_int(va_arg(*ap, long long));
+    } else {
+        goto out;
+    }
+
+    qlist_append_list(consumed, working);
+
+    return obj;
+
+out:
+    qlist_prepend_list(remaining, working);
+
+    return NULL;
+}
+
+static QObject *parse_literal(JSONParserContext *ctxt, QList *consumed, QList *remaining)
+{
+    QList *working = qlist_new();
+    QObject *token, *obj;
+
+    token = next_token(working, remaining);
+    if (check_type(token, JSON_STRING)) {
+        obj = qstring_from_escaped_str(token_get_value(token));
+    } else if (check_type(token, JSON_INTEGER)) {
+        obj = qint_from_int(strtoll(token_get_value(token), NULL, 10));
+    } else if (check_type(token, JSON_FLOAT)) {
+        obj = qfloat_from_double(strtod(token_get_value(token), NULL));
+    } else {
+        goto out;
+    }
+
+    qlist_append_list(consumed, working);
+
+    return obj;
+
+out:
+    qlist_prepend_list(remaining, working);
+
+    return NULL;
+}
+
+static QObject *parse_value(JSONParserContext *ctxt, QList *consumed, QList *remaining, va_list *ap)
 {
     QObject *obj;
 
-    obj = QOBJECT(parse_string(ctxt, string, length, ap));
+    obj = parse_object(ctxt, consumed, remaining, ap);
     if (obj == NULL) {
-        obj = parse_number(ctxt, string, length, ap);
+        obj = parse_array(ctxt, consumed, remaining, ap);
     }
     if (obj == NULL) {
-        obj = parse_object(ctxt, string, length, ap);
+        obj = parse_escape(ctxt, consumed, remaining, ap);
     }
     if (obj == NULL) {
-        obj = parse_array(ctxt, string, length, ap);
-    }
+        obj = parse_keyword(ctxt, consumed, remaining);
+    } 
     if (obj == NULL) {
-        obj = parse_keyword(ctxt, string, length);
-    }
-    if (obj == NULL) {
-        obj = parse_qobject(ctxt, string, length, ap);
+        obj = parse_literal(ctxt, consumed, remaining);
     }
 
     return obj;
 }
 
-static QObject *parse_json(const char *string, size_t *length, va_list *ap)
+static QObject *parse_json(QList *tokens, va_list *ap)
 {
     JSONParserContext ctxt = {};
-    size_t dummy_length = 0;
+    QList *consumed = qlist_new();
 
-    if (length == NULL) {
-        length = &dummy_length;
-    }
-
-    ctxt.data = string;
-    ctxt.lineno = 0;
-
-    return parse_value(&ctxt, string, length, ap);
+    return parse_value(&ctxt, consumed, tokens, ap);
 }
 
 QObject *qobject_from_json(const char *string, size_t *length)

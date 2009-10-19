@@ -21,7 +21,8 @@
 
 typedef enum json_token_type {
     JSON_OPERATOR = 100,
-    JSON_NUMBER,
+    JSON_INTEGER,
+    JSON_FLOAT,
     JSON_KEYWORD,
     JSON_STRING,
     JSON_SKIP,
@@ -139,13 +140,13 @@ static const uint8_t json_lexer[][256] =  {
 
     /* Zero */
     [IN_ZERO] = {
-        TERMINAL(JSON_NUMBER),
+        TERMINAL(JSON_FLOAT),
         ['0' ... '9'] = ERROR,
     },
 
-    /* Non-zero numbers */
+    /* Float */
     [IN_DIGITS] = {
-        TERMINAL(JSON_NUMBER),
+        TERMINAL(JSON_FLOAT),
         ['0' ... '9'] = IN_DIGITS,
     },
 
@@ -160,7 +161,7 @@ static const uint8_t json_lexer[][256] =  {
     },
 
     [IN_MANTISSA_DIGITS] = {
-        TERMINAL(JSON_NUMBER),
+        TERMINAL(JSON_FLOAT),
         ['0' ... '9'] = IN_MANTISSA_DIGITS,
         ['e'] = IN_EXP_E,
         ['E'] = IN_EXP_E,
@@ -170,8 +171,9 @@ static const uint8_t json_lexer[][256] =  {
         ['0' ... '9'] = IN_MANTISSA_DIGITS,
     },
 
+    /* Number */
     [IN_NONZERO_NUMBER] = {
-        TERMINAL(JSON_NUMBER),
+        TERMINAL(JSON_INTEGER),
         ['0' ... '9'] = IN_NONZERO_NUMBER,
         ['e'] = IN_EXP_E,
         ['E'] = IN_EXP_E,
@@ -249,7 +251,8 @@ static int json_lexer_feed_char(JSONLexer *lexer, char ch)
 
     switch (lexer->state) {
     case JSON_OPERATOR:
-    case JSON_NUMBER:
+    case JSON_INTEGER:
+    case JSON_FLOAT:
     case JSON_KEYWORD:
     case JSON_STRING:
         lexer->emit(lexer, lexer->token, lexer->state);
@@ -355,10 +358,10 @@ int json_message_parser_feed(JSONMessageParser *parser,
 
 static void got_message(JSONMessageParser *parser, QList *tokens)
 {
-    QListEntry *entry;
+    QObject *obj;
 
-    qlist_foreach(entry, tokens) {
-        QDict *dict = qobject_to_qdict(entry->value);
+    while ((obj = qlist_pop(tokens))) {
+        QDict *dict = qobject_to_qdict(obj);
 //        JSONTokenType type = qdict_get_int(dict, "type");
         QString *token = qobject_to_qstring(qdict_get(dict, "token"));
 

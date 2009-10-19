@@ -33,6 +33,8 @@ QList *qlist_new(void);
 void qlist_append_obj(QList *qlist, QObject *obj);
 void qlist_iter(const QList *qlist,
                 void (*iter)(QObject *obj, void *opaque), void *opaque);
+QObject *qlist_pop(QList *qlist);
+int qlist_empty(const QList *qlist);
 QList *qobject_to_qlist(const QObject *obj);
 
 #endif /* QLIST_H */
