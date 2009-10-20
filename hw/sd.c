@@ -212,7 +212,7 @@ static void sd_set_scr(SDState *sd)
 
 #define MID	0xaa
 #define OID	"XY"
-#define PNM	"QEMU!"
+#define PNM	"QEMU!!"
 #define PRV	0x01
 #define MDT_YR	2006
 #define MDT_MON	2
@@ -227,14 +227,23 @@ static void sd_set_cid(SDState *sd)
     sd->cid[5] = PNM[2];
     sd->cid[6] = PNM[3];
     sd->cid[7] = PNM[4];
-    sd->cid[8] = PRV;		/* Fake product revision (PRV) */
+    if (sd->mmc) {
+        sd->cid[8] = PNM[5];
+    } else {
+        sd->cid[8] = PRV;		/* Fake product revision (PRV) */
+    }
     sd->cid[9] = 0xde;		/* Fake serial number (PSN) */
     sd->cid[10] = 0xad;
     sd->cid[11] = 0xbe;
     sd->cid[12] = 0xef;
-    sd->cid[13] = 0x00 |	/* Manufacture date (MDT) */
-        ((MDT_YR - 2000) / 10);
-    sd->cid[14] = ((MDT_YR % 10) << 4) | MDT_MON;
+    if (sd->mmc) {
+        sd->cid[13] = 0x55;
+        sd->cid[14] = ((MDT_MON) << 4) | (MDT_YR - 1997);
+    } else {
+        sd->cid[13] = 0x00 |	/* Manufacture date (MDT) */
+            ((MDT_YR - 2000) / 10);
+        sd->cid[14] = ((MDT_YR % 10) << 4) | MDT_MON;
+    }
     sd->cid[15] = (sd_crc7(sd->cid, 15) << 1) | 1;
 }
 
@@ -256,9 +265,10 @@ static void sd_set_csd(SDState *sd, uint32_t size)
     uint32_t wpsize = (1 << (WPGROUP_SHIFT + 1)) - 1;
 
     if (sd->mmc) {
-        sd->csd[0] = 0x80;  /* CSD structure */
+        sd->csd[0] = 0x80 | /* CSD structure: v2 */
+                     0x0c;  /* MMC v3.x */
     } else {
-        sd->csd[0] = 0x00;  /* CSD structure */
+        sd->csd[0] = 0x00;  /* CSD structure: v0 */
     }
     sd->csd[1] = 0x26;		/* Data read access-time-1 */
     sd->csd[2] = 0x00;		/* Data read access-time-2 */
