@@ -3822,17 +3822,17 @@ static int disas_neon_ls_insn(CPUState * env, DisasContext *s, uint32_t insn)
                             }
                             neon_store_reg(rd, pass, tmp);
                         } else {
-                            TCGv_i32 shift = new_const(8);
+                            tmp2 = new_const(8);
                             tmp = neon_load_reg(rd, pass);
                             for (n = 0; n < 3; n++) {
                                 tcg_gen_qemu_st8(tmp, addr, IS_USER(s));
                                 tcg_gen_add_i32(addr, addr, stride_v);
-                                tcg_gen_shr_i32(tmp, tmp, shift);
+                                tcg_gen_shr_i32(tmp, tmp, tmp2);
                             }
                             tcg_gen_qemu_st8(tmp, addr, IS_USER(s));
                             tcg_gen_add_i32(addr, addr, stride_v);
                             dead_tmp(tmp);
-                            dead_const(shift);
+                            dead_const(tmp2);
                         }
                     }
                 }
