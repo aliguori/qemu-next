@@ -392,7 +392,7 @@ NEON_VOP(abd_u32, neon_u32, 1)
 #define NEON_FN(dest, src1, src2) do { \
     int8_t tmp; \
     tmp = (int8_t)src2; \
-    if (tmp >= sizeof(src1) * 8 || tmp <= -sizeof(src1) * 8) { \
+    if (abs(tmp) >= sizeof(src1) * 8) { \
         dest = 0; \
     } else if (tmp < 0) { \
         dest = src1 >> -tmp; \
@@ -420,7 +420,7 @@ uint64_t HELPER(neon_shl_u64)(uint64_t val, uint64_t shiftop)
 #define NEON_FN(dest, src1, src2) do { \
     int8_t tmp; \
     tmp = (int8_t)src2; \
-    if (tmp >= sizeof(src1) * 8) { \
+    if (tmp >= 0 && tmp >= sizeof(src1) * 8) { \
         dest = 0; \
     } else if (tmp <= -sizeof(src1) * 8) { \
         dest = src1 >> (sizeof(src1) * 8 - 1); \
@@ -453,7 +453,7 @@ uint64_t HELPER(neon_shl_s64)(uint64_t valop, uint64_t shiftop)
 #define NEON_FN(dest, src1, src2) do { \
     int8_t tmp; \
     tmp = (int8_t)src2; \
-    if (tmp >= sizeof(src1) * 8) { \
+    if (tmp >= 0 && tmp >= sizeof(src1) * 8) { \
         dest = 0; \
     } else if (tmp < -sizeof(src1) * 8) { \
         dest = src1 >> (sizeof(src1) * 8 - 1); \
@@ -494,7 +494,7 @@ uint64_t HELPER(neon_rshl_s64)(uint64_t valop, uint64_t shiftop)
 #define NEON_FN(dest, src1, src2) do { \
     int8_t tmp; \
     tmp = (int8_t)src2; \
-    if (tmp >= sizeof(src1) * 8 || tmp < -sizeof(src1) * 8) { \
+    if (abs(tmp) >= sizeof(src1) * 8) { \
         dest = 0; \
     } else if (tmp == -sizeof(src1) * 8) { \
         dest = src1 >> (tmp - 1); \
@@ -528,7 +528,7 @@ uint64_t HELPER(neon_rshl_u64)(uint64_t val, uint64_t shiftop)
 #define NEON_FN(dest, src1, src2) do { \
     int8_t tmp; \
     tmp = (int8_t)src2; \
-    if (tmp >= sizeof(src1) * 8) { \
+    if (tmp >= 0 && tmp >= sizeof(src1) * 8) { \
         if (src1) { \
             SET_QC(); \
             dest = ~0; \
@@ -579,7 +579,7 @@ uint64_t HELPER(neon_qshl_u64)(CPUState *env, uint64_t val, uint64_t shiftop)
 #define NEON_FN(dest, src1, src2) do { \
     int8_t tmp; \
     tmp = (int8_t)src2; \
-    if (tmp >= sizeof(src1) * 8) { \
+    if (tmp >= 0 && tmp >= sizeof(src1) * 8) { \
         if (src1) \
             SET_QC(); \
         dest = src1 >> 31; \
