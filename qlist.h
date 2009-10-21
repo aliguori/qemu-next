@@ -29,8 +29,12 @@ typedef struct QList {
 #define qlist_append(qlist, obj) \
         qlist_append_obj(qlist, QOBJECT(obj))
 
+#define qlist_prepend(qlist, obj) \
+        qlist_prepend_obj(qlist, QOBJECT(obj))
+
 QList *qlist_new(void);
 void qlist_append_obj(QList *qlist, QObject *obj);
+void qlist_prepend_obj(QList *qlist, QObject *obj);
 void qlist_iter(const QList *qlist,
                 void (*iter)(QObject *obj, void *opaque), void *opaque);
 QObject *qlist_pop(QList *qlist);

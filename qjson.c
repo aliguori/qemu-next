@@ -22,8 +22,6 @@
 
 typedef struct JSONParserContext
 {
-    const char *data;
-    int lineno;
 } JSONParserContext;
 
 #define BUG_ON(cond) assert(!(cond))
@@ -75,35 +73,6 @@ static int hex2decimal(char ch)
 
 static void parse_error(JSONParserContext *ctxt, const char *at, const char *msg)
 {
-    const char *linestart = at;
-    const char *lineend = at;
-    char linebuf[80];
-    size_t len, pos;
-
-    while (linestart != ctxt->data && *(linestart - 1) != '\n') {
-        linestart--;
-    }
-
-    while (*lineend && *lineend != '\n') {
-        lineend++;
-    }
-
-    len = MIN(79, lineend - linestart);
-    memcpy(linebuf, linestart, len);
-    linebuf[len] = 0;
-
-    pos = at - linestart;
-
-    fprintf(stderr, "parse error: %s\n", msg);
-
-    if (pos <= len) {
-        fprintf(stderr, " %s\n", linebuf);
-        for (pos++; pos; pos--) {
-            fprintf(stderr, " ");
-        }
-        fprintf(stderr, "^\n");
-    }
-    
 }
 
 /**
@@ -227,22 +196,40 @@ out:
 
 static QObject *token_next(QList *consumed, QList *remaining)
 {
+    QObject *obj;
+
+    obj = qlist_pop(remaining);
+    qlist_append_obj(consumed, obj);
+
+    return obj;
 }
 
 static const char *token_get_value(QObject *obj)
 {
+    return qdict_get_str(qobject_to_qdict(dict), "token");
 }
 
 static JSONTokenType token_get_type(QObject *obj)
 {
+    return qdict_get_int(qobject_to_qdict(dict), "type");
 }
 
 static void tokens_commit(QList *consumed, QList *working)
 {
+    QObject *obj;
+
+    while ((obj = qlist_pop(working))) {
+        qlist_append_obj(consumed, obj);
+    }
 }
 
 static void tokens_reset(QList *remaining, QList *working)
 {
+    QObject *obj;
+
+    while ((obj = qlist_pop(working))) {
+        qlist_append_obj(consumed, obj);
+    }
 }
 
 static int parse_pair(JSONParserContext *ctxt, QDict *dict, QList *consumed, QList *remaining, va_list *ap)
