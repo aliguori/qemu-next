@@ -4132,10 +4132,8 @@ static int disas_neon_data_insn(CPUState * env, DisasContext *s, uint32_t insn)
     int pairwise;
     int u;
     int n;
-    uint32_t imm, imm2;
-    TCGv tmp;
-    TCGv tmp2;
-    TCGv tmp3;
+    uint32_t imm, mask;
+    TCGv tmp, tmp2, tmp3, tmp4, tmp5;
     TCGv_i64 tmp64;
 
     if (!vfp_enabled(env))
@@ -4658,34 +4656,38 @@ static int disas_neon_data_insn(CPUState * env, DisasContext *s, uint32_t insn)
                             dead_tmp(tmp2);
                         } else if (op == 4 || (op == 5 && u)) {
                             /* Insert */
-                            switch (size) {
-                            case 0:
-                                if (op == 4)
-                                    imm2 = 0xff >> -shift;
-                                else
-                                    imm2 = (uint8_t)(0xff << shift);
-                                imm2 |= imm2 << 8;
-                                imm2 |= imm2 << 16;
-                                break;
-                            case 1:
-                                if (op == 4)
-                                    imm2 = 0xffff >> -shift;
-                                else
-                                    imm2 = (uint16_t)(0xffff << shift);
-                                imm2 |= imm2 << 16;
-                                break;
-                            case 2:
-                                if (op == 4)
-                                    imm2 = 0xffffffffu >> -shift;
-                                else
-                                    imm2 = 0xffffffffu << shift;
-                                break;
-                            default:
-                                abort();
+                            if (abs(shift) >= size * 8) {
+                                mask = 0;
+                            } else {
+                                switch (size) {
+                                case 0:
+                                    if (op == 4)
+                                        mask = 0xff >> -shift;
+                                    else
+                                        mask = (uint8_t)(0xff << shift);
+                                    mask |= mask << 8;
+                                    mask |= mask << 16;
+                                    break;
+                                case 1:
+                                    if (op == 4)
+                                        mask = 0xffff >> -shift;
+                                    else
+                                        mask = (uint16_t)(0xffff << shift);
+                                    mask |= mask << 16;
+                                    break;
+                                case 2:
+                                    if (op == 4)
+                                        mask = 0xffffffffu >> -shift;
+                                    else
+                                        mask = 0xffffffffu << shift;
+                                    break;
+                                default:
+                                    abort();
+                                }
                             }
                             tmp2 = neon_load_reg(rd, pass);
-                            tcg_gen_andi_i32(tmp, tmp, imm2);
-                            tcg_gen_andi_i32(tmp2, tmp2, ~imm2);
+                            tcg_gen_andi_i32(tmp, tmp, mask);
+                            tcg_gen_andi_i32(tmp2, tmp2, ~mask);
                             tcg_gen_or_i32(tmp, tmp, tmp2);
                             dead_tmp(tmp2);
                         }
@@ -5586,9 +5588,9 @@ static int disas_neon_data_insn(CPUState * env, DisasContext *s, uint32_t insn)
                     tcg_gen_movi_i32(tmp, 0);
                 }
                 tmp2 = neon_load_reg(rm, 0);
-                TCGv tmp_rn = new_const(rn);
-                TCGv tmp_n = new_const(n);
-                gen_helper_neon_tbl(tmp2, tmp2, tmp, tmp_rn, tmp_n);
+                tmp4 = new_const(rn);
+                tmp5 = new_const(n);
+                gen_helper_neon_tbl(tmp2, tmp2, tmp, tmp4, tmp5);
                 dead_tmp(tmp);
                 if (insn & (1 << 6)) {
                     tmp = neon_load_reg(rd, 1);
@@ -5597,9 +5599,9 @@ static int disas_neon_data_insn(CPUState * env, DisasContext *s, uint32_t insn)
                     tcg_gen_movi_i32(tmp, 0);
                 }
                 tmp3 = neon_load_reg(rm, 1);
-                gen_helper_neon_tbl(tmp3, tmp3, tmp, tmp_rn, tmp_n);
-                dead_const(tmp_n);
-                dead_const(tmp_rn);
+                gen_helper_neon_tbl(tmp3, tmp3, tmp, tmp4, tmp5);
+                dead_const(tmp5);
+                dead_const(tmp4);
                 neon_store_reg(rd, 0, tmp2);
                 neon_store_reg(rd, 1, tmp3);
                 dead_tmp(tmp);
@@ -5737,7 +5739,7 @@ static int disas_coproc_insn(CPUState * env, DisasContext *s, uint32_t insn)
 }
 
 
-/* Store a 64-bit value to a register pair.  Marks val dead.  */
+/* Store a 64-bit value to a register pair.  Clobbers val.  */
 static void gen_storeq_reg(DisasContext *s, int rlow, int rhigh, TCGv_i64 val)
 {
     TCGv tmp;
@@ -5748,7 +5750,6 @@ static void gen_storeq_reg(DisasContext *s, int rlow, int rhigh, TCGv_i64 val)
     tcg_gen_shri_i64(val, val, 32);
     tcg_gen_trunc_i64_i32(tmp, val);
     store_reg(s, rhigh, tmp);
-    dead_tmp64(val);
 }
 
 /* load a 32-bit value from a register and perform a 64-bit accumulate.  */
@@ -6423,6 +6424,7 @@ static void disas_arm_insn(CPUState * env, DisasContext *s)
                         if (insn & (1 << 20))
                             gen_logicq_cc(tmp64);
                         gen_storeq_reg(s, rn, rd, tmp64);
+                        dead_tmp64(tmp64);
                         break;
                     }
                 } else {
@@ -6761,6 +6763,7 @@ static void disas_arm_insn(CPUState * env, DisasContext *s)
                             dead_tmp(tmp);
                             gen_addq(s, tmp64, rd, rn);
                             gen_storeq_reg(s, rd, rn, tmp64);
+                            dead_tmp64(tmp64);
                         } else {
                             /* smuad, smusd, smlad, smlsd */
                             if (rd != 15)
@@ -7698,6 +7701,7 @@ static int disas_thumb2_insn(CPUState *env, DisasContext *s, uint16_t insn_hw1)
                 dead_tmp(tmp);
                 gen_addq(s, tmp64, rs, rd);
                 gen_storeq_reg(s, rs, rd, tmp64);
+                dead_tmp64(tmp64);
             } else {
                 if (op & 0x20) {
                     /* Unsigned 64-bit multiply  */
@@ -7724,6 +7728,7 @@ static int disas_thumb2_insn(CPUState *env, DisasContext *s, uint16_t insn_hw1)
                     gen_addq(s, tmp64, rs, rd);
                 }
                 gen_storeq_reg(s, rs, rd, tmp64);
+                dead_tmp64(tmp64);
             }
             break;
         }
