@@ -3729,6 +3729,7 @@ static int disas_neon_ls_insn(CPUState * env, DisasContext *s, uint32_t insn)
     int op;
     int nregs;
     int interleave;
+    int spacing;
     int stride;
     int size;
     int reg;
@@ -3757,6 +3758,9 @@ static int disas_neon_ls_insn(CPUState * env, DisasContext *s, uint32_t insn)
             return 1;
         nregs = neon_ls_element_type[op].nregs;
         interleave = neon_ls_element_type[op].interleave;
+        spacing = neon_ls_element_type[op].spacing;
+        if (size == 3 && (interleave | spacing) != 1)
+            return 1;
         load_reg_var(s, addr, rn);
         stride = (1 << size) * interleave;
         stride_v = new_const(stride);
@@ -3837,7 +3841,7 @@ static int disas_neon_ls_insn(CPUState * env, DisasContext *s, uint32_t insn)
                     }
                 }
             }
-            rd += neon_ls_element_type[op].spacing;
+            rd += spacing;
         }
         dead_const(stride_v);
         stride = nregs * 8;
@@ -4745,16 +4749,12 @@ static int disas_neon_data_insn(CPUState * env, DisasContext *s, uint32_t insn)
                         else
                             gen_neon_narrow_satu(size - 1, tmp, cpu_V0);
                     }
-                    if (pass == 0) {
-                        dead_tmp(tmp2);
-                        tmp2 = tmp;
-                    } else {
-                        neon_store_reg(rd, 0, tmp2);
-                        neon_store_reg(rd, 1, tmp);
-                    }
+                    neon_store_reg(rd, pass, tmp);
                 } /* for pass */
                 if (size == 3) {
                     dead_const64(tmp64);
+                } else {
+                    dead_tmp(tmp2);
                 }
             } else if (op == 10) {
                 /* VSHLL */
