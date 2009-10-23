@@ -4656,34 +4656,34 @@ static int disas_neon_data_insn(CPUState * env, DisasContext *s, uint32_t insn)
                             dead_tmp(tmp2);
                         } else if (op == 4 || (op == 5 && u)) {
                             /* Insert */
-                            if (abs(shift) >= size * 8) {
-                                mask = 0;
-                            } else {
-                                switch (size) {
-                                case 0:
-                                    if (op == 4)
-                                        mask = 0xff >> -shift;
-                                    else
-                                        mask = (uint8_t)(0xff << shift);
-                                    mask |= mask << 8;
-                                    mask |= mask << 16;
-                                    break;
-                                case 1:
-                                    if (op == 4)
-                                        mask = 0xffff >> -shift;
-                                    else
-                                        mask = (uint16_t)(0xffff << shift);
-                                    mask |= mask << 16;
-                                    break;
-                                case 2:
+                            switch (size) {
+                            case 0:
+                                if (op == 4)
+                                    mask = 0xff >> -shift;
+                                else
+                                    mask = (uint8_t)(0xff << shift);
+                                mask |= mask << 8;
+                                mask |= mask << 16;
+                                break;
+                            case 1:
+                                if (op == 4)
+                                    mask = 0xffff >> -shift;
+                                else
+                                    mask = (uint16_t)(0xffff << shift);
+                                mask |= mask << 16;
+                                break;
+                            case 2:
+                                if (shift < -31 || shift > 31) {
+                                    mask = 0;
+                                } else {
                                     if (op == 4)
                                         mask = 0xffffffffu >> -shift;
                                     else
                                         mask = 0xffffffffu << shift;
-                                    break;
-                                default:
-                                    abort();
                                 }
+                                break;
+                            default:
+                                abort();
                             }
                             tmp2 = neon_load_reg(rd, pass);
                             tcg_gen_andi_i32(tmp, tmp, mask);
