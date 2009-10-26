@@ -232,11 +232,11 @@ static void store_reg(DisasContext *s, int reg, TCGv var)
 #define gen_uxtb16(var) gen_helper_uxtb16(var, var)
 
 
-#define gen_set_cpsr(var, mask) \
-{ \
-    TCGv tmp_mask = new_const(mask); \
-    gen_helper_cpsr_write(var, tmp_mask); \
-    dead_const(tmp_mask); \
+static inline void gen_set_cpsr(TCGv var, uint32_t mask)
+{
+    TCGv tmp_mask = new_const(mask);
+    gen_helper_cpsr_write(var, tmp_mask);
+    dead_const(tmp_mask);
 }
 /* Set NZCV flags from the high 4 bits of var.  */
 #define gen_set_nzcv(var) gen_set_cpsr(var, CPSR_NZCV)
@@ -6644,12 +6644,12 @@ static void disas_arm_insn(CPUState * env, DisasContext *s)
                         }
                         sh = (insn >> 16) & 0x1f;
                         if (sh != 0) {
-                            TCGv tmp_sh = new_const(sh);
+                            tmp2 = new_const(sh);
                             if (insn & (1 << 22))
-                                gen_helper_usat(tmp, tmp, tmp_sh);
+                                gen_helper_usat(tmp, tmp, tmp2);
                             else
-                                gen_helper_ssat(tmp, tmp, tmp_sh);
-                            dead_const(tmp_sh);
+                                gen_helper_ssat(tmp, tmp, tmp2);
+                            dead_const(tmp2);
                         }
                         store_reg(s, rd, tmp);
                     } else if ((insn & 0x00300fe0) == 0x00200f20) {
@@ -6657,12 +6657,12 @@ static void disas_arm_insn(CPUState * env, DisasContext *s)
                         tmp = load_reg(s, rm);
                         sh = (insn >> 16) & 0x1f;
                         if (sh != 0) {
-                            TCGv tmp_sh = new_const(sh);
+                            tmp2 = new_const(sh);
                             if (insn & (1 << 22))
-                                gen_helper_usat16(tmp, tmp, tmp_sh);
+                                gen_helper_usat16(tmp, tmp, tmp2);
                             else
-                                gen_helper_ssat16(tmp, tmp, tmp_sh);
-                            dead_const(tmp_sh);
+                                gen_helper_ssat16(tmp, tmp, tmp2);
+                            dead_const(tmp2);
                         }
                         store_reg(s, rd, tmp);
                     } else if ((insn & 0x00700fe0) == 0x00000fa0) {
@@ -7793,6 +7793,7 @@ static int disas_thumb2_insn(CPUState *env, DisasContext *s, uint16_t insn_hw1)
                             addr = new_const(insn & 0xff);
                             gen_helper_v7m_msr(cpu_env, addr, tmp);
                             dead_const(addr);
+                            dead_tmp(tmp);
                             gen_lookup_tb(s);
                             break;
                         }
