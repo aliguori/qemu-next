@@ -34,6 +34,8 @@
 #define GEN_HELPER 1
 #include "helpers.h"
 
+//#define RESOURCE_LEAK_DEBUG
+
 #define ENABLE_ARCH_5J    0
 #define ENABLE_ARCH_6     arm_feature(env, ARM_FEATURE_V6)
 #define ENABLE_ARCH_6K   arm_feature(env, ARM_FEATURE_V6K)
@@ -104,6 +106,7 @@ void arm_translate_init(void)
 #include "helpers.h"
 }
 
+#ifdef RESOURCE_LEAK_DEBUG
 static int num_temps;
 
 /* Allocate a temporary variable.  */
@@ -167,6 +170,18 @@ static inline void dead_const64(TCGv_i64 ctmp)
     tcg_temp_free_i64(ctmp);
     num_temps--;
 }
+#else // RESOURCE_LEAK_DEBUG
+#define new_tmp tcg_temp_new_i32
+#define new_tmp64 tcg_temp_new_i64
+#define new_tmpptr tcg_temp_new_ptr
+#define new_const(x) tcg_const_i32(x)
+#define new_const64(x) tcg_const_i64(x)
+#define dead_tmp(x) tcg_temp_free_i32(x)
+#define dead_tmp64(x) tcg_temp_free_i64(x)
+#define dead_tmpptr(x) tcg_temp_free_ptr(x)
+#define dead_const(x) tcg_temp_free_i32(x)
+#define dead_const64(x) tcg_temp_free_i64(x)
+#endif // RESOOURCE_LEAK_DEBUG
 
 static inline TCGv load_cpu_offset(int offset)
 {
@@ -8863,10 +8878,12 @@ static inline void gen_intermediate_code_internal(CPUState *env,
     uint32_t next_page_start;
     int num_insns;
     int max_insns;
+#ifdef RESOURCE_LEAK_DEBUG
     int force_asmdump = 0;
 
     /* generate intermediate code */
     num_temps = 0;
+#endif
 
     pc_start = tb->pc;
 
@@ -8979,11 +8996,13 @@ static inline void gen_intermediate_code_internal(CPUState *env,
         } else {
             disas_arm_insn(env, dc);
         }
+#ifdef RESOURCE_LEAK_DEBUG
         if (num_temps) {
             fprintf(stderr, "Internal resource leak before %08x\n", dc->pc);
             force_asmdump = 1;
             num_temps = 0;
         }
+#endif
 
         if (dc->condjmp && !dc->is_jmp) {
             gen_set_label(dc->condlabel);
@@ -9077,12 +9096,14 @@ done_generating:
     gen_icount_end(tb, num_insns);
     *gen_opc_ptr = INDEX_op_end;
 
+#ifdef RESOURCE_LEAK_DEBUG
     if (force_asmdump) {
         fprintf(stderr, "----------------\n");
         fprintf(stderr, "IN: %s\n", lookup_symbol(pc_start));
         target_disas(stderr, pc_start, dc->pc - pc_start, env->thumb);
         fprintf(stderr, "\n");
     }
+#endif
 #ifdef DEBUG_DISAS
     if (qemu_loglevel_mask(CPU_LOG_TB_IN_ASM)) {
         qemu_log("----------------\n");
