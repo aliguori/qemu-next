@@ -62,7 +62,7 @@ typedef struct QObject {
     QObject base
 
 /* Get the 'base' part of an object */
-#define QOBJECT(obj) (&obj->base)
+#define QOBJECT(obj) (&(obj)->base)
 
 /* High-level interface for qobject_incref() */
 #define QINCREF(obj)      \

@@ -16,8 +16,8 @@
 
 #include "qobject.h"
 
-QObject *qobject_from_json(const char *string, size_t *length);
-QObject *qobject_from_jsonf(const char *string, size_t *length, ...)
-    __attribute__((__format__ (__printf__, 1, 3)));
+QObject *qobject_from_json(const char *string);
+QObject *qobject_from_jsonf(const char *string, ...)
+    __attribute__((__format__ (__printf__, 1, 2)));
 
 #endif /* QJSON_H */
