@@ -437,7 +437,7 @@ static QObject *parse_escape(JSONParserContext *ctxt, QList **tokens, va_list *a
     QList *working = qlist_copy(*tokens);
 
     if (ap == NULL) {
-        return NULL;
+        goto out;
     }
 
     token = qlist_pop(working);
@@ -539,6 +539,8 @@ static void parse_json(JSONMessageParser *parser, QList *tokens)
     QList *working = qlist_copy(tokens);
 
     s->result = parse_value(&ctxt, &working, s->ap);
+
+    QDECREF(working);
 }
 
 QObject *qobject_from_json(const char *string)
@@ -548,6 +550,7 @@ QObject *qobject_from_json(const char *string)
     json_message_parser_init(&state.parser, parse_json);
     json_message_parser_feed(&state.parser, string, strlen(string));
     json_message_parser_flush(&state.parser);
+    json_message_parser_destroy(&state.parser);
 
     return state.result;
 }
@@ -563,6 +566,7 @@ QObject *qobject_from_jsonf(const char *string, ...)
     json_message_parser_init(&state.parser, parse_json);
     json_message_parser_feed(&state.parser, string, strlen(string));
     json_message_parser_flush(&state.parser);
+    json_message_parser_destroy(&state.parser);
 
     va_end(ap);
 
