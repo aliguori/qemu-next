@@ -496,7 +496,7 @@ uint64_t HELPER(neon_rshl_s64)(uint64_t valop, uint64_t shiftop)
     int8_t tmp; \
     tmp = (int8_t)src2; \
     if (tmp >= (ssize_t)sizeof(src1) * 8 || \
-        tmp <= -(ssize_t)sizeof(src1) * 8) { \
+        tmp < -(ssize_t)sizeof(src1) * 8) { \
         dest = 0; \
     } else if (tmp == -(ssize_t)sizeof(src1) * 8) { \
         dest = src1 >> (tmp - 1); \

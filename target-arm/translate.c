@@ -265,7 +265,7 @@ static inline void gen_set_cpsr(TCGv var, uint32_t mask)
 {
     TCGv tmp_mask = tcg_const_i32(mask);
     gen_helper_cpsr_write(var, tmp_mask);
-    dead_tmp(tmp_mask);
+    tcg_temp_free_i32(tmp_mask);
 }
 /* Set NZCV flags from the high 4 bits of var.  */
 #define gen_set_nzcv(var) gen_set_cpsr(var, CPSR_NZCV)
@@ -482,16 +482,6 @@ static void gen_sub_carry(TCGv dest, TCGv t0, TCGv t1)
     dead_tmp(tmp);
 }
 
-/* T0 &= ~T1.  Clobbers T1.  */
-/* FIXME: Implement bic natively.  */
-static inline void tcg_gen_bic_i32(TCGv dest, TCGv t0, TCGv t1)
-{
-    TCGv tmp = new_tmp();
-    tcg_gen_not_i32(tmp, t1);
-    tcg_gen_and_i32(dest, t0, tmp);
-    dead_tmp(tmp);
-}
-
 /* FIXME:  Implement this natively.  */
 #define tcg_gen_abs_i32(t0, t1) gen_helper_abs(t0, t1)
 
@@ -574,7 +564,8 @@ static inline void gen_arm_shift_reg(TCGv var, int shiftop,
         case 0: gen_helper_shl(var, var, shift); break;
         case 1: gen_helper_shr(var, var, shift); break;
         case 2: gen_helper_sar(var, var, shift); break;
-        case 3: gen_helper_ror(var, var, shift); break;
+        case 3: tcg_gen_andi_i32(shift, shift, 0x1f);
+                tcg_gen_rotr_i32(var, var, shift); break;
         }
     }
     dead_tmp(shift);
@@ -1515,7 +1506,7 @@ static int disas_iwmmxt_insn(CPUState *env, DisasContext *s, uint32_t insn)
         case ARM_IWMMXT_wCSSF:
             tmp = iwmmxt_load_creg(wrd);
             tmp2 = load_reg(s, rd);
-            tcg_gen_bic_i32(tmp, tmp, tmp2);
+            tcg_gen_andc_i32(tmp, tmp, tmp2);
             dead_tmp(tmp2);
             iwmmxt_store_creg(wrd, tmp);
             break;
@@ -3996,7 +3987,7 @@ static int disas_neon_ls_insn(CPUState * env, DisasContext *s, uint32_t insn)
 static void gen_neon_bsl(TCGv dest, TCGv t, TCGv f, TCGv c)
 {
     tcg_gen_and_i32(t, t, c);
-    tcg_gen_bic_i32(f, f, c);
+    tcg_gen_andc_i32(f, f, c);
     tcg_gen_or_i32(dest, t, f);
 }
 
@@ -4309,14 +4300,13 @@ static int disas_neon_data_insn(CPUState * env, DisasContext *s, uint32_t insn)
                 tcg_gen_and_i32(tmp, tmp, tmp2);
                 break;
             case 1: /* BIC */
-                tcg_gen_bic_i32(tmp, tmp, tmp2);
+                tcg_gen_andc_i32(tmp, tmp, tmp2);
                 break;
             case 2: /* VORR */
                 tcg_gen_or_i32(tmp, tmp, tmp2);
                 break;
             case 3: /* VORN */
-                tcg_gen_not_i32(tmp2, tmp2);
-                tcg_gen_or_i32(tmp, tmp, tmp2);
+                tcg_gen_orc_i32(tmp, tmp, tmp2);
                 break;
             case 4: /* VEOR */
                 tcg_gen_xor_i32(tmp, tmp, tmp2);
@@ -6379,7 +6369,7 @@ static void disas_arm_insn(CPUState * env, DisasContext *s)
             }
             break;
         case 0x0e:
-            tcg_gen_bic_i32(tmp, tmp, tmp2);
+            tcg_gen_andc_i32(tmp, tmp, tmp2);
             if (logic_cc) {
                 gen_logic_CC(tmp);
             }
@@ -7100,7 +7090,7 @@ gen_thumb2_data_op(DisasContext *s, int op, int conds, uint32_t shifter_out, TCG
         logic_cc = conds;
         break;
     case 1: /* bic */
-        tcg_gen_bic_i32(t0, t0, t1);
+        tcg_gen_andc_i32(t0, t0, t1);
         logic_cc = conds;
         break;
     case 2: /* orr */
@@ -7892,7 +7882,7 @@ static int disas_thumb2_insn(CPUState *env, DisasContext *s, uint16_t insn_hw1)
                         if (IS_M(env)) {
                             addr = tcg_const_i32(insn & 0xff);
                             gen_helper_v7m_mrs(tmp, cpu_env, addr);
-                            dead_tmp(addr);
+                            tcg_temp_free_i32(addr);
                         } else {
                             gen_helper_cpsr_read(tmp);
                         }
@@ -8425,7 +8415,8 @@ static void disas_thumb_insn(CPUState *env, DisasContext *s)
             break;
         case 0x7: /* ror */
             if (s->condexec_mask) {
-                gen_helper_ror(tmp2, tmp2, tmp);
+                tcg_gen_andi_i32(tmp, tmp, 0x1f);
+                tcg_gen_rotr_i32(tmp2, tmp2, tmp);
             } else {
                 gen_helper_ror_cc(tmp2, tmp2, tmp);
                 gen_logic_CC(tmp2);
@@ -8461,7 +8452,7 @@ static void disas_thumb_insn(CPUState *env, DisasContext *s)
                 gen_logic_CC(tmp);
             break;
         case 0xe: /* bic */
-            tcg_gen_bic_i32(tmp, tmp, tmp2);
+            tcg_gen_andc_i32(tmp, tmp, tmp2);
             if (!s->condexec_mask)
                 gen_logic_CC(tmp);
             break;
