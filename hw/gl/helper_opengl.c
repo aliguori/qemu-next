@@ -403,9 +403,13 @@ static const void *get_host_read_pointer(CPUState *env, const target_ulong targe
     return NULL;
 }
  
-static int decode_call_int(struct helper_opengl_s *s)
+static int decode_call(struct helper_opengl_s *s)
 {
     int func_number = s->fid;
+    if (!(func_number >= 0 && func_number < GL_N_CALLS)) {
+        GL_ERROR("func_number >= 0 && func_number < GL_N_CALLS failed");
+        return 0;
+    }
     int pid = s->pid;
     target_ulong target_ret_string = s->rsp;
     target_ulong in_args = s->iap;
@@ -626,7 +630,6 @@ static int decode_call_int(struct helper_opengl_s *s)
                          i, pid);
                 SET_LAST_PROCESS_ID(0);
                 return 0;
-                break;
         }
     }
     
@@ -684,21 +687,6 @@ static int decode_call_int(struct helper_opengl_s *s)
         }
     }
     
-    return ret;
-}
-
-static int decode_call(struct helper_opengl_s *s)
-{
-    int ret;
-    int func_number=s->fid;
-    if( ! (func_number >= 0 && func_number < GL_N_CALLS) ) {
-        GL_ERROR("func_number >= 0 && func_number < GL_N_CALLS failed");
-        return 0;
-    }
-    ret = decode_call_int(s);
-    if (func_number == glXCreateContext_func) {
-        TRACE("ret of glXCreateContext_func = %d", ret);
-    }
     return ret;
 }
 
@@ -1374,13 +1362,7 @@ static uint32_t helper_opengl_read(void *opaque, target_phys_addr_t addr)
             case QEMUGL_HWREG_IAS: return s->ias;
             case QEMUGL_HWREG_CMD: return 0; /* write-only register */
             case QEMUGL_HWREG_STA:
-/*#ifdef QEMUGL_MULTITHREADED
-                helper_opengl_waitthread(ts);
                 TRACE("result = %d (guest pid %d)", s->result, s->pid);
-#else
-                TRACE("result = %d", s->result);
-#endif*/
-                TRACE("result = %d", s->result);
                 return s->result;
             case QEMUGL_HWREG_BUF:
 #ifdef QEMUGL_IO_FRAMEBUFFER
