@@ -44,9 +44,37 @@
 #include <net/if.h>
 #ifdef __NetBSD__
 #include <net/if_tap.h>
-#endif
-#ifdef __linux__
+#elif defined(__linux__)
 #include "tap-linux.h"
+#else
+/* Ioctl defines */
+#define TUNSETIFF     _IOW('T', 202, int)
+#define TUNGETFEATURES _IOR('T', 207, unsigned int)
+#define TUNSETOFFLOAD  _IOW('T', 208, unsigned int)
+#define TUNGETIFF      _IOR('T', 210, unsigned int)
+#define TUNSETSNDBUF   _IOW('T', 212, int)
+
+/* TUNSETIFF ifr flags */
+#define IFF_TAP		0x0002
+#define IFF_NO_PI	0x1000
+#define IFF_VNET_HDR	0x4000
+
+/* Features for GSO (TUNSETOFFLOAD). */
+#define TUN_F_CSUM	0x01	/* You can hand me unchecksummed packets. */
+#define TUN_F_TSO4	0x02	/* I can handle TSO for IPv4 packets */
+#define TUN_F_TSO6	0x04	/* I can handle TSO for IPv6 packets */
+#define TUN_F_TSO_ECN	0x08	/* I can handle TSO with ECN bits. */
+#define TUN_F_UFO	0x10	/* I can handle UFO packets */
+
+struct virtio_net_hdr
+{
+    uint8_t flags;
+    uint8_t gso_type;
+    uint16_t hdr_len;
+    uint16_t gso_size;
+    uint16_t csum_start;
+    uint16_t csum_offset;
+};
 #endif
 #include <arpa/inet.h>
 #include <dirent.h>
