@@ -151,10 +151,21 @@ static inline UInt32 isPlaying (AudioDeviceID outputDeviceID)
 {
     OSStatus status;
     UInt32 result = 0;
+#if MAC_OS_X_VERSION_MIN_REQUIRED>MAC_OS_X_VERSION_10_5
+    AudioObjectPropertyAddress propertyAddress = {
+        .mSelector = kAudioDevicePropertyDeviceIsRunning,
+        .mScope    = kAudioObjectPropertyScopeGlobal,
+        .mElement  = kAudioObjectPropertyElementMaster,
+    };
+    UInt32 resultSize = sizeof(result);
+    status = AudioObjectGetPropertyData(outputDeviceID, &propertyAddress,
+                                        0, NULL, &resultSize, &result);
+#else
     UInt32 propertySize = sizeof(outputDeviceID);
     status = AudioDeviceGetProperty(
         outputDeviceID, 0, 0,
         kAudioDevicePropertyDeviceIsRunning, &propertySize, &result);
+#endif
     if (status != kAudioHardwareNoError) {
         coreaudio_logerr(status,
                          "Could not determine whether Device is playing\n");
@@ -310,10 +321,21 @@ static int coreaudio_init_out (HWVoiceOut *hw, struct audsettings *as)
 
     /* open default output device */
     propertySize = sizeof(core->outputDeviceID);
+#if MAC_OS_X_VERSION_MIN_REQUIRED>MAC_OS_X_VERSION_10_5
+    AudioObjectPropertyAddress propertyAddress = {
+        .mSelector = kAudioHardwarePropertyDefaultOutputDevice,
+        .mScope    = kAudioObjectPropertyScopeGlobal,
+        .mElement  = kAudioObjectPropertyElementMaster,
+    };
+    status = AudioObjectGetPropertyData(kAudioObjectSystemObject,
+                                        &propertyAddress, 0, NULL,
+                                        &propertySize, &core->outputDeviceID);
+#else
     status = AudioHardwareGetProperty(
         kAudioHardwarePropertyDefaultOutputDevice,
         &propertySize,
         &core->outputDeviceID);
+#endif
     if (status != kAudioHardwareNoError) {
         coreaudio_logerr2 (status, typ,
                            "Could not get default output Device\n");
@@ -326,6 +348,11 @@ static int coreaudio_init_out (HWVoiceOut *hw, struct audsettings *as)
 
     /* get minimum and maximum buffer frame sizes */
     propertySize = sizeof(frameRange);
+#if MAC_OS_X_VERSION_MIN_REQUIRED>MAC_OS_X_VERSION_10_5
+    propertyAddress.mSelector = kAudioDevicePropertyBufferFrameSizeRange;
+    status = AudioObjectGetPropertyData(core->outputDeviceID, &propertyAddress,
+                                        0, NULL, &propertySize, &frameRange);
+#else
     status = AudioDeviceGetProperty(
         core->outputDeviceID,
         0,
@@ -333,6 +360,7 @@ static int coreaudio_init_out (HWVoiceOut *hw, struct audsettings *as)
         kAudioDevicePropertyBufferFrameSizeRange,
         &propertySize,
         &frameRange);
+#endif
     if (status != kAudioHardwareNoError) {
         coreaudio_logerr2 (status, typ,
                            "Could not get device buffer frame range\n");
@@ -353,6 +381,12 @@ static int coreaudio_init_out (HWVoiceOut *hw, struct audsettings *as)
 
     /* set Buffer Frame Size */
     propertySize = sizeof(core->audioDevicePropertyBufferFrameSize);
+#if MAC_OS_X_VERSION_MIN_REQUIRED>MAC_OS_X_VERSION_10_5
+    propertyAddress.mSelector = kAudioDevicePropertyBufferFrameSize;
+    status = AudioObjectSetPropertyData(core->outputDeviceID, &propertyAddress,
+                                        0, NULL, propertySize,
+                                        &core->audioDevicePropertyBufferFrameSize);
+#else
     status = AudioDeviceSetProperty(
         core->outputDeviceID,
         NULL,
@@ -361,6 +395,7 @@ static int coreaudio_init_out (HWVoiceOut *hw, struct audsettings *as)
         kAudioDevicePropertyBufferFrameSize,
         propertySize,
         &core->audioDevicePropertyBufferFrameSize);
+#endif
     if (status != kAudioHardwareNoError) {
         coreaudio_logerr2 (status, typ,
                            "Could not set device buffer frame size %d\n",
@@ -370,6 +405,12 @@ static int coreaudio_init_out (HWVoiceOut *hw, struct audsettings *as)
 
     /* get Buffer Frame Size */
     propertySize = sizeof(core->audioDevicePropertyBufferFrameSize);
+#if MAC_OS_X_VERSION_MIN_REQUIRED>MAC_OS_X_VERSION_10_5
+    propertyAddress.mSelector = kAudioDevicePropertyBufferFrameSize;
+    status = AudioObjectGetPropertyData(core->outputDeviceID, &propertyAddress,
+                                        0, NULL, &propertySize,
+                                        &core->audioDevicePropertyBufferFrameSize);
+#else
     status = AudioDeviceGetProperty(
         core->outputDeviceID,
         0,
@@ -377,6 +418,7 @@ static int coreaudio_init_out (HWVoiceOut *hw, struct audsettings *as)
         kAudioDevicePropertyBufferFrameSize,
         &propertySize,
         &core->audioDevicePropertyBufferFrameSize);
+#endif
     if (status != kAudioHardwareNoError) {
         coreaudio_logerr2 (status, typ,
                            "Could not get device buffer frame size\n");
@@ -386,6 +428,12 @@ static int coreaudio_init_out (HWVoiceOut *hw, struct audsettings *as)
 
     /* get StreamFormat */
     propertySize = sizeof(core->outputStreamBasicDescription);
+#if MAC_OS_X_VERSION_MIN_REQUIRED>MAC_OS_X_VERSION_10_5
+    propertyAddress.mSelector = kAudioDevicePropertyStreamFormat;
+    status = AudioObjectGetPropertyData(core->outputDeviceID, &propertyAddress,
+                                        0, NULL, &propertySize,
+                                        &core->outputStreamBasicDescription);
+#else
     status = AudioDeviceGetProperty(
         core->outputDeviceID,
         0,
@@ -393,6 +441,7 @@ static int coreaudio_init_out (HWVoiceOut *hw, struct audsettings *as)
         kAudioDevicePropertyStreamFormat,
         &propertySize,
         &core->outputStreamBasicDescription);
+#endif
     if (status != kAudioHardwareNoError) {
         coreaudio_logerr2 (status, typ,
                            "Could not get Device Stream properties\n");
@@ -403,6 +452,12 @@ static int coreaudio_init_out (HWVoiceOut *hw, struct audsettings *as)
     /* set Samplerate */
     core->outputStreamBasicDescription.mSampleRate = (Float64) as->freq;
     propertySize = sizeof(core->outputStreamBasicDescription);
+#if MAC_OS_X_VERSION_MIN_REQUIRED>MAC_OS_X_VERSION_10_5
+    propertyAddress.mSelector = kAudioDevicePropertyStreamFormat;
+    status = AudioObjectSetPropertyData(core->outputDeviceID, &propertyAddress,
+                                        0, NULL, propertySize,
+                                        &core->outputStreamBasicDescription);
+#else
     status = AudioDeviceSetProperty(
         core->outputDeviceID,
         0,
@@ -411,6 +466,7 @@ static int coreaudio_init_out (HWVoiceOut *hw, struct audsettings *as)
         kAudioDevicePropertyStreamFormat,
         propertySize,
         &core->outputStreamBasicDescription);
+#endif
     if (status != kAudioHardwareNoError) {
         coreaudio_logerr2 (status, typ, "Could not set samplerate %d\n",
                            as->freq);
