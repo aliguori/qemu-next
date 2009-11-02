@@ -3774,13 +3774,17 @@ static int disas_neon_ls_insn(CPUState * env, DisasContext *s, uint32_t insn)
         /* Load store all elements.  */
         op = (insn >> 8) & 0xf;
         size = (insn >> 6) & 3;
-        if (op > 10)
+        if (op > 10) {
+            dead_tmp(addr);
             return 1;
+        }
         nregs = neon_ls_element_type[op].nregs;
         interleave = neon_ls_element_type[op].interleave;
         spacing = neon_ls_element_type[op].spacing;
-        if (size == 3 && (interleave | spacing) != 1)
+        if (size == 3 && (interleave | spacing) != 1) {
+            dead_tmp(addr);
             return 1;
+        }
         load_reg_var(s, addr, rn);
         stride = (1 << size) * interleave;
         stride_var = tcg_const_i32(stride);
@@ -3869,8 +3873,10 @@ static int disas_neon_ls_insn(CPUState * env, DisasContext *s, uint32_t insn)
         size = (insn >> 10) & 3;
         if (size == 3) {
             /* Load single element to all lanes.  */
-            if (!load)
+            if (!load) {
+                dead_tmp(addr);
                 return 1;
+            }
             size = (insn >> 6) & 3;
             nregs = ((insn >> 8) & 3) + 1;
             stride = (insn & (1 << 5)) ? 2 : 1;
@@ -3889,6 +3895,7 @@ static int disas_neon_ls_insn(CPUState * env, DisasContext *s, uint32_t insn)
                     tmp = gen_ld32(addr, IS_USER(s));
                     break;
                 case 3:
+                    dead_tmp(addr);
                     return 1;
                 default: /* Avoid compiler warnings.  */
                     abort();
@@ -6709,7 +6716,7 @@ static void disas_arm_insn(CPUState * env, DisasContext *s)
                         case 4: gen_uxtb16(tmp);  break;
                         case 6: gen_uxtb(tmp);    break;
                         case 7: gen_uxth(tmp);    break;
-                        default: goto illegal_op;
+                        default: dead_tmp(tmp); goto illegal_op;
                         }
                         if (rn != 15) {
                             tmp2 = load_reg(s, rn);
