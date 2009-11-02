@@ -1575,7 +1575,7 @@ static QEMUMachine n810_machine = {
 
 //#define DEBUG_BQ2415X
 //#define DEBUG_TPA6130
-#define DEBUG_LIS302DL
+//#define DEBUG_LIS302DL
 
 #define N900_TRACE(fmt, ...) \
     fprintf(stderr, "%s@%d: " fmt "\n", __FUNCTION__, __LINE__, ##__VA_ARGS__)
@@ -1642,45 +1642,70 @@ typedef struct LIS302DLState_s {
 
 static void lis302dl_interrupt_update(LIS302DLState *s)
 {
-    int active = (s->ctrl3 & 0x80) ? 1 : 0;
-    int wu_int[2] = {!active, !active};
+    int active = (s->ctrl3 & 0x80) ? 0 : 1;
+    int i;
+    for (i = 0; i < 2; i++) {
+        switch ((s->ctrl3 >> (i * 3)) & 0x07) {
+            case 0:
+                TRACE_LIS302DL("deactivate irq%d", i);
+                qemu_set_irq(s->irq[i], !active);
+                break;
+            case 1:
+                TRACE_LIS302DL("%sactivate irq%d",
+                               (s->ff_wu[0].src & 0x40) ? "" : "de", i);
+                qemu_set_irq(s->irq[i],
+                             (s->ff_wu[0].src & 0x40) ? active : !active);
+                break;
+            case 2:
+                TRACE_LIS302DL("%sactivate irq%d",
+                               (s->ff_wu[1].src & 0x40) ? "" : "de", i);
+                qemu_set_irq(s->irq[i],
+                             (s->ff_wu[1].src & 0x40) ? active : !active);
+                break;
+            case 3:
+                TRACE_LIS302DL("%sactivate irq%d",
+                               ((s->ff_wu[0].src | s->ff_wu[1].src) & 0x40)
+                               ? "" : "de", i);
+                qemu_set_irq(s->irq[i],
+                             ((s->ff_wu[0].src | s->ff_wu[1].src) & 0x40)
+                             ? active : !active);
+                break;
+                /* TODO: data ready & click interrupts */
+            default:
+                TRACE_LIS302DL("unsupported irq config (%d)",
+                               (s->ctrl3 >> (i * 3)) & 0x07);
+                break;
+        }
+    }
+}
+
+static void lis302dl_trigger(void *opaque, int axis, int high, int activate)
+{
+    TRACE_LIS302DL("axis=%d, high=%d, activate=%d", axis, high, activate);
+    LIS302DLState *s = opaque;
+    uint8_t bit = (high ? 0x02 : 0x01) << (axis << 1);
+    if (activate) {
+        s->ff_wu[0].src |= bit;
+    } else {
+        s->ff_wu[0].src &= ~bit;
+    }
+
     int i = 0;
     for (; i < 2; i++) {
         if (s->ff_wu[i].src & 0x3f) {
             if (s->ff_wu[i].cfg & 0x80) {
                 if ((s->ff_wu[i].cfg & 0x3f) == (s->ff_wu[i].src & 0x3f)) {
                     s->ff_wu[i].src |= 0x40;
-                    wu_int[i] = active;
                 }
             } else {
                 if (s->ff_wu[i].src & s->ff_wu[i].cfg & 0x3f) {
                     s->ff_wu[i].src |= 0x40;
-                    wu_int[i] = active;
                 }
             }
         }
     }
-    for (i = 0; i < 2; i++) {
-        switch ((s->ctrl3 >> (i * 3)) & 0x07) {
-            case 0:
-                qemu_set_irq(s->irq[i], !active);
-                break;
-            case 1:
-                qemu_set_irq(s->irq[i], wu_int[0]);
-                break;
-            case 2:
-                qemu_set_irq(s->irq[i], wu_int[1]);
-                break;
-            case 3:
-                qemu_set_irq(s->irq[i],
-                             (wu_int[0] == active || wu_int[1] == active)
-                             ? active : !active);
-                break;
-            /* TODO: data ready & click interrupts */
-            default:
-                break;
-        }
-    }
+
+    lis302dl_interrupt_update(s);
 }
 
 static void lis302dl_reset(LIS302DLState *s)
@@ -1712,35 +1737,55 @@ static int lis302dl_rx(i2c_slave *i2c)
     switch (s->reg) {
         case 0x0f:
             value = 0x3b;
+            TRACE_LIS302DL("WHOAMI = 0x%08x", value);
             break;
         case 0x20:
             value = s->ctrl1;
+            TRACE_LIS302DL("CTRL1 = 0x%08x", value);
             break;
         case 0x21:
             value = s->ctrl2;
+            TRACE_LIS302DL("CTRL2 = 0x%08x", value);
             break;
         case 0x22:
             value = s->ctrl3;
+            TRACE_LIS302DL("CTRL3 = 0x%08x", value);
+            break;
+        case 0x29:
+            value = (s->ctrl1 & 0x10) ? 16 : 32;
+            TRACE_LIS302DL("X = 0x%08x", value);
+            break;
+        case 0x2b:
+            value = (s->ctrl1 & 0x10) ? 32 : 16;
+            TRACE_LIS302DL("Y = 0x%08x", value);
+            break;
+        case 0x2d:
+            value = (s->ctrl1 & 0x10) ? 32 : 16;
+            TRACE_LIS302DL("Z = 0x%08x", value);
             break;
         case 0x34: n++;
         case 0x30:
             value = s->ff_wu[n].cfg;
+            TRACE_LIS302DL("FF_WU%d.CFG = 0x%08x", n + 1, value);
             break;
         case 0x35: n++;
         case 0x31:
             value = s->ff_wu[n].src;
-            if (value & s->ff_wu[n].cfg & 0x40) {
+            TRACE_LIS302DL("FF_WU%d.SRC = 0x%08x", n + 1, value);
+            if (!(value & s->ff_wu[n].cfg & 0x40)) {
                 s->ff_wu[n].src &= ~0x40;
-                /* TODO: lower interrupt */
+                lis302dl_interrupt_update(s);
             }
             break;
         case 0x36: n++;
         case 0x32:
             value = s->ff_wu[n].ths;
+            TRACE_LIS302DL("FF_WU%d.THS = 0x%08x", n + 1, value);
             break;
         case 0x37: n++;
         case 0x33:
             value = s->ff_wu[n].dur;
+            TRACE_LIS302DL("FF_WU%d.DUR = 0x%08x", n + 1, value);
             break;
         default:
             TRACE_LIS302DL("unknown register 0x%02x", s->reg);
@@ -1761,27 +1806,30 @@ static int lis302dl_tx(i2c_slave *i2c, uint8_t data)
         int n = 0;
         switch (s->reg) {
             case 0x20:
+                TRACE_LIS302DL("CTRL1 = 0x%08x", data);
                 s->ctrl1 = data;
-                if (data & 0x30) {
-                    TRACE_LIS302DL("self test mode is not supported");
-                }
                 break;
             case 0x21:
+                TRACE_LIS302DL("CTRL2 = 0x%08x", data);
                 s->ctrl2 = data;
                 break;
             case 0x22:
+                TRACE_LIS302DL("CTRL3 = 0x%08x", data);
                 s->ctrl3 = data;
                 break;
             case 0x34: n++;
             case 0x30:
+                TRACE_LIS302DL("FF_WU%d.CFG = 0x%08x", n + 1, data);
                 s->ff_wu[n].cfg = data;
                 break;
             case 0x36: n++;
             case 0x32:
+                TRACE_LIS302DL("FF_WU%d.THS = 0x%08x", n + 1, data);
                 s->ff_wu[n].ths = data;
                 break;
             case 0x37: n++;
             case 0x33:
+                TRACE_LIS302DL("FF_WU%d.DUR = 0x%08x", n + 1, data);
                 s->ff_wu[n].dur = data;
                 break;
             default:
@@ -2054,6 +2102,10 @@ static void n900_key_handler(void *opaque, int keycode)
                              !s->slide_open);
             }
             break;
+/*        case 0x02 ... 0x07:
+            lis302dl_trigger(s->lis302dl, ((keycode & 0x7f) >> 1) - 1,
+                             keycode & 1, !release);
+            break;*/
         default:
             break;
     }
