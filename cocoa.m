@@ -262,7 +262,7 @@ static int cocoa_keycode_to_qemu(int keycode)
 - (void) grabMouse;
 - (void) ungrabMouse;
 - (void) toggleFullScreen:(id)sender;
-- (void) handleEvent:(NSEvent *)event;
+- (void) qemuHandleEvent:(NSEvent *)event;
 - (void) setAbsoluteEnabled:(BOOL)tIsAbsoluteEnabled;
 - (BOOL) isMouseGrabed;
 - (BOOL) isAbsoluteEnabled;
@@ -496,7 +496,7 @@ static int cocoa_keycode_to_qemu(int keycode)
     }
 }
 
-- (void) handleEvent:(NSEvent *)event
+- (void) qemuHandleEvent:(NSEvent *)event
 {
     COCOA_DEBUG("QemuCocoaView: handleEvent\n");
 
@@ -1019,7 +1019,7 @@ static void cocoa_refresh(DisplayState *ds)
         event = [NSApp nextEventMatchingMask:NSAnyEventMask untilDate:distantPast
                         inMode: NSDefaultRunLoopMode dequeue:YES];
         if (event != nil) {
-            [cocoaView handleEvent:event];
+            [cocoaView qemuHandleEvent:event];
         }
     } while(event != nil);
     vga_hw_update();
