@@ -2106,6 +2106,7 @@ echo "bindir=\${prefix}$binsuffix" >> $config_host_mak
 echo "mandir=\${prefix}$mansuffix" >> $config_host_mak
 echo "datadir=\${prefix}$datasuffix" >> $config_host_mak
 echo "docdir=\${prefix}$docsuffix" >> $config_host_mak
+echo "libexecdir=\${prefix}/libexec" >> $config_host_mak
 echo "MAKE=$make" >> $config_host_mak
 echo "INSTALL=$install" >> $config_host_mak
 echo "INSTALL_DIR=$install -d -m0755 -p" >> $config_host_mak
