@@ -367,6 +367,130 @@ static int net_tap_init(QemuOpts *opts, int *vnet_hdr)
     return fd;
 }
 
+static int recv_fd(int c)
+{
+    int fd;
+    uint8_t msgbuf[CMSG_SPACE(sizeof(fd))];
+    struct msghdr msg = {
+        .msg_control = msgbuf,
+        .msg_controllen = sizeof(msgbuf),
+    };
+    struct cmsghdr *cmsg;
+    struct iovec iov;
+    uint8_t req[1];
+    ssize_t len;
+
+    cmsg = CMSG_FIRSTHDR(&msg);
+    cmsg->cmsg_level = SOL_SOCKET;
+    cmsg->cmsg_type = SCM_RIGHTS;
+    cmsg->cmsg_len = CMSG_LEN(sizeof(fd));
+    msg.msg_controllen = cmsg->cmsg_len;
+
+    iov.iov_base = req;
+    iov.iov_len = sizeof(req);
+
+    msg.msg_iov = &iov;
+    msg.msg_iovlen = 1;
+
+    len = recvmsg(c, &msg, 0);
+    if (len > 0) {
+        memcpy(&fd, CMSG_DATA(cmsg), sizeof(fd));
+
+        return fd;
+    }
+
+    return len;
+}
+
+static int net_tap_run_helper(const char *helper, int use_vnet_hdr)
+{
+    sigset_t oldmask, mask;
+    int pid, status;
+    int sv[2];
+
+    sigemptyset(&mask);
+    sigaddset(&mask, SIGCHLD);
+    sigprocmask(SIG_BLOCK, &mask, &oldmask);
+
+    if (socketpair(PF_UNIX, SOCK_STREAM, 0, sv) == -1) {
+        return -1;
+    }
+
+    /* try to launch network script */
+    pid = fork();
+    if (pid == 0) {
+        int open_max = sysconf(_SC_OPEN_MAX), i;
+        char commandbuf[4096], *command;
+        char *args[33];
+        char buf[32];
+        int narg;
+        
+        for (i = 0; i < open_max; i++) {
+            if (i != STDIN_FILENO &&
+                i != STDOUT_FILENO &&
+                i != STDERR_FILENO &&
+                i != sv[1]) {
+                close(i);
+            }
+        }
+
+        snprintf(buf, sizeof(buf), "--unix-fd=%d", sv[1]);
+
+        snprintf(commandbuf, sizeof(commandbuf), "%s", helper);
+        command = commandbuf;
+        narg = 0;
+        while (*command && narg < (ARRAY_SIZE(args) - 3)) {
+            args[narg++] = command;
+            while (*command && *command != ' ') {
+                command++;
+            }
+            if (*command) {
+                *command = 0;
+                do {
+                    command++;
+                } while (*command == ' ');
+            }
+        }
+
+        if (use_vnet_hdr == 1) {
+            args[narg++] = (char *)"--use-vnet";
+        }
+        args[narg++] = buf;
+        args[narg++] = NULL;
+
+        execv(args[0], args);
+        _exit(1);
+    } else if (pid > 0) {
+        int fd;
+
+        close(sv[1]);
+
+        do {
+            fd = recv_fd(sv[0]);
+        } while (fd == -1 && errno == EINTR);
+
+        close(sv[0]);
+
+        while (waitpid(pid, &status, 0) != pid) {
+            /* loop */
+        }
+        sigprocmask(SIG_SETMASK, &oldmask, NULL);
+
+        if (fd < 0) {
+            fprintf(stderr, "failed to recv file descriptor\n");
+            return -1;
+        }
+
+        if (WIFEXITED(status) && WEXITSTATUS(status) == 0) {
+            fcntl(fd, F_SETFL, O_NONBLOCK);
+            return fd;
+        }
+    }
+    fprintf(stderr, "failed to launch tap helper\n");
+
+    return -1;
+}
+
 int net_init_tap(QemuOpts *opts, Monitor *mon, const char *name, VLANState *vlan)
 {
     TAPState *s;
@@ -376,8 +500,9 @@ int net_init_tap(QemuOpts *opts, Monitor *mon, const char *name, VLANState *vlan
         if (qemu_opt_get(opts, "ifname") ||
             qemu_opt_get(opts, "script") ||
             qemu_opt_get(opts, "downscript") ||
-            qemu_opt_get(opts, "vnet_hdr")) {
-            qemu_error("ifname=, script=, downscript= and vnet_hdr= is invalid with fd=\n");
+            qemu_opt_get(opts, "vnet_hdr") ||
+            qemu_opt_get(opts, "helper")) {
+            qemu_error("ifname=, script=, downscript=, vnet_hdr= and helper= is invalid with fd=\n");
             return -1;
         }
 
@@ -389,6 +514,36 @@ int net_init_tap(QemuOpts *opts, Monitor *mon, const char *name, VLANState *vlan
         fcntl(fd, F_SETFL, O_NONBLOCK);
 
         vnet_hdr = tap_probe_vnet_hdr(fd);
+    } else if (qemu_opt_get(opts, "helper")){
+        int use_vnet_hdr;
+
+        if (qemu_opt_get(opts, "ifname") ||
+            qemu_opt_get(opts, "script") ||
+            qemu_opt_get(opts, "downscript")) {
+            qemu_error("ifname=, script=, downscript=, vnet_hdr= and helper= is invalid with fd=\n");
+            return -1;
+        }
+
+        if (qemu_opt_get(opts, "vnet_hdr")) {
+            use_vnet_hdr = qemu_opt_get_bool(opts, "vnet_hdr", 1);
+        } else {
+            use_vnet_hdr = -1;
+        }
+
+        fd = net_tap_run_helper(qemu_opt_get(opts, "helper"), use_vnet_hdr);
+        if (fd == -1) {
+            qemu_error("failed to run tap helper\n");
+            close(fd);
+            return -1;
+        }
+
+        vnet_hdr = tap_probe_vnet_hdr(fd);
+        if (use_vnet_hdr == 1 && vnet_hdr == 0) {
+            qemu_error("vnet_hdr=1 requested, but no kernel support for "
+                       "IFF_VNET_HDR avialable\n");
+            close(fd);
+            return -1;
+        }
     } else {
         if (!qemu_opt_get(opts, "script")) {
             qemu_opt_set(opts, "script", DEFAULT_NETWORK_SCRIPT);
@@ -413,6 +568,9 @@ int net_init_tap(QemuOpts *opts, Monitor *mon, const char *name, VLANState *vlan
 
     if (qemu_opt_get(opts, "fd")) {
         snprintf(s->vc->info_str, sizeof(s->vc->info_str), "fd=%d", fd);
+    } else if (qemu_opt_get(opts, "helper")) {
+        snprintf(s->vc->info_str, sizeof(s->vc->info_str), "helper=\"%s\"",
+                 qemu_opt_get(opts, "helper"));
     } else {
         const char *ifname, *script, *downscript;
 

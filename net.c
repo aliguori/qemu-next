@@ -2471,6 +2471,10 @@ static struct {
                 .name = "vnet_hdr",
                 .type = QEMU_OPT_BOOL,
                 .help = "enable the IFF_VNET_HDR flag on the tap interface"
+            }, {
+                .name = "helper",
+                .type = QEMU_OPT_STRING,
+                .help = "use a helper program to create the tap interface",
             },
 #endif /* _WIN32 */
             { /* end of list */ }
