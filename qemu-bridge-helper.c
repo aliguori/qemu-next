@@ -34,6 +34,10 @@
 
 #include "net/tap-linux.h"
 
+#ifdef CONFIG_LIBCAP
+#include <sys/capability.h>
+#endif
+
 #define MAX_ACLS (128)
 #define DEFAULT_ACL_FILE CONFIG_QEMU_CONFDIR "/bridge.conf"
 
@@ -187,6 +191,47 @@ static int send_fd(int c, int fd)
     return sendmsg(c, &msg, 0);
 }
 
+#ifdef CONFIG_LIBCAP
+static int drop_privileges(void)
+{
+    cap_t cap;
+    cap_value_t new_caps[] = {CAP_NET_ADMIN};
+
+    cap = cap_init();
+
+    /* set capabilities to be permitted and inheritable.  we don't need the
+     * caps to be effective right now as they'll get reset when we seteuid
+     * anyway */
+    cap_set_flag(cap, CAP_PERMITTED, 1, new_caps, CAP_SET);
+    cap_set_flag(cap, CAP_INHERITABLE, 1, new_caps, CAP_SET);
+
+    if (cap_set_proc(cap) == -1) {
+        return -1;
+    }
+
+    cap_free(cap);
+
+    /* reduce our privileges to a normal user */
+    setegid(getgid());
+    seteuid(getuid());
+
+    cap = cap_init();
+
+    /* enable the our capabilities.  we marked them as inheritable earlier
+     * which is what allows this to work. */
+    cap_set_flag(cap, CAP_EFFECTIVE, 1, new_caps, CAP_SET);
+    cap_set_flag(cap, CAP_PERMITTED, 1, new_caps, CAP_SET);
+
+    if (cap_set_proc(cap) == -1) {
+        return -1;
+    }
+
+    cap_free(cap);
+
+    return 0;
+}
+#endif
+
 int main(int argc, char **argv)
 {
     struct ifreq ifr;
@@ -205,6 +250,17 @@ int main(int argc, char **argv)
     ACLRule acls[MAX_ACLS];
     int acl_count = 0;
     int i, access_allowed;
+
+#ifdef CONFIG_LIBCAP
+    /* if we're run from an suid binary, immediately drop privileges preserving
+     * cap_net_admin */
+    if (geteuid() == 0 && getuid() != geteuid()) {
+        if (drop_privileges() == -1) {
+            fprintf(stderr, "failed to drop privileges\n");
+            return 1;
+        }
+    }
+#endif
 
     while ((ch = getopt_long(argc, argv, "", lopts, &opt_ind)) != -1) {
         switch (ch) {

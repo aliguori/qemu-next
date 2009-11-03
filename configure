@@ -194,6 +194,7 @@ vnc_tls=""
 vnc_sasl=""
 xen=""
 linux_aio=""
+cap=""
 
 gprof="no"
 debug_tcg="no"
@@ -480,6 +481,10 @@ for opt do
   ;;
   --enable-kvm) kvm="yes"
   ;;
+  --disable-cap) cap="no"
+  ;;
+  --enable-cap) cap="yes"
+  ;;
   --enable-profiler) profiler="yes"
   ;;
   --enable-cocoa)
@@ -710,6 +715,8 @@ echo "  --disable-vde            disable support for vde network"
 echo "  --enable-vde             enable support for vde network"
 echo "  --disable-linux-aio      disable Linux AIO support"
 echo "  --enable-linux-aio       enable Linux AIO support"
+echo "  --disable-libcap         disable support for libcap"
+echo "  --enable-libcap          enable support for libcap"
 echo "  --enable-io-thread       enable IO thread"
 echo "  --disable-blobs          disable installing provided firmware blobs"
 echo "  --kerneldir=PATH         look for kernel includes in PATH"
@@ -1104,6 +1111,29 @@ EOF
       feature_not_found "vde"
     fi
     vde=no
+  fi
+fi
+
+##########################################
+# cap library probe
+if test "$cap" != "no" ; then
+  cap_libs="-lcap"
+  cat > $TMPC << EOF
+#include <sys/capability.h>
+int main(void)
+{
+    cap_init();
+    return 0;
+}
+EOF
+  if compile_prog "" "$cap_libs" ; then
+    cap=yes
+    libs_tools="$cap_libs $libs_tools"
+  else
+    if test "$cap" = "yes" ; then
+      feature_not_found "cap"
+    fi
+    cap=no
   fi
 fi
 
@@ -1850,6 +1880,7 @@ echo "fdt support       $fdt"
 echo "preadv support    $preadv"
 echo "fdatasync         $fdatasync"
 echo "uuid support      $uuid"
+echo "libcap support    $cap"
 
 if test $sdl_too_old = "yes"; then
 echo "-> Your SDL version is too old - please upgrade to have SDL support"
@@ -1930,6 +1961,9 @@ if test "$slirp" = "yes" ; then
 fi
 if test "$vde" = "yes" ; then
   echo "CONFIG_VDE=y" >> $config_host_mak
+fi
+if test "$cap" = "yes" ; then
+  echo "CONFIG_LIBCAP=y" >> $config_host_mak
 fi
 for card in $audio_card_list; do
     def=CONFIG_`echo $card | tr '[:lower:]' '[:upper:]'`
