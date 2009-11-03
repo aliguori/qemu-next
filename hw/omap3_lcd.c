@@ -170,7 +170,7 @@ void omap3_lcd_panel_layer_update(DisplayState *ds,
     uint32_t linesize = ds_get_linesize(ds);
     framebuffer_update_display(ds, addr, copy_width, copy_height,
                                (format < 3)
-                               ? (width / (8 >> format))
+                               ? (width >> (3 - format))
                                : (width * omap_lcd_Bpp[format]),
                                linesize, linesize / ds_get_width(ds),
                                full_update, line_fn, palette,
