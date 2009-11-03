@@ -60,7 +60,7 @@ static void glue(omap3_lcd_panel_draw_line1_, DEPTH)(void *opaque,
         uint8_t data = ldub_raw(src++);
         int i = 8;
         for (; i--; data <<= 1) {
-            uint32_t color = palette[(data & 0x80) ? 1 : 0];
+            uint32_t color = palette[data >> 7];
             b = color & 0xff;
             g = (color >> 8) & 0xff;
             r = (color >> 16) & 0xff;
