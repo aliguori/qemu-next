@@ -94,6 +94,11 @@ void omap3_lcd_panel_layer_update(DisplayState *ds,
         return;
     }
     uint32_t format = (attrib >> 1) & 0xf;
+    if (format == 0x09 && (attrib & 0x300)) {
+        hw_error("graphics rotation (%d) not supported",
+                 (attrib >> 12) & 3);
+        return;
+    }
     drawfn line_fn = 0;
     switch (ds_get_bits_per_pixel(ds)) {
         case 8:  line_fn = omap3_lcd_panel_draw_fn_8[format]; break;
