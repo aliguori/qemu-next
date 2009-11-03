@@ -64,11 +64,8 @@ static void glue(omap3_lcd_panel_draw_line16_, DEPTH)(void *opaque,
     while (src < end) {
         data = lduw_raw(src++);
         b = (data & 0x1f) << 3;
-        data >>= 5;
-        g = (data & 0x3f) << 2;
-        data >>= 6;
-        r = (data & 0x1f) << 3;
-        data >>= 5;
+        g = (data & 0x7e0) >> 3;
+        r = data >> 8;
         COPY_PIXEL1(dest, glue(rgb_to_pixel, DEPTH)(r, g, b));
     }
 #endif

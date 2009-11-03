@@ -28,6 +28,8 @@
 #include "omap_dss.h"
 #include "framebuffer.h"
 
+//#define PROFILE_FRAMEUPDATE
+
 struct omap3_lcd_panel_s {
     struct omap_dss_s *dss;
     DisplayState *state;
@@ -116,6 +118,12 @@ void omap3_lcd_panel_layer_update(DisplayState *ds,
         posx = 0;
     }
     
+#ifdef PROFILE_FRAMEUPDATE
+    struct timeval tv;
+    gettimeofday(&tv, NULL);
+    int64_t prof_time = tv.tv_sec * 1000000LL + tv.tv_usec;
+#endif
+    
     uint32_t copy_width = (posx + width) > lcd_width
                           ? (lcd_width - posx) : width;
     uint32_t copy_height = ((*posy) + height) > lcd_height
@@ -126,6 +134,12 @@ void omap3_lcd_panel_layer_update(DisplayState *ds,
                                linesize, linesize / ds_get_width(ds),
                                full_update, line_fn, NULL,
                                posy, endy);
+
+#ifdef PROFILE_FRAMEUPDATE
+    gettimeofday(&tv, NULL);
+    prof_time = (tv.tv_sec * 1000000LL + tv.tv_usec) - prof_time;
+    printf("%s: framebuffer updated in %lldus\n", __FUNCTION__, prof_time);
+#endif
 }
 
 static void omap3_lcd_panel_update_display(void *opaque)

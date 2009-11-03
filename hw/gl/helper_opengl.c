@@ -33,10 +33,6 @@
 //#define GL_EXCESS_DEBUG
 //#define QEMUGL_PROFILE_FRAMECOPY
 
-#ifdef QEMUGL_PROFILE_FRAMECOPY
-#include "qemu-timer.h"
-#endif
-
 #ifdef QEMUGL_MULTITHREADED
 #ifdef CONFIG_WIN32
 #include <windows.h>
