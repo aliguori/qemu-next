@@ -994,6 +994,7 @@ void omap3_lcd_panel_layer_update(DisplayState *ds,
                                   uint32_t width, uint32_t height,
                                   uint32_t attrib,
                                   target_phys_addr_t addr,
+                                  uint32_t *palette,
                                   int full_update);
 
 /* omap_mmc.c */

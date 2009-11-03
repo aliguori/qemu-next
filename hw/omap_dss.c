@@ -161,7 +161,7 @@ const int omap_lcd_Bpp[0x10] = {
     0,  /* 0x0: BITMAP1 (CLUT) */
     0,  /* 0x1: BITMAP2 (CLUT) */
     0,  /* 0x2: BITMAP4 (CLUT) */
-    0,  /* 0x3: BITMAP8 (CLUT) */
+    1,  /* 0x3: BITMAP8 (CLUT) */
     2,  /* 0x4: RGB12 (unpacked 16-bit container)*/
     2,  /* 0x5: ARGB16 */
     2,  /* 0x6: RGB16 */

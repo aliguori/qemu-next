@@ -45,6 +45,9 @@ struct omap3_lcd_panel_s {
     uint32_t gfx_posx;
     uint32_t gfx_posy;
     target_phys_addr_t gfx_addr;
+    target_phys_addr_t gfx_table;
+    uint32_t gfx_palette_size;
+    uint32_t *gfx_palette;
 };
 
 #define DEPTH 8
@@ -61,7 +64,8 @@ struct omap3_lcd_panel_s {
 static void omap3_lcd_panel_control_update(void *opaque,
                                            const struct omap_dss_dispc_s *dispc)
 {
-    struct omap3_lcd_panel_s *s = (struct omap3_lcd_panel_s *)opaque;
+    struct omap3_lcd_panel_s *s = opaque;
+    int n;
     
     s->invalidate = 1;
     s->control = dispc->control;
@@ -73,11 +77,40 @@ static void omap3_lcd_panel_control_update(void *opaque,
     s->gfx_posx = dispc->plane[0].posx;
     s->gfx_posy = dispc->plane[0].posy;
     s->gfx_addr = dispc->plane[0].addr[0];
+    s->gfx_table = dispc->plane[0].addr[2];
+    
+    switch ((s->gfx_attr >> 1) & 0x0f) {
+        case 0:
+            n = 2;
+            break;
+        case 1:
+            n = 4;
+            break;
+        case 2:
+            n = 16;
+            break;
+        case 3:
+            n = 256;
+            break;
+        default:
+            n = 0;
+            break;
+    }
+    if (n != s->gfx_palette_size) {
+        if (s->gfx_palette) {
+            qemu_free(s->gfx_palette);
+            s->gfx_palette = NULL;
+        }
+        if (n) {
+            s->gfx_palette = qemu_mallocz(n * sizeof(uint32_t));
+        }
+        s->gfx_palette_size = n;
+    }
 }
 
 static void omap3_lcd_panel_invalidate_display(void *opaque) 
 {
-    struct omap3_lcd_panel_s *s = (struct omap3_lcd_panel_s *)opaque;
+    struct omap3_lcd_panel_s *s = opaque;
     s->invalidate = 1;
 }
 
@@ -88,6 +121,7 @@ void omap3_lcd_panel_layer_update(DisplayState *ds,
                                   uint32_t width, uint32_t height,
                                   uint32_t attrib,
                                   target_phys_addr_t addr,
+                                  uint32_t *palette,
                                   int full_update)
 {
     if (!(attrib & 1)) { /* layer disabled? */
@@ -135,9 +169,11 @@ void omap3_lcd_panel_layer_update(DisplayState *ds,
                           ? (lcd_height - (*posy)) : height;
     uint32_t linesize = ds_get_linesize(ds);
     framebuffer_update_display(ds, addr, copy_width, copy_height,
-                               width * omap_lcd_Bpp[format],
+                               (format < 3)
+                               ? (width / (8 >> format))
+                               : (width * omap_lcd_Bpp[format]),
                                linesize, linesize / ds_get_width(ds),
-                               full_update, line_fn, NULL,
+                               full_update, line_fn, palette,
                                posy, endy);
 
 #ifdef PROFILE_FRAMEUPDATE
@@ -145,6 +181,24 @@ void omap3_lcd_panel_layer_update(DisplayState *ds,
     prof_time = (tv.tv_sec * 1000000LL + tv.tv_usec) - prof_time;
     printf("%s: framebuffer updated in %lldus\n", __FUNCTION__, prof_time);
 #endif
+}
+
+static void omap3_lcd_panel_update_palette(uint32_t *palette,
+                                           uint32_t palette_size,
+                                           target_phys_addr_t table)
+{
+    palette_size *= sizeof(uint32_t);
+    target_phys_addr_t len = palette_size;
+    uint32_t *src = cpu_physical_memory_map(table, &len, 0);
+    if (!src || len < palette_size) {
+        /* cannot read palette data -> clear palette */
+        memset(palette, 0, palette_size);
+    } else {
+        memcpy(palette, src, palette_size);
+    }
+    if (src) {
+        cpu_physical_memory_unmap(src, len, 0, 0);
+    }
 }
 
 static void omap3_lcd_panel_update_display(void *opaque)
@@ -168,13 +222,18 @@ static void omap3_lcd_panel_update_display(void *opaque)
 
     /* TODO: draw background color */
 
+    if (s->gfx_palette) {
+        omap3_lcd_panel_update_palette(s->gfx_palette,
+                                       s->gfx_palette_size,
+                                       s->gfx_table);
+    }
     int first_row = s->gfx_posy;
     int last_row = 0;
     omap3_lcd_panel_layer_update(s->state, s->width, s->height,
                                  s->gfx_posx, &first_row, &last_row,
                                  s->gfx_width, s->gfx_height,
                                  s->gfx_attr, s->gfx_addr,
-                                 s->invalidate);
+                                 s->gfx_palette, s->invalidate);
     /* TODO: draw VID1 & VID2 layers */
     s->invalidate = 0;
     
@@ -186,46 +245,9 @@ static void omap3_lcd_panel_update_display(void *opaque)
     omap_dss_lcd_framedone(s->dss);
 }
 
-static void omap3_lcd_panel_save_state(QEMUFile *f, void *opaque)
-{
-    struct omap3_lcd_panel_s *s = (struct omap3_lcd_panel_s *)opaque;
-    
-    qemu_put_be32(f, s->control);
-    qemu_put_be32(f, s->width);
-    qemu_put_be32(f, s->height);
-    qemu_put_be32(f, s->gfx_attr);
-    qemu_put_be32(f, s->gfx_width);
-    qemu_put_be32(f, s->gfx_height);
-    qemu_put_be32(f, s->gfx_posx);
-    qemu_put_be32(f, s->gfx_posy);
-    qemu_put_be32(f, s->gfx_addr);
-}
-
-static int omap3_lcd_panel_load_state(QEMUFile *f, void *opaque, int version_id)
-{
-    struct omap3_lcd_panel_s *s = (struct omap3_lcd_panel_s *)opaque;
-    
-    if (version_id)
-        return -EINVAL;
-    
-    s->control = qemu_get_be32(f);
-    s->width = qemu_get_be32(f);
-    s->height = qemu_get_be32(f);
-    s->gfx_attr = qemu_get_be32(f);
-    s->gfx_width = qemu_get_be32(f);
-    s->gfx_height = qemu_get_be32(f);
-    s->gfx_posx = qemu_get_be32(f);
-    s->gfx_posy = qemu_get_be32(f);
-    s->gfx_addr = qemu_get_be32(f);
-    
-    s->invalidate = 1;
-    
-    return 0;
-}
-
 struct omap3_lcd_panel_s *omap3_lcd_panel_init(struct omap_dss_s *dss)
 {
-    struct omap3_lcd_panel_s *s = (struct omap3_lcd_panel_s *) qemu_mallocz(sizeof(*s));
+    struct omap3_lcd_panel_s *s = qemu_mallocz(sizeof(*s));
 
     s->dss = dss;
     s->invalidate = 1;
@@ -234,8 +256,6 @@ struct omap3_lcd_panel_s *omap3_lcd_panel_init(struct omap_dss_s *dss)
     s->state = graphic_console_init(omap3_lcd_panel_update_display,
                                     omap3_lcd_panel_invalidate_display,
                                     NULL, NULL, s);
-    register_savevm("omap3_lcd_panel", -1, 0,
-                    omap3_lcd_panel_save_state, omap3_lcd_panel_load_state, s);
     return s;
 }
 

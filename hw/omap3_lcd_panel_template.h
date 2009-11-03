@@ -46,6 +46,127 @@
 # define SWAP_WORDS	1
 #endif
 
+static void glue(omap3_lcd_panel_draw_line1_, DEPTH)(void *opaque,
+                                                     uint8_t *dest_,
+                                                     const uint8_t *src,
+                                                     int width,
+                                                     int pixelsize)
+{
+    PIXEL_TYPE *dest = (PIXEL_TYPE *)dest_;
+    const uint32_t *palette = opaque;
+    unsigned int r, g, b;
+    const uint8_t *end = src + (width >> 3);
+    while (src < end) {
+        uint8_t data = ldub_raw(src++);
+        int i = 8;
+        for (; i--; data <<= 1) {
+            uint32_t color = palette[(data & 0x80) ? 1 : 0];
+            b = color & 0xff;
+            g = (color >> 8) & 0xff;
+            r = (color >> 16) & 0xff;
+            COPY_PIXEL1(dest, glue(rgb_to_pixel, DEPTH)(r, g, b));
+        }
+    }
+}
+
+static void glue(omap3_lcd_panel_draw_line2_, DEPTH)(void *opaque,
+                                                     uint8_t *dest_,
+                                                     const uint8_t *src,
+                                                     int width,
+                                                     int pixelsize)
+{
+    PIXEL_TYPE *dest = (PIXEL_TYPE *)dest_;
+    const uint32_t *palette = opaque;
+    unsigned int r, g, b;
+    const uint8_t *end = src + (width >> 2);
+    while (src < end) {
+        uint8_t data = ldub_raw(src++);
+        uint32_t color = palette[data >> 6];
+        b = color & 0xff;
+        g = (color >> 8) & 0xff;
+        r = (color >> 16) & 0xff;
+        COPY_PIXEL1(dest, glue(rgb_to_pixel, DEPTH)(r, g, b));
+        color = palette[(data >> 4) & 3];
+        b = color & 0xff;
+        g = (color >> 8) & 0xff;
+        r = (color >> 16) & 0xff;
+        COPY_PIXEL1(dest, glue(rgb_to_pixel, DEPTH)(r, g, b));
+        color = palette[(data >> 2) & 3];
+        b = color & 0xff;
+        g = (color >> 8) & 0xff;
+        r = (color >> 16) & 0xff;
+        COPY_PIXEL1(dest, glue(rgb_to_pixel, DEPTH)(r, g, b));
+        color = palette[data & 3];
+        b = color & 0xff;
+        g = (color >> 8) & 0xff;
+        r = (color >> 16) & 0xff;
+        COPY_PIXEL1(dest, glue(rgb_to_pixel, DEPTH)(r, g, b));
+    }
+}
+
+static void glue(omap3_lcd_panel_draw_line4_, DEPTH)(void *opaque,
+                                                     uint8_t *dest_,
+                                                     const uint8_t *src,
+                                                     int width,
+                                                     int pixelsize)
+{
+    PIXEL_TYPE *dest = (PIXEL_TYPE *)dest_;
+    const uint32_t *palette = opaque;
+    unsigned int r, g, b;
+    const uint8_t *end = src + (width >> 1);
+    while (src < end) {
+        uint8_t data = ldub_raw(src++);
+        uint32_t color = palette[data >> 4];
+        b = color & 0xff;
+        g = (color >> 8) & 0xff;
+        r = (color >> 16) & 0xff;
+        COPY_PIXEL1(dest, glue(rgb_to_pixel, DEPTH)(r, g, b));
+        color = palette[data & 0x0f];
+        b = color & 0xff;
+        g = (color >> 8) & 0xff;
+        r = (color >> 16) & 0xff;
+        COPY_PIXEL1(dest, glue(rgb_to_pixel, DEPTH)(r, g, b));
+    }
+}
+
+static void glue(omap3_lcd_panel_draw_line8_, DEPTH)(void *opaque,
+                                                     uint8_t *dest_,
+                                                     const uint8_t *src,
+                                                     int width,
+                                                     int pixelsize)
+{
+    PIXEL_TYPE *dest = (PIXEL_TYPE *)dest_;
+    const uint32_t *palette = opaque;
+    unsigned int r, g, b;
+    const uint8_t *end = src + width;
+    while (src < end) {
+        uint32_t color = palette[ldub_raw(src++)];
+        b = color & 0xff;
+        g = (color >> 8) & 0xff;
+        r = (color >> 16) & 0xff;
+        COPY_PIXEL1(dest, glue(rgb_to_pixel, DEPTH)(r, g, b));
+    }
+}
+
+static void glue(omap3_lcd_panel_draw_line12_, DEPTH)(void *opaque,
+                                                      uint8_t *dest_,
+                                                      const uint8_t *src_,
+                                                      int width,
+                                                      int pixelsize)
+{
+    const uint16_t *src = (const uint16_t *)src_;
+    PIXEL_TYPE *dest = (PIXEL_TYPE *)dest_;
+    uint16_t data;
+    unsigned int r, g, b;
+    const uint16_t *end = src + width;
+    while (src < end) {
+        data = lduw_raw(src++);
+        b = (data & 0x0f) << 4;
+        g = (data & 0xf0);
+        r = (data & 0xf00) >> 4;
+        COPY_PIXEL1(dest, glue(rgb_to_pixel, DEPTH)(r, g, b));
+    }
+}
 
 static void glue(omap3_lcd_panel_draw_line16_, DEPTH)(void *opaque,
                                                       uint8_t *dest_,
@@ -84,9 +205,9 @@ static void glue(omap3_lcd_panel_draw_line24a_, DEPTH)(void *opaque,
     unsigned int r, g, b;
     const uint8_t *end = src + (width << 2);
     while (src < end) {
-        b = *(src++);
-        g = *(src++);
-        r = *(src++);
+        b = ldub_raw(src++);
+        g = ldub_raw(src++);
+        r = ldub_raw(src++);
         src++;
         COPY_PIXEL1(dest, glue(rgb_to_pixel, DEPTH)(r, g, b));
     }
@@ -106,31 +227,49 @@ static void glue(omap3_lcd_panel_draw_line24b_, DEPTH)(void *opaque,
     unsigned int r, g, b;
     const uint8_t *end = src + width * 3;
     while (src < end) {
-        b = *(src++);
-        g = *(src++);
-        r = *(src++);
+        b = ldub_raw(src++);
+        g = ldub_raw(src++);
+        r = ldub_raw(src++);
         COPY_PIXEL1(dest, glue(rgb_to_pixel, DEPTH)(r, g, b));
     }
 #endif
 }
 
+static void glue(omap3_lcd_panel_draw_line24c_, DEPTH)(void *opaque,
+                                                       uint8_t *dest_,
+                                                       const uint8_t *src,
+                                                       int width,
+                                                       int pixelsize)
+{
+    PIXEL_TYPE *dest = (PIXEL_TYPE *)dest_;
+    unsigned int r, g, b;
+    const uint8_t *end = src + (width << 2);
+    while (src < end) {
+        src++;
+        b = ldub_raw(src++);
+        g = ldub_raw(src++);
+        r = ldub_raw(src++);
+        COPY_PIXEL1(dest, glue(rgb_to_pixel, DEPTH)(r, g, b));
+    }
+}
+
 /* No rotation */
-static drawfn glue(omap3_lcd_panel_draw_fn_, DEPTH)[0x10] = {
-    NULL,
-    NULL,
-    NULL,
-    NULL,
-    NULL,
-    NULL,
+static const drawfn glue(omap3_lcd_panel_draw_fn_, DEPTH)[0x10] = {
+    (drawfn)glue(omap3_lcd_panel_draw_line1_, DEPTH),
+    (drawfn)glue(omap3_lcd_panel_draw_line2_, DEPTH),
+    (drawfn)glue(omap3_lcd_panel_draw_line4_, DEPTH),
+    (drawfn)glue(omap3_lcd_panel_draw_line8_, DEPTH),
+    (drawfn)glue(omap3_lcd_panel_draw_line12_, DEPTH),
+    NULL, /* ARGB16 */
     (drawfn)glue(omap3_lcd_panel_draw_line16_, DEPTH),
     NULL,
     (drawfn)glue(omap3_lcd_panel_draw_line24a_, DEPTH),
     (drawfn)glue(omap3_lcd_panel_draw_line24b_, DEPTH),
-    NULL,
-    NULL,
-    NULL,
-    NULL,
-    NULL,
+    NULL, /* YUV2 4:2:2 */
+    NULL, /* UYVY 4:2:2 */
+    NULL, /* ARGB32 */
+    NULL, /* RGBA32 */
+    (drawfn)glue(omap3_lcd_panel_draw_line24c_, DEPTH),
     NULL,
 };
 
