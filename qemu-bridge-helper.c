@@ -34,6 +34,106 @@
 
 #include "net/tap-linux.h"
 
+#define MAX_ACLS (128)
+#define DEFAULT_ACL_FILE CONFIG_QEMU_CONFDIR "/bridge.conf"
+
+enum {
+    ACL_ALLOW = 0,
+    ACL_ALLOW_ALL,
+    ACL_DENY,
+    ACL_DENY_ALL,
+};
+
+typedef struct ACLRule
+{
+    int type;
+    char iface[IFNAMSIZ];
+} ACLRule;
+
+static int parse_acl_file(const char *filename, ACLRule *acls, int *pacl_count)
+{
+    int acl_count = *pacl_count;
+    FILE *f;
+    char line[4096];
+
+    f = fopen(filename, "r");
+    if (f == NULL) {
+        return -1;
+    }
+
+    while (acl_count != MAX_ACLS &&
+           fgets(line, sizeof(line), f) != NULL) {
+        char *ptr = line;
+        char *cmd, *arg, *argend;
+
+        while (isspace(*ptr)) {
+            ptr++;
+        }
+
+        /* skip comments and empty lines */
+        if (*ptr == '#' || *ptr == 0) {
+            continue;
+        }
+
+        cmd = ptr;
+        arg = strchr(cmd, ' ');
+        if (arg == NULL) {
+            arg = strchr(cmd, '\t');
+        }
+
+        if (arg == NULL) {
+            fprintf(stderr, "Invalid config line:\n  %s\n", line);
+            fclose(f);
+            errno = EINVAL;
+            return -1;
+        }
+
+        *arg = 0;
+        arg++;
+        while (isspace(*arg)) {
+            arg++;
+        }
+
+        argend = arg + strlen(arg);
+        while (arg != argend && isspace(*(argend - 1))) {
+            argend--;
+        }
+        *argend = 0;
+
+        if (strcmp(cmd, "deny") == 0) {
+            if (strcmp(arg, "all") == 0) {
+                acls[acl_count].type = ACL_DENY_ALL;
+            } else {
+                acls[acl_count].type = ACL_DENY;
+                snprintf(acls[acl_count].iface, IFNAMSIZ, "%s", arg);
+            }
+            acl_count++;
+        } else if (strcmp(cmd, "allow") == 0) {
+            if (strcmp(arg, "all") == 0) {
+                acls[acl_count].type = ACL_ALLOW_ALL;
+            } else {
+                acls[acl_count].type = ACL_ALLOW;
+                snprintf(acls[acl_count].iface, IFNAMSIZ, "%s", arg);
+            }
+            acl_count++;
+        } else if (strcmp(cmd, "include") == 0) {
+            /* ignore errors */
+            parse_acl_file(arg, acls, &acl_count);
+        } else {
+            fprintf(stderr, "Unknown command `%s'\n", cmd);
+            fclose(f);
+            errno = EINVAL;
+            return -1;
+        }
+    }
+
+    *pacl_count = acl_count;
+
+    fclose(f);
+
+    return 0;
+}
+
 static int has_vnet_hdr(int fd)
 {
     unsigned int features;
@@ -102,6 +202,9 @@ int main(int argc, char **argv)
         { },
     };
     int opt_ind, ch;
+    ACLRule acls[MAX_ACLS];
+    int acl_count = 0;
+    int i, access_allowed;
 
     while ((ch = getopt_long(argc, argv, "", lopts, &opt_ind)) != -1) {
         switch (ch) {
@@ -122,6 +225,41 @@ int main(int argc, char **argv)
     if (unixfd == -1 || bridge == NULL) {
         fprintf(stderr, "Usage: %s [--use-vnet] --bridge=BRIDGE --unix-fd=FD\n", argv[0]);
         return 1;
+    }
+
+    /* parse default acl file */
+    if (parse_acl_file(DEFAULT_ACL_FILE, acls, &acl_count) == -1) {
+        fprintf(stderr, "failed to parse default acl file `%s'\n",
+                DEFAULT_ACL_FILE);
+        return -errno;
+    }
+
+    /* validate bridge against acl -- default policy is to deny */
+    access_allowed = 0;
+    for (i = 0; i < acl_count; i++) {
+        switch (acls[i].type) {
+        case ACL_ALLOW_ALL:
+            access_allowed = 1;
+            break;
+        case ACL_ALLOW:
+            if (strcmp(bridge, acls[i].iface) == 0) {
+                access_allowed = 1;
+            }
+            break;
+        case ACL_DENY_ALL:
+            access_allowed = 0;
+            break;
+        case ACL_DENY:
+            if (strcmp(bridge, acls[i].iface) == 0) {
+                access_allowed = 0;
+            }
+            break;
+        }
+    }
+
+    if (access_allowed == 0) {
+        fprintf(stderr, "access denied by acl file\n");
+        return -EPERM;
     }
 
     /* open a socket to use to control the network interfaces */
