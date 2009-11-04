@@ -54,7 +54,8 @@ typedef struct ACLRule
     char iface[IFNAMSIZ];
 } ACLRule;
 
-static int parse_acl_file(const char *filename, ACLRule *acls, int *pacl_count)
+static int parse_acl_file(const char *filename, ACLRule *acls, int *pacl_count,
+                          char *issue, size_t issue_len)
 {
     int acl_count = *pacl_count;
     FILE *f;
@@ -122,7 +123,9 @@ static int parse_acl_file(const char *filename, ACLRule *acls, int *pacl_count)
             acl_count++;
         } else if (strcmp(cmd, "include") == 0) {
             /* ignore errors */
-            parse_acl_file(arg, acls, &acl_count);
+            parse_acl_file(arg, acls, &acl_count, issue, issue_len);
+        } else if (strcmp(cmd, "issue") == 0) {
+            snprintf(issue, issue_len, "%s", arg);
         } else {
             fprintf(stderr, "Unknown command `%s'\n", cmd);
             fclose(f);
@@ -232,6 +235,23 @@ static int drop_privileges(void)
 }
 #endif
 
+static void display_issue(const char *filename)
+{
+    FILE *f = fopen(filename, "r");
+    char buffer[1024];
+
+    if (!f) {
+        return;
+    }
+
+    while (fgets(buffer, sizeof(buffer), f)) {
+        fprintf(stderr, "%s", buffer);
+        fflush(stderr);
+    }
+
+    fclose(f);
+}
+
 int main(int argc, char **argv)
 {
     struct ifreq ifr;
@@ -250,6 +270,7 @@ int main(int argc, char **argv)
     ACLRule acls[MAX_ACLS];
     int acl_count = 0;
     int i, access_allowed;
+    char issue[4096] = {0};
 
 #ifdef CONFIG_LIBCAP
     /* if we're run from an suid binary, immediately drop privileges preserving
@@ -284,7 +305,8 @@ int main(int argc, char **argv)
     }
 
     /* parse default acl file */
-    if (parse_acl_file(DEFAULT_ACL_FILE, acls, &acl_count) == -1) {
+    if (parse_acl_file(DEFAULT_ACL_FILE, acls, &acl_count,
+                       issue, sizeof(issue)) == -1) {
         fprintf(stderr, "failed to parse default acl file `%s'\n",
                 DEFAULT_ACL_FILE);
         return -errno;
@@ -354,7 +376,15 @@ int main(int argc, char **argv)
     /* get the mtu of the bridge */
     prep_ifreq(&ifr, bridge);
     if (ioctl(ctlfd, SIOCGIFMTU, &ifr) == -1) {
-        fprintf(stderr, "failed to get mtu of bridge `%s'\n", bridge);
+        if (errno == ENODEV) {
+            fprintf(stderr, "bridge `%s' does not exist\n", bridge);
+            if (issue[0]) {
+                display_issue(issue);
+            }
+            return -ENODEV;
+        } else {
+            fprintf(stderr, "failed to get mtu of bridge `%s'\n", bridge);
+        }
         return -errno;
     }
 
