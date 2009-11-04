@@ -550,6 +550,22 @@ static int virtio_balloon_init_pci(PCIDevice *pci_dev)
     return 0;
 }
 
+static void virtio_9p_init_pci(PCIDevice *pci_dev)
+{
+    VirtIOPCIProxy *proxy = DO_UPCAST(VirtIOPCIProxy, pci_dev, pci_dev);
+    VirtIODevice *vdev;
+
+    if (!qemu_share_path)
+      return;
+
+    vdev = virtio_9p_init(&pci_dev->qdev, qemu_share_path);
+    virtio_init_pci(proxy, vdev,
+		    PCI_VENDOR_ID_REDHAT_QUMRANET,
+		    0x1009,
+		    0x2,
+		    0x00);
+}
+
 static PCIDeviceInfo virtio_info[] = {
     {
         .qdev.name = "virtio-blk-pci",
@@ -602,6 +618,10 @@ static PCIDeviceInfo virtio_info[] = {
             DEFINE_PROP_END_OF_LIST(),
         },
         .qdev.reset = virtio_pci_reset,
+    },{
+        .qdev.name = "virtio-9p-pci",
+        .qdev.size = sizeof(VirtIOPCIProxy),
+        .init      = virtio_9p_init_pci,
     },{
         /* end of list */
     }

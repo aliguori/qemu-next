@@ -173,6 +173,7 @@ VirtIODevice *virtio_blk_init(DeviceState *dev, DriveInfo *dinfo);
 VirtIODevice *virtio_net_init(DeviceState *dev, NICConf *conf);
 VirtIODevice *virtio_serial_init(DeviceState *dev, uint32_t max_nr_ports);
 VirtIODevice *virtio_balloon_init(DeviceState *dev);
+VirtIODevice *virtio_9p_init(DeviceState *dev, const char *path);
 
 void virtio_net_exit(VirtIODevice *vdev);
 
