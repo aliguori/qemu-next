@@ -195,6 +195,7 @@ vnc_sasl=""
 xen=""
 linux_aio=""
 cap=""
+setcap=""
 
 gprof="no"
 debug_tcg="no"
@@ -484,6 +485,10 @@ for opt do
   --disable-cap) cap="no"
   ;;
   --enable-cap) cap="yes"
+  ;;
+  --disable-setcap) setcap="no"
+  ;;
+  --enable-setcap) setcap="yes"
   ;;
   --enable-profiler) profiler="yes"
   ;;
@@ -1134,6 +1139,20 @@ EOF
       feature_not_found "cap"
     fi
     cap=no
+  fi
+fi
+
+##########################################
+# setcap probe
+if test "$setcap" != "no" ; then
+  setcap=`which setcap 2> /dev/null`
+  if test "$setcap" -a -x "$setcap" ; then
+    setcap="yes"
+  else
+    if test "$setcap" = "yes" ; then
+      feature_not_found "setcap"
+    fi
+    setcap="no"
   fi
 fi
 
@@ -1881,6 +1900,7 @@ echo "preadv support    $preadv"
 echo "fdatasync         $fdatasync"
 echo "uuid support      $uuid"
 echo "libcap support    $cap"
+echo "setcap support    $setcap"
 
 if test $sdl_too_old = "yes"; then
 echo "-> Your SDL version is too old - please upgrade to have SDL support"
@@ -1964,6 +1984,9 @@ if test "$vde" = "yes" ; then
 fi
 if test "$cap" = "yes" ; then
   echo "CONFIG_LIBCAP=y" >> $config_host_mak
+fi
+if test "$setcap" = "yes" ; then
+  echo "CONFIG_SETCAP=y" >> $config_host_mak
 fi
 for card in $audio_card_list; do
     def=CONFIG_`echo $card | tr '[:lower:]' '[:upper:]'`

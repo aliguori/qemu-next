@@ -281,6 +281,17 @@ endif
 ifneq ($(HELPERS-y),)
 	$(INSTALL_DIR) "$(DESTDIR)$(libexecdir)"
 	$(INSTALL_PROG) $(STRIP_OPT) $(HELPERS-y) "$(DESTDIR)$(libexecdir)"
+ifdef CONFIG_SETCAP
+	set -e; for tool in $(HELPERS-y); do \
+		setcap cap_net_admin=ep $(DESTDIR)$(libexecdir)/$$tool; \
+	done
+else
+ifdef CONFIG_LIBCAP
+	set -e; for tool in $(HELPERS-y); do \
+		chmod u+s $(DESTDIR)$(libexecdir)/$$tool; \
+	done
+endif
+endif
 endif
 ifneq ($(BLOBS),)
 	$(INSTALL_DIR) "$(DESTDIR)$(datadir)"
