@@ -22,6 +22,7 @@ char *qemu_find_file(int type, const char *name);
 
 extern int vm_running;
 extern const char *qemu_name;
+extern const char *qemu_share_path;
 extern uint8_t qemu_uuid[];
 int qemu_uuid_parse(const char *str, uint8_t *uuid);
 #define UUID_FMT "%02hhx%02hhx%02hhx%02hhx-%02hhx%02hhx-%02hhx%02hhx-%02hhx%02hhx-%02hhx%02hhx%02hhx%02hhx%02hhx%02hhx"
