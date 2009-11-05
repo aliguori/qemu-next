@@ -90,7 +90,7 @@ struct omap_intr_handler_s *omap2_inth_init(struct omap_mpu_state_s *mpu,
 void omap_inth_reset(struct omap_intr_handler_s *s);
 qemu_irq omap_inth_get_pin(struct omap_intr_handler_s *s, int n);
 
-/* omap[123].c */
+/* omap[23].c */
 struct omap_l4_s;
 struct omap_l3_s;
 struct omap_l4_s *omap_l4_init(target_phys_addr_t base, int ta_num);
@@ -866,35 +866,8 @@ void omap_uart_reset(struct omap_uart_s *s);
 void omap_uart_attach(struct omap_uart_s *s, CharDriverState *chr,
                       const char *label);
 
-/* omap[123].c */
-struct omap_mpu_timer_s;
-struct omap_mpu_timer_s *omap_mpu_timer_init(target_phys_addr_t base,
-                qemu_irq irq, omap_clk clk);
-
-struct omap_gp_timer_s;
-struct omap_gp_timer_s *omap_gp_timer_init(struct omap_target_agent_s *ta,
-                qemu_irq irq, omap_clk fclk, omap_clk iclk);
-void omap_gp_timer_change_clk(struct omap_gp_timer_s *timer);
-
-struct omap_watchdog_timer_s;
-struct omap_watchdog_timer_s *omap_wd_timer_init(target_phys_addr_t base,
-                qemu_irq irq, omap_clk clk);
-
-struct omap_32khz_timer_s;
-struct omap_32khz_timer_s *omap_os_timer_init(target_phys_addr_t base,
-                qemu_irq irq, omap_clk clk);
-
-void omap_synctimer_init(struct omap_target_agent_s *ta,
-                struct omap_mpu_state_s *mpu, omap_clk fclk, omap_clk iclk);
-
-struct omap_tipb_bridge_s;
-struct omap_tipb_bridge_s *omap_tipb_bridge_init(target_phys_addr_t base,
-                qemu_irq abort_irq, omap_clk clk);
-
+/* omap1.c */
 struct omap_mpuio_s;
-struct omap_mpuio_s *omap_mpuio_init(target_phys_addr_t base,
-                qemu_irq kbd_int, qemu_irq gpio_int, qemu_irq wakeup,
-                omap_clk clk);
 qemu_irq *omap_mpuio_in_get(struct omap_mpuio_s *s);
 void omap_mpuio_out_set(struct omap_mpuio_s *s, int line, qemu_irq handler);
 void omap_mpuio_key(struct omap_mpuio_s *s, int row, int col, int down);
@@ -905,32 +878,26 @@ struct uWireSlave {
     void *opaque;
 };
 struct omap_uwire_s;
-struct omap_uwire_s *omap_uwire_init(target_phys_addr_t base,
-                qemu_irq *irq, qemu_irq dma, omap_clk clk);
 void omap_uwire_attach(struct omap_uwire_s *s,
-                uWireSlave *slave, int chipselect);
-
-struct omap_rtc_s;
-struct omap_rtc_s *omap_rtc_init(target_phys_addr_t base,
-                qemu_irq *irq, omap_clk clk);
+                       uWireSlave *slave, int chipselect);
 
 struct I2SCodec {
     void *opaque;
-
+    
     /* The CPU can call this if it is generating the clock signal on the
      * i2s port.  The CODEC can ignore it if it is set up as a clock
      * master and generates its own clock.  */
     void (*set_rate)(void *opaque, int in, int out);
-
+    
     void (*tx_swallow)(void *opaque);
     qemu_irq rx_swallow;
     qemu_irq tx_start;
-
+    
     int tx_rate;
     int cts;
     int rx_rate;
     int rts;
-
+    
     struct i2s_fifo_s {
         uint8_t *fifo;
         int len;
@@ -940,18 +907,20 @@ struct I2SCodec {
 };
 struct omap_mcbsp_s;
 struct omap_mcbsp_s *omap_mcbsp_init(target_phys_addr_t base,
-                qemu_irq *irq, qemu_irq *dma, omap_clk clk);
+                                     qemu_irq *irq, qemu_irq *dma, omap_clk clk);
 void omap_mcbsp_i2s_attach(struct omap_mcbsp_s *s, I2SCodec *slave);
 
-struct omap_lpg_s;
-struct omap_lpg_s *omap_lpg_init(target_phys_addr_t base, omap_clk clk);
+/* omap[23].c */
+struct omap_gp_timer_s;
+struct omap_gp_timer_s *omap_gp_timer_init(struct omap_target_agent_s *ta,
+                qemu_irq irq, omap_clk fclk, omap_clk iclk);
+void omap_gp_timer_change_clk(struct omap_gp_timer_s *timer);
+
+void omap_synctimer_init(struct omap_target_agent_s *ta,
+                struct omap_mpu_state_s *mpu, omap_clk fclk, omap_clk iclk);
 
 void omap_tap_init(struct omap_target_agent_s *ta,
                 struct omap_mpu_state_s *mpu);
-
-struct omap_eac_s;
-struct omap_eac_s *omap_eac_init(struct omap_target_agent_s *ta,
-                qemu_irq irq, qemu_irq *drq, omap_clk fclk, omap_clk iclk);
 
 /* omap_dss.c */
 struct omap_dss_s;
@@ -1127,41 +1096,20 @@ struct omap_mpu_state_s {
 
     /* MPUI-TIPB peripherals */
     struct omap_uart_s *uart[3];
-
     struct omap_gpio_s *gpio;
-
     struct omap_mcbsp_s *mcbsp1;
     struct omap_mcbsp_s *mcbsp3;
 
     /* MPU public TIPB peripherals */
     struct omap_32khz_timer_s *os_timer;
-
     struct omap_mmc_s *mmc;
-
     struct omap_mpuio_s *mpuio;
-
     struct omap_uwire_s *microwire;
-
-    struct {
-        uint8_t output;
-        uint8_t level;
-        uint8_t enable;
-        int clk;
-    } pwl;
-
-    struct {
-        uint8_t frc;
-        uint8_t vrc;
-        uint8_t gcr;
-        omap_clk clk;
-    } pwt;
-
+    struct omap_pwl_s *pwl;
+    struct omap_pwt_s *pwt;
     struct omap_i2c_s *i2c[3];
-
     struct omap_rtc_s *rtc;
-
     struct omap_mcbsp_s *mcbsp2;
-
     struct omap_lpg_s *led[2];
 
     /* MPU private TIPB peripherals */
@@ -1193,27 +1141,10 @@ struct omap_mpu_state_s {
 
     uint32_t tcmi_regs[17];
 
-    struct dpll_ctl_s {
-        uint16_t mode;
-        omap_clk dpll;
-    } dpll[3];
-
+    struct dpll_ctl_s *dpll[3];
+    
     omap_clk clks;
-    struct {
-        int cold_start;
-        int clocking_scheme;
-        uint16_t arm_ckctl;
-        uint16_t arm_idlect1;
-        uint16_t arm_idlect2;
-        uint16_t arm_ewupct;
-        uint16_t arm_rstct1;
-        uint16_t arm_rstct2;
-        uint16_t arm_ckout1;
-        int dpll1_mode;
-        uint16_t dsp_idlect1;
-        uint16_t dsp_idlect2;
-        uint16_t dsp_rstct2;
-    } clkm;
+    struct omap_clkm_s *clkm;
 
     /* OMAP2-only peripherals */
     struct omap_l4_s *l4;

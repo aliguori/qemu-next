@@ -1301,8 +1301,9 @@ static CPUWriteMemoryFunc * const omap_eac_writefn[] = {
     omap_badwidth_write16,
 };
 
-struct omap_eac_s *omap_eac_init(struct omap_target_agent_s *ta,
-                qemu_irq irq, qemu_irq *drq, omap_clk fclk, omap_clk iclk)
+static struct omap_eac_s *omap_eac_init(struct omap_target_agent_s *ta,
+                                        qemu_irq irq, qemu_irq *drq,
+                                        omap_clk fclk, omap_clk iclk)
 {
     int iomemtype;
     struct omap_eac_s *s = (struct omap_eac_s *)
