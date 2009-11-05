@@ -884,7 +884,7 @@ static void n8x0_uart_setup(struct n800_s *s)
     omap2_gpio_out_set(s->cpu->gpif, N8X0_BT_WKUP_GPIO,
                     csrhci_pins_get(radio)[csrhci_pin_wakeup]);
 
-    omap_uart_attach(s->cpu->uart[BT_UART], radio);
+    omap_uart_attach(s->cpu->uart[BT_UART], radio, "bt-uart");
 }
 
 static void n8x0_usb_power_cb(void *opaque, int line, int level)
@@ -1567,7 +1567,7 @@ static QEMUMachine n810_machine = {
 #define N900_HEADPHONE_EN_GPIO  98
 #define N900_TSC2005_IRQ_GPIO   100
 #define N900_TSC2005_RESET_GPIO 104
-#define N900_CAMSHUTTER_GPIO    110
+#define N900_CAMCOVER_GPIO      110
 #define N900_KBLOCK_GPIO        113
 #define N900_HEADPHONE_GPIO     177
 #define N900_LIS302DL_INT2_GPIO 180
@@ -1638,11 +1638,14 @@ typedef struct LIS302DLState_s {
     struct {
         uint8_t cfg, src, ths, dur;
     } ff_wu[2];
+    
+    int8_t x, y, z;
 } LIS302DLState;
 
 static void lis302dl_interrupt_update(LIS302DLState *s)
 {
     int active = (s->ctrl3 & 0x80) ? 0 : 1;
+    uint8_t dr_mask;
     int i;
     for (i = 0; i < 2; i++) {
         switch ((s->ctrl3 >> (i * 3)) & 0x07) {
@@ -1670,7 +1673,18 @@ static void lis302dl_interrupt_update(LIS302DLState *s)
                              ((s->ff_wu[0].src | s->ff_wu[1].src) & 0x40)
                              ? active : !active);
                 break;
-                /* TODO: data ready & click interrupts */
+            case 4:
+                dr_mask = ((s->ctrl1 & 0x01) ? 0x03 : 0x00) |
+                          ((s->ctrl1 & 0x02) ? 0x0c : 0x00) |
+                          ((s->ctrl1 & 0x04) ? 0x30 : 0x00);
+                TRACE_LIS302DL("%sactivate irq%d",
+                               (((s->ff_wu[0].src | s->ff_wu[1].src) & 0x3f)
+                                & dr_mask) ? "" : "de", i);
+                qemu_set_irq(s->irq[i],
+                             (((s->ff_wu[0].src | s->ff_wu[1].src) & 0x3f)
+                              & dr_mask) ? active : !active);
+                break;
+                /* TODO: click interrupt */
             default:
                 TRACE_LIS302DL("unsupported irq config (%d)",
                                (s->ctrl3 >> (i * 3)) & 0x07);
@@ -1683,11 +1697,20 @@ static void lis302dl_trigger(void *opaque, int axis, int high, int activate)
 {
     TRACE_LIS302DL("axis=%d, high=%d, activate=%d", axis, high, activate);
     LIS302DLState *s = opaque;
+    
     uint8_t bit = (high ? 0x02 : 0x01) << (axis << 1);
     if (activate) {
+        switch (axis) {
+            case 0: s->x += high ? 1 : -1; break;
+            case 1: s->y += high ? 1 : -1; break;
+            case 2: s->z += high ? 1 : -1; break;
+            default: break;
+        }
         s->ff_wu[0].src |= bit;
+        s->ff_wu[1].src |= bit;
     } else {
         s->ff_wu[0].src &= ~bit;
+        s->ff_wu[1].src &= ~bit;
     }
 
     int i = 0;
@@ -1718,6 +1741,10 @@ static void lis302dl_reset(LIS302DLState *s)
     s->ctrl3 = 0x00;
 
     memset(s->ff_wu, 0x00, sizeof(s->ff_wu));
+    
+    s->x = 0;
+    s->y = 0;
+    s->z = -58;
 
     lis302dl_interrupt_update(s);
 }
@@ -1752,15 +1779,15 @@ static int lis302dl_rx(i2c_slave *i2c)
             TRACE_LIS302DL("CTRL3 = 0x%08x", value);
             break;
         case 0x29:
-            value = (s->ctrl1 & 0x10) ? 16 : 32;
+            value = (s->ctrl1 & 0x10) ? (uint8_t)(s->x - 16) : (uint8_t)s->x;
             TRACE_LIS302DL("X = 0x%08x", value);
             break;
         case 0x2b:
-            value = (s->ctrl1 & 0x10) ? 32 : 16;
+            value = (s->ctrl1 & 0x10) ? (uint8_t)(s->y + 16) : (uint8_t)s->y;
             TRACE_LIS302DL("Y = 0x%08x", value);
             break;
         case 0x2d:
-            value = (s->ctrl1 & 0x10) ? 32 : 16;
+            value = (s->ctrl1 & 0x10) ? (uint8_t)(s->z + 16) : (uint8_t)s->z;
             TRACE_LIS302DL("Z = 0x%08x", value);
             break;
         case 0x34: n++;
@@ -2093,8 +2120,8 @@ static void n900_key_handler(void *opaque, int keycode)
 {
     struct n900_s *s = opaque;
     int release = keycode & 0x80;
-    switch (keycode & 0x7f) {
-        case 0x29:
+    switch (keycode &= 0x7f) {
+        case 0x29: /* backquote, the key left from 'z' */
             if (release) {
                 s->slide_open = !s->slide_open;
                 qemu_set_irq(omap2_gpio_in_get(s->cpu->gpif,
@@ -2102,10 +2129,15 @@ static void n900_key_handler(void *opaque, int keycode)
                              !s->slide_open);
             }
             break;
-/*        case 0x02 ... 0x07:
-            lis302dl_trigger(s->lis302dl, ((keycode & 0x7f) >> 1) - 1,
-                             keycode & 1, !release);
-            break;*/
+        case 0x4f ... 0x50: /* kp1,2 */
+            lis302dl_trigger(s->lis302dl, 0, keycode - 0x4f, !release);
+            break;
+        case 0x4b ... 0x4c: /* kp4,5 */
+            lis302dl_trigger(s->lis302dl, 1, keycode - 0x4b, !release);
+            break;
+        case 0x47 ... 0x48: /* kp7,8 */
+            lis302dl_trigger(s->lis302dl, 2, keycode - 0x47, !release);
+            break;
         default:
             break;
     }
@@ -2243,9 +2275,9 @@ static void n900_init(ram_addr_t ram_size,
     qemu_irq_raise(omap2_gpio_in_get(s->cpu->gpif, N900_HEADPHONE_GPIO)[0]);
     qemu_irq_raise(omap2_gpio_in_get(s->cpu->gpif, N900_CAMLAUNCH_GPIO)[0]);
     qemu_irq_raise(omap2_gpio_in_get(s->cpu->gpif, N900_CAMFOCUS_GPIO)[0]);
-
-    s->slide_open = 1;
+    qemu_irq_lower(omap2_gpio_in_get(s->cpu->gpif, N900_CAMCOVER_GPIO)[0]);
     qemu_irq_lower(omap2_gpio_in_get(s->cpu->gpif, N900_SLIDE_GPIO)[0]);
+    s->slide_open = 1;
     
     qemu_add_kbd_event_handler(n900_key_handler, s);
     

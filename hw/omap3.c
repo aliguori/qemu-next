@@ -4644,6 +4644,8 @@ struct omap_mpu_state_s *omap3530_mpu_init(unsigned long sdram_size,
     ram_addr_t sram_base, q2_base;
     qemu_irq *cpu_irq;
     qemu_irq drqs[4];
+    qemu_irq gpio_irq[6];
+    struct omap_target_agent_s *gpio_ta[6];
     int i;
 
     s->mpu_model = omap3530;
@@ -4791,25 +4793,19 @@ struct omap_mpu_state_s *omap3530_mpu_init(unsigned long sdram_size,
                             s->drq[OMAP3XXX_DMA_DSS2],
                             s->drq[OMAP3XXX_DMA_DSS3]);
 
-    s->gpif = omap3_gpif_init();
-    omap3_gpio_init(s, s->gpif, omap3_l4ta_init(s->l4, L4A_GPIO1),
-                    s->irq[0][OMAP_INT_3XXX_GPIO1_MPU_IRQ], 
-                    NULL,NULL,0);
-    omap3_gpio_init(s, s->gpif, omap3_l4ta_init(s->l4, L4A_GPIO2),
-                    s->irq[0][OMAP_INT_3XXX_GPIO2_MPU_IRQ], 
-                    NULL,NULL,1);
-    omap3_gpio_init(s, s->gpif, omap3_l4ta_init(s->l4, L4A_GPIO3),
-                    s->irq[0][OMAP_INT_3XXX_GPIO3_MPU_IRQ], 
-                    NULL,NULL,2);
-    omap3_gpio_init(s, s->gpif, omap3_l4ta_init(s->l4, L4A_GPIO4),
-                    s->irq[0][OMAP_INT_3XXX_GPIO4_MPU_IRQ], 
-                    NULL,NULL,3);
-    omap3_gpio_init(s, s->gpif, omap3_l4ta_init(s->l4, L4A_GPIO5),
-                    s->irq[0][OMAP_INT_3XXX_GPIO5_MPU_IRQ], 
-                    NULL,NULL,4);
-    omap3_gpio_init(s, s->gpif, omap3_l4ta_init(s->l4, L4A_GPIO6),
-                    s->irq[0][OMAP_INT_3XXX_GPIO6_MPU_IRQ], 
-                    NULL,NULL,5);
+    gpio_ta[0] = omap3_l4ta_init(s->l4, L4A_GPIO1);
+    gpio_ta[1] = omap3_l4ta_init(s->l4, L4A_GPIO2);
+    gpio_ta[2] = omap3_l4ta_init(s->l4, L4A_GPIO3);
+    gpio_ta[3] = omap3_l4ta_init(s->l4, L4A_GPIO4);
+    gpio_ta[4] = omap3_l4ta_init(s->l4, L4A_GPIO5);
+    gpio_ta[5] = omap3_l4ta_init(s->l4, L4A_GPIO6);
+    gpio_irq[0] = s->irq[0][OMAP_INT_3XXX_GPIO1_MPU_IRQ];
+    gpio_irq[1] = s->irq[0][OMAP_INT_3XXX_GPIO2_MPU_IRQ];
+    gpio_irq[2] = s->irq[0][OMAP_INT_3XXX_GPIO3_MPU_IRQ];
+    gpio_irq[3] = s->irq[0][OMAP_INT_3XXX_GPIO4_MPU_IRQ];
+    gpio_irq[4] = s->irq[0][OMAP_INT_3XXX_GPIO5_MPU_IRQ];
+    gpio_irq[5] = s->irq[0][OMAP_INT_3XXX_GPIO6_MPU_IRQ];
+    s->gpif = omap3_gpio_init(s, gpio_ta, gpio_irq);
 
     omap_tap_init(omap3_l4ta_init(s->l4, L4A_TAP), s);
 

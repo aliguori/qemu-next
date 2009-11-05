@@ -824,6 +824,39 @@ struct omap_dma_lcd_channel_s {
 #define OMAP3XXX_DMA_USIM_TX          79
 #define OMAP3XXX_DMA_USIM_RX          80
 
+/* omap_gpio.c */
+struct omap_gpio_s;
+struct omap_gpio_s *omap_gpio_init(target_phys_addr_t base,
+                                   qemu_irq irq, omap_clk clk);
+void omap_gpio_reset(struct omap_gpio_s *s);
+qemu_irq *omap_gpio_in_get(struct omap_gpio_s *s);
+void omap_gpio_out_set(struct omap_gpio_s *s, int line, qemu_irq handler);
+
+struct omap_gpif_s;
+struct omap_gpif_s *omap2_gpio_init(struct omap_mpu_state_s *mpu,
+                                    struct omap_target_agent_s *ta,
+                                    qemu_irq *irq, omap_clk *fclk,
+                                    omap_clk iclk, int modules);
+struct omap_gpif_s *omap3_gpio_init(struct omap_mpu_state_s *mpu,
+                                    struct omap_target_agent_s **ta,
+                                    qemu_irq *irq);
+void omap_gpif_reset(struct omap_gpif_s *s);
+qemu_irq *omap2_gpio_in_get(struct omap_gpif_s *s, int start);
+void omap2_gpio_out_set(struct omap_gpif_s *s, int line, qemu_irq handler);
+
+/* omap_uart.c */
+struct omap_uart_s;
+struct omap_uart_s *omap_uart_init(target_phys_addr_t base,
+                                   qemu_irq irq, omap_clk fclk, omap_clk iclk,
+                                   qemu_irq txdma, qemu_irq rxdma,
+                                   CharDriverState *chr, const char *label);
+struct omap_uart_s *omap2_uart_init(struct omap_target_agent_s *ta,
+                                    qemu_irq irq, omap_clk fclk, omap_clk iclk,
+                                    qemu_irq txdma, qemu_irq rxdma,
+                                    CharDriverState *chr, const char *label);
+void omap_uart_reset(struct omap_uart_s *s);
+void omap_uart_attach(struct omap_uart_s *s, CharDriverState *chr,
+                      const char *label);
 
 /* omap[123].c */
 struct omap_mpu_timer_s;
@@ -850,18 +883,6 @@ struct omap_tipb_bridge_s;
 struct omap_tipb_bridge_s *omap_tipb_bridge_init(target_phys_addr_t base,
                 qemu_irq abort_irq, omap_clk clk);
 
-struct omap_uart_s;
-struct omap_uart_s *omap_uart_init(target_phys_addr_t base,
-                                   qemu_irq irq, omap_clk fclk, omap_clk iclk,
-                                   qemu_irq txdma, qemu_irq rxdma,
-                                   CharDriverState *chr, const char *label);
-struct omap_uart_s *omap2_uart_init(struct omap_target_agent_s *ta,
-                                    qemu_irq irq, omap_clk fclk, omap_clk iclk,
-                                    qemu_irq txdma, qemu_irq rxdma,
-                                    CharDriverState *chr, const char *label);
-void omap_uart_reset(struct omap_uart_s *s);
-void omap_uart_attach(struct omap_uart_s *s, CharDriverState *chr);
-
 struct omap_mpuio_s;
 struct omap_mpuio_s *omap_mpuio_init(target_phys_addr_t base,
                 qemu_irq kbd_int, qemu_irq gpio_int, qemu_irq wakeup,
@@ -869,23 +890,6 @@ struct omap_mpuio_s *omap_mpuio_init(target_phys_addr_t base,
 qemu_irq *omap_mpuio_in_get(struct omap_mpuio_s *s);
 void omap_mpuio_out_set(struct omap_mpuio_s *s, int line, qemu_irq handler);
 void omap_mpuio_key(struct omap_mpuio_s *s, int row, int col, int down);
-
-struct omap_gpio_s;
-struct omap_gpio_s *omap_gpio_init(target_phys_addr_t base,
-                qemu_irq irq, omap_clk clk);
-qemu_irq *omap_gpio_in_get(struct omap_gpio_s *s);
-void omap_gpio_out_set(struct omap_gpio_s *s, int line, qemu_irq handler);
-
-struct omap_gpif_s;
-struct omap_gpif_s *omap2_gpio_init(struct omap_mpu_state_s *mpu,
-                struct omap_target_agent_s *ta,
-                qemu_irq *irq, omap_clk *fclk, omap_clk iclk, int modules);
-struct omap_gpif_s *omap3_gpif_init(void);
-void omap3_gpio_init(struct omap_mpu_state_s *mpu,
-                     struct omap_gpif_s *s, struct omap_target_agent_s *ta,
-                     qemu_irq irq, omap_clk *fclk, omap_clk iclk, int module_index);
-qemu_irq *omap2_gpio_in_get(struct omap_gpif_s *s, int start);
-void omap2_gpio_out_set(struct omap_gpif_s *s, int line, qemu_irq handler);
 
 struct uWireSlave {
     uint16_t (*receive)(void *opaque);
