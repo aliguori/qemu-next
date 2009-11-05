@@ -71,6 +71,25 @@ void omap_clk_setrate(omap_clk clk, int divide, int multiply);
 int64_t omap_clk_getrate(omap_clk clk);
 void omap_clk_reparent(omap_clk clk, omap_clk parent);
 
+/* omap_intc.c */
+struct omap_intr_handler_s;
+struct omap_intr_handler_s *omap_inth_init(target_phys_addr_t base,
+                                           unsigned long size,
+                                           unsigned char nbanks,
+                                           qemu_irq **pins,
+                                           qemu_irq parent_irq,
+                                           qemu_irq parent_fiq,
+                                           omap_clk clk);
+struct omap_intr_handler_s *omap2_inth_init(struct omap_mpu_state_s *mpu,
+                                            target_phys_addr_t base,
+                                            int size, int nbanks,
+                                            qemu_irq **pins,
+                                            qemu_irq parent_irq,
+                                            qemu_irq parent_fiq,
+                                            omap_clk fclk, omap_clk iclk);
+void omap_inth_reset(struct omap_intr_handler_s *s);
+qemu_irq omap_inth_get_pin(struct omap_intr_handler_s *s, int n);
+
 /* omap[123].c */
 struct omap_l4_s;
 struct omap_l3_s;
@@ -82,17 +101,6 @@ target_phys_addr_t omap_l4_attach(struct omap_target_agent_s *ta, int region,
 target_phys_addr_t omap_l4_base(struct omap_target_agent_s *ta, int region);
 uint32_t omap_l4_size(struct omap_target_agent_s *ta, int region);
 # define l4_register_io_memory	cpu_register_io_memory
-
-struct omap_intr_handler_s;
-struct omap_intr_handler_s *omap_inth_init(target_phys_addr_t base,
-                unsigned long size, unsigned char nbanks, qemu_irq **pins,
-                qemu_irq parent_irq, qemu_irq parent_fiq, omap_clk clk);
-struct omap_intr_handler_s *omap2_inth_init(struct omap_mpu_state_s *mpu,
-                target_phys_addr_t base,
-                int size, int nbanks, qemu_irq **pins,
-                qemu_irq parent_irq, qemu_irq parent_fiq,
-                omap_clk fclk, omap_clk iclk);
-void omap_inth_reset(struct omap_intr_handler_s *s);
 
 struct omap_prcm_s;
 struct omap_prcm_s *omap_prcm_init(struct omap_target_agent_s *ta,
