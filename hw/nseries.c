@@ -1706,6 +1706,9 @@ static void lis302dl_trigger(void *opaque, int axis, int high, int activate)
             case 2: s->z += high ? 1 : -1; break;
             default: break;
         }
+        if (s->x > 58) s->x = -58; if (s->x < -58) s->x = 58;
+        if (s->y > 58) s->y = -58; if (s->y < -58) s->y = 58;
+        if (s->z > 58) s->z = -58; if (s->z < -58) s->z = 58;
         s->ff_wu[0].src |= bit;
         s->ff_wu[1].src |= bit;
     } else {
@@ -2121,6 +2124,9 @@ static void n900_key_handler(void *opaque, int keycode)
     struct n900_s *s = opaque;
     int release = keycode & 0x80;
     switch (keycode &= 0x7f) {
+        case 0x01: /* escape */
+            twl4030_set_powerbutton_state(s->twl4030, !release);
+            break;
         case 0x29: /* backquote, the key left from 'z' */
             if (release) {
                 s->slide_open = !s->slide_open;

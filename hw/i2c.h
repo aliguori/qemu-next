@@ -87,5 +87,6 @@ typedef struct {
 } TWL4030KeyMap;
 void *twl4030_init(i2c_bus *gp_bus, qemu_irq irq1, qemu_irq irq2,
                    const TWL4030KeyMap *keymap);
+void twl4030_set_powerbutton_state(void *opaque, int pressed);
 
 #endif
