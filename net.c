@@ -2335,6 +2335,61 @@ typedef int (*net_client_init_func)(QemuOpts *opts,
                                     const char *name,
                                     VLANState *vlan);
 
+static int net_init_tap_helper(QemuOpts *opts,
+                               Monitor *mon,
+                               VLANState *vlan,
+                               const char *command,
+                               ...)
+{
+    const char *opts_to_copy[] = {
+        "id", "name", "vlan", "sndbuf", "vnet_hdr"
+    };
+    QemuOpts *new_opts;
+    const char *value;
+    char buffer[1024];
+    int ret, i;
+    va_list ap;
+
+    va_start(ap, command);
+    vsnprintf(buffer, sizeof(buffer), command, ap);
+    va_end(ap);
+
+    new_opts = qemu_opts_create(&qemu_net_opts, NULL, 0);
+
+    for (i = 0; i < ARRAY_SIZE(opts_to_copy); i++) {
+        value = qemu_opt_get(opts, opts_to_copy[i]);
+        if (value) {
+            qemu_opt_set(new_opts, opts_to_copy[i], value);
+        }
+    }
+
+    qemu_opt_set(new_opts, "type", "tap");
+    qemu_opt_set(new_opts, "helper", buffer);
+
+    ret = net_client_init(mon, new_opts, !vlan);
+
+    qemu_opts_del(new_opts);
+
+    return ret;
+}
+
+static int net_init_bridge(QemuOpts *opts,
+                           Monitor *mon,
+                           const char *name,
+                           VLANState *vlan)
+{
+    const char *bridge;
+
+    bridge = qemu_opt_get(opts, "br");
+    if (bridge == NULL) {
+        bridge = "qemubr0";
+    }
+
+    return net_init_tap_helper(opts, mon, vlan,
+                               "%s/qemu-bridge-helper --bridge=%s",
+                               CONFIG_QEMU_LIBEXECDIR, bridge);
+}
+
 /* magic number, but compiler will warn if too small */
 #define NET_MAX_DESC 20
 
@@ -2545,6 +2600,26 @@ static struct {
             },
             { /* end of list */ }
         },
+    }, {
+        .type = "bridge",
+        .init = net_init_bridge,
+        .desc = {
+            NET_COMMON_PARAMS_DESC,
+            {
+                .name = "br",
+                .type = QEMU_OPT_STRING,
+                .help = "bridge name",
+            }, {
+                .name = "sndbuf",
+                .type = QEMU_OPT_SIZE,
+                .help = "send buffer limit"
+            }, {
+                .name = "vnet_hdr",
+                .type = QEMU_OPT_BOOL,
+                .help = "enable the IFF_VNET_HDR flag on the tap interface"
+            },
+            { /* end of list */ }
+        },
     },
     { /* end of list */ }
 };
@@ -2569,7 +2644,8 @@ int net_client_init(Monitor *mon, QemuOpts *opts, int is_netdev)
 #ifdef CONFIG_VDE
             strcmp(type, "vde") != 0 &&
 #endif
-            strcmp(type, "socket") != 0) {
+            strcmp(type, "socket") != 0 &&
+            strcmp(type, "bridge") != 0) {
             qemu_error("The '%s' network backend type is not valid with -netdev\n",
                        type);
             return -1;
@@ -2645,6 +2721,7 @@ static int net_host_check_device(const char *device)
 #ifdef CONFIG_VDE
                                        ,"vde"
 #endif
+                                       , "bridge"
     };
     for (i = 0; i < sizeof(valid_param_list) / sizeof(char *); i++) {
         if (!strncmp(valid_param_list[i], device,
