@@ -1633,6 +1633,7 @@ typedef struct LIS302DLState_s {
     uint8_t reg;
 
     qemu_irq irq[2];
+    int8_t axis_max, axis_step;
 
     uint8_t ctrl1, ctrl2, ctrl3;
     struct {
@@ -1701,14 +1702,17 @@ static void lis302dl_trigger(void *opaque, int axis, int high, int activate)
     uint8_t bit = (high ? 0x02 : 0x01) << (axis << 1);
     if (activate) {
         switch (axis) {
-            case 0: s->x += high ? 1 : -1; break;
-            case 1: s->y += high ? 1 : -1; break;
-            case 2: s->z += high ? 1 : -1; break;
+            case 0: s->x += high ? s->axis_step : -s->axis_step; break;
+            case 1: s->y += high ? s->axis_step : -s->axis_step; break;
+            case 2: s->z += high ? s->axis_step : -s->axis_step; break;
             default: break;
         }
-        if (s->x > 58) s->x = -58; if (s->x < -58) s->x = 58;
-        if (s->y > 58) s->y = -58; if (s->y < -58) s->y = 58;
-        if (s->z > 58) s->z = -58; if (s->z < -58) s->z = 58;
+        if (s->x > s->axis_max) s->x = -(s->axis_max - s->axis_step);
+        if (s->x < -s->axis_max) s->x = s->axis_max - s->axis_step;
+        if (s->y > s->axis_max) s->y = -(s->axis_max - s->axis_step);
+        if (s->y < -s->axis_max) s->y = s->axis_max - s->axis_step;
+        if (s->z > s->axis_max) s->z = -(s->axis_max - s->axis_step);
+        if (s->z < -s->axis_max) s->z = s->axis_max - s->axis_step;
         s->ff_wu[0].src |= bit;
         s->ff_wu[1].src |= bit;
     } else {
@@ -1747,7 +1751,7 @@ static void lis302dl_reset(LIS302DLState *s)
     
     s->x = 0;
     s->y = 0;
-    s->z = -58;
+    s->z = -s->axis_max;
 
     lis302dl_interrupt_update(s);
 }
@@ -1884,6 +1888,8 @@ static void *lis302dl_init(DeviceState *devs, qemu_irq irq1, qemu_irq irq2)
                                       I2C_SLAVE_FROM_QDEV(devs));
     s->irq[0] = irq1;
     s->irq[1] = irq2;
+    s->axis_max = 58;
+    s->axis_step = s->axis_max;// / 2;
     lis302dl_reset(s);
     return devs;
 }
