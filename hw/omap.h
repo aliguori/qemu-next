@@ -90,38 +90,78 @@ struct omap_intr_handler_s *omap2_inth_init(struct omap_mpu_state_s *mpu,
 void omap_inth_reset(struct omap_intr_handler_s *s);
 qemu_irq omap_inth_get_pin(struct omap_intr_handler_s *s, int n);
 
-/* omap[23].c */
-struct omap_l4_s;
-struct omap_l3_s;
-struct omap_l4_s *omap_l4_init(target_phys_addr_t base, int ta_num);
-
-struct omap_target_agent_s;
-target_phys_addr_t omap_l4_attach(struct omap_target_agent_s *ta, int region,
-                int iotype);
-target_phys_addr_t omap_l4_base(struct omap_target_agent_s *ta, int region);
-uint32_t omap_l4_size(struct omap_target_agent_s *ta, int region);
-# define l4_register_io_memory	cpu_register_io_memory
-
-struct omap_prcm_s;
-struct omap_prcm_s *omap_prcm_init(struct omap_target_agent_s *ta,
-                qemu_irq mpu_int, qemu_irq dsp_int, qemu_irq iva_int,
-                struct omap_mpu_state_s *mpu);
-
-struct omap_sysctl_s;
-struct omap_sysctl_s *omap_sysctl_init(struct omap_target_agent_s *ta,
-                omap_clk iclk, struct omap_mpu_state_s *mpu);
-
+/* omap_sdrc.c */
 struct omap_sdrc_s;
 struct omap_sdrc_s *omap_sdrc_init(target_phys_addr_t base);
+void omap_sdrc_reset(struct omap_sdrc_s *s);
 void omap_sdrc_write_mcfg(struct omap_sdrc_s *s, uint32_t value, uint32_t cs);
 
+/* omap_gpmc.c */
 struct omap_gpmc_s;
 struct nand_flash_s;
 struct omap_gpmc_s *omap_gpmc_init(struct omap_mpu_state_s *mpu,
                                    target_phys_addr_t base, qemu_irq irq);
+void omap_gpmc_reset(struct omap_gpmc_s *s);
 void omap_gpmc_attach(struct omap_gpmc_s *s, int cs, int iomemtype,
-                void (*base_upd)(void *opaque, target_phys_addr_t new),
-                void (*unmap)(void *opaque), void *opaque, int devicetype);
+                      void (*base_upd)(void *opaque, target_phys_addr_t new),
+                      void (*unmap)(void *opaque), void *opaque,
+                      int devicetype);
+
+/* omap_l4.c */
+struct omap_l4_s;
+struct omap_l4_region_s;
+typedef enum {
+    L4TYPE_GENERIC = 0, /* not mapped by default, must be mapped separately */
+    L4TYPE_IA,          /* initiator agent */
+    L4TYPE_TA,          /* target agent */
+    L4TYPE_LA,          /* link register agent */
+    L4TYPE_AP           /* address protection */
+} omap3_l4_region_type_t;
+struct omap2_l4_agent_info_s {
+    int ta;
+    int region;
+    int regions;
+    int ta_region;
+};
+struct omap3_l4_agent_info_s {
+    int agent_id;
+    int first_region_id;
+    int region_count;
+};
+struct omap_target_agent_s {
+    struct omap_l4_s *bus;
+    int regions;
+    const struct omap_l4_region_s *start;
+    target_phys_addr_t base;
+    uint32_t component;
+    uint32_t control;
+    uint32_t control_h; /* OMAP3 only */
+    uint32_t status;
+};
+struct omap_l4_region_s {
+    target_phys_addr_t offset;
+    size_t size;
+    int access; /* omap3_l4_region_type_t for OMAP3 */
+};
+struct omap_l4_s *omap_l4_init(target_phys_addr_t base, int ta_num,
+                               int region_count);
+struct omap_target_agent_s *omap2_l4ta_init(
+    struct omap_l4_s *bus,
+    const struct omap_l4_region_s *regions,
+    const struct omap2_l4_agent_info_s *agents,
+    int cs);
+struct omap_target_agent_s *omap3_l4ta_init(
+    struct omap_l4_s *bus,
+    const struct omap_l4_region_s *regions,
+    const struct omap3_l4_agent_info_s *agents,
+    int cs);
+target_phys_addr_t omap_l4_attach(struct omap_target_agent_s *ta, int region,
+                                  int iotype);
+target_phys_addr_t omap_l4_base(struct omap_target_agent_s *ta, int region);
+uint32_t omap_l4_size(struct omap_target_agent_s *ta, int region);
+int l4_register_io_memory(CPUReadMemoryFunc * const *mem_read,
+                          CPUWriteMemoryFunc * const *mem_write,
+                          void *opaque);
 
 /*
  * Common IRQ numbers for level 1 interrupt handler
@@ -866,6 +906,14 @@ void omap_uart_reset(struct omap_uart_s *s);
 void omap_uart_attach(struct omap_uart_s *s, CharDriverState *chr,
                       const char *label);
 
+/* omap_gptimer.c */
+struct omap_gp_timer_s;
+struct omap_gp_timer_s *omap_gp_timer_init(struct omap_target_agent_s *ta,
+                                           qemu_irq irq, omap_clk fclk,
+                                           omap_clk iclk);
+void omap_gp_timer_reset(struct omap_gp_timer_s *s);
+void omap_gp_timer_change_clk(struct omap_gp_timer_s *timer);
+
 /* omap1.c */
 struct omap_mpuio_s;
 qemu_irq *omap_mpuio_in_get(struct omap_mpuio_s *s);
@@ -910,17 +958,16 @@ struct omap_mcbsp_s *omap_mcbsp_init(target_phys_addr_t base,
                                      qemu_irq *irq, qemu_irq *dma, omap_clk clk);
 void omap_mcbsp_i2s_attach(struct omap_mcbsp_s *s, I2SCodec *slave);
 
-/* omap[23].c */
-struct omap_gp_timer_s;
-struct omap_gp_timer_s *omap_gp_timer_init(struct omap_target_agent_s *ta,
-                qemu_irq irq, omap_clk fclk, omap_clk iclk);
-void omap_gp_timer_change_clk(struct omap_gp_timer_s *timer);
+/* omap_synctimer.c */
+struct omap_synctimer_s;
+struct omap_synctimer_s *omap_synctimer_init(struct omap_target_agent_s *ta,
+                                             struct omap_mpu_state_s *mpu,
+                                             omap_clk fclk, omap_clk iclk);
+void omap_synctimer_reset(struct omap_synctimer_s *s);
 
-void omap_synctimer_init(struct omap_target_agent_s *ta,
-                struct omap_mpu_state_s *mpu, omap_clk fclk, omap_clk iclk);
-
+/* omap_tap.c */
 void omap_tap_init(struct omap_target_agent_s *ta,
-                struct omap_mpu_state_s *mpu);
+                   struct omap_mpu_state_s *mpu);
 
 /* omap_dss.c */
 struct omap_dss_s;
@@ -1021,7 +1068,7 @@ void omap_mcspi_attach(struct omap_mcspi_s *s,
                        void *opaque, int chipselect);
 void omap_mcspi_reset(struct omap_mcspi_s *s);
 
-/* omap3_usb.c */
+/* omap_usb.c */
 struct omap3_hsusb_s;
 struct omap3_hsusb_s *omap3_hsusb_init(struct omap_target_agent_s *otg_ta,
                                        struct omap_target_agent_s *host_ta,
@@ -1034,8 +1081,7 @@ struct omap3_hsusb_s *omap3_hsusb_init(struct omap_target_agent_s *otg_ta,
 
 /* usb-ohci.c */
 void usb_ohci_init_omap(target_phys_addr_t base, uint32_t region_size,
-                       int num_ports, qemu_irq irq);
-
+                        int num_ports, qemu_irq irq);
 
 # define cpu_is_omap310(cpu)		(cpu->mpu_model == omap310)
 # define cpu_is_omap1510(cpu)		(cpu->mpu_model == omap1510)
@@ -1150,12 +1196,7 @@ struct omap_mpu_state_s {
     struct omap_l4_s *l4;
 
     struct omap_gp_timer_s *gptimer[12];
-
-    struct omap_synctimer_s {
-        uint32_t val;
-        uint16_t readh;
-        uint32_t sysconfig; /*OMAP3*/
-    } synctimer;
+    struct omap_synctimer_s *synctimer;
 
     struct omap_prcm_s *prcm;
     struct omap_sdrc_s *sdrc;
@@ -1179,36 +1220,6 @@ struct omap_mpu_state_s {
     struct omap3_sms_s *omap3_sms;
     struct omap3_mmc_s *omap3_mmc[3];
     struct omap3_hsusb_s *omap3_usb;
-};
-
-struct omap_target_agent_s {
-    struct omap_l4_s *bus;
-    int regions;
-    struct omap_l4_region_s *start;
-    target_phys_addr_t base;
-    uint32_t component;
-    uint32_t control;
-    uint32_t control_h; /* OMAP3 */
-    uint32_t status;
-};
-
-struct omap_l4_s {
-    target_phys_addr_t base;
-    int ta_num;
-    struct omap_target_agent_s ta[0];
-};
-
-struct omap_l4_region_s {
-    target_phys_addr_t offset;
-    size_t size;
-    int access;
-};
-
-struct omap_l4_agent_info_s {
-    int ta;
-    int region;
-    int regions;
-    int ta_region;
 };
 
 /* omap1.c */
@@ -1402,15 +1413,6 @@ inline static int debug_register_io_memory(CPUReadMemoryFunc * const *mem_read,
     return cpu_register_io_memory(io_readfn, io_writefn, s);
 }
 #  define cpu_register_io_memory	debug_register_io_memory
-# endif
-
-/* Define when we want to reduce the number of IO regions registered.  */
-/*# define L4_MUX_HACK*/
-
-# ifdef L4_MUX_HACK
-#  undef l4_register_io_memory
-int l4_register_io_memory(CPUReadMemoryFunc * const *mem_read,
-                          CPUWriteMemoryFunc * const *mem_write, void *opaque);
 # endif
 
 #endif /* hw_omap_h */

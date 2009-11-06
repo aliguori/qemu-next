@@ -1053,17 +1053,9 @@ typedef enum {
     /* 5472A800-547FFFFF */
 } omap3_l4_region_id_t;
 
-typedef enum {
-    L4TYPE_GENERIC = 0, /* not mapped by default, must be mapped separately */
-    L4TYPE_IA,          /* initiator agent */
-    L4TYPE_TA,          /* target agent */
-    L4TYPE_LA,          /* link register agent */
-    L4TYPE_AP           /* address protection */
-} omap3_l4_region_type_t;
-
 /* we reuse the "access" member for defining region type -- the original
    omap_l4_region_s "access" member is not used anywhere else anyway! */
-static struct omap_l4_region_s omap3_l4_region[] = {
+static struct omap_l4_region_s omap3_l4_region[160] = {
     /* L4-Core */
     [L4ID_SCM         ] = {0x00002000, 0x1000, L4TYPE_GENERIC},
     [L4ID_SCM_TA      ] = {0x00003000, 0x1000, L4TYPE_TA},
@@ -1271,16 +1263,12 @@ typedef enum {
     L4A_MCSPI2,
     L4A_MCSPI3,
     L4A_MCSPI4,
-    L4A_SDMA
+    L4A_SDMA,
+    
+    L4A_COUNT
 } omap3_l4_agent_info_id_t;
 
-struct omap3_l4_agent_info_s {
-    omap3_l4_agent_info_id_t agent_id;
-    omap3_l4_region_id_t     first_region_id;
-    int                      region_count;
-};
-
-static const struct omap3_l4_agent_info_s omap3_l4_agent_info[] = {
+static const struct omap3_l4_agent_info_s omap3_l4_agent_info[L4A_COUNT] = {
     /* L4-Core Agents */
     {L4A_DSS,        L4ID_DSI,       6},
     /* TODO: camera */
@@ -1335,155 +1323,8 @@ static const struct omap3_l4_agent_info_s omap3_l4_agent_info[] = {
     {L4A_GPIO6,      L4ID_GPIO6,     2},
 };
 
-#ifndef OMAP3_REDUCE_IOREGIONS
-static uint32_t omap3_l4ta_read(void *opaque, target_phys_addr_t addr)
-{
-    struct omap_target_agent_s *s = (struct omap_target_agent_s *)opaque;
-    
-    switch (addr) {
-        case 0x00: /* COMPONENT_L */
-            return s->component;
-        case 0x04: /* COMPONENT_H */
-            return 0;
-        case 0x18: /* CORE_L */
-            return s->component;
-        case 0x1c: /* CORE_H */
-            return (s->component >> 16);
-        case 0x20: /* AGENT_CONTROL_L */
-            return s->control;
-        case 0x24: /* AGENT_CONTROL_H */
-            return s->control_h;
-        case 0x28: /* AGENT_STATUS_L */
-            return s->status;
-        case 0x2c: /* AGENT_STATUS_H */
-            return 0;
-        default:
-            break;
-    }
-    
-    OMAP_BAD_REG(s->base + addr);
-    return 0;
-}
-
-static void omap3_l4ta_write(void *opaque, target_phys_addr_t addr,
-                             uint32_t value)
-{
-    struct omap_target_agent_s *s = (struct omap_target_agent_s *)opaque;
-    
-    switch (addr) {
-        case 0x00: /* COMPONENT_L */
-        case 0x04: /* COMPONENT_H */
-        case 0x18: /* CORE_L */
-        case 0x1c: /* CORE_H */
-            OMAP_RO_REG(s->base + addr);
-            break;
-        case 0x20: /* AGENT_CONTROL_L */
-            s->control = value & 0x00000701;
-            break;
-        case 0x24: /* AGENT_CONTROL_H */
-            s->control_h = value & 0x100; /* TODO: shouldn't this be read-only? */
-            break;
-        case 0x28: /* AGENT_STATUS_L */
-            if (value & 0x100)
-                s->status &= ~0x100; /* REQ_TIMEOUT */
-            break;
-        case 0x2c: /* AGENT_STATUS_H */
-            /* no writable bits although the register is listed as RW */
-            break;
-        default:
-            OMAP_BAD_REG(s->base + addr);
-            break;
-    }
-}
-
-static void omap3_l4ta_save_state(QEMUFile *f, void *opaque)
-{
-    struct omap_target_agent_s *s = (struct omap_target_agent_s *)opaque;
-    
-    qemu_put_be32(f, s->control);
-    qemu_put_be32(f, s->control_h);
-    qemu_put_be32(f, s->status);
-}
-
-static int omap3_l4ta_load_state(QEMUFile *f, void *opaque, int version_id)
-{
-    struct omap_target_agent_s *s = (struct omap_target_agent_s *)opaque;
-    
-    if (version_id)
-        return -EINVAL;
-    
-    s->control = qemu_get_be32(f);
-    s->control_h = qemu_get_be32(f);
-    s->status = qemu_get_be32(f);
-    
-    return 0;
-}
-
-static CPUReadMemoryFunc *omap3_l4ta_readfn[] = {
-    omap_badwidth_read32,
-    omap_badwidth_read32,
-    omap3_l4ta_read,
-};
-
-static CPUWriteMemoryFunc *omap3_l4ta_writefn[] = {
-    omap_badwidth_write32,
-    omap_badwidth_write32,
-    omap3_l4ta_write,
-};
-#endif
-
-static struct omap_target_agent_s *omap3_l4ta_init(struct omap_l4_s *bus, int cs)
-{
-#ifndef OMAP3_REDUCE_IOREGIONS
-    int iomemtype;
-#endif
-    int i;
-    struct omap_target_agent_s *ta = 0;
-    const struct omap3_l4_agent_info_s *info = 0;
-
-    for (i = 0; i < bus->ta_num; i++)
-        if (omap3_l4_agent_info[i].agent_id == cs) {
-            ta = &bus->ta[i];
-            info = &omap3_l4_agent_info[i];
-            break;
-        }
-    if (!ta) {
-        hw_error("%s: invalid agent id (%i)", __FUNCTION__, cs);
-    }
-    if (ta->bus) {
-        hw_error("%s: target agent (%d) already initialized", __FUNCTION__,
-                 cs);
-    }
-
-    ta->bus = bus;
-    ta->start = &omap3_l4_region[info->first_region_id];
-    ta->regions = info->region_count;
-
-    ta->component = ('Q' << 24) | ('E' << 16) | ('M' << 8) | ('U' << 0);
-    ta->status = 0x00000000;
-    ta->control = 0x00000200;
-
-    for (i = 0; i < info->region_count; i++)
-        if (omap3_l4_region[info->first_region_id + i].access == L4TYPE_TA)
-            break;
-    if (i >= info->region_count) {
-        hw_error("%s: specified agent (%d) has no TA region", __FUNCTION__,
-                 cs);
-    }
-    
-#ifndef OMAP3_REDUCE_IOREGIONS
-    iomemtype = l4_register_io_memory(0, omap3_l4ta_readfn,
-                                      omap3_l4ta_writefn, ta);
-    ta->base = omap_l4_attach(ta, i, iomemtype);
-
-    register_savevm("omap3_l4ta", ta->base >> 8, 0,
-                    omap3_l4ta_save_state, omap3_l4ta_load_state, ta);
-#else
-    ta->base = ta->bus->base + ta->start[i].offset;
-#endif
-
-    return ta;
-}
+#define omap3_l4ta_init(bus, cs) \
+    omap3_l4ta_init(bus, omap3_l4_region, omap3_l4_agent_info, cs)
 
 /* common PRM domain registers */
 struct omap3_prm_domain_s {
@@ -4667,9 +4508,7 @@ struct omap_mpu_state_s *omap3530_mpu_init(unsigned long sdram_size,
     cpu_register_physical_memory(OMAP3_SRAM_BASE, s->sram_size,
                                  sram_base | IO_MEM_RAM);
 
-    s->l4 = omap_l4_init(OMAP3_L4_BASE, 
-                         sizeof(omap3_l4_agent_info) 
-                         / sizeof(struct omap3_l4_agent_info_s));
+    s->l4 = omap_l4_init(OMAP3_L4_BASE, L4A_COUNT, 160);
 
     cpu_irq = arm_pic_init_cpu(s->env);
     s->ih[0] = omap2_inth_init(s, 0x48200000, 0x1000, 3, &s->irq[0],
@@ -4755,8 +4594,8 @@ struct omap_mpu_state_s *omap3530_mpu_init(unsigned long sdram_size,
                                         omap_findclk(s, "omap3_wkup_l4_iclk"));
     
 	
-    omap_synctimer_init(omap3_l4ta_init(s->l4, L4A_32KTIMER), s,
-                        omap_findclk(s, "omap3_sys_32k"), NULL);
+    s->synctimer = omap_synctimer_init(omap3_l4ta_init(s->l4, L4A_32KTIMER), s,
+                                       omap_findclk(s, "omap3_sys_32k"), NULL);
 
     s->sdrc = omap_sdrc_init(0x6d000000);
     
