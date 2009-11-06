@@ -72,13 +72,6 @@
 #define TRACE_SMS(...)
 #endif
 
-/*
- * When the flag below is defined, some I/O regions will not be mapped
- * this is needed because the current maximum number of I/O regions in
- * qemu-system-arm (128) is easily reached when everything is mapped.
- */
-#define OMAP3_REDUCE_IOREGIONS
-
 struct omap3_l3_region_s {
     uint32_t size;
     enum {
