@@ -75,5 +75,6 @@ uint8_t sd_read_data(SDState *sd);
 void sd_set_cb(SDState *sd, qemu_irq readonly, qemu_irq insert);
 int sd_data_ready(SDState *sd);
 void sd_enable(SDState *sd, int enable);
+int sd_is_mmc(SDState *sd);
 
 #endif	/* __hw_sd_h */

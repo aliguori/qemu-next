@@ -276,9 +276,9 @@ static void omap3_mmc_command(struct omap3_mmc_s *host)
     uint8_t response[16];
     int cmd = (host->cmd >> 24) & 0x3f; /* INDX */
     
-    TRACE1("%d type=%d arg=0x%08x blk=0x%08x, fifo=%d/%d",
-           cmd, (host->cmd >> 22) & 3, host->arg, host->blk,
-           host->fifo_start, host->fifo_len);
+    TRACE1("%d type=%d rsp=%d arg=0x%08x blk=0x%08x, fifo=%d/%d",
+           cmd, (host->cmd >> 22) & 3, (host->cmd >> 16) & 3, host->arg,
+           host->blk, host->fifo_start, host->fifo_len);
 
     if ((host->con & 2) && !cmd) { /* INIT and CMD0 */
         host->stat_pending |= 0x1;
@@ -319,42 +319,53 @@ static void omap3_mmc_command(struct omap3_mmc_s *host)
             }
             rsplen = 16;
             host->rsp76 = (response[0] << 24) | (response[1] << 16) |
-            (response[2] << 8) | (response[3] << 0);
+                          (response[2] << 8) | (response[3] << 0);
             host->rsp54 = (response[4] << 24) | (response[5] << 16) |
-            (response[6] << 8) | (response[7] << 0);
+                          (response[6] << 8) | (response[7] << 0);
             host->rsp32 = (response[8] << 24) | (response[9] << 16) |
-            (response[10] << 8) | (response[11] << 0);
+                          (response[10] << 8) | (response[11] << 0);
             host->rsp10 = (response[12] << 24) | (response[13] << 16) |
-            (response[14] << 8) | (response[15] << 0);
+                          (response[14] << 8) | (response[15] << 0);
             break;
-            case sd_48_bits:
-            case sd_48b_bits:
+        case sd_48_bits:
+        case sd_48b_bits:
             if (rsplen < 4) {
                 timeout = 1;
                 break;
             }
             rsplen = 4;
             host->rsp10 = (response[0] << 24) | (response[1] << 16) |
-            (response[2] << 8) | (response[3] << 0);
+                          (response[2] << 8) | (response[3] << 0);
             switch (cmd) {
                 case 41: /* r3 */
-                case 8:  /* r7 */
                     break;
                 case 3:  /* r6 */
                     mask = 0xe00;
                     rspstatus = (response[2] << 8) | response[3];
                     break;
+                case 5:
+                case 6:
+                    /* TODO: should this be done for all R1b type
+                     * commands with no DP? */
+                    if (sd_is_mmc(host->card)) {
+                        host->stat_pending |= 0x2; /* TC */
+                    }
+                    /* fall through */
                 default:
+                    if (cmd == 8 && !sd_is_mmc(host->card)) {
+                        /* r7 */
+                        break;
+                    }
                     mask = OUT_OF_RANGE | ADDRESS_ERROR | BLOCK_LEN_ERROR |
-                    ERASE_SEQ_ERROR | ERASE_PARAM | WP_VIOLATION |
-                    LOCK_UNLOCK_FAILED | COM_CRC_ERROR | ILLEGAL_COMMAND |
-                    CARD_ECC_FAILED | CC_ERROR | SD_ERROR |
-                    CID_CSD_OVERWRITE | WP_ERASE_SKIP;
+                        ERASE_SEQ_ERROR | ERASE_PARAM | WP_VIOLATION |
+                        LOCK_UNLOCK_FAILED | COM_CRC_ERROR | ILLEGAL_COMMAND |
+                        CARD_ECC_FAILED | CC_ERROR | SD_ERROR |
+                        CID_CSD_OVERWRITE | WP_ERASE_SKIP;
                     rspstatus = (response[0] << 24) | (response[1] << 16) |
-                    (response[2] << 8) | (response[3] << 0);
+                                (response[2] << 8) | (response[3] << 0);
                     break;
             }
-            default:
+        default:
             break;
     }
     
@@ -537,8 +548,8 @@ static void omap3_mmc_write(void *opaque, target_phys_addr_t addr,
             if (value & 0x10) {   /* MODE */
                 TRACE("SYSTEST mode is not supported");
             }
-            if (value & 0x20) {   /* DW8 */
-                TRACE("8-bit data width is not supported");
+            if ((value & 0x20) && !sd_is_mmc(s->card)) { /* DW8 */
+                TRACE("8-bit data width is not supported for SD cards");
             }
             if (value & 0x1000) { /* CEATA */
                 TRACE("CE-ATA control mode not supported");
@@ -793,7 +804,7 @@ void omap3_mmc_attach(struct omap3_mmc_s *s, DriveInfo *dinfo,
                       int is_spi, int is_mmc)
 {
     if (s->card) {
-        hw_error("%s: SD card already attached!", __FUNCTION__);
+        hw_error("%s: card already attached!", __FUNCTION__);
     }
     s->card = sd_init(dinfo ? dinfo->bdrv : NULL, is_spi, is_mmc);
 }
