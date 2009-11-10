@@ -2123,8 +2123,30 @@ struct n900_s {
     void *gl;
 #endif
     int slide_open;
+    int camera_cover_open;
+    int headphone_connected;
 };
 
+/* this takes care of the keys which are not located on the
+ * n900 keypad (note that volume up/down keys are handled by
+ * the keypad eventhough the keys are not located on the keypad)
+ * as well as triggering some other hardware button/switch-like
+ * events that are mapped to the host keyboard:
+ *
+ * escape ... power
+ * f1 ....... keypad slider open/close
+ * f2 ....... keypad lock
+ * f3 ....... camera lens cover open/close
+ * f4 ....... camera focus
+ * f5 ....... camera take picture
+ * f6 ....... stereo headphone connect/disconnect
+ * kp1 ...... decrease accelerometer x axis value
+ * kp2 ...... increase accelerometer x axis value
+ * kp4 ...... decrease accelerometer y axis value
+ * kp5 ...... increase accelerometer y axis value
+ * kp7 ...... decrease accelerometer z axis value
+ * kp8 ...... increase accelerometer z axis value
+ */
 static void n900_key_handler(void *opaque, int keycode)
 {
     struct n900_s *s = opaque;
@@ -2133,12 +2155,43 @@ static void n900_key_handler(void *opaque, int keycode)
         case 0x01: /* escape */
             twl4030_set_powerbutton_state(s->twl4030, !release);
             break;
-        case 0x29: /* backquote, the key left from 'z' */
+        case 0x3b: /* f1 */
             if (release) {
                 s->slide_open = !s->slide_open;
                 qemu_set_irq(omap2_gpio_in_get(s->cpu->gpif,
                                                N900_SLIDE_GPIO)[0],
                              !s->slide_open);
+            }
+            break;
+        case 0x3c: /* f2 */
+            qemu_set_irq(omap2_gpio_in_get(s->cpu->gpif,
+                                           N900_KBLOCK_GPIO)[0],
+                         !!release);
+            break;
+        case 0x3d: /* f3 */
+            if (release) {
+                s->camera_cover_open = !s->camera_cover_open;
+                    qemu_set_irq(omap2_gpio_in_get(s->cpu->gpif,
+                                                   N900_CAMCOVER_GPIO)[0],
+                                 s->camera_cover_open);
+            }
+            break;
+        case 0x3e: /* f4 */
+            qemu_set_irq(omap2_gpio_in_get(s->cpu->gpif,
+                                           N900_CAMFOCUS_GPIO)[0],
+                         !!release);
+            break;
+        case 0x3f: /* f5 */
+            qemu_set_irq(omap2_gpio_in_get(s->cpu->gpif,
+                                           N900_CAMLAUNCH_GPIO)[0],
+                         !!release);
+            break;
+        case 0x40: /* f6 */
+            if (release) {
+                s->headphone_connected = !s->headphone_connected;
+                qemu_set_irq(omap2_gpio_in_get(s->cpu->gpif,
+                                               N900_HEADPHONE_GPIO)[0],
+                             !s->headphone_connected);
             }
             break;
         case 0x4f ... 0x50: /* kp1,2 */
@@ -2169,13 +2222,13 @@ static const TWL4030KeyMap n900_twl4030_keymap[] = {
     {0x34, 1, 2}, /* . */
     {0x2f, 1, 3}, /* V */
     {0xd0, 1, 4}, /* DOWN */
-    {0x41, 1, 7}, /* F7 */
+    {0x41, 1, 7}, /* F7 -- volume/zoom down */
     {0x19, 2, 0}, /* P */
     {0x21, 2, 1}, /* F */
     {0xc8, 2, 2}, /* UP */
     {0x30, 2, 3}, /* B */
     {0xcd, 2, 4}, /* RIGHT */
-    {0x42, 2, 7}, /* F8 */
+    {0x42, 2, 7}, /* F8 -- volume/zoom up */
     {0x33, 3, 0}, /* , */
     {0x22, 3, 1}, /* G */
     {0x1c, 3, 2}, /* ENTER */
@@ -2187,7 +2240,7 @@ static const TWL4030KeyMap n900_twl4030_keymap[] = {
     {0x24, 5, 1}, /* J */
     {0x2c, 5, 2}, /* Z */
     {0x39, 5, 3}, /* SPACE */
-    {0x38, 5, 4}, /* LEFTALT */
+    {0x38, 5, 4}, /* LEFTALT -- "fn" */
     {0x1e, 6, 0}, /* A */
     {0x25, 6, 1}, /* K */
     {0x2d, 6, 2}, /* X */
@@ -2290,6 +2343,7 @@ static void n900_init(ram_addr_t ram_size,
     qemu_irq_lower(omap2_gpio_in_get(s->cpu->gpif, N900_CAMCOVER_GPIO)[0]);
     qemu_irq_lower(omap2_gpio_in_get(s->cpu->gpif, N900_SLIDE_GPIO)[0]);
     s->slide_open = 1;
+    s->camera_cover_open = 0;
     
     qemu_add_kbd_event_handler(n900_key_handler, s);
     
