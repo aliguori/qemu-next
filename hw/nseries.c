@@ -146,7 +146,7 @@ static void n8x0_gpio_setup(struct n800_s *s)
     qemu_irq *mmc_cs = qemu_allocate_irqs(n800_mmc_cs_cb, s->cpu->mmc, 1);
     omap2_gpio_out_set(s->cpu->gpif, N8X0_MMC_CS_GPIO, mmc_cs[0]);
 
-    qemu_irq_lower(omap2_gpio_in_get(s->cpu->gpif, N800_BAT_COVER_GPIO)[0]);
+    qemu_irq_lower(omap2_gpio_in_get(s->cpu->gpif, N800_BAT_COVER_GPIO));
 }
 
 #define MAEMO_CAL_HEADER(...)				\
@@ -176,7 +176,7 @@ static void n8x0_nand_setup(struct n800_s *s)
 
     /* Either 0x40 or 0x48 are OK for the device ID */
     s->nand = onenand_init(NAND_MFR_SAMSUNG, 0x48, 0, 1,
-                           omap2_gpio_in_get(s->cpu->gpif,N8X0_ONENAND_GPIO)[0],
+                           omap2_gpio_in_get(s->cpu->gpif,N8X0_ONENAND_GPIO),
                            drive_get(IF_MTD, 0, 0));
     omap_gpmc_attach(s->cpu->gpmc, N8X0_ONENAND_CS, 0, onenand_base_update,
                      onenand_base_unmap, s->nand, 0);
@@ -190,7 +190,7 @@ static void n8x0_nand_setup(struct n800_s *s)
 static void n8x0_i2c_setup(struct n800_s *s)
 {
     DeviceState *dev;
-    qemu_irq tmp_irq = omap2_gpio_in_get(s->cpu->gpif, N8X0_TMP105_GPIO)[0];
+    qemu_irq tmp_irq = omap2_gpio_in_get(s->cpu->gpif, N8X0_TMP105_GPIO);
 
     /* Attach the CPU on one end of our I2C bus.  */
     s->i2c = omap_i2c_bus(s->cpu->i2c[0]);
@@ -259,8 +259,8 @@ static void n800_tsc_kbd_setup(struct n800_s *s)
     /* XXX: are the three pins inverted inside the chip between the
      * tsc and the cpu (N4111)?  */
     qemu_irq penirq = NULL;	/* NC */
-    qemu_irq kbirq = omap2_gpio_in_get(s->cpu->gpif, N800_TSC_KP_IRQ_GPIO)[0];
-    qemu_irq dav = omap2_gpio_in_get(s->cpu->gpif, N800_TSC_TS_GPIO)[0];
+    qemu_irq kbirq = omap2_gpio_in_get(s->cpu->gpif, N800_TSC_KP_IRQ_GPIO);
+    qemu_irq dav = omap2_gpio_in_get(s->cpu->gpif, N800_TSC_TS_GPIO);
 
     s->ts.chip = tsc2301_init(penirq, kbirq, dav);
     s->ts.opaque = s->ts.chip->opaque;
@@ -279,7 +279,7 @@ static void n800_tsc_kbd_setup(struct n800_s *s)
 
 static void n810_tsc_setup(struct n800_s *s)
 {
-    qemu_irq pintdav = omap2_gpio_in_get(s->cpu->gpif, N810_TSC_TS_GPIO)[0];
+    qemu_irq pintdav = omap2_gpio_in_get(s->cpu->gpif, N810_TSC_TS_GPIO);
 
     s->ts.opaque = tsc2005_init(pintdav);
     s->ts.txrx = tsc2005_txrx;
@@ -371,7 +371,7 @@ static int n810_keys[0x80] = {
 
 static void n810_kbd_setup(struct n800_s *s)
 {
-    qemu_irq kbd_irq = omap2_gpio_in_get(s->cpu->gpif, N810_KEYBOARD_GPIO)[0];
+    qemu_irq kbd_irq = omap2_gpio_in_get(s->cpu->gpif, N810_KEYBOARD_GPIO);
     DeviceState *dev;
     int i;
 
@@ -859,9 +859,9 @@ static void n8x0_dss_setup(struct n800_s *s)
 
 static void n8x0_cbus_setup(struct n800_s *s)
 {
-    qemu_irq dat_out = omap2_gpio_in_get(s->cpu->gpif, N8X0_CBUS_DAT_GPIO)[0];
-    qemu_irq retu_irq = omap2_gpio_in_get(s->cpu->gpif, N8X0_RETU_GPIO)[0];
-    qemu_irq tahvo_irq = omap2_gpio_in_get(s->cpu->gpif, N8X0_TAHVO_GPIO)[0];
+    qemu_irq dat_out = omap2_gpio_in_get(s->cpu->gpif, N8X0_CBUS_DAT_GPIO);
+    qemu_irq retu_irq = omap2_gpio_in_get(s->cpu->gpif, N8X0_RETU_GPIO);
+    qemu_irq tahvo_irq = omap2_gpio_in_get(s->cpu->gpif, N8X0_TAHVO_GPIO);
 
     CBus *cbus = cbus_init(dat_out);
 
@@ -876,8 +876,7 @@ static void n8x0_cbus_setup(struct n800_s *s)
 static void n8x0_uart_setup(struct n800_s *s)
 {
     CharDriverState *radio = uart_hci_init(
-                    omap2_gpio_in_get(s->cpu->gpif,
-                            N8X0_BT_HOST_WKUP_GPIO)[0]);
+                    omap2_gpio_in_get(s->cpu->gpif, N8X0_BT_HOST_WKUP_GPIO));
 
     omap2_gpio_out_set(s->cpu->gpif, N8X0_BT_RESET_GPIO,
                     csrhci_pins_get(radio)[csrhci_pin_reset]);
@@ -896,7 +895,7 @@ static void n8x0_usb_power_cb(void *opaque, int line, int level)
 
 static void n8x0_usb_setup(struct n800_s *s)
 {
-    qemu_irq tusb_irq = omap2_gpio_in_get(s->cpu->gpif, N8X0_TUSB_INT_GPIO)[0];
+    qemu_irq tusb_irq = omap2_gpio_in_get(s->cpu->gpif, N8X0_TUSB_INT_GPIO);
     qemu_irq tusb_pwr = qemu_allocate_irqs(n8x0_usb_power_cb, s, 1)[0];
     TUSBState *tusb = tusb6010_init(tusb_irq);
 
@@ -1154,7 +1153,7 @@ static void n8x0_boot_init(void *opaque)
 
     /* If the machine has a slided keyboard, open it */
     if (s->kbd)
-        qemu_irq_raise(omap2_gpio_in_get(s->cpu->gpif, N810_SLIDE_GPIO)[0]);
+        qemu_irq_raise(omap2_gpio_in_get(s->cpu->gpif, N810_SLIDE_GPIO));
 }
 
 #define OMAP_TAG_NOKIA_BT	0x4e01
@@ -2158,39 +2157,35 @@ static void n900_key_handler(void *opaque, int keycode)
         case 0x3b: /* f1 */
             if (release) {
                 s->slide_open = !s->slide_open;
-                qemu_set_irq(omap2_gpio_in_get(s->cpu->gpif,
-                                               N900_SLIDE_GPIO)[0],
+                qemu_set_irq(omap2_gpio_in_get(s->cpu->gpif, N900_SLIDE_GPIO),
                              !s->slide_open);
             }
             break;
         case 0x3c: /* f2 */
-            qemu_set_irq(omap2_gpio_in_get(s->cpu->gpif,
-                                           N900_KBLOCK_GPIO)[0],
+            qemu_set_irq(omap2_gpio_in_get(s->cpu->gpif, N900_KBLOCK_GPIO),
                          !!release);
             break;
         case 0x3d: /* f3 */
             if (release) {
                 s->camera_cover_open = !s->camera_cover_open;
                     qemu_set_irq(omap2_gpio_in_get(s->cpu->gpif,
-                                                   N900_CAMCOVER_GPIO)[0],
+                                                   N900_CAMCOVER_GPIO),
                                  s->camera_cover_open);
             }
             break;
         case 0x3e: /* f4 */
-            qemu_set_irq(omap2_gpio_in_get(s->cpu->gpif,
-                                           N900_CAMFOCUS_GPIO)[0],
+            qemu_set_irq(omap2_gpio_in_get(s->cpu->gpif, N900_CAMFOCUS_GPIO),
                          !!release);
             break;
         case 0x3f: /* f5 */
-            qemu_set_irq(omap2_gpio_in_get(s->cpu->gpif,
-                                           N900_CAMLAUNCH_GPIO)[0],
+            qemu_set_irq(omap2_gpio_in_get(s->cpu->gpif, N900_CAMLAUNCH_GPIO),
                          !!release);
             break;
         case 0x40: /* f6 */
             if (release) {
                 s->headphone_connected = !s->headphone_connected;
                 qemu_set_irq(omap2_gpio_in_get(s->cpu->gpif,
-                                               N900_HEADPHONE_GPIO)[0],
+                                               N900_HEADPHONE_GPIO),
                              !s->headphone_connected);
             }
             break;
@@ -2284,7 +2279,7 @@ static void n900_init(ram_addr_t ram_size,
     omap_lcd_panel_attach(s->cpu->dss, omap3_lcd_panel_get(s->lcd));
     
     s->tsc2005 = tsc2005_init(omap2_gpio_in_get(s->cpu->gpif,
-                                                N900_TSC2005_IRQ_GPIO)[0]);
+                                                N900_TSC2005_IRQ_GPIO));
     tsc2005_set_transform(s->tsc2005, &n900_pointercal, 600, 1500);
     omap_mcspi_attach(s->cpu->mcspi[0], tsc2005_txrx, s->tsc2005, 0);
     cursor_hide = 0; // who wants to use touchscreen without a pointer?
@@ -2296,7 +2291,7 @@ static void n900_init(ram_addr_t ram_size,
     omap_mcspi_attach(s->cpu->mcspi[0], mipid_txrx, s->mipid, 2);
     
     s->nand = onenand_init(NAND_MFR_SAMSUNG, 0x40, 0x121, 1, 
-                           omap2_gpio_in_get(s->cpu->gpif, N900_ONENAND_GPIO)[0],
+                           omap2_gpio_in_get(s->cpu->gpif, N900_ONENAND_GPIO),
                            dmtd);
     omap_gpmc_attach(s->cpu->gpmc, N900_ONENAND_CS, 0, onenand_base_update,
                      onenand_base_unmap, s->nand, 0);
@@ -2306,7 +2301,7 @@ static void n900_init(ram_addr_t ram_size,
     }
     if ((dsd = drive_get(IF_SD, 0, 1)) >= 0) {
         omap3_mmc_attach(s->cpu->omap3_mmc[0], dsd, 0, 0);
-        //qemu_irq_raise(omap2_gpio_in_get(s->cpu->gpif, N900_SDCOVER_GPIO)[0]);
+        //qemu_irq_raise(omap2_gpio_in_get(s->cpu->gpif, N900_SDCOVER_GPIO));
     }
     
     cpu_register_physical_memory(0x48058000, 0x3c00,
@@ -2326,22 +2321,22 @@ static void n900_init(ram_addr_t ram_size,
     s->lis302dl = lis302dl_init(i2c_create_slave(omap_i2c_bus(s->cpu->i2c[2]),
                                                  "lis302dl", 0x1d),
                                 omap2_gpio_in_get(s->cpu->gpif,
-                                                  N900_LIS302DL_INT1_GPIO)[0],
+                                                  N900_LIS302DL_INT1_GPIO),
                                 omap2_gpio_in_get(s->cpu->gpif,
-                                                  N900_LIS302DL_INT2_GPIO)[0]);
+                                                  N900_LIS302DL_INT2_GPIO));
     
     s->smc = smc91c111_init_lite(&nd_table[0], /*0x08000000,*/
-                                 omap2_gpio_in_get(s->cpu->gpif, 54)[0]);
+                                 omap2_gpio_in_get(s->cpu->gpif, 54));
     
     omap_gpmc_attach(s->cpu->gpmc, N900_SMC_CS, smc91c111_iomemtype(s->smc),
                      NULL, NULL, s->smc, 0);
     
-    qemu_irq_raise(omap2_gpio_in_get(s->cpu->gpif, N900_KBLOCK_GPIO)[0]);
-    qemu_irq_raise(omap2_gpio_in_get(s->cpu->gpif, N900_HEADPHONE_GPIO)[0]);
-    qemu_irq_raise(omap2_gpio_in_get(s->cpu->gpif, N900_CAMLAUNCH_GPIO)[0]);
-    qemu_irq_raise(omap2_gpio_in_get(s->cpu->gpif, N900_CAMFOCUS_GPIO)[0]);
-    qemu_irq_lower(omap2_gpio_in_get(s->cpu->gpif, N900_CAMCOVER_GPIO)[0]);
-    qemu_irq_lower(omap2_gpio_in_get(s->cpu->gpif, N900_SLIDE_GPIO)[0]);
+    qemu_irq_raise(omap2_gpio_in_get(s->cpu->gpif, N900_KBLOCK_GPIO));
+    qemu_irq_raise(omap2_gpio_in_get(s->cpu->gpif, N900_HEADPHONE_GPIO));
+    qemu_irq_raise(omap2_gpio_in_get(s->cpu->gpif, N900_CAMLAUNCH_GPIO));
+    qemu_irq_raise(omap2_gpio_in_get(s->cpu->gpif, N900_CAMFOCUS_GPIO));
+    qemu_irq_lower(omap2_gpio_in_get(s->cpu->gpif, N900_CAMCOVER_GPIO));
+    qemu_irq_lower(omap2_gpio_in_get(s->cpu->gpif, N900_SLIDE_GPIO));
     s->slide_open = 1;
     s->camera_cover_open = 0;
     

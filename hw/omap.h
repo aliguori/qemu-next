@@ -889,7 +889,7 @@ struct omap_gpif_s *omap3_gpio_init(struct omap_mpu_state_s *mpu,
                                     struct omap_target_agent_s **ta,
                                     qemu_irq *irq);
 void omap_gpif_reset(struct omap_gpif_s *s);
-qemu_irq *omap2_gpio_in_get(struct omap_gpif_s *s, int start);
+qemu_irq omap2_gpio_in_get(struct omap_gpif_s *s, int line);
 void omap2_gpio_out_set(struct omap_gpif_s *s, int line, qemu_irq handler);
 
 /* omap_uart.c */

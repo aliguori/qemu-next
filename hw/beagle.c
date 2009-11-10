@@ -81,7 +81,7 @@ static void beagle_init(ram_addr_t ram_size,
                               s->cpu->irq[0][OMAP_INT_3XXX_SYS_NIRQ],
                               NULL, NULL);
     s->smc = smc91c111_init_lite(&nd_table[0], /*0x08000000,*/
-                                 omap2_gpio_in_get(s->cpu->gpif, 54)[0]);
+                                 omap2_gpio_in_get(s->cpu->gpif, 54));
     omap_gpmc_attach(s->cpu->gpmc, BEAGLE_SMC_CS, smc91c111_iomemtype(s->smc),
                      NULL, NULL, s->smc, 0);
 

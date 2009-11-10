@@ -796,11 +796,11 @@ struct omap_gpif_s *omap3_gpio_init(struct omap_mpu_state_s *mpu,
     return s;
 }
 
-qemu_irq *omap2_gpio_in_get(struct omap_gpif_s *s, int start)
+qemu_irq omap2_gpio_in_get(struct omap_gpif_s *s, int line)
 {
-    if (start >= s->modules * 32 || start < 0)
-        hw_error("%s: No GPIO line %i\n", __FUNCTION__, start);
-    return s->module[start >> 5].in + (start & 31);
+    if (line >= s->modules * 32 || line < 0)
+        hw_error("%s: No GPIO line %i\n", __FUNCTION__, line);
+    return s->module[line >> 5].in[line & 31];
 }
 
 void omap2_gpio_out_set(struct omap_gpif_s *s, int line, qemu_irq handler)
