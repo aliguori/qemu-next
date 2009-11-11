@@ -1,5 +1,5 @@
 /*
- * QJSON Module
+ * QObject JSON integration
  *
  * Copyright IBM, Corp. 2009
  *

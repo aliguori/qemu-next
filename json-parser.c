@@ -1,5 +1,5 @@
 /*
- * QJSON Module
+ * JSON Parser 
  *
  * Copyright IBM, Corp. 2009
  *
@@ -20,7 +20,7 @@
 #include "qlist.h"
 #include "qfloat.h"
 #include "qbool.h"
-#include "qjson.h"
+#include "json-parser.h"
 #include "json-lexer.h"
 
 typedef struct JSONParserContext
@@ -34,7 +34,6 @@ typedef struct JSONParserContext
  *
  * 0) make errors meaningful again
  * 1) add geometry information to tokens
- * 2) lots of testing
  * 3) should we return a parsed size?
  * 4) deal with premature EOI
  */
@@ -547,50 +546,15 @@ static QObject *parse_value(JSONParserContext *ctxt, QList **tokens, va_list *ap
     return obj;
 }
 
-typedef struct JSONParsingState
+QObject *json_parser_parse(QList *tokens, va_list *ap)
 {
-    JSONMessageParser parser;
-    va_list *ap;
-    QObject *result;
-} JSONParsingState;
-
-static void parse_json(JSONMessageParser *parser, QList *tokens)
-{
-    JSONParsingState *s = container_of(parser, JSONParsingState, parser);
     JSONParserContext ctxt = {};
     QList *working = qlist_copy(tokens);
+    QObject *result;
 
-    s->result = parse_value(&ctxt, &working, s->ap);
+    result = parse_value(&ctxt, &working, ap);
 
     QDECREF(working);
-}
 
-QObject *qobject_from_json(const char *string)
-{
-    JSONParsingState state = {};
-
-    json_message_parser_init(&state.parser, parse_json);
-    json_message_parser_feed(&state.parser, string, strlen(string));
-    json_message_parser_flush(&state.parser);
-    json_message_parser_destroy(&state.parser);
-
-    return state.result;
-}
-
-QObject *qobject_from_jsonf(const char *string, ...)
-{
-    JSONParsingState state = {};
-    va_list ap;
-
-    va_start(ap, string);
-    state.ap = &ap;
-
-    json_message_parser_init(&state.parser, parse_json);
-    json_message_parser_feed(&state.parser, string, strlen(string));
-    json_message_parser_flush(&state.parser);
-    json_message_parser_destroy(&state.parser);
-
-    va_end(ap);
-
-    return state.result;
+    return result;
 }

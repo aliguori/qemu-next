@@ -126,7 +126,6 @@ obj-y += qemu-char.o aio.o net-checksum.o savevm.o
 obj-y += msmouse.o ps2.o
 obj-y += qdev.o qdev-properties.o
 obj-y += qint.o qstring.o qdict.o qlist.o qfloat.o qbool.o qjson.o
-obj-y += qemu-config.o
 
 obj-$(CONFIG_BRLAPI) += baum.o
 obj-$(CONFIG_WIN32) += tap-win32.o
@@ -217,7 +216,7 @@ check-qstring: check-qstring.o qstring.o qemu-malloc.o
 check-qdict: check-qdict.o qdict.o qint.o qstring.o qemu-malloc.o
 check-qlist: check-qlist.o qlist.o qint.o qemu-malloc.o
 check-qfloat: check-qfloat.o qfloat.o qemu-malloc.o
-check-qjson: check-qjson.o qjson.o qstring.o qint.o qdict.o qlist.o qfloat.o qbool.o json-lexer.o qemu-malloc.o
+check-qjson: check-qjson.o qjson.o qstring.o qint.o qdict.o qlist.o qfloat.o qbool.o json-lexer.o json-streamer.o json-parser.o qemu-malloc.o
 
 clean:
 # avoid old build problems by removing potentially incorrect old files
