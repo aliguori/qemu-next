@@ -543,8 +543,6 @@ START_TEST(simple_varargs)
     obj = qobject_from_jsonf("[%d, 2, %p]", 1, embedded_obj);
     fail_unless(obj != NULL);
 
-    qobject_decref(embedded_obj);
-
     fail_unless(compare_litqobj_to_qobj(&decoded, obj) == 1);
 
     qobject_decref(obj);
@@ -570,10 +568,8 @@ static Suite *qjson_suite(void)
 
     keyword_literals = tcase_create("Keywords");
     tcase_add_test(keyword_literals, keyword_literal);
-
     dicts = tcase_create("Objects");
     tcase_add_test(dicts, simple_dict);
-
     lists = tcase_create("Lists");
     tcase_add_test(lists, simple_list);
 
