@@ -62,6 +62,7 @@ struct TWL4030State {
     qemu_irq irq1;
     qemu_irq irq2;
     const TWL4030KeyMap *keymap;
+    int extended_key;
     
     int key_cfg;
     int key_tst;
@@ -1051,11 +1052,17 @@ static void twl4030_key_setstate(TWL4030NodeState *s,
 static void twl4030_key_handler(void *opaque, int keycode)
 {
     TWL4030NodeState *s = (TWL4030NodeState *)opaque;
-    const TWL4030KeyMap *k = s->twl4030->keymap;
-    for (; k && k->code >= 0; k++) {
-        if (k->code == (keycode & 0x7f)) {
-            twl4030_key_setstate(s, k->column, k->row, !(keycode & 0x80));
+    if (!s->twl4030->extended_key && keycode == 0xe0) {
+        s->twl4030->extended_key = 0x80;
+    } else {
+        const TWL4030KeyMap *k = s->twl4030->keymap;
+        int fullcode = (keycode & 0x7f) | (s->twl4030->extended_key);
+        for (; k && k->code >= 0; k++) {
+            if (k->code == fullcode) {
+                twl4030_key_setstate(s, k->column, k->row, !(keycode & 0x80));
+            }
         }
+        s->twl4030->extended_key = 0;
     }
 }
 
