@@ -90,6 +90,8 @@ obj-system/config-host.mak: configure
 		--prefix=/usr \
 		--interp-prefix=/ \
 		--disable-blobs \
+		--enable-glhw \
+		--enable-osmesa \
 		--disable-werror\
 		--target-list="$(target_system_list)" \
 		$(conf_arch) )
