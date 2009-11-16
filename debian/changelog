@@ -1,3 +1,9 @@
+qemu (0.10.0-0sb10) unstable; urgency=low
+
+  * nextgen releas
+
+ -- Riku Voipio <riku.voipio@iki.fi>  Fri, 04 Sep 2009 18:11:08 +0300
+
 qemu (0.10.0-0sb8) unstable; urgency=low
 
   * ascension release

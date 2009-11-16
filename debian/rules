@@ -3,14 +3,12 @@
 # $Id: rules 366 2008-12-23 16:19:26Z aurel32 $
 #
 
-ifneq (,$(findstring noopt,$(DEB_BUILD_OPTIONS)))
-	CFLAGS = -O0
-endif
-
 # Support multiple makes at once
 ifneq (,$(filter parallel=%,$(DEB_BUILD_OPTIONS)))
 NJOBS := -j $(patsubst parallel=%,%,$(filter parallel=%,$(DEB_BUILD_OPTIONS)))
 endif
+unexport CFLAGS
+unexport LDFLAGS
 
 # Architecture/system specific configuration
 DEB_HOST_ARCH_OS = $(shell dpkg-architecture -qDEB_HOST_ARCH_OS)
@@ -62,7 +60,7 @@ qemu_docs = \
 obj-sb2/config-host.mak: configure
 	dh_testdir
 	mkdir obj-sb2
-	( cd obj-sb2; CFLAGS="$(CFLAGS)" ../configure \
+	( cd obj-sb2; ../configure \
 		--prefix=/usr \
 		--interp-prefix=/ \
 		--disable-blobs \
@@ -74,19 +72,20 @@ obj-sb2/config-host.mak: configure
 obj-sb1/config-host.mak: configure
 	dh_testdir
 	mkdir obj-sb1
-	( cd obj-sb1; CFLAGS="$(CFLAGS) $(SB1_CFLAGS)"  ../configure \
+	( cd obj-sb1; ../configure \
 		--prefix=$(sb1_prefix) \
 		--interp-prefix=/ \
 		--static \
+		--disable-werror\
 		--enable-guest-base \
 		--target-list="$(sb1_target_list)"\
-		--disable-kqemu --disable-sdl )
+		--disable-sdl )
 	( cd obj-sb1; $(MAKE) $(NJOBS) )
 
 obj-system/config-host.mak: configure
 	dh_testdir
 	mkdir obj-system
-	( cd obj-system; CFLAGS="$(CFLAGS)" ../configure \
+	( cd obj-system; ../configure \
 		--prefix=/usr \
 		--interp-prefix=/ \
 		--disable-blobs \
