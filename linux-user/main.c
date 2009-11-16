@@ -2709,7 +2709,7 @@ int main(int argc, char **argv, char **envp)
     env->opaque = ts;
     task_settid(ts);
 
-    ret = loader_exec(filename, target_argv, target_environ, regs,
+    ret = loader_exec(filename, target_argv+argskip, target_environ, regs,
         info, &bprm);
     if (ret != 0) {
         printf("Error %d while loading %s\n", ret, filename);
