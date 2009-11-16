@@ -64,6 +64,7 @@ obj-sb2/config-host.mak: configure
 		--prefix=/usr \
 		--interp-prefix=/ \
 		--disable-blobs \
+		--disable-werror\
 		--enable-guest-base \
 		--target-list="$(target_linux_list)" \
 		$(conf_arch) )
@@ -89,7 +90,7 @@ obj-system/config-host.mak: configure
 		--prefix=/usr \
 		--interp-prefix=/ \
 		--disable-blobs \
-		--enable-guest-base \
+		--disable-werror\
 		--target-list="$(target_system_list)" \
 		$(conf_arch) )
 	( cd obj-system; $(MAKE) $(NJOBS) )
