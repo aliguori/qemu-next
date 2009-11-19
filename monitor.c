@@ -3174,6 +3174,18 @@ fail:
     return NULL;
 }
 
+static void monitor_call_handler(Monitor *mon, const mon_cmd_t *cmd,
+                                 const QDict *params)
+{
+    QObject *data = NULL;
+
+    cmd->mhandler.cmd_new(mon, params, &data);
+    if (data)
+        cmd->user_print(mon, data);
+
+    qobject_decref(data);
+}
+
 static void monitor_handle_command(Monitor *mon, const char *cmdline)
 {
     QDict *qdict;
@@ -3188,13 +3200,7 @@ static void monitor_handle_command(Monitor *mon, const char *cmdline)
     qemu_errors_to_mon(mon);
 
     if (monitor_handler_ported(cmd)) {
-        QObject *data = NULL;
-
-        cmd->mhandler.cmd_new(mon, qdict, &data);
-        if (data)
-            cmd->user_print(mon, data);
-
-        qobject_decref(data);
+        monitor_call_handler(mon, cmd, qdict);
     } else {
         cmd->mhandler.cmd(mon, qdict);
     }
