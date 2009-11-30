@@ -2121,6 +2121,7 @@ struct n900_s {
 #ifdef CONFIG_GLHW
     void *gl;
 #endif
+    int extended_key;
     int slide_open;
     int camera_cover_open;
     int headphone_connected;
@@ -2149,57 +2150,67 @@ struct n900_s {
 static void n900_key_handler(void *opaque, int keycode)
 {
     struct n900_s *s = opaque;
-    int release = keycode & 0x80;
-    switch (keycode &= 0x7f) {
-        case 0x01: /* escape */
-            twl4030_set_powerbutton_state(s->twl4030, !release);
-            break;
-        case 0x3b: /* f1 */
-            if (release) {
-                s->slide_open = !s->slide_open;
-                qemu_set_irq(omap2_gpio_in_get(s->cpu->gpif, N900_SLIDE_GPIO),
-                             !s->slide_open);
-            }
-            break;
-        case 0x3c: /* f2 */
-            qemu_set_irq(omap2_gpio_in_get(s->cpu->gpif, N900_KBLOCK_GPIO),
-                         !!release);
-            break;
-        case 0x3d: /* f3 */
-            if (release) {
-                s->camera_cover_open = !s->camera_cover_open;
+    if (!s->extended_key && keycode == 0xe0) {
+        s->extended_key = 0x80;
+    } else {
+        int release = keycode & 0x80;
+        keycode = (keycode & 0x7f) | s->extended_key;
+        s->extended_key = 0;
+        switch (keycode) {
+            case 0x01: /* escape */
+                twl4030_set_powerbutton_state(s->twl4030, !release);
+                break;
+            case 0x3b: /* f1 */
+                if (release) {
+                    s->slide_open = !s->slide_open;
+                    qemu_set_irq(omap2_gpio_in_get(s->cpu->gpif,
+                                                   N900_SLIDE_GPIO),
+                                 !s->slide_open);
+                }
+                break;
+            case 0x3c: /* f2 */
+                qemu_set_irq(omap2_gpio_in_get(s->cpu->gpif,
+                                               N900_KBLOCK_GPIO),
+                             !!release);
+                break;
+            case 0x3d: /* f3 */
+                if (release) {
+                    s->camera_cover_open = !s->camera_cover_open;
                     qemu_set_irq(omap2_gpio_in_get(s->cpu->gpif,
                                                    N900_CAMCOVER_GPIO),
                                  s->camera_cover_open);
-            }
-            break;
-        case 0x3e: /* f4 */
-            qemu_set_irq(omap2_gpio_in_get(s->cpu->gpif, N900_CAMFOCUS_GPIO),
-                         !!release);
-            break;
-        case 0x3f: /* f5 */
-            qemu_set_irq(omap2_gpio_in_get(s->cpu->gpif, N900_CAMLAUNCH_GPIO),
-                         !!release);
-            break;
-        case 0x40: /* f6 */
-            if (release) {
-                s->headphone_connected = !s->headphone_connected;
+                }
+                break;
+            case 0x3e: /* f4 */
                 qemu_set_irq(omap2_gpio_in_get(s->cpu->gpif,
-                                               N900_HEADPHONE_GPIO),
-                             !s->headphone_connected);
-            }
-            break;
-        case 0x4f ... 0x50: /* kp1,2 */
-            lis302dl_trigger(s->lis302dl, 0, keycode - 0x4f, !release);
-            break;
-        case 0x4b ... 0x4c: /* kp4,5 */
-            lis302dl_trigger(s->lis302dl, 1, keycode - 0x4b, !release);
-            break;
-        case 0x47 ... 0x48: /* kp7,8 */
-            lis302dl_trigger(s->lis302dl, 2, keycode - 0x47, !release);
-            break;
-        default:
-            break;
+                                               N900_CAMFOCUS_GPIO),
+                             !!release);
+                break;
+            case 0x3f: /* f5 */
+                qemu_set_irq(omap2_gpio_in_get(s->cpu->gpif,
+                                               N900_CAMLAUNCH_GPIO),
+                             !!release);
+                break;
+            case 0x40: /* f6 */
+                if (release) {
+                    s->headphone_connected = !s->headphone_connected;
+                    qemu_set_irq(omap2_gpio_in_get(s->cpu->gpif,
+                                                   N900_HEADPHONE_GPIO),
+                                 !s->headphone_connected);
+                }
+                break;
+            case 0x4f ... 0x50: /* kp1,2 */
+                lis302dl_trigger(s->lis302dl, 0, keycode - 0x4f, !release);
+                break;
+            case 0x4b ... 0x4c: /* kp4,5 */
+                lis302dl_trigger(s->lis302dl, 1, keycode - 0x4b, !release);
+                break;
+            case 0x47 ... 0x48: /* kp7,8 */
+                lis302dl_trigger(s->lis302dl, 2, keycode - 0x47, !release);
+                break;
+            default:
+                break;
+        }
     }
 }
 
