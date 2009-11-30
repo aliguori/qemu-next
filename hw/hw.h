@@ -43,12 +43,14 @@ typedef int (QEMUFileRateLimit)(void *opaque);
  * the old rate otherwise
  */
 typedef size_t (QEMUFileSetRateLimit)(void *opaque, size_t new_rate);
+typedef size_t (QEMUFileGetRateLimit)(void *opaque);
 
 QEMUFile *qemu_fopen_ops(void *opaque, QEMUFilePutBufferFunc *put_buffer,
                          QEMUFileGetBufferFunc *get_buffer,
                          QEMUFileCloseFunc *close,
                          QEMUFileRateLimit *rate_limit,
-                         QEMUFileSetRateLimit *set_rate_limit);
+                         QEMUFileSetRateLimit *set_rate_limit,
+			 QEMUFileGetRateLimit *get_rate_limit);
 QEMUFile *qemu_fopen(const char *filename, const char *mode);
 QEMUFile *qemu_fdopen(int fd, const char *mode);
 QEMUFile *qemu_fopen_socket(int fd);
@@ -85,6 +87,7 @@ unsigned int qemu_get_be32(QEMUFile *f);
 uint64_t qemu_get_be64(QEMUFile *f);
 int qemu_file_rate_limit(QEMUFile *f);
 size_t qemu_file_set_rate_limit(QEMUFile *f, size_t new_rate);
+size_t qemu_file_get_rate_limit(QEMUFile *f);
 int qemu_file_has_error(QEMUFile *f);
 void qemu_file_set_error(QEMUFile *f);
 
@@ -239,6 +242,7 @@ static inline void qemu_get_sbe64s(QEMUFile *f, int64_t *pv)
 int64_t qemu_ftell(QEMUFile *f);
 int64_t qemu_fseek(QEMUFile *f, int64_t pos, int whence);
 
+typedef void SaveSetParamsHandler(int blk_enable, int shared, void * opaque);
 typedef void SaveStateHandler(QEMUFile *f, void *opaque);
 typedef int SaveLiveStateHandler(QEMUFile *f, int stage, void *opaque);
 typedef int LoadStateHandler(QEMUFile *f, void *opaque, int version_id);
@@ -253,7 +257,8 @@ int register_savevm(const char *idstr,
 int register_savevm_live(const char *idstr,
                          int instance_id,
                          int version_id,
-                         SaveLiveStateHandler *save_live_state,
+                         SaveSetParamsHandler *set_params,
+			 SaveLiveStateHandler *save_live_state,
                          SaveStateHandler *save_state,
                          LoadStateHandler *load_state,
                          void *opaque);
@@ -485,11 +490,11 @@ extern const VMStateInfo vmstate_info_unused_buffer;
     .offset       = vmstate_offset_buffer(_state, _field) + _start,  \
 }
 
-#define VMSTATE_BUFFER_UNSAFE(_field, _state, _version, _size) {     \
+#define VMSTATE_BUFFER_UNSAFE_INFO(_field, _state, _version, _info, _size) { \
     .name       = (stringify(_field)),                               \
     .version_id = (_version),                                        \
     .size       = (_size),                                           \
-    .info       = &vmstate_info_buffer,                              \
+    .info       = &(_info),                                          \
     .flags      = VMS_BUFFER,                                        \
     .offset     = offsetof(_state, _field),                          \
 }
@@ -508,6 +513,17 @@ extern const VMStateDescription vmstate_pci_device;
     .name       = (stringify(_field)),                               \
     .size       = sizeof(PCIDevice),                                 \
     .vmsd       = &vmstate_pci_device,                               \
+    .flags      = VMS_STRUCT,                                        \
+    .offset     = vmstate_offset_value(_state, _field, PCIDevice),   \
+}
+
+extern const VMStateDescription vmstate_pcie_device;
+
+#define VMSTATE_PCIE_DEVICE(_field, _state) {                        \
+    .name       = (stringify(_field)),                               \
+    .version_id = 2,                                                 \
+    .size       = sizeof(PCIDevice),                                 \
+    .vmsd       = &vmstate_pcie_device,                              \
     .flags      = VMS_STRUCT,                                        \
     .offset     = vmstate_offset_value(_state, _field, PCIDevice),   \
 }
@@ -669,6 +685,9 @@ extern const VMStateDescription vmstate_i2c_slave;
 
 #define VMSTATE_BUFFER_TEST(_f, _s, _test)                            \
     VMSTATE_STATIC_BUFFER(_f, _s, 0, _test, 0, sizeof(typeof_field(_s, _f)))
+
+#define VMSTATE_BUFFER_UNSAFE(_field, _state, _version, _size)        \
+    VMSTATE_BUFFER_UNSAFE_INFO(_field, _state, _version, vmstate_info_buffer, _size)
 
 #define VMSTATE_UNUSED_V(_v, _size)                                   \
     VMSTATE_UNUSED_BUFFER(NULL, _v, _size)

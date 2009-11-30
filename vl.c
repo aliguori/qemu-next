@@ -148,6 +148,8 @@ int main(int argc, char **argv)
 #include "qemu-char.h"
 #include "cache-utils.h"
 #include "block.h"
+#include "block_int.h"
+#include "block-migration.h"
 #include "dma.h"
 #include "audio/audio.h"
 #include "migration.h"
@@ -2044,6 +2046,7 @@ DriveInfo *drive_init(QemuOpts *opts, void *opaque,
     int index;
     int cache;
     int aio = 0;
+    int ro = 0;
     int bdrv_flags, onerror;
     const char *devaddr;
     DriveInfo *dinfo;
@@ -2075,6 +2078,7 @@ DriveInfo *drive_init(QemuOpts *opts, void *opaque,
     secs  = qemu_opt_get_number(opts, "secs", 0);
 
     snapshot = qemu_opt_get_bool(opts, "snapshot", 0);
+    ro = qemu_opt_get_bool(opts, "readonly", 0);
 
     file = qemu_opt_get(opts, "file");
     serial = qemu_opt_get(opts, "serial");
@@ -2197,7 +2201,7 @@ DriveInfo *drive_init(QemuOpts *opts, void *opaque,
             fprintf(stderr, "\n");
 	    return NULL;
         }
-        drv = bdrv_find_format(buf);
+        drv = bdrv_find_whitelisted_format(buf);
         if (!drv) {
             fprintf(stderr, "qemu: '%s' invalid format\n", buf);
             return NULL;
@@ -2364,6 +2368,14 @@ DriveInfo *drive_init(QemuOpts *opts, void *opaque,
         bdrv_flags |= BDRV_O_NATIVE_AIO;
     } else {
         bdrv_flags &= ~BDRV_O_NATIVE_AIO;
+    }
+
+    if (ro == 1) {
+        if (type == IF_IDE) {
+            fprintf(stderr, "qemu: readonly flag not supported for drive with ide interface\n");
+            return NULL;
+        }
+        (void)bdrv_set_read_only(dinfo->bdrv, 1);
     }
 
     if (bdrv_open2(dinfo->bdrv, file, bdrv_flags, drv) < 0) {
@@ -3005,9 +3017,7 @@ static int ram_save_live(QEMUFile *f, int stage, void *opaque)
         bwidth = 0.000001;
 
     /* try transferring iterative blocks of memory */
-
     if (stage == 3) {
-
         /* flush all remaining blocks regardless of rate limiting */
         while (ram_save_block(f) != 0) {
             bytes_transferred += TARGET_PAGE_SIZE;
@@ -5076,11 +5086,9 @@ int main(int argc, char **argv, char **envp)
             case QEMU_OPTION_S:
                 autostart = 0;
                 break;
-#ifndef _WIN32
 	    case QEMU_OPTION_k:
 		keyboard_layout = optarg;
 		break;
-#endif
             case QEMU_OPTION_localtime:
                 rtc_utc = 0;
                 break;
@@ -5397,6 +5405,36 @@ int main(int argc, char **argv, char **envp)
                 xen_mode = XEN_ATTACH;
                 break;
 #endif
+            case QEMU_OPTION_readconfig:
+                {
+                    FILE *fp;
+                    fp = fopen(optarg, "r");
+                    if (fp == NULL) {
+                        fprintf(stderr, "open %s: %s\n", optarg, strerror(errno));
+                        exit(1);
+                    }
+                    if (qemu_config_parse(fp) != 0) {
+                        exit(1);
+                    }
+                    fclose(fp);
+                    break;
+                }
+            case QEMU_OPTION_writeconfig:
+                {
+                    FILE *fp;
+                    if (strcmp(optarg, "-") == 0) {
+                        fp = stdout;
+                    } else {
+                        fp = fopen(optarg, "w");
+                        if (fp == NULL) {
+                            fprintf(stderr, "open %s: %s\n", optarg, strerror(errno));
+                            exit(1);
+                        }
+                    }
+                    qemu_config_write(fp);
+                    fclose(fp);
+                    break;
+                }
             }
         }
     }
@@ -5557,7 +5595,9 @@ int main(int argc, char **argv, char **envp)
     /* init the dynamic translator */
     cpu_exec_init_all(tb_size * 1024 * 1024);
 
-    bdrv_init();
+    bdrv_init_with_whitelist();
+
+    blk_mig_init();
 
     /* we always create the cdrom drive, even if no disk is there */
     drive_add(NULL, CDROM_ALIAS);
@@ -5575,7 +5615,8 @@ int main(int argc, char **argv, char **envp)
         exit(1);
 
     vmstate_register(0, &vmstate_timers ,&timers_state);
-    register_savevm_live("ram", 0, 3, ram_save_live, NULL, ram_load, NULL);
+    register_savevm_live("ram", 0, 3, NULL, ram_save_live, NULL, 
+                         ram_load, NULL);
 
     /* Maintain compatibility with multiple stdio monitors */
     if (!strcmp(monitor_devices[0],"stdio")) {
@@ -5796,7 +5837,6 @@ int main(int argc, char **argv, char **envp)
     }
 
     text_consoles_set_display(display_state);
-    qemu_chr_initial_reset();
 
     for (i = 0; i < MAX_MONITOR_DEVICES; i++) {
         if (monitor_devices[i] && monitor_hds[i]) {
@@ -5840,6 +5880,7 @@ int main(int argc, char **argv, char **envp)
 
     rom_load_all();
 
+    qemu_system_reset();
     if (loadvm) {
         if (load_vmstate(cur_mon, loadvm) < 0) {
             autostart = 0;

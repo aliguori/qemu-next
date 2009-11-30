@@ -45,7 +45,7 @@
 static void cmd646_update_irq(PCIIDEState *d);
 
 static void ide_map(PCIDevice *pci_dev, int region_num,
-                    uint32_t addr, uint32_t size, int type)
+                    pcibus_t addr, pcibus_t size, int type)
 {
     PCIIDEState *d = DO_UPCAST(PCIIDEState, dev, pci_dev);
     IDEBus *bus;
@@ -136,7 +136,7 @@ static void bmdma_writeb(void *opaque, uint32_t addr, uint32_t val)
 }
 
 static void bmdma_map(PCIDevice *pci_dev, int region_num,
-                    uint32_t addr, uint32_t size, int type)
+                    pcibus_t addr, pcibus_t size, int type)
 {
     PCIIDEState *d = DO_UPCAST(PCIIDEState, dev, pci_dev);
     int i;
@@ -193,8 +193,10 @@ static void cmd646_reset(void *opaque)
     PCIIDEState *d = opaque;
     unsigned int i;
 
-    for (i = 0; i < 2; i++)
-        ide_dma_cancel(&d->bmdma[i]);
+    for (i = 0; i < 2; i++) {
+        ide_bus_reset(&d->bus[i]);
+        ide_dma_reset(&d->bmdma[i]);
+    }
 }
 
 /* CMD646 PCI IDE controller */
@@ -219,11 +221,11 @@ static int pci_cmd646_ide_initfn(PCIDevice *dev)
         pci_conf[0x51] |= 0x08; /* enable IDE1 */
     }
 
-    pci_register_bar(dev, 0, 0x8, PCI_ADDRESS_SPACE_IO, ide_map);
-    pci_register_bar(dev, 1, 0x4, PCI_ADDRESS_SPACE_IO, ide_map);
-    pci_register_bar(dev, 2, 0x8, PCI_ADDRESS_SPACE_IO, ide_map);
-    pci_register_bar(dev, 3, 0x4, PCI_ADDRESS_SPACE_IO, ide_map);
-    pci_register_bar(dev, 4, 0x10, PCI_ADDRESS_SPACE_IO, bmdma_map);
+    pci_register_bar(dev, 0, 0x8, PCI_BASE_ADDRESS_SPACE_IO, ide_map);
+    pci_register_bar(dev, 1, 0x4, PCI_BASE_ADDRESS_SPACE_IO, ide_map);
+    pci_register_bar(dev, 2, 0x8, PCI_BASE_ADDRESS_SPACE_IO, ide_map);
+    pci_register_bar(dev, 3, 0x4, PCI_BASE_ADDRESS_SPACE_IO, ide_map);
+    pci_register_bar(dev, 4, 0x10, PCI_BASE_ADDRESS_SPACE_IO, bmdma_map);
 
     pci_conf[0x3d] = 0x01; // interrupt on pin 1
 
@@ -235,7 +237,6 @@ static int pci_cmd646_ide_initfn(PCIDevice *dev)
 
     vmstate_register(0, &vmstate_ide_pci, d);
     qemu_register_reset(cmd646_reset, d);
-    cmd646_reset(d);
     return 0;
 }
 

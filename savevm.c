@@ -126,6 +126,8 @@ static int announce_self_create(uint8_t *buf,
 static void qemu_announce_self_once(void *opaque)
 {
     int i, len;
+    VLANState *vlan;
+    VLANClientState *vc;
     uint8_t buf[60];
     static int count = SELF_ANNOUNCE_ROUNDS;
     QEMUTimer *timer = *(QEMUTimer **)opaque;
@@ -134,7 +136,10 @@ static void qemu_announce_self_once(void *opaque)
         if (!nd_table[i].used)
             continue;
         len = announce_self_create(buf, nd_table[i].macaddr);
-        qemu_send_packet_raw(nd_table[i].vc, buf, len);
+        vlan = nd_table[i].vlan;
+        QTAILQ_FOREACH(vc, &vlan->clients, next) {
+            qemu_send_packet_raw(vc, buf, len);
+        }
     }
     if (--count) {
         /* delay 50ms, 150ms, 250ms, ... */
@@ -164,6 +169,7 @@ struct QEMUFile {
     QEMUFileCloseFunc *close;
     QEMUFileRateLimit *rate_limit;
     QEMUFileSetRateLimit *set_rate_limit;
+    QEMUFileGetRateLimit *get_rate_limit;
     void *opaque;
     int is_write;
 
@@ -259,9 +265,11 @@ QEMUFile *qemu_popen(FILE *stdio_file, const char *mode)
     s->stdio_file = stdio_file;
 
     if(mode[0] == 'r') {
-        s->file = qemu_fopen_ops(s, NULL, stdio_get_buffer, stdio_pclose, NULL, NULL);
+        s->file = qemu_fopen_ops(s, NULL, stdio_get_buffer, stdio_pclose, 
+				 NULL, NULL, NULL);
     } else {
-        s->file = qemu_fopen_ops(s, stdio_put_buffer, NULL, stdio_pclose, NULL, NULL);
+        s->file = qemu_fopen_ops(s, stdio_put_buffer, NULL, stdio_pclose, 
+				 NULL, NULL, NULL);
     }
     return s->file;
 }
@@ -306,9 +314,11 @@ QEMUFile *qemu_fdopen(int fd, const char *mode)
         goto fail;
 
     if(mode[0] == 'r') {
-        s->file = qemu_fopen_ops(s, NULL, stdio_get_buffer, stdio_fclose, NULL, NULL);
+        s->file = qemu_fopen_ops(s, NULL, stdio_get_buffer, stdio_fclose, 
+				 NULL, NULL, NULL);
     } else {
-        s->file = qemu_fopen_ops(s, stdio_put_buffer, NULL, stdio_fclose, NULL, NULL);
+        s->file = qemu_fopen_ops(s, stdio_put_buffer, NULL, stdio_fclose, 
+				 NULL, NULL, NULL);
     }
     return s->file;
 
@@ -322,7 +332,8 @@ QEMUFile *qemu_fopen_socket(int fd)
     QEMUFileSocket *s = qemu_mallocz(sizeof(QEMUFileSocket));
 
     s->fd = fd;
-    s->file = qemu_fopen_ops(s, NULL, socket_get_buffer, socket_close, NULL, NULL);
+    s->file = qemu_fopen_ops(s, NULL, socket_get_buffer, socket_close, 
+			     NULL, NULL, NULL);
     return s->file;
 }
 
@@ -358,11 +369,13 @@ QEMUFile *qemu_fopen(const char *filename, const char *mode)
     s->stdio_file = fopen(filename, mode);
     if (!s->stdio_file)
         goto fail;
-
+    
     if(mode[0] == 'w') {
-        s->file = qemu_fopen_ops(s, file_put_buffer, NULL, stdio_fclose, NULL, NULL);
+        s->file = qemu_fopen_ops(s, file_put_buffer, NULL, stdio_fclose, 
+				 NULL, NULL, NULL);
     } else {
-        s->file = qemu_fopen_ops(s, NULL, file_get_buffer, stdio_fclose, NULL, NULL);
+        s->file = qemu_fopen_ops(s, NULL, file_get_buffer, stdio_fclose, 
+			       NULL, NULL, NULL);
     }
     return s->file;
 fail:
@@ -390,15 +403,17 @@ static int bdrv_fclose(void *opaque)
 static QEMUFile *qemu_fopen_bdrv(BlockDriverState *bs, int is_writable)
 {
     if (is_writable)
-        return qemu_fopen_ops(bs, block_put_buffer, NULL, bdrv_fclose, NULL, NULL);
-    return qemu_fopen_ops(bs, NULL, block_get_buffer, bdrv_fclose, NULL, NULL);
+        return qemu_fopen_ops(bs, block_put_buffer, NULL, bdrv_fclose, 
+			      NULL, NULL, NULL);
+    return qemu_fopen_ops(bs, NULL, block_get_buffer, bdrv_fclose, NULL, NULL, NULL);
 }
 
 QEMUFile *qemu_fopen_ops(void *opaque, QEMUFilePutBufferFunc *put_buffer,
                          QEMUFileGetBufferFunc *get_buffer,
                          QEMUFileCloseFunc *close,
                          QEMUFileRateLimit *rate_limit,
-                         QEMUFileSetRateLimit *set_rate_limit)
+                         QEMUFileSetRateLimit *set_rate_limit,
+                         QEMUFileGetRateLimit *get_rate_limit)
 {
     QEMUFile *f;
 
@@ -410,6 +425,7 @@ QEMUFile *qemu_fopen_ops(void *opaque, QEMUFilePutBufferFunc *put_buffer,
     f->close = close;
     f->rate_limit = rate_limit;
     f->set_rate_limit = set_rate_limit;
+    f->get_rate_limit = get_rate_limit;
     f->is_write = 0;
 
     return f;
@@ -583,6 +599,14 @@ int qemu_file_rate_limit(QEMUFile *f)
 {
     if (f->rate_limit)
         return f->rate_limit(f->opaque);
+
+    return 0;
+}
+
+size_t qemu_file_get_rate_limit(QEMUFile *f)
+{
+    if (f->get_rate_limit)
+        return f->get_rate_limit(f->opaque);
 
     return 0;
 }
@@ -959,12 +983,14 @@ typedef struct SaveStateEntry {
     int instance_id;
     int version_id;
     int section_id;
+    SaveSetParamsHandler *set_params;
     SaveLiveStateHandler *save_live_state;
     SaveStateHandler *save_state;
     LoadStateHandler *load_state;
     const VMStateDescription *vmsd;
     void *opaque;
 } SaveStateEntry;
+
 
 static QTAILQ_HEAD(savevm_handlers, SaveStateEntry) savevm_handlers =
     QTAILQ_HEAD_INITIALIZER(savevm_handlers);
@@ -991,6 +1017,7 @@ static int calculate_new_instance_id(const char *idstr)
 int register_savevm_live(const char *idstr,
                          int instance_id,
                          int version_id,
+                         SaveSetParamsHandler *set_params,
                          SaveLiveStateHandler *save_live_state,
                          SaveStateHandler *save_state,
                          LoadStateHandler *load_state,
@@ -998,10 +1025,11 @@ int register_savevm_live(const char *idstr,
 {
     SaveStateEntry *se;
 
-    se = qemu_malloc(sizeof(SaveStateEntry));
+    se = qemu_mallocz(sizeof(SaveStateEntry));
     pstrcpy(se->idstr, sizeof(se->idstr), idstr);
     se->version_id = version_id;
     se->section_id = global_section_id++;
+    se->set_params = set_params;
     se->save_live_state = save_live_state;
     se->save_state = save_state;
     se->load_state = load_state;
@@ -1026,7 +1054,7 @@ int register_savevm(const char *idstr,
                     void *opaque)
 {
     return register_savevm_live(idstr, instance_id, version_id,
-                                NULL, save_state, load_state, opaque);
+                                NULL, NULL, save_state, load_state, opaque);
 }
 
 void unregister_savevm(const char *idstr, void *opaque)
@@ -1046,7 +1074,7 @@ int vmstate_register(int instance_id, const VMStateDescription *vmsd,
 {
     SaveStateEntry *se;
 
-    se = qemu_malloc(sizeof(SaveStateEntry));
+    se = qemu_mallocz(sizeof(SaveStateEntry));
     pstrcpy(se->idstr, sizeof(se->idstr), vmsd->name);
     se->version_id = vmsd->version_id;
     se->section_id = global_section_id++;
@@ -1208,10 +1236,17 @@ static void vmstate_save(QEMUFile *f, SaveStateEntry *se)
 #define QEMU_VM_SECTION_END          0x03
 #define QEMU_VM_SECTION_FULL         0x04
 
-int qemu_savevm_state_begin(QEMUFile *f)
+int qemu_savevm_state_begin(QEMUFile *f, int blk_enable, int shared)
 {
     SaveStateEntry *se;
 
+    QTAILQ_FOREACH(se, &savevm_handlers, entry) {
+        if(se->set_params == NULL) {
+            continue;
+	}
+	se->set_params(blk_enable, shared, se->opaque);
+    }
+    
     qemu_put_be32(f, QEMU_VM_FILE_MAGIC);
     qemu_put_be32(f, QEMU_VM_FILE_VERSION);
 
@@ -1321,7 +1356,7 @@ int qemu_savevm_state(QEMUFile *f)
 
     bdrv_flush_all();
 
-    ret = qemu_savevm_state_begin(f);
+    ret = qemu_savevm_state_begin(f, 0, 0);
     if (ret < 0)
         goto out;
 
@@ -1530,12 +1565,40 @@ static int bdrv_snapshot_find(BlockDriverState *bs, QEMUSnapshotInfo *sn_info,
     return ret;
 }
 
+/*
+ * Deletes snapshots of a given name in all opened images.
+ */
+static int del_existing_snapshots(Monitor *mon, const char *name)
+{
+    BlockDriverState *bs;
+    DriveInfo *dinfo;
+    QEMUSnapshotInfo sn1, *snapshot = &sn1;
+    int ret;
+
+    QTAILQ_FOREACH(dinfo, &drives, next) {
+        bs = dinfo->bdrv;
+        if (bdrv_can_snapshot(bs) &&
+            bdrv_snapshot_find(bs, snapshot, name) >= 0)
+        {
+            ret = bdrv_snapshot_delete(bs, name);
+            if (ret < 0) {
+                monitor_printf(mon,
+                               "Error while deleting snapshot on '%s'\n",
+                               bdrv_get_device_name(bs));
+                return -1;
+            }
+        }
+    }
+
+    return 0;
+}
+
 void do_savevm(Monitor *mon, const QDict *qdict)
 {
     DriveInfo *dinfo;
     BlockDriverState *bs, *bs1;
     QEMUSnapshotInfo sn1, *sn = &sn1, old_sn1, *old_sn = &old_sn1;
-    int must_delete, ret;
+    int ret;
     QEMUFile *f;
     int saved_vm_running;
     uint32_t vm_state_size;
@@ -1558,20 +1621,15 @@ void do_savevm(Monitor *mon, const QDict *qdict)
     saved_vm_running = vm_running;
     vm_stop(0);
 
-    must_delete = 0;
+    memset(sn, 0, sizeof(*sn));
     if (name) {
         ret = bdrv_snapshot_find(bs, old_sn, name);
         if (ret >= 0) {
-            must_delete = 1;
-        }
-    }
-    memset(sn, 0, sizeof(*sn));
-    if (must_delete) {
-        pstrcpy(sn->name, sizeof(sn->name), old_sn->name);
-        pstrcpy(sn->id_str, sizeof(sn->id_str), old_sn->id_str);
-    } else {
-        if (name)
+            pstrcpy(sn->name, sizeof(sn->name), old_sn->name);
+            pstrcpy(sn->id_str, sizeof(sn->id_str), old_sn->id_str);
+        } else {
             pstrcpy(sn->name, sizeof(sn->name), name);
+        }
     }
 
     /* fill auxiliary fields */
@@ -1585,6 +1643,11 @@ void do_savevm(Monitor *mon, const QDict *qdict)
     sn->date_nsec = tv.tv_usec * 1000;
 #endif
     sn->vm_clock_nsec = qemu_get_clock(vm_clock);
+
+    /* Delete old snapshots of the same name */
+    if (del_existing_snapshots(mon, name) < 0) {
+        goto the_end;
+    }
 
     /* save the VM state */
     f = qemu_fopen_bdrv(bs, 1);
@@ -1605,14 +1668,6 @@ void do_savevm(Monitor *mon, const QDict *qdict)
     QTAILQ_FOREACH(dinfo, &drives, next) {
         bs1 = dinfo->bdrv;
         if (bdrv_has_snapshot(bs1)) {
-            if (must_delete) {
-                ret = bdrv_snapshot_delete(bs1, old_sn->id_str);
-                if (ret < 0) {
-                    monitor_printf(mon,
-                                   "Error while deleting snapshot on '%s'\n",
-                                   bdrv_get_device_name(bs1));
-                }
-            }
             /* Write VM state size only to the image that contains the state */
             sn->vm_state_size = (bs == bs1 ? vm_state_size : 0);
             ret = bdrv_snapshot_create(bs1, sn);

@@ -51,6 +51,8 @@
 
 #include <zlib.h>
 
+static int roms_loaded;
+
 /* return the size or -1 if error */
 int get_image_size(const char *filename)
 {
@@ -540,6 +542,10 @@ static void rom_insert(Rom *rom)
 {
     Rom *item;
 
+    if (roms_loaded) {
+        hw_error ("ROM images must be loaded at startup\n");
+    }
+
     /* list is ordered by load address */
     QTAILQ_FOREACH(item, &roms, next) {
         if (rom->min >= item->min)
@@ -682,7 +688,7 @@ int rom_load_all(void)
             rom->isrom = 1;
     }
     qemu_register_reset(rom_reset, NULL);
-    rom_reset(NULL);
+    roms_loaded = 1;
     return 0;
 }
 
@@ -700,6 +706,44 @@ static Rom *find_rom(target_phys_addr_t addr)
         return rom;
     }
     return NULL;
+}
+
+int rom_copy(uint8_t *dest, target_phys_addr_t addr, size_t size)
+{
+    target_phys_addr_t end = addr + size;
+    uint8_t *s, *d = dest;
+    size_t l = 0;
+    Rom *rom;
+
+    QTAILQ_FOREACH(rom, &roms, next) {
+        if (rom->max)
+            continue;
+        if (rom->min > addr)
+            continue;
+        if (rom->min + rom->romsize < addr)
+            continue;
+        if (rom->min > end)
+            break;
+        if (!rom->data)
+            continue;
+
+        d = dest + (rom->min - addr);
+        s = rom->data;
+        l = rom->romsize;
+
+        if (rom->min < addr) {
+            d = dest;
+            s += (addr - rom->min);
+            l -= (addr - rom->min);
+        }
+        if ((d + l) > (dest + size)) {
+            l = dest - d;
+        }
+
+        memcpy(d, s, l);
+    }
+
+    return (d + l) - dest;
 }
 
 void *rom_ptr(target_phys_addr_t addr)

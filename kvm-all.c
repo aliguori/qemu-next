@@ -150,6 +150,7 @@ static void kvm_reset_vcpu(void *opaque)
 {
     CPUState *env = opaque;
 
+    kvm_arch_reset_vcpu(env);
     if (kvm_arch_put_registers(env)) {
         fprintf(stderr, "Fatal: kvm vcpu reset failed\n");
         abort();
@@ -201,30 +202,11 @@ int kvm_init_vcpu(CPUState *env)
     ret = kvm_arch_init_vcpu(env);
     if (ret == 0) {
         qemu_register_reset(kvm_reset_vcpu, env);
+        kvm_arch_reset_vcpu(env);
         ret = kvm_arch_put_registers(env);
     }
 err:
     return ret;
-}
-
-int kvm_put_mp_state(CPUState *env)
-{
-    struct kvm_mp_state mp_state = { .mp_state = env->mp_state };
-
-    return kvm_vcpu_ioctl(env, KVM_SET_MP_STATE, &mp_state);
-}
-
-int kvm_get_mp_state(CPUState *env)
-{
-    struct kvm_mp_state mp_state;
-    int ret;
-
-    ret = kvm_vcpu_ioctl(env, KVM_GET_MP_STATE, &mp_state);
-    if (ret < 0) {
-        return ret;
-    }
-    env->mp_state = mp_state.mp_state;
-    return 0;
 }
 
 /*

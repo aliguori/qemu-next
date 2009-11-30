@@ -24,6 +24,7 @@
 #include "hw.h"
 #include "ppc_mac.h"
 #include "pci.h"
+#include "pci_host.h"
 
 /* debug UniNorth */
 //#define DEBUG_UNIN
@@ -35,105 +36,10 @@
 #define UNIN_DPRINTF(fmt, ...)
 #endif
 
-typedef target_phys_addr_t pci_addr_t;
-#include "pci_host.h"
-
 typedef struct UNINState {
     SysBusDevice busdev;
     PCIHostState host_state;
 } UNINState;
-
-static void pci_unin_main_config_writel (void *opaque, target_phys_addr_t addr,
-                                         uint32_t val)
-{
-    UNINState *s = opaque;
-
-    UNIN_DPRINTF("config_writel addr " TARGET_FMT_plx " val %x\n", addr, val);
-#ifdef TARGET_WORDS_BIGENDIAN
-    val = bswap32(val);
-#endif
-
-    s->host_state.config_reg = val;
-}
-
-static uint32_t pci_unin_main_config_readl (void *opaque,
-                                            target_phys_addr_t addr)
-{
-    UNINState *s = opaque;
-    uint32_t val;
-
-    val = s->host_state.config_reg;
-#ifdef TARGET_WORDS_BIGENDIAN
-    val = bswap32(val);
-#endif
-    UNIN_DPRINTF("config_readl addr " TARGET_FMT_plx " val %x\n", addr, val);
-
-    return val;
-}
-
-static CPUWriteMemoryFunc * const pci_unin_main_config_write[] = {
-    &pci_unin_main_config_writel,
-    &pci_unin_main_config_writel,
-    &pci_unin_main_config_writel,
-};
-
-static CPUReadMemoryFunc * const pci_unin_main_config_read[] = {
-    &pci_unin_main_config_readl,
-    &pci_unin_main_config_readl,
-    &pci_unin_main_config_readl,
-};
-
-static CPUWriteMemoryFunc * const pci_unin_main_write[] = {
-    &pci_host_data_writeb,
-    &pci_host_data_writew,
-    &pci_host_data_writel,
-};
-
-static CPUReadMemoryFunc * const pci_unin_main_read[] = {
-    &pci_host_data_readb,
-    &pci_host_data_readw,
-    &pci_host_data_readl,
-};
-
-static void pci_unin_config_writel (void *opaque, target_phys_addr_t addr,
-                                    uint32_t val)
-{
-    UNINState *s = opaque;
-
-    s->host_state.config_reg = val;
-}
-
-static uint32_t pci_unin_config_readl (void *opaque,
-                                       target_phys_addr_t addr)
-{
-    UNINState *s = opaque;
-
-    return s->host_state.config_reg;
-}
-
-static CPUWriteMemoryFunc * const pci_unin_config_write[] = {
-    &pci_unin_config_writel,
-    &pci_unin_config_writel,
-    &pci_unin_config_writel,
-};
-
-static CPUReadMemoryFunc * const pci_unin_config_read[] = {
-    &pci_unin_config_readl,
-    &pci_unin_config_readl,
-    &pci_unin_config_readl,
-};
-
-static CPUWriteMemoryFunc * const pci_unin_write[] = {
-    &pci_host_data_writeb,
-    &pci_host_data_writew,
-    &pci_host_data_writel,
-};
-
-static CPUReadMemoryFunc * const pci_unin_read[] = {
-    &pci_host_data_readb,
-    &pci_host_data_readw,
-    &pci_host_data_readl,
-};
 
 /* Don't know if this matches real hardware, but it agrees with OHW.  */
 static int pci_unin_map_irq(PCIDevice *pci_dev, int irq_num)
@@ -178,17 +84,13 @@ static int pci_unin_main_init_device(SysBusDevice *dev)
     /* Uninorth main bus */
     s = FROM_SYSBUS(UNINState, dev);
 
-    pci_mem_config = cpu_register_io_memory(pci_unin_main_config_read,
-                                            pci_unin_main_config_write, s);
-    pci_mem_data = cpu_register_io_memory(pci_unin_main_read,
-                                          pci_unin_main_write, &s->host_state);
-
+    pci_mem_config = pci_host_config_register_io_memory(&s->host_state);
+    pci_mem_data = pci_host_data_register_io_memory(&s->host_state);
     sysbus_init_mmio(dev, 0x1000, pci_mem_config);
     sysbus_init_mmio(dev, 0x1000, pci_mem_data);
 
     register_savevm("uninorth", 0, 1, pci_unin_save, pci_unin_load, &s->host_state);
     qemu_register_reset(pci_unin_reset, &s->host_state);
-    pci_unin_reset(&s->host_state);
     return 0;
 }
 
@@ -201,10 +103,8 @@ static int pci_dec_21154_init_device(SysBusDevice *dev)
     s = FROM_SYSBUS(UNINState, dev);
 
     // XXX: s = &pci_bridge[2];
-    pci_mem_config = cpu_register_io_memory(pci_unin_config_read,
-                                            pci_unin_config_write, s);
-    pci_mem_data = cpu_register_io_memory(pci_unin_main_read,
-                                          pci_unin_main_write, &s->host_state);
+    pci_mem_config = pci_host_config_register_io_memory_noswap(&s->host_state);
+    pci_mem_data = pci_host_data_register_io_memory(&s->host_state);
     sysbus_init_mmio(dev, 0x1000, pci_mem_config);
     sysbus_init_mmio(dev, 0x1000, pci_mem_data);
     return 0;
@@ -218,10 +118,8 @@ static int pci_unin_agp_init_device(SysBusDevice *dev)
     /* Uninorth AGP bus */
     s = FROM_SYSBUS(UNINState, dev);
 
-    pci_mem_config = cpu_register_io_memory(pci_unin_config_read,
-                                            pci_unin_config_write, s);
-    pci_mem_data = cpu_register_io_memory(pci_unin_main_read,
-                                          pci_unin_main_write, &s->host_state);
+    pci_mem_config = pci_host_config_register_io_memory_noswap(&s->host_state);
+    pci_mem_data = pci_host_data_register_io_memory(&s->host_state);
     sysbus_init_mmio(dev, 0x1000, pci_mem_config);
     sysbus_init_mmio(dev, 0x1000, pci_mem_data);
     return 0;
@@ -235,10 +133,8 @@ static int pci_unin_internal_init_device(SysBusDevice *dev)
     /* Uninorth internal bus */
     s = FROM_SYSBUS(UNINState, dev);
 
-    pci_mem_config = cpu_register_io_memory(pci_unin_config_read,
-                                            pci_unin_config_write, s);
-    pci_mem_data = cpu_register_io_memory(pci_unin_read,
-                                          pci_unin_write, s);
+    pci_mem_config = pci_host_config_register_io_memory_noswap(&s->host_state);
+    pci_mem_data = pci_host_data_register_io_memory(&s->host_state);
     sysbus_init_mmio(dev, 0x1000, pci_mem_config);
     sysbus_init_mmio(dev, 0x1000, pci_mem_data);
     return 0;
@@ -260,7 +156,9 @@ PCIBus *pci_pmac_init(qemu_irq *pic)
                                          pci_unin_set_irq, pci_unin_map_irq,
                                          pic, 11 << 3, 4);
 
+#if 0
     pci_create_simple(d->host_state.bus, 11 << 3, "Uni-north main");
+#endif
 
     sysbus_mmio_map(s, 0, 0xf2800000);
     sysbus_mmio_map(s, 1, 0xf2c00000);
@@ -272,12 +170,22 @@ PCIBus *pci_pmac_init(qemu_irq *pic)
 #endif
 
     /* Uninorth AGP bus */
-    pci_create_simple(d->host_state.bus, 13 << 3, "Uni-north AGP");
+    pci_create_simple(d->host_state.bus, 11 << 3, "Uni-north AGP");
+    dev = qdev_create(NULL, "Uni-north AGP");
+    qdev_init_nofail(dev);
+    s = sysbus_from_qdev(dev);
+    sysbus_mmio_map(s, 0, 0xf0800000);
+    sysbus_mmio_map(s, 1, 0xf0c00000);
 
     /* Uninorth internal bus */
 #if 0
     /* XXX: not needed for now */
     pci_create_simple(d->host_state.bus, 14 << 3, "Uni-north internal");
+    dev = qdev_create(NULL, "Uni-north internal");
+    qdev_init_nofail(dev);
+    s = sysbus_from_qdev(dev);
+    sysbus_mmio_map(s, 0, 0xf4800000);
+    sysbus_mmio_map(s, 1, 0xf4c00000);
 #endif
 
     return d->host_state.bus;

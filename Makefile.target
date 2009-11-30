@@ -1,5 +1,8 @@
 # -*- Mode: makefile -*-
 
+# This needs to be defined before rules.mak
+GENERATED_HEADERS = config-target.h
+
 include ../config-host.mak
 include config-devices.mak
 include config-target.mak
@@ -33,8 +36,7 @@ config-target.h-timestamp: config-target.mak
 config-devices.h: config-devices.h-timestamp
 config-devices.h-timestamp: config-devices.mak
 
-all: config-target.h config-devices.h
-	$(call quiet-command, $(MAKE) $(PROGS),)
+all: $(PROGS)
 
 # Dummy command so that make thinks it has done something
 	@true
@@ -154,7 +156,7 @@ endif #CONFIG_BSD_USER
 # System emulator target
 ifdef CONFIG_SOFTMMU
 
-obj-y = vl.o async.o monitor.o pci.o machine.o gdbstub.o
+obj-y = vl.o async.o monitor.o pci.o pci_host.o pcie_host.o machine.o gdbstub.o
 # virtio has to be here due to weird dependency between PCI and virtio-net.
 # need to fix this properly
 obj-y += virtio-blk.o virtio-balloon.o virtio-net.o virtio-console.o virtio-pci.o
@@ -265,10 +267,10 @@ obj-sparc-y += slavio_timer.o slavio_misc.o fdc.o sparc32_dma.o
 obj-sparc-y += cs4231.o eccmemctl.o sbi.o sun4c_intctl.o
 endif
 
-obj-arm-y = integratorcp.o versatilepb.o smc91c111.o arm_pic.o arm_timer.o
+obj-arm-y = integratorcp.o versatilepb.o arm_pic.o arm_timer.o
 obj-arm-y += arm_boot.o pl011.o pl031.o pl050.o pl080.o pl110.o pl181.o pl190.o
 obj-arm-y += versatile_pci.o
-obj-arm-y += realview_gic.o realview.o arm_sysctl.o mpcore.o
+obj-arm-y += realview_gic.o realview.o arm_sysctl.o arm11mpcore.o a9mpcore.o
 obj-arm-y += armv7m.o armv7m_nvic.o stellaris.o pl022.o stellaris_enet.o
 obj-arm-y += pl061.o
 obj-arm-y += arm-semi.o

@@ -1,5 +1,8 @@
 # Makefile for QEMU.
 
+# This needs to be defined before rules.mak
+GENERATED_HEADERS = config-host.h
+
 ifneq ($(wildcard config-host.mak),)
 # Put the all: rule here so that config-host.mak can contain dependencies.
 all: build-all
@@ -36,22 +39,31 @@ SUBDIR_MAKEFLAGS=$(if $(V),,--no-print-directory)
 SUBDIR_DEVICES_MAK=$(patsubst %, %/config-devices.mak, $(TARGET_DIRS))
 
 config-all-devices.mak: $(SUBDIR_DEVICES_MAK)
-	$(call quiet-command,cat $(SUBDIR_DEVICES_MAK) | grep "=y$$" | sort -u > $@,"  GEN  $@")
+	$(call quiet-command,cat $(SUBDIR_DEVICES_MAK) | grep "=y$$" | sort -u > $@,"  GEN   $@")
+
+%/config-devices.mak: default-configs/%.mak
+	$(call quiet-command,cat $< > $@.tmp, "  GEN   $@")
+	@if test -f $@ ; then \
+	  echo "WARNING: $@ out of date." ;\
+	  echo "Run \"make defconfig\" to regenerate." ; \
+	  rm $@.tmp ; \
+	 else \
+	  mv $@.tmp $@ ; \
+	 fi
+
+defconfig:
+	rm -f config-all-devices.mak $(SUBDIR_DEVICES_MAK)
 
 -include config-all-devices.mak
 
-build-all: config-host.h config-all-devices.h $(DOCS) $(TOOLS)
-	$(call quiet-command, $(MAKE) $(SUBDIR_MAKEFLAGS) recurse-all,)
+build-all: $(DOCS) $(TOOLS) recurse-all
 
 config-host.h: config-host.h-timestamp
 config-host.h-timestamp: config-host.mak
 
-config-all-devices.h: config-all-devices.h-timestamp
-config-all-devices.h-timestamp: config-all-devices.mak
-
 SUBDIR_RULES=$(patsubst %,subdir-%, $(TARGET_DIRS))
 
-subdir-%: config-host.h config-all-devices.h
+subdir-%: $(GENERATED_HEADERS)
 	$(call quiet-command,$(MAKE) $(SUBDIR_MAKEFLAGS) -C $* V="$(V)" TARGET_DIR="$*/" all,)
 
 $(filter %-softmmu,$(SUBDIR_RULES)): libqemu_common.a
@@ -120,6 +132,7 @@ obj-$(CONFIG_SSD0303) += ssd0303.o
 obj-$(CONFIG_SSD0323) += ssd0323.o
 obj-$(CONFIG_ADS7846) += ads7846.o
 obj-$(CONFIG_MAX111X) += max111x.o
+obj-$(CONFIG_DS1338) += ds1338.o
 obj-y += i2c.o smbus.o smbus_eeprom.o
 obj-y += eeprom93xx.o
 obj-y += scsi-disk.o cdrom.o
@@ -135,7 +148,9 @@ obj-y += buffered_file.o migration.o migration-tcp.o qemu-sockets.o
 obj-y += qemu-char.o aio.o savevm.o
 obj-y += msmouse.o ps2.o
 obj-y += qdev.o qdev-properties.o
-obj-y += qint.o qstring.o qdict.o qlist.o qemu-config.o
+obj-y += qint.o qstring.o qdict.o qlist.o qfloat.o qbool.o json-lexer.o
+obj-y += json-streamer.o json-parser.o qjson.o
+obj-y += qemu-config.o block-migration.o
 
 obj-$(CONFIG_BRLAPI) += baum.o
 obj-$(CONFIG_POSIX) += migration-exec.o migration-unix.o migration-fd.o
@@ -209,11 +224,13 @@ libqemu_common.a: $(obj-y)
 
 ######################################################################
 
-qemu-img.o: qemu-img-cmds.h
+qemu-img.o: config-host.h qemu-img-cmds.h
 
 qemu-img$(EXESUF): qemu-img.o qemu-tool.o $(block-obj-y)
 
 qemu-nbd$(EXESUF):  qemu-nbd.o qemu-tool.o $(block-obj-y)
+
+qemu-io.o: config-host.h
 
 qemu-io$(EXESUF):  qemu-io.o qemu-tool.o cmd.o $(block-obj-y)
 
@@ -224,6 +241,8 @@ check-qint: check-qint.o qint.o qemu-malloc.o
 check-qstring: check-qstring.o qstring.o qemu-malloc.o
 check-qdict: check-qdict.o qdict.o qint.o qstring.o qemu-malloc.o
 check-qlist: check-qlist.o qlist.o qint.o qemu-malloc.o
+check-qfloat: check-qfloat.o qfloat.o qemu-malloc.o
+check-qjson: check-qjson.o qfloat.o qint.o qdict.o qstring.o qlist.o qbool.o qjson.o json-streamer.o json-lexer.o json-parser.o qemu-malloc.o
 
 clean:
 # avoid old build problems by removing potentially incorrect old files
@@ -233,12 +252,13 @@ clean:
 	rm -f qemu-img-cmds.h
 	$(MAKE) -C tests clean
 	for d in $(ALL_SUBDIRS) libhw32 libhw64 libuser; do \
-	$(MAKE) -C $$d $@ || exit 1 ; \
+	if test -d $$d; then $(MAKE) -C $$d $@ || exit 1; fi; \
         done
 
 distclean: clean
-	rm -f config-host.mak config-host.h* config-host.ld $(DOCS) qemu-options.texi qemu-img-cmds.texi
-	rm -f config-all-devices.mak config-all-devices.h*
+	rm -f config-host.mak config-host.h* config-host.ld $(DOCS) qemu-options.texi qemu-img-cmds.texi qemu-monitor.texi
+	rm -f config-all-devices.mak
+	rm -f roms/seabios/config.mak roms/vgabios/config.mak
 	rm -f qemu-{doc,tech}.{info,aux,cp,dvi,fn,info,ky,log,pg,toc,tp,vr}
 	for d in $(TARGET_DIRS) libhw32 libhw64 libuser; do \
 	rm -rf $$d || exit 1 ; \
@@ -251,10 +271,11 @@ common  de-ch  es     fo  fr-ca  hu     ja  mk  nl-be      pt  sl     tr
 ifdef INSTALL_BLOBS
 BLOBS=bios.bin vgabios.bin vgabios-cirrus.bin ppc_rom.bin \
 video.x openbios-sparc32 openbios-sparc64 openbios-ppc \
-pxe-ne2k_pci.bin pxe-rtl8139.bin pxe-pcnet.bin pxe-e1000.bin \
-pxe-virtio.bin pxe-eepro100.bin pxe-pcnet.bin \
+pxe-e1000.bin pxe-i82559er.bin \
+pxe-ne2k_pci.bin pxe-pcnet.bin \
+pxe-rtl8139.bin pxe-virtio.bin \
 bamboo.dtb petalogix-s3adsp1800.dtb \
-multiboot.bin
+multiboot.bin linuxboot.bin
 else
 BLOBS=
 endif

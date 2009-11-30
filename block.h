@@ -45,7 +45,9 @@ void bdrv_info(Monitor *mon);
 void bdrv_info_stats(Monitor *mon);
 
 void bdrv_init(void);
+void bdrv_init_with_whitelist(void);
 BlockDriver *bdrv_find_format(const char *format_name);
+BlockDriver *bdrv_find_whitelisted_format(const char *format_name);
 int bdrv_create(BlockDriver *drv, const char* filename,
     QEMUOptionParameter *options);
 int bdrv_create2(BlockDriver *drv,
@@ -78,7 +80,8 @@ void bdrv_register(BlockDriver *bdrv);
 /* async block I/O */
 typedef struct BlockDriverAIOCB BlockDriverAIOCB;
 typedef void BlockDriverCompletionFunc(void *opaque, int ret);
-
+typedef void BlockDriverDirtyHandler(BlockDriverState *bs, int64_t sector,
+				     int sector_num);
 BlockDriverAIOCB *bdrv_aio_readv(BlockDriverState *bs, int64_t sector_num,
                                  QEMUIOVector *iov, int nb_sectors,
                                  BlockDriverCompletionFunc *cb, void *opaque);
@@ -136,6 +139,7 @@ int bdrv_get_type_hint(BlockDriverState *bs);
 int bdrv_get_translation_hint(BlockDriverState *bs);
 int bdrv_is_removable(BlockDriverState *bs);
 int bdrv_is_read_only(BlockDriverState *bs);
+int bdrv_set_read_only(BlockDriverState *bs, int read_only);
 int bdrv_is_sg(BlockDriverState *bs);
 int bdrv_enable_write_cache(BlockDriverState *bs);
 int bdrv_is_inserted(BlockDriverState *bs);
@@ -184,4 +188,9 @@ int bdrv_save_vmstate(BlockDriverState *bs, const uint8_t *buf,
 int bdrv_load_vmstate(BlockDriverState *bs, uint8_t *buf,
                       int64_t pos, int size);
 
+void bdrv_set_dirty_tracking(BlockDriverState *bs, int enable);
+int bdrv_get_dirty(BlockDriverState *bs, int64_t sector);
+void bdrv_reset_dirty(BlockDriverState *bs, int64_t cur_sector, 
+		      int nr_sectors);
+int bdrv_get_sectors_per_chunk(void);
 #endif

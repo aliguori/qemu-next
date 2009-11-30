@@ -69,7 +69,7 @@ static void bmdma_writeb(void *opaque, uint32_t addr, uint32_t val)
 }
 
 static void bmdma_map(PCIDevice *pci_dev, int region_num,
-                    uint32_t addr, uint32_t size, int type)
+                    pcibus_t addr, pcibus_t size, int type)
 {
     PCIIDEState *d = DO_UPCAST(PCIIDEState, dev, pci_dev);
     int i;
@@ -101,8 +101,10 @@ static void piix3_reset(void *opaque)
     uint8_t *pci_conf = d->dev.config;
     int i;
 
-    for (i = 0; i < 2; i++)
-        ide_dma_cancel(&d->bmdma[i]);
+    for (i = 0; i < 2; i++) {
+        ide_bus_reset(&d->bus[i]);
+        ide_dma_reset(&d->bmdma[i]);
+    }
 
     pci_conf[0x04] = 0x00;
     pci_conf[0x05] = 0x00;
@@ -120,9 +122,8 @@ static int pci_piix_ide_initfn(PCIIDEState *d)
     pci_conf[PCI_HEADER_TYPE] = PCI_HEADER_TYPE_NORMAL; // header_type
 
     qemu_register_reset(piix3_reset, d);
-    piix3_reset(d);
 
-    pci_register_bar(&d->dev, 4, 0x10, PCI_ADDRESS_SPACE_IO, bmdma_map);
+    pci_register_bar(&d->dev, 4, 0x10, PCI_BASE_ADDRESS_SPACE_IO, bmdma_map);
 
     vmstate_register(0, &vmstate_ide_pci, d);
 
@@ -178,10 +179,12 @@ static PCIDeviceInfo piix_ide_info[] = {
     {
         .qdev.name    = "PIIX3 IDE",
         .qdev.size    = sizeof(PCIIDEState),
+        .qdev.no_user = 1,
         .init         = pci_piix3_ide_initfn,
     },{
         .qdev.name    = "PIIX4 IDE",
         .qdev.size    = sizeof(PCIIDEState),
+        .qdev.no_user = 1,
         .init         = pci_piix4_ide_initfn,
     },{
         /* end of list */

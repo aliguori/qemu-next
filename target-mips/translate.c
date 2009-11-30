@@ -918,7 +918,7 @@ static inline void op_ldst_##insn(TCGv ret, TCGv arg1, DisasContext *ctx)  \
     TCGv t0 = tcg_temp_new();                                              \
     tcg_gen_mov_tl(t0, arg1);                                              \
     tcg_gen_qemu_##fname(ret, arg1, ctx->mem_idx);                         \
-    tcg_gen_st_tl(t0, cpu_env, offsetof(CPUState, CP0_LLAddr));            \
+    tcg_gen_st_tl(t0, cpu_env, offsetof(CPUState, lladdr));            \
     tcg_gen_st_tl(ret, cpu_env, offsetof(CPUState, llval));                \
     tcg_temp_free(t0);                                                     \
 }
@@ -941,7 +941,7 @@ static inline void op_ldst_##insn(TCGv arg1, TCGv arg2, int rt, DisasContext *ct
     tcg_gen_st_tl(arg2, cpu_env, offsetof(CPUState, CP0_BadVAddr));          \
     generate_exception(ctx, EXCP_AdES);                                      \
     gen_set_label(l1);                                                       \
-    tcg_gen_ld_tl(t0, cpu_env, offsetof(CPUState, CP0_LLAddr));              \
+    tcg_gen_ld_tl(t0, cpu_env, offsetof(CPUState, lladdr));              \
     tcg_gen_brcond_tl(TCG_COND_NE, arg2, t0, l2);                            \
     tcg_gen_movi_tl(t0, rt | ((almask << 3) & 0x20));                        \
     tcg_gen_st_tl(t0, cpu_env, offsetof(CPUState, llreg));                   \
@@ -967,7 +967,7 @@ static inline void op_ldst_##insn(TCGv arg1, TCGv arg2, int rt, DisasContext *ct
     tcg_gen_st_tl(arg2, cpu_env, offsetof(CPUState, CP0_BadVAddr));          \
     generate_exception(ctx, EXCP_AdES);                                      \
     gen_set_label(l1);                                                       \
-    tcg_gen_ld_tl(t0, cpu_env, offsetof(CPUState, CP0_LLAddr));              \
+    tcg_gen_ld_tl(t0, cpu_env, offsetof(CPUState, lladdr));              \
     tcg_gen_brcond_tl(TCG_COND_NE, arg2, t0, l2);                            \
     tcg_gen_ld_tl(t0, cpu_env, offsetof(CPUState, llval));                   \
     tcg_gen_qemu_##ldname(t1, arg2, ctx->mem_idx);                           \
@@ -1624,7 +1624,7 @@ static void gen_arith (CPUState *env, DisasContext *ctx, uint32_t opc,
             tcg_temp_free(t2);
             tcg_gen_brcondi_tl(TCG_COND_GE, t1, 0, l1);
             tcg_temp_free(t1);
-	    /* operands of different sign, first operand and result different sign */
+            /* operands of different sign, first operand and result different sign */
             generate_exception(ctx, EXCP_OVERFLOW);
             gen_set_label(l1);
             gen_store_gpr(t0, rd);
@@ -1700,7 +1700,7 @@ static void gen_arith (CPUState *env, DisasContext *ctx, uint32_t opc,
             tcg_temp_free(t2);
             tcg_gen_brcondi_tl(TCG_COND_GE, t1, 0, l1);
             tcg_temp_free(t1);
-	    /* operands of different sign, first operand and result different sign */
+            /* operands of different sign, first operand and result different sign */
             generate_exception(ctx, EXCP_OVERFLOW);
             gen_set_label(l1);
             gen_store_gpr(t0, rd);
@@ -3841,7 +3841,7 @@ static void gen_mtc0 (CPUState *env, DisasContext *ctx, TCGv arg, int reg, int s
     case 17:
         switch (sel) {
         case 0:
-            /* ignored */
+            gen_helper_mtc0_lladdr(arg);
             rn = "LLAddr";
             break;
         default:
@@ -4998,7 +4998,7 @@ static void gen_dmtc0 (CPUState *env, DisasContext *ctx, TCGv arg, int reg, int 
     case 17:
         switch (sel) {
         case 0:
-            /* ignored */
+            gen_helper_mtc0_lladdr(arg);
             rn = "LLAddr";
             break;
         default:
@@ -8501,8 +8501,8 @@ cpu_mips_check_sign_extensions (CPUState *env, FILE *f,
 
     if (!SIGN_EXT_P(env->CP0_EPC))
         cpu_fprintf(f, "BROKEN: EPC=0x" TARGET_FMT_lx "\n", env->CP0_EPC);
-    if (!SIGN_EXT_P(env->CP0_LLAddr))
-        cpu_fprintf(f, "BROKEN: LLAddr=0x" TARGET_FMT_lx "\n", env->CP0_LLAddr);
+    if (!SIGN_EXT_P(env->lladdr))
+        cpu_fprintf(f, "BROKEN: LLAddr=0x" TARGET_FMT_lx "\n", env->lladdr);
 }
 #endif
 
@@ -8526,7 +8526,7 @@ void cpu_dump_state (CPUState *env, FILE *f,
     cpu_fprintf(f, "CP0 Status  0x%08x Cause   0x%08x EPC    0x" TARGET_FMT_lx "\n",
                 env->CP0_Status, env->CP0_Cause, env->CP0_EPC);
     cpu_fprintf(f, "    Config0 0x%08x Config1 0x%08x LLAddr 0x" TARGET_FMT_lx "\n",
-                env->CP0_Config0, env->CP0_Config1, env->CP0_LLAddr);
+                env->CP0_Config0, env->CP0_Config1, env->lladdr);
     if (env->hflags & MIPS_HFLAG_FPU)
         fpu_dump_state(env, f, cpu_fprintf, flags);
 #if defined(TARGET_MIPS64) && defined(MIPS_DEBUG_SIGN_EXTENSIONS)
@@ -8598,9 +8598,14 @@ CPUMIPSState *cpu_mips_init (const char *cpu_model)
         return NULL;
     env = qemu_mallocz(sizeof(CPUMIPSState));
     env->cpu_model = def;
+    env->cpu_model_str = cpu_model;
 
     cpu_exec_init(env);
-    env->cpu_model_str = cpu_model;
+#ifndef CONFIG_USER_ONLY
+    mmu_init(env, def);
+#endif
+    fpu_init(env, def);
+    mvp_init(env, def);
     mips_tcg_init();
     cpu_reset(env);
     qemu_init_vcpu(env);
@@ -8615,10 +8620,49 @@ void cpu_reset (CPUMIPSState *env)
     }
 
     memset(env, 0, offsetof(CPUMIPSState, breakpoints));
-
     tlb_flush(env, 1);
 
-    /* Minimal init */
+    /* Reset registers to their default values */
+    env->CP0_PRid = env->cpu_model->CP0_PRid;
+    env->CP0_Config0 = env->cpu_model->CP0_Config0;
+#ifdef TARGET_WORDS_BIGENDIAN
+    env->CP0_Config0 |= (1 << CP0C0_BE);
+#endif
+    env->CP0_Config1 = env->cpu_model->CP0_Config1;
+    env->CP0_Config2 = env->cpu_model->CP0_Config2;
+    env->CP0_Config3 = env->cpu_model->CP0_Config3;
+    env->CP0_Config6 = env->cpu_model->CP0_Config6;
+    env->CP0_Config7 = env->cpu_model->CP0_Config7;
+    env->CP0_LLAddr_rw_bitmask = env->cpu_model->CP0_LLAddr_rw_bitmask
+                                 << env->cpu_model->CP0_LLAddr_shift;
+    env->CP0_LLAddr_shift = env->cpu_model->CP0_LLAddr_shift;
+    env->SYNCI_Step = env->cpu_model->SYNCI_Step;
+    env->CCRes = env->cpu_model->CCRes;
+    env->CP0_Status_rw_bitmask = env->cpu_model->CP0_Status_rw_bitmask;
+    env->CP0_TCStatus_rw_bitmask = env->cpu_model->CP0_TCStatus_rw_bitmask;
+    env->CP0_SRSCtl = env->cpu_model->CP0_SRSCtl;
+    env->current_tc = 0;
+    env->SEGBITS = env->cpu_model->SEGBITS;
+    env->SEGMask = (target_ulong)((1ULL << env->cpu_model->SEGBITS) - 1);
+#if defined(TARGET_MIPS64)
+    if (env->cpu_model->insn_flags & ISA_MIPS3) {
+        env->SEGMask |= 3ULL << 62;
+    }
+#endif
+    env->PABITS = env->cpu_model->PABITS;
+    env->PAMask = (target_ulong)((1ULL << env->cpu_model->PABITS) - 1);
+    env->CP0_SRSConf0_rw_bitmask = env->cpu_model->CP0_SRSConf0_rw_bitmask;
+    env->CP0_SRSConf0 = env->cpu_model->CP0_SRSConf0;
+    env->CP0_SRSConf1_rw_bitmask = env->cpu_model->CP0_SRSConf1_rw_bitmask;
+    env->CP0_SRSConf1 = env->cpu_model->CP0_SRSConf1;
+    env->CP0_SRSConf2_rw_bitmask = env->cpu_model->CP0_SRSConf2_rw_bitmask;
+    env->CP0_SRSConf2 = env->cpu_model->CP0_SRSConf2;
+    env->CP0_SRSConf3_rw_bitmask = env->cpu_model->CP0_SRSConf3_rw_bitmask;
+    env->CP0_SRSConf3 = env->cpu_model->CP0_SRSConf3;
+    env->CP0_SRSConf4_rw_bitmask = env->cpu_model->CP0_SRSConf4_rw_bitmask;
+    env->CP0_SRSConf4 = env->cpu_model->CP0_SRSConf4;
+    env->insn_flags = env->cpu_model->insn_flags;
+
 #if defined(CONFIG_USER_ONLY)
     env->hflags = MIPS_HFLAG_UM;
     /* Enable access to the SYNCI_Step register.  */
@@ -8632,6 +8676,8 @@ void cpu_reset (CPUMIPSState *env)
         env->CP0_ErrorEPC = env->active_tc.PC;
     }
     env->active_tc.PC = (int32_t)0xBFC00000;
+    env->CP0_Random = env->tlb->nb_tlb - 1;
+    env->tlb->tlb_in_use = env->tlb->nb_tlb;
     env->CP0_Wired = 0;
     /* SMP not implemented */
     env->CP0_EBase = 0x80000000;
@@ -8653,8 +8699,12 @@ void cpu_reset (CPUMIPSState *env)
     env->CP0_Debug = (1 << CP0DB_CNT) | (0x1 << CP0DB_VER);
     env->hflags = MIPS_HFLAG_CP0;
 #endif
+#if defined(TARGET_MIPS64)
+    if (env->cpu_model->insn_flags & ISA_MIPS3) {
+        env->hflags |= MIPS_HFLAG_64;
+    }
+#endif
     env->exception_index = EXCP_NONE;
-    cpu_mips_register(env, env->cpu_model);
 }
 
 void gen_pc_load(CPUState *env, TranslationBlock *tb,

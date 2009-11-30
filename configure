@@ -38,6 +38,7 @@ cc="gcc"
 audio_drv_list=""
 audio_card_list="ac97 es1370 sb16"
 audio_possible_cards="ac97 es1370 sb16 cs4231a adlib gus"
+block_drv_whitelist=""
 host_cc="gcc"
 ar="ar"
 make="make"
@@ -168,15 +169,17 @@ case "$cpu" in
   ;;
 esac
 
-# Default value for a variable defining feature "foo"
-#  * foo="no", feature will only be used if --enable-foo arg is given
-#  * foo="", feature will be searched for, and if found, will be used
-#  * foo="yes", this value vill only be set by --enable-foo flag.
-#                   feature will searched for, if not found, configure exits with error
+# Default value for a variable defining feature "foo".
+#  * foo="no"  feature will only be used if --enable-foo arg is given
+#  * foo=""    feature will be searched for, and if found, will be used
+#              unless --disable-foo is given
+#  * foo="yes" this value will only be set by --enable-foo flag.
+#              feature will searched for,
+#              if not found, configure exits with error
 #
-# Always add --enable-foo and --disable-foo command line args.  Distributions want
-# to ensure that several features are compiled in, and it is impossible without a
-# --enable-foo that exits if feature is not found
+# Always add --enable-foo and --disable-foo command line args.
+# Distributions want to ensure that several features are compiled in, and it
+# is impossible without a --enable-foo that exits if a feature is not found.
 
 bluez=""
 brlapi=""
@@ -432,6 +435,8 @@ for opt do
   ;;
   --audio-drv-list=*) audio_drv_list="$optarg"
   ;;
+  --block-drv-whitelist=*) block_drv_whitelist=`echo "$optarg" | sed -e 's/,/ /g'`
+  ;;
   --enable-debug-tcg) debug_tcg="yes"
   ;;
   --disable-debug-tcg) debug_tcg="no"
@@ -667,6 +672,8 @@ echo "  --audio-drv-list=LIST    set audio drivers list:"
 echo "                           Available drivers: $audio_possible_drivers"
 echo "  --audio-card-list=LIST   set list of emulated audio cards [$audio_card_list]"
 echo "                           Available cards: $audio_possible_cards"
+echo "  --block-drv-whitelist=L  set block driver whitelist"
+echo "                           (affects only QEMU, not qemu-img)"
 echo "  --enable-mixemu          enable mixer emulation"
 echo "  --disable-xen            disable xen backend driver support"
 echo "  --enable-xen             enable xen backend driver support"
@@ -1168,9 +1175,9 @@ for drv in $audio_drv_list; do
     ;;
 
     pa)
-    audio_drv_probe $drv pulse/simple.h -lpulse-simple \
+    audio_drv_probe $drv pulse/simple.h "-lpulse-simple -lpulse" \
         "pa_simple *s = NULL; pa_simple_free(s); return 0;"
-    libs_softmmu="-lpulse-simple $libs_softmmu"
+    libs_softmmu="-lpulse -lpulse-simple $libs_softmmu"
     audio_pt_int="yes"
     ;;
 
@@ -1588,7 +1595,7 @@ int main(void)
     return 0;
 }
 EOF
-if $cc $ARCH_CFLAGS -o $TMPE $TMPC 2> /dev/null ; then
+if compile_prog "" "" ; then
   fallocate=yes
 fi
 
@@ -1603,7 +1610,7 @@ int main(void)
     return 0;
 }
 EOF
-if $cc $ARCH_CFLAGS -o $TMPE $TMPC 2> /dev/null ; then
+if compile_prog "" "" ; then
   dup3=yes
 fi
 
@@ -1834,6 +1841,7 @@ echo "check support     $check_utests"
 echo "mingw32 support   $mingw32"
 echo "Audio drivers     $audio_drv_list"
 echo "Extra audio cards $audio_card_list"
+echo "Block whitelist   $block_drv_whitelist"
 echo "Mixer emulation   $mixemu"
 echo "VNC TLS support   $vnc_tls"
 echo "VNC SASL support  $vnc_sasl"
@@ -1956,6 +1964,7 @@ fi
 if test "$audio_win_int" = "yes" ; then
   echo "CONFIG_AUDIO_WIN_INT=y" >> $config_host_mak
 fi
+echo "CONFIG_BDRV_WHITELIST=$block_drv_whitelist" >> $config_host_mak
 if test "$mixemu" = "yes" ; then
   echo "CONFIG_MIXEMU=y" >> $config_host_mak
 fi
@@ -2094,14 +2103,13 @@ esac
 
 tools=
 if test `expr "$target_list" : ".*softmmu.*"` != 0 ; then
-  tools="qemu-img\$(EXESUF) $tools"
+  tools="qemu-img\$(EXESUF) qemu-io\$(EXESUF) $tools"
   if [ "$linux" = "yes" ] ; then
-      tools="qemu-nbd\$(EXESUF) qemu-io\$(EXESUF) $tools"
+      tools="qemu-nbd\$(EXESUF) $tools"
     if [ "$check_utests" = "yes" ]; then
       tools="check-qint check-qstring check-qdict check-qlist $tools"
+      tools="check-qfloat check-qjson $tools"
     fi
-  elif test "$mingw32" = "yes" ; then
-      tools="qemu-io\$(EXESUF) $tools"
   fi
 fi
 echo "TOOLS=$tools" >> $config_host_mak
@@ -2178,14 +2186,26 @@ case "$target" in
     target_softmmu="yes"
     ;;
   ${target_arch2}-linux-user)
+    if test "$linux" != "yes" ; then
+      echo "ERROR: Target '$target' is only available on a Linux host"
+      exit 1
+    fi
     target_user_only="yes"
     target_linux_user="yes"
     ;;
   ${target_arch2}-darwin-user)
+    if test "$darwin" != "yes" ; then
+      echo "ERROR: Target '$target' is only available on a Darwin host"
+      exit 1
+    fi
     target_user_only="yes"
     target_darwin_user="yes"
     ;;
   ${target_arch2}-bsd-user)
+    if test "$bsd" != "yes" ; then
+      echo "ERROR: Target '$target' is only available on a BSD host"
+      exit 1
+    fi
     target_user_only="yes"
     target_bsd_user="yes"
     ;;
@@ -2201,10 +2221,6 @@ mkdir -p $target_dir/tcg
 mkdir -p $target_dir/ide
 if test "$target" = "arm-linux-user" -o "$target" = "armeb-linux-user" -o "$target" = "arm-bsd-user" -o "$target" = "armeb-bsd-user" ; then
   mkdir -p $target_dir/nwfpe
-fi
-
-if test ! -f $target_dir/config-devices.mak ; then
-  cp $source_path/default-configs/${target}.mak $target_dir/config-devices.mak
 fi
 
 #

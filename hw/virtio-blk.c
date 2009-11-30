@@ -127,7 +127,7 @@ static void virtio_blk_rw_complete(void *opaque, int ret)
             return;
     }
 
-    virtio_blk_req_complete(req, VIRTIO_BLK_S_OK);
+    virtio_blk_req_complete(req, ret ? VIRTIO_BLK_S_IOERR : VIRTIO_BLK_S_OK);
 }
 
 static void virtio_blk_flush_complete(void *opaque, int ret)
@@ -444,6 +444,9 @@ static uint32_t virtio_blk_get_features(VirtIODevice *vdev)
 #endif
     if (strcmp(s->serial_str, "0"))
         features |= 1 << VIRTIO_BLK_F_IDENTIFY;
+    
+    if (bdrv_is_read_only(s->bs))
+        features |= 1 << VIRTIO_BLK_F_RO;
 
     return features;
 }

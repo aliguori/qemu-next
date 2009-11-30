@@ -207,7 +207,7 @@ static void tap_send(void *opaque)
         if (size == 0) {
             tap_read_poll(s, 0);
         }
-    } while (size > 0);
+    } while (size > 0 && qemu_can_send_packet(s->vc));
 }
 
 int tap_has_ufo(VLANClientState *vc)
@@ -399,6 +399,9 @@ int net_init_tap(QemuOpts *opts, Monitor *mon, const char *name, VLANState *vlan
         }
 
         fd = net_tap_init(opts, &vnet_hdr);
+        if (fd == -1) {
+            return -1;
+        }
     }
 
     s = net_tap_fd_init(vlan, "tap", name, fd, vnet_hdr);

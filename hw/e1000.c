@@ -145,10 +145,11 @@ static const char phy_regcap[0x20] = {
 };
 
 static void
-ioport_map(PCIDevice *pci_dev, int region_num, uint32_t addr,
-           uint32_t size, int type)
+ioport_map(PCIDevice *pci_dev, int region_num, pcibus_t addr,
+           pcibus_t size, int type)
 {
-    DBGOUT(IO, "e1000_ioport_map addr=0x%04x size=0x%08x\n", addr, size);
+    DBGOUT(IO, "e1000_ioport_map addr=0x%04"FMT_PCIBUS
+           " size=0x%08"FMT_PCIBUS"\n", addr, size);
 }
 
 static void
@@ -789,6 +790,8 @@ static uint32_t (*macreg_readops[])(E1000State *, int) = {
     getreg(MANC),	getreg(MDIC),	getreg(SWSM),	getreg(STATUS),
     getreg(TORL),	getreg(TOTL),	getreg(IMS),	getreg(TCTL),
     getreg(RDH),	getreg(RDT),	getreg(VET),	getreg(ICS),
+    getreg(TDBAL),	getreg(TDBAH),	getreg(RDBAH),	getreg(RDBAL),
+    getreg(TDLEN),	getreg(RDLEN),
 
     [TOTH] = mac_read_clr8,	[TORH] = mac_read_clr8,	[GPRC] = mac_read_clr4,
     [GPTC] = mac_read_clr4,	[TPR] = mac_read_clr4,	[TPT] = mac_read_clr4,
@@ -1011,7 +1014,7 @@ static CPUReadMemoryFunc * const e1000_mmio_read[] = {
 
 static void
 e1000_mmio_map(PCIDevice *pci_dev, int region_num,
-                uint32_t addr, uint32_t size, int type)
+                pcibus_t addr, pcibus_t size, int type)
 {
     E1000State *d = DO_UPCAST(E1000State, dev, pci_dev);
     int i;
@@ -1021,7 +1024,8 @@ e1000_mmio_map(PCIDevice *pci_dev, int region_num,
     };
 
 
-    DBGOUT(MMIO, "e1000_mmio_map addr=0x%08x 0x%08x\n", addr, size);
+    DBGOUT(MMIO, "e1000_mmio_map addr=0x%08"FMT_PCIBUS" 0x%08"FMT_PCIBUS"\n",
+           addr, size);
 
     cpu_register_physical_memory(addr, PNPMMIO_SIZE, d->mmio_index);
     qemu_register_coalesced_mmio(addr, excluded_regs[0]);
@@ -1087,10 +1091,10 @@ static int pci_e1000_init(PCIDevice *pci_dev)
             e1000_mmio_write, d);
 
     pci_register_bar((PCIDevice *)d, 0, PNPMMIO_SIZE,
-                           PCI_ADDRESS_SPACE_MEM, e1000_mmio_map);
+                           PCI_BASE_ADDRESS_SPACE_MEMORY, e1000_mmio_map);
 
     pci_register_bar((PCIDevice *)d, 1, IOPORT_SIZE,
-                           PCI_ADDRESS_SPACE_IO, ioport_map);
+                           PCI_BASE_ADDRESS_SPACE_IO, ioport_map);
 
     memmove(d->eeprom_data, e1000_eeprom_template,
         sizeof e1000_eeprom_template);
@@ -1113,7 +1117,6 @@ static int pci_e1000_init(PCIDevice *pci_dev)
     qemu_format_nic_info_str(d->vc, macaddr);
 
     vmstate_register(-1, &vmstate_e1000, d);
-    e1000_reset(d);
 
     if (!pci_dev->qdev.hotplugged) {
         static int loaded = 0;

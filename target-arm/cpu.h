@@ -40,6 +40,7 @@
 #define EXCP_BKPT            7
 #define EXCP_EXCEPTION_EXIT  8   /* Return from v7M exception.  */
 #define EXCP_KERNEL_TRAP     9   /* Jumped to kernel code page.  */
+#define EXCP_STREX          10
 
 #define ARMV7M_EXCP_RESET   1
 #define ARMV7M_EXCP_NMI     2
@@ -183,10 +184,12 @@ typedef struct CPUARMState {
 
         float_status fp_status;
     } vfp;
+    uint32_t exclusive_addr;
+    uint32_t exclusive_val;
+    uint32_t exclusive_high;
 #if defined(CONFIG_USER_ONLY)
-    struct mmon_state *mmon_entry;
-#else
-    uint32_t mmon_addr;
+    uint32_t exclusive_test;
+    uint32_t exclusive_info;
 #endif
 
     /* iwMMXt coprocessor state.  */
@@ -340,6 +343,7 @@ enum arm_features {
     ARM_FEATURE_THUMB2,
     ARM_FEATURE_MPU,    /* Only has Memory Protection Unit, not full MMU.  */
     ARM_FEATURE_VFP3,
+    ARM_FEATURE_VFP_FP16,
     ARM_FEATURE_NEON,
     ARM_FEATURE_DIV,
     ARM_FEATURE_M, /* Microcontroller profile.  */
@@ -371,30 +375,31 @@ void cpu_arm_set_cp_io(CPUARMState *env, int cpnum,
 #define IS_M(env) arm_feature(env, ARM_FEATURE_M)
 #define ARM_CPUID(env) (env->cp15.c0_cpuid)
 
-#define ARM_CPUID_ARM1026       0x4106a262
-#define ARM_CPUID_ARM926        0x41069265
-#define ARM_CPUID_ARM946        0x41059461
-#define ARM_CPUID_TI915T        0x54029152
-#define ARM_CPUID_TI925T        0x54029252
-#define ARM_CPUID_PXA250        0x69052100
-#define ARM_CPUID_PXA255        0x69052d00
-#define ARM_CPUID_PXA260        0x69052903
-#define ARM_CPUID_PXA261        0x69052d05
-#define ARM_CPUID_PXA262        0x69052d06
-#define ARM_CPUID_PXA270        0x69054110
-#define ARM_CPUID_PXA270_A0     0x69054110
-#define ARM_CPUID_PXA270_A1     0x69054111
-#define ARM_CPUID_PXA270_B0     0x69054112
-#define ARM_CPUID_PXA270_B1     0x69054113
-#define ARM_CPUID_PXA270_C0     0x69054114
-#define ARM_CPUID_PXA270_C5     0x69054117
-#define ARM_CPUID_ARM1136       0x4117b363
-#define ARM_CPUID_ARM1136_R2    0x4107b362
-#define ARM_CPUID_ARM11MPCORE   0x410fb022
-#define ARM_CPUID_CORTEXA8      0x411fc081
-#define ARM_CPUID_CORTEXA8_R2   0x412fc083
-#define ARM_CPUID_CORTEXM3      0x410fc231
-#define ARM_CPUID_ANY           0xffffffff
+#define ARM_CPUID_ARM1026     0x4106a262
+#define ARM_CPUID_ARM926      0x41069265
+#define ARM_CPUID_ARM946      0x41059461
+#define ARM_CPUID_TI915T      0x54029152
+#define ARM_CPUID_TI925T      0x54029252
+#define ARM_CPUID_PXA250      0x69052100
+#define ARM_CPUID_PXA255      0x69052d00
+#define ARM_CPUID_PXA260      0x69052903
+#define ARM_CPUID_PXA261      0x69052d05
+#define ARM_CPUID_PXA262      0x69052d06
+#define ARM_CPUID_PXA270      0x69054110
+#define ARM_CPUID_PXA270_A0   0x69054110
+#define ARM_CPUID_PXA270_A1   0x69054111
+#define ARM_CPUID_PXA270_B0   0x69054112
+#define ARM_CPUID_PXA270_B1   0x69054113
+#define ARM_CPUID_PXA270_C0   0x69054114
+#define ARM_CPUID_PXA270_C5   0x69054117
+#define ARM_CPUID_ARM1136     0x4117b363
+#define ARM_CPUID_ARM1136_R2  0x4107b362
+#define ARM_CPUID_ARM11MPCORE 0x410fb022
+#define ARM_CPUID_CORTEXA8    0x410fc080
+#define ARM_CPUID_CORTEXA8_R2 0x412fc083
+#define ARM_CPUID_CORTEXA9    0x410fc090
+#define ARM_CPUID_CORTEXM3    0x410fc231
+#define ARM_CPUID_ANY         0xffffffff
 
 #if defined(CONFIG_USER_ONLY)
 #define TARGET_PAGE_BITS 12
