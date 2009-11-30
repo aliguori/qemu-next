@@ -1,12 +1,8 @@
 /*
- * QEMU Epson S1D13744/S1D13745 templates
- *
- * Copyright (C) 2008 Nokia Corporation
- * Written by Andrzej Zaborowski <andrew@openedhand.com>
- *
  * QEMU OMAP3 LCD Panel Emulation templates
  *
  * Copyright (c) 2008 yajin  <yajin@vm-kernel.org>
+ * Copyright (c) 2008-2009 Nokia Corporation
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License as
