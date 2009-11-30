@@ -5,7 +5,7 @@ Maintainer: Maemo Integration <integration@maemo.org>
 Build-Depends: debhelper (>= 5), quilt (>= 0.40), binutils (>= 2.16), nasm,
  libx11-dev, libsdl1.2-dev (>> 1.2.1), libncurses5-dev, zlib1g-dev,
  texi2html, sharutils, libgnutls-dev, libesd0-dev, etherboot,
- libpulse-dev,
+ libpulse-dev, libosmesa6-dev,
  libfreebsd-dev [kfreebsd-i386 kfreebsd-amd64], 
  libasound2-dev [!kfreebsd-i386 !kfreebsd-amd64],
  libbluetooth-dev [!kfreebsd-i386 !kfreebsd-amd64],
