@@ -789,6 +789,10 @@ static void twl4030_4b_write(TWL4030NodeState *s, uint8_t addr, uint8_t value)
         case 0x47: /* P2_SW_EVENTS */
         case 0x48: /* P3_SW_EVENTS */
             s->reg_data[addr] = value & 0x78;
+            if (value & 0x01) { /* DEVOFF */
+                TRACE("device power off sequence requested");
+                qemu_system_shutdown_request();
+            }
             break;
         case 0x4a: /* PB_CFG */
             s->reg_data[addr] = value & 0xf;
