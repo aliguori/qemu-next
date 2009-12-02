@@ -1804,7 +1804,13 @@ static void omap3_prm_write(void *opaque, target_phys_addr_t addr,
             /* bzzzzzt.... command acknowledged! */
             s->gr.prm_vc_bypass_val &= ~(1 << 24); /* VALID */
             break;
-        case 0x1250: s->gr.prm_rstctrl = 0; break; /* TODO: resets */
+        case 0x1250:
+            s->gr.prm_rstctrl = 0;
+            if (value & 0x06) { /* RST_DPLL3 | RST_GS */
+                /* FIXME: use qemu_system_reset_request() instead! */
+                qemu_system_shutdown_request();
+            }
+            break;
         case 0x1254: s->gr.prm_rsttimer = value & 0x1fff; break;
         case 0x1258: s->gr.prm_rstst &= ~(value & 0x7fb); break;
         case 0x1260: s->gr.prm_voltctrl = value & 0x1f; break;
