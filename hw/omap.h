@@ -2,6 +2,7 @@
  * Texas Instruments OMAP processors.
  *
  * Copyright (C) 2006-2008 Andrzej Zaborowski  <balrog@zabor.org>
+ * Copyright (c) 2009 Nokia Corporation
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License as

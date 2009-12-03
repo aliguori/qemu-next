@@ -1,5 +1,5 @@
 /*
- * OMAP3 Multimedia Card/Secure Digital/Secure Digital I/O (MMC/SD/SDIO) Card Interface emulation
+ * OMAP3 MMC/SD/SDIO interface emulation
  *
  * Copyright (C) 2008 yajin  <yajin@vm-kernel.org>
  * Copyright (C) 2009 Nokia Corporation
