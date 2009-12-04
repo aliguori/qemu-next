@@ -376,9 +376,10 @@ static void QEMU_NORETURN force_sig(int sig)
 
     /* dump core if supported by target binary format */
     if (core_dump_signal(sig) && (ts->bprm->core_dump != NULL)) {
-        stop_all_tasks();
-        core_dumped =
-            ((*ts->bprm->core_dump)(sig, thread_env) == 0);
+          core_dumped=1;
+//        stop_all_tasks();
+//        core_dumped =
+//            ((*ts->bprm->core_dump)(sig, thread_env) == 0);
     }
     if (core_dumped) {
         /* we already dumped the core of target process, we don't want
@@ -387,8 +388,8 @@ static void QEMU_NORETURN force_sig(int sig)
         getrlimit(RLIMIT_CORE, &nodump);
         nodump.rlim_cur=0;
         setrlimit(RLIMIT_CORE, &nodump);
-        (void) fprintf(stderr, "qemu: uncaught target signal %d (%s) - %s\n",
-            sig, strsignal(host_sig), "core dumped" );
+//        (void) fprintf(stderr, "qemu: uncaught target signal %d (%s) - %s\n",
+//            sig, strsignal(host_sig), "core dumped" );
     }
 
     /* The proper exit code for dieing from an uncaught signal is
