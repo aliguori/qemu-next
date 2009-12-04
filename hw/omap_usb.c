@@ -86,6 +86,7 @@ static void omap3_hsusb_otg_reset(struct omap3_hsusb_otg_s *s)
     s->interfsel = 0x1;
     s->simenable = 0;
     s->forcestdby = 1;
+    musb_reset(s->musb);
 }
 
 static uint32_t omap3_hsusb_otg_read(int access,
@@ -485,6 +486,16 @@ struct omap3_hsusb_s {
 #endif
 };
 
+void omap3_hsusb_reset(struct omap3_hsusb_s *s)
+{
+#ifdef OMAP3_HSUSB_OTG
+    omap3_hsusb_otg_reset(&s->otg);
+#endif
+#ifdef OMAP3_HSUSB_HOST
+    omap3_hsusb_host_reset(&s->host);
+#endif
+}
+
 struct omap3_hsusb_s *omap3_hsusb_init(struct omap_target_agent_s *otg_ta,
                                        struct omap_target_agent_s *host_ta,
                                        struct omap_target_agent_s *tll_ta,
@@ -494,7 +505,7 @@ struct omap3_hsusb_s *omap3_hsusb_init(struct omap_target_agent_s *otg_ta,
                                        qemu_irq ehci_irq,
                                        qemu_irq tll_irq)
 {
-    struct omap3_hsusb_s *s = qemu_mallocz(sizeof(struct omap3_hsusb_s));
+    struct omap3_hsusb_s *s = qemu_mallocz(sizeof(*s));
 #ifdef OMAP3_HSUSB_HOST
     omap3_hsusb_host_init(host_ta, tll_ta,
                           ohci_irq, ehci_irq, tll_irq,

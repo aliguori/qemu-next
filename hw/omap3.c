@@ -1807,8 +1807,7 @@ static void omap3_prm_write(void *opaque, target_phys_addr_t addr,
         case 0x1250:
             s->gr.prm_rstctrl = 0;
             if (value & 0x06) { /* RST_DPLL3 | RST_GS */
-                /* FIXME: use qemu_system_reset_request() instead! */
-                qemu_system_shutdown_request();
+                qemu_system_reset_request();
             }
             break;
         case 0x1254: s->gr.prm_rsttimer = value & 0x1fff; break;
@@ -4446,7 +4445,7 @@ static void omap3_sms_reset(struct omap3_sms_s *s)
 static struct omap3_sms_s *omap3_sms_init(struct omap_mpu_state_s *mpu)
 {
     int iomemtype;
-    struct omap3_sms_s *s = (struct omap3_sms_s *) qemu_mallocz(sizeof(*s));
+    struct omap3_sms_s *s = qemu_mallocz(sizeof(*s));
 
     s->mpu = mpu;
 
@@ -4459,6 +4458,38 @@ static struct omap3_sms_s *omap3_sms_init(struct omap_mpu_state_s *mpu)
     register_savevm("omap3_sms", -1, 0,
                     omap3_sms_save_state, omap3_sms_load_state, s);
     return s;
+}
+
+static void omap3_reset(void *opaque)
+{
+    struct omap_mpu_state_s *s = opaque;
+    int i;
+    
+    omap_inth_reset(s->ih[0]);
+    omap_dma_reset(s->dma);
+    omap3_cm_reset(s->omap3_cm);
+    omap3_prm_reset(s->omap3_prm);
+    omap3_wdt_reset(s->omap3_mpu_wdt, OMAP3_MPU_WDT);
+    omap3_scm_reset(s->omap3_scm);
+    omap3_sms_reset(s->omap3_sms);
+    for (i = 0; i < 12; i++) {
+        omap_gp_timer_reset(s->gptimer[i]);
+    }
+    omap_synctimer_reset(s->synctimer);
+    omap_sdrc_reset(s->sdrc);
+    omap_gpmc_reset(s->gpmc);
+    omap_dss_reset(s->dss);
+    omap_gpif_reset(s->gpif);
+    omap3_hsusb_reset(s->omap3_usb);
+    for (i = 0; i < 3; i++) {
+        omap_uart_reset(s->uart[i]);
+        omap3_mmc_reset(s->omap3_mmc[i]);
+        omap_i2c_reset(s->i2c[i]);
+    }
+    for (i = 0; i < 4; i++) {
+        omap_mcspi_reset(s->mcspi[i]);
+    }
+    cpu_reset(s->env);
 }
 
 static const struct dma_irq_map omap3_dma_irq_map[] = {
@@ -4526,7 +4557,8 @@ struct omap_mpu_state_s *omap3530_mpu_init(unsigned long sdram_size,
     soc_dma_port_add_mem_ram(s->dma, sram_base, OMAP2_SRAM_BASE, s->sram_size);
 
 
-    s->omap3_cm = omap3_cm_init(omap3_l4ta_init(s->l4, L4A_CM), NULL, NULL, NULL, s);
+    s->omap3_cm = omap3_cm_init(omap3_l4ta_init(s->l4, L4A_CM),
+                                NULL, NULL, NULL, s);
 
     s->omap3_prm = omap3_prm_init(omap3_l4ta_init(s->l4, L4A_PRM),
                                   s->irq[0][OMAP_INT_3XXX_PRCM_MPU_IRQ],
@@ -4717,6 +4749,7 @@ struct omap_mpu_state_s *omap3530_mpu_init(unsigned long sdram_size,
                                   &s->drq[OMAP3XXX_DMA_SPI4_TX0],
                                   omap_findclk(s, "omap3_spi4_fclk"),
                                   omap_findclk(s, "omap3_spi4_iclk"));
-    
+
+    qemu_register_reset(omap3_reset, s);
     return s;
 }

@@ -709,6 +709,7 @@ static int smc91c111_init1(SysBusDevice *dev)
     sysbus_init_irq(dev, &s->irq);
     qemu_macaddr_default_if_unset(&s->conf.macaddr);
 
+    qemu_register_reset((void *)smc91c111_reset, s);
     smc91c111_reset(s);
 
     s->vc = qemu_new_vlan_client(NET_CLIENT_TYPE_NIC,

@@ -243,6 +243,11 @@ static void onenand_reset(OneNANDState *s, int cold)
     }
 }
 
+static void onenand_system_reset(void *opaque)
+{
+    onenand_reset(opaque, 1);
+}
+
 static inline int onenand_load_main(OneNANDState *s, int sec, int secn,
                 void *dest)
 {
@@ -812,7 +817,8 @@ void *onenand_init(uint16_t man_id, uint16_t dev_id, uint16_t ver_id,
     s->data[1][0] = ram + ((0x0200 + (1 << (PAGE_SHIFT - 1))) << s->shift);
     s->data[1][1] = ram + ((0x8010 + (1 << (PAGE_SHIFT - 6))) << s->shift);
 
-    onenand_reset(s, 1);
+    onenand_system_reset(s);
+    qemu_register_reset(onenand_system_reset, s);
     
     register_savevm("onenand",
                     ((regshift & 0x7f) << 24)

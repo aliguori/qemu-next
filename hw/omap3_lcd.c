@@ -61,6 +61,28 @@ struct omap3_lcd_panel_s {
 #define DEPTH 32
 #include "omap3_lcd_panel_template.h"
 
+static void omap3_lcd_panel_reset(void *opaque)
+{
+    struct omap3_lcd_panel_s *s = opaque;
+    
+    s->invalidate = 1;
+    s->control = 0;
+    s->width = 0;
+    s->height = 0;
+    s->gfx_attr = 0;
+    s->gfx_width = 0;
+    s->gfx_height = 0;
+    s->gfx_posx = 0;
+    s->gfx_posy = 0;
+    s->gfx_addr = 0;
+    s->gfx_table = 0;
+    s->gfx_palette_size = 0;
+    if (s->gfx_palette) {
+        qemu_free(s->gfx_palette);
+        s->gfx_palette = NULL;
+    }
+}
+
 static void omap3_lcd_panel_control_update(void *opaque,
                                            const struct omap_dss_dispc_s *dispc)
 {
@@ -256,6 +278,7 @@ struct omap3_lcd_panel_s *omap3_lcd_panel_init(struct omap_dss_s *dss)
     s->state = graphic_console_init(omap3_lcd_panel_update_display,
                                     omap3_lcd_panel_invalidate_display,
                                     NULL, NULL, s);
+    qemu_register_reset(omap3_lcd_panel_reset, s);
     return s;
 }
 

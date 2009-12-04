@@ -1043,6 +1043,7 @@ struct omap3_mmc_s;
 struct omap3_mmc_s *omap3_mmc_init(struct omap_target_agent_s *ta,
                                    qemu_irq irq, qemu_irq dma[],
                                    omap_clk fclk, omap_clk iclk);
+void omap3_mmc_reset(struct omap3_mmc_s *s);
 void omap3_mmc_attach(struct omap3_mmc_s *s, DriveInfo *dinfo,
                       int is_spi, int is_mmc);
 
@@ -1079,6 +1080,7 @@ struct omap3_hsusb_s *omap3_hsusb_init(struct omap_target_agent_s *otg_ta,
                                        qemu_irq ohci_irq,
                                        qemu_irq ehci_irq,
                                        qemu_irq tll_irq);
+void omap3_hsusb_reset(struct omap3_hsusb_s *s);
 
 /* usb-ohci.c */
 void usb_ohci_init_omap(target_phys_addr_t base, uint32_t region_size,

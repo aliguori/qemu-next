@@ -417,8 +417,10 @@ struct mipid_s {
     int ctrl;
 };
 
-static void mipid_reset(struct mipid_s *s)
+static void mipid_reset(void *opaque)
 {
+    struct mipid_s *s = opaque;
+    
     //if (!s->sleep)
     //    fprintf(stderr, "%s: Display off\n", __FUNCTION__);
 
@@ -790,6 +792,8 @@ static void *mipid_init(void)
 
     s->id = 0x838f03;
     mipid_reset(s);
+    
+    qemu_register_reset(mipid_reset, s);
 
     return s;
 }
@@ -1738,8 +1742,10 @@ static void lis302dl_trigger(void *opaque, int axis, int high, int activate)
     lis302dl_interrupt_update(s);
 }
 
-static void lis302dl_reset(LIS302DLState *s)
+static void lis302dl_reset(void *opaque)
 {
+    LIS302DLState *s = opaque;
+    
     s->firstbyte = 0;
     s->reg = 0;
 
@@ -1890,6 +1896,8 @@ static void *lis302dl_init(DeviceState *devs, qemu_irq irq1, qemu_irq irq2)
     s->irq[1] = irq2;
     s->axis_max = 58;
     s->axis_step = s->axis_max;// / 2;
+    
+    qemu_register_reset(lis302dl_reset, s);
     lis302dl_reset(s);
     return devs;
 }
@@ -1914,8 +1922,10 @@ typedef struct BQ2415XState_s {
     uint8 tcc;
 } BQ2415XState;
 
-static void bq2415x_reset(BQ2415XState *s)
+static void bq2415x_reset(void *opaque)
 {
+    BQ2415XState *s = opaque;
+    
     s->firstbyte = 0;
     s->reg = 0;
 
@@ -2004,6 +2014,7 @@ static int bq2415x_tx(i2c_slave *i2c, uint8_t data)
 static int bq2415x_init(i2c_slave *i2c)
 {
     BQ2415XState *s = FROM_I2C_SLAVE(BQ2415XState, i2c);
+    qemu_register_reset(bq2415x_reset, s);
     bq2415x_reset(s);
     return 0;
 }
@@ -2024,6 +2035,14 @@ typedef struct tpa6130_s {
     int reg;
     uint8_t data[3];
 } TPA6130State;
+
+static void tpa6130_reset(void *opaque)
+{
+    struct tpa6130_s *s = opaque;
+    s->firstbyte = 0;
+    s->reg = 0;
+    memset(s->data, 0, sizeof(s->data));
+}
 
 static void tpa6130_event(i2c_slave *i2c, enum i2c_event event)
 {
@@ -2096,6 +2115,7 @@ static int tpa6130_init(i2c_slave *i2c)
 {
     TPA6130State *s = FROM_I2C_SLAVE(TPA6130State, i2c);
     s->handlers = qemu_allocate_irqs(tpa6130_irq, s, 1);
+    qemu_register_reset(tpa6130_reset, s);
     return 0;
 }
 
@@ -2215,6 +2235,25 @@ static void n900_key_handler(void *opaque, int keycode)
     }
 }
 
+static void n900_reset(void *opaque)
+{
+    struct n900_s *s = opaque;
+    omap_gpmc_attach(s->cpu->gpmc, N900_ONENAND_CS, 0, onenand_base_update,
+                     onenand_base_unmap, s->nand, 0);
+    omap_gpmc_attach(s->cpu->gpmc, N900_SMC_CS, smc91c111_iomemtype(s->smc),
+                     NULL, NULL, s->smc, 0);
+    qemu_irq_raise(omap2_gpio_in_get(s->cpu->gpif, N900_KBLOCK_GPIO));
+    qemu_irq_raise(omap2_gpio_in_get(s->cpu->gpif, N900_HEADPHONE_GPIO));
+    qemu_irq_raise(omap2_gpio_in_get(s->cpu->gpif, N900_CAMLAUNCH_GPIO));
+    qemu_irq_raise(omap2_gpio_in_get(s->cpu->gpif, N900_CAMFOCUS_GPIO));
+    qemu_irq_lower(omap2_gpio_in_get(s->cpu->gpif, N900_CAMCOVER_GPIO));
+    qemu_irq_lower(omap2_gpio_in_get(s->cpu->gpif, N900_SLIDE_GPIO));
+    s->slide_open = 1;
+    s->camera_cover_open = 0;
+    s->headphone_connected = 0;
+    omap3_boot_rom_emu(s->cpu);
+}
+
 static const TWL4030KeyMap n900_twl4030_keymap[] = {
     {0x10, 0, 0}, /* Q */
     {0x11, 0, 1}, /* W */
@@ -2276,10 +2315,10 @@ static void n900_init(ram_addr_t ram_size,
                       const char *initrd_filename,
                       const char *cpu_model)
 {
-    struct n900_s *s = (struct n900_s *)qemu_mallocz(sizeof(*s));
+    struct n900_s *s = qemu_mallocz(sizeof(*s));
     DriveInfo *dmtd = drive_get(IF_MTD, 0, 0);
     DriveInfo *dsd  = drive_get(IF_SD, 0, 0);
-    
+
     if (!dmtd && !dsd) {
         hw_error("%s: SD or NAND image required", __FUNCTION__);
     }
@@ -2289,7 +2328,7 @@ static void n900_init(ram_addr_t ram_size,
                                serial_hds[0]);
     s->lcd = omap3_lcd_panel_init(s->cpu->dss);
     omap_lcd_panel_attach(s->cpu->dss, omap3_lcd_panel_get(s->lcd));
-    
+
     s->tsc2005 = tsc2005_init(omap2_gpio_in_get(s->cpu->gpif,
                                                 N900_TSC2005_IRQ_GPIO));
     tsc2005_set_transform(s->tsc2005, &n900_pointercal, 600, 1500);
@@ -2301,13 +2340,11 @@ static void n900_init(ram_addr_t ram_size,
     s->mipid->n900 = 1;
     s->mipid->id = 0x101234;
     omap_mcspi_attach(s->cpu->mcspi[0], mipid_txrx, s->mipid, 2);
-    
+
     s->nand = onenand_init(NAND_MFR_SAMSUNG, 0x40, 0x121, 1, 
                            omap2_gpio_in_get(s->cpu->gpif, N900_ONENAND_GPIO),
                            dmtd);
-    omap_gpmc_attach(s->cpu->gpmc, N900_ONENAND_CS, 0, onenand_base_update,
-                     onenand_base_unmap, s->nand, 0);
-    
+
     if (dsd) {
         omap3_mmc_attach(s->cpu->omap3_mmc[1], dsd, 0, 1);
     }
@@ -2315,12 +2352,12 @@ static void n900_init(ram_addr_t ram_size,
         omap3_mmc_attach(s->cpu->omap3_mmc[0], dsd, 0, 0);
         //qemu_irq_raise(omap2_gpio_in_get(s->cpu->gpif, N900_SDCOVER_GPIO));
     }
-    
+
     cpu_register_physical_memory(0x48058000, 0x3c00,
                                  cpu_register_io_memory(ssi_read_func,
                                                         ssi_write_func,
                                                         0));
-    
+
     s->twl4030 = twl4030_init(omap_i2c_bus(s->cpu->i2c[0]),
                               s->cpu->irq[0][OMAP_INT_3XXX_SYS_NIRQ],
                               NULL, n900_twl4030_keymap);
@@ -2336,29 +2373,18 @@ static void n900_init(ram_addr_t ram_size,
                                                   N900_LIS302DL_INT1_GPIO),
                                 omap2_gpio_in_get(s->cpu->gpif,
                                                   N900_LIS302DL_INT2_GPIO));
-    
+
     s->smc = smc91c111_init_lite(&nd_table[0], /*0x08000000,*/
                                  omap2_gpio_in_get(s->cpu->gpif, 54));
-    
-    omap_gpmc_attach(s->cpu->gpmc, N900_SMC_CS, smc91c111_iomemtype(s->smc),
-                     NULL, NULL, s->smc, 0);
-    
-    qemu_irq_raise(omap2_gpio_in_get(s->cpu->gpif, N900_KBLOCK_GPIO));
-    qemu_irq_raise(omap2_gpio_in_get(s->cpu->gpif, N900_HEADPHONE_GPIO));
-    qemu_irq_raise(omap2_gpio_in_get(s->cpu->gpif, N900_CAMLAUNCH_GPIO));
-    qemu_irq_raise(omap2_gpio_in_get(s->cpu->gpif, N900_CAMFOCUS_GPIO));
-    qemu_irq_lower(omap2_gpio_in_get(s->cpu->gpif, N900_CAMCOVER_GPIO));
-    qemu_irq_lower(omap2_gpio_in_get(s->cpu->gpif, N900_SLIDE_GPIO));
-    s->slide_open = 1;
-    s->camera_cover_open = 0;
-    
+
     qemu_add_kbd_event_handler(n900_key_handler, s);
-    
+
 #ifdef CONFIG_GLHW
     s->gl = helper_opengl_init(s->cpu->env);
 #endif
-    
-    omap3_boot_rom_emu(s->cpu);
+
+    qemu_register_reset(n900_reset, s);
+    n900_reset(s);
 }
 
 static QEMUMachine n900_machine = {

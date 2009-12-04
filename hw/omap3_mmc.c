@@ -95,6 +95,50 @@ struct omap3_mmc_s
     uint32_t stat_pending;
 };
 
+void omap3_mmc_reset(struct omap3_mmc_s *s)
+{
+    s->sysconfig = 0x00000015;
+    s->sysstatus = 0;
+    s->csre      = 0;
+    s->systest   = 0;
+    s->con       = 0x00000500;
+    s->pwcnt     = 0;
+    s->blk       = 0;
+    s->arg       = 0;
+    s->cmd       = 0;
+    s->rsp10     = 0;
+    s->rsp32     = 0;
+    s->rsp54     = 0;
+    s->rsp76     = 0;
+    s->data      = 0;
+    s->pstate    = 0x00040000;
+    s->hctl      = 0;
+    s->sysctl    = 0;
+    s->stat      = 0;
+    s->ie        = 0;
+    s->ise       = 0;
+    s->ac12      = 0;
+    s->capa      = 0x00e10080;
+    s->cur_capa  = 0;
+    s->rev       = 0x26000000;
+    
+    s->blen_counter = 0;
+    s->nblk_counter = 0;
+    
+    memset(s->fifo, 0, sizeof(s->fifo));
+    s->fifo_start = 0;
+    s->fifo_len   = 0;
+    
+    s->ddir       = 0;
+    s->transfer   = 0;
+    s->stop       = 0;
+    
+    s->stat_pending = 0;
+    
+    if (s->card) {
+        sd_reset(s->card);
+    }
+}
 
 typedef enum
 {
@@ -390,19 +434,6 @@ static void omap3_mmc_command(struct omap3_mmc_s *host)
         host->stat_pending &= ~(1 << 28); /* CERR */
     }
     host->stat_pending |= timeout ? (1 << 16) : 0x1; /* CTO : CC */
-}
-
-static void omap3_mmc_reset(struct omap3_mmc_s *s)
-{
-    s->sysconfig = 0x00000015;
-    s->con       = 0x00000500;
-    s->pstate    = 0x00040000;
-    s->capa      = 0x00e10080;
-    s->rev       = 0x26000000;
-
-    s->fifo_start = 0;
-    s->fifo_len   = 0;
-    s->stop       = 0;
 }
 
 static uint32_t omap3_mmc_read(void *opaque, target_phys_addr_t addr)

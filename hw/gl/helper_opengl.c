@@ -29,6 +29,7 @@
 #include "helper_opengl.h"
 #include "opengl_func_parse.h"
 #include "opengl_exec.h"
+#include "../hw.h"
 
 //#define GL_EXCESS_DEBUG
 //#define QEMUGL_PROFILE_FRAMECOPY
@@ -1386,6 +1387,46 @@ static CPUWriteMemoryFunc *helper_opengl_writefn[] = {
     helper_opengl_write,
     helper_opengl_write,
 };
+    
+static void helper_opengl_reset(void *opaque)
+{
+    struct helper_opengl_s *s;
+#ifdef QEMUGL_MULTITHREADED
+    OpenGLState *p = opaque;
+    OpenGLThreadState *thread_state, *next_state;
+    QLIST_FOREACH_SAFE(thread_state, &p->guest_list, link, next_state) {
+        s = &thread_state->state;
+#else
+    s = opaque;
+#endif
+        s->fid = _exit_process_func;
+        s->rsp = 0;
+        s->iap = 0;
+        s->ias = 0;
+#ifdef QEMUGL_MULTITHREADED
+        helper_opengl_runthread(thread_state);
+        helper_opengl_waitthread(thread_state);
+        helper_opengl_removethread(opaque, thread_state);
+    }
+#else
+    decode_call(s);
+    s->fid = 0;
+    s->pid = 0;
+    s->rsp = 0;
+    s->iap = 0;
+    s->ias = 0;
+    s->result = 0;
+    s->bufsize = 0;
+    s->bufpixelsize = 0;
+    s->bufwidth = 0;
+#ifndef QEMUGL_IO_FRAMEBUFFER
+    s->qemugl_bufbytesperline = 0;
+    s->qemugl_buf = 0;
+    memset(&s->framecopy, 0, sizeof(s->framecopy));
+#endif
+    s->buf = NULL;
+#endif
+}
 
 void *helper_opengl_init(CPUState *env)
 {
@@ -1400,5 +1441,6 @@ void *helper_opengl_init(CPUState *env)
                                  cpu_register_io_memory(helper_opengl_readfn,
                                                         helper_opengl_writefn,
                                                         s));
+    qemu_register_reset(helper_opengl_reset, s);
     return s;
 }

@@ -1070,6 +1070,14 @@ static void twl4030_key_handler(void *opaque, int keycode)
     }
 }
 
+static void twl4030_node_reset(TWL4030NodeState *s,
+                               const uint8_t *reset_values)
+{
+    s->firstbyte = 0;
+    s->reg = 0x00;
+    memcpy(s->reg_data, reset_values, 256);
+}
+
 static void twl4030_node_init(TWL4030NodeState *s,
                               twl4030_read_func read,
                               twl4030_write_func write,
@@ -1077,8 +1085,7 @@ static void twl4030_node_init(TWL4030NodeState *s,
 {
     s->read_func = read;
     s->write_func = write;
-    s->reg = 0x00;
-    memcpy(s->reg_data, reset_values, 256);
+    twl4030_node_reset(s, reset_values);
 }
 
 static int twl4030_48_init(i2c_slave *i2c)
@@ -1178,6 +1185,24 @@ static int twl4030_load_state(QEMUFile *f, void *opaque, int version_id)
     return 0;
 }
 
+static void twl4030_reset(void *opaque)
+{
+    TWL4030State *s = opaque;
+    
+    twl4030_node_reset(s->i2c[0], addr_48_reset_values);
+    twl4030_node_reset(s->i2c[1], addr_49_reset_values);
+    twl4030_node_reset(s->i2c[2], addr_4a_reset_values);
+    twl4030_node_reset(s->i2c[3], addr_4b_reset_values);
+    
+    s->extended_key = 0;
+    s->key_cfg = 0;
+    s->key_tst = 0;
+    
+    memset(s->seq_mem, 0, sizeof(s->seq_mem));
+    
+    /* TODO: indicate correct reset reason */
+}
+
 static I2CSlaveInfo twl4030_info[4] = {
     {
         .qdev.name = "twl4030_48",
@@ -1234,7 +1259,7 @@ void *twl4030_init(i2c_bus *gp_bus, qemu_irq irq1, qemu_irq irq2,
 
     register_savevm("twl4030", -1, 0,
                     twl4030_save_state, twl4030_load_state, s);
-
+    qemu_register_reset(twl4030_reset, s);
     return s;
 }
 

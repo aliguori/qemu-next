@@ -307,7 +307,9 @@ struct MUSBState {
     uint16_t rx_intr;
     uint16_t rx_mask;
 
+#ifdef SETUPLEN_HACK
     int setup_len;
+#endif
     int session;
 
     uint8_t buf[0x8000];
@@ -315,23 +317,30 @@ struct MUSBState {
         /* Duplicating the world since 2008!...  probably we should have 32
          * logical, single endpoints instead.  */
     MUSBEndPoint ep[16];
-} *musb_init(qemu_irq *irqs)
+};
+
+void musb_reset(MUSBState *s)
 {
-    MUSBState *s = qemu_mallocz(sizeof(*s));
     int i;
 
-    s->irqs = irqs;
-
-    s->faddr = 0x00;
+    s->idx = 0;
+    s->devctl = 0;
     s->power = MGC_M_POWER_HSENAB;
-    s->tx_intr = 0x0000;
-    s->rx_intr = 0x0000;
-    s->tx_mask = 0xffff;
-    s->rx_mask = 0xffff;
+    s->faddr = 0x00;
+
     s->intr = 0x00;
     s->mask = 0x06;
-    s->idx = 0;
+    s->tx_intr = 0x0000;
+    s->tx_mask = 0xffff;
+    s->rx_intr = 0x0000;
+    s->rx_mask = 0xffff;
 
+#ifdef SETUPLEN_HACK
+    s->setup_len = 0;
+#endif
+    s->session = 0;
+    memset(s->buf, 0, sizeof(s->buf));
+    
     /* TODO: _DW */
     s->ep[0].config = MGC_M_CONFIGDATA_SOFTCONE | MGC_M_CONFIGDATA_DYNFIFO;
     for (i = 0; i < 16; i ++) {
@@ -341,6 +350,14 @@ struct MUSBState {
         s->ep[i].musb = s;
         s->ep[i].epnum = i;
     }
+}
+
+struct MUSBState *musb_init(qemu_irq *irqs)
+{
+    MUSBState *s = qemu_mallocz(sizeof(*s));
+
+    s->irqs = irqs;
+    musb_reset(s);
 
     usb_bus_new(&s->bus, NULL /* FIXME */);
     usb_register_port(&s->bus, &s->port, s, 0, musb_attach);
