@@ -1048,4 +1048,6 @@ void cocoa_display_init(DisplayState *ds, int full_screen)
     atexit(cocoa_cleanup);
 }
 
+#ifdef CONFIG_GLHW
 #include "hw/gl/opengl_host_cocoa.m"
+#endif
