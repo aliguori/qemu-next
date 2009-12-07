@@ -1,3 +1,11 @@
+qemu (0.11.50-0sb2) unstable; urgency=low
+
+  * re-sync with upstream
+  * multiple n900 fixes
+  * multiple linux-user fixes
+
+ -- Riku Voipio <riku.voipio@iki.fi>  Mon, 07 Dec 2009 13:24:43 +0200
+
 qemu (0.11.50-0sb1) unstable; urgency=low
 
   * n900 baseline release
