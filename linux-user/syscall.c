@@ -179,6 +179,9 @@ static type name (type1 arg1,type2 arg2,type3 arg3,type4 arg4,type5 arg5,	\
 #define __NR_sys_tgkill __NR_tgkill
 #define __NR_sys_tkill __NR_tkill
 #define __NR_sys_unlinkat __NR_unlinkat
+#ifndef __NR_utimensat 
+#define __NR_utimensat 320 /* ugly hack for sb1 */
+#endif
 #define __NR_sys_utimensat __NR_utimensat
 #define __NR_sys_futex __NR_futex
 #define __NR_sys_inotify_init __NR_inotify_init
