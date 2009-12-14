@@ -22,8 +22,10 @@
  * THE SOFTWARE.
  */
 #include "hw.h"
+#include "loader.h"
 #include "console.h"
 #include "pci.h"
+#include "vmware_vga.h"
 
 #define VERBOSE
 #undef DIRECT_VRAM
@@ -1062,7 +1064,7 @@ static int vmsvga_post_load(void *opaque, int version_id)
     return 0;
 }
 
-const VMStateDescription vmstate_vmware_vga_internal = {
+static const VMStateDescription vmstate_vmware_vga_internal = {
     .name = "vmware_vga_internal",
     .version_id = 0,
     .minimum_version_id = 0,
@@ -1089,7 +1091,7 @@ const VMStateDescription vmstate_vmware_vga_internal = {
     }
 };
 
-const VMStateDescription vmstate_vmware_vga = {
+static const VMStateDescription vmstate_vmware_vga = {
     .name = "vmware_vga",
     .version_id = 0,
     .minimum_version_id = 0,
@@ -1123,6 +1125,7 @@ static void vmsvga_init(struct vmsvga_state_s *s, int vga_ram_size)
     cpu_register_physical_memory(VBE_DISPI_LFB_PHYSICAL_ADDRESS,
                                  vga_ram_size, s->vga.vram_offset);
 #endif
+     rom_add_vga(VGABIOS_FILENAME);
 }
 
 static void pci_vmsvga_map_ioport(PCIDevice *pci_dev, int region_num,
@@ -1188,18 +1191,18 @@ static int pci_vmsvga_initfn(PCIDevice *dev)
 
     vmsvga_init(&s->chip, VGA_RAM_SIZE);
 
-    vmstate_register(0, &vmstate_vmware_vga, s);
     return 0;
 }
 
 void pci_vmsvga_init(PCIBus *bus)
 {
-    pci_create_simple(bus, -1, "QEMUware SVGA");
+    pci_create_simple(bus, -1, "vmware-svga");
 }
 
 static PCIDeviceInfo vmsvga_info = {
-    .qdev.name    = "QEMUware SVGA",
+    .qdev.name    = "vmware-svga",
     .qdev.size    = sizeof(struct pci_vmsvga_state_s),
+    .qdev.vmsd    = &vmstate_vmware_vga,
     .init         = pci_vmsvga_initfn,
 };
 

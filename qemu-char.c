@@ -32,6 +32,7 @@
 #include "hw/usb.h"
 #include "hw/baum.h"
 #include "hw/msmouse.h"
+#include "qemu-objects.h"
 
 #include <unistd.h>
 #include <fcntl.h>
@@ -57,10 +58,13 @@
 #include <sys/select.h>
 #ifdef CONFIG_BSD
 #include <sys/stat.h>
-#ifdef __FreeBSD__
+#if defined(__FreeBSD__) || defined(__FreeBSD_kernel__)
 #include <libutil.h>
 #include <dev/ppbus/ppi.h>
 #include <dev/ppbus/ppbconf.h>
+#if defined(__GLIBC__)
+#include <pty.h>
+#endif
 #elif defined(__DragonFly__)
 #include <libutil.h>
 #include <dev/misc/ppi/ppi.h>
@@ -68,8 +72,6 @@
 #else
 #include <util.h>
 #endif
-#elif defined (__GLIBC__) && defined (__FreeBSD_kernel__)
-#include <freebsd/stdlib.h>
 #else
 #ifdef __linux__
 #include <pty.h>
@@ -619,7 +621,7 @@ static CharDriverState *qemu_chr_open_file_out(QemuOpts *opts)
 {
     int fd_out;
 
-    TFR(fd_out = open(qemu_opt_get(opts, "path"),
+    TFR(fd_out = qemu_open(qemu_opt_get(opts, "path"),
                       O_WRONLY | O_TRUNC | O_CREAT | O_BINARY, 0666));
     if (fd_out < 0)
         return NULL;
@@ -639,8 +641,8 @@ static CharDriverState *qemu_chr_open_pipe(QemuOpts *opts)
 
     snprintf(filename_in, 256, "%s.in", filename);
     snprintf(filename_out, 256, "%s.out", filename);
-    TFR(fd_in = open(filename_in, O_RDWR | O_BINARY));
-    TFR(fd_out = open(filename_out, O_RDWR | O_BINARY));
+    TFR(fd_in = qemu_open(filename_in, O_RDWR | O_BINARY));
+    TFR(fd_out = qemu_open(filename_out, O_RDWR | O_BINARY));
     if (fd_in < 0 || fd_out < 0) {
 	if (fd_in >= 0)
 	    close(fd_in);
@@ -820,7 +822,8 @@ static void cfmakeraw (struct termios *termios_p)
 #endif
 
 #if defined(__linux__) || defined(__sun__) || defined(__FreeBSD__) \
-    || defined(__NetBSD__) || defined(__OpenBSD__) || defined(__DragonFly__)
+    || defined(__NetBSD__) || defined(__OpenBSD__) || defined(__DragonFly__) \
+    || defined(__GLIBC__)
 
 typedef struct {
     int fd;
@@ -1336,7 +1339,7 @@ static CharDriverState *qemu_chr_open_pp(QemuOpts *opts)
 }
 #endif /* __linux__ */
 
-#if defined(__FreeBSD__) || defined(__DragonFly__)
+#if defined(__FreeBSD__) || defined(__FreeBSD_kernel__) || defined(__DragonFly__)
 static int pp_ioctl(CharDriverState *chr, int cmd, void *arg)
 {
     int fd = (int)chr->opaque;
@@ -2099,7 +2102,7 @@ static void tcp_chr_accept(void *opaque)
 	    len = sizeof(saddr);
 	    addr = (struct sockaddr *)&saddr;
 	}
-        fd = accept(s->listen_fd, addr, &len);
+        fd = qemu_accept(s->listen_fd, addr, &len);
         if (fd < 0 && errno != EINTR) {
             return;
         } else if (fd >= 0) {
@@ -2229,7 +2232,7 @@ static CharDriverState *qemu_chr_open_socket(QemuOpts *opts)
     return NULL;
 }
 
-static QemuOpts *qemu_chr_parse_compat(const char *label, const char *filename)
+QemuOpts *qemu_chr_parse_compat(const char *label, const char *filename)
 {
     char host[65], port[33], width[8], height[8];
     int pos;
@@ -2380,10 +2383,12 @@ static const struct {
     { .name = "braille",   .open = chr_baum_init },
 #endif
 #if defined(__linux__) || defined(__sun__) || defined(__FreeBSD__) \
-    || defined(__NetBSD__) || defined(__OpenBSD__) || defined(__DragonFly__)
+    || defined(__NetBSD__) || defined(__OpenBSD__) || defined(__DragonFly__) \
+    || defined(__FreeBSD_kernel__)
     { .name = "tty",       .open = qemu_chr_open_tty },
 #endif
-#if defined(__linux__) || defined(__FreeBSD__) || defined(__DragonFly__)
+#if defined(__linux__) || defined(__FreeBSD__) || defined(__DragonFly__) \
+    || defined(__FreeBSD_kernel__)
     { .name = "parport",   .open = qemu_chr_open_pp },
 #endif
 };
@@ -2465,13 +2470,51 @@ void qemu_chr_close(CharDriverState *chr)
     qemu_free(chr);
 }
 
-void qemu_chr_info(Monitor *mon)
+static void qemu_chr_qlist_iter(QObject *obj, void *opaque)
 {
+    QDict *chr_dict;
+    Monitor *mon = opaque;
+
+    chr_dict = qobject_to_qdict(obj);
+    monitor_printf(mon, "%s: filename=%s\n", qdict_get_str(chr_dict, "label"),
+                                         qdict_get_str(chr_dict, "filename"));
+}
+
+void qemu_chr_info_print(Monitor *mon, const QObject *ret_data)
+{
+    qlist_iter(qobject_to_qlist(ret_data), qemu_chr_qlist_iter, mon);
+}
+
+/**
+ * qemu_chr_info(): Character devices information
+ *
+ * Each device is represented by a QDict. The returned QObject is a QList
+ * of all devices.
+ *
+ * The QDict contains the following:
+ *
+ * - "label": device's label
+ * - "filename": device's file
+ *
+ * Example:
+ *
+ * [ { "label": "monitor", "filename", "stdio" },
+ *   { "label": "serial0", "filename": "vc" } ]
+ */
+void qemu_chr_info(Monitor *mon, QObject **ret_data)
+{
+    QList *chr_list;
     CharDriverState *chr;
 
+    chr_list = qlist_new();
+
     QTAILQ_FOREACH(chr, &chardevs, next) {
-        monitor_printf(mon, "%s: filename=%s\n", chr->label, chr->filename);
+        QObject *obj = qobject_from_jsonf("{ 'label': %s, 'filename': %s }",
+                                          chr->label, chr->filename);
+        qlist_append_obj(chr_list, obj);
     }
+
+    *ret_data = QOBJECT(chr_list);
 }
 
 CharDriverState *qemu_chr_find(const char *name)

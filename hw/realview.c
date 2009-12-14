@@ -12,6 +12,7 @@
 #include "primecell.h"
 #include "devices.h"
 #include "pci.h"
+#include "usb-ohci.h"
 #include "net.h"
 #include "sysemu.h"
 #include "boards.h"
@@ -120,7 +121,7 @@ enum realview_board_type {
     BOARD_PBX_A9,
 };
 
-int realview_board_id[] = {
+static const int realview_board_id[] = {
     0x33b,
     0x33b,
     0x769,

@@ -481,7 +481,7 @@ struct QemuOpt {
 };
 
 struct QemuOpts {
-    const char *id;
+    char *id;
     QemuOptsList *list;
     QTAILQ_HEAD(QemuOptHead, QemuOpt) head;
     QTAILQ_ENTRY(QemuOpts) next;
@@ -686,6 +686,7 @@ void qemu_opts_del(QemuOpts *opts)
         qemu_opt_del(opt);
     }
     QTAILQ_REMOVE(&opts->list->head, opts, next);
+    qemu_free(opts->id);
     qemu_free(opts);
 }
 
@@ -704,7 +705,7 @@ int qemu_opts_print(QemuOpts *opts, void *dummy)
 
 int qemu_opts_do_parse(QemuOpts *opts, const char *params, const char *firstname)
 {
-    char option[128], value[128];
+    char option[128], value[1024];
     const char *p,*pe,*pc;
 
     for (p = params; *p != '\0'; p++) {
@@ -750,7 +751,7 @@ int qemu_opts_do_parse(QemuOpts *opts, const char *params, const char *firstname
 
 QemuOpts *qemu_opts_parse(QemuOptsList *list, const char *params, const char *firstname)
 {
-    char value[128], *id = NULL;
+    char value[1024], *id = NULL;
     const char *p;
     QemuOpts *opts;
 

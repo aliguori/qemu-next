@@ -26,6 +26,7 @@
 #include "monitor.h"
 #include "block_int.h"
 #include "module.h"
+#include "qemu-objects.h"
 
 #ifdef CONFIG_BSD
 #include <sys/types.h>
@@ -40,10 +41,6 @@
 #ifdef _WIN32
 #include <windows.h>
 #endif
-
-#define SECTOR_BITS 9
-#define SECTOR_SIZE (1 << SECTOR_BITS)
-#define SECTORS_PER_DIRTY_CHUNK 8
 
 static BlockDriverAIOCB *bdrv_aio_readv_em(BlockDriverState *bs,
         int64_t sector_num, QEMUIOVector *qiov, int nb_sectors,
@@ -386,7 +383,7 @@ int bdrv_open2(BlockDriverState *bs, const char *filename, int flags,
             bdrv_delete(bs1);
             return ret;
         }
-        total_size = bdrv_getlength(bs1) >> SECTOR_BITS;
+        total_size = bdrv_getlength(bs1) >> BDRV_SECTOR_BITS;
 
         if (bs1->drv && bs1->drv->protocol_name)
             is_protocol = 1;
@@ -473,7 +470,7 @@ int bdrv_open2(BlockDriverState *bs, const char *filename, int flags,
         return ret;
     }
     if (drv->bdrv_getlength) {
-        bs->total_sectors = bdrv_getlength(bs) >> SECTOR_BITS;
+        bs->total_sectors = bdrv_getlength(bs) >> BDRV_SECTOR_BITS;
     }
 #ifndef _WIN32
     if (bs->is_temporary) {
@@ -576,7 +573,7 @@ int bdrv_commit(BlockDriverState *bs)
 	return -ENOTSUP;
     }
 
-    total_sectors = bdrv_getlength(bs) >> SECTOR_BITS;
+    total_sectors = bdrv_getlength(bs) >> BDRV_SECTOR_BITS;
     for (i = 0; i < total_sectors;) {
         if (drv->bdrv_is_allocated(bs, i, 65536, &n)) {
             for(j = 0; j < n; j++) {
@@ -643,14 +640,24 @@ int bdrv_read(BlockDriverState *bs, int64_t sector_num,
 }
 
 static void set_dirty_bitmap(BlockDriverState *bs, int64_t sector_num,
-			     int nb_sectors, int dirty)
+                             int nb_sectors, int dirty)
 {
     int64_t start, end;
-    start = sector_num / SECTORS_PER_DIRTY_CHUNK;
-    end = (sector_num + nb_sectors) / SECTORS_PER_DIRTY_CHUNK;
-    
-    for(; start <= end; start++) {
-        bs->dirty_bitmap[start] = dirty;
+    unsigned long val, idx, bit;
+
+    start = sector_num / BDRV_SECTORS_PER_DIRTY_CHUNK;
+    end = (sector_num + nb_sectors - 1) / BDRV_SECTORS_PER_DIRTY_CHUNK;
+
+    for (; start <= end; start++) {
+        idx = start / (sizeof(unsigned long) * 8);
+        bit = start % (sizeof(unsigned long) * 8);
+        val = bs->dirty_bitmap[idx];
+        if (dirty) {
+            val |= 1 << bit;
+        } else {
+            val &= ~(1 << bit);
+        }
+        bs->dirty_bitmap[idx] = val;
     }
 }
 
@@ -670,31 +677,31 @@ int bdrv_write(BlockDriverState *bs, int64_t sector_num,
         return -EACCES;
     if (bdrv_check_request(bs, sector_num, nb_sectors))
         return -EIO;
-    
-    if(bs->dirty_tracking) {
+
+    if (bs->dirty_bitmap) {
         set_dirty_bitmap(bs, sector_num, nb_sectors, 1);
     }
-    
+
     return drv->bdrv_write(bs, sector_num, buf, nb_sectors);
 }
 
 int bdrv_pread(BlockDriverState *bs, int64_t offset,
                void *buf, int count1)
 {
-    uint8_t tmp_buf[SECTOR_SIZE];
+    uint8_t tmp_buf[BDRV_SECTOR_SIZE];
     int len, nb_sectors, count;
     int64_t sector_num;
 
     count = count1;
     /* first read to align to sector start */
-    len = (SECTOR_SIZE - offset) & (SECTOR_SIZE - 1);
+    len = (BDRV_SECTOR_SIZE - offset) & (BDRV_SECTOR_SIZE - 1);
     if (len > count)
         len = count;
-    sector_num = offset >> SECTOR_BITS;
+    sector_num = offset >> BDRV_SECTOR_BITS;
     if (len > 0) {
         if (bdrv_read(bs, sector_num, tmp_buf, 1) < 0)
             return -EIO;
-        memcpy(buf, tmp_buf + (offset & (SECTOR_SIZE - 1)), len);
+        memcpy(buf, tmp_buf + (offset & (BDRV_SECTOR_SIZE - 1)), len);
         count -= len;
         if (count == 0)
             return count1;
@@ -703,12 +710,12 @@ int bdrv_pread(BlockDriverState *bs, int64_t offset,
     }
 
     /* read the sectors "in place" */
-    nb_sectors = count >> SECTOR_BITS;
+    nb_sectors = count >> BDRV_SECTOR_BITS;
     if (nb_sectors > 0) {
         if (bdrv_read(bs, sector_num, buf, nb_sectors) < 0)
             return -EIO;
         sector_num += nb_sectors;
-        len = nb_sectors << SECTOR_BITS;
+        len = nb_sectors << BDRV_SECTOR_BITS;
         buf += len;
         count -= len;
     }
@@ -725,20 +732,20 @@ int bdrv_pread(BlockDriverState *bs, int64_t offset,
 int bdrv_pwrite(BlockDriverState *bs, int64_t offset,
                 const void *buf, int count1)
 {
-    uint8_t tmp_buf[SECTOR_SIZE];
+    uint8_t tmp_buf[BDRV_SECTOR_SIZE];
     int len, nb_sectors, count;
     int64_t sector_num;
 
     count = count1;
     /* first write to align to sector start */
-    len = (SECTOR_SIZE - offset) & (SECTOR_SIZE - 1);
+    len = (BDRV_SECTOR_SIZE - offset) & (BDRV_SECTOR_SIZE - 1);
     if (len > count)
         len = count;
-    sector_num = offset >> SECTOR_BITS;
+    sector_num = offset >> BDRV_SECTOR_BITS;
     if (len > 0) {
         if (bdrv_read(bs, sector_num, tmp_buf, 1) < 0)
             return -EIO;
-        memcpy(tmp_buf + (offset & (SECTOR_SIZE - 1)), buf, len);
+        memcpy(tmp_buf + (offset & (BDRV_SECTOR_SIZE - 1)), buf, len);
         if (bdrv_write(bs, sector_num, tmp_buf, 1) < 0)
             return -EIO;
         count -= len;
@@ -749,12 +756,12 @@ int bdrv_pwrite(BlockDriverState *bs, int64_t offset,
     }
 
     /* write the sectors "in place" */
-    nb_sectors = count >> SECTOR_BITS;
+    nb_sectors = count >> BDRV_SECTOR_BITS;
     if (nb_sectors > 0) {
         if (bdrv_write(bs, sector_num, buf, nb_sectors) < 0)
             return -EIO;
         sector_num += nb_sectors;
-        len = nb_sectors << SECTOR_BITS;
+        len = nb_sectors << BDRV_SECTOR_BITS;
         buf += len;
         count -= len;
     }
@@ -795,7 +802,7 @@ int64_t bdrv_getlength(BlockDriverState *bs)
         return -ENOMEDIUM;
     if (!drv->bdrv_getlength) {
         /* legacy mode */
-        return bs->total_sectors * SECTOR_SIZE;
+        return bs->total_sectors * BDRV_SECTOR_SIZE;
     }
     return drv->bdrv_getlength(bs);
 }
@@ -808,7 +815,7 @@ void bdrv_get_geometry(BlockDriverState *bs, uint64_t *nb_sectors_ptr)
     if (length < 0)
         length = 0;
     else
-        length = length >> SECTOR_BITS;
+        length = length >> BDRV_SECTOR_BITS;
     *nb_sectors_ptr = length;
 }
 
@@ -1133,61 +1140,203 @@ int bdrv_is_allocated(BlockDriverState *bs, int64_t sector_num, int nb_sectors,
     return bs->drv->bdrv_is_allocated(bs, sector_num, nb_sectors, pnum);
 }
 
-void bdrv_info(Monitor *mon)
+static void bdrv_print_dict(QObject *obj, void *opaque)
 {
-    BlockDriverState *bs;
+    QDict *bs_dict;
+    Monitor *mon = opaque;
 
-    for (bs = bdrv_first; bs != NULL; bs = bs->next) {
-        monitor_printf(mon, "%s:", bs->device_name);
-        monitor_printf(mon, " type=");
-        switch(bs->type) {
-        case BDRV_TYPE_HD:
-            monitor_printf(mon, "hd");
-            break;
-        case BDRV_TYPE_CDROM:
-            monitor_printf(mon, "cdrom");
-            break;
-        case BDRV_TYPE_FLOPPY:
-            monitor_printf(mon, "floppy");
-            break;
-        }
-        monitor_printf(mon, " removable=%d", bs->removable);
-        if (bs->removable) {
-            monitor_printf(mon, " locked=%d", bs->locked);
-        }
-        if (bs->drv) {
-            monitor_printf(mon, " file=");
-            monitor_print_filename(mon, bs->filename);
-            if (bs->backing_file[0] != '\0') {
-                monitor_printf(mon, " backing_file=");
-                monitor_print_filename(mon, bs->backing_file);
-            }
-            monitor_printf(mon, " ro=%d", bs->read_only);
-            monitor_printf(mon, " drv=%s", bs->drv->format_name);
-            monitor_printf(mon, " encrypted=%d", bdrv_is_encrypted(bs));
-        } else {
-            monitor_printf(mon, " [not inserted]");
-        }
-        monitor_printf(mon, "\n");
+    bs_dict = qobject_to_qdict(obj);
+
+    monitor_printf(mon, "%s: type=%s removable=%d",
+                        qdict_get_str(bs_dict, "device"),
+                        qdict_get_str(bs_dict, "type"),
+                        qdict_get_bool(bs_dict, "removable"));
+
+    if (qdict_get_bool(bs_dict, "removable")) {
+        monitor_printf(mon, " locked=%d", qdict_get_bool(bs_dict, "locked"));
     }
+
+    if (qdict_haskey(bs_dict, "inserted")) {
+        QDict *qdict = qobject_to_qdict(qdict_get(bs_dict, "inserted"));
+
+        monitor_printf(mon, " file=");
+        monitor_print_filename(mon, qdict_get_str(qdict, "file"));
+        if (qdict_haskey(qdict, "backing_file")) {
+            monitor_printf(mon, " backing_file=");
+            monitor_print_filename(mon, qdict_get_str(qdict, "backing_file"));
+        }
+        monitor_printf(mon, " ro=%d drv=%s encrypted=%d",
+                            qdict_get_bool(qdict, "ro"),
+                            qdict_get_str(qdict, "drv"),
+                            qdict_get_bool(qdict, "encrypted"));
+    } else {
+        monitor_printf(mon, " [not inserted]");
+    }
+
+    monitor_printf(mon, "\n");
 }
 
-/* The "info blockstats" command. */
-void bdrv_info_stats(Monitor *mon)
+void bdrv_info_print(Monitor *mon, const QObject *data)
 {
+    qlist_iter(qobject_to_qlist(data), bdrv_print_dict, mon);
+}
+
+/**
+ * bdrv_info(): Block devices information
+ *
+ * Each block device information is stored in a QDict and the
+ * returned QObject is a QList of all devices.
+ *
+ * The QDict contains the following:
+ *
+ * - "device": device name
+ * - "type": device type
+ * - "removable": true if the device is removable, false otherwise
+ * - "locked": true if the device is locked, false otherwise
+ * - "inserted": only present if the device is inserted, it is a QDict
+ *    containing the following:
+ *          - "file": device file name
+ *          - "ro": true if read-only, false otherwise
+ *          - "drv": driver format name
+ *          - "backing_file": backing file name if one is used
+ *          - "encrypted": true if encrypted, false otherwise
+ *
+ * Example:
+ *
+ * [ { "device": "ide0-hd0", "type": "hd", "removable": false, "locked": false,
+ *     "inserted": { "file": "/tmp/foobar", "ro": false, "drv": "qcow2" } },
+ *   { "device": "floppy0", "type": "floppy", "removable": true,
+ *     "locked": false } ]
+ */
+void bdrv_info(Monitor *mon, QObject **ret_data)
+{
+    QList *bs_list;
     BlockDriverState *bs;
 
+    bs_list = qlist_new();
+
     for (bs = bdrv_first; bs != NULL; bs = bs->next) {
-        monitor_printf(mon, "%s:"
-                       " rd_bytes=%" PRIu64
-                       " wr_bytes=%" PRIu64
-                       " rd_operations=%" PRIu64
-                       " wr_operations=%" PRIu64
-                       "\n",
-                       bs->device_name,
-                       bs->rd_bytes, bs->wr_bytes,
-                       bs->rd_ops, bs->wr_ops);
+        QObject *bs_obj;
+        const char *type = "unknown";
+
+        switch(bs->type) {
+        case BDRV_TYPE_HD:
+            type = "hd";
+            break;
+        case BDRV_TYPE_CDROM:
+            type = "cdrom";
+            break;
+        case BDRV_TYPE_FLOPPY:
+            type = "floppy";
+            break;
+        }
+
+        bs_obj = qobject_from_jsonf("{ 'device': %s, 'type': %s, "
+                                    "'removable': %i, 'locked': %i }",
+                                    bs->device_name, type, bs->removable,
+                                    bs->locked);
+        assert(bs_obj != NULL);
+
+        if (bs->drv) {
+            QObject *obj;
+            QDict *bs_dict = qobject_to_qdict(bs_obj);
+
+            obj = qobject_from_jsonf("{ 'file': %s, 'ro': %i, 'drv': %s, "
+                                     "'encrypted': %i }",
+                                     bs->filename, bs->read_only,
+                                     bs->drv->format_name,
+                                     bdrv_is_encrypted(bs));
+            assert(obj != NULL);
+            if (bs->backing_file[0] != '\0') {
+                QDict *qdict = qobject_to_qdict(obj);
+                qdict_put(qdict, "backing_file",
+                          qstring_from_str(bs->backing_file));
+            }
+
+            qdict_put_obj(bs_dict, "inserted", obj);
+        }
+        qlist_append_obj(bs_list, bs_obj);
     }
+
+    *ret_data = QOBJECT(bs_list);
+}
+
+static void bdrv_stats_iter(QObject *data, void *opaque)
+{
+    QDict *qdict;
+    Monitor *mon = opaque;
+
+    qdict = qobject_to_qdict(data);
+    monitor_printf(mon, "%s:", qdict_get_str(qdict, "device"));
+
+    qdict = qobject_to_qdict(qdict_get(qdict, "stats"));
+    monitor_printf(mon, " rd_bytes=%" PRId64
+                        " wr_bytes=%" PRId64
+                        " rd_operations=%" PRId64
+                        " wr_operations=%" PRId64
+                        "\n",
+                        qdict_get_int(qdict, "rd_bytes"),
+                        qdict_get_int(qdict, "wr_bytes"),
+                        qdict_get_int(qdict, "rd_operations"),
+                        qdict_get_int(qdict, "wr_operations"));
+}
+
+void bdrv_stats_print(Monitor *mon, const QObject *data)
+{
+    qlist_iter(qobject_to_qlist(data), bdrv_stats_iter, mon);
+}
+
+/**
+ * bdrv_info_stats(): show block device statistics
+ *
+ * Each device statistic information is stored in a QDict and
+ * the returned QObject is a QList of all devices.
+ *
+ * The QDict contains the following:
+ *
+ * - "device": device name
+ * - "stats": A QDict with the statistics information, it contains:
+ *     - "rd_bytes": bytes read
+ *     - "wr_bytes": bytes written
+ *     - "rd_operations": read operations
+ *     - "wr_operations": write operations
+ * 
+ * Example:
+ *
+ * [ { "device": "ide0-hd0",
+ *               "stats": { "rd_bytes": 512,
+ *                          "wr_bytes": 0,
+ *                          "rd_operations": 1,
+ *                          "wr_operations": 0 } },
+ *   { "device": "ide1-cd0",
+ *               "stats": { "rd_bytes": 0,
+ *                          "wr_bytes": 0,
+ *                          "rd_operations": 0,
+ *                          "wr_operations": 0 } } ]
+ */
+void bdrv_info_stats(Monitor *mon, QObject **ret_data)
+{
+    QObject *obj;
+    QList *devices;
+    BlockDriverState *bs;
+
+    devices = qlist_new();
+
+    for (bs = bdrv_first; bs != NULL; bs = bs->next) {
+        obj = qobject_from_jsonf("{ 'device': %s, 'stats': {"
+                                 "'rd_bytes': %" PRId64 ","
+                                 "'wr_bytes': %" PRId64 ","
+                                 "'rd_operations': %" PRId64 ","
+                                 "'wr_operations': %" PRId64
+                                 "} }",
+                                 bs->device_name,
+                                 bs->rd_bytes, bs->wr_bytes,
+                                 bs->rd_ops, bs->wr_ops);
+        assert(obj != NULL);
+        qlist_append_obj(devices, obj);
+    }
+
+    *ret_data = QOBJECT(devices);
 }
 
 const char *bdrv_get_encrypted_filename(BlockDriverState *bs)
@@ -1220,11 +1369,11 @@ int bdrv_write_compressed(BlockDriverState *bs, int64_t sector_num,
         return -ENOTSUP;
     if (bdrv_check_request(bs, sector_num, nb_sectors))
         return -EIO;
-    
-    if(bs->dirty_tracking) {
+
+    if (bs->dirty_bitmap) {
         set_dirty_bitmap(bs, sector_num, nb_sectors, 1);
     }
-    
+
     return drv->bdrv_write_compressed(bs, sector_num, buf, nb_sectors);
 }
 
@@ -1401,7 +1550,7 @@ BlockDriverAIOCB *bdrv_aio_readv(BlockDriverState *bs, int64_t sector_num,
 
     if (ret) {
 	/* Update stats even though technically transfer has not happened. */
-	bs->rd_bytes += (unsigned) nb_sectors * SECTOR_SIZE;
+	bs->rd_bytes += (unsigned) nb_sectors * BDRV_SECTOR_SIZE;
 	bs->rd_ops ++;
     }
 
@@ -1422,16 +1571,16 @@ BlockDriverAIOCB *bdrv_aio_writev(BlockDriverState *bs, int64_t sector_num,
     if (bdrv_check_request(bs, sector_num, nb_sectors))
         return NULL;
 
-    if(bs->dirty_tracking) {
+    if (bs->dirty_bitmap) {
         set_dirty_bitmap(bs, sector_num, nb_sectors, 1);
     }
-    
+
     ret = drv->bdrv_aio_writev(bs, sector_num, qiov, nb_sectors,
                                cb, opaque);
 
     if (ret) {
 	/* Update stats even though technically transfer has not happened. */
-	bs->wr_bytes += (unsigned) nb_sectors * SECTOR_SIZE;
+	bs->wr_bytes += (unsigned) nb_sectors * BDRV_SECTOR_SIZE;
 	bs->wr_ops ++;
     }
 
@@ -1966,47 +2115,38 @@ void *qemu_blockalign(BlockDriverState *bs, size_t size)
 void bdrv_set_dirty_tracking(BlockDriverState *bs, int enable)
 {
     int64_t bitmap_size;
-    if(enable) {
-        if(bs->dirty_tracking == 0) {
-            int64_t i;
-            uint8_t test;
-            bitmap_size = (bdrv_getlength(bs) >> SECTOR_BITS);
-            bitmap_size /= SECTORS_PER_DIRTY_CHUNK;
-            bitmap_size++;
-	    
+
+    if (enable) {
+        if (!bs->dirty_bitmap) {
+            bitmap_size = (bdrv_getlength(bs) >> BDRV_SECTOR_BITS) +
+                    BDRV_SECTORS_PER_DIRTY_CHUNK * 8 - 1;
+            bitmap_size /= BDRV_SECTORS_PER_DIRTY_CHUNK * 8;
+
             bs->dirty_bitmap = qemu_mallocz(bitmap_size);
-	    
-            bs->dirty_tracking = enable;
-            for(i = 0; i < bitmap_size; i++) test = bs->dirty_bitmap[i]; 
-	}
+        }
     } else {
-        if(bs->dirty_tracking != 0) {
+        if (bs->dirty_bitmap) {
             qemu_free(bs->dirty_bitmap);
-            bs->dirty_tracking = enable;
-	}
+            bs->dirty_bitmap = NULL;
+        }
     }
 }
 
 int bdrv_get_dirty(BlockDriverState *bs, int64_t sector)
 {
-    int64_t chunk = sector / (int64_t)SECTORS_PER_DIRTY_CHUNK;
-    
-    if(bs->dirty_bitmap != NULL && 
-       (sector << SECTOR_BITS) <= bdrv_getlength(bs)) {
-        return bs->dirty_bitmap[chunk];
+    int64_t chunk = sector / (int64_t)BDRV_SECTORS_PER_DIRTY_CHUNK;
+
+    if (bs->dirty_bitmap &&
+        (sector << BDRV_SECTOR_BITS) < bdrv_getlength(bs)) {
+        return bs->dirty_bitmap[chunk / (sizeof(unsigned long) * 8)] &
+            (1 << (chunk % (sizeof(unsigned long) * 8)));
     } else {
         return 0;
     }
 }
 
-void bdrv_reset_dirty(BlockDriverState *bs, int64_t cur_sector, 
-		      int nr_sectors)
+void bdrv_reset_dirty(BlockDriverState *bs, int64_t cur_sector,
+                      int nr_sectors)
 {
     set_dirty_bitmap(bs, cur_sector, nr_sectors, 0);
-}
-
-int bdrv_get_sectors_per_chunk(void)
-{
-    /* size must be 2^x */
-    return SECTORS_PER_DIRTY_CHUNK;
 }

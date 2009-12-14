@@ -91,6 +91,26 @@ ar="${cross_prefix}${ar}"
 objcopy="${cross_prefix}${objcopy}"
 ld="${cross_prefix}${ld}"
 
+# default flags for all hosts
+QEMU_CFLAGS="-fno-strict-aliasing $QEMU_CFLAGS"
+CFLAGS="-g $CFLAGS"
+QEMU_CFLAGS="-Wall -Wundef -Wendif-labels -Wwrite-strings -Wmissing-prototypes $QEMU_CFLAGS"
+QEMU_CFLAGS="-Wstrict-prototypes -Wredundant-decls $QEMU_CFLAGS"
+QEMU_CFLAGS="-D_GNU_SOURCE -D_FILE_OFFSET_BITS=64 -D_LARGEFILE_SOURCE $QEMU_CFLAGS"
+QEMU_CFLAGS="-U_FORTIFY_SOURCE $QEMU_CFLAGS"
+QEMU_CFLAGS="-I. -I\$(SRC_PATH) $QEMU_CFLAGS"
+LDFLAGS="-g $LDFLAGS"
+
+gcc_flags="-Wold-style-declaration -Wold-style-definition"
+cat > $TMPC << EOF
+int main(void) { }
+EOF
+for flag in $gcc_flags; do
+    if compile_prog "$QEMU_CFLAGS" "$flag" ; then
+	QEMU_CFLAGS="$flag $QEMU_CFLAGS"
+    fi
+done
+
 # check that the C compiler works.
 cat > $TMPC <<EOF
 int main(void) {}
@@ -134,13 +154,15 @@ elif check_define _ARCH_PPC ; then
   else
     cpu="ppc"
   fi
+elif check_define __mips__ ; then
+  cpu="mips"
 else
   cpu=`uname -m`
 fi
 
 target_list=""
 case "$cpu" in
-  alpha|cris|ia64|m68k|microblaze|mips|mips64|ppc|ppc64|sparc64)
+  alpha|cris|ia64|m68k|microblaze|ppc|ppc64|sparc64)
     cpu="$cpu"
   ;;
   i386|i486|i586|i686|i86pc|BePC)
@@ -158,8 +180,14 @@ case "$cpu" in
   parisc|parisc64)
     cpu="hppa"
   ;;
-  s390*)
+  mips*)
+    cpu="mips"
+  ;;
+  s390)
     cpu="s390"
+  ;;
+  s390x)
+    cpu="s390x"
   ;;
   sparc|sun4[cdmuv])
     cpu="sparc"
@@ -230,6 +258,7 @@ check_utests="no"
 user_pie="no"
 glhw="no"
 osmesa="no"
+zero_malloc=""
 
 # OS specific
 if check_define __linux__ ; then
@@ -257,27 +286,32 @@ MINGW32*)
   audio_drv_list="winwave"
 ;;
 GNU/kFreeBSD)
+  bsd="yes"
   audio_drv_list="oss"
   audio_possible_drivers="oss sdl esd pa"
 ;;
 FreeBSD)
   bsd="yes"
+  make="gmake"
   audio_drv_list="oss"
   audio_possible_drivers="oss sdl esd pa"
 ;;
 DragonFly)
   bsd="yes"
+  make="gmake"
   audio_drv_list="oss"
   audio_possible_drivers="oss sdl esd pa"
 ;;
 NetBSD)
   bsd="yes"
+  make="gmake"
   audio_drv_list="oss"
   audio_possible_drivers="oss sdl esd"
   oss_lib="-lossaudio"
 ;;
 OpenBSD)
   bsd="yes"
+  make="gmake"
   audio_drv_list="oss"
   audio_possible_drivers="oss sdl esd"
   oss_lib="-lossaudio"
@@ -362,7 +396,6 @@ esac
 
 if [ "$bsd" = "yes" ] ; then
   if [ "$darwin" != "yes" ] ; then
-    make="gmake"
     usb="bsd"
   fi
   bsd_user="yes"
@@ -860,7 +893,7 @@ else
 
 # if cross compiling, cannot launch a program, so make a static guess
 case "$cpu" in
-  armv4b|hppa|m68k|mips|mips64|ppc|ppc64|s390|sparc|sparc64)
+  armv4b|hppa|m68k|mips|mips64|ppc|ppc64|s390|s390x|sparc|sparc64)
     bigendian=yes
   ;;
 esac
@@ -870,7 +903,7 @@ fi
 # host long bits test
 hostlongbits="32"
 case "$cpu" in
-  x86_64|alpha|ia64|sparc64|ppc64)
+  x86_64|alpha|ia64|sparc64|ppc64|s390x)
     hostlongbits=64
   ;;
 esac
@@ -1353,6 +1386,8 @@ EOF
             kvm_cflags="$kvm_cflags -I$kerneldir/arch/x86/include"
 	elif test "$cpu" = "ppc" -a -d "$kerneldir/arch/powerpc/include" ; then
 	    kvm_cflags="$kvm_cflags -I$kerneldir/arch/powerpc/include"
+	elif test "$cpu" = "s390x" -a -d "$kerneldir/arch/s390/include" ; then
+	    kvm_cflags="$kvm_cflags -I$kerneldir/arch/s390/include"
         elif test -d "$kerneldir/arch/$cpu/include" ; then
             kvm_cflags="$kvm_cflags -I$kerneldir/arch/$cpu/include"
       fi
@@ -1551,6 +1586,23 @@ if compile_prog "" "" ; then
   pipe2=yes
 fi
 
+# check if accept4 is there
+accept4=no
+cat > $TMPC << EOF
+#define _GNU_SOURCE
+#include <sys/socket.h>
+#include <stddef.h>
+
+int main(void)
+{
+    accept4(0, NULL, NULL, SOCK_CLOEXEC);
+    return 0;
+}
+EOF
+if compile_prog "" "" ; then
+  accept4=yes
+fi
+
 # check if tee/splice is there. vmsplice was added same time.
 splice=no
 cat > $TMPC << EOF
@@ -1597,7 +1649,7 @@ int main(void)
     return 0;
 }
 EOF
-if compile_prog "" "" ; then
+if compile_prog "$ARCH_CFLAGS" "" ; then
   fallocate=yes
 fi
 
@@ -1745,38 +1797,30 @@ fi
 # End of CC checks
 # After here, no more $cc or $ld runs
 
-# default flags for all hosts
-QEMU_CFLAGS="-fno-strict-aliasing $QEMU_CFLAGS"
-CFLAGS="-g $CFLAGS"
 if test "$debug" = "no" ; then
   CFLAGS="-O2 $CFLAGS"
 fi
-QEMU_CFLAGS="-Wall -Wundef -Wendif-labels -Wwrite-strings -Wmissing-prototypes $QEMU_CFLAGS"
-QEMU_CFLAGS="-Wstrict-prototypes -Wredundant-decls $QEMU_CFLAGS"
-QEMU_CFLAGS="-D_GNU_SOURCE -D_FILE_OFFSET_BITS=64 -D_LARGEFILE_SOURCE $QEMU_CFLAGS"
-QEMU_CFLAGS="-U_FORTIFY_SOURCE $QEMU_CFLAGS"
-QEMU_CFLAGS="-I. -I\$(SRC_PATH) $QEMU_CFLAGS"
-LDFLAGS="-g $LDFLAGS"
-
-gcc_flags="-Wold-style-declaration -Wold-style-definition"
-cat > $TMPC << EOF
-int main(void) { }
-EOF
-for flag in $gcc_flags; do
-    if compile_prog "$QEMU_CFLAGS" "$flag" ; then
-	QEMU_CFLAGS="$flag $QEMU_CFLAGS"
-    fi
-done
 
 # Consult white-list to determine whether to enable werror
 # by default.  Only enable by default for git builds
+z_version=`cut -f3 -d. $source_path/VERSION`
+
 if test -z "$werror" ; then
-    z_version=`cut -f3 -d. $source_path/VERSION`
     if test "$z_version" = "50" -a \
         "$linux" = "yes" ; then
         werror="yes"
     else
         werror="no"
+    fi
+fi
+
+# Disable zero malloc errors for official releases unless explicitly told to
+# enable/disable
+if test -z "$zero_malloc" ; then
+    if test "$z_version" = "50" ; then
+	zero_malloc="no"
+    else
+	zero_malloc="yes"
     fi
 fi
 
@@ -1884,7 +1928,7 @@ echo >> $config_host_mak
 echo "CONFIG_QEMU_SHAREDIR=\"$prefix$datasuffix\"" >> $config_host_mak
 
 case "$cpu" in
-  i386|x86_64|alpha|cris|hppa|ia64|m68k|microblaze|mips|mips64|ppc|ppc64|s390|sparc|sparc64)
+  i386|x86_64|alpha|cris|hppa|ia64|m68k|microblaze|mips|mips64|ppc|ppc64|s390|s390x|sparc|sparc64)
     ARCH=$cpu
   ;;
   armv4b|armv4l)
@@ -2016,6 +2060,9 @@ fi
 if test "$pipe2" = "yes" ; then
   echo "CONFIG_PIPE2=y" >> $config_host_mak
 fi
+if test "$accept4" = "yes" ; then
+  echo "CONFIG_ACCEPT4=y" >> $config_host_mak
+fi
 if test "$splice" = "yes" ; then
   echo "CONFIG_SPLICE=y" >> $config_host_mak
 fi
@@ -2092,6 +2139,10 @@ fi
 
 echo "CONFIG_UNAME_RELEASE=\"$uname_release\"" >> $config_host_mak
 
+if test "$zero_malloc" = "yes" ; then
+  echo "CONFIG_ZERO_MALLOC=y" >> $config_host_mak
+fi
+
 # USB host support
 case "$usb" in
 linux)
@@ -2121,7 +2172,7 @@ echo "TOOLS=$tools" >> $config_host_mak
 # Mac OS X ships with a broken assembler
 roms=
 if test \( "$cpu" = "i386" -o "$cpu" = "x86_64" \) -a \
-        "$targetos" != "Darwin" -a \
+        "$targetos" != "Darwin" -a "$targetos" != "SunOS" -a \
         `expr "$target_list" : ".*softmmu.*"` != 0 ; then
   roms="optionrom"
 fi
@@ -2176,7 +2227,7 @@ target_arch2=`echo $target | cut -d '-' -f 1`
 target_bigendian="no"
 
 case "$target_arch2" in
-  armeb|m68k|microblaze|mips|mipsn32|mips64|ppc|ppcemb|ppc64|ppc64abi32|sh4eb|sparc|sparc64|sparc32plus)
+  armeb|m68k|microblaze|mips|mipsn32|mips64|ppc|ppcemb|ppc64|ppc64abi32|s390x|sh4eb|sparc|sparc64|sparc32plus)
   target_bigendian=yes
   ;;
 esac
@@ -2344,6 +2395,9 @@ case "$target_arch2" in
     echo "TARGET_ABI32=y" >> $config_target_mak
     target_phys_bits=64
   ;;
+  s390x)
+    target_phys_bits=64
+  ;;
   *)
     echo "Unsupported target CPU"
     exit 1
@@ -2372,7 +2426,7 @@ case "$target_arch2" in
     fi
 esac
 case "$target_arch2" in
-  i386|x86_64|ppcemb|ppc|ppc64)
+  i386|x86_64|ppcemb|ppc|ppc64|s390x)
     # Make sure the target and host cpus are compatible
     if test "$kvm" = "yes" -a "$target_softmmu" = "yes" -a \
       \( "$target_arch2" = "$cpu" -o \
@@ -2412,7 +2466,7 @@ if test ! -z "$gdb_xml_files" ; then
 fi
 
 case "$target_arch2" in
-  arm|armeb|m68k|microblaze|mips|mipsel|mipsn32|mipsn32el|mips64|mips64el|ppc|ppc64|ppc64abi32|ppcemb|sparc|sparc64|sparc32plus)
+  alpha|arm|armeb|m68k|microblaze|mips|mipsel|mipsn32|mipsn32el|mips64|mips64el|ppc|ppc64|ppc64abi32|ppcemb|s390x|sparc|sparc64|sparc32plus)
     echo "CONFIG_SOFTFLOAT=y" >> $config_target_mak
     ;;
   *)
@@ -2445,6 +2499,8 @@ ldflags=""
 
 if test "$ARCH" = "sparc64" ; then
   cflags="-I\$(SRC_PATH)/tcg/sparc $cflags"
+elif test "$ARCH" = "s390x" ; then
+  cflags="-I\$(SRC_PATH)/tcg/s390 $cflags"
 else
   cflags="-I\$(SRC_PATH)/tcg/\$(ARCH) $cflags"
 fi
@@ -2480,7 +2536,7 @@ for i in $ARCH $TARGET_BASE_ARCH ; do
   ppc*)
     echo "CONFIG_PPC_DIS=y"  >> $config_target_mak
   ;;
-  s390)
+  s390*)
     echo "CONFIG_S390_DIS=y"  >> $config_target_mak
   ;;
   sh4)

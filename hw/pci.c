@@ -23,7 +23,6 @@
  */
 #include "hw.h"
 #include "pci.h"
-#include "pci_host.h"
 #include "monitor.h"
 #include "net.h"
 #include "sysemu.h"
@@ -104,11 +103,48 @@ static int pci_bar(PCIDevice *d, int reg)
     return type == PCI_HEADER_TYPE_BRIDGE ? PCI_ROM_ADDRESS1 : PCI_ROM_ADDRESS;
 }
 
+static inline int pci_irq_state(PCIDevice *d, int irq_num)
+{
+	return (d->irq_state >> irq_num) & 0x1;
+}
+
+static inline void pci_set_irq_state(PCIDevice *d, int irq_num, int level)
+{
+	d->irq_state &= ~(0x1 << irq_num);
+	d->irq_state |= level << irq_num;
+}
+
+static void pci_change_irq_level(PCIDevice *pci_dev, int irq_num, int change)
+{
+    PCIBus *bus;
+    for (;;) {
+        bus = pci_dev->bus;
+        irq_num = bus->map_irq(pci_dev, irq_num);
+        if (bus->set_irq)
+            break;
+        pci_dev = bus->parent_dev;
+    }
+    bus->irq_count[irq_num] += change;
+    bus->set_irq(bus->irq_opaque, irq_num, bus->irq_count[irq_num] != 0);
+}
+
+/* Update interrupt status bit in config space on interrupt
+ * state change. */
+static void pci_update_irq_status(PCIDevice *dev)
+{
+    if (dev->irq_state) {
+        dev->config[PCI_STATUS] |= PCI_STATUS_INTERRUPT;
+    } else {
+        dev->config[PCI_STATUS] &= ~PCI_STATUS_INTERRUPT;
+    }
+}
+
 static void pci_device_reset(PCIDevice *dev)
 {
     int r;
 
-    memset(dev->irq_state, 0, sizeof dev->irq_state);
+    dev->irq_state = 0;
+    pci_update_irq_status(dev);
     dev->config[PCI_COMMAND] &= ~(PCI_COMMAND_IO | PCI_COMMAND_MEMORY |
                                   PCI_COMMAND_MASTER);
     dev->config[PCI_CACHE_LINE_SIZE] = 0x0;
@@ -146,7 +182,7 @@ static void pci_host_bus_register(int domain, PCIBus *bus)
     QLIST_INSERT_HEAD(&host_buses, host, next);
 }
 
-PCIBus *pci_find_host_bus(int domain)
+PCIBus *pci_find_root_bus(int domain)
 {
     struct PCIHostBus *host;
 
@@ -162,8 +198,6 @@ PCIBus *pci_find_host_bus(int domain)
 void pci_bus_new_inplace(PCIBus *bus, DeviceState *parent,
                          const char *name, int devfn_min)
 {
-    static int nbus = 0;
-
     qbus_create_inplace(&bus->qbus, &pci_bus_info, parent, name);
     bus->devfn_min = devfn_min;
 
@@ -171,7 +205,7 @@ void pci_bus_new_inplace(PCIBus *bus, DeviceState *parent,
     QLIST_INIT(&bus->child);
     pci_host_bus_register(0, bus); /* for now only pci domain 0 is supported */
 
-    vmstate_register(nbus++, &vmstate_pcibus, bus);
+    vmstate_register(-1, &vmstate_pcibus, bus);
     qemu_register_reset(pci_bus_reset, bus);
 }
 
@@ -239,13 +273,6 @@ int pci_bus_num(PCIBus *s)
     return s->parent_dev->config[PCI_SECONDARY_BUS];
 }
 
-static uint8_t pci_sub_bus(PCIBus *s)
-{
-    if (!s->parent_dev)
-        return 255;     /* pci host bridge */
-    return s->parent_dev->config[PCI_SUBORDINATE_BUS];
-}
-
 static int get_pci_config_device(QEMUFile *f, void *pv, size_t size)
 {
     PCIDevice *s = container_of(pv, PCIDevice, config);
@@ -284,6 +311,43 @@ static VMStateInfo vmstate_info_pci_config = {
     .put  = put_pci_config_device,
 };
 
+static int get_pci_irq_state(QEMUFile *f, void *pv, size_t size)
+{
+    PCIDevice *s = container_of(pv, PCIDevice, config);
+    uint32_t irq_state[PCI_NUM_PINS];
+    int i;
+    for (i = 0; i < PCI_NUM_PINS; ++i) {
+        irq_state[i] = qemu_get_be32(f);
+        if (irq_state[i] != 0x1 && irq_state[i] != 0) {
+            fprintf(stderr, "irq state %d: must be 0 or 1.\n",
+                    irq_state[i]);
+            return -EINVAL;
+        }
+    }
+
+    for (i = 0; i < PCI_NUM_PINS; ++i) {
+        pci_set_irq_state(s, i, irq_state[i]);
+    }
+
+    return 0;
+}
+
+static void put_pci_irq_state(QEMUFile *f, void *pv, size_t size)
+{
+    int i;
+    PCIDevice *s = container_of(pv, PCIDevice, config);
+
+    for (i = 0; i < PCI_NUM_PINS; ++i) {
+        qemu_put_be32(f, pci_irq_state(s, i));
+    }
+}
+
+static VMStateInfo vmstate_info_pci_irq_state = {
+    .name = "pci irq state",
+    .get  = get_pci_irq_state,
+    .put  = put_pci_irq_state,
+};
+
 const VMStateDescription vmstate_pci_device = {
     .name = "PCIDevice",
     .version_id = 2,
@@ -294,7 +358,9 @@ const VMStateDescription vmstate_pci_device = {
         VMSTATE_BUFFER_UNSAFE_INFO(config, PCIDevice, 0,
                                    vmstate_info_pci_config,
                                    PCI_CONFIG_SPACE_SIZE),
-        VMSTATE_INT32_ARRAY_V(irq_state, PCIDevice, PCI_NUM_PINS, 2),
+        VMSTATE_BUFFER_UNSAFE_INFO(irq_state, PCIDevice, 2,
+				   vmstate_info_pci_irq_state,
+				   PCI_NUM_PINS * sizeof(int32_t)),
         VMSTATE_END_OF_LIST()
     }
 };
@@ -309,7 +375,9 @@ const VMStateDescription vmstate_pcie_device = {
         VMSTATE_BUFFER_UNSAFE_INFO(config, PCIDevice, 0,
                                    vmstate_info_pci_config,
                                    PCIE_CONFIG_SPACE_SIZE),
-        VMSTATE_INT32_ARRAY_V(irq_state, PCIDevice, PCI_NUM_PINS, 2),
+        VMSTATE_BUFFER_UNSAFE_INFO(irq_state, PCIDevice, 2,
+				   vmstate_info_pci_irq_state,
+				   PCI_NUM_PINS * sizeof(int32_t)),
         VMSTATE_END_OF_LIST()
     }
 };
@@ -321,12 +389,23 @@ static inline const VMStateDescription *pci_get_vmstate(PCIDevice *s)
 
 void pci_device_save(PCIDevice *s, QEMUFile *f)
 {
+    /* Clear interrupt status bit: it is implicit
+     * in irq_state which we are saving.
+     * This makes us compatible with old devices
+     * which never set or clear this bit. */
+    s->config[PCI_STATUS] &= ~PCI_STATUS_INTERRUPT;
     vmstate_save_state(f, pci_get_vmstate(s), s);
+    /* Restore the interrupt status bit. */
+    pci_update_irq_status(s);
 }
 
 int pci_device_load(PCIDevice *s, QEMUFile *f)
 {
-    return vmstate_load_state(f, pci_get_vmstate(s), s, s->version_id);
+    int ret;
+    ret = vmstate_load_state(f, pci_get_vmstate(s), s, s->version_id);
+    /* Restore the interrupt status bit. */
+    pci_update_irq_status(s);
+    return ret;
 }
 
 static int pci_set_default_subsystem_id(PCIDevice *pci_dev)
@@ -379,7 +458,7 @@ static int pci_parse_devaddr(const char *addr, int *domp, int *busp, unsigned *s
 	return -1;
 
     /* Note: QEMU doesn't implement domains other than 0 */
-    if (!pci_find_bus(pci_find_host_bus(dom), bus))
+    if (!pci_find_bus(pci_find_root_bus(dom), bus))
 	return -1;
 
     *domp = dom;
@@ -409,7 +488,7 @@ PCIBus *pci_get_bus_devfn(int *devfnp, const char *devaddr)
 
     if (!devaddr) {
         *devfnp = -1;
-        return pci_find_bus(pci_find_host_bus(0), 0);
+        return pci_find_bus(pci_find_root_bus(0), 0);
     }
 
     if (pci_parse_devaddr(devaddr, &dom, &bus, &slot) < 0) {
@@ -417,7 +496,7 @@ PCIBus *pci_get_bus_devfn(int *devfnp, const char *devaddr)
     }
 
     *devfnp = slot << 3;
-    return pci_find_bus(pci_find_host_bus(0), bus);
+    return pci_find_bus(pci_find_root_bus(0), bus);
 }
 
 static void pci_init_cmask(PCIDevice *dev)
@@ -434,15 +513,16 @@ static void pci_init_cmask(PCIDevice *dev)
 
 static void pci_init_wmask(PCIDevice *dev)
 {
-    int i;
     int config_size = pci_config_size(dev);
 
     dev->wmask[PCI_CACHE_LINE_SIZE] = 0xff;
     dev->wmask[PCI_INTERRUPT_LINE] = 0xff;
     pci_set_word(dev->wmask + PCI_COMMAND,
-                 PCI_COMMAND_IO | PCI_COMMAND_MEMORY | PCI_COMMAND_MASTER);
-    for (i = PCI_CONFIG_HEADER_SIZE; i < config_size; ++i)
-        dev->wmask[i] = 0xff;
+                 PCI_COMMAND_IO | PCI_COMMAND_MEMORY | PCI_COMMAND_MASTER |
+                 PCI_COMMAND_INTX_DISABLE);
+
+    memset(dev->wmask + PCI_CONFIG_HEADER_SIZE, 0xff,
+           config_size - PCI_CONFIG_HEADER_SIZE);
 }
 
 static void pci_init_wmask_bridge(PCIDevice *d)
@@ -495,20 +575,23 @@ static PCIDevice *do_pci_register_device(PCIDevice *pci_dev, PCIBus *bus,
                                          uint8_t header_type)
 {
     if (devfn < 0) {
-        for(devfn = bus->devfn_min ; devfn < 256; devfn += 8) {
+        for(devfn = bus->devfn_min ; devfn < ARRAY_SIZE(bus->devices);
+            devfn += 8) {
             if (!bus->devices[devfn])
                 goto found;
         }
-        hw_error("PCI: no devfn available for %s, all in use\n", name);
+        qemu_error("PCI: no devfn available for %s, all in use\n", name);
+        return NULL;
     found: ;
     } else if (bus->devices[devfn]) {
-        hw_error("PCI: devfn %d not available for %s, in use by %s\n", devfn,
+        qemu_error("PCI: devfn %d not available for %s, in use by %s\n", devfn,
                  name, bus->devices[devfn]->name);
+        return NULL;
     }
     pci_dev->bus = bus;
     pci_dev->devfn = devfn;
     pstrcpy(pci_dev->name, sizeof(pci_dev->name), name);
-    memset(pci_dev->irq_state, 0, sizeof(pci_dev->irq_state));
+    pci_dev->irq_state = 0;
     pci_config_alloc(pci_dev);
 
     header_type &= ~PCI_HEADER_TYPE_MULTI_FUNCTION;
@@ -544,6 +627,9 @@ PCIDevice *pci_register_device(PCIBus *bus, const char *name,
     pci_dev = do_pci_register_device(pci_dev, bus, name, devfn,
                                      config_read, config_write,
                                      PCI_HEADER_TYPE_NORMAL);
+    if (pci_dev == NULL) {
+        hw_error("PCI: can't register device\n");
+    }
     return pci_dev;
 }
 static target_phys_addr_t pci_to_cpu_addr(target_phys_addr_t addr)
@@ -637,24 +723,28 @@ static uint32_t pci_config_get_io_base(PCIDevice *d,
 
     val = ((uint32_t)d->config[base] & PCI_IO_RANGE_MASK) << 8;
     if (d->config[base] & PCI_IO_RANGE_TYPE_32) {
-        val |= (uint32_t)pci_get_word(d->config + PCI_IO_BASE_UPPER16) << 16;
+        val |= (uint32_t)pci_get_word(d->config + base_upper16) << 16;
     }
     return val;
 }
 
-static uint64_t pci_config_get_memory_base(PCIDevice *d, uint32_t base)
+static pcibus_t pci_config_get_memory_base(PCIDevice *d, uint32_t base)
 {
-    return ((uint64_t)pci_get_word(d->config + base) & PCI_MEMORY_RANGE_MASK)
+    return ((pcibus_t)pci_get_word(d->config + base) & PCI_MEMORY_RANGE_MASK)
         << 16;
 }
 
-static uint64_t pci_config_get_pref_base(PCIDevice *d,
+static pcibus_t pci_config_get_pref_base(PCIDevice *d,
                                          uint32_t base, uint32_t upper)
 {
-    uint64_t val;
-    val = ((uint64_t)pci_get_word(d->config + base) &
-           PCI_PREF_RANGE_MASK) << 16;
-    val |= (uint64_t)pci_get_long(d->config + upper) << 32;
+    pcibus_t tmp;
+    pcibus_t val;
+
+    tmp = (pcibus_t)pci_get_word(d->config + base);
+    val = (tmp & PCI_PREF_RANGE_MASK) << 16;
+    if (tmp & PCI_PREF_RANGE_TYPE_64) {
+        val |= (pcibus_t)pci_get_long(d->config + upper) << 32;
+    }
     return val;
 }
 
@@ -720,83 +810,95 @@ static void pci_bridge_filter(PCIDevice *d, pcibus_t *addr, pcibus_t *size,
     }
 
     if (base > limit) {
-    no_map:
-        *addr = PCI_BAR_UNMAPPED;
-        *size = 0;
-    } else {
-        *addr = base;
-        *size = limit - base + 1;
+        goto no_map;
     }
+    *addr = base;
+    *size = limit - base + 1;
+    return;
+no_map:
+    *addr = PCI_BAR_UNMAPPED;
+    *size = 0;
+}
+
+static pcibus_t pci_bar_address(PCIDevice *d,
+				int reg, uint8_t type, pcibus_t size)
+{
+    pcibus_t new_addr, last_addr;
+    int bar = pci_bar(d, reg);
+    uint16_t cmd = pci_get_word(d->config + PCI_COMMAND);
+
+    if (type & PCI_BASE_ADDRESS_SPACE_IO) {
+        if (!(cmd & PCI_COMMAND_IO)) {
+            return PCI_BAR_UNMAPPED;
+        }
+        new_addr = pci_get_long(d->config + bar) & ~(size - 1);
+        last_addr = new_addr + size - 1;
+        /* NOTE: we have only 64K ioports on PC */
+        if (last_addr <= new_addr || new_addr == 0 || last_addr > UINT16_MAX) {
+            return PCI_BAR_UNMAPPED;
+        }
+        return new_addr;
+    }
+
+    if (!(cmd & PCI_COMMAND_MEMORY)) {
+        return PCI_BAR_UNMAPPED;
+    }
+    if (type & PCI_BASE_ADDRESS_MEM_TYPE_64) {
+        new_addr = pci_get_quad(d->config + bar);
+    } else {
+        new_addr = pci_get_long(d->config + bar);
+    }
+    /* the ROM slot has a specific enable bit */
+    if (reg == PCI_ROM_SLOT && !(new_addr & PCI_ROM_ADDRESS_ENABLE)) {
+        return PCI_BAR_UNMAPPED;
+    }
+    new_addr &= ~(size - 1);
+    last_addr = new_addr + size - 1;
+    /* NOTE: we do not support wrapping */
+    /* XXX: as we cannot support really dynamic
+       mappings, we handle specific values as invalid
+       mappings. */
+    if (last_addr <= new_addr || new_addr == 0 ||
+        last_addr == PCI_BAR_UNMAPPED) {
+        return PCI_BAR_UNMAPPED;
+    }
+
+    /* Now pcibus_t is 64bit.
+     * Check if 32 bit BAR wraps around explicitly.
+     * Without this, PC ide doesn't work well.
+     * TODO: remove this work around.
+     */
+    if  (!(type & PCI_BASE_ADDRESS_MEM_TYPE_64) && last_addr >= UINT32_MAX) {
+        return PCI_BAR_UNMAPPED;
+    }
+
+    /*
+     * OS is allowed to set BAR beyond its addressable
+     * bits. For example, 32 bit OS can set 64bit bar
+     * to >4G. Check it. TODO: we might need to support
+     * it in the future for e.g. PAE.
+     */
+    if (last_addr >= TARGET_PHYS_ADDR_MAX) {
+        return PCI_BAR_UNMAPPED;
+    }
+
+    return new_addr;
 }
 
 static void pci_update_mappings(PCIDevice *d)
 {
     PCIIORegion *r;
-    int cmd, i;
-    pcibus_t last_addr, new_addr;
-    pcibus_t filtered_size;
+    int i;
+    pcibus_t new_addr, filtered_size;
 
-    cmd = pci_get_word(d->config + PCI_COMMAND);
     for(i = 0; i < PCI_NUM_REGIONS; i++) {
         r = &d->io_regions[i];
 
         /* this region isn't registered */
-        if (r->size == 0)
+        if (!r->size)
             continue;
 
-        if (r->type & PCI_BASE_ADDRESS_SPACE_IO) {
-            if (cmd & PCI_COMMAND_IO) {
-                new_addr = pci_get_long(d->config + pci_bar(d, i));
-                new_addr = new_addr & ~(r->size - 1);
-                last_addr = new_addr + r->size - 1;
-                /* NOTE: we have only 64K ioports on PC */
-                if (last_addr <= new_addr || new_addr == 0 ||
-                    last_addr >= 0x10000) {
-                    new_addr = PCI_BAR_UNMAPPED;
-                }
-            } else {
-                new_addr = PCI_BAR_UNMAPPED;
-            }
-        } else {
-            if (cmd & PCI_COMMAND_MEMORY) {
-                if (r->type & PCI_BASE_ADDRESS_MEM_TYPE_64) {
-                    new_addr = pci_get_quad(d->config + pci_bar(d, i));
-                } else {
-                    new_addr = pci_get_long(d->config + pci_bar(d, i));
-                }
-                /* the ROM slot has a specific enable bit */
-                if (i == PCI_ROM_SLOT && !(new_addr & PCI_ROM_ADDRESS_ENABLE))
-                    goto no_mem_map;
-                new_addr = new_addr & ~(r->size - 1);
-                last_addr = new_addr + r->size - 1;
-                /* NOTE: we do not support wrapping */
-                /* XXX: as we cannot support really dynamic
-                   mappings, we handle specific values as invalid
-                   mappings. */
-                if (last_addr <= new_addr || new_addr == 0 ||
-                    last_addr == PCI_BAR_UNMAPPED ||
-
-                    /* Now pcibus_t is 64bit.
-                     * Check if 32 bit BAR wrap around explicitly.
-                     * Without this, PC ide doesn't work well.
-                     * TODO: remove this work around.
-                     */
-                    (!(r->type & PCI_BASE_ADDRESS_MEM_TYPE_64) &&
-                     last_addr >= UINT32_MAX) ||
-
-                    /*
-                     * OS is allowed to set BAR beyond its addressable
-                     * bits. For example, 32 bit OS can set 64bit bar
-                     * to >4G. Check it.
-                     */
-                    last_addr >= TARGET_PHYS_ADDR_MAX) {
-                    new_addr = PCI_BAR_UNMAPPED;
-                }
-            } else {
-            no_mem_map:
-                new_addr = PCI_BAR_UNMAPPED;
-            }
-        }
+        new_addr = pci_bar_address(d, i, r->type, r->size);
 
         /* bridge filtering */
         filtered_size = r->size;
@@ -842,6 +944,25 @@ static void pci_update_mappings(PCIDevice *d)
     }
 }
 
+static inline int pci_irq_disabled(PCIDevice *d)
+{
+    return pci_get_word(d->config + PCI_COMMAND) & PCI_COMMAND_INTX_DISABLE;
+}
+
+/* Called after interrupt disabled field update in config space,
+ * assert/deassert interrupts if necessary.
+ * Gets original interrupt disable bit value (before update). */
+static void pci_update_irq_disabled(PCIDevice *d, int was_irq_disabled)
+{
+    int i, disabled = pci_irq_disabled(d);
+    if (disabled == was_irq_disabled)
+        return;
+    for (i = 0; i < PCI_NUM_PINS; ++i) {
+        int state = pci_irq_state(d, i);
+        pci_change_irq_level(d, i, disabled ? -state : state);
+    }
+}
+
 uint32_t pci_default_read_config(PCIDevice *d,
                                  uint32_t address, int len)
 {
@@ -854,7 +975,7 @@ uint32_t pci_default_read_config(PCIDevice *d,
 
 void pci_default_write_config(PCIDevice *d, uint32_t addr, uint32_t val, int l)
 {
-    int i;
+    int i, was_irq_disabled = pci_irq_disabled(d);
     uint32_t config_size = pci_config_size(d);
 
     for (i = 0; i < l && addr + i < config_size; val >>= 8, ++i) {
@@ -866,6 +987,9 @@ void pci_default_write_config(PCIDevice *d, uint32_t addr, uint32_t val, int l)
         ranges_overlap(addr, l, PCI_ROM_ADDRESS1, 4) ||
         range_covers_byte(addr, l, PCI_COMMAND))
         pci_update_mappings(d);
+
+    if (range_covers_byte(addr, l, PCI_COMMAND))
+        pci_update_irq_disabled(d, was_irq_disabled);
 }
 
 /***********************************************************/
@@ -875,23 +999,17 @@ void pci_default_write_config(PCIDevice *d, uint32_t addr, uint32_t val, int l)
 static void pci_set_irq(void *opaque, int irq_num, int level)
 {
     PCIDevice *pci_dev = opaque;
-    PCIBus *bus;
     int change;
 
-    change = level - pci_dev->irq_state[irq_num];
+    change = level - pci_irq_state(pci_dev, irq_num);
     if (!change)
         return;
 
-    pci_dev->irq_state[irq_num] = level;
-    for (;;) {
-        bus = pci_dev->bus;
-        irq_num = bus->map_irq(pci_dev, irq_num);
-        if (bus->set_irq)
-            break;
-        pci_dev = bus->parent_dev;
-    }
-    bus->irq_count[irq_num] += change;
-    bus->set_irq(bus->irq_opaque, irq_num, bus->irq_count[irq_num] != 0);
+    pci_set_irq_state(pci_dev, irq_num, level);
+    pci_update_irq_status(pci_dev);
+    if (pci_irq_disabled(pci_dev))
+        return;
+    pci_change_irq_level(pci_dev, irq_num, change);
 }
 
 /***********************************************************/
@@ -986,7 +1104,7 @@ static void pci_info_device(PCIBus *bus, PCIDevice *d)
                        base, limit);
 
         base = pci_bridge_get_base(d, PCI_BASE_ADDRESS_SPACE_MEMORY);
-        limit= pci_config_get_memory_base(d, PCI_BASE_ADDRESS_SPACE_MEMORY);
+        limit= pci_bridge_get_limit(d, PCI_BASE_ADDRESS_SPACE_MEMORY);
         monitor_printf(mon,
                        "      memory range [0x%08"PRIx64", 0x%08"PRIx64"]\n",
                        base, limit);
@@ -1032,7 +1150,7 @@ static void pci_for_each_device_under_bus(PCIBus *bus,
     PCIDevice *d;
     int devfn;
 
-    for(devfn = 0; devfn < 256; devfn++) {
+    for(devfn = 0; devfn < ARRAY_SIZE(bus->devices); devfn++) {
         d = bus->devices[devfn];
         if (d)
             fn(bus, d);
@@ -1180,7 +1298,10 @@ PCIBus *pci_find_bus(PCIBus *bus, int bus_num)
 
     /* try child bus */
     QLIST_FOREACH(sec, &bus->child, sibling) {
-        if (pci_bus_num(sec) <= bus_num && bus_num <= pci_sub_bus(sec)) {
+
+        if (!bus->parent_dev /* pci host bridge */
+            || (pci_bus_num(sec) <= bus_num &&
+                bus->parent_dev->config[PCI_SUBORDINATE_BUS])) {
             return pci_find_bus(sec, bus_num);
         }
     }
@@ -1205,29 +1326,10 @@ static int pci_bridge_initfn(PCIDevice *dev)
     pci_config_set_vendor_id(s->dev.config, s->vid);
     pci_config_set_device_id(s->dev.config, s->did);
 
-    /* TODO: intial value
-     * command register:
-     * According to PCI bridge spec, after reset
-     *   bus master bit is off
-     *   memory space enable bit is off
-     * According to manual (805-1251.pdf).(See abp_pbi.c for its links.)
-     *   the reset value should be zero unless the boot pin is tied high
-     *   (which is tru) and thus it should be PCI_COMMAND_MEMORY.
-     *
-     * For now, don't touch the value.
-     * Later command register will be set to zero and apb_pci.c will
-     * override the value.
-     * Same for latency timer, and multi function bit of header type.
-     */
-    pci_set_word(dev->config + PCI_COMMAND,
-                 PCI_COMMAND_MEMORY | PCI_COMMAND_MASTER);
-
     pci_set_word(dev->config + PCI_STATUS,
                  PCI_STATUS_66MHZ | PCI_STATUS_FAST_BACK);
     pci_config_set_class(dev->config, PCI_CLASS_BRIDGE_PCI);
-    dev->config[PCI_LATENCY_TIMER] = 0x10;
-    dev->config[PCI_HEADER_TYPE] =
-        PCI_HEADER_TYPE_MULTI_FUNCTION | PCI_HEADER_TYPE_BRIDGE;
+    dev->config[PCI_HEADER_TYPE] = PCI_HEADER_TYPE_BRIDGE;
     pci_set_word(dev->config + PCI_SEC_STATUS,
                  PCI_STATUS_66MHZ | PCI_STATUS_FAST_BACK);
     return 0;
@@ -1257,6 +1359,11 @@ PCIBus *pci_bridge_init(PCIBus *bus, int devfn, uint16_t vid, uint16_t did,
     return &s->bus;
 }
 
+PCIDevice *pci_bridge_get_device(PCIBus *bus)
+{
+    return bus->parent_dev;
+}
+
 static int pci_qdev_init(DeviceState *qdev, DeviceInfo *base)
 {
     PCIDevice *pci_dev = (PCIDevice *)qdev;
@@ -1274,6 +1381,8 @@ static int pci_qdev_init(DeviceState *qdev, DeviceInfo *base)
     pci_dev = do_pci_register_device(pci_dev, bus, base->name, devfn,
                                      info->config_read, info->config_write,
                                      info->header_type);
+    if (pci_dev == NULL)
+        return -1;
     rc = info->init(pci_dev);
     if (rc != 0)
         return rc;

@@ -65,7 +65,7 @@ typedef int USBScanFunc(void *opaque, int bus_num, int addr, int class_id,
                         int vendor_id, int product_id,
                         const char *product_name, int speed);
 
-#define DEBUG
+//#define DEBUG
 
 #ifdef DEBUG
 #define dprintf printf
@@ -933,10 +933,10 @@ static int usb_host_open(USBHostDevice *dev, int bus_num,
         dev->dev.speed = USB_SPEED_HIGH;
 
     if (!prod_name || prod_name[0] == '\0')
-        snprintf(dev->dev.devname, sizeof(dev->dev.devname),
+        snprintf(dev->dev.product_desc, sizeof(dev->dev.product_desc),
                  "host:%d.%d", bus_num, addr);
     else
-        pstrcpy(dev->dev.devname, sizeof(dev->dev.devname),
+        pstrcpy(dev->dev.product_desc, sizeof(dev->dev.product_desc),
                 prod_name);
 
     /* USB devio uses 'write' flag to check for async completions */
@@ -979,8 +979,8 @@ static int usb_host_initfn(USBDevice *dev)
 }
 
 static struct USBDeviceInfo usb_host_dev_info = {
-    .qdev.name      = "USB Host Device",
-    .qdev.alias     = "usb-host",
+    .product_desc   = "USB Host Device",
+    .qdev.name      = "usb-host",
     .qdev.size      = sizeof(USBHostDevice),
     .init           = usb_host_initfn,
     .handle_packet  = usb_host_handle_packet,
@@ -1005,31 +1005,35 @@ device_init(usb_host_register_devices)
 
 USBDevice *usb_host_device_open(const char *devname)
 {
-    struct USBAutoFilter filter = { 0, 0, 0, 0 };
+    struct USBAutoFilter filter;
     USBDevice *dev;
     USBHostDevice *s;
     char *p;
 
-    dev = usb_create(NULL /* FIXME */, "USB Host Device");
+    dev = usb_create(NULL /* FIXME */, "usb-host");
     s = DO_UPCAST(USBHostDevice, dev, dev);
 
     if (strstr(devname, "auto:")) {
-        if (parse_filter(devname+5, &filter) < 0)
+        if (parse_filter(devname, &filter) < 0)
             goto fail;
     } else {
         if ((p = strchr(devname, '.'))) {
-            filter.bus_num = strtoul(devname, NULL, 0);
-            filter.addr    = strtoul(devname, NULL, 0);
+            filter.bus_num    = strtoul(devname, NULL, 0);
+            filter.addr       = strtoul(p + 1, NULL, 0);
+            filter.vendor_id  = 0;
+            filter.product_id = 0;
         } else if ((p = strchr(devname, ':'))) {
+            filter.bus_num    = 0;
+            filter.addr       = 0;
             filter.vendor_id  = strtoul(devname, NULL, 16);
-            filter.product_id = strtoul(devname, NULL, 16);
+            filter.product_id = strtoul(p + 1, NULL, 16);
         } else {
             goto fail;
         }
     }
 
-    qdev_prop_set_uint32(&dev->qdev, "bus",       filter.bus_num);
-    qdev_prop_set_uint32(&dev->qdev, "addr",      filter.addr);
+    qdev_prop_set_uint32(&dev->qdev, "hostbus",   filter.bus_num);
+    qdev_prop_set_uint32(&dev->qdev, "hostaddr",  filter.addr);
     qdev_prop_set_uint32(&dev->qdev, "vendorid",  filter.vendor_id);
     qdev_prop_set_uint32(&dev->qdev, "productid", filter.product_id);
     qdev_init(&dev->qdev);
@@ -1449,10 +1453,10 @@ static int parse_filter(const char *spec, struct USBAutoFilter *f)
     const char *p = spec;
     int i;
 
-    f->bus_num    = -1;
-    f->addr       = -1;
-    f->vendor_id  = -1;
-    f->product_id = -1;
+    f->bus_num    = 0;
+    f->addr       = 0;
+    f->vendor_id  = 0;
+    f->product_id = 0;
 
     for (i = BUS; i < DONE; i++) {
     	p = strpbrk(p, ":.");

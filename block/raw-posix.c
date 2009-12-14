@@ -51,7 +51,7 @@
 #include <linux/cdrom.h>
 #include <linux/fd.h>
 #endif
-#ifdef __FreeBSD__
+#if defined (__FreeBSD__) || defined(__FreeBSD_kernel__)
 #include <signal.h>
 #include <sys/disk.h>
 #include <sys/cdio.h>
@@ -124,7 +124,7 @@ typedef struct BDRVRawState {
 static int fd_open(BlockDriverState *bs);
 static int64_t raw_getlength(BlockDriverState *bs);
 
-#if defined(__FreeBSD__)
+#if defined(__FreeBSD__) || defined(__FreeBSD_kernel__)
 static int cdrom_reopen(BlockDriverState *bs);
 #endif
 
@@ -153,7 +153,7 @@ static int raw_open_common(BlockDriverState *bs, const char *filename,
         s->open_flags |= O_DSYNC;
 
     s->fd = -1;
-    fd = open(filename, s->open_flags, 0644);
+    fd = qemu_open(filename, s->open_flags, 0644);
     if (fd < 0) {
         ret = -errno;
         if (ret == -EROFS)
@@ -636,7 +636,7 @@ static int64_t  raw_getlength(BlockDriverState *bs)
     int64_t size;
 #ifdef CONFIG_BSD
     struct stat sb;
-#ifdef __FreeBSD__
+#if defined (__FreeBSD__) || defined(__FreeBSD_kernel__)
     int reopened = 0;
 #endif
 #endif
@@ -651,7 +651,7 @@ static int64_t  raw_getlength(BlockDriverState *bs)
         return ret;
 
 #ifdef CONFIG_BSD
-#ifdef __FreeBSD__
+#if defined (__FreeBSD__) || defined(__FreeBSD_kernel__)
 again:
 #endif
     if (!fstat(fd, &sb) && (S_IFCHR & sb.st_mode)) {
@@ -672,7 +672,7 @@ again:
 #else
         size = lseek(fd, 0LL, SEEK_END);
 #endif
-#ifdef __FreeBSD__
+#if defined(__FreeBSD__) || defined(__FreeBSD_kernel__)
         switch(s->type) {
         case FTYPE_CD:
             /* XXX FreeBSD acd returns UINT_MAX sectors for an empty drive */
@@ -957,7 +957,7 @@ static BlockDriverAIOCB *hdev_aio_ioctl(BlockDriverState *bs,
     return paio_ioctl(bs, s->fd, req, buf, cb, opaque);
 }
 
-#elif defined(__FreeBSD__)
+#elif defined(__FreeBSD__) || defined(__FreeBSD_kernel__)
 static int fd_open(BlockDriverState *bs)
 {
     BDRVRawState *s = bs->opaque;
@@ -1014,6 +1014,7 @@ static BlockDriver bdrv_host_device = {
     .bdrv_close         = raw_close,
     .bdrv_create        = hdev_create,
     .create_options     = raw_create_options,
+    .no_zero_init       = 1,
     .bdrv_flush         = raw_flush,
 
     .bdrv_aio_readv	= raw_aio_readv,
@@ -1110,6 +1111,7 @@ static BlockDriver bdrv_host_floppy = {
     .bdrv_close         = raw_close,
     .bdrv_create        = hdev_create,
     .create_options     = raw_create_options,
+    .no_zero_init       = 1,
     .bdrv_flush         = raw_flush,
 
     .bdrv_aio_readv     = raw_aio_readv,
@@ -1192,6 +1194,7 @@ static BlockDriver bdrv_host_cdrom = {
     .bdrv_close         = raw_close,
     .bdrv_create        = hdev_create,
     .create_options     = raw_create_options,
+    .no_zero_init       = 1,
     .bdrv_flush         = raw_flush,
 
     .bdrv_aio_readv     = raw_aio_readv,
@@ -1213,7 +1216,7 @@ static BlockDriver bdrv_host_cdrom = {
 };
 #endif /* __linux__ */
 
-#ifdef __FreeBSD__
+#if defined (__FreeBSD__) || defined(__FreeBSD_kernel__)
 static int cdrom_open(BlockDriverState *bs, const char *filename, int flags)
 {
     BDRVRawState *s = bs->opaque;
@@ -1313,6 +1316,7 @@ static BlockDriver bdrv_host_cdrom = {
     .bdrv_close         = raw_close,
     .bdrv_create        = hdev_create,
     .create_options     = raw_create_options,
+    .no_zero_init       = 1,
     .bdrv_flush         = raw_flush,
 
     .bdrv_aio_readv     = raw_aio_readv,
@@ -1342,7 +1346,7 @@ static void bdrv_raw_init(void)
     bdrv_register(&bdrv_host_floppy);
     bdrv_register(&bdrv_host_cdrom);
 #endif
-#ifdef __FreeBSD__
+#if defined(__FreeBSD__) || defined(__FreeBSD_kernel__)
     bdrv_register(&bdrv_host_cdrom);
 #endif
 }

@@ -25,6 +25,11 @@
 #include "pc.h"
 #include "fdc.h"
 #include "pci.h"
+#include "vmware_vga.h"
+#include "usb-uhci.h"
+#include "usb-ohci.h"
+#include "prep_pci.h"
+#include "apb_pci.h"
 #include "block.h"
 #include "sysemu.h"
 #include "audio/audio.h"
@@ -629,6 +634,7 @@ static int load_multiboot(void *fw_cfg,
                 printf("WARNING: Too many modules loaded, aborting.\n");
                 break;
             }
+
             next_initrd = strchr(initrd_filename, ',');
             if (next_initrd)
                 *next_initrd = '\0';
@@ -661,7 +667,7 @@ static int load_multiboot(void *fw_cfg,
 
             /* append module data at the end of last module */
             mb_kernel_data = qemu_realloc(mb_kernel_data,
-                                          mh_load_addr - mb_mod_end);
+                                          mb_mod_end - mh_load_addr);
             load_image(initrd_filename,
                        mb_kernel_data + mb_mod_start - mh_load_addr);
 
@@ -1292,7 +1298,7 @@ static QEMUMachine pc_machine_v0_10 = {
     .desc = "Standard PC, qemu 0.10",
     .init = pc_init_pci,
     .max_cpus = 255,
-    .compat_props = (CompatProperty[]) {
+    .compat_props = (GlobalProperty[]) {
         {
             .driver   = "virtio-blk-pci",
             .property = "class",

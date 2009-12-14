@@ -29,6 +29,7 @@
 #include "qdev.h"
 #include "sysemu.h"
 #include "monitor.h"
+#include "qerror.h"
 
 static int qdev_hotplug = 0;
 
@@ -102,7 +103,7 @@ DeviceState *qdev_create(BusState *bus, const char *name)
     dev->parent_bus = bus;
     qdev_prop_set_defaults(dev, dev->info->props);
     qdev_prop_set_defaults(dev, dev->parent_bus->info->props);
-    qdev_prop_set_compat(dev);
+    qdev_prop_set_globals(dev);
     QLIST_INSERT_HEAD(&bus->children, dev, sibling);
     if (qdev_hotplug) {
         assert(bus->allow_hotplug);
@@ -176,8 +177,7 @@ DeviceState *qdev_device_add(QemuOpts *opts)
     /* find driver */
     info = qdev_find_info(NULL, driver);
     if (!info) {
-        qemu_error("Device \"%s\" not found.  Try -device '?' for a list.\n",
-                   driver);
+        qemu_error_new(QERR_DEVICE_NOT_FOUND, driver);
         return NULL;
     }
     if (info->no_user) {
@@ -296,10 +296,8 @@ void qdev_free(DeviceState *dev)
             bus = QLIST_FIRST(&dev->child_bus);
             qbus_free(bus);
         }
-#if 0 /* FIXME: need sane vmstate_unregister function */
         if (dev->info->vmsd)
             vmstate_unregister(dev->info->vmsd, dev);
-#endif
         if (dev->info->exit)
             dev->info->exit(dev);
         if (dev->opts)

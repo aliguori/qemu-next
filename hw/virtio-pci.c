@@ -185,8 +185,10 @@ static void virtio_ioport_write(void *opaque, uint32_t addr, uint32_t val)
         break;
     case VIRTIO_PCI_QUEUE_PFN:
         pa = (target_phys_addr_t)val << VIRTIO_PCI_QUEUE_ADDR_SHIFT;
-        if (pa == 0)
-            virtio_pci_reset(&proxy->pci_dev.qdev);
+        if (pa == 0) {
+            virtio_reset(proxy->vdev);
+            msix_unuse_all_vectors(&proxy->pci_dev);
+        }
         else
             virtio_queue_set_addr(vdev, vdev->queue_sel, pa);
         break;
@@ -199,8 +201,10 @@ static void virtio_ioport_write(void *opaque, uint32_t addr, uint32_t val)
         break;
     case VIRTIO_PCI_STATUS:
         vdev->status = val & 0xFF;
-        if (vdev->status == 0)
-            virtio_pci_reset(&proxy->pci_dev.qdev);
+        if (vdev->status == 0) {
+            virtio_reset(proxy->vdev);
+            msix_unuse_all_vectors(&proxy->pci_dev);
+        }
         break;
     case VIRTIO_MSI_CONFIG_VECTOR:
         msix_vector_unuse(&proxy->pci_dev, vdev->config_vector);
@@ -232,9 +236,7 @@ static uint32_t virtio_ioport_read(VirtIOPCIProxy *proxy, uint32_t addr)
     switch (addr) {
     case VIRTIO_PCI_HOST_FEATURES:
         ret = vdev->get_features(vdev);
-        ret |= (1 << VIRTIO_F_NOTIFY_ON_EMPTY);
-        ret |= (1 << VIRTIO_RING_F_INDIRECT_DESC);
-        ret |= (1 << VIRTIO_F_BAD_FEATURE);
+        ret |= vdev->binding->get_features(proxy);
         break;
     case VIRTIO_PCI_GUEST_FEATURES:
         ret = vdev->features;
@@ -378,12 +380,22 @@ static void virtio_write_config(PCIDevice *pci_dev, uint32_t address,
     msix_write_config(pci_dev, address, val, len);
 }
 
+static unsigned virtio_pci_get_features(void *opaque)
+{
+    unsigned ret = 0;
+    ret |= (1 << VIRTIO_F_NOTIFY_ON_EMPTY);
+    ret |= (1 << VIRTIO_RING_F_INDIRECT_DESC);
+    ret |= (1 << VIRTIO_F_BAD_FEATURE);
+    return ret;
+}
+
 static const VirtIOBindings virtio_pci_bindings = {
     .notify = virtio_pci_notify,
     .save_config = virtio_pci_save_config,
     .load_config = virtio_pci_load_config,
     .save_queue = virtio_pci_save_queue,
     .load_queue = virtio_pci_load_queue,
+    .get_features = virtio_pci_get_features,
 };
 
 static void virtio_init_pci(VirtIOPCIProxy *proxy, VirtIODevice *vdev,

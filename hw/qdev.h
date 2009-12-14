@@ -92,11 +92,12 @@ struct PropertyInfo {
     int (*print)(DeviceState *dev, Property *prop, char *dest, size_t len);
 };
 
-struct CompatProperty {
+typedef struct GlobalProperty {
     const char *driver;
     const char *property;
     const char *value;
-};
+    QTAILQ_ENTRY(GlobalProperty) next;
+} GlobalProperty;
 
 /*** Board API.  This should go away once we have a machine config file.  ***/
 
@@ -153,16 +154,6 @@ void qdev_init_gpio_out(DeviceState *dev, qemu_irq *pins, int n);
 CharDriverState *qdev_init_chardev(DeviceState *dev);
 
 BusState *qdev_get_parent_bus(DeviceState *dev);
-
-/* Convert from a base type to a parent type, with compile time checking.  */
-#ifdef __GNUC__
-#define DO_UPCAST(type, field, dev) ( __extension__ ( { \
-    char __attribute__((unused)) offset_must_be_zero[ \
-        -offsetof(type, field)]; \
-    container_of(dev, type, field);}))
-#else
-#define DO_UPCAST(type, field, dev) container_of(dev, type, field)
-#endif
 
 /*** BUS API. ***/
 
@@ -266,8 +257,9 @@ void qdev_prop_set_macaddr(DeviceState *dev, const char *name, uint8_t *value);
 void qdev_prop_set_ptr(DeviceState *dev, const char *name, void *value);
 void qdev_prop_set_defaults(DeviceState *dev, Property *props);
 
-void qdev_prop_register_compat(CompatProperty *props);
-void qdev_prop_set_compat(DeviceState *dev);
+void qdev_prop_register_global(GlobalProperty *prop);
+void qdev_prop_register_global_list(GlobalProperty *props);
+void qdev_prop_set_globals(DeviceState *dev);
 
 /* This is a nasty hack to allow passing a NULL bus to qdev_create.  */
 extern struct BusInfo system_bus_info;

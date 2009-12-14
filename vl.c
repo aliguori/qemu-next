@@ -50,13 +50,11 @@
 #include <sys/select.h>
 #ifdef CONFIG_BSD
 #include <sys/stat.h>
-#if defined(__FreeBSD__) || defined(__DragonFly__)
+#if defined(__FreeBSD__) || defined(__FreeBSD_kernel__) || defined(__DragonFly__)
 #include <libutil.h>
 #else
 #include <util.h>
 #endif
-#elif defined (__GLIBC__) && defined (__FreeBSD_kernel__)
-#include <freebsd/stdlib.h>
 #else
 #ifdef __linux__
 #include <pty.h>
@@ -140,6 +138,7 @@ int main(int argc, char **argv)
 #include "hw/loader.h"
 #include "bt-host.h"
 #include "net.h"
+#include "net/slirp.h"
 #include "monitor.h"
 #include "console.h"
 #include "sysemu.h"
@@ -157,6 +156,7 @@ int main(int argc, char **argv)
 #include "balloon.h"
 #include "qemu-option.h"
 #include "qemu-config.h"
+#include "qemu-objects.h"
 
 #include "disas.h"
 
@@ -172,9 +172,6 @@ int main(int argc, char **argv)
 //#define DEBUG_SLIRP
 
 #define DEFAULT_RAM_SIZE 128
-
-/* Maximum number of monitor devices */
-#define MAX_MONITOR_DEVICES 10
 
 static const char *data_dir;
 const char *bios_name = NULL;
@@ -194,7 +191,7 @@ int autostart;
 static int rtc_utc = 1;
 static int rtc_date_offset = -1; /* -1 means no change */
 QEMUClock *rtc_clock;
-int vga_interface_type = VGA_CIRRUS;
+int vga_interface_type = VGA_NONE;
 #ifdef TARGET_SPARC
 int graphic_width = 1024;
 int graphic_height = 768;
@@ -272,6 +269,41 @@ uint8_t qemu_uuid[16];
 
 static QEMUBootSetHandler *boot_set_handler;
 static void *boot_set_opaque;
+
+static int default_serial = 1;
+static int default_parallel = 1;
+static int default_virtcon = 1;
+static int default_monitor = 1;
+static int default_vga = 1;
+static int default_drive = 1;
+
+static struct {
+    const char *driver;
+    int *flag;
+} default_list[] = {
+    { .driver = "isa-serial",           .flag = &default_serial    },
+    { .driver = "isa-parallel",         .flag = &default_parallel  },
+    { .driver = "virtio-console-pci",   .flag = &default_virtcon   },
+    { .driver = "virtio-console-s390",  .flag = &default_virtcon   },
+    { .driver = "VGA",                  .flag = &default_vga       },
+    { .driver = "Cirrus VGA",           .flag = &default_vga       },
+    { .driver = "QEMUware SVGA",        .flag = &default_vga       },
+};
+
+static int default_driver_check(QemuOpts *opts, void *opaque)
+{
+    const char *driver = qemu_opt_get(opts, "driver");
+    int i;
+
+    if (!driver)
+        return 0;
+    for (i = 0; i < ARRAY_SIZE(default_list); i++) {
+        if (strcmp(default_list[i].driver, driver) != 0)
+            continue;
+        *(default_list[i].flag) = 0;
+    }
+    return 0;
+}
 
 /***********************************************************/
 /* x86 ISA bus support */
@@ -502,25 +534,72 @@ int kbd_mouse_is_absolute(void)
     return qemu_put_mouse_event_current->qemu_put_mouse_event_absolute;
 }
 
-void do_info_mice(Monitor *mon)
+static void info_mice_iter(QObject *data, void *opaque)
 {
-    QEMUPutMouseEntry *cursor;
-    int index = 0;
+    QDict *mouse;
+    Monitor *mon = opaque;
 
-    if (!qemu_put_mouse_event_head) {
+    mouse = qobject_to_qdict(data);
+    monitor_printf(mon, "%c Mouse #%" PRId64 ": %s\n",
+                  (qdict_get_bool(mouse, "current") ? '*' : ' '),
+                  qdict_get_int(mouse, "index"), qdict_get_str(mouse, "name"));
+}
+
+void do_info_mice_print(Monitor *mon, const QObject *data)
+{
+    QList *mice_list;
+
+    mice_list = qobject_to_qlist(data);
+    if (qlist_empty(mice_list)) {
         monitor_printf(mon, "No mouse devices connected\n");
         return;
     }
 
-    monitor_printf(mon, "Mouse devices available:\n");
+    qlist_iter(mice_list, info_mice_iter, mon);
+}
+
+/**
+ * do_info_mice(): Show VM mice information
+ *
+ * Each mouse is represented by a QDict, the returned QObject is a QList of
+ * all mice.
+ *
+ * The mouse QDict contains the following:
+ *
+ * - "name": mouse's name
+ * - "index": mouse's index
+ * - "current": true if this mouse is receiving events, false otherwise
+ *
+ * Example:
+ *
+ * [ { "name": "QEMU Microsoft Mouse", "index": 0, "current": false },
+ *   { "name": "QEMU PS/2 Mouse", "index": 1, "current": true } ]
+ */
+void do_info_mice(Monitor *mon, QObject **ret_data)
+{
+    QEMUPutMouseEntry *cursor;
+    QList *mice_list;
+    int index = 0;
+
+    mice_list = qlist_new();
+
+    if (!qemu_put_mouse_event_head) {
+        goto out;
+    }
+
     cursor = qemu_put_mouse_event_head;
     while (cursor != NULL) {
-        monitor_printf(mon, "%c Mouse #%d: %s\n",
-                       (cursor == qemu_put_mouse_event_current ? '*' : ' '),
-                       index, cursor->qemu_put_mouse_event_name);
+        QObject *obj;
+        obj = qobject_from_jsonf("{ 'name': %s, 'index': %d, 'current': %i }",
+                                 cursor->qemu_put_mouse_event_name,
+                                 index, cursor == qemu_put_mouse_event_current);
+        qlist_append_obj(mice_list, obj);
         index++;
         cursor = cursor->next;
     }
+
+out:
+    *ret_data = QOBJECT(mice_list);
 }
 
 void do_mouse_set(Monitor *mon, const QDict *qdict)
@@ -612,7 +691,7 @@ static void init_get_clock(void)
 {
     use_rt_clock = 0;
 #if defined(__linux__) || (defined(__FreeBSD__) && __FreeBSD_version >= 500000) \
-    || defined(__DragonFly__)
+    || defined(__DragonFly__) || defined(__FreeBSD_kernel__)
     {
         struct timespec ts;
         if (clock_gettime(CLOCK_MONOTONIC, &ts) == 0) {
@@ -625,7 +704,7 @@ static void init_get_clock(void)
 static int64_t get_clock(void)
 {
 #if defined(__linux__) || (defined(__FreeBSD__) && __FreeBSD_version >= 500000) \
-	|| defined(__DragonFly__)
+	|| defined(__DragonFly__) || defined(__FreeBSD_kernel__)
     if (use_rt_clock) {
         struct timespec ts;
         clock_gettime(CLOCK_MONOTONIC, &ts);
@@ -1287,7 +1366,7 @@ static int hpet_start_timer(struct qemu_alarm_timer *t)
     struct hpet_info info;
     int r, fd;
 
-    fd = open("/dev/hpet", O_RDONLY);
+    fd = qemu_open("/dev/hpet", O_RDONLY);
     if (fd < 0)
         return -1;
 
@@ -1336,7 +1415,7 @@ static int rtc_start_timer(struct qemu_alarm_timer *t)
     int rtc_fd;
     unsigned long current_rtc_freq = 0;
 
-    TFR(rtc_fd = open("/dev/rtc", O_RDONLY));
+    TFR(rtc_fd = qemu_open("/dev/rtc", O_RDONLY));
     if (rtc_fd < 0)
         return -1;
     ioctl(rtc_fd, RTC_IRQP_READ, &current_rtc_freq);
@@ -2003,16 +2082,21 @@ const char *drive_get_serial(BlockDriverState *bdrv)
     return "\0";
 }
 
-BlockInterfaceErrorAction drive_get_onerror(BlockDriverState *bdrv)
+BlockInterfaceErrorAction drive_get_on_error(
+    BlockDriverState *bdrv, int is_read)
 {
     DriveInfo *dinfo;
 
-    QTAILQ_FOREACH(dinfo, &drives, next) {
-        if (dinfo->bdrv == bdrv)
-            return dinfo->onerror;
+    if (is_read) {
+        return BLOCK_ERR_REPORT;
     }
 
-    return BLOCK_ERR_STOP_ENOSPC;
+    QTAILQ_FOREACH(dinfo, &drives, next) {
+        if (dinfo->bdrv == bdrv)
+            return is_read ? dinfo->on_read_error : dinfo->on_write_error;
+    }
+
+    return is_read ? BLOCK_ERR_REPORT : BLOCK_ERR_STOP_ENOSPC;
 }
 
 static void bdrv_format_print(void *opaque, const char *name)
@@ -2026,6 +2110,23 @@ void drive_uninit(DriveInfo *dinfo)
     bdrv_delete(dinfo->bdrv);
     QTAILQ_REMOVE(&drives, dinfo, next);
     qemu_free(dinfo);
+}
+
+static int parse_block_error_action(const char *buf, int is_read)
+{
+    if (!strcmp(buf, "ignore")) {
+        return BLOCK_ERR_IGNORE;
+    } else if (!is_read && !strcmp(buf, "enospc")) {
+        return BLOCK_ERR_STOP_ENOSPC;
+    } else if (!strcmp(buf, "stop")) {
+        return BLOCK_ERR_STOP_ANY;
+    } else if (!strcmp(buf, "report")) {
+        return BLOCK_ERR_REPORT;
+    } else {
+        fprintf(stderr, "qemu: '%s' invalid %s error action\n",
+            buf, is_read ? "read" : "write");
+        return -1;
+    }
 }
 
 DriveInfo *drive_init(QemuOpts *opts, void *opaque,
@@ -2047,7 +2148,8 @@ DriveInfo *drive_init(QemuOpts *opts, void *opaque,
     int cache;
     int aio = 0;
     int ro = 0;
-    int bdrv_flags, onerror;
+    int bdrv_flags;
+    int on_read_error, on_write_error;
     const char *devaddr;
     DriveInfo *dinfo;
     int snapshot = 0;
@@ -2208,22 +2310,28 @@ DriveInfo *drive_init(QemuOpts *opts, void *opaque,
         }
     }
 
-    onerror = BLOCK_ERR_STOP_ENOSPC;
+    on_write_error = BLOCK_ERR_STOP_ENOSPC;
     if ((buf = qemu_opt_get(opts, "werror")) != NULL) {
         if (type != IF_IDE && type != IF_SCSI && type != IF_VIRTIO) {
             fprintf(stderr, "werror is no supported by this format\n");
             return NULL;
         }
-        if (!strcmp(buf, "ignore"))
-            onerror = BLOCK_ERR_IGNORE;
-        else if (!strcmp(buf, "enospc"))
-            onerror = BLOCK_ERR_STOP_ENOSPC;
-        else if (!strcmp(buf, "stop"))
-            onerror = BLOCK_ERR_STOP_ANY;
-        else if (!strcmp(buf, "report"))
-            onerror = BLOCK_ERR_REPORT;
-        else {
-            fprintf(stderr, "qemu: '%s' invalid write error action\n", buf);
+
+        on_write_error = parse_block_error_action(buf, 0);
+        if (on_write_error < 0) {
+            return NULL;
+        }
+    }
+
+    on_read_error = BLOCK_ERR_REPORT;
+    if ((buf = qemu_opt_get(opts, "rerror")) != NULL) {
+        if (type != IF_IDE && type != IF_VIRTIO) {
+            fprintf(stderr, "rerror is no supported by this format\n");
+            return NULL;
+        }
+
+        on_read_error = parse_block_error_action(buf, 1);
+        if (on_read_error < 0) {
             return NULL;
         }
     }
@@ -2307,7 +2415,8 @@ DriveInfo *drive_init(QemuOpts *opts, void *opaque,
     dinfo->type = type;
     dinfo->bus = bus_id;
     dinfo->unit = unit_id;
-    dinfo->onerror = onerror;
+    dinfo->on_read_error = on_read_error;
+    dinfo->on_write_error = on_write_error;
     dinfo->opts = opts;
     if (serial)
         strncpy(dinfo->serial, serial, sizeof(serial));
@@ -2941,7 +3050,7 @@ static int ram_save_block(QEMUFile *f)
     return found;
 }
 
-static uint64_t bytes_transferred = 0;
+static uint64_t bytes_transferred;
 
 static ram_addr_t ram_save_remaining(void)
 {
@@ -2971,12 +3080,17 @@ uint64_t ram_bytes_total(void)
     return last_ram_offset;
 }
 
-static int ram_save_live(QEMUFile *f, int stage, void *opaque)
+static int ram_save_live(Monitor *mon, QEMUFile *f, int stage, void *opaque)
 {
     ram_addr_t addr;
     uint64_t bytes_transferred_last;
     double bwidth = 0;
     uint64_t expected_time = 0;
+
+    if (stage < 0) {
+        cpu_physical_memory_set_dirty_tracking(0);
+        return 0;
+    }
 
     if (cpu_physical_sync_dirty_bitmap(0, TARGET_PHYS_ADDR_MAX) != 0) {
         qemu_file_set_error(f);
@@ -2984,6 +3098,8 @@ static int ram_save_live(QEMUFile *f, int stage, void *opaque)
     }
 
     if (stage == 1) {
+        bytes_transferred = 0;
+
         /* Make sure all dirty bits are set */
         for (addr = 0; addr < last_ram_offset; addr += TARGET_PAGE_SIZE) {
             if (!cpu_physical_memory_get_dirty(addr, MIGRATION_DIRTY_FLAG))
@@ -3060,8 +3176,12 @@ static int ram_load(QEMUFile *f, void *opaque, int version_id)
                 madvise(qemu_get_ram_ptr(addr), TARGET_PAGE_SIZE, MADV_DONTNEED);
             }
 #endif
-        } else if (flags & RAM_SAVE_FLAG_PAGE)
+        } else if (flags & RAM_SAVE_FLAG_PAGE) {
             qemu_get_buffer(f, qemu_get_ram_ptr(addr), TARGET_PAGE_SIZE);
+        }
+        if (qemu_file_has_error(f)) {
+            return -EIO;
+        }
     } while (!(flags & RAM_SAVE_FLAG_EOS));
 
     return 0;
@@ -3344,7 +3464,7 @@ static int qemu_event_init(void)
     int err;
     int fds[2];
 
-    err = pipe(fds);
+    err = qemu_pipe(fds);
     if (err == -1)
         return -errno;
 
@@ -4105,9 +4225,12 @@ static void main_loop(void)
 #endif
         } while (vm_can_run());
 
-        if (qemu_debug_requested())
+        if (qemu_debug_requested()) {
+            monitor_protocol_event(QEVENT_DEBUG, NULL);
             vm_stop(EXCP_DEBUG);
+        }
         if (qemu_shutdown_requested()) {
+            monitor_protocol_event(QEVENT_SHUTDOWN, NULL);
             if (no_shutdown) {
                 vm_stop(0);
                 no_shutdown = 0;
@@ -4115,15 +4238,19 @@ static void main_loop(void)
                 break;
         }
         if (qemu_reset_requested()) {
+            monitor_protocol_event(QEVENT_RESET, NULL);
             pause_all_vcpus();
             qemu_system_reset();
             resume_all_vcpus();
         }
         if (qemu_powerdown_requested()) {
+            monitor_protocol_event(QEVENT_POWERDOWN, NULL);
             qemu_irq_raise(qemu_system_powerdown);
         }
-        if ((r = qemu_vmstop_requested()))
+        if ((r = qemu_vmstop_requested())) {
+            monitor_protocol_event(QEVENT_STOP, NULL);
             vm_stop(r);
+        }
     }
     pause_all_vcpus();
 }
@@ -4341,6 +4468,7 @@ static void select_vgahw (const char *p)
 {
     const char *opts;
 
+    default_vga = 0;
     vga_interface_type = VGA_NONE;
     if (strstart(p, "std", &opts)) {
         vga_interface_type = VGA_STD;
@@ -4582,10 +4710,94 @@ static int device_init_func(QemuOpts *opts, void *opaque)
     return 0;
 }
 
+static int chardev_init_func(QemuOpts *opts, void *opaque)
+{
+    CharDriverState *chr;
+
+    chr = qemu_chr_open_opts(opts, NULL);
+    if (!chr)
+        return -1;
+    return 0;
+}
+
+static int mon_init_func(QemuOpts *opts, void *opaque)
+{
+    CharDriverState *chr;
+    const char *chardev;
+    const char *mode;
+    int flags;
+
+    mode = qemu_opt_get(opts, "mode");
+    if (mode == NULL) {
+        mode = "readline";
+    }
+    if (strcmp(mode, "readline") == 0) {
+        flags = MONITOR_USE_READLINE;
+    } else if (strcmp(mode, "control") == 0) {
+        flags = MONITOR_USE_CONTROL;
+    } else {
+        fprintf(stderr, "unknown monitor mode \"%s\"\n", mode);
+        exit(1);
+    }
+
+    if (qemu_opt_get_bool(opts, "default", 0))
+        flags |= MONITOR_IS_DEFAULT;
+
+    chardev = qemu_opt_get(opts, "chardev");
+    chr = qemu_chr_find(chardev);
+    if (chr == NULL) {
+        fprintf(stderr, "chardev \"%s\" not found\n", chardev);
+        exit(1);
+    }
+
+    monitor_init(chr, flags);
+    return 0;
+}
+
+static void monitor_parse(const char *optarg, const char *mode)
+{
+    static int monitor_device_index = 0;
+    QemuOpts *opts;
+    const char *p;
+    char label[32];
+    int def = 0;
+
+    if (strstart(optarg, "chardev:", &p)) {
+        snprintf(label, sizeof(label), "%s", p);
+    } else {
+        if (monitor_device_index) {
+            snprintf(label, sizeof(label), "monitor%d",
+                     monitor_device_index);
+        } else {
+            snprintf(label, sizeof(label), "monitor");
+            def = 1;
+        }
+        opts = qemu_chr_parse_compat(label, optarg);
+        if (!opts) {
+            fprintf(stderr, "parse error: %s\n", optarg);
+            exit(1);
+        }
+    }
+
+    opts = qemu_opts_create(&qemu_mon_opts, label, 1);
+    if (!opts) {
+        fprintf(stderr, "duplicate chardev: %s\n", label);
+        exit(1);
+    }
+    qemu_opt_set(opts, "mode", mode);
+    qemu_opt_set(opts, "chardev", label);
+    if (def)
+        qemu_opt_set(opts, "default", "on");
+    monitor_device_index++;
+}
+
 struct device_config {
     enum {
-        DEV_USB,       /* -usbdevice   */
-        DEV_BT,        /* -bt          */
+        DEV_USB,       /* -usbdevice     */
+        DEV_BT,        /* -bt            */
+        DEV_SERIAL,    /* -serial        */
+        DEV_PARALLEL,  /* -parallel      */
+        DEV_VIRTCON,   /* -virtioconsole */
     } type;
     const char *cmdline;
     QTAILQ_ENTRY(device_config) next;
@@ -4617,6 +4829,72 @@ static int foreach_device_config(int type, int (*func)(const char *cmdline))
     return 0;
 }
 
+static int serial_parse(const char *devname)
+{
+    static int index = 0;
+    char label[32];
+
+    if (strcmp(devname, "none") == 0)
+        return 0;
+    if (index == MAX_SERIAL_PORTS) {
+        fprintf(stderr, "qemu: too many serial ports\n");
+        exit(1);
+    }
+    snprintf(label, sizeof(label), "serial%d", index);
+    serial_hds[index] = qemu_chr_open(label, devname, NULL);
+    if (!serial_hds[index]) {
+        fprintf(stderr, "qemu: could not open serial device '%s': %s\n",
+                devname, strerror(errno));
+        return -1;
+    }
+    index++;
+    return 0;
+}
+
+static int parallel_parse(const char *devname)
+{
+    static int index = 0;
+    char label[32];
+
+    if (strcmp(devname, "none") == 0)
+        return 0;
+    if (index == MAX_PARALLEL_PORTS) {
+        fprintf(stderr, "qemu: too many parallel ports\n");
+        exit(1);
+    }
+    snprintf(label, sizeof(label), "parallel%d", index);
+    parallel_hds[index] = qemu_chr_open(label, devname, NULL);
+    if (!parallel_hds[index]) {
+        fprintf(stderr, "qemu: could not open parallel device '%s': %s\n",
+                devname, strerror(errno));
+        return -1;
+    }
+    index++;
+    return 0;
+}
+
+static int virtcon_parse(const char *devname)
+{
+    static int index = 0;
+    char label[32];
+
+    if (strcmp(devname, "none") == 0)
+        return 0;
+    if (index == MAX_VIRTIO_CONSOLES) {
+        fprintf(stderr, "qemu: too many virtio consoles\n");
+        exit(1);
+    }
+    snprintf(label, sizeof(label), "virtcon%d", index);
+    virtcon_hds[index] = qemu_chr_open(label, devname, NULL);
+    if (!virtcon_hds[index]) {
+        fprintf(stderr, "qemu: could not open virtio console '%s': %s\n",
+                devname, strerror(errno));
+        return -1;
+    }
+    index++;
+    return 0;
+}
+
 int main(int argc, char **argv, char **envp)
 {
     const char *gdbstub_dev = NULL;
@@ -4632,15 +4910,6 @@ int main(int argc, char **argv, char **envp)
     QemuOpts *hda_opts = NULL, *opts;
     int optind;
     const char *r, *optarg;
-    CharDriverState *monitor_hds[MAX_MONITOR_DEVICES];
-    const char *monitor_devices[MAX_MONITOR_DEVICES];
-    int monitor_device_index;
-    const char *serial_devices[MAX_SERIAL_PORTS];
-    int serial_device_index;
-    const char *parallel_devices[MAX_PARALLEL_PORTS];
-    int parallel_device_index;
-    const char *virtio_consoles[MAX_VIRTIO_CONSOLES];
-    int virtio_console_index;
     const char *loadvm = NULL;
     QEMUMachine *machine;
     const char *cpu_model;
@@ -4706,26 +4975,6 @@ int main(int argc, char **argv, char **envp)
     kernel_cmdline = "";
     cyls = heads = secs = 0;
     translation = BIOS_ATA_TRANSLATION_AUTO;
-
-    serial_devices[0] = "vc:80Cx24C";
-    for(i = 1; i < MAX_SERIAL_PORTS; i++)
-        serial_devices[i] = NULL;
-    serial_device_index = 0;
-
-    parallel_devices[0] = "vc:80Cx24C";
-    for(i = 1; i < MAX_PARALLEL_PORTS; i++)
-        parallel_devices[i] = NULL;
-    parallel_device_index = 0;
-
-    for(i = 0; i < MAX_VIRTIO_CONSOLES; i++)
-        virtio_consoles[i] = NULL;
-    virtio_console_index = 0;
-
-    monitor_devices[0] = "vc:80Cx24C";
-    for (i = 1; i < MAX_MONITOR_DEVICES; i++) {
-        monitor_devices[i] = NULL;
-    }
-    monitor_device_index = 0;
 
     for (i = 0; i < MAX_NODES; i++) {
         node_mem[i] = 0;
@@ -4828,6 +5077,10 @@ int main(int argc, char **argv, char **envp)
 	        break;
             case QEMU_OPTION_set:
                 if (qemu_set_option(optarg) != 0)
+                    exit(1);
+	        break;
+            case QEMU_OPTION_global:
+                if (qemu_global_option(optarg) != 0)
                     exit(1);
 	        break;
             case QEMU_OPTION_mtdblock:
@@ -5140,12 +5393,20 @@ int main(int argc, char **argv, char **envp)
                     break;
                 }
             case QEMU_OPTION_monitor:
-                if (monitor_device_index >= MAX_MONITOR_DEVICES) {
-                    fprintf(stderr, "qemu: too many monitor devices\n");
+                monitor_parse(optarg, "readline");
+                default_monitor = 0;
+                break;
+            case QEMU_OPTION_qmp:
+                monitor_parse(optarg, "control");
+                default_monitor = 0;
+                break;
+            case QEMU_OPTION_mon:
+                opts = qemu_opts_parse(&qemu_mon_opts, optarg, "chardev");
+                if (!opts) {
+                    fprintf(stderr, "parse error: %s\n", optarg);
                     exit(1);
                 }
-                monitor_devices[monitor_device_index] = optarg;
-                monitor_device_index++;
+                default_monitor = 0;
                 break;
             case QEMU_OPTION_chardev:
                 opts = qemu_opts_parse(&qemu_chardev_opts, optarg, "backend");
@@ -5153,17 +5414,10 @@ int main(int argc, char **argv, char **envp)
                     fprintf(stderr, "parse error: %s\n", optarg);
                     exit(1);
                 }
-                if (qemu_chr_open_opts(opts, NULL) == NULL) {
-                    exit(1);
-                }
                 break;
             case QEMU_OPTION_serial:
-                if (serial_device_index >= MAX_SERIAL_PORTS) {
-                    fprintf(stderr, "qemu: too many serial ports\n");
-                    exit(1);
-                }
-                serial_devices[serial_device_index] = optarg;
-                serial_device_index++;
+                add_device_config(DEV_SERIAL, optarg);
+                default_serial = 0;
                 break;
             case QEMU_OPTION_watchdog:
                 if (watchdog) {
@@ -5180,20 +5434,12 @@ int main(int argc, char **argv, char **envp)
                 }
                 break;
             case QEMU_OPTION_virtiocon:
-                if (virtio_console_index >= MAX_VIRTIO_CONSOLES) {
-                    fprintf(stderr, "qemu: too many virtio consoles\n");
-                    exit(1);
-                }
-                virtio_consoles[virtio_console_index] = optarg;
-                virtio_console_index++;
+                add_device_config(DEV_VIRTCON, optarg);
+                default_virtcon = 0;
                 break;
             case QEMU_OPTION_parallel:
-                if (parallel_device_index >= MAX_PARALLEL_PORTS) {
-                    fprintf(stderr, "qemu: too many parallel ports\n");
-                    exit(1);
-                }
-                parallel_devices[parallel_device_index] = optarg;
-                parallel_device_index++;
+                add_device_config(DEV_PARALLEL, optarg);
+                default_parallel = 0;
                 break;
 	    case QEMU_OPTION_loadvm:
 		loadvm = optarg;
@@ -5386,6 +5632,15 @@ int main(int argc, char **argv, char **envp)
             case QEMU_OPTION_incoming:
                 incoming = optarg;
                 break;
+            case QEMU_OPTION_nodefaults:
+                default_serial = 0;
+                default_parallel = 0;
+                default_virtcon = 0;
+                default_monitor = 0;
+                default_vga = 0;
+                default_net = 0;
+                default_drive = 0;
+                break;
 #ifndef _WIN32
             case QEMU_OPTION_chroot:
                 chroot_dir = optarg;
@@ -5464,15 +5719,49 @@ int main(int argc, char **argv, char **envp)
         exit(1);
     }
 
-    if (display_type == DT_NOGRAPHIC) {
-       if (serial_device_index == 0)
-           serial_devices[0] = "stdio";
-       if (parallel_device_index == 0)
-           parallel_devices[0] = "null";
-       if (strncmp(monitor_devices[0], "vc", 2) == 0) {
-           monitor_devices[0] = "stdio";
-       }
+    qemu_opts_foreach(&qemu_device_opts, default_driver_check, NULL, 0);
+
+    if (machine->no_serial) {
+        default_serial = 0;
     }
+    if (machine->no_parallel) {
+        default_parallel = 0;
+    }
+    if (!machine->use_virtcon) {
+        default_virtcon = 0;
+    }
+    if (machine->no_vga) {
+        default_vga = 0;
+    }
+
+    if (display_type == DT_NOGRAPHIC) {
+        if (default_parallel)
+            add_device_config(DEV_PARALLEL, "null");
+        if (default_serial && default_monitor) {
+            add_device_config(DEV_SERIAL, "mon:stdio");
+        } else if (default_virtcon && default_monitor) {
+            add_device_config(DEV_VIRTCON, "mon:stdio");
+        } else {
+            if (default_serial)
+                add_device_config(DEV_SERIAL, "stdio");
+            if (default_virtcon)
+                add_device_config(DEV_VIRTCON, "stdio");
+            if (default_monitor)
+                monitor_parse("stdio", "readline");
+        }
+    } else {
+        if (default_serial)
+            add_device_config(DEV_SERIAL, "vc:80Cx24C");
+        if (default_parallel)
+            add_device_config(DEV_PARALLEL, "vc:80Cx24C");
+        if (default_monitor)
+            monitor_parse("vc:80Cx24C", "readline");
+    }
+    if (default_vga)
+        vga_interface_type = VGA_CIRRUS;
+
+    if (qemu_opts_foreach(&qemu_chardev_opts, chardev_init_func, NULL, 1) != 0)
+        exit(1);
 
 #ifndef _WIN32
     if (daemonize) {
@@ -5502,6 +5791,9 @@ int main(int argc, char **argv, char **envp)
                 exit(0);
 	} else if (pid < 0)
             exit(1);
+
+	close(fds[0]);
+	qemu_set_cloexec(fds[1]);
 
 	setsid();
 
@@ -5599,14 +5891,16 @@ int main(int argc, char **argv, char **envp)
 
     blk_mig_init();
 
-    /* we always create the cdrom drive, even if no disk is there */
-    drive_add(NULL, CDROM_ALIAS);
+    if (default_drive) {
+        /* we always create the cdrom drive, even if no disk is there */
+        drive_add(NULL, CDROM_ALIAS);
 
-    /* we always create at least one floppy */
-    drive_add(NULL, FD_ALIAS, 0);
+        /* we always create at least one floppy */
+        drive_add(NULL, FD_ALIAS, 0);
 
-    /* we always create one sd slot, even if no card is in it */
-    drive_add(NULL, SD_ALIAS, 0);
+        /* we always create one sd slot, even if no card is in it */
+        drive_add(NULL, SD_ALIAS, 0);
+    }
 
     /* open the virtual block devices */
     if (snapshot)
@@ -5617,21 +5911,6 @@ int main(int argc, char **argv, char **envp)
     vmstate_register(0, &vmstate_timers ,&timers_state);
     register_savevm_live("ram", 0, 3, NULL, ram_save_live, NULL, 
                          ram_load, NULL);
-
-    /* Maintain compatibility with multiple stdio monitors */
-    if (!strcmp(monitor_devices[0],"stdio")) {
-        for (i = 0; i < MAX_SERIAL_PORTS; i++) {
-            const char *devname = serial_devices[i];
-            if (devname && !strcmp(devname,"mon:stdio")) {
-                monitor_devices[0] = NULL;
-                break;
-            } else if (devname && !strcmp(devname,"stdio")) {
-                monitor_devices[0] = NULL;
-                serial_devices[i] = "mon:stdio";
-                break;
-            }
-        }
-    }
 
     if (nb_numa_nodes > 0) {
         int i;
@@ -5675,65 +5954,12 @@ int main(int argc, char **argv, char **envp)
         }
     }
 
-    for (i = 0; i < MAX_MONITOR_DEVICES; i++) {
-        const char *devname = monitor_devices[i];
-        if (devname && strcmp(devname, "none")) {
-            char label[32];
-            if (i == 0) {
-                snprintf(label, sizeof(label), "monitor");
-            } else {
-                snprintf(label, sizeof(label), "monitor%d", i);
-            }
-            monitor_hds[i] = qemu_chr_open(label, devname, NULL);
-            if (!monitor_hds[i]) {
-                fprintf(stderr, "qemu: could not open monitor device '%s'\n",
-                        devname);
-                exit(1);
-            }
-        }
-    }
-
-    for(i = 0; i < MAX_SERIAL_PORTS; i++) {
-        const char *devname = serial_devices[i];
-        if (devname && strcmp(devname, "none")) {
-            char label[32];
-            snprintf(label, sizeof(label), "serial%d", i);
-            serial_hds[i] = qemu_chr_open(label, devname, NULL);
-            if (!serial_hds[i]) {
-                fprintf(stderr, "qemu: could not open serial device '%s': %s\n",
-                        devname, strerror(errno));
-                exit(1);
-            }
-        }
-    }
-
-    for(i = 0; i < MAX_PARALLEL_PORTS; i++) {
-        const char *devname = parallel_devices[i];
-        if (devname && strcmp(devname, "none")) {
-            char label[32];
-            snprintf(label, sizeof(label), "parallel%d", i);
-            parallel_hds[i] = qemu_chr_open(label, devname, NULL);
-            if (!parallel_hds[i]) {
-                fprintf(stderr, "qemu: could not open parallel device '%s': %s\n",
-                        devname, strerror(errno));
-                exit(1);
-            }
-        }
-    }
-
-    for(i = 0; i < MAX_VIRTIO_CONSOLES; i++) {
-        const char *devname = virtio_consoles[i];
-        if (devname && strcmp(devname, "none")) {
-            char label[32];
-            snprintf(label, sizeof(label), "virtcon%d", i);
-            virtcon_hds[i] = qemu_chr_open(label, devname, NULL);
-            if (!virtcon_hds[i]) {
-                fprintf(stderr, "qemu: could not open virtio console '%s': %s\n",
-                        devname, strerror(errno));
-                exit(1);
-            }
-        }
-    }
+    if (foreach_device_config(DEV_SERIAL, serial_parse) < 0)
+        exit(1);
+    if (foreach_device_config(DEV_PARALLEL, parallel_parse) < 0)
+        exit(1);
+    if (foreach_device_config(DEV_VIRTCON, virtcon_parse) < 0)
+        exit(1);
 
     module_call_init(MODULE_INIT_DEVICE);
 
@@ -5744,8 +5970,10 @@ int main(int argc, char **argv, char **envp)
     }
 
     if (machine->compat_props) {
-        qdev_prop_register_compat(machine->compat_props);
+        qdev_prop_register_global_list(machine->compat_props);
     }
+    qemu_add_globals();
+
     machine->init(ram_size, boot_devices,
                   kernel_filename, kernel_cmdline, initrd_filename, cpu_model);
 
@@ -5838,37 +6066,8 @@ int main(int argc, char **argv, char **envp)
 
     text_consoles_set_display(display_state);
 
-    for (i = 0; i < MAX_MONITOR_DEVICES; i++) {
-        if (monitor_devices[i] && monitor_hds[i]) {
-            monitor_init(monitor_hds[i],
-                         MONITOR_USE_READLINE |
-                         ((i == 0) ? MONITOR_IS_DEFAULT : 0));
-        }
-    }
-
-    for(i = 0; i < MAX_SERIAL_PORTS; i++) {
-        const char *devname = serial_devices[i];
-        if (devname && strcmp(devname, "none")) {
-            if (strstart(devname, "vc", 0))
-                qemu_chr_printf(serial_hds[i], "serial%d console\r\n", i);
-        }
-    }
-
-    for(i = 0; i < MAX_PARALLEL_PORTS; i++) {
-        const char *devname = parallel_devices[i];
-        if (devname && strcmp(devname, "none")) {
-            if (strstart(devname, "vc", 0))
-                qemu_chr_printf(parallel_hds[i], "parallel%d console\r\n", i);
-        }
-    }
-
-    for(i = 0; i < MAX_VIRTIO_CONSOLES; i++) {
-        const char *devname = virtio_consoles[i];
-        if (virtcon_hds[i] && devname) {
-            if (strstart(devname, "vc", 0))
-                qemu_chr_printf(virtcon_hds[i], "virtio console%d\r\n", i);
-        }
-    }
+    if (qemu_opts_foreach(&qemu_mon_opts, mon_init_func, NULL, 1) != 0)
+        exit(1);
 
     if (gdbstub_dev && gdbserver_start(gdbstub_dev) < 0) {
         fprintf(stderr, "qemu: could not open gdbserver on device '%s'\n",
@@ -5907,7 +6106,7 @@ int main(int argc, char **argv, char **envp)
 	    exit(1);
 
 	chdir("/");
-	TFR(fd = open("/dev/null", O_RDWR));
+	TFR(fd = qemu_open("/dev/null", O_RDWR));
 	if (fd == -1)
 	    exit(1);
     }
