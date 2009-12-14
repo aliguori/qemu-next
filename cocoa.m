@@ -899,15 +899,17 @@ static int cocoa_keycode_to_qemu(int keycode)
 
 int main (int argc, const char * argv[])
 {
-    int i = 1;
-    for (; i < argc; i++) {
-        if (!strcmp("-nographic", argv[i])) {
-            return qemu_main(argc, (char **)argv);
-        }
-    }
-
     gArgc = argc;
     gArgv = (char **)argv;
+    
+    int i = 1;
+    for (; i < argc; i++) {
+        if (!strcmp("-nographic", argv[i]) ||
+            !strcmp("-vnc", argv[i]) ||
+            !strcmp("-curses", argv[i])) {
+            return qemu_main(gArgc, gArgv);
+        }
+    }
 
     NSAutoreleasePool * pool = [[NSAutoreleasePool alloc] init];
     [NSApplication sharedApplication];
