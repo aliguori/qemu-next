@@ -1,3 +1,10 @@
+qemu (0.11.50-0sb3) unstable; urgency=low
+
+  * Critical locking fixes
+  * support building inside scratchbox
+
+ -- Riku Voipio <riku.voipio@iki.fi>  Tue, 15 Dec 2009 11:30:02 +0200
+
 qemu (0.11.50-0sb2) unstable; urgency=low
 
   * re-sync with upstream
