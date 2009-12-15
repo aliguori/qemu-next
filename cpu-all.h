@@ -1017,7 +1017,7 @@ static inline int64_t cpu_get_real_ticks (void)
 #endif
 }
 
-#elif (defined(__mips_isa_rev) && __mips_isa_rev >= 2) || defined(__linux__)
+#elif (defined(__mips_isa_rev) && __mips_isa_rev >= 2) || (defined(__mips_isa_rev) && defined(__linux__))
 /*
  * binutils wants to use rdhwr only on mips32r2
  * but as linux kernel emulate it, it's fine
