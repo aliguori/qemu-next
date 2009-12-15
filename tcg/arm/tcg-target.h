@@ -72,7 +72,7 @@ enum {
 
 static inline void flush_icache_range(unsigned long start, unsigned long stop)
 {
-#if QEMU_GNUC_PREREQ(4, 1)
+#if QEMU_GNUC_PREREQ(4, 3)
     __builtin___clear_cache((char *) start, (char *) stop);
 #else
     register unsigned long _beg __asm ("a1") = start;
