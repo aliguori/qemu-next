@@ -1981,8 +1981,10 @@ fi
 if test "$static" = "yes" ; then
   echo "CONFIG_STATIC=y" >> $config_host_mak
   LDFLAGS="-static $LDFLAGS"
-#scratchbox HACK - we need -lsb after -lpthread
-  LIBS="-L/scratchbox/tools/lib -lsb $LIBS"
+  if [ -d /scratchbox/tools/lib ] && [ ! -r /targets/links/scratchbox.config ]; then
+    #scratchbox HACK - we need -lsb after -lpthread
+    LIBS="-L/scratchbox/tools/lib -lsb $LIBS"
+  fi
 fi
 if test $profiler = "yes" ; then
   echo "CONFIG_PROFILER=y" >> $config_host_mak
