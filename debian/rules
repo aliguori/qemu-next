@@ -35,7 +35,20 @@ ifeq ($(DEB_HOST_ARCH_OS),kfreebsd)
        conf_arch += --audio-drv-list=oss,sdl,esd,pa
 endif
 
+INSIDE_SB=$(shell test -r /targets/links/scratchbox.config && echo YES || echo NO)
+ifeq ($(INSIDE_SB),NO)
 BUILD_SB1_QEMU=$(shell test -r /scratchbox/tools/lib/libsb.a && echo YES || echo NO)
+else
+BUILD_SB1_QEMU=NO
+endif # inside-sb
+
+ifeq ($(DEB_HOST_ARCH_CPU),arm)
+       conf_arch += --cpu=armv4l
+endif
+
+ifeq ($(INSIDE_SB),NO)
+		conf_gl=--enable-glhw --enable-osmesa 
+endif
 
 ifeq ($(DEB_HOST_ARCH_CPU),i386)
        conf_arch += --cpu=i386
@@ -45,8 +58,9 @@ ifeq ($(BUILD_SB1_QEMU),YES)
        sb1_target_list += arm-linux-user ppc-linux-user sparc-linux-user i386-linux-user armeb-linux-user mips-linux-user mipsel-linux-user
 else
        nopackages += -Nscratchbox-devkit-qemu
-endif
-endif
+endif # build-sb1
+endif # i386
+
 ifeq ($(DEB_HOST_ARCH_CPU),sparc)
        conf_arch += --cpu=sparc
 endif
@@ -90,8 +104,7 @@ obj-system/config-host.mak: configure
 		--prefix=/usr \
 		--interp-prefix=/ \
 		--disable-blobs \
-		--enable-glhw \
-		--enable-osmesa \
+		$(conf_gl) \
 		--disable-werror\
 		--target-list="$(target_system_list)" \
 		$(conf_arch) )
@@ -118,8 +131,13 @@ sb1-qemu-install:
 
 sb2-qemu-install:
 	mkdir -p debian/sb2-qemu-arm/usr/bin
+ifeq ($(INSIDE_SB),NO)
 	cp obj-sb2/arm-linux-user/qemu-arm debian/sb2-qemu-arm/usr/bin/sb2-qemu-arm
 	cp obj-sb2/i386-linux-user/qemu-i386  debian/sb2-qemu-arm/usr/bin/sb2-qemu-i386
+else
+	cp obj-sb2/arm-linux-user/qemu-arm debian/sb2-qemu-arm/usr/bin/sb2-qemu
+	cp obj-sb2/i386-linux-user/qemu-i386  debian/sb2-qemu-arm/usr/bin/sb2-qemu
+endif
 
 sb-system-qemu-install:
 	mkdir -p debian/sb-system-qemu/usr/bin
