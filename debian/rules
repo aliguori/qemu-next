@@ -135,8 +135,8 @@ ifeq ($(INSIDE_SB),NO)
 	cp obj-sb2/arm-linux-user/qemu-arm debian/sb2-qemu-arm/usr/bin/sb2-qemu-arm
 	cp obj-sb2/i386-linux-user/qemu-i386  debian/sb2-qemu-arm/usr/bin/sb2-qemu-i386
 else
-	cp obj-sb2/arm-linux-user/qemu-arm debian/sb2-qemu-arm/usr/bin/sb2-qemu
-	cp obj-sb2/i386-linux-user/qemu-i386  debian/sb2-qemu-arm/usr/bin/sb2-qemu
+	cp obj-sb2/arm-linux-user/qemu-arm debian/sb2-qemu-arm/usr/bin/qemu-arm
+	cp obj-sb2/i386-linux-user/qemu-i386  debian/sb2-qemu-arm/usr/bin/qemu-i386
 endif
 
 sb-system-qemu-install:
