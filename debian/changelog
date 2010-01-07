@@ -1,3 +1,9 @@
+qemu (0.11.50-0sb5) unstable; urgency=low
+
+  * Sync sb1, sb2 and dev-tools versions of qemu
+
+ -- Riku Voipio <riku.voipio@nokia.com>  Thu, 07 Jan 2010 13:59:05 +0200
+
 qemu (0.11.50-0sb3) unstable; urgency=low
 
   * Critical locking fixes
