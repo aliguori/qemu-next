@@ -881,8 +881,8 @@ static void v9fs_walk(V9fsState *s, V9fsPDU *pdu)
 {
     int32_t fid, newfid;
     int16_t nwnames;
-    V9fsString *wnames;
-    V9fsQID *qids;
+    V9fsString *wnames = NULL;
+    V9fsQID *qids = NULL;
     V9fsFidState *fidp, *newfidp;
     size_t offset = 7;
     int i;
@@ -891,14 +891,16 @@ static void v9fs_walk(V9fsState *s, V9fsPDU *pdu)
 
     offset += pdu_unmarshal(pdu, offset, "ddw", &fid, &newfid, &nwnames);
 
-    wnames = qemu_mallocz(sizeof(wnames[0]) * nwnames);
-    BUG_ON(wnames == NULL);
+    if(nwnames) {
+        wnames = qemu_mallocz(sizeof(wnames[0]) * nwnames);
+        BUG_ON(wnames == NULL);
 
-    qids = qemu_mallocz(sizeof(qids[0]) * nwnames);
-    BUG_ON(qids == NULL);
+        qids = qemu_mallocz(sizeof(qids[0]) * nwnames);
+        BUG_ON(qids == NULL);
 
-    for (i = 0; i < nwnames; i++)
-	offset += pdu_unmarshal(pdu, offset, "s", &wnames[i]);
+        for (i = 0; i < nwnames; i++)
+            offset += pdu_unmarshal(pdu, offset, "s", &wnames[i]);
+    }
 
     fidp = lookup_fid(s, fid);
     if (fidp == NULL) {
@@ -973,11 +975,13 @@ static void v9fs_walk(V9fsState *s, V9fsPDU *pdu)
 out:
     complete_pdu(s, pdu, err);
 
-    for (i = 0; i < nwnames; i++)
-	v9fs_string_free(&wnames[i]);
+    if(nwnames) {
+        for (i = 0; i < nwnames; i++)
+            v9fs_string_free(&wnames[i]);
 
-    qemu_free(wnames);
-    qemu_free(qids);
+        qemu_free(wnames);
+        qemu_free(qids);
+    }
 }
 
 static void v9fs_clunk(V9fsState *s, V9fsPDU *pdu)
