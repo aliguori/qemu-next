@@ -227,6 +227,7 @@ static void handle_control_message(VirtIOSerial *vser, void *buf)
         if (port->is_console) {
             send_control_event(port, VIRTIO_CONSOLE_CONSOLE_PORT, 1);
         }
+
         if (port->name) {
             stw_p(&cpkt.event, VIRTIO_CONSOLE_PORT_NAME);
             stw_p(&cpkt.value, 1);
@@ -245,6 +246,7 @@ static void handle_control_message(VirtIOSerial *vser, void *buf)
         if (port->host_connected) {
             send_control_event(port, VIRTIO_CONSOLE_PORT_OPEN, 1);
         }
+
         /*
          * When the guest has asked us for this information it means
          * the guest is all setup and has its virtqueues
@@ -255,12 +257,14 @@ static void handle_control_message(VirtIOSerial *vser, void *buf)
             port->info->guest_ready(port);
         }
         break;
+
     case VIRTIO_CONSOLE_PORT_OPEN:
         port->guest_connected = cpkt.value;
         if (cpkt.value && port->info->guest_open) {
             /* Send the guest opened notification if an app is interested */
             port->info->guest_open(port);
         }
+
         if (!cpkt.value && port->info->guest_close) {
             /* Send the guest closed notification if an app is interested */
             port->info->guest_close(port);
@@ -304,6 +308,7 @@ static void handle_output(VirtIODevice *vdev, VirtQueue *vq)
             ret = 0;
             goto next_buf;
         }
+
         /*
          * A port may not have any handler registered for consuming the
          * data that the guest sends or it may not have a chardev associated
