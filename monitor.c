@@ -81,13 +81,15 @@ typedef struct MonitorCommandHandler {
     const char *args_type;
     const char *params;
     const char *help;
-    void (*user_print)(Monitor *mon, const QObject *data);
+    UserPrintHandler *user_print;
     union {
-        void (*info)(Monitor *mon);
-        void (*info_new)(Monitor *mon, QObject **ret_data);
-        void (*cmd)(Monitor *mon, const QDict *qdict);
-        void (*cmd_new)(Monitor *mon, const QDict *params, QObject **ret_data);
+        LegacyInfoHandler *info;
+        InfoHandler *info_new;
+        LegacyCommandHandler *cmd;
+        CommandHandler *cmd_new;
+        void *callback;
     } mhandler;
+    QTAILQ_ENTRY(MonitorCommandHandler) node;
 } MonitorCommandHandler;
 
 /* file descriptors passed via SCM_RIGHTS */
@@ -124,8 +126,10 @@ struct Monitor {
 
 static QLIST_HEAD(mon_list, Monitor) mon_list;
 
-static const MonitorCommandHandler mon_cmds[];
-static const MonitorCommandHandler info_cmds[];
+typedef QTAILQ_HEAD(MonitorCommandList, MonitorCommandHandler) MonitorCommandList;
+
+static MonitorCommandList mon_cmds = QTAILQ_HEAD_INITIALIZER(mon_cmds);
+static MonitorCommandList info_cmds = QTAILQ_HEAD_INITIALIZER(info_cmds);
 
 Monitor *cur_mon = NULL;
 
@@ -404,12 +408,12 @@ static int compare_cmd(const char *name, const char *list)
     return 0;
 }
 
-static void help_cmd_dump(Monitor *mon, const MonitorCommandHandler *cmds,
+static void help_cmd_dump(Monitor *mon, const MonitorCommandList *cmds,
                           const char *prefix, const char *name)
 {
     const MonitorCommandHandler *cmd;
 
-    for(cmd = cmds; cmd->name != NULL; cmd++) {
+    QTAILQ_FOREACH(cmd, cmds, node) {
         if (!name || !strcmp(name, cmd->name))
             monitor_printf(mon, "%s%s %s -- %s\n", prefix, cmd->name,
                            cmd->params, cmd->help);
@@ -419,9 +423,9 @@ static void help_cmd_dump(Monitor *mon, const MonitorCommandHandler *cmds,
 static void help_cmd(Monitor *mon, const char *name)
 {
     if (name && !strcmp(name, "info")) {
-        help_cmd_dump(mon, info_cmds, "info ", NULL);
+        help_cmd_dump(mon, &info_cmds, "info ", NULL);
     } else {
-        help_cmd_dump(mon, mon_cmds, "", name);
+        help_cmd_dump(mon, &mon_cmds, "", name);
         if (name && !strcmp(name, "log")) {
             const CPULogItem *item;
             monitor_printf(mon, "Log items (comma separated):\n");
@@ -463,12 +467,12 @@ static void do_info(Monitor *mon, const QDict *qdict, QObject **ret_data)
         goto help;
     }
 
-    for (cmd = info_cmds; cmd->name != NULL; cmd++) {
+    QTAILQ_FOREACH(cmd, &info_cmds, node) {
         if (compare_cmd(item, cmd->name))
             break;
     }
 
-    if (cmd->name == NULL) {
+    if (cmd == NULL) {
         if (monitor_ctrl_mode(mon)) {
             qemu_error_new(QERR_COMMAND_NOT_FOUND, item);
             return;
@@ -595,13 +599,13 @@ static void do_info_commands(Monitor *mon, QObject **ret_data)
 
     cmd_list = qlist_new();
 
-    for (cmd = mon_cmds; cmd->name != NULL; cmd++) {
+    QTAILQ_FOREACH(cmd, &mon_cmds, node) {
         if (monitor_handler_ported(cmd) && !compare_cmd(cmd->name, "info")) {
             qlist_append_obj(cmd_list, get_cmd_dict(cmd->name));
         }
     }
 
-    for (cmd = info_cmds; cmd->name != NULL; cmd++) {
+    QTAILQ_FOREACH(cmd, &info_cmds, node) {
         if (monitor_handler_ported(cmd)) {
             char buf[128];
             snprintf(buf, sizeof(buf), "query-%s", cmd->name);
@@ -2354,13 +2358,13 @@ int monitor_get_fd(Monitor *mon, const char *fdname)
 
 
 
-static const MonitorCommandHandler mon_cmds[] = {
+static const MonitorCommandHandler builtin_mon_cmds[] = {
 #include "qemu-monitor.h"
     { NULL, NULL, },
 };
 
 /* Please update qemu-monitor.hx when adding or changing commands */
-static const MonitorCommandHandler info_cmds[] = {
+static const MonitorCommandHandler builtin_info_cmds[] = {
     {
         .name       = "version",
         .args_type  = "",
@@ -2640,6 +2644,96 @@ static const MonitorCommandHandler info_cmds[] = {
         .name       = NULL,
     },
 };
+
+static void do_register_cmd(MonitorCommandList *list,
+                            const char *name,
+                            const char *args_type,
+                            const char *params,
+                            const char *help,
+                            UserPrintHandler *user_print,
+                            void *cmd)
+{
+    MonitorCommandHandler *handler;
+
+    handler = qemu_mallocz(sizeof(*handler));
+    handler->name = name;
+    handler->args_type = args_type;
+    handler->params = params;
+    handler->help = help;
+    handler->user_print = user_print;
+    handler->mhandler.callback = cmd;
+
+    QTAILQ_INSERT_TAIL(list, handler, node);
+}
+
+void register_monitor_cmd(const char *name,
+                          const char *args_type,
+                          const char *params,
+                          const char *help,
+                          UserPrintHandler *user_print,
+                          CommandHandler *cmd)
+{
+    do_register_cmd(&mon_cmds, name, args_type, params, help, user_print, cmd);
+}
+
+void register_monitor_info_cmd(const char *name,
+                               const char *help,
+                               UserPrintHandler *user_print,
+                               InfoHandler *info)
+{
+    do_register_cmd(&info_cmds, name, "", "", help, user_print, info);
+}
+
+void register_monitor_cmd_legacy(const char *name,
+                                 const char *args_type,
+                                 const char *params,
+                                 const char *help,
+                                 LegacyCommandHandler *cmd)
+{
+    do_register_cmd(&mon_cmds, name, args_type, params, help, NULL, cmd);
+}
+
+void register_monitor_info_cmd_legacy(const char *name,
+                                      const char *help,
+                                      LegacyInfoHandler *info)
+{
+    do_register_cmd(&info_cmds, name, "", "", help, NULL, info);
+}
+
+void monitor_subsystem_init(void)
+{
+    int i;
+
+    for (i = 0; builtin_mon_cmds[i].name; i++) {
+        if (builtin_mon_cmds[i].user_print) {
+            register_monitor_cmd(builtin_mon_cmds[i].name,
+                                 builtin_mon_cmds[i].args_type,
+                                 builtin_mon_cmds[i].params,
+                                 builtin_mon_cmds[i].help,
+                                 builtin_mon_cmds[i].user_print,
+                                 builtin_mon_cmds[i].mhandler.cmd_new);
+        } else {
+            register_monitor_cmd_legacy(builtin_mon_cmds[i].name,
+                                        builtin_mon_cmds[i].args_type,
+                                        builtin_mon_cmds[i].params,
+                                        builtin_mon_cmds[i].help,
+                                        builtin_mon_cmds[i].mhandler.cmd);
+        }
+    }
+
+    for (i = 0; builtin_info_cmds[i].name; i++) {
+        if (builtin_info_cmds[i].user_print) {
+            register_monitor_info_cmd(builtin_info_cmds[i].name,
+                                      builtin_info_cmds[i].help,
+                                      builtin_info_cmds[i].user_print,
+                                      builtin_info_cmds[i].mhandler.info_new);
+        } else {
+            register_monitor_info_cmd_legacy(builtin_info_cmds[i].name,
+                                             builtin_info_cmds[i].help,
+                                             builtin_info_cmds[i].mhandler.info);
+        }
+    }
+}
 
 /*******************************************************************/
 
@@ -3352,7 +3446,7 @@ static const MonitorCommandHandler *monitor_find_command(const char *cmdname)
 {
     const MonitorCommandHandler *cmd;
 
-    for (cmd = mon_cmds; cmd->name != NULL; cmd++) {
+    QTAILQ_FOREACH(cmd, &mon_cmds, node) {
         if (compare_cmd(cmdname, cmd->name)) {
             return cmd;
         }
@@ -3812,12 +3906,12 @@ static void monitor_find_completion(const char *cmdline)
         else
             cmdname = args[0];
         readline_set_completion_index(cur_mon->rs, strlen(cmdname));
-        for(cmd = mon_cmds; cmd->name != NULL; cmd++) {
+        QTAILQ_FOREACH(cmd, &mon_cmds, node) {
             cmd_completion(cmdname, cmd->name);
         }
     } else {
         /* find the command */
-        for(cmd = mon_cmds; cmd->name != NULL; cmd++) {
+        QTAILQ_FOREACH(cmd, &mon_cmds, node) {
             if (compare_cmd(args[0], cmd->name))
                 goto found;
         }
@@ -3850,7 +3944,7 @@ static void monitor_find_completion(const char *cmdline)
             /* XXX: more generic ? */
             if (!strcmp(cmd->name, "info")) {
                 readline_set_completion_index(cur_mon->rs, strlen(str));
-                for(cmd = info_cmds; cmd->name != NULL; cmd++) {
+                QTAILQ_FOREACH(cmd, &info_cmds, node) {
                     cmd_completion(str, cmd->name);
                 }
             } else if (!strcmp(cmd->name, "sendkey")) {
@@ -3863,7 +3957,7 @@ static void monitor_find_completion(const char *cmdline)
                 }
             } else if (!strcmp(cmd->name, "help|?")) {
                 readline_set_completion_index(cur_mon->rs, strlen(str));
-                for (cmd = mon_cmds; cmd->name != NULL; cmd++) {
+                QTAILQ_FOREACH(cmd, &mon_cmds, node) {
                     cmd_completion(str, cmd->name);
                 }
             }

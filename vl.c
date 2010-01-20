@@ -4696,6 +4696,8 @@ int main(int argc, char **argv, char **envp)
     qemu_errors_to_file(stderr);
     qemu_cache_utils_init(envp);
 
+    monitor_subsystem_init();
+
     QLIST_INIT (&vm_change_state_head);
 #ifndef _WIN32
     {

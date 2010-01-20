@@ -44,4 +44,36 @@ void monitor_printf(Monitor *mon, const char *fmt, ...)
 void monitor_print_filename(Monitor *mon, const char *filename);
 void monitor_flush(Monitor *mon);
 
+typedef void (UserPrintHandler)(Monitor *, const QObject *);
+typedef void (CommandHandler)(Monitor *, const QDict *, QObject **);
+typedef void (InfoHandler)(Monitor *, QObject **);
+
+void register_monitor_cmd(const char *name,
+                          const char *args_type,
+                          const char *params,
+                          const char *help,
+                          UserPrintHandler *user_print,
+                          CommandHandler *cmd);
+
+void register_monitor_info_cmd(const char *name,
+                               const char *help,
+                               UserPrintHandler *user_print,
+                               InfoHandler *info);
+
+/* Legacy only, do not add new commands using these functions */
+typedef void (LegacyInfoHandler)(Monitor *mon);
+typedef void (LegacyCommandHandler)(Monitor *mon, const QDict *);
+
+void register_monitor_cmd_legacy(const char *name,
+                                 const char *args_type,
+                                 const char *params,
+                                 const char *help,
+                                 LegacyCommandHandler *cmd);
+
+void register_monitor_info_cmd_legacy(const char *name,
+                                      const char *help,
+                                      LegacyInfoHandler *info);
+
+void monitor_subsystem_init(void);
+
 #endif /* !MONITOR_H */
