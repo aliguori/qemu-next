@@ -76,7 +76,7 @@
  *
  */
 
-typedef struct mon_cmd_t {
+typedef struct MonitorCommandHandler {
     const char *name;
     const char *args_type;
     const char *params;
@@ -88,7 +88,7 @@ typedef struct mon_cmd_t {
         void (*cmd)(Monitor *mon, const QDict *qdict);
         void (*cmd_new)(Monitor *mon, const QDict *params, QObject **ret_data);
     } mhandler;
-} mon_cmd_t;
+} MonitorCommandHandler;
 
 /* file descriptors passed via SCM_RIGHTS */
 typedef struct mon_fd_t mon_fd_t;
@@ -124,8 +124,8 @@ struct Monitor {
 
 static QLIST_HEAD(mon_list, Monitor) mon_list;
 
-static const mon_cmd_t mon_cmds[];
-static const mon_cmd_t info_cmds[];
+static const MonitorCommandHandler mon_cmds[];
+static const MonitorCommandHandler info_cmds[];
 
 Monitor *cur_mon = NULL;
 
@@ -250,7 +250,7 @@ static int monitor_fprintf(FILE *stream, const char *fmt, ...)
 
 static void monitor_user_noop(Monitor *mon, const QObject *data) { }
 
-static inline int monitor_handler_ported(const mon_cmd_t *cmd)
+static inline int monitor_handler_ported(const MonitorCommandHandler *cmd)
 {
     return cmd->user_print != NULL;
 }
@@ -404,10 +404,10 @@ static int compare_cmd(const char *name, const char *list)
     return 0;
 }
 
-static void help_cmd_dump(Monitor *mon, const mon_cmd_t *cmds,
+static void help_cmd_dump(Monitor *mon, const MonitorCommandHandler *cmds,
                           const char *prefix, const char *name)
 {
-    const mon_cmd_t *cmd;
+    const MonitorCommandHandler *cmd;
 
     for(cmd = cmds; cmd->name != NULL; cmd++) {
         if (!name || !strcmp(name, cmd->name))
@@ -455,7 +455,7 @@ static void do_commit(Monitor *mon, const QDict *qdict)
 
 static void do_info(Monitor *mon, const QDict *qdict, QObject **ret_data)
 {
-    const mon_cmd_t *cmd;
+    const MonitorCommandHandler *cmd;
     const char *item = qdict_get_try_str(qdict, "item");
 
     if (!item) {
@@ -591,7 +591,7 @@ static QObject *get_cmd_dict(const char *name)
 static void do_info_commands(Monitor *mon, QObject **ret_data)
 {
     QList *cmd_list;
-    const mon_cmd_t *cmd;
+    const MonitorCommandHandler *cmd;
 
     cmd_list = qlist_new();
 
@@ -2352,13 +2352,15 @@ int monitor_get_fd(Monitor *mon, const char *fdname)
     return -1;
 }
 
-static const mon_cmd_t mon_cmds[] = {
+
+
+static const MonitorCommandHandler mon_cmds[] = {
 #include "qemu-monitor.h"
     { NULL, NULL, },
 };
 
 /* Please update qemu-monitor.hx when adding or changing commands */
-static const mon_cmd_t info_cmds[] = {
+static const MonitorCommandHandler info_cmds[] = {
     {
         .name       = "version",
         .args_type  = "",
@@ -3346,9 +3348,9 @@ static int is_valid_option(const char *c, const char *typestr)
     return (typestr != NULL);
 }
 
-static const mon_cmd_t *monitor_find_command(const char *cmdname)
+static const MonitorCommandHandler *monitor_find_command(const char *cmdname)
 {
-    const mon_cmd_t *cmd;
+    const MonitorCommandHandler *cmd;
 
     for (cmd = mon_cmds; cmd->name != NULL; cmd++) {
         if (compare_cmd(cmdname, cmd->name)) {
@@ -3359,13 +3361,13 @@ static const mon_cmd_t *monitor_find_command(const char *cmdname)
     return NULL;
 }
 
-static const mon_cmd_t *monitor_parse_command(Monitor *mon,
+static const MonitorCommandHandler *monitor_parse_command(Monitor *mon,
                                               const char *cmdline,
                                               QDict *qdict)
 {
     const char *p, *typestr;
     int c;
-    const mon_cmd_t *cmd;
+    const MonitorCommandHandler *cmd;
     char cmdname[256];
     char buf[1024];
     char *key;
@@ -3612,7 +3614,7 @@ static void monitor_print_error(Monitor *mon)
     mon->error = NULL;
 }
 
-static void monitor_call_handler(Monitor *mon, const mon_cmd_t *cmd,
+static void monitor_call_handler(Monitor *mon, const MonitorCommandHandler *cmd,
                                  const QDict *params)
 {
     QObject *data = NULL;
@@ -3634,7 +3636,7 @@ static void monitor_call_handler(Monitor *mon, const mon_cmd_t *cmd,
 static void handle_user_command(Monitor *mon, const char *cmdline)
 {
     QDict *qdict;
-    const mon_cmd_t *cmd;
+    const MonitorCommandHandler *cmd;
 
     qdict = qdict_new();
 
@@ -3785,7 +3787,7 @@ static void monitor_find_completion(const char *cmdline)
     char *args[MAX_ARGS];
     int nb_args, i, len;
     const char *ptype, *str;
-    const mon_cmd_t *cmd;
+    const MonitorCommandHandler *cmd;
     const KeyDef *key;
 
     parse_cmdline(cmdline, &nb_args, args);
@@ -3986,7 +3988,7 @@ static void cmd_args_init(CmdArgs *cmd_args)
  * In the near future we will be using an array for that and will be
  * able to drop all this parsing...
  */
-static int monitor_check_qmp_args(const mon_cmd_t *cmd, QDict *args)
+static int monitor_check_qmp_args(const MonitorCommandHandler *cmd, QDict *args)
 {
     int err;
     const char *p;
@@ -4038,7 +4040,7 @@ static void handle_qmp_command(JSONMessageParser *parser, QList *tokens)
     int err;
     QObject *obj;
     QDict *input, *args;
-    const mon_cmd_t *cmd;
+    const MonitorCommandHandler *cmd;
     Monitor *mon = cur_mon;
     const char *cmd_name, *info_item;
 
