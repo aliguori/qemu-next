@@ -20,11 +20,14 @@ typedef struct VirtConsole {
 
 
 /* Callback function that's called when the guest sends us data */
-static ssize_t flush_buf(VirtIOSerialPort *port, const uint8_t *buf, size_t len)
+static size_t flush_buf(VirtIOSerialPort *port, const uint8_t *buf, size_t len)
 {
     VirtConsole *vcon = DO_UPCAST(VirtConsole, port, port);
+    ssize_t ret;
 
-    return qemu_chr_write(vcon->chr, buf, len);
+    ret = qemu_chr_write(vcon->chr, buf, len);
+
+    return ret < 0 ? 0 : ret;
 }
 
 /* Readiness of the guest to accept data on a port */
@@ -131,7 +134,6 @@ static VirtIOSerialPortInfo virtserialport_info = {
     .qdev.props = (Property[]) {
         DEFINE_PROP_CHR("chardev", VirtConsole, chr),
         DEFINE_PROP_STRING("name", VirtConsole, port.name),
-        DEFINE_PROP_UINT64("byte_limit", VirtConsole, port.byte_limit, 0),
         DEFINE_PROP_END_OF_LIST(),
     },
 };
