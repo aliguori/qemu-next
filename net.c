@@ -833,6 +833,10 @@ static int net_init_nic(QemuOpts *opts,
         .name = "name",                            \
         .type = QEMU_OPT_STRING,                   \
         .help = "identifier for monitor commands", \
+     }, {                                          \
+        .name = "default",                         \
+        .type = QEMU_OPT_BOOL,                     \
+        .help = "act as default network device",   \
      }
 
 typedef int (*net_client_init_func)(QemuOpts *opts,
@@ -1055,6 +1059,15 @@ int net_client_init(Monitor *mon, QemuOpts *opts, int is_netdev)
     const char *name;
     const char *type;
     int i;
+
+    /* Do not create default network devices if no defaults */
+    if (!default_net) {
+        const char *opt = qemu_opt_get(opts, "default");
+
+        if (opt && strcmp(opt, "on") == 0) {
+            return 0;
+        }
+    }
 
     type = qemu_opt_get(opts, "type");
 
@@ -1320,10 +1333,22 @@ static int net_init_netdev(QemuOpts *opts, void *dummy)
 int net_init_clients(void)
 {
     if (default_net) {
-        /* if no clients, we use a default config */
-        qemu_opts_set(&qemu_net_opts, NULL, "type", "nic");
+        QemuOpts *opts;
+
+        opts = qemu_opts_create(&qemu_net_opts, NULL, 1);
+        if (opts == NULL) {
+            return -1;
+        }
+        qemu_opt_set(opts, "type", "nic");
+        qemu_opt_set(opts, "default", "on");
+
 #ifdef CONFIG_SLIRP
-        qemu_opts_set(&qemu_net_opts, NULL, "type", "user");
+        opts = qemu_opts_create(&qemu_net_opts, NULL, 1);
+        if (opts == NULL) {
+            return -1;
+        }
+        qemu_opt_set(opts, "type", "user");
+        qemu_opt_set(opts, "default", "on");
 #endif
     }
 
@@ -1344,6 +1369,8 @@ int net_init_clients(void)
 
 int net_client_parse(QemuOptsList *opts_list, const char *optarg)
 {
+    QemuOpts *opts;
+    const char *opt;
 #if defined(CONFIG_SLIRP)
     int ret;
     if (net_slirp_parse_legacy(opts_list, optarg, &ret)) {
@@ -1351,10 +1378,15 @@ int net_client_parse(QemuOptsList *opts_list, const char *optarg)
     }
 #endif
 
-    if (!qemu_opts_parse(opts_list, optarg, "type")) {
+    opts = qemu_opts_parse(opts_list, optarg, "type");
+    if (opts == NULL) {
         return -1;
     }
 
-    default_net = 0;
+    opt = qemu_opt_get(opts, "default");
+    if (!opt || strcmp(opt, "off") == 0) {
+        default_net = 0;
+    }
+
     return 0;
 }
