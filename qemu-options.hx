@@ -1919,6 +1919,13 @@ STEXI
 Don't create default devices.
 ETEXI
 
+DEF("default", HAS_ARG, QEMU_OPTION_default, \
+    "-default arg    specify default devices\n")
+STEXI
+@item -defaults
+Override builtin default devices
+ETEXI
+
 #ifndef _WIN32
 DEF("chroot", HAS_ARG, QEMU_OPTION_chroot, \
     "-chroot dir     chroot to dir just before starting the VM\n")

@@ -242,6 +242,50 @@ QemuOptsList qemu_mon_opts = {
     },
 };
 
+QemuOptsList qemu_default_opts = {
+    .name = "default",
+    .head = QTAILQ_HEAD_INITIALIZER(qemu_default_opts.head),
+    .desc = {
+        {
+            .name = "serial",
+            .type = QEMU_OPT_STRING,
+        },
+        {
+            .name = "parallel",
+            .type = QEMU_OPT_STRING,
+        },
+        {
+            .name = "virtcon",
+            .type = QEMU_OPT_STRING,
+        },
+        {
+            .name = "monitor",
+            .type = QEMU_OPT_STRING,
+        },
+        {
+            .name = "vga",
+            .type = QEMU_OPT_BOOL,
+        },
+        {
+            .name = "net",
+            .type = QEMU_OPT_BOOL,
+        },
+        {
+            .name = "floppy",
+            .type = QEMU_OPT_BOOL,
+        },
+        {
+            .name = "cdrom",
+            .type = QEMU_OPT_BOOL,
+        },
+        {
+            .name = "sdcard",
+            .type = QEMU_OPT_BOOL,
+        },
+        { /* end if list */ }
+    },
+};
+
 static QemuOptsList *lists[] = {
     &qemu_drive_opts,
     &qemu_chardev_opts,
@@ -250,6 +294,7 @@ static QemuOptsList *lists[] = {
     &qemu_net_opts,
     &qemu_rtc_opts,
     &qemu_global_opts,
+    &qemu_default_opts,
     &qemu_mon_opts,
     NULL,
 };

@@ -280,6 +280,11 @@ static int default_floppy = 1;
 static int default_cdrom = 1;
 static int default_sdcard = 1;
 
+static const char *default_serial_opt = "vc:80Cx24C";
+static const char *default_parallel_opt = "vc:80Cx24C";
+static const char *default_monitor_opt = "vc:80Cx24C";
+static const char *default_virtcon_opt = "vc:80Cx24C";
+
 static struct {
     const char *driver;
     int *flag;
@@ -4658,6 +4663,32 @@ static int debugcon_parse(const char *devname)
     return 0;
 }
 
+static int default_opt_init(QemuOpts *opts, void *dummy)
+{
+    const char *opt;
+
+    if ((opt = qemu_opt_get(opts, "serial"))) {
+        default_serial_opt = opt;
+    }
+    if ((opt = qemu_opt_get(opts, "parallel"))) {
+        default_parallel_opt = opt;
+    }
+    if ((opt = qemu_opt_get(opts, "virtcon"))) {
+        default_virtcon_opt = opt;
+    }
+    if ((opt = qemu_opt_get(opts, "monitor"))) {
+        default_monitor_opt = opt;
+    }
+
+    default_vga = qemu_opt_get_bool(opts, "vga", default_vga);
+    default_net = qemu_opt_get_bool(opts, "net", default_net);
+    default_floppy = qemu_opt_get_bool(opts, "floppy", default_floppy);
+    default_cdrom = qemu_opt_get_bool(opts, "cdrom", default_cdrom);
+    default_sdcard = qemu_opt_get_bool(opts, "sdcard", default_sdcard);
+
+    return 0;
+}
+
 int main(int argc, char **argv, char **envp)
 {
     const char *gdbstub_dev = NULL;
@@ -5409,6 +5440,13 @@ int main(int argc, char **argv, char **envp)
                 default_cdrom = 0;
                 default_sdcard = 0;
                 break;
+            case QEMU_OPTION_default:
+                opts = qemu_opts_parse(&qemu_default_opts, optarg, NULL);
+                if (!opts) {
+                    fprintf(stderr, "parse error: %s\n", optarg);
+                    exit(1);
+                }
+                break;
 #ifndef _WIN32
             case QEMU_OPTION_chroot:
                 chroot_dir = optarg;
@@ -5509,6 +5547,7 @@ int main(int argc, char **argv, char **envp)
         exit(1);
     }
 
+    qemu_opts_foreach(&qemu_default_opts, default_opt_init, NULL, 0);
     qemu_opts_foreach(&qemu_device_opts, default_driver_check, NULL, 0);
     qemu_opts_foreach(&qemu_global_opts, default_driver_check, NULL, 0);
 
@@ -5535,30 +5574,28 @@ int main(int argc, char **argv, char **envp)
     }
 
     if (display_type == DT_NOGRAPHIC) {
-        if (default_parallel)
-            add_device_config(DEV_PARALLEL, "null");
+        default_parallel_opt = "null";
+
         if (default_serial && default_monitor) {
-            add_device_config(DEV_SERIAL, "mon:stdio");
+            default_serial_opt = "mon:stdio";
         } else if (default_virtcon && default_monitor) {
-            add_device_config(DEV_VIRTCON, "mon:stdio");
+            default_virtcon_opt = "mon:stdio";
         } else {
-            if (default_serial)
-                add_device_config(DEV_SERIAL, "stdio");
-            if (default_virtcon)
-                add_device_config(DEV_VIRTCON, "stdio");
-            if (default_monitor)
-                monitor_parse("stdio", "readline");
+            default_serial_opt = "stdio";
+            default_virtcon_opt = "stdio";
+            default_monitor_opt = "stdio";
         }
-    } else {
-        if (default_serial)
-            add_device_config(DEV_SERIAL, "vc:80Cx24C");
-        if (default_parallel)
-            add_device_config(DEV_PARALLEL, "vc:80Cx24C");
-        if (default_monitor)
-            monitor_parse("vc:80Cx24C", "readline");
-        if (default_virtcon)
-            add_device_config(DEV_VIRTCON, "vc:80Cx24C");
     }
+
+    if (default_serial)
+        add_device_config(DEV_SERIAL, default_serial_opt);
+    if (default_parallel)
+        add_device_config(DEV_PARALLEL, default_parallel_opt);
+    if (default_monitor)
+        monitor_parse(default_monitor_opt, "readline");
+    if (default_virtcon)
+        add_device_config(DEV_VIRTCON, default_virtcon_opt);
+
     if (default_vga)
         vga_interface_type = VGA_CIRRUS;
 
