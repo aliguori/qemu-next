@@ -9,14 +9,6 @@ STEXI
 @table @option
 ETEXI
 
-    {
-        .name       = "help|?",
-        .args_type  = "name:s?",
-        .params     = "[cmd]",
-        .help       = "show the help",
-        .mhandler.cmd = do_help_cmd,
-    },
-
 STEXI
 @item help or ? [@var{cmd}]
 Show the help for all commands or just for command @var{cmd}.
@@ -34,15 +26,6 @@ STEXI
 @item commit
 Commit changes to the disk images (if -snapshot is used) or backing files.
 ETEXI
-
-    {
-        .name       = "info",
-        .args_type  = "item:s?",
-        .params     = "[subcommand]",
-        .help       = "show various information about the system state",
-        .user_print = monitor_user_noop,
-        .mhandler.cmd_new = do_info,
-    },
 
 STEXI
 @item info @var{subcommand}
@@ -1016,30 +999,12 @@ STEXI
 Inject an MCE on the given CPU (x86 only).
 ETEXI
 
-    {
-        .name       = "getfd",
-        .args_type  = "fdname:s",
-        .params     = "getfd name",
-        .help       = "receive a file descriptor via SCM rights and assign it a name",
-        .user_print = monitor_user_noop,
-        .mhandler.cmd_new = do_getfd,
-    },
-
 STEXI
 @item getfd @var{fdname}
 If a file descriptor is passed alongside this command using the SCM_RIGHTS
 mechanism on unix sockets, it is stored using the name @var{fdname} for
 later use by other monitor commands.
 ETEXI
-
-    {
-        .name       = "closefd",
-        .args_type  = "fdname:s",
-        .params     = "closefd name",
-        .help       = "close a file descriptor previously passed via SCM rights",
-        .user_print = monitor_user_noop,
-        .mhandler.cmd_new = do_closefd,
-    },
 
 STEXI
 @item closefd @var{fdname}

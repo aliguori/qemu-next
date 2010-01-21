@@ -73,7 +73,12 @@ void register_monitor_cmd_legacy(const char *name,
 void register_monitor_info_cmd_legacy(const char *name,
                                       const char *help,
                                       LegacyInfoHandler *info);
-
 void monitor_subsystem_init(void);
+
+void monitor_builtin_init(void);
+
+int get_monitor_def(uint64_t *pval, const char *name);
+
+int monitor_ctrl_mode(const Monitor *mon);
 
 #endif /* !MONITOR_H */
