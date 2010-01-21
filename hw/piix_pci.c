@@ -45,6 +45,7 @@ typedef struct PIIX3State {
 struct PCII440FXState {
     PCIDevice dev;
     target_phys_addr_t isa_page_descs[384 / 4];
+    int isa_page_descs_init;
     uint8_t smm_enabled;
     PIIX3State *piix3;
 };
@@ -66,6 +67,22 @@ static int pci_slot_get_pirq(PCIDevice *pci_dev, int irq_num)
     return (irq_num + slot_addend) & 3;
 }
 
+/* XXX: suppress when better memory API. We make the assumption that
+   no device (in particular the VGA) changes the memory mappings in
+   the 0xa0000-0x100000 range */
+static void i440fx_init_memory_mappings(PCII440FXState *d)
+{
+    int i;
+
+    if (d->isa_page_descs_init) {
+        return;
+    }
+
+    for(i = 0; i < 96; i++) {
+        d->isa_page_descs[i] = cpu_get_physical_page_desc(0xa0000 + i * 0x1000);
+    }
+}
+
 static void update_pam(PCII440FXState *d, uint32_t start, uint32_t end, int r)
 {
     uint32_t addr;
@@ -84,6 +101,7 @@ static void update_pam(PCII440FXState *d, uint32_t start, uint32_t end, int r)
         break;
     case 2:
     case 0:
+        i440fx_init_memory_mappings(d);
         /* XXX: should distinguish read/write cases */
         for(addr = start; addr < end; addr += 4096) {
             cpu_register_physical_memory(addr, 4096,
@@ -107,6 +125,7 @@ static void i440fx_update_memory_mappings(PCII440FXState *d)
     if ((d->smm_enabled && (smram & 0x08)) || (smram & 0x40)) {
         cpu_register_physical_memory(0xa0000, 0x20000, 0xa0000);
     } else {
+        i440fx_init_memory_mappings(d);
         for(addr = 0xa0000; addr < 0xc0000; addr += 4096) {
             cpu_register_physical_memory(addr, 4096,
                                          d->isa_page_descs[(addr - 0xa0000) >> 12]);
@@ -120,18 +139,6 @@ void i440fx_set_smm(PCII440FXState *d, int val)
     if (d->smm_enabled != val) {
         d->smm_enabled = val;
         i440fx_update_memory_mappings(d);
-    }
-}
-
-
-/* XXX: suppress when better memory API. We make the assumption that
-   no device (in particular the VGA) changes the memory mappings in
-   the 0xa0000-0x100000 range */
-void i440fx_init_memory_mappings(PCII440FXState *d)
-{
-    int i;
-    for(i = 0; i < 96; i++) {
-        d->isa_page_descs[i] = cpu_get_physical_page_desc(0xa0000 + i * 0x1000);
     }
 }
 
