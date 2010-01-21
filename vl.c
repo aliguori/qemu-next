@@ -4690,6 +4690,7 @@ int main(int argc, char **argv, char **envp)
 #endif
     CPUState *env;
     int show_vnc_port = 0;
+    int defconfig = 1;
 
     init_clocks();
 
@@ -5457,6 +5458,9 @@ int main(int argc, char **argv, char **envp)
                     fclose(fp);
                     break;
                 }
+            case QEMU_OPTION_nodefconfig:
+                defconfig=0;
+                break;
             }
         }
     }
@@ -5469,6 +5473,25 @@ int main(int argc, char **argv, char **envp)
     /* If all else fails use the install patch specified when building.  */
     if (!data_dir) {
         data_dir = CONFIG_QEMU_SHAREDIR;
+    }
+
+    if (defconfig) {
+        FILE *fp;
+        fp = fopen(CONFIG_QEMU_CONFDIR "/qemu.conf", "r");
+        if (fp) {
+            if (qemu_config_parse(fp) != 0) {
+                exit(1);
+            }
+            fclose(fp);
+        }
+
+        fp = fopen(CONFIG_QEMU_CONFDIR "/target-" TARGET_ARCH ".conf", "r");
+        if (fp) {
+            if (qemu_config_parse(fp) != 0) {
+                exit(1);
+            }
+            fclose(fp);
+        }
     }
 
     /*

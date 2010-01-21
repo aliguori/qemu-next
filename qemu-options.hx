@@ -1965,6 +1965,13 @@ STEXI
 @item -writeconfig @var{file}
 Write device configuration to @var{file}.
 ETEXI
+DEF("nodefconfig", 0, QEMU_OPTION_nodefconfig,
+    "-nodefconfig\n"
+    "                do not load default config file\n")
+STEXI
+@item -nodefconfig
+Do not load default config files.
+ETEXI
 
 HXCOMM This is the last statement. Insert new options before this line!
 STEXI
