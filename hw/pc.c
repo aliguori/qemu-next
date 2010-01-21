@@ -1005,10 +1005,6 @@ static void pc_init1(ram_addr_t ram_size,
         piix4_acpi_system_hot_add_init(pci_bus);
     }
 
-    if (i440fx_state) {
-        i440fx_init_memory_mappings(i440fx_state);
-    }
-
     if (pci_enabled) {
 	int max_bus;
         int bus;

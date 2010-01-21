@@ -4453,6 +4453,36 @@ char *qemu_find_file(int type, const char *name)
 static int device_init_func(QemuOpts *opts, void *opaque)
 {
     DeviceState *dev;
+    const char *opt;
+
+    /* check to see whether this device is of the default devices class
+     * and if it is, check to see if another device has overridden this
+     * device.
+     */
+    opt = qemu_opt_get(opts, "default");
+    if (opt) {
+        int i, found = 0;
+        const char *driver;
+
+        driver = qemu_opt_get(opts, "driver");
+        for (i = 0; i < ARRAY_SIZE(default_list); i++) {
+            if (driver && strcmp(default_list[i].driver, driver) != 0) {
+                continue;
+            }
+            if (*(default_list[i].flag) == 0) {
+                return 0;
+            } else {
+                found = 1;
+                break;
+            }
+        }
+
+        if (!found) {
+            qemu_error("propery \"default\" is invalid for \"%s\"\n",
+                       driver);
+            return -1;
+        }
+    }
 
     dev = qdev_device_add(opts);
     if (!dev)

@@ -1143,8 +1143,6 @@ static void vmsvga_init(struct vmsvga_state_s *s, int vga_ram_size)
 
     vga_init_vbe(&s->vga);
 
-    rom_add_vga(VGABIOS_FILENAME);
-
     vmsvga_reset(s);
 }
 
@@ -1246,6 +1244,7 @@ static PCIDeviceInfo vmsvga_info = {
     .qdev.size    = sizeof(struct pci_vmsvga_state_s),
     .qdev.vmsd    = &vmstate_vmware_vga,
     .init         = pci_vmsvga_initfn,
+    .romfile      = VGABIOS_FILENAME,
 };
 
 static void vmsvga_register(void)

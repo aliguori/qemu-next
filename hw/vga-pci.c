@@ -106,9 +106,7 @@ static int pci_vga_initfn(PCIDevice *dev)
                          PCI_BASE_ADDRESS_MEM_PREFETCH, vga_map);
      }
 
-    vga_init_vbe(s);
-     /* ROM BIOS */
-     rom_add_vga(VGABIOS_FILENAME);
+     vga_init_vbe(s);
      return 0;
 }
 
@@ -130,6 +128,7 @@ static PCIDeviceInfo vga_info = {
     .qdev.size    = sizeof(PCIVGAState),
     .qdev.vmsd    = &vmstate_vga_pci,
     .init         = pci_vga_initfn,
+    .romfile      = VGABIOS_FILENAME,
     .config_write = pci_vga_write_config,
     .qdev.props   = (Property[]) {
         DEFINE_PROP_HEX32("bios-offset", PCIVGAState, vga.bios_offset, 0),
