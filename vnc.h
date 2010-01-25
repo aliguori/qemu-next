@@ -186,6 +186,7 @@ enum {
     VNC_AUTH_TLS = 18,      /* Supported in GTK-VNC & VINO */
     VNC_AUTH_VENCRYPT = 19, /* Supported in GTK-VNC & VeNCrypt */
     VNC_AUTH_SASL = 20,     /* Supported in GTK-VNC & VINO */
+    VNC_AUTH_SESSION = 21,  /* Supported in GTK-VNC */
 };
 
 enum {

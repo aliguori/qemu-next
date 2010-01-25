@@ -196,6 +196,8 @@ static const char *vnc_auth_name(VncDisplay *vd) {
 #endif
     case VNC_AUTH_SASL:
         return "sasl";
+    case VNC_AUTH_SESSION:
+        return "session";
     }
     return "unknown";
 }
@@ -2174,6 +2176,52 @@ void start_auth_vnc(VncState *vs)
     vnc_read_when(vs, protocol_client_auth_vnc, sizeof(vs->challenge));
 }
 
+static void vnc_auth_error(VncState *vs, const char *message)
+{
+    uint32_t len = strlen(message);
+
+    vnc_write_u32(vs, len);
+    vnc_write(vs, message, len);
+}
+
+static int start_auth(VncState *vs);
+
+static int protocol_client_auth_session(VncState *vs, uint8_t *data, size_t len)
+{
+    uint32_t session_len;
+    char *session;
+
+    session_len = read_u16(data, 0);
+
+    if (len != (session_len + sizeof(uint16_t))) {
+        return session_len + sizeof(uint16_t);
+    }
+
+    session = qemu_malloc(session_len + 1);
+    memcpy(session, data + 2, session_len);
+    session[session_len] = 0;
+
+    VNC_DEBUG("Client requested session `%s'\n", session);
+
+    if (qemu_name && strcmp(session, qemu_name) != 0) {
+        vnc_auth_error(vs, "Invalid session");
+        vnc_client_error(vs);
+        qemu_free(session);
+        return 0;
+    }
+
+    qemu_free(session);
+
+    vnc_write_u32(vs, 0);
+    vnc_flush(vs);
+
+    return start_auth(vs);
+}
+
+static void start_auth_session(VncState *vs)
+{
+    vnc_read_when(vs, protocol_client_auth_session, sizeof(uint16_t));
+}
 
 static int protocol_client_auth(VncState *vs, uint8_t *data, size_t len)
 {
@@ -2219,6 +2267,11 @@ static int protocol_client_auth(VncState *vs, uint8_t *data, size_t len)
            break;
 #endif /* CONFIG_VNC_SASL */
 
+       case VNC_AUTH_SESSION:
+           VNC_DEBUG("Accept session auth\n");
+           start_auth_session(vs);
+           break;
+
        default: /* Should not be possible, but just in case */
            VNC_DEBUG("Reject auth %d server code bug\n", vs->vd->auth);
            vnc_write_u8(vs, 1);
@@ -2230,6 +2283,36 @@ static int protocol_client_auth(VncState *vs, uint8_t *data, size_t len)
            vnc_client_error(vs);
        }
     }
+    return 0;
+}
+
+static int start_auth(VncState *vs)
+{
+    if (vs->minor == 3) {
+        if (vs->vd->auth == VNC_AUTH_NONE) {
+            VNC_DEBUG("Tell client auth none\n");
+            vnc_write_u32(vs, vs->vd->auth);
+            vnc_flush(vs);
+            start_client_init(vs);
+        } else if (vs->vd->auth == VNC_AUTH_VNC) {
+            VNC_DEBUG("Tell client VNC auth\n");
+            vnc_write_u32(vs, vs->vd->auth);
+            vnc_flush(vs);
+            start_auth_vnc(vs);
+        } else {
+            VNC_DEBUG("Unsupported auth %d for protocol 3.3\n", vs->vd->auth);
+            vnc_write_u32(vs, VNC_AUTH_INVALID);
+            vnc_flush(vs);
+            vnc_client_error(vs);
+        }
+    } else {
+        VNC_DEBUG("Telling client we support auth %d\n", vs->vd->auth);
+        vnc_write_u8(vs, 1); /* num auth */
+        vnc_write_u8(vs, vs->vd->auth);
+        vnc_read_when(vs, protocol_client_auth, 1);
+        vnc_flush(vs);
+    }
+
     return 0;
 }
 
@@ -2264,32 +2347,7 @@ static int protocol_version(VncState *vs, uint8_t *version, size_t len)
     if (vs->minor == 4 || vs->minor == 5)
         vs->minor = 3;
 
-    if (vs->minor == 3) {
-        if (vs->vd->auth == VNC_AUTH_NONE) {
-            VNC_DEBUG("Tell client auth none\n");
-            vnc_write_u32(vs, vs->vd->auth);
-            vnc_flush(vs);
-            start_client_init(vs);
-       } else if (vs->vd->auth == VNC_AUTH_VNC) {
-            VNC_DEBUG("Tell client VNC auth\n");
-            vnc_write_u32(vs, vs->vd->auth);
-            vnc_flush(vs);
-            start_auth_vnc(vs);
-       } else {
-            VNC_DEBUG("Unsupported auth %d for protocol 3.3\n", vs->vd->auth);
-            vnc_write_u32(vs, VNC_AUTH_INVALID);
-            vnc_flush(vs);
-            vnc_client_error(vs);
-       }
-    } else {
-        VNC_DEBUG("Telling client we support auth %d\n", vs->vd->auth);
-        vnc_write_u8(vs, 1); /* num auth */
-        vnc_write_u8(vs, vs->vd->auth);
-        vnc_read_when(vs, protocol_client_auth, 1);
-        vnc_flush(vs);
-    }
-
-    return 0;
+    return start_auth(vs);
 }
 
 static int vnc_refresh_server_surface(VncDisplay *vd)
