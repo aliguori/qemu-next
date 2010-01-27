@@ -1105,6 +1105,7 @@ static void pc_init1(ram_addr_t ram_size,
                                  bios_size, bios_offset | IO_MEM_ROM);
 
     fw_cfg = bochs_bios_init();
+    rom_set_fw(fw_cfg);
 
     if (linux_boot) {
         load_linux(fw_cfg, kernel_filename, initrd_filename, kernel_cmdline, below_4g_mem_size);
@@ -1282,8 +1283,6 @@ static void pc_init1(ram_addr_t ram_size,
 
 	extboot_init(info->bdrv, 1);
     }
-
-    rom_load_fw(fw_cfg);
 
 #ifdef CONFIG_KVM_DEVICE_ASSIGNMENT
     if (kvm_enabled()) {
