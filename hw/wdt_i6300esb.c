@@ -98,6 +98,8 @@ struct I6300State {
     int previous_reboot_flag;   /* If the watchdog caused the previous
                                  * reboot, this flag will be set.
                                  */
+
+    int io_mem;
 };
 
 typedef struct I6300State I6300State;
@@ -342,27 +344,27 @@ static void i6300esb_mem_writel(void *vp, target_phys_addr_t addr, uint32_t val)
     }
 }
 
+static CPUReadMemoryFunc * const mem_read[3] = {
+    i6300esb_mem_readb,
+    i6300esb_mem_readw,
+    i6300esb_mem_readl,
+};
+
+static CPUWriteMemoryFunc * const mem_write[3] = {
+    i6300esb_mem_writeb,
+    i6300esb_mem_writew,
+    i6300esb_mem_writel,
+};
+
 static void i6300esb_map(PCIDevice *dev, int region_num,
                          pcibus_t addr, pcibus_t size, int type)
 {
-    static CPUReadMemoryFunc * const mem_read[3] = {
-        i6300esb_mem_readb,
-        i6300esb_mem_readw,
-        i6300esb_mem_readl,
-    };
-    static CPUWriteMemoryFunc * const mem_write[3] = {
-        i6300esb_mem_writeb,
-        i6300esb_mem_writew,
-        i6300esb_mem_writel,
-    };
     I6300State *d = DO_UPCAST(I6300State, dev, dev);
-    int io_mem;
 
     i6300esb_debug("addr = %"FMT_PCIBUS", size = %"FMT_PCIBUS", type = %d\n",
                    addr, size, type);
 
-    io_mem = cpu_register_io_memory(mem_read, mem_write, d);
-    cpu_register_physical_memory (addr, 0x10, io_mem);
+    cpu_register_physical_memory (addr, 0x10, d->io_mem);
     /* qemu_register_coalesced_mmio (addr, 0x10); ? */
 }
 
@@ -406,6 +408,8 @@ static int i6300esb_init(PCIDevice *dev)
     d->stage = 1;
     d->unlock_state = 0;
     d->previous_reboot_flag = 0;
+    d->io_mem = cpu_register_io_memory(mem_read, mem_write, d);
+
 
     pci_conf = d->dev.config;
     pci_config_set_vendor_id(pci_conf, PCI_VENDOR_ID_INTEL);
