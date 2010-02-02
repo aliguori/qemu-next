@@ -664,6 +664,9 @@ static void pci_unregister_io_regions(PCIDevice *pci_dev)
                                                          r->addr),
                                          r->filtered_size,
                                          IO_MEM_UNASSIGNED);
+            if (!r->map_func && r->read && r->write) {
+                cpu_unregister_io_memory(r->io_memory_addr);
+            }
         }
     }
 }
@@ -687,16 +690,15 @@ static int pci_unregister_device(DeviceState *dev)
     return 0;
 }
 
-void pci_register_bar(PCIDevice *pci_dev, int region_num,
-                            pcibus_t size, int type,
-                            PCIMapIORegionFunc *map_func)
+static PCIIORegion *do_pci_register_bar(PCIDevice *pci_dev, int region_num,
+                                        pcibus_t size, int type)
 {
     PCIIORegion *r;
     uint32_t addr;
     pcibus_t wmask;
 
     if ((unsigned int)region_num >= PCI_NUM_REGIONS)
-        return;
+        return NULL;
 
     if (size & (size-1)) {
         fprintf(stderr, "ERROR: PCI region size must be pow2 "
@@ -709,7 +711,6 @@ void pci_register_bar(PCIDevice *pci_dev, int region_num,
     r->size = size;
     r->filtered_size = size;
     r->type = type;
-    r->map_func = map_func;
 
     wmask = ~(size - 1);
     addr = pci_bar(pci_dev, region_num);
@@ -725,6 +726,100 @@ void pci_register_bar(PCIDevice *pci_dev, int region_num,
     } else {
         pci_set_long(pci_dev->wmask + addr, wmask & 0xffffffff);
         pci_set_long(pci_dev->cmask + addr, 0xffffffff);
+    }
+
+    return r;
+}
+
+void pci_register_bar(PCIDevice *pci_dev, int region_num,
+                      pcibus_t size, int type,
+                      PCIMapIORegionFunc *map_func)
+{
+    PCIIORegion *r;
+    r = do_pci_register_bar(pci_dev, region_num, size, type);
+    if (r) {
+        r->map_func = map_func;
+    }
+}
+
+void pci_memory_read(PCIDevice *pci_dev, pcibus_t addr, void *buf, int len)
+{
+    cpu_physical_memory_read(addr, buf, len);
+}
+
+void pci_memory_write(PCIDevice *pci_dev, pcibus_t addr,
+                      const void *buf, int len)
+{
+    cpu_physical_memory_write(addr, buf, len);
+}
+
+static void pci_io_region_writeb(void *opaque, target_phys_addr_t addr,
+                                 uint32_t value)
+{
+    PCIIORegion *r = opaque;
+    r->write(r->dev, addr, 1, value);
+}
+
+static void pci_io_region_writew(void *opaque, target_phys_addr_t addr,
+                                 uint32_t value)
+{
+    PCIIORegion *r = opaque;
+    r->write(r->dev, addr, 2, value);
+}
+
+static void pci_io_region_writel(void *opaque, target_phys_addr_t addr,
+                                 uint32_t value)
+{
+    PCIIORegion *r = opaque;
+    r->write(r->dev, addr, 4, value);
+}
+
+static uint32_t pci_io_region_readb(void *opaque, target_phys_addr_t addr)
+{
+    PCIIORegion *r = opaque;
+    return r->read(r->dev, addr, 1);
+}
+
+static uint32_t pci_io_region_readw(void *opaque, target_phys_addr_t addr)
+{
+    PCIIORegion *r = opaque;
+    return r->read(r->dev, addr, 2);
+}
+
+static uint32_t pci_io_region_readl(void *opaque, target_phys_addr_t addr)
+{
+    PCIIORegion *r = opaque;
+    return r->read(r->dev, addr, 4);
+}
+
+static CPUReadMemoryFunc * const pci_io_region_readfn[3] = {
+    pci_io_region_readb,
+    pci_io_region_readw,
+    pci_io_region_readl,
+};
+    
+static CPUWriteMemoryFunc * const pci_io_region_writefn[3] = {
+    pci_io_region_writeb,
+    pci_io_region_writew,
+    pci_io_region_writel,
+};
+
+void pci_register_io_region(PCIDevice *d, int region_num,
+                            pcibus_t size, int type,
+                            PCIIOReadFunc *readcb, PCIIOWriteFunc *writecb)
+{
+    PCIIORegion *r;
+    r = do_pci_register_bar(d, region_num, size, type);
+    if (r) {
+        r->map_func = NULL;
+        r->dev = d;
+        r->read = readcb;
+        r->write = writecb;
+        if (r->type != PCI_BASE_ADDRESS_SPACE_IO && r->read && r->write) {
+            r->io_memory_addr = cpu_register_io_memory(pci_io_region_readfn,
+                                                       pci_io_region_writefn,
+                                                       r);
+        }
     }
 }
 
@@ -897,6 +992,45 @@ static pcibus_t pci_bar_address(PCIDevice *d,
     return new_addr;
 }
 
+static void pci_io_region_ioport_writeb(void *opaque, uint32_t addr,
+                                        uint32_t value)
+{
+    PCIIORegion *r = opaque;
+    r->write(r->dev, (addr - r->addr), 1, value);
+}
+
+static void pci_io_region_ioport_writew(void *opaque, uint32_t addr,
+                                        uint32_t value)
+{
+    PCIIORegion *r = opaque;
+    r->write(r->dev, (addr - r->addr), 2, value);
+}
+
+static void pci_io_region_ioport_writel(void *opaque, uint32_t addr,
+                                        uint32_t value)
+{
+    PCIIORegion *r = opaque;
+    r->write(r->dev, (addr - r->addr), 4, value);
+}
+
+static uint32_t pci_io_region_ioport_readb(void *opaque, uint32_t addr)
+{
+    PCIIORegion *r = opaque;
+    return r->read(r->dev, (addr - r->addr), 1);
+}
+
+static uint32_t pci_io_region_ioport_readw(void *opaque, uint32_t addr)
+{
+    PCIIORegion *r = opaque;
+    return r->read(r->dev, (addr - r->addr), 2);
+}
+
+static uint32_t pci_io_region_ioport_readl(void *opaque, uint32_t addr)
+{
+    PCIIORegion *r = opaque;
+    return r->read(r->dev, (addr - r->addr), 4);
+}
+
 static void pci_update_mappings(PCIDevice *d)
 {
     PCIIORegion *r;
@@ -952,10 +1086,32 @@ static void pci_update_mappings(PCIDevice *d)
              * addr & (size - 1) != 0.
              */
             if (r->type & PCI_BASE_ADDRESS_SPACE_IO) {
-                r->map_func(d, i, r->addr, r->filtered_size, r->type);
+                if (r->map_func) {
+                    r->map_func(d, i, r->addr, r->filtered_size, r->type);
+                } else {
+                    register_ioport_write(r->addr, r->filtered_size, 1,
+                                          pci_io_region_ioport_writeb, r);
+                    register_ioport_write(r->addr, r->filtered_size, 2,
+                                          pci_io_region_ioport_writew, r);
+                    register_ioport_write(r->addr, r->filtered_size, 4,
+                                          pci_io_region_ioport_writel, r);
+                    register_ioport_read(r->addr, r->filtered_size, 1,
+                                         pci_io_region_ioport_readb, r);
+                    register_ioport_read(r->addr, r->filtered_size, 2,
+                                         pci_io_region_ioport_readw, r);
+                    register_ioport_read(r->addr, r->filtered_size, 4,
+                                         pci_io_region_ioport_readl, r);
+                }
             } else {
-                r->map_func(d, i, pci_to_cpu_addr(d->bus, r->addr),
-                            r->filtered_size, r->type);
+                if (r->map_func) {
+                    r->map_func(d, i, pci_to_cpu_addr(d->bus, r->addr),
+                                r->filtered_size, r->type);
+                } else if (r->read && r->write) {
+                    cpu_register_physical_memory(pci_to_cpu_addr(d->bus,
+                                                                 r->addr),
+                                                 r->filtered_size,
+                                                 r->io_memory_addr);
+                }
             }
         }
     }

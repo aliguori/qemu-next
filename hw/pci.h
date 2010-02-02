@@ -81,13 +81,21 @@ typedef void PCIMapIORegionFunc(PCIDevice *pci_dev, int region_num,
                                 pcibus_t addr, pcibus_t size, int type);
 typedef int PCIUnregisterFunc(PCIDevice *pci_dev);
 
+typedef uint32_t (PCIIOReadFunc)(PCIDevice *pci_dev, pcibus_t addr, int size);
+typedef void (PCIIOWriteFunc)(PCIDevice *pci_dev, pcibus_t addr, int size,
+                              uint32_t value);
+
 typedef struct PCIIORegion {
+    PCIDevice *dev;
     pcibus_t addr; /* current PCI mapping address. -1 means not mapped */
 #define PCI_BAR_UNMAPPED (~(pcibus_t)0)
     pcibus_t size;
     pcibus_t filtered_size;
     uint8_t type;
-    PCIMapIORegionFunc *map_func;
+    PCIMapIORegionFunc *map_func; /* legacy mapping function */
+    PCIIOReadFunc *read;
+    PCIIOWriteFunc *write;
+    int io_memory_addr;
 } PCIIORegion;
 
 #define PCI_ROM_SLOT 6
@@ -189,6 +197,14 @@ PCIDevice *pci_register_device(PCIBus *bus, const char *name,
 void pci_register_bar(PCIDevice *pci_dev, int region_num,
                             pcibus_t size, int type,
                             PCIMapIORegionFunc *map_func);
+
+void pci_register_io_region(PCIDevice *d, int region_num,
+                            pcibus_t size, int type,
+                            PCIIOReadFunc *readcb, PCIIOWriteFunc *writecb);
+
+void pci_memory_read(PCIDevice *pci_dev, pcibus_t addr, void *buf, int len);
+void pci_memory_write(PCIDevice *pci_dev, pcibus_t addr,
+                      const void *buf, int len);
 
 int pci_add_capability(PCIDevice *pci_dev, uint8_t cap_id, uint8_t cap_size);
 
