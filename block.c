@@ -711,6 +711,7 @@ int bdrv_pread(BlockDriverState *bs, int64_t offset,
     uint8_t tmp_buf[BDRV_SECTOR_SIZE];
     int len, nb_sectors, count;
     int64_t sector_num;
+    int ret;
 
     count = count1;
     /* first read to align to sector start */
@@ -719,8 +720,8 @@ int bdrv_pread(BlockDriverState *bs, int64_t offset,
         len = count;
     sector_num = offset >> BDRV_SECTOR_BITS;
     if (len > 0) {
-        if (bdrv_read(bs, sector_num, tmp_buf, 1) < 0)
-            return -EIO;
+        if ((ret = bdrv_read(bs, sector_num, tmp_buf, 1)) < 0)
+            return ret;
         memcpy(buf, tmp_buf + (offset & (BDRV_SECTOR_SIZE - 1)), len);
         count -= len;
         if (count == 0)
@@ -732,8 +733,8 @@ int bdrv_pread(BlockDriverState *bs, int64_t offset,
     /* read the sectors "in place" */
     nb_sectors = count >> BDRV_SECTOR_BITS;
     if (nb_sectors > 0) {
-        if (bdrv_read(bs, sector_num, buf, nb_sectors) < 0)
-            return -EIO;
+        if ((ret = bdrv_read(bs, sector_num, buf, nb_sectors)) < 0)
+            return ret;
         sector_num += nb_sectors;
         len = nb_sectors << BDRV_SECTOR_BITS;
         buf += len;
@@ -742,8 +743,8 @@ int bdrv_pread(BlockDriverState *bs, int64_t offset,
 
     /* add data from the last sector */
     if (count > 0) {
-        if (bdrv_read(bs, sector_num, tmp_buf, 1) < 0)
-            return -EIO;
+        if ((ret = bdrv_read(bs, sector_num, tmp_buf, 1)) < 0)
+            return ret;
         memcpy(buf, tmp_buf, count);
     }
     return count1;
@@ -755,6 +756,7 @@ int bdrv_pwrite(BlockDriverState *bs, int64_t offset,
     uint8_t tmp_buf[BDRV_SECTOR_SIZE];
     int len, nb_sectors, count;
     int64_t sector_num;
+    int ret;
 
     count = count1;
     /* first write to align to sector start */
@@ -763,11 +765,11 @@ int bdrv_pwrite(BlockDriverState *bs, int64_t offset,
         len = count;
     sector_num = offset >> BDRV_SECTOR_BITS;
     if (len > 0) {
-        if (bdrv_read(bs, sector_num, tmp_buf, 1) < 0)
-            return -EIO;
+        if ((ret = bdrv_read(bs, sector_num, tmp_buf, 1)) < 0)
+            return ret;
         memcpy(tmp_buf + (offset & (BDRV_SECTOR_SIZE - 1)), buf, len);
-        if (bdrv_write(bs, sector_num, tmp_buf, 1) < 0)
-            return -EIO;
+        if ((ret = bdrv_write(bs, sector_num, tmp_buf, 1)) < 0)
+            return ret;
         count -= len;
         if (count == 0)
             return count1;
@@ -778,8 +780,8 @@ int bdrv_pwrite(BlockDriverState *bs, int64_t offset,
     /* write the sectors "in place" */
     nb_sectors = count >> BDRV_SECTOR_BITS;
     if (nb_sectors > 0) {
-        if (bdrv_write(bs, sector_num, buf, nb_sectors) < 0)
-            return -EIO;
+        if ((ret = bdrv_write(bs, sector_num, buf, nb_sectors)) < 0)
+            return ret;
         sector_num += nb_sectors;
         len = nb_sectors << BDRV_SECTOR_BITS;
         buf += len;
@@ -788,11 +790,11 @@ int bdrv_pwrite(BlockDriverState *bs, int64_t offset,
 
     /* add data from the last sector */
     if (count > 0) {
-        if (bdrv_read(bs, sector_num, tmp_buf, 1) < 0)
-            return -EIO;
+        if ((ret = bdrv_read(bs, sector_num, tmp_buf, 1)) < 0)
+            return ret;
         memcpy(tmp_buf, buf, count);
-        if (bdrv_write(bs, sector_num, tmp_buf, 1) < 0)
-            return -EIO;
+        if ((ret = bdrv_write(bs, sector_num, tmp_buf, 1)) < 0)
+            return ret;
     }
     return count1;
 }
