@@ -98,8 +98,6 @@ struct I6300State {
     int previous_reboot_flag;   /* If the watchdog caused the previous
                                  * reboot, this flag will be set.
                                  */
-
-    int io_mem;
 };
 
 typedef struct I6300State I6300State;
@@ -245,21 +243,14 @@ static uint32_t i6300esb_config_read(PCIDevice *dev, uint32_t addr, int len)
     }
 }
 
-static uint32_t i6300esb_mem_readb(void *vp, target_phys_addr_t addr)
+static uint32_t i6300esb_mem_read(PCIDevice *dev, pcibus_t addr, int size)
 {
-    i6300esb_debug ("addr = %x\n", (int) addr);
-
-    return 0;
-}
-
-static uint32_t i6300esb_mem_readw(void *vp, target_phys_addr_t addr)
-{
+    I6300State *d = DO_UPCAST(I6300State, dev, dev);
     uint32_t data = 0;
-    I6300State *d = vp;
 
     i6300esb_debug("addr = %x\n", (int) addr);
 
-    if (addr == 0xc) {
+    if (size == 2 && addr == 0xc) {
         /* The previous reboot flag is really bit 9, but there is
          * a bug in the Linux driver where it thinks it's bit 12.
          * Set both.
@@ -270,28 +261,10 @@ static uint32_t i6300esb_mem_readw(void *vp, target_phys_addr_t addr)
     return data;
 }
 
-static uint32_t i6300esb_mem_readl(void *vp, target_phys_addr_t addr)
+static void i6300esb_mem_write(PCIDevice *dev, pcibus_t addr, int size, 
+                               uint32_t val)
 {
-    i6300esb_debug("addr = %x\n", (int) addr);
-
-    return 0;
-}
-
-static void i6300esb_mem_writeb(void *vp, target_phys_addr_t addr, uint32_t val)
-{
-    I6300State *d = vp;
-
-    i6300esb_debug("addr = %x, val = %x\n", (int) addr, val);
-
-    if (addr == 0xc && val == 0x80)
-        d->unlock_state = 1;
-    else if (addr == 0xc && val == 0x86 && d->unlock_state == 1)
-        d->unlock_state = 2;
-}
-
-static void i6300esb_mem_writew(void *vp, target_phys_addr_t addr, uint32_t val)
-{
-    I6300State *d = vp;
+    I6300State *d = DO_UPCAST(I6300State, dev, dev);
 
     i6300esb_debug("addr = %x, val = %x\n", (int) addr, val);
 
@@ -301,71 +274,32 @@ static void i6300esb_mem_writew(void *vp, target_phys_addr_t addr, uint32_t val)
         d->unlock_state = 2;
     else {
         if (d->unlock_state == 2) {
-            if (addr == 0xc) {
-                if ((val & 0x100) != 0)
-                    /* This is the "ping" from the userspace watchdog in
-                     * the guest ...
+            if (size == 2) {
+                if (addr == 0xc) {
+                    if ((val & 0x100) != 0)
+                        /* This is the "ping" from the userspace watchdog in
+                         * the guest ...
+                         */
+                        i6300esb_restart_timer(d, 1);
+                    
+                    /* Setting bit 9 resets the previous reboot flag.
+                     * There's a bug in the Linux driver where it sets
+                     * bit 12 instead.
                      */
-                    i6300esb_restart_timer(d, 1);
-
-                /* Setting bit 9 resets the previous reboot flag.
-                 * There's a bug in the Linux driver where it sets
-                 * bit 12 instead.
-                 */
-                if ((val & 0x200) != 0 || (val & 0x1000) != 0) {
-                    d->previous_reboot_flag = 0;
+                    if ((val & 0x200) != 0 || (val & 0x1000) != 0) {
+                        d->previous_reboot_flag = 0;
+                    }
                 }
+            } else if (size == 4) {
+                if (addr == 0)
+                    d->timer1_preload = val & 0xfffff;
+                else if (addr == 4)
+                    d->timer2_preload = val & 0xfffff;
             }
 
             d->unlock_state = 0;
         }
     }
-}
-
-static void i6300esb_mem_writel(void *vp, target_phys_addr_t addr, uint32_t val)
-{
-    I6300State *d = vp;
-
-    i6300esb_debug ("addr = %x, val = %x\n", (int) addr, val);
-
-    if (addr == 0xc && val == 0x80)
-        d->unlock_state = 1;
-    else if (addr == 0xc && val == 0x86 && d->unlock_state == 1)
-        d->unlock_state = 2;
-    else {
-        if (d->unlock_state == 2) {
-            if (addr == 0)
-                d->timer1_preload = val & 0xfffff;
-            else if (addr == 4)
-                d->timer2_preload = val & 0xfffff;
-
-            d->unlock_state = 0;
-        }
-    }
-}
-
-static CPUReadMemoryFunc * const mem_read[3] = {
-    i6300esb_mem_readb,
-    i6300esb_mem_readw,
-    i6300esb_mem_readl,
-};
-
-static CPUWriteMemoryFunc * const mem_write[3] = {
-    i6300esb_mem_writeb,
-    i6300esb_mem_writew,
-    i6300esb_mem_writel,
-};
-
-static void i6300esb_map(PCIDevice *dev, int region_num,
-                         pcibus_t addr, pcibus_t size, int type)
-{
-    I6300State *d = DO_UPCAST(I6300State, dev, dev);
-
-    i6300esb_debug("addr = %"FMT_PCIBUS", size = %"FMT_PCIBUS", type = %d\n",
-                   addr, size, type);
-
-    cpu_register_physical_memory (addr, 0x10, d->io_mem);
-    /* qemu_register_coalesced_mmio (addr, 0x10); ? */
 }
 
 static const VMStateDescription vmstate_i6300esb = {
@@ -408,8 +342,6 @@ static int i6300esb_init(PCIDevice *dev)
     d->stage = 1;
     d->unlock_state = 0;
     d->previous_reboot_flag = 0;
-    d->io_mem = cpu_register_io_memory(mem_read, mem_write, d);
-
 
     pci_conf = d->dev.config;
     pci_config_set_vendor_id(pci_conf, PCI_VENDOR_ID_INTEL);
@@ -417,8 +349,8 @@ static int i6300esb_init(PCIDevice *dev)
     pci_config_set_class(pci_conf, PCI_CLASS_SYSTEM_OTHER);
     pci_conf[PCI_HEADER_TYPE] = 0x00;
 
-    pci_register_bar(&d->dev, 0, 0x10,
-                            PCI_BASE_ADDRESS_SPACE_MEMORY, i6300esb_map);
+    pci_register_io_region(&d->dev, 0, 0x10, PCI_BASE_ADDRESS_SPACE_MEMORY,
+                           i6300esb_mem_read, i6300esb_mem_write);
 
     return 0;
 }
