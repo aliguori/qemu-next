@@ -678,24 +678,44 @@ static const VMStateDescription vmstate_pci_ne2000 = {
 /***********************************************************/
 /* PCI NE2000 definitions */
 
-static void ne2000_map(PCIDevice *pci_dev, int region_num,
-                       pcibus_t addr, pcibus_t size, int type)
+static uint32_t ne2000_read(PCIDevice *dev, pcibus_t addr, int size)
 {
-    PCINE2000State *d = DO_UPCAST(PCINE2000State, dev, pci_dev);
+    PCINE2000State *d = DO_UPCAST(PCINE2000State, dev, dev);
+    NE2000State *s = &d->ne2000;
+    uint32_t value;
+
+    if (addr < 0x10) {
+        value = ne2000_ioport_read(s, addr);
+    } else if (addr < 0x1f) {
+        if (size == 4) {
+            value = ne2000_asic_ioport_readl(s, addr);
+        } else {
+            value = ne2000_asic_ioport_read(s, addr);
+        }
+    } else {
+        value = ne2000_reset_ioport_read(s, addr);
+    }
+
+    return value;
+}
+
+static void ne2000_write(PCIDevice *dev, pcibus_t addr, int size,
+                         uint32_t value)
+{
+    PCINE2000State *d = DO_UPCAST(PCINE2000State, dev, dev);
     NE2000State *s = &d->ne2000;
 
-    register_ioport_write(addr, 16, 1, ne2000_ioport_write, s);
-    register_ioport_read(addr, 16, 1, ne2000_ioport_read, s);
-
-    register_ioport_write(addr + 0x10, 1, 1, ne2000_asic_ioport_write, s);
-    register_ioport_read(addr + 0x10, 1, 1, ne2000_asic_ioport_read, s);
-    register_ioport_write(addr + 0x10, 2, 2, ne2000_asic_ioport_write, s);
-    register_ioport_read(addr + 0x10, 2, 2, ne2000_asic_ioport_read, s);
-    register_ioport_write(addr + 0x10, 4, 4, ne2000_asic_ioport_writel, s);
-    register_ioport_read(addr + 0x10, 4, 4, ne2000_asic_ioport_readl, s);
-
-    register_ioport_write(addr + 0x1f, 1, 1, ne2000_reset_ioport_write, s);
-    register_ioport_read(addr + 0x1f, 1, 1, ne2000_reset_ioport_read, s);
+    if (addr < 0x10) {
+        ne2000_ioport_write(s, addr, value);
+    } else if (addr < 0x1f) {
+        if (size == 4) {
+            ne2000_asic_ioport_writel(s, addr, value);
+        } else {
+            ne2000_asic_ioport_write(s, addr, value);
+        }
+    } else {
+        ne2000_reset_ioport_write(s, addr, value);
+    }
 }
 
 static void ne2000_cleanup(VLANClientState *nc)
@@ -727,8 +747,8 @@ static int pci_ne2000_init(PCIDevice *pci_dev)
     /* TODO: RST# value should be 0. PCI spec 6.2.4 */
     pci_conf[PCI_INTERRUPT_PIN] = 1; // interrupt pin 0
 
-    pci_register_bar(&d->dev, 0, 0x100,
-                           PCI_BASE_ADDRESS_SPACE_IO, ne2000_map);
+    pci_register_io_region(&d->dev, 0, 0x100, PCI_BASE_ADDRESS_SPACE_IO,
+                           ne2000_read, ne2000_write);
     s = &d->ne2000;
     s->irq = d->dev.irq[0];
 
