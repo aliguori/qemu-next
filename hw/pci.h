@@ -202,6 +202,8 @@ void pci_register_io_region(PCIDevice *d, int region_num,
                             pcibus_t size, int type,
                             PCIIOReadFunc *readcb, PCIIOWriteFunc *writecb);
 
+void pci_register_msix_region(PCIDevice *d, int region_num);
+
 void pci_memory_read(PCIDevice *pci_dev, pcibus_t addr, void *buf, int len);
 void pci_memory_write(PCIDevice *pci_dev, pcibus_t addr,
                       const void *buf, int len);

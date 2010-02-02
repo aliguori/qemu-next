@@ -28,6 +28,7 @@
 #include "sysemu.h"
 #include "loader.h"
 #include "qemu-objects.h"
+#include "msix.h"
 
 //#define DEBUG_PCI
 #ifdef DEBUG_PCI
@@ -821,6 +822,13 @@ void pci_register_io_region(PCIDevice *d, int region_num,
                                                        r);
         }
     }
+}
+
+void pci_register_msix_region(PCIDevice *d, int region_num)
+{
+    pci_register_bar(d, region_num, msix_bar_size(d),
+                     PCI_BASE_ADDRESS_SPACE_MEMORY,
+                     msix_mmio_map);
 }
 
 static uint32_t pci_config_get_io_base(PCIDevice *d,
