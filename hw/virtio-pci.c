@@ -169,9 +169,9 @@ static void virtio_pci_reset(DeviceState *d)
     msix_reset(&proxy->pci_dev);
 }
 
-static void virtio_ioport_write(void *opaque, uint32_t addr, uint32_t val)
+static void virtio_ioport_write(VirtIOPCIProxy *proxy, uint32_t addr,
+                                uint32_t val)
 {
-    VirtIOPCIProxy *proxy = opaque;
     VirtIODevice *vdev = proxy->vdev;
     target_phys_addr_t pa;
 
@@ -189,6 +189,8 @@ static void virtio_ioport_write(void *opaque, uint32_t addr, uint32_t val)
         vdev->guest_features = val;
         break;
     case VIRTIO_PCI_QUEUE_PFN:
+        /* FIXME need to rethink how we handle this.  We should use PCI memory
+         * access functions for everything here.  Syborg complicates that. */
         pa = (target_phys_addr_t)val << VIRTIO_PCI_QUEUE_ADDR_SHIFT;
         if (pa == 0) {
             virtio_reset(proxy->vdev);
@@ -277,96 +279,40 @@ static uint32_t virtio_ioport_read(VirtIOPCIProxy *proxy, uint32_t addr)
     return ret;
 }
 
-static uint32_t virtio_pci_config_readb(void *opaque, uint32_t addr)
+static uint32_t virtio_pci_config_read(PCIDevice *dev, pcibus_t addr, int size)
 {
-    VirtIOPCIProxy *proxy = opaque;
+    VirtIOPCIProxy *proxy = DO_UPCAST(VirtIOPCIProxy, pci_dev, dev);
     uint32_t config = VIRTIO_PCI_CONFIG(&proxy->pci_dev);
-    addr -= proxy->addr;
-    if (addr < config)
-        return virtio_ioport_read(proxy, addr);
-    addr -= config;
-    return virtio_config_readb(proxy->vdev, addr);
-}
+    uint32_t value;
 
-static uint32_t virtio_pci_config_readw(void *opaque, uint32_t addr)
-{
-    VirtIOPCIProxy *proxy = opaque;
-    uint32_t config = VIRTIO_PCI_CONFIG(&proxy->pci_dev);
-    addr -= proxy->addr;
-    if (addr < config)
-        return virtio_ioport_read(proxy, addr);
-    addr -= config;
-    return virtio_config_readw(proxy->vdev, addr);
-}
-
-static uint32_t virtio_pci_config_readl(void *opaque, uint32_t addr)
-{
-    VirtIOPCIProxy *proxy = opaque;
-    uint32_t config = VIRTIO_PCI_CONFIG(&proxy->pci_dev);
-    addr -= proxy->addr;
-    if (addr < config)
-        return virtio_ioport_read(proxy, addr);
-    addr -= config;
-    return virtio_config_readl(proxy->vdev, addr);
-}
-
-static void virtio_pci_config_writeb(void *opaque, uint32_t addr, uint32_t val)
-{
-    VirtIOPCIProxy *proxy = opaque;
-    uint32_t config = VIRTIO_PCI_CONFIG(&proxy->pci_dev);
-    addr -= proxy->addr;
     if (addr < config) {
-        virtio_ioport_write(proxy, addr, val);
-        return;
+        value = virtio_ioport_read(proxy, addr);
+    } else if (size == 1) {
+        value = virtio_config_readb(proxy->vdev, addr - config);
+    } else if (size == 2) {
+        value = virtio_config_readw(proxy->vdev, addr - config);
+    } else {
+        value = virtio_config_readl(proxy->vdev, addr - config);
     }
-    addr -= config;
-    virtio_config_writeb(proxy->vdev, addr, val);
+
+    return value;
 }
 
-static void virtio_pci_config_writew(void *opaque, uint32_t addr, uint32_t val)
+static void virtio_pci_config_write(PCIDevice *dev, pcibus_t addr, int size,
+                                    uint32_t value)
 {
-    VirtIOPCIProxy *proxy = opaque;
+    VirtIOPCIProxy *proxy = DO_UPCAST(VirtIOPCIProxy, pci_dev, dev);
     uint32_t config = VIRTIO_PCI_CONFIG(&proxy->pci_dev);
-    addr -= proxy->addr;
+
     if (addr < config) {
-        virtio_ioport_write(proxy, addr, val);
-        return;
+        virtio_ioport_write(proxy, addr, value);
+    } else if (size == 1) {
+        virtio_config_writeb(proxy->vdev, addr - config, value);
+    } else if (size == 2) {
+        virtio_config_writew(proxy->vdev, addr - config, value);
+    } else {
+        virtio_config_writel(proxy->vdev, addr - config, value);
     }
-    addr -= config;
-    virtio_config_writew(proxy->vdev, addr, val);
-}
-
-static void virtio_pci_config_writel(void *opaque, uint32_t addr, uint32_t val)
-{
-    VirtIOPCIProxy *proxy = opaque;
-    uint32_t config = VIRTIO_PCI_CONFIG(&proxy->pci_dev);
-    addr -= proxy->addr;
-    if (addr < config) {
-        virtio_ioport_write(proxy, addr, val);
-        return;
-    }
-    addr -= config;
-    virtio_config_writel(proxy->vdev, addr, val);
-}
-
-static void virtio_map(PCIDevice *pci_dev, int region_num,
-                       pcibus_t addr, pcibus_t size, int type)
-{
-    VirtIOPCIProxy *proxy = container_of(pci_dev, VirtIOPCIProxy, pci_dev);
-    VirtIODevice *vdev = proxy->vdev;
-    unsigned config_len = VIRTIO_PCI_REGION_SIZE(pci_dev) + vdev->config_len;
-
-    proxy->addr = addr;
-
-    register_ioport_write(addr, config_len, 1, virtio_pci_config_writeb, proxy);
-    register_ioport_write(addr, config_len, 2, virtio_pci_config_writew, proxy);
-    register_ioport_write(addr, config_len, 4, virtio_pci_config_writel, proxy);
-    register_ioport_read(addr, config_len, 1, virtio_pci_config_readb, proxy);
-    register_ioport_read(addr, config_len, 2, virtio_pci_config_readw, proxy);
-    register_ioport_read(addr, config_len, 4, virtio_pci_config_readl, proxy);
-
-    if (vdev->config_len)
-        vdev->get_config(vdev, vdev->config);
 }
 
 static void virtio_write_config(PCIDevice *pci_dev, uint32_t address,
@@ -439,8 +385,8 @@ static void virtio_init_pci(VirtIOPCIProxy *proxy, VirtIODevice *vdev,
     if (size & (size-1))
         size = 1 << qemu_fls(size);
 
-    pci_register_bar(&proxy->pci_dev, 0, size, PCI_BASE_ADDRESS_SPACE_IO,
-                           virtio_map);
+    pci_register_io_region(&proxy->pci_dev, 0, size, PCI_BASE_ADDRESS_SPACE_IO,
+                           virtio_pci_config_read, virtio_pci_config_write);
 
     virtio_bind_device(vdev, &virtio_pci_bindings, proxy);
     proxy->host_features |= 0x1 << VIRTIO_F_NOTIFY_ON_EMPTY;
