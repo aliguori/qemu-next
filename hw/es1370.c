@@ -157,9 +157,9 @@ static const unsigned dac1_samplerate[] = { 5512, 11025, 22050, 44100 };
 #define ADC_CHANNEL 2
 
 #define IO_READ_PROTO(n) \
-static uint32_t n (void *opaque, uint32_t addr)
+static uint32_t n (ES1370State *s, uint32_t addr)
 #define IO_WRITE_PROTO(n) \
-static void n (void *opaque, uint32_t addr, uint32_t val)
+static void n (ES1370State *s, uint32_t addr, uint32_t val)
 
 static void es1370_dac1_callback (void *opaque, int free);
 static void es1370_dac2_callback (void *opaque, int free);
@@ -474,7 +474,6 @@ static inline uint32_t es1370_fixup (ES1370State *s, uint32_t addr)
 
 IO_WRITE_PROTO (es1370_writeb)
 {
-    ES1370State *s = opaque;
     uint32_t shift, mask;
 
     addr = es1370_fixup (s, addr);
@@ -512,7 +511,6 @@ IO_WRITE_PROTO (es1370_writeb)
 
 IO_WRITE_PROTO (es1370_writew)
 {
-    ES1370State *s = opaque;
     addr = es1370_fixup (s, addr);
     uint32_t shift, mask;
     struct chan *d = &s->chan[0];
@@ -549,7 +547,6 @@ IO_WRITE_PROTO (es1370_writew)
 
 IO_WRITE_PROTO (es1370_writel)
 {
-    ES1370State *s = opaque;
     struct chan *d = &s->chan[0];
 
     addr = es1370_fixup (s, addr);
@@ -613,9 +610,22 @@ IO_WRITE_PROTO (es1370_writel)
     }
 }
 
+static void es1370_write (PCIDevice *dev, pcibus_t addr, int size,
+                          uint32_t value)
+{
+    ES1370State *s = DO_UPCAST (ES1370State, dev, dev);
+
+    if (size == 1) {
+        es1370_writeb (s, addr, value);
+    } else if (size == 2) {
+        es1370_writew (s, addr, value);
+    } else {
+        es1370_writel (s, addr, value);
+    }
+}
+
 IO_READ_PROTO (es1370_readb)
 {
-    ES1370State *s = opaque;
     uint32_t val;
 
     addr = es1370_fixup (s, addr);
@@ -650,7 +660,6 @@ IO_READ_PROTO (es1370_readb)
 
 IO_READ_PROTO (es1370_readw)
 {
-    ES1370State *s = opaque;
     struct chan *d = &s->chan[0];
     uint32_t val;
 
@@ -692,7 +701,6 @@ IO_READ_PROTO (es1370_readw)
 
 IO_READ_PROTO (es1370_readl)
 {
-    ES1370State *s = opaque;
     uint32_t val;
     struct chan *d = &s->chan[0];
 
@@ -775,6 +783,21 @@ IO_READ_PROTO (es1370_readl)
     return val;
 }
 
+static uint32_t es1370_read (PCIDevice *dev, pcibus_t addr, int size)
+{
+    ES1370State *s = DO_UPCAST(ES1370State, dev, dev);
+    uint32_t val;
+
+    if (size == 1) {
+        val = es1370_readb (s, addr);
+    } else if (size == 2) {
+        val = es1370_readw (s, addr);
+    } else {
+        val = es1370_readl (s, addr);
+    }
+
+    return val;
+}
 
 static void es1370_transfer_audio (ES1370State *s, struct chan *d, int loop_sel,
                                    int max, int *irq)
@@ -802,7 +825,7 @@ static void es1370_transfer_audio (ES1370State *s, struct chan *d, int loop_sel,
             if (!acquired)
                 break;
 
-            cpu_physical_memory_write (addr, tmpbuf, acquired);
+            pci_memory_write (&s->dev, addr, tmpbuf, acquired);
 
             temp -= acquired;
             addr += acquired;
@@ -816,7 +839,7 @@ static void es1370_transfer_audio (ES1370State *s, struct chan *d, int loop_sel,
             int copied, to_copy;
 
             to_copy = audio_MIN ((size_t) temp, sizeof (tmpbuf));
-            cpu_physical_memory_read (addr, tmpbuf, to_copy);
+            pci_memory_read (&s->dev, addr, tmpbuf, to_copy);
             copied = AUD_write (voice, tmpbuf, to_copy);
             if (!copied)
                 break;
@@ -904,24 +927,6 @@ static void es1370_adc_callback (void *opaque, int avail)
     ES1370State *s = opaque;
 
     es1370_run_channel (s, ADC_CHANNEL, avail);
-}
-
-static void es1370_map (PCIDevice *pci_dev, int region_num,
-                        pcibus_t addr, pcibus_t size, int type)
-{
-    ES1370State *s = DO_UPCAST (ES1370State, dev, pci_dev);
-
-    (void) region_num;
-    (void) size;
-    (void) type;
-
-    register_ioport_write (addr, 0x40 * 4, 1, es1370_writeb, s);
-    register_ioport_write (addr, 0x40 * 2, 2, es1370_writew, s);
-    register_ioport_write (addr, 0x40, 4, es1370_writel, s);
-
-    register_ioport_read (addr, 0x40 * 4, 1, es1370_readb, s);
-    register_ioport_read (addr, 0x40 * 2, 2, es1370_readw, s);
-    register_ioport_read (addr, 0x40, 4, es1370_readl, s);
 }
 
 static const VMStateDescription vmstate_es1370_channel = {
@@ -1023,7 +1028,8 @@ static int es1370_initfn (PCIDevice *dev)
     c[PCI_MIN_GNT] = 0x0c;
     c[PCI_MAX_LAT] = 0x80;
 
-    pci_register_bar (&s->dev, 0, 256, PCI_BASE_ADDRESS_SPACE_IO, es1370_map);
+    pci_register_io_region (&s->dev, 0, 256, PCI_BASE_ADDRESS_SPACE_IO,
+                            es1370_read, es1370_write);
     qemu_register_reset (es1370_on_reset, s);
 
     AUD_register_card ("es1370", &s->card);
