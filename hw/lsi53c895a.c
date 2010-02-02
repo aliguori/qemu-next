@@ -187,7 +187,6 @@ typedef struct {
     PCIDevice dev;
     int mmio_io_addr;
     int ram_io_addr;
-    uint32_t script_ram_base;
 
     int carry; /* ??? Should this be an a visible register somewhere?  */
     int sense;
@@ -376,12 +375,7 @@ static void lsi_reselect(LSIState *s, lsi_request *p);
 static inline uint32_t read_dword(LSIState *s, uint32_t addr)
 {
     uint32_t buf;
-
-    /* Optimize reading from SCRIPTS RAM.  */
-    if ((addr & 0xffffe000) == s->script_ram_base) {
-        return s->script_ram[(addr & 0x1fff) >> 2];
-    }
-    cpu_physical_memory_read(addr, (uint8_t *)&buf, 4);
+    pci_memory_read(&s->dev, addr, (uint8_t *)&buf, 4);
     return cpu_to_le32(buf);
 }
 
@@ -507,7 +501,7 @@ static void lsi_resume_script(LSIState *s)
 static void lsi_do_dma(LSIState *s, int out)
 {
     uint32_t count;
-    target_phys_addr_t addr;
+    pcibus_t addr;
 
     assert(s->current);
     if (!s->current->dma_len) {
@@ -529,7 +523,7 @@ static void lsi_do_dma(LSIState *s, int out)
     else if (s->sbms)
         addr |= ((uint64_t)s->sbms << 32);
 
-    DPRINTF("DMA addr=0x" TARGET_FMT_plx " len=%d\n", addr, count);
+    DPRINTF("DMA addr=0x" FMT_pcibus " len=%d\n", addr, count);
     s->csbc += count;
     s->dnad += count;
     s->dbc -= count;
@@ -541,9 +535,9 @@ static void lsi_do_dma(LSIState *s, int out)
 
     /* ??? Set SFBR to first data byte.  */
     if (out) {
-        cpu_physical_memory_read(addr, s->current->dma_buf, count);
+        pci_memory_read(&s->dev, addr, s->current->dma_buf, count);
     } else {
-        cpu_physical_memory_write(addr, s->current->dma_buf, count);
+        pci_memory_write(&s->dev, addr, s->current->dma_buf, count);
     }
     s->current->dma_len -= count;
     if (s->current->dma_len == 0) {
@@ -706,7 +700,7 @@ static void lsi_do_command(LSIState *s)
     DPRINTF("Send command len=%d\n", s->dbc);
     if (s->dbc > 16)
         s->dbc = 16;
-    cpu_physical_memory_read(s->dnad, buf, s->dbc);
+    pci_memory_read(&s->dev, s->dnad, buf, s->dbc);
     s->sfbr = buf[0];
     s->command_complete = 0;
 
@@ -750,7 +744,7 @@ static void lsi_do_status(LSIState *s)
     s->dbc = 1;
     sense = s->sense;
     s->sfbr = sense;
-    cpu_physical_memory_write(s->dnad, &sense, 1);
+    pci_memory_write(&s->dev, s->dnad, &sense, 1);
     lsi_set_phase(s, PHASE_MI);
     s->msg_action = 1;
     lsi_add_msg_byte(s, 0); /* COMMAND COMPLETE */
@@ -770,7 +764,7 @@ static void lsi_do_msgin(LSIState *s)
     len = s->msg_len;
     if (len > s->dbc)
         len = s->dbc;
-    cpu_physical_memory_write(s->dnad, s->msg, len);
+    pci_memory_write(&s->dev, s->dnad, s->msg, len);
     /* Linux drivers rely on the last byte being in the SIDL.  */
     s->sidl = s->msg[len - 1];
     s->msg_len -= len;
@@ -802,7 +796,7 @@ static void lsi_do_msgin(LSIState *s)
 static uint8_t lsi_get_msgbyte(LSIState *s)
 {
     uint8_t data;
-    cpu_physical_memory_read(s->dnad, &data, 1);
+    pci_memory_read(&s->dev, s->dnad, &data, 1);
     s->dnad++;
     s->dbc--;
     return data;
@@ -889,8 +883,8 @@ static void lsi_memcpy(LSIState *s, uint32_t dest, uint32_t src, int count)
     DPRINTF("memcpy dest 0x%08x src 0x%08x count %d\n", dest, src, count);
     while (count) {
         n = (count > LSI_BUF_SIZE) ? LSI_BUF_SIZE : count;
-        cpu_physical_memory_read(src, buf, n);
-        cpu_physical_memory_write(dest, buf, n);
+        pci_memory_read(&s->dev, src, buf, n);
+        pci_memory_write(&s->dev, dest, buf, n);
         src += n;
         dest += n;
         count -= n;
@@ -958,7 +952,7 @@ again:
 
             /* 32-bit Table indirect */
             offset = sxt24(addr);
-            cpu_physical_memory_read(s->dsa + offset, (uint8_t *)buf, 8);
+            pci_memory_read(&s->dev, s->dsa + offset, (uint8_t *)buf, 8);
             /* byte count is stored in bits 0:23 only */
             s->dbc = cpu_to_le32(buf[0]) & 0xffffff;
             s->rbc = s->dbc;
@@ -1320,7 +1314,7 @@ again:
             n = (insn & 7);
             reg = (insn >> 16) & 0xff;
             if (insn & (1 << 24)) {
-                cpu_physical_memory_read(addr, data, n);
+                pci_memory_read(&s->dev, addr, data, n);
                 DPRINTF("Load reg 0x%x size %d addr 0x%08x = %08x\n", reg, n,
                         addr, *(int *)data);
                 for (i = 0; i < n; i++) {
@@ -1331,7 +1325,7 @@ again:
                 for (i = 0; i < n; i++) {
                     data[i] = lsi_reg_readb(s, reg + i);
                 }
-                cpu_physical_memory_write(addr, data, n);
+                pci_memory_write(&s->dev, addr, data, n);
             }
         }
     }
@@ -1760,240 +1754,119 @@ static void lsi_reg_writeb(LSIState *s, int offset, uint8_t val)
 #undef CASE_SET_REG32
 }
 
-static void lsi_mmio_writeb(void *opaque, target_phys_addr_t addr, uint32_t val)
+static void lsi_mmio_write(PCIDevice *dev,
+                           pcibus_t addr, int size, uint32_t val)
 {
-    LSIState *s = opaque;
-
-    lsi_reg_writeb(s, addr & 0xff, val);
-}
-
-static void lsi_mmio_writew(void *opaque, target_phys_addr_t addr, uint32_t val)
-{
-    LSIState *s = opaque;
+    LSIState *s = DO_UPCAST(LSIState, dev, dev);
 
     addr &= 0xff;
     lsi_reg_writeb(s, addr, val & 0xff);
-    lsi_reg_writeb(s, addr + 1, (val >> 8) & 0xff);
+    if (size > 1) {
+        lsi_reg_writeb(s, addr + 1, (val >> 8) & 0xff);
+    }        
+    if (size > 2) {
+        lsi_reg_writeb(s, addr + 2, (val >> 16) & 0xff);
+        lsi_reg_writeb(s, addr + 3, (val >> 24) & 0xff);
+    }        
 }
 
-static void lsi_mmio_writel(void *opaque, target_phys_addr_t addr, uint32_t val)
+static uint32_t lsi_mmio_read(PCIDevice *dev, pcibus_t addr, int size)
 {
-    LSIState *s = opaque;
-
-    addr &= 0xff;
-    lsi_reg_writeb(s, addr, val & 0xff);
-    lsi_reg_writeb(s, addr + 1, (val >> 8) & 0xff);
-    lsi_reg_writeb(s, addr + 2, (val >> 16) & 0xff);
-    lsi_reg_writeb(s, addr + 3, (val >> 24) & 0xff);
-}
-
-static uint32_t lsi_mmio_readb(void *opaque, target_phys_addr_t addr)
-{
-    LSIState *s = opaque;
-
-    return lsi_reg_readb(s, addr & 0xff);
-}
-
-static uint32_t lsi_mmio_readw(void *opaque, target_phys_addr_t addr)
-{
-    LSIState *s = opaque;
+    LSIState *s = DO_UPCAST(LSIState, dev, dev);
     uint32_t val;
 
     addr &= 0xff;
     val = lsi_reg_readb(s, addr);
-    val |= lsi_reg_readb(s, addr + 1) << 8;
-    return val;
-}
-
-static uint32_t lsi_mmio_readl(void *opaque, target_phys_addr_t addr)
-{
-    LSIState *s = opaque;
-    uint32_t val;
-    addr &= 0xff;
-    val = lsi_reg_readb(s, addr);
-    val |= lsi_reg_readb(s, addr + 1) << 8;
-    val |= lsi_reg_readb(s, addr + 2) << 16;
-    val |= lsi_reg_readb(s, addr + 3) << 24;
-    return val;
-}
-
-static CPUReadMemoryFunc * const lsi_mmio_readfn[3] = {
-    lsi_mmio_readb,
-    lsi_mmio_readw,
-    lsi_mmio_readl,
-};
-
-static CPUWriteMemoryFunc * const lsi_mmio_writefn[3] = {
-    lsi_mmio_writeb,
-    lsi_mmio_writew,
-    lsi_mmio_writel,
-};
-
-static void lsi_ram_writeb(void *opaque, target_phys_addr_t addr, uint32_t val)
-{
-    LSIState *s = opaque;
-    uint32_t newval;
-    int shift;
-
-    addr &= 0x1fff;
-    newval = s->script_ram[addr >> 2];
-    shift = (addr & 3) * 8;
-    newval &= ~(0xff << shift);
-    newval |= val << shift;
-    s->script_ram[addr >> 2] = newval;
-}
-
-static void lsi_ram_writew(void *opaque, target_phys_addr_t addr, uint32_t val)
-{
-    LSIState *s = opaque;
-    uint32_t newval;
-
-    addr &= 0x1fff;
-    newval = s->script_ram[addr >> 2];
-    if (addr & 2) {
-        newval = (newval & 0xffff) | (val << 16);
-    } else {
-        newval = (newval & 0xffff0000) | val;
+    if (size > 1) {
+        val |= lsi_reg_readb(s, addr + 1) << 8;
     }
+    if (size > 2) {
+        val |= lsi_reg_readb(s, addr + 2) << 16;
+        val |= lsi_reg_readb(s, addr + 3) << 24;
+    }
+    return val;
+}
+
+static void lsi_ram_write(PCIDevice *dev, pcibus_t addr, int size, uint32_t val)
+{
+    LSIState *s = DO_UPCAST(LSIState, dev, dev);
+    uint32_t newval;
+
+    addr &= 0x1fff;
+    newval = s->script_ram[addr >> 2];
+
+    if (size == 1) {
+        int shift;
+        shift = (addr & 3) * 8;
+        newval &= ~(0xff << shift);
+        newval |= val << shift;
+    } else if (size == 2) {
+        if (addr & 2) {
+            newval = (newval & 0xffff) | (val << 16);
+        } else {
+            newval = (newval & 0xffff0000) | val;
+        }
+    } else {
+        newval = val;
+    }
+
     s->script_ram[addr >> 2] = newval;
 }
 
-
-static void lsi_ram_writel(void *opaque, target_phys_addr_t addr, uint32_t val)
+static uint32_t lsi_ram_read(PCIDevice *dev, pcibus_t addr, int size)
 {
-    LSIState *s = opaque;
-
-    addr &= 0x1fff;
-    s->script_ram[addr >> 2] = val;
-}
-
-static uint32_t lsi_ram_readb(void *opaque, target_phys_addr_t addr)
-{
-    LSIState *s = opaque;
+    LSIState *s = DO_UPCAST(LSIState, dev, dev);
     uint32_t val;
 
     addr &= 0x1fff;
     val = s->script_ram[addr >> 2];
-    val >>= (addr & 3) * 8;
-    return val & 0xff;
-}
 
-static uint32_t lsi_ram_readw(void *opaque, target_phys_addr_t addr)
-{
-    LSIState *s = opaque;
-    uint32_t val;
+    if (size == 1) {
+        val >>= (addr & 3) * 8;
+        val &= 0xff;
+    } else if (size == 2) {
+        if (addr & 2) {
+            val >>= 16;
+        }
+        val = le16_to_cpu(val);
+    } else {
+        val = le32_to_cpu(val);
+    }
 
-    addr &= 0x1fff;
-    val = s->script_ram[addr >> 2];
-    if (addr & 2)
-        val >>= 16;
-    return le16_to_cpu(val);
-}
-
-static uint32_t lsi_ram_readl(void *opaque, target_phys_addr_t addr)
-{
-    LSIState *s = opaque;
-
-    addr &= 0x1fff;
-    return le32_to_cpu(s->script_ram[addr >> 2]);
-}
-
-static CPUReadMemoryFunc * const lsi_ram_readfn[3] = {
-    lsi_ram_readb,
-    lsi_ram_readw,
-    lsi_ram_readl,
-};
-
-static CPUWriteMemoryFunc * const lsi_ram_writefn[3] = {
-    lsi_ram_writeb,
-    lsi_ram_writew,
-    lsi_ram_writel,
-};
-
-static uint32_t lsi_io_readb(void *opaque, uint32_t addr)
-{
-    LSIState *s = opaque;
-    return lsi_reg_readb(s, addr & 0xff);
-}
-
-static uint32_t lsi_io_readw(void *opaque, uint32_t addr)
-{
-    LSIState *s = opaque;
-    uint32_t val;
-    addr &= 0xff;
-    val = lsi_reg_readb(s, addr);
-    val |= lsi_reg_readb(s, addr + 1) << 8;
     return val;
 }
 
-static uint32_t lsi_io_readl(void *opaque, uint32_t addr)
+static uint32_t lsi_io_read(PCIDevice *dev, pcibus_t addr, int size)
 {
-    LSIState *s = opaque;
+    LSIState *s = DO_UPCAST(LSIState, dev, dev);
     uint32_t val;
+
     addr &= 0xff;
     val = lsi_reg_readb(s, addr);
-    val |= lsi_reg_readb(s, addr + 1) << 8;
-    val |= lsi_reg_readb(s, addr + 2) << 16;
-    val |= lsi_reg_readb(s, addr + 3) << 24;
+    if (size > 1) {
+        val |= lsi_reg_readb(s, addr + 1) << 8;
+    }
+    if (size > 2) {
+        val |= lsi_reg_readb(s, addr + 2) << 16;
+        val |= lsi_reg_readb(s, addr + 3) << 24;
+    }
+
     return val;
 }
 
-static void lsi_io_writeb(void *opaque, uint32_t addr, uint32_t val)
+static void lsi_io_write(PCIDevice *dev, pcibus_t addr, int size, uint32_t val)
 {
-    LSIState *s = opaque;
-    lsi_reg_writeb(s, addr & 0xff, val);
-}
+    LSIState *s = DO_UPCAST(LSIState, dev, dev);
 
-static void lsi_io_writew(void *opaque, uint32_t addr, uint32_t val)
-{
-    LSIState *s = opaque;
     addr &= 0xff;
     lsi_reg_writeb(s, addr, val & 0xff);
-    lsi_reg_writeb(s, addr + 1, (val >> 8) & 0xff);
-}
-
-static void lsi_io_writel(void *opaque, uint32_t addr, uint32_t val)
-{
-    LSIState *s = opaque;
-    addr &= 0xff;
-    lsi_reg_writeb(s, addr, val & 0xff);
-    lsi_reg_writeb(s, addr + 1, (val >> 8) & 0xff);
-    lsi_reg_writeb(s, addr + 2, (val >> 16) & 0xff);
-    lsi_reg_writeb(s, addr + 3, (val >> 24) & 0xff);
-}
-
-static void lsi_io_mapfunc(PCIDevice *pci_dev, int region_num,
-                           pcibus_t addr, pcibus_t size, int type)
-{
-    LSIState *s = DO_UPCAST(LSIState, dev, pci_dev);
-
-    DPRINTF("Mapping IO at %08"FMT_PCIBUS"\n", addr);
-
-    register_ioport_write(addr, 256, 1, lsi_io_writeb, s);
-    register_ioport_read(addr, 256, 1, lsi_io_readb, s);
-    register_ioport_write(addr, 256, 2, lsi_io_writew, s);
-    register_ioport_read(addr, 256, 2, lsi_io_readw, s);
-    register_ioport_write(addr, 256, 4, lsi_io_writel, s);
-    register_ioport_read(addr, 256, 4, lsi_io_readl, s);
-}
-
-static void lsi_ram_mapfunc(PCIDevice *pci_dev, int region_num,
-                            pcibus_t addr, pcibus_t size, int type)
-{
-    LSIState *s = DO_UPCAST(LSIState, dev, pci_dev);
-
-    DPRINTF("Mapping ram at %08"FMT_PCIBUS"\n", addr);
-    s->script_ram_base = addr;
-    cpu_register_physical_memory(addr + 0, 0x2000, s->ram_io_addr);
-}
-
-static void lsi_mmio_mapfunc(PCIDevice *pci_dev, int region_num,
-                             pcibus_t addr, pcibus_t size, int type)
-{
-    LSIState *s = DO_UPCAST(LSIState, dev, pci_dev);
-
-    DPRINTF("Mapping registers at %08"FMT_PCIBUS"\n", addr);
-    cpu_register_physical_memory(addr + 0, 0x400, s->mmio_io_addr);
+    if (size > 1) {
+        lsi_reg_writeb(s, addr + 1, (val >> 8) & 0xff);
+    }
+    if (size > 20) {
+        lsi_reg_writeb(s, addr + 2, (val >> 16) & 0xff);
+        lsi_reg_writeb(s, addr + 3, (val >> 24) & 0xff);
+    }
 }
 
 static void lsi_pre_save(void *opaque)
@@ -2090,16 +1963,6 @@ static const VMStateDescription vmstate_lsi_scsi = {
     }
 };
 
-static int lsi_scsi_uninit(PCIDevice *d)
-{
-    LSIState *s = DO_UPCAST(LSIState, dev, d);
-
-    cpu_unregister_io_memory(s->mmio_io_addr);
-    cpu_unregister_io_memory(s->ram_io_addr);
-
-    return 0;
-}
-
 static int lsi_scsi_init(PCIDevice *dev)
 {
     LSIState *s = DO_UPCAST(LSIState, dev, dev);
@@ -2122,18 +1985,12 @@ static int lsi_scsi_init(PCIDevice *dev)
     /* Interrupt pin 1 */
     pci_conf[PCI_INTERRUPT_PIN] = 0x01;
 
-    s->mmio_io_addr = cpu_register_io_memory(lsi_mmio_readfn,
-                                             lsi_mmio_writefn, s);
-    s->ram_io_addr = cpu_register_io_memory(lsi_ram_readfn,
-                                            lsi_ram_writefn, s);
-
-    /* TODO: use dev and get rid of cast below */
-    pci_register_bar((struct PCIDevice *)s, 0, 256,
-                           PCI_BASE_ADDRESS_SPACE_IO, lsi_io_mapfunc);
-    pci_register_bar((struct PCIDevice *)s, 1, 0x400,
-                           PCI_BASE_ADDRESS_SPACE_MEMORY, lsi_mmio_mapfunc);
-    pci_register_bar((struct PCIDevice *)s, 2, 0x2000,
-                           PCI_BASE_ADDRESS_SPACE_MEMORY, lsi_ram_mapfunc);
+    pci_register_io_region(dev, 0, 256, PCI_BASE_ADDRESS_SPACE_IO,
+                           lsi_io_read, lsi_io_write);
+    pci_register_io_region(dev, 1, 0x400, PCI_BASE_ADDRESS_SPACE_MEMORY,
+                           lsi_mmio_read, lsi_mmio_write);
+    pci_register_io_region(dev, 2, 0x2000, PCI_BASE_ADDRESS_SPACE_MEMORY,
+                           lsi_ram_read, lsi_ram_write);
     QTAILQ_INIT(&s->queue);
 
     lsi_soft_reset(s);
@@ -2151,7 +2008,6 @@ static PCIDeviceInfo lsi_info = {
     .qdev.size  = sizeof(LSIState),
     .qdev.vmsd  = &vmstate_lsi_scsi,
     .init       = lsi_scsi_init,
-    .exit       = lsi_scsi_uninit,
 };
 
 static void lsi53c895a_register_devices(void)
