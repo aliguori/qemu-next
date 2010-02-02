@@ -414,9 +414,6 @@ typedef struct RTL8139TallyCounters
 /* Clears all tally counters */
 static void RTL8139TallyCounters_clear(RTL8139TallyCounters* counters);
 
-/* Writes tally counters to specified physical memory address */
-static void RTL8139TallyCounters_physical_memory_write(target_phys_addr_t tc_addr, RTL8139TallyCounters* counters);
-
 typedef struct RTL8139State {
     PCIDevice dev;
     uint8_t phys[8]; /* mac address */
@@ -493,6 +490,9 @@ typedef struct RTL8139State {
     QEMUTimer *timer;
 
 } RTL8139State;
+
+/* Writes tally counters to specified physical memory address */
+static void RTL8139TallyCounters_physical_memory_write(RTL8139State *s, pcibus_t tc_addr, RTL8139TallyCounters* counters);
 
 static void prom9346_decode_command(EEprom9346 *eeprom, uint8_t command)
 {
@@ -753,15 +753,15 @@ static void rtl8139_write_buffer(RTL8139State *s, const void *buf, int size)
 
             if (size > wrapped)
             {
-                cpu_physical_memory_write( s->RxBuf + s->RxBufAddr,
-                                           buf, size-wrapped );
+                pci_memory_write( &s->dev, s->RxBuf + s->RxBufAddr,
+                                  buf, size-wrapped );
             }
 
             /* reset buffer pointer */
             s->RxBufAddr = 0;
 
-            cpu_physical_memory_write( s->RxBuf + s->RxBufAddr,
-                                       buf + (size-wrapped), wrapped );
+            pci_memory_write( &s->dev, s->RxBuf + s->RxBufAddr,
+                              buf + (size-wrapped), wrapped );
 
             s->RxBufAddr = wrapped;
 
@@ -770,19 +770,15 @@ static void rtl8139_write_buffer(RTL8139State *s, const void *buf, int size)
     }
 
     /* non-wrapping path or overwrapping enabled */
-    cpu_physical_memory_write( s->RxBuf + s->RxBufAddr, buf, size );
+    pci_memory_write( &s->dev, s->RxBuf + s->RxBufAddr, buf, size );
 
     s->RxBufAddr += size;
 }
 
 #define MIN_BUF_SIZE 60
-static inline target_phys_addr_t rtl8139_addr64(uint32_t low, uint32_t high)
+static inline pcibus_t rtl8139_addr64(uint32_t low, uint32_t high)
 {
-#if TARGET_PHYS_ADDR_BITS > 32
-    return low | ((target_phys_addr_t)high << 32);
-#else
-    return low;
-#endif
+    return low | ((pcibus_t)high << 32);
 }
 
 static int rtl8139_can_receive(VLANClientState *nc)
@@ -954,7 +950,7 @@ static ssize_t rtl8139_do_receive(VLANClientState *nc, const uint8_t *buf, size_
 /* w3 high 32bit of Rx buffer ptr */
 
         int descriptor = s->currCPlusRxDesc;
-        target_phys_addr_t cplus_rx_ring_desc;
+        pcibus_t cplus_rx_ring_desc;
 
         cplus_rx_ring_desc = rtl8139_addr64(s->RxRingAddrLO, s->RxRingAddrHI);
         cplus_rx_ring_desc += 16 * descriptor;
@@ -964,13 +960,13 @@ static ssize_t rtl8139_do_receive(VLANClientState *nc, const uint8_t *buf, size_
 
         uint32_t val, rxdw0,rxdw1,rxbufLO,rxbufHI;
 
-        cpu_physical_memory_read(cplus_rx_ring_desc,    (uint8_t *)&val, 4);
+        pci_memory_read(&s->dev, cplus_rx_ring_desc,    (uint8_t *)&val, 4);
         rxdw0 = le32_to_cpu(val);
-        cpu_physical_memory_read(cplus_rx_ring_desc+4,  (uint8_t *)&val, 4);
+        pci_memory_read(&s->dev, cplus_rx_ring_desc+4,  (uint8_t *)&val, 4);
         rxdw1 = le32_to_cpu(val);
-        cpu_physical_memory_read(cplus_rx_ring_desc+8,  (uint8_t *)&val, 4);
+        pci_memory_read(&s->dev, cplus_rx_ring_desc+8,  (uint8_t *)&val, 4);
         rxbufLO = le32_to_cpu(val);
-        cpu_physical_memory_read(cplus_rx_ring_desc+12, (uint8_t *)&val, 4);
+        pci_memory_read(&s->dev, cplus_rx_ring_desc+12, (uint8_t *)&val, 4);
         rxbufHI = le32_to_cpu(val);
 
         DEBUG_PRINT(("RTL8139: +++ C+ mode RX descriptor %d %08x %08x %08x %08x\n",
@@ -1012,10 +1008,10 @@ static ssize_t rtl8139_do_receive(VLANClientState *nc, const uint8_t *buf, size_
             return size_;
         }
 
-        target_phys_addr_t rx_addr = rtl8139_addr64(rxbufLO, rxbufHI);
+        pcibus_t rx_addr = rtl8139_addr64(rxbufLO, rxbufHI);
 
         /* receive/copy to target memory */
-        cpu_physical_memory_write( rx_addr, buf, size );
+        pci_memory_write(&s->dev,  rx_addr, buf, size );
 
         if (s->CpCmd & CPlusRxChkSum)
         {
@@ -1028,7 +1024,7 @@ static ssize_t rtl8139_do_receive(VLANClientState *nc, const uint8_t *buf, size_
 #else
         val = 0;
 #endif
-        cpu_physical_memory_write( rx_addr+size, (uint8_t *)&val, 4);
+        pci_memory_write(&s->dev,  rx_addr+size, (uint8_t *)&val, 4);
 
 /* first segment of received packet flag */
 #define CP_RX_STATUS_FS (1<<29)
@@ -1077,9 +1073,9 @@ static ssize_t rtl8139_do_receive(VLANClientState *nc, const uint8_t *buf, size_
 
         /* update ring data */
         val = cpu_to_le32(rxdw0);
-        cpu_physical_memory_write(cplus_rx_ring_desc,    (uint8_t *)&val, 4);
+        pci_memory_write(&s->dev, cplus_rx_ring_desc,    (uint8_t *)&val, 4);
         val = cpu_to_le32(rxdw1);
-        cpu_physical_memory_write(cplus_rx_ring_desc+4,  (uint8_t *)&val, 4);
+        pci_memory_write(&s->dev, cplus_rx_ring_desc+4,  (uint8_t *)&val, 4);
 
         /* update tally counter */
         ++s->tally_counters.RxOk;
@@ -1275,50 +1271,50 @@ static void RTL8139TallyCounters_clear(RTL8139TallyCounters* counters)
     counters->TxUndrn = 0;
 }
 
-static void RTL8139TallyCounters_physical_memory_write(target_phys_addr_t tc_addr, RTL8139TallyCounters* tally_counters)
+static void RTL8139TallyCounters_physical_memory_write(RTL8139State *s, pcibus_t tc_addr, RTL8139TallyCounters* tally_counters)
 {
     uint16_t val16;
     uint32_t val32;
     uint64_t val64;
 
     val64 = cpu_to_le64(tally_counters->TxOk);
-    cpu_physical_memory_write(tc_addr + 0,    (uint8_t *)&val64, 8);
+    pci_memory_write(&s->dev, tc_addr + 0,    (uint8_t *)&val64, 8);
 
     val64 = cpu_to_le64(tally_counters->RxOk);
-    cpu_physical_memory_write(tc_addr + 8,    (uint8_t *)&val64, 8);
+    pci_memory_write(&s->dev, tc_addr + 8,    (uint8_t *)&val64, 8);
 
     val64 = cpu_to_le64(tally_counters->TxERR);
-    cpu_physical_memory_write(tc_addr + 16,    (uint8_t *)&val64, 8);
+    pci_memory_write(&s->dev, tc_addr + 16,    (uint8_t *)&val64, 8);
 
     val32 = cpu_to_le32(tally_counters->RxERR);
-    cpu_physical_memory_write(tc_addr + 24,    (uint8_t *)&val32, 4);
+    pci_memory_write(&s->dev, tc_addr + 24,    (uint8_t *)&val32, 4);
 
     val16 = cpu_to_le16(tally_counters->MissPkt);
-    cpu_physical_memory_write(tc_addr + 28,    (uint8_t *)&val16, 2);
+    pci_memory_write(&s->dev, tc_addr + 28,    (uint8_t *)&val16, 2);
 
     val16 = cpu_to_le16(tally_counters->FAE);
-    cpu_physical_memory_write(tc_addr + 30,    (uint8_t *)&val16, 2);
+    pci_memory_write(&s->dev, tc_addr + 30,    (uint8_t *)&val16, 2);
 
     val32 = cpu_to_le32(tally_counters->Tx1Col);
-    cpu_physical_memory_write(tc_addr + 32,    (uint8_t *)&val32, 4);
+    pci_memory_write(&s->dev, tc_addr + 32,    (uint8_t *)&val32, 4);
 
     val32 = cpu_to_le32(tally_counters->TxMCol);
-    cpu_physical_memory_write(tc_addr + 36,    (uint8_t *)&val32, 4);
+    pci_memory_write(&s->dev, tc_addr + 36,    (uint8_t *)&val32, 4);
 
     val64 = cpu_to_le64(tally_counters->RxOkPhy);
-    cpu_physical_memory_write(tc_addr + 40,    (uint8_t *)&val64, 8);
+    pci_memory_write(&s->dev, tc_addr + 40,    (uint8_t *)&val64, 8);
 
     val64 = cpu_to_le64(tally_counters->RxOkBrd);
-    cpu_physical_memory_write(tc_addr + 48,    (uint8_t *)&val64, 8);
+    pci_memory_write(&s->dev, tc_addr + 48,    (uint8_t *)&val64, 8);
 
     val32 = cpu_to_le32(tally_counters->RxOkMul);
-    cpu_physical_memory_write(tc_addr + 56,    (uint8_t *)&val32, 4);
+    pci_memory_write(&s->dev, tc_addr + 56,    (uint8_t *)&val32, 4);
 
     val16 = cpu_to_le16(tally_counters->TxAbt);
-    cpu_physical_memory_write(tc_addr + 60,    (uint8_t *)&val16, 2);
+    pci_memory_write(&s->dev, tc_addr + 60,    (uint8_t *)&val16, 2);
 
     val16 = cpu_to_le16(tally_counters->TxUndrn);
-    cpu_physical_memory_write(tc_addr + 62,    (uint8_t *)&val16, 2);
+    pci_memory_write(&s->dev, tc_addr + 62,    (uint8_t *)&val16, 2);
 }
 
 /* Loads values of tally counters from VM state file */
@@ -1776,7 +1772,7 @@ static int rtl8139_transmit_one(RTL8139State *s, int descriptor)
     DEBUG_PRINT(("RTL8139: +++ transmit reading %d bytes from host memory at 0x%08x\n",
                  txsize, s->TxAddr[descriptor]));
 
-    cpu_physical_memory_read(s->TxAddr[descriptor], txbuffer, txsize);
+    pci_memory_read(&s->dev, s->TxAddr[descriptor], txbuffer, txsize);
 
     /* Mark descriptor as transferred */
     s->TxStatus[descriptor] |= TxHostOwns;
@@ -1896,7 +1892,7 @@ static int rtl8139_cplus_transmit_one(RTL8139State *s)
 
     int descriptor = s->currCPlusTxDesc;
 
-    target_phys_addr_t cplus_tx_ring_desc =
+    pcibus_t cplus_tx_ring_desc =
         rtl8139_addr64(s->TxAddr[0], s->TxAddr[1]);
 
     /* Normal priority ring */
@@ -1907,14 +1903,14 @@ static int rtl8139_cplus_transmit_one(RTL8139State *s)
 
     uint32_t val, txdw0,txdw1,txbufLO,txbufHI;
 
-    cpu_physical_memory_read(cplus_tx_ring_desc,    (uint8_t *)&val, 4);
+    pci_memory_read(&s->dev, cplus_tx_ring_desc,    (uint8_t *)&val, 4);
     txdw0 = le32_to_cpu(val);
     /* TODO: implement VLAN tagging support, VLAN tag data is read to txdw1 */
-    cpu_physical_memory_read(cplus_tx_ring_desc+4,  (uint8_t *)&val, 4);
+    pci_memory_read(&s->dev, cplus_tx_ring_desc+4,  (uint8_t *)&val, 4);
     txdw1 = le32_to_cpu(val);
-    cpu_physical_memory_read(cplus_tx_ring_desc+8,  (uint8_t *)&val, 4);
+    pci_memory_read(&s->dev, cplus_tx_ring_desc+8,  (uint8_t *)&val, 4);
     txbufLO = le32_to_cpu(val);
-    cpu_physical_memory_read(cplus_tx_ring_desc+12, (uint8_t *)&val, 4);
+    pci_memory_read(&s->dev, cplus_tx_ring_desc+12, (uint8_t *)&val, 4);
     txbufHI = le32_to_cpu(val);
 
     DEBUG_PRINT(("RTL8139: +++ C+ mode TX descriptor %d %08x %08x %08x %08x\n",
@@ -1983,7 +1979,7 @@ static int rtl8139_cplus_transmit_one(RTL8139State *s)
     }
 
     int txsize = txdw0 & CP_TX_BUFFER_SIZE_MASK;
-    target_phys_addr_t tx_addr = rtl8139_addr64(txbufLO, txbufHI);
+    pcibus_t tx_addr = rtl8139_addr64(txbufLO, txbufHI);
 
     /* make sure we have enough space to assemble the packet */
     if (!s->cplus_txbuffer)
@@ -2021,7 +2017,7 @@ static int rtl8139_cplus_transmit_one(RTL8139State *s)
     DEBUG_PRINT(("RTL8139: +++ C+ mode transmit reading %d bytes from host memory at %016" PRIx64 " to offset %d\n",
                  txsize, (uint64_t)tx_addr, s->cplus_txbuffer_offset));
 
-    cpu_physical_memory_read(tx_addr, s->cplus_txbuffer + s->cplus_txbuffer_offset, txsize);
+    pci_memory_read(&s->dev, tx_addr, s->cplus_txbuffer + s->cplus_txbuffer_offset, txsize);
     s->cplus_txbuffer_offset += txsize;
 
     /* seek to next Rx descriptor */
@@ -2048,10 +2044,10 @@ static int rtl8139_cplus_transmit_one(RTL8139State *s)
 
     /* update ring data */
     val = cpu_to_le32(txdw0);
-    cpu_physical_memory_write(cplus_tx_ring_desc,    (uint8_t *)&val, 4);
+    pci_memory_write(&s->dev, cplus_tx_ring_desc,    (uint8_t *)&val, 4);
     /* TODO: implement VLAN tagging support, VLAN tag data is read to txdw1 */
 //    val = cpu_to_le32(txdw1);
-//    cpu_physical_memory_write(cplus_tx_ring_desc+4,  &val, 4);
+//    pci_memory_write(&s->dev, cplus_tx_ring_desc+4,  &val, 4);
 
     /* Now decide if descriptor being processed is holding the last segment of packet */
     if (txdw0 & CP_TX_LS)
@@ -2374,10 +2370,10 @@ static void rtl8139_TxStatus_write(RTL8139State *s, uint32_t txRegOffset, uint32
 
         if (descriptor == 0 && (val & 0x8))
         {
-            target_phys_addr_t tc_addr = rtl8139_addr64(s->TxStatus[0] & ~0x3f, s->TxStatus[1]);
+            pcibus_t tc_addr = rtl8139_addr64(s->TxStatus[0] & ~0x3f, s->TxStatus[1]);
 
             /* dump tally counters to specified memory location */
-            RTL8139TallyCounters_physical_memory_write( tc_addr, &s->tally_counters);
+            RTL8139TallyCounters_physical_memory_write( s, tc_addr, &s->tally_counters);
 
             /* mark dump completed */
             s->TxStatus[0] &= ~0x8;
@@ -2596,10 +2592,8 @@ static uint32_t rtl8139_MultiIntr_read(RTL8139State *s)
     return ret;
 }
 
-static void rtl8139_io_writeb(void *opaque, uint8_t addr, uint32_t val)
+static void rtl8139_io_writeb(RTL8139State *s, uint8_t addr, uint32_t val)
 {
-    RTL8139State *s = opaque;
-
     addr &= 0xff;
 
     switch (addr)
@@ -2680,10 +2674,8 @@ static void rtl8139_io_writeb(void *opaque, uint8_t addr, uint32_t val)
     }
 }
 
-static void rtl8139_io_writew(void *opaque, uint8_t addr, uint32_t val)
+static void rtl8139_io_writew(RTL8139State *s, uint8_t addr, uint32_t val)
 {
-    RTL8139State *s = opaque;
-
     addr &= 0xfe;
 
     switch (addr)
@@ -2733,16 +2725,14 @@ static void rtl8139_io_writew(void *opaque, uint8_t addr, uint32_t val)
         default:
             DEBUG_PRINT(("RTL8139: ioport write(w) addr=0x%x val=0x%04x via write(b)\n", addr, val));
 
-            rtl8139_io_writeb(opaque, addr, val & 0xff);
-            rtl8139_io_writeb(opaque, addr + 1, (val >> 8) & 0xff);
+            rtl8139_io_writeb(s, addr, val & 0xff);
+            rtl8139_io_writeb(s, addr + 1, (val >> 8) & 0xff);
             break;
     }
 }
 
-static void rtl8139_io_writel(void *opaque, uint8_t addr, uint32_t val)
+static void rtl8139_io_writel(RTL8139State *s, uint8_t addr, uint32_t val)
 {
-    RTL8139State *s = opaque;
-
     addr &= 0xfc;
 
     switch (addr)
@@ -2795,17 +2785,16 @@ static void rtl8139_io_writel(void *opaque, uint8_t addr, uint32_t val)
 
         default:
             DEBUG_PRINT(("RTL8139: ioport write(l) addr=0x%x val=0x%08x via write(b)\n", addr, val));
-            rtl8139_io_writeb(opaque, addr, val & 0xff);
-            rtl8139_io_writeb(opaque, addr + 1, (val >> 8) & 0xff);
-            rtl8139_io_writeb(opaque, addr + 2, (val >> 16) & 0xff);
-            rtl8139_io_writeb(opaque, addr + 3, (val >> 24) & 0xff);
+            rtl8139_io_writeb(s, addr, val & 0xff);
+            rtl8139_io_writeb(s, addr + 1, (val >> 8) & 0xff);
+            rtl8139_io_writeb(s, addr + 2, (val >> 16) & 0xff);
+            rtl8139_io_writeb(s, addr + 3, (val >> 24) & 0xff);
             break;
     }
 }
 
-static uint32_t rtl8139_io_readb(void *opaque, uint8_t addr)
+static uint32_t rtl8139_io_readb(RTL8139State *s, uint8_t addr)
 {
-    RTL8139State *s = opaque;
     int ret;
 
     addr &= 0xff;
@@ -2877,9 +2866,8 @@ static uint32_t rtl8139_io_readb(void *opaque, uint8_t addr)
     return ret;
 }
 
-static uint32_t rtl8139_io_readw(void *opaque, uint8_t addr)
+static uint32_t rtl8139_io_readw(RTL8139State *s, uint8_t addr)
 {
-    RTL8139State *s = opaque;
     uint32_t ret;
 
     addr &= 0xfe; /* mask lower bit */
@@ -2944,8 +2932,8 @@ static uint32_t rtl8139_io_readw(void *opaque, uint8_t addr)
         default:
             DEBUG_PRINT(("RTL8139: ioport read(w) addr=0x%x via read(b)\n", addr));
 
-            ret  = rtl8139_io_readb(opaque, addr);
-            ret |= rtl8139_io_readb(opaque, addr + 1) << 8;
+            ret  = rtl8139_io_readb(s, addr);
+            ret |= rtl8139_io_readb(s, addr + 1) << 8;
 
             DEBUG_PRINT(("RTL8139: ioport read(w) addr=0x%x val=0x%04x\n", addr, ret));
             break;
@@ -2954,9 +2942,8 @@ static uint32_t rtl8139_io_readw(void *opaque, uint8_t addr)
     return ret;
 }
 
-static uint32_t rtl8139_io_readl(void *opaque, uint8_t addr)
+static uint32_t rtl8139_io_readl(RTL8139State *s, uint8_t addr)
 {
-    RTL8139State *s = opaque;
     uint32_t ret;
 
     addr &= 0xfc; /* also mask low 2 bits */
@@ -3012,10 +2999,10 @@ static uint32_t rtl8139_io_readl(void *opaque, uint8_t addr)
         default:
             DEBUG_PRINT(("RTL8139: ioport read(l) addr=0x%x via read(b)\n", addr));
 
-            ret  = rtl8139_io_readb(opaque, addr);
-            ret |= rtl8139_io_readb(opaque, addr + 1) << 8;
-            ret |= rtl8139_io_readb(opaque, addr + 2) << 16;
-            ret |= rtl8139_io_readb(opaque, addr + 3) << 24;
+            ret  = rtl8139_io_readb(s, addr);
+            ret |= rtl8139_io_readb(s, addr + 1) << 8;
+            ret |= rtl8139_io_readb(s, addr + 2) << 16;
+            ret |= rtl8139_io_readb(s, addr + 3) << 24;
 
             DEBUG_PRINT(("RTL8139: read(l) addr=0x%x val=%08x\n", addr, ret));
             break;
@@ -3025,82 +3012,6 @@ static uint32_t rtl8139_io_readl(void *opaque, uint8_t addr)
 }
 
 /* */
-
-static void rtl8139_ioport_writeb(void *opaque, uint32_t addr, uint32_t val)
-{
-    rtl8139_io_writeb(opaque, addr & 0xFF, val);
-}
-
-static void rtl8139_ioport_writew(void *opaque, uint32_t addr, uint32_t val)
-{
-    rtl8139_io_writew(opaque, addr & 0xFF, val);
-}
-
-static void rtl8139_ioport_writel(void *opaque, uint32_t addr, uint32_t val)
-{
-    rtl8139_io_writel(opaque, addr & 0xFF, val);
-}
-
-static uint32_t rtl8139_ioport_readb(void *opaque, uint32_t addr)
-{
-    return rtl8139_io_readb(opaque, addr & 0xFF);
-}
-
-static uint32_t rtl8139_ioport_readw(void *opaque, uint32_t addr)
-{
-    return rtl8139_io_readw(opaque, addr & 0xFF);
-}
-
-static uint32_t rtl8139_ioport_readl(void *opaque, uint32_t addr)
-{
-    return rtl8139_io_readl(opaque, addr & 0xFF);
-}
-
-/* */
-
-static void rtl8139_mmio_writeb(void *opaque, target_phys_addr_t addr, uint32_t val)
-{
-    rtl8139_io_writeb(opaque, addr & 0xFF, val);
-}
-
-static void rtl8139_mmio_writew(void *opaque, target_phys_addr_t addr, uint32_t val)
-{
-#ifdef TARGET_WORDS_BIGENDIAN
-    val = bswap16(val);
-#endif
-    rtl8139_io_writew(opaque, addr & 0xFF, val);
-}
-
-static void rtl8139_mmio_writel(void *opaque, target_phys_addr_t addr, uint32_t val)
-{
-#ifdef TARGET_WORDS_BIGENDIAN
-    val = bswap32(val);
-#endif
-    rtl8139_io_writel(opaque, addr & 0xFF, val);
-}
-
-static uint32_t rtl8139_mmio_readb(void *opaque, target_phys_addr_t addr)
-{
-    return rtl8139_io_readb(opaque, addr & 0xFF);
-}
-
-static uint32_t rtl8139_mmio_readw(void *opaque, target_phys_addr_t addr)
-{
-    uint32_t val = rtl8139_io_readw(opaque, addr & 0xFF);
-#ifdef TARGET_WORDS_BIGENDIAN
-    val = bswap16(val);
-#endif
-    return val;
-}
-
-static uint32_t rtl8139_mmio_readl(void *opaque, target_phys_addr_t addr)
-{
-    uint32_t val = rtl8139_io_readl(opaque, addr & 0xFF);
-#ifdef TARGET_WORDS_BIGENDIAN
-    val = bswap32(val);
-#endif
-    return val;
-}
 
 static int rtl8139_post_load(void *opaque, int version_id)
 {
@@ -3196,40 +3107,77 @@ static const VMStateDescription vmstate_rtl8139 = {
 /***********************************************************/
 /* PCI RTL8139 definitions */
 
-static void rtl8139_mmio_map(PCIDevice *pci_dev, int region_num,
-                       pcibus_t addr, pcibus_t size, int type)
+static uint32_t rtl8139_mmio_read(PCIDevice *dev, pcibus_t addr, int size)
 {
-    RTL8139State *s = DO_UPCAST(RTL8139State, dev, pci_dev);
+    RTL8139State *s = DO_UPCAST(RTL8139State, dev, dev);
+    uint32_t value;
 
-    cpu_register_physical_memory(addr + 0, 0x100, s->rtl8139_mmio_io_addr);
+    if (size == 1) {
+        value = rtl8139_io_readb(s, addr);
+    } else if (size == 2) {
+        value = rtl8139_io_readw(s, addr);
+#ifdef TARGET_WORDS_BIGENDIAN
+        value = bswap16(value);
+#endif
+    } else {
+        value = rtl8139_io_readl(s, addr & 0xFF);
+#ifdef TARGET_WORDS_BIGENDIAN
+        value = bswap32(value);
+#endif
+    }
+
+    return value;
 }
 
-static void rtl8139_ioport_map(PCIDevice *pci_dev, int region_num,
-                       pcibus_t addr, pcibus_t size, int type)
+static void rtl8139_mmio_write(PCIDevice *dev, pcibus_t addr, int size,
+                               uint32_t value)
 {
-    RTL8139State *s = DO_UPCAST(RTL8139State, dev, pci_dev);
+    RTL8139State *s = DO_UPCAST(RTL8139State, dev, dev);
 
-    register_ioport_write(addr, 0x100, 1, rtl8139_ioport_writeb, s);
-    register_ioport_read( addr, 0x100, 1, rtl8139_ioport_readb,  s);
-
-    register_ioport_write(addr, 0x100, 2, rtl8139_ioport_writew, s);
-    register_ioport_read( addr, 0x100, 2, rtl8139_ioport_readw,  s);
-
-    register_ioport_write(addr, 0x100, 4, rtl8139_ioport_writel, s);
-    register_ioport_read( addr, 0x100, 4, rtl8139_ioport_readl,  s);
+    if (size == 1) {
+        rtl8139_io_writeb(s, addr, value);
+    } else if (size == 2) {
+#ifdef TARGET_WORDS_BIGENDIAN
+        value = bswap16(value);
+#endif
+        rtl8139_io_writew(s, addr, value);
+    } else if (size == 4) {
+#ifdef TARGET_WORDS_BIGENDIAN
+        value = bswap32(value);
+#endif
+        rtl8139_io_writel(s, addr, value);
+    }
 }
 
-static CPUReadMemoryFunc * const rtl8139_mmio_read[3] = {
-    rtl8139_mmio_readb,
-    rtl8139_mmio_readw,
-    rtl8139_mmio_readl,
-};
+static uint32_t rtl8139_io_read(PCIDevice *dev, pcibus_t addr, int size)
+{
+    RTL8139State *s = DO_UPCAST(RTL8139State, dev, dev);
+    uint32_t value;
 
-static CPUWriteMemoryFunc * const rtl8139_mmio_write[3] = {
-    rtl8139_mmio_writeb,
-    rtl8139_mmio_writew,
-    rtl8139_mmio_writel,
-};
+    if (size == 1) {
+        value = rtl8139_io_readb(s, addr);
+    } else if (size == 2) {
+        value = rtl8139_io_readw(s, addr);
+    } else {
+        value = rtl8139_io_readl(s, addr);
+    }
+
+    return value;
+}
+
+static void rtl8139_io_write(PCIDevice *dev, pcibus_t addr, int size,
+                             uint32_t value)
+{
+    RTL8139State *s = DO_UPCAST(RTL8139State, dev, dev);
+
+    if (size == 1) {
+        rtl8139_io_writeb(s, addr, value);
+    } else if (size == 2) {
+        rtl8139_io_writew(s, addr, value);
+    } else {
+        rtl8139_io_writel(s, addr, value);
+    }
+}
 
 static inline int64_t rtl8139_get_next_tctr_time(RTL8139State *s, int64_t current_time)
 {
@@ -3296,7 +3244,6 @@ static int pci_rtl8139_uninit(PCIDevice *dev)
 {
     RTL8139State *s = DO_UPCAST(RTL8139State, dev, dev);
 
-    cpu_unregister_io_memory(s->rtl8139_mmio_io_addr);
     if (s->cplus_txbuffer) {
         qemu_free(s->cplus_txbuffer);
         s->cplus_txbuffer = NULL;
@@ -3336,15 +3283,10 @@ static int pci_rtl8139_init(PCIDevice *dev)
      * list bit in status register, and offset 0xdc seems unused. */
     pci_conf[PCI_CAPABILITY_LIST] = 0xdc;
 
-    /* I/O handler for memory-mapped I/O */
-    s->rtl8139_mmio_io_addr =
-        cpu_register_io_memory(rtl8139_mmio_read, rtl8139_mmio_write, s);
-
-    pci_register_bar(&s->dev, 0, 0x100,
-                           PCI_BASE_ADDRESS_SPACE_IO,  rtl8139_ioport_map);
-
-    pci_register_bar(&s->dev, 1, 0x100,
-                           PCI_BASE_ADDRESS_SPACE_MEMORY, rtl8139_mmio_map);
+    pci_register_io_region(&s->dev, 0, 0x100, PCI_BASE_ADDRESS_SPACE_IO,
+                           rtl8139_io_read, rtl8139_io_write);
+    pci_register_io_region(&s->dev, 1, 0x100, PCI_BASE_ADDRESS_SPACE_MEMORY,
+                           rtl8139_mmio_read, rtl8139_mmio_write);
 
     qemu_macaddr_default_if_unset(&s->conf.macaddr);
 
