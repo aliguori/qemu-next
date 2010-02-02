@@ -1726,23 +1726,38 @@ static uint32_t pcnet_ioport_readl(void *opaque, uint32_t addr)
     return val;
 }
 
-static void pcnet_ioport_map(PCIDevice *pci_dev, int region_num,
-                             pcibus_t addr, pcibus_t size, int type)
+static uint32_t pcnet_ioport_read(PCIDevice *pci_dev, pcibus_t addr, int size)
+{
+    PCNetState *d = &DO_UPCAST(PCIPCNetState, pci_dev, pci_dev)->state;
+    uint32_t value = ~0U;
+
+    if (addr < 0x10) {
+        if (size == 1) {
+            value = pcnet_aprom_readb(d, addr);
+        }
+    } else if (size == 2) {
+        value = pcnet_ioport_readw(d, addr);
+    } else if (size == 4) {
+        value = pcnet_ioport_readl(d, addr);
+    }
+
+    return value;
+}
+
+static void pcnet_ioport_write(PCIDevice *pci_dev, pcibus_t addr, int size,
+                               uint32_t value)
 {
     PCNetState *d = &DO_UPCAST(PCIPCNetState, pci_dev, pci_dev)->state;
 
-#ifdef PCNET_DEBUG_IO
-    printf("pcnet_ioport_map addr=0x%04"FMT_PCIBUS" size=0x%04"FMT_PCIBUS"\n",
-           addr, size);
-#endif
-
-    register_ioport_write(addr, 16, 1, pcnet_aprom_writeb, d);
-    register_ioport_read(addr, 16, 1, pcnet_aprom_readb, d);
-
-    register_ioport_write(addr + 0x10, 0x10, 2, pcnet_ioport_writew, d);
-    register_ioport_read(addr + 0x10, 0x10, 2, pcnet_ioport_readw, d);
-    register_ioport_write(addr + 0x10, 0x10, 4, pcnet_ioport_writel, d);
-    register_ioport_read(addr + 0x10, 0x10, 4, pcnet_ioport_readl, d);
+    if (addr < 0x10) {
+        if (size == 1) {
+            pcnet_aprom_writeb(d, addr, value);
+        }
+    } else if (size == 2) {
+        pcnet_ioport_writew(d, addr, value);
+    } else if (size == 4) {
+        pcnet_ioport_writel(d, addr, value);
+    }
 }
 
 static void pcnet_mmio_writeb(void *opaque, target_phys_addr_t addr, uint32_t val)
@@ -1903,41 +1918,48 @@ int pcnet_common_init(DeviceState *dev, PCNetState *s, NetClientInfo *info)
 
 /* PCI interface */
 
-static CPUWriteMemoryFunc * const pcnet_mmio_write[] = {
-    &pcnet_mmio_writeb,
-    &pcnet_mmio_writew,
-    &pcnet_mmio_writel
-};
-
-static CPUReadMemoryFunc * const pcnet_mmio_read[] = {
-    &pcnet_mmio_readb,
-    &pcnet_mmio_readw,
-    &pcnet_mmio_readl
-};
-
-static void pcnet_mmio_map(PCIDevice *pci_dev, int region_num,
-                            pcibus_t addr, pcibus_t size, int type)
+static void pcnet_mmio_write(PCIDevice *dev, pcibus_t addr, int size,
+                             uint32_t value)
 {
-    PCIPCNetState *d = DO_UPCAST(PCIPCNetState, pci_dev, pci_dev);
+    PCNetState *d = &DO_UPCAST(PCIPCNetState, pci_dev, dev)->state;
 
-#ifdef PCNET_DEBUG_IO
-    printf("pcnet_mmio_map addr=0x%08"FMT_PCIBUS" 0x%08"FMT_PCIBUS"\n",
-           addr, size);
-#endif
+    if (size == 1) {
+        pcnet_mmio_writeb(d, addr, value);
+    } else if (size == 2) {
+        pcnet_mmio_writew(d, addr, value);
+    } else {
+        pcnet_mmio_writel(d, addr, value);
+    }
+}
 
-    cpu_register_physical_memory(addr, PCNET_PNPMMIO_SIZE, d->state.mmio_index);
+static uint32_t pcnet_mmio_read(PCIDevice *dev, pcibus_t addr, int size)
+{
+    PCNetState *d = &DO_UPCAST(PCIPCNetState, pci_dev, dev)->state;
+    uint32_t value;
+
+    if (size == 1) {
+        value = pcnet_mmio_readb(d, addr);
+    } else if (size == 2) {
+        value = pcnet_mmio_readw(d, addr);
+    } else {
+        value = pcnet_mmio_readl(d, addr);
+    }
+
+    return value;
 }
 
 static void pci_physical_memory_write(void *dma_opaque, target_phys_addr_t addr,
                                       uint8_t *buf, int len, int do_bswap)
 {
-    cpu_physical_memory_write(addr, buf, len);
+    PCIDevice *dev = dma_opaque;
+    pci_memory_write(dev, addr, buf, len);
 }
 
 static void pci_physical_memory_read(void *dma_opaque, target_phys_addr_t addr,
                                      uint8_t *buf, int len, int do_bswap)
 {
-    cpu_physical_memory_read(addr, buf, len);
+    PCIDevice *dev = dma_opaque;
+    pci_memory_read(dev, addr, buf, len);
 }
 
 static void pci_pcnet_cleanup(VLANClientState *nc)
@@ -1951,7 +1973,6 @@ static int pci_pcnet_uninit(PCIDevice *dev)
 {
     PCIPCNetState *d = DO_UPCAST(PCIPCNetState, pci_dev, dev);
 
-    cpu_unregister_io_memory(d->state.mmio_index);
     qemu_del_timer(d->state.poll_timer);
     qemu_free_timer(d->state.poll_timer);
     qemu_del_vlan_client(&d->state.nic->nc);
@@ -2002,20 +2023,18 @@ static int pci_pcnet_init(PCIDevice *pci_dev)
     pci_conf[PCI_MIN_GNT] = 0x06;
     pci_conf[PCI_MAX_LAT] = 0xff;
 
-    /* Handler for memory-mapped I/O */
-    s->mmio_index =
-      cpu_register_io_memory(pcnet_mmio_read, pcnet_mmio_write, &d->state);
+    pci_register_io_region(pci_dev, 0, PCNET_IOPORT_SIZE,
+                           PCI_BASE_ADDRESS_SPACE_IO,
+                           pcnet_ioport_read, pcnet_ioport_write);
 
-    /* TODO: use pci_dev, avoid cast below. */
-    pci_register_bar((PCIDevice *)d, 0, PCNET_IOPORT_SIZE,
-                           PCI_BASE_ADDRESS_SPACE_IO, pcnet_ioport_map);
-
-    pci_register_bar((PCIDevice *)d, 1, PCNET_PNPMMIO_SIZE,
-                           PCI_BASE_ADDRESS_SPACE_MEMORY, pcnet_mmio_map);
+    pci_register_io_region(pci_dev, 1, PCNET_PNPMMIO_SIZE,
+                           PCI_BASE_ADDRESS_SPACE_MEMORY,
+                           pcnet_mmio_read, pcnet_mmio_write);
 
     s->irq = pci_dev->irq[0];
     s->phys_mem_read = pci_physical_memory_read;
     s->phys_mem_write = pci_physical_memory_write;
+    s->dma_opaque = pci_dev;
 
     if (!pci_dev->qdev.hotplugged) {
         static int loaded = 0;
