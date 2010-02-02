@@ -33,10 +33,6 @@
  * Open Source Software Developer Manual
  */
 
-#if defined(TARGET_I386)
-# warning "PXE boot still not working!"
-#endif
-
 #include <stddef.h>             /* offsetof */
 #include <stdbool.h>
 #include "hw.h"
@@ -193,13 +189,10 @@ typedef enum {
 typedef struct {
     PCIDevice dev;
     uint8_t mult[8];            /* multicast mask array */
-    int mmio_index;
     NICState *nic;
     NICConf conf;
     uint8_t scb_stat;           /* SCB stat/ack byte */
     uint8_t int_stat;           /* PCI interrupt status */
-    /* region must not be saved by nic_save. */
-    uint32_t region[3];         /* PCI region addresses */
     uint16_t mdimem[32];
     eeprom_t *eeprom;
     uint32_t device;            /* device variant */
@@ -257,10 +250,10 @@ static const uint16_t eepro100_mdi_mask[] = {
 };
 
 /* XXX: optimize */
-static void stl_le_phys(target_phys_addr_t addr, uint32_t val)
+static void stl_le_phys(EEPRO100State *s, pcibus_t addr, uint32_t val)
 {
     val = cpu_to_le32(val);
-    cpu_physical_memory_write(addr, (const uint8_t *)&val, sizeof(val));
+    pci_memory_write(&s->dev, addr, &val, sizeof(val));
 }
 
 #define POLYNOMIAL 0x04c11db6
@@ -434,10 +427,6 @@ static void pci_reset(EEPRO100State * s)
     PCI_CONFIG_8(PCI_LATENCY_TIMER, 0x20);   // latency timer = 32 clocks
     /* PCI Header Type */
     /* BIST (built-in self test) */
-#if defined(TARGET_I386)
-// !!! workaround for buggy bios
-//~ #define PCI_BASE_ADDRESS_MEM_PREFETCH 0
-#endif
 #if 0
     /* PCI Base Address Registers */
     /* CSR Memory Mapped Base Address */
@@ -756,12 +745,12 @@ static void dump_statistics(EEPRO100State * s)
      * values which really matter.
      * Number of data should check configuration!!!
      */
-    cpu_physical_memory_write(s->statsaddr,
-                              (uint8_t *) & s->statistics, s->stats_size);
-    stl_le_phys(s->statsaddr + 0, s->statistics.tx_good_frames);
-    stl_le_phys(s->statsaddr + 36, s->statistics.rx_good_frames);
-    stl_le_phys(s->statsaddr + 48, s->statistics.rx_resource_errors);
-    stl_le_phys(s->statsaddr + 60, s->statistics.rx_short_frame_errors);
+    pci_memory_write(&s->dev, s->statsaddr,
+                     &s->statistics, s->stats_size);
+    stl_le_phys(s, s->statsaddr + 0, s->statistics.tx_good_frames);
+    stl_le_phys(s, s->statsaddr + 36, s->statistics.rx_good_frames);
+    stl_le_phys(s, s->statsaddr + 48, s->statistics.rx_resource_errors);
+    stl_le_phys(s, s->statsaddr + 60, s->statistics.rx_short_frame_errors);
     //~ stw_le_phys(s->statsaddr + 76, s->statistics.xmt_tco_frames);
     //~ stw_le_phys(s->statsaddr + 78, s->statistics.rcv_tco_frames);
     //~ missing("CU dump statistical counters");
@@ -797,8 +786,8 @@ static void tx_command(EEPRO100State *s)
             ("TBD (simplified mode): buffer address 0x%08x, size 0x%04x\n",
              tx_buffer_address, tx_buffer_size));
         tx_buffer_size = MIN(tx_buffer_size, sizeof(buf) - size);
-        cpu_physical_memory_read(tx_buffer_address, &buf[size],
-                                 tx_buffer_size);
+        pci_memory_read(&s->dev, tx_buffer_address, &buf[size],
+                        tx_buffer_size);
         size += tx_buffer_size;
     }
     if (tbd_array == 0xffffffff) {
@@ -817,8 +806,8 @@ static void tx_command(EEPRO100State *s)
                     ("TBD (extended flexible mode): buffer address 0x%08x, size 0x%04x\n",
                      tx_buffer_address, tx_buffer_size));
                 tx_buffer_size = MIN(tx_buffer_size, sizeof(buf) - size);
-                cpu_physical_memory_read(tx_buffer_address, &buf[size],
-                                         tx_buffer_size);
+                pci_memory_read(&s->dev, tx_buffer_address, &buf[size],
+                                tx_buffer_size);
                 size += tx_buffer_size;
                 if (tx_buffer_el & 1) {
                     break;
@@ -835,8 +824,8 @@ static void tx_command(EEPRO100State *s)
                 ("TBD (flexible mode): buffer address 0x%08x, size 0x%04x\n",
                  tx_buffer_address, tx_buffer_size));
             tx_buffer_size = MIN(tx_buffer_size, sizeof(buf) - size);
-            cpu_physical_memory_read(tx_buffer_address, &buf[size],
-                                     tx_buffer_size);
+            pci_memory_read(&s->dev, tx_buffer_address, &buf[size],
+                            tx_buffer_size);
             size += tx_buffer_size;
             if (tx_buffer_el & 1) {
                 break;
@@ -859,7 +848,7 @@ static void set_multicast_list(EEPRO100State *s)
     TRACE(OTHER, logout("multicast list, multicast count = %u\n", multicast_count));
     for (i = 0; i < multicast_count; i += 6) {
         uint8_t multicast_addr[6];
-        cpu_physical_memory_read(s->cb_address + 10 + i, multicast_addr, 6);
+        pci_memory_read(&s->dev, s->cb_address + 10 + i, multicast_addr, 6);
         TRACE(OTHER, logout("multicast entry %s\n", nic_dump(multicast_addr, 6)));
         unsigned mcast_idx = compute_mcast_idx(multicast_addr);
         assert(mcast_idx < 64);
@@ -871,7 +860,7 @@ static void action_command(EEPRO100State *s)
 {
     for (;;) {
         s->cb_address = s->cu_base + s->cu_offset;
-        cpu_physical_memory_read(s->cb_address, (uint8_t *)&s->tx, sizeof(s->tx));
+        pci_memory_read(&s->dev, s->cb_address, &s->tx, sizeof(s->tx));
         uint16_t status = le16_to_cpu(s->tx.status);
         uint16_t command = le16_to_cpu(s->tx.command);
         logout
@@ -890,12 +879,12 @@ static void action_command(EEPRO100State *s)
             /* Do nothing. */
             break;
         case CmdIASetup:
-            cpu_physical_memory_read(s->cb_address + 8, &s->conf.macaddr.a[0], 6);
+            pci_memory_read(&s->dev, s->cb_address + 8, &s->conf.macaddr.a[0], 6);
             TRACE(OTHER, logout("macaddr: %s\n", nic_dump(&s->macaddr[0], 6)));
             break;
         case CmdConfigure:
-            cpu_physical_memory_read(s->cb_address + 8, &s->configuration[0],
-                                     sizeof(s->configuration));
+            pci_memory_read(&s->dev, s->cb_address + 8, &s->configuration[0],
+                            sizeof(s->configuration));
             TRACE(OTHER, logout("configuration: %s\n", nic_dump(&s->configuration[0], 16)));
             break;
         case CmdMulticastList:
@@ -985,7 +974,7 @@ static void eepro100_cu_command(EEPRO100State * s, uint8_t val)
         /* Dump statistical counters. */
         TRACE(OTHER, logout("val=0x%02x (dump stats)\n", val));
         dump_statistics(s);
-        stl_le_phys(s->statsaddr + s->stats_size, 0xa005);
+        stl_le_phys(s, s->statsaddr + s->stats_size, 0xa005);
         break;
     case CU_CMD_BASE:
         /* Load CU base. */
@@ -996,7 +985,7 @@ static void eepro100_cu_command(EEPRO100State * s, uint8_t val)
         /* Dump and reset statistical counters. */
         TRACE(OTHER, logout("val=0x%02x (dump stats and reset)\n", val));
         dump_statistics(s);
-        stl_le_phys(s->statsaddr + s->stats_size, 0xa007);
+        stl_le_phys(s, s->statsaddr + s->stats_size, 0xa007);
         memset(&s->statistics, 0, sizeof(s->statistics));
         break;
     case CU_SRESUME:
@@ -1282,10 +1271,10 @@ static void eepro100_write_port(EEPRO100State * s, uint32_t val)
     case PORT_SELFTEST:
         TRACE(OTHER, logout("selftest address=0x%08x\n", address));
         eepro100_selftest_t data;
-        cpu_physical_memory_read(address, (uint8_t *) & data, sizeof(data));
+        pci_memory_read(&s->dev, address, & data, sizeof(data));
         data.st_sign = 0xffffffff;
         data.st_result = 0;
-        cpu_physical_memory_write(address, (uint8_t *) & data, sizeof(data));
+        pci_memory_write(&s->dev, address, & data, sizeof(data));
         break;
     case PORT_SELECTIVE_RESET:
         TRACE(OTHER, logout("selective reset, selftest address=0x%08x\n", address));
@@ -1491,147 +1480,37 @@ static void eepro100_write4(EEPRO100State * s, uint32_t addr, uint32_t val)
     }
 }
 
-/*****************************************************************************
- *
- * Port mapped I/O.
- *
- ****************************************************************************/
-
-static uint32_t ioport_read1(void *opaque, uint32_t addr)
-{
-    EEPRO100State *s = opaque;
-    //~ logout("addr=%s\n", regname(addr));
-    return eepro100_read1(s, addr - s->region[1]);
-}
-
-static uint32_t ioport_read2(void *opaque, uint32_t addr)
-{
-    EEPRO100State *s = opaque;
-    return eepro100_read2(s, addr - s->region[1]);
-}
-
-static uint32_t ioport_read4(void *opaque, uint32_t addr)
-{
-    EEPRO100State *s = opaque;
-    return eepro100_read4(s, addr - s->region[1]);
-}
-
-static void ioport_write1(void *opaque, uint32_t addr, uint32_t val)
-{
-    EEPRO100State *s = opaque;
-    //~ logout("addr=%s val=0x%02x\n", regname(addr), val);
-    eepro100_write1(s, addr - s->region[1], val);
-}
-
-static void ioport_write2(void *opaque, uint32_t addr, uint32_t val)
-{
-    EEPRO100State *s = opaque;
-    eepro100_write2(s, addr - s->region[1], val);
-}
-
-static void ioport_write4(void *opaque, uint32_t addr, uint32_t val)
-{
-    EEPRO100State *s = opaque;
-    eepro100_write4(s, addr - s->region[1], val);
-}
-
 /***********************************************************/
 /* PCI EEPRO100 definitions */
 
-static void pci_map(PCIDevice * pci_dev, int region_num,
-                    pcibus_t addr, pcibus_t size, int type)
+static void pci_io_write(PCIDevice *dev, pcibus_t addr, int size,
+                         uint32_t value)
 {
-    EEPRO100State *s = DO_UPCAST(EEPRO100State, dev, pci_dev);
+    EEPRO100State *s = DO_UPCAST(EEPRO100State, dev, dev);
 
-    TRACE(OTHER, logout("region %d, addr=0x%08"FMT_PCIBUS", "
-          "size=0x%08"FMT_PCIBUS", type=%d\n",
-          region_num, addr, size, type));
-
-    assert(region_num == 1);
-    register_ioport_write(addr, size, 1, ioport_write1, s);
-    register_ioport_read(addr, size, 1, ioport_read1, s);
-    register_ioport_write(addr, size, 2, ioport_write2, s);
-    register_ioport_read(addr, size, 2, ioport_read2, s);
-    register_ioport_write(addr, size, 4, ioport_write4, s);
-    register_ioport_read(addr, size, 4, ioport_read4, s);
-
-    s->region[region_num] = addr;
-}
-
-/*****************************************************************************
- *
- * Memory mapped I/O.
- *
- ****************************************************************************/
-
-static void pci_mmio_writeb(void *opaque, target_phys_addr_t addr, uint32_t val)
-{
-    EEPRO100State *s = opaque;
-    //~ logout("addr=%s val=0x%02x\n", regname(addr), val);
-    eepro100_write1(s, addr, val);
-}
-
-static void pci_mmio_writew(void *opaque, target_phys_addr_t addr, uint32_t val)
-{
-    EEPRO100State *s = opaque;
-    //~ logout("addr=%s val=0x%02x\n", regname(addr), val);
-    eepro100_write2(s, addr, val);
-}
-
-static void pci_mmio_writel(void *opaque, target_phys_addr_t addr, uint32_t val)
-{
-    EEPRO100State *s = opaque;
-    //~ logout("addr=%s val=0x%02x\n", regname(addr), val);
-    eepro100_write4(s, addr, val);
-}
-
-static uint32_t pci_mmio_readb(void *opaque, target_phys_addr_t addr)
-{
-    EEPRO100State *s = opaque;
-    //~ logout("addr=%s\n", regname(addr));
-    return eepro100_read1(s, addr);
-}
-
-static uint32_t pci_mmio_readw(void *opaque, target_phys_addr_t addr)
-{
-    EEPRO100State *s = opaque;
-    //~ logout("addr=%s\n", regname(addr));
-    return eepro100_read2(s, addr);
-}
-
-static uint32_t pci_mmio_readl(void *opaque, target_phys_addr_t addr)
-{
-    EEPRO100State *s = opaque;
-    //~ logout("addr=%s\n", regname(addr));
-    return eepro100_read4(s, addr);
-}
-
-static CPUWriteMemoryFunc * const pci_mmio_write[] = {
-    pci_mmio_writeb,
-    pci_mmio_writew,
-    pci_mmio_writel
-};
-
-static CPUReadMemoryFunc * const pci_mmio_read[] = {
-    pci_mmio_readb,
-    pci_mmio_readw,
-    pci_mmio_readl
-};
-
-static void pci_mmio_map(PCIDevice * pci_dev, int region_num,
-                         pcibus_t addr, pcibus_t size, int type)
-{
-    EEPRO100State *s = DO_UPCAST(EEPRO100State, dev, pci_dev);
-
-    TRACE(OTHER, logout("region %d, addr=0x%08"FMT_PCIBUS", "
-          "size=0x%08"FMT_PCIBUS", type=%d\n",
-          region_num, addr, size, type));
-
-    if (region_num == 0) {
-        /* Map control / status registers. */
-        cpu_register_physical_memory(addr, size, s->mmio_index);
-        s->region[region_num] = addr;
+    if (size == 1) {
+        eepro100_write1(s, addr, value);
+    } else if (size == 2) {
+        eepro100_write2(s, addr, value);
+    } else {
+        eepro100_write4(s, addr, value);
     }
+}
+
+static uint32_t pci_io_read(PCIDevice *dev, pcibus_t addr, int size)
+{
+    EEPRO100State *s = DO_UPCAST(EEPRO100State, dev, dev);
+    uint32_t value;
+
+    if (size == 1) {
+        value = eepro100_read1(s, addr);
+    } else if (size == 2) {
+        value = eepro100_read2(s, addr);
+    } else {
+        value = eepro100_read4(s, addr);
+    }
+
+    return value;
 }
 
 static int nic_can_receive(VLANClientState *nc)
@@ -1722,8 +1601,8 @@ static ssize_t nic_receive(VLANClientState *nc, const uint8_t * buf, size_t size
     //~ !!!
 //~ $3 = {status = 0x0, command = 0xc000, link = 0x2d220, rx_buf_addr = 0x207dc, count = 0x0, size = 0x5f8, packet = {0x0 <repeats 1518 times>}}
     eepro100_rx_t rx;
-    cpu_physical_memory_read(s->ru_base + s->ru_offset, (uint8_t *) & rx,
-                             offsetof(eepro100_rx_t, packet));
+    pci_memory_read(&s->dev, s->ru_base + s->ru_offset, & rx,
+                    offsetof(eepro100_rx_t, packet));
     uint16_t rfd_command = le16_to_cpu(rx.command);
     uint16_t rfd_size = le16_to_cpu(rx.size);
 
@@ -1749,8 +1628,8 @@ static ssize_t nic_receive(VLANClientState *nc, const uint8_t * buf, size_t size
     }
     /* TODO: check stripping enable bit. */
     //~ assert(!(s->configuration[17] & 1));
-    cpu_physical_memory_write(s->ru_base + s->ru_offset +
-                              offsetof(eepro100_rx_t, packet), buf, size);
+    pci_memory_write(&s->dev, s->ru_base + s->ru_offset +
+                     offsetof(eepro100_rx_t, packet), buf, size);
     s->statistics.rx_good_frames++;
     eepro100_fr_interrupt(s);
     s->ru_offset = le32_to_cpu(rx.link);
@@ -1833,7 +1712,6 @@ static int pci_nic_uninit(PCIDevice *pci_dev)
 {
     EEPRO100State *s = DO_UPCAST(EEPRO100State, dev, pci_dev);
 
-    cpu_unregister_io_memory(s->mmio_index);
     vmstate_unregister(s->vmstate, s);
     eeprom93xx_free(s->eeprom);
     qemu_del_vlan_client(&s->nic->nc);
@@ -1862,21 +1740,19 @@ static int nic_init(PCIDevice *pci_dev, uint32_t device)
      * i82559 and later support 64 or 256 word EEPROM. */
     s->eeprom = eeprom93xx_new(EEPROM_SIZE);
 
-    /* Handler for memory-mapped I/O */
-    s->mmio_index =
-        cpu_register_io_memory(pci_mmio_read, pci_mmio_write, s);
-
-    pci_register_bar(&s->dev, 0, PCI_MEM_SIZE,
+    pci_register_io_region(&s->dev, 0, PCI_MEM_SIZE,
                            PCI_BASE_ADDRESS_SPACE_MEMORY |
-                           PCI_BASE_ADDRESS_MEM_PREFETCH, pci_mmio_map);
-    pci_register_bar(&s->dev, 1, PCI_IO_SIZE, PCI_BASE_ADDRESS_SPACE_IO,
-                           pci_map);
-    pci_register_bar(&s->dev, 2, PCI_FLASH_SIZE, PCI_BASE_ADDRESS_SPACE_MEMORY,
-                           pci_mmio_map);
+                           PCI_BASE_ADDRESS_MEM_PREFETCH,
+                           pci_io_read, pci_io_write);
+    pci_register_io_region(&s->dev, 1, PCI_IO_SIZE,
+                           PCI_BASE_ADDRESS_SPACE_IO,
+                           pci_io_read, pci_io_write);
+    pci_register_io_region(&s->dev, 2, PCI_FLASH_SIZE,
+                           PCI_BASE_ADDRESS_SPACE_MEMORY,
+                           NULL, NULL);
 
     qemu_macaddr_default_if_unset(&s->conf.macaddr);
     logout("macaddr: %s\n", nic_dump(&s->macaddr[0], 6));
-    assert(s->region[1] == 0);
 
     nic_reset(s);
 
