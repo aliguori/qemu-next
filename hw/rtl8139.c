@@ -3107,48 +3107,6 @@ static const VMStateDescription vmstate_rtl8139 = {
 /***********************************************************/
 /* PCI RTL8139 definitions */
 
-static uint32_t rtl8139_mmio_read(PCIDevice *dev, pcibus_t addr, int size)
-{
-    RTL8139State *s = DO_UPCAST(RTL8139State, dev, dev);
-    uint32_t value;
-
-    if (size == 1) {
-        value = rtl8139_io_readb(s, addr);
-    } else if (size == 2) {
-        value = rtl8139_io_readw(s, addr);
-#ifdef TARGET_WORDS_BIGENDIAN
-        value = bswap16(value);
-#endif
-    } else {
-        value = rtl8139_io_readl(s, addr & 0xFF);
-#ifdef TARGET_WORDS_BIGENDIAN
-        value = bswap32(value);
-#endif
-    }
-
-    return value;
-}
-
-static void rtl8139_mmio_write(PCIDevice *dev, pcibus_t addr, int size,
-                               uint32_t value)
-{
-    RTL8139State *s = DO_UPCAST(RTL8139State, dev, dev);
-
-    if (size == 1) {
-        rtl8139_io_writeb(s, addr, value);
-    } else if (size == 2) {
-#ifdef TARGET_WORDS_BIGENDIAN
-        value = bswap16(value);
-#endif
-        rtl8139_io_writew(s, addr, value);
-    } else if (size == 4) {
-#ifdef TARGET_WORDS_BIGENDIAN
-        value = bswap32(value);
-#endif
-        rtl8139_io_writel(s, addr, value);
-    }
-}
-
 static uint32_t rtl8139_io_read(PCIDevice *dev, pcibus_t addr, int size)
 {
     RTL8139State *s = DO_UPCAST(RTL8139State, dev, dev);
@@ -3286,7 +3244,7 @@ static int pci_rtl8139_init(PCIDevice *dev)
     pci_register_io_region(&s->dev, 0, 0x100, PCI_BASE_ADDRESS_SPACE_IO,
                            rtl8139_io_read, rtl8139_io_write);
     pci_register_io_region(&s->dev, 1, 0x100, PCI_BASE_ADDRESS_SPACE_MEMORY,
-                           rtl8139_mmio_read, rtl8139_mmio_write);
+                           rtl8139_io_read, rtl8139_io_write);
 
     qemu_macaddr_default_if_unset(&s->conf.macaddr);
 

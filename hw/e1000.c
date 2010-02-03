@@ -847,9 +847,6 @@ static void e1000_mmio_write(PCIDevice *dev, pcibus_t addr, int size,
     E1000State *d = DO_UPCAST(E1000State, dev, dev);
     unsigned int index = (addr & 0x1ffff) >> 2;
 
-#ifdef TARGET_WORDS_BIGENDIAN
-    value = bswap32(value);
-#endif
     value = (value & size_mask(size)) << addr_shift(addr);
 
     if (index < NWRITEOPS && macreg_writeops[index])
@@ -873,11 +870,7 @@ static uint32_t e1000_mmio_read(PCIDevice *dev, pcibus_t addr, int size)
         DBGOUT(UNKNOWN, "MMIO unknown read addr=0x%08x\n", index<<2);
     }
 
-    value = (value >> addr_shift(addr)) & size_mask(size);
-#ifdef TARGET_WORDS_BIGENDIAN
-    value = bswap32(value);
-#endif
-    return value;
+    return (value >> addr_shift(addr)) & size_mask(size);
 }
 
 static bool is_version_1(void *opaque, int version_id)

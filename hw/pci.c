@@ -765,6 +765,9 @@ static void pci_io_region_writew(void *opaque, target_phys_addr_t addr,
                                  uint32_t value)
 {
     PCIIORegion *r = opaque;
+#ifdef TARGET_WORDS_BIGENDIAN
+    value = bswap16(value);
+#endif
     r->write(r->dev, addr, 2, value);
 }
 
@@ -772,6 +775,9 @@ static void pci_io_region_writel(void *opaque, target_phys_addr_t addr,
                                  uint32_t value)
 {
     PCIIORegion *r = opaque;
+#ifdef TARGET_WORDS_BIGENDIAN
+    value = bswap32(value);
+#endif
     r->write(r->dev, addr, 4, value);
 }
 
@@ -784,13 +790,21 @@ static uint32_t pci_io_region_readb(void *opaque, target_phys_addr_t addr)
 static uint32_t pci_io_region_readw(void *opaque, target_phys_addr_t addr)
 {
     PCIIORegion *r = opaque;
-    return r->read(r->dev, addr, 2);
+    uint32_t value = r->read(r->dev, addr, 2);
+#ifdef TARGET_WORDS_BIGENDIAN
+    value = bswap16(value);
+#endif
+    return value;
 }
 
 static uint32_t pci_io_region_readl(void *opaque, target_phys_addr_t addr)
 {
     PCIIORegion *r = opaque;
-    return r->read(r->dev, addr, 4);
+    uint32_t value = r->read(r->dev, addr, 4);
+#ifdef TARGET_WORDS_BIGENDIAN
+    value = bswap32(value);
+#endif
+    return value;
 }
 
 static CPUReadMemoryFunc * const pci_io_region_readfn[3] = {
