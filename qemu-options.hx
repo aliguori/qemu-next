@@ -809,7 +809,6 @@ DEF("bootp", HAS_ARG, QEMU_OPTION_bootp, "")
 DEF("redir", HAS_ARG, QEMU_OPTION_redir, "")
 #ifndef _WIN32
 DEF("smb", HAS_ARG, QEMU_OPTION_smb, "")
-DEF("share", HAS_ARG, QEMU_OPTION_share, "")
 #endif
 #endif
 

@@ -241,7 +241,6 @@ int semihosting_enabled = 0;
 int old_param = 0;
 #endif
 const char *qemu_name;
-const char *qemu_share_path;
 int alt_grab = 0;
 int ctrl_grab = 0;
 #if defined(TARGET_SPARC) || defined(TARGET_PPC)
@@ -5096,9 +5095,6 @@ int main(int argc, char **argv, char **envp)
                 if (net_slirp_smb(optarg) < 0)
                     exit(1);
                 break;
-            case QEMU_OPTION_share:
-                qemu_share_path = optarg;
-                break;
 #endif
             case QEMU_OPTION_redir:
                 if (net_slirp_redir(optarg) < 0)
@@ -5512,9 +5508,6 @@ int main(int argc, char **argv, char **envp)
             case QEMU_OPTION_xen_attach:
                 xen_mode = XEN_ATTACH;
                 break;
-	    case QEMU_OPTION_share:
-		qemu_share_path = optarg;
-		break;
 #endif
             case QEMU_OPTION_readconfig:
                 {
@@ -5550,9 +5543,6 @@ int main(int argc, char **argv, char **envp)
         }
     }
 
-{
-fprintf(stderr, "share path1 %s <<\n", qemu_share_path);
-}
     /* If no data_dir is specified then try to find it relative to the
        executable path.  */
     if (!data_dir) {

@@ -95,6 +95,7 @@ typedef struct {
     DriveInfo *dinfo;
     NICConf nic;
     uint32_t host_features;
+    char *share_path;
     /* Max. number of ports we can have for a the virtio-serial device */
     uint32_t max_virtserial_ports;
 } VirtIOPCIProxy;
@@ -555,7 +556,7 @@ static int virtio_9p_init_pci(PCIDevice *pci_dev)
     VirtIOPCIProxy *proxy = DO_UPCAST(VirtIOPCIProxy, pci_dev, pci_dev);
     VirtIODevice *vdev;
 
-    vdev = virtio_9p_init(&pci_dev->qdev, qemu_share_path);
+    vdev = virtio_9p_init(&pci_dev->qdev, proxy->share_path);
     virtio_init_pci(proxy, vdev,
 		    PCI_VENDOR_ID_REDHAT_QUMRANET,
 		    0x1009,
@@ -621,6 +622,11 @@ static PCIDeviceInfo virtio_info[] = {
         .qdev.name = "virtio-9p-pci",
         .qdev.size = sizeof(VirtIOPCIProxy),
         .init      = virtio_9p_init_pci,
+        .qdev.props = (Property[]) {
+            DEFINE_VIRTIO_COMMON_FEATURES(VirtIOPCIProxy, host_features),
+            DEFINE_PROP_STRING("share_path", VirtIOPCIProxy, share_path),
+            DEFINE_PROP_END_OF_LIST(),
+        },
     },{
         /* end of list */
     }

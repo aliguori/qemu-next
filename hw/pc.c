@@ -1018,9 +1018,6 @@ static void pc_init1(ram_addr_t ram_size,
             pci_create_simple(pci_bus, -1, "lsi53c895a");
         }
     }
-
-    if (qemu_share_path)
-        pci_create_simple(pci_bus, -1, "virtio-9p-pci");
 }
 
 static void pc_init_pci(ram_addr_t ram_size,
