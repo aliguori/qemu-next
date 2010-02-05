@@ -1617,9 +1617,9 @@ static void handle_9p_output(VirtIODevice *vdev, VirtQueue *vq)
     free_pdu(s, pdu);
 }
 
-static uint32_t virtio_9p_get_features(VirtIODevice *vdev)
+static uint32_t virtio_9p_get_features(VirtIODevice *vdev, uint32_t features)
 {
-	return 0;
+    return features;
 }
 
 VirtIODevice *virtio_9p_init(DeviceState *dev, const char *path)
