@@ -86,6 +86,7 @@ static void pprint_str(V9fsPDU *pdu, int rx, size_t *offsetp, const char *name)
     struct iovec *sg = get_sg(pdu, rx);
     size_t offset = *offsetp;
     int16_t size;
+    size_t result;
 
     BUG_ON((offset + 2) > sg[0].iov_len);
     memcpy(&size, sg[0].iov_base + offset, 2);
@@ -93,7 +94,8 @@ static void pprint_str(V9fsPDU *pdu, int rx, size_t *offsetp, const char *name)
 
     BUG_ON((offset + size) > sg[0].iov_len);
     fprintf(llogfile, "%s=", name);
-    fwrite(sg[0].iov_base + offset, size, 1, llogfile);
+    result = fwrite(sg[0].iov_base + offset, size, 1, llogfile);
+    BUG_ON(result != size);
     offset += size;
 
     *offsetp = offset;
@@ -186,7 +188,6 @@ static void pprint_sg(V9fsPDU *pdu, int rx, size_t *offsetp, const char *name)
 {
     struct iovec *sg = get_sg(pdu, rx);
     unsigned int count;
-    size_t total = 0;
     int i;
 
     if (rx)
@@ -204,7 +205,7 @@ static void pprint_sg(V9fsPDU *pdu, int rx, size_t *offsetp, const char *name)
 }
 
 /* FIXME: read from a directory fid returns serialized stat_t's */
-
+#ifdef DEBUG_DATA
 static void pprint_data(V9fsPDU *pdu, int rx, size_t *offsetp, const char *name)
 {
     struct iovec *sg = get_sg(pdu, rx);
@@ -260,6 +261,9 @@ static void pprint_data(V9fsPDU *pdu, int rx, size_t *offsetp, const char *name)
     sg[0].iov_len += 11;
 
 }
+#endif
+
+void pprint_pdu(V9fsPDU *pdu);
 
 void pprint_pdu(V9fsPDU *pdu)
 {
@@ -367,7 +371,9 @@ void pprint_pdu(V9fsPDU *pdu)
 	pprint_int32(pdu, 1, &offset, "count");
 	pprint_sg(pdu, 1, &offset, ", sg");
 	offset = 7;
-//	pprint_data(pdu, 1, &offset, ", data");
+#ifdef DEBUG_DATA
+	pprint_data(pdu, 1, &offset, ", data");
+#endif
 	break;
     case P9_TWRITE:
 	fprintf(llogfile, "TWRITE: (");

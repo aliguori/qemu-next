@@ -550,13 +550,10 @@ static int virtio_balloon_init_pci(PCIDevice *pci_dev)
     return 0;
 }
 
-static void virtio_9p_init_pci(PCIDevice *pci_dev)
+static int virtio_9p_init_pci(PCIDevice *pci_dev)
 {
     VirtIOPCIProxy *proxy = DO_UPCAST(VirtIOPCIProxy, pci_dev, pci_dev);
     VirtIODevice *vdev;
-
-    if (!qemu_share_path)
-      return;
 
     vdev = virtio_9p_init(&pci_dev->qdev, qemu_share_path);
     virtio_init_pci(proxy, vdev,
@@ -564,6 +561,8 @@ static void virtio_9p_init_pci(PCIDevice *pci_dev)
 		    0x1009,
 		    0x2,
 		    0x00);
+
+    return 0;
 }
 
 static PCIDeviceInfo virtio_info[] = {
