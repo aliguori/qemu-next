@@ -1483,8 +1483,8 @@ static void v9fs_wstat_post_truncate(V9fsState *s, V9fsWstatState *vs, int err)
 
 out:
     v9fs_stat_free(&vs->v9stat);
-    qemu_free(vs);
     complete_pdu(s, vs->pdu, err);
+    qemu_free(vs);
 }
 
 static void v9fs_wstat_post_rename(V9fsState *s, V9fsWstatState *vs, int err)
@@ -1507,8 +1507,8 @@ static void v9fs_wstat_post_rename(V9fsState *s, V9fsWstatState *vs, int err)
 
 out:
     v9fs_stat_free(&vs->v9stat);
-    qemu_free(vs);
     complete_pdu(s, vs->pdu, err);
+    qemu_free(vs);
 }
 
 static void v9fs_wstat_post_chown(V9fsState *s, V9fsWstatState *vs, int err)
@@ -1547,8 +1547,8 @@ static void v9fs_wstat_post_chown(V9fsState *s, V9fsWstatState *vs, int err)
 
 out:
     v9fs_stat_free(&vs->v9stat);
-    qemu_free(vs);
     complete_pdu(s, vs->pdu, err);
+    qemu_free(vs);
 }
 
 static void v9fs_wstat_post_utime(V9fsState *s, V9fsWstatState *vs, int err)
@@ -1567,8 +1567,8 @@ static void v9fs_wstat_post_utime(V9fsState *s, V9fsWstatState *vs, int err)
 
 out:
     v9fs_stat_free(&vs->v9stat);
-    qemu_free(vs);
     complete_pdu(s, vs->pdu, err);
+    qemu_free(vs);
 }
 
 static void v9fs_wstat_post_chmod(V9fsState *s, V9fsWstatState *vs, int err)
@@ -1591,8 +1591,8 @@ static void v9fs_wstat_post_chmod(V9fsState *s, V9fsWstatState *vs, int err)
 
 out:
     v9fs_stat_free(&vs->v9stat);
-    qemu_free(vs);
     complete_pdu(s, vs->pdu, err);
+    qemu_free(vs);
 }
 
 static void v9fs_wstat(V9fsState *s, V9fsPDU *pdu)
@@ -1629,8 +1629,8 @@ static void v9fs_wstat(V9fsState *s, V9fsPDU *pdu)
 
 out:
     v9fs_stat_free(&vs->v9stat);
-    qemu_free(vs);
     complete_pdu(s, vs->pdu, err);
+    qemu_free(vs);
 }
 
 typedef void (pdu_handler_t)(V9fsState *s, V9fsPDU *pdu);
