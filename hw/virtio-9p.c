@@ -1133,7 +1133,7 @@ static void print_sg(struct iovec *sg, int cnt)
     for (i = 0; i < cnt; i++) {
 	if (i)
 	    printf(", ");
-	printf("(%p, %ld)", sg[i].iov_base, sg[i].iov_len);
+	printf("(%p, %zd)", sg[i].iov_base, sg[i].iov_len);
     }
     printf("}\n");
 }

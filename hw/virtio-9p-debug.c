@@ -199,7 +199,7 @@ static void pprint_sg(V9fsPDU *pdu, int rx, size_t *offsetp, const char *name)
     for (i = 0; i < count; i++) {
 	if (i)
 	    fprintf(llogfile, ", ");
-	fprintf(llogfile, "(%p, 0x%lx)", sg[i].iov_base, sg[i].iov_len);
+	fprintf(llogfile, "(%p, 0x%zx)", sg[i].iov_base, sg[i].iov_len);
     }
     fprintf(llogfile, "}");
 }
