@@ -94,7 +94,7 @@ static void pprint_str(V9fsPDU *pdu, int rx, size_t *offsetp, const char *name)
 
     BUG_ON((offset + size) > sg[0].iov_len);
     fprintf(llogfile, "%s=", name);
-    result = fwrite(sg[0].iov_base + offset, size, 1, llogfile);
+    result = fwrite(sg[0].iov_base + offset, 1, size, llogfile);
     BUG_ON(result != size);
     offset += size;
 
