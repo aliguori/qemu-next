@@ -205,8 +205,6 @@ static void migrate_put_status(QDict *qdict, const char *name,
     obj = qobject_from_jsonf("{ 'transferred': %" PRId64 ", "
                                "'remaining': %" PRId64 ", "
                                "'total': %" PRId64 " }", trans, rem, total);
-    assert(obj != NULL);
-
     qdict_put_obj(qdict, name, obj);
 }
 
@@ -280,7 +278,6 @@ void do_info_migrate(Monitor *mon, QObject **ret_data)
             *ret_data = qobject_from_jsonf("{ 'status': 'cancelled' }");
             break;
         }
-        assert(*ret_data != NULL);
     }
 }
 

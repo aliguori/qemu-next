@@ -1257,7 +1257,6 @@ void bdrv_info(Monitor *mon, QObject **ret_data)
                                     "'removable': %i, 'locked': %i }",
                                     bs->device_name, type, bs->removable,
                                     bs->locked);
-        assert(bs_obj != NULL);
 
         if (bs->drv) {
             QObject *obj;
@@ -1268,7 +1267,6 @@ void bdrv_info(Monitor *mon, QObject **ret_data)
                                      bs->filename, bs->read_only,
                                      bs->drv->format_name,
                                      bdrv_is_encrypted(bs));
-            assert(obj != NULL);
             if (bs->backing_file[0] != '\0') {
                 QDict *qdict = qobject_to_qdict(obj);
                 qdict_put(qdict, "backing_file",
@@ -1354,7 +1352,6 @@ void bdrv_info_stats(Monitor *mon, QObject **ret_data)
                                  bs->device_name,
                                  bs->rd_bytes, bs->wr_bytes,
                                  bs->rd_ops, bs->wr_ops);
-        assert(obj != NULL);
         qlist_append_obj(devices, obj);
     }
 
