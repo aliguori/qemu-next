@@ -754,6 +754,27 @@ void pci_memory_write(PCIDevice *pci_dev, pcibus_t addr,
     cpu_physical_memory_write(addr, buf, len);
 }
 
+void *pci_memory_map(PCIDevice *pci_dev, pcibus_t addr, pcibus_t *plen,
+                     int is_write)
+{
+    void *ret;
+    target_phys_addr_t tpa_len = *plen;
+
+    ret = cpu_physical_memory_map(addr, addr, &tpa_len, is_write);
+    *plen = tpa_len;
+
+    return ret;
+}
+
+void pci_memory_unmap(PCIDevice *pci_dev, void *buffer, pcibus_t *len,
+                      int is_write, pcibus_t access_len)
+{
+    target_phys_addr_t tpa_len = *len;
+
+    cpu_physical_memory_unmap(buffer, &tpa_len, is_write, access_len);
+    *len = tpa_len;
+}
+
 static void pci_io_region_writeb(void *opaque, target_phys_addr_t addr,
                                  uint32_t value)
 {

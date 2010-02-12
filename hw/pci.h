@@ -208,6 +208,13 @@ void pci_memory_read(PCIDevice *pci_dev, pcibus_t addr, void *buf, int len);
 void pci_memory_write(PCIDevice *pci_dev, pcibus_t addr,
                       const void *buf, int len);
 
+/* For now, clients should just use cpu_register_map_client for callbacks */
+void *pci_memory_map(PCIDevice *pci_dev, pcibus_t addr, pcibus_t *plen,
+                     int is_write);
+void pci_memory_unmap(PCIDevice *pci_dev, void *buffer, pcibus_t *len,
+                      int is_write, pcibus_t access_len);
+
+
 int pci_add_capability(PCIDevice *pci_dev, uint8_t cap_id, uint8_t cap_size);
 
 void pci_del_capability(PCIDevice *pci_dev, uint8_t cap_id, uint8_t cap_size);
