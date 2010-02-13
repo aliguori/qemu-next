@@ -63,12 +63,18 @@ typedef struct VRing
     target_phys_addr_t desc;
     target_phys_addr_t avail;
     target_phys_addr_t used;
+    void *desc_ptr;
+    void *avail_ptr;
+    void *used_ptr;
 } VRing;
 
 struct VirtQueue
 {
     VRing vring;
     target_phys_addr_t pa;
+    void *ptr;
+    unsigned size;
+    void *token;
     uint16_t last_avail_idx;
     int inuse;
     uint16_t vector;
@@ -76,6 +82,16 @@ struct VirtQueue
 };
 
 /* virt queue functions */
+static unsigned virtqueue_size(VirtQueue *vq)
+{
+    unsigned size;
+    size = vq->vring.num * sizeof(VRingDesc);
+    size = size + vring_align(size + 
+                              offsetof(VRingAvail, ring[vq->vring.num]),
+                              VIRTIO_PCI_VRING_ALIGN);
+    return size + offsetof(VRingUsed, ring[vq->vring.num]);
+}
+
 static void virtqueue_init(VirtQueue *vq)
 {
     target_phys_addr_t pa = vq->pa;
@@ -85,97 +101,197 @@ static void virtqueue_init(VirtQueue *vq)
     vq->vring.used = vring_align(vq->vring.avail +
                                  offsetof(VRingAvail, ring[vq->vring.num]),
                                  VIRTIO_PCI_VRING_ALIGN);
+    vq->size = virtqueue_size(vq);
+}
+
+static void virtqueue_unmap(void *opaque)
+{
+    VirtQueue *vq = opaque;
+    target_phys_addr_t len;
+
+    printf("asked to unmap\n");
+    len = vq->size;
+    cpu_physical_memory_unmap(vq->ptr, len, 1, len);
+    vq->ptr = NULL;
+}
+
+static bool virtqueue_map(VirtQueue *vq)
+{
+    target_phys_addr_t len;
+
+    if (vq->ptr) {
+        return true;
+    }
+
+    printf("trying to map a virtqueue\n");
+    len = vq->size;
+    vq->ptr = cpu_physical_memory_map(vq->pa, &len, 1);
+
+    if (vq->ptr == NULL) {
+        printf("failed entirely\n");
+        return false;
+    }
+
+    if (len != vq->size) {
+        printf("could not map whole region\n");
+        cpu_physical_memory_unmap(vq->ptr, len, 1, 0);
+        return false;
+    }
+
+    vq->vring.desc_ptr = vq->ptr + (vq->vring.desc - vq->pa);
+    vq->vring.avail_ptr = vq->ptr + (vq->vring.avail - vq->pa);
+    vq->vring.used_ptr = vq->ptr + (vq->vring.used - vq->pa);
+
+    vq->token = cpu_register_map_client(CPU_MAP_RELEASE_BUFFER,
+                                        vq, virtqueue_unmap);
+
+    printf("now we're mapped\n");
+
+    return true;
 }
 
 static inline unsigned vring_desc_addr(VirtQueue *vq, unsigned offset, int i)
 {
-    target_phys_addr_t pa;
-    pa = vq->vring.desc + offset + sizeof(VRingDesc) * i + offsetof(VRingDesc, addr);
-    return (ldq_phys(pa) - vq->vring.desc);
+    unsigned field = sizeof(VRingDesc) * i + offsetof(VRingDesc, addr);
+
+    if (virtqueue_map(vq)) {
+        cpu_physical_memory_sync(vq->ptr, vq->size, 0, 0);
+        return ldq_p(vq->vring.desc_ptr + offset + field) - vq->vring.desc;
+    }
+    return (ldq_phys(vq->vring.desc + offset + field) - vq->vring.desc);
 }
 
 static inline uint32_t vring_desc_len(VirtQueue *vq, unsigned offset, int i)
 {
-    target_phys_addr_t pa;
-    pa = vq->vring.desc + offset + sizeof(VRingDesc) * i + offsetof(VRingDesc, len);
-    return ldl_phys(pa);
+    unsigned field = sizeof(VRingDesc) * i + offsetof(VRingDesc, len);
+    if (virtqueue_map(vq)) {
+        cpu_physical_memory_sync(vq->ptr, vq->size, 0, 0);
+        return ldl_p(vq->vring.desc_ptr + offset + field);
+    }
+    return ldl_phys(vq->vring.desc + offset + field);
 }
 
 static inline uint16_t vring_desc_flags(VirtQueue *vq, unsigned offset, int i)
 {
-    target_phys_addr_t pa;
-    pa = vq->vring.desc + offset + sizeof(VRingDesc) * i + offsetof(VRingDesc, flags);
-    return lduw_phys(pa);
+    unsigned field = sizeof(VRingDesc) * i + offsetof(VRingDesc, flags);
+    if (virtqueue_map(vq)) {
+        cpu_physical_memory_sync(vq->ptr, vq->size, 0, 0);
+        return lduw_p(vq->vring.desc_ptr + offset + field);
+    }
+    return lduw_phys(vq->vring.desc + offset + field);
 }
 
 static inline uint16_t vring_desc_next(VirtQueue *vq, unsigned offset, int i)
 {
-    target_phys_addr_t pa;
-    pa = vq->vring.desc + offset + sizeof(VRingDesc) * i + offsetof(VRingDesc, next);
-    return lduw_phys(pa);
+    unsigned field = sizeof(VRingDesc) * i + offsetof(VRingDesc, next);
+    if (virtqueue_map(vq)) {
+        cpu_physical_memory_sync(vq->ptr, vq->size, 0, 0);
+        return lduw_p(vq->vring.desc_ptr + offset + field);
+    }
+    return lduw_phys(vq->vring.desc + offset + field);
 }
 
 static inline uint16_t vring_avail_flags(VirtQueue *vq)
 {
-    target_phys_addr_t pa;
-    pa = vq->vring.avail + offsetof(VRingAvail, flags);
-    return lduw_phys(pa);
+    unsigned field = offsetof(VRingAvail, flags);
+    if (virtqueue_map(vq)) {
+        cpu_physical_memory_sync(vq->ptr, vq->size, 0, 0);
+        return lduw_p(vq->vring.avail_ptr + field);
+    }
+    return lduw_phys(vq->vring.avail + field);
 }
 
 static inline uint16_t vring_avail_idx(VirtQueue *vq)
 {
-    target_phys_addr_t pa;
-    pa = vq->vring.avail + offsetof(VRingAvail, idx);
-    return lduw_phys(pa);
+    unsigned field = offsetof(VRingAvail, idx);
+    if (virtqueue_map(vq)) {
+        cpu_physical_memory_sync(vq->ptr, vq->size, 0, 0);
+        return lduw_p(vq->vring.avail_ptr + field);
+    }
+    return lduw_phys(vq->vring.avail + field);
 }
 
 static inline uint16_t vring_avail_ring(VirtQueue *vq, int i)
 {
-    target_phys_addr_t pa;
-    pa = vq->vring.avail + offsetof(VRingAvail, ring[i]);
-    return lduw_phys(pa);
+    unsigned field = offsetof(VRingAvail, ring[i]);
+    if (virtqueue_map(vq)) {
+        cpu_physical_memory_sync(vq->ptr, vq->size, 0, 0);
+        return lduw_p(vq->vring.avail_ptr + field);
+    }
+    return lduw_phys(vq->vring.avail + field);
 }
 
 static inline void vring_used_ring_id(VirtQueue *vq, int i, uint32_t val)
 {
-    target_phys_addr_t pa;
-    pa = vq->vring.used + offsetof(VRingUsed, ring[i].id);
-    stl_phys(pa, val);
+    unsigned field = offsetof(VRingUsed, ring[i].id);
+    if (virtqueue_map(vq)) {
+        stl_p(vq->vring.used_ptr + field, val);
+        cpu_physical_memory_sync(vq->ptr, vq->size, 1, vq->size);
+    } else {
+        stl_phys(vq->vring.used + field, val);
+    }
 }
 
 static inline void vring_used_ring_len(VirtQueue *vq, int i, uint32_t val)
 {
-    target_phys_addr_t pa;
-    pa = vq->vring.used + offsetof(VRingUsed, ring[i].len);
-    stl_phys(pa, val);
+    unsigned field = offsetof(VRingUsed, ring[i].len);
+    if (virtqueue_map(vq)) {
+        stl_p(vq->vring.used_ptr + field, val);
+        cpu_physical_memory_sync(vq->ptr, vq->size, 1, vq->size);
+    } else {
+        stl_phys(vq->vring.used + field, val);
+    }
 }
 
 static uint16_t vring_used_idx(VirtQueue *vq)
 {
-    target_phys_addr_t pa;
-    pa = vq->vring.used + offsetof(VRingUsed, idx);
-    return lduw_phys(pa);
+    unsigned field = offsetof(VRingUsed, idx);
+    if (virtqueue_map(vq)) {
+        cpu_physical_memory_sync(vq->ptr, vq->size, 0, 0);
+        return lduw_p(vq->vring.used_ptr + field);
+    }
+    return lduw_phys(vq->vring.used + field);
 }
 
 static inline void vring_used_idx_increment(VirtQueue *vq, uint16_t val)
 {
-    target_phys_addr_t pa;
-    pa = vq->vring.used + offsetof(VRingUsed, idx);
-    stw_phys(pa, vring_used_idx(vq) + val);
+    unsigned field = offsetof(VRingUsed, idx);
+    if (virtqueue_map(vq)) {
+        stw_p(vq->vring.used_ptr + field, vring_used_idx(vq) + val);
+        cpu_physical_memory_sync(vq->ptr, vq->size, 1, vq->size);
+    } else {
+        stw_phys(vq->vring.used + field, vring_used_idx(vq) + val);
+    }
 }
 
 static inline void vring_used_flags_set_bit(VirtQueue *vq, int mask)
 {
-    target_phys_addr_t pa;
-    pa = vq->vring.used + offsetof(VRingUsed, flags);
-    stw_phys(pa, lduw_phys(pa) | mask);
+    unsigned field = offsetof(VRingUsed, flags);
+    if (virtqueue_map(vq)) {
+        uint16_t val;
+        cpu_physical_memory_sync(vq->ptr, vq->size, 0, 0);
+        val = lduw_p(vq->vring.used_ptr + field);
+        stw_p(vq->vring.used_ptr + field, val | mask);
+        cpu_physical_memory_sync(vq->ptr, vq->size, 1, vq->size);
+    } else {
+        stw_phys(vq->vring.used + field,
+                 lduw_phys(vq->vring.used + field) | mask);
+    }
 }
 
 static inline void vring_used_flags_unset_bit(VirtQueue *vq, int mask)
 {
-    target_phys_addr_t pa;
-    pa = vq->vring.used + offsetof(VRingUsed, flags);
-    stw_phys(pa, lduw_phys(pa) & ~mask);
+    unsigned field = offsetof(VRingUsed, flags);
+    if (virtqueue_map(vq)) {
+        uint16_t val;
+        cpu_physical_memory_sync(vq->ptr, vq->size, 0, 0);
+        val = lduw_p(vq->vring.used_ptr + field);
+        stw_p(vq->vring.used_ptr + field, val & ~mask);
+        cpu_physical_memory_sync(vq->ptr, vq->size, 1, vq->size);
+    } else {
+        stw_phys(vq->vring.used + field,
+                 lduw_phys(vq->vring.used + field) & ~mask);
+    }
 }
 
 void virtio_queue_set_notification(VirtQueue *vq, int enable)
@@ -366,6 +482,8 @@ int virtqueue_pop(VirtQueue *vq, VirtQueueElement *elem)
     if (!virtqueue_num_heads(vq, vq->last_avail_idx))
         return 0;
 
+    printf("virtqueue_pop\n");
+
     /* When we start there are none of either input nor output. */
     elem->out_num = elem->in_num = 0;
 
@@ -390,7 +508,7 @@ int virtqueue_pop(VirtQueue *vq, VirtQueueElement *elem)
         int is_write = 0;
 
         if (vring_desc_flags(vq, desc_offset, i) & VRING_DESC_F_WRITE) {
-            elem->in_addr[elem->in_num] = vring_desc_addr(vq, desc_offset, i);
+            elem->in_addr[elem->in_num] = vq->vring.desc + vring_desc_addr(vq, desc_offset, i);
             sg = &elem->in_sg[elem->in_num++];
             is_write = 1;
         } else
@@ -400,11 +518,12 @@ int virtqueue_pop(VirtQueue *vq, VirtQueueElement *elem)
         sg->iov_len = vring_desc_len(vq, desc_offset, i);
         len = sg->iov_len;
 
-        sg->iov_base = cpu_physical_memory_map(vring_desc_addr(vq, desc_offset, i),
+        sg->iov_base = cpu_physical_memory_map(vq->vring.desc + vring_desc_addr(vq, desc_offset, i),
                                                &len, is_write);
 
         if (sg->iov_base == NULL || len != sg->iov_len) {
-            fprintf(stderr, "virtio: trying to map MMIO memory\n");
+            printf("weird\n");
+            printf("virtio: trying to map MMIO memory\n");
             exit(1);
         }
 
@@ -450,13 +569,18 @@ void virtio_reset(void *opaque)
     vdev->config_vector = VIRTIO_NO_VECTOR;
     virtio_notify_vector(vdev, vdev->config_vector);
 
-    for(i = 0; i < VIRTIO_PCI_QUEUE_MAX; i++) {
+    for (i = 0; i < VIRTIO_PCI_QUEUE_MAX; i++) {
         vdev->vq[i].vring.desc = 0;
         vdev->vq[i].vring.avail = 0;
         vdev->vq[i].vring.used = 0;
         vdev->vq[i].last_avail_idx = 0;
         vdev->vq[i].pa = 0;
         vdev->vq[i].vector = VIRTIO_NO_VECTOR;
+        if (vdev->vq[i].ptr) {
+            virtqueue_unmap(&vdev->vq[i]);
+            cpu_unregister_map_client(vdev->vq[i].token);
+            vdev->vq[i].token = NULL;
+        }
     }
 }
 
@@ -695,6 +819,14 @@ int virtio_load(VirtIODevice *vdev, QEMUFile *f)
 
 void virtio_cleanup(VirtIODevice *vdev)
 {
+    int i;
+    for (i = 0; i < VIRTIO_PCI_QUEUE_MAX; i++) {
+        if (vdev->vq[i].ptr) {
+            virtqueue_unmap(&vdev->vq[i]);
+            cpu_unregister_map_client(vdev->vq[i].token);
+            vdev->vq[i].token = NULL;
+        }
+    }
     if (vdev->config)
         qemu_free(vdev->config);
     qemu_free(vdev->vq);
