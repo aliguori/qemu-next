@@ -89,7 +89,8 @@ static unsigned virtqueue_size(VirtQueue *vq)
     size = size + vring_align(size + 
                               offsetof(VRingAvail, ring[vq->vring.num]),
                               VIRTIO_PCI_VRING_ALIGN);
-    return size + offsetof(VRingUsed, ring[vq->vring.num]);
+    size = size + offsetof(VRingUsed, ring[vq->vring.num]);
+    return (size + (TARGET_PAGE_SIZE - 1)) & TARGET_PAGE_MASK;
 }
 
 static void virtqueue_init(VirtQueue *vq)
@@ -118,6 +119,10 @@ static void virtqueue_unmap(void *opaque)
 static bool virtqueue_map(VirtQueue *vq)
 {
     target_phys_addr_t len;
+
+    if (1) {
+        return false;
+    }
 
     if (vq->ptr) {
         return true;
@@ -490,12 +495,14 @@ int virtqueue_pop(VirtQueue *vq, VirtQueueElement *elem)
     max = vq->vring.num;
 
     i = head = virtqueue_get_head(vq, vq->last_avail_idx++);
+    printf("L%d\n", __LINE__);
 
     if (vring_desc_flags(vq, desc_offset, i) & VRING_DESC_F_INDIRECT) {
         if (vring_desc_len(vq, desc_offset, i) % sizeof(VRingDesc)) {
             fprintf(stderr, "Invalid size for indirect buffer table\n");
             exit(1);
         }
+    printf("L%d\n", __LINE__);
 
         /* loop over the indirect descriptor table */
         max = vring_desc_len(vq, desc_offset, i) / sizeof(VRingDesc);
@@ -503,10 +510,13 @@ int virtqueue_pop(VirtQueue *vq, VirtQueueElement *elem)
         i = 0;
     }
 
+    printf("L%d\n", __LINE__);
+
     do {
         struct iovec *sg;
         int is_write = 0;
 
+    printf("L%d\n", __LINE__);
         if (vring_desc_flags(vq, desc_offset, i) & VRING_DESC_F_WRITE) {
             elem->in_addr[elem->in_num] = vq->vring.desc + vring_desc_addr(vq, desc_offset, i);
             sg = &elem->in_sg[elem->in_num++];
@@ -514,9 +524,11 @@ int virtqueue_pop(VirtQueue *vq, VirtQueueElement *elem)
         } else
             sg = &elem->out_sg[elem->out_num++];
 
+    printf("L%d\n", __LINE__);
         /* Grab the first descriptor, and check it's OK. */
         sg->iov_len = vring_desc_len(vq, desc_offset, i);
         len = sg->iov_len;
+    printf("L%d\n", __LINE__);
 
         sg->iov_base = cpu_physical_memory_map(vq->vring.desc + vring_desc_addr(vq, desc_offset, i),
                                                &len, is_write);

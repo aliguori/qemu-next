@@ -3363,6 +3363,7 @@ void *cpu_physical_memory_map(target_phys_addr_t addr,
                 break;
             }
             if (bounce.buffer) {
+                printf("%lx\n", addr);
                 cpu_notify_map_clients(CPU_MAP_RELEASE_BUFFER);
                 break;
             }
