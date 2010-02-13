@@ -54,9 +54,30 @@ static inline void cpu_physical_memory_write(target_phys_addr_t addr,
 {
     cpu_physical_memory_rw(addr, (uint8_t *)buf, len, 1);
 }
+
+/* Obtain a host virtual address for a given region of guest physical memory.
+ *
+ * This function may return NULL.  The caller must either wait for mappings to
+ * become available or use cpu_physical_memory_rw which is always guaranteed
+ * to succeed.
+ *
+ * The guest is not guaranteed to see the changes to the memory, and the host
+ * is not guaranteed to see any guest changes to the memory unless
+ * cpu_physical_memory_sync is called or cpu_physical_memory_unmap is called.
+ */
 void *cpu_physical_memory_map(target_phys_addr_t addr,
                               target_phys_addr_t *plen,
                               int is_write);
+
+/* Currently, this is a nop but we want to stub it out in case a hook is
+ * ever needed here. */
+static inline void cpu_physical_memory_sync(void *buffer,
+                                            target_phys_addr_t len,
+                                            int is_write,
+                                            target_phys_addr_t access_len)
+{
+}
+
 void cpu_physical_memory_unmap(void *buffer, target_phys_addr_t len,
                                int is_write, target_phys_addr_t access_len);
 void *cpu_register_map_client(void *opaque, void (*callback)(void *opaque));
