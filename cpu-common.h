@@ -57,13 +57,21 @@ static inline void cpu_physical_memory_write(target_phys_addr_t addr,
 
 /* Obtain a host virtual address for a given region of guest physical memory.
  *
- * This function may return NULL.  The caller must either wait for mappings to
- * become available or use cpu_physical_memory_rw which is always guaranteed
- * to succeed.
+ * Tips to use this API correctly:
  *
- * The guest is not guaranteed to see the changes to the memory, and the host
- * is not guaranteed to see any guest changes to the memory unless
- * cpu_physical_memory_sync is called or cpu_physical_memory_unmap is called.
+ *  1) You can not rely on this API succeeding at any given time.  You must
+ *     cope with a NULL result by either falling back to
+ *     cpu_physical_memory_rw or wait to retry by register a map client.
+ *  2) In general, you should call unmap() before returning to the event loop.
+ *  3) If you do return to the event loop without calling unmap, you *must*
+ *     register a map_client for the RELEASE event.  You must unmap the
+ *     mapping when receiving the callback.  You should wait as long as
+ *     possible before trying to obtain the mapping again.
+ *  4) You must not assume that any changes to the mapped buffer are visible
+ *     to the guest until you call cpu_physical_memory_sync or
+ *     cpu_physical_memory_unmap.
+ *  5) You must assume the guest can see any changes you make to the buffer
+ *     so you should use barriers as appropriate.
  */
 void *cpu_physical_memory_map(target_phys_addr_t addr,
                               target_phys_addr_t *plen,
@@ -80,7 +88,17 @@ static inline void cpu_physical_memory_sync(void *buffer,
 
 void cpu_physical_memory_unmap(void *buffer, target_phys_addr_t len,
                                int is_write, target_phys_addr_t access_len);
-void *cpu_register_map_client(void *opaque, void (*callback)(void *opaque));
+
+/* Invoke when buffers are freed */
+#define CPU_MAP_FREE_BUFFER        1
+/* Invoke when an existing buffer should be released */
+#define CPU_MAP_RELEASE_BUFFER  2
+
+/*
+ * This notification is generated whenever a bounce buffer is freed.
+ */
+void *cpu_register_map_client(int flags,
+                              void *opaque, void (*callback)(void *opaque));
 void cpu_unregister_map_client(void *cookie);
 
 struct CPUPhysMemoryClient;
