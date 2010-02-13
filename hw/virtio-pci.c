@@ -447,6 +447,7 @@ static void virtio_init_pci(VirtIOPCIProxy *proxy, VirtIODevice *vdev,
     proxy->host_features |= 0x1 << VIRTIO_F_NOTIFY_ON_EMPTY;
     proxy->host_features |= 0x1 << VIRTIO_F_BAD_FEATURE;
     proxy->host_features = vdev->get_features(vdev, proxy->host_features);
+    proxy->host_features &= ~(1 << VIRTIO_RING_F_INDIRECT_DESC);
 }
 
 static int virtio_blk_init_pci(PCIDevice *pci_dev)

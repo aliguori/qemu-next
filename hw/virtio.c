@@ -110,7 +110,6 @@ static void virtqueue_unmap(void *opaque)
     VirtQueue *vq = opaque;
     target_phys_addr_t len;
 
-    printf("asked to unmap\n");
     len = vq->size;
     cpu_physical_memory_unmap(vq->ptr, len, 1, len);
     vq->ptr = NULL;
@@ -120,25 +119,18 @@ static bool virtqueue_map(VirtQueue *vq)
 {
     target_phys_addr_t len;
 
-    if (1) {
-        return false;
-    }
-
     if (vq->ptr) {
         return true;
     }
 
-    printf("trying to map a virtqueue\n");
     len = vq->size;
     vq->ptr = cpu_physical_memory_map(vq->pa, &len, 1);
 
     if (vq->ptr == NULL) {
-        printf("failed entirely\n");
         return false;
     }
 
     if (len != vq->size) {
-        printf("could not map whole region\n");
         cpu_physical_memory_unmap(vq->ptr, len, 1, 0);
         return false;
     }
@@ -150,8 +142,6 @@ static bool virtqueue_map(VirtQueue *vq)
     vq->token = cpu_register_map_client(CPU_MAP_RELEASE_BUFFER,
                                         vq, virtqueue_unmap);
 
-    printf("now we're mapped\n");
-
     return true;
 }
 
@@ -161,9 +151,9 @@ static inline unsigned vring_desc_addr(VirtQueue *vq, unsigned offset, int i)
 
     if (virtqueue_map(vq)) {
         cpu_physical_memory_sync(vq->ptr, vq->size, 0, 0);
-        return ldq_p(vq->vring.desc_ptr + offset + field) - vq->vring.desc;
+        return ldq_p(vq->vring.desc_ptr + offset + field);
     }
-    return (ldq_phys(vq->vring.desc + offset + field) - vq->vring.desc);
+    return ldq_phys(vq->vring.desc + offset + field);
 }
 
 static inline uint32_t vring_desc_len(VirtQueue *vq, unsigned offset, int i)
@@ -487,22 +477,18 @@ int virtqueue_pop(VirtQueue *vq, VirtQueueElement *elem)
     if (!virtqueue_num_heads(vq, vq->last_avail_idx))
         return 0;
 
-    printf("virtqueue_pop\n");
-
     /* When we start there are none of either input nor output. */
     elem->out_num = elem->in_num = 0;
 
     max = vq->vring.num;
 
     i = head = virtqueue_get_head(vq, vq->last_avail_idx++);
-    printf("L%d\n", __LINE__);
 
     if (vring_desc_flags(vq, desc_offset, i) & VRING_DESC_F_INDIRECT) {
         if (vring_desc_len(vq, desc_offset, i) % sizeof(VRingDesc)) {
             fprintf(stderr, "Invalid size for indirect buffer table\n");
             exit(1);
         }
-    printf("L%d\n", __LINE__);
 
         /* loop over the indirect descriptor table */
         max = vring_desc_len(vq, desc_offset, i) / sizeof(VRingDesc);
@@ -510,32 +496,26 @@ int virtqueue_pop(VirtQueue *vq, VirtQueueElement *elem)
         i = 0;
     }
 
-    printf("L%d\n", __LINE__);
-
     do {
         struct iovec *sg;
         int is_write = 0;
 
-    printf("L%d\n", __LINE__);
         if (vring_desc_flags(vq, desc_offset, i) & VRING_DESC_F_WRITE) {
-            elem->in_addr[elem->in_num] = vq->vring.desc + vring_desc_addr(vq, desc_offset, i);
+            elem->in_addr[elem->in_num] = vring_desc_addr(vq, desc_offset, i);
             sg = &elem->in_sg[elem->in_num++];
             is_write = 1;
         } else
             sg = &elem->out_sg[elem->out_num++];
 
-    printf("L%d\n", __LINE__);
         /* Grab the first descriptor, and check it's OK. */
         sg->iov_len = vring_desc_len(vq, desc_offset, i);
         len = sg->iov_len;
-    printf("L%d\n", __LINE__);
 
-        sg->iov_base = cpu_physical_memory_map(vq->vring.desc + vring_desc_addr(vq, desc_offset, i),
+        sg->iov_base = cpu_physical_memory_map(vring_desc_addr(vq, desc_offset, i),
                                                &len, is_write);
 
         if (sg->iov_base == NULL || len != sg->iov_len) {
-            printf("weird\n");
-            printf("virtio: trying to map MMIO memory\n");
+            fprintf(stderr, "virtio: trying to map MMIO memory\n");
             exit(1);
         }
 
