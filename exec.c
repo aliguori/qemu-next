@@ -2287,6 +2287,49 @@ static inline void tlb_set_dirty(CPUState *env,
 
 #if !defined(CONFIG_USER_ONLY)
 
+
+typedef struct MapClient {
+    int flags;
+    void *opaque;
+    void (*callback)(void *opaque);
+    QLIST_ENTRY(MapClient) link;
+} MapClient;
+
+static QLIST_HEAD(map_client_list, MapClient) map_client_list
+    = QLIST_HEAD_INITIALIZER(map_client_list);
+
+void *cpu_register_map_client(int flags,
+                              void *opaque, void (*callback)(void *opaque))
+{
+    MapClient *client = qemu_malloc(sizeof(*client));
+
+    client->flags = flags;
+    client->opaque = opaque;
+    client->callback = callback;
+    QLIST_INSERT_HEAD(&map_client_list, client, link);
+    return client;
+}
+
+void cpu_unregister_map_client(void *_client)
+{
+    MapClient *client = (MapClient *)_client;
+
+    QLIST_REMOVE(client, link);
+    qemu_free(client);
+}
+
+static void cpu_notify_map_clients(int event)
+{
+    MapClient *client, *next_client;
+
+    QLIST_FOREACH_SAFE(client, &map_client_list, link, next_client) {
+        if ((client->flags & event)) {
+            client->callback(client->opaque);
+            cpu_unregister_map_client(client);
+        }
+    }
+}
+
 static int subpage_register (subpage_t *mmio, uint32_t start, uint32_t end,
                              ram_addr_t memory, ram_addr_t region_offset);
 static void *subpage_init (target_phys_addr_t base, ram_addr_t *phys,
@@ -2332,6 +2375,7 @@ void cpu_register_physical_memory_offset(target_phys_addr_t start_addr,
 
     if (kvm_enabled())
         kvm_set_phys_mem(start_addr, size, phys_offset);
+    cpu_notify_map_clients(CPU_MAP_RELEASE_BUFFER);
 
     if (phys_offset == IO_MEM_UNASSIGNED) {
         region_offset = start_addr;
@@ -3323,44 +3367,6 @@ typedef struct {
 
 static BounceBuffer bounce;
 
-typedef struct MapClient {
-    void *opaque;
-    void (*callback)(void *opaque);
-    QLIST_ENTRY(MapClient) link;
-} MapClient;
-
-static QLIST_HEAD(map_client_list, MapClient) map_client_list
-    = QLIST_HEAD_INITIALIZER(map_client_list);
-
-void *cpu_register_map_client(void *opaque, void (*callback)(void *opaque))
-{
-    MapClient *client = qemu_malloc(sizeof(*client));
-
-    client->opaque = opaque;
-    client->callback = callback;
-    QLIST_INSERT_HEAD(&map_client_list, client, link);
-    return client;
-}
-
-void cpu_unregister_map_client(void *_client)
-{
-    MapClient *client = (MapClient *)_client;
-
-    QLIST_REMOVE(client, link);
-    qemu_free(client);
-}
-
-static void cpu_notify_map_clients(void)
-{
-    MapClient *client;
-
-    while (!QLIST_EMPTY(&map_client_list)) {
-        client = QLIST_FIRST(&map_client_list);
-        client->callback(client->opaque);
-        cpu_unregister_map_client(client);
-    }
-}
-
 /* Map a physical memory region into a host virtual address.
  * May map a subset of the requested range, given by and returned in *plen.
  * May return NULL if resources needed to perform the mapping are exhausted.
@@ -3395,7 +3401,11 @@ void *cpu_physical_memory_map(target_phys_addr_t addr,
         }
 
         if ((pd & ~TARGET_PAGE_MASK) != IO_MEM_RAM) {
-            if (done || bounce.buffer) {
+            if (done) {
+                break;
+            }
+            if (bounce.buffer) {
+                cpu_notify_map_clients(CPU_MAP_RELEASE_BUFFER);
                 break;
             }
             bounce.buffer = qemu_memalign(TARGET_PAGE_SIZE, TARGET_PAGE_SIZE);
@@ -3460,7 +3470,7 @@ void cpu_physical_memory_unmap(void *buffer, target_phys_addr_t len,
     }
     qemu_vfree(bounce.buffer);
     bounce.buffer = NULL;
-    cpu_notify_map_clients();
+    cpu_notify_map_clients(CPU_MAP_FREE_BUFFER);
 }
 
 /* warning: addr must be aligned */

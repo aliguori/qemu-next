@@ -112,7 +112,8 @@ static void dma_bdrv_cb(void *opaque, int ret)
     }
 
     if (dbs->iov.size == 0) {
-        cpu_register_map_client(dbs, continue_after_map_failure);
+        cpu_register_map_client(CPU_MAP_FREE_BUFFER,
+                                dbs, continue_after_map_failure);
         return;
     }
 
