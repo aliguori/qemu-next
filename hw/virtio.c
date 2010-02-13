@@ -87,31 +87,31 @@ static void virtqueue_init(VirtQueue *vq)
                                  VIRTIO_PCI_VRING_ALIGN);
 }
 
-static inline uint64_t vring_desc_addr(target_phys_addr_t desc_pa, int i)
+static inline unsigned vring_desc_addr(VirtQueue *vq, unsigned offset, int i)
 {
     target_phys_addr_t pa;
-    pa = desc_pa + sizeof(VRingDesc) * i + offsetof(VRingDesc, addr);
-    return ldq_phys(pa);
+    pa = vq->vring.desc + offset + sizeof(VRingDesc) * i + offsetof(VRingDesc, addr);
+    return (ldq_phys(pa) - vq->vring.desc);
 }
 
-static inline uint32_t vring_desc_len(target_phys_addr_t desc_pa, int i)
+static inline uint32_t vring_desc_len(VirtQueue *vq, unsigned offset, int i)
 {
     target_phys_addr_t pa;
-    pa = desc_pa + sizeof(VRingDesc) * i + offsetof(VRingDesc, len);
+    pa = vq->vring.desc + offset + sizeof(VRingDesc) * i + offsetof(VRingDesc, len);
     return ldl_phys(pa);
 }
 
-static inline uint16_t vring_desc_flags(target_phys_addr_t desc_pa, int i)
+static inline uint16_t vring_desc_flags(VirtQueue *vq, unsigned offset, int i)
 {
     target_phys_addr_t pa;
-    pa = desc_pa + sizeof(VRingDesc) * i + offsetof(VRingDesc, flags);
+    pa = vq->vring.desc + offset + sizeof(VRingDesc) * i + offsetof(VRingDesc, flags);
     return lduw_phys(pa);
 }
 
-static inline uint16_t vring_desc_next(target_phys_addr_t desc_pa, int i)
+static inline uint16_t vring_desc_next(VirtQueue *vq, unsigned offset, int i)
 {
     target_phys_addr_t pa;
-    pa = desc_pa + sizeof(VRingDesc) * i + offsetof(VRingDesc, next);
+    pa = vq->vring.desc + offset + sizeof(VRingDesc) * i + offsetof(VRingDesc, next);
     return lduw_phys(pa);
 }
 
@@ -271,17 +271,17 @@ static unsigned int virtqueue_get_head(VirtQueue *vq, unsigned int idx)
     return head;
 }
 
-static unsigned virtqueue_next_desc(target_phys_addr_t desc_pa,
+static unsigned virtqueue_next_desc(VirtQueue *vq, unsigned offset,
                                     unsigned int i, unsigned int max)
 {
     unsigned int next;
 
     /* If this descriptor says it doesn't chain, we're done. */
-    if (!(vring_desc_flags(desc_pa, i) & VRING_DESC_F_NEXT))
+    if (!(vring_desc_flags(vq, offset, i) & VRING_DESC_F_NEXT))
         return max;
 
     /* Check they're not leading us off end of descriptors. */
-    next = vring_desc_next(desc_pa, i);
+    next = vring_desc_next(vq, offset, i);
     /* Make sure compiler knows to grab that: we don't want it changing! */
     wmb();
 
@@ -303,16 +303,16 @@ int virtqueue_avail_bytes(VirtQueue *vq, int in_bytes, int out_bytes)
     total_bufs = in_total = out_total = 0;
     while (virtqueue_num_heads(vq, idx)) {
         unsigned int max, num_bufs, indirect = 0;
-        target_phys_addr_t desc_pa;
+        unsigned desc_offset;
         int i;
 
         max = vq->vring.num;
         num_bufs = total_bufs;
         i = virtqueue_get_head(vq, idx++);
-        desc_pa = vq->vring.desc;
+        desc_offset = 0;
 
-        if (vring_desc_flags(desc_pa, i) & VRING_DESC_F_INDIRECT) {
-            if (vring_desc_len(desc_pa, i) % sizeof(VRingDesc)) {
+        if (vring_desc_flags(vq, desc_offset, i) & VRING_DESC_F_INDIRECT) {
+            if (vring_desc_len(vq, desc_offset, i) % sizeof(VRingDesc)) {
                 fprintf(stderr, "Invalid size for indirect buffer table\n");
                 exit(1);
             }
@@ -325,9 +325,9 @@ int virtqueue_avail_bytes(VirtQueue *vq, int in_bytes, int out_bytes)
 
             /* loop over the indirect descriptor table */
             indirect = 1;
-            max = vring_desc_len(desc_pa, i) / sizeof(VRingDesc);
+            max = vring_desc_len(vq, desc_offset, i) / sizeof(VRingDesc);
             num_bufs = i = 0;
-            desc_pa = vring_desc_addr(desc_pa, i);
+            desc_offset = vring_desc_addr(vq, desc_offset, i);
         }
 
         do {
@@ -337,16 +337,16 @@ int virtqueue_avail_bytes(VirtQueue *vq, int in_bytes, int out_bytes)
                 exit(1);
             }
 
-            if (vring_desc_flags(desc_pa, i) & VRING_DESC_F_WRITE) {
+            if (vring_desc_flags(vq, desc_offset, i) & VRING_DESC_F_WRITE) {
                 if (in_bytes > 0 &&
-                    (in_total += vring_desc_len(desc_pa, i)) >= in_bytes)
+                    (in_total += vring_desc_len(vq, desc_offset, i)) >= in_bytes)
                     return 1;
             } else {
                 if (out_bytes > 0 &&
-                    (out_total += vring_desc_len(desc_pa, i)) >= out_bytes)
+                    (out_total += vring_desc_len(vq, desc_offset, i)) >= out_bytes)
                     return 1;
             }
-        } while ((i = virtqueue_next_desc(desc_pa, i, max)) != max);
+        } while ((i = virtqueue_next_desc(vq, desc_offset, i, max)) != max);
 
         if (!indirect)
             total_bufs = num_bufs;
@@ -360,7 +360,7 @@ int virtqueue_avail_bytes(VirtQueue *vq, int in_bytes, int out_bytes)
 int virtqueue_pop(VirtQueue *vq, VirtQueueElement *elem)
 {
     unsigned int i, head, max;
-    target_phys_addr_t desc_pa = vq->vring.desc;
+    unsigned desc_offset = 0;
     target_phys_addr_t len;
 
     if (!virtqueue_num_heads(vq, vq->last_avail_idx))
@@ -373,15 +373,15 @@ int virtqueue_pop(VirtQueue *vq, VirtQueueElement *elem)
 
     i = head = virtqueue_get_head(vq, vq->last_avail_idx++);
 
-    if (vring_desc_flags(desc_pa, i) & VRING_DESC_F_INDIRECT) {
-        if (vring_desc_len(desc_pa, i) % sizeof(VRingDesc)) {
+    if (vring_desc_flags(vq, desc_offset, i) & VRING_DESC_F_INDIRECT) {
+        if (vring_desc_len(vq, desc_offset, i) % sizeof(VRingDesc)) {
             fprintf(stderr, "Invalid size for indirect buffer table\n");
             exit(1);
         }
 
         /* loop over the indirect descriptor table */
-        max = vring_desc_len(desc_pa, i) / sizeof(VRingDesc);
-        desc_pa = vring_desc_addr(desc_pa, i);
+        max = vring_desc_len(vq, desc_offset, i) / sizeof(VRingDesc);
+        desc_offset = vring_desc_addr(vq, desc_offset, i);
         i = 0;
     }
 
@@ -389,18 +389,18 @@ int virtqueue_pop(VirtQueue *vq, VirtQueueElement *elem)
         struct iovec *sg;
         int is_write = 0;
 
-        if (vring_desc_flags(desc_pa, i) & VRING_DESC_F_WRITE) {
-            elem->in_addr[elem->in_num] = vring_desc_addr(desc_pa, i);
+        if (vring_desc_flags(vq, desc_offset, i) & VRING_DESC_F_WRITE) {
+            elem->in_addr[elem->in_num] = vring_desc_addr(vq, desc_offset, i);
             sg = &elem->in_sg[elem->in_num++];
             is_write = 1;
         } else
             sg = &elem->out_sg[elem->out_num++];
 
         /* Grab the first descriptor, and check it's OK. */
-        sg->iov_len = vring_desc_len(desc_pa, i);
+        sg->iov_len = vring_desc_len(vq, desc_offset, i);
         len = sg->iov_len;
 
-        sg->iov_base = cpu_physical_memory_map(vring_desc_addr(desc_pa, i),
+        sg->iov_base = cpu_physical_memory_map(vring_desc_addr(vq, desc_offset, i),
                                                &len, is_write);
 
         if (sg->iov_base == NULL || len != sg->iov_len) {
@@ -413,7 +413,7 @@ int virtqueue_pop(VirtQueue *vq, VirtQueueElement *elem)
             fprintf(stderr, "Looped descriptor");
             exit(1);
         }
-    } while ((i = virtqueue_next_desc(desc_pa, i, max)) != max);
+    } while ((i = virtqueue_next_desc(vq, desc_offset, i, max)) != max);
 
     elem->index = head;
 
