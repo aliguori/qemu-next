@@ -112,6 +112,7 @@ struct VirtIODevice
     void (*set_config)(VirtIODevice *vdev, const uint8_t *config);
     void (*reset)(VirtIODevice *vdev);
     void (*set_queue_notify_fd)(VirtIODevice *vdev, int fd);
+    void (*set_notify_gsi)(VirtIODevice *vdev, unsigned vector, int gsi, int masked);
     VirtQueue *vq;
     const VirtIOBindings *binding;
     void *binding_opaque;
@@ -132,6 +133,7 @@ int virtqueue_pop(VirtQueue *vq, VirtQueueElement *elem);
 int virtqueue_avail_bytes(VirtQueue *vq, int in_bytes, int out_bytes);
 
 void virtio_notify(VirtIODevice *vdev, VirtQueue *vq);
+int virtio_can_notify(VirtIODevice *vdev, VirtQueue *vq);
 
 void virtio_save(VirtIODevice *vdev, QEMUFile *f);
 
@@ -162,6 +164,7 @@ target_phys_addr_t virtio_queue_get_addr(VirtIODevice *vdev, int n);
 int virtio_queue_get_num(VirtIODevice *vdev, int n);
 void virtio_queue_notify(VirtIODevice *vdev, int n);
 uint16_t virtio_queue_vector(VirtIODevice *vdev, int n);
+uint16_t virtqueue_get_vector(VirtQueue *vq);
 void virtio_queue_set_vector(VirtIODevice *vdev, int n, uint16_t vector);
 void virtio_reset(void *opaque);
 void virtio_update_irq(VirtIODevice *vdev);

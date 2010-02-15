@@ -102,6 +102,7 @@ typedef struct {
     uint32_t max_virtserial_ports;
     int fd;
     uint16_t fd_addr;
+    int irq_fd[3];
 } VirtIOPCIProxy;
 
 /* virtio device */
@@ -417,6 +418,20 @@ static const VirtIOBindings virtio_pci_bindings = {
     .get_features = virtio_pci_get_features,
 };
 
+static int virtio_pci_mask_notifier(PCIDevice *pci_dev, unsigned vector,
+                                     void *opaque, int masked)
+{
+    VirtIOPCIProxy *proxy = opaque;
+
+    if (proxy->vdev->set_notify_gsi) {
+        proxy->vdev->set_notify_gsi(proxy->vdev, vector,
+                                    pci_dev->msix_irq_entries[vector].gsi,
+                                    masked);
+    }
+
+    return 0;
+}
+
 static void virtio_init_pci(VirtIOPCIProxy *proxy, VirtIODevice *vdev,
                             uint16_t vendor, uint16_t device,
                             uint16_t class_code, uint8_t pif)
@@ -465,6 +480,14 @@ static void virtio_init_pci(VirtIOPCIProxy *proxy, VirtIODevice *vdev,
     proxy->host_features |= 0x1 << VIRTIO_F_BAD_FEATURE;
     proxy->host_features = vdev->get_features(vdev, proxy->host_features);
     proxy->fd = -1;
+    proxy->irq_fd[0] = eventfd(0, 0);
+    proxy->irq_fd[1] = eventfd(0, 0);
+    proxy->irq_fd[2] = eventfd(0, 0);
+
+    proxy->pci_dev.msix_mask_notifier = virtio_pci_mask_notifier;
+    proxy->pci_dev.msix_mask_notifier_opaque[0] = proxy;
+    proxy->pci_dev.msix_mask_notifier_opaque[1] = proxy;
+    proxy->pci_dev.msix_mask_notifier_opaque[2] = proxy;
 }
 
 static int virtio_blk_init_pci(PCIDevice *pci_dev)

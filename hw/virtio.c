@@ -567,6 +567,11 @@ uint16_t virtio_queue_vector(VirtIODevice *vdev, int n)
         VIRTIO_NO_VECTOR;
 }
 
+uint16_t virtqueue_get_vector(VirtQueue *vq)
+{
+    return vq->vector;
+}
+
 void virtio_queue_set_vector(VirtIODevice *vdev, int n, uint16_t vector)
 {
     if (n < VIRTIO_PCI_QUEUE_MAX)
@@ -592,12 +597,19 @@ VirtQueue *virtio_add_queue(VirtIODevice *vdev, int queue_size,
     return &vdev->vq[i];
 }
 
-void virtio_notify(VirtIODevice *vdev, VirtQueue *vq)
+int virtio_can_notify(VirtIODevice *vdev, VirtQueue *vq)
 {
     /* Always notify when queue is empty (when feature acknowledge) */
     if ((vring_avail_flags(vq) & VRING_AVAIL_F_NO_INTERRUPT) &&
         (!(vdev->guest_features & (1 << VIRTIO_F_NOTIFY_ON_EMPTY)) ||
          (vq->inuse || vring_avail_idx(vq) != vq->last_avail_idx)))
+        return 0;
+    return 1;
+}
+
+void virtio_notify(VirtIODevice *vdev, VirtQueue *vq)
+{
+    if (!virtio_can_notify(vdev, vq))
         return;
 
     vdev->isr |= 0x01;

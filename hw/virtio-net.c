@@ -17,6 +17,7 @@
 #include "net/tap.h"
 #include "qemu-timer.h"
 #include "virtio-net.h"
+#include "qemu-kvm.h"
 
 #define VIRTIO_NET_VM_VERSION    11
 
@@ -56,6 +57,7 @@ typedef struct VirtIONet
         uint8_t *macs;
     } mac_table;
     uint32_t *vlans;
+    int notify_gsi[3];
 } VirtIONet;
 
 /* TODO
@@ -65,6 +67,27 @@ typedef struct VirtIONet
 static VirtIONet *to_virtio_net(VirtIODevice *vdev)
 {
     return (VirtIONet *)vdev;
+}
+
+static void notify_eventfd(int gsi)
+{
+    kvm_set_irq(gsi, 1, NULL);
+}
+
+static void virtio_net_notify(VirtIODevice *vdev, VirtQueue *vq)
+{
+    VirtIONet *n = to_virtio_net(vdev);
+    int vector = virtqueue_get_vector(vq);
+
+    if (virtio_can_notify(vdev, vq) == 0) {
+        return;
+    }
+
+    if (n->notify_gsi[vector] != -1) {
+        notify_eventfd(n->notify_gsi[vector]);
+    } else {
+        virtio_notify(vdev, vq);
+    }
 }
 
 static void virtio_net_get_config(VirtIODevice *vdev, uint8_t *config)
@@ -225,6 +248,16 @@ static void virtio_net_set_queue_notify_fd(VirtIODevice *vdev, int fd)
     n->notify_fd = fd;
 }
 
+static void virtio_net_set_notify_gsi(VirtIODevice *vdev, unsigned vector, int gsi, int masked)
+{
+    VirtIONet *n = to_virtio_net(vdev);
+    if (masked) {
+        n->notify_gsi[vector] = -1;
+    } else {
+        n->notify_gsi[vector] = gsi;
+    }
+}
+
 static void virtio_net_set_features(VirtIODevice *vdev, uint32_t features)
 {
     VirtIONet *n = to_virtio_net(vdev);
@@ -380,7 +413,7 @@ static void virtio_net_handle_ctrl(VirtIODevice *vdev, VirtQueue *vq)
         stb_p(elem.in_sg[elem.in_num - 1].iov_base, status);
 
         virtqueue_push(vq, &elem, sizeof(status));
-        virtio_notify(vdev, vq);
+        virtio_net_notify(vdev, vq);
     }
 }
 
@@ -616,7 +649,7 @@ static ssize_t virtio_net_receive(VLANClientState *nc, const uint8_t *buf, size_
         mhdr->num_buffers = i;
 
     virtqueue_flush(n->rx_vq, i);
-    virtio_notify(&n->vdev, n->rx_vq);
+    virtio_net_notify(&n->vdev, n->rx_vq);
 
     return size;
 }
@@ -626,7 +659,7 @@ static void virtio_net_tx_complete(VLANClientState *nc, ssize_t len)
     VirtIONet *n = DO_UPCAST(NICState, nc, nc)->opaque;
 
     virtqueue_push(n->tx_vq, &n->async_tx.elem, n->async_tx.len);
-    virtio_notify(&n->vdev, n->tx_vq);
+    virtio_net_notify(&n->vdev, n->tx_vq);
 
     n->async_tx.elem.out_num = n->async_tx.len = 0;
 
@@ -687,7 +720,7 @@ static void virtio_net_flush_tx(VirtIONet *n, VirtQueue *vq)
         len += ret;
 
         virtqueue_push(vq, &elem, len);
-        virtio_notify(&n->vdev, vq);
+        virtio_net_notify(&n->vdev, vq);
     }
 }
 
@@ -874,6 +907,7 @@ VirtIODevice *virtio_net_init(DeviceState *dev, NICConf *conf)
     n->vdev.bad_features = virtio_net_bad_features;
     n->vdev.reset = virtio_net_reset;
     n->vdev.set_queue_notify_fd = virtio_net_set_queue_notify_fd;
+    n->vdev.set_notify_gsi = virtio_net_set_notify_gsi;
     n->rx_vq = virtio_add_queue(&n->vdev, 256, virtio_net_handle_rx);
     n->tx_vq = virtio_add_queue(&n->vdev, 256, virtio_net_handle_tx);
     n->ctrl_vq = virtio_add_queue(&n->vdev, 64, virtio_net_handle_ctrl);
@@ -894,6 +928,7 @@ VirtIODevice *virtio_net_init(DeviceState *dev, NICConf *conf)
     n->mac_table.macs = qemu_mallocz(MAC_TABLE_ENTRIES * ETH_ALEN);
 
     n->vlans = qemu_mallocz(MAX_VLAN >> 3);
+    n->notify_gsi[0] = n->notify_gsi[1] = n->notify_gsi[2] = -1;
 
     register_savevm("virtio-net", virtio_net_id++, VIRTIO_NET_VM_VERSION,
                     virtio_net_save, virtio_net_load, n);

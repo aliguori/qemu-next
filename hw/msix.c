@@ -318,12 +318,13 @@ static void msix_mmio_writel(void *opaque, target_phys_addr_t addr,
     if (kvm_enabled() && kvm_irqchip_in_kernel()) {
         kvm_msix_update(dev, vector, was_masked, msix_is_masked(dev, vector));
     }
-    if (was_masked != msix_is_masked(dev, vector) &&
-        dev->msix_mask_notifier && dev->msix_mask_notifier_opaque[vector]) {
+    if (was_masked != msix_is_masked(dev, vector)) {
+        if (dev->msix_mask_notifier && dev->msix_mask_notifier_opaque[vector]) {
         int r = dev->msix_mask_notifier(dev, vector,
 					dev->msix_mask_notifier_opaque[vector],
 					msix_is_masked(dev, vector));
         assert(r >= 0);
+        }
     }
     msix_handle_mask_update(dev, vector);
 }
