@@ -2666,3 +2666,31 @@ void kvm_inject_x86_mce(CPUState *cenv, int bank, uint64_t status,
 #endif
 }
 #endif
+
+void kvm_ioeventfd_pio(int fd, uint16_t addr, uint32_t datamatch)
+{
+    struct kvm_ioeventfd e = {
+        .fd = fd,
+        .addr = addr,
+        .len = 2,
+        .flags = KVM_IOEVENTFD_FLAG_PIO,
+    };
+    int ret;
+
+    ret = kvm_vm_ioctl(kvm_state, KVM_IOEVENTFD, &e);
+    printf("ret pio - %d, %m %d %d %d\n", ret, fd, addr, datamatch);
+}
+
+void kvm_ioeventfd_deassign(int fd, uint16_t addr, uint32_t datamatch)
+{
+    struct kvm_ioeventfd e = {
+        .fd = fd,
+        .addr = addr,
+        .len = 2,
+        .flags = KVM_IOEVENTFD_FLAG_PIO | KVM_IOEVENTFD_FLAG_DEASSIGN,
+    };
+    int ret;
+
+    ret = kvm_vm_ioctl(kvm_state, KVM_IOEVENTFD, &e);
+    printf("ret pio - %d, %m %d %d %d\n", ret, fd, addr, datamatch);
+}

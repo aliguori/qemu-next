@@ -1164,6 +1164,9 @@ int kvm_check_extension(KVMState *s, unsigned int ext);
 
 int kvm_tpr_enable_vapic(CPUState *env);
 
+void kvm_ioeventfd_pio(int fd, uint16_t addr, uint32_t datamatch);
+void kvm_ioeventfd_deassign(int fd, uint16_t addr, uint32_t datamatch);
+
 #endif
 
 #endif

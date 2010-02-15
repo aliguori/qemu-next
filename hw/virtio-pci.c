@@ -23,6 +23,9 @@
 #include "msix.h"
 #include "net.h"
 #include "loader.h"
+#include "qemu-kvm.h"
+
+#include <sys/eventfd.h>
 
 /* from Linux's linux/virtio_pci.h */
 
@@ -97,6 +100,8 @@ typedef struct {
     uint32_t host_features;
     /* Max. number of ports we can have for a the virtio-serial device */
     uint32_t max_virtserial_ports;
+    int fd;
+    uint16_t fd_addr;
 } VirtIOPCIProxy;
 
 /* virtio device */
@@ -365,6 +370,19 @@ static void virtio_map(PCIDevice *pci_dev, int region_num,
     register_ioport_read(addr, config_len, 2, virtio_pci_config_readw, proxy);
     register_ioport_read(addr, config_len, 4, virtio_pci_config_readl, proxy);
 
+    if (vdev->set_queue_notify_fd) {
+        if (proxy->fd != -1) {
+            kvm_ioeventfd_deassign(proxy->fd, proxy->fd_addr, 1);
+            close(proxy->fd);
+        }
+
+        proxy->fd = eventfd(0, EFD_CLOEXEC);
+        printf("eventfd - %d\n", proxy->fd);
+        proxy->fd_addr = addr + VIRTIO_PCI_QUEUE_NOTIFY;
+        kvm_ioeventfd_pio(proxy->fd, proxy->fd_addr, 1);
+        vdev->set_queue_notify_fd(vdev, proxy->fd);
+    }
+
     if (vdev->config_len)
         vdev->get_config(vdev, vdev->config);
 }
@@ -446,6 +464,7 @@ static void virtio_init_pci(VirtIOPCIProxy *proxy, VirtIODevice *vdev,
     proxy->host_features |= 0x1 << VIRTIO_F_NOTIFY_ON_EMPTY;
     proxy->host_features |= 0x1 << VIRTIO_F_BAD_FEATURE;
     proxy->host_features = vdev->get_features(vdev, proxy->host_features);
+    proxy->fd = -1;
 }
 
 static int virtio_blk_init_pci(PCIDevice *pci_dev)

@@ -47,6 +47,7 @@ typedef struct VirtIONet
     uint8_t nomulti;
     uint8_t nouni;
     uint8_t nobcast;
+    int notify_fd;
     struct {
         int in_use;
         int first_multi;
@@ -188,6 +189,40 @@ static uint32_t virtio_net_bad_features(VirtIODevice *vdev)
     features |= (1 << VIRTIO_NET_F_HOST_ECN);
 
     return features;
+}
+
+static void virtio_net_flush_tx(VirtIONet *n, VirtQueue *vq);
+static void virtio_net_handle_ctrl(VirtIODevice *vdev, VirtQueue *vq);
+
+static void virtio_net_read_notify(void *opaque)
+{
+    VirtIONet *n = opaque;
+    uint64_t count;
+    ssize_t ret;
+
+    do {
+        ret = read(n->notify_fd, &count, sizeof(count));
+    } while (ret == -1 && errno == EINTR);
+    virtio_queue_set_notification(n->tx_vq, 1);
+
+    virtio_net_flush_tx(n, n->tx_vq);
+
+    if (virtio_queue_ready(n->rx_vq)) {
+        qemu_flush_queued_packets(&n->nic->nc);
+    }
+
+    virtio_net_handle_ctrl(&n->vdev, n->ctrl_vq);
+}
+
+static void virtio_net_set_queue_notify_fd(VirtIODevice *vdev, int fd)
+{
+    VirtIONet *n = to_virtio_net(vdev);
+
+    if (n->notify_fd != -1) {
+        qemu_set_fd_handler2(n->notify_fd, NULL, NULL, NULL, NULL);
+    }
+    qemu_set_fd_handler2(fd, NULL, virtio_net_read_notify, NULL, n);
+    n->notify_fd = fd;
 }
 
 static void virtio_net_set_features(VirtIODevice *vdev, uint32_t features)
@@ -379,7 +414,10 @@ static int virtio_net_has_buffers(VirtIONet *n, int bufsize)
         (n->mergeable_rx_bufs &&
          !virtqueue_avail_bytes(n->rx_vq, bufsize, 0))) {
         virtio_queue_set_notification(n->rx_vq, 1);
-        return 0;
+        if (virtio_queue_empty(n->rx_vq) ||
+            (n->mergeable_rx_bufs &&
+             !virtqueue_avail_bytes(n->rx_vq, bufsize, 0)))
+            return 0;
     }
 
     virtio_queue_set_notification(n->rx_vq, 0);
@@ -582,8 +620,6 @@ static ssize_t virtio_net_receive(VLANClientState *nc, const uint8_t *buf, size_
 
     return size;
 }
-
-static void virtio_net_flush_tx(VirtIONet *n, VirtQueue *vq);
 
 static void virtio_net_tx_complete(VLANClientState *nc, ssize_t len)
 {
@@ -837,12 +873,14 @@ VirtIODevice *virtio_net_init(DeviceState *dev, NICConf *conf)
     n->vdev.set_features = virtio_net_set_features;
     n->vdev.bad_features = virtio_net_bad_features;
     n->vdev.reset = virtio_net_reset;
+    n->vdev.set_queue_notify_fd = virtio_net_set_queue_notify_fd;
     n->rx_vq = virtio_add_queue(&n->vdev, 256, virtio_net_handle_rx);
     n->tx_vq = virtio_add_queue(&n->vdev, 256, virtio_net_handle_tx);
     n->ctrl_vq = virtio_add_queue(&n->vdev, 64, virtio_net_handle_ctrl);
     qemu_macaddr_default_if_unset(&conf->macaddr);
     memcpy(&n->mac[0], &conf->macaddr, sizeof(n->mac));
     n->status = VIRTIO_NET_S_LINK_UP;
+    n->notify_fd = -1;
 
     n->nic = qemu_new_nic(&net_virtio_info, conf, dev->info->name, dev->id, n);
 

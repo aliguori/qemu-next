@@ -111,6 +111,7 @@ struct VirtIODevice
     void (*get_config)(VirtIODevice *vdev, uint8_t *config);
     void (*set_config)(VirtIODevice *vdev, const uint8_t *config);
     void (*reset)(VirtIODevice *vdev);
+    void (*set_queue_notify_fd)(VirtIODevice *vdev, int fd);
     VirtQueue *vq;
     const VirtIOBindings *binding;
     void *binding_opaque;
