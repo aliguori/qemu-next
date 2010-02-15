@@ -2678,7 +2678,6 @@ void kvm_ioeventfd_pio(int fd, uint16_t addr, uint32_t datamatch)
     int ret;
 
     ret = kvm_vm_ioctl(kvm_state, KVM_IOEVENTFD, &e);
-    printf("ret pio - %d, %m %d %d %d\n", ret, fd, addr, datamatch);
 }
 
 void kvm_ioeventfd_deassign(int fd, uint16_t addr, uint32_t datamatch)
@@ -2692,7 +2691,6 @@ void kvm_ioeventfd_deassign(int fd, uint16_t addr, uint32_t datamatch)
     int ret;
 
     ret = kvm_vm_ioctl(kvm_state, KVM_IOEVENTFD, &e);
-    printf("ret pio - %d, %m %d %d %d\n", ret, fd, addr, datamatch);
 }
 
 void kvm_set_irqfd(unsigned int gsi, int fd)
@@ -2705,7 +2703,6 @@ void kvm_set_irqfd(unsigned int gsi, int fd)
     int ret;
 
     ret = kvm_vm_ioctl(kvm_state, KVM_IRQFD, &irqfd);
-    printf("ret irqfd - %d %m\n", ret);
 }
 
 void kvm_unset_irqfd(unsigned int gsi, unsigned int fd)
@@ -2718,5 +2715,4 @@ void kvm_unset_irqfd(unsigned int gsi, unsigned int fd)
     int ret;
 
     ret = kvm_vm_ioctl(kvm_state, KVM_IRQFD, &irqfd);
-    printf("ret irqfd - %d %m\n", ret);
 }
