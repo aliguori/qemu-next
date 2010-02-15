@@ -333,9 +333,11 @@ static void handle_input(VirtIODevice *vdev, VirtQueue *vq)
 {
 }
 
-static uint32_t get_features(VirtIODevice *vdev)
+static uint32_t get_features(VirtIODevice *vdev, uint32_t features)
 {
-    return 1 << VIRTIO_CONSOLE_F_MULTIPORT;
+    features |= (1 << VIRTIO_CONSOLE_F_MULTIPORT);
+
+    return features;
 }
 
 /* Guest requested config info */
