@@ -424,14 +424,9 @@ static int virtio_pci_mask_notifier(PCIDevice *pci_dev, unsigned vector,
     VirtIOPCIProxy *proxy = opaque;
 
     if (proxy->vdev->set_notify_gsi) {
-        if (masked) {
-            kvm_unset_irqfd(pci_dev->msix_irq_entries[vector].gsi,
-                            proxy->irq_fd[vector]);
-        } else {
-            kvm_set_irqfd(pci_dev->msix_irq_entries[vector].gsi,
-                          proxy->irq_fd[vector]);
-        }
-        proxy->vdev->set_notify_gsi(proxy->vdev, vector, proxy->irq_fd[vector], masked);
+        proxy->vdev->set_notify_gsi(proxy->vdev, vector,
+                                    pci_dev->msix_irq_entries[vector].gsi,
+                                    masked);
     }
 
     return 0;

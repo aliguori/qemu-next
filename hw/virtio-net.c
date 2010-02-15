@@ -69,13 +69,9 @@ static VirtIONet *to_virtio_net(VirtIODevice *vdev)
     return (VirtIONet *)vdev;
 }
 
-static void notify_eventfd(int fd)
+static void notify_eventfd(int gsi)
 {
-    ssize_t ret;
-    uint64_t count = 1;
-    do {
-        ret = write(fd, &count, sizeof(count));
-    } while (ret == -1 && errno == EINTR);
+    kvm_set_irq(gsi, 1, NULL);
 }
 
 static void virtio_net_notify(VirtIODevice *vdev, VirtQueue *vq)
@@ -252,13 +248,13 @@ static void virtio_net_set_queue_notify_fd(VirtIODevice *vdev, int fd)
     n->notify_fd = fd;
 }
 
-static void virtio_net_set_notify_gsi(VirtIODevice *vdev, unsigned vector, int fd, int masked)
+static void virtio_net_set_notify_gsi(VirtIODevice *vdev, unsigned vector, int gsi, int masked)
 {
     VirtIONet *n = to_virtio_net(vdev);
     if (masked) {
         n->notify_gsi[vector] = -1;
     } else {
-        n->notify_gsi[vector] = fd;
+        n->notify_gsi[vector] = gsi;
     }
 }
 
