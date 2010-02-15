@@ -68,7 +68,7 @@ static VirtIOSerialPort *find_port_by_vq(VirtIOSerial *vser, VirtQueue *vq)
 
 static bool use_multiport(VirtIOSerial *vser)
 {
-    return vser->vdev.features & (1 << VIRTIO_CONSOLE_F_MULTIPORT);
+    return vser->vdev.guest_features & (1 << VIRTIO_CONSOLE_F_MULTIPORT);
 }
 
 static size_t write_to_port(VirtIOSerialPort *port,
