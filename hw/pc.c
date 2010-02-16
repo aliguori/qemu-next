@@ -1346,6 +1346,14 @@ static QEMUMachine pc_machine_v0_11 = {
             .driver   = "PCI",
             .property = "rombar",
             .value    = stringify(0),
+        },{
+            .driver   = "ide-drive",
+            .property = "ver",
+            .value    = "0.11",
+        },{
+            .driver   = "scsi-disk",
+            .property = "ver",
+            .value    = "0.11",
         },
         { /* end of list */ }
     }
@@ -1377,6 +1385,14 @@ static QEMUMachine pc_machine_v0_10 = {
             .driver   = "PCI",
             .property = "rombar",
             .value    = stringify(0),
+        },{
+            .driver   = "ide-drive",
+            .property = "ver",
+            .value    = "0.10",
+        },{
+            .driver   = "scsi-disk",
+            .property = "ver",
+            .value    = "0.10",
         },
         { /* end of list */ }
     },
