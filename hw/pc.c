@@ -1327,11 +1327,9 @@ void cmos_set_s3_resume(void)
 
 static QEMUMachine pc_machine = {
     .name = "pc-0.12",
-    .alias = "pc",
     .desc = "Standard PC",
     .init = pc_init_pci,
     .max_cpus = 255,
-    .is_default = 1,
 };
 
 static QEMUMachine pc_machine_v0_11 = {
@@ -1400,3 +1398,76 @@ static void pc_machine_init(void)
 }
 
 machine_init(pc_machine_init);
+
+/* RHEL machine types */
+
+static QEMUMachine pc_machine_rhel600 = {
+    .name = "rhel6.0.0",
+    .alias = "pc",
+    .desc = "RHEL 6.0.0 PC",
+    .init = pc_init_pci,
+    .max_cpus = 255,
+    .is_default = 1,
+};
+
+static GlobalProperty compat_rhel5[] = {
+        {
+            .driver   = "virtio-net-pci",
+            .property = "vectors",
+            .value    = stringify(0),
+        },{
+            .driver   = "virtio-blk-pci",
+            .property = "vectors",
+            .value    = stringify(0),
+        },{
+            .driver   = "PCI",
+            .property = "rombar",
+            .value    = stringify(0),
+        },
+#if 0 /* depends on "ide+scsi: device versions" patches */
+        {
+            .driver   = "ide-drive",
+            .property = "ver",
+            .value    = "0.9.1",
+        },{
+            .driver   = "scsi-disk",
+            .property = "ver",
+            .value    = "0.9.1",
+        },
+#endif
+        { /* end of list */ }
+};
+
+static QEMUMachine pc_machine_rhel550 = {
+    .name = "rhel5.5.0",
+    .desc = "RHEL 5.5.0 PC",
+    .init = pc_init_pci,
+    .max_cpus = 255,
+    .compat_props = compat_rhel5,
+};
+
+static QEMUMachine pc_machine_rhel544 = {
+    .name = "rhel5.4.4",
+    .desc = "RHEL 5.4.4 PC",
+    .init = pc_init_pci,
+    .max_cpus = 255,
+    .compat_props = compat_rhel5,
+};
+
+static QEMUMachine pc_machine_rhel540 = {
+    .name = "rhel5.4.0",
+    .desc = "RHEL 5.4.0 PC",
+    .init = pc_init_pci,
+    .max_cpus = 255,
+    .compat_props = compat_rhel5,
+};
+
+static void rhel_machine_init(void)
+{
+    qemu_register_machine(&pc_machine_rhel600);
+    qemu_register_machine(&pc_machine_rhel550);
+    qemu_register_machine(&pc_machine_rhel544);
+    qemu_register_machine(&pc_machine_rhel540);
+}
+
+machine_init(rhel_machine_init);
