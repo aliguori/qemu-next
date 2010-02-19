@@ -58,7 +58,20 @@ typedef struct VirtIONet
     } mac_table;
     uint32_t *vlans;
     int notify_gsi[3];
+    CPUPhysMemoryClient phys_mem_client;
 } VirtIONet;
+
+typedef struct MemoryTable
+{
+    target_phys_addr_t addr;
+    ram_addr_t size;
+    ram_addr_t phys_offset;
+} MemoryTable;
+
+#define MAX_MEM_ENTRIES 100
+
+static int n_memtab_entries;
+static MemoryTable memtab_entries[MAX_MEM_ENTRIES];
 
 /* TODO
  * - we could suppress RX interrupt if we were so inclined.
@@ -891,6 +904,65 @@ static NetClientInfo net_virtio_info = {
     .link_status_changed = virtio_net_set_link_status,
 };
 
+/* FIXME locking */
+void *virtio_map_phys(uint64_t phys)
+{
+    PhysPageDesc *p = phys_page_find(phys);
+    uint64_t ram_addr;
+    ram_addr = (p->phys_offset & TARGET_PAGE_MASK) + (phys & ~TARGET_PAGE_MASK);
+    return qemu_get_ram_ptr(ram_addr);
+}
+
+struct virtio_data_plane
+{
+    int tap_fd;
+    int kvm_fd;
+    int ioevent_fd;
+    uint64_t ring_addr[3];
+    unsigned int num[3];
+};
+
+static void *virtio_data_plane(void *opaque)
+{
+    struct virtio_data_plane *s = opaque;
+    struct vring vring;
+    struct fdset rdfds, wrfds;
+
+    for (i = 0; i < 3; i++) {
+        vring_init(&vring, s->ring_addr[i], s->num[i]);
+    }
+
+    FD_ZERO(&rdfds);
+    FD_SET(&rdfds, s->tap_fd);
+    FD_SET(&rdfds, s->ioevent_fd);
+
+    FD_ZERO(&wrfds);
+
+    ret = select(max_fd, &rdfds, &wrfds, NULL, NULL);
+
+    return NULL;
+}
+
+/* spawn a thread to represent the data plane
+ * control plane runs with qemu_mutex
+ * data plane runs without it
+ * data plane needs tap fd, notify fd, and gsi numbers
+ * uses a read/write lock to get at that information
+ * data plane only ever reads, control plane writes
+ * need control plane to maintain a phys->virt mapping
+ * data plane needs fast access to address translation
+ * data plane runs a select() loop listening on tap fd and notify fd
+ */
+
+/* 1) maintain a ram lookup mapping protected with a rwlock_t.
+   2) reduce the set of features to absolutely nothing
+   3) obtain tap file descriptor and force backend to ignore it
+   4) implement data plane thread
+   5) add offload
+   6) add indirect scatter/gather
+   7) add mergable buffers
+ */
+
 VirtIODevice *virtio_net_init(DeviceState *dev, NICConf *conf)
 {
     VirtIONet *n;
@@ -932,6 +1004,11 @@ VirtIODevice *virtio_net_init(DeviceState *dev, NICConf *conf)
 
     register_savevm("virtio-net", virtio_net_id++, VIRTIO_NET_VM_VERSION,
                     virtio_net_save, virtio_net_load, n);
+
+    n->phys_mem_client.set_memory = phys_set_memory;
+    n->phys_mem_client.sync_dirty_bitmap = phys_sync_dirty_bitmap;
+    n->phys_mem_client.migration_log = phys_migration_log;
+    cpu_register_phys_memory_client(&n->phys_mem_client);
 
     return &n->vdev;
 }
