@@ -12,7 +12,7 @@ endif
 
 TARGET_PATH=$(SRC_PATH)/target-$(TARGET_BASE_ARCH)
 $(call set-vpath, $(SRC_PATH):$(TARGET_PATH):$(SRC_PATH)/hw)
-QEMU_CFLAGS+= -I.. -I$(TARGET_PATH) -DNEED_CPU_H
+QEMU_CFLAGS+= -I.. -I$(TARGET_PATH) -I$(SRC_PATH)/hw -DNEED_CPU_H
 
 include $(SRC_PATH)/Makefile.objs
 
@@ -184,6 +184,7 @@ obj-y = vl.o async.o monitor.o pci.o pci_host.o pcie_host.o machine.o gdbstub.o
 # need to fix this properly
 obj-y += virtio-blk.o virtio-balloon.o virtio-net.o virtio-pci.o virtio-serial-bus.o
 obj-$(CONFIG_KVM) += kvm.o kvm-all.o
+obj-y += vnf/loop.o vnf/util.o vnf/virtio.o vnf/virtio-net.o
 # MSI-X depends on kvm for interrupt injection,
 # so moved it from Makefile.objs to Makefile.target for now
 obj-y += msix.o

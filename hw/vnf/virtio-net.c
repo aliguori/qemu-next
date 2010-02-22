@@ -1,4 +1,13 @@
-#include <linux/virtio-net.h>
+#include "vnf/virtio.h"
+#include "vnf/loop.h"
+#include "vnf/util.h"
+
+#include <linux/virtio_net.h>
+
+#include <unistd.h>
+#include <malloc.h>
+#include <errno.h>
+#include <string.h>
 
 #define MAX_PACKET_SIZE (sizeof(struct virtio_net_hdr_mrg_rxbuf) + (64 * 1024))
 
@@ -22,7 +31,7 @@ static bool virtio_net_try_to_receive(struct virtio_net_device *dev)
 
     while (!virtqueue_empty(vq)) {
         size_t data_size = 0;
-        int last_avail;
+        int last_avail, i;
         unsigned heads[1024];
         uint32_t in_sizes[1024];
         int num_heads = 0;
@@ -114,7 +123,7 @@ static bool virtio_net_try_to_transmit(struct virtio_net_device *dev)
         len = writev(dev->tap_fd, out_sg, out_num);
         if (len == -1 && errno == EAGAIN) {
             vq->last_avail = last_avail;
-            io_callback_add(dev->tap_fd, IO_CALLBACK_WRITE);
+            io_callback_add(dev->tap_fd, IO_CALLBACK_WRITE, &dev->tap_write_cb);
             /* FIXME: we should disable ring notification */
             break;
         }
@@ -134,7 +143,7 @@ static void virtio_net_tap_read_cb(struct io_callback *cb)
                                                  tap_read_cb, cb);
 
     if (virtio_net_try_to_receive(dev)) {
-        virtio_notify(&dev->vdev, vq);
+        virtio_notify(&dev->vdev, dev->rx_vq);
     }
 }
 
@@ -152,21 +161,21 @@ static void virtio_net_tap_write_cb(struct io_callback *cb)
 static bool virtio_net_receive_cb(struct virtio_device *vdev,
                                   struct virtqueue *vq)
 {
-    struct virtio_net_dev *dev = container_of(struct virtio_net_device,
-                                              vdev, vdev);
-    io_callback_add(dev->fd, IO_CALLBACK_READ, &dev->tap_read_cb);
+    struct virtio_net_device *dev = container_of(struct virtio_net_device,
+                                                 vdev, vdev);
+    io_callback_add(dev->tap_fd, IO_CALLBACK_READ, &dev->tap_read_cb);
     return virtio_net_try_to_receive(dev);
 }
 
 static bool virtio_net_transmit_cb(struct virtio_device *vdev,
                                    struct virtqueue *vq)
 {
-    struct virtio_net_dev *dev = container_of(struct virtio_net_device,
-                                              vdev, vdev);
+    struct virtio_net_device *dev = container_of(struct virtio_net_device,
+                                                 vdev, vdev);
     return virtio_net_try_to_transmit(dev);
 }
 
-struct virtio_device *virtio_net_init(struct virtio_transport *trans,
+struct virtio_device *virtio_net_init(struct virtio_transport_ops *trans,
                                       uint64_t rx_addr, unsigned rx_num,
                                       uint64_t tx_addr, unsigned tx_num,
                                       int tap_fd)

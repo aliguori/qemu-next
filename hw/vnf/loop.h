@@ -4,6 +4,8 @@
 #define IO_CALLBACK_READ   1
 #define IO_CALLBACK_WRITE  2
 
+struct io_callback;
+
 struct io_callback
 {
     void (*callback)(struct io_callback *obj);

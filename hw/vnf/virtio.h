@@ -2,6 +2,9 @@
 #define QEMU_VNF_VIRTIO_H
 
 #include <linux/virtio_ring.h>
+#include <stdint.h>
+#include <stdbool.h>
+#include <sys/uio.h>
 
 #define MAX_VIRTQUEUE  4
 
@@ -11,7 +14,7 @@ struct virtqueue
 {
     int last_avail;
     struct vring vring;
-    void (*handle_output)(struct virtio_device *vdev, struct virtqueue *vq);
+    bool (*handle_output)(struct virtio_device *vdev, struct virtqueue *vq);
 };
 
 struct virtio_transport_ops

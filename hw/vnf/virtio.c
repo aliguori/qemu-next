@@ -1,7 +1,6 @@
-#include <linux/virtio_ring.h>
 #include "vnf/virtio.h"
-
-#define PAGE_SIZE 4096
+#include "vnf/loop.h"
+#include "vnf/util.h"
 
 bool virtqueue_empty(struct virtqueue *vq)
 {
@@ -34,7 +33,7 @@ void virtqueue_add_used(struct virtqueue *vq,
     unsigned heads[1] = { head };
     uint32_t lengths[1] = { length };
 
-    virtqueue_add_used(vq, 1, heads, lengths);
+    virtqueue_add_useds(vq, 1, heads, lengths);
 }
 
 static unsigned vring_desc_next(struct vring_desc *desc, unsigned max)
@@ -54,12 +53,11 @@ unsigned virtio_next_avail(struct virtio_device *vdev,
                            struct virtqueue *vq,
                            struct iovec *out_sg,
                            struct iovec *in_sg,
-                           unsigned *out_num,
-                           unsigned *in_num)
+                           unsigned *pout_num,
+                           unsigned *pin_num)
 {
     unsigned head, i, max;
     struct vring_desc *desc;
-    struct iovec iov[vq->vring.num];
     unsigned out_num, in_num;
 
     if (virtqueue_empty(vq)) {
@@ -82,17 +80,26 @@ unsigned virtio_next_avail(struct virtio_device *vdev,
     out_num = in_num = 0;
     do {
         if ((desc[i].flags & VRING_DESC_F_WRITE)) {
-            in_sg[in_num].iov_len = desc[i].len;
-            in_sg[in_num].iov_base = vdev->trans->map(vdev, desc[i].addr,
-                                                      desc[i].len);
-            in_num++;
+            if (in_num < *pin_num) {
+                in_sg[in_num].iov_len = desc[i].len;
+                in_sg[in_num].iov_base = vdev->trans->map(vdev,
+                                                          desc[i].addr,
+                                                          desc[i].len);
+                in_num++;
+            }
         } else {
-            out_sg[out_num].iov_len = desc[i].len;
-            out_sg[out_num].iov_base = vdev->trans->map(vdev, desc[i].addr,
-                                                        desc[i].len);
-            out_num++;
+            if (out_num < *pout_num) {
+                out_sg[out_num].iov_len = desc[i].len;
+                out_sg[out_num].iov_base = vdev->trans->map(vdev,
+                                                            desc[i].addr,
+                                                            desc[i].len);
+                out_num++;
+            }
         }
     } while ((i = vring_desc_next(&desc[i], max)) != max);
+
+    *pout_num = out_num;
+    *pin_num = in_num;
 
     return head;
 }
@@ -122,7 +129,7 @@ again:
         did_work = false;
         for (i = 0; i < vdev->num_vqs; i++) {
             if (vdev->vq[i].handle_output(vdev, &vdev->vq[i])) {
-                vdev->notify(vdev, vdev->vq[i]);
+                virtio_notify(vdev, &vdev->vq[i]);
                 did_work = true;
             }
         }
@@ -157,9 +164,9 @@ struct virtqueue *virtio_init_vq(struct virtio_device *vdev,
 
     vdev->num_vqs = MAX(vq_num + 1, vdev->num_vqs);
     vq->handle_output = callback;
-    vring_init(vq->vring,
+    vring_init(&vq->vring,
                num,
-               vdev->trans->map(addr, vring_size(num, PAGE_SIZE)),
+               vdev->trans->map(vdev, addr, vring_size(num, PAGE_SIZE)),
                PAGE_SIZE);
 
     return vq;

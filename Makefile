@@ -359,4 +359,4 @@ tarbin:
 	$(mandir)/man8/qemu-nbd.8
 
 # Include automatically generated dependency files
--include $(wildcard *.d audio/*.d slirp/*.d block/*.d net/*.d)
+-include $(wildcard *.d audio/*.d slirp/*.d block/*.d net/*.d vnf/*.d)

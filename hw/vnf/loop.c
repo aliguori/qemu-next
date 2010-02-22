@@ -1,4 +1,9 @@
 #include "vnf/loop.h"
+#include "vnf/util.h"
+
+#include <assert.h>
+#include <stdlib.h>
+#include <sys/select.h>
 
 #define MAX_IOCALLBACK_SLOTS 10
 
@@ -47,7 +52,7 @@ void idle_callback_add(struct io_callback *cb)
 {
     int i;
 
-    for (i = 0; i < num_idle_callbacks_slots; i++) {
+    for (i = 0; i < num_idle_callback_slots; i++) {
         if (idle_callback_slots[i] == NULL ||
             idle_callback_slots[i] == cb) {
             break;
@@ -66,7 +71,7 @@ void idle_callback_remove(struct io_callback *cb)
 {
     int i;
 
-    for (i = 0; i < num_idle_callbacks_slots; i++) {
+    for (i = 0; i < num_idle_callback_slots; i++) {
         if (idle_callback_slots[i] == cb) {
             idle_callback_slots[i] = NULL;
             break;
@@ -76,7 +81,7 @@ void idle_callback_remove(struct io_callback *cb)
 
 void main_loop_run_once(int timeout)
 {
-    struct fdset rdfds, wrfds;
+    fd_set rdfds, wrfds;
     int max_fd = -1;
     int i, ret;
     struct timeval tv, *ptv;
@@ -87,11 +92,11 @@ void main_loop_run_once(int timeout)
     for (i = 0; i < num_io_callback_slots; i++) {
         if (io_callback_slots[i].rdcb) {
             max_fd = MAX(max_fd, io_callback_slots[i].fd);
-            FD_SET(&rdfds, io_callback_slots[i].fd);
+            FD_SET(io_callback_slots[i].fd, &rdfds);
         }
         if (io_callback_slots[i].wrcb) {
             max_fd = MAX(max_fd, io_callback_slots[i].fd);
-            FD_SET(&wrfds, io_callback_slots[i].fd);
+            FD_SET(io_callback_slots[i].fd, &wrfds);
         }
     }
 
@@ -103,16 +108,16 @@ void main_loop_run_once(int timeout)
         ptv = NULL;
     }
 
-    ret = select(&rdfds, &wrfds, NULL, ptv);
+    ret = select(max_fd, &rdfds, &wrfds, NULL, ptv);
     assert(ret != -1);
 
     for (i = 0; i < num_io_callback_slots; i++) {
         if (io_callback_slots[i].rdcb &&
-            FD_ISSET(&rdfds, io_callback_slots[i].fd)) {
+            FD_ISSET(io_callback_slots[i].fd, &rdfds)) {
             io_callback_slots[i].rdcb->callback(io_callback_slots[i].rdcb);
         }
         if (io_callback_slots[i].wrcb &&
-            FD_ISSET(&wrfds, io_callback_slots[i].fd)) {
+            FD_ISSET(io_callback_slots[i].fd, &wrfds)) {
             io_callback_slots[i].wrcb->callback(io_callback_slots[i].wrcb);
         }
     }
