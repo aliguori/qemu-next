@@ -15,12 +15,13 @@ struct virtqueue
     int last_avail;
     struct vring vring;
     bool (*handle_output)(struct virtio_device *vdev, struct virtqueue *vq);
+    int vq_num;
 };
 
-struct virtio_transport_ops
+struct virtio_transport
 {
-    void (*notify)(struct virtio_device *vdev, struct virtqueue *vq);
-    void *(*map)(struct virtio_device *vdev, uint64_t addr, uint32_t size);
+    void (*notify)(struct virtio_transport *trans, int queue);
+    void *(*map)(struct virtio_transport *trans, uint64_t addr, uint32_t size);
     /* FIXME: add an unmap */
 };
 
@@ -28,7 +29,7 @@ struct virtio_device
 {
     int num_vqs;
     struct virtqueue vq[MAX_VIRTQUEUE];
-    struct virtio_transport_ops *trans;
+    struct virtio_transport *trans;
 };
 
 bool virtqueue_empty(struct virtqueue *vq);
@@ -55,7 +56,7 @@ void virtqueue_disable_notification(struct virtqueue *vq);
 
 void virtio_kick(struct virtio_device *vdev);
 
-void virtio_notify(struct virtio_device *vdev, struct virtqueue *vq);
+void virtio_notify_queue(struct virtio_device *vdev, struct virtqueue *vq);
 
 struct virtqueue *virtio_init_vq(struct virtio_device *vdev,
                                  int vq_num, uint64_t addr, int num,

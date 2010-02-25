@@ -72,7 +72,7 @@ unsigned virtio_next_avail(struct virtio_device *vdev,
     i = head;
 
     if ((desc[i].flags & VRING_DESC_F_INDIRECT)) {
-        desc = vdev->trans->map(vdev, desc[i].addr, desc[i].len);
+        desc = vdev->trans->map(vdev->trans, desc[i].addr, desc[i].len);
         max = desc[i].len / sizeof(struct vring_desc);
         i = 0;
     }
@@ -82,7 +82,7 @@ unsigned virtio_next_avail(struct virtio_device *vdev,
         if ((desc[i].flags & VRING_DESC_F_WRITE)) {
             if (in_num < *pin_num) {
                 in_sg[in_num].iov_len = desc[i].len;
-                in_sg[in_num].iov_base = vdev->trans->map(vdev,
+                in_sg[in_num].iov_base = vdev->trans->map(vdev->trans,
                                                           desc[i].addr,
                                                           desc[i].len);
                 in_num++;
@@ -90,7 +90,7 @@ unsigned virtio_next_avail(struct virtio_device *vdev,
         } else {
             if (out_num < *pout_num) {
                 out_sg[out_num].iov_len = desc[i].len;
-                out_sg[out_num].iov_base = vdev->trans->map(vdev,
+                out_sg[out_num].iov_base = vdev->trans->map(vdev->trans,
                                                             desc[i].addr,
                                                             desc[i].len);
                 out_num++;
@@ -129,7 +129,7 @@ again:
         did_work = false;
         for (i = 0; i < vdev->num_vqs; i++) {
             if (vdev->vq[i].handle_output(vdev, &vdev->vq[i])) {
-                virtio_notify(vdev, &vdev->vq[i]);
+                virtio_notify_queue(vdev, &vdev->vq[i]);
                 did_work = true;
             }
         }
@@ -148,10 +148,10 @@ again:
     }
 }
 
-void virtio_notify(struct virtio_device *vdev, struct virtqueue *vq)
+void virtio_notify_queue(struct virtio_device *vdev, struct virtqueue *vq)
 {
     if (!(vq->vring.avail->flags & VRING_AVAIL_F_NO_INTERRUPT)) {
-        vdev->trans->notify(vdev, vq);
+        vdev->trans->notify(vdev->trans, vq->vq_num);
     }
 }
 
@@ -164,9 +164,10 @@ struct virtqueue *virtio_init_vq(struct virtio_device *vdev,
 
     vdev->num_vqs = MAX(vq_num + 1, vdev->num_vqs);
     vq->handle_output = callback;
+    vq->vq_num = vq_num;
     vring_init(&vq->vring,
                num,
-               vdev->trans->map(vdev, addr, vring_size(num, PAGE_SIZE)),
+               vdev->trans->map(vdev->trans, addr, vring_size(num, PAGE_SIZE)),
                PAGE_SIZE);
 
     return vq;

@@ -18,6 +18,7 @@
 #include "qemu-timer.h"
 #include "virtio-net.h"
 #include "qemu-kvm.h"
+#include "vnf/virtio-net.h"
 
 #define VIRTIO_NET_VM_VERSION    11
 
@@ -891,6 +892,27 @@ static NetClientInfo net_virtio_info = {
         .cleanup = virtio_net_cleanup,
     .link_status_changed = virtio_net_set_link_status,
 };
+
+static void *vnf_map(struct virtio_transport *trans, uint64_t addr,
+                     uint32_t size)
+{
+    target_phys_addr_t len = size;
+    return cpu_physical_memory_map(addr, &len, 1);
+}
+
+static void *vnf_notify(struct virtio_transport *trans, int num_vq)
+{
+    VirtIONet *n = container_of(VirtIONet, vnf_trans, trans);
+    int vector = vdev->vq[num_vq].vector;
+    kvm_set_irq(n->notify_gsi[vector], 1, NULL);
+}
+
+/* fixme:
+ * 1) need to initialize vnf
+ * 2) need to create ioeventfd and register a main loop listen
+ * 3) such that we can do the notification in the vnf thread.
+ * 4) actually, we just hand vnf_init the fd i think
+ */
 
 VirtIODevice *virtio_net_init(DeviceState *dev, NICConf *conf)
 {

@@ -1,6 +1,7 @@
 #include "vnf/virtio.h"
 #include "vnf/loop.h"
 #include "vnf/util.h"
+#include "vnf/virtio-net.h"
 
 #include <linux/virtio_net.h>
 
@@ -143,7 +144,7 @@ static void virtio_net_tap_read_cb(struct io_callback *cb)
                                                  tap_read_cb, cb);
 
     if (virtio_net_try_to_receive(dev)) {
-        virtio_notify(&dev->vdev, dev->rx_vq);
+        virtio_notify_queue(&dev->vdev, dev->rx_vq);
     }
 }
 
@@ -154,7 +155,7 @@ static void virtio_net_tap_write_cb(struct io_callback *cb)
 
     io_callback_remove(dev->tap_fd, IO_CALLBACK_WRITE);
     if (virtio_net_try_to_transmit(dev)) {
-        virtio_notify(&dev->vdev, dev->tx_vq);
+        virtio_notify_queue(&dev->vdev, dev->tx_vq);
     }
 }
 
@@ -175,10 +176,10 @@ static bool virtio_net_transmit_cb(struct virtio_device *vdev,
     return virtio_net_try_to_transmit(dev);
 }
 
-struct virtio_device *virtio_net_init(struct virtio_transport_ops *trans,
-                                      uint64_t rx_addr, unsigned rx_num,
-                                      uint64_t tx_addr, unsigned tx_num,
-                                      int tap_fd)
+struct virtio_device *vnf_init(struct virtio_transport *trans,
+                               uint64_t rx_addr, unsigned rx_num,
+                               uint64_t tx_addr, unsigned tx_num,
+                               int tap_fd)
 {
     struct virtio_net_device *dev;
 
