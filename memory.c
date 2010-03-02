@@ -140,6 +140,45 @@ int qemu_ram_unregister(target_phys_addr_t start_addr, ram_addr_t size)
     return 0;
 }
 
+void *qemu_ram_map(target_phys_addr_t start_addr, ram_addr_t *size)
+{
+    QemuRamSlot *s;
+    int i;
+
+    for (i = 0; i < num_ram_slots; i++) {
+        s = &ram_slots[i];
+
+        if (in_slot(start_addr, s->start_addr, s->size)) {
+            assert(in_slot(start_addr + *size - 1,
+                           s->start_addr, s->size));
+            break;
+        }
+    }
+    assert(i < num_ram_slots);
+
+    s->ref++;
+
+    return qemu_get_ram_ptr(s->offset + (start_addr - s->start_addr));
+}
+
+void qemu_ram_unmap(void *addr)
+{
+    ram_addr_t offset = qemu_ram_addr_from_host(addr);
+    QemuRamSlot *s;
+    int i;
+
+    for (i = 0; i < num_ram_slots; i++) {
+        s = &ram_slots[i];
+
+        if (offset >= s->offset && offset < (s->offset + s->size)) {
+            break;
+        }
+    }
+    assert(i < num_ram_slots);
+
+    s->ref--;
+}
+
 void qemu_ram_alias(target_phys_addr_t src_addr, target_phys_addr_t dst_addr,
                     ram_addr_t size)
 {
