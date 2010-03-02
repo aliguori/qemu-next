@@ -112,10 +112,10 @@ void virtio_queue_set_notification(VirtQueue *vq, int enable)
 {
     if (enable) {
         stw_p(&vq->vring.used->flags,
-              ldw_w(vq->vring.used->flags) & ~(1 << VRING_USED_F_NO_NOTIFY));
+              ldw_w(vq->vring.used->flags) & ~VRING_USED_F_NO_NOTIFY);
     } else {
         stw_p(&vq->vring.used->flags,
-              ldw_w(vq->vring.used->flags) | (1 << VRING_USED_F_NO_NOTIFY));
+              ldw_w(vq->vring.used->flags) | VRING_USED_F_NO_NOTIFY);
     }
 }
 
