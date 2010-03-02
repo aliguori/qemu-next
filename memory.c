@@ -40,6 +40,7 @@ typedef struct QemuRamSlot
     ram_addr_t size;
     ram_addr_t offset;
     int ref;
+    void *host;
 } QemuRamSlot;
 
 static RAMBlock *ram_blocks;
@@ -110,6 +111,7 @@ void qemu_ram_register(target_phys_addr_t start_addr, ram_addr_t size)
     s->size = size;
     s->offset = qemu_ram_alloc(size);
     s->ref = 0;
+    s->host = qemu_get_ram_ptr(s->offset);
 
     ram_skip_check = 1;
     cpu_register_physical_memory(s->start_addr, s->size, s->offset);
@@ -158,7 +160,7 @@ void *qemu_ram_map(target_phys_addr_t start_addr, ram_addr_t size)
 
     s->ref++;
 
-    return qemu_get_ram_ptr(s->offset + (start_addr - s->start_addr));
+    return s->host + (start_addr - s->start_addr);
 }
 
 void qemu_ram_set_dirty(void *addr, ram_addr_t size)
@@ -192,14 +194,13 @@ void qemu_ram_set_dirty(void *addr, ram_addr_t size)
 
 void qemu_ram_unmap(void *addr)
 {
-    ram_addr_t offset = qemu_ram_addr_from_host(addr);
     QemuRamSlot *s;
     int i;
 
     for (i = 0; i < num_ram_slots; i++) {
         s = &ram_slots[i];
 
-        if (offset >= s->offset && offset < (s->offset + s->size)) {
+        if (addr >= s->host && addr < (s->host + s->size)) {
             break;
         }
     }
