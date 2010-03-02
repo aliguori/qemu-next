@@ -74,9 +74,9 @@ static QemuRamSlot *qemu_ram_find_slot(target_phys_addr_t start_addr,
         }
 
         if (in_slot(start_addr, s->start_addr, s->size) ||
-            in_slot(start_addr + size, s->start_addr, s->size) ||
+            in_slot(start_addr + size - 1, s->start_addr, s->size) ||
             in_slot(s->start_addr, start_addr, size) ||
-            in_slot(s->start_addr + s->size, start_addr, size)) {
+            in_slot(s->start_addr + s->size - 1, start_addr, size)) {
             abort();
         }
     }
