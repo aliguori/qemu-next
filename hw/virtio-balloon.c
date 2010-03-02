@@ -130,18 +130,21 @@ static void virtio_balloon_handle_output(VirtIODevice *vdev, VirtQueue *vq)
         while (memcpy_from_iovector(&pfn, offset, 4,
                                     elem.out_sg, elem.out_num) == 4) {
             ram_addr_t pa;
-            ram_addr_t addr;
+            void *addr;
+            target_phys_addr_t len = TARGET_PAGE_SIZE;
 
             pa = (ram_addr_t)ldl_p(&pfn) << VIRTIO_BALLOON_PFN_SHIFT;
             offset += 4;
 
-            addr = cpu_get_physical_page_desc(pa);
-            if ((addr & ~TARGET_PAGE_MASK) != IO_MEM_RAM)
+            addr = cpu_physical_memory_map(pa, &len, 1);
+            if (addr == NULL) {
                 continue;
+            }
 
             /* Using qemu_get_ram_ptr is bending the rules a bit, but
                should be OK because we only want a single page.  */
-            balloon_page(qemu_get_ram_ptr(addr), !!(vq == s->dvq));
+            balloon_page(addr, !!(vq == s->dvq));
+            cpu_physical_memory_unmap(addr, len, 1, len);
         }
 
         virtqueue_push(vq, &elem, offset);
