@@ -34,12 +34,6 @@ typedef struct RAMBlock {
     struct RAMBlock *next;
 } RAMBlock;
 
-static RAMBlock *ram_blocks;
-/* TODO: When we implement (and use) ram deallocation (e.g. for hotplug)
-   then we can no longer assume contiguous ram offsets, and external uses
-   of this variable will break.  */
-ram_addr_t last_ram_offset;
-
 typedef struct QemuRamSlot
 {
     target_phys_addr_t start_addr;
@@ -48,8 +42,15 @@ typedef struct QemuRamSlot
     int ref;
 } QemuRamSlot;
 
+static RAMBlock *ram_blocks;
+/* TODO: When we implement (and use) ram deallocation (e.g. for hotplug)
+   then we can no longer assume contiguous ram offsets, and external uses
+   of this variable will break.  */
+ram_addr_t last_ram_offset;
+
 static int num_ram_slots;
 static QemuRamSlot ram_slots[MAX_QEMU_RAM_SLOTS];
+static int ram_skip_check;
 
 static int in_slot(target_phys_addr_t needle,
                    target_phys_addr_t haystack, ram_addr_t size)
@@ -83,6 +84,18 @@ static QemuRamSlot *qemu_ram_find_slot(target_phys_addr_t start_addr,
     return NULL;
 }
 
+void qemu_ram_check_overlap(target_phys_addr_t start, ram_addr_t size)
+{
+    QemuRamSlot *s;
+
+    if (ram_skip_check) {
+        return;
+    }
+
+    s = qemu_ram_find_slot(start, size);
+    assert(s == NULL);
+}
+
 void qemu_ram_register(target_phys_addr_t start_addr, ram_addr_t size)
 {
     QemuRamSlot *s;
@@ -98,7 +111,9 @@ void qemu_ram_register(target_phys_addr_t start_addr, ram_addr_t size)
     s->offset = qemu_ram_alloc(size);
     s->ref = 0;
 
+    ram_skip_check = 1;
     cpu_register_physical_memory(s->start_addr, s->size, s->offset);
+    ram_skip_check = 0;
 }
 
 int qemu_ram_unregister(target_phys_addr_t start_addr, ram_addr_t size)
@@ -118,7 +133,9 @@ int qemu_ram_unregister(target_phys_addr_t start_addr, ram_addr_t size)
            (num_ram_slots - i) * sizeof(ram_slots[0]));
     num_ram_slots--;
 
+    ram_skip_check = 1;
     cpu_register_physical_memory(start_addr, size, IO_MEM_UNASSIGNED);
+    ram_skip_check = 0;
 
     return 0;
 }

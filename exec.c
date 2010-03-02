@@ -2400,6 +2400,7 @@ void cpu_register_physical_memory_offset(target_phys_addr_t start_addr,
     ram_addr_t orig_size = size;
     void *subpage;
 
+    qemu_ram_check_overlap(start_addr, size);
     cpu_notify_set_memory(start_addr, size, phys_offset);
 
     if (phys_offset == IO_MEM_UNASSIGNED) {
