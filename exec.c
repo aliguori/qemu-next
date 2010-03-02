@@ -110,22 +110,8 @@ static unsigned long code_gen_buffer_max_size;
 uint8_t *code_gen_ptr;
 
 #if !defined(CONFIG_USER_ONLY)
-int phys_ram_fd;
 uint8_t *phys_ram_dirty;
 static int in_migration;
-
-typedef struct RAMBlock {
-    uint8_t *host;
-    ram_addr_t offset;
-    ram_addr_t length;
-    struct RAMBlock *next;
-} RAMBlock;
-
-static RAMBlock *ram_blocks;
-/* TODO: When we implement (and use) ram deallocation (e.g. for hotplug)
-   then we can no longer assume contiguous ram offsets, and external uses
-   of this variable will break.  */
-ram_addr_t last_ram_offset;
 #endif
 
 CPUState *first_cpu;
@@ -2511,106 +2497,6 @@ void qemu_flush_coalesced_mmio_buffer(void)
 {
     if (kvm_enabled())
         kvm_flush_coalesced_mmio_buffer();
-}
-
-ram_addr_t qemu_ram_alloc(ram_addr_t size)
-{
-    RAMBlock *new_block;
-
-    size = TARGET_PAGE_ALIGN(size);
-    new_block = qemu_malloc(sizeof(*new_block));
-
-#if defined(TARGET_S390X) && defined(CONFIG_KVM)
-    /* XXX S390 KVM requires the topmost vma of the RAM to be < 256GB */
-    new_block->host = mmap((void*)0x1000000, size, PROT_EXEC|PROT_READ|PROT_WRITE,
-                           MAP_SHARED | MAP_ANONYMOUS, -1, 0);
-#else
-    new_block->host = qemu_vmalloc(size);
-#endif
-#ifdef MADV_MERGEABLE
-    madvise(new_block->host, size, MADV_MERGEABLE);
-#endif
-    new_block->offset = last_ram_offset;
-    new_block->length = size;
-
-    new_block->next = ram_blocks;
-    ram_blocks = new_block;
-
-    phys_ram_dirty = qemu_realloc(phys_ram_dirty,
-        (last_ram_offset + size) >> TARGET_PAGE_BITS);
-    memset(phys_ram_dirty + (last_ram_offset >> TARGET_PAGE_BITS),
-           0xff, size >> TARGET_PAGE_BITS);
-
-    last_ram_offset += size;
-
-    if (kvm_enabled())
-        kvm_setup_guest_memory(new_block->host, size);
-
-    return new_block->offset;
-}
-
-void qemu_ram_free(ram_addr_t addr)
-{
-    /* TODO: implement this.  */
-}
-
-/* Return a host pointer to ram allocated with qemu_ram_alloc.
-   With the exception of the softmmu code in this file, this should
-   only be used for local memory (e.g. video ram) that the device owns,
-   and knows it isn't going to access beyond the end of the block.
-
-   It should not be used for general purpose DMA.
-   Use cpu_physical_memory_map/cpu_physical_memory_rw instead.
- */
-void *qemu_get_ram_ptr(ram_addr_t addr)
-{
-    RAMBlock *prev;
-    RAMBlock **prevp;
-    RAMBlock *block;
-
-    prev = NULL;
-    prevp = &ram_blocks;
-    block = ram_blocks;
-    while (block && (block->offset > addr
-                     || block->offset + block->length <= addr)) {
-        if (prev)
-          prevp = &prev->next;
-        prev = block;
-        block = block->next;
-    }
-    if (!block) {
-        fprintf(stderr, "Bad ram offset %" PRIx64 "\n", (uint64_t)addr);
-        abort();
-    }
-    /* Move this entry to to start of the list.  */
-    if (prev) {
-        prev->next = block->next;
-        block->next = *prevp;
-        *prevp = block;
-    }
-    return block->host + (addr - block->offset);
-}
-
-/* Some of the softmmu routines need to translate from a host pointer
-   (typically a TLB entry) back to a ram offset.  */
-ram_addr_t qemu_ram_addr_from_host(void *ptr)
-{
-    RAMBlock *prev;
-    RAMBlock *block;
-    uint8_t *host = ptr;
-
-    prev = NULL;
-    block = ram_blocks;
-    while (block && (block->host > host
-                     || block->host + block->length <= host)) {
-        prev = block;
-        block = block->next;
-    }
-    if (!block) {
-        fprintf(stderr, "Bad ram pointer %p\n", ptr);
-        abort();
-    }
-    return block->offset + (host - block->host);
 }
 
 static uint32_t unassigned_mem_readb(void *opaque, target_phys_addr_t addr)
