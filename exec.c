@@ -111,7 +111,7 @@ uint8_t *code_gen_ptr;
 
 #if !defined(CONFIG_USER_ONLY)
 uint8_t *phys_ram_dirty;
-int in_migration;
+static int in_migration;
 #endif
 
 CPUState *first_cpu;
