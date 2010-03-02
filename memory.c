@@ -140,7 +140,7 @@ int qemu_ram_unregister(target_phys_addr_t start_addr, ram_addr_t size)
     return 0;
 }
 
-void *qemu_ram_map(target_phys_addr_t start_addr, ram_addr_t *size)
+void *qemu_ram_map(target_phys_addr_t start_addr, ram_addr_t size)
 {
     QemuRamSlot *s;
     int i;
@@ -149,7 +149,7 @@ void *qemu_ram_map(target_phys_addr_t start_addr, ram_addr_t *size)
         s = &ram_slots[i];
 
         if (in_slot(start_addr, s->start_addr, s->size)) {
-            assert(in_slot(start_addr + *size - 1,
+            assert(in_slot(start_addr + size - 1,
                            s->start_addr, s->size));
             break;
         }

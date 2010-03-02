@@ -41,7 +41,7 @@ void qemu_ram_alias(target_phys_addr_t src_addr, target_phys_addr_t dst_addr,
  */
 void qemu_ram_check_overlap(target_phys_addr_t start, ram_addr_t size);
 
-void *qemu_ram_map(target_phys_addr_t start_addr, ram_addr_t *size);
+void *qemu_ram_map(target_phys_addr_t start_addr, ram_addr_t size);
 
 void qemu_ram_unmap(void *addr);
 
