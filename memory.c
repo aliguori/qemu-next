@@ -1,3 +1,30 @@
+/*
+ *  virtual page mapping and translated block handling
+ *
+ *  Copyright (c) 2003 Fabrice Bellard
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2 of the License, or (at your option) any later version.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this library; if not, see <http://www.gnu.org/licenses/>.
+ */
+#include "config.h"
+
+#include <stdio.h>
+#include <errno.h>
+#include <inttypes.h>
+
+#include "cpu.h"
+#include "kvm.h"
+
 #define MAX_QEMU_RAM_SLOTS 20
 
 typedef struct RAMBlock {
@@ -58,7 +85,6 @@ static QemuRamSlot *qemu_ram_find_slot(target_phys_addr_t start_addr,
 
 void qemu_ram_register(target_phys_addr_t start_addr, ram_addr_t size)
 {
-    ram_addr_t offset;
     QemuRamSlot *s;
 
     s = qemu_ram_find_slot(start_addr, size);
@@ -84,10 +110,10 @@ int qemu_ram_unregister(target_phys_addr_t start_addr, ram_addr_t size)
     assert(s != NULL);
 
     if (s->ref > 0) {
-        return -EINUSE;
+        return -EAGAIN;
     }
 
-    i = ((s - ram_slots) / sizeof(ram_slots[0]);)
+    i = ((s - ram_slots) / sizeof(ram_slots[0]));
     memcpy(&ram_slots[i], &ram_slots[i + 1],
            (num_ram_slots - i) * sizeof(ram_slots[0]));
     num_ram_slots--;

@@ -176,6 +176,7 @@ obj-y += virtio-blk.o virtio-balloon.o virtio-net.o virtio-pci.o virtio-serial-b
 obj-y += rwhandler.o
 obj-$(CONFIG_KVM) += kvm.o kvm-all.o
 obj-$(CONFIG_ISA_MMIO) += isa_mmio.o
+obj-y += memory.o
 LIBS+=-lz
 
 sound-obj-y =

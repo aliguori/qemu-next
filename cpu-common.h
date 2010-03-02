@@ -13,6 +13,8 @@
 /* address in the RAM (different from a physical address) */
 typedef unsigned long ram_addr_t;
 
+#include "memory.h"
+
 /* memory API */
 
 typedef void CPUWriteMemoryFunc(void *opaque, target_phys_addr_t addr, uint32_t value);
@@ -30,35 +32,6 @@ static inline void cpu_register_physical_memory(target_phys_addr_t start_addr,
 }
 
 ram_addr_t cpu_get_physical_page_desc(target_phys_addr_t addr);
-ram_addr_t qemu_ram_alloc(ram_addr_t);
-void qemu_ram_free(ram_addr_t addr);
-/* This should only be used for ram local to a device.  */
-void *qemu_get_ram_ptr(ram_addr_t addr);
-/* This should not be used by devices.  */
-ram_addr_t qemu_ram_addr_from_host(void *ptr);
-
-/* Register a region of ram memory
- *
- * The region must not overlap with another region.  It cannot be split
- * by any other region.  Any type an address is mapped in this type of
- * memory, a call to unregister will fail until the mapping is unmapped.
- */
-void qemu_ram_register(target_phys_addr_t start_addr, ram_addr_t size);
-
-/* Unregister a region of ram memory
- *
- * This function will fail if any mappings are active.
- */
-int qemu_ram_unregister(target_phys_addr_t start_addr, ram_addr_t size);
-
-/* Alias a region of ram memory
- *
- * An aliased region points to another region.  After aliasing, each region
- * still behaves as an independent region.  IOW, you can unregister each
- * region indepedently of the other.
- */
-void qemu_ram_alias(target_phys_addr_t src_addr, target_phys_addr_t dst_addr,
-                    ram_addr_t size);
 
 int cpu_register_io_memory(CPUReadMemoryFunc * const *mem_read,
                            CPUWriteMemoryFunc * const *mem_write,
