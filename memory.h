@@ -43,6 +43,8 @@ void qemu_ram_check_overlap(target_phys_addr_t start, ram_addr_t size);
 
 void *qemu_ram_map(target_phys_addr_t start_addr, ram_addr_t size);
 
+void qemu_ram_set_dirty(void *addr, ram_addr_t size);
+
 void qemu_ram_unmap(void *addr);
 
 #endif

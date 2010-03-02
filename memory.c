@@ -161,6 +161,35 @@ void *qemu_ram_map(target_phys_addr_t start_addr, ram_addr_t size)
     return qemu_get_ram_ptr(s->offset + (start_addr - s->start_addr));
 }
 
+void qemu_ram_set_dirty(void *addr, ram_addr_t size)
+{
+    ram_addr_t offset;
+    QemuRamSlot *s;
+    int i;
+    extern int in_migration;
+
+    if (kvm_enabled() && !in_migration) {
+        return;
+    }
+
+    offset = qemu_ram_addr_from_host(addr);
+
+    for (i = 0; i < num_ram_slots; i++) {
+        s = &ram_slots[i];
+
+        if (offset >= s->offset && offset < (s->offset + s->size)) {
+            break;
+        }
+    }
+    assert(i < num_ram_slots);
+
+    while (size > 0) {
+        cpu_physical_memory_set_dirty(offset);
+        offset += TARGET_PAGE_SIZE;
+        size -= MIN(TARGET_PAGE_SIZE, size);
+    }
+}
+
 void qemu_ram_unmap(void *addr)
 {
     ram_addr_t offset = qemu_ram_addr_from_host(addr);
@@ -174,8 +203,8 @@ void qemu_ram_unmap(void *addr)
             break;
         }
     }
-    assert(i < num_ram_slots);
 
+    assert(i < num_ram_slots);
     s->ref--;
 }
 
