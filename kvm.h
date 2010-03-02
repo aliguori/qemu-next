@@ -17,6 +17,8 @@
 #include "config.h"
 #include "qemu-queue.h"
 
+#include <stdbool.h>
+
 #ifdef CONFIG_KVM
 extern int kvm_allowed;
 
@@ -123,6 +125,10 @@ int kvm_check_extension(KVMState *s, unsigned int extension);
 uint32_t kvm_arch_get_supported_cpuid(CPUState *env, uint32_t function,
                                       int reg);
 void kvm_cpu_synchronize_state(CPUState *env);
+
+int kvm_set_ioeventfd_pio_word(int fd, uint16_t addr, uint16_t val,
+                               bool assign);
+
 
 /* generic hooks - to be moved/refactored once there are more users */
 

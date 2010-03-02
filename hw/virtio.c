@@ -115,6 +115,8 @@ void virtio_queue_set_notification(VirtQueue *vq, int enable)
         stw_p(&vq->vring.used->flags,
               ldw_w(vq->vring.used->flags) | VRING_USED_F_NO_NOTIFY);
     }
+    qemu_ram_set_dirty(&vq->vring.used->flags,
+                       sizeof(vq->vring.used->flags));
 }
 
 int virtio_queue_ready(VirtQueue *vq)
@@ -145,6 +147,8 @@ void virtqueue_fill(VirtQueue *vq, const VirtQueueElement *elem,
     /* Get a pointer to the next entry in the used ring. */
     stl_p(&vq->vring.used->ring[idx].id, elem->index);
     stl_p(&vq->vring.used->ring[idx].len, len);
+    qemu_ram_set_dirty(&vq->vring.used->ring[idx],
+                       sizeof(vq->vring.used->ring[idx]));
 }
 
 void virtqueue_flush(VirtQueue *vq, unsigned int count)
@@ -153,6 +157,7 @@ void virtqueue_flush(VirtQueue *vq, unsigned int count)
     wmb();
     stw_p(&vq->vring.used->idx,
           ldw_w(vq->vring.used->idx) + count);
+    qemu_ram_set_dirty(&vq->vring.used->idx, sizeof(&vq->vring.used->idx));
     vq->inuse -= count;
 }
 
@@ -214,6 +219,11 @@ static unsigned virtqueue_next_desc(VRingDesc *desc,
     }
 
     return next;
+}
+
+int virtio_queue_valid(VirtIODevice *vdev, int vqnum)
+{
+    return vdev->vq[vqnum].vring.num != 0;
 }
 
 int virtqueue_avail_bytes(VirtQueue *vq, int in_bytes, int out_bytes)
@@ -503,9 +513,6 @@ VirtQueue *virtio_add_queue(VirtIODevice *vdev, int queue_size,
         if (vdev->vq[i].vring.num == 0)
             break;
     }
-
-
-
 
     if (i == VIRTIO_PCI_QUEUE_MAX || queue_size > VIRTQUEUE_MAX_SIZE)
         abort();

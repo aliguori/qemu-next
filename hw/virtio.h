@@ -130,6 +130,8 @@ void virtqueue_fill(VirtQueue *vq, const VirtQueueElement *elem,
 int virtqueue_pop(VirtQueue *vq, VirtQueueElement *elem);
 int virtqueue_avail_bytes(VirtQueue *vq, int in_bytes, int out_bytes);
 
+int virtio_queue_valid(VirtIODevice *vdev, int numvq);
+
 void virtio_notify(VirtIODevice *vdev, VirtQueue *vq);
 
 void virtio_save(VirtIODevice *vdev, QEMUFile *f);

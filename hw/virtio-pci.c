@@ -24,6 +24,8 @@
 #include "net.h"
 #include "block_int.h"
 #include "loader.h"
+#include "kvm.h"
+#include <sys/eventfd.h>
 
 /* from Linux's linux/virtio_pci.h */
 
@@ -98,6 +100,7 @@ typedef struct {
     uint32_t host_features;
     /* Max. number of ports we can have for a the virtio-serial device */
     uint32_t max_virtserial_ports;
+    int eventfd;
 } VirtIOPCIProxy;
 
 /* virtio device */
@@ -350,14 +353,57 @@ static void virtio_pci_config_writel(void *opaque, uint32_t addr, uint32_t val)
     virtio_config_writel(proxy->vdev, addr, val);
 }
 
+static void virtio_eventfd_read(void *opaque)
+{
+    VirtIOPCIProxy *proxy = opaque;
+    VirtIODevice *vdev = proxy->vdev;
+    uint64_t count;
+    int i;
+    ssize_t len;
+
+    do {
+        len = read(proxy->eventfd, &count, sizeof(count));
+    } while (len == -1 && errno == EINTR);
+
+    for (i = 0; i < VIRTIO_PCI_QUEUE_MAX; i++) {
+        if (!virtio_queue_valid(vdev, i)) {
+            break;
+        }
+        virtio_queue_notify(vdev, i);
+    }
+}
+
 static void virtio_map(PCIDevice *pci_dev, int region_num,
                        pcibus_t addr, pcibus_t size, int type)
 {
     VirtIOPCIProxy *proxy = container_of(pci_dev, VirtIOPCIProxy, pci_dev);
     VirtIODevice *vdev = proxy->vdev;
     unsigned config_len = VIRTIO_PCI_REGION_SIZE(pci_dev) + vdev->config_len;
+    pcibus_t oldaddr = proxy->addr;
+    int i;
 
     proxy->addr = addr;
+
+    for (i = 0; i < VIRTIO_PCI_QUEUE_MAX; i++) {
+        if (!virtio_queue_valid(vdev, i)) {
+            break;
+        }
+        if (proxy->eventfd == -1) {
+            proxy->eventfd = eventfd(0, 0);
+        } else {
+            kvm_set_ioeventfd_pio_word(proxy->eventfd,
+                                       oldaddr + VIRTIO_PCI_QUEUE_NOTIFY,
+                                       i, 0);
+        }
+
+        qemu_set_fd_handler2(proxy->eventfd, NULL, virtio_eventfd_read, NULL,
+                             proxy);
+        kvm_set_ioeventfd_pio_word(proxy->eventfd,
+                                   proxy->addr + VIRTIO_PCI_QUEUE_NOTIFY,
+                                   i, 1);
+    }
+
+    printf("found %d vqs\n", i);
 
     register_ioport_write(addr, config_len, 1, virtio_pci_config_writeb, proxy);
     register_ioport_write(addr, config_len, 2, virtio_pci_config_writew, proxy);
