@@ -29,11 +29,9 @@
 
 #define wmb() __asm__ __volatile__("": : :"memory")
 
-#define ldw_w(val) (val)
-#define ldl_w(val) (val)
-#define ldq_w(val) (val)
-#define stw_p(ptr, val) do { (*(uint16_t *)(ptr) = (val)); } while (0)
-#define stl_p(ptr, val) do { (*(uint32_t *)(ptr) = (val)); } while (0)
+#define ldw_w(val) (lduw_p(&(val)))
+#define ldl_w(val) (ldl_p(&(val)))
+#define ldq_w(val) (ldq_p(&(val)))
 
 typedef struct VRingDesc
 {
