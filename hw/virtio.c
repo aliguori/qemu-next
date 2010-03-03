@@ -108,6 +108,23 @@ static void virtqueue_init(VirtQueue *vq)
 
 void virtio_queue_set_notification(VirtQueue *vq, int enable)
 {
+#if 0
+    if (enable) {
+        stw_p(&vq->vring.used->flags,
+              ldw_w(vq->vring.used->flags) & ~VRING_USED_F_NO_NOTIFY);
+    } else {
+        stw_p(&vq->vring.used->flags,
+              ldw_w(vq->vring.used->flags) | VRING_USED_F_NO_NOTIFY);
+    }
+    qemu_ram_set_dirty(&vq->vring.used->flags,
+                       sizeof(vq->vring.used->flags));
+#endif
+}
+
+void virtio_q_set_notification(VirtIODevice *vdev, int numvq, int enable)
+{
+    VirtQueue *vq = &vdev->vq[numvq];
+
     if (enable) {
         stw_p(&vq->vring.used->flags,
               ldw_w(vq->vring.used->flags) & ~VRING_USED_F_NO_NOTIFY);

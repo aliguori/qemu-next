@@ -361,6 +361,10 @@ static void virtio_eventfd_read(void *opaque)
     int i;
     ssize_t len;
 
+    for (i = 0; i < VIRTIO_PCI_QUEUE_MAX; i++) {
+        virtio_q_set_notification(vdev, i, 1);
+    }
+
     do {
         len = read(proxy->eventfd, &count, sizeof(count));
     } while (len == -1 && errno == EINTR);

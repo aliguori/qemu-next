@@ -144,6 +144,8 @@ void virtio_notify_config(VirtIODevice *vdev);
 
 void virtio_queue_set_notification(VirtQueue *vq, int enable);
 
+void virtio_q_set_notification(VirtIODevice *vdev, int numvq, int enable);
+
 int virtio_queue_ready(VirtQueue *vq);
 
 int virtio_queue_empty(VirtQueue *vq);
