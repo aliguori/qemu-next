@@ -225,6 +225,7 @@ typedef struct I2SCodec I2SCodec;
 typedef struct DeviceState DeviceState;
 typedef struct SSIBus SSIBus;
 typedef struct EventNotifier EventNotifier;
+typedef struct VirtIODevice VirtIODevice;
 
 /* CPU save/load.  */
 void cpu_save(QEMUFile *f, void *opaque);
