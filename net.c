@@ -978,6 +978,14 @@ static struct {
                 .name = "vnet_hdr",
                 .type = QEMU_OPT_BOOL,
                 .help = "enable the IFF_VNET_HDR flag on the tap interface"
+            }, {
+                .name = "vhost",
+                .type = QEMU_OPT_BOOL,
+                .help = "enable vhost-net network accelerator",
+            }, {
+                .name = "vhostfd",
+                .type = QEMU_OPT_STRING,
+                .help = "file descriptor of an already opened vhost net device",
             },
 #endif /* _WIN32 */
             { /* end of list */ }
