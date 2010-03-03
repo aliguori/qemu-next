@@ -73,6 +73,7 @@ struct VirtQueue
     int inuse;
     uint16_t vector;
     void (*handle_output)(VirtIODevice *vdev, VirtQueue *vq);
+    VirtIODevice *vdev;
 };
 
 /* virt queue functions */
@@ -714,8 +715,10 @@ VirtIODevice *virtio_common_init(const char *name, uint16_t device_id,
     vdev->queue_sel = 0;
     vdev->config_vector = VIRTIO_NO_VECTOR;
     vdev->vq = qemu_mallocz(sizeof(VirtQueue) * VIRTIO_PCI_QUEUE_MAX);
-    for(i = 0; i < VIRTIO_PCI_QUEUE_MAX; i++)
+    for(i = 0; i < VIRTIO_PCI_QUEUE_MAX; i++) {
         vdev->vq[i].vector = VIRTIO_NO_VECTOR;
+        vdev->vq[i].vdev = vdev;
+    }
 
     vdev->name = name;
     vdev->config_len = config_size;

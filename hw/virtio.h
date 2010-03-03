@@ -18,6 +18,7 @@
 #include "net.h"
 #include "qdev.h"
 #include "sysemu.h"
+#include "notifier.h"
 
 /* from Linux's linux/virtio_config.h */
 
@@ -88,6 +89,8 @@ typedef struct {
     int (*load_config)(void * opaque, QEMUFile *f);
     int (*load_queue)(void * opaque, int n, QEMUFile *f);
     unsigned (*get_features)(void * opaque);
+    int (*guest_notifier)(void * opaque, int n, bool assigned);
+    int (*host_notifier)(void * opaque, int n, bool assigned);
 } VirtIOBindings;
 
 #define VIRTIO_PCI_QUEUE_MAX 64
