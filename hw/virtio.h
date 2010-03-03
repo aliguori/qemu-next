@@ -183,5 +183,18 @@ void virtio_net_exit(VirtIODevice *vdev);
 	DEFINE_PROP_BIT("indirect_desc", _state, _field, \
 			VIRTIO_RING_F_INDIRECT_DESC, true)
 
-
+target_phys_addr_t virtio_queue_get_desc(VirtIODevice *vdev, int n);
+target_phys_addr_t virtio_queue_get_avail(VirtIODevice *vdev, int n);
+target_phys_addr_t virtio_queue_get_used(VirtIODevice *vdev, int n);
+target_phys_addr_t virtio_queue_get_ring(VirtIODevice *vdev, int n);
+target_phys_addr_t virtio_queue_get_desc_size(VirtIODevice *vdev, int n);
+target_phys_addr_t virtio_queue_get_avail_size(VirtIODevice *vdev, int n);
+target_phys_addr_t virtio_queue_get_used_size(VirtIODevice *vdev, int n);
+target_phys_addr_t virtio_queue_get_ring_size(VirtIODevice *vdev, int n);
+uint16_t virtio_queue_last_avail_idx(VirtIODevice *vdev, int n);
+void virtio_queue_set_last_avail_idx(VirtIODevice *vdev, int n, uint16_t idx);
+VirtQueue *virtio_queue(VirtIODevice *vdev, int n);
+EventNotifier *virtio_queue_guest_notifier(VirtQueue *vq);
+EventNotifier *virtio_queue_host_notifier(VirtQueue *vq);
+void virtio_irq(VirtQueue *vq);
 #endif
