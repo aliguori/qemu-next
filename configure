@@ -262,6 +262,7 @@ vde=""
 vnc_tls=""
 vnc_sasl=""
 xen=""
+gtk=""
 linux_aio=""
 
 gprof="no"
@@ -564,6 +565,10 @@ for opt do
   ;;
   --enable-bluez) bluez="yes"
   ;;
+  --disable-gtk) gtk="no"
+  ;;
+  --enable-gtk) gtk="yes"
+  ;;
   --disable-kvm) kvm="no"
   ;;
   --enable-kvm) kvm="yes"
@@ -771,6 +776,8 @@ echo "  --disable-check-utests   disable check unit-tests"
 echo "  --enable-check-utests    enable check unit-tests"
 echo "  --disable-bluez          disable bluez stack connectivity"
 echo "  --enable-bluez           enable bluez stack connectivity"
+echo "  --disable-gtk            disable gtk support"
+echo "  --enable-gtk             enable gtk support"
 echo "  --disable-kvm            disable KVM acceleration support"
 echo "  --enable-kvm             enable KVM acceleration support"
 echo "  --disable-nptl           disable usermode NPTL support"
@@ -1026,6 +1033,28 @@ pkgconfig="${cross_prefix}pkg-config"
 if ! has $pkgconfig; then
   # likely not cross compiling, or hope for the best
   pkgconfig=pkg-config
+fi
+
+##########################################
+# gtk probe
+
+if test "$gtk" != "no" ; then
+  cat > $TMPC << EOF
+#include <gtk/gtk.h>
+int main(void) { gtk_main(); return 0; }
+EOF
+  gtk_cflags=`$pkgconfig --cflags gtk+-2.0 2> /dev/null`
+  gtk_libs=`$pkgconfig --libs gtk+-2.0 2> /dev/null`
+  gtk_cflags="$gtk_cflags -DGTK_DISABLE_DEPRECATED"
+  if compile_prog "$gtk_cflags" "$gtk_libs" ; then
+    gtk=yes
+    libs_softmmu="$gtk_libs $libs_softmmu"
+  else
+    if test "$gtk" = "yes" ; then
+      feature_not_found "gtk"
+    fi
+    gtk="no"
+  fi
 fi
 
 ##########################################
@@ -1965,6 +1994,7 @@ echo "Linux AIO support $linux_aio"
 echo "Install blobs     $blobs"
 echo "KVM support       $kvm"
 echo "fdt support       $fdt"
+echo "gtk support       $gtk"
 echo "preadv support    $preadv"
 echo "fdatasync         $fdatasync"
 echo "uuid support      $uuid"
@@ -2155,6 +2185,10 @@ if test "$bluez" = "yes" ; then
 fi
 if test "$xen" = "yes" ; then
   echo "CONFIG_XEN=y" >> $config_host_mak
+fi
+if test "$gtk" = "yes" ; then
+  echo "CONFIG_GTK=y" >> $config_host_mak
+  echo "GTK_CFLAGS=$gtk_cflags" >> $config_host_mak
 fi
 if test "$io_thread" = "yes" ; then
   echo "CONFIG_IOTHREAD=y" >> $config_host_mak

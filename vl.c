@@ -157,6 +157,7 @@ int main(int argc, char **argv)
 #include "qemu-option.h"
 #include "qemu-config.h"
 #include "qemu-objects.h"
+#include "gtk.h"
 
 #include "disas.h"
 
@@ -5966,7 +5967,11 @@ int main(int argc, char **argv, char **envp)
         curses_display_init(ds, full_screen);
         break;
 #endif
-#if defined(CONFIG_SDL)
+#if defined(CONFIG_GTK)
+    case DT_SDL:
+        gtk_display_init(ds);
+        break;
+#elif defined(CONFIG_SDL)
     case DT_SDL:
         sdl_display_init(ds, full_screen, no_frame);
         break;
