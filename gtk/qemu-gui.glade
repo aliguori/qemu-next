@@ -239,7 +239,7 @@
     <child>
       <widget class="GtkImage" id="image1">
         <property name="visible">True</property>
-        <property name="pixbuf">/home/anthony/git/qemu/gtk/hd_write_16px.png</property>
+        <property name="pixbuf">hd_write_16px.png</property>
       </widget>
       <packing>
         <property name="expand">False</property>
@@ -249,7 +249,7 @@
     <child>
       <widget class="GtkImage" id="image2">
         <property name="visible">True</property>
-        <property name="pixbuf">/home/anthony/git/qemu/gtk/cd_disabled_16px.png</property>
+        <property name="pixbuf">cd_disabled_16px.png</property>
       </widget>
       <packing>
         <property name="expand">False</property>
@@ -259,7 +259,7 @@
     <child>
       <widget class="GtkImage" id="image3">
         <property name="visible">True</property>
-        <property name="pixbuf">/home/anthony/git/qemu/gtk/fd_read_16px.png</property>
+        <property name="pixbuf">fd_read_16px.png</property>
         <signal name="button_press_event" handler="on_image3_button_press_event"/>
       </widget>
       <packing>
@@ -270,7 +270,7 @@
     <child>
       <widget class="GtkImage" id="image4">
         <property name="visible">True</property>
-        <property name="pixbuf">/home/anthony/git/qemu/gtk/nw_read_16px.png</property>
+        <property name="pixbuf">nw_read_16px.png</property>
       </widget>
       <packing>
         <property name="expand">False</property>
@@ -290,7 +290,7 @@
     <child>
       <widget class="GtkImage" id="image5">
         <property name="visible">True</property>
-        <property name="pixbuf">/home/anthony/git/qemu/gtk/mouse_16px.png</property>
+        <property name="pixbuf">mouse_16px.png</property>
       </widget>
       <packing>
         <property name="expand">False</property>
@@ -300,7 +300,7 @@
     <child>
       <widget class="GtkImage" id="image6">
         <property name="visible">True</property>
-        <property name="pixbuf">/home/anthony/git/qemu/gtk/hostkey_captured_16px.png</property>
+        <property name="pixbuf">hostkey_captured_16px.png</property>
       </widget>
       <packing>
         <property name="expand">False</property>

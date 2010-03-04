@@ -204,10 +204,18 @@ void gtk_display_init(DisplayState *ds)
     GtkWidget *window, *drawing_area;
     GladeXML *xml;
     int ret;
+    char *gtk_path;
 
     gtk_init(NULL, NULL);
 
-    ret = chdir("/home/anthony/git/qemu/gtk");
+    /* need to handle this better */
+    gtk_path = getenv("HACK_GTK_PATH");
+    if (gtk_path) {
+        ret = chdir(gtk_path);
+    } else {
+        ret = chdir("/home/anthony/git/qemu/gtk");
+    }
+
     assert(ret > -1);
     xml = glade_xml_new("qemu-gui.glade", NULL, NULL);
     assert(xml != NULL);
