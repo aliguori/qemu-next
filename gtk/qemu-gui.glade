@@ -4,6 +4,7 @@
   <!-- interface-naming-policy project-wide -->
   <widget class="GtkWindow" id="window1">
     <property name="title" translatable="yes">QEMU</property>
+    <property name="resizable">False</property>
     <child>
       <widget class="GtkVBox" id="vbox1">
         <property name="visible">True</property>
@@ -203,6 +204,7 @@
         <child>
           <widget class="GtkDrawingArea" id="drawingarea1">
             <property name="visible">True</property>
+            <property name="double_buffered">False</property>
           </widget>
           <packing>
             <property name="position">1</property>
@@ -212,97 +214,6 @@
           <widget class="GtkStatusbar" id="statusbar1">
             <property name="visible">True</property>
             <property name="spacing">2</property>
-            <child>
-              <widget class="GtkHBox" id="hbox1">
-                <property name="visible">True</property>
-                <property name="spacing">5</property>
-                <child>
-                  <widget class="GtkImage" id="image1">
-                    <property name="visible">True</property>
-                    <property name="pixbuf">/home/anthony/git/qemu/gtk/hd_write_16px.png</property>
-                  </widget>
-                  <packing>
-                    <property name="expand">False</property>
-                    <property name="position">0</property>
-                  </packing>
-                </child>
-                <child>
-                  <widget class="GtkImage" id="image2">
-                    <property name="visible">True</property>
-                    <property name="pixbuf">/home/anthony/git/qemu/gtk/cd_disabled_16px.png</property>
-                  </widget>
-                  <packing>
-                    <property name="expand">False</property>
-                    <property name="position">1</property>
-                  </packing>
-                </child>
-                <child>
-                  <widget class="GtkImage" id="image3">
-                    <property name="visible">True</property>
-                    <property name="pixbuf">/home/anthony/git/qemu/gtk/fd_read_16px.png</property>
-                    <signal name="button_press_event" handler="on_image3_button_press_event"/>
-                  </widget>
-                  <packing>
-                    <property name="expand">False</property>
-                    <property name="position">2</property>
-                  </packing>
-                </child>
-                <child>
-                  <widget class="GtkImage" id="image4">
-                    <property name="visible">True</property>
-                    <property name="pixbuf">/home/anthony/git/qemu/gtk/nw_read_16px.png</property>
-                  </widget>
-                  <packing>
-                    <property name="expand">False</property>
-                    <property name="position">3</property>
-                  </packing>
-                </child>
-                <child>
-                  <widget class="GtkVSeparator" id="vseparator1">
-                    <property name="visible">True</property>
-                    <property name="orientation">vertical</property>
-                  </widget>
-                  <packing>
-                    <property name="expand">False</property>
-                    <property name="position">4</property>
-                  </packing>
-                </child>
-                <child>
-                  <widget class="GtkImage" id="image5">
-                    <property name="visible">True</property>
-                    <property name="pixbuf">/home/anthony/git/qemu/gtk/mouse_16px.png</property>
-                  </widget>
-                  <packing>
-                    <property name="expand">False</property>
-                    <property name="position">5</property>
-                  </packing>
-                </child>
-                <child>
-                  <widget class="GtkImage" id="image6">
-                    <property name="visible">True</property>
-                    <property name="pixbuf">/home/anthony/git/qemu/gtk/hostkey_captured_16px.png</property>
-                  </widget>
-                  <packing>
-                    <property name="expand">False</property>
-                    <property name="position">6</property>
-                  </packing>
-                </child>
-                <child>
-                  <widget class="GtkLabel" id="label1">
-                    <property name="visible">True</property>
-                    <property name="label" translatable="yes">Right Ctrl</property>
-                  </widget>
-                  <packing>
-                    <property name="expand">False</property>
-                    <property name="position">7</property>
-                  </packing>
-                </child>
-              </widget>
-              <packing>
-                <property name="expand">False</property>
-                <property name="position">1</property>
-              </packing>
-            </child>
           </widget>
           <packing>
             <property name="expand">False</property>
@@ -320,6 +231,91 @@
         <property name="label" translatable="yes">Foo</property>
         <property name="use_underline">True</property>
       </widget>
+    </child>
+  </widget>
+  <widget class="GtkHBox" id="hbox1">
+    <property name="visible">True</property>
+    <property name="spacing">5</property>
+    <child>
+      <widget class="GtkImage" id="image1">
+        <property name="visible">True</property>
+        <property name="pixbuf">/home/anthony/git/qemu/gtk/hd_write_16px.png</property>
+      </widget>
+      <packing>
+        <property name="expand">False</property>
+        <property name="position">0</property>
+      </packing>
+    </child>
+    <child>
+      <widget class="GtkImage" id="image2">
+        <property name="visible">True</property>
+        <property name="pixbuf">/home/anthony/git/qemu/gtk/cd_disabled_16px.png</property>
+      </widget>
+      <packing>
+        <property name="expand">False</property>
+        <property name="position">1</property>
+      </packing>
+    </child>
+    <child>
+      <widget class="GtkImage" id="image3">
+        <property name="visible">True</property>
+        <property name="pixbuf">/home/anthony/git/qemu/gtk/fd_read_16px.png</property>
+        <signal name="button_press_event" handler="on_image3_button_press_event"/>
+      </widget>
+      <packing>
+        <property name="expand">False</property>
+        <property name="position">2</property>
+      </packing>
+    </child>
+    <child>
+      <widget class="GtkImage" id="image4">
+        <property name="visible">True</property>
+        <property name="pixbuf">/home/anthony/git/qemu/gtk/nw_read_16px.png</property>
+      </widget>
+      <packing>
+        <property name="expand">False</property>
+        <property name="position">3</property>
+      </packing>
+    </child>
+    <child>
+      <widget class="GtkVSeparator" id="vseparator1">
+        <property name="visible">True</property>
+        <property name="orientation">vertical</property>
+      </widget>
+      <packing>
+        <property name="expand">False</property>
+        <property name="position">4</property>
+      </packing>
+    </child>
+    <child>
+      <widget class="GtkImage" id="image5">
+        <property name="visible">True</property>
+        <property name="pixbuf">/home/anthony/git/qemu/gtk/mouse_16px.png</property>
+      </widget>
+      <packing>
+        <property name="expand">False</property>
+        <property name="position">5</property>
+      </packing>
+    </child>
+    <child>
+      <widget class="GtkImage" id="image6">
+        <property name="visible">True</property>
+        <property name="pixbuf">/home/anthony/git/qemu/gtk/hostkey_captured_16px.png</property>
+      </widget>
+      <packing>
+        <property name="expand">False</property>
+        <property name="position">6</property>
+      </packing>
+    </child>
+    <child>
+      <widget class="GtkLabel" id="label1">
+        <property name="visible">True</property>
+        <property name="label" translatable="yes">Right Ctrl</property>
+      </widget>
+      <packing>
+        <property name="expand">False</property>
+        <property name="position">7</property>
+      </packing>
     </child>
   </widget>
 </glade-interface>
