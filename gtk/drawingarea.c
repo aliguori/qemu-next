@@ -5,21 +5,84 @@
 
 #include "gtk.h"
 #include "sysemu.h"
+#include "gtk/drawingarea.h"
+#include "x_keymap.h"
+
+#include <gdk/gdkx.h>
+#include <X11/XKBlib.h>
 
 //#define DEBUG_GTK
-
 #ifdef DEBUG_GTK
 #define dprintf(fmt, ...) printf(fmt, ## __VA_ARGS__)
 #else
 #define dprintf(fmt, ...) do { } while (0)
 #endif
 
-typedef struct QemuGtkDrawingArea
+static int check_for_evdev(void)
 {
-    GtkWidget *parent;
-    GdkPixbuf *pixbuf;
-    GdkGC *gc;
-} QemuGtkDrawingArea;
+    XkbDescPtr desc = NULL;
+    char *keycodes = NULL;
+    static int has_evdev = -1;
+
+    if (has_evdev == -1) {
+        has_evdev = 0;
+    } else {
+        return has_evdev;
+    }
+
+    desc = XkbGetKeyboard(GDK_DISPLAY(),
+                          XkbGBN_AllComponentsMask,
+                          XkbUseCoreKbd);
+    if (desc && desc->names) {
+        keycodes = XGetAtomName(GDK_DISPLAY(), desc->names->keycodes);
+        if (keycodes == NULL) {
+            fprintf(stderr, "could not lookup keycode name\n");
+        } else if (strstart(keycodes, "evdev", NULL)) {
+            has_evdev = 1;
+        } else if (!strstart(keycodes, "xfree86", NULL)) {
+            fprintf(stderr, "unknown keycodes `%s', please report to "
+                    "qemu-devel@nongnu.org\n", keycodes);
+        }
+    }
+
+    if (desc) {
+        XkbFreeKeyboard(desc, XkbGBN_AllComponentsMask, True);
+    }
+    if (keycodes) {
+        XFree(keycodes);
+    }
+    return has_evdev;
+}
+
+static uint8_t gtk_keyevent_to_keycode(const GdkEventKey *ev)
+{
+    int keycode;
+    static int has_evdev = -1;
+
+    if (has_evdev == -1)
+        has_evdev = check_for_evdev();
+
+    keycode = ev->hardware_keycode;
+
+    if (keycode < 9) {
+        keycode = 0;
+    } else if (keycode < 97) {
+        keycode -= 8; /* just an offset */
+    } else if (keycode < 158) {
+        /* use conversion table */
+        if (has_evdev)
+            keycode = translate_evdev_keycode(keycode - 97);
+        else
+            keycode = translate_xfree86_keycode(keycode - 97);
+    } else if (keycode == 208) { /* Hiragana_Katakana */
+        keycode = 0x70;
+    } else if (keycode == 211) { /* backslash */
+        keycode = 0x73;
+    } else {
+        keycode = 0;
+    }
+    return keycode;
+}
 
 static void gtk_display_update(DisplayState *ds, int x, int y, int w, int h)
 {
@@ -104,46 +167,6 @@ static void gtk_display_refresh(DisplayState *ds)
     vga_hw_update();
 }
 
-/* grab the drawing area widget, and start rendering to it.  we'll figure out
- * the button box problem later.
- *
- * 1) render to drawing area
- * 2) accept input from drawing area
- * 3) register icons properly
- * 4) figure out how to display them with glade
- * 5) make icons change based on VM activity
- * 6) plumb up menu options
- */
-
-/* In 2.20, we can use gtk_statusbar_get_message_area() to retrieve an hbox
- * that we can pack with widgets.  In fact, glade3 already supports this via
- * XML.  However, because we don't want to duplicate the XML and we need to
- * support older versions of gtk, we have to separate out the status area
- * into a separate section of the XML.
- *
- * That means in this code, we should detect 2.20 and use message_area when
- * we can.
- */
-static void fixup_statusbar(GladeXML *xml)
-{
-
-    GtkWidget *statusbar, *hbox, *frame;
-    GtkShadowType shadow_type;
-
-    hbox = glade_xml_get_widget(xml, "hbox1");
-    statusbar = glade_xml_get_widget(xml, "statusbar1");
-
-    /* not perfect, but until 2.20, we can't do it in a better way */
-    gtk_widget_style_get(GTK_WIDGET(statusbar), "shadow-type",
-                         &shadow_type, NULL);
-    frame = gtk_frame_new(NULL);
-    gtk_frame_set_shadow_type(GTK_FRAME(frame), shadow_type);
-    gtk_container_add(GTK_CONTAINER(frame), hbox);
-    gtk_widget_show(frame);
-
-    gtk_box_pack_end(GTK_BOX(statusbar), frame, FALSE, TRUE, 0);
-}
-
 static gboolean gtk_display_expose(GtkWidget *widget, GdkEventExpose *expose,
                                    gpointer data)
 {
@@ -175,8 +198,28 @@ static gboolean gtk_display_expose(GtkWidget *widget, GdkEventExpose *expose,
     return TRUE;
 }
 
-static void gtk_display_setup_drawing_area(GtkWidget *drawing_area,
-                                           DisplayState *ds)
+static gboolean gtk_display_key(GtkWidget *widget, GdkEventKey *key,
+                                gpointer data)
+{
+    int keycode;
+
+    keycode = gtk_keyevent_to_keycode(key);
+
+    if ((keycode & 0x80)) {
+        kbd_put_keycode(0xe0);
+    }
+
+    if (key->type == GDK_KEY_PRESS) {
+        kbd_put_keycode(keycode | 0x80);
+    } else {
+        kbd_put_keycode(keycode & 0x7F);
+    }
+
+    return TRUE;
+}
+
+QemuGtkDrawingArea *gtk_display_setup_drawing_area(GtkWidget *drawing_area,
+                                                   DisplayState *ds)
 {
     DisplayChangeListener *dcl;
     QemuGtkDrawingArea *da;
@@ -197,34 +240,18 @@ static void gtk_display_setup_drawing_area(GtkWidget *drawing_area,
 
     g_signal_connect(G_OBJECT(drawing_area), "expose-event",
                      G_CALLBACK(gtk_display_expose), da);
-}
+    g_signal_connect(G_OBJECT(drawing_area), "key-press-event",
+                     G_CALLBACK(gtk_display_key), da);
+    g_signal_connect(G_OBJECT(drawing_area), "key-release-event",
+                     G_CALLBACK(gtk_display_key), da);
 
-void gtk_display_init(DisplayState *ds)
-{
-    GtkWidget *window, *drawing_area;
-    GladeXML *xml;
-    int ret;
-    char *gtk_path;
+    GTK_WIDGET_SET_FLAGS(drawing_area, GTK_CAN_FOCUS);
 
-    gtk_init(NULL, NULL);
-
-    /* need to handle this better */
-    gtk_path = getenv("HACK_GTK_PATH");
-    if (gtk_path) {
-        ret = chdir(gtk_path);
-    } else {
-        ret = chdir("/home/anthony/git/qemu/gtk");
-    }
-
-    assert(ret > -1);
-    xml = glade_xml_new("qemu-gui.glade", NULL, NULL);
-    assert(xml != NULL);
-
-    fixup_statusbar(xml);
-
-    drawing_area = glade_xml_get_widget(xml, "drawingarea1");
-    gtk_display_setup_drawing_area(drawing_area, ds);
-
-    window = glade_xml_get_widget(xml, "window1");
-    gtk_widget_show_all(window);
+    gtk_widget_add_events(drawing_area,
+                          GDK_POINTER_MOTION_MASK |
+                          GDK_BUTTON_PRESS_MASK |
+                          GDK_BUTTON_RELEASE_MASK |
+                          GDK_BUTTON_MOTION_MASK |
+                          GDK_KEY_PRESS_MASK);
+    return da;
 }
