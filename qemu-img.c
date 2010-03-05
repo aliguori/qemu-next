@@ -368,7 +368,7 @@ static int img_create(int argc, char **argv)
         } else if (ret == -EFBIG) {
             error("The image size is too large for file format '%s'", fmt);
         } else {
-            error("Error while formatting");
+            error("%s: error while creating %s: %s", filename, fmt, strerror(-ret));
         }
     }
     return 0;
@@ -681,7 +681,7 @@ static int img_convert(int argc, char **argv)
         } else if (ret == -EFBIG) {
             error("The image size is too large for file format '%s'", out_fmt);
         } else {
-            error("Error while formatting '%s'", out_filename);
+            error("%s: error while converting %s: %s", out_filename, out_fmt, strerror(-ret));
         }
     }
 
