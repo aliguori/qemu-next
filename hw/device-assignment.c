@@ -1388,7 +1388,7 @@ static void scan_option_rom(const char *name, uint8_t devfn, void *roms)
  */
 static void assigned_dev_load_option_rom(AssignedDevice *dev)
 {
-    int size, len;
+    int size, len, ret;
     void *buf;
     FILE *fp;
     uint8_t i = 1;
@@ -1425,8 +1425,8 @@ static void assigned_dev_load_option_rom(AssignedDevice *dev)
         return;
     }
 
-    fread(buf, size, 1, fp);
-    if (!feof(fp) || ferror(fp)) {
+    ret = fread(buf, size, 1, fp);
+    if (!feof(fp) || ferror(fp) || ret != 1) {
         free(buf);
         fclose(fp);
         return;
