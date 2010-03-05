@@ -3437,11 +3437,17 @@ static int io_thread_fd = -1;
 static void qemu_event_increment(void)
 {
     static const char byte = 0;
+    ssize_t ret;
 
     if (io_thread_fd == -1)
         return;
 
-    write(io_thread_fd, &byte, sizeof(byte));
+    ret = write(io_thread_fd, &byte, sizeof(byte));
+    if (ret < 0 && (errno != EINTR && errno != EAGAIN)) {
+        fprintf(stderr, "qemu_event_increment: write() filed: %s\n",
+                strerror(errno));
+        exit (1);
+    }
 }
 
 static void qemu_event_read(void *opaque)
@@ -5898,7 +5904,9 @@ int main(int argc, char **argv, char **envp)
     if (pid_file && qemu_create_pidfile(pid_file) != 0) {
         if (daemonize) {
             uint8_t status = 1;
-            write(fds[1], &status, 1);
+            if (write(fds[1], &status, 1) != 1) {
+                perror("daemonize. Writing to pipe\n");
+            }
         } else
             fprintf(stderr, "Could not acquire pid file: %s\n", strerror(errno));
         exit(1);
@@ -6199,7 +6207,10 @@ int main(int argc, char **argv, char **envp)
 	if (len != 1)
 	    exit(1);
 
-	chdir("/");
+        if (chdir("/")) {
+            perror("not able to chdir to /");
+            exit(1);
+        }
 	TFR(fd = qemu_open("/dev/null", O_RDWR));
 	if (fd == -1)
 	    exit(1);
@@ -6218,7 +6229,10 @@ int main(int argc, char **argv, char **envp)
             fprintf(stderr, "chroot failed\n");
             exit(1);
         }
-        chdir("/");
+        if (chdir("/")) {
+            perror("not able to chdir to /");
+            exit(1);
+        }
     }
 
     if (run_as) {
