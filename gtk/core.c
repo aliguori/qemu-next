@@ -1,29 +1,22 @@
 #include <gtk/gtk.h>
 #include <glade/glade.h>
-#include <gdk-pixbuf/gdk-pixbuf.h>
-#include <gdk/gdk.h>
 
 #include "gtk.h"
 #include "sysemu.h"
 #include "gtk/drawingarea.h"
 
-//#define DEBUG_GTK
-
-#ifdef DEBUG_GTK
-#define dprintf(fmt, ...) printf(fmt, ## __VA_ARGS__)
-#else
-#define dprintf(fmt, ...) do { } while (0)
-#endif
-
 /* grab the drawing area widget, and start rendering to it.  we'll figure out
  * the button box problem later.
  *
- * 1) render to drawing area
- * 2) accept input from drawing area
+ * 1) render to drawing area (X)
+ * 2) accept input from drawing area (X)
  * 3) register icons properly
- * 4) figure out how to display them with glade
+ * 3.5) hook up mouse
+ * 3.6) tie mouse grab and keyboard to status icons
+ * 4) figure out how to display them with glade (X)
  * 5) make icons change based on VM activity
  * 6) plumb up menu options
+ * 7) windows portability
  */
 
 /* In 2.20, we can use gtk_statusbar_get_message_area() to retrieve an hbox
