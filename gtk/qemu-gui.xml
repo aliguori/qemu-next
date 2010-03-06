@@ -1,0 +1,220 @@
+<?xml version="1.0"?>
+<interface>
+  <requires lib="gtk+" version="2.16"/>
+  <!-- interface-naming-policy project-wide -->
+  <object class="GtkAction" id="action1">
+    <property name="label">Add Hard Drive</property>
+    <property name="short_label">Add Hard Drive</property>
+    <property name="tooltip">Add a new Hard Drive</property>
+    <property name="icon_name">hd-add</property>
+  </object>
+  <object class="GtkIconFactory" id="iconfactory1">
+    <sources>
+      <source stock-id="usb-movedown" direction="ltr" size="menu" state="normal" filename="icons/usb_movedown_16px.png"/>
+      <source stock-id="usb-movedown" direction="ltr" size="menu" state="insensitive" filename="icons/usb_movedown_disabled_16px.png"/>
+      <source stock-id="cd-write" direction="ltr" size="menu" state="normal" filename="icons/cd_write_16px.png"/>
+      <source stock-id="cd-unmount" direction="ltr" size="menu" state="normal" filename="icons/cd_unmount_16px.png"/>
+      <source stock-id="cd-unmount" direction="ltr" size="menu" state="insensitive" filename="icons/cd_unmount_dis_16px.png"/>
+      <source stock-id="hd-add" direction="ltr" size="menu" state="normal" filename="icons/hd_add_16px.png"/>
+      <source stock-id="hd-add" direction="ltr" size="menu" state="insensitive" filename="icons/hd_add_disabled_16px.png"/>
+      <source stock-id="mouse" direction="ltr" size="menu" state="normal" filename="icons/mouse_16px.png"/>
+      <source stock-id="mouse" direction="ltr" size="menu" state="insensitive" filename="icons/mouse_disabled_16px.png"/>
+      <source stock-id="usb-remove" direction="ltr" size="menu" state="normal" filename="icons/usb_remove_16px.png"/>
+      <source stock-id="usb-remove" direction="ltr" size="menu" state="insensitive" filename="icons/usb_remove_disabled_16px.png"/>
+      <source stock-id="usb" direction="ltr" size="menu" state="normal" filename="icons/usb_16px.png"/>
+      <source stock-id="usb" direction="ltr" size="menu" state="insensitive" filename="icons/usb_disabled_16px.png"/>
+      <source stock-id="hd-remove" direction="ltr" size="menu" state="normal" filename="icons/hd_remove_16px.png"/>
+      <source stock-id="hd-remove" direction="ltr" size="menu" state="insensitive" filename="icons/hd_remove_disabled_16px.png"/>
+      <source stock-id="cd-read" direction="ltr" size="menu" state="normal" filename="icons/cd_read_16px.png"/>
+      <source stock-id="fd-read" direction="ltr" size="menu" state="normal" filename="icons/fd_read_16px.png"/>
+      <source stock-id="hostkey-captured" direction="ltr" size="menu" state="normal" filename="icons/hostkey_captured_16px.png"/>
+      <source stock-id="hostkey-captured" direction="ltr" size="menu" state="active" filename="icons/hostkey_captured_pressed_16px.png"/>
+      <source stock-id="hd-write" direction="ltr" size="menu" state="normal" filename="icons/hd_write_16px.png"/>
+      <source stock-id="hostkey" direction="ltr" size="menu" state="normal" filename="icons/hostkey_16px.png"/>
+      <source stock-id="hostkey" direction="ltr" size="menu" state="active" filename="icons/hostkey_pressed_16px.png"/>
+      <source stock-id="hostkey" direction="ltr" size="menu" state="insensitive" filename="icons/hostkey_disabled_16px.png"/>
+      <source stock-id="hd" direction="ltr" size="menu" state="normal" filename="icons/hd_16px.png"/>
+      <source stock-id="hd" direction="ltr" size="menu" state="insensitive" filename="icons/hd_disabled_16px.png"/>
+      <source stock-id="cd-add" direction="ltr" size="menu" state="normal" filename="icons/cd_add_16px.png"/>
+      <source stock-id="cd-add" direction="ltr" size="menu" state="insensitive" filename="icons/cd_add_disabled_16px.png"/>
+      <source stock-id="nw-read" direction="ltr" size="menu" state="normal" filename="icons/nw_read_16px.png"/>
+      <source stock-id="fd-add" direction="ltr" size="menu" state="normal" filename="icons/fd_add_16px.png"/>
+      <source stock-id="fd-add" direction="ltr" size="menu" state="insensitive" filename="icons/fd_add_disabled_16px.png"/>
+      <source stock-id="usb-new" direction="ltr" size="menu" state="normal" filename="icons/usb_new_16px.png"/>
+      <source stock-id="usb-new" direction="ltr" size="menu" state="insensitive" filename="icons/usb_new_disabled_16px.png"/>
+      <source stock-id="usb-filter-edit" direction="ltr" size="menu" state="normal" filename="icons/usb_filter_edit16px.png"/>
+      <source stock-id="usb-filter-edit" direction="ltr" size="menu" state="insensitive" filename="icons/usb_filter_editdisabled_16px.png"/>
+      <source stock-id="usb-read" direction="ltr" size="menu" state="normal" filename="icons/usb_read_16px.png"/>
+      <source stock-id="fd-unmount" direction="ltr" size="menu" state="normal" filename="icons/fd_unmount_16px.png"/>
+      <source stock-id="fd-unmount" direction="ltr" size="menu" state="insensitive" filename="icons/fd_unmount_dis_16px.png"/>
+      <source stock-id="fd" direction="ltr" size="menu" state="normal" filename="icons/fd_16px.png"/>
+      <source stock-id="fd" direction="ltr" size="menu" state="insensitive" filename="icons/fd_disabled_16px.png"/>
+      <source stock-id="hd-release" direction="ltr" size="menu" state="normal" filename="icons/hd_release_16px.png"/>
+      <source stock-id="hd-release" direction="ltr" size="menu" state="insensitive" filename="icons/hd_release_disabled_16px.png"/>
+      <source stock-id="usb-write" direction="ltr" size="menu" state="normal" filename="icons/usb_write_16px.png"/>
+      <source stock-id="hd-read" direction="ltr" size="menu" state="normal" filename="icons/hd_read_16px.png"/>
+      <source stock-id="usb-add" direction="ltr" size="menu" state="normal" filename="icons/usb_add_16px.png"/>
+      <source stock-id="usb-add" direction="ltr" size="menu" state="insensitive" filename="icons/usb_add_disabled_16px.png"/>
+      <source stock-id="hd-new" direction="ltr" size="menu" state="normal" filename="icons/hd_new_16px.png"/>
+      <source stock-id="hd-new" direction="ltr" size="menu" state="insensitive" filename="icons/hd_new_disabled_16px.png"/>
+      <source stock-id="fd-write" direction="ltr" size="menu" state="normal" filename="icons/fd_write_16px.png"/>
+      <source stock-id="usb-unavailable" direction="ltr" size="menu" state="normal" filename="icons/usb_unavailable_16px.png"/>
+      <source stock-id="usb-unavailable" direction="ltr" size="menu" state="insensitive" filename="icons/usb_unavailable_disabled_16px.png"/>
+      <source stock-id="nw-write" direction="ltr" size="menu" state="normal" filename="icons/nw_write_16px.png"/>
+      <source stock-id="cd" direction="ltr" size="menu" state="normal" filename="icons/cd_16px.png"/>
+      <source stock-id="cd" direction="ltr" size="menu" state="insensitive" filename="icons/cd_disabled_16px.png"/>
+      <source stock-id="nw" direction="ltr" size="menu" state="normal" filename="icons/nw_16px.png"/>
+      <source stock-id="nw" direction="ltr" size="menu" state="insensitive" filename="icons/nw_disabled_16px.png"/>
+    </sources>
+  </object>
+  <object class="GtkWindow" id="window1">
+    <property name="visible">True</property>
+    <property name="title" translatable="yes">QEMU</property>
+    <property name="resizable">False</property>
+    <child>
+      <object class="GtkVBox" id="vbox1">
+        <property name="visible">True</property>
+        <property name="orientation">vertical</property>
+        <child>
+          <object class="GtkMenuBar" id="menubar1">
+            <property name="visible">True</property>
+            <child>
+              <object class="GtkMenuItem" id="menuitem1">
+                <property name="visible">True</property>
+                <property name="label" translatable="yes">_File</property>
+                <property name="use_underline">True</property>
+              </object>
+            </child>
+          </object>
+          <packing>
+            <property name="expand">False</property>
+            <property name="position">0</property>
+          </packing>
+        </child>
+        <child>
+          <object class="GtkDrawingArea" id="drawingarea1">
+            <property name="width_request">640</property>
+            <property name="height_request">480</property>
+            <property name="visible">True</property>
+            <property name="app_paintable">True</property>
+            <property name="can_focus">True</property>
+            <property name="has_focus">True</property>
+            <property name="double_buffered">False</property>
+          </object>
+          <packing>
+            <property name="position">1</property>
+          </packing>
+        </child>
+        <child>
+          <object class="GtkStatusbar" id="statusbar1">
+            <property name="visible">True</property>
+            <property name="spacing">2</property>
+            <child>
+              <object class="GtkFrame" id="frame1">
+                <property name="visible">True</property>
+                <property name="label_xalign">0</property>
+                <property name="shadow_type">etched-out</property>
+                <child>
+                  <object class="GtkAlignment" id="alignment1">
+                    <property name="visible">True</property>
+                    <property name="left_padding">12</property>
+                    <child>
+                      <object class="GtkHBox" id="hbox1">
+                        <property name="visible">True</property>
+                        <property name="spacing">4</property>
+                        <child>
+                          <object class="GtkImage" id="image1">
+                            <property name="visible">True</property>
+                            <property name="stock">fd-read</property>
+                            <property name="icon-size">1</property>
+                          </object>
+                          <packing>
+                            <property name="expand">False</property>
+                            <property name="position">0</property>
+                          </packing>
+                        </child>
+                        <child>
+                          <object class="GtkImage" id="image2">
+                            <property name="visible">True</property>
+                            <property name="stock">hd-read</property>
+                            <property name="icon-size">1</property>
+                          </object>
+                          <packing>
+                            <property name="expand">False</property>
+                            <property name="position">1</property>
+                          </packing>
+                        </child>
+                        <child>
+                          <object class="GtkImage" id="image3">
+                            <property name="visible">True</property>
+                            <property name="sensitive">False</property>
+                            <property name="stock">cd</property>
+                            <property name="icon-size">1</property>
+                          </object>
+                          <packing>
+                            <property name="expand">False</property>
+                            <property name="position">2</property>
+                          </packing>
+                        </child>
+                        <child>
+                          <object class="GtkVSeparator" id="vseparator1">
+                            <property name="visible">True</property>
+                            <property name="orientation">vertical</property>
+                          </object>
+                          <packing>
+                            <property name="expand">False</property>
+                            <property name="position">3</property>
+                          </packing>
+                        </child>
+                        <child>
+                          <object class="GtkImage" id="image4">
+                            <property name="visible">True</property>
+                            <property name="stock">mouse</property>
+                            <property name="icon-size">1</property>
+                          </object>
+                          <packing>
+                            <property name="position">4</property>
+                          </packing>
+                        </child>
+                        <child>
+                          <object class="GtkImage" id="image5">
+                            <property name="visible">True</property>
+                            <property name="stock">hostkey</property>
+                            <property name="icon-size">1</property>
+                          </object>
+                          <packing>
+                            <property name="position">5</property>
+                          </packing>
+                        </child>
+                        <child>
+                          <object class="GtkLabel" id="label1">
+                            <property name="visible">True</property>
+                            <property name="label" translatable="yes">Right Ctrl</property>
+                          </object>
+                          <packing>
+                            <property name="position">6</property>
+                          </packing>
+                        </child>
+                      </object>
+                    </child>
+                  </object>
+                </child>
+                <child type="label_item">
+                  <placeholder/>
+                </child>
+              </object>
+              <packing>
+                <property name="expand">False</property>
+                <property name="position">1</property>
+              </packing>
+            </child>
+          </object>
+          <packing>
+            <property name="expand">False</property>
+            <property name="position">2</property>
+          </packing>
+        </child>
+      </object>
+    </child>
+  </object>
+</interface>

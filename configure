@@ -1041,11 +1041,10 @@ fi
 if test "$gtk" != "no" ; then
   cat > $TMPC << EOF
 #include <gtk/gtk.h>
-#include <glade/glade.h>
-int main(void) { gtk_main(); glade_xml_new("", 0, 0); return 0; }
+int main(void) { gtk_main(); return 0; }
 EOF
-  gtk_cflags=`$pkgconfig --cflags gtk+-2.0 libglade-2.0 2> /dev/null`
-  gtk_libs=`$pkgconfig --libs gtk+-2.0 libglade-2.0 2> /dev/null`
+  gtk_cflags=`$pkgconfig --cflags gtk+-2.0 2> /dev/null`
+  gtk_libs=`$pkgconfig --libs gtk+-2.0 2> /dev/null`
   gtk_cflags="$gtk_cflags -DGTK_DISABLE_DEPRECATED"
   if compile_prog "$gtk_cflags" "$gtk_libs" ; then
     gtk=yes
