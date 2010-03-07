@@ -5,12 +5,7 @@
 #include <gdk-pixbuf/gdk-pixbuf.h>
 #include <gdk/gdk.h>
 
-typedef struct QemuGtkDrawingArea
-{
-    GtkWidget *parent;
-    GdkPixbuf *pixbuf;
-    GdkGC *gc;
-} QemuGtkDrawingArea;
+typedef struct QemuGtkDrawingArea QemuGtkDrawingArea;
 
 QemuGtkDrawingArea *gtk_display_setup_drawing_area(GtkWidget *drawing_area,
                                                    DisplayState *ds);

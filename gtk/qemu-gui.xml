@@ -2,12 +2,6 @@
 <interface>
   <requires lib="gtk+" version="2.16"/>
   <!-- interface-naming-policy project-wide -->
-  <object class="GtkAction" id="action1">
-    <property name="label">Add Hard Drive</property>
-    <property name="short_label">Add Hard Drive</property>
-    <property name="tooltip">Add a new Hard Drive</property>
-    <property name="icon_name">hd-add</property>
-  </object>
   <object class="GtkIconFactory" id="iconfactory1">
     <sources>
       <source stock-id="usb-movedown" direction="ltr" size="menu" state="normal" filename="icons/usb_movedown_16px.png"/>
@@ -28,13 +22,13 @@
       <source stock-id="cd-read" direction="ltr" size="menu" state="normal" filename="icons/cd_read_16px.png"/>
       <source stock-id="fd-read" direction="ltr" size="menu" state="normal" filename="icons/fd_read_16px.png"/>
       <source stock-id="hostkey-captured" direction="ltr" size="menu" state="normal" filename="icons/hostkey_captured_16px.png"/>
-      <source stock-id="hostkey-captured" direction="ltr" size="menu" state="active" filename="icons/hostkey_captured_pressed_16px.png"/>
       <source stock-id="hd-write" direction="ltr" size="menu" state="normal" filename="icons/hd_write_16px.png"/>
       <source stock-id="hostkey" direction="ltr" size="menu" state="normal" filename="icons/hostkey_16px.png"/>
+      <source stock-id="hostkey" direction="ltr" size="menu" state="prelight" filename="icons/hostkey_16px.png"/>
       <source stock-id="hostkey" direction="ltr" size="menu" state="active" filename="icons/hostkey_pressed_16px.png"/>
       <source stock-id="hostkey" direction="ltr" size="menu" state="insensitive" filename="icons/hostkey_disabled_16px.png"/>
-      <source stock-id="hd" direction="ltr" size="menu" state="normal" filename="icons/hd_16px.png"/>
-      <source stock-id="hd" direction="ltr" size="menu" state="insensitive" filename="icons/hd_disabled_16px.png"/>
+      <source stock-id="fd" direction="ltr" size="menu" state="normal" filename="icons/fd_16px.png"/>
+      <source stock-id="fd" direction="ltr" size="menu" state="insensitive" filename="icons/fd_disabled_16px.png"/>
       <source stock-id="cd-add" direction="ltr" size="menu" state="normal" filename="icons/cd_add_16px.png"/>
       <source stock-id="cd-add" direction="ltr" size="menu" state="insensitive" filename="icons/cd_add_disabled_16px.png"/>
       <source stock-id="nw-read" direction="ltr" size="menu" state="normal" filename="icons/nw_read_16px.png"/>
@@ -47,8 +41,8 @@
       <source stock-id="usb-read" direction="ltr" size="menu" state="normal" filename="icons/usb_read_16px.png"/>
       <source stock-id="fd-unmount" direction="ltr" size="menu" state="normal" filename="icons/fd_unmount_16px.png"/>
       <source stock-id="fd-unmount" direction="ltr" size="menu" state="insensitive" filename="icons/fd_unmount_dis_16px.png"/>
-      <source stock-id="fd" direction="ltr" size="menu" state="normal" filename="icons/fd_16px.png"/>
-      <source stock-id="fd" direction="ltr" size="menu" state="insensitive" filename="icons/fd_disabled_16px.png"/>
+      <source stock-id="hd" direction="ltr" size="menu" state="normal" filename="icons/hd_16px.png"/>
+      <source stock-id="hd" direction="ltr" size="menu" state="insensitive" filename="icons/hd_disabled_16px.png"/>
       <source stock-id="hd-release" direction="ltr" size="menu" state="normal" filename="icons/hd_release_16px.png"/>
       <source stock-id="hd-release" direction="ltr" size="menu" state="insensitive" filename="icons/hd_release_disabled_16px.png"/>
       <source stock-id="usb-write" direction="ltr" size="menu" state="normal" filename="icons/usb_write_16px.png"/>
@@ -60,9 +54,9 @@
       <source stock-id="fd-write" direction="ltr" size="menu" state="normal" filename="icons/fd_write_16px.png"/>
       <source stock-id="usb-unavailable" direction="ltr" size="menu" state="normal" filename="icons/usb_unavailable_16px.png"/>
       <source stock-id="usb-unavailable" direction="ltr" size="menu" state="insensitive" filename="icons/usb_unavailable_disabled_16px.png"/>
-      <source stock-id="nw-write" direction="ltr" size="menu" state="normal" filename="icons/nw_write_16px.png"/>
       <source stock-id="cd" direction="ltr" size="menu" state="normal" filename="icons/cd_16px.png"/>
       <source stock-id="cd" direction="ltr" size="menu" state="insensitive" filename="icons/cd_disabled_16px.png"/>
+      <source stock-id="nw-write" direction="ltr" size="menu" state="normal" filename="icons/nw_write_16px.png"/>
       <source stock-id="nw" direction="ltr" size="menu" state="normal" filename="icons/nw_16px.png"/>
       <source stock-id="nw" direction="ltr" size="menu" state="insensitive" filename="icons/nw_disabled_16px.png"/>
     </sources>
@@ -83,6 +77,18 @@
                 <property name="visible">True</property>
                 <property name="label" translatable="yes">_File</property>
                 <property name="use_underline">True</property>
+                <child type="submenu">
+                  <object class="GtkMenu" id="menu1">
+                    <property name="visible">True</property>
+                    <child>
+                      <object class="GtkCheckMenuItem" id="checkmenuitem1">
+                        <property name="visible">True</property>
+                        <property name="related_action">toggleaction1</property>
+                        <property name="use_action_appearance">True</property>
+                      </object>
+                    </child>
+                  </object>
+                </child>
               </object>
             </child>
           </object>
@@ -99,6 +105,7 @@
             <property name="app_paintable">True</property>
             <property name="can_focus">True</property>
             <property name="has_focus">True</property>
+            <property name="events">GDK_EXPOSURE_MASK | GDK_POINTER_MOTION_MASK | GDK_POINTER_MOTION_HINT_MASK | GDK_BUTTON_MOTION_MASK | GDK_BUTTON1_MOTION_MASK | GDK_BUTTON2_MOTION_MASK | GDK_BUTTON3_MOTION_MASK | GDK_BUTTON_PRESS_MASK | GDK_BUTTON_RELEASE_MASK | GDK_KEY_PRESS_MASK | GDK_KEY_RELEASE_MASK | GDK_STRUCTURE_MASK</property>
             <property name="double_buffered">False</property>
           </object>
           <packing>
@@ -177,12 +184,23 @@
                           </packing>
                         </child>
                         <child>
-                          <object class="GtkImage" id="image5">
+                          <object class="GtkToggleButton" id="togglebutton1">
                             <property name="visible">True</property>
-                            <property name="stock">hostkey</property>
-                            <property name="icon-size">1</property>
+                            <property name="can_focus">False</property>
+                            <property name="receives_default">False</property>
+                            <property name="related_action">toggleaction1</property>
+                            <property name="relief">none</property>
+                            <property name="focus_on_click">False</property>
+                            <child>
+                              <object class="GtkImage" id="image5">
+                                <property name="visible">True</property>
+                                <property name="stock">hostkey</property>
+                                <property name="icon-size">1</property>
+                              </object>
+                            </child>
                           </object>
                           <packing>
+                            <property name="expand">False</property>
                             <property name="position">5</property>
                           </packing>
                         </child>
@@ -216,5 +234,11 @@
         </child>
       </object>
     </child>
+  </object>
+  <object class="GtkToggleAction" id="toggleaction1">
+    <property name="label">Grab Input</property>
+    <property name="short_label">Grab Input</property>
+    <property name="tooltip">Grab keyboard and mouuse input.</property>
+    <property name="stock_id">hostkey</property>
   </object>
 </interface>

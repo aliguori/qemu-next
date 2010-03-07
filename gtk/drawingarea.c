@@ -17,6 +17,109 @@
 #define dprintf(fmt, ...) do { } while (0)
 #endif
 
+struct QemuGtkDrawingArea
+{
+    GtkWidget *parent;
+    GdkPixbuf *pixbuf;
+    GdkGC *gc;
+    gint width;
+    gint height;
+    gint pointer_last_x;
+    gint pointer_last_y;
+    gint button_mask;
+    GdkCursor *null_cursor;
+    gboolean pointer_is_absolute;
+};
+
+/* DisplayState interfaces */
+
+static void gtk_display_update(DisplayState *ds, int x, int y, int w, int h)
+{
+    QemuGtkDrawingArea *da = ds->opaque;
+    PixelFormat *pf = &ds->surface->pf;
+    guchar *src_row, *dst_row;
+    int j;
+
+    dprintf("update (%d, %d)-(%d, %d)\n", x, y, w, h);
+
+    src_row = ds_get_data(ds) +
+        ds_get_linesize(ds) * y +
+        ds_get_bytes_per_pixel(ds) * x;
+
+    dst_row = gdk_pixbuf_get_pixels(da->pixbuf) +
+        gdk_pixbuf_get_rowstride(da->pixbuf) * y +
+        3 * x;
+
+    for (j = 0; j < h; j++) {
+        guchar *src, *dst;
+        int i;
+
+        src = src_row;
+        dst = dst_row;
+
+        for (i = 0; i < w; i++) {
+            uint32_t pixel = 0;
+
+            switch (ds_get_bits_per_pixel(ds)) {
+            case 8:
+                pixel = *(uint8_t *)src;
+                break;
+            case 16:
+                pixel = *(uint16_t *)src;
+                break;
+            case 32:
+                pixel = *(uint32_t *)src;
+                break;
+            }
+
+            dst[0] = ((pixel & pf->rmask) >> pf->rshift) << (8 - pf->rbits);
+            dst[1] = ((pixel & pf->gmask) >> pf->gshift) << (8 - pf->gbits);
+            dst[2] = ((pixel & pf->bmask) >> pf->bshift) << (8 - pf->bbits);
+
+            src += ds_get_bytes_per_pixel(ds);
+            dst += 3;
+        }
+
+        src_row += ds_get_linesize(ds);
+        dst_row += gdk_pixbuf_get_rowstride(da->pixbuf);
+    }
+
+    gtk_widget_queue_draw_area(da->parent, x, y, w + 1, h + 1);
+}
+
+static void gtk_display_resize(DisplayState *ds)
+{
+    QemuGtkDrawingArea *da = ds->opaque;
+
+    da->width = ds_get_width(ds);
+    da->height = ds_get_height(ds);
+
+    dprintf("resize (%d, %d)\n",
+            da->width, da->height,
+            ds_get_bits_per_pixel(ds));
+
+    if (da->pixbuf) {
+        gdk_pixbuf_unref(da->pixbuf);
+        da->pixbuf = NULL;
+    }
+    da->pixbuf = gdk_pixbuf_new(GDK_COLORSPACE_RGB, FALSE, 8,
+                                da->width, da->height);
+
+    gtk_widget_set_size_request(da->parent, da->width, da->height);
+}
+
+static void gtk_display_refresh(DisplayState *ds)
+{
+    while (gtk_events_pending()) {
+        gtk_main_iteration();
+    }
+
+    vga_hw_invalidate();
+    vga_hw_update();
+}
+
+/* Widget events */
+
 static int check_for_evdev(void)
 {
     XkbDescPtr desc = NULL;
@@ -83,89 +186,6 @@ static uint8_t gtk_keyevent_to_keycode(const GdkEventKey *ev)
     return keycode;
 }
 
-static void gtk_display_update(DisplayState *ds, int x, int y, int w, int h)
-{
-    QemuGtkDrawingArea *da = ds->opaque;
-    PixelFormat *pf = &ds->surface->pf;
-    guchar *src_row, *dst_row;
-    int j;
-
-    dprintf("update (%d, %d)-(%d, %d)\n", x, y, w, h);
-
-    src_row = ds_get_data(ds) +
-        ds_get_linesize(ds) * y +
-        ds_get_bytes_per_pixel(ds) * x;
-
-    dst_row = gdk_pixbuf_get_pixels(da->pixbuf) +
-        gdk_pixbuf_get_rowstride(da->pixbuf) * y +
-        3 * x;
-
-    for (j = 0; j < h; j++) {
-        guchar *src, *dst;
-        int i;
-
-        src = src_row;
-        dst = dst_row;
-
-        for (i = 0; i < w; i++) {
-            uint32_t pixel = 0;
-
-            switch (ds_get_bits_per_pixel(ds)) {
-            case 8:
-                pixel = *(uint8_t *)src;
-                break;
-            case 16:
-                pixel = *(uint16_t *)src;
-                break;
-            case 32:
-                pixel = *(uint32_t *)src;
-                break;
-            }
-
-            dst[0] = ((pixel & pf->rmask) >> pf->rshift) << (8 - pf->rbits);
-            dst[1] = ((pixel & pf->gmask) >> pf->gshift) << (8 - pf->gbits);
-            dst[2] = ((pixel & pf->bmask) >> pf->bshift) << (8 - pf->bbits);
-
-            src += ds_get_bytes_per_pixel(ds);
-            dst += 3;
-        }
-
-        src_row += ds_get_linesize(ds);
-        dst_row += gdk_pixbuf_get_rowstride(da->pixbuf);
-    }
-
-    gtk_widget_queue_draw_area(da->parent, x, y, w + 1, h + 1);
-}
-
-static void gtk_display_resize(DisplayState *ds)
-{
-    QemuGtkDrawingArea *da = ds->opaque;
-    int w, h;
-
-    w = ds_get_width(ds);
-    h = ds_get_height(ds);
-
-    dprintf("resize (%d, %d)\n", w, h, ds_get_bits_per_pixel(ds));
-
-    if (da->pixbuf) {
-        gdk_pixbuf_unref(da->pixbuf);
-        da->pixbuf = NULL;
-    }
-    da->pixbuf = gdk_pixbuf_new(GDK_COLORSPACE_RGB, FALSE, 8, w, h);
-
-    gtk_widget_set_size_request(da->parent, w, h);
-}
-
-static void gtk_display_refresh(DisplayState *ds)
-{
-    while (gtk_events_pending()) {
-        gtk_main_iteration();
-    }
-
-    vga_hw_invalidate();
-    vga_hw_update();
-}
-
 static gboolean gtk_display_expose(GtkWidget *widget, GdkEventExpose *expose,
                                    gpointer data)
 {
@@ -217,6 +237,145 @@ static gboolean gtk_display_key(GtkWidget *widget, GdkEventKey *key,
     return TRUE;
 }
 
+static GdkCursor *create_null_cursor(void)
+{
+    GdkBitmap *image;
+    gchar data[4] = {0};
+    GdkColor fg = { 0, 0, 0, 0 };
+    GdkCursor *cursor;
+
+    image = gdk_bitmap_create_from_data(NULL, data, 1, 1);
+
+    cursor = gdk_cursor_new_from_pixmap(GDK_PIXMAP(image),
+                                        GDK_PIXMAP(image),
+                                        &fg, &fg, 0, 0);
+    g_object_unref(image);
+
+    return cursor;
+}
+
+static void gtk_display_pointer_set_absolute(QemuGtkDrawingArea *da,
+                                             gboolean absolute)
+{
+    GdkCursor *cursor = NULL;
+
+    da->pointer_is_absolute = absolute;
+    if (da->pointer_is_absolute) {
+        if (da->null_cursor == NULL) {
+            da->null_cursor = create_null_cursor();
+        }
+        cursor = da->null_cursor;
+    }
+
+    gdk_window_set_cursor(da->parent->window, cursor);
+}
+
+static gboolean check_absolute(QemuGtkDrawingArea *da)
+{
+    gboolean absolute;
+
+    absolute = !!kbd_mouse_is_absolute();
+
+    if (absolute != da->pointer_is_absolute) {
+        da->pointer_is_absolute = absolute;
+        gtk_display_pointer_set_absolute(da, absolute);
+    }
+
+    return absolute;
+}
+
+static gboolean gtk_display_motion(GtkWidget *widget, GdkEventMotion *motion,
+                                   gpointer opaque)
+{
+    QemuGtkDrawingArea *da = opaque;
+
+    if (!GTK_WIDGET_HAS_FOCUS(widget) || !check_absolute(da)) {
+        return FALSE;
+    }
+
+    da->pointer_last_x = motion->x * 0x7FFF / (da->width - 1);
+    da->pointer_last_y = motion->y * 0x7FFF / (da->height - 1);
+
+    kbd_mouse_event(da->pointer_last_x, da->pointer_last_y, 0, da->button_mask);
+
+    return TRUE;
+}
+
+static gboolean gtk_display_button(GtkWidget *widget, GdkEventButton *button,
+                                   gpointer opaque)
+{
+    QemuGtkDrawingArea *da = opaque;
+    int mask = 0;
+
+    if (!GTK_WIDGET_HAS_FOCUS(widget) || !check_absolute(da)) {
+        return FALSE;
+    }
+
+    switch (button->button) {
+    case 1:
+        mask = MOUSE_EVENT_LBUTTON;
+        break;
+    case 2:
+        mask = MOUSE_EVENT_MBUTTON;
+        break;
+    case 3:
+        mask = MOUSE_EVENT_RBUTTON;
+        break;
+    }
+
+    if (button->type == GDK_BUTTON_PRESS) {
+        da->button_mask |= mask;
+    } else if (button->type == GDK_BUTTON_RELEASE) {
+        da->button_mask &= ~mask;
+    }
+
+    kbd_mouse_event(da->pointer_last_x, da->pointer_last_y, 0, da->button_mask);
+
+    return TRUE;
+}
+
+static gboolean gtk_display_scroll(GtkWidget *widget, GdkEventScroll *scroll,
+                                   gpointer opaque)
+{
+    QemuGtkDrawingArea *da = opaque;
+    int dz;
+
+    if (!GTK_WIDGET_HAS_FOCUS(widget) || !check_absolute(da)) {
+        return FALSE;
+    }
+
+    switch (scroll->direction) {
+    case GDK_SCROLL_UP:
+        dz = -1;
+        break;
+    case GDK_SCROLL_DOWN:
+        dz = +1;
+        break;
+    default:
+        dz = 0;
+        break;
+    }
+
+    kbd_mouse_event(da->pointer_last_x, da->pointer_last_y,
+                    dz, da->button_mask);
+
+    return TRUE;
+}
+
+static gboolean gtk_display_focus(GtkWidget *widget, GdkEventFocus *focus,
+                                  gpointer opaque)
+{
+    QemuGtkDrawingArea *da = opaque;
+
+    if (focus->in) {
+        gtk_display_pointer_set_absolute(da, da->pointer_is_absolute);
+    } else {
+        gdk_window_set_cursor(da->parent->window, NULL);
+    }
+
+    return FALSE;
+}
+
 QemuGtkDrawingArea *gtk_display_setup_drawing_area(GtkWidget *drawing_area,
                                                    DisplayState *ds)
 {
@@ -228,6 +387,11 @@ QemuGtkDrawingArea *gtk_display_setup_drawing_area(GtkWidget *drawing_area,
     da->parent = drawing_area;
     da->pixbuf = NULL;
     da->gc = NULL;
+    da->width = -1;
+    da->height = -1;
+    da->button_mask = 0;
+    da->null_cursor = NULL;
+    da->pointer_is_absolute = FALSE;
 
     ds->opaque = da;
 
@@ -243,14 +407,18 @@ QemuGtkDrawingArea *gtk_display_setup_drawing_area(GtkWidget *drawing_area,
                      G_CALLBACK(gtk_display_key), da);
     g_signal_connect(G_OBJECT(drawing_area), "key-release-event",
                      G_CALLBACK(gtk_display_key), da);
+    g_signal_connect(G_OBJECT(drawing_area), "motion-notify-event",
+                     G_CALLBACK(gtk_display_motion), da);
+    g_signal_connect(G_OBJECT(drawing_area), "button-press-event",
+                     G_CALLBACK(gtk_display_button), da);
+    g_signal_connect(G_OBJECT(drawing_area), "button-release-event",
+                     G_CALLBACK(gtk_display_button), da);
+    g_signal_connect(G_OBJECT(drawing_area), "scroll-event",
+                     G_CALLBACK(gtk_display_scroll), da);
+    g_signal_connect(G_OBJECT(drawing_area), "focus-in-event",
+                     G_CALLBACK(gtk_display_focus), da);
+    g_signal_connect(G_OBJECT(drawing_area), "focus-out-event",
+                     G_CALLBACK(gtk_display_focus), da);
 
-    GTK_WIDGET_SET_FLAGS(drawing_area, GTK_CAN_FOCUS);
-
-    gtk_widget_add_events(drawing_area,
-                          GDK_POINTER_MOTION_MASK |
-                          GDK_BUTTON_PRESS_MASK |
-                          GDK_BUTTON_RELEASE_MASK |
-                          GDK_BUTTON_MOTION_MASK |
-                          GDK_KEY_PRESS_MASK);
     return da;
 }
