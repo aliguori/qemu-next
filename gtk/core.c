@@ -52,7 +52,12 @@ static void display_unrealize(GtkWidget *widget, gpointer data)
 
 static void host_key_event(QemuDisplay *obj, gpointer data)
 {
+    gboolean grab_active;
+
     printf("host key event\n");
+
+    g_object_get(G_OBJECT(obj), "grab", &grab_active, NULL);
+    g_object_set(G_OBJECT(obj), "grab", !grab_active, NULL);
 }
 
 void gtk_display_init(DisplayState *ds)

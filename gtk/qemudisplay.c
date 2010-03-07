@@ -191,6 +191,41 @@ static gboolean check_absolute(QemuDisplay *obj)
     return absolute;
 }
 
+static void qemu_display_set_grab_active(QemuDisplay *obj,
+                                         gboolean grab_active)
+{
+    QemuDisplayPrivate *da = obj->priv;
+
+    if (da->grab_active == grab_active) {
+        return;
+    }
+
+    da->grab_active = grab_active;
+
+    if (da->grab_active) {
+        if (da->null_cursor == NULL) {
+            da->null_cursor = create_null_cursor();
+        }
+
+        gdk_pointer_grab(GTK_WIDGET(obj)->window,
+                         FALSE,
+			 GDK_POINTER_MOTION_MASK |
+			 GDK_BUTTON_PRESS_MASK |
+			 GDK_BUTTON_RELEASE_MASK |
+			 GDK_BUTTON_MOTION_MASK |
+			 GDK_SCROLL_MASK,
+                         NULL,
+                         da->null_cursor,
+                         GDK_CURRENT_TIME);
+        gdk_keyboard_grab(GTK_WIDGET(obj)->window,
+                          FALSE,
+                          GDK_CURRENT_TIME);
+    } else {
+        gdk_keyboard_ungrab(GDK_CURRENT_TIME);
+        gdk_pointer_ungrab(GDK_CURRENT_TIME);
+    }
+}
+
 /* Widget event handlers */
 
 static gboolean qemu_display_expose(GtkWidget *widget, GdkEventExpose *expose)
@@ -414,7 +449,7 @@ static void qemu_display_set_property(GObject *gobject, guint prop_id,
 
     switch (prop_id) {
     case QEMU_GRAB_PROP:
-        da->grab_active = g_value_get_boolean(value);
+        qemu_display_set_grab_active(obj, g_value_get_boolean(value));
         break;
     case QEMU_HOST_KEY_PROP: {
         GValueArray *host_key;
