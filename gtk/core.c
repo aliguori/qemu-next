@@ -2,7 +2,7 @@
 
 #include "gtk.h"
 #include "sysemu.h"
-#include "gtk/drawingarea.h"
+#include "gtk/qemudisplay.h"
 
 typedef struct QemuDisplayChangeListener
 {
