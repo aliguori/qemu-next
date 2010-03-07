@@ -20,7 +20,7 @@
 
 static void close_window(void)
 {
-    exit(0);
+    qemu_system_shutdown_request();
 }
 
 void gtk_display_init(DisplayState *ds)
