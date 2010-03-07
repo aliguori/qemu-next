@@ -1,0 +1,150 @@
+How the pointer is handled tends to be subtle and tied deeply to the user's
+experience.  This document attempts to explain the rationale in how the pointer
+works in QemuDisplay.
+
+The pointer can be handled in a number of ways:
+
+ 1. the guest can not have a pointer (console mode)
+ 2. the guest can have a pointer that is only rendered when the mouse actually
+    moves (gpm)
+ 3. the guest can have a pointer that it renders
+   3.1. location driven by relative input
+   3.2. location driven by absolute input; the rendering location may lag or
+        simply not match the last input for a non-deterministic period of time
+ 4. the guest may tell the host how to render the pointer
+   4.1. the guest may tell us what the pointer's location is (vga emulation)
+   4.2. the guest may expect that we choose where to render the pointer (pv)
+   4.3. the guest may ask the host to warp the pointer's location (pv)
+
+--
+
+1 and 2 are pretty common when the guest is in text mode with 1 being the
+overwhelming more common scenario.
+
+1 can occur when a splash screen is being drawn in graphics mode but this is
+difficult to distinguish from 3
+
+3.1 is common when emulating a traditional PS/2 mouse and in grahics mode.
+
+3.2 is common when emulating a tablet device in graphics mode
+
+Generally, we can detect 3.1 vs. 3.2
+
+4.1 is technically something we support with the cirrus adapter but it only
+works for 1-bit cursors which are virtually unused in modern guests.  We
+typically render these cursors automatically and treat this case like 3.
+
+4.2 only happens when using PV graphics adapters.  We could support this today
+with VMware vga and in theory, we'll support this with QXL
+
+4.3 PV graphics adapters need this mechanism since application software within
+the guest may do this.
+
+---
+
+Whenever the guest relies on a relative mouse, we can only generate relative
+input events by entering input grab mode.
+
+When the guest is rendering a software cursor, we usually want to hide the real
+cursor to avoid a double cursor effect.
+
+---
+
+As a general guideline, we need to be careful about how we treat the pointer.
+A malfunctioning, slow, or malicious guest can create a real usability problem
+for the system as a whole if we aren't very careful.
+
+Here's how we handle the pointer in the GTK front end:
+
+1) We offer the user the choice of multiple reasonable policies
+2) We inform the user (at least once) before enabling grab
+3) We only send input events to the guest when the window has focus.
+  a) This includes mouse motion events
+  b) If the guest expects us to render a cursor, we only render the guest's
+     cursor when the window has focus
+  c) If the guest renders a software cursor, we only hide the cursor when the
+     window has focus
+4) We offer a key sequence to both enter and exit from grab mode.
+  a) The sequence is displayed promiently in the bottom right corner of the
+     screen.
+  b) An icon is used to represent the current input mode.  This includes:
+     1. Whether grab is actived
+     2. When grab is inactive, whether the gui is in click-to-grab mode
+5) We also offer click-to-grab mode which causes grab to activate when the
+   left mouse button is clicked within the drawing area
+
+---
+
+Within the QemuDisplay widget, we provide the following interfaces:
+
+Signals
+ - enter-grab-event   gboolean callback(GtkWidget *widget, gpointer data)
+   return TRUE to prevent grab from happening
+
+ - leave-grab-event   gboolean callback(GtkWidget *widget, gpointer data)
+   return TRUE to prevent ungrab from happening
+
+ - host-key-event     gboolean callback(GtkWidget *widget, gpointer data)
+   return TRUE to stop futher processing
+
+ - relative-pointer-event gboolean callback(GtkWidget *widget, gpointer data)
+   return TRUE to stop further processing
+
+ - absolute-pointer-event gboolean callback(GtkWidget *widget, gpointer data)
+   return TRUE to stop further processing
+
+Properties
+ - grab: gboolean
+   Whether grab is enabled
+
+ - host-key: GList
+   A list of GDK key symbols that when all simultaneously pressed, results in
+   a host-key-event.
+
+ - click-to-grab: gboolean
+   When enabled, a left click on the drawing area when grab is disabled will
+   result in a host-key-event
+
+ - relative-pointer: gboolean
+   Whether we are currently sending relative or absolute pointer events
+
+---
+
+We'll implement the following policies as defaults:
+
+1) When in text mode:
+  a) we check the text mode grab ToggleAction, if enabled, click-to-grab is set
+     to TRUE
+  b) otherwise, click-to-grab is set to FALSE
+2) When in graphics mode:
+  a) if relative-pointer, we check the grab enabled ToggleAction, if enabled,
+     click-to-grab is set to TRUE
+  b) otherwise, click-to-grab is set to FALSE
+3) Host key is [Control_L, Alt_L]
+4) When we receive a host-key-event, we check the grab enabled ToggleAction, if
+   enabled, set grab to TRUE
+5) When we receive a enter-grab-event:
+  a) we check an config variable to determine if the user has suppress the grab
+     notification dialogue, if not, we show a grab notification dialog asking
+     the user to confirm that they want to enter grab mode and explains how to
+     exit grab mode.  A checkbox is offered to suppress displaying this in the
+     future.  Hitting cancel prevents grab from happening.
+  b) generate a grab ToggleActiont to activate the toggle
+7) When we receive a leave-grab-event, we generate a grab ToggleAction to
+   deactive the toggle
+8) When we receive a relative-pointer-event:
+  a) if in graphics mode, we check the grab enabled ToggleAction, if enabled,
+     click-to-grab is set to TRUE
+  b) if in text mode, we check the text mode grab ToggleAction, if enabled,
+     click-to-grab is set to TRUE
+  c) otherwise, click-to-grab is set to FALSE
+  d) generate a seamless pointer ToggleAction to deactivate the toggle
+9) When we receive an absolute-pointer-event:
+  a) click-to-grab is set to FALSE
+  b) if grab is TRUE, set grab to FALSE
+  c) generate a seamless pointer ToggleAction to activate the toggle
+10) grab ToggleAction starts out deactivated
+11) text mode grab ToggleAction starts out deactivated, we present a menu to
+    alter this
+12) seamless pointer ToggleAction starts out deactivated
+

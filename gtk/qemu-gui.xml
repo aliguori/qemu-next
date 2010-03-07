@@ -13,6 +13,7 @@
       <source stock-id="hd-add" direction="ltr" size="menu" state="insensitive" filename="icons/hd_add_disabled_16px.png"/>
       <source stock-id="mouse" direction="ltr" size="menu" state="normal" filename="icons/mouse_16px.png"/>
       <source stock-id="mouse" direction="ltr" size="menu" state="insensitive" filename="icons/mouse_disabled_16px.png"/>
+      <source stock-id="mouse-seamless" direction="ltr" size="menu" state="normal" filename="icons/mouse_seamless_16px.png"/>
       <source stock-id="usb-remove" direction="ltr" size="menu" state="normal" filename="icons/usb_remove_16px.png"/>
       <source stock-id="usb-remove" direction="ltr" size="menu" state="insensitive" filename="icons/usb_remove_disabled_16px.png"/>
       <source stock-id="usb" direction="ltr" size="menu" state="normal" filename="icons/usb_16px.png"/>
