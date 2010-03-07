@@ -1,0 +1,35 @@
+Grab
+----
+
+This needs to interact with the gui so requires some thinking.  We need
+to think about the following things
+ - some user defined key combination breaks grab
+ - the same key combination will start grab
+ - we have two modes:
+   o absolute is when the guest can understand absolute key coordinates
+   o relative means that in order to pass key events, we must grab
+     the pointer
+ - when in relative mode, left click should also enter grab
+ - when in absolute mode, the key combination must be used to enter grab
+
+ All of these features should be controllable by the user.
+
+ We probably need to the do the following:
+  - define a 'Host' key sequence, whenever it happens, emit a signal
+  - whenever we change between absolute and relative mode, emit a signal
+  - make sure we can grab mouse events
+  - allow grab to be entered externally; grab should probably be an Action
+
+From a GUI perspective, we need:
+  - to keep track of whatever the 'Host' key is so we can display it
+  - present a dialog to the user to change the Host key
+  - show the status of grab in the status icons
+  - show the mouse mode in the status icons
+
+Optionally, we should:
+  - Provide a mode where if we're in relative mode and CGA is active,
+    we do not do grab
+  - Instead, we get geometry information from CGA and implement
+    dos style copy/paste
+
+
