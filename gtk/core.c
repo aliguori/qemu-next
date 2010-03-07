@@ -9,13 +9,13 @@
  *
  * 1) render to drawing area (X)
  * 2) accept input from drawing area (X)
- * 3) register icons properly
- * 3.5) hook up mouse
+ * 3) register icons properly (X)
+ * 3.5) hook up mouse (X)
  * 3.6) tie mouse grab and keyboard to status icons
  * 4) figure out how to display them with glade (X)
  * 5) make icons change based on VM activity
  * 6) plumb up menu options
- * 7) windows portability
+ * 7) windows portability (X)
  */
 
 static void close_window(void)
@@ -39,8 +39,8 @@ void gtk_display_init(DisplayState *ds)
     } else {
         ret = chdir("/home/anthony/git/qemu/gtk");
     }
-
     assert(ret > -1);
+
     builder = gtk_builder_new();
     gtk_builder_add_from_file(builder, "qemu-gui.xml", NULL);
 
