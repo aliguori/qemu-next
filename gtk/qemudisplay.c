@@ -293,7 +293,18 @@ static gboolean qemu_display_button(GtkWidget *widget, GdkEventButton *button)
     QemuDisplayPrivate *da = obj->priv;
     int mask = 0;
 
-    if (!GTK_WIDGET_HAS_FOCUS(widget) || !check_absolute(obj)) {
+    if (!GTK_WIDGET_HAS_FOCUS(widget)) {
+        return FALSE;
+    }
+
+    if ((button->type == GDK_BUTTON_PRESS) &&
+        (button->button == MOUSE_EVENT_LBUTTON)) {
+        if (!da->grab_active && da->click_to_grab) {
+            g_signal_emit(G_OBJECT(obj), signals[QEMU_HOST_KEY_EVENT], 0);
+        }
+    }
+
+    if (!check_absolute(obj)) {
         return FALSE;
     }
 
@@ -415,6 +426,7 @@ static void qemu_display_set_property(GObject *gobject, guint prop_id,
         host_key = (GValueArray *)g_value_get_boxed(value);
         if (host_key) {
             da->host_key = g_value_array_copy(host_key);
+            da->host_key_mask = 0;
         } else {
             da->host_key = NULL;
         }

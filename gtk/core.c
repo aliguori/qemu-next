@@ -50,6 +50,11 @@ static void display_unrealize(GtkWidget *widget, gpointer data)
     dcl->valid = 0;
 }
 
+static void host_key_event(QemuDisplay *obj, gpointer data)
+{
+    printf("host key event\n");
+}
+
 void gtk_display_init(DisplayState *ds)
 {
     GtkWidget *window, *display, *frame;
@@ -113,6 +118,7 @@ void gtk_display_init(DisplayState *ds)
 
         g_object_set(G_OBJECT(display),
                      "host-key", host_key,
+                     "click-to-grab", TRUE,
                      NULL);
     }
 
@@ -122,4 +128,7 @@ void gtk_display_init(DisplayState *ds)
                      G_CALLBACK(close_window), NULL);
     g_signal_connect(G_OBJECT(display), "unrealize",
                      G_CALLBACK(display_unrealize), dcl);
+
+    g_signal_connect(G_OBJECT(display), "host-key-event",
+                     G_CALLBACK(host_key_event), NULL);
 }
