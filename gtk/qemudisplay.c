@@ -1,4 +1,5 @@
 #include <gtk/gtk.h>
+#include <gtk/gtkmarshal.h>
 #include <gdk-pixbuf/gdk-pixbuf.h>
 #include <gdk/gdk.h>
 #include <gdk/gdkkeysyms.h>
@@ -6,6 +7,7 @@
 #include "gtk.h"
 #include "sysemu.h"
 #include "gtk/qemudisplay.h"
+#include "gtk/qemumarshal.h"
 #include "x_keymap.h"
 
 #ifndef _WIN32
@@ -200,20 +202,27 @@ static void qemu_display_set_grab_active(QemuDisplay *obj,
         return;
     }
 
-    da->grab_active = grab_active;
+    if (grab_active) {
+        gboolean ret = FALSE;
 
-    if (da->grab_active) {
+        g_signal_emit(G_OBJECT(obj), signals[QEMU_ENTER_GRAB_EVENT], 0,
+                      &ret);
+
+        if (ret == TRUE) {
+            return;
+        }
+
         if (da->null_cursor == NULL) {
             da->null_cursor = create_null_cursor();
         }
 
         gdk_pointer_grab(GTK_WIDGET(obj)->window,
                          FALSE,
-			 GDK_POINTER_MOTION_MASK |
-			 GDK_BUTTON_PRESS_MASK |
-			 GDK_BUTTON_RELEASE_MASK |
-			 GDK_BUTTON_MOTION_MASK |
-			 GDK_SCROLL_MASK,
+                         GDK_POINTER_MOTION_MASK |
+                         GDK_BUTTON_PRESS_MASK |
+                         GDK_BUTTON_RELEASE_MASK |
+                         GDK_BUTTON_MOTION_MASK |
+                         GDK_SCROLL_MASK,
                          NULL,
                          da->null_cursor,
                          GDK_CURRENT_TIME);
@@ -223,7 +232,10 @@ static void qemu_display_set_grab_active(QemuDisplay *obj,
     } else {
         gdk_keyboard_ungrab(GDK_CURRENT_TIME);
         gdk_pointer_ungrab(GDK_CURRENT_TIME);
+        g_signal_emit(G_OBJECT(obj), signals[QEMU_LEAVE_GRAB_EVENT], 0);
     }
+
+    da->grab_active = grab_active;
 }
 
 /* Widget event handlers */
@@ -408,12 +420,6 @@ static gboolean qemu_display_focus(GtkWidget *widget, GdkEventFocus *focus)
     return FALSE;
 }
 
-static gboolean qemu_display_enter_grab(QemuDisplay *obj)
-{
-    /* FIXME enter grab */
-    return TRUE;
-}
-
 /* G_TYPE boiler plate code */
 
 G_DEFINE_TYPE(QemuDisplay, qemu_display, GTK_TYPE_DRAWING_AREA)
@@ -544,8 +550,6 @@ static void qemu_display_class_init_events(QemuDisplayClass *klass)
     gtkwidget_class->scroll_event = qemu_display_scroll;
     gtkwidget_class->focus_in_event = qemu_display_focus;
     gtkwidget_class->focus_out_event = qemu_display_focus;
-
-    klass->enter_grab_event = qemu_display_enter_grab;
 }
 
 static void qemu_display_class_init_signals(QemuDisplayClass *klass)
@@ -555,11 +559,11 @@ static void qemu_display_class_init_signals(QemuDisplayClass *klass)
     signals[QEMU_ENTER_GRAB_EVENT] = 
         g_signal_new("enter-grab-event",
                      G_OBJECT_CLASS_TYPE(object_class),
-                     G_SIGNAL_RUN_LAST,
-                     G_STRUCT_OFFSET(QemuDisplayClass, enter_grab_event),
+                     G_SIGNAL_RUN_LAST | G_SIGNAL_NO_HOOKS,
+                     0,
                      NULL,
                      NULL,
-                     g_cclosure_marshal_VOID__VOID,
+                     qemu_marshal_BOOLEAN__VOID,
                      G_TYPE_BOOLEAN,
                      0);
 

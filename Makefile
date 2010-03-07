@@ -124,7 +124,7 @@ curses.o: curses.c keymaps.h curses_keys.h
 
 bt-host.o: QEMU_CFLAGS += $(BLUEZ_CFLAGS)
 
-gtk/core.o gtk/qemudisplay.o: QEMU_CFLAGS += $(GTK_CFLAGS)
+gtk/core.o gtk/qemudisplay.o gtk/qemumarshal.o: QEMU_CFLAGS += $(GTK_CFLAGS)
 
 ######################################################################
 

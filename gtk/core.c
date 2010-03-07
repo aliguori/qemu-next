@@ -60,6 +60,18 @@ static void host_key_event(QemuDisplay *obj, gpointer data)
     g_object_set(G_OBJECT(obj), "grab", !grab_active, NULL);
 }
 
+static gboolean enter_grab(QemuDisplay *obj, gpointer data)
+{
+    printf("enter grab\n");
+
+    return FALSE;
+}
+
+static void leave_grab(QemuDisplay *obj, gpointer data)
+{
+    printf("leave grab\n");
+}
+
 void gtk_display_init(DisplayState *ds)
 {
     GtkWidget *window, *display, *frame;
@@ -136,4 +148,9 @@ void gtk_display_init(DisplayState *ds)
 
     g_signal_connect(G_OBJECT(display), "host-key-event",
                      G_CALLBACK(host_key_event), NULL);
+
+    g_signal_connect(G_OBJECT(display), "enter-grab-event",
+                     G_CALLBACK(enter_grab), NULL);
+    g_signal_connect(G_OBJECT(display), "leave-grab-event",
+                     G_CALLBACK(leave_grab), NULL);
 }

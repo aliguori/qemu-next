@@ -35,7 +35,6 @@ struct _QemuDisplay
 struct _QemuDisplayClass
 {
     GtkDrawingAreaClass parent_class;
-    gboolean (*enter_grab_event)(QemuDisplay *obj);
 };
 
 GType qemu_display_get_type(void);
