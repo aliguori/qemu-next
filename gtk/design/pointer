@@ -117,9 +117,7 @@ We'll implement the following policies as defaults:
      to TRUE
   b) otherwise, click-to-grab is set to FALSE
 2) When in graphics mode:
-  a) if relative-pointer, we check the grab enabled ToggleAction, if enabled,
-     click-to-grab is set to TRUE
-  b) otherwise, click-to-grab is set to FALSE
+  a) click-to-grab is set to TRUE
 3) Host key is [Control_L, Alt_L]
 4) When we receive a host-key-event, we check the grab enabled ToggleAction, if
    enabled, set grab to TRUE
@@ -148,3 +146,14 @@ We'll implement the following policies as defaults:
     alter this
 12) seamless pointer ToggleAction starts out deactivated
 
+---
+
+Actions
+
+Grab - used to update hostkey icon; no associated menu item
+
+Text Mode Grab - used to determine whether click-to-grab is used for text mode;
+                 we provide at least a menu item to toggle this
+
+Seamless Pointer - used to indicate whether we're in relative input mode or
+                   absolute (absolute == seamless)

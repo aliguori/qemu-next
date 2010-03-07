@@ -1,6 +1,7 @@
 #include <gtk/gtk.h>
 #include <gdk-pixbuf/gdk-pixbuf.h>
 #include <gdk/gdk.h>
+#include <gdk/gdkkeysyms.h>
 
 #include "gtk.h"
 #include "sysemu.h"
@@ -30,7 +31,34 @@ struct _QemuDisplayPrivate
     gint button_mask;
     GdkCursor *null_cursor;
     gboolean pointer_is_absolute;
+
+    gboolean grab_active;
+    GValueArray *host_key;
+    gboolean click_to_grab;
+    gboolean relative_pointer;
 };
+
+/* Properties */
+enum
+{
+    QEMU_GRAB_PROP = 1,
+    QEMU_HOST_KEY_PROP,
+    QEMU_CLICK2GRAB_PROP,
+    QEMU_RELATIVE_POINTER_PROP,
+};
+
+/* Signals */
+enum
+{
+    QEMU_ENTER_GRAB_EVENT,
+    QEMU_LEAVE_GRAB_EVENT,
+    QEMU_HOST_KEY_EVENT,
+    QEMU_RELATIVE_POINTER_EVENT,
+    QEMU_ABSOLUTE_POINTER_EVENT,
+    LAST_SIGNAL,
+};
+
+static guint signals[LAST_SIGNAL];
 
 /* Utility functions */
 
@@ -306,9 +334,71 @@ static gboolean qemu_display_focus(GtkWidget *widget, GdkEventFocus *focus)
     return FALSE;
 }
 
+static gboolean qemu_display_enter_grab(QemuDisplay *obj)
+{
+    /* FIXME enter grab */
+    return TRUE;
+}
+
 /* G_TYPE boiler plate code */
 
 G_DEFINE_TYPE(QemuDisplay, qemu_display, GTK_TYPE_DRAWING_AREA)
+
+
+static void qemu_display_get_property(GObject *gobject, guint prop_id,
+                                      GValue *value, GParamSpec *pspec)
+{
+    QemuDisplay *obj = QEMU_DISPLAY(gobject);
+    QemuDisplayPrivate *da = obj->priv;
+
+    switch (prop_id) {
+    case QEMU_GRAB_PROP:
+        g_value_set_boolean(value, da->grab_active);
+        break;
+    case QEMU_HOST_KEY_PROP:
+        g_value_set_boxed(value, da->host_key);
+        break;
+    case QEMU_CLICK2GRAB_PROP:
+        g_value_set_boolean(value, da->click_to_grab);
+        break;
+    case QEMU_RELATIVE_POINTER_PROP:
+        g_value_set_boolean(value, da->relative_pointer);
+        break;
+    }
+}
+
+static void qemu_display_set_property(GObject *gobject, guint prop_id,
+                                      const GValue *value, GParamSpec *pspec)
+{
+    QemuDisplay *obj = QEMU_DISPLAY(gobject);
+    QemuDisplayPrivate *da = obj->priv;
+
+    switch (prop_id) {
+    case QEMU_GRAB_PROP:
+        da->grab_active = g_value_get_boolean(value);
+        break;
+    case QEMU_HOST_KEY_PROP: {
+        GValueArray *host_key;
+
+        if (da->host_key) {
+            g_value_array_free(da->host_key);
+        }
+
+        host_key = (GValueArray *)g_value_get_boxed(value);
+        if (host_key) {
+            da->host_key = g_value_array_copy(host_key);
+        } else {
+            da->host_key = NULL;
+        }
+    }   break;
+    case QEMU_CLICK2GRAB_PROP:
+        da->click_to_grab = g_value_get_boolean(value);
+        break;
+    case QEMU_RELATIVE_POINTER_PROP:
+        da->relative_pointer = g_value_get_boolean(value);
+        break;
+    }    
+}
 
 static void qemu_display_finalize(GObject *gobject)
 {
@@ -317,23 +407,24 @@ static void qemu_display_finalize(GObject *gobject)
 
     if (da->pixbuf) {
         g_object_unref(da->pixbuf);
-        da->pixbuf = NULL;
     }
     if (da->gc) {
         g_object_unref(da->gc);
-        da->gc = NULL;
     }
     if (da->null_cursor) {
-        g_object_unref(da->null_cursor);
-        da->null_cursor = NULL;
+        gdk_cursor_unref(da->null_cursor);
+    }
+    if (da->host_key) {
+        g_value_array_free(da->host_key);
     }
 }
 
 static void qemu_display_init(QemuDisplay *obj)
 {
-    GtkWidget *widget = GTK_WIDGET(obj);
     QemuDisplayPrivate *da;
     GdkEventMask events;
+    GValueArray *host_key;
+    GValue value;
 
     events = GDK_POINTER_MOTION_MASK |
         GDK_BUTTON_PRESS_MASK |
@@ -344,13 +435,6 @@ static void qemu_display_init(QemuDisplay *obj)
         GDK_SCROLL_MASK |
         GDK_KEY_PRESS_MASK;
 
-    g_object_set(G_OBJECT(widget),
-                 "can-focus", TRUE,
-                 "has-focus", TRUE,
-                 "double-buffered", FALSE,
-                 "events", events,
-                 NULL);
-
     da = obj->priv = qemu_display_get_private(obj);
 
     da->pixbuf = NULL;
@@ -360,12 +444,38 @@ static void qemu_display_init(QemuDisplay *obj)
     da->button_mask = 0;
     da->null_cursor = NULL;
     da->pointer_is_absolute = FALSE;
+
+    host_key = g_value_array_new(2);
+
+    memset(&value, 0, sizeof(value));
+    g_value_init(&value, G_TYPE_INT);
+    g_value_set_int(&value, GDK_Control_L);
+    g_value_array_append(host_key, &value);
+
+    memset(&value, 0, sizeof(value));
+    g_value_init(&value, G_TYPE_INT);
+    g_value_set_int(&value, GDK_Alt_L);
+    g_value_array_append(host_key, &value);
+
+    g_object_set(G_OBJECT(obj),
+                 "can-focus", TRUE,
+                 "has-focus", TRUE,
+                 "double-buffered", FALSE,
+                 "events", events,
+                 "host-key", host_key,
+                 NULL);
+
+    g_value_array_free(host_key);
 }
 
-static void qemu_display_class_init(QemuDisplayClass *klass)
+static void qemu_display_class_init_events(QemuDisplayClass *klass)
 {
-    GObjectClass *object_class = G_OBJECT_CLASS(klass);
     GtkWidgetClass *gtkwidget_class = GTK_WIDGET_CLASS(klass);
+    GObjectClass *object_class = G_OBJECT_CLASS(klass);
+
+    object_class->get_property = qemu_display_get_property;
+    object_class->set_property = qemu_display_set_property;
+    object_class->finalize = qemu_display_finalize;
 
     gtkwidget_class->expose_event = qemu_display_expose;
     gtkwidget_class->key_press_event = qemu_display_key;
@@ -377,9 +487,117 @@ static void qemu_display_class_init(QemuDisplayClass *klass)
     gtkwidget_class->focus_in_event = qemu_display_focus;
     gtkwidget_class->focus_out_event = qemu_display_focus;
 
-    object_class->finalize = qemu_display_finalize;
+    klass->enter_grab_event = qemu_display_enter_grab;
+}
 
+static void qemu_display_class_init_signals(QemuDisplayClass *klass)
+{
+    GObjectClass *object_class = G_OBJECT_CLASS(klass);
+
+    signals[QEMU_ENTER_GRAB_EVENT] = 
+        g_signal_new("enter-grab-event",
+                     G_OBJECT_CLASS_TYPE(object_class),
+                     G_SIGNAL_RUN_LAST,
+                     G_STRUCT_OFFSET(QemuDisplayClass, enter_grab_event),
+                     NULL,
+                     NULL,
+                     g_cclosure_marshal_VOID__VOID,
+                     G_TYPE_BOOLEAN,
+                     0);
+
+    signals[QEMU_LEAVE_GRAB_EVENT] = 
+        g_signal_new("leave-grab-event",
+                     G_OBJECT_CLASS_TYPE(object_class),
+                     G_SIGNAL_RUN_LAST | G_SIGNAL_NO_HOOKS,
+                     0,
+                     NULL,
+                     NULL,
+                     g_cclosure_marshal_VOID__VOID,
+                     G_TYPE_NONE,
+                     0);
+
+    signals[QEMU_HOST_KEY_EVENT] = 
+        g_signal_new("host-key-event",
+                     G_OBJECT_CLASS_TYPE(object_class),
+                     G_SIGNAL_RUN_LAST | G_SIGNAL_NO_HOOKS,
+                     0,
+                     NULL,
+                     NULL,
+                     g_cclosure_marshal_VOID__VOID,
+                     G_TYPE_NONE,
+                     0);
+
+    signals[QEMU_RELATIVE_POINTER_EVENT] = 
+        g_signal_new("relative-pointer-event",
+                     G_OBJECT_CLASS_TYPE(object_class),
+                     G_SIGNAL_RUN_LAST | G_SIGNAL_NO_HOOKS,
+                     0,
+                     NULL,
+                     NULL,
+                     g_cclosure_marshal_VOID__VOID,
+                     G_TYPE_NONE,
+                     0);
+
+    signals[QEMU_ABSOLUTE_POINTER_EVENT] = 
+        g_signal_new("absolute-pointer-event",
+                     G_OBJECT_CLASS_TYPE(object_class),
+                     G_SIGNAL_RUN_LAST | G_SIGNAL_NO_HOOKS,
+                     0,
+                     NULL,
+                     NULL,
+                     g_cclosure_marshal_VOID__VOID,
+                     G_TYPE_NONE,
+                     0);
+}
+
+static void qemu_display_class_init_properties(QemuDisplayClass *klass)
+{
+    GObjectClass *object_class = G_OBJECT_CLASS(klass);
+    GParamSpec *spec, *value_spec;
+
+    spec = g_param_spec_boolean("grab",
+                                "Grab enabled",
+                                "Whether input is grabbed",
+                                FALSE,
+                                G_PARAM_READWRITE |
+                                G_PARAM_STATIC_STRINGS);
+    g_object_class_install_property(object_class, QEMU_GRAB_PROP, spec);
+
+    value_spec = g_param_spec_int("key",
+                                  "key",
+                                  "A GDK key symbol",
+                                  G_MININT,
+                                  G_MAXINT,
+                                  0,
+                                  G_PARAM_READWRITE |
+                                  G_PARAM_CONSTRUCT |
+                                  G_PARAM_STATIC_STRINGS);
+    spec = g_param_spec_value_array("host-key",
+                                    "Host key sequence",
+                                    "The set of GDK key symbols that when pressed activate the host-key",
+                                    value_spec,
+                                    G_PARAM_READWRITE |
+                                    G_PARAM_CONSTRUCT |
+                                    G_PARAM_STATIC_STRINGS);
+    g_object_class_install_property(object_class, QEMU_HOST_KEY_PROP, spec);
+
+    spec = g_param_spec_boolean("click-to-grab",
+                                "Click to grab enabled",
+                                "When TRUE, a left button click activates the host-key",
+                                FALSE,
+                                G_PARAM_READWRITE |
+                                G_PARAM_CONSTRUCT |
+                                G_PARAM_STATIC_STRINGS);
+    g_object_class_install_property(object_class, QEMU_CLICK2GRAB_PROP, spec);
+}
+
+static void qemu_display_class_init(QemuDisplayClass *klass)
+{
     g_type_class_add_private(klass, sizeof(QemuDisplayPrivate));
+
+    qemu_display_class_init_events(klass);
+    qemu_display_class_init_signals(klass);
+    qemu_display_class_init_properties(klass);
 }
 
 /* Public functions */
