@@ -7,8 +7,10 @@
 #include "gtk/drawingarea.h"
 #include "x_keymap.h"
 
+#ifndef _WIN32
 #include <gdk/gdkx.h>
 #include <X11/XKBlib.h>
+#endif
 
 //#define DEBUG_GTK
 #ifdef DEBUG_GTK
@@ -119,7 +121,7 @@ static void gtk_display_refresh(DisplayState *ds)
 }
 
 /* Widget events */
-
+#ifndef _WIN32
 static int check_for_evdev(void)
 {
     XkbDescPtr desc = NULL;
@@ -185,6 +187,12 @@ static uint8_t gtk_keyevent_to_keycode(const GdkEventKey *ev)
     }
     return keycode;
 }
+#else
+static uint8_t gtk_keyevent_to_keycode(const GdkEventKey *ev)
+{
+    return ev->hardware_keycode;
+}
+#endif
 
 static gboolean gtk_display_expose(GtkWidget *widget, GdkEventExpose *expose,
                                    gpointer data)
