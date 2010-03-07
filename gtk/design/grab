@@ -3,8 +3,8 @@ Grab
 
 This needs to interact with the gui so requires some thinking.  We need
 to think about the following things
- - some user defined key combination breaks grab
- - the same key combination will start grab
+ - some user defined key combination breaks grab (Host)
+ - the same key combination will start grab (Host)
  - we have two modes:
    o absolute is when the guest can understand absolute key coordinates
    o relative means that in order to pass key events, we must grab
@@ -31,5 +31,22 @@ Optionally, we should:
     we do not do grab
   - Instead, we get geometry information from CGA and implement
     dos style copy/paste
+
+ qemugtkdrawingarea needs to have an interface to set a Host key
+  - qemu_display_set_host_key(obj, [key1, key2, key3])
+  - qemu_display_get_host_key(obj)
+  - qemu_display_set_input_grab(obj, do_grab)
+  - qemu_display_get_input_grab(obj)
+
+  - qemu_display_get_pointer_mode(obj)
+
+  - g_signal_connect(obj, "host-key-event", routine, opaque)
+  - g_signal_connect(obj, "pointer-mode-event", routine, opaque)
+  - g_signal_connect(obj, "grab-event", routine, opaque)
+
+
+
+ - emits a signal when host key is pressed
+
 
 
