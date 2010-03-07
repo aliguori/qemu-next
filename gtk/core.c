@@ -1,4 +1,5 @@
 #include <gtk/gtk.h>
+#include <gdk/gdkkeysyms.h>
 
 #include "gtk.h"
 #include "sysemu.h"
@@ -90,6 +91,30 @@ void gtk_display_init(DisplayState *ds)
 
     /* FIXME should not be necessary */
     gtk_widget_grab_focus(display);
+
+    {
+        GValueArray *host_key = g_value_array_new(3);
+        GValue value;
+
+        memset(&value, 0, sizeof(value));
+        g_value_init(&value, G_TYPE_INT);
+        g_value_set_int(&value, GDK_Control_L);
+        g_value_array_append(host_key, &value);
+
+        memset(&value, 0, sizeof(value));
+        g_value_init(&value, G_TYPE_INT);
+        g_value_set_int(&value, GDK_Alt_L);
+        g_value_array_append(host_key, &value);
+
+        memset(&value, 0, sizeof(value));
+        g_value_init(&value, G_TYPE_INT);
+        g_value_set_int(&value, GDK_a);
+        g_value_array_append(host_key, &value);
+
+        g_object_set(G_OBJECT(display),
+                     "host-key", host_key,
+                     NULL);
+    }
 
     window = GTK_WIDGET(gtk_builder_get_object(builder, "window1"));
 

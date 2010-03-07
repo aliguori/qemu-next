@@ -34,6 +34,7 @@ struct _QemuDisplayPrivate
 
     gboolean grab_active;
     GValueArray *host_key;
+    int host_key_mask;
     gboolean click_to_grab;
     gboolean relative_pointer;
 };
@@ -225,7 +226,34 @@ static gboolean qemu_display_expose(GtkWidget *widget, GdkEventExpose *expose)
 
 static gboolean qemu_display_key(GtkWidget *widget, GdkEventKey *key)
 {
+    QemuDisplay *obj = QEMU_DISPLAY(widget);
+    QemuDisplayPrivate *da = obj->priv;
     int keycode;
+    int i;
+
+    dprintf("Key '%s' %s event\n", gdk_keyval_name(key->keyval),
+            (key->type == GDK_KEY_PRESS) ? "press" : "release");
+
+    if (da->host_key) {
+        int host_key_mask = (1 << da->host_key->n_values) - 1;
+        int found = 0;
+
+        for (i = 0; i < da->host_key->n_values; i++) {
+            if (key->keyval == g_value_get_int(&da->host_key->values[i])) {
+                if (key->type == GDK_KEY_PRESS) {
+                    da->host_key_mask |= (1 << i);
+                    found = 1;
+                } else {
+                    da->host_key_mask &= ~(1 << i);
+                }
+                break;
+            }
+        }
+
+        if (found && (da->host_key_mask == host_key_mask)) {
+            g_signal_emit(G_OBJECT(obj), signals[QEMU_HOST_KEY_EVENT], 0);
+        }
+    }
 
     keycode = gdk_keyevent_to_keycode(key);
 
@@ -423,8 +451,6 @@ static void qemu_display_init(QemuDisplay *obj)
 {
     QemuDisplayPrivate *da;
     GdkEventMask events;
-    GValueArray *host_key;
-    GValue value;
 
     events = GDK_POINTER_MOTION_MASK |
         GDK_BUTTON_PRESS_MASK |
@@ -445,27 +471,12 @@ static void qemu_display_init(QemuDisplay *obj)
     da->null_cursor = NULL;
     da->pointer_is_absolute = FALSE;
 
-    host_key = g_value_array_new(2);
-
-    memset(&value, 0, sizeof(value));
-    g_value_init(&value, G_TYPE_INT);
-    g_value_set_int(&value, GDK_Control_L);
-    g_value_array_append(host_key, &value);
-
-    memset(&value, 0, sizeof(value));
-    g_value_init(&value, G_TYPE_INT);
-    g_value_set_int(&value, GDK_Alt_L);
-    g_value_array_append(host_key, &value);
-
     g_object_set(G_OBJECT(obj),
                  "can-focus", TRUE,
                  "has-focus", TRUE,
                  "double-buffered", FALSE,
                  "events", events,
-                 "host-key", host_key,
                  NULL);
-
-    g_value_array_free(host_key);
 }
 
 static void qemu_display_class_init_events(QemuDisplayClass *klass)
