@@ -37,11 +37,16 @@ static void gtk_display_refresh(DisplayState *ds)
     vga_hw_update();
 }
 
-static void close_window(GtkWidget *widget, GdkEvent *event, gpointer data)
+static gboolean close_window(GtkWidget *widget, GdkEvent *event, gpointer data)
+{
+    qemu_system_shutdown_request();
+    return FALSE;
+}
+
+static void display_unrealize(GtkWidget *widget, gpointer data)
 {
     QemuDisplayChangeListener *dcl = data;
     dcl->valid = 0;
-    qemu_system_shutdown_request();
 }
 
 void gtk_display_init(DisplayState *ds)
@@ -89,5 +94,7 @@ void gtk_display_init(DisplayState *ds)
     window = GTK_WIDGET(gtk_builder_get_object(builder, "window1"));
 
     g_signal_connect(G_OBJECT(window), "delete-event",
-                     G_CALLBACK(close_window), dcl);
+                     G_CALLBACK(close_window), NULL);
+    g_signal_connect(G_OBJECT(display), "unrealize",
+                     G_CALLBACK(display_unrealize), dcl);
 }

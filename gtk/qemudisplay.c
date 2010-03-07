@@ -170,10 +170,6 @@ static gboolean qemu_display_expose(GtkWidget *widget, GdkEventExpose *expose)
     QemuDisplayPrivate *da = obj->priv;
     int x, y, w, h, pw, ph;
 
-    if (da->pixbuf == NULL) {
-        return FALSE;
-    }
-
     if (da->gc == NULL) {
         da->gc = gdk_gc_new(widget->window);
     }
