@@ -499,8 +499,9 @@ static int virtio_serial_init_pci(PCIDevice *pci_dev)
     if (!vdev) {
         return -1;
     }
-    vdev->nvectors = proxy->nvectors == -1 ? proxy->max_virtserial_ports + 1
-                                           : proxy->nvectors;
+    vdev->nvectors = proxy->nvectors == DEV_NVECTORS_UNSPECIFIED
+                                        ? proxy->max_virtserial_ports + 1
+                                        : proxy->nvectors;
     virtio_init_pci(proxy, vdev,
                     PCI_VENDOR_ID_REDHAT_QUMRANET,
                     PCI_DEVICE_ID_VIRTIO_CONSOLE,
@@ -584,7 +585,8 @@ static PCIDeviceInfo virtio_info[] = {
         .init      = virtio_serial_init_pci,
         .exit      = virtio_exit_pci,
         .qdev.props = (Property[]) {
-            DEFINE_PROP_UINT32("vectors", VirtIOPCIProxy, nvectors, -1),
+            DEFINE_PROP_UINT32("vectors", VirtIOPCIProxy, nvectors,
+                               DEV_NVECTORS_UNSPECIFIED),
             DEFINE_PROP_HEX32("class", VirtIOPCIProxy, class_code, 0),
             DEFINE_PROP_UINT32("max_ports", VirtIOPCIProxy, max_virtserial_ports,
                                31),
