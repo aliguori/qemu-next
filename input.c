@@ -33,6 +33,7 @@ static void *qemu_put_kbd_event_opaque;
 static QEMUPutMouseEntry *qemu_put_mouse_event_head;
 static QEMUPutMouseEntry *qemu_put_mouse_event_current;
 static int current_is_absolute;
+static int current_has_absolute;
 static QEMUNotifierList mouse_mode_notifiers = 
     QEMU_NOTIFIER_LIST_INITIALIZER(mouse_mode_notifiers);
 
@@ -45,17 +46,18 @@ void qemu_add_kbd_event_handler(QEMUPutKBDEvent *func, void *opaque)
 static void check_mode_change(void)
 {
     int is_absolute;
+    int has_absolute;
 
-    if (qemu_put_mouse_event_current &&
-        qemu_put_mouse_event_current->qemu_put_mouse_event_absolute) {
-        is_absolute = 1;
-    } else {
-        is_absolute = 0;
-    }
+    is_absolute = kbd_mouse_is_absolute();
+    has_absolute = kbd_mouse_has_absolute();
 
-    if (is_absolute != current_is_absolute) {
+    if (is_absolute != current_is_absolute ||
+        has_absolute != current_has_absolute) {
         qemu_notifier_list_notify(&mouse_mode_notifiers);
     }
+
+    current_is_absolute = is_absolute;
+    current_has_absolute = current_has_absolute;
 }
 
 QEMUPutMouseEntry *qemu_add_mouse_event_handler(QEMUPutMouseEvent *func,
@@ -166,6 +168,19 @@ int kbd_mouse_is_absolute(void)
         return 0;
 
     return qemu_put_mouse_event_current->qemu_put_mouse_event_absolute;
+}
+
+int kbd_mouse_has_absolute(void)
+{
+    QEMUPutMouseEntry *entry;
+
+    for (entry = qemu_put_mouse_event_head; entry; entry = entry->next) {
+        if (entry->qemu_put_mouse_event_absolute) {
+            return 1;
+        }
+    }
+
+    return 0;
 }
 
 static void info_mice_iter(QObject *data, void *opaque)

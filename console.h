@@ -35,7 +35,15 @@ void qemu_remove_mouse_event_handler(QEMUPutMouseEntry *entry);
 
 void kbd_put_keycode(int keycode);
 void kbd_mouse_event(int dx, int dy, int dz, int buttons_state);
+
+/* Does the current mouse generate absolute events */
 int kbd_mouse_is_absolute(void);
+
+/* Of all the mice, is there one that generates absolute events */
+int kbd_mouse_has_absolute(void);
+
+/* Change notifier for whenever a new mouse is added or when
+   the mode of the current mouse changes */
 void qemu_add_mouse_mode_change_notifier(QEMUNotifier *notify);
 void qemu_remove_mouse_mode_change_notifier(QEMUNotifier *notify);
 
