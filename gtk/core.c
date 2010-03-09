@@ -72,6 +72,32 @@ static void leave_grab(QemuDisplay *obj, gpointer data)
     printf("leave grab\n");
 }
 
+static void update_mouse_icon(QemuDisplay *obj, gpointer data)
+{
+    GtkBuilder *builder = data;
+    GtkWidget *icon;
+    gboolean relative_pointer;
+    const char *stock_id;
+
+    printf("update mouse icon\n");
+
+    icon = GTK_WIDGET(gtk_builder_get_object(builder, "image4"));
+
+    g_object_get(G_OBJECT(obj),
+                 "relative-pointer", &relative_pointer,
+                 NULL);
+    printf("relative pointer - %d\n", relative_pointer);
+
+    if (relative_pointer) {
+        stock_id = "mouse";
+    } else {
+        stock_id = "mouse-seamless";
+    }
+
+    printf("setting %s\n", stock_id);
+    gtk_image_set_from_stock(GTK_IMAGE(icon), stock_id, GTK_ICON_SIZE_MENU);
+}
+
 void gtk_display_init(DisplayState *ds)
 {
     GtkWidget *window, *display, *frame;
@@ -153,4 +179,9 @@ void gtk_display_init(DisplayState *ds)
                      G_CALLBACK(enter_grab), NULL);
     g_signal_connect(G_OBJECT(display), "leave-grab-event",
                      G_CALLBACK(leave_grab), NULL);
+
+    g_signal_connect(G_OBJECT(display), "relative-pointer-event",
+                     G_CALLBACK(update_mouse_icon), builder);
+    g_signal_connect(G_OBJECT(display), "absolute-pointer-event",
+                     G_CALLBACK(update_mouse_icon), builder);
 }

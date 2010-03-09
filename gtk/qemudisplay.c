@@ -24,6 +24,7 @@
 
 struct _QemuDisplayPrivate
 {
+    QemuDisplay *obj;
     GdkPixbuf *pixbuf;
     GdkGC *gc;
     gint width;
@@ -33,12 +34,12 @@ struct _QemuDisplayPrivate
     gint button_mask;
     GdkCursor *null_cursor;
     gboolean pointer_is_absolute;
+    QEMUNotifier mouse_mode_change;
 
     gboolean grab_active;
     GValueArray *host_key;
     int host_key_mask;
     gboolean click_to_grab;
-    gboolean relative_pointer;
 };
 
 /* Properties */
@@ -178,19 +179,24 @@ static void gtk_display_pointer_set_absolute(QemuDisplay *obj,
     gdk_window_set_cursor(GTK_WIDGET(obj)->window, cursor);
 }
 
-static gboolean check_absolute(QemuDisplay *obj)
+static void mouse_mode_change_notifier(QEMUNotifier *notifier)
 {
-    QemuDisplayPrivate *da = obj->priv;
-    gboolean absolute;
-
-    absolute = !!kbd_mouse_is_absolute();
+    QemuDisplayPrivate *da = container_of(notifier,
+                                          QemuDisplayPrivate,
+                                          mouse_mode_change);
+    gboolean absolute = !!kbd_mouse_is_absolute();
 
     if (absolute != da->pointer_is_absolute) {
         da->pointer_is_absolute = absolute;
-        gtk_display_pointer_set_absolute(obj, absolute);
+        gtk_display_pointer_set_absolute(da->obj, absolute);
+        if (absolute) {
+            g_signal_emit(G_OBJECT(da->obj),
+                          signals[QEMU_ABSOLUTE_POINTER_EVENT], 0);
+        } else {
+            g_signal_emit(G_OBJECT(da->obj),
+                          signals[QEMU_RELATIVE_POINTER_EVENT], 0);
+        }
     }
-
-    return absolute;
 }
 
 static void qemu_display_set_grab_active(QemuDisplay *obj,
@@ -322,7 +328,7 @@ static gboolean qemu_display_motion(GtkWidget *widget, GdkEventMotion *motion)
     QemuDisplay *obj = QEMU_DISPLAY(widget);
     QemuDisplayPrivate *da = obj->priv;
 
-    if (!GTK_WIDGET_HAS_FOCUS(widget) || !check_absolute(obj)) {
+    if (!GTK_WIDGET_HAS_FOCUS(widget) || !kbd_mouse_is_absolute()) {
         return FALSE;
     }
 
@@ -351,7 +357,7 @@ static gboolean qemu_display_button(GtkWidget *widget, GdkEventButton *button)
         }
     }
 
-    if (!check_absolute(obj)) {
+    if (!kbd_mouse_is_absolute()) {
         return FALSE;
     }
 
@@ -384,7 +390,7 @@ static gboolean qemu_display_scroll(GtkWidget *widget, GdkEventScroll *scroll)
     QemuDisplayPrivate *da = obj->priv;
     int dz;
 
-    if (!GTK_WIDGET_HAS_FOCUS(widget) || !check_absolute(obj)) {
+    if (!GTK_WIDGET_HAS_FOCUS(widget) || !kbd_mouse_is_absolute()) {
         return FALSE;
     }
 
@@ -442,7 +448,8 @@ static void qemu_display_get_property(GObject *gobject, guint prop_id,
         g_value_set_boolean(value, da->click_to_grab);
         break;
     case QEMU_RELATIVE_POINTER_PROP:
-        g_value_set_boolean(value, da->relative_pointer);
+        printf("pointer is absolute: %d\n", da->pointer_is_absolute);
+        g_value_set_boolean(value, !da->pointer_is_absolute);
         break;
     }
 }
@@ -474,9 +481,6 @@ static void qemu_display_set_property(GObject *gobject, guint prop_id,
     }   break;
     case QEMU_CLICK2GRAB_PROP:
         da->click_to_grab = g_value_get_boolean(value);
-        break;
-    case QEMU_RELATIVE_POINTER_PROP:
-        da->relative_pointer = g_value_get_boolean(value);
         break;
     }    
 }
@@ -515,6 +519,7 @@ static void qemu_display_init(QemuDisplay *obj)
         GDK_KEY_PRESS_MASK;
 
     da = obj->priv = qemu_display_get_private(obj);
+    da->obj = obj;
 
     da->pixbuf = NULL;
     da->gc = NULL;
@@ -523,6 +528,8 @@ static void qemu_display_init(QemuDisplay *obj)
     da->button_mask = 0;
     da->null_cursor = NULL;
     da->pointer_is_absolute = FALSE;
+    da->mouse_mode_change.notify = mouse_mode_change_notifier;
+    qemu_add_mouse_mode_change_notifier(&da->mouse_mode_change);
 
     g_object_set(G_OBJECT(obj),
                  "can-focus", TRUE,
@@ -651,6 +658,14 @@ static void qemu_display_class_init_properties(QemuDisplayClass *klass)
                                 G_PARAM_CONSTRUCT |
                                 G_PARAM_STATIC_STRINGS);
     g_object_class_install_property(object_class, QEMU_CLICK2GRAB_PROP, spec);
+
+    spec = g_param_spec_boolean("relative-pointer",
+                                "Whether the pointer is relative",
+                                "When TRUE, input device generates relative events",
+                                TRUE,
+                                G_PARAM_READABLE |
+                                G_PARAM_STATIC_STRINGS);
+    g_object_class_install_property(object_class, QEMU_RELATIVE_POINTER_PROP, spec);
 }
 
 static void qemu_display_class_init(QemuDisplayClass *klass)
