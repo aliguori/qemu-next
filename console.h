@@ -3,6 +3,7 @@
 
 #include "qemu-char.h"
 #include "qdict.h"
+#include "notify.h"
 
 /* keyboard/mouse support */
 
@@ -35,6 +36,8 @@ void qemu_remove_mouse_event_handler(QEMUPutMouseEntry *entry);
 void kbd_put_keycode(int keycode);
 void kbd_mouse_event(int dx, int dy, int dz, int buttons_state);
 int kbd_mouse_is_absolute(void);
+void qemu_add_mouse_mode_change_notifier(QEMUNotifier *notify);
+void qemu_remove_mouse_mode_change_notifier(QEMUNotifier *notify);
 
 struct MouseTransformInfo {
     /* Touchscreen resolution */

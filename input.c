@@ -28,16 +28,34 @@
 #include "console.h"
 #include "qjson.h"
 
-
 static QEMUPutKBDEvent *qemu_put_kbd_event;
 static void *qemu_put_kbd_event_opaque;
 static QEMUPutMouseEntry *qemu_put_mouse_event_head;
 static QEMUPutMouseEntry *qemu_put_mouse_event_current;
+static int current_is_absolute;
+static QEMUNotifierList mouse_mode_notifiers = 
+    QEMU_NOTIFIER_LIST_INITIALIZER(mouse_mode_notifiers);
 
 void qemu_add_kbd_event_handler(QEMUPutKBDEvent *func, void *opaque)
 {
     qemu_put_kbd_event_opaque = opaque;
     qemu_put_kbd_event = func;
+}
+
+static void check_mode_change(void)
+{
+    int is_absolute;
+
+    if (qemu_put_mouse_event_current &&
+        qemu_put_mouse_event_current->qemu_put_mouse_event_absolute) {
+        is_absolute = 1;
+    } else {
+        is_absolute = 0;
+    }
+
+    if (is_absolute != current_is_absolute) {
+        qemu_notifier_list_notify(&mouse_mode_notifiers);
+    }
 }
 
 QEMUPutMouseEntry *qemu_add_mouse_event_handler(QEMUPutMouseEvent *func,
@@ -65,6 +83,8 @@ QEMUPutMouseEntry *qemu_add_mouse_event_handler(QEMUPutMouseEvent *func,
 
     cursor->next = s;
     qemu_put_mouse_event_current = s;
+
+    check_mode_change();
 
     return s;
 }
@@ -100,6 +120,8 @@ void qemu_remove_mouse_event_handler(QEMUPutMouseEntry *entry)
 
     qemu_free(entry->qemu_put_mouse_event_name);
     qemu_free(entry);
+
+    check_mode_change();
 }
 
 void kbd_put_keycode(int keycode)
@@ -235,4 +257,16 @@ void do_mouse_set(Monitor *mon, const QDict *qdict)
         qemu_put_mouse_event_current = cursor;
     else
         monitor_printf(mon, "Mouse at given index not found\n");
+
+    check_mode_change();
+}
+
+void qemu_add_mouse_mode_change_notifier(QEMUNotifier *notify)
+{
+    qemu_notifier_list_add(&mouse_mode_notifiers, notify);
+}
+
+void qemu_remove_mouse_mode_change_notifier(QEMUNotifier *notify)
+{
+    qemu_notifier_list_remove(&mouse_mode_notifiers, notify);
 }

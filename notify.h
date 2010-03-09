@@ -22,6 +22,9 @@ typedef struct QEMUNotifierList
     QTAILQ_HEAD(, QEMUNotifierNode) notifiers;
 } QEMUNotifierList;
 
+#define QEMU_NOTIFIER_LIST_INITIALIZER(head) \
+    { QTAILQ_HEAD_INITIALIZER((head).notifiers) }
+
 void qemu_notifier_list_init(QEMUNotifierList *list);
 
 void qemu_notifier_list_add(QEMUNotifierList *list, QEMUNotifier *notifier);
