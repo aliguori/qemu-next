@@ -175,6 +175,7 @@ int kbd_mouse_has_absolute(void)
     QEMUPutMouseEntry *entry;
 
     for (entry = qemu_put_mouse_event_head; entry; entry = entry->next) {
+        printf("%s\n", entry->qemu_put_mouse_event_name);
         if (entry->qemu_put_mouse_event_absolute) {
             return 1;
         }
