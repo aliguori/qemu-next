@@ -8,8 +8,6 @@ typedef struct _QemuDisplayClass QemuDisplayClass;
 typedef struct _QemuDisplayPrivate QemuDisplayPrivate;
 
 #define QEMU_TYPE_DISPLAY (qemu_display_get_type())
-#define QEMU_TYPE_DISPLAY_CREDENTIAL (qemu_display_credential_get_type())
-#define QEMU_TYPE_DISPLAY_KEY_EVENT (qemu_display_key_event_get_type())
 
 #define QEMU_DISPLAY(obj) \
         (G_TYPE_CHECK_INSTANCE_CAST((obj), QEMU_TYPE_DISPLAY, QemuDisplay))
@@ -44,5 +42,15 @@ void qemu_display_update(QemuDisplay *obj, DisplayState *ds,
                          gint x, gint y, gint w, gint h);
 
 void qemu_display_resize(QemuDisplay *obj, DisplayState *ds);
+
+void qemu_display_set_grab(QemuDisplay *obj, gboolean enable);
+void qemu_display_set_host_key(QemuDisplay *obj, gint num_keys,
+                               const gint *keys);
+void qemu_display_set_click_to_grab(QemuDisplay *obj, gboolean enable);
+
+gboolean qemu_display_get_grab(QemuDisplay *obj);
+gint qemu_display_get_host_keys(QemuDisplay *obj, gint num_keys, gint *keys);
+gboolean qemu_display_get_click_to_grab(QemuDisplay *obj);
+gboolean qemu_display_get_relative_pointer(QemuDisplay *obj);
 
 #endif

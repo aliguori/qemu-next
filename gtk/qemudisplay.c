@@ -759,3 +759,72 @@ void qemu_display_resize(QemuDisplay *obj, DisplayState *ds)
 
     gtk_widget_set_size_request(GTK_WIDGET(obj), da->width, da->height);
 }
+
+void qemu_display_set_grab(QemuDisplay *obj, gboolean enable)
+{
+    g_object_set(G_OBJECT(obj), "grab", enable, NULL);
+}
+
+void qemu_display_set_host_key(QemuDisplay *obj, gint num_keys,
+                               const gint *keys)
+{
+    GValueArray *array = g_value_array_new(num_keys);
+    int i;
+
+    for (i = 0; i < num_keys; i++) {
+        GValue value;
+        memset(&value, 0, sizeof(value));
+        g_value_init(&value, G_TYPE_INT);
+        g_value_set_int(&value, keys[i]);
+        g_value_array_append(array, &value);
+    }
+
+    g_object_set(G_OBJECT(obj), "host-key", array, NULL);
+
+    g_value_array_free(array);
+}
+
+void qemu_display_set_click_to_grab(QemuDisplay *obj, gboolean enable)
+{
+    g_object_set(G_OBJECT(obj), "click-to-grab", enable, NULL);
+}
+
+gboolean qemu_display_get_grab(QemuDisplay *obj)
+{
+    gboolean enable;
+    g_object_get(G_OBJECT(obj), "grab", &enable, NULL);
+    return enable;
+}
+
+gint qemu_display_get_host_keys(QemuDisplay *obj, gint num_keys, gint *keys)
+{
+    const GValueArray *array;
+    int i;
+
+    g_object_get(G_OBJECT(obj), "host-key", &array, NULL);
+
+    if (array == NULL) {
+        return 0;
+    }
+
+    for (i = 0; i < num_keys && i < array->n_values; i++) {
+        keys[i] = g_value_get_int(&array->values[i]);
+    }
+
+    return i;
+}
+
+gboolean qemu_display_get_click_to_grab(QemuDisplay *obj)
+{
+    gboolean enable;
+    g_object_get(G_OBJECT(obj), "click-to-grab", &enable, NULL);
+    return enable;
+}
+
+gboolean qemu_display_get_relative_pointer(QemuDisplay *obj)
+{
+    gboolean enable;
+    g_object_get(G_OBJECT(obj), "relative-pointer", &enable, NULL);
+    return enable;
+}
+

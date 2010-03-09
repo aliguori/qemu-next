@@ -81,6 +81,11 @@ static void leave_grab(QemuDisplay *obj, gpointer data)
  *     X QEMU USB Tablet
  *     ---------------------
  *     Edit input devices...
+ *
+ *  - Create a widget by subclassing GtkImage and implementing GtkActivable
+ *    that can be used to represent the status icons.  We can then associate
+ *    GtkActions with the widget and use the tool tips associated with the
+ *    Actions to display to the user.
  */
 
 static void update_mouse_icon(QemuDisplay *obj, gpointer data)
