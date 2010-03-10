@@ -54,22 +54,17 @@ static void host_key_event(QemuDisplay *obj, gpointer data)
 {
     gboolean grab_active;
 
-    printf("host key event\n");
-
     g_object_get(G_OBJECT(obj), "grab", &grab_active, NULL);
     g_object_set(G_OBJECT(obj), "grab", !grab_active, NULL);
 }
 
 static gboolean enter_grab(QemuDisplay *obj, gpointer data)
 {
-    printf("enter grab\n");
-
     return FALSE;
 }
 
 static void leave_grab(QemuDisplay *obj, gpointer data)
 {
-    printf("leave grab\n");
 }
 
 /* TODO
@@ -116,7 +111,7 @@ static void update_mouse_icon(QemuDisplay *obj, gpointer data)
 
 void gtk_display_init(DisplayState *ds)
 {
-    GtkWidget *window, *display, *frame;
+    GtkWidget *window, *display;
     GtkBuilder *builder;
     int ret;
     char *gtk_path;
@@ -133,15 +128,16 @@ void gtk_display_init(DisplayState *ds)
     }
     assert(ret > -1);
 
+    qemu_display_get_type();
+
     builder = gtk_builder_new();
     gtk_builder_add_from_file(builder, "qemu-gui.xml", NULL);
 
-    display = qemu_display_new();
-    gtk_widget_show(display);
+    display = GTK_WIDGET(gtk_builder_get_object(builder, "display"));
 
-    /* FIXME figure out how to integrate custom widgets into glade */
-    frame = GTK_WIDGET(gtk_builder_get_object(builder, "frame2"));
-    gtk_container_add(GTK_CONTAINER(frame), display);
+    qemu_display_set_host_key(QEMU_DISPLAY(display),
+                              3, (gint[]){GDK_Control_L, GDK_Alt_L, GDK_a});
+    qemu_display_set_click_to_grab(QEMU_DISPLAY(display), TRUE);
 
     dcl = qemu_mallocz(sizeof(*dcl));
     dcl->ops.dpy_update = gtk_display_update;
@@ -153,53 +149,23 @@ void gtk_display_init(DisplayState *ds)
 
     register_displaychangelistener(ds, &dcl->ops);
 
-    /* FIXME should not be necessary */
-    gtk_widget_grab_focus(display);
-
-    {
-        GValueArray *host_key = g_value_array_new(3);
-        GValue value;
-
-        memset(&value, 0, sizeof(value));
-        g_value_init(&value, G_TYPE_INT);
-        g_value_set_int(&value, GDK_Control_L);
-        g_value_array_append(host_key, &value);
-
-        memset(&value, 0, sizeof(value));
-        g_value_init(&value, G_TYPE_INT);
-        g_value_set_int(&value, GDK_Alt_L);
-        g_value_array_append(host_key, &value);
-
-        memset(&value, 0, sizeof(value));
-        g_value_init(&value, G_TYPE_INT);
-        g_value_set_int(&value, GDK_a);
-        g_value_array_append(host_key, &value);
-
-        g_object_set(G_OBJECT(display),
-                     "host-key", host_key,
-                     "click-to-grab", TRUE,
-                     NULL);
-    }
-
-    window = GTK_WIDGET(gtk_builder_get_object(builder, "window1"));
-
-    g_signal_connect(G_OBJECT(window), "delete-event",
-                     G_CALLBACK(close_window), NULL);
     g_signal_connect(G_OBJECT(display), "unrealize",
                      G_CALLBACK(display_unrealize), dcl);
-
     g_signal_connect(G_OBJECT(display), "host-key-event",
                      G_CALLBACK(host_key_event), NULL);
-
     g_signal_connect(G_OBJECT(display), "enter-grab-event",
                      G_CALLBACK(enter_grab), NULL);
     g_signal_connect(G_OBJECT(display), "leave-grab-event",
                      G_CALLBACK(leave_grab), NULL);
-
     g_signal_connect(G_OBJECT(display), "relative-pointer-event",
                      G_CALLBACK(update_mouse_icon), builder);
     g_signal_connect(G_OBJECT(display), "absolute-pointer-event",
                      G_CALLBACK(update_mouse_icon), builder);
 
     update_mouse_icon(QEMU_DISPLAY(display), builder);
+
+    window = GTK_WIDGET(gtk_builder_get_object(builder, "window1"));
+
+    g_signal_connect(G_OBJECT(window), "delete-event",
+                     G_CALLBACK(close_window), NULL);
 }

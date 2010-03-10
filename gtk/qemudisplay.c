@@ -186,16 +186,14 @@ static void mouse_mode_change_notifier(QEMUNotifier *notifier)
                                           mouse_mode_change);
     gboolean absolute = !!kbd_mouse_is_absolute();
 
-    if (absolute != da->pointer_is_absolute) {
-        da->pointer_is_absolute = absolute;
-        gtk_display_pointer_set_absolute(da->obj, absolute);
-        if (absolute) {
-            g_signal_emit(G_OBJECT(da->obj),
-                          signals[QEMU_ABSOLUTE_POINTER_EVENT], 0);
-        } else {
-            g_signal_emit(G_OBJECT(da->obj),
-                          signals[QEMU_RELATIVE_POINTER_EVENT], 0);
-        }
+    da->pointer_is_absolute = absolute;
+    gtk_display_pointer_set_absolute(da->obj, absolute);
+    if (absolute) {
+        g_signal_emit(G_OBJECT(da->obj),
+                      signals[QEMU_ABSOLUTE_POINTER_EVENT], 0);
+    } else {
+        g_signal_emit(G_OBJECT(da->obj),
+                      signals[QEMU_RELATIVE_POINTER_EVENT], 0);
     }
 }
 
@@ -448,7 +446,6 @@ static void qemu_display_get_property(GObject *gobject, guint prop_id,
         g_value_set_boolean(value, da->click_to_grab);
         break;
     case QEMU_RELATIVE_POINTER_PROP:
-        printf("pointer is absolute: %d\n", da->pointer_is_absolute);
         g_value_set_boolean(value, !da->pointer_is_absolute);
         break;
     }

@@ -101,7 +101,7 @@
           </packing>
         </child>
         <child>
-          <object class="GtkFrame" id="frame2">
+          <object class="QemuDisplay" id="display">
             <property name="visible">True</property>
           </object>
           <packing>
