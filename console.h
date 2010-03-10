@@ -23,8 +23,10 @@ typedef struct QEMUPutMouseEntry {
     int qemu_put_mouse_event_absolute;
     char *qemu_put_mouse_event_name;
 
+    int index;
+
     /* used internally by qemu for handling mice */
-    struct QEMUPutMouseEntry *next;
+    QTAILQ_ENTRY(QEMUPutMouseEntry) node;
 } QEMUPutMouseEntry;
 
 void qemu_add_kbd_event_handler(QEMUPutKBDEvent *func, void *opaque);
@@ -32,6 +34,7 @@ QEMUPutMouseEntry *qemu_add_mouse_event_handler(QEMUPutMouseEvent *func,
                                                 void *opaque, int absolute,
                                                 const char *name);
 void qemu_remove_mouse_event_handler(QEMUPutMouseEntry *entry);
+void qemu_activate_mouse_event_handler(QEMUPutMouseEntry *entry);
 
 void kbd_put_keycode(int keycode);
 void kbd_mouse_event(int dx, int dy, int dz, int buttons_state);
