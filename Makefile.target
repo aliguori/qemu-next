@@ -218,6 +218,7 @@ obj-i386-y += testdev.o
 obj-i386-$(CONFIG_KVM_PIT) += i8254-kvm.o
 obj-i386-$(CONFIG_KVM_DEVICE_ASSIGNMENT) += device-assignment.o
 obj-i386-$(CONFIG_SPICE) += spice.o spice-input.o spice-display.o
+obj-i386-$(CONFIG_SPICE) += qxl.o qxl_native_worker.o
 
 # Hardware support
 obj-ia64-y += ide.o pckbd.o vga.o $(SOUND_HW) dma.o $(AUDIODRV)

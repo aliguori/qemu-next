@@ -45,6 +45,7 @@
 #include "loader.h"
 #include "elf.h"
 #include "device-assignment.h"
+#include "qemu-spice.h"
 
 #include "qemu-kvm.h"
 
@@ -1164,6 +1165,13 @@ static void pc_init1(ram_addr_t ram_size,
             pci_vmsvga_init(pci_bus);
         else
             fprintf(stderr, "%s: vmware_vga: no PCI bus\n", __FUNCTION__);
+#ifdef CONFIG_SPICE
+    } else if (qxl_enabled) {
+        if (pci_enabled)
+            qxl_dev_init(pci_bus);
+        else
+            fprintf(stderr, "%s: qxl: no PCI bus\n", __FUNCTION__);
+#endif
     } else if (std_vga_enabled) {
         if (pci_enabled) {
             pci_vga_init(pci_bus, 0, 0);

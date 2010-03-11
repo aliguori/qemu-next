@@ -15,6 +15,9 @@ void qemu_spice_init(void);
 void qemu_spice_input_init(SpiceServer *s);
 void qemu_spice_display_init(DisplayState *ds);
 
+void qxl_display_init(DisplayState *ds);
+void qxl_dev_init(PCIBus *bus);
+
 void qemu_spice_add_interface(struct VDInterface *interface);
 void qemu_spice_remove_interface(struct VDInterface *interface);
 
