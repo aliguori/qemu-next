@@ -129,4 +129,6 @@ void qemu_spice_init(void)
 
     spice_server_init(s, &core_interface);
     using_spice = 1;
+
+    qemu_spice_input_init(s);
 }
