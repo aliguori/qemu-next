@@ -98,6 +98,15 @@ QemuOptsList qemu_spice_opts = {
             .name = "tls-port",           /* old: sport */
             .type = QEMU_OPT_NUMBER,
         },{
+            .name = "addr",               /* old: host */
+            .type = QEMU_OPT_STRING,
+        },{
+            .name = "ipv4",
+            .type = QEMU_OPT_BOOL,
+        },{
+            .name = "ipv6",
+            .type = QEMU_OPT_BOOL,
+        },{
             .name = "password",
             .type = QEMU_OPT_STRING,
         },{
@@ -132,14 +141,14 @@ QemuOptsList qemu_spice_opts = {
 void qemu_spice_init(void)
 {
     QemuOpts *opts = QTAILQ_FIRST(&qemu_spice_opts.head);
-    const char *password, *str, *x509_dir,
+    const char *password, *str, *addr, *x509_dir,
         *x509_key_password = NULL,
         *x509_dh_file = NULL,
         *tls_ciphers = NULL;
     char *x509_key_file = NULL,
         *x509_cert_file = NULL,
         *x509_cacert_file = NULL;
-    int port, tls_port, len;
+    int port, tls_port, len, addr_flags;
 
     if (!opts)
         return;
@@ -184,7 +193,15 @@ void qemu_spice_init(void)
         tls_ciphers = qemu_opt_get(opts, "tls-ciphers");
     }
 
+    addr = qemu_opt_get(opts, "addr");
+    addr_flags = 0;
+    if (qemu_opt_get_bool(opts, "ipv4", 0))
+        addr_flags |= SPICE_ADDR_FLAG_IPV4_ONLY;
+    else if (qemu_opt_get_bool(opts, "ipv6", 0))
+        addr_flags |= SPICE_ADDR_FLAG_IPV6_ONLY;
+
     s = spice_server_new();
+    spice_server_set_addr(s, addr ? addr : "", addr_flags);
     if (port) {
         spice_server_set_port(s, port);
     }
