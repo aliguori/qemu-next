@@ -46,12 +46,43 @@ static void kbd_leds(void *opaque, int ledstate)
     spice_server_kbd_leds(&kbd->sin, ledstate);
 }
 
+/* mouse bits */
+
+typedef struct QemuSpiceMouse {
+    SpiceMouseInstance sin;
+} QemuSpiceMouse;
+
+static void mouse_motion(SpiceMouseInstance *sin, int dx, int dy, int dz,
+                         uint32_t buttons_state)
+{
+    kbd_mouse_event(dx, dy, dz, buttons_state);
+}
+
+static void mouse_buttons(SpiceMouseInstance *sin, uint32_t buttons_state)
+{
+    kbd_mouse_event(0, 0, 0, buttons_state);
+}
+
+static const SpiceMouseInterface mouse_interface = {
+    .base.type          = SPICE_INTERFACE_MOUSE,
+    .base.description   = "mouse",
+    .base.major_version = SPICE_INTERFACE_MOUSE_MAJOR,
+    .base.minor_version = SPICE_INTERFACE_MOUSE_MINOR,
+    .motion             = mouse_motion,
+    .buttons            = mouse_buttons,
+};
+
 void qemu_spice_input_init(void)
 {
     QemuSpiceKbd *kbd;
+    QemuSpiceMouse *mouse;
 
     kbd = qemu_mallocz(sizeof(*kbd));
     kbd->sin.base.sif = &kbd_interface.base;
     spice_server_add_interface(spice_server, &kbd->sin.base);
     qemu_add_led_event_handler(kbd_leds, kbd);
+
+    mouse = qemu_mallocz(sizeof(*mouse));
+    mouse->sin.base.sif = &mouse_interface.base;
+    spice_server_add_interface(spice_server, &mouse->sin.base);
 }
