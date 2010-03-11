@@ -345,8 +345,8 @@ static void reset_keys(void)
     for(i = 0; i < 256; i++) {
         if (modifiers_state[i]) {
             if (i & SCANCODE_GREY)
-                kbd_put_keycode(SCANCODE_EMUL0);
-            kbd_put_keycode(i | SCANCODE_UP);
+                keyboard_put_keycode(SCANCODE_EMUL0);
+            keyboard_put_keycode(i | SCANCODE_UP);
             modifiers_state[i] = 0;
         }
     }
@@ -361,9 +361,9 @@ static void sdl_process_key(SDL_KeyboardEvent *ev)
         v = 0;
         if (ev->type == SDL_KEYUP)
             v |= SCANCODE_UP;
-        kbd_put_keycode(0xe1);
-        kbd_put_keycode(0x1d | v);
-        kbd_put_keycode(0x45 | v);
+        keyboard_put_keycode(0xe1);
+        keyboard_put_keycode(0x1d | v);
+        keyboard_put_keycode(0x45 | v);
         return;
     }
 
@@ -392,18 +392,18 @@ static void sdl_process_key(SDL_KeyboardEvent *ev)
     case 0x45: /* num lock */
     case 0x3a: /* caps lock */
         /* SDL does not send the key up event, so we generate it */
-        kbd_put_keycode(keycode);
-        kbd_put_keycode(keycode | SCANCODE_UP);
+        keyboard_put_keycode(keycode);
+        keyboard_put_keycode(keycode | SCANCODE_UP);
         return;
     }
 
     /* now send the key code */
     if (keycode & SCANCODE_GREY)
-        kbd_put_keycode(SCANCODE_EMUL0);
+        keyboard_put_keycode(SCANCODE_EMUL0);
     if (ev->type == SDL_KEYUP)
-        kbd_put_keycode(keycode | SCANCODE_UP);
+        keyboard_put_keycode(keycode | SCANCODE_UP);
     else
-        kbd_put_keycode(keycode & SCANCODE_KEYCODEMASK);
+        keyboard_put_keycode(keycode & SCANCODE_KEYCODEMASK);
 }
 
 static void sdl_update_caption(void)
@@ -439,7 +439,7 @@ static void sdl_hide_cursor(void)
     if (!cursor_hide)
         return;
 
-    if (kbd_mouse_is_absolute()) {
+    if (mouse_current_is_absolute()) {
         SDL_ShowCursor(1);
         SDL_SetCursor(sdl_cursor_hidden);
     } else {
@@ -452,10 +452,10 @@ static void sdl_show_cursor(void)
     if (!cursor_hide)
         return;
 
-    if (!kbd_mouse_is_absolute()) {
+    if (!mouse_current_is_absolute()) {
         SDL_ShowCursor(1);
         if (guest_cursor &&
-                (gui_grab || kbd_mouse_is_absolute() || absolute_enabled))
+                (gui_grab || mouse_current_is_absolute() || absolute_enabled))
             SDL_SetCursor(guest_sprite);
         else
             SDL_SetCursor(sdl_cursor_normal);
@@ -466,7 +466,7 @@ static void sdl_grab_start(void)
 {
     if (guest_cursor) {
         SDL_SetCursor(guest_sprite);
-        if (!kbd_mouse_is_absolute() && !absolute_enabled)
+        if (!mouse_current_is_absolute() && !absolute_enabled)
             SDL_WarpMouse(guest_x, guest_y);
     } else
         sdl_hide_cursor();
@@ -488,7 +488,7 @@ static void sdl_grab_end(void)
 
 static void sdl_mouse_mode_change(Notifier *notify)
 {
-    if (kbd_mouse_is_absolute()) {
+    if (mouse_current_is_absolute()) {
         if (!absolute_enabled) {
             sdl_hide_cursor();
             if (gui_grab) {
@@ -513,7 +513,7 @@ static void sdl_send_mouse_event(int dx, int dy, int dz, int x, int y, int state
     if (state & SDL_BUTTON(SDL_BUTTON_MIDDLE))
         buttons |= MOUSE_EVENT_MBUTTON;
 
-    if (kbd_mouse_is_absolute()) {
+    if (mouse_current_is_absolute()) {
        dx = x * 0x7FFF / (width - 1);
        dy = y * 0x7FFF / (height - 1);
     } else if (guest_cursor) {
@@ -525,7 +525,7 @@ static void sdl_send_mouse_event(int dx, int dy, int dz, int x, int y, int state
         dy = y;
     }
 
-    kbd_mouse_event(dx, dy, dz, buttons);
+    mouse_put_event(dx, dy, dz, buttons);
 }
 
 static void toggle_full_screen(DisplayState *ds)
@@ -635,9 +635,9 @@ static void sdl_refresh(DisplayState *ds)
                         }
                     }
                     if (keysym) {
-                        kbd_put_keysym(keysym);
+                        keyboard_put_keysym(keysym);
                     } else if (ev->key.keysym.unicode != 0) {
-                        kbd_put_keysym(ev->key.keysym.unicode);
+                        keyboard_put_keysym(ev->key.keysym.unicode);
                     }
                 }
             } else if (ev->type == SDL_KEYUP) {
@@ -681,7 +681,7 @@ static void sdl_refresh(DisplayState *ds)
                 qemu_system_shutdown_request();
             break;
         case SDL_MOUSEMOTION:
-            if (gui_grab || kbd_mouse_is_absolute() ||
+            if (gui_grab || mouse_current_is_absolute() ||
                 absolute_enabled) {
                 sdl_send_mouse_event(ev->motion.xrel, ev->motion.yrel, 0,
                        ev->motion.x, ev->motion.y, ev->motion.state);
@@ -691,7 +691,7 @@ static void sdl_refresh(DisplayState *ds)
         case SDL_MOUSEBUTTONUP:
             {
                 SDL_MouseButtonEvent *bev = &ev->button;
-                if (!gui_grab && !kbd_mouse_is_absolute()) {
+                if (!gui_grab && !mouse_current_is_absolute()) {
                     if (ev->type == SDL_MOUSEBUTTONDOWN &&
                         (bev->button == SDL_BUTTON_LEFT)) {
                         /* start grabbing all events */
@@ -766,9 +766,9 @@ static void sdl_mouse_warp(int x, int y, int on)
     if (on) {
         if (!guest_cursor)
             sdl_show_cursor();
-        if (gui_grab || kbd_mouse_is_absolute() || absolute_enabled) {
+        if (gui_grab || mouse_current_is_absolute() || absolute_enabled) {
             SDL_SetCursor(guest_sprite);
-            if (!kbd_mouse_is_absolute() && !absolute_enabled)
+            if (!mouse_current_is_absolute() && !absolute_enabled)
                 SDL_WarpMouse(x, y);
         }
     } else if (gui_grab)
@@ -822,7 +822,7 @@ static void sdl_mouse_define(int width, int height, int bpp,
     guest_sprite = SDL_CreateCursor(sprite, mask, width, height, hot_x, hot_y);
 
     if (guest_cursor &&
-            (gui_grab || kbd_mouse_is_absolute() || absolute_enabled))
+            (gui_grab || mouse_current_is_absolute() || absolute_enabled))
         SDL_SetCursor(guest_sprite);
 }
 

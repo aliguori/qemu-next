@@ -19,49 +19,57 @@
 /* in ms */
 #define GUI_REFRESH_INTERVAL 30
 
-typedef void QEMUPutKBDEvent(void *opaque, int keycode);
-typedef void QEMUPutLEDEvent(void *opaque, int ledstate);
-typedef void QEMUPutMouseEvent(void *opaque, int dx, int dy, int dz, int buttons_state);
+typedef struct KeyboardEventHandler KeyboardEventHandler;
+typedef struct MouseEventHandler MouseEventHandler;
+typedef struct LEDEventHandler LEDEventHandler;
 
-typedef struct QEMUPutMouseEntry {
-    QEMUPutMouseEvent *qemu_put_mouse_event;
-    void *qemu_put_mouse_event_opaque;
-    int qemu_put_mouse_event_absolute;
-    char *qemu_put_mouse_event_name;
+struct KeyboardEventHandler
+{
+    void (*callback)(KeyboardEventHandler *handler, int keycode);
+    /* private */
+    QTAILQ_NODE(KeyboardEventHandler) node;
+};
 
-    int index;
+struct MouseEventHandler
+{
+    const char *name;
+    int absolute;
+    void (*callback)(MouseEventHandler *handler, int dx, int dy, int dz,
+                     int buttons);
+    /* private */
+    int id;
+    QTAILQ_NODE(MouseEventHandler) node;
+};
 
-    /* used internally by qemu for handling mice */
-    QTAILQ_ENTRY(QEMUPutMouseEntry) node;
-} QEMUPutMouseEntry;
+struct LEDEventHandler
+{
+    void (*callback)(LEDEventHandler *handler, int ledstate);
+    /* private */
+    QTAILQ_NODE(LEDEventHandler) node;
+};
 
-typedef struct QEMUPutLEDEntry {
-    QEMUPutLEDEvent *put_led;
-    void *opaque;
-    QTAILQ_ENTRY(QEMUPutLEDEntry) next;
-} QEMUPutLEDEntry;
+void keyboard_add_handler(KeyboardEventHandler *handler);
+void keyboard_remove_handler(KeyboardEventHandler *handler);
 
-void qemu_add_kbd_event_handler(QEMUPutKBDEvent *func, void *opaque);
-QEMUPutMouseEntry *qemu_add_mouse_event_handler(QEMUPutMouseEvent *func,
-                                                void *opaque, int absolute,
-                                                const char *name);
-void qemu_remove_mouse_event_handler(QEMUPutMouseEntry *entry);
-void qemu_activate_mouse_event_handler(QEMUPutMouseEntry *entry);
+void mouse_add_handler(MouseEventHandler *handler);
+void mouse_remove_handler(MouseEventHandler *handler);
+void mouse_activate_handler(MouseEventHandler *handler);
 
-QEMUPutLEDEntry *qemu_add_led_event_handler(QEMUPutLEDEvent *func, void *opaque);
-void qemu_remove_led_event_handler(QEMUPutLEDEntry *entry);
+void led_add_handler(LEDEventHandler *handler);
+void led_remove_handler(LEDEventHandler *handler);
 
-void kbd_put_keycode(int keycode);
-void kbd_put_ledstate(int ledstate);
-void kbd_mouse_event(int dx, int dy, int dz, int buttons_state);
+void keyboard_put_keycode(int keycode);
+void mouse_put_event(int dx, int dy, int dz, int buttons_state);
+void led_set_state(int ledstate);
 
 /* Does the current mouse generate absolute events */
-int kbd_mouse_is_absolute(void);
-void qemu_add_mouse_mode_change_notifier(Notifier *notify);
-void qemu_remove_mouse_mode_change_notifier(Notifier *notify);
+int mouse_current_is_absolute(void);
 
 /* Of all the mice, is there one that generates absolute events */
-int kbd_mouse_has_absolute(void);
+int mouse_has_absolute(void);
+
+void mouse_add_change_notifier(Notifier *notify);
+void mouse_remove_change_notifier(Notifier *notify);
 
 struct MouseTransformInfo {
     /* Touchscreen resolution */

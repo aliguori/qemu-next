@@ -28,28 +28,36 @@
 #include "console.h"
 #include "qjson.h"
 
-static QEMUPutKBDEvent *qemu_put_kbd_event;
-static void *qemu_put_kbd_event_opaque;
-static QTAILQ_HEAD(, QEMUPutLEDEntry) led_handlers = QTAILQ_HEAD_INITIALIZER(led_handlers);
+static QTAILQ_HEAD(, KeyboardEventHandler) keyboard_handlers =
+    QTAILQ_HEAD_INITIALIZER(keyboard_handlers);
+
 static QTAILQ_HEAD(, QEMUPutMouseEntry) mouse_handlers =
     QTAILQ_HEAD_INITIALIZER(mouse_handlers);
+
+static QTAILQ_HEAD(, QEMUPutLEDEntry) led_handlers =
+    QTAILQ_HEAD_INITIALIZER(led_handlers);
+
 static NotifierList mouse_mode_notifiers = 
     NOTIFIER_LIST_INITIALIZER(mouse_mode_notifiers);
 
-void qemu_add_kbd_event_handler(QEMUPutKBDEvent *func, void *opaque)
+void keyboard_add_handler(KeyboardEventHandler *handler)
 {
-    qemu_put_kbd_event_opaque = opaque;
-    qemu_put_kbd_event = func;
+    QTAILQ_INSERT_TAIL(&keyboard_handlers, handler, node);
 }
 
-static void check_mode_change(void)
+void keyboard_remove_handler(KeyboardEventHandler *handler)
+{
+    QTAILQ_REMOVE(&keyboard_handlers, handler, node);
+}
+
+static void mouse_check_mode_change(void)
 {
     static int current_is_absolute, current_has_absolute;
     int is_absolute;
     int has_absolute;
 
-    is_absolute = kbd_mouse_is_absolute();
-    has_absolute = kbd_mouse_has_absolute();
+    is_absolute = mouse_current_is_absolute();
+    has_absolute = mouse_has_absolute();
 
     if (is_absolute != current_is_absolute ||
         has_absolute != current_has_absolute) {
@@ -60,26 +68,36 @@ static void check_mode_change(void)
     current_has_absolute = has_absolute;
 }
 
-QEMUPutMouseEntry *qemu_add_mouse_event_handler(QEMUPutMouseEvent *func,
-                                                void *opaque, int absolute,
-                                                const char *name)
+void mouse_add_handler(MouseEventHandler *handler)
 {
-    QEMUPutMouseEntry *s;
-    static int mouse_index = 0;
+    static int next_mouse_id;
 
-    s = qemu_mallocz(sizeof(QEMUPutMouseEntry));
+    handler->id = next_mouse_id++
+    QTAILQ_INSERT_TAIL(&mouse_handlers, handler, node);
+    mouse_check_mode_change();
+}
 
-    s->qemu_put_mouse_event = func;
-    s->qemu_put_mouse_event_opaque = opaque;
-    s->qemu_put_mouse_event_absolute = absolute;
-    s->qemu_put_mouse_event_name = qemu_strdup(name);
-    s->index = mouse_index++;
+void mouse_remove_handler(MouseEventHandler *handler)
+{
+    QTAILQ_REMOVE(&mouse_handlers, handler, node);
+    mouse_check_mode_change();
+}
 
-    QTAILQ_INSERT_TAIL(&mouse_handlers, s, node);
+void mouse_activate_handler(MouseEventHandler *handler)
+{
+    mouse_remove_handler(handler);
+    QTAILQ_INSERT_HEAD(&mouse_handlers, handler, node);
+    mouse_check_mode_change();
+}
 
-    check_mode_change();
+void led_add_handler(LEDEventHandler *handler)
+{
+    QTAILQ_INSERT_TAIL(&led_handlers, handler, node);
+}
 
-    return s;
+void led_remove_handler(LEDEventHandler *handler)
+{
+    QTAILQ_REMOVE(&led_handlers, handler, node);
 }
 
 void qemu_activate_mouse_event_handler(QEMUPutMouseEntry *entry)
@@ -100,80 +118,58 @@ void qemu_remove_mouse_event_handler(QEMUPutMouseEntry *entry)
     check_mode_change();
 }
 
-QEMUPutLEDEntry *qemu_add_led_event_handler(QEMUPutLEDEvent *func,
-                                            void *opaque)
+void keyboard_put_keycode(int keycode)
 {
-    QEMUPutLEDEntry *s;
+    KeyboardEventHandler *handler;
 
-    s = qemu_mallocz(sizeof(QEMUPutLEDEntry));
-
-    s->put_led = func;
-    s->opaque = opaque;
-    QTAILQ_INSERT_TAIL(&led_handlers, s, next);
-    return s;
-}
-
-void qemu_remove_led_event_handler(QEMUPutLEDEntry *entry)
-{
-    if (entry == NULL)
-        return;
-    QTAILQ_REMOVE(&led_handlers, entry, next);
-    qemu_free(entry);
-}
-
-void kbd_put_keycode(int keycode)
-{
-    if (qemu_put_kbd_event) {
-        qemu_put_kbd_event(qemu_put_kbd_event_opaque, keycode);
+    QTAILQ_FOREACH(handler, &keyboard_handlers, node) {
+        handler->callback(handler, keycode);
     }
 }
 
-void kbd_put_ledstate(int ledstate)
+void led_set_state(int ledstate)
 {
-    QEMUPutLEDEntry *cursor;
+    LEDEventHandler *handler;
 
-    QTAILQ_FOREACH(cursor, &led_handlers, next) {
-        cursor->put_led(cursor->opaque, ledstate);
+    QTAILQ_FOREACH(handler, &led_handlers, node) {
+        handler->callback(handler, ledstate);
     }
 }
 
-void kbd_mouse_event(int dx, int dy, int dz, int buttons_state)
+void mouse_put_event(int dx, int dy, int dz, int buttons_state)
 {
-    QEMUPutMouseEntry *entry;
-    QEMUPutMouseEvent *mouse_event;
-    void *mouse_event_opaque;
+    MouseEventHandler *handler;
     int width;
 
     if (QTAILQ_EMPTY(&mouse_handlers)) {
         return;
     }
 
-    entry = QTAILQ_FIRST(&mouse_handlers);
+    handler = QTAILQ_FIRST(&mouse_handlers);
 
-    mouse_event = entry->qemu_put_mouse_event;
-    mouse_event_opaque = entry->qemu_put_mouse_event_opaque;
+    /* FIXME this doesn't belong here */
+    if (graphic_rotate) {
+        int tmp;
+        if (handler->absolute)
+            width = 0x7fff;
+        else
+            width = graphic_width - 1;
 
-    if (mouse_event) {
-        if (graphic_rotate) {
-            if (entry->qemu_put_mouse_event_absolute)
-                width = 0x7fff;
-            else
-                width = graphic_width - 1;
-            mouse_event(mouse_event_opaque,
-                        width - dy, dx, dz, buttons_state);
-        } else
-            mouse_event(mouse_event_opaque,
-                        dx, dy, dz, buttons_state);
+        tmp = width - dy;
+        dy = dx;
+        dx = tmp;
     }
+
+    handler->callback(handler, dx, dy, dz, buttons_state);
 }
 
-int kbd_mouse_is_absolute(void)
+int mouse_current_is_absolute(void)
 {
     if (QTAILQ_EMPTY(&mouse_handlers)) {
         return 0;
     }
 
-    return QTAILQ_FIRST(&mouse_handlers)->qemu_put_mouse_event_absolute;
+    return QTAILQ_FIRST(&mouse_handlers)->absolute;
 }
 
 int kbd_mouse_has_absolute(void)
@@ -181,7 +177,7 @@ int kbd_mouse_has_absolute(void)
     QEMUPutMouseEntry *entry;
 
     QTAILQ_FOREACH(entry, &mouse_handlers, node) {
-        if (entry->qemu_put_mouse_event_absolute) {
+        if (entry->absolute) {
             return 1;
         }
     }
@@ -234,7 +230,7 @@ void do_info_mice_print(Monitor *mon, const QObject *data)
  */
 void do_info_mice(Monitor *mon, QObject **ret_data)
 {
-    QEMUPutMouseEntry *cursor;
+    MouseEventHandler *cursor;
     QList *mice_list;
     int current;
 
@@ -244,7 +240,7 @@ void do_info_mice(Monitor *mon, QObject **ret_data)
         goto out;
     }
 
-    current = QTAILQ_FIRST(&mouse_handlers)->index;
+    current = QTAILQ_FIRST(&mouse_handlers)->id;
 
     QTAILQ_FOREACH(cursor, &mouse_handlers, node) {
         QObject *obj;
@@ -252,10 +248,10 @@ void do_info_mice(Monitor *mon, QObject **ret_data)
                                  "  'index': %d,"
                                  "  'current': %i,"
                                  "  'absolute': %i }",
-                                 cursor->qemu_put_mouse_event_name,
-                                 cursor->index,
-                                 cursor->index == current,
-                                 !!cursor->qemu_put_mouse_event_absolute);
+                                 cursor->name,
+                                 cursor->id,
+                                 cursor->id == current,
+                                 !!cursor->absolute);
         qlist_append_obj(mice_list, obj);
     }
 
@@ -265,7 +261,7 @@ out:
 
 void do_mouse_set(Monitor *mon, const QDict *qdict)
 {
-    QEMUPutMouseEntry *cursor;
+    MouseEventHandler *cursor;
     int index = qdict_get_int(qdict, "index");
     int found = 0;
 
@@ -275,9 +271,9 @@ void do_mouse_set(Monitor *mon, const QDict *qdict)
     }
 
     QTAILQ_FOREACH(cursor, &mouse_handlers, node) {
-        if (cursor->index == index) {
+        if (cursor->id == index) {
             found = 1;
-            qemu_activate_mouse_event_handler(cursor);
+            mouse_activate_handler(cursor);
             break;
         }
     }
@@ -286,15 +282,15 @@ void do_mouse_set(Monitor *mon, const QDict *qdict)
         monitor_printf(mon, "Mouse at given index not found\n");
     }
 
-    check_mode_change();
+    mouse_check_mode_change();
 }
 
-void qemu_add_mouse_mode_change_notifier(Notifier *notify)
+void mouse_add_change_notifier(Notifier *notify)
 {
     notifier_list_add(&mouse_mode_notifiers, notify);
 }
 
-void qemu_remove_mouse_mode_change_notifier(Notifier *notify)
+void mouse_remove_change_notifier(Notifier *notify)
 {
     notifier_list_remove(&mouse_mode_notifiers, notify);
 }

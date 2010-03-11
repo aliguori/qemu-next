@@ -161,13 +161,12 @@ struct VncState
     size_t read_handler_expect;
     /* input */
     uint8_t modifiers_state[256];
-    QEMUPutLEDEntry *led;
+    Notifier mouse_mode_notifier;
+    LEDEventHandler led_event_handler;
 
     Buffer zlib;
     Buffer zlib_tmp;
     z_stream zlib_stream[4];
-
-    Notifier mouse_mode_notifier;
 
     QTAILQ_ENTRY(VncState) next;
 };
