@@ -512,6 +512,14 @@ STEXI
 Enable SDL.
 ETEXI
 
+#ifdef CONFIG_SPICE
+DEF("spice", HAS_ARG, QEMU_OPTION_spice,
+    "-spice <args>   use spice\n")
+STEXI
+Use Spice.
+ETEXI
+#endif
+
 DEF("portrait", 0, QEMU_OPTION_portrait,
     "-portrait       rotate graphical output 90 deg left (only PXA LCD)\n")
 STEXI

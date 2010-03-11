@@ -170,6 +170,8 @@ int main(int argc, char **argv)
 
 #include "qemu-queue.h"
 
+#include "qemu-spice.h"
+
 //#define DEBUG_NET
 //#define DEBUG_SLIRP
 
@@ -5784,6 +5786,15 @@ int main(int argc, char **argv, char **envp)
                     fclose(fp);
                     break;
                 }
+#ifdef CONFIG_SPICE
+            case QEMU_OPTION_spice:
+                opts = qemu_opts_parse(&qemu_spice_opts, optarg, NULL);
+                if (!opts) {
+                    fprintf(stderr, "parse error: %s\n", optarg);
+                    exit(1);
+                }
+                break;
+#endif
             case QEMU_OPTION_writeconfig:
                 {
                     FILE *fp;
@@ -6103,6 +6114,10 @@ int main(int argc, char **argv, char **envp)
         qdev_prop_register_global_list(machine->compat_props);
     }
     qemu_add_globals();
+
+#ifdef CONFIG_SPICE
+    qemu_spice_init();
+#endif
 
     machine->init(ram_size, boot_devices,
                   kernel_filename, kernel_cmdline, initrd_filename, cpu_model);

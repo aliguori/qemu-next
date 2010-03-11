@@ -255,6 +255,9 @@ static QemuOptsList *lists[] = {
     &qemu_rtc_opts,
     &qemu_global_opts,
     &qemu_mon_opts,
+#ifdef CONFIG_SPICE
+    &qemu_spice_opts,
+#endif
     NULL,
 };
 
