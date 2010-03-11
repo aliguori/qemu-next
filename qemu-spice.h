@@ -12,6 +12,7 @@ extern SpiceServer *spice_server;
 extern int using_spice;
 
 void qemu_spice_init(void);
+void qemu_spice_input_init(void);
 
 #else  /* CONFIG_SPICE */
 
