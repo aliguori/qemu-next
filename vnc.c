@@ -1462,17 +1462,17 @@ static void pointer_event(VncState *vs, int button_mask, int x, int y)
         dz = 1;
 
     if (vs->absolute) {
-        kbd_mouse_event(x * 0x7FFF / (ds_get_width(vs->ds) - 1),
+        mouse_put_event(x * 0x7FFF / (ds_get_width(vs->ds) - 1),
                         y * 0x7FFF / (ds_get_height(vs->ds) - 1),
                         dz, buttons);
     } else if (vnc_has_feature(vs, VNC_FEATURE_POINTER_TYPE_CHANGE)) {
         x -= 0x7FFF;
         y -= 0x7FFF;
 
-        kbd_mouse_event(x, y, dz, buttons);
+        mouse_put_event(x, y, dz, buttons);
     } else {
         if (vs->last_x != -1)
-            kbd_mouse_event(x - vs->last_x,
+            mouse_put_event(x - vs->last_x,
                             y - vs->last_y,
                             dz, buttons);
         vs->last_x = x;

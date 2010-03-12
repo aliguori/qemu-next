@@ -172,7 +172,7 @@ int mouse_current_is_absolute(void)
     return QTAILQ_FIRST(&mouse_handlers)->absolute;
 }
 
-int kbd_mouse_has_absolute(void)
+int mouse_has_absolute(void)
 {
     QEMUPutMouseEntry *entry;
 

@@ -259,31 +259,31 @@ static void curses_refresh(DisplayState *ds)
             /* since terminals don't know about key press and release
              * events, we need to emit both for each key received */
             if (keycode & SHIFT)
-                kbd_put_keycode(SHIFT_CODE);
+                keyboard_put_keycode(SHIFT_CODE);
             if (keycode & CNTRL)
-                kbd_put_keycode(CNTRL_CODE);
+                keyboard_put_keycode(CNTRL_CODE);
             if (keycode & ALT)
-                kbd_put_keycode(ALT_CODE);
+                keyboard_put_keycode(ALT_CODE);
             if (keycode & ALTGR) {
-                kbd_put_keycode(SCANCODE_EMUL0);
-                kbd_put_keycode(ALT_CODE);
+                keyboard_put_keycode(SCANCODE_EMUL0);
+                keyboard_put_keycode(ALT_CODE);
             }
             if (keycode & GREY)
-                kbd_put_keycode(GREY_CODE);
-            kbd_put_keycode(keycode & KEY_MASK);
+                keyboard_put_keycode(GREY_CODE);
+            keyboard_put_keycode(keycode & KEY_MASK);
             if (keycode & GREY)
-                kbd_put_keycode(GREY_CODE);
-            kbd_put_keycode((keycode & KEY_MASK) | KEY_RELEASE);
+                keyboard_put_keycode(GREY_CODE);
+            keyboard_put_keycode((keycode & KEY_MASK) | KEY_RELEASE);
             if (keycode & ALTGR) {
-                kbd_put_keycode(SCANCODE_EMUL0);
-                kbd_put_keycode(ALT_CODE | KEY_RELEASE);
+                keyboard_put_keycode(SCANCODE_EMUL0);
+                keyboard_put_keycode(ALT_CODE | KEY_RELEASE);
             }
             if (keycode & ALT)
-                kbd_put_keycode(ALT_CODE | KEY_RELEASE);
+                keyboard_put_keycode(ALT_CODE | KEY_RELEASE);
             if (keycode & CNTRL)
-                kbd_put_keycode(CNTRL_CODE | KEY_RELEASE);
+                keyboard_put_keycode(CNTRL_CODE | KEY_RELEASE);
             if (keycode & SHIFT)
-                kbd_put_keycode(SHIFT_CODE | KEY_RELEASE);
+                keyboard_put_keycode(SHIFT_CODE | KEY_RELEASE);
         } else {
             keysym = curses2qemu[chr];
             if (keysym == -1)

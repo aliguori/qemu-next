@@ -611,7 +611,7 @@ static int usb_keyboard_write(USBKeyboardState *s, uint8_t *buf, int len)
             ledstate |= QEMU_NUM_LOCK_LED;
         if (s->leds & 0x02)
             ledstate |= QEMU_CAPS_LOCK_LED;
-        kbd_put_ledstate(ledstate);
+        led_set_state(ledstate);
     }
     return 0;
 }

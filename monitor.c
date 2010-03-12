@@ -1743,8 +1743,8 @@ static void release_keys(void *opaque)
         nb_pending_keycodes--;
         keycode = keycodes[nb_pending_keycodes];
         if (keycode & 0x80)
-            kbd_put_keycode(0xe0);
-        kbd_put_keycode(keycode | 0x80);
+            keyboard_put_keycode(0xe0);
+        keyboard_put_keycode(keycode | 0x80);
     }
 }
 
@@ -1794,8 +1794,8 @@ static void do_sendkey(Monitor *mon, const QDict *qdict)
     for (i = 0; i < nb_pending_keycodes; i++) {
         keycode = keycodes[i];
         if (keycode & 0x80)
-            kbd_put_keycode(0xe0);
-        kbd_put_keycode(keycode & 0x7f);
+            keyboard_put_keycode(0xe0);
+        keyboard_put_keycode(keycode & 0x7f);
     }
     /* delayed key up events */
     qemu_mod_timer(key_timer, qemu_get_clock(vm_clock) +
@@ -1815,14 +1815,14 @@ static void do_mouse_move(Monitor *mon, const QDict *qdict)
     dz = 0;
     if (dz_str)
         dz = strtol(dz_str, NULL, 0);
-    kbd_mouse_event(dx, dy, dz, mouse_button_state);
+    mouse_put_event(dx, dy, dz, mouse_button_state);
 }
 
 static void do_mouse_button(Monitor *mon, const QDict *qdict)
 {
     int button_state = qdict_get_int(qdict, "button_state");
     mouse_button_state = button_state;
-    kbd_mouse_event(0, 0, 0, mouse_button_state);
+    mouse_put_event(0, 0, 0, mouse_button_state);
 }
 
 static void do_ioport_read(Monitor *mon, const QDict *qdict)
