@@ -124,7 +124,8 @@ curses.o: curses.c keymaps.h curses_keys.h
 
 bt-host.o: QEMU_CFLAGS += $(BLUEZ_CFLAGS)
 
-gtk/core.o gtk/qemudisplay.o gtk/qemumarshal.o: QEMU_CFLAGS += $(GTK_CFLAGS)
+gtk/%.o: QEMU_CFLAGS += $(GTK_CFLAGS)
+gtk/view/%.o: QEMU_CFLAGS += $(GTK_CFLAGS)
 
 ######################################################################
 
@@ -151,7 +152,7 @@ clean:
 # avoid old build problems by removing potentially incorrect old files
 	rm -f config.mak op-i386.h opc-i386.h gen-op-i386.h op-arm.h opc-arm.h gen-op-arm.h
 	rm -f *.o *.d *.a $(TOOLS) TAGS cscope.* *.pod *~ */*~
-	rm -f slirp/*.o slirp/*.d audio/*.o audio/*.d block/*.o block/*.d net/*.o net/*.d gtk/*.d
+	rm -f slirp/*.o slirp/*.d audio/*.o audio/*.d block/*.o block/*.d net/*.o net/*.d gtk/*.d gtk/view/*.d
 	rm -f qemu-img-cmds.h
 	$(MAKE) -C tests clean
 	for d in $(ALL_SUBDIRS) libhw32 libhw64 libuser; do \
@@ -347,4 +348,4 @@ tarbin:
 	$(mandir)/man8/qemu-nbd.8
 
 # Include automatically generated dependency files
--include $(wildcard *.d audio/*.d slirp/*.d block/*.d net/*.d gtk/*.d)
+-include $(wildcard *.d audio/*.d slirp/*.d block/*.d net/*.d gtk/*.d gtk/view/*.d)
