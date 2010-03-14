@@ -13,9 +13,6 @@
       <source stock-id="hd-add" direction="ltr" size="menu" state="insensitive" filename="icons/hd_add_disabled_16px.png"/>
       <source stock-id="mouse" direction="ltr" size="menu" state="normal" filename="icons/mouse_16px.png"/>
       <source stock-id="mouse" direction="ltr" size="menu" state="insensitive" filename="icons/mouse_disabled_16px.png"/>
-      <source stock-id="mouse-can-seamless" direction="ltr" size="menu" state="normal" filename="icons/mouse_can_seamless_16px.png"/>
-      <source stock-id="mouse-can-seamless" direction="ltr" size="menu" state="insensitive" filename="icons/mouse_can_seamless_disabled_16px.png"/>
-      <source stock-id="mouse-seamless" direction="ltr" size="menu" state="normal" filename="icons/mouse_seamless_16px.png"/>
       <source stock-id="usb-remove" direction="ltr" size="menu" state="normal" filename="icons/usb_remove_16px.png"/>
       <source stock-id="usb-remove" direction="ltr" size="menu" state="insensitive" filename="icons/usb_remove_disabled_16px.png"/>
       <source stock-id="usb" direction="ltr" size="menu" state="normal" filename="icons/usb_16px.png"/>
@@ -25,29 +22,32 @@
       <source stock-id="cd-read" direction="ltr" size="menu" state="normal" filename="icons/cd_read_16px.png"/>
       <source stock-id="fd-read" direction="ltr" size="menu" state="normal" filename="icons/fd_read_16px.png"/>
       <source stock-id="hostkey-captured" direction="ltr" size="menu" state="normal" filename="icons/hostkey_captured_16px.png"/>
-      <source stock-id="hd-write" direction="ltr" size="menu" state="normal" filename="icons/hd_write_16px.png"/>
+      <source stock-id="mouse-can-seamless" direction="ltr" size="menu" state="normal" filename="icons/mouse_can_seamless_16px.png"/>
+      <source stock-id="mouse-can-seamless" direction="ltr" size="menu" state="insensitive" filename="icons/mouse_can_seamless_disabled_16px.png"/>
       <source stock-id="hostkey" direction="ltr" size="menu" state="normal" filename="icons/hostkey_16px.png"/>
       <source stock-id="hostkey" direction="ltr" size="menu" state="prelight" filename="icons/hostkey_16px.png"/>
       <source stock-id="hostkey" direction="ltr" size="menu" state="active" filename="icons/hostkey_pressed_16px.png"/>
       <source stock-id="hostkey" direction="ltr" size="menu" state="insensitive" filename="icons/hostkey_disabled_16px.png"/>
       <source stock-id="fd" direction="ltr" size="menu" state="normal" filename="icons/fd_16px.png"/>
       <source stock-id="fd" direction="ltr" size="menu" state="insensitive" filename="icons/fd_disabled_16px.png"/>
-      <source stock-id="cd-add" direction="ltr" size="menu" state="normal" filename="icons/cd_add_16px.png"/>
-      <source stock-id="cd-add" direction="ltr" size="menu" state="insensitive" filename="icons/cd_add_disabled_16px.png"/>
+      <source stock-id="hd-write" direction="ltr" size="menu" state="normal" filename="icons/hd_write_16px.png"/>
       <source stock-id="nw-read" direction="ltr" size="menu" state="normal" filename="icons/nw_read_16px.png"/>
       <source stock-id="fd-add" direction="ltr" size="menu" state="normal" filename="icons/fd_add_16px.png"/>
       <source stock-id="fd-add" direction="ltr" size="menu" state="insensitive" filename="icons/fd_add_disabled_16px.png"/>
+      <source stock-id="cd-add" direction="ltr" size="menu" state="normal" filename="icons/cd_add_16px.png"/>
+      <source stock-id="cd-add" direction="ltr" size="menu" state="insensitive" filename="icons/cd_add_disabled_16px.png"/>
       <source stock-id="usb-new" direction="ltr" size="menu" state="normal" filename="icons/usb_new_16px.png"/>
       <source stock-id="usb-new" direction="ltr" size="menu" state="insensitive" filename="icons/usb_new_disabled_16px.png"/>
       <source stock-id="usb-filter-edit" direction="ltr" size="menu" state="normal" filename="icons/usb_filter_edit16px.png"/>
       <source stock-id="usb-filter-edit" direction="ltr" size="menu" state="insensitive" filename="icons/usb_filter_editdisabled_16px.png"/>
+      <source stock-id="mouse-seamless" direction="ltr" size="menu" state="normal" filename="icons/mouse_seamless_16px.png"/>
       <source stock-id="usb-read" direction="ltr" size="menu" state="normal" filename="icons/usb_read_16px.png"/>
       <source stock-id="fd-unmount" direction="ltr" size="menu" state="normal" filename="icons/fd_unmount_16px.png"/>
       <source stock-id="fd-unmount" direction="ltr" size="menu" state="insensitive" filename="icons/fd_unmount_dis_16px.png"/>
-      <source stock-id="hd" direction="ltr" size="menu" state="normal" filename="icons/hd_16px.png"/>
-      <source stock-id="hd" direction="ltr" size="menu" state="insensitive" filename="icons/hd_disabled_16px.png"/>
       <source stock-id="hd-release" direction="ltr" size="menu" state="normal" filename="icons/hd_release_16px.png"/>
       <source stock-id="hd-release" direction="ltr" size="menu" state="insensitive" filename="icons/hd_release_disabled_16px.png"/>
+      <source stock-id="hd" direction="ltr" size="menu" state="normal" filename="icons/hd_16px.png"/>
+      <source stock-id="hd" direction="ltr" size="menu" state="insensitive" filename="icons/hd_disabled_16px.png"/>
       <source stock-id="usb-write" direction="ltr" size="menu" state="normal" filename="icons/usb_write_16px.png"/>
       <source stock-id="hd-read" direction="ltr" size="menu" state="normal" filename="icons/hd_read_16px.png"/>
       <source stock-id="usb-add" direction="ltr" size="menu" state="normal" filename="icons/usb_add_16px.png"/>
@@ -84,14 +84,318 @@
                   <object class="GtkMenu" id="menu1">
                     <property name="visible">True</property>
                     <child>
-                      <object class="GtkCheckMenuItem" id="checkmenuitem1">
+                      <object class="GtkCheckMenuItem" id="menuitem84">
                         <property name="visible">True</property>
-                        <property name="related_action">toggleaction1</property>
-                        <property name="use_action_appearance">True</property>
+                        <property name="label" translatable="yes">Fullscreen Mode</property>
+                        <property name="use_underline">True</property>
+                      </object>
+                    </child>
+                    <child>
+                      <object class="GtkCheckMenuItem" id="menuitem4">
+                        <property name="visible">True</property>
+                        <property name="label" translatable="yes">Adjust Window Size</property>
+                        <property name="use_underline">True</property>
+                      </object>
+                    </child>
+                    <child>
+                      <object class="GtkSeparatorMenuItem" id="menuitem2">
+                        <property name="visible">True</property>
+                      </object>
+                    </child>
+                    <child>
+                      <object class="GtkMenuItem" id="menuitem3">
+                        <property name="visible">True</property>
+                        <property name="label" translatable="yes">Insert Ctrl-Alt-Del</property>
+                        <property name="use_underline">True</property>
+                      </object>
+                    </child>
+                    <child>
+                      <object class="GtkMenuItem" id="menuitem5">
+                        <property name="visible">True</property>
+                        <property name="label" translatable="yes">Insert Ctrl-Alt-Backspace</property>
+                        <property name="use_underline">True</property>
+                      </object>
+                    </child>
+                    <child>
+                      <object class="GtkSeparatorMenuItem" id="menuitem6">
+                        <property name="visible">True</property>
+                      </object>
+                    </child>
+                    <child>
+                      <object class="GtkMenuItem" id="menuitem7">
+                        <property name="visible">True</property>
+                        <property name="label" translatable="yes">Take Snapshot</property>
+                        <property name="use_underline">True</property>
+                      </object>
+                    </child>
+                    <child>
+                      <object class="GtkSeparatorMenuItem" id="menuitem8">
+                        <property name="visible">True</property>
+                      </object>
+                    </child>
+                    <child>
+                      <object class="GtkMenuItem" id="menuitem9">
+                        <property name="visible">True</property>
+                        <property name="label" translatable="yes">Session Information Dialog</property>
+                        <property name="use_underline">True</property>
+                      </object>
+                    </child>
+                    <child>
+                      <object class="GtkSeparatorMenuItem" id="menuitem10">
+                        <property name="visible">True</property>
+                      </object>
+                    </child>
+                    <child>
+                      <object class="GtkMenuItem" id="menuitem11">
+                        <property name="visible">True</property>
+                        <property name="label" translatable="yes">Reset</property>
+                        <property name="use_underline">True</property>
+                      </object>
+                    </child>
+                    <child>
+                      <object class="GtkCheckMenuItem" id="menuitem12">
+                        <property name="visible">True</property>
+                        <property name="label" translatable="yes">Pause</property>
+                        <property name="use_underline">True</property>
+                      </object>
+                    </child>
+                    <child>
+                      <object class="GtkMenuItem" id="menuitem13">
+                        <property name="visible">True</property>
+                        <property name="label" translatable="yes">ACPI Shutdown</property>
+                        <property name="use_underline">True</property>
+                      </object>
+                    </child>
+                    <child>
+                      <object class="GtkSeparatorMenuItem" id="menuitem14">
+                        <property name="visible">True</property>
+                      </object>
+                    </child>
+                    <child>
+                      <object class="GtkMenuItem" id="menuitem15">
+                        <property name="visible">True</property>
+                        <property name="label" translatable="yes">Close</property>
+                        <property name="use_underline">True</property>
                       </object>
                     </child>
                   </object>
                 </child>
+              </object>
+            </child>
+            <child>
+              <object class="GtkMenuItem" id="menuitem16">
+                <property name="visible">True</property>
+                <property name="label" translatable="yes">_Devices</property>
+                <property name="use_underline">True</property>
+                <child type="submenu">
+                  <object class="GtkMenu" id="menu2">
+                    <property name="visible">True</property>
+                    <child>
+                      <object class="GtkMenuItem" id="menuitem18">
+                        <property name="visible">True</property>
+                        <property name="label" translatable="yes">CD/DVD Devices</property>
+                        <property name="use_underline">True</property>
+                        <child type="submenu">
+                          <object class="GtkMenu" id="menu3">
+                            <property name="visible">True</property>
+                            <child>
+                              <object class="GtkMenuItem" id="menuitem26">
+                                <property name="visible">True</property>
+                                <property name="label" translatable="yes">More CD/DVD Images...</property>
+                                <property name="use_underline">True</property>
+                              </object>
+                            </child>
+                            <child>
+                              <object class="GtkSeparatorMenuItem" id="menuitem27">
+                                <property name="visible">True</property>
+                              </object>
+                            </child>
+                            <child>
+                              <object class="GtkMenuItem" id="menuitem28">
+                                <property name="visible">True</property>
+                                <property name="label" translatable="yes">Unmount CD/DVD Device</property>
+                                <property name="use_underline">True</property>
+                              </object>
+                            </child>
+                          </object>
+                        </child>
+                      </object>
+                    </child>
+                    <child>
+                      <object class="GtkMenuItem" id="menuitem19">
+                        <property name="visible">True</property>
+                        <property name="label" translatable="yes">Floppy Devices</property>
+                        <property name="use_underline">True</property>
+                        <child type="submenu">
+                          <object class="GtkMenu" id="menu4">
+                            <property name="visible">True</property>
+                            <child>
+                              <object class="GtkMenuItem" id="menuitem29">
+                                <property name="visible">True</property>
+                                <property name="label" translatable="yes">More Floppy Images...</property>
+                                <property name="use_underline">True</property>
+                              </object>
+                            </child>
+                            <child>
+                              <object class="GtkSeparatorMenuItem" id="menuitem30">
+                                <property name="visible">True</property>
+                              </object>
+                            </child>
+                            <child>
+                              <object class="GtkMenuItem" id="menuitem31">
+                                <property name="visible">True</property>
+                                <property name="label" translatable="yes">Unmount Floppy Device</property>
+                                <property name="use_underline">True</property>
+                              </object>
+                            </child>
+                          </object>
+                        </child>
+                      </object>
+                    </child>
+                    <child>
+                      <object class="GtkMenuItem" id="menuitem20">
+                        <property name="visible">True</property>
+                        <property name="label" translatable="yes">Network Adapters...</property>
+                        <property name="use_underline">True</property>
+                      </object>
+                    </child>
+                    <child>
+                      <object class="GtkMenuItem" id="menuitem21">
+                        <property name="visible">True</property>
+                        <property name="label" translatable="yes">USB Devices</property>
+                        <property name="use_underline">True</property>
+                        <child type="submenu">
+                          <object class="GtkMenu" id="menu5">
+                            <property name="visible">True</property>
+                            <child>
+                              <object class="GtkMenuItem" id="menuitem32">
+                                <property name="visible">True</property>
+                                <property name="label" translatable="yes">&lt;no devices available&gt;</property>
+                                <property name="use_underline">True</property>
+                              </object>
+                            </child>
+                          </object>
+                        </child>
+                      </object>
+                    </child>
+                    <child>
+                      <object class="GtkMenuItem" id="menuitem33">
+                        <property name="visible">True</property>
+                        <property name="label" translatable="yes">More Devices...</property>
+                        <property name="use_underline">True</property>
+                      </object>
+                    </child>
+                    <child>
+                      <object class="GtkSeparatorMenuItem" id="menuitem22">
+                        <property name="visible">True</property>
+                      </object>
+                    </child>
+                    <child>
+                      <object class="GtkCheckMenuItem" id="menuitem23">
+                        <property name="visible">True</property>
+                        <property name="label" translatable="yes">Remote Display</property>
+                        <property name="use_underline">True</property>
+                      </object>
+                    </child>
+                    <child>
+                      <object class="GtkSeparatorMenuItem" id="menuitem24">
+                        <property name="visible">True</property>
+                      </object>
+                    </child>
+                    <child>
+                      <object class="GtkMenuItem" id="menuitem25">
+                        <property name="visible">True</property>
+                        <property name="label" translatable="yes">Install Guest Additions</property>
+                        <property name="use_underline">True</property>
+                      </object>
+                    </child>
+                  </object>
+                </child>
+              </object>
+            </child>
+            <child>
+              <object class="GtkMenuItem" id="menuitem34">
+                <property name="visible">True</property>
+                <property name="label" translatable="yes">View</property>
+                <property name="use_underline">True</property>
+                <child type="submenu">
+                  <object class="GtkMenu" id="menu6">
+                    <property name="visible">True</property>
+                    <child>
+                      <object class="GtkMenuItem" id="menuitem35">
+                        <property name="visible">True</property>
+                        <property name="label" translatable="yes">Serial Port</property>
+                        <property name="use_underline">True</property>
+                        <child type="submenu">
+                          <object class="GtkMenu" id="menu7">
+                            <property name="visible">True</property>
+                            <child>
+                              <object class="GtkCheckMenuItem" id="menuitem36">
+                                <property name="visible">True</property>
+                                <property name="label" translatable="yes">COM1</property>
+                                <property name="use_underline">True</property>
+                              </object>
+                            </child>
+                            <child>
+                              <object class="GtkCheckMenuItem" id="checkmenuitem1">
+                                <property name="visible">True</property>
+                                <property name="label" translatable="yes">COM2</property>
+                                <property name="use_underline">True</property>
+                              </object>
+                            </child>
+                            <child>
+                              <object class="GtkCheckMenuItem" id="menuitem37">
+                                <property name="visible">True</property>
+                                <property name="label" translatable="yes">COM3</property>
+                                <property name="use_underline">True</property>
+                              </object>
+                            </child>
+                            <child>
+                              <object class="GtkCheckMenuItem" id="menuitem38">
+                                <property name="visible">True</property>
+                                <property name="label" translatable="yes">COM4</property>
+                                <property name="use_underline">True</property>
+                              </object>
+                            </child>
+                          </object>
+                        </child>
+                      </object>
+                    </child>
+                    <child>
+                      <object class="GtkCheckMenuItem" id="menuitem39">
+                        <property name="visible">True</property>
+                        <property name="label" translatable="yes">Parallel Port</property>
+                        <property name="use_underline">True</property>
+                      </object>
+                    </child>
+                    <child>
+                      <object class="GtkSeparatorMenuItem" id="menuitem40">
+                        <property name="visible">True</property>
+                      </object>
+                    </child>
+                    <child>
+                      <object class="GtkCheckMenuItem" id="menuitem41">
+                        <property name="visible">True</property>
+                        <property name="label" translatable="yes">Monitor</property>
+                        <property name="use_underline">True</property>
+                      </object>
+                    </child>
+                    <child>
+                      <object class="GtkCheckMenuItem" id="menuitem42">
+                        <property name="visible">True</property>
+                        <property name="label" translatable="yes">GDB</property>
+                        <property name="use_underline">True</property>
+                      </object>
+                    </child>
+                  </object>
+                </child>
+              </object>
+            </child>
+            <child>
+              <object class="GtkMenuItem" id="menuitem17">
+                <property name="visible">True</property>
+                <property name="label" translatable="yes">_Help</property>
+                <property name="use_underline">True</property>
               </object>
             </child>
           </object>
