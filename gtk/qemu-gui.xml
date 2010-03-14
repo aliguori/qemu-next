@@ -67,7 +67,7 @@
   <object class="GtkWindow" id="window1">
     <property name="visible">True</property>
     <property name="title" translatable="yes">QEMU</property>
-    <property name="resizable">False</property>
+    <property name="resizable">True</property>
     <child>
       <object class="GtkVBox" id="vbox1">
         <property name="visible">True</property>

@@ -22,11 +22,12 @@
 #define dprintf(fmt, ...) do { } while (0)
 #endif
 
+#define ENABLE_SCALING 1
+
 struct _QemuDisplayPrivate
 {
     QemuDisplay *obj;
     GdkPixbuf *pixbuf;
-    GdkGC *gc;
     gint width;
     gint height;
     gint pointer_last_x;
@@ -248,29 +249,57 @@ static gboolean qemu_display_expose(GtkWidget *widget, GdkEventExpose *expose)
 {
     QemuDisplay *obj = QEMU_DISPLAY(widget);
     QemuDisplayPrivate *da = obj->priv;
-    int x, y, w, h, pw, ph;
+    int pixbuf_width, pixbuf_height;
+    int win_width, win_height;
+    int margin_x = 0, margin_y = 0;
+    cairo_t *cr;
 
-    if (da->gc == NULL) {
-        da->gc = gdk_gc_new(widget->window);
+    pixbuf_width = gdk_pixbuf_get_width(da->pixbuf);
+    pixbuf_height = gdk_pixbuf_get_height(da->pixbuf);
+
+    gdk_drawable_get_size(widget->window, &win_width, &win_height);
+
+    if (win_width > pixbuf_width) {
+        margin_x = (win_width - pixbuf_width) / 2;
+    }
+    if (win_height > pixbuf_height) {
+        margin_y = (win_height - pixbuf_height) / 2;
     }
 
-    pw = gdk_pixbuf_get_width(da->pixbuf);
-    ph = gdk_pixbuf_get_height(da->pixbuf);
+    cr = gdk_cairo_create(widget->window);
 
-    x = MIN(expose->area.x, pw);
-    y = MIN(expose->area.y, ph);
-    w = MIN(expose->area.x + expose->area.width, pw) - x;
-    h = MIN(expose->area.x + expose->area.width, ph) - y;
+    gdk_cairo_rectangle(cr, &expose->area);
+    cairo_clip(cr);
 
-    if (x != w || y != h) {
-        gdk_pixbuf_render_to_drawable(da->pixbuf,
-                                      widget->window,
-                                      da->gc,
-                                      x, y,
-                                      x, y,
-                                      w, h,
-                                      0, 0, 0);
+    if (ENABLE_SCALING) {
+        double x_scale, y_scale;
+
+        x_scale = (double)win_width / (double)pixbuf_width;
+        y_scale = (double)win_height / (double)pixbuf_height;
+
+        cairo_scale(cr, x_scale, y_scale);
+        gdk_cairo_set_source_pixbuf(cr,
+                                    da->pixbuf,
+                                    0, 0);
+    } else {
+        /* Fill background */
+        cairo_rectangle(cr, 0, 0, win_width, win_height);
+
+        /* This is a trick to drop out the exposed area to avoid blinking */
+        cairo_rectangle(cr,
+                        margin_x + pixbuf_width,
+                        margin_y,
+                        pixbuf_width * -1,
+                        pixbuf_height);
+        cairo_fill(cr);
+
+        gdk_cairo_set_source_pixbuf(cr,
+                                    da->pixbuf,
+                                    margin_x, margin_y);
     }
+
+    cairo_paint(cr);
+    cairo_destroy(cr);
 
     return TRUE;
 }
@@ -490,9 +519,6 @@ static void qemu_display_finalize(GObject *gobject)
     if (da->pixbuf) {
         g_object_unref(da->pixbuf);
     }
-    if (da->gc) {
-        g_object_unref(da->gc);
-    }
     if (da->null_cursor) {
         gdk_cursor_unref(da->null_cursor);
     }
@@ -519,7 +545,6 @@ static void qemu_display_init(QemuDisplay *obj)
     da->obj = obj;
 
     da->pixbuf = NULL;
-    da->gc = NULL;
     da->width = -1;
     da->height = -1;
     da->button_mask = 0;
@@ -687,6 +712,8 @@ void qemu_display_update(QemuDisplay *obj, DisplayState *ds,
     QemuDisplayPrivate *da = obj->priv;
     PixelFormat *pf = &ds->surface->pf;
     guchar *src_row, *dst_row;
+    int win_width, win_height;
+    int pixbuf_width, pixbuf_height;
     int j;
 
     dprintf("update (%d, %d)-(%d, %d)\n", x, y, w, h);
@@ -733,7 +760,36 @@ void qemu_display_update(QemuDisplay *obj, DisplayState *ds,
         dst_row += gdk_pixbuf_get_rowstride(da->pixbuf);
     }
 
-    gtk_widget_queue_draw_area(GTK_WIDGET(obj), x, y, w + 1, h + 1);
+    gdk_drawable_get_size(GTK_WIDGET(obj)->window, &win_width, &win_height);
+    pixbuf_width = gdk_pixbuf_get_width(da->pixbuf);
+    pixbuf_height = gdk_pixbuf_get_height(da->pixbuf);
+
+    if (ENABLE_SCALING) {
+        double scale_x, scale_y;
+
+        scale_x = (double)win_width / (double)pixbuf_width;
+        scale_y = (double)win_height / (double)pixbuf_height;
+        gtk_widget_queue_draw_area(GTK_WIDGET(obj),
+                                   x * scale_x,
+                                   y * scale_y,
+                                   w * scale_x,
+                                   h * scale_y);
+    } else {        
+        int margin_x = 0, margin_y = 0;
+
+        if (win_width > pixbuf_width) {
+            margin_x = (win_width - pixbuf_width) / 2;
+        }
+
+        if (win_height > pixbuf_height) {
+            margin_y = (win_height - pixbuf_height) / 2;
+        }
+
+        gtk_widget_queue_draw_area(GTK_WIDGET(obj), 
+                                   x + margin_x,
+                                   y + margin_y,
+                                   w, h);
+    }
 }
 
 void qemu_display_resize(QemuDisplay *obj, DisplayState *ds)
