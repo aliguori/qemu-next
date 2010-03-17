@@ -457,5 +457,26 @@ int net_init_tap(QemuOpts *opts, Monitor *mon, const char *name, VLANState *vlan
         }
     }
 
+    if (qemu_opt_get_bool(opts, "vhost", !!qemu_opt_get(opts, "vhostfd"))) {
+        int vhostfd, r;
+        if (qemu_opt_get(opts, "vhostfd")) {
+            r = net_handle_fd_param(mon, qemu_opt_get(opts, "vhostfd"));
+            if (r == -1) {
+                return -1;
+            }
+            vhostfd = r;
+        } else {
+            vhostfd = -1;
+        }
+        s->vhost_net = vhost_net_init(&s->nc, vhostfd);
+        if (!s->vhost_net) {
+            error_report("vhost-net requested but could not be initialized");
+            return -1;
+        }
+    } else if (qemu_opt_get(opts, "vhostfd")) {
+        error_report("vhostfd= is not valid without vhost");
+        return -1;
+    }
+
     return 0;
 }
