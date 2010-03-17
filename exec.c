@@ -2638,6 +2638,18 @@ static void *file_ram_alloc(ram_addr_t memory, const char *path)
 
 extern const char *mem_path;
 
+#if defined(__linux__) && defined(__x86_64__)
+/*
+ * Align on the max transparent hugepage size so that
+ * "(gfn ^ pfn) & (HPAGE_SIZE-1) == 0" to allow KVM to
+ * take advantage of hugepages with NPT/EPT or to
+ * ensure the first 2M of the guest physical ram will
+ * be mapped by the same hugetlb for QEMU (it is worth
+ * it even without NPT/EPT).
+ */
+#define PREFERRED_RAM_ALIGN (2*1024*1024)
+#endif
+
 ram_addr_t qemu_ram_alloc(ram_addr_t size)
 {
     RAMBlock *new_block;
@@ -2653,10 +2665,18 @@ ram_addr_t qemu_ram_alloc(ram_addr_t size)
                                PROT_EXEC|PROT_READ|PROT_WRITE,
                                MAP_SHARED | MAP_ANONYMOUS, -1, 0);
 #else
-        new_block->host = qemu_vmalloc(size);
+#ifdef PREFERRED_RAM_ALIGN
+	if (size >= PREFERRED_RAM_ALIGN)
+		new_block->host = qemu_memalign(PREFERRED_RAM_ALIGN, size);
+	else
+#endif 
+		new_block->host = qemu_vmalloc(size);
 #endif
 #ifdef MADV_MERGEABLE
         madvise(new_block->host, size, MADV_MERGEABLE);
+#endif
+#ifdef MADV_HUGEPAGE
+        madvise(new_block->host, size, MADV_HUGEPAGE);
 #endif
     }
     new_block->offset = last_ram_offset;
