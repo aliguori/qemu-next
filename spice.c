@@ -88,6 +88,33 @@ static CoreInterface core_interface = {
     .log                = core_log,
 };
 
+static int name2enum(const char *name, const char *table[], int entries)
+{
+    int i;
+
+    if (name) {
+        for (i = 0; i < entries; i++) {
+            if (!table[i])
+                continue;
+            if (strcmp(name, table[i]) != 0)
+                continue;
+            return i;
+        }
+    }
+    return -1;
+}
+
+static const char *compression_names[] = {
+    [ SPICE_IMAGE_COMPRESS_OFF ]      = "off",
+    [ SPICE_IMAGE_COMPRESS_AUTO_GLZ ] = "auto_glz",
+    [ SPICE_IMAGE_COMPRESS_AUTO_LZ ]  = "auto_lz",
+    [ SPICE_IMAGE_COMPRESS_QUIC ]     = "quic",
+    [ SPICE_IMAGE_COMPRESS_GLZ ]      = "glz",
+    [ SPICE_IMAGE_COMPRESS_LZ ]       = "lz",
+};
+#define parse_compression(_name) \
+    name2enum(_name, compression_names, ARRAY_SIZE(compression_names))
+
 /* functions for the rest of qemu */
 
 QemuOptsList qemu_spice_opts = {
@@ -115,6 +142,9 @@ QemuOptsList qemu_spice_opts = {
         },{
             .name = "disable-ticketing",
             .type = QEMU_OPT_BOOL,
+        },{
+            .name = "image-compression",  /* old: ic */
+            .type = QEMU_OPT_STRING,
         },{
             .name = "x509-dir",
             .type = QEMU_OPT_STRING,
@@ -203,6 +233,7 @@ void qemu_spice_init(void)
         *x509_cert_file = NULL,
         *x509_cacert_file = NULL;
     int port, tls_port, len, addr_flags;
+    spice_image_compression_t compression;
 
     if (!opts)
         return;
@@ -247,6 +278,17 @@ void qemu_spice_init(void)
         tls_ciphers = qemu_opt_get(opts, "tls-ciphers");
     }
 
+    str = qemu_opt_get(opts, "image-compression");
+    if (str) {
+        compression = parse_compression(str);
+        if (compression == -1) {
+            fprintf(stderr, "spice: invalid image compression: %s\n", str);
+            exit(1);
+        }
+    } else {
+        compression = SPICE_IMAGE_COMPRESS_AUTO_GLZ;
+    }
+
     addr = qemu_opt_get(opts, "addr");
     addr_flags = 0;
     if (qemu_opt_get_bool(opts, "ipv4", 0))
@@ -273,8 +315,7 @@ void qemu_spice_init(void)
     if (qemu_opt_get_bool(opts, "disable-ticketing", 0))
         spice_server_set_noauth(s);
 
-    /* TODO: make configurable via cmdline */
-    spice_server_set_image_compression(s, SPICE_IMAGE_COMPRESS_GLZ);
+    spice_server_set_image_compression(s, compression);
 
     spice_server_init(s, &core_interface);
     using_spice = 1;
