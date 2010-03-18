@@ -104,6 +104,7 @@ struct VncDisplay
 
     char *display;
     char *password;
+    time_t expires;
     int auth;
 #ifdef CONFIG_VNC_TLS
     int subauth; /* Used by VeNCrypt */

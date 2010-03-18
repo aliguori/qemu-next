@@ -975,7 +975,7 @@ static void do_change_block(Monitor *mon, const char *device,
 
 static void change_vnc_password(const char *password)
 {
-    if (vnc_display_password(NULL, password) < 0)
+    if (vnc_display_password(NULL, password, 0) < 0)
         qemu_error_new(QERR_SET_PASSWD_FAILED);
 
 }
