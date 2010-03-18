@@ -111,14 +111,21 @@ static void spice_vm_change_state_handler(void *opaque, int running, int reason)
 static void spice_display_update(struct DisplayState *ds, int x, int y, int w, int h)
 {
     Rect update_area;
+    int notify = 0;
 
     update_area.left = x,
     update_area.right = x + w;
     update_area.top = y;
     update_area.bottom = y + h;
     pthread_mutex_lock(&sdpy.lock);
+    if (rect_is_empty(&sdpy.dirty)) {
+        notify = 1;
+    }
     rect_union(&sdpy.dirty, &update_area);
     pthread_mutex_unlock(&sdpy.lock);
+    if (notify && sdpy.is_attached) {
+        sdpy.worker->wakeup(sdpy.worker);
+    }
 }
 
 static void spice_display_resize(struct DisplayState *ds)
@@ -145,11 +152,6 @@ static void spice_display_resize(struct DisplayState *ds)
 static void spice_display_refresh(struct DisplayState *ds)
 {
     vga_hw_update();
-    if (rect_is_empty(&sdpy.dirty))
-        return;
-    if (sdpy.is_attached) {
-        sdpy.worker->wakeup(sdpy.worker);
-    }
 }
 
 /* spice display interface callbacks */
