@@ -115,6 +115,19 @@ static const char *compression_names[] = {
 #define parse_compression(_name) \
     name2enum(_name, compression_names, ARRAY_SIZE(compression_names))
 
+static const char *channel_names[] = {
+    [ SPICE_CHANNEL_MAIN ]      = "main",
+    [ SPICE_CHANNEL_DISPLAY ]   = "display",
+    [ SPICE_CHANNEL_INPUTS ]    = "inputs",
+    [ SPICE_CHANNEL_CURSOR ]    = "cursor",
+    [ SPICE_CHANNEL_PLAYBACK ]  = "playback",
+    [ SPICE_CHANNEL_RECORD ]    = "record",
+    [ SPICE_CHANNEL_TUNNEL ]    = "tunnel",
+    [ SPICE_CHANNEL_ALL ]       = "all",
+};
+#define parse_channel(_name) \
+    name2enum(_name, channel_names, ARRAY_SIZE(channel_names))
+
 /* functions for the rest of qemu */
 
 QemuOptsList qemu_spice_opts = {
@@ -144,6 +157,12 @@ QemuOptsList qemu_spice_opts = {
             .type = QEMU_OPT_BOOL,
         },{
             .name = "image-compression",  /* old: ic */
+            .type = QEMU_OPT_STRING,
+        },{
+            .name = "tls-channel",
+            .type = QEMU_OPT_STRING,
+        },{
+            .name = "plaintext-channel",
             .type = QEMU_OPT_STRING,
         },{
             .name = "x509-dir",
@@ -220,6 +239,26 @@ void mon_set_password(Monitor *mon, const QDict *qdict, QObject **ret_data)
     } else {
         qemu_error_new(QERR_INVALID_PARAMETER, "protocol");
     }
+}
+
+static int add_channel(const char *name, const char *value, void *opaque)
+{
+    spice_channel_t channel;
+    int security = 0;
+
+    if (strcmp(name, "tls-channel") == 0)
+        security = SPICE_CHANNEL_SECURITY_SSL;
+    if (strcmp(name, "plaintext-channel") == 0)
+        security = SPICE_CHANNEL_SECURITY_NON;
+    if (security == 0)
+        return 0;
+    channel = parse_channel(value);
+    if (channel == -1) {
+        fprintf(stderr, "spice: failed to parse channel: %s\n", value);
+        exit(1);
+    }
+    spice_server_set_channel_security(s, channel, security);
+    return 0;
 }
 
 void qemu_spice_init(void)
@@ -316,6 +355,7 @@ void qemu_spice_init(void)
         spice_server_set_noauth(s);
 
     spice_server_set_image_compression(s, compression);
+    qemu_opt_foreach(opts, add_channel, NULL, 0);
 
     spice_server_init(s, &core_interface);
     using_spice = 1;
