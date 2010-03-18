@@ -22,6 +22,20 @@
 static SpiceServer *s;
 int using_spice = 0;
 
+void qemu_spice_migrate_start(void)
+{
+    if (!s)
+        return;
+    spice_server_migrate_start(s);
+}
+
+void qemu_spice_migrate_end(int completed)
+{
+    if (!s)
+        return;
+    spice_server_migrate_end(s, completed);
+}
+
 void qemu_spice_add_interface(VDInterface *interface)
 {
     if (!s)

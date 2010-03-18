@@ -23,6 +23,9 @@ void qxl_dev_init(PCIBus *bus);
 void qemu_spice_add_interface(struct VDInterface *interface);
 void qemu_spice_remove_interface(struct VDInterface *interface);
 
+void qemu_spice_migrate_start(void);
+void qemu_spice_migrate_end(int completed);
+
 void mon_set_password(Monitor *mon, const QDict *qdict, QObject **ret_data);
 
 #else  /* CONFIG_SPICE */

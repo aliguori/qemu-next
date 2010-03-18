@@ -21,6 +21,10 @@
 #include "block-migration.h"
 #include "qemu-objects.h"
 
+#ifdef CONFIG_SPICE
+#include "qemu-spice.h"
+#endif
+
 //#define DEBUG_MIGRATION
 
 #ifdef DEBUG_MIGRATION
@@ -314,6 +318,13 @@ void migrate_fd_cleanup(FdMigrationState *s)
     if (s->fd != -1)
         close(s->fd);
 
+#ifdef CONFIG_SPICE
+    if (using_spice) {
+        assert(s->state != MIG_STATE_ACTIVE);
+        qemu_spice_migrate_end(s->state == MIG_STATE_COMPLETED);
+    }
+#endif
+
     /* Don't resume monitor until we've flushed all of the buffers */
     if (s->mon) {
         monitor_resume(s->mon);
@@ -352,6 +363,10 @@ void migrate_fd_connect(FdMigrationState *s)
 {
     int ret;
 
+#ifdef CONFIG_SPICE
+    if (using_spice)
+        qemu_spice_migrate_start();  
+#endif
     s->file = qemu_fopen_ops_buffered(s,
                                       s->bandwidth_limit,
                                       migrate_fd_put_buffer,
@@ -398,8 +413,8 @@ void migrate_fd_put_ready(void *opaque)
         } else {
             state = MIG_STATE_COMPLETED;
         }
-        migrate_fd_cleanup(s);
         s->state = state;
+        migrate_fd_cleanup(s);
     }
 }
 
