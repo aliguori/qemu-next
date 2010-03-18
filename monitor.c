@@ -34,6 +34,7 @@
 #include "net.h"
 #include "net/slirp.h"
 #include "qemu-char.h"
+#include "qemu-spice.h"
 #include "sysemu.h"
 #include "monitor.h"
 #include "readline.h"

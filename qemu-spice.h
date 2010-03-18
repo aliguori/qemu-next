@@ -7,6 +7,7 @@
 
 #include "qemu-option.h"
 #include "qemu-config.h"
+#include "qdict.h"
 
 struct VDInterface;
 extern int using_spice;
@@ -21,6 +22,8 @@ void qxl_dev_init(PCIBus *bus);
 
 void qemu_spice_add_interface(struct VDInterface *interface);
 void qemu_spice_remove_interface(struct VDInterface *interface);
+
+void mon_set_password(Monitor *mon, const QDict *qdict, QObject **ret_data);
 
 #else  /* CONFIG_SPICE */
 

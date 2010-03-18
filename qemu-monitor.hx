@@ -1089,6 +1089,22 @@ STEXI
 Enable the specified QMP capabilities
 ETEXI
 
+#if defined(CONFIG_SPICE)
+    {
+        .name       = "__com.redhat_set_password",
+        .args_type  = "protocol:s,password:s,expiration:i,connected:s?",
+        .params     = "protocol password expiration action-if-connected",
+        .help       = "set spice/vnc password",
+	.user_print = monitor_user_noop,
+        .mhandler.cmd_new = mon_set_password,
+    },
+#endif
+
+STEXI
+@item __com.redhat_set_password [ vnc | spice ] password expiration [ action-if-connected ]
+change spice/vnc ticket
+ETEXI
+
 STEXI
 @end table
 ETEXI

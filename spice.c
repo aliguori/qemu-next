@@ -10,6 +10,9 @@
 #include "qemu-queue.h"
 #include "qemu-x509.h"
 #include "monitor.h"
+#include "qerror.h"
+#include "sysemu.h"
+#include "vnc.h"
 
 /* core bits */
 
@@ -137,6 +140,57 @@ QemuOptsList qemu_spice_opts = {
         { /* end if list */ }
     },
 };
+
+void mon_set_password(Monitor *mon, const QDict *qdict, QObject **ret_data)
+{
+    const char *protocol  = qdict_get_str(qdict, "protocol");
+    const char *password  = qdict_get_str(qdict, "password");
+    const char *connected = qdict_get_try_str(qdict, "connected");
+    int lifetime          = qdict_get_int(qdict, "expiration");
+    int disconnect_if_connected = 0;
+    int fail_if_connected = 0;
+    int rc;
+
+    if (connected) {
+        if (strcmp(connected, "fail") == 0) {
+            fail_if_connected = 1;
+        } else if (strcmp(connected, "disconnect") == 0) {
+            disconnect_if_connected = 1;
+        } else if (strcmp(connected, "keep") == 0) {
+            /* nothing */
+        } else {
+            qemu_error_new(QERR_INVALID_PARAMETER, "connected");
+            return;
+        }
+    }
+
+    if (strcmp(protocol, "spice") == 0) {
+        if (!s) {
+            /* correct one? spice isn't a device ,,, */
+            qemu_error_new(QERR_DEVICE_NOT_ACTIVE, "spice");
+            return;
+        }
+        rc = spice_server_set_ticket(s, password, lifetime,
+                                     fail_if_connected,
+                                     disconnect_if_connected);
+        if (rc != 0) {
+            qemu_error_new(QERR_SET_PASSWD_FAILED);
+            return;
+        }
+
+    } else if (strcmp(protocol, "vnc") == 0) {
+        if (fail_if_connected || disconnect_if_connected) {
+            /* vnc supports "connected=keep" only */
+            qemu_error_new(QERR_INVALID_PARAMETER, "connected");
+            return;
+        }
+        if (vnc_display_password(NULL, password, lifetime) < 0)
+            qemu_error_new(QERR_SET_PASSWD_FAILED);
+
+    } else {
+        qemu_error_new(QERR_INVALID_PARAMETER, "protocol");
+    }
+}
 
 void qemu_spice_init(void)
 {
