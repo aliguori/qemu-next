@@ -191,6 +191,7 @@ audio-obj-$(CONFIG_PA) += paaudio.o
 audio-obj-$(CONFIG_WINWAVE) += winwaveaudio.o
 audio-obj-$(CONFIG_AUDIO_PT_INT) += audio_pt_int.o
 audio-obj-$(CONFIG_AUDIO_WIN_INT) += audio_win_int.o
+audio-obj-$(CONFIG_SPICE) += spiceaudio.o 
 audio-obj-y += wavcapture.o
 obj-y += $(addprefix audio/, $(audio-obj-y))
 

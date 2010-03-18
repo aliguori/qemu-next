@@ -45,6 +45,9 @@
 */
 static struct audio_driver *drvtab[] = {
     CONFIG_AUDIO_DRIVERS
+#ifdef CONFIG_SPICE
+    &spice_audio_driver,
+#endif
     &no_audio_driver,
     &wav_audio_driver
 };
