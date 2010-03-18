@@ -1,16 +1,19 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+#include <netdb.h>
 
 #include <spice.h>
 
 #include "qemu-common.h"
+#include "qemu_socket.h"
 #include "qemu-spice.h"
 #include "qemu-timer.h"
 #include "qemu-queue.h"
 #include "qemu-x509.h"
 #include "monitor.h"
 #include "qerror.h"
+#include "qjson.h"
 #include "sysemu.h"
 #include "vnc.h"
 
@@ -67,10 +70,74 @@ static void core_term_printf(CoreInterface *core, const char* format, ...)
     /* ignore */
 }
 
+static QDict *server, *client;
+
+static void spice_qmp_event_initialized(void)
+{
+    struct sockaddr_storage sa;
+    char addr[NI_MAXHOST], port[NI_MAXSERV];
+    socklen_t salen;
+    QObject *data;
+
+    QDECREF(server);
+    server = qdict_new();
+    salen = sizeof(sa);
+    if (spice_server_get_sock_info(s, (struct sockaddr*)&sa, &salen) == 0) {
+        if (getnameinfo((struct sockaddr*)&sa, salen,
+                        addr, sizeof(addr), port, sizeof(port),
+                        NI_NUMERICHOST | NI_NUMERICSERV) == 0) {
+            qdict_put(server, "host", qstring_from_str(addr));
+            qdict_put(server, "family", qstring_from_str(inet_strfamily(sa.ss_family)));
+        }
+    }
+
+    QDECREF(client);
+    client = qdict_new();
+    salen = sizeof(sa);
+    if (spice_server_get_peer_info(s, (struct sockaddr*)&sa, &salen) == 0) {
+        if (getnameinfo((struct sockaddr*)&sa, salen,
+                        addr, sizeof(addr), port, sizeof(port),
+                        NI_NUMERICHOST | NI_NUMERICSERV) == 0) {
+            qdict_put(client, "host", qstring_from_str(addr));
+            qdict_put(client, "family", qstring_from_str(inet_strfamily(sa.ss_family)));
+        }
+    }
+
+    data = qobject_from_jsonf("{ 'client': %p, 'server': %p }",
+                              QOBJECT(client), QOBJECT(server));
+    monitor_protocol_event(QEVENT_SPICE_INITIALIZED, data);
+    QINCREF(client);
+    QINCREF(server);
+    qobject_decref(data);
+}
+
+static void spice_qmp_event_disconnect(void)
+{
+    QObject *data;
+
+    /*
+     * Right now spice does (a) support one connection at a time only
+     * and (b) allways sends disconnects for the old client before the
+     * connect for new client.  So we can simply reuse the server and
+     * client info collected on connect for the time being.
+     */
+    data = qobject_from_jsonf("{ 'client': %p, 'server': %p }",
+                              QOBJECT(client), QOBJECT(server));
+    monitor_protocol_event(QEVENT_SPICE_DISCONNECTED, data);
+    qobject_decref(data);
+    server = NULL;
+    client = NULL;
+}
+
 static void core_log(CoreInterface *core, LogLevel level, const char* componnent,
                      const char* format, ...)
 {
-    /* ignore */
+    if (strcmp(format, "new user connection") == 0) {
+        spice_qmp_event_initialized();
+    }
+    if (strcmp(format, "user disconnected") == 0) {
+        spice_qmp_event_disconnect();
+    }
 }
 
 static CoreInterface core_interface = {
