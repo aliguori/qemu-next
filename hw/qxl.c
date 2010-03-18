@@ -1231,6 +1231,18 @@ static ram_addr_t qxl_rom_size(void)
     return rom_size;
 }
 
+static void qxl_vga_ioport_write(void *opaque, uint32_t addr, uint32_t val)
+{
+    VGACommonState *vga = opaque;
+    PCIQXLDevice *qxl = container_of(vga, PCIQXLDevice, vga);
+
+    if (qxl->mode != QXL_MODE_VGA) {
+        qxl_reset(qxl);
+        vga->invalidate(vga);
+    }
+    vga_ioport_write(opaque, addr, val);
+}
+
 static int device_id = 0;
 
 static int qxl_init(PCIDevice *dev)
@@ -1248,6 +1260,11 @@ static int qxl_init(PCIDevice *dev)
             ram_size = 32 * 1024 * 1024;
         vga_common_init(vga, ram_size);
         vga_init(vga);
+        register_ioport_write(0x3c0, 16, 1, qxl_vga_ioport_write, vga);
+        register_ioport_write(0x3b4,  2, 1, qxl_vga_ioport_write, vga);
+        register_ioport_write(0x3d4,  2, 1, qxl_vga_ioport_write, vga);
+        register_ioport_write(0x3ba,  1, 1, qxl_vga_ioport_write, vga);
+        register_ioport_write(0x3da,  1, 1, qxl_vga_ioport_write, vga);
         vga->ds = graphic_console_init(vga->update, vga->invalidate,
                                        vga->screen_dump, vga->text_update, vga);
         qxl_init_modes();
