@@ -1105,6 +1105,22 @@ STEXI
 change spice/vnc ticket
 ETEXI
 
+#if defined(CONFIG_SPICE)
+    {
+        .name       = "__com.redhat_spice_migrate_info",
+        .args_type  = "hostname:s,port:i?,tls-port:i?,cert-subject:s?",
+        .params     = "hostname port tls-port cert-subject",
+        .help       = "send migration info to spice client",
+	.user_print = monitor_user_noop,
+        .mhandler.cmd_new = mon_spice_migrate,
+    },
+#endif
+
+STEXI
+@item __com.redhat_spice_migrate_info hostname port tls-port cert-subject
+send migration info to spice client
+ETEXI
+
 STEXI
 @end table
 ETEXI

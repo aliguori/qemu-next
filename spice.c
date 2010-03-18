@@ -325,6 +325,22 @@ void mon_set_password(Monitor *mon, const QDict *qdict, QObject **ret_data)
     }
 }
 
+void mon_spice_migrate(Monitor *mon, const QDict *qdict, QObject **ret_data)
+{
+    const char *hostname = qdict_get_str(qdict, "hostname");
+    const char *subject  = qdict_get_try_str(qdict, "cert-subject");
+    int port             = qdict_get_try_int(qdict, "port", -1);
+    int tls_port         = qdict_get_try_int(qdict, "tls-port", -1);
+
+    if (!s) {
+        qemu_error_new(QERR_DEVICE_NOT_ACTIVE, "spice");
+        return;
+    }
+
+    spice_server_migrate_info(s, hostname, port, tls_port, subject);
+    return;
+}
+
 static int add_renderer(const char *name, const char *value, void *opaque)
 {
     if (strcmp(name, "renderer") != 0)
