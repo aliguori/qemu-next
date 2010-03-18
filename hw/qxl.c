@@ -281,6 +281,7 @@ static int _qxl_get_command(PCIQXLDevice *d, QXLCommand *cmd)
 {
     QXLCommandRing *ring;
     QXLUpdate *update;
+    QXLCommand *tmp_cmd;
     int notify;
 
     if (d->mode == QXL_MODE_VGA) {
@@ -300,7 +301,8 @@ static int _qxl_get_command(PCIQXLDevice *d, QXLCommand *cmd)
     if (RING_IS_EMPTY(ring)) {
         return false;
     }
-    *cmd = *RING_CONS_ITEM(ring);
+    RING_CONS_ITEM(ring, tmp_cmd);
+    *cmd = *tmp_cmd;
     RING_POP(ring, notify);
     if (notify) {
         qxl_send_events(d, QXL_INTERRUPT_DISPLAY);
@@ -320,6 +322,7 @@ static int _qxl_has_command(PCIQXLDevice *d)
 static int _qxl_get_cursor_command(PCIQXLDevice *d, QXLCommand *cmd)
 {
     QXLCursorRing *ring;
+    QXLCommand *tmp_cmd;
     int notify;
 
     if (d->mode == QXL_MODE_VGA) {
@@ -330,7 +333,8 @@ static int _qxl_get_cursor_command(PCIQXLDevice *d, QXLCommand *cmd)
     if (RING_IS_EMPTY(ring)) {
         return 0;
     }
-    *cmd = *RING_CONS_ITEM(ring);
+    RING_CONS_ITEM(ring, tmp_cmd);
+    *cmd = *tmp_cmd;
     RING_POP(ring, notify);
     if (notify) {
         qxl_send_events(d, QXL_INTERRUPT_CURSOR);
@@ -370,6 +374,7 @@ static int _qxl_req_cursor_notification(PCIQXLDevice *d)
 static inline void qxl_push_free_res(PCIQXLDevice *d)
 {
     QXLReleaseRing *ring = &d->ram->release_ring;
+    uint64_t *item;
 
     assert(d->mode != QXL_MODE_VGA);
     if (RING_IS_EMPTY(ring) || (d->num_free_res == QXL_FREE_BUNCH_SIZE &&
@@ -380,7 +385,8 @@ static inline void qxl_push_free_res(PCIQXLDevice *d)
         if (notify) {
             qxl_send_events(d, QXL_INTERRUPT_DISPLAY);
         }
-        *RING_PROD_ITEM(ring) = 0;
+        RING_PROD_ITEM(ring, item);
+        *item = 0;
         d->num_free_res = 0;
         d->last_release = NULL;
     }
@@ -397,7 +403,7 @@ static void _qxl_release_resource(PCIQXLDevice *d, QXLReleaseInfo *release_info)
         return;
     }
     ring = &d->ram->release_ring;
-    item = RING_PROD_ITEM(ring);
+    RING_PROD_ITEM(ring, item);
     if (*item == 0) {
         release_info->next = 0;
         *item = id;
@@ -515,6 +521,7 @@ static void qxl_reset_state(PCIQXLDevice *d)
 {
     QXLRam *ram = d->ram;
     QXLRom *rom = d->rom;
+    uint64_t *item;
 
     assert(RING_IS_EMPTY(&ram->cmd_ring));
     assert(RING_IS_EMPTY(&ram->cursor_ring));
@@ -527,7 +534,8 @@ static void qxl_reset_state(PCIQXLDevice *d)
     RING_INIT(&ram->cmd_ring);
     RING_INIT(&ram->cursor_ring);
     RING_INIT(&ram->release_ring);
-    *RING_PROD_ITEM(&ram->release_ring) = 0;
+    RING_PROD_ITEM(&ram->release_ring, item);
+    *item = 0;
     d->num_free_res = 0;
     d->last_release = NULL;
     memset(&d->dirty_rect, 0, sizeof(d->dirty_rect));
@@ -709,6 +717,7 @@ static void init_qxl_ram(PCIQXLDevice *d, uint8_t *buf, uint32_t actual_ram_size
 {
     uint32_t draw_area_size;
     uint32_t ram_header_size;
+    UINT64 *item;
 
     d->ram_start = buf;
 
@@ -722,7 +731,8 @@ static void init_qxl_ram(PCIQXLDevice *d, uint8_t *buf, uint32_t actual_ram_size
     RING_INIT(&d->ram->cmd_ring);
     RING_INIT(&d->ram->cursor_ring);
     RING_INIT(&d->ram->release_ring);
-    *RING_PROD_ITEM(&d->ram->release_ring) = 0;
+    RING_PROD_ITEM(&d->ram->release_ring, item);
+    *item = 0;
 
     if (d->id == 0) {
         d->shadow_rom.draw_area_offset = VGA_RAM_SIZE;
