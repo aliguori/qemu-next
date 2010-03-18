@@ -159,6 +159,9 @@ QemuOptsList qemu_spice_opts = {
             .name = "image-compression",  /* old: ic */
             .type = QEMU_OPT_STRING,
         },{
+            .name = "renderer",
+            .type = QEMU_OPT_STRING,
+        },{
             .name = "tls-channel",
             .type = QEMU_OPT_STRING,
         },{
@@ -239,6 +242,14 @@ void mon_set_password(Monitor *mon, const QDict *qdict, QObject **ret_data)
     } else {
         qemu_error_new(QERR_INVALID_PARAMETER, "protocol");
     }
+}
+
+static int add_renderer(const char *name, const char *value, void *opaque)
+{
+    if (strcmp(name, "renderer") != 0)
+        return 0;
+    spice_server_add_renderer(s, value);
+    return 0;
 }
 
 static int add_channel(const char *name, const char *value, void *opaque)
@@ -356,6 +367,7 @@ void qemu_spice_init(void)
 
     spice_server_set_image_compression(s, compression);
     qemu_opt_foreach(opts, add_channel, NULL, 0);
+    qemu_opt_foreach(opts, add_renderer, NULL, 0);
 
     spice_server_init(s, &core_interface);
     using_spice = 1;
