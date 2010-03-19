@@ -2252,7 +2252,7 @@ static void monitor_print_balloon(Monitor *mon, const QObject *data)
     qdict = qobject_to_qdict(data);
 
     monitor_printf(mon, "balloon: actual=%" PRId64 "\n",
-                        qdict_get_int(qdict, "actual") >> 20);
+                        qdict_get_int(qdict, "balloon") >> 20);
 }
 
 /**
@@ -2260,11 +2260,11 @@ static void monitor_print_balloon(Monitor *mon, const QObject *data)
  *
  * Return a QDict with the following information:
  *
- * - "actual": current balloon value in bytes
+ * - "balloon": current balloon value in bytes
  *
  * Example:
  *
- * { "actual": 1073741824 }
+ * { "balloon": 1073741824 }
  */
 static void do_info_balloon(Monitor *mon, QObject **ret_data)
 {
@@ -2272,7 +2272,7 @@ static void do_info_balloon(Monitor *mon, QObject **ret_data)
 
     actual = balloon_get_value();
     if (actual != 0) {
-        *ret_data = qobject_from_jsonf("{ 'actual': %" PRId64 "}",
+        *ret_data = qobject_from_jsonf("{ 'balloon': %" PRId64 "}",
                                        (int64_t) actual);
     }
 }
