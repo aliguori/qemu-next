@@ -3437,6 +3437,7 @@ void qemu_system_reset(void)
     QTAILQ_FOREACH_SAFE(re, &reset_handlers, entry, nre) {
         re->func(re->opaque);
     }
+    monitor_protocol_event(QEVENT_RESET, NULL);
 }
 
 void qemu_system_reset_request(void)
@@ -4296,7 +4297,6 @@ static void main_loop(void)
                 break;
         }
         if (qemu_reset_requested()) {
-            monitor_protocol_event(QEVENT_RESET, NULL);
             pause_all_vcpus();
             qemu_system_reset();
             resume_all_vcpus();
