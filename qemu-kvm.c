@@ -2121,6 +2121,7 @@ int kvm_main_loop(void)
     while (1) {
         main_loop_wait(1000);
         if (qemu_shutdown_requested()) {
+            monitor_protocol_event(QEVENT_SHUTDOWN, NULL);
             if (qemu_no_shutdown()) {
                 vm_stop(0);
             } else
@@ -2129,10 +2130,8 @@ int kvm_main_loop(void)
             monitor_protocol_event(QEVENT_POWERDOWN, NULL);
             qemu_irq_raise(qemu_system_powerdown);
         } else if (qemu_reset_requested()) {
-            monitor_protocol_event(QEVENT_RESET, NULL);
             qemu_kvm_system_reset();
         } else if (kvm_debug_cpu_requested) {
-            monitor_protocol_event(QEVENT_DEBUG, NULL);
             gdb_set_stop_cpu(kvm_debug_cpu_requested);
             vm_stop(EXCP_DEBUG);
             kvm_debug_cpu_requested = NULL;
