@@ -735,10 +735,6 @@ int net_init_slirp(QemuOpts *opts,
         qemu_free(config);
     }
 
-    if (ret != -1 && vlan) {
-        vlan->nb_host_devs++;
-    }
-
     qemu_free(vnet);
 
     return ret;

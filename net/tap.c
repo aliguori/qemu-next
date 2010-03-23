@@ -464,10 +464,6 @@ int net_init_tap(QemuOpts *opts, Monitor *mon, const char *name, VLANState *vlan
         }
     }
 
-    if (vlan) {
-        vlan->nb_host_devs++;
-    }
-
     if (qemu_opt_get_bool(opts, "vhost", !!qemu_opt_get(opts, "vhostfd"))) {
         int vhostfd, r;
         if (qemu_opt_get(opts, "vhostfd")) {
