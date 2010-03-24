@@ -743,10 +743,10 @@ static void sun4uv_init(QemuOpts *opts, const struct hwdef *hwdef)
     DriveInfo *fd[MAX_FD];
     void *fw_cfg;
     ram_addr_t RAM_size = qemu_opt_get_size(opts, "ram_size", 0);
-    const char *boot_device = qemu_opt_get(opts, "boot_device");
+    const char *boot_devices = qemu_opt_get(opts, "boot_device");
     const char *kernel_filename = qemu_opt_get(opts, "kernel");
     const char *kernel_cmdline = qemu_opt_get(opts, "kernel_cmdline");
-    const char *initrd = qemu_opt_get(opts, "initrd");
+    const char *initrd_filename = qemu_opt_get(opts, "initrd");
 
     /* init CPUs */
     env = cpu_devinit(qemu_opt_get(opts, "cpu_model"), hwdef);

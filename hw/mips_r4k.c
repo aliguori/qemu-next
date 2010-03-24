@@ -170,7 +170,7 @@ void mips_r4k_init (QemuOpts *opts)
     int load_linux = !!qemu_opt_get(opts, "kernel");
 
     /* init CPUs */
-    env = cpu_init(cpu_model);
+    env = cpu_init(qemu_opt_get(opts, "cpu_model"));
     if (!env) {
         fprintf(stderr, "Unable to find CPU definition\n");
         exit(1);
@@ -233,7 +233,7 @@ void mips_r4k_init (QemuOpts *opts)
         qemu_free(filename);
     }
 
-    if (kernel_filename) {
+    if (load_linux) {
         loaderparams.ram_size = ram_size;
         loaderparams.kernel_filename = qemu_opt_get(opts, "kernel");
         loaderparams.kernel_cmdline = qemu_opt_get(opts, "kernel_cmdline");

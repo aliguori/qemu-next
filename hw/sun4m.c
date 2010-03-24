@@ -802,7 +802,7 @@ static void sun4m_hw_init(const struct sun4m_hwdef *hwdef, QemuOpts *opts)
     const char *boot_device = qemu_opt_get(opts, "boot_device");
     const char *kernel_filename = qemu_opt_get(opts, "kernel");
     const char *kernel_cmdline = qemu_opt_get(opts, "kernel_cmdline");
-    const char *initrd = qemu_opt_get(opts, "initrd");
+    const char *initrd_filename = qemu_opt_get(opts, "initrd");
 
     /* init CPUs */
     for(i = 0; i < smp_cpus; i++) {
@@ -1381,7 +1381,7 @@ static void sun4d_hw_init(const struct sun4d_hwdef *hwdef, QemuOpts *opts)
     const char *boot_device = qemu_opt_get(opts, "boot_device");
     const char *kernel_filename = qemu_opt_get(opts, "kernel");
     const char *kernel_cmdline = qemu_opt_get(opts, "kernel_cmdline");
-    const char *initrd = qemu_opt_get(opts, "initrd");
+    const char *initrd_filename = qemu_opt_get(opts, "initrd");
 
     /* init CPUs */
     for(i = 0; i < smp_cpus; i++) {
@@ -1565,7 +1565,7 @@ static void sun4c_hw_init(const struct sun4c_hwdef *hwdef, QemuOpts *opts)
     const char *boot_device = qemu_opt_get(opts, "boot_device");
     const char *kernel_filename = qemu_opt_get(opts, "kernel");
     const char *kernel_cmdline = qemu_opt_get(opts, "kernel_cmdline");
-    const char *initrd = qemu_opt_get(opts, "initrd");
+    const char *initrd_filename = qemu_opt_get(opts, "initrd");
 
     /* init CPU */
     cpu_devinit(qemu_opt_get(opts, "cpu_model"),

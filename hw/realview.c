@@ -165,7 +165,7 @@ static void realview_init(QemuOpts *opts,
         break;
     }
     for (n = 0; n < smp_cpus; n++) {
-        env = cpu_init(cpu_model);
+        env = cpu_init(qemu_opt_get(opts, "cpu_model"));
         if (!env) {
             fprintf(stderr, "Unable to find CPU definition\n");
             exit(1);

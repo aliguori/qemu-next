@@ -121,7 +121,7 @@ mips_mipssim_init (QemuOpts *opts)
     int load_linux = !!qemu_opt_get(opts, "kernel");
 
     /* Init CPUs. */
-    env = cpu_init(cpu_model);
+    env = cpu_init(qemu_opt_get(opts, "cpu_model"));
     if (!env) {
         fprintf(stderr, "Unable to find CPU definition\n");
         exit(1);
@@ -150,7 +150,7 @@ mips_mipssim_init (QemuOpts *opts)
     } else {
         bios_size = -1;
     }
-    if ((bios_size < 0 || bios_size > BIOS_SIZE) && !kernel_filename) {
+    if ((bios_size < 0 || bios_size > BIOS_SIZE) && !load_linux) {
         /* Bail out if we have neither a kernel image nor boot vector code. */
         fprintf(stderr,
                 "qemu: Could not load MIPS bios '%s', and no -kernel argument was specified\n",
@@ -195,9 +195,9 @@ static QEMUMachine mips_mipssim_machine = {
     .desc = "MIPS MIPSsim platform",
     .init = mips_mipssim_init,
 #ifdef TARGET_MIPS64
-    .default_cpu = "5Kf";
+    .default_cpu = "5Kf",
 #else
-    .default_cpu = "24Kf";
+    .default_cpu = "24Kf",
 #endif
 };
 

@@ -35,15 +35,8 @@ static void an5206_init(QemuOpts *opts)
     int kernel_size;
     uint64_t elf_entry;
     target_phys_addr_t entry;
-    const char *cpu_model, *kernel_filename;
-    ram_addr_t ram_size;
-
-    if (!qemu_opt_get(opts, "cpu_model")) {
-        qemu_opt_set(opts, "cpu_model", "m5206");
-    }
-
-    kernel_filename = qemu_opt_get(opts, "cpu_model");
-    ram_size = qemu_opt_get_size(opts, "ram_size", 128 << 20);
+    ram_addr_t ram_size = qemu_opt_get_size(opts, "ram_size", 0);
+    const char *kernel_filename = qemu_opt_get(opts, "kernel");
 
     env = cpu_init(qemu_opt_get(opts, "cpu_model"));
     if (!env) {
@@ -95,6 +88,7 @@ static QEMUMachine an5206_machine = {
     .name = "an5206",
     .desc = "Arnewsh 5206",
     .init = an5206_init,
+    .default_cpu = "m5206",
 };
 
 static void an5206_machine_init(void)

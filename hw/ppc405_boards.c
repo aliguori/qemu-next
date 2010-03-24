@@ -505,7 +505,6 @@ static void taihu_405ep_init(QemuOpts *opts)
     DriveInfo *dinfo;
     ram_addr_t ram_size = qemu_opt_get_size(opts, "ram_size", 0);
     const char *kernel_filename = qemu_opt_get(opts, "kernel");
-    const char *kernel_cmdline = qemu_opt_get(opts, "kernel_cmdline");
     const char *initrd_filename = qemu_opt_get(opts, "initrd");
 
     /* RAM is soldered to the board so the size cannot be changed */

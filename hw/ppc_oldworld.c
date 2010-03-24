@@ -157,7 +157,7 @@ static void ppc_heathrow_init (QemuOpts *opts)
 
     /* init CPUs */
     for (i = 0; i < smp_cpus; i++) {
-        env = cpu_init(cpu_model);
+        env = cpu_init(qemu_opt_get(opts, "cpu_model"));
         if (!env) {
             fprintf(stderr, "Unable to find PowerPC CPU definition\n");
             exit(1);

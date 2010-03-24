@@ -1495,7 +1495,7 @@ static void musicpal_init(QemuOpts *opts)
     DriveInfo *dinfo;
     ram_addr_t sram_off;
 
-    env = cpu_init(cpu_model);
+    env = cpu_init(qemu_opt_get(opts, "cpu_model"));
     if (!env) {
         fprintf(stderr, "Unable to find CPU definition\n");
         exit(1);

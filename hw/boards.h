@@ -5,12 +5,7 @@
 
 #include "qdev.h"
 
-typedef void QEMUMachineInitFunc(ram_addr_t ram_size,
-                                 const char *boot_device,
-                                 const char *kernel_filename,
-                                 const char *kernel_cmdline,
-                                 const char *initrd_filename,
-                                 const char *cpu_model);
+typedef void QEMUMachineInitFunc(QemuOpts *opts);
 
 typedef struct QEMUMachine {
     const char *name;
@@ -27,6 +22,7 @@ typedef struct QEMUMachine {
         no_cdrom:1,
         no_sdcard:1;
     int is_default;
+    const char *default_cpu;
     GlobalProperty *compat_props;
     struct QEMUMachine *next;
 } QEMUMachine;

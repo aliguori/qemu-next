@@ -146,12 +146,13 @@ static void ppc_core99_init (QemuOpts *opts)
     const char *kernel_filename = qemu_opt_get(opts, "kernel");
     const char *kernel_cmdline = qemu_opt_get(opts, "kernel_cmdline");
     const char *initrd_filename = qemu_opt_get(opts, "initrd");
+    const char *boot_device = qemu_opt_get(opts, "boot_device");
 
     linux_boot = (kernel_filename != NULL);
 
     /* init CPUs */
     for (i = 0; i < smp_cpus; i++) {
-        env = cpu_init(cpu_model);
+        env = cpu_init(qemu_opt_get(opts, "cpu_model"));
         if (!env) {
             fprintf(stderr, "Unable to find PowerPC CPU definition\n");
             exit(1);
@@ -437,9 +438,9 @@ static QEMUMachine core99_machine = {
     .max_cpus = MAX_CPUS,
 #ifdef TARGET_PPC64
     .is_default = 1,
-    .default_cpu = "970fx";
+    .default_cpu = "970fx",
 #else
-    .default_cpu = "G4";
+    .default_cpu = "G4",
 #endif
 };
 

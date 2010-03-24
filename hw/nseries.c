@@ -1271,8 +1271,9 @@ static void n8x0_init(QemuOpts *opts, struct arm_boot_info *binfo, int model)
     int sdram_size = binfo->ram_size;
     DisplayState *ds;
     int load_linux = !!qemu_opt_get(opts, "kernel");
+    const char *boot_device = qemu_opt_get(opts, "boot_device");
 
-    s->cpu = omap2420_mpu_init(sdram_size, cpu_model);
+    s->cpu = omap2420_mpu_init(sdram_size, qemu_opt_get(opts, "cpu_model"));
 
     /* Setup peripherals
      *
@@ -1331,7 +1332,7 @@ static void n8x0_init(QemuOpts *opts, struct arm_boot_info *binfo, int model)
         n8x0_boot_init(s);
     }
 
-    if (option_rom[0] && (boot_device[0] == 'n' || !kernel_filename)) {
+    if (option_rom[0] && (boot_device[0] == 'n' || !load_linux)) {
         int rom_size;
         uint8_t nolo_tags[0x10000];
         /* No, wait, better start at the ROM.  */

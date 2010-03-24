@@ -803,7 +803,7 @@ static void pc_init1(QemuOpts *opts, int pci_enabled)
 
     /* init CPUs */
     for (i = 0; i < smp_cpus; i++) {
-        env = pc_new_cpu(cpu_model);
+        env = pc_new_cpu(qemu_opt_get(opts, "cpu_model"));
     }
 
     vmport_init();
@@ -869,7 +869,7 @@ static void pc_init1(QemuOpts *opts, int pci_enabled)
     fw_cfg = bochs_bios_init();
     rom_set_fw(fw_cfg);
 
-    if (qemu_get_opt(opts, "kernel")) {
+    if (qemu_opt_get(opts, "kernel")) {
         load_linux(fw_cfg, opts, below_4g_mem_size);
     }
 
@@ -1043,7 +1043,7 @@ void cmos_set_s3_resume(void)
 #ifdef TARGET_X86_64
 #define PC_DEFAULT_CPU "qemu64"
 #else
-#define PC_DEFAULT_CPU "qemu32";
+#define PC_DEFAULT_CPU "qemu32"
 #endif
 
 static QEMUMachine pc_machine = {
@@ -1117,7 +1117,7 @@ static QEMUMachine pc_machine_v0_10 = {
     .desc = "Standard PC, qemu 0.10",
     .init = pc_init_pci,
     .max_cpus = 255,
-    .default_cpu = PC_DEFAULT_CPU
+    .default_cpu = PC_DEFAULT_CPU,
     .compat_props = (GlobalProperty[]) {
         {
             .driver   = "virtio-blk-pci",
@@ -1165,7 +1165,7 @@ static QEMUMachine isapc_machine = {
     .desc = "ISA-only PC",
     .init = pc_init_isa,
     .max_cpus = 1,
-    .default_cpu = "486";
+    .default_cpu = "486",
 };
 
 static void pc_machine_init(void)

@@ -69,7 +69,7 @@ void bareetraxfs_init (QemuOpts *opts)
     const char *kernel_cmdline = qemu_opt_get(opts, "kernel_cmdline");
 
     /* init CPUs */
-    env = cpu_init(cpu_model);
+    env = cpu_init(qemu_opt_get(opts, "cpu_model"));
     qemu_register_reset(main_cpu_reset, env);
 
     /* allocate RAM */

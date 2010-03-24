@@ -205,7 +205,7 @@ static void mcf5208evb_init(QemuOpts *opts)
     ram_addr_t ram_size = qemu_opt_get_size(opts, "ram_size", 0);
     const char *kernel_filename = qemu_opt_get(opts, "kernel");
 
-    env = cpu_init(cpu_model);
+    env = cpu_init(qemu_opt_get(opts, "cpu_model"));
     if (!env) {
         fprintf(stderr, "Unable to find m68k CPU definition\n");
         exit(1);

@@ -4841,8 +4841,22 @@ int main(int argc, char **argv, char **envp)
     }
     qemu_add_globals();
 
-    machine->init(ram_size, boot_devices,
-                  kernel_filename, kernel_cmdline, initrd_filename, cpu_model);
+    opts = qemu_opts_parse(&qemu_machine_opts, machine_opts, 0);
+    if (kernel_filename) {
+        qemu_opt_set(opts, "kernel", kernel_filename);
+    }
+    if (kernel_cmdline) {
+        qemu_opt_set(opts, "kernel_cmdline", kernel_cmdline);
+    }
+    if (initrd_filename) {
+        qemu_opt_set(opts, "initrd", initrd_filename);
+    }
+    if (!qemu_opt_get(opts, "ram_size")) {
+        char buffer[1024];
+        snprintf(buffer, sizeof(buffer), "%" PRId64, ram_size);
+        qemu_opt_set(opts, "ram_size", buffer);
+    }
+    machine->init(opts);
 
     cpu_synchronize_all_post_init();
 
