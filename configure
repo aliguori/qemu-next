@@ -314,6 +314,7 @@ pkgversion=""
 check_utests="no"
 user_pie="no"
 zero_malloc=""
+spice=""
 
 # OS specific
 if check_define __linux__ ; then
@@ -603,6 +604,10 @@ for opt do
   ;;
   --enable-kvm) kvm="yes"
   ;;
+  --disable-spice) spice="no"
+  ;;
+  --enable-spice) spice="yes"
+  ;;
   --enable-profiler) profiler="yes"
   ;;
   --enable-cocoa)
@@ -868,6 +873,8 @@ echo "  --enable-docs            enable documentation build"
 echo "  --disable-docs           disable documentation build"
 echo "  --disable-vhost-net      disable vhost-net acceleration support"
 echo "  --enable-vhost-net       enable vhost-net acceleration support"
+echo "  --disable-spice          disable spice"
+echo "  --enable-spice           enable spice"
 echo ""
 echo "NOTE: The object files are built at the place where configure is launched"
 exit 1
@@ -1951,6 +1958,30 @@ if compile_prog "" ""; then
     gcc_attribute_warn_unused_result=yes
 fi
 
+# spice probe
+if test "$spice" != "no" ; then
+  cat > $TMPC << EOF
+#include <spice.h>
+int main(void) { spice_server_new(); return 0; }
+EOF
+  spice_proto_ver=$($pkgconfig --modversion spice-protocol 2>/dev/null)
+  spice_server_ver=$($pkgconfig --modversion spice-server 2>/dev/null)
+  spice_cflags=$($pkgconfig --cflags spice-protocol spice-server 2>/dev/null)
+  spice_libs=$($pkgconfig --libs spice-protocol spice-server 2>/dev/null)
+  if compile_prog "$spice_cflags" "$spice_libs" ; then
+    spice="yes"
+    libs_softmmu="$libs_softmmu $spice_libs"
+    QEMU_CFLAGS="$QEMU_CFLAGS $spice_cflags"
+  else
+    if test "$spice" = "yes" ; then
+      feature_not_found "spice"
+    fi
+    spice="no"
+  fi
+fi
+
+##########################################
+
 ##########################################
 # check if we have fdatasync
 
@@ -2089,6 +2120,7 @@ echo "preadv support    $preadv"
 echo "fdatasync         $fdatasync"
 echo "uuid support      $uuid"
 echo "vhost-net support $vhost_net"
+echo "spice support     $spice"
 
 if test $sdl_too_old = "yes"; then
 echo "-> Your SDL version is too old - please upgrade to have SDL support"
@@ -2303,6 +2335,10 @@ if test "$gcc_attribute_warn_unused_result" = "yes" ; then
 fi
 if test "$fdatasync" = "yes" ; then
   echo "CONFIG_FDATASYNC=y" >> $config_host_mak
+fi
+
+if test "$spice" = "yes" ; then
+  echo "CONFIG_SPICE=y" >> $config_host_mak
 fi
 
 # XXX: suppress that
