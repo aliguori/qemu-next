@@ -193,10 +193,7 @@ static struct arm_boot_info palmte_binfo = {
     .board_id = 0x331,
 };
 
-static void palmte_init(ram_addr_t ram_size,
-                const char *boot_device,
-                const char *kernel_filename, const char *kernel_cmdline,
-                const char *initrd_filename, const char *cpu_model)
+static void palmte_init(QemuOpts *opts)
 {
     struct omap_mpu_state_s *cpu;
     int flash_size = 0x00800000;
@@ -209,8 +206,9 @@ static void palmte_init(ram_addr_t ram_size,
     ram_addr_t phys_flash;
     int rom_size, rom_loaded = 0;
     DisplayState *ds = get_displaystate();
+    int load_linux = !!qemu_opt_get(opts, "kernel");
 
-    cpu = omap310_mpu_init(sdram_size, cpu_model);
+    cpu = omap310_mpu_init(sdram_size, qemu_opt_get(opts, "cpu_model"));
 
     /* External Flash (EMIFS) */
     cpu_register_physical_memory(OMAP_CS0_BASE, flash_size,
@@ -252,19 +250,19 @@ static void palmte_init(ram_addr_t ram_size,
         }
     }
 
-    if (!rom_loaded && !kernel_filename) {
+    if (!rom_loaded && !load_linux) {
         fprintf(stderr, "Kernel or ROM image must be specified\n");
         exit(1);
     }
 
     /* Load the kernel.  */
-    if (kernel_filename) {
+    if (load_linux) {
         /* Start at bootloader.  */
         cpu->env->regs[15] = palmte_binfo.loader_start;
 
-        palmte_binfo.kernel_filename = kernel_filename;
-        palmte_binfo.kernel_cmdline = kernel_cmdline;
-        palmte_binfo.initrd_filename = initrd_filename;
+        palmte_binfo.kernel_filename = qemu_opt_get(opts, "kernel");
+        palmte_binfo.kernel_cmdline = qemu_opt_get(opts, "kernel_cmdline");
+        palmte_binfo.initrd_filename = qemu_opt_get(opts, "initrd");
         arm_load_kernel(cpu->env, &palmte_binfo);
     }
 

@@ -103,7 +103,6 @@ struct sun4m_hwdef {
     uint16_t machine_id;
     uint32_t iommu_version;
     uint64_t max_mem;
-    const char * const default_cpu_model;
 };
 
 #define MAX_IOUNITS 5
@@ -120,7 +119,6 @@ struct sun4d_hwdef {
     uint16_t machine_id;
     uint32_t iounit_version;
     uint64_t max_mem;
-    const char * const default_cpu_model;
 };
 
 struct sun4c_hwdef {
@@ -133,7 +131,6 @@ struct sun4c_hwdef {
     uint16_t machine_id;
     uint32_t iommu_version;
     uint64_t max_mem;
-    const char * const default_cpu_model;
 };
 
 int DMA_get_channel_mode (int nchan)
@@ -789,11 +786,7 @@ static void cpu_devinit(const char *cpu_model, unsigned int id,
     env->prom_addr = prom_addr;
 }
 
-static void sun4m_hw_init(const struct sun4m_hwdef *hwdef, ram_addr_t RAM_size,
-                          const char *boot_device,
-                          const char *kernel_filename,
-                          const char *kernel_cmdline,
-                          const char *initrd_filename, const char *cpu_model)
+static void sun4m_hw_init(const struct sun4m_hwdef *hwdef, QemuOpts *opts)
 {
     unsigned int i;
     void *iommu, *espdma, *ledma, *nvram;
@@ -805,13 +798,16 @@ static void sun4m_hw_init(const struct sun4m_hwdef *hwdef, ram_addr_t RAM_size,
     unsigned long kernel_size;
     DriveInfo *fd[MAX_FD];
     void *fw_cfg;
+    ram_addr_t RAM_size = qemu_opt_get_size(opts, "ram_size", 0);
+    const char *boot_device = qemu_opt_get(opts, "boot_device");
+    const char *kernel_filename = qemu_opt_get(opts, "kernel");
+    const char *kernel_cmdline = qemu_opt_get(opts, "kernel_cmdline");
+    const char *initrd = qemu_opt_get(opts, "initrd");
 
     /* init CPUs */
-    if (!cpu_model)
-        cpu_model = hwdef->default_cpu_model;
-
     for(i = 0; i < smp_cpus; i++) {
-        cpu_devinit(cpu_model, i, hwdef->slavio_base, &cpu_irqs[i]);
+        cpu_devinit(qemu_opt_get(opts, "cpu_model"),
+                    i, hwdef->slavio_base, &cpu_irqs[i]);
     }
 
     for (i = smp_cpus; i < MAX_CPUS; i++)
@@ -977,7 +973,6 @@ static const struct sun4m_hwdef sun4m_hwdefs[] = {
         .machine_id = ss5_id,
         .iommu_version = 0x05000000,
         .max_mem = 0x10000000,
-        .default_cpu_model = "Fujitsu MB86904",
     },
     /* SS-10 */
     {
@@ -1003,7 +998,6 @@ static const struct sun4m_hwdef sun4m_hwdefs[] = {
         .machine_id = ss10_id,
         .iommu_version = 0x03000000,
         .max_mem = 0xf00000000ULL,
-        .default_cpu_model = "TI SuperSparc II",
     },
     /* SS-600MP */
     {
@@ -1027,7 +1021,6 @@ static const struct sun4m_hwdef sun4m_hwdefs[] = {
         .machine_id = ss600mp_id,
         .iommu_version = 0x01000000,
         .max_mem = 0xf00000000ULL,
-        .default_cpu_model = "TI SuperSparc II",
     },
     /* SS-20 */
     {
@@ -1053,7 +1046,6 @@ static const struct sun4m_hwdef sun4m_hwdefs[] = {
         .machine_id = ss20_id,
         .iommu_version = 0x13000000,
         .max_mem = 0xf00000000ULL,
-        .default_cpu_model = "TI SuperSparc II",
     },
     /* Voyager */
     {
@@ -1077,7 +1069,6 @@ static const struct sun4m_hwdef sun4m_hwdefs[] = {
         .machine_id = vger_id,
         .iommu_version = 0x05000000,
         .max_mem = 0x10000000,
-        .default_cpu_model = "Fujitsu MB86904",
     },
     /* LX */
     {
@@ -1100,7 +1091,6 @@ static const struct sun4m_hwdef sun4m_hwdefs[] = {
         .machine_id = lx_id,
         .iommu_version = 0x04000000,
         .max_mem = 0x10000000,
-        .default_cpu_model = "TI MicroSparc I",
     },
     /* SS-4 */
     {
@@ -1125,7 +1115,6 @@ static const struct sun4m_hwdef sun4m_hwdefs[] = {
         .machine_id = ss4_id,
         .iommu_version = 0x05000000,
         .max_mem = 0x10000000,
-        .default_cpu_model = "Fujitsu MB86904",
     },
     /* SPARCClassic */
     {
@@ -1149,7 +1138,6 @@ static const struct sun4m_hwdef sun4m_hwdefs[] = {
         .machine_id = scls_id,
         .iommu_version = 0x05000000,
         .max_mem = 0x10000000,
-        .default_cpu_model = "TI MicroSparc I",
     },
     /* SPARCbook */
     {
@@ -1173,99 +1161,61 @@ static const struct sun4m_hwdef sun4m_hwdefs[] = {
         .machine_id = sbook_id,
         .iommu_version = 0x05000000,
         .max_mem = 0x10000000,
-        .default_cpu_model = "TI MicroSparc I",
     },
 };
 
 /* SPARCstation 5 hardware initialisation */
-static void ss5_init(ram_addr_t RAM_size,
-                     const char *boot_device,
-                     const char *kernel_filename, const char *kernel_cmdline,
-                     const char *initrd_filename, const char *cpu_model)
+static void ss5_init(QemuOpts *opts)
 {
-    sun4m_hw_init(&sun4m_hwdefs[0], RAM_size, boot_device, kernel_filename,
-                  kernel_cmdline, initrd_filename, cpu_model);
+    sun4m_hw_init(&sun4m_hwdefs[0], opts);
 }
 
 /* SPARCstation 10 hardware initialisation */
-static void ss10_init(ram_addr_t RAM_size,
-                      const char *boot_device,
-                      const char *kernel_filename, const char *kernel_cmdline,
-                      const char *initrd_filename, const char *cpu_model)
+static void ss10_init(QemuOpts *opts)
 {
-    sun4m_hw_init(&sun4m_hwdefs[1], RAM_size, boot_device, kernel_filename,
-                  kernel_cmdline, initrd_filename, cpu_model);
+    sun4m_hw_init(&sun4m_hwdefs[1], opts);
 }
 
 /* SPARCserver 600MP hardware initialisation */
-static void ss600mp_init(ram_addr_t RAM_size,
-                         const char *boot_device,
-                         const char *kernel_filename,
-                         const char *kernel_cmdline,
-                         const char *initrd_filename, const char *cpu_model)
+static void ss600mp_init(QemuOpts *opts)
 {
-    sun4m_hw_init(&sun4m_hwdefs[2], RAM_size, boot_device, kernel_filename,
-                  kernel_cmdline, initrd_filename, cpu_model);
+    sun4m_hw_init(&sun4m_hwdefs[2], opts);
 }
 
 /* SPARCstation 20 hardware initialisation */
-static void ss20_init(ram_addr_t RAM_size,
-                      const char *boot_device,
-                      const char *kernel_filename, const char *kernel_cmdline,
-                      const char *initrd_filename, const char *cpu_model)
+static void ss20_init(QemuOpts *opts)
 {
-    sun4m_hw_init(&sun4m_hwdefs[3], RAM_size, boot_device, kernel_filename,
-                  kernel_cmdline, initrd_filename, cpu_model);
+    sun4m_hw_init(&sun4m_hwdefs[3], opts);
 }
 
 /* SPARCstation Voyager hardware initialisation */
-static void vger_init(ram_addr_t RAM_size,
-                      const char *boot_device,
-                      const char *kernel_filename, const char *kernel_cmdline,
-                      const char *initrd_filename, const char *cpu_model)
+static void vger_init(QemuOpts *opts)
 {
-    sun4m_hw_init(&sun4m_hwdefs[4], RAM_size, boot_device, kernel_filename,
-                  kernel_cmdline, initrd_filename, cpu_model);
+    sun4m_hw_init(&sun4m_hwdefs[4], opts);
 }
 
 /* SPARCstation LX hardware initialisation */
-static void ss_lx_init(ram_addr_t RAM_size,
-                       const char *boot_device,
-                       const char *kernel_filename, const char *kernel_cmdline,
-                       const char *initrd_filename, const char *cpu_model)
+static void ss_lx_init(QemuOpts *opts)
 {
-    sun4m_hw_init(&sun4m_hwdefs[5], RAM_size, boot_device, kernel_filename,
-                  kernel_cmdline, initrd_filename, cpu_model);
+    sun4m_hw_init(&sun4m_hwdefs[5], opts);
 }
 
 /* SPARCstation 4 hardware initialisation */
-static void ss4_init(ram_addr_t RAM_size,
-                     const char *boot_device,
-                     const char *kernel_filename, const char *kernel_cmdline,
-                     const char *initrd_filename, const char *cpu_model)
+static void ss4_init(QemuOpts *opts)
 {
-    sun4m_hw_init(&sun4m_hwdefs[6], RAM_size, boot_device, kernel_filename,
-                  kernel_cmdline, initrd_filename, cpu_model);
+    sun4m_hw_init(&sun4m_hwdefs[6], opts);
 }
 
 /* SPARCClassic hardware initialisation */
-static void scls_init(ram_addr_t RAM_size,
-                      const char *boot_device,
-                      const char *kernel_filename, const char *kernel_cmdline,
-                      const char *initrd_filename, const char *cpu_model)
+static void scls_init(QemuOpts *opts)
 {
-    sun4m_hw_init(&sun4m_hwdefs[7], RAM_size, boot_device, kernel_filename,
-                  kernel_cmdline, initrd_filename, cpu_model);
+    sun4m_hw_init(&sun4m_hwdefs[7], opts);
 }
 
 /* SPARCbook hardware initialisation */
-static void sbook_init(ram_addr_t RAM_size,
-                       const char *boot_device,
-                       const char *kernel_filename, const char *kernel_cmdline,
-                       const char *initrd_filename, const char *cpu_model)
+static void sbook_init(QemuOpts *opts)
 {
-    sun4m_hw_init(&sun4m_hwdefs[8], RAM_size, boot_device, kernel_filename,
-                  kernel_cmdline, initrd_filename, cpu_model);
+    sun4m_hw_init(&sun4m_hwdefs[8], opts);
 }
 
 static QEMUMachine ss5_machine = {
@@ -1274,6 +1224,7 @@ static QEMUMachine ss5_machine = {
     .init = ss5_init,
     .use_scsi = 1,
     .is_default = 1,
+    .default_cpu = "Fujitsu MB86904",
 };
 
 static QEMUMachine ss10_machine = {
@@ -1282,6 +1233,7 @@ static QEMUMachine ss10_machine = {
     .init = ss10_init,
     .use_scsi = 1,
     .max_cpus = 4,
+    .default_cpu = "TI SuperSparc II",
 };
 
 static QEMUMachine ss600mp_machine = {
@@ -1290,6 +1242,7 @@ static QEMUMachine ss600mp_machine = {
     .init = ss600mp_init,
     .use_scsi = 1,
     .max_cpus = 4,
+    .default_cpu = "TI SuperSparc II",
 };
 
 static QEMUMachine ss20_machine = {
@@ -1298,6 +1251,7 @@ static QEMUMachine ss20_machine = {
     .init = ss20_init,
     .use_scsi = 1,
     .max_cpus = 4,
+    .default_cpu = "TI SuperSparc II",
 };
 
 static QEMUMachine voyager_machine = {
@@ -1305,6 +1259,7 @@ static QEMUMachine voyager_machine = {
     .desc = "Sun4m platform, SPARCstation Voyager",
     .init = vger_init,
     .use_scsi = 1,
+    .default_cpu = "Fujitsu MB86904",
 };
 
 static QEMUMachine ss_lx_machine = {
@@ -1312,6 +1267,7 @@ static QEMUMachine ss_lx_machine = {
     .desc = "Sun4m platform, SPARCstation LX",
     .init = ss_lx_init,
     .use_scsi = 1,
+    .default_cpu = "TI MicroSparc I",
 };
 
 static QEMUMachine ss4_machine = {
@@ -1319,6 +1275,7 @@ static QEMUMachine ss4_machine = {
     .desc = "Sun4m platform, SPARCstation 4",
     .init = ss4_init,
     .use_scsi = 1,
+    .default_cpu = "Fujitsu MB86904",
 };
 
 static QEMUMachine scls_machine = {
@@ -1326,6 +1283,7 @@ static QEMUMachine scls_machine = {
     .desc = "Sun4m platform, SPARCClassic",
     .init = scls_init,
     .use_scsi = 1,
+    .default_cpu = "TI MicroSparc I",
 };
 
 static QEMUMachine sbook_machine = {
@@ -1333,6 +1291,7 @@ static QEMUMachine sbook_machine = {
     .desc = "Sun4m platform, SPARCbook",
     .init = sbook_init,
     .use_scsi = 1,
+    .default_cpu = "TI MicroSparc I",
 };
 
 static const struct sun4d_hwdef sun4d_hwdefs[] = {
@@ -1360,7 +1319,6 @@ static const struct sun4d_hwdef sun4d_hwdefs[] = {
         .machine_id = ss1000_id,
         .iounit_version = 0x03000000,
         .max_mem = 0xf00000000ULL,
-        .default_cpu_model = "TI SuperSparc II",
     },
     /* SS-2000 */
     {
@@ -1386,7 +1344,6 @@ static const struct sun4d_hwdef sun4d_hwdefs[] = {
         .machine_id = ss2000_id,
         .iounit_version = 0x03000000,
         .max_mem = 0xf00000000ULL,
-        .default_cpu_model = "TI SuperSparc II",
     },
 };
 
@@ -1410,11 +1367,7 @@ static DeviceState *sbi_init(target_phys_addr_t addr, qemu_irq **parent_irq)
     return dev;
 }
 
-static void sun4d_hw_init(const struct sun4d_hwdef *hwdef, ram_addr_t RAM_size,
-                          const char *boot_device,
-                          const char *kernel_filename,
-                          const char *kernel_cmdline,
-                          const char *initrd_filename, const char *cpu_model)
+static void sun4d_hw_init(const struct sun4d_hwdef *hwdef, QemuOpts *opts)
 {
     unsigned int i;
     void *iounits[MAX_IOUNITS], *espdma, *ledma, *nvram;
@@ -1424,13 +1377,16 @@ static void sun4d_hw_init(const struct sun4d_hwdef *hwdef, ram_addr_t RAM_size,
     unsigned long kernel_size;
     void *fw_cfg;
     DeviceState *dev;
+    ram_addr_t RAM_size = qemu_opt_get_size(opts, "ram_size", 0);
+    const char *boot_device = qemu_opt_get(opts, "boot_device");
+    const char *kernel_filename = qemu_opt_get(opts, "kernel");
+    const char *kernel_cmdline = qemu_opt_get(opts, "kernel_cmdline");
+    const char *initrd = qemu_opt_get(opts, "initrd");
 
     /* init CPUs */
-    if (!cpu_model)
-        cpu_model = hwdef->default_cpu_model;
-
     for(i = 0; i < smp_cpus; i++) {
-        cpu_devinit(cpu_model, i, hwdef->slavio_base, &cpu_irqs[i]);
+        cpu_devinit(qemu_opt_get(opts, "cpu_model"),
+                    i, hwdef->slavio_base, &cpu_irqs[i]);
     }
 
     for (i = smp_cpus; i < MAX_CPUS; i++)
@@ -1523,23 +1479,15 @@ static void sun4d_hw_init(const struct sun4d_hwdef *hwdef, ram_addr_t RAM_size,
 }
 
 /* SPARCserver 1000 hardware initialisation */
-static void ss1000_init(ram_addr_t RAM_size,
-                        const char *boot_device,
-                        const char *kernel_filename, const char *kernel_cmdline,
-                        const char *initrd_filename, const char *cpu_model)
+static void ss1000_init(QemuOpts *opts)
 {
-    sun4d_hw_init(&sun4d_hwdefs[0], RAM_size, boot_device, kernel_filename,
-                  kernel_cmdline, initrd_filename, cpu_model);
+    sun4d_hw_init(&sun4d_hwdefs[0], opts);
 }
 
 /* SPARCcenter 2000 hardware initialisation */
-static void ss2000_init(ram_addr_t RAM_size,
-                        const char *boot_device,
-                        const char *kernel_filename, const char *kernel_cmdline,
-                        const char *initrd_filename, const char *cpu_model)
+static void ss2000_init(QemuOpts *opts)
 {
-    sun4d_hw_init(&sun4d_hwdefs[1], RAM_size, boot_device, kernel_filename,
-                  kernel_cmdline, initrd_filename, cpu_model);
+    sun4d_hw_init(&sun4d_hwdefs[1], opts);
 }
 
 static QEMUMachine ss1000_machine = {
@@ -1548,6 +1496,7 @@ static QEMUMachine ss1000_machine = {
     .init = ss1000_init,
     .use_scsi = 1,
     .max_cpus = 8,
+    .default_cpu = "TI SuperSparc II",
 };
 
 static QEMUMachine ss2000_machine = {
@@ -1556,6 +1505,7 @@ static QEMUMachine ss2000_machine = {
     .init = ss2000_init,
     .use_scsi = 1,
     .max_cpus = 20,
+    .default_cpu = "TI SuperSparc II",
 };
 
 static const struct sun4c_hwdef sun4c_hwdefs[] = {
@@ -1563,7 +1513,7 @@ static const struct sun4c_hwdef sun4c_hwdefs[] = {
     {
         .iommu_base   = 0xf8000000,
         .tcx_base     = 0xfe000000,
-        .slavio_base  = 0xf6000000,
+       .slavio_base  = 0xf6000000,
         .intctl_base  = 0xf5000000,
         .counter_base = 0xf3000000,
         .ms_kb_base   = 0xf0000000,
@@ -1577,7 +1527,6 @@ static const struct sun4c_hwdef sun4c_hwdefs[] = {
         .nvram_machine_id = 0x55,
         .machine_id = ss2_id,
         .max_mem = 0x10000000,
-        .default_cpu_model = "Cypress CY7C601",
     },
 };
 
@@ -1601,11 +1550,7 @@ static DeviceState *sun4c_intctl_init(target_phys_addr_t addr,
     return dev;
 }
 
-static void sun4c_hw_init(const struct sun4c_hwdef *hwdef, ram_addr_t RAM_size,
-                          const char *boot_device,
-                          const char *kernel_filename,
-                          const char *kernel_cmdline,
-                          const char *initrd_filename, const char *cpu_model)
+static void sun4c_hw_init(const struct sun4c_hwdef *hwdef, QemuOpts *opts)
 {
     void *iommu, *espdma, *ledma, *nvram;
     qemu_irq *cpu_irqs, slavio_irq[8], espdma_irq, ledma_irq;
@@ -1616,12 +1561,15 @@ static void sun4c_hw_init(const struct sun4c_hwdef *hwdef, ram_addr_t RAM_size,
     void *fw_cfg;
     DeviceState *dev;
     unsigned int i;
+    ram_addr_t RAM_size = qemu_opt_get_size(opts, "ram_size", 0);
+    const char *boot_device = qemu_opt_get(opts, "boot_device");
+    const char *kernel_filename = qemu_opt_get(opts, "kernel");
+    const char *kernel_cmdline = qemu_opt_get(opts, "kernel_cmdline");
+    const char *initrd = qemu_opt_get(opts, "initrd");
 
     /* init CPU */
-    if (!cpu_model)
-        cpu_model = hwdef->default_cpu_model;
-
-    cpu_devinit(cpu_model, 0, hwdef->slavio_base, &cpu_irqs);
+    cpu_devinit(qemu_opt_get(opts, "cpu_model"),
+                0, hwdef->slavio_base, &cpu_irqs);
 
     /* set up devices */
     ram_init(0, RAM_size, hwdef->max_mem);
@@ -1713,13 +1661,9 @@ static void sun4c_hw_init(const struct sun4c_hwdef *hwdef, ram_addr_t RAM_size,
 }
 
 /* SPARCstation 2 hardware initialisation */
-static void ss2_init(ram_addr_t RAM_size,
-                     const char *boot_device,
-                     const char *kernel_filename, const char *kernel_cmdline,
-                     const char *initrd_filename, const char *cpu_model)
+static void ss2_init(QemuOpts *opts)
 {
-    sun4c_hw_init(&sun4c_hwdefs[0], RAM_size, boot_device, kernel_filename,
-                  kernel_cmdline, initrd_filename, cpu_model);
+    sun4c_hw_init(&sun4c_hwdefs[0], opts);
 }
 
 static QEMUMachine ss2_machine = {
@@ -1727,6 +1671,7 @@ static QEMUMachine ss2_machine = {
     .desc = "Sun4c platform, SPARCstation 2",
     .init = ss2_init,
     .use_scsi = 1,
+    .default_cpu = "Cypress CY7C601",
 };
 
 static void ss2_machine_init(void)

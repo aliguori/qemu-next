@@ -255,10 +255,7 @@ static uint64_t translate_kernel_address(void *opaque, uint64_t addr)
 }
 
 static
-void axisdev88_init (ram_addr_t ram_size,
-                     const char *boot_device,
-                     const char *kernel_filename, const char *kernel_cmdline,
-                     const char *initrd_filename, const char *cpu_model)
+void axisdev88_init (QemuOpts *opts)
 {
     CPUState *env;
     DeviceState *dev;
@@ -272,12 +269,12 @@ void axisdev88_init (ram_addr_t ram_size,
     int gpio_regs;
     ram_addr_t phys_ram;
     ram_addr_t phys_intmem;
+    ram_addr_t ram_size = qemu_opt_get_size(opts, "ram_size", 0);
+    const char *kernel_filename = qemu_opt_get(opts, "kernel");
+    const char *kernel_cmdline = qemu_opt_get(opts, "kernel_cmdline");
 
     /* init CPUs */
-    if (cpu_model == NULL) {
-        cpu_model = "crisv32";
-    }
-    env = cpu_init(cpu_model);
+    env = cpu_init(qemu_opt_get(opts, "cpu_model"));
     qemu_register_reset(main_cpu_reset, env);
 
     /* allocate RAM */
@@ -383,6 +380,7 @@ static QEMUMachine axisdev88_machine = {
     .name = "axis-dev88",
     .desc = "AXIS devboard 88",
     .init = axisdev88_init,
+    .default_cpu = "crisv32",
 };
 
 static void axisdev88_machine_init(void)

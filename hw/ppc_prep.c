@@ -547,12 +547,7 @@ static CPUReadMemoryFunc * const PPC_prep_io_read[] = {
 #define NVRAM_SIZE        0x2000
 
 /* PowerPC PREP hardware initialisation */
-static void ppc_prep_init (ram_addr_t ram_size,
-                           const char *boot_device,
-                           const char *kernel_filename,
-                           const char *kernel_cmdline,
-                           const char *initrd_filename,
-                           const char *cpu_model)
+static void ppc_prep_init (QemuOpts *opts)
 {
     CPUState *env = NULL, *envs[MAX_CPUS];
     char *filename;
@@ -567,16 +562,19 @@ static void ppc_prep_init (ram_addr_t ram_size,
     int ppc_boot_device;
     DriveInfo *hd[MAX_IDE_BUS * MAX_IDE_DEVS];
     DriveInfo *fd[MAX_FD];
+    const char *boot_device = qemu_opt_get(opts, "boot_device");
+    ram_addr_t ram_size = qemu_opt_get_size(opts, "ram_size", 0);
+    const char *kernel_filename = qemu_opt_get(opts, "kernel");
+    const char *kernel_cmdline = qemu_opt_get(opts, "kernel_cmdline");
+    const char *initrd_filename = qemu_opt_get(opts, "initrd");
 
     sysctrl = qemu_mallocz(sizeof(sysctrl_t));
 
     linux_boot = (kernel_filename != NULL);
 
     /* init CPUs */
-    if (cpu_model == NULL)
-        cpu_model = "602";
     for (i = 0; i < smp_cpus; i++) {
-        env = cpu_init(cpu_model);
+        env = cpu_init(qemu_opt_get(opts, "cpu_model"));
         if (!env) {
             fprintf(stderr, "Unable to find PowerPC CPU definition\n");
             exit(1);
@@ -779,6 +777,7 @@ static QEMUMachine prep_machine = {
     .desc = "PowerPC PREP platform",
     .init = ppc_prep_init,
     .max_cpus = MAX_CPUS,
+    .default_cpu = "602",
 };
 
 static void prep_machine_init(void)

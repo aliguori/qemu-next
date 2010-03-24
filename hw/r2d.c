@@ -199,10 +199,7 @@ static int r2d_pci_map_irq(PCIDevice *d, int irq_num)
     return intx[d->devfn >> 3];
 }
 
-static void r2d_init(ram_addr_t ram_size,
-              const char *boot_device,
-	      const char *kernel_filename, const char *kernel_cmdline,
-	      const char *initrd_filename, const char *cpu_model)
+static void r2d_init(QemuOpts *opts)
 {
     CPUState *env;
     struct SH7750State *s;
@@ -211,11 +208,10 @@ static void r2d_init(ram_addr_t ram_size,
     PCIBus *pci;
     DriveInfo *dinfo;
     int i;
+    const char *kernel_filename = qemu_opt_get(opts, "kernel");
+    const char *kernel_cmdline = qemu_opt_get(opts, "kernel_cmdline");
 
-    if (!cpu_model)
-        cpu_model = "SH7751R";
-
-    env = cpu_init(cpu_model);
+    env = cpu_init(qemu_opt_get(opts, "cpu_model"));
     if (!env) {
         fprintf(stderr, "Unable to find CPU definition\n");
         exit(1);
@@ -269,6 +265,7 @@ static QEMUMachine r2d_machine = {
     .name = "r2d",
     .desc = "r2d-plus board",
     .init = r2d_init,
+    .default_cpu = "SH7751R",
 };
 
 static void r2d_machine_init(void)

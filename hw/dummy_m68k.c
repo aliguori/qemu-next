@@ -16,18 +16,15 @@
 
 /* Board init.  */
 
-static void dummy_m68k_init(ram_addr_t ram_size,
-                     const char *boot_device,
-                     const char *kernel_filename, const char *kernel_cmdline,
-                     const char *initrd_filename, const char *cpu_model)
+static void dummy_m68k_init(QemuOpts *opts)
 {
     CPUState *env;
     int kernel_size;
     uint64_t elf_entry;
     target_phys_addr_t entry;
+    ram_addr_t ram_size = qemu_opt_get_size(opts, "ram_size", 0);
+    const char *kernel_filename = qemu_opt_get(opts, "kernel");
 
-    if (!cpu_model)
-        cpu_model = "cfv4e";
     env = cpu_init(cpu_model);
     if (!env) {
         fprintf(stderr, "Unable to find m68k CPU definition\n");
@@ -70,6 +67,7 @@ static QEMUMachine dummy_m68k_machine = {
     .name = "dummy",
     .desc = "Dummy board",
     .init = dummy_m68k_init,
+    .default_cpu = "cfv4e",
 };
 
 static void dummy_m68k_machine_init(void)

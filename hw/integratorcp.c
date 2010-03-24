@@ -448,10 +448,7 @@ static struct arm_boot_info integrator_binfo = {
     .board_id = 0x113,
 };
 
-static void integratorcp_init(ram_addr_t ram_size,
-                     const char *boot_device,
-                     const char *kernel_filename, const char *kernel_cmdline,
-                     const char *initrd_filename, const char *cpu_model)
+static void integratorcp_init(QemuOpts *opts)
 {
     CPUState *env;
     ram_addr_t ram_offset;
@@ -459,10 +456,9 @@ static void integratorcp_init(ram_addr_t ram_size,
     qemu_irq *cpu_pic;
     DeviceState *dev;
     int i;
+    ram_addr_t ram_size = qemu_opt_get_size(opts, "ram_size", 0);
 
-    if (!cpu_model)
-        cpu_model = "arm926";
-    env = cpu_init(cpu_model);
+    env = cpu_init(qemu_opt_get(opts, "cpu_model"));
     if (!env) {
         fprintf(stderr, "Unable to find CPU definition\n");
         exit(1);
@@ -503,9 +499,9 @@ static void integratorcp_init(ram_addr_t ram_size,
     sysbus_create_simple("pl110", 0xc0000000, pic[22]);
 
     integrator_binfo.ram_size = ram_size;
-    integrator_binfo.kernel_filename = kernel_filename;
-    integrator_binfo.kernel_cmdline = kernel_cmdline;
-    integrator_binfo.initrd_filename = initrd_filename;
+    integrator_binfo.kernel_filename = qemu_opt_get(opts, "kernel");
+    integrator_binfo.kernel_cmdline = qemu_opt_get(opts, "kernel_cmdline");
+    integrator_binfo.initrd_filename = qemu_opt_get(opts, "initrd");
     arm_load_kernel(env, &integrator_binfo);
 }
 
@@ -514,6 +510,7 @@ static QEMUMachine integratorcp_machine = {
     .desc = "ARM Integrator/CP (ARM926EJ-S)",
     .init = integratorcp_init,
     .is_default = 1,
+    .default_cpu = "arm926",
 };
 
 static void integratorcp_machine_init(void)

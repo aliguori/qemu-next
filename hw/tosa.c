@@ -200,17 +200,11 @@ static struct arm_boot_info tosa_binfo = {
     .ram_size = 0x04000000,
 };
 
-static void tosa_init(ram_addr_t ram_size,
-                const char *boot_device,
-                const char *kernel_filename, const char *kernel_cmdline,
-                const char *initrd_filename, const char *cpu_model)
+static void tosa_init(QemuOpt *opts)
 {
     PXA2xxState *cpu;
     TC6393xbState *tmio;
     ScoopInfo *scp0, *scp1;
-
-    if (!cpu_model)
-        cpu_model = "pxa255";
 
     cpu = pxa255_init(tosa_binfo.ram_size);
 
@@ -232,9 +226,9 @@ static void tosa_init(ram_addr_t ram_size,
     /* Setup initial (reset) machine state */
     cpu->env->regs[15] = tosa_binfo.loader_start;
 
-    tosa_binfo.kernel_filename = kernel_filename;
-    tosa_binfo.kernel_cmdline = kernel_cmdline;
-    tosa_binfo.initrd_filename = initrd_filename;
+    tosa_binfo.kernel_filename = qemu_opt_get(opts, "kernel");
+    tosa_binfo.kernel_cmdline = qemu_opt_get(opts, "kernel_cmdline");
+    tosa_binfo.initrd_filename = qemu_opt_get(opts, "initrd");
     tosa_binfo.board_id = 0x208;
     arm_load_kernel(cpu->env, &tosa_binfo);
     sl_bootparam_write(SL_PXA_PARAM_BASE);
@@ -244,6 +238,7 @@ static QEMUMachine tosapda_machine = {
     .name = "tosa",
     .desc = "Tosa PDA (PXA255)",
     .init = tosa_init,
+    .default_cpu = "pxa255",
 };
 
 static void tosapda_machine_init(void)

@@ -1476,10 +1476,7 @@ static struct arm_boot_info musicpal_binfo = {
     .board_id = 0x20e,
 };
 
-static void musicpal_init(ram_addr_t ram_size,
-               const char *boot_device,
-               const char *kernel_filename, const char *kernel_cmdline,
-               const char *initrd_filename, const char *cpu_model)
+static void musicpal_init(QemuOpts *opts)
 {
     CPUState *env;
     qemu_irq *cpu_pic;
@@ -1498,9 +1495,6 @@ static void musicpal_init(ram_addr_t ram_size,
     DriveInfo *dinfo;
     ram_addr_t sram_off;
 
-    if (!cpu_model) {
-        cpu_model = "arm926";
-    }
     env = cpu_init(cpu_model);
     if (!env) {
         fprintf(stderr, "Unable to find CPU definition\n");
@@ -1614,9 +1608,9 @@ static void musicpal_init(ram_addr_t ram_size,
 #endif
 
     musicpal_binfo.ram_size = MP_RAM_DEFAULT_SIZE;
-    musicpal_binfo.kernel_filename = kernel_filename;
-    musicpal_binfo.kernel_cmdline = kernel_cmdline;
-    musicpal_binfo.initrd_filename = initrd_filename;
+    musicpal_binfo.kernel_filename = qemu_opt_get(opts, "kernel");
+    musicpal_binfo.kernel_cmdline = qemu_opt_get(opts, "kernel_cmdline");
+    musicpal_binfo.initrd_filename = qemu_opt_get(opts, "initrd");
     arm_load_kernel(env, &musicpal_binfo);
 }
 
@@ -1624,6 +1618,7 @@ static QEMUMachine musicpal_machine = {
     .name = "musicpal",
     .desc = "Marvell 88w8618 / MusicPal (ARM926EJ-S)",
     .init = musicpal_init,
+    .default_cpu = "arm926",
 };
 
 static void musicpal_machine_init(void)

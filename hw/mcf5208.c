@@ -195,19 +195,16 @@ static void mcf5208_sys_init(qemu_irq *pic)
     }
 }
 
-static void mcf5208evb_init(ram_addr_t ram_size,
-                     const char *boot_device,
-                     const char *kernel_filename, const char *kernel_cmdline,
-                     const char *initrd_filename, const char *cpu_model)
+static void mcf5208evb_init(QemuOpts *opts)
 {
     CPUState *env;
     int kernel_size;
     uint64_t elf_entry;
     target_phys_addr_t entry;
     qemu_irq *pic;
+    ram_addr_t ram_size = qemu_opt_get_size(opts, "ram_size", 0);
+    const char *kernel_filename = qemu_opt_get(opts, "kernel");
 
-    if (!cpu_model)
-        cpu_model = "m5208";
     env = cpu_init(cpu_model);
     if (!env) {
         fprintf(stderr, "Unable to find m68k CPU definition\n");
@@ -294,6 +291,7 @@ static QEMUMachine mcf5208evb_machine = {
     .desc = "MCF5206EVB",
     .init = mcf5208evb_init,
     .is_default = 1,
+    .default_cpu = "m5208",
 };
 
 static void mcf5208evb_machine_init(void)

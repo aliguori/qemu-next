@@ -128,11 +128,8 @@ static const int realview_board_id[] = {
     0x76d
 };
 
-static void realview_init(ram_addr_t ram_size,
-                     const char *boot_device,
-                     const char *kernel_filename, const char *kernel_cmdline,
-                     const char *initrd_filename, const char *cpu_model,
-                     enum realview_board_type board_type)
+static void realview_init(QemuOpts *opts,
+                          enum realview_board_type board_type)
 {
     CPUState *env = NULL;
     ram_addr_t ram_offset;
@@ -151,6 +148,7 @@ static void realview_init(ram_addr_t ram_size,
     uint32_t proc_id = 0;
     uint32_t sys_id;
     ram_addr_t low_ram_size;
+    ram_addr_t ram_size = qemu_opt_get_size(opts, "ram_size", 0);
 
     switch (board_type) {
     case BOARD_EB:
@@ -363,61 +361,33 @@ static void realview_init(ram_addr_t ram_size,
                                  ram_offset | IO_MEM_RAM);
 
     realview_binfo.ram_size = ram_size;
-    realview_binfo.kernel_filename = kernel_filename;
-    realview_binfo.kernel_cmdline = kernel_cmdline;
-    realview_binfo.initrd_filename = initrd_filename;
+    realview_binfo.kernel_filename = qemu_opt_get(opts, "kernel");
+    realview_binfo.kernel_cmdline = qemu_opt_get(opts, "kernel_cmdline");
+    realview_binfo.initrd_filename = qemu_opt_get(opts, "initrd");
     realview_binfo.nb_cpus = smp_cpus;
     realview_binfo.board_id = realview_board_id[board_type];
     realview_binfo.loader_start = (board_type == BOARD_PB_A8 ? 0x70000000 : 0);
     arm_load_kernel(first_cpu, &realview_binfo);
 }
 
-static void realview_eb_init(ram_addr_t ram_size,
-                     const char *boot_device,
-                     const char *kernel_filename, const char *kernel_cmdline,
-                     const char *initrd_filename, const char *cpu_model)
+static void realview_eb_init(QemuOpts *opts)
 {
-    if (!cpu_model) {
-        cpu_model = "arm926";
-    }
-    realview_init(ram_size, boot_device, kernel_filename, kernel_cmdline,
-                  initrd_filename, cpu_model, BOARD_EB);
+    realview_init(opts, BOARD_EB);
 }
 
-static void realview_eb_mpcore_init(ram_addr_t ram_size,
-                     const char *boot_device,
-                     const char *kernel_filename, const char *kernel_cmdline,
-                     const char *initrd_filename, const char *cpu_model)
+static void realview_eb_mpcore_init(QemuOpts *opts)
 {
-    if (!cpu_model) {
-        cpu_model = "arm11mpcore";
-    }
-    realview_init(ram_size, boot_device, kernel_filename, kernel_cmdline,
-                  initrd_filename, cpu_model, BOARD_EB_MPCORE);
+    realview_init(opts, BOARD_EB_MPCORE);
 }
 
-static void realview_pb_a8_init(ram_addr_t ram_size,
-                     const char *boot_device,
-                     const char *kernel_filename, const char *kernel_cmdline,
-                     const char *initrd_filename, const char *cpu_model)
+static void realview_pb_a8_init(QemuOpts *opts)
 {
-    if (!cpu_model) {
-        cpu_model = "cortex-a8";
-    }
-    realview_init(ram_size, boot_device, kernel_filename, kernel_cmdline,
-                  initrd_filename, cpu_model, BOARD_PB_A8);
+    realview_init(opts, BOARD_PB_A8);
 }
 
-static void realview_pbx_a9_init(ram_addr_t ram_size,
-                     const char *boot_device,
-                     const char *kernel_filename, const char *kernel_cmdline,
-                     const char *initrd_filename, const char *cpu_model)
+static void realview_pbx_a9_init(QemuOpts *opts)
 {
-    if (!cpu_model) {
-        cpu_model = "cortex-a9";
-    }
-    realview_init(ram_size, boot_device, kernel_filename, kernel_cmdline,
-                  initrd_filename, cpu_model, BOARD_PBX_A9);
+    realview_init(opts, BOARD_PBX_A9);
 }
 
 static QEMUMachine realview_eb_machine = {
@@ -425,6 +395,7 @@ static QEMUMachine realview_eb_machine = {
     .desc = "ARM RealView Emulation Baseboard (ARM926EJ-S)",
     .init = realview_eb_init,
     .use_scsi = 1,
+    .default_cpu = "arm926",
 };
 
 static QEMUMachine realview_eb_mpcore_machine = {
@@ -433,12 +404,14 @@ static QEMUMachine realview_eb_mpcore_machine = {
     .init = realview_eb_mpcore_init,
     .use_scsi = 1,
     .max_cpus = 4,
+    .default_cpu = "arm11mpcore",
 };
 
 static QEMUMachine realview_pb_a8_machine = {
     .name = "realview-pb-a8",
     .desc = "ARM RealView Platform Baseboard for Cortex-A8",
     .init = realview_pb_a8_init,
+    .default_cpu = "cortex-a8",
 };
 
 static QEMUMachine realview_pbx_a9_machine = {
@@ -447,6 +420,7 @@ static QEMUMachine realview_pbx_a9_machine = {
     .init = realview_pbx_a9_init,
     .use_scsi = 1,
     .max_cpus = 4,
+    .default_cpu = "cortex-a9",
 };
 
 static void realview_machine_init(void)

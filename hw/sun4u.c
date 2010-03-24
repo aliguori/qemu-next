@@ -84,7 +84,6 @@
 #define TICK_MAX             0x7fffffffffffffffULL
 
 struct hwdef {
-    const char * const default_cpu_model;
     uint16_t machine_id;
     uint64_t prom_addr;
     uint64_t console_serial_base;
@@ -709,8 +708,6 @@ static CPUState *cpu_devinit(const char *cpu_model, const struct hwdef *hwdef)
     uint32_t  stick_frequency = 100*1000000;
     uint32_t hstick_frequency = 100*1000000;
 
-    if (!cpu_model)
-        cpu_model = hwdef->default_cpu_model;
     env = cpu_init(cpu_model);
     if (!env) {
         fprintf(stderr, "Unable to find Sparc CPU definition\n");
@@ -734,11 +731,7 @@ static CPUState *cpu_devinit(const char *cpu_model, const struct hwdef *hwdef)
     return env;
 }
 
-static void sun4uv_init(ram_addr_t RAM_size,
-                        const char *boot_devices,
-                        const char *kernel_filename, const char *kernel_cmdline,
-                        const char *initrd_filename, const char *cpu_model,
-                        const struct hwdef *hwdef)
+static void sun4uv_init(QemuOpts *opts, const struct hwdef *hwdef)
 {
     CPUState *env;
     M48t59State *nvram;
@@ -749,9 +742,14 @@ static void sun4uv_init(ram_addr_t RAM_size,
     DriveInfo *hd[MAX_IDE_BUS * MAX_IDE_DEVS];
     DriveInfo *fd[MAX_FD];
     void *fw_cfg;
+    ram_addr_t RAM_size = qemu_opt_get_size(opts, "ram_size", 0);
+    const char *boot_device = qemu_opt_get(opts, "boot_device");
+    const char *kernel_filename = qemu_opt_get(opts, "kernel");
+    const char *kernel_cmdline = qemu_opt_get(opts, "kernel_cmdline");
+    const char *initrd = qemu_opt_get(opts, "initrd");
 
     /* init CPUs */
-    env = cpu_devinit(cpu_model, hwdef);
+    env = cpu_devinit(qemu_opt_get(opts, "cpu_model"), hwdef);
 
     /* set up devices */
     ram_init(0, RAM_size);
@@ -855,21 +853,18 @@ enum {
 static const struct hwdef hwdefs[] = {
     /* Sun4u generic PC-like machine */
     {
-        .default_cpu_model = "TI UltraSparc II",
         .machine_id = sun4u_id,
         .prom_addr = 0x1fff0000000ULL,
         .console_serial_base = 0,
     },
     /* Sun4v generic PC-like machine */
     {
-        .default_cpu_model = "Sun UltraSparc T1",
         .machine_id = sun4v_id,
         .prom_addr = 0x1fff0000000ULL,
         .console_serial_base = 0,
     },
     /* Sun4v generic Niagara machine */
     {
-        .default_cpu_model = "Sun UltraSparc T1",
         .machine_id = niagara_id,
         .prom_addr = 0xfff0000000ULL,
         .console_serial_base = 0xfff0c2c000ULL,
@@ -877,33 +872,21 @@ static const struct hwdef hwdefs[] = {
 };
 
 /* Sun4u hardware initialisation */
-static void sun4u_init(ram_addr_t RAM_size,
-                       const char *boot_devices,
-                       const char *kernel_filename, const char *kernel_cmdline,
-                       const char *initrd_filename, const char *cpu_model)
+static void sun4u_init(QemuOpts *opts)
 {
-    sun4uv_init(RAM_size, boot_devices, kernel_filename,
-                kernel_cmdline, initrd_filename, cpu_model, &hwdefs[0]);
+    sun4uv_init(opts, &hwdefs[0]);
 }
 
 /* Sun4v hardware initialisation */
-static void sun4v_init(ram_addr_t RAM_size,
-                       const char *boot_devices,
-                       const char *kernel_filename, const char *kernel_cmdline,
-                       const char *initrd_filename, const char *cpu_model)
+static void sun4v_init(QemuOpts *opts)
 {
-    sun4uv_init(RAM_size, boot_devices, kernel_filename,
-                kernel_cmdline, initrd_filename, cpu_model, &hwdefs[1]);
+    sun4uv_init(opts, &hwdefs[1]);
 }
 
 /* Niagara hardware initialisation */
-static void niagara_init(ram_addr_t RAM_size,
-                         const char *boot_devices,
-                         const char *kernel_filename, const char *kernel_cmdline,
-                         const char *initrd_filename, const char *cpu_model)
+static void niagara_init(QemuOpts *opts)
 {
-    sun4uv_init(RAM_size, boot_devices, kernel_filename,
-                kernel_cmdline, initrd_filename, cpu_model, &hwdefs[2]);
+    sun4uv_init(opts, &hwdefs[2]);
 }
 
 static QEMUMachine sun4u_machine = {
@@ -912,6 +895,7 @@ static QEMUMachine sun4u_machine = {
     .init = sun4u_init,
     .max_cpus = 1, // XXX for now
     .is_default = 1,
+    .default_cpu = "TI UltraSparc II",
 };
 
 static QEMUMachine sun4v_machine = {
@@ -919,6 +903,7 @@ static QEMUMachine sun4v_machine = {
     .desc = "Sun4v platform",
     .init = sun4v_init,
     .max_cpus = 1, // XXX for now
+    .default_cpu = "Sun UltraSparc T1",
 };
 
 static QEMUMachine niagara_machine = {
@@ -926,6 +911,7 @@ static QEMUMachine niagara_machine = {
     .desc = "Sun4v platform, Niagara",
     .init = niagara_init,
     .max_cpus = 1, // XXX for now
+    .default_cpu = "Sun UltraSparc T1",
 };
 
 static void sun4u_machine_init(void)

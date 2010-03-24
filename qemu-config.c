@@ -296,6 +296,33 @@ QemuOptsList qemu_cpudef_opts = {
     },
 };
 
+QemuOptsList qemu_machine_opts = {
+    .name = "machine",
+    .head = QTAILQ_HEAD_INITIALIZER(qemu_cpudef_opts.head),
+    .desc = {
+        {
+            .name = "ram_size",
+            .type = QEMU_OPT_SIZE,
+        },{
+            .name = "boot_device",
+            .type = QEMU_OPT_STRING,
+        },{
+            .name = "kernel",
+            .type = QEMU_OPT_STRING,
+        },{
+            .name = "kernel_cmdline",
+            .type = QEMU_OPT_STRING,
+        },{
+            .name = "initrd",
+            .type = QEMU_OPT_STRING,
+        },{
+            .name = "cpu_model",
+            .type = QEMU_OPT_STRING,
+        },
+        { /* end of list */ }
+    },
+};
+
 static QemuOptsList *lists[] = {
     &qemu_drive_opts,
     &qemu_chardev_opts,
@@ -306,6 +333,7 @@ static QemuOptsList *lists[] = {
     &qemu_global_opts,
     &qemu_mon_opts,
     &qemu_cpudef_opts,
+    &qemu_machine_opts,
     NULL,
 };
 

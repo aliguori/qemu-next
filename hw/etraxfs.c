@@ -50,10 +50,7 @@ static uint64_t translate_kernel_address(void *opaque, uint64_t addr)
 }
 
 static
-void bareetraxfs_init (ram_addr_t ram_size,
-                       const char *boot_device,
-                       const char *kernel_filename, const char *kernel_cmdline,
-                       const char *initrd_filename, const char *cpu_model)
+void bareetraxfs_init (QemuOpts *opts)
 {
     DeviceState *dev;
     SysBusDevice *s;
@@ -67,11 +64,11 @@ void bareetraxfs_init (ram_addr_t ram_size,
     ram_addr_t phys_ram;
     ram_addr_t phys_flash;
     ram_addr_t phys_intmem;
+    ram_addr_t ram_size = qemu_opt_get_size(opts, "ram_size", 0);
+    const char *kernel_filename = qemu_opt_get(opts, "kernel");
+    const char *kernel_cmdline = qemu_opt_get(opts, "kernel_cmdline");
 
     /* init CPUs */
-    if (cpu_model == NULL) {
-        cpu_model = "crisv32";
-    }
     env = cpu_init(cpu_model);
     qemu_register_reset(main_cpu_reset, env);
 
@@ -176,6 +173,7 @@ static QEMUMachine bareetraxfs_machine = {
     .desc = "Bare ETRAX FS board",
     .init = bareetraxfs_init,
     .is_default = 1,
+    .default_cpu = "crisv32"
 };
 
 static void bareetraxfs_machine_init(void)

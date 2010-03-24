@@ -47,20 +47,14 @@ void pic_info(Monitor *mon)
     /* XXXXX */
 }
 
-static void shix_init(ram_addr_t ram_size,
-               const char *boot_device,
-	       const char *kernel_filename, const char *kernel_cmdline,
-	       const char *initrd_filename, const char *cpu_model)
+static void shix_init(QemuOpts *opts)
 {
     int ret;
     CPUState *env;
     struct SH7750State *s;
     
-    if (!cpu_model)
-        cpu_model = "any";
-
     printf("Initializing CPU\n");
-    env = cpu_init(cpu_model);
+    env = cpu_init(qemu_opt_get(opts, "cpu_model"));
 
     /* Allocate memory space */
     printf("Allocating ROM\n");
@@ -94,6 +88,7 @@ static QEMUMachine shix_machine = {
     .desc = "shix card",
     .init = shix_init,
     .is_default = 1,
+    .default_cpu = "any",
 };
 
 static void shix_machine_init(void)

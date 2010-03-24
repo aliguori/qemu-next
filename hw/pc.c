@@ -527,10 +527,7 @@ static long get_file_size(FILE *f)
     return size;
 }
 
-static void load_linux(void *fw_cfg,
-                       const char *kernel_filename,
-		       const char *initrd_filename,
-		       const char *kernel_cmdline,
+static void load_linux(void *fw_cfg, QemuOpts *opts,
                        target_phys_addr_t max_ram_size)
 {
     uint16_t protocol;
@@ -540,6 +537,11 @@ static void load_linux(void *fw_cfg,
     target_phys_addr_t real_addr, prot_addr, cmdline_addr, initrd_addr = 0;
     FILE *f;
     char *vmode;
+    const char *kernel_filename, *kernel_cmdline, *initrd_filename;
+
+    kernel_filename = qemu_opt_get(opts, "kernel");
+    kernel_cmdline = qemu_opt_get(opts, "kernel_cmdline");
+    initrd_filename = qemu_opt_get(opts, "initrd");
 
     /* Align to 16 bytes as a paranoia measure */
     cmdline_size = (strlen(kernel_cmdline)+16) & ~15;
@@ -772,16 +774,10 @@ static CPUState *pc_new_cpu(const char *cpu_model)
 }
 
 /* PC hardware initialisation */
-static void pc_init1(ram_addr_t ram_size,
-                     const char *boot_device,
-                     const char *kernel_filename,
-                     const char *kernel_cmdline,
-                     const char *initrd_filename,
-                     const char *cpu_model,
-                     int pci_enabled)
+static void pc_init1(QemuOpts *opts, int pci_enabled)
 {
     char *filename;
-    int ret, linux_boot, i;
+    int ret, i;
     ram_addr_t ram_addr, bios_offset, option_rom_offset;
     ram_addr_t below_4g_mem_size, above_4g_mem_size = 0;
     int bios_size, isa_bios_size;
@@ -796,6 +792,7 @@ static void pc_init1(ram_addr_t ram_size,
     DriveInfo *hd[MAX_IDE_BUS * MAX_IDE_DEVS];
     DriveInfo *fd[MAX_FD];
     void *fw_cfg;
+    ram_addr_t ram_size = qemu_opt_get_size(opts, "ram_size", 0);
 
     if (ram_size >= 0xe0000000 ) {
         above_4g_mem_size = ram_size - 0xe0000000;
@@ -804,17 +801,7 @@ static void pc_init1(ram_addr_t ram_size,
         below_4g_mem_size = ram_size;
     }
 
-    linux_boot = (kernel_filename != NULL);
-
     /* init CPUs */
-    if (cpu_model == NULL) {
-#ifdef TARGET_X86_64
-        cpu_model = "qemu64";
-#else
-        cpu_model = "qemu32";
-#endif
-    }
-
     for (i = 0; i < smp_cpus; i++) {
         env = pc_new_cpu(cpu_model);
     }
@@ -882,8 +869,8 @@ static void pc_init1(ram_addr_t ram_size,
     fw_cfg = bochs_bios_init();
     rom_set_fw(fw_cfg);
 
-    if (linux_boot) {
-        load_linux(fw_cfg, kernel_filename, initrd_filename, kernel_cmdline, below_4g_mem_size);
+    if (qemu_get_opt(opts, "kernel")) {
+        load_linux(fw_cfg, opts, below_4g_mem_size);
     }
 
     for (i = 0; i < nb_option_roms; i++) {
@@ -996,7 +983,8 @@ static void pc_init1(ram_addr_t ram_size,
     }
     floppy_controller = fdctrl_init_isa(fd);
 
-    cmos_init(below_4g_mem_size, above_4g_mem_size, boot_device, hd);
+    cmos_init(below_4g_mem_size, above_4g_mem_size,
+              qemu_opt_get(opts, "boot_device"), hd);
 
     if (pci_enabled && usb_enabled) {
         usb_uhci_piix3_init(pci_bus, piix3_devfn + 2);
@@ -1034,30 +1022,14 @@ static void pc_init1(ram_addr_t ram_size,
     }
 }
 
-static void pc_init_pci(ram_addr_t ram_size,
-                        const char *boot_device,
-                        const char *kernel_filename,
-                        const char *kernel_cmdline,
-                        const char *initrd_filename,
-                        const char *cpu_model)
+static void pc_init_pci(QemuOpts *opts)
 {
-    pc_init1(ram_size, boot_device,
-             kernel_filename, kernel_cmdline,
-             initrd_filename, cpu_model, 1);
+    pc_init1(opts, 1);
 }
 
-static void pc_init_isa(ram_addr_t ram_size,
-                        const char *boot_device,
-                        const char *kernel_filename,
-                        const char *kernel_cmdline,
-                        const char *initrd_filename,
-                        const char *cpu_model)
+static void pc_init_isa(QemuOpts *opts)
 {
-    if (cpu_model == NULL)
-        cpu_model = "486";
-    pc_init1(ram_size, boot_device,
-             kernel_filename, kernel_cmdline,
-             initrd_filename, cpu_model, 0);
+    pc_init1(opts, 0);
 }
 
 /* set CMOS shutdown status register (index 0xF) as S3_resume(0xFE)
@@ -1068,6 +1040,12 @@ void cmos_set_s3_resume(void)
         rtc_set_memory(rtc_state, 0xF, 0xFE);
 }
 
+#ifdef TARGET_X86_64
+#define PC_DEFAULT_CPU "qemu64"
+#else
+#define PC_DEFAULT_CPU "qemu32";
+#endif
+
 static QEMUMachine pc_machine = {
     .name = "pc-0.13",
     .alias = "pc",
@@ -1075,6 +1053,7 @@ static QEMUMachine pc_machine = {
     .init = pc_init_pci,
     .max_cpus = 255,
     .is_default = 1,
+    .default_cpu = PC_DEFAULT_CPU,
 };
 
 static QEMUMachine pc_machine_v0_12 = {
@@ -1082,6 +1061,7 @@ static QEMUMachine pc_machine_v0_12 = {
     .desc = "Standard PC",
     .init = pc_init_pci,
     .max_cpus = 255,
+    .default_cpu = PC_DEFAULT_CPU,
     .compat_props = (GlobalProperty[]) {
         {
             .driver   = "virtio-serial-pci",
@@ -1101,6 +1081,7 @@ static QEMUMachine pc_machine_v0_11 = {
     .desc = "Standard PC, qemu 0.11",
     .init = pc_init_pci,
     .max_cpus = 255,
+    .default_cpu = PC_DEFAULT_CPU,
     .compat_props = (GlobalProperty[]) {
         {
             .driver   = "virtio-blk-pci",
@@ -1136,6 +1117,7 @@ static QEMUMachine pc_machine_v0_10 = {
     .desc = "Standard PC, qemu 0.10",
     .init = pc_init_pci,
     .max_cpus = 255,
+    .default_cpu = PC_DEFAULT_CPU
     .compat_props = (GlobalProperty[]) {
         {
             .driver   = "virtio-blk-pci",
@@ -1183,6 +1165,7 @@ static QEMUMachine isapc_machine = {
     .desc = "ISA-only PC",
     .init = pc_init_isa,
     .max_cpus = 1,
+    .default_cpu = "486";
 };
 
 static void pc_machine_init(void)

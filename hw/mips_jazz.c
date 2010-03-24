@@ -113,9 +113,7 @@ static void audio_init(qemu_irq *pic)
 #define MAGNUM_BIOS_SIZE (BIOS_SIZE < MAGNUM_BIOS_SIZE_MAX ? BIOS_SIZE : MAGNUM_BIOS_SIZE_MAX)
 
 static
-void mips_jazz_init (ram_addr_t ram_size,
-                     const char *cpu_model,
-                     enum jazz_model_e jazz_model)
+void mips_jazz_init (QemuOpts *opts, enum jazz_model_e jazz_model)
 {
     char *filename;
     int bios_size, n;
@@ -130,17 +128,10 @@ void mips_jazz_init (ram_addr_t ram_size,
     qemu_irq esp_reset;
     ram_addr_t ram_offset;
     ram_addr_t bios_offset;
+    ram_addr_t ram_size = qemu_opt_get_size(opts, "ram_size", 0);
 
     /* init CPUs */
-    if (cpu_model == NULL) {
-#ifdef TARGET_MIPS64
-        cpu_model = "R4000";
-#else
-        /* FIXME: All wrong, this maybe should be R3000 for the older JAZZs. */
-        cpu_model = "24Kf";
-#endif
-    }
-    env = cpu_init(cpu_model);
+    env = cpu_init(qemu_opt_get(opts, "cpu_model"));
     if (!env) {
         fprintf(stderr, "Unable to find CPU definition\n");
         exit(1);
@@ -287,28 +278,30 @@ void mips_jazz_init (ram_addr_t ram_size,
 }
 
 static
-void mips_magnum_init (ram_addr_t ram_size,
-                       const char *boot_device,
-                       const char *kernel_filename, const char *kernel_cmdline,
-                       const char *initrd_filename, const char *cpu_model)
+void mips_magnum_init (QemuOpts *opts)
 {
-    mips_jazz_init(ram_size, cpu_model, JAZZ_MAGNUM);
+    mips_jazz_init(opts, JAZZ_MAGNUM);
 }
 
 static
-void mips_pica61_init (ram_addr_t ram_size,
-                       const char *boot_device,
-                       const char *kernel_filename, const char *kernel_cmdline,
-                       const char *initrd_filename, const char *cpu_model)
+void mips_pica61_init (QemuOpts *opts)
 {
-    mips_jazz_init(ram_size, cpu_model, JAZZ_PICA61);
+    mips_jazz_init(opts, JAZZ_PICA61);
 }
+
+#ifdef TARGET_MIPS64
+#define JAZZ_DEFAULT_CPU "R4000"
+#else
+/* FIXME: All wrong, this maybe should be R3000 for the older JAZZs. */
+#define JAZZ_DEFAULT_CPU "24Kf"
+#endif
 
 static QEMUMachine mips_magnum_machine = {
     .name = "magnum",
     .desc = "MIPS Magnum",
     .init = mips_magnum_init,
     .use_scsi = 1,
+    .default_cpu = JAZZ_DEFAULT_CPU,
 };
 
 static QEMUMachine mips_pica61_machine = {
@@ -316,6 +309,7 @@ static QEMUMachine mips_pica61_machine = {
     .desc = "Acer Pica 61",
     .init = mips_pica61_init,
     .use_scsi = 1,
+    .default_cpu = JAZZ_DEFAULT_CPU,
 };
 
 static void mips_jazz_machine_init(void)

@@ -110,11 +110,7 @@ static uint64_t translate_kernel_address(void *opaque, uint64_t addr)
 }
 
 static void
-petalogix_s3adsp1800_init(ram_addr_t ram_size,
-                          const char *boot_device,
-                          const char *kernel_filename,
-                          const char *kernel_cmdline,
-                          const char *initrd_filename, const char *cpu_model)
+petalogix_s3adsp1800_init(QemuOpts *opts)
 {
     DeviceState *dev;
     CPUState *env;
@@ -126,12 +122,11 @@ petalogix_s3adsp1800_init(ram_addr_t ram_size,
     ram_addr_t phys_ram;
     ram_addr_t phys_flash;
     qemu_irq irq[32], *cpu_irq;
+    ram_addr_t ram_size = qemu_opt_get_size(opts, "ram_size", 0);
+    int load_linux = !!qemu_opt_get(opts, "kernel");
 
     /* init CPUs */
-    if (cpu_model == NULL) {
-        cpu_model = "microblaze";
-    }
-    env = cpu_init(cpu_model);
+    env = cpu_init(qemu_opt_get(opts, "cpu_model"));
 
     env->pvr.regs[10] = 0x0c000000; /* spartan 3a dsp family.  */
     qemu_register_reset(main_cpu_reset, env);
@@ -162,10 +157,12 @@ petalogix_s3adsp1800_init(ram_addr_t ram_size,
     xilinx_timer_create(0x83c00000, irq[0], 2, 62 * 1000000);
     xilinx_ethlite_create(&nd_table[0], 0x81000000, irq[1], 0, 0);
 
-    if (kernel_filename) {
+    if (load_linux) {
         uint64_t entry, low, high;
         int kcmdline_len;
         uint32_t base32;
+        const char *kernel_filename = qemu_opt_get(opts, "kernel");
+        const char *kernel_cmdline = qemu_opt_get(opts, "kernel_cmdline");
 
         /* Boots a kernel elf binary.  */
         kernel_size = load_elf(kernel_filename, NULL, NULL,
@@ -202,7 +199,8 @@ static QEMUMachine petalogix_s3adsp1800_machine = {
     .name = "petalogix-s3adsp1800",
     .desc = "Petalogix linux refdesign for xilinx Spartan 3ADSP1800",
     .init = petalogix_s3adsp1800_init,
-    .is_default = 1
+    .is_default = 1,
+    .default_cpu = "microblaze",
 };
 
 static void petalogix_s3adsp1800_machine_init(void)

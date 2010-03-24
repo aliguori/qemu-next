@@ -68,10 +68,8 @@ static struct arm_boot_info mainstone_binfo = {
     .ram_size = 0x04000000,
 };
 
-static void mainstone_common_init(ram_addr_t ram_size,
-                const char *kernel_filename,
-                const char *kernel_cmdline, const char *initrd_filename,
-                const char *cpu_model, enum mainstone_model_e model, int arm_id)
+static void mainstone_common_init(QemuOpts *opts,
+                                  enum mainstone_model_e model, int arm_id)
 {
     uint32_t sector_len = 256 * 1024;
     target_phys_addr_t mainstone_flash_base[] = { MST_FLASH_0, MST_FLASH_1 };
@@ -80,11 +78,9 @@ static void mainstone_common_init(ram_addr_t ram_size,
     DriveInfo *dinfo;
     int i;
 
-    if (!cpu_model)
-        cpu_model = "pxa270-c5";
-
     /* Setup CPU & memory */
-    cpu = pxa270_init(mainstone_binfo.ram_size, cpu_model);
+    cpu = pxa270_init(mainstone_binfo.ram_size,
+                      qemu_opt_get(opts, "cpu_model"));
     cpu_register_physical_memory(0, MAINSTONE_ROM,
                     qemu_ram_alloc(MAINSTONE_ROM) | IO_MEM_ROM);
 
@@ -120,26 +116,23 @@ static void mainstone_common_init(ram_addr_t ram_size,
 
     smc91c111_init(&nd_table[0], MST_ETH_PHYS, mst_irq[ETHERNET_IRQ]);
 
-    mainstone_binfo.kernel_filename = kernel_filename;
-    mainstone_binfo.kernel_cmdline = kernel_cmdline;
-    mainstone_binfo.initrd_filename = initrd_filename;
+    mainstone_binfo.kernel_filename = qemu_opt_get(opts, "kernel");
+    mainstone_binfo.kernel_cmdline = qemu_opt_get(opts, "kernel_cmdline");
+    mainstone_binfo.initrd_filename = qemu_opt_get(opts, "initrd");
     mainstone_binfo.board_id = arm_id;
     arm_load_kernel(cpu->env, &mainstone_binfo);
 }
 
-static void mainstone_init(ram_addr_t ram_size,
-                const char *boot_device,
-                const char *kernel_filename, const char *kernel_cmdline,
-                const char *initrd_filename, const char *cpu_model)
+static void mainstone_init(QemuOpts *opts)
 {
-    mainstone_common_init(ram_size, kernel_filename,
-                kernel_cmdline, initrd_filename, cpu_model, mainstone, 0x196);
+    mainstone_common_init(opts, mainstone, 0x196);
 }
 
 static QEMUMachine mainstone2_machine = {
     .name = "mainstone",
     .desc = "Mainstone II (PXA27x)",
     .init = mainstone_init,
+    .default_cpu = "pxa270-c5",
 };
 
 static void mainstone_machine_init(void)

@@ -114,11 +114,7 @@ static struct arm_boot_info sx1_binfo = {
     .board_id = 0x265,
 };
 
-static void sx1_init(ram_addr_t ram_size,
-                const char *boot_device,
-                const char *kernel_filename, const char *kernel_cmdline,
-                const char *initrd_filename, const char *cpu_model,
-                const int version)
+static void sx1_init(QemuOpts *opts, const int version)
 {
     struct omap_mpu_state_s *cpu;
     int io;
@@ -130,12 +126,14 @@ static void sx1_init(ram_addr_t ram_size,
     DriveInfo *dinfo;
     int fl_idx;
     uint32_t flash_size = flash0_size;
+    int load_linux = !!qemu_opt_get(opts, "kernel");
 
     if (version == 2) {
         flash_size = flash2_size;
     }
 
-    cpu = omap310_mpu_init(sx1_binfo.ram_size, cpu_model);
+    cpu = omap310_mpu_init(sx1_binfo.ram_size,
+                           qemu_opt_get(opts, "cpu_model"));
 
     /* External Flash (EMIFS) */
     cpu_register_physical_memory(OMAP_CS0_BASE, flash_size,
@@ -182,19 +180,19 @@ static void sx1_init(ram_addr_t ram_size,
         cpu_register_physical_memory(OMAP_CS1_BASE, OMAP_CS1_SIZE, io);
     }
 
-    if (!kernel_filename && !fl_idx) {
+    if (!load_linux && !fl_idx) {
         fprintf(stderr, "Kernel or Flash image must be specified\n");
         exit(1);
     }
 
     /* Load the kernel.  */
-    if (kernel_filename) {
+    if (load_linux) {
         /* Start at bootloader.  */
         cpu->env->regs[15] = sx1_binfo.loader_start;
 
-        sx1_binfo.kernel_filename = kernel_filename;
-        sx1_binfo.kernel_cmdline = kernel_cmdline;
-        sx1_binfo.initrd_filename = initrd_filename;
+        sx1_binfo.kernel_filename = qemu_opt_get(opts, "kernel");
+        sx1_binfo.kernel_cmdline = qemu_opt_get(opts, "kernel_cmdline");
+        sx1_binfo.initrd_filename = qemu_opt_get(opts, "initrd");
         arm_load_kernel(cpu->env, &sx1_binfo);
     } else {
         cpu->env->regs[15] = 0x00000000;
@@ -204,22 +202,14 @@ static void sx1_init(ram_addr_t ram_size,
     //~ qemu_console_resize(ds, 640, 480);
 }
 
-static void sx1_init_v1(ram_addr_t ram_size,
-                const char *boot_device,
-                const char *kernel_filename, const char *kernel_cmdline,
-                const char *initrd_filename, const char *cpu_model)
+static void sx1_init_v1(QemuOpts *opts)
 {
-    sx1_init(ram_size, boot_device, kernel_filename,
-                kernel_cmdline, initrd_filename, cpu_model, 1);
+    sx1_init(opts, 1);
 }
 
-static void sx1_init_v2(ram_addr_t ram_size,
-                const char *boot_device,
-                const char *kernel_filename, const char *kernel_cmdline,
-                const char *initrd_filename, const char *cpu_model)
+static void sx1_init_v2(QemuOpts *opts)
 {
-    sx1_init(ram_size, boot_device, kernel_filename,
-                kernel_cmdline, initrd_filename, cpu_model, 2);
+    sx1_init(opts, 2);
 }
 
 static QEMUMachine sx1_machine_v2 = {

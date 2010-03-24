@@ -153,10 +153,7 @@ static void main_cpu_reset(void *opaque)
 
 static const int sector_len = 32 * 1024;
 static
-void mips_r4k_init (ram_addr_t ram_size,
-                    const char *boot_device,
-                    const char *kernel_filename, const char *kernel_cmdline,
-                    const char *initrd_filename, const char *cpu_model)
+void mips_r4k_init (QemuOpts *opts)
 {
     char *filename;
     ram_addr_t ram_offset;
@@ -169,15 +166,10 @@ void mips_r4k_init (ram_addr_t ram_size,
     qemu_irq *i8259;
     DriveInfo *hd[MAX_IDE_BUS * MAX_IDE_DEVS];
     DriveInfo *dinfo;
+    ram_addr_t ram_size = qemu_opt_get_size(opts, "ram_size", 0);
+    int load_linux = !!qemu_opt_get(opts, "kernel");
 
     /* init CPUs */
-    if (cpu_model == NULL) {
-#ifdef TARGET_MIPS64
-        cpu_model = "R4000";
-#else
-        cpu_model = "24Kf";
-#endif
-    }
     env = cpu_init(cpu_model);
     if (!env) {
         fprintf(stderr, "Unable to find CPU definition\n");
@@ -243,9 +235,9 @@ void mips_r4k_init (ram_addr_t ram_size,
 
     if (kernel_filename) {
         loaderparams.ram_size = ram_size;
-        loaderparams.kernel_filename = kernel_filename;
-        loaderparams.kernel_cmdline = kernel_cmdline;
-        loaderparams.initrd_filename = initrd_filename;
+        loaderparams.kernel_filename = qemu_opt_get(opts, "kernel");
+        loaderparams.kernel_cmdline = qemu_opt_get(opts, "kernel_cmdline");
+        loaderparams.initrd_filename = qemu_opt_get(opts, "initrd");
         reset_info->vector = load_kernel();
     }
 
@@ -302,6 +294,11 @@ static QEMUMachine mips_machine = {
     .name = "mips",
     .desc = "mips r4k platform",
     .init = mips_r4k_init,
+#ifdef TARGET_MIPS64
+    .default_cpu = "R4000",
+#else
+    .default_cpu = "24Kf",
+#endif
 };
 
 static void mips_machine_init(void)

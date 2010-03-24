@@ -172,10 +172,9 @@ static void versatile_init(ram_addr_t ram_size,
     NICInfo *nd;
     int n;
     int done_smc = 0;
+    ram_addr_t ram_size = qemu_opt_get_size(opts, "ram_size", 0);
 
-    if (!cpu_model)
-        cpu_model = "arm926";
-    env = cpu_init(cpu_model);
+    env = cpu_init(qemu_opt_get(opts, "cpu_model"));
     if (!env) {
         fprintf(stderr, "Unable to find CPU definition\n");
         exit(1);
@@ -286,33 +285,21 @@ static void versatile_init(ram_addr_t ram_size,
     /* 0x101f4000 SSPI.  */
 
     versatile_binfo.ram_size = ram_size;
-    versatile_binfo.kernel_filename = kernel_filename;
-    versatile_binfo.kernel_cmdline = kernel_cmdline;
-    versatile_binfo.initrd_filename = initrd_filename;
+    versatile_binfo.kernel_filename = qemu_opt_get(opts, "kernel");
+    versatile_binfo.kernel_cmdline = qemu_opt_get(opts, "kernel_cmdline");
+    versatile_binfo.initrd_filename = qemu_opt_get(opts, "initrd");
     versatile_binfo.board_id = board_id;
     arm_load_kernel(env, &versatile_binfo);
 }
 
-static void vpb_init(ram_addr_t ram_size,
-                     const char *boot_device,
-                     const char *kernel_filename, const char *kernel_cmdline,
-                     const char *initrd_filename, const char *cpu_model)
+static void vpb_init(QemuOpts *opts)
 {
-    versatile_init(ram_size,
-                   boot_device,
-                   kernel_filename, kernel_cmdline,
-                   initrd_filename, cpu_model, 0x183);
+    versatile_init(opts, 0x183);
 }
 
-static void vab_init(ram_addr_t ram_size,
-                     const char *boot_device,
-                     const char *kernel_filename, const char *kernel_cmdline,
-                     const char *initrd_filename, const char *cpu_model)
+static void vab_init(QemuOpts *opts)
 {
-    versatile_init(ram_size,
-                   boot_device,
-                   kernel_filename, kernel_cmdline,
-                   initrd_filename, cpu_model, 0x25e);
+    versatile_init(opts, 0x25e);
 }
 
 static QEMUMachine versatilepb_machine = {
@@ -320,6 +307,7 @@ static QEMUMachine versatilepb_machine = {
     .desc = "ARM Versatile/PB (ARM926EJ-S)",
     .init = vpb_init,
     .use_scsi = 1,
+    .default_cpu = "arm926",
 };
 
 static QEMUMachine versatileab_machine = {
@@ -327,6 +315,7 @@ static QEMUMachine versatileab_machine = {
     .desc = "ARM Versatile/AB (ARM926EJ-S)",
     .init = vab_init,
     .use_scsi = 1,
+    .default_cpu = "arm926",
 };
 
 static void versatile_machine_init(void)

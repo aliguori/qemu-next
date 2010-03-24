@@ -1265,14 +1265,12 @@ static int n810_atag_setup(struct arm_boot_info *info, void *p)
     return n8x0_atag_setup(p, 810);
 }
 
-static void n8x0_init(ram_addr_t ram_size, const char *boot_device,
-                const char *kernel_filename,
-                const char *kernel_cmdline, const char *initrd_filename,
-                const char *cpu_model, struct arm_boot_info *binfo, int model)
+static void n8x0_init(QemuOpts *opts, struct arm_boot_info *binfo, int model)
 {
     struct n800_s *s = (struct n800_s *) qemu_mallocz(sizeof(*s));
     int sdram_size = binfo->ram_size;
     DisplayState *ds;
+    int load_linux = !!qemu_opt_get(opts, "kernel");
 
     s->cpu = omap2420_mpu_init(sdram_size, cpu_model);
 
@@ -1322,11 +1320,11 @@ static void n8x0_init(ram_addr_t ram_size, const char *boot_device,
     /* Start at the OneNAND bootloader.  */
     s->cpu->env->regs[15] = 0;
 
-    if (kernel_filename) {
+    if (load_linux) {
         /* Or at the linux loader.  */
-        binfo->kernel_filename = kernel_filename;
-        binfo->kernel_cmdline = kernel_cmdline;
-        binfo->initrd_filename = initrd_filename;
+        binfo->kernel_filename = qemu_opt_get(opts, "kernel");
+        binfo->kernel_cmdline = qemu_opt_get(opts, "kernel_cmdline");
+        binfo->initrd_filename = qemu_opt_get(opts, "initrd");
         arm_load_kernel(s->cpu->env, binfo);
 
         qemu_register_reset(n8x0_boot_init, s);
@@ -1383,24 +1381,14 @@ static struct arm_boot_info n810_binfo = {
     .atag_board = n810_atag_setup,
 };
 
-static void n800_init(ram_addr_t ram_size,
-                const char *boot_device,
-                const char *kernel_filename, const char *kernel_cmdline,
-                const char *initrd_filename, const char *cpu_model)
+static void n800_init(QemuOpts *opts)
 {
-    return n8x0_init(ram_size, boot_device,
-                    kernel_filename, kernel_cmdline, initrd_filename,
-                    cpu_model, &n800_binfo, 800);
+    return n8x0_init(opts, &n800_binfo, 800);
 }
 
-static void n810_init(ram_addr_t ram_size,
-                const char *boot_device,
-                const char *kernel_filename, const char *kernel_cmdline,
-                const char *initrd_filename, const char *cpu_model)
+static void n810_init(QemuOpts *opts)
 {
-    return n8x0_init(ram_size, boot_device,
-                    kernel_filename, kernel_cmdline, initrd_filename,
-                    cpu_model, &n810_binfo, 810);
+    return n8x0_init(opts, &n810_binfo, 810);
 }
 
 static QEMUMachine n800_machine = {

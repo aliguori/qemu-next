@@ -121,12 +121,7 @@ static uint64_t translate_kernel_address(void *opaque, uint64_t addr)
 }
 
 /* PowerPC Mac99 hardware initialisation */
-static void ppc_core99_init (ram_addr_t ram_size,
-                             const char *boot_device,
-                             const char *kernel_filename,
-                             const char *kernel_cmdline,
-                             const char *initrd_filename,
-                             const char *cpu_model)
+static void ppc_core99_init (QemuOpts *opts)
 {
     CPUState *env = NULL, *envs[MAX_CPUS];
     char *filename;
@@ -147,16 +142,14 @@ static void ppc_core99_init (ram_addr_t ram_size,
     void *dbdma;
     uint8_t *vga_bios_ptr;
     int machine_arch;
+    ram_addr_t ram_size = qemu_opt_get_size(opts, "ram_size", 0);
+    const char *kernel_filename = qemu_opt_get(opts, "kernel");
+    const char *kernel_cmdline = qemu_opt_get(opts, "kernel_cmdline");
+    const char *initrd_filename = qemu_opt_get(opts, "initrd");
 
     linux_boot = (kernel_filename != NULL);
 
     /* init CPUs */
-    if (cpu_model == NULL)
-#ifdef TARGET_PPC64
-        cpu_model = "970fx";
-#else
-        cpu_model = "G4";
-#endif
     for (i = 0; i < smp_cpus; i++) {
         env = cpu_init(cpu_model);
         if (!env) {
@@ -444,6 +437,9 @@ static QEMUMachine core99_machine = {
     .max_cpus = MAX_CPUS,
 #ifdef TARGET_PPC64
     .is_default = 1,
+    .default_cpu = "970fx";
+#else
+    .default_cpu = "G4";
 #endif
 };
 

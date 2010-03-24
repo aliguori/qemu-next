@@ -84,12 +84,7 @@ out:
     return ret;
 }
 
-static void bamboo_init(ram_addr_t ram_size,
-                        const char *boot_device,
-                        const char *kernel_filename,
-                        const char *kernel_cmdline,
-                        const char *initrd_filename,
-                        const char *cpu_model)
+static void bamboo_init(QemuOpts *opts)
 {
     unsigned int pci_irq_nrs[4] = { 28, 27, 26, 25 };
     PCIBus *pcibus;
@@ -103,9 +98,14 @@ static void bamboo_init(ram_addr_t ram_size,
     target_long initrd_size = 0;
     target_ulong dt_base = 0;
     int i;
+    ram_addr_t ram_size = qemu_opt_get_size(opts, "ram_size", 0);
+    const char *kernel_filename = qemu_opt_get(opts, "kernel");
+    const char *kernel_cmdline = qemu_opt_get(opts, "kernel_cmdline");
+    const char *initrd_filename = qemu_opt_get(opts, "initrd");
 
     /* Setup CPU. */
-    env = ppc440ep_init(&ram_size, &pcibus, pci_irq_nrs, 1, cpu_model);
+    env = ppc440ep_init(&ram_size, &pcibus, pci_irq_nrs, 1,
+                        qemu_opt_get(opts, "cpu_model"));
 
     if (pcibus) {
         /* Register network interfaces. */

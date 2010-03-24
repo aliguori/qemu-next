@@ -948,19 +948,14 @@ static struct arm_boot_info spitz_binfo = {
     .ram_size = 0x04000000,
 };
 
-static void spitz_common_init(ram_addr_t ram_size,
-                const char *kernel_filename,
-                const char *kernel_cmdline, const char *initrd_filename,
-                const char *cpu_model, enum spitz_model_e model, int arm_id)
+static void spitz_common_init(QemuOpts *opts,
+                              enum spitz_model_e model, int arm_id)
 {
     PXA2xxState *cpu;
     ScoopInfo *scp0, *scp1 = NULL;
 
-    if (!cpu_model)
-        cpu_model = (model == terrier) ? "pxa270-c5" : "pxa270-c0";
-
     /* Setup CPU & memory */
-    cpu = pxa270_init(spitz_binfo.ram_size, cpu_model);
+    cpu = pxa270_init(spitz_binfo.ram_size, qemu_opt_get(opts, "cpu_model"));
 
     sl_flash_register(cpu, (model == spitz) ? FLASH_128M : FLASH_1024M);
 
@@ -996,72 +991,60 @@ static void spitz_common_init(ram_addr_t ram_size,
     /* Setup initial (reset) machine state */
     cpu->env->regs[15] = spitz_binfo.loader_start;
 
-    spitz_binfo.kernel_filename = kernel_filename;
-    spitz_binfo.kernel_cmdline = kernel_cmdline;
-    spitz_binfo.initrd_filename = initrd_filename;
+    spitz_binfo.kernel_filename = qemu_opt_get(opts, "kernel");
+    spitz_binfo.kernel_cmdline = qemu_opt_get(opts, "kernel_cmdline");
+    spitz_binfo.initrd_filename = qemu_opt_get(opts, "initrd");
     spitz_binfo.board_id = arm_id;
     arm_load_kernel(cpu->env, &spitz_binfo);
     sl_bootparam_write(SL_PXA_PARAM_BASE);
 }
 
-static void spitz_init(ram_addr_t ram_size,
-                const char *boot_device,
-                const char *kernel_filename, const char *kernel_cmdline,
-                const char *initrd_filename, const char *cpu_model)
+static void spitz_init(QemuOpts *opts)
 {
-    spitz_common_init(ram_size, kernel_filename,
-                kernel_cmdline, initrd_filename, cpu_model, spitz, 0x2c9);
+    spitz_common_init(opts, spitz, 0x2c9);
 }
 
-static void borzoi_init(ram_addr_t ram_size,
-                const char *boot_device,
-                const char *kernel_filename, const char *kernel_cmdline,
-                const char *initrd_filename, const char *cpu_model)
+static void borzoi_init(QemuOpts *opts)
 {
-    spitz_common_init(ram_size, kernel_filename,
-                kernel_cmdline, initrd_filename, cpu_model, borzoi, 0x33f);
+    spitz_common_init(opts, borzoi, 0x33f);
 }
 
-static void akita_init(ram_addr_t ram_size,
-                const char *boot_device,
-                const char *kernel_filename, const char *kernel_cmdline,
-                const char *initrd_filename, const char *cpu_model)
+static void akita_init(QemuOpts *opts)
 {
-    spitz_common_init(ram_size, kernel_filename,
-                kernel_cmdline, initrd_filename, cpu_model, akita, 0x2e8);
+    spitz_common_init(opts, akita, 0x2e8);
 }
 
-static void terrier_init(ram_addr_t ram_size,
-                const char *boot_device,
-                const char *kernel_filename, const char *kernel_cmdline,
-                const char *initrd_filename, const char *cpu_model)
+static void terrier_init(QemuOpts *opts)
 {
-    spitz_common_init(ram_size, kernel_filename,
-                kernel_cmdline, initrd_filename, cpu_model, terrier, 0x33f);
+    spitz_common_init(opts, terrier, 0x33f);
 }
 
 static QEMUMachine akitapda_machine = {
     .name = "akita",
     .desc = "Akita PDA (PXA270)",
     .init = akita_init,
+    .default_cpu = "pxa270-c0",
 };
 
 static QEMUMachine spitzpda_machine = {
     .name = "spitz",
     .desc = "Spitz PDA (PXA270)",
     .init = spitz_init,
+    .default_cpu = "pxa270-c0",
 };
 
 static QEMUMachine borzoipda_machine = {
     .name = "borzoi",
     .desc = "Borzoi PDA (PXA270)",
     .init = borzoi_init,
+    .default_cpu = "pxa270-c0",
 };
 
 static QEMUMachine terrierpda_machine = {
     .name = "terrier",
     .desc = "Terrier PDA (PXA270)",
     .init = terrier_init,
+    .default_cpu = "pxa270-c5",
 };
 
 static void spitz_machine_init(void)

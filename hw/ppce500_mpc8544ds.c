@@ -156,12 +156,7 @@ out:
     return ret;
 }
 
-static void mpc8544ds_init(ram_addr_t ram_size,
-                         const char *boot_device,
-                         const char *kernel_filename,
-                         const char *kernel_cmdline,
-                         const char *initrd_filename,
-                         const char *cpu_model)
+static void mpc8544ds_init(QemuOpts *opts)
 {
     PCIBus *pci_bus;
     CPUState *env;
@@ -177,9 +172,13 @@ static void mpc8544ds_init(ram_addr_t ram_size,
     unsigned int pci_irq_nrs[4] = {1, 2, 3, 4};
     qemu_irq *irqs, *mpic, *pci_irqs;
     SerialState * serial[2];
+    ram_addr_t ram_size = qemu_opt_get_size(opts, "ram_size", 0);
+    const char *kernel_filename = qemu_opt_get(opts, "kernel");
+    const char *kernel_cmdline = qemu_opt_get(opts, "kernel_cmdline");
+    const char *initrd_filename = qemu_opt_get(opts, "initrd");
 
     /* Setup CPU */
-    env = cpu_ppc_init("e500v2_v30");
+    env = cpu_ppc_init(qemu_opt_get(opts, "cpu_model"));
     if (!env) {
         fprintf(stderr, "Unable to initialize CPU!\n");
         exit(1);
@@ -287,6 +286,7 @@ static QEMUMachine mpc8544ds_machine = {
     .name = "mpc8544ds",
     .desc = "mpc8544ds",
     .init = mpc8544ds_init,
+    .default_cpu = "e500v2_v30",
 };
 
 static void mpc8544ds_machine_init(void)

@@ -1285,7 +1285,7 @@ static stellaris_board_info stellaris_boards[] = {
   }
 };
 
-static void stellaris_init(const char *kernel_filename, const char *cpu_model,
+static void stellaris_init(QemuOpts *opts,
                            stellaris_board_info *board)
 {
     static const int uart_irq[] = {5, 6, 33, 34};
@@ -1309,7 +1309,9 @@ static void stellaris_init(const char *kernel_filename, const char *cpu_model,
 
     flash_size = ((board->dc0 & 0xffff) + 1) << 1;
     sram_size = (board->dc0 >> 18) + 1;
-    pic = armv7m_init(flash_size, sram_size, kernel_filename, cpu_model);
+    pic = armv7m_init(flash_size, sram_size,
+                      qemu_opt_get(opts, "kernel"),
+                      qemu_opt_get(opts, "cpu_model"));
 
     if (board->dc1 & (1 << 16)) {
         dev = sysbus_create_varargs("stellaris-adc", 0x40038000,
@@ -1412,20 +1414,14 @@ static void stellaris_init(const char *kernel_filename, const char *cpu_model,
 }
 
 /* FIXME: Figure out how to generate these from stellaris_boards.  */
-static void lm3s811evb_init(ram_addr_t ram_size,
-                     const char *boot_device,
-                     const char *kernel_filename, const char *kernel_cmdline,
-                     const char *initrd_filename, const char *cpu_model)
+static void lm3s811evb_init(QemuOpts *opts)
 {
-    stellaris_init(kernel_filename, cpu_model, &stellaris_boards[0]);
+    stellaris_init(opts, &stellaris_boards[0]);
 }
 
-static void lm3s6965evb_init(ram_addr_t ram_size,
-                     const char *boot_device,
-                     const char *kernel_filename, const char *kernel_cmdline,
-                     const char *initrd_filename, const char *cpu_model)
+static void lm3s6965evb_init(QemuOpts *opts)
 {
-    stellaris_init(kernel_filename, cpu_model, &stellaris_boards[1]);
+    stellaris_init(opts, &stellaris_boards[1]);
 }
 
 static QEMUMachine lm3s811evb_machine = {

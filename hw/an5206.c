@@ -29,19 +29,23 @@ void irq_info(Monitor *mon)
 
 /* Board init.  */
 
-static void an5206_init(ram_addr_t ram_size,
-                     const char *boot_device,
-                     const char *kernel_filename, const char *kernel_cmdline,
-                     const char *initrd_filename, const char *cpu_model)
+static void an5206_init(QemuOpts *opts)
 {
     CPUState *env;
     int kernel_size;
     uint64_t elf_entry;
     target_phys_addr_t entry;
+    const char *cpu_model, *kernel_filename;
+    ram_addr_t ram_size;
 
-    if (!cpu_model)
-        cpu_model = "m5206";
-    env = cpu_init(cpu_model);
+    if (!qemu_opt_get(opts, "cpu_model")) {
+        qemu_opt_set(opts, "cpu_model", "m5206");
+    }
+
+    kernel_filename = qemu_opt_get(opts, "cpu_model");
+    ram_size = qemu_opt_get_size(opts, "ram_size", 128 << 20);
+
+    env = cpu_init(qemu_opt_get(opts, "cpu_model"));
     if (!env) {
         hw_error("Unable to find m68k CPU definition\n");
     }

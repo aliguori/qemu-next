@@ -127,12 +127,7 @@ int s390_virtio_hypercall(CPUState *env)
 }
 
 /* PC hardware initialisation */
-static void s390_init(ram_addr_t ram_size,
-                      const char *boot_device,
-                      const char *kernel_filename,
-                      const char *kernel_cmdline,
-                      const char *initrd_filename,
-                      const char *cpu_model)
+static void s390_init(QemuOpts *opts)
 {
     CPUState *env = NULL;
     ram_addr_t ram_addr;
@@ -140,6 +135,10 @@ static void s390_init(ram_addr_t ram_size,
     ram_addr_t initrd_offset;
     ram_addr_t initrd_size = 0;
     int i;
+    ram_addr_t ram_size = qemu_opt_get_size(opts, "ram_size", 0);
+    const char *kernel_filename = qemu_opt_get(opts, "kernel");
+    const char *kernel_cmdline = qemu_opt_get(opts, "kernel_cmdline");
+    const char *initrd = qemu_opt_get(opts, "initrd");
 
     /* XXX we only work on KVM for now */
 
@@ -156,16 +155,13 @@ static void s390_init(ram_addr_t ram_size,
     cpu_register_physical_memory(0, ram_size, ram_addr);
 
     /* init CPUs */
-    if (cpu_model == NULL) {
-        cpu_model = "host";
-    }
 
     ipi_states = qemu_malloc(sizeof(CPUState *) * smp_cpus);
 
     for (i = 0; i < smp_cpus; i++) {
         CPUState *tmp_env;
 
-        tmp_env = cpu_init(cpu_model);
+        tmp_env = cpu_init(qemu_opt_get(opts, "cpu_model"));
         if (!env) {
             env = tmp_env;
         }
@@ -251,6 +247,7 @@ static QEMUMachine s390_machine = {
     .no_vga = 1,
     .max_cpus = 255,
     .is_default = 1,
+    .default_cpu = "host",
 };
 
 static void s390_machine_init(void)

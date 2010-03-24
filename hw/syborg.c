@@ -30,10 +30,7 @@
 
 static struct arm_boot_info syborg_binfo;
 
-static void syborg_init(ram_addr_t ram_size,
-                        const char *boot_device,
-                        const char *kernel_filename, const char *kernel_cmdline,
-                        const char *initrd_filename, const char *cpu_model)
+static void syborg_init(QemuOpts *opts)
 {
     CPUState *env;
     qemu_irq *cpu_pic;
@@ -41,10 +38,12 @@ static void syborg_init(ram_addr_t ram_size,
     ram_addr_t ram_addr;
     DeviceState *dev;
     int i;
-
-    if (!cpu_model)
-        cpu_model = "cortex-a8";
-    env = cpu_init(cpu_model);
+    ram_addr_t ram_size = qemu_opt_get_size(opts, "ram_size", 0);
+    const char *kernel_filename = qemu_opt_get(opts, "kernel");
+    const char *kernel_cmdline = qemu_opt_get(opts, "kernel_cmdline");
+    const char *initrd_filename = qemu_opt_get(opts, "initrd");
+    
+    env = cpu_init(qemu_opt_get(opts, "cpu_model"));
     if (!env) {
         fprintf(stderr, "Unable to find CPU definition\n");
         exit(1);
@@ -102,6 +101,7 @@ static QEMUMachine syborg_machine = {
     .name = "syborg",
     .desc = "Syborg (Symbian Virtual Platform)",
     .init = syborg_init,
+    .default_cpu = "cortex-a8",
 };
 
 static void syborg_machine_init(void)

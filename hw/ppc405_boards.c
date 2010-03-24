@@ -168,12 +168,7 @@ static void ref405ep_fpga_init (uint32_t base)
     qemu_register_reset(&ref405ep_fpga_reset, fpga);
 }
 
-static void ref405ep_init (ram_addr_t ram_size,
-                           const char *boot_device,
-                           const char *kernel_filename,
-                           const char *kernel_cmdline,
-                           const char *initrd_filename,
-                           const char *cpu_model)
+static void ref405ep_init (QemuOpts *opts)
 {
     char *filename;
     ppc4xx_bd_info_t bd;
@@ -187,8 +182,12 @@ static void ref405ep_init (ram_addr_t ram_size,
     target_ulong kernel_base, kernel_size, initrd_base, initrd_size;
     int linux_boot;
     int fl_idx, fl_sectors, len;
-    int ppc_boot_device = boot_device[0];
+    int ppc_boot_device = qemu_opt_get(opts, "boot_device")[0];
     DriveInfo *dinfo;
+    ram_addr_t ram_size = qemu_opt_get_size(opts, "ram_size", 0);
+    const char *kernel_filename = qemu_opt_get(opts, "kernel");
+    const char *kernel_cmdline = qemu_opt_get(opts, "kernel_cmdline");
+    const char *initrd_filename = qemu_opt_get(opts, "initrd");
 
     /* XXX: fix this */
     ram_bases[0] = qemu_ram_alloc(0x08000000);
@@ -491,12 +490,7 @@ static void taihu_cpld_init (uint32_t base)
     qemu_register_reset(&taihu_cpld_reset, cpld);
 }
 
-static void taihu_405ep_init(ram_addr_t ram_size,
-                             const char *boot_device,
-                             const char *kernel_filename,
-                             const char *kernel_cmdline,
-                             const char *initrd_filename,
-                             const char *cpu_model)
+static void taihu_405ep_init(QemuOpts *opts)
 {
     char *filename;
     CPUPPCState *env;
@@ -507,8 +501,12 @@ static void taihu_405ep_init(ram_addr_t ram_size,
     target_ulong kernel_base, kernel_size, initrd_base, initrd_size;
     int linux_boot;
     int fl_idx, fl_sectors;
-    int ppc_boot_device = boot_device[0];
+    int ppc_boot_device = qemu_opt_get(opts, "boot_device")[0];
     DriveInfo *dinfo;
+    ram_addr_t ram_size = qemu_opt_get_size(opts, "ram_size", 0);
+    const char *kernel_filename = qemu_opt_get(opts, "kernel");
+    const char *kernel_cmdline = qemu_opt_get(opts, "kernel_cmdline");
+    const char *initrd_filename = qemu_opt_get(opts, "initrd");
 
     /* RAM is soldered to the board so the size cannot be changed */
     ram_bases[0] = qemu_ram_alloc(0x04000000);

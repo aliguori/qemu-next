@@ -762,10 +762,7 @@ static void main_cpu_reset(void *opaque)
 }
 
 static
-void mips_malta_init (ram_addr_t ram_size,
-                      const char *boot_device,
-                      const char *kernel_filename, const char *kernel_cmdline,
-                      const char *initrd_filename, const char *cpu_model)
+void mips_malta_init (QemuOpts *opts)
 {
     char *filename;
     ram_addr_t ram_offset;
@@ -788,6 +785,8 @@ void mips_malta_init (ram_addr_t ram_size,
     DriveInfo *fd[MAX_FD];
     int fl_idx = 0;
     int fl_sectors = 0;
+    ram_addr_t ram_size = qemu_opt_get_size(opts, "ram_size", 0);
+    int load_linux = !!qemu_opt_get(opts, "kernel");
 
     /* Make sure the first 3 serial ports are associated with a device. */
     for(i = 0; i < 3; i++) {
@@ -799,14 +798,7 @@ void mips_malta_init (ram_addr_t ram_size,
     }
 
     /* init CPUs */
-    if (cpu_model == NULL) {
-#ifdef TARGET_MIPS64
-        cpu_model = "20Kc";
-#else
-        cpu_model = "24Kf";
-#endif
-    }
-    env = cpu_init(cpu_model);
+    env = cpu_init(qemu_opt_get(opts, "cpu_model"));
     if (!env) {
         fprintf(stderr, "Unable to find CPU definition\n");
         exit(1);
@@ -836,12 +828,12 @@ void mips_malta_init (ram_addr_t ram_size,
     malta_fpga = malta_fpga_init(0x1f000000LL, env->irq[2], serial_hds[2]);
 
     /* Load firmware in flash / BIOS unless we boot directly into a kernel. */
-    if (kernel_filename) {
+    if (load_linux) {
         /* Write a small bootloader to the flash location. */
         loaderparams.ram_size = ram_size;
-        loaderparams.kernel_filename = kernel_filename;
-        loaderparams.kernel_cmdline = kernel_cmdline;
-        loaderparams.initrd_filename = initrd_filename;
+        loaderparams.kernel_filename = qemu_opt_get(opts, "kernel");
+        loaderparams.kernel_cmdline = qemu_opt_get(opts, "kernel_cmdline");
+        loaderparams.initrd_filename = qemu_opt_get(opts, "initrd");
         kernel_entry = load_kernel();
         write_bootloader(env, qemu_get_ram_ptr(bios_offset), kernel_entry);
     } else {
@@ -872,7 +864,7 @@ void mips_malta_init (ram_addr_t ram_size,
             } else {
                 bios_size = -1;
             }
-            if ((bios_size < 0 || bios_size > BIOS_SIZE) && !kernel_filename) {
+            if ((bios_size < 0 || bios_size > BIOS_SIZE) && !load_linux) {
                 fprintf(stderr,
                         "qemu: Could not load MIPS bios '%s', and no -kernel argument was specified\n",
                         bios_name);
@@ -972,6 +964,11 @@ static QEMUMachine mips_malta_machine = {
     .desc = "MIPS Malta Core LV",
     .init = mips_malta_init,
     .is_default = 1,
+#ifdef TARGET_MIPS64
+    .default_cpu = "20Kc",
+#else
+    .default_cpu = "24Kf",
+#endif
 };
 
 static void mips_malta_machine_init(void)

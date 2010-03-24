@@ -32,26 +32,17 @@
 uint32_t xen_domid;
 enum xen_mode xen_mode = XEN_EMULATE;
 
-static void xen_init_pv(ram_addr_t ram_size,
-			const char *boot_device,
-			const char *kernel_filename,
-			const char *kernel_cmdline,
-			const char *initrd_filename,
-			const char *cpu_model)
+static void xen_init_pv(QemuOpts *opts)
 {
     CPUState *env;
     DriveInfo *dinfo;
     int i;
+    const char *kernel_filename = qemu_opt_get(opts, "kernel");
+    const char *kernel_cmdline = qemu_opt_get(opts, "kernel_cmdline");
+    const char *initrd = qemu_opt_get(opts, "initrd");
 
     /* Initialize a dummy CPU */
-    if (cpu_model == NULL) {
-#ifdef TARGET_X86_64
-        cpu_model = "qemu64";
-#else
-        cpu_model = "qemu32";
-#endif
-    }
-    env = cpu_init(cpu_model);
+    env = cpu_init(qemu_opt_get(opts, "cpu_model"));
     env->halted = 1;
 
     /* Initialize backend core & drivers */
@@ -116,6 +107,11 @@ static QEMUMachine xenpv_machine = {
     .desc = "Xen Para-virtualized PC",
     .init = xen_init_pv,
     .max_cpus = 1,
+#ifdef TARGET_X86_64
+    .default_cpu = "qemu64",
+#else
+    .default_cpu = "qemu32",
+#endif
 };
 
 static void xenpv_machine_init(void)
