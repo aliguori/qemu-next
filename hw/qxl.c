@@ -816,6 +816,7 @@ static void qxl_display_resize(struct DisplayState *ds)
             pthread_mutex_unlock(&dirty_lock);
         }
     }
+    qemu_spice_tablet_size(ds_get_width(ds), ds_get_height(ds));
 }
 
 static void qxl_display_refresh(struct DisplayState *ds)

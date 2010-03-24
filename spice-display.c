@@ -139,6 +139,7 @@ static void spice_display_resize(struct DisplayState *ds)
         sdpy.is_attached = 1;
         sdpy.worker->attach(sdpy.worker);
     }
+    qemu_spice_tablet_size(ds_get_width(ds), ds_get_height(ds));
 }
 
 static void spice_display_refresh(struct DisplayState *ds)

@@ -13,6 +13,7 @@ extern int using_spice;
 
 void qemu_spice_init(void);
 void qemu_spice_input_init(SpiceServer *s);
+void qemu_spice_tablet_size(int width, int height);
 void qemu_spice_display_init(DisplayState *ds);
 
 void qxl_display_init(DisplayState *ds);
