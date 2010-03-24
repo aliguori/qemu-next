@@ -2898,7 +2898,7 @@ int main(int argc, char **argv, char **envp)
     /* just use the first displaystate for the moment */
     ds = get_displaystate();
 
-    if (display_type == DT_DEFAULT) {
+    if (display_type == DT_DEFAULT && !using_spice) {
 #if defined(CONFIG_SDL) || defined(CONFIG_COCOA)
         display_type = DT_SDL;
 #else
@@ -2938,6 +2938,11 @@ int main(int argc, char **argv, char **envp)
     default:
         break;
     }
+#ifdef CONFIG_SPICE
+    if (using_spice) {
+        qemu_spice_display_init(ds);
+    }
+#endif
     dpy_resize(ds);
 
     dcl = ds->listeners;

@@ -13,6 +13,7 @@ extern int using_spice;
 
 void qemu_spice_init(void);
 void qemu_spice_input_init(void);
+void qemu_spice_display_init(DisplayState *ds);
 
 #else  /* CONFIG_SPICE */
 
