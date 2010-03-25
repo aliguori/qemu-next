@@ -32,7 +32,7 @@
 uint32_t xen_domid;
 enum xen_mode xen_mode = XEN_EMULATE;
 
-static void xen_init_pv(QemuOpts *opts)
+static void xen_init_pv(QEMUMachine *machine, QemuOpts *opts)
 {
     CPUState *env;
     DriveInfo *dinfo;

@@ -1476,7 +1476,7 @@ static struct arm_boot_info musicpal_binfo = {
     .board_id = 0x20e,
 };
 
-static void musicpal_init(QemuOpts *opts)
+static void musicpal_init(QEMUMachine *machine, QemuOpts *opts)
 {
     CPUState *env;
     qemu_irq *cpu_pic;

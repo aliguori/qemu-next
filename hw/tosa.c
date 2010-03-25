@@ -200,7 +200,7 @@ static struct arm_boot_info tosa_binfo = {
     .ram_size = 0x04000000,
 };
 
-static void tosa_init(QemuOpts *opts)
+static void tosa_init(QEMUMachine *machine, QemuOpts *opts)
 {
     PXA2xxState *cpu;
     TC6393xbState *tmio;

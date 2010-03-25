@@ -50,7 +50,7 @@ static uint64_t translate_kernel_address(void *opaque, uint64_t addr)
 }
 
 static
-void bareetraxfs_init (QemuOpts *opts)
+void bareetraxfs_init (QEMUMachine *machine, QemuOpts *opts)
 {
     DeviceState *dev;
     SysBusDevice *s;

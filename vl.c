@@ -3713,6 +3713,7 @@ int main(int argc, char **argv, char **envp)
     const char *icount_option = NULL;
     const char *initrd_filename;
     const char *kernel_filename, *kernel_cmdline;
+    const char *machine_opts = NULL, *machine_name = NULL;
     char boot_devices[33] = "cad"; /* default to HD->floppy->CD-ROM */
     DisplayState *ds;
     DisplayChangeListener *dcl;
@@ -3777,7 +3778,6 @@ int main(int argc, char **argv, char **envp)
 #endif
 
     module_call_init(MODULE_INIT_MACHINE);
-    machine = find_default_machine();
     cpu_model = NULL;
     initrd_filename = NULL;
     ram_size = 0;
@@ -3856,20 +3856,7 @@ int main(int argc, char **argv, char **envp)
             popt = lookup_opt(argc, argv, &optarg, &optind);
             switch(popt->index) {
             case QEMU_OPTION_M:
-                machine = find_machine(optarg);
-                if (!machine) {
-                    QEMUMachine *m;
-                    printf("Supported machines are:\n");
-                    for(m = first_machine; m != NULL; m = m->next) {
-                        if (m->alias)
-                            printf("%-10s %s (alias of %s)\n",
-                                   m->alias, m->desc, m->name);
-                        printf("%-10s %s%s\n",
-                               m->name, m->desc,
-                               m->is_default ? " (default)" : "");
-                    }
-                    exit(*optarg != '?');
-                }
+                machine_name = optarg;
                 break;
             case QEMU_OPTION_cpu:
                 /* hw initialization will check this */
@@ -4555,6 +4542,54 @@ int main(int argc, char **argv, char **envp)
         data_dir = CONFIG_QEMU_SHAREDIR;
     }
 
+    /* Machine parsing */
+    if (machine_opts) {
+        opts = qemu_opts_parse(&qemu_machine_opts, machine_opts, 0);
+    } else if (machine_name) {
+        opts = qemu_opts_parse(&qemu_machine_opts, machine_name, 0);
+    } else {
+        opts = qemu_opts_parse(&qemu_machine_opts, "", 0);
+        machine = find_default_machine();
+        qemu_opt_set(opts, "board", machine->name);
+    }
+
+    machine = find_machine(qemu_opt_get(opts, "board"));
+    if (!machine) {
+        QEMUMachine *m;
+        printf("Supported machines are:\n");
+        for(m = first_machine; m != NULL; m = m->next) {
+            if (m->alias)
+                printf("%-10s %s (alias of %s)\n",
+                       m->alias, m->desc, m->name);
+            printf("%-10s %s%s\n",
+                   m->name, m->desc,
+                   m->is_default ? " (default)" : "");
+        }
+        exit(*optarg != '?');
+    }
+
+    /* Fix up compatibility options */
+    if (max_cpus) {
+        qemu_opt_set(opts, "max_cpus", "%d", max_cpus);
+    }
+    if (kernel_filename) {
+        qemu_opt_set(opts, "kernel", kernel_filename);
+    }
+    if (kernel_cmdline) {
+        qemu_opt_set(opts, "kernel_cmdline", kernel_cmdline);
+    }
+    if (initrd_filename) {
+        qemu_opt_set(opts, "initrd", initrd_filename);
+    }
+    if (!qemu_opt_get(opts, "ram_size")) {
+        char buffer[1024];
+        snprintf(buffer, sizeof(buffer), "%" PRId64, ram_size);
+        qemu_opt_set(opts, "ram_size", buffer);
+    }
+    if (!qemu_get_opt(opts, "boot_devices")) {
+        qemu_opt_set(opts, "boot_devices", boot_devices);
+    }
+
     /*
      * Default to max_cpus = smp_cpus, in case the user doesn't
      * specify a max_cpus value.
@@ -4562,11 +4597,23 @@ int main(int argc, char **argv, char **envp)
     if (!max_cpus)
         max_cpus = smp_cpus;
 
-    machine->max_cpus = machine->max_cpus ?: 1; /* Default to UP */
-    if (smp_cpus > machine->max_cpus) {
+    /* Default to UP guest */
+    if (!qemu_opt_get(opts, "smp_cpus")) {
+        qemu_opt_set(opts, "smp_cpus", "1");
+    }
+
+    /* Default max cpus to smp cpus */
+    if (!qemu_opt_get(opts, "max_cpus")) {
+        qemu_opt_set(opts, "max_cpus", qemu_opt_get(opts, "smp_cpus"));
+    }
+
+    if (qemu_opt_get_number(opts, "smp_cpus") >
+        qemu_opt_get_number(opts, "max_cpus")) {
         fprintf(stderr, "Number of SMP cpus requested (%d), exceeds max cpus "
-                "supported by machine `%s' (%d)\n", smp_cpus,  machine->name,
-                machine->max_cpus);
+                "supported by machine `%s' (%d)\n", 
+                qemu_opt_get_number(opts, "smp_cpus"),
+                qemu_opt_get(opts, "board"),
+                qemu_opt_get_number(opts, "max_cpus"));
         exit(1);
     }
 
@@ -4841,22 +4888,7 @@ int main(int argc, char **argv, char **envp)
     }
     qemu_add_globals();
 
-    opts = qemu_opts_parse(&qemu_machine_opts, machine_opts, 0);
-    if (kernel_filename) {
-        qemu_opt_set(opts, "kernel", kernel_filename);
-    }
-    if (kernel_cmdline) {
-        qemu_opt_set(opts, "kernel_cmdline", kernel_cmdline);
-    }
-    if (initrd_filename) {
-        qemu_opt_set(opts, "initrd", initrd_filename);
-    }
-    if (!qemu_opt_get(opts, "ram_size")) {
-        char buffer[1024];
-        snprintf(buffer, sizeof(buffer), "%" PRId64, ram_size);
-        qemu_opt_set(opts, "ram_size", buffer);
-    }
-    machine->init(opts);
+    machine->init(machine, opts);
 
     cpu_synchronize_all_post_init();
 

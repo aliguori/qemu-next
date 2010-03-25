@@ -448,7 +448,7 @@ static struct arm_boot_info integrator_binfo = {
     .board_id = 0x113,
 };
 
-static void integratorcp_init(QemuOpts *opts)
+static void integratorcp_init(QEMUMachine *machine, QemuOpts *opts)
 {
     CPUState *env;
     ram_addr_t ram_offset;

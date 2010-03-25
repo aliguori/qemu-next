@@ -109,7 +109,7 @@ static void main_cpu_reset(void *opaque)
 }
 
 static void
-mips_mipssim_init (QemuOpts *opts)
+mips_mipssim_init (QEMUMachine *machine, QemuOpts *opts)
 {
     char *filename;
     ram_addr_t ram_offset;

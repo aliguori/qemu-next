@@ -168,7 +168,7 @@ static void ref405ep_fpga_init (uint32_t base)
     qemu_register_reset(&ref405ep_fpga_reset, fpga);
 }
 
-static void ref405ep_init (QemuOpts *opts)
+static void ref405ep_init (QEMUMachine *machine, QemuOpts *opts)
 {
     char *filename;
     ppc4xx_bd_info_t bd;
@@ -490,7 +490,7 @@ static void taihu_cpld_init (uint32_t base)
     qemu_register_reset(&taihu_cpld_reset, cpld);
 }
 
-static void taihu_405ep_init(QemuOpts *opts)
+static void taihu_405ep_init(QEMUMachine *machine, QemuOpts *opts)
 {
     char *filename;
     CPUPPCState *env;

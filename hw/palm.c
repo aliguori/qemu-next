@@ -193,7 +193,7 @@ static struct arm_boot_info palmte_binfo = {
     .board_id = 0x331,
 };
 
-static void palmte_init(QemuOpts *opts)
+static void palmte_init(QEMUMachine *machine, QemuOpts *opts)
 {
     struct omap_mpu_state_s *cpu;
     int flash_size = 0x00800000;

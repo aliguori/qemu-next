@@ -199,7 +199,7 @@ static int r2d_pci_map_irq(PCIDevice *d, int irq_num)
     return intx[d->devfn >> 3];
 }
 
-static void r2d_init(QemuOpts *opts)
+static void r2d_init(QEMUMachine *machine, QemuOpts *opts)
 {
     CPUState *env;
     struct SH7750State *s;

@@ -84,7 +84,7 @@ out:
     return ret;
 }
 
-static void bamboo_init(QemuOpts *opts)
+static void bamboo_init(QEMUMachine *machine, QemuOpts *opts)
 {
     unsigned int pci_irq_nrs[4] = { 28, 27, 26, 25 };
     PCIBus *pcibus;

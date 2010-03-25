@@ -288,12 +288,12 @@ static void versatile_init(QemuOpts *opts, int board_id)
     arm_load_kernel(env, &versatile_binfo);
 }
 
-static void vpb_init(QemuOpts *opts)
+static void vpb_init(QEMUMachine *machine, QemuOpts *opts)
 {
     versatile_init(opts, 0x183);
 }
 
-static void vab_init(QemuOpts *opts)
+static void vab_init(QEMUMachine *machine, QemuOpts *opts)
 {
     versatile_init(opts, 0x25e);
 }

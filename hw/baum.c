@@ -564,7 +564,7 @@ static void baum_chr_read(void *opaque)
     }
 }
 
-CharDriverState *chr_baum_init(QemuOpts *opts)
+CharDriverState *chr_baum_init(QEMUMachine *machine, QemuOpts *opts)
 {
     BaumDriverState *baum;
     CharDriverState *chr;

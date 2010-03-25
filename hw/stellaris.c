@@ -1414,12 +1414,12 @@ static void stellaris_init(QemuOpts *opts,
 }
 
 /* FIXME: Figure out how to generate these from stellaris_boards.  */
-static void lm3s811evb_init(QemuOpts *opts)
+static void lm3s811evb_init(QEMUMachine *machine, QemuOpts *opts)
 {
     stellaris_init(opts, &stellaris_boards[0]);
 }
 
-static void lm3s6965evb_init(QemuOpts *opts)
+static void lm3s6965evb_init(QEMUMachine *machine, QemuOpts *opts)
 {
     stellaris_init(opts, &stellaris_boards[1]);
 }

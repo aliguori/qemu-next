@@ -1022,12 +1022,12 @@ static void pc_init1(QemuOpts *opts, int pci_enabled)
     }
 }
 
-static void pc_init_pci(QemuOpts *opts)
+static void pc_init_pci(QEMUMachine *machine, QemuOpts *opts)
 {
     pc_init1(opts, 1);
 }
 
-static void pc_init_isa(QemuOpts *opts)
+static void pc_init_isa(QEMUMachine *machine, QemuOpts *opts)
 {
     pc_init1(opts, 0);
 }

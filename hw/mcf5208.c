@@ -195,7 +195,7 @@ static void mcf5208_sys_init(qemu_irq *pic)
     }
 }
 
-static void mcf5208evb_init(QemuOpts *opts)
+static void mcf5208evb_init(QEMUMachine *machine, QemuOpts *opts)
 {
     CPUState *env;
     int kernel_size;

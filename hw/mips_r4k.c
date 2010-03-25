@@ -153,7 +153,7 @@ static void main_cpu_reset(void *opaque)
 
 static const int sector_len = 32 * 1024;
 static
-void mips_r4k_init (QemuOpts *opts)
+void mips_r4k_init (QEMUMachine *machine, QemuOpts *opts)
 {
     char *filename;
     ram_addr_t ram_offset;

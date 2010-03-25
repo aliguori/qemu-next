@@ -872,19 +872,19 @@ static const struct hwdef hwdefs[] = {
 };
 
 /* Sun4u hardware initialisation */
-static void sun4u_init(QemuOpts *opts)
+static void sun4u_init(QEMUMachine *machine, QemuOpts *opts)
 {
     sun4uv_init(opts, &hwdefs[0]);
 }
 
 /* Sun4v hardware initialisation */
-static void sun4v_init(QemuOpts *opts)
+static void sun4v_init(QEMUMachine *machine, QemuOpts *opts)
 {
     sun4uv_init(opts, &hwdefs[1]);
 }
 
 /* Niagara hardware initialisation */
-static void niagara_init(QemuOpts *opts)
+static void niagara_init(QEMUMachine *machine, QemuOpts *opts)
 {
     sun4uv_init(opts, &hwdefs[2]);
 }

@@ -123,7 +123,7 @@ static void mainstone_common_init(QemuOpts *opts,
     arm_load_kernel(cpu->env, &mainstone_binfo);
 }
 
-static void mainstone_init(QemuOpts *opts)
+static void mainstone_init(QEMUMachine *machine, QemuOpts *opts)
 {
     mainstone_common_init(opts, mainstone, 0x196);
 }

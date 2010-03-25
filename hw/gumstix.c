@@ -41,7 +41,7 @@
 
 static const int sector_len = 128 * 1024;
 
-static void connex_init(QemuOpts *opts)
+static void connex_init(QEMUMachine *machine, QemuOpts *opts)
 {
     PXA2xxState *cpu;
     DriveInfo *dinfo;
@@ -72,7 +72,7 @@ static void connex_init(QemuOpts *opts)
                     pxa2xx_gpio_in_get(cpu->gpio)[36]);
 }
 
-static void verdex_init(QemuOpts *opts)
+static void verdex_init(QEMUMachine *machine, QemuOpts *opts)
 {
     PXA2xxState *cpu;
     DriveInfo *dinfo;

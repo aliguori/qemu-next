@@ -29,7 +29,7 @@ void irq_info(Monitor *mon)
 
 /* Board init.  */
 
-static void an5206_init(QemuOpts *opts)
+static void an5206_init(QEMUMachine *machine, QemuOpts *opts)
 {
     CPUState *env;
     int kernel_size;

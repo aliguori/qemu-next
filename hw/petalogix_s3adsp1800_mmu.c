@@ -110,7 +110,7 @@ static uint64_t translate_kernel_address(void *opaque, uint64_t addr)
 }
 
 static void
-petalogix_s3adsp1800_init(QemuOpts *opts)
+petalogix_s3adsp1800_init(QEMUMachine *machine, QemuOpts *opts)
 {
     DeviceState *dev;
     CPUState *env;

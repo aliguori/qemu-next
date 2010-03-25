@@ -30,7 +30,7 @@
 
 static struct arm_boot_info syborg_binfo;
 
-static void syborg_init(QemuOpts *opts)
+static void syborg_init(QEMUMachine *machine, QemuOpts *opts)
 {
     CPUState *env;
     qemu_irq *cpu_pic;

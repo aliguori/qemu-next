@@ -278,13 +278,13 @@ void mips_jazz_init (QemuOpts *opts, enum jazz_model_e jazz_model)
 }
 
 static
-void mips_magnum_init (QemuOpts *opts)
+void mips_magnum_init (QEMUMachine *machine, QemuOpts *opts)
 {
     mips_jazz_init(opts, JAZZ_MAGNUM);
 }
 
 static
-void mips_pica61_init (QemuOpts *opts)
+void mips_pica61_init (QEMUMachine *machine, QemuOpts *opts)
 {
     mips_jazz_init(opts, JAZZ_PICA61);
 }

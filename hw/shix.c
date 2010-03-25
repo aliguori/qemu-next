@@ -47,7 +47,7 @@ void pic_info(Monitor *mon)
     /* XXXXX */
 }
 
-static void shix_init(QemuOpts *opts)
+static void shix_init(QEMUMachine *machine, QemuOpts *opts)
 {
     int ret;
     CPUState *env;

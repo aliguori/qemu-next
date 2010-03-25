@@ -16,7 +16,7 @@
 
 /* Board init.  */
 
-static void dummy_m68k_init(QemuOpts *opts)
+static void dummy_m68k_init(QEMUMachine *machine, QemuOpts *opts)
 {
     CPUState *env;
     int kernel_size;

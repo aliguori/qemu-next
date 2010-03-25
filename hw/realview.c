@@ -370,22 +370,22 @@ static void realview_init(QemuOpts *opts,
     arm_load_kernel(first_cpu, &realview_binfo);
 }
 
-static void realview_eb_init(QemuOpts *opts)
+static void realview_eb_init(QEMUMachine *machine, QemuOpts *opts)
 {
     realview_init(opts, BOARD_EB);
 }
 
-static void realview_eb_mpcore_init(QemuOpts *opts)
+static void realview_eb_mpcore_init(QEMUMachine *machine, QemuOpts *opts)
 {
     realview_init(opts, BOARD_EB_MPCORE);
 }
 
-static void realview_pb_a8_init(QemuOpts *opts)
+static void realview_pb_a8_init(QEMUMachine *machine, QemuOpts *opts)
 {
     realview_init(opts, BOARD_PB_A8);
 }
 
-static void realview_pbx_a9_init(QemuOpts *opts)
+static void realview_pbx_a9_init(QEMUMachine *machine, QemuOpts *opts)
 {
     realview_init(opts, BOARD_PBX_A9);
 }

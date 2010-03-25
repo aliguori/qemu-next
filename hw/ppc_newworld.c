@@ -121,7 +121,7 @@ static uint64_t translate_kernel_address(void *opaque, uint64_t addr)
 }
 
 /* PowerPC Mac99 hardware initialisation */
-static void ppc_core99_init (QemuOpts *opts)
+static void ppc_core99_init (QEMUMachine *machine, QemuOpts *opts)
 {
     CPUState *env = NULL, *envs[MAX_CPUS];
     char *filename;

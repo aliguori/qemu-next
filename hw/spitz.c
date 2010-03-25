@@ -999,22 +999,22 @@ static void spitz_common_init(QemuOpts *opts,
     sl_bootparam_write(SL_PXA_PARAM_BASE);
 }
 
-static void spitz_init(QemuOpts *opts)
+static void spitz_init(QEMUMachine *machine, QemuOpts *opts)
 {
     spitz_common_init(opts, spitz, 0x2c9);
 }
 
-static void borzoi_init(QemuOpts *opts)
+static void borzoi_init(QEMUMachine *machine, QemuOpts *opts)
 {
     spitz_common_init(opts, borzoi, 0x33f);
 }
 
-static void akita_init(QemuOpts *opts)
+static void akita_init(QEMUMachine *machine, QemuOpts *opts)
 {
     spitz_common_init(opts, akita, 0x2e8);
 }
 
-static void terrier_init(QemuOpts *opts)
+static void terrier_init(QEMUMachine *machine, QemuOpts *opts)
 {
     spitz_common_init(opts, terrier, 0x33f);
 }

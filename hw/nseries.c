@@ -1382,12 +1382,12 @@ static struct arm_boot_info n810_binfo = {
     .atag_board = n810_atag_setup,
 };
 
-static void n800_init(QemuOpts *opts)
+static void n800_init(QEMUMachine *machine, QemuOpts *opts)
 {
     return n8x0_init(opts, &n800_binfo, 800);
 }
 
-static void n810_init(QemuOpts *opts)
+static void n810_init(QEMUMachine *machine, QemuOpts *opts)
 {
     return n8x0_init(opts, &n810_binfo, 810);
 }

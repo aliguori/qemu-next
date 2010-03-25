@@ -1165,55 +1165,55 @@ static const struct sun4m_hwdef sun4m_hwdefs[] = {
 };
 
 /* SPARCstation 5 hardware initialisation */
-static void ss5_init(QemuOpts *opts)
+static void ss5_init(QEMUMachine *machine, QemuOpts *opts)
 {
     sun4m_hw_init(&sun4m_hwdefs[0], opts);
 }
 
 /* SPARCstation 10 hardware initialisation */
-static void ss10_init(QemuOpts *opts)
+static void ss10_init(QEMUMachine *machine, QemuOpts *opts)
 {
     sun4m_hw_init(&sun4m_hwdefs[1], opts);
 }
 
 /* SPARCserver 600MP hardware initialisation */
-static void ss600mp_init(QemuOpts *opts)
+static void ss600mp_init(QEMUMachine *machine, QemuOpts *opts)
 {
     sun4m_hw_init(&sun4m_hwdefs[2], opts);
 }
 
 /* SPARCstation 20 hardware initialisation */
-static void ss20_init(QemuOpts *opts)
+static void ss20_init(QEMUMachine *machine, QemuOpts *opts)
 {
     sun4m_hw_init(&sun4m_hwdefs[3], opts);
 }
 
 /* SPARCstation Voyager hardware initialisation */
-static void vger_init(QemuOpts *opts)
+static void vger_init(QEMUMachine *machine, QemuOpts *opts)
 {
     sun4m_hw_init(&sun4m_hwdefs[4], opts);
 }
 
 /* SPARCstation LX hardware initialisation */
-static void ss_lx_init(QemuOpts *opts)
+static void ss_lx_init(QEMUMachine *machine, QemuOpts *opts)
 {
     sun4m_hw_init(&sun4m_hwdefs[5], opts);
 }
 
 /* SPARCstation 4 hardware initialisation */
-static void ss4_init(QemuOpts *opts)
+static void ss4_init(QEMUMachine *machine, QemuOpts *opts)
 {
     sun4m_hw_init(&sun4m_hwdefs[6], opts);
 }
 
 /* SPARCClassic hardware initialisation */
-static void scls_init(QemuOpts *opts)
+static void scls_init(QEMUMachine *machine, QemuOpts *opts)
 {
     sun4m_hw_init(&sun4m_hwdefs[7], opts);
 }
 
 /* SPARCbook hardware initialisation */
-static void sbook_init(QemuOpts *opts)
+static void sbook_init(QEMUMachine *machine, QemuOpts *opts)
 {
     sun4m_hw_init(&sun4m_hwdefs[8], opts);
 }
@@ -1479,13 +1479,13 @@ static void sun4d_hw_init(const struct sun4d_hwdef *hwdef, QemuOpts *opts)
 }
 
 /* SPARCserver 1000 hardware initialisation */
-static void ss1000_init(QemuOpts *opts)
+static void ss1000_init(QEMUMachine *machine, QemuOpts *opts)
 {
     sun4d_hw_init(&sun4d_hwdefs[0], opts);
 }
 
 /* SPARCcenter 2000 hardware initialisation */
-static void ss2000_init(QemuOpts *opts)
+static void ss2000_init(QEMUMachine *machine, QemuOpts *opts)
 {
     sun4d_hw_init(&sun4d_hwdefs[1], opts);
 }
@@ -1661,7 +1661,7 @@ static void sun4c_hw_init(const struct sun4c_hwdef *hwdef, QemuOpts *opts)
 }
 
 /* SPARCstation 2 hardware initialisation */
-static void ss2_init(QemuOpts *opts)
+static void ss2_init(QEMUMachine *machine, QemuOpts *opts)
 {
     sun4c_hw_init(&sun4c_hwdefs[0], opts);
 }

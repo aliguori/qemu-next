@@ -127,7 +127,7 @@ int s390_virtio_hypercall(CPUState *env)
 }
 
 /* PC hardware initialisation */
-static void s390_init(QemuOpts *opts)
+static void s390_init(QEMUMachine *machine, QemuOpts *opts)
 {
     CPUState *env = NULL;
     ram_addr_t ram_addr;

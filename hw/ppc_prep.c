@@ -547,7 +547,7 @@ static CPUReadMemoryFunc * const PPC_prep_io_read[] = {
 #define NVRAM_SIZE        0x2000
 
 /* PowerPC PREP hardware initialisation */
-static void ppc_prep_init (QemuOpts *opts)
+static void ppc_prep_init (QEMUMachine *machine, QemuOpts *opts)
 {
     CPUState *env = NULL, *envs[MAX_CPUS];
     char *filename;

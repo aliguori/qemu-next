@@ -156,7 +156,7 @@ out:
     return ret;
 }
 
-static void mpc8544ds_init(QemuOpts *opts)
+static void mpc8544ds_init(QEMUMachine *machine, QemuOpts *opts)
 {
     PCIBus *pci_bus;
     CPUState *env;

@@ -34,6 +34,14 @@ STEXI
 Select the emulated @var{machine} (@code{-M ?} for list)
 ETEXI
 
+DEF("machine", HAS_ARG, QEMU_OPTION_machine,
+    "-machine opts   select emulated machine\n")
+STEXI
+@item -machine @var{opts}
+@findex -machine
+Select the emulated @var{opts}
+ETEXI
+
 DEF("cpu", HAS_ARG, QEMU_OPTION_cpu,
     "-cpu cpu        select CPU (-cpu ? for list)\n")
 STEXI

@@ -202,12 +202,12 @@ static void sx1_init(QemuOpts *opts, const int version)
     //~ qemu_console_resize(ds, 640, 480);
 }
 
-static void sx1_init_v1(QemuOpts *opts)
+static void sx1_init_v1(QEMUMachine *machine, QemuOpts *opts)
 {
     sx1_init(opts, 1);
 }
 
-static void sx1_init_v2(QemuOpts *opts)
+static void sx1_init_v2(QEMUMachine *machine, QemuOpts *opts)
 {
     sx1_init(opts, 2);
 }

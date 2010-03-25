@@ -299,6 +299,7 @@ QemuOptsList qemu_cpudef_opts = {
 QemuOptsList qemu_machine_opts = {
     .name = "machine",
     .head = QTAILQ_HEAD_INITIALIZER(qemu_cpudef_opts.head),
+    .implied_opt_name = "board",
     .desc = {
         {
             .name = "ram_size",
@@ -318,6 +319,13 @@ QemuOptsList qemu_machine_opts = {
         },{
             .name = "cpu_model",
             .type = QEMU_OPT_STRING,
+        },{
+            .name = "max_cpus",
+            .type = QEMU_OPT_NUMBER,
+        },
+        },{
+            .name = "smp_cpus",
+            .type = QEMU_OPT_NUMBER,
         },
         { /* end of list */ }
     },

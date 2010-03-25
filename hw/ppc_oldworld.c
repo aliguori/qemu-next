@@ -128,7 +128,7 @@ static uint64_t translate_kernel_address(void *opaque, uint64_t addr)
     return (addr & 0x0fffffff) + KERNEL_LOAD_ADDR;
 }
 
-static void ppc_heathrow_init (QemuOpts *opts)
+static void ppc_heathrow_init (QEMUMachine *machine, QemuOpts *opts)
 {
     CPUState *env = NULL, *envs[MAX_CPUS];
     char *filename;

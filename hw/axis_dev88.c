@@ -255,7 +255,7 @@ static uint64_t translate_kernel_address(void *opaque, uint64_t addr)
 }
 
 static
-void axisdev88_init (QemuOpts *opts)
+void axisdev88_init (QEMUMachine *machine, QemuOpts *opts)
 {
     CPUState *env;
     DeviceState *dev;

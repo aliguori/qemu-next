@@ -762,7 +762,7 @@ static void main_cpu_reset(void *opaque)
 }
 
 static
-void mips_malta_init (QemuOpts *opts)
+void mips_malta_init (QEMUMachine *machine, QemuOpts *opts)
 {
     char *filename;
     ram_addr_t ram_offset;
