@@ -209,6 +209,14 @@ static const char *channel_names[] = {
 #define parse_channel(_name) \
     name2enum(_name, channel_names, ARRAY_SIZE(channel_names))
 
+static const char *stream_video_names[] = {
+    [ SPICE_STREAM_VIDEO_OFF ]    = "off",
+    [ SPICE_STREAM_VIDEO_ALL ]    = "all",
+    [ SPICE_STREAM_VIDEO_FILTER ] = "filter",
+};
+#define parse_stream_video(_name) \
+    name2enum(_name, stream_video_names, ARRAY_SIZE(stream_video_names))
+
 /* functions for the rest of qemu */
 
 QemuOptsList qemu_spice_opts = {
@@ -242,6 +250,15 @@ QemuOptsList qemu_spice_opts = {
         },{
             .name = "renderer",
             .type = QEMU_OPT_STRING,
+        },{
+            .name = "streaming-video",    /* old: sv */
+            .type = QEMU_OPT_STRING,
+        },{
+            .name = "agent-mouse",
+            .type = QEMU_OPT_BOOL,
+        },{
+            .name = "playback-compression",
+            .type = QEMU_OPT_BOOL,
         },{
             .name = "tls-channel",
             .type = QEMU_OPT_STRING,
@@ -379,7 +396,7 @@ void qemu_spice_init(void)
     char *x509_key_file = NULL,
         *x509_cert_file = NULL,
         *x509_cacert_file = NULL;
-    int port, tls_port, len, addr_flags;
+    int port, tls_port, len, addr_flags, streaming_video;
     spice_image_compression_t compression;
 
     if (!opts)
@@ -465,6 +482,21 @@ void qemu_spice_init(void)
     spice_server_set_image_compression(s, compression);
     qemu_opt_foreach(opts, add_channel, NULL, 0);
     qemu_opt_foreach(opts, add_renderer, NULL, 0);
+
+    str = qemu_opt_get(opts, "streaming-video");
+    if (str) {
+        streaming_video = parse_stream_video(str);
+        if (streaming_video == -1) {
+            fprintf(stderr, "spice: invalid streaming video: %s\n", str);
+            exit(1);
+        }
+        spice_server_set_streaming_video(s, streaming_video);
+    }
+
+    spice_server_set_agent_mouse
+        (s, qemu_opt_get_bool(opts, "agent-mouse", 1));
+    spice_server_set_playback_compression
+        (s, qemu_opt_get_bool(opts, "playback-compression", 1));
 
     spice_server_init(s, &core_interface);
     using_spice = 1;
