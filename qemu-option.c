@@ -586,10 +586,22 @@ int qemu_opt_set(QemuOpts *opts, const char *name, const char *fmt, ...)
         }
     }
 
-    opt = qemu_mallocz(sizeof(*opt));
-    opt->name = qemu_strdup(name);
-    opt->opts = opts;
-    QTAILQ_INSERT_TAIL(&opts->head, opt, next);
+    QTAILQ_FOREACH(opt, &opts->head, next) {
+        if (strcmp(opt->name, name) == 0) {
+            break;
+        }
+    }
+
+    if (opt == NULL) {
+        opt = qemu_mallocz(sizeof(*opt));
+        opt->name = qemu_strdup(name);
+        opt->opts = opts;
+        QTAILQ_INSERT_TAIL(&opts->head, opt, next);
+    } else {
+        qemu_free((char *)opt->str);
+        opt->str = NULL;
+    }
+
     if (desc[i].name != NULL) {
         opt->desc = desc+i;
     }
@@ -656,6 +668,9 @@ QemuOpts *qemu_opts_create(QemuOptsList *list, const char *id, int fail_if_exist
                 return opts;
             }
         }
+    }
+    if (list->global && !QTAILQ_EMPTY(&list->head)) {
+        return QTAILQ_FIRST(&list->head);
     }
     opts = qemu_mallocz(sizeof(*opts));
     if (id) {
