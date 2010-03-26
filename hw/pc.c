@@ -999,7 +999,7 @@ static void pc_init(QEMUMachine *machine, QemuOpts *opts)
         usb_uhci_piix3_init(pci_bus, piix3_devfn + 2);
     }
 
-    if (pc_machine->pci_enabled && acpi_enabled) {
+    if (pc_machine->pci_enabled && qemu_opt_get_bool(opts, "acpi", 1)) {
         uint8_t *eeprom_buf = qemu_mallocz(8 * 256); /* XXX: make this persistent */
         i2c_bus *smbus;
 
@@ -1045,6 +1045,15 @@ void cmos_set_s3_resume(void)
 #define PC_DEFAULT_CPU "qemu32"
 #endif
 
+static QemuOptDesc pc_machine_opts[] = {
+    MACHINE_COMMON_OPTS(),
+    {
+        .name = "acpi",
+        .type = QEMU_OPT_BOOL,
+    },
+    {/* end of list */}
+};
+
 static PCMachine pc_machine = {
     .common = {
         .name = "pc-0.13",
@@ -1053,6 +1062,7 @@ static PCMachine pc_machine = {
         .init = pc_init,
         .max_cpus = 255,
         .is_default = 1,
+        .machine_opts = pc_machine_opts,
         .default_cpu = PC_DEFAULT_CPU,
     },
     .pci_enabled = 1,
@@ -1064,6 +1074,7 @@ static PCMachine pc_machine_v0_12 = {
         .desc = "Standard PC",
         .init = pc_init,
         .max_cpus = 255,
+        .machine_opts = pc_machine_opts,
         .default_cpu = PC_DEFAULT_CPU,
         .compat_props = (GlobalProperty[]) {
             {
@@ -1087,6 +1098,7 @@ static PCMachine pc_machine_v0_11 = {
         .desc = "Standard PC, qemu 0.11",
         .init = pc_init,
         .max_cpus = 255,
+        .machine_opts = pc_machine_opts,
         .default_cpu = PC_DEFAULT_CPU,
         .compat_props = (GlobalProperty[]) {
             {
@@ -1126,6 +1138,7 @@ static PCMachine pc_machine_v0_10 = {
         .desc = "Standard PC, qemu 0.10",
         .init = pc_init,
         .max_cpus = 255,
+        .machine_opts = pc_machine_opts,
         .default_cpu = PC_DEFAULT_CPU,
         .compat_props = (GlobalProperty[]) {
             {
