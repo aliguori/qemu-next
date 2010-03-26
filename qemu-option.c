@@ -572,6 +572,19 @@ static void qemu_opt_del(QemuOpt *opt)
     qemu_free(opt);
 }
 
+static NotifierList qemu_opt_change_list =
+    NOTIFIER_LIST_INITIALIZER(qemu_opt_change_list);;
+
+void qemu_opt_add_change_notifier(Notifier *notifier)
+{
+    notifier_list_add(&qemu_opt_change_list, notifier);
+}
+
+void qemu_opt_remove_change_notifier(Notifier *notifier)
+{
+    notifier_list_remove(&qemu_opt_change_list, notifier);
+}
+
 int qemu_opt_set(QemuOpts *opts, const char *name, const char *fmt, ...)
 {
     QemuOpt *opt;
@@ -633,6 +646,9 @@ int qemu_opt_set(QemuOpts *opts, const char *name, const char *fmt, ...)
         qemu_opt_del(opt);
         return -1;
     }
+
+    notifier_list_notify(&qemu_opt_change_list);
+
     return 0;
 }
 

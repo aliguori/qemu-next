@@ -2127,6 +2127,13 @@ STEXI
 @findex -writeconfig
 Write device configuration to @var{file}.
 ETEXI
+DEF("config", HAS_ARG, QEMU_OPTION_config,
+    "-config <file>\n")
+STEXI
+@item -config @var{file}
+@findex -config
+Read device configuration from @var{file} and write when config changes.
+ETEXI
 DEF("nodefconfig", 0, QEMU_OPTION_nodefconfig,
     "-nodefconfig\n"
     "                do not load default config files at startup\n")

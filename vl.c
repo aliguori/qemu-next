@@ -3773,6 +3773,21 @@ static QEMUMachine *machine_opts_init(QemuOpts *opts, QemuOpts *boot_opts)
     return machine;
 }
 
+static void no_defaults(int with_opts)
+{
+    default_serial = 0;
+    default_parallel = 0;
+    default_virtcon = 0;
+    default_monitor = 0;
+    default_net = 0;
+    default_floppy = 0;
+    default_cdrom = 0;
+    default_sdcard = 0;
+    if (with_opts) {
+        default_vga = 0;
+    }
+}
+
 int main(int argc, char **argv, char **envp)
 {
     const char *gdbstub_dev = NULL;
@@ -3804,7 +3819,7 @@ int main(int argc, char **argv, char **envp)
     CPUState *env;
     int show_vnc_port = 0;
     int defconfig = 1;
-    const char *writeconfig = NULL;
+    const char *writeconfig = NULL, *config_filename = NULL;
 
     error_set_progname(argv[0]);
 
@@ -3872,6 +3887,7 @@ int main(int argc, char **argv, char **envp)
 
             popt = lookup_opt(argc, argv, &optarg, &optind);
             switch (popt->index) {
+            case QEMU_OPTION_config:
             case QEMU_OPTION_nodefconfig:
                 defconfig=0;
                 break;
@@ -3886,7 +3902,7 @@ int main(int argc, char **argv, char **envp)
         fname = CONFIG_QEMU_CONFDIR "/qemu.conf";
         fp = fopen(fname, "r");
         if (fp) {
-            if (qemu_config_parse(fp, fname) != 0) {
+            if (qemu_config_parse(fp, fname, 0) != 0) {
                 exit(1);
             }
             fclose(fp);
@@ -3895,7 +3911,7 @@ int main(int argc, char **argv, char **envp)
         fname = CONFIG_QEMU_CONFDIR "/target-" TARGET_ARCH ".conf";
         fp = fopen(fname, "r");
         if (fp) {
-            if (qemu_config_parse(fp, fname) != 0) {
+            if (qemu_config_parse(fp, fname, 0) != 0) {
                 exit(1);
             }
             fclose(fp);
@@ -4461,15 +4477,7 @@ int main(int argc, char **argv, char **envp)
                 incoming = optarg;
                 break;
             case QEMU_OPTION_nodefaults:
-                default_serial = 0;
-                default_parallel = 0;
-                default_virtcon = 0;
-                default_monitor = 0;
-                default_vga = 0;
-                default_net = 0;
-                default_floppy = 0;
-                default_cdrom = 0;
-                default_sdcard = 0;
+                no_defaults(1);
                 break;
 #ifndef _WIN32
             case QEMU_OPTION_chroot:
@@ -4490,6 +4498,23 @@ int main(int argc, char **argv, char **envp)
                 qemu_opts_parse(&qemu_machine_opts, 0, "mode=attach");
                 break;
 #endif
+            case QEMU_OPTION_config:
+                no_defaults(0);
+                config_filename = optarg;
+                {
+                    FILE *fp;
+                    fp = fopen(optarg, "r");
+                    if (fp == NULL) {
+                        fprintf(stderr, "open %s: %s\n", optarg, strerror(errno));
+                        exit(1);
+                    }
+                    if (qemu_config_parse(fp, optarg, 1) != 0) {
+                        exit(1);
+                    }
+                    fclose(fp);
+                    break;
+                }
+                break;
             case QEMU_OPTION_readconfig:
                 {
                     FILE *fp;
@@ -4498,7 +4523,7 @@ int main(int argc, char **argv, char **envp)
                         fprintf(stderr, "open %s: %s\n", optarg, strerror(errno));
                         exit(1);
                     }
-                    if (qemu_config_parse(fp, optarg) != 0) {
+                    if (qemu_config_parse(fp, optarg, 0) != 0) {
                         exit(1);
                     }
                     fclose(fp);
@@ -4511,6 +4536,11 @@ int main(int argc, char **argv, char **envp)
         }
     }
     loc_set_none();
+
+    /* Wait until after we've read existing configs */
+    if (config_filename) {
+        qemu_config_set(config_filename);
+    }
 
     /* If no data_dir is specified then try to find it relative to the
        executable path.  */

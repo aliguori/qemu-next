@@ -19,6 +19,8 @@ int qemu_global_option(const char *str);
 void qemu_add_globals(void);
 
 void qemu_config_write(FILE *fp);
-int qemu_config_parse(FILE *fp, const char *fname);
+int qemu_config_parse(FILE *fp, const char *fname, int save_preamble);
+
+void qemu_config_set(const char *filename);
 
 #endif /* QEMU_CONFIG_H */

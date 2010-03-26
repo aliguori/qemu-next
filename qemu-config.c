@@ -450,37 +450,91 @@ static int config_write_opts(QemuOpts *opts, void *opaque)
     return 0;
 }
 
+typedef struct ConfigNotifier
+{
+    Notifier parent;
+    const char *filename;
+} ConfigNotifier;
+
+static char preamble[4096];
+
 void qemu_config_write(FILE *fp)
 {
     struct ConfigWriteData data = { .fp = fp };
     int i;
 
-    fprintf(fp, "# qemu config file\n\n");
+    if (preamble[0] == 0) {
+        fprintf(fp, "# qemu config file\n\n");
+    } else {
+        fprintf(fp, "%s", preamble);
+    }
+
     for (i = 0; lists[i] != NULL; i++) {
         data.list = lists[i];
         qemu_opts_foreach(data.list, config_write_opts, &data, 0);
     }
 }
 
-int qemu_config_parse(FILE *fp, const char *fname)
+static void qemu_config_flush(Notifier *notifier)
+{
+    ConfigNotifier *c = container_of(notifier, ConfigNotifier, parent);
+    char buffer[4096];
+    FILE *fp;
+    struct stat stbuf;
+
+    snprintf(buffer, sizeof(buffer), "%s.new", c->filename);
+
+    fp = fopen(buffer, "w");
+    if (fp == NULL) {
+        return;
+    }
+
+    if (stat(c->filename, &stbuf) == 0) {
+        fchmod(fileno(fp), stbuf.st_mode);
+    }
+
+    qemu_config_write(fp);
+    fflush(fp);
+    fclose(fp);
+
+    rename(buffer, c->filename);
+}
+
+void qemu_config_set(const char *filename)
+{
+    static ConfigNotifier notifier;
+
+    notifier.parent.notify = qemu_config_flush;
+    notifier.filename = filename;
+    qemu_opt_add_change_notifier(&notifier.parent);
+    qemu_config_flush(&notifier.parent);
+}
+
+int qemu_config_parse(FILE *fp, const char *fname, int save_preamble)
 {
     char line[1024], group[64], id[64], arg[64], value[1024];
     Location loc;
     QemuOptsList *list = NULL;
     QemuOpts *opts = NULL;
     int res = -1, lno = 0;
+    int in_preamble = 1;
+    int preamble_offset = 0;
 
     loc_push_none(&loc);
     while (fgets(line, sizeof(line), fp) != NULL) {
         loc_set_file(fname, ++lno);
-        if (line[0] == '\n') {
-            /* skip empty lines */
+        if (line[0] == '\n' || line[0] == '#') {
+            /* skip empty lines and comments */
+            if (save_preamble && in_preamble) {
+                int len;
+                len = snprintf(&preamble[preamble_offset],
+                               sizeof(preamble) - preamble_offset,
+                               "%s", line);
+                preamble_offset += len;
+            }
             continue;
         }
-        if (line[0] == '#') {
-            /* comment */
-            continue;
-        }
+        in_preamble = 0;
         if (sscanf(line, "[%63s \"%63[^\"]\"]", group, id) == 2) {
             /* group with id */
             list = qemu_find_opts(group);

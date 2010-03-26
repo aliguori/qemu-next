@@ -29,6 +29,7 @@
 #include <stdint.h>
 #include "qemu-queue.h"
 #include "qdict.h"
+#include "notify.h"
 
 enum QEMUOptionParType {
     OPT_FLAG,
@@ -131,5 +132,8 @@ typedef int (*qemu_opts_loopfunc)(QemuOpts *opts, void *opaque);
 int qemu_opts_print(QemuOpts *opts, void *dummy);
 int qemu_opts_foreach(QemuOptsList *list, qemu_opts_loopfunc func, void *opaque,
                       int abort_on_failure);
+
+void qemu_opt_add_change_notifier(Notifier *notifier);
+void qemu_opt_remove_change_notifier(Notifier *notifier);
 
 #endif
