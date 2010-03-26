@@ -76,8 +76,6 @@ void rtc_set_date(RTCState *s, const struct tm *tm);
 void cmos_set_s3_resume(void);
 
 /* pc.c */
-extern int fd_bootchk;
-
 void ioport_set_a20(int enable);
 int ioport_get_a20(void);
 

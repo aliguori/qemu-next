@@ -219,7 +219,6 @@ int smp_cores = 1;
 int smp_threads = 1;
 const char *vnc_display;
 int no_hpet = 0;
-int fd_bootchk = 1;
 int no_reboot = 0;
 int no_shutdown = 0;
 int cursor_hide = 1;
@@ -3924,7 +3923,7 @@ int main(int argc, char **argv, char **envp)
             switch(popt->index) {
             case QEMU_OPTION_machine:
             case QEMU_OPTION_M:
-                machine_opts = qemu_opts_parse(&qemu_machine_opts, optarg, 1);
+                qemu_opts_parse(&qemu_machine_opts, optarg, 1);
                 break;
             case QEMU_OPTION_cpu:
                 /* hw initialization will check this */
@@ -3941,8 +3940,7 @@ int main(int argc, char **argv, char **envp)
                 }
                 break;
             case QEMU_OPTION_initrd:
-                machine_opts = qemu_opts_parsef(&qemu_machine_opts, 1,
-                                                "initrd=%s", optarg);
+                qemu_opts_parsef(&qemu_machine_opts, 1, "initrd=%s", optarg);
                 break;
             case QEMU_OPTION_hda:
                 if (cyls == 0)
@@ -4052,12 +4050,11 @@ int main(int argc, char **argv, char **envp)
                 graphic_rotate = 1;
                 break;
             case QEMU_OPTION_kernel:
-                machine_opts = qemu_opts_parsef(&qemu_machine_opts, 1,
-                                                "kernel=%s", optarg);
+                qemu_opts_parsef(&qemu_machine_opts, 1, "kernel=%s", optarg);
                 break;
             case QEMU_OPTION_append:
-                machine_opts = qemu_opts_parsef(&qemu_machine_opts, 1,
-                                                "kernel_cmdline=%s", optarg);
+                qemu_opts_parsef(&qemu_machine_opts, 1,
+                                 "kernel_cmdline=%s", optarg);
                 break;
             case QEMU_OPTION_cdrom:
                 drive_add(optarg, CDROM_ALIAS);
@@ -4071,7 +4068,7 @@ int main(int argc, char **argv, char **envp)
                 break;
 #ifdef TARGET_I386
             case QEMU_OPTION_no_fd_bootchk:
-                fd_bootchk = 0;
+                qemu_opts_parsef(&qemu_machine_opts, 0, "fd_bootchk=off");
                 break;
 #endif
             case QEMU_OPTION_netdev:

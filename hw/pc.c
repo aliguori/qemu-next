@@ -309,7 +309,8 @@ static void cmos_init(ram_addr_t ram_size, ram_addr_t above_4g_mem_size,
     rtc_set_memory(s, 0x5f, smp_cpus - 1);
 
     /* set boot devices, and disable floppy signature check if requested */
-    if (set_boot_dev(s, boot_device, fd_bootchk)) {
+    if (set_boot_dev(s, boot_device,
+                     qemu_opt_get_bool(opts, "fd_bootchk", 1))) {
         exit(1);
     }
 
@@ -1049,6 +1050,9 @@ static QemuOptDesc pc_machine_opts[] = {
     MACHINE_COMMON_OPTS(),
     {
         .name = "acpi",
+        .type = QEMU_OPT_BOOL,
+    },{
+        .name = "fd_bootchk",
         .type = QEMU_OPT_BOOL,
     },
     {/* end of list */}
