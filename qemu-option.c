@@ -565,7 +565,7 @@ static void qemu_opt_del(QemuOpt *opt)
     qemu_free(opt);
 }
 
-int qemu_opt_set(QemuOpts *opts, const char *name, const char *value)
+int qemu_opt_set(QemuOpts *opts, const char *name, const char *fmt, ...)
 {
     QemuOpt *opt;
     const QemuOptDesc *desc = opts->list->desc;
@@ -593,8 +593,14 @@ int qemu_opt_set(QemuOpts *opts, const char *name, const char *value)
     if (desc[i].name != NULL) {
         opt->desc = desc+i;
     }
-    if (value) {
-        opt->str = qemu_strdup(value);
+    if (fmt) {
+        va_list ap;
+        char *buffer = qemu_malloc(4096);
+
+        va_start(ap, fmt);
+        vsnprintf(buffer, 4096, fmt, ap);
+        va_end(ap);
+        opt->str = buffer;
     }
     if (qemu_opt_parse(opt) < 0) {
         fprintf(stderr, "Failed to parse \"%s\" for \"%s.%s\"\n", opt->str,

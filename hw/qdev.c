@@ -150,7 +150,7 @@ static int set_property(const char *name, const char *value, void *opaque)
     return 0;
 }
 
-int qdev_device_help(QEMUMachine *machine, QemuOpts *opts)
+int qdev_device_help(QemuOpts *opts)
 {
     const char *driver;
     DeviceInfo *info;
@@ -191,7 +191,7 @@ int qdev_device_help(QEMUMachine *machine, QemuOpts *opts)
     return 1;
 }
 
-DeviceState *qdev_device_add(QEMUMachine *machine, QemuOpts *opts)
+DeviceState *qdev_device_add(QemuOpts *opts)
 {
     const char *driver, *path, *id;
     DeviceInfo *info;

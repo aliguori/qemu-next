@@ -322,7 +322,6 @@ QemuOptsList qemu_machine_opts = {
         },{
             .name = "max_cpus",
             .type = QEMU_OPT_NUMBER,
-        },
         },{
             .name = "smp_cpus",
             .type = QEMU_OPT_NUMBER,

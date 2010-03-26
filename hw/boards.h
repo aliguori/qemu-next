@@ -5,9 +5,10 @@
 
 #include "qdev.h"
 
-typedef void QEMUMachineInitFunc(QemuOpts *opts);
+typedef struct QEMUMachine QEMUMachine;
+typedef void QEMUMachineInitFunc(QEMUMachine *machine, QemuOpts *opts);
 
-typedef struct QEMUMachine {
+struct QEMUMachine {
     const char *name;
     const char *alias;
     const char *desc;
@@ -25,7 +26,7 @@ typedef struct QEMUMachine {
     const char *default_cpu;
     GlobalProperty *compat_props;
     struct QEMUMachine *next;
-} QEMUMachine;
+};
 
 int qemu_register_machine(QEMUMachine *m);
 

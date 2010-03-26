@@ -4586,7 +4586,7 @@ int main(int argc, char **argv, char **envp)
         snprintf(buffer, sizeof(buffer), "%" PRId64, ram_size);
         qemu_opt_set(opts, "ram_size", buffer);
     }
-    if (!qemu_get_opt(opts, "boot_devices")) {
+    if (!qemu_opt_get(opts, "boot_devices")) {
         qemu_opt_set(opts, "boot_devices", boot_devices);
     }
 
@@ -4607,13 +4607,13 @@ int main(int argc, char **argv, char **envp)
         qemu_opt_set(opts, "max_cpus", qemu_opt_get(opts, "smp_cpus"));
     }
 
-    if (qemu_opt_get_number(opts, "smp_cpus") >
-        qemu_opt_get_number(opts, "max_cpus")) {
+    if (qemu_opt_get_number(opts, "smp_cpus", 0) >
+        qemu_opt_get_number(opts, "max_cpus", 0)) {
         fprintf(stderr, "Number of SMP cpus requested (%d), exceeds max cpus "
                 "supported by machine `%s' (%d)\n", 
-                qemu_opt_get_number(opts, "smp_cpus"),
+                (int)qemu_opt_get_number(opts, "smp_cpus", 0),
                 qemu_opt_get(opts, "board"),
-                qemu_opt_get_number(opts, "max_cpus"));
+                (int)qemu_opt_get_number(opts, "max_cpus", 0));
         exit(1);
     }
 
