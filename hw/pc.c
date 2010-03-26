@@ -937,7 +937,7 @@ static void pc_init(QEMUMachine *machine, QemuOpts *opts)
     }
     pit = pit_init(0x40, isa_reserve_irq(0));
     pcspk_init(pit);
-    if (!no_hpet) {
+    if (qemu_opt_get_bool(opts, "hpet", 1)) {
         hpet_init(isa_irq);
     }
 
@@ -1053,6 +1053,9 @@ static QemuOptDesc pc_machine_opts[] = {
         .type = QEMU_OPT_BOOL,
     },{
         .name = "fd_bootchk",
+        .type = QEMU_OPT_BOOL,
+    },{
+        .name = "hpet",
         .type = QEMU_OPT_BOOL,
     },
     {/* end of list */}

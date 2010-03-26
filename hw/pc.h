@@ -92,9 +92,6 @@ i2c_bus *piix4_pm_init(PCIBus *bus, int devfn, uint32_t smb_io_base,
 void piix4_smbus_register_device(SMBusDevice *dev, uint8_t addr);
 void piix4_acpi_system_hot_add_init(PCIBus *bus);
 
-/* hpet.c */
-extern int no_hpet;
-
 /* pcspk.c */
 void pcspk_init(PITState *);
 int pcspk_audio_init(qemu_irq *pic);

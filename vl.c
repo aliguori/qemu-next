@@ -218,7 +218,6 @@ int max_cpus = 0;
 int smp_cores = 1;
 int smp_threads = 1;
 const char *vnc_display;
-int no_hpet = 0;
 int no_reboot = 0;
 int no_shutdown = 0;
 int cursor_hide = 1;
@@ -4365,7 +4364,7 @@ int main(int argc, char **argv, char **envp)
                 qemu_opts_parsef(&qemu_machine_opts, 0, "acpi=off");
                 break;
             case QEMU_OPTION_no_hpet:
-                no_hpet = 1;
+                qemu_opts_parsef(&qemu_machine_opts, 0, "hpet=off");
                 break;
             case QEMU_OPTION_balloon:
                 if (balloon_parse(optarg) < 0) {
