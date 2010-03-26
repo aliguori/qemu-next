@@ -64,6 +64,12 @@
 
 #define MAX_IDE_BUS 2
 
+typedef struct PCMachine
+{
+    QEMUMachine common;
+    int pci_enabled;
+} PCMachine;
+
 static FDCtrl *floppy_controller;
 static RTCState *rtc_state;
 static PITState *pit;
@@ -774,8 +780,9 @@ static CPUState *pc_new_cpu(const char *cpu_model)
 }
 
 /* PC hardware initialisation */
-static void pc_init1(QemuOpts *opts, int pci_enabled)
+static void pc_init(QEMUMachine *machine, QemuOpts *opts)
 {
+    PCMachine *pc_machine = container_of(machine, PCMachine, common);
     char *filename;
     int ret, i;
     ram_addr_t ram_addr, bios_offset, option_rom_offset;
@@ -883,7 +890,7 @@ static void pc_init1(QemuOpts *opts, int pci_enabled)
     isa_irq_state->i8259 = i8259;
     isa_irq = qemu_allocate_irqs(isa_irq_handler, isa_irq_state, 24);
 
-    if (pci_enabled) {
+    if (pc_machine->pci_enabled) {
         pci_bus = i440fx_init(&i440fx_state, &piix3_devfn, isa_irq);
     } else {
         pci_bus = NULL;
@@ -899,18 +906,18 @@ static void pc_init1(QemuOpts *opts, int pci_enabled)
     register_ioport_write(0xf0, 1, 1, ioportF0_write, NULL);
 
     if (cirrus_vga_enabled) {
-        if (pci_enabled) {
+        if (pc_machine->pci_enabled) {
             pci_cirrus_vga_init(pci_bus);
         } else {
             isa_cirrus_vga_init();
         }
     } else if (vmsvga_enabled) {
-        if (pci_enabled)
+        if (pc_machine->pci_enabled)
             pci_vmsvga_init(pci_bus);
         else
             fprintf(stderr, "%s: vmware_vga: no PCI bus\n", __FUNCTION__);
     } else if (std_vga_enabled) {
-        if (pci_enabled) {
+        if (pc_machine->pci_enabled) {
             pci_vga_init(pci_bus, 0, 0);
         } else {
             isa_vga_init();
@@ -924,7 +931,7 @@ static void pc_init1(QemuOpts *opts, int pci_enabled)
     register_ioport_read(0x92, 1, 1, ioport92_read, NULL);
     register_ioport_write(0x92, 1, 1, ioport92_write, NULL);
 
-    if (pci_enabled) {
+    if (pc_machine->pci_enabled) {
         isa_irq_state->ioapic = ioapic_init();
     }
     pit = pit_init(0x40, isa_reserve_irq(0));
@@ -948,10 +955,12 @@ static void pc_init1(QemuOpts *opts, int pci_enabled)
     for(i = 0; i < nb_nics; i++) {
         NICInfo *nd = &nd_table[i];
 
-        if (!pci_enabled || (nd->model && strcmp(nd->model, "ne2k_isa") == 0))
+        if (!pc_machine->pci_enabled ||
+            (nd->model && strcmp(nd->model, "ne2k_isa") == 0)) {
             pc_init_ne2k_isa(nd);
-        else
+        } else {
             pci_nic_init_nofail(nd, "e1000", NULL);
+        }
     }
 
     if (drive_get_max_bus(IF_IDE) >= MAX_IDE_BUS) {
@@ -963,7 +972,7 @@ static void pc_init1(QemuOpts *opts, int pci_enabled)
         hd[i] = drive_get(IF_IDE, i / MAX_IDE_DEVS, i % MAX_IDE_DEVS);
     }
 
-    if (pci_enabled) {
+    if (pc_machine->pci_enabled) {
         pci_piix3_ide_init(pci_bus, hd, piix3_devfn + 1);
     } else {
         for(i = 0; i < MAX_IDE_BUS; i++) {
@@ -975,7 +984,7 @@ static void pc_init1(QemuOpts *opts, int pci_enabled)
     isa_dev = isa_create_simple("i8042");
     DMA_init(0);
 #ifdef HAS_AUDIO
-    audio_init(pci_enabled ? pci_bus : NULL, isa_irq);
+    audio_init(pc_machine->pci_enabled ? pci_bus : NULL, isa_irq);
 #endif
 
     for(i = 0; i < MAX_FD; i++) {
@@ -986,11 +995,11 @@ static void pc_init1(QemuOpts *opts, int pci_enabled)
     cmos_init(below_4g_mem_size, above_4g_mem_size,
               qemu_opt_get(opts, "boot_device"), hd);
 
-    if (pci_enabled && usb_enabled) {
+    if (pc_machine->pci_enabled && usb_enabled) {
         usb_uhci_piix3_init(pci_bus, piix3_devfn + 2);
     }
 
-    if (pci_enabled && acpi_enabled) {
+    if (pc_machine->pci_enabled && acpi_enabled) {
         uint8_t *eeprom_buf = qemu_mallocz(8 * 256); /* XXX: make this persistent */
         i2c_bus *smbus;
 
@@ -1011,7 +1020,7 @@ static void pc_init1(QemuOpts *opts, int pci_enabled)
         i440fx_init_memory_mappings(i440fx_state);
     }
 
-    if (pci_enabled) {
+    if (pc_machine->pci_enabled) {
 	int max_bus;
         int bus;
 
@@ -1020,16 +1029,6 @@ static void pc_init1(QemuOpts *opts, int pci_enabled)
             pci_create_simple(pci_bus, -1, "lsi53c895a");
         }
     }
-}
-
-static void pc_init_pci(QEMUMachine *machine, QemuOpts *opts)
-{
-    pc_init1(opts, 1);
-}
-
-static void pc_init_isa(QEMUMachine *machine, QemuOpts *opts)
-{
-    pc_init1(opts, 0);
 }
 
 /* set CMOS shutdown status register (index 0xF) as S3_resume(0xFE)
@@ -1046,135 +1045,150 @@ void cmos_set_s3_resume(void)
 #define PC_DEFAULT_CPU "qemu32"
 #endif
 
-static QEMUMachine pc_machine = {
-    .name = "pc-0.13",
-    .alias = "pc",
-    .desc = "Standard PC",
-    .init = pc_init_pci,
-    .max_cpus = 255,
-    .is_default = 1,
-    .default_cpu = PC_DEFAULT_CPU,
-};
-
-static QEMUMachine pc_machine_v0_12 = {
-    .name = "pc-0.12",
-    .desc = "Standard PC",
-    .init = pc_init_pci,
-    .max_cpus = 255,
-    .default_cpu = PC_DEFAULT_CPU,
-    .compat_props = (GlobalProperty[]) {
-        {
-            .driver   = "virtio-serial-pci",
-            .property = "max_nr_ports",
-            .value    = stringify(1),
-        },{
-            .driver   = "virtio-serial-pci",
-            .property = "vectors",
-            .value    = stringify(0),
-        },
-        { /* end of list */ }
-    }
-};
-
-static QEMUMachine pc_machine_v0_11 = {
-    .name = "pc-0.11",
-    .desc = "Standard PC, qemu 0.11",
-    .init = pc_init_pci,
-    .max_cpus = 255,
-    .default_cpu = PC_DEFAULT_CPU,
-    .compat_props = (GlobalProperty[]) {
-        {
-            .driver   = "virtio-blk-pci",
-            .property = "vectors",
-            .value    = stringify(0),
-        },{
-            .driver   = "virtio-serial-pci",
-            .property = "max_nr_ports",
-            .value    = stringify(1),
-        },{
-            .driver   = "virtio-serial-pci",
-            .property = "vectors",
-            .value    = stringify(0),
-        },{
-            .driver   = "ide-drive",
-            .property = "ver",
-            .value    = "0.11",
-        },{
-            .driver   = "scsi-disk",
-            .property = "ver",
-            .value    = "0.11",
-        },{
-            .driver   = "PCI",
-            .property = "rombar",
-            .value    = stringify(0),
-        },
-        { /* end of list */ }
-    }
-};
-
-static QEMUMachine pc_machine_v0_10 = {
-    .name = "pc-0.10",
-    .desc = "Standard PC, qemu 0.10",
-    .init = pc_init_pci,
-    .max_cpus = 255,
-    .default_cpu = PC_DEFAULT_CPU,
-    .compat_props = (GlobalProperty[]) {
-        {
-            .driver   = "virtio-blk-pci",
-            .property = "class",
-            .value    = stringify(PCI_CLASS_STORAGE_OTHER),
-        },{
-            .driver   = "virtio-serial-pci",
-            .property = "class",
-            .value    = stringify(PCI_CLASS_DISPLAY_OTHER),
-        },{
-            .driver   = "virtio-serial-pci",
-            .property = "max_nr_ports",
-            .value    = stringify(1),
-        },{
-            .driver   = "virtio-serial-pci",
-            .property = "vectors",
-            .value    = stringify(0),
-        },{
-            .driver   = "virtio-net-pci",
-            .property = "vectors",
-            .value    = stringify(0),
-        },{
-            .driver   = "virtio-blk-pci",
-            .property = "vectors",
-            .value    = stringify(0),
-        },{
-            .driver   = "ide-drive",
-            .property = "ver",
-            .value    = "0.10",
-        },{
-            .driver   = "scsi-disk",
-            .property = "ver",
-            .value    = "0.10",
-        },{
-            .driver   = "PCI",
-            .property = "rombar",
-            .value    = stringify(0),
-        },
-        { /* end of list */ }
+static PCMachine pc_machine = {
+    .common = {
+        .name = "pc-0.13",
+        .alias = "pc",
+        .desc = "Standard PC",
+        .init = pc_init,
+        .max_cpus = 255,
+        .is_default = 1,
+        .default_cpu = PC_DEFAULT_CPU,
     },
+    .pci_enabled = 1,
 };
 
-static QEMUMachine isapc_machine = {
-    .name = "isapc",
-    .desc = "ISA-only PC",
-    .init = pc_init_isa,
-    .max_cpus = 1,
-    .default_cpu = "486",
+static PCMachine pc_machine_v0_12 = {
+    .common = {
+        .name = "pc-0.12",
+        .desc = "Standard PC",
+        .init = pc_init,
+        .max_cpus = 255,
+        .default_cpu = PC_DEFAULT_CPU,
+        .compat_props = (GlobalProperty[]) {
+            {
+                .driver   = "virtio-serial-pci",
+                .property = "max_nr_ports",
+                .value    = stringify(1),
+            },{
+                .driver   = "virtio-serial-pci",
+                .property = "vectors",
+                .value    = stringify(0),
+            },
+            { /* end of list */ }
+        }
+    },
+    .pci_enabled = 1,
+};
+
+static PCMachine pc_machine_v0_11 = {
+    .common = {
+        .name = "pc-0.11",
+        .desc = "Standard PC, qemu 0.11",
+        .init = pc_init,
+        .max_cpus = 255,
+        .default_cpu = PC_DEFAULT_CPU,
+        .compat_props = (GlobalProperty[]) {
+            {
+                .driver   = "virtio-blk-pci",
+                .property = "vectors",
+                .value    = stringify(0),
+            },{
+                .driver   = "virtio-serial-pci",
+                .property = "max_nr_ports",
+                .value    = stringify(1),
+            },{
+                .driver   = "virtio-serial-pci",
+                .property = "vectors",
+                .value    = stringify(0),
+            },{
+                .driver   = "ide-drive",
+                .property = "ver",
+                .value    = "0.11",
+            },{
+                .driver   = "scsi-disk",
+                .property = "ver",
+                .value    = "0.11",
+            },{
+                .driver   = "PCI",
+                .property = "rombar",
+                .value    = stringify(0),
+            },
+            { /* end of list */ }
+        }
+    },
+    .pci_enabled = 1,
+};
+
+static PCMachine pc_machine_v0_10 = {
+    .common = {
+        .name = "pc-0.10",
+        .desc = "Standard PC, qemu 0.10",
+        .init = pc_init,
+        .max_cpus = 255,
+        .default_cpu = PC_DEFAULT_CPU,
+        .compat_props = (GlobalProperty[]) {
+            {
+                .driver   = "virtio-blk-pci",
+                .property = "class",
+                .value    = stringify(PCI_CLASS_STORAGE_OTHER),
+            },{
+                .driver   = "virtio-serial-pci",
+                .property = "class",
+                .value    = stringify(PCI_CLASS_DISPLAY_OTHER),
+            },{
+                .driver   = "virtio-serial-pci",
+                .property = "max_nr_ports",
+                .value    = stringify(1),
+            },{
+                .driver   = "virtio-serial-pci",
+                .property = "vectors",
+                .value    = stringify(0),
+            },{
+                .driver   = "virtio-net-pci",
+                .property = "vectors",
+                .value    = stringify(0),
+            },{
+                .driver   = "virtio-blk-pci",
+                .property = "vectors",
+                .value    = stringify(0),
+            },{
+                .driver   = "ide-drive",
+                .property = "ver",
+                .value    = "0.10",
+            },{
+                .driver   = "scsi-disk",
+                .property = "ver",
+                .value    = "0.10",
+            },{
+                .driver   = "PCI",
+                .property = "rombar",
+                .value    = stringify(0),
+            },
+            { /* end of list */ }
+        }
+    },
+    .pci_enabled = 1,
+};
+
+static PCMachine isapc_machine = {
+    .common = {
+        .name = "isapc",
+        .desc = "ISA-only PC",
+        .init = pc_init,
+        .max_cpus = 1,
+        .default_cpu = "486",
+    },
+    .pci_enabled = 0,
 };
 
 static void pc_machine_init(void)
 {
-    qemu_register_machine(&pc_machine);
-    qemu_register_machine(&pc_machine_v0_12);
-    qemu_register_machine(&pc_machine_v0_11);
-    qemu_register_machine(&pc_machine_v0_10);
-    qemu_register_machine(&isapc_machine);
+    qemu_register_machine(&pc_machine.common);
+    qemu_register_machine(&pc_machine_v0_12.common);
+    qemu_register_machine(&pc_machine_v0_11.common);
+    qemu_register_machine(&pc_machine_v0_10.common);
+    qemu_register_machine(&isapc_machine.common);
 }
 
 machine_init(pc_machine_init);
