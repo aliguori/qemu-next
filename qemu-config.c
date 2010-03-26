@@ -302,33 +302,25 @@ QemuOptsList qemu_machine_opts = {
     .implied_opt_name = "board",
     .global = 1,
     .desc = {
+        { /* end of list */ }
+    },
+};
+
+QemuOptsList qemu_boot_opts = {
+    .name = "boot",
+    .head = QTAILQ_HEAD_INITIALIZER(qemu_boot_opts.head),
+    .implied_opt_name = "order",
+    .global = 1,
+    .desc = {
         {
-            .name = "board",
+            .name = "order",
             .type = QEMU_OPT_STRING,
         },{
-            .name = "ram_size",
-            .type = QEMU_OPT_SIZE,
+            .name = "once",
+            .type = QEMU_OPT_BOOL,
         },{
-            .name = "boot_devices",
-            .type = QEMU_OPT_STRING,
-        },{
-            .name = "kernel",
-            .type = QEMU_OPT_STRING,
-        },{
-            .name = "kernel_cmdline",
-            .type = QEMU_OPT_STRING,
-        },{
-            .name = "initrd",
-            .type = QEMU_OPT_STRING,
-        },{
-            .name = "cpu_model",
-            .type = QEMU_OPT_STRING,
-        },{
-            .name = "max_cpus",
-            .type = QEMU_OPT_NUMBER,
-        },{
-            .name = "smp_cpus",
-            .type = QEMU_OPT_NUMBER,
+            .name = "menu",
+            .type = QEMU_OPT_BOOL,
         },
         { /* end of list */ }
     },
@@ -345,6 +337,7 @@ static QemuOptsList *lists[] = {
     &qemu_mon_opts,
     &qemu_cpudef_opts,
     &qemu_machine_opts,
+    &qemu_boot_opts,
     NULL,
 };
 

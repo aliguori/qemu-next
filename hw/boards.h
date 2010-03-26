@@ -8,6 +8,36 @@
 typedef struct QEMUMachine QEMUMachine;
 typedef void QEMUMachineInitFunc(QEMUMachine *machine, QemuOpts *opts);
 
+#define MACHINE_COMMON_OPTS()                   \
+    {                                           \
+        .name = "board",                        \
+        .type = QEMU_OPT_STRING,                \
+    },{                                         \
+        .name = "ram_size",                     \
+        .type = QEMU_OPT_SIZE,                  \
+    },{                                         \
+        .name = "boot_devices",                 \
+        .type = QEMU_OPT_STRING,                \
+    },{                                         \
+        .name = "kernel",                       \
+        .type = QEMU_OPT_STRING,                \
+    },{                                         \
+        .name = "kernel_cmdline",               \
+        .type = QEMU_OPT_STRING,                \
+    },{                                         \
+        .name = "initrd",                       \
+        .type = QEMU_OPT_STRING,                \
+    },{                                         \
+        .name = "cpu_model",                    \
+        .type = QEMU_OPT_STRING,                \
+    },{                                         \
+        .name = "max_cpus",                     \
+        .type = QEMU_OPT_NUMBER,                \
+    },{                                         \
+        .name = "smp_cpus",                     \
+        .type = QEMU_OPT_NUMBER,                \
+    }
+
 struct QEMUMachine {
     const char *name;
     const char *alias;
@@ -25,6 +55,7 @@ struct QEMUMachine {
     int is_default;
     const char *default_cpu;
     GlobalProperty *compat_props;
+    const QemuOptDesc *machine_opts;
     struct QEMUMachine *next;
 };
 

@@ -484,6 +484,7 @@ struct QemuOpt {
 
 struct QemuOpts {
     char *id;
+    const QemuOptDesc *hidden_desc;
     QemuOptsList *list;
     Location loc;
     QTAILQ_HEAD(QemuOptHead, QemuOpt) head;
@@ -568,8 +569,14 @@ static void qemu_opt_del(QemuOpt *opt)
 int qemu_opt_set(QemuOpts *opts, const char *name, const char *fmt, ...)
 {
     QemuOpt *opt;
-    const QemuOptDesc *desc = opts->list->desc;
+    const QemuOptDesc *desc;
     int i;
+
+    if (opts->hidden_desc) {
+        desc = opts->hidden_desc;
+    } else {
+        desc = opts->list->desc;
+    }
 
     for (i = 0; desc[i].name != NULL; i++) {
         if (strcmp(desc[i].name, name) == 0) {
@@ -774,6 +781,18 @@ int qemu_opts_do_parse(QemuOpts *opts, const char *params, const char *firstname
     return 0;
 }
 
+QemuOpts *qemu_opts_parsef(QemuOptsList *list, int permit_abbrev, const char *fmt, ...)
+{
+    char value[4096];
+    va_list ap;
+
+    va_start(ap, fmt);
+    vsnprintf(value, sizeof(value), fmt, ap);
+    va_end(ap);
+
+    return qemu_opts_parse(list, value, permit_abbrev);
+}
+
 QemuOpts *qemu_opts_parse(QemuOptsList *list, const char *params,
                           int permit_abbrev)
 {
@@ -891,6 +910,8 @@ int qemu_opts_validate(QemuOpts *opts, const QemuOptDesc *desc)
     QemuOpt *opt;
 
     assert(opts->list->desc[0].name == NULL);
+
+    opts->hidden_desc = desc;
 
     QTAILQ_FOREACH(opt, &opts->head, next) {
         int i;

@@ -1283,45 +1283,6 @@ int qemu_boot_set(const char *boot_devices)
     return boot_set_handler(boot_set_opaque, boot_devices);
 }
 
-static int parse_bootdevices(char *devices)
-{
-    /* We just do some generic consistency checks */
-    const char *p;
-    int bitmap = 0;
-
-    for (p = devices; *p != '\0'; p++) {
-        /* Allowed boot devices are:
-         * a-b: floppy disk drives
-         * c-f: IDE disk drives
-         * g-m: machine implementation dependant drives
-         * n-p: network devices
-         * It's up to each machine implementation to check if the given boot
-         * devices match the actual hardware implementation and firmware
-         * features.
-         */
-        if (*p < 'a' || *p > 'p') {
-            fprintf(stderr, "Invalid boot device '%c'\n", *p);
-            exit(1);
-        }
-        if (bitmap & (1 << (*p - 'a'))) {
-            fprintf(stderr, "Boot device '%c' was given twice\n", *p);
-            exit(1);
-        }
-        bitmap |= 1 << (*p - 'a');
-    }
-    return bitmap;
-}
-
-static void restore_boot_devices(void *opaque)
-{
-    char *standard_boot_devices = opaque;
-
-    qemu_boot_set(standard_boot_devices);
-
-    qemu_unregister_reset(restore_boot_devices, standard_boot_devices);
-    qemu_free(standard_boot_devices);
-}
-
 static void numa_add(const char *optarg)
 {
     char option[128];
@@ -3704,21 +3665,130 @@ static const QEMUOption *lookup_opt(int argc, char **argv,
     return popt;
 }
 
+static QEMUMachine *machine_opts_init(QemuOpts *opts, QemuOpts *boot_opts)
+{
+    QEMUMachine *machine;
+    static const QemuOptDesc common_desc[] = {
+        MACHINE_COMMON_OPTS(),
+        {/* end of list */}
+    };
+
+    if (!qemu_opt_get(opts, "board")) {
+        machine = find_default_machine();
+        qemu_opt_set(opts, "board", machine->name);
+    }
+
+    machine = find_machine(qemu_opt_get(opts, "board"));
+    if (!machine) {
+        QEMUMachine *m;
+        printf("Supported machines are:\n");
+        for(m = first_machine; m != NULL; m = m->next) {
+            if (m->alias)
+                printf("%-10s %s (alias of %s)\n",
+                       m->alias, m->desc, m->name);
+            printf("%-10s %s%s\n",
+                   m->name, m->desc,
+                   m->is_default ? " (default)" : "");
+        }
+        exit(*optarg != '?');
+    }
+
+    if (machine->machine_opts) {
+        qemu_opts_validate(opts, machine->machine_opts);
+    } else {
+        qemu_opts_validate(opts, common_desc);
+    }
+
+    /* FIXME: convert this to machine options */
+    if (max_cpus) {
+        qemu_opt_set(opts, "max_cpus", "%d", max_cpus);
+    }
+    if (smp_cpus) {
+        qemu_opt_set(opts, "smp_cpus", "%d", smp_cpus);
+    }
+
+    /* Default to UP guest */
+    if (!qemu_opt_get(opts, "smp_cpus")) {
+        qemu_opt_set(opts, "smp_cpus", "1");
+    }
+
+    smp_cpus = qemu_opt_get_number(opts, "smp_cpus", 0);
+
+    /* Default max cpus to smp cpus */
+    if (!qemu_opt_get(opts, "max_cpus")) {
+        qemu_opt_set(opts, "max_cpus", "%d", smp_cpus);
+    }
+    max_cpus = qemu_opt_get_number(opts, "max_cpus", 0);
+
+    if (smp_cpus > max_cpus) {
+        fprintf(stderr, "Number of SMP cpus requested (%d), exceeds max cpus "
+                "supported by machine `%s' (%d)\n",
+                smp_cpus, qemu_opt_get(opts, "board"), max_cpus);
+        exit(1);
+    }
+
+    ram_size = qemu_opt_get_size(opts, "ram_size", 0);
+
+    /* On 32-bit hosts, QEMU is limited by virtual address space */
+    if (ram_size > (2047 << 20) && HOST_LONG_BITS == 32) {
+        fprintf(stderr, "qemu: at most 2047 MB RAM can be simulated\n");
+        exit(1);
+    }
+
+    if (!qemu_opt_get(opts, "cpu_model")) {
+        qemu_opt_set(opts, "cpu_model", machine->default_cpu);
+    }
+
+    /* Handle boot options */
+    if (!boot_opts) {
+        boot_opts = qemu_opts_create(&qemu_boot_opts, NULL, 0);
+    }
+    boot_menu = qemu_opt_get_bool(boot_opts, "menu", 0);
+    if (qemu_opt_get(boot_opts, "order")) {
+        qemu_opt_set(opts, "boot_devices",
+                     qemu_opt_get(boot_opts, "order"));
+    }
+
+    qemu_opts_foreach(&qemu_device_opts, default_driver_check, NULL, 0);
+    qemu_opts_foreach(&qemu_global_opts, default_driver_check, NULL, 0);
+
+    if (machine->no_serial) {
+        default_serial = 0;
+    }
+    if (machine->no_parallel) {
+        default_parallel = 0;
+    }
+    if (!machine->use_virtcon) {
+        default_virtcon = 0;
+    }
+    if (machine->no_vga) {
+        default_vga = 0;
+    }
+    if (machine->no_floppy) {
+        default_floppy = 0;
+    }
+    if (machine->no_cdrom) {
+        default_cdrom = 0;
+    }
+    if (machine->no_sdcard) {
+        default_sdcard = 0;
+    }
+
+    return machine;
+}
+
 int main(int argc, char **argv, char **envp)
 {
     const char *gdbstub_dev = NULL;
-    uint32_t boot_devices_bitmap = 0;
     int i;
-    int snapshot, linux_boot, net_boot;
+    int snapshot;
     const char *icount_option = NULL;
-    const char *initrd_filename;
-    const char *kernel_filename, *kernel_cmdline;
-    const char *machine_opts = NULL;
-    char boot_devices[33] = "cad"; /* default to HD->floppy->CD-ROM */
+    QemuOpts *machine_opts = NULL;
     DisplayState *ds;
     DisplayChangeListener *dcl;
     int cyls, heads, secs, translation;
     QemuOpts *hda_opts = NULL, *opts;
+    QemuOpts *boot_opts = NULL;
     int optind;
     const char *optarg;
     const char *loadvm = NULL;
@@ -3780,11 +3850,8 @@ int main(int argc, char **argv, char **envp)
 
     module_call_init(MODULE_INIT_MACHINE);
     cpu_model = NULL;
-    initrd_filename = NULL;
     ram_size = 0;
     snapshot = 0;
-    kernel_filename = NULL;
-    kernel_cmdline = NULL;
     cyls = heads = secs = 0;
     translation = BIOS_ATA_TRANSLATION_AUTO;
 
@@ -3858,7 +3925,7 @@ int main(int argc, char **argv, char **envp)
             switch(popt->index) {
             case QEMU_OPTION_machine:
             case QEMU_OPTION_M:
-                machine_opts = optarg;
+                machine_opts = qemu_opts_parse(&qemu_machine_opts, optarg, 1);
                 break;
             case QEMU_OPTION_cpu:
                 /* hw initialization will check this */
@@ -3875,7 +3942,8 @@ int main(int argc, char **argv, char **envp)
                 }
                 break;
             case QEMU_OPTION_initrd:
-                initrd_filename = optarg;
+                machine_opts = qemu_opts_parsef(&qemu_machine_opts, 1,
+                                                "initrd=%s", optarg);
                 break;
             case QEMU_OPTION_hda:
                 if (cyls == 0)
@@ -3985,62 +4053,18 @@ int main(int argc, char **argv, char **envp)
                 graphic_rotate = 1;
                 break;
             case QEMU_OPTION_kernel:
-                kernel_filename = optarg;
+                machine_opts = qemu_opts_parsef(&qemu_machine_opts, 1,
+                                                "kernel=%s", optarg);
                 break;
             case QEMU_OPTION_append:
-                kernel_cmdline = optarg;
+                machine_opts = qemu_opts_parsef(&qemu_machine_opts, 1,
+                                                "kernel_cmdline=%s", optarg);
                 break;
             case QEMU_OPTION_cdrom:
                 drive_add(optarg, CDROM_ALIAS);
                 break;
             case QEMU_OPTION_boot:
-                {
-                    static const char * const params[] = {
-                        "order", "once", "menu", NULL
-                    };
-                    char buf[sizeof(boot_devices)];
-                    char *standard_boot_devices;
-                    int legacy = 0;
-
-                    if (!strchr(optarg, '=')) {
-                        legacy = 1;
-                        pstrcpy(buf, sizeof(buf), optarg);
-                    } else if (check_params(buf, sizeof(buf), params, optarg) < 0) {
-                        fprintf(stderr,
-                                "qemu: unknown boot parameter '%s' in '%s'\n",
-                                buf, optarg);
-                        exit(1);
-                    }
-
-                    if (legacy ||
-                        get_param_value(buf, sizeof(buf), "order", optarg)) {
-                        boot_devices_bitmap = parse_bootdevices(buf);
-                        pstrcpy(boot_devices, sizeof(boot_devices), buf);
-                    }
-                    if (!legacy) {
-                        if (get_param_value(buf, sizeof(buf),
-                                            "once", optarg)) {
-                            boot_devices_bitmap |= parse_bootdevices(buf);
-                            standard_boot_devices = qemu_strdup(boot_devices);
-                            pstrcpy(boot_devices, sizeof(boot_devices), buf);
-                            qemu_register_reset(restore_boot_devices,
-                                                standard_boot_devices);
-                        }
-                        if (get_param_value(buf, sizeof(buf),
-                                            "menu", optarg)) {
-                            if (!strcmp(buf, "on")) {
-                                boot_menu = 1;
-                            } else if (!strcmp(buf, "off")) {
-                                boot_menu = 0;
-                            } else {
-                                fprintf(stderr,
-                                        "qemu: invalid option value '%s'\n",
-                                        buf);
-                                exit(1);
-                            }
-                        }
-                    }
-                }
+                boot_opts = qemu_opts_parse(&qemu_boot_opts, optarg, 1);
                 break;
             case QEMU_OPTION_fda:
             case QEMU_OPTION_fdb:
@@ -4098,35 +4122,9 @@ int main(int argc, char **argv, char **envp)
                 version();
                 exit(0);
                 break;
-            case QEMU_OPTION_m: {
-                uint64_t value;
-                char *ptr;
-
-                value = strtoul(optarg, &ptr, 10);
-                switch (*ptr) {
-                case 0: case 'M': case 'm':
-                    value <<= 20;
-                    break;
-                case 'G': case 'g':
-                    value <<= 30;
-                    break;
-                default:
-                    fprintf(stderr, "qemu: invalid ram size: %s\n", optarg);
-                    exit(1);
-                }
-
-                /* On 32-bit hosts, QEMU is limited by virtual address space */
-                if (value > (2047 << 20) && HOST_LONG_BITS == 32) {
-                    fprintf(stderr, "qemu: at most 2047 MB RAM can be simulated\n");
-                    exit(1);
-                }
-                if (value != (uint64_t)(ram_addr_t)value) {
-                    fprintf(stderr, "qemu: ram size too large\n");
-                    exit(1);
-                }
-                ram_size = value;
+            case QEMU_OPTION_m:
+                qemu_opts_parsef(&qemu_machine_opts, 0, "ram_size=%s", optarg);
                 break;
-            }
             case QEMU_OPTION_mempath:
                 mem_path = optarg;
                 break;
@@ -4531,106 +4529,11 @@ int main(int argc, char **argv, char **envp)
         data_dir = CONFIG_QEMU_SHAREDIR;
     }
 
-    /* Machine parsing */
-    if (machine_opts) {
-        opts = qemu_opts_parse(&qemu_machine_opts, machine_opts, 1);
-    } else {
-        opts = qemu_opts_parse(&qemu_machine_opts, "", 0);
-        machine = find_default_machine();
-        qemu_opt_set(opts, "board", machine->name);
+    if (machine_opts == NULL) {
+        machine_opts = qemu_opts_parse(&qemu_machine_opts, "", 0);
     }
 
-    machine = find_machine(qemu_opt_get(opts, "board"));
-    if (!machine) {
-        QEMUMachine *m;
-        printf("Supported machines are:\n");
-        for(m = first_machine; m != NULL; m = m->next) {
-            if (m->alias)
-                printf("%-10s %s (alias of %s)\n",
-                       m->alias, m->desc, m->name);
-            printf("%-10s %s%s\n",
-                   m->name, m->desc,
-                   m->is_default ? " (default)" : "");
-        }
-        exit(*optarg != '?');
-    }
-
-    /* Fix up compatibility options */
-    if (max_cpus) {
-        qemu_opt_set(opts, "max_cpus", "%d", max_cpus);
-    }
-    if (smp_cpus) {
-        qemu_opt_set(opts, "smp_cpus", "%d", smp_cpus);
-    }
-    if (kernel_filename) {
-        qemu_opt_set(opts, "kernel", kernel_filename);
-    }
-    if (kernel_cmdline) {
-        qemu_opt_set(opts, "kernel_cmdline", kernel_cmdline);
-    }
-    if (initrd_filename) {
-        qemu_opt_set(opts, "initrd", initrd_filename);
-    }
-    if (!qemu_opt_get(opts, "boot_devices")) {
-        qemu_opt_set(opts, "boot_devices", boot_devices);
-    }
-
-    if (ram_size) {
-        qemu_opt_set(opts, "ram_size", "%" PRId64, ram_size);
-    } else if (!qemu_opt_get(opts, "ram_size")) {
-        qemu_opt_set(opts, "ram_size", "%dM", DEFAULT_RAM_SIZE);
-    }
-
-    ram_size = qemu_opt_get_size(opts, "ram_size", 0);
-
-    /* Default to UP guest */
-    if (!qemu_opt_get(opts, "smp_cpus")) {
-        qemu_opt_set(opts, "smp_cpus", "1");
-    }
-    smp_cpus = qemu_opt_get_number(opts, "smp_cpus", 0);
-
-    /* Default max cpus to smp cpus */
-    if (!qemu_opt_get(opts, "max_cpus")) {
-        printf("no max_cpus\n");
-        qemu_opt_set(opts, "max_cpus", "%d", smp_cpus);
-    }
-    max_cpus = qemu_opt_get_number(opts, "max_cpus", 0);
-
-    if (smp_cpus > max_cpus) {
-        fprintf(stderr, "Number of SMP cpus requested (%d), exceeds max cpus "
-                "supported by machine `%s' (%d)\n",
-                smp_cpus, qemu_opt_get(opts, "board"), max_cpus);
-        exit(1);
-    }
-
-    if (!qemu_opt_get(opts, "cpu_model")) {
-        qemu_opt_set(opts, "cpu_model", machine->default_cpu);
-    }
-
-    qemu_opts_foreach(&qemu_device_opts, default_driver_check, NULL, 0);
-    qemu_opts_foreach(&qemu_global_opts, default_driver_check, NULL, 0);
-
-    if (machine->no_serial) {
-        default_serial = 0;
-    }
-    if (machine->no_parallel) {
-        default_parallel = 0;
-    }
-    if (!machine->use_virtcon) {
-        default_virtcon = 0;
-    }
-    if (machine->no_vga) {
-        default_vga = 0;
-    }
-    if (machine->no_floppy) {
-        default_floppy = 0;
-    }
-    if (machine->no_cdrom) {
-        default_cdrom = 0;
-    }
-    if (machine->no_sdcard) {
-        default_sdcard = 0;
-    }
+    machine = machine_opts_init(machine_opts, boot_opts);
 
     if (display_type == DT_NOGRAPHIC) {
         if (default_parallel)
@@ -4738,17 +4641,6 @@ int main(int argc, char **argv, char **envp)
         fprintf(stderr, "qemu_init_main_loop failed\n");
         exit(1);
     }
-    linux_boot = (kernel_filename != NULL);
-
-    if (!linux_boot && kernel_cmdline) {
-        fprintf(stderr, "-append only allowed with -kernel option\n");
-        exit(1);
-    }
-
-    if (!linux_boot && initrd_filename != NULL) {
-        fprintf(stderr, "-initrd only allowed with -kernel option\n");
-        exit(1);
-    }
 
 #ifndef _WIN32
     /* Win32 doesn't support line-buffering and requires size >= 2 */
@@ -4768,9 +4660,6 @@ int main(int argc, char **argv, char **envp)
     if (net_init_clients() < 0) {
         exit(1);
     }
-
-    net_boot = (boot_devices_bitmap >> ('n' - 'a')) & 0xF;
-    net_set_boot_mask(net_boot);
 
     /* init the bluetooth world */
     if (foreach_device_config(DEV_BT, bt_parse))
@@ -4874,7 +4763,7 @@ int main(int argc, char **argv, char **envp)
     }
     qemu_add_globals();
 
-    machine->init(machine, opts);
+    machine->init(machine, machine_opts);
 
     cpu_synchronize_all_post_init();
 
