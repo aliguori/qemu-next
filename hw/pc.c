@@ -268,7 +268,8 @@ static int pc_boot_set(void *opaque, const char *boot_device)
 
 /* hd_table must contain 4 block drivers */
 static void cmos_init(ram_addr_t ram_size, ram_addr_t above_4g_mem_size,
-                      const char *boot_device, DriveInfo **hd_table)
+                      const char *boot_device, DriveInfo **hd_table,
+                      int fd_bootchk)
 {
     RTCState *s = rtc_state;
     int val;
@@ -309,8 +310,7 @@ static void cmos_init(ram_addr_t ram_size, ram_addr_t above_4g_mem_size,
     rtc_set_memory(s, 0x5f, smp_cpus - 1);
 
     /* set boot devices, and disable floppy signature check if requested */
-    if (set_boot_dev(s, boot_device,
-                     qemu_opt_get_bool(opts, "fd_bootchk", 1))) {
+    if (set_boot_dev(s, boot_device, fd_bootchk)) {
         exit(1);
     }
 
@@ -994,7 +994,8 @@ static void pc_init(QEMUMachine *machine, QemuOpts *opts)
     floppy_controller = fdctrl_init_isa(fd);
 
     cmos_init(below_4g_mem_size, above_4g_mem_size,
-              qemu_opt_get(opts, "boot_devices"), hd);
+              qemu_opt_get(opts, "boot_devices"), hd,
+              qemu_opt_get_bool(opts, "fd_bootchk", 1));
 
     if (pc_machine->pci_enabled && usb_enabled) {
         usb_uhci_piix3_init(pci_bus, piix3_devfn + 2);

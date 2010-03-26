@@ -126,7 +126,6 @@ int main(int argc, char **argv)
 #include "hw/bt.h"
 #include "hw/watchdog.h"
 #include "hw/smbios.h"
-#include "hw/xen.h"
 #include "hw/qdev.h"
 #include "hw/loader.h"
 #include "bt-host.h"
@@ -4483,13 +4482,13 @@ int main(int argc, char **argv, char **envp)
 #endif
 #ifdef CONFIG_XEN
             case QEMU_OPTION_xen_domid:
-                xen_domid = atoi(optarg);
+                qemu_opts_parse(&qemu_machine_opts, 0, "domid=%s", optarg);
                 break;
             case QEMU_OPTION_xen_create:
-                xen_mode = XEN_CREATE;
+                qemu_opts_parse(&qemu_machine_opts, 0, "mode=create");
                 break;
             case QEMU_OPTION_xen_attach:
-                xen_mode = XEN_ATTACH;
+                qemu_opts_parse(&qemu_machine_opts, 0, "mode=attach");
                 break;
 #endif
             case QEMU_OPTION_readconfig:

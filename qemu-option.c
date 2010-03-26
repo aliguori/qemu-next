@@ -513,8 +513,10 @@ int qemu_opt_get_bool(QemuOpts *opts, const char *name, int defval)
 {
     QemuOpt *opt = qemu_opt_find(opts, name);
 
-    if (opt == NULL)
+    if (opt == NULL) {
+        qemu_opt_set(opts, name, defval ? "on" : "off");
         return defval;
+    }
     assert(opt->desc && opt->desc->type == QEMU_OPT_BOOL);
     return opt->value.boolean;
 }
@@ -523,8 +525,10 @@ uint64_t qemu_opt_get_number(QemuOpts *opts, const char *name, uint64_t defval)
 {
     QemuOpt *opt = qemu_opt_find(opts, name);
 
-    if (opt == NULL)
+    if (opt == NULL) {
+        qemu_opt_set(opts, name, "%" PRId64, defval);
         return defval;
+    }
     assert(opt->desc && opt->desc->type == QEMU_OPT_NUMBER);
     return opt->value.uint;
 }
@@ -533,8 +537,10 @@ uint64_t qemu_opt_get_size(QemuOpts *opts, const char *name, uint64_t defval)
 {
     QemuOpt *opt = qemu_opt_find(opts, name);
 
-    if (opt == NULL)
+    if (opt == NULL) {
+        qemu_opt_set(opts, name, "%" PRId64, defval);
         return defval;
+    }
     assert(opt->desc && opt->desc->type == QEMU_OPT_SIZE);
     return opt->value.uint;
 }

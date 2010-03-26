@@ -795,7 +795,10 @@ static void do_info_hpet_print(Monitor *mon, const QObject *data)
  */
 static void do_info_hpet(Monitor *mon, QObject **ret_data)
 {
-    *ret_data = qobject_from_jsonf("{ 'enabled': %i }", !no_hpet);
+    QemuOpts *opts = qemu_opts_create(&qemu_machine_opts, NULL, 0);
+
+    *ret_data = qobject_from_jsonf("{ 'enabled': %i }",
+                                   !qemu_opt_get_bool(opts, "hpet", 1));
 }
 #endif
 
