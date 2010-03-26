@@ -36,6 +36,9 @@ typedef void QEMUMachineInitFunc(QEMUMachine *machine, QemuOpts *opts);
     },{                                         \
         .name = "smp_cpus",                     \
         .type = QEMU_OPT_NUMBER,                \
+    },{                                         \
+        .name = "once",                         \
+        .type = QEMU_OPT_BOOL,                  \
     }
 
 struct QEMUMachine {

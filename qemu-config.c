@@ -337,7 +337,6 @@ static QemuOptsList *lists[] = {
     &qemu_mon_opts,
     &qemu_cpudef_opts,
     &qemu_machine_opts,
-    &qemu_boot_opts,
     NULL,
 };
 

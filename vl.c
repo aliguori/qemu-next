@@ -239,7 +239,6 @@ int ctrl_grab = 0;
 unsigned int nb_prom_envs = 0;
 const char *prom_envs[MAX_PROM_ENVS];
 #endif
-int boot_menu;
 
 int nb_numa_nodes;
 uint64_t node_mem[MAX_NODES];
@@ -3661,7 +3660,7 @@ static const QEMUOption *lookup_opt(int argc, char **argv,
     return popt;
 }
 
-static QEMUMachine *machine_opts_init(QemuOpts *opts, QemuOpts *boot_opts)
+static QEMUMachine *machine_opts_init(QemuOpts *opts)
 {
     QEMUMachine *machine;
     static const QemuOptDesc common_desc[] = {
@@ -3735,16 +3734,6 @@ static QEMUMachine *machine_opts_init(QemuOpts *opts, QemuOpts *boot_opts)
         qemu_opt_set(opts, "cpu_model", machine->default_cpu);
     }
 
-    /* Handle boot options */
-    if (!boot_opts) {
-        boot_opts = qemu_opts_create(&qemu_boot_opts, NULL, 0);
-    }
-    boot_menu = qemu_opt_get_bool(boot_opts, "menu", 0);
-    if (qemu_opt_get(boot_opts, "order")) {
-        qemu_opt_set(opts, "boot_devices",
-                     qemu_opt_get(boot_opts, "order"));
-    }
-
     qemu_opts_foreach(&qemu_device_opts, default_driver_check, NULL, 0);
     qemu_opts_foreach(&qemu_global_opts, default_driver_check, NULL, 0);
 
@@ -3788,6 +3777,12 @@ static void no_defaults(int with_opts)
     }
 }
 
+static void set_boot_once(void *opaque)
+{
+    qemu_boot_set("cda");
+    qemu_unregister_reset(set_boot_once, NULL);
+}
+
 int main(int argc, char **argv, char **envp)
 {
     const char *gdbstub_dev = NULL;
@@ -3799,7 +3794,6 @@ int main(int argc, char **argv, char **envp)
     DisplayChangeListener *dcl;
     int cyls, heads, secs, translation;
     QemuOpts *hda_opts = NULL, *opts;
-    QemuOpts *boot_opts = NULL;
     int optind;
     const char *optarg;
     const char *loadvm = NULL;
@@ -4073,7 +4067,19 @@ int main(int argc, char **argv, char **envp)
                 drive_add(optarg, CDROM_ALIAS);
                 break;
             case QEMU_OPTION_boot:
-                boot_opts = qemu_opts_parse(&qemu_boot_opts, optarg, 1);
+                opts = qemu_opts_parse(&qemu_boot_opts, optarg, 1);
+                if (qemu_opt_get(opts, "order")) {
+                    qemu_opts_parsef(&qemu_machine_opts, 0, "boot_devices=%s",
+                                     qemu_opt_get(opts, "order"));
+                }
+                if (qemu_opt_get(opts, "menu")) {
+                    qemu_opts_parsef(&qemu_machine_opts, 0, "menu=%s",
+                                     qemu_opt_get(opts, "menu"));
+                }
+                if (qemu_opt_get(opts, "once")) {
+                    qemu_opts_parsef(&qemu_machine_opts, 0, "once=%s",
+                                     qemu_opt_get(opts, "once"));
+                }
                 break;
             case QEMU_OPTION_fda:
             case QEMU_OPTION_fdb:
@@ -4538,7 +4544,7 @@ int main(int argc, char **argv, char **envp)
     loc_set_none();
 
     /* Wait until after we've read existing configs */
-    if (config_filename) {
+    if (!snapshot && config_filename) {
         qemu_config_set(config_filename);
     }
 
@@ -4556,7 +4562,7 @@ int main(int argc, char **argv, char **envp)
         machine_opts = qemu_opts_parse(&qemu_machine_opts, "", 0);
     }
 
-    machine = machine_opts_init(machine_opts, boot_opts);
+    machine = machine_opts_init(machine_opts);
 
     if (display_type == DT_NOGRAPHIC) {
         if (default_parallel)
@@ -4785,6 +4791,12 @@ int main(int argc, char **argv, char **envp)
         qdev_prop_register_global_list(machine->compat_props);
     }
     qemu_add_globals();
+
+    /* This a strange feature that unfortunately we need to support
+       for backwards compatibility */
+    if (qemu_opt_get_bool(machine_opts, "once", 0)) {
+        qemu_register_reset(set_boot_once, NULL);
+    }
 
     machine->init(machine, machine_opts);
 

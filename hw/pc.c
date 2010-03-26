@@ -463,7 +463,7 @@ int e820_add_entry(uint64_t address, uint64_t length, uint32_t type)
     return e820_table.count;
 }
 
-static void *bochs_bios_init(void)
+static void *bochs_bios_init(QemuOpts *opts)
 {
     void *fw_cfg;
     uint8_t *smbios_table;
@@ -482,7 +482,7 @@ static void *bochs_bios_init(void)
     register_ioport_write(0x500, 1, 1, bochs_bios_write, NULL);
     register_ioport_write(0x503, 1, 1, bochs_bios_write, NULL);
 
-    fw_cfg = fw_cfg_init(BIOS_CFG_IOPORT, BIOS_CFG_IOPORT + 1, 0, 0);
+    fw_cfg = fw_cfg_init(BIOS_CFG_IOPORT, BIOS_CFG_IOPORT + 1, 0, 0, opts);
 
     fw_cfg_add_i32(fw_cfg, FW_CFG_ID, 1);
     fw_cfg_add_i64(fw_cfg, FW_CFG_RAM_SIZE, (uint64_t)ram_size);
@@ -874,7 +874,7 @@ static void pc_init(QEMUMachine *machine, QemuOpts *opts)
     cpu_register_physical_memory((uint32_t)(-bios_size),
                                  bios_size, bios_offset | IO_MEM_ROM);
 
-    fw_cfg = bochs_bios_init();
+    fw_cfg = bochs_bios_init(opts);
     rom_set_fw(fw_cfg);
 
     if (qemu_opt_get(opts, "kernel")) {
@@ -1057,6 +1057,9 @@ static QemuOptDesc pc_machine_opts[] = {
         .type = QEMU_OPT_BOOL,
     },{
         .name = "hpet",
+        .type = QEMU_OPT_BOOL,
+    },{
+        .name = "menu",
         .type = QEMU_OPT_BOOL,
     },
     {/* end of list */}

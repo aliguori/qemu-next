@@ -818,7 +818,7 @@ static void sun4uv_init(QemuOpts *opts, const struct hwdef *hwdef)
                            graphic_width, graphic_height, graphic_depth,
                            (uint8_t *)&nd_table[0].macaddr);
 
-    fw_cfg = fw_cfg_init(BIOS_CFG_IOPORT, BIOS_CFG_IOPORT + 1, 0, 0);
+    fw_cfg = fw_cfg_init(BIOS_CFG_IOPORT, BIOS_CFG_IOPORT + 1, 0, 0, opts);
     fw_cfg_add_i32(fw_cfg, FW_CFG_ID, 1);
     fw_cfg_add_i64(fw_cfg, FW_CFG_RAM_SIZE, (uint64_t)ram_size);
     fw_cfg_add_i16(fw_cfg, FW_CFG_MACHINE_ID, hwdef->machine_id);

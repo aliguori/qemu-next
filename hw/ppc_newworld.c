@@ -400,7 +400,7 @@ static void ppc_core99_init (QEMUMachine *machine, QemuOpts *opts)
     macio_nvram_map(nvr, 0xFFF04000);
     /* No PCI init: the BIOS will do it */
 
-    fw_cfg = fw_cfg_init(0, 0, CFG_ADDR, CFG_ADDR + 2);
+    fw_cfg = fw_cfg_init(0, 0, CFG_ADDR, CFG_ADDR + 2, opts);
     fw_cfg_add_i32(fw_cfg, FW_CFG_ID, 1);
     fw_cfg_add_i64(fw_cfg, FW_CFG_RAM_SIZE, (uint64_t)ram_size);
     fw_cfg_add_i16(fw_cfg, FW_CFG_MACHINE_ID, machine_arch);
