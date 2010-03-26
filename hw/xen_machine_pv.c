@@ -29,8 +29,8 @@
 #include "xen_backend.h"
 #include "xen_domainbuild.h"
 
-uint32_t xen_domid;
 enum xen_mode xen_mode = XEN_EMULATE;
+uint32_t xen_domid;
 
 static void xen_init_pv(QEMUMachine *machine, QemuOpts *opts)
 {
@@ -40,6 +40,21 @@ static void xen_init_pv(QEMUMachine *machine, QemuOpts *opts)
     const char *kernel_filename = qemu_opt_get(opts, "kernel");
     const char *kernel_cmdline = qemu_opt_get(opts, "kernel_cmdline");
     const char *initrd = qemu_opt_get(opts, "initrd");
+    const char *mode;
+
+    xen_domid = qemu_opt_get_number(opts, "domid", -1);
+    mode = qemu_opt_get(opts, "mode");
+    if (mode) {
+        if (strcmp(mode, "emulate") == 0) {
+            xen_mode = XEN_EMULATE;
+        } else if (strcmp(mode, "create") == 0) {
+            xen_mode = XEN_CREATE;
+        } else if (strcmp(mode, "attach") == 0) {
+            xen_mode = XEN_ATTACH;
+        } else {
+            fprintf(stderr, "%s: invalid xen mode `%s'\n", __FUNCTION__, mode);
+        }
+    }
 
     /* Initialize a dummy CPU */
     env = cpu_init(qemu_opt_get(opts, "cpu_model"));
@@ -101,6 +116,18 @@ static void xen_init_pv(QEMUMachine *machine, QemuOpts *opts)
     /* setup framebuffer */
     xen_init_display(xen_domid);
 }
+
+static QemuOptDesc xen_machine_opts[] = {
+    MACHINE_COMMON_OPTS(),
+    {
+        .name = "domid",
+        .type = QEMU_OPT_NUMBER,
+    },{
+        .name = "mode",
+        .type = QEMU_OPT_STRING,
+    },
+    {/* end of list */}
+};
 
 static QEMUMachine xenpv_machine = {
     .name = "xenpv",
