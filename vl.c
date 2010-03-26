@@ -3789,7 +3789,6 @@ int main(int argc, char **argv, char **envp)
     const char *optarg;
     const char *loadvm = NULL;
     QEMUMachine *machine;
-    const char *cpu_model;
 #ifndef _WIN32
     int fds[2];
 #endif
@@ -3845,7 +3844,6 @@ int main(int argc, char **argv, char **envp)
 #endif
 
     module_call_init(MODULE_INIT_MACHINE);
-    cpu_model = NULL;
     ram_size = 0;
     snapshot = 0;
     cyls = heads = secs = 0;
@@ -3934,7 +3932,8 @@ int main(int argc, char **argv, char **envp)
 #endif
                     exit(0);
                 } else {
-                    cpu_model = optarg;
+                    qemu_opts_parsef(&qemu_machine_opts, 0,
+                                     "cpu_model=%s", optarg);
                 }
                 break;
             case QEMU_OPTION_initrd:
