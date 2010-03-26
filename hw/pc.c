@@ -993,7 +993,7 @@ static void pc_init(QEMUMachine *machine, QemuOpts *opts)
     floppy_controller = fdctrl_init_isa(fd);
 
     cmos_init(below_4g_mem_size, above_4g_mem_size,
-              qemu_opt_get(opts, "boot_device"), hd);
+              qemu_opt_get(opts, "boot_devices"), hd);
 
     if (pc_machine->pci_enabled && usb_enabled) {
         usb_uhci_piix3_init(pci_bus, piix3_devfn + 2);

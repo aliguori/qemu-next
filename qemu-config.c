@@ -298,14 +298,18 @@ QemuOptsList qemu_cpudef_opts = {
 
 QemuOptsList qemu_machine_opts = {
     .name = "machine",
-    .head = QTAILQ_HEAD_INITIALIZER(qemu_cpudef_opts.head),
+    .head = QTAILQ_HEAD_INITIALIZER(qemu_machine_opts.head),
     .implied_opt_name = "board",
+    .global = 1,
     .desc = {
         {
+            .name = "board",
+            .type = QEMU_OPT_STRING,
+        },{
             .name = "ram_size",
             .type = QEMU_OPT_SIZE,
         },{
-            .name = "boot_device",
+            .name = "boot_devices",
             .type = QEMU_OPT_STRING,
         },{
             .name = "kernel",

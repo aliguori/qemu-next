@@ -213,7 +213,7 @@ int rtc_td_hack = 0;
 #endif
 int usb_enabled = 0;
 int singlestep = 0;
-int smp_cpus = 1;
+int smp_cpus = 0;
 int max_cpus = 0;
 int smp_cores = 1;
 int smp_threads = 1;
@@ -3713,7 +3713,7 @@ int main(int argc, char **argv, char **envp)
     const char *icount_option = NULL;
     const char *initrd_filename;
     const char *kernel_filename, *kernel_cmdline;
-    const char *machine_opts = NULL, *machine_name = NULL;
+    const char *machine_opts = NULL;
     char boot_devices[33] = "cad"; /* default to HD->floppy->CD-ROM */
     DisplayState *ds;
     DisplayChangeListener *dcl;
@@ -3739,6 +3739,7 @@ int main(int argc, char **argv, char **envp)
     CPUState *env;
     int show_vnc_port = 0;
     int defconfig = 1;
+    const char *writeconfig = NULL;
 
     error_set_progname(argv[0]);
 
@@ -3783,7 +3784,7 @@ int main(int argc, char **argv, char **envp)
     ram_size = 0;
     snapshot = 0;
     kernel_filename = NULL;
-    kernel_cmdline = "";
+    kernel_cmdline = NULL;
     cyls = heads = secs = 0;
     translation = BIOS_ATA_TRANSLATION_AUTO;
 
@@ -3855,8 +3856,9 @@ int main(int argc, char **argv, char **envp)
 
             popt = lookup_opt(argc, argv, &optarg, &optind);
             switch(popt->index) {
+            case QEMU_OPTION_machine:
             case QEMU_OPTION_M:
-                machine_name = optarg;
+                machine_opts = optarg;
                 break;
             case QEMU_OPTION_cpu:
                 /* hw initialization will check this */
@@ -4512,21 +4514,8 @@ int main(int argc, char **argv, char **envp)
                     break;
                 }
             case QEMU_OPTION_writeconfig:
-                {
-                    FILE *fp;
-                    if (strcmp(optarg, "-") == 0) {
-                        fp = stdout;
-                    } else {
-                        fp = fopen(optarg, "w");
-                        if (fp == NULL) {
-                            fprintf(stderr, "open %s: %s\n", optarg, strerror(errno));
-                            exit(1);
-                        }
-                    }
-                    qemu_config_write(fp);
-                    fclose(fp);
-                    break;
-                }
+                writeconfig = optarg;
+                break;
             }
         }
     }
@@ -4544,9 +4533,7 @@ int main(int argc, char **argv, char **envp)
 
     /* Machine parsing */
     if (machine_opts) {
-        opts = qemu_opts_parse(&qemu_machine_opts, machine_opts, 0);
-    } else if (machine_name) {
-        opts = qemu_opts_parse(&qemu_machine_opts, machine_name, 0);
+        opts = qemu_opts_parse(&qemu_machine_opts, machine_opts, 1);
     } else {
         opts = qemu_opts_parse(&qemu_machine_opts, "", 0);
         machine = find_default_machine();
@@ -4572,6 +4559,9 @@ int main(int argc, char **argv, char **envp)
     if (max_cpus) {
         qemu_opt_set(opts, "max_cpus", "%d", max_cpus);
     }
+    if (smp_cpus) {
+        qemu_opt_set(opts, "smp_cpus", "%d", smp_cpus);
+    }
     if (kernel_filename) {
         qemu_opt_set(opts, "kernel", kernel_filename);
     }
@@ -4581,40 +4571,40 @@ int main(int argc, char **argv, char **envp)
     if (initrd_filename) {
         qemu_opt_set(opts, "initrd", initrd_filename);
     }
-    if (!qemu_opt_get(opts, "ram_size")) {
-        char buffer[1024];
-        snprintf(buffer, sizeof(buffer), "%" PRId64, ram_size);
-        qemu_opt_set(opts, "ram_size", buffer);
-    }
     if (!qemu_opt_get(opts, "boot_devices")) {
         qemu_opt_set(opts, "boot_devices", boot_devices);
     }
 
-    /*
-     * Default to max_cpus = smp_cpus, in case the user doesn't
-     * specify a max_cpus value.
-     */
-    if (!max_cpus)
-        max_cpus = smp_cpus;
+    if (ram_size) {
+        qemu_opt_set(opts, "ram_size", "%" PRId64, ram_size);
+    } else if (!qemu_opt_get(opts, "ram_size")) {
+        qemu_opt_set(opts, "ram_size", "%dM", DEFAULT_RAM_SIZE);
+    }
+
+    ram_size = qemu_opt_get_size(opts, "ram_size", 0);
 
     /* Default to UP guest */
     if (!qemu_opt_get(opts, "smp_cpus")) {
         qemu_opt_set(opts, "smp_cpus", "1");
     }
+    smp_cpus = qemu_opt_get_number(opts, "smp_cpus", 0);
 
     /* Default max cpus to smp cpus */
     if (!qemu_opt_get(opts, "max_cpus")) {
-        qemu_opt_set(opts, "max_cpus", qemu_opt_get(opts, "smp_cpus"));
+        printf("no max_cpus\n");
+        qemu_opt_set(opts, "max_cpus", "%d", smp_cpus);
+    }
+    max_cpus = qemu_opt_get_number(opts, "max_cpus", 0);
+
+    if (smp_cpus > max_cpus) {
+        fprintf(stderr, "Number of SMP cpus requested (%d), exceeds max cpus "
+                "supported by machine `%s' (%d)\n",
+                smp_cpus, qemu_opt_get(opts, "board"), max_cpus);
+        exit(1);
     }
 
-    if (qemu_opt_get_number(opts, "smp_cpus", 0) >
-        qemu_opt_get_number(opts, "max_cpus", 0)) {
-        fprintf(stderr, "Number of SMP cpus requested (%d), exceeds max cpus "
-                "supported by machine `%s' (%d)\n", 
-                (int)qemu_opt_get_number(opts, "smp_cpus", 0),
-                qemu_opt_get(opts, "board"),
-                (int)qemu_opt_get_number(opts, "max_cpus", 0));
-        exit(1);
+    if (!qemu_opt_get(opts, "cpu_model")) {
+        qemu_opt_set(opts, "cpu_model", machine->default_cpu);
     }
 
     qemu_opts_foreach(&qemu_device_opts, default_driver_check, NULL, 0);
@@ -4750,7 +4740,7 @@ int main(int argc, char **argv, char **envp)
     }
     linux_boot = (kernel_filename != NULL);
 
-    if (!linux_boot && *kernel_cmdline != '\0') {
+    if (!linux_boot && kernel_cmdline) {
         fprintf(stderr, "-append only allowed with -kernel option\n");
         exit(1);
     }
@@ -4785,10 +4775,6 @@ int main(int argc, char **argv, char **envp)
     /* init the bluetooth world */
     if (foreach_device_config(DEV_BT, bt_parse))
         exit(1);
-
-    /* init the memory */
-    if (ram_size == 0)
-        ram_size = DEFAULT_RAM_SIZE * 1024 * 1024;
 
     /* init the dynamic translator */
     cpu_exec_init_all(tb_size * 1024 * 1024);
@@ -5073,6 +5059,21 @@ int main(int argc, char **argv, char **envp)
         close(fd);
     }
 #endif
+
+    if (writeconfig) {
+        FILE *fp;
+        if (strcmp(writeconfig, "-") == 0) {
+            fp = stdout;
+        } else {
+            fp = fopen(writeconfig, "w");
+            if (fp == NULL) {
+                fprintf(stderr, "open %s: %s\n", writeconfig, strerror(errno));
+                exit(1);
+            }
+        }
+        qemu_config_write(fp);
+        fclose(fp);
+    }
 
     main_loop();
     quit_timers();
