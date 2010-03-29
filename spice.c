@@ -274,7 +274,7 @@ QemuOptsList qemu_spice_opts = {
     },
 };
 
-void mon_set_password(Monitor *mon, const QDict *qdict, QObject **ret_data)
+int mon_set_password(Monitor *mon, const QDict *qdict, QObject **ret_data)
 {
     const char *protocol  = qdict_get_str(qdict, "protocol");
     const char *password  = qdict_get_str(qdict, "password");
@@ -293,7 +293,7 @@ void mon_set_password(Monitor *mon, const QDict *qdict, QObject **ret_data)
             /* nothing */
         } else {
             qemu_error_new(QERR_INVALID_PARAMETER, "connected");
-            return;
+            return -1;
         }
     }
 
@@ -301,28 +301,33 @@ void mon_set_password(Monitor *mon, const QDict *qdict, QObject **ret_data)
         if (!s) {
             /* correct one? spice isn't a device ,,, */
             qemu_error_new(QERR_DEVICE_NOT_ACTIVE, "spice");
-            return;
+            return -1;
         }
         rc = spice_server_set_ticket(s, password, lifetime,
                                      fail_if_connected,
                                      disconnect_if_connected);
         if (rc != 0) {
             qemu_error_new(QERR_SET_PASSWD_FAILED);
-            return;
+            return -1;
         }
 
     } else if (strcmp(protocol, "vnc") == 0) {
         if (fail_if_connected || disconnect_if_connected) {
             /* vnc supports "connected=keep" only */
             qemu_error_new(QERR_INVALID_PARAMETER, "connected");
-            return;
+            return -1;
         }
-        if (vnc_display_password(NULL, password, lifetime) < 0)
+        if (vnc_display_password(NULL, password, lifetime) < 0) {
             qemu_error_new(QERR_SET_PASSWD_FAILED);
+            return -1;
+        }
 
     } else {
         qemu_error_new(QERR_INVALID_PARAMETER, "protocol");
+        return -1;
     }
+
+    return 0;
 }
 
 void mon_spice_migrate(Monitor *mon, const QDict *qdict, QObject **ret_data)

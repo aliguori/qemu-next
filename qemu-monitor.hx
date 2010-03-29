@@ -1100,7 +1100,7 @@ ETEXI
         .params     = "protocol password expiration action-if-connected",
         .help       = "set spice/vnc password",
 	.user_print = monitor_user_noop,
-        .mhandler.cmd_new = mon_set_password,
+        .cmd_new_ret = mon_set_password,
     },
 #endif
 
