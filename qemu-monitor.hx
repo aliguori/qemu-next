@@ -1116,7 +1116,7 @@ ETEXI
         .params     = "hostname port tls-port cert-subject",
         .help       = "send migration info to spice client",
 	.user_print = monitor_user_noop,
-        .mhandler.cmd_new = mon_spice_migrate,
+        .cmd_new_ret = mon_spice_migrate,
     },
 #endif
 

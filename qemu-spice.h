@@ -27,7 +27,7 @@ void qemu_spice_migrate_start(void);
 void qemu_spice_migrate_end(int completed);
 
 int mon_set_password(Monitor *mon, const QDict *qdict, QObject **ret_data);
-void mon_spice_migrate(Monitor *mon, const QDict *qdict, QObject **ret_data);
+int mon_spice_migrate(Monitor *mon, const QDict *qdict, QObject **ret_data);
 
 #else  /* CONFIG_SPICE */
 

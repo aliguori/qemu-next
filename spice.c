@@ -330,7 +330,7 @@ int mon_set_password(Monitor *mon, const QDict *qdict, QObject **ret_data)
     return 0;
 }
 
-void mon_spice_migrate(Monitor *mon, const QDict *qdict, QObject **ret_data)
+int mon_spice_migrate(Monitor *mon, const QDict *qdict, QObject **ret_data)
 {
     const char *hostname = qdict_get_str(qdict, "hostname");
     const char *subject  = qdict_get_try_str(qdict, "cert-subject");
@@ -339,11 +339,11 @@ void mon_spice_migrate(Monitor *mon, const QDict *qdict, QObject **ret_data)
 
     if (!s) {
         qemu_error_new(QERR_DEVICE_NOT_ACTIVE, "spice");
-        return;
+        return -1;
     }
 
-    spice_server_migrate_info(s, hostname, port, tls_port, subject);
-    return;
+    /* TODO: Convert to QError */
+    return spice_server_migrate_info(s, hostname, port, tls_port, subject);
 }
 
 static int add_renderer(const char *name, const char *value, void *opaque)
