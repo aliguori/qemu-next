@@ -1080,6 +1080,7 @@ static int do_block_set_passwd(Monitor *mon, const QDict *qdict,
                                 QObject **ret_data)
 {
     BlockDriverState *bs;
+    int err;
 
     bs = bdrv_find(qdict_get_str(qdict, "device"));
     if (!bs) {
@@ -1087,7 +1088,11 @@ static int do_block_set_passwd(Monitor *mon, const QDict *qdict,
         return -1;
     }
 
-    if (bdrv_set_key(bs, qdict_get_str(qdict, "password")) < 0) {
+    err = bdrv_set_key(bs, qdict_get_str(qdict, "password"));
+    if (err == -EINVAL) {
+        qemu_error_new(QERR_DEVICE_NOT_ENCRYPTED, bdrv_get_device_name(bs));
+        return -1;
+    } else if (err < 0) {
         qemu_error_new(QERR_INVALID_PASSWORD);
         return -1;
     }
