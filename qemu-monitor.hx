@@ -120,7 +120,7 @@ ETEXI
         .params     = "",
         .help       = "quit the emulator",
         .user_print = monitor_user_noop,
-        .mhandler.cmd_new = do_quit,
+        .cmd_new_ret = do_quit,
     },
 
 STEXI
@@ -290,7 +290,7 @@ ETEXI
         .params     = "",
         .help       = "stop emulation",
         .user_print = monitor_user_noop,
-        .mhandler.cmd_new = do_stop,
+        .cmd_new_ret = do_stop,
     },
 
 STEXI
@@ -471,7 +471,7 @@ ETEXI
         .params     = "",
         .help       = "reset the system",
         .user_print = monitor_user_noop,
-        .mhandler.cmd_new = do_system_reset,
+        .cmd_new_ret = do_system_reset,
     },
 
 STEXI
@@ -486,7 +486,7 @@ ETEXI
         .params     = "",
         .help       = "send system power down event",
         .user_print = monitor_user_noop,
-        .mhandler.cmd_new = do_system_powerdown,
+        .cmd_new_ret = do_system_powerdown,
     },
 
 STEXI
@@ -751,7 +751,7 @@ ETEXI
         .params     = "",
         .help       = "cancel the current VM migration",
         .user_print = monitor_user_noop,
-        .mhandler.cmd_new = do_migrate_cancel,
+        .cmd_new_ret = do_migrate_cancel,
     },
 
 STEXI
@@ -765,7 +765,7 @@ ETEXI
         .params     = "value",
         .help       = "set maximum speed (in bytes) for migrations",
         .user_print = monitor_user_noop,
-        .mhandler.cmd_new = do_migrate_set_speed,
+        .cmd_new_ret = do_migrate_set_speed,
     },
 
 STEXI
@@ -779,7 +779,7 @@ ETEXI
         .params     = "value",
         .help       = "set maximum tolerated downtime (in seconds) for migrations",
         .user_print = monitor_user_noop,
-        .mhandler.cmd_new = do_migrate_set_downtime,
+        .cmd_new_ret = do_migrate_set_downtime,
     },
 
 STEXI
@@ -1085,7 +1085,7 @@ ETEXI
         .params     = "",
         .help       = "enable QMP capabilities",
         .user_print = monitor_user_noop,
-        .mhandler.cmd_new = do_qmp_capabilities,
+        .cmd_new_ret = do_qmp_capabilities,
     },
 
 STEXI
