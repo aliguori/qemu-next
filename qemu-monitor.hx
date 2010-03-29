@@ -148,7 +148,7 @@ ETEXI
         .params     = "device filename [format]",
         .help       = "change a removable medium, optional format",
         .user_print = monitor_user_noop,
-        .mhandler.cmd_new = do_change,
+        .cmd_new_ret = do_change,
     },
 
 STEXI
