@@ -829,7 +829,7 @@ ETEXI
         .params     = "[[<domain>:]<bus>:]<slot>",
         .help       = "hot remove PCI device",
         .user_print = monitor_user_noop,
-        .mhandler.cmd_new = do_pci_device_hot_remove,
+        .cmd_new_ret = do_pci_device_hot_remove,
     },
 #endif
 
