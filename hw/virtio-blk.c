@@ -338,10 +338,20 @@ static void virtio_blk_handle_output(VirtIODevice *vdev, VirtQueue *vq)
         .old_bs = NULL,
     };
 
+restart:
+    virtio_queue_set_notification(vq, 0);
+
     while ((req = virtio_blk_get_request(s))) {
         virtio_blk_handle_request(req, &mrb);
     }
 
+    virtio_queue_set_notification(vq, 1);
+
+    if ((req = virtio_blk_get_request(s))) {
+        virtio_blk_handle_request(req, &mrb);
+        goto restart;
+    }
+    
     if (mrb.num_writes > 0) {
         do_multiwrite(mrb.old_bs, mrb.blkreq, mrb.num_writes);
     }
