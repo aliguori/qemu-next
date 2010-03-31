@@ -428,10 +428,10 @@ void monitor_protocol_event(MonitorEvent event, QObject *data)
             event_name = "VNC_DISCONNECTED";
             break;
         case QEVENT_SPICE_INITIALIZED:
-            event_name = "SPICE_INITIALIZED";
+            event_name = RFQDN_REDHAT "SPICE_INITIALIZED";
             break;
         case QEVENT_SPICE_DISCONNECTED:
-            event_name = "SPICE_DISCONNECTED";
+            event_name = RFQDN_REDHAT "SPICE_DISCONNECTED";
             break;
         case QEVENT_BLOCK_IO_ERROR:
             event_name = "BLOCK_IO_ERROR";
