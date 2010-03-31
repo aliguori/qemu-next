@@ -482,6 +482,10 @@ int qemu_config_parse(FILE *fp, const char *fname)
         error_report("parse error");
         goto out;
     }
+    if (ferror(fp)) {
+        error_report("error reading file");
+        goto out;
+    }
     res = 0;
 out:
     loc_pop(&loc);
