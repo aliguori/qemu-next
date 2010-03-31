@@ -409,7 +409,7 @@ int net_init_tap(QemuOpts *opts, Monitor *mon, const char *name, VLANState *vlan
             qemu_opt_get(opts, "script") ||
             qemu_opt_get(opts, "downscript") ||
             qemu_opt_get(opts, "vnet_hdr")) {
-            qemu_error("ifname=, script=, downscript= and vnet_hdr= is invalid with fd=\n");
+            error_report("ifname=, script=, downscript= and vnet_hdr= is invalid with fd=");
             return -1;
         }
 
@@ -478,11 +478,11 @@ int net_init_tap(QemuOpts *opts, Monitor *mon, const char *name, VLANState *vlan
         }
         s->vhost_net = vhost_net_init(&s->nc, vhostfd);
         if (!s->vhost_net) {
-            qemu_error("vhost-net requested but could not be initialized\n");
+            error_report("vhost-net requested but could not be initialized");
             return -1;
         }
     } else if (qemu_opt_get(opts, "vhostfd")) {
-        qemu_error("vhostfd= is not valid without vhost\n");
+        error_report("vhostfd= is not valid without vhost");
         return -1;
     }
 
