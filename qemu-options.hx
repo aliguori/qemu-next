@@ -404,7 +404,19 @@ Network adapter that supports CDC ethernet and RNDIS protocols.
 ETEXI
 
 DEF("device", HAS_ARG, QEMU_OPTION_device,
-    "-device driver[,options]  add device\n")
+    "-device driver[,prop[=value][,...]]\n"
+    "                add device (based on driver)\n"
+    "                prop=value,... sets driver properties\n"
+    "                use -device ? to print all possible drivers\n"
+    "                use -device driver,? to print all possible properties\n")
+STEXI
+@item -device @var{driver}[,@var{prop}[=@var{value}][,...]]
+Add device @var{driver}.  @var{prop}=@var{value} sets driver
+properties.  Valid properties depend on the driver.  To get help on
+possible drivers and properties, use @code{-device ?} and
+@code{-device @var{driver},?}.
+ETEXI
+
 DEF("name", HAS_ARG, QEMU_OPTION_name,
     "-name string1[,process=string2]    set the name of the guest\n"
     "            string1 sets the window title and string2 the process name (on Linux)\n")
