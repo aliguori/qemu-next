@@ -4017,8 +4017,6 @@ static void handle_user_command(Monitor *mon, const char *cmdline)
     if (!cmd)
         goto out;
 
-    qemu_errors_to_mon(mon);
-
     if (monitor_handler_is_async(cmd)) {
         user_async_cmd_handler(mon, cmd, qdict);
     } else if (monitor_handler_ported(cmd)) {
@@ -4029,8 +4027,6 @@ static void handle_user_command(Monitor *mon, const char *cmdline)
 
     if (monitor_has_error(mon))
         monitor_print_error(mon);
-
-    qemu_errors_to_previous();
 
 out:
     QDECREF(qdict);
@@ -4433,7 +4429,6 @@ static void handle_qmp_command(JSONMessageParser *parser, QList *tokens)
     const char *cmd_name, *info_item;
 
     args = NULL;
-    qemu_errors_to_mon(mon);
 
     obj = json_parser_parse(tokens, NULL);
     if (!obj) {
@@ -4514,7 +4509,6 @@ err_out:
     monitor_protocol_emitter(mon, NULL);
 out:
     QDECREF(args);
-    qemu_errors_to_previous();
 }
 
 /**
