@@ -31,9 +31,9 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include "qemu-kvm.h"
+#include "qemu-error.h"
 #include "hw.h"
 #include "pc.h"
-#include "sysemu.h"
 #include "console.h"
 #include "device-assignment.h"
 #include "loader.h"
