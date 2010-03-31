@@ -19,11 +19,10 @@
 
 extern int kvm_allowed;
 
-#ifdef CONFIG_KVM
-#define kvm_enabled() (kvm_allowed)
-#else
-#define kvm_enabled() (0)
-#endif
+static inline int kvm_enabled(void)
+{
+    return kvm_allowed;
+}
 
 struct kvm_run;
 
