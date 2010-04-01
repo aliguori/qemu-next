@@ -161,5 +161,10 @@ static inline void cpu_synchronize_post_init(CPUState *env)
         kvm_cpu_synchronize_post_init(env);
     }
 }
+
+void kvm_ioeventfd_assign_byte_match(int fd, uint64_t addr, uint8_t value);
+
+void kvm_ioeventfd_unassign_byte_match(int fd, uint64_t addr, uint8_t value);
+
 #endif
 #endif

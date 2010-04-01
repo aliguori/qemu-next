@@ -14,6 +14,7 @@
  */
 
 #include <inttypes.h>
+#include <sys/eventfd.h>
 
 #include "virtio.h"
 #include "virtio-blk.h"
@@ -91,6 +92,13 @@
 
 /* PCI bindings.  */
 
+typedef struct IOEventFdNotifier
+{
+    VirtIODevice *vdev;
+    int num;
+    int fd;
+} IOEventfdNotifier;
+
 typedef struct {
     PCIDevice pci_dev;
     VirtIODevice *vdev;
@@ -103,6 +111,7 @@ typedef struct {
     uint32_t host_features;
     /* Max. number of ports we can have for a the virtio-serial device */
     uint32_t max_virtserial_ports;
+    int vq_notifier[VIRTIO_PCI_QUEUE_MAX];
 } VirtIOPCIProxy;
 
 /* virtio device */
@@ -183,6 +192,39 @@ static void virtio_pci_reset(DeviceState *d)
     proxy->bugs = 0;
 }
 
+static void virtio_ioeventfd_notify(void *opaque)
+{
+    IOEventFdNotifier *notifier = opaque;
+    virtio_queue_notify(notifier->vdev, notifier->num);
+}
+
+static void virtio_setup_ioeventfd(VirtIOPCIProxy *proxy)
+{
+    int i;
+
+    for (i = 0; i < VIRTIO_PCI_QUEUE_MAX; i++) {
+        IOEventFdNotifier *notifier;
+
+        if (!virtio_queue_is_valid(proxy->vdev, i)) {
+            break;
+        }
+
+        notifier = &proxy->ioeventfd_notifier[i];
+
+        notifier->fd = eventfd(0, 0);
+        notifier->vdev = proxy->vdev;
+        notifier->num = i;
+
+        kvm_ioeventfd_assign_byte_match(notifier->fd,
+                                        proxy->addr + VIRTIO_PCI_QUEUE_NOTIFY,
+                                        notifier->num);
+
+        qemu_set_fd_handler(notifier->fd,
+                            virtio_ioeventfd_notify,
+                            NULL, notifier);
+    }
+}
+
 static void virtio_ioport_write(void *opaque, uint32_t addr, uint32_t val)
 {
     VirtIOPCIProxy *proxy = opaque;
@@ -231,6 +273,12 @@ static void virtio_ioport_write(void *opaque, uint32_t addr, uint32_t val)
         if ((val & VIRTIO_CONFIG_S_DRIVER_OK) &&
             !(proxy->pci_dev.config[PCI_COMMAND] & PCI_COMMAND_MASTER)) {
             proxy->bugs |= VIRTIO_PCI_BUG_BUS_MASTER;
+        }
+        if ((val & VIRTIO_CONFIG_S_DRIVER_OK) &&
+            (vdev->guest_features & (1 << VIRTIO_RING_F_MASK_ON_NOTIFY))) {
+            if (kvm_enabled()) {
+                virtio_setup_ioeventfd(proxy);
+            }
         }
         break;
     case VIRTIO_MSI_CONFIG_VECTOR:

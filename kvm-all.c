@@ -1151,3 +1151,20 @@ int kvm_set_signal_mask(CPUState *env, const sigset_t *sigset)
 
     return r;
 }
+
+void kvm_ioeventfd_assign_pio_byte_match(int fd, uint64_t addr, uint8_t value)
+{
+    struct kvm_ioeventfd e = {
+        .datamatch = value,
+        .addr = addr,
+        .len = 1,
+        .fd = fd,
+        .flags = KVM_IOEVENTFD_FLAG_PIO | KVM_IOEVENTFD_FLAG_DATAMATCH,
+    };
+
+    kvm_ioctl(env, KVM_IOEVENTFD, &e);
+}
+
+void kvm_ioeventfd_unassign_pio_byte_match(int fd, uint64_t addr, uint8_t value)
+{
+}
