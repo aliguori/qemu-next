@@ -42,6 +42,7 @@
 #define VIRTIO_F_NOTIFY_ON_EMPTY        24
 /* We support indirect buffer descriptors */
 #define VIRTIO_RING_F_INDIRECT_DESC     28
+#define VIRTIO_RING_F_MASK_ON_NOTIFY    29
 /* A guest should never accept this.  It implies negotiation is broken. */
 #define VIRTIO_F_BAD_FEATURE		30
 
@@ -177,9 +178,11 @@ VirtIODevice *virtio_balloon_init(DeviceState *dev);
 
 void virtio_net_exit(VirtIODevice *vdev);
 
-#define DEFINE_VIRTIO_COMMON_FEATURES(_state, _field) \
-	DEFINE_PROP_BIT("indirect_desc", _state, _field, \
-			VIRTIO_RING_F_INDIRECT_DESC, true)
+#define DEFINE_VIRTIO_COMMON_FEATURES(_state, _field)       \
+	DEFINE_PROP_BIT("indirect_desc", _state, _field,    \
+			VIRTIO_RING_F_INDIRECT_DESC, true), \
+	DEFINE_PROP_BIT("mask_on_notify", _state, _field,   \
+			VIRTIO_RING_F_MASK_ON_NOTIFY, true)
 
 
 #endif

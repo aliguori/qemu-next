@@ -557,6 +557,7 @@ int virtio_queue_get_num(VirtIODevice *vdev, int n)
 void virtio_queue_notify(VirtIODevice *vdev, int n)
 {
     if (n < VIRTIO_PCI_QUEUE_MAX && vdev->vq[n].vring.desc) {
+        virtio_queue_set_notification(&vdev->vq[n], 1);
         vdev->vq[n].handle_output(vdev, &vdev->vq[n]);
     }
 }
