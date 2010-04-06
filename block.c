@@ -1731,7 +1731,7 @@ static void multiwrite_cb(void *opaque, int ret)
 {
     MultiwriteCB *mcb = opaque;
 
-    if (ret < 0) {
+    if (ret < 0 && !mcb->error) {
         mcb->error = ret;
         multiwrite_user_cb(mcb);
     }
