@@ -745,22 +745,22 @@ void virtio_bind_device(VirtIODevice *vdev, const VirtIOBindings *binding,
     vdev->binding_opaque = opaque;
 }
 
-target_phys_addr_t virtio_queue_get_desc(VirtIODevice *vdev, int n)
+target_phys_addr_t virtio_queue_get_desc_addr(VirtIODevice *vdev, int n)
 {
     return vdev->vq[n].vring.desc;
 }
 
-target_phys_addr_t virtio_queue_get_avail(VirtIODevice *vdev, int n)
+target_phys_addr_t virtio_queue_get_avail_addr(VirtIODevice *vdev, int n)
 {
     return vdev->vq[n].vring.avail;
 }
 
-target_phys_addr_t virtio_queue_get_used(VirtIODevice *vdev, int n)
+target_phys_addr_t virtio_queue_get_used_addr(VirtIODevice *vdev, int n)
 {
     return vdev->vq[n].vring.used;
 }
 
-target_phys_addr_t virtio_queue_get_ring(VirtIODevice *vdev, int n)
+target_phys_addr_t virtio_queue_get_ring_addr(VirtIODevice *vdev, int n)
 {
     return vdev->vq[n].vring.desc;
 }
@@ -782,14 +782,13 @@ target_phys_addr_t virtio_queue_get_used_size(VirtIODevice *vdev, int n)
         sizeof(VRingUsedElem) * vdev->vq[n].vring.num;
 }
 
-
 target_phys_addr_t virtio_queue_get_ring_size(VirtIODevice *vdev, int n)
 {
     return vdev->vq[n].vring.used - vdev->vq[n].vring.desc +
 	    virtio_queue_get_used_size(vdev, n);
 }
 
-uint16_t virtio_queue_last_avail_idx(VirtIODevice *vdev, int n)
+uint16_t virtio_queue_get_last_avail_idx(VirtIODevice *vdev, int n)
 {
     return vdev->vq[n].last_avail_idx;
 }
@@ -799,16 +798,16 @@ void virtio_queue_set_last_avail_idx(VirtIODevice *vdev, int n, uint16_t idx)
     vdev->vq[n].last_avail_idx = idx;
 }
 
-VirtQueue *virtio_queue(VirtIODevice *vdev, int n)
+VirtQueue *virtio_get_queue(VirtIODevice *vdev, int n)
 {
     return vdev->vq + n;
 }
 
-EventNotifier *virtio_queue_guest_notifier(VirtQueue *vq)
+EventNotifier *virtio_queue_get_guest_notifier(VirtQueue *vq)
 {
     return &vq->guest_notifier;
 }
-EventNotifier *virtio_queue_host_notifier(VirtQueue *vq)
+EventNotifier *virtio_queue_get_host_notifier(VirtQueue *vq)
 {
     return &vq->host_notifier;
 }

@@ -454,7 +454,7 @@ static int vhost_virtqueue_init(struct vhost_dev *dev,
     struct vhost_vring_state state = {
         .index = idx,
     };
-    struct VirtQueue *q = virtio_queue(vdev, idx);
+    struct VirtQueue *q = virtio_get_queue(vdev, idx);
 
     vq->num = state.num = virtio_queue_get_num(vdev, idx);
     r = ioctl(dev->control, VHOST_SET_VRING_NUM, &state);
@@ -462,28 +462,28 @@ static int vhost_virtqueue_init(struct vhost_dev *dev,
         return -errno;
     }
 
-    state.num = virtio_queue_last_avail_idx(vdev, idx);
+    state.num = virtio_queue_get_last_avail_idx(vdev, idx);
     r = ioctl(dev->control, VHOST_SET_VRING_BASE, &state);
     if (r) {
         return -errno;
     }
 
     s = l = virtio_queue_get_desc_size(vdev, idx);
-    a = virtio_queue_get_desc(vdev, idx);
+    a = virtio_queue_get_desc_addr(vdev, idx);
     vq->desc = cpu_physical_memory_map(a, &l, 0);
     if (!vq->desc || l != s) {
         r = -ENOMEM;
         goto fail_alloc_desc;
     }
     s = l = virtio_queue_get_avail_size(vdev, idx);
-    a = virtio_queue_get_avail(vdev, idx);
+    a = virtio_queue_get_avail_addr(vdev, idx);
     vq->avail = cpu_physical_memory_map(a, &l, 0);
     if (!vq->avail || l != s) {
         r = -ENOMEM;
         goto fail_alloc_avail;
     }
     vq->used_size = s = l = virtio_queue_get_used_size(vdev, idx);
-    vq->used_phys = a = virtio_queue_get_used(vdev, idx);
+    vq->used_phys = a = virtio_queue_get_used_addr(vdev, idx);
     vq->used = cpu_physical_memory_map(a, &l, 1);
     if (!vq->used || l != s) {
         r = -ENOMEM;
@@ -491,7 +491,7 @@ static int vhost_virtqueue_init(struct vhost_dev *dev,
     }
 
     vq->ring_size = s = l = virtio_queue_get_ring_size(vdev, idx);
-    vq->ring_phys = a = virtio_queue_get_ring(vdev, idx);
+    vq->ring_phys = a = virtio_queue_get_ring_addr(vdev, idx);
     vq->ring = cpu_physical_memory_map(a, &l, 1);
     if (!vq->ring || l != s) {
         r = -ENOMEM;
@@ -503,30 +503,30 @@ static int vhost_virtqueue_init(struct vhost_dev *dev,
         r = -errno;
         goto fail_alloc;
     }
-    if (!vdev->binding->guest_notifier || !vdev->binding->host_notifier) {
+    if (!vdev->binding->set_guest_notifier || !vdev->binding->set_host_notifier) {
         fprintf(stderr, "binding does not support irqfd/queuefd\n");
         r = -ENOSYS;
         goto fail_alloc;
     }
-    r = vdev->binding->guest_notifier(vdev->binding_opaque, idx, true);
+    r = vdev->binding->set_guest_notifier(vdev->binding_opaque, idx, true);
     if (r < 0) {
         fprintf(stderr, "Error binding guest notifier: %d\n", -r);
         goto fail_guest_notifier;
     }
 
-    r = vdev->binding->host_notifier(vdev->binding_opaque, idx, true);
+    r = vdev->binding->set_host_notifier(vdev->binding_opaque, idx, true);
     if (r < 0) {
         fprintf(stderr, "Error binding host notifier: %d\n", -r);
         goto fail_host_notifier;
     }
 
-    file.fd = event_notifier_get_fd(virtio_queue_host_notifier(q));
+    file.fd = event_notifier_get_fd(virtio_queue_get_host_notifier(q));
     r = ioctl(dev->control, VHOST_SET_VRING_KICK, &file);
     if (r) {
         goto fail_kick;
     }
 
-    file.fd = event_notifier_get_fd(virtio_queue_guest_notifier(q));
+    file.fd = event_notifier_get_fd(virtio_queue_get_guest_notifier(q));
     r = ioctl(dev->control, VHOST_SET_VRING_CALL, &file);
     if (r) {
         goto fail_call;
@@ -536,9 +536,9 @@ static int vhost_virtqueue_init(struct vhost_dev *dev,
 
 fail_call:
 fail_kick:
-    vdev->binding->host_notifier(vdev->binding_opaque, idx, false);
+    vdev->binding->set_host_notifier(vdev->binding_opaque, idx, false);
 fail_host_notifier:
-    vdev->binding->guest_notifier(vdev->binding_opaque, idx, false);
+    vdev->binding->set_guest_notifier(vdev->binding_opaque, idx, false);
 fail_guest_notifier:
 fail_alloc:
     cpu_physical_memory_unmap(vq->ring, virtio_queue_get_ring_size(vdev, idx),
@@ -565,14 +565,14 @@ static void vhost_virtqueue_cleanup(struct vhost_dev *dev,
         .index = idx,
     };
     int r;
-    r = vdev->binding->guest_notifier(vdev->binding_opaque, idx, false);
+    r = vdev->binding->set_guest_notifier(vdev->binding_opaque, idx, false);
     if (r < 0) {
         fprintf(stderr, "vhost VQ %d guest cleanup failed: %d\n", idx, r);
         fflush(stderr);
     }
     assert (r >= 0);
 
-    r = vdev->binding->host_notifier(vdev->binding_opaque, idx, false);
+    r = vdev->binding->set_host_notifier(vdev->binding_opaque, idx, false);
     if (r < 0) {
         fprintf(stderr, "vhost VQ %d host cleanup failed: %d\n", idx, r);
         fflush(stderr);

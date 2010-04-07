@@ -89,8 +89,8 @@ typedef struct {
     int (*load_config)(void * opaque, QEMUFile *f);
     int (*load_queue)(void * opaque, int n, QEMUFile *f);
     unsigned (*get_features)(void * opaque);
-    int (*guest_notifier)(void * opaque, int n, bool assigned);
-    int (*host_notifier)(void * opaque, int n, bool assigned);
+    int (*set_guest_notifier)(void * opaque, int n, bool assigned);
+    int (*set_host_notifier)(void * opaque, int n, bool assigned);
 } VirtIOBindings;
 
 #define VIRTIO_PCI_QUEUE_MAX 64
@@ -192,18 +192,18 @@ void virtio_net_exit(VirtIODevice *vdev);
 	DEFINE_PROP_BIT("indirect_desc", _state, _field, \
 			VIRTIO_RING_F_INDIRECT_DESC, true)
 
-target_phys_addr_t virtio_queue_get_desc(VirtIODevice *vdev, int n);
-target_phys_addr_t virtio_queue_get_avail(VirtIODevice *vdev, int n);
-target_phys_addr_t virtio_queue_get_used(VirtIODevice *vdev, int n);
-target_phys_addr_t virtio_queue_get_ring(VirtIODevice *vdev, int n);
+target_phys_addr_t virtio_queue_get_desc_addr(VirtIODevice *vdev, int n);
+target_phys_addr_t virtio_queue_get_avail_addr(VirtIODevice *vdev, int n);
+target_phys_addr_t virtio_queue_get_used_addr(VirtIODevice *vdev, int n);
+target_phys_addr_t virtio_queue_get_ring_addr(VirtIODevice *vdev, int n);
 target_phys_addr_t virtio_queue_get_desc_size(VirtIODevice *vdev, int n);
 target_phys_addr_t virtio_queue_get_avail_size(VirtIODevice *vdev, int n);
 target_phys_addr_t virtio_queue_get_used_size(VirtIODevice *vdev, int n);
 target_phys_addr_t virtio_queue_get_ring_size(VirtIODevice *vdev, int n);
-uint16_t virtio_queue_last_avail_idx(VirtIODevice *vdev, int n);
+uint16_t virtio_queue_get_last_avail_idx(VirtIODevice *vdev, int n);
 void virtio_queue_set_last_avail_idx(VirtIODevice *vdev, int n, uint16_t idx);
-VirtQueue *virtio_queue(VirtIODevice *vdev, int n);
-EventNotifier *virtio_queue_guest_notifier(VirtQueue *vq);
-EventNotifier *virtio_queue_host_notifier(VirtQueue *vq);
+VirtQueue *virtio_get_queue(VirtIODevice *vdev, int n);
+EventNotifier *virtio_queue_get_guest_notifier(VirtQueue *vq);
+EventNotifier *virtio_queue_get_host_notifier(VirtQueue *vq);
 void virtio_irq(VirtQueue *vq);
 #endif

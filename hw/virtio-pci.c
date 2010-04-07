@@ -396,7 +396,7 @@ static unsigned virtio_pci_get_features(void *opaque)
 static void virtio_pci_guest_notifier_read(void *opaque)
 {
     VirtQueue *vq = opaque;
-    EventNotifier *n = virtio_queue_guest_notifier(vq);
+    EventNotifier *n = virtio_queue_get_guest_notifier(vq);
     if (event_notifier_test_and_clear(n)) {
         virtio_irq(vq);
     }
@@ -406,7 +406,7 @@ static int virtio_pci_mask_notifier(PCIDevice *dev, unsigned vector,
                                     void *opaque, int masked)
 {
     VirtQueue *vq = opaque;
-    EventNotifier *notifier = virtio_queue_guest_notifier(vq);
+    EventNotifier *notifier = virtio_queue_get_guest_notifier(vq);
     int r = kvm_set_irqfd(dev->msix_irq_entries[vector].gsi,
                           event_notifier_get_fd(notifier),
                           !masked);
@@ -423,11 +423,11 @@ static int virtio_pci_mask_notifier(PCIDevice *dev, unsigned vector,
     return 0;
 }
 
-static int virtio_pci_guest_notifier(void *opaque, int n, bool assign)
+static int virtio_pci_set_guest_notifier(void *opaque, int n, bool assign)
 {
     VirtIOPCIProxy *proxy = opaque;
-    VirtQueue *vq = virtio_queue(proxy->vdev, n);
-    EventNotifier *notifier = virtio_queue_guest_notifier(vq);
+    VirtQueue *vq = virtio_get_queue(proxy->vdev, n);
+    EventNotifier *notifier = virtio_queue_get_guest_notifier(vq);
 
     if (assign) {
         int r = event_notifier_init(notifier, 0);
@@ -448,11 +448,11 @@ static int virtio_pci_guest_notifier(void *opaque, int n, bool assign)
     return 0;
 }
 
-static int virtio_pci_host_notifier(void *opaque, int n, bool assign)
+static int virtio_pci_set_host_notifier(void *opaque, int n, bool assign)
 {
     VirtIOPCIProxy *proxy = opaque;
-    VirtQueue *vq = virtio_queue(proxy->vdev, n);
-    EventNotifier *notifier = virtio_queue_host_notifier(vq);
+    VirtQueue *vq = virtio_get_queue(proxy->vdev, n);
+    EventNotifier *notifier = virtio_queue_get_host_notifier(vq);
     int r;
     if (assign) {
         r = event_notifier_init(notifier, 1);
@@ -484,8 +484,8 @@ static const VirtIOBindings virtio_pci_bindings = {
     .save_queue = virtio_pci_save_queue,
     .load_queue = virtio_pci_load_queue,
     .get_features = virtio_pci_get_features,
-    .host_notifier = virtio_pci_host_notifier,
-    .guest_notifier = virtio_pci_guest_notifier,
+    .set_host_notifier = virtio_pci_set_host_notifier,
+    .set_guest_notifier = virtio_pci_set_guest_notifier,
 };
 
 static void virtio_init_pci(VirtIOPCIProxy *proxy, VirtIODevice *vdev,
