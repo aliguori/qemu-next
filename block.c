@@ -605,6 +605,12 @@ int bdrv_commit(BlockDriverState *bs)
     if (drv->bdrv_make_empty)
 	return drv->bdrv_make_empty(bs);
 
+    /*
+     * Make sure all data we wrote to the backing device is actually
+     * stable on disk.
+     */
+    if (bs->backing_hd)
+        bdrv_flush(bs->backing_hd);
     return 0;
 }
 
@@ -1124,12 +1130,8 @@ const char *bdrv_get_device_name(BlockDriverState *bs)
 
 void bdrv_flush(BlockDriverState *bs)
 {
-    if (!bs->drv)
-        return;
-    if (bs->drv->bdrv_flush)
+    if (bs->drv && bs->drv->bdrv_flush)
         bs->drv->bdrv_flush(bs);
-    if (bs->backing_hd)
-        bdrv_flush(bs->backing_hd);
 }
 
 void bdrv_flush_all(void)
@@ -1836,11 +1838,6 @@ BlockDriverAIOCB *bdrv_aio_flush(BlockDriverState *bs,
 
     if (!drv)
         return NULL;
-
-    /*
-     * Note that unlike bdrv_flush the driver is reponsible for flushing a
-     * backing image if it exists.
-     */
     return drv->bdrv_aio_flush(bs, cb, opaque);
 }
 
