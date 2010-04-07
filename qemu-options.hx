@@ -104,7 +104,7 @@ DEF("drive", HAS_ARG, QEMU_OPTION_drive,
     "       [,cyls=c,heads=h,secs=s[,trans=t]][,snapshot=on|off]\n"
     "       [,cache=writethrough|writeback|none][,format=f][,serial=s]\n"
     "       [,addr=A][,id=name][,aio=threads|native]\n"
-    "       [,boot=on|off]\n"
+    "       [,boot=on|off][,readonly=on|off]\n"
     "                use 'file' as a drive image\n")
 DEF("set", HAS_ARG, QEMU_OPTION_set,
     "-set group.id.arg=value\n"
