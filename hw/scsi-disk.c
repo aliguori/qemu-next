@@ -590,8 +590,7 @@ static int scsi_disk_emulate_mode_sense(SCSIRequest *req, uint8_t *outbuf)
 
     p[1] = 0; /* Default media type.  */
     p[3] = 0; /* Block descriptor length.  */
-    if (bdrv_get_type_hint(bdrv) == BDRV_TYPE_CDROM ||
-        bdrv_is_read_only(bdrv)) {
+    if (bdrv_is_read_only(bdrv)) {
         p[2] = 0x80; /* Readonly.  */
     }
     p += 4;
