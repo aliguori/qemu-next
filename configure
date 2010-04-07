@@ -51,7 +51,6 @@ libs_softmmu=""
 libs_tools=""
 audio_pt_int=""
 audio_win_int=""
-audio_win_int=""
 
 # parse CC options first
 for opt do
@@ -816,6 +815,8 @@ echo "  --disable-spice          disable spice"
 echo "  --enable-spice           enable spice"
 echo "  --with-kvm-trace         enable building the KVM module with the kvm trace option"
 echo "  --disable-cpu-emulation  disables use of qemu cpu emulation code"
+echo "  --disable-vhost-net      disable vhost-net acceleration support"
+echo "  --enable-vhost-net       enable vhost-net acceleration support"
 echo ""
 echo "NOTE: The object files are built at the place where configure is launched"
 exit 1
@@ -1565,13 +1566,13 @@ EOF
             if compile_prog "$kvm_cflags" "" ; then
                 vhost_net=yes
             else
-                if "$vhost_net" == "yes" ; then
+                if test "$vhost_net" = "yes" ; then
                     feature_not_found "vhost-net"
                 fi
                 vhost_net=no
             fi
     else
-            if "$vhost_net" == "yes" ; then
+            if test "$vhost_net" = "yes" ; then
                 echo -e "NOTE: vhost-net feature requires KVM (--enable-kvm)."
                 feature_not_found "vhost-net"
             fi
