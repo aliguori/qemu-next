@@ -454,7 +454,17 @@ static int vhost_virtqueue_init(struct vhost_dev *dev,
     struct vhost_vring_state state = {
         .index = idx,
     };
-    struct VirtQueue *q = virtio_get_queue(vdev, idx);
+    struct VirtQueue *vvq = virtio_get_queue(vdev, idx);
+
+    if (!vdev->binding->set_guest_notifier) {
+        fprintf(stderr, "binding does not support guest notifiers\n");
+        return -ENOSYS;
+    }
+
+    if (!vdev->binding->set_host_notifier) {
+        fprintf(stderr, "binding does not support host notifiers\n");
+        return -ENOSYS;
+    }
 
     vq->num = state.num = virtio_queue_get_num(vdev, idx);
     r = ioctl(dev->control, VHOST_SET_VRING_NUM, &state);
@@ -503,11 +513,6 @@ static int vhost_virtqueue_init(struct vhost_dev *dev,
         r = -errno;
         goto fail_alloc;
     }
-    if (!vdev->binding->set_guest_notifier || !vdev->binding->set_host_notifier) {
-        fprintf(stderr, "binding does not support irqfd/queuefd\n");
-        r = -ENOSYS;
-        goto fail_alloc;
-    }
     r = vdev->binding->set_guest_notifier(vdev->binding_opaque, idx, true);
     if (r < 0) {
         fprintf(stderr, "Error binding guest notifier: %d\n", -r);
@@ -520,13 +525,13 @@ static int vhost_virtqueue_init(struct vhost_dev *dev,
         goto fail_host_notifier;
     }
 
-    file.fd = event_notifier_get_fd(virtio_queue_get_host_notifier(q));
+    file.fd = event_notifier_get_fd(virtio_queue_get_host_notifier(vvq));
     r = ioctl(dev->control, VHOST_SET_VRING_KICK, &file);
     if (r) {
         goto fail_kick;
     }
 
-    file.fd = event_notifier_get_fd(virtio_queue_get_guest_notifier(q));
+    file.fd = event_notifier_get_fd(virtio_queue_get_guest_notifier(vvq));
     r = ioctl(dev->control, VHOST_SET_VRING_CALL, &file);
     if (r) {
         goto fail_call;
