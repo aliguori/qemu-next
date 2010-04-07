@@ -1002,13 +1002,6 @@ int bdrv_is_read_only(BlockDriverState *bs)
     return bs->read_only;
 }
 
-int bdrv_set_read_only(BlockDriverState *bs, int read_only)
-{
-    int ret = bs->read_only;
-    bs->read_only = read_only;
-    return ret;
-}
-
 int bdrv_is_sg(BlockDriverState *bs)
 {
     return bs->sg;
