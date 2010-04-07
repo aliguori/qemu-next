@@ -431,8 +431,9 @@ static int virtio_pci_set_guest_notifier(void *opaque, int n, bool assign)
 
     if (assign) {
         int r = event_notifier_init(notifier, 0);
-	if (r < 0)
-		return r;
+        if (r < 0) {
+            return r;
+        }
         qemu_set_fd_handler(event_notifier_get_fd(notifier),
                             virtio_pci_guest_notifier_read, NULL, vq);
         msix_set_mask_notifier(&proxy->pci_dev,
@@ -679,9 +680,9 @@ static PCIDeviceInfo virtio_info[] = {
             DEFINE_PROP_UINT32("vectors", VirtIOPCIProxy, nvectors,
                                DEV_NVECTORS_UNSPECIFIED),
             DEFINE_PROP_HEX32("class", VirtIOPCIProxy, class_code, 0),
+            DEFINE_VIRTIO_COMMON_FEATURES(VirtIOPCIProxy, host_features),
             DEFINE_PROP_UINT32("max_ports", VirtIOPCIProxy, max_virtserial_ports,
                                31),
-            DEFINE_VIRTIO_COMMON_FEATURES(VirtIOPCIProxy, host_features),
             DEFINE_PROP_END_OF_LIST(),
         },
         .qdev.reset = virtio_pci_reset,
