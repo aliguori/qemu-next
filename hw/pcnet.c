@@ -1991,6 +1991,9 @@ static int pci_pcnet_init(PCIDevice *pci_dev)
     *(uint32_t *)&pci_conf[0x10] = cpu_to_le32(0x00000001);
     *(uint32_t *)&pci_conf[0x14] = cpu_to_le32(0x00000000);
 
+    *(uint16_t *)&pci_conf[0x2c] = 0x0;
+    *(uint16_t *)&pci_conf[0x2e] = 0x0;
+
     pci_conf[0x3d] = 1; // interrupt pin 0
     pci_conf[0x3e] = 0x06;
     pci_conf[0x3f] = 0xff;
