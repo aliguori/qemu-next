@@ -11,7 +11,7 @@
  */
 
 #include "hw.h"
-#include "notifier.h"
+#include "event_notifier.h"
 #ifdef CONFIG_EVENTFD
 #include <sys/eventfd.h>
 #endif

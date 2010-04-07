@@ -19,7 +19,7 @@
 #include "qdev.h"
 #include "sysemu.h"
 #include "block_int.h"
-#include "notifier.h"
+#include "event_notifier.h"
 
 /* from Linux's linux/virtio_config.h */
 
