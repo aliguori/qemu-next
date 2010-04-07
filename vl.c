@@ -2569,7 +2569,7 @@ int qemu_boot_set(const char *boot_devices)
     return boot_set_handler(boot_set_opaque, boot_devices);
 }
 
-static int parse_bootdevices(char *devices)
+static void validate_bootdevices(char *devices)
 {
     /* We just do some generic consistency checks */
     const char *p;
@@ -2595,7 +2595,6 @@ static int parse_bootdevices(char *devices)
         }
         bitmap |= 1 << (*p - 'a');
     }
-    return bitmap;
 }
 
 static void restore_boot_devices(void *opaque)
@@ -5018,7 +5017,6 @@ static const QEMUOption *lookup_opt(int argc, char **argv,
 int main(int argc, char **argv, char **envp)
 {
     const char *gdbstub_dev = NULL;
-    uint32_t boot_devices_bitmap = 0;
     int i;
     int snapshot, linux_boot;
     const char *initrd_filename;
@@ -5331,13 +5329,13 @@ int main(int argc, char **argv, char **envp)
 
                     if (legacy ||
                         get_param_value(buf, sizeof(buf), "order", optarg)) {
-                        boot_devices_bitmap = parse_bootdevices(buf);
+                        validate_bootdevices(buf);
                         pstrcpy(boot_devices, sizeof(boot_devices), buf);
                     }
                     if (!legacy) {
                         if (get_param_value(buf, sizeof(buf),
                                             "once", optarg)) {
-                            boot_devices_bitmap |= parse_bootdevices(buf);
+                            validate_bootdevices(buf);
                             standard_boot_devices = qemu_strdup(boot_devices);
                             pstrcpy(boot_devices, sizeof(boot_devices), buf);
                             qemu_register_reset(restore_boot_devices,
