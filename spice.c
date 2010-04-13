@@ -21,6 +21,7 @@
 
 static SpiceServer *s;
 int using_spice = 0;
+static const char *auth = "spice";
 
 void qemu_spice_migrate_start(void)
 {
@@ -100,6 +101,7 @@ static void spice_qmp_event_initialized(void)
         if (getnameinfo((struct sockaddr*)&sa, salen,
                         addr, sizeof(addr), port, sizeof(port),
                         NI_NUMERICHOST | NI_NUMERICSERV) == 0) {
+            qdict_put(server, "auth", qstring_from_str(auth));
             qdict_put(server, "host", qstring_from_str(addr));
             qdict_put(server, "family", qstring_from_str(inet_strfamily(sa.ss_family)));
         }
@@ -481,8 +483,10 @@ void qemu_spice_init(void)
     }
     if (password)
         spice_server_set_ticket(s, password, 0, 0, 0);
-    if (qemu_opt_get_bool(opts, "disable-ticketing", 0))
+    if (qemu_opt_get_bool(opts, "disable-ticketing", 0)) {
         spice_server_set_noauth(s);
+        auth = "none";
+    }
 
     spice_server_set_image_compression(s, compression);
     qemu_opt_foreach(opts, add_channel, NULL, 0);
