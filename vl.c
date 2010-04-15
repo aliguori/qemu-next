@@ -2046,8 +2046,6 @@ QemuOpts *drive_add(const char *file, const char *fmt, ...)
 
     opts = qemu_opts_parse(&qemu_drive_opts, optstr, 0);
     if (!opts) {
-        fprintf(stderr, "%s: huh? duplicate? (%s)\n",
-                __FUNCTION__, optstr);
         return NULL;
     }
     if (file)
@@ -5550,7 +5548,6 @@ int main(int argc, char **argv, char **envp)
             case QEMU_OPTION_mon:
                 opts = qemu_opts_parse(&qemu_mon_opts, optarg, 1);
                 if (!opts) {
-                    fprintf(stderr, "parse error: %s\n", optarg);
                     exit(1);
                 }
                 default_monitor = 0;
@@ -5558,7 +5555,6 @@ int main(int argc, char **argv, char **envp)
             case QEMU_OPTION_chardev:
                 opts = qemu_opts_parse(&qemu_chardev_opts, optarg, 1);
                 if (!opts) {
-                    fprintf(stderr, "parse error: %s\n", optarg);
                     exit(1);
                 }
                 break;
@@ -5813,7 +5809,6 @@ int main(int argc, char **argv, char **envp)
             case QEMU_OPTION_rtc:
                 opts = qemu_opts_parse(&qemu_rtc_opts, optarg, 0);
                 if (!opts) {
-                    fprintf(stderr, "parse error: %s\n", optarg);
                     exit(1);
                 }
                 configure_rtc(opts);
