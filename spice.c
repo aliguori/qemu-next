@@ -292,7 +292,7 @@ int mon_set_password(Monitor *mon, const QDict *qdict, QObject **ret_data)
         } else if (strcmp(connected, "keep") == 0) {
             /* nothing */
         } else {
-            qemu_error_new(QERR_INVALID_PARAMETER, "connected");
+            qerror_report(QERR_INVALID_PARAMETER, "connected");
             return -1;
         }
     }
@@ -300,30 +300,30 @@ int mon_set_password(Monitor *mon, const QDict *qdict, QObject **ret_data)
     if (strcmp(protocol, "spice") == 0) {
         if (!s) {
             /* correct one? spice isn't a device ,,, */
-            qemu_error_new(QERR_DEVICE_NOT_ACTIVE, "spice");
+            qerror_report(QERR_DEVICE_NOT_ACTIVE, "spice");
             return -1;
         }
         rc = spice_server_set_ticket(s, password, lifetime,
                                      fail_if_connected,
                                      disconnect_if_connected);
         if (rc != 0) {
-            qemu_error_new(QERR_SET_PASSWD_FAILED);
+            qerror_report(QERR_SET_PASSWD_FAILED);
             return -1;
         }
 
     } else if (strcmp(protocol, "vnc") == 0) {
         if (fail_if_connected || disconnect_if_connected) {
             /* vnc supports "connected=keep" only */
-            qemu_error_new(QERR_INVALID_PARAMETER, "connected");
+            qerror_report(QERR_INVALID_PARAMETER, "connected");
             return -1;
         }
         if (vnc_display_password(NULL, password, lifetime) < 0) {
-            qemu_error_new(QERR_SET_PASSWD_FAILED);
+            qerror_report(QERR_SET_PASSWD_FAILED);
             return -1;
         }
 
     } else {
-        qemu_error_new(QERR_INVALID_PARAMETER, "protocol");
+        qerror_report(QERR_INVALID_PARAMETER, "protocol");
         return -1;
     }
 
@@ -338,7 +338,7 @@ int mon_spice_migrate(Monitor *mon, const QDict *qdict, QObject **ret_data)
     int tls_port         = qdict_get_try_int(qdict, "tls-port", -1);
 
     if (!s) {
-        qemu_error_new(QERR_DEVICE_NOT_ACTIVE, "spice");
+        qerror_report(QERR_DEVICE_NOT_ACTIVE, "spice");
         return -1;
     }
 
