@@ -2044,7 +2044,7 @@ QemuOpts *drive_add(const char *file, const char *fmt, ...)
     vsnprintf(optstr, sizeof(optstr), fmt, ap);
     va_end(ap);
 
-    opts = qemu_opts_parse(&qemu_drive_opts, optstr, NULL);
+    opts = qemu_opts_parse(&qemu_drive_opts, optstr, 0);
     if (!opts) {
         fprintf(stderr, "%s: huh? duplicate? (%s)\n",
                 __FUNCTION__, optstr);
@@ -4579,7 +4579,7 @@ static int balloon_parse(const char *arg)
     if (!strncmp(arg, "virtio", 6)) {
         if (arg[6] == ',') {
             /* have params -> parse them */
-            opts = qemu_opts_parse(&qemu_device_opts, arg+7, NULL);
+            opts = qemu_opts_parse(&qemu_device_opts, arg+7, 0);
             if (!opts)
                 return  -1;
         } else {
@@ -5548,7 +5548,7 @@ int main(int argc, char **argv, char **envp)
                 default_monitor = 0;
                 break;
             case QEMU_OPTION_mon:
-                opts = qemu_opts_parse(&qemu_mon_opts, optarg, "chardev");
+                opts = qemu_opts_parse(&qemu_mon_opts, optarg, 1);
                 if (!opts) {
                     fprintf(stderr, "parse error: %s\n", optarg);
                     exit(1);
@@ -5556,7 +5556,7 @@ int main(int argc, char **argv, char **envp)
                 default_monitor = 0;
                 break;
             case QEMU_OPTION_chardev:
-                opts = qemu_opts_parse(&qemu_chardev_opts, optarg, "backend");
+                opts = qemu_opts_parse(&qemu_chardev_opts, optarg, 1);
                 if (!opts) {
                     fprintf(stderr, "parse error: %s\n", optarg);
                     exit(1);
@@ -5688,7 +5688,7 @@ int main(int argc, char **argv, char **envp)
                 add_device_config(DEV_USB, optarg);
                 break;
             case QEMU_OPTION_device:
-                if (!qemu_opts_parse(&qemu_device_opts, optarg, "driver")) {
+                if (!qemu_opts_parse(&qemu_device_opts, optarg, 1)) {
                     exit(1);
                 }
                 break;
@@ -5811,7 +5811,7 @@ int main(int argc, char **argv, char **envp)
                 configure_rtc_date_offset(optarg, 1);
                 break;
             case QEMU_OPTION_rtc:
-                opts = qemu_opts_parse(&qemu_rtc_opts, optarg, NULL);
+                opts = qemu_opts_parse(&qemu_rtc_opts, optarg, 0);
                 if (!opts) {
                     fprintf(stderr, "parse error: %s\n", optarg);
                     exit(1);
@@ -5883,7 +5883,7 @@ int main(int argc, char **argv, char **envp)
                 }
 #ifdef CONFIG_SPICE
             case QEMU_OPTION_spice:
-                opts = qemu_opts_parse(&qemu_spice_opts, optarg, NULL);
+                opts = qemu_opts_parse(&qemu_spice_opts, optarg, 0);
                 if (!opts) {
                     fprintf(stderr, "parse error: %s\n", optarg);
                     exit(1);
