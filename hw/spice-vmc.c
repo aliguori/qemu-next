@@ -212,7 +212,7 @@ static void spice_virtual_channel_guest_ready(VirtIOSerialPort *port)
 #endif
 }
 
-static size_t spice_virtual_channel_have_data(
+static void spice_virtual_channel_have_data(
                 VirtIOSerialPort *port, const uint8_t *buf, size_t len)
 {
     SpiceVirtualChannel *svc = DO_UPCAST(SpiceVirtualChannel, port, port);
@@ -226,7 +226,7 @@ static size_t spice_virtual_channel_have_data(
     if (svc->guest_out_ring.bytes == sizeof(svc->guest_out_ring.d)) {
         printf("WARNING: %s: throwing away %lu bytes due to ring being full\n",
             __func__, len);
-        return len;
+        return;
     }
     int bytes_read = MIN(sizeof(svc->guest_out_ring.d) - svc->guest_out_ring.bytes, len);
     if (svc->guest_out_ring.write_pos + bytes_read > sizeof(svc->guest_out_ring.d)) {
@@ -245,7 +245,7 @@ static size_t spice_virtual_channel_have_data(
         svc->guest_out_ring.bytes, svc->guest_out_ring.write_pos, bytes_read);
     // wakeup spice
     if (svc->plug) svc->plug->wakeup(svc->plug);
-    return bytes_read;
+    return;
 }
 
 static int spice_virtual_channel_initfn(VirtIOSerialDevice *dev)
