@@ -417,6 +417,7 @@ static void handle_output(VirtIODevice *vdev, VirtQueue *vq)
 
 static void handle_input(VirtIODevice *vdev, VirtQueue *vq)
 {
+    qemu_notify_event();
 }
 
 static uint32_t get_features(VirtIODevice *vdev, uint32_t features)
