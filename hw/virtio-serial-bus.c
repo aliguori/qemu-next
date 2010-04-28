@@ -111,12 +111,13 @@ static size_t write_to_port(VirtIOSerialPort *port,
     return offset;
 }
 
-static void flush_queued_data(VirtIOSerialPort *port, bool discard)
+static void do_flush_queued_data(VirtIOSerialPort *port, VirtQueue *vq,
+                                 VirtIODevice *vdev, bool discard)
 {
-    VirtQueue *vq;
     VirtQueueElement elem;
 
-    vq = port->ovq;
+    assert(port || discard);
+
     while ((discard || !port->throttled) && virtqueue_pop(vq, &elem)) {
         uint8_t *buf;
         size_t ret, buf_size;
@@ -131,7 +132,14 @@ static void flush_queued_data(VirtIOSerialPort *port, bool discard)
         }
         virtqueue_push(vq, &elem, 0);
     }
-    virtio_notify(&port->vser->vdev, vq);
+    virtio_notify(vdev, vq);
+}
+
+static void flush_queued_data(VirtIOSerialPort *port, bool discard)
+{
+    assert(port);
+
+    do_flush_queued_data(port, port->ovq, &port->vser->vdev, discard);
 }
 
 static size_t send_control_msg(VirtIOSerialPort *port, void *buf, size_t len)
@@ -404,7 +412,7 @@ static void handle_output(VirtIODevice *vdev, VirtQueue *vq)
         return;
     }
 
-    flush_queued_data(port, discard);
+    do_flush_queued_data(port, vq, vdev, discard);
 }
 
 static void handle_input(VirtIODevice *vdev, VirtQueue *vq)
