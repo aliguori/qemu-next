@@ -134,18 +134,6 @@ static void spice_vmc_interface_unplug(
         return;
     }
     svc->plug = NULL;
-
-    /* XXX - throw away anything the client has not read */
-
-    if (svc->guest_out_ring.bytes != 0) {
-        printf("warning: %s: %lu unwritten bytes discarded.\n",
-                            __func__, svc->guest_out_ring.bytes);
-    }
-    svc->guest_out_ring.read_pos = svc->guest_out_ring.write_pos;
-
-    if (!svc->running) {
-        printf("%s: TODO - notify_guest! what to do??\n", __func__);
-    }
 }
 
 static int spice_vmc_interface_write(
