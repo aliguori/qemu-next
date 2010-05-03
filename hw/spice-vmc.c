@@ -62,7 +62,7 @@ typedef struct SpiceVMChannel {
  * VDIPortInterface callbacks
  */
 
-static VDObjectRef spice_virtual_channel_interface_plug(
+static VDObjectRef spice_vmc_interface_plug(
                 VDIPortInterface *port, VDIPortPlug* plug)
 {
     SpiceVMChannel *d = container_of(port, SpiceVMChannel, interface);
@@ -73,7 +73,7 @@ static VDObjectRef spice_virtual_channel_interface_plug(
     return (VDObjectRef)plug;
 }
 
-static void spice_virtual_channel_interface_unplug(
+static void spice_vmc_interface_unplug(
                 VDIPortInterface *port, VDObjectRef plug)
 {
     SpiceVMChannel *d = container_of(port, SpiceVMChannel, interface);
@@ -95,7 +95,7 @@ static void spice_virtual_channel_interface_unplug(
     }
 }
 
-static int spice_virtual_channel_interface_write(
+static int spice_vmc_interface_write(
     VDIPortInterface *port, VDObjectRef plug, const uint8_t *buf, int len)
 {
     SpiceVMChannel *svc = container_of(port, SpiceVMChannel, interface);
@@ -112,7 +112,7 @@ static int spice_virtual_channel_interface_write(
     return len;
 }
 
-static int spice_virtual_channel_interface_read(
+static int spice_vmc_interface_read(
     VDIPortInterface *port, VDObjectRef plug, uint8_t *buf, int len)
 {
     SpiceVMChannel *svc = container_of(port, SpiceVMChannel, interface);
@@ -137,7 +137,7 @@ static int spice_virtual_channel_interface_read(
     return actual_read;
 }
 
-static void spice_virtual_channel_register_interface(SpiceVMChannel *d)
+static void spice_vmc_register_interface(SpiceVMChannel *d)
 {
     VDIPortInterface *interface = &d->interface;
     static int interface_id = 0;
@@ -153,16 +153,16 @@ static void spice_virtual_channel_register_interface(SpiceVMChannel *d)
     interface->base.major_version = VD_INTERFACE_VDI_PORT_MAJOR;
     interface->base.minor_version = VD_INTERFACE_VDI_PORT_MINOR;
 
-    interface->plug = spice_virtual_channel_interface_plug;
-    interface->unplug = spice_virtual_channel_interface_unplug;
-    interface->write = spice_virtual_channel_interface_write;
-    interface->read = spice_virtual_channel_interface_read;
+    interface->plug = spice_vmc_interface_plug;
+    interface->unplug = spice_vmc_interface_unplug;
+    interface->write = spice_vmc_interface_write;
+    interface->read = spice_vmc_interface_read;
 
     d->active_interface = true;
     qemu_spice_add_interface(&interface->base);
 }
 
-static void spice_virtual_channel_unregister_interface(SpiceVMChannel *d)
+static void spice_vmc_unregister_interface(SpiceVMChannel *d)
 {
     if (!d->active_interface ) {
         return;
@@ -172,7 +172,7 @@ static void spice_virtual_channel_unregister_interface(SpiceVMChannel *d)
 }
 
 
-static void spice_virtual_channel_vm_change_state_handler(
+static void spice_vmc_vm_change_state_handler(
                         void *opaque, int running, int reason)
 {
     SpiceVMChannel* svc=(SpiceVMChannel*)opaque;
@@ -191,23 +191,23 @@ static void spice_virtual_channel_vm_change_state_handler(
  * virtio-serial callbacks
  */
 
-static void spice_virtual_channel_guest_open(VirtIOSerialPort *port)
+static void spice_vmc_guest_open(VirtIOSerialPort *port)
 {
     SpiceVMChannel *svc = DO_UPCAST(SpiceVMChannel, port, port);
-    spice_virtual_channel_register_interface(svc);
+    spice_vmc_register_interface(svc);
 }
 
-static void spice_virtual_channel_guest_close(VirtIOSerialPort *port)
+static void spice_vmc_guest_close(VirtIOSerialPort *port)
 {
     SpiceVMChannel *svc = DO_UPCAST(SpiceVMChannel, port, port);
-    spice_virtual_channel_unregister_interface(svc);
+    spice_vmc_unregister_interface(svc);
 }
 
-static void spice_virtual_channel_guest_ready(VirtIOSerialPort *port)
+static void spice_vmc_guest_ready(VirtIOSerialPort *port)
 {
 }
 
-static void spice_virtual_channel_have_data(
+static void spice_vmc_have_data(
                 VirtIOSerialPort *port, const uint8_t *buf, size_t len)
 {
     SpiceVMChannel *svc = DO_UPCAST(SpiceVMChannel, port, port);
@@ -237,7 +237,7 @@ static void spice_virtual_channel_have_data(
     return;
 }
 
-static int spice_virtual_channel_initfn(VirtIOSerialDevice *dev)
+static int spice_vmc_initfn(VirtIOSerialDevice *dev)
 {
     VirtIOSerialPort *port = DO_UPCAST(VirtIOSerialPort, dev, &dev->qdev);
     SpiceVMChannel *svc = DO_UPCAST(SpiceVMChannel, port, port);
@@ -251,38 +251,38 @@ static int spice_virtual_channel_initfn(VirtIOSerialDevice *dev)
     virtio_serial_open(port);
 
     qemu_add_vm_change_state_handler(
-        spice_virtual_channel_vm_change_state_handler, svc);
+        spice_vmc_vm_change_state_handler, svc);
 
     return 0;
 }
 
-static int spice_virtual_channel_exitfn(VirtIOSerialDevice *dev)
+static int spice_vmc_exitfn(VirtIOSerialDevice *dev)
 {
     VirtIOSerialPort *port = DO_UPCAST(VirtIOSerialPort, dev, &dev->qdev);
     SpiceVMChannel *svc = DO_UPCAST(SpiceVMChannel, port, port);
 
-    spice_virtual_channel_unregister_interface(svc);
+    spice_vmc_unregister_interface(svc);
     virtio_serial_close(port);
     return 0;
 }
 
-static VirtIOSerialPortInfo spice_virtual_channel_info = {
+static VirtIOSerialPortInfo spice_vmc_info = {
     .qdev.name     = SPICE_VM_CHANNEL_DEVICE_NAME,
     .qdev.size     = sizeof(SpiceVMChannel),
-    .init          = spice_virtual_channel_initfn,
-    .exit          = spice_virtual_channel_exitfn,
-    .guest_open    = spice_virtual_channel_guest_open,
-    .guest_close   = spice_virtual_channel_guest_close,
-    .guest_ready   = spice_virtual_channel_guest_ready,
-    .have_data     = spice_virtual_channel_have_data,
+    .init          = spice_vmc_initfn,
+    .exit          = spice_vmc_exitfn,
+    .guest_open    = spice_vmc_guest_open,
+    .guest_close   = spice_vmc_guest_close,
+    .guest_ready   = spice_vmc_guest_ready,
+    .have_data     = spice_vmc_have_data,
     .qdev.props = (Property[]) {
         DEFINE_PROP_STRING("name", SpiceVMChannel, port.name),
         DEFINE_PROP_END_OF_LIST(),
     },
 };
 
-static void spice_virtual_channel_register(void)
+static void spice_vmc_register(void)
 {
-    virtio_serial_port_qdev_register(&spice_virtual_channel_info);
+    virtio_serial_port_qdev_register(&spice_vmc_info);
 }
-device_init(spice_virtual_channel_register)
+device_init(spice_vmc_register)
