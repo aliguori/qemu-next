@@ -39,8 +39,8 @@
 #include "virtio-serial.h"
 #include "qemu-spice.h"
 
-#define SPICE_VM_CHANNEL_GUEST_DEVICE_NAME "org.redhat.spice.0"
-#define SPICE_VM_CHANNEL_DEVICE_NAME       "spicevmc"
+#define SPICE_VMC_GUEST_DEVICE_NAME "org.redhat.spice.0"
+#define SPICE_VMC_DEVICE_NAME       "spicevmc"
 
 typedef struct {
     uint8_t  d[1024*16]; /* 16 KiB */
@@ -256,7 +256,7 @@ static int spice_vmc_initfn(VirtIOSerialDevice *dev)
     VirtIOSerialPort *vserport = DO_UPCAST(VirtIOSerialPort, dev, &dev->qdev);
     SpiceVMChannel *svc = DO_UPCAST(SpiceVMChannel, vserport, vserport);
 
-    vserport->name = (char*)SPICE_VM_CHANNEL_GUEST_DEVICE_NAME;
+    vserport->name = (char*)SPICE_VMC_GUEST_DEVICE_NAME;
 
     vserport->info = dev->info;
 
@@ -281,7 +281,7 @@ static int spice_vmc_exitfn(VirtIOSerialDevice *dev)
 }
 
 static VirtIOSerialPortInfo spice_vmc_info = {
-    .qdev.name     = SPICE_VM_CHANNEL_DEVICE_NAME,
+    .qdev.name     = SPICE_VMC_DEVICE_NAME,
     .qdev.size     = sizeof(SpiceVMChannel),
     .init          = spice_vmc_initfn,
     .exit          = spice_vmc_exitfn,
