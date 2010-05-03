@@ -53,7 +53,7 @@ size_t spice_ring_read(spice_vmc_ring_t* ring, uint8_t* buf, size_t len);
 size_t spice_ring_write(spice_vmc_ring_t* ring, const uint8_t* buf, size_t len);
 
 typedef struct SpiceVMChannel {
-    VirtIOSerialPort port;
+    VirtIOSerialPort vserport;
     bool running;
     bool active_interface;
     VDIPortInterface interface;
@@ -140,7 +140,7 @@ static int spice_vmc_interface_write(
     VDIPortInterface *port, VDObjectRef plug, const uint8_t *buf, int len)
 {
     SpiceVMChannel *svc = container_of(port, SpiceVMChannel, interface);
-    ssize_t written = virtio_serial_write(&svc->port, buf, len);
+    ssize_t written = virtio_serial_write(&svc->vserport, buf, len);
 
     if (written != len) {
         printf("WARNING: %s short write. %lu of %d\n", __func__, written, len);
@@ -217,26 +217,26 @@ static void spice_vmc_vm_change_state_handler(
  * virtio-serial callbacks
  */
 
-static void spice_vmc_guest_open(VirtIOSerialPort *port)
+static void spice_vmc_guest_open(VirtIOSerialPort *vserport)
 {
-    SpiceVMChannel *svc = DO_UPCAST(SpiceVMChannel, port, port);
+    SpiceVMChannel *svc = DO_UPCAST(SpiceVMChannel, vserport, vserport);
     spice_vmc_register_interface(svc);
 }
 
-static void spice_vmc_guest_close(VirtIOSerialPort *port)
+static void spice_vmc_guest_close(VirtIOSerialPort *vserport)
 {
-    SpiceVMChannel *svc = DO_UPCAST(SpiceVMChannel, port, port);
+    SpiceVMChannel *svc = DO_UPCAST(SpiceVMChannel, vserport, vserport);
     spice_vmc_unregister_interface(svc);
 }
 
-static void spice_vmc_guest_ready(VirtIOSerialPort *port)
+static void spice_vmc_guest_ready(VirtIOSerialPort *vserport)
 {
 }
 
 static void spice_vmc_have_data(
-                VirtIOSerialPort *port, const uint8_t *buf, size_t len)
+                VirtIOSerialPort *vserport, const uint8_t *buf, size_t len)
 {
-    SpiceVMChannel *svc = DO_UPCAST(SpiceVMChannel, port, port);
+    SpiceVMChannel *svc = DO_UPCAST(SpiceVMChannel, vserport, vserport);
     int bytes_written;
 
     bytes_written = spice_ring_write(&(svc->guest_out_ring), buf, len);
@@ -253,16 +253,16 @@ static void spice_vmc_have_data(
 
 static int spice_vmc_initfn(VirtIOSerialDevice *dev)
 {
-    VirtIOSerialPort *port = DO_UPCAST(VirtIOSerialPort, dev, &dev->qdev);
-    SpiceVMChannel *svc = DO_UPCAST(SpiceVMChannel, port, port);
+    VirtIOSerialPort *vserport = DO_UPCAST(VirtIOSerialPort, dev, &dev->qdev);
+    SpiceVMChannel *svc = DO_UPCAST(SpiceVMChannel, vserport, vserport);
 
-    port->name = (char*)SPICE_VM_CHANNEL_GUEST_DEVICE_NAME;
+    vserport->name = (char*)SPICE_VM_CHANNEL_GUEST_DEVICE_NAME;
 
-    port->info = dev->info;
+    vserport->info = dev->info;
 
     svc->plug = NULL;
 
-    virtio_serial_open(port);
+    virtio_serial_open(vserport);
 
     qemu_add_vm_change_state_handler(
         spice_vmc_vm_change_state_handler, svc);
@@ -272,11 +272,11 @@ static int spice_vmc_initfn(VirtIOSerialDevice *dev)
 
 static int spice_vmc_exitfn(VirtIOSerialDevice *dev)
 {
-    VirtIOSerialPort *port = DO_UPCAST(VirtIOSerialPort, dev, &dev->qdev);
-    SpiceVMChannel *svc = DO_UPCAST(SpiceVMChannel, port, port);
+    VirtIOSerialPort *vserport = DO_UPCAST(VirtIOSerialPort, dev, &dev->qdev);
+    SpiceVMChannel *svc = DO_UPCAST(SpiceVMChannel, vserport, vserport);
 
     spice_vmc_unregister_interface(svc);
-    virtio_serial_close(port);
+    virtio_serial_close(vserport);
     return 0;
 }
 
@@ -290,7 +290,7 @@ static VirtIOSerialPortInfo spice_vmc_info = {
     .guest_ready   = spice_vmc_guest_ready,
     .have_data     = spice_vmc_have_data,
     .qdev.props = (Property[]) {
-        DEFINE_PROP_STRING("name", SpiceVMChannel, port.name),
+        DEFINE_PROP_STRING("name", SpiceVMChannel, vserport.name),
         DEFINE_PROP_END_OF_LIST(),
     },
 };
