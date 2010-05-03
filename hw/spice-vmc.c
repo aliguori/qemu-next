@@ -175,7 +175,7 @@ static void spice_vmc_unregister_interface(SpiceVMChannel *svc)
 static void spice_vmc_vm_change_state_handler(
                         void *opaque, int running, int reason)
 {
-    SpiceVMChannel* svc=(SpiceVMChannel*)opaque;
+    SpiceVMChannel* svc = opaque;
 
     if (running) {
         svc->running = true;
