@@ -56,6 +56,7 @@ typedef struct SpiceVMChannel {
     VirtIOSerialPort vserport;
     bool running;
     bool active_interface;
+    uint8_t active_interface_vmstate;
     VDIPortInterface interface;
     VDIPortPlug *plug;
 
@@ -251,6 +252,33 @@ static void spice_vmc_have_data(
     return;
 }
 
+static int spice_vmc_post_load(void *opaque, int version_id)
+{
+    SpiceVMChannel* svc = opaque;
+    if (svc->active_interface_vmstate) {
+        spice_vmc_register_interface(svc);
+    }
+    return 0;
+}
+
+static void spice_vmc_pre_save(void *opaque)
+{
+    SpiceVMChannel* svc = opaque;
+    svc->active_interface_vmstate = svc->active_interface;
+}
+
+static VMStateDescription spice_vmc_vmstate = {
+    .name = SPICE_VMC_DEVICE_NAME,
+    .version_id = 1,
+    .minimum_version_id = 1,
+    .post_load = spice_vmc_post_load,
+    .pre_save = spice_vmc_pre_save,
+    .fields = (VMStateField []) {
+        VMSTATE_UINT8(active_interface_vmstate, SpiceVMChannel),
+        VMSTATE_END_OF_LIST()
+    }
+};
+
 static int spice_vmc_initfn(VirtIOSerialDevice *dev)
 {
     VirtIOSerialPort *vserport = DO_UPCAST(VirtIOSerialPort, dev, &dev->qdev);
@@ -283,6 +311,7 @@ static int spice_vmc_exitfn(VirtIOSerialDevice *dev)
 static VirtIOSerialPortInfo spice_vmc_info = {
     .qdev.name     = SPICE_VMC_DEVICE_NAME,
     .qdev.size     = sizeof(SpiceVMChannel),
+    .qdev.vmsd     = &spice_vmc_vmstate,
     .init          = spice_vmc_initfn,
     .exit          = spice_vmc_exitfn,
     .guest_open    = spice_vmc_guest_open,
