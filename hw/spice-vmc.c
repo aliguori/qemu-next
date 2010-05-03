@@ -42,23 +42,6 @@
 #define SPICE_VM_CHANNEL_GUEST_DEVICE_NAME "org.redhat.spice.0"
 #define SPICE_VM_CHANNEL_DEVICE_NAME       "spicevmc"
 
-/*#define DEBUG_SVMC*/
-
-#ifdef DEBUG_SVMC
-#ifndef INFO_SVMC
-#define INFO_SVMC
-#endif
-#define DEBUG_SVMC_PRINTF(fmt, ...) printf("DEBUG spicevmc: " fmt, __VA_ARGS__)
-#else
-#define DEBUG_SVMC_PRINTF(...)
-#endif
-
-#ifdef INFO_SVMC
-#define INFO_SVMC_PRINTF(fmt, ...) printf("spicevmc: " fmt, __VA_ARGS__)
-#else
-#define INFO_SVMC_PRINTF(...)
-#endif
-
 typedef struct SpiceVirtualChannel {
     VirtIOSerialPort port;
     bool running;
@@ -83,12 +66,10 @@ static VDObjectRef spice_virtual_channel_interface_plug(
                 VDIPortInterface *port, VDIPortPlug* plug)
 {
     SpiceVirtualChannel *d = container_of(port, SpiceVirtualChannel, interface);
-    DEBUG_SVMC_PRINTF("%s, d = %p, d->plug = %p\n", __func__, d, d->plug);
     if (d->plug) {
         return INVALID_VD_OBJECT_REF;
     }
     d->plug = plug;
-    DEBUG_SVMC_PRINTF("%s, d = %p, d->plug = %p\n", __func__, d, d->plug);
     return (VDObjectRef)plug;
 }
 
@@ -96,7 +77,6 @@ static void spice_virtual_channel_interface_unplug(
                 VDIPortInterface *port, VDObjectRef plug)
 {
     SpiceVirtualChannel *d = container_of(port, SpiceVirtualChannel, interface);
-    DEBUG_SVMC_PRINTF("%s, d = %p, d->plug = %p\n", __func__, d, d->plug);
     if (!plug || plug != (VDObjectRef)d->plug) {
         return;
     }
@@ -111,7 +91,7 @@ static void spice_virtual_channel_interface_unplug(
     d->guest_out_ring.read_pos = d->guest_out_ring.write_pos;
 
     if (!d->running) {
-        INFO_SVMC_PRINTF("%s: TODO - notify_guest! what to do??\n", __func__);
+        printf("%s: TODO - notify_guest! what to do??\n", __func__);
     }
 }
 
@@ -119,7 +99,6 @@ static int spice_virtual_channel_interface_write(
     VDIPortInterface *port, VDObjectRef plug, const uint8_t *buf, int len)
 {
     SpiceVirtualChannel *svc = container_of(port, SpiceVirtualChannel, interface);
-    DEBUG_SVMC_PRINTF("%s with %d bytes\n", __func__, len);
     ssize_t written = virtio_serial_write(&svc->port, buf, len);
     if (written != len)
         printf("WARNING: %s short write. %lu of %d\n", __func__, written, len);
@@ -136,11 +115,6 @@ static int spice_virtual_channel_interface_read(
 {
     SpiceVirtualChannel *svc = container_of(port, SpiceVirtualChannel, interface);
     int actual_read = MIN(len, svc->guest_out_ring.bytes);
-
-    DEBUG_SVMC_PRINTF(
-        "%s with %d bytes, bytes = %d, read_pos = %d, will actually read %d bytes\n",
-        __func__, len, svc->guest_out_ring.read_pos,
-        svc->guest_out_ring.write_pos, actual_read);
 
     if (actual_read > 0) {
         if (actual_read + svc->guest_out_ring.read_pos > sizeof(svc->guest_out_ring.d)) {
@@ -199,7 +173,6 @@ static void spice_virtual_channel_unregister_interface(SpiceVirtualChannel *d)
 static void spice_virtual_channel_vm_change_state_handler(
                         void *opaque, int running, int reason)
 {
-    INFO_SVMC_PRINTF("%s running = %d reason = %d\n", __func__, running, reason);
     SpiceVirtualChannel* svc=(SpiceVirtualChannel*)opaque;
 
     if (running) {
@@ -217,35 +190,23 @@ static void spice_virtual_channel_vm_change_state_handler(
 static void spice_virtual_channel_guest_open(VirtIOSerialPort *port)
 {
     SpiceVirtualChannel *svc = DO_UPCAST(SpiceVirtualChannel, port, port);
-    INFO_SVMC_PRINTF("%s called (svc=%p)\n", __func__, svc);
     spice_virtual_channel_register_interface(svc);
 }
 
 static void spice_virtual_channel_guest_close(VirtIOSerialPort *port)
 {
     SpiceVirtualChannel *svc = DO_UPCAST(SpiceVirtualChannel, port, port);
-    INFO_SVMC_PRINTF("%s called (svc=%p)\n", __func__, svc);
     spice_virtual_channel_unregister_interface(svc);
 }
 
 static void spice_virtual_channel_guest_ready(VirtIOSerialPort *port)
 {
-#ifdef INFO_SVMC
-    SpiceVirtualChannel *svc = DO_UPCAST(SpiceVirtualChannel, port, port);
-    INFO_SVMC_PRINTF("%s called (svc=%p)\n", __func__, svc);
-#endif
 }
 
 static void spice_virtual_channel_have_data(
                 VirtIOSerialPort *port, const uint8_t *buf, size_t len)
 {
     SpiceVirtualChannel *svc = DO_UPCAST(SpiceVirtualChannel, port, port);
-    DEBUG_SVMC_PRINTF("%s: (svc = %llX), %ld bytes\n", __func__,
-        (unsigned long long)svc, len);
-
-    DEBUG_SVMC_PRINTF(
-        "filling guest write ring. Was %u full, pos at %d, trying to write %lu\n",
-        svc->guest_out_ring.bytes, svc->guest_out_ring.write_pos, len);
 
     if (svc->guest_out_ring.bytes == sizeof(svc->guest_out_ring.d)) {
         printf("WARNING: %s: throwing away %lu bytes due to ring being full\n",
@@ -265,8 +226,6 @@ static void spice_virtual_channel_have_data(
         svc->guest_out_ring.write_pos += bytes_read;
     }
     svc->guest_out_ring.bytes += bytes_read;
-    DEBUG_SVMC_PRINTF("filling guest write ring. Now %d, pos at %d, having written %d\n",
-        svc->guest_out_ring.bytes, svc->guest_out_ring.write_pos, bytes_read);
     // wakeup spice
     if (svc->plug) svc->plug->wakeup(svc->plug);
     return;
@@ -276,7 +235,6 @@ static int spice_virtual_channel_initfn(VirtIOSerialDevice *dev)
 {
     VirtIOSerialPort *port = DO_UPCAST(VirtIOSerialPort, dev, &dev->qdev);
     SpiceVirtualChannel *svc = DO_UPCAST(SpiceVirtualChannel, port, port);
-    INFO_SVMC_PRINTF("%s called: %p\n", __func__, svc);
 
     port->name = (char*)SPICE_VM_CHANNEL_GUEST_DEVICE_NAME;
 
@@ -296,7 +254,7 @@ static int spice_virtual_channel_exitfn(VirtIOSerialDevice *dev)
 {
     VirtIOSerialPort *port = DO_UPCAST(VirtIOSerialPort, dev, &dev->qdev);
     SpiceVirtualChannel *svc = DO_UPCAST(SpiceVirtualChannel, port, port);
-    INFO_SVMC_PRINTF("%s called: %p\n", __func__, svc);
+
     spice_virtual_channel_unregister_interface(svc);
     virtio_serial_close(port);
     return 0;
