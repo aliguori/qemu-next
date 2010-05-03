@@ -65,32 +65,32 @@ typedef struct SpiceVMChannel {
 static VDObjectRef spice_vmc_interface_plug(
                 VDIPortInterface *port, VDIPortPlug* plug)
 {
-    SpiceVMChannel *d = container_of(port, SpiceVMChannel, interface);
-    if (d->plug) {
+    SpiceVMChannel *svc = container_of(port, SpiceVMChannel, interface);
+    if (svc->plug) {
         return INVALID_VD_OBJECT_REF;
     }
-    d->plug = plug;
+    svc->plug = plug;
     return (VDObjectRef)plug;
 }
 
 static void spice_vmc_interface_unplug(
                 VDIPortInterface *port, VDObjectRef plug)
 {
-    SpiceVMChannel *d = container_of(port, SpiceVMChannel, interface);
-    if (!plug || plug != (VDObjectRef)d->plug) {
+    SpiceVMChannel *svc = container_of(port, SpiceVMChannel, interface);
+    if (!plug || plug != (VDObjectRef)svc->plug) {
         return;
     }
-    d->plug = NULL;
+    svc->plug = NULL;
 
     /* XXX - throw away anything the client has not read */
 
-    if (d->guest_out_ring.bytes != 0) {
+    if (svc->guest_out_ring.bytes != 0) {
         printf("warning: %s: %d unwritten bytes discarded.\n",
-                            __func__, d->guest_out_ring.bytes);
+                            __func__, svc->guest_out_ring.bytes);
     }
-    d->guest_out_ring.read_pos = d->guest_out_ring.write_pos;
+    svc->guest_out_ring.read_pos = svc->guest_out_ring.write_pos;
 
-    if (!d->running) {
+    if (!svc->running) {
         printf("%s: TODO - notify_guest! what to do??\n", __func__);
     }
 }
@@ -137,12 +137,12 @@ static int spice_vmc_interface_read(
     return actual_read;
 }
 
-static void spice_vmc_register_interface(SpiceVMChannel *d)
+static void spice_vmc_register_interface(SpiceVMChannel *svc)
 {
-    VDIPortInterface *interface = &d->interface;
+    VDIPortInterface *interface = &svc->interface;
     static int interface_id = 0;
 
-    if (d->active_interface ) {
+    if (svc->active_interface ) {
         return;
     }
 
@@ -158,17 +158,17 @@ static void spice_vmc_register_interface(SpiceVMChannel *d)
     interface->write = spice_vmc_interface_write;
     interface->read = spice_vmc_interface_read;
 
-    d->active_interface = true;
+    svc->active_interface = true;
     qemu_spice_add_interface(&interface->base);
 }
 
-static void spice_vmc_unregister_interface(SpiceVMChannel *d)
+static void spice_vmc_unregister_interface(SpiceVMChannel *svc)
 {
-    if (!d->active_interface ) {
+    if (!svc->active_interface ) {
         return;
     }
-    d->active_interface = false;
-    qemu_spice_remove_interface(&d->interface.base);
+    svc->active_interface = false;
+    qemu_spice_remove_interface(&svc->interface.base);
 }
 
 
