@@ -42,7 +42,7 @@
 #define SPICE_VM_CHANNEL_GUEST_DEVICE_NAME "org.redhat.spice.0"
 #define SPICE_VM_CHANNEL_DEVICE_NAME       "spicevmc"
 
-typedef struct SpiceVirtualChannel {
+typedef struct SpiceVMChannel {
     VirtIOSerialPort port;
     bool running;
     bool active_interface;
@@ -56,7 +56,7 @@ typedef struct SpiceVirtualChannel {
         int      bytes;      /* in [0, sizeof(d)] */
         int      read_pos;
     } guest_out_ring;
-} SpiceVirtualChannel;
+} SpiceVMChannel;
 
 /*
  * VDIPortInterface callbacks
@@ -65,7 +65,7 @@ typedef struct SpiceVirtualChannel {
 static VDObjectRef spice_virtual_channel_interface_plug(
                 VDIPortInterface *port, VDIPortPlug* plug)
 {
-    SpiceVirtualChannel *d = container_of(port, SpiceVirtualChannel, interface);
+    SpiceVMChannel *d = container_of(port, SpiceVMChannel, interface);
     if (d->plug) {
         return INVALID_VD_OBJECT_REF;
     }
@@ -76,7 +76,7 @@ static VDObjectRef spice_virtual_channel_interface_plug(
 static void spice_virtual_channel_interface_unplug(
                 VDIPortInterface *port, VDObjectRef plug)
 {
-    SpiceVirtualChannel *d = container_of(port, SpiceVirtualChannel, interface);
+    SpiceVMChannel *d = container_of(port, SpiceVMChannel, interface);
     if (!plug || plug != (VDObjectRef)d->plug) {
         return;
     }
@@ -98,7 +98,7 @@ static void spice_virtual_channel_interface_unplug(
 static int spice_virtual_channel_interface_write(
     VDIPortInterface *port, VDObjectRef plug, const uint8_t *buf, int len)
 {
-    SpiceVirtualChannel *svc = container_of(port, SpiceVirtualChannel, interface);
+    SpiceVMChannel *svc = container_of(port, SpiceVMChannel, interface);
     ssize_t written = virtio_serial_write(&svc->port, buf, len);
 
     if (written != len) {
@@ -115,7 +115,7 @@ static int spice_virtual_channel_interface_write(
 static int spice_virtual_channel_interface_read(
     VDIPortInterface *port, VDObjectRef plug, uint8_t *buf, int len)
 {
-    SpiceVirtualChannel *svc = container_of(port, SpiceVirtualChannel, interface);
+    SpiceVMChannel *svc = container_of(port, SpiceVMChannel, interface);
     int actual_read = MIN(len, svc->guest_out_ring.bytes);
 
     if (actual_read > 0) {
@@ -137,7 +137,7 @@ static int spice_virtual_channel_interface_read(
     return actual_read;
 }
 
-static void spice_virtual_channel_register_interface(SpiceVirtualChannel *d)
+static void spice_virtual_channel_register_interface(SpiceVMChannel *d)
 {
     VDIPortInterface *interface = &d->interface;
     static int interface_id = 0;
@@ -162,7 +162,7 @@ static void spice_virtual_channel_register_interface(SpiceVirtualChannel *d)
     qemu_spice_add_interface(&interface->base);
 }
 
-static void spice_virtual_channel_unregister_interface(SpiceVirtualChannel *d)
+static void spice_virtual_channel_unregister_interface(SpiceVMChannel *d)
 {
     if (!d->active_interface ) {
         return;
@@ -175,7 +175,7 @@ static void spice_virtual_channel_unregister_interface(SpiceVirtualChannel *d)
 static void spice_virtual_channel_vm_change_state_handler(
                         void *opaque, int running, int reason)
 {
-    SpiceVirtualChannel* svc=(SpiceVirtualChannel*)opaque;
+    SpiceVMChannel* svc=(SpiceVMChannel*)opaque;
 
     if (running) {
         svc->running = true;
@@ -193,13 +193,13 @@ static void spice_virtual_channel_vm_change_state_handler(
 
 static void spice_virtual_channel_guest_open(VirtIOSerialPort *port)
 {
-    SpiceVirtualChannel *svc = DO_UPCAST(SpiceVirtualChannel, port, port);
+    SpiceVMChannel *svc = DO_UPCAST(SpiceVMChannel, port, port);
     spice_virtual_channel_register_interface(svc);
 }
 
 static void spice_virtual_channel_guest_close(VirtIOSerialPort *port)
 {
-    SpiceVirtualChannel *svc = DO_UPCAST(SpiceVirtualChannel, port, port);
+    SpiceVMChannel *svc = DO_UPCAST(SpiceVMChannel, port, port);
     spice_virtual_channel_unregister_interface(svc);
 }
 
@@ -210,7 +210,7 @@ static void spice_virtual_channel_guest_ready(VirtIOSerialPort *port)
 static void spice_virtual_channel_have_data(
                 VirtIOSerialPort *port, const uint8_t *buf, size_t len)
 {
-    SpiceVirtualChannel *svc = DO_UPCAST(SpiceVirtualChannel, port, port);
+    SpiceVMChannel *svc = DO_UPCAST(SpiceVMChannel, port, port);
 
     if (svc->guest_out_ring.bytes == sizeof(svc->guest_out_ring.d)) {
         printf("WARNING: %s: throwing away %lu bytes due to ring being full\n",
@@ -240,7 +240,7 @@ static void spice_virtual_channel_have_data(
 static int spice_virtual_channel_initfn(VirtIOSerialDevice *dev)
 {
     VirtIOSerialPort *port = DO_UPCAST(VirtIOSerialPort, dev, &dev->qdev);
-    SpiceVirtualChannel *svc = DO_UPCAST(SpiceVirtualChannel, port, port);
+    SpiceVMChannel *svc = DO_UPCAST(SpiceVMChannel, port, port);
 
     port->name = (char*)SPICE_VM_CHANNEL_GUEST_DEVICE_NAME;
 
@@ -259,7 +259,7 @@ static int spice_virtual_channel_initfn(VirtIOSerialDevice *dev)
 static int spice_virtual_channel_exitfn(VirtIOSerialDevice *dev)
 {
     VirtIOSerialPort *port = DO_UPCAST(VirtIOSerialPort, dev, &dev->qdev);
-    SpiceVirtualChannel *svc = DO_UPCAST(SpiceVirtualChannel, port, port);
+    SpiceVMChannel *svc = DO_UPCAST(SpiceVMChannel, port, port);
 
     spice_virtual_channel_unregister_interface(svc);
     virtio_serial_close(port);
@@ -268,7 +268,7 @@ static int spice_virtual_channel_exitfn(VirtIOSerialDevice *dev)
 
 static VirtIOSerialPortInfo spice_virtual_channel_info = {
     .qdev.name     = SPICE_VM_CHANNEL_DEVICE_NAME,
-    .qdev.size     = sizeof(SpiceVirtualChannel),
+    .qdev.size     = sizeof(SpiceVMChannel),
     .init          = spice_virtual_channel_initfn,
     .exit          = spice_virtual_channel_exitfn,
     .guest_open    = spice_virtual_channel_guest_open,
@@ -276,7 +276,7 @@ static VirtIOSerialPortInfo spice_virtual_channel_info = {
     .guest_ready   = spice_virtual_channel_guest_ready,
     .have_data     = spice_virtual_channel_have_data,
     .qdev.props = (Property[]) {
-        DEFINE_PROP_STRING("name", SpiceVirtualChannel, port.name),
+        DEFINE_PROP_STRING("name", SpiceVMChannel, port.name),
         DEFINE_PROP_END_OF_LIST(),
     },
 };
