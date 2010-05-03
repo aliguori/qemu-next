@@ -39,7 +39,7 @@
 #include "virtio-serial.h"
 #include "qemu-spice.h"
 
-#define SPICE_VMC_GUEST_DEVICE_NAME "org.redhat.spice.0"
+#define SPICE_VMC_GUEST_DEVICE_NAME "com.redhat.spice.0"
 #define SPICE_VMC_DEVICE_NAME       "spicevmc"
 
 typedef struct {
