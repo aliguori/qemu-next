@@ -100,8 +100,10 @@ static int spice_virtual_channel_interface_write(
 {
     SpiceVirtualChannel *svc = container_of(port, SpiceVirtualChannel, interface);
     ssize_t written = virtio_serial_write(&svc->port, buf, len);
-    if (written != len)
+
+    if (written != len) {
         printf("WARNING: %s short write. %lu of %d\n", __func__, written, len);
+    }
 
    /* TODO:
     * we always claim the write worked. Reason: otherwise interface gives up
@@ -177,7 +179,9 @@ static void spice_virtual_channel_vm_change_state_handler(
 
     if (running) {
         svc->running = true;
-        if (svc->plug) svc->plug->wakeup(svc->plug);
+        if (svc->plug) {
+            svc->plug->wakeup(svc->plug);
+        }
     } else {
         svc->running = false;
     }
@@ -227,7 +231,9 @@ static void spice_virtual_channel_have_data(
     }
     svc->guest_out_ring.bytes += bytes_read;
     // wakeup spice
-    if (svc->plug) svc->plug->wakeup(svc->plug);
+    if (svc->plug) {
+        svc->plug->wakeup(svc->plug);
+    }
     return;
 }
 
