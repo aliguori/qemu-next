@@ -1,13 +1,37 @@
 /*
-
- Spice Virtual Machine Channel (VMC).
-
-  A virtio-serial port used for spice to guest communication, over which spice client
- and a daemon in the guest operating system communicate.
-
-  Replaces the old vdi_port PCI device.
-
-*/
+ * Spice Virtual Machine Channel (VMC).
+ *
+ * A specialized virtio-serial port used for spice to guest communication,
+ * used by spice client and a daemon in the guest operating system (vdservice).
+ * Connects the VDIPortInterface exposed by spice.h to a virtio-serial-bus
+ * port.
+ *
+ * Usage:
+ *  Current: mouse data (works better in wan environment), screen resize.
+ *  Planned: shared clipboard.
+ *
+ * Author: Alon Levy <alevy@redhat.com>
+ *
+ * Copyright (c) 2010 Red Hat, Inc.
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL
+ * THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+ * THE SOFTWARE.
+ */
 
 #include <spice.h>
 #include <vd_interface.h>
