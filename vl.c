@@ -5139,25 +5139,17 @@ int main(int argc, char **argv, char **envp)
     }
 
     if (defconfig) {
-        const char *fname;
-        FILE *fp;
+        int ret;
 
-        fname = CONFIG_QEMU_CONFDIR "/qemu.conf";
-        fp = fopen(fname, "r");
-        if (fp) {
-            if (qemu_config_parse(fp, fname) != 0) {
-                exit(1);
-            }
-            fclose(fp);
+        ret = qemu_read_config_file(CONFIG_QEMU_CONFDIR "/qemu.conf");
+        if (ret == -EINVAL) {
+            exit(1);
         }
 
-        fname = CONFIG_QEMU_CONFDIR "/target-" TARGET_ARCH ".conf";
-        fp = fopen(fname, "r");
-        if (fp) {
-            if (qemu_config_parse(fp, fname) != 0) {
-                exit(1);
-            }
-            fclose(fp);
+        ret = qemu_read_config_file(
+            CONFIG_QEMU_CONFDIR "/target-" TARGET_ARCH ".conf");
+        if (ret == -EINVAL) {
+            exit(1);
         }
     }
 #if defined(cpudef_setup)
@@ -5873,16 +5865,12 @@ int main(int argc, char **argv, char **envp)
 #endif
             case QEMU_OPTION_readconfig:
                 {
-                    FILE *fp;
-                    fp = fopen(optarg, "r");
-                    if (fp == NULL) {
-                        fprintf(stderr, "open %s: %s\n", optarg, strerror(errno));
+                    int ret = qemu_read_config_file(optarg);
+                    if (ret < 0) {
+                        fprintf(stderr, "read config %s: %s\n", optarg,
+                            strerror(-ret));
                         exit(1);
                     }
-                    if (qemu_config_parse(fp, optarg) != 0) {
-                        exit(1);
-                    }
-                    fclose(fp);
                     break;
                 }
 #ifdef CONFIG_SPICE
