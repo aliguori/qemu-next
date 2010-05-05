@@ -5116,6 +5116,7 @@ int main(int argc, char **argv, char **envp)
     while (optind < argc) {
         if (argv[optind][0] != '-') {
             /* disk image */
+            optind++;
             continue;
         } else {
             const QEMUOption *popt;
