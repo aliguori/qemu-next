@@ -3351,6 +3351,7 @@ void vm_start(void)
         vm_state_notify(1, 0);
         qemu_rearm_alarm_timer(alarm_timer);
         resume_all_vcpus();
+        monitor_protocol_event(QEVENT_RESUME, NULL);
     }
 }
 
