@@ -57,7 +57,8 @@ static int bdrv_write_em(BlockDriverState *bs, int64_t sector_num,
 
 BlockDriverState *bdrv_first;
 
-static BlockDriver *first_drv;
+static QLIST_HEAD(, BlockDriver) bdrv_drivers =
+    QLIST_HEAD_INITIALIZER(bdrv_drivers);
 
 /* If non-zero, use only whitelisted block drivers */
 static int use_bdrv_whitelist;
@@ -141,8 +142,7 @@ void bdrv_register(BlockDriver *bdrv)
     if (!bdrv->bdrv_aio_flush)
         bdrv->bdrv_aio_flush = bdrv_aio_flush_em;
 
-    bdrv->next = first_drv;
-    first_drv = bdrv;
+    QLIST_INSERT_HEAD(&bdrv_drivers, bdrv, list);
 }
 
 /* create a new block device (by default it is empty) */
@@ -165,9 +165,10 @@ BlockDriverState *bdrv_new(const char *device_name)
 BlockDriver *bdrv_find_format(const char *format_name)
 {
     BlockDriver *drv1;
-    for(drv1 = first_drv; drv1 != NULL; drv1 = drv1->next) {
-        if (!strcmp(drv1->format_name, format_name))
+    QLIST_FOREACH(drv1, &bdrv_drivers, list) {
+        if (!strcmp(drv1->format_name, format_name)) {
             return drv1;
+        }
     }
     return NULL;
 }
@@ -268,10 +269,11 @@ static BlockDriver *find_protocol(const char *filename)
         len = sizeof(protocol) - 1;
     memcpy(protocol, filename, len);
     protocol[len] = '\0';
-    for(drv1 = first_drv; drv1 != NULL; drv1 = drv1->next) {
+    QLIST_FOREACH(drv1, &bdrv_drivers, list) {
         if (drv1->protocol_name &&
-            !strcmp(drv1->protocol_name, protocol))
+            !strcmp(drv1->protocol_name, protocol)) {
             return drv1;
+        }
     }
     return NULL;
 }
@@ -285,7 +287,7 @@ static BlockDriver *find_hdev_driver(const char *filename)
     int score_max = 0, score;
     BlockDriver *drv = NULL, *d;
 
-    for (d = first_drv; d; d = d->next) {
+    QLIST_FOREACH(d, &bdrv_drivers, list) {
         if (d->bdrv_probe_device) {
             score = d->bdrv_probe_device(filename);
             if (score > score_max) {
@@ -320,7 +322,7 @@ static BlockDriver *find_image_format(const char *filename)
     }
 
     score_max = 0;
-    for(drv1 = first_drv; drv1 != NULL; drv1 = drv1->next) {
+    QLIST_FOREACH(drv1, &bdrv_drivers, list) {
         if (drv1->bdrv_probe) {
             score = drv1->bdrv_probe(buf, ret, filename);
             if (score > score_max) {
@@ -1157,7 +1159,7 @@ void bdrv_iterate_format(void (*it)(void *opaque, const char *name),
 {
     BlockDriver *drv;
 
-    for (drv = first_drv; drv != NULL; drv = drv->next) {
+    QLIST_FOREACH(drv, &bdrv_drivers, list) {
         it(opaque, drv->format_name);
     }
 }
