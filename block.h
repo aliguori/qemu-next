@@ -58,6 +58,7 @@ BlockDriver *bdrv_find_format(const char *format_name);
 BlockDriver *bdrv_find_whitelisted_format(const char *format_name);
 int bdrv_create(BlockDriver *drv, const char* filename,
     QEMUOptionParameter *options);
+int bdrv_create_file(const char* filename, QEMUOptionParameter *options);
 int bdrv_create2(BlockDriver *drv,
                  const char *filename, int64_t size_in_sectors,
                  const char *backing_file, const char *backing_format,
