@@ -1279,6 +1279,19 @@ void bdrv_flush_all(void)
             bdrv_flush(bs);
 }
 
+int bdrv_has_zero_init(BlockDriverState *bs)
+{
+    assert(bs->drv);
+
+    if (bs->drv->no_zero_init) {
+        return 0;
+    } else if (bs->file) {
+        return bdrv_has_zero_init(bs->file);
+    }
+
+    return 1;
+}
+
 /*
  * Returns true iff the specified sector is present in the disk image. Drivers
  * not implementing the functionality are assumed to not support backing files,
