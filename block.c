@@ -56,7 +56,7 @@ static int bdrv_write_em(BlockDriverState *bs, int64_t sector_num,
                          const uint8_t *buf, int nb_sectors);
 static BlockDriver *find_protocol(const char *filename);
 
-BlockDriverState *bdrv_first;
+static BlockDriverState *bdrv_first;
 
 static QLIST_HEAD(, BlockDriver) bdrv_drivers =
     QLIST_HEAD_INITIALIZER(bdrv_drivers);
