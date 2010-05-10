@@ -26,6 +26,7 @@
 
 #include "block.h"
 #include "qemu-option.h"
+#include "qemu-queue.h"
 
 #define BLOCK_FLAG_ENCRYPT	1
 #define BLOCK_FLAG_COMPRESS	2
@@ -182,7 +183,7 @@ struct BlockDriverState {
     int type;
     char device_name[32];
     unsigned long *dirty_bitmap;
-    BlockDriverState *next;
+    QTAILQ_ENTRY(BlockDriverState) list;
     void *private;
 };
 
