@@ -409,6 +409,7 @@ static void *qemu_put_kbd_event_opaque;
 static QEMUPutMouseEntry *qemu_put_mouse_event_head;
 static QEMUPutMouseEntry *qemu_put_mouse_event_current;
 static QTAILQ_HEAD(, QEMUPutLEDEntry) led_handlers = QTAILQ_HEAD_INITIALIZER(led_handlers);
+static int ledstate;
 
 void qemu_add_kbd_event_handler(QEMUPutKBDEvent *func, void *opaque)
 {
@@ -506,13 +507,19 @@ void kbd_put_keycode(int keycode)
     }
 }
 
-void kbd_put_ledstate(int ledstate)
+void kbd_put_ledstate(int l)
 {
     QEMUPutLEDEntry *cursor;
 
+    ledstate = l;
     QTAILQ_FOREACH(cursor, &led_handlers, next) {
         cursor->put_led(cursor->opaque, ledstate);
     }
+}
+
+int kbd_get_ledstate(void)
+{
+    return ledstate;
 }
 
 void kbd_mouse_event(int dx, int dy, int dz, int buttons_state)

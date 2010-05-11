@@ -2449,6 +2449,7 @@ static void vnc_connect(VncDisplay *vd, int csock)
     vnc_read_when(vs, protocol_version, 12);
     reset_keys(vs);
     vs->led = qemu_add_led_event_handler(kbd_leds, vs);
+    kbd_leds(vs, kbd_get_ledstate());
 
     vnc_init_timer(vd);
 
