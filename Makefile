@@ -132,14 +132,17 @@ net-nested-$(CONFIG_VDE) += vde.o
 net-obj-y += $(addprefix net/, $(net-nested-y))
 
 ######################################################################
+# shared-obj-y has the object that are shared by qemu binary and tools
+shared-obj-y = qemu-error.o $(block-obj-y) $(qobject-obj-y)
+
+######################################################################
 # libqemu_common.a: Target independent part of system emulation. The
 # long term path is to suppress *all* target specific code in case of
 # system emulation, i.e. a single QEMU executable should support all
 # CPUs and machines.
 
-obj-y = $(block-obj-y)
+obj-y = $(shared-obj-y)
 obj-y += $(net-obj-y)
-obj-y += $(qobject-obj-y)
 obj-y += readline.o console.o
 
 obj-y += tcg-runtime.o host-utils.o
@@ -249,11 +252,13 @@ libqemu_common.a: $(obj-y)
 
 qemu-img.o: qemu-img-cmds.h
 
-qemu-img$(EXESUF): qemu-img.o qemu-tool.o qemu-error.o $(block-obj-y) $(qobject-obj-y)
+TOOLS_OBJ=qemu-tool.o $(shared-obj-y)
 
-qemu-nbd$(EXESUF): qemu-nbd.o qemu-tool.o qemu-error.o $(block-obj-y) $(qobject-obj-y)
+qemu-img$(EXESUF): qemu-img.o $(TOOLS_OBJ)
 
-qemu-io$(EXESUF): qemu-io.o cmd.o qemu-tool.o qemu-error.o $(block-obj-y) $(qobject-obj-y)
+qemu-nbd$(EXESUF): qemu-nbd.o $(TOOLS_OBJ)
+
+qemu-io$(EXESUF): qemu-io.o cmd.o $(TOOLS_OBJ)
 
 qemu-img-cmds.h: $(SRC_PATH)/qemu-img-cmds.hx
 	$(call quiet-command,sh $(SRC_PATH)/hxtool -h < $< > $@,"  GEN   $@")
