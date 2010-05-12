@@ -89,7 +89,7 @@ $(GIT_PATCH):
 setup-source: rh-clean-sources
 	@cp $(REDHAT)/$(SPECFILE).template $(SOURCES)/$(SPECFILE)
 
-sources-rh: $(TARBALL) $(RC_PATCH) $(GIT_PATCH) $(REDHAT)/create-patches.sh Makefile
+sources-rh: $(TARBALL) $(RC_PATCH) $(GIT_PATCH) $(REDHAT)/create-patches.sh Makefile lastcommit
 	@cp $(TARBALL) $(SOURCES)/
 	@(if [ -n "$(RCREV)" ]; then \
 		cp $(RC_PATCH) $(SOURCES)/; \
