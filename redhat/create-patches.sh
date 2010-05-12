@@ -42,7 +42,7 @@ touch $PATCHF $patchf
 echo >$clogf
 
 total="$(git log --first-parent --pretty=oneline $MARKER.. |wc -l)"
-git format-patch --first-parent --no-renames -k --stdout $MARKER..|awk '
+git format-patch --first-parent --no-renames -k --stdout $MARKER..|tee debug0 | awk '
 BEGIN{TYPE="PATCHJUNK"; count=1; dolog=0; pnum=1000}
 
 	#convert subject line to a useable filename
@@ -227,6 +227,8 @@ BEGIN{TYPE="PATCHJUNK"; count=1; dolog=0; pnum=1000}
 	SERIESF=$SERIESF CLOGF=$clogf total=$total LASTCOMMIT=$LASTCOMMIT \
 	HIDE_REDHAT=$HIDE_REDHAT STRIP_REDHAT=$STRIP_REDHAT
 
+echo cp $clogf debug > debug1
+cp $clogf debug
 # strip all redhat/ code
 if [ $STRIP_REDHAT = 1 ]; then
 	which filterdiff >/dev/null 2>&1;
