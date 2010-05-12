@@ -72,18 +72,18 @@ $(TARBALL):
 	@echo "Creating archive $(TARBALL)"
 	(cd ../; \
 	git archive --prefix=qemu-kvm-$(KVERSION)/ --format=tar $(MARKER) | \
-	bzip2 > $(TARBALL))
+	gzip > $(TARBALL))
 
 $(RC_PATCH):
 	@if [ -n "$(RCREV)" ]; then \
-		git diff v$(KVERSION)..v2.6.$(SUBLEVEL)-rc$(RCREV) | \
-			bzip2 >$(REDHAT)/$(RC_PATCH); \
+		git diff qemu-kvm-$(KVERSION)..qemu-kvm-$(SUBLEVEL)-rc$(RCREV) | \
+			gzip >$(REDHAT)/$(RC_PATCH); \
 	fi
 
 $(GIT_PATCH):
 	@if [ -n "$(GITREV)" ]; then \
-		git diff v2.6.$(SUBLEVEL)-rc$(RCREV)..$(MARKER) | \
-			bzip2 >$(REDHAT)/$(GIT_PATCH); \
+		git diff qemu-kvm-$(SUBLEVEL)-rc$(RCREV)..$(MARKER) | \
+			gzip >$(REDHAT)/$(GIT_PATCH); \
 	fi
 
 setup-source: rh-clean-sources
