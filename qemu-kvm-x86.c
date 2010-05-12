@@ -707,7 +707,7 @@ uint32_t kvm_get_supported_cpuid(kvm_context_t kvm, uint32_t function, int reg)
 				 */
 				if (function == 0x80000001) {
 					cpuid_1_edx = kvm_get_supported_cpuid(kvm, 1, R_EDX);
-					ret |= cpuid_1_edx & 0xdfeff7ff;
+					ret |= cpuid_1_edx & 0x183f7ff;
 				}
 				break;
 			}
