@@ -1,7 +1,7 @@
 #stuff needed to kick off rhts tests
 
 NAME=kernel
-VERSION=2.6.32
+VERSION=0.12.1.2
 FAMILY=RedHatEnterpriseLinux6
 TMPFILE="tests/job.xml"
 TMPFILE2="tests/tmp.xml"

@@ -17,12 +17,13 @@ HIDE_REDHAT=1;
 STRIP_REDHAT=1;
 # override LC_TIME to avoid date conflicts when building the srpm
 LC_TIME=
-SUBLEVEL="$(echo $MARKER | cut -f 3 -d '.' | cut -f 1 -d '-')";
-#SUBLEVEL="$(echo $MARKER | cut -f 3 -d '.')";
-RCREV=$(echo $MARKER | cut -f 2 -d '-' -s | sed -e "s/rc//")
-GITREV=$(echo $MARKER | cut -f 3 -d '-' -s | sed -e "s/git//")
+SUBLEVEL=$(echo $MARKER | cut -f 3 -d '-')
+#RCREV := $(shell echo $(MARKER) | cut -f 2 -d '-' -s | sed -e "s/rc//")
+RCREV= 
+GITREV=$(echo $MARKER | cut -f 4 -d '-' -s | sed -e "s/git//")
 LASTCOMMIT=$(cat lastcommit);
-STAMP=$(echo $MARKER | cut -f 1 -d '-' | sed -e "s/v//");
+#STAMP=$(echo $MARKER | cut -f 1 -d '-' | sed -e "s/v//");
+STAMP=$(echo $MARKER | cut -f 3 -d '-')
 if [ -n "$RCREV" ]; then
 	RELEASED_KERNEL="0";
 	SUBLEVEL=$(($SUBLEVEL - 1));
@@ -42,7 +43,7 @@ echo >$clogf
 
 total="$(git log --first-parent --pretty=oneline $MARKER.. |wc -l)"
 git format-patch --first-parent --no-renames -k --stdout $MARKER..|awk '
-BEGIN{TYPE="PATCHJUNK"; count=1; dolog=0; }
+BEGIN{TYPE="PATCHJUNK"; count=1; dolog=0; pnum=1000}
 
 	#convert subject line to a useable filename
 	function subj_to_name(subject)
@@ -180,12 +181,13 @@ BEGIN{TYPE="PATCHJUNK"; count=1; dolog=0; }
 
 		#output patch commands for specfile
 		print "Patch" pnum": " patchname >> PATCHF;
-		print "ApplyPatch " patchname >> patchf;
+		#print "ApplyPatch " patchname >> patchf;
+		print "%patch" pnum  " -p1" >> patchf;
 		pnum=pnum+1;
 
 		if (SPECFILE == "") { print patchname >> SERIESF; }
 
-		printf "Creating kernel patches - (" count "/" total ")\r";
+		printf "Creating qemu-kvm patches - (" count "/" total ")\r";
 		count=count+1;
 
 		print NAMELINE > OUTF;
@@ -241,9 +243,10 @@ if [ $STRIP_REDHAT = 1 ]; then
 		filterdiff -x '*redhat/*' -x '*/.gitignore' -x '*/makefile' $patch >$SOURCES/.tmp;
 		mv $SOURCES/.tmp $patch;
 		if [ -z "$(lsdiff $patch)" ]; then
+			pnum=`grep -e "^Patch.*: $(basename $patch)$" $PATCHF| sed -e "s/^Patch//" | sed -e "s/:.*//"`
 			grep -v -e "^Patch.*: $(basename $patch)$" $PATCHF >$SOURCES/.tmp;
 			mv $SOURCES/.tmp $PATCHF;
-			grep -v -e "^ApplyPatch $(basename $patch)$" $patchf >$SOURCES/.tmp;
+			grep -v -e "^%patch$pnum -p1$" $patchf >$SOURCES/.tmp;
 			mv $SOURCES/.tmp $patchf;
 			rm -f $patch;
 		fi
@@ -254,18 +257,18 @@ if [ $STRIP_REDHAT = 1 ]; then
 	fi
 fi
 
-CONFIGS=configs/config.include
-CONFIGS2=configs/config2.include
-find configs/ -mindepth 1 -maxdepth 1 -name config-\* | grep -v merged | cut -f 2 -d '/' >$CONFIGS;
-# Set this to a nice high starting point
-count=50;
-rm -f $CONFIGS2;
-for i in $(cat $CONFIGS); do
-	echo "Source$count: $i" >>$CONFIGS2;
-	count=$((count+1));
-done
+#CONFIGS=configs/config.include
+#CONFIGS2=configs/config2.include
+#find configs/ -mindepth 1 -maxdepth 1 -name config-\* | grep -v merged | cut -f 2 -d '/' >$CONFIGS;
+## Set this to a nice high starting point
+#count=50;
+#rm -f $CONFIGS2;
+#for i in $(cat $CONFIGS); do
+#	echo "Source$count: $i" >>$CONFIGS2;
+#	count=$((count+1));
+#done
 
-printf "Creating kernel patches - Done.    \n"
+printf "Creating qemu-kvm patches - Done.    \n"
 
 #the changelog was created in reverse order
 #also remove the blank on top, if it exists

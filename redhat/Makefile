@@ -71,7 +71,7 @@ rh-key:
 $(TARBALL):
 	@echo "Creating archive $(TARBALL)"
 	(cd ../; \
-	git archive --prefix=linux-$(KVERSION)/ --format=tar v$(KVERSION) | \
+	git archive --prefix=qemu-kvm-$(KVERSION)/ --format=tar $(MARKER) | \
 	bzip2 > $(TARBALL))
 
 $(RC_PATCH):
@@ -89,7 +89,7 @@ $(GIT_PATCH):
 setup-source: rh-clean-sources
 	@cp $(REDHAT)/$(SPECFILE).template $(SOURCES)/$(SPECFILE)
 
-sources-rh: $(TARBALL) $(RC_PATCH) $(GIT_PATCH)
+sources-rh: $(TARBALL) $(RC_PATCH) $(GIT_PATCH) $(REDHAT)/create-patches.sh Makefile
 	@cp $(TARBALL) $(SOURCES)/
 	@(if [ -n "$(RCREV)" ]; then \
 		cp $(RC_PATCH) $(SOURCES)/; \
@@ -104,9 +104,11 @@ sources-rh: $(TARBALL) $(RC_PATCH) $(GIT_PATCH)
 	@rm $(TESTPATCH).tmp
 	@$(REDHAT)/create-patches.sh $(MARKER) $(SOURCES) $(SOURCES)/$(SPECFILE) $(BUILD) $(BUILDID)
 	@cp $(SOURCES)/$(SPECFILE) $(SOURCES)/../SPECS
-	@cp $(TESTPATCH) $(SOURCES)/linux-kernel-test.patch
-	@cp configs/Makefile $(SOURCES)/Makefile.config
-	@cp genkey perf Makefile.common kabi/{find-provides,kabitool,check-kabi} kabi/Module.kabi_{i686,ppc64,s390x,x86_64} configs/{config-*,merge.pl} extrakeys.pub $(SOURCES)/
+	@cp $(TESTPATCH) $(SOURCES)/qemu-kvm-test.patch
+#	@cp configs/Makefile $(SOURCES)/Makefile.config
+	@cp Makefile.common $(SOURCES)/
+	@cp ksmtuned.conf ksmtuned ksmtuned.init ksm.sysconfig ksm.init 80-kvm.rules kvm.modules $(SOURCES)/
+#	@cp genkey perf Makefile.common kabi/{find-provides,kabitool,check-kabi} kabi/Module.kabi_{i686,ppc64,s390x,x86_64} configs/{config-*,merge.pl} extrakeys.pub $(SOURCES)/
 
 rh-sources: setup-source sources-rh
 
@@ -116,19 +118,19 @@ rh-test-patch:
 	mv $(TESTPATCH).tmp $(TESTPATCH);
 
 rh-all-rpms: rh-sources
-	$(RPMBUILD) --define "_sourcedir $(SOURCES)" --define "_builddir $(RPM)/BUILD" --define "_srcrpmdir $(RPM)/SRPMS" --define "_rpmdir $(RPM)/RPMS" --define "_specdir $(RPM)/SPECS" --define "dist $(DIST)" --target $(MACH) -ba $(RPM)/SOURCES/kernel.spec
+	$(RPMBUILD) --define "_sourcedir $(SOURCES)" --define "_builddir $(RPM)/BUILD" --define "_srcrpmdir $(RPM)/SRPMS" --define "_rpmdir $(RPM)/RPMS" --define "_specdir $(RPM)/SPECS" --define "dist $(DIST)" --target $(MACH) -ba $(RPM)/SOURCES/$(SPECFILE)
 
 rh-srpm: rh-sources
-	$(RPMBUILD) --define "_sourcedir $(SOURCES)" --define "_builddir $(RPM)/BUILD" --define "_srcrpmdir $(RPM)/SRPMS" --define "_rpmdir $(RPM)/RPMS" --define "_specdir $(RPM)/SPECS" --define "dist $(DIST)" --nodeps -bs $(RPM)/SOURCES/kernel.spec
+	$(RPMBUILD) --define "_sourcedir $(SOURCES)" --define "_builddir $(RPM)/BUILD" --define "_srcrpmdir $(RPM)/SRPMS" --define "_rpmdir $(RPM)/RPMS" --define "_specdir $(RPM)/SPECS" --define "dist $(DIST)" --nodeps -bs $(RPM)/SOURCES/$(SPECFILE)
 
 rh-rpms: rh-sources
-	$(RPMBUILD) --define "_sourcedir $(SOURCES)" --define "_builddir $(RPM)/BUILD" --define "_srcrpmdir $(RPM)/SRPMS" --define "_rpmdir $(RPM)/RPMS" --define "_specdir $(RPM)/SPECS" --define "dist $(DIST)" --target $(MACH) -bb $(RPM)/SOURCES/kernel.spec
+	$(RPMBUILD) --define "_sourcedir $(SOURCES)" --define "_builddir $(RPM)/BUILD" --define "_srcrpmdir $(RPM)/SRPMS" --define "_rpmdir $(RPM)/RPMS" --define "_specdir $(RPM)/SPECS" --define "dist $(DIST)" --target $(MACH) -bb $(RPM)/SOURCES/$(SPECFILE)
 
 rh-kernel-%: rh-sources
-	$(RPMBUILD) --define "_sourcedir $(SOURCES)" --define "_builddir $(RPM)/BUILD" --define "_srcrpmdir $(RPM)/SRPMS" --define "_rpmdir $(RPM)/RPMS" --define "_specdir $(RPM)/SPECS" --define "dist $(DIST)" --target $(MACH) --with $* --without vdso_install --with firmware -bb $(RPM)/SOURCES/kernel.spec
+	$(RPMBUILD) --define "_sourcedir $(SOURCES)" --define "_builddir $(RPM)/BUILD" --define "_srcrpmdir $(RPM)/SRPMS" --define "_rpmdir $(RPM)/RPMS" --define "_specdir $(RPM)/SPECS" --define "dist $(DIST)" --target $(MACH) --with $* --without vdso_install --with firmware -bb $(RPM)/SOURCES/$(SPECFILE)
 
 rh-prep: rh-sources
-	$(RPMBUILD) --define "_sourcedir $(SOURCES)" --define "_builddir $(RPM)/BUILD" --define "_srcrpmdir $(RPM)/SRPMS" --define "_rpmdir $(RPM)/RPMS" --define "_specdir $(RPM)/SPECS" --define "dist $(DIST)" --nodeps --target noarch -bp $(RPM)/SOURCES/kernel.spec
+	$(RPMBUILD) --define "_sourcedir $(SOURCES)" --define "_builddir $(RPM)/BUILD" --define "_srcrpmdir $(RPM)/SRPMS" --define "_rpmdir $(RPM)/RPMS" --define "_specdir $(RPM)/SPECS" --define "dist $(DIST)" --nodeps --target noarch -bp $(RPM)/SOURCES/$(SPECFILE)
 
 # unless you know what you're doing, you don't want to use the next two ones
 rh-release: rh-clean-sources
@@ -136,7 +138,7 @@ rh-release: rh-clean-sources
 	@make rh-srpm
 	@$(REDHAT)/scripts/update_changelog.sh $(KVERSION) $(shell echo $$[$(BUILD) + 1]) $(REDHAT) "$(STAMP_VERSION)-$(PREBUILD)$(shell echo $$[$(BUILD) + 1]).el6$(BUILDID)"
 rh-release-commit:
-	@git commit -s Makefile.common kernel.spec.template -m "[redhat] tagging $(STAMP_VERSION)-$(PREBUILD)$(BUILD)$(LOCALVERSION).el6"
+	@git commit -s Makefile.common $(SPECFILE).template -m "[redhat] tagging $(STAMP_VERSION)-$(PREBUILD)$(BUILD)$(LOCALVERSION).el6"
 	@git tag kernel-$(STAMP_VERSION)-$(PREBUILD)$(BUILD)$(LOCALVERSION).el6
 	@git log --max-count=1 --pretty=format:%H >$(REDHAT)/lastcommit;
 	@git commit -s lastcommit -m "[redhat] updating lastcommit for $(STAMP_VERSION)-$(PREBUILD)$(BUILD)$(LOCALVERSION)"
@@ -170,8 +172,8 @@ rh-help:
 
 	@echo  '  rh-all-rpms	- Create the binary RPMS and the SRPM for the kernel'
 	@echo  '  rh-prep	- Setup the redhat/rpm/BUILD/ directory with the kernel source'
-	@echo  '  rh-test-patch - Create a diff against HEAD and put it in linux-kernel-test.patch.'
-	@echo  '                  Then linux-kernel-test.patch will be added to the kernel build'
+	@echo  '  rh-test-patch - Create a diff against HEAD and put it in qemu-kvm-test.patch.'
+	@echo  '                  Then qemu-kvm-test.patch will be added to the kernel build'
 	@echo  '  rh-key	- Generate the required files for compiling with module signing enabled'
 	@echo  ''
 	@echo  'Configuration targets:'
