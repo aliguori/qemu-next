@@ -321,7 +321,6 @@ static VirtIOSerialPortInfo spice_vmc_info = {
     .qdev.props = (Property[]) {
         DEFINE_PROP_UINT32("nr", SpiceVMChannel, vserport.id,
                            VIRTIO_CONSOLE_BAD_ID),
-        DEFINE_PROP_STRING("name", SpiceVMChannel, vserport.name),
         DEFINE_PROP_END_OF_LIST(),
     },
 };
