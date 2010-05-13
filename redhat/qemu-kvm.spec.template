@@ -1,0 +1,366 @@
+Summary: Userspace component of KVM
+Name: qemu-kvm
+Version: %{rpmversion}
+Release: %{pkg_release}
+# Epoch because we pushed a qemu-1.0 package
+Epoch: 2
+License: GPLv2+ and LGPLv2+ and BSD
+Group: Development/Tools
+URL: http://www.linux-kvm.org
+ExclusiveArch: x86_64
+
+# base_sublevel is the qemu-kvm version we're starting with and patching
+# on top of -- for example, qemu-kvm-0.12.1.2-git1 starts with a 0.12.1.2 base,
+# which yields a base_sublevel of 1.2.
+%define base_sublevel %%SUBLEVEL%%
+
+# Do we have a -stable update to apply?
+%define stable_update 0
+# Is it a -stable RC?
+%define stable_rc 0
+# Set rpm version accordingly
+%if 0%{?stable_update}
+%define stablerev .%{stable_update}
+%define stable_base %{stable_update}
+%if 0%{?stable_rc}
+# stable RCs are incremental patches, so we need the previous stable patch
+%define stable_base %(echo $((%{stable_update} - 1)))
+%endif
+%endif
+%define rpmversion %{base_sublevel}%{?stablerev}
+%define pkg_release %{distro_build}%{?stable_rctag}%{?dist}%{?buildid}
+Source0: http://downloads.sourceforge.net/sourceforge/kvm/qemu-kvm-%{version}.tar.gz
+
+# Loads kvm kernel modules at boot
+Source2: kvm.modules
+
+# Creates /dev/kvm
+Source3: 80-kvm.rules
+
+# KSM control scripts
+Source4: ksm.init
+Source5: ksm.sysconfig
+Source6: ksmtuned.init
+Source7: ksmtuned
+Source8: ksmtuned.conf
+
+# Versions of various parts
+
+# Polite request for people who spin their own qemu-kvm rpms:
+# please modify the "buildid" define in a way that identifies
+# that the kernel isn't the stock distribution qemu-kvm, for example,
+# by setting the define to ".local" or ".bz123456"
+#
+# % define buildid .local
+
+%define distro_build %%BUILD%%
+%define rcrev %%RCREV%%
+%define rcrev 0
+# The git snapshot level
+%define gitrev %%GITREV%%
+
+%%CONFIGS%%
+
+%%PATCH_LIST%%
+
+BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root-%(%{__id_u} -n)
+BuildRequires: SDL-devel zlib-devel which texi2html gnutls-devel cyrus-sasl-devel
+BuildRequires: rsync dev86 iasl
+BuildRequires: pciutils-devel
+BuildRequires: pulseaudio-libs-devel
+BuildRequires: ncurses-devel
+BuildRequires: libaio-devel
+
+# require spice-server API changes from bz#571286
+BuildRequires: spice-server-devel >= 0.4.2-10.el6
+
+Requires(post): /usr/bin/getent
+Requires(post): /usr/sbin/groupadd
+Requires(post): /usr/sbin/useradd
+Requires(post): /sbin/chkconfig
+Requires(preun): /sbin/service /sbin/chkconfig
+Requires(postun): /sbin/service
+
+Provides: kvm = 85
+Obsoletes: kvm < 85
+Requires: vgabios
+Requires: vgabios-qxl
+Requires: seabios
+Requires: /usr/share/gpxe/e1000-0x100e.rom
+Requires: /usr/share/gpxe/rtl8029.rom
+Requires: /usr/share/gpxe/pcnet32.rom
+Requires: /usr/share/gpxe/rtl8139.rom
+Requires: /usr/share/gpxe/virtio-net.rom
+
+# We don't provide vvfat anymore, that is used by older VDSM versions.
+Conflicts: vdsm < 4.5
+
+Requires: qemu-img = %{epoch}:%{version}-%{release}
+
+%define qemudocdir %{_docdir}/%{name}-%{version}
+
+%description
+KVM (for Kernel-based Virtual Machine) is a full virtualization solution
+for Linux on x86 hardware.
+
+Using KVM, one can run multiple virtual machines running unmodified Linux
+or Windows images. Each virtual machine has private virtualized hardware:
+a network card, disk, graphics adapter, etc.
+
+%package -n qemu-img
+Summary: QEMU command line tool for manipulating disk images
+Group: Development/Tools
+%description -n qemu-img
+This package provides a command line tool for manipulating disk images
+
+%package tools
+Summary: KVM debugging and diagnostics tools
+Group: Development/Tools
+
+%description tools
+This package contains some diagnostics and debugging tools for KVM,
+such as kvmtrace and kvm_stat.
+
+%prep
+%setup -q -n qemu-kvm-%{version}
+
+# if patch fuzzy patch applying will be forbidden
+%define with_fuzzy_patches 0
+%if %{with_fuzzy_patches}
+  patch_command='patch -p1 -s'
+%else
+  patch_command='patch -p1 -F1 -s'
+%endif
+
+ApplyPatch()
+{
+  local patch=$1
+  shift
+  if [ ! -f $RPM_SOURCE_DIR/$patch ]; then
+    exit 1
+  fi
+  case "$patch" in
+  *.bz2) bunzip2 < "$RPM_SOURCE_DIR/$patch" | $patch_command ${1+"$@"} ;;
+  *.gz) gunzip < "$RPM_SOURCE_DIR/$patch" | $patch_command ${1+"$@"} ;;
+  *) $patch_command ${1+"$@"} < "$RPM_SOURCE_DIR/$patch" ;;
+  esac
+}
+
+# don't apply patch if it's empty or does not exist
+ApplyOptionalPatch()
+{
+  local patch=$1
+  shift
+  if [ ! -f $RPM_SOURCE_DIR/$patch ]; then
+    return 0
+  fi
+  local C=$(wc -l $RPM_SOURCE_DIR/$patch | awk '{print $1}')
+  if [ "$C" -gt 9 ]; then
+    ApplyPatch $patch ${1+"$@"}
+  fi
+}
+
+
+%%PATCH_APPLICATION%%
+
+
+ApplyOptionalPatch qemu-kvm-test.patch
+
+%build
+# --build-id option is used fedora 8 onwards for giving info to the debug packages.
+extraldflags="-Wl,--build-id";
+buildldflags="VL_LDFLAGS=-Wl,--build-id"
+
+# sdl outputs to alsa or pulseaudio depending on system config, but it's broken (#495964)
+# alsa works, but causes huge CPU load due to bugs
+# oss works, but is very problematic because it grabs exclusive control of the device causing other apps to go haywire
+./configure --target-list=x86_64-softmmu \
+            --prefix=%{_prefix} \
+            --audio-drv-list=pa,alsa \
+            --audio-card-list=ac97,es1370 \
+            --disable-strip \
+            --extra-ldflags=$extraldflags \
+            --extra-cflags="$RPM_OPT_FLAGS" \
+            --disable-xen \
+            --block-drv-whitelist=qcow2,raw,host_device,host_cdrom \
+            --disable-debug-tcg \
+            --disable-sparse \
+            --enable-werror \
+            --disable-sdl \
+            --disable-curses \
+            --disable-curl \
+            --disable-check-utests \
+            --enable-vnc-tls \
+            --enable-vnc-sasl \
+            --disable-brlapi \
+            --disable-bluez \
+            --enable-docs \
+            --disable-vde \
+            --enable-linux-aio \
+            --enable-kvm \
+            --enable-spice \
+            --enable-kvm-cap-pit \
+            --enable-kvm-cap-device-assignment
+
+echo "config-host.mak contents:"
+echo "==="
+cat config-host.mak
+echo "==="
+
+make V=1 %{?_smp_mflags} $buildldflags
+
+cd kvm/user
+./configure --prefix=%{_prefix} --kerneldir=$(pwd)/../kernel/
+make kvmtrace
+cd ../../
+
+%install
+rm -rf $RPM_BUILD_ROOT
+
+install -D -p -m 0755 %{SOURCE4} $RPM_BUILD_ROOT%{_initddir}/ksm
+install -D -p -m 0644 %{SOURCE5} $RPM_BUILD_ROOT%{_sysconfdir}/sysconfig/ksm
+
+install -D -p -m 0755 %{SOURCE6} $RPM_BUILD_ROOT%{_initddir}/ksmtuned
+install -D -p -m 0755 %{SOURCE7} $RPM_BUILD_ROOT%{_sbindir}/ksmtuned
+install -D -p -m 0644 %{SOURCE8} $RPM_BUILD_ROOT%{_sysconfdir}/ksmtuned.conf
+
+mkdir -p $RPM_BUILD_ROOT%{_sysconfdir}/sysconfig/modules
+mkdir -p $RPM_BUILD_ROOT%{_bindir}/
+mkdir -p $RPM_BUILD_ROOT%{_libexecdir}/
+mkdir -p $RPM_BUILD_ROOT%{_datadir}/%{name}
+mkdir -p $RPM_BUILD_ROOT%{_sysconfdir}/udev/rules.d
+
+install -m 0755 %{SOURCE2} $RPM_BUILD_ROOT%{_sysconfdir}/sysconfig/modules/kvm.modules
+install -m 0755 kvm/user/kvmtrace $RPM_BUILD_ROOT%{_bindir}/
+install -m 0755 kvm/user/kvmtrace_format $RPM_BUILD_ROOT%{_bindir}/
+install -m 0755 kvm/kvm_stat $RPM_BUILD_ROOT%{_bindir}/
+install -m 0644 %{SOURCE3} $RPM_BUILD_ROOT%{_sysconfdir}/udev/rules.d
+
+make prefix="${RPM_BUILD_ROOT}%{_prefix}" \
+     bindir="${RPM_BUILD_ROOT}%{_bindir}" \
+     sharedir="${RPM_BUILD_ROOT}%{_datadir}/%{name}" \
+     mandir="${RPM_BUILD_ROOT}%{_mandir}" \
+     docdir="${RPM_BUILD_ROOT}%{_docdir}/%{name}-%{version}" \
+     datadir="${RPM_BUILD_ROOT}%{_datadir}/%{name}" \
+     sysconfdir="${RPM_BUILD_ROOT}%{_sysconfdir}" install
+
+mv ${RPM_BUILD_ROOT}%{_bindir}/qemu-system-x86_64 ${RPM_BUILD_ROOT}%{_libexecdir}/qemu-kvm
+
+rm -rf ${RPM_BUILD_ROOT}%{_bindir}/qemu-nbd
+rm -rf ${RPM_BUILD_ROOT}%{_mandir}/man8/qemu-nbd.8*
+
+chmod -x ${RPM_BUILD_ROOT}%{_mandir}/man1/*
+install -D -p -m 0644 -t ${RPM_BUILD_ROOT}%{qemudocdir} Changelog README TODO COPYING COPYING.LIB LICENSE
+
+install -D -p -m 0644 qemu.sasl $RPM_BUILD_ROOT%{_sysconfdir}/sasl2/qemu-kvm.conf
+
+rm -rf ${RPM_BUILD_ROOT}%{_datadir}/%{name}/pxe*bin
+rm -rf ${RPM_BUILD_ROOT}%{_datadir}/%{name}/vgabios*bin
+rm -rf ${RPM_BUILD_ROOT}%{_datadir}/%{name}/bios.bin
+rm -rf ${RPM_BUILD_ROOT}%{_datadir}/%{name}/openbios-ppc
+rm -rf ${RPM_BUILD_ROOT}%{_datadir}/%{name}/openbios-sparc32
+rm -rf ${RPM_BUILD_ROOT}%{_datadir}/%{name}/openbios-sparc64
+rm -rf ${RPM_BUILD_ROOT}%{_datadir}/%{name}/petalogix-s3adsp1800.dtb
+rm -rf ${RPM_BUILD_ROOT}%{_datadir}/%{name}/video.x
+rm -rf ${RPM_BUILD_ROOT}%{_datadir}/%{name}/bamboo.dtb
+rm -rf ${RPM_BUILD_ROOT}%{_datadir}/%{name}/ppc_rom.bin
+
+# the pxe gpxe images will be symlinks to the images on
+# /usr/share/gpxe, as QEMU doesn't know how to look
+# for other paths, yet.
+pxe_link() {
+  ln -s ../gpxe/$2.rom %{buildroot}%{_datadir}/%{name}/pxe-$1.bin
+}
+
+pxe_link e1000 e1000-0x100e
+pxe_link ne2k_pci rtl8029
+pxe_link pcnet pcnet32
+pxe_link rtl8139 rtl8139
+pxe_link virtio virtio-net
+ln -s ../vgabios/VGABIOS-lgpl-latest.bin  %{buildroot}/%{_datadir}/%{name}/vgabios.bin
+ln -s ../vgabios/VGABIOS-lgpl-latest.cirrus.bin %{buildroot}/%{_datadir}/%{name}/vgabios-cirrus.bin
+ln -s ../vgabios/VGABIOS-lgpl-latest.qxl.bin %{buildroot}/%{_datadir}/%{name}/vgabios-qxl.bin
+ln -s ../seabios/bios.bin %{buildroot}/%{_datadir}/%{name}/bios.bin
+
+%clean
+rm -rf $RPM_BUILD_ROOT
+
+%post
+getent group kvm >/dev/null || groupadd -g 36 -r kvm
+getent group qemu >/dev/null || groupadd -g 107 -r qemu
+getent passwd qemu >/dev/null || \
+  useradd -r -u 107 -g qemu -G kvm -d / -s /sbin/nologin \
+    -c "qemu user" qemu
+
+/sbin/chkconfig --add ksm
+/sbin/chkconfig --add ksmtuned
+
+# load kvm modules now, so we can make sure no reboot is needed.
+# If there's already a kvm module installed, we don't mess with it
+sh %{_sysconfdir}/sysconfig/modules/kvm.modules
+
+%preun
+if [ $1 -eq 0 ]; then
+    /sbin/service ksmtuned stop &>/dev/null || :
+    /sbin/chkconfig --del ksmtuned
+    /sbin/service ksm stop &>/dev/null || :
+    /sbin/chkconfig --del ksm
+fi
+
+%postun
+if [ $1 -ge 1 ]; then
+    /sbin/service ksm condrestart &>/dev/null || :
+    /sbin/service ksmtuned condrestart &>/dev/null || :
+fi
+
+%files
+%defattr(-,root,root)
+%doc %{qemudocdir}/Changelog
+%doc %{qemudocdir}/README
+%doc %{qemudocdir}/TODO
+%doc %{qemudocdir}/qemu-doc.html
+%doc %{qemudocdir}/qemu-tech.html
+%doc %{qemudocdir}/COPYING
+%doc %{qemudocdir}/COPYING.LIB
+%doc %{qemudocdir}/LICENSE
+%dir %{_datadir}/%{name}/
+%{_datadir}/%{name}/keymaps/
+%{_mandir}/man1/qemu-kvm.1*
+%config(noreplace) %{_sysconfdir}/sasl2/qemu-kvm.conf
+%{_initddir}/ksm
+%config(noreplace) %{_sysconfdir}/sysconfig/ksm
+%{_initddir}/ksmtuned
+%{_sbindir}/ksmtuned
+%config(noreplace) %{_sysconfdir}/ksmtuned.conf
+%{_datadir}/%{name}/bios.bin
+%{_datadir}/%{name}/linuxboot.bin
+%{_datadir}/%{name}/multiboot.bin
+%{_datadir}/%{name}/vapic.bin
+%{_datadir}/%{name}/vgabios.bin
+%{_datadir}/%{name}/vgabios-cirrus.bin
+%{_datadir}/%{name}/vgabios-qxl.bin
+%{_datadir}/%{name}/pxe-e1000.bin
+%{_datadir}/%{name}/pxe-virtio.bin
+%{_datadir}/%{name}/pxe-pcnet.bin
+%{_datadir}/%{name}/pxe-rtl8139.bin
+%{_datadir}/%{name}/pxe-ne2k_pci.bin
+%{_datadir}/%{name}/extboot.bin
+%{_libexecdir}/qemu-kvm
+%{_sysconfdir}/sysconfig/modules/kvm.modules
+%{_sysconfdir}/udev/rules.d/80-kvm.rules
+%{_sysconfdir}/qemu/target-x86_64.conf
+
+%files tools
+%defattr(-,root,root,-)
+%{_bindir}/kvmtrace
+%{_bindir}/kvmtrace_format
+%{_bindir}/kvm_stat
+
+%files -n qemu-img
+%defattr(-,root,root)
+%{_bindir}/qemu-img
+%{_bindir}/qemu-io
+%{_mandir}/man1/qemu-img.1*
+
+%changelog
+%%CHANGELOG%%
