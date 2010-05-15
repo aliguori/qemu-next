@@ -152,9 +152,6 @@ struct Monitor {
     QLIST_ENTRY(Monitor) entry;
 };
 
-/* Red Hat Monitor's prefix (reversed fully qualified domain) */
-#define RFQDN_REDHAT "__com.redhat_"
-
 #ifdef CONFIG_DEBUG_MONITOR
 #define MON_DEBUG(fmt, ...) do {    \
     fprintf(stderr, "Monitor: ");       \
