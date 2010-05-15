@@ -483,7 +483,7 @@ static int ide_handle_rw_error(IDEState *s, int error, int op)
     BlockInterfaceErrorAction action = drive_get_on_error(s->bs, is_read);
 
     if (action == BLOCK_ERR_IGNORE) {
-        bdrv_mon_event(s->bs, BDRV_ACTION_IGNORE, is_read);
+        bdrv_mon_event(s->bs, BDRV_ACTION_IGNORE, error, is_read);
         return 0;
     }
 
@@ -491,7 +491,7 @@ static int ide_handle_rw_error(IDEState *s, int error, int op)
             || action == BLOCK_ERR_STOP_ANY) {
         s->bus->bmdma->unit = s->unit;
         s->bus->bmdma->status |= op;
-        bdrv_mon_event(s->bs, BDRV_ACTION_STOP, is_read);
+        bdrv_mon_event(s->bs, BDRV_ACTION_STOP, error, is_read);
         vm_stop(0);
     } else {
         if (op & BM_STATUS_DMA_RETRY) {
@@ -500,7 +500,7 @@ static int ide_handle_rw_error(IDEState *s, int error, int op)
         } else {
             ide_rw_error(s);
         }
-        bdrv_mon_event(s->bs, BDRV_ACTION_REPORT, is_read);
+        bdrv_mon_event(s->bs, BDRV_ACTION_REPORT, error, is_read);
     }
 
     return 1;

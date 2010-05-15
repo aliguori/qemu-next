@@ -1320,8 +1320,33 @@ int bdrv_is_allocated(BlockDriverState *bs, int64_t sector_num, int nb_sectors,
     return bs->drv->bdrv_is_allocated(bs, sector_num, nb_sectors, pnum);
 }
 
+#define BDRV_REASON_KEY RFQDN_REDHAT "reason"
+
+/* RHEL6 vendor extension */
+static void bdrv_put_rhel6_reason(QDict *event, int error)
+{
+    const char *reason;
+
+    switch (error) {
+    case ENOSPC:
+        reason = "enospc";
+        break;
+    case EPERM:
+        reason = "eperm";
+        break;
+    case EIO:
+        reason = "eio";
+        break;
+    default:
+        reason = "eother";
+        break;
+    }
+
+    qdict_put(event, BDRV_REASON_KEY, qstring_from_str(reason));
+}
+
 void bdrv_mon_event(const BlockDriverState *bdrv,
-                    BlockMonEventAction action, int is_read)
+                    BlockMonEventAction action, int error, int is_read)
 {
     QObject *data;
     const char *action_str;
@@ -1344,6 +1369,7 @@ void bdrv_mon_event(const BlockDriverState *bdrv,
                               bdrv->device_name,
                               action_str,
                               is_read ? "read" : "write");
+    bdrv_put_rhel6_reason(qobject_to_qdict(data), error);
     monitor_protocol_event(QEVENT_BLOCK_IO_ERROR, data);
 
     qobject_decref(data);

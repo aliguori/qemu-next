@@ -46,7 +46,7 @@ typedef enum {
 } BlockMonEventAction;
 
 void bdrv_mon_event(const BlockDriverState *bdrv,
-                    BlockMonEventAction action, int is_read);
+                    BlockMonEventAction action, int error, int is_read);
 void bdrv_info_print(Monitor *mon, const QObject *data);
 void bdrv_info(Monitor *mon, QObject **ret_data);
 void bdrv_stats_print(Monitor *mon, const QObject *data);
