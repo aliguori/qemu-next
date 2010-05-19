@@ -478,7 +478,7 @@ for opt do
   ;;
   --static) static="yes"
   ;;
-  --sysconfdir) sysconfdir="$optarg"
+  --sysconfdir=*) sysconfdir="$optarg"
   ;;
   --disable-sdl) sdl="no"
   ;;
