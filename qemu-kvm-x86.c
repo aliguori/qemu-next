@@ -1044,6 +1044,8 @@ void kvm_arch_save_mpstate(CPUState *env)
         env->mp_state = -1;
     else
         env->mp_state = mp_state.mp_state;
+    if (kvm_irqchip_in_kernel())
+        env->halted = (env->mp_state == KVM_MP_STATE_HALTED);
 #else
     env->mp_state = -1;
 #endif
