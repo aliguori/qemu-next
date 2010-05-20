@@ -42,6 +42,13 @@
 #define SPICE_VMC_GUEST_DEVICE_NAME "com.redhat.spice.0"
 #define SPICE_VMC_DEVICE_NAME       "spicevmc"
 
+#define dprintf(_svc, _level, _fmt, ...) \
+    do { \
+        if (_svc->debug >= _level) { \
+            fprintf(stderr, "svc: " _fmt, ## __VA_ARGS__); \
+        } \
+    } while (0)
+
 typedef struct SpiceVMChannel {
     VirtIOSerialPort    vserport;
     bool                running;
@@ -102,6 +109,9 @@ static int spice_vmc_interface_read(
     SpiceVMChannel *svc = container_of(port, SpiceVMChannel, interface);
     int bytes = MIN(len, svc->datalen);
 
+    dprintf(svc, 2, "%s: %p %d/%d\n", __func__,
+                svc->datapos, bytes, svc->datalen);
+
     if (bytes) {
         assert(svc->datapos);
         memcpy(buf, svc->datapos, bytes);
@@ -119,6 +129,8 @@ static void spice_vmc_register_interface(SpiceVMChannel *svc)
 {
     VDIPortInterface *interface = &svc->interface;
     static int interface_id = 0;
+
+    dprintf(svc, 1, "%s\n", __func__);
 
     if (svc->active_interface ) {
         return;
@@ -142,6 +154,7 @@ static void spice_vmc_register_interface(SpiceVMChannel *svc)
 
 static void spice_vmc_unregister_interface(SpiceVMChannel *svc)
 {
+    dprintf(svc, 1, "%s\n", __func__);
     if (!svc->active_interface ) {
         return;
     }
@@ -172,12 +185,16 @@ static void spice_vmc_vm_change_state_handler(
 static void spice_vmc_guest_open(VirtIOSerialPort *vserport)
 {
     SpiceVMChannel *svc = DO_UPCAST(SpiceVMChannel, vserport, vserport);
+
+    dprintf(svc, 1, "%s\n", __func__);
     spice_vmc_register_interface(svc);
 }
 
 static void spice_vmc_guest_close(VirtIOSerialPort *vserport)
 {
     SpiceVMChannel *svc = DO_UPCAST(SpiceVMChannel, vserport, vserport);
+
+    dprintf(svc, 1, "%s\n", __func__);
     spice_vmc_unregister_interface(svc);
 }
 
@@ -195,6 +212,7 @@ static void spice_vmc_have_data(
      * where it is copied out */
     svc->datapos = (uint8_t*)buf;
     svc->datalen = len;
+    dprintf(svc, 2, "%s: %p %d\n", __func__, svc->datapos, svc->datalen);
     if (svc->plug) {
         svc->plug->wakeup(svc->plug);
     }
@@ -270,6 +288,7 @@ static VirtIOSerialPortInfo spice_vmc_info = {
     .qdev.props = (Property[]) {
         DEFINE_PROP_UINT32("nr", SpiceVMChannel, vserport.id,
                            VIRTIO_CONSOLE_BAD_ID),
+        DEFINE_PROP_UINT32("debug", SpiceVMChannel, debug, 0),
         DEFINE_PROP_END_OF_LIST(),
     },
 };
@@ -278,4 +297,5 @@ static void spice_vmc_register(void)
 {
     virtio_serial_port_qdev_register(&spice_vmc_info);
 }
+
 device_init(spice_vmc_register)
