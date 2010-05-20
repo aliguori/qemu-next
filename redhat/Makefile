@@ -96,6 +96,10 @@ setup-source: rh-clean-sources
 	@cp $(REDHAT)/$(SPECFILE).template $(SOURCES)/$(SPECFILE)
 
 sources-rh: $(TARBALL) $(RC_PATCH) $(GIT_PATCH) $(REDHAT)/create-patches.sh Makefile lastcommit
+	@if [ -n "$(TARSHA1)" -a "$$(sha1sum < $(TARBALL) | cut -d' ' -f1)" != "$(TARSHA1)" ];then \
+			echo "$(TARBALL) sha1sum does not match (expected: $(TARSHA1))" >&2; \
+			exit 1; \
+	fi
 	@cp $(TARBALL) $(SOURCES)/
 	@(if [ -n "$(RCREV)" ]; then \
 		cp $(RC_PATCH) $(SOURCES)/; \
