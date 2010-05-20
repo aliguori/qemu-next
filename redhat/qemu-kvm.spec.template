@@ -1,22 +1,16 @@
-# base_sublevel is the qemu-kvm version we're starting with and patching
-# on top of -- for example, qemu-kvm-0.12.1.2-git1 starts with a 0.12.1.2 base,
-# which yields a base_sublevel of 1.2.
-%define base_sublevel %%SUBLEVEL%%
+# Versions of various parts
 
-# Do we have a -stable update to apply?
-%define stable_update 0
-# Is it a -stable RC?
-%define stable_rc 0
-# Set rpm version accordingly
-%if 0%{?stable_update}
-%define stablerev .%{stable_update}
-%define stable_base %{stable_update}
-%if 0%{?stable_rc}
-# stable RCs are incremental patches, so we need the previous stable patch
-%define stable_base %(echo $((%{stable_update} - 1)))
-%endif
-%endif
-%define rpmversion %{base_sublevel}%{?stablerev}
+# Polite request for people who spin their own qemu-kvm rpms:
+# please modify the "buildid" define in a way that identifies
+# that the kernel isn't the stock distribution qemu-kvm, for example,
+# by setting the define to ".local" or ".bz123456"
+#
+# % define buildid .local
+
+%define sublevel %%SUBLEVEL%%
+%define distro_build %%BUILD%%
+
+%define rpmversion %{sublevel}
 %define pkg_release %{distro_build}%{?stable_rctag}%{?dist}%{?buildid}
 
 Summary: Userspace component of KVM
@@ -45,20 +39,6 @@ Source6: ksmtuned.init
 Source7: ksmtuned
 Source8: ksmtuned.conf
 
-# Versions of various parts
-
-# Polite request for people who spin their own qemu-kvm rpms:
-# please modify the "buildid" define in a way that identifies
-# that the kernel isn't the stock distribution qemu-kvm, for example,
-# by setting the define to ".local" or ".bz123456"
-#
-# % define buildid .local
-
-%define distro_build %%BUILD%%
-%define rcrev %%RCREV%%
-%define rcrev 0
-# The git snapshot level
-%define gitrev %%GITREV%%
 
 %%CONFIGS%%
 
