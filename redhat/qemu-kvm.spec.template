@@ -8,16 +8,15 @@
 %define buildid %{nil}%%BUILDID%%
 
 %define sublevel %%SUBLEVEL%%
-%define distro_build %%BUILD%%
-%define prebuild %{nil}%%PREBUILD%%
+%define pkgrelease %%PKGRELEASE%%
 
 %define rpmversion %{sublevel}
-%define pkg_release %{prebuild}%{distro_build}%{?stable_rctag}%{?dist}%{?buildid}
+%define full_release %{pkgrelease}%{?dist}%{?buildid}
 
 Summary: Userspace component of KVM
 Name: qemu-kvm
 Version: %{rpmversion}
-Release: %{pkg_release}
+Release: %{full_release}
 # Epoch because we pushed a qemu-1.0 package
 Epoch: 2
 License: GPLv2+ and LGPLv2+ and BSD

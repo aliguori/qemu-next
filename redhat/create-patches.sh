@@ -3,9 +3,13 @@
 MARKER=$1
 SOURCES=$2
 SPECFILE=$3
-PREBUILD=$4
-BUILD=$5
-BUILDID=$6
+PKGRELEASE=$4
+
+# BUILD* are legacy variables: please use PKGRELEASE instead
+PREBUILD=$5
+BUILD=$6
+BUILDID=$7
+
 PATCHF="$SOURCES/Patch.include"
 patchf="$SOURCES/patch.include"
 SERIESF="$SOURCES/series"
@@ -41,7 +45,7 @@ fi
 if [ -z "$GITREV" ]; then
 	GITREV=0;
 fi
-RPM_VERSION="$STAMP-$PREBUILD$BUILD.el6$BUILDID";
+RPM_VERSION="$STAMP-$PREBUILD$PKGRELEASE.el6$BUILDID";
 
 touch $PATCHF $patchf
 echo >$clogf
@@ -311,6 +315,7 @@ test -n "$SPECFILE" &&
 	s/%%PREBUILD%%/$PREBUILD/
 	s/%%BUILD%%/$BUILD/
 	s/%%BUILDID%%/$BUILDID/
+	s/%%PKGRELEASE%%/$PKGRELEASE/
 	s/%%SUBLEVEL%%/$SUBLEVEL/
 	s/%%RCREV%%/$RCREV/
 	s/%%GITREV%%/$GITREV/

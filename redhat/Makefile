@@ -35,6 +35,8 @@ ifeq ($(KBUILD_OUTPUT),)
 endif
 endif
 
+PKGRELEASE=$(PREBUILD)$(BUILD)
+
 default: rh-help
 
 rh-configs:
@@ -111,7 +113,7 @@ sources-rh: $(TARBALL) $(RC_PATCH) $(GIT_PATCH) $(REDHAT)/create-patches.sh Make
 	@diff $(TESTPATCH).tmp $(TESTPATCH) > /dev/null || \
 		echo "WARNING: There are uncommitted changes in your tree or the changes are not in sync with the $(COMMON_NAME)-test.patch.  Either commit the changes or run 'make rh-test-patch'"
 	@rm $(TESTPATCH).tmp
-	@$(REDHAT)/create-patches.sh $(MARKER) $(SOURCES) $(SOURCES)/$(SPECFILE) '$(PREBUILD)' $(BUILD) $(BUILDID)
+	@$(REDHAT)/create-patches.sh $(MARKER) $(SOURCES) $(SOURCES)/$(SPECFILE) $(PKGRELEASE) '$(PREBUILD)' $(BUILD) $(BUILDID)
 	@cp $(SOURCES)/$(SPECFILE) $(SOURCES)/../SPECS
 	@cp $(TESTPATCH) $(SOURCES)/$(COMMON_NAME)-test.patch
 #	@cp configs/Makefile $(SOURCES)/Makefile.config
