@@ -310,6 +310,7 @@ test -n "$SPECFILE" &&
 	/%%CHANGELOG%%/d
 	s/%%PREBUILD%%/$PREBUILD/
 	s/%%BUILD%%/$BUILD/
+	s/%%BUILDID%%/$BUILDID/
 	s/%%SUBLEVEL%%/$SUBLEVEL/
 	s/%%RCREV%%/$RCREV/
 	s/%%GITREV%%/$GITREV/
