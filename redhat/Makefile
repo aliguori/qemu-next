@@ -36,6 +36,8 @@ endif
 endif
 
 PKGRELEASE=$(PREBUILD)$(BUILD)
+PKG_FULL_VR = $(STAMP_VERSION)-$(PKGRELEASE)$(DIST)$(BUILDID)
+PKG_FULL_NVR = $(PKGNAME)-$(PKG_FULL_VR)
 
 default: rh-help
 
@@ -149,16 +151,16 @@ rh-release: rh-clean-sources
 	@make rh-srpm
 	@$(REDHAT)/scripts/update_changelog.sh $(KVERSION) $(shell echo $$[$(BUILD) + 1]) $(REDHAT) "$(STAMP_VERSION)-$(PREBUILD)$(shell echo $$[$(BUILD) + 1]).el6$(BUILDID)"
 rh-release-commit:
-	@git commit -s Makefile.common $(SPECFILE).template -m "[redhat] tagging $(STAMP_VERSION)-$(PREBUILD)$(BUILD)$(LOCALVERSION).el6"
-	@git tag qemu-kvm-$(STAMP_VERSION)-$(PREBUILD)$(BUILD)$(LOCALVERSION).el6
+	@git commit -s Makefile.common $(SPECFILE).template -m "[redhat] tagging $(PKG_FULL_VR)"
+	@git tag $(PKG_FULL_NVR)
 	@git log --max-count=1 --pretty=format:%H >$(REDHAT)/lastcommit;
-	@git commit -s lastcommit -m "[redhat] updating lastcommit for $(STAMP_VERSION)-$(PREBUILD)$(BUILD)$(LOCALVERSION)"
+	@git commit -s lastcommit -m "[redhat] updating lastcommit for $(PKG_FULL_VR)"
 
 .PHONY: rh-brew rh-koji
 rh-brew : BUILD_FLAGS ?= $(BREW_FLAGS) $(TEST_FLAGS)
 rh-koji : BUILD_FLAGS ?= $(KOJI_FLAGS) $(TEST_FLAGS)
 rh-brew rh-koji: rh-%: rh-srpm
-	$* build $(BUILD_FLAGS) $(BUILD_TARGET) $(SRPMS)/qemu-kvm-$(KVERSION)-$(BUILD)$(DIST)$(BUILDID).src.rpm $(OUTPUT_FILE)
+	$* build $(BUILD_FLAGS) $(BUILD_TARGET) $(SRPMS)/$(PKG_FULL_NVR).src.rpm $(OUTPUT_FILE)
 
 rh-help:
 	@echo  'Cleaning targets:'
