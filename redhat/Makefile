@@ -149,12 +149,17 @@ rh-prep: rh-sources
 rh-release: rh-clean-sources
 	@$(REDHAT)/scripts/new_release.sh $(KVERSION) $(BUILD) $(REDHAT)
 	@make rh-srpm
-	@$(REDHAT)/scripts/update_changelog.sh $(KVERSION) $(shell echo $$[$(BUILD) + 1]) $(REDHAT) "$(STAMP_VERSION)-$(PREBUILD)$(shell echo $$[$(BUILD) + 1]).el6$(BUILDID)"
+	# this will be use the new BUILD definition from Makefile.common:
+	@$(MAKE) rh-update-changelog
+
 rh-release-commit:
 	@git commit -s Makefile.common $(SPECFILE).template -m "[redhat] tagging $(PKG_FULL_VR)"
 	@git tag $(PKG_FULL_NVR)
 	@git log --max-count=1 --pretty=format:%H >$(REDHAT)/lastcommit;
 	@git commit -s lastcommit -m "[redhat] updating lastcommit for $(PKG_FULL_VR)"
+
+rh-update-changelog:
+	@$(REDHAT)/scripts/update_changelog.sh $(KVERSION) $(PKG_FULL_VR)
 
 .PHONY: rh-brew rh-koji
 rh-brew : BUILD_FLAGS ?= $(BREW_FLAGS) $(TEST_FLAGS)
