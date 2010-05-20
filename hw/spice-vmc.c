@@ -42,75 +42,17 @@
 #define SPICE_VMC_GUEST_DEVICE_NAME "com.redhat.spice.0"
 #define SPICE_VMC_DEVICE_NAME       "spicevmc"
 
-typedef struct {
-    uint8_t  d[1024*16]; /* 16 KiB */
-    uint64_t write_pos;
-    uint64_t bytes;      /* in [0, sizeof(d)] */
-    uint64_t read_pos;
-} spice_vmc_ring_t;
-
-size_t spice_ring_read(spice_vmc_ring_t* ring, uint8_t* buf, size_t len);
-size_t spice_ring_write(spice_vmc_ring_t* ring, const uint8_t* buf, size_t len);
-
 typedef struct SpiceVMChannel {
-    VirtIOSerialPort vserport;
-    bool running;
-    bool active_interface;
-    uint8_t active_interface_vmstate;
-    VDIPortInterface interface;
-    VDIPortPlug *plug;
-
-    /* buffer the memory written by the guest until spice-server reads */
-    spice_vmc_ring_t guest_out_ring;
+    VirtIOSerialPort    vserport;
+    bool                running;
+    bool                active_interface;
+    uint8_t             active_interface_vmstate;
+    VDIPortInterface    interface;
+    VDIPortPlug         *plug;
+    uint8_t             *datapos;
+    uint32_t            datalen;
+    uint32_t            debug;
 } SpiceVMChannel;
-
-/*
- * ring buffer
- */
-
-size_t spice_ring_read(spice_vmc_ring_t* ring, uint8_t* buf, size_t len)
-{
-    size_t actual_read = MIN(len, ring->bytes);
-    size_t first_part;
-    if (actual_read > 0) {
-        if (actual_read + ring->read_pos > sizeof(ring->d)) {
-            /* two parts */
-            first_part = sizeof(ring->d) - ring->read_pos;
-            memcpy(buf, ring->d + ring->read_pos, first_part);
-            memcpy(buf + first_part, ring->d, actual_read - first_part);
-            ring->read_pos = actual_read - first_part;
-        } else {
-            /* one part */
-            memcpy(buf, ring->d + ring->read_pos, actual_read);
-            ring->read_pos += actual_read;
-        }
-        ring->bytes -= actual_read;
-    }
-    return actual_read;
-}
-
-size_t spice_ring_write(spice_vmc_ring_t* ring, const uint8_t* buf, size_t len)
-{
-    size_t bytes_written = 0;
-    size_t first_part;
-    if (ring->bytes == sizeof(ring->d)) {
-        return 0;
-    }
-    bytes_written = MIN(sizeof(ring->d) - ring->bytes, len);
-    if (ring->write_pos + bytes_written > sizeof(ring->d)) {
-        /* two parts */
-        first_part = sizeof(ring->d) - ring->write_pos;
-        memcpy(ring->d + ring->write_pos, buf, first_part);
-        memcpy(ring->d, buf + first_part, bytes_written - first_part);
-        ring->write_pos = bytes_written - first_part;
-    } else {
-        /* one part */
-        memcpy(ring->d + ring->write_pos, buf, bytes_written);
-        ring->write_pos += bytes_written;
-    }
-    ring->bytes += bytes_written;
-    return bytes_written;
-}
 
 /*
  * VDIPortInterface callbacks
@@ -157,11 +99,20 @@ static int spice_vmc_interface_write(
 static int spice_vmc_interface_read(
     VDIPortInterface *port, VDObjectRef plug, uint8_t *buf, int len)
 {
-    int actual_read;
     SpiceVMChannel *svc = container_of(port, SpiceVMChannel, interface);
+    int bytes = MIN(len, svc->datalen);
 
-    actual_read = spice_ring_read(&(svc->guest_out_ring), buf, len);
-    return actual_read;
+    if (bytes) {
+        assert(svc->datapos);
+        memcpy(buf, svc->datapos, bytes);
+        svc->datapos += bytes;
+        svc->datalen -= bytes;
+        assert(svc->datalen >= 0);
+        if (svc->datalen == 0) {
+            svc->datapos = NULL;
+        }
+    }
+    return bytes;
 }
 
 static void spice_vmc_register_interface(SpiceVMChannel *svc)
@@ -238,14 +189,12 @@ static void spice_vmc_have_data(
                 VirtIOSerialPort *vserport, const uint8_t *buf, size_t len)
 {
     SpiceVMChannel *svc = DO_UPCAST(SpiceVMChannel, vserport, vserport);
-    int bytes_written;
 
-    bytes_written = spice_ring_write(&(svc->guest_out_ring), buf, len);
-    if (bytes_written != len) {
-        printf("WARNING: %s: threw away %lu bytes due to ring being full\n",
-            __func__, (len - bytes_written));
-        return;
-    }
+    assert(svc->datalen == 0);
+    /* unconst cast is fine: datapos is only accessed through  _read
+     * where it is copied out */
+    svc->datapos = (uint8_t*)buf;
+    svc->datalen = len;
     if (svc->plug) {
         svc->plug->wakeup(svc->plug);
     }
