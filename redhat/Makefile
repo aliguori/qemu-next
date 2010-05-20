@@ -69,10 +69,16 @@ rh-key:
 	scripts/bin2c ksign_def_public_key __initdata < extract.pub >crypto/signature/key.h;
 
 $(TARBALL):
-	@echo "Creating archive $(TARBALL)"
-	(cd ../; \
-	git archive --prefix=qemu-kvm-$(KVERSION)/ --format=tar $(MARKER) | \
-	gzip > $(TARBALL))
+	@if [ -n "$(TARURL)" ];then \
+		echo "Downloading $(TARBALL) from $(TARURL)"; \
+		wget -O $(TARBALL) $(TARURL) || exit; \
+	else \
+		echo "Creating archive $(TARBALL)"; \
+		cd ../ && \
+		git archive --prefix=qemu-kvm-$(KVERSION)/ --format=tar $(MARKER) | \
+		    gzip > $(TARBALL) \
+		  || exit; \
+	fi
 
 $(RC_PATCH):
 	@if [ -n "$(RCREV)" ]; then \
