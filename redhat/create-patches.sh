@@ -3,8 +3,9 @@
 MARKER=$1
 SOURCES=$2
 SPECFILE=$3
-BUILD=$4
-BUILDID=$5
+PREBUILD=$4
+BUILD=$5
+BUILDID=$6
 PATCHF="$SOURCES/Patch.include"
 patchf="$SOURCES/patch.include"
 SERIESF="$SOURCES/series"
@@ -33,11 +34,9 @@ STAMP=$(echo $MARKER | cut -f 3 -d '-')
 if [ -n "$RCREV" ]; then
 	RELEASED_KERNEL="0";
 	SUBLEVEL=$(($SUBLEVEL - 1));
-	PREBUILD="0.";
 else
 	RELEASED_KERNEL="1";
 	RCREV=0;
-	PREBUILD="";
 fi
 if [ -z "$GITREV" ]; then
 	GITREV=0;
@@ -309,6 +308,7 @@ test -n "$SPECFILE" &&
         /%%PATCH_APPLICATION%%/d
 	/%%CHANGELOG%%/r $clogf.rev
 	/%%CHANGELOG%%/d
+	s/%%PREBUILD%%/$PREBUILD/
 	s/%%BUILD%%/$BUILD/
 	s/%%SUBLEVEL%%/$SUBLEVEL/
 	s/%%RCREV%%/$RCREV/

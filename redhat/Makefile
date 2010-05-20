@@ -112,7 +112,7 @@ sources-rh: $(TARBALL) $(RC_PATCH) $(GIT_PATCH) $(REDHAT)/create-patches.sh Make
 	@diff $(TESTPATCH).tmp $(TESTPATCH) > /dev/null || \
 		echo "WARNING: There are uncommitted changes in your tree or the changes are not in sync with the qemu-kvm-test.patch.  Either commit the changes or run 'make rh-test-patch'"
 	@rm $(TESTPATCH).tmp
-	@$(REDHAT)/create-patches.sh $(MARKER) $(SOURCES) $(SOURCES)/$(SPECFILE) $(BUILD) $(BUILDID)
+	@$(REDHAT)/create-patches.sh $(MARKER) $(SOURCES) $(SOURCES)/$(SPECFILE) '$(PREBUILD)' $(BUILD) $(BUILDID)
 	@cp $(SOURCES)/$(SPECFILE) $(SOURCES)/../SPECS
 	@cp $(TESTPATCH) $(SOURCES)/qemu-kvm-test.patch
 #	@cp configs/Makefile $(SOURCES)/Makefile.config

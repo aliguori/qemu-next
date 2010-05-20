@@ -9,9 +9,10 @@
 
 %define sublevel %%SUBLEVEL%%
 %define distro_build %%BUILD%%
+%define prebuild %{nil}%%PREBUILD%%
 
 %define rpmversion %{sublevel}
-%define pkg_release %{distro_build}%{?stable_rctag}%{?dist}%{?buildid}
+%define pkg_release %{prebuild}%{distro_build}%{?stable_rctag}%{?dist}%{?buildid}
 
 Summary: Userspace component of KVM
 Name: qemu-kvm
