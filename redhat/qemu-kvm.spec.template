@@ -1,14 +1,3 @@
-Summary: Userspace component of KVM
-Name: qemu-kvm
-Version: %{rpmversion}
-Release: %{pkg_release}
-# Epoch because we pushed a qemu-1.0 package
-Epoch: 2
-License: GPLv2+ and LGPLv2+ and BSD
-Group: Development/Tools
-URL: http://www.linux-kvm.org
-ExclusiveArch: x86_64
-
 # base_sublevel is the qemu-kvm version we're starting with and patching
 # on top of -- for example, qemu-kvm-0.12.1.2-git1 starts with a 0.12.1.2 base,
 # which yields a base_sublevel of 1.2.
@@ -29,6 +18,18 @@ ExclusiveArch: x86_64
 %endif
 %define rpmversion %{base_sublevel}%{?stablerev}
 %define pkg_release %{distro_build}%{?stable_rctag}%{?dist}%{?buildid}
+
+Summary: Userspace component of KVM
+Name: qemu-kvm
+Version: %{rpmversion}
+Release: %{pkg_release}
+# Epoch because we pushed a qemu-1.0 package
+Epoch: 2
+License: GPLv2+ and LGPLv2+ and BSD
+Group: Development/Tools
+URL: http://www.linux-kvm.org
+ExclusiveArch: x86_64
+
 Source0: http://downloads.sourceforge.net/sourceforge/kvm/qemu-kvm-%{version}.tar.gz
 
 # Loads kvm kernel modules at boot
