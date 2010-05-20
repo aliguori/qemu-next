@@ -39,6 +39,8 @@ PKGRELEASE=$(PREBUILD)$(BUILD)
 PKG_FULL_VR = $(STAMP_VERSION)-$(PKGRELEASE)$(DIST)$(BUILDID)
 PKG_FULL_NVR = $(PKGNAME)-$(PKG_FULL_VR)
 
+RPMBUILD_DEFS = --define "_sourcedir $(SOURCES)" --define "_builddir $(RPM)/BUILD" --define "_srcrpmdir $(RPM)/SRPMS" --define "_rpmdir $(RPM)/RPMS" --define "_specdir $(RPM)/SPECS" --define "dist $(DIST)"
+
 default: rh-help
 
 rh-configs:
@@ -131,19 +133,19 @@ rh-test-patch:
 	mv $(TESTPATCH).tmp $(TESTPATCH);
 
 rh-all-rpms: rh-sources
-	$(RPMBUILD) --define "_sourcedir $(SOURCES)" --define "_builddir $(RPM)/BUILD" --define "_srcrpmdir $(RPM)/SRPMS" --define "_rpmdir $(RPM)/RPMS" --define "_specdir $(RPM)/SPECS" --define "dist $(DIST)" --target $(MACH) -ba $(RPM)/SOURCES/$(SPECFILE)
+	$(RPMBUILD) $(RPMBUILD_DEFS) --target $(MACH) -ba $(RPM)/SOURCES/$(SPECFILE)
 
 rh-srpm: rh-sources
-	$(RPMBUILD) --define "_sourcedir $(SOURCES)" --define "_builddir $(RPM)/BUILD" --define "_srcrpmdir $(RPM)/SRPMS" --define "_rpmdir $(RPM)/RPMS" --define "_specdir $(RPM)/SPECS" --define "dist $(DIST)" --nodeps -bs $(RPM)/SOURCES/$(SPECFILE)
+	$(RPMBUILD) $(RPMBUILD_DEFS) --nodeps -bs $(RPM)/SOURCES/$(SPECFILE)
 
 rh-rpms: rh-sources
-	$(RPMBUILD) --define "_sourcedir $(SOURCES)" --define "_builddir $(RPM)/BUILD" --define "_srcrpmdir $(RPM)/SRPMS" --define "_rpmdir $(RPM)/RPMS" --define "_specdir $(RPM)/SPECS" --define "dist $(DIST)" --target $(MACH) -bb $(RPM)/SOURCES/$(SPECFILE)
+	$(RPMBUILD) $(RPMBUILD_DEFS) --target $(MACH) -bb $(RPM)/SOURCES/$(SPECFILE)
 
 rh-$(COMMON_NAME)-%: rh-sources
-	$(RPMBUILD) --define "_sourcedir $(SOURCES)" --define "_builddir $(RPM)/BUILD" --define "_srcrpmdir $(RPM)/SRPMS" --define "_rpmdir $(RPM)/RPMS" --define "_specdir $(RPM)/SPECS" --define "dist $(DIST)" --target $(MACH) --with $* --without vdso_install --with firmware -bb $(RPM)/SOURCES/$(SPECFILE)
+	$(RPMBUILD) $(RPMBUILD_DEFS) --target $(MACH) --with $* --without vdso_install --with firmware -bb $(RPM)/SOURCES/$(SPECFILE)
 
 rh-prep: rh-sources
-	$(RPMBUILD) --define "_sourcedir $(SOURCES)" --define "_builddir $(RPM)/BUILD" --define "_srcrpmdir $(RPM)/SRPMS" --define "_rpmdir $(RPM)/RPMS" --define "_specdir $(RPM)/SPECS" --define "dist $(DIST)" --nodeps --target $(MACH) -bp $(RPM)/SOURCES/$(SPECFILE)
+	$(RPMBUILD) $(RPMBUILD_DEFS) --nodeps --target $(MACH) -bp $(RPM)/SOURCES/$(SPECFILE)
 
 # unless you know what you're doing, you don't want to use the next two ones
 rh-release: rh-clean-sources
