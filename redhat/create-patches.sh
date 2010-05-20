@@ -11,6 +11,12 @@ SERIESF="$SOURCES/series"
 clogf="$SOURCES/changelog"
 # hide [redhat] entries from changelog
 HIDE_REDHAT=1;
+# include "From <commit> <commit-date>" line on patches
+PRINT_COMMITLINE=1;
+# add an extra empty line between headers and "meta" data
+META_EXTRALINE=1;
+# prefix for all patch files:
+PATCHPREFIX='kvm-';
 # strips all redhat/ and .gitignore patches
 # This was requested in order to avoid the contents of the redhat/ directory
 # to be included on the packages (arozansk, orders of lwang)
@@ -70,6 +76,10 @@ BEGIN{TYPE="PATCHJUNK"; count=1; dolog=0; pnum=1000}
 		gsub(/--*/, "-", name);
                 gsub(/^[.-]*/, "", name);
                 gsub(/[.-]*$/, "", name);
+
+		if (!match(name, "^" PATCHPREFIX)) {
+			name = PATCHPREFIX name;
+		}
 
 		#check for duplicate files and append a number to it
 		patchname=name;
@@ -133,6 +143,7 @@ BEGIN{TYPE="PATCHJUNK"; count=1; dolog=0; pnum=1000}
 	#special separator, close previous patch
 	/^From / { if (TYPE=="PATCHJUNK") {
 			COMMIT=substr($0, 6, 40);
+			SEPLINE=$0;
 			TYPE="HEADER";
 			close(OUTF);
 			next;
@@ -190,9 +201,14 @@ BEGIN{TYPE="PATCHJUNK"; count=1; dolog=0; pnum=1000}
 		printf "Creating qemu-kvm patches - (" count "/" total ")\r";
 		count=count+1;
 
-		print NAMELINE > OUTF;
+		printf "" > OUTF;
+		if (PRINT_COMMITLINE == 1)
+			print SEPLINE >> OUTF;
+		print NAMELINE >> OUTF;
 		print DATELINE >> OUTF;
 		print SUBJECTLINE >> OUTF;
+		if (META_EXTRALINE == 1)
+			print >> OUTF;
 		TYPE="META"; next;
 	    }
 	}
@@ -225,7 +241,9 @@ BEGIN{TYPE="PATCHJUNK"; count=1; dolog=0; pnum=1000}
 	{ print $0 >> OUTF; }
 ' SOURCES=$SOURCES PATCHF=$PATCHF patchf=$patchf SPECFILE=$SPECFILE \
 	SERIESF=$SERIESF CLOGF=$clogf total=$total LASTCOMMIT=$LASTCOMMIT \
-	HIDE_REDHAT=$HIDE_REDHAT STRIP_REDHAT=$STRIP_REDHAT
+	HIDE_REDHAT=$HIDE_REDHAT STRIP_REDHAT=$STRIP_REDHAT \
+	PRINT_COMMITLINE=$PRINT_COMMITLINE PATCHPREFIX=$PATCHPREFIX \
+	META_EXTRALINE=$META_EXTRALINE
 
 echo cp $clogf debug > debug1
 cp $clogf debug
