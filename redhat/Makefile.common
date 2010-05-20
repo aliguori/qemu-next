@@ -9,7 +9,7 @@ REDHAT:=$(shell pwd)
 RPM:=$(REDHAT)/rpm
 SRPMS:=$(RPM)/SRPMS
 SOURCES:=$(RPM)/SOURCES
-BUILD:=52
+BUILD:=59
 PREBUILD=2.
 
 #TARFILE:=$(subst _,.,$(MARKER)).tar.bz2
