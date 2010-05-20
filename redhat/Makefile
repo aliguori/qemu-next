@@ -60,9 +60,9 @@ rh-key:
 	/sbin/rngd -r /dev/urandom; \
 	gpg --homedir . --batch --gen-key $(REDHAT)/genkey; \
 	if [ -s $(REDHAT)/extrakeys.pub ]; then \
-		gpg --homedir . --no-default-keyring --keyring qemu-kvm.pub --import $(REDHAT)/extrakeys.pub; \
+		gpg --homedir . --no-default-keyring --keyring $(COMMON_NAME).pub --import $(REDHAT)/extrakeys.pub; \
 	fi; \
-	gpg --homedir . --export --keyring qemu-kvm.pub Red > extract.pub; \
+	gpg --homedir . --export --keyring $(COMMON_NAME).pub Red > extract.pub; \
 	mkdir -p crypto/signature/ scripts/; \
 	gcc -o scripts/bin2c $(REDHAT)/../scripts/bin2c.c; \
 	scripts/bin2c ksign_def_public_key __initdata < extract.pub >crypto/signature/key.h;
@@ -74,20 +74,20 @@ $(TARBALL):
 	else \
 		echo "Creating archive $(TARBALL)"; \
 		cd ../ && \
-		git archive --prefix=qemu-kvm-$(KVERSION)/ --format=tar $(MARKER) | \
+		git archive --prefix=$(COMMON_NAME)-$(KVERSION)/ --format=tar $(MARKER) | \
 		    gzip > $(TARBALL) \
 		  || exit; \
 	fi
 
 $(RC_PATCH):
 	@if [ -n "$(RCREV)" ]; then \
-		git diff qemu-kvm-$(KVERSION)..qemu-kvm-$(SUBLEVEL)-rc$(RCREV) | \
+		git diff $(COMMON_NAME)-$(KVERSION)..$(COMMON_NAME)-$(SUBLEVEL)-rc$(RCREV) | \
 			gzip >$(REDHAT)/$(RC_PATCH); \
 	fi
 
 $(GIT_PATCH):
 	@if [ -n "$(GITREV)" ]; then \
-		git diff qemu-kvm-$(SUBLEVEL)-rc$(RCREV)..$(MARKER) | \
+		git diff $(COMMON_NAME)-$(SUBLEVEL)-rc$(RCREV)..$(MARKER) | \
 			gzip >$(REDHAT)/$(GIT_PATCH); \
 	fi
 
@@ -109,11 +109,11 @@ sources-rh: $(TARBALL) $(RC_PATCH) $(GIT_PATCH) $(REDHAT)/create-patches.sh Make
 	@touch $(TESTPATCH)
 	@git diff --no-renames HEAD > $(TESTPATCH).tmp
 	@diff $(TESTPATCH).tmp $(TESTPATCH) > /dev/null || \
-		echo "WARNING: There are uncommitted changes in your tree or the changes are not in sync with the qemu-kvm-test.patch.  Either commit the changes or run 'make rh-test-patch'"
+		echo "WARNING: There are uncommitted changes in your tree or the changes are not in sync with the $(COMMON_NAME)-test.patch.  Either commit the changes or run 'make rh-test-patch'"
 	@rm $(TESTPATCH).tmp
 	@$(REDHAT)/create-patches.sh $(MARKER) $(SOURCES) $(SOURCES)/$(SPECFILE) '$(PREBUILD)' $(BUILD) $(BUILDID)
 	@cp $(SOURCES)/$(SPECFILE) $(SOURCES)/../SPECS
-	@cp $(TESTPATCH) $(SOURCES)/qemu-kvm-test.patch
+	@cp $(TESTPATCH) $(SOURCES)/$(COMMON_NAME)-test.patch
 #	@cp configs/Makefile $(SOURCES)/Makefile.config
 	@cp Makefile.common $(SOURCES)/
 	@cp ksmtuned.conf ksmtuned ksmtuned.init ksm.sysconfig ksm.init 80-kvm.rules kvm.modules $(SOURCES)/
@@ -135,7 +135,7 @@ rh-srpm: rh-sources
 rh-rpms: rh-sources
 	$(RPMBUILD) --define "_sourcedir $(SOURCES)" --define "_builddir $(RPM)/BUILD" --define "_srcrpmdir $(RPM)/SRPMS" --define "_rpmdir $(RPM)/RPMS" --define "_specdir $(RPM)/SPECS" --define "dist $(DIST)" --target $(MACH) -bb $(RPM)/SOURCES/$(SPECFILE)
 
-rh-qemu-kvm-%: rh-sources
+rh-$(COMMON_NAME)-%: rh-sources
 	$(RPMBUILD) --define "_sourcedir $(SOURCES)" --define "_builddir $(RPM)/BUILD" --define "_srcrpmdir $(RPM)/SRPMS" --define "_rpmdir $(RPM)/RPMS" --define "_specdir $(RPM)/SPECS" --define "dist $(DIST)" --target $(MACH) --with $* --without vdso_install --with firmware -bb $(RPM)/SOURCES/$(SPECFILE)
 
 rh-prep: rh-sources
@@ -167,22 +167,22 @@ rh-help:
 	@echo  ' All RPM/SRPM files will be put under the redhat/rpm/ directory'
 	@echo  ''
 	@echo  '  rh-srpm	- Create a source RPM and put it into the redhat/rpm/SRPMS/ directory'
-	@echo  '  rh-brew	- Create a qemu-kvm SRPM and then call brew to build the created SRPM'
-	@echo  '  rh-koji	- Create a qemu-kvm SRPM and then call koji to build the created SRPM'
+	@echo  '  rh-brew	- Create a $(COMMON_NAME) SRPM and then call brew to build the created SRPM'
+	@echo  '  rh-koji	- Create a $(COMMON_NAME) SRPM and then call koji to build the created SRPM'
 	@echo  '  rh-test	- Pass in brew task number, TASK=1234 make rh-test, to use for an RHTS test'
 	@echo  '		  setup ./tests to use a test from redhat/tests (minus the .xml)'
 	@echo  '		  uses a known stable RHEL6 distro as the default'
 	@echo  '		  use TASK=None to use a non-scratch build based on RELEASE string'
 	@echo  '		  see output for possible override options (USER_ID,DISTRO,FAMILY,..)'
 	@echo  '  rh-brew-test  - Calls rh-brew and passes the task number into an RHTS test. See rh-test for more'
-	@echo  '  rh-rpms	- Create the binary RPMS for the qemu-kvm'
-	@echo  '  rh-qemu-kvm-<type> - Create  binary RPMS for a particular qemu-kvm type'
+	@echo  '  rh-rpms	- Create the binary RPMS for the $(COMMON_NAME)'
+	@echo  '  rh-$(COMMON_NAME)-<type> - Create  binary RPMS for a particular $(COMMON_NAME) type'
 	@echo  '                   - <type> can be: baseonly, smponly, dbgonly'
 
-	@echo  '  rh-all-rpms	- Create the binary RPMS and the SRPM for the qemu-kvm'
-	@echo  '  rh-prep	- Setup the redhat/rpm/BUILD/ directory with the qemu-kvm source'
-	@echo  '  rh-test-patch - Create a diff against HEAD and put it in qemu-kvm-test.patch.'
-	@echo  '                  Then qemu-kvm-test.patch will be added to the qemu-kvm build'
+	@echo  '  rh-all-rpms	- Create the binary RPMS and the SRPM for the $(COMMON_NAME)'
+	@echo  '  rh-prep	- Setup the redhat/rpm/BUILD/ directory with the $(COMMON_NAME) source'
+	@echo  '  rh-test-patch - Create a diff against HEAD and put it in $(COMMON_NAME)-test.patch.'
+	@echo  '                  Then $(COMMON_NAME)-test.patch will be added to the $(COMMON_NAME) build'
 	@echo  '  rh-key	- Generate the required files for compiling with module signing enabled'
 	@echo  ''
 	@echo  'Configuration targets:'

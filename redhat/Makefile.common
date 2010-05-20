@@ -1,10 +1,15 @@
 RPMBUILD := $(shell if [ -x "/usr/bin/rpmbuild" ]; then echo rpmbuild; \
                    else echo rpm; fi)
 MACH :=  $(shell uname -m)
+
+# just used to define the other name variables
+COMMON_NAME=qemu-kvm
+
+
 KVERSION:=0.12.1.2
 # marker is git tag
-MARKER:=qemu-kvm-0.12.1.2
-SPECFILE:=qemu-kvm.spec
+MARKER:=$(COMMON_NAME)-$(KVERSION)
+SPECFILE:=$(COMMON_NAME).spec
 REDHAT:=$(shell pwd)
 RPM:=$(REDHAT)/rpm
 SRPMS:=$(RPM)/SRPMS
@@ -14,12 +19,12 @@ PREBUILD=2.
 DIST=.el6
 
 #TARFILE:=$(subst _,.,$(MARKER)).tar.bz2
-TARFILE:=qemu-kvm-$(KVERSION).tar.gz
-TARURL:=http://downloads.sourceforge.net/sourceforge/kvm/qemu-kvm-$(KVERSION).tar.gz
+TARFILE:=$(COMMON_NAME)-$(KVERSION).tar.gz
+TARURL:=http://downloads.sourceforge.net/sourceforge/kvm/$(COMMON_NAME)-$(KVERSION).tar.gz
 TARSHA1:=dee7359094757af77ea839bbfd9dca8826edcbd2
 
 TARBALL:=$(REDHAT)/$(TARFILE)
-TESTPATCH:=$(REDHAT)/qemu-kvm-test.patch
+TESTPATCH:=$(REDHAT)/$(COMMON_NAME)-test.patch
 
 SUBLEVEL := $(shell echo $(MARKER) | cut -f 3 -d '-')
 #RCREV := $(shell echo $(MARKER) | cut -f 2 -d '-' -s | sed -e "s/rc//")
