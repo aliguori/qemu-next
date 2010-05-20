@@ -276,7 +276,7 @@ PCIBus *ppce500_pci_init(qemu_irq pci_irqs[4], target_phys_addr_t registers)
 
     controller = qemu_mallocz(sizeof(PPCE500PCIState));
 
-    controller->pci_state.bus = pci_register_bus(NULL, "pci",
+    controller->pci_state.bus = pci_register_bus(NULL, "pci.0",
                                                  mpc85xx_pci_set_irq,
                                                  mpc85xx_pci_map_irq,
                                                  pci_irqs, 0x88, 4);

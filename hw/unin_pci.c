@@ -226,7 +226,7 @@ PCIBus *pci_pmac_init(qemu_irq *pic)
     qdev_init_nofail(dev);
     s = sysbus_from_qdev(dev);
     d = FROM_SYSBUS(UNINState, s);
-    d->host_state.bus = pci_register_bus(&d->busdev.qdev, "pci",
+    d->host_state.bus = pci_register_bus(&d->busdev.qdev, "pci.0",
                                          pci_unin_set_irq, pci_unin_map_irq,
                                          pic, 11 << 3, 4);
 
@@ -278,7 +278,7 @@ PCIBus *pci_pmac_u3_init(qemu_irq *pic)
     s = sysbus_from_qdev(dev);
     d = FROM_SYSBUS(UNINState, s);
 
-    d->host_state.bus = pci_register_bus(&d->busdev.qdev, "pci",
+    d->host_state.bus = pci_register_bus(&d->busdev.qdev, "pci.0",
                                          pci_unin_set_irq, pci_unin_map_irq,
                                          pic, 11 << 3, 4);
 
