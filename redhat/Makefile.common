@@ -10,8 +10,12 @@ RPM:=$(REDHAT)/rpm
 SRPMS:=$(RPM)/SRPMS
 SOURCES:=$(RPM)/SOURCES
 BUILD:=2.52
+
 #TARFILE:=$(subst _,.,$(MARKER)).tar.bz2
 TARFILE:=qemu-kvm-$(KVERSION).tar.gz
+TARURL:=http://downloads.sourceforge.net/sourceforge/kvm/qemu-kvm-$(KVERSION).tar.gz
+TARSHA1:=dee7359094757af77ea839bbfd9dca8826edcbd2
+
 TARBALL:=$(REDHAT)/$(TARFILE)
 TESTPATCH:=$(REDHAT)/qemu-kvm-test.patch
 
