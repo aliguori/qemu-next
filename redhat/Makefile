@@ -13,7 +13,6 @@ BUILD_TARGET ?= --scratch $(BUILD_SCRATCH_TARGET)
 #endif
 
 RELEASE:=$(shell sed -ne 's/^[^\#]*define release \(.*\)%.*%.*/\1/p' $(REDHAT)/$(SPECFILE).template)
-DIST:=.el6
 
 # create an empty localversion file if you don't want a local buildid
 ifneq ($(wildcard $(LOCVERFILE)),)
