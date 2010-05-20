@@ -345,3 +345,865 @@ fi
 
 %changelog
 %%CHANGELOG%%
+* Wed May 19 2010 Eduardo Habkost <ehabkost@redhat.com> - qemu-kvm-0.12.1.2-2.59.el6
+- kvm-pci-cleanly-backout-of-pci_qdev_init.patch [bz#590884]
+- kvm-ide-Fix-ide_dma_cancel.patch [bz#593287]
+- Resolves: bz#590884
+  (bogus 'info pci' state when hot-added assigned device fails to initialize)
+- Resolves: bz#593287
+  (Failed asserting during ide_dma_cancel)
+
+* Wed May 19 2010 Eduardo Habkost <ehabkost@redhat.com> - qemu-kvm-0.12.1.2-2.58.el6
+- kvm-Fix-segfault-after-device-assignment-hot-remove.patch [bz#582874]
+- Resolves: bz#582874
+  (Guest hangs during restart after hot unplug then hot plug physical NIC card)
+
+* Wed May 19 2010 Eduardo Habkost <ehabkost@redhat.com> - qemu-kvm-0.12.1.2-2.57.el6
+- kvm-stash-away-SCM_RIGHTS-fd-until-a-getfd-command-arriv.patch [bz#582684]
+- Resolves: bz#582684
+  (Monitor: getfd command is broken)
+
+* Wed May 19 2010 Eduardo Habkost <ehabkost@redhat.com> - qemu-kvm-0.12.1.2-2.56.el6
+- kvm-dmg-fix-open-failure.patch [bz#580363]
+- kvm-block-get-rid-of-the-BDRV_O_FILE-flag.patch [bz#580363]
+- kvm-block-Convert-first_drv-to-QLIST.patch [bz#580363]
+- kvm-block-separate-raw-images-from-the-file-protocol.patch [bz#580363]
+- kvm-block-Split-bdrv_open.patch [bz#580363]
+- kvm-block-Avoid-forward-declaration-of-bdrv_open_common.patch [bz#580363]
+- kvm-block-Open-the-underlying-image-file-in-generic-code.patch [bz#580363]
+- kvm-block-bdrv_has_zero_init.patch [bz#580363]
+- kvm-block-Do-not-export-bdrv_first.patch [bz#590998]
+- kvm-block-Convert-bdrv_first-to-QTAILQ.patch [bz#590998]
+- kvm-block-Add-wr_highest_sector-blockstat.patch [bz#590998]
+- Resolves: bz#580363
+  (Error while creating raw image on block device)
+- Resolves: bz#590998
+  (qcow2 high watermark)
+
+* Wed May 19 2010 Eduardo Habkost <ehabkost@redhat.com> - qemu-kvm-0.12.1.2-2.55.el6
+- kvm-turn-off-kvmclock-when-resetting-cpu.patch [bz#588884]
+- kvm-virtio-blk-Avoid-zeroing-every-request-structure.patch [bz#593369]
+- Resolves: bz#588884
+  (Rebooting a kernel with kvmclock enabled, into a kernel with kvmclock disabled, causes random crashes)
+- Resolves: bz#593369
+  (virtio-blk: Avoid zeroing every request structure)
+
+* Mon May 17 2010 Eduardo Habkost <ehabkost@redhat.com> - qemu-kvm-0.12.1.2-2.54.el6
+- kvm-qemu-config-qemu_read_config_file-reads-the-normal-c.patch [bz#588756]
+- kvm-qemu-config-Make-qemu_config_parse-more-generic.patch [bz#588756]
+- kvm-blkdebug-Basic-request-passthrough.patch [bz#588756]
+- kvm-blkdebug-Inject-errors.patch [bz#588756]
+- kvm-Make-qemu-config-available-for-tools.patch [bz#588756]
+- kvm-blkdebug-Add-events-and-rules.patch [bz#588756]
+- kvm-qcow2-Trigger-blkdebug-events.patch [bz#588756]
+- kvm-qcow2-Fix-access-after-end-of-array.patch [bz#588762]
+- kvm-qcow2-rename-two-QCowAIOCB-members.patch [bz#588762]
+- kvm-qcow2-Don-t-ignore-immediate-read-write-failures.patch [bz#588762]
+- kvm-qcow2-Remove-request-from-in-flight-list-after-error.patch [bz#588762]
+- kvm-qcow2-Return-0-errno-in-write_l2_entries.patch [bz#588762]
+- kvm-qcow2-Fix-error-return-code-in-qcow2_alloc_cluster_l.patch [bz#588762]
+- kvm-qcow2-Return-0-errno-in-write_l1_entry.patch [bz#588762]
+- kvm-qcow2-Return-0-errno-in-l2_allocate.patch [bz#588762]
+- kvm-qcow2-Remove-abort-on-free_clusters-failure.patch [bz#588762]
+- kvm-Add-qemu-error.o-only-once-to-target-list.patch [bz#591061]
+- kvm-block-Fix-bdrv_commit.patch [bz#589439]
+- kvm-fix-80000001.EDX-supported-bit-filtering.patch [bz#578106]
+- kvm-fix-CPUID-vendor-override.patch [bz#591604]
+- Resolves: bz#578106
+  (call trace when boot guest with -cpu host)
+- Resolves: bz#588756
+  (blkdebug is missing)
+- Resolves: bz#588762
+  (Backport qcow2 fixes)
+- Resolves: bz#589439
+  (Qcow2 snapshot got corruption after commit using block device)
+- Resolves: bz#591061
+  (make fails to build after make clean)
+- Resolves: bz#591604
+  (cannot override cpu vendor from the command line)
+
+* Wed May 12 2010 Eduardo Habkost <ehabkost@redhat.com> - qemu-kvm-0.12.1.2-2.53.el6
+- kvm-virtio-blk-Fix-use-after-free-in-error-case.patch [bz#578448]
+- kvm-block-Fix-multiwrite-error-handling.patch [bz#578448]
+- kvm-Fix-boot-once-option.patch [bz#579692]
+- kvm-QError-New-QERR_QMP_BAD_INPUT_OBJECT_MEMBER.patch [bz#573578]
+- kvm-QMP-Use-QERR_QMP_BAD_INPUT_OBJECT_MEMBER.patch [bz#573578]
+- kvm-QError-Improve-QERR_QMP_BAD_INPUT_OBJECT-desc.patch [bz#573578]
+- kvm-QMP-Check-arguments-member-s-type.patch [bz#573578]
+- kvm-QMP-Introduce-RESUME-event.patch [bz#590102]
+- kvm-pci-irq_state-vmstate-breakage.patch [bz#588133]
+- Resolves: bz#573578
+  (Segfault when migrating via QMP command interface)
+- Resolves: bz#578448
+  (qemu-kvm segfault when nfs restart(without using werror&rerror))
+- Resolves: bz#579692
+  (qemu-kvm "-boot once=drives" couldn't function properly)
+- Resolves: bz#588133
+  (RHEL5.4 guest can lose virtio networking during migration)
+- Resolves: bz#590102
+  (QMP: Backport RESUME event)
+
+* Mon May 10 2010 Eduardo Habkost <ehabkost@redhat.com> - qemu-kvm-0.12.1.2-2.52.el6
+- kvm-qemu-img-use-the-heap-instead-of-the-huge-stack-arra.patch [bz#585837]
+- kvm-qemu-img-rebase-Fix-output-image-corruption.patch [bz#585837]
+- Resolves: bz#585837
+  (After re-base snapshot, the file in the snapshot disappeared)
+
+* Fri May 07 2010 Eduardo Habkost <ehabkost@redhat.com> - qemu-kvm-0.12.1.2-2.51.el6
+- kvm-fdc-fix-drive-property-handling.patch [bz#584902]
+- Resolves: bz#584902
+  (Cannot associate drive with a floppy device using -global)
+
+* Wed May 05 2010 Eduardo Habkost <ehabkost@redhat.com> - qemu-kvm-0.12.1.2-2.50.el6
+- kvm-vl.c-fix-BZ-588828-endless-loop-caused-by-non-option.patch [bz#588828]
+- Resolves: bz#588828
+  (endless loop when parsing of command line with bare image argument)
+
+* Tue May 04 2010 Eduardo Habkost <ehabkost@redhat.com> - qemu-kvm-0.12.1.2-2.49.el6
+- kvm-block-Free-iovec-arrays-allocated-by-multiwrite_merg.patch [bz#586572]
+- Resolves: bz#586572
+  (virtio-blk multiwrite merge memory leak)
+- Force spice to be enabled and fix BuildRequires to use spice-server-devel
+- Resolves: bz#588904
+  (qemu-kvm builds without spice support)
+
+* Thu Apr 29 2010 Eduardo Habkost <ehabkost@redhat.com> - qemu-kvm-0.12.1.2-2.48.el6
+- kvm-virtio-serial-save-load-Ensure-target-has-enough-por.patch [bz#574296]
+- kvm-virtio-serial-save-load-Ensure-nr_ports-on-src-and-d.patch [bz#574296]
+- kvm-virtio-serial-save-load-Ensure-we-have-hot-plugged-p.patch [bz#574296]
+- kvm-virtio-serial-save-load-Send-target-host-connection-.patch [bz#574296]
+- kvm-virtio-serial-Use-control-messages-to-notify-guest-o.patch [bz#574296]
+- kvm-virtio-serial-whitespace-match-surrounding-code.patch [bz#574296]
+- kvm-virtio-serial-Remove-redundant-check-for-0-sized-wri.patch [bz#574296]
+- kvm-virtio-serial-Update-copyright-year-to-2010.patch [bz#574296]
+- kvm-virtio-serial-Propagate-errors-in-initialising-ports.patch [bz#574296]
+- kvm-virtio-serial-Send-out-guest-data-to-ports-only-if-p.patch [bz#574296]
+- kvm-iov-Introduce-a-new-file-for-helpers-around-iovs-add.patch [bz#574296]
+- kvm-iov-Add-iov_to_buf-and-iov_size-helpers.patch [bz#574296]
+- kvm-virtio-serial-Handle-scatter-gather-buffers-for-cont.patch [bz#574296]
+- kvm-virtio-serial-Handle-scatter-gather-input-from-the-g.patch [bz#574296]
+- kvm-virtio-serial-Apps-should-consume-all-data-that-gues.patch [bz#574296]
+- kvm-virtio-serial-Discard-data-that-guest-sends-us-when-.patch [bz#574296]
+- kvm-virtio-serial-Implement-flow-control-for-individual-.patch [bz#574296]
+- kvm-virtio-serial-Handle-output-from-guest-to-unintialis.patch [bz#574296]
+- kvm-virtio-serial-bus-wake-up-iothread-upon-guest-read-n.patch [bz#574296]
+- kvm-Bail-out-when-VCPU_CREATE-fails.patch [bz#587227]
+- Resolves: bz#574296
+  (Fix migration for virtio-serial after port hot-plug/hot-unplug operations)
+- Resolves: bz#587227
+  (Fix segfault when creating more vcpus than allowed.)
+
+* Wed Apr 28 2010 Eduardo Habkost <ehabkost@redhat.com> - qemu-kvm-0.12.1.2-2.47.el6
+- kvm-Request-setting-of-nmi_pending-and-sipi_vector.patch [bz#569613]
+- Resolves: bz#569613
+  (backport qemu-kvm-0.12.3 fixes to RHEL6)
+
+* Tue Apr 27 2010 Eduardo Habkost <ehabkost@redhat.com> - qemu-kvm-0.12.1.2-2.46.el6
+- kvm-spice-add-auth-info-to-monitor-events.patch [bz#581540]
+- Resolves: bz#581540
+  (SPICE graphics event does not include auth details)
+
+* Mon Apr 26 2010 Eduardo Habkost <ehabkost@redhat.com> - qemu-kvm-0.12.1.2-2.45.el6
+- kvm-Documentation-Add-monitor-commands-to-function-index.patch [bz#559670]
+- kvm-error-Put-error-definitions-back-in-alphabetical-ord.patch [bz#559670]
+- kvm-error-New-QERR_DUPLICATE_ID.patch [bz#559670]
+- kvm-error-Convert-qemu_opts_create-to-QError.patch [bz#559670]
+- kvm-error-New-QERR_INVALID_PARAMETER_VALUE.patch [bz#559670]
+- kvm-error-Convert-qemu_opts_set-to-QError.patch [bz#559670]
+- kvm-error-Drop-extra-messages-after-qemu_opts_set-and-qe.patch [bz#559670]
+- kvm-error-Use-QERR_INVALID_PARAMETER_VALUE-instead-of-QE.patch [bz#559670]
+- kvm-error-Convert-qemu_opts_validate-to-QError.patch [bz#559670]
+- kvm-error-Convert-net_client_init-to-QError.patch [bz#559670]
+- kvm-error-New-QERR_DEVICE_IN_USE.patch [bz#559670]
+- kvm-monitor-New-commands-netdev_add-netdev_del.patch [bz#559670]
+- kvm-qdev-Convert-qdev_unplug-to-QError.patch [bz#582325]
+- kvm-monitor-convert-do_device_del-to-QObject-QError.patch [bz#582325]
+- kvm-block-Fix-error-code-in-multiwrite-for-immediate-fai.patch [bz#582575]
+- kvm-block-Fix-multiwrite-memory-leak-in-error-case.patch [bz#582575]
+- Resolves: bz#559670
+  (No 'netdev_add' command in monitor)
+- Resolves: bz#582325
+  (QMP: device_del support)
+- Resolves: bz#582575
+  (Backport bdrv_aio_multiwrite fixes)
+
+* Mon Apr 26 2010 Eduardo Habkost <ehabkost@redhat.com> - qemu-kvm-0.12.1.2-2.44.el6
+- kvm-spice-add-more-config-options-readd.patch [bz#576561]
+- BuildRequires spice-server-devel >= 0.4.2-10.el6 because of API changes
+- Resolves: bz#576561
+  (spice: add more config options)
+
+* Mon Apr 26 2010 Eduardo Habkost <ehabkost@redhat.com> - qemu-kvm-0.12.1.2-2.43.el6
+- kvm-qemu-option-Make-qemu_opts_foreach-accumulate-return.patch [bz#579470]
+- kvm-qdev-Fix-exit-code-for-device.patch [bz#579470]
+- kvm-qdev-Add-help-for-device-properties.patch [bz#579470]
+- kvm-qdev-update-help-on-device.patch [bz#579470]
+- kvm-qdev-Add-rudimentary-help-for-property-value.patch [bz#579470]
+- kvm-qdev-Free-opts-on-failed-do_device_add.patch [bz#579470]
+- kvm-qdev-Improve-diagnostics-for-bad-property-values.patch [bz#579470]
+- kvm-qdev-Catch-attempt-to-attach-more-than-one-device-to.patch [bz#579470]
+- kvm-usb-Remove-disabled-monitor_printf-in-usb_read_file.patch [bz#579470]
+- kvm-savevm-Fix-loadvm-to-report-errors-to-stderr-not-the.patch [bz#579470]
+- kvm-pc-Fix-error-reporting-for-boot-once.patch [bz#579470]
+- kvm-pc-Factor-common-code-out-of-pc_boot_set-and-cmos_in.patch [bz#579470]
+- kvm-tools-Remove-unused-cur_mon-from-qemu-tool.c.patch [bz#579470]
+- kvm-monitor-Separate-default-monitor-and-current-monitor.patch [bz#579470]
+- kvm-block-Simplify-usb_msd_initfn-test-for-can-read-bdrv.patch [bz#579470]
+- kvm-monitor-Factor-monitor_set_error-out-of-qemu_error_i.patch [bz#579470]
+- kvm-error-Move-qemu_error-friends-from-monitor.c-to-own-.patch [bz#579470]
+- kvm-error-Simplify-error-sink-setup.patch [bz#579470]
+- kvm-error-Move-qemu_error-friends-into-their-own-header.patch [bz#579470]
+- kvm-error-New-error_printf-and-error_vprintf.patch [bz#579470]
+- kvm-error-Don-t-abuse-qemu_error-for-non-error-in-qdev_d.patch [bz#579470]
+- kvm-error-Don-t-abuse-qemu_error-for-non-error-in-qbus_f.patch [bz#579470]
+- kvm-error-Don-t-abuse-qemu_error-for-non-error-in-scsi_h.patch [bz#579470]
+- kvm-error-Replace-qemu_error-by-error_report.patch [bz#579470]
+- kvm-error-Rename-qemu_error_new-to-qerror_report.patch [bz#579470]
+- kvm-error-Infrastructure-to-track-locations-for-error-re.patch [bz#579470]
+- kvm-error-Include-the-program-name-in-error-messages-to-.patch [bz#579470]
+- kvm-error-Track-locations-in-configuration-files.patch [bz#579470]
+- kvm-QemuOpts-Fix-qemu_config_parse-to-catch-file-read-er.patch [bz#579470]
+- kvm-error-Track-locations-on-command-line.patch [bz#579470]
+- kvm-qdev-Fix-device-and-device_add-to-handle-unsuitable-.patch [bz#579470]
+- kvm-qdev-Factor-qdev_create_from_info-out-of-qdev_create.patch [bz#579470]
+- kvm-qdev-Hide-no_user-devices-from-users.patch [bz#579470]
+- kvm-qdev-Hide-ptr-properties-from-users.patch [bz#579470]
+- kvm-monitor-New-monitor_cur_is_qmp.patch [bz#579470]
+- kvm-error-Let-converted-handlers-print-in-human-monitor.patch [bz#579470]
+- kvm-error-Polish-human-readable-error-descriptions.patch [bz#579470]
+- kvm-error-New-QERR_PROPERTY_NOT_FOUND.patch [bz#579470]
+- kvm-error-New-QERR_PROPERTY_VALUE_BAD.patch [bz#579470]
+- kvm-error-New-QERR_PROPERTY_VALUE_IN_USE.patch [bz#579470]
+- kvm-error-New-QERR_PROPERTY_VALUE_NOT_FOUND.patch [bz#579470]
+- kvm-qdev-convert-setting-device-properties-to-QError.patch [bz#579470]
+- kvm-qdev-Relax-parsing-of-bus-option.patch [bz#579470]
+- kvm-error-New-QERR_BUS_NOT_FOUND.patch [bz#579470]
+- kvm-error-New-QERR_DEVICE_MULTIPLE_BUSSES.patch [bz#579470]
+- kvm-error-New-QERR_DEVICE_NO_BUS.patch [bz#579470]
+- kvm-qdev-Convert-qbus_find-to-QError.patch [bz#579470]
+- kvm-error-New-error_printf_unless_qmp.patch [bz#579470]
+- kvm-error-New-QERR_BAD_BUS_FOR_DEVICE.patch [bz#579470]
+- kvm-error-New-QERR_BUS_NO_HOTPLUG.patch [bz#579470]
+- kvm-error-New-QERR_DEVICE_INIT_FAILED.patch [bz#579470]
+- kvm-error-New-QERR_NO_BUS_FOR_DEVICE.patch [bz#579470]
+- kvm-Revert-qdev-Use-QError-for-device-not-found-error.patch [bz#579470]
+- kvm-error-Convert-do_device_add-to-QError.patch [bz#579470]
+- kvm-qemu-option-Functions-to-convert-to-from-QDict.patch [bz#579470]
+- kvm-qemu-option-Move-the-implied-first-name-into-QemuOpt.patch [bz#579470]
+- kvm-qemu-option-Rename-find_list-to-qemu_find_opts-exter.patch [bz#579470]
+- kvm-monitor-New-argument-type-O.patch [bz#579470]
+- kvm-monitor-Use-argument-type-O-for-device_add.patch [bz#579470]
+- kvm-monitor-convert-do_device_add-to-QObject.patch [bz#579470]
+- kvm-error-Trim-includes-after-Move-qemu_error-friends.patch [bz#579470]
+- kvm-error-Trim-includes-in-qerror.c.patch [bz#579470]
+- kvm-error-Trim-includes-after-Infrastructure-to-track-lo.patch [bz#579470]
+- kvm-error-Make-use-of-error_set_progname-optional.patch [bz#579470]
+- kvm-error-Link-qemu-img-qemu-nbd-qemu-io-with-qemu-error.patch [bz#579470]
+- kvm-error-Move-qerror_report-from-qemu-error.-ch-to-qerr.patch [bz#579470]
+- Resolves: bz#579470
+  (QMP: device_add support)
+
+* Fri Apr 23 2010 Eduardo Habkost <ehabkost@redhat.com> - qemu-kvm-0.12.1.2-2.42.el6
+- kvm-net-remove-NICInfo.bootable-field.patch [bz#561078]
+- kvm-net-remove-broken-net_set_boot_mask-boot-device-vali.patch [bz#561078]
+- kvm-boot-remove-unused-boot_devices_bitmap-variable.patch [bz#561078]
+- kvm-check-kvm-enabled.patch [bz#580109]
+- kvm-qemu-rename-notifier-event_notifier.patch [bz#580109]
+- kvm-virtio-API-name-cleanup.patch [bz#580109]
+- kvm-vhost-u_int64_t-uint64_t.patch [bz#580109]
+- kvm-virtio-pci-fix-coding-style.patch [bz#580109]
+- kvm-vhost-detect-lack-of-support-earlier-style.patch [bz#580109]
+- kvm-configure-vhost-related-fixes.patch [bz#580109]
+- kvm-vhost-fix-features-ack.patch [bz#580109]
+- kvm-vhost-net-disable-mergeable-buffers.patch [bz#580109]
+- Resolves: bz#561078
+  ("Cannot boot from non-existent NIC" when using virt-install --pxe)
+- Resolves: bz#580109
+  (vhost net lacks upstream fixes)
+
+* Thu Apr 22 2010 Eduardo Habkost <ehabkost@redhat.com> - qemu-kvm-0.12.1.2-2.41.el6
+- Build fix: pass sysconfdir to 'make install'
+- Related: bz#569661
+
+* Tue Apr 20 2010 Eduardo Habkost <ehabkost@redhat.com> - qemu-kvm-0.12.1.2-2.40.el6
+- cpu-model-config-1.patch [bz#569661]
+- cpu-model-config-2.patch [bz#569661]
+- cpu-model-config-3.patch [bz#569661]
+- cpu-model-config-4.patch [bz#569661]
+- Resolves: bz#569661
+  (RHEL6.0 requires backport of upstream cpu model support..)
+
+* Mon Apr 19 2010 Eduardo Habkost <ehabkost@redhat.com> - qemu-kvm-0.12.1.2-2.39.el6
+- kvm-virtio-blk-revert-serial-number-support.patch [bz#564101]
+- kvm-block-add-topology-qdev-properties.patch [bz#564101]
+- kvm-virtio-blk-add-topology-support.patch [bz#564101]
+- kvm-scsi-add-topology-support.patch [bz#564101]
+- kvm-ide-add-topology-support.patch [bz#564101]
+- kvm-pcnet-make-subsystem-vendor-id-match-hardware.patch [bz#580140]
+- Resolves: bz#564101
+  ([RFE] topology support in the virt block layer)
+- Resolves: bz#580140
+  (emulated pcnet nic in qemu-kvm has wrong PCI subsystem ID for Windows XP driver)
+
+* Tue Apr 13 2010 Eduardo Habkost <ehabkost@redhat.com> - qemu-kvm-0.12.1.2-2.38.el6
+- kvm-read-only-Make-CDROM-a-read-only-drive.patch [bz#537164]
+- kvm-read-only-BDRV_O_FLAGS-cleanup.patch [bz#537164]
+- kvm-read-only-Added-drives-readonly-option.patch [bz#537164]
+- kvm-read-only-Disable-fall-back-to-read-only.patch [bz#537164]
+- kvm-read-only-No-need-anymoe-for-bdrv_set_read_only.patch [bz#537164]
+- kvm-read_only-Ask-for-read-write-permissions-when-openin.patch [bz#537164]
+- kvm-read-only-Read-only-device-changed-to-opens-it-s-fil.patch [bz#537164]
+- kvm-read-only-qemu-img-Fix-qemu-img-can-t-create-qcow-im.patch [bz#537164]
+- kvm-block-clean-up-bdrv_open2-structure-a-bit.patch [bz#537164]
+- kvm-block-saner-flags-filtering-in-bdrv_open2.patch [bz#537164]
+- kvm-block-flush-backing_hd-in-the-right-place.patch [bz#537164]
+- kvm-block-fix-cache-flushing-in-bdrv_commit.patch [bz#537164]
+- kvm-block-more-read-only-changes-related-to-backing-file.patch [bz#537164]
+- kvm-read-only-minor-cleanup.patch [bz#537164]
+- kvm-read-only-Another-minor-cleanup.patch [bz#537164]
+- kvm-read-only-allow-read-only-CDROM-with-any-interface.patch [bz#537164]
+- kvm-qemu-img-rebase-Add-f-option.patch [bz#580028]
+- kvm-qemu-io-Fix-return-value-handling-of-bdrv_open.patch [bz#579974]
+- kvm-qemu-nbd-Fix-return-value-handling-of-bdrv_open.patch [bz#579974]
+- kvm-qemu-img-Fix-error-message.patch [bz#579974]
+- kvm-Replace-calls-of-old-bdrv_open.patch [bz#579974]
+- Resolves: bz#537164
+  (-drive arg has no way to request a read only disk)
+- Resolves: bz#579974
+  (Get segmentation fault when creating qcow2 format image on block device with "preallocation=metadata")
+- Resolves: bz#580028
+  ('qemu-img re-base' broken on block devices)
+
+* Mon Apr 12 2010 Eduardo Habkost <ehabkost@redhat.com> - qemu-kvm-0.12.1.2-2.37.el6
+- kvm-balloon-Fix-overflow-when-reporting-actual-memory-si.patch [bz#578912]
+- kvm-json-parser-Output-the-content-of-invalid-keyword.patch [bz#576544]
+- Resolves: bz#576544
+  (Error message doesn't contain the content of invalid keyword)
+- Resolves: bz#578912
+  (Monitor: Overflow in 'info balloon')
+
+* Wed Apr 07 2010 Eduardo Habkost <ehabkost@redhat.com> - qemu-kvm-0.12.1.2-2.36.el6
+- kvm-char-Remove-redundant-qemu_chr_generic_open-call.patch [bz#558236]
+- kvm-add-close-callback-for-tty-based-char-device.patch [bz#558236]
+- kvm-Restore-terminal-attributes-for-tty-based-monitor.patch [bz#558236]
+- kvm-Restore-terminal-monitor-attributes-addition.patch [bz#558236]
+- Resolves: bz#558236
+  (qemu-kvm monitor corrupts tty on exit)
+
+* Tue Apr 06 2010 Eduardo Habkost <ehabkost@redhat.com> - qemu-kvm-0.12.1.2-2.35.el6
+- kvm-QError-New-QERR_DEVICE_NOT_ENCRYPTED.patch [bz#563641]
+- kvm-Wrong-error-message-in-block_passwd-command.patch [bz#563641]
+- kvm-Monitor-Introduce-RFQDN_REDHAT-and-use-it.patch [bz#578493]
+- kvm-QMP-Fix-Spice-event-names.patch [bz#578493]
+- Resolves: bz#563641
+  (QMP: Wrong error message in block_passwd command)
+- Resolves: bz#578493
+  (QMP: Fix spice event names)
+- ksm.init: touch max_kernel_pages only if it exists [bz#561907]
+- Resolves: bz#561907
+- ksmtuned: add debug information [bz#576789]
+- Resolves: bz#576789
+
+* Tue Mar 30 2010 Eduardo Habkost <ehabkost@redhat.com> - qemu-kvm-0.12.1.2-2.34.el6
+- kvm-Monitor-Introduce-cmd_new_ret.patch [bz#563491]
+- kvm-Monitor-Convert-simple-handlers-to-cmd_new_ret.patch [bz#563491]
+- kvm-Monitor-Convert-do_cont-to-cmd_new_ret.patch [bz#563491]
+- kvm-Monitor-Convert-do_eject-to-cmd_new_ret.patch [bz#563491]
+- kvm-Monitor-Convert-do_cpu_set-to-cmd_new_ret.patch [bz#563491]
+- kvm-Monitor-Convert-do_block_set_passwd-to-cmd_new_ret.patch [bz#563491]
+- kvm-Monitor-Convert-do_getfd-to-cmd_new_ret.patch [bz#563491]
+- kvm-Monitor-Convert-do_closefd-to-cmd_new_ret.patch [bz#563491]
+- kvm-Monitor-Convert-pci_device_hot_add-to-cmd_new_ret.patch [bz#563491]
+- kvm-Monitor-Convert-pci_device_hot_remove-to-cmd_new_ret.patch [bz#563491]
+- kvm-Monitor-Convert-do_migrate-to-cmd_new_ret.patch [bz#563491]
+- kvm-Monitor-Convert-do_memory_save-to-cmd_new_ret.patch [bz#563491]
+- kvm-Monitor-Convert-do_physical_memory_save-to-cmd_new_r.patch [bz#563491]
+- kvm-Monitor-Convert-do_info-to-cmd_new_ret.patch [bz#563491]
+- kvm-Monitor-Convert-do_change-to-cmd_new_ret.patch [bz#563491]
+- kvm-Monitor-Convert-to-mon_set_password-to-cmd_new_ret.patch [bz#563491]
+- kvm-Monitor-Convert-mon_spice_migrate-to-cmd_new_ret.patch [bz#563491]
+- kvm-Monitor-Rename-cmd_new_ret.patch [bz#563491]
+- kvm-Monitor-Debugging-support.patch [bz#563491]
+- kvm-Monitor-Drop-the-print-disabling-mechanism.patch [bz#563491]
+- kvm-Monitor-Audit-handler-return.patch [bz#563491]
+- kvm-Monitor-Debug-stray-prints-the-right-way.patch [bz#563491]
+- kvm-Monitor-Report-more-than-one-error-in-handlers.patch [bz#563491]
+- Resolves: bz#563491
+  (QMP: New internal error handling mechanism)
+
+* Mon Mar 29 2010 Eduardo Habkost <ehabkost@redhat.com> - qemu-kvm-0.12.1.2-2.33.el6
+- kvm-Fix-kvm_load_mpstate-for-vcpu-hot-add.patch [bz#569613]
+- kvm-qemu-kvm-enable-get-set-vcpu-events-on-reset-and-mig.patch [bz#569613]
+- kvm-Synchronize-kvm-headers.patch [bz#569613]
+- kvm-Increase-VNC_MAX_WIDTH.patch [bz#569613]
+- kvm-device-assignment-default-requires-IOMMU.patch [bz#569613]
+- kvm-Do-not-allow-vcpu-stop-with-in-progress-PIO.patch [bz#569613]
+- kvm-fix-savevm-command-without-id-or-tag.patch [bz#569613]
+- kvm-Do-not-ignore-error-if-open-file-failed-serial-dev-t.patch [bz#569613]
+- kvm-segfault-due-to-buffer-overrun-in-usb-serial.patch [bz#569613]
+- kvm-fix-inet_parse-typo.patch [bz#569613]
+- kvm-virtio-net-fix-network-stall-under-load.patch [bz#569613]
+- kvm-don-t-dereference-NULL-after-failed-strdup.patch [bz#569613]
+- kvm-net-Remove-unused-net_client_uninit.patch [bz#569613]
+- kvm-net-net_check_clients-runs-too-early-to-see-device-f.patch [bz#569613]
+- kvm-net-Fix-bogus-Warning-vlan-0-with-no-nics-with-devic.patch [bz#569613]
+- kvm-net-net_check_clients-checks-only-VLAN-clients-fix.patch [bz#569613]
+- kvm-net-info-network-shows-only-VLAN-clients-fix.patch [bz#569613]
+- kvm-net-Monitor-command-set_link-finds-only-VLAN-clients.patch [bz#569613]
+- kvm-ide-save-restore-pio-atapi-cmd-transfer-fields-and-i.patch [bz#569613]
+- kvm-cirrus-Properly-re-register-cirrus_linear_io_addr-on.patch [bz#569613]
+- Related: bz#569613
+  (backport qemu-kvm-0.12.3 fixes to RHEL6)
+
+* Fri Mar 26 2010 Eduardo Habkost <ehabkost@redhat.com> - qemu-kvm-0.12.1.2-2.32.el6
+- kvm-Revert-spice-add-more-config-options.patch [bz#576561]
+  (need to wait for spice patches to be included on spice-server)
+- Related: bz#576561
+  (spice: add more config options)
+
+* Fri Mar 26 2010 Eduardo Habkost <ehabkost@redhat.com> - qemu-kvm-0.12.1.2-2.31.el6
+- kvm-Transparent-Hugepage-Support-3.patch [bz#574525]
+- kvm-monitor-Don-t-check-for-mon_get_cpu-failure.patch [bz#574642]
+- kvm-QError-New-QERR_OPEN_FILE_FAILED.patch [bz#574642]
+- kvm-monitor-convert-do_memory_save-to-QError.patch [bz#574642]
+- kvm-monitor-convert-do_physical_memory_save-to-QError.patch [bz#574642]
+- kvm-QError-New-QERR_INVALID_CPU_INDEX.patch [bz#574642]
+- kvm-monitor-convert-do_cpu_set-to-QObject-QError.patch [bz#574642]
+- kvm-monitor-Use-QERR_INVALID_PARAMETER-instead-of-QERR_I.patch [bz#575800]
+- kvm-Revert-QError-New-QERR_INVALID_CPU_INDEX.patch [bz#575800]
+- kvm-json-parser-Fix-segfault-on-malformed-input.patch [bz#575800]
+- kvm-fix-i-format-handling-in-memory-dump.patch [bz#575800]
+- kvm-Don-t-set-default-monitor-when-there-is-a-mux-ed-one.patch [bz#575800]
+- kvm-monitor-Document-argument-type-M.patch [bz#575821]
+- kvm-QDict-New-qdict_get_double.patch [bz#575821]
+- kvm-monitor-New-argument-type-b.patch [bz#575821]
+- kvm-monitor-Use-argument-type-b-for-migrate_set_speed.patch [bz#575821]
+- kvm-monitor-convert-do_migrate_set_speed-to-QObject.patch [bz#575821]
+- kvm-monitor-New-argument-type-T.patch [bz#575821]
+- kvm-monitor-Use-argument-type-T-for-migrate_set_downtime.patch [bz#575821]
+- kvm-monitor-convert-do_migrate_set_downtime-to-QObject.patch [bz#575821]
+- kvm-block-Emit-BLOCK_IO_ERROR-before-vm_stop-call.patch [bz#575912]
+- kvm-QMP-Move-STOP-event-into-do_vm_stop.patch [bz#575912]
+- kvm-QMP-Move-RESET-event-into-qemu_system_reset.patch [bz#575912]
+- kvm-QMP-Sync-with-upstream-event-changes.patch [bz#575912]
+- kvm-QMP-Drop-DEBUG-event.patch [bz#575912]
+- kvm-QMP-Revamp-the-qmp-events.txt-file.patch [bz#575912]
+- kvm-QMP-Introduce-RTC_CHANGE-event.patch [bz#547534]
+- kvm-QMP-Introduce-WATCHDOG-event.patch [bz#557083]
+- kvm-spice-add-more-config-options.patch [bz#576561]
+- Resolves: bz#547534
+  (RFE: a QMP event notification for RTC clock changes)
+- Resolves: bz#557083
+  (QMP events for watchdog events)
+- Resolves: bz#574525
+  (Align qemu-kvm guest memory for transparent hugepage support)
+- Resolves: bz#574642
+  (QMP: Convert do_cpu_set() to QObject)
+- Resolves: bz#575800
+  (Monitor: Backport a collection of fixes)
+- Resolves: bz#575821
+  (QMP: Convert migrate_set_speed, migrate_set_downtime to QObject)
+- Resolves: bz#575912
+  (QMP: Backport event related fixes)
+- Resolves: bz#576561
+  (spice: add more config options)
+
+* Thu Mar 25 2010 Eduardo Habkost <ehabkost@redhat.com> - qemu-kvm-0.12.1.2-2.30.el6
+- kvm-New-API-for-asynchronous-monitor-commands.patch [bz#574939]
+- kvm-Revert-QMP-Fix-query-balloon-key-change.patch [bz#574939]
+- kvm-virtio-Add-memory-statistics-reporting-to-the-balloo.patch [bz#574939]
+- Resolves: bz#574939
+  (Memory statistics support)
+
+* Wed Mar 24 2010 Eduardo Habkost <ehabkost@redhat.com> - qemu-kvm-0.12.1.2-2.29.el6
+- kvm-scsi-device-version-property.patch [bz#558835]
+- kvm-scsi-disk-fix-buffer-overflow.patch [bz#558835]
+- Resolves: bz#558835
+  (ide/scsi drive versions)
+
+* Wed Mar 24 2010 Eduardo Habkost <ehabkost@redhat.com> - qemu-kvm-0.12.1.2-2.28.el6
+- kvm-qcow2-Factor-next_refcount_table_size-out.patch [bz#567940]
+- kvm-qcow2-Rewrite-alloc_refcount_block-grow_refcount_tab.patch [bz#567940]
+- kvm-qcow2-More-checks-for-qemu-img-check.patch [bz#567940]
+- kvm-spice-virtual-machine-channel-replacement-for-remove.patch [bz#576488]
+- Resolves: bz#567940
+  (qcow2 corruption with I/O error during refcount block allocation)
+- Resolves: bz#576488
+  (Spice: virtio serial based device for guest-spice client communication)
+
+* Wed Mar 24 2010 Eduardo Habkost <ehabkost@redhat.com> - qemu-kvm-0.12.1.2-2.27.el6
+- kvm-spice-add-tablet.patch [bz#574211]
+- kvm-spice-simple-display-wake-spice-server-only-when-idl.patch [bz#574212]
+- kvm-spice-qxl-switch-back-to-vga-mode-on-register-access.patch [bz#574214]
+- kvm-spice-qxl-ring-access-security-fix.patch [bz#568820]
+- kvm-vnc-support-password-expire.patch [bz#525935]
+- kvm-spice-vnc-add-__com.redhat_set_password-monitor-comm.patch [bz#525935]
+- kvm-spice-add-audio-support.patch [bz#574222]
+- kvm-spice-make-image-compression-configurable.patch [bz#574225]
+- kvm-spice-configure-channel-security.patch [bz#574225]
+- kvm-spice-configure-renderer.patch [bz#574225]
+- kvm-spice-send-connect-disconnect-monitor-events.patch [bz#558957]
+- kvm-spice-qxl-update-vga-help-text-indicating-qxl-is-the.patch [bz#574853]
+- kvm-spice-notifying-spice-when-migration-starts-and-ends.patch [bz#574849]
+- kvm-spice-add-__com.redhat_spice_migrate_info-monitor-co.patch [bz#574849]
+- Resolves: bz#525935
+  (RFE: expire vnc password)
+- Resolves: bz#558957
+  (A QMP event notification on SPICE client connect/disconnect events)
+- Resolves: bz#568820
+  (EMBARGOED CVE-2010-0431 qemu: Insufficient guest provided pointers validation [rhel-6.0])
+- Resolves: bz#574211
+  (spice: add tablet support)
+- Resolves: bz#574212
+  (spice:wake spice server only when idle)
+- Resolves: bz#574214
+  (qxl: switch qxl from native into vga mode on vga register access)
+- Resolves: bz#574222
+  (spice: add audio support)
+- Resolves: bz#574225
+  (spice: add config options)
+- Resolves: bz#574849
+  (spice: client migration support)
+- Resolves: bz#574853
+  (spice/qxl: add qxl to -vga help text)
+
+* Thu Mar 18 2010 Eduardo Habkost <ehabkost@redhat.com> - qemu-kvm-0.12.1.2-2.26.el6
+- kvm-add-spice-into-the-configure-file.patch [bz#549757]
+- kvm-spice-core-bits.patch [bz#549757]
+- kvm-spice-add-keyboard.patch [bz#549757]
+- kvm-spice-add-mouse.patch [bz#549757]
+- kvm-spice-simple-display.patch [bz#549757]
+- kvm-move-x509-file-name-defines-to-qemu-x509.h.patch [bz#549757]
+- kvm-spice-tls-support.patch [bz#549757]
+- kvm-spice-configure-listening-addr.patch [bz#549757]
+- kvm-spice-add-qxl-device.patch [bz#549757]
+- Resolves: bz#549757
+  (Provide SPICE support  / -spice command line argument)
+
+* Wed Mar 17 2010 Eduardo Habkost <ehabkost@redhat.com> - qemu-kvm-0.12.1.2-2.25.el6
+- kvm-qemu-memory-notifiers.patch [bz#562958]
+- kvm-tap-add-interface-to-get-device-fd.patch [bz#562958]
+- kvm-add-API-to-set-ioeventfd.patch [bz#562958]
+- kvm-notifier-event-notifier-implementation.patch [bz#562958]
+- kvm-virtio-add-notifier-support.patch [bz#562958]
+- kvm-virtio-add-APIs-for-queue-fields.patch [bz#562958]
+- kvm-virtio-add-set_status-callback.patch [bz#562958]
+- kvm-virtio-move-typedef-to-qemu-common.patch [bz#562958]
+- kvm-virtio-pci-fill-in-notifier-support.patch [bz#562958]
+- kvm-vhost-vhost-net-support.patch [bz#562958]
+- kvm-tap-add-vhost-vhostfd-options.patch [bz#562958]
+- kvm-tap-add-API-to-retrieve-vhost-net-header.patch [bz#562958]
+- kvm-virtio-net-vhost-net-support.patch [bz#562958]
+- kvm-qemu-kvm-add-vhost.h-header.patch [bz#562958]
+- kvm-irqfd-support.patch [bz#562958]
+- kvm-msix-add-mask-unmask-notifiers.patch [bz#562958]
+- kvm-virtio-pci-irqfd-support.patch [bz#562958]
+- Resolves: bz#562958
+  (RFE: Support vhost net mode)
+
+* Fri Mar 12 2010 Eduardo Habkost <ehabkost@redhat.com> - qemu-kvm-0.12.1.2-2.24.el6
+- kvm-path.c-fix-warning-with-_FORTIFY_SOURCE.patch [bz#567099]
+- kvm-hw-pc.c-fix-warnings-with-_FORTIFY_SOURCE.patch [bz#567099]
+- kvm-slirp-misc.c-fix-warning-with-_FORTIFY_SOURCE.patch [bz#567099]
+- kvm-savevm.c-fix-warning-with-_FORTIFY_SOURCE.patch [bz#567099]
+- kvm-block-bochs.c-fix-warning-with-_FORTIFY_SOURCE.patch [bz#567099]
+- kvm-block.c-fix-warning-with-_FORTIFY_SOURCE.patch [bz#567099]
+- kvm-Introduce-qemu_write_full.patch [bz#567099]
+- kvm-force-to-test-result-for-qemu_write_full.patch [bz#567099]
+- kvm-block-cow.c-fix-warnings-with-_FORTIFY_SOURCE.patch [bz#567099]
+- kvm-block-qcow.c-fix-warnings-with-_FORTIFY_SOURCE.patch [bz#567099]
+- kvm-block-vmdk.o-fix-warnings-with-_FORTIFY_SOURCE.patch [bz#567099]
+- kvm-block-vvfat.c-fix-warnings-with-_FORTIFY_SOURCE.patch [bz#567099]
+- kvm-block-qcow2.c-fix-warnings-with-_FORTIFY_SOURCE.patch [bz#567099]
+- kvm-net-slirp.c-fix-warning-with-_FORTIFY_SOURCE.patch [bz#567099]
+- kvm-usb-linux.c-fix-warning-with-_FORTIFY_SOURCE.patch [bz#567099]
+- kvm-vl.c-fix-warning-with-_FORTIFY_SOURCE.patch [bz#567099]
+- kvm-monitor.c-fix-warnings-with-_FORTIFY_SOURCE.patch [bz#567099]
+- kvm-linux-user-mmap.c-fix-warnings-with-_FORTIFY_SOURCE.patch [bz#567099]
+- kvm-check-pipe-return-value.patch [bz#567099]
+- kvm-fix-qemu-kvm-_FORTIFY_SOURCE-compilation.patch [bz#567099]
+- kvm-Enable-_FORTIFY_SOURCE-2.patch [bz#567099]
+- kvm-qcow2-Fix-image-creation-regression.patch [bz#567099]
+- kvm-cow-return-errno-instead-of-1.patch [bz#567099]
+- kvm-slirp-check-system-success.patch [bz#567099]
+- kvm-qcow2-return-errno-instead-of-1.patch [bz#567099]
+- kvm-qcow-return-errno-instead-of-1.patch [bz#567099]
+- kvm-vmdk-return-errno-instead-of-1.patch [bz#567099]
+- kvm-vmdk-make-vmdk_snapshot_create-return-errno.patch [bz#567099]
+- kvm-vmdk-fix-double-free.patch [bz#567099]
+- kvm-vmdk-share-cleanup-code.patch [bz#567099]
+- kvm-block-print-errno-on-error.patch [bz#567099]
+- kvm-documentation-qemu_write_full-don-t-work-with-non-bl.patch [bz#567099]
+- kvm-virtio-serial-pci-Allow-MSI-to-be-disabled.patch [bz#567035]
+- kvm-pc-Add-backward-compatibility-options-for-virtio-ser.patch [bz#567035]
+- kvm-virtio-serial-don-t-set-MULTIPORT-for-1-port-dev.patch [bz#567035]
+- kvm-qdev-Add-a-DEV_NVECTORS_UNSPECIFIED-enum-for-unspeci.patch [bz#567035]
+- kvm-virtio-pci-Use-DEV_NVECTORS_UNSPECIFIED-instead-of-1.patch [bz#567035]
+- kvm-kbd-leds-infrastructure.patch [bz#569767]
+- kvm-kbd-leds-ps-2-kbd.patch [bz#569767]
+- kvm-kbd-leds-usb-kbd.patch [bz#569767]
+- kvm-kbd-keds-vnc.patch [bz#569767]
+- kvm-migration-Clear-fd-also-in-error-cases.patch [bz#570174]
+- Resolves: bz#567035
+  (Backport changes for virtio-serial from upstream: disabling MSI, backward compat.)
+- Resolves: bz#567099
+  (Allow _FORTIFY_SOURCE=2 & --enable-warning)
+- Resolves: bz#569767
+  (Caps Lock the key's appearance  of guest is not synchronous as host's --view kvm with vnc)
+- Resolves: bz#570174
+  (Restoring a qemu guest from a saved state file using -incoming sometimes fails and hangs)
+
+* Tue Mar 02 2010 Glauber Costa <glommer@redhat.com> - qemu-kvm-0.12.1.2-2.23.el6
+- kvm-ide-device-version-property.patch [bz#558835]
+- kvm-pc-add-driver-version-compat-properties.patch [bz#558835]
+- kvm-qemu-img-Fix-segfault-during-rebase.patch [bz#567602]
+- Resolves: bz#558835
+  (ide/scsi drive versions)
+- Resolves: bz#567602
+  (qemu-img rebase subcommand got Segmentation fault)
+
+* Mon Mar 01 2010 Glauber Costa <glommer@redhat.com> - qemu-kvm-0.12.1.2-2.22.el6
+- kvm-QMP-BLOCK_IO_ERROR-event-handling.patch [bz#547501]
+- kvm-block-BLOCK_IO_ERROR-QMP-event.patch [bz#547501]
+- kvm-ide-Generate-BLOCK_IO_ERROR-QMP-event.patch [bz#547501]
+- kvm-scsi-Generate-BLOCK_IO_ERROR-QMP-event.patch [bz#547501]
+- kvm-virtio-blk-Generate-BLOCK_IO_ERROR-QMP-event.patch [bz#547501]
+- kvm-add-rhel-machine-types.patch [bz#558838]
+- kvm-QMP-Fix-query-balloon-key-change.patch [bz#568739]
+- Resolves: bz#547501
+  (RFE: a QMP event notification for disk  I/O errors with werror/rerror flags)
+- Resolves: bz#558838
+  (add rhel machine types)
+- Resolves: bz#568739
+  (QMP: Fix 'query-balloon' key)
+
+* Fri Feb 26 2010 Glauber Costa <glommer@redhat.com> - qemu-kvm-0.12.1.2-2.21.el6
+- kvm-net-add-API-to-disable-enable-polling.patch [bz#562958]
+- kvm-virtio-rename-features-guest_features.patch [bz#562958]
+- kvm-qdev-add-bit-property-type.patch [bz#562958]
+- kvm-qdev-fix-thinko-leading-to-guest-crashes.patch [bz#562958]
+- kvm-virtio-add-features-as-qdev-properties-fixup.patch [bz#562958]
+- Resolves: bz#562958
+  (RFE: Support vhost net mode)
+
+* Fri Feb 26 2010 Glauber Costa <glommer@redhat.com> - qemu-kvm-0.12.1.2-2.20.el6
+- kvm-QMP-Add-QEMU-s-version-to-the-greeting-message.patch [bz#557930]
+- kvm-QMP-Introduce-the-qmp_capabilities-command.patch [bz#557930]
+- kvm-QMP-Enforce-capability-negotiation-rules.patch [bz#557930]
+- kvm-QMP-spec-Capability-negotiation-updates.patch [bz#557930]
+- kvm-json-escape-u0000-.-u001F-when-outputting-json.patch [bz#559667]
+- kvm-json-fix-PRId64-on-Win32.patch [bz#563878]
+- kvm-qjson-Improve-debugging.patch [bz#563875]
+- kvm-Monitor-remove-unneeded-checks.patch [bz#563876]
+- kvm-QError-Don-t-abort-on-multiple-faults.patch [bz#559635]
+- kvm-QMP-Don-t-leak-on-connection-close.patch [bz#559645]
+- kvm-QMP-Emit-Basic-events.patch [bz#558623]
+- Resolves: bz#557930
+  (QMP: Feature Negotiation support)
+- Resolves: bz#558623
+  (QMP: Basic async events are not emitted)
+- Resolves: bz#559635
+  (QMP: assertion on multiple faults)
+- Resolves: bz#559645
+  (QMP: leak when a QMP connection is closed)
+- Resolves: bz#559667
+  (QMP: JSON parser doesn't escape some control chars)
+- Resolves: bz#563875
+  (QJSON: Improve debugging)
+- Resolves: bz#563876
+  (Monitor: remove unneeded checks)
+- Resolves: bz#563878
+  (QJSON: Fix PRId64 handling)
+
+* Fri Feb 19 2010 Glauber Costa <glommer@redhat.com> - qemu-kvm-0.12.1.2-2.19.el6
+- kvm-virtio_blk-Factor-virtio_blk_handle_request-out.patch [bz#560942]
+- kvm-virtio-blk-Fix-restart-after-read-error.patch [bz#560942]
+- kvm-virtio-blk-Fix-error-cases-which-ignored-rerror-werr.patch [bz#560942]
+- Resolves: bz#560942
+  (virtio-blk error handling doesn't work reliably)
+
+* Thu Feb 11 2010 Eduardo Habkost <ehabkost@redhat.com> - qemu-kvm-0.12.1.2-2.18.el6
+- kvm-roms-minor-fixes-and-cleanups.patch [bz#558818]
+- kvm-fw_cfg-rom-loader-tweaks.patch [bz#558818]
+- kvm-roms-rework-rom-loading-via-fw.patch [bz#558818]
+- kvm-pci-allow-loading-roms-via-fw_cfg.patch [bz#558818]
+- kvm-pc-add-rombar-to-compat-properties-for-pc-0.10-and-p.patch [bz#558818]
+- Resolves: bz#558818
+  (rom loading)
+
+* Wed Feb 10 2010 Eduardo Habkost <ehabkost@redhat.com> - qemu-kvm-0.12.1.2-2.17.el6
+- kvm-Fix-QEMU_WARN_UNUSED_RESULT.patch [bz#560623]
+- kvm-qcow2-Fix-error-handling-in-qcow2_grow_l1_table.patch [bz#560623]
+- kvm-qcow2-Fix-error-handling-in-qcow_save_vmstate.patch [bz#560623]
+- kvm-qcow2-Return-0-errno-in-get_cluster_table.patch [bz#560623]
+- kvm-qcow2-Return-0-errno-in-qcow2_alloc_cluster_offset.patch [bz#560623]
+- kvm-block-Return-original-error-codes-in-bdrv_pread-writ.patch [bz#560623]
+- kvm-qcow2-Fix-error-handling-in-grow_refcount_table.patch [bz#560623]
+- kvm-qcow2-Improve-error-handling-in-update_refcount.patch [bz#560623]
+- kvm-qcow2-Allow-updating-no-refcounts.patch [bz#560623]
+- kvm-qcow2-Don-t-ignore-update_refcount-return-value.patch [bz#560623]
+- kvm-qcow2-Don-t-ignore-qcow2_alloc_clusters-return-value.patch [bz#560623]
+- kvm-net-Make-inet_strfamily-public.patch [bz#562181]
+- kvm-net-inet_strfamily-Better-unknown-family-report.patch [bz#562181]
+- kvm-vnc-Use-inet_strfamily.patch [bz#562181]
+- Resolves: bz#560623
+  (error codes aren't always propagated up through the block layer (e.g. -ENOSPC))
+- Resolves: bz#562181
+  (Small VNC related cleanup)
+
+* Mon Feb 08 2010 Eduardo Habkost <ehabkost@redhat.com> - qemu-kvm-0.12.1.2-2.16.el6
+- Move /usr/bin/qemu-kvm to /usr/libexec/qemu-kvm
+- Resolves: bz#560651
+
+* Wed Feb 03 2010 Eduardo Habkost <ehabkost@redhat.com> - qemu-kvm-0.12.1.2-2.15.el6
+- kvm-VNC-Use-enabled-key-instead-of-status.patch [bz#549759]
+- kvm-VNC-Make-auth-key-mandatory.patch [bz#549759]
+- kvm-VNC-Rename-client-s-username-key.patch [bz#549759]
+- kvm-VNC-Add-family-key.patch [bz#549759]
+- kvm-VNC-Cache-client-info-at-connection-time.patch [bz#549759]
+- kvm-QMP-Introduce-VNC_CONNECTED-event.patch [bz#549759]
+- kvm-QMP-Introduce-VNC_DISCONNECTED-event.patch [bz#549759]
+- kvm-QMP-Introduce-VNC_INITIALIZED-event.patch [bz#549759]
+- kvm-block-avoid-creating-too-large-iovecs-in-multiwrite_.patch [bz#558730]
+- Resolves: bz#549759
+  (A QMP event notification on VNC client connect/disconnect events)
+- Resolves: bz#558730
+  (qemu may create too large iovecs for the kernel)
+
+* Thu Jan 28 2010 Glauber Costa <glommer@redhat.com> - qemu-kvm-0.12.1.2-2.14.el6
+- kvm-MCE-Fix-bug-of-IA32_MCG_STATUS-after-system-reset.patch [bz#558416]
+- kvm-Fix-CPU-topology-initialization.patch [bz#558432]
+- kvm-loader-more-ignores-for-rom-intended-to-be-loaded-by.patch [bz#558467]
+- kvm-pc-add-machine-type-for-0.12.patch [bz#558470]
+- kvm-virtio-console-Rename-virtio-serial.c-back-to-virtio.patch [bz#559089]
+- kvm-virtio-serial-bus-Fix-bus-initialisation-and-allow-f.patch [bz#559503]
+- Resolves: bz#558416
+  (Machine check exception injected into qemu reinjected after every reset)
+- Resolves: bz#558432
+  (CPU topology not taking effect)
+- Resolves: bz#558467
+  (roms potentially loaded twice)
+- Resolves: bz#558470
+  (Incorrect machine types)
+- Resolves: bz#559089
+  (Rename virtio-serial.c to virtio-console.c as is upstream.)
+- Resolves: bz#559503
+  (virtio-serial: fix multiple devices intialisation)
+
+* Wed Jan 27 2010 Eduardo Habkost <ehabkost@redhat.com> - qemu-kvm-0.12.1.2-2.13.el6
+- kvm-reduce-number-of-reinjects-on-ACK.patch [bz#557435]
+- kvm-Add-missing-newline-at-the-end-of-options-list.patch [bz#558412]
+- kvm-vnc-Fix-artifacts-in-hextile-decoding.patch [bz#558414]
+- kvm-QMP-Drop-wrong-assert.patch [bz#558415]
+- kvm-vmware_vga-Check-cursor-dimensions-passed-from-guest.patch [bz#558435]
+- kvm-virtio-pci-thinko-fix.patch [bz#558438]
+- kvm-QMP-Don-t-free-async-event-s-data.patch [bz#558465]
+- kvm-vnc_refresh-return-if-vd-timer-is-NULL.patch [bz#558466]
+- kvm-osdep.c-Fix-accept4-fallback.patch [bz#558477]
+- kvm-QMP-Emit-asynchronous-events-on-all-QMP-monitors.patch [bz#558619]
+- kvm-vnc_refresh-calling-vnc_update_client-might-free-vs.patch [bz#558846]
+- Resolves: bz#557435
+  (KVM: WIN7-32bit blue screen (IMAGE_NAME:  ntkrnlmp.exe).)
+- Resolves: bz#558412
+  (-help output not terminated by newline)
+- Resolves: bz#558414
+  (Artifacts in hextile decoding)
+- Resolves: bz#558415
+  (Assert triggers on qmp commands returning lists)
+- Resolves: bz#558435
+  (vmware-svga buffer overflow copying cursor data)
+- Resolves: bz#558438
+  (virtio status bits corrupted if guest deasserts bus mastering bit)
+- Resolves: bz#558465
+  (Double-free of qmp async messages)
+- Resolves: bz#558466
+  (Possible segfault on vnc client disconnect)
+- Resolves: bz#558477
+  (Incorrect handling of EINVAL from accept4())
+- Resolves: bz#558619
+  (QMP: Emit asynchronous events on all QMP monitors)
+- Resolves: bz#558846
+  (fix use-after-free in vnc code)
+
+* Fri Jan 22 2010 Eduardo Habkost <ehabkost@redhat.com> - qemu-kvm-0.12.1.2-2.12.el6
+- kvm-virtio-serial-bus-Remove-guest-buffer-caching-and-th.patch [bz#543825]
+- kvm-virtio-serial-Make-sure-we-don-t-crash-when-host-por.patch [bz#543825]
+- kvm-virtio-serial-Use-MSI-vectors-for-port-virtqueues.patch [bz#543825]
+- kvm-virtio-serial-bus-Match-upstream-whitespace.patch [bz#543825]
+- Resolves: bz#543825
+  ([RFE] Backport virtio-serial device to qemu)
+
+* Mon Jan 18 2010 Eduardo Habkost <ehabkost@redhat.com> - qemu-kvm-0.12.1.2-2.11.el6
+- kvm-block-Introduce-BDRV_O_NO_BACKING.patch [bz#556459]
+- kvm-block-Add-bdrv_change_backing_file.patch [bz#556459]
+- kvm-qemu-img-rebase.patch [bz#556459]
+- Resolves: bz#556459
+  (RFE - In-place backing file format change)
+
+* Mon Jan 18 2010 Eduardo Habkost <ehabkost@redhat.com> - qemu-kvm-0.12.1.2-2.10.el6
+- Conflicts with older vdsm version, that needs vvfat support
+- Related: bz#555336
+
+* Fri Jan 15 2010 Eduardo Habkost <ehabkost@redhat.com> - qemu-kvm-0.12.1.2-2.9.el6
+- Disable -Werror again, as there are still warnings on the build
+- Related: bz#555336
+  (Remove unneeded features)
+
+* Fri Jan 15 2010 Eduardo Habkost <ehabkost@redhat.com> - qemu-kvm-0.12.1.2-2.8.el6
+- Require libaio-devel for build
+- Related: bz#555336
+  (Remove unneeded features)
+
+* Fri Jan 15 2010 Eduardo Habkost <ehabkost@redhat.com> - qemu-kvm-0.12.1.2-2.7.el6
+- Disable vvfat support
+- Resolves: bz#555336
+  (Remove unneeded features)
+
+* Fri Jan 15 2010 Eduardo Habkost <ehabkost@redhat.com> - qemu-kvm-0.12.1.2-2.6.el6
+- Fix misapply of virtio patches
+- Related: bz#543825
+
+* Fri Jan 15 2010 Eduardo Habkost <ehabkost@redhat.com> - qemu-kvm-0.12.1.2-2.5.el6
+- Remove unneeded/unsupported features: [bz#555336]
+  - make default options explicit
+  - remove sdl support
+  - remove sb16 emulation
+  - remove oss support
+  - remove curses support
+  - disable curl support
+  - disable bluez support
+  - enable -Werror
+  - limit block drivers support
+  - add host_cdrom block device
+- Resolves: bz#555336
+  (Remove unneeded features)
+
+* Fri Jan 15 2010 Eduardo Habkost <ehabkost@redhat.com> - qemu-kvm-0.12.1.2-2.4.el6
+- kvm-virtio-Remove-duplicate-macro-definition-for-max.-vi.patch [bz#543825]
+- kvm-virtio-console-qdev-conversion-new-virtio-serial-bus.patch [bz#543825]
+- kvm-virtio-serial-bus-Maintain-guest-and-host-port-open-.patch [bz#543825]
+- kvm-virtio-serial-bus-Add-a-port-name-property-for-port-.patch [bz#543825]
+- kvm-virtio-serial-bus-Add-support-for-buffering-guest-ou.patch [bz#543825]
+- kvm-virtio-serial-bus-Add-ability-to-hot-unplug-ports.patch [bz#543825]
+- kvm-virtio-serial-Add-a-virtserialport-device-for-generi.patch [bz#543825]
+- kvm-Move-virtio-serial-to-Makefile.hw.patch [bz#543825]
+- Resolves: bz#543825
+  ([RFE] Backport virtio-serial device to qemu)
+
+* Tue Jan 12 2010 Eduardo Habkost <ehabkost@redhat.com> - qemu-kvm-0.12.1.2-2.3.el6
+- Use seabios instead of bochs-bios
+- Resolves: bz#553732
+
+* Tue Jan 12 2010 Eduardo Habkost <ehabkost@redhat.com> - qemu-kvm-0.12.1.2-2.2.el6
+- Build only on x86_64
+- Resolves: bz#538039
+
+* Thu Jan 07 2010 Eduardo Habkost <ehabkost@redhat.com> - qemu-kvm-0.12.1.2-2.1.el6
+- Rebasing to 0.12.1.2-2.fc13
+- Resolves: bz#553271
+
+* Tue Dec 08 2009 Dennis Gregorovic <dgregor@redhat.com> - 2:0.11.0-7.1
+- Rebuilt for RHEL 6
+
+* Mon Oct 19 2009 Mark McLoughlin <markmc@redhat.com> - 2:0.11.0-7.el6
+- Initial RHEL6 qemu-kvm package
