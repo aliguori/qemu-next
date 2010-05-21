@@ -984,6 +984,10 @@ static const struct {
                 .name = "vhostfd",
                 .type = QEMU_OPT_STRING,
                 .help = "file descriptor of an already opened vhost net device",
+            }, {
+                .name = "helper",
+                .type = QEMU_OPT_STRING,
+                .help = "helper command to open tap file descriptor",
             },
 #endif /* _WIN32 */
             { /* end of list */ }
