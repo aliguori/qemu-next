@@ -1239,6 +1239,22 @@ is activated if no @option{-net} options are provided.
 @end table
 ETEXI
 
+DEF("network", HAS_ARG, QEMU_OPTION_network,
+    "-net type[,option1=val][...]", QEMU_ARCH_ALL)
+STEXI
+@item -network @var{type}
+@findex -network
+Use a user-defined network type.  This is a syntatic short cut for
+&option{-net tap,helper=HELPER} meant to allow local customization in an
+extensible way.
+
+To determine which helper to invoke, qemu will execute a script located in
+@var{prefix/libexec/qemu/qemu-network-HELPER} passing each specified option
+as a long option to the helper.  For example, @option{-network bridge,if=eth0}
+would be equivalent to launching @var{/usr/libexec/qemu/qemu-network-bridge --if=eth0} and then passing standard output of that command to
+@var{-net tap,helper=}.
+ETEXI
+
 DEFHEADING()
 
 DEFHEADING(Character device options:)

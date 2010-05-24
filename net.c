@@ -1409,3 +1409,24 @@ int net_client_parse(QemuOptsList *opts_list, const char *optarg)
     default_net = 0;
     return 0;
 }
+
+int network_helper_add(QemuOpts *opts)
+{
+    /* todo
+     *
+     * type parameters becomes:
+     *  PREFIX/libexec/qemu/qemu-network-${type}
+     *
+     * all additional parameters become options in the form
+     *  --x-${opt}=${val}
+     *
+     * let stderr leak through, if we exit with non-zero status
+     * return error
+     *
+     * save contents of stdout, if we exit with zero status then
+     * we need to create a new netdev device in the form of
+     *  -netdev type=tap,helper=${stdout}[,id=${id}]
+     *
+     * this option does not support vlans, only id based creation
+     */
+}

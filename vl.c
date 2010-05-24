@@ -2304,6 +2304,11 @@ static int device_init_func(QemuOpts *opts, void *opaque)
     return 0;
 }
 
+static int network_init_func(QemuOpts *opts, void *opaque)
+{
+    return network_helper_add(opts);
+}
+
 static int chardev_init_func(QemuOpts *opts, void *opaque)
 {
     CharDriverState *chr;
@@ -2914,6 +2919,12 @@ int main(int argc, char **argv, char **envp)
                 break;
             case QEMU_OPTION_net:
                 if (net_client_parse(&qemu_net_opts, optarg) == -1) {
+                    exit(1);
+                }
+                break;
+            case QEMU_OPTION_network:
+                opts = qemu_opts_parse(&qemu_network_opts, optarg, 1);
+                if (!opts) {
                     exit(1);
                 }
                 break;
@@ -3756,6 +3767,10 @@ int main(int argc, char **argv, char **envp)
     /* init generic devices */
     if (qemu_opts_foreach(&qemu_device_opts, device_init_func, NULL, 1) != 0)
         exit(1);
+
+    if (qemu_opts_foreach(&qemu_network_opts, network_init_func, NULL, 1) != 0) {
+        exit(1);
+    }
 
     net_check_clients();
 

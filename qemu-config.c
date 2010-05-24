@@ -231,6 +231,19 @@ QemuOptsList qemu_net_opts = {
     },
 };
 
+QemuOptsList qemu_network_opts = {
+    .name = "network",
+    .implied_opt_name = "type",
+    .head = QTAILQ_HEAD_INITIALIZER(qemu_network_opts.head),
+    .desc = {
+        /*
+         * no elements => accept any params
+         * all parameters are passed to helper
+         */
+        { /* end of list */ }
+    },
+};
+
 QemuOptsList qemu_rtc_opts = {
     .name = "rtc",
     .head = QTAILQ_HEAD_INITIALIZER(qemu_rtc_opts.head),

@@ -1,0 +1,58 @@
+#!/bin/bash
+
+args=`getopt -l x-if: i: "$@"`
+if test $? != 0 ; then
+    exit 1
+fi
+eval set -- "${args}"
+
+if="eth0"
+
+while test "$1" != "--" ; do
+    case "$1" in
+	--x-if)
+            shift
+	    if="$1"
+            ;;
+    esac
+    shift
+done
+
+found=no
+bridge=""
+first=yes
+while read line; do
+    if test ${first} = yes ; then
+	first=no
+	continue
+    fi
+
+    fields=($line)
+    if test ${#fields[@]} = 1 ; then
+	port=${fields[0]}
+    else
+	bridge=${fields[0]}
+	port=${fields[3]}
+    fi
+
+    if test "${port}" = "${if}" ; then
+	found=yes
+	break
+    fi
+done <<EOF
+`brctl show`
+EOF
+
+if test ${found} = yes ; then
+    path=$(dirname "$0")
+    if test "${path}" != "." -o "${0:0:1}" = "." ; then
+	helper="${path}/qemu-bridge-helper"
+    else
+	helper="qemu-bridge-helper"
+    fi
+    echo "\"${helper}\" --bridge=$bridge"
+    exit 0
+else
+    echo "Could not find bridge for $if" 1>&2
+    exit 1
+fi
