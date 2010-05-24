@@ -163,7 +163,7 @@ buildldflags="VL_LDFLAGS=-Wl,--build-id"
             --extra-ldflags=$extraldflags \
             --extra-cflags="$RPM_OPT_FLAGS" \
             --disable-xen \
-            --block-drv-whitelist=qcow2,raw,host_device,host_cdrom \
+            --block-drv-whitelist=qcow2,raw,file,host_device,host_cdrom \
             --disable-debug-tcg \
             --disable-sparse \
             --enable-werror \
