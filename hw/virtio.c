@@ -71,6 +71,7 @@ struct VirtQueue
     target_phys_addr_t pa;
     uint16_t last_avail_idx;
     int inuse;
+    int num_notify;
     uint16_t vector;
     void (*handle_output)(VirtIODevice *vdev, VirtQueue *vq);
     VirtIODevice *vdev;
@@ -137,6 +138,11 @@ static inline uint16_t vring_avail_ring(VirtQueue *vq, int i)
     target_phys_addr_t pa;
     pa = vq->vring.avail + offsetof(VRingAvail, ring[i]);
     return lduw_phys(pa);
+}
+
+static inline uint16_t vring_last_used_idx(VirtQueue *vq)
+{
+    return vring_avail_ring(vq, vq->vring.num);
 }
 
 static inline void vring_used_ring_id(VirtQueue *vq, int i, uint32_t val)
@@ -234,6 +240,7 @@ void virtqueue_flush(VirtQueue *vq, unsigned int count)
     wmb();
     vring_used_idx_increment(vq, count);
     vq->inuse -= count;
+    vq->num_notify += count;
 }
 
 void virtqueue_push(VirtQueue *vq, const VirtQueueElement *elem,
@@ -603,6 +610,14 @@ void virtio_irq(VirtQueue *vq)
 
 void virtio_notify(VirtIODevice *vdev, VirtQueue *vq)
 {
+    uint16_t n = vq->num_notify;
+    vq->num_notify = 0;
+
+    /* Do not notify if guest did not yet see the last update. */
+    if ((vdev->guest_features & (1 << VIRTIO_RING_F_PUBLISH_USED)) &&
+         (uint16_t)(vring_last_used_idx(vq) - vring_used_idx(vq) + n) >= n)
+	return;
+
     /* Always notify when queue is empty (when feature acknowledge) */
     if ((vring_avail_flags(vq) & VRING_AVAIL_F_NO_INTERRUPT) &&
         (!(vdev->guest_features & (1 << VIRTIO_F_NOTIFY_ON_EMPTY)) ||

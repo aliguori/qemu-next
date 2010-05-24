@@ -65,6 +65,9 @@ void vhost_net_ack_features(struct vhost_net *net, unsigned features)
     if (features & (1 << VIRTIO_RING_F_INDIRECT_DESC)) {
         net->dev.acked_features |= (1 << VIRTIO_RING_F_INDIRECT_DESC);
     }
+    if (features & (1 << VIRTIO_RING_F_PUBLISH_USED)) {
+        net->dev.acked_features |= (1 << VIRTIO_RING_F_PUBLISH_USED);
+    }
 }
 
 static int vhost_net_get_fd(VLANClientState *backend)
