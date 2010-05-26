@@ -21,7 +21,7 @@ enum {
 extern const uint32_t arch_type;
 
 void select_soundhw(const char *optarg);
-int ram_save_live(Monitor *mon, QEMUFile *f, int stage, void *opaque);
+int ram_save_live(QEMUFile *f, int stage, void *opaque);
 int ram_load(QEMUFile *f, void *opaque, int version_id);
 void do_acpitable_option(const char *optarg);
 void do_smbios_option(const char *optarg);

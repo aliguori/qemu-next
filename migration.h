@@ -16,6 +16,8 @@
 
 #include "qdict.h"
 #include "qemu-common.h"
+#include "notify.h"
+#include "monitor.h"
 
 #define MIG_STATE_ERROR		-1
 #define MIG_STATE_COMPLETED	0
@@ -42,7 +44,7 @@ struct FdMigrationState
     int64_t bandwidth_limit;
     QEMUFile *file;
     int fd;
-    Monitor *mon;
+    Notifier *notifier;
     int state;
     int (*get_error)(struct FdMigrationState*);
     int (*close)(struct FdMigrationState*);
@@ -52,7 +54,8 @@ struct FdMigrationState
 
 void qemu_start_incoming_migration(const char *uri);
 
-int do_migrate(Monitor *mon, const QDict *qdict, QObject **ret_data);
+int do_migrate(Monitor *mon, const QDict *qdict, MonitorCompletion *cb,
+               void *opaque);
 
 int do_migrate_cancel(Monitor *mon, const QDict *qdict, QObject **ret_data);
 
@@ -69,41 +72,35 @@ void do_info_migrate(Monitor *mon, QObject **ret_data);
 
 int exec_start_incoming_migration(const char *host_port);
 
-MigrationState *exec_start_outgoing_migration(Monitor *mon,
-                                              const char *host_port,
+MigrationState *exec_start_outgoing_migration(const char *host_port,
 					      int64_t bandwidth_limit,
-					      int detach,
 					      int blk,
-					      int inc);
+					      int inc,
+                                              Notifier *notifier);
 
 int tcp_start_incoming_migration(const char *host_port);
 
-MigrationState *tcp_start_outgoing_migration(Monitor *mon,
-                                             const char *host_port,
+MigrationState *tcp_start_outgoing_migration(const char *host_port,
 					     int64_t bandwidth_limit,
-					     int detach,
 					     int blk,
-					     int inc);
+					     int inc,
+                                             Notifier *notifier);
 
 int unix_start_incoming_migration(const char *path);
 
-MigrationState *unix_start_outgoing_migration(Monitor *mon,
-                                              const char *path,
+MigrationState *unix_start_outgoing_migration(const char *path,
 					      int64_t bandwidth_limit,
-					      int detach,
 					      int blk,
-					      int inc);
+					      int inc,
+                                              Notifier *notifier);
 
 int fd_start_incoming_migration(const char *path);
 
-MigrationState *fd_start_outgoing_migration(Monitor *mon,
-					    const char *fdname,
+MigrationState *fd_start_outgoing_migration(int fd,
 					    int64_t bandwidth_limit,
-					    int detach,
 					    int blk,
-					    int inc);
-
-void migrate_fd_monitor_suspend(FdMigrationState *s, Monitor *mon);
+					    int inc,
+                                            Notifier *notifier);
 
 void migrate_fd_error(FdMigrationState *s);
 

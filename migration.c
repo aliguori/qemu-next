@@ -54,12 +54,33 @@ void qemu_start_incoming_migration(const char *uri)
         fprintf(stderr, "unknown migration protocol: %s\n", uri);
 }
 
-int do_migrate(Monitor *mon, const QDict *qdict, QObject **ret_data)
+typedef struct MigrationCommandNotifier
 {
+    Notifier notifier;
+    MonitorCompletion *cb;
+    void *opaque;
+    MigrationState *s;
+} MigrationCommandNotifier;
+
+static void do_migrate_complete(Notifier *notifier)
+{
+    MigrationCommandNotifier *mcn = container_of(notifier,
+                                                 MigrationCommandNotifier,
+                                                 notifier);
+
+    /* FIXME if we detect an error, then create and send a QError here */
+    mcn->cb(mcn->opaque, NULL);
+    qemu_free(mcn);
+}
+
+int do_migrate(Monitor *mon, const QDict *qdict, MonitorCompletion *cb,
+               void *opaque)
+{
+    MigrationCommandNotifier *notifier;
     MigrationState *s = NULL;
-    const char *p;
-    int detach = qdict_get_int(qdict, "detach");
-    const char *uri = qdict_get_str(qdict, "uri");
+    const char *p, *uri = qdict_get_str(qdict, "uri");
+    int blk = qdict_get_int(qdict, "blk");
+    int inc = qdict_get_int(qdict, "blk");
 
     if (current_migration &&
         current_migration->get_status(current_migration) == MIG_STATE_ACTIVE) {
@@ -67,28 +88,36 @@ int do_migrate(Monitor *mon, const QDict *qdict, QObject **ret_data)
         return -1;
     }
 
+    notifier = qemu_mallocz(sizeof(*notifier));
+    notifier->cb = cb;
+    notifier->opaque = opaque;
+    notifier->notifier.notify = do_migrate_complete;
+
     if (strstart(uri, "tcp:", &p)) {
-        s = tcp_start_outgoing_migration(mon, p, max_throttle, detach,
-                                         (int)qdict_get_int(qdict, "blk"), 
-                                         (int)qdict_get_int(qdict, "inc"));
+        s = tcp_start_outgoing_migration(p, max_throttle,
+                                         blk, inc,
+                                         &notifier->notifier);
 #if !defined(WIN32)
     } else if (strstart(uri, "exec:", &p)) {
-        s = exec_start_outgoing_migration(mon, p, max_throttle, detach,
-                                          (int)qdict_get_int(qdict, "blk"), 
-                                          (int)qdict_get_int(qdict, "inc"));
+        s = exec_start_outgoing_migration(p, max_throttle,
+                                          blk, inc,
+                                          &notifier->notifier);
     } else if (strstart(uri, "unix:", &p)) {
-        s = unix_start_outgoing_migration(mon, p, max_throttle, detach,
-					  (int)qdict_get_int(qdict, "blk"), 
-                                          (int)qdict_get_int(qdict, "inc"));
+        s = unix_start_outgoing_migration(p, max_throttle,
+                                          blk, inc,
+                                          &notifier->notifier);
     } else if (strstart(uri, "fd:", &p)) {
-        s = fd_start_outgoing_migration(mon, p, max_throttle, detach, 
-                                        (int)qdict_get_int(qdict, "blk"), 
-                                        (int)qdict_get_int(qdict, "inc"));
+        s = fd_start_outgoing_migration(monitor_get_fd(mon, p),
+                                        max_throttle,
+                                        blk, inc,
+                                        &notifier->notifier);
 #endif
     } else {
         monitor_printf(mon, "unknown migration protocol: %s\n", uri);
         return -1;
     }
+
+    notifier->s = s;
 
     if (s == NULL) {
         monitor_printf(mon, "migration failed\n");
@@ -272,17 +301,6 @@ void do_info_migrate(Monitor *mon, QObject **ret_data)
 
 /* shared migration helpers */
 
-void migrate_fd_monitor_suspend(FdMigrationState *s, Monitor *mon)
-{
-    s->mon = mon;
-    if (monitor_suspend(mon) == 0) {
-        DPRINTF("suspending monitor\n");
-    } else {
-        monitor_printf(mon, "terminal does not allow synchronous "
-                       "migration, continuing detached\n");
-    }
-}
-
 void migrate_fd_error(FdMigrationState *s)
 {
     DPRINTF("setting error state\n");
@@ -303,9 +321,8 @@ void migrate_fd_cleanup(FdMigrationState *s)
     if (s->fd != -1)
         close(s->fd);
 
-    /* Don't resume monitor until we've flushed all of the buffers */
-    if (s->mon) {
-        monitor_resume(s->mon);
+    if (s->notifier) {
+        s->notifier->notify(s->notifier);
     }
 
     s->fd = -1;
@@ -349,7 +366,7 @@ void migrate_fd_connect(FdMigrationState *s)
                                       migrate_fd_close);
 
     DPRINTF("beginning savevm\n");
-    ret = qemu_savevm_state_begin(s->mon, s->file, s->mig_state.blk,
+    ret = qemu_savevm_state_begin(s->file, s->mig_state.blk,
                                   s->mig_state.shared);
     if (ret < 0) {
         DPRINTF("failed, %d\n", ret);
@@ -370,7 +387,7 @@ void migrate_fd_put_ready(void *opaque)
     }
 
     DPRINTF("iterate\n");
-    if (qemu_savevm_state_iterate(s->mon, s->file) == 1) {
+    if (qemu_savevm_state_iterate(s->file) == 1) {
         int state;
         int old_vm_running = vm_running;
 
@@ -379,7 +396,7 @@ void migrate_fd_put_ready(void *opaque)
 
         qemu_aio_flush();
         bdrv_flush_all();
-        if ((qemu_savevm_state_complete(s->mon, s->file)) < 0) {
+        if ((qemu_savevm_state_complete(s->file)) < 0) {
             if (old_vm_running) {
                 vm_start();
             }
@@ -408,7 +425,7 @@ void migrate_fd_cancel(MigrationState *mig_state)
     DPRINTF("cancelling migration\n");
 
     s->state = MIG_STATE_CANCELLED;
-    qemu_savevm_state_cancel(s->mon, s->file);
+    qemu_savevm_state_cancel(s->file);
 
     migrate_fd_cleanup(s);
 }

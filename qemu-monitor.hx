@@ -767,22 +767,23 @@ ETEXI
 
     {
         .name       = "migrate",
-        .args_type  = "detach:-d,blk:-b,inc:-i,uri:s",
-        .params     = "[-d] [-b] [-i] uri",
-        .help       = "migrate to URI (using -d to not wait for completion)"
+        .args_type  = "blk:-b,inc:-i,uri:s",
+        .params     = "[-b] [-i] uri",
+        .help       = "migrate to URI"
 		      "\n\t\t\t -b for migration without shared storage with"
 		      " full copy of disk\n\t\t\t -i for migration without "
 		      "shared storage with incremental copy of disk "
 		      "(base image shared between src and destination)",
         .user_print = monitor_user_noop,	
-	.mhandler.cmd_new = do_migrate,
+	.mhandler.cmd_async = do_migrate,
+	.async = 1,
     },
 
 
 STEXI
-@item migrate [-d] [-b] [-i] @var{uri}
+@item migrate [-b] [-i] @var{uri}
 @findex migrate
-Migrate to @var{uri} (using -d to not wait for completion).
+Migrate to @var{uri}
 	-b for migration with full copy of disk
 	-i for migration with incremental copy of disk (base image is shared)
 ETEXI

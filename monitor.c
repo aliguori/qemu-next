@@ -581,6 +581,7 @@ static void user_async_cmd_handler(Monitor *mon, const mon_cmd_t *cmd,
     cb_data->mon = mon;
     cb_data->user_print = cmd->user_print;
     monitor_suspend(mon);
+    printf("suspending monitor\n");
     ret = cmd->mhandler.cmd_async(mon, params,
                                   user_monitor_complete, cb_data);
     if (ret < 0) {

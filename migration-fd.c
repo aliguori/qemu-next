@@ -51,18 +51,17 @@ static int fd_close(FdMigrationState *s)
     return 0;
 }
 
-MigrationState *fd_start_outgoing_migration(Monitor *mon,
-					    const char *fdname,
+MigrationState *fd_start_outgoing_migration(int fd,
 					    int64_t bandwidth_limit,
-					    int detach,
 					    int blk,
-					    int inc)
+					    int inc,
+                                            Notifier *notifier)
 {
     FdMigrationState *s;
 
     s = qemu_mallocz(sizeof(*s));
 
-    s->fd = monitor_get_fd(mon, fdname);
+    s->fd = fd;
     if (s->fd == -1) {
         DPRINTF("fd_migration: invalid file descriptor identifier\n");
         goto err_after_alloc;
@@ -84,12 +83,8 @@ MigrationState *fd_start_outgoing_migration(Monitor *mon,
     s->mig_state.shared = inc;
 
     s->state = MIG_STATE_ACTIVE;
-    s->mon = NULL;
+    s->notifier = notifier;
     s->bandwidth_limit = bandwidth_limit;
-
-    if (!detach) {
-        migrate_fd_monitor_suspend(s, mon);
-    }
 
     migrate_fd_connect(s);
     return &s->mig_state;
