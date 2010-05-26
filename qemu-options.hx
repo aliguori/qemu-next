@@ -741,7 +741,7 @@ it if your guest OS complains about ACPI problems (PC target machine
 only).
 ETEXI
 
-#ifdef TARGET_I386
+#ifdef CONFIG_RED_HAT_DISABLED
 DEF("no-hpet", 0, QEMU_OPTION_no_hpet,
     "-no-hpet        disable HPET\n")
 #endif
