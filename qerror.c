@@ -195,21 +195,6 @@ static const QErrorStringTable qerror_table[] = {
     {}
 };
 
-/**
- * qerror_new(): Create a new QError
- *
- * Return strong reference.
- */
-QError *qerror_new(void)
-{
-    QError *qerr;
-
-    qerr = qemu_mallocz(sizeof(*qerr));
-    QOBJECT_INIT(qerr, &qerror_type);
-
-    return qerr;
-}
-
 static void qerror_abort(const QError *qerr, const char *fmt, ...)
 {
     va_list ap;
@@ -225,11 +210,11 @@ static void qerror_abort(const QError *qerr, const char *fmt, ...)
     abort();
 }
 
-static void qerror_set_data(QError *qerr, const char *fmt, va_list *va)
+static void qerror_set_data(QError *qerr, const char *fmt, va_list ap)
 {
     QObject *obj;
 
-    obj = qobject_from_jsonv(fmt, va);
+    obj = qobject_from_jsonv(fmt, (va_list *)&ap);
     if (!obj) {
         qerror_abort(qerr, "invalid format '%s'", fmt);
     }
@@ -273,7 +258,7 @@ static void qerror_set_desc(QError *qerr, const char *fmt)
 }
 
 /**
- * qerror_from_info(): Create a new QError from error information
+ * qerror_newv_from_info(): Create a new QError from error information
  *
  * The information consists of:
  *
@@ -286,12 +271,14 @@ static void qerror_set_desc(QError *qerr, const char *fmt)
  *
  * Return strong reference.
  */
-QError *qerror_from_info(const char *file, int linenr, const char *func,
-                         const char *fmt, va_list *va)
+QError *qerror_newv_from_info(const char *file, int linenr, const char *func,
+                              const char *fmt, va_list ap)
 {
     QError *qerr;
 
-    qerr = qerror_new();
+    qerr = qemu_mallocz(sizeof(*qerr));
+    QOBJECT_INIT(qerr, &qerror_type);
+
     loc_save(&qerr->loc);
     qerr->linenr = linenr;
     qerr->file = file;
@@ -301,10 +288,23 @@ QError *qerror_from_info(const char *file, int linenr, const char *func,
         qerror_abort(qerr, "QDict not specified");
     }
 
-    qerror_set_data(qerr, fmt, va);
+    qerror_set_data(qerr, fmt, ap);
     qerror_set_desc(qerr, fmt);
 
     return qerr;
+}
+
+QError *qerror_new_from_info(const char *file, int linenr, const char *func,
+                             const char *fmt, ...)
+{
+    va_list ap;
+    QError *err;
+
+    va_start(ap, fmt);
+    err = qerror_newv_from_info(file, linenr, func, fmt, ap);
+    va_end(ap);
+
+    return err;
 }
 
 static void parse_error(const QError *qerror, int c)
@@ -406,7 +406,7 @@ void qerror_report_internal(const char *file, int linenr, const char *func,
     QError *qerror;
 
     va_start(va, fmt);
-    qerror = qerror_from_info(file, linenr, func, fmt, &va);
+    qerror = qerror_newv_from_info(file, linenr, func, fmt, va);
     va_end(va);
 
     if (monitor_cur_is_qmp()) {

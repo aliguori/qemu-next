@@ -32,9 +32,15 @@ typedef struct QError {
     const QErrorStringTable *entry;
 } QError;
 
-QError *qerror_new(void);
-QError *qerror_from_info(const char *file, int linenr, const char *func,
-                         const char *fmt, va_list *va);
+#define qerror_new(fmt, ...) \
+    qerror_from_new_from_info(__FILE__, __LINE__, __func__, fmt, ## __VA_ARGS__)
+
+QError *qerror_new_from_info(const char *file, int linenr, const char *func,
+                        const char *fmt, ...);
+
+QError *qerror_newv_from_info(const char *file, int linenr, const char *func,
+                              const char *fmt, va_list va);
+
 QString *qerror_human(const QError *qerror);
 void qerror_print(QError *qerror);
 void qerror_report_internal(const char *file, int linenr, const char *func,
@@ -43,6 +49,7 @@ void qerror_report_internal(const char *file, int linenr, const char *func,
 #define qerror_report(fmt, ...) \
     qerror_report_internal(__FILE__, __LINE__, __func__, fmt, ## __VA_ARGS__)
 QError *qobject_to_qerror(const QObject *obj);
+
 
 /*
  * QError class list
@@ -99,6 +106,9 @@ QError *qobject_to_qerror(const QObject *obj);
 
 #define QERR_FD_NOT_SUPPLIED \
     "{ 'class': 'FdNotSupplied', 'data': {} }"
+
+#define QERR_IN_PROGRESS \
+    "{ 'class': 'InProgress', 'data': {'context': %s } }"
 
 #define QERR_INVALID_BLOCK_FORMAT \
     "{ 'class': 'InvalidBlockFormat', 'data': { 'name': %s } }"
