@@ -81,11 +81,12 @@ int do_migrate(Monitor *mon, const QDict *qdict, MonitorCompletion *cb,
     const char *p, *uri = qdict_get_str(qdict, "uri");
     int blk = qdict_get_int(qdict, "blk");
     int inc = qdict_get_int(qdict, "blk");
+    QError *err;
 
     if (current_migration &&
         current_migration->get_status(current_migration) == MIG_STATE_ACTIVE) {
-        monitor_printf(mon, "migration already in progress\n");
-        return -1;
+        err = qerror_new(QERR_IN_PROGRESS, "migration");
+        goto out;
     }
 
     notifier = qemu_mallocz(sizeof(*notifier));
@@ -113,15 +114,15 @@ int do_migrate(Monitor *mon, const QDict *qdict, MonitorCompletion *cb,
                                         &notifier->notifier);
 #endif
     } else {
-        monitor_printf(mon, "unknown migration protocol: %s\n", uri);
-        return -1;
+        err = qerror_new(QERR_INVALID_PARAMETER, "uri");
+        goto out;
     }
 
     notifier->s = s;
 
     if (s == NULL) {
-        monitor_printf(mon, "migration failed\n");
-        return -1;
+        err = qerror_new(QERR_UNDEFINED_ERROR);
+        goto out;
     }
 
     if (current_migration) {
@@ -130,6 +131,10 @@ int do_migrate(Monitor *mon, const QDict *qdict, MonitorCompletion *cb,
 
     current_migration = s;
     return 0;
+
+out:
+    qerror_report_error(err);
+    return -1;
 }
 
 int do_migrate_cancel(Monitor *mon, const QDict *qdict, QObject **ret_data)
@@ -304,7 +309,7 @@ void do_info_migrate(Monitor *mon, QObject **ret_data)
 void migrate_fd_error(FdMigrationState *s)
 {
     DPRINTF("setting error state\n");
-    s->state = MIG_STATE_ERROR;
+    s->error = qerror_new(QERR_UNDEFINED_ERROR);
     migrate_fd_cleanup(s);
 }
 

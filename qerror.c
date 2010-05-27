@@ -399,6 +399,16 @@ void qerror_print(QError *qerror)
     QDECREF(qstring);
 }
 
+void qerror_report_error(QError *err)
+{
+    if (monitor_cur_is_qmp()) {
+        monitor_set_error(cur_mon, qerror);
+    } else {
+        qerror_print(qerror);
+        QDECREF(qerror);
+    }
+}
+
 void qerror_report_internal(const char *file, int linenr, const char *func,
                             const char *fmt, ...)
 {
@@ -409,12 +419,7 @@ void qerror_report_internal(const char *file, int linenr, const char *func,
     qerror = qerror_newv_from_info(file, linenr, func, fmt, va);
     va_end(va);
 
-    if (monitor_cur_is_qmp()) {
-        monitor_set_error(cur_mon, qerror);
-    } else {
-        qerror_print(qerror);
-        QDECREF(qerror);
-    }
+    qerror_report_error(qerror);
 }
 
 /**

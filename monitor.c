@@ -550,7 +550,11 @@ static void user_monitor_complete(void *opaque, QObject *ret_data)
     MonitorCompletionData *data = (MonitorCompletionData *)opaque; 
 
     if (ret_data) {
-        data->user_print(data->mon, ret_data);
+        if (qobject_type(ret_data) == QTYPE_QERROR) {
+            /* FIXME */
+        } else {
+            data->user_print(data->mon, ret_data);
+        }
     }
     monitor_resume(data->mon);
     qemu_free(data);
@@ -558,6 +562,13 @@ static void user_monitor_complete(void *opaque, QObject *ret_data)
 
 static void qmp_monitor_complete(void *opaque, QObject *ret_data)
 {
+    if (ret_data) {
+        if (qobject_type(ret_data) == QTYPE_QERROR) {
+            /* FIXME */
+        } else {
+            
+        }
+    }
     monitor_protocol_emitter(opaque, ret_data);
 }
 

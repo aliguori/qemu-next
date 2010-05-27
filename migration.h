@@ -46,7 +46,7 @@ struct FdMigrationState
     int fd;
     Notifier *notifier;
     int state;
-    int (*get_error)(struct FdMigrationState*);
+    QError *error;
     int (*close)(struct FdMigrationState*);
     int (*write)(struct FdMigrationState*, const void *, size_t);
     void *opaque;
