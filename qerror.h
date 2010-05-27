@@ -33,10 +33,10 @@ typedef struct QError {
 } QError;
 
 #define qerror_new(fmt, ...) \
-    qerror_from_new_from_info(__FILE__, __LINE__, __func__, fmt, ## __VA_ARGS__)
+    qerror_new_from_info(__FILE__, __LINE__, __func__, fmt, ## __VA_ARGS__)
 
 QError *qerror_new_from_info(const char *file, int linenr, const char *func,
-                        const char *fmt, ...) \
+                             const char *fmt, ...)      \
     __attribute__ ((format(printf, 4, 5)));
 
 QError *qerror_newv_from_info(const char *file, int linenr, const char *func,
@@ -114,6 +114,9 @@ QError *qobject_to_qerror(const QObject *obj);
 #define QERR_IN_PROGRESS \
     "{ 'class': 'InProgress', 'data': {'context': %s } }"
 
+#define QERR_INTERNAL_ERROR \
+    "{ 'class': 'InternalError', 'data': {'context': %s } }"
+
 #define QERR_INVALID_BLOCK_FORMAT \
     "{ 'class': 'InvalidBlockFormat', 'data': { 'name': %s } }"
 
@@ -129,6 +132,9 @@ QError *qobject_to_qerror(const QObject *obj);
 #define QERR_INVALID_PASSWORD \
     "{ 'class': 'InvalidPassword', 'data': {} }"
 
+#define QERR_IO_ERROR \
+    "{ 'class': 'IOError', 'data': { 'context': %s } }"
+
 #define QERR_JSON_PARSING \
     "{ 'class': 'JSONParsing', 'data': {} }"
 
@@ -140,6 +146,12 @@ QError *qobject_to_qerror(const QObject *obj);
 
 #define QERR_NO_BUS_FOR_DEVICE \
     "{ 'class': 'NoBusForDevice', 'data': { 'device': %s, 'bus': %s } }"
+
+#define QERR_NO_ENTRY \
+    "{ 'class': 'NoEntry', 'data': { 'context': %s } }"
+
+#define QERR_NOT_SUPPORTED \
+    "{ 'class': 'NotSupported', 'data': {}}"
 
 #define QERR_OPEN_FILE_FAILED \
     "{ 'class': 'OpenFileFailed', 'data': { 'filename': %s } }"

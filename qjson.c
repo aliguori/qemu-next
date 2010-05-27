@@ -24,21 +24,26 @@
 typedef struct JSONParsingState
 {
     JSONMessageParser parser;
-    va_list *ap;
+    va_list ap;
+    int ap_valid;
     QObject *result;
 } JSONParsingState;
 
 static void parse_json(JSONMessageParser *parser, QList *tokens)
 {
     JSONParsingState *s = container_of(parser, JSONParsingState, parser);
-    s->result = json_parser_parse(tokens, s->ap);
+    s->result = json_parser_parsev(tokens, s->ap);
 }
 
-QObject *qobject_from_jsonv(const char *string, va_list *ap)
+static QObject *qobject_from_json_full(const char *string, va_list ap,
+                                       int ap_valid)
 {
     JSONParsingState state = {};
 
-    state.ap = ap;
+    if (ap_valid) {
+        va_copy(state.ap, ap);
+    }
+    state.ap_valid = ap_valid;
 
     json_message_parser_init(&state.parser, parse_json);
     json_message_parser_feed(&state.parser, string, strlen(string));
@@ -48,9 +53,15 @@ QObject *qobject_from_jsonv(const char *string, va_list *ap)
     return state.result;
 }
 
+QObject *qobject_from_jsonv(const char *string, va_list ap)
+{
+    return qobject_from_json_full(string, ap, 1);
+}
+
 QObject *qobject_from_json(const char *string)
 {
-    return qobject_from_jsonv(string, NULL);
+    va_list ap;
+    return qobject_from_json_full(string, ap, 0);
 }
 
 /*
@@ -63,7 +74,7 @@ QObject *qobject_from_jsonf(const char *string, ...)
     va_list ap;
 
     va_start(ap, string);
-    obj = qobject_from_jsonv(string, &ap);
+    obj = qobject_from_jsonv(string, ap);
     va_end(ap);
 
     assert(obj != NULL);

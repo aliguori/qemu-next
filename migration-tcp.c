@@ -62,7 +62,7 @@ static void tcp_wait_for_connect(void *opaque)
     } while (ret == -1 && (s->get_error(s)) == EINTR);
 
     if (ret < 0) {
-        migrate_fd_error(s);
+        migrate_fd_error(s, qerror_new(QERR_INTERNAL_ERROR, "getsockopt"));
         return;
     }
 
@@ -72,7 +72,7 @@ static void tcp_wait_for_connect(void *opaque)
         migrate_fd_connect(s);
     else {
         DPRINTF("error connecting %d\n", val);
-        migrate_fd_error(s);
+        migrate_fd_error(s, qerror_new(QERR_INTERNAL_ERROR, "connect"));
     }
 }
 

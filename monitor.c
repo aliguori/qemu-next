@@ -94,6 +94,7 @@
 typedef struct MonitorCompletionData MonitorCompletionData;
 struct MonitorCompletionData {
     Monitor *mon;
+    QString *id;
     void (*user_print)(Monitor *mon, const QObject *data);
 };
 
@@ -124,7 +125,6 @@ struct mon_fd_t {
 };
 
 typedef struct MonitorControl {
-    QObject *id;
     JSONMessageParser parser;
     int command_mode;
 } MonitorControl;
@@ -348,7 +348,7 @@ static void monitor_json_emitter(Monitor *mon, const QObject *data)
     QDECREF(json);
 }
 
-static void monitor_protocol_emitter(Monitor *mon, QObject *data)
+static void monitor_protocol_emitter(Monitor *mon, QObject *data, QString *id)
 {
     QDict *qmp;
 
@@ -372,9 +372,9 @@ static void monitor_protocol_emitter(Monitor *mon, QObject *data)
         mon->error = NULL;
     }
 
-    if (mon->mc->id) {
-        qdict_put_obj(qmp, "id", mon->mc->id);
-        mon->mc->id = NULL;
+    if (id) {
+        QINCREF(id);
+        qdict_put_obj(qmp, "id", QOBJECT(id));
     }
 
     monitor_json_emitter(mon, QOBJECT(qmp));
@@ -551,7 +551,11 @@ static void user_monitor_complete(void *opaque, QObject *ret_data)
 
     if (ret_data) {
         if (qobject_type(ret_data) == QTYPE_QERROR) {
-            /* FIXME */
+            QError *err = qobject_to_qerror(ret_data);
+            QString *msg = qerror_human(err);
+
+            monitor_printf(data->mon, "%s\n", qstring_get_str(msg));
+            QDECREF(msg);
         } else {
             data->user_print(data->mon, ret_data);
         }
@@ -562,20 +566,26 @@ static void user_monitor_complete(void *opaque, QObject *ret_data)
 
 static void qmp_monitor_complete(void *opaque, QObject *ret_data)
 {
-    if (ret_data) {
-        if (qobject_type(ret_data) == QTYPE_QERROR) {
-            /* FIXME */
-        } else {
-            
-        }
+    MonitorCompletionData *data = (MonitorCompletionData *)opaque;
+
+    printf("ret_data %p\n", ret_data);
+    printf("data->id %p\n", data->id);
+
+    if (ret_data && qobject_type(ret_data) == QTYPE_QERROR) {
+        monitor_set_error(data->mon, qobject_to_qerror(ret_data));
+        ret_data = NULL;
     }
-    monitor_protocol_emitter(opaque, ret_data);
+    monitor_protocol_emitter(opaque, ret_data, data->id);
 }
 
 static void qmp_async_cmd_handler(Monitor *mon, const mon_cmd_t *cmd,
-                                  const QDict *params)
+                                  const QDict *params, QString *id)
 {
-    cmd->mhandler.cmd_async(mon, params, qmp_monitor_complete, mon);
+    MonitorCompletionData *data = qemu_mallocz(sizeof(*data));
+
+    data->mon = mon;
+    data->id = id;
+    cmd->mhandler.cmd_async(mon, params, qmp_monitor_complete, data);
 }
 
 static void qmp_async_info_handler(Monitor *mon, const mon_cmd_t *cmd)
@@ -592,7 +602,6 @@ static void user_async_cmd_handler(Monitor *mon, const mon_cmd_t *cmd,
     cb_data->mon = mon;
     cb_data->user_print = cmd->user_print;
     monitor_suspend(mon);
-    printf("suspending monitor\n");
     ret = cmd->mhandler.cmd_async(mon, params,
                                   user_monitor_complete, cb_data);
     if (ret < 0) {
@@ -634,7 +643,7 @@ static int do_info(Monitor *mon, const QDict *qdict, QObject **ret_data)
     if (cmd->name == NULL) {
         if (monitor_ctrl_mode(mon)) {
             qerror_report(QERR_COMMAND_NOT_FOUND, item);
-            return -1;
+            return qerror_new(QERR_UNDEFINED_ERROR);
         }
         goto help;
     }
@@ -666,7 +675,7 @@ static int do_info(Monitor *mon, const QDict *qdict, QObject **ret_data)
         if (monitor_ctrl_mode(mon)) {
             /* handler not converted yet */
             qerror_report(QERR_COMMAND_NOT_FOUND, item);
-            return -1;
+            return qerror_new(QERR_UNDEFINED_ERROR);
         } else {
             cmd->mhandler.info(mon);
         }
@@ -853,7 +862,7 @@ static int mon_set_cpu(int cpu_index)
             return 0;
         }
     }
-    return -1;
+    return qerror_new(QERR_UNDEFINED_ERROR);
 }
 
 static CPUState *mon_get_cpu(void)
@@ -989,7 +998,7 @@ static int do_cpu_set(Monitor *mon, const QDict *qdict, QObject **ret_data)
     if (mon_set_cpu(index) < 0) {
         qerror_report(QERR_INVALID_PARAMETER_VALUE, "index",
                       "a CPU number");
-        return -1;
+        return qerror_new(QERR_UNDEFINED_ERROR);
     }
     return 0;
 }
@@ -1046,11 +1055,11 @@ static int eject_device(Monitor *mon, BlockDriverState *bs, int force)
             if (!bdrv_is_removable(bs)) {
                 qerror_report(QERR_DEVICE_NOT_REMOVABLE,
                                bdrv_get_device_name(bs));
-                return -1;
+                return qerror_new(QERR_UNDEFINED_ERROR);
             }
             if (bdrv_is_locked(bs)) {
                 qerror_report(QERR_DEVICE_LOCKED, bdrv_get_device_name(bs));
-                return -1;
+                return qerror_new(QERR_UNDEFINED_ERROR);
             }
         }
         bdrv_close(bs);
@@ -1067,7 +1076,7 @@ static int do_eject(Monitor *mon, const QDict *qdict, QObject **ret_data)
     bs = bdrv_find(filename);
     if (!bs) {
         qerror_report(QERR_DEVICE_NOT_FOUND, filename);
-        return -1;
+        return qerror_new(QERR_UNDEFINED_ERROR);
     }
     return eject_device(mon, bs, force);
 }
@@ -1081,16 +1090,16 @@ static int do_block_set_passwd(Monitor *mon, const QDict *qdict,
     bs = bdrv_find(qdict_get_str(qdict, "device"));
     if (!bs) {
         qerror_report(QERR_DEVICE_NOT_FOUND, qdict_get_str(qdict, "device"));
-        return -1;
+        return qerror_new(QERR_UNDEFINED_ERROR);
     }
 
     err = bdrv_set_key(bs, qdict_get_str(qdict, "password"));
     if (err == -EINVAL) {
         qerror_report(QERR_DEVICE_NOT_ENCRYPTED, bdrv_get_device_name(bs));
-        return -1;
+        return qerror_new(QERR_UNDEFINED_ERROR);
     } else if (err < 0) {
         qerror_report(QERR_INVALID_PASSWORD);
-        return -1;
+        return qerror_new(QERR_UNDEFINED_ERROR);
     }
 
     return 0;
@@ -1106,22 +1115,22 @@ static int do_change_block(Monitor *mon, const char *device,
     bs = bdrv_find(device);
     if (!bs) {
         qerror_report(QERR_DEVICE_NOT_FOUND, device);
-        return -1;
+        return qerror_new(QERR_UNDEFINED_ERROR);
     }
     if (fmt) {
         drv = bdrv_find_whitelisted_format(fmt);
         if (!drv) {
             qerror_report(QERR_INVALID_BLOCK_FORMAT, fmt);
-            return -1;
+            return qerror_new(QERR_UNDEFINED_ERROR);
         }
     }
     if (eject_device(mon, bs, 0) < 0) {
-        return -1;
+        return qerror_new(QERR_UNDEFINED_ERROR);
     }
     bdrv_flags = bdrv_get_type_hint(bs) == BDRV_TYPE_CDROM ? 0 : BDRV_O_RDWR;
     if (bdrv_open(bs, filename, bdrv_flags, drv) < 0) {
         qerror_report(QERR_OPEN_FILE_FAILED, filename);
-        return -1;
+        return qerror_new(QERR_UNDEFINED_ERROR);
     }
     return monitor_read_bdrv_key_start(mon, bs, NULL, NULL);
 }
@@ -1130,7 +1139,7 @@ static int change_vnc_password(const char *password)
 {
     if (vnc_display_password(NULL, password) < 0) {
         qerror_report(QERR_SET_PASSWD_FAILED);
-        return -1;
+        return qerror_new(QERR_UNDEFINED_ERROR);
     }
 
     return 0;
@@ -1158,7 +1167,7 @@ static int do_change_vnc(Monitor *mon, const char *target, const char *arg)
     } else {
         if (vnc_display_open(NULL, target) < 0) {
             qerror_report(QERR_VNC_SERVER_FAILED, target);
-            return -1;
+            return qerror_new(QERR_UNDEFINED_ERROR);
         }
     }
 
@@ -1253,7 +1262,7 @@ static int do_cont(Monitor *mon, const QDict *qdict, QObject **ret_data)
         vm_start();
         return 0;
     } else {
-        return -1;
+        return qerror_new(QERR_UNDEFINED_ERROR);
     }
 }
 
@@ -1531,7 +1540,7 @@ static int do_memory_save(Monitor *mon, const QDict *qdict, QObject **ret_data)
     f = fopen(filename, "wb");
     if (!f) {
         qerror_report(QERR_OPEN_FILE_FAILED, filename);
-        return -1;
+        return qerror_new(QERR_UNDEFINED_ERROR);
     }
     while (size != 0) {
         l = sizeof(buf);
@@ -1567,7 +1576,7 @@ static int do_physical_memory_save(Monitor *mon, const QDict *qdict,
     f = fopen(filename, "wb");
     if (!f) {
         qerror_report(QERR_OPEN_FILE_FAILED, filename);
-        return -1;
+        return qerror_new(QERR_UNDEFINED_ERROR);
     }
     while (size != 0) {
         l = sizeof(buf);
@@ -1608,815 +1617,7 @@ static void do_sum(Monitor *mon, const QDict *qdict)
     monitor_printf(mon, "%05d\n", sum);
 }
 
-typedef struct {
-    int keycode;
-    const char *name;
-} KeyDef;
-
-static const KeyDef key_defs[] = {
-    { 0x2a, "shift" },
-    { 0x36, "shift_r" },
-
-    { 0x38, "alt" },
-    { 0xb8, "alt_r" },
-    { 0x64, "altgr" },
-    { 0xe4, "altgr_r" },
-    { 0x1d, "ctrl" },
-    { 0x9d, "ctrl_r" },
-
-    { 0xdd, "menu" },
-
-    { 0x01, "esc" },
-
-    { 0x02, "1" },
-    { 0x03, "2" },
-    { 0x04, "3" },
-    { 0x05, "4" },
-    { 0x06, "5" },
-    { 0x07, "6" },
-    { 0x08, "7" },
-    { 0x09, "8" },
-    { 0x0a, "9" },
-    { 0x0b, "0" },
-    { 0x0c, "minus" },
-    { 0x0d, "equal" },
-    { 0x0e, "backspace" },
-
-    { 0x0f, "tab" },
-    { 0x10, "q" },
-    { 0x11, "w" },
-    { 0x12, "e" },
-    { 0x13, "r" },
-    { 0x14, "t" },
-    { 0x15, "y" },
-    { 0x16, "u" },
-    { 0x17, "i" },
-    { 0x18, "o" },
-    { 0x19, "p" },
-
-    { 0x1c, "ret" },
-
-    { 0x1e, "a" },
-    { 0x1f, "s" },
-    { 0x20, "d" },
-    { 0x21, "f" },
-    { 0x22, "g" },
-    { 0x23, "h" },
-    { 0x24, "j" },
-    { 0x25, "k" },
-    { 0x26, "l" },
-
-    { 0x2c, "z" },
-    { 0x2d, "x" },
-    { 0x2e, "c" },
-    { 0x2f, "v" },
-    { 0x30, "b" },
-    { 0x31, "n" },
-    { 0x32, "m" },
-    { 0x33, "comma" },
-    { 0x34, "dot" },
-    { 0x35, "slash" },
-
-    { 0x37, "asterisk" },
-
-    { 0x39, "spc" },
-    { 0x3a, "caps_lock" },
-    { 0x3b, "f1" },
-    { 0x3c, "f2" },
-    { 0x3d, "f3" },
-    { 0x3e, "f4" },
-    { 0x3f, "f5" },
-    { 0x40, "f6" },
-    { 0x41, "f7" },
-    { 0x42, "f8" },
-    { 0x43, "f9" },
-    { 0x44, "f10" },
-    { 0x45, "num_lock" },
-    { 0x46, "scroll_lock" },
-
-    { 0xb5, "kp_divide" },
-    { 0x37, "kp_multiply" },
-    { 0x4a, "kp_subtract" },
-    { 0x4e, "kp_add" },
-    { 0x9c, "kp_enter" },
-    { 0x53, "kp_decimal" },
-    { 0x54, "sysrq" },
-
-    { 0x52, "kp_0" },
-    { 0x4f, "kp_1" },
-    { 0x50, "kp_2" },
-    { 0x51, "kp_3" },
-    { 0x4b, "kp_4" },
-    { 0x4c, "kp_5" },
-    { 0x4d, "kp_6" },
-    { 0x47, "kp_7" },
-    { 0x48, "kp_8" },
-    { 0x49, "kp_9" },
-
-    { 0x56, "<" },
-
-    { 0x57, "f11" },
-    { 0x58, "f12" },
-
-    { 0xb7, "print" },
-
-    { 0xc7, "home" },
-    { 0xc9, "pgup" },
-    { 0xd1, "pgdn" },
-    { 0xcf, "end" },
-
-    { 0xcb, "left" },
-    { 0xc8, "up" },
-    { 0xd0, "down" },
-    { 0xcd, "right" },
-
-    { 0xd2, "insert" },
-    { 0xd3, "delete" },
-#if defined(TARGET_SPARC) && !defined(TARGET_SPARC64)
-    { 0xf0, "stop" },
-    { 0xf1, "again" },
-    { 0xf2, "props" },
-    { 0xf3, "undo" },
-    { 0xf4, "front" },
-    { 0xf5, "copy" },
-    { 0xf6, "open" },
-    { 0xf7, "paste" },
-    { 0xf8, "find" },
-    { 0xf9, "cut" },
-    { 0xfa, "lf" },
-    { 0xfb, "help" },
-    { 0xfc, "meta_l" },
-    { 0xfd, "meta_r" },
-    { 0xfe, "compose" },
-#endif
-    { 0, NULL },
-};
-
-static int get_keycode(const char *key)
-{
-    const KeyDef *p;
-    char *endp;
-    int ret;
-
-    for(p = key_defs; p->name != NULL; p++) {
-        if (!strcmp(key, p->name))
-            return p->keycode;
-    }
-    if (strstart(key, "0x", NULL)) {
-        ret = strtoul(key, &endp, 0);
-        if (*endp == '\0' && ret >= 0x01 && ret <= 0xff)
-            return ret;
-    }
-    return -1;
-}
-
-#define MAX_KEYCODES 16
-static uint8_t keycodes[MAX_KEYCODES];
-static int nb_pending_keycodes;
-static QEMUTimer *key_timer;
-
-static void release_keys(void *opaque)
-{
-    int keycode;
-
-    while (nb_pending_keycodes > 0) {
-        nb_pending_keycodes--;
-        keycode = keycodes[nb_pending_keycodes];
-        if (keycode & 0x80)
-            kbd_put_keycode(0xe0);
-        kbd_put_keycode(keycode | 0x80);
-    }
-}
-
-static void do_sendkey(Monitor *mon, const QDict *qdict)
-{
-    char keyname_buf[16];
-    char *separator;
-    int keyname_len, keycode, i;
-    const char *string = qdict_get_str(qdict, "string");
-    int has_hold_time = qdict_haskey(qdict, "hold_time");
-    int hold_time = qdict_get_try_int(qdict, "hold_time", -1);
-
-    if (nb_pending_keycodes > 0) {
-        qemu_del_timer(key_timer);
-        release_keys(NULL);
-    }
-    if (!has_hold_time)
-        hold_time = 100;
-    i = 0;
-    while (1) {
-        separator = strchr(string, '-');
-        keyname_len = separator ? separator - string : strlen(string);
-        if (keyname_len > 0) {
-            pstrcpy(keyname_buf, sizeof(keyname_buf), string);
-            if (keyname_len > sizeof(keyname_buf) - 1) {
-                monitor_printf(mon, "invalid key: '%s...'\n", keyname_buf);
-                return;
-            }
-            if (i == MAX_KEYCODES) {
-                monitor_printf(mon, "too many keys\n");
-                return;
-            }
-            keyname_buf[keyname_len] = 0;
-            keycode = get_keycode(keyname_buf);
-            if (keycode < 0) {
-                monitor_printf(mon, "unknown key: '%s'\n", keyname_buf);
-                return;
-            }
-            keycodes[i++] = keycode;
-        }
-        if (!separator)
-            break;
-        string = separator + 1;
-    }
-    nb_pending_keycodes = i;
-    /* key down events */
-    for (i = 0; i < nb_pending_keycodes; i++) {
-        keycode = keycodes[i];
-        if (keycode & 0x80)
-            kbd_put_keycode(0xe0);
-        kbd_put_keycode(keycode & 0x7f);
-    }
-    /* delayed key up events */
-    qemu_mod_timer(key_timer, qemu_get_clock(vm_clock) +
-                   muldiv64(get_ticks_per_sec(), hold_time, 1000));
-}
-
-static int mouse_button_state;
-
-static void do_mouse_move(Monitor *mon, const QDict *qdict)
-{
-    int dx, dy, dz;
-    const char *dx_str = qdict_get_str(qdict, "dx_str");
-    const char *dy_str = qdict_get_str(qdict, "dy_str");
-    const char *dz_str = qdict_get_try_str(qdict, "dz_str");
-    dx = strtol(dx_str, NULL, 0);
-    dy = strtol(dy_str, NULL, 0);
-    dz = 0;
-    if (dz_str)
-        dz = strtol(dz_str, NULL, 0);
-    kbd_mouse_event(dx, dy, dz, mouse_button_state);
-}
-
-static void do_mouse_button(Monitor *mon, const QDict *qdict)
-{
-    int button_state = qdict_get_int(qdict, "button_state");
-    mouse_button_state = button_state;
-    kbd_mouse_event(0, 0, 0, mouse_button_state);
-}
-
-static void do_ioport_read(Monitor *mon, const QDict *qdict)
-{
-    int size = qdict_get_int(qdict, "size");
-    int addr = qdict_get_int(qdict, "addr");
-    int has_index = qdict_haskey(qdict, "index");
-    uint32_t val;
-    int suffix;
-
-    if (has_index) {
-        int index = qdict_get_int(qdict, "index");
-        cpu_outb(addr & IOPORTS_MASK, index & 0xff);
-        addr++;
-    }
-    addr &= 0xffff;
-
-    switch(size) {
-    default:
-    case 1:
-        val = cpu_inb(addr);
-        suffix = 'b';
-        break;
-    case 2:
-        val = cpu_inw(addr);
-        suffix = 'w';
-        break;
-    case 4:
-        val = cpu_inl(addr);
-        suffix = 'l';
-        break;
-    }
-    monitor_printf(mon, "port%c[0x%04x] = %#0*x\n",
-                   suffix, addr, size * 2, val);
-}
-
-static void do_ioport_write(Monitor *mon, const QDict *qdict)
-{
-    int size = qdict_get_int(qdict, "size");
-    int addr = qdict_get_int(qdict, "addr");
-    int val = qdict_get_int(qdict, "val");
-
-    addr &= IOPORTS_MASK;
-
-    switch (size) {
-    default:
-    case 1:
-        cpu_outb(addr, val);
-        break;
-    case 2:
-        cpu_outw(addr, val);
-        break;
-    case 4:
-        cpu_outl(addr, val);
-        break;
-    }
-}
-
-static void do_boot_set(Monitor *mon, const QDict *qdict)
-{
-    int res;
-    const char *bootdevice = qdict_get_str(qdict, "bootdevice");
-
-    res = qemu_boot_set(bootdevice);
-    if (res == 0) {
-        monitor_printf(mon, "boot device list now set to %s\n", bootdevice);
-    } else if (res > 0) {
-        monitor_printf(mon, "setting boot device list failed\n");
-    } else {
-        monitor_printf(mon, "no function defined to set boot device list for "
-                       "this architecture\n");
-    }
-}
-
-/**
- * do_system_reset(): Issue a machine reset
- */
-static int do_system_reset(Monitor *mon, const QDict *qdict,
-                           QObject **ret_data)
-{
-    qemu_system_reset_request();
-    return 0;
-}
-
-/**
- * do_system_powerdown(): Issue a machine powerdown
- */
-static int do_system_powerdown(Monitor *mon, const QDict *qdict,
-                               QObject **ret_data)
-{
-    qemu_system_powerdown_request();
-    return 0;
-}
-
-#if defined(TARGET_I386)
-static void print_pte(Monitor *mon, uint32_t addr, uint32_t pte, uint32_t mask)
-{
-    monitor_printf(mon, "%08x: %08x %c%c%c%c%c%c%c%c\n",
-                   addr,
-                   pte & mask,
-                   pte & PG_GLOBAL_MASK ? 'G' : '-',
-                   pte & PG_PSE_MASK ? 'P' : '-',
-                   pte & PG_DIRTY_MASK ? 'D' : '-',
-                   pte & PG_ACCESSED_MASK ? 'A' : '-',
-                   pte & PG_PCD_MASK ? 'C' : '-',
-                   pte & PG_PWT_MASK ? 'T' : '-',
-                   pte & PG_USER_MASK ? 'U' : '-',
-                   pte & PG_RW_MASK ? 'W' : '-');
-}
-
-static void tlb_info(Monitor *mon)
-{
-    CPUState *env;
-    int l1, l2;
-    uint32_t pgd, pde, pte;
-
-    env = mon_get_cpu();
-
-    if (!(env->cr[0] & CR0_PG_MASK)) {
-        monitor_printf(mon, "PG disabled\n");
-        return;
-    }
-    pgd = env->cr[3] & ~0xfff;
-    for(l1 = 0; l1 < 1024; l1++) {
-        cpu_physical_memory_read(pgd + l1 * 4, (uint8_t *)&pde, 4);
-        pde = le32_to_cpu(pde);
-        if (pde & PG_PRESENT_MASK) {
-            if ((pde & PG_PSE_MASK) && (env->cr[4] & CR4_PSE_MASK)) {
-                print_pte(mon, (l1 << 22), pde, ~((1 << 20) - 1));
-            } else {
-                for(l2 = 0; l2 < 1024; l2++) {
-                    cpu_physical_memory_read((pde & ~0xfff) + l2 * 4,
-                                             (uint8_t *)&pte, 4);
-                    pte = le32_to_cpu(pte);
-                    if (pte & PG_PRESENT_MASK) {
-                        print_pte(mon, (l1 << 22) + (l2 << 12),
-                                  pte & ~PG_PSE_MASK,
-                                  ~0xfff);
-                    }
-                }
-            }
-        }
-    }
-}
-
-static void mem_print(Monitor *mon, uint32_t *pstart, int *plast_prot,
-                      uint32_t end, int prot)
-{
-    int prot1;
-    prot1 = *plast_prot;
-    if (prot != prot1) {
-        if (*pstart != -1) {
-            monitor_printf(mon, "%08x-%08x %08x %c%c%c\n",
-                           *pstart, end, end - *pstart,
-                           prot1 & PG_USER_MASK ? 'u' : '-',
-                           'r',
-                           prot1 & PG_RW_MASK ? 'w' : '-');
-        }
-        if (prot != 0)
-            *pstart = end;
-        else
-            *pstart = -1;
-        *plast_prot = prot;
-    }
-}
-
-static void mem_info(Monitor *mon)
-{
-    CPUState *env;
-    int l1, l2, prot, last_prot;
-    uint32_t pgd, pde, pte, start, end;
-
-    env = mon_get_cpu();
-
-    if (!(env->cr[0] & CR0_PG_MASK)) {
-        monitor_printf(mon, "PG disabled\n");
-        return;
-    }
-    pgd = env->cr[3] & ~0xfff;
-    last_prot = 0;
-    start = -1;
-    for(l1 = 0; l1 < 1024; l1++) {
-        cpu_physical_memory_read(pgd + l1 * 4, (uint8_t *)&pde, 4);
-        pde = le32_to_cpu(pde);
-        end = l1 << 22;
-        if (pde & PG_PRESENT_MASK) {
-            if ((pde & PG_PSE_MASK) && (env->cr[4] & CR4_PSE_MASK)) {
-                prot = pde & (PG_USER_MASK | PG_RW_MASK | PG_PRESENT_MASK);
-                mem_print(mon, &start, &last_prot, end, prot);
-            } else {
-                for(l2 = 0; l2 < 1024; l2++) {
-                    cpu_physical_memory_read((pde & ~0xfff) + l2 * 4,
-                                             (uint8_t *)&pte, 4);
-                    pte = le32_to_cpu(pte);
-                    end = (l1 << 22) + (l2 << 12);
-                    if (pte & PG_PRESENT_MASK) {
-                        prot = pte & (PG_USER_MASK | PG_RW_MASK | PG_PRESENT_MASK);
-                    } else {
-                        prot = 0;
-                    }
-                    mem_print(mon, &start, &last_prot, end, prot);
-                }
-            }
-        } else {
-            prot = 0;
-            mem_print(mon, &start, &last_prot, end, prot);
-        }
-    }
-}
-#endif
-
-#if defined(TARGET_SH4)
-
-static void print_tlb(Monitor *mon, int idx, tlb_t *tlb)
-{
-    monitor_printf(mon, " tlb%i:\t"
-                   "asid=%hhu vpn=%x\tppn=%x\tsz=%hhu size=%u\t"
-                   "v=%hhu shared=%hhu cached=%hhu prot=%hhu "
-                   "dirty=%hhu writethrough=%hhu\n",
-                   idx,
-                   tlb->asid, tlb->vpn, tlb->ppn, tlb->sz, tlb->size,
-                   tlb->v, tlb->sh, tlb->c, tlb->pr,
-                   tlb->d, tlb->wt);
-}
-
-static void tlb_info(Monitor *mon)
-{
-    CPUState *env = mon_get_cpu();
-    int i;
-
-    monitor_printf (mon, "ITLB:\n");
-    for (i = 0 ; i < ITLB_SIZE ; i++)
-        print_tlb (mon, i, &env->itlb[i]);
-    monitor_printf (mon, "UTLB:\n");
-    for (i = 0 ; i < UTLB_SIZE ; i++)
-        print_tlb (mon, i, &env->utlb[i]);
-}
-
-#endif
-
-static void do_info_kvm_print(Monitor *mon, const QObject *data)
-{
-    QDict *qdict;
-
-    qdict = qobject_to_qdict(data);
-
-    monitor_printf(mon, "kvm support: ");
-    if (qdict_get_bool(qdict, "present")) {
-        monitor_printf(mon, "%s\n", qdict_get_bool(qdict, "enabled") ?
-                                    "enabled" : "disabled");
-    } else {
-        monitor_printf(mon, "not compiled\n");
-    }
-}
-
-/**
- * do_info_kvm(): Show KVM information
- *
- * Return a QDict with the following information:
- *
- * - "enabled": true if KVM support is enabled, false otherwise
- * - "present": true if QEMU has KVM support, false otherwise
- *
- * Example:
- *
- * { "enabled": true, "present": true }
- */
-static void do_info_kvm(Monitor *mon, QObject **ret_data)
-{
-#ifdef CONFIG_KVM
-    *ret_data = qobject_from_jsonf("{ 'enabled': %i, 'present': true }",
-                                   kvm_enabled());
-#else
-    *ret_data = qobject_from_jsonf("{ 'enabled': false, 'present': false }");
-#endif
-}
-
-static void do_info_numa(Monitor *mon)
-{
-    int i;
-    CPUState *env;
-
-    monitor_printf(mon, "%d nodes\n", nb_numa_nodes);
-    for (i = 0; i < nb_numa_nodes; i++) {
-        monitor_printf(mon, "node %d cpus:", i);
-        for (env = first_cpu; env != NULL; env = env->next_cpu) {
-            if (env->numa_node == i) {
-                monitor_printf(mon, " %d", env->cpu_index);
-            }
-        }
-        monitor_printf(mon, "\n");
-        monitor_printf(mon, "node %d size: %" PRId64 " MB\n", i,
-            node_mem[i] >> 20);
-    }
-}
-
-#ifdef CONFIG_PROFILER
-
-int64_t qemu_time;
-int64_t dev_time;
-
-static void do_info_profile(Monitor *mon)
-{
-    int64_t total;
-    total = qemu_time;
-    if (total == 0)
-        total = 1;
-    monitor_printf(mon, "async time  %" PRId64 " (%0.3f)\n",
-                   dev_time, dev_time / (double)get_ticks_per_sec());
-    monitor_printf(mon, "qemu time   %" PRId64 " (%0.3f)\n",
-                   qemu_time, qemu_time / (double)get_ticks_per_sec());
-    qemu_time = 0;
-    dev_time = 0;
-}
-#else
-static void do_info_profile(Monitor *mon)
-{
-    monitor_printf(mon, "Internal profiler not compiled\n");
-}
-#endif
-
-/* Capture support */
-static QLIST_HEAD (capture_list_head, CaptureState) capture_head;
-
-static void do_info_capture(Monitor *mon)
-{
-    int i;
-    CaptureState *s;
-
-    for (s = capture_head.lh_first, i = 0; s; s = s->entries.le_next, ++i) {
-        monitor_printf(mon, "[%d]: ", i);
-        s->ops.info (s->opaque);
-    }
-}
-
-#ifdef HAS_AUDIO
-static void do_stop_capture(Monitor *mon, const QDict *qdict)
-{
-    int i;
-    int n = qdict_get_int(qdict, "n");
-    CaptureState *s;
-
-    for (s = capture_head.lh_first, i = 0; s; s = s->entries.le_next, ++i) {
-        if (i == n) {
-            s->ops.destroy (s->opaque);
-            QLIST_REMOVE (s, entries);
-            qemu_free (s);
-            return;
-        }
-    }
-}
-
-static void do_wav_capture(Monitor *mon, const QDict *qdict)
-{
-    const char *path = qdict_get_str(qdict, "path");
-    int has_freq = qdict_haskey(qdict, "freq");
-    int freq = qdict_get_try_int(qdict, "freq", -1);
-    int has_bits = qdict_haskey(qdict, "bits");
-    int bits = qdict_get_try_int(qdict, "bits", -1);
-    int has_channels = qdict_haskey(qdict, "nchannels");
-    int nchannels = qdict_get_try_int(qdict, "nchannels", -1);
-    CaptureState *s;
-
-    s = qemu_mallocz (sizeof (*s));
-
-    freq = has_freq ? freq : 44100;
-    bits = has_bits ? bits : 16;
-    nchannels = has_channels ? nchannels : 2;
-
-    if (wav_start_capture (s, path, freq, bits, nchannels)) {
-        monitor_printf(mon, "Faied to add wave capture\n");
-        qemu_free (s);
-    }
-    QLIST_INSERT_HEAD (&capture_head, s, entries);
-}
-#endif
-
-#if defined(TARGET_I386)
-static void do_inject_nmi(Monitor *mon, const QDict *qdict)
-{
-    CPUState *env;
-    int cpu_index = qdict_get_int(qdict, "cpu_index");
-
-    for (env = first_cpu; env != NULL; env = env->next_cpu)
-        if (env->cpu_index == cpu_index) {
-            cpu_interrupt(env, CPU_INTERRUPT_NMI);
-            break;
-        }
-}
-#endif
-
-static void do_info_status_print(Monitor *mon, const QObject *data)
-{
-    QDict *qdict;
-
-    qdict = qobject_to_qdict(data);
-
-    monitor_printf(mon, "VM status: ");
-    if (qdict_get_bool(qdict, "running")) {
-        monitor_printf(mon, "running");
-        if (qdict_get_bool(qdict, "singlestep")) {
-            monitor_printf(mon, " (single step mode)");
-        }
-    } else {
-        monitor_printf(mon, "paused");
-    }
-
-    monitor_printf(mon, "\n");
-}
-
-/**
- * do_info_status(): VM status
- *
- * Return a QDict with the following information:
- *
- * - "running": true if the VM is running, or false if it is paused
- * - "singlestep": true if the VM is in single step mode, false otherwise
- *
- * Example:
- *
- * { "running": true, "singlestep": false }
- */
-static void do_info_status(Monitor *mon, QObject **ret_data)
-{
-    *ret_data = qobject_from_jsonf("{ 'running': %i, 'singlestep': %i }",
-                                    vm_running, singlestep);
-}
-
-static qemu_acl *find_acl(Monitor *mon, const char *name)
-{
-    qemu_acl *acl = qemu_acl_find(name);
-
-    if (!acl) {
-        monitor_printf(mon, "acl: unknown list '%s'\n", name);
-    }
-    return acl;
-}
-
-static void do_acl_show(Monitor *mon, const QDict *qdict)
-{
-    const char *aclname = qdict_get_str(qdict, "aclname");
-    qemu_acl *acl = find_acl(mon, aclname);
-    qemu_acl_entry *entry;
-    int i = 0;
-
-    if (acl) {
-        monitor_printf(mon, "policy: %s\n",
-                       acl->defaultDeny ? "deny" : "allow");
-        QTAILQ_FOREACH(entry, &acl->entries, next) {
-            i++;
-            monitor_printf(mon, "%d: %s %s\n", i,
-                           entry->deny ? "deny" : "allow", entry->match);
-        }
-    }
-}
-
-static void do_acl_reset(Monitor *mon, const QDict *qdict)
-{
-    const char *aclname = qdict_get_str(qdict, "aclname");
-    qemu_acl *acl = find_acl(mon, aclname);
-
-    if (acl) {
-        qemu_acl_reset(acl);
-        monitor_printf(mon, "acl: removed all rules\n");
-    }
-}
-
-static void do_acl_policy(Monitor *mon, const QDict *qdict)
-{
-    const char *aclname = qdict_get_str(qdict, "aclname");
-    const char *policy = qdict_get_str(qdict, "policy");
-    qemu_acl *acl = find_acl(mon, aclname);
-
-    if (acl) {
-        if (strcmp(policy, "allow") == 0) {
-            acl->defaultDeny = 0;
-            monitor_printf(mon, "acl: policy set to 'allow'\n");
-        } else if (strcmp(policy, "deny") == 0) {
-            acl->defaultDeny = 1;
-            monitor_printf(mon, "acl: policy set to 'deny'\n");
-        } else {
-            monitor_printf(mon, "acl: unknown policy '%s', "
-                           "expected 'deny' or 'allow'\n", policy);
-        }
-    }
-}
-
-static void do_acl_add(Monitor *mon, const QDict *qdict)
-{
-    const char *aclname = qdict_get_str(qdict, "aclname");
-    const char *match = qdict_get_str(qdict, "match");
-    const char *policy = qdict_get_str(qdict, "policy");
-    int has_index = qdict_haskey(qdict, "index");
-    int index = qdict_get_try_int(qdict, "index", -1);
-    qemu_acl *acl = find_acl(mon, aclname);
-    int deny, ret;
-
-    if (acl) {
-        if (strcmp(policy, "allow") == 0) {
-            deny = 0;
-        } else if (strcmp(policy, "deny") == 0) {
-            deny = 1;
-        } else {
-            monitor_printf(mon, "acl: unknown policy '%s', "
-                           "expected 'deny' or 'allow'\n", policy);
-            return;
-        }
-        if (has_index)
-            ret = qemu_acl_insert(acl, deny, match, index);
-        else
-            ret = qemu_acl_append(acl, deny, match);
-        if (ret < 0)
-            monitor_printf(mon, "acl: unable to add acl entry\n");
-        else
-            monitor_printf(mon, "acl: added rule at position %d\n", ret);
-    }
-}
-
-static void do_acl_remove(Monitor *mon, const QDict *qdict)
-{
-    const char *aclname = qdict_get_str(qdict, "aclname");
-    const char *match = qdict_get_str(qdict, "match");
-    qemu_acl *acl = find_acl(mon, aclname);
-    int ret;
-
-    if (acl) {
-        ret = qemu_acl_remove(acl, match);
-        if (ret < 0)
-            monitor_printf(mon, "acl: no matching acl entry\n");
-        else
-            monitor_printf(mon, "acl: removed rule at position %d\n", ret);
-    }
-}
-
-#if defined(TARGET_I386)
-static void do_inject_mce(Monitor *mon, const QDict *qdict)
-{
-    CPUState *cenv;
-    int cpu_index = qdict_get_int(qdict, "cpu_index");
-    int bank = qdict_get_int(qdict, "bank");
-    uint64_t status = qdict_get_int(qdict, "status");
-    uint64_t mcg_status = qdict_get_int(qdict, "mcg_status");
-    uint64_t addr = qdict_get_int(qdict, "addr");
-    uint64_t misc = qdict_get_int(qdict, "misc");
-
-    for (cenv = first_cpu; cenv != NULL; cenv = cenv->next_cpu)
-        if (cenv->cpu_index == cpu_index && cenv->mcg_cap) {
-            cpu_inject_x86_mce(cenv, bank, status, mcg_status, addr, misc);
-            break;
-        }
-}
-#endif
-
-static int do_getfd(Monitor *mon, const QDict *qdict, QObject **ret_data)
+static QObject *do_getfd(Monitor *mon, const QDict *qdict)
 {
     const char *fdname = qdict_get_str(qdict, "fdname");
     mon_fd_t *monfd;
@@ -2424,14 +1625,12 @@ static int do_getfd(Monitor *mon, const QDict *qdict, QObject **ret_data)
 
     fd = qemu_chr_get_msgfd(mon->chr);
     if (fd == -1) {
-        qerror_report(QERR_FD_NOT_SUPPLIED);
-        return -1;
+        return qerror_new(QERR_FD_NOT_SUPPLIED);
     }
 
     if (qemu_isdigit(fdname[0])) {
-        qerror_report(QERR_INVALID_PARAMETER_VALUE, "fdname",
-                      "a name not starting with a digit");
-        return -1;
+        return qerror_report(QERR_INVALID_PARAMETER_VALUE, "fdname",
+                             "a name not starting with a digit");
     }
 
     QLIST_FOREACH(monfd, &mon->fds, next) {
@@ -2441,7 +1640,7 @@ static int do_getfd(Monitor *mon, const QDict *qdict, QObject **ret_data)
 
         close(monfd->fd);
         monfd->fd = fd;
-        return 0;
+        return NULL;
     }
 
     monfd = qemu_mallocz(sizeof(mon_fd_t));
@@ -2449,10 +1648,10 @@ static int do_getfd(Monitor *mon, const QDict *qdict, QObject **ret_data)
     monfd->fd = fd;
 
     QLIST_INSERT_HEAD(&mon->fds, monfd, next);
-    return 0;
+    return NULL;
 }
 
-static int do_closefd(Monitor *mon, const QDict *qdict, QObject **ret_data)
+static QObject *do_closefd(Monitor *mon, const QDict *qdict)
 {
     const char *fdname = qdict_get_str(qdict, "fdname");
     mon_fd_t *monfd;
@@ -2466,22 +1665,10 @@ static int do_closefd(Monitor *mon, const QDict *qdict, QObject **ret_data)
         close(monfd->fd);
         qemu_free(monfd->name);
         qemu_free(monfd);
-        return 0;
+        return NULL;
     }
 
-    qerror_report(QERR_FD_NOT_FOUND, fdname);
-    return -1;
-}
-
-static void do_loadvm(Monitor *mon, const QDict *qdict)
-{
-    int saved_vm_running  = vm_running;
-    const char *name = qdict_get_str(qdict, "name");
-
-    vm_stop(0);
-
-    if (load_vmstate(name) >= 0 && saved_vm_running)
-        vm_start();
+    return qerror_new(QERR_FD_NOT_FOUND, fdname);
 }
 
 int monitor_get_fd(Monitor *mon, const char *fdname)
@@ -3157,7 +2344,7 @@ static int get_monitor_def(target_long *pval, const char *name)
             return 0;
         }
     }
-    return -1;
+    return qerror_new(QERR_UNDEFINED_ERROR);
 }
 
 static void next(void)
@@ -3338,7 +2525,7 @@ static int get_expr(Monitor *mon, int64_t *pval, const char **pp)
     pch = *pp;
     if (setjmp(expr_env)) {
         *pp = pch;
-        return -1;
+        return qerror_new(QERR_UNDEFINED_ERROR);
     }
     while (qemu_isspace(*pch))
         pch++;
@@ -3356,12 +2543,12 @@ static int get_double(Monitor *mon, double *pval, const char **pp)
     d = strtod(p, &tailp);
     if (tailp == p) {
         monitor_printf(mon, "Number expected\n");
-        return -1;
+        return qerror_new(QERR_UNDEFINED_ERROR);
     }
     if (d != d || d - d != 0) {
         /* NaN or infinity */
         monitor_printf(mon, "Bad number\n");
-        return -1;
+        return qerror_new(QERR_UNDEFINED_ERROR);
     }
     *pval = d;
     *pp = tailp;
@@ -3382,7 +2569,7 @@ static int get_str(char *buf, int buf_size, const char **pp)
     fail:
         *q = '\0';
         *pp = p;
-        return -1;
+        return qerror_new(QERR_UNDEFINED_ERROR);
     }
     if (*p == '\"') {
         p++;
@@ -3922,7 +3109,7 @@ static void handler_audit(Monitor *mon, const mon_cmd_t *cmd, int ret)
 }
 
 static void monitor_call_handler(Monitor *mon, const mon_cmd_t *cmd,
-                                 const QDict *params)
+                                 const QDict *params, QString *id)
 {
     int ret;
     QObject *data = NULL;
@@ -3938,11 +3125,11 @@ static void monitor_call_handler(Monitor *mon, const mon_cmd_t *cmd,
          * generate errors.  Data is returned via the async completion handler.
          */
         if (monitor_ctrl_mode(mon) && monitor_has_error(mon)) {
-            monitor_protocol_emitter(mon, NULL);
+            monitor_protocol_emitter(mon, NULL, id);
         }
     } else if (monitor_ctrl_mode(mon)) {
         /* Monitor Protocol */
-        monitor_protocol_emitter(mon, data);
+        monitor_protocol_emitter(mon, data, id);
     } else {
         /* User Protocol */
          if (data)
@@ -3966,7 +3153,7 @@ static void handle_user_command(Monitor *mon, const char *cmdline)
     if (monitor_handler_is_async(cmd)) {
         user_async_cmd_handler(mon, cmd, qdict);
     } else if (monitor_handler_ported(cmd)) {
-        monitor_call_handler(mon, cmd, qdict);
+        monitor_call_handler(mon, cmd, qdict, NULL);
     } else {
         cmd->mhandler.cmd(mon, qdict);
     }
@@ -4208,7 +3395,7 @@ static int check_opt(const CmdArgs *cmd_args, const char *name, QDict *args)
 {
     if (!cmd_args->optional) {
         qerror_report(QERR_MISSING_PARAMETER, name);
-        return -1;
+        return qerror_new(QERR_UNDEFINED_ERROR);
     }
 
     if (cmd_args->type == '-') {
@@ -4241,7 +3428,7 @@ static int check_arg(const CmdArgs *cmd_args, QDict *args)
         case 's':
             if (qobject_type(value) != QTYPE_QSTRING) {
                 qerror_report(QERR_INVALID_PARAMETER_TYPE, name, "string");
-                return -1;
+                return qerror_new(QERR_UNDEFINED_ERROR);
             }
             break;
         case '/': {
@@ -4252,11 +3439,11 @@ static int check_arg(const CmdArgs *cmd_args, QDict *args)
                 QObject *obj = qdict_get(args, keys[i]);
                 if (!obj) {
                     qerror_report(QERR_MISSING_PARAMETER, name);
-                    return -1;
+                    return qerror_new(QERR_UNDEFINED_ERROR);
                 }
                 if (qobject_type(obj) != QTYPE_QINT) {
                     qerror_report(QERR_INVALID_PARAMETER_TYPE, name, "int");
-                    return -1;
+                    return qerror_new(QERR_UNDEFINED_ERROR);
                 }
             }
             break;
@@ -4266,27 +3453,27 @@ static int check_arg(const CmdArgs *cmd_args, QDict *args)
         case 'M':
             if (qobject_type(value) != QTYPE_QINT) {
                 qerror_report(QERR_INVALID_PARAMETER_TYPE, name, "int");
-                return -1;
+                return qerror_new(QERR_UNDEFINED_ERROR);
             }
             break;
         case 'f':
         case 'T':
             if (qobject_type(value) != QTYPE_QINT && qobject_type(value) != QTYPE_QFLOAT) {
                 qerror_report(QERR_INVALID_PARAMETER_TYPE, name, "number");
-                return -1;
+                return qerror_new(QERR_UNDEFINED_ERROR);
             }
             break;
         case 'b':
             if (qobject_type(value) != QTYPE_QBOOL) {
                 qerror_report(QERR_INVALID_PARAMETER_TYPE, name, "bool");
-                return -1;
+                return qerror_new(QERR_UNDEFINED_ERROR);
             }
             break;
         case '-':
             if (qobject_type(value) != QTYPE_QINT &&
                 qobject_type(value) != QTYPE_QBOOL) {
                 qerror_report(QERR_INVALID_PARAMETER_TYPE, name, "bool");
-                return -1;
+                return qerror_new(QERR_UNDEFINED_ERROR);
             }
             if (qobject_type(value) == QTYPE_QBOOL) {
                 /* handlers expect a QInt, they need to be changed */
@@ -4392,24 +3579,25 @@ static void handle_qmp_command(JSONMessageParser *parser, QList *tokens)
     const mon_cmd_t *cmd;
     Monitor *mon = cur_mon;
     const char *cmd_name, *info_item;
+    QString *id = NULL;
 
     args = NULL;
 
-    obj = json_parser_parse(tokens, NULL);
+    obj = json_parser_parse(tokens);
     if (!obj) {
         // FIXME: should be triggered in json_parser_parse()
         qerror_report(QERR_JSON_PARSING);
-        goto err_out;
+        goto out;
     } else if (qobject_type(obj) != QTYPE_QDICT) {
         qerror_report(QERR_QMP_BAD_INPUT_OBJECT, "object");
         qobject_decref(obj);
-        goto err_out;
+        goto out;
     }
 
     input = qobject_to_qdict(obj);
 
-    mon->mc->id = qdict_get(input, "id");
-    qobject_incref(mon->mc->id);
+    id = qobject_to_qstring(qdict_get(input, "id"));
+    QINCREF(id);
 
     obj = qdict_get(input, "execute");
     if (!obj) {
@@ -4465,16 +3653,16 @@ static void handle_qmp_command(JSONMessageParser *parser, QList *tokens)
     }
 
     if (monitor_handler_is_async(cmd)) {
-        qmp_async_cmd_handler(mon, cmd, args);
+        qmp_async_cmd_handler(mon, cmd, args, id);
     } else {
-        monitor_call_handler(mon, cmd, args);
+        monitor_call_handler(mon, cmd, args, id);
     }
     goto out;
 
 err_input:
     QDECREF(input);
 err_out:
-    monitor_protocol_emitter(mon, NULL);
+    monitor_protocol_emitter(mon, NULL, id);
 out:
     QDECREF(args);
 }
@@ -4664,21 +3852,21 @@ static void bdrv_password_cb(Monitor *mon, const char *password, void *opaque)
     monitor_read_command(mon, 1);
 }
 
-int monitor_read_bdrv_key_start(Monitor *mon, BlockDriverState *bs,
-                                BlockDriverCompletionFunc *completion_cb,
-                                void *opaque)
+QObject *monitor_read_bdrv_key_start(Monitor *mon, BlockDriverState *bs,
+                                     BlockDriverCompletionFunc *completion_cb,
+                                     void *opaque)
 {
     int err;
 
     if (!bdrv_key_required(bs)) {
         if (completion_cb)
             completion_cb(opaque, 0);
-        return 0;
+        return NULL;
     }
 
     if (monitor_ctrl_mode(mon)) {
         qerror_report(QERR_DEVICE_ENCRYPTED, bdrv_get_device_name(bs));
-        return -1;
+        return qerror_new(QERR_UNDEFINED_ERROR);
     }
 
     monitor_printf(mon, "%s (%s) is encrypted.\n", bdrv_get_device_name(bs),
@@ -4692,5 +3880,9 @@ int monitor_read_bdrv_key_start(Monitor *mon, BlockDriverState *bs,
     if (err && completion_cb)
         completion_cb(opaque, err);
 
-    return err;
+    if (err) {
+        return qerror_new(QERR_UNDEFINED_ERROR);
+    }
+
+    return NULL;
 }

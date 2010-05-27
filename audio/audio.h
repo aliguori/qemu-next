@@ -26,6 +26,7 @@
 
 #include "config-host.h"
 #include "qemu-queue.h"
+#include "qdict.h"
 
 typedef void (*audio_callback_fn) (void *opaque, int avail);
 
@@ -63,7 +64,7 @@ struct audio_capture_ops {
 };
 
 struct capture_ops {
-    void (*info) (void *opaque);
+    QDict *(*info) (void *opaque);
     void (*destroy) (void *opaque);
 };
 

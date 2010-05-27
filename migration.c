@@ -67,9 +67,10 @@ static void do_migrate_complete(Notifier *notifier)
     MigrationCommandNotifier *mcn = container_of(notifier,
                                                  MigrationCommandNotifier,
                                                  notifier);
+    MigrationState *s = mcn->s;
 
-    /* FIXME if we detect an error, then create and send a QError here */
-    mcn->cb(mcn->opaque, NULL);
+    printf("%p\n", s->error);
+    mcn->cb(mcn->opaque, s->error ? QOBJECT(s->error) : NULL);
     qemu_free(mcn);
 }
 
@@ -306,10 +307,14 @@ void do_info_migrate(Monitor *mon, QObject **ret_data)
 
 /* shared migration helpers */
 
-void migrate_fd_error(FdMigrationState *s)
+void migrate_fd_error(FdMigrationState *s, QError *err)
 {
     DPRINTF("setting error state\n");
-    s->error = qerror_new(QERR_UNDEFINED_ERROR);
+    if (!err) {
+        err = qerror_new(QERR_UNDEFINED_ERROR);
+    }
+    s->mig_state.error = err;
+    s->state = MIG_STATE_ERROR;
     migrate_fd_cleanup(s);
 }
 
@@ -374,8 +379,11 @@ void migrate_fd_connect(FdMigrationState *s)
     ret = qemu_savevm_state_begin(s->file, s->mig_state.blk,
                                   s->mig_state.shared);
     if (ret < 0) {
-        DPRINTF("failed, %d\n", ret);
-        migrate_fd_error(s);
+        if (ret == -EIO) {
+            migrate_fd_error(s, qerror_new(QERR_IO_ERROR, "savevm"));
+        } else {
+            migrate_fd_error(s, NULL);
+        }
         return;
     }
     
@@ -405,6 +413,7 @@ void migrate_fd_put_ready(void *opaque)
             if (old_vm_running) {
                 vm_start();
             }
+            s->mig_state.error = qerror_new(QERR_INTERNAL_ERROR, "finalizing");
             state = MIG_STATE_ERROR;
         } else {
             state = MIG_STATE_COMPLETED;

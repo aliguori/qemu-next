@@ -34,6 +34,7 @@ struct MigrationState
     void (*release)(MigrationState *s);
     int blk;
     int shared;
+    QError *error;
 };
 
 typedef struct FdMigrationState FdMigrationState;
@@ -46,9 +47,9 @@ struct FdMigrationState
     int fd;
     Notifier *notifier;
     int state;
-    QError *error;
     int (*close)(struct FdMigrationState*);
     int (*write)(struct FdMigrationState*, const void *, size_t);
+    int (*get_error)(struct FdMigrationState*);
     void *opaque;
 };
 
@@ -102,7 +103,7 @@ MigrationState *fd_start_outgoing_migration(int fd,
 					    int inc,
                                             Notifier *notifier);
 
-void migrate_fd_error(FdMigrationState *s);
+void migrate_fd_error(FdMigrationState *s, QError *err);
 
 void migrate_fd_cleanup(FdMigrationState *s);
 

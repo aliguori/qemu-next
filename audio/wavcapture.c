@@ -66,14 +66,24 @@ static void wav_capture_destroy (void *opaque)
     AUD_del_capture (wav->cap, wav);
 }
 
-static void wav_capture_info (void *opaque)
+static QDict *wav_capture_info (void *opaque)
 {
     WAVState *wav = opaque;
     char *path = wav->path;
+    QDict *info;
 
-    monitor_printf(cur_mon, "Capturing audio(%d,%d,%d) to %s: %d bytes\n",
-                   wav->freq, wav->bits, wav->nchannels,
-                   path ? path : "<not available>", wav->bytes);
+    info = qobject_from_jsonf("{'frequency': %d,"
+                              " 'bits': %d,"
+                              " 'channels': %d,"
+                              " 'bytes': %d}",
+                              wav->freq, wav->bits, wav->nchannels,
+                              wav->bytes);
+
+    if (wav->path) {
+        qdict_put(info, "path", qstring_new(wav->path));
+    }
+
+    return info;
 }
 
 static struct capture_ops wav_capture_ops = {

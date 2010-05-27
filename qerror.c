@@ -117,6 +117,14 @@ static const QErrorStringTable qerror_table[] = {
         .desc      = "Invalid block format '%(name)'",
     },
     {
+        .error_fmt = QERR_IN_PROGRESS,
+        .desc      = "%(context) operation in progress",
+    },
+    {
+        .error_fmt = QERR_INTERNAL_ERROR,
+        .desc      = "Internal error in %(context) module",
+    },
+    {
         .error_fmt = QERR_INVALID_PARAMETER,
         .desc      = "Invalid parameter '%(name)'",
     },
@@ -214,7 +222,7 @@ static void qerror_set_data(QError *qerr, const char *fmt, va_list ap)
 {
     QObject *obj;
 
-    obj = qobject_from_jsonv(fmt, (va_list *)&ap);
+    obj = qobject_from_jsonv(fmt, ap);
     if (!obj) {
         qerror_abort(qerr, "invalid format '%s'", fmt);
     }
@@ -402,10 +410,10 @@ void qerror_print(QError *qerror)
 void qerror_report_error(QError *err)
 {
     if (monitor_cur_is_qmp()) {
-        monitor_set_error(cur_mon, qerror);
+        monitor_set_error(cur_mon, err);
     } else {
-        qerror_print(qerror);
-        QDECREF(qerror);
+        qerror_print(err);
+        QDECREF(err);
     }
 }
 
