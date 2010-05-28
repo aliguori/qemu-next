@@ -1787,47 +1787,16 @@ char *get_human_readable_size(char *buf, int buf_size, int64_t size)
     return buf;
 }
 
-char *bdrv_snapshot_dump(char *buf, int buf_size, QEMUSnapshotInfo *sn)
+QObject *bdrv_snapshot_dump(QEMUSnapshotInfo *sn)
 {
-    char buf1[128], date_buf[128], clock_buf[128];
-#ifdef _WIN32
-    struct tm *ptm;
-#else
-    struct tm tm;
-#endif
-    time_t ti;
-    int64_t secs;
-
-    if (!sn) {
-        snprintf(buf, buf_size,
-                 "%-10s%-20s%7s%20s%15s",
-                 "ID", "TAG", "VM SIZE", "DATE", "VM CLOCK");
-    } else {
-        ti = sn->date_sec;
-#ifdef _WIN32
-        ptm = localtime(&ti);
-        strftime(date_buf, sizeof(date_buf),
-                 "%Y-%m-%d %H:%M:%S", ptm);
-#else
-        localtime_r(&ti, &tm);
-        strftime(date_buf, sizeof(date_buf),
-                 "%Y-%m-%d %H:%M:%S", &tm);
-#endif
-        secs = sn->vm_clock_nsec / 1000000000;
-        snprintf(clock_buf, sizeof(clock_buf),
-                 "%02d:%02d:%02d.%03d",
-                 (int)(secs / 3600),
-                 (int)((secs / 60) % 60),
-                 (int)(secs % 60),
-                 (int)((sn->vm_clock_nsec / 1000000) % 1000));
-        snprintf(buf, buf_size,
-                 "%-10s%-20s%7s%20s%15s",
-                 sn->id_str, sn->name,
-                 get_human_readable_size(buf1, sizeof(buf1), sn->vm_state_size),
-                 date_buf,
-                 clock_buf);
-    }
-    return buf;
+    return qobject_from_jsonf("{'id': %s,"
+                              " 'name': %s,"
+                              " 'size': %d,"
+                              " 'date': %s,"
+                              " 'vm_clock': %d}",
+                              sn->id_str, sn->name,
+                              sn->date_sec,
+                              sn->vm_clock_nsec);
 }
 
 

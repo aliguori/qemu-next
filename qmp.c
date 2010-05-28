@@ -1,3 +1,443 @@
+
+static QObject *qmp_commit(const QDict *args)
+{
+    int all_devices;
+    DriveInfo *dinfo;
+    const char *device = qdict_get_str(args, "device");
+
+    all_devices = !strcmp(device, "all");
+    QTAILQ_FOREACH(dinfo, &drives, next) {
+        if (!all_devices)
+            if (strcmp(bdrv_get_device_name(dinfo->bdrv), device))
+                continue;
+        bdrv_commit(dinfo->bdrv);
+    }
+
+    return NULL;
+}
+
+/**
+ * do_info_version(): Show QEMU version
+ *
+ * Return a QDict with the following information:
+ *
+ * - "qemu": QEMU's version
+ * - "package": package's version
+ *
+ * Example:
+ *
+ * { "qemu": "0.11.50", "package": "" }
+ */
+static QObject *qmp_info_version(const QDict *args)
+{
+    return qobject_from_jsonf("{ 'qemu': %s, 'package': %s }",
+                              QEMU_VERSION, QEMU_PKGVERSION);
+}
+
+/**
+ * do_info_name(): Show VM name
+ *
+ * Return a QDict with the following information:
+ *
+ * - "name": VM's name (optional)
+ *
+ * Example:
+ *
+ * { "name": "qemu-name" }
+ */
+static QObject *qmp_info_name(const QDict *args)
+{
+    if (qemu_name) {
+        return qobject_from_jsonf("{'name': %s }", qemu_name);
+    }
+
+    return NULL;
+}
+
+#if defined(TARGET_I386)
+/**
+ * do_info_hpet(): Show HPET state
+ *
+ * Return a QDict with the following information:
+ *
+ * - "enabled": true if hpet if enabled, false otherwise
+ *
+ * Example:
+ *
+ * { "enabled": true }
+ */
+static QObject *qmp_info_hpet(const QDict *args)
+{
+    return qobject_from_jsonf("{ 'enabled': %i }", !no_hpet);
+}
+#endif
+
+/**
+ * do_info_uuid(): Show VM UUID
+ *
+ * Return a QDict with the following information:
+ *
+ * - "UUID": Universally Unique Identifier
+ *
+ * Example:
+ *
+ * { "UUID": "550e8400-e29b-41d4-a716-446655440000" }
+ */
+static QObject *qmp_info_uuid(const QDict *args)
+{
+    char uuid[64];
+
+    snprintf(uuid, sizeof(uuid), UUID_FMT, qemu_uuid[0], qemu_uuid[1],
+                   qemu_uuid[2], qemu_uuid[3], qemu_uuid[4], qemu_uuid[5],
+                   qemu_uuid[6], qemu_uuid[7], qemu_uuid[8], qemu_uuid[9],
+                   qemu_uuid[10], qemu_uuid[11], qemu_uuid[12], qemu_uuid[13],
+                   qemu_uuid[14], qemu_uuid[15]);
+    return qobject_from_jsonf("{ 'UUID': %s }", uuid);
+}
+
+static CPUState *find_cpu(int cpu_index)
+{
+    CPUState *env;
+
+    for(env = first_cpu; env != NULL; env = env->next_cpu) {
+        if (env->cpu_index == cpu_index) {
+            return env;
+        }
+    }
+    return NULL;
+}
+
+/**
+ * do_info_cpus(): Show CPU information
+ *
+ * Return a QList. Each CPU is represented by a QDict, which contains:
+ *
+ * - "cpu": CPU index
+ * - "current": true if this is the current CPU, false otherwise
+ * - "halted": true if the cpu is halted, false otherwise
+ * - Current program counter. The key's name depends on the architecture:
+ *      "pc": i386/x86)64
+ *      "nip": PPC
+ *      "pc" and "npc": sparc
+ *      "PC": mips
+ *
+ * Example:
+ *
+ * [ { "CPU": 0, "current": true, "halted": false, "pc": 3227107138 },
+ *   { "CPU": 1, "current": false, "halted": true, "pc": 7108165 } ]
+ */
+static QObject *qmp_info_cpus(const QDict *args)
+{
+    CPUState *env;
+    QList *cpu_list;
+
+    cpu_list = qlist_new();
+
+    for(env = first_cpu; env != NULL; env = env->next_cpu) {
+        QDict *cpu;
+        QObject *obj;
+
+        cpu_synchronize_state(env);
+
+        obj = qobject_from_jsonf("{ 'CPU': %d, 'halted': %i }",
+                                 env->cpu_index,
+                                 env->halted);
+
+        cpu = qobject_to_qdict(obj);
+
+#if defined(TARGET_I386)
+        qdict_put(cpu, "pc", qint_from_int(env->eip + env->segs[R_CS].base));
+#elif defined(TARGET_PPC)
+        qdict_put(cpu, "nip", qint_from_int(env->nip));
+#elif defined(TARGET_SPARC)
+        qdict_put(cpu, "pc", qint_from_int(env->pc));
+        qdict_put(cpu, "npc", qint_from_int(env->npc));
+#elif defined(TARGET_MIPS)
+        qdict_put(cpu, "PC", qint_from_int(env->active_tc.PC));
+#endif
+
+        qlist_append(cpu_list, cpu);
+    }
+
+    return cpu_list;
+}
+
+static QObject *eject_device(BlockDriverState *bs, int force)
+{
+    if (bdrv_is_inserted(bs)) {
+        if (!force) {
+            if (!bdrv_is_removable(bs)) {
+                return qerror_new(QERR_DEVICE_NOT_REMOVABLE,
+                                  bdrv_get_device_name(bs));
+            }
+            if (bdrv_is_locked(bs)) {
+                return qerror_new(QERR_DEVICE_LOCKED, bdrv_get_device_name(bs));
+            }
+        }
+        bdrv_close(bs);
+    }
+    return NULL;
+}
+
+static QObject *qmp_eject(const QDict *args)
+{
+    BlockDriverState *bs;
+    int force = qdict_get_int(args, "force");
+    const char *filename = qdict_get_str(args, "device");
+
+    bs = bdrv_find(filename);
+    if (!bs) {
+        return qerror_new(QERR_DEVICE_NOT_FOUND, filename);
+    }
+    return eject_device(mon, bs, force);
+}
+
+static QObject *qmp_block_set_passwd(const QDict *args)
+{
+    BlockDriverState *bs;
+    int err;
+
+    bs = bdrv_find(qdict_get_str(args, "device"));
+    if (!bs) {
+        return qerror_new(QERR_DEVICE_NOT_FOUND,
+                          qdict_get_str(args, "device"));
+
+    }
+
+    err = bdrv_set_key(bs, qdict_get_str(args, "password"));
+    if (err == -EINVAL) {
+        return qerror_new(QERR_DEVICE_NOT_ENCRYPTED, bdrv_get_device_name(bs));
+    } else if (err < 0) {
+        return qerror_new(QERR_INVALID_PASSWORD);
+    }
+
+    return NULL;
+}
+
+static QObject *qmp_change_block(const char *device,
+                                 const char *filename, const char *fmt)
+{
+    BlockDriverState *bs;
+    BlockDriver *drv = NULL;
+    int bdrv_flags;
+
+    bs = bdrv_find(device);
+    if (!bs) {
+        return qerror_new(QERR_DEVICE_NOT_FOUND, device);
+    }
+    if (fmt) {
+        drv = bdrv_find_whitelisted_format(fmt);
+        if (!drv) {
+            return qerror_new(QERR_INVALID_BLOCK_FORMAT, fmt);
+        }
+    }
+    if (eject_device(mon, bs, 0) < 0) {
+        return qerror_new(QERR_UNDEFINED_ERROR);
+    }
+    bdrv_flags = bdrv_get_type_hint(bs) == BDRV_TYPE_CDROM ? 0 : BDRV_O_RDWR;
+    if (bdrv_open(bs, filename, bdrv_flags, drv) < 0) {
+        return qerror_new(QERR_OPEN_FILE_FAILED, filename);
+    }
+    if (bdrv_key_required(bs)) {
+        return qerror_new(QERR_DEVICE_PASSWORD_REQUIRED, device);
+    }
+    return NULL;
+}
+
+static QObject *do_change_vnc(const char *target, const char *arg)
+{
+    if (strcmp(target, "passwd") == 0 ||
+        strcmp(target, "password") == 0) {
+        char password[9];
+        strncpy(password, arg, sizeof(password));
+        password[sizeof(password) - 1] = '\0';
+        if (vnc_display_password(NULL, password) < 0) {
+            return qerror_new(QERR_SET_PASSWD_FAILED);
+        }
+    } else if (vnc_display_open(NULL, target) < 0) {
+        return qerror_new(QERR_VNC_SERVER_FAILED, target);
+    }
+
+    return NULL;
+}
+
+/**
+ * do_change(): Change a removable medium, or VNC configuration
+ */
+static QObject *qmp_change(const QDict *args)
+{
+    const char *device = qdict_get_str(args, "device");
+    const char *target = qdict_get_str(args, "target");
+    const char *arg = qdict_get_try_str(args, "arg");
+    QObject *ret;
+
+    if (strcmp(device, "vnc") == 0) {
+        ret = do_change_vnc(target, arg);
+    } else {
+        ret = do_change_block(device, target, arg);
+    }
+
+    return ret;
+}
+
+static QObject *qmp_screen_dump(const QDict *args)
+{
+    /* FIXME this should return binary data, need Jan's patch */
+    vga_hw_screen_dump(qdict_get_str(args, "filename"));
+    return 0;
+}
+
+static QObject *qmp_logfile(const QDict *args)
+{
+    cpu_set_log_filename(qdict_get_str(args, "filename"));
+    return NULL;
+}
+
+static QObject *qmp_log(const QDict *args)
+{
+    int mask;
+    const char *items = qdict_get_str(args, "items");
+
+    if (!strcmp(items, "none")) {
+        mask = 0;
+    } else {
+        mask = cpu_str_to_log_mask(items);
+        if (!mask) {
+            return qerror_new(QERR_INVALID_PARAMETER, "items");
+        }
+    }
+    cpu_set_log(mask);
+    return NULL;
+}
+
+static QObject *qmp_singlestep(const QDict *args)
+{
+    const char *option = qdict_get_try_str(args, "option");
+    if (!option || !strcmp(option, "on")) {
+        singlestep = 1;
+    } else if (!strcmp(option, "off")) {
+        singlestep = 0;
+    } else {
+        return qerror_new(QERR_INVALID_PARAMETER_VALUE,
+                          "option", "on or off");
+    }
+    return NULL;
+}
+
+/**
+ * do_stop(): Stop VM execution
+ */
+static QObject *qmp_stop(const QDict *args)
+{
+    vm_stop(EXCP_INTERRUPT);
+    return NULL;
+}
+
+/**
+ * do_cont(): Resume emulation.
+ */
+static QObject *qmp_cont(const QDict *args)
+{
+    vm_start();
+    return NULL;
+}
+
+static QObject *qmp_gdbserver(const QDict *args)
+{
+    const char *device = qdict_get_try_str(args, "device");
+    if (!device) {
+        device = "tcp::" DEFAULT_GDBSTUB_PORT;
+    }
+    if (gdbserver_start(device) < 0) {
+        return qerror_new(QERR_UNDEFINED_ERROR);
+    }
+}
+
+static QObject *qmp_watchdog_action(const QDict *args)
+{
+    const char *action = qdict_get_str(args, "action");
+    if (select_watchdog_action(action) == -1) {
+        return qerror_new(QERR_INVALID_PARAMETER, "action");
+    }
+    return NULL;
+}
+
+static QObject *qmp_memory_save(const QDict *args)
+{
+    FILE *f;
+    uint32_t size = qdict_get_int(args, "size");
+    const char *filename = qdict_get_str(args, "filename");
+    target_long addr = qdict_get_int(args, "val");
+    int cpu_index = qdict_get_int(args, "cpu_index");
+    uint32_t l;
+    CPUState *env;
+    uint8_t buf[1024];
+    QError *err;
+
+    env = find_cpu(cpu_index);
+    if (env == NULL) {
+        return qerror_new(QERR_INVALID_PARAMETER, "cpu_index");
+    }
+
+    f = fopen(filename, "wb");
+    if (!f) {
+        return qerror_new(QERR_OPEN_FILE_FAILED, filename);
+    }
+    while (size != 0) {
+        l = sizeof(buf);
+        if (l > size)
+            l = size;
+        cpu_memory_rw_debug(env, addr, buf, l, 0);
+        if (fwrite(buf, 1, l, f) != l) {
+            ret = qerror_new(QERR_IO_ERROR, "fwrite");
+            goto exit;
+        }
+        addr += l;
+        size -= l;
+    }
+
+    ret = NULL;
+
+exit:
+    fclose(f);
+    return ret;
+}
+
+static QObject *qmp_physical_memory_save(const QDict *args)
+{
+    FILE *f;
+    uint32_t l;
+    uint8_t buf[1024];
+    uint32_t size = qdict_get_int(args, "size");
+    const char *filename = qdict_get_str(args, "filename");
+    target_phys_addr_t addr = qdict_get_int(args, "val");
+    QObject *ret;
+
+    f = fopen(filename, "wb");
+    if (!f) {
+        return qerror_new(QERR_OPEN_FILE_FAILED, filename);
+    }
+    while (size != 0) {
+        l = sizeof(buf);
+        if (l > size)
+            l = size;
+        cpu_physical_memory_rw(addr, buf, l, 0);
+        if (fwrite(buf, 1, l, f) != l) {
+            ret = qerror_new(QERR_IO_ERROR, "fwrite");
+            goto exit;
+        }
+        fflush(f);
+        addr += l;
+        size -= l;
+    }
+
+    ret = NULL;
+
+exit:
+    fclose(f);
+    return ret;
+}
+
 typedef struct {
     int keycode;
     const char *name;
@@ -178,14 +618,14 @@ static void release_keys(void *opaque)
     }
 }
 
-static QObject *qmp_sendkey(const QDict *qdict)
+static QObject *qmp_sendkey(const QDict *args)
 {
     char keyname_buf[16];
     char *separator;
     int keyname_len, keycode, i;
-    const char *string = qdict_get_str(qdict, "keys");
-    int has_hold_time = qdict_haskey(qdict, "hold_time");
-    int hold_time = qdict_get_try_int(qdict, "hold_time", -1);
+    const char *string = qdict_get_str(args, "keys");
+    int has_hold_time = qdict_haskey(args, "hold_time");
+    int hold_time = qdict_get_try_int(args, "hold_time", -1);
 
     if (nb_pending_keycodes > 0) {
         qemu_del_timer(key_timer);
@@ -234,12 +674,12 @@ static QObject *qmp_sendkey(const QDict *qdict)
 
 static int mouse_button_state;
 
-static QObject *qmp_mouse_move(const QDict *qdict)
+static QObject *qmp_mouse_move(const QDict *args)
 {
     int dx, dy, dz;
-    const char *dx_str = qdict_get_str(qdict, "dx_str");
-    const char *dy_str = qdict_get_str(qdict, "dy_str");
-    const char *dz_str = qdict_get_try_str(qdict, "dz_str");
+    const char *dx_str = qdict_get_str(args, "dx_str");
+    const char *dy_str = qdict_get_str(args, "dy_str");
+    const char *dz_str = qdict_get_try_str(args, "dz_str");
     dx = strtol(dx_str, NULL, 0);
     dy = strtol(dy_str, NULL, 0);
     dz = 0;
@@ -249,24 +689,24 @@ static QObject *qmp_mouse_move(const QDict *qdict)
     return NULL;
 }
 
-static QObject *qmp_mouse_button(const QDict *qdict)
+static QObject *qmp_mouse_button(const QDict *args)
 {
-    int button_state = qdict_get_int(qdict, "button_state");
+    int button_state = qdict_get_int(args, "button_state");
     mouse_button_state = button_state;
     kbd_mouse_event(0, 0, 0, mouse_button_state);
     return NULL;
 }
 
-static QObject *qmp_ioport_read(const QDict *qdict)
+static QObject *qmp_ioport_read(const QDict *args)
 {
-    int size = qdict_get_int(qdict, "size");
-    int addr = qdict_get_int(qdict, "addr");
-    int has_index = qdict_haskey(qdict, "index");
+    int size = qdict_get_int(args, "size");
+    int addr = qdict_get_int(args, "addr");
+    int has_index = qdict_haskey(args, "index");
     uint32_t val;
     int suffix;
 
     if (has_index) {
-        int index = qdict_get_int(qdict, "index");
+        int index = qdict_get_int(args, "index");
         cpu_outb(addr & IOPORTS_MASK, index & 0xff);
         addr++;
     }
@@ -293,11 +733,11 @@ static QObject *qmp_ioport_read(const QDict *qdict)
                               addr, val);
 }
 
-static QObject *qmp_ioport_write(const QDict *qdict)
+static QObject *qmp_ioport_write(const QDict *args)
 {
-    int size = qdict_get_int(qdict, "size");
-    int addr = qdict_get_int(qdict, "addr");
-    int val = qdict_get_int(qdict, "val");
+    int size = qdict_get_int(args, "size");
+    int addr = qdict_get_int(args, "addr");
+    int val = qdict_get_int(args, "val");
 
     addr &= IOPORTS_MASK;
 
@@ -317,10 +757,10 @@ static QObject *qmp_ioport_write(const QDict *qdict)
     return NULL;
 }
 
-static QObject *qmp_boot_set(const QDict *qdict)
+static QObject *qmp_boot_set(const QDict *args)
 {
     int res;
-    const char *bootdevice = qdict_get_str(qdict, "bootdevice");
+    const char *bootdevice = qdict_get_str(args, "bootdevice");
 
     res = qemu_boot_set(bootdevice);
     if (res < 0) {
@@ -336,7 +776,7 @@ static QObject *qmp_boot_set(const QDict *qdict)
 /**
  * do_system_reset(): Issue a machine reset
  */
-static QObject *qmp_system_reset(const QDict *qdict)
+static QObject *qmp_system_reset(const QDict *args)
 {
     qemu_system_reset_request();
     return NULL;
@@ -345,7 +785,7 @@ static QObject *qmp_system_reset(const QDict *qdict)
 /**
  * do_system_powerdown(): Issue a machine powerdown
  */
-static QObject *qmp_system_powerdown(const QDict *qdict)
+static QObject *qmp_system_powerdown(const QDict *args)
 {
     qemu_system_powerdown_request();
     return NULL;
@@ -380,15 +820,19 @@ static QDict *pte_to_qdict(uint32_t addr, uint32_t pte, uint32_t mask)
     return qobject_to_qdict(obj);
 }
 
-static QObject *qmp_tlb_info(const QDict *qdict)
+static QObject *qmp_tlb_info(const QDict *args)
 {
     CPUState *env;
     int l1, l2;
     uint32_t pgd, pde, pte;
     QDict *info;
     QList *ptes;
+    int cpu_index = qdict_get_int(args, "cpu_index");
 
-    env = mon_get_cpu();
+    env = find_cpu(cpu_index);
+    if (env == NULL) {
+        return qerror_new(QERR_INVALID_PARAMETER, "cpu_index");
+    }
 
     if (!(env->cr[0] & CR0_PG_MASK)) {
         return qerror_new(QERR_NOT_SUPPORTED);
@@ -459,15 +903,19 @@ static void mem_list(QList *list, uint32_t *pstart, int *plast_prot,
     }
 }
 
-static QObject *qmp_mem_info(const QDict *qdict)
+static QObject *qmp_mem_info(const QDict *args)
 {
     CPUState *env;
     int l1, l2, prot, last_prot;
     uint32_t pgd, pde, pte, start, end;
     QList *regions = NULL;
     QDict *info;
+    int cpu_index = qdict_get_int(args, "cpu_index");
 
-    env = mon_get_cpu();
+    env = find_cpu(cpu_index);
+    if (env == NULL) {
+        return qerror_new(QERR_INVALID_PARAMETER, "cpu_index");
+    }
 
     if (!(env->cr[0] & CR0_PG_MASK)) {
         return qerror_new(QERR_NOT_SUPPORTED);
@@ -533,12 +981,17 @@ static QObject *format_tlb_info(int idx, tlb_t *tlb)
                               tlb->c, tlb->pr, tlb->d, tlb->wt);
 }
 
-static QObject *qmp_tlb_info(const QDict *qdict)
+static QObject *qmp_tlb_info(const QDict *args)
 {
-    CPUState *env = mon_get_cpu();
+    int cpu_index = qdict_get_int(args, "cpu_index");
+    CPUState *env = find_cpu(cpu_index);
     int i;
     QDict *info;
     QList *list;
+
+    if (env == NULL) {
+        return qerror_new(QERR_INVALID_PARAMETER, "cpu_index");
+    }
 
     info = qdict_new();
 
@@ -571,7 +1024,7 @@ static QObject *qmp_tlb_info(const QDict *qdict)
  *
  * { "enabled": true, "present": true }
  */
-static QObject *qmp_info_kvm(const QDict *qdict)
+static QObject *qmp_info_kvm(const QDict *args)
 {
 #ifdef CONFIG_KVM
     return qobject_from_jsonf("{ 'enabled': %i, 'present': true }",
@@ -581,7 +1034,7 @@ static QObject *qmp_info_kvm(const QDict *qdict)
 #endif
 }
 
-static QObject *qmp_info_numa(const QDict *qdict)
+static QObject *qmp_info_numa(const QDict *args)
 {
     int i;
     CPUState *env;
@@ -619,7 +1072,7 @@ static QObject *qmp_info_numa(const QDict *qdict)
 int64_t qemu_time;
 int64_t dev_time;
 
-static QObject *qmp_info_profile(const QDict *qdict)
+static QObject *qmp_info_profile(const QDict *args)
 {
     int64_t total;
     QObject *ret;
@@ -639,7 +1092,7 @@ static QObject *qmp_info_profile(const QDict *qdict)
     return ret;
 }
 #else
-static QObject *qmp_info_profile(const QDict *qdict)
+static QObject *qmp_info_profile(const QDict *args)
 {
     return qerror_new(QERR_NOT_SUPPORTED);
 }
@@ -648,7 +1101,7 @@ static QObject *qmp_info_profile(const QDict *qdict)
 /* Capture support */
 static QLIST_HEAD (capture_list_head, CaptureState) capture_head;
 
-static QObject *qmp_info_capture(const QDict *qdict)
+static QObject *qmp_info_capture(const QDict *args)
 {
     int i;
     CaptureState *s;
@@ -672,10 +1125,10 @@ static QObject *qmp_info_capture(const QDict *qdict)
 }
 
 #ifdef HAS_AUDIO
-static QObject *qmp_stop_capture(const QDict *qdict)
+static QObject *qmp_stop_capture(const QDict *args)
 {
     int i;
-    int n = qdict_get_int(qdict, "n");
+    int n = qdict_get_int(args, "n");
     CaptureState *s;
 
     for (s = capture_head.lh_first, i = 0; s; s = s->entries.le_next, ++i) {
@@ -690,15 +1143,15 @@ static QObject *qmp_stop_capture(const QDict *qdict)
     return qerror_new(QERR_NO_ENTRY, "wav capture");
 }
 
-static QObject *qmp_wav_capture(const QDict *qdict)
+static QObject *qmp_wav_capture(const QDict *args)
 {
-    const char *path = qdict_get_str(qdict, "path");
-    int has_freq = qdict_haskey(qdict, "freq");
-    int freq = qdict_get_try_int(qdict, "freq", -1);
-    int has_bits = qdict_haskey(qdict, "bits");
-    int bits = qdict_get_try_int(qdict, "bits", -1);
-    int has_channels = qdict_haskey(qdict, "nchannels");
-    int nchannels = qdict_get_try_int(qdict, "nchannels", -1);
+    const char *path = qdict_get_str(args, "path");
+    int has_freq = qdict_haskey(args, "freq");
+    int freq = qdict_get_try_int(args, "freq", -1);
+    int has_bits = qdict_haskey(args, "bits");
+    int bits = qdict_get_try_int(args, "bits", -1);
+    int has_channels = qdict_haskey(args, "nchannels");
+    int nchannels = qdict_get_try_int(args, "nchannels", -1);
     CaptureState *s;
     QObject *ret = NULL;
 
@@ -719,10 +1172,10 @@ static QObject *qmp_wav_capture(const QDict *qdict)
 #endif
 
 #if defined(TARGET_I386)
-static QObject *qmp_inject_nmi(const QDict *qdict)
+static QObject *qmp_inject_nmi(const QDict *args)
 {
     CPUState *env;
-    int cpu_index = qdict_get_int(qdict, "cpu_index");
+    int cpu_index = qdict_get_int(args, "cpu_index");
 
     for (env = first_cpu; env != NULL; env = env->next_cpu) {
         if (env->cpu_index == cpu_index) {
@@ -747,15 +1200,15 @@ static QObject *qmp_inject_nmi(const QDict *qdict)
  *
  * { "running": true, "singlestep": false }
  */
-static QObject *qmp_info_status(const QDict *qdict)
+static QObject *qmp_info_status(const QDict *args)
 {
     return qobject_from_jsonf("{ 'running': %i, 'singlestep': %i }",
                               vm_running, singlestep);
 }
 
-static QObject *qmp_acl_show(const QDict *qdict)
+static QObject *qmp_acl_show(const QDict *args)
 {
-    const char *aclname = qdict_get_str(qdict, "aclname");
+    const char *aclname = qdict_get_str(args, "aclname");
     qemu_acl *acl = qemu_acl_find(aclname);
     qemu_acl_entry *entry;
     int i = 0;
@@ -788,99 +1241,105 @@ static QObject *qmp_acl_show(const QDict *qdict)
     return policy;
 }
 
-static QObject *qmp_acl_reset(const QDict *qdict)
+static QObject *qmp_acl_reset(const QDict *args)
 {
-    const char *aclname = qdict_get_str(qdict, "aclname");
-    qemu_acl *acl = find_acl(mon, aclname);
+    const char *aclname = qdict_get_str(args, "aclname");
+    qemu_acl *acl = qemu_acl_find(aclname);
 
-    if (acl) {
-        qemu_acl_reset(acl);
+    if (!acl) {
+        return qerror_new(QERR_NOT_FOUND, "acl");
+    }
+
+    qemu_acl_reset(acl);
+
+    return NULL;
+}
+
+static QObject *qmp_acl_policy(const QDict *args)
+{
+    const char *aclname = qdict_get_str(args, "aclname");
+    const char *policy = qdict_get_str(args, "policy");
+    qemu_acl *acl = qemu_acl_find(aclname);
+
+    if (!acl) {
+        return qerror_new(QERR_NOT_FOUND, "acl");
+    }
+
+    if (strcmp(policy, "allow") == 0) {
+        acl->defaultDeny = 0;
+    } else if (strcmp(policy, "deny") == 0) {
+        acl->defaultDeny = 1;
+    } else {
+        return qerror_new(ERR_INVALID_PARAMETER_VALUE,
+                          "policy", "'deny' or 'allow'");
     }
 
     return NULL;
 }
 
-static QObject *qmp_acl_policy(const QDict *qdict)
+static QObject *qmp_acl_add(const QDict *args)
 {
-    const char *aclname = qdict_get_str(qdict, "aclname");
-    const char *policy = qdict_get_str(qdict, "policy");
-    qemu_acl *acl = find_acl(mon, aclname);
-
-    if (acl) {
-        if (strcmp(policy, "allow") == 0) {
-            acl->defaultDeny = 0;
-        } else if (strcmp(policy, "deny") == 0) {
-            acl->defaultDeny = 1;
-        } else {
-            return qerror_new(ERR_INVALID_PARAMETER_VALUE,
-                              "policy", "'deny' or 'allow'");
-        }
-    }
-
-    return NULL;
-}
-
-static QObject *qmp_acl_add(const QDict *qdict)
-{
-    const char *aclname = qdict_get_str(qdict, "aclname");
-    const char *match = qdict_get_str(qdict, "match");
-    const char *policy = qdict_get_str(qdict, "policy");
-    int has_index = qdict_haskey(qdict, "index");
-    int index = qdict_get_try_int(qdict, "index", -1);
-    qemu_acl *acl = find_acl(mon, aclname);
+    const char *aclname = qdict_get_str(args, "aclname");
+    const char *match = qdict_get_str(args, "match");
+    const char *policy = qdict_get_str(args, "policy");
+    int has_index = qdict_haskey(args, "index");
+    int index = qdict_get_try_int(args, "index", -1);
+    qemu_acl *acl = qemu_acl_find(aclname);
     int deny, ret;
 
-    if (acl) {
-        if (strcmp(policy, "allow") == 0) {
-            deny = 0;
-        } else if (strcmp(policy, "deny") == 0) {
-            deny = 1;
-        } else {
-            return qerror_new(ERR_INVALID_PARAMETER_VALUE,
-                              "policy", "'deny' or 'allow'");
-        }
-        if (has_index)
-            ret = qemu_acl_insert(acl, deny, match, index);
-        else
-            ret = qemu_acl_append(acl, deny, match);
+    if (!acl) {
+        return qerror_new(QERR_NOT_FOUND, "acl");
+    }
 
-        if (ret < 0) {
-            return qerror_new(QERR_INTERNAL_ERROR, "acl");
-        }
+    if (strcmp(policy, "allow") == 0) {
+        deny = 0;
+    } else if (strcmp(policy, "deny") == 0) {
+        deny = 1;
+    } else {
+        return qerror_new(ERR_INVALID_PARAMETER_VALUE,
+                          "policy", "'deny' or 'allow'");
+    }
+    if (has_index)
+        ret = qemu_acl_insert(acl, deny, match, index);
+    else
+        ret = qemu_acl_append(acl, deny, match);
+
+    if (ret < 0) {
+        return qerror_new(QERR_INTERNAL_ERROR, "acl");
     }
 
     return NULL;
 }
 
-static QObject *qmp_acl_remove(const QDict *qdict)
+static QObject *qmp_acl_remove(const QDict *args)
 {
-    const char *aclname = qdict_get_str(qdict, "aclname");
-    const char *match = qdict_get_str(qdict, "match");
-    qemu_acl *acl = find_acl(mon, aclname);
+    const char *aclname = qdict_get_str(args, "aclname");
+    const char *match = qdict_get_str(args, "match");
+    qemu_acl *acl = qemu_find_acl(aclname);
     int ret;
 
-    if (acl) {
-        ret = qemu_acl_remove(acl, match);
-        if (ret < 0) {
-            return qerror_new(QERR_INTERNAL_ERROR, "acl");
-        }
-    } else {
+    if (!acl) {
         return qerror_new(QERR_NO_ENTRY, "acl");
+    }
+
+    ret = qemu_acl_remove(acl, match);
+    if (ret < 0) {
+        return qerror_new(QERR_INTERNAL_ERROR, "acl");
     }
 
     return NULL;
 }
 
 #if defined(TARGET_I386)
-static QObject *qmp_inject_mce(const QDict *qdict)
+static QObject *qmp_inject_mce(const QDict *args)
 {
     CPUState *cenv;
-    int cpu_index = qdict_get_int(qdict, "cpu_index");
-    int bank = qdict_get_int(qdict, "bank");
-    uint64_t status = qdict_get_int(qdict, "status");
-    uint64_t mcg_status = qdict_get_int(qdict, "mcg_status");
-    uint64_t addr = qdict_get_int(qdict, "addr");
-    uint64_t misc = qdict_get_int(qdict, "misc");
+    int cpu_index = qdict_get_int(args, "cpu_index");
+    int bank = qdict_get_int(args, "bank");
+    uint64_t status = qdict_get_int(args, "status");
+    uint64_t mcg_status = qdict_get_int(args, "mcg_status");
+    uint64_t addr = qdict_get_int(args, "addr");
+    uint64_t misc = qdict_get_int(args, "misc");
 
     for (cenv = first_cpu; cenv != NULL; cenv = cenv->next_cpu) {
         if (cenv->cpu_index == cpu_index && cenv->mcg_cap) {
@@ -893,15 +1352,6 @@ static QObject *qmp_inject_mce(const QDict *qdict)
 }
 #endif
 
-static QError *do_loadvm(const QDict *qdict)
+QObject *qmp_run(const char *command, const char *fmt, ...)
 {
-    int saved_vm_running  = vm_running;
-    const char *name = qdict_get_str(qdict, "name");
-
-    vm_stop(0);
-
-    if (load_vmstate(name) >= 0 && saved_vm_running)
-        vm_start();
-
-    return NULL;
 }

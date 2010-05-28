@@ -3817,6 +3817,47 @@ int main(int argc, char **argv, char **envp)
 
     qemu_system_reset();
     if (loadvm) {
+        QObject *ret;
+
+        ret = qmp_run("loadvm", "{'name': %s}", loadvm);
+        if (ret) {
+            QError *err = qobject_to_qerror(ret);
+
+            if (qerror_is_class(err, QERR_DEVICE_FEATURE_NOT_SUPPORTED)) {
+                fprintf(stderr,
+                        "qemu: device '%s' does not support snapshotting\n",
+                        qerror_get_str(err, "device"));
+            } else if (qerror_is_class(err, QERR_NOT_FOUND)) {
+                fprintf(stderr, "qemu: missing snapshot '%s' on device '%s'\n",
+                        qerror_get_str(err, "property"),
+                        qerror_get_str(err, "context"));
+            } else if (qerror_is_class(err, QERR_IO_ERROR)) {
+                const char *context = qerror_get_str(err, "context");
+                if (!strcmp(context, "activating snapshot")) {
+                    fprintf(stderr,
+                            "qemu: failed to activate snapshot on all disks\n");
+                } else if (!strcmp(context, "empty snapshot")) {
+                    fprintf(stderr,
+                            "qemu: empty snapshot found\n");
+                } else if (!strcmp(context, "open snapshot")) {
+                    fprintf(stderr,
+                            "qemu: failed to open snapshot\n");
+                } else if (!strcmp(context, "load snapshot")) {
+                    fprintf(stderr, "qemu: failed to load snapshot\n");
+                } else {
+                    fprintf(stderr, "qemu: unknown IO error in: %s\n",
+                            context);
+                }
+            } else if (qerror_is_class(QERR_DEVICE_NOT_FOUND)) {
+                fprintf(stderr, "qemu: No snapshot capable device found");
+            } else {
+                fprintf(stderr, "qemu: unexpected -loadvm error:\n");
+                fprintf(stderr, "  %s\n", qerror_format(err));
+            }
+            QDECREF(err);
+            exit(1);
+        }
+
         if (load_vmstate(loadvm) < 0) {
             autostart = 0;
         }

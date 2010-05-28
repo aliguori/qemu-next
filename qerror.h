@@ -102,6 +102,9 @@ QError *qobject_to_qerror(const QObject *obj);
 #define QERR_DEVICE_NO_BUS \
     "{ 'class': 'DeviceNoBus', 'data': { 'device': %s } }"
 
+#define QERR_DEVICE_FEATURE_NOT_SUPPORTED \
+    "{ 'class': 'DeviceFeatureNotSupported', 'data': { 'device': %s, 'feature': %s} }"
+
 #define QERR_DUPLICATE_ID \
     "{ 'class': 'DuplicateId', 'data': { 'id': %s, 'object': %s } }"
 
@@ -149,6 +152,9 @@ QError *qobject_to_qerror(const QObject *obj);
 
 #define QERR_NO_ENTRY \
     "{ 'class': 'NoEntry', 'data': { 'context': %s } }"
+
+#define QERR_NOT_FOUND \
+    "{ 'class': 'NotFound', 'data': { 'context': %s, 'property': %s} }"
 
 #define QERR_NOT_SUPPORTED \
     "{ 'class': 'NotSupported', 'data': {}}"

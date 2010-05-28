@@ -1658,7 +1658,7 @@ static int del_existing_snapshots(Monitor *mon, const char *name)
     return 0;
 }
 
-void do_savevm(Monitor *mon, const QDict *qdict)
+QObject *qmp_savevm(const QDict *args)
 {
     DriveInfo *dinfo;
     BlockDriverState *bs, *bs1;
@@ -1672,12 +1672,12 @@ void do_savevm(Monitor *mon, const QDict *qdict)
 #else
     struct timeval tv;
 #endif
-    const char *name = qdict_get_try_str(qdict, "name");
+    const char *name = qdict_get_try_str(args, "name");
+    QObject *err = NULL;
 
     bs = get_bs_snapshots();
     if (!bs) {
-        monitor_printf(mon, "No block device can accept snapshots\n");
-        return;
+        return qerror_new(QERR_DEVICE_NOT_FOUND, "snapshot");
     }
 
     /* ??? Should this occur after vm_stop?  */
@@ -1717,14 +1717,14 @@ void do_savevm(Monitor *mon, const QDict *qdict)
     /* save the VM state */
     f = qemu_fopen_bdrv(bs, 1);
     if (!f) {
-        monitor_printf(mon, "Could not open VM state file\n");
+        err = qerror_new(QERR_IO_ERROR, "open");
         goto the_end;
     }
     ret = qemu_savevm_state(f);
     vm_state_size = qemu_ftell(f);
     qemu_fclose(f);
     if (ret < 0) {
-        monitor_printf(mon, "Error %d while writing VM\n", ret);
+        err = qerror_new(QERR_IO_ERROR, "write");
         goto the_end;
     }
 
@@ -1737,8 +1737,8 @@ void do_savevm(Monitor *mon, const QDict *qdict)
             sn->vm_state_size = (bs == bs1 ? vm_state_size : 0);
             ret = bdrv_snapshot_create(bs1, sn);
             if (ret < 0) {
-                monitor_printf(mon, "Error while creating snapshot on '%s'\n",
-                               bdrv_get_device_name(bs1));
+                err = qerror_new(QERR_IO_ERROR, "create snapshot");
+                goto the_end;
             }
         }
     }
@@ -1746,20 +1746,25 @@ void do_savevm(Monitor *mon, const QDict *qdict)
  the_end:
     if (saved_vm_running)
         vm_start();
+
+    return err;
 }
 
-int load_vmstate(const char *name)
+QObject *qmp_loadvm(const QDict *args)
 {
+    int saved_vm_running  = vm_running;
+    const char *name = qdict_get_str(args, "name");
     DriveInfo *dinfo;
     BlockDriverState *bs, *bs1;
     QEMUSnapshotInfo sn;
     QEMUFile *f;
     int ret;
 
+    vm_stop(0);
+
     bs = get_bs_snapshots();
     if (!bs) {
-        error_report("No block device supports snapshots");
-        return -EINVAL;
+        return qerror_new(QERR_DEVICE_NOT_FOUND, "snapshot");
     }
 
     /* Flush all IO requests so they don't interfere with the new state.  */
@@ -1772,59 +1777,51 @@ int load_vmstate(const char *name)
             if (ret < 0) {
                 switch(ret) {
                 case -ENOTSUP:
-                    error_report("%sSnapshots not supported on device '%s'",
-                                 bs != bs1 ? "Warning: " : "",
-                                 bdrv_get_device_name(bs1));
-                    break;
+                    return qerror_new(QERR_DEVICE_FEATURE_NOT_SUPPORTED,
+                                      bdrv_get_device_name(bs1), "snapshots");
                 case -ENOENT:
-                    error_report("%sCould not find snapshot '%s' on device '%s'",
-                                 bs != bs1 ? "Warning: " : "",
-                                 name, bdrv_get_device_name(bs1));
-                    break;
+                    return qerror_new(QERR_NOT_FOUND, name,
+                                      bdrv_get_device_name(bs1));
                 default:
-                    error_report("%sError %d while activating snapshot on '%s'",
-                                 bs != bs1 ? "Warning: " : "",
-                                 ret, bdrv_get_device_name(bs1));
-                    break;
+                    return qerror_new(QERR_IO_ERROR, "activating snapshot");
                 }
-                /* fatal on snapshot block device */
-                if (bs == bs1)
-                    return 0;
             }
         }
     }
 
     /* Don't even try to load empty VM states */
     ret = bdrv_snapshot_find(bs, &sn, name);
-    if ((ret >= 0) && (sn.vm_state_size == 0))
-        return -EINVAL;
+    if ((ret >= 0) && (sn.vm_state_size == 0)) {
+        return qerror_new(QERR_IO_ERROR, "empty snapshot");
+    }
 
     /* restore the VM state */
     f = qemu_fopen_bdrv(bs, 0);
     if (!f) {
-        error_report("Could not open VM state file");
-        return -EINVAL;
+        return qerror_new(QERR_IO_ERROR, "open snapshot");
     }
     ret = qemu_loadvm_state(f);
     qemu_fclose(f);
     if (ret < 0) {
-        error_report("Error %d while loading VM state", ret);
-        return ret;
+        return qerror_new(QERR_IO_ERROR, "load snapshot");
     }
-    return 0;
+
+    if (err == NULL && saved_vm_running)
+        vm_start();
+
+    return err;
 }
 
-void do_delvm(Monitor *mon, const QDict *qdict)
+QObject *qmp_delvm(const QDict *args)
 {
     DriveInfo *dinfo;
     BlockDriverState *bs, *bs1;
     int ret;
-    const char *name = qdict_get_str(qdict, "name");
+    const char *name = qdict_get_str(args, "name");
 
     bs = get_bs_snapshots();
     if (!bs) {
-        monitor_printf(mon, "No block device supports snapshots\n");
-        return;
+        return qerror_new(QERR_DEVICE_NOT_FOUND, "snapshot");
     }
 
     QTAILQ_FOREACH(dinfo, &drives, next) {
@@ -1832,52 +1829,58 @@ void do_delvm(Monitor *mon, const QDict *qdict)
         if (bdrv_has_snapshot(bs1)) {
             ret = bdrv_snapshot_delete(bs1, name);
             if (ret < 0) {
-                if (ret == -ENOTSUP)
-                    monitor_printf(mon,
-                                   "Snapshots not supported on device '%s'\n",
-                                   bdrv_get_device_name(bs1));
-                else
-                    monitor_printf(mon, "Error %d while deleting snapshot on "
-                                   "'%s'\n", ret, bdrv_get_device_name(bs1));
+                if (ret == -ENOTSUP) {
+                    return qerror_new(QERR_DEVICE_FEATURE_NOT_SUPPORTED,
+                                      bdrv_get_device_name(bs1), "snapshots");
+                } else {
+                    return qerror_new(QERR_IO_ERROR, "deleting snapshot");
+                }
             }
         }
     }
+
+    return NULL;
 }
 
-void do_info_snapshots(Monitor *mon)
+QObject *qmp_info_snapshots(const QDict *args)
 {
     DriveInfo *dinfo;
     BlockDriverState *bs, *bs1;
     QEMUSnapshotInfo *sn_tab, *sn;
     int nb_sns, i;
     char buf[256];
+    QDict *info;
+    QList *list;
 
     bs = get_bs_snapshots();
     if (!bs) {
-        monitor_printf(mon, "No available block device supports snapshots\n");
-        return;
+        return qerror_new(QERR_DEVICE_NOT_FOUND, "snapshot");
     }
-    monitor_printf(mon, "Snapshot devices:");
+    info = qdict_new();
+    list = qlist_new();
     QTAILQ_FOREACH(dinfo, &drives, next) {
         bs1 = dinfo->bdrv;
         if (bdrv_has_snapshot(bs1)) {
-            if (bs == bs1)
-                monitor_printf(mon, " %s", bdrv_get_device_name(bs1));
+            if (bs == bs1) {
+                qlist_append(list, qstring_new(bdrv_get_device_name(bs1)));
+            }
         }
     }
-    monitor_printf(mon, "\n");
+    qdict_put(info, "devices", list);
 
     nb_sns = bdrv_snapshot_list(bs, &sn_tab);
     if (nb_sns < 0) {
-        monitor_printf(mon, "bdrv_snapshot_list: error %d\n", nb_sns);
-        return;
+        QDECREF(info);
+        return qerror_new(QERR_IO_ERROR, "list snapshot");
     }
-    monitor_printf(mon, "Snapshot list (from %s):\n",
-                   bdrv_get_device_name(bs));
-    monitor_printf(mon, "%s\n", bdrv_snapshot_dump(buf, sizeof(buf), NULL));
+
+    qdict_put(info, "device", bdrv_get_device_name(bs));
+    list = qlist_new();
     for(i = 0; i < nb_sns; i++) {
-        sn = &sn_tab[i];
-        monitor_printf(mon, "%s\n", bdrv_snapshot_dump(buf, sizeof(buf), sn));
+        qlist_append(list, bdrv_snapshot_dump(&sn_table[i]));
     }
+    qdict_put(info, "snapshots", list);
     qemu_free(sn_tab);
+
+    return info;
 }
