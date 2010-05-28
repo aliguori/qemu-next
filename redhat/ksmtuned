@@ -75,7 +75,7 @@ committed_memory () {
 }
 
 free_memory () {
-    awk '/^(MemFree|Buffers|MemCached):/ {free += $2}; END {print free}' \
+    awk '/^(MemFree|Buffers|Cached):/ {free += $2}; END {print free}' \
                 /proc/meminfo
 }
 
