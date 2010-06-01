@@ -192,7 +192,7 @@ int qdev_device_help(QemuOpts *opts)
     return 1;
 }
 
-DeviceState *qdev_device_add(QemuOpts *opts)
+DeviceState *qdev_device_add(QemuOpts *opts, QObject **err)
 {
     const char *driver, *path, *id;
     DeviceInfo *info;
@@ -201,15 +201,14 @@ DeviceState *qdev_device_add(QemuOpts *opts)
 
     driver = qemu_opt_get(opts, "driver");
     if (!driver) {
-        qerror_report(QERR_MISSING_PARAMETER, "driver");
+        *err = qerror_new(QERR_MISSING_PARAMETER, "driver");
         return NULL;
     }
 
     /* find driver */
     info = qdev_find_info(NULL, driver);
     if (!info || info->no_user) {
-        qerror_report(QERR_INVALID_PARAMETER_VALUE, "driver", "a driver name");
-        error_printf_unless_qmp("Try with argument '?' for a list.\n");
+        *err = qerror_new(QERR_INVALID_PARAMETER_VALUE, "driver", "a driver name");
         return NULL;
     }
 
@@ -221,20 +220,20 @@ DeviceState *qdev_device_add(QemuOpts *opts)
             return NULL;
         }
         if (bus->info != info->bus_info) {
-            qerror_report(QERR_BAD_BUS_FOR_DEVICE,
-                           driver, bus->info->name);
+            *err = qerror_new(QERR_BAD_BUS_FOR_DEVICE,
+                              driver, bus->info->name);
             return NULL;
         }
     } else {
         bus = qbus_find_recursive(main_system_bus, NULL, info->bus_info);
         if (!bus) {
-            qerror_report(QERR_NO_BUS_FOR_DEVICE,
-                           info->name, info->bus_info->name);
+            *err = qerror_new(QERR_NO_BUS_FOR_DEVICE,
+                              info->name, info->bus_info->name);
             return NULL;
         }
     }
     if (qdev_hotplug && !bus->allow_hotplug) {
-        qerror_report(QERR_BUS_NO_HOTPLUG, bus->name);
+        *err = qerror_new(QERR_BUS_NO_HOTPLUG, bus->name);
         return NULL;
     }
 
@@ -245,11 +244,12 @@ DeviceState *qdev_device_add(QemuOpts *opts)
         qdev->id = id;
     }
     if (qemu_opt_foreach(opts, set_property, qdev, 1) != 0) {
+        *err = qerror_new(QERR_UNDEFINED_ERROR);
         qdev_free(qdev);
         return NULL;
     }
     if (qdev_init(qdev) < 0) {
-        qerror_report(QERR_DEVICE_INIT_FAILED, driver);
+        *err = qerror_new(QERR_DEVICE_INIT_FAILED, driver);
         return NULL;
     }
     qdev->opts = opts;
@@ -296,11 +296,10 @@ void qdev_set_legacy_instance_id(DeviceState *dev, int alias_id,
     dev->alias_required_for_version = required_for_version;
 }
 
-int qdev_unplug(DeviceState *dev)
+QError *qdev_unplug(DeviceState *dev)
 {
     if (!dev->parent_bus->allow_hotplug) {
-        qerror_report(QERR_BUS_NO_HOTPLUG, dev->parent_bus->name);
-        return -1;
+        return qerror_new(QERR_BUS_NO_HOTPLUG, dev->parent_bus->name);
     }
     assert(dev->info->unplug != NULL);
 
@@ -792,34 +791,30 @@ void do_info_qdm(Monitor *mon)
  *
  * { "driver": "usb-net", "id": "eth1", "netdev": "netdev1" }
  */
-int do_device_add(Monitor *mon, const QDict *qdict, QObject **ret_data)
+QObject *qmp_device_add(const QDict *args)
 {
     QemuOpts *opts;
+    QObject *err = NULL;
 
-    opts = qemu_opts_from_qdict(&qemu_device_opts, qdict);
+    opts = qemu_opts_from_qdict(&qemu_device_opts, args);
     if (!opts) {
-        return -1;
+        return qerror_new(QERR_INVALID_PARAMETER, "");
     }
-    if (!monitor_cur_is_qmp() && qdev_device_help(opts)) {
+    if (!qdev_device_add(opts, &err)) {
         qemu_opts_del(opts);
-        return 0;
+        return err;
     }
-    if (!qdev_device_add(opts)) {
-        qemu_opts_del(opts);
-        return -1;
-    }
-    return 0;
+    return NULL;
 }
 
-int do_device_del(Monitor *mon, const QDict *qdict, QObject **ret_data)
+QObject *qmp_device_del(const QDict *args)
 {
     const char *id = qdict_get_str(qdict, "id");
     DeviceState *dev;
 
     dev = qdev_find_recursive(main_system_bus, id);
-    if (NULL == dev) {
-        qerror_report(QERR_DEVICE_NOT_FOUND, id);
-        return -1;
+    if (dev == NULL) {
+        return qerror_new(QERR_DEVICE_NOT_FOUND, id);
     }
-    return qdev_unplug(dev);
+    return QOBJECT(qdev_unplug(dev));
 }

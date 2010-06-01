@@ -116,7 +116,7 @@ int qdev_init(DeviceState *dev) QEMU_WARN_UNUSED_RESULT;
 void qdev_init_nofail(DeviceState *dev);
 void qdev_set_legacy_instance_id(DeviceState *dev, int alias_id,
                                  int required_for_version);
-int qdev_unplug(DeviceState *dev);
+QError *qdev_unplug(DeviceState *dev);
 void qdev_free(DeviceState *dev);
 int qdev_simple_unplug_cb(DeviceState *dev);
 void qdev_machine_creation_done(void);
@@ -129,7 +129,7 @@ BusState *qdev_get_child_bus(DeviceState *dev, const char *name);
 /*** Device API.  ***/
 
 typedef int (*qdev_initfn)(DeviceState *dev, DeviceInfo *info);
-typedef int (*qdev_event)(DeviceState *dev);
+typedef QError *(*qdev_event)(DeviceState *dev);
 typedef void (*qdev_resetfn)(DeviceState *dev);
 
 struct DeviceInfo {

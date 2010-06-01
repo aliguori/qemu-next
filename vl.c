@@ -1374,19 +1374,19 @@ static int usb_parse(const char *cmdline)
     return r;
 }
 
-void do_usb_add(Monitor *mon, const QDict *qdict)
+QObject *qmp_usb_add(const QDict *args)
 {
-    const char *devname = qdict_get_str(qdict, "devname");
+    const char *devname = qdict_get_str(args, "devname");
     if (usb_device_add(devname, 1) < 0) {
-        error_report("could not add USB device '%s'", devname);
+        return qerror_new(QERR_UNDEFINED_ERROR);
     }
 }
 
-void do_usb_del(Monitor *mon, const QDict *qdict)
+QObject *qmp_usb_del(const QDict *args)
 {
     const char *devname = qdict_get_str(qdict, "devname");
     if (usb_device_del(devname) < 0) {
-        error_report("could not delete USB device '%s'", devname);
+        return qerror_new(QERR_UNDEFINED_ERROR);
     }
 }
 

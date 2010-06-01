@@ -28,13 +28,13 @@
 #include "block_int.h"
 #include "sysemu.h"
 
-DriveInfo *add_init_drive(const char *optstr)
+DriveInfo *add_init_drive(QDict *opts)
 {
     int fatal_error;
     DriveInfo *dinfo;
     QemuOpts *opts;
 
-    opts = drive_add(NULL, "%s", optstr);
+    opts = qemu_opts_from_qdict(&qemu_drive_opts, opts);
     if (!opts)
         return NULL;
 
