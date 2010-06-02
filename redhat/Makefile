@@ -79,10 +79,8 @@ $(TARBALL):
 		wget -O $(TARBALL) $(TARURL) || exit; \
 	else \
 		echo "Creating archive $(TARBALL)"; \
-		cd ../ && \
-		git archive --prefix=$(COMMON_NAME)-$(KVERSION)/ --format=tar $(MARKER) | \
-		    gzip > $(TARBALL) \
-		  || exit; \
+		rm -f $(TARBALL); \
+		../kvm/scripts/make-release --formal $(MARKER) $(COMMON_NAME)-$(KVERSION) $(TARBALL); \
 	fi
 
 $(RC_PATCH):
