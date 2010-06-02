@@ -103,6 +103,10 @@ sources-rh: $(TARBALL) $(RC_PATCH) $(GIT_PATCH) $(REDHAT)/create-patches.sh Make
 			echo "$(TARBALL) sha1sum does not match (expected: $(TARSHA1))" >&2; \
 			exit 1; \
 	fi
+	@if [ -n "$(TARSHA256)" -a "$$(tar -oxzf $(TARBALL) | sha256sum | cut -d' ' -f1)" != "$(TARSHA256)" ];then \
+			echo "$(TARBALL) sha256sum $(TARSHA256) does not match (expected: $(TARSHA256))" >&2; \
+			exit 1; \
+	fi
 	@cp $(TARBALL) $(SOURCES)/
 	@(if [ -n "$(RCREV)" ]; then \
 		cp $(RC_PATCH) $(SOURCES)/; \
