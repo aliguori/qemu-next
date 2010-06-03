@@ -121,7 +121,7 @@ static uint64_t translate_kernel_address(void *opaque, uint64_t addr)
 }
 
 /* PowerPC Mac99 hardware initialisation */
-static void ppc_core99_init (ram_addr_t ram_size,
+static void ppc_core99_init (QEMUMachine *machine, ram_addr_t ram_size,
                              const char *boot_device,
                              const char *kernel_filename,
                              const char *kernel_cmdline,

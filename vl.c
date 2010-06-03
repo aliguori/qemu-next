@@ -3718,7 +3718,7 @@ int main(int argc, char **argv, char **envp)
     }
     qemu_add_globals();
 
-    machine->init(ram_size, boot_devices,
+    machine->init(machine, ram_size, boot_devices,
                   kernel_filename, kernel_cmdline, initrd_filename, cpu_model);
 
     cpu_synchronize_all_post_init();

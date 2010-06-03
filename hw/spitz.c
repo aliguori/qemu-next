@@ -948,7 +948,7 @@ static struct arm_boot_info spitz_binfo = {
     .ram_size = 0x04000000,
 };
 
-static void spitz_common_init(QEMUMachine *machine, ram_addr_t ram_size,
+static void spitz_common_init(ram_addr_t ram_size,
                 const char *kernel_filename,
                 const char *kernel_cmdline, const char *initrd_filename,
                 const char *cpu_model, enum spitz_model_e model, int arm_id)

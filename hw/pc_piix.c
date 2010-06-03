@@ -161,7 +161,8 @@ static void pc_init1(ram_addr_t ram_size,
     }
 }
 
-static void pc_init_pci(ram_addr_t ram_size,
+static void pc_init_pci(QEMUMachine *machine,
+                        ram_addr_t ram_size,
                         const char *boot_device,
                         const char *kernel_filename,
                         const char *kernel_cmdline,
@@ -173,7 +174,8 @@ static void pc_init_pci(ram_addr_t ram_size,
              initrd_filename, cpu_model, 1);
 }
 
-static void pc_init_isa(ram_addr_t ram_size,
+static void pc_init_isa(QEMUMachine *machine,
+                        ram_addr_t ram_size,
                         const char *boot_device,
                         const char *kernel_filename,
                         const char *kernel_cmdline,

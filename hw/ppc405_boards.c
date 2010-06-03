@@ -168,7 +168,7 @@ static void ref405ep_fpga_init (uint32_t base)
     qemu_register_reset(&ref405ep_fpga_reset, fpga);
 }
 
-static void ref405ep_init (ram_addr_t ram_size,
+static void ref405ep_init (QEMUMachine *machine, ram_addr_t ram_size,
                            const char *boot_device,
                            const char *kernel_filename,
                            const char *kernel_cmdline,
