@@ -964,6 +964,7 @@ static int vnc_update_client(VncState *vs, int has_dirty)
         int y;
         int n_rectangles;
         int saved_offset;
+        int width, height;
 
         if (vs->output.offset && !vs->audio_cap && !vs->force_update)
             /* kernel send buffers are full -> drop frames to throttle */
@@ -984,10 +985,13 @@ static int vnc_update_client(VncState *vs, int has_dirty)
         saved_offset = vs->output.offset;
         vnc_write_u16(vs, 0);
 
-        for (y = 0; y < vd->server->height; y++) {
+        width = MIN(vd->server->width, vs->client_width);
+        height = MIN(vd->server->height, vs->client_height);
+
+        for (y = 0; y < height; y++) {
             int x;
             int last_x = -1;
-            for (x = 0; x < vd->server->width / 16; x++) {
+            for (x = 0; x < width / 16; x++) {
                 if (vnc_get_bit(vs->dirty[y], x)) {
                     if (last_x == -1) {
                         last_x = x;
