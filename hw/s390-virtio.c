@@ -132,7 +132,7 @@ int s390_virtio_hypercall(CPUState *env)
 }
 
 /* PC hardware initialisation */
-static void s390_init(ram_addr_t ram_size,
+static void s390_init(QEMUMachine *machine, ram_addr_t ram_size,
                       const char *boot_device,
                       const char *kernel_filename,
                       const char *kernel_cmdline,

@@ -1264,7 +1264,7 @@ static int n810_atag_setup(struct arm_boot_info *info, void *p)
     return n8x0_atag_setup(p, 810);
 }
 
-static void n8x0_init(ram_addr_t ram_size, const char *boot_device,
+static void n8x0_init(QEMUMachine *machine, ram_addr_t ram_size, const char *boot_device,
                 const char *kernel_filename,
                 const char *kernel_cmdline, const char *initrd_filename,
                 const char *cpu_model, struct arm_boot_info *binfo, int model)
@@ -1376,7 +1376,7 @@ static struct arm_boot_info n810_binfo = {
     .atag_board = n810_atag_setup,
 };
 
-static void n800_init(ram_addr_t ram_size,
+static void n800_init(QEMUMachine *machine, ram_addr_t ram_size,
                 const char *boot_device,
                 const char *kernel_filename, const char *kernel_cmdline,
                 const char *initrd_filename, const char *cpu_model)
@@ -1386,7 +1386,7 @@ static void n800_init(ram_addr_t ram_size,
                     cpu_model, &n800_binfo, 800);
 }
 
-static void n810_init(ram_addr_t ram_size,
+static void n810_init(QEMUMachine *machine, ram_addr_t ram_size,
                 const char *boot_device,
                 const char *kernel_filename, const char *kernel_cmdline,
                 const char *initrd_filename, const char *cpu_model)

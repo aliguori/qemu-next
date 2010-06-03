@@ -156,7 +156,7 @@ static int vpb_sic_init(SysBusDevice *dev)
 
 static struct arm_boot_info versatile_binfo;
 
-static void versatile_init(ram_addr_t ram_size,
+static void versatile_init(QEMUMachine *machine, ram_addr_t ram_size,
                      const char *boot_device,
                      const char *kernel_filename, const char *kernel_cmdline,
                      const char *initrd_filename, const char *cpu_model,
@@ -289,7 +289,7 @@ static void versatile_init(ram_addr_t ram_size,
     arm_load_kernel(env, &versatile_binfo);
 }
 
-static void vpb_init(ram_addr_t ram_size,
+static void vpb_init(QEMUMachine *machine, ram_addr_t ram_size,
                      const char *boot_device,
                      const char *kernel_filename, const char *kernel_cmdline,
                      const char *initrd_filename, const char *cpu_model)
@@ -300,7 +300,7 @@ static void vpb_init(ram_addr_t ram_size,
                    initrd_filename, cpu_model, 0x183);
 }
 
-static void vab_init(ram_addr_t ram_size,
+static void vab_init(QEMUMachine *machine, ram_addr_t ram_size,
                      const char *boot_device,
                      const char *kernel_filename, const char *kernel_cmdline,
                      const char *initrd_filename, const char *cpu_model)

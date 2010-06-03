@@ -128,7 +128,7 @@ static const int realview_board_id[] = {
     0x76d
 };
 
-static void realview_init(ram_addr_t ram_size,
+static void realview_init(QEMUMachine *machine, ram_addr_t ram_size,
                      const char *boot_device,
                      const char *kernel_filename, const char *kernel_cmdline,
                      const char *initrd_filename, const char *cpu_model,
@@ -368,7 +368,7 @@ static void realview_init(ram_addr_t ram_size,
     arm_load_kernel(first_cpu, &realview_binfo);
 }
 
-static void realview_eb_init(ram_addr_t ram_size,
+static void realview_eb_init(QEMUMachine *machine, ram_addr_t ram_size,
                      const char *boot_device,
                      const char *kernel_filename, const char *kernel_cmdline,
                      const char *initrd_filename, const char *cpu_model)
@@ -380,7 +380,7 @@ static void realview_eb_init(ram_addr_t ram_size,
                   initrd_filename, cpu_model, BOARD_EB);
 }
 
-static void realview_eb_mpcore_init(ram_addr_t ram_size,
+static void realview_eb_mpcore_init(QEMUMachine *machine, ram_addr_t ram_size,
                      const char *boot_device,
                      const char *kernel_filename, const char *kernel_cmdline,
                      const char *initrd_filename, const char *cpu_model)
@@ -392,7 +392,7 @@ static void realview_eb_mpcore_init(ram_addr_t ram_size,
                   initrd_filename, cpu_model, BOARD_EB_MPCORE);
 }
 
-static void realview_pb_a8_init(ram_addr_t ram_size,
+static void realview_pb_a8_init(QEMUMachine *machine, ram_addr_t ram_size,
                      const char *boot_device,
                      const char *kernel_filename, const char *kernel_cmdline,
                      const char *initrd_filename, const char *cpu_model)
@@ -404,7 +404,7 @@ static void realview_pb_a8_init(ram_addr_t ram_size,
                   initrd_filename, cpu_model, BOARD_PB_A8);
 }
 
-static void realview_pbx_a9_init(ram_addr_t ram_size,
+static void realview_pbx_a9_init(QEMUMachine *machine, ram_addr_t ram_size,
                      const char *boot_device,
                      const char *kernel_filename, const char *kernel_cmdline,
                      const char *initrd_filename, const char *cpu_model)
