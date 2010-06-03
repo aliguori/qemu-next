@@ -31,6 +31,9 @@
 #include "qemu-timer.h"
 #include "acl.h"
 #include "qemu-objects.h"
+#if 0
+#include "md5.h"
+#endif
 
 #define VNC_REFRESH_INTERVAL_BASE 30
 #define VNC_REFRESH_INTERVAL_INC  50
@@ -473,7 +476,7 @@ uint8_t *buffer_end(Buffer *buffer)
 
 void buffer_reset(Buffer *buffer)
 {
-        buffer->offset = 0;
+    buffer->offset = 0;
 }
 
 void buffer_free(Buffer *buffer)
@@ -488,6 +491,21 @@ void buffer_append(Buffer *buffer, const void *data, size_t len)
 {
     memcpy(buffer->buffer + buffer->offset, data, len);
     buffer->offset += len;
+}
+
+void buffer_advance(Buffer *buf, size_t len)
+{
+    memmove(buf->buffer, buf->buffer + len,
+            (buf->offset - len));
+    buf->offset -= len;
+}
+
+void buffer_append_b64enc(Buffer *dest, const void *payload, size_t size)
+{
+}
+
+void buffer_append_b64dec(Buffer *dest, const void *payload, size_t size)
+{
 }
 
 static void vnc_desktop_resize(VncState *vs)
@@ -1016,6 +1034,9 @@ static void vnc_disconnect_finish(VncState *vs)
     buffer_free(&vs->input);
     buffer_free(&vs->output);
 
+    buffer_free(&vs->ws_input);
+    buffer_free(&vs->ws_output);
+
     qobject_decref(vs->info);
 
     vnc_zlib_clear(vs);
@@ -1196,6 +1217,14 @@ void vnc_read_when(VncState *vs, VncReadEvent *func, size_t expecting)
     vs->read_handler_expect = expecting;
 }
 
+void vnc_read_until(VncState *vs, VncReadEvent *func,
+                    const void *delim, size_t size)
+{
+    vs->read_until_handler = func;
+    vs->read_until_buflen = MIN(sizeof(vs->read_until_buf), size);
+    memcpy(vs->read_until_buf, delim, vs->read_until_buflen);
+}
+
 
 /*
  * Called to read a chunk of data from the client socket. The data may
@@ -1254,6 +1283,94 @@ static long vnc_client_read_plain(VncState *vs)
     return ret;
 }
 
+static int vnc_client_read_when(VncState *vs, Buffer *buf)
+{
+    size_t len = vs->read_handler_expect;
+    int ret;
+
+    if (buf->offset < len) {
+        return 0;
+    }
+
+    ret = vs->read_handler(vs, buf->buffer, len);
+    if (vs->csock == -1) {
+        vnc_disconnect_finish(vs);
+        return 0;
+    }
+
+    if (!ret) {
+        memmove(buf->buffer, buf->buffer + len,
+                (buf->offset - len));
+        buf->offset -= len;
+    } else {
+        vs->read_handler_expect = ret;
+    }
+
+    return 1;
+}
+
+static int vnc_client_read_until(VncState *vs, Buffer *buf)
+{
+    uint8_t *loc;
+    int len;
+
+    loc = memmem(buf->buffer, buf->offset,
+                 vs->read_until_buf, vs->read_until_buflen);
+    if (loc == NULL) {
+        return 0;
+    }
+
+    len = (loc - buf->buffer) + vs->read_until_buflen;
+
+    vs->read_until_handler(vs, buf->buffer, len);
+
+    buffer_advance(buf, len);
+
+    return 1;
+}
+
+static int ws_decode_frame(Buffer *buf, void **payload,
+                           size_t *payload_size, size_t *frame_size)
+{
+    if (buf->offset < 1) {
+        return 0;
+    }
+
+    switch (buf->buffer[0]) {
+    case 0x00: {
+        size_t i;
+
+        /* FIXME do proper UTF-8 decoding */
+        for (i = 1; i < buf->offset; i++) {
+            if (buf->buffer[i] == 0xFF) {
+                *payload = &buf->buffer[1];
+                *payload_size = i - 2;
+                *frame_size = i;
+                return 1;
+            }
+        }
+        break;
+    }
+    case 0xFF:
+        if (buf->offset >= 2) {
+            if (buf->buffer[1] != 0x00) {
+                VNC_DEBUG("ws: bad EOF frame\n");
+                return -1;
+            } else {
+                *payload = NULL;
+                *payload_size = 0;
+                *frame_size = 2;
+                return 1;
+            }
+        }
+        break;
+    default:
+        VNC_DEBUG("ws: unsupported frame type: 0x%02x\n",
+                  buf->buffer[0]);
+        return -1;
+    }
+    return 0;
+}
 
 /*
  * First function called whenever there is more data to be read from
@@ -1264,6 +1381,8 @@ void vnc_client_read(void *opaque)
 {
     VncState *vs = opaque;
     long ret;
+    Buffer *buf;
+    int work_done;
 
 #ifdef CONFIG_VNC_SASL
     if (vs->sasl.conn && vs->sasl.runSSF)
@@ -1277,34 +1396,73 @@ void vnc_client_read(void *opaque)
         return;
     }
 
-    while (vs->read_handler && vs->input.offset >= vs->read_handler_expect) {
-        size_t len = vs->read_handler_expect;
+    if (vs->encode_ws) {
+        void *payload;
+        size_t payload_size, frame_size;
         int ret;
 
-        ret = vs->read_handler(vs, vs->input.buffer, len);
-        if (vs->csock == -1) {
-            vnc_disconnect_finish(vs);
+        ret = ws_decode_frame(&vs->input, &payload,
+                              &payload_size, &frame_size);
+        if (ret == -1) {
+            vnc_client_error(vs);
+            return;
+        } else if (ret == 0) {
             return;
         }
 
-        if (!ret) {
-            memmove(vs->input.buffer, vs->input.buffer + len, (vs->input.offset - len));
-            vs->input.offset -= len;
-        } else {
-            vs->read_handler_expect = ret;
+#if 0
+        if (ws_is_eof_frame(vs->input)) {
+            /* just ignore eof frames for now
+             * FIXME: should we reset the session?
+             */
+            return;
         }
+#endif
+
+        buffer_append_b64dec(&vs->ws_input, payload, payload_size);
+        buffer_advance(&vs->input, frame_size);
+        buf = &vs->ws_input;
+    } else {
+        buf = &vs->input;
     }
+
+    work_done = 0;
+    do {
+        if (vs->read_handler) {
+            work_done = vnc_client_read_when(vs, buf);
+        } else if (vs->read_until_handler) {
+            work_done = vnc_client_read_until(vs, buf);
+        }
+    } while (work_done);
 }
 
 void vnc_write(VncState *vs, const void *data, size_t len)
 {
-    buffer_reserve(&vs->output, len);
+    if (vs->encode_ws) {
+        buffer_reserve(&vs->ws_output, len);
+        buffer_append(&vs->ws_output, data, len);
+    } else {
+        buffer_reserve(&vs->output, len);
 
-    if (vs->csock != -1 && buffer_empty(&vs->output)) {
-        qemu_set_fd_handler2(vs->csock, NULL, vnc_client_read, vnc_client_write, vs);
+        if (vs->csock != -1 && buffer_empty(&vs->output)) {
+            qemu_set_fd_handler2(vs->csock, NULL, vnc_client_read, vnc_client_write, vs);
+        }
+        
+        buffer_append(&vs->output, data, len);
     }
+}
 
-    buffer_append(&vs->output, data, len);
+void vnc_printf(VncState *vs, const void *format, ...)
+{
+    char buffer[4096];
+    va_list ap;
+    int size;
+
+    va_start(ap, format);
+    size = vsnprintf(buffer, sizeof(buffer), format, ap);
+    va_end(ap);
+
+    vnc_write(vs, buffer, size);
 }
 
 void vnc_write_s32(VncState *vs, int32_t value)
@@ -1342,9 +1500,15 @@ void vnc_write_u8(VncState *vs, uint8_t value)
 void vnc_flush(VncState *vs)
 {
     vnc_lock_output(vs);
-    if (vs->csock != -1 && vs->output.offset) {
+    if (vs->encode_ws) {
+        buffer_append_b64enc(&vs->output, vs->ws_output.buffer, vs->ws_output.offset);
+        buffer_reset(&vs->ws_output);
+        
+        if (vs->csock != -1 && buffer_empty(&vs->output)) {
+            qemu_set_fd_handler2(vs->csock, NULL, vnc_client_read, vnc_client_write, vs);
+        }
+    } else if (vs->csock != -1 && vs->output.offset)
         vnc_client_write_locked(vs);
-    }
     vnc_unlock_output(vs);
 }
 
@@ -2357,20 +2521,10 @@ static void vnc_remove_timer(VncDisplay *vd)
     }
 }
 
-static void vnc_connect(VncDisplay *vd, int csock)
+static void vnc_connect2(VncState *vs)
 {
-    VncState *vs = qemu_mallocz(sizeof(VncState));
-    vs->csock = csock;
+    VncDisplay *vd = vs->vd;
 
-    VNC_DEBUG("New client on socket %d\n", csock);
-    dcl->idle = 0;
-    socket_set_nonblock(vs->csock);
-    qemu_set_fd_handler2(vs->csock, NULL, vnc_client_read, NULL, vs);
-
-    vnc_client_cache_addr(vs);
-    vnc_qmp_event(vs, QEVENT_VNC_CONNECTED);
-
-    vs->vd = vd;
     vs->ds = vd->ds;
     vs->last_x = -1;
     vs->last_y = -1;
@@ -2401,6 +2555,191 @@ static void vnc_connect(VncDisplay *vd, int csock)
     vnc_init_timer(vd);
 
     /* vs might be free()ed here */
+}
+
+static void parse_key(const char *key, int *pws, uint32_t *pvalue)
+{
+    uint32_t value = 0;
+    int i, ws = 0;
+
+    for (i = 0; key[i]; i++) {
+        if (isdigit(key[i])) {
+            value *= 10;
+            value += (key[i] - '0');
+        } else if (key[i] == ' ') {
+            ws++;
+        }
+    }
+
+    *pws = ws;
+    *pvalue = value;
+}
+
+static int vncws_compute_challenge(VncState *vs,
+                                    const char *key1,
+                                    const char *key2,
+                                    const uint8_t *challenge,
+                                    uint8_t *response)
+{
+    uint32_t key1_value = 0, key2_value = 0;
+    int key1_ws = 0, key2_ws = 0;
+    char intermediate[16];
+#if 0
+    MD5Sum md5;
+#endif
+
+    parse_key(key1, &key1_ws, &key1_value);
+    parse_key(key2, &key2_ws, &key2_value);
+
+    if (!key1_ws || !key2_ws) {
+        return 0;
+    }
+
+    key1_value = htonl(key1_value / key1_ws);
+    key2_value = htonl(key2_value / key2_ws);
+
+    memcpy(&intermediate[0], &key1_value, 4);
+    memcpy(&intermediate[4], &key1_value, 4);
+    memcpy(&intermediate[8], response, 8);
+
+#if 0
+    md5_sum(&md5, intermediate, 16);
+    memcpy(response, md5.buffer, 16);
+#endif
+
+    return 1;
+}
+
+static int vncws_challenge(VncState *vs, uint8_t *challenge,
+                           size_t size)
+{
+    uint8_t response[16];
+
+    vncws_compute_challenge(vs, vs->key1, vs->key2, challenge,
+                            response);
+
+    /* compute challenge junk */
+    vnc_printf(vs,
+               "HTTP/1.1 101 WebSocket Protocol Handshake\r\n"
+               "Upgrade: WebSocket\r\n"
+               "Connection: Upgrade\r\n"
+               "Sec-WebSocket-Origin: %s\r\n"
+               "Sec-WebSocket-Location: %s\r\n"
+               "Sec-WebSocket-Protocol: %s\r\n"
+               "\r\n",
+               vs->origin, vs->location, vs->protocol);
+    vnc_write(vs, response, 16);
+    vnc_flush(vs);
+
+    vs->encode_ws = 1;
+
+    vnc_connect2(vs);
+
+    return 0;
+}
+
+static int vncws_field_line(VncState *vs, uint8_t *line, size_t size)
+{
+    char name[1024], value[1024];
+    int i;
+
+    if (size == 2) {
+        vnc_read_when(vs, vncws_challenge, 8);
+        return 0;
+    }
+
+    /* parse field and store result */
+    for (i = 0; i < size; i++) {
+        name[i] = line[i];
+        if (line[i] == ':') {
+            name[i] = 0;
+            break;
+        }
+    }
+
+    if (i == size) {
+        /* error */
+    }
+
+    if (line[i] == ' ') {
+        i++;
+    } else {
+        /* error */
+    }
+
+    while (line[i] == ' ') {
+        i++;
+    }
+
+    for (; i < size; i++) {
+        if (line[i] == '\r') {
+            break;
+        }
+        value[i] = line[i];
+    }
+    value[i] = 0;
+
+    if (strcmp(name, "Host") == 0) {
+        vs->host = qemu_strdup(value);
+    } else if (strcmp(name, "Origin") == 0) {
+        vs->origin = qemu_strdup(value);
+    } else if (strcmp(name, "Connection") == 0) {
+        if (strcmp(value, "Upgrade") == 0) {
+            vs->fields |= WS_CONNECTION;
+        } else {
+            VNC_DEBUG("Unknown connection request `%s'\n",
+                      value);
+        }
+    } else if (strcmp(name, "Upgrade") == 0) {
+        if (strcmp(value, "WebSocket") == 0) {
+            vs->fields |= WS_UPGRADE;
+        } else {
+            VNC_DEBUG("Unknown upgrade request `%s'\n",
+                      value);
+        }
+    } else if (strcmp(name, "Sec-WebSocket-Key1") == 0) {
+        vs->key1 = qemu_strdup(value);
+    } else if (strcmp(name, "Sec-WebSocket-Key2") == 0) {
+        vs->key2 = qemu_strdup(value);
+    } else if (strcmp(name, "Sec-WebSocket-Protocol") == 0) {
+        vs->protocol = qemu_strdup(value);
+    }
+
+    return 1;
+}
+
+static int vncws_request_line(VncState *vs, uint8_t *buffer, size_t size)
+{
+    /* parse request line */
+    vnc_read_until(vs, vncws_field_line, "\r\n", 2);
+    return 0;
+}
+
+static void vncws_connect(VncState *vs)
+{
+    vnc_read_until(vs, vncws_request_line, "\r\n", 2);
+}
+
+static void vnc_connect(VncDisplay *vd, int csock)
+{
+    VncState *vs = qemu_mallocz(sizeof(VncState));
+
+    vs->csock = csock;
+    vs->vd = vd;
+
+    VNC_DEBUG("New client on socket %d\n", csock);
+    dcl->idle = 0;
+    socket_set_nonblock(vs->csock);
+    vnc_client_cache_addr(vs);
+    vnc_qmp_event(vs, QEVENT_VNC_CONNECTED);
+
+    qemu_set_fd_handler2(vs->csock, NULL, vnc_client_read, NULL, vs);
+
+    if (vs->websockets) {
+        vncws_connect(vs);
+    } else {
+        vnc_connect2(vs);
+    }
 }
 
 static void vnc_listen_read(void *opaque)

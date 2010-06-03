@@ -82,6 +82,9 @@ typedef void VncSendHextileTile(VncState *vs,
 
 #define VNC_AUTH_CHALLENGE_SIZE 16
 
+#define WS_CONNECTION 1
+#define WS_UPGRADE    2
+
 typedef struct VncDisplay VncDisplay;
 
 #ifdef CONFIG_VNC_TLS
@@ -208,6 +211,8 @@ struct VncState
     int last_y;
     int client_width;
     int client_height;
+    int websockets;
+    int encode_ws;
 
     uint32_t vnc_encoding;
 
@@ -226,6 +231,10 @@ struct VncState
 
     Buffer output;
     Buffer input;
+
+    Buffer ws_output;
+    Buffer ws_input;
+
     /* current output mode information */
     VncWritePixels *write_pixels;
     DisplaySurface clientds;
@@ -235,6 +244,15 @@ struct VncState
 
     VncReadEvent *read_handler;
     size_t read_handler_expect;
+
+    VncReadEvent *read_until_handler;
+    char read_until_buf[32];
+    size_t read_until_buflen;
+
+    char *key1, *key2;
+    char *host, *origin, *location, *protocol;
+    int fields;
+
     /* input */
     uint8_t modifiers_state[256];
     QEMUPutLEDEntry *led;
@@ -434,13 +452,15 @@ long vnc_client_write_buf(VncState *vs, const uint8_t *data, size_t datalen);
 
 /* Protocol I/O functions */
 void vnc_write(VncState *vs, const void *data, size_t len);
+void vnc_printf(VncState *vs, const void *format, ...);
 void vnc_write_u32(VncState *vs, uint32_t value);
 void vnc_write_s32(VncState *vs, int32_t value);
 void vnc_write_u16(VncState *vs, uint16_t value);
 void vnc_write_u8(VncState *vs, uint8_t value);
 void vnc_flush(VncState *vs);
 void vnc_read_when(VncState *vs, VncReadEvent *func, size_t expecting);
-
+void vnc_read_until(VncState *vs, VncReadEvent *func,
+                    const void *delim, size_t size);
 
 /* Buffer I/O functions */
 uint8_t read_u8(uint8_t *data, size_t offset);
@@ -462,6 +482,9 @@ uint8_t *buffer_end(Buffer *buffer);
 void buffer_reset(Buffer *buffer);
 void buffer_free(Buffer *buffer);
 void buffer_append(Buffer *buffer, const void *data, size_t len);
+void buffer_advance(Buffer *buf, size_t len);
+void buffer_append_b64enc(Buffer *dest, const void *payload, size_t size);
+void buffer_append_b64dec(Buffer *dest, const void *payload, size_t size);
 
 
 /* Misc helpers */
