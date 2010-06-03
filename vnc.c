@@ -1832,6 +1832,7 @@ static void set_encodings(VncState *vs, int32_t *encodings, size_t n_encodings)
         }
     }
 
+    vnc_desktop_resize(vs);
     check_pointer_type_change(vs, kbd_mouse_is_absolute());
 }
 
