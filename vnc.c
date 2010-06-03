@@ -522,6 +522,10 @@ static void vnc_desktop_resize(VncState *vs)
     if (vs->csock == -1 || !vnc_has_feature(vs, VNC_FEATURE_RESIZE)) {
         return;
     }
+    if (vs->client_width == ds_get_width(ds) &&
+        vs->client_height == ds_get_height(ds)) {
+        return;
+    }
     vs->client_width = ds_get_width(ds);
     vs->client_height = ds_get_height(ds);
     vnc_write_u8(vs, 0); /* VNC_MSG_SERVER_FRAMEBUFFER_UPDATE */
@@ -534,7 +538,6 @@ static void vnc_desktop_resize(VncState *vs)
 
 static void vnc_dpy_resize(DisplayState *ds)
 {
-    int size_changed;
     VncDisplay *vd = ds->opaque;
     VncState *vs = vd->clients;
 
@@ -552,16 +555,12 @@ static void vnc_dpy_resize(DisplayState *ds)
         vd->guest.ds = qemu_mallocz(sizeof(*vd->guest.ds));
     if (ds_get_bytes_per_pixel(ds) != vd->guest.ds->pf.bytes_per_pixel)
         console_color_init(ds);
-    size_changed = ds_get_width(ds) != vd->guest.ds->width ||
-                   ds_get_height(ds) != vd->guest.ds->height;
     *(vd->guest.ds) = *(ds->surface);
     memset(vd->guest.dirty, 0xFF, sizeof(vd->guest.dirty));
 
     while (vs != NULL) {
         vnc_colordepth(vs);
-        if (size_changed) {
-            vnc_desktop_resize(vs);
-        }
+        vnc_desktop_resize(vs);
         memset(vs->dirty, 0xFF, sizeof(vs->dirty));
         vs = vs->next;
     }
