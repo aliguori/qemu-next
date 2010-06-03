@@ -522,10 +522,12 @@ static void vnc_desktop_resize(VncState *vs)
     if (vs->csock == -1 || !vnc_has_feature(vs, VNC_FEATURE_RESIZE)) {
         return;
     }
+    vs->client_width = ds_get_width(ds);
+    vs->client_height = ds_get_height(ds);
     vnc_write_u8(vs, 0); /* VNC_MSG_SERVER_FRAMEBUFFER_UPDATE */
     vnc_write_u8(vs, 0);
     vnc_write_u16(vs, 1); /* number of rects */
-    vnc_framebuffer_update(vs, 0, 0, ds_get_width(ds), ds_get_height(ds),
+    vnc_framebuffer_update(vs, 0, 0, vs->client_width, vs->client_height,
                            VNC_ENCODING_DESKTOPRESIZE);
     vnc_flush(vs);
 }
@@ -2104,8 +2106,10 @@ static int protocol_client_init(VncState *vs, uint8_t *data, size_t len)
     char buf[1024];
     int size;
 
-    vnc_write_u16(vs, ds_get_width(vs->ds));
-    vnc_write_u16(vs, ds_get_height(vs->ds));
+    vs->client_width = ds_get_width(vs->ds);
+    vs->client_height = ds_get_height(vs->ds);
+    vnc_write_u16(vs, vs->client_width);
+    vnc_write_u16(vs, vs->client_height);
 
     pixel_format_message(vs);
 
