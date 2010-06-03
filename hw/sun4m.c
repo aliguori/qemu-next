@@ -1199,92 +1199,118 @@ static const struct sun4m_hwdef sun4m_hwdefs[] = {
 };
 
 /* SPARCstation 5 hardware initialisation */
-static void ss5_init(ram_addr_t RAM_size,
-                     const char *boot_device,
-                     const char *kernel_filename, const char *kernel_cmdline,
-                     const char *initrd_filename, const char *cpu_model)
+static void ss5_init(QemuOpts *opts)
 {
+    ram_addr_t RAM_size = qemu_opt_get_size(opts, "ram_size", 0);
+    const char *boot_device = qemu_opt_get(opts, "boot_device");
+    const char *kernel_filename = qemu_opt_get(opts, "kernel");
+    const char *kernel_cmdline = qemu_opt_get(opts, "cmdline");
+    const char *initrd_filename = qemu_opt_get(opts, "initrd");
+    const char *cpu_model = qemu_opt_get(opts, "cpu");
     sun4m_hw_init(&sun4m_hwdefs[0], RAM_size, boot_device, kernel_filename,
                   kernel_cmdline, initrd_filename, cpu_model);
 }
 
 /* SPARCstation 10 hardware initialisation */
-static void ss10_init(ram_addr_t RAM_size,
-                      const char *boot_device,
-                      const char *kernel_filename, const char *kernel_cmdline,
-                      const char *initrd_filename, const char *cpu_model)
+static void ss10_init(QemuOpts *opts)
 {
+    ram_addr_t RAM_size = qemu_opt_get_size(opts, "ram_size", 0);
+    const char *boot_device = qemu_opt_get(opts, "boot_device");
+    const char *kernel_filename = qemu_opt_get(opts, "kernel");
+    const char *kernel_cmdline = qemu_opt_get(opts, "cmdline");
+    const char *initrd_filename = qemu_opt_get(opts, "initrd");
+    const char *cpu_model = qemu_opt_get(opts, "cpu");
     sun4m_hw_init(&sun4m_hwdefs[1], RAM_size, boot_device, kernel_filename,
                   kernel_cmdline, initrd_filename, cpu_model);
 }
 
 /* SPARCserver 600MP hardware initialisation */
-static void ss600mp_init(ram_addr_t RAM_size,
-                         const char *boot_device,
-                         const char *kernel_filename,
-                         const char *kernel_cmdline,
-                         const char *initrd_filename, const char *cpu_model)
+static void ss600mp_init(QemuOpts *opts)
 {
+    ram_addr_t RAM_size = qemu_opt_get_size(opts, "ram_size", 0);
+    const char *boot_device = qemu_opt_get(opts, "boot_device");
+    const char *kernel_filename = qemu_opt_get(opts, "kernel");
+    const char *kernel_cmdline = qemu_opt_get(opts, "cmdline");
+    const char *initrd_filename = qemu_opt_get(opts, "initrd");
+    const char *cpu_model = qemu_opt_get(opts, "cpu");
     sun4m_hw_init(&sun4m_hwdefs[2], RAM_size, boot_device, kernel_filename,
                   kernel_cmdline, initrd_filename, cpu_model);
 }
 
 /* SPARCstation 20 hardware initialisation */
-static void ss20_init(ram_addr_t RAM_size,
-                      const char *boot_device,
-                      const char *kernel_filename, const char *kernel_cmdline,
-                      const char *initrd_filename, const char *cpu_model)
+static void ss20_init(QemuOpts *opts)
 {
+    ram_addr_t RAM_size = qemu_opt_get_size(opts, "ram_size", 0);
+    const char *boot_device = qemu_opt_get(opts, "boot_device");
+    const char *kernel_filename = qemu_opt_get(opts, "kernel");
+    const char *kernel_cmdline = qemu_opt_get(opts, "cmdline");
+    const char *initrd_filename = qemu_opt_get(opts, "initrd");
+    const char *cpu_model = qemu_opt_get(opts, "cpu");
     sun4m_hw_init(&sun4m_hwdefs[3], RAM_size, boot_device, kernel_filename,
                   kernel_cmdline, initrd_filename, cpu_model);
 }
 
 /* SPARCstation Voyager hardware initialisation */
-static void vger_init(ram_addr_t RAM_size,
-                      const char *boot_device,
-                      const char *kernel_filename, const char *kernel_cmdline,
-                      const char *initrd_filename, const char *cpu_model)
+static void vger_init(QemuOpts *opts)
 {
+    ram_addr_t RAM_size = qemu_opt_get_size(opts, "ram_size", 0);
+    const char *boot_device = qemu_opt_get(opts, "boot_device");
+    const char *kernel_filename = qemu_opt_get(opts, "kernel");
+    const char *kernel_cmdline = qemu_opt_get(opts, "cmdline");
+    const char *initrd_filename = qemu_opt_get(opts, "initrd");
+    const char *cpu_model = qemu_opt_get(opts, "cpu");
     sun4m_hw_init(&sun4m_hwdefs[4], RAM_size, boot_device, kernel_filename,
                   kernel_cmdline, initrd_filename, cpu_model);
 }
 
 /* SPARCstation LX hardware initialisation */
-static void ss_lx_init(ram_addr_t RAM_size,
-                       const char *boot_device,
-                       const char *kernel_filename, const char *kernel_cmdline,
-                       const char *initrd_filename, const char *cpu_model)
+static void ss_lx_init(QemuOpts *opts)
 {
+    ram_addr_t RAM_size = qemu_opt_get_size(opts, "ram_size", 0);
+    const char *boot_device = qemu_opt_get(opts, "boot_device");
+    const char *kernel_filename = qemu_opt_get(opts, "kernel");
+    const char *kernel_cmdline = qemu_opt_get(opts, "cmdline");
+    const char *initrd_filename = qemu_opt_get(opts, "initrd");
+    const char *cpu_model = qemu_opt_get(opts, "cpu");
     sun4m_hw_init(&sun4m_hwdefs[5], RAM_size, boot_device, kernel_filename,
                   kernel_cmdline, initrd_filename, cpu_model);
 }
 
 /* SPARCstation 4 hardware initialisation */
-static void ss4_init(ram_addr_t RAM_size,
-                     const char *boot_device,
-                     const char *kernel_filename, const char *kernel_cmdline,
-                     const char *initrd_filename, const char *cpu_model)
+static void ss4_init(QemuOpts *opts)
 {
+    ram_addr_t RAM_size = qemu_opt_get_size(opts, "ram_size", 0);
+    const char *boot_device = qemu_opt_get(opts, "boot_device");
+    const char *kernel_filename = qemu_opt_get(opts, "kernel");
+    const char *kernel_cmdline = qemu_opt_get(opts, "cmdline");
+    const char *initrd_filename = qemu_opt_get(opts, "initrd");
+    const char *cpu_model = qemu_opt_get(opts, "cpu");
     sun4m_hw_init(&sun4m_hwdefs[6], RAM_size, boot_device, kernel_filename,
                   kernel_cmdline, initrd_filename, cpu_model);
 }
 
 /* SPARCClassic hardware initialisation */
-static void scls_init(ram_addr_t RAM_size,
-                      const char *boot_device,
-                      const char *kernel_filename, const char *kernel_cmdline,
-                      const char *initrd_filename, const char *cpu_model)
+static void scls_init(QemuOpts *opts)
 {
+    ram_addr_t RAM_size = qemu_opt_get_size(opts, "ram_size", 0);
+    const char *boot_device = qemu_opt_get(opts, "boot_device");
+    const char *kernel_filename = qemu_opt_get(opts, "kernel");
+    const char *kernel_cmdline = qemu_opt_get(opts, "cmdline");
+    const char *initrd_filename = qemu_opt_get(opts, "initrd");
+    const char *cpu_model = qemu_opt_get(opts, "cpu");
     sun4m_hw_init(&sun4m_hwdefs[7], RAM_size, boot_device, kernel_filename,
                   kernel_cmdline, initrd_filename, cpu_model);
 }
 
 /* SPARCbook hardware initialisation */
-static void sbook_init(ram_addr_t RAM_size,
-                       const char *boot_device,
-                       const char *kernel_filename, const char *kernel_cmdline,
-                       const char *initrd_filename, const char *cpu_model)
+static void sbook_init(QemuOpts *opts)
 {
+    ram_addr_t RAM_size = qemu_opt_get_size(opts, "ram_size", 0);
+    const char *boot_device = qemu_opt_get(opts, "boot_device");
+    const char *kernel_filename = qemu_opt_get(opts, "kernel");
+    const char *kernel_cmdline = qemu_opt_get(opts, "cmdline");
+    const char *initrd_filename = qemu_opt_get(opts, "initrd");
+    const char *cpu_model = qemu_opt_get(opts, "cpu");
     sun4m_hw_init(&sun4m_hwdefs[8], RAM_size, boot_device, kernel_filename,
                   kernel_cmdline, initrd_filename, cpu_model);
 }
@@ -1544,21 +1570,27 @@ static void sun4d_hw_init(const struct sun4d_hwdef *hwdef, ram_addr_t RAM_size,
 }
 
 /* SPARCserver 1000 hardware initialisation */
-static void ss1000_init(ram_addr_t RAM_size,
-                        const char *boot_device,
-                        const char *kernel_filename, const char *kernel_cmdline,
-                        const char *initrd_filename, const char *cpu_model)
+static void ss1000_init(QemuOpts *opts)
 {
+    ram_addr_t RAM_size = qemu_opt_get_size(opts, "ram_size", 0);
+    const char *boot_device = qemu_opt_get(opts, "boot_device");
+    const char *kernel_filename = qemu_opt_get(opts, "kernel");
+    const char *kernel_cmdline = qemu_opt_get(opts, "cmdline");
+    const char *initrd_filename = qemu_opt_get(opts, "initrd");
+    const char *cpu_model = qemu_opt_get(opts, "cpu");
     sun4d_hw_init(&sun4d_hwdefs[0], RAM_size, boot_device, kernel_filename,
                   kernel_cmdline, initrd_filename, cpu_model);
 }
 
 /* SPARCcenter 2000 hardware initialisation */
-static void ss2000_init(ram_addr_t RAM_size,
-                        const char *boot_device,
-                        const char *kernel_filename, const char *kernel_cmdline,
-                        const char *initrd_filename, const char *cpu_model)
+static void ss2000_init(QemuOpts *opts)
 {
+    ram_addr_t RAM_size = qemu_opt_get_size(opts, "ram_size", 0);
+    const char *boot_device = qemu_opt_get(opts, "boot_device");
+    const char *kernel_filename = qemu_opt_get(opts, "kernel");
+    const char *kernel_cmdline = qemu_opt_get(opts, "cmdline");
+    const char *initrd_filename = qemu_opt_get(opts, "initrd");
+    const char *cpu_model = qemu_opt_get(opts, "cpu");
     sun4d_hw_init(&sun4d_hwdefs[1], RAM_size, boot_device, kernel_filename,
                   kernel_cmdline, initrd_filename, cpu_model);
 }
@@ -1734,11 +1766,14 @@ static void sun4c_hw_init(const struct sun4c_hwdef *hwdef, ram_addr_t RAM_size,
 }
 
 /* SPARCstation 2 hardware initialisation */
-static void ss2_init(ram_addr_t RAM_size,
-                     const char *boot_device,
-                     const char *kernel_filename, const char *kernel_cmdline,
-                     const char *initrd_filename, const char *cpu_model)
+static void ss2_init(QemuOpts *opts)
 {
+    ram_addr_t RAM_size = qemu_opt_get_size(opts, "ram_size", 0);
+    const char *boot_device = qemu_opt_get(opts, "boot_device");
+    const char *kernel_filename = qemu_opt_get(opts, "kernel");
+    const char *kernel_cmdline = qemu_opt_get(opts, "cmdline");
+    const char *initrd_filename = qemu_opt_get(opts, "initrd");
+    const char *cpu_model = qemu_opt_get(opts, "cpu");
     sun4c_hw_init(&sun4c_hwdefs[0], RAM_size, boot_device, kernel_filename,
                   kernel_cmdline, initrd_filename, cpu_model);
 }

@@ -161,25 +161,27 @@ static void pc_init1(ram_addr_t ram_size,
     }
 }
 
-static void pc_init_pci(ram_addr_t ram_size,
-                        const char *boot_device,
-                        const char *kernel_filename,
-                        const char *kernel_cmdline,
-                        const char *initrd_filename,
-                        const char *cpu_model)
+static void pc_init_pci(QemuOpts *opts)
 {
+    ram_addr_t ram_size = qemu_opt_get_size(opts, "ram_size", 0);
+    const char *boot_device = qemu_opt_get(opts, "boot_device");
+    const char *kernel_filename = qemu_opt_get(opts, "kernel");
+    const char *kernel_cmdline = qemu_opt_get(opts, "cmdline");
+    const char *initrd_filename = qemu_opt_get(opts, "initrd");
+    const char *cpu_model = qemu_opt_get(opts, "cpu");
     pc_init1(ram_size, boot_device,
              kernel_filename, kernel_cmdline,
              initrd_filename, cpu_model, 1);
 }
 
-static void pc_init_isa(ram_addr_t ram_size,
-                        const char *boot_device,
-                        const char *kernel_filename,
-                        const char *kernel_cmdline,
-                        const char *initrd_filename,
-                        const char *cpu_model)
+static void pc_init_isa(QemuOpts *opts)
 {
+    ram_addr_t ram_size = qemu_opt_get_size(opts, "ram_size", 0);
+    const char *boot_device = qemu_opt_get(opts, "boot_device");
+    const char *kernel_filename = qemu_opt_get(opts, "kernel");
+    const char *kernel_cmdline = qemu_opt_get(opts, "cmdline");
+    const char *initrd_filename = qemu_opt_get(opts, "initrd");
+    const char *cpu_model = qemu_opt_get(opts, "cpu");
     if (cpu_model == NULL)
         cpu_model = "486";
     pc_init1(ram_size, boot_device,

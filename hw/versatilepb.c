@@ -289,22 +289,28 @@ static void versatile_init(ram_addr_t ram_size,
     arm_load_kernel(env, &versatile_binfo);
 }
 
-static void vpb_init(ram_addr_t ram_size,
-                     const char *boot_device,
-                     const char *kernel_filename, const char *kernel_cmdline,
-                     const char *initrd_filename, const char *cpu_model)
+static void vpb_init(QemuOpts *opts)
 {
+    ram_addr_t ram_size = qemu_opt_get_size(opts, "ram_size", 0);
+    const char *boot_device = qemu_opt_get(opts, "boot_device");
+    const char *kernel_filename = qemu_opt_get(opts, "kernel");
+    const char *kernel_cmdline = qemu_opt_get(opts, "cmdline");
+    const char *initrd_filename = qemu_opt_get(opts, "initrd");
+    const char *cpu_model = qemu_opt_get(opts, "cpu");
     versatile_init(ram_size,
                    boot_device,
                    kernel_filename, kernel_cmdline,
                    initrd_filename, cpu_model, 0x183);
 }
 
-static void vab_init(ram_addr_t ram_size,
-                     const char *boot_device,
-                     const char *kernel_filename, const char *kernel_cmdline,
-                     const char *initrd_filename, const char *cpu_model)
+static void vab_init(QemuOpts *opts)
 {
+    ram_addr_t ram_size = qemu_opt_get_size(opts, "ram_size", 0);
+    const char *boot_device = qemu_opt_get(opts, "boot_device");
+    const char *kernel_filename = qemu_opt_get(opts, "kernel");
+    const char *kernel_cmdline = qemu_opt_get(opts, "cmdline");
+    const char *initrd_filename = qemu_opt_get(opts, "initrd");
+    const char *cpu_model = qemu_opt_get(opts, "cpu");
     versatile_init(ram_size,
                    boot_device,
                    kernel_filename, kernel_cmdline,

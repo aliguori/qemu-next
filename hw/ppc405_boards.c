@@ -168,13 +168,12 @@ static void ref405ep_fpga_init (uint32_t base)
     qemu_register_reset(&ref405ep_fpga_reset, fpga);
 }
 
-static void ref405ep_init (ram_addr_t ram_size,
-                           const char *boot_device,
-                           const char *kernel_filename,
-                           const char *kernel_cmdline,
-                           const char *initrd_filename,
-                           const char *cpu_model)
+static void ref405ep_init (QemuOpts *opts)
 {
+    ram_addr_t ram_size = qemu_opt_get_size(opts, "ram_size", 0);
+    const char *kernel_filename = qemu_opt_get(opts, "kernel");
+    const char *kernel_cmdline = qemu_opt_get(opts, "cmdline");
+    const char *initrd_filename = qemu_opt_get(opts, "initrd");
     char *filename;
     ppc4xx_bd_info_t bd;
     CPUPPCState *env;
@@ -490,13 +489,11 @@ static void taihu_cpld_init (uint32_t base)
     qemu_register_reset(&taihu_cpld_reset, cpld);
 }
 
-static void taihu_405ep_init(ram_addr_t ram_size,
-                             const char *boot_device,
-                             const char *kernel_filename,
-                             const char *kernel_cmdline,
-                             const char *initrd_filename,
-                             const char *cpu_model)
+static void taihu_405ep_init(QemuOpts *opts)
 {
+    ram_addr_t ram_size = qemu_opt_get_size(opts, "ram_size", 0);
+    const char *kernel_filename = qemu_opt_get(opts, "kernel");
+    const char *initrd_filename = qemu_opt_get(opts, "initrd");
     char *filename;
     CPUPPCState *env;
     qemu_irq *pic;

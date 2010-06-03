@@ -47,11 +47,9 @@ void pic_info(Monitor *mon)
     /* XXXXX */
 }
 
-static void shix_init(ram_addr_t ram_size,
-               const char *boot_device,
-	       const char *kernel_filename, const char *kernel_cmdline,
-	       const char *initrd_filename, const char *cpu_model)
+static void shix_init(QemuOpts *opts)
 {
+    const char *cpu_model = qemu_opt_get(opts, "cpu");
     int ret;
     CPUState *env;
     struct SH7750State *s;

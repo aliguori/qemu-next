@@ -3775,12 +3775,7 @@ int main(int argc, char **argv, char **envp)
         exit(1);
     }
     
-    machine->init(qemu_opt_get_size(opts, "ram_size"),
-                  qemu_opt_get(opts, "boot_device"),
-                  qemu_opt_get(opts, "kernel"),
-                  qemu_opt_get(opts, "cmdline"),
-                  qemu_opt_get(opts, "initrd"),
-                  qemu_opt_get(opts, "cpu"));
+    machine->init(opts);
 
     qemu_opts_del(opts);
 

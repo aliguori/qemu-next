@@ -1001,38 +1001,46 @@ static void spitz_common_init(ram_addr_t ram_size,
     sl_bootparam_write(SL_PXA_PARAM_BASE);
 }
 
-static void spitz_init(ram_addr_t ram_size,
-                const char *boot_device,
-                const char *kernel_filename, const char *kernel_cmdline,
-                const char *initrd_filename, const char *cpu_model)
+static void spitz_init(QemuOpts *opts)
 {
+    ram_addr_t ram_size = qemu_opt_get_size(opts, "ram_size", 0);
+    const char *kernel_filename = qemu_opt_get(opts, "kernel");
+    const char *kernel_cmdline = qemu_opt_get(opts, "cmdline");
+    const char *initrd_filename = qemu_opt_get(opts, "initrd");
+    const char *cpu_model = qemu_opt_get(opts, "cpu");
     spitz_common_init(ram_size, kernel_filename,
                 kernel_cmdline, initrd_filename, cpu_model, spitz, 0x2c9);
 }
 
-static void borzoi_init(ram_addr_t ram_size,
-                const char *boot_device,
-                const char *kernel_filename, const char *kernel_cmdline,
-                const char *initrd_filename, const char *cpu_model)
+static void borzoi_init(QemuOpts *opts)
 {
+    ram_addr_t ram_size = qemu_opt_get_size(opts, "ram_size", 0);
+    const char *kernel_filename = qemu_opt_get(opts, "kernel");
+    const char *kernel_cmdline = qemu_opt_get(opts, "cmdline");
+    const char *initrd_filename = qemu_opt_get(opts, "initrd");
+    const char *cpu_model = qemu_opt_get(opts, "cpu");
     spitz_common_init(ram_size, kernel_filename,
                 kernel_cmdline, initrd_filename, cpu_model, borzoi, 0x33f);
 }
 
-static void akita_init(ram_addr_t ram_size,
-                const char *boot_device,
-                const char *kernel_filename, const char *kernel_cmdline,
-                const char *initrd_filename, const char *cpu_model)
+static void akita_init(QemuOpts *opts)
 {
+    ram_addr_t ram_size = qemu_opt_get_size(opts, "ram_size", 0);
+    const char *kernel_filename = qemu_opt_get(opts, "kernel");
+    const char *kernel_cmdline = qemu_opt_get(opts, "cmdline");
+    const char *initrd_filename = qemu_opt_get(opts, "initrd");
+    const char *cpu_model = qemu_opt_get(opts, "cpu");
     spitz_common_init(ram_size, kernel_filename,
                 kernel_cmdline, initrd_filename, cpu_model, akita, 0x2e8);
 }
 
-static void terrier_init(ram_addr_t ram_size,
-                const char *boot_device,
-                const char *kernel_filename, const char *kernel_cmdline,
-                const char *initrd_filename, const char *cpu_model)
+static void terrier_init(QemuOpts *opts)
 {
+    ram_addr_t ram_size = qemu_opt_get_size(opts, "ram_size", 0);
+    const char *kernel_filename = qemu_opt_get(opts, "kernel");
+    const char *kernel_cmdline = qemu_opt_get(opts, "cmdline");
+    const char *initrd_filename = qemu_opt_get(opts, "initrd");
+    const char *cpu_model = qemu_opt_get(opts, "cpu");
     spitz_common_init(ram_size, kernel_filename,
                 kernel_cmdline, initrd_filename, cpu_model, terrier, 0x33f);
 }

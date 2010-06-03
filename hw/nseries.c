@@ -1376,21 +1376,27 @@ static struct arm_boot_info n810_binfo = {
     .atag_board = n810_atag_setup,
 };
 
-static void n800_init(ram_addr_t ram_size,
-                const char *boot_device,
-                const char *kernel_filename, const char *kernel_cmdline,
-                const char *initrd_filename, const char *cpu_model)
+static void n800_init(QemuOpts *opts)
 {
+    ram_addr_t ram_size = qemu_opt_get_size(opts, "ram_size", 0);
+    const char *boot_device = qemu_opt_get(opts, "boot_device");
+    const char *kernel_filename = qemu_opt_get(opts, "kernel");
+    const char *kernel_cmdline = qemu_opt_get(opts, "cmdline");
+    const char *initrd_filename = qemu_opt_get(opts, "initrd");
+    const char *cpu_model = qemu_opt_get(opts, "cpu");
     return n8x0_init(ram_size, boot_device,
                     kernel_filename, kernel_cmdline, initrd_filename,
                     cpu_model, &n800_binfo, 800);
 }
 
-static void n810_init(ram_addr_t ram_size,
-                const char *boot_device,
-                const char *kernel_filename, const char *kernel_cmdline,
-                const char *initrd_filename, const char *cpu_model)
+static void n810_init(QemuOpts *opts)
 {
+    ram_addr_t ram_size = qemu_opt_get_size(opts, "ram_size", 0);
+    const char *boot_device = qemu_opt_get(opts, "boot_device");
+    const char *kernel_filename = qemu_opt_get(opts, "kernel");
+    const char *kernel_cmdline = qemu_opt_get(opts, "cmdline");
+    const char *initrd_filename = qemu_opt_get(opts, "initrd");
+    const char *cpu_model = qemu_opt_get(opts, "cpu");
     return n8x0_init(ram_size, boot_device,
                     kernel_filename, kernel_cmdline, initrd_filename,
                     cpu_model, &n810_binfo, 810);

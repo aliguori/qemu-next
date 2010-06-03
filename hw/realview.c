@@ -368,11 +368,14 @@ static void realview_init(ram_addr_t ram_size,
     arm_load_kernel(first_cpu, &realview_binfo);
 }
 
-static void realview_eb_init(ram_addr_t ram_size,
-                     const char *boot_device,
-                     const char *kernel_filename, const char *kernel_cmdline,
-                     const char *initrd_filename, const char *cpu_model)
+static void realview_eb_init(QemuOpts *opts)
 {
+    ram_addr_t ram_size = qemu_opt_get_size(opts, "ram_size", 0);
+    const char *boot_device = qemu_opt_get(opts, "boot_device");
+    const char *kernel_filename = qemu_opt_get(opts, "kernel");
+    const char *kernel_cmdline = qemu_opt_get(opts, "cmdline");
+    const char *initrd_filename = qemu_opt_get(opts, "initrd");
+    const char *cpu_model = qemu_opt_get(opts, "cpu");
     if (!cpu_model) {
         cpu_model = "arm926";
     }
@@ -380,11 +383,14 @@ static void realview_eb_init(ram_addr_t ram_size,
                   initrd_filename, cpu_model, BOARD_EB);
 }
 
-static void realview_eb_mpcore_init(ram_addr_t ram_size,
-                     const char *boot_device,
-                     const char *kernel_filename, const char *kernel_cmdline,
-                     const char *initrd_filename, const char *cpu_model)
+static void realview_eb_mpcore_init(QemuOpts *opts)
 {
+    ram_addr_t ram_size = qemu_opt_get_size(opts, "ram_size", 0);
+    const char *boot_device = qemu_opt_get(opts, "boot_device");
+    const char *kernel_filename = qemu_opt_get(opts, "kernel");
+    const char *kernel_cmdline = qemu_opt_get(opts, "cmdline");
+    const char *initrd_filename = qemu_opt_get(opts, "initrd");
+    const char *cpu_model = qemu_opt_get(opts, "cpu");
     if (!cpu_model) {
         cpu_model = "arm11mpcore";
     }
@@ -392,11 +398,14 @@ static void realview_eb_mpcore_init(ram_addr_t ram_size,
                   initrd_filename, cpu_model, BOARD_EB_MPCORE);
 }
 
-static void realview_pb_a8_init(ram_addr_t ram_size,
-                     const char *boot_device,
-                     const char *kernel_filename, const char *kernel_cmdline,
-                     const char *initrd_filename, const char *cpu_model)
+static void realview_pb_a8_init(QemuOpts *opts)
 {
+    ram_addr_t ram_size = qemu_opt_get_size(opts, "ram_size", 0);
+    const char *boot_device = qemu_opt_get(opts, "boot_device");
+    const char *kernel_filename = qemu_opt_get(opts, "kernel");
+    const char *kernel_cmdline = qemu_opt_get(opts, "cmdline");
+    const char *initrd_filename = qemu_opt_get(opts, "initrd");
+    const char *cpu_model = qemu_opt_get(opts, "cpu");
     if (!cpu_model) {
         cpu_model = "cortex-a8";
     }
@@ -404,11 +413,14 @@ static void realview_pb_a8_init(ram_addr_t ram_size,
                   initrd_filename, cpu_model, BOARD_PB_A8);
 }
 
-static void realview_pbx_a9_init(ram_addr_t ram_size,
-                     const char *boot_device,
-                     const char *kernel_filename, const char *kernel_cmdline,
-                     const char *initrd_filename, const char *cpu_model)
+static void realview_pbx_a9_init(QemuOpts *opts)
 {
+    ram_addr_t ram_size = qemu_opt_get_size(opts, "ram_size", 0);
+    const char *boot_device = qemu_opt_get(opts, "boot_device");
+    const char *kernel_filename = qemu_opt_get(opts, "kernel");
+    const char *kernel_cmdline = qemu_opt_get(opts, "cmdline");
+    const char *initrd_filename = qemu_opt_get(opts, "initrd");
+    const char *cpu_model = qemu_opt_get(opts, "cpu");
     if (!cpu_model) {
         cpu_model = "cortex-a9";
     }

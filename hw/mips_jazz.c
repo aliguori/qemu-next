@@ -300,20 +300,18 @@ void mips_jazz_init (ram_addr_t ram_size,
 }
 
 static
-void mips_magnum_init (ram_addr_t ram_size,
-                       const char *boot_device,
-                       const char *kernel_filename, const char *kernel_cmdline,
-                       const char *initrd_filename, const char *cpu_model)
+void mips_magnum_init (QemuOpts *opts)
 {
+    ram_addr_t ram_size = qemu_opt_get_size(opts, "ram_size", 0);
+    const char *cpu_model = qemu_opt_get(opts, "cpu");
     mips_jazz_init(ram_size, cpu_model, JAZZ_MAGNUM);
 }
 
 static
-void mips_pica61_init (ram_addr_t ram_size,
-                       const char *boot_device,
-                       const char *kernel_filename, const char *kernel_cmdline,
-                       const char *initrd_filename, const char *cpu_model)
+void mips_pica61_init (QemuOpts *opts)
 {
+    ram_addr_t ram_size = qemu_opt_get_size(opts, "ram_size", 0);
+    const char *cpu_model = qemu_opt_get(opts, "cpu");
     mips_jazz_init(ram_size, cpu_model, JAZZ_PICA61);
 }
 

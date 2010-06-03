@@ -264,11 +264,12 @@ static uint64_t translate_kernel_address(void *opaque, uint64_t addr)
 }
 
 static
-void axisdev88_init (ram_addr_t ram_size,
-                     const char *boot_device,
-                     const char *kernel_filename, const char *kernel_cmdline,
-                     const char *initrd_filename, const char *cpu_model)
+void axisdev88_init (QemuOpts *opts)
 {
+    ram_addr_t ram_size = qemu_opt_get_size(opts, "ram_size", 0);
+    const char *kernel_filename = qemu_opt_get(opts, "kernel");
+    const char *kernel_cmdline = qemu_opt_get(opts, "cmdline");
+    const char *cpu_model = qemu_opt_get(opts, "cpu");
     CPUState *env;
     DeviceState *dev;
     SysBusDevice *s;

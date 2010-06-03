@@ -155,11 +155,13 @@ static void main_cpu_reset(void *opaque)
 
 static const int sector_len = 32 * 1024;
 static
-void mips_r4k_init (ram_addr_t ram_size,
-                    const char *boot_device,
-                    const char *kernel_filename, const char *kernel_cmdline,
-                    const char *initrd_filename, const char *cpu_model)
+void mips_r4k_init (QemuOpts *opts)
 {
+    ram_addr_t ram_size = qemu_opt_get_size(opts, "ram_size", 0);
+    const char *kernel_filename = qemu_opt_get(opts, "kernel");
+    const char *kernel_cmdline = qemu_opt_get(opts, "cmdline");
+    const char *initrd_filename = qemu_opt_get(opts, "initrd");
+    const char *cpu_model = qemu_opt_get(opts, "cpu");
     char *filename;
     ram_addr_t ram_offset;
     ram_addr_t bios_offset;

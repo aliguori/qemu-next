@@ -29,13 +29,13 @@
 #include "xen_backend.h"
 #include "xen_domainbuild.h"
 
-static void xen_init_pv(ram_addr_t ram_size,
-			const char *boot_device,
-			const char *kernel_filename,
-			const char *kernel_cmdline,
-			const char *initrd_filename,
-			const char *cpu_model)
+static void xen_init_pv(QemuOpts *opts)
 {
+    ram_addr_t ram_size = qemu_opt_get_size(opts, "ram_size", 0);
+    const char *kernel_filename = qemu_opt_get(opts, "kernel");
+    const char *kernel_cmdline = qemu_opt_get(opts, "cmdline");
+    const char *initrd_filename = qemu_opt_get(opts, "initrd");
+    const char *cpu_model = qemu_opt_get(opts, "cpu");
     CPUState *env;
     DriveInfo *dinfo;
     int i;
