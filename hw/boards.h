@@ -26,6 +26,7 @@ struct QEMUMachine {
     int is_default;
     GlobalProperty *compat_props;
     QemuOptDesc *opts_desc;
+    QemuOptValue *opts_default;
     struct QEMUMachine *next;
 };
 

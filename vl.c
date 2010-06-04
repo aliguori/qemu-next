@@ -3438,6 +3438,10 @@ int main(int argc, char **argv, char **envp)
         machine = find_machine(qemu_opt_get(machine_opts, "driver"));
     }
 
+    if (machine->opts_default) {
+        qemu_opts_set_defaults(machine_opts, machine->opts_default);
+    }
+
     if (machine->opts_desc) {
         if (qemu_opts_validate(machine_opts, machine->opts_desc) < 0) {
             exit(1);

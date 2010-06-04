@@ -40,7 +40,7 @@ static const int ide_iobase2[MAX_IDE_BUS] = { 0x3f6, 0x376 };
 static const int ide_irq[MAX_IDE_BUS] = { 14, 15 };
 
 /* PC hardware initialisation */
-static void pc_init1(QemuOpts *opts, int pci_enabled)
+static void pc_init(QemuOpts *opts)
 {
     ram_addr_t ram_size = qemu_opt_get_size(opts, "ram_size", 0);
     const char *boot_device = qemu_opt_get(opts, "boot_device");
@@ -48,6 +48,7 @@ static void pc_init1(QemuOpts *opts, int pci_enabled)
     const char *kernel_cmdline = qemu_opt_get(opts, "cmdline");
     const char *initrd_filename = qemu_opt_get(opts, "initrd");
     const char *cpu_model = qemu_opt_get(opts, "cpu");
+    int pci_enabled = qemu_opt_get_bool(opts, "pci", 1);
     int i;
     ram_addr_t below_4g_mem_size, above_4g_mem_size;
     PCIBus *pci_bus;
@@ -161,45 +162,71 @@ static void pc_init1(QemuOpts *opts, int pci_enabled)
     }
 }
 
-static void pc_init_pci(QemuOpts *opts)
-{
-    pc_init1(opts, 1);
-}
-
-static void pc_init_isa(QemuOpts *opts)
-{
-    if (!qemu_opt_get(opts, "cpu")) {
-        qemu_opt_set(opts, "cpu", "486");
-    }
-
-    pc_init1(opts, 0);
-}
-
 static QemuOptDesc pc_opts_desc[] = {
     COMMON_MACHINE_OPTS(),
     {
         .name = "acpi",
         .type = QEMU_OPT_BOOL,
     },
+    {
+        .name = "pci",
+        .type = QEMU_OPT_BOOL,
+    },
     { /* end of list */ },
 };
+
+#ifdef TARGET_X86_64
+#define PC_DEFAULT_CPU_MODEL "qemu64"
+#else
+#define PC_DEFAULT_CPU_MODEL "qemu32"
+#endif
 
 static QEMUMachine pc_machine = {
     .name = "pc-0.13",
     .alias = "pc",
     .desc = "Standard PC",
-    .init = pc_init_pci,
+    .init = pc_init,
     .max_cpus = 255,
     .is_default = 1,
     .opts_desc = pc_opts_desc,
+    .opts_default = (QemuOptValue[]) {
+        {
+            .name  = "acpi",
+            .value = "on",
+        },
+        {
+            .name  = "pci",
+            .value = "on",
+        },
+        {
+            .name = "cpu",
+            .value = PC_DEFAULT_CPU_MODEL,
+        },
+        { /* end of list */ }
+    },
 };
 
 static QEMUMachine pc_machine_v0_12 = {
     .name = "pc-0.12",
     .desc = "Standard PC",
-    .init = pc_init_pci,
+    .init = pc_init,
     .max_cpus = 255,
     .opts_desc = pc_opts_desc,
+    .opts_default = (QemuOptValue[]) {
+        {
+            .name  = "acpi",
+            .value = "on",
+        },
+        {
+            .name  = "pci",
+            .value = "on",
+        },
+        {
+            .name = "cpu",
+            .value = PC_DEFAULT_CPU_MODEL,
+        },
+        { /* end of list */ }
+    },
     .compat_props = (GlobalProperty[]) {
         {
             .driver   = "virtio-serial-pci",
@@ -217,9 +244,24 @@ static QEMUMachine pc_machine_v0_12 = {
 static QEMUMachine pc_machine_v0_11 = {
     .name = "pc-0.11",
     .desc = "Standard PC, qemu 0.11",
-    .init = pc_init_pci,
+    .init = pc_init,
     .max_cpus = 255,
     .opts_desc = pc_opts_desc,
+    .opts_default = (QemuOptValue[]) {
+        {
+            .name  = "acpi",
+            .value = "on",
+        },
+        {
+            .name  = "pci",
+            .value = "on",
+        },
+        {
+            .name = "cpu",
+            .value = PC_DEFAULT_CPU_MODEL,
+        },
+        { /* end of list */ }
+    },
     .compat_props = (GlobalProperty[]) {
         {
             .driver   = "virtio-blk-pci",
@@ -253,9 +295,24 @@ static QEMUMachine pc_machine_v0_11 = {
 static QEMUMachine pc_machine_v0_10 = {
     .name = "pc-0.10",
     .desc = "Standard PC, qemu 0.10",
-    .init = pc_init_pci,
+    .init = pc_init,
     .max_cpus = 255,
     .opts_desc = pc_opts_desc,
+    .opts_default = (QemuOptValue[]) {
+        {
+            .name  = "acpi",
+            .value = "on",
+        },
+        {
+            .name  = "pci",
+            .value = "on",
+        },
+        {
+            .name = "cpu",
+            .value = PC_DEFAULT_CPU_MODEL,
+        },
+        { /* end of list */ }
+    },
     .compat_props = (GlobalProperty[]) {
         {
             .driver   = "virtio-blk-pci",
@@ -301,7 +358,23 @@ static QEMUMachine pc_machine_v0_10 = {
 static QEMUMachine isapc_machine = {
     .name = "isapc",
     .desc = "ISA-only PC",
-    .init = pc_init_isa,
+    .opts_desc = pc_opts_desc,
+    .init = pc_init,
+    .opts_default = (QemuOptValue[]) {
+        {
+            .name  = "acpi",
+            .value = "off",
+        },
+        {
+            .name  = "pci",
+            .value = "off",
+        },
+        {
+            .name = "cpu",
+            .value = "486",
+        },
+        { /* end of list */ }
+    },
     .max_cpus = 1,
 };
 
