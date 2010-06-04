@@ -628,7 +628,7 @@ int qemu_opt_set(QemuOpts *opts, const char *name, const char *value)
     opt = qemu_mallocz(sizeof(*opt));
     opt->name = qemu_strdup(name);
     opt->opts = opts;
-    QTAILQ_INSERT_TAIL(&opts->head, opt, next);
+    QTAILQ_INSERT_HEAD(&opts->head, opt, next);
     if (desc[i].name != NULL) {
         opt->desc = desc+i;
     }
