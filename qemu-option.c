@@ -954,3 +954,23 @@ int qemu_opts_foreach(QemuOptsList *list, qemu_opts_loopfunc func, void *opaque,
     loc_pop(&loc);
     return rc;
 }
+
+int qemu_opts_set_defaults(QemuOpts *opts, const QemuOptValue *defvals)
+{
+    int i;
+
+    for (i = 0; defvals[i].name; i++) {
+        int ret;
+
+        if (qemu_opt_get(opts, defvals[i].name)) {
+            continue;
+        }
+        
+        ret = qemu_opt_set(opts, defvals[i].name, defvals[i].value);
+        if (ret < 0) {
+            return ret;
+        }
+    }
+
+    return 0;
+}
