@@ -525,6 +525,7 @@ struct QemuOpt {
 struct QemuOpts {
     char *id;
     QemuOptsList *list;
+    const QemuOptDesc *secondary_desc;
     Location loc;
     QTAILQ_HEAD(QemuOptHead, QemuOpt) head;
     QTAILQ_ENTRY(QemuOpts) next;
@@ -610,6 +611,10 @@ int qemu_opt_set(QemuOpts *opts, const char *name, const char *value)
     QemuOpt *opt;
     const QemuOptDesc *desc = opts->list->desc;
     int i;
+
+    if (desc[0].name == NULL && opts->secondary_desc) {
+        desc = opts->secondary_desc;
+    }
 
     for (i = 0; desc[i].name != NULL; i++) {
         if (strcmp(desc[i].name, name) == 0) {
@@ -926,6 +931,8 @@ int qemu_opts_validate(QemuOpts *opts, const QemuOptDesc *desc)
             return -1;
         }
     }
+
+    opts->secondary_desc = desc;
 
     return 0;
 }
