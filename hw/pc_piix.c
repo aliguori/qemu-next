@@ -70,7 +70,7 @@ static void pc_init(QemuOpts *opts)
 
     /* allocate ram and load rom/bios */
     pc_memory_init(ram_size, kernel_filename, kernel_cmdline, initrd_filename,
-                   &below_4g_mem_size, &above_4g_mem_size);
+                   &below_4g_mem_size, &above_4g_mem_size, opts);
 
     cpu_irq = pc_allocate_cpu_irq();
     i8259 = i8259_init(cpu_irq[0]);
@@ -186,13 +186,13 @@ static QEMUMachine pc_machine = {
     .alias = "pc",
     .desc = "Standard PC",
     .init = pc_init,
-    .max_cpus = 255,
     .is_default = 1,
     .opts_desc = pc_opts_desc,
     .opts_default = (QemuOptValue[]) {
         QOPT_VALUE("acpi", "on"),
         QOPT_VALUE("pci", "on"),
         QOPT_VALUE("cpu", PC_DEFAULT_CPU_MODEL),
+        QOPT_VALUE("max_cpus", "255"),
         { /* end of list */ }
     },
 };
@@ -201,12 +201,12 @@ static QEMUMachine pc_machine_v0_12 = {
     .name = "pc-0.12",
     .desc = "Standard PC",
     .init = pc_init,
-    .max_cpus = 255,
     .opts_desc = pc_opts_desc,
     .opts_default = (QemuOptValue[]) {
         QOPT_VALUE("acpi", "on"),
         QOPT_VALUE("pci", "on"),
         QOPT_VALUE("cpu", PC_DEFAULT_CPU_MODEL),
+        QOPT_VALUE("max_cpus", "255"),
         QOPT_COMPAT_INT("virtio-serial-pci", "max_nr_ports", 1),
         QOPT_COMPAT_INT("virtio-serial-pci", "vectors", 0),
         { /* end of list */ }
@@ -217,12 +217,12 @@ static QEMUMachine pc_machine_v0_11 = {
     .name = "pc-0.11",
     .desc = "Standard PC, qemu 0.11",
     .init = pc_init,
-    .max_cpus = 255,
     .opts_desc = pc_opts_desc,
     .opts_default = (QemuOptValue[]) {
         QOPT_VALUE("acpi", "on"),
         QOPT_VALUE("pci", "on"),
         QOPT_VALUE("cpu", PC_DEFAULT_CPU_MODEL),
+        QOPT_VALUE("max_cpus", "255"),
         QOPT_COMPAT_INT("virtio-blk-pci", "vectors", 0),
         QOPT_COMPAT_INT("virtio-serial-pci", "max_nr_ports", 1),
         QOPT_COMPAT_INT("virtio-serial-pci", "vectors", 0),
@@ -237,12 +237,12 @@ static QEMUMachine pc_machine_v0_10 = {
     .name = "pc-0.10",
     .desc = "Standard PC, qemu 0.10",
     .init = pc_init,
-    .max_cpus = 255,
     .opts_desc = pc_opts_desc,
     .opts_default = (QemuOptValue[]) {
         QOPT_VALUE("acpi", "on"),
         QOPT_VALUE("pci", "on"),
         QOPT_VALUE("cpu", PC_DEFAULT_CPU_MODEL),
+        QOPT_VALUE("max_cpu", "255"),
         QOPT_COMPAT_INT("virtio-blk-pci", "class", PCI_CLASS_STORAGE_OTHER),
         QOPT_COMPAT_INT("virtio-serial-pci", "class", PCI_CLASS_DISPLAY_OTHER),
         QOPT_COMPAT_INT("virtio-net-pci", "vectors", 0),
@@ -265,9 +265,9 @@ static QEMUMachine isapc_machine = {
         QOPT_VALUE("acpi", "off"),
         QOPT_VALUE("pci", "off"),
         QOPT_VALUE("cpu", "486"),
+        QOPT_VALUE("max_cpus", "1"),
         { /* end of list */ }
     },
-    .max_cpus = 1,
 };
 
 static void pc_machine_init(void)

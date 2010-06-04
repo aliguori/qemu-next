@@ -793,7 +793,10 @@ static QEMUMachine prep_machine = {
     .name = "prep",
     .desc = "PowerPC PREP platform",
     .init = ppc_prep_init,
-    .max_cpus = MAX_CPUS,
+    .opts_default = (QemuOptValue[]) {
+        QOPT_VALUE("max_cpus", stringify(MAX_CPUS)),
+        { /* end of list */ }
+    },
 };
 
 static void prep_machine_init(void)

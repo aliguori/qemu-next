@@ -91,7 +91,8 @@ void pc_memory_init(ram_addr_t ram_size,
                     const char *kernel_cmdline,
                     const char *initrd_filename,
                     ram_addr_t *below_4g_mem_size_p,
-                    ram_addr_t *above_4g_mem_size_p);
+                    ram_addr_t *above_4g_mem_size_p,
+                    QemuOpts *opts);
 qemu_irq *pc_allocate_cpu_irq(void);
 void pc_vga_init(PCIBus *pci_bus);
 void pc_basic_device_init(qemu_irq *isa_irq,

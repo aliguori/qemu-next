@@ -14,7 +14,6 @@ struct QEMUMachine {
     const char *alias;
     const char *desc;
     QEMUMachineInitFunc *init;
-    int max_cpus;
     int is_default;
     QemuOptDesc *opts_desc;
     QemuOptValue *opts_default;
@@ -77,6 +76,12 @@ extern QEMUMachine *current_machine;
     },{                                 \
         .name = "default_drive",        \
         .type = QEMU_OPT_STRING,        \
+    },{                                 \
+        .name = "max_cpus",             \
+        .type = QEMU_OPT_NUMBER,        \
+    },{                                 \
+        .name = "sockets",              \
+        .type = QEMU_OPT_NUMBER,        \
     }
 
 

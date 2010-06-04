@@ -321,7 +321,8 @@ int fw_cfg_add_file(FWCfgState *s,  const char *dir, const char *filename,
 }
 
 FWCfgState *fw_cfg_init(uint32_t ctl_port, uint32_t data_port,
-                        target_phys_addr_t ctl_addr, target_phys_addr_t data_addr)
+                        target_phys_addr_t ctl_addr, target_phys_addr_t data_addr,
+                        QemuOpts *opts)
 {
     FWCfgState *s;
     int io_ctl_memory, io_data_memory;
@@ -349,7 +350,8 @@ FWCfgState *fw_cfg_init(uint32_t ctl_port, uint32_t data_port,
     fw_cfg_add_bytes(s, FW_CFG_UUID, qemu_uuid, 16);
     fw_cfg_add_i16(s, FW_CFG_NOGRAPHIC, (uint16_t)(display_type == DT_NOGRAPHIC));
     fw_cfg_add_i16(s, FW_CFG_NB_CPUS, (uint16_t)smp_cpus);
-    fw_cfg_add_i16(s, FW_CFG_MAX_CPUS, (uint16_t)max_cpus);
+    fw_cfg_add_i16(s, FW_CFG_MAX_CPUS,
+                   (uint16_t)qemu_opt_get_number(opts, "sockets", smp_cpus));
     fw_cfg_add_i16(s, FW_CFG_BOOT_MENU, (uint16_t)boot_menu);
 
     vmstate_register(-1, &vmstate_fw_cfg, s);

@@ -22,6 +22,8 @@
  * THE SOFTWARE.
  */
 
+#include "qemu-common.h"
+#include "qemu-option.h"
 #include "hw.h"
 #include "fw_cfg.h"
 #include "multiboot.h"

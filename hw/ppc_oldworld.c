@@ -379,7 +379,7 @@ static void ppc_heathrow_init (QemuOpts *opts)
 
     /* No PCI init: the BIOS will do it */
 
-    fw_cfg = fw_cfg_init(0, 0, CFG_ADDR, CFG_ADDR + 2);
+    fw_cfg = fw_cfg_init(0, 0, CFG_ADDR, CFG_ADDR + 2, opts);
     fw_cfg_add_i32(fw_cfg, FW_CFG_ID, 1);
     fw_cfg_add_i64(fw_cfg, FW_CFG_RAM_SIZE, (uint64_t)ram_size);
     fw_cfg_add_i16(fw_cfg, FW_CFG_MACHINE_ID, ARCH_HEATHROW);
@@ -414,7 +414,10 @@ static QEMUMachine heathrow_machine = {
     .name = "g3beige",
     .desc = "Heathrow based PowerMAC",
     .init = ppc_heathrow_init,
-    .max_cpus = MAX_CPUS,
+    .opts_default = (QemuOptValue[]) {
+        QOPT_VALUE("max_cpus", stringify(MAX_CPUS)),
+        { /* end of list */ }
+    },
 #ifndef TARGET_PPC64
     .is_default = 1,
 #endif

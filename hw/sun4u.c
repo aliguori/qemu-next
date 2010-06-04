@@ -742,7 +742,7 @@ static void sun4uv_init(ram_addr_t RAM_size,
                         const char *boot_devices,
                         const char *kernel_filename, const char *kernel_cmdline,
                         const char *initrd_filename, const char *cpu_model,
-                        const struct hwdef *hwdef)
+                        const struct hwdef *hwdef, QemuOpts *opts)
 {
     CPUState *env;
     M48t59State *nvram;
@@ -824,7 +824,7 @@ static void sun4uv_init(ram_addr_t RAM_size,
                            graphic_width, graphic_height, graphic_depth,
                            (uint8_t *)&nd_table[0].macaddr);
 
-    fw_cfg = fw_cfg_init(BIOS_CFG_IOPORT, BIOS_CFG_IOPORT + 1, 0, 0);
+    fw_cfg = fw_cfg_init(BIOS_CFG_IOPORT, BIOS_CFG_IOPORT + 1, 0, 0, opts);
     fw_cfg_add_i32(fw_cfg, FW_CFG_ID, 1);
     fw_cfg_add_i64(fw_cfg, FW_CFG_RAM_SIZE, (uint64_t)ram_size);
     fw_cfg_add_i16(fw_cfg, FW_CFG_MACHINE_ID, hwdef->machine_id);
@@ -890,7 +890,7 @@ static void sun4u_init(QemuOpts *opts)
     const char *initrd_filename = qemu_opt_get(opts, "initrd");
     const char *cpu_model = qemu_opt_get(opts, "cpu");
     sun4uv_init(RAM_size, boot_devices, kernel_filename,
-                kernel_cmdline, initrd_filename, cpu_model, &hwdefs[0]);
+                kernel_cmdline, initrd_filename, cpu_model, &hwdefs[0], opts);
 }
 
 /* Sun4v hardware initialisation */
@@ -903,7 +903,7 @@ static void sun4v_init(QemuOpts *opts)
     const char *initrd_filename = qemu_opt_get(opts, "initrd");
     const char *cpu_model = qemu_opt_get(opts, "cpu");
     sun4uv_init(RAM_size, boot_devices, kernel_filename,
-                kernel_cmdline, initrd_filename, cpu_model, &hwdefs[1]);
+                kernel_cmdline, initrd_filename, cpu_model, &hwdefs[1], opts);
 }
 
 /* Niagara hardware initialisation */
@@ -916,14 +916,13 @@ static void niagara_init(QemuOpts *opts)
     const char *initrd_filename = qemu_opt_get(opts, "initrd");
     const char *cpu_model = qemu_opt_get(opts, "cpu");
     sun4uv_init(RAM_size, boot_devices, kernel_filename,
-                kernel_cmdline, initrd_filename, cpu_model, &hwdefs[2]);
+                kernel_cmdline, initrd_filename, cpu_model, &hwdefs[2], opts);
 }
 
 static QEMUMachine sun4u_machine = {
     .name = "sun4u",
     .desc = "Sun4u platform",
     .init = sun4u_init,
-    .max_cpus = 1, // XXX for now
     .is_default = 1,
 };
 
@@ -931,14 +930,12 @@ static QEMUMachine sun4v_machine = {
     .name = "sun4v",
     .desc = "Sun4v platform",
     .init = sun4v_init,
-    .max_cpus = 1, // XXX for now
 };
 
 static QEMUMachine niagara_machine = {
     .name = "Niagara",
     .desc = "Sun4v platform, Niagara",
     .init = niagara_init,
-    .max_cpus = 1, // XXX for now
 };
 
 static void sun4u_machine_init(void)

@@ -444,9 +444,9 @@ static QEMUMachine realview_eb_mpcore_machine = {
     .init = realview_eb_mpcore_init,
     .opts_default = (QemuOptValue[]) {
         QOPT_VALUE("default_drive", "scsi"),
+        QOPT_VALUE("max_cpus", "4"),
         { /* end of list */ }
     },
-    .max_cpus = 4,
 };
 
 static QEMUMachine realview_pb_a8_machine = {
@@ -461,9 +461,9 @@ static QEMUMachine realview_pbx_a9_machine = {
     .init = realview_pbx_a9_init,
     .opts_default = (QemuOptValue[]) {
         QOPT_VALUE("default_drive", "scsi"),
+        QOPT_VALUE("max_cpus", "4"),
         { /* end of list */ }
     },
-    .max_cpus = 4,
 };
 
 static void realview_machine_init(void)

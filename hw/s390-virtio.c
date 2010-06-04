@@ -278,10 +278,9 @@ static QEMUMachine s390_machine = {
         QOPT_VALUE("parallel", "off"),
         QOPT_VALUE("virtcon", "on"),
         QOPT_VALUE("vga", "off"),
+        QOPT_VALUE("max_cpus", "255"),
         { /* end of list */ }
     },
-    .no_vga = 1,
-    .max_cpus = 255,
     .is_default = 1,
 };
 

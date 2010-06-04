@@ -205,7 +205,6 @@ int rtc_td_hack = 0;
 int usb_enabled = 0;
 int singlestep = 0;
 int smp_cpus = 1;
-int max_cpus = 0;
 int smp_cores = 1;
 int smp_threads = 1;
 const char *vnc_display;
@@ -1278,6 +1277,7 @@ static void smp_parse(const char *optarg)
     int smp, sockets = 0, threads = 0, cores = 0;
     char *endptr;
     char option[128];
+    int max_cpus = 0;
 
     smp = strtoul(optarg, &endptr, 10);
     if (endptr != optarg) {
@@ -1315,8 +1315,13 @@ static void smp_parse(const char *optarg)
     smp_cpus = smp;
     smp_cores = cores > 0 ? cores : 1;
     smp_threads = threads > 0 ? threads : 1;
-    if (max_cpus == 0)
+    if (max_cpus == 0) {
         max_cpus = smp_cpus;
+    }
+
+    if (max_cpus) {
+        qemu_opts_parsef(&qemu_machine_opts, "max_cpus=%d", max_cpus);
+    }
 }
 
 /***********************************************************/
@@ -2642,6 +2647,7 @@ int main(int argc, char **argv, char **envp)
     int show_vnc_port = 0;
     int defconfig = 1;
     QemuOpts *machine_opts = NULL;
+    int max_cpus = 0;
 
     error_set_progname(argv[0]);
 
@@ -3277,15 +3283,6 @@ int main(int argc, char **argv, char **envp)
                     fprintf(stderr, "Invalid number of CPUs\n");
                     exit(1);
                 }
-                if (max_cpus < smp_cpus) {
-                    fprintf(stderr, "maxcpus must be equal to or greater than "
-                            "smp\n");
-                    exit(1);
-                }
-                if (max_cpus > 255) {
-                    fprintf(stderr, "Unsupported number of maxcpus\n");
-                    exit(1);
-                }
                 break;
 	    case QEMU_OPTION_vnc:
                 display_type = DT_VNC;
@@ -3490,18 +3487,11 @@ int main(int argc, char **argv, char **envp)
         }
     }
     
-    /*
-     * Default to max_cpus = smp_cpus, in case the user doesn't
-     * specify a max_cpus value.
-     */
-    if (!max_cpus)
-        max_cpus = smp_cpus;
-
-    machine->max_cpus = machine->max_cpus ?: 1; /* Default to UP */
-    if (smp_cpus > machine->max_cpus) {
+    max_cpus = qemu_opt_get_number(machine_opts, "max_cpus", 1);
+    if (smp_cpus > max_cpus) {
         fprintf(stderr, "Number of SMP cpus requested (%d), exceeds max cpus "
                 "supported by machine `%s' (%d)\n", smp_cpus,  machine->name,
-                machine->max_cpus);
+                max_cpus);
         exit(1);
     }
 
