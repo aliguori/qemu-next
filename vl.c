@@ -1590,14 +1590,92 @@ void qemu_del_wait_object(HANDLE handle, WaitObjectFunc *func, void *opaque)
 /***********************************************************/
 /* machine registration */
 
-static QTAILQ_HEAD(, QEMUMachine) machine_list =
+typedef struct MachineCore {
+    const char *name;
+    QEMUCoreInitFunc *init;
+    QemuOptDesc *desc;
+    QTAILQ_ENTRY(MachineCore) node;
+} MachineCore;
+
+typedef struct Machine
+{
+    MachineCore *core;
+    QemuOptValue *defaults;
+    QTAILQ_ENTRY(Machine) node;
+} Machine;
+
+static QTAILQ_HEAD(, MachineCore) machine_core_list =
+    QTAILQ_HEAD_INITIALIZER(machine_core_list);
+static QTAILQ_HEAD(, Machine) machine_list =
     QTAILQ_HEAD_INITIALIZER(machine_list);
 static const char *default_machine = NULL;
 
+static const char *find_machine_defval(QemuOptValue *defaults, const char *name)
+{
+    int i;
+    for (i = 0; defaults[i].name; i++) {
+        if (!strcmp(defaults[i].name, name)) {
+            return defaults[i].value;
+        }
+    }
+    return NULL;
+}
+
+void machine_register_core(const char *name,
+                           QEMUCoreInitFunc *init,
+                           QemuOptDesc *desc)
+{
+    MachineCore *c;
+
+    c = qemu_mallocz(sizeof(*c));
+    c->name = strdup(name);
+    c->init = init;
+    c->desc = desc;
+
+    QTAILQ_INSERT_TAIL(&machine_core_list, c, node);
+}
+
+static MachineCore *machine_core_find(const char *core)
+{
+    MachineCore *c;
+
+    QTAILQ_FOREACH(c, &machine_core_list, node) {
+        if (strcmp(c->name, core) == 0) {
+            return c;
+        }
+    }
+
+    return NULL;
+}
+
+int machine_create_from_core(const char *core,
+                             QemuOptValue *opts_default)
+{
+    MachineCore *c;
+    Machine *m;
+
+    c = machine_core_find(core);
+    if (c == NULL) {
+        return -1;
+    }
+
+    m = qemu_mallocz(sizeof(*m));
+    m->core = c;
+    m->defaults = opts_default;
+
+    QTAILQ_INSERT_TAIL(&machine_list, m, node);
+
+    return 0;
+}
+
 int qemu_register_machine(QEMUMachine *n)
 {
-    QTAILQ_INSERT_TAIL(&machine_list, n, node);
-    return 0;
+    const char *name;
+
+    name = find_machine_defval(n->opts_default, "name");
+    machine_register_core(name, n->init, n->opts_desc);
+
+    return machine_create_from_core(name, n->opts_default);
 }
 
 void machine_set_default(const char *name)
@@ -1605,23 +1683,12 @@ void machine_set_default(const char *name)
     default_machine = name;
 }
 
-static const char *find_machine_defval(QEMUMachine *m, const char *name)
+static Machine *find_machine(const char *name)
 {
-    int i;
-    for (i = 0; m->opts_default[i].name; i++) {
-        if (!strcmp(m->opts_default[i].name, name)) {
-            return m->opts_default[i].value;
-        }
-    }
-    return NULL;
-}
-
-static QEMUMachine *find_machine(const char *name)
-{
-    QEMUMachine *m;
+    Machine *m;
 
     QTAILQ_FOREACH(m, &machine_list, node) {
-        const char *val = find_machine_defval(m, "name");
+        const char *val = find_machine_defval(m->defaults, "name");
         if (strcmp(name, val) == 0) {
             return m;
         }
@@ -1629,7 +1696,7 @@ static QEMUMachine *find_machine(const char *name)
     return NULL;
 }
 
-static QEMUMachine *find_default_machine(void)
+static Machine *find_default_machine(void)
 {
     return find_machine(default_machine);
 }
@@ -2600,7 +2667,7 @@ static int machine_combine_opt(const char *name, const char *value, void *opaque
 
 static int machine_find(QemuOpts *opts, void *opaque)
 {
-    QEMUMachine **machinep = opaque;
+    Machine **machinep = opaque;
     const char *driver;
 
     driver = qemu_opt_get(opts, "driver");
@@ -2636,7 +2703,7 @@ int main(int argc, char **argv, char **envp)
     int optind;
     const char *optarg;
     const char *loadvm = NULL;
-    QEMUMachine *machine = NULL;
+    Machine *machine = NULL;
     const char *cpu_model;
 #ifndef _WIN32
     int fds[2];
@@ -2764,14 +2831,14 @@ int main(int argc, char **argv, char **envp)
             switch(popt->index) {
             case QEMU_OPTION_M:
                 if (strcmp(optarg, "?") == 0) {
-                    QEMUMachine *m;
+                    Machine *m;
                     printf("Supported machines are:\n");
                     QTAILQ_FOREACH(m, &machine_list, node) {
                         const char *name;
                         const char *desc;
 
-                        name = find_machine_defval(m, "name");
-                        desc = find_machine_defval(m, "desc");
+                        name = find_machine_defval(m->defaults, "name");
+                        desc = find_machine_defval(m->defaults, "desc");
                         printf("%-10s %s%s\n",
                                name, desc, 
                                !strcmp(name, default_machine) ?
@@ -3482,17 +3549,17 @@ int main(int argc, char **argv, char **envp)
         machine = find_default_machine();
     }
 
-    if (machine->opts_default) {
+    if (machine->defaults) {
         opts = qemu_opts_create(&qemu_machine_opts, NULL, 0);
-        qemu_opts_set_defaults(opts, machine->opts_default);
+        qemu_opts_set_defaults(opts, machine->defaults);
     }
 
     /* Combine all -machine options into one option group */
     machine_opts = qemu_opts_create(&qemu_machine_opts, NULL, 0);
     qemu_opts_foreach(&qemu_machine_opts, machine_combine_opts, machine_opts, 0);
 
-    if (machine->opts_desc) {
-        if (qemu_opts_validate(machine_opts, machine->opts_desc) < 0) {
+    if (machine->core->desc) {
+        if (qemu_opts_validate(machine_opts, machine->core->desc) < 0) {
             exit(1);
         }
     } else {
@@ -3839,7 +3906,7 @@ int main(int argc, char **argv, char **envp)
         qemu_opt_set(machine_opts, "acpi", "off");
     }
 
-    machine->init(machine_opts);
+    machine->core->init(machine_opts);
 
     qemu_opts_del(machine_opts);
 
