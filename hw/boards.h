@@ -14,7 +14,6 @@ struct QEMUMachine {
     const char *alias;
     const char *desc;
     QEMUMachineInitFunc *init;
-    int use_scsi;
     int max_cpus;
     int is_default;
     QemuOptDesc *opts_desc;
@@ -75,6 +74,9 @@ extern QEMUMachine *current_machine;
     },{                                 \
         .name = "sdcard",               \
         .type = QEMU_OPT_BOOL,          \
+    },{                                 \
+        .name = "default_drive",        \
+        .type = QEMU_OPT_STRING,        \
     }
 
 

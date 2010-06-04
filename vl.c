@@ -783,7 +783,7 @@ DriveInfo *drive_init(QemuOpts *opts, void *opaque,
     int bus_id, unit_id;
     int cyls, heads, secs, translation;
     BlockDriver *drv = NULL;
-    QEMUMachine *machine = opaque;
+    const char *default_drive = opaque;
     int max_devs;
     int index;
     int ro = 0;
@@ -797,10 +797,14 @@ DriveInfo *drive_init(QemuOpts *opts, void *opaque,
 
     translation = BIOS_ATA_TRANSLATION_AUTO;
 
-    if (machine && machine->use_scsi) {
+    if (default_drive && strcmp(default_drive, "scsi") == 0) {
         type = IF_SCSI;
         max_devs = MAX_SCSI_DEVS;
         pstrcpy(devname, sizeof(devname), "scsi");
+    } else if (default_drive && strcmp(default_drive, "virtio") == 0) {
+        type = IF_VIRTIO;
+        max_devs = MAX_DRIVES;
+        pstrcpy(devname, sizeof(devname), "virtio");
     } else {
         type = IF_IDE;
         max_devs = MAX_IDE_DEVS;
@@ -1136,10 +1140,10 @@ DriveInfo *drive_init(QemuOpts *opts, void *opaque,
 
 static int drive_init_func(QemuOpts *opts, void *opaque)
 {
-    QEMUMachine *machine = opaque;
+    const char *default_drive = opaque;
     int fatal_error = 0;
 
-    if (drive_init(opts, machine, &fatal_error) == NULL) {
+    if (drive_init(opts, (void *)default_drive, &fatal_error) == NULL) {
         if (fatal_error)
             return 1;
     }
@@ -1582,7 +1586,6 @@ void qemu_del_wait_object(HANDLE handle, WaitObjectFunc *func, void *opaque)
 /* machine registration */
 
 static QEMUMachine *first_machine = NULL;
-QEMUMachine *current_machine = NULL;
 
 int qemu_register_machine(QEMUMachine *m)
 {
@@ -3709,8 +3712,18 @@ int main(int argc, char **argv, char **envp)
     /* open the virtual block devices */
     if (snapshot)
         qemu_opts_foreach(&qemu_drive_opts, drive_enable_snapshot, NULL, 0);
-    if (qemu_opts_foreach(&qemu_drive_opts, drive_init_func, machine, 1) != 0)
-        exit(1);
+
+    {
+        int ret;
+        const char *default_drive;
+
+        default_drive = qemu_opt_get(machine_opts, "default_drive");
+        ret = qemu_opts_foreach(&qemu_drive_opts, drive_init_func,
+                                (void *)default_drive, 1);
+        if (ret != 0) {
+            exit(1);
+        }
+    }
 
     register_savevm_live("ram", 0, 3, NULL, ram_save_live, NULL, 
                          ram_load, NULL);
@@ -3812,8 +3825,6 @@ int main(int argc, char **argv, char **envp)
 #endif
 
     set_numa_modes();
-
-    current_machine = machine;
 
     /* init USB devices */
     if (usb_enabled) {
