@@ -515,12 +515,12 @@ static QEMUMachine integratorcp_machine = {
     .name = "integratorcp",
     .desc = "ARM Integrator/CP (ARM926EJ-S)",
     .init = integratorcp_init,
-    .is_default = 1,
 };
 
 static void integratorcp_machine_init(void)
 {
     qemu_register_machine(&integratorcp_machine);
+    machine_set_default("integratorcp");
 }
 
 machine_init(integratorcp_machine_init);

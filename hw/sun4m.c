@@ -1324,7 +1324,6 @@ static QEMUMachine ss5_machine = {
         QOPT_VALUE("default_drive", "scsi"),
         { /* end of list */ }
     },
-    .is_default = 1,
 };
 
 static QEMUMachine ss10_machine = {
@@ -1838,6 +1837,7 @@ static void ss2_machine_init(void)
     qemu_register_machine(&ss1000_machine);
     qemu_register_machine(&ss2000_machine);
     qemu_register_machine(&ss2_machine);
+    machine_set_default("SS-5");
 }
 
 machine_init(ss2_machine_init);

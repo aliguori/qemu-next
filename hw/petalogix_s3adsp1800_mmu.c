@@ -201,12 +201,12 @@ static QEMUMachine petalogix_s3adsp1800_machine = {
     .name = "petalogix-s3adsp1800",
     .desc = "Petalogix linux refdesign for xilinx Spartan 3ADSP1800",
     .init = petalogix_s3adsp1800_init,
-    .is_default = 1
 };
 
 static void petalogix_s3adsp1800_machine_init(void)
 {
     qemu_register_machine(&petalogix_s3adsp1800_machine);
+    machine_set_default("petalogix-s3adsp1800");
 }
 
 machine_init(petalogix_s3adsp1800_machine_init);

@@ -1591,6 +1591,7 @@ void qemu_del_wait_object(HANDLE handle, WaitObjectFunc *func, void *opaque)
 /* machine registration */
 
 static QEMUMachine *first_machine = NULL;
+static const char *default_machine = NULL;
 
 int qemu_register_machine(QEMUMachine *m)
 {
@@ -1601,6 +1602,11 @@ int qemu_register_machine(QEMUMachine *m)
     m->next = NULL;
     *pm = m;
     return 0;
+}
+
+void machine_set_default(const char *name)
+{
+    default_machine = name;
 }
 
 static QEMUMachine *find_machine(const char *name)
@@ -1618,14 +1624,7 @@ static QEMUMachine *find_machine(const char *name)
 
 static QEMUMachine *find_default_machine(void)
 {
-    QEMUMachine *m;
-
-    for(m = first_machine; m != NULL; m = m->next) {
-        if (m->is_default) {
-            return m;
-        }
-    }
-    return NULL;
+    return find_machine(default_machine);
 }
 
 /***********************************************************/
@@ -2764,7 +2763,9 @@ int main(int argc, char **argv, char **envp)
                                    m->alias, m->desc, m->name);
                         printf("%-10s %s%s\n",
                                m->name, m->desc,
-                               m->is_default ? " (default)" : "");
+                               (!strcmp(m->name, default_machine) ||
+                                !strcmp(m->alias, default_machine)) ? 
+                               " (default)" : "");
                     }
                     exit(0);
                 }

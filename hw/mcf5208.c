@@ -293,12 +293,12 @@ static QEMUMachine mcf5208evb_machine = {
     .name = "mcf5208evb",
     .desc = "MCF5206EVB",
     .init = mcf5208evb_init,
-    .is_default = 1,
 };
 
 static void mcf5208evb_machine_init(void)
 {
     qemu_register_machine(&mcf5208evb_machine);
+    machine_set_default("mcf5208evb");
 }
 
 machine_init(mcf5208evb_machine_init);

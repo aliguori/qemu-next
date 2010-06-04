@@ -14,13 +14,13 @@ struct QEMUMachine {
     const char *alias;
     const char *desc;
     QEMUMachineInitFunc *init;
-    int is_default;
     QemuOptDesc *opts_desc;
     QemuOptValue *opts_default;
     struct QEMUMachine *next;
 };
 
 int qemu_register_machine(QEMUMachine *m);
+void machine_set_default(const char *name);
 
 extern QEMUMachine *current_machine;
 

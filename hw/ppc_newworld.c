@@ -446,14 +446,14 @@ static QEMUMachine core99_machine = {
         QOPT_VALUE("max_cpus", stringify(MAX_CPUS)),
         { /* end of list */ }
     },
-#ifdef TARGET_PPC64
-    .is_default = 1,
-#endif
 };
 
 static void core99_machine_init(void)
 {
     qemu_register_machine(&core99_machine);
+#ifdef TARGET_PPC64
+    machine_set_default("mac99");
+#endif
 }
 
 machine_init(core99_machine_init);

@@ -281,12 +281,12 @@ static QEMUMachine s390_machine = {
         QOPT_VALUE("max_cpus", "255"),
         { /* end of list */ }
     },
-    .is_default = 1,
 };
 
 static void s390_machine_init(void)
 {
     qemu_register_machine(&s390_machine);
+    machine_set_default("s390-virtio");
 }
 
 machine_init(s390_machine_init);

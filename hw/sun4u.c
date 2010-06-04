@@ -923,7 +923,6 @@ static QEMUMachine sun4u_machine = {
     .name = "sun4u",
     .desc = "Sun4u platform",
     .init = sun4u_init,
-    .is_default = 1,
 };
 
 static QEMUMachine sun4v_machine = {
@@ -943,6 +942,7 @@ static void sun4u_machine_init(void)
     qemu_register_machine(&sun4u_machine);
     qemu_register_machine(&sun4v_machine);
     qemu_register_machine(&niagara_machine);
+    machine_set_default("sun4u");
 }
 
 machine_init(sun4u_machine_init);

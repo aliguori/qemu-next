@@ -418,14 +418,14 @@ static QEMUMachine heathrow_machine = {
         QOPT_VALUE("max_cpus", stringify(MAX_CPUS)),
         { /* end of list */ }
     },
-#ifndef TARGET_PPC64
-    .is_default = 1,
-#endif
 };
 
 static void heathrow_machine_init(void)
 {
     qemu_register_machine(&heathrow_machine);
+#ifndef TARGET_PPC64
+    machine_set_default("g3beige");
+#endif
 }
 
 machine_init(heathrow_machine_init);

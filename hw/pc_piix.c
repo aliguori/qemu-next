@@ -186,7 +186,6 @@ static QEMUMachine pc_machine = {
     .alias = "pc",
     .desc = "Standard PC",
     .init = pc_init,
-    .is_default = 1,
     .opts_desc = pc_opts_desc,
     .opts_default = (QemuOptValue[]) {
         QOPT_VALUE("acpi", "on"),
@@ -277,6 +276,7 @@ static void pc_machine_init(void)
     qemu_register_machine(&pc_machine_v0_11);
     qemu_register_machine(&pc_machine_v0_10);
     qemu_register_machine(&isapc_machine);
+    machine_set_default("pc");
 }
 
 machine_init(pc_machine_init);

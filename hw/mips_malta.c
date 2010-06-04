@@ -993,12 +993,12 @@ static QEMUMachine mips_malta_machine = {
     .name = "malta",
     .desc = "MIPS Malta Core LV",
     .init = mips_malta_init,
-    .is_default = 1,
 };
 
 static void mips_malta_machine_init(void)
 {
     qemu_register_machine(&mips_malta_machine);
+    machine_set_default("malta");
 }
 
 machine_init(mips_malta_machine_init);
