@@ -35,6 +35,10 @@ extern QEMUMachine *current_machine;
 
 #define COMMON_MACHINE_OPTS() 		\
     {                                   \
+        .name = "driver",               \
+        .type = QEMU_OPT_STRING,        \
+    },                                  \
+    {                                   \
         .name = "ram_size",             \
         .type = QEMU_OPT_SIZE,          \
     },{                                 \

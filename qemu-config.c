@@ -338,6 +338,7 @@ QemuOptsList qemu_cpudef_opts = {
 
 QemuOptsList qemu_machine_opts = {
     .name = "machine",
+    .implied_opt_name = "driver",
     .head = QTAILQ_HEAD_INITIALIZER(qemu_machine_opts.head),
     .desc = {
         { /* end of list */ }

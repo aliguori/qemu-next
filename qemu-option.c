@@ -794,6 +794,27 @@ int qemu_opts_do_parse(QemuOpts *opts, const char *params, const char *firstname
     return 0;
 }
 
+QemuOpts *qemu_opts_parsev(QemuOptsList *list, const char *params,
+                           va_list ap)
+{
+    char buffer[4096];
+    vsnprintf(buffer, sizeof(buffer), params, ap);
+    return qemu_opts_parse(list, buffer, 0);
+}
+
+QemuOpts *qemu_opts_parsef(QemuOptsList *list, const char *params,
+                           ...)
+{
+    va_list ap;
+    QemuOpts *opts;
+
+    va_start(ap, params);
+    opts = qemu_opts_parsev(list, params, ap);
+    va_end(ap);
+
+    return opts;
+}
+
 QemuOpts *qemu_opts_parse(QemuOptsList *list, const char *params,
                           int permit_abbrev)
 {

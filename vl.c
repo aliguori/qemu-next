@@ -2555,6 +2555,24 @@ static QemuOptDesc common_machine_opts[] = {
     { /* end of list */ },
 };
 
+static int machine_combine_opt(const char *name, const char *value, void *opaque)
+{
+    QemuOpts *base_opts = opaque;
+    qemu_opt_set(base_opts, name, value);
+    return 0;
+}
+
+static int machine_combine_opts(QemuOpts *opts, void *opaque)
+{
+    QemuOpts *base_opts = opaque;
+
+    if (base_opts == opts) {
+        return 0;
+    }
+
+    return qemu_opt_foreach(opts, machine_combine_opt, base_opts, 0);
+}
+
 int main(int argc, char **argv, char **envp)
 {
     const char *gdbstub_dev = NULL;
@@ -2571,7 +2589,7 @@ int main(int argc, char **argv, char **envp)
     int optind;
     const char *optarg;
     const char *loadvm = NULL;
-    QEMUMachine *machine;
+    QEMUMachine *machine = NULL;
     const char *cpu_model;
 #ifndef _WIN32
     int fds[2];
@@ -2587,6 +2605,7 @@ int main(int argc, char **argv, char **envp)
 #endif
     int show_vnc_port = 0;
     int defconfig = 1;
+    QemuOpts *machine_opts = NULL;
 
     error_set_progname(argv[0]);
 
@@ -2626,7 +2645,6 @@ int main(int argc, char **argv, char **envp)
 #endif
 
     module_call_init(MODULE_INIT_MACHINE);
-    machine = find_default_machine();
     cpu_model = NULL;
     initrd_filename = NULL;
     ram_size = 0;
@@ -2698,8 +2716,7 @@ int main(int argc, char **argv, char **envp)
             }
             switch(popt->index) {
             case QEMU_OPTION_M:
-                machine = find_machine(optarg);
-                if (!machine) {
+                if (strcmp(optarg, "?") == 0) {
                     QEMUMachine *m;
                     printf("Supported machines are:\n");
                     for(m = first_machine; m != NULL; m = m->next) {
@@ -2710,7 +2727,13 @@ int main(int argc, char **argv, char **envp)
                                m->name, m->desc,
                                m->is_default ? " (default)" : "");
                     }
-                    exit(*optarg != '?');
+                    exit(0);
+                }
+                qemu_opts_parsef(&qemu_machine_opts, "driver=%s", optarg);
+                break;
+            case QEMU_OPTION_machine:
+                if (!qemu_opts_parse(&qemu_machine_opts, optarg, 1)) {
+                    exit(1);
                 }
                 break;
             case QEMU_OPTION_cpu:
@@ -3431,6 +3454,26 @@ int main(int argc, char **argv, char **envp)
         data_dir = CONFIG_QEMU_SHAREDIR;
     }
 
+    /* Combine all -machine options into one option group */
+    machine_opts = qemu_opts_create(&qemu_machine_opts, NULL, 0);
+    qemu_opts_foreach(&qemu_machine_opts, machine_combine_opts, machine_opts, 0);
+
+    if (!qemu_opt_get(machine_opts, "driver")) {
+        machine = find_default_machine();
+    } else {
+        machine = find_machine(qemu_opt_get(machine_opts, "driver"));
+    }
+
+    if (machine->opts_desc) {
+        if (qemu_opts_validate(machine_opts, machine->opts_desc) < 0) {
+            exit(1);
+        }
+    } else {
+        if (qemu_opts_validate(machine_opts, common_machine_opts) < 0) {
+            exit(1);
+        }
+    }
+    
     /*
      * Default to max_cpus = smp_cpus, in case the user doesn't
      * specify a max_cpus value.
@@ -3723,47 +3766,36 @@ int main(int argc, char **argv, char **envp)
     }
     qemu_add_globals();
 
-    opts = qemu_opts_create(&qemu_machine_opts, NULL, 0);
     if (kernel_filename) {
-        qemu_opt_set(opts, "kernel", kernel_filename);
+        qemu_opt_set(machine_opts, "kernel", kernel_filename);
         if (kernel_cmdline) {
-            qemu_opt_set(opts, "cmdline", kernel_cmdline);
+            qemu_opt_set(machine_opts, "cmdline", kernel_cmdline);
         }
         if (initrd_filename) {
-            qemu_opt_set(opts, "initrd", initrd_filename);
+            qemu_opt_set(machine_opts, "initrd", initrd_filename);
         }
     }
 
-    qemu_opt_set(opts, "boot_device", boot_devices);
+    qemu_opt_set(machine_opts, "boot_device", boot_devices);
 
     if (cpu_model) {
-        qemu_opt_set(opts, "cpu", cpu_model);
+        qemu_opt_set(machine_opts, "cpu", cpu_model);
     }
 
     if (ram_size) {
         char buffer[64];
         snprintf(buffer, sizeof(buffer),
                  "%" PRId64, ram_size);
-        qemu_opt_set(opts, "ram_size", buffer);
+        qemu_opt_set(machine_opts, "ram_size", buffer);
     }
 
     if (acpi_enabled == 0) {
-        qemu_opt_set(opts, "acpi", "off");
+        qemu_opt_set(machine_opts, "acpi", "off");
     }
 
-    if (machine->opts_desc) {
-        if (qemu_opts_validate(opts, machine->opts_desc) < 0) {
-            exit(1);
-        }
-    } else {
-        if (qemu_opts_validate(opts, common_machine_opts) < 0) {
-            exit(1);
-        }
-    }
-    
-    machine->init(opts);
+    machine->init(machine_opts);
 
-    qemu_opts_del(opts);
+    qemu_opts_del(machine_opts);
 
     cpu_synchronize_all_post_init();
 
