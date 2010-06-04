@@ -25,11 +25,37 @@ struct QEMUMachine {
         no_sdcard:1;
     int is_default;
     GlobalProperty *compat_props;
+    QemuOptDesc *opts_desc;
     struct QEMUMachine *next;
 };
 
 int qemu_register_machine(QEMUMachine *m);
 
 extern QEMUMachine *current_machine;
+
+#define COMMON_MACHINE_OPTS() 		\
+    {                                   \
+        .name = "ram_size",             \
+        .type = QEMU_OPT_SIZE,          \
+    },{                                 \
+        .name = "kernel",               \
+        .type = QEMU_OPT_STRING,        \
+    },                                  \
+    {                                   \
+        .name = "cmdline",              \
+        .type = QEMU_OPT_STRING,        \
+    },                                  \
+    {                                   \
+        .name = "initrd",               \
+        .type = QEMU_OPT_STRING,        \
+    },                                  \
+    {                                   \
+        .name = "boot_device",          \
+        .type = QEMU_OPT_STRING,        \
+    },                                  \
+    {                                   \
+        .name = "cpu",                  \
+        .type = QEMU_OPT_STRING,        \
+    }
 
 #endif

@@ -40,14 +40,14 @@ static const int ide_iobase2[MAX_IDE_BUS] = { 0x3f6, 0x376 };
 static const int ide_irq[MAX_IDE_BUS] = { 14, 15 };
 
 /* PC hardware initialisation */
-static void pc_init1(ram_addr_t ram_size,
-                     const char *boot_device,
-                     const char *kernel_filename,
-                     const char *kernel_cmdline,
-                     const char *initrd_filename,
-                     const char *cpu_model,
-                     int pci_enabled)
+static void pc_init1(QemuOpts *opts, int pci_enabled)
 {
+    ram_addr_t ram_size = qemu_opt_get_size(opts, "ram_size", 0);
+    const char *boot_device = qemu_opt_get(opts, "boot_device");
+    const char *kernel_filename = qemu_opt_get(opts, "kernel");
+    const char *kernel_cmdline = qemu_opt_get(opts, "cmdline");
+    const char *initrd_filename = qemu_opt_get(opts, "initrd");
+    const char *cpu_model = qemu_opt_get(opts, "cpu");
     int i;
     ram_addr_t below_4g_mem_size, above_4g_mem_size;
     PCIBus *pci_bus;
@@ -133,7 +133,7 @@ static void pc_init1(ram_addr_t ram_size,
         usb_uhci_piix3_init(pci_bus, piix3_devfn + 2);
     }
 
-    if (pci_enabled && acpi_enabled) {
+    if (pci_enabled && qemu_opt_get_bool(opts, "acpi", 1)) {
         uint8_t *eeprom_buf = qemu_mallocz(8 * 256); /* XXX: make this persistent */
         i2c_bus *smbus;
 
@@ -163,31 +163,26 @@ static void pc_init1(ram_addr_t ram_size,
 
 static void pc_init_pci(QemuOpts *opts)
 {
-    ram_addr_t ram_size = qemu_opt_get_size(opts, "ram_size", 0);
-    const char *boot_device = qemu_opt_get(opts, "boot_device");
-    const char *kernel_filename = qemu_opt_get(opts, "kernel");
-    const char *kernel_cmdline = qemu_opt_get(opts, "cmdline");
-    const char *initrd_filename = qemu_opt_get(opts, "initrd");
-    const char *cpu_model = qemu_opt_get(opts, "cpu");
-    pc_init1(ram_size, boot_device,
-             kernel_filename, kernel_cmdline,
-             initrd_filename, cpu_model, 1);
+    pc_init1(opts, 1);
 }
 
 static void pc_init_isa(QemuOpts *opts)
 {
-    ram_addr_t ram_size = qemu_opt_get_size(opts, "ram_size", 0);
-    const char *boot_device = qemu_opt_get(opts, "boot_device");
-    const char *kernel_filename = qemu_opt_get(opts, "kernel");
-    const char *kernel_cmdline = qemu_opt_get(opts, "cmdline");
-    const char *initrd_filename = qemu_opt_get(opts, "initrd");
-    const char *cpu_model = qemu_opt_get(opts, "cpu");
-    if (cpu_model == NULL)
-        cpu_model = "486";
-    pc_init1(ram_size, boot_device,
-             kernel_filename, kernel_cmdline,
-             initrd_filename, cpu_model, 0);
+    if (!qemu_opt_get(opts, "cpu")) {
+        qemu_opt_set(opts, "cpu", "486");
+    }
+
+    pc_init1(opts, 0);
 }
+
+static QemuOptDesc pc_opts_desc[] = {
+    COMMON_MACHINE_OPTS(),
+    {
+        .name = "acpi",
+        .type = QEMU_OPT_BOOL,
+    },
+    { /* end of list */ },
+};
 
 static QEMUMachine pc_machine = {
     .name = "pc-0.13",
@@ -196,6 +191,7 @@ static QEMUMachine pc_machine = {
     .init = pc_init_pci,
     .max_cpus = 255,
     .is_default = 1,
+    .opts_desc = pc_opts_desc,
 };
 
 static QEMUMachine pc_machine_v0_12 = {
@@ -203,6 +199,7 @@ static QEMUMachine pc_machine_v0_12 = {
     .desc = "Standard PC",
     .init = pc_init_pci,
     .max_cpus = 255,
+    .opts_desc = pc_opts_desc,
     .compat_props = (GlobalProperty[]) {
         {
             .driver   = "virtio-serial-pci",
@@ -222,6 +219,7 @@ static QEMUMachine pc_machine_v0_11 = {
     .desc = "Standard PC, qemu 0.11",
     .init = pc_init_pci,
     .max_cpus = 255,
+    .opts_desc = pc_opts_desc,
     .compat_props = (GlobalProperty[]) {
         {
             .driver   = "virtio-blk-pci",
@@ -257,6 +255,7 @@ static QEMUMachine pc_machine_v0_10 = {
     .desc = "Standard PC, qemu 0.10",
     .init = pc_init_pci,
     .max_cpus = 255,
+    .opts_desc = pc_opts_desc,
     .compat_props = (GlobalProperty[]) {
         {
             .driver   = "virtio-blk-pci",

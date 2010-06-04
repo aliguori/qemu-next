@@ -209,7 +209,7 @@ int max_cpus = 0;
 int smp_cores = 1;
 int smp_threads = 1;
 const char *vnc_display;
-int acpi_enabled = 1;
+static int acpi_enabled = 1;
 int no_hpet = 0;
 int fd_bootchk = 1;
 int no_reboot = 0;
@@ -2550,32 +2550,8 @@ static const QEMUOption *lookup_opt(int argc, char **argv,
     return popt;
 }
 
-/* TEMP: until we have proper -machine support */
 static QemuOptDesc common_machine_opts[] = {
-    {
-        .name = "ram_size",
-        .type = QEMU_OPT_SIZE,
-    },
-    {
-        .name = "kernel",
-        .type = QEMU_OPT_STRING,
-    },
-    {
-        .name = "cmdline",
-        .type = QEMU_OPT_STRING,
-    },
-    {
-        .name = "initrd",
-        .type = QEMU_OPT_STRING,
-    },
-    {
-        .name = "boot_device",
-        .type = QEMU_OPT_STRING,
-    },
-    {
-        .name = "cpu",
-        .type = QEMU_OPT_STRING,
-    },
+    COMMON_MACHINE_OPTS(),
     { /* end of list */ },
 };
 
@@ -3771,8 +3747,18 @@ int main(int argc, char **argv, char **envp)
         qemu_opt_set(opts, "ram_size", buffer);
     }
 
-    if (qemu_opts_validate(opts, common_machine_opts) < 0) {
-        exit(1);
+    if (acpi_enabled == 0) {
+        qemu_opt_set(opts, "acpi", "off");
+    }
+
+    if (machine->opts_desc) {
+        if (qemu_opts_validate(opts, machine->opts_desc) < 0) {
+            exit(1);
+        }
+    } else {
+        if (qemu_opts_validate(opts, common_machine_opts) < 0) {
+            exit(1);
+        }
     }
     
     machine->init(opts);
