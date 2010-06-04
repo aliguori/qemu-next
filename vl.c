@@ -1683,6 +1683,59 @@ void machine_set_default(const char *name)
     default_machine = name;
 }
 
+typedef struct MachineDefineHelper
+{
+    QemuOptValue *defaults;
+    int length;
+    int capacity;
+} MachineDefineHelper;
+
+static void helper_grow(MachineDefineHelper *helper)
+{
+    if ((helper->capacity - helper->length) < 2) {
+        helper->capacity += 100;
+        helper->defaults = qemu_realloc(helper->defaults,
+                                        helper->capacity * sizeof(QemuOptValue));
+    }
+}
+
+static int machine_define_prop(const char *name, const char *value, void *opaque)
+{
+    MachineDefineHelper *helper = opaque;
+    QemuOptValue *v;
+
+    if (strcmp(name, "core") == 0) {
+        return 0;
+    }
+
+    helper_grow(helper);
+    v = &helper->defaults[helper->length++];
+    v->name = qemu_strdup(name);
+    v->value = qemu_strdup(value);
+
+    return 0;
+}
+
+static int machine_define(QemuOpts *opts, void *opaque)
+{
+    MachineDefineHelper *helper;
+    const char *core;
+
+    core = qemu_opt_get(opts, "core");
+    if (!core) {
+        fprintf(stderr, "machine-def: No core specified\n");
+        return -1;
+    }
+
+    helper = qemu_mallocz(sizeof(*helper));
+    qemu_opt_foreach(opts, machine_define_prop, helper, 1);
+    helper->defaults[helper->length].name = NULL;
+    machine_create_from_core(core, helper->defaults);
+    qemu_free(helper);
+
+    return 0;
+}
+
 static Machine *find_machine(const char *name)
 {
     Machine *m;
@@ -2812,6 +2865,7 @@ int main(int argc, char **argv, char **envp)
         }
     }
     cpudef_init();
+    qemu_opts_foreach(&qemu_machine_def_opts, machine_define, NULL, 1);
 
     /* second pass of option parsing */
     optind = 1;
@@ -2852,6 +2906,14 @@ int main(int argc, char **argv, char **envp)
                 if (!qemu_opts_parse(&qemu_machine_opts, optarg, 1)) {
                     exit(1);
                 }
+                break;
+            case QEMU_OPTION_machine_def:
+                opts = qemu_opts_parse(&qemu_machine_def_opts, optarg, 1);
+                if (!opts) {
+                    exit(1);
+                }
+
+                machine_define(opts, NULL);
                 break;
             case QEMU_OPTION_cpu:
                 /* hw initialization will check this */

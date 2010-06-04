@@ -43,6 +43,14 @@ STEXI
 Select the emulated @var{machine}
 ETEXI
 
+DEF("machine-def", HAS_ARG, QEMU_OPTION_machine_def,
+    "-machine-def name[,opt=val...] define a new machine\n", QEMU_ARCH_ALL)
+STEXI
+@item -machine-def @var{name}[,@var{opt}=@var{val}...]
+@findex -machine-def
+Define a new machine
+ETEXI
+
 DEF("cpu", HAS_ARG, QEMU_OPTION_cpu,
     "-cpu cpu        select CPU (-cpu ? for list)\n", QEMU_ARCH_ALL)
 STEXI

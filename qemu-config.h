@@ -15,6 +15,7 @@ extern QemuOptsList qemu_global_opts;
 extern QemuOptsList qemu_mon_opts;
 extern QemuOptsList qemu_cpudef_opts;
 extern QemuOptsList qemu_machine_opts;
+extern QemuOptsList qemu_machine_def_opts;
 
 QemuOptsList *qemu_find_opts(const char *group);
 int qemu_set_option(const char *str);
