@@ -661,7 +661,7 @@ void qdev_prop_set_defaults(DeviceState *dev, Property *props)
 
 static QTAILQ_HEAD(, GlobalProperty) global_props = QTAILQ_HEAD_INITIALIZER(global_props);
 
-static void qdev_prop_register_global(GlobalProperty *prop)
+void qdev_prop_register_global(GlobalProperty *prop)
 {
     QTAILQ_INSERT_TAIL(&global_props, prop, next);
 }

@@ -183,15 +183,13 @@ static QEMUMachine bamboo_machine_v0_12 = {
     .name = "bamboo-0.12",
     .desc = "bamboo",
     .init = bamboo_init,
-    .compat_props = (GlobalProperty[]) {
+    .opts_default = (QemuOptValue[]) {
         {
-            .driver   = "virtio-serial-pci",
-            .property = "max_nr_ports",
-            .value    = stringify(1),
+            .name = "virtio-serial-pci.max_nr_ports",
+            .value = stringify(1),
         },{
-            .driver   = "virtio-serial-pci",
-            .property = "vectors",
-            .value    = stringify(0),
+            .name = "virtio-serial-pci.vectors",
+            .value = stringify(0),
         },
         { /* end of list */ }
     },

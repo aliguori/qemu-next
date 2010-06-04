@@ -2558,7 +2558,42 @@ static QemuOptDesc common_machine_opts[] = {
 static int machine_combine_opt(const char *name, const char *value, void *opaque)
 {
     QemuOpts *base_opts = opaque;
-    qemu_opt_set(base_opts, name, value);
+    char *ptr;
+
+    ptr = strchr(name, '.');
+    if (ptr) {
+        GlobalProperty *prop;
+        char *driver, *property;
+
+        prop = qemu_mallocz(sizeof(*prop));
+        driver = qemu_mallocz(strlen(name) + 1);
+        property = qemu_mallocz(strlen(name) + 1);
+
+        memcpy(driver, name, (ptr - name));
+        driver[(ptr - name)] = 0;
+        strcpy(property, ptr + 1);
+
+        prop->driver = driver;
+        prop->property = property;
+        prop->value = strdup(value);
+
+        qdev_prop_register_global(prop);
+    } else {
+        qemu_opt_set(base_opts, name, value);
+    }
+    return 0;
+}
+
+static int machine_find(QemuOpts *opts, void *opaque)
+{
+    QEMUMachine **machinep = opaque;
+    const char *driver;
+
+    driver = qemu_opt_get(opts, "driver");
+    if (driver) {
+        *machinep = find_machine(driver);
+    }
+
     return 0;
 }
 
@@ -3428,19 +3463,19 @@ int main(int argc, char **argv, char **envp)
         data_dir = CONFIG_QEMU_SHAREDIR;
     }
 
-    /* Combine all -machine options into one option group */
-    machine_opts = qemu_opts_create(&qemu_machine_opts, NULL, 0);
-    qemu_opts_foreach(&qemu_machine_opts, machine_combine_opts, machine_opts, 0);
-
-    if (!qemu_opt_get(machine_opts, "driver")) {
+    qemu_opts_foreach(&qemu_machine_opts, machine_find, &machine, 0);
+    if (!machine) {
         machine = find_default_machine();
-    } else {
-        machine = find_machine(qemu_opt_get(machine_opts, "driver"));
     }
 
     if (machine->opts_default) {
-        qemu_opts_set_defaults(machine_opts, machine->opts_default);
+        opts = qemu_opts_create(&qemu_machine_opts, NULL, 0);
+        qemu_opts_set_defaults(opts, machine->opts_default);
     }
+
+    /* Combine all -machine options into one option group */
+    machine_opts = qemu_opts_create(&qemu_machine_opts, NULL, 0);
+    qemu_opts_foreach(&qemu_machine_opts, machine_combine_opts, machine_opts, 0);
 
     if (machine->opts_desc) {
         if (qemu_opts_validate(machine_opts, machine->opts_desc) < 0) {
@@ -3746,9 +3781,6 @@ int main(int argc, char **argv, char **envp)
             exit (i == 1 ? 1 : 0);
     }
 
-    if (machine->compat_props) {
-        qdev_prop_register_global_list(machine->compat_props);
-    }
     qemu_add_globals();
 
     qemu_opt_set(machine_opts, "boot_device", boot_devices);

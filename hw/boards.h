@@ -24,7 +24,6 @@ struct QEMUMachine {
         no_cdrom:1,
         no_sdcard:1;
     int is_default;
-    GlobalProperty *compat_props;
     QemuOptDesc *opts_desc;
     QemuOptValue *opts_default;
     struct QEMUMachine *next;

@@ -225,20 +225,15 @@ static QEMUMachine pc_machine_v0_12 = {
             .name = "cpu",
             .value = PC_DEFAULT_CPU_MODEL,
         },
-        { /* end of list */ }
-    },
-    .compat_props = (GlobalProperty[]) {
         {
-            .driver   = "virtio-serial-pci",
-            .property = "max_nr_ports",
-            .value    = stringify(1),
+            .name = "virtio-serial-pci.max_nr_ports",
+            .value = stringify(1),
         },{
-            .driver   = "virtio-serial-pci",
-            .property = "vectors",
-            .value    = stringify(0),
+            .name = "virtio-serial-pci.vectors",
+            .value = stringify(0),
         },
         { /* end of list */ }
-    }
+    },
 };
 
 static QEMUMachine pc_machine_v0_11 = {
@@ -260,33 +255,24 @@ static QEMUMachine pc_machine_v0_11 = {
             .name = "cpu",
             .value = PC_DEFAULT_CPU_MODEL,
         },
-        { /* end of list */ }
-    },
-    .compat_props = (GlobalProperty[]) {
         {
-            .driver   = "virtio-blk-pci",
-            .property = "vectors",
-            .value    = stringify(0),
+            .name = "virtio-blk-pci.vectors",
+            .value = stringify(0),
         },{
-            .driver   = "virtio-serial-pci",
-            .property = "max_nr_ports",
-            .value    = stringify(1),
+            .name = "virtio-serial-pci.max_nr_ports",
+            .value = stringify(1),
         },{
-            .driver   = "virtio-serial-pci",
-            .property = "vectors",
-            .value    = stringify(0),
+            .name = "virtio-serial-pci.vectors",
+            .value = stringify(0),
         },{
-            .driver   = "ide-drive",
-            .property = "ver",
-            .value    = "0.11",
+            .name = "ide-drive.ver",
+            .value = "0.11",
         },{
-            .driver   = "scsi-disk",
-            .property = "ver",
-            .value    = "0.11",
+            .name = "scsi-disk.ver",
+            .value = "0.11",
         },{
-            .driver   = "PCI",
-            .property = "rombar",
-            .value    = stringify(0),
+            .name = "PCI.rombar",
+            .value = stringify(0),
         },
         { /* end of list */ }
     }
@@ -311,45 +297,33 @@ static QEMUMachine pc_machine_v0_10 = {
             .name = "cpu",
             .value = PC_DEFAULT_CPU_MODEL,
         },
-        { /* end of list */ }
-    },
-    .compat_props = (GlobalProperty[]) {
         {
-            .driver   = "virtio-blk-pci",
-            .property = "class",
-            .value    = stringify(PCI_CLASS_STORAGE_OTHER),
+            .name = "virtio-blk-pci.class",
+            .value = stringify(PCI_CLASS_STORAGE_OTHER),
         },{
-            .driver   = "virtio-serial-pci",
-            .property = "class",
-            .value    = stringify(PCI_CLASS_DISPLAY_OTHER),
+            .name = "virtio-serial-pci.class",
+            .value = stringify(PCI_CLASS_DISPLAY_OTHER),
         },{
-            .driver   = "virtio-serial-pci",
-            .property = "max_nr_ports",
-            .value    = stringify(1),
+            .name = "virtio-serial-pci.max_nr_ports",
+            .value = stringify(1),
         },{
-            .driver   = "virtio-serial-pci",
-            .property = "vectors",
-            .value    = stringify(0),
+            .name = "virtio-serial-pci.vectors",
+            .value = stringify(0),
         },{
-            .driver   = "virtio-net-pci",
-            .property = "vectors",
-            .value    = stringify(0),
+            .name = "virtio-net-pci.vectors",
+            .value = stringify(0),
         },{
-            .driver   = "virtio-blk-pci",
-            .property = "vectors",
-            .value    = stringify(0),
+            .name = "virtio-blk-pci.vectors",
+            .value = stringify(0),
         },{
-            .driver   = "ide-drive",
-            .property = "ver",
-            .value    = "0.10",
+            .name = "ide-drive.ver",
+            .value = "0.10",
         },{
-            .driver   = "scsi-disk",
-            .property = "ver",
-            .value    = "0.10",
+            .name = "scsi-disk.ver",
+            .value = "0.10",
         },{
-            .driver   = "PCI",
-            .property = "rombar",
-            .value    = stringify(0),
+            .name = "PCI.rombar",
+            .value = stringify(0),
         },
         { /* end of list */ }
     },
