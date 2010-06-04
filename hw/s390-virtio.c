@@ -273,9 +273,13 @@ static QEMUMachine s390_machine = {
     .alias = "s390",
     .desc = "VirtIO based S390 machine",
     .init = s390_init,
-    .no_serial = 1,
-    .no_parallel = 1,
-    .use_virtcon = 1,
+    .opts_default = (QemuOptValue[]) {
+        QOPT_VALUE("serial", "off"),
+        QOPT_VALUE("parallel", "off"),
+        QOPT_VALUE("virtcon", "on"),
+        QOPT_VALUE("vga", "off"),
+        { /* end of list */ }
+    },
     .no_vga = 1,
     .max_cpus = 255,
     .is_default = 1,

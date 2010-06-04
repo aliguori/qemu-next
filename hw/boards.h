@@ -16,13 +16,6 @@ struct QEMUMachine {
     QEMUMachineInitFunc *init;
     int use_scsi;
     int max_cpus;
-    unsigned int no_serial:1,
-        no_parallel:1,
-        use_virtcon:1,
-        no_vga:1,
-        no_floppy:1,
-        no_cdrom:1,
-        no_sdcard:1;
     int is_default;
     QemuOptDesc *opts_desc;
     QemuOptValue *opts_default;
@@ -43,29 +36,46 @@ extern QEMUMachine *current_machine;
     {                                   \
         .name = "driver",               \
         .type = QEMU_OPT_STRING,        \
-    },                                  \
-    {                                   \
+    },{                                 \
         .name = "ram_size",             \
         .type = QEMU_OPT_SIZE,          \
     },{                                 \
         .name = "kernel",               \
         .type = QEMU_OPT_STRING,        \
-    },                                  \
-    {                                   \
+    },{                                 \
         .name = "cmdline",              \
         .type = QEMU_OPT_STRING,        \
-    },                                  \
-    {                                   \
+    },{                                 \
         .name = "initrd",               \
         .type = QEMU_OPT_STRING,        \
-    },                                  \
-    {                                   \
+    },{                                 \
         .name = "boot_device",          \
         .type = QEMU_OPT_STRING,        \
-    },                                  \
-    {                                   \
+    },{                                 \
         .name = "cpu",                  \
         .type = QEMU_OPT_STRING,        \
+    },{                                 \
+        .name = "serial",               \
+        .type = QEMU_OPT_BOOL,          \
+    },{                                 \
+        .name = "parallel",             \
+        .type = QEMU_OPT_BOOL,          \
+    },{                                 \
+        .name = "virtcon",              \
+        .type = QEMU_OPT_BOOL,          \
+    },{                                 \
+        .name = "vga",                  \
+        .type = QEMU_OPT_BOOL,          \
+    },{                                 \
+        .name = "floppy",               \
+        .type = QEMU_OPT_BOOL,          \
+    },{                                 \
+        .name = "cdrom",                \
+        .type = QEMU_OPT_BOOL,          \
+    },{                                 \
+        .name = "sdcard",               \
+        .type = QEMU_OPT_BOOL,          \
     }
+
 
 #endif

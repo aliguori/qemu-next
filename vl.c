@@ -3505,25 +3505,25 @@ int main(int argc, char **argv, char **envp)
     qemu_opts_foreach(&qemu_device_opts, default_driver_check, NULL, 0);
     qemu_opts_foreach(&qemu_global_opts, default_driver_check, NULL, 0);
 
-    if (machine->no_serial) {
+    if (!qemu_opt_get_bool(machine_opts, "serial", 1)) {
         default_serial = 0;
     }
-    if (machine->no_parallel) {
+    if (!qemu_opt_get_bool(machine_opts, "parallel", 1)) {
         default_parallel = 0;
     }
-    if (!machine->use_virtcon) {
+    if (!qemu_opt_get_bool(machine_opts, "virtcon", 0)) {
         default_virtcon = 0;
     }
-    if (machine->no_vga) {
+    if (!qemu_opt_get_bool(machine_opts, "vga", 1)) {
         default_vga = 0;
     }
-    if (machine->no_floppy) {
+    if (!qemu_opt_get_bool(machine_opts, "floppy", 1)) {
         default_floppy = 0;
     }
-    if (machine->no_cdrom) {
+    if (!qemu_opt_get_bool(machine_opts, "cdrom", 1)) {
         default_cdrom = 0;
     }
-    if (machine->no_sdcard) {
+    if (!qemu_opt_get_bool(machine_opts, "sdcard", 1)) {
         default_sdcard = 0;
     }
 
