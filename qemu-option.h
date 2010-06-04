@@ -109,6 +109,12 @@ typedef struct QemuOptValue {
     const char *value;
 } QemuOptValue;
 
+#define QOPT_VALUE(_name, _value) \
+    {                             \
+        .name = _name,            \
+        .value = _value,          \
+    }
+
 const char *qemu_opt_get(QemuOpts *opts, const char *name);
 int qemu_opt_get_bool(QemuOpts *opts, const char *name, int defval);
 uint64_t qemu_opt_get_number(QemuOpts *opts, const char *name, uint64_t defval);

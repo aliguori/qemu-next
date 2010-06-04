@@ -190,18 +190,9 @@ static QEMUMachine pc_machine = {
     .is_default = 1,
     .opts_desc = pc_opts_desc,
     .opts_default = (QemuOptValue[]) {
-        {
-            .name  = "acpi",
-            .value = "on",
-        },
-        {
-            .name  = "pci",
-            .value = "on",
-        },
-        {
-            .name = "cpu",
-            .value = PC_DEFAULT_CPU_MODEL,
-        },
+        QOPT_VALUE("acpi", "on"),
+        QOPT_VALUE("pci", "on"),
+        QOPT_VALUE("cpu", PC_DEFAULT_CPU_MODEL),
         { /* end of list */ }
     },
 };
@@ -213,25 +204,11 @@ static QEMUMachine pc_machine_v0_12 = {
     .max_cpus = 255,
     .opts_desc = pc_opts_desc,
     .opts_default = (QemuOptValue[]) {
-        {
-            .name  = "acpi",
-            .value = "on",
-        },
-        {
-            .name  = "pci",
-            .value = "on",
-        },
-        {
-            .name = "cpu",
-            .value = PC_DEFAULT_CPU_MODEL,
-        },
-        {
-            .name = "virtio-serial-pci.max_nr_ports",
-            .value = stringify(1),
-        },{
-            .name = "virtio-serial-pci.vectors",
-            .value = stringify(0),
-        },
+        QOPT_VALUE("acpi", "on"),
+        QOPT_VALUE("pci", "on"),
+        QOPT_VALUE("cpu", PC_DEFAULT_CPU_MODEL),
+        QOPT_COMPAT_INT("virtio-serial-pci", "max_nr_ports", 1),
+        QOPT_COMPAT_INT("virtio-serial-pci", "vectors", 0),
         { /* end of list */ }
     },
 };
@@ -243,37 +220,15 @@ static QEMUMachine pc_machine_v0_11 = {
     .max_cpus = 255,
     .opts_desc = pc_opts_desc,
     .opts_default = (QemuOptValue[]) {
-        {
-            .name  = "acpi",
-            .value = "on",
-        },
-        {
-            .name  = "pci",
-            .value = "on",
-        },
-        {
-            .name = "cpu",
-            .value = PC_DEFAULT_CPU_MODEL,
-        },
-        {
-            .name = "virtio-blk-pci.vectors",
-            .value = stringify(0),
-        },{
-            .name = "virtio-serial-pci.max_nr_ports",
-            .value = stringify(1),
-        },{
-            .name = "virtio-serial-pci.vectors",
-            .value = stringify(0),
-        },{
-            .name = "ide-drive.ver",
-            .value = "0.11",
-        },{
-            .name = "scsi-disk.ver",
-            .value = "0.11",
-        },{
-            .name = "PCI.rombar",
-            .value = stringify(0),
-        },
+        QOPT_VALUE("acpi", "on"),
+        QOPT_VALUE("pci", "on"),
+        QOPT_VALUE("cpu", PC_DEFAULT_CPU_MODEL),
+        QOPT_COMPAT_INT("virtio-blk-pci", "vectors", 0),
+        QOPT_COMPAT_INT("virtio-serial-pci", "max_nr_ports", 1),
+        QOPT_COMPAT_INT("virtio-serial-pci", "vectors", 0),
+        QOPT_COMPAT("ide-drive", "ver", "0.11"),
+        QOPT_COMPAT("scsi-disk", "ver", "0.11"),
+        QOPT_COMPAT_INT("PCI", "rombar", 0),
         { /* end of list */ }
     }
 };
@@ -285,46 +240,18 @@ static QEMUMachine pc_machine_v0_10 = {
     .max_cpus = 255,
     .opts_desc = pc_opts_desc,
     .opts_default = (QemuOptValue[]) {
-        {
-            .name  = "acpi",
-            .value = "on",
-        },
-        {
-            .name  = "pci",
-            .value = "on",
-        },
-        {
-            .name = "cpu",
-            .value = PC_DEFAULT_CPU_MODEL,
-        },
-        {
-            .name = "virtio-blk-pci.class",
-            .value = stringify(PCI_CLASS_STORAGE_OTHER),
-        },{
-            .name = "virtio-serial-pci.class",
-            .value = stringify(PCI_CLASS_DISPLAY_OTHER),
-        },{
-            .name = "virtio-serial-pci.max_nr_ports",
-            .value = stringify(1),
-        },{
-            .name = "virtio-serial-pci.vectors",
-            .value = stringify(0),
-        },{
-            .name = "virtio-net-pci.vectors",
-            .value = stringify(0),
-        },{
-            .name = "virtio-blk-pci.vectors",
-            .value = stringify(0),
-        },{
-            .name = "ide-drive.ver",
-            .value = "0.10",
-        },{
-            .name = "scsi-disk.ver",
-            .value = "0.10",
-        },{
-            .name = "PCI.rombar",
-            .value = stringify(0),
-        },
+        QOPT_VALUE("acpi", "on"),
+        QOPT_VALUE("pci", "on"),
+        QOPT_VALUE("cpu", PC_DEFAULT_CPU_MODEL),
+        QOPT_COMPAT_INT("virtio-blk-pci", "class", PCI_CLASS_STORAGE_OTHER),
+        QOPT_COMPAT_INT("virtio-serial-pci", "class", PCI_CLASS_DISPLAY_OTHER),
+        QOPT_COMPAT_INT("virtio-net-pci", "vectors", 0),
+        QOPT_COMPAT_INT("virtio-blk-pci", "vectors", 0),
+        QOPT_COMPAT_INT("virtio-serial-pci", "max_nr_ports", 1),
+        QOPT_COMPAT_INT("virtio-serial-pci", "vectors", 0),
+        QOPT_COMPAT("ide-drive", "ver", "0.10"),
+        QOPT_COMPAT("scsi-disk", "ver", "0.10"),
+        QOPT_COMPAT_INT("PCI", "rombar", 0),
         { /* end of list */ }
     },
 };
@@ -335,18 +262,9 @@ static QEMUMachine isapc_machine = {
     .opts_desc = pc_opts_desc,
     .init = pc_init,
     .opts_default = (QemuOptValue[]) {
-        {
-            .name  = "acpi",
-            .value = "off",
-        },
-        {
-            .name  = "pci",
-            .value = "off",
-        },
-        {
-            .name = "cpu",
-            .value = "486",
-        },
+        QOPT_VALUE("acpi", "off"),
+        QOPT_VALUE("pci", "off"),
+        QOPT_VALUE("cpu", "486"),
         { /* end of list */ }
     },
     .max_cpus = 1,

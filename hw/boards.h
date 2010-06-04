@@ -33,6 +33,12 @@ int qemu_register_machine(QEMUMachine *m);
 
 extern QEMUMachine *current_machine;
 
+#define QOPT_COMPAT(driver, property, value) \
+    QOPT_VALUE(driver "." property, value)
+
+#define QOPT_COMPAT_INT(driver, property, value) \
+    QOPT_VALUE(driver "." property, stringify(value))
+
 #define COMMON_MACHINE_OPTS() 		\
     {                                   \
         .name = "driver",               \
