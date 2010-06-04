@@ -182,8 +182,21 @@ static QemuOptDesc pc_opts_desc[] = {
 #endif
 
 static QEMUMachine pc_machine = {
+    .name = "pc",
+    .desc = "Standard PC",
+    .init = pc_init,
+    .opts_desc = pc_opts_desc,
+    .opts_default = (QemuOptValue[]) {
+        QOPT_VALUE("acpi", "on"),
+        QOPT_VALUE("pci", "on"),
+        QOPT_VALUE("cpu", PC_DEFAULT_CPU_MODEL),
+        QOPT_VALUE("max_cpus", "255"),
+        { /* end of list */ }
+    },
+};
+
+static QEMUMachine pc_machine_v0_13 = {
     .name = "pc-0.13",
-    .alias = "pc",
     .desc = "Standard PC",
     .init = pc_init,
     .opts_desc = pc_opts_desc,
@@ -272,6 +285,7 @@ static QEMUMachine isapc_machine = {
 static void pc_machine_init(void)
 {
     qemu_register_machine(&pc_machine);
+    qemu_register_machine(&pc_machine_v0_13);
     qemu_register_machine(&pc_machine_v0_12);
     qemu_register_machine(&pc_machine_v0_11);
     qemu_register_machine(&pc_machine_v0_10);

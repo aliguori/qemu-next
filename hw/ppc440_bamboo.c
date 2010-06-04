@@ -173,8 +173,13 @@ static void bamboo_init(QemuOpts *opts)
 }
 
 static QEMUMachine bamboo_machine = {
+    .name = "bamboo",
+    .desc = "bamboo",
+    .init = bamboo_init,
+};
+
+static QEMUMachine bamboo_machine_v0_13 = {
     .name = "bamboo-0.13",
-    .alias = "bamboo",
     .desc = "bamboo",
     .init = bamboo_init,
 };
@@ -198,6 +203,7 @@ static QEMUMachine bamboo_machine_v0_12 = {
 static void bamboo_machine_init(void)
 {
     qemu_register_machine(&bamboo_machine);
+    qemu_register_machine(&bamboo_machine_v0_13);
     qemu_register_machine(&bamboo_machine_v0_12);
 }
 

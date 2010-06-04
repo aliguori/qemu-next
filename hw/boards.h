@@ -11,7 +11,6 @@ typedef void QEMUMachineInitFunc(QemuOpts *opts);
 
 struct QEMUMachine {
     const char *name;
-    const char *alias;
     const char *desc;
     QEMUMachineInitFunc *init;
     QemuOptDesc *opts_desc;

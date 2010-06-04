@@ -269,8 +269,21 @@ static void s390_init(QemuOpts *opts)
 }
 
 static QEMUMachine s390_machine = {
+    .name = "s390",
+    .desc = "VirtIO based S390 machine",
+    .init = s390_init,
+    .opts_default = (QemuOptValue[]) {
+        QOPT_VALUE("serial", "off"),
+        QOPT_VALUE("parallel", "off"),
+        QOPT_VALUE("virtcon", "on"),
+        QOPT_VALUE("vga", "off"),
+        QOPT_VALUE("max_cpus", "255"),
+        { /* end of list */ }
+    },
+};
+
+static QEMUMachine s390_virtio_machine = {
     .name = "s390-virtio",
-    .alias = "s390",
     .desc = "VirtIO based S390 machine",
     .init = s390_init,
     .opts_default = (QemuOptValue[]) {
@@ -286,7 +299,8 @@ static QEMUMachine s390_machine = {
 static void s390_machine_init(void)
 {
     qemu_register_machine(&s390_machine);
-    machine_set_default("s390-virtio");
+    qemu_register_machine(&s390_virtio_machine);
+    machine_set_default("s390");
 }
 
 machine_init(s390_machine_init);
