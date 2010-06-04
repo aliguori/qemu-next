@@ -162,6 +162,89 @@ static void pc_init(QemuOpts *opts)
     }
 }
 
+#ifdef TARGET_X86_64
+#define PC_DEFAULT_CPU_MODEL "qemu64"
+#else
+#define PC_DEFAULT_CPU_MODEL "qemu32"
+#endif
+
+static QemuOptValue pc_machine[] = {
+    QOPT_VALUE("name", "pc"),
+    QOPT_VALUE("desc", "Standard PC"),
+    QOPT_VALUE("acpi", "on"),
+    QOPT_VALUE("pci", "on"),
+    QOPT_VALUE("cpu", PC_DEFAULT_CPU_MODEL),
+    QOPT_VALUE("max_cpus", "255"),
+    { /* end of list */ }
+};
+
+static QemuOptValue pc_machine_v0_13[] = {
+    QOPT_VALUE("name", "pc-0.13"),
+    QOPT_VALUE("desc", "Standard PC"),
+    QOPT_VALUE("acpi", "on"),
+    QOPT_VALUE("pci", "on"),
+    QOPT_VALUE("cpu", PC_DEFAULT_CPU_MODEL),
+    QOPT_VALUE("max_cpus", "255"),
+    { /* end of list */ }
+};
+
+static QemuOptValue pc_machine_v0_12[] = {
+    QOPT_VALUE("name", "pc-0.12"),
+    QOPT_VALUE("desc", "Standard PC"),
+    QOPT_VALUE("acpi", "on"),
+    QOPT_VALUE("pci", "on"),
+    QOPT_VALUE("cpu", PC_DEFAULT_CPU_MODEL),
+    QOPT_VALUE("max_cpus", "255"),
+    QOPT_COMPAT_INT("virtio-serial-pci", "max_nr_ports", 1),
+    QOPT_COMPAT_INT("virtio-serial-pci", "vectors", 0),
+    { /* end of list */ }
+};
+
+static QemuOptValue pc_machine_v0_11[] = {
+    QOPT_VALUE("name", "pc-0.11"),
+    QOPT_VALUE("desc", "Standard PC, qemu 0.11"),
+    QOPT_VALUE("acpi", "on"),
+    QOPT_VALUE("pci", "on"),
+    QOPT_VALUE("cpu", PC_DEFAULT_CPU_MODEL),
+    QOPT_VALUE("max_cpus", "255"),
+    QOPT_COMPAT_INT("virtio-blk-pci", "vectors", 0),
+    QOPT_COMPAT_INT("virtio-serial-pci", "max_nr_ports", 1),
+    QOPT_COMPAT_INT("virtio-serial-pci", "vectors", 0),
+    QOPT_COMPAT("ide-drive", "ver", "0.11"),
+    QOPT_COMPAT("scsi-disk", "ver", "0.11"),
+    QOPT_COMPAT_INT("PCI", "rombar", 0),
+    { /* end of list */ }
+};
+
+static QemuOptValue pc_machine_v0_10[] = {
+    QOPT_VALUE("name", "pc-0.10"),
+    QOPT_VALUE("desc", "Standard PC, qemu 0.10"),
+    QOPT_VALUE("acpi", "on"),
+    QOPT_VALUE("pci", "on"),
+    QOPT_VALUE("cpu", PC_DEFAULT_CPU_MODEL),
+    QOPT_VALUE("max_cpu", "255"),
+    QOPT_COMPAT_INT("virtio-blk-pci", "class", PCI_CLASS_STORAGE_OTHER),
+    QOPT_COMPAT_INT("virtio-serial-pci", "class", PCI_CLASS_DISPLAY_OTHER),
+    QOPT_COMPAT_INT("virtio-net-pci", "vectors", 0),
+    QOPT_COMPAT_INT("virtio-blk-pci", "vectors", 0),
+    QOPT_COMPAT_INT("virtio-serial-pci", "max_nr_ports", 1),
+    QOPT_COMPAT_INT("virtio-serial-pci", "vectors", 0),
+    QOPT_COMPAT("ide-drive", "ver", "0.10"),
+    QOPT_COMPAT("scsi-disk", "ver", "0.10"),
+    QOPT_COMPAT_INT("PCI", "rombar", 0),
+    { /* end of list */ }
+};
+
+static QemuOptValue isapc_machine[] = {
+    QOPT_VALUE("name", "isapc"),
+    QOPT_VALUE("desc", "ISA-only PC"),
+    QOPT_VALUE("acpi", "off"),
+    QOPT_VALUE("pci", "off"),
+    QOPT_VALUE("cpu", "486"),
+    QOPT_VALUE("max_cpus", "1"),
+    { /* end of list */ }
+};
+
 static QemuOptDesc pc_opts_desc[] = {
     COMMON_MACHINE_OPTS(),
     {
@@ -175,121 +258,17 @@ static QemuOptDesc pc_opts_desc[] = {
     { /* end of list */ },
 };
 
-#ifdef TARGET_X86_64
-#define PC_DEFAULT_CPU_MODEL "qemu64"
-#else
-#define PC_DEFAULT_CPU_MODEL "qemu32"
-#endif
-
-static QEMUMachine pc_machine = {
-    .init = pc_init,
-    .opts_desc = pc_opts_desc,
-    .opts_default = (QemuOptValue[]) {
-        QOPT_VALUE("name", "pc"),
-        QOPT_VALUE("desc", "Standard PC"),
-        QOPT_VALUE("acpi", "on"),
-        QOPT_VALUE("pci", "on"),
-        QOPT_VALUE("cpu", PC_DEFAULT_CPU_MODEL),
-        QOPT_VALUE("max_cpus", "255"),
-        { /* end of list */ }
-    },
-};
-
-static QEMUMachine pc_machine_v0_13 = {
-    .init = pc_init,
-    .opts_desc = pc_opts_desc,
-    .opts_default = (QemuOptValue[]) {
-        QOPT_VALUE("name", "pc-0.13"),
-        QOPT_VALUE("desc", "Standard PC"),
-        QOPT_VALUE("acpi", "on"),
-        QOPT_VALUE("pci", "on"),
-        QOPT_VALUE("cpu", PC_DEFAULT_CPU_MODEL),
-        QOPT_VALUE("max_cpus", "255"),
-        { /* end of list */ }
-    },
-};
-
-static QEMUMachine pc_machine_v0_12 = {
-    .init = pc_init,
-    .opts_desc = pc_opts_desc,
-    .opts_default = (QemuOptValue[]) {
-        QOPT_VALUE("name", "pc-0.12"),
-        QOPT_VALUE("desc", "Standard PC"),
-        QOPT_VALUE("acpi", "on"),
-        QOPT_VALUE("pci", "on"),
-        QOPT_VALUE("cpu", PC_DEFAULT_CPU_MODEL),
-        QOPT_VALUE("max_cpus", "255"),
-        QOPT_COMPAT_INT("virtio-serial-pci", "max_nr_ports", 1),
-        QOPT_COMPAT_INT("virtio-serial-pci", "vectors", 0),
-        { /* end of list */ }
-    },
-};
-
-static QEMUMachine pc_machine_v0_11 = {
-    .init = pc_init,
-    .opts_desc = pc_opts_desc,
-    .opts_default = (QemuOptValue[]) {
-        QOPT_VALUE("name", "pc-0.11"),
-        QOPT_VALUE("desc", "Standard PC, qemu 0.11"),
-        QOPT_VALUE("acpi", "on"),
-        QOPT_VALUE("pci", "on"),
-        QOPT_VALUE("cpu", PC_DEFAULT_CPU_MODEL),
-        QOPT_VALUE("max_cpus", "255"),
-        QOPT_COMPAT_INT("virtio-blk-pci", "vectors", 0),
-        QOPT_COMPAT_INT("virtio-serial-pci", "max_nr_ports", 1),
-        QOPT_COMPAT_INT("virtio-serial-pci", "vectors", 0),
-        QOPT_COMPAT("ide-drive", "ver", "0.11"),
-        QOPT_COMPAT("scsi-disk", "ver", "0.11"),
-        QOPT_COMPAT_INT("PCI", "rombar", 0),
-        { /* end of list */ }
-    }
-};
-
-static QEMUMachine pc_machine_v0_10 = {
-    .init = pc_init,
-    .opts_desc = pc_opts_desc,
-    .opts_default = (QemuOptValue[]) {
-        QOPT_VALUE("name", "pc-0.10"),
-        QOPT_VALUE("desc", "Standard PC, qemu 0.10"),
-        QOPT_VALUE("acpi", "on"),
-        QOPT_VALUE("pci", "on"),
-        QOPT_VALUE("cpu", PC_DEFAULT_CPU_MODEL),
-        QOPT_VALUE("max_cpu", "255"),
-        QOPT_COMPAT_INT("virtio-blk-pci", "class", PCI_CLASS_STORAGE_OTHER),
-        QOPT_COMPAT_INT("virtio-serial-pci", "class", PCI_CLASS_DISPLAY_OTHER),
-        QOPT_COMPAT_INT("virtio-net-pci", "vectors", 0),
-        QOPT_COMPAT_INT("virtio-blk-pci", "vectors", 0),
-        QOPT_COMPAT_INT("virtio-serial-pci", "max_nr_ports", 1),
-        QOPT_COMPAT_INT("virtio-serial-pci", "vectors", 0),
-        QOPT_COMPAT("ide-drive", "ver", "0.10"),
-        QOPT_COMPAT("scsi-disk", "ver", "0.10"),
-        QOPT_COMPAT_INT("PCI", "rombar", 0),
-        { /* end of list */ }
-    },
-};
-
-static QEMUMachine isapc_machine = {
-    .opts_desc = pc_opts_desc,
-    .init = pc_init,
-    .opts_default = (QemuOptValue[]) {
-        QOPT_VALUE("name", "isapc"),
-        QOPT_VALUE("desc", "ISA-only PC"),
-        QOPT_VALUE("acpi", "off"),
-        QOPT_VALUE("pci", "off"),
-        QOPT_VALUE("cpu", "486"),
-        QOPT_VALUE("max_cpus", "1"),
-        { /* end of list */ }
-    },
-};
-
 static void pc_machine_init(void)
 {
-    qemu_register_machine(&pc_machine);
-    qemu_register_machine(&pc_machine_v0_13);
-    qemu_register_machine(&pc_machine_v0_12);
-    qemu_register_machine(&pc_machine_v0_11);
-    qemu_register_machine(&pc_machine_v0_10);
-    qemu_register_machine(&isapc_machine);
+    machine_register_core("pc", pc_init, pc_opts_desc);
+
+    machine_create_from_core("pc", pc_machine);
+    machine_create_from_core("pc", pc_machine_v0_13);
+    machine_create_from_core("pc", pc_machine_v0_12);
+    machine_create_from_core("pc", pc_machine_v0_11);
+    machine_create_from_core("pc", pc_machine_v0_10);
+    machine_create_from_core("pc", isapc_machine);
+
     machine_set_default("pc");
 }
 
