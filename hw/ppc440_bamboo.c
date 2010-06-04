@@ -173,22 +173,28 @@ static void bamboo_init(QemuOpts *opts)
 }
 
 static QEMUMachine bamboo_machine = {
-    .name = "bamboo",
-    .desc = "bamboo",
     .init = bamboo_init,
+    .opts_default = (QemuOptValue[]) {
+        QOPT_VALUE("name", "bamboo"),
+        QOPT_VALUE("desc", "bamboo"),
+        { /* end of list */ },
+    },
 };
 
 static QEMUMachine bamboo_machine_v0_13 = {
-    .name = "bamboo-0.13",
-    .desc = "bamboo",
     .init = bamboo_init,
+    .opts_default = (QemuOptValue[]) {
+        QOPT_VALUE("name", "bamboo-0.13"),
+        QOPT_VALUE("desc", "bamboo"),
+        { /* end of list */ },
+    },
 };
 
 static QEMUMachine bamboo_machine_v0_12 = {
-    .name = "bamboo-0.12",
-    .desc = "bamboo",
     .init = bamboo_init,
     .opts_default = (QemuOptValue[]) {
+        QOPT_VALUE("name", "bamboo-0.12"),
+        QOPT_VALUE("desc", "bamboo"),
         {
             .name = "virtio-serial-pci.max_nr_ports",
             .value = stringify(1),

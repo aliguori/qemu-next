@@ -290,9 +290,12 @@ static void mcf5208evb_init(QemuOpts *opts)
 }
 
 static QEMUMachine mcf5208evb_machine = {
-    .name = "mcf5208evb",
-    .desc = "MCF5206EVB",
     .init = mcf5208evb_init,
+    .opts_default = (QemuOptValue[]) {
+        QOPT_VALUE("name", "mcf5208evb"),
+        QOPT_VALUE("desc", "MCF5206EVB"),
+        { /* end of list */ },
+    },
 };
 
 static void mcf5208evb_machine_init(void)

@@ -386,9 +386,12 @@ void axisdev88_init (QemuOpts *opts)
 }
 
 static QEMUMachine axisdev88_machine = {
-    .name = "axis-dev88",
-    .desc = "AXIS devboard 88",
     .init = axisdev88_init,
+    .opts_default = (QemuOptValue[]) {
+        QOPT_VALUE("name", "axis-dev88"),
+        QOPT_VALUE("desc", "AXIS devboard 88"),
+        { /* end of list */ },
+    },
 };
 
 static void axisdev88_machine_init(void)

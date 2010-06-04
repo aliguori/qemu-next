@@ -990,9 +990,12 @@ void mips_malta_init (QemuOpts *opts)
 }
 
 static QEMUMachine mips_malta_machine = {
-    .name = "malta",
-    .desc = "MIPS Malta Core LV",
     .init = mips_malta_init,
+    .opts_default = (QemuOptValue[]) {
+        QOPT_VALUE("name", "malta"),
+        QOPT_VALUE("desc", "MIPS Malta Core LV"),
+        { /* end of list */ },
+    },
 };
 
 static void mips_malta_machine_init(void)

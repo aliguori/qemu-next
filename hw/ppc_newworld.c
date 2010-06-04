@@ -439,10 +439,10 @@ static void ppc_core99_init (QemuOpts *opts)
 }
 
 static QEMUMachine core99_machine = {
-    .name = "mac99",
-    .desc = "Mac99 based PowerMAC",
     .init = ppc_core99_init,
     .opts_default = (QemuOptValue[]) {
+        QOPT_VALUE("name", "mac99"),
+        QOPT_VALUE("desc", "Mac99 based PowerMAC"),
         QOPT_VALUE("max_cpus", stringify(MAX_CPUS)),
         { /* end of list */ }
     },

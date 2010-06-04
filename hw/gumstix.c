@@ -113,15 +113,21 @@ static void verdex_init(QemuOpts *opts)
 }
 
 static QEMUMachine connex_machine = {
-    .name = "connex",
-    .desc = "Gumstix Connex (PXA255)",
     .init = connex_init,
+    .opts_default = (QemuOptValue[]) {
+        QOPT_VALUE("name", "connex"),
+        QOPT_VALUE("desc", "Gumstix Connex (PXA255)"),
+        { /* end of list */ },
+    },
 };
 
 static QEMUMachine verdex_machine = {
-    .name = "verdex",
-    .desc = "Gumstix Verdex (PXA270)",
     .init = verdex_init,
+    .opts_default = (QemuOptValue[]) {
+        QOPT_VALUE("name", "verdex"),
+        QOPT_VALUE("desc", "Gumstix Verdex (PXA270)"),
+        { /* end of list */ },
+    },
 };
 
 static void gumstix_machine_init(void)

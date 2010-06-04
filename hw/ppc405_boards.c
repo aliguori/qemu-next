@@ -349,9 +349,12 @@ static void ref405ep_init (QemuOpts *opts)
 }
 
 static QEMUMachine ref405ep_machine = {
-    .name = "ref405ep",
-    .desc = "ref405ep",
     .init = ref405ep_init,
+    .opts_default = (QemuOptValue[]) {
+        QOPT_VALUE("name", "ref405ep"),
+        QOPT_VALUE("desc", "ref405ep"),
+        { /* end of list */ },
+    },
 };
 
 /*****************************************************************************/
@@ -631,9 +634,12 @@ static void taihu_405ep_init(QemuOpts *opts)
 }
 
 static QEMUMachine taihu_machine = {
-    .name = "taihu",
-    .desc = "taihu",
     .init = taihu_405ep_init,
+    .opts_default = (QemuOptValue[]) {
+        QOPT_VALUE("name", "taihu"),
+        QOPT_VALUE("desc", "taihu"),
+        { /* end of list */ },
+    },
 };
 
 static void ppc405_machine_init(void)

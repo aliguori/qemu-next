@@ -429,20 +429,20 @@ static void realview_pbx_a9_init(QemuOpts *opts)
 }
 
 static QEMUMachine realview_eb_machine = {
-    .name = "realview-eb",
-    .desc = "ARM RealView Emulation Baseboard (ARM926EJ-S)",
     .init = realview_eb_init,
     .opts_default = (QemuOptValue[]) {
+        QOPT_VALUE("name", "realview-eb"),
+        QOPT_VALUE("desc", "ARM RealView Emulation Baseboard (ARM926EJ-S)"),
         QOPT_VALUE("default_drive", "scsi"),
         { /* end of list */ }
     },
 };
 
 static QEMUMachine realview_eb_mpcore_machine = {
-    .name = "realview-eb-mpcore",
-    .desc = "ARM RealView Emulation Baseboard (ARM11MPCore)",
     .init = realview_eb_mpcore_init,
     .opts_default = (QemuOptValue[]) {
+        QOPT_VALUE("name", "realview-eb-mpcore"),
+        QOPT_VALUE("desc", "ARM RealView Emulation Baseboard (ARM11MPCore)"),
         QOPT_VALUE("default_drive", "scsi"),
         QOPT_VALUE("max_cpus", "4"),
         { /* end of list */ }
@@ -450,16 +450,19 @@ static QEMUMachine realview_eb_mpcore_machine = {
 };
 
 static QEMUMachine realview_pb_a8_machine = {
-    .name = "realview-pb-a8",
-    .desc = "ARM RealView Platform Baseboard for Cortex-A8",
     .init = realview_pb_a8_init,
+    .opts_default = (QemuOptValue[]) {
+        QOPT_VALUE("name", "realview-pb-a8"),
+        QOPT_VALUE("desc", "ARM RealView Platform Baseboard for Cortex-A8"),
+        { /* end of list */ },
+    },
 };
 
 static QEMUMachine realview_pbx_a9_machine = {
-    .name = "realview-pbx-a9",
-    .desc = "ARM RealView Platform Baseboard Explore for Cortex-A9",
     .init = realview_pbx_a9_init,
     .opts_default = (QemuOptValue[]) {
+        QOPT_VALUE("name", "realview-pbx-a9"),
+        QOPT_VALUE("desc", "ARM RealView Platform Baseboard Explore for Cortex-A9"),
         QOPT_VALUE("default_drive", "scsi"),
         QOPT_VALUE("max_cpus", "4"),
         { /* end of list */ }

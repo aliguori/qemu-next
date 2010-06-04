@@ -1046,27 +1046,39 @@ static void terrier_init(QemuOpts *opts)
 }
 
 static QEMUMachine akitapda_machine = {
-    .name = "akita",
-    .desc = "Akita PDA (PXA270)",
     .init = akita_init,
+    .opts_default = (QemuOptValue[]) {
+        QOPT_VALUE("name", "akita"),
+        QOPT_VALUE("desc", "Akita PDA (PXA270)"),
+        { /* end of list */ },
+    },
 };
 
 static QEMUMachine spitzpda_machine = {
-    .name = "spitz",
-    .desc = "Spitz PDA (PXA270)",
     .init = spitz_init,
+    .opts_default = (QemuOptValue[]) {
+        QOPT_VALUE("name", "spitz"),
+        QOPT_VALUE("desc", "Spitz PDA (PXA270)"),
+        { /* end of list */ },
+    },
 };
 
 static QEMUMachine borzoipda_machine = {
-    .name = "borzoi",
-    .desc = "Borzoi PDA (PXA270)",
     .init = borzoi_init,
+    .opts_default = (QemuOptValue[]) {
+        QOPT_VALUE("name", "borzoi"),
+        QOPT_VALUE("desc", "Borzoi PDA (PXA270)"),
+        { /* end of list */ },
+    },
 };
 
 static QEMUMachine terrierpda_machine = {
-    .name = "terrier",
-    .desc = "Terrier PDA (PXA270)",
     .init = terrier_init,
+    .opts_default = (QemuOptValue[]) {
+        QOPT_VALUE("name", "terrier"),
+        QOPT_VALUE("desc", "Terrier PDA (PXA270)"),
+        { /* end of list */ },
+    },
 };
 
 static void spitz_machine_init(void)

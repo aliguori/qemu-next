@@ -411,10 +411,10 @@ static void ppc_heathrow_init (QemuOpts *opts)
 }
 
 static QEMUMachine heathrow_machine = {
-    .name = "g3beige",
-    .desc = "Heathrow based PowerMAC",
     .init = ppc_heathrow_init,
     .opts_default = (QemuOptValue[]) {
+        QOPT_VALUE("name", "g3beige"),
+        QOPT_VALUE("desc", "Heathrow based PowerMAC"),
         QOPT_VALUE("max_cpus", stringify(MAX_CPUS)),
         { /* end of list */ }
     },

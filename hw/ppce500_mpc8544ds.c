@@ -283,9 +283,12 @@ static void mpc8544ds_init(QemuOpts *opts)
 }
 
 static QEMUMachine mpc8544ds_machine = {
-    .name = "mpc8544ds",
-    .desc = "mpc8544ds",
     .init = mpc8544ds_init,
+    .opts_default = (QemuOptValue[]) {
+        QOPT_VALUE("name", "mpc8544ds"),
+        QOPT_VALUE("desc", "mpc8544ds"),
+        { /* end of list */ },
+    },
 };
 
 static void mpc8544ds_machine_init(void)

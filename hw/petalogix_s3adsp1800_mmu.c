@@ -198,9 +198,12 @@ petalogix_s3adsp1800_init(QemuOpts *opts)
 }
 
 static QEMUMachine petalogix_s3adsp1800_machine = {
-    .name = "petalogix-s3adsp1800",
-    .desc = "Petalogix linux refdesign for xilinx Spartan 3ADSP1800",
     .init = petalogix_s3adsp1800_init,
+    .opts_default = (QemuOptValue[]) {
+        QOPT_VALUE("name", "petalogix-s3adsp1800"),
+        QOPT_VALUE("desc", "Petalogix linux refdesign for xilinx Spartan 3ADSP1800"),
+        { /* end of list */ },
+    },
 };
 
 static void petalogix_s3adsp1800_machine_init(void)

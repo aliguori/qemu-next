@@ -173,9 +173,12 @@ void bareetraxfs_init (QemuOpts *opts)
 }
 
 static QEMUMachine bareetraxfs_machine = {
-    .name = "bareetraxfs",
-    .desc = "Bare ETRAX FS board",
     .init = bareetraxfs_init,
+    .opts_default = (QemuOptValue[]) {
+        QOPT_VALUE("name", "bareetraxfs"),
+        QOPT_VALUE("desc", "Bare ETRAX FS board"),
+        { /* end of list */ },
+    },
 };
 
 static void bareetraxfs_machine_init(void)

@@ -1317,20 +1317,20 @@ static void sbook_init(QemuOpts *opts)
 }
 
 static QEMUMachine ss5_machine = {
-    .name = "SS-5",
-    .desc = "Sun4m platform, SPARCstation 5",
     .init = ss5_init,
     .opts_default = (QemuOptValue[]) {
+        QOPT_VALUE("name", "SS-5"),
+        QOPT_VALUE("desc", "Sun4m platform, SPARCstation 5"),
         QOPT_VALUE("default_drive", "scsi"),
         { /* end of list */ }
     },
 };
 
 static QEMUMachine ss10_machine = {
-    .name = "SS-10",
-    .desc = "Sun4m platform, SPARCstation 10",
     .init = ss10_init,
     .opts_default = (QemuOptValue[]) {
+        QOPT_VALUE("name", "SS-10"),
+        QOPT_VALUE("desc", "Sun4m platform, SPARCstation 10"),
         QOPT_VALUE("default_drive", "scsi"),
         QOPT_VALUE("max_cpus", "4"),
         { /* end of list */ }
@@ -1338,10 +1338,10 @@ static QEMUMachine ss10_machine = {
 };
 
 static QEMUMachine ss600mp_machine = {
-    .name = "SS-600MP",
-    .desc = "Sun4m platform, SPARCserver 600MP",
     .init = ss600mp_init,
     .opts_default = (QemuOptValue[]) {
+        QOPT_VALUE("name", "SS-600MP"),
+        QOPT_VALUE("desc", "Sun4m platform, SPARCserver 600MP"),
         QOPT_VALUE("default_drive", "scsi"),
         QOPT_VALUE("max_cpus", "4"),
         { /* end of list */ }
@@ -1349,10 +1349,10 @@ static QEMUMachine ss600mp_machine = {
 };
 
 static QEMUMachine ss20_machine = {
-    .name = "SS-20",
-    .desc = "Sun4m platform, SPARCstation 20",
     .init = ss20_init,
     .opts_default = (QemuOptValue[]) {
+        QOPT_VALUE("name", "SS-20"),
+        QOPT_VALUE("desc", "Sun4m platform, SPARCstation 20"),
         QOPT_VALUE("default_drive", "scsi"),
         QOPT_VALUE("max_cpus", "4"),
         { /* end of list */ }
@@ -1360,50 +1360,50 @@ static QEMUMachine ss20_machine = {
 };
 
 static QEMUMachine voyager_machine = {
-    .name = "Voyager",
-    .desc = "Sun4m platform, SPARCstation Voyager",
     .init = vger_init,
     .opts_default = (QemuOptValue[]) {
+        QOPT_VALUE("name", "Voyager"),
+        QOPT_VALUE("desc", "Sun4m platform, SPARCstation Voyager"),
         QOPT_VALUE("default_drive", "scsi"),
         { /* end of list */ }
     },
 };
 
 static QEMUMachine ss_lx_machine = {
-    .name = "LX",
-    .desc = "Sun4m platform, SPARCstation LX",
     .init = ss_lx_init,
     .opts_default = (QemuOptValue[]) {
+        QOPT_VALUE("name", "LX"),
+        QOPT_VALUE("desc", "Sun4m platform, SPARCstation LX"),
         QOPT_VALUE("default_drive", "scsi"),
         { /* end of list */ }
     },
 };
 
 static QEMUMachine ss4_machine = {
-    .name = "SS-4",
-    .desc = "Sun4m platform, SPARCstation 4",
     .init = ss4_init,
     .opts_default = (QemuOptValue[]) {
+        QOPT_VALUE("name", "SS-4"),
+        QOPT_VALUE("desc", "Sun4m platform, SPARCstation 4"),
         QOPT_VALUE("default_drive", "scsi"),
         { /* end of list */ }
     },
 };
 
 static QEMUMachine scls_machine = {
-    .name = "SPARCClassic",
-    .desc = "Sun4m platform, SPARCClassic",
     .init = scls_init,
     .opts_default = (QemuOptValue[]) {
+        QOPT_VALUE("name", "SPARCClassic"),
+        QOPT_VALUE("desc", "Sun4m platform, SPARCClassic"),
         QOPT_VALUE("default_drive", "scsi"),
         { /* end of list */ }
     },
 };
 
 static QEMUMachine sbook_machine = {
-    .name = "SPARCbook",
-    .desc = "Sun4m platform, SPARCbook",
     .init = sbook_init,
     .opts_default = (QemuOptValue[]) {
+        QOPT_VALUE("name", "SPARCbook"),
+        QOPT_VALUE("desc", "Sun4m platform, SPARCbook"),
         QOPT_VALUE("default_drive", "scsi"),
         { /* end of list */ }
     },
@@ -1624,10 +1624,10 @@ static void ss2000_init(QemuOpts *opts)
 }
 
 static QEMUMachine ss1000_machine = {
-    .name = "SS-1000",
-    .desc = "Sun4d platform, SPARCserver 1000",
     .init = ss1000_init,
     .opts_default = (QemuOptValue[]) {
+        QOPT_VALUE("name", "SS-1000"),
+        QOPT_VALUE("desc", "Sun4d platform, SPARCserver 1000"),
         QOPT_VALUE("default_drive", "scsi"),
         QOPT_VALUE("max_cpus", "8"),
         { /* end of list */ }
@@ -1635,10 +1635,10 @@ static QEMUMachine ss1000_machine = {
 };
 
 static QEMUMachine ss2000_machine = {
-    .name = "SS-2000",
-    .desc = "Sun4d platform, SPARCcenter 2000",
     .init = ss2000_init,
     .opts_default = (QemuOptValue[]) {
+        QOPT_VALUE("name", "SS-2000"),
+        QOPT_VALUE("desc", "Sun4d platform, SPARCcenter 2000"),
         QOPT_VALUE("default_drive", "scsi"),
         QOPT_VALUE("max_cpus", "20"),
         { /* end of list */ }
@@ -1814,10 +1814,10 @@ static void ss2_init(QemuOpts *opts)
 }
 
 static QEMUMachine ss2_machine = {
-    .name = "SS-2",
-    .desc = "Sun4c platform, SPARCstation 2",
     .init = ss2_init,
     .opts_default = (QemuOptValue[]) {
+        QOPT_VALUE("name", "SS-2"),
+        QOPT_VALUE("desc", "Sun4c platform, SPARCstation 2"),
         QOPT_VALUE("default_drive", "scsi"),
         { /* end of list */ }
     },

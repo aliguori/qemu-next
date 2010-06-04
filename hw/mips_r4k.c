@@ -310,9 +310,12 @@ void mips_r4k_init (QemuOpts *opts)
 }
 
 static QEMUMachine mips_machine = {
-    .name = "mips",
-    .desc = "mips r4k platform",
     .init = mips_r4k_init,
+    .opts_default = (QemuOptValue[]) {
+        QOPT_VALUE("name", "mips"),
+        QOPT_VALUE("desc", "mips r4k platform"),
+        { /* end of list */ },
+    },
 };
 
 static void mips_machine_init(void)

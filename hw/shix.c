@@ -88,9 +88,12 @@ static void shix_init(QemuOpts *opts)
 }
 
 static QEMUMachine shix_machine = {
-    .name = "shix",
-    .desc = "shix card",
     .init = shix_init,
+    .opts_default = (QemuOptValue[]) {
+        QOPT_VALUE("name", "shix"),
+        QOPT_VALUE("desc", "shix card"),
+        { /* end of list */ },
+    },
 };
 
 static void shix_machine_init(void)

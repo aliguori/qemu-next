@@ -67,9 +67,12 @@ static void dummy_m68k_init(QemuOpts *opts)
 }
 
 static QEMUMachine dummy_m68k_machine = {
-    .name = "dummy",
-    .desc = "Dummy board",
     .init = dummy_m68k_init,
+    .opts_default = (QemuOptValue[]) {
+        QOPT_VALUE("name", "dummy"),
+        QOPT_VALUE("desc", "Dummy board"),
+        { /* end of list */ },
+    },
 };
 
 static void dummy_m68k_machine_init(void)

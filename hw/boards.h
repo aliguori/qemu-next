@@ -5,23 +5,17 @@
 
 #include "qdev.h"
 
-typedef struct QEMUMachine QEMUMachine;
-
 typedef void QEMUMachineInitFunc(QemuOpts *opts);
 
-struct QEMUMachine {
-    const char *name;
-    const char *desc;
+typedef struct QEMUMachine {
     QEMUMachineInitFunc *init;
     QemuOptDesc *opts_desc;
     QemuOptValue *opts_default;
-    struct QEMUMachine *next;
-};
+    QTAILQ_ENTRY(QEMUMachine) node;
+} QEMUMachine;
 
-int qemu_register_machine(QEMUMachine *m);
+int qemu_register_machine(QEMUMachine *machine);
 void machine_set_default(const char *name);
-
-extern QEMUMachine *current_machine;
 
 #define QOPT_COMPAT(driver, property, value) \
     QOPT_VALUE(driver "." property, value)
@@ -31,7 +25,13 @@ extern QEMUMachine *current_machine;
 
 #define COMMON_MACHINE_OPTS() 		\
     {                                   \
+        .name = "name",                 \
+        .type = QEMU_OPT_STRING,        \
+    },{                                 \
         .name = "driver",               \
+        .type = QEMU_OPT_STRING,        \
+    },{                                 \
+        .name = "desc",                 \
         .type = QEMU_OPT_STRING,        \
     },{                                 \
         .name = "ram_size",             \

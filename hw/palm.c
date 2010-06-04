@@ -272,9 +272,12 @@ static void palmte_init(QemuOpts *opts)
 }
 
 static QEMUMachine palmte_machine = {
-    .name = "cheetah",
-    .desc = "Palm Tungsten|E aka. Cheetah PDA (OMAP310)",
     .init = palmte_init,
+    .opts_default = (QemuOptValue[]) {
+        QOPT_VALUE("name", "cheetah"),
+        QOPT_VALUE("desc", "Palm Tungsten|E aka. Cheetah PDA (OMAP310)"),
+        { /* end of list */ },
+    },
 };
 
 static void palmte_machine_init(void)

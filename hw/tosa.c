@@ -239,9 +239,12 @@ static void tosa_init(QemuOpts *opts)
 }
 
 static QEMUMachine tosapda_machine = {
-    .name = "tosa",
-    .desc = "Tosa PDA (PXA255)",
     .init = tosa_init,
+    .opts_default = (QemuOptValue[]) {
+        QOPT_VALUE("name", "tosa"),
+        QOPT_VALUE("desc", "Tosa PDA (PXA255)"),
+        { /* end of list */ },
+    },
 };
 
 static void tosapda_machine_init(void)

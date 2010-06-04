@@ -109,9 +109,12 @@ static void xen_init_pv(QemuOpts *opts)
 }
 
 static QEMUMachine xenpv_machine = {
-    .name = "xenpv",
-    .desc = "Xen Para-virtualized PC",
     .init = xen_init_pv,
+    .opts_default = (QemuOptValue[]) {
+        QOPT_VALUE("name", "xenpv"),
+        QOPT_VALUE("desc", "Xen Para-virtualized PC"),
+        { /* end of list */ },
+    },
 };
 
 static void xenpv_machine_init(void)

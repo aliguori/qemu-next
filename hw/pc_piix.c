@@ -182,11 +182,11 @@ static QemuOptDesc pc_opts_desc[] = {
 #endif
 
 static QEMUMachine pc_machine = {
-    .name = "pc",
-    .desc = "Standard PC",
     .init = pc_init,
     .opts_desc = pc_opts_desc,
     .opts_default = (QemuOptValue[]) {
+        QOPT_VALUE("name", "pc"),
+        QOPT_VALUE("desc", "Standard PC"),
         QOPT_VALUE("acpi", "on"),
         QOPT_VALUE("pci", "on"),
         QOPT_VALUE("cpu", PC_DEFAULT_CPU_MODEL),
@@ -196,11 +196,11 @@ static QEMUMachine pc_machine = {
 };
 
 static QEMUMachine pc_machine_v0_13 = {
-    .name = "pc-0.13",
-    .desc = "Standard PC",
     .init = pc_init,
     .opts_desc = pc_opts_desc,
     .opts_default = (QemuOptValue[]) {
+        QOPT_VALUE("name", "pc-0.13"),
+        QOPT_VALUE("desc", "Standard PC"),
         QOPT_VALUE("acpi", "on"),
         QOPT_VALUE("pci", "on"),
         QOPT_VALUE("cpu", PC_DEFAULT_CPU_MODEL),
@@ -210,11 +210,11 @@ static QEMUMachine pc_machine_v0_13 = {
 };
 
 static QEMUMachine pc_machine_v0_12 = {
-    .name = "pc-0.12",
-    .desc = "Standard PC",
     .init = pc_init,
     .opts_desc = pc_opts_desc,
     .opts_default = (QemuOptValue[]) {
+        QOPT_VALUE("name", "pc-0.12"),
+        QOPT_VALUE("desc", "Standard PC"),
         QOPT_VALUE("acpi", "on"),
         QOPT_VALUE("pci", "on"),
         QOPT_VALUE("cpu", PC_DEFAULT_CPU_MODEL),
@@ -226,11 +226,11 @@ static QEMUMachine pc_machine_v0_12 = {
 };
 
 static QEMUMachine pc_machine_v0_11 = {
-    .name = "pc-0.11",
-    .desc = "Standard PC, qemu 0.11",
     .init = pc_init,
     .opts_desc = pc_opts_desc,
     .opts_default = (QemuOptValue[]) {
+        QOPT_VALUE("name", "pc-0.11"),
+        QOPT_VALUE("desc", "Standard PC, qemu 0.11"),
         QOPT_VALUE("acpi", "on"),
         QOPT_VALUE("pci", "on"),
         QOPT_VALUE("cpu", PC_DEFAULT_CPU_MODEL),
@@ -246,11 +246,11 @@ static QEMUMachine pc_machine_v0_11 = {
 };
 
 static QEMUMachine pc_machine_v0_10 = {
-    .name = "pc-0.10",
-    .desc = "Standard PC, qemu 0.10",
     .init = pc_init,
     .opts_desc = pc_opts_desc,
     .opts_default = (QemuOptValue[]) {
+        QOPT_VALUE("name", "pc-0.10"),
+        QOPT_VALUE("desc", "Standard PC, qemu 0.10"),
         QOPT_VALUE("acpi", "on"),
         QOPT_VALUE("pci", "on"),
         QOPT_VALUE("cpu", PC_DEFAULT_CPU_MODEL),
@@ -269,11 +269,11 @@ static QEMUMachine pc_machine_v0_10 = {
 };
 
 static QEMUMachine isapc_machine = {
-    .name = "isapc",
-    .desc = "ISA-only PC",
     .opts_desc = pc_opts_desc,
     .init = pc_init,
     .opts_default = (QemuOptValue[]) {
+        QOPT_VALUE("name", "isapc"),
+        QOPT_VALUE("desc", "ISA-only PC"),
         QOPT_VALUE("acpi", "off"),
         QOPT_VALUE("pci", "off"),
         QOPT_VALUE("cpu", "486"),

@@ -143,9 +143,12 @@ static void mainstone_init(QemuOpts *opts)
 }
 
 static QEMUMachine mainstone2_machine = {
-    .name = "mainstone",
-    .desc = "Mainstone II (PXA27x)",
     .init = mainstone_init,
+    .opts_default = (QemuOptValue[]) {
+        QOPT_VALUE("name", "mainstone"),
+        QOPT_VALUE("desc", "Mainstone II (PXA27x)"),
+        { /* end of list */ },
+    },
 };
 
 static void mainstone_machine_init(void)

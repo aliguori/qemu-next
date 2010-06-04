@@ -1590,17 +1590,13 @@ void qemu_del_wait_object(HANDLE handle, WaitObjectFunc *func, void *opaque)
 /***********************************************************/
 /* machine registration */
 
-static QEMUMachine *first_machine = NULL;
+static QTAILQ_HEAD(, QEMUMachine) machine_list =
+    QTAILQ_HEAD_INITIALIZER(machine_list);
 static const char *default_machine = NULL;
 
-int qemu_register_machine(QEMUMachine *m)
+int qemu_register_machine(QEMUMachine *n)
 {
-    QEMUMachine **pm;
-    pm = &first_machine;
-    while (*pm != NULL)
-        pm = &(*pm)->next;
-    m->next = NULL;
-    *pm = m;
+    QTAILQ_INSERT_TAIL(&machine_list, n, node);
     return 0;
 }
 
@@ -1609,13 +1605,26 @@ void machine_set_default(const char *name)
     default_machine = name;
 }
 
+static const char *find_machine_defval(QEMUMachine *m, const char *name)
+{
+    int i;
+    for (i = 0; m->opts_default[i].name; i++) {
+        if (!strcmp(m->opts_default[i].name, name)) {
+            return m->opts_default[i].value;
+        }
+    }
+    return NULL;
+}
+
 static QEMUMachine *find_machine(const char *name)
 {
     QEMUMachine *m;
 
-    for(m = first_machine; m != NULL; m = m->next) {
-        if (!strcmp(m->name, name))
+    QTAILQ_FOREACH(m, &machine_list, node) {
+        const char *val = find_machine_defval(m, "name");
+        if (strcmp(name, val) == 0) {
             return m;
+        }
     }
     return NULL;
 }
@@ -2755,10 +2764,15 @@ int main(int argc, char **argv, char **envp)
                 if (strcmp(optarg, "?") == 0) {
                     QEMUMachine *m;
                     printf("Supported machines are:\n");
-                    for(m = first_machine; m != NULL; m = m->next) {
+                    QTAILQ_FOREACH(m, &machine_list, node) {
+                        const char *name;
+                        const char *desc;
+
+                        name = find_machine_defval(m, "name");
+                        desc = find_machine_defval(m, "desc");
                         printf("%-10s %s%s\n",
-                               m->name, m->desc,
-                               !strcmp(m->name, default_machine) ?
+                               name, desc, 
+                               !strcmp(name, default_machine) ?
                                " (default)" : "");
                     }
                     exit(0);
@@ -3485,7 +3499,8 @@ int main(int argc, char **argv, char **envp)
     max_cpus = qemu_opt_get_number(machine_opts, "max_cpus", 1);
     if (smp_cpus > max_cpus) {
         fprintf(stderr, "Number of SMP cpus requested (%d), exceeds max cpus "
-                "supported by machine `%s' (%d)\n", smp_cpus,  machine->name,
+                "supported by machine `%s' (%d)\n", smp_cpus,
+                qemu_opt_get(machine_opts, "name"),
                 max_cpus);
         exit(1);
     }

@@ -1630,9 +1630,12 @@ static void musicpal_init(QemuOpts *opts)
 }
 
 static QEMUMachine musicpal_machine = {
-    .name = "musicpal",
-    .desc = "Marvell 88w8618 / MusicPal (ARM926EJ-S)",
     .init = musicpal_init,
+    .opts_default = (QemuOptValue[]) {
+        QOPT_VALUE("name", "musicpal"),
+        QOPT_VALUE("desc", "Marvell 88w8618 / MusicPal (ARM926EJ-S)"),
+        { /* end of list */ },
+    },
 };
 
 static void musicpal_machine_init(void)

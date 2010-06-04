@@ -318,20 +318,20 @@ static void vab_init(QemuOpts *opts)
 }
 
 static QEMUMachine versatilepb_machine = {
-    .name = "versatilepb",
-    .desc = "ARM Versatile/PB (ARM926EJ-S)",
     .init = vpb_init,
     .opts_default = (QemuOptValue[]) {
+        QOPT_VALUE("name", "versatilepb"),
+        QOPT_VALUE("desc", "ARM Versatile/PB (ARM926EJ-S)"),
         QOPT_VALUE("default_drive", "scsi"),
         { /* end of list */ }
     },
 };
 
 static QEMUMachine versatileab_machine = {
-    .name = "versatileab",
-    .desc = "ARM Versatile/AB (ARM926EJ-S)",
     .init = vab_init,
     .opts_default = (QemuOptValue[]) {
+        QOPT_VALUE("name", "versatileab"),
+        QOPT_VALUE("desc", "ARM Versatile/AB (ARM926EJ-S)"),
         QOPT_VALUE("default_drive", "scsi"),
         { /* end of list */ }
     },

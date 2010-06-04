@@ -790,10 +790,10 @@ static void ppc_prep_init (QemuOpts *opts)
 }
 
 static QEMUMachine prep_machine = {
-    .name = "prep",
-    .desc = "PowerPC PREP platform",
     .init = ppc_prep_init,
     .opts_default = (QemuOptValue[]) {
+        QOPT_VALUE("name", "prep"),
+        QOPT_VALUE("desc", "PowerPC PREP platform"),
         QOPT_VALUE("max_cpus", stringify(MAX_CPUS)),
         { /* end of list */ }
     },

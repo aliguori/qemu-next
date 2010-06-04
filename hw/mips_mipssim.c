@@ -202,9 +202,12 @@ mips_mipssim_init (QemuOpts *opts)
 }
 
 static QEMUMachine mips_mipssim_machine = {
-    .name = "mipssim",
-    .desc = "MIPS MIPSsim platform",
     .init = mips_mipssim_init,
+    .opts_default = (QemuOptValue[]) {
+        QOPT_VALUE("name", "mipssim"),
+        QOPT_VALUE("desc", "MIPS MIPSsim platform"),
+        { /* end of list */ },
+    },
 };
 
 static void mips_mipssim_machine_init(void)

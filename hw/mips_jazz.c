@@ -316,20 +316,20 @@ void mips_pica61_init (QemuOpts *opts)
 }
 
 static QEMUMachine mips_magnum_machine = {
-    .name = "magnum",
-    .desc = "MIPS Magnum",
     .init = mips_magnum_init,
     .opts_default = (QemuOptValue[]) {
+        QOPT_VALUE("name", "magnum"),
+        QOPT_VALUE("desc", "MIPS Magnum"),
         QOPT_VALUE("default_drive", "scsi"),
         { /* end of list */ }
     },
 };
 
 static QEMUMachine mips_pica61_machine = {
-    .name = "pica61",
-    .desc = "Acer Pica 61",
     .init = mips_pica61_init,
     .opts_default = (QemuOptValue[]) {
+        QOPT_VALUE("name", "pica61"),
+        QOPT_VALUE("desc", "Acer Pica 61"),
         QOPT_VALUE("default_drive", "scsi"),
         { /* end of list */ }
     },

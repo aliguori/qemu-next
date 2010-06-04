@@ -230,15 +230,21 @@ static void sx1_init_v2(QemuOpts *opts)
 }
 
 static QEMUMachine sx1_machine_v2 = {
-    .name = "sx1",
-    .desc = "Siemens SX1 (OMAP310) V2",
     .init = sx1_init_v2,
+    .opts_default = (QemuOptValue[]) {
+        QOPT_VALUE("name", "sx1"),
+        QOPT_VALUE("desc", "Siemens SX1 (OMAP310) V2"),
+        { /* end of list */ },
+    },
 };
 
 static QEMUMachine sx1_machine_v1 = {
-    .name = "sx1-v1",
-    .desc = "Siemens SX1 (OMAP310) V1",
     .init = sx1_init_v1,
+    .opts_default = (QemuOptValue[]) {
+        QOPT_VALUE("name", "sx1-v1"),
+        QOPT_VALUE("desc", "Siemens SX1 (OMAP310) V1"),
+        { /* end of list */ },
+    },
 };
 
 static void sx1_machine_init(void)

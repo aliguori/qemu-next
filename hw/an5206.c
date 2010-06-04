@@ -88,9 +88,12 @@ static void an5206_init(QemuOpts *opts)
 }
 
 static QEMUMachine an5206_machine = {
-    .name = "an5206",
-    .desc = "Arnewsh 5206",
     .init = an5206_init,
+    .opts_default = (QemuOptValue[]) {
+        QOPT_VALUE("name", "an5206"),
+        QOPT_VALUE("desc", "Arnewsh 5206"),
+        { /* end of list */ },
+    },
 };
 
 static void an5206_machine_init(void)

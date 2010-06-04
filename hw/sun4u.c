@@ -920,21 +920,30 @@ static void niagara_init(QemuOpts *opts)
 }
 
 static QEMUMachine sun4u_machine = {
-    .name = "sun4u",
-    .desc = "Sun4u platform",
     .init = sun4u_init,
+    .opts_default = (QemuOptValue[]) {
+        QOPT_VALUE("name", "sun4u"),
+        QOPT_VALUE("desc", "Sun4u platform"),
+        { /* end of list */ },
+    },
 };
 
 static QEMUMachine sun4v_machine = {
-    .name = "sun4v",
-    .desc = "Sun4v platform",
     .init = sun4v_init,
+    .opts_default = (QemuOptValue[]) {
+        QOPT_VALUE("name", "sun4v"),
+        QOPT_VALUE("desc", "Sun4v platform"),
+        { /* end of list */ },
+    },
 };
 
 static QEMUMachine niagara_machine = {
-    .name = "Niagara",
-    .desc = "Sun4v platform, Niagara",
     .init = niagara_init,
+    .opts_default = (QemuOptValue[]) {
+        QOPT_VALUE("name", "Niagara"),
+        QOPT_VALUE("desc", "Sun4v platform, Niagara"),
+        { /* end of list */ },
+    },
 };
 
 static void sun4u_machine_init(void)

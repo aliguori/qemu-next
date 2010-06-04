@@ -512,9 +512,12 @@ static void integratorcp_init(QemuOpts *opts)
 }
 
 static QEMUMachine integratorcp_machine = {
-    .name = "integratorcp",
-    .desc = "ARM Integrator/CP (ARM926EJ-S)",
     .init = integratorcp_init,
+    .opts_default = (QemuOptValue[]) {
+        QOPT_VALUE("name", "integratorcp"),
+        QOPT_VALUE("desc", "ARM Integrator/CP (ARM926EJ-S)"),
+        { /* end of list */ },
+    },
 };
 
 static void integratorcp_machine_init(void)

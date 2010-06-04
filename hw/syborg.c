@@ -101,9 +101,12 @@ static void syborg_init(QemuOpts *opts)
 }
 
 static QEMUMachine syborg_machine = {
-    .name = "syborg",
-    .desc = "Syborg (Symbian Virtual Platform)",
     .init = syborg_init,
+    .opts_default = (QemuOptValue[]) {
+        QOPT_VALUE("name", "syborg"),
+        QOPT_VALUE("desc", "Syborg (Symbian Virtual Platform)"),
+        { /* end of list */ },
+    },
 };
 
 static void syborg_machine_init(void)
