@@ -2577,10 +2577,8 @@ int main(int argc, char **argv, char **envp)
 {
     const char *gdbstub_dev = NULL;
     int i;
-    int snapshot, linux_boot;
+    int snapshot;
     const char *icount_option = NULL;
-    const char *initrd_filename;
-    const char *kernel_filename, *kernel_cmdline;
     char boot_devices[33] = "cad"; /* default to HD->floppy->CD-ROM */
     DisplayState *ds;
     DisplayChangeListener *dcl;
@@ -2646,11 +2644,8 @@ int main(int argc, char **argv, char **envp)
 
     module_call_init(MODULE_INIT_MACHINE);
     cpu_model = NULL;
-    initrd_filename = NULL;
     ram_size = 0;
     snapshot = 0;
-    kernel_filename = NULL;
-    kernel_cmdline = "";
     cyls = heads = secs = 0;
     translation = BIOS_ATA_TRANSLATION_AUTO;
 
@@ -2746,7 +2741,7 @@ int main(int argc, char **argv, char **envp)
                 }
                 break;
             case QEMU_OPTION_initrd:
-                initrd_filename = optarg;
+                qemu_opts_parsef(&qemu_machine_opts, "initrd=%s", optarg);
                 break;
             case QEMU_OPTION_hda:
                 if (cyls == 0)
@@ -2856,10 +2851,10 @@ int main(int argc, char **argv, char **envp)
                 graphic_rotate = 1;
                 break;
             case QEMU_OPTION_kernel:
-                kernel_filename = optarg;
+                qemu_opts_parsef(&qemu_machine_opts, "kernel=%s", optarg);
                 break;
             case QEMU_OPTION_append:
-                kernel_cmdline = optarg;
+                qemu_opts_parsef(&qemu_machine_opts, "cmdline=%s", optarg);
                 break;
             case QEMU_OPTION_cdrom:
                 drive_add(optarg, CDROM_ALIAS);
@@ -3629,17 +3624,6 @@ int main(int argc, char **argv, char **envp)
         fprintf(stderr, "qemu_init_main_loop failed\n");
         exit(1);
     }
-    linux_boot = (kernel_filename != NULL);
-
-    if (!linux_boot && *kernel_cmdline != '\0') {
-        fprintf(stderr, "-append only allowed with -kernel option\n");
-        exit(1);
-    }
-
-    if (!linux_boot && initrd_filename != NULL) {
-        fprintf(stderr, "-initrd only allowed with -kernel option\n");
-        exit(1);
-    }
 
 #ifndef _WIN32
     /* Win32 doesn't support line-buffering and requires size >= 2 */
@@ -3765,16 +3749,6 @@ int main(int argc, char **argv, char **envp)
         qdev_prop_register_global_list(machine->compat_props);
     }
     qemu_add_globals();
-
-    if (kernel_filename) {
-        qemu_opt_set(machine_opts, "kernel", kernel_filename);
-        if (kernel_cmdline) {
-            qemu_opt_set(machine_opts, "cmdline", kernel_cmdline);
-        }
-        if (initrd_filename) {
-            qemu_opt_set(machine_opts, "initrd", initrd_filename);
-        }
-    }
 
     qemu_opt_set(machine_opts, "boot_device", boot_devices);
 
