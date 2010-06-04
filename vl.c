@@ -2968,35 +2968,14 @@ int main(int argc, char **argv, char **envp)
                 version();
                 exit(0);
                 break;
-            case QEMU_OPTION_m: {
-                uint64_t value;
-                char *ptr;
-
-                value = strtoul(optarg, &ptr, 10);
-                switch (*ptr) {
-                case 0: case 'M': case 'm':
-                    value <<= 20;
-                    break;
-                case 'G': case 'g':
-                    value <<= 30;
-                    break;
-                default:
-                    fprintf(stderr, "qemu: invalid ram size: %s\n", optarg);
-                    exit(1);
+            case QEMU_OPTION_m:
+                /* Default to 'M' which is not the normal behavior */
+                if (*optarg && isdigit(optarg[strlen(optarg) - 1])) {
+                    qemu_opts_parsef(&qemu_machine_opts, "ram_size=%sM", optarg);
+                } else {
+                    qemu_opts_parsef(&qemu_machine_opts, "ram_size=%s", optarg);
                 }
-
-                /* On 32-bit hosts, QEMU is limited by virtual address space */
-                if (value > (2047 << 20) && HOST_LONG_BITS == 32) {
-                    fprintf(stderr, "qemu: at most 2047 MB RAM can be simulated\n");
-                    exit(1);
-                }
-                if (value != (uint64_t)(ram_addr_t)value) {
-                    fprintf(stderr, "qemu: ram size too large\n");
-                    exit(1);
-                }
-                ram_size = value;
                 break;
-            }
             case QEMU_OPTION_mempath:
                 mem_path = optarg;
                 break;
@@ -3645,8 +3624,26 @@ int main(int argc, char **argv, char **envp)
         exit(1);
 
     /* init the memory */
-    if (ram_size == 0)
-        ram_size = DEFAULT_RAM_SIZE * 1024 * 1024;
+    ram_size = qemu_opt_get_size(machine_opts, "ram_size", 
+                                 DEFAULT_RAM_SIZE * 1024 * 1024);
+
+
+    if (!qemu_opt_get(machine_opts, "ram_size")) {
+        char buffer[64];
+        snprintf(buffer, sizeof(buffer), "%" PRId64, ram_size);
+        qemu_opt_set(machine_opts, "ram_size", buffer);
+    }
+
+    /* On 32-bit hosts, QEMU is limited by virtual address space */
+    if (ram_size > (2047 << 20) && HOST_LONG_BITS == 32) {
+        fprintf(stderr, "qemu: at most 2047 MB RAM can be simulated\n");
+        exit(1);
+    }
+
+    if (ram_size != (uint64_t)(ram_addr_t)ram_size) {
+        fprintf(stderr, "qemu: ram size too large\n");
+        exit(1);
+    }
 
     /* init the dynamic translator */
     cpu_exec_init_all(tb_size * 1024 * 1024);
