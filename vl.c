@@ -2550,6 +2550,35 @@ static const QEMUOption *lookup_opt(int argc, char **argv,
     return popt;
 }
 
+/* TEMP: until we have proper -machine support */
+static QemuOptDesc common_machine_opts[] = {
+    {
+        .name = "ram_size",
+        .type = QEMU_OPT_SIZE,
+    },
+    {
+        .name = "kernel",
+        .type = QEMU_OPT_STRING,
+    },
+    {
+        .name = "cmdline",
+        .type = QEMU_OPT_STRING,
+    },
+    {
+        .name = "initrd",
+        .type = QEMU_OPT_STRING,
+    },
+    {
+        .name = "boot_device",
+        .type = QEMU_OPT_STRING,
+    },
+    {
+        .name = "cpu",
+        .type = QEMU_OPT_STRING,
+    },
+    { /* end of list */ },
+};
+
 int main(int argc, char **argv, char **envp)
 {
     const char *gdbstub_dev = NULL;
@@ -3718,8 +3747,42 @@ int main(int argc, char **argv, char **envp)
     }
     qemu_add_globals();
 
-    machine->init(ram_size, boot_devices,
-                  kernel_filename, kernel_cmdline, initrd_filename, cpu_model);
+    opts = qemu_opts_create(&qemu_machine_opts, NULL, 0);
+    if (kernel_filename) {
+        qemu_opt_set(opts, "kernel", kernel_filename);
+        if (kernel_cmdline) {
+            qemu_opt_set(opts, "cmdline", kernel_cmdline);
+        }
+        if (initrd_filename) {
+            qemu_opt_set(opts, "initrd", initrd_filename);
+        }
+    }
+
+    qemu_opt_set(opts, "boot_device", boot_devices);
+
+    if (cpu_model) {
+        qemu_opt_set(opts, "cpu", cpu_model);
+    }
+
+    if (ram_size) {
+        char buffer[64];
+        snprintf(buffer, sizeof(buffer),
+                 "%" PRId64, ram_size);
+        qemu_opt_set(opts, "ram_size", buffer);
+    }
+
+    if (qemu_opts_validate(opts, common_machine_opts) < 0) {
+        exit(1);
+    }
+    
+    machine->init(qemu_opt_get_size(opts, "ram_size"),
+                  qemu_opt_get(opts, "boot_device"),
+                  qemu_opt_get(opts, "kernel"),
+                  qemu_opt_get(opts, "cmdline"),
+                  qemu_opt_get(opts, "initrd"),
+                  qemu_opt_get(opts, "cpu"));
+
+    qemu_opts_del(opts);
 
     cpu_synchronize_all_post_init();
 

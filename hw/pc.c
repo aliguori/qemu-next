@@ -534,6 +534,10 @@ static void load_linux(void *fw_cfg,
     FILE *f;
     char *vmode;
 
+    if (!kernel_cmdline) {
+        kernel_cmdline = "";
+    }
+
     /* Align to 16 bytes as a paranoia measure */
     cmdline_size = (strlen(kernel_cmdline)+16) & ~15;
 

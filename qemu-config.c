@@ -336,6 +336,14 @@ QemuOptsList qemu_cpudef_opts = {
     },
 };
 
+QemuOptsList qemu_machine_opts = {
+    .name = "machine",
+    .head = QTAILQ_HEAD_INITIALIZER(qemu_machine_opts.head),
+    .desc = {
+        { /* end of list */ }
+    },
+};        
+
 static QemuOptsList *vm_config_groups[] = {
     &qemu_drive_opts,
     &qemu_chardev_opts,
@@ -346,6 +354,7 @@ static QemuOptsList *vm_config_groups[] = {
     &qemu_global_opts,
     &qemu_mon_opts,
     &qemu_cpudef_opts,
+    &qemu_machine_opts,
     NULL,
 };
 
