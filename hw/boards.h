@@ -81,6 +81,9 @@ void machine_set_default(const char *name);
     },{                                 \
         .name = "sockets",              \
         .type = QEMU_OPT_NUMBER,        \
+    },{                                 \
+        .name = "accel",                \
+        .type = QEMU_OPT_STRING,        \
     }
 
 

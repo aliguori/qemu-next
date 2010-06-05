@@ -2654,6 +2654,8 @@ int main(int argc, char **argv, char **envp)
     int defconfig = 1;
     QemuOpts *machine_opts = NULL;
     int max_cpus = 0;
+    const char *accel;
+    int tcg_fallback = 0;
 
     error_set_progname(argv[0]);
 
@@ -3272,7 +3274,10 @@ int main(int argc, char **argv, char **envp)
                 do_smbios_option(optarg);
                 break;
             case QEMU_OPTION_enable_kvm:
-                kvm_allowed = 1;
+                if (!qemu_opts_parsef(&qemu_machine_opts, "accel=kvm")) {
+                    printf("failed\n");
+                    exit(1);
+                }
                 break;
             case QEMU_OPTION_usb:
                 usb_enabled = 1;
@@ -3629,15 +3634,36 @@ int main(int argc, char **argv, char **envp)
         exit(1);
     }
 
+    accel = qemu_opt_get(machine_opts, "accel");
+    if (accel) {
+        if (!strcmp(accel, "kvm")) {
+            kvm_allowed = 1;
+        } else if (!strcmp(accel, "tcg")) {
+            kvm_allowed = 0;
+        } else if (!strcmp(accel, "kvm|tcg")) {
+            kvm_allowed = 1;
+            tcg_fallback = 1;
+        } else {
+            fprintf(stderr, "accel: invalid option %s\n", accel);
+            exit(1);
+        }
+    }
+
     if (kvm_allowed) {
         int ret = kvm_init(smp_cpus);
         if (ret < 0) {
             if (!kvm_available()) {
                 printf("KVM not supported for this target\n");
+                exit(1);
             } else {
                 fprintf(stderr, "failed to initialize KVM: %s\n", strerror(-ret));
+
+                if (tcg_fallback) {
+                    kvm_allowed = 0;
+                } else {
+                    exit(1);
+                }
             }
-            exit(1);
         }
     }
 
