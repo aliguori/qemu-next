@@ -51,6 +51,9 @@ unsigned vhost_net_get_features(struct vhost_net *net, unsigned features)
     if (!(net->dev.features & (1 << VIRTIO_RING_F_INDIRECT_DESC))) {
         features &= ~(1 << VIRTIO_RING_F_INDIRECT_DESC);
     }
+    if (!(net->dev.features & (1 << VIRTIO_RING_F_PUBLISH_USED))) {
+        features &= ~(1 << VIRTIO_RING_F_PUBLISH_USED);
+    }
     features &= ~(1 << VIRTIO_NET_F_MRG_RXBUF);
 
     return features;
