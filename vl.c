@@ -417,6 +417,12 @@ void qemu_add_kbd_event_handler(QEMUPutKBDEvent *func, void *opaque)
     qemu_put_kbd_event = func;
 }
 
+void qemu_remove_kbd_event_handler(void)
+{
+    qemu_put_kbd_event_opaque = NULL;
+    qemu_put_kbd_event = NULL;
+}
+
 QEMUPutMouseEntry *qemu_add_mouse_event_handler(QEMUPutMouseEvent *func,
                                                 void *opaque, int absolute,
                                                 const char *name)
