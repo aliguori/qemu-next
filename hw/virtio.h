@@ -124,13 +124,7 @@ struct VirtIODevice
     uint16_t device_id;
 };
 
-static inline void virtio_set_status(VirtIODevice *vdev, uint8_t val)
-{
-    if (vdev->set_status) {
-        vdev->set_status(vdev, val);
-    }
-    vdev->status = val;
-}
+void virtio_set_status(VirtIODevice *vdev, uint8_t val);
 
 VirtQueue *virtio_add_queue(VirtIODevice *vdev, int queue_size,
                             void (*handle_output)(VirtIODevice *,
@@ -211,6 +205,7 @@ target_phys_addr_t virtio_queue_get_ring_size(VirtIODevice *vdev, int n);
 uint16_t virtio_queue_get_last_avail_idx(VirtIODevice *vdev, int n);
 void virtio_queue_set_last_avail_idx(VirtIODevice *vdev, int n, uint16_t idx);
 VirtQueue *virtio_get_queue(VirtIODevice *vdev, int n);
+int virtio_set_host_notifier(VirtIODevice *vdev, int n, bool assigned);
 EventNotifier *virtio_queue_get_guest_notifier(VirtQueue *vq);
 EventNotifier *virtio_queue_get_host_notifier(VirtQueue *vq);
 void virtio_irq(VirtQueue *vq);

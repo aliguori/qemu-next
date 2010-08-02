@@ -15,6 +15,7 @@
 
 #include "virtio.h"
 #include "sysemu.h"
+#include "kvm.h"
 
 /* The alignment to use between consumer and producer parts of vring.
  * x86 pagesize again. */
@@ -76,6 +77,11 @@ struct VirtQueue
     VirtIODevice *vdev;
     EventNotifier guest_notifier;
     EventNotifier host_notifier;
+    enum {
+        HOST_NOTIFIER_DEASSIGNED,   /* inactive */
+        HOST_NOTIFIER_ASSIGNED,     /* active */
+        HOST_NOTIFIER_OFFLIMITS,    /* active but outside our control */
+    } host_notifier_state;
 };
 
 /* virt queue functions */
@@ -438,6 +444,93 @@ void virtio_update_irq(VirtIODevice *vdev)
     virtio_notify_vector(vdev, VIRTIO_NO_VECTOR);
 }
 
+/* Service virtqueue notify from a host notifier */
+static void virtio_read_host_notifier(void *opaque)
+{
+    VirtQueue *vq = opaque;
+    EventNotifier *notifier = virtio_queue_get_host_notifier(vq);
+    if (event_notifier_test_and_clear(notifier)) {
+        if (vq->vring.desc) {
+            vq->handle_output(vq->vdev, vq);
+        }
+    }
+}
+
+/* Transition between host notifier states */
+static int virtio_set_host_notifier_state(VirtIODevice *vdev, int n, int state)
+{
+    VirtQueue *vq = &vdev->vq[n];
+    EventNotifier *notifier = virtio_queue_get_host_notifier(vq);
+    int rc;
+
+    if (!kvm_enabled()) {
+        return -ENOSYS;
+    }
+
+    /* If the number of ioeventfds is limited, use them for vhost only */
+    if (state == HOST_NOTIFIER_ASSIGNED && !kvm_has_many_iobus_devs()) {
+        state = HOST_NOTIFIER_DEASSIGNED;
+    }
+
+    /* Ignore if no state change */
+    if (vq->host_notifier_state == state) {
+        return 0;
+    }
+
+    /* Disable read handler if transitioning away from assigned */
+    if (vq->host_notifier_state == HOST_NOTIFIER_ASSIGNED) {
+        qemu_set_fd_handler(event_notifier_get_fd(notifier), NULL, NULL, NULL);
+    }
+
+    /* Toggle host notifier if transitioning to or from deassigned */
+    if (state == HOST_NOTIFIER_DEASSIGNED ||
+        vq->host_notifier_state == HOST_NOTIFIER_DEASSIGNED) {
+        rc = vdev->binding->set_host_notifier(vdev->binding_opaque, n,
+                state != HOST_NOTIFIER_DEASSIGNED);
+        if (rc < 0) {
+            return rc;
+        }
+    }
+
+    /* Enable read handler if transitioning to assigned */
+    if (state == HOST_NOTIFIER_ASSIGNED) {
+        qemu_set_fd_handler(event_notifier_get_fd(notifier),
+                            virtio_read_host_notifier, NULL, vq);
+    }
+
+    vq->host_notifier_state = state;
+    return 0;
+}
+
+/* Try to assign/deassign host notifiers for all virtqueues */
+static void virtio_set_host_notifiers(VirtIODevice *vdev, bool assigned)
+{
+    int state = assigned ? HOST_NOTIFIER_ASSIGNED : HOST_NOTIFIER_DEASSIGNED;
+    int i;
+
+    if (!vdev->binding->set_host_notifier) {
+        return;
+    }
+
+    for (i = 0; i < VIRTIO_PCI_QUEUE_MAX; i++) {
+        if (vdev->vq[i].host_notifier_state == HOST_NOTIFIER_OFFLIMITS) {
+            continue;
+        }
+
+        if (!vdev->vq[i].vring.desc) {
+            continue;
+        }
+
+        virtio_set_host_notifier_state(vdev, i, state);
+    }
+}
+
+int virtio_set_host_notifier(VirtIODevice *vdev, int n, bool assigned)
+{
+    int state = assigned ? HOST_NOTIFIER_OFFLIMITS : HOST_NOTIFIER_ASSIGNED;
+    return virtio_set_host_notifier_state(vdev, n, state);
+}
+
 void virtio_reset(void *opaque)
 {
     VirtIODevice *vdev = opaque;
@@ -452,6 +545,7 @@ void virtio_reset(void *opaque)
     vdev->isr = 0;
     vdev->config_vector = VIRTIO_NO_VECTOR;
     virtio_notify_vector(vdev, vdev->config_vector);
+    virtio_set_host_notifiers(vdev, false);
 
     for(i = 0; i < VIRTIO_PCI_QUEUE_MAX; i++) {
         vdev->vq[i].vring.desc = 0;
@@ -574,6 +668,16 @@ void virtio_queue_set_vector(VirtIODevice *vdev, int n, uint16_t vector)
 {
     if (n < VIRTIO_PCI_QUEUE_MAX)
         vdev->vq[n].vector = vector;
+}
+
+void virtio_set_status(VirtIODevice *vdev, uint8_t val)
+{
+    virtio_set_host_notifiers(vdev, val & VIRTIO_CONFIG_S_DRIVER_OK);
+
+    if (vdev->set_status) {
+        vdev->set_status(vdev, val);
+    }
+    vdev->status = val;
 }
 
 VirtQueue *virtio_add_queue(VirtIODevice *vdev, int queue_size,
@@ -701,6 +805,7 @@ int virtio_load(VirtIODevice *vdev, QEMUFile *f)
     }
 
     virtio_notify_vector(vdev, VIRTIO_NO_VECTOR);
+    virtio_set_host_notifiers(vdev, vdev->status & VIRTIO_CONFIG_S_DRIVER_OK);
     return 0;
 }
 
@@ -728,6 +833,7 @@ VirtIODevice *virtio_common_init(const char *name, uint16_t device_id,
     for(i = 0; i < VIRTIO_PCI_QUEUE_MAX; i++) {
         vdev->vq[i].vector = VIRTIO_NO_VECTOR;
         vdev->vq[i].vdev = vdev;
+        vdev->vq[i].host_notifier_state = HOST_NOTIFIER_DEASSIGNED;
     }
 
     vdev->name = name;

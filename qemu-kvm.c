@@ -1796,6 +1796,8 @@ static int kvm_create_context(void)
     kvm_state->debugregs = kvm_check_extension(kvm_state, KVM_CAP_DEBUGREGS);
 #endif
 
+    kvm_state->many_iobus_devs = kvm_check_many_iobus_devs();
+
     kvm_init_ap();
     if (kvm_irqchip) {
         if (!qemu_kvm_has_gsi_routing()) {

@@ -24,6 +24,7 @@
 #include "qemu-barrier.h"
 #include "sysemu.h"
 #include "hw/hw.h"
+#include "hw/event_notifier.h"
 #include "gdbstub.h"
 #include "kvm.h"
 #include "bswap.h"
@@ -74,6 +75,7 @@ struct KVMState
     int irqchip_in_kernel;
     int pit_in_kernel;
     int xsave, xcrs;
+    int many_iobus_devs;
 };
 
 static KVMState *kvm_state;
@@ -428,6 +430,36 @@ int kvm_check_extension(KVMState *s, unsigned int extension)
     return ret;
 }
 
+int kvm_check_many_iobus_devs(void)
+{
+    /* Older kernels have a 6 device limit on the KVM io bus.  In that case
+     * creating many ioeventfds must be avoided.  This tests checks for the
+     * limitation.
+     */
+    EventNotifier notifiers[7];
+    int i, ret = 0;
+    for (i = 0; i < ARRAY_SIZE(notifiers); i++) {
+        ret = event_notifier_init(&notifiers[i], 0);
+        if (ret < 0) {
+            break;
+        }
+        ret = kvm_set_ioeventfd_pio_word(event_notifier_get_fd(&notifiers[i]), 0, i, true);
+        if (ret < 0) {
+            event_notifier_cleanup(&notifiers[i]);
+            break;
+        }
+    }
+
+    /* Decide whether many devices are supported or not */
+    ret = i == ARRAY_SIZE(notifiers);
+
+    while (i-- > 0) {
+        kvm_set_ioeventfd_pio_word(event_notifier_get_fd(&notifiers[i]), 0, i, false);
+        event_notifier_cleanup(&notifiers[i]);
+    }
+    return ret;
+}
+
 static void kvm_set_phys_mem(target_phys_addr_t start_addr,
 			     ram_addr_t size,
 			     ram_addr_t phys_offset)
@@ -719,6 +751,8 @@ int kvm_init(int smp_cpus)
 
     kvm_state = s;
     cpu_register_phys_memory_client(&kvm_cpu_phys_memory_client);
+
+    s->many_iobus_devs = kvm_check_many_iobus_devs();
 
     return 0;
 
@@ -1054,6 +1088,11 @@ int kvm_has_xcrs(void)
     return kvm_state->xcrs;
 }
 #endif
+
+int kvm_has_many_iobus_devs(void)
+{
+    return kvm_state->many_iobus_devs;
+}
 
 void kvm_setup_guest_memory(void *start, size_t size)
 {

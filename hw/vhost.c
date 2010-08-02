@@ -518,7 +518,7 @@ static int vhost_virtqueue_init(struct vhost_dev *dev,
         goto fail_guest_notifier;
     }
 
-    r = vdev->binding->set_host_notifier(vdev->binding_opaque, idx, true);
+    r = virtio_set_host_notifier(vdev, idx, true);
     if (r < 0) {
         fprintf(stderr, "Error binding host notifier: %d\n", -r);
         goto fail_host_notifier;
@@ -540,7 +540,7 @@ static int vhost_virtqueue_init(struct vhost_dev *dev,
 
 fail_call:
 fail_kick:
-    vdev->binding->set_host_notifier(vdev->binding_opaque, idx, false);
+    virtio_set_host_notifier(vdev, idx, false);
 fail_host_notifier:
     vdev->binding->set_guest_notifier(vdev->binding_opaque, idx, false);
 fail_guest_notifier:
@@ -576,7 +576,7 @@ static void vhost_virtqueue_cleanup(struct vhost_dev *dev,
     }
     assert (r >= 0);
 
-    r = vdev->binding->set_host_notifier(vdev->binding_opaque, idx, false);
+    r = virtio_set_host_notifier(vdev, idx, false);
     if (r < 0) {
         fprintf(stderr, "vhost VQ %d host cleanup failed: %d\n", idx, r);
         fflush(stderr);

@@ -956,6 +956,7 @@ struct KVMState {
 #endif
     int irqchip_in_kernel;
     int pit_in_kernel;
+    int many_iobus_devs;
 
     struct kvm_context kvm_context;
 };
