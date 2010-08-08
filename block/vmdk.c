@@ -135,19 +135,22 @@ static uint32_t vmdk_read_cid(BlockDriverState *bs, int parent)
 
 static int vmdk_write_cid(BlockDriverState *bs, uint32_t cid)
 {
-    char desc[DESC_SIZE], tmp_desc[DESC_SIZE];
+    char desc[DESC_SIZE + 1], tmp_desc[DESC_SIZE + 1];
     char *p_name, *tmp_str;
 
     /* the descriptor offset = 0x200 */
     if (bdrv_pread(bs->file, 0x200, desc, DESC_SIZE) != DESC_SIZE)
         return -1;
 
+    desc[DESC_SIZE] = 0;
+
     tmp_str = strstr(desc,"parentCID");
-    pstrcpy(tmp_desc, sizeof(tmp_desc), tmp_str);
+    snprintf(tmp_desc, sizeof(tmp_desc), "%s", tmp_str);
     if ((p_name = strstr(desc,"CID")) != NULL) {
         p_name += sizeof("CID");
         snprintf(p_name, sizeof(desc) - (p_name - desc), "%x\n", cid);
-        pstrcat(desc, sizeof(desc), tmp_desc);
+        snprintf(desc + strlen(desc),
+                 sizeof(desc) - strlen(desc), "%s", tmp_desc);
     }
 
     if (bdrv_pwrite_sync(bs->file, 0x200, desc, DESC_SIZE) < 0)
@@ -353,7 +356,7 @@ static int vmdk_parent_open(BlockDriverState *bs)
         if ((end_name - p_name) > sizeof (bs->backing_file) - 1)
             return -1;
 
-        pstrcpy(bs->backing_file, end_name - p_name + 1, p_name);
+        snprintf(bs->backing_file, end_name - p_name + 1, "%s", p_name);
     }
 
     return 0;

@@ -102,7 +102,7 @@ void path_combine(char *dest, int dest_size,
     if (dest_size <= 0)
         return;
     if (path_is_absolute(filename)) {
-        pstrcpy(dest, dest_size, filename);
+        snprintf(dest, dest_size, "%s", filename);
     } else {
         p = strchr(base_path, ':');
         if (p)
@@ -129,7 +129,7 @@ void path_combine(char *dest, int dest_size,
             len = dest_size - 1;
         memcpy(dest, base_path, len);
         dest[len] = '\0';
-        pstrcat(dest, dest_size, filename);
+        snprintf(&dest[len], dest_size - len, "%s", filename);
     }
 }
 
@@ -157,7 +157,7 @@ BlockDriverState *bdrv_new(const char *device_name)
     BlockDriverState *bs;
 
     bs = qemu_mallocz(sizeof(BlockDriverState));
-    pstrcpy(bs->device_name, sizeof(bs->device_name), device_name);
+    snprintf(bs->device_name, sizeof(bs->device_name), "%s", device_name);
     if (device_name[0] != '\0') {
         QTAILQ_INSERT_TAIL(&bdrv_states, bs, list);
     }
@@ -421,7 +421,7 @@ static int bdrv_open_common(BlockDriverState *bs, const char *filename,
     /* buffer_alignment defaulted to 512, drivers can change this value */
     bs->buffer_alignment = 512;
 
-    pstrcpy(bs->filename, sizeof(bs->filename), filename);
+    snprintf(bs->filename, sizeof(bs->filename), "%s", filename);
 
     if (use_bdrv_whitelist && !bdrv_is_whitelisted(drv)) {
         return -ENOTSUP;
@@ -1402,7 +1402,7 @@ void bdrv_get_format(BlockDriverState *bs, char *buf, int buf_size)
     if (!bs->drv) {
         buf[0] = '\0';
     } else {
-        pstrcpy(buf, buf_size, bs->drv->format_name);
+        snprintf(buf, buf_size, "%s", bs->drv->format_name);
     }
 }
 
@@ -1526,9 +1526,9 @@ void bdrv_get_backing_filename(BlockDriverState *bs,
                                char *filename, int filename_size)
 {
     if (!bs->backing_file) {
-        pstrcpy(filename, filename_size, "");
+        snprintf(filename, filename_size, "%s", "");
     } else {
-        pstrcpy(filename, filename_size, bs->backing_file);
+        snprintf(filename, filename_size, "%s", bs->backing_file);
     }
 }
 
