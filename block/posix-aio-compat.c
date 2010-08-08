@@ -27,7 +27,7 @@
 #include "qemu-common.h"
 #include "block_int.h"
 
-#include "block/raw-posix-aio.h"
+#include "raw-posix-aio.h"
 
 
 struct qemu_paiocb {

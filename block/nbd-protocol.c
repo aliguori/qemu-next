@@ -16,7 +16,7 @@
  *  along with this program; if not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "nbd.h"
+#include "nbd-protocol.h"
 
 #include <errno.h>
 #include <string.h>

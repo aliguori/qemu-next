@@ -26,7 +26,7 @@ configure: ;
 
 $(call set-vpath, $(SRC_PATH):$(SRC_PATH)/hw)
 
-LIBS+=-lz $(LIBS_TOOLS)
+LIBS+=-lz $(LIBS_TOOLS) -lqemu-block -Lblock
 
 ifdef BUILD_DOCS
 DOCS=qemu-doc.html qemu-tech.html qemu.1 qemu-img.1 qemu-nbd.8 QMP/qmp-commands.txt
