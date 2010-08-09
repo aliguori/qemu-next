@@ -9,7 +9,8 @@ CFLAGS+=-D_XOPEN_SOURCE=500 -D_BSD_SOURCE
 obj-y += raw.o cow.o qcow.o vdi.o vmdk.o cloop.o dmg.o bochs.o vpc.o vvfat.o
 obj-y += qcow2.o qcow2-refcount.o qcow2-cluster.o qcow2-snapshot.o
 obj-y += parallels.o nbd.o blkdebug.o sheepdog.o core.o nbd-protocol.o
-obj-y += aes.o
+obj-y += aes.o util.o
+obj-y += ../osdep.o ../qemu-malloc.o
 obj-$(CONFIG_WIN32) += raw-win32.o
 obj-$(CONFIG_POSIX) += raw-posix.o posix-aio-compat.o
 obj-$(CONFIG_CURL) += curl.o
@@ -33,7 +34,7 @@ libqemu-block.so.1.0: $(obj-y)
 	    -o libqemu-block.so.1.0 $(obj-y)
 
 qemu-block-test: test.o
-	$(CC) -o $@ $^ -L . -lqemu-block
+	$(CC) -o $@ $^ -L . -lqemu-block -lz
 
 clean:
 	$(RM) *.o *.so.* *.a *.so
