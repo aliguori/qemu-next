@@ -49,6 +49,10 @@ void qpi_migrate_get_stats(MigrationState *s,
 void qpi_migrate_cancel(MigrationState *s,
                         Error **error);
 
+void qpi_migrate_add_state_notifier(MigrationState *s,
+                                    Notifier *notifier,
+                                    Error *error);
+
 void qpi_migrate_release(MigrationState *s,
                          Error **error);
 
