@@ -41,7 +41,7 @@
 #include "keymaps.h"
 #include "buffer.h"
 
-// #define _VNC_DEBUG 1
+#define _VNC_DEBUG 1
 
 #ifdef _VNC_DEBUG
 #define VNC_DEBUG(fmt, ...) do { fprintf(stderr, fmt, ## __VA_ARGS__); } while (0)
@@ -104,6 +104,7 @@ struct VncDisplay
     DisplayState *ds;
     kbd_layout_t *kbd_layout;
     int lock_key_sync;
+    int websockets;
 #ifdef CONFIG_VNC_THREAD
     QemuMutex mutex;
 #endif

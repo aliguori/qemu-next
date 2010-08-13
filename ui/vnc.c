@@ -1199,7 +1199,14 @@ long vnc_client_read_buf(VncState *vs, uint8_t *data, size_t datalen)
     } else
 #endif /* CONFIG_VNC_TLS */
         ret = recv(vs->csock, (void *)data, datalen, 0);
-    VNC_DEBUG("Read wire %p %zd -> %ld\n", data, datalen, ret);
+
+    if (vs->websockets && !vs->encode_ws) {
+        VNC_DEBUG("Read wire %p %zd -> %ld\n", data, datalen, ret);
+        VNC_DEBUG("ws: data {\n");
+        VNC_DEBUG("%s", buffer_ptr(&vs->input));
+        VNC_DEBUG("\n}\n");
+    }
+
     return vnc_client_io_error(vs, ret, socket_error());
 }
 
@@ -1255,6 +1262,7 @@ static int vnc_client_read_until(VncState *vs, Buffer *buf)
 {
     uint8_t *loc;
     int len;
+    Buffer tmp;
 
     loc = memmem(buf->buffer, buf->offset,
                  vs->read_until_buf, vs->read_until_buflen);
@@ -1264,7 +1272,10 @@ static int vnc_client_read_until(VncState *vs, Buffer *buf)
 
     len = (loc - buf->buffer) + vs->read_until_buflen;
 
-    vs->read_until_handler(vs, buf->buffer, len);
+    buffer_init(&tmp);
+    buffer_append(&tmp, buffer_ptr(buf), len);
+    vs->read_until_handler(vs, buffer_ptr(&tmp), buffer_length(&tmp));
+    buffer_free(&tmp);
 
     buffer_advance(buf, len);
 
@@ -1295,6 +1306,7 @@ static int ws_decode_frame(Buffer *buf, void **payload,
     }
     case 0xFF:
         if (buf->offset >= 2) {
+            VNC_DEBUG("ws: received EOF frame\n");
             if (buf->buffer[1] != 0x00) {
                 VNC_DEBUG("ws: bad EOF frame\n");
                 return -1;
@@ -1349,17 +1361,22 @@ void vnc_client_read(void *opaque)
             vnc_client_error(vs);
             return;
         } else if (ret == 0) {
+            VNC_DEBUG("ws: received partial frame, waiting for more\n");
             return;
         }
 
 #if 0
         if (ws_is_eof_frame(vs->input)) {
+            VNC_DEBUG("ws: received EOF frame\n");
             /* just ignore eof frames for now
              * FIXME: should we reset the session?
              */
             return;
         }
 #endif
+
+        VNC_DEBUG("ws: received full frame: {\n");
+        VNC_DEBUG("%s\n}\n", (char *)payload);
 
         buffer_append_b64dec(&vs->ws_input, payload, payload_size);
         buffer_advance(&vs->input, frame_size);
@@ -2553,10 +2570,12 @@ static int vncws_compute_challenge(VncState *vs,
 static int vncws_challenge(VncState *vs, uint8_t *challenge,
                            size_t size)
 {
-    uint8_t response[16];
+    uint8_t response[17];
 
     vncws_compute_challenge(vs, vs->key1, vs->key2, challenge,
                             response);
+
+    VNC_DEBUG("ws: sending headers\n");
 
     /* compute challenge junk */
     vnc_printf(vs,
@@ -2571,7 +2590,11 @@ static int vncws_challenge(VncState *vs, uint8_t *challenge,
     vnc_write(vs, response, 16);
     vnc_flush(vs);
 
+    VNC_DEBUG("ws: sent headers\n");
+
     vs->encode_ws = 1;
+
+    VNC_DEBUG("ws: switching to b64 encoded dgrams\n");
 
     vnc_connect2(vs);
 
@@ -2581,9 +2604,10 @@ static int vncws_challenge(VncState *vs, uint8_t *challenge,
 static int vncws_field_line(VncState *vs, uint8_t *line, size_t size)
 {
     char name[1024], value[1024];
-    int i;
+    int i, j;
 
     if (size == 2) {
+        VNC_DEBUG("ws: waiting for challenge\n");
         vnc_read_when(vs, vncws_challenge, 8);
         return 0;
     }
@@ -2598,26 +2622,25 @@ static int vncws_field_line(VncState *vs, uint8_t *line, size_t size)
     }
 
     if (i == size) {
-        /* error */
-    }
-
-    if (line[i] == ' ') {
-        i++;
+        /* FIXME: error */
     } else {
-        /* error */
+        i++;
     }
 
     while (line[i] == ' ') {
         i++;
     }
 
-    for (; i < size; i++) {
+    j = 0;
+    for (; i < size; i++, j++) {
         if (line[i] == '\r') {
             break;
         }
-        value[i] = line[i];
+        value[j] = line[i];
     }
-    value[i] = 0;
+    value[j] = 0;
+
+    VNC_DEBUG("ws: received field `%s' with value `%s'\n", name, value);
 
     if (strcmp(name, "Host") == 0) {
         vs->host = qemu_strdup(value);
@@ -2651,12 +2674,14 @@ static int vncws_field_line(VncState *vs, uint8_t *line, size_t size)
 static int vncws_request_line(VncState *vs, uint8_t *buffer, size_t size)
 {
     /* parse request line */
+    VNC_DEBUG("ws: received request %s", buffer);
     vnc_read_until(vs, vncws_field_line, "\r\n", 2);
     return 0;
 }
 
 static void vncws_connect(VncState *vs)
 {
+    VNC_DEBUG("Starting WebSockets session\n");
     vnc_read_until(vs, vncws_request_line, "\r\n", 2);
 }
 
@@ -2666,6 +2691,7 @@ static void vnc_connect(VncDisplay *vd, int csock)
 
     vs->csock = csock;
     vs->vd = vd;
+    vs->websockets = 1;
 
     VNC_DEBUG("New client on socket %d\n", csock);
     dcl->idle = 0;
@@ -2675,7 +2701,7 @@ static void vnc_connect(VncDisplay *vd, int csock)
 
     qemu_set_fd_handler2(vs->csock, NULL, vnc_client_read, NULL, vs);
 
-    if (vs->websockets) {
+    if (1) {
         vncws_connect(vs);
     } else {
         vnc_connect2(vs);
@@ -2804,6 +2830,7 @@ int vnc_display_open(DisplayState *ds, const char *display)
 #endif
     int acl = 0;
     int lock_key_sync = 1;
+    int websockets = 1;
 
     if (!vnc_display)
         return -1;
@@ -2823,6 +2850,9 @@ int vnc_display_open(DisplayState *ds, const char *display)
             reverse = 1;
         } else if (strncmp(options, "no-lock-key-sync", 9) == 0) {
             lock_key_sync = 0;
+        } else if (strncmp(options, "ws", 2) == 0) {
+            VNC_DEBUG("got websockets option\n");
+            websockets = 1;
 #ifdef CONFIG_VNC_SASL
         } else if (strncmp(options, "sasl", 4) == 0) {
             sasl = 1; /* Require SASL auth */
@@ -2971,6 +3001,7 @@ int vnc_display_open(DisplayState *ds, const char *display)
     }
 #endif
     vs->lock_key_sync = lock_key_sync;
+    vs->websockets = websockets;
 
     if (reverse) {
         /* connect to viewer */
