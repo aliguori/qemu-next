@@ -117,6 +117,8 @@ qemu-io$(EXESUF): qemu-io.o cmd.o qemu-tool.o qemu-error.o $(block-obj-y) $(qobj
 
 tests/test-buffer$(EXESUF): tests/test-buffer.o buffer.o osdep.o qemu-malloc.o
 
+tests/test-md5$(EXESUF): tests/test-md5.o buffer.o osdep.o qemu-malloc.o md5.o
+
 qemu-img-cmds.h: $(SRC_PATH)/qemu-img-cmds.hx
 	$(call quiet-command,sh $(SRC_PATH)/hxtool -h < $< > $@,"  GEN   $@")
 

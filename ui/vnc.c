@@ -1421,6 +1421,9 @@ void vnc_printf(VncState *vs, const void *format, ...)
     size = vsnprintf(buffer, sizeof(buffer), format, ap);
     va_end(ap);
 
+    VNC_DEBUG("ws: write {\n"
+              "%s\n}\n",
+              buffer);
     vnc_write(vs, buffer, size);
 }
 
@@ -2522,7 +2525,7 @@ static void parse_key(const char *key, int *pws, uint32_t *pvalue)
     int i, ws = 0;
 
     for (i = 0; key[i]; i++) {
-        if (isdigit(key[i])) {
+        if (key[i] >= '0' && key[i] <= '9') {
             value *= 10;
             value += (key[i] - '0');
         } else if (key[i] == ' ') {
@@ -2543,12 +2546,21 @@ static int vncws_compute_challenge(VncState *vs,
     uint32_t key1_value = 0, key2_value = 0;
     int key1_ws = 0, key2_ws = 0;
     uint8_t intermediate[16];
-    MD5_CTX md5;
+
+    VNC_DEBUG("ws: computing response; key1: `%s' key2 `%s'\n",
+              key1, key2);
+    VNC_DEBUG("ws: challenge: %02x%02x%02x%02x%02x%02x%02x%02x\n",
+              challenge[0], challenge[1], challenge[2], challenge[3], 
+              challenge[4], challenge[5], challenge[6], challenge[7]);
 
     parse_key(key1, &key1_ws, &key1_value);
     parse_key(key2, &key2_ws, &key2_value);
 
+    VNC_DEBUG("ws: key1; ws: %d value: %u\n", key1_ws, key1_value);
+    VNC_DEBUG("ws: key2; ws: %d value: %u\n", key2_ws, key2_value);
+
     if (!key1_ws || !key2_ws) {
+        VNC_DEBUG("ws: invalid whitespace in keys\n");
         return 0;
     }
 
@@ -2557,12 +2569,9 @@ static int vncws_compute_challenge(VncState *vs,
 
     memcpy(&intermediate[0], &key1_value, 4);
     memcpy(&intermediate[4], &key1_value, 4);
-    memcpy(&intermediate[8], response, 8);
+    memcpy(&intermediate[8], challenge, 8);
 
-    MD5Init(&md5);
-    MD5Update(&md5, intermediate, 16);
-    MD5Final(&md5);
-    memcpy(response, md5.digest, 16);
+    md5_buffer((const char *)intermediate, 16, response);
 
     return 1;
 }
@@ -2570,7 +2579,7 @@ static int vncws_compute_challenge(VncState *vs,
 static int vncws_challenge(VncState *vs, uint8_t *challenge,
                            size_t size)
 {
-    uint8_t response[17];
+    uint8_t response[16];
 
     vncws_compute_challenge(vs, vs->key1, vs->key2, challenge,
                             response);
@@ -2582,11 +2591,13 @@ static int vncws_challenge(VncState *vs, uint8_t *challenge,
                "HTTP/1.1 101 WebSocket Protocol Handshake\r\n"
                "Upgrade: WebSocket\r\n"
                "Connection: Upgrade\r\n"
-               "Sec-WebSocket-Origin: %s\r\n"
-               "Sec-WebSocket-Location: %s\r\n"
-               "Sec-WebSocket-Protocol: %s\r\n"
-               "\r\n",
-               vs->origin, vs->location, vs->protocol);
+               "Sec-WebSocket-Origin: %s\r\n",
+               vs->origin);
+
+    vnc_printf(vs, "Sec-WebSocket-Location: %s\r\n",
+               "ws://localhost:8787/?b64encode");
+    vnc_printf(vs, "Sec-WebSocket-Protocol: %s\r\n", "sample");
+    vnc_write(vs, "\r\n", 2);
     vnc_write(vs, response, 16);
     vnc_flush(vs);
 
