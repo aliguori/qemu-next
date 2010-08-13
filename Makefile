@@ -29,7 +29,7 @@ $(call set-vpath, $(SRC_PATH):$(SRC_PATH)/hw)
 LIBS+=-lz $(LIBS_TOOLS)
 
 ifdef BUILD_DOCS
-DOCS=qemu-doc.html qemu-tech.html qemu.1 qemu-img.1 qemu-nbd.8 QMP/qmp-commands.txt
+	DOCS=qemu-doc.html qemu-tech.html qemu.1 qemu-img.1 qemu-nbd.8 QMP/qmp-commands.txt
 else
 DOCS=
 endif
@@ -114,6 +114,8 @@ qemu-img$(EXESUF): qemu-img.o qemu-tool.o qemu-error.o $(block-obj-y) $(qobject-
 qemu-nbd$(EXESUF): qemu-nbd.o qemu-tool.o qemu-error.o $(block-obj-y) $(qobject-obj-y)
 
 qemu-io$(EXESUF): qemu-io.o cmd.o qemu-tool.o qemu-error.o $(block-obj-y) $(qobject-obj-y)
+
+tests/test-buffer$(EXESUF): tests/test-buffer.o buffer.o osdep.o qemu-malloc.o
 
 qemu-img-cmds.h: $(SRC_PATH)/qemu-img-cmds.hx
 	$(call quiet-command,sh $(SRC_PATH)/hxtool -h < $< > $@,"  GEN   $@")

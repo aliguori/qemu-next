@@ -39,6 +39,7 @@
 #include <stdbool.h>
 
 #include "keymaps.h"
+#include "buffer.h"
 
 // #define _VNC_DEBUG 1
 
@@ -53,13 +54,6 @@
  * Core data structures
  *
  *****************************************************************************/
-
-typedef struct Buffer
-{
-    size_t capacity;
-    size_t offset;
-    uint8_t *buffer;
-} Buffer;
 
 typedef struct VncState VncState;
 typedef struct VncJob VncJob;
@@ -474,18 +468,6 @@ int vnc_client_io_error(VncState *vs, int ret, int last_errno);
 
 void start_client_init(VncState *vs);
 void start_auth_vnc(VncState *vs);
-
-/* Buffer management */
-void buffer_reserve(Buffer *buffer, size_t len);
-int buffer_empty(Buffer *buffer);
-uint8_t *buffer_end(Buffer *buffer);
-void buffer_reset(Buffer *buffer);
-void buffer_free(Buffer *buffer);
-void buffer_append(Buffer *buffer, const void *data, size_t len);
-void buffer_advance(Buffer *buf, size_t len);
-void buffer_append_b64enc(Buffer *dest, const void *payload, size_t size);
-void buffer_append_b64dec(Buffer *dest, const void *payload, size_t size);
-
 
 /* Misc helpers */
 
