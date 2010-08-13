@@ -31,9 +31,7 @@
 #include "qemu-timer.h"
 #include "acl.h"
 #include "qemu-objects.h"
-#if 0
 #include "md5.h"
-#endif
 
 #define VNC_REFRESH_INTERVAL_BASE 30
 #define VNC_REFRESH_INTERVAL_INC  50
@@ -500,8 +498,41 @@ void buffer_advance(Buffer *buf, size_t len)
     buf->offset -= len;
 }
 
-void buffer_append_b64enc(Buffer *dest, const void *payload, size_t size)
+static const char b64_table[] = {
+    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
+};
+
+void buffer_append_b64enc(Buffer *buf, const void *payload, size_t size)
 {
+    int i;
+
+    for (i = 0; i < size; i++) {
+        uint8_t dest[4];
+        uint8_t ptr[3];
+        int len = MIN(size - i, 3);
+
+        memset(ptr, 0, sizeof(ptr));
+        memcpy(ptr, payload + i, len);
+
+        buffer_reserve(buf, 4);
+
+        dest[0] = (ptr[0] >> 2) & 0x3F;
+        dest[1] = ((ptr[0] & 0x03) << 4) | ((ptr[1] & 0xF0) >> 4);
+
+        if (len > 1) {
+            dest[2] = ((ptr[1] & 0x0F) << 2) | (ptr[2] & 0xC0);
+        } else {
+            dest[2] = '=';
+        }
+
+        if (len > 2) {
+            dest[3] = ptr[2] & 0x3F;
+        } else {
+            dest[3] = '=';
+        }
+
+        buffer_append(buf, dest, 3);
+    }
 }
 
 void buffer_append_b64dec(Buffer *dest, const void *payload, size_t size)
@@ -2583,10 +2614,8 @@ static int vncws_compute_challenge(VncState *vs,
 {
     uint32_t key1_value = 0, key2_value = 0;
     int key1_ws = 0, key2_ws = 0;
-    char intermediate[16];
-#if 0
-    MD5Sum md5;
-#endif
+    uint8_t intermediate[16];
+    MD5_CTX md5;
 
     parse_key(key1, &key1_ws, &key1_value);
     parse_key(key2, &key2_ws, &key2_value);
@@ -2602,10 +2631,10 @@ static int vncws_compute_challenge(VncState *vs,
     memcpy(&intermediate[4], &key1_value, 4);
     memcpy(&intermediate[8], response, 8);
 
-#if 0
-    md5_sum(&md5, intermediate, 16);
-    memcpy(response, md5.buffer, 16);
-#endif
+    MD5Init(&md5);
+    MD5Update(&md5, intermediate, 16);
+    MD5Final(&md5);
+    memcpy(response, md5.digest, 16);
 
     return 1;
 }

@@ -117,6 +117,7 @@ else
 ui-obj-y += vnc-jobs-sync.o
 endif
 common-obj-y += $(addprefix ui/, $(ui-obj-y))
+common-obj-y += md5.o
 
 common-obj-y += iov.o acl.o
 common-obj-$(CONFIG_THREAD) += qemu-thread.o
