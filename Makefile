@@ -122,6 +122,8 @@ tests/test-md5$(EXESUF): tests/test-md5.o buffer.o osdep.o qemu-malloc.o md5.o
 tests/test-ws$(EXESUF): tests/test-ws.o buffer.o osdep.o qemu-malloc.o md5.o \
                         ui/ws.o
 
+tests/test-error$(EXESUF): tests/test-error.o osdep.o qemu-malloc.o error.o
+
 qemu-img-cmds.h: $(SRC_PATH)/qemu-img-cmds.hx
 	$(call quiet-command,sh $(SRC_PATH)/hxtool -h < $< > $@,"  GEN   $@")
 
