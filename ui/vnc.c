@@ -1075,6 +1075,7 @@ long vnc_client_write_buf(VncState *vs, const uint8_t *data, size_t datalen)
 #endif /* CONFIG_VNC_TLS */
         ret = send(vs->csock, (const void *)data, datalen, 0);
     VNC_DEBUG("Wrote wire %p %zd -> %ld\n", data, datalen, ret);
+    VNC_DEBUG("data {\n%s\n}\n", data);
     return vnc_client_io_error(vs, ret, socket_error());
 }
 
@@ -1237,6 +1238,8 @@ static int vnc_client_read_when(VncState *vs, Buffer *buf)
     size_t len = vs->read_handler_expect;
     int ret;
 
+    VNC_DEBUG("read when: %ld %ld\n", buf->offset, len);
+
     if (buf->offset < len) {
         return 0;
     }
@@ -1292,13 +1295,13 @@ static int ws_decode_frame(Buffer *buf, void **payload,
     switch (buf->buffer[0]) {
     case 0x00: {
         size_t i;
-
+        
         /* FIXME do proper UTF-8 decoding */
         for (i = 1; i < buf->offset; i++) {
             if (buf->buffer[i] == 0xFF) {
                 *payload = &buf->buffer[1];
-                *payload_size = i - 2;
-                *frame_size = i;
+                *payload_size = i - 1;
+                *frame_size = i + 1;
                 return 1;
             }
         }
@@ -1375,11 +1378,20 @@ void vnc_client_read(void *opaque)
         }
 #endif
 
-        VNC_DEBUG("ws: received full frame: {\n");
-        VNC_DEBUG("%s\n}\n", (char *)payload);
-
+        VNC_DEBUG("payload size - %ld %ld\n", payload_size,
+                  frame_size);
         buffer_append_b64dec(&vs->ws_input, payload, payload_size);
+        {
+            Buffer tmp;
+            buffer_init(&tmp);
+            buffer_append(&tmp, payload, payload_size);
+            VNC_DEBUG("ws: received frame {\n"
+                      "%s\n"
+                      "}\n", buffer_ptr(&tmp));
+            buffer_free(&tmp);
+        }
         buffer_advance(&vs->input, frame_size);
+
         buf = &vs->ws_input;
     } else {
         buf = &vs->input;
@@ -1398,7 +1410,7 @@ void vnc_client_read(void *opaque)
 void vnc_write(VncState *vs, const void *data, size_t len)
 {
     if (vs->encode_ws) {
-        buffer_reserve(&vs->ws_output, len);
+        VNC_DEBUG("writing encoded data\n");
         buffer_append(&vs->ws_output, data, len);
     } else {
         buffer_reserve(&vs->output, len);
@@ -1463,12 +1475,20 @@ void vnc_flush(VncState *vs)
 {
     vnc_lock_output(vs);
     if (vs->encode_ws) {
+        char ch;
+
+        ch = 0x00;
+        buffer_append(&vs->output, &ch, 1);
         buffer_append_b64enc(&vs->output, vs->ws_output.buffer, vs->ws_output.offset);
+        ch = 0xFF;
+        buffer_append(&vs->output, &ch, 1);
+
         buffer_reset(&vs->ws_output);
         
         if (vs->csock != -1 && buffer_empty(&vs->output)) {
             qemu_set_fd_handler2(vs->csock, NULL, vnc_client_read, vnc_client_write, vs);
         }
+        vnc_client_write_locked(vs);
     } else if (vs->csock != -1 && vs->output.offset)
         vnc_client_write_locked(vs);
     vnc_unlock_output(vs);
