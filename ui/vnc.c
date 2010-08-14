@@ -31,7 +31,7 @@
 #include "qemu-timer.h"
 #include "acl.h"
 #include "qemu-objects.h"
-#include "md5.h"
+#include "ws.h"
 
 #define VNC_REFRESH_INTERVAL_BASE 30
 #define VNC_REFRESH_INTERVAL_INC  50
@@ -2519,70 +2519,12 @@ static void vnc_connect2(VncState *vs)
     /* vs might be free()ed here */
 }
 
-static void parse_key(const char *key, int *pws, uint32_t *pvalue)
-{
-    uint32_t value = 0;
-    int i, ws = 0;
-
-    for (i = 0; key[i]; i++) {
-        if (key[i] >= '0' && key[i] <= '9') {
-            value *= 10;
-            value += (key[i] - '0');
-        } else if (key[i] == ' ') {
-            ws++;
-        }
-    }
-
-    *pws = ws;
-    *pvalue = value;
-}
-
-static int vncws_compute_challenge(VncState *vs,
-                                    const char *key1,
-                                    const char *key2,
-                                    const uint8_t *challenge,
-                                    uint8_t *response)
-{
-    uint32_t key1_value = 0, key2_value = 0;
-    int key1_ws = 0, key2_ws = 0;
-    uint8_t intermediate[16];
-
-    VNC_DEBUG("ws: computing response; key1: `%s' key2 `%s'\n",
-              key1, key2);
-    VNC_DEBUG("ws: challenge: %02x%02x%02x%02x%02x%02x%02x%02x\n",
-              challenge[0], challenge[1], challenge[2], challenge[3], 
-              challenge[4], challenge[5], challenge[6], challenge[7]);
-
-    parse_key(key1, &key1_ws, &key1_value);
-    parse_key(key2, &key2_ws, &key2_value);
-
-    VNC_DEBUG("ws: key1; ws: %d value: %u\n", key1_ws, key1_value);
-    VNC_DEBUG("ws: key2; ws: %d value: %u\n", key2_ws, key2_value);
-
-    if (!key1_ws || !key2_ws) {
-        VNC_DEBUG("ws: invalid whitespace in keys\n");
-        return 0;
-    }
-
-    key1_value = htonl(key1_value / key1_ws);
-    key2_value = htonl(key2_value / key2_ws);
-
-    memcpy(&intermediate[0], &key1_value, 4);
-    memcpy(&intermediate[4], &key1_value, 4);
-    memcpy(&intermediate[8], challenge, 8);
-
-    md5_buffer((const char *)intermediate, 16, response);
-
-    return 1;
-}
-
 static int vncws_challenge(VncState *vs, uint8_t *challenge,
                            size_t size)
 {
     uint8_t response[16];
 
-    vncws_compute_challenge(vs, vs->key1, vs->key2, challenge,
-                            response);
+    ws_compute_challenge(vs->key1, vs->key2, challenge, response);
 
     VNC_DEBUG("ws: sending headers\n");
 
