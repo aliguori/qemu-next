@@ -1,9 +1,11 @@
 /*
- * QEMU VNC display driver
+ * QEMU Growable Binary Buffer
  *
  * Copyright (C) 2006 Anthony Liguori <anthony@codemonkey.ws>
- * Copyright (C) 2006 Fabrice Bellard
- * Copyright (C) 2009 Red Hat, Inc
+ * Copyright IBM, Corp. 2010
+ *
+ * Authors:
+ *  Anthony Liguori <aliguori@us.ibm.com>
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -26,6 +28,8 @@
 
 #include "buffer.h"
 
+#define BUG_ON(cond) assert(!(cond))
+
 void buffer_init(Buffer *buffer)
 {
     memset(buffer, 0, sizeof(*buffer));
@@ -46,10 +50,6 @@ void buffer_reserve(Buffer *buffer, size_t len)
     if ((buffer->capacity - buffer->offset) < len) {
         buffer->capacity += (len + 1024);
         buffer->buffer = qemu_realloc(buffer->buffer, buffer->capacity + 1);
-        if (buffer->buffer == NULL) {
-            fprintf(stderr, "vnc: out of memory\n");
-            exit(1);
-        }
     }
 }
 
@@ -156,10 +156,7 @@ void buffer_append_b64dec(Buffer *buf, const void *payload, size_t size)
 {
     int i;
 
-    if ((size % 4) != 0) {
-        /* FIXME error */
-        return;
-    }
+    BUG_ON((size % 4) != 0);
 
     for (i = 0; i < size; i += 4) {
         uint8_t src[4];

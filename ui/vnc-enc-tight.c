@@ -313,81 +313,215 @@ tight_detect_smooth_image(VncState *vs, int w, int h)
 /*
  * Code to determine how many different colors used in rectangle.
  */
-#define DEFINE_FILL_PALETTE_FUNCTION(bpp)                               \
-                                                                        \
-    static int                                                          \
-    tight_fill_palette##bpp(VncState *vs, int x, int y,                 \
-                            int max, size_t count,                      \
-                            uint32_t *bg, uint32_t *fg,                 \
-                            VncPalette **palette) {                     \
-        uint##bpp##_t *data;                                            \
-        uint##bpp##_t c0, c1, ci;                                       \
-        int i, n0, n1;                                                  \
-                                                                        \
-        data = (uint##bpp##_t *)vs->tight.tight.buffer;                 \
-                                                                        \
-        c0 = data[0];                                                   \
-        i = 1;                                                          \
-        while (i < count && data[i] == c0)                              \
-            i++;                                                        \
-        if (i >= count) {                                               \
-            *bg = *fg = c0;                                             \
-            return 1;                                                   \
-        }                                                               \
-                                                                        \
-        if (max < 2) {                                                  \
-            return 0;                                                   \
-        }                                                               \
-                                                                        \
-        n0 = i;                                                         \
-        c1 = data[i];                                                   \
-        n1 = 0;                                                         \
-        for (i++; i < count; i++) {                                     \
-            ci = data[i];                                               \
-            if (ci == c0) {                                             \
-                n0++;                                                   \
-            } else if (ci == c1) {                                      \
-                n1++;                                                   \
-            } else                                                      \
-                break;                                                  \
-        }                                                               \
-        if (i >= count) {                                               \
-            if (n0 > n1) {                                              \
-                *bg = (uint32_t)c0;                                     \
-                *fg = (uint32_t)c1;                                     \
-            } else {                                                    \
-                *bg = (uint32_t)c1;                                     \
-                *fg = (uint32_t)c0;                                     \
-            }                                                           \
-            return 2;                                                   \
-        }                                                               \
-                                                                        \
-        if (max == 2) {                                                 \
-            return 0;                                                   \
-        }                                                               \
-                                                                        \
-        *palette = palette_new(max, bpp);                               \
-        palette_put(*palette, c0);                                      \
-        palette_put(*palette, c1);                                      \
-        palette_put(*palette, ci);                                      \
-                                                                        \
-        for (i++; i < count; i++) {                                     \
-            if (data[i] == ci) {                                        \
-                continue;                                               \
-            } else {                                                    \
-                ci = data[i];                                           \
-                if (!palette_put(*palette, (uint32_t)ci)) {             \
-                    return 0;                                           \
-                }                                                       \
-            }                                                           \
-        }                                                               \
-                                                                        \
-        return palette_size(*palette);                                  \
+    static int
+    tight_fill_palette8(VncState *vs, int x, int y,
+                            int max, size_t count,
+                            uint32_t *bg, uint32_t *fg,
+                            VncPalette **palette) {
+        uint8_t *data;
+        uint8_t c0, c1, ci;
+        int i, n0, n1;
+
+        data = (uint8_t *)vs->tight.tight.buffer;
+
+        c0 = data[0];
+        i = 1;
+        while (i < count && data[i] == c0)
+            i++;
+        if (i >= count) {
+            *bg = *fg = c0;
+            return 1;
+        }
+
+        if (max < 2) {
+            return 0;
+        }
+
+        n0 = i;
+        c1 = data[i];
+        n1 = 0;
+        for (i++; i < count; i++) {
+            ci = data[i];
+            if (ci == c0) {
+                n0++;
+            } else if (ci == c1) {
+                n1++;
+            } else                                                      
+                break;                                                  
+        }                                                               
+        if (i >= count) {                                               
+            if (n0 > n1) {                                              
+                *bg = (uint8_t)c0;                                     
+                *fg = (uint8_t)c1;                                     
+            } else {                                                    
+                *bg = (uint8_t)c1;                                     
+                *fg = (uint8_t)c0;                                     
+            }                                                           
+            return 2;                                                   
+        }                                                               
+                                                                        
+        if (max == 2) {                                                 
+            return 0;                                                   
+        }                                                               
+                                                                        
+        *palette = palette_new(max, 1);                               
+        palette_put(*palette, c0);                                      
+        palette_put(*palette, c1);                                      
+        palette_put(*palette, ci);                                      
+                                                                        
+        for (i++; i < count; i++) {                                     
+            if (data[i] == ci) {                                        
+                continue;                                               
+            } else {                                                    
+                ci = data[i];                                           
+                if (!palette_put(*palette, (uint8_t)ci)) {             
+                    return 0;                                           
+                }                                                       
+            }                                                           
+        }                                                               
+                                                                        
+        return palette_size(*palette);                                  
     }
 
-DEFINE_FILL_PALETTE_FUNCTION(8)
-DEFINE_FILL_PALETTE_FUNCTION(16)
-DEFINE_FILL_PALETTE_FUNCTION(32)
+    static int
+    tight_fill_palette16(VncState *vs, int x, int y,
+                            int max, size_t count,
+                            uint32_t *bg, uint32_t *fg,
+                            VncPalette **palette) {
+        uint16_t *data;
+        uint16_t c0, c1, ci;
+        int i, n0, n1;
+
+        data = (uint16_t *)vs->tight.tight.buffer;
+
+        c0 = data[0];
+        i = 1;
+        while (i < count && data[i] == c0)
+            i++;
+        if (i >= count) {
+            *bg = *fg = c0;
+            return 1;
+        }
+
+        if (max < 2) {
+            return 0;
+        }
+
+        n0 = i;
+        c1 = data[i];
+        n1 = 0;
+        for (i++; i < count; i++) {
+            ci = data[i];
+            if (ci == c0) {
+                n0++;
+            } else if (ci == c1) {
+                n1++;
+            } else                                                      
+                break;                                                  
+        }                                                               
+        if (i >= count) {                                               
+            if (n0 > n1) {                                              
+                *bg = (uint16_t)c0;                                     
+                *fg = (uint16_t)c1;                                     
+            } else {                                                    
+                *bg = (uint16_t)c1;                                     
+                *fg = (uint16_t)c0;                                     
+            }                                                           
+            return 2;                                                   
+        }                                                               
+                                                                        
+        if (max == 2) {                                                 
+            return 0;                                                   
+        }                                                               
+                                                                        
+        *palette = palette_new(max, 2);                               
+        palette_put(*palette, c0);                                      
+        palette_put(*palette, c1);                                      
+        palette_put(*palette, ci);                                      
+                                                                        
+        for (i++; i < count; i++) {                                     
+            if (data[i] == ci) {                                        
+                continue;                                               
+            } else {                                                    
+                ci = data[i];                                           
+                if (!palette_put(*palette, (uint16_t)ci)) {             
+                    return 0;                                           
+                }                                                       
+            }                                                           
+        }                                                               
+                                                                        
+        return palette_size(*palette);                                  
+    }
+
+    static int
+    tight_fill_palette32(VncState *vs, int x, int y,
+                            int max, size_t count,
+                            uint32_t *bg, uint32_t *fg,
+                            VncPalette **palette) {
+        uint32_t *data;
+        uint32_t c0, c1, ci;
+        int i, n0, n1;
+
+        data = (uint32_t *)vs->tight.tight.buffer;
+
+        c0 = data[0];
+        i = 1;
+        while (i < count && data[i] == c0)
+            i++;
+        if (i >= count) {
+            *bg = *fg = c0;
+            return 1;
+        }
+
+        if (max < 2) {
+            return 0;
+        }
+
+        n0 = i;
+        c1 = data[i];
+        n1 = 0;
+        for (i++; i < count; i++) {
+            ci = data[i];
+            if (ci == c0) {
+                n0++;
+            } else if (ci == c1) {
+                n1++;
+            } else                                                      
+                break;                                                  
+        }                                                               
+        if (i >= count) {                                               
+            if (n0 > n1) {                                              
+                *bg = (uint32_t)c0;                                     
+                *fg = (uint32_t)c1;                                     
+            } else {                                                    
+                *bg = (uint32_t)c1;                                     
+                *fg = (uint32_t)c0;                                     
+            }                                                           
+            return 2;                                                   
+        }                                                               
+                                                                        
+        if (max == 2) {                                                 
+            return 0;                                                   
+        }                                                               
+                                                                        
+        *palette = palette_new(max, 4);                               
+        palette_put(*palette, c0);                                      
+        palette_put(*palette, c1);                                      
+        palette_put(*palette, ci);                                      
+                                                                        
+        for (i++; i < count; i++) {                                     
+            if (data[i] == ci) {                                        
+                continue;                                               
+            } else {                                                    
+                ci = data[i];                                           
+                if (!palette_put(*palette, (uint32_t)ci)) {             
+                    return 0;                                           
+                }                                                       
+            }                                                           
+        }                                                               
+                                                                        
+        return palette_size(*palette);                                  
+    }
 
 static int tight_fill_palette(VncState *vs, int x, int y,
                               size_t count, uint32_t *bg, uint32_t *fg,

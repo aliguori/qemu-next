@@ -1410,11 +1410,8 @@ void vnc_client_read(void *opaque)
 void vnc_write(VncState *vs, const void *data, size_t len)
 {
     if (vs->encode_ws) {
-        VNC_DEBUG("writing encoded data\n");
         buffer_append(&vs->ws_output, data, len);
     } else {
-        buffer_reserve(&vs->output, len);
-
         if (vs->csock != -1 && buffer_empty(&vs->output)) {
             qemu_set_fd_handler2(vs->csock, NULL, vnc_client_read, vnc_client_write, vs);
         }
@@ -1888,6 +1885,7 @@ static void set_encodings(VncState *vs, int32_t *encodings, size_t n_encodings)
             vs->features |= VNC_FEATURE_HEXTILE_MASK;
             vs->vnc_encoding = enc;
             break;
+#if 0
         case VNC_ENCODING_TIGHT:
             vs->features |= VNC_FEATURE_TIGHT_MASK;
             vs->vnc_encoding = enc;
@@ -1896,6 +1894,7 @@ static void set_encodings(VncState *vs, int32_t *encodings, size_t n_encodings)
             vs->features |= VNC_FEATURE_TIGHT_PNG_MASK;
             vs->vnc_encoding = enc;
             break;
+#endif
         case VNC_ENCODING_ZLIB:
             vs->features |= VNC_FEATURE_ZLIB_MASK;
             vs->vnc_encoding = enc;
