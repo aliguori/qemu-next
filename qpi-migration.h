@@ -1,5 +1,5 @@
 /*
- * Virtio Network Device
+ * QEMU QPI Migration Interface
  *
  * Copyright IBM, Corp. 2010
  *

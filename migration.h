@@ -24,14 +24,20 @@
 
 typedef struct MigrationState MigrationState;
 
+typedef struct MigrationOps
+{
+    int (*open)(MigrationState *s, const char *uri);
+    int (*write)(MigrationState *s, const void *data, size_t size);
+    int (*get_error)(MigrationState *s);
+    int (*close)(MigrationState *s);
+    void (*release)(MigrationState *s);
+} MigrationOps;
+
 struct MigrationState
 {
-    /* FIXME: add more accessors to print migration info */
-    void (*cancel)(MigrationState *s);
-    int (*get_status)(MigrationState *s);
-    void (*release)(MigrationState *s);
-    int blk;
-    int shared;
+    MigrationOps *ops;
+    int state;
+    int fd;
 };
 
 typedef struct FdMigrationState FdMigrationState;

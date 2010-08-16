@@ -1,5 +1,5 @@
 /*
- * Virtio Network Device
+ * QEMU Live Migration QPI Interface
  *
  * Copyright IBM, Corp. 2010
  *
@@ -15,6 +15,7 @@
 
 MigrationState *qpi_migration_create(Error **err)
 {
+   
 }
 
 void qpi_migration_release(MigrationState *s,
