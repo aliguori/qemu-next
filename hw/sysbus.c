@@ -21,12 +21,9 @@
 #include "sysemu.h"
 #include "monitor.h"
 
-static void sysbus_dev_print(Monitor *mon, DeviceState *dev, int indent);
-
 struct BusInfo system_bus_info = {
     .name       = "System",
     .size       = sizeof(BusState),
-    .print_dev  = sysbus_dev_print,
 };
 
 void sysbus_connect_irq(SysBusDevice *dev, int n, qemu_irq irq)
@@ -158,15 +155,4 @@ DeviceState *sysbus_create_varargs(const char *name,
         n++;
     }
     return dev;
-}
-
-static void sysbus_dev_print(Monitor *mon, DeviceState *dev, int indent)
-{
-    SysBusDevice *s = sysbus_from_qdev(dev);
-    int i;
-
-    for (i = 0; i < s->num_mmio; i++) {
-        monitor_printf(mon, "%*smmio " TARGET_FMT_plx "/" TARGET_FMT_plx "\n",
-                       indent, "", s->mmio[i].addr, s->mmio[i].size);
-    }
 }

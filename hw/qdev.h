@@ -2,10 +2,13 @@
 #define QDEV_H
 
 #include "hw.h"
+#include "marshal.h"
+
 #include "blockdev.h"
 #include "qemu-queue.h"
 #include "qemu-char.h"
 #include "qemu-option.h"
+#include "serialinterface.h"
 
 typedef struct Property Property;
 
@@ -93,6 +96,7 @@ enum PropertyType {
     PROP_TYPE_VLAN,
     PROP_TYPE_PTR,
     PROP_TYPE_BIT,
+    PROP_TYPE_SERIALIF,
 };
 
 struct PropertyInfo {
@@ -137,6 +141,7 @@ BusState *qdev_get_child_bus(DeviceState *dev, const char *name);
 typedef int (*qdev_initfn)(DeviceState *dev, DeviceInfo *info);
 typedef int (*qdev_event)(DeviceState *dev);
 typedef void (*qdev_resetfn)(DeviceState *dev);
+typedef void (*qdev_marshalfn)(DeviceState *dev, Marshaller *m, const char *name);
 
 struct DeviceInfo {
     const char *name;
@@ -156,6 +161,7 @@ struct DeviceInfo {
     qdev_initfn init;
     qdev_event unplug;
     qdev_event exit;
+    qdev_marshalfn marshal;
     BusInfo *bus_info;
     struct DeviceInfo *next;
 };
@@ -206,6 +212,7 @@ extern PropertyInfo qdev_prop_drive;
 extern PropertyInfo qdev_prop_netdev;
 extern PropertyInfo qdev_prop_vlan;
 extern PropertyInfo qdev_prop_pci_devfn;
+extern PropertyInfo qdev_prop_serialif;
 
 #define DEFINE_PROP(_name, _state, _field, _prop, _type) { \
         .name      = (_name),                                    \
@@ -260,6 +267,8 @@ extern PropertyInfo qdev_prop_pci_devfn;
     DEFINE_PROP(_n, _s, _f, qdev_prop_drive, BlockDriverState *)
 #define DEFINE_PROP_MACADDR(_n, _s, _f)         \
     DEFINE_PROP(_n, _s, _f, qdev_prop_macaddr, MACAddr)
+#define DEFINE_PROP_SERIALIF(_n, _s, _f)        \
+    DEFINE_PROP(_n, _s, _f, qdev_prop_serialif, SerialInterface *)
 
 #define DEFINE_PROP_END_OF_LIST()               \
     {}

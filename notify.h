@@ -32,6 +32,11 @@ typedef struct NotifierList
 #define NOTIFIER_LIST_INITIALIZER(head) \
     { QTAILQ_HEAD_INITIALIZER((head).notifiers) }
 
+static inline void notifier_init(Notifier *notifier, void (*fn)(Notifier *))
+{
+    notifier->notify = fn;
+}
+
 void notifier_list_init(NotifierList *list);
 
 void notifier_list_add(NotifierList *list, Notifier *notifier);

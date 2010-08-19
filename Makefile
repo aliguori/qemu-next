@@ -127,6 +127,13 @@ check-qlist: check-qlist.o qlist.o qint.o qemu-malloc.o
 check-qfloat: check-qfloat.o qfloat.o qemu-malloc.o
 check-qjson: check-qjson.o qfloat.o qint.o qdict.o qstring.o qlist.o qbool.o qjson.o json-streamer.o json-lexer.o json-parser.o qemu-malloc.o
 
+tests/test-serial: tests/test-serial.o hw/serial.o hw/builtin-marshal.o \
+                   hw/serial-marshal.o hw/irq.o qemu-malloc.o osdep.o \
+	           hw/qdev.o hw/qdev-properties.o
+
+tests/test-serial.o: CFLAGS+=$(shell pkg-config --cflags glib-2.0)
+tests/test-serial: LIBS+=$(shell pkg-config --libs glib-2.0)
+
 clean:
 # avoid old build problems by removing potentially incorrect old files
 	rm -f config.mak op-i386.h opc-i386.h gen-op-i386.h op-arm.h opc-arm.h gen-op-arm.h
