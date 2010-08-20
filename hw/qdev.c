@@ -648,14 +648,14 @@ static BusState *qbus_find(const char *path)
 
     /* find start element */
     if (path[0] == '/') {
-        bus = main_system_bus;
+        bus = sysbus_get_default();
         pos = 0;
     } else {
         if (sscanf(path, "%127[^/]%n", elem, &len) != 1) {
             assert(!path[0]);
             elem[0] = len = 0;
         }
-        bus = qbus_find_recursive(main_system_bus, elem, NULL);
+        bus = qbus_find_recursive(sysbus_get_default(), elem, NULL);
         if (!bus) {
             qerror_report(QERR_BUS_NOT_FOUND, elem);
             return NULL;
@@ -851,8 +851,11 @@ static void qbus_print(Monitor *mon, BusState *bus, int indent)
 
 void do_info_qtree(Monitor *mon)
 {
-    if (main_system_bus)
-        qbus_print(mon, main_system_bus, 0);
+    BusState *bus = sysbus_get_default();
+
+    if (bus) {
+        qbus_print(mon, bus, 0);
+    }
 }
 
 void do_info_qdm(Monitor *mon)
@@ -888,7 +891,7 @@ int do_device_del(Monitor *mon, const QDict *qdict, QObject **ret_data)
     const char *id = qdict_get_str(qdict, "id");
     DeviceState *dev;
 
-    dev = qdev_find_recursive(main_system_bus, id);
+    dev = qdev_find_recursive(sysbus_get_default(), id);
     if (NULL == dev) {
         qerror_report(QERR_DEVICE_NOT_FOUND, id);
         return -1;
