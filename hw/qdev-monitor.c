@@ -17,7 +17,8 @@
  * License along with this library; if not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "qdev.h"
+#include "qdev-monitor.h"
+#include "qdev-devadd.h"
 #include "monitor.h"
 #include "sysemu.h"
 

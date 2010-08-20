@@ -24,6 +24,8 @@
 #include <dirent.h>
 #include "hw/hw.h"
 #include "hw/qdev.h"
+#include "hw/qdev-monitor.h"
+#include "hw/qdev-devadd.h"
 #include "hw/usb.h"
 #include "hw/pcmcia.h"
 #include "hw/pc.h"

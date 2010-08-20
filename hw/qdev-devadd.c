@@ -18,6 +18,7 @@
  */
 
 #include "qdev.h"
+#include "qdev-devadd.h"
 #include "monitor.h"
 #include "sysemu.h"
 

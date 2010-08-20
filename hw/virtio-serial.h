@@ -16,6 +16,7 @@
 #define _QEMU_VIRTIO_SERIAL_H
 
 #include "qdev.h"
+#include "qdev-properties.h"
 #include "virtio.h"
 
 /* == Interface shared between the guest kernel and qemu == */

@@ -1,5 +1,5 @@
 #include "net.h"
-#include "qdev.h"
+#include "qdev-properties.h"
 #include "qerror.h"
 
 void *qdev_get_prop_ptr(DeviceState *dev, Property *prop)

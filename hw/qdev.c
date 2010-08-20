@@ -28,7 +28,6 @@
 #include "net.h"
 #include "qdev.h"
 #include "sysemu.h"
-#include "monitor.h"
 
 static int qdev_hotplug = 0;
 
@@ -154,7 +153,10 @@ void qdev_set_legacy_instance_id(DeviceState *dev, int alias_id,
 int qdev_unplug(DeviceState *dev)
 {
     if (!dev->parent_bus->allow_hotplug) {
+#if 0
+        /* FIXME */
         qerror_report(QERR_BUS_NO_HOTPLUG, dev->parent_bus->name);
+#endif
         return -1;
     }
     assert(dev->info->unplug != NULL);
@@ -201,8 +203,7 @@ void qdev_init_nofail(DeviceState *dev)
     DeviceInfo *info = dev->info;
 
     if (qdev_init(dev) < 0) {
-        error_report("Initialization of device %s failed\n", info->name);
-        exit(1);
+        hw_error("Initialization of device %s failed\n", info->name);
     }
 }
 
