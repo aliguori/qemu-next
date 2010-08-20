@@ -318,7 +318,7 @@ BusState *sysbus_get_default(void)
 
 void qbus_reset_all(BusState *bus)
 {
-    qbus_walk_children(bus, qdev_reset_one, NULL);
+    qbus_walk_child_devs(bus, qdev_reset_one, NULL);
 }
 
 /* can be used as ->unplug() callback for the simple cases */
@@ -461,7 +461,7 @@ BusState *qdev_get_child_bus(DeviceState *dev, const char *name)
     return NULL;
 }
 
-int qbus_walk_children(BusState *bus, qdev_walkerfn *walker, void *opaque)
+int qbus_walk_child_devs(BusState *bus, qdev_walkerfn *walker, void *opaque)
 {
     DeviceState *dev;
 
@@ -473,7 +473,28 @@ int qbus_walk_children(BusState *bus, qdev_walkerfn *walker, void *opaque)
         }
 
         QLIST_FOREACH(child, &dev->child_bus, sibling) {
-            if (!qbus_walk_children(child, walker, opaque)) {
+            if (!qbus_walk_child_devs(child, walker, opaque)) {
+                return 0;
+            }
+        }
+    }
+
+    return 1;
+}
+
+int qbus_walk_child_busses(BusState *bus, qbus_walkerfn *walker, void *opaque)
+{
+    DeviceState *dev;
+
+    QLIST_FOREACH(dev, &bus->children, sibling) {
+        BusState *child;
+
+        QLIST_FOREACH(child, &dev->child_bus, sibling) {
+            if (!walker(child, opaque)) {
+                return 0;
+            }
+
+            if (!qbus_walk_child_busses(child, walker, opaque)) {
                 return 0;
             }
         }
