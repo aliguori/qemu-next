@@ -4,12 +4,9 @@
 #include "sysemu.h"
 #include "monitor.h"
 
-static void usb_bus_dev_print(Monitor *mon, DeviceState *qdev, int indent);
-
 static struct BusInfo usb_bus_info = {
     .name      = "USB",
     .size      = sizeof(USBBus),
-    .print_dev = usb_bus_dev_print,
 };
 static int next_usb_bus = 0;
 static QTAILQ_HEAD(, USBBus) busses = QTAILQ_HEAD_INITIALIZER(busses);
@@ -211,7 +208,7 @@ int usb_device_delete_addr(int busnr, int addr)
     return 0;
 }
 
-static const char *usb_speed(unsigned int speed)
+const char *usb_speed(unsigned int speed)
 {
     static const char *txt[] = {
         [ USB_SPEED_LOW  ] = "1.5",
@@ -221,17 +218,6 @@ static const char *usb_speed(unsigned int speed)
     if (speed >= ARRAY_SIZE(txt))
         return "?";
     return txt[speed];
-}
-
-static void usb_bus_dev_print(Monitor *mon, DeviceState *qdev, int indent)
-{
-    USBDevice *dev = DO_UPCAST(USBDevice, qdev, qdev);
-    USBBus *bus = usb_bus_from_device(dev);
-
-    monitor_printf(mon, "%*saddr %d.%d, speed %s, name %s%s\n",
-                   indent, "", bus->busnr, dev->addr,
-                   usb_speed(dev->speed), dev->product_desc,
-                   dev->attached ? ", attached" : "");
 }
 
 void usb_info(Monitor *mon)

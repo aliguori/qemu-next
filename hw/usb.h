@@ -318,6 +318,8 @@ int usb_device_attach(USBDevice *dev);
 int usb_device_detach(USBDevice *dev);
 int usb_device_delete_addr(int busnr, int addr);
 
+const char *usb_speed(unsigned int speed);
+
 static inline USBBus *usb_bus_from_device(USBDevice *d)
 {
     return DO_UPCAST(USBBus, qbus, d->qdev.parent_bus);

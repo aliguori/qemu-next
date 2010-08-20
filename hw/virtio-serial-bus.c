@@ -558,12 +558,9 @@ static int virtio_serial_load(QEMUFile *f, void *opaque, int version_id)
     return 0;
 }
 
-static void virtser_bus_dev_print(Monitor *mon, DeviceState *qdev, int indent);
-
 static struct BusInfo virtser_bus_info = {
     .name      = "virtio-serial-bus",
     .size      = sizeof(VirtIOSerialBus),
-    .print_dev = virtser_bus_dev_print,
 };
 
 static VirtIOSerialBus *virtser_bus_new(DeviceState *dev)
@@ -574,21 +571,6 @@ static VirtIOSerialBus *virtser_bus_new(DeviceState *dev)
     bus->qbus.allow_hotplug = 1;
 
     return bus;
-}
-
-static void virtser_bus_dev_print(Monitor *mon, DeviceState *qdev, int indent)
-{
-    VirtIOSerialDevice *dev = DO_UPCAST(VirtIOSerialDevice, qdev, qdev);
-    VirtIOSerialPort *port = DO_UPCAST(VirtIOSerialPort, dev, &dev->qdev);
-
-    monitor_printf(mon, "%*s dev-prop-int: id: %u\n",
-                   indent, "", port->id);
-    monitor_printf(mon, "%*s dev-prop-int: guest_connected: %d\n",
-                   indent, "", port->guest_connected);
-    monitor_printf(mon, "%*s dev-prop-int: host_connected: %d\n",
-                   indent, "", port->host_connected);
-    monitor_printf(mon, "%*s dev-prop-int: throttled: %d\n",
-                   indent, "", port->throttled);
 }
 
 /* This function is only used if a port id is not provided by the user */

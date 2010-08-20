@@ -238,6 +238,8 @@ PCIBus *pci_bridge_init(PCIBus *bus, int devfn, bool multifunction,
                         pci_map_irq_fn map_irq, const char *name);
 PCIDevice *pci_bridge_get_device(PCIBus *bus);
 
+const char *pci_class_get_description(uint16_t class);
+
 static inline void
 pci_set_byte(uint8_t *config, uint8_t val)
 {

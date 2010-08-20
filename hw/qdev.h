@@ -48,13 +48,11 @@ struct DeviceState {
     int alias_required_for_version;
 };
 
-typedef void (*bus_dev_printfn)(Monitor *mon, DeviceState *dev, int indent);
 typedef char *(*bus_get_dev_path)(DeviceState *dev);
 
 struct BusInfo {
     const char *name;
     size_t size;
-    bus_dev_printfn print_dev;
     bus_get_dev_path get_dev_path;
     Property *props;
 };
@@ -159,9 +157,12 @@ struct DeviceInfo {
     BusInfo *bus_info;
     struct DeviceInfo *next;
 };
+
+/* HACK: this needs to go away */
 extern DeviceInfo *device_info_list;
 
 void qdev_register(DeviceInfo *info);
+DeviceInfo *qdev_find_info(BusInfo *bus_info, const char *name);
 
 /* Register device properties.  */
 /* GPIO inputs also double as IRQ sinks.  */
@@ -172,6 +173,9 @@ CharDriverState *qdev_init_chardev(DeviceState *dev);
 
 BusState *qdev_get_parent_bus(DeviceState *dev);
 
+/* HACK: this should go away */
+int qdev_allow_hotplug(void);
+
 /*** BUS API. ***/
 
 /* Returns false to terminate walk; true to continue */
@@ -181,8 +185,13 @@ typedef int (qbus_walkerfn)(BusState *bus, void *opaque);
 void qbus_create_inplace(BusState *bus, BusInfo *info,
                          DeviceState *parent, const char *name);
 BusState *qbus_create(BusInfo *info, DeviceState *parent, const char *name);
+
 int qbus_walk_child_devs(BusState *bus, qdev_walkerfn *walker, void *opaque);
 int qbus_walk_child_busses(BusState *bus, qbus_walkerfn *walker, void *opaque);
+
+DeviceState *qbus_find_child_dev(BusState *bus, const char *id);
+BusState *qbus_find_child_bus(BusState *bus, const char *id);
+
 void qbus_reset_all(BusState *bus);
 void qbus_free(BusState *bus);
 

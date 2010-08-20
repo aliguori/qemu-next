@@ -30,12 +30,9 @@ struct ISABus {
 static ISABus *isabus;
 target_phys_addr_t isa_mem_base = 0;
 
-static void isabus_dev_print(Monitor *mon, DeviceState *dev, int indent);
-
 static struct BusInfo isa_bus_info = {
     .name      = "ISA",
     .size      = sizeof(ISABus),
-    .print_dev = isabus_dev_print,
 };
 
 ISABus *isa_bus_new(DeviceState *dev)
@@ -129,19 +126,6 @@ ISADevice *isa_create_simple(const char *name)
     dev = isa_create(name);
     qdev_init_nofail(&dev->qdev);
     return dev;
-}
-
-static void isabus_dev_print(Monitor *mon, DeviceState *dev, int indent)
-{
-    ISADevice *d = DO_UPCAST(ISADevice, qdev, dev);
-
-    if (d->isairq[1] != -1) {
-        monitor_printf(mon, "%*sisa irqs %d,%d\n", indent, "",
-                       d->isairq[0], d->isairq[1]);
-    } else if (d->isairq[0] != -1) {
-        monitor_printf(mon, "%*sisa irq %d\n", indent, "",
-                       d->isairq[0]);
-    }
 }
 
 static int isabus_bridge_init(SysBusDevice *dev)
