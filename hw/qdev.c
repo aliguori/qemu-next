@@ -222,8 +222,6 @@ void qdev_free(DeviceState *dev)
             vmstate_unregister(dev, dev->info->vmsd, dev);
         if (dev->info->exit)
             dev->info->exit(dev);
-        if (dev->opts)
-            qemu_opts_del(dev->opts);
     }
     QLIST_REMOVE(dev, sibling);
     for (prop = dev->info->props; prop && prop->name; prop++) {

@@ -339,6 +339,6 @@ DeviceState *qdev_device_add(QemuOpts *opts)
         qerror_report(QERR_DEVICE_INIT_FAILED, driver);
         return NULL;
     }
-    qdev->opts = opts;
+    qemu_opts_del(opts);
     return qdev;
 }

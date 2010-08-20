@@ -5,7 +5,6 @@
 #include "blockdev.h"
 #include "qemu-queue.h"
 #include "qemu-char.h"
-#include "qemu-option.h"
 
 typedef struct Property Property;
 
@@ -33,7 +32,6 @@ enum {
 struct DeviceState {
     const char *id;
     enum DevState state;
-    QemuOpts *opts;
     int hotplugged;
     DeviceInfo *info;
     BusState *parent_bus;
