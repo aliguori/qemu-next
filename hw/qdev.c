@@ -503,49 +503,70 @@ int qbus_walk_child_busses(BusState *bus, qbus_walkerfn *walker, void *opaque)
     return 1;
 }
 
+typedef struct FindData
+{
+    /* input */
+    const char *name;
+    const BusInfo *info;
+
+    /* output */
+    BusState *bus;
+    DeviceState *dev;
+} FindData;
+
+static int qbus_match_bus(BusState *bus, void *opaque)
+{
+    FindData *data = opaque;
+    int match = 1;
+
+    if (data->name && (strcmp(bus->name, data->name) != 0)) {
+        match = 0;
+    }
+
+    if (data->info && (bus->info != data->info)) {
+        match = 0;
+    }
+
+    if (match) {
+        data->bus = bus;
+        return 0;
+    }
+
+    return 1;
+}
+
 static BusState *qbus_find_recursive(BusState *bus, const char *name,
                                      const BusInfo *info)
 {
-    DeviceState *dev;
-    BusState *child, *ret;
-    int match = 1;
+    FindData data = { .name = name, .info = info };
 
-    if (name && (strcmp(bus->name, name) != 0)) {
-        match = 0;
-    }
-    if (info && (bus->info != info)) {
-        match = 0;
-    }
-    if (match) {
-        return bus;
+    if (!qbus_walk_child_busses(bus, qbus_match_bus, &data)) {
+        return data.bus;
     }
 
-    QLIST_FOREACH(dev, &bus->children, sibling) {
-        QLIST_FOREACH(child, &dev->child_bus, sibling) {
-            ret = qbus_find_recursive(child, name, info);
-            if (ret) {
-                return ret;
-            }
-        }
-    }
     return NULL;
+}
+
+static int qbus_match_dev(DeviceState *dev, void *opaque)
+{
+    FindData *data = opaque;
+
+    if (dev->id && strcmp(dev->id, data->name) == 0) {
+        data->dev = dev;
+        return 0;
+    }
+
+    return 1;
 }
 
 static DeviceState *qdev_find_recursive(BusState *bus, const char *id)
 {
-    DeviceState *dev, *ret;
-    BusState *child;
+    FindData data = { .name = id };
 
-    QLIST_FOREACH(dev, &bus->children, sibling) {
-        if (dev->id && strcmp(dev->id, id) == 0)
-            return dev;
-        QLIST_FOREACH(child, &dev->child_bus, sibling) {
-            ret = qdev_find_recursive(child, id);
-            if (ret) {
-                return ret;
-            }
-        }
+    if (!qbus_walk_child_devs(bus, qbus_match_dev, &data)) {
+        return data.dev;
     }
+
     return NULL;
 }
 
