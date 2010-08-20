@@ -58,11 +58,14 @@ typedef int (qbus_add_devfn)(BusState *bus, DeviceState *dev);
  */
 typedef int (qbus_del_devfn)(BusState *bus, DeviceState *dev);
 
+typedef void (qbus_realizefn)(BusState *bus);
+
 struct BusInfo {
     const char *name;
     size_t size;
     qbus_add_devfn *add_dev;
-    qbus_add_devfn *del_dev;
+    qbus_del_devfn *del_dev;
+    qbus_realizefn *realize;
     bus_get_dev_path get_dev_path;
     Property *props;
 };
@@ -125,9 +128,8 @@ int qdev_init(DeviceState *dev) QEMU_WARN_UNUSED_RESULT;
 void qdev_init_nofail(DeviceState *dev);
 void qdev_set_legacy_instance_id(DeviceState *dev, int alias_id,
                                  int required_for_version);
-int qdev_unplug(DeviceState *dev);
 int qdev_is_realized(DeviceState *dev);
-void qdev_free(DeviceState *dev);
+int qdev_free(DeviceState *dev);
 
 qemu_irq qdev_get_gpio_in(DeviceState *dev, int n);
 void qdev_connect_gpio_out(DeviceState *dev, int n, qemu_irq pin);

@@ -166,23 +166,6 @@ int qdev_is_realized(DeviceState *dev)
     return !!(dev->state == DEV_STATE_REALIZED);
 }
 
-int qdev_unplug(DeviceState *dev)
-{
-    int rc;
-
-    if (dev->parent_bus->info->del_dev) {
-        rc = dev->parent_bus->info->del_dev(dev->parent_bus, dev);
-    } else {
-        rc = qbus_default_del_dev(dev->parent_bus, dev);
-    }
-
-    if (rc == 0) {
-        qdev_free(dev);
-    }
-
-    return rc;
-}
-
 static int qdev_reset_one(DeviceState *dev, void *opaque)
 {
     if (dev->info->reset) {
@@ -208,9 +191,18 @@ static int qdev_realize_one(DeviceState *dev, void *opaque)
     return 1;
 }
 
+static int qbus_realize_one(BusState *bus, void *opaque)
+{
+    if (bus->info->realize) {
+        bus->info->realize(bus);
+    }
+    return 1;
+}
+
 void qbus_realize_all(BusState *bus)
 {
     qbus_walk_child_devs(bus, qdev_realize_one, NULL);
+    qbus_walk_child_busses(bus, qbus_realize_one, NULL);
 }
 
 int qbus_is_realized(BusState *bus)
@@ -235,12 +227,23 @@ void qdev_init_nofail(DeviceState *dev)
 }
 
 /* Unlink device from bus and free the structure.  */
-void qdev_free(DeviceState *dev)
+int qdev_free(DeviceState *dev)
 {
     BusState *bus;
     Property *prop;
 
     if (dev->state != DEV_STATE_CREATED) {
+        int rc;
+
+        if (dev->parent_bus->info->del_dev) {
+            rc = dev->parent_bus->info->del_dev(dev->parent_bus, dev);
+        } else {
+            rc = qbus_default_del_dev(dev->parent_bus, dev);
+        }
+        if (rc < 0) {
+            return rc;
+        }
+
         while (dev->num_child_bus) {
             bus = QLIST_FIRST(&dev->child_bus);
             qbus_free(bus);
@@ -257,6 +260,8 @@ void qdev_free(DeviceState *dev)
         }
     }
     qemu_free(dev);
+
+    return 0;
 }
 
 /* Get a character (serial) device interface.  */

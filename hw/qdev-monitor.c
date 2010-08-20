@@ -256,7 +256,7 @@ int do_device_del(Monitor *mon, const QDict *qdict, QObject **ret_data)
         return -1;
     }
 
-    if (qdev_unplug(dev) < 0) {
+    if (qdev_free(dev) < 0) {
         qerror_report(QERR_BUS_NO_HOTPLUG, dev->parent_bus->name);
         return -1;
     }

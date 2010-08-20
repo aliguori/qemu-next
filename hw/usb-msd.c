@@ -516,7 +516,7 @@ static void usb_msd_password_cb(void *opaque, int err)
     if (!err)
         usb_device_attach(&s->dev);
     else
-        qdev_unplug(&s->dev.qdev);
+        qdev_free(&s->dev.qdev);
 }
 
 static int usb_msd_initfn(USBDevice *dev)

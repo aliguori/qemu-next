@@ -195,7 +195,7 @@ static PCIDevice *qemu_pci_hot_add_storage(Monitor *mon,
             dev = NULL;
         if (dev && dinfo) {
             if (scsi_hot_add(mon, &dev->qdev, dinfo, 0) != 0) {
-                qdev_unplug(&dev->qdev);
+                qdev_free(&dev->qdev);
                 dev = NULL;
             }
         }
@@ -272,7 +272,7 @@ static int pci_device_hot_remove(Monitor *mon, const char *pci_addr)
         monitor_printf(mon, "slot %d empty\n", slot);
         return -1;
     }
-    return qdev_unplug(&d->qdev);
+    return qdev_free(&d->qdev);
 }
 
 void do_pci_device_hot_remove(Monitor *mon, const QDict *qdict)
