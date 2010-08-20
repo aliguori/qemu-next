@@ -256,13 +256,6 @@ DeviceState *qdev_device_add(QemuOpts *opts)
     return qdev;
 }
 
-static void qdev_reset(void *opaque)
-{
-    DeviceState *dev = opaque;
-    if (dev->info->reset)
-        dev->info->reset(dev);
-}
-
 /* Initialize a device.  Device properties should be set before calling
    this function.  IRQs and MMIO regions should be connected/mapped after
    calling this function.
@@ -278,13 +271,15 @@ int qdev_init(DeviceState *dev)
         qdev_free(dev);
         return rc;
     }
-    qemu_register_reset(qdev_reset, dev);
     if (dev->info->vmsd) {
         vmstate_register_with_alias_id(dev, -1, dev->info->vmsd, dev,
                                        dev->instance_id_alias,
                                        dev->alias_required_for_version);
     }
     dev->state = DEV_STATE_INITIALIZED;
+    if (dev->info->reset) {
+        dev->info->reset(dev);
+    }
     return 0;
 }
 
@@ -305,6 +300,25 @@ int qdev_unplug(DeviceState *dev)
     assert(dev->info->unplug != NULL);
 
     return dev->info->unplug(dev);
+}
+
+static int qdev_reset_one(DeviceState *dev, void *opaque)
+{
+    if (dev->info->reset) {
+        dev->info->reset(dev);
+    }
+
+    return 1;
+}
+
+BusState *sysbus_get_default(void)
+{
+    return main_system_bus;
+}
+
+void qbus_reset_all(BusState *bus)
+{
+    qbus_walk_children(bus, qdev_reset_one, NULL);
 }
 
 /* can be used as ->unplug() callback for the simple cases */
@@ -350,7 +364,6 @@ void qdev_free(DeviceState *dev)
         if (dev->opts)
             qemu_opts_del(dev->opts);
     }
-    qemu_unregister_reset(qdev_reset, dev);
     QLIST_REMOVE(dev, sibling);
     for (prop = dev->info->props; prop && prop->name; prop++) {
         if (prop->info->free) {
@@ -446,6 +459,27 @@ BusState *qdev_get_child_bus(DeviceState *dev, const char *name)
         }
     }
     return NULL;
+}
+
+int qbus_walk_children(BusState *bus, qdev_walkerfn *walker, void *opaque)
+{
+    DeviceState *dev;
+
+    QLIST_FOREACH(dev, &bus->children, sibling) {
+        BusState *child;
+
+        if (!walker(dev, opaque)) {
+            return 0;
+        }
+
+        QLIST_FOREACH(child, &dev->child_bus, sibling) {
+            if (!qbus_walk_children(child, walker, opaque)) {
+                return 0;
+            }
+        }
+    }
+
+    return 1;
 }
 
 static BusState *qbus_find_recursive(BusState *bus, const char *name,
