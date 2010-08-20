@@ -558,9 +558,21 @@ static int virtio_serial_load(QEMUFile *f, void *opaque, int version_id)
     return 0;
 }
 
+static int virtser_bus_add_dev(BusState *qbus, DeviceState *qdev)
+{
+    return 0;
+}
+
+static int virtser_bus_del_dev(BusState *qbus, DeviceState *qdev)
+{
+    return 0;
+}
+
 static struct BusInfo virtser_bus_info = {
     .name      = "virtio-serial-bus",
     .size      = sizeof(VirtIOSerialBus),
+    .add_dev   = virtser_bus_add_dev,
+    .del_dev   = virtser_bus_del_dev,
 };
 
 static VirtIOSerialBus *virtser_bus_new(DeviceState *dev)
@@ -568,7 +580,6 @@ static VirtIOSerialBus *virtser_bus_new(DeviceState *dev)
     VirtIOSerialBus *bus;
 
     bus = FROM_QBUS(VirtIOSerialBus, qbus_create(&virtser_bus_info, dev, NULL));
-    bus->qbus.allow_hotplug = 1;
 
     return bus;
 }
@@ -710,7 +721,6 @@ void virtio_serial_port_qdev_register(VirtIOSerialPortInfo *info)
     info->qdev.init = virtser_port_qdev_init;
     info->qdev.bus_info = &virtser_bus_info;
     info->qdev.exit = virtser_port_qdev_exit;
-    info->qdev.unplug = qdev_simple_unplug_cb;
     qdev_register(&info->qdev);
 }
 

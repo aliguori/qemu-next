@@ -82,6 +82,7 @@ typedef void (*SCSIAttachFn)(DeviceState *host, BlockDriverState *bdrv,
 struct SCSIBus {
     BusState qbus;
     int busnr;
+    int allow_hotplug;
 
     int tcq, ndev;
     scsi_completionfn complete;

@@ -29,8 +29,6 @@
 #include "qdev.h"
 #include "sysemu.h"
 
-static int qdev_hotplug = 0;
-
 /* This is a nasty hack to allow passing a NULL bus to qdev_create.  */
 static BusState *main_system_bus;
 
@@ -83,11 +81,6 @@ static DeviceState *qdev_create_from_info(BusState *bus, DeviceInfo *info)
     qdev_prop_set_defaults(dev, dev->info->props);
     qdev_prop_set_defaults(dev, dev->parent_bus->info->props);
     qdev_prop_set_globals(dev);
-    QLIST_INSERT_HEAD(&bus->children, dev, sibling);
-    if (qdev_hotplug) {
-        assert(bus->allow_hotplug);
-        dev->hotplugged = 1;
-    }
     dev->instance_id_alias = -1;
     dev->state = DEV_STATE_CREATED;
     return dev;
@@ -125,20 +118,38 @@ int qdev_init(DeviceState *dev)
     int rc;
 
     assert(dev->state == DEV_STATE_CREATED);
+
     rc = dev->info->init(dev, dev->info);
     if (rc < 0) {
         qdev_free(dev);
         return rc;
     }
+
     if (dev->info->vmsd) {
         vmstate_register_with_alias_id(dev, -1, dev->info->vmsd, dev,
                                        dev->instance_id_alias,
                                        dev->alias_required_for_version);
     }
+
     dev->state = DEV_STATE_INITIALIZED;
+
     if (dev->info->reset) {
         dev->info->reset(dev);
     }
+
+    if (dev->parent_bus->info->add_dev) {
+        rc = dev->parent_bus->info->add_dev(dev->parent_bus, dev);
+    } else {
+        rc = qbus_default_add_dev(dev->parent_bus, dev);
+    }
+
+    if (rc < 0) {
+        qdev_free(dev);
+        return rc;
+    }
+
+    QLIST_INSERT_HEAD(&dev->parent_bus->children, dev, sibling);
+
     return 0;
 }
 
@@ -150,18 +161,26 @@ void qdev_set_legacy_instance_id(DeviceState *dev, int alias_id,
     dev->alias_required_for_version = required_for_version;
 }
 
+int qdev_is_realized(DeviceState *dev)
+{
+    return !!(dev->state == DEV_STATE_REALIZED);
+}
+
 int qdev_unplug(DeviceState *dev)
 {
-    if (!dev->parent_bus->allow_hotplug) {
-#if 0
-        /* FIXME */
-        qerror_report(QERR_BUS_NO_HOTPLUG, dev->parent_bus->name);
-#endif
-        return -1;
-    }
-    assert(dev->info->unplug != NULL);
+    int rc;
 
-    return dev->info->unplug(dev);
+    if (dev->parent_bus->info->del_dev) {
+        rc = dev->parent_bus->info->del_dev(dev->parent_bus, dev);
+    } else {
+        rc = qbus_default_del_dev(dev->parent_bus, dev);
+    }
+
+    if (rc == 0) {
+        qdev_free(dev);
+    }
+
+    return rc;
 }
 
 static int qdev_reset_one(DeviceState *dev, void *opaque)
@@ -183,12 +202,20 @@ void qbus_reset_all(BusState *bus)
     qbus_walk_child_devs(bus, qdev_reset_one, NULL);
 }
 
-/* can be used as ->unplug() callback for the simple cases */
-int qdev_simple_unplug_cb(DeviceState *dev)
+static int qdev_realize_one(DeviceState *dev, void *opaque)
 {
-    /* just zap it */
-    qdev_free(dev);
-    return 0;
+    dev->state = DEV_STATE_REALIZED;
+    return 1;
+}
+
+void qbus_realize_all(BusState *bus)
+{
+    qbus_walk_child_devs(bus, qdev_realize_one, NULL);
+}
+
+int qbus_is_realized(BusState *bus)
+{
+    return qdev_is_realized(bus->parent);
 }
 
 /* Like qdev_init(), but terminate program via hw_error() instead of
@@ -213,7 +240,7 @@ void qdev_free(DeviceState *dev)
     BusState *bus;
     Property *prop;
 
-    if (dev->state == DEV_STATE_INITIALIZED) {
+    if (dev->state != DEV_STATE_CREATED) {
         while (dev->num_child_bus) {
             bus = QLIST_FIRST(&dev->child_bus);
             qbus_free(bus);
@@ -230,21 +257,6 @@ void qdev_free(DeviceState *dev)
         }
     }
     qemu_free(dev);
-}
-
-void qdev_machine_creation_done(void)
-{
-    /*
-     * ok, initial machine setup is done, starting from now we can
-     * only create hotpluggable devices
-     */
-    qdev_hotplug = 1;
-}
-
-/* HACK: should go away */
-int qdev_allow_hotplug(void)
-{
-    return qdev_hotplug;
 }
 
 /* Get a character (serial) device interface.  */
@@ -422,6 +434,23 @@ DeviceState *qbus_find_child_dev(BusState *bus, const char *id)
     }
 
     return NULL;
+}
+
+/* By default, only allow devices to be before the bus is realized */
+int qbus_default_add_dev(BusState *bus, DeviceState *dev)
+{
+    DeviceState *bus_dev = bus->parent;
+
+    if (bus_dev->state == DEV_STATE_INITIALIZED) {
+        return 0;
+    }
+
+    return -ENOTSUP;
+}
+
+int qbus_default_del_dev(BusState *bus, DeviceState *dev)
+{
+    return -ENOTSUP;
 }
 
 void qbus_create_inplace(BusState *bus, BusInfo *info,

@@ -2950,7 +2950,7 @@ int main(int argc, char **argv, char **envp)
         exit(1);
     }
 
-    qdev_machine_creation_done();
+    qbus_realize_all(sysbus_get_default());
 
     if (rom_load_all() != 0) {
         fprintf(stderr, "rom loading failed\n");

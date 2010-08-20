@@ -285,6 +285,7 @@ DeviceState *qdev_device_add(QemuOpts *opts)
     DeviceInfo *info;
     DeviceState *qdev;
     BusState *bus;
+    int rc;
 
     driver = qemu_opt_get(opts, "driver");
     if (!driver) {
@@ -320,10 +321,6 @@ DeviceState *qdev_device_add(QemuOpts *opts)
             return NULL;
         }
     }
-    if (qdev_allow_hotplug() && !bus->allow_hotplug) {
-        qerror_report(QERR_BUS_NO_HOTPLUG, bus->name);
-        return NULL;
-    }
 
     /* create device, set properties */
     qdev = qdev_create(bus, info->name);
@@ -335,7 +332,11 @@ DeviceState *qdev_device_add(QemuOpts *opts)
         qdev_free(qdev);
         return NULL;
     }
-    if (qdev_init(qdev) < 0) {
+    rc = qdev_init(qdev);
+    if (rc == -ENOTSUP) {
+        qerror_report(QERR_BUS_NO_HOTPLUG, info->bus_info->name);
+        return NULL;
+    } else if (rc < 0) {
         qerror_report(QERR_DEVICE_INIT_FAILED, driver);
         return NULL;
     }

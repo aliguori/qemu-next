@@ -21,8 +21,26 @@
 #include "sysemu.h"
 #include "monitor.h"
 
+/* FIXME this is a hack */
+static int system_bus_realized;
+
+static void system_bus_realize(BusState *qbus)
+{
+    system_bus_realized = 1;
+}
+
+static int system_bus_add_dev(BusState *qbus, DeviceState *qdev)
+{
+    if (system_bus_realized) {
+        return -ENOTSUP;
+    }
+    return 0;
+}
+
 struct BusInfo system_bus_info = {
     .name       = "System",
+    .add_dev    = system_bus_add_dev,
+    .realize    = system_bus_realize,
     .size       = sizeof(BusState),
 };
 

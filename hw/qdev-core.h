@@ -21,6 +21,7 @@ typedef struct BusInfo BusInfo;
 enum DevState {
     DEV_STATE_CREATED = 1,
     DEV_STATE_INITIALIZED,
+    DEV_STATE_REALIZED,
 };
 
 enum {
@@ -32,7 +33,6 @@ enum {
 struct DeviceState {
     const char *id;
     enum DevState state;
-    int hotplugged;
     DeviceInfo *info;
     BusState *parent_bus;
     int num_gpio_out;
@@ -48,9 +48,21 @@ struct DeviceState {
 
 typedef char *(*bus_get_dev_path)(DeviceState *dev);
 
+/* This is called after the device is initialized.
+ * Return -errno to reject the device.
+ */
+typedef int (qbus_add_devfn)(BusState *bus, DeviceState *dev);
+
+/* This is called when trying to remove a device from a bus.
+ * Return -errno to stop the removal.
+ */
+typedef int (qbus_del_devfn)(BusState *bus, DeviceState *dev);
+
 struct BusInfo {
     const char *name;
     size_t size;
+    qbus_add_devfn *add_dev;
+    qbus_add_devfn *del_dev;
     bus_get_dev_path get_dev_path;
     Property *props;
 };
@@ -59,7 +71,6 @@ struct BusState {
     DeviceState *parent;
     BusInfo *info;
     const char *name;
-    int allow_hotplug;
     int qdev_allocated;
     QLIST_HEAD(, DeviceState) children;
     QLIST_ENTRY(BusState) sibling;
@@ -115,9 +126,8 @@ void qdev_init_nofail(DeviceState *dev);
 void qdev_set_legacy_instance_id(DeviceState *dev, int alias_id,
                                  int required_for_version);
 int qdev_unplug(DeviceState *dev);
+int qdev_is_realized(DeviceState *dev);
 void qdev_free(DeviceState *dev);
-int qdev_simple_unplug_cb(DeviceState *dev);
-void qdev_machine_creation_done(void);
 
 qemu_irq qdev_get_gpio_in(DeviceState *dev, int n);
 void qdev_connect_gpio_out(DeviceState *dev, int n, qemu_irq pin);
@@ -148,7 +158,6 @@ struct DeviceInfo {
 
     /* Private to qdev / bus.  */
     qdev_initfn init;
-    qdev_event unplug;
     qdev_event exit;
     BusInfo *bus_info;
     struct DeviceInfo *next;
@@ -169,9 +178,6 @@ CharDriverState *qdev_init_chardev(DeviceState *dev);
 
 BusState *qdev_get_parent_bus(DeviceState *dev);
 
-/* HACK: this should go away */
-int qdev_allow_hotplug(void);
-
 /*** BUS API. ***/
 
 /* Returns false to terminate walk; true to continue */
@@ -189,6 +195,13 @@ DeviceState *qbus_find_child_dev(BusState *bus, const char *id);
 BusState *qbus_find_child_bus(BusState *bus, const char *id);
 
 void qbus_reset_all(BusState *bus);
+void qbus_realize_all(BusState *bus);
+
+int qbus_is_realized(BusState *bus);
+
+int qbus_default_add_dev(BusState *bus, DeviceState *dev);
+int qbus_default_del_dev(BusState *bus, DeviceState *dev);
+
 void qbus_free(BusState *bus);
 
 #define FROM_QBUS(type, dev) DO_UPCAST(type, qbus, dev)

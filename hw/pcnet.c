@@ -2007,7 +2007,8 @@ static int pci_pcnet_init(PCIDevice *pci_dev)
     s->phys_mem_read = pci_physical_memory_read;
     s->phys_mem_write = pci_physical_memory_write;
 
-    if (!pci_dev->qdev.hotplugged) {
+    /* HACK: this is pretty gnarly */
+    if (!qbus_is_realized(qdev_get_parent_bus(&pci_dev->qdev))) {
         static int loaded = 0;
         if (!loaded) {
             rom_add_option("pxe-pcnet.bin");

@@ -547,7 +547,7 @@ static int usb_msd_initfn(USBDevice *dev)
     if (!s->scsi_dev) {
         return -1;
     }
-    s->bus.qbus.allow_hotplug = 0;
+    s->bus.allow_hotplug = 0;
     usb_msd_handle_reset(dev);
 
     if (bdrv_key_required(bs)) {

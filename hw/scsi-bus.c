@@ -4,9 +4,25 @@
 #include "scsi-defs.h"
 #include "qdev.h"
 
+static int scsi_bus_add_dev(BusState *qbus, DeviceState *qdev)
+{
+    SCSIBus *bus = DO_UPCAST(SCSIBus, qbus, qbus);
+    if (!bus->allow_hotplug) {
+        return -ENOTSUP;
+    }
+    return 0;
+}
+
+static int scsi_bus_del_dev(BusState *qbus, DeviceState *qdev)
+{
+    return 0;
+}
+
 static struct BusInfo scsi_bus_info = {
     .name  = "SCSI",
     .size  = sizeof(SCSIBus),
+    .add_dev = scsi_bus_add_dev,
+    .del_dev = scsi_bus_del_dev,
     .props = (Property[]) {
         DEFINE_PROP_UINT32("scsi-id", SCSIDevice, id, -1),
         DEFINE_PROP_END_OF_LIST(),
@@ -23,7 +39,6 @@ void scsi_bus_new(SCSIBus *bus, DeviceState *host, int tcq, int ndev,
     bus->tcq = tcq;
     bus->ndev = ndev;
     bus->complete = complete;
-    bus->qbus.allow_hotplug = 1;
 }
 
 static int scsi_qdev_init(DeviceState *qdev, DeviceInfo *base)
@@ -77,7 +92,6 @@ void scsi_qdev_register(SCSIDeviceInfo *info)
 {
     info->qdev.bus_info = &scsi_bus_info;
     info->qdev.init     = scsi_qdev_init;
-    info->qdev.unplug   = qdev_simple_unplug_cb;
     info->qdev.exit     = scsi_qdev_exit;
     qdev_register(&info->qdev);
 }

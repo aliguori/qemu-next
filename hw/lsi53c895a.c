@@ -2186,7 +2186,8 @@ static int lsi_scsi_init(PCIDevice *dev)
     QTAILQ_INIT(&s->queue);
 
     scsi_bus_new(&s->bus, &dev->qdev, 1, LSI_MAX_DEVS, lsi_command_complete);
-    if (!dev->qdev.hotplugged) {
+    /* HACK: this is pretty exceptionally gnarly */
+    if (!qbus_is_realized(qdev_get_parent_bus(&s->dev.qdev))) {
         return scsi_bus_legacy_handle_cmdline(&s->bus);
     }
     return 0;

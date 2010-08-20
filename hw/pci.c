@@ -58,11 +58,15 @@ struct PCIBus {
 };
 
 static char *pcibus_get_dev_path(DeviceState *dev);
+static int pcibus_add_dev(BusState *qbus, DeviceState *qdev);
+static int pcibus_del_dev(BusState *qbus, DeviceState *qdev);
 
 static struct BusInfo pci_bus_info = {
     .name       = "PCI",
     .size       = sizeof(PCIBus),
     .get_dev_path = pcibus_get_dev_path,
+    .add_dev    = pcibus_add_dev,
+    .del_dev    = pcibus_del_dev,
     .props      = (Property[]) {
         DEFINE_PROP_PCI_DEVFN("addr", PCIDevice, devfn, -1),
         DEFINE_PROP_STRING("romfile", PCIDevice, romfile),
@@ -267,9 +271,9 @@ void pci_bus_irqs(PCIBus *bus, pci_set_irq_fn set_irq, pci_map_irq_fn map_irq,
     bus->irq_count = qemu_mallocz(nirq * sizeof(bus->irq_count[0]));
 }
 
+
 void pci_bus_hotplug(PCIBus *bus, pci_hotplug_fn hotplug, DeviceState *qdev)
 {
-    bus->qbus.allow_hotplug = 1;
     bus->hotplug = hotplug;
     bus->hotplug_qdev = qdev;
 }
@@ -815,6 +819,31 @@ void pci_register_bar(PCIDevice *pci_dev, int region_num,
         pci_set_long(pci_dev->wmask + addr, wmask & 0xffffffff);
         pci_set_long(pci_dev->cmask + addr, 0xffffffff);
     }
+}
+
+static int pcibus_add_dev(BusState *qbus, DeviceState *qdev)
+{
+    PCIDevice *pci_dev = DO_UPCAST(PCIDevice, qdev, qdev);
+    PCIBus *pci_bus = DO_UPCAST(PCIBus, qbus, qbus);
+    int rc;
+
+    if (qdev_is_realized(qbus->parent)) {
+        rc = pci_bus->hotplug(pci_bus->hotplug_qdev, pci_dev, 1);
+        if (rc != 0) {
+            int r = pci_unregister_device(&pci_dev->qdev);
+            assert(!r);
+            return rc;
+        }
+    }
+
+    return 0;
+}
+
+static int pcibus_del_dev(BusState *qbus, DeviceState *qdev)
+{
+    PCIDevice *pci_dev = DO_UPCAST(PCIDevice, qdev, qdev);
+
+    return pci_dev->bus->hotplug(pci_dev->bus->hotplug_qdev, pci_dev, 0);
 }
 
 static uint32_t pci_config_get_io_base(PCIDevice *d,
@@ -1706,28 +1735,12 @@ static int pci_qdev_init(DeviceState *qdev, DeviceInfo *base)
         pci_dev->romfile = qemu_strdup(info->romfile);
     pci_add_option_rom(pci_dev);
 
-    if (qdev->hotplugged) {
-        rc = bus->hotplug(bus->hotplug_qdev, pci_dev, 1);
-        if (rc != 0) {
-            int r = pci_unregister_device(&pci_dev->qdev);
-            assert(!r);
-            return rc;
-        }
-    }
     return 0;
-}
-
-static int pci_unplug_device(DeviceState *qdev)
-{
-    PCIDevice *dev = DO_UPCAST(PCIDevice, qdev, qdev);
-
-    return dev->bus->hotplug(dev->bus->hotplug_qdev, dev, 0);
 }
 
 void pci_qdev_register(PCIDeviceInfo *info)
 {
     info->qdev.init = pci_qdev_init;
-    info->qdev.unplug = pci_unplug_device;
     info->qdev.exit = pci_unregister_device;
     info->qdev.bus_info = &pci_bus_info;
     qdev_register(&info->qdev);
