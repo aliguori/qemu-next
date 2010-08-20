@@ -256,7 +256,6 @@ static SysBusDeviceInfo ioapic_info = {
     .qdev.size = sizeof(IOAPICState),
     .qdev.vmsd = &vmstate_ioapic,
     .qdev.reset = ioapic_reset,
-    .qdev.no_user = 1,
 };
 
 static void ioapic_register_devices(void)

@@ -789,7 +789,6 @@ static PCIDeviceInfo bonito_info = {
     .qdev.desc    = "Host bridge",
     .qdev.size    = sizeof(PCIBonitoState),
     .qdev.vmsd    = &vmstate_bonito,
-    .qdev.no_user = 1,
     .init         = bonito_initfn,
 };
 
@@ -797,7 +796,6 @@ static SysBusDeviceInfo bonito_pcihost_info = {
     .init         = bonito_pcihost_initfn,
     .qdev.name    = "Bonito-pcihost",
     .qdev.size    = sizeof(BonitoState),
-    .qdev.no_user = 1,
 };
 
 static void bonito_register(void)

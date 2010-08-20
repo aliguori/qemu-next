@@ -728,7 +728,6 @@ static int hpet_init(SysBusDevice *dev)
 static SysBusDeviceInfo hpet_device_info = {
     .qdev.name    = "hpet",
     .qdev.size    = sizeof(HPETState),
-    .qdev.no_user = 1,
     .qdev.vmsd    = &vmstate_hpet,
     .qdev.reset   = hpet_reset,
     .init         = hpet_init,

@@ -631,7 +631,6 @@ ISADevice *rtc_init(int base_year, qemu_irq intercept_irq)
 static ISADeviceInfo mc146818rtc_info = {
     .qdev.name     = "mc146818rtc",
     .qdev.size     = sizeof(RTCState),
-    .qdev.no_user  = 1,
     .qdev.vmsd     = &vmstate_rtc,
     .init          = rtc_initfn,
     .qdev.props    = (Property[]) {

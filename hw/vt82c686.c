@@ -582,7 +582,6 @@ static PCIDeviceInfo via_info = {
     .qdev.desc    = "ISA bridge",
     .qdev.size    = sizeof(VT82C686BState),
     .qdev.vmsd    = &vmstate_via,
-    .qdev.no_user = 1,
     .init         = vt82c686b_initfn,
     .config_write = vt82c686b_write_config,
 };

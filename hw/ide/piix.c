@@ -183,12 +183,10 @@ static PCIDeviceInfo piix_ide_info[] = {
     {
         .qdev.name    = "piix3-ide",
         .qdev.size    = sizeof(PCIIDEState),
-        .qdev.no_user = 1,
         .init         = pci_piix3_ide_initfn,
     },{
         .qdev.name    = "piix4-ide",
         .qdev.size    = sizeof(PCIIDEState),
-        .qdev.no_user = 1,
         .init         = pci_piix4_ide_initfn,
     },{
         /* end of list */

@@ -499,7 +499,6 @@ static ISADeviceInfo i8042_info = {
     .qdev.name     = "i8042",
     .qdev.size     = sizeof(ISAKBDState),
     .qdev.vmsd     = &vmstate_kbd_isa,
-    .qdev.no_user  = 1,
     .init          = i8042_initfn,
 };
 

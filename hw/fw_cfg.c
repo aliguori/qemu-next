@@ -383,7 +383,6 @@ static SysBusDeviceInfo fw_cfg_info = {
     .qdev.size = sizeof(FWCfgState),
     .qdev.vmsd = &vmstate_fw_cfg,
     .qdev.reset = fw_cfg_reset,
-    .qdev.no_user = 1,
     .qdev.props = (Property[]) {
         DEFINE_PROP_HEX32("ctl_iobase", FWCfgState, ctl_iobase, -1),
         DEFINE_PROP_HEX32("data_iobase", FWCfgState, data_iobase, -1),

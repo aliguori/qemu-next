@@ -150,7 +150,6 @@ struct DeviceInfo {
     const char *desc;
     size_t size;
     Property *props;
-    int no_user;
 
     /* callbacks */
     qdev_resetfn reset;

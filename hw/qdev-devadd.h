@@ -3,5 +3,6 @@
 
 DeviceState *qdev_device_add(QemuOpts *opts);
 int qdev_device_help(QemuOpts *opts);
+int qdev_device_add_is_black_listed(const char *id);
 
 #endif

@@ -22,6 +22,37 @@
 #include "monitor.h"
 #include "sysemu.h"
 
+/* Devices that should not be instantiated via device_add.
+ *
+ * The device_add interface works with the machine->init functions and these
+ * devices only make sense to add in machine->init.  eventually, we want to
+ * eliminate the device_add interface entirely though such that construction
+ * can be done entirely through qdev primitives without having a machine->init
+ */
+static const char *device_black_list[] = {
+    "apic",
+    "Bonito",
+    "Bonito-pcihost",
+    "isa-fdc",
+    "fw_cfg",
+    "hpet",
+    "ioapic",
+    "isabus-bridge",
+    "m48t59_isa",
+    "mc146818rtc",
+    "i8042",
+    "PIIX4",
+    "i440FX",
+    "PIIX3",
+    "piix3-ide",
+    "piix4-ide",
+    "i440FX-pcihost",
+    "s390-virtio-bridge",
+    "via-ide",
+    "VT82C686B",
+    NULL,
+};
+
 static void qbus_list_bus(DeviceState *dev)
 {
     BusState *child;
@@ -178,6 +209,19 @@ static BusState *qbus_find(const char *path)
     }
 }
 
+int qdev_device_add_is_black_listed(const char *id)
+{
+    int i;
+
+    for (i = 0; device_black_list[i]; i++) {
+        if (strcmp(device_black_list[i], id) == 0) {
+            return 1;
+        }
+    }
+
+    return 0;
+}
+
 static void qdev_print_devinfo(DeviceInfo *info)
 {
     error_printf("name \"%s\", bus %s",
@@ -188,7 +232,7 @@ static void qdev_print_devinfo(DeviceInfo *info)
     if (info->desc) {
         error_printf(", desc \"%s\"", info->desc);
     }
-    if (info->no_user) {
+    if (qdev_device_add_is_black_listed(info->name)) {
         error_printf(", no-user");
     }
     error_printf("\n");
@@ -218,7 +262,7 @@ int qdev_device_help(QemuOpts *opts)
     driver = qemu_opt_get(opts, "driver");
     if (driver && !strcmp(driver, "?")) {
         for (info = device_info_list; info != NULL; info = info->next) {
-            if (info->no_user) {
+            if (qdev_device_add_is_black_listed(info->name)) {
                 continue;       /* not available, don't show */
             }
             qdev_print_devinfo(info);
@@ -295,7 +339,7 @@ DeviceState *qdev_device_add(QemuOpts *opts)
 
     /* find driver */
     info = qdev_find_info(NULL, driver);
-    if (!info || info->no_user) {
+    if (!info || qdev_device_add_is_black_listed(info->name)) {
         qerror_report(QERR_INVALID_PARAMETER_VALUE, "driver", "a driver name");
         error_printf_unless_qmp("Try with argument '?' for a list.\n");
         return NULL;

@@ -728,7 +728,6 @@ static ISADeviceInfo m48t59_isa_info = {
     .qdev.name = "m48t59_isa",
     .qdev.size = sizeof(M48t59ISAState),
     .qdev.reset = m48t59_reset_isa,
-    .qdev.no_user = 1,
     .qdev.props = (Property[]) {
         DEFINE_PROP_UINT32("size",    M48t59ISAState, state.size,    -1),
         DEFINE_PROP_UINT32("type",    M48t59ISAState, state.type,    -1),

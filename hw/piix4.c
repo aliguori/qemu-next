@@ -112,7 +112,6 @@ static PCIDeviceInfo piix4_info[] = {
         .qdev.name    = "PIIX4",
         .qdev.desc    = "ISA bridge",
         .qdev.size    = sizeof(PCIDevice),
-        .qdev.no_user = 1,
         .init         = piix4_initfn,
     },{
         /* end of list */

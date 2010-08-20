@@ -179,7 +179,6 @@ void vt82c686b_ide_init(PCIBus *bus, DriveInfo **hd_table, int devfn)
 static PCIDeviceInfo via_ide_info = {
     .qdev.name    = "via-ide",
     .qdev.size    = sizeof(PCIIDEState),
-    .qdev.no_user = 1,
     .init         = vt82c686b_ide_initfn,
 };
 

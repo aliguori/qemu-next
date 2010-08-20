@@ -138,7 +138,6 @@ static SysBusDeviceInfo isabus_bridge_info = {
     .init = isabus_bridge_init,
     .qdev.name  = "isabus-bridge",
     .qdev.size  = sizeof(SysBusDevice),
-    .qdev.no_user = 1,
 };
 
 static void isabus_register_devices(void)

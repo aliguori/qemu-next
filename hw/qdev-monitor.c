@@ -211,7 +211,7 @@ static void qdev_print_devinfo(DeviceInfo *info)
     if (info->desc) {
         error_printf(", desc \"%s\"", info->desc);
     }
-    if (info->no_user) {
+    if (qdev_device_add_is_black_listed(info->name)) {
         error_printf(", no-user");
     }
     error_printf("\n");

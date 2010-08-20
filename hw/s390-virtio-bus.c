@@ -392,7 +392,6 @@ static SysBusDeviceInfo s390_virtio_bridge_info = {
     .init = s390_virtio_bridge_init,
     .qdev.name  = "s390-virtio-bridge",
     .qdev.size  = sizeof(SysBusDevice),
-    .qdev.no_user = 1,
 };
 
 static void s390_virtio_register_devices(void)

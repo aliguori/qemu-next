@@ -1003,7 +1003,6 @@ static SysBusDeviceInfo apic_info = {
     .qdev.size = sizeof(APICState),
     .qdev.vmsd = &vmstate_apic,
     .qdev.reset = apic_reset,
-    .qdev.no_user = 1,
     .qdev.props = (Property[]) {
         DEFINE_PROP_UINT8("id", APICState, id, -1),
         DEFINE_PROP_PTR("cpu_env", APICState, cpu_env),
