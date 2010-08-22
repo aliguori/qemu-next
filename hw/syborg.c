@@ -27,6 +27,7 @@
 #include "arm-misc.h"
 #include "sysemu.h"
 #include "net.h"
+#include "qdev-compat.h"
 
 static struct arm_boot_info syborg_binfo;
 

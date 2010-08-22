@@ -2,6 +2,7 @@
 #define QEMU_QDEV_MONITOR_H
 
 #include "qdev.h"
+#include "sysemu.h"
 
 void do_info_qtree(Monitor *mon);
 void do_info_qdm(Monitor *mon);

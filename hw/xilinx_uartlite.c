@@ -24,6 +24,7 @@
 
 #include "sysbus.h"
 #include "qemu-char.h"
+#include "qdev-compat.h"
 
 #define DUART(x)
 

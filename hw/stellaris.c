@@ -16,6 +16,7 @@
 #include "net.h"
 #include "sysemu.h"
 #include "boards.h"
+#include "qdev-compat.h"
 
 #define GPIO_A 0
 #define GPIO_B 1

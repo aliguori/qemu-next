@@ -31,6 +31,7 @@
 #include "devices.h"
 #include "boards.h"
 #include "device_tree.h"
+#include "qdev-compat.h"
 #include "xilinx.h"
 #include "loader.h"
 #include "elf.h"

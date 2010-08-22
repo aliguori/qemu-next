@@ -9,6 +9,8 @@
 
 #include "ssi.h"
 #include "sd.h"
+#include "blockdev.h"
+#include "qdev-compat.h"
 
 //#define DEBUG_SSI_SD 1
 

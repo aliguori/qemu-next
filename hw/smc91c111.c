@@ -10,6 +10,7 @@
 #include "sysbus.h"
 #include "net.h"
 #include "devices.h"
+#include "qdev-compat.h"
 /* For crc32 */
 #include <zlib.h>
 

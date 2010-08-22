@@ -9,6 +9,7 @@
 
 #include "sysbus.h"
 #include "sd.h"
+#include "qdev-compat.h"
 
 //#define DEBUG_PL181 1
 

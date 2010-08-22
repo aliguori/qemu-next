@@ -28,6 +28,7 @@
 #include "sysemu.h"
 #include "loader.h"
 #include "qemu-objects.h"
+#include "qdev-compat.h"
 
 //#define DEBUG_PCI
 #ifdef DEBUG_PCI

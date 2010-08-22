@@ -28,6 +28,7 @@
 #include "hw/virtio.h"
 #include "hw/sysbus.h"
 #include "kvm.h"
+#include "qdev-compat.h"
 
 #include "hw/s390-virtio-bus.h"
 

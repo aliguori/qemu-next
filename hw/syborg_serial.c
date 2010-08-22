@@ -25,6 +25,7 @@
 #include "sysbus.h"
 #include "qemu-char.h"
 #include "syborg.h"
+#include "qdev-compat.h"
 
 //#define DEBUG_SYBORG_SERIAL
 

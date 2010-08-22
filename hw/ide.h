@@ -3,6 +3,7 @@
 
 #include "isa.h"
 #include "pci.h"
+#include "blockdev.h"
 
 /* ide-isa.c */
 ISADevice *isa_ide_init(int iobase, int iobase2, int isairq,

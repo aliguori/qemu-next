@@ -27,6 +27,7 @@
 #include "usb.h"
 #include "net.h"
 #include "qemu-queue.h"
+#include "qdev-compat.h"
 
 /*#define TRAFFIC_DEBUG*/
 /* Thanks to NetChip Technologies for donating this product ID.

@@ -3,6 +3,7 @@
 #include "scsi.h"
 #include "scsi-defs.h"
 #include "qdev.h"
+#include "blockdev.h"
 
 static int scsi_bus_add_dev(BusState *qbus, DeviceState *qdev)
 {

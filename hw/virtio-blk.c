@@ -14,6 +14,7 @@
 #include <qemu-common.h>
 #include "qemu-error.h"
 #include "virtio-blk.h"
+#include "blockdev.h"
 #ifdef __linux__
 # include <scsi/sg.h>
 #endif
