@@ -21,6 +21,7 @@
 #include "qdev-devadd.h"
 #include "monitor.h"
 #include "sysemu.h"
+#include "sysbus-default.h"
 
 /* Devices that should not be instantiated via device_add.
  *

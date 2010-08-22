@@ -29,9 +29,6 @@
 #include "qdev.h"
 #include "sysemu.h"
 
-/* This is a nasty hack to allow passing a NULL bus to qdev_create.  */
-static BusState *main_system_bus;
-
 DeviceInfo *device_info_list;
 
 /* Register a new device type.  */
@@ -93,12 +90,7 @@ DeviceState *qdev_create(BusState *bus, const char *name)
 {
     DeviceInfo *info;
 
-    if (!bus) {
-        if (!main_system_bus) {
-            main_system_bus = qbus_create(&system_bus_info, NULL, "main-system-bus");
-        }
-        bus = main_system_bus;
-    }
+    assert(bus != NULL);
 
     info = qdev_find_info(bus->info, name);
     if (!info) {
@@ -173,11 +165,6 @@ static int qdev_reset_one(DeviceState *dev, void *opaque)
     }
 
     return 1;
-}
-
-BusState *sysbus_get_default(void)
-{
-    return main_system_bus;
 }
 
 void qbus_reset_all(BusState *bus)

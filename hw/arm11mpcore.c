@@ -62,7 +62,7 @@ static int realview_mpcore_init(SysBusDevice *dev)
     int n;
     int i;
 
-    priv = qdev_create(NULL, "arm11mpcore_priv");
+    priv = qdev_create(sysbus_get_default(), "arm11mpcore_priv");
     qdev_prop_set_uint32(priv, "num-cpu", s->num_cpu);
     qdev_init_nofail(priv);
     s->priv = sysbus_from_qdev(priv);

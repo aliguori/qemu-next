@@ -597,7 +597,7 @@ static void prom_init(target_phys_addr_t addr, const char *bios_name)
     char *filename;
     int ret;
 
-    dev = qdev_create(NULL, "openprom");
+    dev = qdev_create(sysbus_get_default(), "openprom");
     qdev_init_nofail(dev);
     s = sysbus_from_qdev(dev);
 
@@ -676,7 +676,7 @@ static void ram_init(target_phys_addr_t addr, ram_addr_t RAM_size)
     RamDevice *d;
 
     /* allocate RAM */
-    dev = qdev_create(NULL, "memory");
+    dev = qdev_create(sysbus_get_default(), "memory");
     s = sysbus_from_qdev(dev);
 
     d = FROM_SYSBUS(RamDevice, s);

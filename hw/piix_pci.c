@@ -223,7 +223,7 @@ PCIBus *i440fx_init(PCII440FXState **pi440fx_state, int *piix3_devfn, qemu_irq *
     I440FXState *s;
     PIIX3State *piix3;
 
-    dev = qdev_create(NULL, "i440FX-pcihost");
+    dev = qdev_create(sysbus_get_default(), "i440FX-pcihost");
     s = FROM_SYSBUS(I440FXState, sysbus_from_qdev(dev));
     b = pci_bus_new(&s->busdev.qdev, NULL, 0);
     s->bus = b;

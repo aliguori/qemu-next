@@ -324,7 +324,7 @@ PCIBus *pci_apb_init(target_phys_addr_t special_base,
     unsigned int i;
 
     /* Ultrasparc PBM main bus */
-    dev = qdev_create(NULL, "pbm");
+    dev = qdev_create(sysbus_get_default(), "pbm");
     qdev_init_nofail(dev);
     s = sysbus_from_qdev(dev);
     /* apb_config */

@@ -207,10 +207,4 @@ void qbus_free(BusState *bus);
 
 #define FROM_QBUS(type, dev) DO_UPCAST(type, qbus, dev)
 
-/* This should go away once we get rid of the NULL bus hack */
-BusState *sysbus_get_default(void);
-
-/* This is a nasty hack to allow passing a NULL bus to qdev_create.  */
-extern struct BusInfo system_bus_info;
-
 #endif

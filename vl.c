@@ -127,6 +127,7 @@ int main(int argc, char **argv)
 #include "hw/qdev.h"
 #include "hw/qdev-devadd.h"
 #include "hw/qdev-properties.h"
+#include "hw/sysbus.h"
 #include "hw/loader.h"
 #include "bt-host.h"
 #include "net.h"
@@ -1037,6 +1038,11 @@ static QEMUMachine *find_default_machine(void)
         }
     }
     return NULL;
+}
+
+BusState *sysbus_get_default(void)
+{
+    return sysbus_create();
 }
 
 /***********************************************************/

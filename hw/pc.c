@@ -794,7 +794,7 @@ static DeviceState *apic_init(void *env, uint8_t apic_id)
     SysBusDevice *d;
     static int apic_mapped;
 
-    dev = qdev_create(NULL, "apic");
+    dev = qdev_create(sysbus_get_default(), "apic");
     qdev_prop_set_uint8(dev, "id", apic_id);
     qdev_prop_set_ptr(dev, "cpu_env", env);
     qdev_init_nofail(dev);

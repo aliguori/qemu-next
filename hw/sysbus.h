@@ -4,6 +4,7 @@
 /* Devices attached directly to the main system bus.  */
 
 #include "qdev.h"
+#include "sysbus-default.h"
 
 #define QDEV_MAX_MMIO 32
 #define QDEV_MAX_IRQ 256
@@ -58,5 +59,7 @@ static inline DeviceState *sysbus_create_simple(const char *name,
 {
     return sysbus_create_varargs(name, addr, irq, NULL);
 }
+
+BusState *sysbus_create(void);
 
 #endif /* !HW_SYSBUS_H */

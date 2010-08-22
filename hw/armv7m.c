@@ -139,12 +139,12 @@ static void armv7m_bitband_init(void)
 {
     DeviceState *dev;
 
-    dev = qdev_create(NULL, "ARM,bitband-memory");
+    dev = qdev_create(sysbus_get_default(), "ARM,bitband-memory");
     qdev_prop_set_uint32(dev, "base", 0x20000000);
     qdev_init_nofail(dev);
     sysbus_mmio_map(sysbus_from_qdev(dev), 0, 0x22000000);
 
-    dev = qdev_create(NULL, "ARM,bitband-memory");
+    dev = qdev_create(sysbus_get_default(), "ARM,bitband-memory");
     qdev_prop_set_uint32(dev, "base", 0x40000000);
     qdev_init_nofail(dev);
     sysbus_mmio_map(sysbus_from_qdev(dev), 0, 0x42000000);
@@ -207,7 +207,7 @@ qemu_irq *armv7m_init(int flash_size, int sram_size,
                                                 sram_size) | IO_MEM_RAM);
     armv7m_bitband_init();
 
-    nvic = qdev_create(NULL, "armv7m_nvic");
+    nvic = qdev_create(sysbus_get_default(), "armv7m_nvic");
     env->nvic = nvic;
     qdev_init_nofail(nvic);
     cpu_pic = arm_pic_init_cpu(env);

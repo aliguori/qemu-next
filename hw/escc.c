@@ -716,7 +716,7 @@ int escc_init(target_phys_addr_t base, qemu_irq irqA, qemu_irq irqB,
     SysBusDevice *s;
     SerialState *d;
 
-    dev = qdev_create(NULL, "escc");
+    dev = qdev_create(sysbus_get_default(), "escc");
     qdev_prop_set_uint32(dev, "disabled", 0);
     qdev_prop_set_uint32(dev, "frequency", clock);
     qdev_prop_set_uint32(dev, "it_shift", it_shift);
@@ -879,7 +879,7 @@ void slavio_serial_ms_kbd_init(target_phys_addr_t base, qemu_irq irq,
     DeviceState *dev;
     SysBusDevice *s;
 
-    dev = qdev_create(NULL, "escc");
+    dev = qdev_create(sysbus_get_default(), "escc");
     qdev_prop_set_uint32(dev, "disabled", disabled);
     qdev_prop_set_uint32(dev, "frequency", clock);
     qdev_prop_set_uint32(dev, "it_shift", it_shift);

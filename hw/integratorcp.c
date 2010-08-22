@@ -475,7 +475,7 @@ static void integratorcp_init(ram_addr_t ram_size,
     /* And again at address 0x80000000 */
     cpu_register_physical_memory(0x80000000, ram_size, ram_offset | IO_MEM_RAM);
 
-    dev = qdev_create(NULL, "integrator_core");
+    dev = qdev_create(sysbus_get_default(), "integrator_core");
     qdev_prop_set_uint32(dev, "memsz", ram_size >> 20);
     qdev_init_nofail(dev);
     sysbus_mmio_map((SysBusDevice *)dev, 0, 0x10000000);

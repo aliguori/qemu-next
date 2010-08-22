@@ -53,7 +53,7 @@ PCIBus *pci_dec_21154_init(PCIBus *parent_bus, int devfn)
     DeviceState *dev;
     PCIBus *ret;
 
-    dev = qdev_create(NULL, "dec-21154");
+    dev = qdev_create(sysbus_get_default(), "dec-21154");
     qdev_init_nofail(dev);
     ret = pci_bridge_init(parent_bus, devfn, false,
                           PCI_VENDOR_ID_DEC, PCI_DEVICE_ID_DEC_21154,

@@ -37,7 +37,7 @@ static int system_bus_add_dev(BusState *qbus, DeviceState *qdev)
     return 0;
 }
 
-struct BusInfo system_bus_info = {
+static struct BusInfo system_bus_info = {
     .name       = "System",
     .add_dev    = system_bus_add_dev,
     .realize    = system_bus_realize,
@@ -156,7 +156,7 @@ DeviceState *sysbus_create_varargs(const char *name,
     qemu_irq irq;
     int n;
 
-    dev = qdev_create(NULL, name);
+    dev = qdev_create(sysbus_get_default(), name);
     s = sysbus_from_qdev(dev);
     qdev_init_nofail(dev);
     if (addr != (target_phys_addr_t)-1) {
@@ -173,4 +173,15 @@ DeviceState *sysbus_create_varargs(const char *name,
         n++;
     }
     return dev;
+}
+
+BusState *sysbus_create(void)
+{
+    static BusState *main_system_bus;
+
+    if (!main_system_bus) {
+        main_system_bus = qbus_create(&system_bus_info, NULL, "main-system-bus");
+    }
+
+    return main_system_bus;
 }

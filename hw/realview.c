@@ -219,7 +219,7 @@ static void realview_init(ram_addr_t ram_size,
     arm_sysctl_init(0x10000000, sys_id, proc_id);
 
     if (is_mpcore) {
-        dev = qdev_create(NULL, is_pb ? "a9mpcore_priv": "realview_mpcore");
+        dev = qdev_create(sysbus_get_default(), is_pb ? "a9mpcore_priv": "realview_mpcore");
         qdev_prop_set_uint32(dev, "num-cpu", smp_cpus);
         qdev_init_nofail(dev);
         busdev = sysbus_from_qdev(dev);

@@ -42,7 +42,7 @@ ISABus *isa_bus_new(DeviceState *dev)
         return NULL;
     }
     if (NULL == dev) {
-        dev = qdev_create(NULL, "isabus-bridge");
+        dev = qdev_create(sysbus_get_default(), "isabus-bridge");
         qdev_init_nofail(dev);
     }
 

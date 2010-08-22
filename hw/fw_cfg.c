@@ -330,7 +330,7 @@ FWCfgState *fw_cfg_init(uint32_t ctl_port, uint32_t data_port,
     SysBusDevice *d;
     FWCfgState *s;
 
-    dev = qdev_create(NULL, "fw_cfg");
+    dev = qdev_create(sysbus_get_default(), "fw_cfg");
     qdev_prop_set_uint32(dev, "ctl_iobase", ctl_port);
     qdev_prop_set_uint32(dev, "data_iobase", data_port);
     qdev_init_nofail(dev);

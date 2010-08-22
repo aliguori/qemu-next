@@ -784,4 +784,5 @@ extern int vmstate_register_with_alias_id(DeviceState *dev,
                                           int required_for_version);
 void vmstate_unregister(DeviceState *dev, const VMStateDescription *vmsd,
                         void *opaque);
+
 #endif
