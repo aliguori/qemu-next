@@ -1,6 +1,5 @@
 #include "net.h"
 #include "qdev-properties.h"
-#include "qerror.h"
 #include "blockdev.h"
 
 void *qdev_get_prop_ptr(DeviceState *dev, Property *prop)
@@ -581,7 +580,6 @@ int qdev_prop_exists(DeviceState *dev, const char *name)
 int qdev_prop_parse(DeviceState *dev, const char *name, const char *value)
 {
     Property *prop;
-    int ret;
 
     prop = qdev_prop_find(dev, name);
     /*
@@ -591,29 +589,9 @@ int qdev_prop_parse(DeviceState *dev, const char *name, const char *value)
      * removed along with it.
      */
     if (!prop || !prop->info->parse) {
-        qerror_report(QERR_PROPERTY_NOT_FOUND, dev->info->name, name);
-        return -1;
+        return -ENOSYS;
     }
-    ret = prop->info->parse(dev, prop, value);
-    if (ret < 0) {
-        switch (ret) {
-        case -EEXIST:
-            qerror_report(QERR_PROPERTY_VALUE_IN_USE,
-                          dev->info->name, name, value);
-            break;
-        default:
-        case -EINVAL:
-            qerror_report(QERR_PROPERTY_VALUE_BAD,
-                          dev->info->name, name, value);
-            break;
-        case -ENOENT:
-            qerror_report(QERR_PROPERTY_VALUE_NOT_FOUND,
-                          dev->info->name, name, value);
-            break;
-        }
-        return -1;
-    }
-    return 0;
+    return prop->info->parse(dev, prop, value);
 }
 
 void qdev_prop_set(DeviceState *dev, const char *name, void *src, enum PropertyType type)

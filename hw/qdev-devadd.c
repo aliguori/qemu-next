@@ -242,15 +242,35 @@ static void qdev_print_devinfo(DeviceInfo *info)
 static int set_property(const char *name, const char *value, void *opaque)
 {
     DeviceState *dev = opaque;
+    int ret;
 
     if (strcmp(name, "driver") == 0)
         return 0;
     if (strcmp(name, "bus") == 0)
         return 0;
 
-    if (qdev_prop_parse(dev, name, value) == -1) {
+    ret = qdev_prop_parse(dev, name, value);
+    if (ret < 0) {
+        switch (ret) {
+        case -EEXIST:
+            qerror_report(QERR_PROPERTY_VALUE_IN_USE,
+                          dev->info->name, name, value);
+            break;
+        case -EINVAL:
+            qerror_report(QERR_PROPERTY_VALUE_BAD,
+                          dev->info->name, name, value);
+            break;
+        case -ENOENT:
+            qerror_report(QERR_PROPERTY_VALUE_NOT_FOUND,
+                          dev->info->name, name, value);
+            break;
+        case -ENOSYS:
+            qerror_report(QERR_PROPERTY_NOT_FOUND, dev->info->name, name);
+            break;
+        }
         return -1;
     }
+
     return 0;
 }
 
