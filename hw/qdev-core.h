@@ -175,7 +175,7 @@ BusState *qdev_get_parent_bus(DeviceState *dev);
 
 /*** BUS API. ***/
 
-/* Returns false to terminate walk; true to continue */
+/* Returns 0 to walk children, > 0 to terminate walk, < 0 to skip walk. */
 typedef int (qdev_walkerfn)(DeviceState *dev, void *opaque);
 typedef int (qbus_walkerfn)(BusState *bus, void *opaque);
 
@@ -183,8 +183,9 @@ void qbus_create_inplace(BusState *bus, BusInfo *info,
                          DeviceState *parent, const char *name);
 BusState *qbus_create(BusInfo *info, DeviceState *parent, const char *name);
 
-int qbus_walk_child_devs(BusState *bus, qdev_walkerfn *walker, void *opaque);
-int qbus_walk_child_busses(BusState *bus, qbus_walkerfn *walker, void *opaque);
+/* Returns > 0 if either devfn or busfn terminate walk, 0 otherwise. */
+int qbus_walk_children(BusState *bus, qdev_walkerfn *devfn, 
+                       qbus_walkerfn *busfn, void *opaque);
 
 DeviceState *qbus_find_child_dev(BusState *bus, const char *id);
 BusState *qbus_find_child_bus(BusState *bus, const char *id);

@@ -163,18 +163,18 @@ static int qdev_reset_one(DeviceState *dev, void *opaque)
         dev->info->reset(dev);
     }
 
-    return 1;
+    return 0;
 }
 
 void qbus_reset_all(BusState *bus)
 {
-    qbus_walk_child_devs(bus, qdev_reset_one, NULL);
+    qbus_walk_children(bus, qdev_reset_one, NULL, NULL);
 }
 
 static int qdev_realize_one(DeviceState *dev, void *opaque)
 {
     dev->state = DEV_STATE_REALIZED;
-    return 1;
+    return 0;
 }
 
 static int qbus_realize_one(BusState *bus, void *opaque)
@@ -182,13 +182,12 @@ static int qbus_realize_one(BusState *bus, void *opaque)
     if (bus->info->realize) {
         bus->info->realize(bus);
     }
-    return 1;
+    return 0;
 }
 
 void qbus_realize_all(BusState *bus)
 {
-    qbus_walk_child_devs(bus, qdev_realize_one, NULL);
-    qbus_walk_child_busses(bus, qbus_realize_one, NULL);
+    qbus_walk_children(bus, qdev_realize_one, qbus_realize_one, NULL);
 }
 
 int qbus_is_realized(BusState *bus)
@@ -293,46 +292,41 @@ BusState *qdev_get_child_bus(DeviceState *dev, const char *name)
     return NULL;
 }
 
-int qbus_walk_child_devs(BusState *bus, qdev_walkerfn *walker, void *opaque)
+int qbus_walk_children(BusState *bus, qdev_walkerfn *devfn,
+                       qbus_walkerfn *busfn, void *opaque)
 {
     DeviceState *dev;
 
     QLIST_FOREACH(dev, &bus->children, sibling) {
         BusState *child;
+        int err = 0;
 
-        if (!walker(dev, opaque)) {
-            return 0;
+        if (devfn) {
+            err = devfn(dev, opaque);
         }
 
-        QLIST_FOREACH(child, &dev->child_bus, sibling) {
-            if (!qbus_walk_child_devs(child, walker, opaque)) {
-                return 0;
+        if (err > 0) {
+            return err;
+        } else if (err == 0) {
+            QLIST_FOREACH(child, &dev->child_bus, sibling) {
+                if (busfn) {
+                    err = busfn(child, opaque);
+                    if (err > 0) {
+                        return err;
+                    }
+                }
+
+                if (err == 0) {
+                    err = qbus_walk_children(child, devfn, busfn, opaque);
+                    if (err > 0) {
+                        return err;
+                    }
+                }
             }
         }
     }
 
-    return 1;
-}
-
-int qbus_walk_child_busses(BusState *bus, qbus_walkerfn *walker, void *opaque)
-{
-    DeviceState *dev;
-
-    QLIST_FOREACH(dev, &bus->children, sibling) {
-        BusState *child;
-
-        QLIST_FOREACH(child, &dev->child_bus, sibling) {
-            if (!walker(child, opaque)) {
-                return 0;
-            }
-
-            if (!qbus_walk_child_busses(child, walker, opaque)) {
-                return 0;
-            }
-        }
-    }
-
-    return 1;
+    return 0;
 }
 
 typedef struct FindData
@@ -351,17 +345,17 @@ static int qbus_match_bus(BusState *bus, void *opaque)
 
     if (strcmp(bus->name, data->name) != 0) {
         data->bus = bus;
-        return 0;
+        return 1;
     }
 
-    return 1;
+    return 0;
 }
 
 BusState *qbus_find_child_bus(BusState *bus, const char *id)
 {
     FindData data = { .name = id };
 
-    if (!qbus_walk_child_busses(bus, qbus_match_bus, &data)) {
+    if (qbus_walk_children(bus, NULL, qbus_match_bus, &data)) {
         return data.bus;
     }
 
@@ -374,17 +368,17 @@ static int qbus_match_dev(DeviceState *dev, void *opaque)
 
     if (dev->id && strcmp(dev->id, data->name) == 0) {
         data->dev = dev;
-        return 0;
+        return 1;
     }
 
-    return 1;
+    return 0;
 }
 
 DeviceState *qbus_find_child_dev(BusState *bus, const char *id)
 {
     FindData data = { .name = id };
 
-    if (!qbus_walk_child_devs(bus, qbus_match_dev, &data)) {
+    if (qbus_walk_children(bus, qbus_match_dev, NULL, &data)) {
         return data.dev;
     }
 

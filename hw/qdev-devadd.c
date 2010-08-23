@@ -307,17 +307,17 @@ static int check_bus(BusState *bus, void *opaque)
 
     if (strcmp(bus->info->name, data->name) == 0) {
         data->bus = bus;
-        return 0;
+        return 1;
     }
 
-    return 1;
+    return 0;
 }
 
 static BusState *find_first_bus(BusState *bus, const char *name)
 {
     FindData data;
 
-    if (!qbus_walk_child_busses(bus, check_bus, &data)) {
+    if (qbus_walk_children(bus, NULL, check_bus, &data)) {
         return data.bus;
     }
 
