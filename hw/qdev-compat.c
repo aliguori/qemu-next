@@ -1,5 +1,5 @@
 #include "qdev-compat.h"
-#include "sysemu.h"
+#include "qdev-prop-compat.h"
 
 /* Get a character (serial) device interface.  */
 CharDriverState *qdev_init_chardev(DeviceState *dev)

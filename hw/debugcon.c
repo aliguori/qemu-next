@@ -28,6 +28,7 @@
 #include "qemu-char.h"
 #include "isa.h"
 #include "pc.h"
+#include "qdev-prop-compat.h"
 
 //#define DEBUG_DEBUGCON
 

@@ -21,6 +21,7 @@
 #include "qemu-error.h"
 #include <hw/ide/internal.h>
 #include "hw/qdev-compat.h"
+#include "hw/qdev-prop-compat.h"
 
 /* --------------------------------- */
 

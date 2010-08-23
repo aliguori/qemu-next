@@ -28,6 +28,7 @@
 #include "pc.h"
 #include "qemu-timer.h"
 #include "sysemu.h"
+#include "qdev-prop-compat.h"
 
 //#define DEBUG_SERIAL
 

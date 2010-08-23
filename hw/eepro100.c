@@ -46,6 +46,7 @@
 #include "pci.h"
 #include "net.h"
 #include "eeprom93xx.h"
+#include "qdev-prop-compat.h"
 
 #define KiB 1024
 

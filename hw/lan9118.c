@@ -12,6 +12,7 @@
 #include "devices.h"
 #include "sysemu.h"
 #include "qdev-compat.h"
+#include "qdev-prop-compat.h"
 /* For crc32 */
 #include <zlib.h>
 

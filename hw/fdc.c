@@ -34,6 +34,7 @@
 #include "isa.h"
 #include "sysbus.h"
 #include "qdev-addr.h"
+#include "qdev-prop-compat.h"
 
 /********************************************************/
 /* debug Floppy devices */

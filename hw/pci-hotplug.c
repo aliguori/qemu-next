@@ -31,6 +31,7 @@
 #include "scsi.h"
 #include "virtio-blk.h"
 #include "qemu-config.h"
+#include "qdev-prop-compat.h"
 
 #if defined(TARGET_I386)
 static PCIDevice *qemu_pci_hot_add_nic(Monitor *mon,

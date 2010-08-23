@@ -12,6 +12,7 @@
 #include "qemu-error.h"
 #include "usb.h"
 #include "qemu-char.h"
+#include "qdev-prop-compat.h"
 
 //#define DEBUG_Serial
 

@@ -27,6 +27,7 @@
 #include "isa.h"
 #include "pc.h"
 #include "sysemu.h"
+#include "qdev-prop-compat.h"
 
 //#define DEBUG_PARALLEL
 

@@ -27,6 +27,7 @@
 #include "virtio.h"
 #include "virtio-net.h"
 #include "sysemu.h"
+#include "qdev-prop-compat.h"
 
 //#define DEBUG_SYBORG_VIRTIO
 

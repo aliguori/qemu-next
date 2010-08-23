@@ -8,6 +8,7 @@
  */
 #include "sysbus.h"
 #include "net.h"
+#include "qdev-prop-compat.h"
 #include <zlib.h>
 
 //#define DEBUG_STELLARIS_ENET 1

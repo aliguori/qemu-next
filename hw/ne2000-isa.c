@@ -28,6 +28,7 @@
 #include "net.h"
 #include "ne2000.h"
 #include "qdev-compat.h"
+#include "qdev-prop-compat.h"
 
 typedef struct ISANE2000State {
     ISADevice dev;

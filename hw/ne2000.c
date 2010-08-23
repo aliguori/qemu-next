@@ -26,6 +26,7 @@
 #include "net.h"
 #include "ne2000.h"
 #include "loader.h"
+#include "qdev-prop-compat.h"
 
 /* debug NE2000 card */
 //#define DEBUG_NE2000

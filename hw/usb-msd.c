@@ -16,6 +16,7 @@
 #include "monitor.h"
 #include "sysemu.h"
 #include "blockdev.h"
+#include "qdev-prop-compat.h"
 
 //#define DEBUG_MSD
 

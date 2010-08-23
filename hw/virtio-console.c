@@ -12,6 +12,7 @@
 
 #include "qemu-char.h"
 #include "virtio-serial.h"
+#include "qdev-prop-compat.h"
 
 typedef struct VirtConsole {
     VirtIOSerialPort port;

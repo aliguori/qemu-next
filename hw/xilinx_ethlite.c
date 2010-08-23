@@ -25,6 +25,7 @@
 #include "sysbus.h"
 #include "hw.h"
 #include "net.h"
+#include "qdev-prop-compat.h"
 
 #define D(x)
 #define R_TX_BUF0     0

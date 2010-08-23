@@ -30,6 +30,7 @@
 #include "net.h"
 #include "net/checksum.h"
 #include "loader.h"
+#include "qdev-prop-compat.h"
 
 #include "e1000_hw.h"
 

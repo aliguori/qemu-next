@@ -82,6 +82,7 @@ common-obj-y += buffered_file.o migration.o migration-tcp.o qemu-sockets.o
 common-obj-y += qemu-char.o savevm.o #aio.o
 common-obj-y += msmouse.o ps2.o
 common-obj-y += qdev.o qdev-properties.o qdev-devadd.o qdev-compat.o
+common-obj-y += qdev-prop-compat.o
 common-obj-y += block-migration.o
 
 common-obj-$(CONFIG_BRLAPI) += baum.o

@@ -29,6 +29,7 @@
 #include "loader.h"
 #include "qemu-objects.h"
 #include "qdev-compat.h"
+#include "qdev-prop-compat.h"
 
 //#define DEBUG_PCI
 #ifdef DEBUG_PCI

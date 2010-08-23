@@ -4,6 +4,7 @@
 #include "scsi-defs.h"
 #include "qdev.h"
 #include "blockdev.h"
+#include "qdev-prop-compat.h"
 
 static int scsi_bus_add_dev(BusState *qbus, DeviceState *qdev)
 {

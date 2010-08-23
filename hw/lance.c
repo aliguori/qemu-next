@@ -40,6 +40,7 @@
 #include "qemu-timer.h"
 #include "qemu_socket.h"
 #include "sun4m.h"
+#include "qdev-prop-compat.h"
 
 #include "pcnet.h"
 

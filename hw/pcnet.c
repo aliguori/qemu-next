@@ -40,6 +40,7 @@
 #include "loader.h"
 #include "qemu-timer.h"
 #include "qemu_socket.h"
+#include "qdev-prop-compat.h"
 
 #include "pcnet.h"
 

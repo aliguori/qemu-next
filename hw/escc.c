@@ -27,6 +27,7 @@
 #include "escc.h"
 #include "qemu-char.h"
 #include "console.h"
+#include "qdev-prop-compat.h"
 
 /* debug serial */
 //#define DEBUG_SERIAL

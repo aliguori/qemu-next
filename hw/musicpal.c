@@ -19,6 +19,7 @@
 #include "console.h"
 #include "i2c.h"
 #include "qdev-compat.h"
+#include "qdev-prop-compat.h"
 
 #define MP_MISC_BASE            0x80002000
 #define MP_MISC_SIZE            0x00001000

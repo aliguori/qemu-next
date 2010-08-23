@@ -18,6 +18,7 @@
 #include "pci.h"
 #include "msix.h"
 #include "kvm.h"
+#include "qdev-prop-compat.h"
 
 #include <sys/mman.h>
 #include <sys/types.h>

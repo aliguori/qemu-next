@@ -34,6 +34,7 @@
 #include "isa.h"
 #include "console.h"
 #include "qemu-timer.h"
+#include "qdev-prop-compat.h"
 
 /* #define DEBUG_SMC */
 

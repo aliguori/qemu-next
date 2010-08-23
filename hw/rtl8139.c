@@ -52,6 +52,7 @@
 #include "qemu-timer.h"
 #include "net.h"
 #include "loader.h"
+#include "qdev-prop-compat.h"
 
 /* debug RTL8139 card */
 //#define DEBUG_RTL8139 1

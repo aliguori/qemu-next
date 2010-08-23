@@ -25,6 +25,7 @@
 #include "loader.h"
 #include "kvm.h"
 #include "blockdev.h"
+#include "qdev-prop-compat.h"
 
 /* from Linux's linux/virtio_pci.h */
 

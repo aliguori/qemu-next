@@ -15,6 +15,7 @@
 #include "qemu-error.h"
 #include "scsi.h"
 #include "blockdev.h"
+#include "qdev-prop-compat.h"
 
 #ifdef __linux__
 
