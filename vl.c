@@ -1228,6 +1228,24 @@ void qemu_system_powerdown_request(void)
     qemu_notify_event();
 }
 
+static int qdev_add_one_global(QemuOpts *opts, void *opaque)
+{
+    GlobalProperty *g;
+
+    g = qemu_mallocz(sizeof(*g) * 2);
+    g[0].driver   = qemu_opt_get(opts, "driver");
+    g[0].property = qemu_opt_get(opts, "property");
+    g[0].value    = qemu_opt_get(opts, "value");
+
+    qdev_prop_register_global_list(g);
+    return 0;
+}
+
+static void qemu_add_globals(void)
+{
+    qemu_opts_foreach(&qemu_global_opts, qdev_add_one_global, NULL, 0);
+}
+
 void main_loop_wait(int nonblocking)
 {
     IOHandlerRecord *ioh;

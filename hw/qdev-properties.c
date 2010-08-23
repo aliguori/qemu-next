@@ -450,24 +450,8 @@ void qdev_prop_set_globals(DeviceState *dev)
             continue;
         }
         if (qdev_prop_parse(dev, prop->property, prop->value) != 0) {
-            exit(1);
+            hw_error("failed to parse global property '%s' of device '%s'\n",
+                     prop->property, dev->info->name);
         }
     }
-}
-
-static int qdev_add_one_global(QemuOpts *opts, void *opaque)
-{
-    GlobalProperty *g;
-
-    g = qemu_mallocz(sizeof(*g));
-    g->driver   = qemu_opt_get(opts, "driver");
-    g->property = qemu_opt_get(opts, "property");
-    g->value    = qemu_opt_get(opts, "value");
-    qdev_prop_register_global(g);
-    return 0;
-}
-
-void qemu_add_globals(void)
-{
-    qemu_opts_foreach(&qemu_global_opts, qdev_add_one_global, NULL, 0);
 }
