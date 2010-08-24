@@ -756,15 +756,14 @@ static void put_int32_as_uint16(QEMUFile *f, void *pv, size_t size)
     qemu_put_be16(f, *v);
 }
 
-static const VMStateInfo vmstate_hack_int32_as_uint16 = {
+static VMStateInfo vmstate_hack_int32_as_uint16 = {
     .name = "int32_as_uint16",
     .get  = get_int32_as_uint16,
     .put  = put_int32_as_uint16,
 };
 
 #define VMSTATE_UINT16_HACK(_f, _s)                                  \
-    VMSTATE_SINGLE(_f, _s, 0, vmstate_hack_int32_as_uint16, int32_t)
-
+    VMSTATE_SINGLE(_f, _s, 0, "int32_as_uint16", int32_t)
 
 static const VMStateDescription vmstate_menelaus_tm = {
     .name = "menelaus_tm",
@@ -870,6 +869,7 @@ static I2CSlaveInfo twl92230_info = {
 
 static void twl92230_register_devices(void)
 {
+    register_vmstate_info(&vmstate_hack_int32_as_uint16);
     i2c_register_slave(&twl92230_info);
 }
 

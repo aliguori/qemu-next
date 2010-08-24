@@ -107,14 +107,14 @@ static void put_unused(QEMUFile *f, void *pv, size_t size)
     exit(0);
 }
 
-static const VMStateInfo vmstate_hack_uint16_from_uint8 = {
+static VMStateInfo vmstate_hack_uint16_from_uint8 = {
     .name = "uint16_from_uint8",
     .get  = get_uint16_from_uint8,
     .put  = put_unused,
 };
 
 #define VMSTATE_UINT16_HACK_TEST(_f, _s, _t)                           \
-    VMSTATE_SINGLE_TEST(_f, _s, _t, 0, vmstate_hack_uint16_from_uint8, uint16_t)
+    VMSTATE_SINGLE_TEST(_f, _s, _t, 0, "uint16_from_uint8", uint16_t)
 
 static bool is_old_eeprom_version(void *opaque, int version_id)
 {
@@ -142,7 +142,7 @@ static const VMStateDescription vmstate_eeprom = {
         VMSTATE_UINT16_EQUAL_V(size, eeprom_t, EEPROM_VERSION),
         VMSTATE_UINT16(data, eeprom_t),
         VMSTATE_VARRAY_UINT16_UNSAFE(contents, eeprom_t, size, 0,
-                                     vmstate_info_uint16, uint16_t),
+                                     "uint16", uint16_t),
         VMSTATE_END_OF_LIST()
     }
 };
@@ -333,5 +333,12 @@ uint16_t *eeprom93xx_data(eeprom_t *eeprom)
     /* Get EEPROM data array. */
     return &eeprom->contents[0];
 }
+
+static void eeprom93xx_init(void)
+{
+    register_vmstate_info(&vmstate_hack_uint16_from_uint8);
+}
+
+device_init(eeprom93xx_init);
 
 /* eof */

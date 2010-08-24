@@ -227,7 +227,7 @@ static void put_ptimer(QEMUFile *f, void *pv, size_t size)
     qemu_put_ptimer(f, v);
 }
 
-const VMStateInfo vmstate_info_ptimer = {
+static VMStateInfo vmstate_info_ptimer = {
     .name = "ptimer",
     .get  = get_ptimer,
     .put  = put_ptimer,
@@ -242,3 +242,10 @@ ptimer_state *ptimer_init(QEMUBH *bh)
     s->timer = qemu_new_timer(vm_clock, ptimer_tick, s);
     return s;
 }
+
+static void ptimer_dev_init(void)
+{
+    register_vmstate_info(&vmstate_info_ptimer);
+}
+
+device_init(ptimer_dev_init);

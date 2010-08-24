@@ -690,7 +690,7 @@ static void put_int8(QEMUFile *f, void *pv, size_t size)
     qemu_put_s8s(f, v);
 }
 
-const VMStateInfo vmstate_info_int8 = {
+static VMStateInfo vmstate_info_int8 = {
     .name = "int8",
     .get  = get_int8,
     .put  = put_int8,
@@ -711,7 +711,7 @@ static void put_int16(QEMUFile *f, void *pv, size_t size)
     qemu_put_sbe16s(f, v);
 }
 
-const VMStateInfo vmstate_info_int16 = {
+static VMStateInfo vmstate_info_int16 = {
     .name = "int16",
     .get  = get_int16,
     .put  = put_int16,
@@ -732,7 +732,7 @@ static void put_int32(QEMUFile *f, void *pv, size_t size)
     qemu_put_sbe32s(f, v);
 }
 
-const VMStateInfo vmstate_info_int32 = {
+static VMStateInfo vmstate_info_int32 = {
     .name = "int32",
     .get  = get_int32,
     .put  = put_int32,
@@ -752,8 +752,8 @@ static int get_int32_equal(QEMUFile *f, void *pv, size_t size)
     return -EINVAL;
 }
 
-const VMStateInfo vmstate_info_int32_equal = {
-    .name = "int32 equal",
+static VMStateInfo vmstate_info_int32_equal = {
+    .name = "int32_equal",
     .get  = get_int32_equal,
     .put  = put_int32,
 };
@@ -772,8 +772,8 @@ static int get_int32_le(QEMUFile *f, void *pv, size_t size)
     return -EINVAL;
 }
 
-const VMStateInfo vmstate_info_int32_le = {
-    .name = "int32 equal",
+static VMStateInfo vmstate_info_int32_le = {
+    .name = "int32_le",
     .get  = get_int32_le,
     .put  = put_int32,
 };
@@ -793,7 +793,7 @@ static void put_int64(QEMUFile *f, void *pv, size_t size)
     qemu_put_sbe64s(f, v);
 }
 
-const VMStateInfo vmstate_info_int64 = {
+static VMStateInfo vmstate_info_int64 = {
     .name = "int64",
     .get  = get_int64,
     .put  = put_int64,
@@ -814,7 +814,7 @@ static void put_uint8(QEMUFile *f, void *pv, size_t size)
     qemu_put_8s(f, v);
 }
 
-const VMStateInfo vmstate_info_uint8 = {
+static VMStateInfo vmstate_info_uint8 = {
     .name = "uint8",
     .get  = get_uint8,
     .put  = put_uint8,
@@ -835,7 +835,7 @@ static void put_uint16(QEMUFile *f, void *pv, size_t size)
     qemu_put_be16s(f, v);
 }
 
-const VMStateInfo vmstate_info_uint16 = {
+static VMStateInfo vmstate_info_uint16 = {
     .name = "uint16",
     .get  = get_uint16,
     .put  = put_uint16,
@@ -856,7 +856,7 @@ static void put_uint32(QEMUFile *f, void *pv, size_t size)
     qemu_put_be32s(f, v);
 }
 
-const VMStateInfo vmstate_info_uint32 = {
+static VMStateInfo vmstate_info_uint32 = {
     .name = "uint32",
     .get  = get_uint32,
     .put  = put_uint32,
@@ -877,7 +877,7 @@ static void put_uint64(QEMUFile *f, void *pv, size_t size)
     qemu_put_be64s(f, v);
 }
 
-const VMStateInfo vmstate_info_uint64 = {
+static VMStateInfo vmstate_info_uint64 = {
     .name = "uint64",
     .get  = get_uint64,
     .put  = put_uint64,
@@ -897,8 +897,8 @@ static int get_uint8_equal(QEMUFile *f, void *pv, size_t size)
     return -EINVAL;
 }
 
-const VMStateInfo vmstate_info_uint8_equal = {
-    .name = "uint8 equal",
+static VMStateInfo vmstate_info_uint8_equal = {
+    .name = "uint8_equal",
     .get  = get_uint8_equal,
     .put  = put_uint8,
 };
@@ -917,8 +917,8 @@ static int get_uint16_equal(QEMUFile *f, void *pv, size_t size)
     return -EINVAL;
 }
 
-const VMStateInfo vmstate_info_uint16_equal = {
-    .name = "uint16 equal",
+static VMStateInfo vmstate_info_uint16_equal = {
+    .name = "uint16_equal",
     .get  = get_uint16_equal,
     .put  = put_uint16,
 };
@@ -938,7 +938,7 @@ static void put_timer(QEMUFile *f, void *pv, size_t size)
     qemu_put_timer(f, v);
 }
 
-const VMStateInfo vmstate_info_timer = {
+static VMStateInfo vmstate_info_timer = {
     .name = "timer",
     .get  = get_timer,
     .put  = put_timer,
@@ -959,7 +959,7 @@ static void put_buffer(QEMUFile *f, void *pv, size_t size)
     qemu_put_buffer(f, v, size);
 }
 
-const VMStateInfo vmstate_info_buffer = {
+static VMStateInfo vmstate_info_buffer = {
     .name = "buffer",
     .get  = get_buffer,
     .put  = put_buffer,
@@ -993,7 +993,7 @@ static void put_unused_buffer(QEMUFile *f, void *pv, size_t size)
     }
 }
 
-const VMStateInfo vmstate_info_unused_buffer = {
+static VMStateInfo vmstate_info_unused_buffer = {
     .name = "unused_buffer",
     .get  = get_unused_buffer,
     .put  = put_unused_buffer,
@@ -1244,6 +1244,24 @@ void vmstate_unregister(DeviceState *dev, const VMStateDescription *vmsd,
     }
 }
 
+static QTAILQ_HEAD(, VMStateInfo) vmstate_info_list =
+    QTAILQ_HEAD_INITIALIZER(vmstate_info_list);
+
+static VMStateInfo *find_vmstate_info_by_name(const char *name)
+{
+    VMStateInfo *n;
+
+    QTAILQ_FOREACH(n, &vmstate_info_list, node) {
+        if (strcmp(n->name, name) == 0) {
+            return n;
+        }
+    }
+
+    hw_error("invalid vmstate info name\n");
+
+    return NULL;
+}
+
 static void vmstate_subsection_save(QEMUFile *f, const VMStateDescription *vmsd,
                                     void *opaque);
 static int vmstate_subsection_load(QEMUFile *f, const VMStateDescription *vmsd,
@@ -1303,7 +1321,8 @@ int vmstate_load_state(QEMUFile *f, const VMStateDescription *vmsd,
                 if (field->flags & VMS_STRUCT) {
                     ret = vmstate_load_state(f, field->vmsd, addr, field->vmsd->version_id);
                 } else {
-                    ret = field->info->get(f, addr, size);
+                    VMStateInfo *info = find_vmstate_info_by_name(field->info);
+                    ret = info->get(f, addr, size);
 
                 }
                 if (ret < 0) {
@@ -1363,7 +1382,8 @@ void vmstate_save_state(QEMUFile *f, const VMStateDescription *vmsd,
                 if (field->flags & VMS_STRUCT) {
                     vmstate_save_state(f, field->vmsd, addr);
                 } else {
-                    field->info->put(f, addr, size);
+                    VMStateInfo *info = find_vmstate_info_by_name(field->info);
+                    info->put(f, addr, size);
                 }
             }
         }
@@ -2071,4 +2091,28 @@ void do_info_snapshots(Monitor *mon)
         monitor_printf(mon, "%s\n", bdrv_snapshot_dump(buf, sizeof(buf), sn));
     }
     qemu_free(sn_tab);
+}
+
+void register_vmstate_info(VMStateInfo *info)
+{
+    QTAILQ_INSERT_HEAD(&vmstate_info_list, info, node);
+}
+
+void vmstate_init(void)
+{
+    register_vmstate_info(&vmstate_info_int8);
+    register_vmstate_info(&vmstate_info_int16);
+    register_vmstate_info(&vmstate_info_int32);
+    register_vmstate_info(&vmstate_info_int32_equal);
+    register_vmstate_info(&vmstate_info_int32_le);
+    register_vmstate_info(&vmstate_info_int64);
+    register_vmstate_info(&vmstate_info_uint8);
+    register_vmstate_info(&vmstate_info_uint16);
+    register_vmstate_info(&vmstate_info_uint32);
+    register_vmstate_info(&vmstate_info_uint64);
+    register_vmstate_info(&vmstate_info_uint8_equal);
+    register_vmstate_info(&vmstate_info_uint16_equal);
+    register_vmstate_info(&vmstate_info_timer);
+    register_vmstate_info(&vmstate_info_buffer);
+    register_vmstate_info(&vmstate_info_unused_buffer);
 }

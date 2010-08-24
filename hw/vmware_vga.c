@@ -1128,7 +1128,7 @@ static const VMStateDescription vmstate_vmware_vga_internal = {
         VMSTATE_INT32(cursor.on, struct vmsvga_state_s),
         VMSTATE_INT32(index, struct vmsvga_state_s),
         VMSTATE_VARRAY_INT32(scratch, struct vmsvga_state_s,
-                             scratch_size, 0, vmstate_info_uint32, uint32_t),
+                             scratch_size, 0, "uint32", uint32_t),
         VMSTATE_INT32(new_width, struct vmsvga_state_s),
         VMSTATE_INT32(new_height, struct vmsvga_state_s),
         VMSTATE_UINT32(guest, struct vmsvga_state_s),

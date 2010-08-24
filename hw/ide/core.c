@@ -2824,7 +2824,7 @@ const VMStateDescription vmstate_ide_drive_pio_state = {
     .fields      = (VMStateField []) {
         VMSTATE_INT32(req_nb_sectors, IDEState),
         VMSTATE_VARRAY_INT32(io_buffer, IDEState, io_buffer_total_len, 1,
-			     vmstate_info_uint8, uint8_t),
+			     "uint8", uint8_t),
         VMSTATE_INT32(cur_io_buffer_offset, IDEState),
         VMSTATE_INT32(cur_io_buffer_len, IDEState),
         VMSTATE_UINT8(end_transfer_fn_idx, IDEState),

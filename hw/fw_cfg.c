@@ -186,14 +186,14 @@ static void put_unused(QEMUFile *f, void *pv, size_t size)
     fprintf(stderr, "This functions shouldn't be called.\n");
 }
 
-static const VMStateInfo vmstate_hack_uint32_as_uint16 = {
-    .name = "int32_as_uint16",
+static VMStateInfo vmstate_hack_uint32_as_uint16 = {
+    .name = "uint32_as_uint16",
     .get  = get_uint32_as_uint16,
     .put  = put_unused,
 };
 
 #define VMSTATE_UINT16_HACK(_f, _s, _t)                                    \
-    VMSTATE_SINGLE_TEST(_f, _s, _t, 0, vmstate_hack_uint32_as_uint16, uint32_t)
+    VMSTATE_SINGLE_TEST(_f, _s, _t, 0, "uint32_as_uint16", uint32_t)
 
 
 static bool is_version_1(void *opaque, int version_id)
@@ -392,6 +392,7 @@ static SysBusDeviceInfo fw_cfg_info = {
 
 static void fw_cfg_register_devices(void)
 {
+    register_vmstate_info(&vmstate_hack_uint32_as_uint16);
     sysbus_register_withprop(&fw_cfg_info);
 }
 

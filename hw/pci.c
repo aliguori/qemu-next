@@ -101,7 +101,7 @@ static const VMStateDescription vmstate_pcibus = {
     .minimum_version_id_old = 1,
     .fields      = (VMStateField []) {
         VMSTATE_INT32_EQUAL(nirq, PCIBus),
-        VMSTATE_VARRAY_INT32(irq_count, PCIBus, nirq, 0, vmstate_info_int32, int32_t),
+        VMSTATE_VARRAY_INT32(irq_count, PCIBus, nirq, 0, "int32", int32_t),
         VMSTATE_END_OF_LIST()
     }
 };
@@ -356,7 +356,7 @@ static void put_pci_config_device(QEMUFile *f, void *pv, size_t size)
 }
 
 static VMStateInfo vmstate_info_pci_config = {
-    .name = "pci config",
+    .name = "pci_config",
     .get  = get_pci_config_device,
     .put  = put_pci_config_device,
 };
@@ -393,7 +393,7 @@ static void put_pci_irq_state(QEMUFile *f, void *pv, size_t size)
 }
 
 static VMStateInfo vmstate_info_pci_irq_state = {
-    .name = "pci irq state",
+    .name = "pci_irq_state",
     .get  = get_pci_irq_state,
     .put  = put_pci_irq_state,
 };
@@ -406,10 +406,10 @@ const VMStateDescription vmstate_pci_device = {
     .fields      = (VMStateField []) {
         VMSTATE_INT32_LE(version_id, PCIDevice),
         VMSTATE_BUFFER_UNSAFE_INFO(config, PCIDevice, 0,
-                                   vmstate_info_pci_config,
+                                   "pci_config",
                                    PCI_CONFIG_SPACE_SIZE),
         VMSTATE_BUFFER_UNSAFE_INFO(irq_state, PCIDevice, 2,
-				   vmstate_info_pci_irq_state,
+				   "pci_irq_state",
 				   PCI_NUM_PINS * sizeof(int32_t)),
         VMSTATE_END_OF_LIST()
     }
@@ -423,10 +423,10 @@ const VMStateDescription vmstate_pcie_device = {
     .fields      = (VMStateField []) {
         VMSTATE_INT32_LE(version_id, PCIDevice),
         VMSTATE_BUFFER_UNSAFE_INFO(config, PCIDevice, 0,
-                                   vmstate_info_pci_config,
+                                   "pci_config",
                                    PCIE_CONFIG_SPACE_SIZE),
         VMSTATE_BUFFER_UNSAFE_INFO(irq_state, PCIDevice, 2,
-				   vmstate_info_pci_irq_state,
+				   "pci_irq_state",
 				   PCI_NUM_PINS * sizeof(int32_t)),
         VMSTATE_END_OF_LIST()
     }
@@ -1973,6 +1973,8 @@ static PCIDeviceInfo bridge_info = {
 
 static void pci_register_devices(void)
 {
+    register_vmstate_info(&vmstate_info_pci_config);
+    register_vmstate_info(&vmstate_info_pci_irq_state);
     pci_qdev_register(&bridge_info);
 }
 

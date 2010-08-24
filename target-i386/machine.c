@@ -131,7 +131,7 @@ static void put_fpreg(QEMUFile *f, void *opaque, size_t size)
     qemu_put_be16s(f, &exp);
 }
 
-static const VMStateInfo vmstate_fpreg = {
+static VMStateInfo vmstate_fpreg = {
     .name = "fpreg",
     .get  = get_fpreg,
     .put  = put_fpreg,
@@ -148,7 +148,7 @@ static int get_fpreg_1_mmx(QEMUFile *f, void *opaque, size_t size)
     return 0;
 }
 
-static const VMStateInfo vmstate_fpreg_1_mmx = {
+static VMStateInfo vmstate_fpreg_1_mmx = {
     .name = "fpreg_1_mmx",
     .get  = get_fpreg_1_mmx,
     .put  = put_fpreg_error,
@@ -164,7 +164,7 @@ static int get_fpreg_1_no_mmx(QEMUFile *f, void *opaque, size_t size)
     return 0;
 }
 
-static const VMStateInfo vmstate_fpreg_1_no_mmx = {
+static VMStateInfo vmstate_fpreg_1_no_mmx = {
     .name = "fpreg_1_no_mmx",
     .get  = get_fpreg_1_no_mmx,
     .put  = put_fpreg_error,
@@ -198,9 +198,9 @@ static bool fpregs_is_1_no_mmx(void *opaque, int version_id)
 }
 
 #define VMSTATE_FP_REGS(_field, _state, _n)                               \
-    VMSTATE_ARRAY_TEST(_field, _state, _n, fpregs_is_0, vmstate_fpreg, FPReg), \
-    VMSTATE_ARRAY_TEST(_field, _state, _n, fpregs_is_1_mmx, vmstate_fpreg_1_mmx, FPReg), \
-    VMSTATE_ARRAY_TEST(_field, _state, _n, fpregs_is_1_no_mmx, vmstate_fpreg_1_no_mmx, FPReg)
+    VMSTATE_ARRAY_TEST(_field, _state, _n, fpregs_is_0, "fpreg", FPReg), \
+    VMSTATE_ARRAY_TEST(_field, _state, _n, fpregs_is_1_mmx, "fpreg_1_mmx", FPReg), \
+    VMSTATE_ARRAY_TEST(_field, _state, _n, fpregs_is_1_no_mmx, "fpreg_1_no_mmx", FPReg)
 
 #else
 static int get_fpreg(QEMUFile *f, void *opaque, size_t size)
@@ -221,7 +221,7 @@ static void put_fpreg(QEMUFile *f, void *opaque, size_t size)
     qemu_put_be64s(f, &fp_reg->mmx.MMX_Q(0));
 }
 
-const VMStateInfo vmstate_fpreg = {
+VMStateInfo vmstate_fpreg = {
     .name = "fpreg",
     .get  = get_fpreg,
     .put  = put_fpreg,
@@ -239,7 +239,7 @@ static int get_fpreg_0_mmx(QEMUFile *f, void *opaque, size_t size)
     return 0;
 }
 
-const VMStateInfo vmstate_fpreg_0_mmx = {
+VMStateInfo vmstate_fpreg_0_mmx = {
     .name = "fpreg_0_mmx",
     .get  = get_fpreg_0_mmx,
     .put  = put_fpreg_error,
@@ -258,7 +258,7 @@ static int get_fpreg_0_no_mmx(QEMUFile *f, void *opaque, size_t size)
     return 0;
 }
 
-const VMStateInfo vmstate_fpreg_0_no_mmx = {
+VMStateInfo vmstate_fpreg_0_no_mmx = {
     .name = "fpreg_0_no_mmx",
     .get  = get_fpreg_0_no_mmx,
     .put  = put_fpreg_error,
@@ -292,9 +292,9 @@ static bool fpregs_is_0_no_mmx(void *opaque, int version_id)
 }
 
 #define VMSTATE_FP_REGS(_field, _state, _n)                               \
-    VMSTATE_ARRAY_TEST(_field, _state, _n, fpregs_is_1, vmstate_fpreg, FPReg), \
-    VMSTATE_ARRAY_TEST(_field, _state, _n, fpregs_is_0_mmx, vmstate_fpreg_0_mmx, FPReg), \
-    VMSTATE_ARRAY_TEST(_field, _state, _n, fpregs_is_0_no_mmx, vmstate_fpreg_0_no_mmx, FPReg)
+    VMSTATE_ARRAY_TEST(_field, _state, _n, fpregs_is_1, "fpreg", FPReg), \
+    VMSTATE_ARRAY_TEST(_field, _state, _n, fpregs_is_0_mmx, "fpreg_0_mmx", FPReg), \
+    VMSTATE_ARRAY_TEST(_field, _state, _n, fpregs_is_0_no_mmx, "fpreg_0_no_mmx", FPReg)
 
 #endif /* USE_X86LDOUBLE */
 
@@ -322,14 +322,14 @@ static void put_uint64_as_uint32(QEMUFile *f, void *pv, size_t size)
     qemu_put_be32(f, *v);
 }
 
-static const VMStateInfo vmstate_hack_uint64_as_uint32 = {
+static VMStateInfo vmstate_uint64_as_uint32 = {
     .name = "uint64_as_uint32",
     .get  = get_uint64_as_uint32,
     .put  = put_uint64_as_uint32,
 };
 
 #define VMSTATE_HACK_UINT32(_f, _s, _t)                                  \
-    VMSTATE_SINGLE_TEST(_f, _s, _t, 0, vmstate_hack_uint64_as_uint32, uint64_t)
+    VMSTATE_SINGLE_TEST(_f, _s, _t, 0, "uint64_as_uint32", uint64_t)
 #endif
 
 static void cpu_pre_save(void *opaque)
@@ -487,3 +487,15 @@ int cpu_load(QEMUFile *f, void *opaque, int version_id)
 {
     return vmstate_load_state(f, &vmstate_cpu, opaque, version_id);
 }
+
+static void cpu_dev_init(void)
+{
+    register_vmstate_info(&vmstate_fpreg);
+    register_vmstate_info(&vmstate_fpreg_1_mmx);
+    register_vmstate_info(&vmstate_fpreg_1_no_mmx);
+#ifdef TARGET_X86_64
+    register_vmstate_info(&vmstate_uint64_as_uint32);
+#endif
+}
+
+device_init(cpu_dev_init);
