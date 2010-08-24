@@ -279,6 +279,7 @@ void qemu_register_boot_set(QEMUBootSetHandler *func, void *opaque);
 int qemu_boot_set(const char *boot_devices);
 
 #include "vmstate.h"
+#include "vmstate-compat.h"
 
 extern int vmstate_load_state(QEMUFile *f, const VMStateDescription *vmsd,
                               void *opaque, int version_id);
