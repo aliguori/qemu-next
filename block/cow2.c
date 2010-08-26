@@ -491,7 +491,7 @@ static BlockDriverAIOCB *bdrv_cow2_aio_writev(BlockDriverState *bs,
 static BlockDriverAIOCB *bdrv_cow2_aio_flush(BlockDriverState *bs,
         BlockDriverCompletionFunc *cb, void *opaque)
 {
-    return NULL; /* TODO */
+    return bdrv_aio_flush(bs->file, cb, opaque);
 }
 
 static int bdrv_cow2_truncate(BlockDriverState *bs, int64_t offset)
