@@ -70,8 +70,10 @@ typedef struct {
 } Cow2Table;
 
 typedef struct {
+    BlockDriverState *file;         /* image file */
     Cow2Header header;              /* always cpu-endian */
     uint64_t file_size;             /* length of image file, in bytes */
+    Cow2Table *l1_table;            /* always cpu-endian */
 } BDRVCow2State;
 
 static int bdrv_cow2_probe(const uint8_t *buf, int buf_size,
@@ -181,6 +183,103 @@ static int cow2_load_string(BlockDriverState *file, uint64_t offset, size_t n,
     return 0;
 }
 
+typedef struct {
+    BDRVCow2State *s;
+    Cow2Table *table;
+
+    struct iovec iov;
+    QEMUIOVector qiov;
+
+    /* User callback */
+    BlockDriverCompletionFunc *cb;
+    void *opaque;
+} Cow2LoadTableCB;
+
+static void cow2_load_table_cb(void *opaque, int ret)
+{
+    Cow2LoadTableCB *load_table_cb = opaque;
+    Cow2Table *table = load_table_cb->table;
+    int noffsets = load_table_cb->iov.iov_len / sizeof(uint64_t);
+    int i;
+
+    /* Handle I/O error */
+    if (ret) {
+        goto out;
+    }
+
+    /* Byteswap and verify offsets */
+    for (i = 0; i < noffsets; i++) {
+        uint64_t offset = le64_to_cpu(table->offsets[i]);
+        if (offset && !cow2_check_byte_offset(load_table_cb->s, offset)) {
+            /* If the offset is invalid then the image is broken.  If there was
+             * a power failure and the table update reached storage but the
+             * data being pointed to did not, forget about the lost data by
+             * clearing the offset.
+             */
+            offset = 0;
+        }
+        table->offsets[i] = offset;
+    }
+
+out:
+    /* Completion */
+    load_table_cb->cb(load_table_cb->opaque, ret);
+    qemu_free(load_table_cb);
+}
+
+static int cow2_load_table(BDRVCow2State *s, uint64_t offset, Cow2Table *table,
+                           BlockDriverCompletionFunc *cb, void *opaque)
+{
+    Cow2LoadTableCB *load_table_cb = qemu_malloc(sizeof *load_table_cb);
+    QEMUIOVector *qiov = &load_table_cb->qiov;
+    BlockDriverAIOCB *aiocb;
+
+    load_table_cb->s = s;
+    load_table_cb->table = table;
+    load_table_cb->iov.iov_base = table->offsets,
+    load_table_cb->iov.iov_len = s->header.cluster_size * s->header.table_size,
+    load_table_cb->cb = cb;
+    load_table_cb->opaque = opaque;
+
+    qemu_iovec_init_external(qiov, &load_table_cb->iov, 1);
+    aiocb = bdrv_aio_readv(s->file, offset / BDRV_SECTOR_SIZE, qiov,
+                           load_table_cb->iov.iov_len * BDRV_SECTOR_SIZE,
+                           cow2_load_table_cb, load_table_cb);
+    return aiocb ? 0 : -EIO;
+}
+
+static void cow2_load_l1_table_cb(void *opaque, int ret)
+{
+    *(int *)opaque = ret;
+}
+
+static int cow2_load_l1_table(BDRVCow2State *s)
+{
+    int ret;
+
+    s->l1_table = qemu_malloc(s->header.cluster_size * s->header.table_size);
+
+    /* TODO push/pop async context? */
+
+    ret = cow2_load_table(s, s->header.l1_table_offset, s->l1_table,
+                          cow2_load_l1_table_cb, &ret);
+    if (ret) {
+        goto out;
+    }
+
+    ret = -EINPROGRESS;
+    while (ret == -EINPROGRESS) {
+        qemu_aio_wait();
+    }
+
+out:
+    if (ret) {
+        qemu_free(s->l1_table);
+        s->l1_table = NULL;
+    }
+    return ret;
+}
+
 static int bdrv_cow2_open(BlockDriverState *bs, int flags)
 {
     BDRVCow2State *s = bs->opaque;
@@ -188,13 +287,15 @@ static int bdrv_cow2_open(BlockDriverState *bs, int flags)
     int64_t file_size;
     int rc;
 
-    file_size = bdrv_getlength(bs->file);
+    s->file = bs->file;
+
+    file_size = bdrv_getlength(s->file);
     if (file_size < 0) {
         return file_size;
     }
     s->file_size = file_size;
 
-    rc = bdrv_pread(bs->file, 0, &le_header, sizeof le_header);
+    rc = bdrv_pread(s->file, 0, &le_header, sizeof le_header);
     if (rc != sizeof le_header) {
         return rc;
     }
@@ -230,25 +331,29 @@ static int bdrv_cow2_open(BlockDriverState *bs, int flags)
             return -EINVAL;
         }
 
-        rc = cow2_load_string(bs->file, s->header.backing_file_offset,
+        rc = cow2_load_string(s->file, s->header.backing_file_offset,
                               s->header.backing_file_size, bs->backing_file,
                               sizeof bs->backing_file);
         if (rc < 0) {
             return rc;
         }
 
-        rc = cow2_load_string(bs->file, s->header.backing_fmt_offset,
+        rc = cow2_load_string(s->file, s->header.backing_fmt_offset,
                               s->header.backing_fmt_size, bs->backing_format,
                               sizeof bs->backing_format);
         if (rc < 0) {
             return rc;
         }
     }
-    return 0;
+
+    return cow2_load_l1_table(s);
 }
 
 static void bdrv_cow2_close(BlockDriverState *bs)
 {
+    BDRVCow2State *s = bs->opaque;
+
+    qemu_free(s->l1_table);
 }
 
 static void bdrv_cow2_flush(BlockDriverState *bs)
