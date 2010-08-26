@@ -67,3 +67,7 @@ disable cpu_out(unsigned int addr, unsigned int val) "addr %#x value %u"
 # balloon.c
 # Since requests are raised via monitor, not many tracepoints are needed.
 disable balloon_event(void *opaque, unsigned long addr) "opaque %p addr %lu"
+
+# cow2.c
+cow2_load_table(void *s, uint64_t offset, void *table) "s %p offset %lu table %p"
+cow2_load_table_cb(void *s, void *table, int ret) "s %p table %p ret %d"

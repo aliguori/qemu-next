@@ -1,3 +1,4 @@
+#include "trace.h"
 #include "block_int.h"
 
 enum {
@@ -223,6 +224,7 @@ static void cow2_load_table_cb(void *opaque, int ret)
 
 out:
     /* Completion */
+    trace_cow2_load_table_cb(load_table_cb->s, load_table_cb->table, ret);
     load_table_cb->cb(load_table_cb->opaque, ret);
     qemu_free(load_table_cb);
 }
@@ -233,6 +235,8 @@ static int cow2_load_table(BDRVCow2State *s, uint64_t offset, Cow2Table *table,
     Cow2LoadTableCB *load_table_cb = qemu_malloc(sizeof *load_table_cb);
     QEMUIOVector *qiov = &load_table_cb->qiov;
     BlockDriverAIOCB *aiocb;
+
+    trace_cow2_load_table(s, offset, table);
 
     load_table_cb->s = s;
     load_table_cb->table = table;
