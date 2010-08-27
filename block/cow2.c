@@ -2,6 +2,12 @@
 #include "block_int.h"
 
 /* TODO blkdebug support */
+/* TODO avoid corruption caused by interference between pending requests.
+ * Asynchronous tasks are interleaved across their blocking points.  This means
+ * any global resource can be mutated across a blocking point.  One solution is
+ * to introduce waitqueues for L2 and data cluster operations as well as L2
+ * cache operations.
+ */
 
 enum {
     COW2_MAGIC = 'C' | 'O' << 8 | 'W' << 16 | '2' << 24,
