@@ -1,6 +1,8 @@
 #include "trace.h"
 #include "block_int.h"
 
+/* TODO blkdebug support */
+
 enum {
     COW2_MAGIC = 'C' | 'O' << 8 | 'W' << 16 | '2' << 24,
 
