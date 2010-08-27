@@ -69,5 +69,9 @@ disable cpu_out(unsigned int addr, unsigned int val) "addr %#x value %u"
 disable balloon_event(void *opaque, unsigned long addr) "opaque %p addr %lu"
 
 # cow2.c
-cow2_load_table(void *s, uint64_t offset, void *table) "s %p offset %lu table %p"
-cow2_load_table_cb(void *s, void *table, int ret) "s %p table %p ret %d"
+cow2_read_table(void *s, uint64_t offset, void *table) "s %p offset %lu table %p"
+cow2_read_table_cb(void *s, void *table, int ret) "s %p table %p ret %d"
+cow2_write_table(void *s, uint64_t offset, void *table) "s %p offset %lu table %p"
+cow2_write_table_cb(void *s, void *table, int ret) "s %p table %p ret %d"
+cow2_aio_complete(void *s, void *acb, int ret) "s %p acb %p ret %d"
+cow2_aio_writev(void *s, void *acb, int64_t sector_num, int nb_sectors, void *opaque) "s %p acb %p sector_num %ld nb_sectors %d opaque %p"
