@@ -137,6 +137,7 @@ time_t mktimegm(struct tm *tm);
 int qemu_fls(int i);
 int qemu_fdatasync(int fd);
 int fcntl_setfl(int fd, int flag);
+int get_bits_from_size(size_t size);
 
 /* path.c */
 void init_paths(const char *prefix);
@@ -283,6 +284,7 @@ void qemu_iovec_destroy(QEMUIOVector *qiov);
 void qemu_iovec_reset(QEMUIOVector *qiov);
 void qemu_iovec_to_buffer(QEMUIOVector *qiov, void *buf);
 void qemu_iovec_from_buffer(QEMUIOVector *qiov, const void *buf, size_t count);
+void qemu_iovec_zero(QEMUIOVector *qiov);
 
 struct Monitor;
 typedef struct Monitor Monitor;

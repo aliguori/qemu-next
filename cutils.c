@@ -234,6 +234,14 @@ void qemu_iovec_from_buffer(QEMUIOVector *qiov, const void *buf, size_t count)
     }
 }
 
+void qemu_iovec_zero(QEMUIOVector *qiov)
+{
+    struct iovec *iov;
+    for (iov = qiov->iov; iov != &qiov->iov[qiov->niov]; iov++) {
+        memset(iov->iov_base, 0, iov->iov_len);
+    }
+}
+
 #ifndef _WIN32
 /* Sets a specific flag */
 int fcntl_setfl(int fd, int flag)
@@ -251,3 +259,29 @@ int fcntl_setfl(int fd, int flag)
 }
 #endif
 
+/**
+ * Get the number of bits for a power of 2
+ *
+ * The following is true for powers of 2:
+ *   n == 1 << get_bits_from_size(n)
+ */
+int get_bits_from_size(size_t size)
+{
+    int res = 0;
+
+    if (size == 0) {
+        return -1;
+    }
+
+    while (size != 1) {
+        /* Not a power of two */
+        if (size & 1) {
+            return -1;
+        }
+
+        size >>= 1;
+        res++;
+    }
+
+    return res;
+}

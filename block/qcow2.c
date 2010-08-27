@@ -767,28 +767,6 @@ static int qcow2_change_backing_file(BlockDriverState *bs,
     return qcow2_update_ext_header(bs, backing_file, backing_fmt);
 }
 
-static int get_bits_from_size(size_t size)
-{
-    int res = 0;
-
-    if (size == 0) {
-        return -1;
-    }
-
-    while (size != 1) {
-        /* Not a power of two */
-        if (size & 1) {
-            return -1;
-        }
-
-        size >>= 1;
-        res++;
-    }
-
-    return res;
-}
-
-
 static int preallocate(BlockDriverState *bs)
 {
     uint64_t nb_sectors;
