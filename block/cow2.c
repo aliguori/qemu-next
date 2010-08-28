@@ -922,7 +922,6 @@ static void cow2_aio_write_data(void *opaque, int ret, uint64_t offset)
     BDRVCow2State *s = acb_to_s(acb);
     BlockDriverAIOCB *file_acb;
     QEMUIOVector *qiov = &acb->cur_qiov;
-    uint64_t sector_num;
     bool need_alloc = ret != COW2_CLUSTER_FOUND;
 
     trace_cow2_aio_write_data(s, acb, ret, offset);
@@ -942,7 +941,6 @@ static void cow2_aio_write_data(void *opaque, int ret, uint64_t offset)
 
     /* Adjust offset into the cluster */
     offset += cow2_offset_into_cluster(s, acb->cur_pos);
-    sector_num = offset / BDRV_SECTOR_SIZE;
 
     cow2_acb_build_qiov(acb);
 
@@ -955,19 +953,19 @@ static void cow2_aio_write_data(void *opaque, int ret, uint64_t offset)
             qemu_iovec_init_external(&acb->zeroed_qiov, &acb->zeroed_iov, 1);
         }
 
+        /* Zero the cluster and then flatten the scatter-gather list */
+        memset(acb->zeroed_cluster, 0, s->header.cluster_size);
+        qemu_iovec_to_buffer(&acb->cur_qiov, acb->zeroed_cluster +
+                             cow2_offset_into_cluster(s, acb->cur_pos));
+
         /* Use the zeroed cluster for write out below.  We cannot modify
          * cur_qiov because its size is used in later stages.
          */
         qiov = &acb->zeroed_qiov;
-        sector_num = acb->cur_cluster;
-
-        /* Zero the cluster and then flatten the scatter-gather list */
-        memset(acb->zeroed_cluster, 0, s->header.cluster_size);
-        qemu_iovec_to_buffer(qiov, acb->zeroed_cluster +
-                             cow2_offset_into_cluster(s, acb->cur_pos));
+        offset = acb->cur_cluster;
     }
 
-    file_acb = bdrv_aio_writev(s->file, sector_num, qiov,
+    file_acb = bdrv_aio_writev(s->file, offset / BDRV_SECTOR_SIZE, qiov,
                                qiov->size / BDRV_SECTOR_SIZE, cbs[ret], acb);
     if (!file_acb) {
         goto err;
@@ -1040,7 +1038,7 @@ static void cow2_aio_next_cluster(void *opaque, int ret)
     Cow2FindClusterFunc *start_io_fn =
         acb->is_write ?  cow2_aio_write_data : cow2_aio_read_data;
 
-    trace_cow2_aio_next_cluster(s, acb, ret);
+    trace_cow2_aio_next_cluster(s, acb, ret, acb->cur_pos + acb->cur_qiov.size);
 
     /* Handle I/O error */
     if (ret) {
