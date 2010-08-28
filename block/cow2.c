@@ -10,7 +10,7 @@
  */
 /* TODO BlockDriverState::buffer_alignment */
 /* TODO cow2_aio_complete using bh so callers do not need to be reentrant */
-/* TODO only write out dirty L1/L2 table sectors */
+/* TODO rethink cow2_aio_next_cluster() so multiple clusters can be accessed */
 
 enum {
     COW2_MAGIC = 'C' | 'O' << 8 | 'W' << 16 | '2' << 24,
@@ -377,35 +377,55 @@ static void cow2_write_table_cb(void *opaque, int ret)
     qemu_free(write_table_cb);
 }
 
+/**
+ * Write out an updated part or all of a table
+ *
+ * @s:          COW2 state
+ * @offset:     Offset of table in image file, in bytes
+ * @table:      Table
+ * @index:      Index of updated element or -1 for entire table
+ * @cb:         Completion function
+ * @opaque:     Argument for completion function
+ */
 static void cow2_write_table(BDRVCow2State *s, uint64_t offset,
-                             Cow2Table *table, BlockDriverCompletionFunc *cb,
-                             void *opaque)
+                             Cow2Table *table, int index,
+                             BlockDriverCompletionFunc *cb, void *opaque)
 {
-    size_t table_size = s->header.cluster_size * s->header.table_size;
-    int noffsets = table_size / sizeof(uint64_t);
-    Cow2WriteTableCB *write_table_cb = qemu_malloc(sizeof *write_table_cb +
-                                                   table_size);
-    Cow2Table *le_table = &write_table_cb->table;
-    QEMUIOVector *qiov = &write_table_cb->qiov;
+    Cow2WriteTableCB *write_table_cb;
     BlockDriverAIOCB *aiocb;
-    int i;
+    size_t len_bytes;
+    int start, i;
 
-    trace_cow2_write_table(s, offset, table);
+    trace_cow2_write_table(s, offset, table, index);
 
-    write_table_cb->s = s;
-    write_table_cb->orig_table = table;
-    write_table_cb->iov.iov_base = write_table_cb->table.offsets;
-    write_table_cb->iov.iov_len = table_size;
-    write_table_cb->cb = cb;
-    write_table_cb->opaque = opaque;
-
-    /* Byteswap table */
-    for (i = 0; i < noffsets; i++) {
-        le_table->offsets[i] = cpu_to_le64(table->offsets[i]);
+    /* Either write out the whole cluster or just one updated sector */
+    if (index == -1) {
+        len_bytes = s->header.cluster_size * s->header.table_size;
+        start = 0;
+    } else {
+        len_bytes = BDRV_SECTOR_SIZE;
+        start = index & ~(len_bytes / sizeof(uint64_t) - 1);
     }
 
-    qemu_iovec_init_external(qiov, &write_table_cb->iov, 1);
-    aiocb = bdrv_aio_writev(s->file, offset / BDRV_SECTOR_SIZE, qiov,
+    write_table_cb = qemu_malloc(sizeof *write_table_cb + len_bytes);
+    write_table_cb->s = s;
+    write_table_cb->orig_table = table;
+    write_table_cb->cb = cb;
+    write_table_cb->opaque = opaque;
+    write_table_cb->iov.iov_base = write_table_cb->table.offsets;
+    write_table_cb->iov.iov_len = len_bytes;
+    qemu_iovec_init_external(&write_table_cb->qiov, &write_table_cb->iov, 1);
+
+    /* Byteswap table */
+    for (i = 0; i < len_bytes / sizeof(uint64_t); i++) {
+        write_table_cb->table.offsets[i] = cpu_to_le64(table->offsets[start + i]);
+    }
+
+    /* Adjust for offset into table */
+    offset += start * sizeof(uint64_t);
+
+    aiocb = bdrv_aio_writev(s->file, offset / BDRV_SECTOR_SIZE,
+                            &write_table_cb->qiov,
                             write_table_cb->iov.iov_len / BDRV_SECTOR_SIZE,
                             cow2_write_table_cb, write_table_cb);
     if (!aiocb) {
@@ -475,16 +495,17 @@ static int cow2_new_l2_table(BDRVCow2State *s)
     return 0;
 }
 
-static void cow2_write_l2_table(BDRVCow2State *s,
+static void cow2_write_l2_table(BDRVCow2State *s, int index,
                                 BlockDriverCompletionFunc *cb, void *opaque)
 {
-    cow2_write_table(s, s->l2_table_offset, s->l2_table, cb, opaque);
+    cow2_write_table(s, s->l2_table_offset, s->l2_table, index, cb, opaque);
 }
 
-static void cow2_write_l1_table(BDRVCow2State *s,
+static void cow2_write_l1_table(BDRVCow2State *s, int index,
                                 BlockDriverCompletionFunc *cb, void *opaque)
 {
-    cow2_write_table(s, s->header.l1_table_offset, s->l1_table, cb, opaque);
+    cow2_write_table(s, s->header.l1_table_offset, s->l1_table,
+                     index, cb, opaque);
 }
 
 static void cow2_read_l1_table_cb(void *opaque, int ret)
@@ -839,6 +860,7 @@ static void cow2_aio_write_l2_update(void *opaque, int ret)
 {
     Cow2AIOCB *acb = opaque;
     BDRVCow2State *s = acb_to_s(acb);
+    int index;
 
     if (ret) {
         cow2_aio_complete(acb, ret);
@@ -846,9 +868,10 @@ static void cow2_aio_write_l2_update(void *opaque, int ret)
     }
 
     /* TODO hold reference to l2_table */
-    s->l2_table->offsets[cow2_l2_index(s, acb->cur_pos)] = acb->cur_cluster;
+    index = cow2_l2_index(s, acb->cur_pos);
+    s->l2_table->offsets[index] = acb->cur_cluster;
 
-    cow2_write_l2_table(s, cow2_aio_next_cluster, acb);
+    cow2_write_l2_table(s, index, cow2_aio_next_cluster, acb);
 }
 
 /**
@@ -858,6 +881,7 @@ static void cow2_aio_write_l1_update(void *opaque, int ret)
 {
     Cow2AIOCB *acb = opaque;
     BDRVCow2State *s = acb_to_s(acb);
+    int index;
 
     if (ret) {
         cow2_aio_complete(acb, ret);
@@ -865,9 +889,10 @@ static void cow2_aio_write_l1_update(void *opaque, int ret)
     }
 
     /* TODO l2_table reference must still be held */
-    s->l1_table->offsets[cow2_l1_index(s, acb->cur_pos)] = s->l2_table_offset;
+    index = cow2_l1_index(s, acb->cur_pos);
+    s->l1_table->offsets[index] = s->l2_table_offset;
 
-    cow2_write_l1_table(s, cow2_aio_next_cluster, acb);
+    cow2_write_l1_table(s, index, cow2_aio_next_cluster, acb);
 }
 
 /**
@@ -890,7 +915,7 @@ static void cow2_aio_write_l2_alloc(void *opaque, int ret)
     /* TODO hold reference to l2_table */
     s->l2_table->offsets[cow2_l2_index(s, acb->cur_pos)] = acb->cur_cluster;
 
-    cow2_write_l2_table(s, cow2_aio_write_l1_update, acb);
+    cow2_write_l2_table(s, -1, cow2_aio_write_l1_update, acb);
     return;
 
 err:
@@ -1036,7 +1061,7 @@ static void cow2_aio_next_cluster(void *opaque, int ret)
     Cow2AIOCB *acb = opaque;
     BDRVCow2State *s = acb_to_s(acb);
     Cow2FindClusterFunc *start_io_fn =
-        acb->is_write ?  cow2_aio_write_data : cow2_aio_read_data;
+        acb->is_write ? cow2_aio_write_data : cow2_aio_read_data;
 
     trace_cow2_aio_next_cluster(s, acb, ret, acb->cur_pos + acb->cur_qiov.size);
 
