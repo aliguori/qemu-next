@@ -11,6 +11,7 @@
 /* TODO BlockDriverState::buffer_alignment */
 /* TODO cow2_aio_complete using bh so callers do not need to be reentrant */
 /* TODO rethink cow2_aio_next_cluster() so multiple clusters can be accessed */
+/* TODO eliminate zeroing new write clusters */
 
 enum {
     COW2_MAGIC = 'C' | 'O' << 8 | 'W' << 16 | '2' << 24,
