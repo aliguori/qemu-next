@@ -11,7 +11,6 @@
 /* TODO BlockDriverState::buffer_alignment */
 /* TODO cow2_aio_complete using bh so callers do not need to be reentrant */
 /* TODO rethink cow2_aio_next_cluster() so multiple clusters can be accessed */
-/* TODO eliminate zeroing new write clusters */
 
 enum {
     COW2_MAGIC = 'C' | 'O' << 8 | 'W' << 16 | '2' << 24,
@@ -115,9 +114,6 @@ struct Cow2AIOCB {
     uint64_t cur_pos;               /* position on block device, in bytes */
     uint64_t end_pos;
     uint64_t cur_cluster;           /* cluster offset in image file */
-    uint8_t *zeroed_cluster;        /* used for writes that allocate clusters */
-    struct iovec zeroed_iov;
-    QEMUIOVector zeroed_qiov;
 };
 
 static void cow2_aio_cancel(BlockDriverAIOCB *acb)
@@ -540,12 +536,6 @@ static int bdrv_cow2_open(BlockDriverState *bs, int flags)
     s->file = bs->file;
     QSIMPLEQ_INIT(&s->reqs);
 
-    file_size = bdrv_getlength(s->file);
-    if (file_size < 0) {
-        return file_size;
-    }
-    s->file_size = file_size;
-
     ret = bdrv_pread(s->file, 0, &le_header, sizeof le_header);
     if (ret != sizeof le_header) {
         return ret;
@@ -561,9 +551,14 @@ static int bdrv_cow2_open(BlockDriverState *bs, int flags)
     if (!cow2_is_cluster_size_valid(s->header.cluster_size)) {
         return -EINVAL;
     }
-    if (s->file_size & (s->header.cluster_size - 1)) {
-        return -EINVAL;
+
+    /* Round up file size to the next cluster */
+    file_size = bdrv_getlength(s->file);
+    if (file_size < 0) {
+        return file_size;
     }
+    s->file_size = cow2_start_of_cluster(s, file_size + s->header.cluster_size - 1);
+
     if (!cow2_is_table_size_valid(s->header.table_size)) {
         return -EINVAL;
     }
@@ -749,7 +744,6 @@ static void cow2_aio_complete(Cow2AIOCB *acb, int ret)
     acb->common.cb(acb->common.opaque, ret);
 
     QSIMPLEQ_REMOVE_HEAD(&s->reqs, next);
-    qemu_free(acb->zeroed_cluster);
     qemu_iovec_destroy(&acb->cur_qiov);
     qemu_aio_release(acb);
 
@@ -970,27 +964,6 @@ static void cow2_aio_write_data(void *opaque, int ret, uint64_t offset)
 
     cow2_acb_build_qiov(acb);
 
-    /* New clusters must be zeroed if not all regions are touched */
-    if (need_alloc && acb->cur_qiov.size != s->header.cluster_size) {
-        if (!acb->zeroed_cluster) {
-            acb->zeroed_cluster = qemu_malloc(s->header.cluster_size);
-            acb->zeroed_iov.iov_base = acb->zeroed_cluster;
-            acb->zeroed_iov.iov_len = s->header.cluster_size;
-            qemu_iovec_init_external(&acb->zeroed_qiov, &acb->zeroed_iov, 1);
-        }
-
-        /* Zero the cluster and then flatten the scatter-gather list */
-        memset(acb->zeroed_cluster, 0, s->header.cluster_size);
-        qemu_iovec_to_buffer(&acb->cur_qiov, acb->zeroed_cluster +
-                             cow2_offset_into_cluster(s, acb->cur_pos));
-
-        /* Use the zeroed cluster for write out below.  We cannot modify
-         * cur_qiov because its size is used in later stages.
-         */
-        qiov = &acb->zeroed_qiov;
-        offset = acb->cur_cluster;
-    }
-
     file_acb = bdrv_aio_writev(s->file, offset / BDRV_SECTOR_SIZE, qiov,
                                qiov->size / BDRV_SECTOR_SIZE, cbs[ret], acb);
     if (!file_acb) {
@@ -1101,7 +1074,6 @@ static BlockDriverAIOCB *cow2_aio_setup(BlockDriverState *bs,
     acb->cur_iov_offset = 0;
     acb->cur_pos = (uint64_t)sector_num * BDRV_SECTOR_SIZE;
     acb->end_pos = acb->cur_pos + nb_sectors * BDRV_SECTOR_SIZE;
-    acb->zeroed_cluster = NULL;
     qemu_iovec_init(&acb->cur_qiov, qiov->niov);
 
     QSIMPLEQ_INSERT_TAIL(&s->reqs, acb, next);
