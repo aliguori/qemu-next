@@ -11,7 +11,6 @@
 /* TODO BlockDriverState::buffer_alignment */
 /* TODO cow2_aio_complete using bh so callers do not need to be reentrant */
 /* TODO check L2 table sizes before accessing them? */
-/* TODO merge cow2_aio_write_l2_update() and cow2_aio_write_l2_alloc() */
 
 enum {
     COW2_MAGIC = 'C' | 'O' << 8 | 'W' << 16 | '2' << 24,
@@ -117,6 +116,7 @@ struct Cow2AIOCB {
     uint64_t end_pos;
     uint64_t cur_cluster;           /* cluster offset in image file */
     unsigned int cur_nclusters;     /* number of clusters being accessed */
+    int find_cluster_ret;           /* used for L1/L2 update */
 };
 
 static void cow2_aio_cancel(BlockDriverAIOCB *acb)
@@ -938,28 +938,6 @@ static void cow2_acb_build_qiov(Cow2AIOCB *acb, size_t len)
 }
 
 /**
- * Update L2 table with new cluster offset and write it out
- */
-static void cow2_aio_write_l2_update(void *opaque, int ret)
-{
-    Cow2AIOCB *acb = opaque;
-    BDRVCow2State *s = acb_to_s(acb);
-    int index;
-
-    if (ret) {
-        cow2_aio_complete(acb, ret);
-        return;
-    }
-
-    /* TODO hold reference to l2_table */
-    index = cow2_l2_index(s, acb->cur_pos);
-    cow2_update_l2_table(s, s->l2_table, index, acb->cur_nclusters,
-                         acb->cur_cluster);
-
-    cow2_write_l2_table(s, index, acb->cur_nclusters, cow2_aio_next_io, acb);
-}
-
-/**
  * Update L1 table with new L2 table offset and write it out
  */
 static void cow2_aio_write_l1_update(void *opaque, int ret)
@@ -983,27 +961,40 @@ static void cow2_aio_write_l1_update(void *opaque, int ret)
 }
 
 /**
- * Allocate new L2 table and update L1 table
+ * Update L2 table with new cluster offsets and write them out
  */
-static void cow2_aio_write_l2_alloc(void *opaque, int ret)
+static void cow2_aio_write_l2_update(void *opaque, int ret)
 {
     Cow2AIOCB *acb = opaque;
     BDRVCow2State *s = acb_to_s(acb);
+    bool need_alloc = acb->find_cluster_ret == COW2_CLUSTER_L1;
+    int index;
 
     if (ret) {
         goto err;
     }
 
-    ret = cow2_new_l2_table(s);
-    if (ret) {
-        goto err;
+    if (need_alloc) {
+        ret = cow2_new_l2_table(s);
+        if (ret) {
+            goto err;
+        }
     }
 
     /* TODO hold reference to l2_table */
-    cow2_update_l2_table(s, s->l2_table, cow2_l2_index(s, acb->cur_pos),
-                         acb->cur_nclusters, acb->cur_cluster);
+    index = cow2_l2_index(s, acb->cur_pos);
+    cow2_update_l2_table(s, s->l2_table, index, acb->cur_nclusters,
+                         acb->cur_cluster);
 
-    cow2_write_l2_table(s, 0, s->table_nelems, cow2_aio_write_l1_update, acb);
+    if (need_alloc) {
+        /* Write out the whole new L2 table */
+        cow2_write_l2_table(s, 0, s->table_nelems,
+                            cow2_aio_write_l1_update, acb);
+    } else {
+        /* Write out only the updated part of the L2 table */
+        cow2_write_l2_table(s, index, acb->cur_nclusters,
+                            cow2_aio_next_io, acb);
+    }
     return;
 
 err:
@@ -1024,15 +1015,6 @@ err:
 static void cow2_aio_write_data(void *opaque, int ret,
                                 uint64_t offset, size_t len)
 {
-    /* After writing out the data cluster it is necessary to update or allocate
-     * new metadata if allocation has taken place.
-     */
-    static BlockDriverCompletionFunc *cbs[] = {
-        [COW2_CLUSTER_FOUND] = cow2_aio_next_io,
-        [COW2_CLUSTER_L2] = cow2_aio_write_l2_update,
-        [COW2_CLUSTER_L1] = cow2_aio_write_l2_alloc,
-    };
-
     Cow2AIOCB *acb = opaque;
     BDRVCow2State *s = acb_to_s(acb);
     BlockDriverAIOCB *file_acb;
@@ -1047,6 +1029,7 @@ static void cow2_aio_write_data(void *opaque, int ret,
 
     if (need_alloc) {
         /* Stash away for L1/L2 update */
+        acb->find_cluster_ret = ret;
         acb->cur_nclusters = cow2_bytes_to_clusters(s,
                 cow2_offset_into_cluster(s, acb->cur_pos) + len);
 
@@ -1061,7 +1044,10 @@ static void cow2_aio_write_data(void *opaque, int ret,
 
     offset += cow2_offset_into_cluster(s, acb->cur_pos);
     file_acb = bdrv_aio_writev(s->file, offset / BDRV_SECTOR_SIZE, qiov,
-                               qiov->size / BDRV_SECTOR_SIZE, cbs[ret], acb);
+                               qiov->size / BDRV_SECTOR_SIZE,
+                               need_alloc ? cow2_aio_write_l2_update :
+                                            cow2_aio_next_io,
+                               acb);
     if (!file_acb) {
         goto err;
     }
