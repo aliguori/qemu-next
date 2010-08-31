@@ -1415,7 +1415,7 @@ static QObject *pci_get_dev_dict(PCIDevice *dev, PCIBus *bus, int bus_num)
                               PCI_SLOT(dev->devfn), PCI_FUNC(dev->devfn),
                               pci_get_dev_class(dev), pci_get_dev_id(dev),
                               pci_get_regions_list(dev),
-                              dev->qdev.id ? dev->qdev.id : "");
+                              qdev_get_name(&dev->qdev));
 
     if (dev->config[PCI_INTERRUPT_PIN] != 0) {
         QDict *qdict = qobject_to_qdict(obj);

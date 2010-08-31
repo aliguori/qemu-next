@@ -60,7 +60,7 @@ static void qbus_list_bus(DeviceState *dev)
     const char *sep = " ";
 
     error_printf("child busses at \"%s\":",
-                 dev->id ? dev->id : dev->info->name);
+                 dev->name);
     QLIST_FOREACH(child, &dev->child_bus, sibling) {
         error_printf("%s\"%s\"", sep, child->name);
         sep = ", ";
@@ -76,8 +76,7 @@ static void qbus_list_dev(BusState *bus)
     error_printf("devices at \"%s\":", bus->name);
     QLIST_FOREACH(dev, &bus->children, sibling) {
         error_printf("%s\"%s\"", sep, dev->info->name);
-        if (dev->id)
-            error_printf("/\"%s\"", dev->id);
+        error_printf("/\"%s\"", dev->name);
         sep = ", ";
     }
     error_printf("\n");
@@ -106,7 +105,7 @@ static DeviceState *qbus_find_dev(BusState *bus, char *elem)
      *   (3) driver alias, if present
      */
     QLIST_FOREACH(dev, &bus->children, sibling) {
-        if (dev->id  &&  strcmp(dev->id, elem) == 0) {
+        if (strcmp(dev->name, elem) == 0) {
             return dev;
         }
     }
@@ -391,7 +390,7 @@ DeviceState *qdev_device_add(QemuOpts *opts)
     qdev = qdev_create(bus, info->name);
     id = qemu_opts_id(opts);
     if (id) {
-        qdev->id = id;
+        qdev_set_name(qdev, "%s", id);
     }
     if (qemu_opt_foreach(opts, set_property, qdev, 1) != 0) {
         qdev_free(qdev);

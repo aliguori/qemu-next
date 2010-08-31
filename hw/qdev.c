@@ -99,6 +99,20 @@ DeviceState *qdev_create(BusState *bus, const char *name)
     return qdev_create_from_info(bus, info);
 }
 
+void qdev_set_name(DeviceState *dev, const char *fmt, ...)
+{
+    va_list ap;
+
+    va_start(ap, fmt);
+    vsnprintf(dev->name, sizeof(dev->name), fmt, ap);
+    va_end(ap);
+}
+
+const char *qdev_get_name(DeviceState *dev)
+{
+    return dev->name;
+}
+
 /* Initialize a device.  Device properties should be set before calling
    this function.  IRQs and MMIO regions should be connected/mapped after
    calling this function.
@@ -109,6 +123,9 @@ int qdev_init(DeviceState *dev)
     int rc;
 
     assert(dev->state == DEV_STATE_CREATED);
+
+    /* A device MUST have a unique name for the bus */
+    assert(dev->name[0] != '\0');
 
     rc = dev->info->init(dev, dev->info);
     if (rc < 0) {
@@ -366,7 +383,7 @@ static int qbus_match_dev(DeviceState *dev, void *opaque)
 {
     FindData *data = opaque;
 
-    if (dev->id && strcmp(dev->id, data->name) == 0) {
+    if (dev->name && strcmp(dev->name, data->name) == 0) {
         data->dev = dev;
         return 1;
     }
@@ -414,11 +431,11 @@ void qbus_create_inplace(BusState *bus, BusInfo *info,
     if (name) {
         /* use supplied name */
         bus->name = qemu_strdup(name);
-    } else if (parent && parent->id) {
+    } else if (parent && parent->name) {
         /* parent device has id -> use it for bus name */
-        len = strlen(parent->id) + 16;
+        len = strlen(parent->name) + 16;
         buf = qemu_malloc(len);
-        snprintf(buf, len, "%s.%d", parent->id, parent->num_child_bus);
+        snprintf(buf, len, "%s.%d", parent->name, parent->num_child_bus);
         bus->name = buf;
     } else {
         /* no id -> use lowercase bus type for bus name */

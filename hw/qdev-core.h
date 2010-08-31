@@ -26,10 +26,12 @@ enum {
     DEV_NVECTORS_UNSPECIFIED = -1,
 };
 
+#define DEV_NAME_MAX 32
+
 /* This structure should not be accessed directly.  We declare it here
    so that it can be embedded in individual device state structures.  */
 struct DeviceState {
-    const char *id;
+    char name[DEV_NAME_MAX]; /* this MUST be unique within a bus */
     enum DevState state;
     DeviceInfo *info;
     BusState *parent_bus;
@@ -121,7 +123,10 @@ typedef struct GlobalProperty {
 
 /*** Board API.  This should go away once we have a machine config file.  ***/
 
-DeviceState *qdev_create(BusState *bus, const char *name);
+DeviceState *qdev_create(BusState *bus, const char *id);
+void qdev_set_name(DeviceState *dev, const char *fmt, ...)
+    __attribute__((format(printf, 2, 3)));
+const char *qdev_get_name(DeviceState *dev);
 int qdev_init(DeviceState *dev) QEMU_WARN_UNUSED_RESULT;
 void qdev_init_nofail(DeviceState *dev);
 void qdev_set_legacy_instance_id(DeviceState *dev, int alias_id,

@@ -161,7 +161,7 @@ static void qdev_print(Monitor *mon, DeviceState *dev, int indent)
 {
     BusState *child;
     qdev_printf("dev: %s, id \"%s\"\n", dev->info->name,
-                dev->id ? dev->id : "");
+                qdev_get_name(dev));
     indent += 2;
     if (dev->num_gpio_in) {
         qdev_printf("gpio-in %d\n", dev->num_gpio_in);

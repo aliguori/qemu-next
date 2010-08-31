@@ -1897,7 +1897,7 @@ int pcnet_common_init(DeviceState *dev, PCNetState *s, NetClientInfo *info)
     s->poll_timer = qemu_new_timer(vm_clock, pcnet_poll_timer, s);
 
     qemu_macaddr_default_if_unset(&s->conf.macaddr);
-    s->nic = qemu_new_nic(info, &s->conf, dev->info->name, dev->id, s);
+    s->nic = qemu_new_nic(info, &s->conf, dev->info->name, qdev_get_name(dev), s);
     qemu_format_nic_info_str(&s->nic->nc, s->conf.macaddr.a);
     return 0;
 }

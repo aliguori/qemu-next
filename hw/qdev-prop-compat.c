@@ -251,7 +251,7 @@ int qdev_prop_set_drive(DeviceState *dev, const char *name, BlockDriverState *va
     if (res < 0) {
         error_report("Can't attach drive %s to %s.%s: %s",
                      bdrv_get_device_name(value),
-                     dev->id ? dev->id : dev->info->name,
+                     dev->name,
                      name, strerror(-res));
         return -1;
     }

@@ -3378,7 +3378,7 @@ static int pci_rtl8139_init(PCIDevice *dev)
     qemu_macaddr_default_if_unset(&s->conf.macaddr);
 
     s->nic = qemu_new_nic(&net_rtl8139_info, &s->conf,
-                          dev->qdev.info->name, dev->qdev.id, s);
+                          dev->qdev.info->name, qdev_get_name(&dev->qdev), s);
     qemu_format_nic_info_str(&s->nic->nc, s->conf.macaddr.a);
 
     s->cplus_txbuffer = NULL;

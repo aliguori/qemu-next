@@ -729,7 +729,7 @@ static int smc91c111_init1(SysBusDevice *dev)
     smc91c111_reset(s);
 
     s->nic = qemu_new_nic(&net_smc91c111_info, &s->conf,
-                          dev->qdev.info->name, dev->qdev.id, s);
+                          dev->qdev.info->name, qdev_get_name(&dev->qdev), s);
     qemu_format_nic_info_str(&s->nic->nc, s->conf.macaddr.a);
     /* ??? Save/restore.  */
     return 0;

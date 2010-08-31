@@ -736,7 +736,7 @@ static int pci_ne2000_init(PCIDevice *pci_dev)
     ne2000_reset(s);
 
     s->nic = qemu_new_nic(&net_ne2000_info, &s->c,
-                          pci_dev->qdev.info->name, pci_dev->qdev.id, s);
+                          pci_dev->qdev.info->name, qdev_get_name(&pci_dev->qdev), s);
     qemu_format_nic_info_str(&s->nic->nc, s->c.macaddr.a);
 
     /* HACK: this is pretty gnarly */
