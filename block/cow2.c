@@ -11,6 +11,7 @@
 /* TODO BlockDriverState::buffer_alignment */
 /* TODO cow2_aio_complete using bh so callers do not need to be reentrant */
 /* TODO check L2 table sizes before accessing them? */
+/* TODO skip zero prefill since the filesystem should zero the sectors anyway */
 
 enum {
     COW2_MAGIC = 'C' | 'O' << 8 | 'W' << 16 | '2' << 24,
