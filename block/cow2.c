@@ -1072,8 +1072,9 @@ static void cow2_aio_read_data(void *opaque, int ret,
                                uint64_t offset, size_t len)
 {
     Cow2AIOCB *acb = opaque;
-    BlockDriverState *bs = acb->common.bs;
     BDRVCow2State *s = acb_to_s(acb);
+    BlockDriverState *bs = acb->common.bs;
+    BlockDriverState *file = s->file;
     BlockDriverAIOCB *file_acb;
 
     trace_cow2_aio_read_data(s, acb, ret, offset, len);
@@ -1084,21 +1085,23 @@ static void cow2_aio_read_data(void *opaque, int ret,
 
     cow2_acb_build_qiov(acb, len);
 
+    /* Adjust offset into cluster */
+    offset += cow2_offset_into_cluster(s, acb->cur_pos);
+
     /* Handle backing file and unallocated sparse hole reads */
     if (ret != COW2_CLUSTER_FOUND) {
-        if (bs->backing_hd) {
-            /* TODO */
-            fprintf(stderr, "%s implement backing device read\n", __func__);
-            exit(1);
-        } else {
+        if (!bs->backing_hd) {
             qemu_iovec_zero(&acb->cur_qiov);
             cow2_aio_next_io(acb, 0);
             return;
         }
+
+        /* Pass through read to backing file */
+        offset = acb->cur_pos;
+        file = bs->backing_hd;
     }
 
-    offset += cow2_offset_into_cluster(s, acb->cur_pos);
-    file_acb = bdrv_aio_readv(s->file, offset / BDRV_SECTOR_SIZE,
+    file_acb = bdrv_aio_readv(file, offset / BDRV_SECTOR_SIZE,
                               &acb->cur_qiov,
                               acb->cur_qiov.size / BDRV_SECTOR_SIZE,
                               cow2_aio_next_io, acb);
