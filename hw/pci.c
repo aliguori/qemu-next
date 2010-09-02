@@ -62,6 +62,7 @@ struct PCIBus {
 static char *pcibus_get_dev_path(DeviceState *dev);
 static int pcibus_add_dev(BusState *qbus, DeviceState *qdev);
 static int pcibus_del_dev(BusState *qbus, DeviceState *qdev);
+static int pcibus_reset(BusState *qbus);
 
 static struct BusInfo pci_bus_info = {
     .name       = "PCI",
@@ -69,6 +70,7 @@ static struct BusInfo pci_bus_info = {
     .get_dev_path = pcibus_get_dev_path,
     .add_dev    = pcibus_add_dev,
     .del_dev    = pcibus_del_dev,
+    .reset      = pcibus_reset,
     .props      = (Property[]) {
         DEFINE_PROP_PCI_DEVFN("addr", PCIDevice, devfn, -1),
         DEFINE_PROP_STRING("romfile", PCIDevice, romfile),
@@ -153,7 +155,7 @@ static void pci_update_irq_status(PCIDevice *dev)
     }
 }
 
-static void pci_device_reset(PCIDevice *dev)
+void pci_device_reset_default(PCIDevice *dev)
 {
     int r;
 
@@ -181,9 +183,29 @@ static void pci_device_reset(PCIDevice *dev)
     pci_update_mappings(dev);
 }
 
-static void pci_bus_reset(void *opaque)
+static void pci_device_reset(PCIDevice *dev)
 {
-    PCIBus *bus = opaque;
+    if (!dev->qdev.info) {
+        /* not all pci devices haven't been qdev'fied yet
+           TODO: remove this when all pci devices are qdev'fied. */
+        pci_device_reset_default(dev);
+    } else {
+        /*
+         * TODO:
+         * each device should know what to do on RST#.
+         * move pci_device_reset_default() into each callback.
+         */
+        qdev_reset_all(&dev->qdev);
+        pci_device_reset_default(dev);
+    }
+}
+
+/*
+ * Trigger pci bus reset under a given bus.
+ * This functions emulates RST#.
+ */
+static void pci_bus_reset(PCIBus *bus)
+{
     int i;
 
     for (i = 0; i < bus->nirq; i++) {
@@ -194,6 +216,15 @@ static void pci_bus_reset(void *opaque)
             pci_device_reset(bus->devices[i]);
         }
     }
+}
+
+static int pcibus_reset(BusState *qbus)
+{
+    pci_bus_reset(DO_UPCAST(PCIBus, qbus, qbus));
+
+    /* topology traverse is done by pci_bus_reset().
+       Tell qbus/qdev walker not to traverse the tree */
+    return 1;
 }
 
 static void pci_host_bus_register(int domain, PCIBus *bus)
@@ -250,7 +281,6 @@ void pci_bus_new_inplace(PCIBus *bus, DeviceState *parent,
     pci_host_bus_register(0, bus); /* for now only pci domain 0 is supported */
 
     vmstate_register(NULL, -1, &vmstate_pcibus, bus);
-    qemu_register_reset(pci_bus_reset, bus);
 }
 
 PCIBus *pci_bus_new(DeviceState *parent, const char *name, int devfn_min)
