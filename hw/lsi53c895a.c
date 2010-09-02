@@ -358,6 +358,8 @@ static void lsi_soft_reset(LSIState *s)
         qemu_free(s->current);
         s->current = NULL;
     }
+
+    pci_device_reset_default(&s->dev);
 }
 
 static int lsi_dma_40bit(LSIState *s)

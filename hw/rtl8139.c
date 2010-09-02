@@ -1261,6 +1261,8 @@ static void rtl8139_reset(DeviceState *d)
 
     /* reset tally counters */
     RTL8139TallyCounters_clear(&s->tally_counters);
+
+    pci_device_reset_default(&s->dev);
 }
 
 static void RTL8139TallyCounters_clear(RTL8139TallyCounters* counters)

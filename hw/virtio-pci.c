@@ -186,6 +186,7 @@ static void virtio_pci_reset(DeviceState *d)
     virtio_reset(proxy->vdev);
     msix_reset(&proxy->pci_dev);
     proxy->bugs = 0;
+    pci_device_reset_default(&proxy->pci_dev);
 }
 
 static void virtio_ioport_write(void *opaque, uint32_t addr, uint32_t val)

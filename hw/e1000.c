@@ -1077,6 +1077,7 @@ static void e1000_reset(void *opaque)
     memmove(d->mac_reg, mac_reg_init, sizeof mac_reg_init);
     d->rxbuf_min_shift = 1;
     memset(&d->tx, 0, sizeof d->tx);
+    pci_device_reset_default(&d->dev);
 }
 
 static NetClientInfo net_e1000_info = {

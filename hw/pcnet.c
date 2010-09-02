@@ -2025,6 +2025,7 @@ static void pci_reset(DeviceState *dev)
     PCIPCNetState *d = DO_UPCAST(PCIPCNetState, pci_dev.qdev, dev);
 
     pcnet_h_reset(&d->state);
+    pci_device_reset_default(&d->pci_dev);
 }
 
 static PCIDeviceInfo pcnet_info = {

@@ -190,13 +190,7 @@ static void pci_device_reset(PCIDevice *dev)
            TODO: remove this when all pci devices are qdev'fied. */
         pci_device_reset_default(dev);
     } else {
-        /*
-         * TODO:
-         * each device should know what to do on RST#.
-         * move pci_device_reset_default() into each callback.
-         */
         qdev_reset_all(&dev->qdev);
-        pci_device_reset_default(dev);
     }
 }
 
