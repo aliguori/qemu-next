@@ -60,12 +60,15 @@ typedef int (qbus_del_devfn)(BusState *bus, DeviceState *dev);
 
 typedef void (qbus_realizefn)(BusState *bus);
 
+typedef int (qbus_resetfn)(BusState *bus);
+
 struct BusInfo {
     const char *name;
     size_t size;
     qbus_add_devfn *add_dev;
     qbus_del_devfn *del_dev;
     qbus_realizefn *realize;
+    qbus_resetfn *reset;
     bus_get_dev_path get_dev_path;
     Property *props;
 };

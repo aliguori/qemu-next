@@ -183,9 +183,17 @@ static int qdev_reset_one(DeviceState *dev, void *opaque)
     return 0;
 }
 
+static int qbus_reset_one(BusState *bus, void *opaque)
+{
+    if (bus->info->reset) {
+        return bus->info->reset(bus);
+    }
+    return 0;
+}
+
 void qbus_reset_all(BusState *bus)
 {
-    qbus_walk_children(bus, qdev_reset_one, NULL, NULL);
+    qbus_walk_children(bus, qdev_reset_one, qbus_reset_one, NULL);
 }
 
 static int qdev_realize_one(DeviceState *dev, void *opaque)
