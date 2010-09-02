@@ -200,6 +200,7 @@ int qdev_walk_children(DeviceState *dev, qdev_walkerfn *devfn,
 DeviceState *qbus_find_child_dev(BusState *bus, const char *id);
 BusState *qbus_find_child_bus(BusState *bus, const char *id);
 
+void qdev_reset_all(DeviceState *dev);
 void qbus_reset_all(BusState *bus);
 void qbus_realize_all(BusState *bus);
 
