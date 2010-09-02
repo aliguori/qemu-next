@@ -1146,6 +1146,8 @@ static void cow2_aio_write_main(void *opaque, int ret)
     uint64_t offset = acb->cur_cluster;
     BlockDriverAIOCB *file_acb;
 
+    trace_cow2_aio_write_main(s, acb, ret, offset, acb->cur_qiov.size);
+
     if (ret) {
         cow2_aio_complete(acb, ret);
         return;
@@ -1179,6 +1181,7 @@ static void cow2_aio_write_postfill(void *opaque, int ret)
         return;
     }
 
+    trace_cow2_aio_write_postfill(s, acb, start, len, offset);
     cow2_copy_from_backing_file(s, start, len, offset,
                                 cow2_aio_write_main, acb);
 }
@@ -1192,6 +1195,7 @@ static void cow2_aio_write_prefill(Cow2AIOCB *acb)
     uint64_t start = cow2_start_of_cluster(s, acb->cur_pos);
     uint64_t len = cow2_offset_into_cluster(s, acb->cur_pos);
 
+    trace_cow2_aio_write_prefill(s, acb, start, len, acb->cur_cluster);
     cow2_copy_from_backing_file(s, start, len, acb->cur_cluster,
                                 cow2_aio_write_postfill, acb);
 }
