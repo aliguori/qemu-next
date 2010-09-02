@@ -1626,6 +1626,9 @@ static void pci_bridge_update_mappings(PCIBus *b)
 static void pci_bridge_write_config(PCIDevice *d,
                              uint32_t address, uint32_t val, int len)
 {
+    PCIBridge *s = container_of(d, PCIBridge, dev);
+    uint16_t bridge_control = pci_get_word(d->config + PCI_BRIDGE_CONTROL);
+
     pci_default_write_config(d, address, val, len);
 
     if (/* io base/limit */
@@ -1634,9 +1637,17 @@ static void pci_bridge_write_config(PCIDevice *d,
         /* memory base/limit, prefetchable base/limit and
            io base/limit upper 16 */
         ranges_overlap(address, len, PCI_MEMORY_BASE, 20)) {
-        PCIBridge *s = container_of(d, PCIBridge, dev);
         PCIBus *secondary_bus = &s->bus;
         pci_bridge_update_mappings(secondary_bus);
+    }
+
+    if (ranges_overlap(address, len, PCI_BRIDGE_CONTROL, 2)) {
+        uint16_t new = pci_get_word(d->config + PCI_BRIDGE_CONTROL);
+        if (!(bridge_control & PCI_BRIDGE_CTL_BUS_RESET) &&
+            (new & PCI_BRIDGE_CTL_BUS_RESET)) {
+            /* 0 -> 1 */
+            pci_bus_reset(&s->bus);
+        }
     }
 }
 
