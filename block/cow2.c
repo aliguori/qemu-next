@@ -757,10 +757,155 @@ static int bdrv_cow2_create(const char *filename, QEMUOptionParameter *options)
                        backing_file, backing_fmt);
 }
 
+/**
+ * Count the number of contiguous data clusters
+ *
+ * @s:              COW2 state
+ * @table:          L2 table
+ * @index:          First cluster index
+ * @n:              Maximum number of clusters
+ * @offset:         Set to first cluster offset
+ *
+ * This function scans tables for contiguous allocated or free clusters.
+ */
+static unsigned int cow2_count_contiguous_clusters(BDRVCow2State *s,
+        Cow2Table *table, unsigned int index, unsigned int n, uint64_t *offset)
+{
+    unsigned int end = MIN(index + n, s->table_nelems);
+    uint64_t last = table->offsets[index];
+    unsigned int i;
+
+    *offset = last;
+
+    for (i = index + 1; i < end; i++) {
+        if (last == 0) {
+            /* Counting free clusters */
+            if (table->offsets[i] != 0) {
+                break;
+            }
+        } else {
+            /* Counting allocated clusters */
+            if (table->offsets[i] != last + s->header.cluster_size) {
+                break;
+            }
+            last = table->offsets[i];
+        }
+    }
+    return i - index;
+}
+
+enum {
+    COW2_CLUSTER_FOUND,         /* cluster found */
+    COW2_CLUSTER_L2,            /* cluster missing in L2 */
+    COW2_CLUSTER_L1,            /* cluster missing in L1 */
+    COW2_CLUSTER_ERROR,         /* error looking up cluster */
+};
+
+typedef void Cow2FindClusterFunc(void *opaque, int ret, uint64_t offset, size_t len);
+typedef struct {
+    BDRVCow2State *s;
+    uint64_t pos;
+    size_t len;
+
+    /* User callback */
+    Cow2FindClusterFunc *cb;
+    void *opaque;
+} Cow2FindClusterCB;
+
+static void cow2_find_cluster_cb(void *opaque, int ret)
+{
+    Cow2FindClusterCB *find_cluster_cb = opaque;
+    BDRVCow2State *s = find_cluster_cb->s;
+    uint64_t offset = 0;
+    size_t len = 0;
+
+    if (ret) {
+        ret = COW2_CLUSTER_ERROR;
+        goto out;
+    }
+
+    unsigned int index = cow2_l2_index(s, find_cluster_cb->pos);
+    unsigned int n = cow2_bytes_to_clusters(s,
+            cow2_offset_into_cluster(s, find_cluster_cb->pos) +
+            find_cluster_cb->len);
+
+    n = cow2_count_contiguous_clusters(s, s->l2_table, index, n, &offset);
+    ret = offset ? COW2_CLUSTER_FOUND : COW2_CLUSTER_L2;
+    len = MIN(find_cluster_cb->len, n * s->header.cluster_size -
+              cow2_offset_into_cluster(s, find_cluster_cb->pos));
+
+out:
+    find_cluster_cb->cb(find_cluster_cb->opaque, ret, offset, len);
+    qemu_free(find_cluster_cb);
+}
+
+/**
+ * Find the offset of a data cluster
+ *
+ * @s:          COW2 state
+ * @pos:        Byte position in device
+ * @len:        Number of bytes
+ * @cb:         Completion function
+ * @opaque:     User data for completion function
+ */
+static void cow2_find_cluster(BDRVCow2State *s, uint64_t pos, size_t len,
+                              Cow2FindClusterFunc *cb, void *opaque)
+{
+    Cow2FindClusterCB *find_cluster_cb;
+    uint64_t l2_offset;
+
+    /* Limit length to L2 boundary.  Requests are broken up at the L2 boundary
+     * so that a request acts on one L2 table at a time.
+     */
+    len = MIN(len, (((pos >> s->l1_shift) + 1) << s->l1_shift) - pos);
+
+    l2_offset = s->l1_table->offsets[cow2_l1_index(s, pos)];
+    if (!l2_offset) {
+        cb(opaque, COW2_CLUSTER_L1, 0, len);
+        return;
+    }
+
+    find_cluster_cb = qemu_malloc(sizeof *find_cluster_cb);
+    find_cluster_cb->s = s;
+    find_cluster_cb->pos = pos;
+    find_cluster_cb->len = len;
+    find_cluster_cb->cb = cb;
+    find_cluster_cb->opaque = opaque;
+
+    cow2_read_l2_table(s, l2_offset, cow2_find_cluster_cb, find_cluster_cb);
+}
+
+typedef struct {
+    int is_allocated;
+    int *pnum;
+} Cow2IsAllocatedCB;
+
+static void cow2_is_allocated_cb(void *opaque, int ret, uint64_t offset, size_t len)
+{
+    Cow2IsAllocatedCB *cb = opaque;
+    *cb->pnum = len / BDRV_SECTOR_SIZE;
+    cb->is_allocated = ret == COW2_CLUSTER_FOUND;
+}
+
 static int bdrv_cow2_is_allocated(BlockDriverState *bs, int64_t sector_num,
                                   int nb_sectors, int *pnum)
 {
-    return 0; /* TODO */
+    BDRVCow2State *s = bs->opaque;
+    uint64_t pos = (uint64_t)sector_num * BDRV_SECTOR_SIZE;
+    size_t len = (size_t)nb_sectors * BDRV_SECTOR_SIZE;
+    Cow2IsAllocatedCB cb = {
+        .is_allocated = -1,
+        .pnum = pnum,
+    };
+
+    /* TODO push/pop async context? */
+
+    cow2_find_cluster(s, pos, len, cow2_is_allocated_cb, &cb);
+
+    while (cb.is_allocated == -1) {
+        qemu_aio_wait();
+    }
+    return cb.is_allocated;
 }
 
 static int bdrv_cow2_make_empty(BlockDriverState *bs)
@@ -855,43 +1000,6 @@ static void cow2_copy_from_backing_file(BDRVCow2State *s, uint64_t pos,
 }
 
 /**
- * Count the number of contiguous data clusters
- *
- * @s:              COW2 state
- * @table:          L2 table
- * @index:          First cluster index
- * @n:              Maximum number of clusters
- * @offset:         Set to first cluster offset
- *
- * This function scans tables for contiguous allocated or free clusters.
- */
-static unsigned int cow2_count_contiguous_clusters(BDRVCow2State *s,
-        Cow2Table *table, unsigned int index, unsigned int n, uint64_t *offset)
-{
-    unsigned int end = MIN(index + n, s->table_nelems);
-    uint64_t last = table->offsets[index];
-    unsigned int i;
-
-    *offset = last;
-
-    for (i = index + 1; i < end; i++) {
-        if (last == 0) {
-            /* Counting free clusters */
-            if (table->offsets[i] != 0) {
-                break;
-            }
-        } else {
-            /* Counting allocated clusters */
-            if (table->offsets[i] != last + s->header.cluster_size) {
-                break;
-            }
-            last = table->offsets[i];
-        }
-    }
-    return i - index;
-}
-
-/**
  * Link one or more contiguous clusters into a table
  *
  * @s:              COW2 state
@@ -908,87 +1016,6 @@ static void cow2_update_l2_table(BDRVCow2State *s, Cow2Table *table, int index,
         table->offsets[i] = cluster;
         cluster += s->header.cluster_size;
     }
-}
-
-enum {
-    COW2_CLUSTER_FOUND,         /* cluster found */
-    COW2_CLUSTER_L2,            /* cluster missing in L2 */
-    COW2_CLUSTER_L1,            /* cluster missing in L1 */
-    COW2_CLUSTER_ERROR,         /* error looking up cluster */
-};
-
-typedef void Cow2FindClusterFunc(void *opaque, int ret, uint64_t offset, size_t len);
-typedef struct {
-    BDRVCow2State *s;
-    uint64_t pos;
-    size_t len;
-
-    /* User callback */
-    Cow2FindClusterFunc *cb;
-    void *opaque;
-} Cow2FindClusterCB;
-
-static void cow2_find_cluster_cb(void *opaque, int ret)
-{
-    Cow2FindClusterCB *find_cluster_cb = opaque;
-    BDRVCow2State *s = find_cluster_cb->s;
-    uint64_t offset = 0;
-    size_t len = 0;
-
-    if (ret) {
-        ret = COW2_CLUSTER_ERROR;
-        goto out;
-    }
-
-    unsigned int index = cow2_l2_index(s, find_cluster_cb->pos);
-    unsigned int n = cow2_bytes_to_clusters(s,
-            cow2_offset_into_cluster(s, find_cluster_cb->pos) +
-            find_cluster_cb->len);
-
-    n = cow2_count_contiguous_clusters(s, s->l2_table, index, n, &offset);
-    ret = offset ? COW2_CLUSTER_FOUND : COW2_CLUSTER_L2;
-    len = MIN(find_cluster_cb->len, n * s->header.cluster_size -
-              cow2_offset_into_cluster(s, find_cluster_cb->pos));
-
-out:
-    find_cluster_cb->cb(find_cluster_cb->opaque, ret, offset, len);
-    qemu_free(find_cluster_cb);
-}
-
-/**
- * Find the offset of a data cluster
- *
- * @s:          COW2 state
- * @pos:        Byte position in device
- * @len:        Number of bytes
- * @cb:         Completion function
- * @opaque:     User data for completion function
- */
-static void cow2_find_cluster(BDRVCow2State *s, uint64_t pos, size_t len,
-                              Cow2FindClusterFunc *cb, void *opaque)
-{
-    Cow2FindClusterCB *find_cluster_cb;
-    uint64_t l2_offset;
-
-    /* Limit length to L2 boundary.  Requests are broken up at the L2 boundary
-     * so that a request acts on one L2 table at a time.
-     */
-    len = MIN(len, (((pos >> s->l1_shift) + 1) << s->l1_shift) - pos);
-
-    l2_offset = s->l1_table->offsets[cow2_l1_index(s, pos)];
-    if (!l2_offset) {
-        cb(opaque, COW2_CLUSTER_L1, 0, len);
-        return;
-    }
-
-    find_cluster_cb = qemu_malloc(sizeof *find_cluster_cb);
-    find_cluster_cb->s = s;
-    find_cluster_cb->pos = pos;
-    find_cluster_cb->len = len;
-    find_cluster_cb->cb = cb;
-    find_cluster_cb->opaque = opaque;
-
-    cow2_read_l2_table(s, l2_offset, cow2_find_cluster_cb, find_cluster_cb);
 }
 
 static void cow2_aio_next_io(void *opaque, int ret);
