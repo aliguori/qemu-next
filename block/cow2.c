@@ -435,19 +435,17 @@ static void cow2_write_table(BDRVCow2State *s, uint64_t offset,
 {
     Cow2WriteTableCB *write_table_cb;
     BlockDriverAIOCB *aiocb;
+    unsigned int sector_mask = BDRV_SECTOR_SIZE / sizeof(uint64_t) - 1;
+    unsigned int start, end, i;
     size_t len_bytes;
-    int start, i;
 
     trace_cow2_write_table(s, offset, table, index, n);
 
-    /* Either write out the whole cluster or just one updated sector */
-    if (index == -1) {
-        len_bytes = s->header.cluster_size * s->header.table_size;
-        start = 0;
-    } else {
-        len_bytes = (n * sizeof(uint64_t) + BDRV_SECTOR_SIZE - 1) / BDRV_SECTOR_SIZE * BDRV_SECTOR_SIZE;
-        start = index & ~(len_bytes / sizeof(uint64_t) - 1);
-    }
+    /* Calculate indices of the first and one after last elements */
+    start = index & ~sector_mask;
+    end = (index + n + sector_mask) & ~sector_mask;
+
+    len_bytes = (end - start) * sizeof(uint64_t);
 
     write_table_cb = gencb_alloc(sizeof *write_table_cb + len_bytes, cb, opaque);
     write_table_cb->s = s;
@@ -457,8 +455,8 @@ static void cow2_write_table(BDRVCow2State *s, uint64_t offset,
     qemu_iovec_init_external(&write_table_cb->qiov, &write_table_cb->iov, 1);
 
     /* Byteswap table */
-    for (i = 0; i < len_bytes / sizeof(uint64_t); i++) {
-        write_table_cb->table.offsets[i] = cpu_to_le64(table->offsets[start + i]);
+    for (i = start; i < end; i++) {
+        write_table_cb->table.offsets[i - start] = cpu_to_le64(table->offsets[i]);
     }
 
     /* Adjust for offset into table */
