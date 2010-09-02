@@ -191,6 +191,8 @@ BusState *qbus_create(BusInfo *info, DeviceState *parent, const char *name);
 /* Returns > 0 if either devfn or busfn terminate walk, 0 otherwise. */
 int qbus_walk_children(BusState *bus, qdev_walkerfn *devfn, 
                        qbus_walkerfn *busfn, void *opaque);
+int qdev_walk_children(DeviceState *dev, qdev_walkerfn *devfn,
+                       qbus_walkerfn *busfn, void *opaque);
 
 DeviceState *qbus_find_child_dev(BusState *bus, const char *id);
 BusState *qbus_find_child_bus(BusState *bus, const char *id);
