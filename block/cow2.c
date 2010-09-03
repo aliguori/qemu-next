@@ -9,7 +9,6 @@
  * cache operations.
  */
 /* TODO BlockDriverState::buffer_alignment */
-/* TODO cow2_aio_complete using bh so callers do not need to be reentrant */
 /* TODO check L2 table sizes before accessing them? */
 /* TODO skip zero prefill since the filesystem should zero the sectors anyway */
 /* TODO if a table element's offset is invalid then the image is broken.  If
@@ -108,6 +107,8 @@ typedef struct {
 
 struct Cow2AIOCB {
     BlockDriverAIOCB common;
+    QEMUBH *bh;
+    int bh_ret;                     /* final return status for completion bh */
     QSIMPLEQ_ENTRY(Cow2AIOCB) next; /* next request */
     bool is_write;                  /* false - read, true - write */
 
@@ -1032,19 +1033,34 @@ static void cow2_update_l2_table(BDRVCow2State *s, Cow2Table *table, int index,
 
 static void cow2_aio_next_io(void *opaque, int ret);
 
+static void cow2_aio_complete_bh(void *opaque)
+{
+    Cow2AIOCB *acb = opaque;
+    BlockDriverCompletionFunc *cb = acb->common.cb;
+    void *user_opaque = acb->common.opaque;
+    int ret = acb->bh_ret;
+
+    qemu_bh_delete(acb->bh);
+    qemu_iovec_destroy(&acb->cur_qiov);
+    qemu_aio_release(acb);
+
+    /* Invoke callback */
+    cb(user_opaque, ret);
+}
+
 static void cow2_aio_complete(Cow2AIOCB *acb, int ret)
 {
     BDRVCow2State *s = acb_to_s(acb);
 
     trace_cow2_aio_complete(s, acb, ret);
 
-    acb->common.cb(acb->common.opaque, ret);
+    /* Arrange for a bh to invoke the completion function */
+    acb->bh_ret = ret;
+    acb->bh = qemu_bh_new(cow2_aio_complete_bh, acb);
+    qemu_bh_schedule(acb->bh);
 
+    /* Start next request right away */
     QSIMPLEQ_REMOVE_HEAD(&s->reqs, next);
-    qemu_iovec_destroy(&acb->cur_qiov);
-    qemu_aio_release(acb);
-
-    /* Start next request */
     if (!QSIMPLEQ_EMPTY(&s->reqs)) {
         cow2_aio_next_io(QSIMPLEQ_FIRST(&s->reqs), 0);
     }
