@@ -89,13 +89,17 @@ typedef struct {
 typedef struct Cow2AIOCB Cow2AIOCB;
 
 typedef struct {
+    Cow2Table *table;
+    uint64_t offset;
+} CachedCow2Table;
+
+typedef struct {
     BlockDriverState *bs;           /* device */
     uint64_t file_size;             /* length of image file, in bytes */
 
     Cow2Header header;              /* always cpu-endian */
     Cow2Table *l1_table;
-    Cow2Table *l2_table;            /* cached L2 table */
-    uint64_t l2_table_offset;
+    CachedCow2Table *cur_l2_table;  /* the active l2 table */
     uint32_t table_nelems;
     uint32_t l1_shift;
     uint32_t l2_shift;
@@ -497,9 +501,9 @@ static void cow2_read_l2_table_cb(void *opaque, int ret)
     BDRVCow2State *s = read_l2_table_cb->s;
 
     if (ret) {
-        s->l2_table_offset = 0; /* can't trust loaded L2 table anymore */
+        s->cur_l2_table->offset = 0; /* can't trust loaded L2 table anymore */
     } else {
-        s->l2_table_offset = read_l2_table_cb->l2_offset;
+        s->cur_l2_table->offset = read_l2_table_cb->l2_offset;
     }
 
     gencb_complete(&read_l2_table_cb->gencb, ret);
@@ -511,7 +515,7 @@ static void cow2_read_l2_table(BDRVCow2State *s, uint64_t offset,
     Cow2ReadL2TableCB *read_l2_table_cb;
 
     /* Check for cached L2 table */
-    if (s->l2_table_offset == offset) {
+    if (s->cur_l2_table->offset == offset) {
         cb(opaque, 0);
         return;
     }
@@ -520,7 +524,7 @@ static void cow2_read_l2_table(BDRVCow2State *s, uint64_t offset,
     read_l2_table_cb->s = s;
     read_l2_table_cb->l2_offset = offset;
 
-    cow2_read_table(s, offset, s->l2_table, cow2_read_l2_table_cb, read_l2_table_cb);
+    cow2_read_table(s, offset, s->cur_l2_table->table, cow2_read_l2_table_cb, read_l2_table_cb);
 }
 
 /**
@@ -535,9 +539,9 @@ static int cow2_new_l2_table(BDRVCow2State *s)
     if (ret) {
         return ret;
     }
-    s->l2_table_offset = offset;
+    s->cur_l2_table->offset = offset;
 
-    memset(s->l2_table->offsets, 0, s->header.cluster_size * s->header.table_size);
+    memset(s->cur_l2_table->table->offsets, 0, s->header.cluster_size * s->header.table_size);
     return 0;
 }
 
@@ -545,8 +549,8 @@ static void cow2_write_l2_table(BDRVCow2State *s, unsigned int index,
                                 unsigned int n, bool flush,
                                 BlockDriverCompletionFunc *cb, void *opaque)
 {
-    cow2_write_table(s, s->l2_table_offset, s->l2_table, index, n,
-                     flush, cb, opaque);
+    cow2_write_table(s, s->cur_l2_table->offset, s->cur_l2_table->table,
+                     index, n, flush cb, opaque);
 }
 
 static void cow2_write_l1_table(BDRVCow2State *s, unsigned int index,
@@ -649,11 +653,13 @@ static int bdrv_cow2_open(BlockDriverState *bs, int flags)
     }
 
     s->l1_table = qemu_malloc(s->header.cluster_size * s->header.table_size);
-    s->l2_table = qemu_malloc(s->header.cluster_size * s->header.table_size);
+    s->cur_l2_table = qemu_mallocz(sizeof(*s->cur_l2_table));
+    s->cur_l2_table->table = qemu_malloc(s->header.cluster_size * s->header.table_size);
 
     ret = cow2_read_l1_table(s);
     if (ret) {
-        qemu_free(s->l2_table);
+        qemu_free(s->cur_l2_table->table);
+        qemu_free(s->cur_l2_table);
         qemu_free(s->l1_table);
     }
     return ret;
@@ -663,7 +669,8 @@ static void bdrv_cow2_close(BlockDriverState *bs)
 {
     BDRVCow2State *s = bs->opaque;
 
-    qemu_free(s->l2_table);
+    qemu_free(s->cur_l2_table->table);
+    qemu_free(s->cur_l2_table);
     qemu_free(s->l1_table);
 }
 
@@ -842,7 +849,7 @@ static void cow2_find_cluster_cb(void *opaque, int ret)
             cow2_offset_into_cluster(s, find_cluster_cb->pos) +
             find_cluster_cb->len);
 
-    n = cow2_count_contiguous_clusters(s, s->l2_table, index, n, &offset);
+    n = cow2_count_contiguous_clusters(s, s->cur_l2_table->table, index, n, &offset);
     ret = offset ? COW2_CLUSTER_FOUND : COW2_CLUSTER_L2;
     len = MIN(find_cluster_cb->len, n * s->header.cluster_size -
               cow2_offset_into_cluster(s, find_cluster_cb->pos));
@@ -1115,7 +1122,7 @@ static void cow2_aio_write_l1_update(void *opaque, int ret)
 
     /* TODO l2_table reference must still be held */
     index = cow2_l1_index(s, acb->cur_pos);
-    s->l1_table->offsets[index] = s->l2_table_offset;
+    s->l1_table->offsets[index] = s->cur_l2_table->offset;
 
     cow2_write_l1_table(s, index, 1, cow2_aio_next_io, acb);
 }
@@ -1143,7 +1150,7 @@ static void cow2_aio_write_l2_update(void *opaque, int ret)
 
     /* TODO hold reference to l2_table */
     index = cow2_l2_index(s, acb->cur_pos);
-    cow2_update_l2_table(s, s->l2_table, index, acb->cur_nclusters,
+    cow2_update_l2_table(s, s->cur_l2_table->table, index, acb->cur_nclusters,
                          acb->cur_cluster);
 
     if (need_alloc) {
