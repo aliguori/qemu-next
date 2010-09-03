@@ -86,12 +86,23 @@ typedef struct {
     uint64_t offsets[0];            /* in bytes */
 } Cow2Table;
 
-typedef struct Cow2AIOCB Cow2AIOCB;
+#define MAX_L2_CACHE_SIZE 1
+
+/* The L2 cache is a simple write-through cache for L2 structures */
+typedef struct CachedL2Table {
+    Cow2Table *table;
+    uint64_t offset;    /* offset=0 indicates an invalidate entry */
+    QTAILQ_ENTRY(CachedL2Table) node;
+    int ref;
+} CachedL2Table;
 
 typedef struct {
-    Cow2Table *table;
-    uint64_t offset;
-} CachedCow2Table;
+    QTAILQ_HEAD(, CachedL2Table) entries;
+    unsigned int n_entries;
+    size_t table_size;
+} L2TableCache;
+
+typedef struct Cow2AIOCB Cow2AIOCB;
 
 typedef struct {
     BlockDriverState *bs;           /* device */
@@ -99,7 +110,8 @@ typedef struct {
 
     Cow2Header header;              /* always cpu-endian */
     Cow2Table *l1_table;
-    CachedCow2Table *cur_l2_table;  /* the active l2 table */
+    CachedL2Table *cur_l2_table;  /* the active l2 table */
+    L2TableCache l2_cache;          /* l2 table cache */
     uint32_t table_nelems;
     uint32_t l1_shift;
     uint32_t l2_shift;
@@ -317,6 +329,114 @@ static int cow2_alloc_clusters(BDRVCow2State *s, unsigned int n, uint64_t *offse
 }
 
 /**
+ * L2 Cache routines
+ */
+
+/**
+ * Initialize the L2 cache
+ */
+static void cow2_init_l2_cache(L2TableCache *l2_cache, size_t table_size)
+{
+    QTAILQ_INIT(&l2_cache->entries);
+    l2_cache->n_entries = 0;
+    l2_cache->table_size = table_size;
+}
+
+/**
+ * Free the L2 cache
+ */
+static void cow2_free_l2_cache(L2TableCache *l2_cache)
+{
+    CachedL2Table *entry, *next_entry;
+
+    QTAILQ_FOREACH_SAFE(entry, &l2_cache->entries, node, next_entry) {
+        qemu_free(entry->table);
+        qemu_free(entry);
+    }
+}
+
+/**
+ * Allocate an uninitialized entry from the cache
+ */
+static CachedL2Table *cow2_alloc_l2_cache_entry(L2TableCache *l2_cache)
+{
+    CachedL2Table *entry;
+
+    entry = qemu_mallocz(sizeof(*entry));
+    entry->table = qemu_malloc(l2_cache->table_size);
+    entry->ref++;
+
+    return entry;
+}
+
+/**
+ * Free an entry.  If the entry has not been committed to the cache, this will
+ * free the memory.  If the entry has been committed to the cache, it may be
+ * it's resources may not be freed until it's evicted from the cache.
+ */
+static void cow2_free_l2_cache_entry(L2TableCache *l2_cache, CachedL2Table *entry)
+{
+    if (!entry) {
+        return;
+    }
+
+    entry->ref--;
+    if (entry->ref == 0) {
+        qemu_free(entry->table);
+        qemu_free(entry);
+    }
+}
+
+/**
+ * Find an entry in the L2 cache.  This may return NULL and it's up to the caller
+ * to satisfy the cache miss.
+ */
+static CachedL2Table *cow2_find_l2_cache_entry(L2TableCache *l2_cache, uint64_t offset)
+{
+    CachedL2Table *entry;
+
+    QTAILQ_FOREACH(entry, &l2_cache->entries, node) {
+        if (entry->offset == offset) {
+            entry->ref++;
+            return entry;
+        }
+    }
+    return NULL;
+}
+
+/**
+ * Commit an L2 cache entry into the cache.  This is meant to be used as part of
+ * the process to satisfy a cache miss.  A caller would allocate an entry which is
+ * not actually in the L2 cache and then once the entry was valid and present on
+ * disk, the entry can be committed into the cache.
+ *
+ * Since the cache is write-through, it's important that this function is not called
+ * until the entry is present on disk and the L1 has been updated to point to the
+ * entry.
+ */
+static void cow2_commit_l2_cache_entry(L2TableCache *l2_cache, CachedL2Table *l2_table)
+{
+    CachedL2Table *entry;
+
+    entry = cow2_find_l2_cache_entry(l2_cache, l2_table->offset);
+    if (entry) {
+        cow2_free_l2_cache_entry(l2_cache, entry);
+        return;
+    }
+
+    if (l2_cache->n_entries > MAX_L2_CACHE_SIZE) {
+        entry = QTAILQ_FIRST(&l2_cache->entries);
+        QTAILQ_REMOVE(&l2_cache->entries, entry, node);
+        l2_cache->n_entries--;
+        cow2_free_l2_cache_entry(l2_cache, entry);
+    }
+
+    l2_table->ref++;
+    l2_cache->n_entries++;
+    QTAILQ_INSERT_TAIL(&l2_cache->entries, l2_table, node);
+}
+
+/**
  * Generic callback for chaining async callbacks
  */
 typedef struct {
@@ -501,9 +621,12 @@ static void cow2_read_l2_table_cb(void *opaque, int ret)
     BDRVCow2State *s = read_l2_table_cb->s;
 
     if (ret) {
-        s->cur_l2_table->offset = 0; /* can't trust loaded L2 table anymore */
+        /* can't trust loaded L2 table anymore */
+        cow2_free_l2_cache_entry(&s->l2_cache, s->cur_l2_table);
+        s->cur_l2_table = NULL;
     } else {
         s->cur_l2_table->offset = read_l2_table_cb->l2_offset;
+        cow2_commit_l2_cache_entry(&s->l2_cache, s->cur_l2_table);
     }
 
     gencb_complete(&read_l2_table_cb->gencb, ret);
@@ -514,11 +637,16 @@ static void cow2_read_l2_table(BDRVCow2State *s, uint64_t offset,
 {
     Cow2ReadL2TableCB *read_l2_table_cb;
 
-    /* Check for cached L2 table */
-    if (s->cur_l2_table->offset == offset) {
+    cow2_free_l2_cache_entry(&s->l2_cache, s->cur_l2_table);
+
+    /* Check for cached L2 entry */
+    s->cur_l2_table = cow2_find_l2_cache_entry(&s->l2_cache, offset);
+    if (s->cur_l2_table) {
         cb(opaque, 0);
         return;
     }
+
+    s->cur_l2_table = cow2_alloc_l2_cache_entry(&s->l2_cache);
 
     read_l2_table_cb = gencb_alloc(sizeof *read_l2_table_cb, cb, opaque);
     read_l2_table_cb->s = s;
@@ -539,6 +667,9 @@ static int cow2_new_l2_table(BDRVCow2State *s)
     if (ret) {
         return ret;
     }
+
+    cow2_free_l2_cache_entry(&s->l2_cache, s->cur_l2_table);
+    s->cur_l2_table = cow2_alloc_l2_cache_entry(&s->l2_cache);
     s->cur_l2_table->offset = offset;
 
     memset(s->cur_l2_table->table->offsets, 0, s->header.cluster_size * s->header.table_size);
@@ -653,13 +784,11 @@ static int bdrv_cow2_open(BlockDriverState *bs, int flags)
     }
 
     s->l1_table = qemu_malloc(s->header.cluster_size * s->header.table_size);
-    s->cur_l2_table = qemu_mallocz(sizeof(*s->cur_l2_table));
-    s->cur_l2_table->table = qemu_malloc(s->header.cluster_size * s->header.table_size);
+    cow2_init_l2_cache(&s->l2_cache, s->header.cluster_size * s->header.table_size);
 
     ret = cow2_read_l1_table(s);
     if (ret) {
-        qemu_free(s->cur_l2_table->table);
-        qemu_free(s->cur_l2_table);
+        cow2_free_l2_cache(&s->l2_cache);
         qemu_free(s->l1_table);
     }
     return ret;
@@ -669,8 +798,7 @@ static void bdrv_cow2_close(BlockDriverState *bs)
 {
     BDRVCow2State *s = bs->opaque;
 
-    qemu_free(s->cur_l2_table->table);
-    qemu_free(s->cur_l2_table);
+    cow2_free_l2_cache(&s->l2_cache);
     qemu_free(s->l1_table);
 }
 
@@ -1107,6 +1235,18 @@ static void cow2_acb_build_qiov(Cow2AIOCB *acb, size_t len)
 }
 
 /**
+ * Commit the current L2 table to the cache
+ */
+static void cow2_commit_l2_update(void *opaque, int ret)
+{
+    Cow2AIOCB *acb = opaque;
+    BDRVCow2State *s = acb_to_s(acb);
+
+    cow2_commit_l2_cache_entry(&s->l2_cache, s->cur_l2_table);
+    cow2_aio_next_io(opaque, ret);
+}
+
+/**
  * Update L1 table with new L2 table offset and write it out
  */
 static void cow2_aio_write_l1_update(void *opaque, int ret)
@@ -1124,7 +1264,7 @@ static void cow2_aio_write_l1_update(void *opaque, int ret)
     index = cow2_l1_index(s, acb->cur_pos);
     s->l1_table->offsets[index] = s->cur_l2_table->offset;
 
-    cow2_write_l1_table(s, index, 1, cow2_aio_next_io, acb);
+    cow2_write_l1_table(s, index, 1, cow2_commit_l2_update, acb);
 }
 
 /**
