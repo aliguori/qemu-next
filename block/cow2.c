@@ -138,7 +138,7 @@ static AIOPool cow2_aio_pool = {
 /**
  * Allocate memory that satisfies image file and backing file alignment requirements
  *
- * TODO make this common?
+ * TODO make this common and consider propagating max buffer_alignment to the root image
  */
 static void *cow2_memalign(BDRVCow2State *s, size_t len)
 {
@@ -396,6 +396,7 @@ typedef struct {
     GenericCB gencb;
     BDRVCow2State *s;
     Cow2Table *orig_table;
+    bool flush;             /* flush after write? */
 
     struct iovec iov;
     QEMUIOVector qiov;
@@ -410,7 +411,21 @@ static void cow2_write_table_cb(void *opaque, int ret)
     trace_cow2_write_table_cb(write_table_cb->s,
                               write_table_cb->orig_table, ret);
 
+    if (ret) {
+        goto out;
+    }
+
+    if (write_table_cb->flush) {
+        /* We still need to flush first */
+        write_table_cb->flush = false;
+        bdrv_aio_flush(write_table_cb->s->bs, cow2_write_table_cb,
+                       write_table_cb);
+        return;
+    }
+
+out:
     gencb_complete(&write_table_cb->gencb, ret);
+    return;
 }
 
 /**
@@ -421,13 +436,14 @@ static void cow2_write_table_cb(void *opaque, int ret)
  * @table:      Table
  * @index:      Index of first element
  * @n:          Number of elements
+ * @flush:      Whether or not to sync to disk
  * @cb:         Completion function
  * @opaque:     Argument for completion function
  */
 static void cow2_write_table(BDRVCow2State *s, uint64_t offset,
                              Cow2Table *table, unsigned int index,
-                             unsigned int n, BlockDriverCompletionFunc *cb,
-                             void *opaque)
+                             unsigned int n, bool flush,
+                             BlockDriverCompletionFunc *cb, void *opaque)
 {
     Cow2WriteTableCB *write_table_cb;
     BlockDriverAIOCB *aiocb;
@@ -446,6 +462,7 @@ static void cow2_write_table(BDRVCow2State *s, uint64_t offset,
     write_table_cb = gencb_alloc(sizeof *write_table_cb + len_bytes, cb, opaque);
     write_table_cb->s = s;
     write_table_cb->orig_table = table;
+    write_table_cb->flush = flush;
     write_table_cb->iov.iov_base = write_table_cb->table.offsets;
     write_table_cb->iov.iov_len = len_bytes;
     qemu_iovec_init_external(&write_table_cb->qiov, &write_table_cb->iov, 1);
@@ -524,10 +541,11 @@ static int cow2_new_l2_table(BDRVCow2State *s)
 }
 
 static void cow2_write_l2_table(BDRVCow2State *s, unsigned int index,
-                                unsigned int n, BlockDriverCompletionFunc *cb,
-                                void *opaque)
+                                unsigned int n, bool flush,
+                                BlockDriverCompletionFunc *cb, void *opaque)
 {
-    cow2_write_table(s, s->l2_table_offset, s->l2_table, index, n, cb, opaque);
+    cow2_write_table(s, s->l2_table_offset, s->l2_table, index, n,
+                     flush, cb, opaque);
 }
 
 static void cow2_write_l1_table(BDRVCow2State *s, unsigned int index,
@@ -535,7 +553,7 @@ static void cow2_write_l1_table(BDRVCow2State *s, unsigned int index,
                                 void *opaque)
 {
     cow2_write_table(s, s->header.l1_table_offset, s->l1_table,
-                     index, n, cb, opaque);
+                     index, n, false, cb, opaque);
 }
 
 static void cow2_read_l1_table_cb(void *opaque, int ret)
@@ -1079,8 +1097,6 @@ static void cow2_aio_write_l1_update(void *opaque, int ret)
         return;
     }
 
-    /* TODO bdrv_aio_flush() before updating L1 table */
-
     /* TODO l2_table reference must still be held */
     index = cow2_l1_index(s, acb->cur_pos);
     s->l1_table->offsets[index] = s->l2_table_offset;
@@ -1115,12 +1131,12 @@ static void cow2_aio_write_l2_update(void *opaque, int ret)
                          acb->cur_cluster);
 
     if (need_alloc) {
-        /* Write out the whole new L2 table */
-        cow2_write_l2_table(s, 0, s->table_nelems,
+        /* Write out the whole new L2 table and flush before updating L1 */
+        cow2_write_l2_table(s, 0, s->table_nelems, true,
                             cow2_aio_write_l1_update, acb);
     } else {
         /* Write out only the updated part of the L2 table */
-        cow2_write_l2_table(s, index, acb->cur_nclusters,
+        cow2_write_l2_table(s, index, acb->cur_nclusters, false,
                             cow2_aio_next_io, acb);
     }
     return;
