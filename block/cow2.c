@@ -12,6 +12,11 @@
 /* TODO cow2_aio_complete using bh so callers do not need to be reentrant */
 /* TODO check L2 table sizes before accessing them? */
 /* TODO skip zero prefill since the filesystem should zero the sectors anyway */
+/* TODO if a table element's offset is invalid then the image is broken.  If
+ * there was a power failure and the table update reached storage but the data
+ * being pointed to did not, forget about the lost data by clearing the offset.
+ * However, need to be careful to detect invalid offsets for tables that are
+ * read *after* more clusters have been allocated. */
 
 enum {
     COW2_MAGIC = 'C' | 'O' << 8 | 'W' << 16 | '2' << 24,
@@ -355,16 +360,7 @@ static void cow2_read_table_cb(void *opaque, int ret)
 
     /* Byteswap and verify offsets */
     for (i = 0; i < noffsets; i++) {
-        uint64_t offset = le64_to_cpu(table->offsets[i]);
-        if (offset && !cow2_check_byte_offset(read_table_cb->s, offset)) {
-            /* If the offset is invalid then the image is broken.  If there was
-             * a power failure and the table update reached storage but the
-             * data being pointed to did not, forget about the lost data by
-             * clearing the offset.
-             */
-            offset = 0;
-        }
-        table->offsets[i] = offset;
+        table->offsets[i] = le64_to_cpu(table->offsets[i]);
     }
 
 out:
