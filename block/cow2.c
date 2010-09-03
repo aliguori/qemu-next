@@ -362,9 +362,11 @@ static void cow2_free_l2_cache(L2TableCache *l2_cache)
 static CachedL2Table *cow2_alloc_l2_cache_entry(L2TableCache *l2_cache)
 {
     CachedL2Table *entry;
+    /* HACK */
+    BDRVCow2State *s = container_of(l2_cache, BDRVCow2State, l2_cache);
 
     entry = qemu_mallocz(sizeof(*entry));
-    entry->table = qemu_malloc(l2_cache->table_size);
+    entry->table = cow2_memalign(s, l2_cache->table_size);
     entry->ref++;
 
     return entry;
@@ -784,7 +786,7 @@ static int bdrv_cow2_open(BlockDriverState *bs, int flags)
         }
     }
 
-    s->l1_table = qemu_malloc(s->header.cluster_size * s->header.table_size);
+    s->l1_table = cow2_memalign(s, s->header.cluster_size * s->header.table_size);
     cow2_init_l2_cache(&s->l2_cache, s->header.cluster_size * s->header.table_size);
 
     ret = cow2_read_l1_table(s);
