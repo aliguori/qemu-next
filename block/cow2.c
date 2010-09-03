@@ -86,7 +86,8 @@ typedef struct {
     uint64_t offsets[0];            /* in bytes */
 } Cow2Table;
 
-#define MAX_L2_CACHE_SIZE 1
+/* Each L2 holds 2GB so this let's us fully cache a 100GB disk */
+#define MAX_L2_CACHE_SIZE 50
 
 /* The L2 cache is a simple write-through cache for L2 structures */
 typedef struct CachedL2Table {
