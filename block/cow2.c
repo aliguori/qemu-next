@@ -111,7 +111,6 @@ typedef struct {
 
     Cow2Header header;              /* always cpu-endian */
     Cow2Table *l1_table;
-    CachedL2Table *cur_l2_table;  /* the active l2 table */
     L2TableCache l2_cache;          /* l2 table cache */
     uint32_t table_nelems;
     uint32_t l1_shift;
@@ -121,6 +120,10 @@ typedef struct {
     /* Pending request queue */
     QSIMPLEQ_HEAD(, Cow2AIOCB) reqs;
 } BDRVCow2State;
+
+typedef struct Cow2Request {
+    CachedL2Table *l2_table;
+} Cow2Request;
 
 struct Cow2AIOCB {
     BlockDriverAIOCB common;
@@ -141,6 +144,8 @@ struct Cow2AIOCB {
     uint64_t cur_cluster;           /* cluster offset in image file */
     unsigned int cur_nclusters;     /* number of clusters being accessed */
     int find_cluster_ret;           /* used for L1/L2 update */
+
+    Cow2Request request;
 };
 
 static void cow2_aio_cancel(BlockDriverAIOCB *acb)
@@ -616,75 +621,79 @@ typedef struct {
     GenericCB gencb;
     BDRVCow2State *s;
     uint64_t l2_offset;
+    Cow2Request *request;
 } Cow2ReadL2TableCB;
 
 static void cow2_read_l2_table_cb(void *opaque, int ret)
 {
     Cow2ReadL2TableCB *read_l2_table_cb = opaque;
+    Cow2Request *request = read_l2_table_cb->request;
     BDRVCow2State *s = read_l2_table_cb->s;
 
     if (ret) {
         /* can't trust loaded L2 table anymore */
-        cow2_free_l2_cache_entry(&s->l2_cache, s->cur_l2_table);
-        s->cur_l2_table = NULL;
+        cow2_free_l2_cache_entry(&s->l2_cache, request->l2_table);
+        request->l2_table = NULL;
     } else {
-        s->cur_l2_table->offset = read_l2_table_cb->l2_offset;
-        cow2_commit_l2_cache_entry(&s->l2_cache, s->cur_l2_table);
+        request->l2_table->offset = read_l2_table_cb->l2_offset;
+        cow2_commit_l2_cache_entry(&s->l2_cache, request->l2_table);
     }
 
     gencb_complete(&read_l2_table_cb->gencb, ret);
 }
 
-static void cow2_read_l2_table(BDRVCow2State *s, uint64_t offset,
+static void cow2_read_l2_table(BDRVCow2State *s,
+                               Cow2Request *request, uint64_t offset,
                                BlockDriverCompletionFunc *cb, void *opaque)
 {
     Cow2ReadL2TableCB *read_l2_table_cb;
 
-    cow2_free_l2_cache_entry(&s->l2_cache, s->cur_l2_table);
+    cow2_free_l2_cache_entry(&s->l2_cache, request->l2_table);
 
     /* Check for cached L2 entry */
-    s->cur_l2_table = cow2_find_l2_cache_entry(&s->l2_cache, offset);
-    if (s->cur_l2_table) {
+    request->l2_table = cow2_find_l2_cache_entry(&s->l2_cache, offset);
+    if (request->l2_table) {
         cb(opaque, 0);
         return;
     }
 
-    s->cur_l2_table = cow2_alloc_l2_cache_entry(&s->l2_cache);
+    request->l2_table = cow2_alloc_l2_cache_entry(&s->l2_cache);
 
     read_l2_table_cb = gencb_alloc(sizeof *read_l2_table_cb, cb, opaque);
     read_l2_table_cb->s = s;
     read_l2_table_cb->l2_offset = offset;
+    read_l2_table_cb->request = request;
 
-    cow2_read_table(s, offset, s->cur_l2_table->table, cow2_read_l2_table_cb, read_l2_table_cb);
+    cow2_read_table(s, offset, request->l2_table->table, cow2_read_l2_table_cb, read_l2_table_cb);
 }
 
 /**
  * Allocate a new zeroed L2 table
  */
-static int cow2_new_l2_table(BDRVCow2State *s)
+static CachedL2Table *cow2_new_l2_table(BDRVCow2State *s)
 {
     uint64_t offset;
     int ret;
+    CachedL2Table *l2_table;
 
     ret = cow2_alloc_clusters(s, s->header.table_size, &offset);
     if (ret) {
-        return ret;
+        return NULL;
     }
 
-    cow2_free_l2_cache_entry(&s->l2_cache, s->cur_l2_table);
-    s->cur_l2_table = cow2_alloc_l2_cache_entry(&s->l2_cache);
-    s->cur_l2_table->offset = offset;
+    l2_table = cow2_alloc_l2_cache_entry(&s->l2_cache);
+    l2_table->offset = offset;
 
-    memset(s->cur_l2_table->table->offsets, 0, s->header.cluster_size * s->header.table_size);
-    return 0;
+    memset(l2_table->table->offsets, 0, s->header.cluster_size * s->header.table_size);
+    return l2_table;
 }
 
-static void cow2_write_l2_table(BDRVCow2State *s, unsigned int index,
-                                unsigned int n, bool flush,
-                                BlockDriverCompletionFunc *cb, void *opaque)
+static void cow2_write_l2_table(BDRVCow2State *s, Cow2Request *request,
+                                unsigned int index, unsigned int n, bool flush,
+                                BlockDriverCompletionFunc *cb,
+                                void *opaque)
 {
-    cow2_write_table(s, s->cur_l2_table->offset, s->cur_l2_table->table,
-                     index, n, flush cb, opaque);
+    cow2_write_table(s, request->l2_table->offset, request->l2_table->table, index, n, flush, cb, opaque);
 }
 
 static void cow2_write_l1_table(BDRVCow2State *s, unsigned int index,
@@ -958,6 +967,8 @@ typedef struct {
     uint64_t pos;
     size_t len;
 
+    Cow2Request *request;
+
     /* User callback */
     Cow2FindClusterFunc *cb;
     void *opaque;
@@ -967,6 +978,7 @@ static void cow2_find_cluster_cb(void *opaque, int ret)
 {
     Cow2FindClusterCB *find_cluster_cb = opaque;
     BDRVCow2State *s = find_cluster_cb->s;
+    Cow2Request *request = find_cluster_cb->request;
     uint64_t offset = 0;
     size_t len = 0;
 
@@ -980,7 +992,7 @@ static void cow2_find_cluster_cb(void *opaque, int ret)
             cow2_offset_into_cluster(s, find_cluster_cb->pos) +
             find_cluster_cb->len);
 
-    n = cow2_count_contiguous_clusters(s, s->cur_l2_table->table, index, n, &offset);
+    n = cow2_count_contiguous_clusters(s, request->l2_table->table, index, n, &offset);
     ret = offset ? COW2_CLUSTER_FOUND : COW2_CLUSTER_L2;
     len = MIN(find_cluster_cb->len, n * s->header.cluster_size -
               cow2_offset_into_cluster(s, find_cluster_cb->pos));
@@ -999,7 +1011,8 @@ out:
  * @cb:         Completion function
  * @opaque:     User data for completion function
  */
-static void cow2_find_cluster(BDRVCow2State *s, uint64_t pos, size_t len,
+static void cow2_find_cluster(BDRVCow2State *s, Cow2Request *request,
+                              uint64_t pos, size_t len,
                               Cow2FindClusterFunc *cb, void *opaque)
 {
     Cow2FindClusterCB *find_cluster_cb;
@@ -1022,8 +1035,9 @@ static void cow2_find_cluster(BDRVCow2State *s, uint64_t pos, size_t len,
     find_cluster_cb->len = len;
     find_cluster_cb->cb = cb;
     find_cluster_cb->opaque = opaque;
+    find_cluster_cb->request = request;
 
-    cow2_read_l2_table(s, l2_offset, cow2_find_cluster_cb, find_cluster_cb);
+    cow2_read_l2_table(s, request, l2_offset, cow2_find_cluster_cb, find_cluster_cb);
 }
 
 typedef struct {
@@ -1048,14 +1062,18 @@ static int bdrv_cow2_is_allocated(BlockDriverState *bs, int64_t sector_num,
         .is_allocated = -1,
         .pnum = pnum,
     };
+    Cow2Request request = { .l2_table = NULL };
 
     /* TODO push/pop async context? */
 
-    cow2_find_cluster(s, pos, len, cow2_is_allocated_cb, &cb);
+    cow2_find_cluster(s, &request, pos, len, cow2_is_allocated_cb, &cb);
 
     while (cb.is_allocated == -1) {
         qemu_aio_wait();
     }
+
+    cow2_free_l2_cache_entry(&s->l2_cache, request.l2_table);
+
     return cb.is_allocated;
 }
 
@@ -1179,7 +1197,6 @@ static void cow2_aio_complete_bh(void *opaque)
     int ret = acb->bh_ret;
 
     qemu_bh_delete(acb->bh);
-    qemu_iovec_destroy(&acb->cur_qiov);
     qemu_aio_release(acb);
 
     /* Invoke callback */
@@ -1192,6 +1209,10 @@ static void cow2_aio_complete(Cow2AIOCB *acb, int ret)
 
     trace_cow2_aio_complete(s, acb, ret);
 
+    /* Free resources */
+    qemu_iovec_destroy(&acb->cur_qiov);
+    cow2_free_l2_cache_entry(&s->l2_cache, acb->request.l2_table);
+
     /* Arrange for a bh to invoke the completion function */
     acb->bh_ret = ret;
     acb->bh = qemu_bh_new(cow2_aio_complete_bh, acb);
@@ -1200,7 +1221,9 @@ static void cow2_aio_complete(Cow2AIOCB *acb, int ret)
     /* Start next request right away */
     QSIMPLEQ_REMOVE_HEAD(&s->reqs, next);
     if (!QSIMPLEQ_EMPTY(&s->reqs)) {
-        cow2_aio_next_io(QSIMPLEQ_FIRST(&s->reqs), 0);
+        acb = QSIMPLEQ_FIRST(&s->reqs);
+        acb->request.l2_table = NULL;
+        cow2_aio_next_io(acb, 0);
     }
 }
 
@@ -1245,7 +1268,7 @@ static void cow2_commit_l2_update(void *opaque, int ret)
     Cow2AIOCB *acb = opaque;
     BDRVCow2State *s = acb_to_s(acb);
 
-    cow2_commit_l2_cache_entry(&s->l2_cache, s->cur_l2_table);
+    cow2_commit_l2_cache_entry(&s->l2_cache, acb->request.l2_table);
     cow2_aio_next_io(opaque, ret);
 }
 
@@ -1265,7 +1288,7 @@ static void cow2_aio_write_l1_update(void *opaque, int ret)
 
     /* TODO l2_table reference must still be held */
     index = cow2_l1_index(s, acb->cur_pos);
-    s->l1_table->offsets[index] = s->cur_l2_table->offset;
+    s->l1_table->offsets[index] = acb->request.l2_table->offset;
 
     cow2_write_l1_table(s, index, 1, cow2_commit_l2_update, acb);
 }
@@ -1285,24 +1308,26 @@ static void cow2_aio_write_l2_update(void *opaque, int ret)
     }
 
     if (need_alloc) {
-        ret = cow2_new_l2_table(s);
-        if (ret) {
+        cow2_free_l2_cache_entry(&s->l2_cache, acb->request.l2_table);
+        acb->request.l2_table = cow2_new_l2_table(s);
+        if (!acb->request.l2_table) {
+            ret = -EIO;
             goto err;
         }
     }
 
     /* TODO hold reference to l2_table */
     index = cow2_l2_index(s, acb->cur_pos);
-    cow2_update_l2_table(s, s->cur_l2_table->table, index, acb->cur_nclusters,
+    cow2_update_l2_table(s, acb->request.l2_table->table, index, acb->cur_nclusters,
                          acb->cur_cluster);
 
     if (need_alloc) {
-        /* Write out the whole new L2 table and flush before updating L1 */
-        cow2_write_l2_table(s, 0, s->table_nelems, true,
+        /* Write out the whole new L2 table */
+        cow2_write_l2_table(s, &acb->request, 0, s->table_nelems, true,
                             cow2_aio_write_l1_update, acb);
     } else {
         /* Write out only the updated part of the L2 table */
-        cow2_write_l2_table(s, index, acb->cur_nclusters, false,
+        cow2_write_l2_table(s, &acb->request, index, acb->cur_nclusters, false,
                             cow2_aio_next_io, acb);
     }
     return;
@@ -1508,7 +1533,8 @@ static void cow2_aio_next_io(void *opaque, int ret)
     }
 
     /* Find next cluster and start I/O */
-    cow2_find_cluster(s, acb->cur_pos, acb->end_pos - acb->cur_pos,
+    cow2_find_cluster(s, &acb->request,
+                      acb->cur_pos, acb->end_pos - acb->cur_pos,
                       io_fn, acb);
 }
 
@@ -1534,6 +1560,7 @@ static BlockDriverAIOCB *cow2_aio_setup(BlockDriverState *bs,
 
     /* Start request if no other request is executing */
     if (QSIMPLEQ_FIRST(&s->reqs) == acb) {
+        acb->request.l2_table = NULL;
         cow2_aio_next_io(acb, 0);
     }
 
