@@ -19,7 +19,9 @@
 /**
  * Initialize the L2 cache
  */
-void qed_init_l2_cache(L2TableCache *l2_cache, L2TableAllocFunc *alloc_l2_table, void *alloc_l2_table_opaque)
+void qed_init_l2_cache(L2TableCache *l2_cache,
+                       L2TableAllocFunc *alloc_l2_table,
+                       void *alloc_l2_table_opaque)
 {
     QTAILQ_INIT(&l2_cache->entries);
     l2_cache->n_entries = 0;
@@ -73,8 +75,8 @@ void qed_free_l2_cache_entry(L2TableCache *l2_cache, CachedL2Table *entry)
 }
 
 /**
- * Find an entry in the L2 cache.  This may return NULL and it's up to the caller
- * to satisfy the cache miss.
+ * Find an entry in the L2 cache.  This may return NULL and it's up to the
+ * caller to satisfy the cache miss.
  */
 CachedL2Table *qed_find_l2_cache_entry(L2TableCache *l2_cache, uint64_t offset)
 {
@@ -91,13 +93,13 @@ CachedL2Table *qed_find_l2_cache_entry(L2TableCache *l2_cache, uint64_t offset)
 
 /**
  * Commit an L2 cache entry into the cache.  This is meant to be used as part of
- * the process to satisfy a cache miss.  A caller would allocate an entry which is
- * not actually in the L2 cache and then once the entry was valid and present on
- * disk, the entry can be committed into the cache.
+ * the process to satisfy a cache miss.  A caller would allocate an entry which
+ * is not actually in the L2 cache and then once the entry was valid and
+ * present on disk, the entry can be committed into the cache.
  *
- * Since the cache is write-through, it's important that this function is not called
- * until the entry is present on disk and the L1 has been updated to point to the
- * entry.
+ * Since the cache is write-through, it's important that this function is not
+ * called until the entry is present on disk and the L1 has been updated to
+ * point to the entry.
  */
 void qed_commit_l2_cache_entry(L2TableCache *l2_cache, CachedL2Table *l2_table)
 {

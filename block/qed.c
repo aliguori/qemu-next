@@ -89,11 +89,11 @@ static void *qed_memalign(BDRVQEDState *s, size_t len)
 }
 
 static int bdrv_qed_probe(const uint8_t *buf, int buf_size,
-                           const char *filename)
+                          const char *filename)
 {
     const QEDHeader *header = (const void *)buf;
 
-    if (buf_size < sizeof *header) {
+    if (buf_size < sizeof(*header)) {
         return 0;
     }
     if (le32_to_cpu(header->magic) != QED_MAGIC) {
@@ -190,7 +190,8 @@ static bool qed_is_image_size_valid(uint64_t image_size, uint32_t cluster_size,
 /**
  * Test if a byte offset is cluster aligned and within the image file
  */
-static bool qed_check_byte_offset(BDRVQEDState *s, uint64_t offset) {
+static bool qed_check_byte_offset(BDRVQEDState *s, uint64_t offset)
+{
     if (offset & (s->header.cluster_size - 1)) {
         return false;
     }
@@ -212,7 +213,7 @@ static bool qed_check_byte_offset(BDRVQEDState *s, uint64_t offset) {
  * The string is NUL-terminated.
  */
 static int qed_read_string(BlockDriverState *file, uint64_t offset, size_t n,
-                            char *buf, size_t buflen)
+                           char *buf, size_t buflen)
 {
     int ret;
     if (n >= buflen) {
@@ -265,7 +266,8 @@ static CachedL2Table *qed_new_l2_table(BDRVQEDState *s)
     l2_table = qed_alloc_l2_cache_entry(&s->l2_cache);
     l2_table->offset = offset;
 
-    memset(l2_table->table->offsets, 0, s->header.cluster_size * s->header.table_size);
+    memset(l2_table->table->offsets, 0,
+           s->header.cluster_size * s->header.table_size);
     return l2_table;
 }
 
@@ -279,8 +281,8 @@ static int bdrv_qed_open(BlockDriverState *bs, int flags)
     s->bs = bs;
     QSIMPLEQ_INIT(&s->reqs);
 
-    ret = bdrv_pread(bs->file, 0, &le_header, sizeof le_header);
-    if (ret != sizeof le_header) {
+    ret = bdrv_pread(bs->file, 0, &le_header, sizeof(le_header));
+    if (ret != sizeof(le_header)) {
         return ret;
     }
     qed_header_le_to_cpu(&le_header, &s->header);
@@ -314,7 +316,8 @@ static int bdrv_qed_open(BlockDriverState *bs, int flags)
         return -EINVAL;
     }
 
-    s->table_nelems = (s->header.cluster_size * s->header.table_size) / sizeof s->l1_table->offsets[0];
+    s->table_nelems = (s->header.cluster_size * s->header.table_size) /
+        sizeof(s->l1_table->offsets[0]);
     s->l2_shift = get_bits_from_size(s->header.cluster_size);
     s->l2_mask = s->table_nelems - 1;
     s->l1_shift = s->l2_shift + get_bits_from_size(s->l2_mask + 1);
@@ -322,15 +325,16 @@ static int bdrv_qed_open(BlockDriverState *bs, int flags)
     if ((s->header.features & QED_F_BACKING_FILE)) {
         ret = qed_read_string(bs->file, s->header.backing_file_offset,
                               s->header.backing_file_size, bs->backing_file,
-                              sizeof bs->backing_file);
+                              sizeof(bs->backing_file));
         if (ret < 0) {
             return ret;
         }
 
         if ((s->header.compat_features & QED_CF_BACKING_FORMAT)) {
             ret = qed_read_string(bs->file, s->header.backing_fmt_offset,
-                                  s->header.backing_fmt_size, bs->backing_format,
-                                  sizeof bs->backing_format);
+                                  s->header.backing_fmt_size,
+                                  bs->backing_format,
+                                  sizeof(bs->backing_format));
             if (ret < 0) {
                 return ret;
             }
@@ -388,7 +392,7 @@ static int qed_create(const char *filename, uint32_t cluster_size,
 
     if (backing_file) {
         header.features |= QED_F_BACKING_FILE;
-        header.backing_file_offset = sizeof le_header;
+        header.backing_file_offset = sizeof(le_header);
         header.backing_file_size = strlen(backing_file);
         if (backing_fmt) {
             header.compat_features |= QED_CF_BACKING_FORMAT;
@@ -399,7 +403,7 @@ static int qed_create(const char *filename, uint32_t cluster_size,
     }
 
     qed_header_cpu_to_le(&header, &le_header);
-    if (qemu_write_full(fd, &le_header, sizeof le_header) != sizeof le_header) {
+    if (qemu_write_full(fd, &le_header, sizeof(le_header)) != sizeof(le_header)) {
         ret = -errno;
         goto out;
     }
@@ -566,9 +570,9 @@ static void qed_copy_from_backing_file_write(void *opaque, int ret)
  * @opaque:     User data for completion function
  */
 static void qed_copy_from_backing_file(BDRVQEDState *s, uint64_t pos,
-                                        uint64_t len, uint64_t offset,
-                                        BlockDriverCompletionFunc *cb,
-                                        void *opaque)
+                                       uint64_t len, uint64_t offset,
+                                       BlockDriverCompletionFunc *cb,
+                                       void *opaque)
 {
     CopyFromBackingFileCB *copy_cb;
     BlockDriverAIOCB *aiocb;
@@ -579,7 +583,7 @@ static void qed_copy_from_backing_file(BDRVQEDState *s, uint64_t pos,
         return;
     }
 
-    copy_cb = gencb_alloc(sizeof *copy_cb, cb, opaque);
+    copy_cb = gencb_alloc(sizeof(*copy_cb), cb, opaque);
     copy_cb->s = s;
     copy_cb->offset = offset;
     copy_cb->iov.iov_base = qed_memalign(s, len);
@@ -611,7 +615,7 @@ static void qed_copy_from_backing_file(BDRVQEDState *s, uint64_t pos,
  * @cluster:        First cluster byte offset in image file
  */
 static void qed_update_l2_table(BDRVQEDState *s, QEDTable *table, int index,
-                                 unsigned int n, uint64_t cluster)
+                                unsigned int n, uint64_t cluster)
 {
     int i;
     for (i = index; i < index + n; i++) {
@@ -846,7 +850,7 @@ static void qed_aio_write_prefill(QEDAIOCB *acb)
  * Callback from qed_find_cluster().
  */
 static void qed_aio_write_data(void *opaque, int ret,
-                                uint64_t offset, size_t len)
+                               uint64_t offset, size_t len)
 {
     QEDAIOCB *acb = opaque;
     BDRVQEDState *s = acb_to_s(acb);
@@ -859,7 +863,7 @@ static void qed_aio_write_data(void *opaque, int ret,
     }
 
     acb->cur_nclusters = qed_bytes_to_clusters(s,
-            qed_offset_into_cluster(s, acb->cur_pos) + len);
+                             qed_offset_into_cluster(s, acb->cur_pos) + len);
 
     if (need_alloc) {
         if (qed_alloc_clusters(s, acb->cur_nclusters, &offset) != 0) {
@@ -894,7 +898,7 @@ err:
  * Callback from qed_find_cluster().
  */
 static void qed_aio_read_data(void *opaque, int ret,
-                               uint64_t offset, size_t len)
+                              uint64_t offset, size_t len)
 {
     QEDAIOCB *acb = opaque;
     BDRVQEDState *s = acb_to_s(acb);
@@ -972,8 +976,10 @@ static void qed_aio_next_io(void *opaque, int ret)
 }
 
 static BlockDriverAIOCB *qed_aio_setup(BlockDriverState *bs,
-        int64_t sector_num, QEMUIOVector *qiov, int nb_sectors,
-        BlockDriverCompletionFunc *cb, void *opaque, bool is_write)
+                                       int64_t sector_num,
+                                       QEMUIOVector *qiov, int nb_sectors,
+                                       BlockDriverCompletionFunc *cb,
+                                       void *opaque, bool is_write)
 {
     QEDAIOCB *acb = qemu_aio_get(&qed_aio_pool, bs, cb, opaque);
     BDRVQEDState *s = acb_to_s(acb);
@@ -1001,21 +1007,26 @@ static BlockDriverAIOCB *qed_aio_setup(BlockDriverState *bs,
 }
 
 static BlockDriverAIOCB *bdrv_qed_aio_readv(BlockDriverState *bs,
-        int64_t sector_num, QEMUIOVector *qiov, int nb_sectors,
-        BlockDriverCompletionFunc *cb, void *opaque)
+                                            int64_t sector_num,
+                                            QEMUIOVector *qiov, int nb_sectors,
+                                            BlockDriverCompletionFunc *cb,
+                                            void *opaque)
 {
     return qed_aio_setup(bs, sector_num, qiov, nb_sectors, cb, opaque, false);
 }
 
 static BlockDriverAIOCB *bdrv_qed_aio_writev(BlockDriverState *bs,
-        int64_t sector_num, QEMUIOVector *qiov, int nb_sectors,
-        BlockDriverCompletionFunc *cb, void *opaque)
+                                             int64_t sector_num,
+                                             QEMUIOVector *qiov, int nb_sectors,
+                                             BlockDriverCompletionFunc *cb,
+                                             void *opaque)
 {
     return qed_aio_setup(bs, sector_num, qiov, nb_sectors, cb, opaque, true);
 }
 
 static BlockDriverAIOCB *bdrv_qed_aio_flush(BlockDriverState *bs,
-        BlockDriverCompletionFunc *cb, void *opaque)
+                                            BlockDriverCompletionFunc *cb,
+                                            void *opaque)
 {
     return bdrv_aio_flush(bs->file, cb, opaque);
 }
@@ -1035,13 +1046,14 @@ static int bdrv_qed_get_info(BlockDriverState *bs, BlockDriverInfo *bdi)
 {
     BDRVQEDState *s = bs->opaque;
 
-    memset(bdi, 0, sizeof *bdi);
+    memset(bdi, 0, sizeof(*bdi));
     bdi->cluster_size = s->header.cluster_size;
     return 0;
 }
 
 static int bdrv_qed_change_backing_file(BlockDriverState *bs,
-        const char *backing_file, const char *backing_fmt)
+                                        const char *backing_file,
+                                        const char *backing_fmt)
 {
     return -ENOTSUP; /* TODO */
 }
@@ -1056,28 +1068,24 @@ static QEMUOptionParameter qed_create_options[] = {
         .name = BLOCK_OPT_SIZE,
         .type = OPT_SIZE,
         .help = "Virtual disk size (in bytes)"
-    },
-    {
+    }, {
         .name = BLOCK_OPT_BACKING_FILE,
         .type = OPT_STRING,
         .help = "File name of a base image"
-    },
-    {
+    }, {
         .name = BLOCK_OPT_BACKING_FMT,
         .type = OPT_STRING,
         .help = "Image format of the base image"
-    },
-    {
+    }, {
         .name = BLOCK_OPT_CLUSTER_SIZE,
         .type = OPT_SIZE,
         .help = "Cluster size (in bytes)"
-    },
-    {
+    }, {
         .name = "table_size",
         .type = OPT_SIZE,
         .help = "L1/L2 table size (in clusters)"
     },
-    { NULL }
+    { /* end of list */ }
 };
 
 static BlockDriver bdrv_qed = {

@@ -26,7 +26,10 @@
  * This function scans tables for contiguous allocated or free clusters.
  */
 static unsigned int qed_count_contiguous_clusters(BDRVQEDState *s,
-        QEDTable *table, unsigned int index, unsigned int n, uint64_t *offset)
+                                                  QEDTable *table,
+                                                  unsigned int index,
+                                                  unsigned int n,
+                                                  uint64_t *offset)
 {
     unsigned int end = MIN(index + n, s->table_nelems);
     uint64_t last = table->offsets[index];
@@ -70,18 +73,21 @@ static void qed_find_cluster_cb(void *opaque, int ret)
     QEDRequest *request = find_cluster_cb->request;
     uint64_t offset = 0;
     size_t len = 0;
+    unsigned int index;
+    unsigned int n;
 
     if (ret) {
         ret = QED_CLUSTER_ERROR;
         goto out;
     }
 
-    unsigned int index = qed_l2_index(s, find_cluster_cb->pos);
-    unsigned int n = qed_bytes_to_clusters(s,
-            qed_offset_into_cluster(s, find_cluster_cb->pos) +
-            find_cluster_cb->len);
+    index = qed_l2_index(s, find_cluster_cb->pos);
+    n = qed_bytes_to_clusters(s,
+                              qed_offset_into_cluster(s, find_cluster_cb->pos) +
+                              find_cluster_cb->len);
+    n = qed_count_contiguous_clusters(s, request->l2_table->table,
+                                      index, n, &offset);
 
-    n = qed_count_contiguous_clusters(s, request->l2_table->table, index, n, &offset);
     ret = offset ? QED_CLUSTER_FOUND : QED_CLUSTER_L2;
     len = MIN(find_cluster_cb->len, n * s->header.cluster_size -
               qed_offset_into_cluster(s, find_cluster_cb->pos));
@@ -117,7 +123,7 @@ void qed_find_cluster(BDRVQEDState *s, QEDRequest *request, uint64_t pos,
         return;
     }
 
-    find_cluster_cb = qemu_malloc(sizeof *find_cluster_cb);
+    find_cluster_cb = qemu_malloc(sizeof(*find_cluster_cb));
     find_cluster_cb->s = s;
     find_cluster_cb->pos = pos;
     find_cluster_cb->len = len;
@@ -125,5 +131,6 @@ void qed_find_cluster(BDRVQEDState *s, QEDRequest *request, uint64_t pos,
     find_cluster_cb->opaque = opaque;
     find_cluster_cb->request = request;
 
-    qed_read_l2_table(s, request, l2_offset, qed_find_cluster_cb, find_cluster_cb);
+    qed_read_l2_table(s, request, l2_offset,
+                      qed_find_cluster_cb, find_cluster_cb);
 }
