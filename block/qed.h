@@ -132,6 +132,15 @@ typedef struct {
     QSIMPLEQ_HEAD(, QEDAIOCB) reqs;
 } BDRVQEDState;
 
+enum {
+    QED_CLUSTER_FOUND,         /* cluster found */
+    QED_CLUSTER_L2,            /* cluster missing in L2 */
+    QED_CLUSTER_L1,            /* cluster missing in L1 */
+    QED_CLUSTER_ERROR,         /* error looking up cluster */
+};
+
+typedef void QEDFindClusterFunc(void *opaque, int ret, uint64_t offset, size_t len);
+
 /**
  * Generic callback for chaining async callbacks
  */
@@ -164,4 +173,40 @@ void qed_read_l2_table(BDRVQEDState *s, QEDRequest *request, uint64_t offset,
 void qed_write_l2_table(BDRVQEDState *s, QEDRequest *request,
                         unsigned int index, unsigned int n, bool flush,
                         BlockDriverCompletionFunc *cb, void *opaque);
+
+/**
+ * Cluster functions
+ */
+void qed_find_cluster(BDRVQEDState *s, QEDRequest *request, uint64_t pos,
+                      size_t len, QEDFindClusterFunc *cb, void *opaque);
+
+/**
+ * Utility functions
+ */
+static inline uint64_t qed_start_of_cluster(BDRVQEDState *s, uint64_t offset)
+{
+    return offset & ~(uint64_t)(s->header.cluster_size - 1);
+}
+
+static inline uint64_t qed_offset_into_cluster(BDRVQEDState *s, uint64_t offset)
+{
+    return offset & (s->header.cluster_size - 1);
+}
+
+static inline unsigned int qed_bytes_to_clusters(BDRVQEDState *s, size_t bytes)
+{
+    return qed_start_of_cluster(s, bytes + (s->header.cluster_size - 1)) /
+           (s->header.cluster_size - 1);
+}
+
+static inline unsigned int qed_l1_index(BDRVQEDState *s, uint64_t pos)
+{
+    return pos >> s->l1_shift;
+}
+
+static inline unsigned int qed_l2_index(BDRVQEDState *s, uint64_t pos)
+{
+    return (pos >> s->l2_shift) & s->l2_mask;
+}
+
 #endif /* BLOCK_QED_H */
