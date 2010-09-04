@@ -32,10 +32,17 @@
  * read *after* more clusters have been allocated. */
 
 enum {
-    QED_MAGIC = 'C' | 'O' << 8 | 'W' << 16 | '2' << 24,
+    QED_MAGIC = 'Q' | 'E' << 8 | 'D' << 16 | '\0' << 24,
+
+    /* The image supports a backing file */
+    QED_F_BACKING_FILE = 0x01,
+
+    /* The image has the backing file format */
+    QED_CF_BACKING_FORMAT = 0x01,
 
     /* Feature bits must be used when the on-disk format changes */
-    QED_FEATURE_MASK = 0x0,        /* supported feature bits */
+    QED_FEATURE_MASK = QED_F_BACKING_FILE,            /* supported feature bits */
+    QED_COMPAT_FEATURE_MASK = QED_CF_BACKING_FORMAT,  /* supported compat feature bits */
 
     /* Data is stored in groups of sectors called clusters.  Cluster size must
      * be large to avoid keeping too much metadata.  I/O requests that have
@@ -83,10 +90,13 @@ enum {
 
 typedef struct {
     uint32_t magic;                 /* QED */
-    uint32_t features;              /* format feature bits */
 
     uint32_t cluster_size;          /* in bytes */
     uint32_t table_size;            /* table size, in clusters */
+    uint32_t first_cluster;         /* first usable cluster */
+
+    uint64_t features;              /* format feature bits */
+    uint64_t compat_features;       /* compatible feature bits */
     uint64_t l1_table_offset;       /* L1 table offset, in bytes */
     uint64_t image_size;            /* total image size, in bytes */
 
@@ -232,9 +242,11 @@ static int bdrv_qed_probe(const uint8_t *buf, int buf_size,
 static void qed_header_le_to_cpu(const QEDHeader *le, QEDHeader *cpu)
 {
     cpu->magic = le32_to_cpu(le->magic);
-    cpu->features = le32_to_cpu(le->features);
     cpu->cluster_size = le32_to_cpu(le->cluster_size);
     cpu->table_size = le32_to_cpu(le->table_size);
+    cpu->first_cluster = le32_to_cpu(le->first_cluster);
+    cpu->features = le64_to_cpu(le->features);
+    cpu->compat_features = le64_to_cpu(le->compat_features);
     cpu->l1_table_offset = le64_to_cpu(le->l1_table_offset);
     cpu->image_size = le64_to_cpu(le->image_size);
     cpu->backing_file_offset = le32_to_cpu(le->backing_file_offset);
@@ -246,9 +258,11 @@ static void qed_header_le_to_cpu(const QEDHeader *le, QEDHeader *cpu)
 static void qed_header_cpu_to_le(const QEDHeader *cpu, QEDHeader *le)
 {
     le->magic = cpu_to_le32(cpu->magic);
-    le->features = cpu_to_le32(cpu->features);
     le->cluster_size = cpu_to_le32(cpu->cluster_size);
     le->table_size = cpu_to_le32(cpu->table_size);
+    le->first_cluster = cpu_to_le32(cpu->first_cluster);
+    le->features = cpu_to_le64(cpu->features);
+    le->compat_features = cpu_to_le64(cpu->compat_features);
     le->l1_table_offset = cpu_to_le64(cpu->l1_table_offset);
     le->image_size = cpu_to_le64(cpu->image_size);
     le->backing_file_offset = cpu_to_le32(cpu->backing_file_offset);
@@ -787,12 +801,7 @@ static int bdrv_qed_open(BlockDriverState *bs, int flags)
     s->l2_mask = s->table_nelems - 1;
     s->l1_shift = s->l2_shift + get_bits_from_size(s->l2_mask + 1);
 
-    if (s->header.backing_file_offset) {
-        /* Must have backing format */
-        if (!s->header.backing_fmt_offset) {
-            return -EINVAL;
-        }
-
+    if ((s->header.features & QED_F_BACKING_FILE)) {
         ret = qed_read_string(bs->file, s->header.backing_file_offset,
                               s->header.backing_file_size, bs->backing_file,
                               sizeof bs->backing_file);
@@ -800,11 +809,13 @@ static int bdrv_qed_open(BlockDriverState *bs, int flags)
             return ret;
         }
 
-        ret = qed_read_string(bs->file, s->header.backing_fmt_offset,
-                              s->header.backing_fmt_size, bs->backing_format,
-                              sizeof bs->backing_format);
-        if (ret < 0) {
-            return ret;
+        if ((s->header.compat_features & QED_CF_BACKING_FORMAT)) {
+            ret = qed_read_string(bs->file, s->header.backing_fmt_offset,
+                                  s->header.backing_fmt_size, bs->backing_format,
+                                  sizeof bs->backing_format);
+            if (ret < 0) {
+                return ret;
+            }
         }
     }
 
@@ -838,9 +849,11 @@ static int qed_create(const char *filename, uint32_t cluster_size,
 {
     QEDHeader header = {
         .magic = QED_MAGIC,
-        .features = 0,
         .cluster_size = cluster_size,
         .table_size = QED_DEFAULT_TABLE_SIZE,
+        .first_cluster = 1,
+        .features = 0,
+        .compat_features = 0,
         .l1_table_offset = cluster_size,
         .image_size = image_size,
     };
@@ -855,12 +868,16 @@ static int qed_create(const char *filename, uint32_t cluster_size,
         return -errno;
     }
 
-    if (backing_file && backing_fmt) {
+    if (backing_file) {
+        header.features |= QED_F_BACKING_FILE;
         header.backing_file_offset = sizeof le_header;
         header.backing_file_size = strlen(backing_file);
-        header.backing_fmt_offset = header.backing_file_offset +
-                                    header.backing_file_size;
-        header.backing_fmt_size = strlen(backing_fmt);
+        if (backing_fmt) {
+            header.compat_features |= QED_CF_BACKING_FORMAT;
+            header.backing_fmt_offset = header.backing_file_offset +
+                                        header.backing_file_size;
+            header.backing_fmt_size = strlen(backing_fmt);
+        }
     }
 
     qed_header_cpu_to_le(&header, &le_header);
