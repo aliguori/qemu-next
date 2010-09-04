@@ -440,10 +440,6 @@ static int bdrv_qed_create(const char *filename, QEMUOptionParameter *options)
         fprintf(stderr, "QED image size must be a non-zero multiple of cluster size\n");
         return -EINVAL;
     }
-    if (backing_file && !backing_fmt) {
-        fprintf(stderr, "QED requires a backing file format when a backing file is specified\n");
-        return -EINVAL;
-    }
 
     return qed_create(filename, cluster_size, image_size,
                        backing_file, backing_fmt);
