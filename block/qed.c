@@ -460,7 +460,7 @@ static void qed_commit_l2_cache_entry(L2TableCache *l2_cache, CachedL2Table *l2_
         return;
     }
 
-    if (l2_cache->n_entries > MAX_L2_CACHE_SIZE) {
+    if (l2_cache->n_entries >= MAX_L2_CACHE_SIZE) {
         entry = QTAILQ_FIRST(&l2_cache->entries);
         QTAILQ_REMOVE(&l2_cache->entries, entry, node);
         l2_cache->n_entries--;
