@@ -14,6 +14,7 @@
 
 #include "trace.h"
 #include "block_int.h"
+#include "qed.h"
 
 /* TODO blkdebug support */
 /* TODO avoid corruption caused by interference between pending requests.
@@ -470,32 +471,6 @@ static void qed_commit_l2_cache_entry(L2TableCache *l2_cache, CachedL2Table *l2_
     l2_table->ref++;
     l2_cache->n_entries++;
     QTAILQ_INSERT_TAIL(&l2_cache->entries, l2_table, node);
-}
-
-/**
- * Generic callback for chaining async callbacks
- */
-typedef struct {
-    BlockDriverCompletionFunc *cb;
-    void *opaque;
-} GenericCB;
-
-static void *gencb_alloc(size_t len, BlockDriverCompletionFunc *cb, void *opaque)
-{
-    GenericCB *gencb = qemu_malloc(len);
-    gencb->cb = cb;
-    gencb->opaque = opaque;
-    return gencb;
-}
-
-static void gencb_complete(void *opaque, int ret)
-{
-    GenericCB *gencb = opaque;
-    BlockDriverCompletionFunc *cb = gencb->cb;
-    void *user_opaque = gencb->opaque;
-
-    qemu_free(gencb);
-    cb(user_opaque, ret);
 }
 
 typedef struct {
