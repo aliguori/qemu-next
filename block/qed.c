@@ -134,6 +134,17 @@ static void qed_header_cpu_to_le(const QEDHeader *cpu, QEDHeader *le)
     le->backing_fmt_size = cpu_to_le32(cpu->backing_fmt_size);
 }
 
+static uint64_t qed_max_image_size(uint32_t cluster_size, uint32_t table_size)
+{
+    uint64_t table_entries;
+    uint64_t l2_size;
+
+    table_entries = (table_size * cluster_size) / 8;
+    l2_size = table_entries * cluster_size;
+
+    return l2_size * table_entries;
+}
+
 static bool qed_is_cluster_size_valid(uint32_t cluster_size)
 {
     if (cluster_size < QED_MIN_CLUSTER_SIZE ||
@@ -158,7 +169,8 @@ static bool qed_is_table_size_valid(uint32_t table_size)
     return true;
 }
 
-static bool qed_is_image_size_valid(uint64_t image_size, uint32_t cluster_size)
+static bool qed_is_image_size_valid(uint64_t image_size, uint32_t cluster_size,
+                                    uint32_t table_size)
 {
     if (image_size == 0) {
         /* Supporting zero size images makes life harder because even the L1
@@ -168,6 +180,9 @@ static bool qed_is_image_size_valid(uint64_t image_size, uint32_t cluster_size)
     }
     if (image_size & (cluster_size - 1)) {
         return false; /* not multiple of cluster size */
+    }
+    if (image_size > qed_max_image_size(cluster_size, table_size)) {
+        return false; /* image is too large */
     }
     return true;
 }
@@ -291,7 +306,8 @@ static int bdrv_qed_open(BlockDriverState *bs, int flags)
         return -EINVAL;
     }
     if (!qed_is_image_size_valid(s->header.image_size,
-                                  s->header.cluster_size)) {
+                                 s->header.cluster_size,
+                                 s->header.table_size)) {
         return -EINVAL;
     }
     if (!qed_check_byte_offset(s, s->header.l1_table_offset)) {
@@ -346,13 +362,13 @@ static void bdrv_qed_flush(BlockDriverState *bs)
 }
 
 static int qed_create(const char *filename, uint32_t cluster_size,
-                       uint64_t image_size, const char *backing_file,
-                       const char *backing_fmt)
+                      uint64_t image_size, uint32_t table_size,
+                      const char *backing_file, const char *backing_fmt)
 {
     QEDHeader header = {
         .magic = QED_MAGIC,
         .cluster_size = cluster_size,
-        .table_size = QED_DEFAULT_TABLE_SIZE,
+        .table_size = table_size,
         .first_cluster = 1,
         .features = 0,
         .compat_features = 0,
@@ -413,6 +429,7 @@ static int bdrv_qed_create(const char *filename, QEMUOptionParameter *options)
 {
     uint64_t image_size = 0;
     uint32_t cluster_size = QED_DEFAULT_CLUSTER_SIZE;
+    uint32_t table_size = QED_DEFAULT_TABLE_SIZE;
     const char *backing_file = NULL;
     const char *backing_fmt = NULL;
 
@@ -427,6 +444,10 @@ static int bdrv_qed_create(const char *filename, QEMUOptionParameter *options)
             if (options->value.n) {
                 cluster_size = options->value.n;
             }
+        } else if (!strcmp(options->name, "table_size")) {
+            if (options->value.n) {
+                table_size = options->value.n;
+            }
         }
         options++;
     }
@@ -436,13 +457,20 @@ static int bdrv_qed_create(const char *filename, QEMUOptionParameter *options)
                 QED_MIN_CLUSTER_SIZE, QED_MAX_CLUSTER_SIZE);
         return -EINVAL;
     }
-    if (!qed_is_image_size_valid(image_size, cluster_size)) {
-        fprintf(stderr, "QED image size must be a non-zero multiple of cluster size\n");
+    if (!qed_is_table_size_valid(table_size)) {
+        fprintf(stderr, "QED table size must be within range [%u, %u] and power of 2\n",
+                QED_MIN_TABLE_SIZE, QED_MAX_TABLE_SIZE);
+        return -EINVAL;
+    }
+    if (!qed_is_image_size_valid(image_size, cluster_size, table_size)) {
+        fprintf(stderr,
+                "QED image size must be a non-zero multiple of cluster size and less than %s\n",
+                bytes_to_str(qed_max_image_size(cluster_size, table_size)));
         return -EINVAL;
     }
 
-    return qed_create(filename, cluster_size, image_size,
-                       backing_file, backing_fmt);
+    return qed_create(filename, cluster_size, image_size, table_size,
+                      backing_file, backing_fmt);
 }
 
 typedef struct {
@@ -1043,6 +1071,11 @@ static QEMUOptionParameter qed_create_options[] = {
         .name = BLOCK_OPT_CLUSTER_SIZE,
         .type = OPT_SIZE,
         .help = "Cluster size (in bytes)"
+    },
+    {
+        .name = "table_size",
+        .type = OPT_SIZE,
+        .help = "L1/L2 table size (in clusters)"
     },
     { NULL }
 };

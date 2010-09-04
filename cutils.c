@@ -285,3 +285,22 @@ int get_bits_from_size(size_t size)
 
     return res;
 }
+
+const char *bytes_to_str(uint64_t size)
+{
+    static char buffer[64];
+
+    if (size < (1ULL << 10)) {
+        snprintf(buffer, sizeof(buffer), "%" PRIu64 " byte(s)", size);
+    } else if (size < (1ULL << 20)) {
+        snprintf(buffer, sizeof(buffer), "%" PRIu64 " KB(s)", size >> 10);
+    } else if (size < (1ULL << 30)) {
+        snprintf(buffer, sizeof(buffer), "%" PRIu64 " MB(s)", size >> 20);
+    } else if (size < (1ULL << 40)) {
+        snprintf(buffer, sizeof(buffer), "%" PRIu64 " GB(s)", size >> 30);
+    } else {
+        snprintf(buffer, sizeof(buffer), "%" PRIu64 " TB(s)", size >> 40);
+    }
+
+    return buffer;
+}
