@@ -18,29 +18,29 @@
  * read *after* more clusters have been allocated. */
 
 enum {
-    COW2_MAGIC = 'C' | 'O' << 8 | 'W' << 16 | '2' << 24,
+    QED_MAGIC = 'C' | 'O' << 8 | 'W' << 16 | '2' << 24,
 
     /* Feature bits must be used when the on-disk format changes */
-    COW2_FEATURE_MASK = 0x0,        /* supported feature bits */
+    QED_FEATURE_MASK = 0x0,        /* supported feature bits */
 
     /* Data is stored in groups of sectors called clusters.  Cluster size must
      * be large to avoid keeping too much metadata.  I/O requests that have
      * sub-cluster size will require read-modify-write.
      */
-    COW2_MIN_CLUSTER_SIZE = 4 * 1024, /* in bytes */
-    COW2_MAX_CLUSTER_SIZE = 64 * 1024 * 1024,
-    COW2_DEFAULT_CLUSTER_SIZE = 64 * 1024,
+    QED_MIN_CLUSTER_SIZE = 4 * 1024, /* in bytes */
+    QED_MAX_CLUSTER_SIZE = 64 * 1024 * 1024,
+    QED_DEFAULT_CLUSTER_SIZE = 64 * 1024,
 
     /* Allocated clusters are tracked using a 2-level pagetable.  Table size is
      * a multiple of clusters so large maximum image sizes can be supported
      * without jacking up the cluster size too much.
      */
-    COW2_MIN_TABLE_SIZE = 1,        /* in clusters */
-    COW2_MAX_TABLE_SIZE = 16,
-    COW2_DEFAULT_TABLE_SIZE = 4,
+    QED_MIN_TABLE_SIZE = 1,        /* in clusters */
+    QED_MAX_TABLE_SIZE = 16,
+    QED_DEFAULT_TABLE_SIZE = 4,
 };
 
-/* The layout of a COW2 file is as follows:
+/* The layout of a QED file is as follows:
  *
  * +--------+----------+----------+----------+-----+
  * | header | L1 table | cluster0 | cluster1 | ... |
@@ -68,7 +68,7 @@ enum {
  */
 
 typedef struct {
-    uint32_t magic;                 /* COW2 */
+    uint32_t magic;                 /* QED */
     uint32_t features;              /* format feature bits */
 
     uint32_t cluster_size;          /* in bytes */
@@ -80,18 +80,18 @@ typedef struct {
     uint32_t backing_file_size;     /* in bytes */
     uint32_t backing_fmt_offset;    /* in bytes from start of header */
     uint32_t backing_fmt_size;      /* in bytes */
-} Cow2Header;
+} QEDHeader;
 
 typedef struct {
     uint64_t offsets[0];            /* in bytes */
-} Cow2Table;
+} QEDTable;
 
 /* Each L2 holds 2GB so this let's us fully cache a 100GB disk */
 #define MAX_L2_CACHE_SIZE 50
 
 /* The L2 cache is a simple write-through cache for L2 structures */
 typedef struct CachedL2Table {
-    Cow2Table *table;
+    QEDTable *table;
     uint64_t offset;    /* offset=0 indicates an invalidate entry */
     QTAILQ_ENTRY(CachedL2Table) node;
     int ref;
@@ -103,14 +103,14 @@ typedef struct {
     size_t table_size;
 } L2TableCache;
 
-typedef struct Cow2AIOCB Cow2AIOCB;
+typedef struct QEDAIOCB QEDAIOCB;
 
 typedef struct {
     BlockDriverState *bs;           /* device */
     uint64_t file_size;             /* length of image file, in bytes */
 
-    Cow2Header header;              /* always cpu-endian */
-    Cow2Table *l1_table;
+    QEDHeader header;              /* always cpu-endian */
+    QEDTable *l1_table;
     L2TableCache l2_cache;          /* l2 table cache */
     uint32_t table_nelems;
     uint32_t l1_shift;
@@ -118,18 +118,18 @@ typedef struct {
     uint32_t l2_mask;
 
     /* Pending request queue */
-    QSIMPLEQ_HEAD(, Cow2AIOCB) reqs;
-} BDRVCow2State;
+    QSIMPLEQ_HEAD(, QEDAIOCB) reqs;
+} BDRVQEDState;
 
-typedef struct Cow2Request {
+typedef struct QEDRequest {
     CachedL2Table *l2_table;
-} Cow2Request;
+} QEDRequest;
 
-struct Cow2AIOCB {
+struct QEDAIOCB {
     BlockDriverAIOCB common;
     QEMUBH *bh;
     int bh_ret;                     /* final return status for completion bh */
-    QSIMPLEQ_ENTRY(Cow2AIOCB) next; /* next request */
+    QSIMPLEQ_ENTRY(QEDAIOCB) next; /* next request */
     bool is_write;                  /* false - read, true - write */
 
     /* User scatter-gather list */
@@ -145,17 +145,17 @@ struct Cow2AIOCB {
     unsigned int cur_nclusters;     /* number of clusters being accessed */
     int find_cluster_ret;           /* used for L1/L2 update */
 
-    Cow2Request request;
+    QEDRequest request;
 };
 
-static void cow2_aio_cancel(BlockDriverAIOCB *acb)
+static void qed_aio_cancel(BlockDriverAIOCB *acb)
 {
     qemu_aio_release(acb);
 }
 
-static AIOPool cow2_aio_pool = {
-    .aiocb_size         = sizeof(Cow2AIOCB),
-    .cancel             = cow2_aio_cancel,
+static AIOPool qed_aio_pool = {
+    .aiocb_size         = sizeof(QEDAIOCB),
+    .cancel             = qed_aio_cancel,
 };
 
 /**
@@ -163,7 +163,7 @@ static AIOPool cow2_aio_pool = {
  *
  * TODO make this common and consider propagating max buffer_alignment to the root image
  */
-static void *cow2_memalign(BDRVCow2State *s, size_t len)
+static void *qed_memalign(BDRVQEDState *s, size_t len)
 {
     size_t align = s->bs->file->buffer_alignment;
     BlockDriverState *backing_hd = s->bs->backing_hd;
@@ -175,47 +175,47 @@ static void *cow2_memalign(BDRVCow2State *s, size_t len)
     return qemu_memalign(align, len);
 }
 
-static uint64_t cow2_start_of_cluster(BDRVCow2State *s, uint64_t offset)
+static uint64_t qed_start_of_cluster(BDRVQEDState *s, uint64_t offset)
 {
     return offset & ~(uint64_t)(s->header.cluster_size - 1);
 }
 
-static uint64_t cow2_offset_into_cluster(BDRVCow2State *s, uint64_t offset)
+static uint64_t qed_offset_into_cluster(BDRVQEDState *s, uint64_t offset)
 {
     return offset & (s->header.cluster_size - 1);
 }
 
-static unsigned int cow2_bytes_to_clusters(BDRVCow2State *s, size_t bytes)
+static unsigned int qed_bytes_to_clusters(BDRVQEDState *s, size_t bytes)
 {
-    return cow2_start_of_cluster(s, bytes + (s->header.cluster_size - 1)) /
+    return qed_start_of_cluster(s, bytes + (s->header.cluster_size - 1)) /
            (s->header.cluster_size - 1);
 }
 
-static unsigned int cow2_l1_index(BDRVCow2State *s, uint64_t pos)
+static unsigned int qed_l1_index(BDRVQEDState *s, uint64_t pos)
 {
     return pos >> s->l1_shift;
 }
 
-static unsigned int cow2_l2_index(BDRVCow2State *s, uint64_t pos)
+static unsigned int qed_l2_index(BDRVQEDState *s, uint64_t pos)
 {
     return (pos >> s->l2_shift) & s->l2_mask;
 }
 
-static int bdrv_cow2_probe(const uint8_t *buf, int buf_size,
+static int bdrv_qed_probe(const uint8_t *buf, int buf_size,
                            const char *filename)
 {
-    const Cow2Header *header = (const void *)buf;
+    const QEDHeader *header = (const void *)buf;
 
     if (buf_size < sizeof *header) {
         return 0;
     }
-    if (le32_to_cpu(header->magic) != COW2_MAGIC) {
+    if (le32_to_cpu(header->magic) != QED_MAGIC) {
         return 0;
     }
     return 100;
 }
 
-static void cow2_header_le_to_cpu(const Cow2Header *le, Cow2Header *cpu)
+static void qed_header_le_to_cpu(const QEDHeader *le, QEDHeader *cpu)
 {
     cpu->magic = le32_to_cpu(le->magic);
     cpu->features = le32_to_cpu(le->features);
@@ -229,7 +229,7 @@ static void cow2_header_le_to_cpu(const Cow2Header *le, Cow2Header *cpu)
     cpu->backing_fmt_size = le32_to_cpu(le->backing_fmt_size);
 }
 
-static void cow2_header_cpu_to_le(const Cow2Header *cpu, Cow2Header *le)
+static void qed_header_cpu_to_le(const QEDHeader *cpu, QEDHeader *le)
 {
     le->magic = cpu_to_le32(cpu->magic);
     le->features = cpu_to_le32(cpu->features);
@@ -243,10 +243,10 @@ static void cow2_header_cpu_to_le(const Cow2Header *cpu, Cow2Header *le)
     le->backing_fmt_size = cpu_to_le32(cpu->backing_fmt_size);
 }
 
-static bool cow2_is_cluster_size_valid(uint32_t cluster_size)
+static bool qed_is_cluster_size_valid(uint32_t cluster_size)
 {
-    if (cluster_size < COW2_MIN_CLUSTER_SIZE ||
-        cluster_size > COW2_MAX_CLUSTER_SIZE) {
+    if (cluster_size < QED_MIN_CLUSTER_SIZE ||
+        cluster_size > QED_MAX_CLUSTER_SIZE) {
         return false;
     }
     if (cluster_size & (cluster_size - 1)) {
@@ -255,10 +255,10 @@ static bool cow2_is_cluster_size_valid(uint32_t cluster_size)
     return true;
 }
 
-static bool cow2_is_table_size_valid(uint32_t table_size)
+static bool qed_is_table_size_valid(uint32_t table_size)
 {
-    if (table_size < COW2_MIN_TABLE_SIZE ||
-        table_size > COW2_MAX_TABLE_SIZE) {
+    if (table_size < QED_MIN_TABLE_SIZE ||
+        table_size > QED_MAX_TABLE_SIZE) {
         return false;
     }
     if (table_size & (table_size - 1)) {
@@ -267,7 +267,7 @@ static bool cow2_is_table_size_valid(uint32_t table_size)
     return true;
 }
 
-static bool cow2_is_image_size_valid(uint64_t image_size, uint32_t cluster_size)
+static bool qed_is_image_size_valid(uint64_t image_size, uint32_t cluster_size)
 {
     if (image_size == 0) {
         /* Supporting zero size images makes life harder because even the L1
@@ -284,7 +284,7 @@ static bool cow2_is_image_size_valid(uint64_t image_size, uint32_t cluster_size)
 /**
  * Test if a byte offset is cluster aligned and within the image file
  */
-static bool cow2_check_byte_offset(BDRVCow2State *s, uint64_t offset) {
+static bool qed_check_byte_offset(BDRVQEDState *s, uint64_t offset) {
     if (offset & (s->header.cluster_size - 1)) {
         return false;
     }
@@ -305,7 +305,7 @@ static bool cow2_check_byte_offset(BDRVCow2State *s, uint64_t offset) {
  *
  * The string is NUL-terminated.
  */
-static int cow2_read_string(BlockDriverState *file, uint64_t offset, size_t n,
+static int qed_read_string(BlockDriverState *file, uint64_t offset, size_t n,
                             char *buf, size_t buflen)
 {
     int ret;
@@ -323,11 +323,11 @@ static int cow2_read_string(BlockDriverState *file, uint64_t offset, size_t n,
 /**
  * Allocate new clusters
  *
- * @s:          COW2 state
+ * @s:          QED state
  * @n:          Number of contiguous clusters to allocate
  * @offset:     Offset of first allocated cluster, filled in on success
  */
-static int cow2_alloc_clusters(BDRVCow2State *s, unsigned int n, uint64_t *offset)
+static int qed_alloc_clusters(BDRVQEDState *s, unsigned int n, uint64_t *offset)
 {
     *offset = s->file_size;
     s->file_size += n * s->header.cluster_size;
@@ -341,7 +341,7 @@ static int cow2_alloc_clusters(BDRVCow2State *s, unsigned int n, uint64_t *offse
 /**
  * Initialize the L2 cache
  */
-static void cow2_init_l2_cache(L2TableCache *l2_cache, size_t table_size)
+static void qed_init_l2_cache(L2TableCache *l2_cache, size_t table_size)
 {
     QTAILQ_INIT(&l2_cache->entries);
     l2_cache->n_entries = 0;
@@ -351,7 +351,7 @@ static void cow2_init_l2_cache(L2TableCache *l2_cache, size_t table_size)
 /**
  * Free the L2 cache
  */
-static void cow2_free_l2_cache(L2TableCache *l2_cache)
+static void qed_free_l2_cache(L2TableCache *l2_cache)
 {
     CachedL2Table *entry, *next_entry;
 
@@ -364,14 +364,14 @@ static void cow2_free_l2_cache(L2TableCache *l2_cache)
 /**
  * Allocate an uninitialized entry from the cache
  */
-static CachedL2Table *cow2_alloc_l2_cache_entry(L2TableCache *l2_cache)
+static CachedL2Table *qed_alloc_l2_cache_entry(L2TableCache *l2_cache)
 {
     CachedL2Table *entry;
     /* HACK */
-    BDRVCow2State *s = container_of(l2_cache, BDRVCow2State, l2_cache);
+    BDRVQEDState *s = container_of(l2_cache, BDRVQEDState, l2_cache);
 
     entry = qemu_mallocz(sizeof(*entry));
-    entry->table = cow2_memalign(s, l2_cache->table_size);
+    entry->table = qed_memalign(s, l2_cache->table_size);
     entry->ref++;
 
     return entry;
@@ -382,7 +382,7 @@ static CachedL2Table *cow2_alloc_l2_cache_entry(L2TableCache *l2_cache)
  * free the memory.  If the entry has been committed to the cache, it may be
  * it's resources may not be freed until it's evicted from the cache.
  */
-static void cow2_free_l2_cache_entry(L2TableCache *l2_cache, CachedL2Table *entry)
+static void qed_free_l2_cache_entry(L2TableCache *l2_cache, CachedL2Table *entry)
 {
     if (!entry) {
         return;
@@ -399,7 +399,7 @@ static void cow2_free_l2_cache_entry(L2TableCache *l2_cache, CachedL2Table *entr
  * Find an entry in the L2 cache.  This may return NULL and it's up to the caller
  * to satisfy the cache miss.
  */
-static CachedL2Table *cow2_find_l2_cache_entry(L2TableCache *l2_cache, uint64_t offset)
+static CachedL2Table *qed_find_l2_cache_entry(L2TableCache *l2_cache, uint64_t offset)
 {
     CachedL2Table *entry;
 
@@ -422,13 +422,13 @@ static CachedL2Table *cow2_find_l2_cache_entry(L2TableCache *l2_cache, uint64_t 
  * until the entry is present on disk and the L1 has been updated to point to the
  * entry.
  */
-static void cow2_commit_l2_cache_entry(L2TableCache *l2_cache, CachedL2Table *l2_table)
+static void qed_commit_l2_cache_entry(L2TableCache *l2_cache, CachedL2Table *l2_table)
 {
     CachedL2Table *entry;
 
-    entry = cow2_find_l2_cache_entry(l2_cache, l2_table->offset);
+    entry = qed_find_l2_cache_entry(l2_cache, l2_table->offset);
     if (entry) {
-        cow2_free_l2_cache_entry(l2_cache, entry);
+        qed_free_l2_cache_entry(l2_cache, entry);
         return;
     }
 
@@ -436,7 +436,7 @@ static void cow2_commit_l2_cache_entry(L2TableCache *l2_cache, CachedL2Table *l2
         entry = QTAILQ_FIRST(&l2_cache->entries);
         QTAILQ_REMOVE(&l2_cache->entries, entry, node);
         l2_cache->n_entries--;
-        cow2_free_l2_cache_entry(l2_cache, entry);
+        qed_free_l2_cache_entry(l2_cache, entry);
     }
 
     l2_table->ref++;
@@ -472,17 +472,17 @@ static void gencb_complete(void *opaque, int ret)
 
 typedef struct {
     GenericCB gencb;
-    BDRVCow2State *s;
-    Cow2Table *table;
+    BDRVQEDState *s;
+    QEDTable *table;
 
     struct iovec iov;
     QEMUIOVector qiov;
-} Cow2ReadTableCB;
+} QEDReadTableCB;
 
-static void cow2_read_table_cb(void *opaque, int ret)
+static void qed_read_table_cb(void *opaque, int ret)
 {
-    Cow2ReadTableCB *read_table_cb = opaque;
-    Cow2Table *table = read_table_cb->table;
+    QEDReadTableCB *read_table_cb = opaque;
+    QEDTable *table = read_table_cb->table;
     int noffsets = read_table_cb->iov.iov_len / sizeof(uint64_t);
     int i;
 
@@ -498,18 +498,18 @@ static void cow2_read_table_cb(void *opaque, int ret)
 
 out:
     /* Completion */
-    trace_cow2_read_table_cb(read_table_cb->s, read_table_cb->table, ret);
+    trace_qed_read_table_cb(read_table_cb->s, read_table_cb->table, ret);
     gencb_complete(&read_table_cb->gencb, ret);
 }
 
-static void cow2_read_table(BDRVCow2State *s, uint64_t offset, Cow2Table *table,
+static void qed_read_table(BDRVQEDState *s, uint64_t offset, QEDTable *table,
                             BlockDriverCompletionFunc *cb, void *opaque)
 {
-    Cow2ReadTableCB *read_table_cb = gencb_alloc(sizeof *read_table_cb, cb, opaque);
+    QEDReadTableCB *read_table_cb = gencb_alloc(sizeof *read_table_cb, cb, opaque);
     QEMUIOVector *qiov = &read_table_cb->qiov;
     BlockDriverAIOCB *aiocb;
 
-    trace_cow2_read_table(s, offset, table);
+    trace_qed_read_table(s, offset, table);
 
     read_table_cb->s = s;
     read_table_cb->table = table;
@@ -519,29 +519,29 @@ static void cow2_read_table(BDRVCow2State *s, uint64_t offset, Cow2Table *table,
     qemu_iovec_init_external(qiov, &read_table_cb->iov, 1);
     aiocb = bdrv_aio_readv(s->bs->file, offset / BDRV_SECTOR_SIZE, qiov,
                            read_table_cb->iov.iov_len / BDRV_SECTOR_SIZE,
-                           cow2_read_table_cb, read_table_cb);
+                           qed_read_table_cb, read_table_cb);
     if (!aiocb) {
-        cow2_read_table_cb(read_table_cb, -EIO);
+        qed_read_table_cb(read_table_cb, -EIO);
     }
 }
 
 typedef struct {
     GenericCB gencb;
-    BDRVCow2State *s;
-    Cow2Table *orig_table;
+    BDRVQEDState *s;
+    QEDTable *orig_table;
     bool flush;             /* flush after write? */
 
     struct iovec iov;
     QEMUIOVector qiov;
 
-    Cow2Table table;
-} Cow2WriteTableCB;
+    QEDTable table;
+} QEDWriteTableCB;
 
-static void cow2_write_table_cb(void *opaque, int ret)
+static void qed_write_table_cb(void *opaque, int ret)
 {
-    Cow2WriteTableCB *write_table_cb = opaque;
+    QEDWriteTableCB *write_table_cb = opaque;
 
-    trace_cow2_write_table_cb(write_table_cb->s,
+    trace_qed_write_table_cb(write_table_cb->s,
                               write_table_cb->orig_table, ret);
 
     if (ret) {
@@ -551,7 +551,7 @@ static void cow2_write_table_cb(void *opaque, int ret)
     if (write_table_cb->flush) {
         /* We still need to flush first */
         write_table_cb->flush = false;
-        bdrv_aio_flush(write_table_cb->s->bs, cow2_write_table_cb,
+        bdrv_aio_flush(write_table_cb->s->bs, qed_write_table_cb,
                        write_table_cb);
         return;
     }
@@ -564,7 +564,7 @@ out:
 /**
  * Write out an updated part or all of a table
  *
- * @s:          COW2 state
+ * @s:          QED state
  * @offset:     Offset of table in image file, in bytes
  * @table:      Table
  * @index:      Index of first element
@@ -573,18 +573,18 @@ out:
  * @cb:         Completion function
  * @opaque:     Argument for completion function
  */
-static void cow2_write_table(BDRVCow2State *s, uint64_t offset,
-                             Cow2Table *table, unsigned int index,
+static void qed_write_table(BDRVQEDState *s, uint64_t offset,
+                             QEDTable *table, unsigned int index,
                              unsigned int n, bool flush,
                              BlockDriverCompletionFunc *cb, void *opaque)
 {
-    Cow2WriteTableCB *write_table_cb;
+    QEDWriteTableCB *write_table_cb;
     BlockDriverAIOCB *aiocb;
     unsigned int sector_mask = BDRV_SECTOR_SIZE / sizeof(uint64_t) - 1;
     unsigned int start, end, i;
     size_t len_bytes;
 
-    trace_cow2_write_table(s, offset, table, index, n);
+    trace_qed_write_table(s, offset, table, index, n);
 
     /* Calculate indices of the first and one after last elements */
     start = index & ~sector_mask;
@@ -611,100 +611,99 @@ static void cow2_write_table(BDRVCow2State *s, uint64_t offset,
     aiocb = bdrv_aio_writev(s->bs->file, offset / BDRV_SECTOR_SIZE,
                             &write_table_cb->qiov,
                             write_table_cb->iov.iov_len / BDRV_SECTOR_SIZE,
-                            cow2_write_table_cb, write_table_cb);
+                            qed_write_table_cb, write_table_cb);
     if (!aiocb) {
-        cow2_write_table_cb(write_table_cb, -EIO);
+        qed_write_table_cb(write_table_cb, -EIO);
     }
 }
 
 typedef struct {
     GenericCB gencb;
-    BDRVCow2State *s;
+    BDRVQEDState *s;
     uint64_t l2_offset;
-    Cow2Request *request;
-} Cow2ReadL2TableCB;
+    QEDRequest *request;
+} QEDReadL2TableCB;
 
-static void cow2_read_l2_table_cb(void *opaque, int ret)
+static void qed_read_l2_table_cb(void *opaque, int ret)
 {
-    Cow2ReadL2TableCB *read_l2_table_cb = opaque;
-    Cow2Request *request = read_l2_table_cb->request;
-    BDRVCow2State *s = read_l2_table_cb->s;
+    QEDReadL2TableCB *read_l2_table_cb = opaque;
+    QEDRequest *request = read_l2_table_cb->request;
+    BDRVQEDState *s = read_l2_table_cb->s;
 
     if (ret) {
         /* can't trust loaded L2 table anymore */
-        cow2_free_l2_cache_entry(&s->l2_cache, request->l2_table);
+        qed_free_l2_cache_entry(&s->l2_cache, request->l2_table);
         request->l2_table = NULL;
     } else {
         request->l2_table->offset = read_l2_table_cb->l2_offset;
-        cow2_commit_l2_cache_entry(&s->l2_cache, request->l2_table);
+        qed_commit_l2_cache_entry(&s->l2_cache, request->l2_table);
     }
 
     gencb_complete(&read_l2_table_cb->gencb, ret);
 }
 
-static void cow2_read_l2_table(BDRVCow2State *s,
-                               Cow2Request *request, uint64_t offset,
+static void qed_read_l2_table(BDRVQEDState *s,
+                               QEDRequest *request, uint64_t offset,
                                BlockDriverCompletionFunc *cb, void *opaque)
 {
-    Cow2ReadL2TableCB *read_l2_table_cb;
+    QEDReadL2TableCB *read_l2_table_cb;
 
-    cow2_free_l2_cache_entry(&s->l2_cache, request->l2_table);
+    qed_free_l2_cache_entry(&s->l2_cache, request->l2_table);
 
     /* Check for cached L2 entry */
-    request->l2_table = cow2_find_l2_cache_entry(&s->l2_cache, offset);
+    request->l2_table = qed_find_l2_cache_entry(&s->l2_cache, offset);
     if (request->l2_table) {
         cb(opaque, 0);
         return;
     }
 
-    request->l2_table = cow2_alloc_l2_cache_entry(&s->l2_cache);
+    request->l2_table = qed_alloc_l2_cache_entry(&s->l2_cache);
 
     read_l2_table_cb = gencb_alloc(sizeof *read_l2_table_cb, cb, opaque);
     read_l2_table_cb->s = s;
     read_l2_table_cb->l2_offset = offset;
     read_l2_table_cb->request = request;
 
-    cow2_read_table(s, offset, request->l2_table->table, cow2_read_l2_table_cb, read_l2_table_cb);
+    qed_read_table(s, offset, request->l2_table->table, qed_read_l2_table_cb, read_l2_table_cb);
 }
 
 /**
  * Allocate a new zeroed L2 table
  */
-static CachedL2Table *cow2_new_l2_table(BDRVCow2State *s)
+static CachedL2Table *qed_new_l2_table(BDRVQEDState *s)
 {
     uint64_t offset;
     int ret;
     CachedL2Table *l2_table;
 
-    ret = cow2_alloc_clusters(s, s->header.table_size, &offset);
+    ret = qed_alloc_clusters(s, s->header.table_size, &offset);
     if (ret) {
         return NULL;
     }
 
-    l2_table = cow2_alloc_l2_cache_entry(&s->l2_cache);
+    l2_table = qed_alloc_l2_cache_entry(&s->l2_cache);
     l2_table->offset = offset;
 
     memset(l2_table->table->offsets, 0, s->header.cluster_size * s->header.table_size);
     return l2_table;
 }
 
-static void cow2_write_l2_table(BDRVCow2State *s, Cow2Request *request,
+static void qed_write_l2_table(BDRVQEDState *s, QEDRequest *request,
                                 unsigned int index, unsigned int n, bool flush,
                                 BlockDriverCompletionFunc *cb,
                                 void *opaque)
 {
-    cow2_write_table(s, request->l2_table->offset, request->l2_table->table, index, n, flush, cb, opaque);
+    qed_write_table(s, request->l2_table->offset, request->l2_table->table, index, n, flush, cb, opaque);
 }
 
-static void cow2_write_l1_table(BDRVCow2State *s, unsigned int index,
+static void qed_write_l1_table(BDRVQEDState *s, unsigned int index,
                                 unsigned int n, BlockDriverCompletionFunc *cb,
                                 void *opaque)
 {
-    cow2_write_table(s, s->header.l1_table_offset, s->l1_table,
-                     index, n, false, cb, opaque);
+    qed_write_table(s, s->header.l1_table_offset, s->l1_table, index, n, false, cb, opaque);
 }
 
-static void cow2_read_l1_table_cb(void *opaque, int ret)
+static void qed_read_l1_table_cb(void *opaque, int ret)
 {
     *(int *)opaque = ret;
 }
@@ -712,23 +711,23 @@ static void cow2_read_l1_table_cb(void *opaque, int ret)
 /**
  * Read the L1 table synchronously
  */
-static int cow2_read_l1_table(BDRVCow2State *s)
+static int qed_read_l1_table(BDRVQEDState *s)
 {
     int ret = -EINPROGRESS;
 
     /* TODO push/pop async context? */
 
-    cow2_read_table(s, s->header.l1_table_offset, s->l1_table, cow2_read_l1_table_cb, &ret);
+    qed_read_table(s, s->header.l1_table_offset, s->l1_table, qed_read_l1_table_cb, &ret);
     while (ret == -EINPROGRESS) {
         qemu_aio_wait();
     }
     return ret;
 }
 
-static int bdrv_cow2_open(BlockDriverState *bs, int flags)
+static int bdrv_qed_open(BlockDriverState *bs, int flags)
 {
-    BDRVCow2State *s = bs->opaque;
-    Cow2Header le_header;
+    BDRVQEDState *s = bs->opaque;
+    QEDHeader le_header;
     int64_t file_size;
     int ret;
 
@@ -739,15 +738,15 @@ static int bdrv_cow2_open(BlockDriverState *bs, int flags)
     if (ret != sizeof le_header) {
         return ret;
     }
-    cow2_header_le_to_cpu(&le_header, &s->header);
+    qed_header_le_to_cpu(&le_header, &s->header);
 
-    if (s->header.magic != COW2_MAGIC) {
+    if (s->header.magic != QED_MAGIC) {
         return -ENOENT;
     }
-    if (s->header.features & ~COW2_FEATURE_MASK) {
+    if (s->header.features & ~QED_FEATURE_MASK) {
         return -ENOTSUP; /* image uses unsupported feature bits */
     }
-    if (!cow2_is_cluster_size_valid(s->header.cluster_size)) {
+    if (!qed_is_cluster_size_valid(s->header.cluster_size)) {
         return -EINVAL;
     }
 
@@ -756,16 +755,16 @@ static int bdrv_cow2_open(BlockDriverState *bs, int flags)
     if (file_size < 0) {
         return file_size;
     }
-    s->file_size = cow2_start_of_cluster(s, file_size + s->header.cluster_size - 1);
+    s->file_size = qed_start_of_cluster(s, file_size + s->header.cluster_size - 1);
 
-    if (!cow2_is_table_size_valid(s->header.table_size)) {
+    if (!qed_is_table_size_valid(s->header.table_size)) {
         return -EINVAL;
     }
-    if (!cow2_is_image_size_valid(s->header.image_size,
+    if (!qed_is_image_size_valid(s->header.image_size,
                                   s->header.cluster_size)) {
         return -EINVAL;
     }
-    if (!cow2_check_byte_offset(s, s->header.l1_table_offset)) {
+    if (!qed_check_byte_offset(s, s->header.l1_table_offset)) {
         return -EINVAL;
     }
 
@@ -780,14 +779,14 @@ static int bdrv_cow2_open(BlockDriverState *bs, int flags)
             return -EINVAL;
         }
 
-        ret = cow2_read_string(bs->file, s->header.backing_file_offset,
+        ret = qed_read_string(bs->file, s->header.backing_file_offset,
                               s->header.backing_file_size, bs->backing_file,
                               sizeof bs->backing_file);
         if (ret < 0) {
             return ret;
         }
 
-        ret = cow2_read_string(bs->file, s->header.backing_fmt_offset,
+        ret = qed_read_string(bs->file, s->header.backing_fmt_offset,
                               s->header.backing_fmt_size, bs->backing_format,
                               sizeof bs->backing_format);
         if (ret < 0) {
@@ -795,43 +794,43 @@ static int bdrv_cow2_open(BlockDriverState *bs, int flags)
         }
     }
 
-    s->l1_table = cow2_memalign(s, s->header.cluster_size * s->header.table_size);
-    cow2_init_l2_cache(&s->l2_cache, s->header.cluster_size * s->header.table_size);
+    s->l1_table = qed_memalign(s, s->header.cluster_size * s->header.table_size);
+    qed_init_l2_cache(&s->l2_cache, s->header.cluster_size * s->header.table_size);
 
-    ret = cow2_read_l1_table(s);
+    ret = qed_read_l1_table(s);
     if (ret) {
-        cow2_free_l2_cache(&s->l2_cache);
+        qed_free_l2_cache(&s->l2_cache);
         qemu_free(s->l1_table);
     }
     return ret;
 }
 
-static void bdrv_cow2_close(BlockDriverState *bs)
+static void bdrv_qed_close(BlockDriverState *bs)
 {
-    BDRVCow2State *s = bs->opaque;
+    BDRVQEDState *s = bs->opaque;
 
-    cow2_free_l2_cache(&s->l2_cache);
+    qed_free_l2_cache(&s->l2_cache);
     qemu_free(s->l1_table);
 }
 
-static void bdrv_cow2_flush(BlockDriverState *bs)
+static void bdrv_qed_flush(BlockDriverState *bs)
 {
     bdrv_flush(bs->file);
 }
 
-static int cow2_create(const char *filename, uint32_t cluster_size,
+static int qed_create(const char *filename, uint32_t cluster_size,
                        uint64_t image_size, const char *backing_file,
                        const char *backing_fmt)
 {
-    Cow2Header header = {
-        .magic = COW2_MAGIC,
+    QEDHeader header = {
+        .magic = QED_MAGIC,
         .features = 0,
         .cluster_size = cluster_size,
-        .table_size = COW2_DEFAULT_TABLE_SIZE,
+        .table_size = QED_DEFAULT_TABLE_SIZE,
         .l1_table_offset = cluster_size,
         .image_size = image_size,
     };
-    Cow2Header le_header;
+    QEDHeader le_header;
     uint8_t *l1_table = NULL;
     size_t l1_size = header.cluster_size * header.table_size;
     int ret = 0;
@@ -850,7 +849,7 @@ static int cow2_create(const char *filename, uint32_t cluster_size,
         header.backing_fmt_size = strlen(backing_fmt);
     }
 
-    cow2_header_cpu_to_le(&header, &le_header);
+    qed_header_cpu_to_le(&header, &le_header);
     if (qemu_write_full(fd, &le_header, sizeof le_header) != sizeof le_header) {
         ret = -errno;
         goto out;
@@ -877,10 +876,10 @@ out:
     return ret;
 }
 
-static int bdrv_cow2_create(const char *filename, QEMUOptionParameter *options)
+static int bdrv_qed_create(const char *filename, QEMUOptionParameter *options)
 {
     uint64_t image_size = 0;
-    uint32_t cluster_size = COW2_DEFAULT_CLUSTER_SIZE;
+    uint32_t cluster_size = QED_DEFAULT_CLUSTER_SIZE;
     const char *backing_file = NULL;
     const char *backing_fmt = NULL;
 
@@ -899,28 +898,28 @@ static int bdrv_cow2_create(const char *filename, QEMUOptionParameter *options)
         options++;
     }
 
-    if (!cow2_is_cluster_size_valid(cluster_size)) {
-        fprintf(stderr, "Cow2 cluster size must be within range [%u, %u] and power of 2\n",
-                COW2_MIN_CLUSTER_SIZE, COW2_MAX_CLUSTER_SIZE);
+    if (!qed_is_cluster_size_valid(cluster_size)) {
+        fprintf(stderr, "QED cluster size must be within range [%u, %u] and power of 2\n",
+                QED_MIN_CLUSTER_SIZE, QED_MAX_CLUSTER_SIZE);
         return -EINVAL;
     }
-    if (!cow2_is_image_size_valid(image_size, cluster_size)) {
-        fprintf(stderr, "Cow2 image size must be a non-zero multiple of cluster size\n");
+    if (!qed_is_image_size_valid(image_size, cluster_size)) {
+        fprintf(stderr, "QED image size must be a non-zero multiple of cluster size\n");
         return -EINVAL;
     }
     if (backing_file && !backing_fmt) {
-        fprintf(stderr, "Cow2 requires a backing file format when a backing file is specified\n");
+        fprintf(stderr, "QED requires a backing file format when a backing file is specified\n");
         return -EINVAL;
     }
 
-    return cow2_create(filename, cluster_size, image_size,
+    return qed_create(filename, cluster_size, image_size,
                        backing_file, backing_fmt);
 }
 
 /**
  * Count the number of contiguous data clusters
  *
- * @s:              COW2 state
+ * @s:              QED state
  * @table:          L2 table
  * @index:          First cluster index
  * @n:              Maximum number of clusters
@@ -928,8 +927,8 @@ static int bdrv_cow2_create(const char *filename, QEMUOptionParameter *options)
  *
  * This function scans tables for contiguous allocated or free clusters.
  */
-static unsigned int cow2_count_contiguous_clusters(BDRVCow2State *s,
-        Cow2Table *table, unsigned int index, unsigned int n, uint64_t *offset)
+static unsigned int qed_count_contiguous_clusters(BDRVQEDState *s,
+        QEDTable *table, unsigned int index, unsigned int n, uint64_t *offset)
 {
     unsigned int end = MIN(index + n, s->table_nelems);
     uint64_t last = table->offsets[index];
@@ -955,47 +954,47 @@ static unsigned int cow2_count_contiguous_clusters(BDRVCow2State *s,
 }
 
 enum {
-    COW2_CLUSTER_FOUND,         /* cluster found */
-    COW2_CLUSTER_L2,            /* cluster missing in L2 */
-    COW2_CLUSTER_L1,            /* cluster missing in L1 */
-    COW2_CLUSTER_ERROR,         /* error looking up cluster */
+    QED_CLUSTER_FOUND,         /* cluster found */
+    QED_CLUSTER_L2,            /* cluster missing in L2 */
+    QED_CLUSTER_L1,            /* cluster missing in L1 */
+    QED_CLUSTER_ERROR,         /* error looking up cluster */
 };
 
-typedef void Cow2FindClusterFunc(void *opaque, int ret, uint64_t offset, size_t len);
+typedef void QEDFindClusterFunc(void *opaque, int ret, uint64_t offset, size_t len);
 typedef struct {
-    BDRVCow2State *s;
+    BDRVQEDState *s;
     uint64_t pos;
     size_t len;
 
-    Cow2Request *request;
+    QEDRequest *request;
 
     /* User callback */
-    Cow2FindClusterFunc *cb;
+    QEDFindClusterFunc *cb;
     void *opaque;
-} Cow2FindClusterCB;
+} QEDFindClusterCB;
 
-static void cow2_find_cluster_cb(void *opaque, int ret)
+static void qed_find_cluster_cb(void *opaque, int ret)
 {
-    Cow2FindClusterCB *find_cluster_cb = opaque;
-    BDRVCow2State *s = find_cluster_cb->s;
-    Cow2Request *request = find_cluster_cb->request;
+    QEDFindClusterCB *find_cluster_cb = opaque;
+    BDRVQEDState *s = find_cluster_cb->s;
+    QEDRequest *request = find_cluster_cb->request;
     uint64_t offset = 0;
     size_t len = 0;
 
     if (ret) {
-        ret = COW2_CLUSTER_ERROR;
+        ret = QED_CLUSTER_ERROR;
         goto out;
     }
 
-    unsigned int index = cow2_l2_index(s, find_cluster_cb->pos);
-    unsigned int n = cow2_bytes_to_clusters(s,
-            cow2_offset_into_cluster(s, find_cluster_cb->pos) +
+    unsigned int index = qed_l2_index(s, find_cluster_cb->pos);
+    unsigned int n = qed_bytes_to_clusters(s,
+            qed_offset_into_cluster(s, find_cluster_cb->pos) +
             find_cluster_cb->len);
 
-    n = cow2_count_contiguous_clusters(s, request->l2_table->table, index, n, &offset);
-    ret = offset ? COW2_CLUSTER_FOUND : COW2_CLUSTER_L2;
+    n = qed_count_contiguous_clusters(s, request->l2_table->table, index, n, &offset);
+    ret = offset ? QED_CLUSTER_FOUND : QED_CLUSTER_L2;
     len = MIN(find_cluster_cb->len, n * s->header.cluster_size -
-              cow2_offset_into_cluster(s, find_cluster_cb->pos));
+              qed_offset_into_cluster(s, find_cluster_cb->pos));
 
 out:
     find_cluster_cb->cb(find_cluster_cb->opaque, ret, offset, len);
@@ -1005,17 +1004,17 @@ out:
 /**
  * Find the offset of a data cluster
  *
- * @s:          COW2 state
+ * @s:          QED state
  * @pos:        Byte position in device
  * @len:        Number of bytes
  * @cb:         Completion function
  * @opaque:     User data for completion function
  */
-static void cow2_find_cluster(BDRVCow2State *s, Cow2Request *request,
+static void qed_find_cluster(BDRVQEDState *s, QEDRequest *request,
                               uint64_t pos, size_t len,
-                              Cow2FindClusterFunc *cb, void *opaque)
+                              QEDFindClusterFunc *cb, void *opaque)
 {
-    Cow2FindClusterCB *find_cluster_cb;
+    QEDFindClusterCB *find_cluster_cb;
     uint64_t l2_offset;
 
     /* Limit length to L2 boundary.  Requests are broken up at the L2 boundary
@@ -1023,9 +1022,9 @@ static void cow2_find_cluster(BDRVCow2State *s, Cow2Request *request,
      */
     len = MIN(len, (((pos >> s->l1_shift) + 1) << s->l1_shift) - pos);
 
-    l2_offset = s->l1_table->offsets[cow2_l1_index(s, pos)];
+    l2_offset = s->l1_table->offsets[qed_l1_index(s, pos)];
     if (!l2_offset) {
-        cb(opaque, COW2_CLUSTER_L1, 0, len);
+        cb(opaque, QED_CLUSTER_L1, 0, len);
         return;
     }
 
@@ -1037,102 +1036,102 @@ static void cow2_find_cluster(BDRVCow2State *s, Cow2Request *request,
     find_cluster_cb->opaque = opaque;
     find_cluster_cb->request = request;
 
-    cow2_read_l2_table(s, request, l2_offset, cow2_find_cluster_cb, find_cluster_cb);
+    qed_read_l2_table(s, request, l2_offset, qed_find_cluster_cb, find_cluster_cb);
 }
 
 typedef struct {
     int is_allocated;
     int *pnum;
-} Cow2IsAllocatedCB;
+} QEDIsAllocatedCB;
 
-static void cow2_is_allocated_cb(void *opaque, int ret, uint64_t offset, size_t len)
+static void qed_is_allocated_cb(void *opaque, int ret, uint64_t offset, size_t len)
 {
-    Cow2IsAllocatedCB *cb = opaque;
+    QEDIsAllocatedCB *cb = opaque;
     *cb->pnum = len / BDRV_SECTOR_SIZE;
-    cb->is_allocated = ret == COW2_CLUSTER_FOUND;
+    cb->is_allocated = ret == QED_CLUSTER_FOUND;
 }
 
-static int bdrv_cow2_is_allocated(BlockDriverState *bs, int64_t sector_num,
+static int bdrv_qed_is_allocated(BlockDriverState *bs, int64_t sector_num,
                                   int nb_sectors, int *pnum)
 {
-    BDRVCow2State *s = bs->opaque;
+    BDRVQEDState *s = bs->opaque;
     uint64_t pos = (uint64_t)sector_num * BDRV_SECTOR_SIZE;
     size_t len = (size_t)nb_sectors * BDRV_SECTOR_SIZE;
-    Cow2IsAllocatedCB cb = {
+    QEDIsAllocatedCB cb = {
         .is_allocated = -1,
         .pnum = pnum,
     };
-    Cow2Request request = { .l2_table = NULL };
+    QEDRequest request = { .l2_table = NULL };
 
     /* TODO push/pop async context? */
 
-    cow2_find_cluster(s, &request, pos, len, cow2_is_allocated_cb, &cb);
+    qed_find_cluster(s, &request, pos, len, qed_is_allocated_cb, &cb);
 
     while (cb.is_allocated == -1) {
         qemu_aio_wait();
     }
 
-    cow2_free_l2_cache_entry(&s->l2_cache, request.l2_table);
+    qed_free_l2_cache_entry(&s->l2_cache, request.l2_table);
 
     return cb.is_allocated;
 }
 
-static int bdrv_cow2_make_empty(BlockDriverState *bs)
+static int bdrv_qed_make_empty(BlockDriverState *bs)
 {
     return -ENOTSUP; /* TODO */
 }
 
-static BDRVCow2State *acb_to_s(Cow2AIOCB *acb)
+static BDRVQEDState *acb_to_s(QEDAIOCB *acb)
 {
     return acb->common.bs->opaque;
 }
 
 typedef struct {
     GenericCB gencb;
-    BDRVCow2State *s;
+    BDRVQEDState *s;
     QEMUIOVector qiov;
     struct iovec iov;
     uint64_t offset;
 } CopyFromBackingFileCB;
 
-static void cow2_copy_from_backing_file_cb(void *opaque, int ret)
+static void qed_copy_from_backing_file_cb(void *opaque, int ret)
 {
     CopyFromBackingFileCB *copy_cb = opaque;
     qemu_vfree(copy_cb->iov.iov_base);
     gencb_complete(&copy_cb->gencb, ret);
 }
 
-static void cow2_copy_from_backing_file_write(void *opaque, int ret)
+static void qed_copy_from_backing_file_write(void *opaque, int ret)
 {
     CopyFromBackingFileCB *copy_cb = opaque;
-    BDRVCow2State *s = copy_cb->s;
+    BDRVQEDState *s = copy_cb->s;
     BlockDriverAIOCB *aiocb;
 
     if (ret) {
-        cow2_copy_from_backing_file_cb(copy_cb, ret);
+        qed_copy_from_backing_file_cb(copy_cb, ret);
         return;
     }
 
     aiocb = bdrv_aio_writev(s->bs->file, copy_cb->offset / BDRV_SECTOR_SIZE,
                             &copy_cb->qiov,
                             copy_cb->qiov.size / BDRV_SECTOR_SIZE,
-                            cow2_copy_from_backing_file_cb, copy_cb);
+                            qed_copy_from_backing_file_cb, copy_cb);
     if (!aiocb) {
-        cow2_copy_from_backing_file_cb(copy_cb, -EIO);
+        qed_copy_from_backing_file_cb(copy_cb, -EIO);
     }
 }
 
 /**
  * Copy data from backing file into the image
  *
- * @s:          COW2 state
+ * @s:          QED state
  * @pos:        Byte position in device
  * @len:        Number of bytes
  * @offset:     Byte offset in image file
  * @cb:         Completion function
  * @opaque:     User data for completion function
  */
-static void cow2_copy_from_backing_file(BDRVCow2State *s, uint64_t pos,
+static void qed_copy_from_backing_file(BDRVQEDState *s, uint64_t pos,
                                         uint64_t len, uint64_t offset,
                                         BlockDriverCompletionFunc *cb,
                                         void *opaque)
@@ -1149,35 +1148,35 @@ static void cow2_copy_from_backing_file(BDRVCow2State *s, uint64_t pos,
     copy_cb = gencb_alloc(sizeof *copy_cb, cb, opaque);
     copy_cb->s = s;
     copy_cb->offset = offset;
-    copy_cb->iov.iov_base = cow2_memalign(s, len);
+    copy_cb->iov.iov_base = qed_memalign(s, len);
     copy_cb->iov.iov_len = len;
     qemu_iovec_init_external(&copy_cb->qiov, &copy_cb->iov, 1);
 
     /* Zero sectors if there is no backing file */
     if (!s->bs->backing_hd) {
         memset(copy_cb->iov.iov_base, 0, len);
-        cow2_copy_from_backing_file_write(copy_cb, 0);
+        qed_copy_from_backing_file_write(copy_cb, 0);
         return;
     }
 
     aiocb = bdrv_aio_readv(s->bs->backing_hd, pos / BDRV_SECTOR_SIZE,
                            &copy_cb->qiov, len / BDRV_SECTOR_SIZE,
-                           cow2_copy_from_backing_file_write, copy_cb);
+                           qed_copy_from_backing_file_write, copy_cb);
     if (!aiocb) {
-        cow2_copy_from_backing_file_cb(copy_cb, -EIO);
+        qed_copy_from_backing_file_cb(copy_cb, -EIO);
     }
 }
 
 /**
  * Link one or more contiguous clusters into a table
  *
- * @s:              COW2 state
+ * @s:              QED state
  * @table:          L2 table
  * @index:          First cluster index
  * @n:              Number of contiguous clusters
  * @cluster:        First cluster byte offset in image file
  */
-static void cow2_update_l2_table(BDRVCow2State *s, Cow2Table *table, int index,
+static void qed_update_l2_table(BDRVQEDState *s, QEDTable *table, int index,
                                  unsigned int n, uint64_t cluster)
 {
     int i;
@@ -1187,11 +1186,11 @@ static void cow2_update_l2_table(BDRVCow2State *s, Cow2Table *table, int index,
     }
 }
 
-static void cow2_aio_next_io(void *opaque, int ret);
+static void qed_aio_next_io(void *opaque, int ret);
 
-static void cow2_aio_complete_bh(void *opaque)
+static void qed_aio_complete_bh(void *opaque)
 {
-    Cow2AIOCB *acb = opaque;
+    QEDAIOCB *acb = opaque;
     BlockDriverCompletionFunc *cb = acb->common.cb;
     void *user_opaque = acb->common.opaque;
     int ret = acb->bh_ret;
@@ -1203,19 +1202,19 @@ static void cow2_aio_complete_bh(void *opaque)
     cb(user_opaque, ret);
 }
 
-static void cow2_aio_complete(Cow2AIOCB *acb, int ret)
+static void qed_aio_complete(QEDAIOCB *acb, int ret)
 {
-    BDRVCow2State *s = acb_to_s(acb);
+    BDRVQEDState *s = acb_to_s(acb);
 
-    trace_cow2_aio_complete(s, acb, ret);
+    trace_qed_aio_complete(s, acb, ret);
 
     /* Free resources */
     qemu_iovec_destroy(&acb->cur_qiov);
-    cow2_free_l2_cache_entry(&s->l2_cache, acb->request.l2_table);
+    qed_free_l2_cache_entry(&s->l2_cache, acb->request.l2_table);
 
     /* Arrange for a bh to invoke the completion function */
     acb->bh_ret = ret;
-    acb->bh = qemu_bh_new(cow2_aio_complete_bh, acb);
+    acb->bh = qemu_bh_new(qed_aio_complete_bh, acb);
     qemu_bh_schedule(acb->bh);
 
     /* Start next request right away */
@@ -1223,7 +1222,7 @@ static void cow2_aio_complete(Cow2AIOCB *acb, int ret)
     if (!QSIMPLEQ_EMPTY(&s->reqs)) {
         acb = QSIMPLEQ_FIRST(&s->reqs);
         acb->request.l2_table = NULL;
-        cow2_aio_next_io(acb, 0);
+        qed_aio_next_io(acb, 0);
     }
 }
 
@@ -1233,7 +1232,7 @@ static void cow2_aio_complete(Cow2AIOCB *acb, int ret)
  * @acb:        I/O request
  * @len:        Maximum number of bytes
  */
-static void cow2_acb_build_qiov(Cow2AIOCB *acb, size_t len)
+static void qed_acb_build_qiov(QEDAIOCB *acb, size_t len)
 {
     struct iovec *iov_end = &acb->qiov->iov[acb->qiov->niov];
     size_t iov_offset = acb->cur_iov_offset;
@@ -1263,44 +1262,44 @@ static void cow2_acb_build_qiov(Cow2AIOCB *acb, size_t len)
 /**
  * Commit the current L2 table to the cache
  */
-static void cow2_commit_l2_update(void *opaque, int ret)
+static void qed_commit_l2_update(void *opaque, int ret)
 {
-    Cow2AIOCB *acb = opaque;
-    BDRVCow2State *s = acb_to_s(acb);
+    QEDAIOCB *acb = opaque;
+    BDRVQEDState *s = acb_to_s(acb);
 
-    cow2_commit_l2_cache_entry(&s->l2_cache, acb->request.l2_table);
-    cow2_aio_next_io(opaque, ret);
+    qed_commit_l2_cache_entry(&s->l2_cache, acb->request.l2_table);
+    qed_aio_next_io(opaque, ret);
 }
 
 /**
  * Update L1 table with new L2 table offset and write it out
  */
-static void cow2_aio_write_l1_update(void *opaque, int ret)
+static void qed_aio_write_l1_update(void *opaque, int ret)
 {
-    Cow2AIOCB *acb = opaque;
-    BDRVCow2State *s = acb_to_s(acb);
+    QEDAIOCB *acb = opaque;
+    BDRVQEDState *s = acb_to_s(acb);
     int index;
 
     if (ret) {
-        cow2_aio_complete(acb, ret);
+        qed_aio_complete(acb, ret);
         return;
     }
 
     /* TODO l2_table reference must still be held */
-    index = cow2_l1_index(s, acb->cur_pos);
+    index = qed_l1_index(s, acb->cur_pos);
     s->l1_table->offsets[index] = acb->request.l2_table->offset;
 
-    cow2_write_l1_table(s, index, 1, cow2_commit_l2_update, acb);
+    qed_write_l1_table(s, index, 1, qed_commit_l2_update, acb);
 }
 
 /**
  * Update L2 table with new cluster offsets and write them out
  */
-static void cow2_aio_write_l2_update(void *opaque, int ret)
+static void qed_aio_write_l2_update(void *opaque, int ret)
 {
-    Cow2AIOCB *acb = opaque;
-    BDRVCow2State *s = acb_to_s(acb);
-    bool need_alloc = acb->find_cluster_ret == COW2_CLUSTER_L1;
+    QEDAIOCB *acb = opaque;
+    BDRVQEDState *s = acb_to_s(acb);
+    bool need_alloc = acb->find_cluster_ret == QED_CLUSTER_L1;
     int index;
 
     if (ret) {
@@ -1308,8 +1307,8 @@ static void cow2_aio_write_l2_update(void *opaque, int ret)
     }
 
     if (need_alloc) {
-        cow2_free_l2_cache_entry(&s->l2_cache, acb->request.l2_table);
-        acb->request.l2_table = cow2_new_l2_table(s);
+        qed_free_l2_cache_entry(&s->l2_cache, acb->request.l2_table);
+        acb->request.l2_table = qed_new_l2_table(s);
         if (!acb->request.l2_table) {
             ret = -EIO;
             goto err;
@@ -1317,174 +1316,174 @@ static void cow2_aio_write_l2_update(void *opaque, int ret)
     }
 
     /* TODO hold reference to l2_table */
-    index = cow2_l2_index(s, acb->cur_pos);
-    cow2_update_l2_table(s, acb->request.l2_table->table, index, acb->cur_nclusters,
+    index = qed_l2_index(s, acb->cur_pos);
+    qed_update_l2_table(s, acb->request.l2_table->table, index, acb->cur_nclusters,
                          acb->cur_cluster);
 
     if (need_alloc) {
         /* Write out the whole new L2 table */
-        cow2_write_l2_table(s, &acb->request, 0, s->table_nelems, true,
-                            cow2_aio_write_l1_update, acb);
+        qed_write_l2_table(s, &acb->request, 0, s->table_nelems, true,
+                            qed_aio_write_l1_update, acb);
     } else {
         /* Write out only the updated part of the L2 table */
-        cow2_write_l2_table(s, &acb->request, index, acb->cur_nclusters, false,
-                            cow2_aio_next_io, acb);
+        qed_write_l2_table(s, &acb->request, index, acb->cur_nclusters, false,
+                            qed_aio_next_io, acb);
     }
     return;
 
 err:
-    cow2_aio_complete(acb, ret);
+    qed_aio_complete(acb, ret);
 }
 
 /**
  * Write data to the image file
  */
-static void cow2_aio_write_main(void *opaque, int ret)
+static void qed_aio_write_main(void *opaque, int ret)
 {
-    Cow2AIOCB *acb = opaque;
-    BDRVCow2State *s = acb_to_s(acb);
-    bool need_alloc = acb->find_cluster_ret != COW2_CLUSTER_FOUND;
+    QEDAIOCB *acb = opaque;
+    BDRVQEDState *s = acb_to_s(acb);
+    bool need_alloc = acb->find_cluster_ret != QED_CLUSTER_FOUND;
     uint64_t offset = acb->cur_cluster;
     BlockDriverAIOCB *file_acb;
 
-    trace_cow2_aio_write_main(s, acb, ret, offset, acb->cur_qiov.size);
+    trace_qed_aio_write_main(s, acb, ret, offset, acb->cur_qiov.size);
 
     if (ret) {
-        cow2_aio_complete(acb, ret);
+        qed_aio_complete(acb, ret);
         return;
     }
 
-    offset += cow2_offset_into_cluster(s, acb->cur_pos);
+    offset += qed_offset_into_cluster(s, acb->cur_pos);
     file_acb = bdrv_aio_writev(s->bs->file, offset / BDRV_SECTOR_SIZE,
                                &acb->cur_qiov,
                                acb->cur_qiov.size / BDRV_SECTOR_SIZE,
-                               need_alloc ? cow2_aio_write_l2_update :
-                                            cow2_aio_next_io,
+                               need_alloc ? qed_aio_write_l2_update :
+                                            qed_aio_next_io,
                                acb);
     if (!file_acb) {
-        cow2_aio_complete(acb, -EIO);
+        qed_aio_complete(acb, -EIO);
     }
 }
 
 /**
  * Populate back untouched region of new data cluster
  */
-static void cow2_aio_write_postfill(void *opaque, int ret)
+static void qed_aio_write_postfill(void *opaque, int ret)
 {
-    Cow2AIOCB *acb = opaque;
-    BDRVCow2State *s = acb_to_s(acb);
+    QEDAIOCB *acb = opaque;
+    BDRVQEDState *s = acb_to_s(acb);
     uint64_t start = acb->cur_pos + acb->cur_qiov.size;
-    uint64_t len = cow2_start_of_cluster(s, start + s->header.cluster_size - 1) - start;
-    uint64_t offset = acb->cur_cluster + cow2_offset_into_cluster(s, acb->cur_pos) + acb->cur_qiov.size;
+    uint64_t len = qed_start_of_cluster(s, start + s->header.cluster_size - 1) - start;
+    uint64_t offset = acb->cur_cluster + qed_offset_into_cluster(s, acb->cur_pos) + acb->cur_qiov.size;
 
     if (ret) {
-        cow2_aio_complete(acb, ret);
+        qed_aio_complete(acb, ret);
         return;
     }
 
-    trace_cow2_aio_write_postfill(s, acb, start, len, offset);
-    cow2_copy_from_backing_file(s, start, len, offset,
-                                cow2_aio_write_main, acb);
+    trace_qed_aio_write_postfill(s, acb, start, len, offset);
+    qed_copy_from_backing_file(s, start, len, offset,
+                                qed_aio_write_main, acb);
 }
 
 /**
  * Populate front untouched region of new data cluster
  */
-static void cow2_aio_write_prefill(Cow2AIOCB *acb)
+static void qed_aio_write_prefill(QEDAIOCB *acb)
 {
-    BDRVCow2State *s = acb_to_s(acb);
-    uint64_t start = cow2_start_of_cluster(s, acb->cur_pos);
-    uint64_t len = cow2_offset_into_cluster(s, acb->cur_pos);
+    BDRVQEDState *s = acb_to_s(acb);
+    uint64_t start = qed_start_of_cluster(s, acb->cur_pos);
+    uint64_t len = qed_offset_into_cluster(s, acb->cur_pos);
 
-    trace_cow2_aio_write_prefill(s, acb, start, len, acb->cur_cluster);
-    cow2_copy_from_backing_file(s, start, len, acb->cur_cluster,
-                                cow2_aio_write_postfill, acb);
+    trace_qed_aio_write_prefill(s, acb, start, len, acb->cur_cluster);
+    qed_copy_from_backing_file(s, start, len, acb->cur_cluster,
+                                qed_aio_write_postfill, acb);
 }
 
 /**
  * Write data cluster
  *
  * @opaque:     Write request
- * @ret:        COW2_CLUSTER_FOUND, COW2_CLUSTER_L2, COW2_CLUSTER_L1,
- *              or COW2_CLUSTER_ERROR
+ * @ret:        QED_CLUSTER_FOUND, QED_CLUSTER_L2, QED_CLUSTER_L1,
+ *              or QED_CLUSTER_ERROR
  * @offset:     Cluster offset in bytes
  * @len:        Length in bytes
  *
- * Callback from cow2_find_cluster().
+ * Callback from qed_find_cluster().
  */
-static void cow2_aio_write_data(void *opaque, int ret,
+static void qed_aio_write_data(void *opaque, int ret,
                                 uint64_t offset, size_t len)
 {
-    Cow2AIOCB *acb = opaque;
-    BDRVCow2State *s = acb_to_s(acb);
-    bool need_alloc = ret != COW2_CLUSTER_FOUND;
+    QEDAIOCB *acb = opaque;
+    BDRVQEDState *s = acb_to_s(acb);
+    bool need_alloc = ret != QED_CLUSTER_FOUND;
 
-    trace_cow2_aio_write_data(s, acb, ret, offset, len);
+    trace_qed_aio_write_data(s, acb, ret, offset, len);
 
-    if (ret == COW2_CLUSTER_ERROR) {
+    if (ret == QED_CLUSTER_ERROR) {
         goto err;
     }
 
-    acb->cur_nclusters = cow2_bytes_to_clusters(s,
-            cow2_offset_into_cluster(s, acb->cur_pos) + len);
+    acb->cur_nclusters = qed_bytes_to_clusters(s,
+            qed_offset_into_cluster(s, acb->cur_pos) + len);
 
     if (need_alloc) {
-        if (cow2_alloc_clusters(s, acb->cur_nclusters, &offset) != 0) {
+        if (qed_alloc_clusters(s, acb->cur_nclusters, &offset) != 0) {
             goto err;
         }
     }
 
     acb->find_cluster_ret = ret;
     acb->cur_cluster = offset;
-    cow2_acb_build_qiov(acb, len);
+    qed_acb_build_qiov(acb, len);
 
     if (need_alloc) {
-        cow2_aio_write_prefill(acb);
+        qed_aio_write_prefill(acb);
     } else {
-        cow2_aio_write_main(acb, 0);
+        qed_aio_write_main(acb, 0);
     }
     return;
 
 err:
-    cow2_aio_complete(acb, -EIO);
+    qed_aio_complete(acb, -EIO);
 }
 
 /**
  * Read data cluster
  *
  * @opaque:     Read request
- * @ret:        COW2_CLUSTER_FOUND, COW2_CLUSTER_L2, COW2_CLUSTER_L1,
- *              or COW2_CLUSTER_ERROR
+ * @ret:        QED_CLUSTER_FOUND, QED_CLUSTER_L2, QED_CLUSTER_L1,
+ *              or QED_CLUSTER_ERROR
  * @offset:     Cluster offset in bytes
  * @len:        Length in bytes
  *
- * Callback from cow2_find_cluster().
+ * Callback from qed_find_cluster().
  */
-static void cow2_aio_read_data(void *opaque, int ret,
+static void qed_aio_read_data(void *opaque, int ret,
                                uint64_t offset, size_t len)
 {
-    Cow2AIOCB *acb = opaque;
-    BDRVCow2State *s = acb_to_s(acb);
+    QEDAIOCB *acb = opaque;
+    BDRVQEDState *s = acb_to_s(acb);
     BlockDriverState *bs = acb->common.bs;
     BlockDriverState *file = bs->file;
     BlockDriverAIOCB *file_acb;
 
-    trace_cow2_aio_read_data(s, acb, ret, offset, len);
+    trace_qed_aio_read_data(s, acb, ret, offset, len);
 
-    if (ret == COW2_CLUSTER_ERROR) {
+    if (ret == QED_CLUSTER_ERROR) {
         goto err;
     }
 
-    cow2_acb_build_qiov(acb, len);
+    qed_acb_build_qiov(acb, len);
 
     /* Adjust offset into cluster */
-    offset += cow2_offset_into_cluster(s, acb->cur_pos);
+    offset += qed_offset_into_cluster(s, acb->cur_pos);
 
     /* Handle backing file and unallocated sparse hole reads */
-    if (ret != COW2_CLUSTER_FOUND) {
+    if (ret != QED_CLUSTER_FOUND) {
         if (!bs->backing_hd) {
             qemu_iovec_zero(&acb->cur_qiov);
-            cow2_aio_next_io(acb, 0);
+            qed_aio_next_io(acb, 0);
             return;
         }
 
@@ -1496,31 +1495,31 @@ static void cow2_aio_read_data(void *opaque, int ret,
     file_acb = bdrv_aio_readv(file, offset / BDRV_SECTOR_SIZE,
                               &acb->cur_qiov,
                               acb->cur_qiov.size / BDRV_SECTOR_SIZE,
-                              cow2_aio_next_io, acb);
+                              qed_aio_next_io, acb);
     if (!file_acb) {
         goto err;
     }
     return;
 
 err:
-    cow2_aio_complete(acb, -EIO);
+    qed_aio_complete(acb, -EIO);
 }
 
 /**
  * Begin next I/O or complete the request
  */
-static void cow2_aio_next_io(void *opaque, int ret)
+static void qed_aio_next_io(void *opaque, int ret)
 {
-    Cow2AIOCB *acb = opaque;
-    BDRVCow2State *s = acb_to_s(acb);
-    Cow2FindClusterFunc *io_fn =
-        acb->is_write ? cow2_aio_write_data : cow2_aio_read_data;
+    QEDAIOCB *acb = opaque;
+    BDRVQEDState *s = acb_to_s(acb);
+    QEDFindClusterFunc *io_fn =
+        acb->is_write ? qed_aio_write_data : qed_aio_read_data;
 
-    trace_cow2_aio_next_io(s, acb, ret, acb->cur_pos + acb->cur_qiov.size);
+    trace_qed_aio_next_io(s, acb, ret, acb->cur_pos + acb->cur_qiov.size);
 
     /* Handle I/O error */
     if (ret) {
-        cow2_aio_complete(acb, ret);
+        qed_aio_complete(acb, ret);
         return;
     }
 
@@ -1528,24 +1527,24 @@ static void cow2_aio_next_io(void *opaque, int ret)
 
     /* Complete request */
     if (acb->cur_pos >= acb->end_pos) {
-        cow2_aio_complete(acb, 0);
+        qed_aio_complete(acb, 0);
         return;
     }
 
     /* Find next cluster and start I/O */
-    cow2_find_cluster(s, &acb->request,
+    qed_find_cluster(s, &acb->request,
                       acb->cur_pos, acb->end_pos - acb->cur_pos,
                       io_fn, acb);
 }
 
-static BlockDriverAIOCB *cow2_aio_setup(BlockDriverState *bs,
+static BlockDriverAIOCB *qed_aio_setup(BlockDriverState *bs,
         int64_t sector_num, QEMUIOVector *qiov, int nb_sectors,
         BlockDriverCompletionFunc *cb, void *opaque, bool is_write)
 {
-    Cow2AIOCB *acb = qemu_aio_get(&cow2_aio_pool, bs, cb, opaque);
-    BDRVCow2State *s = acb_to_s(acb);
+    QEDAIOCB *acb = qemu_aio_get(&qed_aio_pool, bs, cb, opaque);
+    BDRVQEDState *s = acb_to_s(acb);
 
-    trace_cow2_aio_setup(bs->opaque, acb, sector_num, nb_sectors,
+    trace_qed_aio_setup(bs->opaque, acb, sector_num, nb_sectors,
                          opaque, is_write);
 
     acb->is_write = is_write;
@@ -1561,64 +1560,64 @@ static BlockDriverAIOCB *cow2_aio_setup(BlockDriverState *bs,
     /* Start request if no other request is executing */
     if (QSIMPLEQ_FIRST(&s->reqs) == acb) {
         acb->request.l2_table = NULL;
-        cow2_aio_next_io(acb, 0);
+        qed_aio_next_io(acb, 0);
     }
 
     return &acb->common;
 }
 
-static BlockDriverAIOCB *bdrv_cow2_aio_readv(BlockDriverState *bs,
+static BlockDriverAIOCB *bdrv_qed_aio_readv(BlockDriverState *bs,
         int64_t sector_num, QEMUIOVector *qiov, int nb_sectors,
         BlockDriverCompletionFunc *cb, void *opaque)
 {
-    return cow2_aio_setup(bs, sector_num, qiov, nb_sectors, cb, opaque, false);
+    return qed_aio_setup(bs, sector_num, qiov, nb_sectors, cb, opaque, false);
 }
 
-static BlockDriverAIOCB *bdrv_cow2_aio_writev(BlockDriverState *bs,
+static BlockDriverAIOCB *bdrv_qed_aio_writev(BlockDriverState *bs,
         int64_t sector_num, QEMUIOVector *qiov, int nb_sectors,
         BlockDriverCompletionFunc *cb, void *opaque)
 {
-    return cow2_aio_setup(bs, sector_num, qiov, nb_sectors, cb, opaque, true);
+    return qed_aio_setup(bs, sector_num, qiov, nb_sectors, cb, opaque, true);
 }
 
-static BlockDriverAIOCB *bdrv_cow2_aio_flush(BlockDriverState *bs,
+static BlockDriverAIOCB *bdrv_qed_aio_flush(BlockDriverState *bs,
         BlockDriverCompletionFunc *cb, void *opaque)
 {
     return bdrv_aio_flush(bs->file, cb, opaque);
 }
 
-static int bdrv_cow2_truncate(BlockDriverState *bs, int64_t offset)
+static int bdrv_qed_truncate(BlockDriverState *bs, int64_t offset)
 {
     return -ENOTSUP; /* TODO */
 }
 
-static int64_t bdrv_cow2_getlength(BlockDriverState *bs)
+static int64_t bdrv_qed_getlength(BlockDriverState *bs)
 {
-    BDRVCow2State *s = bs->opaque;
+    BDRVQEDState *s = bs->opaque;
     return s->header.image_size;
 }
 
-static int bdrv_cow2_get_info(BlockDriverState *bs, BlockDriverInfo *bdi)
+static int bdrv_qed_get_info(BlockDriverState *bs, BlockDriverInfo *bdi)
 {
-    BDRVCow2State *s = bs->opaque;
+    BDRVQEDState *s = bs->opaque;
 
     memset(bdi, 0, sizeof *bdi);
     bdi->cluster_size = s->header.cluster_size;
     return 0;
 }
 
-static int bdrv_cow2_change_backing_file(BlockDriverState *bs,
+static int bdrv_qed_change_backing_file(BlockDriverState *bs,
         const char *backing_file, const char *backing_fmt)
 {
     return -ENOTSUP; /* TODO */
 }
 
-static int bdrv_cow2_check(BlockDriverState* bs, BdrvCheckResult *result)
+static int bdrv_qed_check(BlockDriverState* bs, BdrvCheckResult *result)
 {
     return -ENOTSUP; /* TODO */
 }
 
-static QEMUOptionParameter cow2_create_options[] = {
+static QEMUOptionParameter qed_create_options[] = {
     {
         .name = BLOCK_OPT_SIZE,
         .type = OPT_SIZE,
@@ -1642,31 +1641,31 @@ static QEMUOptionParameter cow2_create_options[] = {
     { NULL }
 };
 
-static BlockDriver bdrv_cow2 = {
-    .format_name = "cow2",
-    .instance_size = sizeof(BDRVCow2State),
-    .create_options = cow2_create_options,
+static BlockDriver bdrv_qed = {
+    .format_name = "qed",
+    .instance_size = sizeof(BDRVQEDState),
+    .create_options = qed_create_options,
 
-    .bdrv_probe = bdrv_cow2_probe,
-    .bdrv_open = bdrv_cow2_open,
-    .bdrv_close = bdrv_cow2_close,
-    .bdrv_create = bdrv_cow2_create,
-    .bdrv_flush = bdrv_cow2_flush,
-    .bdrv_is_allocated = bdrv_cow2_is_allocated,
-    .bdrv_make_empty = bdrv_cow2_make_empty,
-    .bdrv_aio_readv = bdrv_cow2_aio_readv,
-    .bdrv_aio_writev = bdrv_cow2_aio_writev,
-    .bdrv_aio_flush = bdrv_cow2_aio_flush,
-    .bdrv_truncate = bdrv_cow2_truncate,
-    .bdrv_getlength = bdrv_cow2_getlength,
-    .bdrv_get_info = bdrv_cow2_get_info,
-    .bdrv_change_backing_file = bdrv_cow2_change_backing_file,
-    .bdrv_check = bdrv_cow2_check,
+    .bdrv_probe = bdrv_qed_probe,
+    .bdrv_open = bdrv_qed_open,
+    .bdrv_close = bdrv_qed_close,
+    .bdrv_create = bdrv_qed_create,
+    .bdrv_flush = bdrv_qed_flush,
+    .bdrv_is_allocated = bdrv_qed_is_allocated,
+    .bdrv_make_empty = bdrv_qed_make_empty,
+    .bdrv_aio_readv = bdrv_qed_aio_readv,
+    .bdrv_aio_writev = bdrv_qed_aio_writev,
+    .bdrv_aio_flush = bdrv_qed_aio_flush,
+    .bdrv_truncate = bdrv_qed_truncate,
+    .bdrv_getlength = bdrv_qed_getlength,
+    .bdrv_get_info = bdrv_qed_get_info,
+    .bdrv_change_backing_file = bdrv_qed_change_backing_file,
+    .bdrv_check = bdrv_qed_check,
 };
 
-static void bdrv_cow2_init(void)
+static void bdrv_qed_init(void)
 {
-    bdrv_register(&bdrv_cow2);
+    bdrv_register(&bdrv_qed);
 }
 
-block_init(bdrv_cow2_init);
+block_init(bdrv_qed_init);
