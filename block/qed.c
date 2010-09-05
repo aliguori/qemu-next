@@ -721,7 +721,6 @@ static void qed_aio_write_l1_update(void *opaque, int ret)
         return;
     }
 
-    /* TODO l2_table reference must still be held */
     index = qed_l1_index(s, acb->cur_pos);
     s->l1_table->offsets[index] = acb->request.l2_table->offset;
 
@@ -751,7 +750,6 @@ static void qed_aio_write_l2_update(void *opaque, int ret)
         }
     }
 
-    /* TODO hold reference to l2_table */
     index = qed_l2_index(s, acb->cur_pos);
     qed_update_l2_table(s, acb->request.l2_table->table, index, acb->cur_nclusters,
                          acb->cur_cluster);
