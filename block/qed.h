@@ -97,7 +97,7 @@ typedef struct QEDAIOCB {
     BlockDriverAIOCB common;
     QEMUBH *bh;
     int bh_ret;                     /* final return status for completion bh */
-    QSIMPLEQ_ENTRY(QEDAIOCB) next; /* next request */
+    QSIMPLEQ_ENTRY(QEDAIOCB) next;  /* next request */
     bool is_write;                  /* false - read, true - write */
 
     /* User scatter-gather list */
@@ -120,7 +120,7 @@ typedef struct {
     BlockDriverState *bs;           /* device */
     uint64_t file_size;             /* length of image file, in bytes */
 
-    QEDHeader header;              /* always cpu-endian */
+    QEDHeader header;               /* always cpu-endian */
     QEDTable *l1_table;
     L2TableCache l2_cache;          /* l2 table cache */
     uint32_t table_nelems;
