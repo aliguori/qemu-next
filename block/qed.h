@@ -128,8 +128,8 @@ typedef struct {
     uint32_t l2_shift;
     uint32_t l2_mask;
 
-    /* Pending request queue */
-    QSIMPLEQ_HEAD(, QEDAIOCB) reqs;
+    /* Allocating write request queue */
+    QSIMPLEQ_HEAD(, QEDAIOCB) allocating_write_reqs;
 } BDRVQEDState;
 
 enum {

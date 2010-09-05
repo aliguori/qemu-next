@@ -16,12 +16,6 @@
 #include "qed.h"
 
 /* TODO blkdebug support */
-/* TODO avoid corruption caused by interference between pending requests.
- * Asynchronous tasks are interleaved across their blocking points.  This means
- * any global resource can be mutated across a blocking point.  One solution is
- * to introduce waitqueues for L2 and data cluster operations as well as L2
- * cache operations.
- */
 /* TODO BlockDriverState::buffer_alignment */
 /* TODO check L2 table sizes before accessing them? */
 /* TODO skip zero prefill since the filesystem should zero the sectors anyway */
@@ -279,7 +273,7 @@ static int bdrv_qed_open(BlockDriverState *bs, int flags)
     int ret;
 
     s->bs = bs;
-    QSIMPLEQ_INIT(&s->reqs);
+    QSIMPLEQ_INIT(&s->allocating_write_reqs);
 
     ret = bdrv_pread(bs->file, 0, &le_header, sizeof(le_header));
     if (ret != sizeof(le_header)) {
@@ -655,12 +649,18 @@ static void qed_aio_complete(QEDAIOCB *acb, int ret)
     acb->bh = qemu_bh_new(qed_aio_complete_bh, acb);
     qemu_bh_schedule(acb->bh);
 
-    /* Start next request right away */
-    QSIMPLEQ_REMOVE_HEAD(&s->reqs, next);
-    if (!QSIMPLEQ_EMPTY(&s->reqs)) {
-        acb = QSIMPLEQ_FIRST(&s->reqs);
-        acb->request.l2_table = NULL;
-        qed_aio_next_io(acb, 0);
+    /* Start next allocating write request waiting behind this one.  Note that
+     * requests enqueue themselves when they first hit an unallocated cluster
+     * but they wait until the entire request is finished before waking up the
+     * next request in the queue.  This ensures that we don't cycle through
+     * requests multiple times but rather finish one at a time completely.
+     */
+    if (acb == QSIMPLEQ_FIRST(&s->allocating_write_reqs)) {
+        QSIMPLEQ_REMOVE_HEAD(&s->allocating_write_reqs, next);
+        acb = QSIMPLEQ_FIRST(&s->allocating_write_reqs);
+        if (acb) {
+            qed_aio_next_io(acb, 0);
+        }
     }
 }
 
@@ -675,8 +675,6 @@ static void qed_acb_build_qiov(QEDAIOCB *acb, size_t len)
     struct iovec *iov_end = &acb->qiov->iov[acb->qiov->niov];
     size_t iov_offset = acb->cur_iov_offset;
     struct iovec *iov = acb->cur_iov;
-
-    qemu_iovec_reset(&acb->cur_qiov);
 
     /* Fill in one cluster's worth of iovecs */
     while (iov != iov_end && len > 0) {
@@ -862,6 +860,16 @@ static void qed_aio_write_data(void *opaque, int ret,
         goto err;
     }
 
+    /* Freeze this request if another allocating write is in progress */
+    if (need_alloc) {
+        if (acb != QSIMPLEQ_FIRST(&s->allocating_write_reqs)) {
+            QSIMPLEQ_INSERT_TAIL(&s->allocating_write_reqs, acb, next);
+        }
+        if (acb != QSIMPLEQ_FIRST(&s->allocating_write_reqs)) {
+            return; /* wait for existing request to finish */
+        }
+    }
+
     acb->cur_nclusters = qed_bytes_to_clusters(s,
                              qed_offset_into_cluster(s, acb->cur_pos) + len);
 
@@ -962,6 +970,7 @@ static void qed_aio_next_io(void *opaque, int ret)
     }
 
     acb->cur_pos += acb->cur_qiov.size;
+    qemu_iovec_reset(&acb->cur_qiov);
 
     /* Complete request */
     if (acb->cur_pos >= acb->end_pos) {
@@ -982,7 +991,6 @@ static BlockDriverAIOCB *qed_aio_setup(BlockDriverState *bs,
                                        void *opaque, bool is_write)
 {
     QEDAIOCB *acb = qemu_aio_get(&qed_aio_pool, bs, cb, opaque);
-    BDRVQEDState *s = acb_to_s(acb);
 
     trace_qed_aio_setup(bs->opaque, acb, sector_num, nb_sectors,
                          opaque, is_write);
@@ -993,16 +1001,11 @@ static BlockDriverAIOCB *qed_aio_setup(BlockDriverState *bs,
     acb->cur_iov_offset = 0;
     acb->cur_pos = (uint64_t)sector_num * BDRV_SECTOR_SIZE;
     acb->end_pos = acb->cur_pos + nb_sectors * BDRV_SECTOR_SIZE;
+    acb->request.l2_table = NULL;
     qemu_iovec_init(&acb->cur_qiov, qiov->niov);
 
-    QSIMPLEQ_INSERT_TAIL(&s->reqs, acb, next);
-
-    /* Start request if no other request is executing */
-    if (QSIMPLEQ_FIRST(&s->reqs) == acb) {
-        acb->request.l2_table = NULL;
-        qed_aio_next_io(acb, 0);
-    }
-
+    /* Start request */
+    qed_aio_next_io(acb, 0);
     return &acb->common;
 }
 
