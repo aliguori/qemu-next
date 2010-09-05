@@ -44,6 +44,8 @@ void qed_free_l2_cache(L2TableCache *l2_cache)
 
 /**
  * Allocate an uninitialized entry from the cache
+ *
+ * The returned entry has a reference count of 1 and is owned by the caller.
  */
 CachedL2Table *qed_alloc_l2_cache_entry(L2TableCache *l2_cache)
 {
@@ -57,11 +59,10 @@ CachedL2Table *qed_alloc_l2_cache_entry(L2TableCache *l2_cache)
 }
 
 /**
- * Free an entry.  If the entry has not been committed to the cache, this will
- * free the memory.  If the entry has been committed to the cache, it may be
- * it's resources may not be freed until it's evicted from the cache.
+ * Decrease an entry's reference count and free if necessary when the reference
+ * count drops to zero.
  */
-void qed_free_l2_cache_entry(L2TableCache *l2_cache, CachedL2Table *entry)
+void qed_unref_l2_cache_entry(L2TableCache *l2_cache, CachedL2Table *entry)
 {
     if (!entry) {
         return;
@@ -77,6 +78,9 @@ void qed_free_l2_cache_entry(L2TableCache *l2_cache, CachedL2Table *entry)
 /**
  * Find an entry in the L2 cache.  This may return NULL and it's up to the
  * caller to satisfy the cache miss.
+ *
+ * For a cached entry, this function increases the reference count and returns
+ * the entry.
  */
 CachedL2Table *qed_find_l2_cache_entry(L2TableCache *l2_cache, uint64_t offset)
 {
@@ -100,6 +104,9 @@ CachedL2Table *qed_find_l2_cache_entry(L2TableCache *l2_cache, uint64_t offset)
  * Since the cache is write-through, it's important that this function is not
  * called until the entry is present on disk and the L1 has been updated to
  * point to the entry.
+ *
+ * This function will take a reference to the entry so the caller is still
+ * responsible for unreferencing the entry.
  */
 void qed_commit_l2_cache_entry(L2TableCache *l2_cache, CachedL2Table *l2_table)
 {
@@ -107,7 +114,7 @@ void qed_commit_l2_cache_entry(L2TableCache *l2_cache, CachedL2Table *l2_table)
 
     entry = qed_find_l2_cache_entry(l2_cache, l2_table->offset);
     if (entry) {
-        qed_free_l2_cache_entry(l2_cache, entry);
+        qed_unref_l2_cache_entry(l2_cache, entry);
         return;
     }
 
@@ -115,7 +122,7 @@ void qed_commit_l2_cache_entry(L2TableCache *l2_cache, CachedL2Table *l2_table)
         entry = QTAILQ_FIRST(&l2_cache->entries);
         QTAILQ_REMOVE(&l2_cache->entries, entry, node);
         l2_cache->n_entries--;
-        qed_free_l2_cache_entry(l2_cache, entry);
+        qed_unref_l2_cache_entry(l2_cache, entry);
     }
 
     l2_table->ref++;
