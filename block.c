@@ -2065,6 +2065,37 @@ BlockDriverAIOCB *bdrv_aio_writev(BlockDriverState *bs, int64_t sector_num,
     return ret;
 }
 
+/**
+ * Attempt to stream an image starting from sector_num.
+ *
+ * @sector_num - the first sector to start streaming from
+ * @cb - block completion callback
+ * @opaque - data to pass completion callback
+ *
+ * Returns NULL if the image format not support streaming.
+ *
+ * The intention of this function is for a user to execute it once with a
+ * sector_num of 0 and then upon receiving a completion callback, to remember
+ * the number of sectors "streamed", and then to call this function again with
+ * an offset adjusted by the number of sectors previously streamed.
+ *
+ * This allows a user to progressive stream in an image at a pace that makes
+ * sense.  In general, this function tries to do the smallest amount of I/O
+ * possible to do some useful work.
+ *
+ * This function only really makes sense in combination with a block format
+ * that supports copy on read and has it enabled.  If copy on read is not
+ * enabled, a block format driver may return NULL.
+ */
+BlockDriverAIOCB *bdrv_aio_stream(BlockDriverState *bs, int64_t sector_num,
+                                  BlockDriverCompletionFunc *cb, void *opaque)
+{
+    if (!bs->drv->bdrv_aio_stream) {
+        return NULL;
+    }
+
+    return bs->drv->bdrv_aio_stream(bs, sector_num, cb, opaque);
+}
 
 typedef struct MultiwriteCB {
     int error;
