@@ -38,6 +38,34 @@ Commit changes to the disk images (if -snapshot is used) or backing files.
 ETEXI
 
     {
+        .name       = "stream",
+        .args_type  = "device:B,offset:i",
+        .params     = "device offset",
+        .help       = "try to stream data from device starting at offset",
+        .mhandler.cmd = do_stream,
+    },
+
+STEXI
+@item stream
+@findex stream
+Try to stream data from a device starting at offset.
+ETEXI
+
+    {
+        .name       = "stream_all",
+        .args_type  = "device:B",
+        .params     = "device",
+        .help       = "try to stream data from device starting at offset",
+        .mhandler.cmd = do_stream_all,
+    },
+
+STEXI
+@item stream_all
+@findex stream_all
+Try to stream data from a device starting at offset.
+ETEXI
+
+    {
         .name       = "q|quit",
         .args_type  = "",
         .params     = "",

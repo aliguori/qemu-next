@@ -51,5 +51,7 @@ int do_eject(Monitor *mon, const QDict *qdict, QObject **ret_data);
 int do_block_set_passwd(Monitor *mon, const QDict *qdict, QObject **ret_data);
 int do_change_block(Monitor *mon, const char *device,
                     const char *filename, const char *fmt);
+void do_stream(Monitor *mon, const QDict *qdict);
+void do_stream_all(Monitor *mon, const QDict *qdict);
 
 #endif
