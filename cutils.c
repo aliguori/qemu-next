@@ -283,3 +283,17 @@ int fcntl_setfl(int fd, int flag)
 }
 #endif
 
+void bytes_to_str(char *buffer, size_t buffer_len, uint64_t size)
+{
+    if (size < (1ULL << 10)) {
+        snprintf(buffer, buffer_len, "%" PRIu64 " byte(s)", size);
+    } else if (size < (1ULL << 20)) {
+        snprintf(buffer, buffer_len, "%" PRIu64 " KB(s)", size >> 10);
+    } else if (size < (1ULL << 30)) {
+        snprintf(buffer, buffer_len, "%" PRIu64 " MB(s)", size >> 20);
+    } else if (size < (1ULL << 40)) {
+        snprintf(buffer, buffer_len, "%" PRIu64 " GB(s)", size >> 30);
+    } else {
+        snprintf(buffer, buffer_len, "%" PRIu64 " TB(s)", size >> 40);
+    }
+}
