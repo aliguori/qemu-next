@@ -512,6 +512,116 @@ void do_commit(Monitor *mon, const QDict *qdict)
     }
 }
 
+typedef struct StreamState
+{
+    Monitor *mon;
+    bool monitor_suspended;
+    int64_t offset;
+    bool once;
+    BlockDriverState *bs;
+} StreamState;
+
+static StreamState global_stream;
+static StreamState *active_stream;
+
+static void do_stream_cb(void *opaque, int ret)
+{
+    StreamState *s = opaque;
+
+    if (ret < 0) {
+        monitor_printf(s->mon, "Error occurred while streaming\n");
+    } else {
+        int64_t length;
+
+        length = (s->offset + ret) * BDRV_SECTOR_SIZE;
+        monitor_printf(s->mon,
+                       "\rStreamed %d sector(s) %" PRId64 "%%               ",
+                       ret, length * 100 / bdrv_getlength(s->bs));
+        if (length == bdrv_getlength(s->bs)) {
+            monitor_printf(s->mon, "\nReached end of device\n");
+        } else if (!s->once) {
+            s->offset += ret;
+            bdrv_aio_stream(s->bs, s->offset, do_stream_cb, s);
+            return;
+        } else {
+            monitor_printf(s->mon, "\n");
+        }
+    }
+
+    if (s->monitor_suspended) {
+        monitor_resume(s->mon);
+    }
+
+    active_stream = NULL;
+}
+
+static StreamState *stream_start(Monitor *mon, const char *device, int64_t offset)
+{
+    BlockDriverState *bs;
+    StreamState *s = &global_stream;
+    BlockDriverAIOCB *acb;
+
+    if (active_stream) {
+        qerror_report(QERR_DEVICE_IN_USE, device);
+        return NULL;
+    }
+
+    bs = bdrv_find(device);
+    if (!bs) {
+        qerror_report(QERR_DEVICE_NOT_FOUND, device);
+        return NULL;
+    }
+
+    if ((offset * BDRV_SECTOR_SIZE) >= bdrv_getlength(bs)) {
+        qerror_report(QERR_INVALID_PARAMETER_VALUE,
+                      "offset", "a sector size less than device length");
+        return NULL;
+    }
+
+    acb = bdrv_aio_stream(bs, offset, do_stream_cb, s);
+    if (acb == NULL) {
+        qerror_report(QERR_NOT_SUPPORTED);
+        return NULL;
+    }
+
+    if (monitor_suspend(mon)) {
+        s->monitor_suspended = false;
+    } else {
+        s->monitor_suspended = true;
+    }
+
+    s->mon = mon;
+    s->offset = offset;
+    s->bs = bs;
+
+    active_stream = s;
+
+    return s;
+}
+
+void do_stream(Monitor *mon, const QDict *qdict)
+{
+    const char *device = qdict_get_str(qdict, "device");
+    int64_t offset = qdict_get_int(qdict, "offset");
+    StreamState *s;
+
+    s = stream_start(mon, device, offset);
+    if (s) {
+        s->once = true;
+    }
+}
+
+void do_stream_all(Monitor *mon, const QDict *qdict)
+{
+    const char *device = qdict_get_str(qdict, "device");
+    StreamState *s;
+
+    s = stream_start(mon, device, 0);
+    if (s) {
+        s->once = false;
+    }
+}
+
 static int eject_device(Monitor *mon, BlockDriverState *bs, int force)
 {
     if (!force) {

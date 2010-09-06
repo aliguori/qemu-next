@@ -153,6 +153,10 @@ static const QErrorStringTable qerror_table[] = {
         .desc      = "No '%(bus)' bus found for device '%(device)'",
     },
     {
+        .error_fmt = QERR_NOT_SUPPORTED,
+        .desc      = "Operation is not supported",
+    },
+    {
         .error_fmt = QERR_OPEN_FILE_FAILED,
         .desc      = "Could not open '%(filename)'",
     },
