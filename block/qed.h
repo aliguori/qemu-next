@@ -56,12 +56,19 @@ enum {
     /* The backing file format must not be probed, treat as raw image */
     QED_F_BACKING_FORMAT_NO_PROBE = 0x04,
 
-    /* Feature bits must be used when the on-disk format changes */
-    QED_FEATURE_MASK = QED_F_BACKING_FILE | /* supported feature bits */
+    /* Reads to the backing file should populate the image file */
+    QED_CF_COPY_ON_READ = 0x01,
+
+    /* Supported feature bits */
+    QED_FEATURE_MASK = QED_F_BACKING_FILE |
                        QED_F_NEED_CHECK |
                        QED_F_BACKING_FORMAT_NO_PROBE,
-    QED_COMPAT_FEATURE_MASK = 0,            /* supported compat feature bits */
-    QED_AUTOCLEAR_FEATURE_MASK = 0,         /* supported autoclear feature bits */
+
+    /* Supported compat feature bits */
+    QED_COMPAT_FEATURE_MASK = QED_CF_COPY_ON_READ,
+
+    /* Supported autoclear feature bits */
+    QED_AUTOCLEAR_FEATURE_MASK = 0,
 
     /* Data is stored in groups of sectors called clusters.  Cluster size must
      * be large to avoid keeping too much metadata.  I/O requests that have

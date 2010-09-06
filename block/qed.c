@@ -434,7 +434,8 @@ static void bdrv_qed_flush(BlockDriverState *bs)
 
 static int qed_create(const char *filename, uint32_t cluster_size,
                       uint64_t image_size, uint32_t table_size,
-                      const char *backing_file, const char *backing_fmt)
+                      const char *backing_file, const char *backing_fmt,
+                      bool copy_on_read)
 {
     QEDHeader header = {
         .magic = QED_MAGIC,
@@ -464,6 +465,9 @@ static int qed_create(const char *filename, uint32_t cluster_size,
 
         if (qed_fmt_is_raw(backing_fmt)) {
             header.features |= QED_F_BACKING_FORMAT_NO_PROBE;
+        }
+        if (copy_on_read) {
+            header.compat_features |= QED_CF_COPY_ON_READ;
         }
     }
 
@@ -497,6 +501,7 @@ static int bdrv_qed_create(const char *filename, QEMUOptionParameter *options)
     uint32_t table_size = QED_DEFAULT_TABLE_SIZE;
     const char *backing_file = NULL;
     const char *backing_fmt = NULL;
+    bool copy_on_read = false;
 
     while (options && options->name) {
         if (!strcmp(options->name, BLOCK_OPT_SIZE)) {
@@ -512,6 +517,10 @@ static int bdrv_qed_create(const char *filename, QEMUOptionParameter *options)
         } else if (!strcmp(options->name, "table_size")) {
             if (options->value.n) {
                 table_size = options->value.n;
+            }
+        } else if (!strcmp(options->name, "copy_on_read")) {
+            if (options->value.n) {
+                copy_on_read = true;
             }
         }
         options++;
@@ -538,9 +547,14 @@ static int bdrv_qed_create(const char *filename, QEMUOptionParameter *options)
                 buffer);
         return -EINVAL;
     }
+    if (copy_on_read && !backing_file) {
+        fprintf(stderr,
+                "QED only supports Copy-on-Read with a backing file\n");
+        return -EINVAL;
+    }
 
     return qed_create(filename, cluster_size, image_size, table_size,
-                      backing_file, backing_fmt);
+                      backing_file, backing_fmt, copy_on_read);
 }
 
 typedef struct {
@@ -1032,6 +1046,27 @@ static void qed_aio_write_data(void *opaque, int ret,
 }
 
 /**
+ * Copy on read callback
+ *
+ * Write data from backing file to QED that's been read if CoR is enabled.
+ */
+static void qed_copy_on_read_cb(void *opaque, int ret)
+{
+    QEDAIOCB *acb = opaque;
+    BDRVQEDState *s = acb_to_s(acb);
+    BlockDriverAIOCB *cor_acb;
+
+    cor_acb = bdrv_aio_writev(s->bs,
+                              acb->cur_pos / BDRV_SECTOR_SIZE,
+                              &acb->cur_qiov,
+                              acb->cur_qiov.size / BDRV_SECTOR_SIZE,
+                              qed_aio_next_io, acb);
+    if (!cor_acb) {
+        qed_aio_complete(acb, -EIO);
+    }
+}
+
+/**
  * Read data cluster
  *
  * @opaque:     Read request
@@ -1050,6 +1085,7 @@ static void qed_aio_read_data(void *opaque, int ret,
     BlockDriverState *bs = acb->common.bs;
     BlockDriverState *file = bs->file;
     BlockDriverAIOCB *file_acb;
+    BlockDriverCompletionFunc *cb;
 
     trace_qed_aio_read_data(s, acb, ret, offset, len);
 
@@ -1063,6 +1099,8 @@ static void qed_aio_read_data(void *opaque, int ret,
     /* Adjust offset into cluster */
     offset += qed_offset_into_cluster(s, acb->cur_pos);
 
+    cb = qed_aio_next_io;
+
     /* Handle backing file and unallocated sparse hole reads */
     if (ret != QED_CLUSTER_FOUND) {
         if (!bs->backing_hd) {
@@ -1074,13 +1112,16 @@ static void qed_aio_read_data(void *opaque, int ret,
         /* Pass through read to backing file */
         offset = acb->cur_pos;
         file = bs->backing_hd;
+        if ((s->header.compat_features & QED_CF_COPY_ON_READ)) {
+            cb = qed_copy_on_read_cb;
+        }
     }
 
     BLKDBG_EVENT(bs->file, BLKDBG_READ_AIO);
     file_acb = bdrv_aio_readv(file, offset / BDRV_SECTOR_SIZE,
                               &acb->cur_qiov,
                               acb->cur_qiov.size / BDRV_SECTOR_SIZE,
-                              qed_aio_next_io, acb);
+                              cb, acb);
     if (!file_acb) {
         ret = -EIO;
         goto err;
@@ -1296,6 +1337,10 @@ static QEMUOptionParameter qed_create_options[] = {
         .name = "table_size",
         .type = OPT_SIZE,
         .help = "L1/L2 table size (in clusters)"
+    }, {
+        .name = "copy_on_read",
+        .type = OPT_FLAG,
+        .help = "Copy blocks from base image on read"
     },
     { /* end of list */ }
 };
