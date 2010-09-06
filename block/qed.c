@@ -461,9 +461,14 @@ static int bdrv_qed_create(const char *filename, QEMUOptionParameter *options)
         return -EINVAL;
     }
     if (!qed_is_image_size_valid(image_size, cluster_size, table_size)) {
+        char buffer[64];
+
+        bytes_to_str(buffer, sizeof(buffer),
+                     qed_max_image_size(cluster_size, table_size));
+
         fprintf(stderr,
                 "QED image size must be a non-zero multiple of cluster size and less than %s\n",
-                bytes_to_str(qed_max_image_size(cluster_size, table_size)));
+                buffer);
         return -EINVAL;
     }
 

@@ -138,7 +138,7 @@ int qemu_fls(int i);
 int qemu_fdatasync(int fd);
 int fcntl_setfl(int fd, int flag);
 int get_bits_from_size(size_t size);
-const char *bytes_to_str(uint64_t size);
+void bytes_to_str(char *buffer, size_t buffer_len, uint64_t size);
 
 /* path.c */
 void init_paths(const char *prefix);
