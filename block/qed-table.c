@@ -175,13 +175,16 @@ int qed_read_l1_table(BDRVQEDState *s)
 {
     int ret = -EINPROGRESS;
 
-    /* TODO push/pop async context? */
+    async_context_push();
 
     qed_read_table(s, s->header.l1_table_offset,
                    s->l1_table, qed_read_l1_table_cb, &ret);
     while (ret == -EINPROGRESS) {
         qemu_aio_wait();
     }
+
+    async_context_pop();
+
     return ret;
 }
 
