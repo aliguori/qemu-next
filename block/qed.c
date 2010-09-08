@@ -338,7 +338,7 @@ static int bdrv_qed_open(BlockDriverState *bs, int flags)
     s->l1_table = qed_alloc_table(s);
     qed_init_l2_cache(&s->l2_cache, qed_alloc_table, s);
 
-    ret = qed_read_l1_table(s);
+    ret = qed_read_l1_table_sync(s);
     if (ret) {
         qed_free_l2_cache(&s->l2_cache);
         qemu_free(s->l1_table);

@@ -168,10 +168,7 @@ static void qed_read_l1_table_cb(void *opaque, int ret)
     *(int *)opaque = ret;
 }
 
-/**
- * Read the L1 table synchronously
- */
-int qed_read_l1_table(BDRVQEDState *s)
+int qed_read_l1_table_sync(BDRVQEDState *s)
 {
     int ret = -EINPROGRESS;
 

@@ -165,7 +165,7 @@ void qed_commit_l2_cache_entry(L2TableCache *l2_cache, CachedL2Table *l2_table);
 /**
  * Table I/O functions
  */
-int qed_read_l1_table(BDRVQEDState *s);
+int qed_read_l1_table_sync(BDRVQEDState *s);
 void qed_write_l1_table(BDRVQEDState *s, unsigned int index, unsigned int n,
                         BlockDriverCompletionFunc *cb, void *opaque);
 void qed_read_l2_table(BDRVQEDState *s, QEDRequest *request, uint64_t offset,
