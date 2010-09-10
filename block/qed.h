@@ -138,6 +138,7 @@ typedef struct QEDAIOCB {
     bool is_write;                  /* false - read, true - write */
     bool *finished;                 /* signal for cancel completion */
     uint64_t end_pos;               /* request end on block device, in bytes */
+    bool check_zero_write;          /* true - check blocks for zero write */
 
     /* User scatter-gather list */
     QEMUIOVector *qiov;
