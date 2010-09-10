@@ -134,6 +134,7 @@ typedef struct {
 
 enum {
     QED_CLUSTER_FOUND,         /* cluster found */
+    QED_CLUSTER_ZERO,          /* zero cluster found */
     QED_CLUSTER_L2,            /* cluster missing in L2 */
     QED_CLUSTER_L1,            /* cluster missing in L1 */
     QED_CLUSTER_ERROR,         /* error looking up cluster */
@@ -207,6 +208,31 @@ static inline unsigned int qed_l1_index(BDRVQEDState *s, uint64_t pos)
 static inline unsigned int qed_l2_index(BDRVQEDState *s, uint64_t pos)
 {
     return (pos >> s->l2_shift) & s->l2_mask;
+}
+
+static inline bool qed_offset_is_cluster_aligned(BDRVQEDState *s,
+                                                 uint64_t offset)
+{
+    if (qed_offset_into_cluster(s, offset)) {
+        return false;
+    }
+    return true;
+}
+
+static inline bool qed_offset_is_unalloc_cluster(uint64_t offset)
+{
+    if (offset == 0) {
+        return true;
+    }
+    return false;
+}
+
+static inline bool qed_offset_is_zero_cluster(uint64_t offset)
+{
+    if (offset == 1) {
+        return true;
+    }
+    return false;
 }
 
 #endif /* BLOCK_QED_H */
