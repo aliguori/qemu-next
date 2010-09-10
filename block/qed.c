@@ -67,6 +67,12 @@ static AIOPool qed_aio_pool = {
     .cancel             = qed_aio_cancel,
 };
 
+static BlockDriverAIOCB *qed_aio_writev_check(BlockDriverState *bs,
+                                              int64_t sector_num,
+                                              QEMUIOVector *qiov,
+                                              int nb_sectors,
+                                              BlockDriverCompletionFunc *cb,
+                                              void *opaque);
 /**
  * Allocate memory that satisfies image file and backing file alignment requirements
  *
@@ -753,9 +759,8 @@ static void qed_aio_write_l1_update(void *opaque, int ret)
 /**
  * Update L2 table with new cluster offsets and write them out
  */
-static void qed_aio_write_l2_update(void *opaque, int ret)
+static void qed_aio_write_l2_update(QEDAIOCB *acb, int ret, uint64_t offset)
 {
-    QEDAIOCB *acb = opaque;
     BDRVQEDState *s = acb_to_s(acb);
     bool need_alloc = acb->find_cluster_ret == QED_CLUSTER_L1;
     int index;
@@ -775,7 +780,7 @@ static void qed_aio_write_l2_update(void *opaque, int ret)
 
     index = qed_l2_index(s, acb->cur_pos);
     qed_update_l2_table(s, acb->request.l2_table->table, index, acb->cur_nclusters,
-                         acb->cur_cluster);
+                         offset);
 
     if (need_alloc) {
         /* Write out the whole new L2 table */
@@ -790,6 +795,51 @@ static void qed_aio_write_l2_update(void *opaque, int ret)
 
 err:
     qed_aio_complete(acb, ret);
+}
+
+static void qed_aio_write_l2_update_cb(void *opaque, int ret)
+{
+    QEDAIOCB *acb = opaque;
+    qed_aio_write_l2_update(acb, ret, acb->cur_cluster);
+}
+
+/**
+ * Determine if we have a zero write to a block of clusters
+ *
+ * We validate that the write is aligned to a cluster boundary, and that it's
+ * a multiple of cluster size with all zeros.
+ */
+static bool qed_is_zero_write(QEDAIOCB *acb)
+{
+    BDRVQEDState *s = acb_to_s(acb);
+    int i;
+
+    if (!qed_offset_is_cluster_aligned(s, acb->cur_pos)) {
+        return false;
+    }
+
+    if (!qed_offset_is_cluster_aligned(s, acb->cur_qiov.size)) {
+        return false;
+    }
+
+    for (i = 0; i < acb->cur_qiov.niov; i++) {
+        struct iovec *iov = &acb->cur_qiov.iov[i];
+        uint64_t *v;
+        int j;
+
+        if ((iov->iov_len & 0x07)) {
+            return false;
+        }
+
+        v = iov->iov_base;
+        for (j = 0; j < iov->iov_len; j += sizeof(v[0])) {
+            if (v[j >> 3]) {
+                return false;
+            }
+        }
+    }
+
+    return true;
 }
 
 /**
@@ -814,7 +864,7 @@ static void qed_aio_write_main(void *opaque, int ret)
     file_acb = bdrv_aio_writev(s->bs->file, offset / BDRV_SECTOR_SIZE,
                                &acb->cur_qiov,
                                acb->cur_qiov.size / BDRV_SECTOR_SIZE,
-                               need_alloc ? qed_aio_write_l2_update :
+                               need_alloc ? qed_aio_write_l2_update_cb :
                                             qed_aio_next_io,
                                acb);
     if (!file_acb) {
@@ -893,16 +943,22 @@ static void qed_aio_write_data(void *opaque, int ret,
 
     acb->cur_nclusters = qed_bytes_to_clusters(s,
                              qed_offset_into_cluster(s, acb->cur_pos) + len);
+    acb->find_cluster_ret = ret;
+    qed_acb_build_qiov(acb, len);
+
+    if (acb->check_zero_write &&
+        need_alloc &&
+        qed_is_zero_write(acb)) {
+        qed_aio_write_l2_update(acb, 0, 1);
+        return;
+    }
 
     if (need_alloc) {
         if (qed_alloc_clusters(s, acb->cur_nclusters, &offset) != 0) {
             goto err;
         }
     }
-
-    acb->find_cluster_ret = ret;
     acb->cur_cluster = offset;
-    qed_acb_build_qiov(acb, len);
 
     if (need_alloc) {
         qed_aio_write_prefill(acb);
@@ -926,11 +982,11 @@ static void qed_copy_on_read_cb(void *opaque, int ret)
     BDRVQEDState *s = acb_to_s(acb);
     BlockDriverAIOCB *cor_acb;
 
-    cor_acb = bdrv_aio_writev(s->bs,
-                              acb->cur_pos / BDRV_SECTOR_SIZE,
-                              &acb->cur_qiov,
-                              acb->cur_qiov.size / BDRV_SECTOR_SIZE,
-                              qed_aio_next_io, acb);
+    cor_acb = qed_aio_writev_check(s->bs,
+                                   acb->cur_pos / BDRV_SECTOR_SIZE,
+                                   &acb->cur_qiov,
+                                   acb->cur_qiov.size / BDRV_SECTOR_SIZE,
+                                   qed_aio_next_io, acb);
     if (!cor_acb) {
         qed_aio_complete(acb, -EIO);
     }
@@ -1036,7 +1092,8 @@ static QEDAIOCB *qed_aio_setup(BlockDriverState *bs,
                                int64_t sector_num,
                                QEMUIOVector *qiov, int nb_sectors,
                                BlockDriverCompletionFunc *cb,
-                               void *opaque, bool is_write)
+                               void *opaque, bool is_write,
+                               bool check_zero_write)
 {
     QEDAIOCB *acb = qemu_aio_get(&qed_aio_pool, bs, cb, opaque);
 
@@ -1044,6 +1101,7 @@ static QEDAIOCB *qed_aio_setup(BlockDriverState *bs,
                          opaque, is_write);
 
     acb->is_write = is_write;
+    acb->check_zero_write = check_zero_write;
     acb->qiov = qiov;
     acb->cur_iov = acb->qiov->iov;
     acb->cur_iov_offset = 0;
@@ -1059,12 +1117,13 @@ static BlockDriverAIOCB *bdrv_qed_aio_setup(BlockDriverState *bs,
                                             int64_t sector_num,
                                             QEMUIOVector *qiov, int nb_sectors,
                                             BlockDriverCompletionFunc *cb,
-                                            void *opaque, bool is_write)
+                                            void *opaque, bool is_write,
+                                            bool check_zero_write)
 {
     QEDAIOCB *acb;
 
     acb = qed_aio_setup(bs, sector_num, qiov, nb_sectors,
-                        cb, opaque, is_write);
+                        cb, opaque, is_write, check_zero_write);
     /* Start request */
     qed_aio_next_io(acb, 0);
 
@@ -1077,7 +1136,8 @@ static BlockDriverAIOCB *bdrv_qed_aio_readv(BlockDriverState *bs,
                                             BlockDriverCompletionFunc *cb,
                                             void *opaque)
 {
-    return bdrv_qed_aio_setup(bs, sector_num, qiov, nb_sectors, cb, opaque, false);
+    return bdrv_qed_aio_setup(bs, sector_num, qiov, nb_sectors,
+                              cb, opaque, false, false);
 }
 
 static BlockDriverAIOCB *bdrv_qed_aio_writev(BlockDriverState *bs,
@@ -1086,7 +1146,22 @@ static BlockDriverAIOCB *bdrv_qed_aio_writev(BlockDriverState *bs,
                                              BlockDriverCompletionFunc *cb,
                                              void *opaque)
 {
-    return bdrv_qed_aio_setup(bs, sector_num, qiov, nb_sectors, cb, opaque, true);
+    return bdrv_qed_aio_setup(bs, sector_num, qiov, nb_sectors,
+                              cb, opaque, true, false);
+}
+
+/**
+ * Perform a write with a zero-check.
+ */
+static BlockDriverAIOCB *qed_aio_writev_check(BlockDriverState *bs,
+                                              int64_t sector_num,
+                                              QEMUIOVector *qiov,
+                                              int nb_sectors,
+                                              BlockDriverCompletionFunc *cb,
+                                              void *opaque)
+{
+    return bdrv_qed_aio_setup(bs, sector_num, qiov, nb_sectors,
+                              cb, opaque, true, true);
 }
 
 typedef struct QEDStreamData
@@ -1191,7 +1266,7 @@ static BlockDriverAIOCB *bdrv_qed_aio_stream(BlockDriverState *bs,
 
     acb = qed_aio_setup(bs, sector_num, qiov,
                         cluster_size / BDRV_SECTOR_SIZE,
-                        qed_aio_stream_cb, stream_data, false);
+                        qed_aio_stream_cb, stream_data, false, false);
     stream_data->acb = acb;
 
     qed_find_cluster(s, &acb->request, acb->cur_pos,

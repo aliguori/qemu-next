@@ -99,6 +99,7 @@ typedef struct QEDAIOCB {
     int bh_ret;                     /* final return status for completion bh */
     QSIMPLEQ_ENTRY(QEDAIOCB) next;  /* next request */
     bool is_write;                  /* false - read, true - write */
+    bool check_zero_write;          /* true - check blocks for zero write */
 
     /* User scatter-gather list */
     QEMUIOVector *qiov;
