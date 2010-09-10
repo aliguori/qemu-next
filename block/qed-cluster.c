@@ -38,9 +38,9 @@ static unsigned int qed_count_contiguous_clusters(BDRVQEDState *s,
     *offset = last;
 
     for (i = index + 1; i < end; i++) {
-        if (last == 0) {
+        if (qed_offset_is_unalloc_cluster(last)) {
             /* Counting free clusters */
-            if (table->offsets[i] != 0) {
+            if (table->offsets[i] != last) {
                 break;
             }
         } else {
@@ -87,7 +87,13 @@ static void qed_find_cluster_cb(void *opaque, int ret)
     n = qed_count_contiguous_clusters(s, request->l2_table->table,
                                       index, n, &offset);
 
-    ret = offset ? QED_CLUSTER_FOUND : QED_CLUSTER_L2;
+    if (qed_offset_is_unalloc_cluster(offset)) {
+        ret = QED_CLUSTER_L2;
+    } else if (qed_offset_is_zero_cluster(offset)) {
+        ret = QED_CLUSTER_ZERO;
+    } else {
+        ret = QED_CLUSTER_FOUND;
+    }
     len = MIN(find_cluster_cb->len, n * s->header.cluster_size -
               qed_offset_into_cluster(s, find_cluster_cb->pos));
 
@@ -132,7 +138,7 @@ void qed_find_cluster(BDRVQEDState *s, QEDRequest *request, uint64_t pos,
     len = MIN(len, (((pos >> s->l1_shift) + 1) << s->l1_shift) - pos);
 
     l2_offset = s->l1_table->offsets[qed_l1_index(s, pos)];
-    if (!l2_offset) {
+    if (qed_offset_is_unalloc_cluster(l2_offset)) {
         cb(opaque, QED_CLUSTER_L1, 0, len);
         return;
     }

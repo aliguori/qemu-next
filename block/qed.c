@@ -566,7 +566,7 @@ static void qed_is_allocated_cb(void *opaque, int ret, uint64_t offset, size_t l
 {
     QEDIsAllocatedCB *cb = opaque;
     *cb->pnum = len / BDRV_SECTOR_SIZE;
-    cb->is_allocated = ret == QED_CLUSTER_FOUND;
+    cb->is_allocated = (ret == QED_CLUSTER_FOUND || ret == QED_CLUSTER_ZERO);
 }
 
 static int bdrv_qed_is_allocated(BlockDriverState *bs, int64_t sector_num,
@@ -711,7 +711,9 @@ static void qed_update_l2_table(BDRVQEDState *s, QEDTable *table, int index,
     int i;
     for (i = index; i < index + n; i++) {
         table->offsets[i] = cluster;
-        cluster += s->header.cluster_size;
+        if (!qed_offset_is_zero_cluster(cluster)) {
+            cluster += s->header.cluster_size;
+        }
     }
 }
 
@@ -1103,7 +1105,7 @@ static void qed_aio_read_data(void *opaque, int ret,
 
     /* Handle backing file and unallocated sparse hole reads */
     if (ret != QED_CLUSTER_FOUND) {
-        if (!bs->backing_hd) {
+        if (ret == QED_CLUSTER_ZERO || !bs->backing_hd) {
             qemu_iovec_memset(&acb->cur_qiov, 0, acb->cur_qiov.size);
             qed_aio_next_io(acb, 0);
             return;
@@ -1271,7 +1273,8 @@ static void qed_stream_find_cluster_cb(void *opaque, int ret,
         goto err;
     }
 
-    if (ret == QED_CLUSTER_FOUND) {
+    if (ret == QED_CLUSTER_FOUND ||
+        ret == QED_CLUSTER_ZERO) {
         /* proceed to next cluster */
 
         if (acb->end_pos == s->header.image_size) {
