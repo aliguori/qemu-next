@@ -322,3 +322,26 @@ static void vp_channel_read(void *opaque)
         drv->buflen += count;
     }
 }
+
+/* create/init VPDriver object */
+VPDriver *vp_new(int fd, bool listen)
+{
+    VPDriver *drv = NULL;
+
+    drv = qemu_mallocz(sizeof(VPDriver));
+    drv->listen_fd = -1;
+    drv->channel_fd = -1;
+    QLIST_INIT(&drv->oforwards);
+    QLIST_INIT(&drv->conns);
+
+    if (listen) {
+        /* provided FD is to be listened on for channel connection */
+        drv->listen_fd = fd;
+        vp_set_fd_handler(drv->listen_fd, vp_channel_accept, NULL, drv);
+    } else {
+        drv->channel_fd = fd;
+        vp_set_fd_handler(drv->channel_fd, vp_channel_read, NULL, drv);
+    }
+
+    return drv;
+}

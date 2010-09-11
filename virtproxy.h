@@ -18,4 +18,7 @@ int vp_set_fd_handler(int fd,
                         IOHandler *fd_write,
                         void *opaque);
 
+/* virtproxy interface */
+VPDriver *vp_new(int fd, bool listen);
+
 #endif /* VIRTPROXY_H */
