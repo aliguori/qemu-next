@@ -1061,7 +1061,73 @@ static int bdrv_qed_change_backing_file(BlockDriverState *bs,
                                         const char *backing_file,
                                         const char *backing_fmt)
 {
-    return -ENOTSUP; /* TODO */
+    BDRVQEDState *s = bs->opaque;
+    QEDHeader new_header, le_header;
+    void *buffer;
+    size_t buffer_len, backing_file_len, backing_fmt_len;
+    bool copy_on_read;
+    int ret;
+
+    memcpy(&new_header, &s->header, sizeof(new_header));
+
+    copy_on_read = !!(new_header.compat_features & QED_CF_COPY_ON_READ);
+    new_header.features &= ~QED_F_BACKING_FILE;
+    new_header.compat_features &= ~(QED_CF_BACKING_FORMAT |
+                                    QED_CF_COPY_ON_READ);
+
+    /* Adjust feature flags */
+    if (backing_file) {
+        new_header.features |= QED_F_BACKING_FILE;
+        if (backing_fmt) {
+            new_header.compat_features |= QED_CF_BACKING_FORMAT;
+        }
+        if (copy_on_read) {
+            new_header.compat_features |= QED_CF_COPY_ON_READ;
+        }
+    }
+
+    /* Calculate new header size */
+    backing_file_len = backing_fmt_len = 0;
+
+    if (backing_file) {
+        backing_file_len = strlen(backing_file);
+        if (backing_fmt) {
+            backing_fmt_len = strlen(backing_fmt);
+        }
+    }
+
+    buffer_len = sizeof(new_header);
+    new_header.backing_file_offset = buffer_len;
+    new_header.backing_file_size = backing_file_len;
+    buffer_len += backing_file_len;
+    new_header.backing_fmt_offset = buffer_len;
+    new_header.backing_fmt_size = backing_fmt_len;
+    buffer_len += backing_fmt_len;
+
+    /* Make sure we can rewrite header without failing */
+    if (buffer_len > new_header.first_cluster * new_header.cluster_size) {
+        return -ENOSPC;
+    }
+
+    /* Prepare new header */
+    buffer = qemu_malloc(buffer_len);
+    
+    qed_header_cpu_to_le(&new_header, &le_header);
+    memcpy(buffer, &le_header, sizeof(le_header));
+    buffer_len = sizeof(le_header);
+
+    memcpy(buffer + buffer_len, backing_file, backing_file_len);
+    buffer_len += backing_file_len;
+
+    memcpy(buffer + buffer_len, backing_fmt, backing_fmt_len);
+    buffer_len += backing_fmt_len;
+
+    /* Write new header */
+    ret = bdrv_pwrite_sync(bs->file, 0, buffer, buffer_len);
+    if (ret == 0) {
+        memcpy(&s->header, &new_header, sizeof(new_header));
+    }
+    return ret;
 }
 
 static int bdrv_qed_check(BlockDriverState* bs, BdrvCheckResult *result)
