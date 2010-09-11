@@ -345,11 +345,6 @@ static int bdrv_qed_open(BlockDriverState *bs, int flags)
 
     qed_init_l2_cache(&s->l2_cache, qed_alloc_table, s);
 
-    ret = qed_read_l1_table_sync(s);
-    if (ret) {
-        qed_free_l2_cache(&s->l2_cache);
-        qemu_free(s->l1_table);
-    }
     return ret;
 }
 
@@ -755,6 +750,19 @@ static void qed_aio_write_l1_update(void *opaque, int ret)
     qed_write_l1_table(s, index, 1, qed_commit_l2_update, acb);
 }
 
+static void qed_aio_read_l1_update(void *opaque, int ret)
+{
+    QEDAIOCB *acb = opaque;
+    BDRVQEDState *s = acb_to_s(acb);
+
+    if (ret) {
+        qed_aio_complete(acb, ret);
+        return;
+    }
+
+    qed_read_l1_table(s, qed_aio_write_l1_update, acb);
+}
+
 /**
  * Update L2 table with new cluster offsets and write them out
  */
@@ -784,7 +792,7 @@ static void qed_aio_write_l2_update(QEDAIOCB *acb, int ret, uint64_t offset)
     if (need_alloc) {
         /* Write out the whole new L2 table */
         qed_write_l2_table(s, &acb->request, 0, s->table_nelems, true,
-                            qed_aio_write_l1_update, acb);
+                           qed_aio_read_l1_update, acb);
     } else {
         /* Write out only the updated part of the L2 table */
         qed_write_l2_table(s, &acb->request, index, acb->cur_nclusters, false,

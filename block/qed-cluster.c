@@ -103,6 +103,36 @@ out:
     qemu_free(find_cluster_cb);
 }
 
+static void qed_find_cluster_l1_cb(void *opaque, int ret)
+{
+    QEDFindClusterCB *find_cluster_cb = opaque;
+    BDRVQEDState *s = find_cluster_cb->s;
+    uint64_t pos = find_cluster_cb->pos;
+    size_t len = find_cluster_cb->len;
+    QEDRequest *request = find_cluster_cb->request;
+    uint64_t l2_offset;
+
+    if (ret) {
+        ret = QED_CLUSTER_ERROR;
+        goto out;
+    }
+
+    l2_offset = s->l1_table->offsets[qed_l1_index(s, pos)];
+    if (qed_offset_is_unalloc_cluster(l2_offset)) {
+        ret = QED_CLUSTER_L1;
+        goto out;
+    }
+
+    qed_read_l2_table(s, request, l2_offset,
+                      qed_find_cluster_cb, find_cluster_cb);
+
+    return;
+
+out:
+    find_cluster_cb->cb(find_cluster_cb->opaque, ret, 0, len);
+    qemu_free(find_cluster_cb);
+}
+
 /**
  * Find the offset of a data cluster
  *
@@ -116,18 +146,11 @@ void qed_find_cluster(BDRVQEDState *s, QEDRequest *request, uint64_t pos,
                       size_t len, QEDFindClusterFunc *cb, void *opaque)
 {
     QEDFindClusterCB *find_cluster_cb;
-    uint64_t l2_offset;
 
     /* Limit length to L2 boundary.  Requests are broken up at the L2 boundary
      * so that a request acts on one L2 table at a time.
      */
     len = MIN(len, (((pos >> s->l1_shift) + 1) << s->l1_shift) - pos);
-
-    l2_offset = s->l1_table->offsets[qed_l1_index(s, pos)];
-    if (qed_offset_is_unalloc_cluster(l2_offset)) {
-        cb(opaque, QED_CLUSTER_L1, 0, len);
-        return;
-    }
 
     find_cluster_cb = qemu_malloc(sizeof(*find_cluster_cb));
     find_cluster_cb->s = s;
@@ -137,6 +160,5 @@ void qed_find_cluster(BDRVQEDState *s, QEDRequest *request, uint64_t pos,
     find_cluster_cb->opaque = opaque;
     find_cluster_cb->request = request;
 
-    qed_read_l2_table(s, request, l2_offset,
-                      qed_find_cluster_cb, find_cluster_cb);
+    qed_read_l1_table(s, qed_find_cluster_l1_cb, find_cluster_cb);
 }

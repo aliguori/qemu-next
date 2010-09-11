@@ -187,6 +187,11 @@ int qed_read_l1_table_sync(BDRVQEDState *s)
 void qed_read_l1_table(BDRVQEDState *s, BlockDriverCompletionFunc *cb,
                        void *opaque)
 {
+    if (s->l1_table) {
+        cb(opaque, 0);
+        return;
+    }
+    
     s->l1_table = qed_alloc_table(s);
 
     qed_read_table(s, s->header.l1_table_offset,
