@@ -174,12 +174,23 @@ int qed_read_l1_table_sync(BDRVQEDState *s)
 
     /* TODO push/pop async context? */
 
+    s->l1_table = qed_alloc_table(s);
+
     qed_read_table(s, s->header.l1_table_offset,
                    s->l1_table, qed_read_l1_table_cb, &ret);
     while (ret == -EINPROGRESS) {
         qemu_aio_wait();
     }
     return ret;
+}
+
+void qed_read_l1_table(BDRVQEDState *s, BlockDriverCompletionFunc *cb,
+                       void *opaque)
+{
+    s->l1_table = qed_alloc_table(s);
+
+    qed_read_table(s, s->header.l1_table_offset,
+                   s->l1_table, cb, opaque);
 }
 
 void qed_write_l1_table(BDRVQEDState *s, unsigned int index, unsigned int n,
