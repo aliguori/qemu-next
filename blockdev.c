@@ -539,6 +539,10 @@ static void do_stream_cb(void *opaque, int ret)
                        ret, length * 100 / bdrv_getlength(s->bs));
         if (length == bdrv_getlength(s->bs)) {
             monitor_printf(s->mon, "\nReached end of device\n");
+            if (!s->once) {
+                /* FIXME need an AIO version of this */
+                bdrv_change_backing_file(s->bs, NULL, NULL);
+            }
         } else if (!s->once) {
             s->offset += ret;
             bdrv_aio_stream(s->bs, s->offset, do_stream_cb, s);
