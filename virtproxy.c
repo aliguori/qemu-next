@@ -12,6 +12,7 @@
  */
 
 #include "virtproxy.h"
+#include "qemu_socket.h"
 
 #define DEBUG_VP
 
@@ -323,6 +324,70 @@ static void vp_channel_read(void *opaque)
     }
 }
 
+/* handler to accept() and init new client connections */
+static void vp_oforward_accept(void *opaque)
+{
+    VPOForward *f = opaque;
+    VPDriver *drv = f->drv;
+
+    struct sockaddr_in saddr;
+    struct sockaddr *addr;
+    socklen_t len;
+    int fd, ret;
+    VPConn *conn = NULL;
+    VPPacket pkt;
+    VPControlMsg msg;
+
+    TRACE("called with opaque: %p, drv: %p", f, drv);
+
+    for(;;) {
+        len = sizeof(saddr);
+        addr = (struct sockaddr *)&saddr;
+        fd = qemu_accept(f->listen_fd, addr, &len);
+
+        if (fd < 0 && errno != EINTR) {
+            TRACE("accept() failed");
+            return;
+        } else if (fd >= 0) {
+            TRACE("accepted connection");
+            break;
+        }
+    }
+
+    if (drv->channel_fd == -1) {
+        TRACE("communication channel not open, closing connection");
+        closesocket(fd);
+        return;
+    }
+
+    /* send init packet over channel */
+    memset(&msg, 0, sizeof(VPControlMsg));
+    msg.type = VP_CONTROL_CONNECT_INIT;
+    msg.args.connect_init.client_fd = fd;
+    pstrcpy(msg.args.connect_init.service_id, VP_SERVICE_ID_LEN, f->service_id);
+
+    memset(&pkt, 0, sizeof(VPPacket));
+    pkt.type = VP_PKT_CONTROL;
+    pkt.payload.msg = msg;
+    pkt.magic = VP_MAGIC;
+
+    ret = vp_send_all(drv->channel_fd, &pkt, sizeof(VPPacket));
+    if (ret == -1) {
+        LOG("vp_send_all() failed");
+        return;
+    }
+
+    /* create new VPConn for client */
+    conn = qemu_mallocz(sizeof(VPConn));
+    conn->drv = drv;
+    conn->client_fd = fd;
+    conn->type = VP_CONN_CLIENT;
+    conn->state = VP_STATE_NEW;
+    QLIST_INSERT_HEAD(&drv->conns, conn, next);
+
+    socket_set_nonblock(fd);
+}
+
 /* create/init VPDriver object */
 VPDriver *vp_new(int fd, bool listen)
 {
@@ -344,4 +409,42 @@ VPDriver *vp_new(int fd, bool listen)
     }
 
     return drv;
+}
+
+/* set/modify/remove a service_id -> net/unix listening socket mapping
+ *
+ * "service_id" is a user-defined id for the service. this is what the
+ * client end will tag it's connections with so that the remote end can
+ * route it to the proper socket on the remote end.
+ *
+ * "fd" is a listen()'ing socket we want virtproxy to listen for new
+ * connections of this service type on. set "fd" to -1 to remove the 
+ * existing listening socket for this "service_id"
+ */
+int vp_set_oforward(VPDriver *drv, int fd, const char *service_id)
+{
+    VPOForward *f = get_oforward(drv, service_id);
+
+    if (fd == -1) {
+        if (f != NULL) {
+            vp_set_fd_handler(f->listen_fd, NULL, NULL, NULL);
+            QLIST_REMOVE(f, next);
+            qemu_free(f);
+        }
+        return 0;
+    }
+
+    if (f == NULL) {
+        f = qemu_mallocz(sizeof(VPOForward));
+        f->drv = drv;
+        strncpy(f->service_id, service_id, VP_SERVICE_ID_LEN);
+        QLIST_INSERT_HEAD(&drv->oforwards, f, next);
+    } else {
+        closesocket(f->listen_fd);
+    }
+
+    f->listen_fd = fd;
+    vp_set_fd_handler(f->listen_fd, vp_oforward_accept, NULL, f);
+
+    return 0;
 }
