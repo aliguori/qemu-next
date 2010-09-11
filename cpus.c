@@ -398,6 +398,7 @@ static void do_vm_stop(RunState state)
         vm_state_notify(0, state);
         qemu_aio_flush();
         bdrv_flush_all();
+        bdrv_invalidate_cache_all();
         monitor_protocol_event(QEVENT_STOP, NULL);
     }
 }
