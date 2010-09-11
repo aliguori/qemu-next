@@ -94,6 +94,33 @@ static void put_le16(uint16_t *p, unsigned int v)
     *p = cpu_to_le16(v);
 }
 
+static int init_geometry(IDEState *s)
+{
+    int cylinders, heads, secs;
+
+    if (s->cylinders != 0) {
+        return -1;
+    }
+
+    bdrv_guess_geometry(s->bs, &cylinders, &heads, &secs);
+    if (cylinders < 1 || cylinders > 16383) {
+        error_report("cyls must be between 1 and 16383");
+        return -1;
+    }
+    if (heads < 1 || heads > 16) {
+        error_report("heads must be between 1 and 16");
+        return -1;
+    }
+    if (secs < 1 || secs > 63) {
+        error_report("secs must be between 1 and 63");
+        return -1;
+    }
+    s->cylinders = cylinders;
+    s->heads = heads;
+    s->sectors = secs;
+    return 0;
+}
+
 static void ide_identify(IDEState *s)
 {
     uint16_t *p;
@@ -104,6 +131,8 @@ static void ide_identify(IDEState *s)
 	memcpy(s->io_buffer, s->identify_data, sizeof(s->identify_data));
 	return;
     }
+
+    init_geometry(s);
 
     memset(s->io_buffer, 0, 512);
     p = (uint16_t *)s->io_buffer;
@@ -231,6 +260,8 @@ static void ide_cfata_identify(IDEState *s)
     if (s->identify_set)
         goto fill_buffer;
 
+    init_geometry(s);
+
     memset(p, 0, sizeof(s->identify_data));
 
     cur_sec = s->cylinders * s->heads * s->sectors;
@@ -342,6 +373,9 @@ static void ide_transfer_stop(IDEState *s)
 int64_t ide_get_sector(IDEState *s)
 {
     int64_t sector_num;
+
+    init_geometry(s);
+
     if (s->select & 0x40) {
         /* lba */
 	if (!s->lba48) {
@@ -364,6 +398,9 @@ int64_t ide_get_sector(IDEState *s)
 void ide_set_sector(IDEState *s, int64_t sector_num)
 {
     unsigned int cyl, r;
+
+    init_geometry(s);
+
     if (s->select & 0x40) {
 	if (!s->lba48) {
             s->select = (s->select & 0xf0) | (sector_num >> 24);
@@ -2614,27 +2651,13 @@ void ide_bus_reset(IDEBus *bus)
 int ide_init_drive(IDEState *s, BlockDriverState *bs,
                    const char *version, const char *serial)
 {
-    int cylinders, heads, secs;
     uint64_t nb_sectors;
 
     s->bs = bs;
-    bdrv_get_geometry(bs, &nb_sectors);
-    bdrv_guess_geometry(bs, &cylinders, &heads, &secs);
-    if (cylinders < 1 || cylinders > 16383) {
-        error_report("cyls must be between 1 and 16383");
-        return -1;
-    }
-    if (heads < 1 || heads > 16) {
-        error_report("heads must be between 1 and 16");
-        return -1;
-    }
-    if (secs < 1 || secs > 63) {
-        error_report("secs must be between 1 and 63");
-        return -1;
-    }
-    s->cylinders = cylinders;
-    s->heads = heads;
-    s->sectors = secs;
+    bdrv_get_geometry(s->bs, &nb_sectors);
+    s->cylinders = 0;
+    s->heads = 0;
+    s->sectors = 0;
     s->nb_sectors = nb_sectors;
     /* The SMART values should be preserved across power cycles
        but they aren't.  */

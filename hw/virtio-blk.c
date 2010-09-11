@@ -426,7 +426,8 @@ static void virtio_blk_update_config(VirtIODevice *vdev, uint8_t *config)
     int cylinders, heads, secs;
 
     bdrv_get_geometry(s->bs, &capacity);
-    bdrv_get_geometry_hint(s->bs, &cylinders, &heads, &secs);
+    bdrv_guess_geometry(s->bs, &cylinders, &heads, &secs);
+
     memset(&blkcfg, 0, sizeof(blkcfg));
     stq_raw(&blkcfg.capacity, capacity);
     stl_raw(&blkcfg.seg_max, 128 - 2);
@@ -501,7 +502,6 @@ static int virtio_blk_load(QEMUFile *f, void *opaque, int version_id)
 VirtIODevice *virtio_blk_init(DeviceState *dev, BlockConf *conf)
 {
     VirtIOBlock *s;
-    int cylinders, heads, secs;
     static int virtio_blk_id;
     DriveInfo *dinfo;
 
@@ -525,7 +525,6 @@ VirtIODevice *virtio_blk_init(DeviceState *dev, BlockConf *conf)
     s->conf = conf;
     s->rq = NULL;
     s->sector_mask = (s->conf->logical_block_size / BDRV_SECTOR_SIZE) - 1;
-    bdrv_guess_geometry(s->bs, &cylinders, &heads, &secs);
 
     /* NB: per existing s/n string convention the string is terminated
      * by '\0' only when less than sizeof (s->sn)
