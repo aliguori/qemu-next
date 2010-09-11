@@ -94,6 +94,33 @@ static void put_le16(uint16_t *p, unsigned int v)
     *p = cpu_to_le16(v);
 }
 
+static int guess_geometry(IDEState *s)
+{
+    int cylinders, heads, secs;
+
+    if (s->cylinders != 0) {
+        return -1;
+    }
+
+    bdrv_guess_geometry(s->bs, &cylinders, &heads, &secs);
+    if (cylinders < 1 || cylinders > 16383) {
+        error_report("cyls must be between 1 and 16383");
+        return -1;
+    }
+    if (heads < 1 || heads > 16) {
+        error_report("heads must be between 1 and 16");
+        return -1;
+    }
+    if (secs < 1 || secs > 63) {
+        error_report("secs must be between 1 and 63");
+        return -1;
+    }
+    s->cylinders = cylinders;
+    s->heads = heads;
+    s->sectors = secs;
+    return 0;
+}
+
 static void ide_identify(IDEState *s)
 {
     uint16_t *p;
@@ -104,6 +131,8 @@ static void ide_identify(IDEState *s)
 	memcpy(s->io_buffer, s->identify_data, sizeof(s->identify_data));
 	return;
     }
+
+    guess_geometry(s);
 
     memset(s->io_buffer, 0, 512);
     p = (uint16_t *)s->io_buffer;
@@ -2614,27 +2643,13 @@ void ide_bus_reset(IDEBus *bus)
 int ide_init_drive(IDEState *s, BlockDriverState *bs,
                    const char *version, const char *serial)
 {
-    int cylinders, heads, secs;
     uint64_t nb_sectors;
 
     s->bs = bs;
-    bdrv_get_geometry(bs, &nb_sectors);
-    bdrv_guess_geometry(bs, &cylinders, &heads, &secs);
-    if (cylinders < 1 || cylinders > 16383) {
-        error_report("cyls must be between 1 and 16383");
-        return -1;
-    }
-    if (heads < 1 || heads > 16) {
-        error_report("heads must be between 1 and 16");
-        return -1;
-    }
-    if (secs < 1 || secs > 63) {
-        error_report("secs must be between 1 and 63");
-        return -1;
-    }
-    s->cylinders = cylinders;
-    s->heads = heads;
-    s->sectors = secs;
+    bdrv_get_geometry(s->bs, &nb_sectors);
+    s->cylinders = 0;
+    s->heads = 0;
+    s->sectors = 0;
     s->nb_sectors = nb_sectors;
     /* The SMART values should be preserved across power cycles
        but they aren't.  */
