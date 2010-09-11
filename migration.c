@@ -69,6 +69,9 @@ void process_incoming_migration(QEMUFile *f)
 
     incoming_expected = false;
 
+    /* Make sure all file formats flush their mutable metadata */
+    bdrv_invalidate_cache_all();
+
     if (autostart)
         vm_start();
 }
@@ -370,6 +373,7 @@ void migrate_fd_put_ready(void *opaque)
 
         qemu_aio_flush();
         bdrv_flush_all();
+        bdrv_invalidate_cache_all();
         if ((qemu_savevm_state_complete(s->mon, s->file)) < 0) {
             if (old_vm_running) {
                 vm_start();

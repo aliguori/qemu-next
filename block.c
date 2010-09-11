@@ -1452,6 +1452,22 @@ const char *bdrv_get_device_name(BlockDriverState *bs)
     return bs->device_name;
 }
 
+void bdrv_invalidate_cache(BlockDriverState *bs)
+{
+    if (bs->drv && bs->drv->bdrv_invalidate_cache) {
+        bs->drv->bdrv_invalidate_cache(bs);
+    }
+}
+
+void bdrv_invalidate_cache_all(void)
+{
+    BlockDriverState *bs;
+
+    QTAILQ_FOREACH(bs, &bdrv_states, list) {
+        bdrv_invalidate_cache(bs);
+    }
+}
+
 void bdrv_flush(BlockDriverState *bs)
 {
     if (bs->open_flags & BDRV_O_NO_FLUSH) {
