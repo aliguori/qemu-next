@@ -344,6 +344,12 @@ static int find_image_format(const char *filename, BlockDriver **pdrv)
         return ret;
     }
 
+    if (strcmp(bs->drv->protocol_name, "nbd") == 0) {
+        drv = bs->drv;
+        bdrv_delete(bs);
+        goto out;
+    }
+
     /* Return the raw BlockDriver * to scsi-generic devices or empty drives */
     if (bs->sg || !bdrv_is_inserted(bs)) {
         bdrv_delete(bs);
@@ -373,6 +379,7 @@ static int find_image_format(const char *filename, BlockDriver **pdrv)
             }
         }
     }
+out:
     if (!drv) {
         ret = -ENOENT;
     }
@@ -607,10 +614,16 @@ int bdrv_open(BlockDriverState *bs, const char *filename, int flags,
         BlockDriver *back_drv = NULL;
 
         bs->backing_hd = bdrv_new("");
-        path_combine(backing_filename, sizeof(backing_filename),
-                     filename, bs->backing_file);
-        if (bs->backing_format[0] != '\0')
-            back_drv = bdrv_find_format(bs->backing_format);
+        back_drv = bdrv_find_protocol(bs->backing_file);
+        if (!back_drv) {
+            path_combine(backing_filename, sizeof(backing_filename),
+                         filename, bs->backing_file);
+            if (bs->backing_format[0] != '\0')
+                back_drv = bdrv_find_format(bs->backing_format);
+        } else {
+            pstrcpy(backing_filename, sizeof(backing_filename),
+                    bs->backing_file);
+        }
 
         /* backing files always opened read-only */
         back_flags =
