@@ -1230,7 +1230,9 @@ static int img_rebase(int argc, char **argv)
         }
     }
 
-    if ((optind >= argc) || !out_baseimg)
+    if ((optind >= argc))
+        help();
+    if (!unsafe && !out_baseimg)
         help();
     filename = argv[optind++];
 
