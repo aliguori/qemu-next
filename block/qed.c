@@ -1388,6 +1388,17 @@ static int bdrv_qed_check(BlockDriverState* bs, BdrvCheckResult *result)
     return -ENOTSUP; /* TODO */
 }
 
+static void bdrv_qed_invalidate_cache(BlockDriverState *bs)
+{
+    BDRVQEDState *s = bs->opaque;
+
+    qed_free_l2_cache(&s->l2_cache);
+    qemu_free(s->l1_table);
+    s->l1_table = NULL;
+
+    qed_init_l2_cache(&s->l2_cache, qed_alloc_table, s);
+}
+
 static QEMUOptionParameter qed_create_options[] = {
     {
         .name = BLOCK_OPT_SIZE,
@@ -1438,6 +1449,7 @@ static BlockDriver bdrv_qed = {
     .bdrv_get_info = bdrv_qed_get_info,
     .bdrv_change_backing_file = bdrv_qed_change_backing_file,
     .bdrv_check = bdrv_qed_check,
+    .bdrv_invalidate_cache = bdrv_qed_invalidate_cache,
 };
 
 static void bdrv_qed_init(void)
