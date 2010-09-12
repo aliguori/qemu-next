@@ -105,8 +105,9 @@ CachedL2Table *qed_find_l2_cache_entry(L2TableCache *l2_cache, uint64_t offset)
  * called until the entry is present on disk and the L1 has been updated to
  * point to the entry.
  *
- * This function will take a reference to the entry so the caller is still
- * responsible for unreferencing the entry.
+ * N.B. This function steals a reference to the l2_table from the caller so the
+ * caller must obtain a new reference by issuing a call to
+ * qed_find_l2_cache_entry().
  */
 void qed_commit_l2_cache_entry(L2TableCache *l2_cache, CachedL2Table *l2_table)
 {
@@ -115,6 +116,7 @@ void qed_commit_l2_cache_entry(L2TableCache *l2_cache, CachedL2Table *l2_table)
     entry = qed_find_l2_cache_entry(l2_cache, l2_table->offset);
     if (entry) {
         qed_unref_l2_cache_entry(l2_cache, entry);
+        qed_unref_l2_cache_entry(l2_cache, l2_table);
         return;
     }
 
@@ -125,7 +127,6 @@ void qed_commit_l2_cache_entry(L2TableCache *l2_cache, CachedL2Table *l2_table)
         qed_unref_l2_cache_entry(l2_cache, entry);
     }
 
-    l2_table->ref++;
     l2_cache->n_entries++;
     QTAILQ_INSERT_TAIL(&l2_cache->entries, l2_table, node);
 }
