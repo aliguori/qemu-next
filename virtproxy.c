@@ -20,6 +20,7 @@
 
 /* listening fd, one for each service we're forwarding to remote end */
 typedef struct VPOForward {
+    VPDriver *drv;
     int listen_fd;
     char service_id[VP_SERVICE_ID_LEN];
     QLIST_ENTRY(VPOForward) next;
@@ -27,6 +28,7 @@ typedef struct VPOForward {
 
 /* proxied client/server connected states */
 typedef struct VPConn {
+    VPDriver *drv;
     int client_fd;
     int server_fd;
     enum {

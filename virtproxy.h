@@ -5,8 +5,9 @@
 #include "qemu-queue.h"
 
 typedef struct {
+    int channel_fd;
+    int listen_fd;
     QLIST_HEAD(, VPOForward) oforwards;
     QLIST_HEAD(, VPConn) conns;
 } VPDriver;
-
 #endif /* VIRTPROXY_H */
