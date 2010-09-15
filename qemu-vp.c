@@ -89,3 +89,61 @@ int vp_send_all(int fd, const void *buf, int len1)
     }
     return len1 - len;
 }
+
+static void main_loop_wait(int nonblocking)
+{
+    IOHandlerRecord *ioh;
+    fd_set rfds, wfds, xfds;
+    int ret, nfds;
+    struct timeval tv;
+    int timeout = 1000;
+
+    if (nonblocking) {
+        timeout = 0;
+    }
+
+    /* poll any events */
+    nfds = -1;
+    FD_ZERO(&rfds);
+    FD_ZERO(&wfds);
+    FD_ZERO(&xfds);
+    QLIST_FOREACH(ioh, &io_handlers, next) {
+        if (ioh->deleted)
+            continue;
+        if (ioh->fd_read &&
+            (!ioh->fd_read_poll ||
+             ioh->fd_read_poll(ioh->opaque) != 0)) {
+            FD_SET(ioh->fd, &rfds);
+            if (ioh->fd > nfds)
+                nfds = ioh->fd;
+        }
+        if (ioh->fd_write) {
+            FD_SET(ioh->fd, &wfds);
+            if (ioh->fd > nfds)
+                nfds = ioh->fd;
+        }
+    }
+
+    tv.tv_sec = timeout / 1000;
+    tv.tv_usec = (timeout % 1000) * 1000;
+
+    ret = select(nfds + 1, &rfds, &wfds, &xfds, &tv);
+
+    if (ret > 0) {
+        IOHandlerRecord *pioh;
+
+        QLIST_FOREACH_SAFE(ioh, &io_handlers, next, pioh) {
+            if (ioh->deleted) {
+                QLIST_REMOVE(ioh, next);
+                qemu_free(ioh);
+                continue;
+            }
+            if (ioh->fd_read && FD_ISSET(ioh->fd, &rfds)) {
+                ioh->fd_read(ioh->opaque);
+            }
+            if (ioh->fd_write && FD_ISSET(ioh->fd, &wfds)) {
+                ioh->fd_write(ioh->opaque);
+            }
+        }
+    }
+}
