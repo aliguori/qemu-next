@@ -30,6 +30,7 @@ qemu-img-cmds.texi
 qemu-img-cmds.h
 qemu-io
 qemu-monitor.texi
+qemu-vp
 QMP/qmp-commands.txt
 .gdbinit
 *.a
