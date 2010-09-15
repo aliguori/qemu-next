@@ -13,6 +13,23 @@
 
 #include "virtproxy.h"
 
+#define DEBUG_VP
+
+#ifdef DEBUG_VP
+#define TRACE(msg, ...) do { \
+    fprintf(stderr, "%s:%s():L%d: " msg "\n", \
+            __FILE__, __FUNCTION__, __LINE__, ## __VA_ARGS__); \
+} while(0)
+#else
+#define TRACE(msg, ...) \
+    do { } while (0)
+#endif
+
+#define LOG(msg, ...) do { \
+    fprintf(stderr, "%s:%s(): " msg "\n", \
+            __FILE__, __FUNCTION__, ## __VA_ARGS__); \
+} while(0)
+
 #define VP_SERVICE_ID_LEN 32    /* max length of service id string */
 #define VP_PKT_DATA_LEN 1024    /* max proxied bytes per VPPacket */
 #define VP_CONN_DATA_LEN 1024   /* max bytes conns can send at a time */
