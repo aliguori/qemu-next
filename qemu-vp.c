@@ -11,6 +11,9 @@
  *
  */
 
+#include <getopt.h>
+#include <err.h>
+#include "qemu-option.h"
 #include "virtproxy.h"
 
 /* mirror qemu I/O-related code for standalone daemon */
@@ -148,4 +151,162 @@ static void main_loop_wait(int nonblocking)
             }
         }
     }
+}
+
+#define VP_ARG_LEN 256
+
+static QemuOptsList vp_opts = {
+    .name = "vpargs",
+    .head = QTAILQ_HEAD_INITIALIZER(vp_opts.head),
+    .desc = {
+        {
+            .name = "service_id",
+            .type = QEMU_OPT_STRING,
+        },{
+            .name = "channel_method",
+            .type = QEMU_OPT_STRING,
+        },{
+            .name = "path",
+            .type = QEMU_OPT_STRING,
+        },{
+            .name = "host",
+            .type = QEMU_OPT_STRING,
+        },{
+            .name = "port",
+            .type = QEMU_OPT_STRING,
+        },{
+            .name = "ipv4",
+            .type = QEMU_OPT_BOOL,
+        },{
+            .name = "ipv6",
+            .type = QEMU_OPT_BOOL,
+        },
+        { /* end if list */ }
+    },
+};
+
+typedef struct VPData {
+    QemuOpts *opts;
+    void *opaque;
+    QTAILQ_ENTRY(VPData) next;
+} VPData;
+
+static QTAILQ_HEAD(, VPData) iforwards;
+static QTAILQ_HEAD(, VPData) oforwards;
+static QTAILQ_HEAD(, VPData) channels;
+
+static int vp_parse(QemuOpts *opts, const char *str, bool is_channel)
+{
+    /* TODO: use VP_SERVICE_ID_LEN, bring it into virtproxy.h */
+    char service_id[32];
+    char channel_method[32];
+    char *addr;
+    char port[33];
+    int pos, ret;
+
+    if (is_channel == false) {
+        /* parse service id */
+        ret = sscanf(str,"%32[^:]:%n",service_id,&pos);
+        if (ret != 1) {
+            warn("error parsing service id");
+            return -1;
+        }
+        qemu_opt_set(opts, "service_id", service_id);
+    } else {
+        /* parse connection type */
+        ret = sscanf(str,"%32[^:]:%n",channel_method,&pos);
+        if (ret != 1) {
+            warn("error parsing channel method");
+            return -1;
+        }
+        qemu_opt_set(opts, "channel_method", channel_method);
+    }
+    str += pos;
+    pos = 0;
+
+    /* parse path/addr and port */
+    if (str[0] == '[') {
+        /* ipv6 formatted */
+        ret = sscanf(str,"[%a[^]:]]:%32[^:]%n",&addr,port,&pos);
+        qemu_opt_set(opts, "ipv6", "on");
+    } else {
+        ret = sscanf(str,"%a[^:]:%32[^:]%n",&addr,port,&pos);
+        qemu_opt_set(opts, "ipv4", "on");
+    }
+
+    if (ret != 2) {
+        warnx("error parsing path/addr/port");
+        return -1;
+    } else if (port[0] == '-') {
+        /* no port given, assume unix path */
+        qemu_opt_set(opts, "path", addr);
+    } else {
+        qemu_opt_set(opts, "host", addr);
+        qemu_opt_set(opts, "port", port);
+        qemu_free(addr);
+    }
+    str += pos;
+    pos = 0;
+
+    return 0;
+}
+
+int main(int argc, char **argv)
+{
+    const char *sopt = "hVvi:o:c:";
+    struct option lopt[] = {
+        { "help", 0, NULL, 'h' },
+        { "version", 0, NULL, 'V' },
+        { "verbose", 0, NULL, 'v' },
+        { "iforward", 0, NULL, 'i' },
+        { "oforward", 0, NULL, 'o' },
+        { "channel", 0, NULL, 'c' },
+        { NULL, 0, NULL, 0 }
+    };
+    int opt_ind = 0, ch, ret;
+    QTAILQ_INIT(&iforwards);
+    QTAILQ_INIT(&oforwards);
+    QTAILQ_INIT(&channels);
+
+    while ((ch = getopt_long(argc, argv, sopt, lopt, &opt_ind)) != -1) {
+        QemuOpts *opts;
+        VPData *data;
+        switch (ch) {
+        case 'i':
+            opts = qemu_opts_create(&vp_opts, NULL, 0);
+            ret = vp_parse(opts, optarg, 0);
+            if (ret) {
+                errx(EXIT_FAILURE, "error parsing arg: %s", optarg);
+            }
+            data = qemu_mallocz(sizeof(VPData));
+            data->opts = opts;
+            QTAILQ_INSERT_TAIL(&iforwards, data, next);
+            break;
+        case 'o':
+            opts = qemu_opts_create(&vp_opts, NULL, 0);
+            ret = vp_parse(opts, optarg, 0);
+            if (ret) {
+                errx(EXIT_FAILURE, "error parsing arg: %s", optarg);
+            }
+            data = qemu_mallocz(sizeof(VPData));
+            data->opts = opts;
+            QTAILQ_INSERT_TAIL(&oforwards, data, next);
+            break;
+        case 'c':
+            opts = qemu_opts_create(&vp_opts, NULL, 0);
+            ret = vp_parse(opts, optarg, 1);
+            if (ret) {
+                errx(EXIT_FAILURE, "error parsing arg: %s", optarg);
+            }
+            data = qemu_mallocz(sizeof(VPData));
+            data->opts = opts;
+            QTAILQ_INSERT_TAIL(&channels, data, next);
+            break;
+        case '?':
+            errx(EXIT_FAILURE, "Try '%s --help' for more information.",
+                 argv[0]);
+        }
+    }
+
+    return 0;
 }
