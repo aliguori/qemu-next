@@ -89,7 +89,17 @@ typedef struct {
     void *alloc_l2_table_opaque;
 } L2TableCache;
 
+typedef struct RequestQueueEntry
+{
+    BlockDriverCompletionFunc *cb;
+    void *opaque;
+    QTAILQ_ENTRY(RequestQueueEntry) next;
+} RequestQueueEntry;
+
+typedef QTAILQ_HEAD(, RequestQueueEntry) RequestQueue;
+
 typedef struct QEDRequest {
+    RequestQueueEntry *rqe;
     CachedL2Table *l2_table;
 } QEDRequest;
 
@@ -97,7 +107,6 @@ typedef struct QEDAIOCB {
     BlockDriverAIOCB common;
     QEMUBH *bh;
     int bh_ret;                     /* final return status for completion bh */
-    QSIMPLEQ_ENTRY(QEDAIOCB) next;  /* next request */
     bool is_write;                  /* false - read, true - write */
     bool check_zero_write;          /* true - check blocks for zero write */
 
@@ -130,7 +139,7 @@ typedef struct {
     uint32_t l2_mask;
 
     /* Allocating write request queue */
-    QSIMPLEQ_HEAD(, QEDAIOCB) allocating_write_reqs;
+    RequestQueue allocating_write_reqs;
 } BDRVQEDState;
 
 enum {
@@ -184,6 +193,67 @@ void qed_write_l2_table(BDRVQEDState *s, QEDRequest *request,
  */
 void qed_find_cluster(BDRVQEDState *s, QEDRequest *request, uint64_t pos,
                       size_t len, QEDFindClusterFunc *cb, void *opaque);
+
+/**
+ * Request queue functions
+ *
+ * Used to serialize requests so that only one can be in flight at a time.
+ */
+
+/**
+ * Initialize a request queue.
+ */
+void qed_rq_init(RequestQueue *rq);
+
+/**
+ * Enqueue a new entry in the request queue but do not start if active.
+ *
+ * This function allows a caller to enqueue the request but if the queue is
+ * empty, let control flow be used to start the request instead of relying on
+ * a callback.  This is useful for when the work to complete a request now is
+ * different than the work to complete a request later.
+ *
+ * The expected use of this function is:
+ *
+ *   rqe = qed_rq_enqueue_nostart(rq, deferred_work, s);
+ *   if (!qed_rq_is_entry_active(rq, rqe)) {
+ *       // Work cannot complete now, just return and let deferred_work handle
+ *       // request.
+ *       return;
+ *   }
+ *   // process request
+ *
+ */ 
+RequestQueueEntry *qed_rq_enqueue_nostart(RequestQueue *rq,
+                                          BlockDriverCompletionFunc *cb,
+                                          void *opaque);
+
+/**
+ * Enqueue a new entry in the request queue.
+ *
+ * If there are no other pending requests, then the completion function will be
+ * invoked immediately.
+ */
+RequestQueueEntry *qed_rq_enqueue(RequestQueue *rq,
+                                  BlockDriverCompletionFunc *cb,
+                                  void *opaque);
+
+/**
+ * Return true if the entry is active; false if not active
+ */
+bool qed_rq_is_entry_active(RequestQueue *rq, RequestQueueEntry *rqe);
+
+/**
+ * Dequeue a request.  This should be called if a request is completed or
+ * cancelled.  It may result in the execution of the next pending request.
+ */
+void qed_rq_dequeue(RequestQueue *rq,
+                    RequestQueueEntry *rqe);
+
+/**
+ * Destroy a request queue freeing it's associated resources.
+ */
+void qed_rq_destroy(RequestQueue *rq);
 
 /**
  * Utility functions

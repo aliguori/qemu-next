@@ -281,7 +281,7 @@ static int bdrv_qed_open(BlockDriverState *bs, int flags)
     int ret;
 
     s->bs = bs;
-    QSIMPLEQ_INIT(&s->allocating_write_reqs);
+    qed_rq_init(&s->allocating_write_reqs);
 
     ret = bdrv_pread(bs->file, 0, &le_header, sizeof(le_header));
     if (ret != sizeof(le_header)) {
@@ -660,6 +660,7 @@ static void qed_aio_complete_bh(void *opaque)
 static void qed_aio_complete(QEDAIOCB *acb, int ret)
 {
     BDRVQEDState *s = acb_to_s(acb);
+    QEDRequest *req = &acb->request;
 
     trace_qed_aio_complete(s, acb, ret);
 
@@ -678,12 +679,8 @@ static void qed_aio_complete(QEDAIOCB *acb, int ret)
      * next request in the queue.  This ensures that we don't cycle through
      * requests multiple times but rather finish one at a time completely.
      */
-    if (acb == QSIMPLEQ_FIRST(&s->allocating_write_reqs)) {
-        QSIMPLEQ_REMOVE_HEAD(&s->allocating_write_reqs, next);
-        acb = QSIMPLEQ_FIRST(&s->allocating_write_reqs);
-        if (acb) {
-            qed_aio_next_io(acb, 0);
-        }
+    if (req->rqe) {
+        qed_rq_dequeue(&s->allocating_write_reqs, req->rqe);
     }
 }
 
@@ -938,6 +935,7 @@ static void qed_aio_write_data(void *opaque, int ret,
                                uint64_t offset, size_t len)
 {
     QEDAIOCB *acb = opaque;
+    QEDRequest *req = &acb->request;
     BDRVQEDState *s = acb_to_s(acb);
     bool need_alloc = ret != QED_CLUSTER_FOUND;
 
@@ -949,10 +947,11 @@ static void qed_aio_write_data(void *opaque, int ret,
 
     /* Freeze this request if another allocating write is in progress */
     if (need_alloc) {
-        if (acb != QSIMPLEQ_FIRST(&s->allocating_write_reqs)) {
-            QSIMPLEQ_INSERT_TAIL(&s->allocating_write_reqs, acb, next);
+        if (!req->rqe) {
+            req->rqe = qed_rq_enqueue_nostart(&s->allocating_write_reqs,
+                                              qed_aio_next_io, acb);
         }
-        if (acb != QSIMPLEQ_FIRST(&s->allocating_write_reqs)) {
+        if (!qed_rq_is_entry_active(&s->allocating_write_reqs, req->rqe)) {
             return; /* wait for existing request to finish */
         }
     }
@@ -1124,6 +1123,7 @@ static QEDAIOCB *qed_aio_setup(BlockDriverState *bs,
     acb->cur_pos = (uint64_t)sector_num * BDRV_SECTOR_SIZE;
     acb->end_pos = acb->cur_pos + nb_sectors * BDRV_SECTOR_SIZE;
     acb->request.l2_table = NULL;
+    acb->request.rqe = NULL;
     qemu_iovec_init(&acb->cur_qiov, qiov->niov);
 
     return acb;
