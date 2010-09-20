@@ -16,6 +16,25 @@
 #include "qemu-option.h"
 #include "virtproxy.h"
 
+static bool verbose_enabled = 0;
+#define DEBUG_ENABLED
+
+#ifdef DEBUG_ENABLED
+#define DEBUG(msg, ...) do { \
+    fprintf(stderr, "%s:%s():L%d: " msg "\n", \
+            __FILE__, __FUNCTION__, __LINE__, ## __VA_ARGS__); \
+} while(0)
+#else
+#define DEBUG(msg, ...) do {} while (0)
+#endif
+
+#define INFO(msg, ...) do { \
+    if (!verbose_enabled) { \
+        break; \
+    } \
+    warnx(msg, ## __VA_ARGS__); \
+} while(0)
+
 /* mirror qemu I/O-related code for standalone daemon */
 typedef struct IOHandlerRecord {
     int fd;
@@ -301,6 +320,9 @@ int main(int argc, char **argv)
             data = qemu_mallocz(sizeof(VPData));
             data->opts = opts;
             QTAILQ_INSERT_TAIL(&channels, data, next);
+            break;
+        case 'v':
+            verbose_enabled = 1;
             break;
         case '?':
             errx(EXIT_FAILURE, "Try '%s --help' for more information.",
