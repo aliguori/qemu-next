@@ -14,6 +14,7 @@
 #include <getopt.h>
 #include <err.h>
 #include "qemu-option.h"
+#include "qemu_socket.h"
 #include "virtproxy.h"
 
 static bool verbose_enabled = 0;
@@ -270,6 +271,57 @@ static int vp_parse(QemuOpts *opts, const char *str, bool is_channel)
     return 0;
 }
 
+static int init_channels(void) {
+    VPDriver *drv;
+    VPData *channel_data;
+    const char *channel_method;
+    int fd;
+
+    if (QTAILQ_EMPTY(&channels)) {
+        warnx("no channel specified");
+        return -1;
+    }
+
+    channel_data = QTAILQ_FIRST(&channels);
+
+    /* TODO: add this support, optional idx param for -i/-o/-c
+     * args should suffice
+     */
+    if (QTAILQ_NEXT(channel_data, next) != NULL) {
+        warnx("multiple channels not currently supported, defaulting to first");
+    }
+
+    INFO("initializing channel...");
+    if (verbose_enabled) {
+        qemu_opts_print(channel_data->opts, NULL);
+    }
+
+    channel_method = qemu_opt_get(channel_data->opts, "channel_method");
+
+    if (strcmp("tcp-listen", channel_method) == 0) {
+        fd = inet_listen_opts(channel_data->opts, 0);
+    } else if (strcmp("tcp-connect", channel_method) == 0) {
+        fd = inet_connect_opts(channel_data->opts);
+    } else if (strcmp("unix-listen", channel_method) == 0) {
+        fd = unix_listen_opts(channel_data->opts);
+    } else if (strcmp("unix-connect", channel_method) == 0) {
+        fd = unix_connect_opts(channel_data->opts);
+    } else {
+        warnx("invalid channel type: %s", channel_method);
+        return -1;
+    }
+
+    if (fd == -1) {
+        warn("error opening connection");
+        return -1;
+    }
+
+    drv = vp_new(fd, true);
+    channel_data->opaque = drv;
+
+    return 0;
+}
+
 int main(int argc, char **argv)
 {
     const char *sopt = "hVvi:o:c:";
@@ -328,6 +380,11 @@ int main(int argc, char **argv)
             errx(EXIT_FAILURE, "Try '%s --help' for more information.",
                  argv[0]);
         }
+    }
+
+    ret = init_channels();
+    if (ret) {
+        errx(EXIT_FAILURE, "error initializing communication channel");
     }
 
     return 0;
