@@ -530,5 +530,12 @@ int main(int argc, char **argv)
              "error initializing service mappings for incoming connections");
     }
 
+    /* main i/o loop */
+    for (;;) {
+        DEBUG("entering main_loop_wait()");
+        main_loop_wait(0);
+        DEBUG("left main_loop_wait()");
+    }
+
     return 0;
 }
