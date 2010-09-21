@@ -186,6 +186,9 @@ static QemuOptsList vp_opts = {
             .name = "channel_method",
             .type = QEMU_OPT_STRING,
         },{
+            .name = "index",
+            .type = QEMU_OPT_NUMBER,
+        },{
             .name = "path",
             .type = QEMU_OPT_STRING,
         },{
@@ -220,6 +223,7 @@ static int vp_parse(QemuOpts *opts, const char *str, bool is_channel)
     /* TODO: use VP_SERVICE_ID_LEN, bring it into virtproxy.h */
     char service_id[32];
     char channel_method[32];
+    char index[10];
     char *addr;
     char port[33];
     int pos, ret;
@@ -268,7 +272,40 @@ static int vp_parse(QemuOpts *opts, const char *str, bool is_channel)
     str += pos;
     pos = 0;
 
+    if (str[0] == ':') {
+        /* parse optional index parameter */
+        ret = sscanf(str,":%10[^:]%n",index,&pos);
+    } else {
+        qemu_opt_set(opts, "index", "0");
+        return 0;
+    }
+
+    if (ret != 1) {
+        warnx("error parsing index");
+        return -1;
+    } else {
+        qemu_opt_set(opts, "index", index);
+    }
+    str += pos;
+    pos = 0;
+
     return 0;
+}
+
+static VPDriver *get_channel_drv(int index) {
+    VPData *data;
+    VPDriver *drv;
+    int cindex;
+
+    QTAILQ_FOREACH(data, &channels, next) {
+        cindex = qemu_opt_get_number(data->opts, "index", 0);
+        if (cindex == index) {
+            drv = data->opaque;
+            return drv;
+        }
+    }
+
+    return NULL;
 }
 
 static int init_channels(void) {
