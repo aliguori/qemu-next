@@ -359,6 +359,52 @@ static int init_channels(void) {
     return 0;
 }
 
+static int init_oforwards(void) {
+    VPDriver *drv;
+    VPData *oforward_data;
+    int index, ret, fd;
+    const char *service_id;
+
+    QTAILQ_FOREACH(oforward_data, &oforwards, next) {
+        INFO("initializing oforward...");
+        if (verbose_enabled) {
+            qemu_opts_print(oforward_data->opts, NULL);
+        }
+
+        index = qemu_opt_get_number(oforward_data->opts, "index", 0);
+        drv = get_channel_drv(index);
+        if (drv == NULL) {
+            warnx("unable to find channel with index: %d", index);
+            return -1;
+        }
+
+        if (qemu_opt_get(oforward_data->opts, "host") != NULL) {
+            fd = inet_listen_opts(oforward_data->opts, 0);
+        } else if (qemu_opt_get(oforward_data->opts, "path") != NULL) {
+            fd = unix_listen_opts(oforward_data->opts);
+        } else {
+            warnx("unable to find listening socket host/addr info");
+            return -1;
+        }
+
+        if (fd == -1) {
+            warnx("failed to create FD");
+            return -1;
+        }
+
+        service_id = qemu_opt_get(oforward_data->opts, "service_id");
+
+        if (service_id == NULL) {
+            warnx("no service_id specified");
+            return -1;
+        }
+
+        ret = vp_set_oforward(drv, fd, service_id);
+    }
+
+    return 0;
+}
+
 int main(int argc, char **argv)
 {
     const char *sopt = "hVvi:o:c:";
@@ -422,6 +468,12 @@ int main(int argc, char **argv)
     ret = init_channels();
     if (ret) {
         errx(EXIT_FAILURE, "error initializing communication channel");
+    }
+
+    ret = init_oforwards();
+    if (ret) {
+        errx(EXIT_FAILURE,
+             "error initializing forwarders for outgoing connections");
     }
 
     return 0;
