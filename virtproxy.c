@@ -33,6 +33,7 @@
 #define VP_SERVICE_ID_LEN 32    /* max length of service id string */
 #define VP_PKT_DATA_LEN 1024    /* max proxied bytes per VPPacket */
 #define VP_CONN_DATA_LEN 1024   /* max bytes conns can send at a time */
+#define VP_CHAN_DATA_LEN 4096   /* max bytes channel can send at a time */
 #define VP_MAGIC 0x1F374059
 
 /* listening fd, one for each service we're forwarding to remote end */
@@ -150,6 +151,8 @@ static QemuOptsList vp_socket_opts = {
     },
 };
 
+static void vp_channel_read(void *opaque);
+
 /* get VPConn by fd, "client" denotes whether to look for client or server */
 static VPConn *get_conn(const VPDriver *drv, int fd, bool client)
 {
@@ -238,4 +241,84 @@ static void vp_channel_accept(void *opaque)
     vp_set_fd_handler(drv->channel_fd, vp_channel_read, NULL, drv);
     /* dont accept anymore connections until channel_fd is closed */
     vp_set_fd_handler(drv->listen_fd, NULL, NULL, NULL);
+}
+
+/* read handler for communication channel
+ *
+ * de-multiplexes data coming in over the channel. for control messages
+ * we process them here, for data destined for a service or client we
+ * send it to the appropriate FD.
+ */
+static void vp_channel_read(void *opaque)
+{
+    VPDriver *drv = opaque;
+    VPPacket pkt;
+    int count, ret, buf_offset;
+    char buf[VP_CHAN_DATA_LEN];
+    char *pkt_ptr, *buf_ptr;
+
+    TRACE("called with opaque: %p", drv);
+
+    count = read(drv->channel_fd, buf, sizeof(buf));
+
+    if (count == -1) {
+        LOG("read() failed: %s", strerror(errno));
+        return;
+    } else if (count == 0) {
+        /* TODO: channel closed, this probably shouldn't happen for guest-side
+         * serial/virtio-serial connections, but need to confirm and consider
+         * what should happen in this case. as it stands this virtproxy instance
+         * is basically defunct at this point, same goes for "client" instances
+         * of virtproxy where the remote end has hung-up.
+         */
+        LOG("channel connection closed");
+        vp_set_fd_handler(drv->channel_fd, NULL, NULL, drv);
+        drv->channel_fd = -1;
+        if (drv->listen_fd) {
+            vp_set_fd_handler(drv->listen_fd, vp_channel_accept, NULL, drv);
+        }
+        /* TODO: should close/remove/delete all existing VPConns here */
+    }
+
+    if (drv->buflen + count >= sizeof(VPPacket)) {
+        TRACE("initial packet, drv->buflen: %d", drv->buflen);
+        pkt_ptr = (char *)&pkt;
+        memcpy(pkt_ptr, drv->buf, drv->buflen);
+        pkt_ptr += drv->buflen;
+        memcpy(pkt_ptr, buf, sizeof(VPPacket) - drv->buflen);
+        /* handle first packet */
+        ret = vp_handle_packet(drv, &pkt);
+        if (ret != 0) {
+            LOG("error handling packet");
+        }
+        /* handle the rest of the buffer */
+        buf_offset = sizeof(VPPacket) - drv->buflen;
+        drv->buflen = 0;
+        buf_ptr = buf + buf_offset;
+        count -= buf_offset;
+        while (count > 0) {
+            if (count >= sizeof(VPPacket)) {
+                /* handle full packet */
+                TRACE("additional packet, drv->buflen: %d", drv->buflen);
+                memcpy((void *)&pkt, buf_ptr, sizeof(VPPacket));
+                ret = vp_handle_packet(drv, &pkt);
+                if (ret != 0) {
+                    LOG("error handling packet");
+                }
+                count -= sizeof(VPPacket);
+                buf_ptr += sizeof(VPPacket);
+            } else {
+                /* buffer the remainder */
+                TRACE("buffering packet");
+                memcpy(drv->buf, buf_ptr, count);
+                drv->buflen = count;
+                break;
+            }
+        }
+    } else {
+        /* haven't got a full VPPacket yet, buffer for later */
+        buf_ptr = drv->buf + drv->buflen;
+        memcpy(buf_ptr, buf, count);
+        drv->buflen += count;
+    }
 }
