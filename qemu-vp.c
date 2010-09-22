@@ -78,8 +78,10 @@ int vp_send_all(int fd, const void *buf, int len1)
     while (len > 0) {
         ret = write(fd, buf, len);
         if (ret < 0) {
-            if (errno != EINTR && errno != EAGAIN)
+            if (errno != EINTR && errno != EAGAIN) {
+                warn("write() failed");
                 return -1;
+            }
         } else if (ret == 0) {
             break;
         } else {
