@@ -172,6 +172,8 @@ static VPConn *get_conn(const VPDriver *drv, int fd, bool client)
     return NULL;
 }
 
+static void vp_channel_accept(void *opaque);
+
 /* get VPOForward by service_id */
 static VPOForward *get_oforward(const VPDriver *drv, const char *service_id)
 {
@@ -198,4 +200,42 @@ static VPIForward *get_iforward(const VPDriver *drv, const char *service_id)
     }
 
     return NULL;
+}
+
+/* accept handler for communication channel
+ *
+ * accept()s connection to communication channel (for sockets), and sets
+ * up the read handler for resulting FD.
+ */
+static void vp_channel_accept(void *opaque)
+{
+    VPDriver *drv = opaque;
+
+    TRACE("called with opaque: %p", drv);
+
+    struct sockaddr_in saddr;
+    struct sockaddr *addr;
+    socklen_t len;
+    int fd;
+
+    TRACE("called with opaque: %p", drv);
+
+    for(;;) {
+        len = sizeof(saddr);
+        addr = (struct sockaddr *)&saddr;
+        fd = qemu_accept(drv->listen_fd, addr, &len);
+
+        if (fd < 0 && errno != EINTR) {
+            TRACE("accept() failed");
+            return;
+        } else if (fd >= 0) {
+            TRACE("accepted connection");
+            break;
+        }
+    }
+
+    drv->channel_fd = fd;
+    vp_set_fd_handler(drv->channel_fd, vp_channel_read, NULL, drv);
+    /* dont accept anymore connections until channel_fd is closed */
+    vp_set_fd_handler(drv->listen_fd, NULL, NULL, NULL);
 }
