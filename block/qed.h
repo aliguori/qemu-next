@@ -50,11 +50,15 @@ enum {
     /* The image supports a backing file */
     QED_F_BACKING_FILE = 0x01,
 
+    /* The image needs a consistency check before use */
+    QED_F_NEED_CHECK = 0x02,
+
     /* The image has the backing file format */
     QED_CF_BACKING_FORMAT = 0x01,
 
     /* Feature bits must be used when the on-disk format changes */
-    QED_FEATURE_MASK = QED_F_BACKING_FILE,            /* supported feature bits */
+    QED_FEATURE_MASK = QED_F_BACKING_FILE |           /* supported feature bits */
+                       QED_F_NEED_CHECK,
     QED_COMPAT_FEATURE_MASK = QED_CF_BACKING_FORMAT,  /* supported compat feature bits */
 
     /* Data is stored in groups of sectors called clusters.  Cluster size must
@@ -235,6 +239,11 @@ int qed_write_l2_table_sync(BDRVQEDState *s, QEDRequest *request,
  */
 void qed_find_cluster(BDRVQEDState *s, QEDRequest *request, uint64_t pos,
                       size_t len, QEDFindClusterFunc *cb, void *opaque);
+
+/**
+ * Consistency check
+ */
+int qed_check(BDRVQEDState *s, BdrvCheckResult *result, bool fix);
 
 /**
  * Utility functions
