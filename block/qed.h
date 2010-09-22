@@ -126,6 +126,41 @@ typedef struct QEDRequest {
     CachedL2Table *l2_table;
 } QEDRequest;
 
+typedef struct QEDLockEntry QEDLockEntry;
+
+typedef struct QEDAIOCB {
+    BlockDriverAIOCB common;
+    QEMUBH *bh;
+    int bh_ret;                     /* final return status for completion bh */
+    QSIMPLEQ_ENTRY(QEDAIOCB) next;  /* next request */
+    QEDLockEntry *lock_entry;       /* held lock */
+    bool is_write;                  /* false - read, true - write */
+    bool *finished;                 /* signal for cancel completion */
+    uint64_t end_pos;               /* request end on block device, in bytes */
+
+    /* User scatter-gather list */
+    QEMUIOVector *qiov;
+    struct iovec *cur_iov;          /* current iovec to process */
+    size_t cur_iov_offset;          /* byte count already processed in iovec */
+
+    /* Current cluster scatter-gather list */
+    QEMUIOVector cur_qiov;
+    uint64_t cur_pos;               /* position on block device, in bytes */
+    uint64_t cur_cluster;           /* cluster offset in image file */
+    unsigned int cur_nclusters;     /* number of clusters being accessed */
+    int find_cluster_ret;           /* used for L1/L2 update */
+
+    QEDRequest request;
+} QEDAIOCB;
+
+/**
+ * Lock used to serialize requests touching the same table
+ */
+typedef struct {
+    QTAILQ_HEAD(, QEDLockEntry) entries;
+    BlockDriverCompletionFunc *wakeup_fn;
+} QEDLock;
+
 typedef struct {
     BlockDriverState *bs;           /* device */
     uint64_t file_size;             /* length of image file, in bytes */
@@ -133,6 +168,7 @@ typedef struct {
     QEDHeader header;               /* always cpu-endian */
     QEDTable *l1_table;
     L2TableCache l2_cache;          /* l2 table cache */
+    QEDLock lock;                   /* table lock */
     uint32_t table_nelems;
     uint32_t l1_shift;
     uint32_t l2_shift;
@@ -168,6 +204,13 @@ CachedL2Table *qed_alloc_l2_cache_entry(L2TableCache *l2_cache);
 void qed_unref_l2_cache_entry(L2TableCache *l2_cache, CachedL2Table *entry);
 CachedL2Table *qed_find_l2_cache_entry(L2TableCache *l2_cache, uint64_t offset);
 void qed_commit_l2_cache_entry(L2TableCache *l2_cache, CachedL2Table *l2_table);
+
+/**
+ * Lock functions
+ */
+void qed_lock_init(QEDLock *lock, BlockDriverCompletionFunc *wakeup_fn);
+bool qed_lock(QEDLock *lock, uint64_t key, QEDAIOCB *acb);
+void qed_unlock(QEDLock *lock, QEDAIOCB *acb);
 
 /**
  * Table I/O functions
