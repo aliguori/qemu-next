@@ -69,3 +69,9 @@ disable cpu_out(unsigned int addr, unsigned int val) "addr %#x value %u"
 # balloon.c
 # Since requests are raised via monitor, not many tracepoints are needed.
 disable balloon_event(void *opaque, unsigned long addr) "opaque %p addr %lu"
+
+# block/qed-table.c
+disable qed_read_table(void *s, uint64_t offset, void *table) "s %p offset %"PRIu64" table %p"
+disable qed_read_table_cb(void *s, void *table, int ret) "s %p table %p ret %d"
+disable qed_write_table(void *s, uint64_t offset, void *table, unsigned int index, unsigned int n) "s %p offset %"PRIu64" table %p index %u n %u"
+disable qed_write_table_cb(void *s, void *table, int ret) "s %p table %p ret %d"
