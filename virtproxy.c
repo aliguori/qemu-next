@@ -244,6 +244,160 @@ static void vp_channel_accept(void *opaque)
     vp_set_fd_handler(drv->listen_fd, NULL, NULL, NULL);
 }
 
+/* handle control packets
+ *
+ * process VPPackets containing control messages
+ */
+static int vp_handle_control_packet(VPDriver *drv, const VPPacket *pkt)
+{
+    const VPControlMsg *msg = &pkt->payload.msg;
+    int ret;
+
+    TRACE("called with drv: %p", drv);
+
+    switch (msg->type) {
+    case VP_CONTROL_CONNECT_INIT: {
+        int client_fd = msg->args.connect_init.client_fd;
+        int server_fd;
+        char service_id[VP_SERVICE_ID_LEN];
+        VPPacket resp_pkt;
+        VPConn *new_conn;
+        VPIForward *iforward;
+
+        pstrcpy(service_id, VP_SERVICE_ID_LEN,
+                 msg->args.connect_init.service_id);
+        TRACE("setting up connection for service id %s", service_id);
+
+        /* create server connection on behalf of remote end */
+        iforward = get_iforward(drv, service_id);
+        if (iforward == NULL) {
+            LOG("no forwarder configured for service id");
+            return -1;
+        }
+
+        qemu_opts_print(iforward->socket_opts, NULL);
+        if (qemu_opt_get(iforward->socket_opts, "host") != NULL) {
+            server_fd = inet_connect_opts(iforward->socket_opts);
+        } else if (qemu_opt_get(iforward->socket_opts, "path") != NULL) {
+            server_fd = unix_connect_opts(iforward->socket_opts);
+        } else {
+            LOG("unable to find listening socket host/addr info");
+            return -1;
+        }
+
+        if (server_fd == -1) {
+            LOG("failed to create connection to service with id %s",
+                service_id);
+        }
+        TRACE("server_fd: %d", server_fd);
+
+        new_conn = qemu_mallocz(sizeof(VPConn));
+        if (!new_conn) {
+            LOG("memory allocation failed");
+            return -1;
+        }
+
+        /* send a connect_ack back over the channel */
+        /* TODO: all fields should be explicitly set so we shouldn't
+         * need to memset. this might hurt if we beef up VPPacket size
+         */
+        memset(&resp_pkt, 0, sizeof(resp_pkt));
+        resp_pkt.type = VP_PKT_CONTROL;
+        resp_pkt.payload.msg.type = VP_CONTROL_CONNECT_ACK;
+        resp_pkt.payload.msg.args.connect_ack.server_fd = server_fd;
+        resp_pkt.payload.msg.args.connect_ack.client_fd = client_fd;
+        resp_pkt.magic = VP_MAGIC;
+
+        /* TODO: can this potentially block or cause a deadlock with
+         * the remote end? need to look into potentially buffering these
+         * if it looks like the remote end is waiting for us to read data
+         * off the channel.
+         */
+        if (drv->channel_fd == -1) {
+            TRACE("channel no longer connected, ignoring packet");
+            return -1;
+        }
+
+        ret = vp_send_all(drv->channel_fd, (void *)&resp_pkt, sizeof(resp_pkt));
+        if (ret == -1) {
+            LOG("error sending data over channel");
+            return -1;
+        }
+        if (ret != sizeof(resp_pkt)) {
+            TRACE("buffer full? %d bytes remaining", ret);
+            return -1;
+        }
+
+        /* add new VPConn to list and set a read handler for it */
+        new_conn->drv = drv;
+        new_conn->client_fd = client_fd;
+        new_conn->server_fd = server_fd;
+        new_conn->type = VP_CONN_SERVER;
+        new_conn->state = VP_STATE_CONNECTED;
+        QLIST_INSERT_HEAD(&drv->conns, new_conn, next);
+        vp_set_fd_handler(server_fd, vp_conn_read, NULL, new_conn);
+
+        break;
+    }
+    case VP_CONTROL_CONNECT_ACK: {
+        int client_fd = msg->args.connect_ack.client_fd;
+        int server_fd = msg->args.connect_ack.server_fd;
+        VPConn *conn;
+
+        TRACE("recieved ack from remote end for client fd %d", client_fd);
+
+        if (server_fd <= 0) {
+            LOG("remote end sent invalid server fd");
+            return -1;
+        }
+
+        conn = get_conn(drv, client_fd, true);
+
+        if (conn == NULL) {
+            LOG("failed to find connection with client_fd %d", client_fd);
+            return -1;
+        }
+
+        conn->server_fd = server_fd;
+        conn->state = VP_STATE_CONNECTED;
+        vp_set_fd_handler(client_fd, vp_conn_read, NULL, conn);
+
+        break;
+    }
+    case VP_CONTROL_CLOSE: {
+        int fd;
+        VPConn *conn;
+
+        TRACE("closing connection on behalf of remote end");
+
+        if (msg->args.close.client_fd >= 0) {
+            fd = msg->args.close.client_fd;
+            TRACE("recieved close msg from remote end for client fd %d", fd);
+            conn = get_conn(drv, fd, true);
+        } else if (msg->args.close.server_fd >= 0) {
+            fd = msg->args.close.server_fd;
+            TRACE("recieved close msg from remote end for server fd %d", fd);
+            conn = get_conn(drv, fd, false);
+        } else {
+            LOG("invalid fd");
+            return -1;
+        }
+
+        if (conn == NULL) {
+            LOG("failed to find conn with specified fd %d", fd);
+            return -1;
+        }
+
+        closesocket(fd);
+        vp_set_fd_handler(fd, NULL, NULL, conn);
+        QLIST_REMOVE(conn, next);
+        qemu_free(conn);
+        break;
+    }
+    }
+    return 0;
+}
+
 /* handle data packets
  *
  * process VPPackets containing data and send them to the corresponding
