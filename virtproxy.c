@@ -149,3 +149,53 @@ static QemuOptsList vp_socket_opts = {
         { /* end if list */ }
     },
 };
+
+/* get VPConn by fd, "client" denotes whether to look for client or server */
+static VPConn *get_conn(const VPDriver *drv, int fd, bool client)
+{
+    VPConn *c = NULL;
+
+    if (client) {
+        QLIST_FOREACH(c, &drv->conns, next) {
+            if (c->client_fd == fd) {
+                return c;
+            }
+        }
+    } else {
+        QLIST_FOREACH(c, &drv->conns, next) {
+            if (c->server_fd == fd) {
+                return c;
+            }
+        }
+    }
+
+    return NULL;
+}
+
+/* get VPOForward by service_id */
+static VPOForward *get_oforward(const VPDriver *drv, const char *service_id)
+{
+    VPOForward *f = NULL;
+
+    QLIST_FOREACH(f, &drv->oforwards, next) {
+        if (strncmp(f->service_id, service_id, VP_SERVICE_ID_LEN) == 0) {
+            return f;
+        }
+    }
+
+    return NULL;
+}
+
+/* get VPIForward by service_id */
+static VPIForward *get_iforward(const VPDriver *drv, const char *service_id)
+{
+    VPIForward *f = NULL;
+
+    QLIST_FOREACH(f, &drv->iforwards, next) {
+        if (strncmp(f->service_id, service_id, VP_SERVICE_ID_LEN) == 0) {
+            return f;
+        }
+    }
+
+    return NULL;
+}
