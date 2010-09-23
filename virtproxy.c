@@ -26,6 +26,14 @@ typedef struct VPOForward {
     QLIST_ENTRY(VPOForward) next;
 } VPOForward;
 
+/* service_id->path/port mapping of each service forwarded from remote end */
+typedef struct VPIForward {
+    VPDriver *drv;
+    char service_id[VP_SERVICE_ID_LEN];
+    QemuOpts *socket_opts;
+    QLIST_ENTRY(VPIForward) next;
+} VPIForward;
+
 /* proxied client/server connected states */
 typedef struct VPConn {
     VPDriver *drv;
