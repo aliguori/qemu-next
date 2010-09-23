@@ -244,6 +244,60 @@ static void vp_channel_accept(void *opaque)
     vp_set_fd_handler(drv->listen_fd, NULL, NULL, NULL);
 }
 
+/* handle data packets
+ *
+ * process VPPackets containing data and send them to the corresponding
+ * FDs
+ */
+static int vp_handle_data_packet(void *drv, const VPPacket *pkt)
+{
+    int fd, ret;
+
+    TRACE("called with drv: %p", drv);
+
+    switch (pkt->type) {
+    case VP_PKT_CLIENT:
+        TRACE("recieved client packet, client fd: %d, server fd: %d",
+              pkt->payload.proxied.client_fd, pkt->payload.proxied.server_fd);
+        fd = pkt->payload.proxied.server_fd;
+        /* TODO: proxied in non-blocking mode can causes us to spin here
+         * for slow servers/clients. need to use write()'s and maintain
+         * a per-conn write queue that we clear out before sending any
+         * more data to the fd
+         */
+        TRACE("payload.proxied.bytes: %d", pkt->payload.proxied.bytes);
+        ret = vp_send_all(fd, (void *)pkt->payload.proxied.data,
+                pkt->payload.proxied.bytes);
+        if (ret == -1) {
+            LOG("error sending data over channel");
+            return -1;
+        }
+        if (ret != pkt->payload.proxied.bytes) {
+            TRACE("buffer full?");
+            return -1;
+        }
+        break;
+    case VP_PKT_SERVER:
+        TRACE("recieved client packet, client fd: %d, server fd: %d",
+              pkt->payload.proxied.client_fd, pkt->payload.proxied.server_fd);
+        fd = pkt->payload.proxied.client_fd;
+        ret = vp_send_all(fd, (void *)pkt->payload.proxied.data,
+                pkt->payload.proxied.bytes);
+        if (ret == -1) {
+            LOG("error sending data over channel");
+            return -1;
+        }
+        if (ret != pkt->payload.proxied.bytes) {
+            TRACE("buffer full?");
+            return -1;
+        }
+        break;
+    default:
+        TRACE("unknown packet type");
+    }
+    return 0;
+}
+
 /* read handler for communication channel
  *
  * de-multiplexes data coming in over the channel. for control messages
