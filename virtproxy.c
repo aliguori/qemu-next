@@ -679,3 +679,62 @@ int vp_set_oforward(VPDriver *drv, int fd, const char *service_id)
 
     return 0;
 }
+
+/* add/modify a service_id -> net/unix socket mapping
+ *
+ * "service_id" is a user-defined id for the service. this is what the
+ * remote end will use to proxy connections to a specific service on
+ * our end.
+ *
+ * if "port" is NULL, "addr" is the address of the net socket the
+ * service is running on. otherwise, addr is the path to the unix socket
+ * the service is running on.
+ *
+ * if "port" AND "addr" are NULL, find and remove the current iforward
+ * for this "service_id" if it exists.
+ *
+ * "ipv6" is a bool denoting whether or not to use ipv6
+ */
+int vp_set_iforward(VPDriver *drv, const char *service_id, const char *addr,
+                    const char *port, bool ipv6)
+{
+    VPIForward *f = get_iforward(drv, service_id);
+
+    if (addr == NULL && port == NULL) {
+        if (f != NULL) {
+            qemu_opts_del(f->socket_opts);
+            QLIST_REMOVE(f, next);
+            qemu_free(f);
+        }
+        return 0;
+    }
+
+    if (f == NULL) {
+        f = qemu_mallocz(sizeof(VPIForward));
+        f->drv = drv;
+        strncpy(f->service_id, service_id, VP_SERVICE_ID_LEN);
+        QLIST_INSERT_HEAD(&drv->iforwards, f, next);
+    } else {
+        qemu_opts_del(f->socket_opts);
+    }
+
+    /* stick socket-related options in a QemuOpts so we can
+     * utilize qemu socket utility functions directly
+     */
+    f->socket_opts = qemu_opts_create(&vp_socket_opts, NULL, 0);
+    if (port == NULL) {
+        /* no port given, assume unix path */
+        qemu_opt_set(f->socket_opts, "path", addr);
+    } else {
+        qemu_opt_set(f->socket_opts, "host", addr);
+        qemu_opt_set(f->socket_opts, "port", port);
+    }
+
+    if (ipv6) {
+        qemu_opt_set(f->socket_opts, "ipv6", "on");
+    } else {
+        qemu_opt_set(f->socket_opts, "ipv4", "on");
+    }
+
+    return 0;
+}

@@ -21,5 +21,7 @@ int vp_set_fd_handler(int fd,
 /* virtproxy interface */
 VPDriver *vp_new(int fd, bool listen);
 int vp_set_oforward(VPDriver *drv, int fd, const char *service_id);
+int vp_set_iforward(VPDriver *drv, const char *service_id, const char *addr,
+                    const char *port, bool ipv6);
 
 #endif /* VIRTPROXY_H */
