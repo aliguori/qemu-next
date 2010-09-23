@@ -98,3 +98,37 @@ typedef struct {
     } payload;
     int magic;
 } __attribute__((__packed__)) VPPacket;
+
+struct VPDriver {
+    int channel_fd;
+    int listen_fd;
+    char buf[sizeof(VPPacket)];
+    int buflen;
+    QLIST_HEAD(, VPOForward) oforwards;
+    QLIST_HEAD(, VPIForward) iforwards;
+    QLIST_HEAD(, VPConn) conns;
+};
+
+static QemuOptsList vp_socket_opts = {
+    .name = "vp_socket_opts",
+    .head = QTAILQ_HEAD_INITIALIZER(vp_socket_opts.head),
+    .desc = {
+        {
+            .name = "path",
+            .type = QEMU_OPT_STRING,
+        },{
+            .name = "host",
+            .type = QEMU_OPT_STRING,
+        },{
+            .name = "port",
+            .type = QEMU_OPT_STRING,
+        },{
+            .name = "ipv4",
+            .type = QEMU_OPT_BOOL,
+        },{
+            .name = "ipv6",
+            .type = QEMU_OPT_BOOL,
+        },
+        { /* end if list */ }
+    },
+};
