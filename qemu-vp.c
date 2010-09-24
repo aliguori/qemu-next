@@ -405,6 +405,54 @@ static int init_oforwards(void) {
     return 0;
 }
 
+static int init_iforwards(void) {
+    VPDriver *drv;
+    VPData *iforward_data;
+    int index, ret;
+    const char *service_id, *addr, *port;
+    bool ipv6;
+
+    QTAILQ_FOREACH(iforward_data, &iforwards, next) {
+        INFO("initializing iforward...");
+        if (verbose_enabled) {
+            qemu_opts_print(iforward_data->opts, NULL);
+        }
+
+        index = qemu_opt_get_number(iforward_data->opts, "index", 0);
+        drv = get_channel_drv(index);
+        if (drv == NULL) {
+            warnx("unable to find channel with index: %d", index);
+            return -1;
+        }
+
+        service_id = qemu_opt_get(iforward_data->opts, "service_id");
+        if (service_id == NULL) {
+            warnx("no service_id specified");
+            return -1;
+        }
+
+        addr = qemu_opt_get(iforward_data->opts, "path");
+        port = NULL;
+
+        if (addr == NULL) {
+            /* map service to a network socket instead */
+            addr = qemu_opt_get(iforward_data->opts, "host");
+            port = qemu_opt_get(iforward_data->opts, "port");
+        }
+
+        ipv6 = qemu_opt_get_bool(iforward_data->opts, "ipv6", 0) ?
+               true : false;
+
+        ret = vp_set_iforward(drv, service_id, addr, port, ipv6);
+        if (ret != 0) {
+            warnx("error adding iforward");
+            return -1;
+        }
+    }
+
+    return 0;
+}
+
 int main(int argc, char **argv)
 {
     const char *sopt = "hVvi:o:c:";
@@ -474,6 +522,12 @@ int main(int argc, char **argv)
     if (ret) {
         errx(EXIT_FAILURE,
              "error initializing forwarders for outgoing connections");
+    }
+
+    ret = init_iforwards();
+    if (ret) {
+        errx(EXIT_FAILURE,
+             "error initializing service mappings for incoming connections");
     }
 
     return 0;
