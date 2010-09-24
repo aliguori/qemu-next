@@ -313,6 +313,7 @@ static int init_channels(void) {
     VPData *channel_data;
     const char *channel_method;
     int fd;
+    bool listen;
 
     if (QTAILQ_EMPTY(&channels)) {
         warnx("no channel specified");
@@ -337,12 +338,16 @@ static int init_channels(void) {
 
     if (strcmp("tcp-listen", channel_method) == 0) {
         fd = inet_listen_opts(channel_data->opts, 0);
+        listen = true;
     } else if (strcmp("tcp-connect", channel_method) == 0) {
         fd = inet_connect_opts(channel_data->opts);
+        listen = false;
     } else if (strcmp("unix-listen", channel_method) == 0) {
         fd = unix_listen_opts(channel_data->opts);
+        listen = true;
     } else if (strcmp("unix-connect", channel_method) == 0) {
         fd = unix_connect_opts(channel_data->opts);
+        listen = false;
     } else {
         warnx("invalid channel type: %s", channel_method);
         return -1;
@@ -353,7 +358,7 @@ static int init_channels(void) {
         return -1;
     }
 
-    drv = vp_new(fd, true);
+    drv = vp_new(fd, listen);
     channel_data->opaque = drv;
 
     return 0;
