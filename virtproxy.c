@@ -206,6 +206,86 @@ static VPIForward *get_iforward(const VPDriver *drv, const char *service_id)
     return NULL;
 }
 
+/* read handler for proxied connections */
+static void vp_conn_read(void *opaque)
+{
+    VPConn *conn = opaque;
+    VPDriver *drv = conn->drv;
+    VPPacket pkt;
+    char buf[VP_CONN_DATA_LEN];
+    int fd, count, ret;
+    bool client;
+
+    TRACE("called with opaque: %p, drv: %p", opaque, drv);
+
+    if (conn->state != VP_STATE_CONNECTED) {
+        LOG("invalid connection state");
+        return;
+    }
+
+    if (conn->type != VP_CONN_CLIENT && conn->type != VP_CONN_SERVER) {
+        LOG("invalid connection type");
+        return;
+    }
+
+    /* TODO: all fields should be explicitly set so we shouldn't
+     * need to memset. this might hurt if we beef up VPPacket size
+     */
+    memset(&pkt, 0, sizeof(VPPacket));
+    pkt.magic = VP_MAGIC;
+
+    if (conn->type == VP_CONN_CLIENT) {
+        client = true;
+        fd = conn->client_fd;
+    } else {
+        client = false;
+        fd = conn->server_fd;
+    }
+
+    count = read(fd, buf, VP_CONN_DATA_LEN);
+    if (count == -1) {
+        LOG("read() failed: %s", strerror(errno));
+        return;
+    } else if (count == 0) {
+        /* connection closed, tell remote end to clean up */
+        TRACE("connection closed");
+        pkt.type = VP_PKT_CONTROL;
+        pkt.payload.msg.type = VP_CONTROL_CLOSE;
+        if (client) {
+            /* we're closing the client, have remote close the server conn */
+            TRACE("closing connection for client fd %d", conn->client_fd);
+            pkt.payload.msg.args.close.client_fd = -1;
+            pkt.payload.msg.args.close.server_fd = conn->server_fd;
+        } else {
+            TRACE("closing connection for server fd %d", conn->server_fd);
+            pkt.payload.msg.args.close.server_fd = -1;
+            pkt.payload.msg.args.close.client_fd = conn->client_fd;;
+        }
+        /* clean up things on our end */
+        closesocket(fd);
+        vp_set_fd_handler(fd, NULL, NULL, NULL);
+        QLIST_REMOVE(conn, next);
+        qemu_free(conn);
+    } else {
+        TRACE("data read");
+        pkt.type = client ? VP_PKT_CLIENT : VP_PKT_SERVER;
+        pkt.payload.proxied.client_fd = conn->client_fd;
+        pkt.payload.proxied.server_fd = conn->server_fd;
+        memcpy(pkt.payload.proxied.data, buf, count);
+        pkt.payload.proxied.bytes = count;
+    }
+
+    ret = vp_send_all(drv->channel_fd, (void *)&pkt, sizeof(VPPacket));
+    if (ret == -1) {
+        LOG("error sending data over channel");
+        return;
+    }
+    if (ret != sizeof(VPPacket)) {
+        TRACE("buffer full?");
+        return;
+    }
+}
+
 /* accept handler for communication channel
  *
  * accept()s connection to communication channel (for sockets), and sets
