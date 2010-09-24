@@ -452,6 +452,29 @@ static int vp_handle_data_packet(void *drv, const VPPacket *pkt)
     return 0;
 }
 
+static inline int vp_handle_packet(VPDriver *drv, const VPPacket *pkt)
+{
+    int ret;
+
+    TRACE("called with drv: %p", drv);
+
+    if (pkt->magic != VP_MAGIC) {
+        LOG("invalid packet magic field");
+        return -1;
+    }
+
+    if (pkt->type == VP_PKT_CONTROL) {
+        ret = vp_handle_control_packet(drv, pkt);
+    } else if (pkt->type == VP_PKT_CLIENT || pkt->type == VP_PKT_SERVER) {
+        ret = vp_handle_data_packet(drv, pkt);
+    } else {
+        LOG("invalid packet type");
+        return -1;
+    }
+
+    return ret;
+}
+
 /* read handler for communication channel
  *
  * de-multiplexes data coming in over the channel. for control messages
