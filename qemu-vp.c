@@ -311,8 +311,8 @@ static VPDriver *get_channel_drv(int index) {
 static int init_channels(void) {
     VPDriver *drv;
     VPData *channel_data;
-    const char *channel_method;
-    int fd;
+    const char *channel_method, *path;
+    int fd, ret;
     bool listen;
 
     if (QTAILQ_EMPTY(&channels)) {
@@ -347,6 +347,16 @@ static int init_channels(void) {
         listen = true;
     } else if (strcmp("unix-connect", channel_method) == 0) {
         fd = unix_connect_opts(channel_data->opts);
+        listen = false;
+    } else if (strcmp("virtserial-open", channel_method) == 0) {
+        path = qemu_opt_get(channel_data->opts, "path");
+        fd = qemu_open(path, O_RDWR);
+        ret = fcntl(fd, F_GETFL);
+        ret = fcntl(fd, F_SETFL, ret | O_ASYNC);
+        if (ret < 0) {
+            warn("error setting flags for fd");
+            return -1;
+        }
         listen = false;
     } else {
         warnx("invalid channel type: %s", channel_method);
