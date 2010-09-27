@@ -121,7 +121,7 @@ static void main_loop_wait(int nonblocking)
     fd_set rfds, wfds, xfds;
     int ret, nfds;
     struct timeval tv;
-    int timeout = 1000;
+    int timeout = 100000;
 
     if (nonblocking) {
         timeout = 0;
