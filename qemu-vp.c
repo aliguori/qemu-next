@@ -218,6 +218,44 @@ static QTAILQ_HEAD(, VPData) iforwards;
 static QTAILQ_HEAD(, VPData) oforwards;
 static QTAILQ_HEAD(, VPData) channels;
 
+static void usage(const char *cmd)
+{
+    printf(
+"Usage: %s -c <channel_opts> [-c ... ] [-i <iforward_opts> ...] "
+"[-o <oforward_opts> ...]\n"
+"QEMU virt-proxy communication channel\n"
+"\n"
+"  -c, --channel    channel options of the form:\n"
+"                   <method>:<addr>:<port>[:channel_id]\n"
+"  -o, --oforward   oforward options of the form:\n"
+"                   <service_id>:<addr>:<port>[:channel_id]\n"
+"  -i, --iforward   iforward options of the form:\n"
+"                   <service_id>:<addr>:<port>[:channel_id]\n"
+"  -v, --verbose    display extra debugging information\n"
+"  -h, --help       display this help and exit\n"
+"\n"
+"  channels are used to establish a data connection between 2 end-points in\n"
+"  the host or the guest (connection method specified by <method>).\n"
+"  oforwards specify a socket to listen for new connections on, outgoing\n"
+"  data from which is tagged with <service_id> before being sent over the\n"
+"  channel. iforwards specify a socket to route incoming data/connections\n"
+"  with a specific <service_id> to. The positional parameters for\n"
+"  channels/iforwards/oforwards are:\n"
+"\n"
+"  <method>:     one of unix-connect, unix-listen, tcp-connect, tcp-listen,\n"
+"                virtserial-open\n"
+"  <addr>:       path of unix socket or virtserial port, or IP of host, to\n"
+"                connect/bind to\n"
+"  <port>:       port to bind/connect to, or '-' if addr is a path\n"
+"  <service_id>: an identifier used to properly route connections to the\n"
+"                corresponding host or guest daemon socket.\n"
+"  <channel_id>: numerical id to identify what channel to use for an iforward\n"
+"                or oforward. (default is 0)\n"
+"\n"
+"Report bugs to <mdroth@linux.vnet.ibm.com>\n"
+    , cmd);
+}
+
 static int vp_parse(QemuOpts *opts, const char *str, bool is_channel)
 {
     /* TODO: use VP_SERVICE_ID_LEN, bring it into virtproxy.h */
@@ -522,6 +560,9 @@ int main(int argc, char **argv)
         case 'v':
             verbose_enabled = 1;
             break;
+        case 'h':
+            usage(argv[0]);
+            return 0;
         case '?':
             errx(EXIT_FAILURE, "Try '%s --help' for more information.",
                  argv[0]);
