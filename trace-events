@@ -85,3 +85,6 @@ disable qed_aio_write_data(void *s, void *acb, int ret, uint64_t offset, size_t 
 disable qed_aio_write_prefill(void *s, void *acb, uint64_t start, size_t len, uint64_t offset) "s %p acb %p start %"PRIu64" len %zu offset %"PRIu64""
 disable qed_aio_write_postfill(void *s, void *acb, uint64_t start, size_t len, uint64_t offset) "s %p acb %p start %"PRIu64" len %zu offset %"PRIu64""
 disable qed_aio_write_main(void *s, void *acb, int ret, uint64_t offset, size_t len) "s %p acb %p ret %d offset %"PRIu64" len %zu"
+
+# hw/ide/core.c
+dma_buf_prepare_add(void *s, uint32_t cur_prd_addr, int len) "s %p cur_prd_addr %#x len %d"

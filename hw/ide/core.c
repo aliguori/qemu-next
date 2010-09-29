@@ -26,6 +26,7 @@
 #include <hw/pc.h>
 #include <hw/pci.h>
 #include <hw/scsi.h>
+#include "trace.h"
 #include "qemu-error.h"
 #include "qemu-timer.h"
 #include "sysemu.h"
@@ -458,6 +459,7 @@ static int dma_buf_prepare(BMDMAState *bm, int is_write)
         }
         l = bm->cur_prd_len;
         if (l > 0) {
+            trace_dma_buf_prepare_add(s, bm->cur_prd_addr, l);
             qemu_sglist_add(&s->sg, bm->cur_prd_addr, l);
             bm->cur_prd_addr += l;
             bm->cur_prd_len -= l;
