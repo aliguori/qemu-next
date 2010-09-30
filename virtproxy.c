@@ -158,18 +158,12 @@ static void vp_channel_read(void *opaque);
 static VPConn *get_conn(const VPDriver *drv, int fd, bool client)
 {
     VPConn *c = NULL;
+    int cur_fd;
 
-    if (client) {
-        QLIST_FOREACH(c, &drv->conns, next) {
-            if (c->client_fd == fd) {
-                return c;
-            }
-        }
-    } else {
-        QLIST_FOREACH(c, &drv->conns, next) {
-            if (c->server_fd == fd) {
-                return c;
-            }
+    QLIST_FOREACH(c, &drv->conns, next) {
+        cur_fd = client ? c->client_fd : c->server_fd;
+        if (cur_fd == fd) {
+            return c;
         }
     }
 
