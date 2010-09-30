@@ -70,7 +70,7 @@ typedef struct VPConn {
     QLIST_ENTRY(VPConn) next;
 } VPConn;
 
-typedef struct {
+typedef struct VPControlMsg {
     enum {
         VP_CONTROL_CONNECT_INIT = 1,
         VP_CONTROL_CONNECT_ACK,
@@ -100,7 +100,7 @@ typedef struct {
     } args;
 } VPControlMsg;
 
-typedef struct {
+typedef struct VPPacket {
     enum {
         VP_PKT_CONTROL = 1,
         VP_PKT_CLIENT,
