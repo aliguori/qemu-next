@@ -288,9 +288,6 @@ static void vp_conn_read(void *opaque)
 static void vp_channel_accept(void *opaque)
 {
     VPDriver *drv = opaque;
-
-    TRACE("called with opaque: %p", drv);
-
     struct sockaddr_in saddr;
     struct sockaddr *addr;
     socklen_t len;
