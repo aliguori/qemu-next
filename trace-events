@@ -88,3 +88,7 @@ disable qed_aio_write_main(void *s, void *acb, int ret, uint64_t offset, size_t 
 
 # hw/ide/core.c
 dma_buf_prepare_add(void *s, uint32_t cur_prd_addr, int len) "s %p cur_prd_addr %#x len %d"
+
+# block/blkverify.c
+blkverify_iovec_clone_src(void *base, size_t len) "base %p len %zu"
+blkverify_iovec_clone_dest(void *base, size_t len) "base %p len %zu"

@@ -8,6 +8,7 @@
  */
 
 #include <stdarg.h>
+#include "trace.h"
 #include "qemu_socket.h" /* for EINPROGRESS on Windows */
 #include "block_int.h"
 
@@ -208,6 +209,7 @@ static void blkverify_iovec_clone(QEMUIOVector *dest, const QEMUIOVector *src,
     for (i = 0; i < src->niov; i++) {
         sortelems[i].src_index = i;
         sortelems[i].src_iov = &src->iov[i];
+        trace_blkverify_iovec_clone_src(src->iov[i].iov_base, src->iov[i].iov_len);
     }
     qsort(sortelems, src->niov, sizeof(sortelems[0]), sortelem_cmp_src_base);
 
@@ -230,6 +232,7 @@ static void blkverify_iovec_clone(QEMUIOVector *dest, const QEMUIOVector *src,
     /* Sort by source iovec index and build destination iovec */
     qsort(sortelems, src->niov, sizeof(sortelems[0]), sortelem_cmp_src_index);
     for (i = 0; i < src->niov; i++) {
+        trace_blkverify_iovec_clone_dest(sortelems[i].dest_base, src->iov[i].iov_len);
         qemu_iovec_add(dest, sortelems[i].dest_base, src->iov[i].iov_len);
     }
 }
