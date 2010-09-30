@@ -480,46 +480,34 @@ static int vp_handle_data_packet(void *drv, const VPPacket *pkt)
 
     TRACE("called with drv: %p", drv);
 
-    switch (pkt->type) {
-    case VP_PKT_CLIENT:
+    if (pkt->type == VP_PKT_CLIENT) {
         TRACE("recieved client packet, client fd: %d, server fd: %d",
               pkt->payload.proxied.client_fd, pkt->payload.proxied.server_fd);
         fd = pkt->payload.proxied.server_fd;
-        /* TODO: proxied in non-blocking mode can causes us to spin here
-         * for slow servers/clients. need to use write()'s and maintain
-         * a per-conn write queue that we clear out before sending any
-         * more data to the fd
-         */
-        TRACE("payload.proxied.bytes: %d", pkt->payload.proxied.bytes);
-        ret = vp_send_all(fd, (void *)pkt->payload.proxied.data,
-                pkt->payload.proxied.bytes);
-        if (ret == -1) {
-            LOG("error sending data over channel");
-            return -1;
-        }
-        if (ret != pkt->payload.proxied.bytes) {
-            TRACE("buffer full?");
-            return -1;
-        }
-        break;
-    case VP_PKT_SERVER:
-        TRACE("recieved client packet, client fd: %d, server fd: %d",
+    } else if (pkt->type == VP_PKT_SERVER) {
+        TRACE("recieved server packet, client fd: %d, server fd: %d",
               pkt->payload.proxied.client_fd, pkt->payload.proxied.server_fd);
         fd = pkt->payload.proxied.client_fd;
-        ret = vp_send_all(fd, (void *)pkt->payload.proxied.data,
-                pkt->payload.proxied.bytes);
-        if (ret == -1) {
-            LOG("error sending data over channel");
-            return -1;
-        }
-        if (ret != pkt->payload.proxied.bytes) {
-            TRACE("buffer full?");
-            return -1;
-        }
-        break;
-    default:
+    } else {
         TRACE("unknown packet type");
+        return -1;
     }
+
+    /* TODO: proxied in non-blocking mode can causes us to spin here
+     * for slow servers/clients. need to use write()'s and maintain
+     * a per-conn write queue that we clear out before sending any
+     * more data to the fd
+     */
+    ret = vp_send_all(fd, (void *)pkt->payload.proxied.data,
+            pkt->payload.proxied.bytes);
+    if (ret == -1) {
+        LOG("error sending data over channel");
+        return -1;
+    } else if (ret != pkt->payload.proxied.bytes) {
+        TRACE("buffer full?");
+        return -1;
+    }
+
     return 0;
 }
 
