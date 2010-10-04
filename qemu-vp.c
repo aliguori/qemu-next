@@ -395,19 +395,19 @@ static int init_channels(void) {
 
     channel_method = qemu_opt_get(channel_data->opts, "channel_method");
 
-    if (strcmp("tcp-listen", channel_method) == 0) {
+    if (strcmp(channel_method, "tcp-listen") == 0) {
         fd = inet_listen_opts(channel_data->opts, 0);
         listen = true;
-    } else if (strcmp("tcp-connect", channel_method) == 0) {
+    } else if (strcmp(channel_method, "tcp-connect") == 0) {
         fd = inet_connect_opts(channel_data->opts);
         listen = false;
-    } else if (strcmp("unix-listen", channel_method) == 0) {
+    } else if (strcmp(channel_method, "unix-listen") == 0) {
         fd = unix_listen_opts(channel_data->opts);
         listen = true;
-    } else if (strcmp("unix-connect", channel_method) == 0) {
+    } else if (strcmp(channel_method, "unix-connect") == 0) {
         fd = unix_connect_opts(channel_data->opts);
         listen = false;
-    } else if (strcmp("virtserial-open", channel_method) == 0) {
+    } else if (strcmp(channel_method, "virtserial-open") == 0) {
         path = qemu_opt_get(channel_data->opts, "path");
         fd = qemu_open(path, O_RDWR);
         ret = fcntl(fd, F_GETFL);
