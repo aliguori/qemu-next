@@ -1,3 +1,16 @@
+/*
+ * virt-proxy - host/guest communication layer
+ *
+ * Copyright IBM Corp. 2010
+ *
+ * Authors:
+ *  Michael Roth      <mdroth@linux.vnet.ibm.com>
+ *
+ * This work is licensed under the terms of the GNU GPL, version 2 or later.
+ * See the COPYING file in the top-level directory.
+ *
+ */
+
 #ifndef VIRTPROXY_H
 #define VIRTPROXY_H
 
