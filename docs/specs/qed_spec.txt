@@ -1,0 +1,94 @@
+=Specification=
+
+The file format looks like this:
+
+ +----------+----------+----------+-----+
+ | cluster0 | cluster1 | cluster2 | ... |
+ +----------+----------+----------+-----+
+
+The first cluster begins with the '''header'''.  The header contains information about where regular clusters start; this allows the header to be extensible and store extra information about the image file.  A regular cluster may be a '''data cluster''', an '''L2''', or an '''L1 table'''.  L1 and L2 tables are composed of one or more contiguous clusters.
+
+Normally the file size will be a multiple of the cluster size.  If the file size is not a multiple, extra information after the last cluster may not be preserved if data is written.  Legitimate extra information should use space between the header and the first regular cluster.
+
+All fields are little-endian.
+
+==Header==
+ Header {
+     uint32_t magic;               /* QED\0 */
+ 
+     uint32_t cluster_size;        /* in bytes */
+     uint32_t table_size;          /* for L1 and L2 tables, in clusters */
+     uint32_t header_size;         /* in clusters */
+ 
+     uint64_t features;            /* format feature bits */
+     uint64_t compat_features;     /* compat feature bits */
+     uint64_t l1_table_offset;     /* in bytes */
+     uint64_t image_size;          /* total logical image size, in bytes */
+ 
+     /* if (features & QED_F_BACKING_FILE) */
+     uint32_t backing_filename_offset; /* in bytes from start of header */
+     uint32_t backing_filename_size;   /* in bytes */
+ 
+     /* if (compat_features & QED_CF_BACKING_FORMAT) */
+     uint32_t backing_fmt_offset;  /* in bytes from start of header */
+     uint32_t backing_fmt_size;    /* in bytes */
+ }
+
+Field descriptions:
+* cluster_size must be a power of 2 in range [2^12, 2^26].
+* table_size must be a power of 2 in range [1, 16].
+* header_size is the number of clusters used by the header and any additional information stored before regular clusters.
+* features and compat_features are bitmaps where active file format features can be selectively enabled.  The difference between the two is that an image file that uses unknown compat_features bits can be safely opened without knowing how to interpret those bits.  If an image file has an unsupported features bit set then it is not possible to open that image (the image is not backwards-compatible).
+* l1_table_offset must be a multiple of cluster_size.
+* image_size is the block device size seen by the guest and must be a multiple of cluster_size.
+* backing_filename and backing_fmt are both strings in (byte offset, byte size) form.  They are not NUL-terminated and do not have alignment constraints.
+
+Feature bits:
+* QED_F_BACKING_FILE = 0x01.  The image uses a backing file.
+* QED_F_NEED_CHECK = 0x02.  The image needs a consistency check before use.
+* QED_CF_BACKING_FORMAT = 0x01.  The image has a specific backing file format stored.
+
+==Tables==
+
+Tables provide the translation from logical offsets in the block device to cluster offsets in the file.
+
+ #define TABLE_NOFFSETS (table_size * cluster_size / sizeof(uint64_t))
+  
+ Table {
+     uint64_t offsets[TABLE_NOFFSETS];
+ }
+
+The tables are organized as follows:
+
+                    +----------+
+                    | L1 table |
+                    +----------+
+               ,------'  |  '------.
+          +----------+   |    +----------+
+          | L2 table |  ...   | L2 table |
+          +----------+        +----------+
+      ,------'  |  '------.
+ +----------+   |    +----------+
+ |   Data   |  ...   |   Data   |
+ +----------+        +----------+
+
+A table is made up of one or more contiguous clusters.  The table_size header field determines table size for an image file.  For example, cluster_size=64 KB and table_size=4 results in 256 KB tables.
+
+The logical image size must be less than or equal to the maximum possible size of clusters rooted by the L1 table:
+ header.image_size <= TABLE_NOFFSETS * TABLE_NOFFSETS * header.cluster_size
+
+Logical offsets are translated into cluster offsets as follows:
+
+  table_bits table_bits    cluster_bits
+  <--------> <--------> <--------------->
+ +----------+----------+-----------------+
+ | L1 index | L2 index |     byte offset |
+ +----------+----------+-----------------+
+ 
+       Structure of a logical offset
+
+ def logical_to_cluster_offset(l1_index, l2_index, byte_offset):
+   l2_offset = l1_table[l1_index]
+   l2_table = load_table(l2_offset)
+   cluster_offset = l2_table[l2_index]
+   return cluster_offset + byte_offset
