@@ -1,0 +1,142 @@
+/*
+ * virt-agent - host/guest RPC daemon functions
+ *
+ * Copyright IBM Corp. 2010
+ *
+ * Authors:
+ *  Adam Litke        <aglitke@linux.vnet.ibm.com>
+ *  Michael Roth      <mdroth@linux.vnet.ibm.com>
+ *
+ * This work is licensed under the terms of the GNU GPL, version 2 or later.
+ * See the COPYING file in the top-level directory.
+ *
+ */
+#include <stdlib.h>
+#include <stdio.h>
+#include <unistd.h>
+#include <xmlrpc-c/base.h>
+#include <xmlrpc-c/server.h>
+#include <xmlrpc-c/server_abyss.h>
+#include "qemu_socket.h"
+#include "virtagent-daemon.h"
+#include "virtagent-common.h"
+
+/* RPC functions common to guest/host daemons */
+
+static xmlrpc_value *getfile(xmlrpc_env *env,
+                                xmlrpc_value *param,
+                                void *user_data)
+{
+    const char *path;
+    char *file_contents = NULL;
+    char buf[VA_FILEBUF_LEN];
+    int fd, ret, count = 0;
+    xmlrpc_value *result = NULL;
+
+    /* parse argument array */
+    xmlrpc_decompose_value(env, param, "(s)", &path);
+    if (env->fault_occurred) {
+        return NULL;
+    }
+
+    fd = open(path, O_RDONLY);
+    if (fd == -1) {
+        LOG("open failed: %s", strerror(errno));
+        xmlrpc_faultf(env, "open failed: %s", strerror(errno));
+        return NULL;
+    }
+
+    while ((ret = read(fd, buf, VA_FILEBUF_LEN)) > 0) {
+        file_contents = qemu_realloc(file_contents, count + VA_FILEBUF_LEN);
+        memcpy(file_contents + count, buf, ret);
+        count += ret;
+        if (count > VA_GETFILE_MAX) {
+            xmlrpc_faultf(env, "max file size (%d bytes) exceeded",
+                          VA_GETFILE_MAX);
+            goto EXIT_CLOSE_BAD;
+        }
+    }
+    if (ret == -1) {
+        LOG("read failed: %s", strerror(errno));
+        xmlrpc_faultf(env, "read failed: %s", strerror(errno));
+        goto EXIT_CLOSE_BAD;
+    }
+
+    result = xmlrpc_build_value(env, "6", file_contents, count);
+
+EXIT_CLOSE_BAD:
+    if (file_contents) {
+        qemu_free(file_contents);
+    }
+    close(fd);
+    return result;
+}
+
+int va_guest_server_loop(int listen_fd)
+{
+    xmlrpc_registry *registryP;
+    xmlrpc_env env;
+    struct sockaddr_in saddr;
+    struct sockaddr *addr;
+    socklen_t len;
+    int ret, fd;
+    char *rpc_request;
+    int rpc_request_len;
+    xmlrpc_mem_block *rpc_response;
+
+    xmlrpc_env_init(&env);
+    registryP = xmlrpc_registry_new(&env);
+    xmlrpc_registry_add_method(&env, registryP, NULL,
+                               "getfile", &getfile, NULL);
+
+    while (1) {
+        TRACE("waiting for connection from RPC client");
+        /* TODO: move this to a seperate function */
+        while (1) {
+            len = sizeof(saddr);
+            addr = (struct sockaddr *)&saddr;
+            fd = qemu_accept(listen_fd, addr, &len);
+
+            if (fd < 0 && errno != EINTR) {
+                LOG("accept() failed");
+                break;
+            } else if (fd >= 0) {
+                TRACE("accepted connection");
+                break;
+            }
+        }
+        if (fd < 0) {
+            break;
+        }
+        TRACE("RPC client connected, fetching RPC...");
+        ret = va_get_rpc_request(fd, &rpc_request, &rpc_request_len);
+        if (ret != 0) {
+            LOG("error retrieving rpc request");
+            goto out;
+        }
+        TRACE("handling RPC request");
+        rpc_response = xmlrpc_registry_process_call(&env, registryP, NULL,
+                                                    rpc_request,
+                                                    rpc_request_len);
+        if (rpc_response == NULL) {
+            LOG("error handling rpc request");
+            goto out;
+        }
+        qemu_free(rpc_request);
+        ret = va_send_rpc_response(fd, rpc_response);
+        if (ret != 0) {
+            LOG("error retrieving rpc request");
+            goto out;
+        }
+        qemu_free(rpc_response);
+out:
+        closesocket(fd);
+    }
+
+    return 0;
+}
+
+int va_host_server_loop(int listen_fd)
+{
+    return 0;
+}
