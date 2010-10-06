@@ -42,6 +42,7 @@
 #include "audio/audio.h"
 #include "disas.h"
 #include "balloon.h"
+#include "virtagent.h"
 #include "qemu-timer.h"
 #include "migration.h"
 #include "kvm.h"

@@ -1638,6 +1638,73 @@ Note: This command must be issued before issuing any other command.
 
 EQMP
 
+    {
+        .name       = "agent_viewfile",
+        .args_type  = "filepath:s",
+        .params     = "filepath",
+        .help       = "Echo a file from the guest filesystem",
+        .user_print = monitor_user_noop,
+        .mhandler.cmd_new = do_agent_viewfile,
+    },
+
+STEXI
+@item agent_viewfile @var{filepath}
+@findex agent_viewfile
+Echo the file identified by @var{filepath} on the guest filesystem
+ETEXI
+SQMP
+agent_viewfile
+--------
+
+Echo the file identified by @var{filepath} from the guest filesystem.
+
+Arguments:
+
+- "filepath": Full guest path of the desired file
+
+Example:
+
+-> { "execute": "agent_viewfile",
+                "arguments": { "filepath": "/sys/kernel/kexec_loaded" } }
+<- { "return": { "data": "0" } }
+
+EQMP
+
+    {
+        .name       = "agent_copyfile",
+        .args_type  = "filepath:s,local_filepath:s",
+        .params     = "filepath local_filepath",
+        .help       = "Echo a file from the guest filesystem",
+        .user_print = monitor_user_noop,
+        .mhandler.cmd_new = do_agent_copyfile,
+    },
+
+STEXI
+@item agent_copyfile @var{filename}
+@findex agent_copyfile
+Copy the file identified by @var{filepath} from the guest filesystem
+to @var{local_filepath}
+ETEXI
+SQMP
+agent_copyfile
+--------
+
+Copy the file identified by @var{filename} from the guest filesystem
+to @var{local_filepath}
+
+Arguments:
+
+- "filepath": Full guest path of the desired file
+- "local_filepath": Full local path to copy the desired file to
+
+Example:
+
+-> { "execute": "agent_copyfile",
+                "arguments": { "filepath": "/sys/kernel/kexec_loaded",
+                               "local_filepath": "/sys/kernel/kexec_loaded" } }
+<- { "return": {} }
+
+EQMP
 
 HXCOMM Keep the 'info' command at the end!
 HXCOMM This is required for the QMP documentation layout.
