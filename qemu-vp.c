@@ -37,6 +37,7 @@
 #include "qemu-option.h"
 #include "qemu_socket.h"
 #include "virtproxy.h"
+#include "virtagent-daemon.h"
 
 static bool verbose_enabled = 0;
 #define DEBUG_ENABLED
@@ -246,14 +247,18 @@ static void usage(const char *cmd)
 "[-o <oforward_opts> ...]\n"
 "QEMU virt-proxy communication channel\n"
 "\n"
-"  -c, --channel    channel options of the form:\n"
-"                   <method>:<addr>:<port>[:channel_id]\n"
-"  -o, --oforward   oforward options of the form:\n"
-"                   <service_id>:<addr>:<port>[:channel_id]\n"
-"  -i, --iforward   iforward options of the form:\n"
-"                   <service_id>:<addr>:<port>[:channel_id]\n"
-"  -v, --verbose    display extra debugging information\n"
-"  -h, --help       display this help and exit\n"
+"  -c, --channel     channel options of the form:\n"
+"                    <method>:<addr>:<port>[:channel_id]\n"
+"  -p, --host-agent  host rpc server, options of the form:\n"
+"                    [channel_id]\n"
+"  -g, --guest-agent guest rpc server, options of the form:\n"
+"                    [channel_id]\n"
+"  -o, --oforward    oforward options of the form:\n"
+"                    <service_id>:<addr>:<port>[:channel_id]\n"
+"  -i, --iforward    iforward options of the form:\n"
+"                    <service_id>:<addr>:<port>[:channel_id]\n"
+"  -v, --verbose     display extra debugging information\n"
+"  -h, --help        display this help and exit\n"
 "\n"
 "  channels are used to establish a data connection between 2 end-points in\n"
 "  the host or the guest (connection method specified by <method>).\n"
@@ -527,13 +532,52 @@ static int init_iforwards(void) {
     return 0;
 }
 
+static int init_agent(const VPData *agent_iforward, bool is_host) {
+    QemuOpts *opts = agent_iforward->opts;
+    int listen_fd, ret;
+
+    INFO("initializing agent...");
+    if (verbose_enabled) {
+        qemu_opts_print(opts, NULL);
+    }
+
+    /* create unix socket pair that agent http/rpc daemon will listen on */
+    listen_fd = unix_listen_opts(agent_iforward->opts);
+    if (listen_fd < 0) {
+        return -1;
+    }
+
+    /* fork off the agent RPC daemon */
+    ret = fork();
+
+    if (ret == -1) {
+        warn("fork() failed");
+        goto err;
+    } else if (ret == 0) {
+        /* child */
+        if (is_host) {
+            return va_host_server_loop(listen_fd);
+        } else {
+            return va_guest_server_loop(listen_fd);
+        }
+    }
+
+    return 0;
+
+err:
+    closesocket(listen_fd);
+    return -1;
+}
+
 int main(int argc, char **argv)
 {
-    const char *sopt = "hVvi:o:c:";
+    const char *sopt = "hVvi:o:c:g::p::";
     struct option lopt[] = {
         { "help", 0, NULL, 'h' },
         { "version", 0, NULL, 'V' },
         { "verbose", 0, NULL, 'v' },
+        { "host-agent", 0, NULL, 'y' },
+        { "guest-agent", 0, NULL, 'z' },
         { "iforward", 0, NULL, 'i' },
         { "oforward", 0, NULL, 'o' },
         { "channel", 0, NULL, 'c' },
@@ -543,10 +587,13 @@ int main(int argc, char **argv)
     QTAILQ_INIT(&iforwards);
     QTAILQ_INIT(&oforwards);
     QTAILQ_INIT(&channels);
+    VPData *guest_agent_iforward = NULL;
+    VPData *host_agent_iforward = NULL;
 
     while ((ch = getopt_long(argc, argv, sopt, lopt, &opt_ind)) != -1) {
         QemuOpts *opts;
         VPData *data;
+        char optarg_tmp[VP_ARG_LEN];
         switch (ch) {
         case 'i':
             opts = qemu_opts_create(&vp_opts, NULL, 0);
@@ -578,6 +625,50 @@ int main(int argc, char **argv)
             data->opts = opts;
             QTAILQ_INSERT_TAIL(&channels, data, next);
             break;
+        case 'g':
+            /* create pre-baked iforward for guest agent */
+            if (guest_agent_iforward) {
+                errx(EXIT_FAILURE, "only one --guest-agent argument allowed");
+            }
+            opts = qemu_opts_create(&vp_opts, NULL, 0);
+            if (optarg == 0) {
+                sprintf(optarg_tmp, "%s:%s:-", GUEST_AGENT_SERVICE_ID,
+                                     GUEST_AGENT_PATH);
+            } else {
+                sprintf(optarg_tmp, "%s:%s:-:%d", GUEST_AGENT_SERVICE_ID,
+                                     GUEST_AGENT_PATH, atoi(optarg));
+            }
+            ret = vp_parse(opts, optarg_tmp, 0);
+            if (ret) {
+                errx(EXIT_FAILURE, "error parsing arg: %s", optarg);
+            }
+            data = qemu_mallocz(sizeof(VPData));
+            data->opts = opts;
+            QTAILQ_INSERT_TAIL(&iforwards, data, next);
+            guest_agent_iforward = data;
+            break;
+        case 'p':
+            /* create pre-baked iforward for host agent */
+            if (host_agent_iforward) {
+                errx(EXIT_FAILURE, "only one --host-agent argument allowed");
+            }
+            opts = qemu_opts_create(&vp_opts, NULL, 0);
+            if (optarg == 0) {
+                sprintf(optarg_tmp, "%s:%s:-", HOST_AGENT_SERVICE_ID,
+                                     HOST_AGENT_PATH);
+            } else {
+                sprintf(optarg_tmp, "%s:%s:-:%d", HOST_AGENT_SERVICE_ID,
+                                     HOST_AGENT_PATH, atoi(optarg));
+            }
+            ret = vp_parse(opts, optarg_tmp, 0);
+            if (ret) {
+                errx(EXIT_FAILURE, "error parsing arg: %s", optarg);
+            }
+            data = qemu_mallocz(sizeof(VPData));
+            data->opts = opts;
+            QTAILQ_INSERT_TAIL(&iforwards, data, next);
+            host_agent_iforward = data;
+            break;
         case 'v':
             verbose_enabled = 1;
             break;
@@ -605,6 +696,20 @@ int main(int argc, char **argv)
     if (ret) {
         errx(EXIT_FAILURE,
              "error initializing service mappings for incoming connections");
+    }
+
+    if (guest_agent_iforward) {
+        ret = init_agent(guest_agent_iforward, false);
+        if (ret) {
+            errx(EXIT_FAILURE,
+                 "error initializing guest agent");
+        }
+    } else if (host_agent_iforward) {
+        ret = init_agent(host_agent_iforward, true);
+        if (ret) {
+            errx(EXIT_FAILURE,
+                 "error initializing host agent");
+        }
     }
 
     /* main i/o loop */
