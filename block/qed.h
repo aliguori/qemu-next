@@ -151,6 +151,7 @@ typedef struct QEDAIOCB {
     QEMUIOVector cur_qiov;
     uint64_t cur_pos;               /* position on block device, in bytes */
     uint64_t cur_cluster;           /* cluster offset in image file */
+    size_t cur_len;                 /* number of data bytes being accessed */
     unsigned int cur_nclusters;     /* number of clusters being accessed */
     int find_cluster_ret;           /* used for L1/L2 update */
 

@@ -981,6 +981,7 @@ static void qed_aio_write_data(void *opaque, int ret,
     acb->find_cluster_ret = ret;
     acb->cur_cluster = offset;
     qed_acb_build_qiov(acb, len);
+    acb->cur_len = acb->cur_qiov.size;
 
     /* Write data in place if the cluster already exists */
     if (!need_alloc) {
@@ -1030,6 +1031,7 @@ static void qed_aio_read_data(void *opaque, int ret,
     }
 
     qed_acb_build_qiov(acb, len);
+    acb->cur_len = acb->cur_qiov.size;
 
     /* Adjust offset into cluster */
     offset += qed_offset_into_cluster(s, acb->cur_pos);
@@ -1071,7 +1073,7 @@ static void qed_aio_next_io(void *opaque, int ret)
     QEDFindClusterFunc *io_fn =
         acb->is_write ? qed_aio_write_data : qed_aio_read_data;
 
-    trace_qed_aio_next_io(s, acb, ret, acb->cur_pos + acb->cur_qiov.size);
+    trace_qed_aio_next_io(s, acb, ret, acb->cur_pos + acb->cur_len);
 
     /* Handle I/O error */
     if (ret) {
@@ -1079,7 +1081,8 @@ static void qed_aio_next_io(void *opaque, int ret)
         return;
     }
 
-    acb->cur_pos += acb->cur_qiov.size;
+    acb->cur_pos += acb->cur_len;
+    acb->cur_len = 0;
     qemu_iovec_reset(&acb->cur_qiov);
 
     /* Complete request */
@@ -1111,6 +1114,7 @@ static BlockDriverAIOCB *qed_aio_setup(BlockDriverState *bs,
     acb->cur_iov = acb->qiov->iov;
     acb->cur_iov_offset = 0;
     acb->cur_pos = (uint64_t)sector_num * BDRV_SECTOR_SIZE;
+    acb->cur_len = 0;
     acb->end_pos = acb->cur_pos + nb_sectors * BDRV_SECTOR_SIZE;
     acb->request.l2_table = NULL;
     acb->lock_entry = NULL;
