@@ -53,13 +53,14 @@ enum {
     /* The image needs a consistency check before use */
     QED_F_NEED_CHECK = 0x02,
 
-    /* The image has the backing file format */
-    QED_CF_BACKING_FORMAT = 0x01,
+    /* The backing file format must not be probed, treat as raw image */
+    QED_F_BACKING_FORMAT_NO_PROBE = 0x04,
 
     /* Feature bits must be used when the on-disk format changes */
-    QED_FEATURE_MASK = QED_F_BACKING_FILE |           /* supported feature bits */
-                       QED_F_NEED_CHECK,
-    QED_COMPAT_FEATURE_MASK = QED_CF_BACKING_FORMAT,  /* supported compat feature bits */
+    QED_FEATURE_MASK = QED_F_BACKING_FILE | /* supported feature bits */
+                       QED_F_NEED_CHECK |
+                       QED_F_BACKING_FORMAT_NO_PROBE,
+    QED_COMPAT_FEATURE_MASK = 0,            /* supported compat feature bits */
 
     /* Data is stored in groups of sectors called clusters.  Cluster size must
      * be large to avoid keeping too much metadata.  I/O requests that have
@@ -93,10 +94,6 @@ typedef struct {
     /* if (features & QED_F_BACKING_FILE) */
     uint32_t backing_filename_offset; /* in bytes from start of header */
     uint32_t backing_filename_size;   /* in bytes */
-
-    /* if (compat_features & QED_CF_BACKING_FORMAT) */
-    uint32_t backing_fmt_offset;    /* in bytes from start of header */
-    uint32_t backing_fmt_size;      /* in bytes */
 } QEDHeader;
 
 typedef struct {

@@ -46,6 +46,16 @@ static int bdrv_qed_probe(const uint8_t *buf, int buf_size,
     return 100;
 }
 
+/**
+ * Check whether an image format is raw
+ *
+ * @fmt:    Backing file format, may be NULL
+ */
+static bool qed_fmt_is_raw(const char *fmt)
+{
+    return fmt && strcmp(fmt, "raw") == 0;
+}
+
 static void qed_header_le_to_cpu(const QEDHeader *le, QEDHeader *cpu)
 {
     cpu->magic = le32_to_cpu(le->magic);
@@ -58,8 +68,6 @@ static void qed_header_le_to_cpu(const QEDHeader *le, QEDHeader *cpu)
     cpu->image_size = le64_to_cpu(le->image_size);
     cpu->backing_filename_offset = le32_to_cpu(le->backing_filename_offset);
     cpu->backing_filename_size = le32_to_cpu(le->backing_filename_size);
-    cpu->backing_fmt_offset = le32_to_cpu(le->backing_fmt_offset);
-    cpu->backing_fmt_size = le32_to_cpu(le->backing_fmt_size);
 }
 
 static void qed_header_cpu_to_le(const QEDHeader *cpu, QEDHeader *le)
@@ -74,8 +82,6 @@ static void qed_header_cpu_to_le(const QEDHeader *cpu, QEDHeader *le)
     le->image_size = cpu_to_le64(cpu->image_size);
     le->backing_filename_offset = cpu_to_le32(cpu->backing_filename_offset);
     le->backing_filename_size = cpu_to_le32(cpu->backing_filename_size);
-    le->backing_fmt_offset = cpu_to_le32(cpu->backing_fmt_offset);
-    le->backing_fmt_size = cpu_to_le32(cpu->backing_fmt_size);
 }
 
 static int qed_write_header_sync(BDRVQEDState *s)
@@ -351,14 +357,8 @@ static int bdrv_qed_open(BlockDriverState *bs, int flags)
             return ret;
         }
 
-        if ((s->header.compat_features & QED_CF_BACKING_FORMAT)) {
-            ret = qed_read_string(bs->file, s->header.backing_fmt_offset,
-                                  s->header.backing_fmt_size,
-                                  bs->backing_format,
-                                  sizeof(bs->backing_format));
-            if (ret < 0) {
-                return ret;
-            }
+        if (s->header.features & QED_F_BACKING_FORMAT_NO_PROBE) {
+            pstrcpy(bs->backing_format, sizeof(bs->backing_format), "raw");
         }
     }
 
@@ -450,11 +450,9 @@ static int qed_create(const char *filename, uint32_t cluster_size,
         header.features |= QED_F_BACKING_FILE;
         header.backing_filename_offset = sizeof(le_header);
         header.backing_filename_size = strlen(backing_file);
-        if (backing_fmt) {
-            header.compat_features |= QED_CF_BACKING_FORMAT;
-            header.backing_fmt_offset = header.backing_filename_offset +
-                                        header.backing_filename_size;
-            header.backing_fmt_size = strlen(backing_fmt);
+
+        if (qed_fmt_is_raw(backing_fmt)) {
+            header.features |= QED_F_BACKING_FORMAT_NO_PROBE;
         }
     }
 
@@ -464,10 +462,6 @@ static int qed_create(const char *filename, uint32_t cluster_size,
         goto out;
     }
     if (qemu_write_full(fd, backing_file, header.backing_filename_size) != header.backing_filename_size) {
-        ret = -errno;
-        goto out;
-    }
-    if (qemu_write_full(fd, backing_fmt, header.backing_fmt_size) != header.backing_fmt_size) {
         ret = -errno;
         goto out;
     }
@@ -1177,7 +1171,7 @@ static int bdrv_qed_change_backing_file(BlockDriverState *bs,
     BDRVQEDState *s = bs->opaque;
     QEDHeader new_header, le_header;
     void *buffer;
-    size_t buffer_len, backing_file_len, backing_fmt_len;
+    size_t buffer_len, backing_file_len;
     int ret;
 
     /* Refuse to set backing filename if unknown compat feature bits are
@@ -1192,34 +1186,29 @@ static int bdrv_qed_change_backing_file(BlockDriverState *bs,
 
     memcpy(&new_header, &s->header, sizeof(new_header));
 
-    new_header.features &= ~QED_F_BACKING_FILE;
-    new_header.compat_features &= ~QED_CF_BACKING_FORMAT;
+    new_header.features &= ~(QED_F_BACKING_FILE |
+                             QED_F_BACKING_FORMAT_NO_PROBE);
 
     /* Adjust feature flags */
     if (backing_file) {
         new_header.features |= QED_F_BACKING_FILE;
-        if (backing_fmt) {
-            new_header.compat_features |= QED_CF_BACKING_FORMAT;
+
+        if (qed_fmt_is_raw(backing_fmt)) {
+            new_header.features |= QED_F_BACKING_FORMAT_NO_PROBE;
         }
     }
 
     /* Calculate new header size */
-    backing_file_len = backing_fmt_len = 0;
+    backing_file_len = 0;
 
     if (backing_file) {
         backing_file_len = strlen(backing_file);
-        if (backing_fmt) {
-            backing_fmt_len = strlen(backing_fmt);
-        }
     }
 
     buffer_len = sizeof(new_header);
     new_header.backing_filename_offset = buffer_len;
     new_header.backing_filename_size = backing_file_len;
     buffer_len += backing_file_len;
-    new_header.backing_fmt_offset = buffer_len;
-    new_header.backing_fmt_size = backing_fmt_len;
-    buffer_len += backing_fmt_len;
 
     /* Make sure we can rewrite header without failing */
     if (buffer_len > new_header.header_size * new_header.cluster_size) {
@@ -1235,9 +1224,6 @@ static int bdrv_qed_change_backing_file(BlockDriverState *bs,
 
     memcpy(buffer + buffer_len, backing_file, backing_file_len);
     buffer_len += backing_file_len;
-
-    memcpy(buffer + buffer_len, backing_fmt, backing_fmt_len);
-    buffer_len += backing_fmt_len;
 
     /* Write new header */
     ret = bdrv_pwrite_sync(bs->file, 0, buffer, buffer_len);
