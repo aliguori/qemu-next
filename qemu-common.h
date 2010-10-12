@@ -153,7 +153,8 @@ time_t mktimegm(struct tm *tm);
 int qemu_fls(int i);
 int qemu_fdatasync(int fd);
 int fcntl_setfl(int fd, int flag);
-void bytes_to_str(char *buffer, size_t buffer_len, uint64_t size);
+long long cvtnum(char *s);
+void cvtstr(double value, char *str, size_t size);
 
 /* path.c */
 void init_paths(const char *prefix);

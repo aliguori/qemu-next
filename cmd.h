@@ -60,9 +60,6 @@ extern char	**breakline(char *input, int *count);
 extern void	doneline(char *input, char **vec);
 extern char	*fetchline(void);
 
-extern long long cvtnum(char *s);
-extern void	cvtstr(double value, char *str, size_t sz);
-
 extern struct timeval tsub(struct timeval t1, struct timeval t2);
 extern double	tdiv(double value, struct timeval tv);
 
