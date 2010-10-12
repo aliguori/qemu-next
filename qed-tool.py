@@ -17,13 +17,12 @@ import optparse
 
 QED_F_NEED_CHECK = 0x02
 
-header_fmt = '<IIIIQQQQIIII'
+header_fmt = '<IIIIQQQQII'
 header_size = struct.calcsize(header_fmt)
 field_names = ['magic', 'cluster_size', 'table_size',
                'first_cluster', 'features', 'compat_features',
                'l1_table_offset', 'image_size',
-               'backing_file_offset', 'backing_file_size',
-               'backing_fmt_offset', 'backing_fmt_size']
+               'backing_filename_offset', 'backing_filename_size']
 table_elem_fmt = '<Q'
 table_elem_size = struct.calcsize(table_elem_fmt)
 
