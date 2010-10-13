@@ -72,13 +72,31 @@ EXIT_CLOSE_BAD:
     return result;
 }
 
+static int va_accept(int listen_fd) {
+    struct sockaddr_in saddr;
+    struct sockaddr *addr;
+    socklen_t len;
+    int fd;
+
+    while (1) {
+        len = sizeof(saddr);
+        addr = (struct sockaddr *)&saddr;
+        fd = qemu_accept(listen_fd, addr, &len);
+        if (fd < 0 && errno != EINTR) {
+            LOG("accept() failed");
+            break;
+        } else if (fd >= 0) {
+            TRACE("accepted connection");
+            break;
+        }
+    }
+    return fd;
+}
+
 int va_guest_server_loop(int listen_fd)
 {
     xmlrpc_registry *registryP;
     xmlrpc_env env;
-    struct sockaddr_in saddr;
-    struct sockaddr *addr;
-    socklen_t len;
     int ret, fd;
     char *rpc_request;
     int rpc_request_len;
@@ -91,20 +109,7 @@ int va_guest_server_loop(int listen_fd)
 
     while (1) {
         TRACE("waiting for connection from RPC client");
-        /* TODO: move this to a seperate function */
-        while (1) {
-            len = sizeof(saddr);
-            addr = (struct sockaddr *)&saddr;
-            fd = qemu_accept(listen_fd, addr, &len);
-
-            if (fd < 0 && errno != EINTR) {
-                LOG("accept() failed");
-                break;
-            } else if (fd >= 0) {
-                TRACE("accepted connection");
-                break;
-            }
-        }
+        fd = va_accept(listen_fd);
         if (fd < 0) {
             break;
         }
