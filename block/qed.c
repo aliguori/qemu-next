@@ -216,8 +216,8 @@ static bool qed_is_image_size_valid(uint64_t image_size, uint32_t cluster_size,
          */
         return false;
     }
-    if (image_size & (cluster_size - 1)) {
-        return false; /* not multiple of cluster size */
+    if (image_size % BDRV_SECTOR_SIZE != 0) {
+        return false; /* not multiple of sector size */
     }
     if (image_size > qed_max_image_size(cluster_size, table_size)) {
         return false; /* image is too large */
