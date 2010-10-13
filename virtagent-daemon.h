@@ -17,5 +17,4 @@
 #define VA_GETFILE_MAX 1 << 30
 #define VA_FILEBUF_LEN 16384
 
-int va_guest_server_loop(int listen_fd);
-int va_host_server_loop(int listen_fd);
+int va_server_loop(int listen_fd, bool is_host);

@@ -93,7 +93,34 @@ static int va_accept(int listen_fd) {
     return fd;
 }
 
-int va_guest_server_loop(int listen_fd)
+typedef struct va_rpc_function {
+    xmlrpc_value *(*func)(xmlrpc_env *env, xmlrpc_value *param, void *unused);
+    const char *func_name;
+} va_rpc_function;
+
+static va_rpc_function guest_functions[] = {
+    { .func = getfile,
+      .func_name = "getfile" },
+    { NULL, NULL }
+};
+static va_rpc_function host_functions[] = {
+    { .func = getfile,
+      .func_name = "poop" },
+    { NULL, NULL }
+};
+
+static void va_register_functions(xmlrpc_env *env, xmlrpc_registry *registry,
+                                  va_rpc_function *list)
+{
+    int i;
+    for (i = 0; list[i].func != NULL; ++i) {
+        TRACE("adding func: %s", list[i].func_name);
+        xmlrpc_registry_add_method(env, registry, NULL, list[i].func_name,
+                                   list[i].func, NULL);
+    }
+}
+
+int va_server_loop(int listen_fd, bool is_host)
 {
     xmlrpc_registry *registryP;
     xmlrpc_env env;
@@ -101,11 +128,11 @@ int va_guest_server_loop(int listen_fd)
     char *rpc_request;
     int rpc_request_len;
     xmlrpc_mem_block *rpc_response;
+    va_rpc_function *func_list = is_host ? host_functions : guest_functions;
 
     xmlrpc_env_init(&env);
     registryP = xmlrpc_registry_new(&env);
-    xmlrpc_registry_add_method(&env, registryP, NULL,
-                               "getfile", &getfile, NULL);
+    va_register_functions(&env, registryP, func_list);
 
     while (1) {
         TRACE("waiting for connection from RPC client");
@@ -138,10 +165,5 @@ out:
         closesocket(fd);
     }
 
-    return 0;
-}
-
-int va_host_server_loop(int listen_fd)
-{
     return 0;
 }

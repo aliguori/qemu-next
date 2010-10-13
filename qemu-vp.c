@@ -555,11 +555,7 @@ static int init_agent(const VPData *agent_iforward, bool is_host) {
         goto err;
     } else if (ret == 0) {
         /* child */
-        if (is_host) {
-            return va_host_server_loop(listen_fd);
-        } else {
-            return va_guest_server_loop(listen_fd);
-        }
+        return va_server_loop(listen_fd, is_host);
     }
 
     return 0;
