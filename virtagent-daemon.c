@@ -93,24 +93,24 @@ static int va_accept(int listen_fd) {
     return fd;
 }
 
-typedef struct va_rpc_function {
+typedef struct RPCFunction {
     xmlrpc_value *(*func)(xmlrpc_env *env, xmlrpc_value *param, void *unused);
     const char *func_name;
-} va_rpc_function;
+} RPCFunction;
 
-static va_rpc_function guest_functions[] = {
+static RPCFunction guest_functions[] = {
     { .func = getfile,
       .func_name = "getfile" },
     { NULL, NULL }
 };
-static va_rpc_function host_functions[] = {
+static RPCFunction host_functions[] = {
     { .func = getfile,
       .func_name = "poop" },
     { NULL, NULL }
 };
 
 static void va_register_functions(xmlrpc_env *env, xmlrpc_registry *registry,
-                                  va_rpc_function *list)
+                                  RPCFunction *list)
 {
     int i;
     for (i = 0; list[i].func != NULL; ++i) {
@@ -128,7 +128,7 @@ int va_server_loop(int listen_fd, bool is_host)
     char *rpc_request;
     int rpc_request_len;
     xmlrpc_mem_block *rpc_response;
-    va_rpc_function *func_list = is_host ? host_functions : guest_functions;
+    RPCFunction *func_list = is_host ? host_functions : guest_functions;
 
     xmlrpc_env_init(&env);
     registryP = xmlrpc_registry_new(&env);
