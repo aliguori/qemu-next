@@ -345,9 +345,9 @@ static int bdrv_qed_open(BlockDriverState *bs, int flags)
 
     s->table_nelems = (s->header.cluster_size * s->header.table_size) /
                       sizeof(uint64_t);
-    s->l2_shift = get_bits_from_size(s->header.cluster_size);
+    s->l2_shift = ffs(s->header.cluster_size) - 1;
     s->l2_mask = s->table_nelems - 1;
-    s->l1_shift = s->l2_shift + get_bits_from_size(s->l2_mask + 1);
+    s->l1_shift = s->l2_shift + ffs(s->table_nelems) - 1;
 
     if ((s->header.features & QED_F_BACKING_FILE)) {
         ret = qed_read_string(bs->file, s->header.backing_filename_offset,
