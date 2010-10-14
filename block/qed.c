@@ -256,13 +256,17 @@ static int qed_read_string(BlockDriverState *file, uint64_t offset, size_t n,
  *
  * @s:          QED state
  * @n:          Number of contiguous clusters to allocate
- * @offset:     Offset of first allocated cluster, filled in on success
+ * @ret:        Offset of first allocated cluster
+ *
+ * This function only produces the offset where the new clusters should be
+ * written.  It updates BDRVQEDState but does not make any changes to the image
+ * file.
  */
-static int qed_alloc_clusters(BDRVQEDState *s, unsigned int n, uint64_t *offset)
+static uint64_t qed_alloc_clusters(BDRVQEDState *s, unsigned int n)
 {
-    *offset = s->file_size;
+    uint64_t offset = s->file_size;
     s->file_size += n * s->header.cluster_size;
-    return 0;
+    return offset;
 }
 
 static QEDTable *qed_alloc_table(void *opaque)
@@ -279,17 +283,9 @@ static QEDTable *qed_alloc_table(void *opaque)
  */
 static CachedL2Table *qed_new_l2_table(BDRVQEDState *s)
 {
-    uint64_t offset;
-    int ret;
-    CachedL2Table *l2_table;
+    CachedL2Table *l2_table = qed_alloc_l2_cache_entry(&s->l2_cache);
 
-    ret = qed_alloc_clusters(s, s->header.table_size, &offset);
-    if (ret) {
-        return NULL;
-    }
-
-    l2_table = qed_alloc_l2_cache_entry(&s->l2_cache);
-    l2_table->offset = offset;
+    l2_table->offset = qed_alloc_clusters(s, s->header.table_size);
 
     memset(l2_table->table->offsets, 0,
            s->header.cluster_size * s->header.table_size);
@@ -968,10 +964,7 @@ static void qed_aio_write_data(void *opaque, int ret,
                              qed_offset_into_cluster(s, acb->cur_pos) + len);
 
     if (need_alloc) {
-        if (qed_alloc_clusters(s, acb->cur_nclusters, &offset) != 0) {
-            qed_aio_complete(acb, -ENOSPC);
-            return;
-        }
+        offset = qed_alloc_clusters(s, acb->cur_nclusters);
     }
 
     acb->find_cluster_ret = ret;
