@@ -155,7 +155,7 @@ static int qed_check_l1_table(QEDCheck *check, QEDTable *table)
     }
 
     /* Drop reference to final table */
-    qed_unref_l2_cache_entry(&s->l2_cache, check->request.l2_table);
+    qed_unref_l2_cache_entry(check->request.l2_table);
     check->request.l2_table = NULL;
 
     /* Write out fixed L1 table */

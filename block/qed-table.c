@@ -231,7 +231,7 @@ static void qed_read_l2_table_cb(void *opaque, int ret)
 
     if (ret) {
         /* can't trust loaded L2 table anymore */
-        qed_unref_l2_cache_entry(&s->l2_cache, l2_table);
+        qed_unref_l2_cache_entry(l2_table);
         request->l2_table = NULL;
     } else {
         l2_table->offset = read_l2_table_cb->l2_offset;
@@ -254,7 +254,7 @@ void qed_read_l2_table(BDRVQEDState *s, QEDRequest *request, uint64_t offset,
 {
     QEDReadL2TableCB *read_l2_table_cb;
 
-    qed_unref_l2_cache_entry(&s->l2_cache, request->l2_table);
+    qed_unref_l2_cache_entry(request->l2_table);
 
     /* Check for cached L2 entry */
     request->l2_table = qed_find_l2_cache_entry(&s->l2_cache, offset);

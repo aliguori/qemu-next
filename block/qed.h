@@ -203,7 +203,7 @@ void gencb_complete(void *opaque, int ret);
 void qed_init_l2_cache(L2TableCache *l2_cache, L2TableAllocFunc *alloc_l2_table, void *alloc_l2_table_opaque);
 void qed_free_l2_cache(L2TableCache *l2_cache);
 CachedL2Table *qed_alloc_l2_cache_entry(L2TableCache *l2_cache);
-void qed_unref_l2_cache_entry(L2TableCache *l2_cache, CachedL2Table *entry);
+void qed_unref_l2_cache_entry(CachedL2Table *entry);
 CachedL2Table *qed_find_l2_cache_entry(L2TableCache *l2_cache, uint64_t offset);
 void qed_commit_l2_cache_entry(L2TableCache *l2_cache, CachedL2Table *l2_table);
 

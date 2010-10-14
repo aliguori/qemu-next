@@ -62,7 +62,7 @@ CachedL2Table *qed_alloc_l2_cache_entry(L2TableCache *l2_cache)
  * Decrease an entry's reference count and free if necessary when the reference
  * count drops to zero.
  */
-void qed_unref_l2_cache_entry(L2TableCache *l2_cache, CachedL2Table *entry)
+void qed_unref_l2_cache_entry(CachedL2Table *entry)
 {
     if (!entry) {
         return;
@@ -115,8 +115,8 @@ void qed_commit_l2_cache_entry(L2TableCache *l2_cache, CachedL2Table *l2_table)
 
     entry = qed_find_l2_cache_entry(l2_cache, l2_table->offset);
     if (entry) {
-        qed_unref_l2_cache_entry(l2_cache, entry);
-        qed_unref_l2_cache_entry(l2_cache, l2_table);
+        qed_unref_l2_cache_entry(entry);
+        qed_unref_l2_cache_entry(l2_table);
         return;
     }
 
@@ -124,7 +124,7 @@ void qed_commit_l2_cache_entry(L2TableCache *l2_cache, CachedL2Table *l2_table)
         entry = QTAILQ_FIRST(&l2_cache->entries);
         QTAILQ_REMOVE(&l2_cache->entries, entry, node);
         l2_cache->n_entries--;
-        qed_unref_l2_cache_entry(l2_cache, entry);
+        qed_unref_l2_cache_entry(entry);
     }
 
     l2_cache->n_entries++;

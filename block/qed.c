@@ -566,7 +566,7 @@ static int bdrv_qed_is_allocated(BlockDriverState *bs, int64_t sector_num,
 
     async_context_pop();
 
-    qed_unref_l2_cache_entry(&s->l2_cache, request.l2_table);
+    qed_unref_l2_cache_entry(request.l2_table);
 
     return cb.is_allocated;
 }
@@ -718,7 +718,7 @@ static void qed_aio_complete(QEDAIOCB *acb, int ret)
 
     /* Free resources */
     qemu_iovec_destroy(&acb->cur_qiov);
-    qed_unref_l2_cache_entry(&s->l2_cache, acb->request.l2_table);
+    qed_unref_l2_cache_entry(acb->request.l2_table);
     qed_unlock(&s->lock, acb);
 
     /* Arrange for a bh to invoke the completion function */
@@ -829,7 +829,7 @@ static void qed_aio_write_l2_update(void *opaque, int ret)
     }
 
     if (need_alloc) {
-        qed_unref_l2_cache_entry(&s->l2_cache, acb->request.l2_table);
+        qed_unref_l2_cache_entry(acb->request.l2_table);
         acb->request.l2_table = qed_new_l2_table(s);
         if (!acb->request.l2_table) {
             ret = -EIO;
