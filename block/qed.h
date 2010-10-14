@@ -181,7 +181,6 @@ enum {
     QED_CLUSTER_FOUND,         /* cluster found */
     QED_CLUSTER_L2,            /* cluster missing in L2 */
     QED_CLUSTER_L1,            /* cluster missing in L1 */
-    QED_CLUSTER_ERROR,         /* error looking up cluster */
 };
 
 typedef void QEDFindClusterFunc(void *opaque, int ret, uint64_t offset, size_t len);

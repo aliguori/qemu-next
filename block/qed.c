@@ -928,7 +928,7 @@ static void qed_aio_write_prefill(void *opaque, int ret)
  *
  * @opaque:     Write request
  * @ret:        QED_CLUSTER_FOUND, QED_CLUSTER_L2, QED_CLUSTER_L1,
- *              or QED_CLUSTER_ERROR
+ *              or -errno
  * @offset:     Cluster offset in bytes
  * @len:        Length in bytes
  *
@@ -943,8 +943,9 @@ static void qed_aio_write_data(void *opaque, int ret,
 
     trace_qed_aio_write_data(s, acb, ret, offset, len);
 
-    if (ret == QED_CLUSTER_ERROR) {
-        goto err;
+    if (ret < 0) {
+        qed_aio_complete(acb, ret);
+        return;
     }
 
     if (need_alloc) {
@@ -968,7 +969,8 @@ static void qed_aio_write_data(void *opaque, int ret,
 
     if (need_alloc) {
         if (qed_alloc_clusters(s, acb->cur_nclusters, &offset) != 0) {
-            goto err;
+            qed_aio_complete(acb, -ENOSPC);
+            return;
         }
     }
 
@@ -992,10 +994,6 @@ static void qed_aio_write_data(void *opaque, int ret,
     /* Mark the image dirty before writing the new cluster */
     s->header.features |= QED_F_NEED_CHECK;
     qed_write_header(s, qed_aio_write_prefill, acb);
-    return;
-
-err:
-    qed_aio_complete(acb, -EIO);
 }
 
 /**
@@ -1003,7 +1001,7 @@ err:
  *
  * @opaque:     Read request
  * @ret:        QED_CLUSTER_FOUND, QED_CLUSTER_L2, QED_CLUSTER_L1,
- *              or QED_CLUSTER_ERROR
+ *              or -errno
  * @offset:     Cluster offset in bytes
  * @len:        Length in bytes
  *
@@ -1020,7 +1018,7 @@ static void qed_aio_read_data(void *opaque, int ret,
 
     trace_qed_aio_read_data(s, acb, ret, offset, len);
 
-    if (ret == QED_CLUSTER_ERROR) {
+    if (ret < 0) {
         goto err;
     }
 
@@ -1049,12 +1047,13 @@ static void qed_aio_read_data(void *opaque, int ret,
                               acb->cur_qiov.size / BDRV_SECTOR_SIZE,
                               qed_aio_next_io, acb);
     if (!file_acb) {
+        ret = -EIO;
         goto err;
     }
     return;
 
 err:
-    qed_aio_complete(acb, -EIO);
+    qed_aio_complete(acb, ret);
 }
 
 /**

@@ -77,7 +77,6 @@ static void qed_find_cluster_cb(void *opaque, int ret)
     unsigned int n;
 
     if (ret) {
-        ret = QED_CLUSTER_ERROR;
         goto out;
     }
 
@@ -93,8 +92,7 @@ static void qed_find_cluster_cb(void *opaque, int ret)
               qed_offset_into_cluster(s, find_cluster_cb->pos));
 
     if (offset && !qed_check_cluster_offset(s, offset)) {
-        ret = QED_CLUSTER_ERROR;
-        goto out;
+        ret = -EINVAL;
     }
 
 out:
@@ -128,7 +126,7 @@ void qed_find_cluster(BDRVQEDState *s, QEDRequest *request, uint64_t pos,
         return;
     }
     if (!qed_check_table_offset(s, l2_offset)) {
-        cb(opaque, QED_CLUSTER_ERROR, 0, 0);
+        cb(opaque, -EINVAL, 0, 0);
         return;
     }
 
