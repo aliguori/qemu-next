@@ -264,6 +264,7 @@ void qed_read_l2_table(BDRVQEDState *s, QEDRequest *request, uint64_t offset,
     }
 
     request->l2_table = qed_alloc_l2_cache_entry(&s->l2_cache);
+    request->l2_table->table = qed_alloc_table(s);
 
     read_l2_table_cb = gencb_alloc(sizeof(*read_l2_table_cb), cb, opaque);
     read_l2_table_cb->s = s;

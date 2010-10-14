@@ -108,19 +108,9 @@ typedef struct CachedL2Table {
     int ref;
 } CachedL2Table;
 
-/**
- * Allocate an L2 table
- *
- * This callback is used by the L2 cache to allocate tables without knowing
- * their size or alignment requirements.
- */
-typedef QEDTable *L2TableAllocFunc(void *opaque);
-
 typedef struct {
     QTAILQ_HEAD(, CachedL2Table) entries;
     unsigned int n_entries;
-    L2TableAllocFunc *alloc_l2_table;
-    void *alloc_l2_table_opaque;
 } L2TableCache;
 
 typedef struct QEDRequest {
@@ -199,7 +189,7 @@ void gencb_complete(void *opaque, int ret);
 /**
  * L2 cache functions
  */
-void qed_init_l2_cache(L2TableCache *l2_cache, L2TableAllocFunc *alloc_l2_table, void *alloc_l2_table_opaque);
+void qed_init_l2_cache(L2TableCache *l2_cache);
 void qed_free_l2_cache(L2TableCache *l2_cache);
 CachedL2Table *qed_alloc_l2_cache_entry(L2TableCache *l2_cache);
 void qed_unref_l2_cache_entry(CachedL2Table *entry);
@@ -245,6 +235,8 @@ int qed_check(BDRVQEDState *s, BdrvCheckResult *result, bool fix);
 /**
  * Utility functions
  */
+QEDTable *qed_alloc_table(BDRVQEDState *s);
+
 static inline uint64_t qed_start_of_cluster(BDRVQEDState *s, uint64_t offset)
 {
     return offset & ~(uint64_t)(s->header.cluster_size - 1);

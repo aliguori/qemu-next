@@ -269,10 +269,8 @@ static uint64_t qed_alloc_clusters(BDRVQEDState *s, unsigned int n)
     return offset;
 }
 
-static QEDTable *qed_alloc_table(void *opaque)
+QEDTable *qed_alloc_table(BDRVQEDState *s)
 {
-    BDRVQEDState *s = opaque;
-
     /* Honor O_DIRECT memory alignment requirements */
     return qemu_blockalign(s->bs,
                            s->header.cluster_size * s->header.table_size);
@@ -285,6 +283,7 @@ static CachedL2Table *qed_new_l2_table(BDRVQEDState *s)
 {
     CachedL2Table *l2_table = qed_alloc_l2_cache_entry(&s->l2_cache);
 
+    l2_table->table = qed_alloc_table(s);
     l2_table->offset = qed_alloc_clusters(s, s->header.table_size);
 
     memset(l2_table->table->offsets, 0,
@@ -359,7 +358,7 @@ static int bdrv_qed_open(BlockDriverState *bs, int flags)
     }
 
     s->l1_table = qed_alloc_table(s);
-    qed_init_l2_cache(&s->l2_cache, qed_alloc_table, s);
+    qed_init_l2_cache(&s->l2_cache);
 
     ret = qed_read_l1_table_sync(s);
     if (ret) {

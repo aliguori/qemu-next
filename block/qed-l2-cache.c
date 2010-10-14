@@ -19,14 +19,10 @@
 /**
  * Initialize the L2 cache
  */
-void qed_init_l2_cache(L2TableCache *l2_cache,
-                       L2TableAllocFunc *alloc_l2_table,
-                       void *alloc_l2_table_opaque)
+void qed_init_l2_cache(L2TableCache *l2_cache)
 {
     QTAILQ_INIT(&l2_cache->entries);
     l2_cache->n_entries = 0;
-    l2_cache->alloc_l2_table = alloc_l2_table;
-    l2_cache->alloc_l2_table_opaque = alloc_l2_table_opaque;
 }
 
 /**
@@ -46,13 +42,14 @@ void qed_free_l2_cache(L2TableCache *l2_cache)
  * Allocate an uninitialized entry from the cache
  *
  * The returned entry has a reference count of 1 and is owned by the caller.
+ * The caller must allocate the actual table field for this entry and it must
+ * be freeable using qemu_vfree().
  */
 CachedL2Table *qed_alloc_l2_cache_entry(L2TableCache *l2_cache)
 {
     CachedL2Table *entry;
 
     entry = qemu_mallocz(sizeof(*entry));
-    entry->table = l2_cache->alloc_l2_table(l2_cache->alloc_l2_table_opaque);
     entry->ref++;
 
     return entry;
