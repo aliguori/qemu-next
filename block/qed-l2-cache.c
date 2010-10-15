@@ -50,6 +50,7 @@
  * table will be deleted in favor of the existing cache entry.
  */
 
+#include "trace.h"
 #include "qed.h"
 
 /* Each L2 holds 2GB so this let's us fully cache a 100GB disk */
@@ -91,6 +92,8 @@ CachedL2Table *qed_alloc_l2_cache_entry(L2TableCache *l2_cache)
     entry = qemu_mallocz(sizeof(*entry));
     entry->ref++;
 
+    trace_qed_alloc_l2_cache_entry(l2_cache, entry);
+
     return entry;
 }
 
@@ -105,6 +108,7 @@ void qed_unref_l2_cache_entry(CachedL2Table *entry)
     }
 
     entry->ref--;
+    trace_qed_unref_l2_cache_entry(entry, entry->ref);
     if (entry->ref == 0) {
         qemu_vfree(entry->table);
         qemu_free(entry);
@@ -124,6 +128,7 @@ CachedL2Table *qed_find_l2_cache_entry(L2TableCache *l2_cache, uint64_t offset)
 
     QTAILQ_FOREACH(entry, &l2_cache->entries, node) {
         if (entry->offset == offset) {
+            trace_qed_find_l2_cache_entry(l2_cache, entry, offset, entry->ref);
             entry->ref++;
             return entry;
         }
