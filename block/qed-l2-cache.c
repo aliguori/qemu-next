@@ -11,6 +11,45 @@
  *
  */
 
+/*
+ * L2 table cache usage is as follows:
+ *
+ * An open image has one L2 table cache that is used to avoid accessing the
+ * image file for recently referenced L2 tables.
+ *
+ * Cluster offset lookup translates the logical offset within the block device
+ * to a cluster offset within the image file.  This is done by indexing into
+ * the L1 and L2 tables which store cluster offsets.  It is here where the L2
+ * table cache serves up recently referenced L2 tables.
+ *
+ * If there is a cache miss, that L2 table is read from the image file and
+ * committed to the cache.  Subsequent accesses to that L2 table will be served
+ * from the cache until the table is evicted from the cache.
+ *
+ * L2 tables are also committed to the cache when new L2 tables are allocated
+ * in the image file.  Since the L2 table cache is write-through, the new L2
+ * table is first written out to the image file and then committed to the
+ * cache.
+ *
+ * Multiple I/O requests may be using an L2 table cache entry at any given
+ * time.  That means an entry may be in use across several requests and
+ * reference counting is needed to free the entry at the correct time.  In
+ * particular, an entry evicted from the cache will only be freed once all
+ * references are dropped.
+ *
+ * An in-flight I/O request will hold a reference to a L2 table cache entry for
+ * the period during which it needs to access the L2 table.  This includes
+ * cluster offset lookup, L2 table allocation, and L2 table update when a new
+ * data cluster has been allocated.
+ *
+ * An interesting case occurs when two requests need to access an L2 table that
+ * is not in the cache.  Since the operation to read the table from the image
+ * file takes some time to complete, both requests may see a cache miss and
+ * start reading the L2 table from the image file.  The first to finish will
+ * commit its L2 table into the cache.  When the second tries to commit its
+ * table will be deleted in favor of the existing cache entry.
+ */
+
 #include "qed.h"
 
 /* Each L2 holds 2GB so this let's us fully cache a 100GB disk */
