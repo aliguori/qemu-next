@@ -826,10 +826,6 @@ static void qed_aio_write_l2_update(void *opaque, int ret)
     if (need_alloc) {
         qed_unref_l2_cache_entry(acb->request.l2_table);
         acb->request.l2_table = qed_new_l2_table(s);
-        if (!acb->request.l2_table) {
-            ret = -EIO;
-            goto err;
-        }
     }
 
     index = qed_l2_index(s, acb->cur_pos);
