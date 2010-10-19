@@ -104,10 +104,21 @@ out:
  * Find the offset of a data cluster
  *
  * @s:          QED state
+ * @request:    L2 cache entry
  * @pos:        Byte position in device
  * @len:        Number of bytes
  * @cb:         Completion function
  * @opaque:     User data for completion function
+ *
+ * This function translates a position in the block device to an offset in the
+ * image file.  It invokes the cb completion callback to report back the
+ * translated offset or unallocated range in the image file.
+ *
+ * If the L2 table is allocated, request->l2_table points to the L2 table
+ * cache entry and the caller must free the reference when they are finished.
+ * The cache entry is exposed in this way to avoid callers having to read the
+ * L2 table again later during request processing.  If request->l2_table is
+ * non-NULL it will be unreferenced before taking on the new cache entry.
  */
 void qed_find_cluster(BDRVQEDState *s, QEDRequest *request, uint64_t pos,
                       size_t len, QEDFindClusterFunc *cb, void *opaque)
