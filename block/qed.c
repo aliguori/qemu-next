@@ -915,6 +915,71 @@ static void qed_aio_write_prefill(void *opaque, int ret)
 }
 
 /**
+ * Write new data cluster
+ *
+ * @acb:        Write request
+ * @len:        Length in bytes
+ *
+ * This path is taken when writing to previously unallocated clusters.
+ */
+static void qed_aio_write_alloc(QEDAIOCB *acb, size_t len)
+{
+    BDRVQEDState *s = acb_to_s(acb);
+
+    /* If a new L2 table is being allocated, lock the L1 table.  Otherwise
+     * just lock the L2 table.
+     */
+    uint64_t lock_key = acb->find_cluster_ret == QED_CLUSTER_L1 ?
+                        s->header.l1_table_offset :
+                        acb->request.l2_table->offset;
+
+    if (!qed_lock(&s->lock, lock_key, acb)) {
+        return; /* sleep until woken up again */
+    }
+
+    acb->cur_nclusters = qed_bytes_to_clusters(s,
+            qed_offset_into_cluster(s, acb->cur_pos) + len);
+    acb->cur_cluster = qed_alloc_clusters(s, acb->cur_nclusters);
+    qed_acb_build_qiov(acb, len);
+    acb->cur_len = acb->cur_qiov.size;
+
+    /* Write new cluster if the image is already marked dirty */
+    if (s->header.features & QED_F_NEED_CHECK) {
+        qed_aio_write_prefill(acb, 0);
+        return;
+    }
+
+    /* Mark the image dirty before writing the new cluster */
+    s->header.features |= QED_F_NEED_CHECK;
+    qed_write_header(s, qed_aio_write_prefill, acb);
+}
+
+/**
+ * Write data cluster in place
+ *
+ * @acb:        Write request
+ * @offset:     Cluster offset in bytes
+ * @len:        Length in bytes
+ *
+ * This path is taken when writing to already allocated clusters.
+ */
+static void qed_aio_write_inplace(QEDAIOCB *acb, uint64_t offset, size_t len)
+{
+    BDRVQEDState *s = acb_to_s(acb);
+
+    /* Release held lock (if any) because in-place writes don't touch tables */
+    qed_unlock(&s->lock, acb);
+
+    /* Calculate the I/O vector */
+    acb->cur_cluster = offset;
+    qed_acb_build_qiov(acb, len);
+    acb->cur_len = acb->cur_qiov.size;
+
+    /* Do the actual write */
+    qed_aio_write_main(acb, 0);
+}
+
+/**
  * Write data cluster
  *
  * @opaque:     Write request
@@ -929,59 +994,25 @@ static void qed_aio_write_data(void *opaque, int ret,
                                uint64_t offset, size_t len)
 {
     QEDAIOCB *acb = opaque;
-    BDRVQEDState *s = acb_to_s(acb);
-    bool need_alloc = ret != QED_CLUSTER_FOUND;
 
-    trace_qed_aio_write_data(s, acb, ret, offset, len);
-
-    if (ret < 0) {
-        qed_aio_complete(acb, ret);
-        return;
-    }
-
-    if (need_alloc) {
-        /* If a new L2 table is being allocated, lock the L1 table.  Otherwise
-         * just lock the L2 table.
-         */
-        uint64_t lock_key = ret == QED_CLUSTER_L1 ?
-                            s->header.l1_table_offset :
-                            acb->request.l2_table->offset;
-
-        if (!qed_lock(&s->lock, lock_key, acb)) {
-            return; /* sleep until woken up again */
-        }
-    } else {
-        /* If we're still holding a lock, release it */
-        qed_unlock(&s->lock, acb);
-    }
-
-    acb->cur_nclusters = qed_bytes_to_clusters(s,
-                             qed_offset_into_cluster(s, acb->cur_pos) + len);
-
-    if (need_alloc) {
-        offset = qed_alloc_clusters(s, acb->cur_nclusters);
-    }
+    trace_qed_aio_write_data(acb_to_s(acb), acb, ret, offset, len);
 
     acb->find_cluster_ret = ret;
-    acb->cur_cluster = offset;
-    qed_acb_build_qiov(acb, len);
-    acb->cur_len = acb->cur_qiov.size;
 
-    /* Write data in place if the cluster already exists */
-    if (!need_alloc) {
-        qed_aio_write_main(acb, 0);
-        return;
+    switch (ret) {
+    case QED_CLUSTER_FOUND:
+        qed_aio_write_inplace(acb, offset, len);
+        break;
+
+    case QED_CLUSTER_L2:
+    case QED_CLUSTER_L1:
+        qed_aio_write_alloc(acb, len);
+        break;
+
+    default:
+        qed_aio_complete(acb, ret);
+        break;
     }
-
-    /* Write new cluster if the image is already marked dirty */
-    if (s->header.features & QED_F_NEED_CHECK) {
-        qed_aio_write_prefill(acb, 0);
-        return;
-    }
-
-    /* Mark the image dirty before writing the new cluster */
-    s->header.features |= QED_F_NEED_CHECK;
-    qed_write_header(s, qed_aio_write_prefill, acb);
 }
 
 /**
