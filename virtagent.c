@@ -57,7 +57,7 @@ static int get_transport_fd(void)
 }
 
 static int rpc_execute(xmlrpc_env *const env, const char *function,
-                       xmlrpc_value *params, xmlrpc_mem_block **resp_xml_p)
+                       xmlrpc_value *params, RPCRequest *rpc_data)
 {
     xmlrpc_mem_block *call_xml;
     int fd, ret;
@@ -76,60 +76,42 @@ static int rpc_execute(xmlrpc_env *const env, const char *function,
         goto out_callxml;
     }
 
-    ret = va_transport_rpc_call(fd, env, call_xml, resp_xml_p);
+    rpc_data->req_xml = call_xml;
+    ret = va_transport_rpc_call(fd, rpc_data);
     if (ret != 0) {
         ret = -1;
         goto out_callxml;
+    } else {
+        ret = 0;
+        goto out;
     }
-    TRACE("resp_xml_p = %p\n%s", resp_xml_p,
-          XMLRPC_MEMBLOCK_CONTENTS(char, *resp_xml_p));
 
-    ret = 0;
 out_callxml:
     XMLRPC_MEMBLOCK_FREE(char, call_xml);
 out:
     return ret;
 }
 
-/*
- * do_agent_viewfile(): View a text file in the guest
- */
-int do_agent_viewfile(Monitor *mon, const QDict *mon_params,
-                      QObject **ret_data)
+static void do_agent_viewfile_cb(void *opaque)
 {
-    xmlrpc_env env;
-    xmlrpc_value *params, *resp = NULL;
-    xmlrpc_mem_block *resp_xml;
-    const char *filepath;
+    RPCRequest *rpc_data = opaque;
+    xmlrpc_value *resp = NULL;
     char *file_contents = NULL;
     char format[32];
-    int ret, file_size;
+    int file_size, ret;
+    xmlrpc_env env;
 
-    filepath = qdict_get_str(mon_params, "filepath");
+    if (rpc_data->resp_xml == NULL) {
+        monitor_printf(rpc_data->mon, "error handling RPC request");
+        goto out_no_resp;
+    }
+
     xmlrpc_env_init(&env);
-    params = xmlrpc_build_value(&env, "(s)", filepath);
-    if (rpc_has_error(&env)) {
-        ret = -EREMOTE;
-        goto out;
-    }
-
-    ret = rpc_execute(&env, "getfile", params, &resp_xml);
-    if (ret == -EREMOTE) {
-        monitor_printf(mon, "RPC Failed (%i): %s\n", env.fault_code,
-                       env.fault_string);
-        return -1;
-    } else if (ret == -1) {
-        monitor_printf(mon, "RPC communication error\n");
-        return -1;
-    }
-
-
-    resp = xmlrpc_parse_response(&env,
-                                 XMLRPC_MEMBLOCK_CONTENTS(char, resp_xml),
-                                 XMLRPC_MEMBLOCK_SIZE(char, resp_xml));
+    resp = xmlrpc_parse_response(&env, rpc_data->resp_xml,
+                                 rpc_data->resp_xml_len);
     if (rpc_has_error(&env)) {
         ret = -1;
-        goto out;
+        goto out_no_resp;
     }
 
     xmlrpc_parse_value(&env, resp, "6", &file_contents, &file_size);
@@ -143,12 +125,51 @@ int do_agent_viewfile(Monitor *mon, const QDict *mon_params,
          * output string length to file_size
          */
         sprintf(format, "%%.%ds\n", file_size);
-        monitor_printf(mon, format, file_contents);
+        monitor_printf(rpc_data->mon, format, file_contents);
     }
 
 out:
-    XMLRPC_MEMBLOCK_FREE(char, resp_xml);
+    qemu_free(rpc_data->resp_xml);
     xmlrpc_DECREF(resp);
+out_no_resp:
+    rpc_data->mon_cb(rpc_data->mon_data, NULL);
+    qemu_free(rpc_data);
+}
 
-    return ret;
+/*
+ * do_agent_viewfile(): View a text file in the guest
+ */
+int do_agent_viewfile(Monitor *mon, const QDict *mon_params,
+                      MonitorCompletion cb, void *opaque)
+{
+    xmlrpc_env env;
+    xmlrpc_value *params;
+    RPCRequest *rpc_data;
+    const char *filepath;
+    int ret;
+
+    filepath = qdict_get_str(mon_params, "filepath");
+    xmlrpc_env_init(&env);
+    params = xmlrpc_build_value(&env, "(s)", filepath);
+    if (rpc_has_error(&env)) {
+        return -1;
+    }
+
+    rpc_data = qemu_mallocz(sizeof(RPCRequest));
+    rpc_data->cb = do_agent_viewfile_cb;
+    rpc_data->mon = mon;
+    rpc_data->mon_cb = cb;
+    rpc_data->mon_data = opaque;
+
+    ret = rpc_execute(&env, "getfile", params, rpc_data);
+    if (ret == -EREMOTE) {
+        monitor_printf(mon, "RPC Failed (%i): %s\n", env.fault_code,
+                       env.fault_string);
+        return -1;
+    } else if (ret == -1) {
+        monitor_printf(mon, "RPC communication error\n");
+        return -1;
+    }
+
+    return 0;
 }

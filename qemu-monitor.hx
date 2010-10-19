@@ -1644,7 +1644,8 @@ EQMP
         .params     = "filepath",
         .help       = "Echo a file from the guest filesystem",
         .user_print = monitor_user_noop,
-        .mhandler.cmd_new = do_agent_viewfile,
+        .mhandler.cmd_async = do_agent_viewfile,
+        .flags      = MONITOR_CMD_ASYNC,
     },
 
 STEXI

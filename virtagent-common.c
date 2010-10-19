@@ -93,8 +93,110 @@ static int read_line(int fd, void *buf, int len)
 typedef struct va_http {
     char *preamble;
     int content_length;
+    int content_read;
     char *content;
 } va_http;
+
+typedef struct HttpReadState {
+    int fd;
+    char hdr_buf[4096];
+    int hdr_pos;
+    va_http http;
+    enum {
+        IN_RESP_HEADER = 0,
+        IN_RESP_BODY,
+    } state;
+    RPCRequest *rpc_data;
+} HttpReadState;
+
+static int end_of_header(char *buf, int end_pos) {
+    return !strncmp(buf+(end_pos-2), "\n\r\n", 3);
+}
+
+static void parse_hdr(va_http *http, char *buf, int len) {
+    int i, line_pos=0;
+    char line_buf[4096];
+
+    for (i=0; i<len; ++i) {
+        if (buf[i] != '\n') {
+            /* read line */
+            line_buf[line_pos++] = buf[i];
+        } else {
+            /* process line */
+            if (strncasecmp(line_buf, "content-length: ", 16) == 0) {
+                http->content_length = atoi(&line_buf[16]);
+                return;
+            }
+            line_pos = 0;
+        }
+    }
+}
+
+static void http_read_handler(void *opaque) {
+    HttpReadState *s = opaque;
+    int ret;
+
+    TRACE("called with opaque: %p", opaque);
+    if (s->state == IN_RESP_HEADER) {
+        while((ret = read(s->fd, s->hdr_buf + s->hdr_pos, 1)) > 0) {
+            //TRACE("buf: %c", s->hdr_buf[0]);
+            s->hdr_pos += ret;
+            if (end_of_header(s->hdr_buf, s->hdr_pos - 1)) {
+                s->state = IN_RESP_BODY;
+                break;
+            }
+        }
+        if (ret == -1) {
+            if (errno == -EAGAIN || errno == -EWOULDBLOCK) {
+                return;
+            } else {
+                LOG("error reading connection: %s", strerror(errno));
+                goto out_bad;
+            }
+        } else if (ret == 0) {
+            LOG("connection closed unexpectedly");
+            goto out_bad;
+        } else {
+            s->http.content_length = -1;
+            parse_hdr(&s->http, s->hdr_buf, s->hdr_pos);
+            if (s->http.content_length == -1) {
+                LOG("malformed http header");
+                goto out_bad;
+            }
+            s->http.content = qemu_mallocz(s->http.content_length);
+            goto do_resp_body;
+        }
+    } else if (s->state == IN_RESP_BODY) {
+do_resp_body:
+        while(s->http.content_read < s->http.content_length) {
+            ret = read(s->fd, s->http.content, 4096);
+            if (ret == -1) {
+                if (errno == -EAGAIN || errno == -EWOULDBLOCK) {
+                    return;
+                } else {
+                    LOG("error reading connection: %s", strerror(errno));
+                    qemu_free(s->http.content);
+                    goto out;
+                }
+            } else if (ret == 0) {
+                LOG("connection closed unexpectedly, expected %d more bytes",
+                    s->http.content_length - s->http.content_read);
+                goto out_bad;
+            }
+            s->http.content_read += ret;
+        }
+        s->rpc_data->resp_xml = s->http.content;
+        s->rpc_data->resp_xml_len = s->http.content_length;
+        goto out;
+    }
+out_bad:
+    s->rpc_data->resp_xml = NULL;
+out:
+    sleep(4);
+    vp_set_fd_handler(s->fd, NULL, NULL, NULL);
+    s->rpc_data->cb(s->rpc_data);
+    qemu_free(s);
+}
 
 static int write_hdr(int fd, const va_http *http, bool request)
 {
@@ -243,17 +345,16 @@ int va_get_rpc_request(int fd, char **req_xml, int *req_len)
 }
 
 /* send an RPC request and retrieve the response */
-int va_transport_rpc_call(int fd, xmlrpc_env *const env,
-                          xmlrpc_mem_block *const req_xml,
-                          xmlrpc_mem_block **resp_xml)
+int va_transport_rpc_call(int fd, RPCRequest *rpc_data)
 {
     int ret;
-    char *resp_xml_buf;
-    struct va_http http_req, http_resp;
+    struct va_http http_req;
+    HttpReadState *read_state;
 
-    http_req.content = XMLRPC_MEMBLOCK_CONTENTS(char, req_xml);
-    http_req.content_length = XMLRPC_MEMBLOCK_SIZE(char, req_xml);
+    http_req.content = XMLRPC_MEMBLOCK_CONTENTS(char, rpc_data->req_xml);
+    http_req.content_length = XMLRPC_MEMBLOCK_SIZE(char, rpc_data->req_xml);
 
+    /* TODO: this should be done asynchronously */
     TRACE("sending rpc request");
     ret = send_http_request(fd, &http_req);
     if (ret != 0) {
@@ -261,21 +362,12 @@ int va_transport_rpc_call(int fd, xmlrpc_env *const env,
         return -1;
     }
 
-    TRACE("getting rpc response");
-    ret = get_http(fd, &http_resp);
-    if (ret != 0) {
-        LOG("failed to get rpc response");
-        return -1;
-    }
-
-    *resp_xml = XMLRPC_MEMBLOCK_NEW(char, env, http_resp.content_length);
-    resp_xml_buf = XMLRPC_MEMBLOCK_CONTENTS(char, *resp_xml);
-    /* TODO: can we just *resp_xml = http_resp.content? what do these macros
-     * really do?
-     */
-    memcpy(resp_xml_buf, http_resp.content, http_resp.content_length);
-    qemu_free(http_resp.content);
-    TRACE("read response xml:\n%s\n", resp_xml_buf);
+    TRACE("setting up rpc response handler");
+    read_state = qemu_mallocz(sizeof(HttpReadState));
+    read_state->fd = fd;
+    read_state->rpc_data = rpc_data;
+    read_state->state = IN_RESP_HEADER;
+    vp_set_fd_handler(fd, http_read_handler, NULL, read_state);
 
     return 0;
 }
