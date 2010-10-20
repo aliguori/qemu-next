@@ -147,7 +147,7 @@ static void http_read_handler(void *opaque) {
             }
         }
         if (ret == -1) {
-            if (errno == -EAGAIN || errno == -EWOULDBLOCK) {
+            if (errno == EAGAIN || errno == EWOULDBLOCK) {
                 return;
             } else {
                 LOG("error reading connection: %s", strerror(errno));
@@ -169,9 +169,9 @@ static void http_read_handler(void *opaque) {
     } else if (s->state == IN_RESP_BODY) {
 do_resp_body:
         while(s->http.content_read < s->http.content_length) {
-            ret = read(s->fd, s->http.content, 4096);
+            ret = read(s->fd, s->http.content + s->http.content_read, 4096);
             if (ret == -1) {
-                if (errno == -EAGAIN || errno == -EWOULDBLOCK) {
+                if (errno == EAGAIN || errno == EWOULDBLOCK) {
                     return;
                 } else {
                     LOG("error reading connection: %s", strerror(errno));
