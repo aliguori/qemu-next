@@ -104,8 +104,6 @@ static RPCFunction guest_functions[] = {
     { NULL, NULL }
 };
 static RPCFunction host_functions[] = {
-    { .func = getfile,
-      .func_name = "poop" },
     { NULL, NULL }
 };
 

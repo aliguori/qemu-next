@@ -23,6 +23,5 @@
 #define VA_MAX_CHUNK_SIZE 4096 /* max bytes at a time for get/send file */
 
 int do_agent_viewfile(Monitor *mon, const QDict *params, QObject **ret_data);
-int do_agent_copyfile(Monitor *mon, const QDict *params, QObject **ret_data);
 
 #endif /* VIRTAGENT_H */
