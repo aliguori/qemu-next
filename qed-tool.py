@@ -16,6 +16,7 @@ import random
 import optparse
 
 QED_F_NEED_CHECK = 0x02
+QED_CF_COPY_ON_READ = 0x01
 
 header_fmt = '<IIIIQQQQQII'
 header_size = struct.calcsize(header_fmt)
@@ -132,19 +133,26 @@ def cmd_invalidate(qed, table_level):
     corrupt_table_invalidate(qed, table)
     qed.write_table(offset, table)
 
-def cmd_need_check(qed, *args):
-    '''need_check [on|off] - Test, set, or clear the QED_F_NEED_CHECK header bit'''
+def _cmd_feature_bit(features_field, bitmask, args):
     if not args:
-        print bool(qed.header['features'] & QED_F_NEED_CHECK)
+        print bool(qed.header[features_field] & bitmask)
         return
 
     if args[0] == 'on':
-        qed.header['features'] |= QED_F_NEED_CHECK
+        qed.header[features_field] |= bitmask
     elif args[1] == 'off':
-        qed.header['features'] &= ~QED_F_NEED_CHECK
+        qed.header[features_field] &= ~bitmask
     else:
         err('unrecognized sub-command')
     qed.store_header()
+
+def cmd_need_check(qed, *args):
+    '''need_check [on|off] - Test, set, or clear the QED_F_NEED_CHECK header bit'''
+    _cmd_feature_bit('features', QED_F_NEED_CHECK, args)
+
+def cmd_copy_on_read(qed, *args):
+    '''copy_on_read [on|off] - Test, set, or clear the QED_CF_COPY_ON_READ header bit'''
+    _cmd_feature_bit('compat_features', QED_CF_COPY_ON_READ, args)
 
 def usage():
     sys.stderr.write('usage: %s <filename> <command> [<args...>]\n\n' % sys.argv[0])
