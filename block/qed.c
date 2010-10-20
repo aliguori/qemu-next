@@ -64,6 +64,7 @@ static void qed_header_le_to_cpu(const QEDHeader *le, QEDHeader *cpu)
     cpu->header_size = le32_to_cpu(le->header_size);
     cpu->features = le64_to_cpu(le->features);
     cpu->compat_features = le64_to_cpu(le->compat_features);
+    cpu->autoclear_features = le64_to_cpu(le->autoclear_features);
     cpu->l1_table_offset = le64_to_cpu(le->l1_table_offset);
     cpu->image_size = le64_to_cpu(le->image_size);
     cpu->backing_filename_offset = le32_to_cpu(le->backing_filename_offset);
@@ -78,6 +79,7 @@ static void qed_header_cpu_to_le(const QEDHeader *cpu, QEDHeader *le)
     le->header_size = cpu_to_le32(cpu->header_size);
     le->features = cpu_to_le64(cpu->features);
     le->compat_features = cpu_to_le64(cpu->compat_features);
+    le->autoclear_features = cpu_to_le64(cpu->autoclear_features);
     le->l1_table_offset = cpu_to_le64(cpu->l1_table_offset);
     le->image_size = cpu_to_le64(cpu->image_size);
     le->backing_filename_offset = cpu_to_le32(cpu->backing_filename_offset);
@@ -355,6 +357,20 @@ static int bdrv_qed_open(BlockDriverState *bs, int flags)
         if (s->header.features & QED_F_BACKING_FORMAT_NO_PROBE) {
             pstrcpy(bs->backing_format, sizeof(bs->backing_format), "raw");
         }
+    }
+
+    /* Reset unknown autoclear feature bits.  This is a backwards
+     * compatibility mechanism that allows images to be opened by older
+     * programs, which "knock out" unknown feature bits.  When an image is
+     * opened by a newer program again it can detect that the autoclear
+     * feature is no longer valid.
+     */
+    if ((s->header.autoclear_features & ~QED_AUTOCLEAR_FEATURE_MASK) != 0) {
+        s->header.autoclear_features &= QED_AUTOCLEAR_FEATURE_MASK;
+        qed_write_header_sync(s);
+
+        /* From here on only known autoclear feature bits are valid */
+        bdrv_flush(bs->file);
     }
 
     s->l1_table = qed_alloc_table(s);

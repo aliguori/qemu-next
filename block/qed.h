@@ -61,6 +61,7 @@ enum {
                        QED_F_NEED_CHECK |
                        QED_F_BACKING_FORMAT_NO_PROBE,
     QED_COMPAT_FEATURE_MASK = 0,            /* supported compat feature bits */
+    QED_AUTOCLEAR_FEATURE_MASK = 0,         /* supported autoclear feature bits */
 
     /* Data is stored in groups of sectors called clusters.  Cluster size must
      * be large to avoid keeping too much metadata.  I/O requests that have
@@ -88,6 +89,8 @@ typedef struct {
 
     uint64_t features;              /* format feature bits */
     uint64_t compat_features;       /* compatible feature bits */
+    uint64_t autoclear_features;    /* self-resetting feature bits */
+
     uint64_t l1_table_offset;       /* in bytes */
     uint64_t image_size;            /* total logical image size, in bytes */
 
