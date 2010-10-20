@@ -16,5 +16,6 @@
 #define HOST_AGENT_PATH "/tmp/virtagent-host.sock"
 #define VA_GETFILE_MAX 1 << 30
 #define VA_FILEBUF_LEN 16384
+#define VA_DMESG_LEN 16384
 
 int va_server_loop(int listen_fd, bool is_host);

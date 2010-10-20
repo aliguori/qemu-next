@@ -72,6 +72,48 @@ EXIT_CLOSE_BAD:
     return result;
 }
 
+/* getdmesg(): return dmesg output
+ * rpc return values:
+ *   - dmesg output as a string
+ */
+static xmlrpc_value *getdmesg(xmlrpc_env *env,
+                              xmlrpc_value *param,
+                              void *user_data)
+{
+    char *dmesg_buf = NULL, cmd[256];
+    char c;
+    int pos = 0;
+    xmlrpc_value *result = NULL;
+    FILE *pipe;
+
+    dmesg_buf = qemu_mallocz(VA_DMESG_LEN + 2048);
+    sprintf(cmd, "dmesg -s %d", VA_DMESG_LEN);
+
+    //pipe = popen(cmd, "r");
+    pipe = popen("dmesg -s 16000", "r");
+    if (pipe == NULL) {
+        LOG("popen failed: %s", strerror(errno));
+        xmlrpc_faultf(env, "popen failed: %s", strerror(errno));
+        goto EXIT_NOCLOSE;
+    }
+
+    while ((c = fgetc(pipe)) != EOF && pos < VA_DMESG_LEN) {
+        dmesg_buf[pos] = c;
+        pos++;
+    }
+    dmesg_buf[pos++] = '\0';
+    TRACE("dmesg:\n%s", dmesg_buf);
+
+    result = xmlrpc_build_value(env, "s", dmesg_buf);
+    pclose(pipe);
+EXIT_NOCLOSE:
+    if (dmesg_buf) {
+        qemu_free(dmesg_buf);
+    }
+
+    return result;
+}
+
 static int va_accept(int listen_fd) {
     struct sockaddr_in saddr;
     struct sockaddr *addr;
@@ -101,6 +143,8 @@ typedef struct RPCFunction {
 static RPCFunction guest_functions[] = {
     { .func = getfile,
       .func_name = "getfile" },
+    { .func = getdmesg,
+      .func_name = "getdmesg" },
     { NULL, NULL }
 };
 static RPCFunction host_functions[] = {
@@ -161,6 +205,7 @@ int va_server_loop(int listen_fd, bool is_host)
         qemu_free(rpc_response);
 out:
         closesocket(fd);
+        xmlrpc_env_clean(&env);
     }
 
     return 0;

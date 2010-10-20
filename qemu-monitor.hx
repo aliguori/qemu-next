@@ -1671,6 +1671,39 @@ Example:
 
 EQMP
 
+    {
+        .name       = "agent_viewdmesg",
+        .args_type  = "",
+        .params     = "",
+        .help       = "Echo guest dmesg output (16KB of buffer)",
+        .user_print = monitor_user_noop,
+        .mhandler.cmd_async = do_agent_viewdmesg,
+        .flags      = MONITOR_CMD_ASYNC,
+    },
+
+STEXI
+@item agent_viewdmesg @var{size}
+@findex agent_viewdmesg
+Echo guest's dmesg output.
+ETEXI
+SQMP
+agent_viewdmesg
+--------
+
+Echo guest's dmesg output.
+
+Arguments:
+
+- "bytes": (optional) number of bytes to show
+
+Example:
+
+-> { "execute": "agent_viewdmesg",
+                "arguments": { } }
+<- { "return": { "data": "0" } }
+
+EQMP
+
 HXCOMM Keep the 'info' command at the end!
 HXCOMM This is required for the QMP documentation layout.
 

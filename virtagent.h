@@ -24,5 +24,7 @@
 
 int do_agent_viewfile(Monitor *mon, const QDict *mon_params,
                       MonitorCompletion cb, void *opaque);
+int do_agent_viewdmesg(Monitor *mon, const QDict *mon_params,
+                      MonitorCompletion cb, void *opaque);
 
 #endif /* VIRTAGENT_H */
