@@ -519,6 +519,8 @@ typedef struct StreamState
     int64_t offset;
     bool once;
     BlockDriverState *bs;
+    QEMUTimer *timer;
+    uint64_t stream_delay;
 } StreamState;
 
 static StreamState global_stream;
@@ -545,7 +547,8 @@ static void do_stream_cb(void *opaque, int ret)
             }
         } else if (!s->once) {
             s->offset += ret;
-            bdrv_aio_stream(s->bs, s->offset, do_stream_cb, s);
+            qemu_mod_timer(s->timer,
+                           qemu_get_clock(rt_clock) + s->stream_delay);
             return;
         } else {
             monitor_printf(s->mon, "\n");
@@ -556,7 +559,20 @@ static void do_stream_cb(void *opaque, int ret)
         monitor_resume(s->mon);
     }
 
+    qemu_del_timer(s->timer);
+
     active_stream = NULL;
+}
+
+/* We can't call bdrv_aio_stream() directly from the callback because that
+ * makes qemu_aio_flush() not complete until the streaming is completed.
+ * By delaying with a timer, we give qemu_aio_flush() a chance to complete.
+ */
+static void stream_next_iteration(void *opaque)
+{
+    StreamState *s = opaque;
+
+    bdrv_aio_stream(s->bs, s->offset, do_stream_cb, s);
 }
 
 static StreamState *stream_start(Monitor *mon, const char *device, int64_t offset)
@@ -597,6 +613,8 @@ static StreamState *stream_start(Monitor *mon, const char *device, int64_t offse
     s->mon = mon;
     s->offset = offset;
     s->bs = bs;
+    s->stream_delay = 0; /* FIXME make this configurable */
+    s->timer = qemu_new_timer(rt_clock, stream_next_iteration, s);
 
     active_stream = s;
 
