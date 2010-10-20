@@ -211,7 +211,7 @@ static void do_agent_viewdmesg_cb(void *opaque)
     if (dmesg != NULL) {
         /* monitor_printf truncates */
         for (i=0; i < strlen(dmesg); i += 1024) {
-            monitor_printf(rpc_data->mon, "%s", dmesg + i);
+            monitor_printf(rpc_data->mon, "%.1024s", dmesg + i);
         }
         monitor_printf(rpc_data->mon, "\n");
     }
