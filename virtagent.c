@@ -101,7 +101,7 @@ static void do_agent_viewfile_cb(void *opaque)
     xmlrpc_value *resp = NULL;
     char *file_contents = NULL;
     char format[32];
-    int file_size, ret;
+    int file_size, ret, i;
     xmlrpc_env env;
 
     if (rpc_data->resp_xml == NULL) {
@@ -124,11 +124,14 @@ static void do_agent_viewfile_cb(void *opaque)
     }
 
     if (file_contents != NULL) {
-        /* file text may not be null terminated so explicitly limit
-         * output string length to file_size
-         */
-        sprintf(format, "%%.%ds\n", file_size);
-        monitor_printf(rpc_data->mon, format, file_contents);
+         /* monitor_printf truncates so do it in chunks. also, file_contents
+          * may not be null-termed at proper location so explicitly calc
+          * last chunk sizes */
+        for (i = 0; i < file_size - 1024; i += 1024) {
+            monitor_printf(rpc_data->mon, "%.1024s", file_contents + i);
+        }
+        sprintf(format, "%%.%ds\n", file_size - i);
+        monitor_printf(rpc_data->mon, format, file_contents + i);
     }
 
 out:
