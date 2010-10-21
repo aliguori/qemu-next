@@ -180,11 +180,12 @@ int va_server_loop(int listen_fd, bool is_host)
         TRACE("waiting for connection from RPC client");
         fd = va_accept(listen_fd);
         if (fd < 0) {
-            break;
+            TRACE("connection error: %s", strerror(errno));
+            continue;
         }
         TRACE("RPC client connected, fetching RPC...");
         ret = va_get_rpc_request(fd, &rpc_request, &rpc_request_len);
-        if (ret != 0) {
+        if (ret != 0 || rpc_request == NULL) {
             LOG("error retrieving rpc request");
             goto out;
         }
@@ -199,7 +200,7 @@ int va_server_loop(int listen_fd, bool is_host)
         qemu_free(rpc_request);
         ret = va_send_rpc_response(fd, rpc_response);
         if (ret != 0) {
-            LOG("error retrieving rpc request");
+            LOG("error sending rpc response");
             goto out;
         }
         qemu_free(rpc_response);
