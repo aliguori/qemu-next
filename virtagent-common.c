@@ -203,6 +203,7 @@ static int write_hdr(int fd, const va_http *http, bool request)
     char *hdr;
     const char *preamble;
 
+    TRACE("called");
     /* essentially ignored in the context of virtagent, but might as well */
     preamble = request ? "POST /RPC2 HTTP/1.1" : "HTTP/1.1 200 OK";
 
@@ -259,13 +260,16 @@ static int send_http(int fd, const va_http *http, bool request)
 {
     int ret;
 
+    TRACE("called");
     ret = write_hdr(fd, http, request);
     if (ret != 0) {
         LOG("error sending header");
         return -1;
     }
 
+    TRACE("sending body");
     ret = write_all(fd, http->content, http->content_length);
+    TRACE("done sending body");
     if (ret != http->content_length) {
         LOG("error sending content");
         return -1;
@@ -321,6 +325,7 @@ int va_send_rpc_response(int fd, const xmlrpc_mem_block *resp_xml)
         LOG("failed to send rpc response");
         return -1;
     }
+    TRACE("done sending rpc response");
 
     return 0;
 }
@@ -331,6 +336,7 @@ int va_get_rpc_request(int fd, char **req_xml, int *req_len)
     int ret;
     va_http http_req;
 
+    TRACE("getting rpc request");
     ret = get_http(fd, &http_req);
     if (ret != 0) {
         LOG("failed to get RPC request");
@@ -339,6 +345,7 @@ int va_get_rpc_request(int fd, char **req_xml, int *req_len)
 
     *req_xml = http_req.content;
     *req_len = http_req.content_length;
+    TRACE("done getting rpc request");
 
     return 0;
 }
@@ -350,6 +357,7 @@ int va_transport_rpc_call(int fd, RPCRequest *rpc_data)
     struct va_http http_req;
     HttpReadState *read_state;
 
+    TRACE("called");
     http_req.content = XMLRPC_MEMBLOCK_CONTENTS(char, rpc_data->req_xml);
     http_req.content_length = XMLRPC_MEMBLOCK_SIZE(char, rpc_data->req_xml);
 
@@ -360,6 +368,7 @@ int va_transport_rpc_call(int fd, RPCRequest *rpc_data)
         LOG("failed to send rpc request");
         return -1;
     }
+    TRACE("done sending rpc request");
 
     TRACE("setting up rpc response handler");
     read_state = qemu_mallocz(sizeof(HttpReadState));
