@@ -22,6 +22,7 @@
 #define HOST_AGENT_PATH_CLIENT "/tmp/virtagent-host-client.sock"
 #define VA_MAX_CHUNK_SIZE 4096 /* max bytes at a time for get/send file */
 
+void do_agent_viewfile_print(Monitor *mon, const QObject *qobject);
 int do_agent_viewfile(Monitor *mon, const QDict *mon_params,
                       MonitorCompletion cb, void *opaque);
 int do_agent_viewdmesg(Monitor *mon, const QDict *mon_params,
