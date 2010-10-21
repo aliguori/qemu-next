@@ -197,16 +197,18 @@ int va_server_loop(int listen_fd, bool is_host)
             LOG("error handling rpc request");
             goto out;
         }
+
         qemu_free(rpc_request);
+        TRACE("sending RPC response");
         ret = va_send_rpc_response(fd, rpc_response);
         if (ret != 0) {
             LOG("error sending rpc response");
             goto out;
         }
-        qemu_free(rpc_response);
+        TRACE("RPC completed");
+        XMLRPC_MEMBLOCK_FREE(char, rpc_response);
 out:
         closesocket(fd);
-        xmlrpc_env_clean(&env);
     }
 
     return 0;
