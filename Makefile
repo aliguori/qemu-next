@@ -135,7 +135,7 @@ qemu-nbd$(EXESUF): qemu-nbd.o qemu-tool.o qemu-error.o $(trace-obj-y) $(block-ob
 
 qemu-io$(EXESUF): qemu-io.o cmd.o qemu-tool.o qemu-error.o $(trace-obj-y) $(block-obj-y) $(qobject-obj-y) $(version-obj-y)
 
-qemu-vp$(EXESUF): qemu-vp.o virtproxy.o qemu-tool.o qemu-error.o qemu-sockets.c $(block-obj-y) $(qobject-obj-y)
+qemu-vp$(EXESUF): qemu-vp.o virtproxy.o qemu-tool.o qemu-error.o qemu-sockets.c $(trace-obj-y) $(block-obj-y) $(qobject-obj-y) $(version-obj-y)
 
 qemu-img-cmds.h: $(SRC_PATH)/qemu-img-cmds.hx
 	$(call quiet-command,sh $(SRC_PATH)/hxtool -h < $< > $@,"  GEN   $@")
