@@ -192,7 +192,6 @@ do_resp_body:
 out_bad:
     s->rpc_data->resp_xml = NULL;
 out:
-    sleep(4);
     vp_set_fd_handler(s->fd, NULL, NULL, NULL);
     s->rpc_data->cb(s->rpc_data);
     qemu_free(s);
