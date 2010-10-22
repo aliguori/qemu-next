@@ -197,13 +197,37 @@ int do_agent_viewfile(Monitor *mon, const QDict *mon_params,
     return 0;
 }
 
+void do_agent_viewdmesg_print(Monitor *mon, const QObject *data)
+{
+    QDict *qdict;
+    const char *contents = NULL;
+    int i;
+
+    qdict = qobject_to_qdict(data);
+    if (!qdict_haskey(qdict, "contents")) {
+        return;
+    }
+
+    contents = qdict_get_str(qdict, "contents");
+    if (contents != NULL) {
+         /* monitor_printf truncates so do it in chunks. also, file_contents
+          * may not be null-termed at proper location so explicitly calc
+          * last chunk sizes */
+        for (i = 0; i < strlen(contents); i += 1024) {
+            monitor_printf(mon, "%.1024s", contents + i);
+        }
+    }
+    monitor_printf(mon, "\n");
+}
+
 static void do_agent_viewdmesg_cb(void *opaque)
 {
     RPCRequest *rpc_data = opaque;
     xmlrpc_value *resp = NULL;
     char *dmesg = NULL;
-    int ret, i;
+    int ret;
     xmlrpc_env env;
+    QDict *qdict = qdict_new();
 
     if (rpc_data->resp_xml == NULL) {
         monitor_printf(rpc_data->mon, "error handling RPC request");
@@ -226,18 +250,14 @@ static void do_agent_viewdmesg_cb(void *opaque)
     }
 
     if (dmesg != NULL) {
-        /* monitor_printf truncates */
-        for (i=0; i < strlen(dmesg); i += 1024) {
-            monitor_printf(rpc_data->mon, "%.1024s", dmesg + i);
-        }
-        monitor_printf(rpc_data->mon, "\n");
+        qdict_put(qdict, "contents", qstring_from_str(dmesg));
     }
 
 out:
     qemu_free(rpc_data->resp_xml);
     xmlrpc_DECREF(resp);
 out_no_resp:
-    rpc_data->mon_cb(rpc_data->mon_data, NULL);
+    rpc_data->mon_cb(rpc_data->mon_data, QOBJECT(qdict));
     qemu_free(rpc_data);
 }
 
