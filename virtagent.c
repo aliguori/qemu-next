@@ -235,7 +235,6 @@ static void do_agent_viewdmesg_cb(void *opaque)
     }
 
     xmlrpc_env_init(&env);
-    TRACE("resp_xml:\n%s", rpc_data->resp_xml);
     resp = xmlrpc_parse_response(&env, rpc_data->resp_xml,
                                  rpc_data->resp_xml_len);
     if (rpc_has_error(&env)) {
