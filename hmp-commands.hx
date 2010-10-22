@@ -1227,6 +1227,22 @@ STEXI
 Echo the file identified by @var{filepath} on the guest filesystem
 ETEXI
 
+    {
+        .name       = "agent_viewdmesg",
+        .args_type  = "",
+        .params     = "",
+        .help       = "View guest dmesg output",
+        .user_print = do_agent_viewdmesg_print,
+        .mhandler.cmd_async = do_agent_viewdmesg,
+        .flags      = MONITOR_CMD_ASYNC,
+    },
+
+STEXI
+@item agent_viewdmesg
+@findex agent_viewdmesg
+View guest dmesg output
+ETEXI
+
 STEXI
 @end table
 ETEXI
