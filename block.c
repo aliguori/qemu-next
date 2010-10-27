@@ -603,10 +603,17 @@ int bdrv_open(BlockDriverState *bs, const char *filename, int flags,
         BlockDriver *back_drv = NULL;
 
         bs->backing_hd = bdrv_new("");
-        path_combine(backing_filename, sizeof(backing_filename),
-                     filename, bs->backing_file);
-        if (bs->backing_format[0] != '\0')
-            back_drv = bdrv_find_format(bs->backing_format);
+        back_drv = bdrv_find_protocol(bs->backing_file);
+        if (!back_drv) {
+            path_combine(backing_filename, sizeof(backing_filename),
+                         filename, bs->backing_file);
+            if (bs->backing_format[0] != '\0') {
+                back_drv = bdrv_find_format(bs->backing_format);
+            }
+        } else {
+            pstrcpy(backing_filename, sizeof(backing_filename),
+                    bs->backing_file);
+        }
 
         /* backing files always opened read-only */
         back_flags =
