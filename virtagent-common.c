@@ -232,7 +232,7 @@ static void va_rpc_read_handler(void *opaque)
     case VA_READ_BODY:
         while(s->content_pos < s->content_len) {
             ret = read(s->fd, s->content + s->content_pos,
-                       MIN(s->content_len - s->content_pos, 4096));
+                       s->content_len - s->content_pos);
             if (ret == -1) {
                 if (errno == EAGAIN || errno == EWOULDBLOCK) {
                     return;
@@ -333,8 +333,7 @@ static void va_rpc_send_handler(void *opaque)
         s->state = VA_SEND_HDR;
     case VA_SEND_HDR:
         do {
-            ret = write(s->fd, s->hdr + s->hdr_pos,
-                        MIN(s->hdr_len - s->hdr_pos, 4096));
+            ret = write(s->fd, s->hdr + s->hdr_pos, s->hdr_len - s->hdr_pos);
             if (ret <= 0) {
                 break;
             }
@@ -356,7 +355,7 @@ static void va_rpc_send_handler(void *opaque)
     case VA_SEND_BODY:
         do {
             ret = write(s->fd, s->content + s->content_pos,
-                        MIN(s->content_len - s->content_pos, 4096));
+                        s->content_len - s->content_pos);
             if (ret <= 0) {
                 break;
             }
