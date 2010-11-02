@@ -60,7 +60,7 @@ static int get_transport_fd(void)
 }
 
 static int rpc_execute(xmlrpc_env *const env, const char *function,
-                       xmlrpc_value *params, RPCRequest *rpc_data)
+                       xmlrpc_value *params, VARPCData *rpc_data)
 {
     xmlrpc_mem_block *call_xml;
     int fd, ret;
@@ -79,8 +79,9 @@ static int rpc_execute(xmlrpc_env *const env, const char *function,
         goto out_callxml;
     }
 
-    rpc_data->req_xml = call_xml;
-    ret = va_transport_rpc_call(fd, rpc_data);
+    rpc_data->send_req_xml = call_xml;
+
+    ret = va_rpc_send_request(rpc_data, fd);
     if (ret != 0) {
         ret = -1;
         goto out_callxml;
@@ -120,15 +121,15 @@ void do_agent_viewfile_print(Monitor *mon, const QObject *data)
 
 static void do_agent_viewfile_cb(void *opaque)
 {
-    RPCRequest *rpc_data = opaque;
+    VARPCData *rpc_data = opaque;
     xmlrpc_value *resp = NULL;
     char *file_contents = NULL;
     int file_size, ret;
     xmlrpc_env env;
     QDict *qdict = qdict_new();
 
-    if (rpc_data->resp_xml == NULL) {
-        monitor_printf(rpc_data->mon, "error handling RPC request");
+    if (rpc_data->status != VA_RPC_STATUS_OK) {
+        LOG("error handling RPC request");
         goto out_no_resp;
     }
 
@@ -152,11 +153,9 @@ static void do_agent_viewfile_cb(void *opaque)
     }
 
 out:
-    qemu_free(rpc_data->resp_xml);
     xmlrpc_DECREF(resp);
 out_no_resp:
     rpc_data->mon_cb(rpc_data->mon_data, QOBJECT(qdict));
-    qemu_free(rpc_data);
 }
 
 /*
@@ -167,7 +166,7 @@ int do_agent_viewfile(Monitor *mon, const QDict *mon_params,
 {
     xmlrpc_env env;
     xmlrpc_value *params;
-    RPCRequest *rpc_data;
+    VARPCData *rpc_data;
     const char *filepath;
     int ret;
 
@@ -178,9 +177,8 @@ int do_agent_viewfile(Monitor *mon, const QDict *mon_params,
         return -1;
     }
 
-    rpc_data = qemu_mallocz(sizeof(RPCRequest));
+    rpc_data = qemu_mallocz(sizeof(VARPCData));
     rpc_data->cb = do_agent_viewfile_cb;
-    rpc_data->mon = mon;
     rpc_data->mon_cb = cb;
     rpc_data->mon_data = opaque;
 
@@ -205,7 +203,7 @@ void do_agent_viewdmesg_print(Monitor *mon, const QObject *data)
 
     qdict = qobject_to_qdict(data);
     if (!qdict_haskey(qdict, "contents")) {
-        return;
+        goto out;
     }
 
     contents = qdict_get_str(qdict, "contents");
@@ -217,20 +215,22 @@ void do_agent_viewdmesg_print(Monitor *mon, const QObject *data)
             monitor_printf(mon, "%.1024s", contents + i);
         }
     }
+
+out:
     monitor_printf(mon, "\n");
 }
 
 static void do_agent_viewdmesg_cb(void *opaque)
 {
-    RPCRequest *rpc_data = opaque;
+    VARPCData *rpc_data = opaque;
     xmlrpc_value *resp = NULL;
     char *dmesg = NULL;
     int ret;
     xmlrpc_env env;
     QDict *qdict = qdict_new();
 
-    if (rpc_data->resp_xml == NULL) {
-        monitor_printf(rpc_data->mon, "error handling RPC request");
+    if (rpc_data->status != VA_RPC_STATUS_OK) {
+        LOG("error handling RPC request");
         goto out_no_resp;
     }
 
@@ -253,11 +253,9 @@ static void do_agent_viewdmesg_cb(void *opaque)
     }
 
 out:
-    qemu_free(rpc_data->resp_xml);
     xmlrpc_DECREF(resp);
 out_no_resp:
     rpc_data->mon_cb(rpc_data->mon_data, QOBJECT(qdict));
-    qemu_free(rpc_data);
 }
 
 /*
@@ -268,7 +266,7 @@ int do_agent_viewdmesg(Monitor *mon, const QDict *mon_params,
 {
     xmlrpc_env env;
     xmlrpc_value *params;
-    RPCRequest *rpc_data;
+    VARPCData *rpc_data;
     int ret;
 
     xmlrpc_env_init(&env);
@@ -278,9 +276,8 @@ int do_agent_viewdmesg(Monitor *mon, const QDict *mon_params,
         return -1;
     }
 
-    rpc_data = qemu_mallocz(sizeof(RPCRequest));
+    rpc_data = qemu_mallocz(sizeof(VARPCData));
     rpc_data->cb = do_agent_viewdmesg_cb;
-    rpc_data->mon = mon;
     rpc_data->mon_cb = cb;
     rpc_data->mon_data = opaque;
 
