@@ -336,7 +336,6 @@ static void va_rpc_send_handler(void *opaque)
     int ret;
 
     TRACE("called with opaque: %p", opaque);
-    TRACE("hdr_len: %d, hdr_pos: %d", (int)s->hdr_len, (int)s->hdr_pos);
 
     switch (s->state) {
     case VA_SEND_START:
