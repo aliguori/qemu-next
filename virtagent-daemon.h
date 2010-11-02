@@ -18,4 +18,4 @@
 #define VA_FILEBUF_LEN 16384
 #define VA_DMESG_LEN 16384
 
-int va_server_loop(int listen_fd, bool is_host);
+int va_server_start(int listen_fd, bool is_host);

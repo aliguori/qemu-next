@@ -162,54 +162,98 @@ static void va_register_functions(xmlrpc_env *env, xmlrpc_registry *registry,
     }
 }
 
-int va_server_loop(int listen_fd, bool is_host)
-{
-    xmlrpc_registry *registryP;
+typedef struct VARPCServerState {
+    int listen_fd;
     xmlrpc_env env;
+    xmlrpc_registry *registry;
+} VARPCServerState;
+
+static void va_accept_handler(void *opaque);
+
+static void va_rpc_send_cb(void *opaque)
+{
+    VARPCData *rpc_data = opaque;
+    VARPCServerState *s = rpc_data->opaque;
+
+    TRACE("called");
+    if (rpc_data->status != VA_RPC_STATUS_OK) {
+        LOG("error sending RPC response");
+    } else {
+        TRACE("RPC completed");
+    }
+
+    TRACE("waiting for RPC request...");
+    vp_set_fd_handler(s->listen_fd, va_accept_handler, NULL, s);
+}
+
+static void va_rpc_read_cb(void *opaque)
+{
+    VARPCData *rpc_data = opaque;
+    VARPCServerState *s = rpc_data->opaque;
+
+    TRACE("called");
+    if (rpc_data->status != VA_RPC_STATUS_OK) {
+        LOG("error reading RPC request");
+        goto out_bad;
+    }
+
+    rpc_data->send_resp_xml = 
+        xmlrpc_registry_process_call(&s->env, s->registry, NULL,
+                                     rpc_data->req_xml, rpc_data->req_xml_len);
+    if (rpc_data->send_resp_xml == NULL) {
+        LOG("error handling RPC request");
+        goto out_bad;
+    }
+
+    rpc_data->cb = va_rpc_send_cb;
+    return;
+
+out_bad:
+    TRACE("waiting for RPC request...");
+    vp_set_fd_handler(s->listen_fd, va_accept_handler, NULL, s);
+}
+
+static void va_accept_handler(void *opaque)
+{
+    VARPCServerState *s = opaque;
+    VARPCData *rpc_data;
     int ret, fd;
-    char *rpc_request;
-    int rpc_request_len;
-    xmlrpc_mem_block *rpc_response;
+
+    TRACE("called");
+    fd = va_accept(s->listen_fd);
+    if (fd < 0) {
+        TRACE("connection error: %s", strerror(errno));
+        return;
+    }
+    ret = fcntl(fd, F_GETFL);
+    ret = fcntl(fd, F_SETFL, ret | O_NONBLOCK);
+
+    TRACE("RPC client connected, reading RPC request...");
+    rpc_data = qemu_mallocz(sizeof(VARPCData));
+    rpc_data->cb = va_rpc_read_cb;
+    rpc_data->opaque = s;
+    ret = va_rpc_read_request(rpc_data, fd);
+    if (ret != 0) {
+        LOG("error setting up read handler");
+        qemu_free(rpc_data);
+        return;
+    }
+    vp_set_fd_handler(s->listen_fd, NULL, NULL, NULL);
+}
+
+int va_server_start(int listen_fd, bool is_host)
+{
+    VARPCServerState *s;
     RPCFunction *func_list = is_host ? host_functions : guest_functions;
 
-    xmlrpc_env_init(&env);
-    registryP = xmlrpc_registry_new(&env);
-    va_register_functions(&env, registryP, func_list);
+    s = qemu_mallocz(sizeof(VARPCServerState));
+    s->listen_fd = listen_fd;
+    xmlrpc_env_init(&s->env);
+    s->registry = xmlrpc_registry_new(&s->env);
+    va_register_functions(&s->env, s->registry, func_list);
 
-    while (1) {
-        TRACE("waiting for connection from RPC client");
-        fd = va_accept(listen_fd);
-        if (fd < 0) {
-            TRACE("connection error: %s", strerror(errno));
-            continue;
-        }
-        TRACE("RPC client connected, fetching RPC...");
-        ret = va_get_rpc_request(fd, &rpc_request, &rpc_request_len);
-        if (ret != 0 || rpc_request == NULL) {
-            LOG("error retrieving rpc request");
-            goto out;
-        }
-        TRACE("handling RPC request");
-        rpc_response = xmlrpc_registry_process_call(&env, registryP, NULL,
-                                                    rpc_request,
-                                                    rpc_request_len);
-        if (rpc_response == NULL) {
-            LOG("error handling rpc request");
-            goto out;
-        }
-
-        qemu_free(rpc_request);
-        TRACE("sending RPC response");
-        ret = va_send_rpc_response(fd, rpc_response);
-        if (ret != 0) {
-            LOG("error sending rpc response");
-            goto out;
-        }
-        TRACE("RPC completed");
-        XMLRPC_MEMBLOCK_FREE(char, rpc_response);
-out:
-        closesocket(fd);
-    }
+    TRACE("waiting for RPC request...");
+    vp_set_fd_handler(s->listen_fd, va_accept_handler, NULL, s);
 
     return 0;
 }
