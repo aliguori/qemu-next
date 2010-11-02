@@ -83,8 +83,7 @@ static void va_rpc_parse_hdr(VARPCState *s)
             line_buf[line_pos++] = s->hdr[i];
         } else {
             /* process line */
-            /* TODO: don't use strncasecmp, "Content-Length" should be good */
-            if (strncasecmp(line_buf, "content-length: ", 16) == 0) {
+            if (strncmp(line_buf, "Content-Length: ", 16) == 0) {
                 s->content_len = atoi(&line_buf[16]);
                 return;
             }
