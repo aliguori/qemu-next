@@ -20,6 +20,7 @@
 #include <xmlrpc-c/client.h>
 #include <xmlrpc-c/server.h>
 #include "qemu-common.h"
+#include "qemu_socket.h"
 #include "monitor.h"
 #include "virtproxy.h"
 
@@ -46,18 +47,29 @@
 #define VERSION "1.0"
 #define EOL "\r\n"
 
-typedef void (RPCRequestCallback)(void *rpc_data);
-typedef struct RPCRequest {
-    RPCRequestCallback *cb;
-    xmlrpc_mem_block *req_xml;
+#define VA_RPC_STATUS_OK 0
+#define VA_RPC_STATUS_ERR 1
+#define VA_HDR_LEN_MAX 4096 /* http header limit */
+#define VA_CONTENT_LEN_MAX 2*1024*1024 /* rpc/http send limit */
+
+typedef void (VARPCDataCallback)(void *rpc_data);
+typedef struct VARPCData {
+    VARPCDataCallback *cb;
+    int status;
+    void *opaque;
+    /* provided/allocated by caller for sending as memblocks */
+    xmlrpc_mem_block *send_req_xml;
+    xmlrpc_mem_block *send_resp_xml;
+    /* recieved, and passed to cb func, as char arrays */
+    char *req_xml;
+    int req_xml_len;
     char *resp_xml;
     int resp_xml_len;
-    Monitor *mon;
+    /* for use by QMP functions */
     MonitorCompletion *mon_cb;
     void *mon_data;
-} RPCRequest;
+} VARPCData;
 
-int va_send_rpc_response(int fd, const xmlrpc_mem_block *resp_xml);
-int va_get_rpc_request(int fd, char **req_xml, int *req_len);
-int va_transport_rpc_call(int fd, RPCRequest *rpc_data);
+int va_rpc_send_request(VARPCData *data, int fd);
+int va_rpc_read_request(VARPCData *data, int fd);
 #endif /* VIRTAGENT_COMMON_H */

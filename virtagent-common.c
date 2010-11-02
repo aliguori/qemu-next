@@ -22,109 +22,78 @@
 #include <xmlrpc-c/server.h>
 #include "virtagent-common.h"
 
-static int write_all(int fd, const void *buf, int len1)
-{
-    int ret, len;
+#define VA_READ true
+#define VA_SEND false
 
-    len = len1;
-    while (len > 0) {
-        ret = write(fd, buf, len);
-        if (ret < 0) {
-            if (errno != EINTR && errno != EAGAIN) {
-                LOG("write() failed");
-                return -1;
-            }
-        } else if (ret == 0) {
-            break;
-        } else {
-            buf += ret;
-            len -= ret;
-        }
-    }
-    return len1 - len;
-}
+enum va_rpc_type {
+    VA_RPC_REQUEST,
+    VA_RPC_RESPONSE,
+};
 
-static int read_all(int fd, void *buf, int len)
-{
-    int ret, remaining;
-
-    remaining = len;
-    while (remaining > 0) {
-        ret = read(fd, buf, remaining);
-        if (ret < 0) {
-            if (errno != EINTR && errno != EAGAIN) {
-                LOG("read failed");
-                return -1;
-            }
-        } else if (ret == 0) {
-            break;
-        } else {
-            buf += ret;
-            remaining -= ret;
-        }
-    }
-    return len - remaining;
-}
-
-static int read_line(int fd, void *buf, int len)
-{
-    int ret, remaining;
-    remaining = len;
-    while (remaining > 0) {
-        ret = read(fd, buf, 1);
-        if (ret < 0) {
-            if (errno != EINTR && errno != EAGAIN) {
-                LOG("read failed");
-                return -1;
-            }
-        } else if (ret == 0) {
-            break;
-        } else {
-            remaining--;
-            buf++;
-            if (*((char *)buf-1) == '\n')
-                break;
-        }
-    }
-    memset(buf, 0, remaining);
-    return len - remaining;
-}
-
-typedef struct va_http {
-    char *preamble;
-    int content_length;
-    int content_read;
-    char *content;
-} va_http;
-
-typedef struct HttpReadState {
+typedef struct VARPCState {
+    char hdr[VA_HDR_LEN_MAX];
     int fd;
-    char hdr_buf[4096];
-    int hdr_pos;
-    va_http http;
+    size_t hdr_len;
+    size_t hdr_pos;
     enum {
-        IN_RESP_HEADER = 0,
-        IN_RESP_BODY,
+        VA_READ_START,
+        VA_READ_HDR,
+        VA_READ_BODY,
+        VA_SEND_START,
+        VA_SEND_HDR,
+        VA_SEND_BODY,
     } state;
-    RPCRequest *rpc_data;
-} HttpReadState;
+    enum va_rpc_type rpc_type;
+    char *content;
+    size_t content_len;
+    size_t content_pos;
+    VARPCData *data;
+} VARPCState;
 
-static int end_of_header(char *buf, int end_pos) {
+static void va_rpc_read_handler(void *opaque);
+static void va_rpc_send_handler(void *opaque);
+
+static int end_of_header(char *buf, int end_pos)
+{
     return !strncmp(buf+(end_pos-2), "\n\r\n", 3);
 }
 
-static void parse_hdr(va_http *http, char *buf, int len) {
-    int i, line_pos=0;
+static void va_rpc_hdr_init(VARPCState *s) {
+    const char *preamble;
+
+    TRACE("called");
+    /* essentially ignored in the context of virtagent, but might as well */
+    if (s->rpc_type == VA_RPC_REQUEST) {
+        preamble = "POST /RPC2 HTTP/1.1";
+    } else if (s->rpc_type == VA_RPC_RESPONSE) {
+        preamble = "HTTP/1.1 200 OK";
+    } else {
+        s->hdr_len = 0;
+        return;
+    }
+
+    s->hdr_len = sprintf(s->hdr,
+                         "%s" EOL
+                         "Content-Type: text/xml" EOL
+                         "Content-Length: %u" EOL EOL,
+                         preamble,
+                         (uint32_t)s->content_len);
+}
+
+static void va_rpc_parse_hdr(VARPCState *s)
+{
+    int i, line_pos = 0;
     char line_buf[4096];
 
-    for (i=0; i<len; ++i) {
-        if (buf[i] != '\n') {
+    for (i = 0; i < VA_HDR_LEN_MAX; ++i) {
+        if (s->hdr[i] != '\n') {
             /* read line */
-            line_buf[line_pos++] = buf[i];
+            line_buf[line_pos++] = s->hdr[i];
         } else {
             /* process line */
+            /* TODO: don't use strncasecmp, "Content-Length" should be good */
             if (strncasecmp(line_buf, "content-length: ", 16) == 0) {
-                http->content_length = atoi(&line_buf[16]);
+                s->content_len = atoi(&line_buf[16]);
                 return;
             }
             line_pos = 0;
@@ -132,17 +101,114 @@ static void parse_hdr(va_http *http, char *buf, int len) {
     }
 }
 
-static void http_read_handler(void *opaque) {
-    HttpReadState *s = opaque;
+static VARPCState *va_rpc_state_new(VARPCData *data, int fd,
+                                    enum va_rpc_type rpc_type, bool read)
+{
+    VARPCState *s = qemu_mallocz(sizeof(VARPCState));
+
+    s->rpc_type = rpc_type;
+    s->fd = fd;
+    s->data = data;
+    if (s->data == NULL) {
+        goto EXIT_BAD;
+    }
+
+    if (read) {
+        s->state = VA_READ_START;
+        s->content = NULL;
+    } else {
+        s->state = VA_SEND_START;
+        if (rpc_type == VA_RPC_REQUEST) {
+            s->content = XMLRPC_MEMBLOCK_CONTENTS(char, s->data->send_req_xml);
+            s->content_len = XMLRPC_MEMBLOCK_SIZE(char, s->data->send_req_xml);
+        } else if (rpc_type == VA_RPC_RESPONSE) {
+            s->content = XMLRPC_MEMBLOCK_CONTENTS(char, s->data->send_resp_xml);
+            s->content_len = XMLRPC_MEMBLOCK_SIZE(char, s->data->send_resp_xml);
+        } else {
+            LOG("unknown rcp type");
+            goto EXIT_BAD;
+        }
+        va_rpc_hdr_init(s);
+        if (s->hdr_len == 0) {
+            LOG("failed to initialize http header");
+            goto EXIT_BAD;
+        }
+    }
+
+    return s;
+EXIT_BAD:
+    qemu_free(s);
+    return NULL;
+}
+
+/* called by va_rpc_read_handler after reading requests */
+static int va_rpc_send_response(VARPCData *data, int fd)
+{
+    VARPCState *s = va_rpc_state_new(data, fd, VA_RPC_RESPONSE, VA_SEND);
+
+    TRACE("called");
+    if (s == NULL) {
+        LOG("failed to set up RPC state");
+        return -1;
+    }
+    TRACE("setting up send handler for RPC request");
+    vp_set_fd_handler(fd, NULL, va_rpc_send_handler, s);
+
+    return 0;
+}
+
+static void va_rpc_read_handler_completion(VARPCState *s) {
+    int ret;
+
+    if (s->rpc_type == VA_RPC_REQUEST) {
+        /* server read request, call it's cb function then set up
+         * a send handler for the rpc response if there weren't any
+         * communication errors
+         */ 
+        s->data->cb(s->data);
+        if (s->data->status == VA_RPC_STATUS_OK) {
+            ret = va_rpc_send_response(s->data, s->fd);
+            if (ret != 0) {
+                LOG("error setting up send handler for rpc response");
+            }
+        } else {
+            LOG("error reading rpc request, skipping response");
+            vp_set_fd_handler(s->fd, NULL, NULL, NULL);
+            closesocket(s->fd);
+            qemu_free(s->data);
+        }
+    } else if (s->rpc_type == VA_RPC_RESPONSE) {
+        /* client read response, call it's cb function and complete
+         * the RPC
+         */
+        s->data->cb(s->data);
+        vp_set_fd_handler(s->fd, NULL, NULL, NULL);
+        closesocket(s->fd);
+        qemu_free(s->data);
+    } else {
+        LOG("unknown rpc_type");
+    }
+    if (s->content != NULL) {
+        qemu_free(s->content);
+    }
+    qemu_free(s);
+}
+
+static void va_rpc_read_handler(void *opaque)
+{
+    VARPCState *s = opaque;
     int ret;
 
     TRACE("called with opaque: %p", opaque);
-    if (s->state == IN_RESP_HEADER) {
-        while((ret = read(s->fd, s->hdr_buf + s->hdr_pos, 1)) > 0) {
-            //TRACE("buf: %c", s->hdr_buf[0]);
+
+    switch (s->state) {
+    case VA_READ_START:
+        s->state = VA_READ_HDR;
+    case VA_READ_HDR:
+        while((ret = read(s->fd, s->hdr + s->hdr_pos, 1)) > 0
+              && s->hdr_pos < VA_HDR_LEN_MAX) {
             s->hdr_pos += ret;
-            if (end_of_header(s->hdr_buf, s->hdr_pos - 1)) {
-                s->state = IN_RESP_BODY;
+            if (end_of_header(s->hdr, s->hdr_pos - 1)) {
                 break;
             }
         }
@@ -154,228 +220,223 @@ static void http_read_handler(void *opaque) {
                 goto out_bad;
             }
         } else if (ret == 0) {
-            LOG("connection closed unexpectedly");
+            LOG("connected closed unexpectedly");
+            goto out_bad;
+        } else if (s->hdr_pos >= VA_HDR_LEN_MAX) {
+            LOG("http header too long");
             goto out_bad;
         } else {
-            s->http.content_length = -1;
-            parse_hdr(&s->http, s->hdr_buf, s->hdr_pos);
-            if (s->http.content_length == -1) {
+            s->content_len = -1;
+            va_rpc_parse_hdr(s);
+            if (s->content_len == -1) {
                 LOG("malformed http header");
                 goto out_bad;
+            } else if (s->content_len > VA_CONTENT_LEN_MAX) {
+                LOG("http content length too long");
+                goto out_bad;
             }
-            s->http.content = qemu_mallocz(s->http.content_length);
-            goto do_resp_body;
+            s->content = qemu_mallocz(s->content_len);
+            s->state = VA_READ_BODY;
         }
-    } else if (s->state == IN_RESP_BODY) {
-do_resp_body:
-        while(s->http.content_read < s->http.content_length) {
-            ret = read(s->fd, s->http.content + s->http.content_read, 4096);
+    case VA_READ_BODY:
+        while(s->content_pos < s->content_len) {
+            ret = read(s->fd, s->content + s->content_pos,
+                       MIN(s->content_len - s->content_pos, 4096));
             if (ret == -1) {
                 if (errno == EAGAIN || errno == EWOULDBLOCK) {
                     return;
                 } else {
                     LOG("error reading connection: %s", strerror(errno));
-                    qemu_free(s->http.content);
-                    goto out;
+                    goto out_bad;
                 }
             } else if (ret == 0) {
-                LOG("connection closed unexpectedly, expected %d more bytes",
-                    s->http.content_length - s->http.content_read);
+                LOG("connection closed unexpectedly:"
+                    " read %u bytes, expected %u bytes",
+                    (unsigned int)s->content_pos, (unsigned int)s->content_len);
                 goto out_bad;
             }
-            s->http.content_read += ret;
+            s->content_pos += ret;
         }
-        s->rpc_data->resp_xml = s->http.content;
-        s->rpc_data->resp_xml_len = s->http.content_length;
+
+        if (s->rpc_type == VA_RPC_REQUEST) {
+            s->data->req_xml = s->content;
+            s->data->req_xml_len = s->content_len;
+        } else if (s->rpc_type == VA_RPC_RESPONSE) {
+            s->data->resp_xml = s->content;
+            s->data->resp_xml_len = s->content_len;
+        }
+        s->data->status = VA_RPC_STATUS_OK;
         goto out;
+    default:
+        LOG("unknown state");
+        goto out_bad;
     }
+
 out_bad:
-    s->rpc_data->resp_xml = NULL;
+    s->data->status = VA_RPC_STATUS_ERR;
 out:
-    vp_set_fd_handler(s->fd, NULL, NULL, NULL);
-    s->rpc_data->cb(s->rpc_data);
+    va_rpc_read_handler_completion(s);
+}
+
+/* called by va_rpc_send_handler after sending requests */
+static int va_rpc_read_response(VARPCData *data, int fd)
+{
+    VARPCState *s = va_rpc_state_new(data, fd, VA_RPC_RESPONSE, VA_READ);
+
+    TRACE("called");
+    if (s == NULL) {
+        LOG("failed to set up RPC state");
+        return -1;
+    }
+    TRACE("setting up send handler for RPC request");
+    vp_set_fd_handler(fd, NULL, va_rpc_read_handler, s);
+
+    return 0;
+}
+
+static void va_rpc_send_handler_completion(VARPCState *s) {
+    int ret;
+
+    if (s->rpc_type == VA_RPC_REQUEST) {
+        /* client sent request. free request's memblock, and set up read
+         * handler for server response if there weren't any communication
+         * errors
+         */
+        XMLRPC_MEMBLOCK_FREE(char, s->data->send_req_xml);
+        if (s->data->status == VA_RPC_STATUS_OK) {
+            ret = va_rpc_read_response(s->data, s->fd);
+            if (ret != 0) {
+                LOG("error setting up read handler for rpc response");
+            }
+        } else {
+            s->data->cb(s->data);
+            LOG("error sending rpc request, skipping response");
+            vp_set_fd_handler(s->fd, NULL, NULL, NULL);
+            closesocket(s->fd);
+            qemu_free(s->data);
+        }
+    } else if (s->rpc_type == VA_RPC_RESPONSE) {
+        /* server sent response. call it's cb once more, then free
+         * response's memblock and complete the RPC
+         */
+        s->data->cb(s->data);
+        XMLRPC_MEMBLOCK_FREE(char, s->data->send_resp_xml);
+        vp_set_fd_handler(s->fd, NULL, NULL, NULL);
+        closesocket(s->fd);
+        qemu_free(s->data);
+    } else {
+        LOG("unknown rpc_type");
+    }
     qemu_free(s);
 }
 
-static int write_hdr(int fd, const va_http *http, bool request)
+static void va_rpc_send_handler(void *opaque)
 {
-    int hdr_len;
-    char *hdr;
-    const char *preamble;
+    VARPCState *s = opaque;
+    int ret;
+
+    TRACE("called with opaque: %p", opaque);
+    TRACE("hdr_len: %d, hdr_pos: %d", (int)s->hdr_len, (int)s->hdr_pos);
+
+    switch (s->state) {
+    case VA_SEND_START:
+        s->state = VA_SEND_HDR;
+    case VA_SEND_HDR:
+        do {
+            ret = write(s->fd, s->hdr + s->hdr_pos,
+                        MIN(s->hdr_len - s->hdr_pos, 4096));
+            if (ret <= 0) {
+                break;
+            }
+            s->hdr_pos += ret;
+        } while (s->hdr_pos < s->hdr_len);
+        if (ret == -1) {
+            if (errno == EAGAIN || errno == EWOULDBLOCK) {
+                return;
+            } else {
+                LOG("error reading connection: %s", strerror(errno));
+                goto out_bad;
+            }
+        } else if (ret == 0) {
+            LOG("connected closed unexpectedly");
+            goto out_bad;
+        } else {
+            s->state = VA_SEND_BODY;
+        }
+    case VA_SEND_BODY:
+        do {
+            ret = write(s->fd, s->content + s->content_pos,
+                        MIN(s->content_len - s->content_pos, 4096));
+            if (ret <= 0) {
+                break;
+            }
+            s->content_pos += ret;
+        } while (s->content_pos < s->content_len);
+        if (ret == -1) {
+            if (errno == EAGAIN || errno == EWOULDBLOCK) {
+                return;
+            } else {
+                LOG("error reading connection: %s", strerror(errno));
+                goto out_bad;
+            }
+        } else if (ret == 0) {
+            LOG("connected closed unexpectedly");
+            goto out_bad;
+        } else {
+            s->data->status = VA_RPC_STATUS_OK;
+            goto out;
+        }
+    default:
+        LOG("unknown state");
+        goto out_bad;
+    }
+
+out_bad:
+    s->data->status = VA_RPC_STATUS_ERR;
+out:
+    va_rpc_send_handler_completion(s);
+}
+
+/* called by rpc client
+ * one callback to data->cb after response is read.
+ * data and data->send_req_xml should be allocated by caller,
+ * callee will de-allocate these after calling data->cb(data)
+ *
+ * if non-zero returned however, caller should free data and hanging refs
+ */ 
+int va_rpc_send_request(VARPCData *data, int fd)
+{
+    VARPCState *s = va_rpc_state_new(data, fd, VA_RPC_REQUEST, VA_SEND);
 
     TRACE("called");
-    /* essentially ignored in the context of virtagent, but might as well */
-    preamble = request ? "POST /RPC2 HTTP/1.1" : "HTTP/1.1 200 OK";
-
-    hdr_len = asprintf(&hdr,
-                      "%s" EOL
-                      "Content-Type: text/xml" EOL
-                      "Content-Length: %u" EOL EOL,
-                      preamble,
-                      http->content_length);
-    write_all(fd, hdr, hdr_len);
-
-    return 0;
-}
-
-static int read_hdr(int fd, va_http *http)
-{
-    bool first = true;
-    char line[4096];
-    int ret;
-
-    http->preamble = NULL;
-    http->content_length = -1;
-
-    do {
-        ret = read_line(fd, &line, sizeof(line));
-        if (ret <= 0) {
-            LOG("error reading from connection");
-            ret = -EPIPE;
-            return ret;
-        }
-        TRACE("read line: %s", line);
-        if (first) {
-            http->preamble = line;
-            first = false;
-        }
-        if (strncasecmp(line, "content-length: ", 16) == 0) {
-            TRACE("hi");
-            http->content_length = atoi(&line[16]);
-        }
-    } while (strcmp(line, "\r\n") && strcmp(line, "\n"));
-
-    if (http->preamble == NULL) {
-        LOG("header missing preamble");
-        return -1;
-    } else if (http->content_length == -1) {
-        LOG("missing content length");
+    if (s == NULL) {
+        LOG("failed to set up RPC state");
         return -1;
     }
+    TRACE("setting up send handler for RPC request");
+    vp_set_fd_handler(fd, NULL, va_rpc_send_handler, s);
 
     return 0;
 }
 
-static int send_http(int fd, const va_http *http, bool request)
+/* called by rpc server
+ * one callback to current data->cb after read, one callback after send.
+ * data should be allocated by caller, data->send_resp_xml should be
+ * allocated by first data->cb(data) callback, "callee" will de-allocate
+ * data and data->send_resp_xml after sending rpc response
+ *
+ * if non-zero returned however, caller should free data and hanging refs
+ */
+int va_rpc_read_request(VARPCData *data, int fd)
 {
-    int ret;
+    VARPCState *s = va_rpc_state_new(data, fd, VA_RPC_REQUEST, VA_READ);
 
     TRACE("called");
-    ret = write_hdr(fd, http, request);
-    if (ret != 0) {
-        LOG("error sending header");
+    if (s == NULL) {
+        LOG("failed to set up RPC state");
         return -1;
     }
-
-    TRACE("sending body");
-    ret = write_all(fd, http->content, http->content_length);
-    TRACE("done sending body");
-    if (ret != http->content_length) {
-        LOG("error sending content");
-        return -1;
-    }
-
-    return 0;
-}
-
-static int send_http_request(int fd, const va_http *http)
-{
-    return send_http(fd, http, true);
-}
-
-static int send_http_response(int fd, const va_http *http)
-{
-    return send_http(fd, http, false);
-}
-
-static int get_http(int fd, va_http *http)
-{
-    int ret;
-
-    ret = read_hdr(fd, http);
-    if (ret != 0) {
-        LOG("error reading header");
-        return -1;
-    }
-
-    http->content = qemu_malloc(http->content_length);
-    ret = read_all(fd, http->content, http->content_length);
-    if (ret != http->content_length) {
-        LOG("error reading content");
-        return -1;
-    }
-
-    TRACE("http:\n%s", http->content);
-
-    return 0;
-}
-
-/* send http-encoded xmlrpc response */
-int va_send_rpc_response(int fd, const xmlrpc_mem_block *resp_xml)
-{
-    int ret;
-    va_http http_resp;
-
-    http_resp.content = XMLRPC_MEMBLOCK_CONTENTS(char, resp_xml);
-    http_resp.content_length = XMLRPC_MEMBLOCK_SIZE(char, resp_xml);
-
-    TRACE("sending rpc response");
-    ret = send_http_response(fd, &http_resp);
-    if (ret != 0) {
-        LOG("failed to send rpc response");
-        return -1;
-    }
-    TRACE("done sending rpc response");
-
-    return 0;
-}
-
-/* read xmlrpc payload from http request */
-int va_get_rpc_request(int fd, char **req_xml, int *req_len)
-{
-    int ret;
-    va_http http_req;
-
-    TRACE("getting rpc request");
-    ret = get_http(fd, &http_req);
-    if (ret != 0) {
-        LOG("failed to get RPC request");
-        return -1;
-    }
-
-    *req_xml = http_req.content;
-    *req_len = http_req.content_length;
-    TRACE("done getting rpc request");
-
-    return 0;
-}
-
-/* send an RPC request and retrieve the response */
-int va_transport_rpc_call(int fd, RPCRequest *rpc_data)
-{
-    int ret;
-    struct va_http http_req;
-    HttpReadState *read_state;
-
-    TRACE("called");
-    http_req.content = XMLRPC_MEMBLOCK_CONTENTS(char, rpc_data->req_xml);
-    http_req.content_length = XMLRPC_MEMBLOCK_SIZE(char, rpc_data->req_xml);
-
-    /* TODO: this should be done asynchronously */
-    TRACE("sending rpc request");
-    ret = send_http_request(fd, &http_req);
-    if (ret != 0) {
-        LOG("failed to send rpc request");
-        return -1;
-    }
-    TRACE("done sending rpc request");
-
-    TRACE("setting up rpc response handler");
-    read_state = qemu_mallocz(sizeof(HttpReadState));
-    read_state->fd = fd;
-    read_state->rpc_data = rpc_data;
-    read_state->state = IN_RESP_HEADER;
-    vp_set_fd_handler(fd, http_read_handler, NULL, read_state);
-
+    TRACE("setting up read handler for RPC request");
+    vp_set_fd_handler(fd, va_rpc_read_handler, NULL, s);
     return 0;
 }
