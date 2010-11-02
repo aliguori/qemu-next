@@ -12,16 +12,7 @@
  *
  */
 
-#include "sysemu.h"
-#include "monitor.h"
-#include "qjson.h"
-#include "qint.h"
-#include "cpu-common.h"
-#include "kvm.h"
-#include "trace.h"
 #include "qemu_socket.h"
-#include "xmlrpc.h"
-#include "xmlrpc_client.h"
 #include "virtagent-daemon.h"
 #include "virtagent-common.h"
 #include "virtagent.h"

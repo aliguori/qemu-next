@@ -11,12 +11,6 @@
  * See the COPYING file in the top-level directory.
  *
  */
-#include <stdlib.h>
-#include <stdio.h>
-#include <unistd.h>
-#include <xmlrpc-c/base.h>
-#include <xmlrpc-c/server.h>
-#include <xmlrpc-c/server_abyss.h>
 #include "qemu_socket.h"
 #include "virtagent-daemon.h"
 #include "virtagent-common.h"

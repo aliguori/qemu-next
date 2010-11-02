@@ -12,14 +12,6 @@
  *
  */
 
-#include <stdlib.h>
-#include <unistd.h>
-#include <errno.h>
-#include <string.h>
-#include <ctype.h>
-#include <xmlrpc-c/base.h>
-#include <xmlrpc-c/client.h>
-#include <xmlrpc-c/server.h>
 #include "virtagent-common.h"
 
 #define VA_READ true
