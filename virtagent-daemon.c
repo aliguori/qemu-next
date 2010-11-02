@@ -75,30 +75,30 @@ static xmlrpc_value *getdmesg(xmlrpc_env *env,
                               void *user_data)
 {
     char *dmesg_buf = NULL, cmd[256];
-    char c;
-    int pos = 0;
+    int ret;
     xmlrpc_value *result = NULL;
     FILE *pipe;
 
     dmesg_buf = qemu_mallocz(VA_DMESG_LEN + 2048);
     sprintf(cmd, "dmesg -s %d", VA_DMESG_LEN);
 
-    //pipe = popen(cmd, "r");
-    pipe = popen("dmesg -s 16000", "r");
+    pipe = popen(cmd, "r");
     if (pipe == NULL) {
         LOG("popen failed: %s", strerror(errno));
         xmlrpc_faultf(env, "popen failed: %s", strerror(errno));
         goto EXIT_NOCLOSE;
     }
 
-    while ((c = fgetc(pipe)) != EOF && pos < VA_DMESG_LEN) {
-        dmesg_buf[pos] = c;
-        pos++;
+    ret = fread(dmesg_buf, sizeof(char), VA_DMESG_LEN, pipe);
+    if (!ferror(pipe)) {
+        dmesg_buf[ret] = '\0';
+        TRACE("dmesg:\n%s", dmesg_buf);
+        result = xmlrpc_build_value(env, "s", dmesg_buf);
+    } else {
+        LOG("fread failed");
+        xmlrpc_faultf(env, "popen failed: %s", strerror(errno));
     }
-    dmesg_buf[pos++] = '\0';
-    TRACE("dmesg:\n%s", dmesg_buf);
 
-    result = xmlrpc_build_value(env, "s", dmesg_buf);
     pclose(pipe);
 EXIT_NOCLOSE:
     if (dmesg_buf) {
