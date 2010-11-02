@@ -547,15 +547,11 @@ static int init_agent(const VPData *agent_iforward, bool is_host) {
         return -1;
     }
 
-    /* fork off the agent RPC daemon */
-    ret = fork();
-
-    if (ret == -1) {
-        warn("fork() failed");
+    /* start RPC server */
+    ret = va_server_start(listen_fd, is_host);
+    if (ret != 0) {
+        warnx("error starting RPC server");
         goto err;
-    } else if (ret == 0) {
-        /* child */
-        return va_server_loop(listen_fd, is_host);
     }
 
     return 0;
