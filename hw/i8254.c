@@ -472,6 +472,8 @@ static void pit_reset(void *opaque)
         s = &pit->channels[i];
         s->mode = 3;
         s->gate = (i != 2);
+        s->count_latched = 0;
+        s->status_latched = 0;
         pit_load_count(s, 0);
     }
 }
