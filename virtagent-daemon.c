@@ -157,17 +157,21 @@ static void va_register_functions(xmlrpc_env *env, xmlrpc_registry *registry,
 }
 
 typedef struct VARPCServerState {
+    VPDriver *vp;
     int listen_fd;
     xmlrpc_env env;
     xmlrpc_registry *registry;
 } VARPCServerState;
+
+/* only one virtagent server instance can exist at a time */
+static VARPCServerState *server_state = NULL;
 
 static void va_accept_handler(void *opaque);
 
 static void va_rpc_send_cb(void *opaque)
 {
     VARPCData *rpc_data = opaque;
-    VARPCServerState *s = rpc_data->opaque;
+    VARPCServerState *s = server_state;
 
     TRACE("called");
     if (rpc_data->status != VA_RPC_STATUS_OK) {
@@ -183,7 +187,7 @@ static void va_rpc_send_cb(void *opaque)
 static void va_rpc_read_cb(void *opaque)
 {
     VARPCData *rpc_data = opaque;
-    VARPCServerState *s = rpc_data->opaque;
+    VARPCServerState *s = server_state;
 
     TRACE("called");
     if (rpc_data->status != VA_RPC_STATUS_OK) {
@@ -209,12 +213,11 @@ out_bad:
 
 static void va_accept_handler(void *opaque)
 {
-    VARPCServerState *s = opaque;
     VARPCData *rpc_data;
     int ret, fd;
 
     TRACE("called");
-    fd = va_accept(s->listen_fd);
+    fd = va_accept(server_state->listen_fd);
     if (fd < 0) {
         TRACE("connection error: %s", strerror(errno));
         return;
@@ -225,29 +228,64 @@ static void va_accept_handler(void *opaque)
     TRACE("RPC client connected, reading RPC request...");
     rpc_data = qemu_mallocz(sizeof(VARPCData));
     rpc_data->cb = va_rpc_read_cb;
-    rpc_data->opaque = s;
     ret = va_rpc_read_request(rpc_data, fd);
     if (ret != 0) {
         LOG("error setting up read handler");
         qemu_free(rpc_data);
         return;
     }
-    vp_set_fd_handler(s->listen_fd, NULL, NULL, NULL);
+    vp_set_fd_handler(server_state->listen_fd, NULL, NULL, NULL);
 }
 
-int va_server_start(int listen_fd, bool is_host)
+int va_server_init(VPDriver *vp_drv, bool is_host)
 {
-    VARPCServerState *s;
     RPCFunction *func_list = is_host ? host_functions : guest_functions;
+    QemuOpts *opts;
+    int ret, fd;
+    const char *path, *service_id;
 
-    s = qemu_mallocz(sizeof(VARPCServerState));
-    s->listen_fd = listen_fd;
-    xmlrpc_env_init(&s->env);
-    s->registry = xmlrpc_registry_new(&s->env);
-    va_register_functions(&s->env, s->registry, func_list);
+    if (server_state) {
+        LOG("virtagent server already initialized");
+        return -1;
+    }
+    server_state = qemu_mallocz(sizeof(VARPCServerState));
+    service_id = is_host ? HOST_AGENT_SERVICE_ID : GUEST_AGENT_SERVICE_ID;
+    /* TODO: host agent path needs to be made unique amongst multiple
+     * qemu instances
+     */
+    path = is_host ? HOST_AGENT_PATH : GUEST_AGENT_PATH;
+
+    /* setup listening socket for server */
+    opts = qemu_opts_create(qemu_find_opts("net"), "va_server_opts", 0);
+    qemu_opt_set(opts, "path", path);
+    fd = unix_listen_opts(opts);
+    qemu_opts_del(opts);
+    if (fd < 0) {
+        LOG("error setting up listening socket");
+        goto out_bad;
+    }
+
+    /* tell virtproxy to forward incoming virtagent connections to the socket */
+    ret = vp_set_iforward(vp_drv, service_id, path, NULL, false);
+    if (ret < 0) {
+        LOG("error setting up virtproxy iforward");
+        goto out_bad;
+    }
+
+    server_state->vp = vp_drv;
+    server_state->listen_fd = fd;
+    xmlrpc_env_init(&server_state->env);
+    server_state->registry = xmlrpc_registry_new(&server_state->env);
+    va_register_functions(&server_state->env, server_state->registry, func_list);
 
     TRACE("waiting for RPC request...");
-    vp_set_fd_handler(s->listen_fd, va_accept_handler, NULL, s);
+    vp_set_fd_handler(server_state->listen_fd, va_accept_handler, NULL,
+                      server_state);
 
     return 0;
+
+out_bad:
+    qemu_free(server_state);
+    server_state = NULL;
+    return -1;
 }

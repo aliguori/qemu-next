@@ -10,6 +10,8 @@
  * See the COPYING file in the top-level directory.
  *
  */
+#include "virtproxy.h"
+
 #define GUEST_AGENT_SERVICE_ID "virtagent"
 #define GUEST_AGENT_PATH "/tmp/virtagent-guest.sock"
 #define HOST_AGENT_SERVICE_ID "virtagent-host"
@@ -18,4 +20,4 @@
 #define VA_FILEBUF_LEN 16384
 #define VA_DMESG_LEN 16384
 
-int va_server_start(int listen_fd, bool is_host);
+int va_server_init(VPDriver *vp_drv, bool is_host);
