@@ -1909,6 +1909,8 @@ return_err:
 /* Virtproxy chardev driver */
 
 #include "virtproxy.h"
+#include "virtagent.h"
+#include "virtagent-daemon.h"
 
 static int vp_chr_write(CharDriverState *chr, const uint8_t *buf, int len)
 {
@@ -1929,13 +1931,12 @@ static CharDriverState *qemu_chr_open_virtproxy(QemuOpts *opts)
 {
     CharDriverState *chr = qemu_mallocz(sizeof(CharDriverState));
     VPDriver *drv = vp_new(VP_CTX_CHARDEV, chr, 0, 0);
+    int ret;
+    bool enable_virtagent;
 
     chr->opaque = drv;
     chr->chr_write = vp_chr_write;
     //chr->chr_close = vp_chr_close;
-    //chr->get_msgfd = tcp_get_msgfd;
-
-    //tcp_chr_connect(chr);
     qemu_chr_generic_open(chr);
 
     /* TODO: eventually we will parse opts here to configure
@@ -1944,10 +1945,30 @@ static CharDriverState *qemu_chr_open_virtproxy(QemuOpts *opts)
      * client/server, which will add it's oforwards/iforwards
      * using using virtproxy API calls directly
      */
+    enable_virtagent = qemu_opt_get_bool(opts, "virtagent", 0);
+    if (enable_virtagent) {
+        /* outbound RPCs */
+        ret = va_client_init(drv, true);
+        if (ret) {
+            fprintf(stderr, "error enabling virtagent client");
+            goto fail;
+        }
+        /* inbound RPCs */
+        ret = va_server_init(drv, true);
+        if (ret) {
+            fprintf(stderr, "error enabling virtagent server");
+            goto fail;
+        }
+    }
 
     /* for "info chardev" monitor command */
     chr->filename = NULL;
     return chr;
+
+fail:
+    qemu_free(drv);
+    qemu_free(chr);
+    return NULL;
 }
 
 /***********************************************************/

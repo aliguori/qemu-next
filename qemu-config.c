@@ -146,6 +146,9 @@ static QemuOptsList qemu_chardev_opts = {
         },{
             .name = "signal",
             .type = QEMU_OPT_BOOL,
+        },{
+            .name = "virtagent",
+            .type = QEMU_OPT_BOOL,
         },
         { /* end of list */ }
     },
