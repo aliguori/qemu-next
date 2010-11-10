@@ -37,6 +37,7 @@
 #include "qemu-option.h"
 #include "qemu_socket.h"
 #include "virtproxy.h"
+#include "virtagent.h"
 #include "virtagent-daemon.h"
 
 static bool verbose_enabled = 0;
@@ -255,8 +256,6 @@ static void usage(const char *cmd)
 "\n"
 "  -c, --channel     channel options of the form:\n"
 "                    <method>:<addr>:<port>[:channel_id]\n"
-"  -p, --host-agent  host rpc server, options of the form:\n"
-"                    [channel_id]\n"
 "  -g, --guest-agent guest rpc server, options of the form:\n"
 "                    [channel_id]\n"
 "  -o, --oforward    oforward options of the form:\n"
@@ -538,23 +537,32 @@ static int init_iforwards(void) {
     return 0;
 }
 
-static int init_agent(const VPData *agent_iforward, bool is_host) {
+static int init_agent(const VPData *agent_iforward) {
     QemuOpts *opts = agent_iforward->opts;
-    int listen_fd, ret;
+    VPDriver *drv;
+    int ret, index;
 
     INFO("initializing agent...");
     if (verbose_enabled) {
         qemu_opts_print(opts, NULL);
     }
 
-    /* create unix socket pair that agent http/rpc daemon will listen on */
-    listen_fd = unix_listen_opts(agent_iforward->opts);
-    if (listen_fd < 0) {
-        return -1;
+    index = qemu_opt_get_number(agent_iforward->opts, "index", 0);
+    drv = get_channel_drv(index);
+    if (drv == NULL) {
+        warnx("unable to find channel with index: %d", index);
+        goto err;
     }
 
-    /* start RPC server */
-    ret = va_server_start(listen_fd, is_host);
+    /* outbound RPCs */
+    ret = va_client_init(drv, false);
+    if (ret) {
+        warnx("error starting RPC server");
+        goto err;
+    }
+
+    /* start guest RPC server */
+    ret = va_server_init(drv, false);
     if (ret != 0) {
         warnx("error starting RPC server");
         goto err;
@@ -563,7 +571,6 @@ static int init_agent(const VPData *agent_iforward, bool is_host) {
     return 0;
 
 err:
-    closesocket(listen_fd);
     return -1;
 }
 
@@ -586,7 +593,6 @@ int main(int argc, char **argv)
     QTAILQ_INIT(&oforwards);
     QTAILQ_INIT(&channels);
     VPData *guest_agent_iforward = NULL;
-    VPData *host_agent_iforward = NULL;
 
     while ((ch = getopt_long(argc, argv, sopt, lopt, &opt_ind)) != -1) {
         QemuOpts *opts;
@@ -645,28 +651,6 @@ int main(int argc, char **argv)
             QTAILQ_INSERT_TAIL(&iforwards, data, next);
             guest_agent_iforward = data;
             break;
-        case 'p':
-            /* create pre-baked iforward for host agent */
-            if (host_agent_iforward) {
-                errx(EXIT_FAILURE, "only one --host-agent argument allowed");
-            }
-            opts = qemu_opts_create(&vp_opts, NULL, 0);
-            if (optarg == 0) {
-                sprintf(optarg_tmp, "%s:%s:-", HOST_AGENT_SERVICE_ID,
-                                     HOST_AGENT_PATH);
-            } else {
-                sprintf(optarg_tmp, "%s:%s:-:%d", HOST_AGENT_SERVICE_ID,
-                                     HOST_AGENT_PATH, atoi(optarg));
-            }
-            ret = vp_parse(opts, optarg_tmp, 0);
-            if (ret) {
-                errx(EXIT_FAILURE, "error parsing arg: %s", optarg);
-            }
-            data = qemu_mallocz(sizeof(VPData));
-            data->opts = opts;
-            QTAILQ_INSERT_TAIL(&iforwards, data, next);
-            host_agent_iforward = data;
-            break;
         case 'v':
             verbose_enabled = 1;
             break;
@@ -696,17 +680,12 @@ int main(int argc, char **argv)
              "error initializing service mappings for incoming connections");
     }
 
+
     if (guest_agent_iforward) {
-        ret = init_agent(guest_agent_iforward, false);
+        ret = init_agent(guest_agent_iforward);
         if (ret) {
             errx(EXIT_FAILURE,
                  "error initializing guest agent");
-        }
-    } else if (host_agent_iforward) {
-        ret = init_agent(host_agent_iforward, true);
-        if (ret) {
-            errx(EXIT_FAILURE,
-                 "error initializing host agent");
         }
     }
 
