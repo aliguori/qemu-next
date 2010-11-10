@@ -17,6 +17,63 @@
 #include "virtagent-common.h"
 #include "virtagent.h"
 
+typedef struct VARPCClientState {
+    VPDriver *vp;
+    const char *socket_path;
+} VARPCClientState;
+
+/* only one virtagent client can exist at a time */
+static VARPCClientState *client_state;
+
+int va_client_init(VPDriver *vp_drv, bool is_host)
+{
+    const char *service_id, *path;
+    QemuOpts *opts;
+    int fd, ret;
+
+    if (client_state) {
+        LOG("virtagent client already initialized");
+        return -1;
+    }
+    client_state = qemu_mallocz(sizeof(VARPCClientState));
+    client_state->vp = vp_drv;
+
+    /* setup oforwards to connect to to send RPCs. if we're the host, we
+     * want to connect to the guest agent service using the guest agent
+     * client path, and vice-versa */
+    service_id = !is_host ? HOST_AGENT_SERVICE_ID : GUEST_AGENT_SERVICE_ID;
+    /* TODO: host agent path needs to be made unique amongst multiple
+     * qemu instances
+     */
+    path = !is_host ? HOST_AGENT_PATH_CLIENT : GUEST_AGENT_PATH_CLIENT;
+    client_state->socket_path = path;
+
+    /* setup listening socket to forward connections over */
+    opts = qemu_opts_create(qemu_find_opts("net"), "va_client_opts", 0);
+    qemu_opt_set(opts, "path", path);
+    fd = unix_listen_opts(opts);
+    qemu_opts_del(opts);
+    if (fd < 0) {
+        LOG("error setting up listening socket");
+        goto out_bad;
+    }
+
+    /* tell virtproxy to forward connections to this socket to
+     * virtagent service on other end
+     */
+    ret = vp_set_oforward(vp_drv, fd, service_id);
+    if (ret < 0) {
+        LOG("error setting up virtproxy iforward");
+        goto out_bad;
+    }
+
+    return 0;
+out_bad:
+    qemu_free(client_state);
+    client_state = NULL;
+    return -1;
+}
+
 static int rpc_has_error(xmlrpc_env *env)
 {
     if (env->fault_occurred) {
@@ -41,7 +98,7 @@ static int get_transport_fd(void)
      * for the service rather than qemu-vp
      */
     int ret;
-    int fd = unix_connect(GUEST_AGENT_PATH_CLIENT);
+    int fd = unix_connect(client_state->socket_path);
     if (fd < 0) {
         LOG("failed to connect to virtagent service");
     }
