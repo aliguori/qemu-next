@@ -148,6 +148,7 @@ out:
     xmlrpc_DECREF(resp);
 out_no_resp:
     rpc_data->mon_cb(rpc_data->mon_data, QOBJECT(qdict));
+    qobject_decref(QOBJECT(qdict));
 }
 
 /*
