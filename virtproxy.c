@@ -417,7 +417,7 @@ static int vp_handle_control_packet(VPDriver *drv, const VPPacket *pkt)
          * if it looks like the remote end is waiting for us to read data
          * off the channel.
          */
-        if (drv->channel_fd == -1) {
+        if (!drv->chr && drv->channel_fd == -1) {
             TRACE("channel no longer connected, ignoring packet");
             return -1;
         }
@@ -690,7 +690,7 @@ static void vp_oforward_accept(void *opaque)
         }
     }
 
-    if (drv->channel_fd == -1) {
+    if (!drv->chr && drv->channel_fd == -1) {
         TRACE("communication channel not open, closing connection");
         closesocket(fd);
         return;
