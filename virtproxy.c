@@ -731,7 +731,7 @@ VPDriver *vp_new(enum vp_context ctx, CharDriverState *s, int fd, bool listen)
     drv = qemu_mallocz(sizeof(VPDriver));
     drv->listen_fd = -1;
     drv->channel_fd = -1;
-    drv->chr = NULL;
+    drv->chr = s;
     drv->ctx = ctx;
     QLIST_INIT(&drv->oforwards);
     QLIST_INIT(&drv->conns);
@@ -741,7 +741,6 @@ VPDriver *vp_new(enum vp_context ctx, CharDriverState *s, int fd, bool listen)
             LOG("invalid virtproxy chardev");
             goto out_bad;
         }
-        drv->chr = s;
     } else if (ctx == VP_CTX_FD) {
         if (fd <= 0) {
             LOG("invalid FD");
