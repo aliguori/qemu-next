@@ -115,7 +115,8 @@ static void do_agent_viewfile_cb(void *opaque)
     VARPCData *rpc_data = opaque;
     xmlrpc_value *resp = NULL;
     char *file_contents = NULL;
-    int file_size, ret;
+    size_t file_size;
+    int ret;
     xmlrpc_env env;
     QDict *qdict = qdict_new();
 
