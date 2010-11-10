@@ -119,8 +119,10 @@ typedef struct VPPacket {
 } __attribute__((__packed__)) VPPacket;
 
 struct VPDriver {
+    enum vp_context ctx;
     int channel_fd;
     int listen_fd;
+    CharDriverState *chr;
     char buf[sizeof(VPPacket)];
     int buflen;
     QLIST_HEAD(, VPOForward) oforwards;
@@ -153,6 +155,37 @@ static QemuOptsList vp_socket_opts = {
 };
 
 static void vp_channel_read(void *opaque);
+
+static int vp_channel_send_all(VPDriver *drv, uint8_t *buf, int count)
+{
+    int ret;
+    CharDriverState *chr = drv->chr;
+
+    if (drv->chr != NULL) {
+        /* send data to guest via channel device's read handler */
+        vp_chr_read(chr, buf, count);
+        /* TODO: we assume here the full buffer was written to device
+         * due to the dev write handler being a void function.
+         * can we confirm? Do we need to?
+         */
+        ret = count;
+    } else if (drv->channel_fd != -1) {
+        /* send data to host via channel fd */
+        ret = vp_send_all(drv->channel_fd, buf, count);
+        if (ret == -1) {
+            LOG("error sending data");
+            goto out_bad;
+        }
+    } else {
+        LOG("driver in unknown state");
+        goto out_bad;
+    }
+
+    return ret;
+out_bad:
+    LOG("unable to send to channel");
+    return -1;
+}
 
 /* get VPConn by fd, "client" denotes whether to look for client or server */
 static VPConn *get_conn(const VPDriver *drv, int fd, bool client)
@@ -269,7 +302,7 @@ static void vp_conn_read(void *opaque)
         pkt.payload.proxied.bytes = count;
     }
 
-    ret = vp_send_all(drv->channel_fd, (void *)&pkt, sizeof(VPPacket));
+    ret = vp_channel_send_all(drv, (uint8_t*)&pkt, sizeof(VPPacket));
     if (ret == -1) {
         LOG("error sending data over channel");
         return;
@@ -384,12 +417,12 @@ static int vp_handle_control_packet(VPDriver *drv, const VPPacket *pkt)
          * if it looks like the remote end is waiting for us to read data
          * off the channel.
          */
-        if (drv->channel_fd == -1) {
+        if (!drv->chr && drv->channel_fd == -1) {
             TRACE("channel no longer connected, ignoring packet");
             return -1;
         }
 
-        ret = vp_send_all(drv->channel_fd, (void *)&resp_pkt, sizeof(resp_pkt));
+        ret = vp_channel_send_all(drv, (void *)&resp_pkt, sizeof(resp_pkt));
         if (ret == -1) {
             LOG("error sending data over channel");
             return -1;
@@ -534,42 +567,13 @@ static inline int vp_handle_packet(VPDriver *drv, const VPPacket *pkt)
     return ret;
 }
 
-/* read handler for communication channel
- *
- * de-multiplexes data coming in over the channel. for control messages
- * we process them here, for data destined for a service or client we
- * send it to the appropriate FD.
- */
-static void vp_channel_read(void *opaque)
+/* process packets read from the channel */
+int vp_handle_packet_buf(VPDriver *drv, const void *buf, int count)
 {
-    VPDriver *drv = opaque;
     VPPacket pkt;
-    int count, ret, buf_offset;
-    char buf[VP_CHAN_DATA_LEN];
-    char *pkt_ptr, *buf_ptr;
-
-    TRACE("called with opaque: %p", drv);
-
-    count = read(drv->channel_fd, buf, sizeof(buf));
-
-    if (count == -1) {
-        LOG("read() failed: %s", strerror(errno));
-        return;
-    } else if (count == 0) {
-        /* TODO: channel closed, this probably shouldn't happen for guest-side
-         * serial/virtio-serial connections, but need to confirm and consider
-         * what should happen in this case. as it stands this virtproxy instance
-         * is basically defunct at this point, same goes for "client" instances
-         * of virtproxy where the remote end has hung-up.
-         */
-        LOG("channel connection closed");
-        vp_set_fd_handler(drv->channel_fd, NULL, NULL, drv);
-        drv->channel_fd = -1;
-        if (drv->listen_fd) {
-            vp_set_fd_handler(drv->listen_fd, vp_channel_accept, NULL, drv);
-        }
-        /* TODO: should close/remove/delete all existing VPConns here */
-    }
+    int ret, buf_offset;
+    char *pkt_ptr;
+    const char *buf_ptr;
 
     if (drv->buflen + count >= sizeof(VPPacket)) {
         TRACE("initial packet, drv->buflen: %d", drv->buflen);
@@ -600,7 +604,7 @@ static void vp_channel_read(void *opaque)
                 buf_ptr += sizeof(VPPacket);
             } else {
                 /* buffer the remainder */
-                TRACE("buffering packet");
+                TRACE("buffering packet, drv->buflen: %d", drv->buflen);
                 memcpy(drv->buf, buf_ptr, count);
                 drv->buflen = count;
                 break;
@@ -608,9 +612,51 @@ static void vp_channel_read(void *opaque)
         }
     } else {
         /* haven't got a full VPPacket yet, buffer for later */
-        buf_ptr = drv->buf + drv->buflen;
-        memcpy(buf_ptr, buf, count);
+        TRACE("buffering packet, drv->buflen: %d", drv->buflen);
+        memcpy(drv->buf + drv->buflen, buf, count);
         drv->buflen += count;
+    }
+    return 0;
+}
+
+/* read handler for communication channel
+ *
+ * de-multiplexes data coming in over the channel. for control messages
+ * we process them here, for data destined for a service or client we
+ * send it to the appropriate FD.
+ */
+static void vp_channel_read(void *opaque)
+{
+    VPDriver *drv = opaque;
+    int count, ret;
+    char buf[VP_CHAN_DATA_LEN];
+
+    TRACE("called with opaque: %p", drv);
+
+    count = read(drv->channel_fd, buf, sizeof(buf));
+
+    if (count == -1) {
+        LOG("read() failed: %s", strerror(errno));
+        return;
+    } else if (count == 0) {
+        /* TODO: channel closed, this probably shouldn't happen for guest-side
+         * serial/virtio-serial connections, but need to confirm and consider
+         * what should happen in this case. as it stands this virtproxy instance
+         * is basically defunct at this point, same goes for "client" instances
+         * of virtproxy where the remote end has hung-up.
+         */
+        LOG("channel connection closed");
+        vp_set_fd_handler(drv->channel_fd, NULL, NULL, drv);
+        drv->channel_fd = -1;
+        if (drv->listen_fd) {
+            vp_set_fd_handler(drv->listen_fd, vp_channel_accept, NULL, drv);
+        }
+        /* TODO: should close/remove/delete all existing VPConns here */
+    }
+
+    ret = vp_handle_packet_buf(drv, buf, count);
+    if (ret != 0) {
+        LOG("error handling packet stream");
     }
 }
 
@@ -644,7 +690,7 @@ static void vp_oforward_accept(void *opaque)
         }
     }
 
-    if (drv->channel_fd == -1) {
+    if (!drv->chr && drv->channel_fd == -1) {
         TRACE("communication channel not open, closing connection");
         closesocket(fd);
         return;
@@ -661,7 +707,7 @@ static void vp_oforward_accept(void *opaque)
     pkt.payload.msg = msg;
     pkt.magic = VP_MAGIC;
 
-    ret = vp_send_all(drv->channel_fd, &pkt, sizeof(VPPacket));
+    ret = vp_channel_send_all(drv, (uint8_t *)&pkt, sizeof(VPPacket));
     if (ret == -1) {
         LOG("vp_send_all() failed");
         return;
@@ -678,27 +724,44 @@ static void vp_oforward_accept(void *opaque)
     socket_set_nonblock(fd);
 }
 
-/* create/init VPDriver object */
-VPDriver *vp_new(int fd, bool listen)
+VPDriver *vp_new(enum vp_context ctx, CharDriverState *s, int fd, bool listen)
 {
     VPDriver *drv = NULL;
 
     drv = qemu_mallocz(sizeof(VPDriver));
     drv->listen_fd = -1;
     drv->channel_fd = -1;
+    drv->chr = s;
+    drv->ctx = ctx;
     QLIST_INIT(&drv->oforwards);
     QLIST_INIT(&drv->conns);
 
-    if (listen) {
-        /* provided FD is to be listened on for channel connection */
-        drv->listen_fd = fd;
-        vp_set_fd_handler(drv->listen_fd, vp_channel_accept, NULL, drv);
+    if (ctx == VP_CTX_CHARDEV) {
+        if (drv->chr == NULL) {
+            LOG("invalid virtproxy chardev");
+            goto out_bad;
+        }
+    } else if (ctx == VP_CTX_FD) {
+        if (fd <= 0) {
+            LOG("invalid FD");
+            goto out_bad;
+        } else if (listen) {
+            /* provided FD is to be listened on for channel connection */
+            drv->listen_fd = fd;
+            vp_set_fd_handler(drv->listen_fd, vp_channel_accept, NULL, drv);
+        } else {
+            drv->channel_fd = fd;
+            vp_set_fd_handler(drv->channel_fd, vp_channel_read, NULL, drv);
+        }
     } else {
-        drv->channel_fd = fd;
-        vp_set_fd_handler(drv->channel_fd, vp_channel_read, NULL, drv);
+        LOG("invalid context");
+        goto out_bad;
     }
 
     return drv;
+out_bad:
+    qemu_free(drv);
+    return NULL;
 }
 
 /* set/modify/remove a service_id -> net/unix listening socket mapping

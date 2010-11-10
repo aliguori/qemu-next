@@ -1906,6 +1906,51 @@ return_err:
 }
 
 /***********************************************************/
+/* Virtproxy chardev driver */
+
+#include "virtproxy.h"
+
+static int vp_chr_write(CharDriverState *chr, const uint8_t *buf, int len)
+{
+    VPDriver *drv = chr->opaque;
+    int ret;
+
+    fprintf(stderr, "called, opaque: %p\n", chr);
+
+    ret = vp_handle_packet_buf(drv, buf, len);
+    if (ret == -1) {
+        fprintf(stderr, "error handling data from virtproxy channel");
+    }
+
+    return 0;
+}
+
+static CharDriverState *qemu_chr_open_virtproxy(QemuOpts *opts)
+{
+    CharDriverState *chr = qemu_mallocz(sizeof(CharDriverState));
+    VPDriver *drv = vp_new(VP_CTX_CHARDEV, chr, 0, 0);
+
+    chr->opaque = drv;
+    chr->chr_write = vp_chr_write;
+    //chr->chr_close = vp_chr_close;
+    //chr->get_msgfd = tcp_get_msgfd;
+
+    //tcp_chr_connect(chr);
+    qemu_chr_generic_open(chr);
+
+    /* TODO: eventually we will parse opts here to configure
+     * basic host/guest socket/port forwarding functionality.
+     * for now we exist solely for use by the virtagent RPC
+     * client/server, which will add it's oforwards/iforwards
+     * using using virtproxy API calls directly
+     */
+
+    /* for "info chardev" monitor command */
+    chr->filename = NULL;
+    return chr;
+}
+
+/***********************************************************/
 /* TCP Net console */
 
 typedef struct {
@@ -2412,6 +2457,7 @@ static const struct {
     { .name = "udp",       .open = qemu_chr_open_udp },
     { .name = "msmouse",   .open = qemu_chr_open_msmouse },
     { .name = "vc",        .open = text_console_init },
+    { .name = "virtproxy", .open = qemu_chr_open_virtproxy },
 #ifdef _WIN32
     { .name = "file",      .open = qemu_chr_open_win_file_out },
     { .name = "pipe",      .open = qemu_chr_open_win_pipe },

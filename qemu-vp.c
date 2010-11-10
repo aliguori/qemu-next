@@ -137,6 +137,12 @@ int vp_send_all(int fd, const void *buf, int len1)
     return len1 - len;
 }
 
+/* qemu_chr_read doesn't get used in guest so noop our wrapper function */
+void vp_chr_read(CharDriverState *s, uint8_t *buf, int len)
+{
+    return;
+}
+
 static void main_loop_wait(int nonblocking)
 {
     IOHandlerRecord *ioh;
@@ -432,7 +438,7 @@ static int init_channels(void) {
         return -1;
     }
 
-    drv = vp_new(fd, listen);
+    drv = vp_new(VP_CTX_FD, NULL, fd, listen);
     channel_data->opaque = drv;
 
     return 0;

@@ -17,6 +17,7 @@
  */
 
 #include "qemu-char.h"
+#include "qemu_socket.h"
 #include "virtproxy.h"
 
 int vp_set_fd_handler(int fd,
@@ -27,4 +28,11 @@ int vp_set_fd_handler(int fd,
     return qemu_set_fd_handler(fd, fd_read, fd_write, opaque);
 }
 
+int vp_send_all(int fd, const void *buf, int len)
+{
+    return send_all(fd, buf, len);
+}
 
+void vp_chr_read(CharDriverState *s, uint8_t *buf, int len) {
+    return qemu_chr_read(s, buf, len);
+}
