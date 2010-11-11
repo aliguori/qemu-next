@@ -95,6 +95,8 @@ typedef struct {
     unsigned (*get_features)(void * opaque);
     int (*set_guest_notifiers)(void * opaque, bool assigned);
     int (*set_host_notifier)(void * opaque, int n, bool assigned);
+    void (*pre_set_status)(void * opaque, uint8_t oldval, uint8_t newval);
+    void (*post_set_status)(void * opaque, uint8_t oldval, uint8_t newval);
 } VirtIOBindings;
 
 #define VIRTIO_PCI_QUEUE_MAX 64
@@ -127,10 +129,20 @@ struct VirtIODevice
 
 static inline void virtio_set_status(VirtIODevice *vdev, uint8_t val)
 {
+    uint8_t old = vdev->status;
+
+    if (vdev->binding->pre_set_status) {
+        vdev->binding->pre_set_status(vdev->binding_opaque, old, val);
+    }
+
     if (vdev->set_status) {
         vdev->set_status(vdev, val);
     }
     vdev->status = val;
+
+    if (vdev->binding->post_set_status) {
+        vdev->binding->post_set_status(vdev->binding_opaque, old, val);
+    }
 }
 
 VirtQueue *virtio_add_queue(VirtIODevice *vdev, int queue_size,
@@ -219,5 +231,6 @@ void virtio_queue_set_last_avail_idx(VirtIODevice *vdev, int n, uint16_t idx);
 VirtQueue *virtio_get_queue(VirtIODevice *vdev, int n);
 EventNotifier *virtio_queue_get_guest_notifier(VirtQueue *vq);
 EventNotifier *virtio_queue_get_host_notifier(VirtQueue *vq);
+void virtio_queue_notify_vq(VirtQueue *vq);
 void virtio_irq(VirtQueue *vq);
 #endif

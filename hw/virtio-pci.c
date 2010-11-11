@@ -83,6 +83,11 @@
 /* Flags track per-device state like workarounds for quirks in older guests. */
 #define VIRTIO_PCI_FLAG_BUS_MASTER_BUG  (1 << 0)
 
+/* Performance improves when virtqueue kick processing is decoupled from the
+ * vcpu thread using ioeventfd for some devices. */
+#define VIRTIO_PCI_FLAG_USE_IOEVENTFD_BIT 1
+#define VIRTIO_PCI_FLAG_USE_IOEVENTFD   (1 << VIRTIO_PCI_FLAG_USE_IOEVENTFD_BIT)
+
 /* QEMU doesn't strictly need write barriers since everything runs in
  * lock-step.  We'll leave the calls to wmb() in though to make it obvious for
  * KVM or if kqemu gets SMP support.
@@ -179,12 +184,125 @@ static int virtio_pci_load_queue(void * opaque, int n, QEMUFile *f)
     return 0;
 }
 
+static int virtio_pci_set_host_notifier_ioeventfd(VirtIOPCIProxy *proxy,
+                                                  int n, bool assign)
+{
+    VirtQueue *vq = virtio_get_queue(proxy->vdev, n);
+    EventNotifier *notifier = virtio_queue_get_host_notifier(vq);
+    int r;
+    if (assign) {
+        r = event_notifier_init(notifier, 1);
+        if (r < 0) {
+            return r;
+        }
+        r = kvm_set_ioeventfd_pio_word(event_notifier_get_fd(notifier),
+                                       proxy->addr + VIRTIO_PCI_QUEUE_NOTIFY,
+                                       n, assign);
+        if (r < 0) {
+            event_notifier_cleanup(notifier);
+        }
+    } else {
+        r = kvm_set_ioeventfd_pio_word(event_notifier_get_fd(notifier),
+                                       proxy->addr + VIRTIO_PCI_QUEUE_NOTIFY,
+                                       n, assign);
+        if (r < 0) {
+            return r;
+        }
+        event_notifier_cleanup(notifier);
+    }
+    return r;
+}
+
+static void virtio_pci_host_notifier_read(void *opaque)
+{
+    VirtQueue *vq = opaque;
+    EventNotifier *n = virtio_queue_get_host_notifier(vq);
+    if (event_notifier_test_and_clear(n)) {
+        virtio_queue_notify_vq(vq);
+    }
+}
+
+static void virtio_pci_set_host_notifier_fd_handler(VirtIOPCIProxy *proxy,
+                                                    int n, bool assign)
+{
+    VirtQueue *vq = virtio_get_queue(proxy->vdev, n);
+    EventNotifier *notifier = virtio_queue_get_host_notifier(vq);
+    if (assign) {
+        qemu_set_fd_handler(event_notifier_get_fd(notifier),
+                            virtio_pci_host_notifier_read, NULL, vq);
+    } else {
+        qemu_set_fd_handler(event_notifier_get_fd(notifier),
+                            NULL, NULL, NULL);
+    }
+}
+
+static int virtio_pci_set_host_notifiers(VirtIOPCIProxy *proxy, bool assign)
+{
+    int n, r;
+
+    for (n = 0; n < VIRTIO_PCI_QUEUE_MAX; n++) {
+        if (!virtio_queue_get_num(proxy->vdev, n)) {
+            continue;
+        }
+
+        if (assign) {
+            r = virtio_pci_set_host_notifier_ioeventfd(proxy, n, true);
+            if (r < 0) {
+                goto assign_error;
+            }
+
+            virtio_pci_set_host_notifier_fd_handler(proxy, n, true);
+        } else {
+            virtio_pci_set_host_notifier_fd_handler(proxy, n, false);
+            virtio_pci_set_host_notifier_ioeventfd(proxy, n, false);
+        }
+    }
+    return 0;
+
+assign_error:
+    while (--n >= 0) {
+        virtio_pci_set_host_notifier_fd_handler(proxy, n, false);
+        virtio_pci_set_host_notifier_ioeventfd(proxy, n, false);
+    }
+    return r;
+}
+
+static void virtio_pci_pre_set_status(void *opaque, uint8_t oldval,
+                                      uint8_t newval)
+{
+    VirtIOPCIProxy *proxy = opaque;
+    bool changed = (oldval ^ newval) & VIRTIO_CONFIG_S_DRIVER_OK;
+    bool driver_ok = newval & VIRTIO_CONFIG_S_DRIVER_OK;
+
+    /* Bring up host notifiers before virtio device may request them */
+    if (changed && driver_ok &&
+        (proxy->flags & VIRTIO_PCI_FLAG_USE_IOEVENTFD)) {
+        if (virtio_pci_set_host_notifiers(proxy, true) < 0) {
+            proxy->flags &= ~VIRTIO_PCI_FLAG_USE_IOEVENTFD;
+        }
+    }
+}
+
+static void virtio_pci_post_set_status(void *opaque, uint8_t oldval,
+                                       uint8_t newval)
+{
+    VirtIOPCIProxy *proxy = opaque;
+    bool changed = (oldval ^ newval) & VIRTIO_CONFIG_S_DRIVER_OK;
+    bool driver_ok = newval & VIRTIO_CONFIG_S_DRIVER_OK;
+
+    /* Take down host notifiers after virtio device releases them */
+    if (changed && !driver_ok &&
+        (proxy->flags & VIRTIO_PCI_FLAG_USE_IOEVENTFD)) {
+        virtio_pci_set_host_notifiers(proxy, false);
+    }
+}
+
 static void virtio_pci_reset(DeviceState *d)
 {
     VirtIOPCIProxy *proxy = container_of(d, VirtIOPCIProxy, pci_dev.qdev);
     virtio_reset(proxy->vdev);
     msix_reset(&proxy->pci_dev);
-    proxy->flags = 0;
+    proxy->flags &= ~VIRTIO_PCI_FLAG_BUS_MASTER_BUG;
 }
 
 static void virtio_ioport_write(void *opaque, uint32_t addr, uint32_t val)
@@ -480,30 +598,12 @@ assign_error:
 static int virtio_pci_set_host_notifier(void *opaque, int n, bool assign)
 {
     VirtIOPCIProxy *proxy = opaque;
-    VirtQueue *vq = virtio_get_queue(proxy->vdev, n);
-    EventNotifier *notifier = virtio_queue_get_host_notifier(vq);
-    int r;
-    if (assign) {
-        r = event_notifier_init(notifier, 1);
-        if (r < 0) {
-            return r;
-        }
-        r = kvm_set_ioeventfd_pio_word(event_notifier_get_fd(notifier),
-                                       proxy->addr + VIRTIO_PCI_QUEUE_NOTIFY,
-                                       n, assign);
-        if (r < 0) {
-            event_notifier_cleanup(notifier);
-        }
+    if (proxy->flags & VIRTIO_PCI_FLAG_USE_IOEVENTFD) {
+        virtio_pci_set_host_notifier_fd_handler(proxy, n, !assign);
+        return 0;
     } else {
-        r = kvm_set_ioeventfd_pio_word(event_notifier_get_fd(notifier),
-                                       proxy->addr + VIRTIO_PCI_QUEUE_NOTIFY,
-                                       n, assign);
-        if (r < 0) {
-            return r;
-        }
-        event_notifier_cleanup(notifier);
+        return virtio_pci_set_host_notifier_ioeventfd(proxy, n, assign);
     }
-    return r;
 }
 
 static const VirtIOBindings virtio_pci_bindings = {
@@ -515,6 +615,8 @@ static const VirtIOBindings virtio_pci_bindings = {
     .get_features = virtio_pci_get_features,
     .set_host_notifier = virtio_pci_set_host_notifier,
     .set_guest_notifiers = virtio_pci_set_guest_notifiers,
+    .pre_set_status = virtio_pci_pre_set_status,
+    .post_set_status = virtio_pci_post_set_status,
 };
 
 static void virtio_init_pci(VirtIOPCIProxy *proxy, VirtIODevice *vdev,
@@ -702,6 +804,8 @@ static PCIDeviceInfo virtio_info[] = {
         .qdev.props = (Property[]) {
             DEFINE_PROP_HEX32("class", VirtIOPCIProxy, class_code, 0),
             DEFINE_BLOCK_PROPERTIES(VirtIOPCIProxy, block),
+            DEFINE_PROP_BIT("ioeventfd", VirtIOPCIProxy, flags,
+                            VIRTIO_PCI_FLAG_USE_IOEVENTFD_BIT, true),
             DEFINE_PROP_UINT32("vectors", VirtIOPCIProxy, nvectors, 2),
             DEFINE_VIRTIO_BLK_FEATURES(VirtIOPCIProxy, host_features),
             DEFINE_PROP_END_OF_LIST(),
@@ -714,6 +818,8 @@ static PCIDeviceInfo virtio_info[] = {
         .exit       = virtio_net_exit_pci,
         .romfile    = "pxe-virtio.bin",
         .qdev.props = (Property[]) {
+            DEFINE_PROP_BIT("ioeventfd", VirtIOPCIProxy, flags,
+                            VIRTIO_PCI_FLAG_USE_IOEVENTFD_BIT, true),
             DEFINE_PROP_UINT32("vectors", VirtIOPCIProxy, nvectors, 3),
             DEFINE_VIRTIO_NET_FEATURES(VirtIOPCIProxy, host_features),
             DEFINE_NIC_PROPERTIES(VirtIOPCIProxy, nic),
