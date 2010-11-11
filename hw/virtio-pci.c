@@ -690,6 +690,10 @@ static void virtio_init_pci(VirtIOPCIProxy *proxy, VirtIODevice *vdev,
     pci_register_bar(&proxy->pci_dev, 0, size, PCI_BASE_ADDRESS_SPACE_IO,
                            virtio_map);
 
+    if (!kvm_has_many_ioeventfds()) {
+        proxy->flags &= ~VIRTIO_PCI_FLAG_USE_IOEVENTFD;
+    }
+
     virtio_bind_device(vdev, &virtio_pci_bindings, proxy);
     proxy->host_features |= 0x1 << VIRTIO_F_NOTIFY_ON_EMPTY;
     proxy->host_features |= 0x1 << VIRTIO_F_BAD_FEATURE;
