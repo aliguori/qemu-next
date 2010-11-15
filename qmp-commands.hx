@@ -806,6 +806,38 @@ Example:
 EQMP
 
     {
+        .name       = "agent_shutdown",
+        .args_type  = "shutdown_type:s",
+        .params     = "[reboot|shutdown|poweroff]",
+        .help       = "Shutdown/reboot the guest locally",
+        .user_print = monitor_user_noop,
+        .mhandler.cmd_async = do_agent_shutdown,
+        .flags      = MONITOR_CMD_ASYNC,
+    },
+
+STEXI
+@item agent_shutdown
+@findex agent_shutdown
+Shutdown/reboot the guest locally
+ETEXI
+SQMP
+agent_shutdown
+--------
+
+Shutdown the guest locally
+
+Arguments:
+
+(none)
+
+Example:
+
+-> { "execute": "agent_shutdown" }
+<- { "return": {} }
+
+EQMP
+
+    {
         .name       = "qmp_capabilities",
         .args_type  = "",
         .params     = "",
