@@ -28,6 +28,8 @@ int do_agent_viewfile(Monitor *mon, const QDict *mon_params,
 void do_agent_viewdmesg_print(Monitor *mon, const QObject *qobject);
 int do_agent_viewdmesg(Monitor *mon, const QDict *mon_params,
                       MonitorCompletion cb, void *opaque);
+int do_agent_shutdown(Monitor *mon, const QDict *mon_params,
+                      MonitorCompletion cb, void *opaque);
 int va_client_init(VPDriver *vp_drv, bool is_host);
 
 #endif /* VIRTAGENT_H */
