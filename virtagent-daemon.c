@@ -204,6 +204,7 @@ static xmlrpc_value *va_hello(xmlrpc_env *env,
 {
     int ret = va_client_init_capabilities();
     TRACE("called");
+    SLOG("va_hello()");
     if (ret < 0) {
         LOG("error setting initializing client capabilities");
     }
