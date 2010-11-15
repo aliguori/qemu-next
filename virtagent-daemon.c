@@ -153,6 +153,8 @@ static xmlrpc_value *va_shutdown(xmlrpc_env *env,
         goto out_bad;
     }
 
+    SLOG("va_shutdown(), shutdown_type:%s", shutdown_type);
+
     ret = fork();
     if (ret == 0) {
         /* child, start the shutdown */
