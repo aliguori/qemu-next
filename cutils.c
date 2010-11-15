@@ -284,6 +284,50 @@ int fcntl_setfl(int fd, int flag)
 }
 #endif
 
+int qemu_utimensat(int dirfd, const char *path, const struct timespec *times,
+                   int flags)
+{
+#ifdef CONFIG_UTIMENSAT
+    return utimensat(dirfd, path, times, flags);
+#else
+    /* Fallback: use utimes() instead of utimensat() */
+    struct timeval tv[2], tv_now;
+    struct stat st;
+    int i;
+
+    /* happy if special cases */
+    if (times[0].tv_nsec == UTIME_OMIT && times[1].tv_nsec == UTIME_OMIT) {
+        return 0;
+    }
+    if (times[0].tv_nsec == UTIME_NOW && times[1].tv_nsec == UTIME_NOW) {
+        return utimes(path, NULL);
+    }
+
+    /* prepare for hard cases */
+    if (times[0].tv_nsec == UTIME_NOW || times[1].tv_nsec == UTIME_NOW) {
+        gettimeofday(&tv_now, NULL);
+    }
+    if (times[0].tv_nsec == UTIME_OMIT || times[1].tv_nsec == UTIME_OMIT) {
+        stat(path, &st);
+    }
+
+    for (i = 0; i < 2; i++) {
+        if (times[i].tv_nsec == UTIME_NOW) {
+            tv[i].tv_sec = tv_now.tv_sec;
+            tv[i].tv_usec = 0;
+        } else if (times[i].tv_nsec == UTIME_OMIT) {
+            tv[i].tv_sec = (i == 0) ? st.st_atime : st.st_mtime;
+            tv[i].tv_usec = 0;
+        } else {
+            tv[i].tv_sec = times[i].tv_sec;
+            tv[i].tv_usec = times[i].tv_nsec / 1000;
+        }
+    }
+
+    return utimes(path, &tv[0]);
+#endif
+}
+
 /*
  * Convert string to bytes, allowing either B/b for bytes, K/k for KB,
  * M/m for MB, G/g for GB or T/t for TB. Default without any postfix

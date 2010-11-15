@@ -149,6 +149,16 @@ time_t mktimegm(struct tm *tm);
 int qemu_fls(int i);
 int qemu_fdatasync(int fd);
 int fcntl_setfl(int fd, int flag);
+#ifndef CONFIG_UTIMENSAT
+#ifndef UTIME_NOW
+# define UTIME_NOW     ((1l << 30) - 1l)
+#endif
+#ifndef UTIME_OMIT
+# define UTIME_OMIT    ((1l << 30) - 2l)
+#endif
+#endif
+int qemu_utimensat(int dirfd, const char *path, const struct timespec *times,
+    int flags);
 ssize_t strtosz(const char *nptr, char **end);
 
 /* path.c */
