@@ -156,7 +156,9 @@ static void va_rpc_read_handler_completion(VARPCState *s) {
          * a send handler for the rpc response if there weren't any
          * communication errors
          */ 
-        s->data->cb(s->data);
+        if (s->data->cb) {
+            s->data->cb(s->data);
+        }
         if (s->data->status == VA_RPC_STATUS_OK) {
             ret = va_rpc_send_response(s->data, s->fd);
             if (ret != 0) {
@@ -172,7 +174,9 @@ static void va_rpc_read_handler_completion(VARPCState *s) {
         /* client read response, call it's cb function and complete
          * the RPC
          */
-        s->data->cb(s->data);
+        if (s->data->cb) {
+            s->data->cb(s->data);
+        }
         vp_set_fd_handler(s->fd, NULL, NULL, NULL);
         closesocket(s->fd);
         qemu_free(s->data);
@@ -204,7 +208,7 @@ static void va_rpc_read_handler(void *opaque)
             }
         }
         if (ret == -1) {
-            if (errno == EAGAIN || errno == EWOULDBLOCK) {
+            if (errno == EAGAIN || errno == EWOULDBLOCK || errno == EINTR) {
                 return;
             } else {
                 LOG("error reading connection: %s", strerror(errno));
@@ -234,7 +238,8 @@ static void va_rpc_read_handler(void *opaque)
             ret = read(s->fd, s->content + s->content_pos,
                        s->content_len - s->content_pos);
             if (ret == -1) {
-                if (errno == EAGAIN || errno == EWOULDBLOCK) {
+                if (errno == EAGAIN || errno == EWOULDBLOCK
+                    || errno == EINTR) {
                     return;
                 } else {
                     LOG("error reading connection: %s", strerror(errno));
@@ -279,7 +284,7 @@ static int va_rpc_read_response(VARPCData *data, int fd)
         LOG("failed to set up RPC state");
         return -1;
     }
-    TRACE("setting up send handler for RPC request");
+    TRACE("setting up read handler for RPC response");
     vp_set_fd_handler(fd, NULL, va_rpc_read_handler, s);
 
     return 0;
@@ -300,7 +305,9 @@ static void va_rpc_send_handler_completion(VARPCState *s) {
                 LOG("error setting up read handler for rpc response");
             }
         } else {
-            s->data->cb(s->data);
+            if (s->data->cb) {
+                s->data->cb(s->data);
+            }
             LOG("error sending rpc request, skipping response");
             vp_set_fd_handler(s->fd, NULL, NULL, NULL);
             closesocket(s->fd);
@@ -310,7 +317,9 @@ static void va_rpc_send_handler_completion(VARPCState *s) {
         /* server sent response. call it's cb once more, then free
          * response's memblock and complete the RPC
          */
-        s->data->cb(s->data);
+        if (s->data->cb) {
+            s->data->cb(s->data);
+        }
         XMLRPC_MEMBLOCK_FREE(char, s->data->send_resp_xml);
         vp_set_fd_handler(s->fd, NULL, NULL, NULL);
         closesocket(s->fd);
@@ -340,7 +349,7 @@ static void va_rpc_send_handler(void *opaque)
             s->hdr_pos += ret;
         } while (s->hdr_pos < s->hdr_len);
         if (ret == -1) {
-            if (errno == EAGAIN || errno == EWOULDBLOCK) {
+            if (errno == EAGAIN || errno == EWOULDBLOCK || errno == EINTR) {
                 return;
             } else {
                 LOG("error reading connection: %s", strerror(errno));
@@ -362,7 +371,7 @@ static void va_rpc_send_handler(void *opaque)
             s->content_pos += ret;
         } while (s->content_pos < s->content_len);
         if (ret == -1) {
-            if (errno == EAGAIN || errno == EWOULDBLOCK) {
+            if (errno == EAGAIN || errno == EWOULDBLOCK || errno == EINTR) {
                 return;
             } else {
                 LOG("error reading connection: %s", strerror(errno));
