@@ -267,7 +267,7 @@ static void va_rpc_read_cb(void *opaque)
         goto out_bad;
     }
 
-    rpc_data->send_resp_xml = 
+    rpc_data->send_resp_xml =
         xmlrpc_registry_process_call(&s->env, s->registry, NULL,
                                      rpc_data->req_xml, rpc_data->req_xml_len);
     if (rpc_data->send_resp_xml == NULL) {
