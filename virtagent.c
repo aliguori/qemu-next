@@ -586,3 +586,110 @@ int do_agent_ping(Monitor *mon, const QDict *mon_params,
 
     return 0;
 }
+
+static void va_print_capability_iter(QObject *obj, void *opaque)
+{
+    Monitor *mon = opaque;
+    QString *method = qobject_to_qstring(obj);
+    const char *method_str;
+
+    if (method) {
+        method_str = qstring_get_str(method);
+        monitor_printf(mon, "%s\n", method_str); 
+    }
+}
+
+void do_agent_capabilities_print(Monitor *mon, const QObject *data)
+{
+    QList *qlist;
+
+    TRACE("called");
+
+    monitor_printf(mon, "the following RPC methods are supported by the guest agent:\n");
+    qlist = qobject_to_qlist(data);
+    qlist_iter(qlist, va_print_capability_iter, mon);
+}
+
+static void do_agent_capabilities_cb(void *opaque)
+{
+    VARPCData *rpc_data = opaque;
+    xmlrpc_value *resp = NULL;
+    xmlrpc_value *cur_val = NULL;
+    const char *cur_method = NULL;
+    xmlrpc_env env;
+    QList *qlist = qlist_new();
+    int i;
+
+    TRACE("called");
+
+    if (rpc_data->status != VA_RPC_STATUS_OK) {
+        LOG("error handling RPC request");
+        goto out_no_resp;
+    }
+
+    TRACE("resp = %s\n", rpc_data->resp_xml);
+
+    xmlrpc_env_init(&env);
+    resp = xmlrpc_parse_response(&env, rpc_data->resp_xml,
+                                 rpc_data->resp_xml_len);
+    if (rpc_has_error(&env)) {
+        goto out_no_resp;
+    }
+
+    /* extract the list of supported RPCs */
+    for (i = 0; i < xmlrpc_array_size(&env, resp); i++) {
+        xmlrpc_array_read_item(&env, resp, i, &cur_val);
+        xmlrpc_read_string(&env, cur_val, &cur_method);
+        if (cur_method) {
+            TRACE("cur_method: %s", cur_method);
+            qlist_append_obj(qlist, QOBJECT(qstring_from_str(cur_method)));
+        }
+        xmlrpc_DECREF(cur_val);
+    }
+
+    /* set our client capabilities accordingly */
+    va_set_capabilities(qlist);
+
+    xmlrpc_DECREF(resp);
+out_no_resp:
+    if (rpc_data->mon_cb) {
+        rpc_data->mon_cb(rpc_data->mon_data, QOBJECT(qlist));
+    }
+    qobject_decref(QOBJECT(qlist));
+}
+
+/*
+ * do_agent_capabilities(): Fetch/re-negotiate guest agent capabilities
+ */
+int do_agent_capabilities(Monitor *mon, const QDict *mon_params,
+                          MonitorCompletion cb, void *opaque)
+{
+    xmlrpc_env env;
+    xmlrpc_value *params;
+    VARPCData *rpc_data;
+    int ret;
+
+    xmlrpc_env_init(&env);
+
+    params = xmlrpc_build_value(&env, "()");
+    if (rpc_has_error(&env)) {
+        return -1;
+    }
+
+    rpc_data = qemu_mallocz(sizeof(VARPCData));
+    rpc_data->cb = do_agent_capabilities_cb;
+    rpc_data->mon_cb = cb;
+    rpc_data->mon_data = opaque;
+
+    ret = rpc_execute(&env, "system.listMethods", params, rpc_data);
+    if (ret == -EREMOTE) {
+        monitor_printf(mon, "RPC Failed (%i): %s\n", env.fault_code,
+                       env.fault_string);
+        return -1;
+    } else if (ret == -1) {
+        monitor_printf(mon, "RPC communication error\n");
+        return -1;
+    }
+
+    return 0;
+}
