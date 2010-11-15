@@ -729,3 +729,58 @@ int va_client_init_capabilities(void)
 
     return 0;
 }
+
+static void va_send_hello_cb(void *opaque)
+{
+    VARPCData *rpc_data = opaque;
+    xmlrpc_value *resp = NULL;
+    xmlrpc_env env;
+
+    TRACE("called");
+
+    if (rpc_data->status != VA_RPC_STATUS_OK) {
+        LOG("error handling RPC request");
+        return;
+    }
+
+    xmlrpc_env_init(&env);
+    resp = xmlrpc_parse_response(&env, rpc_data->resp_xml,
+                                 rpc_data->resp_xml_len);
+    if (rpc_has_error(&env)) {
+        LOG("error parsing RPC response");
+        return;
+    }
+
+    xmlrpc_DECREF(resp);
+}
+
+int va_send_hello(void)
+{
+    xmlrpc_env env;
+    xmlrpc_value *params;
+    VARPCData *rpc_data;
+    int ret;
+
+    TRACE("called");
+
+    xmlrpc_env_init(&env);
+    params = xmlrpc_build_value(&env, "(s)", "dummy");
+    if (rpc_has_error(&env)) {
+        return -1;
+    }
+
+    rpc_data = qemu_mallocz(sizeof(VARPCData));
+    rpc_data->cb = va_send_hello_cb;
+
+    ret = rpc_execute(&env, "va_hello", params, rpc_data);
+    if (ret == -EREMOTE) {
+        LOG("RPC Failed (%i): %s", env.fault_code,
+            env.fault_string);
+        return -1;
+    } else if (ret == -1) {
+        LOG("RPC communication error");
+        return -1;
+    }
+
+    return 0;
+}
