@@ -94,6 +94,8 @@ static xmlrpc_value *getdmesg(xmlrpc_env *env,
     xmlrpc_value *result = NULL;
     FILE *pipe;
 
+    SLOG("getdmesg()");
+
     dmesg_buf = qemu_mallocz(VA_DMESG_LEN + 2048);
     sprintf(cmd, "dmesg -s %d", VA_DMESG_LEN);
 
