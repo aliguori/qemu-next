@@ -108,6 +108,60 @@ EXIT_NOCLOSE:
     return result;
 }
 
+/* va_shutdown(): initiate guest shutdown
+ * rpc return values: none
+ */
+static xmlrpc_value *va_shutdown(xmlrpc_env *env,
+                                    xmlrpc_value *param,
+                                    void *user_data)
+{
+    int ret;
+    const char *shutdown_type, *shutdown_flag;
+    xmlrpc_value *result = xmlrpc_build_value(env, "s", "dummy"); 
+
+    TRACE("called");
+    xmlrpc_decompose_value(env, param, "(s)", &shutdown_type);
+    if (env->fault_occurred) {
+        goto out_bad;
+    }
+
+    if (strcmp(shutdown_type, "halt") == 0) {
+        shutdown_flag = "-H";
+    } else if (strcmp(shutdown_type, "powerdown") == 0) {
+        shutdown_flag = "-P";
+    } else if (strcmp(shutdown_type, "reboot") == 0) {
+        shutdown_flag = "-r";
+    } else {
+        xmlrpc_faultf(env, "invalid shutdown type: %s", shutdown_type);
+        goto out_bad;
+    }
+
+    ret = fork();
+    if (ret == 0) {
+        /* child, start the shutdown */
+        setsid();
+        fclose(stdin);
+        fclose(stdout);
+        fclose(stderr);
+
+        sleep(5);
+        ret = execl("/sbin/shutdown", "shutdown", shutdown_flag, "+0",
+                    "hypervisor initiated shutdown", (char*)NULL);
+        if (ret < 0) {
+            LOG("execl() failed: %s", strerror(errno));
+            exit(1);
+        }
+        TRACE("shouldn't be here");
+        exit(0);
+    } else if (ret < 0) {
+        xmlrpc_faultf(env, "fork() failed: %s", strerror(errno));
+    }
+
+    return result;
+out_bad:
+    return NULL;
+}
+
 static int va_accept(int listen_fd) {
     struct sockaddr_in saddr;
     struct sockaddr *addr;
@@ -139,6 +193,8 @@ static RPCFunction guest_functions[] = {
       .func_name = "getfile" },
     { .func = getdmesg,
       .func_name = "getdmesg" },
+    { .func = va_shutdown,
+      .func_name = "va_shutdown" },
     { NULL, NULL }
 };
 static RPCFunction host_functions[] = {
