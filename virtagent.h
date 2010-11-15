@@ -36,6 +36,7 @@ int do_agent_ping(Monitor *mon, const QDict *mon_params,
 void do_agent_capabilities_print(Monitor *mon, const QObject *qobject);
 int do_agent_capabilities(Monitor *mon, const QDict *mon_params,
                   MonitorCompletion cb, void *opaque);
+int va_send_hello(void);
 int va_client_init_capabilities(void);
 int va_client_init(VPDriver *vp_drv, bool is_host);
 
