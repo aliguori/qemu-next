@@ -453,7 +453,9 @@ static void do_agent_ping_cb(void *opaque)
 
     xmlrpc_DECREF(resp);
 out_no_resp:
-    rpc_data->mon_cb(rpc_data->mon_data, QOBJECT(qdict));
+    if (rpc_data->mon_cb) {
+        rpc_data->mon_cb(rpc_data->mon_data, QOBJECT(qdict));
+    }
     qobject_decref(QOBJECT(qdict));
 }
 
