@@ -1259,6 +1259,22 @@ STEXI
 Shutdown/reboot a guest locally
 ETEXI
 
+    {
+        .name       = "agent_ping",
+        .args_type  = "",
+        .params     = "",
+        .help       = "Ping a guest",
+        .user_print = do_agent_ping_print,
+        .mhandler.cmd_async = do_agent_ping,
+        .flags      = MONITOR_CMD_ASYNC,
+    },
+
+STEXI
+@item agent_ping
+@findex agent_ping
+Ping a guest
+ETEXI
+
 STEXI
 @end table
 ETEXI
