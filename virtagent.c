@@ -695,3 +695,37 @@ int do_agent_capabilities(Monitor *mon, const QDict *mon_params,
 
     return 0;
 }
+
+/* non-HMP/QMP RPC client functions */
+
+int va_client_init_capabilities(void)
+{
+    xmlrpc_env env;
+    xmlrpc_value *params;
+    VARPCData *rpc_data;
+    int ret;
+
+    xmlrpc_env_init(&env);
+
+    params = xmlrpc_build_value(&env, "()");
+    if (rpc_has_error(&env)) {
+        return -1;
+    }
+
+    rpc_data = qemu_mallocz(sizeof(VARPCData));
+    rpc_data->cb = do_agent_capabilities_cb;
+    rpc_data->mon_cb = NULL;
+    rpc_data->mon_data = NULL;
+
+    ret = rpc_execute(&env, "system.listMethods", params, rpc_data);
+    if (ret == -EREMOTE) {
+        LOG("RPC Failed (%i): %s\n", env.fault_code,
+            env.fault_string);
+        return -1;
+    } else if (ret == -1) {
+        LOG("RPC communication error\n");
+        return -1;
+    }
+
+    return 0;
+}
