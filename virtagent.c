@@ -20,10 +20,89 @@
 typedef struct VARPCClientState {
     VPDriver *vp;
     const char *socket_path;
+    QList *supported_methods;
 } VARPCClientState;
 
 /* only one virtagent client can exist at a time */
 static VARPCClientState *client_state;
+
+static int va_client_ready(void)
+{
+    if (client_state != NULL && client_state->vp != NULL
+        && client_state->socket_path != NULL) {
+        return 0;
+    }
+
+    return -1;
+}
+
+static void va_set_capabilities(QList *qlist)
+{
+    TRACE("called");
+
+    if (client_state == NULL) {
+        LOG("client is uninitialized, unable to set capabilities");
+        return;
+    }
+
+    if (client_state->supported_methods != NULL) {
+        qobject_decref(QOBJECT(client_state->supported_methods));
+        client_state->supported_methods = NULL;
+        TRACE("capabilities reset");
+    }
+
+    if (qlist != NULL) {
+        client_state->supported_methods = qlist_copy(qlist);
+        TRACE("capabilities set");
+    }
+}
+
+typedef struct VACmpState {
+    const char *method;
+    bool found;
+} VACmpState;
+
+static void va_cmp_capability_iter(QObject *obj, void *opaque)
+{
+    QString *method = qobject_to_qstring(obj);
+    const char *method_str = NULL;
+    VACmpState *cmp_state = opaque;
+
+    if (method) {
+        method_str = qstring_get_str(method);
+    }
+
+    if (method_str && opaque) {
+        if (strcmp(method_str, cmp_state->method) == 0) {
+            cmp_state->found = 1;
+        }
+    }
+}
+
+static bool va_has_capability(const char *method)
+{
+    VACmpState cmp_state;
+
+    if (method == NULL) {
+        return false;
+    }
+
+    /* we can assume method introspection is available */
+    if (strcmp(method, "system.listMethods") == 0) {
+        return true;
+    }
+
+    /* compare method against the last retrieved supported method list */
+    cmp_state.method = method;
+    cmp_state.found = false;
+    if (client_state->supported_methods) {
+        qlist_iter(client_state->supported_methods,
+                   va_cmp_capability_iter,
+                   (void *)&cmp_state);
+    }
+
+    return cmp_state.found;
+}
 
 int va_client_init(VPDriver *vp_drv, bool is_host)
 {
@@ -112,6 +191,19 @@ static int rpc_execute(xmlrpc_env *const env, const char *function,
 {
     xmlrpc_mem_block *call_xml;
     int fd, ret;
+
+    ret = va_client_ready();
+    if (ret < 0) {
+        LOG("client in uninitialized state, unable to execute RPC");
+        ret = -1;
+        goto out;
+    }
+
+    if (!va_has_capability(function)) {
+        LOG("guest agent does not have required capability");
+        ret = -1;
+        goto out;
+    }
 
     fd = get_transport_fd();
     if (fd < 0) {
