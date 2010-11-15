@@ -11,10 +11,22 @@
  * See the COPYING file in the top-level directory.
  *
  */
+#include <syslog.h>
 #include "qemu_socket.h"
 #include "virtagent-daemon.h"
 #include "virtagent-common.h"
 #include "virtagent.h"
+
+static bool va_enable_syslog = false; /* enable syslog'ing of RPCs */
+
+#define SLOG(msg, ...) do { \
+    char msg_buf[1024]; \
+    if (!va_enable_syslog) { \
+        break; \
+    } \
+    sprintf(msg_buf, msg, ## __VA_ARGS__); \
+    syslog(LOG_INFO, "virtagent, %s", msg_buf); \
+} while(0)
 
 /* RPC functions common to guest/host daemons */
 
@@ -339,6 +351,8 @@ int va_server_init(VPDriver *vp_drv, bool is_host)
         LOG("virtagent server already initialized");
         return -1;
     }
+    va_enable_syslog = !is_host; /* enable logging for guest agent */
+
     server_state = qemu_mallocz(sizeof(VARPCServerState));
     service_id = is_host ? HOST_AGENT_SERVICE_ID : GUEST_AGENT_SERVICE_ID;
     /* TODO: host agent path needs to be made unique amongst multiple
