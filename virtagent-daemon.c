@@ -46,6 +46,8 @@ static xmlrpc_value *getfile(xmlrpc_env *env,
         return NULL;
     }
 
+    SLOG("getfile(), path:%s", path);
+
     fd = open(path, O_RDONLY);
     if (fd == -1) {
         LOG("open failed: %s", strerror(errno));
