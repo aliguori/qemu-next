@@ -162,6 +162,18 @@ out_bad:
     return NULL;
 }
 
+/* va_ping(): respond to client. response without error in env
+ *   variable indicates successful response
+ * rpc return values: none
+ */
+static xmlrpc_value *va_ping(xmlrpc_env *env,
+                             xmlrpc_value *param,
+                             void *user_data)
+{
+    xmlrpc_value *result = xmlrpc_build_value(env, "s", "dummy");
+    return result;
+}
+
 static int va_accept(int listen_fd) {
     struct sockaddr_in saddr;
     struct sockaddr *addr;
@@ -195,9 +207,13 @@ static RPCFunction guest_functions[] = {
       .func_name = "getdmesg" },
     { .func = va_shutdown,
       .func_name = "va_shutdown" },
+    { .func = va_ping,
+      .func_name = "va_ping" },
     { NULL, NULL }
 };
 static RPCFunction host_functions[] = {
+    { .func = va_ping,
+      .func_name = "va_ping" },
     { NULL, NULL }
 };
 
