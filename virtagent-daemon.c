@@ -175,6 +175,22 @@ static xmlrpc_value *va_ping(xmlrpc_env *env,
     return result;
 }
 
+/* va_hello(): handle client startup notification
+ * rpc return values: none
+ */
+
+static xmlrpc_value *va_hello(xmlrpc_env *env,
+                                   xmlrpc_value *param,
+                                   void *user_data)
+{
+    int ret = va_client_init_capabilities();
+    TRACE("called");
+    if (ret < 0) {
+        LOG("error setting initializing client capabilities");
+    }
+    return NULL;
+}
+
 static int va_accept(int listen_fd) {
     struct sockaddr_in saddr;
     struct sockaddr *addr;
@@ -215,6 +231,8 @@ static RPCFunction guest_functions[] = {
 static RPCFunction host_functions[] = {
     { .func = va_ping,
       .func_name = "va_ping" },
+    { .func = va_hello,
+      .func_name = "va_hello" },
     { NULL, NULL }
 };
 
