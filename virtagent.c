@@ -236,6 +236,8 @@ out:
     return ret;
 }
 
+/* QMP/HMP RPC client functions */
+
 void do_agent_viewfile_print(Monitor *mon, const QObject *data)
 {
     QDict *qdict;
