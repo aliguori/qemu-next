@@ -190,6 +190,7 @@ static xmlrpc_value *va_ping(xmlrpc_env *env,
                              void *user_data)
 {
     xmlrpc_value *result = xmlrpc_build_value(env, "s", "dummy");
+    SLOG("va_ping()");
     return result;
 }
 
