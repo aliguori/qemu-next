@@ -410,3 +410,85 @@ int do_agent_shutdown(Monitor *mon, const QDict *mon_params,
 
     return 0;
 }
+
+void do_agent_ping_print(Monitor *mon, const QObject *data)
+{
+    QDict *qdict;
+    const char *response;
+
+    TRACE("called");
+
+    qdict = qobject_to_qdict(data);
+    response = qdict_get_str(qdict, "response");
+    if (qdict_haskey(qdict, "response")) {
+        monitor_printf(mon, "%s", response);
+    }
+
+    monitor_printf(mon, "\n");
+}
+
+static void do_agent_ping_cb(void *opaque)
+{
+    VARPCData *rpc_data = opaque;
+    xmlrpc_value *resp = NULL;
+    xmlrpc_env env;
+    QDict *qdict = qdict_new();
+
+    TRACE("called");
+
+    if (rpc_data->status != VA_RPC_STATUS_OK) {
+        LOG("error handling RPC request");
+        qdict_put(qdict, "response", qstring_from_str("error"));
+        goto out_no_resp;
+    }
+
+    xmlrpc_env_init(&env);
+    resp = xmlrpc_parse_response(&env, rpc_data->resp_xml,
+                                 rpc_data->resp_xml_len);
+    if (rpc_has_error(&env)) {
+        qdict_put(qdict, "response", qstring_from_str("error"));
+        goto out_no_resp;
+    }
+    qdict_put(qdict, "response", qstring_from_str("ok"));
+
+    xmlrpc_DECREF(resp);
+out_no_resp:
+    rpc_data->mon_cb(rpc_data->mon_data, QOBJECT(qdict));
+    qobject_decref(QOBJECT(qdict));
+}
+
+/*
+ * do_agent_ping(): Ping a guest
+ */
+int do_agent_ping(Monitor *mon, const QDict *mon_params,
+                      MonitorCompletion cb, void *opaque)
+{
+    xmlrpc_env env;
+    xmlrpc_value *params;
+    VARPCData *rpc_data;
+    int ret;
+
+    xmlrpc_env_init(&env);
+
+    params = xmlrpc_build_value(&env, "(n)");
+    if (rpc_has_error(&env)) {
+        return -1;
+    }
+
+    rpc_data = qemu_mallocz(sizeof(VARPCData));
+    rpc_data->cb = do_agent_ping_cb;
+    rpc_data->mon_cb = cb;
+    rpc_data->mon_data = opaque;
+
+    ret = rpc_execute(&env, "va_ping", params, rpc_data);
+    if (ret == -EREMOTE) {
+        monitor_printf(mon, "RPC Failed (%i): %s\n", env.fault_code,
+                       env.fault_string);
+        return -1;
+    } else if (ret == -1) {
+        monitor_printf(mon, "RPC communication error\n");
+        return -1;
+    }
+
+    return 0;
+}
