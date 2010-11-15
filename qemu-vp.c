@@ -687,6 +687,8 @@ int main(int argc, char **argv)
             errx(EXIT_FAILURE,
                  "error initializing guest agent");
         }
+        /* tell the host the agent is running */
+        //va_send_hello();
     }
 
     /* main i/o loop */
