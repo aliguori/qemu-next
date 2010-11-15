@@ -14,6 +14,7 @@
 #include "qemu_socket.h"
 #include "virtagent-daemon.h"
 #include "virtagent-common.h"
+#include "virtagent.h"
 
 /* RPC functions common to guest/host daemons */
 
