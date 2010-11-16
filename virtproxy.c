@@ -164,30 +164,6 @@ struct VPDriver {
     QLIST_HEAD(, VPConn) conns;
 };
 
-static QemuOptsList vp_socket_opts = {
-    .name = "vp_socket_opts",
-    .head = QTAILQ_HEAD_INITIALIZER(vp_socket_opts.head),
-    .desc = {
-        {
-            .name = "path",
-            .type = QEMU_OPT_STRING,
-        },{
-            .name = "host",
-            .type = QEMU_OPT_STRING,
-        },{
-            .name = "port",
-            .type = QEMU_OPT_STRING,
-        },{
-            .name = "ipv4",
-            .type = QEMU_OPT_BOOL,
-        },{
-            .name = "ipv6",
-            .type = QEMU_OPT_BOOL,
-        },
-        { /* end if list */ }
-    },
-};
-
 static void vp_channel_read(void *opaque);
 
 static int vp_channel_send_all(VPDriver *drv, uint8_t *buf, int count)
