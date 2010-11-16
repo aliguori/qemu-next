@@ -202,39 +202,6 @@ static void main_loop_wait(int nonblocking)
 
 #define VP_ARG_LEN 256
 
-static QemuOptsList vp_opts = {
-    .name = "vpargs",
-    .head = QTAILQ_HEAD_INITIALIZER(vp_opts.head),
-    .desc = {
-        {
-            .name = "service_id",
-            .type = QEMU_OPT_STRING,
-        },{
-            .name = "channel_method",
-            .type = QEMU_OPT_STRING,
-        },{
-            .name = "index",
-            .type = QEMU_OPT_NUMBER,
-        },{
-            .name = "path",
-            .type = QEMU_OPT_STRING,
-        },{
-            .name = "host",
-            .type = QEMU_OPT_STRING,
-        },{
-            .name = "port",
-            .type = QEMU_OPT_STRING,
-        },{
-            .name = "ipv4",
-            .type = QEMU_OPT_BOOL,
-        },{
-            .name = "ipv6",
-            .type = QEMU_OPT_BOOL,
-        },
-        { /* end if list */ }
-    },
-};
-
 typedef struct VPData {
     QemuOpts *opts;
     void *opaque;
