@@ -23,6 +23,7 @@ enum vp_context {
     VP_CTX_CHARDEV, /* in qemu/host, channel is a virtproxy chardev */
     VP_CTX_FD,      /* in guest, channel is an FD */
 };
+extern QemuOptsList vp_opts;
 
 /* wrappers for s/vp/qemu/ functions we need */
 int vp_send_all(int fd, const void *buf, int len1);
