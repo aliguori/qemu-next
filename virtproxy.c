@@ -314,7 +314,7 @@ static void vp_conn_read(void *opaque)
 
     ret = vp_channel_send_all(drv, (uint8_t*)&pkt, sizeof(VPPacket));
     if (ret == -1) {
-        LOG("error sending data over channel");
+        LOG("error sending data over channel: %s", strerror(errno));
         return;
     }
     if (ret != sizeof(VPPacket)) {
