@@ -1915,8 +1915,6 @@ static int vp_init_oforward(VPDriver *drv, QemuOpts *opts)
     int ret, fd;
     const char *service_id;
 
-    fprintf(stderr, "marker 0\n");
-
     if (qemu_opt_get(opts, "host") != NULL) {
         fd = inet_listen_opts(opts, 0);
     } else if (qemu_opt_get(opts, "path") != NULL) {
@@ -1952,8 +1950,6 @@ static int vp_init_iforward(VPDriver *drv, QemuOpts *opts)
     bool ipv6;
     int ret;
 
-    fprintf(stderr, "marker 1\n");
-
     service_id = qemu_opt_get(opts, "service_id");
     if (service_id == NULL) {
         fprintf(stderr, "no service_id specified");
@@ -1985,15 +1981,11 @@ static int vp_init_forwards(const char *name, const char *value, void *opaque)
     VPDriver *drv = opaque;
     int ret;
 
-    fprintf(stderr, "marker 2\n");
-
     if (strcmp(name, "oforward") != 0 && strcmp(name, "iforward") != 0) {
-        fprintf(stderr, "marker 3\n");
         return 0;
     }
 
     /* parse opt string into QemuOpts */
-    fprintf(stderr, "marker 4\n");
     ret = vp_parse(opts, value, 0);
     if (ret < 0) {
         fprintf(stderr, "error parsing virtproxy arguments");
