@@ -853,7 +853,7 @@ int vp_set_iforward(VPDriver *drv, const char *service_id, const char *addr,
     /* stick socket-related options in a QemuOpts so we can
      * utilize qemu socket utility functions directly
      */
-    f->socket_opts = qemu_opts_create(&vp_socket_opts, NULL, 0);
+    f->socket_opts = qemu_opts_create(&vp_opts, NULL, 0);
     if (port == NULL) {
         /* no port given, assume unix path */
         qemu_opt_set(f->socket_opts, "path", addr);
