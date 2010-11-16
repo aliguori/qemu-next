@@ -37,6 +37,40 @@
 #define VP_CHAN_DATA_LEN 4096   /* max bytes channel can send at a time */
 #define VP_MAGIC 0x1F374059
 
+QemuOptsList vp_opts = {
+    .name = "vpargs",
+    .head = QTAILQ_HEAD_INITIALIZER(vp_opts.head),
+    .desc = {
+        {
+            .name = "service_id",
+            .type = QEMU_OPT_STRING,
+        },{
+            .name = "channel_method",
+            .type = QEMU_OPT_STRING,
+        },{
+            .name = "index",
+            .type = QEMU_OPT_NUMBER,
+        },{
+            .name = "path",
+            .type = QEMU_OPT_STRING,
+        },{
+            .name = "host",
+            .type = QEMU_OPT_STRING,
+        },{
+            .name = "port",
+            .type = QEMU_OPT_STRING,
+        },{
+            .name = "ipv4",
+            .type = QEMU_OPT_BOOL,
+        },{
+            .name = "ipv6",
+            .type = QEMU_OPT_BOOL,
+        },
+        { /* end of list */ }
+    },
+};
+
+
 /* listening fd, one for each service we're forwarding to remote end */
 typedef struct VPOForward {
     VPDriver *drv;
