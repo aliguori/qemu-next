@@ -2031,10 +2031,7 @@ static CharDriverState *qemu_chr_open_virtproxy(QemuOpts *opts)
 
     chr->opaque = drv;
     chr->chr_write = vp_chr_write;
-    //chr->chr_close = vp_chr_close;
-    //chr->get_msgfd = tcp_get_msgfd;
 
-    //tcp_chr_connect(chr);
     qemu_chr_generic_open(chr);
 
     /* parse socket forwarding options */
