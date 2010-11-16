@@ -146,6 +146,12 @@ static QemuOptsList qemu_chardev_opts = {
         },{
             .name = "signal",
             .type = QEMU_OPT_BOOL,
+        },{
+            .name = "oforward",
+            .type = QEMU_OPT_STRING,
+        },{
+            .name = "iforward",
+            .type = QEMU_OPT_STRING,
         },
         { /* end of list */ }
     },
