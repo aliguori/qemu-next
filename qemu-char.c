@@ -1910,6 +1910,105 @@ return_err:
 
 #include "virtproxy.h"
 
+static int vp_init_oforward(VPDriver *drv, QemuOpts *opts)
+{
+    int ret, fd;
+    const char *service_id;
+
+    fprintf(stderr, "marker 0\n");
+
+    if (qemu_opt_get(opts, "host") != NULL) {
+        fd = inet_listen_opts(opts, 0);
+    } else if (qemu_opt_get(opts, "path") != NULL) {
+        fd = unix_listen_opts(opts);
+    } else {
+        fprintf(stderr, "unable to find listening socket host/addr info");
+        return -1;
+    }
+
+    if (fd == -1) {
+        fprintf(stderr, "failed to create FD");
+        return -1;
+    }
+
+    service_id = qemu_opt_get(opts, "service_id");
+    if (service_id == NULL) {
+        fprintf(stderr, "no service_id specified");
+        return -1;
+    }
+
+    ret = vp_set_oforward(drv, fd, service_id);
+    if (ret != 0) {
+        fprintf(stderr, "error adding iforward");
+        return -1;
+    }
+
+    return 0;
+}
+
+static int vp_init_iforward(VPDriver *drv, QemuOpts *opts)
+{
+    const char *service_id, *addr, *port;
+    bool ipv6;
+    int ret;
+
+    fprintf(stderr, "marker 1\n");
+
+    service_id = qemu_opt_get(opts, "service_id");
+    if (service_id == NULL) {
+        fprintf(stderr, "no service_id specified");
+        return -1;
+    }
+    addr = qemu_opt_get(opts, "path");
+    port = NULL;
+    if (addr == NULL) {
+        /* map service to a network socket instead */
+        addr = qemu_opt_get(opts, "host");
+        port = qemu_opt_get(opts, "port");
+    }
+
+    ipv6 = qemu_opt_get_bool(opts, "ipv6", 0) ?
+           true : false;
+
+    ret = vp_set_iforward(drv, service_id, addr, port, ipv6);
+    if (ret != 0) {
+        fprintf(stderr, "error adding iforward");
+        return -1;
+    }
+
+    return 0;
+}
+
+static int vp_init_forwards(const char *name, const char *value, void *opaque)
+{
+    QemuOpts *opts = qemu_opts_create(&vp_opts, NULL, 0);
+    VPDriver *drv = opaque;
+    int ret;
+
+    fprintf(stderr, "marker 2\n");
+
+    if (strcmp(name, "oforward") != 0 && strcmp(name, "iforward") != 0) {
+        fprintf(stderr, "marker 3\n");
+        return 0;
+    }
+
+    /* parse opt string into QemuOpts */
+    fprintf(stderr, "marker 4\n");
+    ret = vp_parse(opts, value, 0);
+    if (ret < 0) {
+        fprintf(stderr, "error parsing virtproxy arguments");
+        return -1;
+    }
+
+    if (strcmp(name, "oforward") == 0) {
+        return vp_init_oforward(drv, opts);
+    } else if (strcmp(name, "iforward")) {
+        return vp_init_iforward(drv, opts);
+    }
+
+    return -1;
+}
+
 static int vp_chr_write(CharDriverState *chr, const uint8_t *buf, int len)
 {
     VPDriver *drv = chr->opaque;
@@ -1938,12 +2037,8 @@ static CharDriverState *qemu_chr_open_virtproxy(QemuOpts *opts)
     //tcp_chr_connect(chr);
     qemu_chr_generic_open(chr);
 
-    /* TODO: eventually we will parse opts here to configure
-     * basic host/guest socket/port forwarding functionality.
-     * for now we exist solely for use by the virtagent RPC
-     * client/server, which will add it's oforwards/iforwards
-     * using using virtproxy API calls directly
-     */
+    /* parse socket forwarding options */
+    qemu_opt_foreach(opts, vp_init_forwards, drv, 1);
 
     /* for "info chardev" monitor command */
     chr->filename = NULL;
