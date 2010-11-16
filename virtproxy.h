@@ -44,5 +44,6 @@ int vp_set_oforward(VPDriver *drv, int fd, const char *service_id);
 int vp_set_iforward(VPDriver *drv, const char *service_id, const char *addr,
                     const char *port, bool ipv6);
 int vp_handle_packet_buf(VPDriver *drv, const void *buf, int count);
+int vp_parse(QemuOpts *opts, const char *str, bool is_channel);
 
 #endif /* VIRTPROXY_H */
