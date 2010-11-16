@@ -870,3 +870,80 @@ int vp_set_iforward(VPDriver *drv, const char *service_id, const char *addr,
 
     return 0;
 }
+
+/* utility function to parse iforward/oforward options for qemu-vp
+ * or virtproxy chardev and put them into QemuOpts
+ */
+int vp_parse(QemuOpts *opts, const char *str, bool is_channel)
+{
+    /* TODO: use VP_SERVICE_ID_LEN, bring it into virtproxy.h */
+    char service_id[32];
+    char channel_method[32];
+    char index[10];
+    char *addr;
+    char port[33];
+    int pos, ret;
+
+    if (is_channel == false) {
+        /* parse service id */
+        ret = sscanf(str,"%32[^:]:%n",service_id,&pos);
+        if (ret != 1) {
+            LOG("error parsing service id");
+            return -1;
+        }
+        qemu_opt_set(opts, "service_id", service_id);
+    } else {
+        /* parse connection type */
+        ret = sscanf(str,"%32[^:]:%n",channel_method,&pos);
+        if (ret != 1) {
+            LOG("error parsing channel method");
+            return -1;
+        }
+        qemu_opt_set(opts, "channel_method", channel_method);
+    }
+    str += pos;
+    pos = 0;
+
+    /* parse path/addr and port */
+    if (str[0] == '[') {
+        /* ipv6 formatted */
+        ret = sscanf(str,"[%a[^]:]]:%32[^:]%n",&addr,port,&pos);
+        qemu_opt_set(opts, "ipv6", "on");
+    } else {
+        ret = sscanf(str,"%a[^:]:%32[^:]%n",&addr,port,&pos);
+        qemu_opt_set(opts, "ipv4", "on");
+    }
+
+    if (ret != 2) {
+        LOG("error parsing path/addr/port");
+        return -1;
+    } else if (port[0] == '-') {
+        /* no port given, assume unix path */
+        qemu_opt_set(opts, "path", addr);
+    } else {
+        qemu_opt_set(opts, "host", addr);
+        qemu_opt_set(opts, "port", port);
+        qemu_free(addr);
+    }
+    str += pos;
+    pos = 0;
+
+    if (str[0] == ':') {
+        /* parse optional index parameter */
+        ret = sscanf(str,":%10[^:]%n",index,&pos);
+    } else {
+        qemu_opt_set(opts, "index", "0");
+        return 0;
+    }
+
+    if (ret != 1) {
+        LOG("error parsing index");
+        return -1;
+    } else {
+        qemu_opt_set(opts, "index", index);
+    }
+    str += pos;
+    pos = 0;
+
+    return 0;
+}
