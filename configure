@@ -76,8 +76,8 @@ sparc_cpu=""
 cross_prefix=""
 cc="gcc"
 audio_drv_list=""
-audio_card_list="ac97 es1370 sb16"
-audio_possible_cards="ac97 es1370 sb16 cs4231a adlib gus"
+audio_card_list="ac97 es1370 sb16 hda"
+audio_possible_cards="ac97 es1370 sb16 cs4231a adlib gus hda"
 block_drv_whitelist=""
 host_cc="gcc"
 ar="ar"
@@ -92,6 +92,7 @@ libs_softmmu=""
 libs_tools=""
 audio_pt_int=""
 audio_win_int=""
+cc_i386=i386-pc-linux-gnu-gcc
 
 # parse CC options first
 for opt do
@@ -154,7 +155,7 @@ int main(void) { return 0; }
 EOF
 for flag in $gcc_flags; do
     if compile_prog "-Werror $QEMU_CFLAGS" "-Werror $flag" ; then
-	QEMU_CFLAGS="$flag $QEMU_CFLAGS"
+	QEMU_CFLAGS="$QEMU_CFLAGS $flag"
     fi
 done
 
@@ -789,12 +790,14 @@ case "$cpu" in
     i386)
            QEMU_CFLAGS="-m32 $QEMU_CFLAGS"
            LDFLAGS="-m32 $LDFLAGS"
+           cc_i386='$(CC) -m32'
            helper_cflags="-fomit-frame-pointer"
            host_guest_base="yes"
            ;;
     x86_64)
            QEMU_CFLAGS="-m64 $QEMU_CFLAGS"
            LDFLAGS="-m64 $LDFLAGS"
+           cc_i386='$(CC) -m32'
            host_guest_base="yes"
            ;;
     arm*)
@@ -926,7 +929,7 @@ echo "  --enable-docs            enable documentation build"
 echo "  --disable-docs           disable documentation build"
 echo "  --disable-vhost-net      disable vhost-net acceleration support"
 echo "  --enable-vhost-net       enable vhost-net acceleration support"
-echo "  --trace-backend=B        Trace backend nop simple ust"
+echo "  --trace-backend=B        Trace backend nop simple ust dtrace"
 echo "  --trace-file=NAME        Full PATH,NAME of file to store traces"
 echo "                           Default:trace-<pid>"
 echo "  --disable-spice          disable spice"
@@ -1982,6 +1985,21 @@ if compile_prog "" "" ; then
   splice=yes
 fi
 
+##########################################
+# signalfd probe
+signalfd="no"
+cat > $TMPC << EOF
+#define _GNU_SOURCE
+#include <unistd.h>
+#include <sys/syscall.h>
+#include <signal.h>
+int main(void) { return syscall(SYS_signalfd, -1, NULL, _NSIG / 8); }
+EOF
+
+if compile_prog "" "" ; then
+  signalfd=yes
+fi
+
 # check if eventfd is supported
 eventfd=no
 cat > $TMPC << EOF
@@ -2199,7 +2217,23 @@ EOF
     echo
     exit 1
   fi
+  trace_backend_stap="no"
+  if has 'stap' ; then
+    trace_backend_stap="yes"
+  fi
 fi
+
+##########################################
+# For 'dtrace' backend, test if 'dtrace' command is present
+if test "$trace_backend" = "dtrace"; then
+  if ! has 'dtrace' ; then
+    echo
+    echo "Error: dtrace command is not found in PATH $PATH"
+    echo
+    exit 1
+  fi
+fi
+
 ##########################################
 # End of CC checks
 # After here, no more $cc or $ld runs
@@ -2359,6 +2393,7 @@ printf "# Configured with:" >> $config_host_mak
 printf " '%s'" "$0" "$@" >> $config_host_mak
 echo >> $config_host_mak
 
+echo all: >> $config_host_mak
 echo "prefix=$prefix" >> $config_host_mak
 echo "bindir=$bindir" >> $config_host_mak
 echo "mandir=$mandir" >> $config_host_mak
@@ -2585,6 +2620,9 @@ fi
 if test "$fdt" = "yes" ; then
   echo "CONFIG_FDT=y" >> $config_host_mak
 fi
+if test "$signalfd" = "yes" ; then
+  echo "CONFIG_SIGNALFD=y" >> $config_host_mak
+fi
 if test "$need_offsetof" = "yes" ; then
   echo "CONFIG_NEED_OFFSETOF=y" >> $config_host_mak
 fi
@@ -2637,6 +2675,9 @@ fi
 if test "$trace_backend" = "simple"; then
   trace_file="\"$trace_file-%u\""
 fi
+if test "$trace_backend" = "dtrace" -a "$trace_backend_stap" = "yes" ; then
+  echo "CONFIG_SYSTEMTAP_TRACE=y" >> $config_host_mak
+fi
 echo "CONFIG_TRACE_FILE=$trace_file" >> $config_host_mak
 
 echo "TOOLS=$tools" >> $config_host_mak
@@ -2647,6 +2688,7 @@ echo "INSTALL_DIR=$install -d -m0755 -p" >> $config_host_mak
 echo "INSTALL_DATA=$install -m0644 -p" >> $config_host_mak
 echo "INSTALL_PROG=$install -m0755 -p" >> $config_host_mak
 echo "CC=$cc" >> $config_host_mak
+echo "CC_I386=$cc_i386" >> $config_host_mak
 echo "HOST_CC=$host_cc" >> $config_host_mak
 if test "$sparse" = "yes" ; then
   echo "CC      := REAL_CC=\"\$(CC)\" cgcc"       >> $config_host_mak
