@@ -22,6 +22,8 @@
 #define HOST_AGENT_PATH_CLIENT "/tmp/virtagent-host-client.sock"
 #define VA_MAX_CHUNK_SIZE 4096 /* max bytes at a time for get/send file */
 
+int va_client_init(VPDriver *vp_drv, bool is_host);
+int va_client_init_capabilities(void);
 void do_agent_viewfile_print(Monitor *mon, const QObject *qobject);
 int do_agent_viewfile(Monitor *mon, const QDict *mon_params,
                       MonitorCompletion cb, void *opaque);
@@ -37,7 +39,5 @@ void do_agent_capabilities_print(Monitor *mon, const QObject *qobject);
 int do_agent_capabilities(Monitor *mon, const QDict *mon_params,
                   MonitorCompletion cb, void *opaque);
 int va_send_hello(void);
-int va_client_init_capabilities(void);
-int va_client_init(VPDriver *vp_drv, bool is_host);
 
 #endif /* VIRTAGENT_H */
