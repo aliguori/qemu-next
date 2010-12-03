@@ -200,6 +200,14 @@ static const QErrorStringTable qerror_table[] = {
         .error_fmt = QERR_VNC_SERVER_FAILED,
         .desc      = "Could not start VNC server on %(target)",
     },
+    {
+        .error_fmt = QERR_RPC_FAILED,
+        .desc      = "An RPC error has occurred",
+    },
+    {
+        .error_fmt = QERR_VA_FAILED,
+        .desc      = "An error was reported by virtagent",
+    },
     {}
 };
 
