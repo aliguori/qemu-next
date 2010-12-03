@@ -838,6 +838,38 @@ Example:
 EQMP
 
     {
+        .name       = "agent_ping",
+        .args_type  = "",
+        .params     = "",
+        .help       = "Ping a guest",
+        .user_print = do_agent_ping_print,
+        .mhandler.cmd_async = do_agent_ping,
+        .flags      = MONITOR_CMD_ASYNC,
+    },
+
+STEXI
+@item agent_ping
+@findex agent_ping
+Ping a guest
+ETEXI
+SQMP
+agent_ping
+--------
+
+Ping a guest
+
+Arguments:
+
+(none)
+
+Example:
+
+-> { "execute": "agent_ping" }
+<- { "return": { "response":"ok" } }
+
+EQMP
+
+    {
         .name       = "qmp_capabilities",
         .args_type  = "",
         .params     = "",

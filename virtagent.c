@@ -386,3 +386,77 @@ int do_agent_shutdown(Monitor *mon, const QDict *mon_params,
     xmlrpc_DECREF(params);
     return ret;
 }
+
+void do_agent_ping_print(Monitor *mon, const QObject *data)
+{
+    QDict *qdict;
+    const char *response;
+
+    TRACE("called");
+
+    qdict = qobject_to_qdict(data);
+    response = qdict_get_str(qdict, "response");
+    if (qdict_haskey(qdict, "response")) {
+        monitor_printf(mon, "%s", response);
+    }
+
+    monitor_printf(mon, "\n");
+}
+
+static void do_agent_ping_cb(const char *resp_data,
+                                     size_t resp_data_len,
+                                     MonitorCompletion *mon_cb,
+                                     void *mon_data)
+{
+    xmlrpc_value *resp = NULL;
+    xmlrpc_env env;
+    QDict *qdict = qdict_new();
+
+    TRACE("called");
+
+    if (resp_data == NULL) {
+        LOG("error handling RPC request");
+        qdict_put(qdict, "response", qstring_from_str("error"));
+        goto out_no_resp;
+    }
+
+    xmlrpc_env_init(&env);
+    resp = xmlrpc_parse_response(&env, resp_data, resp_data_len);
+    if (va_rpc_has_error(&env)) {
+        qdict_put(qdict, "response", qstring_from_str("error"));
+        goto out_no_resp;
+    }
+    qdict_put(qdict, "response", qstring_from_str("ok"));
+
+    xmlrpc_DECREF(resp);
+out_no_resp:
+    if (mon_cb) {
+        mon_cb(mon_data, QOBJECT(qdict));
+    }
+    qobject_decref(QOBJECT(qdict));
+}
+
+/*
+ * do_agent_ping(): Ping a guest
+ */
+int do_agent_ping(Monitor *mon, const QDict *mon_params,
+                      MonitorCompletion cb, void *opaque)
+{
+    xmlrpc_env env;
+    xmlrpc_value *params;
+    int ret;
+
+    xmlrpc_env_init(&env);
+
+    params = xmlrpc_build_value(&env, "(n)");
+    if (va_rpc_has_error(&env)) {
+        return -1;
+    }
+
+    ret = va_do_rpc(&env, "va.ping", params, do_agent_ping_cb, cb, opaque);
+    if (ret) {
+        qerror_report(QERR_VA_FAILED, ret, strerror(ret));
+    }
+    xmlrpc_DECREF(params);
+    return ret;
+}
