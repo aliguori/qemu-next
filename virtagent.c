@@ -327,3 +327,62 @@ int do_agent_viewdmesg(Monitor *mon, const QDict *mon_params,
     xmlrpc_DECREF(params);
     return ret;
 }
+
+static void do_agent_shutdown_cb(const char *resp_data,
+                                 size_t resp_data_len,
+                                 MonitorCompletion *mon_cb,
+                                 void *mon_data)
+{
+    xmlrpc_value *resp = NULL;
+    xmlrpc_env env;
+
+    TRACE("called");
+
+    if (resp_data == NULL) {
+        LOG("error handling RPC request");
+        goto out_no_resp;
+    }
+
+    xmlrpc_env_init(&env);
+    resp = xmlrpc_parse_response(&env, resp_data, resp_data_len);
+    if (va_rpc_has_error(&env)) {
+        LOG("RPC Failed (%i): %s\n", env.fault_code,
+            env.fault_string);
+        goto out_no_resp;
+    }
+
+    xmlrpc_DECREF(resp);
+out_no_resp:
+    if (mon_cb) {
+        mon_cb(mon_data, NULL);
+    }
+}
+
+/*
+ * do_agent_shutdown(): Shutdown a guest
+ */
+int do_agent_shutdown(Monitor *mon, const QDict *mon_params,
+                      MonitorCompletion cb, void *opaque)
+{
+    xmlrpc_env env;
+    xmlrpc_value *params;
+    const char *shutdown_type;
+    int ret;
+
+    TRACE("called");
+
+    xmlrpc_env_init(&env);
+    shutdown_type = qdict_get_str(mon_params, "shutdown_type");
+    params = xmlrpc_build_value(&env, "(s)", shutdown_type);
+    if (va_rpc_has_error(&env)) {
+        return -1;
+    }
+
+    ret = va_do_rpc(&env, "va.shutdown", params, do_agent_shutdown_cb, cb,
+                    opaque);
+    if (ret) {
+        qerror_report(QERR_VA_FAILED, ret, strerror(ret));
+    }
+    xmlrpc_DECREF(params);
+    return ret;
+}
