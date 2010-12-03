@@ -7,6 +7,7 @@
 #include "qemu-config.h"
 #include "qobject.h"
 #include "qstring.h"
+#include "qemu-ioh.h"
 
 /* character device */
 
@@ -118,4 +119,7 @@ int qemu_set_fd_handler(int fd,
                         IOHandler *fd_read,
                         IOHandler *fd_write,
                         void *opaque);
+void qemu_get_fdset(int *nfds, fd_set *rfds, fd_set *wfds, fd_set *xfds);
+void qemu_process_fd_handlers(const fd_set *rfds, const fd_set *wfds,
+                              const fd_set *xfds);
 #endif
