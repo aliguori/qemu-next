@@ -870,6 +870,38 @@ Example:
 EQMP
 
     {
+        .name       = "agent_capabilities",
+        .args_type  = "",
+        .params     = "",
+        .help       = "Fetch and re-negotiate guest agent capabilities",
+        .user_print = do_agent_capabilities_print,
+        .mhandler.cmd_async = do_agent_capabilities,
+        .flags      = MONITOR_CMD_ASYNC,
+    },
+
+STEXI
+@item agent_capabilities
+@findex agent_capabilities
+Fetch and re-negotiate guest agent capabilties
+ETEXI
+SQMP
+agent_capabilities
+--------
+
+Fetch and re-negotiate guest agent capabilities
+
+Arguments:
+
+(none)
+
+Example:
+
+-> { "execute": "agent_capabilities" }
+<- { "return":["va.shutdown", "va.getdmesg", "va.getfile", ... ] }
+
+EQMP
+
+    {
         .name       = "qmp_capabilities",
         .args_type  = "",
         .params     = "",

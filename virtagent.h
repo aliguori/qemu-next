@@ -39,5 +39,8 @@ int do_agent_shutdown(Monitor *mon, const QDict *mon_params,
 void do_agent_ping_print(Monitor *mon, const QObject *qobject);
 int do_agent_ping(Monitor *mon, const QDict *mon_params,
                   MonitorCompletion cb, void *opaque);
+void do_agent_capabilities_print(Monitor *mon, const QObject *qobject);
+int do_agent_capabilities(Monitor *mon, const QDict *mon_params,
+                  MonitorCompletion cb, void *opaque);
 
 #endif /* VIRTAGENT_H */
