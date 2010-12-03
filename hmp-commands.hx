@@ -1212,6 +1212,22 @@ show available trace events and their state
 ETEXI
 #endif
 
+    {
+        .name       = "agent_viewfile",
+        .args_type  = "filepath:s",
+        .params     = "filepath",
+        .help       = "Echo a file from the guest filesystem",
+        .user_print = do_agent_viewfile_print,
+        .mhandler.cmd_async = do_agent_viewfile,
+        .flags      = MONITOR_CMD_ASYNC,
+    },
+
+STEXI
+@item agent_viewfile @var{filepath}
+@findex agent_viewfile
+Echo the file identified by @var{filepath} on the guest filesystem
+ETEXI
+
 STEXI
 @end table
 ETEXI
