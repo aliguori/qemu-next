@@ -165,4 +165,10 @@ QError *qobject_to_qerror(const QObject *obj);
 #define QERR_VNC_SERVER_FAILED \
     "{ 'class': 'VNCServerFailed', 'data': { 'target': %s } }"
 
+#define QERR_RPC_FAILED \
+    "{ 'class': 'RPCFailed', 'data': { 'code': %i, 'message': %s } }"
+
+#define QERR_VA_FAILED \
+    "{ 'class': 'VirtagentFailed', 'data': { 'code': %i, 'message': %s } }"
+
 #endif /* QERROR_H */
