@@ -558,3 +558,21 @@ int do_agent_capabilities(Monitor *mon, const QDict *mon_params,
     xmlrpc_DECREF(params);
     return ret;
 }
+
+/* non-HMP/QMP RPC client functions */
+
+int va_client_init_capabilities(void)
+{
+    xmlrpc_env env;
+    xmlrpc_value *params;
+
+    xmlrpc_env_init(&env);
+
+    params = xmlrpc_build_value(&env, "()");
+    if (va_rpc_has_error(&env)) {
+        return -1;
+    }
+
+    return va_do_rpc(&env, "system.listMethods", params,
+                     do_agent_capabilities_cb, NULL, NULL);
+}
