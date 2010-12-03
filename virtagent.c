@@ -576,3 +576,50 @@ int va_client_init_capabilities(void)
     return va_do_rpc(&env, "system.listMethods", params,
                      do_agent_capabilities_cb, NULL, NULL);
 }
+
+static void va_send_hello_cb(const char *resp_data,
+                             size_t resp_data_len,
+                             MonitorCompletion *mon_cb,
+                             void *mon_data)
+{
+    xmlrpc_value *resp = NULL;
+    xmlrpc_env env;
+
+    TRACE("called");
+
+    if (resp_data == NULL) {
+        LOG("error handling RPC request");
+        return;
+    }
+
+    xmlrpc_env_init(&env);
+    resp = xmlrpc_parse_response(&env, resp_data, resp_data_len);
+    if (va_rpc_has_error(&env)) {
+        LOG("error parsing RPC response");
+        return;
+    }
+
+    xmlrpc_DECREF(resp);
+}
+
+int va_send_hello(void)
+{
+    xmlrpc_env env;
+    xmlrpc_value *params;
+    int ret;
+
+    TRACE("called");
+
+    xmlrpc_env_init(&env);
+    params = xmlrpc_build_value(&env, "()");
+    if (va_rpc_has_error(&env)) {
+        return -1;
+    }
+
+    ret = va_do_rpc(&env, "va.hello", params, va_send_hello_cb, NULL, NULL);
+    if (ret) {
+        qerror_report(QERR_VA_FAILED, ret, strerror(ret));
+    }
+    xmlrpc_DECREF(params);
+    return ret;
+}
