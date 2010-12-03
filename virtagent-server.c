@@ -26,12 +26,71 @@ static bool va_enable_syslog = false; /* enable syslog'ing of RPCs */
     syslog(LOG_INFO, "virtagent, %s", msg_buf); \
 } while(0)
 
+/* RPC functions common to guest/host daemons */
+
+/* va_getfile(): return file contents
+ * rpc return values:
+ *   - base64-encoded file contents
+ */
+static xmlrpc_value *va_getfile(xmlrpc_env *env,
+                                xmlrpc_value *param,
+                                void *user_data)
+{
+    const char *path;
+    char *file_contents = NULL;
+    char buf[VA_FILEBUF_LEN];
+    int fd, ret, count = 0;
+    xmlrpc_value *result = NULL;
+
+    /* parse argument array */
+    xmlrpc_decompose_value(env, param, "(s)", &path);
+    if (env->fault_occurred) {
+        return NULL;
+    }
+
+    SLOG("va_getfile(), path:%s", path);
+
+    fd = open(path, O_RDONLY);
+    if (fd == -1) {
+        LOG("open failed: %s", strerror(errno));
+        xmlrpc_faultf(env, "open failed: %s", strerror(errno));
+        return NULL;
+    }
+
+    while ((ret = read(fd, buf, VA_FILEBUF_LEN)) > 0) {
+        file_contents = qemu_realloc(file_contents, count + VA_FILEBUF_LEN);
+        memcpy(file_contents + count, buf, ret);
+        count += ret;
+        if (count > VA_GETFILE_MAX) {
+            xmlrpc_faultf(env, "max file size (%d bytes) exceeded",
+                          VA_GETFILE_MAX);
+            goto EXIT_CLOSE_BAD;
+        }
+    }
+    if (ret == -1) {
+        LOG("read failed: %s", strerror(errno));
+        xmlrpc_faultf(env, "read failed: %s", strerror(errno));
+        goto EXIT_CLOSE_BAD;
+    }
+
+    result = xmlrpc_build_value(env, "6", file_contents, count);
+
+EXIT_CLOSE_BAD:
+    if (file_contents) {
+        qemu_free(file_contents);
+    }
+    close(fd);
+    return result;
+}
+
 typedef struct RPCFunction {
     xmlrpc_value *(*func)(xmlrpc_env *env, xmlrpc_value *param, void *unused);
     const char *func_name;
 } RPCFunction;
 
 static RPCFunction guest_functions[] = {
+    { .func = va_getfile,
+      .func_name = "va.getfile" },
     { NULL, NULL }
 };
 static RPCFunction host_functions[] = {
