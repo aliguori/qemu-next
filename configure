@@ -1264,6 +1264,31 @@ EOF
 fi
 
 ##########################################
+# xmlrpc-c probe
+
+# Look for the xmlrpc-c config program
+if test -n "$cross_prefix" && has ${cross_prefix}xmlrpc-c-config; then
+  xmlrpccconfig=${cross_prefix}xmlrpc-c-config
+elif has xmlrpc-c-config; then
+  xmlrpccconfig=xmlrpc-c-config
+else
+  feature_not_found "xmlrpc-c"
+fi
+
+cat > $TMPC << EOF
+#include <xmlrpc.h>
+int main(void) { xmlrpc_env env; xmlrpc_env_init(&env); return 0; }
+EOF
+xmlrpc_cflags=`$xmlrpccconfig --cflags 2> /dev/null`
+xmlrpc_libs=`$xmlrpccconfig client server-util --libs 2> /dev/null`
+if compile_prog "$xmlrpc_cflags" "$xmlrpc_libs"; then
+  libs_softmmu="$xmlrpc_libs $libs_softmmu"
+  libs_tools="$xmlrpc_libs $libs_tools"
+else
+  feature_not_found "xmlrpc-c"
+fi
+
+##########################################
 # VNC TLS detection
 if test "$vnc_tls" != "no" ; then
   cat > $TMPC <<EOF
@@ -2266,6 +2291,7 @@ if test "$softmmu" = yes ; then
   tools="qemu-img\$(EXESUF) qemu-io\$(EXESUF) $tools"
   if [ "$linux" = "yes" -o "$bsd" = "yes" -o "$solaris" = "yes" ] ; then
       tools="qemu-nbd\$(EXESUF) $tools"
+      tools="qemu-va\$(EXESUF) $tools"
     if [ "$check_utests" = "yes" ]; then
       tools="check-qint check-qstring check-qdict check-qlist $tools"
       tools="check-qfloat check-qjson $tools"
