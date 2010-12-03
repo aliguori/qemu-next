@@ -738,6 +738,39 @@ Example:
 EQMP
 
     {
+        .name       = "agent_viewfile",
+        .args_type  = "filepath:s",
+        .params     = "filepath",
+        .help       = "Echo a file from the guest filesystem",
+        .user_print = monitor_user_noop,
+        .mhandler.cmd_async = do_agent_viewfile,
+        .flags      = MONITOR_CMD_ASYNC,
+    },
+
+STEXI
+@item agent_viewfile @var{filepath}
+@findex agent_viewfile
+Echo the file identified by @var{filepath} on the guest filesystem
+ETEXI
+SQMP
+agent_viewfile
+--------
+
+Echo the file identified by @var{filepath} from the guest filesystem.
+
+Arguments:
+
+- "filepath": Full guest path of the desired file
+
+Example:
+
+-> { "execute": "agent_viewfile",
+                "arguments": { "filepath": "/sys/kernel/kexec_loaded" } }
+<- { "return": { "contents": "0" } }
+
+EQMP
+
+    {
         .name       = "qmp_capabilities",
         .args_type  = "",
         .params     = "",

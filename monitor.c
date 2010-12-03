@@ -56,6 +56,7 @@
 #include "json-parser.h"
 #include "osdep.h"
 #include "exec-all.h"
+#include "virtagent.h"
 #ifdef CONFIG_SIMPLE_TRACE
 #include "trace.h"
 #endif
