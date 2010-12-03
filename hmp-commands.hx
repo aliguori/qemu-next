@@ -1262,6 +1262,22 @@ STEXI
 View guest dmesg output
 ETEXI
 
+    {
+        .name       = "agent_shutdown",
+        .args_type  = "shutdown_type:s",
+        .params     = "[reboot|shutdown|poweroff]",
+        .help       = "Shutdown/reboot a guest locally",
+        .user_print = monitor_user_noop,
+        .mhandler.cmd_async = do_agent_shutdown,
+        .flags      = MONITOR_CMD_ASYNC,
+    },
+
+STEXI
+@item agent_shutdown
+@findex agent_shutdown
+Shutdown/reboot a guest locally
+ETEXI
+
 STEXI
 @end table
 ETEXI
