@@ -22,6 +22,8 @@
 QEMUClock *rt_clock;
 
 FILE *logfile;
+static QLIST_HEAD(, IOHandlerRecord) io_handlers =
+    QLIST_HEAD_INITIALIZER(io_handlers);
 
 struct QEMUBH
 {
@@ -103,11 +105,32 @@ void qemu_bh_delete(QEMUBH *bh)
     qemu_free(bh);
 }
 
+/* definitions to implement i/o loop for fd handlers in tools */
 int qemu_set_fd_handler2(int fd,
                          IOCanReadHandler *fd_read_poll,
                          IOHandler *fd_read,
                          IOHandler *fd_write,
                          void *opaque)
 {
-    return 0;
+    return qemu_set_fd_handler3(&io_handlers, fd, fd_read_poll, fd_read,
+                                fd_write, opaque);
+}
+
+int qemu_set_fd_handler(int fd,
+                        IOHandler *fd_read,
+                        IOHandler *fd_write,
+                        void *opaque)
+{
+    return qemu_set_fd_handler2(fd, NULL, fd_read, fd_write, opaque);
+}
+
+void qemu_get_fdset(int *nfds, fd_set *rfds, fd_set *wfds, fd_set *xfds)
+{
+    return qemu_get_fdset2(&io_handlers, nfds, rfds, wfds, xfds);
+}
+
+void qemu_process_fd_handlers(const fd_set *rfds, const fd_set *wfds,
+                              const fd_set *xfds)
+{
+    return qemu_process_fd_handlers2(&io_handlers, rfds, wfds, xfds);
 }
