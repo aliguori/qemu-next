@@ -89,10 +89,342 @@ typedef struct VAState {
 
 static VAState *va_state;
 
+static bool va_set_client_state(enum va_client_state client_state);
+static VAServerJob *va_pop_server_job(void);
+static VAClientJob *va_pop_client_job(void);
+static int va_server_job_add(xmlrpc_mem_block *resp_xml);
+static int va_kick(void);
+
 static VAClientJob *va_current_client_job(void)
 {
     TRACE("called");
     return QTAILQ_FIRST(&va_state->client_jobs);
+}
+
+/***********************************************************/
+/* callbacks for read/send handlers */
+
+static void va_client_send_cb(enum va_http_status http_status,
+                              const char *content, size_t content_len)
+{
+    VAClientJob *client_job = va_current_client_job();
+
+    TRACE("called");
+    assert(client_job != NULL);
+
+    if (http_status != VA_HTTP_STATUS_OK) {
+        /* TODO: we should reset everything at this point...guest/host will
+         * be out of whack with each other since there's no way to let the
+         * other know job failed (server or client job) if the send channel
+         * is down. But how do we induce the other side to do the same?
+         */
+        LOG("error sending http request");
+    }
+
+    /* request sent ok. free up request xml, then move to
+     * wait (for response) state
+     */
+    XMLRPC_MEMBLOCK_FREE(char, client_job->req_data);
+    assert(va_set_client_state(VA_CLIENT_WAIT));
+}
+
+static void va_server_send_cb(enum va_http_status http_status,
+                              const char *content, size_t content_len)
+{
+    VAServerJob *server_job = va_pop_server_job();
+
+    TRACE("called");
+    assert(server_job != NULL);
+
+    if (http_status != VA_HTTP_STATUS_OK) {
+        /* TODO: we should reset everything at this point...guest/host will
+         * be out of whack with each other since there's no way to let the
+         * other know job failed (server or client job) if the send channel
+         * is down
+         */
+        LOG("error sending http response");
+        return;
+    }
+
+    /* response sent ok, cleanup server job and kick off the next one */
+    XMLRPC_MEMBLOCK_FREE(char, server_job->resp_data);
+    qemu_free(server_job);
+    va_kick();
+}
+
+static void va_client_read_cb(const char *content, size_t content_len)
+{
+    VAClientJob *client_job;
+
+    client_job = va_pop_client_job();
+    assert(client_job != NULL);
+TRACE("marker");
+    client_job->cb(content, content_len, client_job->mon_cb,
+                   client_job->mon_data);
+    va_kick();
+}
+
+static void va_server_read_cb(const char *content, size_t content_len)
+{
+    xmlrpc_mem_block *resp_xml;
+    VAServerData *server_data = &va_state->server_data;
+    int ret;
+
+    TRACE("called");
+    resp_xml = xmlrpc_registry_process_call(&server_data->env,
+                                            server_data->registry,
+                                            NULL, content, content_len);
+    if (resp_xml == NULL) {
+        LOG("error processing RPC request");
+        goto out_bad;
+    }
+
+    ret = va_server_job_add(resp_xml);
+    if (ret != 0) {
+        LOG("error adding server job: %s", strerror(ret));
+    }
+
+    return;
+out_bad:
+    /* TODO: should reset state here */
+    return;
+}
+
+static void va_http_read_cb(enum va_http_status http_status,
+                            const char *content, size_t content_len, bool is_request)
+{
+    TRACE("called");
+    if (http_status != VA_HTTP_STATUS_OK) {
+        LOG("error reading http %s", is_request ? "request" : "response");
+        content = NULL;
+    }
+
+    if (is_request) {
+        va_server_read_cb(content, content_len);
+    } else {
+        va_client_read_cb(content, content_len);
+    }
+
+    return;
+}
+
+/***********************************************************/
+/* utility functions for handling http calls */
+
+#define VA_HTTP_REQUEST 1
+#define VA_HTTP_RESPONSE 2
+
+static void va_http_hdr_init(VAHTState *s, int request_type) {
+    const char *preamble;
+
+    TRACE("called");
+    /* essentially ignored in the context of virtagent, but might as well */
+    if (request_type == VA_HTTP_REQUEST) {
+        preamble = "POST /RPC2 HTTP/1.1";
+    } else if (request_type == VA_HTTP_RESPONSE) {
+        preamble = "HTTP/1.1 200 OK";
+    } else {
+        s->hdr_len = 0;
+        return;
+    }
+    s->hdr_len = sprintf(s->hdr,
+                         "%s" EOL
+                         "Content-Type: text/xml" EOL
+                         "Content-Length: %u" EOL EOL,
+                         preamble,
+                         (uint32_t)s->content_len);
+}
+
+static void va_rpc_parse_hdr(VAHTState *s)
+{
+    int i, line_pos = 0;
+    bool first_line = true;
+    char line_buf[4096];
+
+    TRACE("called");
+
+    for (i = 0; i < VA_HDR_LEN_MAX; ++i) {
+        if (s->hdr[i] != '\n') {
+            /* read line */
+            line_buf[line_pos++] = s->hdr[i];
+        } else {
+            /* process line */
+            if (first_line) {
+                s->is_request = (strncmp(line_buf, "POST", 4) == 0) ?
+                                true : false;
+                first_line = false;
+            }
+            if (strncmp(line_buf, "Content-Length: ", 16) == 0) {
+                s->content_len = atoi(&line_buf[16]);
+                return;
+            }
+            line_pos = 0;
+        }
+    }
+}
+
+static int va_end_of_header(char *buf, int end_pos)
+{
+    return !strncmp(buf+(end_pos-2), "\n\r\n", 3);
+}
+
+/***********************************************************/
+/* read/send handlers */
+
+static void va_http_read_handler(void *opaque)
+{
+    VAHTState *s = &va_state->read_state;
+    enum va_http_status http_status;
+    int fd = va_state->fd;
+    int ret;
+
+    TRACE("called with opaque: %p", opaque);
+
+    switch (s->state) {
+    case VA_READ_START:
+        s->state = VA_READ_HDR;
+    case VA_READ_HDR:
+        while((ret = read(fd, s->hdr + s->hdr_pos, 1)) > 0
+              && s->hdr_pos < VA_HDR_LEN_MAX) {
+            s->hdr_pos += ret;
+            if (va_end_of_header(s->hdr, s->hdr_pos - 1)) {
+                break;
+            }
+        }
+        if (ret == -1) {
+            if (errno == EAGAIN || errno == EWOULDBLOCK || errno == EINTR) {
+                return;
+            } else {
+                LOG("error reading connection: %s", strerror(errno));
+                goto out_bad;
+            }
+        } else if (ret == 0) {
+            LOG("connected closed unexpectedly");
+            goto out_bad;
+        } else if (s->hdr_pos >= VA_HDR_LEN_MAX) {
+            LOG("http header too long");
+            goto out_bad;
+        } else {
+            s->content_len = -1;
+            va_rpc_parse_hdr(s);
+            if (s->content_len == -1) {
+                LOG("malformed http header");
+                goto out_bad;
+            } else if (s->content_len > VA_CONTENT_LEN_MAX) {
+                LOG("http content length too long");
+                goto out_bad;
+            }
+            s->content = qemu_mallocz(s->content_len);
+            s->state = VA_READ_BODY;
+        }
+    case VA_READ_BODY:
+        while(s->content_pos < s->content_len) {
+            ret = read(fd, s->content + s->content_pos,
+                       s->content_len - s->content_pos);
+            if (ret == -1) {
+                if (errno == EAGAIN || errno == EWOULDBLOCK
+                    || errno == EINTR) {
+                    return;
+                } else {
+                    LOG("error reading connection: %s", strerror(errno));
+                    goto out_bad;
+                }
+            } else if (ret == 0) {
+                LOG("connection closed unexpectedly:"
+                    " read %u bytes, expected %u bytes",
+                    (unsigned int)s->content_pos, (unsigned int)s->content_len);
+                goto out_bad;
+            }
+            s->content_pos += ret;
+        }
+
+        http_status = VA_HTTP_STATUS_OK;
+        goto out;
+    default:
+        LOG("unknown state");
+        goto out_bad;
+    }
+
+out_bad:
+    http_status = VA_HTTP_STATUS_ERROR;
+out:
+    /* handle the response or request we just read */
+    s->read_cb(http_status, s->content, s->content_len, s->is_request);
+    /* restart read handler */
+    s->state = VA_READ_START;
+    s->hdr_pos = 0;
+    s->content_len = 0;
+    s->content_pos = 0;
+    qemu_free(s->content);
+    http_status = VA_HTTP_STATUS_NEW;
+}
+
+static void va_http_send_handler(void *opaque)
+{
+    VAHTState *s = &va_state->send_state;
+    enum va_http_status http_status;
+    int fd = va_state->fd;
+    int ret;
+
+    TRACE("called, fd: %d", fd);
+
+    switch (s->state) {
+    case VA_SEND_START:
+        s->state = VA_SEND_HDR;
+    case VA_SEND_HDR:
+        do {
+            ret = write(fd, s->hdr + s->hdr_pos, s->hdr_len - s->hdr_pos);
+            if (ret <= 0) {
+                break;
+            }
+            s->hdr_pos += ret;
+        } while (s->hdr_pos < s->hdr_len);
+        if (ret == -1) {
+            if (errno == EAGAIN || errno == EWOULDBLOCK || errno == EINTR) {
+                return;
+            } else {
+                LOG("error writing header: %s", strerror(errno));
+                goto out_bad;
+            }
+        } else if (ret == 0) {
+            LOG("connected closed unexpectedly");
+            goto out_bad;
+        } else {
+            s->state = VA_SEND_BODY;
+        }
+    case VA_SEND_BODY:
+        do {
+            ret = write(fd, s->content + s->content_pos,
+                        s->content_len - s->content_pos);
+            if (ret <= 0) {
+                break;
+            }
+            s->content_pos += ret;
+        } while (s->content_pos < s->content_len);
+        if (ret == -1) {
+            if (errno == EAGAIN || errno == EWOULDBLOCK || errno == EINTR) {
+                return;
+            } else {
+                LOG("error writing content: %s", strerror(errno));
+                goto out_bad;
+            }
+        } else if (ret == 0) {
+            LOG("connected closed unexpectedly");
+            goto out_bad;
+        } else {
+            http_status = VA_HTTP_STATUS_OK;
+            goto out;
+        }
+    default:
+        LOG("unknown state");
+        goto out_bad;
+    }
+
+out_bad:
+    http_status = VA_HTTP_STATUS_ERROR;
+out:
+    s->send_cb(http_status, s->content, s->content_len);
+    qemu_set_fd_handler(fd, va_http_read_handler, NULL, NULL);
 }
 
 /***********************************************************/
