@@ -2399,6 +2399,54 @@ fail:
     return NULL;
 }
 
+#include "virtagent-common.h"
+
+static CharDriverState *qemu_chr_open_virtagent(QemuOpts *opts)
+{
+    CharDriverState *chr;
+    int fd, ret;
+
+    /* revert to/enforce default socket chardev options for virtagent */
+    if (qemu_opt_get(opts, "path") == NULL) {
+        qemu_opt_set(opts, "path", "/tmp/virtagent-client.sock");
+    }
+    //qemu_opt_set(opts, "id", "virtagent");
+    qemu_opt_set(opts, "server", "on");
+    qemu_opt_set(opts, "wait", "off");
+    qemu_opt_set(opts, "telnet", "off");
+
+    chr = qemu_chr_open_socket(opts);
+    if (chr == NULL) {
+        goto err;
+    }
+
+    /* connect immediately to the socket we set up.
+     * TODO: perhaps we should cut out the socket for the virtagent
+     * chardev case and use a couple pipe pairs for i/o?
+     */
+    fd = unix_connect_opts(opts);
+    if (fd == -1) {
+        fprintf(stderr, "error connecting to virtagent socket: %s",
+                strerror(errno));
+    }
+    socket_set_nonblock(fd);
+
+    /* pass fd to virtagent */
+    ret = va_init(VA_CTX_HOST, fd);
+    if (ret != 0) {
+        fprintf(stderr, "error initializing virtagent");
+        goto err;
+    }
+
+    return chr;
+
+err:
+    if (chr) {
+        qemu_free(chr);
+    }
+    return NULL;
+}
+
 static const struct {
     const char *name;
     CharDriverState *(*open)(QemuOpts *opts);
@@ -2408,6 +2456,7 @@ static const struct {
     { .name = "udp",       .open = qemu_chr_open_udp },
     { .name = "msmouse",   .open = qemu_chr_open_msmouse },
     { .name = "vc",        .open = text_console_init },
+    { .name = "virtagent", .open = qemu_chr_open_virtagent },
 #ifdef _WIN32
     { .name = "file",      .open = qemu_chr_open_win_file_out },
     { .name = "pipe",      .open = qemu_chr_open_win_pipe },
