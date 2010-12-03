@@ -771,6 +771,41 @@ Example:
 EQMP
 
     {
+        .name       = "agent_viewdmesg",
+        .args_type  = "",
+        .params     = "",
+        .help       = "View guest dmesg output",
+        .user_print = do_agent_viewdmesg_print,
+        .mhandler.cmd_async = do_agent_viewdmesg,
+        .flags      = MONITOR_CMD_ASYNC,
+    },
+
+STEXI
+@item agent_viewdmesg
+@findex agent_viewdmesg
+View guest dmesg output
+ETEXI
+SQMP
+agent_viewdmesg
+--------
+
+View guest dmesg output
+
+Arguments:
+
+(none)
+
+Example:
+
+-> { "execute": "agent_viewdmesg" }
+<- { "return": {
+       "contents": "[353487.942215] usb 1-4: USB disconnect, address 9\n..."
+     }
+   }
+
+EQMP
+
+    {
         .name       = "qmp_capabilities",
         .args_type  = "",
         .params     = "",

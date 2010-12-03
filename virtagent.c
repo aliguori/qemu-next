@@ -235,3 +235,95 @@ int do_agent_viewfile(Monitor *mon, const QDict *mon_params,
     xmlrpc_DECREF(params);
     return ret;
 }
+
+void do_agent_viewdmesg_print(Monitor *mon, const QObject *data)
+{
+    QDict *qdict;
+    const char *contents = NULL;
+    int i;
+
+    qdict = qobject_to_qdict(data);
+    if (!qdict_haskey(qdict, "contents")) {
+        goto out;
+    }
+
+    contents = qdict_get_str(qdict, "contents");
+    if (contents != NULL) {
+         /* monitor_printf truncates so do it in chunks. also, file_contents
+          * may not be null-termed at proper location so explicitly calc
+          * last chunk sizes */
+        for (i = 0; i < strlen(contents); i += 1024) {
+            monitor_printf(mon, "%.1024s", contents + i);
+        }
+    }
+
+out:
+    monitor_printf(mon, "\n");
+}
+
+static void do_agent_viewdmesg_cb(const char *resp_data,
+                                  size_t resp_data_len,
+                                  MonitorCompletion *mon_cb,
+                                  void *mon_data)
+{
+    xmlrpc_value *resp = NULL;
+    char *dmesg = NULL;
+    int ret;
+    xmlrpc_env env;
+    QDict *qdict = qdict_new();
+
+    if (resp_data == NULL) {
+        LOG("error handling RPC request");
+        goto out_no_resp;
+    }
+
+    xmlrpc_env_init(&env);
+    resp = xmlrpc_parse_response(&env, resp_data, resp_data_len);
+    if (va_rpc_has_error(&env)) {
+        ret = -1;
+        goto out_no_resp;
+    }
+
+    xmlrpc_parse_value(&env, resp, "s", &dmesg);
+    if (va_rpc_has_error(&env)) {
+        ret = -1;
+        goto out;
+    }
+
+    if (dmesg != NULL) {
+        qdict_put(qdict, "contents", qstring_from_str(dmesg));
+    }
+
+out:
+    xmlrpc_DECREF(resp);
+out_no_resp:
+    if (mon_cb) {
+        mon_cb(mon_data, QOBJECT(qdict));
+    }
+}
+
+/*
+ * do_agent_viewdmesg(): View guest dmesg output
+ */
+int do_agent_viewdmesg(Monitor *mon, const QDict *mon_params,
+                      MonitorCompletion cb, void *opaque)
+{
+    xmlrpc_env env;
+    xmlrpc_value *params;
+    int ret;
+
+    xmlrpc_env_init(&env);
+
+    params = xmlrpc_build_value(&env, "()");
+    if (va_rpc_has_error(&env)) {
+        return -1;
+    }
+
+    ret = va_do_rpc(&env, "va.getdmesg", params, do_agent_viewdmesg_cb, cb,
+                    opaque);
+    if (ret) {
+        qerror_report(QERR_VA_FAILED, ret, strerror(ret));
+    }
+    xmlrpc_DECREF(params);
+    return ret;
+}
