@@ -83,6 +83,50 @@ EXIT_CLOSE_BAD:
     return result;
 }
 
+/* va_getdmesg(): return dmesg output
+ * rpc return values:
+ *   - dmesg output as a string
+ */
+static xmlrpc_value *va_getdmesg(xmlrpc_env *env,
+                              xmlrpc_value *param,
+                              void *user_data)
+{
+    char *dmesg_buf = NULL, cmd[256];
+    int ret;
+    xmlrpc_value *result = NULL;
+    FILE *pipe;
+
+    SLOG("va_getdmesg()");
+
+    dmesg_buf = qemu_mallocz(VA_DMESG_LEN + 2048);
+    sprintf(cmd, "dmesg -s %d", VA_DMESG_LEN);
+
+    pipe = popen(cmd, "r");
+    if (pipe == NULL) {
+        LOG("popen failed: %s", strerror(errno));
+        xmlrpc_faultf(env, "popen failed: %s", strerror(errno));
+        goto EXIT_NOCLOSE;
+    }
+
+    ret = fread(dmesg_buf, sizeof(char), VA_DMESG_LEN, pipe);
+    if (!ferror(pipe)) {
+        dmesg_buf[ret] = '\0';
+        TRACE("dmesg:\n%s", dmesg_buf);
+        result = xmlrpc_build_value(env, "s", dmesg_buf);
+    } else {
+        LOG("fread failed");
+        xmlrpc_faultf(env, "popen failed: %s", strerror(errno));
+    }
+
+    pclose(pipe);
+EXIT_NOCLOSE:
+    if (dmesg_buf) {
+        qemu_free(dmesg_buf);
+    }
+
+    return result;
+}
+
 typedef struct RPCFunction {
     xmlrpc_value *(*func)(xmlrpc_env *env, xmlrpc_value *param, void *unused);
     const char *func_name;
@@ -91,6 +135,8 @@ typedef struct RPCFunction {
 static RPCFunction guest_functions[] = {
     { .func = va_getfile,
       .func_name = "va.getfile" },
+    { .func = va_getdmesg,
+      .func_name = "va.getdmesg" },
     { NULL, NULL }
 };
 static RPCFunction host_functions[] = {
