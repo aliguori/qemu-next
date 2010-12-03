@@ -196,6 +196,26 @@ static xmlrpc_value *va_ping(xmlrpc_env *env,
     return result;
 }
 
+/* va_hello(): handle client startup notification
+ * rpc return values: none
+ */
+
+static xmlrpc_value *va_hello(xmlrpc_env *env,
+                                   xmlrpc_value *param,
+                                   void *user_data)
+{
+    xmlrpc_value *result;
+    int ret;
+    TRACE("called");
+    SLOG("va_hello()");
+    result = xmlrpc_build_value(env, "s", "dummy");
+    ret = va_client_init_capabilities();
+    if (ret < 0) {
+        LOG("error setting initializing client capabilities");
+    }
+    return result;
+}
+
 typedef struct RPCFunction {
     xmlrpc_value *(*func)(xmlrpc_env *env, xmlrpc_value *param, void *unused);
     const char *func_name;
@@ -215,6 +235,8 @@ static RPCFunction guest_functions[] = {
 static RPCFunction host_functions[] = {
     { .func = va_ping,
       .func_name = "va.ping" },
+    { .func = va_hello,
+      .func_name = "va.hello" },
     { NULL, NULL }
 };
 
