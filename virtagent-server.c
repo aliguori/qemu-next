@@ -216,6 +216,32 @@ static xmlrpc_value *va_hello(xmlrpc_env *env,
     return result;
 }
 
+static VAServerData *va_server_data;
+
+int va_do_server_rpc(const char *content, size_t content_len)
+{
+    xmlrpc_mem_block *resp_xml;
+    int ret;
+
+    TRACE("called");
+    resp_xml = xmlrpc_registry_process_call(&va_server_data->env,
+                                            va_server_data->registry,
+                                            NULL, content, content_len);
+    if (resp_xml == NULL) {
+        LOG("error processing RPC request");
+        ret = -EBADMSG;
+        goto out;
+    }
+
+    ret = va_server_job_add(resp_xml);
+    if (ret != 0) {
+        LOG("error adding server job: %s", strerror(ret));
+    }
+
+out:
+    return ret;
+}
+
 typedef struct RPCFunction {
     xmlrpc_value *(*func)(xmlrpc_env *env, xmlrpc_value *param, void *unused);
     const char *func_name;
@@ -259,6 +285,7 @@ int va_server_init(VAServerData *server_data, bool is_host)
     xmlrpc_env_init(&server_data->env);
     server_data->registry = xmlrpc_registry_new(&server_data->env);
     va_register_functions(&server_data->env, server_data->registry, func_list);
+    va_server_data = server_data;
 
     return 0;
 }
