@@ -94,6 +94,7 @@ static bool va_has_capability(const char *method)
 int va_client_init(VAClientData *client_data)
 {
     client_data->supported_methods = NULL;
+    client_data->enabled = true;
     va_client_data = client_data;
 
     return 0;
@@ -108,12 +109,22 @@ static int va_rpc_has_error(xmlrpc_env *env)
     return 0;
 }
 
+static bool va_is_enabled(void)
+{
+    return va_client_data && va_client_data->enabled;
+}
+
 static int va_do_rpc(xmlrpc_env *const env, const char *function,
                      xmlrpc_value *params, VAClientCallback *cb,
                      MonitorCompletion *mon_cb, void *mon_data)
 {
     xmlrpc_mem_block *req_xml;
     int ret;
+
+    if (!va_is_enabled()) {
+        LOG("virtagent not initialized");
+        ret = -ENOTCONN;
+    }
 
     if (!va_has_capability(function)) {
         LOG("guest agent does not have required capability");

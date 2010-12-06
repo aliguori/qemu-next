@@ -25,6 +25,7 @@ typedef void (VAClientCallback)(const char *resp_data, size_t resp_data_len,
                                 MonitorCompletion *mon_cb, void *mon_data);
 typedef struct VAClientData {
     QList *supported_methods;
+    bool enabled;
 } VAClientData;
 
 int va_client_init(VAClientData *client_data);
