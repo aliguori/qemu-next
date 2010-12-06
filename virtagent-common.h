@@ -63,4 +63,5 @@ enum va_job_status {
 int va_init(enum va_ctx ctx, int fd);
 int va_client_job_add(xmlrpc_mem_block *req_xml, VAClientCallback *cb,
                       MonitorCompletion *mon_cb, void *mon_data);
+int va_server_job_add(xmlrpc_mem_block *resp_xml);
 #endif /* VIRTAGENT_COMMON_H */

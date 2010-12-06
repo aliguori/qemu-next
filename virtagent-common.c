@@ -92,7 +92,6 @@ static VAState *va_state;
 static bool va_set_client_state(enum va_client_state client_state);
 static VAServerJob *va_pop_server_job(void);
 static VAClientJob *va_pop_client_job(void);
-static int va_server_job_add(xmlrpc_mem_block *resp_xml);
 static int va_kick(void);
 
 static VAClientJob *va_current_client_job(void)
@@ -700,10 +699,8 @@ int va_client_job_add(xmlrpc_mem_block *req_xml, VAClientCallback *cb,
     return 0;
 }
 
-/* create new server job and then put it on the queue in wait state
- * this should only be called from within our read handler callback
- */
-static int va_server_job_add(xmlrpc_mem_block *resp_xml)
+/* create new server job and then put it on the queue in wait state */
+int va_server_job_add(xmlrpc_mem_block *resp_xml)
 {
     VAServerJob *server_job;
     TRACE("called");
