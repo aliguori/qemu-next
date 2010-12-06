@@ -100,6 +100,12 @@ int va_client_init(VAClientData *client_data)
     return 0;
 }
 
+int va_client_close(void)
+{
+    va_client_data = NULL;
+    return 0;
+}
+
 static int va_rpc_has_error(xmlrpc_env *env)
 {
     if (env->fault_occurred) {

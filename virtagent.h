@@ -29,6 +29,7 @@ typedef struct VAClientData {
 } VAClientData;
 
 int va_client_init(VAClientData *client_data);
+int va_client_close(void);
 void do_agent_viewfile_print(Monitor *mon, const QObject *qobject);
 int do_agent_viewfile(Monitor *mon, const QDict *mon_params,
                       MonitorCompletion cb, void *opaque);
