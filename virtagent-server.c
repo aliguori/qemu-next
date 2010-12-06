@@ -218,7 +218,7 @@ static xmlrpc_value *va_hello(xmlrpc_env *env,
 
 static VAServerData *va_server_data;
 
-static bool va_server_is_enabled()
+static bool va_server_is_enabled(void)
 {
     return va_server_data && va_server_data->enabled;
 }
@@ -295,7 +295,7 @@ int va_server_init(VAServerData *server_data, bool is_host)
     xmlrpc_env_init(&server_data->env);
     server_data->registry = xmlrpc_registry_new(&server_data->env);
     va_register_functions(&server_data->env, server_data->registry, func_list);
-    server_data->enable = true;
+    server_data->enabled = true;
     va_server_data = server_data;
 
     return 0;
