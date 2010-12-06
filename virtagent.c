@@ -128,7 +128,7 @@ static int va_do_rpc(xmlrpc_env *const env, const char *function,
 
     if (!va_has_capability(function)) {
         LOG("guest agent does not have required capability");
-        ret = -1;
+        ret = -ENOSYS;
         goto out;
     }
 
