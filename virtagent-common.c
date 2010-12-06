@@ -165,27 +165,14 @@ TRACE("marker");
 
 static void va_server_read_cb(const char *content, size_t content_len)
 {
-    xmlrpc_mem_block *resp_xml;
-    VAServerData *server_data = &va_state->server_data;
     int ret;
 
-    TRACE("called");
-    resp_xml = xmlrpc_registry_process_call(&server_data->env,
-                                            server_data->registry,
-                                            NULL, content, content_len);
-    if (resp_xml == NULL) {
-        LOG("error processing RPC request");
-        goto out_bad;
-    }
-
-    ret = va_server_job_add(resp_xml);
+    /* generate response and queue it up for sending */
+    ret = va_do_server_rpc(content, content_len);
     if (ret != 0) {
-        LOG("error adding server job: %s", strerror(ret));
+        LOG("error creating handling remote rpc request: %s", strerror(ret));
     }
 
-    return;
-out_bad:
-    /* TODO: should reset state here */
     return;
 }
 
