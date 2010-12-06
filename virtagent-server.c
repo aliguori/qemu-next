@@ -289,3 +289,13 @@ int va_server_init(VAServerData *server_data, bool is_host)
 
     return 0;
 }
+
+int va_server_close(void)
+{
+    if (va_server_data != NULL) {
+        xmlrpc_registry_free(va_server_data->registry);
+        xmlrpc_env_clean(&va_server_data->env);
+        va_server_data = NULL;
+    }
+    return 0;
+}

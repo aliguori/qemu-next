@@ -28,4 +28,5 @@ typedef struct VAServerData {
 } VAServerData;
 
 int va_server_init(VAServerData *server_data, bool is_host);
+int va_server_close(void);
 int va_do_server_rpc(const char *content, size_t content_len);
