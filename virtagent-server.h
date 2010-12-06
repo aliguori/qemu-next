@@ -25,6 +25,7 @@
 typedef struct VAServerData {
     xmlrpc_env env;
     xmlrpc_registry *registry;
+    bool enabled;
 } VAServerData;
 
 int va_server_init(VAServerData *server_data, bool is_host);

@@ -218,18 +218,28 @@ static xmlrpc_value *va_hello(xmlrpc_env *env,
 
 static VAServerData *va_server_data;
 
+static bool va_server_is_enabled()
+{
+    return va_server_data && va_server_data->enabled;
+}
+
 int va_do_server_rpc(const char *content, size_t content_len)
 {
     xmlrpc_mem_block *resp_xml;
     int ret;
 
     TRACE("called");
+
+    if (!va_server_is_enabled()) {
+        ret = -EBUSY;
+        goto out;
+    }
     resp_xml = xmlrpc_registry_process_call(&va_server_data->env,
                                             va_server_data->registry,
                                             NULL, content, content_len);
     if (resp_xml == NULL) {
         LOG("error processing RPC request");
-        ret = -EBADMSG;
+        ret = -EINVAL;
         goto out;
     }
 
@@ -285,6 +295,7 @@ int va_server_init(VAServerData *server_data, bool is_host)
     xmlrpc_env_init(&server_data->env);
     server_data->registry = xmlrpc_registry_new(&server_data->env);
     va_register_functions(&server_data->env, server_data->registry, func_list);
+    server_data->enable = true;
     va_server_data = server_data;
 
     return 0;
