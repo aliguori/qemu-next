@@ -341,7 +341,10 @@ out:
     s->hdr_pos = 0;
     s->content_len = 0;
     s->content_pos = 0;
-    qemu_free(s->content);
+    if (s->content != NULL) {
+        qemu_free(s->content);
+    }
+    s->content = NULL;
     http_status = VA_HTTP_STATUS_NEW;
 }
 
