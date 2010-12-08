@@ -202,11 +202,11 @@ static const QErrorStringTable qerror_table[] = {
     },
     {
         .error_fmt = QERR_RPC_FAILED,
-        .desc      = "An RPC error has occurred",
+        .desc      = "An RPC error has occurred: %(message)",
     },
     {
         .error_fmt = QERR_VA_FAILED,
-        .desc      = "An error was reported by virtagent",
+        .desc      = "An error was reported by virtagent: %(message)",
     },
     {}
 };
