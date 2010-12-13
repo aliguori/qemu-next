@@ -15,6 +15,7 @@
 #include "virtagent-common.h"
 
 typedef struct VAClientJob {
+    char client_tag[64];
     xmlrpc_mem_block *req_data;
     char *resp_data;
     size_t resp_data_len;
@@ -26,6 +27,7 @@ typedef struct VAClientJob {
 } VAClientJob;
 
 typedef struct VAServerJob {
+    char client_tag[64];
     xmlrpc_mem_block *resp_data;
     char *req_data;
     size_t req_data_len;
@@ -43,7 +45,7 @@ typedef void (VAHTSendCallback)(enum va_http_status http_status,
                                 const char *content, size_t content_len);
 typedef void (VAHTReadCallback)(enum va_http_status http_status,
                                 const char *content, size_t content_len,
-                                bool is_request);
+                                const char client_tag[64], bool is_request);
 typedef struct VAHTState {
     enum {
         VA_SEND_START,
@@ -53,7 +55,8 @@ typedef struct VAHTState {
         VA_READ_HDR,
         VA_READ_BODY,
     } state;
-    char hdr[1024];
+    char hdr[VA_HDR_LEN_MAX];
+    char hdr_client_tag[64];
     size_t hdr_len;
     size_t hdr_pos;
     char *content;
@@ -65,6 +68,9 @@ typedef struct VAHTState {
 } VAHTState;
 
 typedef struct VAState {
+    bool is_host;
+    const char *channel_method;
+    const char *channel_path;
     int fd;
     enum va_client_state {
         VA_CLIENT_IDLE = 0,
@@ -93,11 +99,40 @@ static bool va_set_client_state(enum va_client_state client_state);
 static VAServerJob *va_pop_server_job(void);
 static VAClientJob *va_pop_client_job(void);
 static int va_kick(void);
+static int va_connect(void);
+static void va_http_read_handler(void *opaque);
+static void va_http_read_handler_reset(void);
 
 static VAClientJob *va_current_client_job(void)
 {
     TRACE("called");
     return QTAILQ_FIRST(&va_state->client_jobs);
+}
+
+static void va_cancel_jobs(void)
+{
+    VAClientJob *cj, *cj_tmp;
+    VAServerJob *sj, *sj_tmp;
+
+    TRACE("called");
+    /* reset read handler, and cancel any current sends */
+    va_http_read_handler_reset();
+    qemu_set_fd_handler(va_state->fd, va_http_read_handler, NULL, NULL);
+
+    /* cancel/remove any queued client jobs */
+    QTAILQ_FOREACH_SAFE(cj, &va_state->client_jobs, next, cj_tmp) {
+        /* issue cb with failure notification */
+        cj->cb(NULL, 0, cj->mon_cb, cj->mon_data);
+        QTAILQ_REMOVE(&va_state->client_jobs, cj, next);
+    }
+
+    /* cancel/remove any queued server jobs */
+    QTAILQ_FOREACH_SAFE(sj, &va_state->server_jobs, next, sj_tmp) {
+        QTAILQ_REMOVE(&va_state->server_jobs, sj, next);
+    }
+
+    va_state->client_state = VA_CLIENT_IDLE;
+    va_state->server_state = VA_SERVER_IDLE;
 }
 
 /***********************************************************/
@@ -151,24 +186,32 @@ static void va_server_send_cb(enum va_http_status http_status,
     va_kick();
 }
 
-static void va_client_read_cb(const char *content, size_t content_len)
+static void va_client_read_cb(const char *content, size_t content_len,
+                              const char client_tag[64])
 {
     VAClientJob *client_job;
 
+    TRACE("called");
     client_job = va_pop_client_job();
     assert(client_job != NULL);
-TRACE("marker");
+    if (strncmp(client_job->client_tag, client_tag, 64)) {
+        LOG("http client tag mismatch");
+    } else {
+        TRACE("tag matched: %s", client_tag);
+    }
     client_job->cb(content, content_len, client_job->mon_cb,
                    client_job->mon_data);
     va_kick();
 }
 
-static void va_server_read_cb(const char *content, size_t content_len)
+static void va_server_read_cb(const char *content, size_t content_len,
+                              const char client_tag[64])
 {
     int ret;
 
+    TRACE("called");
     /* generate response and queue it up for sending */
-    ret = va_do_server_rpc(content, content_len);
+    ret = va_do_server_rpc(content, content_len, client_tag);
     if (ret != 0) {
         LOG("error creating handling remote rpc request: %s", strerror(ret));
     }
@@ -177,18 +220,23 @@ static void va_server_read_cb(const char *content, size_t content_len)
 }
 
 static void va_http_read_cb(enum va_http_status http_status,
-                            const char *content, size_t content_len, bool is_request)
+                            const char *content, size_t content_len,
+                            const char client_tag[64], bool is_request)
 {
     TRACE("called");
     if (http_status != VA_HTTP_STATUS_OK) {
         LOG("error reading http %s", is_request ? "request" : "response");
-        content = NULL;
+        /* TODO: we should reset all outstanding jobs here */
+        va_cancel_jobs();
+        return;
     }
 
     if (is_request) {
-        va_server_read_cb(content, content_len);
+        TRACE("read request: %s", content);
+        va_server_read_cb(content, content_len, client_tag);
     } else {
-        va_client_read_cb(content, content_len);
+        TRACE("read response: %s", content);
+        va_client_read_cb(content, content_len, client_tag);
     }
 
     return;
@@ -213,23 +261,31 @@ static void va_http_hdr_init(VAHTState *s, int request_type) {
         s->hdr_len = 0;
         return;
     }
+    memset(s->hdr, 0, VA_HDR_LEN_MAX);
     s->hdr_len = sprintf(s->hdr,
                          "%s" EOL
                          "Content-Type: text/xml" EOL
-                         "Content-Length: %u" EOL EOL,
+                         "Content-Length: %u" EOL
+                         "X-Virtagent-Client-Tag: %s" EOL EOL,
                          preamble,
-                         (uint32_t)s->content_len);
+                         (uint32_t)s->content_len,
+                         s->hdr_client_tag[0] ? s->hdr_client_tag : "none");
 }
 
+#define VA_LINE_LEN_MAX 1024
 static void va_rpc_parse_hdr(VAHTState *s)
 {
     int i, line_pos = 0;
     bool first_line = true;
-    char line_buf[4096];
+    char line_buf[VA_LINE_LEN_MAX];
 
     TRACE("called");
 
     for (i = 0; i < VA_HDR_LEN_MAX; ++i) {
+        if (s->hdr[i] == 0) {
+            /* end of header */
+            return;
+        }
         if (s->hdr[i] != '\n') {
             /* read line */
             line_buf[line_pos++] = s->hdr[i];
@@ -242,9 +298,14 @@ static void va_rpc_parse_hdr(VAHTState *s)
             }
             if (strncmp(line_buf, "Content-Length: ", 16) == 0) {
                 s->content_len = atoi(&line_buf[16]);
-                return;
+            }
+            if (strncmp(line_buf, "X-Virtagent-Client-Tag: ", 24) == 0) {
+                memcpy(s->hdr_client_tag, &line_buf[24], MIN(line_pos-25, 64));
+                //pstrcpy(s->hdr_client_tag, 64, &line_buf[24]);
+                TRACE("\nTAG<%s>\n", s->hdr_client_tag);
             }
             line_pos = 0;
+            memset(line_buf, 0, VA_LINE_LEN_MAX);
         }
     }
 }
@@ -252,6 +313,21 @@ static void va_rpc_parse_hdr(VAHTState *s)
 static int va_end_of_header(char *buf, int end_pos)
 {
     return !strncmp(buf+(end_pos-2), "\n\r\n", 3);
+}
+
+static void va_http_read_handler_reset(void)
+{
+    VAHTState *s = &va_state->read_state;
+    TRACE("called");
+    s->state = VA_READ_START;
+    s->hdr_pos = 0;
+    s->content_len = 0;
+    s->content_pos = 0;
+    strcpy(s->hdr_client_tag, "none");
+    if (s->content != NULL) {
+        qemu_free(s->content);
+    }
+    s->content = NULL;
 }
 
 /***********************************************************/
@@ -268,6 +344,11 @@ static void va_http_read_handler(void *opaque)
 
     switch (s->state) {
     case VA_READ_START:
+        /* TODO: we may have gotten here due to a http error, indicating
+         * a potential unclean state where we are not 'aligned' on http
+         * boundaries. we should readline till we hit the next http preamble
+         * rather than assume we're at the start of an http header
+         */
         s->state = VA_READ_HDR;
     case VA_READ_HDR:
         while((ret = read(fd, s->hdr + s->hdr_pos, 1)) > 0
@@ -286,7 +367,7 @@ static void va_http_read_handler(void *opaque)
             }
         } else if (ret == 0) {
             LOG("connected closed unexpectedly");
-            goto out_bad;
+            goto out_reconnect;
         } else if (s->hdr_pos >= VA_HDR_LEN_MAX) {
             LOG("http header too long");
             goto out_bad;
@@ -302,6 +383,7 @@ static void va_http_read_handler(void *opaque)
             }
             s->content = qemu_mallocz(s->content_len);
             s->state = VA_READ_BODY;
+            TRACE("read http header:\n<<<%s>>>\n", s->hdr);
         }
     case VA_READ_BODY:
         while(s->content_pos < s->content_len) {
@@ -319,11 +401,12 @@ static void va_http_read_handler(void *opaque)
                 LOG("connection closed unexpectedly:"
                     " read %u bytes, expected %u bytes",
                     (unsigned int)s->content_pos, (unsigned int)s->content_len);
-                goto out_bad;
+                goto out_reconnect;
             }
             s->content_pos += ret;
         }
 
+        TRACE("read http content:\n<<<%s>>>\n", s->content);
         http_status = VA_HTTP_STATUS_OK;
         goto out;
     default:
@@ -331,20 +414,28 @@ static void va_http_read_handler(void *opaque)
         goto out_bad;
     }
 
+out_reconnect:
+    /* we should only ever get a read = 0 if we're using virtio and the host
+     * closed it's connection. this is a corner case that will cause spinning
+     * until we close and reconnect, so handle this here.
+     */
+    /*
+    if (strcmp(va_state->channel_method, "virtio-serial") == 0) {
+        qemu_set_fd_handler(va_state->fd, NULL, NULL, NULL);
+        close(va_state->fd);
+        va_connect();
+        qemu_set_fd_handler(va_state->fd, va_http_read_handler, NULL, NULL);
+        return;
+    }
+    */
 out_bad:
     http_status = VA_HTTP_STATUS_ERROR;
 out:
     /* handle the response or request we just read */
-    s->read_cb(http_status, s->content, s->content_len, s->is_request);
+    s->read_cb(http_status, s->content, s->content_len, s->hdr_client_tag,
+               s->is_request);
     /* restart read handler */
-    s->state = VA_READ_START;
-    s->hdr_pos = 0;
-    s->content_len = 0;
-    s->content_pos = 0;
-    if (s->content != NULL) {
-        qemu_free(s->content);
-    }
-    s->content = NULL;
+    va_http_read_handler_reset();
     http_status = VA_HTTP_STATUS_NEW;
 }
 
@@ -355,7 +446,7 @@ static void va_http_send_handler(void *opaque)
     int fd = va_state->fd;
     int ret;
 
-    TRACE("called, fd: %d", fd);
+    TRACE("called");
 
     switch (s->state) {
     case VA_SEND_START:
@@ -380,6 +471,7 @@ static void va_http_send_handler(void *opaque)
             goto out_bad;
         } else {
             s->state = VA_SEND_BODY;
+            TRACE("sent http header:\n<<<%s>>>", s->hdr);
         }
     case VA_SEND_BODY:
         do {
@@ -402,6 +494,7 @@ static void va_http_send_handler(void *opaque)
             goto out_bad;
         } else {
             http_status = VA_HTTP_STATUS_OK;
+            TRACE("set http content:\n<<<%s>>>", s->content);
             goto out;
         }
     default:
@@ -424,17 +517,18 @@ static int va_send_server_response(VAServerJob *server_job)
     VAHTState http_state;
     TRACE("called");
     http_state.content = XMLRPC_MEMBLOCK_CONTENTS(char, server_job->resp_data);
-    TRACE("server response: %s", http_state.content);
+    TRACE("sending response: %s", http_state.content);
     http_state.content_len = XMLRPC_MEMBLOCK_SIZE(char,
                                                   server_job->resp_data);
     http_state.content_pos = 0;
     http_state.hdr_pos = 0;
+    pstrcpy(http_state.hdr_client_tag, 64, server_job->client_tag);
     http_state.state = VA_SEND_START;
     http_state.send_cb = va_server_send_cb;
     va_http_hdr_init(&http_state, VA_HTTP_RESPONSE);
     va_state->send_state = http_state;
     qemu_set_fd_handler(va_state->fd, va_http_read_handler,
-                      va_http_send_handler, NULL);
+                        va_http_send_handler, NULL);
     return 0;
 }
 
@@ -443,17 +537,18 @@ static int va_send_client_request(VAClientJob *client_job)
     VAHTState http_state;
     TRACE("called");
     http_state.content = XMLRPC_MEMBLOCK_CONTENTS(char, client_job->req_data);
-    TRACE("client request: %s", http_state.content);
+    TRACE("sending request: %s", http_state.content);
     http_state.content_len = XMLRPC_MEMBLOCK_SIZE(char,
                                                   client_job->req_data);
     http_state.content_pos = 0;
     http_state.hdr_pos = 0;
     http_state.state = VA_SEND_START;
     http_state.send_cb = va_client_send_cb;
+    pstrcpy(http_state.hdr_client_tag, 64, client_job->client_tag);
     va_http_hdr_init(&http_state, VA_HTTP_REQUEST);
     va_state->send_state = http_state;
-    qemu_set_fd_handler(va_state->fd, va_http_send_handler,
-                      va_http_send_handler, NULL);
+    qemu_set_fd_handler(va_state->fd, va_http_read_handler,
+                        va_http_send_handler, NULL);
     return 0;
 }
 
@@ -646,15 +741,19 @@ static VAClientJob *va_client_job_new(xmlrpc_mem_block *req_data,
     cj->cb = cb;
     cj->mon_cb = mon_cb;
     cj->mon_data = mon_data;
+    /* TODO: use uuid's, or something akin */
+    strcpy(cj->client_tag, "testtag");
 
     return cj;
 }
 
-static VAServerJob *va_server_job_new(xmlrpc_mem_block *resp_data)
+static VAServerJob *va_server_job_new(xmlrpc_mem_block *resp_data,
+                                      const char client_tag[64])
 {
     VAServerJob *sj = qemu_mallocz(sizeof(VAServerJob));
     TRACE("called");
     sj->resp_data = resp_data;
+    pstrcpy(sj->client_tag, 64, client_tag);
 
     return sj;
 }
@@ -690,23 +789,81 @@ int va_client_job_add(xmlrpc_mem_block *req_xml, VAClientCallback *cb,
 }
 
 /* create new server job and then put it on the queue in wait state */
-int va_server_job_add(xmlrpc_mem_block *resp_xml)
+int va_server_job_add(xmlrpc_mem_block *resp_xml, const char client_tag[64])
 {
     VAServerJob *server_job;
     TRACE("called");
 
-    server_job = va_server_job_new(resp_xml);
+    server_job = va_server_job_new(resp_xml, client_tag);
     assert(server_job != NULL);
     va_push_server_job(server_job);
     return 0;
 }
 
+static int va_connect(void)
+{
+    QemuOpts *opts;
+    int fd, ret = 0;
 
-int va_init(enum va_ctx ctx, int fd)
+    TRACE("called");
+    if (va_state->channel_method == NULL) {
+        LOG("no channel method specified");
+        return -EINVAL;
+    }
+    if (va_state->channel_path == NULL) {
+        LOG("no channel path specified");
+        return -EINVAL;
+    }
+
+    if (strcmp(va_state->channel_method, "unix-connect") == 0) {
+        TRACE("connecting to %s", va_state->channel_path);
+        opts = qemu_opts_create(qemu_find_opts("chardev"), NULL, 0);
+        qemu_opt_set(opts, "path", va_state->channel_path);
+        fd = unix_connect_opts(opts);
+        if (fd == -1) {
+            qemu_opts_del(opts);
+            LOG("error opening channel: %s", strerror(errno));
+            return -errno;
+        }
+        qemu_opts_del(opts);
+        socket_set_nonblock(fd);
+    } else if (strcmp(va_state->channel_method, "virtio-serial") == 0) {
+        if (va_state->is_host) {
+            LOG("specified channel method not available for host");
+            return -EINVAL;
+        }
+        if (va_state->channel_path == NULL) {
+            va_state->channel_path = VA_GUEST_PATH_VIRTIO_DEFAULT;
+        }
+        TRACE("opening %s", va_state->channel_path);
+        fd = qemu_open(va_state->channel_path, O_RDWR);
+        if (fd == -1) {
+            LOG("error opening channel: %s", strerror(errno));
+            return -errno;
+        }
+        ret = fcntl(fd, F_GETFL);
+        if (ret < 0) {
+            LOG("error getting channel flags: %s", strerror(errno));
+            return -errno;
+        }
+        ret = fcntl(fd, F_SETFL, ret | O_ASYNC);
+        if (ret < 0) {
+            LOG("error setting channel flags: %s", strerror(errno));
+            return -errno;
+        }
+    } else {
+        LOG("invalid channel method");
+        return -EINVAL;
+    }
+
+    va_state->fd = fd;
+    return 0;
+}
+
+int va_init(VAContext ctx)
 {
     VAState *s;
     int ret;
-    bool is_host = (ctx == VA_CTX_HOST) ? true : false;
 
     TRACE("called");
     if (va_state) {
@@ -716,7 +873,7 @@ int va_init(enum va_ctx ctx, int fd)
 
     s = qemu_mallocz(sizeof(VAState));
 
-    ret = va_server_init(&s->server_data, is_host);
+    ret = va_server_init(&s->server_data, ctx.is_host);
     if (ret) {
         LOG("error initializing virtagent server");
         goto out_bad;
@@ -733,8 +890,17 @@ int va_init(enum va_ctx ctx, int fd)
     QTAILQ_INIT(&s->server_jobs);
     s->read_state.state = VA_READ_START;
     s->read_state.read_cb = va_http_read_cb;
-    s->fd = fd;
+    s->channel_method = ctx.channel_method;
+    s->channel_path = ctx.channel_path;
+    s->is_host = ctx.is_host;
     va_state = s;
+    
+    /* connect to our end of the channel */
+    ret = va_connect();
+    if (ret) {
+        LOG("error connecting to channel");
+        goto out_bad;
+    }
 
     /* start listening for requests/responses */
     qemu_set_fd_handler(va_state->fd, va_http_read_handler, NULL, NULL);

@@ -34,8 +34,6 @@
 
 #include <getopt.h>
 #include <err.h>
-#include "qemu-option.h"
-#include "qemu_socket.h"
 #include "qemu-ioh.h"
 #include "virtagent-common.h"
 
@@ -57,78 +55,6 @@ static bool verbose_enabled;
     } \
     warnx(msg, ## __VA_ARGS__); \
 } while(0)
-
-QemuOptsList va_opts = {
-    .name = "vaargs",
-    .head = QTAILQ_HEAD_INITIALIZER(va_opts.head),
-    .desc = {
-        {
-            .name = "channel_method",
-            .type = QEMU_OPT_STRING,
-        },{
-            .name = "path",
-            .type = QEMU_OPT_STRING,
-        },{
-            .name = "host",
-            .type = QEMU_OPT_STRING,
-        },{
-            .name = "port",
-            .type = QEMU_OPT_STRING,
-        },{
-            .name = "ipv4",
-            .type = QEMU_OPT_BOOL,
-        },{
-            .name = "ipv6",
-            .type = QEMU_OPT_BOOL,
-        },
-        { /* end of list */ }
-    },
-};
-
-/* parse channel options */
-static int va_parse(QemuOpts *opts, const char *str)
-{
-    char channel_method[32];
-    char *addr;
-    char port[33];
-    int pos, ret;
-
-    /* parse connection type */
-    ret = sscanf(str,"%32[^:]:%n",channel_method,&pos);
-    if (ret != 1) {
-        LOG("error parsing channel method");
-        return -EINVAL;
-    }
-    qemu_opt_set(opts, "channel_method", channel_method);
-    str += pos;
-    pos = 0;
-
-    /* parse path/addr and port */
-    if (str[0] == '[') {
-        /* ipv6 formatted */
-        ret = sscanf(str,"[%a[^]:]]:%32[^:]%n",&addr,port,&pos);
-        qemu_opt_set(opts, "ipv6", "on");
-    } else {
-        ret = sscanf(str,"%a[^:]:%32[^:]%n",&addr,port,&pos);
-        qemu_opt_set(opts, "ipv4", "on");
-    }
-
-    if (ret != 2) {
-        LOG("error parsing path/addr/port");
-        return -EINVAL;
-    } else if (port[0] == '-') {
-        /* no port given, assume unix path */
-        qemu_opt_set(opts, "path", addr);
-    } else {
-        qemu_opt_set(opts, "host", addr);
-        qemu_opt_set(opts, "port", port);
-        qemu_free(addr);
-    }
-    str += pos;
-    pos = 0;
-
-    return 0;
-}
 
 /* mirror qemu I/O loop for standalone daemon */
 static void main_loop_wait(int nonblocking)
@@ -159,144 +85,80 @@ static void main_loop_wait(int nonblocking)
     }
 }
 
-#define VP_ARG_LEN 256
-
-typedef struct VAData {
-    QemuOpts *opts;
-    void *opaque;
-    QTAILQ_ENTRY(VAData) next;
-} VAData;
-
-static QTAILQ_HEAD(, VAData) channels;
-
 static void usage(const char *cmd)
 {
     printf(
 "Usage: %s -c <channel_opts>\n"
-"QEMU virtagent guest agent\n"
+"QEMU virtagent guest agent %s\n"
 "\n"
-"  -c, --channel     channel options of the form:\n"
-"                    <method>:<addr>:<port>[:channel_id]\n"
+"  -c, --channel     channel method: one of unix-connect, virtio-serial, or\n"
+"                    isa-serial\n"
+"  -p, --path        channel path\n"
 "  -v, --verbose     display extra debugging information\n"
 "  -h, --help        display this help and exit\n"
 "\n"
-"  channels are used to establish a data connection between 2 end-points in\n"
-"  the host or the guest (connection method specified by <method>).\n"
-"  The positional parameters for channels are:\n"
-"\n"
-"  <method>:     one of unix-connect, unix-listen, tcp-connect, tcp-listen,\n"
-"                virtserial-open\n"
-"  <addr>:       path of unix socket or virtserial port, or IP of host, to\n"
-"                connect/bind to\n"
-"  <port>:       port to bind/connect to, or '-' if addr is a path\n"
-"\n"
 "Report bugs to <mdroth@linux.vnet.ibm.com>\n"
-    , cmd);
+    , cmd, VA_VERSION);
 }
 
-static int init_channels(void) {
-    VAData *channel_data;
-    const char *channel_method, *path;
-    int fd, ret;
-    bool listen;
+static int init_virtagent(const char *method, const char *path) {
+    VAContext ctx;
+    int ret;
 
-    if (QTAILQ_EMPTY(&channels)) {
-        warnx("no channel specified");
-        return -EINVAL;
+    INFO("initializing agent...");
+
+    if (method == NULL) {
+        /* try virtio-serial as our default */
+        method = "virtio-serial";
     }
 
-    channel_data = QTAILQ_FIRST(&channels);
-
-    /* TODO: add this support, optional idx param for -i/-o/-c
-     * args should suffice
-     */
-    if (QTAILQ_NEXT(channel_data, next) != NULL) {
-        warnx("multiple channels not currently supported, defaulting to first");
-    }
-
-    INFO("initializing channel...");
-    if (verbose_enabled) {
-        qemu_opts_print(channel_data->opts, NULL);
-    }
-
-    channel_method = qemu_opt_get(channel_data->opts, "channel_method");
-
-    if (strcmp(channel_method, "tcp-listen") == 0) {
-        fd = inet_listen_opts(channel_data->opts, 0);
-        listen = true;
-    } else if (strcmp(channel_method, "tcp-connect") == 0) {
-        fd = inet_connect_opts(channel_data->opts);
-        listen = false;
-    } else if (strcmp(channel_method, "unix-listen") == 0) {
-        fd = unix_listen_opts(channel_data->opts);
-        listen = true;
-    } else if (strcmp(channel_method, "unix-connect") == 0) {
-        fd = unix_connect_opts(channel_data->opts);
-        listen = false;
-    } else if (strcmp(channel_method, "virtio-serial") == 0) {
-        path = qemu_opt_get(channel_data->opts, "path");
-        fd = qemu_open(path, O_RDWR);
-        if (fd == -1) {
-            warn("error opening channel");
-            return errno;
+    if (path == NULL) {
+        if (strcmp(method, "virtio-serial")) {
+            errx(EXIT_FAILURE, "must specify a path for this channel");
         }
-        ret = fcntl(fd, F_GETFL);
-        ret = fcntl(fd, F_SETFL, ret | O_ASYNC);
-        if (ret < 0) {
-            warn("error setting flags for fd");
-            return errno;
-        }
-        listen = false;
-    } else {
-        warnx("invalid channel type: %s", channel_method);
-        return -EINVAL;
-    }
-
-    if (fd == -1) {
-        warn("error opening connection");
-        return errno;
+        /* try the default name for the virtio-serial port */
+        path = VA_GUEST_PATH_VIRTIO_DEFAULT;
     }
 
     /* initialize virtagent */
-    ret = va_init(VA_CTX_GUEST, fd);
+    ctx.is_host = false;
+    ctx.channel_method = method;
+    ctx.channel_path = path;
+    ret = va_init(ctx);
     if (ret) {
         errx(EXIT_FAILURE, "unable to initialize virtagent");
     }
-
 
     return 0;
 }
 
 int main(int argc, char **argv)
 {
-    const char *sopt = "hVvc:";
+    const char *sopt = "hVvc:p:", *channel_method = NULL, *channel_path = NULL;
     struct option lopt[] = {
         { "help", 0, NULL, 'h' },
         { "version", 0, NULL, 'V' },
         { "verbose", 0, NULL, 'v' },
         { "channel", 0, NULL, 'c' },
+        { "path", 0, NULL, 'p' },
         { NULL, 0, NULL, 0 }
     };
     int opt_ind = 0, ch, ret;
-    QTAILQ_INIT(&channels);
 
     while ((ch = getopt_long(argc, argv, sopt, lopt, &opt_ind)) != -1) {
-        QemuOpts *opts;
-        VAData *data;
         switch (ch) {
         case 'c':
-            opts = qemu_opts_create(&va_opts, NULL, 0);
-            ret = va_parse(opts, optarg);
-            if (ret) {
-                errx(EXIT_FAILURE, "error parsing arg: %s", optarg);
-            }
-            data = qemu_mallocz(sizeof(VAData));
-            data->opts = opts;
-            QTAILQ_INSERT_TAIL(&channels, data, next);
+            channel_method = optarg;
+            break;
+        case 'p':
+            channel_path = optarg;
             break;
         case 'v':
             verbose_enabled = 1;
             break;
+        case 'V':
+            printf("QEMU Virtagent %s\n", VA_VERSION);
+            return 0;
         case 'h':
             usage(argv[0]);
             return 0;
@@ -306,9 +168,8 @@ int main(int argc, char **argv)
         }
     }
 
-    /* initialize communication channel and pass it to virtagent */
-    /* XXX: we only support one channel now so this should be simplified */
-    ret = init_channels();
+    /* initialize virtagent */
+    ret = init_virtagent(channel_method, channel_path);
     if (ret) {
         errx(EXIT_FAILURE, "error initializing communication channel");
     }

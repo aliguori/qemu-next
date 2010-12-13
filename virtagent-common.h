@@ -40,7 +40,7 @@
             __FILE__, __FUNCTION__, ## __VA_ARGS__); \
 } while(0)
 
-#define VERSION "1.0"
+#define VA_VERSION "1.0"
 #define EOL "\r\n"
 
 #define VA_HDR_LEN_MAX 4096 /* http header limit */
@@ -48,10 +48,11 @@
 #define VA_CLIENT_JOBS_MAX 5 /* max client rpcs we can queue */
 #define VA_SERVER_JOBS_MAX 1 /* max server rpcs we can queue */
 
-enum va_ctx {
-    VA_CTX_HOST,
-    VA_CTX_GUEST,
-};
+typedef struct VAContext {
+    bool is_host;
+    const char *channel_method;
+    const char *channel_path;
+} VAContext;
 
 enum va_job_status {
     VA_JOB_STATUS_PENDING = 0,
@@ -60,8 +61,8 @@ enum va_job_status {
     VA_JOB_STATUS_CANCELLED,
 };
 
-int va_init(enum va_ctx ctx, int fd);
+int va_init(VAContext ctx);
 int va_client_job_add(xmlrpc_mem_block *req_xml, VAClientCallback *cb,
                       MonitorCompletion *mon_cb, void *mon_data);
-int va_server_job_add(xmlrpc_mem_block *resp_xml);
+int va_server_job_add(xmlrpc_mem_block *resp_xml, const char client_tag[64]);
 #endif /* VIRTAGENT_COMMON_H */

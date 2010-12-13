@@ -2468,13 +2468,16 @@ fail:
 static CharDriverState *qemu_chr_open_virtagent(QemuOpts *opts)
 {
     CharDriverState *chr;
-    int fd, ret;
+    const char *path;
+    VAContext ctx;
+    int ret;
 
     /* revert to/enforce default socket chardev options for virtagent */
-    if (qemu_opt_get(opts, "path") == NULL) {
-        qemu_opt_set(opts, "path", "/tmp/virtagent-client.sock");
+    path = qemu_opt_get(opts, "path");
+    if (path == NULL) {
+        path = VA_HOST_PATH_DEFAULT;
     }
-    //qemu_opt_set(opts, "id", "virtagent");
+    qemu_opt_set(opts, "path", path);
     qemu_opt_set(opts, "server", "on");
     qemu_opt_set(opts, "wait", "off");
     qemu_opt_set(opts, "telnet", "off");
@@ -2484,26 +2487,18 @@ static CharDriverState *qemu_chr_open_virtagent(QemuOpts *opts)
         goto err;
     }
 
-    /* connect immediately to the socket we set up.
-     * TODO: perhaps we should cut out the socket for the virtagent
-     * chardev case and use a couple pipe pairs for i/o?
-     */
-    fd = unix_connect_opts(opts);
-    if (fd == -1) {
-        fprintf(stderr, "error connecting to virtagent socket: %s",
-                strerror(errno));
-    }
-    socket_set_nonblock(fd);
-
-    /* pass fd to virtagent */
-    ret = va_init(VA_CTX_HOST, fd);
+    /* initialize virtagent using the socket we just set up */
+    ctx.channel_method = "unix-connect";
+    ctx.channel_path = path;
+    ctx.is_host = true;
+    ret = va_init(ctx);
+    ret = 0;
     if (ret != 0) {
         fprintf(stderr, "error initializing virtagent");
         goto err;
     }
 
     return chr;
-
 err:
     if (chr) {
         qemu_free(chr);

@@ -17,8 +17,8 @@
 
 #include "monitor.h"
 
-#define GUEST_AGENT_PATH_CLIENT "/tmp/virtagent-guest-client.sock"
-#define HOST_AGENT_PATH_CLIENT "/tmp/virtagent-host-client.sock"
+#define VA_GUEST_PATH_VIRTIO_DEFAULT "/dev/virtio-ports/org.qemu.virtagent"
+#define VA_HOST_PATH_DEFAULT "/tmp/virtagent.sock"
 #define VA_MAX_CHUNK_SIZE 4096 /* max bytes at a time for get/send file */
 
 typedef void (VAClientCallback)(const char *resp_data, size_t resp_data_len,

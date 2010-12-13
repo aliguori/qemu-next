@@ -206,7 +206,8 @@ static void do_agent_viewfile_cb(const char *resp_data,
         goto out_no_resp;
     }
 
-    xmlrpc_parse_value(&env, resp, "6", &file_contents, &file_size);
+    xmlrpc_parse_value(&env, resp, "{s:6,*}", "contents",
+                       &file_contents, &file_size);
     if (va_rpc_has_error(&env)) {
         ret = -1;
         goto out;
@@ -239,7 +240,9 @@ int do_agent_viewfile(Monitor *mon, const QDict *mon_params,
 
     filepath = qdict_get_str(mon_params, "filepath");
     xmlrpc_env_init(&env);
-    params = xmlrpc_build_value(&env, "(s)", filepath);
+
+    xmlrpc_value *meta = xmlrpc_build_value(&env, "{s:s}", "tag", "this is a tag");
+    params = xmlrpc_build_value(&env, "({s:s,s:V})", "path", filepath, "meta", meta);
     if (va_rpc_has_error(&env)) {
         return -1;
     }
@@ -301,7 +304,7 @@ static void do_agent_viewdmesg_cb(const char *resp_data,
         goto out_no_resp;
     }
 
-    xmlrpc_parse_value(&env, resp, "s", &dmesg);
+    xmlrpc_parse_value(&env, resp, "{s:s,*}", "contents", &dmesg);
     if (va_rpc_has_error(&env)) {
         ret = -1;
         goto out;
@@ -331,7 +334,8 @@ int do_agent_viewdmesg(Monitor *mon, const QDict *mon_params,
 
     xmlrpc_env_init(&env);
 
-    params = xmlrpc_build_value(&env, "()");
+    xmlrpc_value *meta = xmlrpc_build_value(&env, "{s:s}", "tag", "this is another tag");
+    params = xmlrpc_build_value(&env, "({s:V})", "meta", meta);
     if (va_rpc_has_error(&env)) {
         return -1;
     }
@@ -390,7 +394,8 @@ int do_agent_shutdown(Monitor *mon, const QDict *mon_params,
 
     xmlrpc_env_init(&env);
     shutdown_type = qdict_get_str(mon_params, "shutdown_type");
-    params = xmlrpc_build_value(&env, "(s)", shutdown_type);
+    xmlrpc_value *meta = xmlrpc_build_value(&env, "{s:s}", "tag", "this is another tag");
+    params = xmlrpc_build_value(&env, "({s:s,s:V})", "type", shutdown_type, "meta", meta);
     if (va_rpc_has_error(&env)) {
         return -1;
     }
@@ -465,7 +470,8 @@ int do_agent_ping(Monitor *mon, const QDict *mon_params,
 
     xmlrpc_env_init(&env);
 
-    params = xmlrpc_build_value(&env, "(n)");
+    xmlrpc_value *meta = xmlrpc_build_value(&env, "{s:s}", "tag", "this is another tag");
+    params = xmlrpc_build_value(&env, "({s:V})", "meta", meta);
     if (va_rpc_has_error(&env)) {
         return -1;
     }
