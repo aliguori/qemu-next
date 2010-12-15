@@ -41,11 +41,18 @@ enum va_http_status {
     VA_HTTP_STATUS_ERROR,
 };
 
+enum va_http_type {
+    VA_HTTP_TYPE_UNKNOWN = 1,
+    VA_HTTP_TYPE_REQUEST,
+    VA_HTTP_TYPE_RESPONSE,
+} va_http_type;
+
 typedef void (VAHTSendCallback)(enum va_http_status http_status,
                                 const char *content, size_t content_len);
 typedef void (VAHTReadCallback)(enum va_http_status http_status,
                                 const char *content, size_t content_len,
-                                const char client_tag[64], bool is_request);
+                                const char client_tag[64],
+                                enum va_http_type http_type);
 typedef struct VAHTState {
     enum {
         VA_SEND_START,
@@ -64,7 +71,7 @@ typedef struct VAHTState {
     size_t content_pos;
     VAHTSendCallback *send_cb;
     VAHTReadCallback *read_cb;
-    bool is_request;
+    enum va_http_type http_type;
 } VAHTState;
 
 typedef struct VAState {
@@ -221,22 +228,25 @@ static void va_server_read_cb(const char *content, size_t content_len,
 
 static void va_http_read_cb(enum va_http_status http_status,
                             const char *content, size_t content_len,
-                            const char client_tag[64], bool is_request)
+                            const char client_tag[64],
+                            enum va_http_type http_type)
 {
     TRACE("called");
     if (http_status != VA_HTTP_STATUS_OK) {
-        LOG("error reading http %s", is_request ? "request" : "response");
-        /* TODO: we should reset all outstanding jobs here */
+        LOG("error reading http stream (type %d)", http_type);
         va_cancel_jobs();
         return;
     }
 
-    if (is_request) {
+    if (http_type == VA_HTTP_TYPE_REQUEST) {
         TRACE("read request: %s", content);
         va_server_read_cb(content, content_len, client_tag);
-    } else {
+    } else if (http_type == VA_HTTP_TYPE_RESPONSE) {
         TRACE("read response: %s", content);
         va_client_read_cb(content, content_len, client_tag);
+    } else {
+        LOG("unknown http response/request type");
+        va_cancel_jobs();
     }
 
     return;
@@ -245,17 +255,14 @@ static void va_http_read_cb(enum va_http_status http_status,
 /***********************************************************/
 /* utility functions for handling http calls */
 
-#define VA_HTTP_REQUEST 1
-#define VA_HTTP_RESPONSE 2
-
-static void va_http_hdr_init(VAHTState *s, int request_type) {
+static void va_http_hdr_init(VAHTState *s, enum va_http_type http_type) {
     const char *preamble;
 
     TRACE("called");
     /* essentially ignored in the context of virtagent, but might as well */
-    if (request_type == VA_HTTP_REQUEST) {
+    if (http_type == VA_HTTP_TYPE_REQUEST) {
         preamble = "POST /RPC2 HTTP/1.1";
-    } else if (request_type == VA_HTTP_RESPONSE) {
+    } else if (http_type == VA_HTTP_TYPE_RESPONSE) {
         preamble = "HTTP/1.1 200 OK";
     } else {
         s->hdr_len = 0;
@@ -292,8 +299,13 @@ static void va_rpc_parse_hdr(VAHTState *s)
         } else {
             /* process line */
             if (first_line) {
-                s->is_request = (strncmp(line_buf, "POST", 4) == 0) ?
-                                true : false;
+                if (strncmp(line_buf, "POST", 4)) {
+                    s->http_type = VA_HTTP_TYPE_REQUEST;
+                } else if (strncmp(line_buf, "HTTP", 4)) {
+                    s->http_type = VA_HTTP_TYPE_RESPONSE;
+                } else {
+                    s->http_type = VA_HTTP_TYPE_UNKNOWN;
+                }
                 first_line = false;
             }
             if (strncmp(line_buf, "Content-Length: ", 16) == 0) {
@@ -339,6 +351,7 @@ static void va_http_read_handler_reset(void)
     VAHTState *s = &va_state->read_state;
     TRACE("called");
     s->state = VA_READ_START;
+    s->http_type = VA_HTTP_TYPE_UNKNOWN;
     s->hdr_pos = 0;
     s->content_len = 0;
     s->content_pos = 0;
@@ -487,7 +500,7 @@ out_bad:
 out:
     /* handle the response or request we just read */
     s->read_cb(http_status, s->content, s->content_len, s->hdr_client_tag,
-               s->is_request);
+               s->http_type);
     /* restart read handler */
     va_http_read_handler_reset();
     http_status = VA_HTTP_STATUS_NEW;
@@ -579,7 +592,7 @@ static int va_send_server_response(VAServerJob *server_job)
     pstrcpy(http_state.hdr_client_tag, 64, server_job->client_tag);
     http_state.state = VA_SEND_START;
     http_state.send_cb = va_server_send_cb;
-    va_http_hdr_init(&http_state, VA_HTTP_RESPONSE);
+    va_http_hdr_init(&http_state, VA_HTTP_TYPE_RESPONSE);
     va_state->send_state = http_state;
     qemu_set_fd_handler(va_state->fd, va_http_read_handler,
                         va_http_send_handler, NULL);
@@ -599,7 +612,7 @@ static int va_send_client_request(VAClientJob *client_job)
     http_state.state = VA_SEND_START;
     http_state.send_cb = va_client_send_cb;
     pstrcpy(http_state.hdr_client_tag, 64, client_job->client_tag);
-    va_http_hdr_init(&http_state, VA_HTTP_REQUEST);
+    va_http_hdr_init(&http_state, VA_HTTP_TYPE_REQUEST);
     va_state->send_state = http_state;
     qemu_set_fd_handler(va_state->fd, va_http_read_handler,
                         va_http_send_handler, NULL);
