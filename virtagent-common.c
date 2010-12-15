@@ -379,6 +379,11 @@ static void va_http_read_handler(void *opaque)
 
     TRACE("called with opaque: %p", opaque);
 
+    /* until timeouts are implemented, make sure we kick so any deferred
+     * jobs get a chance to run
+     */
+    va_kick();
+
     switch (s->state) {
     case VA_READ_START:
         /* we may have gotten here due to a http error, indicating
