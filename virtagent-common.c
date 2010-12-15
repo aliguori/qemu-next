@@ -704,6 +704,10 @@ static int va_kick(void)
             assert(va_set_server_state(VA_SERVER_WAIT));
             goto out;
         }
+        if (va_state->server_state == VA_SERVER_SEND) {
+            TRACE("current server job already sending");
+            goto out;
+        }
         TRACE("send server response");
         server_job = QTAILQ_FIRST(&va_state->server_jobs);
 
