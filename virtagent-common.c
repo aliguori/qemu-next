@@ -132,11 +132,13 @@ static void va_cancel_jobs(void)
         cj->cb(NULL, 0, cj->mon_cb, cj->mon_data);
         QTAILQ_REMOVE(&va_state->client_jobs, cj, next);
     }
+    va_state->client_job_count = 0;
 
     /* cancel/remove any queued server jobs */
     QTAILQ_FOREACH_SAFE(sj, &va_state->server_jobs, next, sj_tmp) {
         QTAILQ_REMOVE(&va_state->server_jobs, sj, next);
     }
+    va_state->server_job_count = 0;
 
     va_state->client_state = VA_CLIENT_IDLE;
     va_state->server_state = VA_SERVER_IDLE;
