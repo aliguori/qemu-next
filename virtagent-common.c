@@ -310,6 +310,25 @@ static void va_rpc_parse_hdr(VAHTState *s)
     }
 }
 
+static int va_start_of_header(char buf[8], int cur_pos)
+{
+    if (buf[(cur_pos - 4) % 8] == 'H' &&
+        buf[(cur_pos - 3) % 8] == 'T' &&
+        buf[(cur_pos - 2) % 8] == 'T' &&
+        buf[(cur_pos - 1) % 8] == 'P') {
+        return 4;
+    }
+
+    if (buf[(cur_pos - 4) % 8] == 'P' &&
+        buf[(cur_pos - 3) % 8] == 'O' &&
+        buf[(cur_pos - 2) % 8] == 'S' &&
+        buf[(cur_pos - 1) % 8] == 'T') {
+        return 4;
+    }
+
+    return -1;
+}
+
 static int va_end_of_header(char *buf, int end_pos)
 {
     return !strncmp(buf+(end_pos-2), "\n\r\n", 3);
@@ -338,18 +357,53 @@ static void va_http_read_handler(void *opaque)
     VAHTState *s = &va_state->read_state;
     enum va_http_status http_status;
     int fd = va_state->fd;
-    int ret;
+    int ret, tmp_len, i;
+    static char tmp[8];
+    static int tmp_pos = 0;
+    static int bytes_skipped = 0;
 
     TRACE("called with opaque: %p", opaque);
 
     switch (s->state) {
     case VA_READ_START:
-        /* TODO: we may have gotten here due to a http error, indicating
+        /* we may have gotten here due to a http error, indicating
          * a potential unclean state where we are not 'aligned' on http
-         * boundaries. we should readline till we hit the next http preamble
+         * boundaries. we should read till we hit the next http preamble
          * rather than assume we're at the start of an http header
          */
-        s->state = VA_READ_HDR;
+        while((ret = read(fd, tmp + (tmp_pos % 8), 1)) > 0) {
+            tmp_pos += ret;
+            bytes_skipped += ret;
+            if ((tmp_len = va_start_of_header(tmp, tmp_pos)) > 0) {
+                bytes_skipped -= tmp_len;
+                break;
+            }
+        }
+        if (ret == -1) {
+            if (errno == EAGAIN || errno == EWOULDBLOCK || errno == EINTR) {
+                return;
+            } else {
+                LOG("error reading connection: %s", strerror(errno));
+                goto out_bad;
+            }
+        } else if (ret == 0) {
+            LOG("connected closed unexpectedly");
+            goto out_reconnect;
+        } else {
+            /* we've found the start of the header, copy what we've read
+             * into hdr buf and set pos accordingly */
+            for (i = 0; i < tmp_len; i++) {
+                s->hdr[i] = tmp[(tmp_pos % 8) - (tmp_len - i)];
+            }
+            s->hdr_pos = tmp_len;
+            TRACE("read http header start:\n<<<%s>>>\n", s->hdr);
+            TRACE("current http header pos: %d", (int)s->hdr_pos);
+            TRACE("number of bytes skipped: %d", bytes_skipped);
+            tmp_pos = 0;
+            memset(tmp, 0, 8);
+            bytes_skipped = 0;
+            s->state = VA_READ_HDR;
+        }
     case VA_READ_HDR:
         while((ret = read(fd, s->hdr + s->hdr_pos, 1)) > 0
               && s->hdr_pos < VA_HDR_LEN_MAX) {
