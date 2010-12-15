@@ -299,9 +299,9 @@ static void va_rpc_parse_hdr(VAHTState *s)
         } else {
             /* process line */
             if (first_line) {
-                if (strncmp(line_buf, "POST", 4)) {
+                if (strncmp(line_buf, "POST", 4) == 0) {
                     s->http_type = VA_HTTP_TYPE_REQUEST;
-                } else if (strncmp(line_buf, "HTTP", 4)) {
+                } else if (strncmp(line_buf, "HTTP", 4) == 0) {
                     s->http_type = VA_HTTP_TYPE_RESPONSE;
                 } else {
                     s->http_type = VA_HTTP_TYPE_UNKNOWN;
