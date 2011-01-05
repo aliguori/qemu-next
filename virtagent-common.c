@@ -408,7 +408,7 @@ static void va_http_read_handler(void *opaque)
             }
         } else if (ret == 0) {
             LOG("connected closed unexpectedly");
-            goto out_reconnect;
+            goto out_bad_wait;
         } else {
             /* we've found the start of the header, copy what we've read
              * into hdr buf and set pos accordingly */
@@ -441,7 +441,7 @@ static void va_http_read_handler(void *opaque)
             }
         } else if (ret == 0) {
             LOG("connected closed unexpectedly");
-            goto out_reconnect;
+            goto out_bad_wait;
         } else if (s->hdr_pos >= VA_HDR_LEN_MAX) {
             LOG("http header too long");
             goto out_bad;
@@ -475,7 +475,7 @@ static void va_http_read_handler(void *opaque)
                 LOG("connection closed unexpectedly:"
                     " read %u bytes, expected %u bytes",
                     (unsigned int)s->content_pos, (unsigned int)s->content_len);
-                goto out_reconnect;
+                goto out_bad_wait;
             }
             s->content_pos += ret;
         }
@@ -488,20 +488,18 @@ static void va_http_read_handler(void *opaque)
         goto out_bad;
     }
 
-out_reconnect:
-    /* we should only ever get a read = 0 if we're using virtio and the host
-     * closed it's connection. this is a corner case that will cause spinning
-     * until we close and reconnect, so handle this here.
+out_bad_wait:
+    /* We should only ever get a read = 0 if we're using virtio and the host
+     * is not connected. this would cause a guest to spin, and we can't do
+     * any work in the meantime, so sleep for a bit here. We also know we
+     * may go ahead and cancel any outstanding jobs at this point, though it
+     * should be noted that we're still ultimately reliant on per-job timeouts
+     * since we might not read EOF before host reconnect.
      */
-    /*
-    if (strcmp(va_state->channel_method, "virtio-serial") == 0) {
-        qemu_set_fd_handler(va_state->fd, NULL, NULL, NULL);
-        close(va_state->fd);
-        va_connect();
-        qemu_set_fd_handler(va_state->fd, va_http_read_handler, NULL, NULL);
-        return;
+    if (!va_state->is_host &&
+        strcmp(va_state->channel_method, "virtio-serial") == 0) {
+        usleep(100 * 1000);
     }
-    */
 out_bad:
     http_status = VA_HTTP_STATUS_ERROR;
 out:
