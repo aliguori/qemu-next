@@ -43,6 +43,7 @@
 #define VA_VERSION "1.0"
 #define EOL "\r\n"
 
+#define VA_PIDFILE "/var/run/qemu-va.pid"
 #define VA_HDR_LEN_MAX 4096 /* http header limit */
 #define VA_CONTENT_LEN_MAX 2*1024*1024 /* rpc/http send limit */
 #define VA_CLIENT_JOBS_MAX 5 /* max client rpcs we can queue */

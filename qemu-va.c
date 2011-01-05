@@ -95,6 +95,7 @@ static void usage(const char *cmd)
 "                    isa-serial\n"
 "  -p, --path        channel path\n"
 "  -v, --verbose     display extra debugging information\n"
+"  -d, --daemonize   become a daemon\n"
 "  -h, --help        display this help and exit\n"
 "\n"
 "Report bugs to <mdroth@linux.vnet.ibm.com>\n"
@@ -132,18 +133,52 @@ static int init_virtagent(const char *method, const char *path) {
     return 0;
 }
 
+static void become_daemon(void)
+{
+    pid_t pid, sid;
+
+    pid = fork();
+    if (pid < 0)
+        exit(EXIT_FAILURE);
+    if (pid > 0) {
+        FILE *pidfile = fopen(VA_PIDFILE, "wx");
+        if (!pidfile)
+            errx(EXIT_FAILURE, "Error creating pid file");
+        fprintf(pidfile, "%i", pid);
+        fclose(pidfile);
+        exit(EXIT_SUCCESS);
+    }
+
+    umask(0);
+    sid = setsid();
+    if (sid < 0)
+        goto fail;
+    if ((chdir("/")) < 0)
+        goto fail;
+
+    close(STDIN_FILENO);
+    close(STDOUT_FILENO);
+    close(STDERR_FILENO);
+    return;
+
+fail:
+    unlink(VA_PIDFILE);
+    exit(EXIT_FAILURE);
+}
+
 int main(int argc, char **argv)
 {
-    const char *sopt = "hVvc:p:", *channel_method = NULL, *channel_path = NULL;
+    const char *sopt = "hVvdc:p:", *channel_method = NULL, *channel_path = NULL;
     struct option lopt[] = {
         { "help", 0, NULL, 'h' },
         { "version", 0, NULL, 'V' },
         { "verbose", 0, NULL, 'v' },
         { "channel", 0, NULL, 'c' },
         { "path", 0, NULL, 'p' },
+        { "daemonize", 0, NULL, 'd' },
         { NULL, 0, NULL, 0 }
     };
-    int opt_ind = 0, ch, ret;
+    int opt_ind = 0, ch, ret, daemonize = 0;
 
     while ((ch = getopt_long(argc, argv, sopt, lopt, &opt_ind)) != -1) {
         switch (ch) {
@@ -159,6 +194,9 @@ int main(int argc, char **argv)
         case 'V':
             printf("QEMU Virtagent %s\n", VA_VERSION);
             return 0;
+        case 'd':
+            daemonize = 1;
+            break;
         case 'h':
             usage(argv[0]);
             return 0;
@@ -177,6 +215,10 @@ int main(int argc, char **argv)
     /* tell the host the agent is running */
     va_send_hello();
 
+    if (daemonize) {
+        become_daemon();
+    }
+
     /* main i/o loop */
     for (;;) {
         DEBUG("entering main_loop_wait()");
@@ -184,5 +226,6 @@ int main(int argc, char **argv)
         DEBUG("left main_loop_wait()");
     }
 
+    unlink(VA_PIDFILE);
     return 0;
 }
