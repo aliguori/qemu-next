@@ -1266,6 +1266,10 @@ fi
 ##########################################
 # xmlrpc-c probe
 
+discard_cmake_vars() {
+    echo "$@" | sed 's/@.*@//g'
+}
+
 # Look for the xmlrpc-c config program
 if test -n "$cross_prefix" && has ${cross_prefix}xmlrpc-c-config; then
   xmlrpccconfig=${cross_prefix}xmlrpc-c-config
@@ -1280,7 +1284,9 @@ cat > $TMPC << EOF
 int main(void) { xmlrpc_env env; xmlrpc_env_init(&env); return 0; }
 EOF
 xmlrpc_cflags=`$xmlrpccconfig --cflags 2> /dev/null`
+xmlrpc_cflags=`discard_cmake_vars $xmlrpc_cflags`
 xmlrpc_libs=`$xmlrpccconfig client server-util --libs 2> /dev/null`
+xmlrpc_libs=`discard_cmake_vars $xmlrpc_libs`
 if compile_prog "$xmlrpc_cflags" "$xmlrpc_libs"; then
   libs_softmmu="$xmlrpc_libs $libs_softmmu"
   libs_tools="$xmlrpc_libs $libs_tools"
