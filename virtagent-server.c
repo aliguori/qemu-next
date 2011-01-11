@@ -15,6 +15,7 @@
 #include "qemu_socket.h"
 #include "virtagent-common.h"
 
+static VAServerData *va_server_data;
 static bool va_enable_syslog = false; /* enable syslog'ing of RPCs */
 
 #define SLOG(msg, ...) do { \
@@ -25,43 +26,6 @@ static bool va_enable_syslog = false; /* enable syslog'ing of RPCs */
     snprintf(msg_buf, 1024, msg, ## __VA_ARGS__); \
     syslog(LOG_INFO, "virtagent, %s", msg_buf); \
 } while(0)
-
-static VAServerData *va_server_data;
-
-/* normalize response and re-insert client-provided metadata */
-static xmlrpc_value *va_format_resp(xmlrpc_env *env,
-                                    xmlrpc_value *params_in,
-                                    xmlrpc_value *params_out)
-{
-    xmlrpc_value *in = NULL;
-    xmlrpc_value *meta = NULL;
-    xmlrpc_value *response = NULL;
-
-    /* extract metadata */
-    if (xmlrpc_array_size(env, params_in) > 0) {
-        xmlrpc_array_read_item(env, params_in, 0, &in);
-        if (xmlrpc_value_type(in) == XMLRPC_TYPE_STRUCT) {
-            xmlrpc_struct_find_value(env, in, "meta", &meta);
-        }
-    }
-
-    /* make sure we return a struct... */
-    if (params_out == NULL) {
-        response = xmlrpc_struct_new(env);
-    } else if (xmlrpc_value_type(params_out) == XMLRPC_TYPE_STRUCT) {
-        response = params_out;
-    } else {
-        xmlrpc_faultf(env, "malformed response provided, data discarded");
-        response = xmlrpc_struct_new(env);
-    }
-
-    /* with a meta field if provided */
-    if (meta) {
-        xmlrpc_struct_set_value(env, response, "meta", meta);
-    }
-
-    return response;
-}
 
 /* RPC functions common to guest/host daemons */
 
@@ -80,9 +44,9 @@ static xmlrpc_value *va_getfile(xmlrpc_env *env,
     xmlrpc_value *result = NULL;
 
     /* parse argument array */
-    xmlrpc_decompose_value(env, params, "({s:s,*})", "path", &path);
+    xmlrpc_decompose_value(env, params, "(s)", &path);
     if (env->fault_occurred) {
-        goto out;
+        return NULL;
     }
 
     SLOG("va_getfile(), path:%s", path);
@@ -91,7 +55,7 @@ static xmlrpc_value *va_getfile(xmlrpc_env *env,
     if (fd == -1) {
         LOG("open failed: %s", strerror(errno));
         xmlrpc_faultf(env, "open failed: %s", strerror(errno));
-        goto out;
+        return NULL;
     }
 
     while ((ret = read(fd, buf, VA_FILEBUF_LEN)) > 0) {
@@ -101,24 +65,23 @@ static xmlrpc_value *va_getfile(xmlrpc_env *env,
         if (count > VA_GETFILE_MAX) {
             xmlrpc_faultf(env, "max file size (%d bytes) exceeded",
                           VA_GETFILE_MAX);
-            goto out_close;
+            goto EXIT_CLOSE_BAD;
         }
     }
     if (ret == -1) {
         LOG("read failed: %s", strerror(errno));
         xmlrpc_faultf(env, "read failed: %s", strerror(errno));
-        goto out_close;
+        goto EXIT_CLOSE_BAD;
     }
 
-    result = xmlrpc_build_value(env, "{s:6}", "contents", file_contents, count);
+    result = xmlrpc_build_value(env, "6", file_contents, count);
 
-out_close:
+EXIT_CLOSE_BAD:
     if (file_contents) {
         qemu_free(file_contents);
     }
     close(fd);
-out:
-    return va_format_resp(env, params, result);
+    return result;
 }
 
 /* va_getdmesg(): return dmesg output
@@ -143,26 +106,26 @@ static xmlrpc_value *va_getdmesg(xmlrpc_env *env,
     if (pipe == NULL) {
         LOG("popen failed: %s", strerror(errno));
         xmlrpc_faultf(env, "popen failed: %s", strerror(errno));
-        goto exit_noclose;
+        goto EXIT_NOCLOSE;
     }
 
     ret = fread(dmesg_buf, sizeof(char), VA_DMESG_LEN, pipe);
     if (!ferror(pipe)) {
         dmesg_buf[ret] = '\0';
         TRACE("dmesg:\n%s", dmesg_buf);
-        result = xmlrpc_build_value(env, "{s:s}", "contents", dmesg_buf);
+        result = xmlrpc_build_value(env, "s", dmesg_buf);
     } else {
         LOG("fread failed");
         xmlrpc_faultf(env, "popen failed: %s", strerror(errno));
     }
 
     pclose(pipe);
-exit_noclose:
+EXIT_NOCLOSE:
     if (dmesg_buf) {
         qemu_free(dmesg_buf);
     }
 
-    return va_format_resp(env, params, result);
+    return result;
 }
 
 /* va_shutdown(): initiate guest shutdown
@@ -174,11 +137,12 @@ static xmlrpc_value *va_shutdown(xmlrpc_env *env,
 {
     int ret;
     const char *shutdown_type, *shutdown_flag;
+    xmlrpc_value *result = xmlrpc_build_value(env, "s", "dummy");
 
     TRACE("called");
-    xmlrpc_decompose_value(env, params, "({s:s,*})", "type", &shutdown_type);
+    xmlrpc_decompose_value(env, params, "(s)", &shutdown_type);
     if (env->fault_occurred) {
-        goto out;
+        goto out_bad;
     }
 
     if (strcmp(shutdown_type, "halt") == 0) {
@@ -189,7 +153,7 @@ static xmlrpc_value *va_shutdown(xmlrpc_env *env,
         shutdown_flag = "-r";
     } else {
         xmlrpc_faultf(env, "invalid shutdown type: %s", shutdown_type);
-        goto out;
+        goto out_bad;
     }
 
     SLOG("va_shutdown(), shutdown_type:%s", shutdown_type);
@@ -215,8 +179,9 @@ static xmlrpc_value *va_shutdown(xmlrpc_env *env,
         xmlrpc_faultf(env, "fork() failed: %s", strerror(errno));
     }
 
-out:
-    return va_format_resp(env, params, NULL);
+    return result;
+out_bad:
+    return NULL;
 }
 
 /* va_ping(): respond to client. response without error in env
@@ -227,8 +192,9 @@ static xmlrpc_value *va_ping(xmlrpc_env *env,
                              xmlrpc_value *params,
                              void *user_data)
 {
+    xmlrpc_value *result = xmlrpc_build_value(env, "s", "dummy");
     SLOG("va_ping()");
-    return va_format_resp(env, params, NULL);
+    return result;
 }
 
 /* va_hello(): handle client startup notification
@@ -239,14 +205,16 @@ static xmlrpc_value *va_hello(xmlrpc_env *env,
                                    xmlrpc_value *params,
                                    void *user_data)
 {
+    xmlrpc_value *result;
     int ret;
     TRACE("called");
     SLOG("va_hello()");
+    result = xmlrpc_build_value(env, "s", "dummy");
     ret = va_client_init_capabilities();
     if (ret < 0) {
         LOG("error setting initializing client capabilities");
     }
-    return va_format_resp(env, params, NULL);
+    return result;
 }
 
 typedef struct RPCFunction {
@@ -298,7 +266,7 @@ static xmlrpc_value *va_capabilities(xmlrpc_env *env,
     /* provide a list of supported RPCs. we don't want to rely on
      * system.methodList since introspection methods won't support
      * client metadata, which we may eventually come to rely upon
-     */ 
+     */
     methods = xmlrpc_array_new(env);
     for (i = 0; func_list[i].func != NULL; ++i) {
         xmlrpc_array_append_item(env, methods,
@@ -307,7 +275,7 @@ static xmlrpc_value *va_capabilities(xmlrpc_env *env,
 
     result = xmlrpc_build_value(env, "{s:s,s:A}", "version", VA_VERSION,
                                 "methods", methods);
-    return va_format_resp(env, params, result);
+    return result;
 }
 
 static bool va_server_is_enabled(void)
