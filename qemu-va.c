@@ -35,6 +35,7 @@
 #include <getopt.h>
 #include <err.h>
 #include "qemu-ioh.h"
+#include "qemu-tool.h"
 #include "virtagent-common.h"
 
 static bool verbose_enabled;
@@ -83,6 +84,9 @@ static void main_loop_wait(int nonblocking)
     if (ret > 0) {
         qemu_process_fd_handlers(&rfds, &wfds, &xfds);
     }
+
+    DEBUG("running timers...");
+    qemu_run_all_timers();
 }
 
 static void usage(const char *cmd)
@@ -204,6 +208,12 @@ int main(int argc, char **argv)
             errx(EXIT_FAILURE, "Try '%s --help' for more information.",
                  argv[0]);
         }
+    }
+
+    init_clocks();
+    configure_alarms("dynticks");
+    if (init_timer_alarm() < 0) {
+        errx(EXIT_FAILURE, "could not initialize alarm timer");
     }
 
     /* initialize virtagent */
