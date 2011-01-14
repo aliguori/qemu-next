@@ -19,6 +19,7 @@
 #include <xmlrpc-c/server.h>
 #include "qemu-common.h"
 #include "qemu_socket.h"
+#include "qemu-timer.h"
 #include "monitor.h"
 #include "virtagent-server.h"
 #include "virtagent.h"
@@ -47,7 +48,9 @@
 #define VA_HDR_LEN_MAX 4096 /* http header limit */
 #define VA_CONTENT_LEN_MAX 2*1024*1024 /* rpc/http send limit */
 #define VA_CLIENT_JOBS_MAX 5 /* max client rpcs we can queue */
-#define VA_SERVER_JOBS_MAX 1 /* max server rpcs we can queue */
+#define VA_SERVER_JOBS_MAX 5 /* max server rpcs we can queue */
+#define VA_SERVER_TIMEOUT_MS 5 * 1000
+#define VA_CLIENT_TIMEOUT_MS 5 * 1000
 
 typedef struct VAContext {
     bool is_host;

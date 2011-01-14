@@ -79,6 +79,8 @@ typedef struct VAState {
     const char *channel_method;
     const char *channel_path;
     int fd;
+    QEMUTimer *client_timer;
+    QEMUTimer *server_timer;
     enum va_client_state {
         VA_CLIENT_IDLE = 0,
         VA_CLIENT_SEND,     /* sending rpc request */
@@ -92,6 +94,7 @@ typedef struct VAState {
     VAClientData client_data;
     VAServerData server_data;
     int client_job_count;
+    int client_jobs_in_flight;
     QTAILQ_HEAD(, VAClientJob) client_jobs;
     int server_job_count;
     QTAILQ_HEAD(, VAServerJob) server_jobs;
@@ -133,6 +136,7 @@ static void va_cancel_jobs(void)
         QTAILQ_REMOVE(&va_state->client_jobs, cj, next);
     }
     va_state->client_job_count = 0;
+    va_state->client_jobs_in_flight = 0;
 
     /* cancel/remove any queued server jobs */
     QTAILQ_FOREACH_SAFE(sj, &va_state->server_jobs, next, sj_tmp) {
@@ -142,7 +146,46 @@ static void va_cancel_jobs(void)
 
     va_state->client_state = VA_CLIENT_IDLE;
     va_state->server_state = VA_SERVER_IDLE;
+
+    /* if we reset state, the host may experience a timeout on it's end
+     * and treat this as a guest/guest agent restart/shutdown. so resend
+     * the hello is case it is waiting for a startup notification
+     */
+    if (!va_state->is_host)
+    {
+        /* tell the host the agent is running */
+        va_send_hello();
+    }
 }
+
+static void va_global_timeout(void *opaque)
+{
+    LOG("time out while handling a client job or sending RPC response");
+    va_cancel_jobs();
+}
+
+static void va_set_client_timeout(int interval)
+{
+    qemu_mod_timer(va_state->client_timer,
+                   qemu_get_clock(rt_clock) + interval);
+}
+
+static void va_unset_client_timeout(void)
+{
+    qemu_del_timer(va_state->client_timer);
+}
+
+static void va_set_server_timeout(int interval)
+{
+    qemu_mod_timer(va_state->server_timer,
+                   qemu_get_clock(rt_clock) + interval);
+}
+
+static void va_unset_server_timeout(void)
+{
+    qemu_del_timer(va_state->server_timer);
+}
+
 
 /***********************************************************/
 /* callbacks for read/send handlers */
@@ -178,6 +221,7 @@ static void va_server_send_cb(enum va_http_status http_status,
 
     TRACE("called");
     assert(server_job != NULL);
+    va_unset_server_timeout();
 
     if (http_status != VA_HTTP_STATUS_OK) {
         /* TODO: we should reset everything at this point...guest/host will
@@ -203,11 +247,15 @@ static void va_client_read_cb(const char *content, size_t content_len,
     TRACE("called");
     client_job = va_pop_client_job();
     assert(client_job != NULL);
+    if (--va_state->client_jobs_in_flight == 0) {
+        va_unset_client_timeout();
+    }
     if (strncmp(client_job->client_tag, client_tag, 64)) {
         LOG("http client tag mismatch");
     } else {
         TRACE("tag matched: %s", client_tag);
     }
+
     client_job->cb(content, content_len, client_job->mon_cb,
                    client_job->mon_data);
     va_kick();
@@ -681,7 +729,7 @@ static bool va_set_server_state(enum va_server_state server_state)
  * handling the client job. TODO: there is potential for pipelining
  * requests/responses for more efficient use of the channel.
  *
- * in all cases, we can only kick off client requests or server responses 
+ * in all cases, we can only kick off client requests or server responses
  * when the send side of the channel is not being used
  */
 static int va_kick(void)
@@ -716,6 +764,7 @@ static int va_kick(void)
             goto out_bad;
         }
         assert(va_set_server_state(VA_SERVER_SEND));
+        va_set_server_timeout(VA_SERVER_TIMEOUT_MS);
         goto out;
     }
 
@@ -724,11 +773,28 @@ static int va_kick(void)
         assert(va_set_client_state(VA_CLIENT_IDLE));
     } else {
         TRACE("handling client job queue");
+        /* TODO: this limits the ability to pipeline. modify this logic
+         * and update state machine accordingly
+         */
         if (va_state->client_state != VA_CLIENT_IDLE) {
             TRACE("client job in progress, returning");
             goto out;
         }
 
+        /* We know the other end cannot queue up more than VA_SERVER_JOBS_MAX
+         * before it will begin dropping jobs/data to avoid unbounded memory
+         * utilization, so don't try to send more than this many jobs at a time.
+         * In the future we should obtain the actual value of the other end's
+         * VA_SERVER_JOBS_MAX via an introspection call of some sort in case
+         * this value changes in the future.
+         *
+         * XXX: this won't be relevant until the state machine is modified to
+         * allow pipelining requests.
+         */
+        if (va_state->client_jobs_in_flight >= VA_SERVER_JOBS_MAX) {
+            TRACE("too many client jobs in flight, returning");
+            goto out;
+        }
         TRACE("sending new client request");
         client_job = QTAILQ_FIRST(&va_state->client_jobs);
         /* set up the send handler for the request, then put it on the
@@ -740,6 +806,8 @@ static int va_kick(void)
             goto out_bad;
         }
         assert(va_set_client_state(VA_CLIENT_SEND));
+        va_state->client_jobs_in_flight++;
+        va_set_client_timeout(VA_CLIENT_TIMEOUT_MS);
     }
 
 out:
@@ -840,7 +908,7 @@ static VAServerJob *va_server_job_new(xmlrpc_mem_block *resp_data,
  * it around.
  *
  * if this is successful virtagent will handle cleanup of req_xml after
- * making the appropriate callbacks, otherwise callee should handle it
+ * making the appropriate callbacks, otherwise caller should handle it
  */
 int va_client_job_add(xmlrpc_mem_block *req_xml, VAClientCallback *cb,
                       MonitorCompletion *mon_cb, void *mon_data)
@@ -960,8 +1028,13 @@ int va_init(VAContext ctx)
         goto out_bad;
     }
 
+    s->client_timer = qemu_new_timer(rt_clock, va_global_timeout, NULL);
+    s->server_timer = qemu_new_timer(rt_clock, va_global_timeout, NULL);
     s->client_state = VA_CLIENT_IDLE;
+    s->client_job_count = 0;
+    s->client_jobs_in_flight = 0;
     s->server_state = VA_SERVER_IDLE;
+    s->server_job_count = 0;
     QTAILQ_INIT(&s->client_jobs);
     QTAILQ_INIT(&s->server_jobs);
     s->read_state.state = VA_READ_START;
@@ -970,7 +1043,7 @@ int va_init(VAContext ctx)
     s->channel_path = ctx.channel_path;
     s->is_host = ctx.is_host;
     va_state = s;
-    
+
     /* connect to our end of the channel */
     ret = va_connect();
     if (ret) {
@@ -980,6 +1053,11 @@ int va_init(VAContext ctx)
 
     /* start listening for requests/responses */
     qemu_set_fd_handler(va_state->fd, va_http_read_handler, NULL, NULL);
+
+    if (!va_state->is_host) {
+        /* tell the host the agent is running */
+        va_send_hello();
+    }
 
     return 0;
 out_bad:
