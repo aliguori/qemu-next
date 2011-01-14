@@ -31,4 +31,13 @@ void qemu_get_fdset2(void *ioh_record_list, int *nfds, fd_set *rfds,
 void qemu_process_fd_handlers2(void *ioh_record_list, const fd_set *rfds,
                                const fd_set *wfds, const fd_set *xfds);
 
+
+#ifndef _WIN32
+void iothread_event_increment(int *io_thread_fd);
+int iothread_event_init(int *io_thread_fd);
+#else
+int win32_event_init(HANDLE *qemu_event_handle);
+void win32_event_increment(HANDLE *qemu_event_handle);
+#endif
+
 #endif

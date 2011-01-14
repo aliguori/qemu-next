@@ -22,7 +22,11 @@
  * THE SOFTWARE.
  */
 #include "qemu-ioh.h"
+#include "qemu-char.h"
 #include "qlist.h"
+#ifdef CONFIG_EVENTFD
+#include <sys/eventfd.h>
+#endif
 
 /* XXX: fd_read_poll should be suppressed, but an API change is
    necessary in the character devices to suppress fd_can_read(). */
@@ -113,3 +117,92 @@ void qemu_process_fd_handlers2(void *ioh_record_list, const fd_set *rfds,
         }
     }
 }
+
+#ifndef _WIN32
+void iothread_event_increment(int *io_thread_fd)
+{
+    /* Write 8 bytes to be compatible with eventfd.  */
+    static const uint64_t val = 1;
+    ssize_t ret;
+
+    if (*io_thread_fd == -1)
+        return;
+
+    do {
+        ret = write(*io_thread_fd, &val, sizeof(val));
+    } while (ret < 0 && errno == EINTR);
+
+    /* EAGAIN is fine, a read must be pending.  */
+    if (ret < 0 && errno != EAGAIN) {
+        fprintf(stderr, "qemu_event_increment: write() filed: %s\n",
+                strerror(errno));
+        exit (1);
+    }
+}
+
+static void qemu_event_read(void *opaque)
+{
+    int fd = (unsigned long)opaque;
+    ssize_t len;
+    char buffer[512];
+
+    /* Drain the notify pipe.  For eventfd, only 8 bytes will be read.  */
+    do {
+        len = read(fd, buffer, sizeof(buffer));
+    } while (len == -1 && errno == EINTR);
+}
+
+
+int iothread_event_init(int *io_thread_fd)
+{
+    int err;
+    int fds[2];
+
+    err = qemu_eventfd(fds);
+    if (err == -1)
+        return -errno;
+
+    err = fcntl_setfl(fds[0], O_NONBLOCK);
+    if (err < 0)
+        goto fail;
+
+    err = fcntl_setfl(fds[1], O_NONBLOCK);
+    if (err < 0)
+        goto fail;
+
+    qemu_set_fd_handler2(fds[0], NULL, qemu_event_read, NULL,
+                         (void *)(unsigned long)fds[0]);
+
+    *io_thread_fd = fds[1];
+    return 0;
+
+fail:
+    close(fds[0]);
+    close(fds[1]);
+    return err;
+}
+#else
+static void dummy_event_handler(void *opaque)
+{
+}
+
+int win32_event_init(HANDLE *qemu_event_handle)
+{
+    *qemu_event_handle = CreateEvent(NULL, FALSE, FALSE, NULL);
+    if (!qemu_event_handle) {
+        fprintf(stderr, "Failed CreateEvent: %ld\n", GetLastError());
+        return -1;
+    }
+    qemu_add_wait_object(*qemu_event_handle, dummy_event_handler, NULL);
+    return 0;
+}
+
+void win32_event_increment(HANDLE *qemu_event_handle)
+{
+    if (!SetEvent(*qemu_event_handle)) {
+        fprintf(stderr, "qemu_event_increment: SetEvent failed: %ld\n",
+                GetLastError());
+        exit (1);
+    }
+}
+#endif

@@ -12,6 +12,7 @@
  */
 
 #include "qemu-common.h"
+#include "qemu-tool.h"
 #include "monitor.h"
 #include "qemu-timer.h"
 #include "qemu-log.h"
@@ -19,12 +20,11 @@
 
 #include <sys/time.h>
 
-QEMUClock *rt_clock;
+QEMUClock *rtc_clock;
 
 FILE *logfile;
 static QLIST_HEAD(, IOHandlerRecord) io_handlers =
     QLIST_HEAD_INITIALIZER(io_handlers);
-
 struct QEMUBH
 {
     QEMUBHFunc *cb;
@@ -133,4 +133,92 @@ void qemu_process_fd_handlers(const fd_set *rfds, const fd_set *wfds,
                               const fd_set *xfds)
 {
     return qemu_process_fd_handlers2(&io_handlers, rfds, wfds, xfds);
+}
+
+#ifndef _WIN32
+static int io_thread_fd = -1;
+
+void qemu_event_increment(void)
+{
+    return iothread_event_increment(&io_thread_fd);
+}
+
+int qemu_event_init(void)
+{
+    return iothread_event_init(&io_thread_fd);
+}
+#else
+HANDLE qemu_event_handle;
+
+int qemu_event_init(void)
+{
+    return win32_event_init(&qemu_event_handle);
+}
+
+void qemu_event_increment(void)
+{
+    win32_event_increment(&qemu_event_handle);
+}
+#endif
+
+void qemu_notify_event(void)
+{
+    qemu_event_increment ();
+}
+
+/*
+ * Creates an eventfd that looks like a pipe and has EFD_CLOEXEC set.
+ */
+int qemu_eventfd(int fds[2])
+{
+#ifdef CONFIG_EVENTFD
+    int ret;
+
+    ret = eventfd(0, 0);
+    if (ret >= 0) {
+        fds[0] = ret;
+        qemu_set_cloexec(ret);
+        if ((fds[1] = dup(ret)) == -1) {
+            close(ret);
+            return -1;
+        }
+        qemu_set_cloexec(fds[1]);
+        return 0;
+    }
+
+    if (errno != ENOSYS) {
+        return -1;
+    }
+#endif
+
+    return qemu_pipe(fds);
+}
+
+void qemu_put_be64(QEMUFile *f, uint64_t v)
+{
+}
+
+uint64_t qemu_get_be64(QEMUFile *f)
+{
+    return 0;
+}
+
+const VMStateInfo vmstate_info_int64;
+int use_icount = 0;
+int vm_running = 1;
+int64_t qemu_icount;
+
+int vmstate_register(DeviceState *dev, int instance_id,
+                     const VMStateDescription *vmsd, void *opaque)
+{
+    return 0;
+}
+int64_t cpu_get_icount(void) {
+    return 0;
+}
+
+VMChangeStateEntry *qemu_add_vm_change_state_handler(VMChangeStateHandler *cb,
+                                                     void *opaque)
+{
+    return NULL;
 }
