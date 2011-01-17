@@ -51,6 +51,7 @@
 #define VA_SERVER_JOBS_MAX 5 /* max server rpcs we can queue */
 #define VA_SERVER_TIMEOUT_MS 5 * 1000
 #define VA_CLIENT_TIMEOUT_MS 5 * 1000
+#define VA_SENTINEL 0xFF
 
 typedef struct VAContext {
     bool is_host;

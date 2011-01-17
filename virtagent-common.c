@@ -320,10 +320,11 @@ static void va_http_hdr_init(VAHTState *s, enum va_http_type http_type) {
     }
     memset(s->hdr, 0, VA_HDR_LEN_MAX);
     s->hdr_len = sprintf(s->hdr,
-                         "%s" EOL
+                         "%c%s" EOL
                          "Content-Type: text/xml" EOL
                          "Content-Length: %u" EOL
                          "X-Virtagent-Client-Tag: %s" EOL EOL,
+                         VA_SENTINEL,
                          preamble,
                          (uint32_t)s->content_len,
                          s->hdr_client_tag[0] ? s->hdr_client_tag : "none");
@@ -372,25 +373,6 @@ static void va_rpc_parse_hdr(VAHTState *s)
     }
 }
 
-static int va_start_of_header(char buf[8], int cur_pos)
-{
-    if (buf[(cur_pos - 4) % 8] == 'H' &&
-        buf[(cur_pos - 3) % 8] == 'T' &&
-        buf[(cur_pos - 2) % 8] == 'T' &&
-        buf[(cur_pos - 1) % 8] == 'P') {
-        return 4;
-    }
-
-    if (buf[(cur_pos - 4) % 8] == 'P' &&
-        buf[(cur_pos - 3) % 8] == 'O' &&
-        buf[(cur_pos - 2) % 8] == 'S' &&
-        buf[(cur_pos - 1) % 8] == 'T') {
-        return 4;
-    }
-
-    return -1;
-}
-
 static int va_end_of_header(char *buf, int end_pos)
 {
     return !strncmp(buf+(end_pos-2), "\n\r\n", 3);
@@ -420,9 +402,8 @@ static void va_http_read_handler(void *opaque)
     VAHTState *s = &va_state->read_state;
     enum va_http_status http_status;
     int fd = va_state->fd;
-    int ret, tmp_len, i;
-    static char tmp[8];
-    static int tmp_pos = 0;
+    int ret;
+    uint8_t tmp;
     static int bytes_skipped = 0;
 
     TRACE("called with opaque: %p", opaque);
@@ -437,15 +418,16 @@ static void va_http_read_handler(void *opaque)
         /* we may have gotten here due to a http error, indicating
          * a potential unclean state where we are not 'aligned' on http
          * boundaries. we should read till we hit the next http preamble
-         * rather than assume we're at the start of an http header
+         * rather than assume we're at the start of an http header. since
+         * we control the transport layer on both sides, we'll use a
+         * more reliable sentinal character to mark/detect the start of
+         * the header
          */
-        while((ret = read(fd, tmp + (tmp_pos % 8), 1)) > 0) {
-            tmp_pos += ret;
-            bytes_skipped += ret;
-            if ((tmp_len = va_start_of_header(tmp, tmp_pos)) > 0) {
-                bytes_skipped -= tmp_len;
+        while((ret = read(fd, &tmp, 1) > 0) > 0) {
+            if (tmp == VA_SENTINEL) {
                 break;
             }
+            bytes_skipped += ret;
         }
         if (ret == -1) {
             if (errno == EAGAIN || errno == EWOULDBLOCK || errno == EINTR) {
@@ -458,17 +440,8 @@ static void va_http_read_handler(void *opaque)
             LOG("connected closed unexpectedly");
             goto out_bad_wait;
         } else {
-            /* we've found the start of the header, copy what we've read
-             * into hdr buf and set pos accordingly */
-            for (i = 0; i < tmp_len; i++) {
-                s->hdr[i] = tmp[(tmp_pos % 8) - (tmp_len - i)];
-            }
-            s->hdr_pos = tmp_len;
-            TRACE("read http header start:\n<<<%s>>>\n", s->hdr);
-            TRACE("current http header pos: %d", (int)s->hdr_pos);
-            TRACE("number of bytes skipped: %d", bytes_skipped);
-            tmp_pos = 0;
-            memset(tmp, 0, 8);
+            TRACE("found header, number of bytes skipped: %d",
+                  bytes_skipped);
             bytes_skipped = 0;
             s->state = VA_READ_HDR;
         }
