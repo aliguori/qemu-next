@@ -146,16 +146,6 @@ static void va_cancel_jobs(void)
 
     va_state->client_state = VA_CLIENT_IDLE;
     va_state->server_state = VA_SERVER_IDLE;
-
-    /* if we reset state, the host may experience a timeout on it's end
-     * and treat this as a guest/guest agent restart/shutdown. so resend
-     * the hello is case it is waiting for a startup notification
-     */
-    if (!va_state->is_host)
-    {
-        /* tell the host the agent is running */
-        va_send_hello();
-    }
 }
 
 static void va_global_timeout(void *opaque)
