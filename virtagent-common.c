@@ -500,15 +500,14 @@ static void va_http_read_handler(void *opaque)
     }
 
 out_bad_wait:
-    /* We should only ever get a read = 0 if we're using virtio and the host
-     * is not connected. this would cause a guest to spin, and we can't do
-     * any work in the meantime, so sleep for a bit here. We also know we
-     * may go ahead and cancel any outstanding jobs at this point, though it
-     * should be noted that we're still ultimately reliant on per-job timeouts
-     * since we might not read EOF before host reconnect.
+    /* We should only ever get a ret = 0 if we're a guest and the host is
+     * not connected. this would cause a guest to spin, and we can't do
+     * any work in the meantime, so sleep for a bit here. We also know
+     * we may go ahead and cancel any outstanding jobs at this point, though
+     * it should be noted that we're still ultimately reliant on per-job
+     * timeouts since we might not read EOF before host reconnect.
      */
-    if (!va_state->is_host &&
-        strcmp(va_state->channel_method, "virtio-serial") == 0) {
+    if (!va_state->is_host) {
         usleep(100 * 1000);
     }
 out_bad:
