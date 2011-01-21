@@ -17,6 +17,7 @@
 #include <xmlrpc-c/base.h>
 #include <xmlrpc-c/client.h>
 #include <xmlrpc-c/server.h>
+#include <termios.h>
 #include "qemu-common.h"
 #include "qemu_socket.h"
 #include "qemu-timer.h"
@@ -52,6 +53,7 @@
 #define VA_SERVER_TIMEOUT_MS 5 * 1000
 #define VA_CLIENT_TIMEOUT_MS 5 * 1000
 #define VA_SENTINEL 0xFF
+#define VA_BAUDRATE B38400 /* for isa-serial channels */
 
 typedef struct VAContext {
     bool is_host;

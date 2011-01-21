@@ -957,6 +957,37 @@ static int va_connect(void)
             LOG("error setting channel flags: %s", strerror(errno));
             return -errno;
         }
+    } else if (strcmp(va_state->channel_method, "isa-serial") == 0) {
+        struct termios tio;
+        if (va_state->is_host) {
+            LOG("specified channel method not available for host");
+            return -EINVAL;
+        }
+        if (va_state->channel_path == NULL) {
+            LOG("you must specify the path of the serial device to use");
+            return -EINVAL;
+        }
+        TRACE("opening %s", va_state->channel_path);
+        fd = qemu_open(va_state->channel_path, O_RDWR | O_NOCTTY);
+        if (fd == -1) {
+            LOG("error opening channel: %s", strerror(errno));
+            return -errno;
+        }
+        tcgetattr(fd, &tio);
+        /* set up serial port for non-canonical, dumb byte streaming */
+        tio.c_iflag &= ~(IGNBRK | BRKINT | IGNPAR | PARMRK | INPCK | ISTRIP |
+                         INLCR | IGNCR | ICRNL | IXON | IXOFF | IXANY | IMAXBEL);
+        tio.c_oflag = 0;
+        tio.c_lflag = 0;
+        tio.c_cflag |= VA_BAUDRATE;
+        /* 1 available byte min or reads will block (we'll set non-blocking elsewhere,
+         * else we have to deal with read()=0 instead)
+         */
+        tio.c_cc[VMIN] = 1;
+        tio.c_cc[VTIME] = 0;
+        /* flush everything waiting for read/xmit, it's garbage at this point */
+        tcflush(fd, TCIFLUSH);
+        tcsetattr(fd, TCSANOW, &tio);
     } else {
         LOG("invalid channel method");
         return -EINVAL;
