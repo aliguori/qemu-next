@@ -231,6 +231,7 @@ static int qcow2_open(BlockDriverState *bs, int flags)
     }
 
     QLIST_INIT(&s->cluster_allocs);
+    QTAILQ_INIT(&s->request_list);
 
     /* read qcow2 extensions */
     if (header.backing_file_offset) {
@@ -365,6 +366,7 @@ typedef struct QCowAIOCB {
     QEMUBH *bh;
     QCowL2Meta l2meta;
     QLIST_ENTRY(QCowAIOCB) next_depend;
+    QTAILQ_ENTRY(QCowAIOCB) next_request;
     Coroutine *coroutine;
     int ret; /* return code for user callback */
 } QCowAIOCB;
@@ -385,11 +387,20 @@ static AIOPool qcow2_aio_pool = {
 static void qcow2_aio_bh(void *opaque)
 {
     QCowAIOCB *acb = opaque;
+    BDRVQcowState *s = acb->common.bs->opaque;
+
     qemu_bh_delete(acb->bh);
     acb->bh = NULL;
     acb->common.cb(acb->common.opaque, acb->ret);
     qemu_iovec_destroy(&acb->hd_qiov);
+    QTAILQ_REMOVE(&s->request_list, acb, next_request);
     qemu_aio_release(acb);
+
+    /* Start next request */
+    if (!QTAILQ_EMPTY(&s->request_list)) {
+        acb = QTAILQ_FIRST(&s->request_list);
+        qemu_coroutine_enter(acb->coroutine, acb);
+    }
 }
 
 static int qcow2_schedule_bh(QEMUBHFunc *cb, QCowAIOCB *acb)
@@ -548,8 +559,10 @@ static BlockDriverAIOCB *qcow2_aio_setup(BlockDriverState *bs,
         int64_t sector_num, QEMUIOVector *qiov, int nb_sectors,
         BlockDriverCompletionFunc *cb, void *opaque, int is_write)
 {
+    BDRVQcowState *s = bs->opaque;
     QCowAIOCB *acb;
     Coroutine *coroutine;
+    int start_request;
 
     acb = qemu_aio_get(&qcow2_aio_pool, bs, cb, opaque);
     if (!acb)
@@ -569,7 +582,13 @@ static BlockDriverAIOCB *qcow2_aio_setup(BlockDriverState *bs,
     coroutine = qemu_coroutine_create(is_write ? qcow2_co_write
                                                : qcow2_co_read);
     acb->coroutine = coroutine;
-    qemu_coroutine_enter(coroutine, acb);
+
+    /* Kick off the request if no others are currently executing */
+    start_request = QTAILQ_EMPTY(&s->request_list);
+    QTAILQ_INSERT_TAIL(&s->request_list, acb, next_request);
+    if (start_request) {
+        qemu_coroutine_enter(coroutine, acb);
+    }
     return &acb->common;
 }
 

@@ -78,6 +78,8 @@ typedef struct QCowSnapshot {
     uint64_t vm_clock_nsec;
 } QCowSnapshot;
 
+struct QCowAIOCB;
+
 typedef struct BDRVQcowState {
     int cluster_bits;
     int cluster_size;
@@ -98,6 +100,7 @@ typedef struct BDRVQcowState {
     uint8_t *cluster_data;
     uint64_t cluster_cache_offset;
     QLIST_HEAD(QCowClusterAlloc, QCowL2Meta) cluster_allocs;
+    QTAILQ_HEAD(, QCowAIOCB) request_list;
 
     uint64_t *refcount_table;
     uint64_t refcount_table_offset;
@@ -127,8 +130,6 @@ typedef struct QCowCreateState {
     int64_t refcount_table_offset;
     int64_t refcount_block_offset;
 } QCowCreateState;
-
-struct QCowAIOCB;
 
 /* XXX This could be private for qcow2-cluster.c */
 typedef struct QCowL2Meta
