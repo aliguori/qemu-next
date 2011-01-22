@@ -438,9 +438,15 @@ static void va_http_read_handler(void *opaque)
     case VA_READ_HDR:
         while((ret = read(fd, s->hdr + s->hdr_pos, 1)) > 0
               && s->hdr_pos < VA_HDR_LEN_MAX) {
-            s->hdr_pos += ret;
-            if (va_end_of_header(s->hdr, s->hdr_pos - 1)) {
-                break;
+            if (s->hdr[s->hdr_pos] == (char)VA_SENTINEL) {
+                /* truncated header, toss it out and start over */
+                LOG("truncated header detected");
+                s->hdr_pos = 0;
+            } else {
+                s->hdr_pos += ret;
+                if (va_end_of_header(s->hdr, s->hdr_pos - 1)) {
+                    break;
+                }
             }
         }
         if (ret == -1) {
