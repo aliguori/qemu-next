@@ -50,7 +50,7 @@
 
 struct VncJobQueue {
     QemuCond cond;
-    QemuMutex mutex;
+    GStaticMutex mutex;
     QemuThread thread;
     Buffer buffer;
     bool exit;
@@ -67,12 +67,12 @@ static VncJobQueue *queue;
 
 static void vnc_lock_queue(VncJobQueue *queue)
 {
-    qemu_mutex_lock(&queue->mutex);
+    g_static_mutex_lock(&queue->mutex);
 }
 
 static void vnc_unlock_queue(VncJobQueue *queue)
 {
-    qemu_mutex_unlock(&queue->mutex);
+    g_static_mutex_unlock(&queue->mutex);
 }
 
 VncJob *vnc_job_new(VncState *vs)
@@ -152,7 +152,7 @@ void vnc_jobs_join(VncState *vs)
 {
     vnc_lock_queue(queue);
     while (vnc_has_job_locked(vs)) {
-        qemu_cond_wait(&queue->cond, &queue->mutex);
+        qemu_cond_wait(&queue->cond, g_static_mutex_get_mutex(&queue->mutex));
     }
     vnc_unlock_queue(queue);
 }
@@ -195,7 +195,7 @@ static int vnc_worker_thread_loop(VncJobQueue *queue)
 
     vnc_lock_queue(queue);
     while (QTAILQ_EMPTY(&queue->jobs) && !queue->exit) {
-        qemu_cond_wait(&queue->cond, &queue->mutex);
+        qemu_cond_wait(&queue->cond, g_static_mutex_get_mutex(&queue->mutex));
     }
     /* Here job can only be NULL if queue->exit is true */
     job = QTAILQ_FIRST(&queue->jobs);
@@ -275,7 +275,7 @@ static VncJobQueue *vnc_queue_init(void)
     VncJobQueue *queue = qemu_mallocz(sizeof(VncJobQueue));
 
     qemu_cond_init(&queue->cond);
-    qemu_mutex_init(&queue->mutex);
+    g_static_mutex_init(&queue->mutex);
     QTAILQ_INIT(&queue->jobs);
     return queue;
 }
@@ -283,7 +283,7 @@ static VncJobQueue *vnc_queue_init(void)
 static void vnc_queue_clear(VncJobQueue *q)
 {
     qemu_cond_destroy(&queue->cond);
-    qemu_mutex_destroy(&queue->mutex);
+    g_static_mutex_free(&queue->mutex);
     buffer_free(&queue->buffer);
     qemu_free(q);
     queue = NULL; /* Unset global queue */

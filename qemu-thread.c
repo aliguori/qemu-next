@@ -14,31 +14,6 @@
 #include "qemu-common.h"
 #include "qemu-thread.h"
 
-void qemu_mutex_init(QemuMutex *mutex)
-{
-    g_static_mutex_init(&mutex->lock);
-}
-
-void qemu_mutex_destroy(QemuMutex *mutex)
-{
-    g_static_mutex_free(&mutex->lock);
-}
-
-void qemu_mutex_lock(QemuMutex *mutex)
-{
-    g_static_mutex_lock(&mutex->lock);
-}
-
-int qemu_mutex_trylock(QemuMutex *mutex)
-{
-    return g_static_mutex_trylock(&mutex->lock);
-}
-
-void qemu_mutex_unlock(QemuMutex *mutex)
-{
-    g_static_mutex_unlock(&mutex->lock);
-}
-
 void qemu_cond_init(QemuCond *cond)
 {
     cond->cond = g_cond_new();
@@ -59,12 +34,12 @@ void qemu_cond_broadcast(QemuCond *cond)
     g_cond_broadcast(cond->cond);
 }
 
-void qemu_cond_wait(QemuCond *cond, QemuMutex *mutex)
+void qemu_cond_wait(QemuCond *cond, GMutex *mutex)
 {
-    g_cond_wait(cond->cond, g_static_mutex_get_mutex(&mutex->lock));
+    g_cond_wait(cond->cond, mutex);
 }
 
-int qemu_cond_timedwait(QemuCond *cond, QemuMutex *mutex, uint64_t msecs)
+int qemu_cond_timedwait(QemuCond *cond, GMutex *mutex, uint64_t msecs)
 {
     GTimeVal abs_time;
 
@@ -73,8 +48,7 @@ int qemu_cond_timedwait(QemuCond *cond, QemuMutex *mutex, uint64_t msecs)
     g_get_current_time(&abs_time);
     g_time_val_add(&abs_time, msecs * 1000); /* MSEC to USEC */
 
-    return g_cond_timed_wait(cond->cond,
-                             g_static_mutex_get_mutex(&mutex->lock), &abs_time);
+    return g_cond_timed_wait(cond->cond, mutex, &abs_time);
 }
 
 struct trampoline_data
@@ -82,7 +56,7 @@ struct trampoline_data
     QemuThread *thread;
     void *(*startfn)(void *);
     void *opaque;
-    QemuMutex lock;
+    GStaticMutex lock;
 };
 
 static gpointer thread_trampoline(gpointer data)
@@ -91,7 +65,7 @@ static gpointer thread_trampoline(gpointer data)
     gpointer retval;
 
     td->thread->tid = pthread_self();
-    qemu_mutex_unlock(&td->lock);
+    g_static_mutex_unlock(&td->lock);
 
     retval = td->startfn(td->opaque);
     qemu_free(td);
@@ -109,10 +83,10 @@ void qemu_thread_create(QemuThread *thread,
     td->startfn = start_routine;
     td->opaque = arg;
     td->thread = thread;
-    qemu_mutex_init(&td->lock);
+    g_static_mutex_init(&td->lock);
 
     /* on behalf of the new thread */
-    qemu_mutex_lock(&td->lock);
+    g_static_mutex_lock(&td->lock);
 
     sigfillset(&set);
     pthread_sigmask(SIG_SETMASK, &set, &old);
@@ -122,11 +96,11 @@ void qemu_thread_create(QemuThread *thread,
     /* we're transfering ownership of this lock to the thread so we no
      * longer hold it here */
 
-    qemu_mutex_lock(&td->lock);
+    g_static_mutex_lock(&td->lock);
     /* validate tid */
-    qemu_mutex_unlock(&td->lock);
+    g_static_mutex_unlock(&td->lock);
 
-    qemu_mutex_destroy(&td->lock);
+    g_static_mutex_free(&td->lock);
 }
 
 void qemu_thread_signal(QemuThread *thread, int sig)

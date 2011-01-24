@@ -3,10 +3,6 @@
 #include <glib.h>
 #include <pthread.h>
 
-struct QemuMutex {
-    GStaticMutex lock;
-};
-
 struct QemuCond {
     GCond *cond;
 };
@@ -16,23 +12,15 @@ struct QemuThread {
     pthread_t tid;
 };
 
-typedef struct QemuMutex QemuMutex;
 typedef struct QemuCond QemuCond;
 typedef struct QemuThread QemuThread;
-
-void qemu_mutex_init(QemuMutex *mutex);
-void qemu_mutex_destroy(QemuMutex *mutex);
-void qemu_mutex_lock(QemuMutex *mutex);
-int qemu_mutex_trylock(QemuMutex *mutex);
-int qemu_mutex_timedlock(QemuMutex *mutex, uint64_t msecs);
-void qemu_mutex_unlock(QemuMutex *mutex);
 
 void qemu_cond_init(QemuCond *cond);
 void qemu_cond_destroy(QemuCond *cond);
 void qemu_cond_signal(QemuCond *cond);
 void qemu_cond_broadcast(QemuCond *cond);
-void qemu_cond_wait(QemuCond *cond, QemuMutex *mutex);
-int qemu_cond_timedwait(QemuCond *cond, QemuMutex *mutex, uint64_t msecs);
+void qemu_cond_wait(QemuCond *cond, GMutex *mutex);
+int qemu_cond_timedwait(QemuCond *cond, GMutex *mutex, uint64_t msecs);
 
 void qemu_thread_create(QemuThread *thread,
                        void *(*start_routine)(void*),

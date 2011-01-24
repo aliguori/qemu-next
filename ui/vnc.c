@@ -1046,7 +1046,7 @@ static void vnc_disconnect_finish(VncState *vs)
     vnc_unlock_output(vs);
 
 #ifdef CONFIG_VNC_THREAD
-    qemu_mutex_destroy(&vs->output_mutex);
+    g_static_mutex_free(&vs->output_mutex);
 #endif
     qemu_free(vs);
 }
@@ -2386,7 +2386,7 @@ static void vnc_connect(VncDisplay *vd, int csock)
     vs->as.endianness = 0;
 
 #ifdef CONFIG_VNC_THREAD
-    qemu_mutex_init(&vs->output_mutex);
+    g_static_mutex_init(&vs->output_mutex);
 #endif
 
     QTAILQ_INSERT_HEAD(&vd->clients, vs, next);
@@ -2448,7 +2448,7 @@ void vnc_display_init(DisplayState *ds)
         exit(1);
 
 #ifdef CONFIG_VNC_THREAD
-    qemu_mutex_init(&vs->mutex);
+    g_static_mutex_init(&vs->mutex);
     vnc_start_worker_thread();
 #endif
 

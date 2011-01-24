@@ -50,7 +50,7 @@ void vnc_stop_worker_thread(void);
 static inline int vnc_trylock_display(VncDisplay *vd)
 {
 #ifdef CONFIG_VNC_THREAD
-    return qemu_mutex_trylock(&vd->mutex);
+    return g_static_mutex_trylock(&vd->mutex);
 #else
     return 0;
 #endif
@@ -59,28 +59,28 @@ static inline int vnc_trylock_display(VncDisplay *vd)
 static inline void vnc_lock_display(VncDisplay *vd)
 {
 #ifdef CONFIG_VNC_THREAD
-    qemu_mutex_lock(&vd->mutex);
+    g_static_mutex_lock(&vd->mutex);
 #endif
 }
 
 static inline void vnc_unlock_display(VncDisplay *vd)
 {
 #ifdef CONFIG_VNC_THREAD
-    qemu_mutex_unlock(&vd->mutex);
+    g_static_mutex_unlock(&vd->mutex);
 #endif
 }
 
 static inline void vnc_lock_output(VncState *vs)
 {
 #ifdef CONFIG_VNC_THREAD
-    qemu_mutex_lock(&vs->output_mutex);
+    g_static_mutex_lock(&vs->output_mutex);
 #endif
 }
 
 static inline void vnc_unlock_output(VncState *vs)
 {
 #ifdef CONFIG_VNC_THREAD
-    qemu_mutex_unlock(&vs->output_mutex);
+    g_static_mutex_unlock(&vs->output_mutex);
 #endif
 }
 

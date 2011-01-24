@@ -108,7 +108,7 @@ struct VncDisplay
     kbd_layout_t *kbd_layout;
     int lock_key_sync;
 #ifdef CONFIG_VNC_THREAD
-    QemuMutex mutex;
+    GStaticMutex mutex;
 #endif
 
     QEMUCursor *cursor;
@@ -244,7 +244,7 @@ struct VncState
 #ifndef CONFIG_VNC_THREAD
     VncJob job;
 #else
-    QemuMutex output_mutex;
+    GStaticMutex output_mutex;
 #endif
 
     /* Encoding specific, if you add something here, don't forget to
