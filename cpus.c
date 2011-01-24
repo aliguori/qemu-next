@@ -324,9 +324,9 @@ void vm_stop(int reason)
 GStaticMutex qemu_global_mutex;
 static GStaticMutex qemu_fair_mutex;
 
-static QemuThread io_thread;
+static QemuSThread io_thread;
 
-static QemuThread *tcg_cpu_thread;
+static QemuSThread *tcg_cpu_thread;
 static GCond *tcg_halt_cond;
 
 static int qemu_system_ready;
@@ -420,7 +420,7 @@ int qemu_init_main_loop(void)
     g_static_mutex_init(&qemu_global_mutex);
     g_static_mutex_lock(&qemu_global_mutex);
 
-    qemu_thread_self(&io_thread);
+    qemu_sthread_self(&io_thread);
 
     return 0;
 }
@@ -609,7 +609,7 @@ static void *kvm_cpu_thread_fn(void *arg)
     CPUState *env = arg;
 
     g_static_mutex_lock(&qemu_global_mutex);
-    qemu_thread_self(env->thread);
+    qemu_sthread_self(env->thread);
     if (kvm_enabled())
         kvm_init_vcpu(env);
 
@@ -642,7 +642,7 @@ static void *tcg_cpu_thread_fn(void *arg)
     CPUState *env = arg;
 
     tcg_init_ipi();
-    qemu_thread_self(env->thread);
+    qemu_sthread_self(env->thread);
 
     /* signal CPU creation */
     g_static_mutex_lock(&qemu_global_mutex);
@@ -671,17 +671,17 @@ void qemu_cpu_kick(void *_env)
 {
     CPUState *env = _env;
     g_cond_broadcast(env->halt_cond);
-    qemu_thread_signal(env->thread, SIG_IPI);
+    qemu_sthread_signal(env->thread, SIG_IPI);
 }
 
 int qemu_cpu_self(void *_env)
 {
     CPUState *env = _env;
-    QemuThread this;
+    QemuSThread this;
 
-    qemu_thread_self(&this);
+    qemu_sthread_self(&this);
 
-    return qemu_thread_equal(&this, env->thread);
+    return qemu_sthread_equal(&this, env->thread);
 }
 
 static void cpu_signal(int sig)
@@ -764,7 +764,7 @@ void qemu_mutex_lock_iothread(void)
     } else {
         g_static_mutex_lock(&qemu_fair_mutex);
         if (g_static_mutex_trylock(&qemu_global_mutex)) {
-            qemu_thread_signal(tcg_cpu_thread, SIG_IPI);
+            qemu_sthread_signal(tcg_cpu_thread, SIG_IPI);
             g_static_mutex_lock(&qemu_global_mutex);
         }
         g_static_mutex_unlock(&qemu_fair_mutex);
@@ -830,9 +830,9 @@ static void tcg_init_vcpu(void *_env)
     CPUState *env = _env;
     /* share a single thread for all cpus with TCG */
     if (!tcg_cpu_thread) {
-        env->thread = qemu_mallocz(sizeof(QemuThread));
+        env->thread = qemu_mallocz(sizeof(QemuSThread));
         env->halt_cond = g_cond_new();
-        qemu_thread_create(env->thread, tcg_cpu_thread_fn, env);
+        qemu_sthread_create(env->thread, tcg_cpu_thread_fn, env);
         while (env->created == 0) {
             GTimeVal t;
             g_get_current_time(&t);
@@ -850,9 +850,9 @@ static void tcg_init_vcpu(void *_env)
 
 static void kvm_start_vcpu(CPUState *env)
 {
-    env->thread = qemu_mallocz(sizeof(QemuThread));
+    env->thread = qemu_mallocz(sizeof(QemuSThread));
     env->halt_cond = g_cond_new();
-    qemu_thread_create(env->thread, kvm_cpu_thread_fn, env);
+    qemu_sthread_create(env->thread, kvm_cpu_thread_fn, env);
     while (env->created == 0) {
         GTimeVal t;
         g_get_current_time(&t);
@@ -887,10 +887,10 @@ static void qemu_system_vmstop_request(int reason)
 
 void vm_stop(int reason)
 {
-    QemuThread me;
-    qemu_thread_self(&me);
+    QemuSThread me;
+    qemu_sthread_self(&me);
 
-    if (!qemu_thread_equal(&me, &io_thread)) {
+    if (!qemu_sthread_equal(&me, &io_thread)) {
         qemu_system_vmstop_request(reason);
         /*
          * FIXME: should not return to device code in case

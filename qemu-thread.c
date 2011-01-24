@@ -41,7 +41,7 @@ GThread *q_thread_create_nosignal(GThreadFunc func,
 
 struct trampoline_data
 {
-    QemuThread *thread;
+    QemuSThread *thread;
     void *(*startfn)(void *);
     void *opaque;
     GStaticMutex lock;
@@ -61,7 +61,7 @@ static gpointer thread_trampoline(gpointer data)
     return retval;
 }
 
-void qemu_thread_create(QemuThread *thread,
+void qemu_sthread_create(QemuSThread *thread,
                         void *(*start_routine)(void*),
                         void *arg)
 {
@@ -91,23 +91,23 @@ void qemu_thread_create(QemuThread *thread,
     g_static_mutex_free(&td->lock);
 }
 
-void qemu_thread_signal(QemuThread *thread, int sig)
+void qemu_sthread_signal(QemuSThread *thread, int sig)
 {
     pthread_kill(thread->tid, sig);
 }
 
-void qemu_thread_self(QemuThread *thread)
+void qemu_sthread_self(QemuSThread *thread)
 {
     thread->thread = g_thread_self();
     thread->tid = pthread_self();
 }
 
-int qemu_thread_equal(QemuThread *thread1, QemuThread *thread2)
+int qemu_sthread_equal(QemuSThread *thread1, QemuSThread *thread2)
 {
     return (thread1->thread == thread2->thread);
 }
 
-void qemu_thread_exit(void *retval)
+void qemu_sthread_exit(void *retval)
 {
     g_thread_exit(retval);
 }
