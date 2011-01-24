@@ -51,7 +51,7 @@
 struct VncJobQueue {
     GCond *cond;
     GStaticMutex mutex;
-    QemuThread thread;
+    GThread *thread;
     Buffer buffer;
     bool exit;
     QTAILQ_HEAD(, VncJob) jobs;
@@ -289,11 +289,11 @@ static void vnc_queue_clear(VncJobQueue *q)
     queue = NULL; /* Unset global queue */
 }
 
-static void *vnc_worker_thread(void *arg)
+static gpointer vnc_worker_thread(gpointer arg)
 {
     VncJobQueue *queue = arg;
 
-    qemu_thread_self(&queue->thread);
+    queue->thread = g_thread_self();
 
     while (!vnc_worker_thread_loop(queue)) ;
     vnc_queue_clear(queue);
@@ -308,7 +308,7 @@ void vnc_start_worker_thread(void)
         return ;
 
     q = vnc_queue_init();
-    qemu_thread_create(&q->thread, vnc_worker_thread, q);
+    q->thread = q_thread_create_nosignal(vnc_worker_thread, q, FALSE, NULL);
     queue = q; /* Set global queue */
 }
 

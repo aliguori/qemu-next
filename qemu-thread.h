@@ -10,6 +10,11 @@ struct QemuThread {
 
 typedef struct QemuThread QemuThread;
 
+GThread *q_thread_create_nosignal(GThreadFunc func,
+                                  gpointer data,
+                                  gboolean joinable,
+                                  GError **error);
+
 void qemu_thread_create(QemuThread *thread,
                        void *(*start_routine)(void*),
                        void *arg);

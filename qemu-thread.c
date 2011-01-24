@@ -14,6 +14,31 @@
 #include "qemu-common.h"
 #include "qemu-thread.h"
 
+#ifdef _WIN32
+GThread *q_thread_create_nosignal(GThreadFunc func,
+                                  gpointer data,
+                                  gboolean joinable,
+                                  GError **error)
+{
+    return g_thread_create(func, data, joinable, NULL);
+}
+#else
+GThread *q_thread_create_nosignal(GThreadFunc func,
+                                  gpointer data,
+                                  gboolean joinable,
+                                  GError **error)
+{
+    GThread *tid;
+    sigset_t set, old;
+
+    sigfillset(&set);
+    pthread_sigmask(SIG_SETMASK, &set, &old);
+    tid = g_thread_create(func, data, joinable, error);
+    pthread_sigmask(SIG_SETMASK, &old, NULL);
+    return tid;
+}
+#endif
+
 struct trampoline_data
 {
     QemuThread *thread;
