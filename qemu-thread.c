@@ -14,43 +14,6 @@
 #include "qemu-common.h"
 #include "qemu-thread.h"
 
-void qemu_cond_init(QemuCond *cond)
-{
-    cond->cond = g_cond_new();
-}
-
-void qemu_cond_destroy(QemuCond *cond)
-{
-    g_cond_free(cond->cond);
-}
-
-void qemu_cond_signal(QemuCond *cond)
-{
-    g_cond_signal(cond->cond);
-}
-
-void qemu_cond_broadcast(QemuCond *cond)
-{
-    g_cond_broadcast(cond->cond);
-}
-
-void qemu_cond_wait(QemuCond *cond, GMutex *mutex)
-{
-    g_cond_wait(cond->cond, mutex);
-}
-
-int qemu_cond_timedwait(QemuCond *cond, GMutex *mutex, uint64_t msecs)
-{
-    GTimeVal abs_time;
-
-    assert(cond->cond != NULL);
-
-    g_get_current_time(&abs_time);
-    g_time_val_add(&abs_time, msecs * 1000); /* MSEC to USEC */
-
-    return g_cond_timed_wait(cond->cond, mutex, &abs_time);
-}
-
 struct trampoline_data
 {
     QemuThread *thread;
