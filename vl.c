@@ -165,6 +165,8 @@ int main(int argc, char **argv)
 
 #include "ui/qemu-spice.h"
 
+#include <glib.h>
+
 //#define DEBUG_NET
 //#define DEBUG_SLIRP
 
@@ -1917,6 +1919,8 @@ int main(int argc, char **argv, char **envp)
 #endif
     atexit(qemu_run_exit_notifiers);
     error_set_progname(argv[0]);
+
+    g_thread_init(NULL);
 
     init_clocks();
 

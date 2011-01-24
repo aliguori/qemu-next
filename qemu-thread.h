@@ -1,18 +1,19 @@
 #ifndef __QEMU_THREAD_H
 #define __QEMU_THREAD_H 1
-#include "semaphore.h"
-#include "pthread.h"
+#include <glib.h>
+#include <pthread.h>
 
 struct QemuMutex {
-    pthread_mutex_t lock;
+    GStaticMutex lock;
 };
 
 struct QemuCond {
-    pthread_cond_t cond;
+    GCond *cond;
 };
 
 struct QemuThread {
-    pthread_t thread;
+    GThread *thread;
+    pthread_t tid;
 };
 
 typedef struct QemuMutex QemuMutex;
