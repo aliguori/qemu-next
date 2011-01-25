@@ -111,3 +111,11 @@ int qemu_set_fd_handler2(int fd,
 {
     return 0;
 }
+
+int qemu_set_fd_handler(int fd,
+                        IOHandler *fd_read,
+                        IOHandler *fd_write,
+                        void *opaque)
+{
+    return 0;
+}
