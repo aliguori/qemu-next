@@ -2,6 +2,7 @@
 #include "qemu-common.h"
 #include "block_int.h"
 #include "module.h"
+#include "block/raw-aio.h"
 
 static int raw_open(BlockDriverState *bs, int flags)
 {
@@ -150,6 +151,7 @@ static BlockDriver bdrv_raw = {
 
 static void bdrv_raw_init(void)
 {
+    tp_aio_init();
     bdrv_register(&bdrv_raw);
 }
 

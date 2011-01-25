@@ -27,7 +27,7 @@
 #include "qemu-log.h"
 #include "block_int.h"
 #include "module.h"
-#include "block/raw-posix-aio.h"
+#include "block/raw-aio.h"
 
 #ifdef CONFIG_COCOA
 #include <paths.h>
@@ -183,11 +183,7 @@ static int raw_open_common(BlockDriverState *bs, const char *filename,
 #ifdef CONFIG_LINUX_AIO
     if ((bdrv_flags & (BDRV_O_NOCACHE|BDRV_O_NATIVE_AIO)) ==
                       (BDRV_O_NOCACHE|BDRV_O_NATIVE_AIO)) {
-
-        /* We're falling back to POSIX AIO in some cases */
-        paio_init();
-
-        s->aio_ctx = laio_init();
+        s->aio_ctx = linux_aio_init();
         if (!s->aio_ctx) {
             goto out_free_buf;
         }
@@ -195,9 +191,6 @@ static int raw_open_common(BlockDriverState *bs, const char *filename,
     } else
 #endif
     {
-        if (paio_init() < 0) {
-            goto out_free_buf;
-        }
 #ifdef CONFIG_LINUX_AIO
         s->use_aio = 0;
 #endif
@@ -211,7 +204,9 @@ static int raw_open_common(BlockDriverState *bs, const char *filename,
 
     return 0;
 
+#ifdef CONFIG_LINUX_AIO
 out_free_buf:
+#endif
     qemu_vfree(s->aligned_buf);
 out_close:
     close(fd);
@@ -551,8 +546,8 @@ static BlockDriverAIOCB *raw_aio_submit(BlockDriverState *bs,
         }
     }
 
-    return paio_submit(bs, s->fd, sector_num, qiov, nb_sectors,
-                       cb, opaque, type);
+    return tp_aio_submit(bs, s->fd, sector_num, qiov, nb_sectors,
+                         cb, opaque, type);
 }
 
 static BlockDriverAIOCB *raw_aio_readv(BlockDriverState *bs,
@@ -579,7 +574,7 @@ static BlockDriverAIOCB *raw_aio_flush(BlockDriverState *bs,
     if (fd_open(bs) < 0)
         return NULL;
 
-    return paio_submit(bs, s->fd, 0, NULL, 0, cb, opaque, QEMU_AIO_FLUSH);
+    return tp_aio_submit(bs, s->fd, 0, NULL, 0, cb, opaque, QEMU_AIO_FLUSH);
 }
 
 static void raw_close(BlockDriverState *bs)
@@ -1005,7 +1000,7 @@ static BlockDriverAIOCB *hdev_aio_ioctl(BlockDriverState *bs,
 
     if (fd_open(bs) < 0)
         return NULL;
-    return paio_ioctl(bs, s->fd, req, buf, cb, opaque);
+    return tp_aio_ioctl(bs, s->fd, req, buf, cb, opaque);
 }
 
 #elif defined(__FreeBSD__) || defined(__FreeBSD_kernel__)

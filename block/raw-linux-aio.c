@@ -234,7 +234,7 @@ out_dec_count:
     return NULL;
 }
 
-void *laio_init(void)
+void *linux_aio_init(void)
 {
     struct qemu_laio_state *s;
 

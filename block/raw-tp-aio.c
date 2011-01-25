@@ -20,7 +20,7 @@
 #include "block_int.h"
 #include "qemu-thread.h"
 
-#include "block/raw-posix-aio.h"
+#include "block/raw-aio.h"
 
 typedef enum AioState {
     INACTIVE,
@@ -327,7 +327,7 @@ static AIOPool raw_aio_pool = {
     .cancel             = qemu_paio_cancel,
 };
 
-BlockDriverAIOCB *paio_submit(BlockDriverState *bs, int fd,
+BlockDriverAIOCB *tp_aio_submit(BlockDriverState *bs, int fd,
         int64_t sector_num, QEMUIOVector *qiov, int nb_sectors,
         BlockDriverCompletionFunc *cb, void *opaque, int type)
 {
@@ -351,7 +351,7 @@ BlockDriverAIOCB *paio_submit(BlockDriverState *bs, int fd,
     return &acb->common;
 }
 
-BlockDriverAIOCB *paio_ioctl(BlockDriverState *bs, int fd,
+BlockDriverAIOCB *tp_aio_ioctl(BlockDriverState *bs, int fd,
         unsigned long int req, void *buf,
         BlockDriverCompletionFunc *cb, void *opaque)
 {
@@ -444,7 +444,7 @@ static void paio_complete(void *opaque)
     paio_process_queue(s);
 }
 
-int paio_init(void)
+int tp_aio_init(void)
 {
     AioPool *s = &aio_pool;
     int fds[2];
