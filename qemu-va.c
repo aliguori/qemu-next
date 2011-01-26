@@ -210,6 +210,10 @@ int main(int argc, char **argv)
         }
     }
 
+    if (daemonize) {
+        become_daemon();
+    }
+
     init_clocks();
     configure_alarms("dynticks");
     if (init_timer_alarm() < 0) {
@@ -220,10 +224,6 @@ int main(int argc, char **argv)
     ret = init_virtagent(channel_method, channel_path);
     if (ret) {
         errx(EXIT_FAILURE, "error initializing communication channel");
-    }
-
-    if (daemonize) {
-        become_daemon();
     }
 
     /* main i/o loop */
