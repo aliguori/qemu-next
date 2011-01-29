@@ -79,7 +79,7 @@ def qmp_type_to_qobj_ctor(typename):
         return 'qmp_marshal_type_%s' % typename
 
 def print_declaration(name, required, optional, retval):
-    args = ['Monitor *mon']
+    args = []
     for key in required:
         args.append('%s %s' % (qmp_type_to_c(required[key]), c_var(key)))
 
@@ -96,7 +96,7 @@ def print_declaration(name, required, optional, retval):
 
 def print_definition(name, required, optional, retval):
     print '''
-static int qmp_marshal_%s(Monitor *mon, const QDict *qdict, QObject **ret_data)
+static int qmp_marshal_%s(const QDict *qdict, QObject **ret_data)
 {
 ''' % c_var(name)
 
@@ -136,7 +136,7 @@ static int qmp_marshal_%s(Monitor *mon, const QDict *qdict, QObject **ret_data)
     }
 ''' % (key, c_var(key), qmp_type_to_qdict(optional[key]), key, c_var(key))
 
-    args = ['mon']
+    args = []
     for key in required:
         args.append(c_var(key))
     for key in optional:

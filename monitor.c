@@ -1016,16 +1016,10 @@ static int do_quit(Monitor *mon, const QDict *qdict, QObject **ret_data)
     return 0;
 }
 
-void qmp_quit(Monitor *mon, Error **err)
+void qmp_quit(Error **err)
 {
     no_shutdown = 0;
     qemu_system_shutdown_request();
-}
-
-void hmp_quit(Monitor *mon)
-{
-    monitor_suspend(mon);
-    qmp_quit(mon, NULL);
 }
 
 static int change_vnc_password(const char *password)
@@ -1067,21 +1061,21 @@ static int do_change_vnc(Monitor *mon, const char *target, const char *arg)
     return 0;
 }
 
-void qmp_change_vnc_password(Monitor *mon, const char *password, Error **err)
+void qmp_change_vnc_password(const char *password, Error **err)
 {
     if (vnc_display_password(NULL, password) < 0) {
         error_set(err, QERR_SET_PASSWD_FAILED);
     }
 }
 
-void qmp_change_vnc_listen(Monitor *mon, const char *target, Error **err)
+void qmp_change_vnc_listen(const char *target, Error **err)
 {
     if (vnc_display_open(NULL, target) < 0) {
         error_set(err, QERR_VNC_SERVER_FAILED, target);
     }
 }
 
-void qmp_change(Monitor *mon, const char *device, const char *target,
+void qmp_change(const char *device, const char *target,
                 bool has_arg, const char *arg, Error **err)
 {
     if (strcmp(device, "vnc") == 0) {
@@ -1090,53 +1084,13 @@ void qmp_change(Monitor *mon, const char *device, const char *target,
                 error_set(err, QERR_MISSING_PARAMETER, "arg");
                 return;
             }
-            qmp_change_vnc_password(mon, arg, err);
+            qmp_change_vnc_password(arg, err);
         } else {
-            qmp_change_vnc_listen(mon, target, err);
+            qmp_change_vnc_listen(target, err);
         }
     } else {
-        qmp_change_blockdev(mon, device, target, has_arg, arg, err);
+        qmp_change_blockdev(device, target, has_arg, arg, err);
     }
-}
-
-static void cb_hmp_change_bdrv_pwd(Monitor *mon, const char *password, void *opaque)
-{
-    Error *encryption_err = opaque;
-    Error *err = NULL;
-
-    qmp_block_passwd(mon, error_get_field(encryption_err, "device"),
-                     password, &err);
-    if (err) {
-        monitor_printf(mon, "invalid password\n");
-        error_free(err);
-    }
-
-    error_free(encryption_err);
-
-    monitor_read_command(mon, 1);
-}
-
-void hmp_change(Monitor *mon, const char *device, const char *target,
-                bool has_arg, const char *arg)
-{
-    Error *err = NULL;
-
-    qmp_change(mon, device, target, has_arg, arg, &err);
-    if (!err) {
-        return;
-    }
-
-    if (error_is_type(err, QERR_DEVICE_ENCRYPTED)) {
-        monitor_printf(mon, "%s (%s) is encrypted.\n",
-                       error_get_field(err, "device"),
-                       error_get_field(err, "encrypted_filename"));
-        if (!mon->rs) {
-            monitor_printf(mon, "terminal does not support password prompting\n");
-            return;
-        }
-        readline_start(mon->rs, "Password: ", 1, cb_hmp_change_bdrv_pwd, err);
-    }
-        
 }
 
 /**
@@ -5272,4 +5226,74 @@ int monitor_read_bdrv_key_start(Monitor *mon, BlockDriverState *bs,
         completion_cb(opaque, err);
 
     return err;
+}
+
+/*******************************************************/
+/*                        HMP                          */
+/*******************************************************/
+
+/* These should not access any QEMU internals.  Just use QMP interfaces. */
+
+void hmp_quit(Monitor *mon)
+{
+    monitor_suspend(mon);
+    qmp_quit(NULL);
+}
+
+void hmp_block_passwd(Monitor *mon, const char *device, const char *password)
+{
+    Error *err = NULL;
+
+    qmp_set_blockdev_password(device, password, &err);
+    if (err) {
+        monitor_printf(mon, "block_passwd: %s\n", error_get_pretty(err));
+    }
+}
+
+void hmp_eject(Monitor *mon, bool force, const char * device)
+{
+    Error *err = NULL;
+    qmp_eject(device, true, force, &err);
+    if (err) {
+        monitor_printf(mon, "eject: %s\n", error_get_pretty(err));
+    }
+}
+
+static void cb_hmp_change_bdrv_pwd(Monitor *mon, const char *password, void *opaque)
+{
+    Error *encryption_err = opaque;
+    Error *err = NULL;
+
+    qmp_block_passwd(error_get_field(encryption_err, "device"),
+                     password, &err);
+    if (err) {
+        monitor_printf(mon, "invalid password\n");
+        error_free(err);
+    }
+
+    error_free(encryption_err);
+
+    monitor_read_command(mon, 1);
+}
+
+void hmp_change(Monitor *mon, const char *device, const char *target,
+                bool has_arg, const char *arg)
+{
+    Error *err = NULL;
+
+    qmp_change(device, target, has_arg, arg, &err);
+    if (!err) {
+        return;
+    }
+
+    if (error_is_type(err, QERR_DEVICE_ENCRYPTED)) {
+        monitor_printf(mon, "%s (%s) is encrypted.\n",
+                       error_get_field(err, "device"),
+                       error_get_field(err, "encrypted_filename"));
+        if (!mon->rs) {
+            monitor_printf(mon, "terminal does not support password prompting\n");
+            return;
+        }
+        readline_start(mon->rs, "Password: ", 1, cb_hmp_change_bdrv_pwd, err);
+    }
 }

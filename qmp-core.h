@@ -3,7 +3,7 @@
 
 #include "monitor.h"
 
-typedef int (QmpCommandFunc)(Monitor *, const QDict *, QObject **);
+typedef int (QmpCommandFunc)(const QDict *, QObject **);
 
 void qmp_register_command(const char *name, QmpCommandFunc *fn);
 
