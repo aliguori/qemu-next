@@ -1,0 +1,86 @@
+[ 'quit', {}, {}, 'none' ]
+[ 'eject', {'device': 'str'}, {'force': 'bool'} , 'none' ]
+[ 'change', {'device': 'str', 'target': 'str'}, {'arg': 'str'}, 'none' ]
+[ 'screendump', {'filename': 'str'}, {}, 'none' ]
+[ 'stop' , {}, {}, 'none' ]
+[ 'cont' , {}, {}, 'none' ]
+[ 'system_reset' , {}, {}, 'none' ]
+[ 'system_powerdown' , {}, {}, 'none' ]
+[ 'device_add', {'driver': 'str', 'id': 'str'}, {'**': 'dict'}, 'none' ]
+[ 'device_del', {'id': 'str'}, {}, 'none' ]
+[ 'cpu', {'index': 'int'}, {}, 'none' ]
+[ 'memsave', {'val': 'int', 'size': 'int', 'filename': 'str'}, {}, 'none' ]
+[ 'pmemsave', {'val': 'int', 'size': 'int', 'filename': 'str'}, {}, 'none' ]
+[ 'migrate', {'uri': 'str'}, {'blk': 'bool', 'inc': 'bool'}, 'none' ]
+[ 'migrate_cancel', {}, {}, 'none' ]
+[ 'migrate_set_speed', {'value': 'int'}, {}, 'none' ]
+[ 'migrate_set_downtime', {'value': 'number'}, {}, 'none' ]
+[ 'netdev_add', {'type': 'str', 'id': 'str'}, {'**': 'dict'}, 'none' ]
+[ 'netdev_del', {'id': 'str'}, {}, 'none' ]
+[ 'balloon', {'value': 'int'}, {}, 'none' ]
+[ 'set_link', {'name': 'str', 'up': 'bool'}, {}, 'none' ]
+[ 'getfd', {'fdname': 'str'}, {}, 'none' ]
+[ 'closefd', {'fdname': 'str'}, {}, 'none' ]
+[ 'block_passwd', {'device': 'str', 'password': 'str'}, {}, 'none' ]
+[ 'set_password', {'protocol': 'str', 'password': 'str'}, {'connected': 'str'}, 'none' ]
+[ 'expire_password', {'protocol': 'str', 'time': 'str'}, {}, 'none' ]
+[ 'qmp_capabilities', {}, {}, 'none' ]
+[ 'human-monitor-command', {'command-line': 'str'}, {'cpu-index': 'int'}, 'str' ] 
+
+{ 'VersionInfo': {'qemu': {'major': 'int', 'minor': 'int', 'micro': 'int'}, 'package': 'str'} }
+[ 'query-version', {}, {}, 'VersionInfo' ]
+
+{ 'CommandInfo': {'name': 'str'} }
+[ 'query-commands', {}, {}, ['CommandInfo'] ]
+
+{ 'ChardevInfo': {'label': 'str', 'filename': 'str'} }
+[ 'query-chardev', {}, {}, ['ChardevInfo'] ]
+
+{ 'BlockInfo': {'device': 'str', 'type': 'str', 'removable': 'bool', 'locked': 'bool', '*inserted': { 'file': 'str', 'ro': 'bool', 'drv': 'str', '*backing_file': 'str', 'encrypted': 'bool' }} }
+[ 'query-block', {}, {}, ['BlockInfo'] ]
+
+{ 'BlockStats': {'*device': 'str', 'stats': {'rd_bytes': 'int', 'wr_bytes': 'int', 'rd_operations': 'int', 'wr_operations': 'int', 'wr_highest_offset': 'int'}, '*parent': 'BlockStats'}}
+[ 'query-blockstats', {}, {}, ['BlockStats'] ]
+
+{ 'CpuInfo': {'CPU': 'int', 'current': 'bool', 'halted': 'bool', '*pc': 'int', '*nip': 'int', '*npc': 'int', '*PC': 'int'} }
+[ 'query-cpus', {}, {}, ['CpuInfo'] ]
+
+{ 'PciMemoryRange': {'base': 'int', 'limit': 'int'} }
+
+{ 'PciBridge': {'bus': 'int', 'secondary': 'int', 'subordinate': 'int', 'io_range': 'PciMemoryRange', 'memory_range': 'PciMemoryRange', 'prefetchable_range': 'PciMemoryRange', '*devices': ['PciDevice']} }
+
+{ 'PciDevice': {'bus': 'int', 'slot': 'int', 'function': 'int', 'class_info': {'*desc': 'str', 'class': 'int'}, 'id': {'device': 'int', 'vendor': 'int'}, '*irq': 'int', 'qdev_id': 'str', '*pci_bridge': 'PciBridge', 'regions': ['PciMemoryRange']} }
+
+{ 'PciInfo': {'bus': 'int', 'devices': ['PciDevice']} }
+[ 'query-pci', {}, {}, ['PciInfo'] ]
+
+{ 'KvmInfo': {'enabled': 'bool', 'present': 'bool'} }
+[ 'query-kvm', {}, {}, 'KvmInfo' ]
+
+{ 'StatusInfo': {'running': 'bool', 'singlestep': 'bool'} }
+[ 'query-status', {}, {}, 'StatusInfo' ]
+
+{ 'MouseInfo': {'name': 'str', 'index': 'int', 'current': 'bool', 'absolute': 'bool'} }
+[ 'query-mice', {}, {}, ['MouseInfo'] ]
+
+{ 'VncClientInfo': {'host': 'str', 'family': 'str', 'service': 'str', '*x509_dname': 'str', '*sasl_username': 'str'} }
+{ 'VncInfo': {'enabled': 'bool', 'host': 'str', 'family': 'str', 'service': 'str', 'auth': 'str', 'clients': ['VncClientInfo']} }
+
+[ 'query-vnc', {}, {}, 'VncInfo' ]
+
+{ 'SpiceChannel': {'host': 'str', 'family': 'str', 'port': 'str', 'connection-id': 'int', 'channel-type': 'int', 'channel-id': 'int', 'tls': 'bool'} }
+{ 'SpiceInfo': {'enabled': 'bool', 'host': 'str', '*port': 'int', '*tls-port': 'int', 'auth': 'str', 'channels': ['SpiceChannel']} }
+[ 'query-spice', {}, {}, 'SpiceInfo' ]
+
+{ 'NameInfo': {'name': 'str'} }
+[ 'query-name', {}, {}, 'NameInfo' ]
+
+{ 'UuidInfo': {'UUID': 'str'} }
+[ 'query-uuid', {}, {}, 'UuidInfo' ]
+
+{ 'MigrationStats': {'transferred': 'int', 'remaining': 'int', 'total': 'int' } }
+{ 'MigrationInfo': {'*status': 'str', '*ram': 'MigrationStats', '*disk': 'MigrationStats'} }
+[ 'query-migrate', {}, {}, 'MigrationInfo' ]
+
+{ 'BalloonInfo': {'actual': 'int', '*mem_swapped_in': 'int', '*mem_swapped_out': 'int', '*major_page_faults': 'int', '*minor_page_faults': 'int', '*free_mem': 'int', '*total_mem': 'int'} }
+[ 'query-balloon', {}, {}, 'BalloonInfo' ]
