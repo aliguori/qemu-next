@@ -7,7 +7,7 @@ int hmp_parse_int(const char *value)
     return strtol(value, NULL, 0);
 }
 
-target_ulong hmp_parse_targetlong(const char *value)
+int64_t hmp_parse_targetlong(const char *value)
 {
     return strtoull(value, NULL, 0);
 }

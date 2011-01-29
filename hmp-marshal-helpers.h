@@ -5,7 +5,7 @@
 
 int hmp_parse_int(const char *value);
 
-target_ulong hmp_parse_targetlong(const char *value);
+int64_t hmp_parse_targetlong(const char *value);
 
 const char * hmp_parse_str(const char *value);
 

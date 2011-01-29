@@ -260,6 +260,7 @@ else:
 
 #include "qmp.h"
 #include "monitor.h"
+#include "qmp-core.h"
 
 #define qobj_from_int(value) QOBJECT(qint_from_int(value))
 #define qobj_from_str(value) QOBJECT(qstring_from_str(value))
@@ -270,7 +271,8 @@ else:
 exprs = []
 
 for line in sys.stdin:
-    if len(line.strip()) == 0:
+    line = line.strip()
+    if not line or line.startswith('#'):
         continue
 
     s = eval(line)
@@ -309,5 +311,5 @@ else:
             print '    qmp_register_command("%s", &qmp_marshal_%s);' % (s[0], c_var(s[0]))
     print '};'
     print
-    print 'qmp_init(qmp_init_marshal);'
+    print 'qapi_init(qmp_init_marshal);'
         

@@ -1940,6 +1940,8 @@ int main(int argc, char **argv, char **envp)
     cyls = heads = secs = 0;
     translation = BIOS_ATA_TRANSLATION_AUTO;
 
+    module_call_init(MODULE_INIT_QAPI);
+
     for (i = 0; i < MAX_NODES; i++) {
         node_mem[i] = 0;
         node_cpumask[i] = 0;

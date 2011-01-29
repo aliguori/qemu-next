@@ -6,6 +6,8 @@
 #include "qerror.h"
 #include "qdict.h"
 #include "block.h"
+#include "qmp.h"
+#include "hmp.h"
 
 extern Monitor *cur_mon;
 extern Monitor *default_mon;
