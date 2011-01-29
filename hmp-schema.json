@@ -2,6 +2,8 @@
 [ 'eject', {'force': 'flag'}, {'device': 'blockdev'} ]
 [ 'change', {'device': 'blockdev'}, {'target': 'file'}, {'*arg': 'str'} ]
 [ 'block_passwd', {'device': 'blockdev'}, {'password': 'str'} ]
+[ 'info', 'version' ]
+
 #[ 'help', {'*cmd': 'str'}  ]
 #[ 'commit', {'device': 'blockdev'} ]
 #[ 'drive_del', {'id': 'str'} ]
@@ -69,7 +71,6 @@
 #[ 'closefd', {'fdname': 'str'} ]
 #[ 'set_password', {'protocol': 'str'}, {'password': 'str'}, {'*connected': 'str'} ]
 #[ 'expire_password', {'protocol': 'str'}, {'time': 'str'} ]
-#[ 'info', 'version' ]
 #[ 'info', 'network' ]
 #[ 'info', 'chardev' ]
 #[ 'info', 'block' ]

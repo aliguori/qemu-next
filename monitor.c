@@ -5313,3 +5313,16 @@ void hmp_change(Monitor *mon, const char *device, const char *target,
         readline_start(mon->rs, "Password: ", 1, cb_hmp_change_bdrv_pwd, err);
     }
 }
+
+void hmp_info_version(Monitor *mon)
+{
+    VersionInfo *info;
+
+    info = qmp_query_version(NULL);
+
+    monitor_printf(mon, "%" PRId64 ".%" PRId64 ".%" PRId64 "%s\n",
+                   info->qemu.major, info->qemu.minor, info->qemu.micro,
+                   info->package);
+
+    qmp_free_VersionInfo(info);
+}
