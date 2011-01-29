@@ -16,6 +16,7 @@
 #include "qstring.h"
 #include "qemu-error.h"
 #include <stdarg.h>
+#include "error.h"
 
 typedef struct QErrorStringTable {
     const char *desc;
@@ -41,6 +42,7 @@ void qerror_report_internal(const char *file, int linenr, const char *func,
                             const char *fmt, ...) GCC_FMT_ATTR(4, 5);
 #define qerror_report(fmt, ...) \
     qerror_report_internal(__FILE__, __LINE__, __func__, fmt, ## __VA_ARGS__)
+void qerror_report_err(Error *err);
 QError *qobject_to_qerror(const QObject *obj);
 
 /*

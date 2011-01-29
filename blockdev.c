@@ -610,6 +610,8 @@ int do_eject(Monitor *mon, const QDict *qdict, QObject **ret_data)
         qerror_report_err(err);
         return -1;
     }
+
+    return 0;
 }
 
 void qmp_eject(Monitor *mon, const char * device, bool has_force, bool force, Error **err)
@@ -630,8 +632,9 @@ void qmp_eject(Monitor *mon, const char * device, bool has_force, bool force, Er
 
 void hmp_eject(Monitor *mon, bool force, const char * device)
 {
-    qmp_eject(mon, device, true, force, err);
-    if (error_has_error(err)) {
+    Error *err = NULL;
+    qmp_eject(mon, device, true, force, &err);
+    if (err) {
         monitor_printf(mon, "eject: %s\n", error_get_pretty(err));
     }
 }

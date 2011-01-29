@@ -431,6 +431,11 @@ void qerror_report_internal(const char *file, int linenr, const char *func,
     }
 }
 
+void qerror_report_err(Error *err)
+{
+    qerror_report(QERR_UNDEFINED_ERROR);
+}
+
 /**
  * qobject_to_qerror(): Convert a QObject into a QError
  */
