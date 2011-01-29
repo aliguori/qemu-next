@@ -2,6 +2,7 @@
 #define HMP_MARSHAL_HELPERS_H
 
 #include "qemu-common.h"
+#include "qemu-option.h"
 
 int hmp_parse_int(const char *value);
 
