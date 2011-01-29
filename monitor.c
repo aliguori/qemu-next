@@ -1099,6 +1099,46 @@ void qmp_change(Monitor *mon, const char *device, const char *target,
     }
 }
 
+static void cb_hmp_change_bdrv_pwd(Monitor *mon, const char *password, void *opaque)
+{
+    Error *encryption_err = opaque;
+    Error *err = NULL;
+
+    qmp_block_passwd(mon, error_get_field(encryption_err, "device"),
+                     password, &err);
+    if (err) {
+        monitor_printf(mon, "invalid password\n");
+        error_free(err);
+    }
+
+    error_free(encryption_err);
+
+    monitor_read_command(mon, 1);
+}
+
+void hmp_change(Monitor *mon, const char *device, const char *target,
+                bool has_arg, const char *arg)
+{
+    Error *err = NULL;
+
+    qmp_change(mon, device, target, has_arg, arg, &err);
+    if (!err) {
+        return;
+    }
+
+    if (error_is_type(err, QERR_DEVICE_ENCRYPTED)) {
+        monitor_printf(mon, "%s (%s) is encrypted.\n",
+                       error_get_field(err, "device"),
+                       error_get_field(err, "encrypted_filename"));
+        if (!mon->rs) {
+            monitor_printf(mon, "terminal does not support password prompting\n");
+            return;
+        }
+        readline_start(mon->rs, "Password: ", 1, cb_hmp_change_bdrv_pwd, err);
+    }
+        
+}
+
 /**
  * do_change(): Change a removable medium, or VNC configuration
  */
@@ -5216,7 +5256,7 @@ int monitor_read_bdrv_key_start(Monitor *mon, BlockDriverState *bs,
     }
 
     if (monitor_ctrl_mode(mon)) {
-        qerror_report(QERR_DEVICE_ENCRYPTED, bdrv_get_device_name(bs));
+        qerror_report(QERR_DEVICE_ENCRYPTED, bdrv_get_device_name(bs), bdrv_get_encrypted_filename(bs));
         return -1;
     }
 

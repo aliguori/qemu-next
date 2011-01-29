@@ -663,6 +663,32 @@ int do_block_set_passwd(Monitor *mon, const QDict *qdict,
     return 0;
 }
 
+void qmp_set_blockdev_password(Monitor *mon, const char *device,
+                               const char *password, Error **err)
+{
+    BlockDriverState *bs;
+    int ret;
+
+    bs = bdrv_find(device);
+    if (!bs) {
+        error_set(err, QERR_DEVICE_NOT_FOUND, device);
+        return;
+    }
+
+    ret = bdrv_set_key(bs, password);
+    if (ret == -EINVAL) {
+        error_set(err, QERR_DEVICE_NOT_ENCRYPTED, bdrv_get_device_name(bs));
+    } else if (ret < 0) {
+        error_set(err, QERR_INVALID_PASSWORD);
+    }
+}
+
+void qmp_block_passwd(Monitor *mon, const char *device,
+                      const char *password, Error **err)
+{
+    qmp_set_blockdev_password(mon, device, password, err);
+}
+
 int do_change_block(Monitor *mon, const char *device,
                     const char *filename, const char *fmt)
 {
@@ -728,7 +754,8 @@ void qmp_change_blockdev(Monitor *mon, const char *device,
         return;
     }
     if (bdrv_key_required(bs)) {
-        error_set(err, QERR_DEVICE_ENCRYPTED, bdrv_get_device_name(bs));
+        error_set(err, QERR_DEVICE_ENCRYPTED, bdrv_get_device_name(bs),
+                  bdrv_get_encrypted_filename(bs));
         return;
     }
 }

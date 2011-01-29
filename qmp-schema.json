@@ -4,6 +4,8 @@
 [ 'change-vnc-listen', {'target': 'str'}, {}, 'none' ]
 [ 'change-vnc-password', {'password': 'str'}, {}, 'none' ]
 [ 'change-blockdev', {'device': 'str', 'filename': 'str'}, {'format': 'str'}, 'none' ]
+[ 'block_passwd', {'device': 'str', 'password': 'str'}, {}, 'none' ]
+[ 'set-blockdev-password', {'device': 'str', 'password': 'str'}, {}, 'none' ]
 
 #[ 'screendump', {'filename': 'str'}, {}, 'none' ]
 #[ 'stop' , {}, {}, 'none' ]
@@ -25,7 +27,6 @@
 #[ 'set_link', {'name': 'str', 'up': 'bool'}, {}, 'none' ]
 #[ 'getfd', {'fdname': 'str'}, {}, 'none' ]
 #[ 'closefd', {'fdname': 'str'}, {}, 'none' ]
-#[ 'block_passwd', {'device': 'str', 'password': 'str'}, {}, 'none' ]
 #[ 'set_password', {'protocol': 'str', 'password': 'str'}, {'connected': 'str'}, 'none' ]
 #[ 'expire_password', {'protocol': 'str', 'time': 'str'}, {}, 'none' ]
 #[ 'qmp_capabilities', {}, {}, 'none' ]

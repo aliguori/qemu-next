@@ -1,6 +1,6 @@
 [ 'quit' ]
 [ 'eject', {'force': 'flag'}, {'device': 'blockdev'} ]
-#[ 'change', {'device': 'blockdev'}, {'target': 'file'}, {'*arg': 'str'} ]
+[ 'change', {'device': 'blockdev'}, {'target': 'file'}, {'*arg': 'str'} ]
 #[ 'help', {'*cmd': 'str'}  ]
 #[ 'commit', {'device': 'blockdev'} ]
 #[ 'drive_del', {'id': 'str'} ]

@@ -62,7 +62,7 @@ static const QErrorStringTable qerror_table[] = {
     },
     {
         .error_fmt = QERR_DEVICE_ENCRYPTED,
-        .desc      = "Device '%(device)' is encrypted",
+        .desc      = "Device '%(device)' (%(encrypted_filename)) is encrypted",
     },
     {
         .error_fmt = QERR_DEVICE_INIT_FAILED,
