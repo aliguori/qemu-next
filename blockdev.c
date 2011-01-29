@@ -609,6 +609,28 @@ int do_eject(Monitor *mon, const QDict *qdict, QObject **ret_data)
     return eject_device(mon, bs, force);
 }
 
+void qmp_eject(Monitor *mon, const char * device, bool has_force, bool force)
+{
+    BlockDriverState *bs;
+
+    if (!has_force) {
+        force = false;
+    }
+
+    bs = bdrv_find(device);
+    if (!bs) {
+        qerror_report(QERR_DEVICE_NOT_FOUND, device);
+    }
+    if (!eject_device(mon, bs, force)) {
+        // FIXME
+    }
+}
+
+void hmp_eject(Monitor *mon, bool force, const char * device)
+{
+    qmp_eject(mon, device, true, force);
+}
+
 int do_block_set_passwd(Monitor *mon, const QDict *qdict,
                         QObject **ret_data)
 {
