@@ -1016,7 +1016,7 @@ static int do_quit(Monitor *mon, const QDict *qdict, QObject **ret_data)
     return 0;
 }
 
-void qmp_quit(Monitor *mon)
+void qmp_quit(Monitor *mon, Error **err)
 {
     no_shutdown = 0;
     qemu_system_shutdown_request();
@@ -1025,7 +1025,7 @@ void qmp_quit(Monitor *mon)
 void hmp_quit(Monitor *mon)
 {
     monitor_suspend(mon);
-    qmp_quit(mon);
+    qmp_quit(mon, NULL);
 }
 
 static int change_vnc_password(const char *password)
