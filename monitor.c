@@ -1016,6 +1016,18 @@ static int do_quit(Monitor *mon, const QDict *qdict, QObject **ret_data)
     return 0;
 }
 
+void qmp_quit(Monitor *mon)
+{
+    no_shutdown = 0;
+    qemu_system_shutdown_request();
+}
+
+void hmp_quit(Monitor *mon)
+{
+    monitor_suspend(mon);
+    qmp_quit(mon);
+}
+
 static int change_vnc_password(const char *password)
 {
     if (vnc_display_password(NULL, password) < 0) {

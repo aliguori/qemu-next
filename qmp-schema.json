@@ -1,4 +1,5 @@
-#[ 'quit', {}, {}, 'none' ]
+[ 'quit', {}, {}, 'none' ]
+
 #[ 'eject', {'device': 'str'}, {'force': 'bool'} , 'none' ]
 #[ 'change', {'device': 'str', 'target': 'str'}, {'arg': 'str'}, 'none' ]
 #[ 'screendump', {'filename': 'str'}, {}, 'none' ]
