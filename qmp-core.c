@@ -91,7 +91,15 @@ static void qmp_chr_parse(JSONMessageParser *parser, QList *tokens)
     }
 
     cmd->fn(args, &ret, &err);
-    printf("Executed\n");
+    if (err) {
+        printf("failed\n");
+    } else if (ret) {
+        str = qobject_to_json_pretty(ret);
+        printf("ret> %s\n", qstring_get_str(str));
+        QDECREF(str);
+    } else {
+        printf("ret> void\n");
+    }
 
     qobject_decref(request);
 }
