@@ -697,6 +697,42 @@ int do_change_block(Monitor *mon, const char *device,
     return monitor_read_bdrv_key_start(mon, bs, NULL, NULL);
 }
 
+void qmp_change_blockdev(Monitor *mon, const char *device,
+                         const char *filename, bool has_format,
+                         const char *format, Error **err)
+{
+    BlockDriverState *bs;
+    BlockDriver *drv = NULL;
+    int bdrv_flags;
+
+    bs = bdrv_find(device);
+    if (!bs) {
+        error_set(err, QERR_DEVICE_NOT_FOUND, device);
+        return;
+    }
+    if (has_format) {
+        drv = bdrv_find_whitelisted_format(format);
+        if (!drv) {
+            error_set(err, QERR_INVALID_BLOCK_FORMAT, format);
+            return;
+        }
+    }
+    eject_device(mon, bs, 0, err);
+    if (error_is_set(err)) {
+        return;
+    }
+    bdrv_flags = bdrv_is_read_only(bs) ? 0 : BDRV_O_RDWR;
+    bdrv_flags |= bdrv_is_snapshot(bs) ? BDRV_O_SNAPSHOT : 0;
+    if (bdrv_open(bs, filename, bdrv_flags, drv) < 0) {
+        error_set(err, QERR_OPEN_FILE_FAILED, filename);
+        return;
+    }
+    if (bdrv_key_required(bs)) {
+        error_set(err, QERR_DEVICE_ENCRYPTED, bdrv_get_device_name(bs));
+        return;
+    }
+}
+
 int do_drive_del(Monitor *mon, const QDict *qdict, QObject **ret_data)
 {
     const char *id = qdict_get_str(qdict, "id");

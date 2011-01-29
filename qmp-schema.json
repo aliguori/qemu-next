@@ -1,7 +1,10 @@
 [ 'quit', {}, {}, 'none' ]
 [ 'eject', {'device': 'str'}, {'force': 'bool'} , 'none' ]
+[ 'change', {'device': 'str', 'target': 'str'}, {'arg': 'str'}, 'none' ]
+[ 'change-vnc-listen', {'target': 'str'}, {}, 'none' ]
+[ 'change-vnc-password', {'password': 'str'}, {}, 'none' ]
+[ 'change-blockdev', {'device': 'str', 'filename': 'str'}, {'format': 'str'}, 'none' ]
 
-#[ 'change', {'device': 'str', 'target': 'str'}, {'arg': 'str'}, 'none' ]
 #[ 'screendump', {'filename': 'str'}, {}, 'none' ]
 #[ 'stop' , {}, {}, 'none' ]
 #[ 'cont' , {}, {}, 'none' ]

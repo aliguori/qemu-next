@@ -1,10 +1,9 @@
 [ 'quit' ]
 [ 'eject', {'force': 'flag'}, {'device': 'blockdev'} ]
-
+#[ 'change', {'device': 'blockdev'}, {'target': 'file'}, {'*arg': 'str'} ]
 #[ 'help', {'*cmd': 'str'}  ]
 #[ 'commit', {'device': 'blockdev'} ]
 #[ 'drive_del', {'id': 'str'} ]
-#[ 'change', {'device': 'blockdev'}, {'target': 'file'}, {'*arg': 'str'} ]
 #[ 'screendump', {'filename': 'file'} ]
 #[ 'logfile', {'filename': 'file'} ]
 #[ 'trace-event', {'name': 'str'}, {'option': 'bool'} ]

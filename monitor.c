@@ -1067,6 +1067,38 @@ static int do_change_vnc(Monitor *mon, const char *target, const char *arg)
     return 0;
 }
 
+void qmp_change_vnc_password(Monitor *mon, const char *password, Error **err)
+{
+    if (vnc_display_password(NULL, password) < 0) {
+        error_set(err, QERR_SET_PASSWD_FAILED);
+    }
+}
+
+void qmp_change_vnc_listen(Monitor *mon, const char *target, Error **err)
+{
+    if (vnc_display_open(NULL, target) < 0) {
+        error_set(err, QERR_VNC_SERVER_FAILED, target);
+    }
+}
+
+void qmp_change(Monitor *mon, const char *device, const char *target,
+                bool has_arg, const char *arg, Error **err)
+{
+    if (strcmp(device, "vnc") == 0) {
+        if (strcmp(target, "passwd") == 0 || strcmp(target, "password") == 0) {
+            if (!has_arg) {
+                error_set(err, QERR_MISSING_PARAMETER, "arg");
+                return;
+            }
+            qmp_change_vnc_password(mon, arg, err);
+        } else {
+            qmp_change_vnc_listen(mon, target, err);
+        }
+    } else {
+        qmp_change_blockdev(mon, device, target, has_arg, arg, err);
+    }
+}
+
 /**
  * do_change(): Change a removable medium, or VNC configuration
  */
