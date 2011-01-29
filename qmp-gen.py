@@ -96,11 +96,9 @@ def print_declaration(name, required, optional, retval):
 
 def print_definition(name, required, optional, retval):
     print '''
-static int qmp_marshal_%s(const QDict *qdict, QObject **ret_data)
+static void qmp_marshal_%s(const QDict *qdict, QObject **ret_data, Error **err)
 {
 ''' % c_var(name)
-
-    print '    Error *err = NULL;'
 
     for key in required:
         print '    %s %s;' % (qmp_type_to_c(required[key]), c_var(key))
@@ -118,8 +116,8 @@ static int qmp_marshal_%s(const QDict *qdict, QObject **ret_data)
     for key in required:
         print '''
     if (!qdict_haskey(qdict, "%s")) {
-        qerror_report(QERR_MISSING_PARAMETER, "%s");
-        return -1;
+        error_set(err, QERR_MISSING_PARAMETER, "%s");
+        return;
     }
     /* FIXME validate type and send QERR_INVALID_PARAMETER */
     %s = qdict_get_%s(qdict, "%s");
@@ -145,26 +143,23 @@ static int qmp_marshal_%s(const QDict *qdict, QObject **ret_data)
         else:
             args.append('has_%s' % c_var(key))
             args.append(c_var(key))
-    args.append('&err')
+    args.append('err')
 
     if retval == 'none':
         print '    qmp_%s(%s);' % (c_var(name), ', '.join(args))
-        print '''if (err) {
-        qerror_report_err(err);
-        return -1;
+        print '''    if (error_is_set(err)) {
+        return;
     }'''
     elif type(retval) == str:
         print '    qmp_retval = qmp_%s(%s);' % (c_var(name), ', '.join(args))
-        print '''if (err) {
-        qerror_report_err(err);
-        return -1;
+        print '''if (error_is_set(err)) {
+        return;
     }'''
         print '    *ret_data = %s(qmp_retval);' % qmp_type_to_qobj_ctor(retval)
     elif type(retval) == list:
         print '    qmp_retval = qmp_%s(%s);' % (c_var(name), ', '.join(args))
-        print '''if (err) {
-        qerror_report_err(err);
-        return -1;
+        print '''if (error_is_set(err)) {
+        return;
     }'''
         print '''
     *ret_data = QOBJECT(qlist_new());
@@ -178,7 +173,6 @@ static int qmp_marshal_%s(const QDict *qdict, QObject **ret_data)
     }''' % (qmp_type_to_c(retval[0]), qmp_type_to_qobj_ctor(retval[0]))
 
     print '''
-    return 0;
 }'''
 
 def print_metatype_fwd_decl(name, typeinfo):

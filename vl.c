@@ -164,6 +164,7 @@ int main(int argc, char **argv)
 #include "arch_init.h"
 
 #include "ui/qemu-spice.h"
+#include "qmp-core.h"
 
 #include <glib.h>
 
@@ -1913,6 +1914,7 @@ int main(int argc, char **argv, char **envp)
     const char *incoming = NULL;
     int show_vnc_port = 0;
     int defconfig = 1;
+    const char *qmp2_chardev = NULL;
 
 #ifdef CONFIG_SIMPLE_TRACE
     const char *trace_file = NULL;
@@ -2453,6 +2455,9 @@ int main(int argc, char **argv, char **envp)
                 if (strncmp(optarg, "mon:", 4) == 0) {
                     default_monitor = 0;
                 }
+                break;
+            case QEMU_OPTION_qmp2:
+                qmp2_chardev = optarg;
                 break;
             case QEMU_OPTION_watchdog:
                 if (watchdog) {
@@ -3067,6 +3072,11 @@ int main(int argc, char **argv, char **envp)
         qemu_spice_display_init(ds);
     }
 #endif
+
+    if (qmp2_chardev) {
+        CharDriverState *chr = qemu_chr_find(qmp2_chardev);
+        qmp_init_chardev(chr);
+    }
 
     /* display setup */
     dpy_resize(ds);

@@ -1699,6 +1699,8 @@ STEXI
 @table @option
 ETEXI
 
+DEF("qmp2", HAS_ARG, QEMU_OPTION_qmp2, "-qmp2 dev      \n", QEMU_ARCH_ALL)
+
 DEF("serial", HAS_ARG, QEMU_OPTION_serial, \
     "-serial dev     redirect the serial port to char device 'dev'\n",
     QEMU_ARCH_ALL)
