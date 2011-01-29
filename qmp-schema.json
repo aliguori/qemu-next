@@ -7,6 +7,9 @@
 [ 'block_passwd', {'device': 'str', 'password': 'str'}, {}, 'none' ]
 [ 'set-blockdev-password', {'device': 'str', 'password': 'str'}, {}, 'none' ]
 
+{ 'VersionInfo': {'qemu': {'major': 'int', 'minor': 'int', 'micro': 'int'}, 'package': 'str'} }
+[ 'query-version', {}, {}, 'VersionInfo' ]
+
 #[ 'screendump', {'filename': 'str'}, {}, 'none' ]
 #[ 'stop' , {}, {}, 'none' ]
 #[ 'cont' , {}, {}, 'none' ]
@@ -31,9 +34,6 @@
 #[ 'expire_password', {'protocol': 'str', 'time': 'str'}, {}, 'none' ]
 #[ 'qmp_capabilities', {}, {}, 'none' ]
 #[ 'human-monitor-command', {'command-line': 'str'}, {'cpu-index': 'int'}, 'str' ] 
-#
-#{ 'VersionInfo': {'qemu': {'major': 'int', 'minor': 'int', 'micro': 'int'}, 'package': 'str'} }
-#[ 'query-version', {}, {}, 'VersionInfo' ]
 #
 #{ 'CommandInfo': {'name': 'str'} }
 #[ 'query-commands', {}, {}, ['CommandInfo'] ]

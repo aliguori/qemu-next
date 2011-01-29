@@ -756,6 +756,22 @@ static void do_info_version(Monitor *mon, QObject **ret_data)
         'micro': %d }, 'package': %s }", major, minor, micro, QEMU_PKGVERSION);
 }
 
+VersionInfo *qmp_query_version(Error **err)
+{
+    VersionInfo *info = qmp_alloc_VersionInfo();
+    const char *version = QEMU_VERSION;
+    char *tmp;
+
+    info->qemu.major = strtol(version, &tmp, 10);
+    tmp++;
+    info->qemu.minor = strtol(tmp, &tmp, 10);
+    tmp++;
+    info->qemu.micro = strtol(tmp, &tmp, 10);
+    info->package = qemu_strdup(QEMU_PKGVERSION);
+
+    return info;
+}
+
 static void do_info_name_print(Monitor *mon, const QObject *data)
 {
     QDict *qdict;

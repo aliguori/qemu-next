@@ -152,13 +152,13 @@ static void qmp_marshal_%s(const QDict *qdict, QObject **ret_data, Error **err)
     }'''
     elif type(retval) == str:
         print '    qmp_retval = qmp_%s(%s);' % (c_var(name), ', '.join(args))
-        print '''if (error_is_set(err)) {
+        print '''    if (error_is_set(err)) {
         return;
     }'''
         print '    *ret_data = %s(qmp_retval);' % qmp_type_to_qobj_ctor(retval)
     elif type(retval) == list:
         print '    qmp_retval = qmp_%s(%s);' % (c_var(name), ', '.join(args))
-        print '''if (error_is_set(err)) {
+        print '''    if (error_is_set(err)) {
         return;
     }'''
         print '''
@@ -195,6 +195,7 @@ def print_metatype_declaration(name, typeinfo):
         print "    %s *next;" % c_var(name)
         print "};"
         print
+        print "%s *qmp_alloc_%s(void);" % (name, name)
         print "void qmp_free_%s(%s *obj);" % (name, name)
         print
 
@@ -247,8 +248,19 @@ static QObject *qmp_marshal_type_%s(%s src)
 {''' % (name, qmp_type_to_c(name))
     print '    QObject *qmp__retval;'
     print_metatype_def(typeinfo, 'src', 'qmp__retval')
-    print '    return qmp__retval;'
-    print '}'
+    print '''    return qmp__retval;
+}
+
+void qmp_free_%s(%s *obj)
+{
+    qemu_free(obj);
+}
+
+%s *qmp_alloc_%s(void)
+{
+    return qemu_mallocz(sizeof(%s));
+}''' % (name, name, name, name, name)
+
 
 if __name__ == '__main__':
     kind = 'body'
