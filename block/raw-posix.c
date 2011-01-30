@@ -810,6 +810,7 @@ static BlockDriver bdrv_file = {
     .bdrv_getlength = raw_getlength,
 
     .create_options = raw_create_options,
+    .unsafe_probe = true,
 };
 
 /***********************************************/
@@ -1082,6 +1083,7 @@ static BlockDriver bdrv_host_device = {
     .bdrv_ioctl         = hdev_ioctl,
     .bdrv_aio_ioctl     = hdev_aio_ioctl,
 #endif
+    .unsafe_probe = true,
 };
 
 #ifdef __linux__
@@ -1196,6 +1198,7 @@ static BlockDriver bdrv_host_floppy = {
     .bdrv_is_inserted   = floppy_is_inserted,
     .bdrv_media_changed = floppy_media_changed,
     .bdrv_eject         = floppy_eject,
+    .unsafe_probe = true,
 };
 
 static int cdrom_open(BlockDriverState *bs, const char *filename, int flags)
@@ -1297,6 +1300,7 @@ static BlockDriver bdrv_host_cdrom = {
     /* generic scsi device */
     .bdrv_ioctl         = hdev_ioctl,
     .bdrv_aio_ioctl     = hdev_aio_ioctl,
+    .unsafe_probe = true,
 };
 #endif /* __linux__ */
 
@@ -1416,6 +1420,7 @@ static BlockDriver bdrv_host_cdrom = {
     .bdrv_is_inserted   = cdrom_is_inserted,
     .bdrv_eject         = cdrom_eject,
     .bdrv_set_locked    = cdrom_set_locked,
+    .unsafe_probe = true,
 };
 #endif /* __FreeBSD__ */
 
