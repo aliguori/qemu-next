@@ -389,7 +389,7 @@ if kind == 'types-header':
 #define qmp_marshal_type_number(value) QOBJECT(qfloat_from_double(value))
 
 #define qmp_unmarshal_type_int(value) qint_get_int(qobject_to_qint(value))
-#define qmp_unmarshal_type_str(value) qstring_get_str(qobject_to_qstring(value)) // FIXME mem life cycle
+#define qmp_unmarshal_type_str(value) qemu_strdup(qstring_get_str(qobject_to_qstring(value))) // FIXME mem life cycle
 #define qmp_unmarshal_type_bool(value) qbool_get_int(qobject_to_qbool(value))
 #define qmp_unmarshal_type_number(value) qfloat_get_double(qobject_to_qfloat(value))
 '''

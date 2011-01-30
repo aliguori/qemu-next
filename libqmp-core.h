@@ -8,5 +8,6 @@
 typedef struct QmpSession QmpSession;
 
 QmpSession *qmp_session_new(int fd);
+void qmp_session_destroy(QmpSession *s);
 
 #endif

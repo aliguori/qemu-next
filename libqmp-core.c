@@ -85,4 +85,9 @@ QmpSession *qmp_session_new(int fd)
     return &s->session;
 }
 
-
+void qmp_session_destroy(QmpSession *s)
+{
+    FdQmpSession *fs = container_of(s, FdQmpSession, session);
+    close(fs->fd);
+    qemu_free(fs);
+}
