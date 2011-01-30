@@ -2,10 +2,11 @@
 #define LIBQMP_CORE_H
 
 #include "qemu-objects.h"
+#include "qmp-types.h"
+#include "error.h"
 
-struct QmpSession
-{
-    QObject *(*dispatch)(QmpSession *session, const char *name, const QDict *args, Error **err);
-};
+typedef struct QmpSession QmpSession;
+
+QmpSession *qmp_session_new(int fd);
 
 #endif
