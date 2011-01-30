@@ -1,5 +1,8 @@
 #include <stdio.h>
 #include <sys/socket.h>
+#include <netinet/in.h>
+#include <netinet/tcp.h>
+#include <arpa/inet.h>
 #include <sys/un.h>
 #include <stdlib.h>
 #include <glib.h>
@@ -47,12 +50,13 @@ static QmpSession *qemu(const char *fmt, ...)
     va_end(ap);
 
     snprintf(buffer1, sizeof(buffer1),
-             "i386-softmmu/qemu %s "
+             "i386-softmmu/qemu "
              "-enable-kvm "  // glib series breaks TCG
              "-qmp2 qmp "
              "-chardev socket,id=qmp,path=\"%s\",server=on,wait=off "
              "-vnc none "
-             "-daemonize", buffer0, filename);
+             "-daemonize "
+             "%s", filename, buffer0);
     ret = system(buffer1);
     g_assert(ret != -1);
 
@@ -66,6 +70,102 @@ static QmpSession *qemu(const char *fmt, ...)
     g_assert(ret != -1);
 
     return qmp_session_new(s);
+}
+
+static void read_or_assert(int fd, void *buffer, size_t size)
+{
+    size_t offset = 0;
+
+    while (offset < size) {
+        ssize_t len;
+
+        len = read(fd, buffer + offset, size - offset);
+        if (len == -1 && errno == EINTR) {
+            continue;
+        }
+        g_assert(len != 0);
+        g_assert(len != -1);
+
+        offset += len;
+    }
+}
+
+#if 0
+static void write_or_assert(int fd, const void *buffer, size_t size)
+{
+    size_t offset = 0;
+
+    while (offset < size) {
+        ssize_t len;
+
+        len = write(fd, buffer + offset, size - offset);
+        if (len == -1 && errno == EINTR) {
+            continue;
+        }
+        g_assert(len < 1);
+
+        offset += len;
+    }
+}
+#endif
+
+static int vnc_connect(int port, const char *password)
+{
+    char greeting[13];
+    struct sockaddr_in addr;
+    struct in_addr in;
+    int s, ret;
+
+    ret = inet_aton("127.0.0.1", &in);
+    g_assert(ret != 0);
+
+    addr.sin_family = AF_INET;
+    addr.sin_port = htons(port);
+    memcpy(&addr.sin_addr, &in, sizeof(in));
+
+    s = socket(PF_INET, SOCK_STREAM, 0);
+    g_assert(s != -1);
+
+    ret = connect(s, (struct sockaddr *)&addr, sizeof(addr));
+    if (ret == -1 && errno == ECONNREFUSED) {
+        close(s);
+        return -ECONNREFUSED;
+    }
+
+    read_or_assert(s, greeting, 12);
+    greeting[12] = 0;
+
+    g_assert_cmpstr(greeting, ==, "RFB 003.008\n");
+
+    close(s);
+
+    return 0;
+}
+
+static void test_vnc_change(void)
+{
+    QmpSession *sess;
+    int ret;
+    Error *err = NULL;
+
+    sess = qemu("-S -vnc :300");
+    ret = vnc_connect(5900 + 300, NULL);
+    g_assert_cmpint(ret, ==, 0);
+
+    ret = vnc_connect(5900 + 301, NULL);
+    g_assert_cmpint(ret, ==, -ECONNREFUSED);
+
+    libqmp_change_vnc_listen(sess, ":301", &err);
+    g_assert(err == NULL);
+
+    ret = vnc_connect(5900 + 301, NULL);
+    g_assert_cmpint(ret, ==, 0);
+
+    ret = vnc_connect(5900 + 300, NULL);
+    g_assert_cmpint(ret, ==, -ECONNREFUSED);
+
+    libqmp_quit(sess, NULL);
+    qmp_session_destroy(sess);
 }
 
 static void test_change_block_autoprobe(void)
@@ -90,6 +190,7 @@ static void test_change_block_autoprobe(void)
 
     libqmp_quit(sess, NULL);
     unlink(filename);
+    qmp_session_destroy(sess);
 }
 
 static void test_change_block_encrypted(void)
@@ -119,6 +220,7 @@ static void test_change_block_encrypted(void)
 
     libqmp_quit(sess, NULL);
     unlink(filename);
+    qmp_session_destroy(sess);
 }
 
 static void test_change_old_block_encrypted(void)
@@ -140,6 +242,7 @@ static void test_change_old_block_encrypted(void)
 
     libqmp_quit(sess, NULL);
     unlink(filename);
+    qmp_session_destroy(sess);
 }
 
 static void test_version(void)
@@ -197,6 +300,7 @@ int main(int argc, char **argv)
     g_test_add_func("/block/change/autoprobe", test_change_block_autoprobe);
     g_test_add_func("/deprecated/block/change/encrypted",
                     test_change_old_block_encrypted);
+    g_test_add_func("/vnc/change", test_vnc_change);
 
     g_test_run();
 
