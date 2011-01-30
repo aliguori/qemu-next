@@ -28,6 +28,7 @@
 #include "sysemu.h"
 #include "block_int.h"
 #include <stdio.h>
+#include <glib.h>
 
 #ifdef _WIN32
 #include <windows.h>
@@ -1503,6 +1504,7 @@ int main(int argc, char **argv)
     const img_cmd_t *cmd;
     const char *cmdname;
 
+    g_thread_init(NULL);
     error_set_progname(argv[0]);
 
     bdrv_init();
