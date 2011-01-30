@@ -1,6 +1,7 @@
 # Makefile for QEMU.
 
 GENERATED_HEADERS = config-host.h trace.h qemu-options.def qmp.h hmp.h
+GENERATED_HEADERS += qmp-types.h
 ifeq ($(TRACE_BACKEND),dtrace)
 GENERATED_HEADERS += trace-dtrace.h
 endif
@@ -149,6 +150,12 @@ simpletrace.o: simpletrace.c $(GENERATED_HEADERS)
 qmp-marshal.c: $(SRC_PATH)/qmp-schema.json $(SRC_PATH)/qmp-gen.py
 	$(call quiet-command,python $(SRC_PATH)/qmp-gen.py --body < $< > $@, "  GEN   $@")
 
+qmp-types.c: $(SRC_PATH)/qmp-schema.json $(SRC_PATH)/qmp-gen.py
+	$(call quiet-command,python $(SRC_PATH)/qmp-gen.py --types-body < $< > $@, "  GEN   $@")
+
+qmp-types.h: $(SRC_PATH)/qmp-schema.json $(SRC_PATH)/qmp-gen.py
+	$(call quiet-command,python $(SRC_PATH)/qmp-gen.py --types-header < $< > $@, "  GEN   $@")
+
 qmp.h: $(SRC_PATH)/qmp-schema.json $(SRC_PATH)/qmp-gen.py
 	$(call quiet-command,python $(SRC_PATH)/qmp-gen.py --header < $< > $@, "  GEN   $@")
 
@@ -160,6 +167,7 @@ hmp.h: $(SRC_PATH)/hmp-schema.json $(SRC_PATH)/hmp-gen.py
 
 hmp-marshal.o: hmp-marshal.c hmp.h
 qmp-marshal.o: qmp-marshal.c qmp.h
+qmp-types.o: qmp-types.c qmp-types.h
 
 version.o: $(SRC_PATH)/version.rc config-host.mak
 	$(call quiet-command,$(WINDRES) -I. -o $@ $<,"  RC    $(TARGET_DIR)$@")

@@ -100,7 +100,7 @@ common-obj-y += msmouse.o ps2.o
 common-obj-y += qdev.o qdev-properties.o
 common-obj-y += block-migration.o
 common-obj-y += pflib.o
-common-obj-y += qmp-marshal.o qmp-core.o
+common-obj-y += qmp-marshal.o qmp-types.o qmp-core.o
 common-obj-y += hmp-marshal.o hmp-core.o hmp-marshal-helpers.o
 common-obj-y += error.o
 

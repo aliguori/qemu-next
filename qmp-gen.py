@@ -56,27 +56,11 @@ def qmp_type_to_c(typename, retval=False, indent=0):
     else:
         return 'struct %s *' % typename
 
-def qmp_type_to_qdict(typename):
-    if typename == 'int':
-        return 'int'
-    elif typename == 'str':
-        return 'str'
-    elif typename == 'bool':
-        return 'bool'
-    elif typename == 'number':
-        return 'double'
-
 def qmp_type_to_qobj_ctor(typename):
-    if typename == 'int':
-        return 'qobj_from_int'
-    elif typename == 'str':
-        return 'qobj_from_str'
-    elif typename == 'bool':
-        return 'qobj_from_bool'
-    elif typename == 'number':
-        return 'qobj_from_double'
-    else:
-        return 'qmp_marshal_type_%s' % typename
+    return 'qmp_marshal_type_%s' % typename
+
+def qmp_type_from_qobj(typename):
+    return 'qmp_unmarshal_type_%s' % typename
 
 def print_declaration(name, required, optional, retval):
     args = []
@@ -97,8 +81,7 @@ def print_declaration(name, required, optional, retval):
 def print_definition(name, required, optional, retval):
     print '''
 static void qmp_marshal_%s(const QDict *qdict, QObject **ret_data, Error **err)
-{
-''' % c_var(name)
+{''' % c_var(name)
 
     for key in required:
         print '    %s %s;' % (qmp_type_to_c(required[key]), c_var(key))
@@ -120,8 +103,8 @@ static void qmp_marshal_%s(const QDict *qdict, QObject **ret_data, Error **err)
         return;
     }
     /* FIXME validate type and send QERR_INVALID_PARAMETER */
-    %s = qdict_get_%s(qdict, "%s");
-''' % (key, key, c_var(key), qmp_type_to_qdict(required[key]), key)
+    %s = %s(qdict_get(qdict, "%s"));
+''' % (key, key, c_var(key), qmp_type_from_qobj(required[key]), key)
 
     for key in optional:
         if key == '**':
@@ -129,10 +112,10 @@ static void qmp_marshal_%s(const QDict *qdict, QObject **ret_data, Error **err)
 
         print '''
     if (qdict_haskey(qdict, "%s")) {
-        %s = qdict_get_%s(qdict, "%s");
+        %s = %s(qdict_get(qdict, "%s"));
         has_%s = true;
     }
-''' % (key, c_var(key), qmp_type_to_qdict(optional[key]), key, c_var(key))
+''' % (key, c_var(key), qmp_type_from_qobj(optional[key]), key, c_var(key))
 
     args = []
     for key in required:
@@ -145,24 +128,25 @@ static void qmp_marshal_%s(const QDict *qdict, QObject **ret_data, Error **err)
             args.append(c_var(key))
     args.append('err')
 
+    arglist = ', '.join(args)
+    fn = 'qmp_%s' % c_var(name)
+
     if retval == 'none':
-        print '    qmp_%s(%s);' % (c_var(name), ', '.join(args))
-        print '''    if (error_is_set(err)) {
+        print '    %s(%s);' % (fn, arglist)
+    else:
+        print '    qmp_retval = %s(%s);' % (fn, arglist)
+
+    print '''
+    if (error_is_set(err)) {
         return;
     }'''
+
+    if retval == 'none':
+        pass
     elif type(retval) == str:
-        print '    qmp_retval = qmp_%s(%s);' % (c_var(name), ', '.join(args))
-        print '''    if (error_is_set(err)) {
-        return;
-    }'''
         print '    *ret_data = %s(qmp_retval);' % qmp_type_to_qobj_ctor(retval)
     elif type(retval) == list:
-        print '    qmp_retval = qmp_%s(%s);' % (c_var(name), ', '.join(args))
-        print '''    if (error_is_set(err)) {
-        return;
-    }'''
-        print '''
-    *ret_data = QOBJECT(qlist_new());
+        print '''    *ret_data = QOBJECT(qlist_new());
     if (qmp_retval) {
         QList *list = qobject_to_qlist(*ret_data);
         %s i;
@@ -174,9 +158,6 @@ static void qmp_marshal_%s(const QDict *qdict, QObject **ret_data, Error **err)
 
     print '''
 }'''
-
-def print_metatype_fwd_decl(name, typeinfo):
-    print 'static QObject *qmp_marshal_type_%s(%s src);' % (name, qmp_type_to_c(name))
 
 def print_metatype_declaration(name, typeinfo):
     if type(typeinfo) == str:
@@ -197,6 +178,8 @@ def print_metatype_declaration(name, typeinfo):
         print
         print "%s *qmp_alloc_%s(void);" % (name, name)
         print "void qmp_free_%s(%s *obj);" % (name, name)
+        print 'QObject *qmp_marshal_type_%s(%s src);' % (name, qmp_type_to_c(name))
+        print '%s qmp_unmarshal_type_%s(QObject *src);' % (qmp_type_to_c(name), name)
         print
 
 def inprint(string, indent):
@@ -242,12 +225,67 @@ def print_metatype_def(typeinfo, name, lhs, indent=0):
         inprint('        %s = QOBJECT(qmp__list);' % lhs, indent)
         inprint('    }', indent)
 
+def qobj_to_c(typename):
+    return 'qmp_unmarshal_type_%s' % typename
+
+def print_metatype_undef(typeinfo, name, lhs, indent=0):
+    if indent == 0:
+        sep = '->'
+    else:
+        sep = '.'
+
+    indent += 4
+
+    if type(typeinfo) == str:
+        inprint('%s = %s(%s);' % (lhs, qobj_to_c(typeinfo), name), indent)
+    elif type(typeinfo) == dict:
+        objname = 'qmp__object%d' % ((indent - 4) / 4)
+        inprint('{', indent)
+        inprint('    QDict *qmp__dict = qobject_to_qdict(%s);' % c_var(name), indent)
+        inprint('    QObject *%s;' % objname, indent)
+        for key in typeinfo:
+            member = key
+            optional = False
+            if key.startswith('*'):
+                member = key[1:]
+                optional = True
+            if optional:
+                inprint('if (qdict_haskey(qmp__dict, "%s")) {' % (member), indent + 4)
+                inprint('    %s = qdict_get(qmp__dict, "%s");' % (objname, member), indent + 4)
+                inprint('    %s%shas_%s = true;' % (lhs, sep, c_var(member)), indent + 4)
+                print_metatype_undef(typeinfo[key], objname, '%s%s%s' % (lhs, sep, c_var(member)), indent + 4)
+                inprint('} else {', indent + 4)
+                inprint('    %s%shas_%s = false;' % (lhs, sep, c_var(member)), indent + 4)
+                inprint('}', indent + 4)
+            else:
+                inprint('%s = qdict_get(qmp__dict, "%s");' % (objname, key), indent + 4)
+                print_metatype_undef(typeinfo[key], objname, '%s%s%s' % (lhs, sep, c_var(member)), indent)
+        inprint('}', indent)
+    elif type(typeinfo) == list:
+        objname = 'qmp__object%d' % ((indent - 4) / 4)
+        inprint('{', indent)
+        inprint('    QList *qmp__list = qobject_to_qlist(%s);' % c_var(name), indent)
+        inprint('    QListEntry *%s;' % objname, indent)
+        inprint('    QLIST_FOREACH_ENTRY(qmp__list, %s) {' % objname, indent)
+        inprint('        %s qmp__node = %s(%s->value);' % (qmp_type_to_c(typeinfo[0]), qmp_type_from_qobj(typeinfo[0]), objname), indent)
+        inprint('        qmp__node->next = %s;' % lhs, indent)
+        inprint('        %s = qmp__node->next;' % lhs, indent)
+        inprint('    }', indent)
+        inprint('}', indent)
+
 def print_metatype_definition(name, typeinfo):
     print '''
-static QObject *qmp_marshal_type_%s(%s src)
+QObject *qmp_marshal_type_%s(%s src)
 {''' % (name, qmp_type_to_c(name))
     print '    QObject *qmp__retval;'
     print_metatype_def(typeinfo, 'src', 'qmp__retval')
+    print '''    return qmp__retval;
+}
+
+%s qmp_unmarshal_type_%s(QObject *src)
+{''' % (qmp_type_to_c(name), name)
+    print '    %s qmp__retval = qmp_alloc_%s();' % (qmp_type_to_c(name), name)
+    print_metatype_undef(typeinfo, 'src', 'qmp__retval')
     print '''    return qmp__retval;
 }
 
@@ -262,34 +300,56 @@ void qmp_free_%s(%s *obj)
 }''' % (name, name, name, name, name)
 
 
-if __name__ == '__main__':
-    kind = 'body'
-    if len(sys.argv) == 2:
-        if sys.argv[1] == '--body':
-            kind = 'body'
-        elif sys.argv[1] == '--header':
-            kind = 'header'
+kind = 'body'
+if len(sys.argv) == 2:
+    if sys.argv[1] == '--body':
+        kind = 'body'
+    elif sys.argv[1] == '--header':
+        kind = 'header'
+    elif sys.argv[1] == '--types-body':
+        kind = 'types-body'
+    elif sys.argv[1] == '--types-header':
+        kind = 'types-header'
 
-if kind == 'header':
+if kind == 'types-header':
+    print '''/* THIS FILE IS AUTOMATICALLY GENERATED, DO NOT EDIT */
+#ifndef QMP_TYPES_H
+#define QMP_TYPES_H
+
+#include "qemu-common.h"
+#include "qemu-objects.h"
+#include "error.h"
+
+#define qmp_marshal_type_int(value) QOBJECT(qint_from_int(value))
+#define qmp_marshal_type_str(value) QOBJECT(qstring_from_str(value))
+#define qmp_marshal_type_bool(value) QOBJECT(qbool_from_int(value))
+#define qmp_marshal_type_number(value) QOBJECT(qfloat_from_double(value))
+
+#define qmp_unmarshal_type_int(value) qint_get_int(qobject_to_qint(value))
+#define qmp_unmarshal_type_str(value) qstring_get_str(qobject_to_qstring(value)) // FIXME mem life cycle
+#define qmp_unmarshal_type_bool(value) qbool_get_int(qobject_to_qbool(value))
+#define qmp_unmarshal_type_number(value) qfloat_get_double(qobject_to_qfloat(value))
+'''
+elif kind == 'types-body':
+    print '''/* THIS FILE IS AUTOMATICALLY GENERATED, DO NOT EDIT */
+
+#include "qmp-types.h"
+'''
+elif kind == 'header':
     print '''/* THIS FILE IS AUTOMATICALLY GENERATED, DO NOT EDIT */
 #ifndef QMP_H
 #define QMP_H
 
 #include "qemu-common.h"
 #include "qemu-objects.h"
+#include "qmp-types.h"
 #include "error.h"
 '''
-else:
+elif kind == 'body':
     print '''/* THIS FILE IS AUTOMATICALLY GENERATED, DO NOT EDIT */
 
 #include "qmp.h"
-#include "monitor.h"
 #include "qmp-core.h"
-
-#define qobj_from_int(value) QOBJECT(qint_from_int(value))
-#define qobj_from_str(value) QOBJECT(qstring_from_str(value))
-#define qobj_from_bool(value) QOBJECT(qbool_from_int(value))
-#define qobj_from_double(value) QOBJECT(qfloat_from_double(value))
 '''
 
 exprs = []
@@ -305,28 +365,21 @@ for line in sys.stdin:
 for s in exprs:
     if type(s) == dict:
         key = s.keys()[0]
-        if kind == 'body':
-            print_metatype_fwd_decl(key, s[key])
-
-for s in exprs:
-    if type(s) == dict:
-        key = s.keys()[0]
         meta_types[key] = s[key]
-        if kind == 'body':
+        if kind == 'types-body':
             print_metatype_definition(key, meta_types[key])
-        else:
+        elif kind == 'types-header':
             print_metatype_declaration(key, meta_types[key])
-        continue
-
-    name, required, optional, retval = s
-    if kind == 'body':
-        print_definition(name, required, optional, retval)
     else:
-        print_declaration(name, required, optional, retval)
+        name, required, optional, retval = s
+        if kind == 'body':
+            print_definition(name, required, optional, retval)
+        elif kind == 'header':
+            print_declaration(name, required, optional, retval)
 
-if kind == 'header':
+if kind in ['types-header', 'header']:
     print '#endif'
-else:
+elif kind == 'body':
     print
     print 'static void qmp_init_marshal(void)'
     print '{'
