@@ -1105,7 +1105,7 @@ void qmp_change(const char *device, const char *target,
             qmp_change_vnc_listen(target, err);
         }
     } else {
-        qmp_change_blockdev(device, target, has_arg, arg, err);
+        deprecated_qmp_change_blockdev(device, target, has_arg, arg, err);
     }
 }
 

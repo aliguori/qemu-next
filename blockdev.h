@@ -12,6 +12,7 @@
 
 #include "block.h"
 #include "qemu-queue.h"
+#include "error.h"
 
 void blockdev_mark_auto_del(BlockDriverState *bs);
 void blockdev_auto_del(BlockDriverState *bs);
@@ -53,5 +54,8 @@ int do_change_block(Monitor *mon, const char *device,
                     const char *filename, const char *fmt);
 int do_drive_del(Monitor *mon, const QDict *qdict, QObject **ret_data);
 int do_snapshot_blkdev(Monitor *mon, const QDict *qdict, QObject **ret_data);
+void deprecated_qmp_change_blockdev(const char *device, const char *target,
+                                    bool has_arg, const char *arg,
+                                    Error **errp);
 
 #endif

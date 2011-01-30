@@ -48,6 +48,7 @@ static QmpSession *qemu(const char *fmt, ...)
 
     snprintf(buffer1, sizeof(buffer1),
              "i386-softmmu/qemu %s "
+             "-enable-kvm "  // glib series breaks TCG
              "-qmp2 qmp "
              "-chardev socket,id=qmp,path=\"%s\",server=on,wait=off "
              "-vnc none "
@@ -67,6 +68,30 @@ static QmpSession *qemu(const char *fmt, ...)
     return qmp_session_new(s);
 }
 
+static void test_change_block_autoprobe(void)
+{
+    QmpSession *sess;
+    const char *filename = "/tmp/foo.raw";
+    Error *err = NULL;
+
+    qemu_img("create -f raw %s 10G", filename);
+    sess = qemu("-S");
+
+    libqmp_change_blockdev(sess, "ide1-cd0", filename, false, NULL,
+                           false, NULL, &err);
+    g_assert(err != NULL);
+    g_assert_cmpstr("MissingParameter", ==, error_get_field(err, "class"));
+    error_free(err);
+
+    err = NULL;
+    libqmp_change_blockdev(sess, "ide1-cd0", filename,
+                           false, NULL, true, "raw", &err);
+    g_assert(err == NULL);
+
+    libqmp_quit(sess, NULL);
+    unlink(filename);
+}
+
 static void test_change_block_encrypted(void)
 {
     QmpSession *sess;
@@ -74,27 +99,47 @@ static void test_change_block_encrypted(void)
     Error *err = NULL;
 
     qemu_img("create -f qcow2 -o encryption %s 10G", filename);
-    sess = qemu("-S -enable-kvm");
-    libqmp_change_blockdev(sess, "ide1-cd0", filename, false, NULL, &err);
+    sess = qemu("-S");
+    libqmp_change_blockdev(sess, "ide1-cd0", filename, false, NULL,
+                           false, NULL, &err);
     g_assert(err != NULL);
     g_assert(error_is_type(err, QERR_DEVICE_ENCRYPTED));
     error_free(err);
 
     err = NULL;
-    libqmp_set_blockdev_password(sess, "ide1-cd0", "foo", &err);
-    g_assert(err == NULL);
+    libqmp_block_passwd(sess, "ide1-cd0", "foo", &err);
+    g_assert(err != NULL);
+    g_assert(error_is_type(err, QERR_DEVICE_NOT_ENCRYPTED));
+    error_free(err);
 
-#if 0
-    /* This is a wonderful example of why we need this test suite.  There's
-     * no way to change a block device when it's encrypted through QMP today.
-     *
-     * We'll fix this.
-     */
-    libqmp_change_blockdev(sess, "ide1-cd0", filename, false, NULL, &err);
+    err = NULL;
+    libqmp_change_blockdev(sess, "ide1-cd0", filename, true, "foo",
+                           false, NULL, &err);
     g_assert(err == NULL);
-#endif
 
     libqmp_quit(sess, NULL);
+    unlink(filename);
+}
+
+static void test_change_old_block_encrypted(void)
+{
+    QmpSession *sess;
+    const char *filename = "/tmp/foo.qcow2";
+    Error *err = NULL;
+
+    qemu_img("create -f qcow2 -o encryption %s 10G", filename);
+    sess = qemu("-S");
+    libqmp_change(sess, "ide1-cd0", filename, false, NULL, &err);
+    g_assert(err != NULL);
+    g_assert(error_is_type(err, QERR_DEVICE_ENCRYPTED));
+    error_free(err);
+
+    err = NULL;
+    libqmp_block_passwd(sess, "ide1-cd0", "foo", &err);
+    g_assert(err == NULL);
+
+    libqmp_quit(sess, NULL);
+    unlink(filename);
 }
 
 static void test_version(void)
@@ -127,7 +172,7 @@ static void test_version(void)
     micro = atoi(ptr);
     while (g_ascii_isdigit(*ptr)) ptr++;
 
-    sess = qemu("-S -enable-kvm");
+    sess = qemu("-S");
 
     info = libqmp_query_version(sess, NULL);
 
@@ -148,7 +193,10 @@ int main(int argc, char **argv)
     g_test_init(&argc, &argv, NULL);
 
     g_test_add_func("/misc/version", test_version);
-    g_test_add_func("/block/change-encrypted", test_change_block_encrypted);
+    g_test_add_func("/block/change/encrypted", test_change_block_encrypted);
+    g_test_add_func("/block/change/autoprobe", test_change_block_autoprobe);
+    g_test_add_func("/deprecated/block/change/encrypted",
+                    test_change_old_block_encrypted);
 
     g_test_run();
 
