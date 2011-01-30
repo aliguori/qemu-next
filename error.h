@@ -2,10 +2,9 @@
 #define ERROR_H
 
 #include "qemu-common.h"
+#include "qobject.h"
 
-typedef struct Error
-{
-} Error;
+typedef struct Error Error;
 
 void error_set(Error **err, const char *fmt, ...);
 
@@ -20,5 +19,9 @@ void error_propagate(Error **dst_err, Error *local_err);
 void error_free(Error *err);
 
 bool error_is_type(Error *err, const char *fmt);
+
+/* FIXME make this a hidden internal API */
+QObject *error_get_qobject(Error *err);
+void error_set_qobject(Error **errp, QObject *obj);
   
 #endif

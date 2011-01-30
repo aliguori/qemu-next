@@ -36,13 +36,12 @@ static QObject *qmp_session_fd_dispatch(QmpSession *s, const char *name,
     size_t size;
     size_t offset;
     QDict *request = qdict_new();
+    QDict *response;
 
-    str = qstring_from_str(name);
-    QINCREF(str);
-    qdict_put(request, "execute", str);
-    QDECREF(str);
+    qdict_put(request, "execute", qstring_from_str(name));
 
     if (qdict_size(args)) {
+        QINCREF(args);
         qdict_put(request, "arguments", args);
     }
 
@@ -70,7 +69,19 @@ static QObject *qmp_session_fd_dispatch(QmpSession *s, const char *name,
     QDECREF(str);
     QDECREF(request);
 
-    return qdict_get(qobject_to_qdict(fs->result), "return");
+    response = qobject_to_qdict(fs->result);
+    fs->result = NULL;
+
+    if (qdict_haskey(response, "error")) {
+        error_set_qobject(err, qdict_get(response, "error"));
+        QDECREF(response);
+        return NULL;
+    } else {
+        QObject *result = qdict_get(response, "return");
+        qobject_incref(result);
+        QDECREF(response);
+        return result;
+    }
 }
 
 QmpSession *qmp_session_new(int fd)

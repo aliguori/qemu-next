@@ -100,6 +100,17 @@ def print_lib_definition(name, required, optional, retval):
     if required:
         print
 
+    for key in optional:
+        argname = key
+        argtype = optional[key]
+        if argtype.startswith('**'):
+            print '     // FIXME'
+            continue
+        print '    if (has_%s) {' % c_var(argname)
+        print '        qdict_put_obj(qmp__args, "%s", %s(%s));' % (key, qmp_type_to_qobj_ctor(argtype), c_var(argname))
+        print '    }'
+        print
+
     if retval == 'none':
         print '    qmp__session->dispatch(qmp__session, "%s", qmp__args, &qmp__local_err);' % name
     else:

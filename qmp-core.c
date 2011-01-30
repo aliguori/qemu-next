@@ -66,6 +66,7 @@ static void qmp_chr_parse(JSONMessageParser *parser, QList *tokens)
     QDict *dict, *args;
     QmpCommand *cmd;
     Error *err = NULL;
+    QDict *rsp;
 
     request = json_parser_parse(tokens, NULL);
     str = qobject_to_json_pretty(request);
@@ -91,22 +92,25 @@ static void qmp_chr_parse(JSONMessageParser *parser, QList *tokens)
     }
 
     cmd->fn(args, &ret, &err);
+    rsp = qdict_new();
     if (err) {
-        printf("failed\n");
+        printf("error return\n");
+        qdict_put_obj(rsp, "error", error_get_qobject(err));
+        error_free(err);
     } else {
-        QDict *rsp = qdict_new();
         if (ret) {
             qdict_put_obj(rsp, "return", ret);
         } else {
             qdict_put(rsp, "return", qdict_new());
         }
-        str = qobject_to_json(QOBJECT(rsp));
-        qemu_chr_write(s->chr, (void *)str->string, str->length);
-        qemu_chr_write(s->chr, (void *)"\n", 1);
-        QDECREF(str);
-        QDECREF(rsp);
     }
 
+    str = qobject_to_json(QOBJECT(rsp));
+    qemu_chr_write(s->chr, (void *)str->string, str->length);
+    qemu_chr_write(s->chr, (void *)"\n", 1);
+
+    QDECREF(str);
+    QDECREF(rsp);
     qobject_decref(request);
 }
 

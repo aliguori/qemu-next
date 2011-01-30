@@ -5,6 +5,7 @@
 #include <glib.h>
 #include "config-host.h"
 #include "libqmp.h"
+#include "qerror.h"
 
 /**
  * TODO:
@@ -22,10 +23,10 @@ static void qemu_img(const char *fmt, ...)
     int ret;
 
     va_start(ap, fmt);
-    vnsprintf(buffer, sizeof(buffer), fmt, ap);
+    vsnprintf(buffer0, sizeof(buffer0), fmt, ap);
     va_end(ap);
 
-    snprintf(buffer1, sizeof(buffer1), "./qemu-img %s", buffer0);
+    snprintf(buffer1, sizeof(buffer1), "./qemu-img %s >/dev/null", buffer0);
 
     ret = system(buffer1);
     g_assert(ret != -1);
@@ -68,6 +69,32 @@ static QmpSession *qemu(const char *fmt, ...)
 
 static void test_change_block_encrypted(void)
 {
+    QmpSession *sess;
+    const char *filename = "/tmp/foo.qcow2";
+    Error *err = NULL;
+
+    qemu_img("create -f qcow2 -o encryption %s 10G", filename);
+    sess = qemu("-S -enable-kvm");
+    libqmp_change_blockdev(sess, "ide1-cd0", filename, false, NULL, &err);
+    g_assert(err != NULL);
+    g_assert(error_is_type(err, QERR_DEVICE_ENCRYPTED));
+    error_free(err);
+
+    err = NULL;
+    libqmp_set_blockdev_password(sess, "ide1-cd0", "foo", &err);
+    g_assert(err == NULL);
+
+#if 0
+    /* This is a wonderful example of why we need this test suite.  There's
+     * no way to change a block device when it's encrypted through QMP today.
+     *
+     * We'll fix this.
+     */
+    libqmp_change_blockdev(sess, "ide1-cd0", filename, false, NULL, &err);
+    g_assert(err == NULL);
+#endif
+
+    libqmp_quit(sess, NULL);
 }
 
 static void test_version(void)
