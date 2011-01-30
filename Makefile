@@ -1,6 +1,6 @@
 # Makefile for QEMU.
 
-GENERATED_HEADERS = config-host.h trace.h qemu-options.def qmp.h hmp.h
+GENERATED_HEADERS = config-host.h trace.h qemu-options.def qmp.h hmp.h libqmp.h
 GENERATED_HEADERS += qmp-types.h
 ifeq ($(TRACE_BACKEND),dtrace)
 GENERATED_HEADERS += trace-dtrace.h
@@ -71,6 +71,8 @@ defconfig:
 	rm -f config-all-devices.mak $(SUBDIR_DEVICES_MAK)
 
 -include config-all-devices.mak
+
+TOOLS += test-libqmp
 
 build-all: $(DOCS) $(TOOLS) recurse-all
 
@@ -159,15 +161,22 @@ qmp-types.h: $(SRC_PATH)/qmp-schema.json $(SRC_PATH)/qmp-gen.py
 qmp.h: $(SRC_PATH)/qmp-schema.json $(SRC_PATH)/qmp-gen.py
 	$(call quiet-command,python $(SRC_PATH)/qmp-gen.py --header < $< > $@, "  GEN   $@")
 
+libqmp.h: $(SRC_PATH)/qmp-schema.json $(SRC_PATH)/qmp-gen.py
+	$(call quiet-command,python $(SRC_PATH)/qmp-gen.py --lib-header < $< > $@, "  GEN   $@")
+
+libqmp.c: $(SRC_PATH)/qmp-schema.json $(SRC_PATH)/qmp-gen.py
+	$(call quiet-command,python $(SRC_PATH)/qmp-gen.py --lib-body < $< > $@, "  GEN   $@")
+
 hmp-marshal.c: $(SRC_PATH)/hmp-schema.json $(SRC_PATH)/hmp-gen.py
 	$(call quiet-command,python $(SRC_PATH)/hmp-gen.py --body < $< > $@, "  GEN   $@")
 
 hmp.h: $(SRC_PATH)/hmp-schema.json $(SRC_PATH)/hmp-gen.py
 	$(call quiet-command,python $(SRC_PATH)/hmp-gen.py --header < $< > $@, "  GEN   $@")
 
-hmp-marshal.o: hmp-marshal.c hmp.h
-qmp-marshal.o: qmp-marshal.c qmp.h
+hmp-marshal.o: hmp-marshal.c hmp.h qmp-types.h
+qmp-marshal.o: qmp-marshal.c qmp.h qmp-types.h
 qmp-types.o: qmp-types.c qmp-types.h
+libqmp.o: libqmp.c libqmp.h qmp-types.h
 
 version.o: $(SRC_PATH)/version.rc config-host.mak
 	$(call quiet-command,$(WINDRES) -I. -o $@ $<,"  RC    $(TARGET_DIR)$@")
@@ -197,6 +206,8 @@ check-qdict: check-qdict.o qdict.o qfloat.o qint.o qstring.o qbool.o qlist.o $(C
 check-qlist: check-qlist.o qlist.o qint.o $(CHECK_PROG_DEPS)
 check-qfloat: check-qfloat.o qfloat.o $(CHECK_PROG_DEPS)
 check-qjson: check-qjson.o qfloat.o qint.o qdict.o qstring.o qlist.o qbool.o qjson.o json-streamer.o json-lexer.o json-parser.o $(CHECK_PROG_DEPS)
+
+test-libqmp: test-libqmp.o qmp-types.o libqmp.o qfloat.o qint.o qdict.o qstring.o qlist.o qbool.o qjson.o json-streamer.o json-lexer.o json-parser.o error.o $(CHECK_PROG_DEPS)
 
 clean:
 # avoid old build problems by removing potentially incorrect old files
