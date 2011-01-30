@@ -1,3 +1,4 @@
+# *-*- Mode: Python -*-*
 ### 0.14.0 commands.  Do not modify. ###
 
 ##
@@ -117,6 +118,29 @@
 ##
 [ 'query-version', {}, {}, 'VersionInfo' ]
 
+##
+# @eject:
+#
+# Ejects a device from a removable drive.
+#
+# @device:  The name of the device
+#
+# @force:   @optional If true, eject regardless of whether the drive is locked.
+#           If not specified, the default value is false.
+#
+# Returns:  Nothing on success
+#           If @device is not a valid block device, DeviceNotFound
+#           If @device is not removable and @force is false, DeviceNotRemovable
+#           If @force is false and @device is locked, DeviceLocked
+#
+# Notes:    If the @force flag is used, the backing file will be closed
+#           regardless of whether the device is removable.  This may result in
+#           a badly broken guest.
+#
+#           Ejecting a device will no media results in success
+#
+# Since: 0.14.0
+##
 [ 'eject', {'device': 'str'}, {'force': 'bool'} , 'none' ]
 
 
@@ -136,6 +160,18 @@
 #
 # @password: #optional The password to use if the block device is encrypted
 #
+# Returns:  Nothing on success.
+#          If @device is not a valid block device, DeviceNotFound
+#          If @format is not a valid block format, InvalidBlockFormat
+#          If @filename is encrypted and @password isn't supplied,
+#            DeviceEncrypted.  The call should be repeated with @password
+#            supplied.
+#          If @format is not specified and @filename is a format that cannot
+#            be safely probed, MissingParameter.
+#          If @filename cannot be opened, OpenFileFailed
+#
+# Since: 0.15.0
+##
 [ 'change-blockdev', {'device': 'str', 'filename': 'str'}, {'format': 'str', 'password': 'str'}, 'none' ]
 
 ##
