@@ -1252,6 +1252,11 @@ void qmp_screendump(const char *filename, Error **errp)
     vga_hw_screen_dump(filename, errp);
 }
 
+void hmp_screendump(Monitor *mon, const char *filename)
+{
+    qmp_screendump(filename, NULL);
+}
+
 static void do_logfile(Monitor *mon, const QDict *qdict)
 {
     cpu_set_log_filename(qdict_get_str(qdict, "filename"));

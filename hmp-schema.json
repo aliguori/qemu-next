@@ -3,11 +3,11 @@
 [ 'change', {'device': 'blockdev'}, {'target': 'file'}, {'*arg': 'str'} ]
 [ 'block_passwd', {'device': 'blockdev'}, {'password': 'str'} ]
 [ 'info', 'version' ]
+[ 'screendump', {'filename': 'file'} ]
 
 #[ 'help', {'*cmd': 'str'}  ]
 #[ 'commit', {'device': 'blockdev'} ]
 #[ 'drive_del', {'id': 'str'} ]
-#[ 'screendump', {'filename': 'file'} ]
 #[ 'logfile', {'filename': 'file'} ]
 #[ 'trace-event', {'name': 'str'}, {'option': 'bool'} ]
 #[ 'trace-file', {'*op': 'str'}, {'*arg': 'file'} ]
