@@ -225,7 +225,7 @@ static void omap_update_display(void *opaque)
 }
 
 static int ppm_save(const char *filename, uint8_t *data,
-                int w, int h, int linesize)
+                    int w, int h, int linesize, Error **errp)
 {
     FILE *f;
     uint8_t *d, *d1;
@@ -233,8 +233,10 @@ static int ppm_save(const char *filename, uint8_t *data,
     int y, x, bpp;
 
     f = fopen(filename, "wb");
-    if (!f)
+    if (!f) {
+        error_set(errp, QERR_OPEN_FILE_FAILED, filename);
         return -1;
+    }
     fprintf(f, "P6\n%d %d\n%d\n", w, h, 255);
     d1 = data;
     bpp = linesize / w;
@@ -264,13 +266,13 @@ static int ppm_save(const char *filename, uint8_t *data,
     return 0;
 }
 
-static void omap_screen_dump(void *opaque, const char *filename) {
+static void omap_screen_dump(void *opaque, const char *filename, Error **errp) {
     struct omap_lcd_panel_s *omap_lcd = opaque;
     omap_update_display(opaque);
     if (omap_lcd && ds_get_data(omap_lcd->state))
         ppm_save(filename, ds_get_data(omap_lcd->state),
-                omap_lcd->width, omap_lcd->height,
-                ds_get_linesize(omap_lcd->state));
+                 omap_lcd->width, omap_lcd->height,
+                 ds_get_linesize(omap_lcd->state), errp);
 }
 
 static void omap_invalidate_display(void *opaque) {

@@ -171,7 +171,7 @@ void vga_hw_invalidate(void)
         active_console->hw_invalidate(active_console->hw);
 }
 
-void vga_hw_screen_dump(const char *filename)
+void vga_hw_screen_dump(const char *filename, Error **errp)
 {
     TextConsole *previous_active_console;
 
@@ -180,7 +180,7 @@ void vga_hw_screen_dump(const char *filename)
     /* There is currently no way of specifying which screen we want to dump,
        so always dump the first one.  */
     if (consoles[0]->hw_screen_dump)
-        consoles[0]->hw_screen_dump(consoles[0]->hw, filename);
+        consoles[0]->hw_screen_dump(consoles[0]->hw, filename, errp);
     active_console = previous_active_console;
 }
 

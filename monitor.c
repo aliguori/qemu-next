@@ -1243,8 +1243,13 @@ static int expire_password(Monitor *mon, const QDict *qdict, QObject **ret_data)
 
 static int do_screen_dump(Monitor *mon, const QDict *qdict, QObject **ret_data)
 {
-    vga_hw_screen_dump(qdict_get_str(qdict, "filename"));
+    vga_hw_screen_dump(qdict_get_str(qdict, "filename"), NULL);
     return 0;
+}
+
+void qmp_screendump(const char *filename, Error **errp)
+{
+    vga_hw_screen_dump(filename, errp);
 }
 
 static void do_logfile(Monitor *mon, const QDict *qdict)

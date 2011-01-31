@@ -149,8 +149,9 @@ static uint32_t expand4[256];
 static uint16_t expand2[256];
 static uint8_t expand4to8[16];
 
-static void vga_screen_dump(void *opaque, const char *filename);
+static void vga_screen_dump(void *opaque, const char *filename, Error **errp);
 static char *screen_dump_filename;
+static Error **screen_dump_error = NULL;
 static DisplayChangeListener *screen_dump_dcl;
 
 static void vga_dumb_update_retrace_info(VGACommonState *s)
@@ -2315,11 +2316,13 @@ void vga_init_vbe(VGACommonState *s)
 /********************************************************/
 /* vga screen dump */
 
+
+
 static void vga_save_dpy_update(DisplayState *ds,
                                 int x, int y, int w, int h)
 {
     if (screen_dump_filename) {
-        ppm_save(screen_dump_filename, ds->surface);
+        ppm_save(screen_dump_filename, ds->surface, screen_dump_error);
         screen_dump_filename = NULL;
     }
 }
@@ -2332,7 +2335,7 @@ static void vga_save_dpy_refresh(DisplayState *s)
 {
 }
 
-int ppm_save(const char *filename, struct DisplaySurface *ds)
+int ppm_save(const char *filename, struct DisplaySurface *ds, Error **errp)
 {
     FILE *f;
     uint8_t *d, *d1;
@@ -2341,8 +2344,10 @@ int ppm_save(const char *filename, struct DisplaySurface *ds)
     uint8_t r, g, b;
 
     f = fopen(filename, "wb");
-    if (!f)
+    if (!f) {
+        error_set(errp, QERR_OPEN_FILE_FAILED, filename);
         return -1;
+    }
     fprintf(f, "P6\n%d %d\n%d\n",
             ds->width, ds->height, 255);
     d1 = ds->data;
@@ -2384,7 +2389,7 @@ static DisplayChangeListener* vga_screen_dump_init(DisplayState *ds)
 
 /* save the vga display in a PPM image even if no display is
    available */
-static void vga_screen_dump(void *opaque, const char *filename)
+static void vga_screen_dump(void *opaque, const char *filename, Error **errp)
 {
     VGACommonState *s = opaque;
 
@@ -2392,6 +2397,7 @@ static void vga_screen_dump(void *opaque, const char *filename)
         screen_dump_dcl = vga_screen_dump_init(s->ds);
 
     screen_dump_filename = (char *)filename;
+    screen_dump_error = errp;
     vga_invalidate_display(s);
     vga_hw_update();
 }

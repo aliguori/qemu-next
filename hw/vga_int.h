@@ -203,7 +203,7 @@ void vga_ioport_write(void *opaque, uint32_t addr, uint32_t val);
 uint32_t vga_mem_readb(void *opaque, target_phys_addr_t addr);
 void vga_mem_writeb(void *opaque, target_phys_addr_t addr, uint32_t val);
 void vga_invalidate_scanlines(VGACommonState *s, int y1, int y2);
-int ppm_save(const char *filename, struct DisplaySurface *ds);
+int ppm_save(const char *filename, struct DisplaySurface *ds, Error **errp);
 
 void vga_draw_cursor_line_8(uint8_t *d1, const uint8_t *src1,
                             int poffset, int w,

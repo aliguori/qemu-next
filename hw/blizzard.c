@@ -933,12 +933,12 @@ static void blizzard_update_display(void *opaque)
     s->my[1] = 0;
 }
 
-static void blizzard_screen_dump(void *opaque, const char *filename) {
+static void blizzard_screen_dump(void *opaque, const char *filename, errp) {
     BlizzardState *s = (BlizzardState *) opaque;
 
     blizzard_update_display(opaque);
     if (s && ds_get_data(s->state))
-        ppm_save(filename, s->state->surface);
+        ppm_save(filename, s->state->surface, errp);
 }
 
 #define DEPTH 8

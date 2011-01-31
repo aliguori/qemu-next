@@ -190,7 +190,7 @@
 [ 'change-vnc-listen', {'target': 'str'}, {}, 'none' ]
 [ 'change-vnc-password', {'password': 'str'}, {}, 'none' ]
 
-#[ 'screendump', {'filename': 'str'}, {}, 'none' ]
+[ 'screendump', {'filename': 'str'}, {}, 'none' ]
 #[ 'stop' , {}, {}, 'none' ]
 #[ 'cont' , {}, {}, 'none' ]
 #[ 'system_reset' , {}, {}, 'none' ]

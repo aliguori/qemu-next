@@ -4,6 +4,8 @@
 #include "qemu-char.h"
 #include "qdict.h"
 #include "notify.h"
+#include "qerror.h"
+#include "error.h"
 
 /* keyboard/mouse support */
 
@@ -334,7 +336,7 @@ static inline void console_write_ch(console_ch_t *dest, uint32_t ch)
 
 typedef void (*vga_hw_update_ptr)(void *);
 typedef void (*vga_hw_invalidate_ptr)(void *);
-typedef void (*vga_hw_screen_dump_ptr)(void *, const char *);
+typedef void (*vga_hw_screen_dump_ptr)(void *, const char *, Error **);
 typedef void (*vga_hw_text_update_ptr)(void *, console_ch_t *);
 
 DisplayState *graphic_console_init(vga_hw_update_ptr update,
@@ -345,7 +347,7 @@ DisplayState *graphic_console_init(vga_hw_update_ptr update,
 
 void vga_hw_update(void);
 void vga_hw_invalidate(void);
-void vga_hw_screen_dump(const char *filename);
+void vga_hw_screen_dump(const char *filename, Error **errp);
 void vga_hw_text_update(console_ch_t *chardata);
 
 int is_graphic_console(void);

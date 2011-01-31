@@ -1131,7 +1131,7 @@ static void qxl_hw_invalidate(void *opaque)
     vga->invalidate(vga);
 }
 
-static void qxl_hw_screen_dump(void *opaque, const char *filename)
+static void qxl_hw_screen_dump(void *opaque, const char *filename, Error **errp)
 {
     PCIQXLDevice *qxl = opaque;
     VGACommonState *vga = &qxl->vga;
@@ -1140,10 +1140,10 @@ static void qxl_hw_screen_dump(void *opaque, const char *filename)
     case QXL_MODE_COMPAT:
     case QXL_MODE_NATIVE:
         qxl_render_update(qxl);
-        ppm_save(filename, qxl->ssd.ds->surface);
+        ppm_save(filename, qxl->ssd.ds->surface, errp);
         break;
     case QXL_MODE_VGA:
-        vga->screen_dump(vga, filename);
+        vga->screen_dump(vga, filename, errp);
         break;
     default:
         break;

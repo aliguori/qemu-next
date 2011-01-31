@@ -439,6 +439,39 @@ static void test_change_old_block_encrypted(void)
     qemu_destroy(sess);
 }
 
+static void test_screendump(void)
+{
+    QmpSession *sess = NULL;
+    const char *filename = "/tmp/test-libqmp.screendump";
+    Error *err = NULL;
+    int ret;
+
+    unlink(filename);
+
+    ret = access(filename, F_OK);
+    g_assert_cmpint(ret, ==, -1);
+
+    sess = qemu("");
+    /* There is some whacky race here with QEMU.  More investigation
+       is needed */
+    sleep(1);
+    libqmp_screendump(sess, filename, &err);
+    g_assert(err == NULL);
+
+    ret = access(filename, F_OK);
+    g_assert_cmpint(ret, ==, 0);
+    unlink(filename);
+
+    libqmp_screendump(sess, "/tmp/path/to/directory/thats/clearly/not/there",
+                      &err);
+    g_assert(err != NULL);
+    g_assert_cmpstr(error_get_field(err, "class"), ==, "OpenFileFailed");
+    error_free(err);
+
+    libqmp_quit(sess, NULL);
+    qemu_destroy(sess);
+}
+
 static void test_version(void)
 {
     QmpSession *sess = NULL;
@@ -494,6 +527,8 @@ int main(int argc, char **argv)
                     test_change_old_block_encrypted);
     g_test_add_func("/0.14/vnc/password-login",
                     test_deprecated_vnc_password);
+    g_test_add_func("/0.14/display/screendump",
+                    test_screendump);
 
     g_test_add_func("/0.15/vnc/change", test_vnc_change);
     g_test_add_func("/0.15/block/change/encrypted",
