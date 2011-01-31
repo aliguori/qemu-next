@@ -143,6 +143,7 @@
 ##
 [ 'eject', {'device': 'str'}, {'force': 'bool'} , 'none' ]
 
+[ 'qmp_capabilities', {}, {}, 'none' ]
 
 # 0.15.0 commands.  These can be changed up until the next release
 
@@ -211,7 +212,6 @@
 #[ 'closefd', {'fdname': 'str'}, {}, 'none' ]
 #[ 'set_password', {'protocol': 'str', 'password': 'str'}, {'connected': 'str'}, 'none' ]
 #[ 'expire_password', {'protocol': 'str', 'time': 'str'}, {}, 'none' ]
-#[ 'qmp_capabilities', {}, {}, 'none' ]
 #[ 'human-monitor-command', {'command-line': 'str'}, {'cpu-index': 'int'}, 'str' ] 
 #
 #{ 'CommandInfo': {'name': 'str'} }

@@ -500,6 +500,10 @@ static int do_qmp_capabilities(Monitor *mon, const QDict *params,
     return 0;
 }
 
+void qmp_qmp_capabilities(Error **errp)
+{
+}
+
 static int mon_set_cpu(int cpu_index);
 static void handle_user_command(Monitor *mon, const char *cmdline);
 
