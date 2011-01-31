@@ -1044,7 +1044,15 @@ void qmp_quit(Error **err)
 
 static int change_vnc_password(const char *password)
 {
-    if (vnc_display_password(NULL, password, true) < 0) {
+    if (!password || !password[0]) {
+        if (vnc_display_disable_login(NULL)) {
+            qerror_report(QERR_SET_PASSWD_FAILED);
+            return -1;
+        }
+        return 0;
+    }
+
+    if (vnc_display_password(NULL, password) < 0) {
         qerror_report(QERR_SET_PASSWD_FAILED);
         return -1;
     }
@@ -1083,7 +1091,7 @@ static int do_change_vnc(Monitor *mon, const char *target, const char *arg)
 
 void qmp_change_vnc_password(const char *password, Error **err)
 {
-    if (vnc_display_password(NULL, password, true) < 0) {
+    if (vnc_display_password(NULL, password) < 0) {
         error_set(err, QERR_SET_PASSWD_FAILED);
     }
 }
@@ -1175,7 +1183,9 @@ static int set_password(Monitor *mon, const QDict *qdict, QObject **ret_data)
             qerror_report(QERR_INVALID_PARAMETER, "connected");
             return -1;
         }
-        rc = vnc_display_password(NULL, password, true);
+        /* Note that setting an empty password will not disable login through
+         * this interface. */
+        rc = vnc_display_password(NULL, password);
         if (rc != 0) {
             qerror_report(QERR_SET_PASSWD_FAILED);
             return -1;
