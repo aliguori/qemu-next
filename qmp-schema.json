@@ -143,7 +143,32 @@
 ##
 [ 'eject', {'device': 'str'}, {'force': 'bool'} , 'none' ]
 
+##
+# @qmp_capabilities:
+#
+# Currently a nop command.  To communicate with older servers, this should be
+# sent first before executing new commands.
+#
+# Since: 0.14.0
+##
 [ 'qmp_capabilities', {}, {}, 'none' ]
+
+##
+# @screendump:
+#
+# Write a PPM of the VGA screen to a file.
+#
+# @filename: the name of a new PPM file to create to store the image
+#
+# Since: 0.14.0
+#
+# Returns: Nothing on success
+#          If @filename cannot be opened, OpenFileFailed
+#
+# Notes: Not all server versions reliably send an error when file creation
+#        fails.
+##
+[ 'screendump', {'filename': 'str'}, {}, 'none' ]
 
 # 0.15.0 commands.  These can be changed up until the next release
 
@@ -183,14 +208,38 @@
 # @device:   see @block_passwd
 # @password: see @block_passwd
 #
-# Since 0.15.0
+# Since: 0.15.0
 ##
 [ 'set-blockdev-password', {'device': 'str', 'password': 'str'}, {}, 'none' ]
 
+##
+# @change-vnc-listen:
+#
+# Change the host that the VNC server listens on.
+#
+# @target:  the new server specification to listen on
+#
+# Since: 0.15.0
+#
+# Notes:  At this moment in time, the behavior of existing client connections
+#         when this command is executed is undefined.
+##
 [ 'change-vnc-listen', {'target': 'str'}, {}, 'none' ]
+
+##
+# @change-vnc-password:
+#
+# Change the VNC server password.
+#
+# @target:  the new password to use with VNC authentication
+#
+# Since: 0.15.0
+#
+# Notes:  An empty password in this command will set the password to the empty
+#         string.  Existing clients are unaffected by executing this command.
+##
 [ 'change-vnc-password', {'password': 'str'}, {}, 'none' ]
 
-[ 'screendump', {'filename': 'str'}, {}, 'none' ]
 #[ 'stop' , {}, {}, 'none' ]
 #[ 'cont' , {}, {}, 'none' ]
 #[ 'system_reset' , {}, {}, 'none' ]
