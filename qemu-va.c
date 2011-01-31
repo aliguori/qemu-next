@@ -150,7 +150,7 @@ static void become_daemon(void)
         exit(EXIT_SUCCESS);
     }
 
-    pidfd = open(VA_PIDFILE, O_CREAT|O_RDWR);
+    pidfd = open(VA_PIDFILE, O_CREAT|O_RDWR, S_IRUSR|S_IWUSR);
     if (!pidfd || lockf(pidfd, F_TLOCK, 0))
         errx(EXIT_FAILURE, "Cannot lock pid file");
 
