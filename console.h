@@ -368,7 +368,8 @@ void cocoa_display_init(DisplayState *ds, int full_screen);
 void vnc_display_init(DisplayState *ds);
 void vnc_display_close(DisplayState *ds);
 int vnc_display_open(DisplayState *ds, const char *display);
-int vnc_display_password(DisplayState *ds, const char *password);
+int vnc_display_password(DisplayState *ds, const char *password,
+                         bool expire_on_empty);
 int vnc_display_pw_expire(DisplayState *ds, time_t expires);
 void do_info_vnc_print(Monitor *mon, const QObject *data);
 void do_info_vnc(Monitor *mon, QObject **ret_data);
