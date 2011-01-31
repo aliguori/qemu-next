@@ -9,6 +9,7 @@
 #include "config-host.h"
 #include "libqmp.h"
 #include "qerror.h"
+#include "ui/d3des.h"
 
 /**
  * TODO:
@@ -90,7 +91,6 @@ static void read_or_assert(int fd, void *buffer, size_t size)
     }
 }
 
-#if 0
 static void write_or_assert(int fd, const void *buffer, size_t size)
 {
     size_t offset = 0;
@@ -102,12 +102,12 @@ static void write_or_assert(int fd, const void *buffer, size_t size)
         if (len == -1 && errno == EINTR) {
             continue;
         }
-        g_assert(len < 1);
+        g_assert(len != 0);
+        g_assert(len != -1);
 
         offset += len;
     }
 }
-#endif
 
 static int vnc_connect(int port, const char *password)
 {
@@ -115,6 +115,8 @@ static int vnc_connect(int port, const char *password)
     struct sockaddr_in addr;
     struct in_addr in;
     int s, ret;
+    uint8_t num_auth;
+    uint8_t auth;
 
     ret = inet_aton("127.0.0.1", &in);
     g_assert(ret != 0);
@@ -134,12 +136,85 @@ static int vnc_connect(int port, const char *password)
 
     read_or_assert(s, greeting, 12);
     greeting[12] = 0;
-
     g_assert_cmpstr(greeting, ==, "RFB 003.008\n");
+
+    write_or_assert(s, greeting, 12);
+
+    read_or_assert(s, &num_auth, sizeof(num_auth));
+    g_assert_cmpuint(num_auth, ==, 1);
+
+    read_or_assert(s, &auth, sizeof(auth));
+    if (auth == 2) {
+        uint8_t challenge[16];
+        uint8_t key[8];
+        uint32_t result;
+        int pwlen;
+
+        if (password == NULL) {
+            close(s);
+            return -EPERM;
+        }
+        write_or_assert(s, &auth, sizeof(auth));
+        read_or_assert(s, challenge, sizeof(challenge));
+
+        pwlen = strlen(password);
+        memset(key, 0, sizeof(key));
+        memcpy(key, password, MIN(pwlen, 8));
+
+        deskey(key, EN0);
+        des(challenge, challenge);
+        des(challenge + 8, challenge + 8);
+
+        write_or_assert(s, challenge, sizeof(challenge));
+        read_or_assert(s, &result, sizeof(result));
+
+        if (result != 0) {
+            close(s);
+            return -EPERM;
+        }
+    } else if (auth != 1) {
+        close(s);
+        return -EINVAL;
+    }
 
     close(s);
 
     return 0;
+}
+
+static void test_vnc_password(void)
+{
+    QmpSession *sess;
+    int ret;
+    Error *err = NULL;
+
+    sess = qemu("-S -vnc :300,password");
+    ret = vnc_connect(5900 + 300, NULL);
+    g_assert_cmpint(ret, ==, -EPERM);
+
+    ret = vnc_connect(5900 + 300, "hello world");
+    g_assert_cmpint(ret, ==, -EPERM);
+
+    libqmp_change_vnc_password(sess, "foobar", &err);
+    g_assert(err == NULL);
+
+    ret = vnc_connect(5900 + 300, "foobar");
+    g_assert_cmpint(ret, ==, 0);
+
+    ret = vnc_connect(5900 + 300, "bob");
+    g_assert_cmpint(ret, ==, -EPERM);
+
+    libqmp_change_vnc_password(sess, "monkey", &err);
+    g_assert(err == NULL);
+
+    ret = vnc_connect(5900 + 300, "foobar");
+    g_assert_cmpint(ret, ==, -EPERM);
+
+    ret = vnc_connect(5900 + 300, "monkey");
+    g_assert_cmpint(ret, ==, 0);
+
+    libqmp_quit(sess, NULL);
+    qmp_session_destroy(sess);
 }
 
 static void test_vnc_change(void)
@@ -301,6 +376,7 @@ int main(int argc, char **argv)
     g_test_add_func("/deprecated/block/change/encrypted",
                     test_change_old_block_encrypted);
     g_test_add_func("/vnc/change", test_vnc_change);
+    g_test_add_func("/vnc/password-login", test_vnc_password);
 
     g_test_run();
 

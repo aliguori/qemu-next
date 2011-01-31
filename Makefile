@@ -212,7 +212,7 @@ LIBQMP_OBJS += qfloat.o qint.o qdict.o qstring.o qlist.o qbool.o qjson.o
 LIBQMP_OBJS += json-streamer.o json-lexer.o json-parser.o
 LIBQMP_OBJS += $(oslib-obj-y) $(trace-obj-y) qemu-malloc.o
 
-test-libqmp: test-libqmp.o $(LIBQMP_OBJS)
+test-libqmp: test-libqmp.o $(LIBQMP_OBJS) ui/d3des.o
 
 clean:
 # avoid old build problems by removing potentially incorrect old files
