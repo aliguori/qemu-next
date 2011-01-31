@@ -264,6 +264,24 @@ static void test_vnc_password(void)
     ret = vnc_connect(5900 + 300, "monkey");
     g_assert_cmpint(ret, ==, 0);
 
+    ret = vnc_connect(5900 + 300, NULL);
+    g_assert_cmpint(ret, ==, -EPERM);
+
+    ret = vnc_connect(5900 + 300, "");
+    g_assert_cmpint(ret, ==, -EPERM);
+
+    libqmp_change_vnc_password(sess, "", &err);
+    g_assert(err == NULL);
+
+    ret = vnc_connect(5900 + 300, NULL);
+    g_assert_cmpint(ret, ==, -EPERM);
+
+    ret = vnc_connect(5900 + 300, "");
+    g_assert_cmpint(ret, ==, 0);
+
+    ret = vnc_connect(5900 + 300, "foo");
+    g_assert_cmpint(ret, ==, -EPERM);
+
     libqmp_quit(sess, NULL);
     qemu_destroy(sess);
 }
@@ -289,8 +307,6 @@ static void test_vnc_change(void)
 
     ret = vnc_connect(5900 + 300, NULL);
     g_assert_cmpint(ret, ==, -ECONNREFUSED);
-
-    // FIXME decide semantics for empty password and add test case
 
     libqmp_quit(sess, NULL);
     qemu_destroy(sess);
@@ -324,7 +340,16 @@ static void test_deprecated_vnc_password(void)
     ret = vnc_connect(5900 + 300, "");
     g_assert_cmpint(ret, ==, -EPERM);
 
-    libqmp_change_vnc_password(sess, "", &err);
+    libqmp_change(sess, "vnc", "password", true, "", &err);
+    g_assert(err == NULL);
+
+    ret = vnc_connect(5900 + 300, NULL);
+    g_assert_cmpint(ret, ==, -EPERM);
+
+    ret = vnc_connect(5900 + 300, "");
+    g_assert_cmpint(ret, ==, -EPERM);
+
+    libqmp_change(sess, "vnc", "password", false, NULL, &err);
     g_assert(err == NULL);
 
     ret = vnc_connect(5900 + 300, NULL);

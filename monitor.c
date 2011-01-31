@@ -1108,11 +1108,11 @@ void qmp_change(const char *device, const char *target,
 {
     if (strcmp(device, "vnc") == 0) {
         if (strcmp(target, "passwd") == 0 || strcmp(target, "password") == 0) {
-            if (!has_arg) {
-                error_set(err, QERR_MISSING_PARAMETER, "arg");
-                return;
+            if (!has_arg || !arg[0]) {
+                vnc_display_disable_login(NULL);
+            } else {
+                qmp_change_vnc_password(arg, err);
             }
-            qmp_change_vnc_password(arg, err);
         } else {
             qmp_change_vnc_listen(target, err);
         }
