@@ -140,18 +140,27 @@ static int init_virtagent(const char *method, const char *path) {
 static void become_daemon(void)
 {
     pid_t pid, sid;
+    int pidfd;
+    char *pidstr;
 
     pid = fork();
     if (pid < 0)
         exit(EXIT_FAILURE);
     if (pid > 0) {
-        FILE *pidfile = fopen(VA_PIDFILE, "wx");
-        if (!pidfile)
-            errx(EXIT_FAILURE, "Error creating pid file");
-        fprintf(pidfile, "%i", pid);
-        fclose(pidfile);
         exit(EXIT_SUCCESS);
     }
+
+    pidfd = open(VA_PIDFILE, O_CREAT|O_RDWR);
+    if (!pidfd || lockf(pidfd, F_TLOCK, 0))
+        errx(EXIT_FAILURE, "Cannot lock pid file");
+
+    if (ftruncate(pidfd, 0) || lseek(pidfd, 0, SEEK_SET))
+       errx(EXIT_FAILURE, "Cannot truncate pid file");
+    if (asprintf(&pidstr, "%d", getpid()) == -1)
+        errx(EXIT_FAILURE, "Cannot allocate memory");
+    if (write(pidfd, pidstr, strlen(pidstr)) != strlen(pidstr))
+        errx(EXIT_FAILURE, "Failed to write pid file");
+    free(pidstr);
 
     umask(0);
     sid = setsid();
