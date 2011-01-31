@@ -1328,6 +1328,40 @@ static int do_cont(Monitor *mon, const QDict *qdict, QObject **ret_data)
     }
 }
 
+static void qmp_encrypted_bdrv_it(void *opaque, BlockDriverState *bs)
+{
+    Error **err = opaque;
+
+    if (!error_is_set(err) && bdrv_key_required(bs)) {
+        error_set(err, QERR_DEVICE_ENCRYPTED, bdrv_get_device_name(bs),
+                  bdrv_get_encrypted_filename(bs));
+        return;
+    }
+}
+
+void qmp_stop(Error **errp)
+{
+    vm_stop(EXCP_INTERRUPT);
+}
+
+void qmp_cont(Error **errp)
+{
+    Error *local_err = NULL;
+
+    if (incoming_expected) {
+        error_set(errp, QERR_MIGRATION_EXPECTED);
+        return;
+    }
+
+    bdrv_iterate(qmp_encrypted_bdrv_it, &local_err);
+    if (local_err) {
+        error_propagate(errp, local_err);
+        return;
+    }
+
+    vm_start();
+}
+
 static void bdrv_key_cb(void *opaque, int err)
 {
     Monitor *mon = opaque;

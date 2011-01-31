@@ -240,8 +240,9 @@
 ##
 [ 'change-vnc-password', {'password': 'str'}, {}, 'none' ]
 
-#[ 'stop' , {}, {}, 'none' ]
-#[ 'cont' , {}, {}, 'none' ]
+[ 'stop' , {}, {}, 'none' ]
+[ 'cont' , {}, {}, 'none' ]
+
 #[ 'system_reset' , {}, {}, 'none' ]
 #[ 'system_powerdown' , {}, {}, 'none' ]
 #[ 'device_add', {'driver': 'str', 'id': 'str'}, {'**': 'dict'}, 'none' ]

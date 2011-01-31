@@ -439,6 +439,47 @@ static void test_change_old_block_encrypted(void)
     qemu_destroy(sess);
 }
 
+static void test_cont(void)
+{
+    QmpSession *sess;
+    Error *err;
+    const char *filename = "/tmp/foo.qcow2";
+
+    sess = qemu("-S");
+    libqmp_cont(sess, &err);
+    g_assert(err == NULL);
+    libqmp_quit(sess, NULL);
+    qemu_destroy(sess);
+
+    sess = qemu("-S -incoming tcp:localhost:6100");
+    libqmp_cont(sess, &err);
+    g_assert(err != NULL);
+    g_assert(error_is_type(err, QERR_MIGRATION_EXPECTED));
+    libqmp_quit(sess, NULL);
+    qemu_destroy(sess);
+
+    qemu_img("create -f qcow2 -o encryption %s 10G", filename);
+    sess = qemu("-S -hda %s", filename);
+    libqmp_cont(sess, &err);
+    g_assert(err != NULL);
+    /* Can't test for a specific type here as 0.14 sent a generic error */
+    libqmp_quit(sess, NULL);
+    qemu_destroy(sess);
+    unlink(filename);
+}
+
+static void test_stop(void)
+{
+    QmpSession *sess;
+    Error *err = NULL;
+
+    sess = qemu("");
+    libqmp_stop(sess, &err);
+    g_assert(err == NULL);
+    libqmp_quit(sess, NULL);
+    qemu_destroy(sess);
+}
+
 static void test_screendump(void)
 {
     QmpSession *sess = NULL;
@@ -529,6 +570,8 @@ int main(int argc, char **argv)
                     test_deprecated_vnc_password);
     g_test_add_func("/0.14/display/screendump",
                     test_screendump);
+    g_test_add_func("/0.14/misc/cont", test_cont);
+    g_test_add_func("/0.14/misc/stop", test_stop);
 
     g_test_add_func("/0.15/vnc/change", test_vnc_change);
     g_test_add_func("/0.15/block/change/encrypted",
