@@ -57,8 +57,12 @@ static QmpSession *qemu(const char *fmt, ...)
     snprintf(buffer1, sizeof(buffer1),
              "i386-softmmu/qemu "
              "-enable-kvm "  // glib series breaks TCG
+#if 1
              "-qmp2 qmp "
              "-chardev socket,id=qmp,path=\"%s\",server=on,wait=off "
+#else
+             "-qmp unix:\"%s\",server,nowait "
+#endif
              "-vnc none "
              "-daemonize "
              "-pidfile %s "
@@ -454,15 +458,19 @@ int main(int argc, char **argv)
 {
     g_test_init(&argc, &argv, NULL);
 
-    g_test_add_func("/misc/version", test_version);
-    g_test_add_func("/block/change/encrypted", test_change_block_encrypted);
-    g_test_add_func("/block/change/autoprobe", test_change_block_autoprobe);
-    g_test_add_func("/deprecated/block/change/encrypted",
+    g_test_add_func("/0.14/misc/version", test_version);
+    g_test_add_func("/0.14/block/change/encrypted",
                     test_change_old_block_encrypted);
-    g_test_add_func("/vnc/change", test_vnc_change);
-    g_test_add_func("/vnc/password-login", test_vnc_password);
-    g_test_add_func("/deprecated/vnc/password-login",
+    g_test_add_func("/0.14/vnc/password-login",
                     test_deprecated_vnc_password);
+
+    g_test_add_func("/0.15/vnc/change", test_vnc_change);
+    g_test_add_func("/0.15/block/change/encrypted",
+                    test_change_block_encrypted);
+    g_test_add_func("/0.15/block/change/autoprobe",
+                    test_change_block_autoprobe);
+    g_test_add_func("/0.15/vnc/password-login",
+                    test_vnc_password);
 
     g_test_run();
 

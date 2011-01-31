@@ -100,6 +100,8 @@ QmpSession *qmp_session_new(int fd)
 
     json_message_parser_init(&s->parser, fd_qmp_session_parse);
 
+    libqmp_qmp_capabilities(&s->session, NULL);
+
     return &s->session;
 }
 
