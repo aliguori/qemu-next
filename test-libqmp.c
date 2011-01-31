@@ -6,6 +6,7 @@
 #include <sys/un.h>
 #include <stdlib.h>
 #include <glib.h>
+#include <sys/wait.h>
 #include "config-host.h"
 #include "libqmp.h"
 #include "qerror.h"
@@ -36,11 +37,14 @@ static void qemu_img(const char *fmt, ...)
     g_assert(ret != -1);
 }
 
+static pid_t last_qemu_pid = -1;
+
 static QmpSession *qemu(const char *fmt, ...)
 {
     char buffer0[4096];
     char buffer1[4096];
     const char *filename = "foo.sock";
+    const char *pid_filename = "/tmp/test-libqmp-qemu.pid";
     struct sockaddr_un addr;
     va_list ap;
     int s;
@@ -57,7 +61,9 @@ static QmpSession *qemu(const char *fmt, ...)
              "-chardev socket,id=qmp,path=\"%s\",server=on,wait=off "
              "-vnc none "
              "-daemonize "
-             "%s", filename, buffer0);
+             "-pidfile %s "
+             "%s", filename, pid_filename, buffer0);
+    g_test_message("Executing %s\n", buffer1);
     ret = system(buffer1);
     g_assert(ret != -1);
 
@@ -70,7 +76,48 @@ static QmpSession *qemu(const char *fmt, ...)
     ret = connect(s, (struct sockaddr *)&addr, sizeof(addr));
     g_assert(ret != -1);
 
+    {
+        FILE *f;
+        char buffer[1024];
+        char *ptr;
+
+        f = fopen(pid_filename, "r");
+        g_assert(f != NULL);
+
+        ptr = fgets(buffer, sizeof(buffer), f);
+        g_assert(ptr != NULL);
+
+        fclose(f);
+
+        last_qemu_pid = atoi(buffer);
+    }
+
     return qmp_session_new(s);
+}
+
+static void wait_for_pid_exit(pid_t pid)
+{
+    FILE *f = NULL;
+
+    /* This is ugly but I don't know of a better way */
+    do {
+        char buffer[1024];
+
+        if (f) {
+            fclose(f);
+            usleep(10000);
+        }
+
+        snprintf(buffer, sizeof(buffer), "/proc/%d/stat", pid);
+        f = fopen(buffer, "r");
+    } while (f);
+}
+
+static void qemu_destroy(QmpSession *sess)
+{
+    wait_for_pid_exit(last_qemu_pid);
+    last_qemu_pid = -1;
+    qmp_session_destroy(sess);
 }
 
 static void read_or_assert(int fd, void *buffer, size_t size)
@@ -214,7 +261,7 @@ static void test_vnc_password(void)
     g_assert_cmpint(ret, ==, 0);
 
     libqmp_quit(sess, NULL);
-    qmp_session_destroy(sess);
+    qemu_destroy(sess);
 }
 
 static void test_vnc_change(void)
@@ -239,8 +286,45 @@ static void test_vnc_change(void)
     ret = vnc_connect(5900 + 300, NULL);
     g_assert_cmpint(ret, ==, -ECONNREFUSED);
 
+    // FIXME decide semantics for empty password and add test case
+
     libqmp_quit(sess, NULL);
-    qmp_session_destroy(sess);
+    qemu_destroy(sess);
+}
+
+static void test_deprecated_vnc_password(void)
+{
+    QmpSession *sess;
+    int ret;
+    Error *err = NULL;
+
+    sess = qemu("-S -vnc :300,password");
+    ret = vnc_connect(5900 + 300, NULL);
+    g_assert_cmpint(ret, ==, -EPERM);
+
+    libqmp_change(sess, "vnc", "password", true, "foobar", &err);
+    g_assert(err == NULL);
+
+    ret = vnc_connect(5900 + 300, "monkey");
+    g_assert_cmpint(ret, ==, -EPERM);
+
+    ret = vnc_connect(5900 + 300, "foobar");
+    g_assert_cmpint(ret, ==, 0);
+
+    libqmp_change(sess, "vnc", "password", true, "", &err);
+    g_assert(err == NULL);
+
+#if 0
+    // CVE
+    ret = vnc_connect(5900 + 300, NULL);
+    g_assert_cmpint(ret, ==, -EPERM);
+
+    ret = vnc_connect(5900 + 300, "");
+    g_assert_cmpint(ret, ==, -EPERM);
+#endif
+
+    libqmp_quit(sess, NULL);
+    qemu_destroy(sess);
 }
 
 static void test_change_block_autoprobe(void)
@@ -265,7 +349,7 @@ static void test_change_block_autoprobe(void)
 
     libqmp_quit(sess, NULL);
     unlink(filename);
-    qmp_session_destroy(sess);
+    qemu_destroy(sess);
 }
 
 static void test_change_block_encrypted(void)
@@ -295,7 +379,7 @@ static void test_change_block_encrypted(void)
 
     libqmp_quit(sess, NULL);
     unlink(filename);
-    qmp_session_destroy(sess);
+    qemu_destroy(sess);
 }
 
 static void test_change_old_block_encrypted(void)
@@ -317,7 +401,7 @@ static void test_change_old_block_encrypted(void)
 
     libqmp_quit(sess, NULL);
     unlink(filename);
-    qmp_session_destroy(sess);
+    qemu_destroy(sess);
 }
 
 static void test_version(void)
@@ -363,7 +447,7 @@ static void test_version(void)
 
     libqmp_quit(sess, NULL);
 
-    qmp_session_destroy(sess);
+    qemu_destroy(sess);
 }
 
 int main(int argc, char **argv)
@@ -377,6 +461,8 @@ int main(int argc, char **argv)
                     test_change_old_block_encrypted);
     g_test_add_func("/vnc/change", test_vnc_change);
     g_test_add_func("/vnc/password-login", test_vnc_password);
+    g_test_add_func("/deprecated/vnc/password-login",
+                    test_deprecated_vnc_password);
 
     g_test_run();
 
