@@ -17,6 +17,7 @@ typedef struct FdQmpSession
     JSONMessageParser parser;
     QObject *result;
     bool completed;
+    bool got_greeting;
     int fd;
 } FdQmpSession;
 
@@ -24,7 +25,12 @@ static void fd_qmp_session_parse(JSONMessageParser *parser, QList *tokens)
 {
     FdQmpSession *fs = container_of(parser, FdQmpSession, parser);
     fs->result = json_parser_parse(tokens, NULL);
-    fs->completed = true;
+    if (!fs->got_greeting) {
+        fs->got_greeting = true;
+        qobject_decref(fs->result);
+    } else {
+        fs->completed = true;
+    }
 }
 
 static QObject *qmp_session_fd_dispatch(QmpSession *s, const char *name,
@@ -90,6 +96,7 @@ QmpSession *qmp_session_new(int fd)
 
     s->fd = fd;
     s->session.dispatch = qmp_session_fd_dispatch;
+    s->got_greeting = false;
 
     json_message_parser_init(&s->parser, fd_qmp_session_parse);
 

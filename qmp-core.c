@@ -41,22 +41,6 @@ typedef struct QmpSession
     CharDriverState *chr;
 } QmpSession;
 
-static int qmp_chr_can_receive(void *opaque)
-{
-    return 1024;
-}
-
-static void qmp_chr_receive(void *opaque, const uint8_t *buf, int size)
-{
-    QmpSession *s = opaque;
-    json_message_parser_feed(&s->parser, (char *)buf, size);
-}
-
-static void qmp_chr_event(void *opaque, int event)
-{
-    QmpSession *s = opaque;
-    json_message_parser_flush(&s->parser);
-}
 
 static void qmp_chr_parse(JSONMessageParser *parser, QList *tokens)
 {
@@ -94,7 +78,6 @@ static void qmp_chr_parse(JSONMessageParser *parser, QList *tokens)
     cmd->fn(args, &ret, &err);
     rsp = qdict_new();
     if (err) {
-        printf("error return\n");
         qdict_put_obj(rsp, "error", error_get_qobject(err));
         error_free(err);
     } else {
@@ -114,11 +97,55 @@ static void qmp_chr_parse(JSONMessageParser *parser, QList *tokens)
     qobject_decref(request);
 }
 
+static int qmp_chr_can_receive(void *opaque)
+{
+    return 1024;
+}
+
+static void qmp_chr_receive(void *opaque, const uint8_t *buf, int size)
+{
+    QmpSession *s = opaque;
+    json_message_parser_feed(&s->parser, (char *)buf, size);
+}
+
+static void qmp_chr_send_greeting(QmpSession *s)
+{
+    VersionInfo *info;
+    QObject *vers;
+    QObject *greeting;
+    QString *str;
+
+    info = qmp_query_version(NULL);
+    vers = qmp_marshal_type_VersionInfo(info);
+    qmp_free_VersionInfo(info);
+
+    greeting = qobject_from_jsonf("{'QMP': {'version': %p, 'capabilities': []} }",
+                                  vers);
+    str = qobject_to_json(greeting);
+    qobject_decref(greeting);
+
+    qemu_chr_write(s->chr, (void *)str->string, str->length);
+    qemu_chr_write(s->chr, (void *)"\n", 1);
+    QDECREF(str);
+}
+
+static void qmp_chr_event(void *opaque, int event)
+{
+    QmpSession *s = opaque;
+    switch (event) {
+    case CHR_EVENT_OPENED:
+        json_message_parser_init(&s->parser, qmp_chr_parse);
+        qmp_chr_send_greeting(s);
+        break;
+    case CHR_EVENT_CLOSED:
+        json_message_parser_flush(&s->parser);
+        break;
+    }
+}
+
 void qmp_init_chardev(CharDriverState *chr)
 {
     QmpSession *s = qemu_mallocz(sizeof(*s));
-
-    json_message_parser_init(&s->parser, qmp_chr_parse);
 
     s->chr = chr;
 
