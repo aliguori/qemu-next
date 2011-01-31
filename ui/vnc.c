@@ -2084,7 +2084,7 @@ static int protocol_client_auth_vnc(VncState *vs, uint8_t *data, size_t len)
     unsigned char key[8];
     time_t now = time(NULL);
 
-    if (!vs->vd->password || !vs->vd->password[0]) {
+    if (!vs->vd->password) {
         VNC_DEBUG("No password configured on server");
         goto reject;
     }
