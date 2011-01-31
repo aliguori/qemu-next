@@ -1674,6 +1674,52 @@ void bdrv_info(Monitor *mon, QObject **ret_data)
     *ret_data = QOBJECT(bs_list);
 }
 
+BlockInfo *qmp_query_block(Error **errp)
+{
+    BlockInfo *block_list = NULL;
+    BlockDriverState *bs;
+
+    QTAILQ_FOREACH(bs, &bdrv_states, list) {
+        BlockInfo *info = qmp_alloc_BlockInfo();
+
+        switch (bs->type) {
+        case BDRV_TYPE_HD:
+            info->type = qemu_strdup("hd");
+            break;
+        case BDRV_TYPE_CDROM:
+            info->type = qemu_strdup("cdrom");
+            break;
+        case BDRV_TYPE_FLOPPY:
+            info->type = qemu_strdup("floppy");
+            break;
+        default:
+            info->type = qemu_strdup("unknown");
+            break;
+        }
+
+        info->device = qemu_strdup(bs->device_name);
+        info->removable = bs->removable;
+        info->locked = bs->locked;
+
+        if (bs->drv) {
+            info->has_inserted = true;
+            info->inserted.file = qemu_strdup(bs->filename);
+            info->inserted.ro = bs->read_only;
+            info->inserted.drv = qemu_strdup(bs->drv->format_name);
+            info->inserted.encrypted = bs->encrypted;
+            if (bs->backing_file[0]) {
+                info->inserted.has_backing_file = true;
+                info->inserted.backing_file = qemu_strdup(bs->backing_file);
+            }
+        }
+
+        info->next = block_list;
+        block_list = info;
+    }
+
+    return block_list;
+}
+
 static void bdrv_stats_iter(QObject *data, void *opaque)
 {
     QDict *qdict;

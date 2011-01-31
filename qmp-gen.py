@@ -119,7 +119,23 @@ def print_lib_definition(name, required, optional, retval):
     print
     print '    QDECREF(qmp__args);'
 
-    if retval != 'none':
+    if type(retval) == list:
+        print '''
+    if (!qmp__local_err) {
+        QList *qmp__list_retval = qobject_to_qlist(qmp__retval);
+        QListEntry *qmp__i;
+        QLIST_FOREACH_ENTRY(qmp__list_retval, qmp__i) {
+            %s qmp__native_i = %s(qmp__i->value);
+            qmp__native_i->next = qmp__native_retval;
+            qmp__native_retval = qmp__native_i;
+        }
+        qobject_decref(qmp__retval);
+    }
+    error_propagate(qmp__err, qmp__local_err);
+    return qmp__native_retval;''' % (qmp_type_to_c(retval[0]), qmp_type_from_qobj(retval[0]))
+    elif type(retval) == dict:
+        print '    // FIXME (using an anonymous dict as return value'
+    elif retval != 'none':
         print '''
     if (!qmp__local_err) {
         qmp__native_retval = %s(qmp__retval);
