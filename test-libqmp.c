@@ -318,26 +318,20 @@ static void test_deprecated_vnc_password(void)
     libqmp_change(sess, "vnc", "password", true, "", &err);
     g_assert(err == NULL);
 
-#if 0
-    // CVE
     ret = vnc_connect(5900 + 300, NULL);
     g_assert_cmpint(ret, ==, -EPERM);
 
     ret = vnc_connect(5900 + 300, "");
     g_assert_cmpint(ret, ==, -EPERM);
-#endif
 
     libqmp_change_vnc_password(sess, "", &err);
     g_assert(err == NULL);
 
-#if 0
-    // CVE
     ret = vnc_connect(5900 + 300, NULL);
     g_assert_cmpint(ret, ==, -EPERM);
 
     ret = vnc_connect(5900 + 300, "");
     g_assert_cmpint(ret, ==, -EPERM);
-#endif
 
     libqmp_quit(sess, NULL);
     qemu_destroy(sess);
