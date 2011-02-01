@@ -68,8 +68,8 @@ def print_lib_decl(name, required, optional, retval, suffix=''):
         args.append('%s %s' % (qmp_type_to_c(required[key]), c_var(key)))
 
     for key in optional:
-        if key == '**':
-            args.append('const QDict *qdict')
+        if optional[key] == '**':
+            args.append('KeyValues * %s' % c_var(key))
         else:
             args.append('bool has_%s' % c_var(key))
             args.append('%s %s' % (qmp_type_to_c(optional[key]), c_var(key)))
@@ -104,7 +104,12 @@ def print_lib_definition(name, required, optional, retval):
         argname = key
         argtype = optional[key]
         if argtype.startswith('**'):
-            print '     // FIXME'
+            print '''    {
+        KeyValues *qmp__i;
+        for (qmp__i = %s; qmp__i; qmp__i = qmp__i->next) {
+            qdict_put(qmp__args, qmp__i->key, qstring_from_str(qmp__i->value));
+        }
+    }''' % c_var(argname)
             continue
         print '    if (has_%s) {' % c_var(argname)
         print '        qdict_put_obj(qmp__args, "%s", %s(%s));' % (key, qmp_type_to_qobj_ctor(argtype), c_var(argname))
@@ -154,8 +159,8 @@ def print_declaration(name, required, optional, retval):
         args.append('%s %s' % (qmp_type_to_c(required[key]), c_var(key)))
 
     for key in optional:
-        if key == '**':
-            args.append('const QDict *qdict')
+        if optional[key] == '**':
+            args.append('KeyValues * %s' % c_var(key))
         else:
             args.append('bool has_%s' % c_var(key))
             args.append('%s %s' % (qmp_type_to_c(optional[key]), c_var(key)))
@@ -173,11 +178,11 @@ static void qmp_marshal_%s(const QDict *qdict, QObject **ret_data, Error **err)
         print '    %s %s;' % (qmp_type_to_c(required[key]), c_var(key))
 
     for key in optional:
-        if key == '**':
-            continue
-
-        print '    bool has_%s = false;' % (c_var(key))
-        print '    %s %s = 0;' % (qmp_type_to_c(optional[key]), c_var(key))
+        if optional[key] == '**':
+            print '    KeyValues * %s;' % c_var(key)
+        else:
+            print '    bool has_%s = false;' % (c_var(key))
+            print '    %s %s = 0;' % (qmp_type_to_c(optional[key]), c_var(key))
 
     if retval != 'none':
         print '    %s qmp_retval;' % (qmp_type_to_c(retval, True))
@@ -193,10 +198,30 @@ static void qmp_marshal_%s(const QDict *qdict, QObject **ret_data, Error **err)
 ''' % (key, key, c_var(key), qmp_type_from_qobj(required[key]), key)
 
     for key in optional:
-        if key == '**':
-            continue
+        if optional[key] == '**':
+            print '''
+    {
+        const QDictEntry *qmp__qdict_i;
 
-        print '''
+        %s = NULL;
+        for (qmp__qdict_i = qdict_first(qdict); qmp__qdict_i; qmp__qdict_i = qdict_next(qdict, qmp__qdict_i)) {
+            KeyValues *qmp__i;''' % c_var(key)
+            for key1 in required.keys() + optional.keys():
+                if key1 == key:
+                    continue
+                print '''            if (strcmp(qmp__qdict_i->key, "%s") == 0) {
+                continue;
+            }''' % key1
+            print '''
+            qmp__i = qmp_alloc_KeyValues();
+            qmp__i->key = qemu_strdup(qmp__qdict_i->key);
+            qmp__i->value = qemu_strdup(qstring_get_str(qobject_to_qstring((QObject *)qmp__qdict_i->value)));
+            qmp__i->next = %s;
+            %s = qmp__i;
+        }
+    }''' % (c_var(key), c_var(key))
+        else:
+            print '''
     if (qdict_haskey(qdict, "%s")) {
         %s = %s(qdict_get(qdict, "%s"));
         has_%s = true;
@@ -207,8 +232,8 @@ static void qmp_marshal_%s(const QDict *qdict, QObject **ret_data, Error **err)
     for key in required:
         args.append(c_var(key))
     for key in optional:
-        if key == '**':
-            args.append('qdict')
+        if optional[key] == '**':
+            args.append(c_var(key))
         else:
             args.append('has_%s' % c_var(key))
             args.append(c_var(key))
