@@ -250,9 +250,11 @@
 { 'BlockStats': {'*device': 'str', 'stats': {'rd_bytes': 'int', 'wr_bytes': 'int', 'rd_operations': 'int', 'wr_operations': 'int', 'wr_highest_offset': 'int'}, '*parent': 'BlockStats'}}
 [ 'query-blockstats', {}, {}, ['BlockStats'] ]
 
+{ 'KeyValues': {'key': 'str', 'value': 'str'} }
+[ 'device_add', {'driver': 'str', 'id': 'str'}, {'opts': '**'}, 'none' ]
+
 #[ 'system_reset' , {}, {}, 'none' ]
 #[ 'system_powerdown' , {}, {}, 'none' ]
-#[ 'device_add', {'driver': 'str', 'id': 'str'}, {'**': 'dict'}, 'none' ]
 #[ 'device_del', {'id': 'str'}, {}, 'none' ]
 #[ 'cpu', {'index': 'int'}, {}, 'none' ]
 #[ 'memsave', {'val': 'int', 'size': 'int', 'filename': 'str'}, {}, 'none' ]

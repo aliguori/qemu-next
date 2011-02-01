@@ -30,6 +30,7 @@
 #include "sysemu.h"
 #include "monitor.h"
 #include "blockdev.h"
+#include <glib.h>
 
 static int qdev_hotplug = 0;
 static bool qdev_hot_added = false;
@@ -42,7 +43,7 @@ DeviceInfo *device_info_list;
 
 static BusState *qbus_find_recursive(BusState *bus, const char *name,
                                      const BusInfo *info);
-static BusState *qbus_find(const char *path);
+static BusState *qbus_find(const char *path, Error **errp);
 
 /* Register a new device type.  */
 void qdev_register(DeviceInfo *info)
@@ -193,7 +194,7 @@ int qdev_device_help(QemuOpts *opts)
     return 1;
 }
 
-DeviceState *qdev_device_add(QemuOpts *opts)
+DeviceState *qdev_device_add(QemuOpts *opts, Error **errp)
 {
     const char *driver, *path, *id;
     DeviceInfo *info;
@@ -202,40 +203,37 @@ DeviceState *qdev_device_add(QemuOpts *opts)
 
     driver = qemu_opt_get(opts, "driver");
     if (!driver) {
-        qerror_report(QERR_MISSING_PARAMETER, "driver");
+        error_set(errp, QERR_MISSING_PARAMETER, "driver");
         return NULL;
     }
 
     /* find driver */
     info = qdev_find_info(NULL, driver);
     if (!info || info->no_user) {
-        qerror_report(QERR_INVALID_PARAMETER_VALUE, "driver", "a driver name");
-        error_printf_unless_qmp("Try with argument '?' for a list.\n");
+        error_set(errp, QERR_INVALID_PARAMETER_VALUE, "driver", "a driver name");
         return NULL;
     }
 
     /* find bus */
     path = qemu_opt_get(opts, "bus");
     if (path != NULL) {
-        bus = qbus_find(path);
+        bus = qbus_find(path, errp);
         if (!bus) {
             return NULL;
         }
         if (bus->info != info->bus_info) {
-            qerror_report(QERR_BAD_BUS_FOR_DEVICE,
-                           driver, bus->info->name);
+            error_set(errp, QERR_BAD_BUS_FOR_DEVICE, driver, bus->info->name);
             return NULL;
         }
     } else {
         bus = qbus_find_recursive(main_system_bus, NULL, info->bus_info);
         if (!bus) {
-            qerror_report(QERR_NO_BUS_FOR_DEVICE,
-                           info->name, info->bus_info->name);
+            error_set(errp, QERR_NO_BUS_FOR_DEVICE, info->name, info->bus_info->name);
             return NULL;
         }
     }
     if (qdev_hotplug && !bus->allow_hotplug) {
-        qerror_report(QERR_BUS_NO_HOTPLUG, bus->name);
+        error_set(errp, QERR_BUS_NO_HOTPLUG, bus->name);
         return NULL;
     }
 
@@ -250,7 +248,7 @@ DeviceState *qdev_device_add(QemuOpts *opts)
         return NULL;
     }
     if (qdev_init(qdev) < 0) {
-        qerror_report(QERR_DEVICE_INIT_FAILED, driver);
+        error_set(errp, QERR_DEVICE_INIT_FAILED, driver);
         return NULL;
     }
     qdev->opts = opts;
@@ -289,10 +287,10 @@ void qdev_set_legacy_instance_id(DeviceState *dev, int alias_id,
     dev->alias_required_for_version = required_for_version;
 }
 
-int qdev_unplug(DeviceState *dev)
+int qdev_unplug(DeviceState *dev, Error **errp)
 {
     if (!dev->parent_bus->allow_hotplug) {
-        qerror_report(QERR_BUS_NO_HOTPLUG, dev->parent_bus->name);
+        error_set(errp, QERR_BUS_NO_HOTPLUG, dev->parent_bus->name);
         return -1;
     }
     assert(dev->info->unplug != NULL);
@@ -576,35 +574,6 @@ DeviceState *qdev_find_recursive(BusState *bus, const char *id)
     return NULL;
 }
 
-static void qbus_list_bus(DeviceState *dev)
-{
-    BusState *child;
-    const char *sep = " ";
-
-    error_printf("child busses at \"%s\":",
-                 dev->id ? dev->id : dev->info->name);
-    QLIST_FOREACH(child, &dev->child_bus, sibling) {
-        error_printf("%s\"%s\"", sep, child->name);
-        sep = ", ";
-    }
-    error_printf("\n");
-}
-
-static void qbus_list_dev(BusState *bus)
-{
-    DeviceState *dev;
-    const char *sep = " ";
-
-    error_printf("devices at \"%s\":", bus->name);
-    QLIST_FOREACH(dev, &bus->children, sibling) {
-        error_printf("%s\"%s\"", sep, dev->info->name);
-        if (dev->id)
-            error_printf("/\"%s\"", dev->id);
-        sep = ", ";
-    }
-    error_printf("\n");
-}
-
 static BusState *qbus_find_bus(DeviceState *dev, char *elem)
 {
     BusState *child;
@@ -645,7 +614,7 @@ static DeviceState *qbus_find_dev(BusState *bus, char *elem)
     return NULL;
 }
 
-static BusState *qbus_find(const char *path)
+static BusState *qbus_find(const char *path, Error **errp)
 {
     DeviceState *dev;
     BusState *bus;
@@ -663,7 +632,7 @@ static BusState *qbus_find(const char *path)
         }
         bus = qbus_find_recursive(main_system_bus, elem, NULL);
         if (!bus) {
-            qerror_report(QERR_BUS_NOT_FOUND, elem);
+            error_set(errp, QERR_BUS_NOT_FOUND, elem);
             return NULL;
         }
         pos = len;
@@ -686,10 +655,9 @@ static BusState *qbus_find(const char *path)
         pos += len;
         dev = qbus_find_dev(bus, elem);
         if (!dev) {
-            qerror_report(QERR_DEVICE_NOT_FOUND, elem);
-            if (!monitor_cur_is_qmp()) {
-                qbus_list_dev(bus);
-            }
+            GString *str = g_string_new_len(path, pos);
+            error_set(errp, QERR_PARTIAL_DEVICE_PATH, str->str, elem);
+            g_string_free(str, TRUE);
             return NULL;
         }
 
@@ -702,15 +670,12 @@ static BusState *qbus_find(const char *path)
              * one child bus accept it nevertheless */
             switch (dev->num_child_bus) {
             case 0:
-                qerror_report(QERR_DEVICE_NO_BUS, elem);
+                error_set(errp, QERR_DEVICE_NO_BUS, path);
                 return NULL;
             case 1:
                 return QLIST_FIRST(&dev->child_bus);
             default:
-                qerror_report(QERR_DEVICE_MULTIPLE_BUSSES, elem);
-                if (!monitor_cur_is_qmp()) {
-                    qbus_list_bus(dev);
-                }
+                error_set(errp, QERR_DEVICE_MULTIPLE_BUSSES, path);
                 return NULL;
             }
         }
@@ -723,10 +688,9 @@ static BusState *qbus_find(const char *path)
         pos += len;
         bus = qbus_find_bus(dev, elem);
         if (!bus) {
-            qerror_report(QERR_BUS_NOT_FOUND, elem);
-            if (!monitor_cur_is_qmp()) {
-                qbus_list_bus(dev);
-            }
+            GString *str = g_string_new_len(path, pos);
+            error_set(errp, QERR_PARTIAL_DEVICE_PATH, str->str, elem);
+            g_string_free(str, TRUE);
             return NULL;
         }
     }
@@ -879,6 +843,8 @@ void do_info_qdm(Monitor *mon)
 int do_device_add(Monitor *mon, const QDict *qdict, QObject **ret_data)
 {
     QemuOpts *opts;
+    Error *err = NULL;
+    DeviceState *s;
 
     opts = qemu_opts_from_qdict(qemu_find_opts("device"), qdict);
     if (!opts) {
@@ -888,24 +854,56 @@ int do_device_add(Monitor *mon, const QDict *qdict, QObject **ret_data)
         qemu_opts_del(opts);
         return 0;
     }
-    if (!qdev_device_add(opts)) {
+    s = qdev_device_add(opts, &err);
+    if (err) {
+        qerror_report_err(err);
+    }
+    if (!s) {
         qemu_opts_del(opts);
         return -1;
     }
     return 0;
 }
 
+void qmp_device_add(const char *driver, const char *id, KeyValues *opts,
+                    Error **errp)
+{
+    QemuOpts *qopts;
+    KeyValues *kv;
+
+    qopts = qemu_opts_create(qemu_find_opts(driver), id, 1);
+    if (qopts == NULL) {
+        error_set(errp, QERR_DEVICE_NOT_FOUND);
+        return;
+    }
+
+    for (kv = opts; kv; kv = kv->next) {
+        qemu_opt_set(qopts, kv->key, kv->value);
+    }
+
+    if (!qdev_device_add(qopts, errp)) {
+        qemu_opts_del(qopts);
+    }
+}
+
 int do_device_del(Monitor *mon, const QDict *qdict, QObject **ret_data)
 {
     const char *id = qdict_get_str(qdict, "id");
     DeviceState *dev;
+    Error *err = NULL;
+    int ret;
 
     dev = qdev_find_recursive(main_system_bus, id);
     if (NULL == dev) {
         qerror_report(QERR_DEVICE_NOT_FOUND, id);
         return -1;
     }
-    return qdev_unplug(dev);
+
+    ret = qdev_unplug(dev, &err);
+    if (err) {
+        qerror_report_err(err);
+    }
+    return ret;
 }
 
 static int qdev_get_fw_dev_path_helper(DeviceState *dev, char *p, int size)

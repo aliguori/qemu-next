@@ -5,6 +5,7 @@
 #include "qemu-queue.h"
 #include "qemu-char.h"
 #include "qemu-option.h"
+#include "error.h"
 
 typedef struct Property Property;
 
@@ -123,12 +124,12 @@ typedef struct GlobalProperty {
 
 DeviceState *qdev_create(BusState *bus, const char *name);
 int qdev_device_help(QemuOpts *opts);
-DeviceState *qdev_device_add(QemuOpts *opts);
+DeviceState *qdev_device_add(QemuOpts *opts, Error **errp);
 int qdev_init(DeviceState *dev) QEMU_WARN_UNUSED_RESULT;
 void qdev_init_nofail(DeviceState *dev);
 void qdev_set_legacy_instance_id(DeviceState *dev, int alias_id,
                                  int required_for_version);
-int qdev_unplug(DeviceState *dev);
+int qdev_unplug(DeviceState *dev, Error **errp);
 void qdev_free(DeviceState *dev);
 int qdev_simple_unplug_cb(DeviceState *dev);
 void qdev_machine_creation_done(void);

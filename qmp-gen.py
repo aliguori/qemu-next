@@ -215,7 +215,7 @@ static void qmp_marshal_%s(const QDict *qdict, QObject **ret_data, Error **err)
             print '''
             qmp__i = qmp_alloc_KeyValues();
             qmp__i->key = qemu_strdup(qmp__qdict_i->key);
-            qmp__i->value = qemu_strdup(qstring_get_str(qobject_to_qstring((QObject *)qmp__qdict_i->value)));
+            qmp__i->value = qobject_as_string(qmp__qdict_i->value);
             qmp__i->next = %s;
             %s = qmp__i;
         }

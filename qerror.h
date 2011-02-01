@@ -75,7 +75,7 @@ QError *qobject_to_qerror(const QObject *obj);
     "{ 'class': 'DeviceLocked', 'data': { 'device': %s } }"
 
 #define QERR_DEVICE_MULTIPLE_BUSSES \
-    "{ 'class': 'DeviceMultipleBusses', 'data': { 'device': %s } }"
+    "{ 'class': 'DeviceMultipleBusses', 'data': { 'element': %s } }"
 
 #define QERR_DEVICE_NOT_ACTIVE \
     "{ 'class': 'DeviceNotActive', 'data': { 'device': %s } }"
@@ -136,6 +136,9 @@ QError *qobject_to_qerror(const QObject *obj);
 
 #define QERR_OPEN_FILE_FAILED \
     "{ 'class': 'OpenFileFailed', 'data': { 'filename': %s } }"
+
+#define QERR_PARTIAL_DEVICE_PATH \
+    "{ 'class': 'PartialDevicePath', 'data': { 'base_path': %s, 'element': %s } }"
 
 #define QERR_PROPERTY_NOT_FOUND \
     "{ 'class': 'PropertyNotFound', 'data': { 'device': %s, 'property': %s } }"

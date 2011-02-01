@@ -1593,8 +1593,19 @@ static int device_help_func(QemuOpts *opts, void *opaque)
 static int device_init_func(QemuOpts *opts, void *opaque)
 {
     DeviceState *dev;
+    Error *err = NULL;
 
-    dev = qdev_device_add(opts);
+    dev = qdev_device_add(opts, &err);
+    if (err) {
+        bool show_help;
+
+        show_help = error_is_type(err, QERR_INVALID_PARAMETER_TYPE);
+        qerror_report_err(err);
+
+        if (show_help) {
+            error_report("Try with argument '?' for a list.");
+        }
+    }
     if (!dev)
         return -1;
     return 0;

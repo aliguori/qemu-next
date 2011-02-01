@@ -152,3 +152,28 @@ void qmp_init_chardev(CharDriverState *chr)
     qemu_chr_add_handlers(chr, qmp_chr_can_receive, qmp_chr_receive,
                           qmp_chr_event, s);
 }
+
+char *qobject_as_string(QObject *obj)
+{
+    char buffer[1024];
+
+    switch (qobject_type(obj)) {
+    case QTYPE_QINT:
+        snprintf(buffer, sizeof(buffer), "%" PRId64,
+                 qint_get_int(qobject_to_qint(obj)));
+        return qemu_strdup(buffer);
+    case QTYPE_QSTRING:
+        return qemu_strdup(qstring_get_str(qobject_to_qstring(obj)));
+    case QTYPE_QFLOAT:
+        snprintf(buffer, sizeof(buffer), "%.17g",
+                 qfloat_get_double(qobject_to_qfloat(obj)));
+        return qemu_strdup(buffer);
+    case QTYPE_QBOOL:
+        if (qbool_get_int(qobject_to_qbool(obj))) {
+            return qemu_strdup("on");
+        }
+        return qemu_strdup("off");
+    default:
+        return NULL;
+    }
+}
