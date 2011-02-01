@@ -247,8 +247,8 @@
 { 'BlockInfo': {'device': 'str', 'type': 'str', 'removable': 'bool', 'locked': 'bool', '*inserted': { 'file': 'str', 'ro': 'bool', 'drv': 'str', '*backing_file': 'str', 'encrypted': 'bool' }} }
 [ 'query-block', {}, {}, ['BlockInfo'] ]
 
-#{ 'BlockStats': {'*device': 'str', 'stats': {'rd_bytes': 'int', 'wr_bytes': 'int', 'rd_operations': 'int', 'wr_operations': 'int', 'wr_highest_offset': 'int'}, '*parent': 'BlockStats'}}
-#[ 'query-blockstats', {}, {}, ['BlockStats'] ]
+{ 'BlockStats': {'*device': 'str', 'stats': {'rd_bytes': 'int', 'wr_bytes': 'int', 'rd_operations': 'int', 'wr_operations': 'int', 'wr_highest_offset': 'int'}, '*parent': 'BlockStats'}}
+[ 'query-blockstats', {}, {}, ['BlockStats'] ]
 
 #[ 'system_reset' , {}, {}, 'none' ]
 #[ 'system_powerdown' , {}, {}, 'none' ]

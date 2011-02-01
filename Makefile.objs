@@ -14,7 +14,7 @@ oslib-obj-$(CONFIG_POSIX) += oslib-posix.o
 # block-obj-y is code used by both qemu system emulation and qemu-img
 
 block-obj-y = cutils.o cache-utils.o qemu-malloc.o qemu-option.o module.o
-block-obj-y += nbd.o block.o aio.o aes.o qemu-config.o qmp-types.o
+block-obj-y += nbd.o block.o aio.o aes.o qemu-config.o qmp-types.o error.o
 
 block-nested-y += raw.o raw-tp-aio.o cow.o qcow.o vdi.o vmdk.o cloop.o dmg.o
 block-nested-y += bochs.o vpc.o vvfat.o
@@ -102,7 +102,6 @@ common-obj-y += block-migration.o
 common-obj-y += pflib.o
 common-obj-y += qmp-marshal.o qmp-core.o
 common-obj-y += hmp-marshal.o hmp-core.o hmp-marshal-helpers.o
-common-obj-y += error.o
 
 common-obj-$(CONFIG_BRLAPI) += baum.o
 common-obj-$(CONFIG_POSIX) += migration-exec.o migration-unix.o migration-fd.o
