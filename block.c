@@ -1792,20 +1792,12 @@ void bdrv_info_stats(Monitor *mon, QObject **ret_data)
 }
 
 /* Consider exposing this as a full fledged QMP command */
-static BlockStats *qmp_query_blockstat(const char *device, Error **errp)
+static BlockStats *qmp_query_blockstat(BlockDriverState *bs, Error **errp)
 {
-    BlockDriverState *bs;
     BlockStats *s;
-
-    bs = bdrv_find(device);
-    if (!bs) {
-        error_set(errp, QERR_DEVICE_NOT_FOUND, device);
-        return NULL;
-    }
 
     s = qmp_alloc_BlockStats();
 
-    /* FIXME is this truly optional? */
     if (bs->device_name[0]) {
         s->has_device = true;
         s->device = qemu_strdup(bs->device_name);
@@ -1818,16 +1810,8 @@ static BlockStats *qmp_query_blockstat(const char *device, Error **errp)
     s->stats.wr_highest_offset = bs->wr_highest_sector * BDRV_SECTOR_SIZE;
 
     if (bs->file) {
-        Error *local_err = NULL;
-
         s->has_parent = true;
-        s->parent = qmp_query_blockstat(bdrv_get_device_name(bs->file),
-                                        &local_err);
-        if (local_err) {
-            qmp_free_BlockStats(s);
-            s = NULL;
-        }
-        error_propagate(errp, local_err);
+        s->parent = qmp_query_blockstat(bs->file, NULL);
     }
 
     return s;
@@ -1840,7 +1824,7 @@ BlockStats *qmp_query_blockstats(Error **errp)
 
     QTAILQ_FOREACH(bs, &bdrv_states, list) {
         BlockStats *s;
-        s = qmp_query_blockstat(bdrv_get_device_name(bs), NULL);
+        s = qmp_query_blockstat(bs, NULL);
         s->next = stat_list;
         stat_list = s;
     }

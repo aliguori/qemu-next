@@ -598,6 +598,48 @@ static void test_block_query(void)
     qemu_destroy(sess);
 }
 
+static void test_block_query_stats(void)
+{
+    QmpSession *sess = NULL;
+    BlockStats *stats_list, *stats;
+    Error *err = NULL;
+    bool found_cd, found_floppy, found_hd1;
+    const char *filename = "/tmp/test-libqmp.qcow2";
+
+    qemu_img("create -f qcow2 %s 10G", filename);
+    sess = qemu("-hda %s", filename);
+
+    stats_list = libqmp_query_blockstats(sess, &err);
+    g_assert(err == NULL);
+
+    found_cd = found_floppy = found_hd1 = false;
+    for (stats = stats_list; stats; stats = stats->next) {
+        g_assert(stats->has_device == true);
+        if (strcmp(stats->device, "ide1-cd0") == 0) {
+            found_cd = true;
+            g_assert(stats->has_parent == false);
+        } else if (strcmp(stats->device, "floppy0") == 0) {
+            found_floppy = true;
+            g_assert(stats->has_parent == false);
+        } else if (strcmp(stats->device, "ide0-hd0") == 0) {
+            found_hd1 = true;
+            g_assert(stats->has_parent == true);
+            g_assert(stats->parent->has_device == false);
+            g_assert(stats->parent->has_parent == false);
+        }
+    }
+
+    g_assert(found_cd);
+    g_assert(found_floppy);
+    g_assert(found_hd1);
+
+    qmp_free_BlockStats(stats_list);
+
+    libqmp_quit(sess, NULL);
+    qemu_destroy(sess);
+    unlink(filename);
+}
+
 static void test_version(void)
 {
     QmpSession *sess = NULL;
@@ -658,6 +700,7 @@ int main(int argc, char **argv)
     g_test_add_func("/0.14/misc/cont", test_cont);
     g_test_add_func("/0.14/misc/stop", test_stop);
     g_test_add_func("/0.14/block/query", test_block_query);
+    g_test_add_func("/0.14/block/query/stats", test_block_query_stats);
 
     g_test_add_func("/0.15/vnc/change", test_vnc_change);
     g_test_add_func("/0.15/block/change/encrypted",
