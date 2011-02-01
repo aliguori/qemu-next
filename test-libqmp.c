@@ -513,6 +513,91 @@ static void test_screendump(void)
     qemu_destroy(sess);
 }
 
+static void test_block_query(void)
+{
+    QmpSession *sess = NULL;
+    BlockInfo *block_list, *info;
+    Error *err = NULL;
+    bool found_cd, found_floppy, found_hd1;
+    const char *filename = "/tmp/foo.qcow2";
+
+    sess = qemu("-S");
+
+    block_list = libqmp_query_block(sess, &err);
+    g_assert(err == NULL);
+
+    found_cd = found_floppy = found_hd1 = false;
+    for (info = block_list; info; info = info->next) {
+        if (strcmp(info->device, "ide1-cd0") == 0) {
+            found_cd = true;
+            g_assert_cmpint(info->locked, ==, false);
+            g_assert_cmpint(info->has_inserted, ==, false);
+            g_assert_cmpstr(info->type, ==, "cdrom");
+            g_assert_cmpint(info->removable, ==, true);
+        } else if (strcmp(info->device, "floppy0") == 0) {
+            found_floppy = true;
+            g_assert_cmpint(info->locked, ==, false);
+            g_assert_cmpint(info->has_inserted, ==, false);
+            g_assert_cmpstr(info->type, ==, "floppy");
+            g_assert_cmpint(info->removable, ==, true);
+        }
+    }
+
+    g_assert(found_cd);
+    g_assert(found_floppy);
+
+    qmp_free_BlockInfo(block_list);
+
+    libqmp_quit(sess, NULL);
+    qemu_destroy(sess);
+
+    qemu_img("create -f qcow2 -o encryption %s 10G", filename);
+    sess = qemu("-S -hda %s", filename);
+
+    block_list = libqmp_query_block(sess, &err);
+    g_assert(err == NULL);
+
+    found_cd = found_floppy = found_hd1 = false;
+    for (info = block_list; info; info = info->next) {
+        if (strcmp(info->device, "ide0-hd0") == 0) {
+            found_hd1 = true;
+            g_assert_cmpint(info->locked, ==, false);
+
+            g_assert_cmpint(info->has_inserted, ==, true);
+            g_assert_cmpstr(info->inserted.file, ==, filename);
+            g_assert_cmpint(info->inserted.ro, ==, false);
+            g_assert_cmpstr(info->inserted.drv, ==, "qcow2");
+            g_assert_cmpint(info->inserted.encrypted, ==, true);
+            g_assert_cmpint(info->inserted.has_backing_file, ==, false);
+
+            g_assert_cmpstr(info->type, ==, "hd");
+            g_assert_cmpint(info->removable, ==, false);
+        } else if (strcmp(info->device, "ide1-cd0") == 0) {
+            found_cd = true;
+            g_assert_cmpint(info->locked, ==, false);
+            g_assert_cmpint(info->has_inserted, ==, false);
+            g_assert_cmpstr(info->type, ==, "cdrom");
+            g_assert_cmpint(info->removable, ==, true);
+        } else if (strcmp(info->device, "floppy0") == 0) {
+            found_floppy = true;
+            g_assert_cmpint(info->locked, ==, false);
+            g_assert_cmpint(info->has_inserted, ==, false);
+            g_assert_cmpstr(info->type, ==, "floppy");
+            g_assert_cmpint(info->removable, ==, true);
+        }
+    }
+
+    g_assert(found_hd1);
+    g_assert(found_cd);
+    g_assert(found_floppy);
+
+    qmp_free_BlockInfo(block_list);
+
+    unlink(filename);
+    libqmp_quit(sess, NULL);
+    qemu_destroy(sess);
+}
+
 static void test_version(void)
 {
     QmpSession *sess = NULL;
@@ -572,6 +657,7 @@ int main(int argc, char **argv)
                     test_screendump);
     g_test_add_func("/0.14/misc/cont", test_cont);
     g_test_add_func("/0.14/misc/stop", test_stop);
+    g_test_add_func("/0.14/block/query", test_block_query);
 
     g_test_add_func("/0.15/vnc/change", test_vnc_change);
     g_test_add_func("/0.15/block/change/encrypted",
