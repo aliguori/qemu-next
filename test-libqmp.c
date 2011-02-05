@@ -451,7 +451,7 @@ static void test_running(QmpSession *sess)
     g_assert_noerr(err);
 
     g_assert_cmpint(info->running, ==, true);
-    qmp_free_StatusInfo(info);
+    qmp_free_status_info(info);
 }
 
 static void test_stopped(QmpSession *sess)
@@ -463,7 +463,7 @@ static void test_stopped(QmpSession *sess)
     g_assert_noerr(err);
 
     g_assert_cmpint(info->running, ==, false);
-    qmp_free_StatusInfo(info);
+    qmp_free_status_info(info);
 }
 
 static void test_cont(void)
@@ -579,7 +579,7 @@ static void test_block_query(void)
     g_assert(found_cd);
     g_assert(found_floppy);
 
-    qmp_free_BlockInfo(block_list);
+    qmp_free_block_info(block_list);
 
     libqmp_quit(sess, NULL);
     qemu_destroy(sess);
@@ -624,7 +624,7 @@ static void test_block_query(void)
     g_assert(found_cd);
     g_assert(found_floppy);
 
-    qmp_free_BlockInfo(block_list);
+    qmp_free_block_info(block_list);
 
     unlink(filename);
     libqmp_quit(sess, NULL);
@@ -666,7 +666,7 @@ static void test_block_query_stats(void)
     g_assert(found_floppy);
     g_assert(found_hd1);
 
-    qmp_free_BlockStats(stats_list);
+    qmp_free_block_stats(stats_list);
 
     libqmp_quit(sess, NULL);
     qemu_destroy(sess);
@@ -712,7 +712,7 @@ static void test_version(void)
     g_assert_cmpint(micro, ==, info->qemu.micro);
     g_assert_cmpstr(ptr, ==, info->package);
 
-    qmp_free_VersionInfo(info);
+    qmp_free_version_info(info);
 
     libqmp_quit(sess, NULL);
 

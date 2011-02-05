@@ -213,7 +213,7 @@ static void qmp_marshal_%s(const QDict *qdict, QObject **ret_data, Error **err)
                 continue;
             }''' % key1
             print '''
-            qmp__i = qmp_alloc_KeyValues();
+            qmp__i = qmp_alloc_key_values();
             qmp__i->key = qemu_strdup(qmp__qdict_i->key);
             qmp__i->value = qobject_as_string(qmp__qdict_i->value);
             qmp__i->next = %s;
@@ -270,6 +270,14 @@ static void qmp_marshal_%s(const QDict *qdict, QObject **ret_data, Error **err)
     print '''
 }'''
 
+def de_camel_case(name):
+    new_name = ''
+    for ch in name:
+        if ch.isupper() and new_name:
+            new_name += '_'
+        new_name += ch.lower()
+    return new_name
+
 def print_metatype_declaration(name, typeinfo):
     if type(typeinfo) == str:
         print
@@ -287,8 +295,8 @@ def print_metatype_declaration(name, typeinfo):
         print "    %s *next;" % c_var(name)
         print "};"
         print
-        print "%s *qmp_alloc_%s(void);" % (name, name)
-        print "void qmp_free_%s(%s *obj);" % (name, name)
+        print "%s *qmp_alloc_%s(void);" % (name, de_camel_case(name))
+        print "void qmp_free_%s(%s *obj);" % (de_camel_case(name), name)
         print 'QObject *qmp_marshal_type_%s(%s src);' % (name, qmp_type_to_c(name))
         print '%s qmp_unmarshal_type_%s(QObject *src);' % (qmp_type_to_c(name), name)
         print
@@ -395,7 +403,7 @@ QObject *qmp_marshal_type_%s(%s src)
 
 %s qmp_unmarshal_type_%s(QObject *src)
 {''' % (qmp_type_to_c(name), name)
-    print '    %s qmp__retval = qmp_alloc_%s();' % (qmp_type_to_c(name), name)
+    print '    %s qmp__retval = qmp_alloc_%s();' % (qmp_type_to_c(name), de_camel_case(name))
     print_metatype_undef(typeinfo, 'src', 'qmp__retval')
     print '''    return qmp__retval;
 }
@@ -408,7 +416,7 @@ void qmp_free_%s(%s *obj)
 %s *qmp_alloc_%s(void)
 {
     return qemu_mallocz(sizeof(%s));
-}''' % (name, name, name, name, name)
+}''' % (de_camel_case(name), name, name, de_camel_case(name), name)
 
 
 kind = 'body'

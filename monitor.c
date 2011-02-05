@@ -762,7 +762,7 @@ static void do_info_version(Monitor *mon, QObject **ret_data)
 
 VersionInfo *qmp_query_version(Error **err)
 {
-    VersionInfo *info = qmp_alloc_VersionInfo();
+    VersionInfo *info = qmp_alloc_version_info();
     const char *version = QEMU_VERSION;
     char *tmp;
 
@@ -2669,7 +2669,7 @@ static void do_info_status(Monitor *mon, QObject **ret_data)
 
 StatusInfo *qmp_query_status(Error **errp)
 {
-    StatusInfo *info = qmp_alloc_StatusInfo();
+    StatusInfo *info = qmp_alloc_status_info();
 
     info->running = vm_running;
     info->singlestep = singlestep;
@@ -5392,5 +5392,5 @@ void hmp_info_version(Monitor *mon)
                    info->qemu.major, info->qemu.minor, info->qemu.micro,
                    info->package);
 
-    qmp_free_VersionInfo(info);
+    qmp_free_version_info(info);
 }

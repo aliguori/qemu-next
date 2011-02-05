@@ -117,7 +117,7 @@ static void qmp_chr_send_greeting(QmpSession *s)
 
     info = qmp_query_version(NULL);
     vers = qmp_marshal_type_VersionInfo(info);
-    qmp_free_VersionInfo(info);
+    qmp_free_version_info(info);
 
     greeting = qobject_from_jsonf("{'QMP': {'version': %p, 'capabilities': []} }",
                                   vers);

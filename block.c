@@ -1680,7 +1680,7 @@ BlockInfo *qmp_query_block(Error **errp)
     BlockDriverState *bs;
 
     QTAILQ_FOREACH(bs, &bdrv_states, list) {
-        BlockInfo *info = qmp_alloc_BlockInfo();
+        BlockInfo *info = qmp_alloc_block_info();
 
         switch (bs->type) {
         case BDRV_TYPE_HD:
@@ -1703,7 +1703,7 @@ BlockInfo *qmp_query_block(Error **errp)
 
         if (bs->drv) {
             info->has_inserted = true;
-            info->inserted = qmp_alloc_BlockDeviceInfo();
+            info->inserted = qmp_alloc_block_device_info();
             info->inserted->file = qemu_strdup(bs->filename);
             info->inserted->ro = bs->read_only;
             info->inserted->drv = qemu_strdup(bs->drv->format_name);
@@ -1797,14 +1797,14 @@ static BlockStats *qmp_query_blockstat(BlockDriverState *bs, Error **errp)
 {
     BlockStats *s;
 
-    s = qmp_alloc_BlockStats();
+    s = qmp_alloc_block_stats();
 
     if (bs->device_name[0]) {
         s->has_device = true;
         s->device = qemu_strdup(bs->device_name);
     }
     
-    s->stats = qmp_alloc_BlockDeviceStats();
+    s->stats = qmp_alloc_block_device_stats();
     s->stats->rd_bytes = bs->rd_bytes;
     s->stats->wr_bytes = bs->wr_bytes;
     s->stats->rd_operations = bs->rd_ops;
