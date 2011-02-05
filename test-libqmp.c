@@ -20,6 +20,13 @@
  *  3) figure out how to support errors without exposing qobject
  */
 
+#define g_assert_noerr(err) g_assert(err == NULL);
+#define g_assert_anyerr(err) g_assert(err != NULL);
+#define g_assert_cmperr(err, op, type) do {                   \
+    g_assert_anyerr(err);                                        \
+    g_assert_cmpstr(error_get_field(err, "class"), op, type); \
+} while (0)
+
 static void qemu_img(const char *fmt, ...)
 {
     char buffer0[4096];
@@ -247,7 +254,7 @@ static void test_vnc_password(void)
     g_assert_cmpint(ret, ==, -EPERM);
 
     libqmp_change_vnc_password(sess, "foobar", &err);
-    g_assert(err == NULL);
+    g_assert_noerr(err);
 
     ret = vnc_connect(5900 + 300, "foobar");
     g_assert_cmpint(ret, ==, 0);
@@ -256,7 +263,7 @@ static void test_vnc_password(void)
     g_assert_cmpint(ret, ==, -EPERM);
 
     libqmp_change_vnc_password(sess, "monkey", &err);
-    g_assert(err == NULL);
+    g_assert_noerr(err);
 
     ret = vnc_connect(5900 + 300, "foobar");
     g_assert_cmpint(ret, ==, -EPERM);
@@ -271,7 +278,7 @@ static void test_vnc_password(void)
     g_assert_cmpint(ret, ==, -EPERM);
 
     libqmp_change_vnc_password(sess, "", &err);
-    g_assert(err == NULL);
+    g_assert_noerr(err);
 
     ret = vnc_connect(5900 + 300, NULL);
     g_assert_cmpint(ret, ==, -EPERM);
@@ -300,7 +307,7 @@ static void test_vnc_change(void)
     g_assert_cmpint(ret, ==, -ECONNREFUSED);
 
     libqmp_change_vnc_listen(sess, ":301", &err);
-    g_assert(err == NULL);
+    g_assert_noerr(err);
 
     ret = vnc_connect(5900 + 301, NULL);
     g_assert_cmpint(ret, ==, 0);
@@ -323,7 +330,7 @@ static void test_deprecated_vnc_password(void)
     g_assert_cmpint(ret, ==, -EPERM);
 
     libqmp_change(sess, "vnc", "password", true, "foobar", &err);
-    g_assert(err == NULL);
+    g_assert_noerr(err);
 
     ret = vnc_connect(5900 + 300, "monkey");
     g_assert_cmpint(ret, ==, -EPERM);
@@ -332,7 +339,7 @@ static void test_deprecated_vnc_password(void)
     g_assert_cmpint(ret, ==, 0);
 
     libqmp_change(sess, "vnc", "password", true, "", &err);
-    g_assert(err == NULL);
+    g_assert_noerr(err);
 
     ret = vnc_connect(5900 + 300, NULL);
     g_assert_cmpint(ret, ==, -EPERM);
@@ -341,7 +348,7 @@ static void test_deprecated_vnc_password(void)
     g_assert_cmpint(ret, ==, -EPERM);
 
     libqmp_change(sess, "vnc", "password", true, "", &err);
-    g_assert(err == NULL);
+    g_assert_noerr(err);
 
     ret = vnc_connect(5900 + 300, NULL);
     g_assert_cmpint(ret, ==, -EPERM);
@@ -350,7 +357,7 @@ static void test_deprecated_vnc_password(void)
     g_assert_cmpint(ret, ==, -EPERM);
 
     libqmp_change(sess, "vnc", "password", false, NULL, &err);
-    g_assert(err == NULL);
+    g_assert_noerr(err);
 
     ret = vnc_connect(5900 + 300, NULL);
     g_assert_cmpint(ret, ==, -EPERM);
@@ -373,14 +380,13 @@ static void test_change_block_autoprobe(void)
 
     libqmp_change_blockdev(sess, "ide1-cd0", filename, false, NULL,
                            false, NULL, &err);
-    g_assert(err != NULL);
-    g_assert_cmpstr("MissingParameter", ==, error_get_field(err, "class"));
+    g_assert_cmperr(err, ==, "MissingParameter");
     error_free(err);
 
     err = NULL;
     libqmp_change_blockdev(sess, "ide1-cd0", filename,
                            false, NULL, true, "raw", &err);
-    g_assert(err == NULL);
+    g_assert_noerr(err);
 
     libqmp_quit(sess, NULL);
     unlink(filename);
@@ -397,20 +403,18 @@ static void test_change_block_encrypted(void)
     sess = qemu("-S");
     libqmp_change_blockdev(sess, "ide1-cd0", filename, false, NULL,
                            false, NULL, &err);
-    g_assert(err != NULL);
-    g_assert(error_is_type(err, QERR_DEVICE_ENCRYPTED));
+    g_assert_cmperr(err, ==, "DeviceEncrypted");
     error_free(err);
 
     err = NULL;
     libqmp_block_passwd(sess, "ide1-cd0", "foo", &err);
-    g_assert(err != NULL);
-    g_assert(error_is_type(err, QERR_DEVICE_NOT_ENCRYPTED));
+    g_assert_cmperr(err, ==, "DeviceNotEncrypted");
     error_free(err);
 
     err = NULL;
     libqmp_change_blockdev(sess, "ide1-cd0", filename, true, "foo",
                            false, NULL, &err);
-    g_assert(err == NULL);
+    g_assert_noerr(err);
 
     libqmp_quit(sess, NULL);
     unlink(filename);
@@ -426,13 +430,12 @@ static void test_change_old_block_encrypted(void)
     qemu_img("create -f qcow2 -o encryption %s 10G", filename);
     sess = qemu("-S");
     libqmp_change(sess, "ide1-cd0", filename, false, NULL, &err);
-    g_assert(err != NULL);
-    g_assert(error_is_type(err, QERR_DEVICE_ENCRYPTED));
+    g_assert_cmperr(err, ==, "DeviceEncrypted");
     error_free(err);
 
     err = NULL;
     libqmp_block_passwd(sess, "ide1-cd0", "foo", &err);
-    g_assert(err == NULL);
+    g_assert_noerr(err);
 
     libqmp_quit(sess, NULL);
     unlink(filename);
@@ -447,21 +450,20 @@ static void test_cont(void)
 
     sess = qemu("-S");
     libqmp_cont(sess, &err);
-    g_assert(err == NULL);
+    g_assert_noerr(err);
     libqmp_quit(sess, NULL);
     qemu_destroy(sess);
 
     sess = qemu("-S -incoming tcp:localhost:6100");
     libqmp_cont(sess, &err);
-    g_assert(err != NULL);
-    g_assert(error_is_type(err, QERR_MIGRATION_EXPECTED));
+    g_assert_cmperr(err, ==, "MigrationExpected");
     libqmp_quit(sess, NULL);
     qemu_destroy(sess);
 
     qemu_img("create -f qcow2 -o encryption %s 10G", filename);
     sess = qemu("-S -hda %s", filename);
     libqmp_cont(sess, &err);
-    g_assert(err != NULL);
+    g_assert_anyerr(err);
     /* Can't test for a specific type here as 0.14 sent a generic error */
     libqmp_quit(sess, NULL);
     qemu_destroy(sess);
@@ -475,7 +477,7 @@ static void test_stop(void)
 
     sess = qemu("");
     libqmp_stop(sess, &err);
-    g_assert(err == NULL);
+    g_assert_noerr(err);
     libqmp_quit(sess, NULL);
     qemu_destroy(sess);
 }
@@ -497,7 +499,7 @@ static void test_screendump(void)
        is needed */
     sleep(1);
     libqmp_screendump(sess, filename, &err);
-    g_assert(err == NULL);
+    g_assert_noerr(err);
 
     ret = access(filename, F_OK);
     g_assert_cmpint(ret, ==, 0);
@@ -505,8 +507,7 @@ static void test_screendump(void)
 
     libqmp_screendump(sess, "/tmp/path/to/directory/thats/clearly/not/there",
                       &err);
-    g_assert(err != NULL);
-    g_assert_cmpstr(error_get_field(err, "class"), ==, "OpenFileFailed");
+    g_assert_cmperr(err, ==, "OpenFileFailed");
     error_free(err);
 
     libqmp_quit(sess, NULL);
@@ -524,7 +525,7 @@ static void test_block_query(void)
     sess = qemu("-S");
 
     block_list = libqmp_query_block(sess, &err);
-    g_assert(err == NULL);
+    g_assert_noerr(err);
 
     found_cd = found_floppy = found_hd1 = false;
     for (info = block_list; info; info = info->next) {
@@ -555,7 +556,7 @@ static void test_block_query(void)
     sess = qemu("-S -hda %s", filename);
 
     block_list = libqmp_query_block(sess, &err);
-    g_assert(err == NULL);
+    g_assert_noerr(err);
 
     found_cd = found_floppy = found_hd1 = false;
     for (info = block_list; info; info = info->next) {
@@ -610,7 +611,7 @@ static void test_block_query_stats(void)
     sess = qemu("-hda %s", filename);
 
     stats_list = libqmp_query_blockstats(sess, &err);
-    g_assert(err == NULL);
+    g_assert_noerr(err);
 
     found_cd = found_floppy = found_hd1 = false;
     for (stats = stats_list; stats; stats = stats->next) {
