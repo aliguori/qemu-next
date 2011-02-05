@@ -242,9 +242,33 @@
 ##
 [ 'change-vnc-password', {'password': 'str'}, {}, 'none' ]
 
+##
+# @stop:
+#
+# Stop all guest VCPU execution.
+#
+# Since:  0.14.0
+#
+# Notes:  This function will succeed even if the guest is already in the stopped
+#         state
+##
 [ 'stop' , {}, {}, 'none' ]
-[ 'cont' , {}, {}, 'none' ]
 
+##
+# @cont:
+#
+# Resume guest VCPU execution.
+#
+# Since:  0.14.0
+#
+# Returns:  If successful, nothing
+#           If the QEMU is waiting for an incoming migration, MigrationExpected
+#           If QEMU was started with an encrypted block device and a key has
+#              not yet been set, DeviceEncrypted.
+#
+# Notes:  The function will succeed if the guest is currently running.
+##
+[ 'cont' , {}, {}, 'none' ]
 
 { 'BlockInfo': {'device': 'str', 'type': 'str', 'removable': 'bool',
                 'locked': 'bool', '*inserted': { 'file': 'str', 'ro': 'bool', 
