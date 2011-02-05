@@ -442,6 +442,30 @@ static void test_change_old_block_encrypted(void)
     qemu_destroy(sess);
 }
 
+static void test_running(QmpSession *sess)
+{
+    StatusInfo *info;
+    Error *err = NULL;
+
+    info = libqmp_query_status(sess, &err);
+    g_assert_noerr(err);
+
+    g_assert_cmpint(info->running, ==, TRUE);
+    qmp_free_StatusInfo(info);
+}
+
+static void test_stopped(QmpSession *sess)
+{
+    StatusInfo *info;
+    Error *err = NULL;
+
+    info = libqmp_query_status(sess, &err);
+    g_assert_noerr(err);
+
+    g_assert_cmpint(info->running, ==, FALSE);
+    qmp_free_StatusInfo(info);
+}
+
 static void test_cont(void)
 {
     QmpSession *sess;
@@ -449,21 +473,27 @@ static void test_cont(void)
     const char *filename = "/tmp/foo.qcow2";
 
     sess = qemu("-S");
+    test_stopped(sess);
     libqmp_cont(sess, &err);
     g_assert_noerr(err);
+    test_running(sess);
     libqmp_quit(sess, NULL);
     qemu_destroy(sess);
 
     sess = qemu("-S -incoming tcp:localhost:6100");
+    test_stopped(sess);
     libqmp_cont(sess, &err);
     g_assert_cmperr(err, ==, "MigrationExpected");
+    test_stopped(sess);
     libqmp_quit(sess, NULL);
     qemu_destroy(sess);
 
     qemu_img("create -f qcow2 -o encryption %s 10G", filename);
     sess = qemu("-S -hda %s", filename);
+    test_stopped(sess);
     libqmp_cont(sess, &err);
     g_assert_anyerr(err);
+    test_stopped(sess);
     /* Can't test for a specific type here as 0.14 sent a generic error */
     libqmp_quit(sess, NULL);
     qemu_destroy(sess);
@@ -476,8 +506,10 @@ static void test_stop(void)
     Error *err = NULL;
 
     sess = qemu("");
+    test_running(sess);
     libqmp_stop(sess, &err);
     g_assert_noerr(err);
+    test_stopped(sess);
     libqmp_quit(sess, NULL);
     qemu_destroy(sess);
 }
