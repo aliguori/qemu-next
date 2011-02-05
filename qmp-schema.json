@@ -321,10 +321,10 @@
 ##
 # @BlockInfo:
 #
-# Block device information.  This structure describes a physical device and
-# the blockdev associated with it.
+# Block device information.  This structure describes a virtual device and
+# the backing device associated with it.
 #
-# @device: The device name associated of the physical device.
+# @device: The device name associated of the virtual device.
 #
 # @type: A string describing the device type.  As of 0.14.0, this may be
 #          'cdrom', 'hd', 'floppy', or 'unknown'.
@@ -341,6 +341,16 @@
 ##
 { 'BlockInfo': {'device': 'str', 'type': 'str', 'removable': 'bool',
                 'locked': 'bool', '*inserted': 'BlockDeviceInfo'} }
+
+##
+# @query-block:
+#
+# Get a list of BlockInfo for all virtual block devices
+#
+# Returns: a list of @BlockInfo describing each virtual block device
+#
+# Since: 0.14.0
+##
 [ 'query-block', {}, {}, ['BlockInfo'] ]
 
 { 'BlockStats': {'*device': 'str',
