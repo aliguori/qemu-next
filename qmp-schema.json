@@ -270,11 +270,77 @@
 ##
 [ 'cont' , {}, {}, 'none' ]
 
+##
+# @StatusInfo:
+#
+# Information about VCPU run state
+#
+# @running: true if all VCPUs are runnable, false if not runnable
+#
+# @singlestep: true if VCPUs are in single-step mode
+#
+# Since:  0.14.0
+#
+# Notes: @singlestep is enabled through the GDB stub
+##
+{ 'StatusInfo': {'running': 'bool', 'singlestep': 'bool'} }
+
+##
+# @query-status:
+#
+# Query the run status of all VCPUs
+#
+# Returns: @StatusInfo reflecting all VCPUs
+#
+# Since:  0.14.0
+##
+[ 'query-status', {}, {}, 'StatusInfo' ]
+
+##
+# @BlockDeviceInfo:
+#
+# Information about the backing device for a block device.
+#
+# @file: the filename of the backing device
+#
+# @ro: true if the backing device was open read-only
+#
+# @drv: the name of the block format used to open the backing dvice
+#
+# @backing_file: #optional the name of the backing file (for copy-on-write)
+#
+# @encrypted: true if the backing device is encrypted
+#
+# Since: 0.14.0
+#
+# Notes: This interface is only found in @BlockInfo.
+##
+{ 'BlockDeviceInfo': { 'file': 'str', 'ro': 'bool', 'drv': 'str',
+                       '*backing_file': 'str', 'encrypted': 'bool' } }
+
+##
+# @BlockInfo:
+#
+# Block device information.  This structure describes a physical device and
+# the blockdev associated with it.
+#
+# @device: The device name associated of the physical device.
+#
+# @type: A string describing the device type.  As of 0.14.0, this may be
+#          'cdrom', 'hd', 'floppy', or 'unknown'.
+#
+# @removable: True if the device supports removable media.
+#
+# @locked: True if the guest has locked this device from having its media
+#            removed
+#
+# @inserted: #optional #BlockDeviceInfo describing the device if media is
+#            present
+#
+# Since:  0.14.0
+##
 { 'BlockInfo': {'device': 'str', 'type': 'str', 'removable': 'bool',
-                'locked': 'bool', '*inserted': { 'file': 'str', 'ro': 'bool', 
-                                                 'drv': 'str',
-                                                 '*backing_file': 'str',
-                                                 'encrypted': 'bool' }} }
+                'locked': 'bool', '*inserted': 'BlockDeviceInfo'} }
 [ 'query-block', {}, {}, ['BlockInfo'] ]
 
 { 'BlockStats': {'*device': 'str',
@@ -286,9 +352,6 @@
 
 { 'KeyValues': {'key': 'str', 'value': 'str'} }
 [ 'device_add', {'driver': 'str', 'id': 'str'}, {'opts': '**'}, 'none' ]
-
-{ 'StatusInfo': {'running': 'bool', 'singlestep': 'bool'} }
-[ 'query-status', {}, {}, 'StatusInfo' ]
 
 #[ 'system_reset' , {}, {}, 'none' ]
 #[ 'system_powerdown' , {}, {}, 'none' ]

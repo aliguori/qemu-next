@@ -450,7 +450,7 @@ static void test_running(QmpSession *sess)
     info = libqmp_query_status(sess, &err);
     g_assert_noerr(err);
 
-    g_assert_cmpint(info->running, ==, TRUE);
+    g_assert_cmpint(info->running, ==, true);
     qmp_free_StatusInfo(info);
 }
 
@@ -462,7 +462,7 @@ static void test_stopped(QmpSession *sess)
     info = libqmp_query_status(sess, &err);
     g_assert_noerr(err);
 
-    g_assert_cmpint(info->running, ==, FALSE);
+    g_assert_cmpint(info->running, ==, false);
     qmp_free_StatusInfo(info);
 }
 
@@ -597,11 +597,11 @@ static void test_block_query(void)
             g_assert_cmpint(info->locked, ==, false);
 
             g_assert_cmpint(info->has_inserted, ==, true);
-            g_assert_cmpstr(info->inserted.file, ==, filename);
-            g_assert_cmpint(info->inserted.ro, ==, false);
-            g_assert_cmpstr(info->inserted.drv, ==, "qcow2");
-            g_assert_cmpint(info->inserted.encrypted, ==, true);
-            g_assert_cmpint(info->inserted.has_backing_file, ==, false);
+            g_assert_cmpstr(info->inserted->file, ==, filename);
+            g_assert_cmpint(info->inserted->ro, ==, false);
+            g_assert_cmpstr(info->inserted->drv, ==, "qcow2");
+            g_assert_cmpint(info->inserted->encrypted, ==, true);
+            g_assert_cmpint(info->inserted->has_backing_file, ==, false);
 
             g_assert_cmpstr(info->type, ==, "hd");
             g_assert_cmpint(info->removable, ==, false);

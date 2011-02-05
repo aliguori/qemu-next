@@ -1703,13 +1703,14 @@ BlockInfo *qmp_query_block(Error **errp)
 
         if (bs->drv) {
             info->has_inserted = true;
-            info->inserted.file = qemu_strdup(bs->filename);
-            info->inserted.ro = bs->read_only;
-            info->inserted.drv = qemu_strdup(bs->drv->format_name);
-            info->inserted.encrypted = bs->encrypted;
+            info->inserted = qmp_alloc_BlockDeviceInfo();
+            info->inserted->file = qemu_strdup(bs->filename);
+            info->inserted->ro = bs->read_only;
+            info->inserted->drv = qemu_strdup(bs->drv->format_name);
+            info->inserted->encrypted = bs->encrypted;
             if (bs->backing_file[0]) {
-                info->inserted.has_backing_file = true;
-                info->inserted.backing_file = qemu_strdup(bs->backing_file);
+                info->inserted->has_backing_file = true;
+                info->inserted->backing_file = qemu_strdup(bs->backing_file);
             }
         }
 
