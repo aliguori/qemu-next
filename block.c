@@ -1803,12 +1803,13 @@ static BlockStats *qmp_query_blockstat(BlockDriverState *bs, Error **errp)
         s->has_device = true;
         s->device = qemu_strdup(bs->device_name);
     }
-
-    s->stats.rd_bytes = bs->rd_bytes;
-    s->stats.wr_bytes = bs->wr_bytes;
-    s->stats.rd_operations = bs->rd_ops;
-    s->stats.wr_operations = bs->wr_ops;
-    s->stats.wr_highest_offset = bs->wr_highest_sector * BDRV_SECTOR_SIZE;
+    
+    s->stats = qmp_alloc_BlockDeviceStats();
+    s->stats->rd_bytes = bs->rd_bytes;
+    s->stats->wr_bytes = bs->wr_bytes;
+    s->stats->rd_operations = bs->rd_ops;
+    s->stats->wr_operations = bs->wr_ops;
+    s->stats->wr_highest_offset = bs->wr_highest_sector * BDRV_SECTOR_SIZE;
 
     if (bs->file) {
         s->has_parent = true;
