@@ -2667,6 +2667,16 @@ static void do_info_status(Monitor *mon, QObject **ret_data)
                                     vm_running, singlestep);
 }
 
+StatusInfo *qmp_query_status(Error **errp)
+{
+    StatusInfo *info = qmp_alloc_StatusInfo();
+
+    info->running = vm_running;
+    info->singlestep = singlestep;
+
+    return info;
+}
+
 static qemu_acl *find_acl(Monitor *mon, const char *name)
 {
     qemu_acl *acl = qemu_acl_find(name);

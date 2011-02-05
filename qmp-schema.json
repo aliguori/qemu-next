@@ -287,6 +287,9 @@
 { 'KeyValues': {'key': 'str', 'value': 'str'} }
 [ 'device_add', {'driver': 'str', 'id': 'str'}, {'opts': '**'}, 'none' ]
 
+{ 'StatusInfo': {'running': 'bool', 'singlestep': 'bool'} }
+[ 'query-status', {}, {}, 'StatusInfo' ]
+
 #[ 'system_reset' , {}, {}, 'none' ]
 #[ 'system_powerdown' , {}, {}, 'none' ]
 #[ 'device_del', {'id': 'str'}, {}, 'none' ]
@@ -327,9 +330,6 @@
 #
 #{ 'KvmInfo': {'enabled': 'bool', 'present': 'bool'} }
 #[ 'query-kvm', {}, {}, 'KvmInfo' ]
-#
-#{ 'StatusInfo': {'running': 'bool', 'singlestep': 'bool'} }
-#[ 'query-status', {}, {}, 'StatusInfo' ]
 #
 #{ 'MouseInfo': {'name': 'str', 'index': 'int', 'current': 'bool', 'absolute': 'bool'} }
 #[ 'query-mice', {}, {}, ['MouseInfo'] ]
