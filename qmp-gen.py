@@ -481,13 +481,23 @@ elif kind == 'body':
 '''
 
 exprs = []
+expr = ''
 
 for line in sys.stdin:
-    line = line.strip()
-    if not line or line.startswith('#'):
+    if line.startswith('#') or line == '\n':
         continue
 
-    s = eval(line)
+    if line.startswith(' '):
+        expr += line
+    elif expr:
+        s = eval(expr)
+        exprs.append(s)
+        expr = line
+    else:
+        expr += line
+
+if expr:
+    s = eval(expr)
     exprs.append(s)
 
 for s in exprs:

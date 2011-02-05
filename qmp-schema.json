@@ -105,7 +105,8 @@
 #
 # Since: 0.14.0
 ##
-{ 'VersionInfo': {'qemu': {'major': 'int', 'minor': 'int', 'micro': 'int'}, 'package': 'str'} }
+{ 'VersionInfo': {'qemu': {'major': 'int', 'minor': 'int', 'micro': 'int'},
+                  'package': 'str'} }
 
 ##
 # @query-version:
@@ -198,7 +199,8 @@
 #
 # Since: 0.15.0
 ##
-[ 'change-blockdev', {'device': 'str', 'filename': 'str'}, {'format': 'str', 'password': 'str'}, 'none' ]
+[ 'change-blockdev', {'device': 'str', 'filename': 'str'},
+  {'format': 'str', 'password': 'str'}, 'none' ]
 
 ##
 # @set-blockdev-password:
@@ -244,10 +246,18 @@
 [ 'cont' , {}, {}, 'none' ]
 
 
-{ 'BlockInfo': {'device': 'str', 'type': 'str', 'removable': 'bool', 'locked': 'bool', '*inserted': { 'file': 'str', 'ro': 'bool', 'drv': 'str', '*backing_file': 'str', 'encrypted': 'bool' }} }
+{ 'BlockInfo': {'device': 'str', 'type': 'str', 'removable': 'bool',
+                'locked': 'bool', '*inserted': { 'file': 'str', 'ro': 'bool', 
+                                                 'drv': 'str',
+                                                 '*backing_file': 'str',
+                                                 'encrypted': 'bool' }} }
 [ 'query-block', {}, {}, ['BlockInfo'] ]
 
-{ 'BlockStats': {'*device': 'str', 'stats': {'rd_bytes': 'int', 'wr_bytes': 'int', 'rd_operations': 'int', 'wr_operations': 'int', 'wr_highest_offset': 'int'}, '*parent': 'BlockStats'}}
+{ 'BlockStats': {'*device': 'str',
+                 'stats': {'rd_bytes': 'int', 'wr_bytes': 'int',
+                           'rd_operations': 'int', 'wr_operations': 'int',
+                           'wr_highest_offset': 'int'},
+                 '*parent': 'BlockStats'}}
 [ 'query-blockstats', {}, {}, ['BlockStats'] ]
 
 { 'KeyValues': {'key': 'str', 'value': 'str'} }
