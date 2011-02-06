@@ -11,7 +11,7 @@
     ((type *)(((char *)obj) - offsetof(type, field)))
 #endif
 
-#define DEBUG_LIBQMP 1
+//#define DEBUG_LIBQMP 1
 
 typedef struct FdQmpSession
 {

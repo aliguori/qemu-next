@@ -6,7 +6,8 @@
 
 typedef struct Error Error;
 
-void error_set(Error **err, const char *fmt, ...);
+void error_set(Error **err, const char *fmt, ...)
+    __attribute__((format(printf, 2, 3)));
 
 bool error_is_set(Error **err);
 

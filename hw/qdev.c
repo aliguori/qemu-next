@@ -868,12 +868,21 @@ int do_device_add(Monitor *mon, const QDict *qdict, QObject **ret_data)
 void qmp_device_add(const char *driver, const char *id, KeyValues *opts,
                     Error **errp)
 {
+    QemuOptsList *opts_list;
     QemuOpts *qopts;
     KeyValues *kv;
+    Error *local_err = NULL;
 
-    qopts = qemu_opts_create(qemu_find_opts_nofail(driver), id, 1);
+    opts_list = qemu_find_opts(driver, &local_err);
+    if (local_err) {
+        error_free(local_err); 
+        error_set(errp, QERR_DEVICE_NOT_FOUND, driver);
+        return;
+    }
+    
+    qopts = qemu_opts_create(opts_list, id, 1);
     if (qopts == NULL) {
-        error_set(errp, QERR_DEVICE_NOT_FOUND);
+        error_set(errp, QERR_DEVICE_NOT_FOUND, driver);
         return;
     }
 
