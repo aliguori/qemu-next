@@ -476,7 +476,7 @@ static QemuOptsList *find_list(QemuOptsList **lists, const char *group)
     return lists[i];
 }
 
-QemuOptsList *qemu_find_opts(const char *group)
+QemuOptsList *qemu_find_opts_nofail(const char *group)
 {
     return find_list(vm_config_groups, group);
 }
@@ -510,7 +510,7 @@ int qemu_set_option(const char *str)
         return -1;
     }
 
-    list = qemu_find_opts(group);
+    list = qemu_find_opts_nofail(group);
     if (list == NULL) {
         return -1;
     }

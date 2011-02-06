@@ -846,7 +846,7 @@ int do_device_add(Monitor *mon, const QDict *qdict, QObject **ret_data)
     Error *err = NULL;
     DeviceState *s;
 
-    opts = qemu_opts_from_qdict(qemu_find_opts("device"), qdict);
+    opts = qemu_opts_from_qdict(qemu_find_opts_nofail("device"), qdict);
     if (!opts) {
         return -1;
     }
@@ -871,7 +871,7 @@ void qmp_device_add(const char *driver, const char *id, KeyValues *opts,
     QemuOpts *qopts;
     KeyValues *kv;
 
-    qopts = qemu_opts_create(qemu_find_opts(driver), id, 1);
+    qopts = qemu_opts_create(qemu_find_opts_nofail(driver), id, 1);
     if (qopts == NULL) {
         error_set(errp, QERR_DEVICE_NOT_FOUND);
         return;

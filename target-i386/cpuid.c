@@ -1007,7 +1007,7 @@ void x86_cpudef_setup(void)
         x86_defs = &builtin_x86_defs[i];
     }
 #if !defined(CONFIG_USER_ONLY)
-    qemu_opts_foreach(qemu_find_opts("cpudef"), cpudef_register, NULL, 0);
+    qemu_opts_foreach(qemu_find_opts_nofail("cpudef"), cpudef_register, NULL, 0);
 #endif
 }
 

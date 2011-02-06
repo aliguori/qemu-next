@@ -4144,7 +4144,7 @@ static const mon_cmd_t *monitor_parse_command(Monitor *mon,
                 QemuOptsList *opts_list;
                 QemuOpts *opts;
 
-                opts_list = qemu_find_opts(key);
+                opts_list = qemu_find_opts_nofail(key);
                 if (!opts_list || opts_list->desc->name) {
                     goto bad_type;
                 }

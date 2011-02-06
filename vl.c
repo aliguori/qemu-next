@@ -1540,12 +1540,12 @@ static int balloon_parse(const char *arg)
     if (!strncmp(arg, "virtio", 6)) {
         if (arg[6] == ',') {
             /* have params -> parse them */
-            opts = qemu_opts_parse(qemu_find_opts("device"), arg+7, 0);
+            opts = qemu_opts_parse(qemu_find_opts_nofail("device"), arg+7, 0);
             if (!opts)
                 return  -1;
         } else {
             /* create empty opts */
-            opts = qemu_opts_create(qemu_find_opts("device"), NULL, 0);
+            opts = qemu_opts_create(qemu_find_opts_nofail("device"), NULL, 0);
         }
         qemu_opt_set(opts, "driver", "virtio-balloon-pci");
         return 0;
@@ -1691,7 +1691,7 @@ static void monitor_parse(const char *optarg, const char *mode)
         }
     }
 
-    opts = qemu_opts_create(qemu_find_opts("mon"), label, 1);
+    opts = qemu_opts_create(qemu_find_opts_nofail("mon"), label, 1);
     if (!opts) {
         fprintf(stderr, "duplicate chardev: %s\n", label);
         exit(1);
@@ -1788,7 +1788,7 @@ static int parallel_parse(const char *devname)
 
 static int virtcon_parse(const char *devname)
 {
-    QemuOptsList *device = qemu_find_opts("device");
+    QemuOptsList *device = qemu_find_opts_nofail("device");
     static int index = 0;
     char label[32];
     QemuOpts *bus_opts, *dev_opts;
@@ -1826,7 +1826,7 @@ static int debugcon_parse(const char *devname)
     if (!qemu_chr_open("debugcon", devname, NULL)) {
         exit(1);
     }
-    opts = qemu_opts_create(qemu_find_opts("device"), "debugcon", 1);
+    opts = qemu_opts_create(qemu_find_opts_nofail("device"), "debugcon", 1);
     if (!opts) {
         fprintf(stderr, "qemu: already have a debugcon device\n");
         exit(1);
@@ -2217,12 +2217,12 @@ int main(int argc, char **argv, char **envp)
                 fd_bootchk = 0;
                 break;
             case QEMU_OPTION_netdev:
-                if (net_client_parse(qemu_find_opts("netdev"), optarg) == -1) {
+                if (net_client_parse(qemu_find_opts_nofail("netdev"), optarg) == -1) {
                     exit(1);
                 }
                 break;
             case QEMU_OPTION_net:
-                if (net_client_parse(qemu_find_opts("net"), optarg) == -1) {
+                if (net_client_parse(qemu_find_opts_nofail("net"), optarg) == -1) {
                     exit(1);
                 }
                 break;
@@ -2373,20 +2373,20 @@ int main(int argc, char **argv, char **envp)
                 default_monitor = 0;
                 break;
             case QEMU_OPTION_mon:
-                opts = qemu_opts_parse(qemu_find_opts("mon"), optarg, 1);
+                opts = qemu_opts_parse(qemu_find_opts_nofail("mon"), optarg, 1);
                 if (!opts) {
                     exit(1);
                 }
                 default_monitor = 0;
                 break;
             case QEMU_OPTION_chardev:
-                opts = qemu_opts_parse(qemu_find_opts("chardev"), optarg, 1);
+                opts = qemu_opts_parse(qemu_find_opts_nofail("chardev"), optarg, 1);
                 if (!opts) {
                     exit(1);
                 }
                 break;
             case QEMU_OPTION_fsdev:
-                olist = qemu_find_opts("fsdev");
+                olist = qemu_find_opts_nofail("fsdev");
                 if (!olist) {
                     fprintf(stderr, "fsdev is not supported by this qemu build.\n");
                     exit(1);
@@ -2402,7 +2402,7 @@ int main(int argc, char **argv, char **envp)
                 char *arg_9p = NULL;
                 int len = 0;
 
-                olist = qemu_find_opts("virtfs");
+                olist = qemu_find_opts_nofail("virtfs");
                 if (!olist) {
                     fprintf(stderr, "virtfs is not supported by this qemu build.\n");
                     exit(1);
@@ -2446,12 +2446,12 @@ int main(int argc, char **argv, char **envp)
                          qemu_opt_get(opts, "mount_tag"),
                          qemu_opt_get(opts, "mount_tag"));
 
-                if (!qemu_opts_parse(qemu_find_opts("fsdev"), arg_fsdev, 1)) {
+                if (!qemu_opts_parse(qemu_find_opts_nofail("fsdev"), arg_fsdev, 1)) {
                     fprintf(stderr, "parse error [fsdev]: %s\n", optarg);
                     exit(1);
                 }
 
-                if (!qemu_opts_parse(qemu_find_opts("device"), arg_9p, 1)) {
+                if (!qemu_opts_parse(qemu_find_opts_nofail("device"), arg_9p, 1)) {
                     fprintf(stderr, "parse error [device]: %s\n", optarg);
                     exit(1);
                 }
@@ -2550,7 +2550,7 @@ int main(int argc, char **argv, char **envp)
                 add_device_config(DEV_USB, optarg);
                 break;
             case QEMU_OPTION_device:
-                if (!qemu_opts_parse(qemu_find_opts("device"), optarg, 1)) {
+                if (!qemu_opts_parse(qemu_find_opts_nofail("device"), optarg, 1)) {
                     exit(1);
                 }
                 break;
@@ -2607,7 +2607,7 @@ int main(int argc, char **argv, char **envp)
 		    fprintf(stderr, "Too many option ROMs\n");
 		    exit(1);
 		}
-                opts = qemu_opts_parse(qemu_find_opts("option-rom"), optarg, 1);
+                opts = qemu_opts_parse(qemu_find_opts_nofail("option-rom"), optarg, 1);
                 option_rom[nb_option_roms].name = qemu_opt_get(opts, "romfile");
                 option_rom[nb_option_roms].bootindex =
                     qemu_opt_get_number(opts, "bootindex", -1);
@@ -2653,7 +2653,7 @@ int main(int argc, char **argv, char **envp)
                 configure_rtc_date_offset(optarg, 1);
                 break;
             case QEMU_OPTION_rtc:
-                opts = qemu_opts_parse(qemu_find_opts("rtc"), optarg, 0);
+                opts = qemu_opts_parse(qemu_find_opts_nofail("rtc"), optarg, 0);
                 if (!opts) {
                     exit(1);
                 }
@@ -2705,7 +2705,7 @@ int main(int argc, char **argv, char **envp)
                 break;
 #ifdef CONFIG_SIMPLE_TRACE
             case QEMU_OPTION_trace:
-                opts = qemu_opts_parse(qemu_find_opts("trace"), optarg, 0);
+                opts = qemu_opts_parse(qemu_find_opts_nofail("trace"), optarg, 0);
                 if (opts) {
                     trace_file = qemu_opt_get(opts, "file");
                 }
@@ -2722,7 +2722,7 @@ int main(int argc, char **argv, char **envp)
                     break;
                 }
             case QEMU_OPTION_spice:
-                olist = qemu_find_opts("spice");
+                olist = qemu_find_opts_nofail("spice");
                 if (!olist) {
                     fprintf(stderr, "spice is not supported by this qemu build.\n");
                     exit(1);
@@ -2787,8 +2787,8 @@ int main(int argc, char **argv, char **envp)
         exit(1);
     }
 
-    qemu_opts_foreach(qemu_find_opts("device"), default_driver_check, NULL, 0);
-    qemu_opts_foreach(qemu_find_opts("global"), default_driver_check, NULL, 0);
+    qemu_opts_foreach(qemu_find_opts_nofail("device"), default_driver_check, NULL, 0);
+    qemu_opts_foreach(qemu_find_opts_nofail("global"), default_driver_check, NULL, 0);
 
     if (machine->no_serial) {
         default_serial = 0;
@@ -2842,10 +2842,10 @@ int main(int argc, char **argv, char **envp)
 
     socket_init();
 
-    if (qemu_opts_foreach(qemu_find_opts("chardev"), chardev_init_func, NULL, 1) != 0)
+    if (qemu_opts_foreach(qemu_find_opts_nofail("chardev"), chardev_init_func, NULL, 1) != 0)
         exit(1);
 #ifdef CONFIG_VIRTFS
-    if (qemu_opts_foreach(qemu_find_opts("fsdev"), fsdev_init_func, NULL, 1) != 0) {
+    if (qemu_opts_foreach(qemu_find_opts_nofail("fsdev"), fsdev_init_func, NULL, 1) != 0) {
         exit(1);
     }
 #endif
@@ -2929,8 +2929,8 @@ int main(int argc, char **argv, char **envp)
 
     /* open the virtual block devices */
     if (snapshot)
-        qemu_opts_foreach(qemu_find_opts("drive"), drive_enable_snapshot, NULL, 0);
-    if (qemu_opts_foreach(qemu_find_opts("drive"), drive_init_func, &machine->use_scsi, 1) != 0)
+        qemu_opts_foreach(qemu_find_opts_nofail("drive"), drive_enable_snapshot, NULL, 0);
+    if (qemu_opts_foreach(qemu_find_opts_nofail("drive"), drive_init_func, &machine->use_scsi, 1) != 0)
         exit(1);
 
     register_savevm_live(NULL, "ram", 0, 4, NULL, ram_save_live, NULL,
@@ -2978,7 +2978,7 @@ int main(int argc, char **argv, char **envp)
         }
     }
 
-    if (qemu_opts_foreach(qemu_find_opts("mon"), mon_init_func, NULL, 1) != 0) {
+    if (qemu_opts_foreach(qemu_find_opts_nofail("mon"), mon_init_func, NULL, 1) != 0) {
         exit(1);
     }
 
@@ -2993,7 +2993,7 @@ int main(int argc, char **argv, char **envp)
 
     module_call_init(MODULE_INIT_DEVICE);
 
-    if (qemu_opts_foreach(qemu_find_opts("device"), device_help_func, NULL, 0) != 0)
+    if (qemu_opts_foreach(qemu_find_opts_nofail("device"), device_help_func, NULL, 0) != 0)
         exit(0);
 
     if (watchdog) {
@@ -3026,7 +3026,7 @@ int main(int argc, char **argv, char **envp)
     }
 
     /* init generic devices */
-    if (qemu_opts_foreach(qemu_find_opts("device"), device_init_func, NULL, 1) != 0)
+    if (qemu_opts_foreach(qemu_find_opts_nofail("device"), device_init_func, NULL, 1) != 0)
         exit(1);
 
     net_check_clients();
