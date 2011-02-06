@@ -138,16 +138,22 @@ static void qdev_print_devinfo(DeviceInfo *info)
     error_printf("\n");
 }
 
+typedef struct SetPropertyData
+{
+    DeviceState *dev;
+    Error **errp;
+} SetPropertyData;
+
 static int set_property(const char *name, const char *value, void *opaque)
 {
-    DeviceState *dev = opaque;
+    SetPropertyData *data = opaque;
 
     if (strcmp(name, "driver") == 0)
         return 0;
     if (strcmp(name, "bus") == 0)
         return 0;
 
-    if (qdev_prop_parse(dev, name, value) == -1) {
+    if (qdev_prop_parse(data->dev, name, value, data->errp) == -1) {
         return -1;
     }
     return 0;
@@ -199,6 +205,7 @@ DeviceState *qdev_device_add(QemuOpts *opts, Error **errp)
     const char *driver, *path, *id;
     DeviceInfo *info;
     DeviceState *qdev;
+    SetPropertyData spd;
     BusState *bus;
 
     driver = qemu_opt_get(opts, "driver");
@@ -243,7 +250,9 @@ DeviceState *qdev_device_add(QemuOpts *opts, Error **errp)
     if (id) {
         qdev->id = id;
     }
-    if (qemu_opt_foreach(opts, set_property, qdev, 1) != 0) {
+    spd.dev = qdev;
+    spd.errp = errp;
+    if (qemu_opt_foreach(opts, set_property, &spd, 1) != 0) {
         qdev_free(qdev);
         return NULL;
     }
@@ -893,6 +902,7 @@ void qmp_device_add(const char *driver, const char *id, KeyValues *opts,
     }
 
     for (kv = opts; kv; kv = kv->next) {
+        printf("%s = %s\n", kv->key, kv->value);
         qemu_opt_set(qopts, kv->key, kv->value, &local_err);
         if (local_err) {
             error_propagate(errp, local_err);

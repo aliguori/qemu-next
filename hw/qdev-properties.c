@@ -578,7 +578,7 @@ int qdev_prop_exists(DeviceState *dev, const char *name)
     return qdev_prop_find(dev, name) ? true : false;
 }
 
-int qdev_prop_parse(DeviceState *dev, const char *name, const char *value)
+int qdev_prop_parse(DeviceState *dev, const char *name, const char *value, Error **errp)
 {
     Property *prop;
     int ret;
@@ -591,24 +591,24 @@ int qdev_prop_parse(DeviceState *dev, const char *name, const char *value)
      * removed along with it.
      */
     if (!prop || !prop->info->parse) {
-        qerror_report(QERR_PROPERTY_NOT_FOUND, dev->info->name, name);
+        error_set(errp, QERR_PROPERTY_NOT_FOUND, dev->info->name, name);
         return -1;
     }
     ret = prop->info->parse(dev, prop, value);
     if (ret < 0) {
         switch (ret) {
         case -EEXIST:
-            qerror_report(QERR_PROPERTY_VALUE_IN_USE,
-                          dev->info->name, name, value);
+            error_set(errp, QERR_PROPERTY_VALUE_IN_USE,
+                      dev->info->name, name, value);
             break;
         default:
         case -EINVAL:
-            qerror_report(QERR_PROPERTY_VALUE_BAD,
-                          dev->info->name, name, value);
+            error_set(errp, QERR_PROPERTY_VALUE_BAD,
+                      dev->info->name, name, value);
             break;
         case -ENOENT:
-            qerror_report(QERR_PROPERTY_VALUE_NOT_FOUND,
-                          dev->info->name, name, value);
+            error_set(errp, QERR_PROPERTY_VALUE_NOT_FOUND,
+                      dev->info->name, name, value);
             break;
         }
         return -1;
@@ -749,11 +749,13 @@ void qdev_prop_set_globals(DeviceState *dev)
     GlobalProperty *prop;
 
     QTAILQ_FOREACH(prop, &global_props, next) {
+        Error *err = NULL;
         if (strcmp(dev->info->name, prop->driver) != 0 &&
             strcmp(dev->info->bus_info->name, prop->driver) != 0) {
             continue;
         }
-        if (qdev_prop_parse(dev, prop->property, prop->value) != 0) {
+        if (qdev_prop_parse(dev, prop->property, prop->value, &err) != 0) {
+            qerror_report_err(err);
             exit(1);
         }
     }

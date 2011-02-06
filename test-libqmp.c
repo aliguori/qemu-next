@@ -723,6 +723,7 @@ static void test_device_add(void)
 {
     QmpSession *sess;
     Error *err = NULL;
+    KeyValues *kv;
 
     sess = qemu("-S");
     err = NULL;
@@ -735,6 +736,16 @@ static void test_device_add(void)
     libqmp_device_add(sess, "no-such-device", "bleh", NULL, &err);
     g_assert_cmperr(err, ==, "InvalidParameterValue");
     g_assert_cmpstr(error_get_field(err, "name"), ==, "driver");
+    error_free(err);
+
+    kv = qmp_alloc_key_values();
+    kv->key = qemu_strdup("not-a-valid-parameter-name");
+    kv->value = qemu_strdup("value");
+
+    err = NULL;
+    libqmp_device_add(sess, "virtio-blk-pci", "bleh", kv, &err);
+    g_assert_cmperr(err, ==, "PropertyNotFound");
+    g_assert_cmpstr(error_get_field(err, "property"), ==, "not-a-valid-parameter-name");
     error_free(err);
 
     libqmp_quit(sess, NULL);
