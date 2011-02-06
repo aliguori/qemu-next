@@ -4,6 +4,7 @@
 #include "qemu-config.h"
 #include "sysemu.h"
 #include "hw/qdev.h"
+#include "qerror.h"
 
 static QemuOptsList qemu_drive_opts = {
     .name = "drive",
@@ -462,7 +463,8 @@ static QemuOptsList *vm_config_groups[32] = {
     NULL,
 };
 
-static QemuOptsList *find_list(QemuOptsList **lists, const char *group)
+static QemuOptsList *find_list(QemuOptsList **lists, const char *group,
+                               Error **errp)
 {
     int i;
 
@@ -471,14 +473,28 @@ static QemuOptsList *find_list(QemuOptsList **lists, const char *group)
             break;
     }
     if (lists[i] == NULL) {
-        error_report("there is no option group \"%s\"", group);
+        error_set(errp, QERR_INVALID_PARAMETER_VALUE, "group",
+                  "valid option group");
     }
     return lists[i];
 }
 
 QemuOptsList *qemu_find_opts_nofail(const char *group)
 {
-    return find_list(vm_config_groups, group);
+    Error *err = NULL;
+    QemuOptsList *opts;
+
+    opts = find_list(vm_config_groups, group, &err);
+    if (err) {
+        error_free(err);
+        error_report("there is no option group \"%s\"", group);
+    }
+    return opts;
+}
+
+QemuOptsList *qemu_find_opts(const char *group, Error **errp)
+{
+    return find_list(vm_config_groups, group, errp);
 }
 
 void qemu_add_opts(QemuOptsList *list)
@@ -609,7 +625,7 @@ int qemu_config_parse(FILE *fp, QemuOptsList **lists, const char *fname)
         }
         if (sscanf(line, "[%63s \"%63[^\"]\"]", group, id) == 2) {
             /* group with id */
-            list = find_list(lists, group);
+            list = find_list(lists, group, NULL);
             if (list == NULL)
                 goto out;
             opts = qemu_opts_create(list, id, 1);
@@ -617,7 +633,7 @@ int qemu_config_parse(FILE *fp, QemuOptsList **lists, const char *fname)
         }
         if (sscanf(line, "[%63[^]]]", group) == 1) {
             /* group without id */
-            list = find_list(lists, group);
+            list = find_list(lists, group, NULL);
             if (list == NULL)
                 goto out;
             opts = qemu_opts_create(list, NULL, 0);
