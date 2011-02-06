@@ -646,7 +646,7 @@ static int drive_init_func(QemuOpts *opts, void *opaque)
 static int drive_enable_snapshot(QemuOpts *opts, void *opaque)
 {
     if (NULL == qemu_opt_get(opts, "snapshot")) {
-        qemu_opt_set(opts, "snapshot", "on");
+        qemu_opt_set_qerr(opts, "snapshot", "on");
     }
     return 0;
 }
@@ -1552,7 +1552,7 @@ static int balloon_parse(const char *arg)
                 qerror_report_err(err);
             }
         }
-        qemu_opt_set(opts, "driver", "virtio-balloon-pci");
+        qemu_opt_set_qerr(opts, "driver", "virtio-balloon-pci");
         return 0;
     }
 
@@ -1701,10 +1701,10 @@ static void monitor_parse(const char *optarg, const char *mode)
         fprintf(stderr, "duplicate chardev: %s\n", label);
         exit(1);
     }
-    qemu_opt_set(opts, "mode", mode);
-    qemu_opt_set(opts, "chardev", label);
+    qemu_opt_set_qerr(opts, "mode", mode);
+    qemu_opt_set_qerr(opts, "chardev", label);
     if (def)
-        qemu_opt_set(opts, "default", "on");
+        qemu_opt_set_qerr(opts, "default", "on");
     monitor_device_index++;
 }
 
@@ -1811,14 +1811,14 @@ static int virtcon_parse(const char *devname)
         qerror_report_err(err);
         return -1;
     }
-    qemu_opt_set(bus_opts, "driver", "virtio-serial");
+    qemu_opt_set_qerr(bus_opts, "driver", "virtio-serial");
 
     dev_opts = qemu_opts_create(device, NULL, 0, &err);
     if (err) {
         qerror_report_err(err);
         return -1;
     }
-    qemu_opt_set(dev_opts, "driver", "virtconsole");
+    qemu_opt_set_qerr(dev_opts, "driver", "virtconsole");
 
     snprintf(label, sizeof(label), "virtcon%d", index);
     virtcon_hds[index] = qemu_chr_open(label, devname, NULL);
@@ -1827,7 +1827,7 @@ static int virtcon_parse(const char *devname)
                 devname, strerror(errno));
         return -1;
     }
-    qemu_opt_set(dev_opts, "chardev", label);
+    qemu_opt_set_qerr(dev_opts, "chardev", label);
 
     index++;
     return 0;
@@ -1846,8 +1846,8 @@ static int debugcon_parse(const char *devname)
         fprintf(stderr, "qemu: already have a debugcon device\n");
         exit(1);
     }
-    qemu_opt_set(opts, "driver", "isa-debugcon");
-    qemu_opt_set(opts, "chardev", "debugcon");
+    qemu_opt_set_qerr(opts, "driver", "isa-debugcon");
+    qemu_opt_set_qerr(opts, "chardev", "debugcon");
     return 0;
 }
 
@@ -2136,15 +2136,15 @@ int main(int argc, char **argv, char **envp)
 		    if (hda_opts != NULL) {
                         char num[16];
                         snprintf(num, sizeof(num), "%d", cyls);
-                        qemu_opt_set(hda_opts, "cyls", num);
+                        qemu_opt_set_qerr(hda_opts, "cyls", num);
                         snprintf(num, sizeof(num), "%d", heads);
-                        qemu_opt_set(hda_opts, "heads", num);
+                        qemu_opt_set_qerr(hda_opts, "heads", num);
                         snprintf(num, sizeof(num), "%d", secs);
-                        qemu_opt_set(hda_opts, "secs", num);
+                        qemu_opt_set_qerr(hda_opts, "secs", num);
                         if (translation == BIOS_ATA_TRANSLATION_LBA)
-                            qemu_opt_set(hda_opts, "trans", "lba");
+                            qemu_opt_set_qerr(hda_opts, "trans", "lba");
                         if (translation == BIOS_ATA_TRANSLATION_NONE)
-                            qemu_opt_set(hda_opts, "trans", "none");
+                            qemu_opt_set_qerr(hda_opts, "trans", "none");
                     }
                 }
                 break;

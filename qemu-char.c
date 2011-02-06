@@ -988,7 +988,7 @@ static CharDriverState *qemu_chr_open_pty(QemuOpts *opts)
     len = strlen(q_ptsname(s->fd)) + 5;
     chr->filename = qemu_malloc(len);
     snprintf(chr->filename, len, "pty:%s", q_ptsname(s->fd));
-    qemu_opt_set(opts, "path", q_ptsname(s->fd));
+    qemu_opt_set_qerr(opts, "path", q_ptsname(s->fd));
     fprintf(stderr, "char device redirected to %s\n", q_ptsname(s->fd));
 
     chr->opaque = s;
@@ -2352,7 +2352,7 @@ QemuOpts *qemu_chr_parse_compat(const char *label, const char *filename)
 
     if (strstart(filename, "mon:", &p)) {
         filename = p;
-        qemu_opt_set(opts, "mux", "on");
+        qemu_opt_set_qerr(opts, "mux", "on");
     }
 
     if (strcmp(filename, "null")    == 0 ||
@@ -2360,20 +2360,20 @@ QemuOpts *qemu_chr_parse_compat(const char *label, const char *filename)
         strcmp(filename, "msmouse") == 0 ||
         strcmp(filename, "braille") == 0 ||
         strcmp(filename, "stdio")   == 0) {
-        qemu_opt_set(opts, "backend", filename);
+        qemu_opt_set_qerr(opts, "backend", filename);
         return opts;
     }
     if (strstart(filename, "vc", &p)) {
-        qemu_opt_set(opts, "backend", "vc");
+        qemu_opt_set_qerr(opts, "backend", "vc");
         if (*p == ':') {
             if (sscanf(p+1, "%8[0-9]x%8[0-9]", width, height) == 2) {
                 /* pixels */
-                qemu_opt_set(opts, "width", width);
-                qemu_opt_set(opts, "height", height);
+                qemu_opt_set_qerr(opts, "width", width);
+                qemu_opt_set_qerr(opts, "height", height);
             } else if (sscanf(p+1, "%8[0-9]Cx%8[0-9]C", width, height) == 2) {
                 /* chars */
-                qemu_opt_set(opts, "cols", width);
-                qemu_opt_set(opts, "rows", height);
+                qemu_opt_set_qerr(opts, "cols", width);
+                qemu_opt_set_qerr(opts, "rows", height);
             } else {
                 goto fail;
             }
@@ -2381,22 +2381,22 @@ QemuOpts *qemu_chr_parse_compat(const char *label, const char *filename)
         return opts;
     }
     if (strcmp(filename, "con:") == 0) {
-        qemu_opt_set(opts, "backend", "console");
+        qemu_opt_set_qerr(opts, "backend", "console");
         return opts;
     }
     if (strstart(filename, "COM", NULL)) {
-        qemu_opt_set(opts, "backend", "serial");
-        qemu_opt_set(opts, "path", filename);
+        qemu_opt_set_qerr(opts, "backend", "serial");
+        qemu_opt_set_qerr(opts, "path", filename);
         return opts;
     }
     if (strstart(filename, "file:", &p)) {
-        qemu_opt_set(opts, "backend", "file");
-        qemu_opt_set(opts, "path", p);
+        qemu_opt_set_qerr(opts, "backend", "file");
+        qemu_opt_set_qerr(opts, "path", p);
         return opts;
     }
     if (strstart(filename, "pipe:", &p)) {
-        qemu_opt_set(opts, "backend", "pipe");
-        qemu_opt_set(opts, "path", p);
+        qemu_opt_set_qerr(opts, "backend", "pipe");
+        qemu_opt_set_qerr(opts, "path", p);
         return opts;
     }
     if (strstart(filename, "tcp:", &p) ||
@@ -2406,27 +2406,27 @@ QemuOpts *qemu_chr_parse_compat(const char *label, const char *filename)
             if (sscanf(p, ":%32[^,]%n", port, &pos) < 1)
                 goto fail;
         }
-        qemu_opt_set(opts, "backend", "socket");
-        qemu_opt_set(opts, "host", host);
-        qemu_opt_set(opts, "port", port);
+        qemu_opt_set_qerr(opts, "backend", "socket");
+        qemu_opt_set_qerr(opts, "host", host);
+        qemu_opt_set_qerr(opts, "port", port);
         if (p[pos] == ',') {
             if (qemu_opts_do_parse(opts, p+pos+1, NULL) != 0)
                 goto fail;
         }
         if (strstart(filename, "telnet:", &p))
-            qemu_opt_set(opts, "telnet", "on");
+            qemu_opt_set_qerr(opts, "telnet", "on");
         return opts;
     }
     if (strstart(filename, "udp:", &p)) {
-        qemu_opt_set(opts, "backend", "udp");
+        qemu_opt_set_qerr(opts, "backend", "udp");
         if (sscanf(p, "%64[^:]:%32[^@,]%n", host, port, &pos) < 2) {
             host[0] = 0;
             if (sscanf(p, ":%32[^@,]%n", port, &pos) < 1) {
                 goto fail;
             }
         }
-        qemu_opt_set(opts, "host", host);
-        qemu_opt_set(opts, "port", port);
+        qemu_opt_set_qerr(opts, "host", host);
+        qemu_opt_set_qerr(opts, "port", port);
         if (p[pos] == '@') {
             p += pos + 1;
             if (sscanf(p, "%64[^:]:%32[^,]%n", host, port, &pos) < 2) {
@@ -2435,26 +2435,26 @@ QemuOpts *qemu_chr_parse_compat(const char *label, const char *filename)
                     goto fail;
                 }
             }
-            qemu_opt_set(opts, "localaddr", host);
-            qemu_opt_set(opts, "localport", port);
+            qemu_opt_set_qerr(opts, "localaddr", host);
+            qemu_opt_set_qerr(opts, "localport", port);
         }
         return opts;
     }
     if (strstart(filename, "unix:", &p)) {
-        qemu_opt_set(opts, "backend", "socket");
+        qemu_opt_set_qerr(opts, "backend", "socket");
         if (qemu_opts_do_parse(opts, p, "path") != 0)
             goto fail;
         return opts;
     }
     if (strstart(filename, "/dev/parport", NULL) ||
         strstart(filename, "/dev/ppi", NULL)) {
-        qemu_opt_set(opts, "backend", "parport");
-        qemu_opt_set(opts, "path", filename);
+        qemu_opt_set_qerr(opts, "backend", "parport");
+        qemu_opt_set_qerr(opts, "path", filename);
         return opts;
     }
     if (strstart(filename, "/dev/", NULL)) {
-        qemu_opt_set(opts, "backend", "tty");
-        qemu_opt_set(opts, "path", filename);
+        qemu_opt_set_qerr(opts, "backend", "tty");
+        qemu_opt_set_qerr(opts, "path", filename);
         return opts;
     }
 

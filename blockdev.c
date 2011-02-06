@@ -59,7 +59,7 @@ QemuOpts *drive_add(const char *file, const char *fmt, ...)
         return NULL;
     }
     if (file)
-        qemu_opt_set(opts, "file", file);
+        qemu_opt_set_qerr(opts, "file", file);
     return opts;
 }
 
@@ -456,10 +456,10 @@ DriveInfo *drive_init(QemuOpts *opts, int default_to_scsi, int *fatal_error)
     case IF_VIRTIO:
         /* add virtio block device */
         opts = qemu_opts_create(qemu_find_opts_nofail("device"), NULL, 0, NULL);
-        qemu_opt_set(opts, "driver", "virtio-blk-pci");
-        qemu_opt_set(opts, "drive", dinfo->id);
+        qemu_opt_set_qerr(opts, "driver", "virtio-blk-pci");
+        qemu_opt_set_qerr(opts, "drive", dinfo->id);
         if (devaddr)
-            qemu_opt_set(opts, "addr", devaddr);
+            qemu_opt_set_qerr(opts, "addr", devaddr);
         break;
     case IF_COUNT:
         abort();

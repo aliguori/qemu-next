@@ -599,7 +599,20 @@ static void qemu_opt_del(QemuOpt *opt)
     qemu_free(opt);
 }
 
-int qemu_opt_set(QemuOpts *opts, const char *name, const char *value)
+int qemu_opt_set_qerr(QemuOpts *opts, const char *name, const char *value)
+{
+    Error *err = NULL;
+    int ret;
+
+    ret = qemu_opt_set(opts, name, value, &err);
+    if (err) {
+        qerror_report_err(err);
+    }
+    return ret;
+}
+
+int qemu_opt_set(QemuOpts *opts, const char *name, const char *value,
+                 Error **errp)
 {
     QemuOpt *opt;
     const QemuOptDesc *desc = opts->list->desc;
@@ -614,7 +627,7 @@ int qemu_opt_set(QemuOpts *opts, const char *name, const char *value)
         if (i == 0) {
             /* empty list -> allow any */;
         } else {
-            qerror_report(QERR_INVALID_PARAMETER, name);
+            error_set(errp, QERR_INVALID_PARAMETER, name);
             return -1;
         }
     }
@@ -735,7 +748,7 @@ int qemu_opts_set(QemuOptsList *list, const char *id,
     if (opts == NULL) {
         return -1;
     }
-    return qemu_opt_set(opts, name, value);
+    return qemu_opt_set_qerr(opts, name, value);
 }
 
 const char *qemu_opts_id(QemuOpts *opts)
@@ -806,7 +819,7 @@ int qemu_opts_do_parse(QemuOpts *opts, const char *params, const char *firstname
         }
         if (strcmp(option, "id") != 0) {
             /* store and parse */
-            if (qemu_opt_set(opts, option, value) == -1) {
+            if (qemu_opt_set_qerr(opts, option, value) == -1) {
                 return -1;
             }
         }
@@ -884,7 +897,7 @@ static void qemu_opts_from_qdict_1(const char *key, QObject *obj, void *opaque)
     default:
         return;
     }
-    qemu_opt_set(opaque, key, value);
+    qemu_opt_set_qerr(opaque, key, value);
 }
 
 /*

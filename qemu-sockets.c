@@ -210,10 +210,10 @@ listen:
         return -1;
     }
     snprintf(uport, sizeof(uport), "%d", inet_getport(e) - port_offset);
-    qemu_opt_set(opts, "host", uaddr);
-    qemu_opt_set(opts, "port", uport);
-    qemu_opt_set(opts, "ipv6", (e->ai_family == PF_INET6) ? "on" : "off");
-    qemu_opt_set(opts, "ipv4", (e->ai_family != PF_INET6) ? "on" : "off");
+    qemu_opt_set_qerr(opts, "host", uaddr);
+    qemu_opt_set_qerr(opts, "port", uport);
+    qemu_opt_set_qerr(opts, "ipv6", (e->ai_family == PF_INET6) ? "on" : "off");
+    qemu_opt_set_qerr(opts, "ipv4", (e->ai_family != PF_INET6) ? "on" : "off");
     freeaddrinfo(res);
     return slisten;
 }
@@ -426,7 +426,7 @@ static int inet_parse(QemuOpts *opts, const char *str)
                     __FUNCTION__, str);
             return -1;
         }
-        qemu_opt_set(opts, "ipv6", "on");
+        qemu_opt_set_qerr(opts, "ipv6", "on");
     } else if (qemu_isdigit(str[0])) {
         /* IPv4 addr */
         if (2 != sscanf(str,"%64[0-9.]:%32[^,]%n",addr,port,&pos)) {
@@ -434,7 +434,7 @@ static int inet_parse(QemuOpts *opts, const char *str)
                     __FUNCTION__, str);
             return -1;
         }
-        qemu_opt_set(opts, "ipv4", "on");
+        qemu_opt_set_qerr(opts, "ipv4", "on");
     } else {
         /* hostname */
         if (2 != sscanf(str,"%64[^:]:%32[^,]%n",addr,port,&pos)) {
@@ -443,18 +443,18 @@ static int inet_parse(QemuOpts *opts, const char *str)
             return -1;
         }
     }
-    qemu_opt_set(opts, "host", addr);
-    qemu_opt_set(opts, "port", port);
+    qemu_opt_set_qerr(opts, "host", addr);
+    qemu_opt_set_qerr(opts, "port", port);
 
     /* parse options */
     optstr = str + pos;
     h = strstr(optstr, ",to=");
     if (h)
-        qemu_opt_set(opts, "to", h+4);
+        qemu_opt_set_qerr(opts, "to", h+4);
     if (strstr(optstr, ",ipv4"))
-        qemu_opt_set(opts, "ipv4", "on");
+        qemu_opt_set_qerr(opts, "ipv4", "on");
     if (strstr(optstr, ",ipv6"))
-        qemu_opt_set(opts, "ipv6", "on");
+        qemu_opt_set_qerr(opts, "ipv6", "on");
     return 0;
 }
 
@@ -539,7 +539,7 @@ int unix_listen_opts(QemuOpts *opts)
          * worst case possible is bind() failing, i.e. a DoS attack.
          */
         fd = mkstemp(un.sun_path); close(fd);
-        qemu_opt_set(opts, "path", un.sun_path);
+        qemu_opt_set_qerr(opts, "path", un.sun_path);
     }
 
     unlink(un.sun_path);
@@ -611,11 +611,11 @@ int unix_listen(const char *str, char *ostr, int olen)
         if (len) {
             path = qemu_malloc(len+1);
             snprintf(path, len+1, "%.*s", len, str);
-            qemu_opt_set(opts, "path", path);
+            qemu_opt_set_qerr(opts, "path", path);
             qemu_free(path);
         }
     } else {
-        qemu_opt_set(opts, "path", str);
+        qemu_opt_set_qerr(opts, "path", str);
     }
 
     sock = unix_listen_opts(opts);
@@ -637,7 +637,7 @@ int unix_connect(const char *path)
         qerror_report_err(err);
         return -1;
     }
-    qemu_opt_set(opts, "path", path);
+    qemu_opt_set_qerr(opts, "path", path);
     sock = unix_connect_opts(opts);
     qemu_opts_del(opts);
     return sock;

@@ -538,7 +538,7 @@ int qemu_set_option(const char *str)
         return -1;
     }
 
-    if (qemu_opt_set(opts, arg, str+offset+1) == -1) {
+    if (qemu_opt_set_qerr(opts, arg, str+offset+1) == -1) {
         return -1;
     }
     return 0;
@@ -562,9 +562,9 @@ int qemu_global_option(const char *str)
         qerror_report_err(err);
         return -1;
     }
-    qemu_opt_set(opts, "driver", driver);
-    qemu_opt_set(opts, "property", property);
-    qemu_opt_set(opts, "value", str+offset+1);
+    qemu_opt_set_qerr(opts, "driver", driver);
+    qemu_opt_set_qerr(opts, "property", property);
+    qemu_opt_set_qerr(opts, "value", str+offset+1);
     return 0;
 }
 
@@ -650,7 +650,7 @@ int qemu_config_parse(FILE *fp, QemuOptsList **lists, const char *fname)
                 error_report("no group defined");
                 goto out;
             }
-            if (qemu_opt_set(opts, arg, value) != 0) {
+            if (qemu_opt_set_qerr(opts, arg, value) != 0) {
                 goto out;
             }
             continue;

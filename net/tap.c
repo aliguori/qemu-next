@@ -420,7 +420,7 @@ static int net_tap_init(QemuOpts *opts, int *vnet_hdr)
         return -1;
     }
 
-    qemu_opt_set(opts, "ifname", ifname);
+    qemu_opt_set_qerr(opts, "ifname", ifname);
 
     return fd;
 }
@@ -449,11 +449,11 @@ int net_init_tap(QemuOpts *opts, Monitor *mon, const char *name, VLANState *vlan
         vnet_hdr = tap_probe_vnet_hdr(fd);
     } else {
         if (!qemu_opt_get(opts, "script")) {
-            qemu_opt_set(opts, "script", DEFAULT_NETWORK_SCRIPT);
+            qemu_opt_set_qerr(opts, "script", DEFAULT_NETWORK_SCRIPT);
         }
 
         if (!qemu_opt_get(opts, "downscript")) {
-            qemu_opt_set(opts, "downscript", DEFAULT_NETWORK_DOWN_SCRIPT);
+            qemu_opt_set_qerr(opts, "downscript", DEFAULT_NETWORK_DOWN_SCRIPT);
         }
 
         fd = net_tap_init(opts, &vnet_hdr);

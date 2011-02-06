@@ -1218,7 +1218,7 @@ void net_host_device_add(Monitor *mon, const QDict *qdict)
         return;
     }
 
-    qemu_opt_set(opts, "type", device);
+    qemu_opt_set_qerr(opts, "type", device);
 
     if (net_client_init(mon, opts, 0) < 0) {
         monitor_printf(mon, "adding host network device %s failed\n", device);
