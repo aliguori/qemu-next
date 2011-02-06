@@ -719,35 +719,110 @@ static void test_version(void)
     qemu_destroy(sess);
 }
 
-static void test_device_add(void)
+static void test_device_add_bad_id(void)
+{
+    QmpSession *sess;
+    Error *err = NULL;
+
+    sess = qemu("-S");
+
+    libqmp_device_add(sess, "virtio-blk-pci", "32", NULL, &err);
+    g_assert_cmperr(err, ==, "InvalidParameterValue");
+    g_assert_cmpstr(error_get_field(err, "name"), ==, "id");
+    error_free(err);
+
+    libqmp_quit(sess, NULL);
+    qemu_destroy(sess);
+}
+
+static void test_device_add_bad_driver(void)
+{
+    QmpSession *sess;
+    Error *err = NULL;
+
+    sess = qemu("-S");
+
+    libqmp_device_add(sess, "no-such-device", "bleh", NULL, &err);
+    g_assert_cmperr(err, ==, "InvalidParameterValue");
+    g_assert_cmpstr(error_get_field(err, "name"), ==, "driver");
+    error_free(err);
+
+    libqmp_quit(sess, NULL);
+    qemu_destroy(sess);
+}
+
+static KeyValues *kv_alloc(const char *key, ...)
+{
+    KeyValues *kv_list = NULL;
+    va_list ap;
+
+    va_start(ap, key);
+    while (key) {
+        KeyValues *kv = qmp_alloc_key_values();
+        kv->key = qemu_strdup(key);
+        kv->value = qemu_strdup(va_arg(ap, const char *));
+        kv->next = kv_list;
+        kv_list = kv;
+        key = va_arg(ap, const char *);
+    }
+    va_end(ap);
+
+    return kv_list;
+}
+
+static void test_device_add_bad_param(void)
 {
     QmpSession *sess;
     Error *err = NULL;
     KeyValues *kv;
 
     sess = qemu("-S");
-    err = NULL;
-    libqmp_device_add(sess, "virtio-blk-pci", "32", NULL, &err);
-    g_assert_cmperr(err, ==, "InvalidParameterValue");
-    g_assert_cmpstr(error_get_field(err, "name"), ==, "id");
-    error_free(err);
 
-    err = NULL;
-    libqmp_device_add(sess, "no-such-device", "bleh", NULL, &err);
-    g_assert_cmperr(err, ==, "InvalidParameterValue");
-    g_assert_cmpstr(error_get_field(err, "name"), ==, "driver");
-    error_free(err);
-
-    kv = qmp_alloc_key_values();
-    kv->key = qemu_strdup("not-a-valid-parameter-name");
-    kv->value = qemu_strdup("value");
-
-    err = NULL;
+    kv = kv_alloc("not-a-valid-parameter-name", "value", NULL);
     libqmp_device_add(sess, "virtio-blk-pci", "bleh", kv, &err);
     g_assert_cmperr(err, ==, "PropertyNotFound");
     g_assert_cmpstr(error_get_field(err, "property"), ==, "not-a-valid-parameter-name");
     error_free(err);
 
+    qmp_free_key_values(kv);
+    libqmp_quit(sess, NULL);
+    qemu_destroy(sess);
+}
+
+static void test_device_add_bad_param_value(void)
+{
+    QmpSession *sess;
+    Error *err = NULL;
+    KeyValues *kv;
+
+    sess = qemu("-S");
+
+    kv = kv_alloc("addr", "bolagna", NULL);
+    libqmp_device_add(sess, "virtio-blk-pci", "bleh", kv, &err);
+    g_assert_cmperr(err, ==, "PropertyValueBad");
+    g_assert_cmpstr(error_get_field(err, "property"), ==, "addr");
+    error_free(err);
+
+    qmp_free_key_values(kv);
+    libqmp_quit(sess, NULL);
+    qemu_destroy(sess);
+}
+
+static void test_device_add_not_found_param_value(void)
+{
+    QmpSession *sess;
+    Error *err = NULL;
+    KeyValues *kv;
+
+    sess = qemu("-S");
+
+    kv = kv_alloc("drive", "bolagna", NULL);
+    libqmp_device_add(sess, "virtio-blk-pci", "bleh", kv, &err);
+    g_assert_cmperr(err, ==, "PropertyValueNotFound");
+    g_assert_cmpstr(error_get_field(err, "property"), ==, "drive");
+    error_free(err);
+
+    qmp_free_key_values(kv);
     libqmp_quit(sess, NULL);
     qemu_destroy(sess);
 }
@@ -767,7 +842,12 @@ int main(int argc, char **argv)
     g_test_add_func("/0.14/misc/stop", test_stop);
     g_test_add_func("/0.14/block/query", test_block_query);
     g_test_add_func("/0.14/block/query/stats", test_block_query_stats);
-    g_test_add_func("/0.14/misc/device-add", test_device_add);
+    g_test_add_func("/0.14/device-add/bad-id", test_device_add_bad_id);
+    g_test_add_func("/0.14/device-add/bad-driver", test_device_add_bad_driver);
+    g_test_add_func("/0.14/device-add/bad-param", test_device_add_bad_param);
+    g_test_add_func("/0.14/device-add/bad-param-value", test_device_add_bad_param_value);
+    g_test_add_func("/0.14/device-add/not-found-param-value",
+                    test_device_add_not_found_param_value);
 
     g_test_add_func("/0.15/vnc/change", test_vnc_change);
     g_test_add_func("/0.15/block/change/encrypted",
