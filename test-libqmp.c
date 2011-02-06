@@ -719,6 +719,19 @@ static void test_version(void)
     qemu_destroy(sess);
 }
 
+static void test_device_add(void)
+{
+    QmpSession *sess;
+    Error *err = NULL;
+
+    sess = qemu("-S");
+    libqmp_device_add(sess, "no-such-device", "bleh", NULL, &err);
+    g_assert_cmperr(err, ==, "DeviceNotFound");
+
+    libqmp_quit(sess, NULL);
+    qemu_destroy(sess);
+}
+
 int main(int argc, char **argv)
 {
     g_test_init(&argc, &argv, NULL);
@@ -734,6 +747,7 @@ int main(int argc, char **argv)
     g_test_add_func("/0.14/misc/stop", test_stop);
     g_test_add_func("/0.14/block/query", test_block_query);
     g_test_add_func("/0.14/block/query/stats", test_block_query_stats);
+    g_test_add_func("/0.14/misc/device-add", test_device_add);
 
     g_test_add_func("/0.15/vnc/change", test_vnc_change);
     g_test_add_func("/0.15/block/change/encrypted",

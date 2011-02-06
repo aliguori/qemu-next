@@ -11,6 +11,8 @@
     ((type *)(((char *)obj) - offsetof(type, field)))
 #endif
 
+#define DEBUG_LIBQMP 1
+
 typedef struct FdQmpSession
 {
     QmpSession session;
@@ -60,6 +62,10 @@ static QObject *qmp_session_fd_dispatch(QmpSession *s, const char *name,
         ssize_t len;
 
         len = write(fs->fd, buffer + offset, size - offset);
+#if defined(DEBUG_LIBQMP)
+        fwrite(buffer + offset, size - offset, 1, stdout);
+        fflush(stdout);
+#endif
         offset += len;
     }
 
@@ -70,6 +76,10 @@ static QObject *qmp_session_fd_dispatch(QmpSession *s, const char *name,
         ssize_t len;
 
         len = read(fs->fd, buffer, sizeof(buffer));
+#if defined(DEBUG_LIBQMP)
+        fwrite(buffer, len, 1, stdout);
+        fflush(stdout);
+#endif
         json_message_parser_feed(&fs->parser, buffer, len);
     }
     QDECREF(str);
