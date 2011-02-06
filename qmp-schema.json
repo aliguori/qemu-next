@@ -411,16 +411,21 @@
 
 [ 'device_del', {'id': 'str'}, {}, 'none' ]
 
-#[ 'system_reset' , {}, {}, 'none' ]
-#[ 'system_powerdown' , {}, {}, 'none' ]
-#[ 'cpu', {'index': 'int'}, {}, 'none' ]
+# not really easily testable without a real guest...
+[ 'system_reset' , {}, {}, 'none' ]
+[ 'system_powerdown' , {}, {}, 'none' ]
+
+[ 'cpu', {'index': 'int'}, {}, 'none' ]
+{ 'CpuInfo': {'CPU': 'int', 'current': 'bool', 'halted': 'bool', '*pc': 'int', '*nip': 'int', '*npc': 'int', '*PC': 'int'} }
+[ 'query-cpus', {}, {}, ['CpuInfo'] ]
+
 #[ 'memsave', {'val': 'int', 'size': 'int', 'filename': 'str'}, {}, 'none' ]
 #[ 'pmemsave', {'val': 'int', 'size': 'int', 'filename': 'str'}, {}, 'none' ]
 #[ 'migrate', {'uri': 'str'}, {'blk': 'bool', 'inc': 'bool'}, 'none' ]
 #[ 'migrate_cancel', {}, {}, 'none' ]
 #[ 'migrate_set_speed', {'value': 'int'}, {}, 'none' ]
 #[ 'migrate_set_downtime', {'value': 'number'}, {}, 'none' ]
-#[ 'netdev_add', {'type': 'str', 'id': 'str'}, {'**': 'dict'}, 'none' ]
+#[ 'netdev_add', {'type': 'str', 'id': 'str'}, {'opts': '**'}, 'none' ]
 #[ 'netdev_del', {'id': 'str'}, {}, 'none' ]
 #[ 'balloon', {'value': 'int'}, {}, 'none' ]
 #[ 'set_link', {'name': 'str', 'up': 'bool'}, {}, 'none' ]
@@ -435,9 +440,6 @@
 #
 #{ 'ChardevInfo': {'label': 'str', 'filename': 'str'} }
 #[ 'query-chardev', {}, {}, ['ChardevInfo'] ]
-#
-#{ 'CpuInfo': {'CPU': 'int', 'current': 'bool', 'halted': 'bool', '*pc': 'int', '*nip': 'int', '*npc': 'int', '*PC': 'int'} }
-#[ 'query-cpus', {}, {}, ['CpuInfo'] ]
 #
 #{ 'PciMemoryRange': {'base': 'int', 'limit': 'int'} }
 #

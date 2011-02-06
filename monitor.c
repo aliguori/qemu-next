@@ -968,6 +968,48 @@ static void do_info_cpus(Monitor *mon, QObject **ret_data)
     *ret_data = QOBJECT(cpu_list);
 }
 
+CpuInfo *qmp_query_cpus(Error **errp)
+{
+    CPUState *env;
+    CpuInfo *cpu_list = NULL;
+
+    for(env = first_cpu; env != NULL; env = env->next_cpu) {
+        CpuInfo *info;
+
+        cpu_synchronize_state(env);
+
+        info = qmp_alloc_cpu_info();
+        info->CPU = env->cpu_index;
+        info->current = (env == first_cpu);
+        info->halted = env->halted;
+#if defined(TARGET_I386)
+        info->has_pc = true;
+        info->pc = env->eip + env->segs[R_CS].base;
+#elif defined(TARGET_PPC)
+        info->has_nip = true;
+        info->nip = env->nip;
+#elif defined(TARGET_SPARC)
+        info->has_pc = true;
+        info->pc = env->pc;
+        info->has_npc = true;
+        info->npc = env->npc;
+#elif defined(TARGET_MIPS)
+        info->has_PC = true;
+        info->PC = env->active_tc.PC;
+#endif
+
+        info->next = cpu_list;
+        cpu_list = info;
+    }
+
+    return cpu_list;
+}
+
+void qmp_cpu(int64_t index, Error **errp)
+{
+    /* Just do nothing */
+}
+
 static int do_cpu_set(Monitor *mon, const QDict *qdict, QObject **ret_data)
 {
     int index = qdict_get_int(qdict, "index");
@@ -2057,6 +2099,11 @@ static int do_system_reset(Monitor *mon, const QDict *qdict,
     return 0;
 }
 
+void qmp_system_reset(Error **errp)
+{
+    qemu_system_reset_request();
+}
+
 /**
  * do_system_powerdown(): Issue a machine powerdown
  */
@@ -2065,6 +2112,11 @@ static int do_system_powerdown(Monitor *mon, const QDict *qdict,
 {
     qemu_system_powerdown_request();
     return 0;
+}
+
+void qmp_system_powerdown(Error **erp)
+{
+    qemu_system_powerdown_request();
 }
 
 #if defined(TARGET_I386)
