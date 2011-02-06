@@ -873,7 +873,7 @@ void qmp_device_add(const char *driver, const char *id, KeyValues *opts,
     KeyValues *kv;
     Error *local_err = NULL;
 
-    opts_list = qemu_find_opts(driver, &local_err);
+    opts_list = qemu_find_opts("device", &local_err);
     if (local_err) {
         error_free(local_err); 
         error_set(errp, QERR_DEVICE_NOT_FOUND, driver);
@@ -885,6 +885,8 @@ void qmp_device_add(const char *driver, const char *id, KeyValues *opts,
         error_propagate(errp, local_err);
         return;
     }
+
+    qemu_opt_set(qopts, "driver", driver);
 
     for (kv = opts; kv; kv = kv->next) {
         qemu_opt_set(qopts, kv->key, kv->value);

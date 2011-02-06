@@ -725,8 +725,17 @@ static void test_device_add(void)
     Error *err = NULL;
 
     sess = qemu("-S");
+    err = NULL;
+    libqmp_device_add(sess, "virtio-blk-pci", "32", NULL, &err);
+    g_assert_cmperr(err, ==, "InvalidParameterValue");
+    g_assert_cmpstr(error_get_field(err, "name"), ==, "id");
+    error_free(err);
+
+    err = NULL;
     libqmp_device_add(sess, "no-such-device", "bleh", NULL, &err);
-    g_assert_cmperr(err, ==, "DeviceNotFound");
+    g_assert_cmperr(err, ==, "InvalidParameterValue");
+    g_assert_cmpstr(error_get_field(err, "name"), ==, "driver");
+    error_free(err);
 
     libqmp_quit(sess, NULL);
     qemu_destroy(sess);

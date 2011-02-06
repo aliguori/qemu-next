@@ -37,7 +37,12 @@ const char *error_get_pretty(Error *err)
 
 const char *error_get_field(Error *err, const char *field)
 {
-    return qdict_get_str(err->obj, field);
+    if (strcmp(field, "class") == 0) {
+        return qdict_get_str(err->obj, field);
+    } else {
+        QDict *dict = qdict_get_qdict(err->obj, "data");
+        return qdict_get_str(dict, field);
+    }
 }
 
 void error_free(Error *err)
