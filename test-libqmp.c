@@ -827,6 +827,24 @@ static void test_device_add_not_found_param_value(void)
     qemu_destroy(sess);
 }
 
+static void test_device_add_nic(void)
+{
+    QmpSession *sess;
+    Error *err = NULL;
+    KeyValues *kv;
+
+    sess = qemu("-S -netdev user,id=netdev0");
+    
+    kv = kv_alloc("netdev", "netdev0", NULL);
+
+    libqmp_device_add(sess, "virtio-net-pci", "net0", kv, &err);
+    g_assert_noerr(err);
+
+    qmp_free_key_values(kv);
+    libqmp_quit(sess, NULL);
+    qemu_destroy(sess);
+}
+
 int main(int argc, char **argv)
 {
     g_test_init(&argc, &argv, NULL);
@@ -842,12 +860,13 @@ int main(int argc, char **argv)
     g_test_add_func("/0.14/misc/stop", test_stop);
     g_test_add_func("/0.14/block/query", test_block_query);
     g_test_add_func("/0.14/block/query/stats", test_block_query_stats);
-    g_test_add_func("/0.14/device-add/bad-id", test_device_add_bad_id);
-    g_test_add_func("/0.14/device-add/bad-driver", test_device_add_bad_driver);
-    g_test_add_func("/0.14/device-add/bad-param", test_device_add_bad_param);
-    g_test_add_func("/0.14/device-add/bad-param-value", test_device_add_bad_param_value);
-    g_test_add_func("/0.14/device-add/not-found-param-value",
+    g_test_add_func("/0.14/device-add/err/id", test_device_add_bad_id);
+    g_test_add_func("/0.14/device-add/err/driver", test_device_add_bad_driver);
+    g_test_add_func("/0.14/device-add/err/param", test_device_add_bad_param);
+    g_test_add_func("/0.14/device-add/err/param-value", test_device_add_bad_param_value);
+    g_test_add_func("/0.14/device-add/err/value-not-found",
                     test_device_add_not_found_param_value);
+    g_test_add_func("/0.14/device-add/nic", test_device_add_nic);
 
     g_test_add_func("/0.15/vnc/change", test_vnc_change);
     g_test_add_func("/0.15/block/change/encrypted",
