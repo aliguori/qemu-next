@@ -455,7 +455,7 @@ DriveInfo *drive_init(QemuOpts *opts, int default_to_scsi, int *fatal_error)
         break;
     case IF_VIRTIO:
         /* add virtio block device */
-        opts = qemu_opts_create(qemu_find_opts_nofail("device"), NULL, 0);
+        opts = qemu_opts_create(qemu_find_opts_nofail("device"), NULL, 0, NULL);
         qemu_opt_set(opts, "driver", "virtio-blk-pci");
         qemu_opt_set(opts, "drive", dinfo->id);
         if (devaddr)

@@ -1544,8 +1544,13 @@ static int balloon_parse(const char *arg)
             if (!opts)
                 return  -1;
         } else {
+            Error *err = NULL;
             /* create empty opts */
-            opts = qemu_opts_create(qemu_find_opts_nofail("device"), NULL, 0);
+            opts = qemu_opts_create(qemu_find_opts_nofail("device"), NULL, 0,
+                                    &err);
+            if (err) {
+                qerror_report_err(err);
+            }
         }
         qemu_opt_set(opts, "driver", "virtio-balloon-pci");
         return 0;
@@ -1691,7 +1696,7 @@ static void monitor_parse(const char *optarg, const char *mode)
         }
     }
 
-    opts = qemu_opts_create(qemu_find_opts_nofail("mon"), label, 1);
+    opts = qemu_opts_create(qemu_find_opts_nofail("mon"), label, 1, NULL);
     if (!opts) {
         fprintf(stderr, "duplicate chardev: %s\n", label);
         exit(1);
@@ -1792,6 +1797,7 @@ static int virtcon_parse(const char *devname)
     static int index = 0;
     char label[32];
     QemuOpts *bus_opts, *dev_opts;
+    Error *err = NULL;
 
     if (strcmp(devname, "none") == 0)
         return 0;
@@ -1800,10 +1806,18 @@ static int virtcon_parse(const char *devname)
         exit(1);
     }
 
-    bus_opts = qemu_opts_create(device, NULL, 0);
+    bus_opts = qemu_opts_create(device, NULL, 0, &err);
+    if (err) {
+        qerror_report_err(err);
+        return -1;
+    }
     qemu_opt_set(bus_opts, "driver", "virtio-serial");
 
-    dev_opts = qemu_opts_create(device, NULL, 0);
+    dev_opts = qemu_opts_create(device, NULL, 0, &err);
+    if (err) {
+        qerror_report_err(err);
+        return -1;
+    }
     qemu_opt_set(dev_opts, "driver", "virtconsole");
 
     snprintf(label, sizeof(label), "virtcon%d", index);
@@ -1826,7 +1840,8 @@ static int debugcon_parse(const char *devname)
     if (!qemu_chr_open("debugcon", devname, NULL)) {
         exit(1);
     }
-    opts = qemu_opts_create(qemu_find_opts_nofail("device"), "debugcon", 1);
+    opts = qemu_opts_create(qemu_find_opts_nofail("device"), "debugcon", 1,
+                            NULL);
     if (!opts) {
         fprintf(stderr, "qemu: already have a debugcon device\n");
         exit(1);

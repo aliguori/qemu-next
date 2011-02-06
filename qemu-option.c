@@ -681,20 +681,20 @@ static int id_wellformed(const char *id)
     return 1;
 }
 
-QemuOpts *qemu_opts_create(QemuOptsList *list, const char *id, int fail_if_exists)
+QemuOpts *qemu_opts_create(QemuOptsList *list, const char *id, int fail_if_exists, Error **errp)
 {
     QemuOpts *opts = NULL;
 
     if (id) {
         if (!id_wellformed(id)) {
-            qerror_report(QERR_INVALID_PARAMETER_VALUE, "id", "an identifier");
-            error_printf_unless_qmp("Identifiers consist of letters, digits, '-', '.', '_', starting with a letter.\n");
+            error_set(errp, QERR_INVALID_PARAMETER_VALUE, "id",
+                      "an identifier");
             return NULL;
         }
         opts = qemu_opts_find(list, id);
         if (opts != NULL) {
             if (fail_if_exists) {
-                qerror_report(QERR_DUPLICATE_ID, id, list->name);
+                error_set(errp, QERR_DUPLICATE_ID, id, list->name);
                 return NULL;
             } else {
                 return opts;
@@ -731,7 +731,7 @@ int qemu_opts_set(QemuOptsList *list, const char *id,
 {
     QemuOpts *opts;
 
-    opts = qemu_opts_create(list, id, 1);
+    opts = qemu_opts_create(list, id, 1, NULL); // FIXME
     if (opts == NULL) {
         return -1;
     }
@@ -824,6 +824,7 @@ QemuOpts *qemu_opts_parse(QemuOptsList *list, const char *params,
     char value[1024], *id = NULL;
     const char *p;
     QemuOpts *opts;
+    Error *err = NULL;
 
     assert(!permit_abbrev || list->implied_opt_name);
     firstname = permit_abbrev ? list->implied_opt_name : NULL;
@@ -835,9 +836,11 @@ QemuOpts *qemu_opts_parse(QemuOptsList *list, const char *params,
         get_opt_value(value, sizeof(value), p+4);
         id = value;
     }
-    opts = qemu_opts_create(list, id, 1);
-    if (opts == NULL)
+    opts = qemu_opts_create(list, id, 1, &err);
+    if (err) {
+        qerror_report_err(err);
         return NULL;
+    }
 
     if (qemu_opts_do_parse(opts, params, firstname) != 0) {
         qemu_opts_del(opts);
@@ -893,10 +896,13 @@ static void qemu_opts_from_qdict_1(const char *key, QObject *obj, void *opaque)
 QemuOpts *qemu_opts_from_qdict(QemuOptsList *list, const QDict *qdict)
 {
     QemuOpts *opts;
+    Error *err = NULL;
 
-    opts = qemu_opts_create(list, qdict_get_try_str(qdict, "id"), 1);
-    if (opts == NULL)
+    opts = qemu_opts_create(list, qdict_get_try_str(qdict, "id"), 1, &err);
+    if (err) {
+        qerror_report_err(err);
         return NULL;
+    }
 
     qdict_iter(qdict, qemu_opts_from_qdict_1, opts);
     return opts;

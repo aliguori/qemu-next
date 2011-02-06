@@ -21,6 +21,7 @@
 
 #include "qemu_socket.h"
 #include "qemu-common.h" /* for qemu_isdigit */
+#include "qerror.h"
 
 #ifndef AI_ADDRCONFIG
 # define AI_ADDRCONFIG 0
@@ -463,8 +464,13 @@ int inet_listen(const char *str, char *ostr, int olen,
     QemuOpts *opts;
     char *optstr;
     int sock = -1;
+    Error *err = NULL;
 
-    opts = qemu_opts_create(&dummy_opts, NULL, 0);
+    opts = qemu_opts_create(&dummy_opts, NULL, 0, &err);
+    if (err) {
+        qerror_report_err(err);
+        return -1;
+    }
     if (inet_parse(opts, str) == 0) {
         sock = inet_listen_opts(opts, port_offset);
         if (sock != -1 && ostr) {
@@ -490,8 +496,13 @@ int inet_connect(const char *str, int socktype)
 {
     QemuOpts *opts;
     int sock = -1;
+    Error *err = NULL;
 
-    opts = qemu_opts_create(&dummy_opts, NULL, 0);
+    opts = qemu_opts_create(&dummy_opts, NULL, 0, &err);
+    if (err) {
+        qerror_report_err(err);
+        return -1;
+    }
     if (inet_parse(opts, str) == 0)
         sock = inet_connect_opts(opts);
     qemu_opts_del(opts);
@@ -586,8 +597,13 @@ int unix_listen(const char *str, char *ostr, int olen)
     QemuOpts *opts;
     char *path, *optstr;
     int sock, len;
+    Error *err;
 
-    opts = qemu_opts_create(&dummy_opts, NULL, 0);
+    opts = qemu_opts_create(&dummy_opts, NULL, 0, &err);
+    if (err) {
+        qerror_report_err(err);
+        return -1;
+    }
 
     optstr = strchr(str, ',');
     if (optstr) {
@@ -614,8 +630,13 @@ int unix_connect(const char *path)
 {
     QemuOpts *opts;
     int sock;
+    Error *err;
 
-    opts = qemu_opts_create(&dummy_opts, NULL, 0);
+    opts = qemu_opts_create(&dummy_opts, NULL, 0, &err);
+    if (err) {
+        qerror_report_err(err);
+        return -1;
+    }
     qemu_opt_set(opts, "path", path);
     sock = unix_connect_opts(opts);
     qemu_opts_del(opts);

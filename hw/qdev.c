@@ -880,9 +880,9 @@ void qmp_device_add(const char *driver, const char *id, KeyValues *opts,
         return;
     }
     
-    qopts = qemu_opts_create(opts_list, id, 1);
-    if (qopts == NULL) {
-        error_set(errp, QERR_DEVICE_NOT_FOUND, driver);
+    qopts = qemu_opts_create(opts_list, id, 1, &local_err);
+    if (local_err) {
+        error_propagate(errp, local_err);
         return;
     }
 
