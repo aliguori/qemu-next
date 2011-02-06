@@ -845,6 +845,42 @@ static void test_device_add_nic(void)
     qemu_destroy(sess);
 }
 
+static void test_device_del_bad_id(void)
+{
+    QmpSession *sess;
+    Error *err = NULL;
+
+    sess = qemu("-S -netdev user,id=foo -device virtio-net-pci,id=net0,netdev=foo");
+
+    libqmp_device_del(sess, "not-a-valid-device-name", &err);
+    g_assert_cmperr(err, ==, "DeviceNotFound");
+    error_free(err);
+
+    libqmp_quit(sess, NULL);
+    qemu_destroy(sess);
+}
+
+static void test_device_del_nic(void)
+{
+    QmpSession *sess;
+    Error *err = NULL;
+    KeyValues *kv;
+
+    sess = qemu("-S -netdev user,id=netdev0");
+    
+    kv = kv_alloc("netdev", "netdev0", NULL);
+
+    libqmp_device_add(sess, "virtio-net-pci", "net0", kv, &err);
+    g_assert_noerr(err);
+    qmp_free_key_values(kv);
+
+    libqmp_device_del(sess, "net0", &err);
+    g_assert_noerr(err);
+
+    libqmp_quit(sess, NULL);
+    qemu_destroy(sess);
+}
+
 int main(int argc, char **argv)
 {
     g_test_init(&argc, &argv, NULL);
@@ -867,6 +903,8 @@ int main(int argc, char **argv)
     g_test_add_func("/0.14/device-add/err/value-not-found",
                     test_device_add_not_found_param_value);
     g_test_add_func("/0.14/device-add/nic", test_device_add_nic);
+    g_test_add_func("/0.14/device-del/err/id", test_device_del_bad_id);
+    g_test_add_func("/0.14/device-del/nic", test_device_del_nic);
 
     g_test_add_func("/0.15/vnc/change", test_vnc_change);
     g_test_add_func("/0.15/block/change/encrypted",

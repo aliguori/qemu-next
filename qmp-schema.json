@@ -409,9 +409,10 @@
 { 'KeyValues': {'key': 'str', 'value': 'str'} }
 [ 'device_add', {'driver': 'str', 'id': 'str'}, {'opts': '**'}, 'none' ]
 
+[ 'device_del', {'id': 'str'}, {}, 'none' ]
+
 #[ 'system_reset' , {}, {}, 'none' ]
 #[ 'system_powerdown' , {}, {}, 'none' ]
-#[ 'device_del', {'id': 'str'}, {}, 'none' ]
 #[ 'cpu', {'index': 'int'}, {}, 'none' ]
 #[ 'memsave', {'val': 'int', 'size': 'int', 'filename': 'str'}, {}, 'none' ]
 #[ 'pmemsave', {'val': 'int', 'size': 'int', 'filename': 'str'}, {}, 'none' ]

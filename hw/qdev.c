@@ -935,6 +935,26 @@ int do_device_del(Monitor *mon, const QDict *qdict, QObject **ret_data)
     return ret;
 }
 
+void qmp_device_del(const char *id, Error **errp)
+{
+    DeviceState *dev;
+    Error *local_err = NULL;
+    int ret;
+
+    dev = qdev_find_recursive(main_system_bus, id);
+    if (NULL == dev) {
+        error_set(errp, QERR_DEVICE_NOT_FOUND, id);
+        return;
+    }
+
+    ret = qdev_unplug(dev, &local_err);
+    if (local_err) {
+        error_propagate(errp, local_err);
+    } else if (ret) {
+        error_set(errp, QERR_UNDEFINED_ERROR);
+    }
+}
+
 static int qdev_get_fw_dev_path_helper(DeviceState *dev, char *p, int size)
 {
     int l = 0;
