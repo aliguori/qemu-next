@@ -1,7 +1,5 @@
 import sys
 
-meta_types = {}
-
 def c_var(name):
     return '_'.join(name.split('-'))
 
@@ -278,6 +276,41 @@ def de_camel_case(name):
         new_name += ch.lower()
     return new_name
 
+def enum_abbreviation(name):
+    ab = ''
+    for ch in name:
+        if ch.isupper():
+            ab += ch
+    return ab
+
+def print_enum_declaration(name, entries):
+    print
+    print 'typedef enum %s {' % name
+    i = 0
+    for entry in entries:
+        print '    %s_%s = %d,' % (enum_abbreviation(name), entry.upper(), i)
+        i += 1
+    print '} %s;' % name
+    print
+    print '%s qmp_type_%s_from_str(const char *str, Error **errp);' % (name, de_camel_case(name))
+
+def print_enum_definition(name, entries):
+    print '''
+%s qmp_type_%s_from_str(const char *str, Error **errp)
+{''' % (name, de_camel_case(name))
+    first = True
+    for entry in entries:
+        if first:
+            print '    if (strcmp(str, "%s") == 0) {' % entry
+            first = False
+        else:
+            print '    } else if (strcmp(str, "%s") == 0) {' % entry
+        print '        return %s_%s;' % (enum_abbreviation(name), entry.upper())
+    print '''    } else {
+        error_set(errp, QERR_ENUM_VALUE_INVALID, "%s", str);
+    }
+}''' % name
+
 def print_metatype_declaration(name, typeinfo):
     if type(typeinfo) == str:
         print
@@ -511,11 +544,16 @@ if expr:
 for s in exprs:
     if type(s) == dict:
         key = s.keys()[0]
-        meta_types[key] = s[key]
-        if kind == 'types-body':
-            print_metatype_definition(key, meta_types[key])
-        elif kind == 'types-header':
-            print_metatype_declaration(key, meta_types[key])
+        if type(s[key]) == dict:
+            if kind == 'types-body':
+                print_metatype_definition(key, s[key])
+            elif kind == 'types-header':
+                print_metatype_declaration(key, s[key])
+        else:
+            if kind == 'types-header':
+                print_enum_declaration(key, s[key])
+            elif kind == 'types-body':
+                print_enum_definition(key, s[key])
     else:
         name, required, optional, retval = s
         if kind == 'body':

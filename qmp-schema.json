@@ -1,6 +1,8 @@
 # *-*- Mode: Python -*-*
 ### 0.14.0 commands.  Do not modify. ###
 
+{ 'DriftCompensationPolicy': ['gradual', 'fast', 'none'] }
+
 ##
 # @quit:
 #
