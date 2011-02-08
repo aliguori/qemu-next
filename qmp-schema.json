@@ -422,12 +422,13 @@
 [ 'memsave', {'val': 'int', 'size': 'int', 'filename': 'str'}, {'cpu': 'int'}, 'none' ]
 [ 'pmemsave', {'val': 'int', 'size': 'int', 'filename': 'str'}, {}, 'none' ]
 
+#[ 'netdev_add', {'type': 'str', 'id': 'str'}, {'opts': '**'}, 'none' ]
+#[ 'netdev_del', {'id': 'str'}, {}, 'none' ]
+
 #[ 'migrate', {'uri': 'str'}, {'blk': 'bool', 'inc': 'bool'}, 'none' ]
 #[ 'migrate_cancel', {}, {}, 'none' ]
 #[ 'migrate_set_speed', {'value': 'int'}, {}, 'none' ]
 #[ 'migrate_set_downtime', {'value': 'number'}, {}, 'none' ]
-#[ 'netdev_add', {'type': 'str', 'id': 'str'}, {'opts': '**'}, 'none' ]
-#[ 'netdev_del', {'id': 'str'}, {}, 'none' ]
 #[ 'balloon', {'value': 'int'}, {}, 'none' ]
 #[ 'set_link', {'name': 'str', 'up': 'bool'}, {}, 'none' ]
 #[ 'getfd', {'fdname': 'str'}, {}, 'none' ]

@@ -1481,7 +1481,7 @@ static USBDevice *usb_net_init(const char *cmdline)
     qemu_opt_set_qerr(opts, "type", "nic");
     qemu_opt_set_qerr(opts, "model", "usb");
 
-    idx = net_client_init(NULL, opts, 0);
+    idx = net_client_init(opts, 0);
     if (idx == -1) {
         return NULL;
     }

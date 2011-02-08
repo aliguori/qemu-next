@@ -159,7 +159,7 @@ struct HCIInfo *qemu_next_hci(void);
 extern const char *legacy_tftp_prefix;
 extern const char *legacy_bootp_filename;
 
-int net_client_init(Monitor *mon, QemuOpts *opts, int is_netdev);
+int net_client_init(QemuOpts *opts, int is_netdev);
 int net_client_parse(QemuOptsList *opts_list, const char *str);
 int net_init_clients(void);
 void net_check_clients(void);
@@ -179,6 +179,6 @@ int do_netdev_del(Monitor *mon, const QDict *qdict, QObject **ret_data);
 
 void qdev_set_nic_properties(DeviceState *dev, NICInfo *nd);
 
-int net_handle_fd_param(Monitor *mon, const char *param);
+int net_handle_fd_param(const char *param);
 
 #endif

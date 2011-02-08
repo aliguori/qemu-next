@@ -31,7 +31,6 @@
 #ifdef CONFIG_SLIRP
 
 int net_init_slirp(QemuOpts *opts,
-                   Monitor *mon,
                    const char *name,
                    VLANState *vlan);
 

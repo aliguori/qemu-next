@@ -2996,6 +2996,11 @@ static void do_loadvm(Monitor *mon, const QDict *qdict)
     }
 }
 
+int qemu_get_fd(const char *fdname)
+{
+    return monitor_get_fd(cur_mon, fdname);
+}
+
 int monitor_get_fd(Monitor *mon, const char *fdname)
 {
     mon_fd_t *monfd;

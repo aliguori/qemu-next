@@ -677,7 +677,6 @@ static int net_init_slirp_configs(const char *name, const char *value, void *opa
 }
 
 int net_init_slirp(QemuOpts *opts,
-                   Monitor *mon,
                    const char *name,
                    VLANState *vlan)
 {

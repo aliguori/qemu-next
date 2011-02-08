@@ -53,6 +53,7 @@ int monitor_read_bdrv_key_start(Monitor *mon, BlockDriverState *bs,
                                 void *opaque);
 
 int monitor_get_fd(Monitor *mon, const char *fdname);
+int qemu_get_fd(const char *fdname);
 
 void monitor_vprintf(Monitor *mon, const char *fmt, va_list ap)
     GCC_FMT_ATTR(2, 0);

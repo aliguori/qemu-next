@@ -519,7 +519,6 @@ static int net_socket_mcast_init(VLANState *vlan,
 }
 
 int net_init_socket(QemuOpts *opts,
-                    Monitor *mon,
                     const char *name,
                     VLANState *vlan)
 {
@@ -534,7 +533,7 @@ int net_init_socket(QemuOpts *opts,
             return -1;
         }
 
-        fd = net_handle_fd_param(mon, qemu_opt_get(opts, "fd"));
+        fd = net_handle_fd_param(qemu_opt_get(opts, "fd"));
         if (fd == -1) {
             return -1;
         }
