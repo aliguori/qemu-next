@@ -17,6 +17,7 @@
 #include "virtio.h"
 #include "net.h"
 #include "pci.h"
+#include "qdev-marshal.h"
 
 #define ETH_ALEN    6
 
@@ -60,7 +61,7 @@ typedef struct virtio_net_conf
 {
     uint32_t txtimer;
     int32_t txburst;
-    char *tx;
+    VirtioNetTxStrategy tx;
 } virtio_net_conf;
 
 /* Maximum packet size we can receive from tap device: header + 64k */

@@ -1004,14 +1004,7 @@ VirtIODevice *virtio_net_init(DeviceState *dev, NICConf *conf,
     n->vdev.set_status = virtio_net_set_status;
     n->rx_vq = virtio_add_queue(&n->vdev, 256, virtio_net_handle_rx);
 
-    if (net->tx && strcmp(net->tx, "timer") && strcmp(net->tx, "bh")) {
-        error_report("virtio-net: "
-                     "Unknown option tx=%s, valid options: \"timer\" \"bh\"",
-                     net->tx);
-        error_report("Defaulting to \"bh\"");
-    }
-
-    if (net->tx && !strcmp(net->tx, "timer")) {
+    if (net->tx == VNTS_TIMER) {
         n->tx_vq = virtio_add_queue(&n->vdev, 256, virtio_net_handle_tx_timer);
         n->tx_timer = qemu_new_timer(vm_clock, virtio_net_tx_timer, n);
         n->tx_timeout = net->txtimer;
