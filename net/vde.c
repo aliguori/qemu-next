@@ -70,7 +70,7 @@ static void vde_cleanup(VLANClientState *nc)
 }
 
 static NetClientInfo net_vde_info = {
-    .type = NET_CLIENT_TYPE_VDE,
+    .type = NT_VDE,
     .size = sizeof(VDEState),
     .receive = vde_receive,
     .cleanup = vde_cleanup,

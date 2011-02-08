@@ -269,7 +269,7 @@ NICState *qemu_new_nic(NetClientInfo *info,
     VLANClientState *nc;
     NICState *nic;
 
-    assert(info->type == NET_CLIENT_TYPE_NIC);
+    assert(info->type == NT_NIC);
     assert(info->size >= sizeof(NICState));
 
     nc = qemu_new_net_client(info, conf->vlan, conf->peer, model, name);
@@ -312,7 +312,7 @@ static void qemu_free_vlan_client(VLANClientState *vc)
 void qemu_del_vlan_client(VLANClientState *vc)
 {
     /* If there is a peer NIC, delete and cleanup client, but do not free. */
-    if (!vc->vlan && vc->peer && vc->peer->info->type == NET_CLIENT_TYPE_NIC) {
+    if (!vc->vlan && vc->peer && vc->peer->info->type == NT_NIC) {
         NICState *nic = DO_UPCAST(NICState, nc, vc->peer);
         if (nic->peer_deleted) {
             return;
@@ -328,7 +328,7 @@ void qemu_del_vlan_client(VLANClientState *vc)
     }
 
     /* If this is a peer NIC and peer has already been deleted, free it now. */
-    if (!vc->vlan && vc->peer && vc->info->type == NET_CLIENT_TYPE_NIC) {
+    if (!vc->vlan && vc->peer && vc->info->type == NT_NIC) {
         NICState *nic = DO_UPCAST(NICState, nc, vc);
         if (nic->peer_deleted) {
             qemu_free_vlan_client(vc->peer);
@@ -365,20 +365,42 @@ qemu_find_vlan_client_by_name(Monitor *mon, int vlan_id,
     return vc;
 }
 
+VLANClientState *qemu_find_net_client(const char *name)
+{
+    VLANState *vlan;
+    VLANClientState *vc;
+
+    QTAILQ_FOREACH(vc, &non_vlan_clients, next) {
+        if (strcmp(vc->name, name) == 0) {
+            return vc;
+        }
+    }
+
+    QTAILQ_FOREACH(vlan, &vlans, next) {
+        QTAILQ_FOREACH(vc, &vlan->clients, next) {
+            if (strcmp(vc->name, name) == 0) {
+                return vc;
+            }
+        }
+    }
+
+    return NULL;
+}
+
 void qemu_foreach_nic(qemu_nic_foreach func, void *opaque)
 {
     VLANClientState *nc;
     VLANState *vlan;
 
     QTAILQ_FOREACH(nc, &non_vlan_clients, next) {
-        if (nc->info->type == NET_CLIENT_TYPE_NIC) {
+        if (nc->info->type == NT_NIC) {
             func(DO_UPCAST(NICState, nc, nc), opaque);
         }
     }
 
     QTAILQ_FOREACH(vlan, &vlans, next) {
         QTAILQ_FOREACH(nc, &vlan->clients, next) {
-            if (nc->info->type == NET_CLIENT_TYPE_NIC) {
+            if (nc->info->type == NT_NIC) {
                 func(DO_UPCAST(NICState, nc, nc), opaque);
             }
         }
@@ -1315,7 +1337,7 @@ int do_netdev_del(Monitor *mon, const QDict *qdict, QObject **ret_data)
     VLANClientState *vc;
 
     vc = qemu_find_netdev(id);
-    if (!vc || vc->info->type == NET_CLIENT_TYPE_NIC) {
+    if (!vc || vc->info->type == NT_NIC) {
         qerror_report(QERR_DEVICE_NOT_FOUND, id);
         return -1;
     }
@@ -1329,7 +1351,7 @@ void qmp_netdev_del(const char *id, Error **errp)
     VLANClientState *vc;
 
     vc = qemu_find_netdev(id);
-    if (!vc || vc->info->type == NET_CLIENT_TYPE_NIC) {
+    if (!vc || vc->info->type == NT_NIC) {
         error_set(errp, QERR_DEVICE_NOT_FOUND, id);
         return;
     }
@@ -1357,6 +1379,42 @@ void do_info_network(Monitor *mon)
         }
         monitor_printf(mon, "\n");
     }
+}
+
+NetworkInfo *qmp_query_network(Error **errp)
+{
+    VLANState *vlan;
+    VLANClientState *vc;
+    NetworkInfo *net_list = NULL;
+
+    QTAILQ_FOREACH(vlan, &vlans, next) {
+        QTAILQ_FOREACH(vc, &vlan->clients, next) {
+            NetworkInfo *info;
+
+            info = qmp_alloc_network_info();
+            info->name = qemu_strdup(vc->name);
+            info->type = vc->info->type;
+            info->has_vlan_id = true;
+            info->vlan_id = vlan->id;
+            info->next = net_list;
+            net_list = info;
+        }
+    }
+    QTAILQ_FOREACH(vc, &non_vlan_clients, next) {
+        NetworkInfo *info;
+
+        info = qmp_alloc_network_info();
+        info->name = qemu_strdup(vc->name);
+        info->type = vc->info->type;
+        if (vc->peer) {
+            info->has_peer = true;
+            info->peer = qemu_strdup(vc->peer->name);
+        }
+        info->next = net_list;
+        net_list = info;
+    }
+
+    return net_list;
 }
 
 int do_set_link(Monitor *mon, const QDict *qdict, QObject **ret_data)
@@ -1414,13 +1472,13 @@ void net_check_clients(void)
     QTAILQ_FOREACH(vlan, &vlans, next) {
         QTAILQ_FOREACH(vc, &vlan->clients, next) {
             switch (vc->info->type) {
-            case NET_CLIENT_TYPE_NIC:
+            case NT_NIC:
                 has_nic = 1;
                 break;
-            case NET_CLIENT_TYPE_SLIRP:
-            case NET_CLIENT_TYPE_TAP:
-            case NET_CLIENT_TYPE_SOCKET:
-            case NET_CLIENT_TYPE_VDE:
+            case NT_SLIRP:
+            case NT_TAP:
+            case NT_SOCKET:
+            case NT_VDE:
                 has_host_dev = 1;
                 break;
             default: ;
@@ -1436,7 +1494,7 @@ void net_check_clients(void)
     QTAILQ_FOREACH(vc, &non_vlan_clients, next) {
         if (!vc->peer) {
             fprintf(stderr, "Warning: %s %s has no peer\n",
-                    vc->info->type == NET_CLIENT_TYPE_NIC ? "nic" : "netdev",
+                    vc->info->type == NT_NIC ? "nic" : "netdev",
                     vc->name);
         }
     }

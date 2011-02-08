@@ -425,6 +425,13 @@
 [ 'netdev_add', {'type': 'str', 'id': 'str'}, {'opts': '**'}, 'none' ]
 [ 'netdev_del', {'id': 'str'}, {}, 'none' ]
 
+{ 'NetworkType': ['none', 'nic', 'slirp', 'tap', 'socket', 'vde', 'dump'] }
+{ 'NetworkInfo': {'name': 'str', 'type': 'NetworkType', '*vlan_id': 'int', '*peer': 'str'} }
+[ 'query-network', {}, {}, ['NetworkInfo'] ]
+
+{ 'TapInfo': {'fd': 'int', 'vhost_enabled': 'bool', 'vnet_hdr_enabled': 'bool', 'ufo_enabled': 'bool', '*down_script': 'str', '*down_script_arg': 'str'} }
+[ 'query-tap', {'id': 'str'}, {}, 'TapInfo' ]
+
 #[ 'migrate', {'uri': 'str'}, {'blk': 'bool', 'inc': 'bool'}, 'none' ]
 #[ 'migrate_cancel', {}, {}, 'none' ]
 #[ 'migrate_set_speed', {'value': 'int'}, {}, 'none' ]

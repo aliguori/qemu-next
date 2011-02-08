@@ -1094,7 +1094,7 @@ static void e1000_reset(void *opaque)
 }
 
 static NetClientInfo net_e1000_info = {
-    .type = NET_CLIENT_TYPE_NIC,
+    .type = NT_NIC,
     .size = sizeof(NICState),
     .can_receive = e1000_can_receive,
     .receive = e1000_receive,

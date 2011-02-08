@@ -94,7 +94,7 @@ static void lance_cleanup(VLANClientState *nc)
 }
 
 static NetClientInfo net_lance_info = {
-    .type = NET_CLIENT_TYPE_NIC,
+    .type = NT_NIC,
     .size = sizeof(NICState),
     .can_receive = pcnet_can_receive,
     .receive = pcnet_receive,

@@ -129,7 +129,7 @@ static void net_slirp_cleanup(VLANClientState *nc)
 }
 
 static NetClientInfo net_slirp_info = {
-    .type = NET_CLIENT_TYPE_SLIRP,
+    .type = NT_SLIRP,
     .size = sizeof(SlirpState),
     .receive = net_slirp_receive,
     .cleanup = net_slirp_cleanup,

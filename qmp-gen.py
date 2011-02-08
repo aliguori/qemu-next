@@ -1,5 +1,7 @@
 import sys
 
+enum_types = []
+
 def c_var(name):
     return '_'.join(name.split('-'))
 
@@ -51,6 +53,8 @@ def qmp_type_to_c(typename, retval=False, indent=0):
         return 'double'
     elif typename == 'none':
         return 'void'
+    elif typename in enum_types:
+        return typename
     else:
         return 'struct %s *' % typename
 
@@ -294,8 +298,8 @@ def print_enum_declaration(name, entries):
     print
     print '%s qmp_type_%s_from_str(const char *str, Error **errp);' % (name, de_camel_case(name))
     print 'const char *qmp_type_%s_to_str(%s value, Error **errp);' % (de_camel_case(name), name)
-    print 'QObject *qmp_marshal_type_%s(%s value);' % (de_camel_case(name), name)
-    print '%s qmp_unmarshal_type_%s(QObject *obj);' % (name, de_camel_case(name))
+    print 'QObject *qmp_marshal_type_%s(%s value);' % (name, name)
+    print '%s qmp_unmarshal_type_%s(QObject *obj);' % (name, name)
 
 def print_enum_definition(name, entries):
     print '''
@@ -338,14 +342,14 @@ QObject *qmp_marshal_type_%s(%s value)
 {
     return QOBJECT(qint_from_int(value));
 }
-''' % (de_camel_case(name), name)
+''' % (name, name)
 
     print '''
 %s qmp_unmarshal_type_%s(QObject *obj)
 {
     return (%s)qint_get_int(qobject_to_qint(obj));
 }
-''' % (name, de_camel_case(name), name)
+''' % (name, name, name)
 
 def print_metatype_declaration(name, typeinfo):
     if type(typeinfo) == str:
@@ -587,6 +591,7 @@ for s in exprs:
             elif kind == 'types-header':
                 print_metatype_declaration(key, s[key])
         else:
+            enum_types.append(key)
             if kind == 'types-header':
                 print_enum_declaration(key, s[key])
             elif kind == 'types-body':

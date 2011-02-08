@@ -291,7 +291,7 @@ static ssize_t net_rx_packet(VLANClientState *nc, const uint8_t *buf, size_t siz
 /* ------------------------------------------------------------- */
 
 static NetClientInfo net_xen_info = {
-    .type = NET_CLIENT_TYPE_NIC,
+    .type = NT_NIC,
     .size = sizeof(NICState),
     .can_receive = net_rx_ok,
     .receive = net_rx_packet,

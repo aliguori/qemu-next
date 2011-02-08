@@ -3357,7 +3357,7 @@ static int pci_rtl8139_uninit(PCIDevice *dev)
 }
 
 static NetClientInfo net_rtl8139_info = {
-    .type = NET_CLIENT_TYPE_NIC,
+    .type = NT_NIC,
     .size = sizeof(NICState),
     .can_receive = rtl8139_can_receive,
     .receive = rtl8139_receive,

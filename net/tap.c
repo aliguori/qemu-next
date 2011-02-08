@@ -39,6 +39,8 @@
 #include "qemu-char.h"
 #include "qemu-common.h"
 #include "qemu-error.h"
+#include "qmp.h"
+#include "qerror.h"
 
 #include "net/tap-linux.h"
 
@@ -218,7 +220,7 @@ int tap_has_ufo(VLANClientState *nc)
 {
     TAPState *s = DO_UPCAST(TAPState, nc, nc);
 
-    assert(nc->info->type == NET_CLIENT_TYPE_TAP);
+    assert(nc->info->type == NT_TAP);
 
     return s->has_ufo;
 }
@@ -227,7 +229,7 @@ int tap_has_vnet_hdr(VLANClientState *nc)
 {
     TAPState *s = DO_UPCAST(TAPState, nc, nc);
 
-    assert(nc->info->type == NET_CLIENT_TYPE_TAP);
+    assert(nc->info->type == NT_TAP);
 
     return !!s->host_vnet_hdr_len;
 }
@@ -236,7 +238,7 @@ int tap_has_vnet_hdr_len(VLANClientState *nc, int len)
 {
     TAPState *s = DO_UPCAST(TAPState, nc, nc);
 
-    assert(nc->info->type == NET_CLIENT_TYPE_TAP);
+    assert(nc->info->type == NT_TAP);
 
     return tap_probe_vnet_hdr_len(s->fd, len);
 }
@@ -245,7 +247,7 @@ void tap_set_vnet_hdr_len(VLANClientState *nc, int len)
 {
     TAPState *s = DO_UPCAST(TAPState, nc, nc);
 
-    assert(nc->info->type == NET_CLIENT_TYPE_TAP);
+    assert(nc->info->type == NT_TAP);
     assert(len == sizeof(struct virtio_net_hdr_mrg_rxbuf) ||
            len == sizeof(struct virtio_net_hdr));
 
@@ -259,7 +261,7 @@ void tap_using_vnet_hdr(VLANClientState *nc, int using_vnet_hdr)
 
     using_vnet_hdr = using_vnet_hdr != 0;
 
-    assert(nc->info->type == NET_CLIENT_TYPE_TAP);
+    assert(nc->info->type == NT_TAP);
     assert(!!s->host_vnet_hdr_len == using_vnet_hdr);
 
     s->using_vnet_hdr = using_vnet_hdr;
@@ -306,14 +308,14 @@ static void tap_poll(VLANClientState *nc, bool enable)
 int tap_get_fd(VLANClientState *nc)
 {
     TAPState *s = DO_UPCAST(TAPState, nc, nc);
-    assert(nc->info->type == NET_CLIENT_TYPE_TAP);
+    assert(nc->info->type == NT_TAP);
     return s->fd;
 }
 
 /* fd support */
 
 static NetClientInfo net_tap_info = {
-    .type = NET_CLIENT_TYPE_TAP,
+    .type = NT_TAP,
     .size = sizeof(TAPState),
     .receive = tap_receive,
     .receive_raw = tap_receive_raw,
@@ -518,6 +520,41 @@ int net_init_tap(QemuOpts *opts, const char *name, VLANState *vlan)
 VHostNetState *tap_get_vhost_net(VLANClientState *nc)
 {
     TAPState *s = DO_UPCAST(TAPState, nc, nc);
-    assert(nc->info->type == NET_CLIENT_TYPE_TAP);
+    assert(nc->info->type == NT_TAP);
     return s->vhost_net;
+}
+
+TapInfo *qmp_query_tap(const char *id, Error **errp)
+{
+    VLANClientState *vc = qemu_find_net_client(id);
+    TAPState *s;
+    TapInfo *info;
+
+    if (vc == NULL) {
+        error_set(errp, QERR_INVALID_PARAMETER_VALUE, "id", "a valid net client");
+        return NULL;
+    }
+
+    if (vc->info->type != NT_TAP) {
+        error_set(errp, QERR_INVALID_PARAMETER_TYPE, "id", "tap device");
+        return NULL;
+    }
+
+    s = DO_UPCAST(TAPState, nc, vc);
+    info = qmp_alloc_tap_info();
+    info->fd = s->fd;
+    if (s->down_script[0]) {
+        info->has_down_script = true;
+        info->down_script = qemu_strdup(s->down_script);
+        if (s->down_script_arg[0]) {
+            info->has_down_script_arg = true;
+            info->down_script_arg = qemu_strdup(s->down_script_arg);
+
+        }
+    }
+    info->vhost_enabled = !!(s->vhost_net);
+    info->vnet_hdr_enabled = !!(s->using_vnet_hdr);
+    info->ufo_enabled = !!(s->has_ufo);
+
+    return info;
 }

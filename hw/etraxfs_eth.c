@@ -567,7 +567,7 @@ static void eth_cleanup(VLANClientState *nc)
 }
 
 static NetClientInfo net_etraxfs_info = {
-	.type = NET_CLIENT_TYPE_NIC,
+	.type = NT_NIC,
 	.size = sizeof(NICState),
 	.can_receive = eth_can_receive,
 	.receive = eth_receive,

@@ -881,6 +881,62 @@ static void test_device_del_nic(void)
     qemu_destroy(sess);
 }
 
+static void test_query_network(void)
+{
+    QmpSession *sess;
+    Error *err = NULL;
+    NetworkInfo *info_list, *info;
+
+    sess = qemu("-S");
+    
+    info_list = libqmp_query_network(sess, &err);
+    g_assert_noerr(err);
+
+    for (info = info_list; info; info = info->next) {
+        printf("name: %s\n", info->name);
+        printf("type: %d\n", info->type);
+        if (info->has_vlan_id) {
+            printf("vlan: %ld\n", info->vlan_id);
+        }
+        if (info->has_peer) {
+            printf("peer: %s\n", info->peer);
+        }
+    }
+
+    qmp_free_network_info(info_list);
+
+    libqmp_quit(sess, NULL);
+    qemu_destroy(sess);
+}
+
+static void test_query_tap(void)
+{
+    QmpSession *sess;
+    Error *err = NULL;
+    TapInfo *tap;
+
+    sess = qemu("-S -net tap,script=,ifname=tap100,id=foo");
+    
+    tap = libqmp_query_tap(sess, "foo", &err);
+    g_assert_noerr(err);
+
+    printf("fd: %ld\n", tap->fd);
+    if (tap->down_script) {
+        printf("down script: %s\n", tap->down_script);
+    }
+    if (tap->down_script_arg) {
+        printf("down script arg: %s\n", tap->down_script_arg);
+    }
+    printf("options:");
+    if (tap->vnet_hdr_enabled) {
+        printf(" vnet");
+    }
+    printf("\n");
+
+    libqmp_quit(sess, NULL);
+    qemu_destroy(sess);
+}
+
 int main(int argc, char **argv)
 {
     g_test_init(&argc, &argv, NULL);
@@ -913,6 +969,10 @@ int main(int argc, char **argv)
                     test_change_block_autoprobe);
     g_test_add_func("/0.15/vnc/password-login",
                     test_vnc_password);
+    g_test_add_func("/0.15/net/query", test_query_network);
+    if (geteuid() == 0) {
+        g_test_add_func("/0.15/net/query/tap", test_query_tap);
+    }
 
     g_test_run();
 

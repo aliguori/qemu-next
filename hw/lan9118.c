@@ -1109,7 +1109,7 @@ static void lan9118_cleanup(VLANClientState *nc)
 }
 
 static NetClientInfo net_lan9118_info = {
-    .type = NET_CLIENT_TYPE_NIC,
+    .type = NT_NIC,
     .size = sizeof(NICState),
     .can_receive = lan9118_can_receive,
     .receive = lan9118_receive,

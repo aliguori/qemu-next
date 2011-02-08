@@ -43,7 +43,7 @@ static void isa_ne2000_cleanup(VLANClientState *nc)
 }
 
 static NetClientInfo net_ne2000_isa_info = {
-    .type = NET_CLIENT_TYPE_NIC,
+    .type = NT_NIC,
     .size = sizeof(NICState),
     .can_receive = ne2000_can_receive,
     .receive = ne2000_receive,
