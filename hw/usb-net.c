@@ -1472,7 +1472,7 @@ static USBDevice *usb_net_init(const char *cmdline)
 {
     USBDevice *dev;
     QemuOpts *opts;
-    int idx;
+    Error *err = NULL;
 
     opts = qemu_opts_parse(qemu_find_opts_nofail("net"), cmdline, 0);
     if (!opts) {
@@ -1481,8 +1481,9 @@ static USBDevice *usb_net_init(const char *cmdline)
     qemu_opt_set_qerr(opts, "type", "nic");
     qemu_opt_set_qerr(opts, "model", "usb");
 
-    idx = net_client_init(opts, 0);
-    if (idx == -1) {
+    net_client_init(opts, 0, &err);
+    if (err) {
+        error_free(err);
         return NULL;
     }
 
@@ -1490,7 +1491,8 @@ static USBDevice *usb_net_init(const char *cmdline)
     if (!dev) {
         return NULL;
     }
-    qdev_set_nic_properties(&dev->qdev, &nd_table[idx]);
+    /* FIXME: this is broken and has always been broken */
+    qdev_set_nic_properties(&dev->qdev, &nd_table[0]);
     qdev_init_nofail(&dev->qdev);
     return dev;
 }

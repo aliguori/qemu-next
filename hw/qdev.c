@@ -902,7 +902,6 @@ void qmp_device_add(const char *driver, const char *id, KeyValues *opts,
     }
 
     for (kv = opts; kv; kv = kv->next) {
-        printf("%s = %s\n", kv->key, kv->value);
         qemu_opt_set(qopts, kv->key, kv->value, &local_err);
         if (local_err) {
             error_propagate(errp, local_err);

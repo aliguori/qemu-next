@@ -168,7 +168,7 @@ QEMUOptionParameter *get_option_parameter(QEMUOptionParameter *list,
     return NULL;
 }
 
-static int parse_option_bool(const char *name, const char *value, int *ret)
+static void parse_option_bool(const char *name, const char *value, int *ret, Error **errp)
 {
     if (value != NULL) {
         if (!strcmp(value, "on")) {
@@ -176,16 +176,15 @@ static int parse_option_bool(const char *name, const char *value, int *ret)
         } else if (!strcmp(value, "off")) {
             *ret = 0;
         } else {
-            qerror_report(QERR_INVALID_PARAMETER_VALUE, name, "'on' or 'off'");
-            return -1;
+            error_set(errp, QERR_INVALID_PARAMETER_VALUE, name, "'on' or 'off'");
+            return;
         }
     } else {
         *ret = 1;
     }
-    return 0;
 }
 
-static int parse_option_number(const char *name, const char *value, uint64_t *ret)
+static void parse_option_number(const char *name, const char *value, uint64_t *ret, Error **errp)
 {
     char *postfix;
     uint64_t number;
@@ -193,18 +192,16 @@ static int parse_option_number(const char *name, const char *value, uint64_t *re
     if (value != NULL) {
         number = strtoull(value, &postfix, 0);
         if (*postfix != '\0') {
-            qerror_report(QERR_INVALID_PARAMETER_VALUE, name, "a number");
-            return -1;
+            error_set(errp, QERR_INVALID_PARAMETER_VALUE, name, "a number");
+        } else {
+            *ret = number;
         }
-        *ret = number;
     } else {
-        qerror_report(QERR_INVALID_PARAMETER_VALUE, name, "a number");
-        return -1;
+        error_set(errp, QERR_INVALID_PARAMETER_VALUE, name, "a number");
     }
-    return 0;
 }
 
-static int parse_option_size(const char *name, const char *value, uint64_t *ret)
+static void parse_option_size(const char *name, const char *value, uint64_t *ret, Error **errp)
 {
     char *postfix;
     double sizef;
@@ -226,16 +223,12 @@ static int parse_option_size(const char *name, const char *value, uint64_t *ret)
             *ret = (uint64_t) sizef;
             break;
         default:
-            qerror_report(QERR_INVALID_PARAMETER_VALUE, name, "a size");
-            error_printf_unless_qmp("You may use k, M, G or T suffixes for "
-                    "kilobytes, megabytes, gigabytes and terabytes.\n");
-            return -1;
+            error_set(errp, QERR_INVALID_PARAMETER_VALUE, name, "a size");
+            break;
         }
     } else {
-        qerror_report(QERR_INVALID_PARAMETER_VALUE, name, "a size");
-        return -1;
+        error_set(errp, QERR_INVALID_PARAMETER_VALUE, name, "a size");
     }
-    return 0;
 }
 
 /*
@@ -259,6 +252,7 @@ int set_option_parameter(QEMUOptionParameter *list, const char *name,
     const char *value)
 {
     int flag;
+    Error *err = NULL;
 
     // Find a matching parameter
     list = get_option_parameter(list, name);
@@ -270,8 +264,12 @@ int set_option_parameter(QEMUOptionParameter *list, const char *name,
     // Process parameter
     switch (list->type) {
     case OPT_FLAG:
-        if (parse_option_bool(name, value, &flag) == -1)
+        parse_option_bool(name, value, &flag, &err);
+        if (err) {
+            fprintf(stderr, "%s\n", error_get_pretty(err));
+            error_free(err);
             return -1;
+        }
         list->value.n = flag;
         break;
 
@@ -285,8 +283,12 @@ int set_option_parameter(QEMUOptionParameter *list, const char *name,
         break;
 
     case OPT_SIZE:
-        if (parse_option_size(name, value, &list->value.n) == -1)
+        parse_option_size(name, value, &list->value.n, &err);
+        if (err) {
+            fprintf(stderr, "%s\n", error_get_pretty(err));
+            error_free(err);
             return -1;
+        }
         break;
 
     default:
@@ -572,20 +574,24 @@ uint64_t qemu_opt_get_size(QemuOpts *opts, const char *name, uint64_t defval)
     return opt->value.uint;
 }
 
-static int qemu_opt_parse(QemuOpt *opt)
+static void qemu_opt_parse(QemuOpt *opt, Error **errp)
 {
-    if (opt->desc == NULL)
-        return 0;
+    if (opt->desc == NULL) {
+        return;
+    }
     switch (opt->desc->type) {
     case QEMU_OPT_STRING:
         /* nothing */
-        return 0;
+        break;
     case QEMU_OPT_BOOL:
-        return parse_option_bool(opt->name, opt->str, &opt->value.boolean);
+        parse_option_bool(opt->name, opt->str, &opt->value.boolean, errp);
+        break;
     case QEMU_OPT_NUMBER:
-        return parse_option_number(opt->name, opt->str, &opt->value.uint);
+        parse_option_number(opt->name, opt->str, &opt->value.uint, errp);
+        break;
     case QEMU_OPT_SIZE:
-        return parse_option_size(opt->name, opt->str, &opt->value.uint);
+        parse_option_size(opt->name, opt->str, &opt->value.uint, errp);
+        break;
     default:
         abort();
     }
@@ -616,6 +622,7 @@ int qemu_opt_set(QemuOpts *opts, const char *name, const char *value,
 {
     QemuOpt *opt;
     const QemuOptDesc *desc = opts->list->desc;
+    Error *local_err = NULL;
     int i;
 
     for (i = 0; desc[i].name != NULL; i++) {
@@ -642,7 +649,9 @@ int qemu_opt_set(QemuOpts *opts, const char *name, const char *value,
     if (value) {
         opt->str = qemu_strdup(value);
     }
-    if (qemu_opt_parse(opt) < 0) {
+    qemu_opt_parse(opt, &local_err);
+    if (local_err) {
+        error_propagate(errp, local_err);
         qemu_opt_del(opt);
         return -1;
     }
@@ -948,7 +957,7 @@ QDict *qemu_opts_to_qdict(QemuOpts *opts, QDict *qdict)
 /* Validate parsed opts against descriptions where no
  * descriptions were provided in the QemuOptsList.
  */
-int qemu_opts_validate(QemuOpts *opts, const QemuOptDesc *desc)
+void qemu_opts_validate(QemuOpts *opts, const QemuOptDesc *desc, Error **errp)
 {
     QemuOpt *opt;
 
@@ -956,6 +965,7 @@ int qemu_opts_validate(QemuOpts *opts, const QemuOptDesc *desc)
 
     QTAILQ_FOREACH(opt, &opts->head, next) {
         int i;
+        Error *local_err = NULL;
 
         for (i = 0; desc[i].name != NULL; i++) {
             if (strcmp(desc[i].name, opt->name) == 0) {
@@ -963,18 +973,19 @@ int qemu_opts_validate(QemuOpts *opts, const QemuOptDesc *desc)
             }
         }
         if (desc[i].name == NULL) {
-            qerror_report(QERR_INVALID_PARAMETER, opt->name);
-            return -1;
+            error_set(errp, QERR_INVALID_PARAMETER, opt->name);
+            break;
         }
 
         opt->desc = &desc[i];
 
-        if (qemu_opt_parse(opt) < 0) {
-            return -1;
+        qemu_opt_parse(opt, &local_err);
+        if (local_err) {
+            error_propagate(errp, local_err);
+            break;
         }
     }
 
-    return 0;
 }
 
 int qemu_opts_foreach(QemuOptsList *list, qemu_opts_loopfunc func, void *opaque,

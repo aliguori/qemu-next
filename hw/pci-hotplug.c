@@ -40,7 +40,8 @@ static PCIDevice *qemu_pci_hot_add_nic(Monitor *mon,
 {
     QemuOpts *opts;
     PCIBus *bus;
-    int ret, devfn;
+    Error *local_err = NULL;
+    int devfn;
 
     bus = pci_get_bus_devfn(&devfn, devaddr);
     if (!bus) {
@@ -59,14 +60,16 @@ static PCIDevice *qemu_pci_hot_add_nic(Monitor *mon,
 
     qemu_opt_set_qerr(opts, "type", "nic");
 
-    ret = net_client_init(opts, 0);
-    if (ret < 0)
+    net_client_init(opts, 0, &local_err);
+    if (local_err) {
+        error_free(local_err);
         return NULL;
-    if (nd_table[ret].devaddr) {
+    }
+    if (nd_table[0].devaddr) {
         monitor_printf(mon, "Parameter addr not supported\n");
         return NULL;
     }
-    return pci_nic_init(&nd_table[ret], "rtl8139", devaddr);
+    return pci_nic_init(&nd_table[0], "rtl8139", devaddr);
 }
 
 static int scsi_hot_add(Monitor *mon, DeviceState *adapter,
