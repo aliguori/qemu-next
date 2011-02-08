@@ -1700,6 +1700,51 @@ exit:
     return ret;
 }
 
+void qmp_memsave(const char *filename, int64_t addr, int64_t size,
+                 bool has_cpu, int64_t cpu, Error **errp)
+{
+    FILE *f;
+    uint32_t l;
+    CPUState *env;
+    uint8_t buf[1024];
+
+    if (!has_cpu) {
+        cpu = 0;
+    }
+
+    for (env = first_cpu; env; env = env->next_cpu) {
+        if (cpu == env->cpu_index) {
+            break;
+        }
+    }
+
+    if (env == NULL) {
+        error_set(errp, QERR_INVALID_PARAMETER_VALUE, "cpu", "a valid cpu");
+        return;
+    }
+
+    f = fopen(filename, "wb");
+    if (!f) {
+        error_set(errp, QERR_OPEN_FILE_FAILED, filename);
+        return;
+    }
+    while (size != 0) {
+        l = sizeof(buf);
+        if (l > size)
+            l = size;
+        cpu_memory_rw_debug(env, addr, buf, l, 0);
+        if (fwrite(buf, 1, l, f) != l) {
+            error_set(errp, QERR_IO_ERROR);
+            goto exit;
+        }
+        addr += l;
+        size -= l;
+    }
+
+exit:
+    fclose(f);
+}
+
 static int do_physical_memory_save(Monitor *mon, const QDict *qdict,
                                     QObject **ret_data)
 {
@@ -1735,6 +1780,34 @@ static int do_physical_memory_save(Monitor *mon, const QDict *qdict,
 exit:
     fclose(f);
     return ret;
+}
+
+void qmp_pmemsave(const char *filename, int64_t addr, int64_t size, Error **errp)
+{
+    FILE *f;
+    uint32_t l;
+    uint8_t buf[1024];
+
+    f = fopen(filename, "wb");
+    if (!f) {
+        error_set(errp, QERR_OPEN_FILE_FAILED, filename);
+        return;
+    }
+    while (size != 0) {
+        l = sizeof(buf);
+        if (l > size)
+            l = size;
+        cpu_physical_memory_rw(addr, buf, l, 0);
+        if (fwrite(buf, 1, l, f) != l) {
+            error_set(errp, QERR_IO_ERROR);
+            goto exit;
+        }
+        addr += l;
+        size -= l;
+    }
+
+exit:
+    fclose(f);
 }
 
 static void do_sum(Monitor *mon, const QDict *qdict)
