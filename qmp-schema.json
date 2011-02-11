@@ -431,19 +431,43 @@
 { 'NetworkInfo': {'name': 'str', 'type': 'NetworkType', '*vlan_id': 'int', '*peer': 'str'} }
 [ 'query-network', {}, {}, ['NetworkInfo'] ]
 
-{ 'TapInfo': {'fd': 'int', 'vhost_enabled': 'bool', 'vnet_hdr_enabled': 'bool', 'ufo_enabled': 'bool', '*down_script': 'str', '*down_script_arg': 'str'} }
+{ 'TapInfo': {'fd': 'int', 'vhost_enabled': 'bool',
+              'vnet_hdr_enabled': 'bool', 'ufo_enabled': 'bool',
+              '*down_script': 'str', '*down_script_arg': 'str'} }
 [ 'query-tap', {'id': 'str'}, {}, 'TapInfo' ]
+
+{ 'PciMemoryRange': {'base': 'int', 'limit': 'int'} }
+
+{ 'PciMemoryRegion': {'bar': 'int', 'type': 'str', 'address': 'int',
+                      'size': 'int', '*prefetch': 'bool',
+                      '*mem_type_64': 'bool' } }
+
+{ 'PciBridgeInfo': {'bus': { 'number': 'int', 'secondary': 'int',
+                             'subordinate': 'int', 'io_range': 'PciMemoryRange',
+                             'memory_range': 'PciMemoryRange',
+                             'prefetchable_range': 'PciMemoryRange' },
+                    '*devices': ['PciDeviceInfo']} }
+
+{ 'PciDeviceInfo': {'bus': 'int', 'slot': 'int', 'function': 'int',
+                    'class_info': {'*desc': 'str', 'class': 'int'},
+                    'id': {'device': 'int', 'vendor': 'int'},
+                    '*irq': 'int', 'qdev_id': 'str',
+                    '*pci_bridge': 'PciBridgeInfo', 'regions': ['PciMemoryRegion']} }
+
+{ 'PciInfo': {'bus': 'int', 'devices': ['PciDeviceInfo']} }
+[ 'query-pci', {}, {}, ['PciInfo'] ]
+
+#[ 'balloon', {'value': 'int'}, {}, 'none' ]
+#[ 'set_link', {'name': 'str', 'up': 'bool'}, {}, 'none' ]
+#[ 'set_password', {'protocol': 'str', 'password': 'str'}, {'connected': 'str'}, 'none' ]
+#[ 'expire_password', {'protocol': 'str', 'time': 'str'}, {}, 'none' ]
 
 #[ 'migrate', {'uri': 'str'}, {'blk': 'bool', 'inc': 'bool'}, 'none' ]
 #[ 'migrate_cancel', {}, {}, 'none' ]
 #[ 'migrate_set_speed', {'value': 'int'}, {}, 'none' ]
 #[ 'migrate_set_downtime', {'value': 'number'}, {}, 'none' ]
-#[ 'balloon', {'value': 'int'}, {}, 'none' ]
-#[ 'set_link', {'name': 'str', 'up': 'bool'}, {}, 'none' ]
 #[ 'getfd', {'fdname': 'str'}, {}, 'none' ]
 #[ 'closefd', {'fdname': 'str'}, {}, 'none' ]
-#[ 'set_password', {'protocol': 'str', 'password': 'str'}, {'connected': 'str'}, 'none' ]
-#[ 'expire_password', {'protocol': 'str', 'time': 'str'}, {}, 'none' ]
 #[ 'human-monitor-command', {'command-line': 'str'}, {'cpu-index': 'int'}, 'str' ] 
 #
 #{ 'CommandInfo': {'name': 'str'} }
@@ -451,15 +475,6 @@
 #
 #{ 'ChardevInfo': {'label': 'str', 'filename': 'str'} }
 #[ 'query-chardev', {}, {}, ['ChardevInfo'] ]
-#
-#{ 'PciMemoryRange': {'base': 'int', 'limit': 'int'} }
-#
-#{ 'PciBridge': {'bus': 'int', 'secondary': 'int', 'subordinate': 'int', 'io_range': 'PciMemoryRange', 'memory_range': 'PciMemoryRange', 'prefetchable_range': 'PciMemoryRange', '*devices': ['PciDevice']} }
-#
-#{ 'PciDevice': {'bus': 'int', 'slot': 'int', 'function': 'int', 'class_info': {'*desc': 'str', 'class': 'int'}, 'id': {'device': 'int', 'vendor': 'int'}, '*irq': 'int', 'qdev_id': 'str', '*pci_bridge': 'PciBridge', 'regions': ['PciMemoryRange']} }
-#
-#{ 'PciInfo': {'bus': 'int', 'devices': ['PciDevice']} }
-#[ 'query-pci', {}, {}, ['PciInfo'] ]
 #
 #{ 'KvmInfo': {'enabled': 'bool', 'present': 'bool'} }
 #[ 'query-kvm', {}, {}, 'KvmInfo' ]

@@ -1307,15 +1307,25 @@ void do_pci_info_print(Monitor *mon, const QObject *data)
     }
 }
 
+static const pci_class_desc *get_class_desc(int class)
+{
+    const pci_class_desc *desc;
+
+    desc = pci_class_descriptions;
+    while (desc->desc && class != desc->class) {
+        desc++;
+    }
+
+    return desc;
+}
+
 static QObject *pci_get_dev_class(const PCIDevice *dev)
 {
     int class;
     const pci_class_desc *desc;
 
     class = pci_get_word(dev->config + PCI_CLASS_DEVICE);
-    desc = pci_class_descriptions;
-    while (desc->desc && class != desc->class)
-        desc++;
+    desc = get_class_desc(class);
 
     if (desc->desc) {
         return qobject_from_jsonf("{ 'desc': %s, 'class': %d }",
@@ -1472,6 +1482,163 @@ void do_pci_info(Monitor *mon, QObject **ret_data)
     }
 
     *ret_data = QOBJECT(bus_list);
+}
+
+static PciDeviceInfo *qmp_query_pci_devices(PCIBus *bus, int bus_num);
+
+static PciMemoryRegion *qmp_query_pci_regions(const PCIDevice *dev)
+{
+    int i;
+    PciMemoryRegion *regions_list = NULL;
+
+    for (i = 0; i < PCI_NUM_REGIONS; i++) {
+        const PCIIORegion *r = &dev->io_regions[i];
+        PciMemoryRegion *region;
+
+        if (!r->size) {
+            continue;
+        }
+
+        region = qmp_alloc_pci_memory_region();
+
+        if (r->type & PCI_BASE_ADDRESS_SPACE_IO) {
+            region->type = qemu_strdup("io");
+        } else {
+            region->type = qemu_strdup("memory");
+            region->has_prefetch = true;
+            region->prefetch = !!(r->type & PCI_BASE_ADDRESS_MEM_PREFETCH);
+            region->has_mem_type_64 = true;
+            region->mem_type_64 = !!(r->type & PCI_BASE_ADDRESS_MEM_TYPE_64);
+        }
+
+        region->bar = i;
+        region->address = r->addr;
+        region->size = r->size;
+
+        region->next = regions_list;
+        regions_list = region;
+    }
+
+    return regions_list;
+}
+
+static PciBridgeInfo *qmp_query_pci_bridge(PCIDevice *dev, PCIBus *bus, int bus_num)
+{
+    PciBridgeInfo *info;
+
+    info = qmp_alloc_pci_bridge_info();
+
+    info->bus.number = dev->config[PCI_PRIMARY_BUS];
+    info->bus.secondary = dev->config[PCI_SECONDARY_BUS];
+    info->bus.subordinate = dev->config[PCI_SUBORDINATE_BUS];
+
+    info->bus.io_range = qmp_alloc_pci_memory_range();
+    info->bus.io_range->base = pci_bridge_get_base(dev, PCI_BASE_ADDRESS_SPACE_IO);
+    info->bus.io_range->limit = pci_bridge_get_limit(dev, PCI_BASE_ADDRESS_SPACE_IO);
+
+    info->bus.memory_range = qmp_alloc_pci_memory_range();
+    info->bus.memory_range->base = pci_bridge_get_base(dev, PCI_BASE_ADDRESS_SPACE_MEMORY);
+    info->bus.memory_range->limit = pci_bridge_get_limit(dev, PCI_BASE_ADDRESS_SPACE_MEMORY);
+
+    info->bus.prefetchable_range = qmp_alloc_pci_memory_range();
+    info->bus.prefetchable_range->base = pci_bridge_get_base(dev, PCI_BASE_ADDRESS_MEM_PREFETCH);
+    info->bus.prefetchable_range->limit = pci_bridge_get_limit(dev, PCI_BASE_ADDRESS_MEM_PREFETCH);
+
+    if (dev->config[PCI_SECONDARY_BUS] != 0) {
+        PCIBus *child_bus = pci_find_bus(bus, dev->config[PCI_SECONDARY_BUS]);
+
+        if (child_bus) {
+            info->has_devices = true;
+            info->devices = qmp_query_pci_devices(child_bus, dev->config[PCI_SECONDARY_BUS]);
+        }
+    }
+
+    return info;
+}
+
+static PciDeviceInfo *qmp_query_pci_device(PCIDevice *dev, PCIBus *bus, int bus_num)
+{
+    uint8_t type;
+    PciDeviceInfo *info;
+    int class;
+    const pci_class_desc *desc;
+
+    info = qmp_alloc_pci_device_info();
+    info->bus = bus_num;
+    info->slot = PCI_SLOT(dev->devfn);
+    info->function = PCI_FUNC(dev->devfn);
+    class = pci_get_word(dev->config + PCI_CLASS_DEVICE);
+    info->class_info.class = class;
+    desc = get_class_desc(class);
+    if (desc->desc) {
+        info->class_info.has_desc = true;
+        info->class_info.desc = qemu_strdup(desc->desc);
+    }
+    info->id.vendor = pci_get_word(dev->config + PCI_VENDOR_ID);
+    info->id.device = pci_get_word(dev->config + PCI_DEVICE_ID);
+    info->regions = qmp_query_pci_regions(dev);
+    info->qdev_id = dev->qdev.id ? dev->qdev.id : "";
+
+    if (dev->config[PCI_INTERRUPT_PIN] != 0) {
+        info->has_irq = true;
+        info->irq = dev->config[PCI_INTERRUPT_LINE];
+    }
+
+    type = dev->config[PCI_HEADER_TYPE] & ~PCI_HEADER_TYPE_MULTI_FUNCTION;
+    if (type == PCI_HEADER_TYPE_BRIDGE) {
+        info->has_pci_bridge = true;
+        info->pci_bridge = qmp_query_pci_bridge(dev, bus, bus_num);
+    }
+
+    return info;
+}
+
+static PciDeviceInfo *qmp_query_pci_devices(PCIBus *bus, int bus_num)
+{
+    int devfn;
+    PCIDevice *dev;
+    PciDeviceInfo *dev_list = NULL;
+
+    for (devfn = 0; devfn < ARRAY_SIZE(bus->devices); devfn++) {
+        dev = bus->devices[devfn];
+        if (dev) {
+            PciDeviceInfo *info = qmp_query_pci_device(dev, bus, bus_num);
+            info->next = dev_list;
+            dev_list = info;
+        }
+    }
+
+    return dev_list;
+}
+
+static PciInfo *qmp_query_pci_bus(PCIBus *bus, int bus_num)
+{
+    PciInfo *info = NULL;
+
+    bus = pci_find_bus(bus, bus_num);
+    if (bus) {
+        info = qmp_alloc_pci_info();
+        info->bus = bus_num;
+        info->devices = qmp_query_pci_devices(bus, bus_num);
+    }
+
+    return info;
+}
+
+PciInfo *qmp_query_pci(Error **errp)
+{
+    PciInfo *bus_list = NULL;
+    struct PCIHostBus *host;
+
+    QLIST_FOREACH(host, &host_buses, next) {
+        PciInfo *info = qmp_query_pci_bus(host->bus, 0);
+        if (info) {
+            info->next = bus_list;
+            bus_list = info;
+        }
+    }
+
+    return bus_list;
 }
 
 static const char * const pci_nic_models[] = {
