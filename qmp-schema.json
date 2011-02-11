@@ -3,6 +3,8 @@
 
 { 'VirtioNetTxStrategy': ['bh', 'timer'] }
 
+{ 'GuestInfo': {'*name': 'str', '*pid': 'int'} }
+
 ##
 # @quit:
 #

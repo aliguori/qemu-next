@@ -10,6 +10,7 @@ void qmp_init_chardev(CharDriverState *chr);
 
 typedef struct QmpUnixServer QmpUnixServer;
 QmpUnixServer *qmp_unix_server_new(const char *path);
+void qmp_unix_server_delete(QmpUnixServer *path);
 
 char *qobject_as_string(QObject *obj);
 

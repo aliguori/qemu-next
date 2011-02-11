@@ -1876,6 +1876,48 @@ static void qemu_run_machine_init_done_notifiers(void)
     notifier_list_notify(&machine_init_done_notifiers);
 }
 
+typedef struct DefaultQmpSession
+{
+    char path[4096];
+    Notifier notify;
+    QmpUnixServer *srv;
+} DefaultQmpSession;
+
+static void cleanup_default_qmp_session(Notifier *notify)
+{
+    DefaultQmpSession *s = container_of(notify, DefaultQmpSession, notify);
+    qmp_unix_server_delete(s->srv);
+    qemu_free(s);
+}
+
+static void qemu_default_qmp_session(void)
+{
+    DefaultQmpSession *s = qemu_mallocz(sizeof(*s));
+    char *home = getenv("HOME");
+
+    if (home) { 
+        snprintf(s->path, sizeof(s->path), "%s/.qemu", home);
+        mkdir(s->path, 0755);
+
+        if (qemu_name) {
+            snprintf(s->path, sizeof(s->path), "%s/.qemu/name-%s.sock",
+                     home, qemu_name);
+        } else {
+            snprintf(s->path, sizeof(s->path), "%s/.qemu/pid-%d.sock",
+                     home, getpid());
+        }
+        s->srv = qmp_unix_server_new(s->path);
+        if (s->srv == NULL) {
+            fprintf(stderr, "VM already exists with this name\n");
+            exit(1);
+        }
+        s->notify.notify = cleanup_default_qmp_session;
+        qemu_add_exit_notifier(&s->notify);
+    } else {
+        qemu_free(s);
+    }
+}
+
 static const QEMUOption *lookup_opt(int argc, char **argv,
                                     const char **poptarg, int *poptind)
 {
@@ -3099,16 +3141,11 @@ int main(int argc, char **argv, char **envp)
     }
 #endif
 
-#if 0
     if (qmp2_chardev) {
         CharDriverState *chr = qemu_chr_find(qmp2_chardev);
         qmp_init_chardev(chr);
     }
-#else
-    if (qmp2_chardev) {
-        qmp_unix_server_new(qmp2_chardev);
-    }
-#endif
+    qemu_default_qmp_session();
 
     /* display setup */
     dpy_resize(ds);

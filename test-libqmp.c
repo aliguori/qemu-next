@@ -46,19 +46,16 @@ static void qemu_img(const char *fmt, ...)
 
 static pid_t last_qemu_pid = -1;
 
-//#define QMP2_CHARDEV
-#define QMP2_UNIX
+#define QMP2_CHARDEV
+//#define QMP2_UNIX
 //#define QMP_NORMAL
 
 static QmpSession *qemu(const char *fmt, ...)
 {
     char buffer0[4096];
     char buffer1[4096];
-    const char *filename = "foo.sock";
     const char *pid_filename = "/tmp/test-libqmp-qemu.pid";
-    struct sockaddr_un addr;
     va_list ap;
-    int s;
     int ret;
     
     va_start(ap, fmt);
@@ -68,29 +65,13 @@ static QmpSession *qemu(const char *fmt, ...)
     snprintf(buffer1, sizeof(buffer1),
              "i386-softmmu/qemu "
              "-enable-kvm "  // glib series breaks TCG
-#if defined(QMP2_CHARDEV)
-             "-qmp2 qmp "
-             "-chardev socket,id=qmp,path=\"%s\",server=on,wait=off "
-#elif defined(QMP2_UNIX)
-             "-qmp2 \"%s\" "
-#elif defined(QMP_NORMAL)
-             "-qmp unix:\"%s\",server,nowait "
-#endif
+             "-name test-libqmp "
              "-vnc none "
              "-daemonize "
              "-pidfile %s "
-             "%s", filename, pid_filename, buffer0);
+             "%s", pid_filename, buffer0);
     g_test_message("Executing %s\n", buffer1);
     ret = system(buffer1);
-    g_assert(ret != -1);
-
-    s = socket(PF_UNIX, SOCK_STREAM, 0);
-    g_assert(s != -1);
-
-    addr.sun_family = AF_UNIX;
-    snprintf(addr.sun_path, sizeof(addr.sun_path), "%s", filename);
-
-    ret = connect(s, (struct sockaddr *)&addr, sizeof(addr));
     g_assert(ret != -1);
 
     {
@@ -109,7 +90,7 @@ static QmpSession *qemu(const char *fmt, ...)
         last_qemu_pid = atoi(buffer);
     }
 
-    return qmp_session_new(s);
+    return libqmp_session_new_name("test-libqmp");
 }
 
 static void wait_for_pid_exit(pid_t pid)

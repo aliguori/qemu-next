@@ -158,6 +158,7 @@ void qmp_init_chardev(CharDriverState *chr)
 struct QmpUnixServer
 {
     int fd;
+    char path[4096];
 };
 
 typedef struct QmpUnixSession
@@ -340,11 +341,99 @@ static void qmp_unix_server_read_event(void *opaque)
     qmp_unix_session_send_greeting(sess);
 }
 
+void qmp_unix_server_delete(QmpUnixServer *srv)
+{
+    // FIXME delete all sessions
+    close(srv->fd);
+    unlink(srv->path);
+    qemu_free(srv);
+}
+
+/**
+ * There is some magic here to enforce uniqueness.  With a unix domain socket,
+ * bind() has the nice property that it fails if the name exists.  This means
+ * you can treat bind() as an atomic operation to ensure that you don't have
+ * two instances squash each other.
+ *
+ * Unfortunately, the file name sticks around even after the associated file
+ * descriptor goes away.  That means that if a QEMU instance crashes, there may
+ * be an orphan socket name floating around.
+ *
+ * Normally, the way to handle this is to just unlink() before binding but
+ * this creates both a race condition and makes it possible for one QEMU
+ * instance to squash another.
+ *
+ * The solution is as follows:
+ *
+ *  1) Try to bind() to the path
+ *
+ *  2) If the address is in use, determine if there is still a server running
+ *     by attempting to connect to it.
+ *
+ *  3) If noone is listening on the socket, open a file and take an advisory
+ *     lock on the file.
+ *
+ *  4) While holding the lock, unlink and bind() to the path name.  Once bound,
+ *     release the lock.
+ *
+ * This still races.  Perhaps we should hold the lock file before ever
+ * attempting to bind.
+ */
 QmpUnixServer *qmp_unix_server_new(const char *path)
 {
     QmpUnixServer *s = qemu_mallocz(sizeof(*s));
+    struct sockaddr_un addr;
+    int ret;
 
-    s->fd = unix_listen(path, NULL, 0);
+    addr.sun_family = AF_UNIX;
+    snprintf(addr.sun_path, sizeof(addr.sun_path), "%s", path);
+    snprintf(s->path, sizeof(s->path), "%s", path);
+
+    s->fd = socket(PF_UNIX, SOCK_STREAM, 0);
+    g_assert(s->fd != -1);
+
+    ret = bind(s->fd, (struct sockaddr *)&addr, sizeof(addr));
+    if (ret == -1 && errno == EADDRINUSE) {
+        int c;
+
+        c = socket(PF_UNIX, SOCK_STREAM, 0);
+        g_assert(c != -1);
+
+        ret = connect(c, (struct sockaddr *)&addr, sizeof(addr));
+        if (ret == 0) {
+            close(s->fd);
+            close(c);
+            qemu_free(s);
+            errno = EADDRINUSE;
+            return NULL;
+        }
+        if (ret == -1 && errno == ECONNREFUSED) {
+            char lock_path[4096];
+            int fd;
+
+            snprintf(lock_path, sizeof(lock_path), "%s.lock", path);
+
+            fd = open(lock_path, O_RDWR | O_CREAT, 0644);
+            g_assert(fd != -1);
+
+            ret = lockf(fd, F_TLOCK, 0);
+            g_assert(ret != -1);
+            
+            unlink(path);
+            ret = bind(s->fd, (struct sockaddr *)&addr, sizeof(addr));
+
+            close(fd);
+            unlink(lock_path);
+        } else {
+            printf("unknown error: %m\n");
+        }
+        close(c);
+    }
+    g_assert(ret != -1);
+
+    ret = listen(s->fd, 1);
+    g_assert(ret != -1);
+
     socket_set_nonblock(s->fd);
     qemu_set_fd_handler(s->fd, qmp_unix_server_read_event, NULL, s);
     return s;
