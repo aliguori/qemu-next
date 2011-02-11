@@ -3,6 +3,8 @@
 #include "json-lexer.h"
 #include "json-parser.h"
 #include "json-streamer.h"
+#include "qemu_socket.h"
+#include <glib.h>
 
 typedef struct QmpCommand
 {
@@ -151,6 +153,201 @@ void qmp_init_chardev(CharDriverState *chr)
 
     qemu_chr_add_handlers(chr, qmp_chr_can_receive, qmp_chr_receive,
                           qmp_chr_event, s);
+}
+
+struct QmpUnixServer
+{
+    int fd;
+};
+
+typedef struct QmpUnixSession
+{
+    int fd;
+    GString *tx;
+    bool notify_write;
+    JSONMessageParser parser;
+} QmpUnixSession;
+
+static void qmp_unix_session_try_write(QmpUnixSession *sess);
+
+static void qmp_unix_session_delete(QmpUnixSession *sess)
+{
+    qemu_set_fd_handler(sess->fd, NULL, NULL, NULL);
+    close(sess->fd);
+    g_string_free(sess->tx, TRUE);
+    qemu_free(sess);
+}
+
+static void qmp_unix_session_read_event(void *opaque)
+{
+    QmpUnixSession *sess = opaque;
+    char buffer[1024];
+    ssize_t len;
+
+    do {
+        len = read(sess->fd, buffer, sizeof(buffer));
+    } while (len == -1 && errno == EINTR);
+
+    if (len == -1 && errno == EAGAIN) {
+        return;
+    }
+
+    if (len < 1) {
+        qmp_unix_session_delete(sess);
+        return;
+    }
+
+    json_message_parser_feed(&sess->parser, buffer, len);
+}
+
+static void qmp_unix_session_write_event(void *opaque)
+{
+    QmpUnixSession *sess = opaque;
+    qmp_unix_session_try_write(sess);
+}
+
+static void qmp_unix_session_update_handlers(QmpUnixSession *sess)
+{
+    if (sess->notify_write) {
+        qemu_set_fd_handler(sess->fd, qmp_unix_session_read_event,
+                            qmp_unix_session_write_event, sess);
+    } else {
+        qemu_set_fd_handler(sess->fd, qmp_unix_session_read_event,
+                            NULL, sess);
+    }
+}
+
+static void qmp_unix_session_try_write(QmpUnixSession *sess)
+{
+    ssize_t len;
+
+    sess->notify_write = false;
+    qmp_unix_session_update_handlers(sess);
+
+    if (sess->tx->len == 0) {
+        return;
+    }
+    
+    do {
+        len = write(sess->fd, sess->tx->str, sess->tx->len);
+    } while (len == -1 && errno == EINTR);
+
+    if (len == -1 && errno == EAGAIN) {
+        sess->notify_write = true;
+        qmp_unix_session_update_handlers(sess);
+        return;
+    }
+
+    if (len < 1) {
+        qmp_unix_session_delete(sess);
+        return;
+    }
+
+    memmove(sess->tx->str, sess->tx->str + len, sess->tx->len - len);
+    g_string_truncate(sess->tx, sess->tx->len - len);
+}
+
+static void qmp_unix_session_send(QmpUnixSession *sess, const QObject *obj)
+{
+    QString *str;
+
+    str = qobject_to_json(obj);
+    g_string_append(sess->tx, qstring_get_str(str));
+    QDECREF(str);
+
+    qmp_unix_session_try_write(sess);
+}
+
+static void qmp_unix_session_send_greeting(QmpUnixSession *sess)
+{
+    QObject *vers, *greeting;
+    VersionInfo *info;
+
+    info = qmp_query_version(NULL);
+    vers = qmp_marshal_type_VersionInfo(info);
+    qmp_free_version_info(info);
+
+    greeting = qobject_from_jsonf("{'QMP': {'version': %p, 'capabilities': []} }",
+                                  vers);
+    qmp_unix_session_send(sess, greeting);
+    qobject_decref(greeting);
+}
+
+static void qmp_unix_session_parse(JSONMessageParser *parser, QList *tokens)
+{
+    QmpUnixSession *sess = container_of(parser, QmpUnixSession, parser);
+    QObject *request, *ret = NULL;
+    QDict *dict, *args;
+    QmpCommand *cmd;
+    Error *err = NULL;
+    QDict *rsp;
+
+    request = json_parser_parse(tokens, NULL);
+    if (qobject_type(request) != QTYPE_QDICT) {
+        return;
+    }
+
+    dict = qobject_to_qdict(request);
+    if (!qdict_haskey(dict, "execute")) {
+        return;
+    }
+
+    cmd = qmp_find_command(qdict_get_str(dict, "execute"));
+    if (cmd == NULL) {
+        return;
+    }
+
+    if (!qdict_haskey(dict, "arguments")) {
+        args = qdict_new();
+    } else {
+        args = qdict_get_qdict(dict, "arguments");
+    }
+
+    cmd->fn(args, &ret, &err);
+
+    qobject_decref(request);
+    rsp = qdict_new();
+
+    if (err) {
+        qdict_put_obj(rsp, "error", error_get_qobject(err));
+        error_free(err);
+    } else {
+        if (ret) {
+            qdict_put_obj(rsp, "return", ret);
+        } else {
+            qdict_put(rsp, "return", qdict_new());
+        }
+    }
+
+    qmp_unix_session_send(sess, QOBJECT(rsp));
+
+    QDECREF(rsp);
+}
+
+static void qmp_unix_server_read_event(void *opaque)
+{
+    QmpUnixServer *s = opaque;
+    QmpUnixSession *sess = qemu_mallocz(sizeof(*sess));
+    struct sockaddr_un addr;
+    socklen_t addrlen = sizeof(addr);
+
+    sess->fd = accept(s->fd, (struct sockaddr *)&addr, &addrlen);
+    sess->tx = g_string_new("");
+    sess->notify_write = false;
+    json_message_parser_init(&sess->parser, qmp_unix_session_parse);
+    qmp_unix_session_update_handlers(sess);
+
+    qmp_unix_session_send_greeting(sess);
+}
+
+QmpUnixServer *qmp_unix_server_new(const char *path)
+{
+    QmpUnixServer *s = qemu_mallocz(sizeof(*s));
+
+    s->fd = unix_listen(path, NULL, 0);
+    socket_set_nonblock(s->fd);
+    qemu_set_fd_handler(s->fd, qmp_unix_server_read_event, NULL, s);
+    return s;
 }
 
 char *qobject_as_string(QObject *obj)

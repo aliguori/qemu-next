@@ -3099,10 +3099,16 @@ int main(int argc, char **argv, char **envp)
     }
 #endif
 
+#if 0
     if (qmp2_chardev) {
         CharDriverState *chr = qemu_chr_find(qmp2_chardev);
         qmp_init_chardev(chr);
     }
+#else
+    if (qmp2_chardev) {
+        qmp_unix_server_new(qmp2_chardev);
+    }
+#endif
 
     /* display setup */
     dpy_resize(ds);

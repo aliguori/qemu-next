@@ -597,7 +597,7 @@ int unix_listen(const char *str, char *ostr, int olen)
     QemuOpts *opts;
     char *path, *optstr;
     int sock, len;
-    Error *err;
+    Error *err = NULL;
 
     opts = qemu_opts_create(&dummy_opts, NULL, 0, &err);
     if (err) {

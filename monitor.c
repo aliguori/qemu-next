@@ -1239,6 +1239,58 @@ static int set_password(Monitor *mon, const QDict *qdict, QObject **ret_data)
     return -1;
 }
 
+void qmp_set_password(const char *password, const char *protocol,
+                      bool has_connected, const char *connected, Error **errp)
+{
+    int disconnect_if_connected = 0;
+    int fail_if_connected = 0;
+    int rc;
+
+    if (has_connected) {
+        if (strcmp(connected, "fail") == 0) {
+            fail_if_connected = 1;
+        } else if (strcmp(connected, "disconnect") == 0) {
+            disconnect_if_connected = 1;
+        } else if (strcmp(connected, "keep") == 0) {
+            /* nothing */
+        } else {
+            error_set(errp, QERR_INVALID_PARAMETER, "connected");
+            return;
+        }
+    }
+
+    if (strcmp(protocol, "spice") == 0) {
+        if (!using_spice) {
+            /* correct one? spice isn't a device ,,, */
+            error_set(errp, QERR_DEVICE_NOT_ACTIVE, "spice");
+            return;
+        }
+        rc = qemu_spice_set_passwd(password, fail_if_connected,
+                                   disconnect_if_connected);
+        if (rc != 0) {
+            error_set(errp, QERR_SET_PASSWD_FAILED);
+        }
+        return;
+    }
+
+    if (strcmp(protocol, "vnc") == 0) {
+        if (fail_if_connected || disconnect_if_connected) {
+            /* vnc supports "connected=keep" only */
+            error_set(errp, QERR_INVALID_PARAMETER, "connected");
+            return;
+        }
+        /* Note that setting an empty password will not disable login through
+         * this interface. */
+        rc = vnc_display_password(NULL, password);
+        if (rc != 0) {
+            error_set(errp, QERR_SET_PASSWD_FAILED);
+        }
+        return;
+    }
+
+    error_set(errp, QERR_INVALID_PARAMETER, "protocol");
+}
+
 static int expire_password(Monitor *mon, const QDict *qdict, QObject **ret_data)
 {
     const char *protocol  = qdict_get_str(qdict, "protocol");
@@ -1281,6 +1333,46 @@ static int expire_password(Monitor *mon, const QDict *qdict, QObject **ret_data)
 
     qerror_report(QERR_INVALID_PARAMETER, "protocol");
     return -1;
+}
+
+void qmp_expire_password(const char *protocol, const char *whenstr,
+                         Error **errp)
+{
+    time_t when;
+    int rc;
+
+    if (strcmp(whenstr, "now")) {
+        when = 0;
+    } else if (strcmp(whenstr, "never")) {
+        when = TIME_MAX;
+    } else if (whenstr[0] == '+') {
+        when = time(NULL) + strtoull(whenstr+1, NULL, 10);
+    } else {
+        when = strtoull(whenstr, NULL, 10);
+    }
+
+    if (strcmp(protocol, "spice") == 0) {
+        if (!using_spice) {
+            /* correct one? spice isn't a device ,,, */
+            error_set(errp, QERR_DEVICE_NOT_ACTIVE, "spice");
+            return;
+        }
+        rc = qemu_spice_set_pw_expire(when);
+        if (rc != 0) {
+            error_set(errp, QERR_SET_PASSWD_FAILED);
+        }
+        return;
+    }
+
+    if (strcmp(protocol, "vnc") == 0) {
+        rc = vnc_display_pw_expire(NULL, when);
+        if (rc != 0) {
+            error_set(errp, QERR_SET_PASSWD_FAILED);
+        }
+        return;
+    }
+
+    error_set(errp, QERR_INVALID_PARAMETER, "protocol");
 }
 
 static int do_screen_dump(Monitor *mon, const QDict *qdict, QObject **ret_data)
@@ -2651,6 +2743,16 @@ static void do_info_kvm(Monitor *mon, QObject **ret_data)
 #else
     *ret_data = qobject_from_jsonf("{ 'enabled': false, 'present': false }");
 #endif
+}
+
+KvmInfo *qmp_query_kvm(Error **errp)
+{
+    KvmInfo *info = qmp_alloc_kvm_info();
+    info->enabled = kvm_enabled();
+#ifdef CONFIG_KVM
+    info->present = true;
+#endif
+    return info;
 }
 
 static void do_info_numa(Monitor *mon)

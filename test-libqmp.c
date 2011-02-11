@@ -46,6 +46,10 @@ static void qemu_img(const char *fmt, ...)
 
 static pid_t last_qemu_pid = -1;
 
+//#define QMP2_CHARDEV
+#define QMP2_UNIX
+//#define QMP_NORMAL
+
 static QmpSession *qemu(const char *fmt, ...)
 {
     char buffer0[4096];
@@ -64,10 +68,12 @@ static QmpSession *qemu(const char *fmt, ...)
     snprintf(buffer1, sizeof(buffer1),
              "i386-softmmu/qemu "
              "-enable-kvm "  // glib series breaks TCG
-#if 1
+#if defined(QMP2_CHARDEV)
              "-qmp2 qmp "
              "-chardev socket,id=qmp,path=\"%s\",server=on,wait=off "
-#else
+#elif defined(QMP2_UNIX)
+             "-qmp2 \"%s\" "
+#elif defined(QMP_NORMAL)
              "-qmp unix:\"%s\",server,nowait "
 #endif
              "-vnc none "
