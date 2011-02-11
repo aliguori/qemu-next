@@ -464,7 +464,7 @@
 
 [ 'balloon', {'value': 'int'}, {}, 'none' ]
 
-#[ 'set_link', {'name': 'str', 'up': 'bool'}, {}, 'none' ]
+[ 'set_link', {'name': 'str', 'up': 'bool'}, {}, 'none' ]
 #[ 'set_password', {'protocol': 'str', 'password': 'str'}, {'connected': 'str'}, 'none' ]
 #[ 'expire_password', {'protocol': 'str', 'time': 'str'}, {}, 'none' ]
 

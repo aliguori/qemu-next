@@ -1447,6 +1447,33 @@ done:
     return 0;
 }
 
+void qmp_set_link(const char *name, bool up, Error **errp)
+{
+    VLANState *vlan;
+    VLANClientState *vc = NULL;
+
+    QTAILQ_FOREACH(vlan, &vlans, next) {
+        QTAILQ_FOREACH(vc, &vlan->clients, next) {
+            if (strcmp(vc->name, name) == 0) {
+                goto done;
+            }
+        }
+    }
+    vc = qemu_find_netdev(name);
+done:
+
+    if (!vc) {
+        error_set(errp, QERR_DEVICE_NOT_FOUND, name);
+        return;
+    }
+
+    vc->link_down = !up;
+
+    if (vc->info->link_status_changed) {
+        vc->info->link_status_changed(vc);
+    }
+}
+
 void net_cleanup(void)
 {
     VLANState *vlan;
