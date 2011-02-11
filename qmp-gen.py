@@ -522,7 +522,7 @@ def print_metatype_undef(typeinfo, name, lhs, indent=0):
         inprint('    QLIST_FOREACH_ENTRY(qmp__list, %s) {' % objname, indent)
         inprint('        %s qmp__node = %s(%s->value);' % (qmp_type_to_c(typeinfo[0]), qmp_type_from_qobj(typeinfo[0]), objname), indent)
         inprint('        qmp__node->next = %s;' % lhs, indent)
-        inprint('        %s = qmp__node->next;' % lhs, indent)
+        inprint('        %s = qmp__node;' % lhs, indent)
         inprint('    }', indent)
         inprint('}', indent)
 

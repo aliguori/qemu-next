@@ -937,6 +937,43 @@ static void test_query_tap(void)
     qemu_destroy(sess);
 }
 
+static void test_query_pci(void)
+{
+    QmpSession *sess;
+    Error *err = NULL;
+    PciInfo *pci_busses, *info;
+
+    sess = qemu("-S -device virtio-balloon-pci,id=foo");
+    pci_busses = libqmp_query_pci(sess, &err);
+    g_assert_noerr(err);
+
+    for (info = pci_busses; info; info = info->next) {
+        PciDeviceInfo *dev;
+
+        printf("PCI bus: %ld\n", info->bus);
+        for (dev = info->devices; dev; dev = dev->next) {
+            printf(" device: %ld.%ld\n", dev->slot, dev->function);
+            printf("  id: %s\n", dev->qdev_id);
+            if (dev->has_irq) {
+                printf("  irq: %ld\n", dev->irq);
+            }
+            if (dev->class_info.has_desc) {
+                printf("  class: %s\n", dev->class_info.desc);
+            }
+            if (dev->has_pci_bridge) {
+                printf("   bridge: true\n");
+            }
+            printf("  vendor: 0x%04lx\n", dev->id.vendor);
+            printf("  device: 0x%04lx\n", dev->id.device);
+        }
+    }
+
+    qmp_free_pci_info(pci_busses);
+
+    libqmp_quit(sess, NULL);
+    qemu_destroy(sess);
+}
+
 int main(int argc, char **argv)
 {
     g_test_init(&argc, &argv, NULL);
@@ -961,6 +998,7 @@ int main(int argc, char **argv)
     g_test_add_func("/0.14/device-add/nic", test_device_add_nic);
     g_test_add_func("/0.14/device-del/err/id", test_device_del_bad_id);
     g_test_add_func("/0.14/device-del/nic", test_device_del_nic);
+    g_test_add_func("/0.14/pci/query", test_query_pci);
 
     g_test_add_func("/0.15/vnc/change", test_vnc_change);
     g_test_add_func("/0.15/block/change/encrypted",
