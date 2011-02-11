@@ -418,17 +418,20 @@
 [ 'system_powerdown' , {}, {}, 'none' ]
 
 [ 'cpu', {'index': 'int'}, {}, 'none' ]
-{ 'CpuInfo': {'CPU': 'int', 'current': 'bool', 'halted': 'bool', '*pc': 'int', '*nip': 'int', '*npc': 'int', '*PC': 'int'} }
+{ 'CpuInfo': {'CPU': 'int', 'current': 'bool', 'halted': 'bool', '*pc': 'int',
+              '*nip': 'int', '*npc': 'int', '*PC': 'int'} }
 [ 'query-cpus', {}, {}, ['CpuInfo'] ]
 
-[ 'memsave', {'val': 'int', 'size': 'int', 'filename': 'str'}, {'cpu': 'int'}, 'none' ]
+[ 'memsave', {'val': 'int', 'size': 'int', 'filename': 'str'},
+  {'cpu': 'int'}, 'none' ]
 [ 'pmemsave', {'val': 'int', 'size': 'int', 'filename': 'str'}, {}, 'none' ]
 
 [ 'netdev_add', {'type': 'str', 'id': 'str'}, {'opts': '**'}, 'none' ]
 [ 'netdev_del', {'id': 'str'}, {}, 'none' ]
 
 { 'NetworkType': ['none', 'nic', 'slirp', 'tap', 'socket', 'vde', 'dump'] }
-{ 'NetworkInfo': {'name': 'str', 'type': 'NetworkType', '*vlan_id': 'int', '*peer': 'str'} }
+{ 'NetworkInfo': {'name': 'str', 'type': 'NetworkType',
+                  '*vlan_id': 'int', '*peer': 'str'} }
 [ 'query-network', {}, {}, ['NetworkInfo'] ]
 
 { 'TapInfo': {'fd': 'int', 'vhost_enabled': 'bool',
@@ -443,7 +446,8 @@
                       '*mem_type_64': 'bool' } }
 
 { 'PciBridgeInfo': {'bus': { 'number': 'int', 'secondary': 'int',
-                             'subordinate': 'int', 'io_range': 'PciMemoryRange',
+                             'subordinate': 'int',
+                             'io_range': 'PciMemoryRange',
                              'memory_range': 'PciMemoryRange',
                              'prefetchable_range': 'PciMemoryRange' },
                     '*devices': ['PciDeviceInfo']} }
@@ -452,12 +456,14 @@
                     'class_info': {'*desc': 'str', 'class': 'int'},
                     'id': {'device': 'int', 'vendor': 'int'},
                     '*irq': 'int', 'qdev_id': 'str',
-                    '*pci_bridge': 'PciBridgeInfo', 'regions': ['PciMemoryRegion']} }
+                    '*pci_bridge': 'PciBridgeInfo',
+                    'regions': ['PciMemoryRegion']} }
 
 { 'PciInfo': {'bus': 'int', 'devices': ['PciDeviceInfo']} }
 [ 'query-pci', {}, {}, ['PciInfo'] ]
 
-#[ 'balloon', {'value': 'int'}, {}, 'none' ]
+[ 'balloon', {'value': 'int'}, {}, 'none' ]
+
 #[ 'set_link', {'name': 'str', 'up': 'bool'}, {}, 'none' ]
 #[ 'set_password', {'protocol': 'str', 'password': 'str'}, {'connected': 'str'}, 'none' ]
 #[ 'expire_password', {'protocol': 'str', 'time': 'str'}, {}, 'none' ]

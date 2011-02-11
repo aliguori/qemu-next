@@ -146,3 +146,18 @@ int do_balloon(Monitor *mon, const QDict *params,
     cb(opaque, NULL);
     return 0;
 }
+
+void qmp_balloon(int64_t value, Error **errp)
+{
+    int ret;
+
+    if (kvm_enabled() && !kvm_has_sync_mmu()) {
+        error_set(errp, QERR_KVM_MISSING_CAP, "synchronous MMU", "balloon");
+        return;
+    }
+
+    ret = qemu_balloon(value, NULL, NULL);
+    if (ret == 0) {
+        error_set(errp, QERR_DEVICE_NOT_ACTIVE, "balloon");
+    }
+}
