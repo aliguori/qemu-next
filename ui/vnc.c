@@ -355,6 +355,96 @@ void do_info_vnc(Monitor *mon, QObject **ret_data)
     }
 }
 
+static VncClientInfo *qmp_query_vnc_client(VncState *client)
+{
+    VncClientInfo *info;
+    struct sockaddr_storage sa;
+    socklen_t salen = sizeof(sa);
+    char host[NI_MAXHOST];
+    char serv[NI_MAXSERV];
+
+    if (getpeername(client->csock, (struct sockaddr *)&sa, &salen) < 0) {
+        return NULL;
+    }
+
+    if (getnameinfo((struct sockaddr *)&sa, salen,
+                    host, sizeof(host),
+                    serv, sizeof(serv),
+                    NI_NUMERICHOST | NI_NUMERICSERV) < 0) {
+        return NULL;
+    }
+
+    info = qmp_alloc_vnc_client_info();
+    info->host = qemu_strdup(host);
+    info->service = qemu_strdup(serv);
+    info->family = qemu_strdup(inet_strfamily(sa.ss_family));
+#ifdef CONFIG_VNC_TLS
+    if (client->tls.session && client->tls.dname) {
+        info->has_x509_dname = true;
+        info->x509_dname = qemu_strdup(client->tls.dname);
+    }
+#endif
+#ifdef CONFIG_VNC_SASL
+    if (client->sasl.conn && client->sasl.username) {
+        info->has_sasl_username = true;
+        info->sasl_username = qemu_strdup(client->sasl.username);
+    }
+#endif
+
+    return info;
+}
+
+VncInfo *qmp_query_vnc(Error **errp)
+{
+    VncInfo *info = qmp_alloc_vnc_info();
+
+    if (vnc_display == NULL || vnc_display->display == NULL) {
+        info->enabled = false;
+    } else {
+        VncState *client;
+        struct sockaddr_storage sa;
+        socklen_t salen = sizeof(sa);
+        char host[NI_MAXHOST];
+        char serv[NI_MAXSERV];
+
+        info->enabled = true;
+        info->has_clients = true;
+
+        QTAILQ_FOREACH(client, &vnc_display->clients, next) {
+            VncClientInfo *cinfo = qmp_query_vnc_client(client);
+            cinfo->next = info->clients;
+            info->clients = cinfo;
+        }
+
+        if (getsockname(vnc_display->lsock, (struct sockaddr *)&sa, &salen) == -1) {
+            error_set(errp, QERR_UNDEFINED_ERROR);
+            qmp_free_vnc_info(info);
+            return NULL;
+        }
+
+        if (getnameinfo((struct sockaddr *)&sa, salen,
+                        host, sizeof(host),
+                        serv, sizeof(serv),
+                        NI_NUMERICHOST | NI_NUMERICSERV) < 0) {
+            error_set(errp, QERR_UNDEFINED_ERROR);
+            qmp_free_vnc_info(info);
+            return NULL;
+        }
+
+        info->has_host = true;
+        info->host = qemu_strdup(host);
+        info->has_service = true;
+        info->service = qemu_strdup(serv);
+        info->has_family = true;
+        info->family = qemu_strdup(inet_strfamily(sa.ss_family));
+
+        info->has_auth = true;
+        info->auth = qemu_strdup(vnc_auth_name(vnc_display));
+    }
+
+    return info;
+}
+
 /* TODO
    1) Get the queue working for IO.
    2) there is some weirdness when using the -S option (the screen is grey

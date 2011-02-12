@@ -480,11 +480,11 @@
                 'absolute': 'bool'} }
 [ 'query-mice', {}, {}, ['MouseInfo'] ]
 
-#{ 'VncClientInfo': {'host': 'str', 'family': 'str', 'service': 'str', '*x509_dname': 'str', '*sasl_username': 'str'} }
-#{ 'VncInfo': {'enabled': 'bool', 'host': 'str', 'family': 'str', 'service': 'str', 'auth': 'str', 'clients': ['VncClientInfo']} }
-#
-#[ 'query-vnc', {}, {}, 'VncInfo' ]
-#
+{ 'VncClientInfo': {'host': 'str', 'family': 'str', 'service': 'str', '*x509_dname': 'str', '*sasl_username': 'str'} }
+{ 'VncInfo': {'enabled': 'bool', '*host': 'str', '*family': 'str', '*service': 'str', '*auth': 'str', '*clients': ['VncClientInfo']} }
+
+[ 'query-vnc', {}, {}, 'VncInfo' ]
+
 
 
 #[ 'migrate', {'uri': 'str'}, {'blk': 'bool', 'inc': 'bool'}, 'none' ]
