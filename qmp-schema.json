@@ -473,6 +473,20 @@
 { 'KvmInfo': {'enabled': 'bool', 'present': 'bool'} }
 [ 'query-kvm', {}, {}, 'KvmInfo' ]
 
+#{ 'ChardevInfo': {'label': 'str', 'filename': 'str'} }
+#[ 'query-chardev', {}, {}, ['ChardevInfo'] ]
+
+{ 'MouseInfo': {'name': 'str', 'index': 'int', 'current': 'bool',
+                'absolute': 'bool'} }
+[ 'query-mice', {}, {}, ['MouseInfo'] ]
+
+#{ 'VncClientInfo': {'host': 'str', 'family': 'str', 'service': 'str', '*x509_dname': 'str', '*sasl_username': 'str'} }
+#{ 'VncInfo': {'enabled': 'bool', 'host': 'str', 'family': 'str', 'service': 'str', 'auth': 'str', 'clients': ['VncClientInfo']} }
+#
+#[ 'query-vnc', {}, {}, 'VncInfo' ]
+#
+
+
 #[ 'migrate', {'uri': 'str'}, {'blk': 'bool', 'inc': 'bool'}, 'none' ]
 #[ 'migrate_cancel', {}, {}, 'none' ]
 #[ 'migrate_set_speed', {'value': 'int'}, {}, 'none' ]
@@ -483,17 +497,6 @@
 #
 #{ 'CommandInfo': {'name': 'str'} }
 #[ 'query-commands', {}, {}, ['CommandInfo'] ]
-#
-#{ 'ChardevInfo': {'label': 'str', 'filename': 'str'} }
-#[ 'query-chardev', {}, {}, ['ChardevInfo'] ]
-#
-#{ 'MouseInfo': {'name': 'str', 'index': 'int', 'current': 'bool', 'absolute': 'bool'} }
-#[ 'query-mice', {}, {}, ['MouseInfo'] ]
-#
-#{ 'VncClientInfo': {'host': 'str', 'family': 'str', 'service': 'str', '*x509_dname': 'str', '*sasl_username': 'str'} }
-#{ 'VncInfo': {'enabled': 'bool', 'host': 'str', 'family': 'str', 'service': 'str', 'auth': 'str', 'clients': ['VncClientInfo']} }
-#
-#[ 'query-vnc', {}, {}, 'VncInfo' ]
 #
 #{ 'SpiceChannel': {'host': 'str', 'family': 'str', 'port': 'str', 'connection-id': 'int', 'channel-type': 'int', 'channel-id': 'int', 'tls': 'bool'} }
 #{ 'SpiceInfo': {'enabled': 'bool', 'host': 'str', '*port': 'int', '*tls-port': 'int', 'auth': 'str', 'channels': ['SpiceChannel']} }

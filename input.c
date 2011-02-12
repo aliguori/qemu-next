@@ -251,6 +251,29 @@ out:
     *ret_data = QOBJECT(mice_list);
 }
 
+MouseInfo *qmp_query_mice(Error **errp)
+{
+    QEMUPutMouseEntry *cursor;
+    MouseInfo *mice_list = NULL;
+    bool current = true;
+
+    QTAILQ_FOREACH(cursor, &mouse_handlers, node) {
+        MouseInfo *info = qmp_alloc_mouse_info();
+
+        info->name = qemu_strdup(cursor->qemu_put_mouse_event_name);
+        info->index = cursor->index;
+        info->current = current;
+        info->absolute = !!cursor->qemu_put_mouse_event_absolute;
+
+        current = false;
+
+        info->next = mice_list;
+        mice_list = info;
+    }
+
+    return mice_list;
+}
+
 void do_mouse_set(Monitor *mon, const QDict *qdict)
 {
     QEMUPutMouseEntry *cursor;
