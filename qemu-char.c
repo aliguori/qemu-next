@@ -2605,6 +2605,23 @@ void qemu_chr_info(Monitor *mon, QObject **ret_data)
     *ret_data = QOBJECT(chr_list);
 }
 
+ChardevInfo *qmp_query_chardev(Error **errp)
+{
+    ChardevInfo *chr_list = NULL;
+    CharDriverState *chr;
+
+    QTAILQ_FOREACH(chr, &chardevs, next) {
+        ChardevInfo *info = qmp_alloc_chardev_info();
+        info->label = qemu_strdup(chr->label);
+        info->filename = qemu_strdup(chr->filename);
+
+        info->next = chr_list;
+        chr_list = info;
+    }
+
+    return chr_list;
+}
+
 CharDriverState *qemu_chr_find(const char *name)
 {
     CharDriverState *chr;

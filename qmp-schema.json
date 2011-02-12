@@ -473,8 +473,8 @@
 { 'KvmInfo': {'enabled': 'bool', 'present': 'bool'} }
 [ 'query-kvm', {}, {}, 'KvmInfo' ]
 
-#{ 'ChardevInfo': {'label': 'str', 'filename': 'str'} }
-#[ 'query-chardev', {}, {}, ['ChardevInfo'] ]
+{ 'ChardevInfo': {'label': 'str', 'filename': 'str'} }
+[ 'query-chardev', {}, {}, ['ChardevInfo'] ]
 
 { 'MouseInfo': {'name': 'str', 'index': 'int', 'current': 'bool',
                 'absolute': 'bool'} }
