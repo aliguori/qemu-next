@@ -72,7 +72,7 @@ defconfig:
 
 -include config-all-devices.mak
 
-TOOLS += test-libqmp
+TOOLS += test-libqmp qsh
 
 build-all: $(DOCS) $(TOOLS) recurse-all
 
@@ -214,12 +214,14 @@ check-qlist: check-qlist.o qlist.o qint.o $(CHECK_PROG_DEPS)
 check-qfloat: check-qfloat.o qfloat.o $(CHECK_PROG_DEPS)
 check-qjson: check-qjson.o qfloat.o qint.o qdict.o qstring.o qlist.o qbool.o qjson.o json-streamer.o json-lexer.o json-parser.o $(CHECK_PROG_DEPS)
 
-LIBQMP_OBJS := qmp-types.o libqmp.o error.o libqmp-core.o
+LIBQMP_OBJS := qmp-types.o qmp-types-core.o libqmp.o error.o libqmp-core.o
 LIBQMP_OBJS += qfloat.o qint.o qdict.o qstring.o qlist.o qbool.o qjson.o
 LIBQMP_OBJS += json-streamer.o json-lexer.o json-parser.o
 LIBQMP_OBJS += $(oslib-obj-y) $(trace-obj-y) qemu-malloc.o
 
 test-libqmp: test-libqmp.o $(LIBQMP_OBJS) ui/d3des.o
+
+qsh: qsh.o $(LIBQMP_OBJS)
 
 clean:
 # avoid old build problems by removing potentially incorrect old files
