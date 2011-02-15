@@ -92,7 +92,7 @@ def print_lib_definition(name, required, optional, retval):
 
     if retval != 'none':
         print '    QObject *qmp__retval = NULL;'
-        print '    %s qmp__native_retval = 0;' % (qmp_type_to_c(retval))
+        print '    %s qmp__native_retval = 0;' % (qmp_type_to_c(retval, True))
     print
 
     for key in required:

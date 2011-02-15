@@ -542,6 +542,47 @@ out:
     return ret;
 }
 
+char *qmp_human_monitor_command(const char *command_line, bool has_cpu_index,
+                                int64_t cpu_index, Error **errp)
+{
+    char *output = NULL;
+    Monitor *old_mon, hmp;
+    CharDriverState mchar;
+
+    memset(&hmp, 0, sizeof(hmp));
+    qemu_chr_init_mem(&mchar);
+    hmp.chr = &mchar;
+
+    old_mon = cur_mon;
+    cur_mon = &hmp;
+
+    if (has_cpu_index) {
+        int ret;
+        ret = mon_set_cpu(cpu_index);
+        if (ret < 0) {
+            cur_mon = old_mon;
+            error_set(errp, QERR_INVALID_PARAMETER_VALUE, "cpu-index",
+                      "a CPU number");
+            goto out;
+        }
+    }
+
+    handle_user_command(&hmp, command_line);
+
+    if (qemu_chr_mem_osize(hmp.chr) > 0) {
+        QString *str = qemu_chr_mem_to_qs(hmp.chr);
+        output = qemu_strdup(qstring_get_str(str));
+        QDECREF(str);
+    } else {
+        output = qemu_strdup("");
+    }
+
+out:
+    cur_mon = old_mon;
+    qemu_chr_close_mem(hmp.chr);
+    return output;
+}
+
 static int compare_cmd(const char *name, const char *list)
 {
     const char *p, *pstart;
@@ -794,6 +835,18 @@ static void do_info_name(Monitor *mon, QObject **ret_data)
                             qobject_from_jsonf("{}");
 }
 
+NameInfo *qmp_query_name(Error **errp)
+{
+    NameInfo *info = qmp_alloc_name_info();
+
+    if (qemu_name) {
+        info->has_name = true;
+        info->name = qemu_strdup(qemu_name);
+    }
+
+    return info;
+}
+
 static QObject *get_cmd_dict(const char *name)
 {
     const char *p;
@@ -844,6 +897,21 @@ static void do_info_uuid(Monitor *mon, QObject **ret_data)
                    qemu_uuid[10], qemu_uuid[11], qemu_uuid[12], qemu_uuid[13],
                    qemu_uuid[14], qemu_uuid[15]);
     *ret_data = qobject_from_jsonf("{ 'UUID': %s }", uuid);
+}
+
+UuidInfo *qmp_query_uuid(Error **errp)
+{
+    UuidInfo *info = qmp_alloc_uuid_info();
+    char uuid[64];
+
+    snprintf(uuid, sizeof(uuid), UUID_FMT, qemu_uuid[0], qemu_uuid[1],
+                   qemu_uuid[2], qemu_uuid[3], qemu_uuid[4], qemu_uuid[5],
+                   qemu_uuid[6], qemu_uuid[7], qemu_uuid[8], qemu_uuid[9],
+                   qemu_uuid[10], qemu_uuid[11], qemu_uuid[12], qemu_uuid[13],
+                   qemu_uuid[14], qemu_uuid[15]);
+
+    info->UUID = qemu_strdup(uuid);
+    return info;
 }
 
 /* get the current CPU defined by the user */

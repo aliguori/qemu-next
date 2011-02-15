@@ -1,10 +1,6 @@
 # *-*- Mode: Python -*-*
 ### 0.14.0 commands.  Do not modify. ###
 
-{ 'VirtioNetTxStrategy': ['bh', 'timer'] }
-
-{ 'GuestInfo': {'*name': 'str', '*pid': 'int'} }
-
 ##
 # @quit:
 #
@@ -175,77 +171,6 @@
 ##
 [ 'screendump', {'filename': 'str'}, {}, 'none' ]
 
-# 0.15.0 commands.  These can be changed up until the next release
-
-##
-# @change-blockdev:
-#
-# This is the preferred interface for changing a block device.
-#
-# @device:   The block device name.
-#
-# @filename: The new filename for the block device.  This may contain options
-#            encoded in a format specified by @format.
-#
-# @format:   #optional The format to use open the block device
-#
-# @password: #optional The password to use if the block device is encrypted
-#
-# Returns:  Nothing on success.
-#          If @device is not a valid block device, DeviceNotFound
-#          If @format is not a valid block format, InvalidBlockFormat
-#          If @filename is encrypted and @password isn't supplied,
-#            DeviceEncrypted.  The call should be repeated with @password
-#            supplied.
-#          If @format is not specified and @filename is a format that cannot
-#            be safely probed, MissingParameter.
-#          If @filename cannot be opened, OpenFileFailed
-#
-# Since: 0.15.0
-##
-[ 'change-blockdev', {'device': 'str', 'filename': 'str'},
-  {'format': 'str', 'password': 'str'}, 'none' ]
-
-##
-# @set-blockdev-password:
-#
-# Alias for @block_passwd.
-#
-# @device:   see @block_passwd
-# @password: see @block_passwd
-#
-# Since: 0.15.0
-##
-[ 'set-blockdev-password', {'device': 'str', 'password': 'str'}, {}, 'none' ]
-
-##
-# @change-vnc-listen:
-#
-# Change the host that the VNC server listens on.
-#
-# @target:  the new server specification to listen on
-#
-# Since: 0.15.0
-#
-# Notes:  At this moment in time, the behavior of existing client connections
-#         when this command is executed is undefined.
-##
-[ 'change-vnc-listen', {'target': 'str'}, {}, 'none' ]
-
-##
-# @change-vnc-password:
-#
-# Change the VNC server password.
-#
-# @target:  the new password to use with VNC authentication
-#
-# Since: 0.15.0
-#
-# Notes:  An empty password in this command will set the password to the empty
-#         string.  Existing clients are unaffected by executing this command.
-##
-[ 'change-vnc-password', {'password': 'str'}, {}, 'none' ]
-
 ##
 # @stop:
 #
@@ -410,12 +335,153 @@
 ##
 [ 'query-blockstats', {}, {}, ['BlockStats'] ]
 
+##
+# @VncClientInfo:
+#
+# Information about all currently connected VNC clients.
+#
+# @host: The host name of the client.  QEMU tries to resolve this to a DNS name
+#        when possible.
+#
+# @family: `ipv6' if the client is connected via IPv6 and TCP
+#          `ipv4' if the client is connected via IPv4 and TCP
+#          `unix' if the client is connected via a unix domain socket
+#          `unknown' otherwise
+#
+# @service: The service name of the client's port.  This may depends on the
+#           host system's service database so symbolic names should not be
+#           relied on.
+#
+# @x509_dname: #optional If x509 authentication is in use, the Distinguished
+#              Name of the client.
+#
+# @sasl_username: #optional If SASL authentication is in use, the SASL username
+#                 used for authentication.
+#
+# Since: 0.14.0
+##
+{ 'VncClientInfo': {'host': 'str', 'family': 'str', 'service': 'str',
+                    '*x509_dname': 'str', '*sasl_username': 'str'} }
+
+##
+# @VncInfo:
+#
+# Information about the VNC session.
+#
+# @enabled: true if the VNC server is enabled, false otherwise
+#
+# @host: #optional The hostname the VNC server is bound to.  This depends on
+#        the name resolution on the host and may be an IP address.
+#
+# @family: #optional `ipv6' if the host is listening for IPv6 connections
+#                    `ipv6' if the host is listening for IPv4 connections
+#                    `unix' if the host is listening on a unix domain socket
+#                    `unknown' otherwise
+#
+# @auth: the current authentication type used by the server
+#        `none' if no authentication is being used
+#        `vnc' if VNC authentication is being used
+#        `vencrypt+plain' if VEncrypt is used with plain text authentication
+#        `vencrypt+tls+none' if VEncrypt is used with TLS and no authentication
+#        `vencrypt+tls+vnc' if VEncrypt is used with TLS and VNC authentication
+#        `vencrypt+tls+plain' if VEncrypt is used with TLS and plain text auth
+#        `vencrypt+x509+none' if VEncrypt is used with x509 and no auth
+#        `vencrypt+x509+vnc' if VEncrypt is used with x509 and VNC auth
+#        `vencrypt+x509+plain' if VEncrypt is used with x509 and plain text auth
+#        `vencrypt+tls+sasl' if VEncrypt is used with TLS and SASL auth
+#        `vencrypt+x509+sasl' if VEncrypt is used with x509 and SASL auth
+#
+# @clients: a list of @VncClientInfo of currently connected clients
+#
+# Since: 0.14.0
+##
+{ 'VncInfo': {'enabled': 'bool', '*host': 'str', '*family': 'str',
+              '*service': 'str', '*auth': 'str',
+              '*clients': ['VncClientInfo']} }
+
+##
+# @query-vnc:
+#
+# Returns information about the current VNC server
+#
+# Returns: @VncInfo
+#
+# Since: 0.14.0
+##
+[ 'query-vnc', {}, {}, 'VncInfo' ]
+
+##
+# @NameInfo:
+#
+# Guest name information.
+#
+# @name: #optional The name of the guest
+#
+# Since 0.14.0
+##
+{ 'NameInfo': {'*name': 'str'} }
+
+##
+# @query-name:
+#
+# Return the name information of a guest.
+#
+# Returns: @NameInfo of the guest
+#
+# Since 0.14.0
+##
+[ 'query-name', {}, {}, 'NameInfo' ]
+
+##
+# @UuidInfo:
+#
+# Guest UUID information.
+#
+# @UUID: the UUID of the guest
+#
+# Since: 0.14.0
+#
+# Notes: If not UUID was specified for the guest, a null UUID is returned.
+##
+{ 'UuidInfo': {'UUID': 'str'} }
+
+##
+# @query-uuid:
+#
+# Query the guest UUID information.
+#
+# Returns: The @UuidInfo for the guest
+#
+# Since 0.14.0
+##
+[ 'query-uuid', {}, {}, 'UuidInfo' ]
+
+##
+# @human-monitor-command:
+#
+# Execute a command on the human monitor and return the output
+#
+# @command-line: the command to execute in the human monitor
+#
+# @cpu-index: #optional The CPU to use for commands that require an implicit CPU
+#
+# Returns: the output of the command as a string
+#
+# Since: 0.14.0
+#
+# Notes: This command only exists as a stop-gap.  It's use is highly
+#        discouraged.  The semantics of this command are not guaranteed.
+##
+[ 'human-monitor-command', {'command-line': 'str'}, {'cpu-index': 'int'},
+  'str' ] 
+
+### Commands that still need docs ###
+
 { 'KeyValues': {'key': 'str', 'value': 'str'} }
 [ 'device_add', {'driver': 'str', 'id': 'str'}, {'opts': '**'}, 'none' ]
 
 [ 'device_del', {'id': 'str'}, {}, 'none' ]
 
-# not really easily testable without a real guest...
 [ 'system_reset' , {}, {}, 'none' ]
 [ 'system_powerdown' , {}, {}, 'none' ]
 
@@ -480,38 +546,109 @@
                 'absolute': 'bool'} }
 [ 'query-mice', {}, {}, ['MouseInfo'] ]
 
-{ 'VncClientInfo': {'host': 'str', 'family': 'str', 'service': 'str', '*x509_dname': 'str', '*sasl_username': 'str'} }
-{ 'VncInfo': {'enabled': 'bool', '*host': 'str', '*family': 'str', '*service': 'str', '*auth': 'str', '*clients': ['VncClientInfo']} }
+# 0.15.0 commands.  These can be changed up until the next release
 
-[ 'query-vnc', {}, {}, 'VncInfo' ]
+##
+# @change-blockdev:
+#
+# This is the preferred interface for changing a block device.
+#
+# @device:   The block device name.
+#
+# @filename: The new filename for the block device.  This may contain options
+#            encoded in a format specified by @format.
+#
+# @format:   #optional The format to use open the block device
+#
+# @password: #optional The password to use if the block device is encrypted
+#
+# Returns:  Nothing on success.
+#          If @device is not a valid block device, DeviceNotFound
+#          If @format is not a valid block format, InvalidBlockFormat
+#          If @filename is encrypted and @password isn't supplied,
+#            DeviceEncrypted.  The call should be repeated with @password
+#            supplied.
+#          If @format is not specified and @filename is a format that cannot
+#            be safely probed, MissingParameter.
+#          If @filename cannot be opened, OpenFileFailed
+#
+# Since: 0.15.0
+##
+[ 'change-blockdev', {'device': 'str', 'filename': 'str'},
+  {'format': 'str', 'password': 'str'}, 'none' ]
 
+##
+# @set-blockdev-password:
+#
+# Alias for @block_passwd.
+#
+# @device:   see @block_passwd
+# @password: see @block_passwd
+#
+# Since: 0.15.0
+##
+[ 'set-blockdev-password', {'device': 'str', 'password': 'str'}, {}, 'none' ]
 
+##
+# @change-vnc-listen:
+#
+# Change the host that the VNC server listens on.
+#
+# @target:  the new server specification to listen on
+#
+# Since: 0.15.0
+#
+# Notes:  At this moment in time, the behavior of existing client connections
+#         when this command is executed is undefined.
+##
+[ 'change-vnc-listen', {'target': 'str'}, {}, 'none' ]
 
+##
+# @change-vnc-password:
+#
+# Change the VNC server password.
+#
+# @target:  the new password to use with VNC authentication
+#
+# Since: 0.15.0
+#
+# Notes:  An empty password in this command will set the password to the empty
+#         string.  Existing clients are unaffected by executing this command.
+##
+[ 'change-vnc-password', {'password': 'str'}, {}, 'none' ]
+
+## Commands that are core to QMP that need some thought
+# make each connection queue all sent fds and then when this
+# command happens, assign a connection a symbolic name.
+#[ 'getfd', {'fdname': 'str'}, {}, 'none' ]
+# close based on symbolic name. symbolic names will be global
+#[ 'closefd', {'fdname': 'str'}, {}, 'none' ]
+
+#
+#{ 'CommandInfo': {'name': 'str'} }
+#[ 'query-commands', {}, {}, ['CommandInfo'] ]
+
+## Migration commands that need a guest to test in a meaningful way
 #[ 'migrate', {'uri': 'str'}, {'blk': 'bool', 'inc': 'bool'}, 'none' ]
 #[ 'migrate_cancel', {}, {}, 'none' ]
 #[ 'migrate_set_speed', {'value': 'int'}, {}, 'none' ]
 #[ 'migrate_set_downtime', {'value': 'number'}, {}, 'none' ]
-#[ 'getfd', {'fdname': 'str'}, {}, 'none' ]
-#[ 'closefd', {'fdname': 'str'}, {}, 'none' ]
-#[ 'human-monitor-command', {'command-line': 'str'}, {'cpu-index': 'int'}, 'str' ] 
-#
-#{ 'CommandInfo': {'name': 'str'} }
-#[ 'query-commands', {}, {}, ['CommandInfo'] ]
-#
-#{ 'SpiceChannel': {'host': 'str', 'family': 'str', 'port': 'str', 'connection-id': 'int', 'channel-type': 'int', 'channel-id': 'int', 'tls': 'bool'} }
-#{ 'SpiceInfo': {'enabled': 'bool', 'host': 'str', '*port': 'int', '*tls-port': 'int', 'auth': 'str', 'channels': ['SpiceChannel']} }
-#[ 'query-spice', {}, {}, 'SpiceInfo' ]
-#
-#{ 'NameInfo': {'name': 'str'} }
-#[ 'query-name', {}, {}, 'NameInfo' ]
-#
-#{ 'UuidInfo': {'UUID': 'str'} }
-#[ 'query-uuid', {}, {}, 'UuidInfo' ]
 #
 #{ 'MigrationStats': {'transferred': 'int', 'remaining': 'int', 'total': 'int' } }
 #{ 'MigrationInfo': {'*status': 'str', '*ram': 'MigrationStats', '*disk': 'MigrationStats'} }
 #[ 'query-migrate', {}, {}, 'MigrationInfo' ]
-#
+
+## Spice commands which I'm not setup yet to test
+#{ 'SpiceChannel': {'host': 'str', 'family': 'str', 'port': 'str', 'connection-id': 'int', 'channel-type': 'int', 'channel-id': 'int', 'tls': 'bool'} }
+#{ 'SpiceInfo': {'enabled': 'bool', 'host': 'str', '*port': 'int', '*tls-port': 'int', 'auth': 'str', 'channels': ['SpiceChannel']} }
+#[ 'query-spice', {}, {}, 'SpiceInfo' ]
+
+## Balloon command which should be easy to implement but we'd never fill the
+# stats in which I'm still not sure about.
 #{ 'BalloonInfo': {'actual': 'int', '*mem_swapped_in': 'int', '*mem_swapped_out': 'int', '*major_page_faults': 'int', '*minor_page_faults': 'int', '*free_mem': 'int', '*total_mem': 'int'} }
 #[ 'query-balloon', {}, {}, 'BalloonInfo' ]
-#
+
+## Internal types ##
+{ 'VirtioNetTxStrategy': ['bh', 'timer'] }
+{ 'GuestInfo': {'*name': 'str', '*pid': 'int'} }
+
