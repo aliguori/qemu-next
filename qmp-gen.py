@@ -549,7 +549,8 @@ void qmp_free_%s(%s *obj)
 
 %s *qmp_alloc_%s(void)
 {
-    return qemu_mallocz(sizeof(%s));
+    (void)sizeof(int[-1+!!(sizeof(%s) < 512)]);
+    return qemu_mallocz(512);
 }''' % (de_camel_case(name), name, name, de_camel_case(name), name)
 
 
