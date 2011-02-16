@@ -37,12 +37,26 @@ static QmpCommand *qmp_find_command(const char *name)
     return NULL;
 }
 
+CommandInfo *qmp_query_commands(Error **errp)
+{
+    CommandInfo *cmd_list = NULL;
+    QmpCommand *cmd;
+
+    QTAILQ_FOREACH(cmd, &qmp_commands, node) {
+        CommandInfo *info = qmp_alloc_command_info();
+        info->name = qemu_strdup(cmd->name);
+        info->next = cmd_list;
+        cmd_list = info;
+    }
+
+    return cmd_list;
+}
+
 typedef struct QmpSession
 {
     JSONMessageParser parser;
     CharDriverState *chr;
 } QmpSession;
-
 
 static void qmp_chr_parse(JSONMessageParser *parser, QList *tokens)
 {

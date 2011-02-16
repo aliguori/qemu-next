@@ -475,6 +475,28 @@
 [ 'human-monitor-command', {'command-line': 'str'}, {'cpu-index': 'int'},
   'str' ] 
 
+##
+# @CommandInfo:
+#
+# Information about a QMP command
+#
+# @name: The command name
+#
+# Since: 0.14.0
+##
+{ 'CommandInfo': {'name': 'str'} }
+
+##
+# @query-commands:
+#
+# Return a list of supported QMP commands by this server
+#
+# Returns: A list of @CommandInfo for all supported commands
+#
+# Since: 0.14.0
+##
+[ 'query-commands', {}, {}, ['CommandInfo'] ]
+
 ### Commands that still need docs ###
 
 { 'KeyValues': {'key': 'str', 'value': 'str'} }
@@ -623,10 +645,6 @@
 #[ 'getfd', {'fdname': 'str'}, {}, 'none' ]
 # close based on symbolic name. symbolic names will be global
 #[ 'closefd', {'fdname': 'str'}, {}, 'none' ]
-
-#
-#{ 'CommandInfo': {'name': 'str'} }
-#[ 'query-commands', {}, {}, ['CommandInfo'] ]
 
 ## Migration commands that need a guest to test in a meaningful way
 #[ 'migrate', {'uri': 'str'}, {'blk': 'bool', 'inc': 'bool'}, 'none' ]
