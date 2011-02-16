@@ -131,8 +131,14 @@ QError *qobject_to_qerror(const QObject *obj);
 #define QERR_KVM_MISSING_CAP \
     "{ 'class': 'KVMMissingCap', 'data': { 'capability': %s, 'feature': %s } }"
 
+#define QERR_MIGRATION_ACTIVE \
+    "{ 'class': 'MigrationActive', 'data': {} }"
+
 #define QERR_MIGRATION_EXPECTED \
     "{ 'class': 'MigrationExpected', 'data': {} }"
+
+#define QERR_MIGRATION_NOT_SUPPORTED \
+    "{ 'class': 'MigrationNotSupported', 'data': {'device': %s} }"
 
 #define QERR_MISSING_PARAMETER \
     "{ 'class': 'MissingParameter', 'data': { 'name': %s } }"

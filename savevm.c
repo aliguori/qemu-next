@@ -1435,6 +1435,19 @@ bool qemu_savevm_state_blocked(Monitor *mon)
     return false;
 }
 
+bool qemu_savevm_can_migrate(Error **errp)
+{
+    SaveStateEntry *se;
+
+    QTAILQ_FOREACH(se, &savevm_handlers, entry) {
+        if (se->no_migrate) {
+            error_set(errp, QERR_MIGRATION_NOT_SUPPORTED, se->idstr);
+            return false;
+        }
+    }
+    return true;
+}
+
 int qemu_savevm_state_begin(Monitor *mon, QEMUFile *f, int blk_enable,
                             int shared)
 {

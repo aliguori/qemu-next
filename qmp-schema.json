@@ -499,6 +499,14 @@
 
 ### Commands that still need docs ###
 
+[ 'migrate', {'uri': 'str'}, {'blk': 'bool', 'inc': 'bool'}, 'none' ]
+[ 'migrate_cancel', {}, {}, 'none' ]
+[ 'migrate_set_speed', {'value': 'int'}, {}, 'none' ]
+[ 'migrate_set_downtime', {'value': 'number'}, {}, 'none' ]
+{ 'MigrationStats': {'transferred': 'int', 'remaining': 'int', 'total': 'int' } }
+{ 'MigrationInfo': {'*status': 'str', '*ram': 'MigrationStats', '*disk': 'MigrationStats'} }
+[ 'query-migrate', {}, {}, 'MigrationInfo' ]
+
 { 'KeyValues': {'key': 'str', 'value': 'str'} }
 [ 'device_add', {'driver': 'str', 'id': 'str'}, {'opts': '**'}, 'none' ]
 
@@ -645,16 +653,6 @@
 #[ 'getfd', {'fdname': 'str'}, {}, 'none' ]
 # close based on symbolic name. symbolic names will be global
 #[ 'closefd', {'fdname': 'str'}, {}, 'none' ]
-
-## Migration commands that need a guest to test in a meaningful way
-#[ 'migrate', {'uri': 'str'}, {'blk': 'bool', 'inc': 'bool'}, 'none' ]
-#[ 'migrate_cancel', {}, {}, 'none' ]
-#[ 'migrate_set_speed', {'value': 'int'}, {}, 'none' ]
-#[ 'migrate_set_downtime', {'value': 'number'}, {}, 'none' ]
-#
-#{ 'MigrationStats': {'transferred': 'int', 'remaining': 'int', 'total': 'int' } }
-#{ 'MigrationInfo': {'*status': 'str', '*ram': 'MigrationStats', '*disk': 'MigrationStats'} }
-#[ 'query-migrate', {}, {}, 'MigrationInfo' ]
 
 ## Spice commands which I'm not setup yet to test
 #{ 'SpiceChannel': {'host': 'str', 'family': 'str', 'port': 'str', 'connection-id': 'int', 'channel-type': 'int', 'channel-id': 'int', 'tls': 'bool'} }

@@ -124,6 +124,53 @@ int do_migrate(Monitor *mon, const QDict *qdict, QObject **ret_data)
     return 0;
 }
 
+void qmp_migrate(const char *uri, bool has_blk, bool blk,
+                 bool has_inc, bool inc, Error **errp)
+{
+    MigrationState *s = NULL;
+    const char *p;
+
+    if (current_migration &&
+        current_migration->get_status(current_migration) == MIG_STATE_ACTIVE) {
+        error_set(errp, QERR_MIGRATION_ACTIVE);
+        return;
+    }
+
+    if (!qemu_savevm_can_migrate(errp)) {
+        return;
+    }
+
+    if (strstart(uri, "tcp:", &p)) {
+        s = tcp_start_outgoing_migration(NULL, p, max_throttle, true,
+                                         blk, inc);
+#if !defined(WIN32)
+    } else if (strstart(uri, "exec:", &p)) {
+        s = exec_start_outgoing_migration(NULL, p, max_throttle, true,
+                                          blk, inc);
+    } else if (strstart(uri, "unix:", &p)) {
+        s = unix_start_outgoing_migration(NULL, p, max_throttle, true,
+                                          blk, inc);
+    } else if (strstart(uri, "fd:", &p)) {
+        s = fd_start_outgoing_migration(NULL, p, max_throttle, true, 
+                                        blk, inc);
+#endif
+    } else {
+        error_set(errp, QERR_INVALID_PARAMETER_VALUE, "uri", "a valid migration protocol");
+        return;
+    }
+
+    if (s == NULL) {
+        error_set(errp, QERR_UNDEFINED_ERROR);
+        return;
+    }
+
+    if (current_migration) {
+        current_migration->release(current_migration);
+    }
+
+    current_migration = s;
+}
+
 int do_migrate_cancel(Monitor *mon, const QDict *qdict, QObject **ret_data)
 {
     MigrationState *s = current_migration;
@@ -132,6 +179,16 @@ int do_migrate_cancel(Monitor *mon, const QDict *qdict, QObject **ret_data)
         s->cancel(s);
 
     return 0;
+}
+
+
+void qmp_migrate_cancel(Error **errp)
+{
+    MigrationState *s = current_migration;
+
+    if (s) {
+        s->cancel(s);
+    }
 }
 
 int do_migrate_set_speed(Monitor *mon, const QDict *qdict, QObject **ret_data)
@@ -151,6 +208,21 @@ int do_migrate_set_speed(Monitor *mon, const QDict *qdict, QObject **ret_data)
     }
 
     return 0;
+}
+
+void qmp_migrate_set_speed(int64_t value, Error **errp)
+{
+    FdMigrationState *s;
+
+    if (value < 0) {
+        value = 0;
+    }
+    max_throttle = value;
+
+    s = migrate_to_fms(current_migration);
+    if (s && s->file) {
+        qemu_file_set_rate_limit(s->file, max_throttle);
+    }
 }
 
 /* amount of nanoseconds we are willing to wait for migration to be down.
@@ -174,6 +246,13 @@ int do_migrate_set_downtime(Monitor *mon, const QDict *qdict,
     max_downtime = (uint64_t)d;
 
     return 0;
+}
+
+void qmp_migrate_set_downtime(double value, Error **errp)
+{
+    value *= 1e9;
+    value = MAX(0, MIN(UINT64_MAX, value));
+    max_downtime = (uint64_t)value;
 }
 
 static void migrate_print_status(Monitor *mon, const char *name,
@@ -253,6 +332,49 @@ void do_info_migrate(Monitor *mon, QObject **ret_data)
             break;
         }
     }
+}
+
+MigrationInfo *qmp_query_migrate(Error **errp)
+{
+    MigrationState *s = current_migration;
+    MigrationInfo *info = qmp_alloc_migration_info();
+
+    if (s) {
+        switch (s->get_status(s)) {
+        case MIG_STATE_ACTIVE:
+            info->has_status = true;
+            info->status = qemu_strdup("active");
+
+            info->has_ram = true;
+            info->ram = qmp_alloc_migration_stats();
+            info->ram->transferred = ram_bytes_transferred();
+            info->ram->remaining = ram_bytes_remaining();
+            info->ram->total = ram_bytes_total();
+
+            if (blk_mig_active()) {
+                info->has_disk = true;
+                info->disk = qmp_alloc_migration_stats();
+                info->disk->transferred = blk_mig_bytes_transferred();
+                info->disk->remaining = blk_mig_bytes_remaining();
+                info->disk->total = blk_mig_bytes_total();
+            }
+            break;
+        case MIG_STATE_COMPLETED:
+            info->has_status = true;
+            info->status = qemu_strdup("completed");
+            break;
+        case MIG_STATE_ERROR:
+            info->has_status = true;
+            info->status = qemu_strdup("failed");
+            break;
+        case MIG_STATE_CANCELLED:
+            info->has_status = true;
+            info->status = qemu_strdup("cancelled");
+            break;
+        }
+    }
+
+    return info;
 }
 
 /* shared migration helpers */
