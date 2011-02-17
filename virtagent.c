@@ -91,10 +91,11 @@ static bool va_has_capability(const char *method)
     return cmp_state.found;
 }
 
-int va_client_init(VAClientData *client_data)
+int va_client_init(VAManager *m, VAClientData *client_data)
 {
     client_data->supported_methods = NULL;
     client_data->enabled = true;
+    client_data->manager = m;
     va_client_data = client_data;
 
     return 0;
@@ -120,11 +121,107 @@ static bool va_is_enabled(void)
     return va_client_data && va_client_data->enabled;
 }
 
+typedef struct VAClientRequest {
+    xmlrpc_mem_block *content;
+    int magic;
+    char tag[64];
+    VAClientCallback *cb;
+    /* for use by QMP functions */
+    MonitorCompletion *mon_cb;
+    void *mon_data;
+    int timeout;
+    QEMUTimer *timer;
+} VAClientRequest;
+
+typedef struct VAClientResponse {
+    void *content;
+    size_t content_len;
+} VAClientResponse;
+
+static void va_client_timeout(void *opaque)
+{
+    VAClientRequest *req = opaque;
+    qemu_del_timer(req->timer);
+    req->timer = NULL;
+    va_client_job_cancel(va_client_data->manager, req->tag);
+}
+
+/* called by xport layer to indicate send completion to VAManager */
+static void va_send_request_cb(const void *opaque)
+{
+    const char *tag = opaque;
+    va_client_job_send_done(va_client_data->manager, tag);
+}
+
+/* called by VAManager to start send, in turn calls out to xport layer */
+static int va_send_request(void *opaque, const char *tag)
+{
+    VAClientRequest *req = opaque;
+    int ret = va_xport_send_request(XMLRPC_MEMBLOCK_CONTENTS(char, req->content),
+                                    XMLRPC_MEMBLOCK_SIZE(char, req->content),
+                                    tag, tag, va_send_request_cb);
+    /* register timeout */
+    if (req->timeout) {
+        req->timer = qemu_new_timer(rt_clock, va_client_timeout, req);
+        qemu_mod_timer(req->timer, qemu_get_clock(rt_clock) + req->timeout);
+    }
+    return ret;
+}
+
+/* called by xport layer to pass response to VAManager */
+void va_client_read_response_done(void *content, size_t content_len, const char *tag)
+{
+    VAClientResponse *resp = qemu_mallocz(sizeof(VAClientResponse));
+    resp->content = content;
+    resp->content_len = content_len;
+    va_client_job_read_done(va_client_data->manager, tag, resp);
+}
+
+/* called by VAManager once RPC response is recieved */
+static int va_callback(void *opaque, void *resp_opaque, const char *tag)
+{
+    VAClientRequest *req = opaque; 
+    VAClientResponse *resp = resp_opaque;
+    TRACE("called");
+    if (req->timer) {
+        qemu_del_timer(req->timer);
+    }
+    if (req->cb) {
+        if (resp) {
+            req->cb(resp->content, resp->content_len, req->mon_cb, req->mon_data);
+        } else {
+            /* RPC did not complete */
+            req->cb(NULL, 0, req->mon_cb, req->mon_data);
+        }
+    }
+    /* TODO: cleanup */
+    if (req) {
+        if (req->content) {
+            XMLRPC_MEMBLOCK_FREE(char, req->content);
+        }
+        qemu_free(req);
+    }
+    if (resp) {
+        if (resp->content) {
+            qemu_free(resp->content);
+        }
+        qemu_free(resp);
+    }
+    return 0;
+}
+
+static VAClientJobOps client_job_ops = {
+    .send = va_send_request,
+    .callback = va_callback,
+};
+
 static int va_do_rpc(xmlrpc_env *const env, const char *function,
                      xmlrpc_value *params, VAClientCallback *cb,
                      MonitorCompletion *mon_cb, void *mon_data)
 {
     xmlrpc_mem_block *req_xml;
+    VAClientRequest *req;
+    struct timeval ts;
     int ret;
 
     if (!va_is_enabled()) {
@@ -145,8 +242,24 @@ static int va_do_rpc(xmlrpc_env *const env, const char *function,
         goto out_free;
     }
 
-    ret = va_client_job_add(req_xml, cb, mon_cb, mon_data);
+    req = qemu_mallocz(sizeof(VAClientRequest));
+    req->content = req_xml;
+    req->cb = cb;
+    req->mon_cb = mon_cb;
+    req->mon_data = mon_data;
+    req->timeout = VA_CLIENT_TIMEOUT_MS;
+    req->magic = 9999;
+    /* TODO: should switch to UUIDs eventually */
+    memset(req->tag, 0, 64);
+    gettimeofday(&ts, NULL);
+    sprintf(req->tag, "%u.%u", (uint32_t)ts.tv_sec, (uint32_t)ts.tv_usec);
+    TRACE("req->content: %p, req->cb: %p, req->mon_cb: %p, req->mon_data: %p",
+          req->content, req->cb, req->mon_cb, req->mon_data);
+
+    ret = va_client_job_add(va_client_data->manager, req->tag, req,
+                            client_job_ops);
     if (ret) {
+        qemu_free(req);
         goto out_free;
     }
 
@@ -545,7 +658,10 @@ static void do_agent_capabilities_cb(const char *resp_data,
     xmlrpc_DECREF(resp);
 out_no_resp:
     if (mon_cb) {
+        TRACE("CALLING MONITOR CALLBACK");
         mon_cb(mon_data, QOBJECT(qlist));
+    } else {
+        TRACE("NOT CALLING MONITOR CALLBACK");
     }
     qobject_decref(QOBJECT(qlist));
 }

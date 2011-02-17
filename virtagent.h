@@ -16,6 +16,7 @@
 #define VIRTAGENT_H
 
 #include "monitor.h"
+#include "virtagent-manager.h"
 
 #define VA_GUEST_PATH_VIRTIO_DEFAULT "/dev/virtio-ports/org.qemu.virtagent"
 #define VA_HOST_PATH_DEFAULT "/tmp/virtagent.sock"
@@ -26,10 +27,13 @@ typedef void (VAClientCallback)(const char *resp_data, size_t resp_data_len,
 typedef struct VAClientData {
     QList *supported_methods;
     bool enabled;
+    VAManager *manager;
 } VAClientData;
 
-int va_client_init(VAClientData *client_data);
+int va_client_init(VAManager *m, VAClientData *client_data);
 int va_client_close(void);
+void va_client_read_response_done(void *content, size_t content_len,
+                                  const char *tag);
 void do_agent_viewfile_print(Monitor *mon, const QObject *qobject);
 int do_agent_viewfile(Monitor *mon, const QDict *mon_params,
                       MonitorCompletion cb, void *opaque);
