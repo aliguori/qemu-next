@@ -283,10 +283,16 @@ static bool va_server_is_enabled(void)
     return va_server_data && va_server_data->enabled;
 }
 
-int va_do_server_rpc(const char *content, size_t content_len, const char *tag)
-{
+typedef struct VARequestData {
+    void *content;
+    size_t content_len;
     xmlrpc_mem_block *resp_xml;
-    int ret;
+} VARequestData;
+
+static int va_do_server_rpc(VARequestData *d, const char *tag)
+//int va_do_server_rpc(const char *content, size_t content_len, const char *tag)
+{
+    int ret = 0;
 
     TRACE("called");
 
@@ -294,19 +300,24 @@ int va_do_server_rpc(const char *content, size_t content_len, const char *tag)
         ret = -EBUSY;
         goto out;
     }
-    resp_xml = xmlrpc_registry_process_call(&va_server_data->env,
+    d->resp_xml = xmlrpc_registry_process_call(&va_server_data->env,
                                             va_server_data->registry,
-                                            NULL, content, content_len);
-    if (resp_xml == NULL) {
+                                            NULL, d->content, d->content_len);
+    if (d->resp_xml == NULL) {
         LOG("error processing RPC request");
         ret = -EINVAL;
         goto out;
     }
 
+    /* TODO: we need a way to pass resp back */
+
+    va_server_job_execute_done(va_server_data->manager, tag);
+    /*
     ret = va_server_job_add(resp_xml, tag);
     if (ret != 0) {
         LOG("error adding server job: %s", strerror(ret));
     }
+    */
 
 out:
     return ret;
@@ -323,7 +334,7 @@ static void va_register_functions(xmlrpc_env *env, xmlrpc_registry *registry,
     }
 }
 
-int va_server_init(VAServerData *server_data, bool is_host)
+int va_server_init(VAManager *m, VAServerData *server_data, bool is_host)
 {
     RPCFunction *func_list = is_host ? host_functions : guest_functions;
 
@@ -333,6 +344,7 @@ int va_server_init(VAServerData *server_data, bool is_host)
     va_register_functions(&server_data->env, server_data->registry, func_list);
     server_data->enabled = true;
     server_data->is_host = true;
+    server_data->manager = m;
     va_server_data = server_data;
 
     return 0;
@@ -345,5 +357,72 @@ int va_server_close(void)
         xmlrpc_env_clean(&va_server_data->env);
         va_server_data = NULL;
     }
+    return 0;
+}
+
+/*
+typedef struct VAServerResponse {
+    xmlrpc_mem_block *content;
+} VAServerResponse;
+*/
+
+/* called by VAManager to start executing the RPC */
+static int va_execute(void *opaque, const char *tag)
+{
+    VARequestData *d = opaque;
+    //int ret = va_do_server_rpc(d->content, d->content_len, tag);
+    int ret = va_do_server_rpc(d, tag);
+    if (ret) {
+        LOG("error occurred executing RPC: %s", strerror(ret));
+    }
+
+    return ret;
+}
+
+/* called by xport layer to indicate send completion to VAManager */
+static void va_send_response_cb(const void *opaque)
+{
+    const char *tag = opaque;
+    va_server_job_send_done(va_server_data->manager, tag);
+}
+
+/* called by VAManager to start send, in turn calls out to xport layer */
+static int va_send_response(void *opaque, const char *tag)
+{
+    VARequestData *d = opaque;
+    int ret = va_xport_send_response(XMLRPC_MEMBLOCK_CONTENTS(char, d->resp_xml),
+                                     XMLRPC_MEMBLOCK_SIZE(char, d->resp_xml),
+                                     tag, tag, va_send_response_cb);
+    return ret;
+}
+
+static int va_cleanup(void *opaque, const char *tag)
+{
+    VARequestData *d = opaque;
+    if (d) {
+        if (d->content) {
+            qemu_free(d->content);
+        }
+        if (d->resp_xml) {
+            XMLRPC_MEMBLOCK_FREE(char, d->resp_xml);
+        }
+        qemu_free(d);
+    }
+    return 0;
+}
+
+static VAServerJobOps server_job_ops = {
+    .execute = va_execute,
+    .send = va_send_response,
+    .callback = va_cleanup,
+};
+
+/* create server jobs from requests read from xport layer */
+int va_server_job_create(char *content, size_t content_len, const char *tag)
+{
+    VARequestData *d = qemu_mallocz(sizeof(VAServerData));
+    d->content = content;
+    d->content_len = content_len;
+    va_server_job_add(va_server_data->manager, tag, d, server_job_ops);
     return 0;
 }

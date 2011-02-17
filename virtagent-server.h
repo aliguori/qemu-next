@@ -13,6 +13,7 @@
 
 #include <xmlrpc-c/base.h>
 #include <xmlrpc-c/server.h>
+#include "virtagent-manager.h"
 
 #define GUEST_AGENT_SERVICE_ID "virtagent"
 #define GUEST_AGENT_PATH "/tmp/virtagent-guest.sock"
@@ -27,8 +28,10 @@ typedef struct VAServerData {
     xmlrpc_registry *registry;
     bool enabled;
     bool is_host;
+    VAManager *manager;
 } VAServerData;
 
-int va_server_init(VAServerData *server_data, bool is_host);
+int va_server_init(VAManager *m, VAServerData *server_data, bool is_host);
 int va_server_close(void);
-int va_do_server_rpc(const char *content, size_t content_len, const char tag[64]);
+//int va_do_server_rpc(const char *content, size_t content_len, const char tag[64]);
+int va_server_job_create(char *content, size_t content_len, const char *tag);
