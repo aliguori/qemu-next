@@ -185,7 +185,7 @@ endif #CONFIG_BSD_USER
 # System emulator target
 ifdef CONFIG_SOFTMMU
 
-obj-y = arch_init.o cpus.o monitor.o machine.o gdbstub.o balloon.o virtagent.o virtagent-server.o virtagent-common.o
+obj-y = arch_init.o cpus.o monitor.o machine.o gdbstub.o balloon.o virtagent.o virtagent-server.o virtagent-common.o virtagent-transport.o virtagent-manager.o
 # virtio has to be here due to weird dependency between PCI and virtio-net.
 # need to fix this properly
 obj-$(CONFIG_VIRTIO) += virtio-blk.o virtio-balloon.o virtio-net.o virtio-serial-bus.o
