@@ -22,6 +22,7 @@
 #include "qemu_socket.h"
 #include "qemu-timer.h"
 #include "monitor.h"
+#include "virtagent-manager.h"
 #include "virtagent-server.h"
 #include "virtagent.h"
 
@@ -61,6 +62,21 @@ typedef struct VAContext {
     const char *channel_path;
 } VAContext;
 
+typedef struct VAState {
+    bool is_host;
+    const char *channel_method;
+    const char *channel_path;
+    int fd;
+    QEMUTimer *client_timer;
+    QEMUTimer *server_timer;
+    VAClientData client_data;
+    VAServerData server_data;
+    int client_job_count;
+    int client_jobs_in_flight;
+    int server_job_count;
+    VAManager *manager;
+} VAState;
+
 enum va_job_status {
     VA_JOB_STATUS_PENDING = 0,
     VA_JOB_STATUS_OK,
@@ -68,8 +84,13 @@ enum va_job_status {
     VA_JOB_STATUS_CANCELLED,
 };
 
+typedef void (VAHTSendCallback)(const void *opaque);
+
 int va_init(VAContext ctx);
-int va_client_job_add(xmlrpc_mem_block *req_xml, VAClientCallback *cb,
-                      MonitorCompletion *mon_cb, void *mon_data);
-int va_server_job_add(xmlrpc_mem_block *resp_xml, const char client_tag[64]);
+void va_process_jobs(void);
+int va_xport_send_response(void *content, size_t content_len, const char *tag,
+                           const void *opaque, VAHTSendCallback cb);
+int va_xport_send_request(void *content, size_t content_len, const char *tag,
+                          const void *opaque, VAHTSendCallback cb);
+void va_http_read_handler(void *opaque);
 #endif /* VIRTAGENT_COMMON_H */
