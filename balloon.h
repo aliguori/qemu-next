@@ -16,18 +16,18 @@
 
 #include "monitor.h"
 
-typedef void (QEMUBalloonEvent)(void *opaque, ram_addr_t target,
-                                MonitorCompletion cb, void *cb_data);
-
+typedef void (QEMUBalloonEvent)(void *opaque, ram_addr_t target);
 void qemu_add_balloon_handler(QEMUBalloonEvent *func, void *opaque);
 
-int qemu_balloon(ram_addr_t target, MonitorCompletion cb, void *opaque);
+typedef void (QEMUBalloonStatsFunc)(void *opaque, BalloonInfo *info);
 
-int qemu_balloon_status(MonitorCompletion cb, void *opaque);
+void qemu_add_balloon_stats_handler(QEMUBalloonStatsFunc *func, void *opaque);
+
+int qemu_balloon(ram_addr_t target);
+int qemu_balloon_stats(BalloonInfo *info);
 
 void monitor_print_balloon(Monitor *mon, const QObject *data);
-int do_info_balloon(Monitor *mon, MonitorCompletion cb, void *opaque);
-int do_balloon(Monitor *mon, const QDict *params,
-               MonitorCompletion cb, void *opaque);
+void do_info_balloon(Monitor *mon, QObject **ret_data);
+int do_balloon(Monitor *mon, const QDict *params, QObject **ret_data);
 
 #endif

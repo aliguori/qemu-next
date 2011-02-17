@@ -3449,7 +3449,7 @@ static const mon_cmd_t info_cmds[] = {
         .params     = "",
         .help       = "show balloon information",
         .user_print = monitor_print_balloon,
-        .mhandler.info_async = do_info_balloon,
+        .mhandler.info_new = do_info_balloon,
         .flags      = MONITOR_CMD_ASYNC,
     },
     {
@@ -3628,7 +3628,7 @@ static const mon_cmd_t qmp_query_cmds[] = {
         .params     = "",
         .help       = "show balloon information",
         .user_print = monitor_print_balloon,
-        .mhandler.info_async = do_info_balloon,
+        .mhandler.info_new = do_info_balloon,
         .flags      = MONITOR_CMD_ASYNC,
     },
     { /* NULL */ },

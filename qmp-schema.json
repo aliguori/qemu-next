@@ -499,6 +499,13 @@
 
 ### Commands that still need docs ###
 
+{ 'BalloonInfo': {'actual': 'int', '*mem_swapped_in': 'int',
+                  '*mem_swapped_out': 'int', '*major_page_faults': 'int',
+                  '*minor_page_faults': 'int', '*free_mem': 'int',
+                  '*total_mem': 'int'} }
+#[ 'query-balloon', {}, {}, 'BalloonInfo' ]
+#[ 'balloon', {'value': 'int'}, {}, 'none' ]
+
 [ 'migrate', {'uri': 'str'}, {'blk': 'bool', 'inc': 'bool'}, 'none' ]
 [ 'migrate_cancel', {}, {}, 'none' ]
 [ 'migrate_set_speed', {'value': 'int'}, {}, 'none' ]
@@ -559,8 +566,6 @@
 
 { 'PciInfo': {'bus': 'int', 'devices': ['PciDeviceInfo']} }
 [ 'query-pci', {}, {}, ['PciInfo'] ]
-
-[ 'balloon', {'value': 'int'}, {}, 'none' ]
 
 [ 'set_link', {'name': 'str', 'up': 'bool'}, {}, 'none' ]
 [ 'set_password', {'protocol': 'str', 'password': 'str'}, {'connected': 'str'}, 'none' ]
@@ -658,11 +663,6 @@
 #{ 'SpiceChannel': {'host': 'str', 'family': 'str', 'port': 'str', 'connection-id': 'int', 'channel-type': 'int', 'channel-id': 'int', 'tls': 'bool'} }
 #{ 'SpiceInfo': {'enabled': 'bool', 'host': 'str', '*port': 'int', '*tls-port': 'int', 'auth': 'str', 'channels': ['SpiceChannel']} }
 #[ 'query-spice', {}, {}, 'SpiceInfo' ]
-
-## Balloon command which should be easy to implement but we'd never fill the
-# stats in which I'm still not sure about.
-#{ 'BalloonInfo': {'actual': 'int', '*mem_swapped_in': 'int', '*mem_swapped_out': 'int', '*major_page_faults': 'int', '*minor_page_faults': 'int', '*free_mem': 'int', '*total_mem': 'int'} }
-#[ 'query-balloon', {}, {}, 'BalloonInfo' ]
 
 ## Internal types ##
 { 'VirtioNetTxStrategy': ['bh', 'timer'] }
