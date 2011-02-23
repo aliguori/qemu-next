@@ -138,6 +138,26 @@ void do_info_balloon(Monitor *mon, QObject **ret_data)
     *ret_data = QOBJECT(stats);
 }
 
+BalloonInfo *qmp_query_balloon(Error **errp)
+{
+    BalloonInfo *info;
+
+    if (kvm_enabled() && !kvm_has_sync_mmu()) {
+        qerror_report(QERR_KVM_MISSING_CAP, "synchronous MMU", "balloon");
+        return NULL;
+    }
+
+    info = qmp_alloc_balloon_info();
+
+    if (qemu_balloon_stats(info) == 0) {
+        qerror_report(QERR_DEVICE_NOT_ACTIVE, "balloon");
+        qmp_free_balloon_info(info);
+        return NULL;
+    }
+
+    return info;
+}
+
 /**
  * do_balloon(): Request VM to change its memory allocation
  */
@@ -157,5 +177,14 @@ int do_balloon(Monitor *mon, const QDict *params, QObject **ret_data)
     }
 
     return 0;
+}
+
+void qmp_balloon(int64_t value, Error **errp)
+{
+    if (kvm_enabled() && !kvm_has_sync_mmu()) {
+        error_set(errp, QERR_KVM_MISSING_CAP, "synchronous MMU", "balloon");
+    } else if (qemu_balloon(value) == 0) {
+        error_set(errp, QERR_DEVICE_NOT_ACTIVE, "balloon");
+    }
 }
 

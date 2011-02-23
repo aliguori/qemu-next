@@ -503,8 +503,8 @@
                   '*mem_swapped_out': 'int', '*major_page_faults': 'int',
                   '*minor_page_faults': 'int', '*free_mem': 'int',
                   '*total_mem': 'int'} }
-#[ 'query-balloon', {}, {}, 'BalloonInfo' ]
-#[ 'balloon', {'value': 'int'}, {}, 'none' ]
+[ 'query-balloon', {}, {}, 'BalloonInfo' ]
+[ 'balloon', {'value': 'int'}, {}, 'none' ]
 
 [ 'migrate', {'uri': 'str'}, {'blk': 'bool', 'inc': 'bool'}, 'none' ]
 [ 'migrate_cancel', {}, {}, 'none' ]
