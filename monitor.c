@@ -195,6 +195,13 @@ static const mon_cmd_t info_cmds[];
 static const mon_cmd_t qmp_cmds[];
 static const mon_cmd_t qmp_query_cmds[];
 
+int hmp_quit(Monitor *mon, const QDict *qdict, QObject **ret_data);
+int hmp_eject(Monitor *mon, const QDict *qdict, QObject **ret_data);
+int hmp_block_passwd(Monitor *mon, const QDict *qdict, QObject **ret_data);
+int hmp_change(Monitor *mon, const QDict *qdict, QObject **ret_data);
+void hmp_info_version(Monitor *mon, QObject **ret_data);
+int hmp_screendump(Monitor *mon, const QDict *qdict, QObject **ret_data);
+
 Monitor *cur_mon;
 Monitor *default_mon;
 
@@ -1452,11 +1459,6 @@ static int do_screen_dump(Monitor *mon, const QDict *qdict, QObject **ret_data)
 void qmp_screendump(const char *filename, Error **errp)
 {
     vga_hw_screen_dump(filename, errp);
-}
-
-void hmp_screendump(Monitor *mon, const char *filename)
-{
-    qmp_screendump(filename, NULL);
 }
 
 static void do_logfile(Monitor *mon, const QDict *qdict)
@@ -3208,7 +3210,7 @@ static const mon_cmd_t info_cmds[] = {
         .params     = "",
         .help       = "show the version of QEMU",
         .user_print = do_info_version_print,
-        .mhandler.info_new = do_info_version,
+        .mhandler.info_new = hmp_info_version,
     },
     {
         .name       = "network",
@@ -5618,29 +5620,42 @@ int monitor_read_bdrv_key_start(Monitor *mon, BlockDriverState *bs,
 
 /* These should not access any QEMU internals.  Just use QMP interfaces. */
 
-void hmp_quit(Monitor *mon)
+int hmp_quit(Monitor *mon, const QDict *qdict, QObject **ret_data)
 {
     monitor_suspend(mon);
     qmp_quit(NULL);
+    return 0;
 }
 
-void hmp_block_passwd(Monitor *mon, const char *device, const char *password)
+int hmp_eject(Monitor *mon, const QDict *qdict, QObject **ret_data)
 {
+    int force = qdict_get_try_bool(qdict, "force", 0);
+    const char *filename = qdict_get_str(qdict, "device");
+    Error *err = NULL;
+
+    qmp_eject(filename, true, force, &err);
+    if (err) {
+        qerror_report_err(err);
+        return -1;
+    }
+
+    return 0;
+}
+
+int hmp_block_passwd(Monitor *mon, const QDict *qdict, QObject **ret_data)
+{
+    const char *device = qdict_get_str(qdict, "device");
+    const char *password = qdict_get_str(qdict, "password");
     Error *err = NULL;
 
     qmp_set_blockdev_password(device, password, &err);
     if (err) {
         monitor_printf(mon, "block_passwd: %s\n", error_get_pretty(err));
+        error_free(err);
+        return -1;
     }
-}
 
-void hmp_eject(Monitor *mon, bool force, const char * device)
-{
-    Error *err = NULL;
-    qmp_eject(device, true, force, &err);
-    if (err) {
-        monitor_printf(mon, "eject: %s\n", error_get_pretty(err));
-    }
+    return 0;
 }
 
 static void cb_hmp_change_bdrv_pwd(Monitor *mon, const char *password, void *opaque)
@@ -5660,29 +5675,30 @@ static void cb_hmp_change_bdrv_pwd(Monitor *mon, const char *password, void *opa
     monitor_read_command(mon, 1);
 }
 
-void hmp_change(Monitor *mon, const char *device, const char *target,
-                bool has_arg, const char *arg)
+int hmp_change(Monitor *mon, const QDict *qdict, QObject **ret_data)
 {
+    const char *device = qdict_get_str(qdict, "device");
+    const char *target = qdict_get_str(qdict, "target");
+    const char *arg = qdict_get_try_str(qdict, "arg");
     Error *err = NULL;
 
-    qmp_change(device, target, has_arg, arg, &err);
-    if (!err) {
-        return;
-    }
-
+    qmp_change(device, target, !!arg, arg, &err);
     if (error_is_type(err, QERR_DEVICE_ENCRYPTED)) {
         monitor_printf(mon, "%s (%s) is encrypted.\n",
                        error_get_field(err, "device"),
                        error_get_field(err, "encrypted_filename"));
         if (!mon->rs) {
             monitor_printf(mon, "terminal does not support password prompting\n");
-            return;
+            error_free(err);
+            return -1;
         }
         readline_start(mon->rs, "Password: ", 1, cb_hmp_change_bdrv_pwd, err);
     }
+
+    return 0;
 }
 
-void hmp_info_version(Monitor *mon)
+void hmp_info_version(Monitor *mon, QObject **ret_data)
 {
     VersionInfo *info;
 
@@ -5693,4 +5709,10 @@ void hmp_info_version(Monitor *mon)
                    info->package);
 
     qmp_free_version_info(info);
+}
+
+int hmp_screendump(Monitor *mon, const QDict *qdict, QObject **ret_data)
+{
+    qmp_screendump(qdict_get_str(qdict, "filename"), NULL);
+    return 0;
 }

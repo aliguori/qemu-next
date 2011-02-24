@@ -43,7 +43,7 @@ ETEXI
         .params     = "",
         .help       = "quit the emulator",
         .user_print = monitor_user_noop,
-        .mhandler.cmd_new = do_quit,
+        .mhandler.cmd_new = hmp_quit,
     },
 
 STEXI
@@ -58,7 +58,7 @@ ETEXI
         .params     = "[-f] device",
         .help       = "eject a removable medium (use -f to force it)",
         .user_print = monitor_user_noop,
-        .mhandler.cmd_new = do_eject,
+        .mhandler.cmd_new = hmp_eject,
     },
 
 STEXI
@@ -91,7 +91,7 @@ ETEXI
         .params     = "device filename [format]",
         .help       = "change a removable medium, optional format",
         .user_print = monitor_user_noop,
-        .mhandler.cmd_new = do_change,
+        .mhandler.cmd_new = hmp_change,
     },
 
 STEXI
@@ -138,7 +138,7 @@ ETEXI
         .params     = "filename",
         .help       = "save screen into PPM image 'filename'",
         .user_print = monitor_user_noop,
-        .mhandler.cmd_new = do_screen_dump,
+        .mhandler.cmd_new = hmp_screendump,
     },
 
 STEXI
@@ -1169,7 +1169,7 @@ ETEXI
         .params     = "block_passwd device password",
         .help       = "set the password of encrypted block devices",
         .user_print = monitor_user_noop,
-        .mhandler.cmd_new = do_block_set_passwd,
+        .mhandler.cmd_new = hmp_block_passwd,
     },
 
 STEXI
