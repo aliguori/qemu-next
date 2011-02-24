@@ -102,3 +102,9 @@ int hmp_screendump(Monitor *mon, const QDict *qdict, QObject **ret_data)
     qmp_screendump(qdict_get_str(qdict, "filename"), NULL);
     return 0;
 }
+
+int hmp_stop(Monitor *mon, const QDict *qdict, QObject **ret_data)
+{
+    qmp_stop(NULL);
+    return 0;
+}

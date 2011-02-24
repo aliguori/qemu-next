@@ -272,7 +272,7 @@ ETEXI
         .params     = "",
         .help       = "stop emulation",
         .user_print = monitor_user_noop,
-        .mhandler.cmd_new = do_stop,
+        .mhandler.cmd_new = hmp_stop,
     },
 
 STEXI
