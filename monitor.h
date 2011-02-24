@@ -8,6 +8,7 @@
 #include "block.h"
 #include "qmp.h"
 #include "hmp.h"
+#include "readline.h"
 
 extern Monitor *cur_mon;
 extern Monitor *default_mon;
@@ -44,6 +45,9 @@ int monitor_cur_is_qmp(void);
 
 void monitor_protocol_event(MonitorEvent event, QObject *data);
 void monitor_init(CharDriverState *chr, int flags);
+
+void monitor_read_command(Monitor *mon, int show_prompt);
+ReadLineState *monitor_get_rs(Monitor *mon);
 
 int monitor_suspend(Monitor *mon);
 void monitor_resume(Monitor *mon);

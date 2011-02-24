@@ -101,6 +101,7 @@ common-obj-y += qdev.o qdev-properties.o qdev-marshal.o
 common-obj-y += block-migration.o
 common-obj-y += pflib.o
 common-obj-y += qmp-marshal.o qmp-core.o
+common-obj-y += hmp.o
 
 common-obj-$(CONFIG_BRLAPI) += baum.o
 common-obj-$(CONFIG_POSIX) += migration-exec.o migration-unix.o migration-fd.o
