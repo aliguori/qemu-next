@@ -815,17 +815,21 @@
 #
 # Information about a PCI Bridge device
 #
-# @bus.number: the bus index for this bridge
+# @bus.number: primary bus interface number.  This should be the number of the
+#              bus the device resides on.
 #
-# @bus.secondary: TBD
+# @bus.secondary: secondary bus interface number.  This is the number of the
+#                 main bus for the bridge
 #
-# @bus.subordinate: TBD
+# @bus.subordinate: This is the highest number bus that resides below the
+#                   bridge.
 #
-# @bus.io_range: TBD
+# @bus.io_range: The PIO range for all devices on this bridge
 #
-# @bus.memory_range: TBD
+# @bus.memory_range: The MMIO range for all devices on this bridge
 #
-# @bus.prefetchable_range: TDB
+# @bus.prefetchable_range: The range of prefetchable MMIO for all devices on
+#                          this bridge
 #
 # @devices: a list of @PciDeviceInfo for each device on this bridge
 #
@@ -908,17 +912,17 @@
 #
 # @actual: the number of megabytes the balloon currently contains
 #
-# @mem_swapped_in: #optional
+# @mem_swapped_in: #optional number of pages swapped in within the guest
 #
-# @mem_swapped_out: #optional
+# @mem_swapped_out: #optional number of pages swapped out within the guest
 #
-# @major_page_faults: #optional
+# @major_page_faults: #optional number of major page faults within the guest
 #
-# @minor_page_faults: #optional
+# @minor_page_faults: #optional number of minor page faults within the guest
 #
-# @free_mem: #optional
+# @free_mem: #optional amount of memory (in bytes) free in the guest
 #
-# @total_mem: #optional
+# @total_mem: #optional amount of memory (in bytes) visible to the guest
 #
 # Since: 0.14.0
 #
@@ -990,13 +994,15 @@
 #
 # @opts: a list of KeyValues of options specific to each device
 #
+# Returns: Nothing on success
+#          If @driver is not a valid device type, DeviceNotFound
+#          If @opts contains an invalid parameter for this device,
+#            InvalidParameter
+#
 # Notes: The semantics of @opts is not well defined.  Future commands will be
 #        introduced that provide stronger typing for device creation.
 #        This command performs hotplug of devices for guests.  When the command
 #        returns, the device may not be visible to the guest.
-#
-# Returns: Nothing on success
-#          TBD
 #
 # Since: 0.14.0
 ##
@@ -1010,7 +1016,8 @@
 # @id: the name of the device
 #
 # Returns: Nothing on success
-#          TBD
+#          If @id is not a valid device, DeviceNotFound
+#          If the device does not support unplug, BusNoHotplug
 #
 # Notes: When this command completes, the device may not be removed from the
 #        guest.  Hot removal is an operation that requires guest cooperation.
@@ -1039,7 +1046,9 @@
 # Since: 0.14.0
 #
 # Returns: Nothing on success
-#          TBD
+#          If @type is not a valid network backend, DeviceNotFound
+#          If @opts contains an invalid parameter for this backend,
+#            InvalidParameter
 ##
 [ 'netdev_add', {'type': 'str', 'id': 'str'}, {'opts': '**'}, 'none' ]
 
