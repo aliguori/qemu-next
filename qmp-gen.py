@@ -28,7 +28,8 @@ def qmp_array_type_to_c(typename):
 def qmp_type_should_free(typename):
     if (type(typename) == list or
         typename == 'str' or
-        typename not in ['int', 'bool', 'number']):
+        (typename not in ['int', 'bool', 'number'] and
+         typename not in enum_types)):
         return True
     return False
 
@@ -52,6 +53,7 @@ def qmp_type_to_c(typename, retval=False, indent=0):
                 string += "%sbool has_%s;\n" % (genindent(indent + 4), c_var(name))
             string += "%s%s %s;\n" % (genindent(indent + 4),
                                       qmp_type_to_c(typename[key],
+                                                    True,
                                                     indent=(indent + 4)),
                                       c_var(name))
         string += "%s}" % genindent(indent)
@@ -492,7 +494,7 @@ def print_metatype_declaration(name, typeinfo):
             if key.startswith('*'):
                 member = key[1:]
                 print "    bool has_%s;" % c_var(member)
-            print "    %s %s;" % (qmp_type_to_c(typeinfo[key], indent=4), c_var(member))
+            print "    %s %s;" % (qmp_type_to_c(typeinfo[key], True, indent=4), c_var(member))
         print "    %s *next;" % c_var(name)
         print "};"
         print
@@ -599,7 +601,36 @@ def print_metatype_undef(typeinfo, name, lhs, indent=0):
         inprint('    }', indent)
         inprint('}', indent)
 
+def print_metatype_free(typeinfo, prefix, indent=4):
+    for argname in typeinfo:
+        argtype = typeinfo[argname]
+        argname = c_var(argname)
+        optional = False
+        if argname.startswith('*'):
+            argname = argname[1:]
+            optional = True
+
+        if type(argtype) == list:
+            argtype = argtype[0]
+
+        if type(argtype) == dict:
+            if optional:
+                inprint('if (%shas_%s) {' % (prefix, argname), indent)
+                print_metatype_free(argtype, '%s%s.' % (prefix, argname), indent + 4)
+                inprint('}', indent)
+            else:
+                print_metatype_free(argtype, '%s%s.' % (prefix, argname), indent)
+        elif qmp_type_should_free(argtype):
+            if optional:
+                inprint('if (%shas_%s) {' % (prefix, argname), indent)
+                inprint('    %s(%s%s);' % (qmp_free_func(argtype), prefix, argname), indent)
+                inprint('}', indent)
+            else:
+                inprint('%s(%s%s);' % (qmp_free_func(argtype), prefix, argname), indent)
+
 def print_metatype_definition(name, typeinfo):
+    c_var_name = de_camel_case(name)
+
     print '''
 QObject *qmp_marshal_type_%s(%s src)
 {''' % (name, qmp_type_to_c(name))
@@ -611,7 +642,7 @@ QObject *qmp_marshal_type_%s(%s src)
 %s qmp_unmarshal_type_%s(QObject *src, Error **errp)
 {''' % (qmp_type_to_c(name), name)
     print '    Error *qmp__err = NULL;'
-    print '    %s qmp__retval = qmp_alloc_%s();' % (qmp_type_to_c(name), de_camel_case(name))
+    print '    %s qmp__retval = qmp_alloc_%s();' % (qmp_type_to_c(name), c_var_name)
     print_metatype_undef(typeinfo, 'src', 'qmp__retval')
     print '''    return qmp__retval;
 qmp__err_out:
@@ -623,15 +654,23 @@ qmp__err_out:
     print '''
 void qmp_free_%s(%s *obj)
 {
-    qemu_free(obj);
-}
+    if (!obj) {
+        return;
+    }''' % (c_var_name, name)
 
+    print_metatype_free(typeinfo, 'obj->')
+
+    print '''
+    %s(obj->next);
+    qemu_free(obj);
+}''' % (qmp_free_func(name))
+
+    print '''
 %s *qmp_alloc_%s(void)
 {
     BUILD_ASSERT(sizeof(%s) < 512);
     return qemu_mallocz(512);
-}''' % (de_camel_case(name), name, name, de_camel_case(name), name)
-
+}''' % (name, c_var_name, name)
 
 kind = 'body'
 if len(sys.argv) == 2:
