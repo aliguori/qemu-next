@@ -31,5 +31,6 @@ void hmp_info_cpus(Monitor *mon);
 void hmp_info_kvm(Monitor *mon);
 void hmp_info_chardev(Monitor *mon);
 void hmp_info_mice(Monitor *mon);
+void hmp_info_pci(Monitor *mon);
 
 #endif
