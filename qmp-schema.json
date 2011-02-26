@@ -901,14 +901,163 @@
 ##
 [ 'query-pci', {}, {}, ['PciInfo'] ]
 
-### Commands that still need docs ###
-
+##
+# @BalloonInfo:
+#
+# Information about the guest balloon device
+#
+# @actual: the number of megabytes the balloon currently contains
+#
+# @mem_swapped_in: #optional
+#
+# @mem_swapped_out: #optional
+#
+# @major_page_faults: #optional
+#
+# @minor_page_faults: #optional
+#
+# @free_mem: #optional
+#
+# @total_mem: #optional
+#
+# Since: 0.14.0
+#
+# Notes: all current versions of QEMU do not fill out optional information in
+#        this structure.
+##
 { 'BalloonInfo': {'actual': 'int', '*mem_swapped_in': 'int',
                   '*mem_swapped_out': 'int', '*major_page_faults': 'int',
                   '*minor_page_faults': 'int', '*free_mem': 'int',
                   '*total_mem': 'int'} }
+
+##
+# @query-balloon:
+#
+# Return information about the balloon device
+#
+# Returns: @BalloonInfo on success
+#          If the balloon driver is enabled but not functional because the KVM
+#            kernel module cannot support it, KvmMissingCap
+#          If no balloon device is present, DeviceNotActive
+#
+# Since: 0.14.0
+##
 [ 'query-balloon', {}, {}, 'BalloonInfo' ]
+
+##
+# @balloon:
+#
+# Request the balloon driver to change its balloon size.
+#
+# @value: the target size of the balloon in megabytes
+#
+# Returns: Nothing on success
+#          If the balloon driver is enabled but not functional because the KVM
+#            kernel module cannot support it, KvmMissingCap
+#          If no balloon device is present, DeviceNotActive
+#
+# Notes: This command just issues a request to the guest.  When it returns,
+#        the balloon size may not have changed.  A guest can change the balloon
+#        size independent of this command.
+#
+# Since: 0.14.0
+##
 [ 'balloon', {'value': 'int'}, {}, 'none' ]
+
+##
+# @KeyValues:
+#
+# A generic representation of a key value pair.
+#
+# @key: the name of the item
+#
+# @value: the string representation of the item value.  This typically follows
+#         QEMU's command line parsing format.  See the man pages for more
+#         information.
+#
+# Since: 0.14.0
+##
+{ 'KeyValues': {'key': 'str', 'value': 'str'} }
+
+##
+# @device_add:
+#
+# Add a new device to the guest
+#
+# @driver: the device type to add
+#
+# @id: the name of the device
+#
+# @opts: a list of KeyValues of options specific to each device
+#
+# Notes: The semantics of @opts is not well defined.  Future commands will be
+#        introduced that provide stronger typing for device creation.
+#        This command performs hotplug of devices for guests.  When the command
+#        returns, the device may not be visible to the guest.
+#
+# Returns: Nothing on success
+#          TBD
+#
+# Since: 0.14.0
+##
+[ 'device_add', {'driver': 'str', 'id': 'str'}, {'opts': '**'}, 'none' ]
+
+##
+# @device_del:
+#
+# Remove a device from a guest
+#
+# @id: the name of the device
+#
+# Returns: Nothing on success
+#          TBD
+#
+# Notes: When this command completes, the device may not be removed from the
+#        guest.  Hot removal is an operation that requires guest cooperation.
+#        This command merely requests that the guest begin the hot removal
+#        process.
+#
+# Since: 0.14.0
+##
+[ 'device_del', {'id': 'str'}, {}, 'none' ]
+
+##
+# @netdev_add:
+#
+# Add a network backend.
+#
+# @type: the type of network backend.  Current valid values are 'user', 'tap',
+#        'vde', 'socket', and 'dump'
+#
+# @id: the name of the new network backend
+#
+# @opts: a list of @KeyValues of options specific to each network backend.
+#
+# Notes: The semantics of @opts is not well defined.  Future commands will be
+#        introduced that provide stronger typing for backend creation.
+#
+# Since: 0.14.0
+#
+# Returns: Nothing on success
+#          TBD
+##
+[ 'netdev_add', {'type': 'str', 'id': 'str'}, {'opts': '**'}, 'none' ]
+
+##
+# @netdev_del:
+#
+# Remove a network backend.
+#
+# @id: the name of the network backend to remove
+#
+# Returns: Nothing on success
+#          If @id is not a valid network backend, DeviceNotFound
+#
+# Since: 0.14.0
+##
+[ 'netdev_del', {'id': 'str'}, {}, 'none' ]
+
+### Commands that still need docs ###
 
 [ 'migrate', {'uri': 'str'}, {'blk': 'bool', 'inc': 'bool'}, 'none' ]
 [ 'migrate_cancel', {}, {}, 'none' ]
@@ -918,24 +1067,110 @@
 { 'MigrationInfo': {'*status': 'str', '*ram': 'MigrationStats', '*disk': 'MigrationStats'} }
 [ 'query-migrate', {}, {}, 'MigrationInfo' ]
 
-{ 'KeyValues': {'key': 'str', 'value': 'str'} }
-[ 'device_add', {'driver': 'str', 'id': 'str'}, {'opts': '**'}, 'none' ]
+## Commands that are core to QMP that need some thought
+# make each connection queue all sent fds and then when this
+# command happens, assign a connection a symbolic name.
+#[ 'getfd', {'fdname': 'str'}, {}, 'none' ]
+# close based on symbolic name. symbolic names will be global
+#[ 'closefd', {'fdname': 'str'}, {}, 'none' ]
 
-[ 'device_del', {'id': 'str'}, {}, 'none' ]
-
-[ 'netdev_add', {'type': 'str', 'id': 'str'}, {'opts': '**'}, 'none' ]
-[ 'netdev_del', {'id': 'str'}, {}, 'none' ]
+## Spice commands which I'm not setup yet to test
+#{ 'SpiceChannel': {'host': 'str', 'family': 'str', 'port': 'str', 'connection-id': 'int', 'channel-type': 'int', 'channel-id': 'int', 'tls': 'bool'} }
+#{ 'SpiceInfo': {'enabled': 'bool', 'host': 'str', '*port': 'int', '*tls-port': 'int', 'auth': 'str', 'channels': ['SpiceChannel']} }
+#[ 'query-spice', {}, {}, 'SpiceInfo' ]
 
 # 0.15.0 commands.  These can be changed up until the next release
 
+##
+# @NetworkType:
+#
+# An enumeration of network types.
+#
+# @none: a null network backend
+#
+# @nic: a virtual network adapter
+#
+# @slirp: usermode networking backend
+#
+# @tap: a TAP device based networking backend
+#
+# @socket: a socket based networking backend
+#
+# @vde: Virtual Distributed Ethernet networking backend
+#
+# @dump: network backend to capture packets to a file
+#
+# Since: 0.15.0
+##
 { 'NetworkType': ['none', 'nic', 'slirp', 'tap', 'socket', 'vde', 'dump'] }
+
+##
+# @NetworkInfo:
+#
+# Information about a virtual network backend or virtual network adapter.
+#
+# @name: the name of the network backend or network adapter
+#
+# @type: the @NetworkType of the network backend or virtual network adapter
+#
+# @vlan_id: #optional if the network is on a vlan, the vlan id
+#
+# @peer: #optional if the network is not on a vlan, the peer device
+#
+# Notes: vlan is not 802.1q VLANs but rather an internal QEMU concept
+#
+# Since: 0.15.0:
+##
 { 'NetworkInfo': {'name': 'str', 'type': 'NetworkType',
                   '*vlan_id': 'int', '*peer': 'str'} }
+
+##
+# @query-network:
+#
+# Return information about all virtual network backends and network adapters
+#
+# Returns: a list of @NetworkInfo
+# 
+# Since: 0.15.0
+##
 [ 'query-network', {}, {}, ['NetworkInfo'] ]
 
+##
+# @TapInfo:
+#
+# Information about a TAP networking backend
+#
+# @fd: the file descriptor of the TAP device
+#
+# @vhost_enabled: true if vhost acceleration is enabled for this device
+#
+# @vnet_hdr_enabled: true if this device is using vnet_hdr
+#
+# @ufo_enabled: true if UFO offload is enabled
+#
+# @down_script: #optional the script to execute when the device is torn down
+#
+# @down_script_arg: #optional the argument to pass the @down_script
+#
+# Since: 0.15.0
+##
 { 'TapInfo': {'fd': 'int', 'vhost_enabled': 'bool',
               'vnet_hdr_enabled': 'bool', 'ufo_enabled': 'bool',
               '*down_script': 'str', '*down_script_arg': 'str'} }
+
+##
+# @query-tap:
+#
+# Return information about a TAP networking backend
+#
+# @id: the name of a networking backend with @NetworkType `tap'
+#
+# Returns: @TapInfo about the backend
+#          If @id is not a valid networking backend, InvalidParameterValue
+#          If @id is not a TAP networking backend, InvalidParameterType
+#
+# Since: 0.15.0
+##
 [ 'query-tap', {'id': 'str'}, {}, 'TapInfo' ]
 
 ##
@@ -1006,18 +1241,6 @@
 #         string.  Existing clients are unaffected by executing this command.
 ##
 [ 'change-vnc-password', {'password': 'str'}, {}, 'none' ]
-
-## Commands that are core to QMP that need some thought
-# make each connection queue all sent fds and then when this
-# command happens, assign a connection a symbolic name.
-#[ 'getfd', {'fdname': 'str'}, {}, 'none' ]
-# close based on symbolic name. symbolic names will be global
-#[ 'closefd', {'fdname': 'str'}, {}, 'none' ]
-
-## Spice commands which I'm not setup yet to test
-#{ 'SpiceChannel': {'host': 'str', 'family': 'str', 'port': 'str', 'connection-id': 'int', 'channel-type': 'int', 'channel-id': 'int', 'tls': 'bool'} }
-#{ 'SpiceInfo': {'enabled': 'bool', 'host': 'str', '*port': 'int', '*tls-port': 'int', 'auth': 'str', 'channels': ['SpiceChannel']} }
-#[ 'query-spice', {}, {}, 'SpiceInfo' ]
 
 ## Internal types ##
 { 'VirtioNetTxStrategy': ['bh', 'timer'] }
