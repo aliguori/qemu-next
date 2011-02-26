@@ -3350,8 +3350,7 @@ static const mon_cmd_t info_cmds[] = {
         .args_type  = "",
         .params     = "",
         .help       = "show the vnc server status",
-        .user_print = do_info_vnc_print,
-        .mhandler.info_new = do_info_vnc,
+        .mhandler.info = hmp_info_vnc,
     },
 #if defined(CONFIG_SPICE)
     {

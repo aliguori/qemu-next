@@ -15,5 +15,6 @@ void hmp_info_version(Monitor *mon);
 void hmp_info_status(Monitor *mon);
 void hmp_info_block(Monitor *mon);
 void hmp_info_blockstats(Monitor *mon);
+void hmp_info_vnc(Monitor *mon);
 
 #endif

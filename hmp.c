@@ -191,3 +191,45 @@ void hmp_info_blockstats(Monitor *mon)
 
     qmp_free_block_stats(stats_list);
 }
+
+void hmp_info_vnc(Monitor *mon)
+{
+    VncInfo *info;
+    VncClientInfo *client;
+
+    info = qmp_query_vnc(NULL);
+
+    if (!info->enabled) {
+        monitor_printf(mon, "Server: disabled\n");
+        return;
+    }
+
+    monitor_printf(mon, "Server:\n");
+    if (info->has_host && info->has_service) {
+        monitor_printf(mon, "     address: %s:%s\n", info->host, info->service);
+    }
+    if (info->has_auth) {
+        monitor_printf(mon, "        auth: %s\n", info->auth);
+    }
+
+    if (!info->has_clients || info->clients == NULL) {
+        monitor_printf(mon, "Client: none\n");
+    } else {
+        for (client = info->clients; client; client = client->next) {
+            monitor_printf(mon, "Client:\n");
+            monitor_printf(mon, "     address: %s:%s\n",
+                           client->host, client->service);
+            if (client->has_x509_dname) {
+                monitor_printf(mon, "  x509_dname: %s\n", client->x509_dname);
+            } else {
+                monitor_printf(mon, "  x509_dname: none\n");
+            }
+            monitor_printf(mon, "    username: %s\n",
+                           client->has_sasl_username ?
+                           client->sasl_username : "none");
+        }
+    }
+
+    qmp_free_vnc_info(info);
+}
+
