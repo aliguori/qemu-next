@@ -21,7 +21,7 @@ int hmp_eject(Monitor *mon, const QDict *qdict, QObject **ret_data)
 
     qmp_eject(filename, true, force, &err);
     if (err) {
-        qerror_report_err(err);
+        monitor_printf(mon, "eject: %s\n", error_get_pretty(err));
         return -1;
     }
 
@@ -114,6 +114,22 @@ int hmp_system_reset(Monitor *mon, const QDict *qdict, QObject **ret_data)
 int hmp_system_powerdown(Monitor *mon, const QDict *qdict, QObject **ret_data)
 {
     qmp_system_powerdown(NULL);
+    return 0;
+}
+
+int hmp_set_link(Monitor *mon, const QDict *qdict, QObject **ret_data)
+{
+    const char *name = qdict_get_str(qdict, "name");
+    int up = qdict_get_bool(qdict, "up");
+    Error *err = NULL;
+
+    qmp_set_link(name, up, &err);
+    if (err) {
+        monitor_printf(mon, "set_link: %s", error_get_pretty(err));
+        error_free(err);
+        return -1;
+    }
+
     return 0;
 }
 
