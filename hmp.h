@@ -11,5 +11,6 @@ int hmp_change(Monitor *mon, const QDict *qdict, QObject **ret_data);
 void hmp_info_version(Monitor *mon, QObject **ret_data);
 int hmp_screendump(Monitor *mon, const QDict *qdict, QObject **ret_data);
 int hmp_stop(Monitor *mon, const QDict *qdict, QObject **ret_data);
+int hmp_cont(Monitor *mon, const QDict *qdict, QObject **ret_data);
 
 #endif

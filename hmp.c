@@ -44,7 +44,8 @@ int hmp_block_passwd(Monitor *mon, const QDict *qdict, QObject **ret_data)
     return 0;
 }
 
-static void cb_hmp_change_bdrv_pwd(Monitor *mon, const char *password, void *opaque)
+static void cb_hmp_change_bdrv_pwd(Monitor *mon, const char *password,
+                                   void *opaque)
 {
     Error *encryption_err = opaque;
     Error *err = NULL;
@@ -74,11 +75,13 @@ int hmp_change(Monitor *mon, const QDict *qdict, QObject **ret_data)
                        error_get_field(err, "device"),
                        error_get_field(err, "encrypted_filename"));
         if (!monitor_get_rs(mon)) {
-            monitor_printf(mon, "terminal does not support password prompting\n");
+            monitor_printf(mon,
+                           "terminal does not support password prompting\n");
             error_free(err);
             return -1;
         }
-        readline_start(monitor_get_rs(mon), "Password: ", 1, cb_hmp_change_bdrv_pwd, err);
+        readline_start(monitor_get_rs(mon), "Password: ", 1,
+                       cb_hmp_change_bdrv_pwd, err);
     }
 
     return 0;
@@ -106,5 +109,11 @@ int hmp_screendump(Monitor *mon, const QDict *qdict, QObject **ret_data)
 int hmp_stop(Monitor *mon, const QDict *qdict, QObject **ret_data)
 {
     qmp_stop(NULL);
+    return 0;
+}
+
+int hmp_cont(Monitor *mon, const QDict *qdict, QObject **ret_data)
+{
+    qmp_cont(NULL);
     return 0;
 }
