@@ -2,7 +2,6 @@
 #define LIBQMP_CORE_H
 
 #include <sys/types.h>
-#include "qemu-objects.h"
 #include "qmp-types.h"
 #include "error.h"
 

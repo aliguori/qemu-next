@@ -1,6 +1,7 @@
 #include "libqmp.h"
 #include <stdio.h>
 #include <string.h>
+#include <stdlib.h>
 
 static bool strequals(const char *lhs, const char *rhs)
 {
