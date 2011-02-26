@@ -3484,7 +3484,6 @@ static const mon_cmd_t qmp_query_cmds[] = {
         .args_type  = "",
         .params     = "",
         .help       = "show the version of QEMU",
-        .user_print = do_info_version_print,
         .mhandler.info_new = do_info_version,
     },
     {
@@ -3492,7 +3491,6 @@ static const mon_cmd_t qmp_query_cmds[] = {
         .args_type  = "",
         .params     = "",
         .help       = "list QMP available commands",
-        .user_print = monitor_user_noop,
         .mhandler.info_new = do_info_commands,
     },
     {
@@ -3500,7 +3498,6 @@ static const mon_cmd_t qmp_query_cmds[] = {
         .args_type  = "",
         .params     = "",
         .help       = "show the character devices",
-        .user_print = qemu_chr_info_print,
         .mhandler.info_new = qemu_chr_info,
     },
     {
@@ -3508,7 +3505,6 @@ static const mon_cmd_t qmp_query_cmds[] = {
         .args_type  = "",
         .params     = "",
         .help       = "show the block devices",
-        .user_print = bdrv_info_print,
         .mhandler.info_new = bdrv_info,
     },
     {
@@ -3516,7 +3512,6 @@ static const mon_cmd_t qmp_query_cmds[] = {
         .args_type  = "",
         .params     = "",
         .help       = "show block device statistics",
-        .user_print = bdrv_stats_print,
         .mhandler.info_new = bdrv_info_stats,
     },
     {
@@ -3524,7 +3519,6 @@ static const mon_cmd_t qmp_query_cmds[] = {
         .args_type  = "",
         .params     = "",
         .help       = "show infos for each CPU",
-        .user_print = monitor_print_cpus,
         .mhandler.info_new = do_info_cpus,
     },
     {
@@ -3532,7 +3526,6 @@ static const mon_cmd_t qmp_query_cmds[] = {
         .args_type  = "",
         .params     = "",
         .help       = "show PCI info",
-        .user_print = do_pci_info_print,
         .mhandler.info_new = do_pci_info,
     },
     {
@@ -3540,7 +3533,6 @@ static const mon_cmd_t qmp_query_cmds[] = {
         .args_type  = "",
         .params     = "",
         .help       = "show KVM information",
-        .user_print = do_info_kvm_print,
         .mhandler.info_new = do_info_kvm,
     },
     {
@@ -3555,7 +3547,6 @@ static const mon_cmd_t qmp_query_cmds[] = {
         .args_type  = "",
         .params     = "",
         .help       = "show which guest mouse is receiving events",
-        .user_print = do_info_mice_print,
         .mhandler.info_new = do_info_mice,
     },
     {
@@ -3563,7 +3554,6 @@ static const mon_cmd_t qmp_query_cmds[] = {
         .args_type  = "",
         .params     = "",
         .help       = "show the vnc server status",
-        .user_print = do_info_vnc_print,
         .mhandler.info_new = do_info_vnc,
     },
 #if defined(CONFIG_SPICE)
@@ -3572,7 +3562,6 @@ static const mon_cmd_t qmp_query_cmds[] = {
         .args_type  = "",
         .params     = "",
         .help       = "show the spice server status",
-        .user_print = do_info_spice_print,
         .mhandler.info_new = do_info_spice,
     },
 #endif
@@ -3581,7 +3570,6 @@ static const mon_cmd_t qmp_query_cmds[] = {
         .args_type  = "",
         .params     = "",
         .help       = "show the current VM name",
-        .user_print = do_info_name_print,
         .mhandler.info_new = do_info_name,
     },
     {
@@ -3589,7 +3577,6 @@ static const mon_cmd_t qmp_query_cmds[] = {
         .args_type  = "",
         .params     = "",
         .help       = "show the current VM UUID",
-        .user_print = do_info_uuid_print,
         .mhandler.info_new = do_info_uuid,
     },
     {
@@ -3597,7 +3584,6 @@ static const mon_cmd_t qmp_query_cmds[] = {
         .args_type  = "",
         .params     = "",
         .help       = "show migration status",
-        .user_print = do_info_migrate_print,
         .mhandler.info_new = do_info_migrate,
     },
     {
@@ -3605,7 +3591,6 @@ static const mon_cmd_t qmp_query_cmds[] = {
         .args_type  = "",
         .params     = "",
         .help       = "show balloon information",
-        .user_print = monitor_print_balloon,
         .mhandler.info_new = do_info_balloon,
         .flags      = MONITOR_CMD_ASYNC,
     },
