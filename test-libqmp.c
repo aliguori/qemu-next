@@ -822,7 +822,7 @@ static void test_device_add_nic(void)
     Error *err = NULL;
     KeyValues *kv;
 
-    sess = qemu("-S -netdev user,id=netdev0");
+    sess = qemu("-S -netdev user,id=netdev0 2> /dev/null");
     
     kv = kv_alloc("netdev", "netdev0", NULL);
 
@@ -855,7 +855,7 @@ static void test_device_del_nic(void)
     Error *err = NULL;
     KeyValues *kv;
 
-    sess = qemu("-S -netdev user,id=netdev0");
+    sess = qemu("-S -netdev user,id=netdev0 2> /dev/null");
     
     kv = kv_alloc("netdev", "netdev0", NULL);
 
@@ -875,22 +875,50 @@ static void test_query_network(void)
     QmpSession *sess;
     Error *err = NULL;
     NetworkInfo *info_list, *info;
+    bool found_slirp0 = false;
+    bool found_slirp1 = false;
+    bool found_nic0 = false;
+    bool found_nic1 = false;
 
-    sess = qemu("-S");
+    sess = qemu("-S "
+                "-net user,id=slirp.0,vlan=1 -device e1000,id=nic.0,vlan=1 "
+                "-netdev user,id=slirp.1 -device e1000,id=nic.1,netdev=slirp.1 ");
     
     info_list = libqmp_query_network(sess, &err);
     g_assert_noerr(err);
 
     for (info = info_list; info; info = info->next) {
-        printf("name: %s\n", info->name);
-        printf("type: %d\n", info->type);
-        if (info->has_vlan_id) {
-            printf("vlan: %ld\n", info->vlan_id);
-        }
-        if (info->has_peer) {
-            printf("peer: %s\n", info->peer);
+        if (strcmp(info->name, "slirp.0") == 0) {
+            found_slirp0 = true;
+            g_assert_cmpint(info->type, ==, NT_SLIRP);
+            g_assert(info->has_vlan_id == true);
+            g_assert_cmpint(info->vlan_id, ==, 1);
+            g_assert(info->has_peer == false);
+        } else if (strcmp(info->name, "slirp.1") == 0) {
+            found_slirp1 = true;
+            g_assert_cmpint(info->type, ==, NT_SLIRP);
+            g_assert(info->has_vlan_id == false);
+            g_assert(info->has_peer == true);
+            g_assert_cmpstr(info->peer, ==, "nic.1");
+        } else if (strcmp(info->name, "nic.0") == 0) {
+            found_nic0 = true;
+            g_assert_cmpint(info->type, ==, NT_NIC);
+            g_assert(info->has_vlan_id == true);
+            g_assert_cmpint(info->vlan_id, ==, 1);
+            g_assert(info->has_peer == false);
+        } else if (strcmp(info->name, "nic.1") == 0) {
+            found_nic1 = true;
+            g_assert_cmpint(info->type, ==, NT_NIC);
+            g_assert(info->has_vlan_id == false);
+            g_assert(info->has_peer == true);
+            g_assert_cmpstr(info->peer, ==, "slirp.1");
         }
     }
+
+    g_assert(found_slirp0 == true);
+    g_assert(found_slirp1 == true);
+    g_assert(found_nic0 == true);
+    g_assert(found_nic1 == true);
 
     qmp_free_network_info(info_list);
 
@@ -931,31 +959,28 @@ static void test_query_pci(void)
     QmpSession *sess;
     Error *err = NULL;
     PciInfo *pci_busses, *info;
+    bool found_balloon = false;
 
-    sess = qemu("-S -device virtio-balloon-pci,id=foo");
+    sess = qemu("-S -device virtio-balloon-pci,id=foo,addr=4.0");
     pci_busses = libqmp_query_pci(sess, &err);
     g_assert_noerr(err);
 
     for (info = pci_busses; info; info = info->next) {
         PciDeviceInfo *dev;
 
-        printf("PCI bus: %ld\n", info->bus);
         for (dev = info->devices; dev; dev = dev->next) {
-            printf(" device: %ld.%ld\n", dev->slot, dev->function);
-            printf("  id: %s\n", dev->qdev_id);
-            if (dev->has_irq) {
-                printf("  irq: %ld\n", dev->irq);
+            if (dev->slot == 4 && dev->function == 0) {
+                found_balloon = true;
+                g_assert_cmpstr(dev->qdev_id, ==, "foo");
+                g_assert(dev->class_info.has_desc == true);
+                g_assert_cmpstr(dev->class_info.desc, ==, "RAM controller");
+                g_assert_cmpint(dev->id.vendor, ==, 0x1af4);
+                g_assert_cmpint(dev->id.device, ==, 0x1002);
             }
-            if (dev->class_info.has_desc) {
-                printf("  class: %s\n", dev->class_info.desc);
-            }
-            if (dev->has_pci_bridge) {
-                printf("   bridge: true\n");
-            }
-            printf("  vendor: 0x%04lx\n", dev->id.vendor);
-            printf("  device: 0x%04lx\n", dev->id.device);
         }
     }
+
+    g_assert(found_balloon == true);
 
     qmp_free_pci_info(pci_busses);
 
