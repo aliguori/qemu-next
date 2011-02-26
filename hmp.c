@@ -181,6 +181,40 @@ void hmp_balloon(Monitor *mon, const QDict *qdict)
     }
 }
 
+void hmp_device_add(Monitor *mon, const QDict *qdict)
+{
+    const QDictEntry *entry;
+    const char *device = qdict_get_str(qdict, "driver");
+    const char *id = qdict_get_str(qdict, "id");
+    KeyValues *opts = NULL;
+    Error *err = NULL;
+
+    for (entry = qdict_first(qdict); entry; entry = qdict_next(qdict, entry)) {
+        const char *key = qdict_entry_key(entry);
+        const char *value = qstring_get_str(qobject_to_qstring(qdict_entry_value(entry)));
+        KeyValues *kv;
+
+        if (strcmp(key, "driver") == 0 ||
+            strcmp(key, "id") == 0) {
+            continue;
+        }
+
+        kv = qmp_alloc_key_values();
+        kv->key = qemu_strdup(key);
+        kv->value = qemu_strdup(value);
+        kv->next = opts;
+        opts = kv;
+    }
+
+    qmp_device_add(device, id, opts, &err);
+    qmp_free_key_values(opts);
+
+    if (err) {
+        monitor_printf(mon, "device_add: %s\n", error_get_pretty(err));
+        error_free(err);
+    }
+}
+
 void hmp_info_version(Monitor *mon)
 {
     VersionInfo *info;

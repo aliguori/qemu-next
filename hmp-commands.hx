@@ -453,8 +453,7 @@ ETEXI
         .args_type  = "",
         .params     = "",
         .help       = "reset the system",
-        .user_print = monitor_user_noop,
-        .mhandler.cmd_new = do_system_reset,
+        .mhandler.cmd = hmp_system_reset,
     },
 
 STEXI
@@ -469,8 +468,7 @@ ETEXI
         .args_type  = "",
         .params     = "",
         .help       = "send system power down event",
-        .user_print = monitor_user_noop,
-        .mhandler.cmd_new = do_system_powerdown,
+        .mhandler.cmd = hmp_system_powerdown,
     },
 
 STEXI
@@ -533,8 +531,7 @@ ETEXI
         .args_type  = "device:O",
         .params     = "driver[,prop=value][,...]",
         .help       = "add device, like -device on the command line",
-        .user_print = monitor_user_noop,
-        .mhandler.cmd_new = do_device_add,
+        .mhandler.cmd = hmp_device_add,
     },
 
 STEXI
