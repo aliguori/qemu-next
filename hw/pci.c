@@ -1577,7 +1577,7 @@ static PciDeviceInfo *qmp_query_pci_device(PCIDevice *dev, PCIBus *bus, int bus_
     info->id.vendor = pci_get_word(dev->config + PCI_VENDOR_ID);
     info->id.device = pci_get_word(dev->config + PCI_DEVICE_ID);
     info->regions = qmp_query_pci_regions(dev);
-    info->qdev_id = dev->qdev.id ? dev->qdev.id : "";
+    info->qdev_id = qemu_strdup(dev->qdev.id ? dev->qdev.id : "");
 
     if (dev->config[PCI_INTERRUPT_PIN] != 0) {
         info->has_irq = true;
