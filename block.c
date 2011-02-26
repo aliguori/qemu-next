@@ -1582,47 +1582,6 @@ void bdrv_mon_event(const BlockDriverState *bdrv,
     qobject_decref(data);
 }
 
-static void bdrv_print_dict(QObject *obj, void *opaque)
-{
-    QDict *bs_dict;
-    Monitor *mon = opaque;
-
-    bs_dict = qobject_to_qdict(obj);
-
-    monitor_printf(mon, "%s: type=%s removable=%d",
-                        qdict_get_str(bs_dict, "device"),
-                        qdict_get_str(bs_dict, "type"),
-                        qdict_get_bool(bs_dict, "removable"));
-
-    if (qdict_get_bool(bs_dict, "removable")) {
-        monitor_printf(mon, " locked=%d", qdict_get_bool(bs_dict, "locked"));
-    }
-
-    if (qdict_haskey(bs_dict, "inserted")) {
-        QDict *qdict = qobject_to_qdict(qdict_get(bs_dict, "inserted"));
-
-        monitor_printf(mon, " file=");
-        monitor_print_filename(mon, qdict_get_str(qdict, "file"));
-        if (qdict_haskey(qdict, "backing_file")) {
-            monitor_printf(mon, " backing_file=");
-            monitor_print_filename(mon, qdict_get_str(qdict, "backing_file"));
-        }
-        monitor_printf(mon, " ro=%d drv=%s encrypted=%d",
-                            qdict_get_bool(qdict, "ro"),
-                            qdict_get_str(qdict, "drv"),
-                            qdict_get_bool(qdict, "encrypted"));
-    } else {
-        monitor_printf(mon, " [not inserted]");
-    }
-
-    monitor_printf(mon, "\n");
-}
-
-void bdrv_info_print(Monitor *mon, const QObject *data)
-{
-    qlist_iter(qobject_to_qlist(data), bdrv_print_dict, mon);
-}
-
 void bdrv_info(Monitor *mon, QObject **ret_data)
 {
     QList *bs_list;

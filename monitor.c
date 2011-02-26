@@ -3195,8 +3195,7 @@ static const mon_cmd_t info_cmds[] = {
         .args_type  = "",
         .params     = "",
         .help       = "show the block devices",
-        .user_print = bdrv_info_print,
-        .mhandler.info_new = bdrv_info,
+        .mhandler.info = hmp_info_block,
     },
     {
         .name       = "blockstats",

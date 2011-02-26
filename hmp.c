@@ -131,3 +131,37 @@ void hmp_info_status(Monitor *mon)
     qmp_free_status_info(info);
 }
 
+void hmp_info_block(Monitor *mon)
+{
+    BlockInfo *block_list, *info;
+
+    block_list = qmp_query_block(NULL);
+
+    for (info = block_list; info; info = info->next) {
+        monitor_printf(mon, "%s: type=%s removable=%d",
+                       info->device, info->type, info->removable);
+
+        if (info->removable) {
+            monitor_printf(mon, " locked=%d", info->locked);
+        }
+
+        if (info->has_inserted) {
+            monitor_printf(mon, " file=");
+            monitor_print_filename(mon, info->inserted->file);
+
+            if (info->inserted->has_backing_file) {
+                monitor_printf(mon, " backing_file=");
+                monitor_print_filename(mon, info->inserted->backing_file);
+            }
+            monitor_printf(mon, " ro=%d drv=%s encrypted=%d",
+                           info->inserted->ro, info->inserted->drv,
+                           info->inserted->encrypted);
+        } else {
+            monitor_printf(mon, " [not inserted]");
+        }
+
+        monitor_printf(mon, "\n");
+    }
+
+    qmp_free_block_info(block_list);
+}
