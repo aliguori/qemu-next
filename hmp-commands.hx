@@ -42,8 +42,7 @@ ETEXI
         .args_type  = "",
         .params     = "",
         .help       = "quit the emulator",
-        .user_print = monitor_user_noop,
-        .mhandler.cmd_new = hmp_quit,
+        .mhandler.cmd = hmp_quit,
     },
 
 STEXI
@@ -57,8 +56,7 @@ ETEXI
         .args_type  = "force:-f,device:B",
         .params     = "[-f] device",
         .help       = "eject a removable medium (use -f to force it)",
-        .user_print = monitor_user_noop,
-        .mhandler.cmd_new = hmp_eject,
+        .mhandler.cmd = hmp_eject,
     },
 
 STEXI
@@ -90,8 +88,7 @@ ETEXI
         .args_type  = "device:B,target:F,arg:s?",
         .params     = "device filename [format]",
         .help       = "change a removable medium, optional format",
-        .user_print = monitor_user_noop,
-        .mhandler.cmd_new = hmp_change,
+        .mhandler.cmd = hmp_change,
     },
 
 STEXI
@@ -137,8 +134,7 @@ ETEXI
         .args_type  = "filename:F",
         .params     = "filename",
         .help       = "save screen into PPM image 'filename'",
-        .user_print = monitor_user_noop,
-        .mhandler.cmd_new = hmp_screendump,
+        .mhandler.cmd = hmp_screendump,
     },
 
 STEXI
@@ -271,8 +267,7 @@ ETEXI
         .args_type  = "",
         .params     = "",
         .help       = "stop emulation",
-        .user_print = monitor_user_noop,
-        .mhandler.cmd_new = hmp_stop,
+        .mhandler.cmd = hmp_stop,
     },
 
 STEXI
@@ -286,8 +281,7 @@ ETEXI
         .args_type  = "",
         .params     = "",
         .help       = "resume emulation",
-        .user_print = monitor_user_noop,
-        .mhandler.cmd_new = hmp_cont,
+        .mhandler.cmd = hmp_cont,
     },
 
 STEXI
@@ -571,8 +565,7 @@ ETEXI
         .args_type  = "index:i",
         .params     = "index",
         .help       = "set the default CPU",
-        .user_print = monitor_user_noop,
-        .mhandler.cmd_new = do_cpu_set,
+        .mhandler.cmd = hmp_cpu,
     },
 
 STEXI
@@ -674,8 +667,7 @@ ETEXI
         .args_type  = "val:l,size:i,filename:s",
         .params     = "addr size file",
         .help       = "save to disk virtual memory dump starting at 'addr' of size 'size'",
-        .user_print = monitor_user_noop,
-        .mhandler.cmd_new = do_memory_save,
+        .mhandler.cmd = hmp_memsave,
     },
 
 STEXI
@@ -689,8 +681,7 @@ ETEXI
         .args_type  = "val:l,size:i,filename:s",
         .params     = "addr size file",
         .help       = "save to disk physical memory dump starting at 'addr' of size 'size'",
-        .user_print = monitor_user_noop,
-        .mhandler.cmd_new = do_physical_memory_save,
+        .mhandler.cmd = hmp_pmemsave,
     },
 
 STEXI
@@ -1007,7 +998,7 @@ ETEXI
         .args_type  = "name:s,up:b",
         .params     = "name on|off",
         .help       = "change the link status of a network adapter",
-        .mhandler.cmd_new = hmp_set_link,
+        .mhandler.cmd = hmp_set_link,
     },
 
 STEXI
@@ -1167,8 +1158,7 @@ ETEXI
         .args_type  = "device:B,password:s",
         .params     = "block_passwd device password",
         .help       = "set the password of encrypted block devices",
-        .user_print = monitor_user_noop,
-        .mhandler.cmd_new = hmp_block_passwd,
+        .mhandler.cmd = hmp_block_passwd,
     },
 
 STEXI
@@ -1182,7 +1172,7 @@ ETEXI
         .args_type  = "protocol:s,password:s,connected:s?",
         .params     = "protocol password action-if-connected",
         .help       = "set spice/vnc password",
-        .mhandler.cmd_new = hmp_set_password,
+        .mhandler.cmd = hmp_set_password,
     },
 
 STEXI
@@ -1202,7 +1192,7 @@ ETEXI
         .args_type  = "protocol:s,time:s",
         .params     = "protocol time",
         .help       = "set spice/vnc password expire-time",
-        .mhandler.cmd_new = hmp_expire_password,
+        .mhandler.cmd = hmp_expire_password,
     },
 
 STEXI

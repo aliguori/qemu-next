@@ -1,19 +1,20 @@
 #include "hmp.h"
 
+static int64_t mon_cpu_index = 0;
+
 /*******************************************************/
 /*                        HMP                          */
 /*******************************************************/
 
 /* These should not access any QEMU internals.  Just use QMP interfaces. */
 
-int hmp_quit(Monitor *mon, const QDict *qdict, QObject **ret_data)
+void hmp_quit(Monitor *mon, const QDict *qdict)
 {
     monitor_suspend(mon);
     qmp_quit(NULL);
-    return 0;
 }
 
-int hmp_eject(Monitor *mon, const QDict *qdict, QObject **ret_data)
+void hmp_eject(Monitor *mon, const QDict *qdict)
 {
     int force = qdict_get_try_bool(qdict, "force", 0);
     const char *filename = qdict_get_str(qdict, "device");
@@ -22,13 +23,10 @@ int hmp_eject(Monitor *mon, const QDict *qdict, QObject **ret_data)
     qmp_eject(filename, true, force, &err);
     if (err) {
         monitor_printf(mon, "eject: %s\n", error_get_pretty(err));
-        return -1;
     }
-
-    return 0;
 }
 
-int hmp_block_passwd(Monitor *mon, const QDict *qdict, QObject **ret_data)
+void hmp_block_passwd(Monitor *mon, const QDict *qdict)
 {
     const char *device = qdict_get_str(qdict, "device");
     const char *password = qdict_get_str(qdict, "password");
@@ -38,10 +36,7 @@ int hmp_block_passwd(Monitor *mon, const QDict *qdict, QObject **ret_data)
     if (err) {
         monitor_printf(mon, "block_passwd: %s\n", error_get_pretty(err));
         error_free(err);
-        return -1;
     }
-
-    return 0;
 }
 
 static void cb_hmp_change_bdrv_pwd(Monitor *mon, const char *password,
@@ -62,7 +57,7 @@ static void cb_hmp_change_bdrv_pwd(Monitor *mon, const char *password,
     monitor_read_command(mon, 1);
 }
 
-int hmp_change(Monitor *mon, const QDict *qdict, QObject **ret_data)
+void hmp_change(Monitor *mon, const QDict *qdict)
 {
     const char *device = qdict_get_str(qdict, "device");
     const char *target = qdict_get_str(qdict, "target");
@@ -78,46 +73,39 @@ int hmp_change(Monitor *mon, const QDict *qdict, QObject **ret_data)
             monitor_printf(mon,
                            "terminal does not support password prompting\n");
             error_free(err);
-            return -1;
+            return;
         }
         readline_start(monitor_get_rs(mon), "Password: ", 1,
                        cb_hmp_change_bdrv_pwd, err);
     }
-
-    return 0;
 }
 
-int hmp_screendump(Monitor *mon, const QDict *qdict, QObject **ret_data)
+void hmp_screendump(Monitor *mon, const QDict *qdict)
 {
     qmp_screendump(qdict_get_str(qdict, "filename"), NULL);
-    return 0;
 }
 
-int hmp_stop(Monitor *mon, const QDict *qdict, QObject **ret_data)
+void hmp_stop(Monitor *mon, const QDict *qdict)
 {
     qmp_stop(NULL);
-    return 0;
 }
 
-int hmp_cont(Monitor *mon, const QDict *qdict, QObject **ret_data)
+void hmp_cont(Monitor *mon, const QDict *qdict)
 {
     qmp_cont(NULL);
-    return 0;
 }
 
-int hmp_system_reset(Monitor *mon, const QDict *qdict, QObject **ret_data)
+void hmp_system_reset(Monitor *mon, const QDict *qdict)
 {
     qmp_system_reset(NULL);
-    return 0;
 }
 
-int hmp_system_powerdown(Monitor *mon, const QDict *qdict, QObject **ret_data)
+void hmp_system_powerdown(Monitor *mon, const QDict *qdict)
 {
     qmp_system_powerdown(NULL);
-    return 0;
 }
 
-int hmp_set_link(Monitor *mon, const QDict *qdict, QObject **ret_data)
+void hmp_set_link(Monitor *mon, const QDict *qdict)
 {
     const char *name = qdict_get_str(qdict, "name");
     int up = qdict_get_bool(qdict, "up");
@@ -127,13 +115,10 @@ int hmp_set_link(Monitor *mon, const QDict *qdict, QObject **ret_data)
     if (err) {
         monitor_printf(mon, "set_link: %s\n", error_get_pretty(err));
         error_free(err);
-        return -1;
     }
-
-    return 0;
 }
 
-int hmp_set_password(Monitor *mon, const QDict *qdict, QObject **ret_data)
+void hmp_set_password(Monitor *mon, const QDict *qdict)
 {
     const char *protocol  = qdict_get_str(qdict, "protocol");
     const char *password  = qdict_get_str(qdict, "password");
@@ -144,13 +129,10 @@ int hmp_set_password(Monitor *mon, const QDict *qdict, QObject **ret_data)
     if (err) {
         monitor_printf(mon, "set_password: %s\n", error_get_pretty(err));
         error_free(err);
-        return -1;
     }
-
-    return 0;
 }
 
-int hmp_expire_password(Monitor *mon, const QDict *qdict, QObject **ret_data)
+void hmp_expire_password(Monitor *mon, const QDict *qdict)
 {
     const char *protocol  = qdict_get_str(qdict, "protocol");
     const char *whenstr = qdict_get_str(qdict, "time");
@@ -160,10 +142,31 @@ int hmp_expire_password(Monitor *mon, const QDict *qdict, QObject **ret_data)
     if (err) {
         monitor_printf(mon, "expire_password: %s\n", error_get_pretty(err));
         error_free(err);
-        return -1;
     }
+}
 
-    return 0;
+void hmp_cpu(Monitor *mon, const QDict *qdict)
+{
+    int64_t cpu_index = qdict_get_int(qdict, "index");
+    mon_cpu_index = cpu_index;
+}
+
+void hmp_memsave(Monitor *mon, const QDict *qdict)
+{
+    uint32_t size = qdict_get_int(qdict, "size");
+    const char *filename = qdict_get_str(qdict, "filename");
+    uint64_t addr = qdict_get_int(qdict, "val");
+
+    qmp_memsave(filename, addr, size, true, mon_cpu_index, NULL);
+}
+
+void hmp_pmemsave(Monitor *mon, const QDict *qdict)
+{
+    uint32_t size = qdict_get_int(qdict, "size");
+    const char *filename = qdict_get_str(qdict, "filename");
+    uint64_t addr = qdict_get_int(qdict, "val");
+
+    qmp_pmemsave(filename, addr, size, NULL);
 }
 
 void hmp_info_version(Monitor *mon)
@@ -323,7 +326,7 @@ void hmp_info_cpus(Monitor *mon)
     for (cpu = cpu_list; cpu; cpu = cpu->next) {
         int active = ' ';
 
-        if (cpu->current) {
+        if (cpu->CPU == mon_cpu_index) {
             active = '*';
         }
 
