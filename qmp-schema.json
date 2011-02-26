@@ -574,6 +574,162 @@
 ##
 [ 'query-cpus', {}, {}, ['CpuInfo'] ]
 
+##
+# @set_link:
+#
+# Sets the link status of a virtual network adapter
+#
+# @name: the device name of the virtual network adapter
+#
+# @up: true to set the link status to be up
+#
+# Returns: Nothing on success
+#          If @name is not a valid network device, DeviceNotFound
+#
+# Since: 0.14.0
+#
+# Notes: Not all network adapters support setting link status.  This command
+#        will succeed even if the network adapter does not support link status
+#        notification.
+##
+[ 'set_link', {'name': 'str', 'up': 'bool'}, {}, 'none' ]
+
+##
+# @set_password:
+#
+# Sets the password of a remote display session.
+#
+# @protocol: `vnc' to modify the VNC server password
+#            `spice' to modify the Spice server password
+#
+# @password: the new password
+#
+# @connected: #optional how to handle existing clients when changing the
+#                       password.  If nothing is specified, defaults to `keep' 
+#                       `fail' to fail the command if clients are connected
+#                       `disconnect' to disconnect existing clients
+#                       `keep' to maintain existing clients
+#
+# Returns: Nothing on success
+#          If Spice is not enabled, DeviceNotFound
+#          If @protocol does not support connected, InvalidParameter
+#          If @protocol is invalid, InvalidParameter
+#          If any other error occurs, SetPasswdFailed
+#
+# Notes: If VNC is not enabled, SetPasswdFailed is returned.  This interface is
+#        deprecated starting in 0.15 for use with the VNC server.
+#
+# Since: 0.14.0
+##
+[ 'set_password', {'protocol': 'str', 'password': 'str'}, {'connected': 'str'}, 'none' ]
+
+##
+# @expire_password:
+#
+# Expire the password of a remote display server.
+#
+# @protocol: the name of the remote display protocol `vnc' or `spice'
+#
+# @time: when to expire the password.
+#        `now' to expire the password immediately
+#        `never' to cancel password expiration
+#        `+INT' where INT is the number of seconds from now (integer)
+#        `INT' where INT is the absolute time in seconds
+#
+# Returns: Nothing on success
+#          If @protocol is `spice' and Spice is not active, DeviceNotFound
+#          If an error occurs setting password expiration, SetPasswdFailed
+#          If @protocol is not `spice' or 'vnc', InvalidParameter
+#
+# Since: 0.14.0
+#
+# Notes: Time is relative to the server and currently there is no way to
+#        coordinate server time with client time.  It is not recommended to
+#        use the absolute time version of the @time parameter unless you're
+#        sure you are on the same machine as the QEMU instance.
+##
+[ 'expire_password', {'protocol': 'str', 'time': 'str'}, {}, 'none' ]
+
+##
+# @KvmInfo:
+#
+# Information about support for KVM acceleration
+#
+# @enabled: true if KVM acceleration is active
+#
+# @present: true if KVM acceleration is built into this executable
+#
+# Since: 0.14.0
+##
+{ 'KvmInfo': {'enabled': 'bool', 'present': 'bool'} }
+
+##
+# @query-kvm:
+#
+# Returns information about KVM acceleration
+#
+# Returns: @KvmInfo
+#
+# Since: 0.14.0
+##
+[ 'query-kvm', {}, {}, 'KvmInfo' ]
+
+##
+# @ChardevInfo:
+#
+# Information about a character device.
+#
+# @label: the label of the character device
+#
+# @filename: the filename of the character device
+#
+# Notes: @filename is encoded using the QEMU command line character device
+#        encoding.  See the QEMU man page for details.
+#
+# Since: 0.14.0
+##
+{ 'ChardevInfo': {'label': 'str', 'filename': 'str'} }
+
+##
+# @query-chardev:
+#
+# Returns information about current character deviecs
+#
+# Returns: a list of @ChardevInfo
+#
+# Since: 0.14.0
+##
+[ 'query-chardev', {}, {}, ['ChardevInfo'] ]
+
+##
+# @MouseInfo:
+#
+# Information about a mouse device.
+#
+# @name: the name of the mouse device
+#
+# @index: the index of the mouse device
+#
+# @current: true if this device is currently receiving mouse events
+#
+# @absolute: true if this device supports absolute coordinates as input
+#
+# Since: 0.14.0
+##
+{ 'MouseInfo': {'name': 'str', 'index': 'int', 'current': 'bool',
+                'absolute': 'bool'} }
+
+##
+# @query-mice:
+#
+# Returns information about each active mouse device
+#
+# Returns: a list of @MouseInfo for each device
+#
+# Since: 0.14.0
+##
+[ 'query-mice', {}, {}, ['MouseInfo'] ]
+
 ### Commands that still need docs ###
 
 { 'BalloonInfo': {'actual': 'int', '*mem_swapped_in': 'int',
@@ -603,16 +759,6 @@
 [ 'netdev_add', {'type': 'str', 'id': 'str'}, {'opts': '**'}, 'none' ]
 [ 'netdev_del', {'id': 'str'}, {}, 'none' ]
 
-{ 'NetworkType': ['none', 'nic', 'slirp', 'tap', 'socket', 'vde', 'dump'] }
-{ 'NetworkInfo': {'name': 'str', 'type': 'NetworkType',
-                  '*vlan_id': 'int', '*peer': 'str'} }
-[ 'query-network', {}, {}, ['NetworkInfo'] ]
-
-{ 'TapInfo': {'fd': 'int', 'vhost_enabled': 'bool',
-              'vnet_hdr_enabled': 'bool', 'ufo_enabled': 'bool',
-              '*down_script': 'str', '*down_script_arg': 'str'} }
-[ 'query-tap', {'id': 'str'}, {}, 'TapInfo' ]
-
 { 'PciMemoryRange': {'base': 'int', 'limit': 'int'} }
 
 { 'PciMemoryRegion': {'bar': 'int', 'type': 'str', 'address': 'int',
@@ -636,21 +782,17 @@
 { 'PciInfo': {'bus': 'int', 'devices': ['PciDeviceInfo']} }
 [ 'query-pci', {}, {}, ['PciInfo'] ]
 
-[ 'set_link', {'name': 'str', 'up': 'bool'}, {}, 'none' ]
-[ 'set_password', {'protocol': 'str', 'password': 'str'}, {'connected': 'str'}, 'none' ]
-[ 'expire_password', {'protocol': 'str', 'time': 'str'}, {}, 'none' ]
-
-{ 'KvmInfo': {'enabled': 'bool', 'present': 'bool'} }
-[ 'query-kvm', {}, {}, 'KvmInfo' ]
-
-{ 'ChardevInfo': {'label': 'str', 'filename': 'str'} }
-[ 'query-chardev', {}, {}, ['ChardevInfo'] ]
-
-{ 'MouseInfo': {'name': 'str', 'index': 'int', 'current': 'bool',
-                'absolute': 'bool'} }
-[ 'query-mice', {}, {}, ['MouseInfo'] ]
-
 # 0.15.0 commands.  These can be changed up until the next release
+
+{ 'NetworkType': ['none', 'nic', 'slirp', 'tap', 'socket', 'vde', 'dump'] }
+{ 'NetworkInfo': {'name': 'str', 'type': 'NetworkType',
+                  '*vlan_id': 'int', '*peer': 'str'} }
+[ 'query-network', {}, {}, ['NetworkInfo'] ]
+
+{ 'TapInfo': {'fd': 'int', 'vhost_enabled': 'bool',
+              'vnet_hdr_enabled': 'bool', 'ufo_enabled': 'bool',
+              '*down_script': 'str', '*down_script_arg': 'str'} }
+[ 'query-tap', {'id': 'str'}, {}, 'TapInfo' ]
 
 ##
 # @change-blockdev:
