@@ -1,4 +1,5 @@
 #include "error.h"
+#include "error_int.h"
 #include "qemu-objects.h"
 #include <glib.h>
 

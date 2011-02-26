@@ -1,7 +1,7 @@
 # Makefile for QEMU.
 
 GENERATED_HEADERS = config-host.h trace.h qemu-options.def qmp.h libqmp.h qdev-marshal.h
-GENERATED_HEADERS += qmp-types.h
+GENERATED_HEADERS += qmp-types.h qmp-marshal-types.h
 ifeq ($(TRACE_BACKEND),dtrace)
 GENERATED_HEADERS += trace-dtrace.h
 endif
@@ -158,6 +158,12 @@ qmp-types.c: $(SRC_PATH)/qmp-schema.json $(SRC_PATH)/qmp-gen.py
 qmp-types.h: $(SRC_PATH)/qmp-schema.json $(SRC_PATH)/qmp-gen.py
 	$(call quiet-command,python $(SRC_PATH)/qmp-gen.py --types-header < $< > $@, "  GEN   $@")
 
+qmp-marshal-types.c: $(SRC_PATH)/qmp-schema.json $(SRC_PATH)/qmp-gen.py
+	$(call quiet-command,python $(SRC_PATH)/qmp-gen.py --marshal-body < $< > $@, "  GEN   $@")
+
+qmp-marshal-types.h: $(SRC_PATH)/qmp-schema.json $(SRC_PATH)/qmp-gen.py
+	$(call quiet-command,python $(SRC_PATH)/qmp-gen.py --marshal-header < $< > $@, "  GEN   $@")
+
 qmp.h: $(SRC_PATH)/qmp-schema.json $(SRC_PATH)/qmp-gen.py
 	$(call quiet-command,python $(SRC_PATH)/qmp-gen.py --header < $< > $@, "  GEN   $@")
 
@@ -207,7 +213,8 @@ check-qlist: check-qlist.o qlist.o qint.o $(CHECK_PROG_DEPS)
 check-qfloat: check-qfloat.o qfloat.o $(CHECK_PROG_DEPS)
 check-qjson: check-qjson.o qfloat.o qint.o qdict.o qstring.o qlist.o qbool.o qjson.o json-streamer.o json-lexer.o json-parser.o $(CHECK_PROG_DEPS)
 
-LIBQMP_OBJS := qmp-types.o libqmp.o error.o libqmp-core.o qmp-types-core.o
+LIBQMP_OBJS := qmp-types.o libqmp.o error.o libqmp-core.o
+LIBQMP_OBJS += qmp-marshal-types-core.o qmp-marshal-types.o
 LIBQMP_OBJS += qfloat.o qint.o qdict.o qstring.o qlist.o qbool.o qjson.o
 LIBQMP_OBJS += json-streamer.o json-lexer.o json-parser.o
 LIBQMP_OBJS += $(oslib-obj-y) $(trace-obj-y) qemu-malloc.o

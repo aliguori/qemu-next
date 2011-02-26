@@ -2,6 +2,8 @@
 #define QMP_CORE_H
 
 #include "monitor.h"
+#include "qmp-marshal-types.h"
+#include "error_int.h"
 
 typedef void (QmpCommandFunc)(const QDict *, QObject **, Error **);
 

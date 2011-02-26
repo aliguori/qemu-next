@@ -2,6 +2,8 @@
 #define LIBQMP_INTERNAL_H
 
 #include "qemu-objects.h"
+#include "qmp-marshal-types.h"
+#include "error_int.h"
 
 struct QmpSession
 {

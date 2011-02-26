@@ -15,7 +15,7 @@ oslib-obj-$(CONFIG_POSIX) += oslib-posix.o
 
 block-obj-y = cutils.o cache-utils.o qemu-malloc.o qemu-option.o module.o
 block-obj-y += nbd.o block.o aio.o aes.o qemu-config.o qmp-types.o error.o
-block-obj-y += qmp-types-core.o
+
 
 block-nested-y += raw.o raw-tp-aio.o cow.o qcow.o vdi.o vmdk.o cloop.o dmg.o
 block-nested-y += bochs.o vpc.o vvfat.o
@@ -101,7 +101,8 @@ common-obj-y += msmouse.o ps2.o
 common-obj-y += qdev.o qdev-properties.o qdev-marshal.o
 common-obj-y += block-migration.o
 common-obj-y += pflib.o
-common-obj-y += qmp-marshal.o qmp-core.o
+common-obj-y += qmp-marshal.o qmp-core.o qmp-marshal-types.o
+common-obj-y += qmp-marshal-types-core.o
 common-obj-y += hmp.o
 
 common-obj-$(CONFIG_BRLAPI) += baum.o
