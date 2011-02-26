@@ -58,40 +58,60 @@ typedef struct QmpSession
     CharDriverState *chr;
 } QmpSession;
 
-static void qmp_chr_parse(JSONMessageParser *parser, QList *tokens)
+static QObject *qmp_dispatch_err(QList *tokens, Error **errp)
 {
-    QmpSession *s = container_of(parser, QmpSession, parser);
-    QObject *request, *ret = NULL;
-    QString *str;
-    QDict *dict, *args;
+    const char *command;
+    QDict *args, *dict;
+    QObject *request;
     QmpCommand *cmd;
-    Error *err = NULL;
-    QDict *rsp;
+    QObject *ret = NULL;
 
     request = json_parser_parse(tokens, NULL);
-    str = qobject_to_json_pretty(request);
-    QDECREF(str);
-
-    if (qobject_type(request) != QTYPE_QDICT) {
-        return;
+    if (request == NULL) {
+        error_set(errp, QERR_JSON_PARSING);
+        return NULL;
     }
+    if (qobject_type(request) != QTYPE_QDICT) {
+        error_set(errp, QERR_JSON_PARSING);
+        return NULL;
+    }
+
     dict = qobject_to_qdict(request);
     if (!qdict_haskey(dict, "execute")) {
-        return;
+        error_set(errp, QERR_JSON_PARSING);
+        return NULL;
     }
 
-    cmd = qmp_find_command(qdict_get_str(dict, "execute"));
+    command = qdict_get_str(dict, "execute");
+    cmd = qmp_find_command(command);
     if (cmd == NULL) {
-        return;
+        error_set(errp, QERR_COMMAND_NOT_FOUND, command);
+        return NULL;
     }
 
     if (!qdict_haskey(dict, "arguments")) {
         args = qdict_new();
     } else {
         args = qdict_get_qdict(dict, "arguments");
+        QINCREF(args);
     }
 
-    cmd->fn(args, &ret, &err);
+    cmd->fn(args, &ret, errp);
+
+    QDECREF(args);
+    qobject_decref(request);
+
+    return ret;
+}
+
+static QObject *qmp_dispatch(QList *tokens)
+{
+    Error *err = NULL;
+    QObject *ret;
+    QDict *rsp;
+
+    ret = qmp_dispatch_err(tokens, &err);
+
     rsp = qdict_new();
     if (err) {
         qdict_put_obj(rsp, "error", error_get_qobject(err));
@@ -104,13 +124,23 @@ static void qmp_chr_parse(JSONMessageParser *parser, QList *tokens)
         }
     }
 
-    str = qobject_to_json(QOBJECT(rsp));
+    return QOBJECT(rsp);
+}
+
+static void qmp_chr_parse(JSONMessageParser *parser, QList *tokens)
+{
+    QmpSession *s = container_of(parser, QmpSession, parser);
+    QObject *rsp;
+    QString *str;
+    
+    rsp = qmp_dispatch(tokens);
+
+    str = qobject_to_json(rsp);
     qemu_chr_write(s->chr, (void *)str->string, str->length);
     qemu_chr_write(s->chr, (void *)"\n", 1);
 
     QDECREF(str);
-    QDECREF(rsp);
-    qobject_decref(request);
+    qobject_decref(rsp);
 }
 
 static int qmp_chr_can_receive(void *opaque)
@@ -291,52 +321,11 @@ static void qmp_unix_session_send_greeting(QmpUnixSession *sess)
 static void qmp_unix_session_parse(JSONMessageParser *parser, QList *tokens)
 {
     QmpUnixSession *sess = container_of(parser, QmpUnixSession, parser);
-    QObject *request, *ret = NULL;
-    QDict *dict, *args;
-    QmpCommand *cmd;
-    Error *err = NULL;
-    QDict *rsp;
+    QObject *rsp;
 
-    request = json_parser_parse(tokens, NULL);
-    if (qobject_type(request) != QTYPE_QDICT) {
-        return;
-    }
-
-    dict = qobject_to_qdict(request);
-    if (!qdict_haskey(dict, "execute")) {
-        return;
-    }
-
-    cmd = qmp_find_command(qdict_get_str(dict, "execute"));
-    if (cmd == NULL) {
-        return;
-    }
-
-    if (!qdict_haskey(dict, "arguments")) {
-        args = qdict_new();
-    } else {
-        args = qdict_get_qdict(dict, "arguments");
-    }
-
-    cmd->fn(args, &ret, &err);
-
-    qobject_decref(request);
-    rsp = qdict_new();
-
-    if (err) {
-        qdict_put_obj(rsp, "error", error_get_qobject(err));
-        error_free(err);
-    } else {
-        if (ret) {
-            qdict_put_obj(rsp, "return", ret);
-        } else {
-            qdict_put(rsp, "return", qdict_new());
-        }
-    }
-
-    qmp_unix_session_send(sess, QOBJECT(rsp));
-
-    QDECREF(rsp);
+    rsp = qmp_dispatch(tokens);
+    qmp_unix_session_send(sess, rsp);
+    qobject_decref(rsp);
 }
 
 static void qmp_unix_server_read_event(void *opaque)
