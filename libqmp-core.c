@@ -34,6 +34,7 @@ static void fd_qmp_session_parse(JSONMessageParser *parser, QList *tokens)
     if (!fs->got_greeting) {
         fs->got_greeting = true;
         qobject_decref(fs->result);
+        fs->result = NULL;
     } else {
         fs->completed = true;
     }
@@ -73,6 +74,7 @@ static QObject *qmp_session_fd_dispatch(QmpSession *s, const char *name,
         offset += len;
     }
 
+    g_assert(fs->result == NULL);
     fs->result = NULL;
     fs->completed = false;
     while (!fs->completed) {
@@ -122,6 +124,11 @@ QmpSession *qmp_session_new(int fd)
 void qmp_session_destroy(QmpSession *s)
 {
     FdQmpSession *fs = container_of(s, FdQmpSession, session);
+    if (fs->result) {
+        qobject_decref(fs->result);
+        fs->result = NULL;
+    }
+    json_message_parser_destroy(&fs->parser);
     close(fs->fd);
     qemu_free(fs);
 }

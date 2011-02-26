@@ -471,6 +471,7 @@ static void test_cont(void)
     test_stopped(sess);
     libqmp_cont(sess, &err);
     g_assert_cmperr(err, ==, "MigrationExpected");
+    error_free(err);
     test_stopped(sess);
     libqmp_quit(sess, NULL);
     qemu_destroy(sess);
@@ -480,6 +481,7 @@ static void test_cont(void)
     test_stopped(sess);
     libqmp_cont(sess, &err);
     g_assert_anyerr(err);
+    error_free(err);
     test_stopped(sess);
     /* Can't test for a specific type here as 0.14 sent a generic error */
     libqmp_quit(sess, NULL);

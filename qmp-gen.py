@@ -107,8 +107,8 @@ def print_lib_definition(name, required, optional, retval):
     QDict *qmp__args = qdict_new();
     Error *qmp__local_err = NULL;'''
 
+    print '    QObject *qmp__retval = NULL;'
     if retval != 'none':
-        print '    QObject *qmp__retval = NULL;'
         print '    %s qmp__native_retval = 0;' % (qmp_type_to_c(retval, True))
     print
 
@@ -135,10 +135,7 @@ def print_lib_definition(name, required, optional, retval):
         print '    }'
         print
 
-    if retval == 'none':
-        print '    qmp__session->dispatch(qmp__session, "%s", qmp__args, &qmp__local_err);' % name
-    else:
-        print '    qmp__retval = qmp__session->dispatch(qmp__session, "%s", qmp__args, &qmp__local_err);' % name
+    print '    qmp__retval = qmp__session->dispatch(qmp__session, "%s", qmp__args, &qmp__local_err);' % name
 
     print
     print '    QDECREF(qmp__args);'
@@ -173,6 +170,7 @@ def print_lib_definition(name, required, optional, retval):
     error_propagate(qmp__err, qmp__local_err);
     return qmp__native_retval;''' % qmp_type_from_qobj(retval)
     else:
+        print '    qobject_decref(qmp__retval);'
         print '    error_propagate(qmp__err, qmp__local_err);'
 
     print '}'
