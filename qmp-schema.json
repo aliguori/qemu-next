@@ -497,6 +497,83 @@
 ##
 [ 'query-commands', {}, {}, ['CommandInfo'] ]
 
+##
+# @system_reset:
+#
+# Performs a hard reset of a guest.
+#
+# Since: 0.14.0
+##
+[ 'system_reset' , {}, {}, 'none' ]
+
+##
+# @system_powerdown:
+#
+# Requests that a guest perform a powerdown operation.
+#
+# Since: 0.14.0
+#
+# Notes: A guest may or may not respond to this command.  This command
+#        returning does not indicate that a guest has accepted the request or
+#        that it has shut down.  Many guests will respond to this command by
+#        prompting the user in some way.
+##
+[ 'system_powerdown' , {}, {}, 'none' ]
+
+##
+# @cpu:
+#
+# This command is a nop that is only provided for the purposes of compatibility.
+#
+# Since: 0.14.0
+#
+# Notes: Do not use this command.
+##
+[ 'cpu', {'index': 'int'}, {}, 'none' ]
+
+##
+# @CpuInfo:
+#
+# Information about a virtual CPU
+#
+# @CPU: the index of the virtual CPU
+#
+# @current: this only exists for backwards compatible and should be ignored
+# 
+# @halted: true if the virtual CPU is in the halt state.  Halt usually refers
+#          to a processor specific low power mode.
+#
+# @pc: #optional If the target is i386 or x86_64, this is the 64-bit instruction
+#                pointer.
+#                If the target is Sparc, this is the PC component of the
+#                instruction pointer.
+#
+# @nip: #optional If the target is PPC, the instruction pointer
+#
+# @npc: #optional If the target is Sparc, the NPC component of the instruction
+#                 pointer
+#
+# @PC: #optional If the target is MIPS, the instruction pointer
+#
+# Since: 0.14.0
+#
+# Notes: @halted is a transient state that changes frequently.  By the time the
+#        data is sent to the client, the guest may no longer be halted.
+##
+{ 'CpuInfo': {'CPU': 'int', 'current': 'bool', 'halted': 'bool', '*pc': 'int',
+              '*nip': 'int', '*npc': 'int', '*PC': 'int'} }
+
+##
+# @query-cpus:
+#
+# Returns a list of information about each virtual CPU.
+#
+# Returns: a list of @CpuInfo for each virtual CPU
+#
+# Since: 0.14.0
+##
+[ 'query-cpus', {}, {}, ['CpuInfo'] ]
+
 ### Commands that still need docs ###
 
 { 'BalloonInfo': {'actual': 'int', '*mem_swapped_in': 'int',
@@ -518,14 +595,6 @@
 [ 'device_add', {'driver': 'str', 'id': 'str'}, {'opts': '**'}, 'none' ]
 
 [ 'device_del', {'id': 'str'}, {}, 'none' ]
-
-[ 'system_reset' , {}, {}, 'none' ]
-[ 'system_powerdown' , {}, {}, 'none' ]
-
-[ 'cpu', {'index': 'int'}, {}, 'none' ]
-{ 'CpuInfo': {'CPU': 'int', 'current': 'bool', 'halted': 'bool', '*pc': 'int',
-              '*nip': 'int', '*npc': 'int', '*PC': 'int'} }
-[ 'query-cpus', {}, {}, ['CpuInfo'] ]
 
 [ 'memsave', {'val': 'int', 'size': 'int', 'filename': 'str'},
   {'cpu': 'int'}, 'none' ]
