@@ -14,5 +14,6 @@ int hmp_cont(Monitor *mon, const QDict *qdict, QObject **ret_data);
 void hmp_info_version(Monitor *mon);
 void hmp_info_status(Monitor *mon);
 void hmp_info_block(Monitor *mon);
+void hmp_info_blockstats(Monitor *mon);
 
 #endif

@@ -165,3 +165,29 @@ void hmp_info_block(Monitor *mon)
 
     qmp_free_block_info(block_list);
 }
+
+void hmp_info_blockstats(Monitor *mon)
+{
+    BlockStats *stats_list, *stats;
+
+    stats_list = qmp_query_blockstats(NULL);
+
+    for (stats = stats_list; stats; stats = stats->next) {
+        if (!stats->has_device) {
+            continue;
+        }
+
+        monitor_printf(mon, "%s:", stats->device);
+        monitor_printf(mon, " rd_bytes=%" PRId64
+                       " wr_bytes=%" PRId64
+                       " rd_operations=%" PRId64
+                       " wr_operations=%" PRId64
+                       "\n",
+                       stats->stats->rd_bytes,
+                       stats->stats->wr_bytes,
+                       stats->stats->rd_operations,
+                       stats->stats->wr_operations);
+    }
+
+    qmp_free_block_stats(stats_list);
+}
