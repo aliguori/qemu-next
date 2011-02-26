@@ -932,23 +932,20 @@ static void test_query_tap(void)
     Error *err = NULL;
     TapInfo *tap;
 
-    sess = qemu("-S -net tap,script=,ifname=tap100,id=foo");
+    sess = qemu("-S -net tap,script=,ifname=tap100,id=foo 2> /dev/null");
     
     tap = libqmp_query_tap(sess, "foo", &err);
     g_assert_noerr(err);
 
-    printf("fd: %ld\n", tap->fd);
-    if (tap->down_script) {
-        printf("down script: %s\n", tap->down_script);
-    }
-    if (tap->down_script_arg) {
-        printf("down script arg: %s\n", tap->down_script_arg);
-    }
-    printf("options:");
-    if (tap->vnet_hdr_enabled) {
-        printf(" vnet");
-    }
-    printf("\n");
+    g_assert(tap->has_down_script == true);
+    g_assert_cmpstr(tap->down_script, ==, "/etc/qemu-ifdown");
+
+    g_assert(tap->has_down_script_arg == true);
+    g_assert_cmpstr(tap->down_script_arg, ==, "tap100");
+
+    g_assert(tap->vnet_hdr_enabled == false);
+
+    qmp_free_tap_info(tap);
 
     libqmp_quit(sess, NULL);
     qemu_destroy(sess);
