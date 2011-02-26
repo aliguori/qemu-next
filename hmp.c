@@ -215,6 +215,66 @@ void hmp_device_add(Monitor *mon, const QDict *qdict)
     }
 }
 
+void hmp_device_del(Monitor *mon, const QDict *qdict)
+{
+    const char *id = qdict_get_str(qdict, "id");
+    Error *err = NULL;
+
+    qmp_device_del(id, &err);
+
+    if (err) {
+        monitor_printf(mon, "device_del: %s\n", error_get_pretty(err));
+        error_free(err);
+    }
+}
+
+void hmp_netdev_add(Monitor *mon, const QDict *qdict)
+{
+    const QDictEntry *entry;
+    const char *type = qdict_get_str(qdict, "type");
+    const char *id = qdict_get_str(qdict, "id");
+    KeyValues *opts = NULL;
+    Error *err = NULL;
+
+    for (entry = qdict_first(qdict); entry; entry = qdict_next(qdict, entry)) {
+        const char *key = qdict_entry_key(entry);
+        const char *value = qstring_get_str(qobject_to_qstring(qdict_entry_value(entry)));
+        KeyValues *kv;
+
+        if (strcmp(key, "type") == 0 ||
+            strcmp(key, "id") == 0) {
+            continue;
+        }
+
+        kv = qmp_alloc_key_values();
+        kv->key = qemu_strdup(key);
+        kv->value = qemu_strdup(value);
+        kv->next = opts;
+        opts = kv;
+    }
+
+    qmp_netdev_add(type, id, opts, &err);
+    qmp_free_key_values(opts);
+
+    if (err) {
+        monitor_printf(mon, "netdev_add: %s\n", error_get_pretty(err));
+        error_free(err);
+    }
+}
+
+void hmp_netdev_del(Monitor *mon, const QDict *qdict)
+{
+    const char *id = qdict_get_str(qdict, "id");
+    Error *err = NULL;
+
+    qmp_netdev_del(id, &err);
+
+    if (err) {
+        monitor_printf(mon, "netdev_del: %s\n", error_get_pretty(err));
+        error_free(err);
+    }
+}
+
 void hmp_info_version(Monitor *mon)
 {
     VersionInfo *info;

@@ -546,8 +546,7 @@ ETEXI
         .args_type  = "id:s",
         .params     = "device",
         .help       = "remove device",
-        .user_print = monitor_user_noop,
-        .mhandler.cmd_new = do_device_del,
+        .mhandler.cmd = hmp_device_del,
     },
 
 STEXI
@@ -918,8 +917,7 @@ ETEXI
         .args_type  = "netdev:O",
         .params     = "[user|tap|socket],id=str[,prop=value][,...]",
         .help       = "add host network device",
-        .user_print = monitor_user_noop,
-        .mhandler.cmd_new = do_netdev_add,
+        .mhandler.cmd = hmp_netdev_add,
     },
 
 STEXI
@@ -933,8 +931,7 @@ ETEXI
         .args_type  = "id:s",
         .params     = "id",
         .help       = "remove host network device",
-        .user_print = monitor_user_noop,
-        .mhandler.cmd_new = do_netdev_del,
+        .mhandler.cmd = hmp_netdev_del,
     },
 
 STEXI
