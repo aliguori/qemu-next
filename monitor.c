@@ -807,18 +807,6 @@ VersionInfo *qmp_query_version(Error **err)
     return info;
 }
 
-static void do_info_name_print(Monitor *mon, const QObject *data)
-{
-    QDict *qdict;
-
-    qdict = qobject_to_qdict(data);
-    if (qdict_size(qdict) == 0) {
-        return;
-    }
-
-    monitor_printf(mon, "%s\n", qdict_get_str(qdict, "name"));
-}
-
 static void do_info_name(Monitor *mon, QObject **ret_data)
 {
     *ret_data = qemu_name ? qobject_from_jsonf("{'name': %s }", qemu_name) :
@@ -870,11 +858,6 @@ static void do_info_commands(Monitor *mon, QObject **ret_data)
     }
 
     *ret_data = QOBJECT(cmd_list);
-}
-
-static void do_info_uuid_print(Monitor *mon, const QObject *data)
-{
-    monitor_printf(mon, "%s\n", qdict_get_str(qobject_to_qdict(data), "UUID"));
 }
 
 static void do_info_uuid(Monitor *mon, QObject **ret_data)
@@ -3367,16 +3350,14 @@ static const mon_cmd_t info_cmds[] = {
         .args_type  = "",
         .params     = "",
         .help       = "show the current VM name",
-        .user_print = do_info_name_print,
-        .mhandler.info_new = do_info_name,
+        .mhandler.info = hmp_info_name,
     },
     {
         .name       = "uuid",
         .args_type  = "",
         .params     = "",
         .help       = "show the current VM UUID",
-        .user_print = do_info_uuid_print,
-        .mhandler.info_new = do_info_uuid,
+        .mhandler.info = hmp_info_uuid,
     },
 #if defined(TARGET_PPC)
     {

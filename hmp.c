@@ -233,3 +233,22 @@ void hmp_info_vnc(Monitor *mon)
     qmp_free_vnc_info(info);
 }
 
+void hmp_info_name(Monitor *mon)
+{
+    NameInfo *info;
+
+    info = qmp_query_name(NULL);
+    if (info->has_name) {
+        monitor_printf(mon, "%s\n", info->name);
+    }
+    qmp_free_name_info(info);
+}
+
+void hmp_info_uuid(Monitor *mon)
+{
+    UuidInfo *info;
+
+    info = qmp_query_uuid(NULL);
+    monitor_printf(mon, "%s\n", info->UUID);
+    qmp_free_uuid_info(info);
+}
