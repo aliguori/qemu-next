@@ -225,7 +225,7 @@ EQMP
         .args_type  = "",
         .params     = "",
         .help       = "reset the system",
-        .mhandler.cmd_new = do_system_reset,
+        .mhandler.cmd_new = hmp_system_reset,
     },
 
 SQMP
@@ -248,7 +248,7 @@ EQMP
         .args_type  = "",
         .params     = "",
         .help       = "send system power down event",
-        .mhandler.cmd_new = do_system_powerdown,
+        .mhandler.cmd_new = hmp_system_powerdown,
     },
 
 SQMP

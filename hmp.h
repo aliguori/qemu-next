@@ -11,6 +11,8 @@ int hmp_change(Monitor *mon, const QDict *qdict, QObject **ret_data);
 int hmp_screendump(Monitor *mon, const QDict *qdict, QObject **ret_data);
 int hmp_stop(Monitor *mon, const QDict *qdict, QObject **ret_data);
 int hmp_cont(Monitor *mon, const QDict *qdict, QObject **ret_data);
+int hmp_system_reset(Monitor *mon, const QDict *qdict, QObject **ret_data);
+int hmp_system_powerdown(Monitor *mon, const QDict *qdict, QObject **ret_data);
 void hmp_info_version(Monitor *mon);
 void hmp_info_status(Monitor *mon);
 void hmp_info_block(Monitor *mon);

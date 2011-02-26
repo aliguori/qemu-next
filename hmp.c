@@ -105,6 +105,18 @@ int hmp_cont(Monitor *mon, const QDict *qdict, QObject **ret_data)
     return 0;
 }
 
+int hmp_system_reset(Monitor *mon, const QDict *qdict, QObject **ret_data)
+{
+    qmp_system_reset(NULL);
+    return 0;
+}
+
+int hmp_system_powerdown(Monitor *mon, const QDict *qdict, QObject **ret_data)
+{
+    qmp_system_powerdown(NULL);
+    return 0;
+}
+
 void hmp_info_version(Monitor *mon)
 {
     VersionInfo *info;
