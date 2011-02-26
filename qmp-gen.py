@@ -147,20 +147,25 @@ def print_lib_definition(name, required, optional, retval):
         QList *qmp__list_retval = qobject_to_qlist(qmp__retval);
         QListEntry *qmp__i;
         QLIST_FOREACH_ENTRY(qmp__list_retval, qmp__i) {
-            %s qmp__native_i = %s(qmp__i->value);
+            %s qmp__native_i = %s(qmp__i->value, &qmp__local_err);
+            if (qmp__local_err) {
+                %s(qmp__native_retval);
+                break;
+            }
             qmp__native_i->next = qmp__native_retval;
             qmp__native_retval = qmp__native_i;
         }
         qobject_decref(qmp__retval);
     }
     error_propagate(qmp__err, qmp__local_err);
-    return qmp__native_retval;''' % (qmp_type_to_c(retval[0], True), qmp_type_from_qobj(retval[0]))
+    return qmp__native_retval;''' % (qmp_type_to_c(retval[0], True), qmp_type_from_qobj(retval[0]), qmp_free_func(retval[0]))
     elif type(retval) == dict:
-        print '    // FIXME (using an anonymous dict as return value'
+        print '    // FIXME (using an anonymous dict as return value)'
+        print '    BUILD_BUG();'
     elif retval != 'none':
         print '''
     if (!qmp__local_err) {
-        qmp__native_retval = %s(qmp__retval);
+        qmp__native_retval = %s(qmp__retval, &qmp__local_err);
         qobject_decref(qmp__retval);
     }
     error_propagate(qmp__err, qmp__local_err);
@@ -190,6 +195,7 @@ def print_definition(name, required, optional, retval):
     print '''
 static void qmp_marshal_%s(const QDict *qdict, QObject **ret_data, Error **err)
 {''' % c_var(name)
+    print '    Error *qmp__err = NULL;'
 
     for key in required:
         print '    %s %s = 0;' % (qmp_type_to_c(required[key], True), c_var(key))
@@ -204,15 +210,29 @@ static void qmp_marshal_%s(const QDict *qdict, QObject **ret_data, Error **err)
     if retval != 'none':
         print '    %s qmp_retval = 0;' % (qmp_type_to_c(retval, True))
 
+    print '''
+    (void)qmp__err;'''
+
     for key in required:
         print '''
     if (!qdict_haskey(qdict, "%s")) {
         error_set(err, QERR_MISSING_PARAMETER, "%s");
         goto qmp__out;
     }
-    /* FIXME validate type and send QERR_INVALID_PARAMETER */
-    %s = %s(qdict_get(qdict, "%s"));
-''' % (key, key, c_var(key), qmp_type_from_qobj(required[key]), key)
+
+    %s = %s(qdict_get(qdict, "%s"), &qmp__err);
+    if (qmp__err) {
+        if (error_is_type(qmp__err, QERR_INVALID_PARAMETER_TYPE)) {
+            error_set(err, QERR_INVALID_PARAMETER_TYPE, "%s",
+                      error_get_field(qmp__err, "expected"));
+            error_free(qmp__err);
+            qmp__err = NULL;
+        } else {
+            error_propagate(err, qmp__err);
+        }
+        goto qmp__out;
+    }
+''' % (key, key, c_var(key), qmp_type_from_qobj(required[key]), key, key)
 
     for key in optional:
         if optional[key] == '**':
@@ -240,10 +260,21 @@ static void qmp_marshal_%s(const QDict *qdict, QObject **ret_data, Error **err)
         else:
             print '''
     if (qdict_haskey(qdict, "%s")) {
-        %s = %s(qdict_get(qdict, "%s"));
+        %s = %s(qdict_get(qdict, "%s"), &qmp__err);
+        if (qmp__err) {
+            if (error_is_type(qmp__err, QERR_INVALID_PARAMETER_TYPE)) {
+                error_set(err, QERR_INVALID_PARAMETER_TYPE, "%s",
+                          error_get_field(qmp__err, "expected"));
+                error_free(qmp__err);
+                qmp__err = NULL;
+            } else {
+                error_propagate(err, qmp__err);
+            }
+            goto qmp__out;
+        }
         has_%s = true;
     }
-''' % (key, c_var(key), qmp_type_from_qobj(optional[key]), key, c_var(key))
+''' % (key, c_var(key), qmp_type_from_qobj(optional[key]), key, key, c_var(key))
 
     args = []
     for key in required:
@@ -333,7 +364,7 @@ def print_enum_declaration(name, entries):
     print '%s qmp_type_%s_from_str(const char *str, Error **errp);' % (name, de_camel_case(name))
     print 'const char *qmp_type_%s_to_str(%s value, Error **errp);' % (de_camel_case(name), name)
     print 'QObject *qmp_marshal_type_%s(%s value);' % (name, name)
-    print '%s qmp_unmarshal_type_%s(QObject *obj);' % (name, name)
+    print '%s qmp_unmarshal_type_%s(QObject *obj, Error **errp);' % (name, name)
 
 def print_enum_definition(name, entries):
     print '''
@@ -366,7 +397,9 @@ const char *qmp_type_%s_to_str(%s value, Error **errp)
             print '    } else if (value == %s) {' % enum
         print '        return "%s";' % entry
     print '''    } else {
-        error_set(errp, QERR_ENUM_VALUE_INVALID, "%s", "<int>"); // FIXME
+        char buf[32];
+        snprintf(buf, sizeof(buf), "%%d", value);
+        error_set(errp, QERR_ENUM_VALUE_INVALID, "%s", buf);
         return NULL;
     }
 }''' % name
@@ -379,7 +412,7 @@ QObject *qmp_marshal_type_%s(%s value)
 ''' % (name, name)
 
     print '''
-%s qmp_unmarshal_type_%s(QObject *obj)
+%s qmp_unmarshal_type_%s(QObject *obj, Error **errp)
 {
     return (%s)qint_get_int(qobject_to_qint(obj));
 }
@@ -466,7 +499,7 @@ def print_metatype_declaration(name, typeinfo):
         print "%s *qmp_alloc_%s(void);" % (name, de_camel_case(name))
         print "void qmp_free_%s(%s *obj);" % (de_camel_case(name), name)
         print 'QObject *qmp_marshal_type_%s(%s src);' % (name, qmp_type_to_c(name))
-        print '%s qmp_unmarshal_type_%s(QObject *src);' % (qmp_type_to_c(name), name)
+        print '%s qmp_unmarshal_type_%s(QObject *src, Error **errp);' % (qmp_type_to_c(name), name)
         print
 
 def inprint(string, indent):
@@ -524,7 +557,10 @@ def print_metatype_undef(typeinfo, name, lhs, indent=0):
     indent += 4
 
     if type(typeinfo) == str:
-        inprint('%s = %s(%s);' % (lhs, qobj_to_c(typeinfo), name), indent)
+        inprint('%s = %s(%s, &qmp__err);' % (lhs, qobj_to_c(typeinfo), name), indent)
+        inprint('if (qmp__err) {', indent)
+        inprint('    goto qmp__err_out;', indent)
+        inprint('}', indent)
     elif type(typeinfo) == dict:
         objname = 'qmp__object%d' % ((indent - 4) / 4)
         inprint('{', indent)
@@ -554,7 +590,10 @@ def print_metatype_undef(typeinfo, name, lhs, indent=0):
         inprint('    QList *qmp__list = qobject_to_qlist(%s);' % c_var(name), indent)
         inprint('    QListEntry *%s;' % objname, indent)
         inprint('    QLIST_FOREACH_ENTRY(qmp__list, %s) {' % objname, indent)
-        inprint('        %s qmp__node = %s(%s->value);' % (qmp_type_to_c(typeinfo[0], True), qmp_type_from_qobj(typeinfo[0]), objname), indent)
+        inprint('        %s qmp__node = %s(%s->value, &qmp__err);' % (qmp_type_to_c(typeinfo[0], True), qmp_type_from_qobj(typeinfo[0]), objname), indent)
+        inprint('        if (qmp__err) {', indent)
+        inprint('            goto qmp__err_out;', indent)
+        inprint('        }', indent)
         inprint('        qmp__node->next = %s;' % lhs, indent)
         inprint('        %s = qmp__node;' % lhs, indent)
         inprint('    }', indent)
@@ -569,13 +608,19 @@ QObject *qmp_marshal_type_%s(%s src)
     print '''    return qmp__retval;
 }
 
-%s qmp_unmarshal_type_%s(QObject *src)
+%s qmp_unmarshal_type_%s(QObject *src, Error **errp)
 {''' % (qmp_type_to_c(name), name)
+    print '    Error *qmp__err = NULL;'
     print '    %s qmp__retval = qmp_alloc_%s();' % (qmp_type_to_c(name), de_camel_case(name))
     print_metatype_undef(typeinfo, 'src', 'qmp__retval')
     print '''    return qmp__retval;
-}
+qmp__err_out:
+    error_propagate(errp, qmp__err);
+    %s(qmp__retval);
+    return NULL;
+}''' % (qmp_free_func(name))
 
+    print '''
 void qmp_free_%s(%s *obj)
 {
     qemu_free(obj);
@@ -583,7 +628,7 @@ void qmp_free_%s(%s *obj)
 
 %s *qmp_alloc_%s(void)
 {
-    (void)sizeof(int[-1+!!(sizeof(%s) < 512)]);
+    BUILD_ASSERT(sizeof(%s) < 512);
     return qemu_mallocz(512);
 }''' % (de_camel_case(name), name, name, de_camel_case(name), name)
 
@@ -612,19 +657,8 @@ if kind == 'types-header':
 #ifndef QMP_TYPES_H
 #define QMP_TYPES_H
 
-#include "qemu-common.h"
-#include "qemu-objects.h"
-#include "error.h"
+#include "qmp-types-core.h"
 
-#define qmp_marshal_type_int(value) QOBJECT(qint_from_int(value))
-#define qmp_marshal_type_str(value) QOBJECT(qstring_from_str(value))
-#define qmp_marshal_type_bool(value) QOBJECT(qbool_from_int(value))
-#define qmp_marshal_type_number(value) QOBJECT(qfloat_from_double(value))
-
-#define qmp_unmarshal_type_int(value) qint_get_int(qobject_to_qint(value))
-#define qmp_unmarshal_type_str(value) qemu_strdup(qstring_get_str(qobject_to_qstring(value))) // FIXME mem life cycle
-#define qmp_unmarshal_type_bool(value) qbool_get_int(qobject_to_qbool(value))
-#define qmp_unmarshal_type_number(value) qfloat_get_double(qobject_to_qfloat(value))
 '''
 elif kind == 'types-body':
     print '''/* THIS FILE IS AUTOMATICALLY GENERATED, DO NOT EDIT */
