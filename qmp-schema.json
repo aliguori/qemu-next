@@ -730,6 +730,177 @@
 ##
 [ 'query-mice', {}, {}, ['MouseInfo'] ]
 
+##
+# @memsave:
+#
+# Save a portion of guest memory to a file.
+#
+# @val: the virtual address of the guest to start from
+#
+# @size: the size of memory region to save
+#
+# @filename: the file to save the memory to as binary data
+#
+# @cpu: #optional the index of the virtual CPU to use for translating the
+#                 virtual address (defaults to CPU 0)
+#
+# Returns: Nothing on success
+#          If @cpu is not a valid VCPU, InvalidParameterValue
+#          If @filename cannot be opened, OpenFileFailed
+#          If an I/O error occurs while writing the file, IOError
+#
+# Since: 0.14.0
+#
+# Notes: Errors were not reliably returned until 0.15.0
+##
+[ 'memsave', {'val': 'int', 'size': 'int', 'filename': 'str'},
+  {'cpu': 'int'}, 'none' ]
+
+##
+# @pmemsave:
+#
+# Save a portion of guest physical memory to a file.
+#
+# @val: the physical address of the guest to start from
+#
+# @size: the size of memory region to save
+#
+# @filename: the file to save the memory to as binary data
+#
+# Returns: Nothing on success
+#          If @filename cannot be opened, OpenFileFailed
+#          If an I/O error occurs while writing the file, IOError
+#
+# Since: 0.14.0
+#
+# Notes: Errors were not reliably returned until 0.15.0
+##
+[ 'pmemsave', {'val': 'int', 'size': 'int', 'filename': 'str'}, {}, 'none' ]
+
+##
+# @PciMemoryRange:
+#
+# A PCI device memory region
+#
+# @base: the starting address (guest physical)
+#
+# @limit: the ending address (guest physical)
+#
+# Since: 0.14.0
+##
+{ 'PciMemoryRange': {'base': 'int', 'limit': 'int'} }
+
+##
+# @PciMemoryRegion
+#
+# Information about a PCI device I/O region.
+#
+# @bar: the index of the Base Address Register for this region
+#
+# @type: `io' if the region is a PIO region
+#        `memory' if the region is a MMIO region
+#
+# @prefetch: #optional if @type is `memory', true if the memory is prefetchable
+#
+# @mem_type_64: #optional if @type is `memory', true if the BAR is 64-bit
+#
+# Since: 0.14.0
+##
+{ 'PciMemoryRegion': {'bar': 'int', 'type': 'str', 'address': 'int',
+                      'size': 'int', '*prefetch': 'bool',
+                      '*mem_type_64': 'bool' } }
+
+##
+# @PciBridgeInfo:
+#
+# Information about a PCI Bridge device
+#
+# @bus.number: the bus index for this bridge
+#
+# @bus.secondary: TBD
+#
+# @bus.subordinate: TBD
+#
+# @bus.io_range: TBD
+#
+# @bus.memory_range: TBD
+#
+# @bus.prefetchable_range: TDB
+#
+# @devices: a list of @PciDeviceInfo for each device on this bridge
+#
+# Since: 0.14.0
+##
+{ 'PciBridgeInfo': {'bus': { 'number': 'int', 'secondary': 'int',
+                             'subordinate': 'int',
+                             'io_range': 'PciMemoryRange',
+                             'memory_range': 'PciMemoryRange',
+                             'prefetchable_range': 'PciMemoryRange' },
+                    '*devices': ['PciDeviceInfo']} }
+
+##
+# @PciDeviceInfo:
+#
+# Information about a PCI device
+#
+# @bus: the bus number of the device
+#
+# @slot: the slot the device is located in
+#
+# @function: the function of the slot used by the device
+#
+# @class_info.desc: #optional a string description of the device's class
+#
+# @class_info.class: the class code of the device
+#
+# @id.device: the PCI device id
+#
+# @id.vendor: the PCI vendor id
+#
+# @irq: #optional if an IRQ is assigned to the device, the IRQ number
+#
+# @qdev_id: the device name of the PCI device
+#
+# @pci_bridge: if the device is a PCI bridge, the bridge information
+#
+# @regions: the PCI I/O regions associated with the device
+#
+# Notes: the contents of @class_info.desc are not stable and should only be
+#        treated as informational.
+#
+# Since: 0.14.0
+##
+{ 'PciDeviceInfo': {'bus': 'int', 'slot': 'int', 'function': 'int',
+                    'class_info': {'*desc': 'str', 'class': 'int'},
+                    'id': {'device': 'int', 'vendor': 'int'},
+                    '*irq': 'int', 'qdev_id': 'str',
+                    '*pci_bridge': 'PciBridgeInfo',
+                    'regions': ['PciMemoryRegion']} }
+
+##
+# @PciInfo:
+#
+# Information about a PCI bus
+#
+# @bus: the bus index
+#
+# @devices: a list of devices on this bus
+#
+# Since: 0.14.0
+##
+{ 'PciInfo': {'bus': 'int', 'devices': ['PciDeviceInfo']} }
+
+##
+# @query-pci:
+#
+# Return information about the PCI bus topology of the guest
+#
+# Returns: a list of @PciInfo for each PCI bus
+#
+# Since: 0.14.0
+##
+[ 'query-pci', {}, {}, ['PciInfo'] ]
+
 ### Commands that still need docs ###
 
 { 'BalloonInfo': {'actual': 'int', '*mem_swapped_in': 'int',
@@ -752,35 +923,8 @@
 
 [ 'device_del', {'id': 'str'}, {}, 'none' ]
 
-[ 'memsave', {'val': 'int', 'size': 'int', 'filename': 'str'},
-  {'cpu': 'int'}, 'none' ]
-[ 'pmemsave', {'val': 'int', 'size': 'int', 'filename': 'str'}, {}, 'none' ]
-
 [ 'netdev_add', {'type': 'str', 'id': 'str'}, {'opts': '**'}, 'none' ]
 [ 'netdev_del', {'id': 'str'}, {}, 'none' ]
-
-{ 'PciMemoryRange': {'base': 'int', 'limit': 'int'} }
-
-{ 'PciMemoryRegion': {'bar': 'int', 'type': 'str', 'address': 'int',
-                      'size': 'int', '*prefetch': 'bool',
-                      '*mem_type_64': 'bool' } }
-
-{ 'PciBridgeInfo': {'bus': { 'number': 'int', 'secondary': 'int',
-                             'subordinate': 'int',
-                             'io_range': 'PciMemoryRange',
-                             'memory_range': 'PciMemoryRange',
-                             'prefetchable_range': 'PciMemoryRange' },
-                    '*devices': ['PciDeviceInfo']} }
-
-{ 'PciDeviceInfo': {'bus': 'int', 'slot': 'int', 'function': 'int',
-                    'class_info': {'*desc': 'str', 'class': 'int'},
-                    'id': {'device': 'int', 'vendor': 'int'},
-                    '*irq': 'int', 'qdev_id': 'str',
-                    '*pci_bridge': 'PciBridgeInfo',
-                    'regions': ['PciMemoryRegion']} }
-
-{ 'PciInfo': {'bus': 'int', 'devices': ['PciDeviceInfo']} }
-[ 'query-pci', {}, {}, ['PciInfo'] ]
 
 # 0.15.0 commands.  These can be changed up until the next release
 
