@@ -19,6 +19,7 @@ void hmp_expire_password(Monitor *mon, const QDict *qdict);
 void hmp_cpu(Monitor *mon, const QDict *qdict);
 void hmp_memsave(Monitor *mon, const QDict *qdict);
 void hmp_pmemsave(Monitor *mon, const QDict *qdict);
+void hmp_balloon(Monitor *mon, const QDict *qdict);
 
 void hmp_info_version(Monitor *mon);
 void hmp_info_status(Monitor *mon);

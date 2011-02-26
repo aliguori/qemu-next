@@ -169,6 +169,18 @@ void hmp_pmemsave(Monitor *mon, const QDict *qdict)
     qmp_pmemsave(filename, addr, size, NULL);
 }
 
+void hmp_balloon(Monitor *mon, const QDict *qdict)
+{
+    int64_t value = qdict_get_int(qdict, "value");
+    Error *err = NULL;
+
+    qmp_balloon(value, &err);
+    if (err) {
+        monitor_printf(mon, "balloon: %s\n", error_get_pretty(err));
+        error_free(err);
+    }
+}
+
 void hmp_info_version(Monitor *mon)
 {
     VersionInfo *info;
