@@ -87,19 +87,6 @@ int hmp_change(Monitor *mon, const QDict *qdict, QObject **ret_data)
     return 0;
 }
 
-void hmp_info_version(Monitor *mon, QObject **ret_data)
-{
-    VersionInfo *info;
-
-    info = qmp_query_version(NULL);
-
-    monitor_printf(mon, "%" PRId64 ".%" PRId64 ".%" PRId64 "%s\n",
-                   info->qemu.major, info->qemu.minor, info->qemu.micro,
-                   info->package);
-
-    qmp_free_version_info(info);
-}
-
 int hmp_screendump(Monitor *mon, const QDict *qdict, QObject **ret_data)
 {
     qmp_screendump(qdict_get_str(qdict, "filename"), NULL);
@@ -117,3 +104,30 @@ int hmp_cont(Monitor *mon, const QDict *qdict, QObject **ret_data)
     qmp_cont(NULL);
     return 0;
 }
+
+void hmp_info_version(Monitor *mon)
+{
+    VersionInfo *info;
+
+    info = qmp_query_version(NULL);
+
+    monitor_printf(mon, "%" PRId64 ".%" PRId64 ".%" PRId64 "%s\n",
+                   info->qemu.major, info->qemu.minor, info->qemu.micro,
+                   info->package);
+
+    qmp_free_version_info(info);
+}
+
+void hmp_info_status(Monitor *mon)
+{
+    StatusInfo *info;
+
+    info = qmp_query_status(NULL);
+
+    monitor_printf(mon, "VM status: %s%s\n",
+                   info->running ? "running" : "paused",
+                   info->singlestep ? " (single step mode)" : "");
+
+    qmp_free_status_info(info);
+}
+

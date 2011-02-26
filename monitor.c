@@ -2937,25 +2937,6 @@ static void do_inject_nmi(Monitor *mon, const QDict *qdict)
 }
 #endif
 
-static void do_info_status_print(Monitor *mon, const QObject *data)
-{
-    QDict *qdict;
-
-    qdict = qobject_to_qdict(data);
-
-    monitor_printf(mon, "VM status: ");
-    if (qdict_get_bool(qdict, "running")) {
-        monitor_printf(mon, "running");
-        if (qdict_get_bool(qdict, "singlestep")) {
-            monitor_printf(mon, " (single step mode)");
-        }
-    } else {
-        monitor_printf(mon, "paused");
-    }
-
-    monitor_printf(mon, "\n");
-}
-
 static void do_info_status(Monitor *mon, QObject **ret_data)
 {
     *ret_data = qobject_from_jsonf("{ 'running': %i, 'singlestep': %i }",
@@ -3207,8 +3188,7 @@ static const mon_cmd_t info_cmds[] = {
         .args_type  = "",
         .params     = "",
         .help       = "show the version of QEMU",
-        .user_print = do_info_version_print,
-        .mhandler.info_new = hmp_info_version,
+        .mhandler.info = hmp_info_version,
     },
     {
         .name       = "network",
@@ -3365,8 +3345,7 @@ static const mon_cmd_t info_cmds[] = {
         .args_type  = "",
         .params     = "",
         .help       = "show the current VM status (running|paused)",
-        .user_print = do_info_status_print,
-        .mhandler.info_new = do_info_status,
+        .mhandler.info = hmp_info_status,
     },
     {
         .name       = "pcmcia",
@@ -3569,7 +3548,6 @@ static const mon_cmd_t qmp_query_cmds[] = {
         .args_type  = "",
         .params     = "",
         .help       = "show the current VM status (running|paused)",
-        .user_print = do_info_status_print,
         .mhandler.info_new = do_info_status,
     },
     {
