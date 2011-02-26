@@ -264,3 +264,41 @@ void hmp_info_uuid(Monitor *mon)
     monitor_printf(mon, "%s\n", info->UUID);
     qmp_free_uuid_info(info);
 }
+
+void hmp_info_cpus(Monitor *mon)
+{
+    CpuInfo *cpu_list, *cpu;
+
+    cpu_list = qmp_query_cpus(NULL);
+
+    for (cpu = cpu_list; cpu; cpu = cpu->next) {
+        int active = ' ';
+
+        if (cpu->current) {
+            active = '*';
+        }
+
+        monitor_printf(mon, "%c CPU #%" PRId64 ": ", active, cpu->CPU);
+
+        if (cpu->has_pc) {
+            monitor_printf(mon, "pc=0x%" PRIx64 " ", cpu->pc);
+        }
+        if (cpu->has_nip) {
+            monitor_printf(mon, "nip=0x%" PRIx64 " ", cpu->nip);
+        }
+        if (cpu->has_npc) {
+            monitor_printf(mon, "npc=0x%" PRIx64 " ", cpu->npc);
+        }
+        if (cpu->has_PC) {
+            monitor_printf(mon, "PC=0x%" PRIx64 " ", cpu->PC);
+        }
+
+        if (cpu->halted) {
+            monitor_printf(mon, "(halted)");
+        }
+
+        monitor_printf(mon, "\n");
+    }
+
+    qmp_free_cpu_info(cpu_list);
+}
