@@ -65,7 +65,6 @@ EQMP
         .args_type  = "",
         .params     = "",
         .help       = "quit the emulator",
-        .user_print = monitor_user_noop,
         .mhandler.cmd_new = do_quit,
     },
 
@@ -89,7 +88,6 @@ EQMP
         .args_type  = "force:-f,device:B",
         .params     = "[-f] device",
         .help       = "eject a removable medium (use -f to force it)",
-        .user_print = monitor_user_noop,
         .mhandler.cmd_new = do_eject,
     },
 
@@ -118,7 +116,6 @@ EQMP
         .args_type  = "device:B,target:F,arg:s?",
         .params     = "device filename [format]",
         .help       = "change a removable medium, optional format",
-        .user_print = monitor_user_noop,
         .mhandler.cmd_new = do_change,
     },
 
@@ -157,7 +154,6 @@ EQMP
         .args_type  = "filename:F",
         .params     = "filename",
         .help       = "save screen into PPM image 'filename'",
-        .user_print = monitor_user_noop,
         .mhandler.cmd_new = do_screen_dump,
     },
 
@@ -183,7 +179,6 @@ EQMP
         .args_type  = "",
         .params     = "",
         .help       = "stop emulation",
-        .user_print = monitor_user_noop,
         .mhandler.cmd_new = do_stop,
     },
 
@@ -207,7 +202,6 @@ EQMP
         .args_type  = "",
         .params     = "",
         .help       = "resume emulation",
-        .user_print = monitor_user_noop,
         .mhandler.cmd_new = do_cont,
     },
 
@@ -231,7 +225,6 @@ EQMP
         .args_type  = "",
         .params     = "",
         .help       = "reset the system",
-        .user_print = monitor_user_noop,
         .mhandler.cmd_new = do_system_reset,
     },
 
@@ -255,7 +248,6 @@ EQMP
         .args_type  = "",
         .params     = "",
         .help       = "send system power down event",
-        .user_print = monitor_user_noop,
         .mhandler.cmd_new = do_system_powerdown,
     },
 
@@ -279,7 +271,6 @@ EQMP
         .args_type  = "device:O",
         .params     = "driver[,prop=value][,...]",
         .help       = "add device, like -device on the command line",
-        .user_print = monitor_user_noop,
         .mhandler.cmd_new = do_device_add,
     },
 
@@ -316,7 +307,6 @@ EQMP
         .args_type  = "id:s",
         .params     = "device",
         .help       = "remove device",
-        .user_print = monitor_user_noop,
         .mhandler.cmd_new = do_device_del,
     },
 
@@ -342,7 +332,6 @@ EQMP
         .args_type  = "index:i",
         .params     = "index",
         .help       = "set the default CPU",
-        .user_print = monitor_user_noop,
         .mhandler.cmd_new = do_cpu_set,
     },
 
@@ -370,7 +359,6 @@ EQMP
         .args_type  = "val:l,size:i,filename:s",
         .params     = "addr size file",
         .help       = "save to disk virtual memory dump starting at 'addr' of size 'size'",
-        .user_print = monitor_user_noop,
         .mhandler.cmd_new = do_memory_save,
     },
 
@@ -403,7 +391,6 @@ EQMP
         .args_type  = "val:l,size:i,filename:s",
         .params     = "addr size file",
         .help       = "save to disk physical memory dump starting at 'addr' of size 'size'",
-        .user_print = monitor_user_noop,
         .mhandler.cmd_new = do_physical_memory_save,
     },
 
@@ -438,7 +425,6 @@ EQMP
 		      " full copy of disk\n\t\t\t -i for migration without "
 		      "shared storage with incremental copy of disk "
 		      "(base image shared between src and destination)",
-        .user_print = monitor_user_noop,	
 	.mhandler.cmd_new = do_migrate,
     },
 
@@ -474,7 +460,6 @@ EQMP
         .args_type  = "",
         .params     = "",
         .help       = "cancel the current VM migration",
-        .user_print = monitor_user_noop,
         .mhandler.cmd_new = do_migrate_cancel,
     },
 
@@ -498,7 +483,6 @@ EQMP
         .args_type  = "value:o",
         .params     = "value",
         .help       = "set maximum speed (in bytes) for migrations",
-        .user_print = monitor_user_noop,
         .mhandler.cmd_new = do_migrate_set_speed,
     },
 
@@ -524,7 +508,6 @@ EQMP
         .args_type  = "value:T",
         .params     = "value",
         .help       = "set maximum tolerated downtime (in seconds) for migrations",
-        .user_print = monitor_user_noop,
         .mhandler.cmd_new = do_migrate_set_downtime,
     },
 
@@ -550,7 +533,6 @@ EQMP
         .args_type  = "netdev:O",
         .params     = "[user|tap|socket],id=str[,prop=value][,...]",
         .help       = "add host network device",
-        .user_print = monitor_user_noop,
         .mhandler.cmd_new = do_netdev_add,
     },
 
@@ -582,7 +564,6 @@ EQMP
         .args_type  = "id:s",
         .params     = "id",
         .help       = "remove host network device",
-        .user_print = monitor_user_noop,
         .mhandler.cmd_new = do_netdev_del,
     },
 
@@ -608,7 +589,6 @@ EQMP
         .args_type  = "value:M",
         .params     = "target",
         .help       = "request VM to change its memory allocation (in MB)",
-        .user_print = monitor_user_noop,
         .mhandler.cmd_new = do_balloon,
         .flags      = MONITOR_CMD_ASYNC,
     },
@@ -635,7 +615,6 @@ EQMP
         .args_type  = "name:s,up:b",
         .params     = "name on|off",
         .help       = "change the link status of a network adapter",
-        .user_print = monitor_user_noop,
         .mhandler.cmd_new = do_set_link,
     },
 
@@ -662,7 +641,6 @@ EQMP
         .args_type  = "fdname:s",
         .params     = "getfd name",
         .help       = "receive a file descriptor via SCM rights and assign it a name",
-        .user_print = monitor_user_noop,
         .mhandler.cmd_new = do_getfd,
     },
 
@@ -688,7 +666,6 @@ EQMP
         .args_type  = "fdname:s",
         .params     = "closefd name",
         .help       = "close a file descriptor previously passed via SCM rights",
-        .user_print = monitor_user_noop,
         .mhandler.cmd_new = do_closefd,
     },
 
@@ -714,7 +691,6 @@ EQMP
         .args_type  = "device:B,password:s",
         .params     = "block_passwd device password",
         .help       = "set the password of encrypted block devices",
-        .user_print = monitor_user_noop,
         .mhandler.cmd_new = do_block_set_passwd,
     },
 
@@ -742,7 +718,6 @@ EQMP
         .args_type  = "protocol:s,password:s,connected:s?",
         .params     = "protocol password action-if-connected",
         .help       = "set spice/vnc password",
-        .user_print = monitor_user_noop,
         .mhandler.cmd_new = set_password,
     },
 
@@ -771,7 +746,6 @@ EQMP
         .args_type  = "protocol:s,time:s",
         .params     = "protocol time",
         .help       = "set spice/vnc password expire-time",
-        .user_print = monitor_user_noop,
         .mhandler.cmd_new = expire_password,
     },
 
@@ -799,7 +773,6 @@ EQMP
         .args_type  = "",
         .params     = "",
         .help       = "enable QMP capabilities",
-        .user_print = monitor_user_noop,
         .mhandler.cmd_new = do_qmp_capabilities,
     },
 
@@ -825,7 +798,6 @@ EQMP
         .args_type  = "command-line:s,cpu-index:i?",
         .params     = "",
         .help       = "",
-        .user_print = monitor_user_noop,
         .mhandler.cmd_new = do_hmp_passthrough,
     },
 
