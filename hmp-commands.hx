@@ -1182,8 +1182,7 @@ ETEXI
         .args_type  = "protocol:s,password:s,connected:s?",
         .params     = "protocol password action-if-connected",
         .help       = "set spice/vnc password",
-        .user_print = monitor_user_noop,
-        .mhandler.cmd_new = set_password,
+        .mhandler.cmd_new = hmp_set_password,
     },
 
 STEXI

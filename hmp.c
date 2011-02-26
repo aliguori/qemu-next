@@ -125,7 +125,24 @@ int hmp_set_link(Monitor *mon, const QDict *qdict, QObject **ret_data)
 
     qmp_set_link(name, up, &err);
     if (err) {
-        monitor_printf(mon, "set_link: %s", error_get_pretty(err));
+        monitor_printf(mon, "set_link: %s\n", error_get_pretty(err));
+        error_free(err);
+        return -1;
+    }
+
+    return 0;
+}
+
+int hmp_set_password(Monitor *mon, const QDict *qdict, QObject **ret_data)
+{
+    const char *protocol  = qdict_get_str(qdict, "protocol");
+    const char *password  = qdict_get_str(qdict, "password");
+    const char *connected = qdict_get_try_str(qdict, "connected");
+    Error *err = NULL;
+
+    qmp_set_password(password, protocol, !!connected, connected, &err);
+    if (err) {
+        monitor_printf(mon, "set_password: %s\n", error_get_pretty(err));
         error_free(err);
         return -1;
     }
