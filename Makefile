@@ -26,7 +26,7 @@ Makefile: ;
 configure: ;
 
 .PHONY: all clean cscope distclean dvi html info install install-doc \
-	pdf recurse-all speed tar tarbin test build-all
+	pdf recurse-all speed tar tarbin test build-all qmp-check check
 
 $(call set-vpath, $(SRC_PATH):$(SRC_PATH)/hw)
 
@@ -220,6 +220,11 @@ LIBQMP_OBJS += json-streamer.o json-lexer.o json-parser.o
 LIBQMP_OBJS += $(oslib-obj-y) $(trace-obj-y) qemu-malloc.o
 
 test-libqmp: test-libqmp.o $(LIBQMP_OBJS) ui/d3des.o
+
+qmp-check: build-all
+	$(call quiet-command, ./test-libqmp, "  CHECK   $@")
+
+check: qmp-check
 
 qsh: qsh.o $(LIBQMP_OBJS)
 
