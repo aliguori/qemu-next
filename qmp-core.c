@@ -65,10 +65,11 @@ static QObject *qmp_dispatch_err(QList *tokens, Error **errp)
     QObject *request;
     QmpCommand *cmd;
     QObject *ret = NULL;
+    Error *err = NULL;
 
-    request = json_parser_parse(tokens, NULL);
+    request = json_parser_parse_err(tokens, NULL, &err);
     if (request == NULL) {
-        error_set(errp, QERR_JSON_PARSING);
+        error_propagate(errp, err);
         return NULL;
     }
     if (qobject_type(request) != QTYPE_QDICT) {
@@ -111,6 +112,10 @@ static QObject *qmp_dispatch(QList *tokens)
     QDict *rsp;
 
     ret = qmp_dispatch_err(tokens, &err);
+
+    if (ret == NULL && err == NULL) {
+        error_set(&err, QERR_JSON_PARSING);
+    }
 
     rsp = qdict_new();
     if (err) {
