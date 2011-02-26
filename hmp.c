@@ -150,6 +150,22 @@ int hmp_set_password(Monitor *mon, const QDict *qdict, QObject **ret_data)
     return 0;
 }
 
+int hmp_expire_password(Monitor *mon, const QDict *qdict, QObject **ret_data)
+{
+    const char *protocol  = qdict_get_str(qdict, "protocol");
+    const char *whenstr = qdict_get_str(qdict, "time");
+    Error *err = NULL;
+
+    qmp_expire_password(protocol, whenstr, &err);
+    if (err) {
+        monitor_printf(mon, "expire_password: %s\n", error_get_pretty(err));
+        error_free(err);
+        return -1;
+    }
+
+    return 0;
+}
+
 void hmp_info_version(Monitor *mon)
 {
     VersionInfo *info;
