@@ -3323,9 +3323,7 @@ static const mon_cmd_t info_cmds[] = {
         .args_type  = "",
         .params     = "",
         .help       = "show balloon information",
-        .user_print = monitor_print_balloon,
-        .mhandler.info_new = do_info_balloon,
-        .flags      = MONITOR_CMD_ASYNC,
+        .mhandler.info = hmp_info_balloon,
     },
     {
         .name       = "qtree",

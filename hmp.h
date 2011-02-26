@@ -32,5 +32,6 @@ void hmp_info_kvm(Monitor *mon);
 void hmp_info_chardev(Monitor *mon);
 void hmp_info_mice(Monitor *mon);
 void hmp_info_pci(Monitor *mon);
+void hmp_info_balloon(Monitor *mon);
 
 #endif

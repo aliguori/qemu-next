@@ -71,29 +71,6 @@ int qemu_balloon_stats(BalloonInfo *info)
     }
 }
 
-static void print_balloon_stat(const char *key, QObject *obj, void *opaque)
-{
-    Monitor *mon = opaque;
-
-    if (strcmp(key, "actual"))
-        monitor_printf(mon, ",%s=%" PRId64, key,
-                       qint_get_int(qobject_to_qint(obj)));
-}
-
-void monitor_print_balloon(Monitor *mon, const QObject *data)
-{
-    QDict *qdict;
-
-    qdict = qobject_to_qdict(data);
-    if (!qdict_haskey(qdict, "actual"))
-        return;
-
-    monitor_printf(mon, "balloon: actual=%" PRId64,
-                   qdict_get_int(qdict, "actual") >> 20);
-    qdict_iter(qdict, print_balloon_stat, mon);
-    monitor_printf(mon, "\n");
-}
-
 void do_info_balloon(Monitor *mon, QObject **ret_data)
 {
     int ret;

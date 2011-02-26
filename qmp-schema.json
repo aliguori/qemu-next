@@ -910,7 +910,7 @@
 #
 # Information about the guest balloon device
 #
-# @actual: the number of megabytes the balloon currently contains
+# @actual: the number of bytes the balloon currently contains
 #
 # @mem_swapped_in: #optional number of pages swapped in within the guest
 #
@@ -953,7 +953,7 @@
 #
 # Request the balloon driver to change its balloon size.
 #
-# @value: the target size of the balloon in megabytes
+# @value: the target size of the balloon in bytes
 #
 # Returns: Nothing on success
 #          If the balloon driver is enabled but not functional because the KVM
