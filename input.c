@@ -195,31 +195,6 @@ int kbd_mouse_has_absolute(void)
     return 0;
 }
 
-static void info_mice_iter(QObject *data, void *opaque)
-{
-    QDict *mouse;
-    Monitor *mon = opaque;
-
-    mouse = qobject_to_qdict(data);
-    monitor_printf(mon, "%c Mouse #%" PRId64 ": %s%s\n",
-                  (qdict_get_bool(mouse, "current") ? '*' : ' '),
-                   qdict_get_int(mouse, "index"), qdict_get_str(mouse, "name"),
-                   qdict_get_bool(mouse, "absolute") ? " (absolute)" : "");
-}
-
-void do_info_mice_print(Monitor *mon, const QObject *data)
-{
-    QList *mice_list;
-
-    mice_list = qobject_to_qlist(data);
-    if (qlist_empty(mice_list)) {
-        monitor_printf(mon, "No mouse devices connected\n");
-        return;
-    }
-
-    qlist_iter(mice_list, info_mice_iter, mon);
-}
-
 void do_info_mice(Monitor *mon, QObject **ret_data)
 {
     QEMUPutMouseEntry *cursor;

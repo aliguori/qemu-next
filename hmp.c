@@ -378,3 +378,23 @@ void hmp_info_chardev(Monitor *mon)
 
     qmp_free_chardev_info(char_info);
 }
+
+void hmp_info_mice(Monitor *mon)
+{
+    MouseInfo *mice_list, *mouse;
+
+    mice_list = qmp_query_mice(NULL);
+    if (mice_list == NULL) {
+        monitor_printf(mon, "No mouse devices connected\n");
+        return;
+    }
+
+    for (mouse = mice_list; mouse; mouse = mouse->next) {
+        monitor_printf(mon, "%c Mouse #%" PRId64 ": %s%s\n",
+                       mouse->current ? '*' : ' ',
+                       mouse->index, mouse->name,
+                       mouse->absolute ? " (absolute)" : "");
+    }
+
+    qmp_free_mouse_info(mice_list);
+}
