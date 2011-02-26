@@ -24,5 +24,6 @@ void hmp_info_vnc(Monitor *mon);
 void hmp_info_name(Monitor *mon);
 void hmp_info_uuid(Monitor *mon);
 void hmp_info_cpus(Monitor *mon);
+void hmp_info_kvm(Monitor *mon);
 
 #endif

@@ -2709,21 +2709,6 @@ static void tlb_info(Monitor *mon)
 }
 #endif
 
-static void do_info_kvm_print(Monitor *mon, const QObject *data)
-{
-    QDict *qdict;
-
-    qdict = qobject_to_qdict(data);
-
-    monitor_printf(mon, "kvm support: ");
-    if (qdict_get_bool(qdict, "present")) {
-        monitor_printf(mon, "%s\n", qdict_get_bool(qdict, "enabled") ?
-                                    "enabled" : "disabled");
-    } else {
-        monitor_printf(mon, "not compiled\n");
-    }
-}
-
 static void do_info_kvm(Monitor *mon, QObject **ret_data)
 {
 #ifdef CONFIG_KVM
@@ -3213,8 +3198,7 @@ static const mon_cmd_t info_cmds[] = {
         .args_type  = "",
         .params     = "",
         .help       = "show KVM information",
-        .user_print = do_info_kvm_print,
-        .mhandler.info_new = do_info_kvm,
+        .mhandler.info = hmp_info_kvm,
     },
     {
         .name       = "numa",
