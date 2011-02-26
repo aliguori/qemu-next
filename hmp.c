@@ -366,3 +366,15 @@ void hmp_info_kvm(Monitor *mon)
 
     qmp_free_kvm_info(info);
 }
+
+void hmp_info_chardev(Monitor *mon)
+{
+    ChardevInfo *char_info, *info;
+
+    char_info = qmp_query_chardev(NULL);
+    for (info = char_info; info; info = info->next) {
+        monitor_printf(mon, "%s: filename=%s\n", info->label, info->filename);
+    }
+
+    qmp_free_chardev_info(char_info);
+}

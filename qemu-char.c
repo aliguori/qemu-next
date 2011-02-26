@@ -2574,21 +2574,6 @@ void qemu_chr_close(CharDriverState *chr)
     qemu_free(chr);
 }
 
-static void qemu_chr_qlist_iter(QObject *obj, void *opaque)
-{
-    QDict *chr_dict;
-    Monitor *mon = opaque;
-
-    chr_dict = qobject_to_qdict(obj);
-    monitor_printf(mon, "%s: filename=%s\n", qdict_get_str(chr_dict, "label"),
-                                         qdict_get_str(chr_dict, "filename"));
-}
-
-void qemu_chr_info_print(Monitor *mon, const QObject *ret_data)
-{
-    qlist_iter(qobject_to_qlist(ret_data), qemu_chr_qlist_iter, mon);
-}
-
 void qemu_chr_info(Monitor *mon, QObject **ret_data)
 {
     QList *chr_list;

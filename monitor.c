@@ -3108,8 +3108,7 @@ static const mon_cmd_t info_cmds[] = {
         .args_type  = "",
         .params     = "",
         .help       = "show the character devices",
-        .user_print = qemu_chr_info_print,
-        .mhandler.info_new = qemu_chr_info,
+        .mhandler.info = hmp_info_chardev,
     },
     {
         .name       = "block",
