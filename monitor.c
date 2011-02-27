@@ -3020,6 +3020,42 @@ static int do_getfd(Monitor *mon, const QDict *qdict, QObject **ret_data)
     return 0;
 }
 
+void qmp_getfd(const char *fdname, Error **errp)
+{
+    /* FIXME this doesn't work with a Unix Session */
+    Monitor *mon = cur_mon;
+    mon_fd_t *monfd;
+    int fd;
+
+    fd = qemu_chr_get_msgfd(mon->chr);
+    if (fd == -1) {
+        error_set(errp, QERR_FD_NOT_SUPPLIED);
+        return;
+    }
+
+    if (qemu_isdigit(fdname[0])) {
+        error_set(errp, QERR_INVALID_PARAMETER_VALUE, "fdname",
+                  "a name not starting with a digit");
+        return;
+    }
+
+    QLIST_FOREACH(monfd, &mon->fds, next) {
+        if (strcmp(monfd->name, fdname) != 0) {
+            continue;
+        }
+
+        close(monfd->fd);
+        monfd->fd = fd;
+        return;
+    }
+
+    monfd = qemu_mallocz(sizeof(mon_fd_t));
+    monfd->name = qemu_strdup(fdname);
+    monfd->fd = fd;
+
+    QLIST_INSERT_HEAD(&mon->fds, monfd, next);
+}
+
 static int do_closefd(Monitor *mon, const QDict *qdict, QObject **ret_data)
 {
     const char *fdname = qdict_get_str(qdict, "fdname");
@@ -3039,6 +3075,26 @@ static int do_closefd(Monitor *mon, const QDict *qdict, QObject **ret_data)
 
     qerror_report(QERR_FD_NOT_FOUND, fdname);
     return -1;
+}
+
+void qmp_closefd(const char *fdname, Error **errp)
+{
+    Monitor *mon = cur_mon; /* FIXME */
+    mon_fd_t *monfd;
+
+    QLIST_FOREACH(monfd, &mon->fds, next) {
+        if (strcmp(monfd->name, fdname) != 0) {
+            continue;
+        }
+
+        QLIST_REMOVE(monfd, next);
+        close(monfd->fd);
+        qemu_free(monfd->name);
+        qemu_free(monfd);
+        return;
+    }
+
+    error_set(errp, QERR_FD_NOT_FOUND, fdname);
 }
 
 static void do_loadvm(Monitor *mon, const QDict *qdict)

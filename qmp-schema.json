@@ -1076,12 +1076,8 @@
 { 'MigrationInfo': {'*status': 'str', '*ram': 'MigrationStats', '*disk': 'MigrationStats'} }
 [ 'query-migrate', {}, {}, 'MigrationInfo' ]
 
-## Commands that are core to QMP that need some thought
-# make each connection queue all sent fds and then when this
-# command happens, assign a connection a symbolic name.
-#[ 'getfd', {'fdname': 'str'}, {}, 'none' ]
-# close based on symbolic name. symbolic names will be global
-#[ 'closefd', {'fdname': 'str'}, {}, 'none' ]
+[ 'getfd', {'fdname': 'str'}, {}, 'none' ]
+[ 'closefd', {'fdname': 'str'}, {}, 'none' ]
 
 ## Spice commands which I'm not setup yet to test
 #{ 'SpiceChannel': {'host': 'str', 'family': 'str', 'port': 'str', 'connection-id': 'int', 'channel-type': 'int', 'channel-id': 'int', 'tls': 'bool'} }
