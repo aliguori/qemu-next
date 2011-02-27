@@ -747,7 +747,7 @@ ETEXI
         .params     = "",
         .help       = "cancel the current VM migration",
         .user_print = monitor_user_noop,
-        .mhandler.cmd_new = do_migrate_cancel,
+        .mhandler.cmd = hmp_migrate_cancel,
     },
 
 STEXI
@@ -763,7 +763,7 @@ ETEXI
         .help       = "set maximum speed (in bytes) for migrations. "
 	"Defaults to MB if no size suffix is specified, ie. B/K/M/G/T",
         .user_print = monitor_user_noop,
-        .mhandler.cmd_new = do_migrate_set_speed,
+        .mhandler.cmd = hmp_migrate_set_speed,
     },
 
 STEXI
@@ -778,7 +778,7 @@ ETEXI
         .params     = "value",
         .help       = "set maximum tolerated downtime (in seconds) for migrations",
         .user_print = monitor_user_noop,
-        .mhandler.cmd_new = do_migrate_set_downtime,
+        .mhandler.cmd = hmp_migrate_set_downtime,
     },
 
 STEXI

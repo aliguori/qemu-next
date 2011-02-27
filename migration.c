@@ -255,39 +255,6 @@ void qmp_migrate_set_downtime(double value, Error **errp)
     max_downtime = (uint64_t)value;
 }
 
-static void migrate_print_status(Monitor *mon, const char *name,
-                                 const QDict *status_dict)
-{
-    QDict *qdict;
-
-    qdict = qobject_to_qdict(qdict_get(status_dict, name));
-
-    monitor_printf(mon, "transferred %s: %" PRIu64 " kbytes\n", name,
-                        qdict_get_int(qdict, "transferred") >> 10);
-    monitor_printf(mon, "remaining %s: %" PRIu64 " kbytes\n", name,
-                        qdict_get_int(qdict, "remaining") >> 10);
-    monitor_printf(mon, "total %s: %" PRIu64 " kbytes\n", name,
-                        qdict_get_int(qdict, "total") >> 10);
-}
-
-void do_info_migrate_print(Monitor *mon, const QObject *data)
-{
-    QDict *qdict;
-
-    qdict = qobject_to_qdict(data);
-
-    monitor_printf(mon, "Migration status: %s\n",
-                   qdict_get_str(qdict, "status"));
-
-    if (qdict_haskey(qdict, "ram")) {
-        migrate_print_status(mon, "ram", qdict);
-    }
-
-    if (qdict_haskey(qdict, "disk")) {
-        migrate_print_status(mon, "disk", qdict);
-    }
-}
-
 static void migrate_put_status(QDict *qdict, const char *name,
                                uint64_t trans, uint64_t rem, uint64_t total)
 {

@@ -26,6 +26,9 @@ void hmp_device_del(Monitor *mon, const QDict *qdict);
 void hmp_netdev_add(Monitor *mon, const QDict *qdict);
 void hmp_netdev_del(Monitor *mon, const QDict *qdict);
 void hmp_migrate(Monitor *mon, const QDict *qdict);
+void hmp_migrate_cancel(Monitor *mon, const QDict *qdict);
+void hmp_migrate_set_speed(Monitor *mon, const QDict *qdict);
+void hmp_migrate_set_downtime(Monitor *mon, const QDict *qdict);
 
 void hmp_info_version(Monitor *mon);
 void hmp_info_status(Monitor *mon);
@@ -40,5 +43,6 @@ void hmp_info_chardev(Monitor *mon);
 void hmp_info_mice(Monitor *mon);
 void hmp_info_pci(Monitor *mon);
 void hmp_info_balloon(Monitor *mon);
+void hmp_info_migrate(Monitor *mon);
 
 #endif

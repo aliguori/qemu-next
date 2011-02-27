@@ -326,6 +326,23 @@ void hmp_migrate(Monitor *mon, const QDict *qdict)
     }
 }
 
+void hmp_migrate_cancel(Monitor *mon, const QDict *qdict)
+{
+    qmp_migrate_cancel(NULL);
+}
+
+void hmp_migrate_set_speed(Monitor *mon, const QDict *qdict)
+{
+    int64_t value = qdict_get_int(qdict, "value");
+    qmp_migrate_set_speed(value, NULL);
+}
+
+void hmp_migrate_set_downtime(Monitor *mon, const QDict *qdict)
+{
+    double value = qdict_get_int(qdict, "value");
+    qmp_migrate_set_downtime(value, NULL);
+}
+
 void hmp_info_version(Monitor *mon)
 {
     VersionInfo *info;
@@ -689,4 +706,35 @@ void hmp_info_balloon(Monitor *mon)
     }
 
     monitor_printf(mon, "\n");
+}
+
+void hmp_info_migrate(Monitor *mon)
+{
+    MigrationInfo *info;
+
+    info = qmp_query_migrate(NULL);
+
+    if (info->has_status) {
+        monitor_printf(mon, "Migration status: %s\n", info->status);
+    }
+
+    if (info->has_ram) {
+        monitor_printf(mon, "transferred ram: %" PRIu64 " kbytes\n",
+                       info->ram->transferred >> 10);
+        monitor_printf(mon, "remaining ram: %" PRIu64 " kbytes\n",
+                       info->ram->remaining >> 10);
+        monitor_printf(mon, "total ram: %" PRIu64 " kbytes\n",
+                       info->ram->total >> 10);
+    }
+
+    if (info->has_disk) {
+        monitor_printf(mon, "transferred disk: %" PRIu64 " kbytes\n",
+                       info->disk->transferred >> 10);
+        monitor_printf(mon, "remaining disk: %" PRIu64 " kbytes\n",
+                       info->disk->remaining >> 10);
+        monitor_printf(mon, "total disk: %" PRIu64 " kbytes\n",
+                       info->disk->total >> 10);
+    }
+
+    qmp_free_migration_info(info);
 }
