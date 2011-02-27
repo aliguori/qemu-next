@@ -275,6 +275,57 @@ void hmp_netdev_del(Monitor *mon, const QDict *qdict)
     }
 }
 
+typedef struct MigrationStatus
+{
+    QEMUTimer *timer;
+    Monitor *mon;
+} MigrationStatus;
+
+static void hmp_migrate_status_cb(void *opaque)
+{
+    MigrationStatus *status = opaque;
+    MigrationInfo *info;
+    Error *err = NULL;
+
+    info = qmp_query_migrate(&err);
+    if (err) {
+        monitor_printf(status->mon, "migrate: %s\n", error_get_pretty(err));
+        error_free(err);
+    } else if (info->has_status && strcmp(info->status, "active") == 0) {
+        qemu_mod_timer(status->timer, qemu_get_clock(rt_clock) + 1000);
+        return;
+    }
+
+    monitor_resume(status->mon);
+    qemu_del_timer(status->timer);
+    qemu_free(status);
+}
+
+void hmp_migrate(Monitor *mon, const QDict *qdict)
+{
+    int detach = qdict_get_try_bool(qdict, "detach", 0);
+    int blk = qdict_get_try_bool(qdict, "blk", 0);
+    int inc = qdict_get_try_bool(qdict, "inc", 0);
+    const char *uri = qdict_get_str(qdict, "uri");
+    Error *err = NULL;
+    MigrationStatus *status;
+
+    qmp_migrate(uri, !!blk, blk, !!inc, inc, &err);
+    if (err) {
+        monitor_printf(mon, "migrate: %s\n", error_get_pretty(err));
+        error_free(err);
+        return;
+    }
+
+    if (!detach) {
+        status = qemu_mallocz(sizeof(*status));
+        status->mon = mon;
+        status->timer = qemu_new_timer(rt_clock, hmp_migrate_status_cb, status);
+        monitor_suspend(mon);
+        qemu_mod_timer(status->timer, qemu_get_clock(rt_clock));
+    }
+}
+
 void hmp_info_version(Monitor *mon)
 {
     VersionInfo *info;

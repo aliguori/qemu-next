@@ -2,6 +2,7 @@
 #define QEMU_HMP_H
 
 #include "qemu-common.h"
+#include "qemu-timer.h"
 #include "monitor.h"
 
 void hmp_quit(Monitor *mon, const QDict *qdict);
@@ -24,6 +25,7 @@ void hmp_device_add(Monitor *mon, const QDict *qdict);
 void hmp_device_del(Monitor *mon, const QDict *qdict);
 void hmp_netdev_add(Monitor *mon, const QDict *qdict);
 void hmp_netdev_del(Monitor *mon, const QDict *qdict);
+void hmp_migrate(Monitor *mon, const QDict *qdict);
 
 void hmp_info_version(Monitor *mon);
 void hmp_info_status(Monitor *mon);
