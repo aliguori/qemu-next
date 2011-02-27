@@ -794,6 +794,7 @@ ETEXI
                       "If format is specified, the snapshot file will\n\t\t\t"
                       "be created in that format. Otherwise the\n\t\t\t"
                       "snapshot will be internal! (currently unsupported)",
+        .user_print = monitor_user_noop,
         .mhandler.cmd_new = do_snapshot_blkdev,
     },
 
