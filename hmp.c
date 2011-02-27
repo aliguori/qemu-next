@@ -762,3 +762,42 @@ void hmp_info_migrate(Monitor *mon)
 
     qmp_free_migration_info(info);
 }
+
+void hmp_info_spice(Monitor *mon)
+{
+    SpiceInfo *info;
+    SpiceChannel *chan;
+
+    info = qmp_query_spice(NULL);
+
+    if (!info->enabled) {
+        monitor_printf(mon, "Server: disabled\n");
+        return;
+    }
+
+    monitor_printf(mon, "Server:\n");
+    monitor_printf(mon, "     address: %s:%" PRId64 "\n",
+                   info->host, info->has_port ? info->port : -1);
+
+    if (info->has_tls_port) {
+        monitor_printf(mon, "     address: %s:%" PRId64 " [tls]\n", info->host, info->tls_port);
+    }
+    monitor_printf(mon, "        auth: %s\n", info->auth);
+
+    if (info->has_channels) {
+        for (chan = info->channels; chan; chan = chan->next) {
+            monitor_printf(mon, "Channel:\n");
+            monitor_printf(mon, "     address: %s:%s%s\n",
+                           chan->host, chan->port,
+                           chan->tls ? " [tls]" : "");
+            monitor_printf(mon, "     session: %" PRId64 "\n",
+                           chan->connection_id);
+            monitor_printf(mon, "     channel: %" PRId64 ":%" PRId64 "\n",
+                           chan->channel_type, chan->channel_id);
+        }
+    } else {
+        monitor_printf(mon, "Channels: none\n");
+    }
+
+    qmp_free_spice_info(info);
+}

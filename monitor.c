@@ -3324,16 +3324,13 @@ static const mon_cmd_t info_cmds[] = {
         .help       = "show the vnc server status",
         .mhandler.info = hmp_info_vnc,
     },
-#if defined(CONFIG_SPICE)
     {
         .name       = "spice",
         .args_type  = "",
         .params     = "",
         .help       = "show the spice server status",
-        .user_print = do_info_spice_print,
-        .mhandler.info_new = do_info_spice,
+        .mhandler.info = hmp_info_spice,
     },
-#endif
     {
         .name       = "name",
         .args_type  = "",
@@ -3505,7 +3502,7 @@ static const mon_cmd_t qmp_query_cmds[] = {
         .help       = "show the vnc server status",
         .mhandler.info_new = do_info_vnc,
     },
-#if defined(CONFIG_SPICE)
+#ifdef CONFIG_SPICE
     {
         .name       = "spice",
         .args_type  = "",

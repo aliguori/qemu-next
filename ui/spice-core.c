@@ -364,57 +364,6 @@ static const char *wan_compression_names[] = {
 
 /* functions for the rest of qemu */
 
-static void info_spice_iter(QObject *obj, void *opaque)
-{
-    QDict *client;
-    Monitor *mon = opaque;
-
-    client = qobject_to_qdict(obj);
-    monitor_printf(mon, "Channel:\n");
-    monitor_printf(mon, "     address: %s:%s%s\n",
-                   qdict_get_str(client, "host"),
-                   qdict_get_str(client, "port"),
-                   qdict_get_bool(client, "tls") ? " [tls]" : "");
-    monitor_printf(mon, "     session: %" PRId64 "\n",
-                   qdict_get_int(client, "connection-id"));
-    monitor_printf(mon, "     channel: %d:%d\n",
-                   (int)qdict_get_int(client, "channel-type"),
-                   (int)qdict_get_int(client, "channel-id"));
-}
-
-void do_info_spice_print(Monitor *mon, const QObject *data)
-{
-    QDict *server;
-    QList *channels;
-    const char *host;
-    int port;
-
-    server = qobject_to_qdict(data);
-    if (qdict_get_bool(server, "enabled") == 0) {
-        monitor_printf(mon, "Server: disabled\n");
-        return;
-    }
-
-    monitor_printf(mon, "Server:\n");
-    host = qdict_get_str(server, "host");
-    port = qdict_get_try_int(server, "port", -1);
-    if (port != -1) {
-        monitor_printf(mon, "     address: %s:%d\n", host, port);
-    }
-    port = qdict_get_try_int(server, "tls-port", -1);
-    if (port != -1) {
-        monitor_printf(mon, "     address: %s:%d [tls]\n", host, port);
-    }
-    monitor_printf(mon, "        auth: %s\n", qdict_get_str(server, "auth"));
-
-    channels = qdict_get_qlist(server, "channels");
-    if (qlist_empty(channels)) {
-        monitor_printf(mon, "Channels: none\n");
-    } else {
-        qlist_iter(channels, info_spice_iter, mon);
-    }
-}
-
 void do_info_spice(Monitor *mon, QObject **ret_data)
 {
     QemuOpts *opts = QTAILQ_FIRST(&qemu_spice_opts.head);

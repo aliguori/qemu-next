@@ -46,5 +46,6 @@ void hmp_info_mice(Monitor *mon);
 void hmp_info_pci(Monitor *mon);
 void hmp_info_balloon(Monitor *mon);
 void hmp_info_migrate(Monitor *mon);
+void hmp_info_spice(Monitor *mon);
 
 #endif
