@@ -1079,10 +1079,9 @@
 [ 'getfd', {'fdname': 'str'}, {}, 'none' ]
 [ 'closefd', {'fdname': 'str'}, {}, 'none' ]
 
-## Spice commands which I'm not setup yet to test
-#{ 'SpiceChannel': {'host': 'str', 'family': 'str', 'port': 'str', 'connection-id': 'int', 'channel-type': 'int', 'channel-id': 'int', 'tls': 'bool'} }
-#{ 'SpiceInfo': {'enabled': 'bool', 'host': 'str', '*port': 'int', '*tls-port': 'int', 'auth': 'str', 'channels': ['SpiceChannel']} }
-#[ 'query-spice', {}, {}, 'SpiceInfo' ]
+{ 'SpiceChannel': {'host': 'str', 'family': 'str', 'port': 'str', 'connection-id': 'int', 'channel-type': 'int', 'channel-id': 'int', 'tls': 'bool'} }
+{ 'SpiceInfo': {'enabled': 'bool', '*host': 'str', '*port': 'int', '*tls-port': 'int', '*auth': 'str', '*channels': ['SpiceChannel']} }
+[ 'query-spice', {}, {}, 'SpiceInfo' ]
 
 # 0.15.0 commands.  These can be changed up until the next release
 

@@ -203,6 +203,35 @@ static QList *channel_list_get(void)
     return list;
 }
 
+static SpiceChannel *qmp_query_spice_channels(Error **errp)
+{
+    SpiceChannel *chan_list = NULL;
+    ChannelList *item;
+    
+    QTAILQ_FOREACH(item, &channel_list, link) {
+        SpiceChannel *chan = qmp_alloc_spice_channel();
+        char host[NI_MAXHOST], port[NI_MAXSERV];
+        const char *family;
+
+        getnameinfo(&item->info->paddr, item->info->plen,
+                    host, sizeof(host), port, sizeof(port),
+                    NI_NUMERICHOST | NI_NUMERICSERV);
+        chan->host = qemu_strdup(host);
+        chan->port = qemu_strdup(port);
+        chan->family = qemu_strdup(inet_strfamily(addr->sa_family));
+
+        chan->connection_id = info->connection_id;
+        chan->channel_type = info->type;
+        chan->channel_id = info->id;
+        chan->tls = info->flags & SPICE_CHANNEL_EVENT_FLAG_TLS;
+
+        chan->next = chan_list;
+        chan_list = chan;
+    }
+
+    return NULL;
+}
+
 static void channel_event(int event, SpiceChannelEventInfo *info)
 {
     static const int qevent[] = {
@@ -237,6 +266,11 @@ static void channel_event(int event, SpiceChannelEventInfo *info)
 #else /* SPICE_INTERFACE_CORE_MINOR >= 3 */
 
 static QList *channel_list_get(void)
+{
+    return NULL;
+}
+
+static SpiceChannel *qmp_query_spice_channels(Error **errp)
 {
     return NULL;
 }
@@ -414,6 +448,49 @@ void do_info_spice(Monitor *mon, QObject **ret_data)
     }
 
     *ret_data = QOBJECT(server);
+}
+
+SpiceInfo *qmp_query_spice(Error **errp)
+{
+    QemuOpts *opts = QTAILQ_FIRST(&qemu_spice_opts.head);
+    SpiceInfo *info;
+    const char *addr;
+    int port, tls_port;
+
+    info = qmp_alloc_spice_info();
+
+    if (!spice_server) {
+        info->enabled = false;
+        return info;
+    }
+
+    addr = qemu_opt_get(opts, "addr");
+    port = qemu_opt_get_number(opts, "port", 0);
+    tls_port = qemu_opt_get_number(opts, "tls-port", 0);
+
+    info->enabled = true;
+
+    info->has_auth = true;
+    info->auth = qemu_strdup(auth);
+
+    info->has_host = true;
+    info->host = qemu_strdup(addr ? addr : "0.0.0.0");
+
+    if (port) {
+        info->has_port = true;
+        info->port = port;
+    }
+    if (tls_port) {
+        info->has_tls_port = true;
+        info->tls_port = tls_port;
+    }
+
+    info->channels = qmp_query_spice_channels(NULL);
+    if (info->channels) {
+        info->has_channels = true;
+    }
+
+    return info;
 }
 
 static int add_channel(const char *name, const char *value, void *opaque)
