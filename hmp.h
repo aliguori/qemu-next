@@ -29,6 +29,8 @@ void hmp_migrate(Monitor *mon, const QDict *qdict);
 void hmp_migrate_cancel(Monitor *mon, const QDict *qdict);
 void hmp_migrate_set_speed(Monitor *mon, const QDict *qdict);
 void hmp_migrate_set_downtime(Monitor *mon, const QDict *qdict);
+void hmp_getfd(Monitor *mon, const QDict *qdict);
+void hmp_closefd(Monitor *mon, const QDict *qdict);
 
 void hmp_info_version(Monitor *mon);
 void hmp_info_status(Monitor *mon);

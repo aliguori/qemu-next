@@ -343,6 +343,30 @@ void hmp_migrate_set_downtime(Monitor *mon, const QDict *qdict)
     qmp_migrate_set_downtime(value, NULL);
 }
 
+void hmp_getfd(Monitor *mon, const QDict *qdict)
+{
+    const char *fdname = qdict_get_str(qdict, "fdname");
+    Error *err = NULL;
+
+    qmp_getfd(fdname, &err);
+    if (err) {
+        monitor_printf(mon, "getfd: %s\n", error_get_pretty(err));
+        error_free(err);
+    }
+}
+
+void hmp_closefd(Monitor *mon, const QDict *qdict)
+{
+    const char *fdname = qdict_get_str(qdict, "fdname");
+    Error *err = NULL;
+
+    qmp_closefd(fdname, &err);
+    if (err) {
+        monitor_printf(mon, "closefd: %s\n", error_get_pretty(err));
+        error_free(err);
+    }
+}
+
 void hmp_info_version(Monitor *mon)
 {
     VersionInfo *info;

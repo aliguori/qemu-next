@@ -746,7 +746,6 @@ ETEXI
         .args_type  = "",
         .params     = "",
         .help       = "cancel the current VM migration",
-        .user_print = monitor_user_noop,
         .mhandler.cmd = hmp_migrate_cancel,
     },
 
@@ -762,7 +761,6 @@ ETEXI
         .params     = "value",
         .help       = "set maximum speed (in bytes) for migrations. "
 	"Defaults to MB if no size suffix is specified, ie. B/K/M/G/T",
-        .user_print = monitor_user_noop,
         .mhandler.cmd = hmp_migrate_set_speed,
     },
 
@@ -777,7 +775,6 @@ ETEXI
         .args_type  = "value:T",
         .params     = "value",
         .help       = "set maximum tolerated downtime (in seconds) for migrations",
-        .user_print = monitor_user_noop,
         .mhandler.cmd = hmp_migrate_set_downtime,
     },
 
@@ -1115,8 +1112,7 @@ ETEXI
         .args_type  = "fdname:s",
         .params     = "getfd name",
         .help       = "receive a file descriptor via SCM rights and assign it a name",
-        .user_print = monitor_user_noop,
-        .mhandler.cmd_new = do_getfd,
+        .mhandler.cmd = hmp_getfd,
     },
 
 STEXI
@@ -1132,8 +1128,7 @@ ETEXI
         .args_type  = "fdname:s",
         .params     = "closefd name",
         .help       = "close a file descriptor previously passed via SCM rights",
-        .user_print = monitor_user_noop,
-        .mhandler.cmd_new = do_closefd,
+        .mhandler.cmd = hmp_closefd,
     },
 
 STEXI
