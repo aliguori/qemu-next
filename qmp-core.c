@@ -5,6 +5,7 @@
 #include "json-streamer.h"
 #include "qemu_socket.h"
 #include <glib.h>
+#include "qemu-queue.h"
 
 typedef struct QmpCommand
 {
@@ -471,3 +472,44 @@ char *qobject_as_string(QObject *obj)
         return NULL;
     }
 }
+
+QmpSignal *qmp_signal_init(void)
+{
+    QmpSignal *obj = qemu_mallocz(sizeof(*obj));
+    obj->max_handle = 0;
+    QTAILQ_INIT(&obj->slots);
+    return obj;
+}
+
+void qmp_signal_delete(QmpSignal *obj)
+{
+    qemu_free(obj);
+}
+
+int qmp_signal_connect(QmpSignal *obj, void *func, void *opaque)
+{
+    int handle = ++obj->max_handle;
+    QmpSlot *slot = qemu_mallocz(sizeof(*slot));
+
+    slot->handle = handle;
+    slot->func = func;
+    slot->opaque = opaque;
+
+    QTAILQ_INSERT_TAIL(&obj->slots, slot, node);
+
+    return handle;
+}
+
+void qmp_signal_disconnect(QmpSignal *obj, int handle)
+{
+    QmpSlot *slot;
+
+    QTAILQ_FOREACH(slot, &obj->slots, node) {
+        if (slot->handle == handle) {
+            QTAILQ_REMOVE(&obj->slots, slot, node);
+            qemu_free(slot);
+            break;
+        }
+    }
+}
+
