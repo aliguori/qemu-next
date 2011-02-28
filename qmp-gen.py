@@ -35,7 +35,7 @@ def qmp_type_should_free(typename):
     if (type(typename) == list or
         typename == 'str' or
         (typename not in ['int', 'bool', 'number'] and
-         typename not in enum_types)):
+         typename not in enum_types and not typename.isupper())):
         return True
     return False
 
@@ -46,6 +46,11 @@ def qmp_free_func(typename):
         return 'qemu_free'
     else:
         return 'qmp_free_%s' % (de_camel_case(typename))
+
+def qmp_type_is_event(typename):
+    if type(typename) == str and typename.isupper():
+        return True
+    return False
 
 def qmp_type_to_c(typename, retval=False, indent=0):
     if type(typename) == list:
@@ -78,6 +83,8 @@ def qmp_type_to_c(typename, retval=False, indent=0):
         return 'void'
     elif typename in enum_types:
         return typename
+    elif qmp_type_is_event(typename):
+        return 'struct %s *' % qmp_event_to_c(typename)
     else:
         return 'struct %s *' % typename
 
@@ -85,7 +92,7 @@ def qmp_type_to_qobj_ctor(typename):
     return 'qmp_marshal_type_%s' % typename
 
 def qmp_type_from_qobj(typename):
-    return 'qmp_unmarshal_type_%s' % typename
+    return qobj_to_c(typename)
 
 def print_lib_decl(name, required, optional, retval, suffix=''):
     args = ['QmpSession *qmp__session']
@@ -107,6 +114,9 @@ def print_lib_declaration(name, required, optional, retval):
     print_lib_decl(name, required, optional, retval, ';')
 
 def print_lib_definition(name, required, optional, retval):
+    if qmp_type_is_event(retval):
+        return
+
     print
     print_lib_decl(name, required, optional, retval)
     print '''{
@@ -198,7 +208,12 @@ def print_declaration(name, required, optional, retval):
     print '%s qmp_%s(%s);' % (qmp_type_to_c(retval, True), c_var(name), ', '.join(args))
 
 def print_definition(name, required, optional, retval):
-    print '''
+    if qmp_type_is_event(retval):
+        print '''
+static void qmp_marshal_%s(QmpState *qmp__sess, const QDict *qdict, QObject **ret_data, Error **err)
+{''' % c_var(name)
+    else:
+        print '''
 static void qmp_marshal_%s(const QDict *qdict, QObject **ret_data, Error **err)
 {''' % c_var(name)
     print '    Error *qmp__err = NULL;'
@@ -308,6 +323,8 @@ static void qmp_marshal_%s(const QDict *qdict, QObject **ret_data, Error **err)
 
     if retval == 'none':
         pass
+    elif qmp_type_is_event(retval):
+        print '    // FIXME connect to qmp_retval'
     elif type(retval) == str:
         print '    *ret_data = %s(qmp_retval);' % qmp_type_to_qobj_ctor(retval)
     elif type(retval) == list:
@@ -546,7 +563,7 @@ def print_type_declaration(name, typeinfo):
         print '} %s;' % qmp_event_to_c(name)
 
 def print_type_marshal_declaration(name, typeinfo):
-    if name.isupper():
+    if qmp_type_is_event(name):
         return
 
     if is_dict(typeinfo):
@@ -680,7 +697,7 @@ def print_metatype_free(typeinfo, prefix, indent=4):
 
 def print_type_marshal_definition(name, typeinfo):
     c_var_name = de_camel_case(name)
-    if name.isupper():
+    if qmp_type_is_event(name):
         return
 
     print '''
@@ -704,7 +721,7 @@ qmp__err_out:
 }''' % (qmp_free_func(name))
 
 def print_type_definition(name, typeinfo):
-    if name.isupper():
+    if qmp_type_is_event(name):
         return
 
     c_var_name = de_camel_case(name)
@@ -939,7 +956,11 @@ elif kind == 'body':
     print 'static void qmp_init_marshal(void)'
     print '{'
     for s in exprs:
-        if type(s) == list:
+        if type(s) != list:
+            continue
+        if qmp_type_is_event(s[3]):
+            print '    qmp_register_stateful_command("%s", &qmp_marshal_%s);' % (s[0], c_var(s[0]))
+        else:
             print '    qmp_register_command("%s", &qmp_marshal_%s);' % (s[0], c_var(s[0]))
     print '};'
     print

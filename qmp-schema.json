@@ -1086,10 +1086,20 @@
 ## 0.14.0 Events ##
 
 { 'SHUTDOWN': {} }
+[ 'get-shutdown-event', {}, {}, 'SHUTDOWN' ]
+
 { 'RESET': {} }
+[ 'get-reset-event', {}, {}, 'RESET' ]
+
 { 'POWERDOWN': {} }
+[ 'get-powerdown-event', {}, {}, 'POWERDOWN' ]
+
 { 'STOP': {} }
+[ 'get-stop-event', {}, {}, 'STOP' ]
+
 { 'RESUME': {} }
+[ 'get-resume-event', {}, {}, 'RESUME' ]
+
 { 'VncServerInfo': { 'host': 'str', 'family': 'str', 'service': 'str',
                      'auth': 'str' } }
 { 'VNC_CONNECTED': { 'client': 'VncClientInfo', 'server': 'VncServerInfo' } }

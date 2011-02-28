@@ -1968,6 +1968,31 @@ static const QEMUOption *lookup_opt(int argc, char **argv,
     return popt;
 }
 
+ShutdownEvent *qmp_get_shutdown_event(Error **errp)
+{
+    return &qemu_shutdown_event;
+}
+
+ResetEvent *qmp_get_reset_event(Error **errp)
+{
+    return &qemu_reset_event;
+}
+
+PowerdownEvent *qmp_get_powerdown_event(Error **errp)
+{
+    return &qemu_powerdown_event;
+}
+
+StopEvent *qmp_get_stop_event(Error **errp)
+{
+    return &qemu_stop_event;
+}
+
+ResumeEvent *qmp_get_resume_event(Error **errp)
+{
+    return &qemu_resume_event;
+}
+
 static void qemu_event_init(void)
 {
     signal_init(&qemu_shutdown_event);

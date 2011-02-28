@@ -10,7 +10,9 @@
 typedef struct QmpCommand
 {
     const char *name;
+    bool stateful;
     QmpCommandFunc *fn;
+    QmpStatefulCommandFunc *sfn;
     QTAILQ_ENTRY(QmpCommand) node;
 } QmpCommand;
 
@@ -22,7 +24,18 @@ void qmp_register_command(const char *name, QmpCommandFunc *fn)
     QmpCommand *cmd = qemu_mallocz(sizeof(*cmd));
 
     cmd->name = name;
+    cmd->stateful = false;
     cmd->fn = fn;
+    QTAILQ_INSERT_TAIL(&qmp_commands, cmd, node);
+}
+
+void qmp_register_stateful_command(const char *name, QmpStatefulCommandFunc *fn)
+{
+    QmpCommand *cmd = qemu_mallocz(sizeof(*cmd));
+
+    cmd->name = name;
+    cmd->stateful = true;
+    cmd->sfn = fn;
     QTAILQ_INSERT_TAIL(&qmp_commands, cmd, node);
 }
 
@@ -102,7 +115,11 @@ static QObject *qmp_dispatch_err(QList *tokens, Error **errp)
         QINCREF(args);
     }
 
-    cmd->fn(args, &ret, errp);
+    if (cmd->stateful) {
+        cmd->sfn(NULL, args, &ret, errp);
+    } else {
+        cmd->fn(args, &ret, errp);
+    }
 
     QDECREF(args);
     qobject_decref(request);
