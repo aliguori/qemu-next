@@ -383,6 +383,45 @@ static const char *append_field(QDict *error, QString *outstr,
     return ++end;
 }
 
+static QString *qerror_format_desc(QDict *error,
+                                   const QErrorStringTable *entry)
+{
+    QString *qstring;
+    const char *p;
+
+    assert(entry != NULL);
+
+    qstring = qstring_new();
+
+    for (p = entry->desc; *p != '\0';) {
+        if (*p != '%') {
+            qstring_append_chr(qstring, *p++);
+        } else if (*(p + 1) == '%') {
+            qstring_append_chr(qstring, '%');
+            p += 2;
+        } else {
+            p = append_field(error, qstring, entry, p);
+        }
+    }
+
+    return qstring;
+}
+
+QString *qerror_format(const char *fmt, QDict *error)
+{
+    const QErrorStringTable *entry = NULL;
+    int i;
+
+    for (i = 0; qerror_table[i].error_fmt; i++) {
+        if (strcmp(qerror_table[i].error_fmt, fmt) == 0) {
+            entry = &qerror_table[i];
+            break;
+        }
+    }
+
+    return qerror_format_desc(error, entry);
+}
+
 /**
  * qerror_human(): Format QError data into human-readable string.
  *
@@ -390,25 +429,7 @@ static const char *append_field(QDict *error, QString *outstr,
  */
 QString *qerror_human(const QError *qerror)
 {
-    const char *p;
-    QString *qstring;
-
-    assert(qerror->entry != NULL);
-
-    qstring = qstring_new();
-
-    for (p = qerror->entry->desc; *p != '\0';) {
-        if (*p != '%') {
-            qstring_append_chr(qstring, *p++);
-        } else if (*(p + 1) == '%') {
-            qstring_append_chr(qstring, '%');
-            p += 2;
-        } else {
-            p = append_field(qerror->error, qstring, qerror->entry, p);
-        }
-    }
-
-    return qstring;
+    return qerror_format_desc(qerror->error, qerror->entry);
 }
 
 /**
