@@ -232,6 +232,12 @@ unsigned int nb_prom_envs = 0;
 const char *prom_envs[MAX_PROM_ENVS];
 int boot_menu;
 
+ShutdownEvent qemu_shutdown_event;
+ResetEvent qemu_reset_event;
+PowerdownEvent qemu_powerdown_event;
+StopEvent qemu_stop_event;
+ResumeEvent qemu_resume_event;
+
 typedef struct FWBootEntry FWBootEntry;
 
 struct FWBootEntry {
@@ -1186,6 +1192,7 @@ void vm_start(void)
         vm_state_notify(1, 0);
         resume_all_vcpus();
         monitor_protocol_event(QEVENT_RESUME, NULL);
+        signal_notify(&qemu_resume_event);
     }
 }
 
@@ -1271,6 +1278,7 @@ void qemu_system_reset(void)
         re->func(re->opaque);
     }
     monitor_protocol_event(QEVENT_RESET, NULL);
+    signal_notify(&qemu_reset_event);
     cpu_synchronize_all_post_reset();
 }
 
@@ -1417,6 +1425,7 @@ static void main_loop(void)
         }
         if (qemu_shutdown_requested()) {
             monitor_protocol_event(QEVENT_SHUTDOWN, NULL);
+            signal_notify(&qemu_shutdown_event);
             if (no_shutdown) {
                 vm_stop(0);
                 no_shutdown = 0;
@@ -1430,6 +1439,7 @@ static void main_loop(void)
         }
         if (qemu_powerdown_requested()) {
             monitor_protocol_event(QEVENT_POWERDOWN, NULL);
+            signal_notify(&qemu_powerdown_event);
             qemu_irq_raise(qemu_system_powerdown);
         }
         if ((r = qemu_vmstop_requested())) {
@@ -1958,6 +1968,15 @@ static const QEMUOption *lookup_opt(int argc, char **argv,
     return popt;
 }
 
+static void qemu_event_init(void)
+{
+    signal_init(&qemu_shutdown_event);
+    signal_init(&qemu_reset_event);
+    signal_init(&qemu_powerdown_event);
+    signal_init(&qemu_stop_event);
+    signal_init(&qemu_resume_event);
+}
+
 int main(int argc, char **argv, char **envp)
 {
     const char *gdbstub_dev = NULL;
@@ -1993,6 +2012,8 @@ int main(int argc, char **argv, char **envp)
     g_thread_init(NULL);
 
     init_clocks();
+
+    qemu_event_init();
 
     qemu_cache_utils_init(envp);
 

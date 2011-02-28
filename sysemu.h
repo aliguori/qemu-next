@@ -7,6 +7,7 @@
 #include "qemu-queue.h"
 #include "qemu-timer.h"
 #include "notify.h"
+#include "qmp-types.h"
 
 #ifdef _WIN32
 #include <windows.h>
@@ -154,6 +155,12 @@ extern int nb_option_roms;
 #define MAX_PROM_ENVS 128
 extern const char *prom_envs[MAX_PROM_ENVS];
 extern unsigned int nb_prom_envs;
+
+extern ShutdownEvent qemu_shutdown_event;
+extern ResetEvent qemu_reset_event;
+extern PowerdownEvent qemu_powerdown_event;
+extern StopEvent qemu_stop_event;
+extern ResumeEvent qemu_resume_event;
 
 /* pci-hotplug */
 void pci_device_hot_add(Monitor *mon, const QDict *qdict);
