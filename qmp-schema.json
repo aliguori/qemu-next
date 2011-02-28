@@ -1083,6 +1083,33 @@
 { 'SpiceInfo': {'enabled': 'bool', '*host': 'str', '*port': 'int', '*tls-port': 'int', '*auth': 'str', '*channels': ['SpiceChannel']} }
 [ 'query-spice', {}, {}, 'SpiceInfo' ]
 
+## 0.14.0 Events ##
+
+{ 'SHUTDOWN': {} }
+{ 'RESET': {} }
+{ 'POWERDOWN': {} }
+{ 'STOP': {} }
+{ 'RESUME': {} }
+{ 'VncServerInfo': { 'host': 'str', 'family': 'str', 'service': 'str',
+                     'auth': 'str' } }
+{ 'VNC_CONNECTED': { 'client': 'VncClientInfo', 'server': 'VncServerInfo' } }
+{ 'VNC_INITIALIZED': { 'client': 'VncClientInfo', 'server': 'VncServerInfo' } }
+{ 'VNC_DISCONNECTED': { 'client': 'VncClientInfo', 'server': 'VncServerInfo' } }
+{ 'BLOCK_IO_ERROR': { 'device': 'str', 'action': 'str', 'operation': 'str' } }
+{ 'RTC_CHANGE': { 'offset': 'int' } }
+{ 'WATCHDOG': { 'action': 'str' } }
+{ 'SpiceClientInfo': { 'host': 'str', 'port': 'str', 'family': 'str',
+                       '*connection-id': 'int', '*channel-type': 'int',
+                       '*channel-id': 'int', '*tls': 'bool' } }
+{ 'SpiceServerInfo': { 'host': 'str', 'port': 'str', 'family': 'str',
+                       '*auth': 'str' } }
+{ 'SPICE_CONNECTED': { 'client': 'SpiceClientInfo',
+                       'server': 'SpiceServerInfo' } }
+{ 'SPICE_INITIALIZED': { 'client': 'SpiceClientInfo',
+                         'server': 'SpiceServerInfo' } }
+{ 'SPICE_DISCONNECTED': { 'client': 'SpiceClientInfo',
+                          'server': 'SpiceServerInfo' } }
+
 # 0.15.0 commands.  These can be changed up until the next release
 
 ##

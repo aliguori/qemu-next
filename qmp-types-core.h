@@ -5,4 +5,7 @@
 #include <stdbool.h>
 #include "error.h"
 
+typedef struct QmpSignal QmpSignal;
+
+
 #endif
