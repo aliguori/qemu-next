@@ -326,12 +326,14 @@ QError *qerror_from_info(const char *file, int linenr, const char *func,
     return qerr;
 }
 
-static void parse_error(const QError *qerror, int c)
+static void parse_error(const QErrorStringTable *entry, int c)
 {
-    qerror_abort(qerror, "expected '%c' in '%s'", c, qerror->entry->desc);
+    fprintf(stderr, "expected '%c' in '%s'", c, entry->desc);
+    abort();
 }
 
-static const char *append_field(QString *outstr, const QError *qerror,
+static const char *append_field(QDict *error, QString *outstr,
+                                const QErrorStringTable *entry,
                                 const char *start)
 {
     QObject *obj;
@@ -339,24 +341,27 @@ static const char *append_field(QString *outstr, const QError *qerror,
     QString *key_qs;
     const char *end, *key;
 
-    if (*start != '%')
-        parse_error(qerror, '%');
+    if (*start != '%') {
+        parse_error(entry, '%');
+    }
     start++;
-    if (*start != '(')
-        parse_error(qerror, '(');
+    if (*start != '(') {
+        parse_error(entry, '(');
+    }
     start++;
 
     end = strchr(start, ')');
-    if (!end)
-        parse_error(qerror, ')');
+    if (!end) {
+        parse_error(entry, ')');
+    }
 
     key_qs = qstring_from_substr(start, 0, end - start - 1);
     key = qstring_get_str(key_qs);
 
-    qdict = qobject_to_qdict(qdict_get(qerror->error, "data"));
+    qdict = qobject_to_qdict(qdict_get(error, "data"));
     obj = qdict_get(qdict, key);
     if (!obj) {
-        qerror_abort(qerror, "key '%s' not found in QDict", key);
+        abort();
     }
 
     switch (qobject_type(obj)) {
@@ -367,11 +372,50 @@ static const char *append_field(QString *outstr, const QError *qerror,
             qstring_append_int(outstr, qdict_get_int(qdict, key));
             break;
         default:
-            qerror_abort(qerror, "invalid type '%c'", qobject_type(obj));
+            abort();
     }
 
     QDECREF(key_qs);
     return ++end;
+}
+
+static QString *qerror_format_desc(QDict *error,
+                                   const QErrorStringTable *entry)
+{
+    QString *qstring;
+    const char *p;
+
+    assert(entry != NULL);
+
+    qstring = qstring_new();
+
+    for (p = entry->desc; *p != '\0';) {
+        if (*p != '%') {
+            qstring_append_chr(qstring, *p++);
+        } else if (*(p + 1) == '%') {
+            qstring_append_chr(qstring, '%');
+            p += 2;
+        } else {
+            p = append_field(error, qstring, entry, p);
+        }
+    }
+
+    return qstring;
+}
+
+QString *qerror_format(const char *fmt, QDict *error)
+{
+    const QErrorStringTable *entry = NULL;
+    int i;
+
+    for (i = 0; qerror_table[i].error_fmt; i++) {
+        if (strcmp(qerror_table[i].error_fmt, fmt) == 0) {
+            entry = &qerror_table[i];
+            break;
+        }
+    }
+
+    return qerror_format_desc(error, entry);
 }
 
 /**
@@ -381,25 +425,7 @@ static const char *append_field(QString *outstr, const QError *qerror,
  */
 QString *qerror_human(const QError *qerror)
 {
-    const char *p;
-    QString *qstring;
-
-    assert(qerror->entry != NULL);
-
-    qstring = qstring_new();
-
-    for (p = qerror->entry->desc; *p != '\0';) {
-        if (*p != '%') {
-            qstring_append_chr(qstring, *p++);
-        } else if (*(p + 1) == '%') {
-            qstring_append_chr(qstring, '%');
-            p += 2;
-        } else {
-            p = append_field(qstring, qerror, p);
-        }
-    }
-
-    return qstring;
+    return qerror_format_desc(qerror->error, qerror->entry);
 }
 
 /**

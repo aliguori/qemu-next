@@ -42,6 +42,7 @@ void qerror_report_internal(const char *file, int linenr, const char *func,
 #define qerror_report(fmt, ...) \
     qerror_report_internal(__FILE__, __LINE__, __func__, fmt, ## __VA_ARGS__)
 QError *qobject_to_qerror(const QObject *obj);
+QString *qerror_format(const char *fmt, QDict *error);
 
 /*
  * QError class list
