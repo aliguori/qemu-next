@@ -1103,6 +1103,8 @@
 { 'VncServerInfo': { 'host': 'str', 'family': 'str', 'service': 'str',
                      'auth': 'str' } }
 { 'VNC_CONNECTED': { 'client': 'VncClientInfo', 'server': 'VncServerInfo' } }
+[ 'get-vnc-connected-event', {}, {}, 'VNC_CONNECTED' ]
+
 { 'VNC_INITIALIZED': { 'client': 'VncClientInfo', 'server': 'VncServerInfo' } }
 { 'VNC_DISCONNECTED': { 'client': 'VncClientInfo', 'server': 'VncServerInfo' } }
 { 'BLOCK_IO_ERROR': { 'device': 'str', 'action': 'str', 'operation': 'str' } }

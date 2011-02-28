@@ -38,6 +38,7 @@
 
 #include "vnc_keysym.h"
 #include "d3des.h"
+#include "qmp-core.h"
 
 #define count_bits(c, v) { \
     for (c = 0; v; v >>= 1) \
@@ -2511,6 +2512,19 @@ static void vnc_listen_read(void *opaque)
     if (csock != -1) {
         vnc_connect(vs, csock);
     }
+}
+
+VncConnectedEvent *qmp_get_vnc_connected_event(Error **errp)
+{
+    static VncConnectedEvent vnc_connected_event;
+    static int vnc_connected_init;
+
+    if (!vnc_connected_init) {
+        vnc_connected_init = 1;
+        signal_init(&vnc_connected_event);
+    }
+
+    return &vnc_connected_event;
 }
 
 void vnc_display_init(DisplayState *ds)

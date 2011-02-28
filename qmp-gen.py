@@ -2,6 +2,7 @@ import sys
 from ordereddict import OrderedDict
 
 enum_types = []
+event_types = {}
 
 def c_var(name):
     return '_'.join(name.split('-'))
@@ -209,9 +210,43 @@ def print_declaration(name, required, optional, retval):
 
 def print_definition(name, required, optional, retval):
     if qmp_type_is_event(retval):
+        arglist = ['void *opaque']
+        for member in event_types[retval]:
+            argname = c_var(member)
+            argtype = event_types[retval][member]
+            if argname[0] == '*':
+                argname = argname[1:]
+                arglist.append('bool has_%s' % argname)
+            arglist.append('%s %s' % (qmp_type_to_c(argtype), argname))
+        print '''
+static void qmp_marshal_%s(%s)
+{
+    QDict *qmp__args = qdict_new();
+    QmpState *qmp__sess = opaque;
+''' % (qmp_event_to_c(retval), ', '.join(arglist))
+
+        for member in event_types[retval]:
+            argname = member
+            argtype = event_types[retval][member]
+            opt = False
+            if argname[0] == '*':
+                argname = argname[1:]
+                opt = True
+            if opt:
+                print '    if (has_%s) {' % c_var(argname)
+                print '        qdict_put_obj(qmp__args, "%s", %s(%s));' % (argname, qmp_type_to_qobj_ctor(argtype), c_var(argname))
+                print '    }'
+            else:
+                print '    qdict_put_obj(qmp__args, "%s", %s(%s));' % (argname, qmp_type_to_qobj_ctor(argtype), c_var(argname))
+
+        print '''
+    qmp_state_event(qmp__sess, "%s", QOBJECT(qmp__args));
+    QDECREF(qmp__args);
+}''' % retval
         print '''
 static void qmp_marshal_%s(QmpState *qmp__sess, const QDict *qdict, QObject **ret_data, Error **err)
-{''' % c_var(name)
+{
+    int qmp__handle;''' % c_var(name)
     else:
         print '''
 static void qmp_marshal_%s(const QDict *qdict, QObject **ret_data, Error **err)
@@ -324,7 +359,8 @@ static void qmp_marshal_%s(const QDict *qdict, QObject **ret_data, Error **err)
     if retval == 'none':
         pass
     elif qmp_type_is_event(retval):
-        print '    // FIXME connect to qmp_retval'
+        print '    qmp__handle = signal_connect(qmp_retval, qmp_marshal_%s, qmp__sess);' % (qmp_event_to_c(retval))
+        print '    *ret_data = qmp_state_add_connection(qmp__sess, qmp_retval->signal, qmp__handle);'
     elif type(retval) == str:
         print '    *ret_data = %s(qmp_retval);' % qmp_type_to_qobj_ctor(retval)
     elif type(retval) == list:
@@ -916,6 +952,8 @@ for s in exprs:
     if is_dict(s):
         key = s.keys()[0]
         if is_dict(s[key]):
+            if qmp_type_is_event(key):
+                event_types[key] = s[key]
             if kind == 'types-body':
                 print_type_definition(key, s[key])
             elif kind == 'types-header':

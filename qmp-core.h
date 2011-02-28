@@ -39,6 +39,9 @@ void qmp_signal_delete(QmpSignal *obj);
 int qmp_signal_connect(QmpSignal *obj, void *func, void *opaque);
 void qmp_signal_disconnect(QmpSignal *obj, int handle);
 
+QObject *qmp_state_add_connection(QmpState *sess, QmpSignal *obj, int handle);
+void qmp_state_event(QmpState *sess, const char *name, QObject *data);
+
 #define signal_init(obj) do {          \
     (obj)->signal = qmp_signal_init(); \
 } while (0)

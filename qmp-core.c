@@ -66,6 +66,15 @@ CommandInfo *qmp_query_commands(Error **errp)
     return cmd_list;
 }
 
+QObject *qmp_state_add_connection(QmpState *sess, QmpSignal *obj, int handle)
+{
+    return NULL;
+}
+
+void qmp_state_event(QmpState *sess, const char *name, QObject *data)
+{
+}
+
 typedef struct QmpSession
 {
     JSONMessageParser parser;
