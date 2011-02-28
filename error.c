@@ -1,11 +1,14 @@
 #include "error.h"
 #include "error_int.h"
 #include "qemu-objects.h"
+#include "qerror.h"
 #include <glib.h>
 
 struct Error
 {
     QDict *obj;
+    const char *fmt;
+    char *msg;
 };
 
 void error_set(Error **errp, const char *fmt, ...)
@@ -17,11 +20,12 @@ void error_set(Error **errp, const char *fmt, ...)
         return;
     }
 
-    err = qemu_malloc(sizeof(*err));
+    err = qemu_mallocz(sizeof(*err));
 
     va_start(ap, fmt);
     err->obj = qobject_to_qdict(qobject_from_jsonv(fmt, &ap));
     va_end(ap);
+    err->fmt = fmt;
 
     *errp = err;
 }
@@ -33,7 +37,13 @@ bool error_is_set(Error **errp)
 
 const char *error_get_pretty(Error *err)
 {
-    return error_get_field(err, "class"); // FIXME
+    if (err->msg == NULL) {
+        QString *str;
+        str = qerror_format(err->fmt, err->obj);
+        err->msg = qemu_strdup(qstring_get_str(str));
+    }
+
+    return err->msg;
 }
 
 const char *error_get_field(Error *err, const char *field)
@@ -49,6 +59,7 @@ const char *error_get_field(Error *err, const char *field)
 void error_free(Error *err)
 {
     QDECREF(err->obj);
+    qemu_free(err->msg);
     qemu_free(err);
 }
 
@@ -92,7 +103,7 @@ void error_set_qobject(Error **errp, QObject *obj)
     if (errp == NULL) {
         return;
     }
-    err = qemu_malloc(sizeof(*err));
+    err = qemu_mallocz(sizeof(*err));
     err->obj = qobject_to_qdict(obj);
     qobject_incref(obj);
 
