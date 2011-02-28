@@ -321,12 +321,18 @@ QError *qerror_from_info(const char *file, int linenr, const char *func,
     return qerr;
 }
 
-static void parse_error(const QError *qerror, int c)
+static void parse_error(const QErrorStringTable *entry, int c)
 {
-    qerror_abort(qerror, "expected '%c' in '%s'", c, qerror->entry->desc);
+#if 0
+    qerror_abort(qerror, "expected '%c' in '%s'", c, entry->desc);
+#else
+    fprintf(stderr, "expected '%c' in '%s'", c, entry->desc);
+    abort();
+#endif
 }
 
-static const char *append_field(QString *outstr, const QError *qerror,
+static const char *append_field(QDict *error, QString *outstr,
+                                const QErrorStringTable *entry,
                                 const char *start)
 {
     QObject *obj;
@@ -335,23 +341,27 @@ static const char *append_field(QString *outstr, const QError *qerror,
     const char *end, *key;
 
     if (*start != '%')
-        parse_error(qerror, '%');
+        parse_error(entry, '%');
     start++;
     if (*start != '(')
-        parse_error(qerror, '(');
+        parse_error(entry, '(');
     start++;
 
     end = strchr(start, ')');
     if (!end)
-        parse_error(qerror, ')');
+        parse_error(entry, ')');
 
     key_qs = qstring_from_substr(start, 0, end - start - 1);
     key = qstring_get_str(key_qs);
 
-    qdict = qobject_to_qdict(qdict_get(qerror->error, "data"));
+    qdict = qobject_to_qdict(qdict_get(error, "data"));
     obj = qdict_get(qdict, key);
     if (!obj) {
+#if 0
         qerror_abort(qerror, "key '%s' not found in QDict", key);
+#else
+        abort();
+#endif
     }
 
     switch (qobject_type(obj)) {
@@ -362,7 +372,11 @@ static const char *append_field(QString *outstr, const QError *qerror,
             qstring_append_int(outstr, qdict_get_int(qdict, key));
             break;
         default:
+#if 0
             qerror_abort(qerror, "invalid type '%c'", qobject_type(obj));
+#else
+            abort();
+#endif
     }
 
     QDECREF(key_qs);
@@ -390,7 +404,7 @@ QString *qerror_human(const QError *qerror)
             qstring_append_chr(qstring, '%');
             p += 2;
         } else {
-            p = append_field(qstring, qerror, p);
+            p = append_field(qerror->error, qstring, qerror->entry, p);
         }
     }
 
