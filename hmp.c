@@ -125,7 +125,7 @@ void hmp_set_password(Monitor *mon, const QDict *qdict)
     const char *connected = qdict_get_try_str(qdict, "connected");
     Error *err = NULL;
 
-    qmp_set_password(password, protocol, !!connected, connected, &err);
+    qmp_set_password(protocol, password, !!connected, connected, &err);
     if (err) {
         monitor_printf(mon, "set_password: %s\n", error_get_pretty(err));
         error_free(err);
@@ -157,7 +157,7 @@ void hmp_memsave(Monitor *mon, const QDict *qdict)
     const char *filename = qdict_get_str(qdict, "filename");
     uint64_t addr = qdict_get_int(qdict, "val");
 
-    qmp_memsave(filename, addr, size, true, mon_cpu_index, NULL);
+    qmp_memsave(addr, size, filename, true, mon_cpu_index, NULL);
 }
 
 void hmp_pmemsave(Monitor *mon, const QDict *qdict)
@@ -166,7 +166,7 @@ void hmp_pmemsave(Monitor *mon, const QDict *qdict)
     const char *filename = qdict_get_str(qdict, "filename");
     uint64_t addr = qdict_get_int(qdict, "val");
 
-    qmp_pmemsave(filename, addr, size, NULL);
+    qmp_pmemsave(addr, size, filename, NULL);
 }
 
 void hmp_balloon(Monitor *mon, const QDict *qdict)

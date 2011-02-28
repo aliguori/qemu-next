@@ -372,7 +372,7 @@ static void test_change_block_autoprobe(void)
 
     err = NULL;
     libqmp_change_blockdev(sess, "ide1-cd0", filename,
-                           false, NULL, true, "raw", &err);
+                           true, "raw", false, NULL, &err);
     g_assert_noerr(err);
 
     libqmp_quit(sess, NULL);
@@ -399,8 +399,8 @@ static void test_change_block_encrypted(void)
     error_free(err);
 
     err = NULL;
-    libqmp_change_blockdev(sess, "ide1-cd0", filename, true, "foo",
-                           false, NULL, &err);
+    libqmp_change_blockdev(sess, "ide1-cd0", filename, false, NULL,
+                           true, "foo", &err);
     g_assert_noerr(err);
 
     libqmp_quit(sess, NULL);

@@ -770,8 +770,8 @@ void deprecated_qmp_change_blockdev(const char *device, const char *filename,
 }
 
 void qmp_change_blockdev(const char *device, const char *filename,
-                         bool has_password, const char *password,
                          bool has_format, const char *format,
+                         bool has_password, const char *password,
                          Error **errp)
 {
     BlockDriverState *bs, *bs1;

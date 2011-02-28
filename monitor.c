@@ -1233,7 +1233,7 @@ static int set_password(Monitor *mon, const QDict *qdict, QObject **ret_data)
     return -1;
 }
 
-void qmp_set_password(const char *password, const char *protocol,
+void qmp_set_password(const char *protocol, const char *password,
                       bool has_connected, const char *connected, Error **errp)
 {
     int disconnect_if_connected = 0;
@@ -1781,7 +1781,7 @@ exit:
     return ret;
 }
 
-void qmp_memsave(const char *filename, int64_t addr, int64_t size,
+void qmp_memsave(int64_t addr, int64_t size, const char *filename,
                  bool has_cpu, int64_t cpu, Error **errp)
 {
     FILE *f;
@@ -1863,7 +1863,8 @@ exit:
     return ret;
 }
 
-void qmp_pmemsave(const char *filename, int64_t addr, int64_t size, Error **errp)
+void qmp_pmemsave(int64_t addr, int64_t size, const char *filename,
+                  Error **errp)
 {
     FILE *f;
     uint32_t l;
