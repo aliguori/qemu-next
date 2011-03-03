@@ -109,7 +109,8 @@ static uint32_t virtio_balloon_get_features(VirtIODevice *vdev, uint32_t f)
 static void virtio_balloon_stats(void *opaque, BalloonInfo *info)
 {
     VirtIOBalloon *dev = opaque;
-    info->actual = dev->actual;
+    info->actual = ram_size - ((uint64_t) dev->actual <<
+                               VIRTIO_BALLOON_PFN_SHIFT);
 }
 
 static void virtio_balloon_to_target(void *opaque, ram_addr_t target)
