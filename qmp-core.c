@@ -6,6 +6,7 @@
 #include "qemu_socket.h"
 #include <glib.h>
 #include "qemu-queue.h"
+#include "sysemu.h"
 
 typedef struct QmpCommand
 {
@@ -90,6 +91,15 @@ void qmp_state_del_connection(QmpState *sess, int global_handle, Error **errp)
 void qmp_state_event(QmpConnection *conn, QObject *data)
 {
     QDict *event = qdict_new();
+    qemu_timeval tv;
+    QObject *ts;
+
+    qemu_gettimeofday(&tv);
+
+    ts = qobject_from_jsonf("{ 'seconds': %" PRId64 ", "
+                            "'microseconds': %" PRId64 " }",
+                            (int64_t)tv.tv_sec, (int64_t)tv.tv_usec);
+    qdict_put_obj(event, "timestamp", ts);
 
     qdict_put(event, "event", qstring_from_str(conn->event_name));
     if (data) {
