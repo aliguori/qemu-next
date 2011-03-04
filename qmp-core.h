@@ -52,6 +52,7 @@ int qmp_signal_connect(QmpSignal *obj, void *func, void *opaque);
 void qmp_signal_disconnect(QmpSignal *obj, int handle);
 
 void qmp_state_add_connection(QmpState *sess, const char *name, QmpSignal *obj, int handle, QmpConnection *conn);
+void qmp_state_del_connection(QmpState *sess, int global_handle, Error **errp);
 void qmp_state_event(QmpConnection *conn, QObject *data);
 
 #define signal_init(obj) do {          \

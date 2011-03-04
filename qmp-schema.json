@@ -1285,6 +1285,8 @@
 ##
 [ 'change-vnc-password', {'password': 'str'}, {}, 'none' ]
 
+[ 'put-event', {'tag': 'int'}, {}, 'none' ]
+
 ## Internal types ##
 { 'VirtioNetTxStrategy': ['bh', 'timer'] }
 { 'GuestInfo': {'*name': 'str', '*pid': 'int'} }

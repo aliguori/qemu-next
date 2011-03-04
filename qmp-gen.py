@@ -194,6 +194,8 @@ def print_lib_definition(name, required, optional, retval):
 
 def print_declaration(name, required, optional, retval):
     args = []
+    if name == 'put-event':
+        return
     for key in required:
         args.append('%s %s' % (qmp_type_to_c(required[key]), c_var(key)))
 
@@ -248,6 +250,10 @@ static void qmp_marshal_%s(QmpState *qmp__sess, const QDict *qdict, QObject **re
 {
     int qmp__handle;
     QmpConnection *qmp__connection = qemu_mallocz(sizeof(QmpConnection));''' % c_var(name)
+    elif name == 'put-event':
+        print '''
+static void qmp_marshal_%s(QmpState *qmp__sess, const QDict *qdict, QObject **ret_data, Error **err)
+{''' % c_var(name)
     else:
         print '''
 static void qmp_marshal_%s(const QDict *qdict, QObject **ret_data, Error **err)
@@ -344,10 +350,15 @@ static void qmp_marshal_%s(const QDict *qdict, QObject **ret_data, Error **err)
             args.append(c_var(key))
     args.append('err')
 
+    if name == 'put-event':
+        args = ['qmp__sess'] + args
+
     arglist = ', '.join(args)
     fn = 'qmp_%s' % c_var(name)
 
-    if retval == 'none':
+    if name == 'put-event':
+        print '    qmp_state_del_connection(%s);' % arglist
+    elif retval == 'none':
         print '    %s(%s);' % (fn, arglist)
     else:
         print '    qmp_retval = %s(%s);' % (fn, arglist)
@@ -1002,7 +1013,7 @@ elif kind == 'body':
     for s in exprs:
         if type(s) != list:
             continue
-        if qmp_type_is_event(s[3]):
+        if qmp_type_is_event(s[3]) or s[0] == 'put-event':
             print '    qmp_register_stateful_command("%s", &qmp_marshal_%s);' % (s[0], c_var(s[0]))
         else:
             print '    qmp_register_command("%s", &qmp_marshal_%s);' % (s[0], c_var(s[0]))

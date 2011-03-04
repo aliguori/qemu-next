@@ -69,6 +69,7 @@ CommandInfo *qmp_query_commands(Error **errp)
 struct QmpState
 {
     int (*add_connection)(QmpState *s, QmpConnection *conn);
+    void (*del_connection)(QmpState *s, int global_handle, Error **errp);
     void (*event)(QmpState *s, QmpConnection *conn, QObject *data);
 };
 
@@ -79,6 +80,11 @@ void qmp_state_add_connection(QmpState *sess, const char *event_name, QmpSignal 
     conn->signal = obj;
     conn->handle = handle;
     conn->global_handle = sess->add_connection(sess, conn);
+}
+
+void qmp_state_del_connection(QmpState *sess, int global_handle, Error **errp)
+{
+    sess->del_connection(sess, global_handle, errp);
 }
 
 void qmp_state_event(QmpConnection *conn, QObject *data)
@@ -271,6 +277,23 @@ static void qmp_chr_send_event(QmpState *state, QmpConnection *conn, QObject *ev
     }
 }
 
+static void qmp_chr_del_connection(QmpState *state, int global_handle, Error **errp)
+{
+    QmpSession *s = container_of(state, QmpSession, state);
+    QmpConnection *conn;
+
+    QTAILQ_FOREACH(conn, &s->connections, node) {
+        if (conn->global_handle == global_handle) {
+            qmp_signal_disconnect(conn->signal, conn->handle);
+            QTAILQ_REMOVE(&s->connections, conn, node);
+            qemu_free(conn);
+            return;
+        }
+    }
+
+    error_set(errp, QERR_INVALID_PARAMETER_VALUE, "tag", "valid event handle");
+}
+
 void qmp_init_chardev(CharDriverState *chr)
 {
     QmpSession *s = qemu_mallocz(sizeof(*s));
@@ -278,6 +301,7 @@ void qmp_init_chardev(CharDriverState *chr)
     s->chr = chr;
     s->state.add_connection = qmp_chr_add_connection;
     s->state.event = qmp_chr_send_event;
+    s->state.del_connection = qmp_chr_del_connection;
 
     s->max_global_handle = 0;
     QTAILQ_INIT(&s->connections);
@@ -436,6 +460,23 @@ static int qmp_unix_session_add_connection(QmpState *state,  QmpConnection *conn
     return ++sess->max_global_handle;
 }
 
+static void qmp_unix_session_del_connection(QmpState *state, int global_handle, Error **errp)
+{
+    QmpUnixSession *sess = container_of(state, QmpUnixSession, state);
+    QmpConnection *conn;
+
+    QTAILQ_FOREACH(conn, &sess->connections, node) {
+        if (conn->global_handle == global_handle) {
+            qmp_signal_disconnect(conn->signal, conn->handle);
+            QTAILQ_REMOVE(&sess->connections, conn, node);
+            qemu_free(conn);
+            return;
+        }
+    }
+
+    error_set(errp, QERR_INVALID_PARAMETER_VALUE, "tag", "valid event handle");
+}
+
 static void qmp_unix_session_event(QmpState *state, QmpConnection *conn, QObject *event)
 {
     QmpUnixSession *sess = container_of(state, QmpUnixSession, state);
@@ -460,6 +501,7 @@ static void qmp_unix_server_read_event(void *opaque)
     sess->tx = g_string_new("");
     sess->notify_write = false;
     sess->state.add_connection = qmp_unix_session_add_connection;
+    sess->state.del_connection = qmp_unix_session_del_connection;
     sess->state.event = qmp_unix_session_event;
     QTAILQ_INIT(&sess->connections);
 
