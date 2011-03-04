@@ -500,6 +500,41 @@ static void test_stop(void)
     qemu_destroy(sess);
 }
 
+static void test_balloon_nodev(void)
+{
+    QmpSession *sess;
+    Error *err = NULL;
+    BalloonInfo *info = NULL;
+
+    sess = qemu("");
+    libqmp_balloon(sess, 0, &err);
+    g_assert_cmperr(err, ==, "DeviceNotActive");
+    error_free(err);
+
+    info = libqmp_query_balloon(sess, &err);
+    g_assert_cmperr(err, ==, "DeviceNotActive");
+    libqmp_quit(sess, NULL);
+    qemu_destroy(sess);
+}
+
+static void test_balloon_nodrv(void)
+{
+    QmpSession *sess;
+    Error *err = NULL;
+    BalloonInfo *info = NULL;
+
+    sess = qemu("-balloon virtio -m 16");
+    libqmp_balloon(sess, 8<<20, &err);
+    g_assert_noerr(err);
+    info = libqmp_query_balloon(sess, &err);
+    g_assert_noerr(err);
+    g_assert(info);
+    g_assert_cmpint(info->actual, ==, 16<<20);
+    qmp_free_balloon_info(info);
+    libqmp_quit(sess, NULL);
+    qemu_destroy(sess);
+}
+
 static void test_screendump(void)
 {
     QmpSession *sess = NULL;
@@ -1042,6 +1077,8 @@ int main(int argc, char **argv)
     g_test_add_func("/0.14/device-del/err/id", test_device_del_bad_id);
     g_test_add_func("/0.14/device-del/nic", test_device_del_nic);
     g_test_add_func("/0.14/pci/query", test_query_pci);
+    g_test_add_func("/0.14/balloon/nodev", test_balloon_nodev);
+    g_test_add_func("/0.14/balloon/nodrv", test_balloon_nodrv);
     g_test_add_func("/0.14/events/resume", test_event_resume);
 
     g_test_add_func("/0.15/vnc/change", test_vnc_change);
