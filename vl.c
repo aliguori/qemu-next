@@ -2011,6 +2011,8 @@ static void qemu_event_init(void)
     signal_init(&qemu_rtc_change_event);
 }
 
+#define MAX_QMP_CHARDEVS 16
+
 int main(int argc, char **argv, char **envp)
 {
     const char *gdbstub_dev = NULL;
@@ -2035,7 +2037,8 @@ int main(int argc, char **argv, char **envp)
     const char *incoming = NULL;
     int show_vnc_port = 0;
     int defconfig = 1;
-    const char *qmp2_chardev = NULL;
+    int nb_qmp_chardevs = 0;
+    const char *qmp_chardevs[MAX_QMP_CHARDEVS];
 
 #ifdef CONFIG_SIMPLE_TRACE
     const char *trace_file = NULL;
@@ -2481,8 +2484,11 @@ int main(int argc, char **argv, char **envp)
                 default_monitor = 0;
                 break;
             case QEMU_OPTION_qmp:
-                monitor_parse(optarg, "control");
-                default_monitor = 0;
+                if (nb_qmp_chardevs == MAX_QMP_CHARDEVS) {
+                    fprintf(stderr, "-qmp: too many QMP chardevs\n");
+                    exit(1);
+                }
+                qmp_chardevs[++nb_qmp_chardevs] = optarg;
                 break;
             case QEMU_OPTION_mon:
                 opts = qemu_opts_parse(qemu_find_opts_nofail("mon"), optarg, 1);
@@ -2578,9 +2584,6 @@ int main(int argc, char **argv, char **envp)
                 if (strncmp(optarg, "mon:", 4) == 0) {
                     default_monitor = 0;
                 }
-                break;
-            case QEMU_OPTION_qmp2:
-                qmp2_chardev = optarg;
                 break;
             case QEMU_OPTION_watchdog:
                 if (watchdog) {
@@ -3196,8 +3199,12 @@ int main(int argc, char **argv, char **envp)
     }
 #endif
 
-    if (qmp2_chardev) {
-        CharDriverState *chr = qemu_chr_find(qmp2_chardev);
+    for (i = 0; i < nb_qmp_chardevs; i++) {
+        CharDriverState *chr = qemu_chr_find(qmp_chardevs[i]);
+        if (chr == NULL) {
+            fprintf(stderr, "-qmp: unknown chardev `%s'\n", qmp_chardevs[i]);
+            exit(1);
+        }
         qmp_init_chardev(chr);
     }
     qemu_default_qmp_session();
