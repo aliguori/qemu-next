@@ -76,14 +76,14 @@ BalloonInfo *qmp_query_balloon(Error **errp)
     BalloonInfo *info;
 
     if (kvm_enabled() && !kvm_has_sync_mmu()) {
-        qerror_report(QERR_KVM_MISSING_CAP, "synchronous MMU", "balloon");
+        error_set(errp, QERR_KVM_MISSING_CAP, "synchronous MMU", "balloon");
         return NULL;
     }
 
     info = qmp_alloc_balloon_info();
 
     if (qemu_balloon_stats(info) == 0) {
-        qerror_report(QERR_DEVICE_NOT_ACTIVE, "balloon");
+        error_set(errp, QERR_DEVICE_NOT_ACTIVE, "balloon");
         qmp_free_balloon_info(info);
         return NULL;
     }
