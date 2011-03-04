@@ -48,10 +48,6 @@ DriveInfo *drive_init(QemuOpts *arg, int default_to_scsi, int *fatal_error);
 DriveInfo *add_init_drive(const char *opts);
 
 void do_commit(Monitor *mon, const QDict *qdict);
-int do_eject(Monitor *mon, const QDict *qdict, QObject **ret_data);
-int do_block_set_passwd(Monitor *mon, const QDict *qdict, QObject **ret_data);
-int do_change_block(Monitor *mon, const char *device,
-                    const char *filename, const char *fmt);
 int do_drive_del(Monitor *mon, const QDict *qdict, QObject **ret_data);
 int do_snapshot_blkdev(Monitor *mon, const QDict *qdict, QObject **ret_data);
 void deprecated_qmp_change_blockdev(const char *device, const char *target,

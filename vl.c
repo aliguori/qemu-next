@@ -353,13 +353,7 @@ int qemu_timedate_diff(struct tm *tm)
 
 void rtc_change_mon_event(struct tm *tm)
 {
-    QObject *data;
-    int offset = qemu_timedate_diff(tm);
-
-    data = qobject_from_jsonf("{ 'offset': %d }", offset);
-    monitor_protocol_event(QEVENT_RTC_CHANGE, data);
-    signal_notify(&qemu_rtc_change_event, offset);
-    qobject_decref(data);
+    signal_notify(&qemu_rtc_change_event, qemu_timedate_diff(tm));
 }
 
 static void configure_rtc_date_offset(const char *startdate, int legacy)
@@ -1194,7 +1188,6 @@ void vm_start(void)
         vm_running = 1;
         vm_state_notify(1, 0);
         resume_all_vcpus();
-        monitor_protocol_event(QEVENT_RESUME, NULL);
         signal_notify(&qemu_resume_event);
     }
 }
@@ -1280,7 +1273,6 @@ void qemu_system_reset(void)
     QTAILQ_FOREACH_SAFE(re, &reset_handlers, entry, nre) {
         re->func(re->opaque);
     }
-    monitor_protocol_event(QEVENT_RESET, NULL);
     signal_notify(&qemu_reset_event);
     cpu_synchronize_all_post_reset();
 }
@@ -1427,7 +1419,6 @@ static void main_loop(void)
             vm_stop(r);
         }
         if (qemu_shutdown_requested()) {
-            monitor_protocol_event(QEVENT_SHUTDOWN, NULL);
             signal_notify(&qemu_shutdown_event);
             if (no_shutdown) {
                 vm_stop(0);
@@ -1441,7 +1432,6 @@ static void main_loop(void)
             resume_all_vcpus();
         }
         if (qemu_powerdown_requested()) {
-            monitor_protocol_event(QEVENT_POWERDOWN, NULL);
             signal_notify(&qemu_powerdown_event);
             qemu_irq_raise(qemu_system_powerdown);
         }

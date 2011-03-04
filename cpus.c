@@ -114,7 +114,6 @@ static void do_vm_stop(int reason)
         vm_state_notify(0, reason);
         qemu_aio_flush();
         bdrv_flush_all();
-        monitor_protocol_event(QEVENT_STOP, NULL);
         signal_notify(&qemu_stop_event);
     }
 }

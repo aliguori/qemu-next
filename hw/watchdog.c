@@ -122,12 +122,6 @@ WatchdogEvent *qmp_get_watchdog_event(Error **errp)
 
 static void watchdog_mon_event(const char *action)
 {
-    QObject *data;
-
-    data = qobject_from_jsonf("{ 'action': %s }", action);
-    monitor_protocol_event(QEVENT_WATCHDOG, data);
-    qobject_decref(data);
-
     watchdog_events_init();
     signal_notify(&watchdog_event, action);
 }

@@ -849,31 +849,6 @@ void do_info_qdm(Monitor *mon)
     }
 }
 
-int do_device_add(Monitor *mon, const QDict *qdict, QObject **ret_data)
-{
-    QemuOpts *opts;
-    Error *err = NULL;
-    DeviceState *s;
-
-    opts = qemu_opts_from_qdict(qemu_find_opts_nofail("device"), qdict);
-    if (!opts) {
-        return -1;
-    }
-    if (!monitor_cur_is_qmp() && qdev_device_help(opts)) {
-        qemu_opts_del(opts);
-        return 0;
-    }
-    s = qdev_device_add(opts, &err);
-    if (err) {
-        qerror_report_err(err);
-    }
-    if (!s) {
-        qemu_opts_del(opts);
-        return -1;
-    }
-    return 0;
-}
-
 void qmp_device_add(const char *driver, const char *id, KeyValues *opts,
                     Error **errp)
 {
@@ -912,26 +887,6 @@ void qmp_device_add(const char *driver, const char *id, KeyValues *opts,
     if (!qdev_device_add(qopts, errp)) {
         qemu_opts_del(qopts);
     }
-}
-
-int do_device_del(Monitor *mon, const QDict *qdict, QObject **ret_data)
-{
-    const char *id = qdict_get_str(qdict, "id");
-    DeviceState *dev;
-    Error *err = NULL;
-    int ret;
-
-    dev = qdev_find_recursive(main_system_bus, id);
-    if (NULL == dev) {
-        qerror_report(QERR_DEVICE_NOT_FOUND, id);
-        return -1;
-    }
-
-    ret = qdev_unplug(dev, &err);
-    if (err) {
-        qerror_report_err(err);
-    }
-    return ret;
 }
 
 void qmp_device_del(const char *id, Error **errp)

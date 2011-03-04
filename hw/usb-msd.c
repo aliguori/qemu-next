@@ -510,16 +510,6 @@ static int usb_msd_handle_data(USBDevice *dev, USBPacket *p)
     return ret;
 }
 
-static void usb_msd_password_cb(void *opaque, int err)
-{
-    MSDState *s = opaque;
-
-    if (!err)
-        usb_device_attach(&s->dev);
-    else
-        qdev_unplug(&s->dev.qdev, NULL);
-}
-
 static int usb_msd_initfn(USBDevice *dev)
 {
     MSDState *s = DO_UPCAST(MSDState, dev, dev);
@@ -550,15 +540,8 @@ static int usb_msd_initfn(USBDevice *dev)
     }
     s->bus.qbus.allow_hotplug = 0;
     usb_msd_handle_reset(dev);
-
-    if (bdrv_key_required(bs)) {
-        if (cur_mon) {
-            monitor_read_bdrv_key_start(cur_mon, bs, usb_msd_password_cb, s);
-            s->dev.auto_attach = 0;
-        } else {
-            autostart = 0;
-        }
-    }
+    
+    // FIXME
 
     return 0;
 }

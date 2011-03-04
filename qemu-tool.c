@@ -70,10 +70,6 @@ int get_async_context_id(void)
     return 0;
 }
 
-void monitor_protocol_event(MonitorEvent event, QObject *data)
-{
-}
-
 QEMUBH *qemu_bh_new(QEMUBHFunc *cb, void *opaque)
 {
     QEMUBH *bh;

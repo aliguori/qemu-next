@@ -396,32 +396,6 @@ static void vnc_qapi_event(VncState *vs, MonitorEvent event)
     qmp_free_vnc_server_info(server);
 }
 
-static void vnc_qmp_event(VncState *vs, MonitorEvent event)
-{
-    QDict *server;
-    QObject *data;
-
-    if (!vs->info) {
-        return;
-    }
-
-    server = qdict_new();
-    if (vnc_server_info_put(server) < 0) {
-        QDECREF(server);
-        return;
-    }
-
-    data = qobject_from_jsonf("{ 'client': %p, 'server': %p }",
-                              vs->info, QOBJECT(server));
-
-    monitor_protocol_event(event, data);
-
-    qobject_incref(vs->info);
-    qobject_decref(data);
-
-    vnc_qapi_event(vs, event);
-}
-
 static void info_vnc_iter(QObject *obj, void *opaque)
 {
     QDict *client;
@@ -1209,7 +1183,7 @@ static void vnc_disconnect_finish(VncState *vs)
     vnc_jobs_join(vs); /* Wait encoding jobs */
 
     vnc_lock_output(vs);
-    vnc_qmp_event(vs, QEVENT_VNC_DISCONNECTED);
+    vnc_qapi_event(vs, QEVENT_VNC_DISCONNECTED);
 
     buffer_free(&vs->input);
     buffer_free(&vs->output);
@@ -2250,7 +2224,7 @@ static int protocol_client_init(VncState *vs, uint8_t *data, size_t len)
     vnc_flush(vs);
 
     vnc_client_cache_auth(vs);
-    vnc_qmp_event(vs, QEVENT_VNC_INITIALIZED);
+    vnc_qapi_event(vs, QEVENT_VNC_INITIALIZED);
 
     vnc_read_when(vs, protocol_client_msg, 1);
 
@@ -2568,7 +2542,7 @@ static void vnc_connect(VncDisplay *vd, int csock)
     qemu_set_fd_handler2(vs->csock, NULL, vnc_client_read, NULL, vs);
 
     vnc_client_cache_addr(vs);
-    vnc_qmp_event(vs, QEVENT_VNC_CONNECTED);
+    vnc_qapi_event(vs, QEVENT_VNC_CONNECTED);
 
     vs->vd = vd;
     vs->ds = vd->ds;

@@ -33,7 +33,7 @@ $(call set-vpath, $(SRC_PATH):$(SRC_PATH)/hw)
 LIBS+=-lz $(LIBS_TOOLS)
 
 ifdef BUILD_DOCS
-DOCS=qemu-doc.html qemu-tech.html qemu.1 qemu-img.1 qemu-nbd.8 QMP/qmp-commands.txt
+DOCS=qemu-doc.html qemu-tech.html qemu.1 qemu-img.1 qemu-nbd.8
 else
 DOCS=
 endif
@@ -342,9 +342,6 @@ qemu-options.texi: $(SRC_PATH)/qemu-options.hx
 
 qemu-monitor.texi: $(SRC_PATH)/hmp-commands.hx
 	$(call quiet-command,sh $(SRC_PATH)/hxtool -t < $< > $@,"  GEN   $@")
-
-QMP/qmp-commands.txt: $(SRC_PATH)/qmp-commands.hx
-	$(call quiet-command,sh $(SRC_PATH)/hxtool -q < $< > $@,"  GEN   $@")
 
 qemu-img-cmds.texi: $(SRC_PATH)/qemu-img-cmds.hx
 	$(call quiet-command,sh $(SRC_PATH)/hxtool -t < $< > $@,"  GEN   $@")

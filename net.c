@@ -1267,26 +1267,6 @@ void net_host_device_remove(Monitor *mon, const QDict *qdict)
     qemu_del_vlan_client(vc);
 }
 
-int do_netdev_add(Monitor *mon, const QDict *qdict, QObject **ret_data)
-{
-    QemuOpts *opts;
-    Error *err = NULL;
-
-    opts = qemu_opts_from_qdict(qemu_find_opts_nofail("netdev"), qdict);
-    if (!opts) {
-        return -1;
-    }
-
-    net_client_init(opts, 1, &err);
-    if (err) {
-        qerror_report_err(err);
-        qemu_opts_del(opts);
-        return -1;
-    }
-
-    return 0;
-}
-
 void qmp_netdev_add(const char *type, const char *id, KeyValues *opts,
                     Error **errp)
 {
@@ -1329,21 +1309,6 @@ void qmp_netdev_add(const char *type, const char *id, KeyValues *opts,
 err:
     error_propagate(errp, local_err);
     qemu_opts_del(qopts);
-}
-
-int do_netdev_del(Monitor *mon, const QDict *qdict, QObject **ret_data)
-{
-    const char *id = qdict_get_str(qdict, "id");
-    VLANClientState *vc;
-
-    vc = qemu_find_netdev(id);
-    if (!vc || vc->info->type == NT_NIC) {
-        qerror_report(QERR_DEVICE_NOT_FOUND, id);
-        return -1;
-    }
-    qemu_del_vlan_client(vc);
-    qemu_opts_del(qemu_opts_find(qemu_find_opts_nofail("netdev"), id));
-    return 0;
 }
 
 void qmp_netdev_del(const char *id, Error **errp)

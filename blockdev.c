@@ -593,27 +593,6 @@ static void eject_device(BlockDriverState *bs, int force, Error **err)
     bdrv_close(bs);
 }
 
-int do_eject(Monitor *mon, const QDict *qdict, QObject **ret_data)
-{
-    BlockDriverState *bs;
-    int force = qdict_get_try_bool(qdict, "force", 0);
-    const char *filename = qdict_get_str(qdict, "device");
-    Error *err = NULL;
-
-    bs = bdrv_find(filename);
-    if (!bs) {
-        qerror_report(QERR_DEVICE_NOT_FOUND, filename);
-        return -1;
-    }
-    eject_device(bs, force, &err);
-    if (err) {
-        qerror_report_err(err);
-        return -1;
-    }
-
-    return 0;
-}
-
 void qmp_eject(const char * device, bool has_force, bool force, Error **err)
 {
     BlockDriverState *bs;
@@ -628,30 +607,6 @@ void qmp_eject(const char * device, bool has_force, bool force, Error **err)
         return;
     }
     eject_device(bs, force, err);
-}
-
-int do_block_set_passwd(Monitor *mon, const QDict *qdict,
-                        QObject **ret_data)
-{
-    BlockDriverState *bs;
-    int err;
-
-    bs = bdrv_find(qdict_get_str(qdict, "device"));
-    if (!bs) {
-        qerror_report(QERR_DEVICE_NOT_FOUND, qdict_get_str(qdict, "device"));
-        return -1;
-    }
-
-    err = bdrv_set_key(bs, qdict_get_str(qdict, "password"));
-    if (err == -EINVAL) {
-        qerror_report(QERR_DEVICE_NOT_ENCRYPTED, bdrv_get_device_name(bs));
-        return -1;
-    } else if (err < 0) {
-        qerror_report(QERR_INVALID_PASSWORD);
-        return -1;
-    }
-
-    return 0;
 }
 
 void qmp_set_blockdev_password(const char *device, const char *password, Error **err)
@@ -676,40 +631,6 @@ void qmp_set_blockdev_password(const char *device, const char *password, Error *
 void qmp_block_passwd(const char *device, const char *password, Error **err)
 {
     qmp_set_blockdev_password(device, password, err);
-}
-
-int do_change_block(Monitor *mon, const char *device,
-                    const char *filename, const char *fmt)
-{
-    BlockDriverState *bs;
-    BlockDriver *drv = NULL;
-    int bdrv_flags;
-    Error *err = NULL;
-
-    bs = bdrv_find(device);
-    if (!bs) {
-        qerror_report(QERR_DEVICE_NOT_FOUND, device);
-        return -1;
-    }
-    if (fmt) {
-        drv = bdrv_find_whitelisted_format(fmt);
-        if (!drv) {
-            qerror_report(QERR_INVALID_BLOCK_FORMAT, fmt);
-            return -1;
-        }
-    }
-    eject_device(bs, 0, &err);
-    if (err) {
-        qerror_report_err(err);
-        return -1;
-    }
-    bdrv_flags = bdrv_is_read_only(bs) ? 0 : BDRV_O_RDWR;
-    bdrv_flags |= bdrv_is_snapshot(bs) ? BDRV_O_SNAPSHOT : 0;
-    if (bdrv_open(bs, filename, bdrv_flags, drv) < 0) {
-        qerror_report(QERR_OPEN_FILE_FAILED, filename);
-        return -1;
-    }
-    return monitor_read_bdrv_key_start(mon, bs, NULL, NULL);
 }
 
 static void qmp_bdrv_open_encrypted(BlockDriverState *bs, const char *filename,

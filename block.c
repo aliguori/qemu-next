@@ -1564,7 +1564,6 @@ BlockIoErrorEvent *qmp_get_block_io_error_event(Error **errp)
 void bdrv_mon_event(const BlockDriverState *bdrv,
                     BlockMonEventAction action, int is_read)
 {
-    QObject *data;
     const char *action_str;
 
     switch (action) {
@@ -1581,15 +1580,8 @@ void bdrv_mon_event(const BlockDriverState *bdrv,
         abort();
     }
 
-    data = qobject_from_jsonf("{ 'device': %s, 'action': %s, 'operation': %s }",
-                              bdrv->device_name,
-                              action_str,
-                              is_read ? "read" : "write");
-    monitor_protocol_event(QEVENT_BLOCK_IO_ERROR, data);
     signal_notify(&block_io_error_event, bdrv->device_name, action_str,
                   is_read ? "read" : "write");
-
-    qobject_decref(data);
 }
 
 void bdrv_info(Monitor *mon, QObject **ret_data)

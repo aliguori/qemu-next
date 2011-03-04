@@ -71,50 +71,6 @@ int qemu_balloon_stats(BalloonInfo *info)
     }
 }
 
-void do_info_balloon(Monitor *mon, QObject **ret_data)
-{
-    int ret;
-    BalloonInfo *info;
-    QDict *stats;
-
-    if (kvm_enabled() && !kvm_has_sync_mmu()) {
-        qerror_report(QERR_KVM_MISSING_CAP, "synchronous MMU", "balloon");
-        return;
-    }
-
-    info = qmp_alloc_balloon_info();
-
-    ret = qemu_balloon_stats(info);
-    if (ret == 0) {
-        qerror_report(QERR_DEVICE_NOT_ACTIVE, "balloon");
-        qmp_free_balloon_info(info);
-        return;
-    }
-
-    stats = qdict_new();
-    qdict_put(stats, "actual", qint_from_int(info->actual));
-    if (info->has_mem_swapped_in) {
-        qdict_put(stats, "mem_swapped_in", qint_from_int(info->mem_swapped_in));
-    }
-    if (info->has_mem_swapped_out) {
-        qdict_put(stats, "mem_swapped_out", qint_from_int(info->mem_swapped_out));
-    }
-    if (info->has_major_page_faults) {
-        qdict_put(stats, "major_page_faults", qint_from_int(info->major_page_faults));
-    }
-    if (info->has_minor_page_faults) {
-        qdict_put(stats, "minor_page_faults", qint_from_int(info->minor_page_faults));
-    }
-    if (info->has_free_mem) {
-        qdict_put(stats, "free_mem", qint_from_int(info->free_mem));
-    }
-    if (info->has_total_mem) {
-        qdict_put(stats, "total_mem", qint_from_int(info->total_mem));
-    }
-
-    *ret_data = QOBJECT(stats);
-}
-
 BalloonInfo *qmp_query_balloon(Error **errp)
 {
     BalloonInfo *info;
@@ -133,27 +89,6 @@ BalloonInfo *qmp_query_balloon(Error **errp)
     }
 
     return info;
-}
-
-/**
- * do_balloon(): Request VM to change its memory allocation
- */
-int do_balloon(Monitor *mon, const QDict *params, QObject **ret_data)
-{
-    int ret;
-
-    if (kvm_enabled() && !kvm_has_sync_mmu()) {
-        qerror_report(QERR_KVM_MISSING_CAP, "synchronous MMU", "balloon");
-        return -1;
-    }
-
-    ret = qemu_balloon(qdict_get_int(params, "value"));
-    if (ret == 0) {
-        qerror_report(QERR_DEVICE_NOT_ACTIVE, "balloon");
-        return -1;
-    }
-
-    return 0;
 }
 
 void qmp_balloon(int64_t value, Error **errp)
