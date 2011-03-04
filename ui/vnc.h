@@ -224,6 +224,7 @@ struct VncState
 #endif
 
     QObject *info;
+    VncClientInfo *client_info;
 
     Buffer output;
     Buffer input;

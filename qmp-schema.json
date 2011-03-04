@@ -1106,7 +1106,12 @@
 [ 'get-vnc-connected-event', {}, {}, 'VNC_CONNECTED' ]
 
 { 'VNC_INITIALIZED': { 'client': 'VncClientInfo', 'server': 'VncServerInfo' } }
+[ 'get-vnc-initialized-event', {}, {}, 'VNC_INITIALIZED' ]
+
 { 'VNC_DISCONNECTED': { 'client': 'VncClientInfo', 'server': 'VncServerInfo' } }
+[ 'get-vnc-disconnected-event', {}, {}, 'VNC_DISCONNECTED' ]
+
+
 { 'BLOCK_IO_ERROR': { 'device': 'str', 'action': 'str', 'operation': 'str' } }
 
 { 'RTC_CHANGE': { 'offset': 'int' } }

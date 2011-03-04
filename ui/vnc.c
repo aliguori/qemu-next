@@ -50,6 +50,10 @@
 static VncDisplay *vnc_display; /* needed for info vnc */
 static DisplayChangeListener *dcl;
 
+static VncConnectedEvent vnc_connected_event;
+static VncInitializedEvent vnc_initialized_event;
+static VncDisconnectedEvent vnc_disconnected_event;
+
 static int vnc_cursor_define(VncState *vs);
 
 static char *addr_to_string(const char *format,
@@ -256,6 +260,128 @@ static void vnc_client_cache_addr(VncState *client)
     client->info = QOBJECT(qdict);
 }
 
+static VncClientInfo *vnc_client_info_dup(const VncClientInfo *info)
+{
+    VncClientInfo *ret;
+
+    ret = qmp_alloc_vnc_client_info();
+    ret->host = qemu_strdup(info->host);
+    ret->service = qemu_strdup(info->service);
+    ret->family = qemu_strdup(info->family);
+    if (info->has_x509_dname) {
+        ret->has_x509_dname = true;
+        ret->x509_dname = qemu_strdup(info->x509_dname);
+    }
+    if (info->has_sasl_username) {
+        ret->has_sasl_username = true;
+        ret->sasl_username = qemu_strdup(info->sasl_username);
+    }
+
+    return ret;
+}
+
+static VncClientInfo *qmp_query_vnc_client(VncState *client)
+{
+    VncClientInfo *info;
+    struct sockaddr_storage sa;
+    socklen_t salen = sizeof(sa);
+    char host[NI_MAXHOST];
+    char serv[NI_MAXSERV];
+
+    if (client->client_info) {
+        return vnc_client_info_dup(client->client_info);
+    }
+
+    if (getpeername(client->csock, (struct sockaddr *)&sa, &salen) < 0) {
+        return NULL;
+    }
+
+    if (getnameinfo((struct sockaddr *)&sa, salen,
+                    host, sizeof(host),
+                    serv, sizeof(serv),
+                    NI_NUMERICHOST | NI_NUMERICSERV) < 0) {
+        return NULL;
+    }
+
+    info = qmp_alloc_vnc_client_info();
+    info->host = qemu_strdup(host);
+    info->service = qemu_strdup(serv);
+    info->family = qemu_strdup(inet_strfamily(sa.ss_family));
+#ifdef CONFIG_VNC_TLS
+    if (client->tls.session && client->tls.dname) {
+        info->has_x509_dname = true;
+        info->x509_dname = qemu_strdup(client->tls.dname);
+    }
+#endif
+#ifdef CONFIG_VNC_SASL
+    if (client->sasl.conn && client->sasl.username) {
+        info->has_sasl_username = true;
+        info->sasl_username = qemu_strdup(client->sasl.username);
+    }
+#endif
+
+    client->client_info = vnc_client_info_dup(info);
+
+    return info;
+}
+
+static VncServerInfo *qmp_query_vnc_server(VncState *vs)
+{
+    VncServerInfo *info;
+    struct sockaddr_storage sa;
+    socklen_t salen = sizeof(sa);
+    char host[NI_MAXHOST];
+    char serv[NI_MAXSERV];
+
+    info = qmp_alloc_vnc_server_info();
+
+    if (getsockname(vnc_display->lsock, (struct sockaddr *)&sa, &salen) == -1) {
+        qmp_free_vnc_server_info(info);
+        return NULL;
+    }
+
+    if (getnameinfo((struct sockaddr *)&sa, salen,
+                    host, sizeof(host),
+                    serv, sizeof(serv),
+                    NI_NUMERICHOST | NI_NUMERICSERV) < 0) {
+        qmp_free_vnc_server_info(info);
+        return NULL;
+    }
+
+    info->host = qemu_strdup(host);
+    info->service = qemu_strdup(serv);
+    info->family = qemu_strdup(inet_strfamily(sa.ss_family));
+    info->auth = qemu_strdup(vnc_auth_name(vnc_display));
+
+    return info;
+}
+
+static void vnc_qapi_event(VncState *vs, MonitorEvent event)
+{
+    VncServerInfo *server;
+    VncClientInfo *client;
+
+    server = qmp_query_vnc_server(vs);
+    client = qmp_query_vnc_client(vs);
+
+    switch (event) {
+    case QEVENT_VNC_CONNECTED:
+        signal_notify(&vnc_connected_event, client, server);
+        break;
+    case QEVENT_VNC_INITIALIZED:
+        signal_notify(&vnc_initialized_event, client, server);
+        break;
+    case QEVENT_VNC_DISCONNECTED:
+        signal_notify(&vnc_disconnected_event, client, server);
+        break;
+    default:
+        break;
+    }
+
+    qmp_free_vnc_client_info(client);
+    qmp_free_vnc_server_info(server);
+}
+
 static void vnc_qmp_event(VncState *vs, MonitorEvent event)
 {
     QDict *server;
@@ -278,6 +404,8 @@ static void vnc_qmp_event(VncState *vs, MonitorEvent event)
 
     qobject_incref(vs->info);
     qobject_decref(data);
+
+    vnc_qapi_event(vs, event);
 }
 
 static void info_vnc_iter(QObject *obj, void *opaque)
@@ -354,45 +482,6 @@ void do_info_vnc(Monitor *mon, QObject **ret_data)
             *ret_data = NULL;
         }
     }
-}
-
-static VncClientInfo *qmp_query_vnc_client(VncState *client)
-{
-    VncClientInfo *info;
-    struct sockaddr_storage sa;
-    socklen_t salen = sizeof(sa);
-    char host[NI_MAXHOST];
-    char serv[NI_MAXSERV];
-
-    if (getpeername(client->csock, (struct sockaddr *)&sa, &salen) < 0) {
-        return NULL;
-    }
-
-    if (getnameinfo((struct sockaddr *)&sa, salen,
-                    host, sizeof(host),
-                    serv, sizeof(serv),
-                    NI_NUMERICHOST | NI_NUMERICSERV) < 0) {
-        return NULL;
-    }
-
-    info = qmp_alloc_vnc_client_info();
-    info->host = qemu_strdup(host);
-    info->service = qemu_strdup(serv);
-    info->family = qemu_strdup(inet_strfamily(sa.ss_family));
-#ifdef CONFIG_VNC_TLS
-    if (client->tls.session && client->tls.dname) {
-        info->has_x509_dname = true;
-        info->x509_dname = qemu_strdup(client->tls.dname);
-    }
-#endif
-#ifdef CONFIG_VNC_SASL
-    if (client->sasl.conn && client->sasl.username) {
-        info->has_sasl_username = true;
-        info->sasl_username = qemu_strdup(client->sasl.username);
-    }
-#endif
-
-    return info;
 }
 
 VncInfo *qmp_query_vnc(Error **errp)
@@ -1112,6 +1201,7 @@ static void vnc_disconnect_finish(VncState *vs)
     buffer_free(&vs->output);
 
     qobject_decref(vs->info);
+    qmp_free_vnc_client_info(vs->client_info);
 
     vnc_zlib_clear(vs);
     vnc_tight_clear(vs);
@@ -2514,17 +2604,34 @@ static void vnc_listen_read(void *opaque)
     }
 }
 
+static void vnc_events_init(void)
+{
+    static int vnc_events_init;
+
+    if (!vnc_events_init) {
+        vnc_events_init = 1;
+        signal_init(&vnc_connected_event);
+        signal_init(&vnc_initialized_event);
+        signal_init(&vnc_disconnected_event);
+    }
+}
+
 VncConnectedEvent *qmp_get_vnc_connected_event(Error **errp)
 {
-    static VncConnectedEvent vnc_connected_event;
-    static int vnc_connected_init;
-
-    if (!vnc_connected_init) {
-        vnc_connected_init = 1;
-        signal_init(&vnc_connected_event);
-    }
-
+    vnc_events_init();
     return &vnc_connected_event;
+}
+
+VncInitializedEvent *qmp_get_vnc_initialized_event(Error **errp)
+{
+    vnc_events_init();
+    return &vnc_initialized_event;
+}
+
+VncDisconnectedEvent *qmp_get_vnc_disconnected_event(Error **errp)
+{
+    vnc_events_init();
+    return &vnc_disconnected_event;
 }
 
 void vnc_display_init(DisplayState *ds)
