@@ -1108,7 +1108,10 @@
 { 'VNC_INITIALIZED': { 'client': 'VncClientInfo', 'server': 'VncServerInfo' } }
 { 'VNC_DISCONNECTED': { 'client': 'VncClientInfo', 'server': 'VncServerInfo' } }
 { 'BLOCK_IO_ERROR': { 'device': 'str', 'action': 'str', 'operation': 'str' } }
+
 { 'RTC_CHANGE': { 'offset': 'int' } }
+[ 'get-rtc-change-event', {}, {}, 'RTC_CHANGE' ]
+
 { 'WATCHDOG': { 'action': 'str' } }
 { 'SpiceClientInfo': { 'host': 'str', 'port': 'str', 'family': 'str',
                        '*connection-id': 'int', '*channel-type': 'int',

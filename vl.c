@@ -237,6 +237,7 @@ ResetEvent qemu_reset_event;
 PowerdownEvent qemu_powerdown_event;
 StopEvent qemu_stop_event;
 ResumeEvent qemu_resume_event;
+RtcChangeEvent qemu_rtc_change_event;
 
 typedef struct FWBootEntry FWBootEntry;
 
@@ -353,9 +354,11 @@ int qemu_timedate_diff(struct tm *tm)
 void rtc_change_mon_event(struct tm *tm)
 {
     QObject *data;
+    int offset = qemu_timedate_diff(tm);
 
-    data = qobject_from_jsonf("{ 'offset': %d }", qemu_timedate_diff(tm));
+    data = qobject_from_jsonf("{ 'offset': %d }", offset);
     monitor_protocol_event(QEVENT_RTC_CHANGE, data);
+    signal_notify(&qemu_rtc_change_event, offset);
     qobject_decref(data);
 }
 
@@ -1993,6 +1996,11 @@ ResumeEvent *qmp_get_resume_event(Error **errp)
     return &qemu_resume_event;
 }
 
+RtcChangeEvent *qmp_get_rtc_change_event(Error **errp)
+{
+    return &qemu_rtc_change_event;
+}
+
 static void qemu_event_init(void)
 {
     signal_init(&qemu_shutdown_event);
@@ -2000,6 +2008,7 @@ static void qemu_event_init(void)
     signal_init(&qemu_powerdown_event);
     signal_init(&qemu_stop_event);
     signal_init(&qemu_resume_event);
+    signal_init(&qemu_rtc_change_event);
 }
 
 int main(int argc, char **argv, char **envp)
