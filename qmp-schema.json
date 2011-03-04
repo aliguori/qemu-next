@@ -1119,6 +1119,8 @@
 [ 'get-rtc-change-event', {}, {}, 'RTC_CHANGE' ]
 
 { 'WATCHDOG': { 'action': 'str' } }
+[ 'get-watchdog-event', {}, {}, 'WATCHDOG' ]
+
 { 'SpiceClientInfo': { 'host': 'str', 'port': 'str', 'family': 'str',
                        '*connection-id': 'int', '*channel-type': 'int',
                        '*channel-id': 'int', '*tls': 'bool' } }

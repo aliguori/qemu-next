@@ -27,6 +27,7 @@
 #include "monitor.h"
 #include "sysemu.h"
 #include "hw/watchdog.h"
+#include "qmp-core.h"
 
 /* Possible values for action parameter. */
 #define WDT_RESET        1	/* Hard reset. */
@@ -101,6 +102,24 @@ int select_watchdog_action(const char *p)
     return 0;
 }
 
+static WatchdogEvent watchdog_event;
+
+static void watchdog_events_init(void)
+{
+    static int inited;
+
+    if (!inited) {
+        inited = 1;
+        signal_init(&watchdog_event);
+    }
+}
+
+WatchdogEvent *qmp_get_watchdog_event(Error **errp)
+{
+    watchdog_events_init();
+    return &watchdog_event;
+}
+
 static void watchdog_mon_event(const char *action)
 {
     QObject *data;
@@ -108,6 +127,9 @@ static void watchdog_mon_event(const char *action)
     data = qobject_from_jsonf("{ 'action': %s }", action);
     monitor_protocol_event(QEVENT_WATCHDOG, data);
     qobject_decref(data);
+
+    watchdog_events_init();
+    signal_notify(&watchdog_event, action);
 }
 
 /* This actually performs the "action" once a watchdog has expired,
