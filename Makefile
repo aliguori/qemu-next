@@ -220,14 +220,14 @@ LIBQMP_OBJS += qerror.o
 LIBQMP_OBJS += json-streamer.o json-lexer.o json-parser.o
 LIBQMP_OBJS += $(oslib-obj-y) $(trace-obj-y) qemu-malloc.o
 
-test-libqmp: test-libqmp.o $(LIBQMP_OBJS) ui/d3des.o
+test-libqmp: test-libqmp.o $(LIBQMP_OBJS) ui/d3des.o qemu-timer-common.o
 
 qmp-check: build-all
 	$(call quiet-command, ./test-libqmp, "  CHECK   $@")
 
 check: qmp-check
 
-qsh: qsh.o $(LIBQMP_OBJS)
+qsh: qsh.o $(LIBQMP_OBJS) qemu-timer-common.o
 
 clean:
 # avoid old build problems by removing potentially incorrect old files
