@@ -222,7 +222,7 @@ def print_definition(name, required, optional, retval):
 static void qmp_marshal_%s(%s)
 {
     QDict *qmp__args = qdict_new();
-    QmpState *qmp__sess = opaque;
+    QmpConnection *qmp__conn = opaque;
 ''' % (qmp_event_to_c(retval), ', '.join(arglist))
 
         for member in event_types[retval]:
@@ -240,13 +240,14 @@ static void qmp_marshal_%s(%s)
                 print '    qdict_put_obj(qmp__args, "%s", %s(%s));' % (argname, qmp_type_to_qobj_ctor(argtype), c_var(argname))
 
         print '''
-    qmp_state_event(qmp__sess, "%s", QOBJECT(qmp__args));
+    qmp_state_event(qmp__conn, QOBJECT(qmp__args));
     QDECREF(qmp__args);
-}''' % retval
+}'''
         print '''
 static void qmp_marshal_%s(QmpState *qmp__sess, const QDict *qdict, QObject **ret_data, Error **err)
 {
-    int qmp__handle;''' % c_var(name)
+    int qmp__handle;
+    QmpConnection *qmp__connection = qemu_mallocz(sizeof(QmpConnection));''' % c_var(name)
     else:
         print '''
 static void qmp_marshal_%s(const QDict *qdict, QObject **ret_data, Error **err)
@@ -359,8 +360,10 @@ static void qmp_marshal_%s(const QDict *qdict, QObject **ret_data, Error **err)
     if retval == 'none':
         pass
     elif qmp_type_is_event(retval):
-        print '    qmp__handle = signal_connect(qmp_retval, qmp_marshal_%s, qmp__sess);' % (qmp_event_to_c(retval))
-        print '    *ret_data = qmp_state_add_connection(qmp__sess, qmp_retval->signal, qmp__handle);'
+        print '    qmp__handle = signal_connect(qmp_retval, qmp_marshal_%s, qmp__connection);' % (qmp_event_to_c(retval))
+        print '    qmp_state_add_connection(qmp__sess, "%s", qmp_retval->signal, qmp__handle, qmp__connection);' % retval
+        print '    *ret_data = QOBJECT(qint_from_int(qmp__connection->global_handle));'
+        print '    qmp__connection = NULL;'
     elif type(retval) == str:
         print '    *ret_data = %s(qmp_retval);' % qmp_type_to_qobj_ctor(retval)
     elif type(retval) == list:
@@ -376,6 +379,9 @@ static void qmp_marshal_%s(const QDict *qdict, QObject **ret_data, Error **err)
 
     print
     print 'qmp__out:'
+    if qmp_type_is_event(retval):
+        print '    qemu_free(qmp__connection);'
+    print
     args = []
     for argname in required:
         argtype = required[argname]

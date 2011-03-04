@@ -31,6 +31,7 @@
 #include "dma.h"
 #include "kvm.h"
 #include "exec-all.h"
+#include "qmp-core.h"
 
 #include "cpus.h"
 #include "compatfd.h"
@@ -114,6 +115,7 @@ static void do_vm_stop(int reason)
         qemu_aio_flush();
         bdrv_flush_all();
         monitor_protocol_event(QEVENT_STOP, NULL);
+        signal_notify(&qemu_stop_event);
     }
 }
 

@@ -31,16 +31,28 @@ typedef struct QmpSlot
 struct QmpSignal
 {
     int max_handle;
+    int ref;
     QTAILQ_HEAD(, QmpSlot) slots;
 };
 
+typedef struct QmpConnection
+{
+    QmpState *state;
+    const char *event_name;
+    QmpSignal *signal;
+    int handle;
+    int global_handle;
+    QTAILQ_ENTRY(QmpConnection) node;
+} QmpConnection;
+
 QmpSignal *qmp_signal_init(void);
-void qmp_signal_delete(QmpSignal *obj);
+void qmp_signal_ref(QmpSignal *obj);
+void qmp_signal_unref(QmpSignal *obj);
 int qmp_signal_connect(QmpSignal *obj, void *func, void *opaque);
 void qmp_signal_disconnect(QmpSignal *obj, int handle);
 
-QObject *qmp_state_add_connection(QmpState *sess, QmpSignal *obj, int handle);
-void qmp_state_event(QmpState *sess, const char *name, QObject *data);
+void qmp_state_add_connection(QmpState *sess, const char *name, QmpSignal *obj, int handle, QmpConnection *conn);
+void qmp_state_event(QmpConnection *conn, QObject *data);
 
 #define signal_init(obj) do {          \
     (obj)->signal = qmp_signal_init(); \

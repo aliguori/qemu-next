@@ -66,22 +66,47 @@ CommandInfo *qmp_query_commands(Error **errp)
     return cmd_list;
 }
 
-QObject *qmp_state_add_connection(QmpState *sess, QmpSignal *obj, int handle)
+struct QmpState
 {
-    return NULL;
+    int (*add_connection)(QmpState *s, QmpConnection *conn);
+    void (*event)(QmpState *s, QmpConnection *conn, QObject *data);
+};
+
+void qmp_state_add_connection(QmpState *sess, const char *event_name, QmpSignal *obj, int handle, QmpConnection *conn)
+{
+    conn->state = sess;
+    conn->event_name = event_name;
+    conn->signal = obj;
+    conn->handle = handle;
+    conn->global_handle = sess->add_connection(sess, conn);
 }
 
-void qmp_state_event(QmpState *sess, const char *name, QObject *data)
+void qmp_state_event(QmpConnection *conn, QObject *data)
 {
+    QDict *event = qdict_new();
+
+    qdict_put(event, "event", qstring_from_str(conn->event_name));
+    if (data) {
+        qobject_incref(data);
+        qdict_put_obj(event, "data", data);
+    }
+
+    qdict_put(event, "tag", qint_from_int(conn->global_handle));
+
+    conn->state->event(conn->state, conn, QOBJECT(event));
+    QDECREF(event);
 }
 
 typedef struct QmpSession
 {
     JSONMessageParser parser;
+    QmpState state;
     CharDriverState *chr;
+    int max_global_handle;
+    QTAILQ_HEAD(, QmpConnection) connections;
 } QmpSession;
 
-static QObject *qmp_dispatch_err(QList *tokens, Error **errp)
+static QObject *qmp_dispatch_err(QmpState *state, QList *tokens, Error **errp)
 {
     const char *command;
     QDict *args, *dict;
@@ -125,7 +150,7 @@ static QObject *qmp_dispatch_err(QList *tokens, Error **errp)
     }
 
     if (cmd->stateful) {
-        cmd->sfn(NULL, args, &ret, errp);
+        cmd->sfn(state, args, &ret, errp);
     } else {
         cmd->fn(args, &ret, errp);
     }
@@ -136,13 +161,13 @@ static QObject *qmp_dispatch_err(QList *tokens, Error **errp)
     return ret;
 }
 
-static QObject *qmp_dispatch(QList *tokens)
+static QObject *qmp_dispatch(QmpState *state, QList *tokens)
 {
     Error *err = NULL;
     QObject *ret;
     QDict *rsp;
 
-    ret = qmp_dispatch_err(tokens, &err);
+    ret = qmp_dispatch_err(state, tokens, &err);
 
     rsp = qdict_new();
     if (err) {
@@ -165,7 +190,7 @@ static void qmp_chr_parse(JSONMessageParser *parser, QList *tokens)
     QObject *rsp;
     QString *str;
     
-    rsp = qmp_dispatch(tokens);
+    rsp = qmp_dispatch(&s->state, tokens);
 
     str = qobject_to_json(rsp);
     qemu_chr_write(s->chr, (void *)str->string, str->length);
@@ -221,11 +246,41 @@ static void qmp_chr_event(void *opaque, int event)
     }
 }
 
+static int qmp_chr_add_connection(QmpState *state,  QmpConnection *conn)
+{
+    QmpSession *s = container_of(state, QmpSession, state);
+
+    QTAILQ_INSERT_TAIL(&s->connections, conn, node);
+    return ++s->max_global_handle;
+}
+
+static void qmp_chr_send_event(QmpState *state, QmpConnection *conn, QObject *event)
+{
+    QmpSession *s = container_of(state, QmpSession, state);
+    QmpConnection *c;
+
+    QTAILQ_FOREACH(c, &s->connections, node) {
+        QString *str;
+        if (conn == c) {
+            str = qobject_to_json(event);
+            qemu_chr_write(s->chr, (void *)str->string, str->length);
+            qemu_chr_write(s->chr, (void *)"\n", 1);
+            QDECREF(str);
+            break;
+        }
+    }
+}
+
 void qmp_init_chardev(CharDriverState *chr)
 {
     QmpSession *s = qemu_mallocz(sizeof(*s));
 
     s->chr = chr;
+    s->state.add_connection = qmp_chr_add_connection;
+    s->state.event = qmp_chr_send_event;
+
+    s->max_global_handle = 0;
+    QTAILQ_INIT(&s->connections);
 
     qemu_chr_add_handlers(chr, qmp_chr_can_receive, qmp_chr_receive,
                           qmp_chr_event, s);
@@ -242,13 +297,25 @@ typedef struct QmpUnixSession
     int fd;
     GString *tx;
     bool notify_write;
+    QmpState state;
     JSONMessageParser parser;
+    QTAILQ_HEAD(, QmpConnection) connections;
+    int max_global_handle;
 } QmpUnixSession;
 
 static void qmp_unix_session_try_write(QmpUnixSession *sess);
 
 static void qmp_unix_session_delete(QmpUnixSession *sess)
 {
+    while (!QTAILQ_EMPTY(&sess->connections)) {
+        QmpConnection *conn;
+
+        conn = QTAILQ_FIRST(&sess->connections);
+        qmp_signal_disconnect(conn->signal, conn->handle);
+        // FIXME free global_handle
+        QTAILQ_REMOVE(&sess->connections, conn, node);
+        qemu_free(conn);
+    }
     qemu_set_fd_handler(sess->fd, NULL, NULL, NULL);
     close(sess->fd);
     g_string_free(sess->tx, TRUE);
@@ -330,6 +397,7 @@ static void qmp_unix_session_send(QmpUnixSession *sess, const QObject *obj)
 
     str = qobject_to_json(obj);
     g_string_append(sess->tx, qstring_get_str(str));
+    g_string_append(sess->tx, "\n");
     QDECREF(str);
 
     qmp_unix_session_try_write(sess);
@@ -355,9 +423,30 @@ static void qmp_unix_session_parse(JSONMessageParser *parser, QList *tokens)
     QmpUnixSession *sess = container_of(parser, QmpUnixSession, parser);
     QObject *rsp;
 
-    rsp = qmp_dispatch(tokens);
+    rsp = qmp_dispatch(&sess->state, tokens);
     qmp_unix_session_send(sess, rsp);
     qobject_decref(rsp);
+}
+
+static int qmp_unix_session_add_connection(QmpState *state,  QmpConnection *conn)
+{
+    QmpUnixSession *sess = container_of(state, QmpUnixSession, state);
+
+    QTAILQ_INSERT_TAIL(&sess->connections, conn, node);
+    return ++sess->max_global_handle;
+}
+
+static void qmp_unix_session_event(QmpState *state, QmpConnection *conn, QObject *event)
+{
+    QmpUnixSession *sess = container_of(state, QmpUnixSession, state);
+    QmpConnection *c;
+
+    QTAILQ_FOREACH(c, &sess->connections, node) {
+        if (conn == c) {
+            qmp_unix_session_send(sess, event);
+            break;
+        }
+    }
 }
 
 static void qmp_unix_server_read_event(void *opaque)
@@ -370,6 +459,10 @@ static void qmp_unix_server_read_event(void *opaque)
     sess->fd = accept(s->fd, (struct sockaddr *)&addr, &addrlen);
     sess->tx = g_string_new("");
     sess->notify_write = false;
+    sess->state.add_connection = qmp_unix_session_add_connection;
+    sess->state.event = qmp_unix_session_event;
+    QTAILQ_INIT(&sess->connections);
+
     json_message_parser_init(&sess->parser, qmp_unix_session_parse);
     qmp_unix_session_update_handlers(sess);
 
@@ -503,13 +596,21 @@ QmpSignal *qmp_signal_init(void)
 {
     QmpSignal *obj = qemu_mallocz(sizeof(*obj));
     obj->max_handle = 0;
+    obj->ref = 1;
     QTAILQ_INIT(&obj->slots);
     return obj;
 }
 
-void qmp_signal_delete(QmpSignal *obj)
+void qmp_signal_ref(QmpSignal *obj)
 {
-    qemu_free(obj);
+    obj->ref++;
+}
+
+void qmp_signal_unref(QmpSignal *obj)
+{
+    if (--obj->ref) {
+        qemu_free(obj);
+    }
 }
 
 int qmp_signal_connect(QmpSignal *obj, void *func, void *opaque)
