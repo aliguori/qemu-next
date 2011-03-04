@@ -1113,6 +1113,7 @@
 
 
 { 'BLOCK_IO_ERROR': { 'device': 'str', 'action': 'str', 'operation': 'str' } }
+[ 'get-block-io-error-event', {}, {}, 'BLOCK_IO_ERROR' ]
 
 { 'RTC_CHANGE': { 'offset': 'int' } }
 [ 'get-rtc-change-event', {}, {}, 'RTC_CHANGE' ]

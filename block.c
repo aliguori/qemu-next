@@ -28,6 +28,7 @@
 #include "block_int.h"
 #include "module.h"
 #include "qemu-objects.h"
+#include "qmp-core.h"
 
 #ifdef CONFIG_BSD
 #include <sys/types.h>
@@ -69,6 +70,8 @@ static BlockDriverState *bs_snapshots;
 
 /* If non-zero, use only whitelisted block drivers */
 static int use_bdrv_whitelist;
+
+static BlockIoErrorEvent block_io_error_event;
 
 #ifdef _WIN32
 static int is_windows_drive_prefix(const char *filename)
@@ -1553,6 +1556,11 @@ int bdrv_is_allocated(BlockDriverState *bs, int64_t sector_num, int nb_sectors,
     return bs->drv->bdrv_is_allocated(bs, sector_num, nb_sectors, pnum);
 }
 
+BlockIoErrorEvent *qmp_get_block_io_error_event(Error **errp)
+{
+    return &block_io_error_event;
+}
+
 void bdrv_mon_event(const BlockDriverState *bdrv,
                     BlockMonEventAction action, int is_read)
 {
@@ -1578,6 +1586,8 @@ void bdrv_mon_event(const BlockDriverState *bdrv,
                               action_str,
                               is_read ? "read" : "write");
     monitor_protocol_event(QEVENT_BLOCK_IO_ERROR, data);
+    signal_notify(&block_io_error_event, bdrv->device_name, action_str,
+                  is_read ? "read" : "write");
 
     qobject_decref(data);
 }
@@ -2601,6 +2611,7 @@ fail:
 
 void bdrv_init(void)
 {
+    signal_init(&block_io_error_event);
     module_call_init(MODULE_INIT_BLOCK);
 }
 

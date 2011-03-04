@@ -356,6 +356,18 @@ static VncServerInfo *qmp_query_vnc_server(VncState *vs)
     return info;
 }
 
+static void vnc_events_init(void)
+{
+    static int vnc_events_init;
+
+    if (!vnc_events_init) {
+        vnc_events_init = 1;
+        signal_init(&vnc_connected_event);
+        signal_init(&vnc_initialized_event);
+        signal_init(&vnc_disconnected_event);
+    }
+}
+
 static void vnc_qapi_event(VncState *vs, MonitorEvent event)
 {
     VncServerInfo *server;
@@ -363,6 +375,8 @@ static void vnc_qapi_event(VncState *vs, MonitorEvent event)
 
     server = qmp_query_vnc_server(vs);
     client = qmp_query_vnc_client(vs);
+
+    vnc_events_init();
 
     switch (event) {
     case QEVENT_VNC_CONNECTED:
@@ -2601,18 +2615,6 @@ static void vnc_listen_read(void *opaque)
     int csock = qemu_accept(vs->lsock, (struct sockaddr *)&addr, &addrlen);
     if (csock != -1) {
         vnc_connect(vs, csock);
-    }
-}
-
-static void vnc_events_init(void)
-{
-    static int vnc_events_init;
-
-    if (!vnc_events_init) {
-        vnc_events_init = 1;
-        signal_init(&vnc_connected_event);
-        signal_init(&vnc_initialized_event);
-        signal_init(&vnc_disconnected_event);
     }
 }
 

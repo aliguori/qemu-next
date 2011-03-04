@@ -16,6 +16,7 @@
 #include "qemu-timer.h"
 #include "qemu-log.h"
 #include "sysemu.h"
+#include "qmp-core.h"
 
 #include <sys/time.h>
 
@@ -118,4 +119,9 @@ int qemu_set_fd_handler(int fd,
                         void *opaque)
 {
     return 0;
+}
+
+QmpSignal *qmp_signal_init(void)
+{
+    return NULL;
 }
