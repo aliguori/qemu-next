@@ -111,8 +111,75 @@ def print_lib_decl(name, required, optional, retval, suffix=''):
 
     print '%s libqmp_%s(%s)%s' % (qmp_type_to_c(retval, True), c_var(name), ', '.join(args), suffix)
 
+def print_lib_event_decl(name, end=''):
+    print 'static void libqmp_notify_%s(QDict *qmp__args, void *qmp__fn, void *qmp__opaque, Error **qmp__errp)%s' % (de_camel_case(qmp_event_to_c(name)), end)
+
 def print_lib_declaration(name, required, optional, retval):
     print_lib_decl(name, required, optional, retval, ';')
+
+def parse_args(typeinfo):
+    for member in typeinfo:
+        argname = member
+        argtype = typeinfo[member]
+        optional = False
+        if member.startswith('*'):
+            argname = member[1:]
+            optional = True
+        yield (argname, argtype, optional)
+
+def print_lib_event_definition(name, typeinfo):
+    print
+    print_lib_event_decl(name)
+    print '{'
+    print '    %s *qmp__native_fn = qmp__fn;' % (qmp_event_func_to_c(name))
+    print '    Error *qmp__err = NULL;'
+    for argname, argtype, optional in parse_args(typeinfo):
+        if optional:
+            print '    bool has_%s;' % (c_var(argname))
+        print '    %s %s = 0;' % (qmp_type_to_c(argtype, True), c_var(argname))
+
+    print
+    print '    (void)qmp__err;'
+
+    for argname, argtype, optional in parse_args(typeinfo):
+        if optional:
+            print '    BUILD_BUG()'
+        print '''
+    if (!qdict_haskey(qmp__args, "%s")) {
+        error_set(qmp__errp, QERR_MISSING_PARAMETER, "%s");
+        goto qmp__out;
+    }
+
+    %s = %s(qdict_get(qmp__args, "%s"), &qmp__err);
+    if (qmp__err) {
+        if (error_is_type(qmp__err, QERR_INVALID_PARAMETER_TYPE)) {
+            error_set(qmp__errp, QERR_INVALID_PARAMETER_TYPE, "%s",
+                      error_get_field(qmp__err, "expected"));
+            error_free(qmp__err);
+            qmp__err = NULL;
+        } else {
+            error_propagate(qmp__errp, qmp__err);
+        }
+        goto qmp__out;
+    }''' % (argname, argname, c_var(argname), qmp_type_from_qobj(argtype), argname, argname)
+
+    arglist = ['qmp__opaque']
+    for argname, argtype, optional in parse_args(typeinfo):
+        arglist.append(c_var(argname))
+    print
+    print '    qmp__native_fn(%s);' % (', '.join(arglist))
+
+    has_label = False
+    for argname, argtype, optional in parse_args(typeinfo):
+        if not has_label:
+            print
+            print 'qmp__out:'
+            has_label = True
+
+        if qmp_type_should_free(argtype):
+            print '    %s(%s);' % (qmp_free_func(argtype), c_var(argname))
+    print '    return;'
+    print '}'
 
 def print_lib_definition(name, required, optional, retval):
     print
@@ -607,13 +674,7 @@ def print_type_declaration(name, typeinfo):
         print "void qmp_free_%s(%s *obj);" % (de_camel_case(name), name)
     elif is_dict(typeinfo) and name.isupper():
         arglist = ['void *opaque']
-        for member in typeinfo:
-            argname = c_var(member)
-            argtype = typeinfo[member]
-            optional = False
-            if argname[0] == '*':
-                argname = argname[1:]
-                optional = True
+        for argname, argtype, optional in parse_args(typeinfo):
             arglist.append('%s %s' % (qmp_type_to_c(argtype), argname))
         print
         print 'typedef void (%s)(%s);' % (qmp_event_func_to_c(name), ', '.join(arglist))
@@ -730,14 +791,7 @@ def print_metatype_undef(typeinfo, name, lhs, indent=0):
         inprint('}', indent)
 
 def print_metatype_free(typeinfo, prefix, indent=4):
-    for argname in typeinfo:
-        argtype = typeinfo[argname]
-        argname = c_var(argname)
-        optional = False
-        if argname.startswith('*'):
-            argname = argname[1:]
-            optional = True
-
+    for argname, argtype, optional in parse_args(typeinfo):
         if type(argtype) == list:
             argtype = argtype[0]
 
@@ -987,6 +1041,9 @@ for s in exprs:
                 print_type_marshal_definition(key, s[key])
             elif kind == 'marshal-header':
                 print_type_marshal_declaration(key, s[key])
+            elif kind == 'lib-body':
+                if qmp_type_is_event(key):
+                    print_lib_event_definition(key, event_types[key])
         else:
             enum_types.append(key)
             if kind == 'types-header':
@@ -1028,4 +1085,11 @@ elif kind == 'body':
     print '};'
     print
     print 'qapi_init(qmp_init_marshal);'
+elif kind == 'lib-body':
+    print
+    print 'void libqmp_init_events(QmpSession *sess)'
+    print '{'
+    for event in event_types:
+        print '    libqmp_register_event(sess, "%s", &libqmp_notify_%s);' % (event, de_camel_case(qmp_event_to_c(event)))
+    print '}'
         

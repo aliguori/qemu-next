@@ -176,6 +176,14 @@ static QObject *qmp_session_fd_dispatch(QmpSession *s, const char *name,
     }
 }
 
+void libqmp_register_event(QmpSession *sess, const char *name, EventTrampolineFunc *func)
+{
+    QmpEventTrampoline *t = qemu_mallocz(sizeof(*t));
+    t->name = name;
+    t->dispatch = func;
+    QTAILQ_INSERT_TAIL(&sess->events, t, node);
+}
+
 QmpSession *qmp_session_new(int fd)
 {
     FdQmpSession *s = qemu_mallocz(sizeof(*s));
@@ -185,8 +193,10 @@ QmpSession *qmp_session_new(int fd)
     s->session.wait_event = qmp_session_fd_wait_event;
     s->got_greeting = false;
 
+    QTAILQ_INIT(&s->session.events);
     json_message_parser_init(&s->parser, fd_qmp_session_parse);
 
+    libqmp_init_events(&s->session);
     libqmp_qmp_capabilities(&s->session, NULL);
 
     return &s->session;
