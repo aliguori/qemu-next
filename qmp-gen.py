@@ -115,9 +115,6 @@ def print_lib_declaration(name, required, optional, retval):
     print_lib_decl(name, required, optional, retval, ';')
 
 def print_lib_definition(name, required, optional, retval):
-    if qmp_type_is_event(retval):
-        return
-
     print
     print_lib_decl(name, required, optional, retval)
     print '''{
@@ -127,6 +124,8 @@ def print_lib_definition(name, required, optional, retval):
     print '    QObject *qmp__retval = NULL;'
     if retval != 'none':
         print '    %s qmp__native_retval = 0;' % (qmp_type_to_c(retval, True))
+    if qmp_type_is_event(retval):
+        print '    int qmp__global_handle = 0;'
     print
 
     for key in required:
@@ -178,6 +177,15 @@ def print_lib_definition(name, required, optional, retval):
     elif is_dict(retval):
         print '    // FIXME (using an anonymous dict as return value)'
         print '    BUILD_BUG();'
+    elif qmp_type_is_event(retval):
+        print '''    if (!qmp__local_err) {
+        qmp__global_handle = %s(qmp__retval, &qmp__local_err);
+    }
+    if (!qmp__local_err) {
+        qmp__native_retval = libqmp_signal_init(qmp__session, %s, qmp__global_handle);
+    }
+    error_propagate(qmp__err, qmp__local_err);
+    return qmp__native_retval;''' % (qmp_type_from_qobj('int'), qmp_event_to_c(retval))
     elif retval != 'none':
         print '''
     if (!qmp__local_err) {

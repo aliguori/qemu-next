@@ -59,6 +59,8 @@ void qmp_state_event(QmpConnection *conn, QObject *data);
     (obj)->signal = qmp_signal_init(); \
 } while (0)
 
+#define signal_unref(obj) qmp_signal_unref((obj)->signal)
+
 #define signal_connect(obj, fn, opaque) \
     qmp_signal_connect((obj)->signal, (obj)->func = fn, opaque)
 

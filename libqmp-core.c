@@ -301,3 +301,42 @@ QmpSession *libqmp_session_new_pid(pid_t pid)
 
     return qmp_session_new(c);
 }
+
+typedef struct GenericSignal
+{
+    QmpSignal *signal;
+    void *func;
+} GenericSignal;
+
+void *libqmp_signal_new(QmpSession *s, size_t size, int global_handle)
+{
+    GenericSignal *obj;
+
+    obj = qemu_mallocz(size);
+    return obj;
+}
+
+int libqmp_signal_connect(QmpSignal *obj, void *func, void *opaque)
+{
+    return 0;
+}
+
+void libqmp_signal_disconnect(QmpSignal *obj, int handle)
+{
+}
+
+void libqmp_signal_free(void *base, QmpSignal *obj)
+{
+    qemu_free(base);
+}
+
+bool libqmp_poll_event(QmpSession *s)
+{
+    return false;
+}
+
+bool libqmp_wait_event(QmpSession *s, struct timeval *tv)
+{
+    return false;
+}
+

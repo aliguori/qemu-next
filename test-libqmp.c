@@ -14,9 +14,6 @@
 
 /**
  * TODO:
- *  1) make a QmpSession that actually works
- *  2) split the type, alloc, and free functions into a separate header/file
- *     such that we don't have to expose qobject in the library interface
  *  3) figure out how to support errors without exposing qobject
  */
 
@@ -985,6 +982,41 @@ static void test_query_pci(void)
     qemu_destroy(sess);
 }
 
+static void on_resume(void *opaque)
+{
+    bool *fired = opaque;
+    *fired = true;
+}
+
+static void test_event_resume(void)
+{
+    QmpSession *sess;
+    Error *err = NULL;
+    ResumeEvent *event;
+    bool fired = false;
+    struct timeval tv = { 1, 0 };
+
+    sess = qemu("-S");
+    event = libqmp_get_resume_event(sess, &err);
+    g_assert_noerr(err);
+
+    signal_connect(event, on_resume, &fired);
+
+    libqmp_cont(sess, &err);
+    g_assert_noerr(err);
+
+    if (!fired) {
+        libqmp_wait_event(sess, &tv);
+    }
+
+    g_assert(fired == true);
+
+    signal_unref(event);
+
+    libqmp_quit(sess, NULL);
+    qemu_destroy(sess);
+}
+
 int main(int argc, char **argv)
 {
     g_test_init(&argc, &argv, NULL);
@@ -1010,6 +1042,7 @@ int main(int argc, char **argv)
     g_test_add_func("/0.14/device-del/err/id", test_device_del_bad_id);
     g_test_add_func("/0.14/device-del/nic", test_device_del_nic);
     g_test_add_func("/0.14/pci/query", test_query_pci);
+    g_test_add_func("/0.14/events/resume", test_event_resume);
 
     g_test_add_func("/0.15/vnc/change", test_vnc_change);
     g_test_add_func("/0.15/block/change/encrypted",
