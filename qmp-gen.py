@@ -247,6 +247,8 @@ def print_lib_definition(name, required, optional, retval):
     elif qmp_type_is_event(retval):
         print '''    if (!qmp__local_err) {
         qmp__global_handle = %s(qmp__retval, &qmp__local_err);
+        qobject_decref(qmp__retval);
+        qmp__retval = NULL;
     }
     if (!qmp__local_err) {
         qmp__native_retval = libqmp_signal_init(qmp__session, %s, qmp__global_handle);

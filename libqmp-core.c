@@ -24,16 +24,78 @@ typedef struct FdQmpSession
     QObject *result;
     bool got_greeting;
     int fd;
+    int event_count;
 } FdQmpSession;
+
+static EventTrampolineFunc *get_event_trampoline(QmpSession *sess, const char *name)
+{
+    QmpEventTrampoline *t;
+
+    QTAILQ_FOREACH(t, &sess->events, node) {
+        if (strcmp(t->name, name) == 0) {
+            return t->dispatch;
+        }
+    }
+
+    return NULL;
+}
+
+static void fd_qmp_session_process_event(FdQmpSession *fs, QDict *response)
+{
+    EventTrampolineFunc *tramp;
+    QmpSignal *signal;
+    const char *event;
+    int tag;
+
+    event = qdict_get_str(response, "event");
+    tramp = get_event_trampoline(&fs->session, event);
+
+    fs->event_count++;
+
+    if (tramp && qdict_haskey(response, "tag")) {
+        tag = qdict_get_int(response, "tag");
+
+        QTAILQ_FOREACH(signal, &fs->session.signals, node) {
+            if (signal->global_handle == tag) {
+                QmpConnection *conn;
+                QDict *args = NULL;
+                Error *err = NULL;
+
+                if (qdict_haskey(response, "data")) {
+                    args = qobject_to_qdict(qdict_get(response, "data"));
+                }
+
+                QTAILQ_FOREACH(conn, &signal->connections, node) {
+                    tramp(args, conn->fn, conn->opaque, &err);
+                    if (err) {
+                        error_free(err);
+                    }
+                }
+
+                break;
+            }
+        }
+    }
+}
 
 static void fd_qmp_session_parse(JSONMessageParser *parser, QList *tokens)
 {
     FdQmpSession *fs = container_of(parser, FdQmpSession, parser);
-    fs->result = json_parser_parse(tokens, NULL);
+    QObject *result;
+
+    result = json_parser_parse(tokens, NULL);
     if (!fs->got_greeting) {
         fs->got_greeting = true;
-        qobject_decref(fs->result);
-        fs->result = NULL;
+        qobject_decref(result);
+    } else {
+        QDict *response = qobject_to_qdict(result);
+        if (qdict_haskey(response, "event")) {
+            fd_qmp_session_process_event(fs, response);
+            qobject_decref(result);
+        } else {
+            qobject_decref(fs->result);
+            fs->result = result;
+        }
     }
 }
 
@@ -68,76 +130,6 @@ static QDict *fd_qmp_session_read(FdQmpSession *fs)
     return response;
 }
 
-static EventTrampolineFunc *get_event_trampoline(QmpSession *sess, const char *name)
-{
-    QmpEventTrampoline *t;
-
-    QTAILQ_FOREACH(t, &sess->events, node) {
-        if (strcmp(t->name, name) == 0) {
-            return t->dispatch;
-        }
-    }
-
-    return NULL;
-}
-
-static QDict *fd_qmp_session_read_once(FdQmpSession *fs)
-{
-    QDict *response;
-
-    response = fd_qmp_session_read(fs);
-    if (qdict_haskey(response, "event")) {
-        EventTrampolineFunc *tramp;
-        QmpSignal *signal;
-        const char *event;
-        int tag;
-
-        event = qdict_get_str(response, "event");
-        tramp = get_event_trampoline(&fs->session, event);
-
-        if (tramp && qdict_haskey(response, "tag")) {
-            tag = qdict_get_int(response, "tag");
-
-            QTAILQ_FOREACH(signal, &fs->session.signals, node) {
-                if (signal->global_handle == tag) {
-                    QmpConnection *conn;
-                    QDict *args = NULL;
-                    Error *err = NULL;
-
-                    if (qdict_haskey(response, "data")) {
-                        args = qobject_to_qdict(qdict_get(response, "data"));
-                    }
-
-                    QTAILQ_FOREACH(conn, &signal->connections, node) {
-                        tramp(args, conn->fn, conn->opaque, &err);
-                        if (err) {
-                            error_free(err);
-                        }
-                    }
-
-                    break;
-                }
-            }
-        }
-
-        QDECREF(response);
-        response = NULL;
-    }
-
-    return response;
-}
-
-static QDict *fd_qmp_session_read_response(FdQmpSession *fs)
-{
-    QDict *response;
-
-    do {
-        response = fd_qmp_session_read_once(fs);
-    } while (response == NULL);
-
-    return response;
-}
-
 static bool qmp_session_fd_wait_event(QmpSession *s, struct timeval *tv)
 {
     FdQmpSession *fs = (FdQmpSession *)s;
@@ -152,12 +144,25 @@ static bool qmp_session_fd_wait_event(QmpSession *s, struct timeval *tv)
     } while (ret == -1 && errno == EINTR);
 
     if (ret) {
-        QDict *res;
-        res = fd_qmp_session_read_once(fs);
-        if (res) {
+        char buffer[1024];
+        ssize_t len;
+        int saved_event_count;
+
+        do {
+            len = read(fs->fd, buffer, sizeof(buffer));
+        } while (len == -1 && errno == EINTR);
+
+        if (len < 1) {
             abort();
         }
-        return true;
+
+#if defined(DEBUG_LIBQMP)
+        fwrite(buffer, len, 1, stdout);
+        fflush(stdout);
+#endif
+        saved_event_count = fs->event_count;
+        json_message_parser_feed(&fs->parser, buffer, len);
+        return (saved_event_count != fs->event_count);
     }
 
     return false;
@@ -207,7 +212,7 @@ static QObject *qmp_session_fd_dispatch(QmpSession *s, const char *name,
     QDECREF(str);
     QDECREF(request);
 
-    response = fd_qmp_session_read_response(fs);
+    response = fd_qmp_session_read(fs);
 
     if (qdict_haskey(response, "error")) {
         error_set_qobject(err, qdict_get(response, "error"));
@@ -251,6 +256,12 @@ QmpSession *qmp_session_new(int fd)
 void qmp_session_destroy(QmpSession *s)
 {
     FdQmpSession *fs = container_of(s, FdQmpSession, session);
+
+    while (!QTAILQ_EMPTY(&s->events)) {
+        QmpEventTrampoline *t = QTAILQ_FIRST(&s->events);
+        QTAILQ_REMOVE(&s->events, t, node);
+        qemu_free(t);
+    }
     if (fs->result) {
         qobject_decref(fs->result);
         fs->result = NULL;
@@ -477,7 +488,11 @@ void libqmp_signal_disconnect(QmpSignal *obj, int handle)
 void libqmp_signal_free(void *base, QmpSignal *obj)
 {
     libqmp_put_event(obj->sess, obj->global_handle, NULL);
-    // FIXME release all connections
+    while (!QTAILQ_EMPTY(&obj->connections)) {
+        QmpConnection *conn = QTAILQ_FIRST(&obj->connections);
+        QTAILQ_REMOVE(&obj->connections, conn, node);
+        qemu_free(conn);
+    }
     qemu_free(obj);
     qemu_free(base);
 }

@@ -521,6 +521,8 @@ static void test_balloon_nodev(void)
 
     info = libqmp_query_balloon(sess, &err);
     g_assert_cmperr(err, ==, "DeviceNotActive");
+    error_free(err);
+
     libqmp_quit(sess, NULL);
     qemu_destroy(sess);
 }
@@ -1037,7 +1039,7 @@ static void test_event_resume(void)
     Error *err = NULL;
     ResumeEvent *event;
     bool fired = false;
-    struct timeval tv = { 1, 0 };
+    struct timeval tv = { 10, 0 };
 
     sess = qemu("-S");
     event = libqmp_get_resume_event(sess, &err);
