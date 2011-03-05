@@ -22,7 +22,6 @@ typedef struct FdQmpSession
     QmpSession session;
     JSONMessageParser parser;
     QObject *result;
-    bool completed;
     bool got_greeting;
     int fd;
 } FdQmpSession;
@@ -35,9 +34,88 @@ static void fd_qmp_session_parse(JSONMessageParser *parser, QList *tokens)
         fs->got_greeting = true;
         qobject_decref(fs->result);
         fs->result = NULL;
-    } else {
-        fs->completed = true;
     }
+}
+
+static QDict *fd_qmp_session_read(FdQmpSession *fs)
+{
+    QDict *response;
+
+    g_assert(fs->result == NULL);
+    fs->result = NULL;
+    while (!fs->result) {
+        char buffer[1024];
+        ssize_t len;
+
+        len = read(fs->fd, buffer, sizeof(buffer));
+        if (len == -1 && errno == EINTR) {
+            continue;
+        }
+        if (len < 1) {
+            abort();
+        }
+
+#if defined(DEBUG_LIBQMP)
+        fwrite(buffer, len, 1, stdout);
+        fflush(stdout);
+#endif
+        json_message_parser_feed(&fs->parser, buffer, len);
+    }
+
+    response = qobject_to_qdict(fs->result);
+    fs->result = NULL;
+
+    return response;
+}
+
+static QDict *fd_qmp_session_read_once(FdQmpSession *fs)
+{
+    QDict *response;
+
+    response = fd_qmp_session_read(fs);
+    if (qdict_haskey(response, "event")) {
+        printf("got event `%s'\n", qdict_get_str(response, "event"));
+        QDECREF(response);
+        response = NULL;
+    }
+
+    return response;
+}
+
+static QDict *fd_qmp_session_read_response(FdQmpSession *fs)
+{
+    QDict *response;
+
+    do {
+        response = fd_qmp_session_read_once(fs);
+    } while (response == NULL);
+
+    return response;
+}
+
+static bool qmp_session_fd_wait_event(QmpSession *s, struct timeval *tv)
+{
+    FdQmpSession *fs = (FdQmpSession *)s;
+    fd_set readfds;
+    int ret;
+
+    FD_ZERO(&readfds);
+    FD_SET(fs->fd, &readfds);
+
+    do {
+        ret = select(fs->fd + 1, &readfds, NULL, NULL, tv);
+    } while (ret == -1 && errno == EINTR);
+
+    if (ret) {
+        QDict *res;
+        res = fd_qmp_session_read_once(fs);
+        if (res) {
+            abort();
+        }
+        return true;
+    }
+
+    return false;
 }
 
 static QObject *qmp_session_fd_dispatch(QmpSession *s, const char *name,
@@ -67,6 +145,13 @@ static QObject *qmp_session_fd_dispatch(QmpSession *s, const char *name,
         ssize_t len;
 
         len = write(fs->fd, buffer + offset, size - offset);
+        if (len == -1 && errno == EINTR) {
+            continue;
+        }
+        if (len < 1) {
+            abort();
+        }
+
 #if defined(DEBUG_LIBQMP)
         fwrite(buffer + offset, size - offset, 1, stdout);
         fflush(stdout);
@@ -74,25 +159,10 @@ static QObject *qmp_session_fd_dispatch(QmpSession *s, const char *name,
         offset += len;
     }
 
-    g_assert(fs->result == NULL);
-    fs->result = NULL;
-    fs->completed = false;
-    while (!fs->completed) {
-        char buffer[1024];
-        ssize_t len;
-
-        len = read(fs->fd, buffer, sizeof(buffer));
-#if defined(DEBUG_LIBQMP)
-        fwrite(buffer, len, 1, stdout);
-        fflush(stdout);
-#endif
-        json_message_parser_feed(&fs->parser, buffer, len);
-    }
     QDECREF(str);
     QDECREF(request);
 
-    response = qobject_to_qdict(fs->result);
-    fs->result = NULL;
+    response = fd_qmp_session_read_response(fs);
 
     if (qdict_haskey(response, "error")) {
         error_set_qobject(err, qdict_get(response, "error"));
@@ -112,6 +182,7 @@ QmpSession *qmp_session_new(int fd)
 
     s->fd = fd;
     s->session.dispatch = qmp_session_fd_dispatch;
+    s->session.wait_event = qmp_session_fd_wait_event;
     s->got_greeting = false;
 
     json_message_parser_init(&s->parser, fd_qmp_session_parse);
@@ -330,13 +401,13 @@ void libqmp_signal_free(void *base, QmpSignal *obj)
     qemu_free(base);
 }
 
-bool libqmp_poll_event(QmpSession *s)
-{
-    return false;
-}
-
 bool libqmp_wait_event(QmpSession *s, struct timeval *tv)
 {
-    return false;
+    return s->wait_event(s, tv);
 }
 
+bool libqmp_poll_event(QmpSession *s)
+{
+    struct timeval tv = { 0, 0 };
+    return libqmp_wait_event(s, &tv);
+}

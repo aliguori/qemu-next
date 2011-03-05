@@ -8,6 +8,7 @@
 struct QmpSession
 {
     QObject *(*dispatch)(QmpSession *session, const char *name, QDict *args, Error **err);
+    bool (*wait_event)(QmpSession *session, struct timeval *tv);
 };
 
 #endif

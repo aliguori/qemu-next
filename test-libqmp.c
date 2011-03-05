@@ -1052,6 +1052,33 @@ static void test_event_resume(void)
     qemu_destroy(sess);
 }
 
+static void test_event_vnc_connect(void)
+{
+    QmpSession *sess;
+    Error *err = NULL;
+    VncConnectedEvent *event;
+    int ret;
+    bool retb;
+
+    sess = qemu("-S -vnc :300");
+    event = libqmp_get_vnc_connected_event(sess, &err);
+    g_assert_noerr(err);
+
+    retb = libqmp_poll_event(sess);
+    g_assert(retb == false);
+
+    ret = vnc_connect(5900 + 300, NULL);
+    g_assert_cmpint(ret, ==, 0);
+
+    retb = libqmp_poll_event(sess);
+    g_assert(retb == true);
+
+    signal_unref(event);
+
+    libqmp_quit(sess, NULL);
+    qemu_destroy(sess);
+}
+
 int main(int argc, char **argv)
 {
     g_test_init(&argc, &argv, NULL);
@@ -1080,6 +1107,7 @@ int main(int argc, char **argv)
     g_test_add_func("/0.14/balloon/nodev", test_balloon_nodev);
     g_test_add_func("/0.14/balloon/nodrv", test_balloon_nodrv);
     g_test_add_func("/0.14/events/resume", test_event_resume);
+    g_test_add_func("/0.14/events/vnc-connect", test_event_vnc_connect);
 
     g_test_add_func("/0.15/vnc/change", test_vnc_change);
     g_test_add_func("/0.15/block/change/encrypted",
