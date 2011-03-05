@@ -52,9 +52,17 @@ static QmpSession *qemu(const char *fmt, ...)
     char buffer0[4096];
     char buffer1[4096];
     const char *pid_filename = "/tmp/test-libqmp-qemu.pid";
+    QmpSession *s;
     va_list ap;
     int ret;
     
+    s = libqmp_session_new_name("test-libqmp");
+    if (s) {
+        libqmp_quit(s, NULL);
+        qmp_session_destroy(s);
+        sleep(2); // FIXME should read pidfile really
+    }
+
     va_start(ap, fmt);
     vsnprintf(buffer0, sizeof(buffer0), fmt, ap);
     va_end(ap);

@@ -227,6 +227,12 @@ qmp-check: build-all
 
 check: qmp-check
 
+test-report.html: test-report.log
+	$(call quiet-command, gtester-report $< > $@, "  GEN   $@")
+
+test-report.log: test-libqmp
+	$(call quiet-command, gtester -k -o $@ ./test-libqmp 2>/dev/null >/dev/null || true, "  TEST  $<")
+
 qsh: qsh.o $(LIBQMP_OBJS) qemu-timer-common.o
 
 clean:
@@ -239,6 +245,7 @@ clean:
 	rm -f trace.c trace.h trace.c-timestamp trace.h-timestamp
 	rm -f trace-dtrace.dtrace trace-dtrace.dtrace-timestamp
 	rm -f trace-dtrace.h trace-dtrace.h-timestamp
+	rm -f test-libqmp test-report.log test-report.html
 	$(MAKE) -C tests clean
 	for d in $(ALL_SUBDIRS) libhw32 libhw64 libuser libdis libdis-user; do \
 	if test -d $$d; then $(MAKE) -C $$d $@ || exit 1; fi; \
