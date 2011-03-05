@@ -167,6 +167,10 @@ static int vnc_connect(int port, const char *password)
     int s, ret;
     uint8_t num_auth;
     uint8_t auth;
+    uint8_t shared_flag = 1;
+    uint8_t pixel_format[4 + 16];
+    uint32_t name_size;
+    char *name;
 
     ret = inet_aton("127.0.0.1", &in);
     g_assert(ret != 0);
@@ -222,10 +226,30 @@ static int vnc_connect(int port, const char *password)
             close(s);
             return -EPERM;
         }
-    } else if (auth != 1) {
+    } else if (auth == 1) {
+        uint32_t result;
+        write_or_assert(s, &auth, sizeof(auth));
+        read_or_assert(s, &result, sizeof(result));
+        if (result != 0) {
+            close(s);
+            return -EPERM;
+        }
+    } else {
         close(s);
         return -EINVAL;
     }
+
+    write_or_assert(s, &shared_flag, sizeof(shared_flag));
+    read_or_assert(s, &pixel_format, sizeof(pixel_format));
+
+    read_or_assert(s, &name_size, sizeof(name_size));
+    name_size = ntohl(name_size);
+
+    name = qemu_mallocz(name_size + 1);
+    read_or_assert(s, name, name_size);
+    name[name_size] = 0;
+
+    qemu_free(name);
 
     close(s);
 
@@ -1072,9 +1096,9 @@ static void test_event_resume(void)
     qemu_destroy(sess);
 }
 
-static void on_vnc_connected(void *opaque, VncClientInfo *client, VncServerInfo *server)
+static void on_vnc_event(void *opaque, VncClientInfo *client, VncServerInfo *server)
 {
-    int *connect_count = opaque;
+    int *count = opaque;
 
     g_assert_cmpstr(client->host, ==, "127.0.0.1");
     g_assert_cmpstr(client->family, ==, "ipv4");
@@ -1087,39 +1111,64 @@ static void on_vnc_connected(void *opaque, VncClientInfo *client, VncServerInfo 
     g_assert_cmpstr(server->service, ==, "6200");
     g_assert_cmpstr(server->auth, ==, "none");
 
-    (*connect_count)++;
+    (*count)++;
 }
 
-static void test_event_vnc_connect(void)
+static void test_event_vnc_events(void)
 {
     QmpSession *sess;
     Error *err = NULL;
     VncConnectedEvent *event;
+    VncDisconnectedEvent *event2;
+    VncInitializedEvent *event3;
     int connect_count = 0;
+    int disconnect_count = 0;
+    int initialized_count = 0;
     int ret;
 
     sess = qemu("-S -vnc :300");
+
     event = libqmp_get_vnc_connected_event(sess, &err);
     g_assert_noerr(err);
 
-    signal_connect(event, on_vnc_connected, &connect_count);
+    event2 = libqmp_get_vnc_disconnected_event(sess, &err);
+    g_assert_noerr(err);
+
+    event3 = libqmp_get_vnc_initialized_event(sess, &err);
+    g_assert_noerr(err);
+
+    signal_connect(event, on_vnc_event, &connect_count);
+    signal_connect(event2, on_vnc_event, &disconnect_count);
+    signal_connect(event3, on_vnc_event, &initialized_count);
 
     ret = vnc_connect(5900 + 300, NULL);
     g_assert_cmpint(ret, ==, 0);
+    libqmp_wait_event(sess, NULL);
     libqmp_poll_event(sess);
     g_assert_cmpint(connect_count, ==, 1);
+    g_assert_cmpint(disconnect_count, ==, 1);
+    g_assert_cmpint(initialized_count, ==, 1);
 
     ret = vnc_connect(5900 + 300, NULL);
     g_assert_cmpint(ret, ==, 0);
+    libqmp_wait_event(sess, NULL);
     libqmp_poll_event(sess);
     g_assert_cmpint(connect_count, ==, 2);
+    g_assert_cmpint(disconnect_count, ==, 2);
+    g_assert_cmpint(initialized_count, ==, 2);
 
     signal_unref(event);
+    signal_unref(event2);
 
     ret = vnc_connect(5900 + 300, NULL);
     g_assert_cmpint(ret, ==, 0);
+    libqmp_wait_event(sess, NULL);
     libqmp_poll_event(sess);
     g_assert_cmpint(connect_count, ==, 2);
+    g_assert_cmpint(disconnect_count, ==, 2);
+    g_assert_cmpint(initialized_count, ==, 3);
+
+    signal_unref(event3);
 
     libqmp_quit(sess, NULL);
     qemu_destroy(sess);
@@ -1153,7 +1202,7 @@ int main(int argc, char **argv)
     g_test_add_func("/0.14/balloon/nodev", test_balloon_nodev);
     g_test_add_func("/0.14/balloon/nodrv", test_balloon_nodrv);
     g_test_add_func("/0.14/events/resume", test_event_resume);
-    g_test_add_func("/0.14/events/vnc-connect", test_event_vnc_connect);
+    g_test_add_func("/0.14/events/vnc", test_event_vnc_events);
 
     g_test_add_func("/0.15/vnc/change", test_vnc_change);
     g_test_add_func("/0.15/block/change/encrypted",

@@ -487,6 +487,8 @@ void libqmp_signal_disconnect(QmpSignal *obj, int handle)
 
 void libqmp_signal_free(void *base, QmpSignal *obj)
 {
+    QTAILQ_REMOVE(&obj->sess->signals, obj, node);
+
     libqmp_put_event(obj->sess, obj->global_handle, NULL);
     while (!QTAILQ_EMPTY(&obj->connections)) {
         QmpConnection *conn = QTAILQ_FIRST(&obj->connections);
