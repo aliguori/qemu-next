@@ -1029,8 +1029,8 @@ static void test_query_pci(void)
 
 static void on_resume(void *opaque)
 {
-    bool *fired = opaque;
-    *fired = true;
+    int *resume_count = opaque;
+    (*resume_count)++;
 }
 
 static void test_event_resume(void)
@@ -1038,28 +1038,56 @@ static void test_event_resume(void)
     QmpSession *sess;
     Error *err = NULL;
     ResumeEvent *event;
-    bool fired = false;
-    struct timeval tv = { 10, 0 };
+    int resume_count = 0;
+    int i;
 
     sess = qemu("-S");
     event = libqmp_get_resume_event(sess, &err);
     g_assert_noerr(err);
 
-    signal_connect(event, on_resume, &fired);
+    signal_connect(event, on_resume, &resume_count);
 
     libqmp_cont(sess, &err);
     g_assert_noerr(err);
+    libqmp_poll_event(sess);
+    g_assert_cmpint(resume_count, ==, 1);
 
-    if (!fired) {
-        libqmp_wait_event(sess, &tv);
+    libqmp_cont(sess, &err);
+    g_assert_noerr(err);
+    libqmp_poll_event(sess);
+    g_assert_cmpint(resume_count, ==, 1);
+
+    for (i = 0; i < 3; i++) {
+        libqmp_stop(sess, &err);
+        g_assert_noerr(err);
+        libqmp_cont(sess, &err);
+        g_assert_noerr(err);
     }
 
-    g_assert(fired == true);
+    libqmp_poll_event(sess);
+    g_assert_cmpint(resume_count, ==, 4);
 
     signal_unref(event);
-
     libqmp_quit(sess, NULL);
     qemu_destroy(sess);
+}
+
+static void on_vnc_connected(void *opaque, VncClientInfo *client, VncServerInfo *server)
+{
+    int *connect_count = opaque;
+
+    g_assert_cmpstr(client->host, ==, "127.0.0.1");
+    g_assert_cmpstr(client->family, ==, "ipv4");
+    /* service is random */
+    g_assert(client->has_x509_dname == false);
+    g_assert(client->has_sasl_username == false);
+
+    g_assert_cmpstr(server->host, ==, "0.0.0.0");
+    g_assert_cmpstr(server->family, ==, "ipv4");
+    g_assert_cmpstr(server->service, ==, "6200");
+    g_assert_cmpstr(server->auth, ==, "none");
+
+    (*connect_count)++;
 }
 
 static void test_event_vnc_connect(void)
@@ -1067,23 +1095,31 @@ static void test_event_vnc_connect(void)
     QmpSession *sess;
     Error *err = NULL;
     VncConnectedEvent *event;
+    int connect_count = 0;
     int ret;
-    bool retb;
 
     sess = qemu("-S -vnc :300");
     event = libqmp_get_vnc_connected_event(sess, &err);
     g_assert_noerr(err);
 
-    retb = libqmp_poll_event(sess);
-    g_assert(retb == false);
+    signal_connect(event, on_vnc_connected, &connect_count);
 
     ret = vnc_connect(5900 + 300, NULL);
     g_assert_cmpint(ret, ==, 0);
+    libqmp_poll_event(sess);
+    g_assert_cmpint(connect_count, ==, 1);
 
-    retb = libqmp_poll_event(sess);
-    g_assert(retb == true);
+    ret = vnc_connect(5900 + 300, NULL);
+    g_assert_cmpint(ret, ==, 0);
+    libqmp_poll_event(sess);
+    g_assert_cmpint(connect_count, ==, 2);
 
     signal_unref(event);
+
+    ret = vnc_connect(5900 + 300, NULL);
+    g_assert_cmpint(ret, ==, 0);
+    libqmp_poll_event(sess);
+    g_assert_cmpint(connect_count, ==, 2);
 
     libqmp_quit(sess, NULL);
     qemu_destroy(sess);

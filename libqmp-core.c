@@ -505,5 +505,13 @@ bool libqmp_wait_event(QmpSession *s, struct timeval *tv)
 bool libqmp_poll_event(QmpSession *s)
 {
     struct timeval tv = { 0, 0 };
-    return libqmp_wait_event(s, &tv);
+    bool got_event = false;
+    bool ret;
+
+    do {
+        ret = libqmp_wait_event(s, &tv);
+        got_event |= ret;
+    } while (ret);
+
+    return got_event;
 }
