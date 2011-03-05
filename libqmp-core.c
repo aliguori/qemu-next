@@ -68,13 +68,58 @@ static QDict *fd_qmp_session_read(FdQmpSession *fs)
     return response;
 }
 
+static EventTrampolineFunc *get_event_trampoline(QmpSession *sess, const char *name)
+{
+    QmpEventTrampoline *t;
+
+    QTAILQ_FOREACH(t, &sess->events, node) {
+        if (strcmp(t->name, name) == 0) {
+            return t->dispatch;
+        }
+    }
+
+    return NULL;
+}
+
 static QDict *fd_qmp_session_read_once(FdQmpSession *fs)
 {
     QDict *response;
 
     response = fd_qmp_session_read(fs);
     if (qdict_haskey(response, "event")) {
-        printf("got event `%s'\n", qdict_get_str(response, "event"));
+        EventTrampolineFunc *tramp;
+        QmpSignal *signal;
+        const char *event;
+        int tag;
+
+        event = qdict_get_str(response, "event");
+        tramp = get_event_trampoline(&fs->session, event);
+
+        if (tramp && qdict_haskey(response, "tag")) {
+            tag = qdict_get_int(response, "tag");
+
+            QTAILQ_FOREACH(signal, &fs->session.signals, node) {
+                if (signal->global_handle == tag) {
+                    QmpConnection *conn;
+                    QDict *args = NULL;
+                    Error *err = NULL;
+
+                    if (qdict_haskey(response, "data")) {
+                        args = qobject_to_qdict(qdict_get(response, "data"));
+                    }
+
+                    QTAILQ_FOREACH(conn, &signal->connections, node) {
+                        tramp(args, conn->fn, conn->opaque, &err);
+                        if (err) {
+                            error_free(err);
+                        }
+                    }
+
+                    break;
+                }
+            }
+        }
+
         QDECREF(response);
         response = NULL;
     }
@@ -194,6 +239,7 @@ QmpSession *qmp_session_new(int fd)
     s->got_greeting = false;
 
     QTAILQ_INIT(&s->session.events);
+    QTAILQ_INIT(&s->session.signals);
     json_message_parser_init(&s->parser, fd_qmp_session_parse);
 
     libqmp_init_events(&s->session);
@@ -386,28 +432,53 @@ QmpSession *libqmp_session_new_pid(pid_t pid)
 typedef struct GenericSignal
 {
     QmpSignal *signal;
-    void *func;
 } GenericSignal;
 
 void *libqmp_signal_new(QmpSession *s, size_t size, int global_handle)
 {
     GenericSignal *obj;
-
     obj = qemu_mallocz(size);
+    obj->signal = qemu_mallocz(sizeof(QmpSignal));
+    obj->signal->sess = s;
+    obj->signal->global_handle = global_handle;
+    // FIXME validate there isn't another global_handle
+    QTAILQ_INIT(&obj->signal->connections);
+    QTAILQ_INSERT_TAIL(&s->signals, obj->signal, node);
     return obj;
 }
 
 int libqmp_signal_connect(QmpSignal *obj, void *func, void *opaque)
 {
-    return 0;
+    QmpConnection *conn;
+
+    conn = qemu_mallocz(sizeof(*conn));
+    conn->fn = func;
+    conn->opaque = opaque;
+    conn->handle = ++obj->max_handle;
+    QTAILQ_INSERT_TAIL(&obj->connections, conn, node);
+    return conn->handle;
 }
 
 void libqmp_signal_disconnect(QmpSignal *obj, int handle)
 {
+    QmpConnection *conn;
+
+    QTAILQ_FOREACH(conn, &obj->connections, node) {
+        if (conn->handle == handle) {
+            break;
+        }
+    }
+    if (conn) {
+        QTAILQ_REMOVE(&obj->connections, conn, node);
+        qemu_free(conn);
+    }
 }
 
 void libqmp_signal_free(void *base, QmpSignal *obj)
 {
+    libqmp_put_event(obj->sess, obj->global_handle, NULL);
+    // FIXME release all connections
+    qemu_free(obj);
     qemu_free(base);
 }
 

@@ -14,11 +14,29 @@ typedef struct QmpEventTrampoline
     QTAILQ_ENTRY(QmpEventTrampoline) node;
 } QmpEventTrampoline;
 
+typedef struct QmpConnection
+{
+    void *fn;
+    void *opaque;
+    int handle;
+    QTAILQ_ENTRY(QmpConnection) node;
+} QmpConnection;
+
+struct QmpSignal
+{
+    QmpSession *sess;
+    int global_handle;
+    int max_handle;
+    QTAILQ_HEAD(, QmpConnection) connections;
+    QTAILQ_ENTRY(QmpSignal) node;
+};
+
 struct QmpSession
 {
     QObject *(*dispatch)(QmpSession *session, const char *name, QDict *args, Error **err);
     bool (*wait_event)(QmpSession *session, struct timeval *tv);
     QTAILQ_HEAD(, QmpEventTrampoline) events;
+    QTAILQ_HEAD(, QmpSignal) signals;
 };
 
 void libqmp_init_events(QmpSession *sess);
