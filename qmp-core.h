@@ -82,4 +82,6 @@ void qmp_state_event(QmpConnection *conn, QObject *data);
 
 void qmp_init_chardev(CharDriverState *chr);
 
+void qmp_qmp_capabilities(QmpState *state, Error **errp);
+
 #endif
