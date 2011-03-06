@@ -20,8 +20,9 @@
 #include "trace.h"
 #endif
 #include "ui/qemu-spice.h"
+#include "qmp-core.h"
 
-void qmp_qmp_capabilities(Error **errp)
+void qmp_qmp_capabilities(QmpState *state, Error **errp)
 {
 }
 
