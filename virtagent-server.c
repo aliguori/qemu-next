@@ -17,6 +17,12 @@
 #include "qjson.h"
 #include "qint.h"
 
+typedef struct RPCFunction {
+    QDict *(*func)(const QDict *params);
+    const char *func_name;
+} RPCFunction;
+static RPCFunction guest_functions[];
+static RPCFunction host_functions[];
 static VAServerData *va_server_data;
 static bool va_enable_syslog = false; /* enable syslog'ing of RPCs */
 
@@ -28,167 +34,6 @@ static bool va_enable_syslog = false; /* enable syslog'ing of RPCs */
     snprintf(msg_buf, 1024, msg, ## __VA_ARGS__); \
     syslog(LOG_INFO, "virtagent, %s", msg_buf); \
 } while(0)
-
-/* RPC functions common to guest/host daemons */
-
-/* va_getfile(): return file contents
- * rpc return values:
- *   - base64-encoded file contents
- */
-#if 0
-static xmlrpc_value *va_getfile(xmlrpc_env *env,
-                                xmlrpc_value *params,
-                                void *user_data)
-{
-    const char *path;
-    char *file_contents = NULL;
-    char buf[VA_FILEBUF_LEN];
-    int fd, ret, count = 0;
-    xmlrpc_value *result = NULL;
-
-    /* parse argument array */
-    xmlrpc_decompose_value(env, params, "(s)", &path);
-    if (env->fault_occurred) {
-        return NULL;
-    }
-
-    SLOG("va_getfile(), path:%s", path);
-
-    fd = open(path, O_RDONLY);
-    if (fd == -1) {
-        LOG("open failed: %s", strerror(errno));
-        xmlrpc_faultf(env, "open failed: %s", strerror(errno));
-        return NULL;
-    }
-
-    while ((ret = read(fd, buf, VA_FILEBUF_LEN)) > 0) {
-        file_contents = qemu_realloc(file_contents, count + VA_FILEBUF_LEN);
-        memcpy(file_contents + count, buf, ret);
-        count += ret;
-        if (count > VA_GETFILE_MAX) {
-            xmlrpc_faultf(env, "max file size (%d bytes) exceeded",
-                          VA_GETFILE_MAX);
-            goto EXIT_CLOSE_BAD;
-        }
-    }
-    if (ret == -1) {
-        LOG("read failed: %s", strerror(errno));
-        xmlrpc_faultf(env, "read failed: %s", strerror(errno));
-        goto EXIT_CLOSE_BAD;
-    }
-
-    result = xmlrpc_build_value(env, "6", file_contents, count);
-
-EXIT_CLOSE_BAD:
-    if (file_contents) {
-        qemu_free(file_contents);
-    }
-    close(fd);
-    return result;
-}
-#endif
-
-/* va_getdmesg(): return dmesg output
- * rpc return values:
- *   - dmesg output as a string
- */
-#if 0
-static xmlrpc_value *va_getdmesg(xmlrpc_env *env,
-                              xmlrpc_value *params,
-                              void *user_data)
-{
-    char *dmesg_buf = NULL, cmd[256];
-    int ret;
-    xmlrpc_value *result = NULL;
-    FILE *pipe;
-
-    SLOG("va_getdmesg()");
-
-    dmesg_buf = qemu_mallocz(VA_DMESG_LEN + 2048);
-    sprintf(cmd, "dmesg -s %d", VA_DMESG_LEN);
-
-    pipe = popen(cmd, "r");
-    if (pipe == NULL) {
-        LOG("popen failed: %s", strerror(errno));
-        xmlrpc_faultf(env, "popen failed: %s", strerror(errno));
-        goto EXIT_NOCLOSE;
-    }
-
-    ret = fread(dmesg_buf, sizeof(char), VA_DMESG_LEN, pipe);
-    if (!ferror(pipe)) {
-        dmesg_buf[ret] = '\0';
-        TRACE("dmesg:\n%s", dmesg_buf);
-        result = xmlrpc_build_value(env, "s", dmesg_buf);
-    } else {
-        LOG("fread failed");
-        xmlrpc_faultf(env, "popen failed: %s", strerror(errno));
-    }
-
-    pclose(pipe);
-EXIT_NOCLOSE:
-    if (dmesg_buf) {
-        qemu_free(dmesg_buf);
-    }
-
-    return result;
-}
-
-/* va_shutdown(): initiate guest shutdown
- * rpc return values: none
- */
-static xmlrpc_value *va_shutdown(xmlrpc_env *env,
-                                    xmlrpc_value *params,
-                                    void *user_data)
-{
-    int ret;
-    const char *shutdown_type, *shutdown_flag;
-    xmlrpc_value *result = xmlrpc_build_value(env, "s", "dummy");
-
-    TRACE("called");
-    xmlrpc_decompose_value(env, params, "(s)", &shutdown_type);
-    if (env->fault_occurred) {
-        goto out_bad;
-    }
-
-    if (strcmp(shutdown_type, "halt") == 0) {
-        shutdown_flag = "-H";
-    } else if (strcmp(shutdown_type, "powerdown") == 0) {
-        shutdown_flag = "-P";
-    } else if (strcmp(shutdown_type, "reboot") == 0) {
-        shutdown_flag = "-r";
-    } else {
-        xmlrpc_faultf(env, "invalid shutdown type: %s", shutdown_type);
-        goto out_bad;
-    }
-
-    SLOG("va_shutdown(), shutdown_type:%s", shutdown_type);
-
-    ret = fork();
-    if (ret == 0) {
-        /* child, start the shutdown */
-        setsid();
-        fclose(stdin);
-        fclose(stdout);
-        fclose(stderr);
-
-        sleep(5);
-        ret = execl("/sbin/shutdown", "shutdown", shutdown_flag, "+0",
-                    "hypervisor initiated shutdown", (char*)NULL);
-        if (ret < 0) {
-            LOG("execl() failed: %s", strerror(errno));
-            exit(1);
-        }
-        TRACE("shouldn't be here");
-        exit(0);
-    } else if (ret < 0) {
-        xmlrpc_faultf(env, "fork() failed: %s", strerror(errno));
-    }
-
-    return result;
-out_bad:
-    return NULL;
-}
-#endif
 
 static QDict *va_server_format_response(QDict *return_data, int errnum,
                                         const char *errstr)
@@ -221,6 +66,8 @@ static QDict *va_server_format_response(QDict *return_data, int errnum,
 
     return response;
 }
+
+/* RPCs */
 
 /* va_shutdown(): initiate guest shutdown
  * rpc return values: none
@@ -301,37 +148,6 @@ static QDict *va_ping(const QDict *params)
     return va_server_format_response(NULL, 0, NULL);
 }
 
-typedef struct RPCFunction {
-    QDict *(*func)(const QDict *params);
-    const char *func_name;
-} RPCFunction;
-
-static QDict *va_capabilities(const QDict *params);
-
-static RPCFunction guest_functions[] = {
-    /*
-    { .func = va_getfile,
-      .func_name = "getfile" },
-    { .func = va_getdmesg,
-      .func_name = "getdmesg" },
-      */
-    { .func = va_shutdown,
-      .func_name = "shutdown" },
-    { .func = va_ping,
-      .func_name = "ping" },
-    { .func = va_capabilities,
-      .func_name = "capabilities" },
-    { NULL, NULL }
-};
-
-static RPCFunction host_functions[] = {
-    { .func = va_ping,
-      .func_name = "ping" },
-    { .func = va_hello,
-      .func_name = "hello" },
-    { NULL, NULL }
-};
-
 /* va_capabilities(): return server capabilities
  * rpc return values:
  *   - version: virtagent version
@@ -351,6 +167,24 @@ static QDict *va_capabilities(const QDict *params)
 
     return va_server_format_response(ret, 0, NULL);
 }
+
+static RPCFunction guest_functions[] = {
+    { .func = va_shutdown,
+      .func_name = "shutdown" },
+    { .func = va_ping,
+      .func_name = "ping" },
+    { .func = va_capabilities,
+      .func_name = "capabilities" },
+    { NULL, NULL }
+};
+
+static RPCFunction host_functions[] = {
+    { .func = va_ping,
+      .func_name = "ping" },
+    { .func = va_hello,
+      .func_name = "hello" },
+    { NULL, NULL }
+};
 
 static bool va_server_is_enabled(void)
 {
@@ -463,8 +297,6 @@ int va_server_init(VAManager *m, VAServerData *server_data, bool is_host)
     //RPCFunction *func_list = is_host ? host_functions : guest_functions;
 
     va_enable_syslog = !is_host; /* enable logging for guest agent */
-    xmlrpc_env_init(&server_data->env);
-    server_data->registry = xmlrpc_registry_new(&server_data->env);
     //va_register_functions(&server_data->env, server_data->registry, func_list);
     server_data->enabled = true;
     /* TODO: this is redundant given the is_host arg */
@@ -478,8 +310,6 @@ int va_server_init(VAManager *m, VAServerData *server_data, bool is_host)
 int va_server_close(void)
 {
     if (va_server_data != NULL) {
-        xmlrpc_registry_free(va_server_data->registry);
-        xmlrpc_env_clean(&va_server_data->env);
         va_server_data = NULL;
     }
     return 0;
@@ -495,7 +325,6 @@ typedef struct VAServerResponse {
 static int va_execute(void *opaque, const char *tag)
 {
     VARequestData *d = opaque;
-    //int ret = va_do_server_rpc(d->content, d->content_len, tag);
     int ret = va_do_server_rpc(d, tag);
     if (ret < 0) {
         LOG("error occurred executing RPC: %s", strerror(-ret));
