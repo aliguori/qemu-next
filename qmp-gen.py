@@ -429,6 +429,227 @@ QObject *qmp_marshal_type_%s(%s value)
 }
 ''' % (name, name, name)
 
+def print_declaration(name, required, optional, retval):
+    args = []
+    if name in ['qmp_capabilities', 'put-event']:
+        return
+    for key in required:
+        args.append('%s %s' % (qmp_type_to_c(required[key]), c_var(key)))
+
+    for key in optional:
+        if optional[key] == '**':
+            args.append('KeyValues * %s' % c_var(key))
+        else:
+            args.append('bool has_%s' % c_var(key))
+            args.append('%s %s' % (qmp_type_to_c(optional[key]), c_var(key)))
+
+    args.append('Error **err')
+
+    print '%s qmp_%s(%s);' % (qmp_type_to_c(retval, True), c_var(name), ', '.join(args))
+
+def print_definition(name, required, optional, retval):
+    if qmp_type_is_event(retval):
+        arglist = ['void *opaque']
+        for member in event_types[retval]:
+            argname = c_var(member)
+            argtype = event_types[retval][member]
+            if argname[0] == '*':
+                argname = argname[1:]
+                arglist.append('bool has_%s' % argname)
+            arglist.append('%s %s' % (qmp_type_to_c(argtype), argname))
+        print '''
+static void qmp_marshal_%s(%s)
+{
+    QDict *qmp__args = qdict_new();
+    QmpConnection *qmp__conn = opaque;
+''' % (qmp_event_to_c(retval), ', '.join(arglist))
+
+        for member in event_types[retval]:
+            argname = member
+            argtype = event_types[retval][member]
+            opt = False
+            if argname[0] == '*':
+                argname = argname[1:]
+                opt = True
+            if opt:
+                print '    if (has_%s) {' % c_var(argname)
+                print '        qdict_put_obj(qmp__args, "%s", %s(%s));' % (argname, qmp_type_to_qobj_ctor(argtype), c_var(argname))
+                print '    }'
+            else:
+                print '    qdict_put_obj(qmp__args, "%s", %s(%s));' % (argname, qmp_type_to_qobj_ctor(argtype), c_var(argname))
+
+        print '''
+    qmp_state_event(qmp__conn, QOBJECT(qmp__args));
+    QDECREF(qmp__args);
+}'''
+        print '''
+static void qmp_marshal_%s(QmpState *qmp__sess, const QDict *qdict, QObject **ret_data, Error **err)
+{
+    int qmp__handle;
+    QmpConnection *qmp__connection = qemu_mallocz(sizeof(QmpConnection));''' % c_var(name)
+    elif name in ['qmp_capabilities', 'put-event']:
+        print '''
+static void qmp_marshal_%s(QmpState *qmp__sess, const QDict *qdict, QObject **ret_data, Error **err)
+{''' % c_var(name)
+    else:
+        print '''
+static void qmp_marshal_%s(const QDict *qdict, QObject **ret_data, Error **err)
+{''' % c_var(name)
+    print '    Error *qmp__err = NULL;'
+
+    for key in required:
+        print '    %s %s = 0;' % (qmp_type_to_c(required[key], True), c_var(key))
+
+    for key in optional:
+        if optional[key] == '**':
+            print '    KeyValues * %s = 0;' % c_var(key)
+        else:
+            print '    bool has_%s = false;' % (c_var(key))
+            print '    %s %s = 0;' % (qmp_type_to_c(optional[key], True), c_var(key))
+
+    if retval != 'none':
+        print '    %s qmp_retval = 0;' % (qmp_type_to_c(retval, True))
+
+    print '''
+    (void)qmp__err;'''
+
+    for key in required:
+        print '''
+    if (!qdict_haskey(qdict, "%s")) {
+        error_set(err, QERR_MISSING_PARAMETER, "%s");
+        goto qmp__out;
+    }
+
+    %s = %s(qdict_get(qdict, "%s"), &qmp__err);
+    if (qmp__err) {
+        if (error_is_type(qmp__err, QERR_INVALID_PARAMETER_TYPE)) {
+            error_set(err, QERR_INVALID_PARAMETER_TYPE, "%s",
+                      error_get_field(qmp__err, "expected"));
+            error_free(qmp__err);
+            qmp__err = NULL;
+        } else {
+            error_propagate(err, qmp__err);
+        }
+        goto qmp__out;
+    }
+''' % (key, key, c_var(key), qmp_type_from_qobj(required[key]), key, key)
+
+    for key in optional:
+        if optional[key] == '**':
+            print '''
+    {
+        const QDictEntry *qmp__qdict_i;
+
+        %s = NULL;
+        for (qmp__qdict_i = qdict_first(qdict); qmp__qdict_i; qmp__qdict_i = qdict_next(qdict, qmp__qdict_i)) {
+            KeyValues *qmp__i;''' % c_var(key)
+            for key1 in required.keys() + optional.keys():
+                if key1 == key:
+                    continue
+                print '''            if (strcmp(qmp__qdict_i->key, "%s") == 0) {
+                continue;
+            }''' % key1
+            print '''
+            qmp__i = qmp_alloc_key_values();
+            qmp__i->key = qemu_strdup(qmp__qdict_i->key);
+            qmp__i->value = qobject_as_string(qmp__qdict_i->value);
+            qmp__i->next = %s;
+            %s = qmp__i;
+        }
+    }''' % (c_var(key), c_var(key))
+        else:
+            print '''
+    if (qdict_haskey(qdict, "%s")) {
+        %s = %s(qdict_get(qdict, "%s"), &qmp__err);
+        if (qmp__err) {
+            if (error_is_type(qmp__err, QERR_INVALID_PARAMETER_TYPE)) {
+                error_set(err, QERR_INVALID_PARAMETER_TYPE, "%s",
+                          error_get_field(qmp__err, "expected"));
+                error_free(qmp__err);
+                qmp__err = NULL;
+            } else {
+                error_propagate(err, qmp__err);
+            }
+            goto qmp__out;
+        }
+        has_%s = true;
+    }
+''' % (key, c_var(key), qmp_type_from_qobj(optional[key]), key, key, c_var(key))
+
+    args = []
+    for key in required:
+        args.append(c_var(key))
+    for key in optional:
+        if optional[key] == '**':
+            args.append(c_var(key))
+        else:
+            args.append('has_%s' % c_var(key))
+            args.append(c_var(key))
+    args.append('err')
+
+    if name in ['qmp_capabilities', 'put-event']:
+        args = ['qmp__sess'] + args
+
+    arglist = ', '.join(args)
+    fn = 'qmp_%s' % c_var(name)
+
+    if name == 'put-event':
+        print '    qmp_state_del_connection(%s);' % arglist
+    elif retval == 'none':
+        print '    %s(%s);' % (fn, arglist)
+    else:
+        print '    qmp_retval = %s(%s);' % (fn, arglist)
+
+    print '''
+    if (error_is_set(err)) {
+        goto qmp__out;
+    }'''
+
+    if retval == 'none':
+        pass
+    elif qmp_type_is_event(retval):
+        print '    qmp__handle = signal_connect(qmp_retval, qmp_marshal_%s, qmp__connection);' % (qmp_event_to_c(retval))
+        print '    qmp_state_add_connection(qmp__sess, "%s", qmp_retval->signal, qmp__handle, qmp__connection);' % retval
+        print '    *ret_data = QOBJECT(qint_from_int(qmp__connection->global_handle));'
+        print '    qmp__connection = NULL;'
+    elif type(retval) == str:
+        print '    *ret_data = %s(qmp_retval);' % qmp_type_to_qobj_ctor(retval)
+    elif type(retval) == list:
+        print '''    *ret_data = QOBJECT(qlist_new());
+    if (qmp_retval) {
+        QList *list = qobject_to_qlist(*ret_data);
+        %s i;
+        for (i = qmp_retval; i != NULL; i = i->next) {
+            QObject *obj = %s(i);
+            qlist_append_obj(list, obj);
+        }
+    }''' % (qmp_type_to_c(retval[0], True), qmp_type_to_qobj_ctor(retval[0]))
+
+    print
+    print 'qmp__out:'
+    if qmp_type_is_event(retval):
+        print '    qemu_free(qmp__connection);'
+    print
+    args = []
+    for argname in required:
+        argtype = required[argname]
+        if qmp_type_should_free(argtype):
+            print '    %s(%s);' % (qmp_free_func(argtype), c_var(argname))
+    for argname in optional:
+        argtype = optional[argname]
+        if argtype == '**':
+            print '    %s(%s);' % (qmp_free_func('KeyValues'), c_var(argname))
+        elif qmp_type_should_free(argtype):
+            print '    if (has_%s) {' % c_var(argname)
+            print '        %s(%s);' % (qmp_free_func(argtype), c_var(argname))
+            print '    }'
+    if retval != 'none':
+        if qmp_type_should_free(retval):
+            print '    %s(%s);' % (qmp_free_func(retval), 'qmp_retval')
+    print '    return;'
+
+    print '}'
+
 def tokenize(data):
     while len(data):
         if data[0] in ['{', '}', ':', ',', '[', ']']:
@@ -488,6 +709,11 @@ if len(sys.argv) == 2:
         kind = 'marshal-body'
     elif sys.argv[1] == '--marshal-header':
         kind = 'marshal-header'
+    elif sys.argv[1] == '--body':
+        kind = 'body'
+    elif sys.argv[1] == '--header':
+        kind = 'header'
+
 
 if kind == 'types-header':
     print '''/* THIS FILE IS AUTOMATICALLY GENERATED, DO NOT EDIT */
@@ -516,6 +742,22 @@ elif kind == 'marshal-body':
 
 #include "qmp-marshal-types.h"
 #include "qerror.h"
+'''
+elif kind == 'header':
+    print '''/* THIS FILE IS AUTOMATICALLY GENERATED, DO NOT EDIT */
+#ifndef QMP_MARSHAL_H
+#define QMP_MARSHAL_H
+
+#include "qemu-common.h"
+#include "qemu-objects.h"
+#include "qmp-types.h"
+#include "error.h"
+'''
+elif kind == 'body':
+    print '''/* THIS FILE IS AUTOMATICALLY GENERATED, DO NOT EDIT */
+
+#include "qmp.h"
+#include "qmp-core.h"
 '''
 
 exprs = []
@@ -562,6 +804,26 @@ for s in exprs:
                 print_enum_marshal_declaration(key, s[key])
             elif kind == 'marshal-body':
                 print_enum_marshal_definition(key, s[key])
+    else:
+        name, required, optional, retval = s
+        if kind == 'body':
+            print_definition(name, required, optional, retval)
+        elif kind == 'header':
+            print_declaration(name, required, optional, retval)
 
 if kind.endswith('header'):
     print '#endif'
+elif kind == 'body':
+    print
+    print 'static void qmp_init_marshal(void)'
+    print '{'
+    for s in exprs:
+        if type(s) != list:
+            continue
+        if qmp_type_is_event(s[3]) or s[0] in ['qmp_capabilities', 'put-event']:
+            print '    qmp_register_stateful_command("%s", &qmp_marshal_%s);' % (s[0], c_var(s[0]))
+        else:
+            print '    qmp_register_command("%s", &qmp_marshal_%s);' % (s[0], c_var(s[0]))
+    print '};'
+    print
+    print 'qapi_init(qmp_init_marshal);'
