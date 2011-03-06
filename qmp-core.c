@@ -418,6 +418,7 @@ static void qmp_chr_event(void *opaque, int event)
     QmpSession *s = opaque;
     switch (event) {
     case CHR_EVENT_OPENED:
+        // FIXME disconnect any connected signals including defaults
         json_message_parser_init(&s->parser, qmp_chr_parse);
         qmp_chr_send_greeting(s);
         break;
