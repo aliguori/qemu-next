@@ -42,6 +42,13 @@ struct QmpCommandState
     QObject *tag;
 };
 
+struct QmpState
+{
+    int (*add_connection)(QmpState *s, QmpConnection *conn);
+    void (*del_connection)(QmpState *s, int global_handle, Error **errp);
+    void (*event)(QmpState *s, QObject *data);
+};
+
 static QTAILQ_HEAD(, QmpCommand) qmp_commands =
     QTAILQ_HEAD_INITIALIZER(qmp_commands);
 
@@ -109,5 +116,92 @@ char *qobject_as_string(QObject *obj)
         return qemu_strdup("off");
     default:
         return NULL;
+    }
+}
+
+void qmp_state_add_connection(QmpState *sess, const char *event_name, QmpSignal *obj, int handle, QmpConnection *conn)
+{
+    conn->state = sess;
+    conn->event_name = event_name;
+    conn->signal = obj;
+    conn->handle = handle;
+    conn->global_handle = sess->add_connection(sess, conn);
+}
+
+void qmp_put_event(QmpState *sess, int global_handle, Error **errp)
+{
+    sess->del_connection(sess, global_handle, errp);
+}
+
+void qmp_state_event(QmpConnection *conn, QObject *data)
+{
+    QDict *event = qdict_new();
+    qemu_timeval tv;
+    QObject *ts;
+
+    qemu_gettimeofday(&tv);
+
+    ts = qobject_from_jsonf("{ 'seconds': %" PRId64 ", "
+                            "'microseconds': %" PRId64 " }",
+                            (int64_t)tv.tv_sec, (int64_t)tv.tv_usec);
+    qdict_put_obj(event, "timestamp", ts);
+
+    qdict_put(event, "event", qstring_from_str(conn->event_name));
+    if (data) {
+        qobject_incref(data);
+        qdict_put_obj(event, "data", data);
+    }
+
+    qdict_put(event, "tag", qint_from_int(conn->global_handle));
+
+    conn->state->event(conn->state, QOBJECT(event));
+    QDECREF(event);
+}
+
+QmpSignal *qmp_signal_init(void)
+{
+    QmpSignal *obj = qemu_mallocz(sizeof(*obj));
+    obj->max_handle = 0;
+    obj->ref = 1;
+    QTAILQ_INIT(&obj->slots);
+    return obj;
+}
+
+void qmp_signal_ref(QmpSignal *obj)
+{
+    obj->ref++;
+}
+
+void qmp_signal_unref(QmpSignal *obj)
+{
+    if (--obj->ref) {
+        qemu_free(obj);
+    }
+}
+
+int qmp_signal_connect(QmpSignal *obj, void *func, void *opaque)
+{
+    int handle = ++obj->max_handle;
+    QmpSlot *slot = qemu_mallocz(sizeof(*slot));
+
+    slot->handle = handle;
+    slot->func = func;
+    slot->opaque = opaque;
+
+    QTAILQ_INSERT_TAIL(&obj->slots, slot, node);
+
+    return handle;
+}
+
+void qmp_signal_disconnect(QmpSignal *obj, int handle)
+{
+    QmpSlot *slot;
+
+    QTAILQ_FOREACH(slot, &obj->slots, node) {
+        if (slot->handle == handle) {
+            QTAILQ_REMOVE(&obj->slots, slot, node);
+            qemu_free(slot);
+            break;
+        }
     }
 }
