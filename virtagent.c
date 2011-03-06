@@ -13,6 +13,9 @@
  */
 
 #include "qemu_socket.h"
+#include "qjson.h"
+#include "qint.h"
+#include "monitor.h"
 #include "virtagent-common.h"
 
 static VAClientData *va_client_data;
@@ -35,6 +38,12 @@ static void va_set_capabilities(QList *qlist)
     if (qlist != NULL) {
         va_client_data->supported_methods = qlist_copy(qlist);
         TRACE("capabilities set");
+    }
+}
+
+static void va_set_version_level(const char *version) {
+    if (version) {
+        pstrcpy(va_client_data->guest_version, 32, version);
     }
 }
 
@@ -68,14 +77,14 @@ static bool va_has_capability(const char *method)
         return false;
     }
 
-    /* we can assume method introspection is available */
-    if (strcmp(method, "system.listMethods") == 0) {
+    /* we can assume capabilities is available */
+    if (strcmp(method, "capabilities") == 0) {
         return true;
     }
     /* assume hello is available to we can probe for/notify the host
      * rpc server
      */
-    if (strcmp(method, "va.hello") == 0) {
+    if (strcmp(method, "hello") == 0) {
         return true;
     }
 
@@ -91,6 +100,25 @@ static bool va_has_capability(const char *method)
     return cmp_state.found;
 }
 
+#if 0
+static void test_qdict(void)
+{
+    QDict *new, *old;
+
+    old = qdict_new();
+    qdict_put_obj(old, "key1", QOBJECT(qstring_from_str("entry1")));
+    qdict_put_obj(old, "key2", QOBJECT(qstring_from_str("entry2")));
+    qdict_put_obj(old, "key3", QOBJECT(qint_from_int(3)));
+    TRACE("old:\n%s\n",qstring_get_str(qobject_to_json(QOBJECT(old))));
+    new = va_qdict_copy(old);
+    TRACE("new:\n%s\n",qstring_get_str(qobject_to_json(QOBJECT(new))));
+    if (!new) {
+        TRACE("error");
+    }
+    abort();
+}
+#endif
+
 int va_client_init(VAManager *m, VAClientData *client_data)
 {
     client_data->supported_methods = NULL;
@@ -101,28 +129,13 @@ int va_client_init(VAManager *m, VAClientData *client_data)
     return 0;
 }
 
-int va_client_close(void)
-{
-    va_client_data = NULL;
-    return 0;
-}
-
-static int va_rpc_has_error(xmlrpc_env *env)
-{
-    if (env->fault_occurred) {
-        qerror_report(QERR_RPC_FAILED, env->fault_code, env->fault_string);
-        return -1;
-    }
-    return 0;
-}
-
 static bool va_is_enabled(void)
 {
     return va_client_data && va_client_data->enabled;
 }
 
 typedef struct VAClientRequest {
-    xmlrpc_mem_block *content;
+    const QDict *payload;
     int magic;
     char tag[64];
     VAClientCallback *cb;
@@ -134,7 +147,8 @@ typedef struct VAClientRequest {
 } VAClientRequest;
 
 typedef struct VAClientResponse {
-    void *content;
+
+    char *content;
     size_t content_len;
 } VAClientResponse;
 
@@ -156,24 +170,48 @@ static void va_send_request_cb(const void *opaque)
 /* called by VAManager to start send, in turn calls out to xport layer */
 static int va_send_request(void *opaque, const char *tag)
 {
-    VAClientRequest *req = opaque;
-    int ret = va_xport_send_request(XMLRPC_MEMBLOCK_CONTENTS(char, req->content),
-                                    XMLRPC_MEMBLOCK_SIZE(char, req->content),
-                                    tag, tag, va_send_request_cb);
+    VAClientRequest *req;
+    const char *params_json;
+    int ret;
+
+    TRACE("called");
+    req = opaque;
+    if (!req || !req->payload ||
+        qobject_type(QOBJECT(req->payload)) != QTYPE_QDICT) {
+        TRACE("marker");
+        return -EINVAL;
+    }
+    TRACE("marker");
+    const QObject *tmp_qobject = QOBJECT(req->payload);
+    TRACE("marker");
+    QString *tmp_qstring = qobject_to_json(tmp_qobject);
+    TRACE("marker");
+    params_json = qstring_get_str(tmp_qstring);
+    //params_json = qstring_get_str(qobject_to_json(QOBJECT(req->payload)));
+    TRACE("marker");
+    ret = va_xport_send_request((void *)params_json, strlen(params_json),
+                                tag, tag, va_send_request_cb);
+    TRACE("marker");
     /* register timeout */
     if (req->timeout) {
+        TRACE("marker");
         req->timer = qemu_new_timer(rt_clock, va_client_timeout, req);
         qemu_mod_timer(req->timer, qemu_get_clock(rt_clock) + req->timeout);
     }
+    TRACE("marker");
     return ret;
 }
 
 /* called by xport layer to pass response to VAManager */
-void va_client_read_response_done(void *content, size_t content_len, const char *tag)
+void va_client_read_response_done(const char *content, size_t content_len, const char *tag)
 {
-    VAClientResponse *resp = qemu_mallocz(sizeof(VAClientResponse));
-    resp->content = content;
-    resp->content_len = content_len;
+    QDict *resp = NULL;
+    QObject *resp_qobject;
+
+    resp_qobject = qobject_from_json(content);
+    if (resp_qobject) {
+        resp = qobject_to_qdict(resp_qobject);
+    }
     va_client_job_read_done(va_client_data->manager, tag, resp);
 }
 
@@ -181,31 +219,27 @@ void va_client_read_response_done(void *content, size_t content_len, const char 
 static int va_callback(void *opaque, void *resp_opaque, const char *tag)
 {
     VAClientRequest *req = opaque; 
-    VAClientResponse *resp = resp_opaque;
+    QDict *resp = resp_opaque;
     TRACE("called");
     if (req->timer) {
         qemu_del_timer(req->timer);
     }
     if (req->cb) {
         if (resp) {
-            req->cb(resp->content, resp->content_len, req->mon_cb, req->mon_data);
+            req->cb(resp, req->mon_cb, req->mon_data);
         } else {
             /* RPC did not complete */
-            req->cb(NULL, 0, req->mon_cb, req->mon_data);
+            req->cb(NULL, req->mon_cb, req->mon_data);
         }
     }
     /* TODO: cleanup */
     if (req) {
-        if (req->content) {
-            XMLRPC_MEMBLOCK_FREE(char, req->content);
-        }
+        TRACE("called");
         qemu_free(req);
     }
     if (resp) {
-        if (resp->content) {
-            qemu_free(resp->content);
-        }
-        qemu_free(resp);
+        TRACE("called");
+        QDECREF(resp);
     }
     return 0;
 }
@@ -215,12 +249,12 @@ static VAClientJobOps client_job_ops = {
     .callback = va_callback,
 };
 
-static int va_do_rpc(xmlrpc_env *const env, const char *function,
-                     xmlrpc_value *params, VAClientCallback *cb,
-                     MonitorCompletion *mon_cb, void *mon_data)
+static int va_do_rpc(const char *method, const QDict *params,
+                     VAClientCallback *cb, MonitorCompletion *mon_cb,
+                     void *mon_data)
 {
-    xmlrpc_mem_block *req_xml;
     VAClientRequest *req;
+    QDict *payload, *params_copy;
     struct timeval ts;
     int ret;
 
@@ -229,530 +263,274 @@ static int va_do_rpc(xmlrpc_env *const env, const char *function,
         ret = -ENOTCONN;
     }
 
-    if (!va_has_capability(function)) {
-        LOG("guest agent does not have required capability");
-        ret = -ENOSYS;
+    if (!va_has_capability(method)) {
+        LOG("guest agent does not have required capability: %s", method);
+        ret = -ENOTSUP;
         goto out;
     }
 
-    req_xml = XMLRPC_MEMBLOCK_NEW(char, env, 0);
-    xmlrpc_serialize_call(env, req_xml, function, params);
-    if (va_rpc_has_error(env)) {
-        ret = -EINVAL;
-        goto out_free;
-    }
-
     req = qemu_mallocz(sizeof(VAClientRequest));
-    req->content = req_xml;
     req->cb = cb;
     req->mon_cb = mon_cb;
     req->mon_data = mon_data;
     req->timeout = VA_CLIENT_TIMEOUT_MS;
-    req->magic = 9999;
+
+    /* add params and remote RPC method to call to payload */
+    payload = qdict_new();
+    qdict_put_obj(payload, "method",
+                  QOBJECT(qstring_from_str(method)));
+    /* TODO: we should copy the params rather than cast non-const */
+    if (params) {
+        params_copy = va_qdict_copy(params);
+        if (!params_copy) {
+            LOG("error processing parameters");
+            QDECREF(payload);
+            qemu_free(req);
+            goto out;
+        }
+        //qdict_put_obj(payload, "params", QOBJECT((QDict *)params));
+        qdict_put_obj(payload, "params", QOBJECT(params_copy));
+    }
+    req->payload = payload;
     /* TODO: should switch to UUIDs eventually */
     memset(req->tag, 0, 64);
     gettimeofday(&ts, NULL);
     sprintf(req->tag, "%u.%u", (uint32_t)ts.tv_sec, (uint32_t)ts.tv_usec);
-    TRACE("req->content: %p, req->cb: %p, req->mon_cb: %p, req->mon_data: %p",
-          req->content, req->cb, req->mon_cb, req->mon_data);
+    TRACE("req->payload: %p, req->cb: %p, req->mon_cb: %p, req->mon_data: %p",
+          req->payload, req->cb, req->mon_cb, req->mon_data);
 
     ret = va_client_job_add(va_client_data->manager, req->tag, req,
                             client_job_ops);
     if (ret) {
+        TRACE("marker");
+        va_client_job_cancel(va_client_data->manager, req->tag);
         qemu_free(req);
-        goto out_free;
+        goto out;
     }
 
-    return ret;
-out_free:
-    XMLRPC_MEMBLOCK_FREE(char, req_xml);
 out:
     return ret;
 }
 
 /* QMP/HMP RPC client functions */
 
-void do_agent_viewfile_print(Monitor *mon, const QObject *data)
-{
-    QDict *qdict;
-    const char *contents = NULL;
-    int i;
-
-    qdict = qobject_to_qdict(data);
-    if (!qdict_haskey(qdict, "contents")) {
-        return;
-    }
-
-    contents = qdict_get_str(qdict, "contents");
-    if (contents != NULL) {
-         /* monitor_printf truncates so do it in chunks. also, file_contents
-          * may not be null-termed at proper location so explicitly calc
-          * last chunk sizes */
-        for (i = 0; i < strlen(contents); i += 1024) {
-            monitor_printf(mon, "%.1024s", contents + i);
-        }
-    }
-    monitor_printf(mon, "\n");
-}
-
-static void do_agent_viewfile_cb(const char *resp_data,
-                                 size_t resp_data_len,
-                                 MonitorCompletion *mon_cb,
-                                 void *mon_data)
-{
-    xmlrpc_value *resp = NULL;
-    char *file_contents = NULL;
-    size_t file_size;
-    int ret;
-    xmlrpc_env env;
-    QDict *qdict = qdict_new();
-
-    if (resp_data == NULL) {
-        LOG("error handling RPC request");
-        goto out_no_resp;
-    }
-
-    xmlrpc_env_init(&env);
-    resp = xmlrpc_parse_response(&env, resp_data, resp_data_len);
-    if (va_rpc_has_error(&env)) {
-        ret = -1;
-        goto out_no_resp;
-    }
-
-    xmlrpc_parse_value(&env, resp, "6", &file_contents, &file_size);
-    if (va_rpc_has_error(&env)) {
-        ret = -1;
-        goto out;
-    }
-
-    if (file_contents != NULL) {
-        qdict_put(qdict, "contents",
-                  qstring_from_substr(file_contents, 0, file_size-1));
-    }
-
-out:
-    xmlrpc_DECREF(resp);
-out_no_resp:
-    if (mon_cb) {
-        mon_cb(mon_data, QOBJECT(qdict));
-    }
-    qobject_decref(QOBJECT(qdict));
-}
-
-/*
- * do_agent_viewfile(): View a text file in the guest
+/* XXX: The JSON that generates the response may originate from untrusted
+ * sources such as an unsupported/malicious guest agent, so we must take
+ * particular care to not make any assumptions about what the response
+ * contains. In particular, always check for key existence, and no blind
+ * qdict_get_<type>() calls since the value may be an unexpected type. This
+ * also applies to the return_data we pass back to callers.
+ *
+ * TODO: Automating these checks somehow would be nice...
  */
-int do_agent_viewfile(Monitor *mon, const QDict *mon_params,
-                      MonitorCompletion cb, void *opaque)
+static bool va_check_response_ok(QDict *resp, QDict **return_data)
 {
-    xmlrpc_env env;
-    xmlrpc_value *params;
-    const char *filepath;
-    int ret;
+    int errnum;
+    const char *errstr = NULL;
 
-    filepath = qdict_get_str(mon_params, "filepath");
-    xmlrpc_env_init(&env);
-    params = xmlrpc_build_value(&env, "(s)", filepath);
-    if (va_rpc_has_error(&env)) {
-        return -1;
+    TRACE("called");
+    if (!resp) {
+        TRACE("marker");
+        errnum = ENOMSG;
+        errstr = "response is null";
+        goto out_bad;
     }
-
-    ret = va_do_rpc(&env, "va.getfile", params, do_agent_viewfile_cb, cb,
-                    opaque);
-    if (ret) {
-        qerror_report(QERR_VA_FAILED, ret, strerror(ret));
+    
+    if (va_qdict_haskey_with_type(resp, "errnum", QTYPE_QINT)) {
+        TRACE("marker");
+        errnum = qdict_get_int(resp, "errnum");
+        if (errnum) {
+            if (va_qdict_haskey_with_type(resp, "errstr", QTYPE_QSTRING)) {
+                errstr = qdict_get_str(resp, "errstr");
+            }
+            goto out_bad;
+        }
+    } else {
+        TRACE("marker");
+        errnum = EINVAL;
+        errstr = "response is missing error code";
+        goto out_bad;
     }
-    xmlrpc_DECREF(params);
-    return ret;
-}
-
-void do_agent_viewdmesg_print(Monitor *mon, const QObject *data)
-{
-    QDict *qdict;
-    const char *contents = NULL;
-    int i;
-
-    qdict = qobject_to_qdict(data);
-    if (!qdict_haskey(qdict, "contents")) {
-        goto out;
-    }
-
-    contents = qdict_get_str(qdict, "contents");
-    if (contents != NULL) {
-         /* monitor_printf truncates so do it in chunks. also, file_contents
-          * may not be null-termed at proper location so explicitly calc
-          * last chunk sizes */
-        for (i = 0; i < strlen(contents); i += 1024) {
-            monitor_printf(mon, "%.1024s", contents + i);
+    
+    if (return_data) {
+        TRACE("marker");
+        if (va_qdict_haskey_with_type(resp, "return_data", QTYPE_QDICT)) {
+            TRACE("marker");
+            *return_data = qdict_get_qdict(resp, "return_data");
+        } else {
+            TRACE("marker");
+            errnum = EINVAL;
+            errstr = "response indicates success, but missing expected retval";
+            goto out_bad;
         }
     }
 
-out:
-    monitor_printf(mon, "\n");
-}
-
-static void do_agent_viewdmesg_cb(const char *resp_data,
-                                  size_t resp_data_len,
-                                  MonitorCompletion *mon_cb,
-                                  void *mon_data)
-{
-    xmlrpc_value *resp = NULL;
-    char *dmesg = NULL;
-    int ret;
-    xmlrpc_env env;
-    QDict *qdict = qdict_new();
-
-    if (resp_data == NULL) {
-        LOG("error handling RPC request");
-        goto out_no_resp;
-    }
-
-    xmlrpc_env_init(&env);
-    resp = xmlrpc_parse_response(&env, resp_data, resp_data_len);
-    if (va_rpc_has_error(&env)) {
-        ret = -1;
-        goto out_no_resp;
-    }
-
-    xmlrpc_parse_value(&env, resp, "s", &dmesg);
-    if (va_rpc_has_error(&env)) {
-        ret = -1;
-        goto out;
-    }
-
-    if (dmesg != NULL) {
-        qdict_put(qdict, "contents", qstring_from_str(dmesg));
-    }
-
-out:
-    xmlrpc_DECREF(resp);
-out_no_resp:
-    if (mon_cb) {
-        mon_cb(mon_data, QOBJECT(qdict));
-    }
-}
-
-/*
- * do_agent_viewdmesg(): View guest dmesg output
- */
-int do_agent_viewdmesg(Monitor *mon, const QDict *mon_params,
-                      MonitorCompletion cb, void *opaque)
-{
-    xmlrpc_env env;
-    xmlrpc_value *params;
-    int ret;
-
-    xmlrpc_env_init(&env);
-
-    params = xmlrpc_build_value(&env, "()");
-    if (va_rpc_has_error(&env)) {
-        return -1;
-    }
-
-    ret = va_do_rpc(&env, "va.getdmesg", params, do_agent_viewdmesg_cb, cb,
-                    opaque);
-    if (ret) {
-        qerror_report(QERR_VA_FAILED, ret, strerror(ret));
-    }
-    xmlrpc_DECREF(params);
-    return ret;
-}
-
-static void do_agent_shutdown_cb(const char *resp_data,
-                                 size_t resp_data_len,
-                                 MonitorCompletion *mon_cb,
-                                 void *mon_data)
-{
-    xmlrpc_value *resp = NULL;
-    xmlrpc_env env;
-
-    TRACE("called");
-
-    if (resp_data == NULL) {
-        LOG("error handling RPC request");
-        goto out_no_resp;
-    }
-
-    xmlrpc_env_init(&env);
-    resp = xmlrpc_parse_response(&env, resp_data, resp_data_len);
-    if (va_rpc_has_error(&env)) {
-        LOG("RPC Failed (%i): %s\n", env.fault_code,
-            env.fault_string);
-        goto out_no_resp;
-    }
-
-    xmlrpc_DECREF(resp);
-out_no_resp:
-    if (mon_cb) {
-        mon_cb(mon_data, NULL);
-    }
-}
-
-/*
- * do_agent_shutdown(): Shutdown a guest
- */
-int do_agent_shutdown(Monitor *mon, const QDict *mon_params,
-                      MonitorCompletion cb, void *opaque)
-{
-    xmlrpc_env env;
-    xmlrpc_value *params;
-    const char *shutdown_type;
-    int ret;
-
-    TRACE("called");
-
-    xmlrpc_env_init(&env);
-    shutdown_type = qdict_get_str(mon_params, "shutdown_type");
-    params = xmlrpc_build_value(&env, "(s)", shutdown_type);
-    if (va_rpc_has_error(&env)) {
-        return -1;
-    }
-
-    ret = va_do_rpc(&env, "va.shutdown", params, do_agent_shutdown_cb, cb,
-                    opaque);
-    if (ret) {
-        qerror_report(QERR_VA_FAILED, ret, strerror(ret));
-    }
-    xmlrpc_DECREF(params);
-    return ret;
-}
-
-void do_agent_ping_print(Monitor *mon, const QObject *data)
-{
-    QDict *qdict;
-    const char *response;
-
-    TRACE("called");
-
-    qdict = qobject_to_qdict(data);
-    response = qdict_get_str(qdict, "response");
-    if (qdict_haskey(qdict, "response")) {
-        monitor_printf(mon, "%s", response);
-    }
-
-    monitor_printf(mon, "\n");
-}
-
-static void do_agent_ping_cb(const char *resp_data,
-                                     size_t resp_data_len,
-                                     MonitorCompletion *mon_cb,
-                                     void *mon_data)
-{
-    xmlrpc_value *resp = NULL;
-    xmlrpc_env env;
-    QDict *qdict = qdict_new();
-
-    TRACE("called");
-
-    if (resp_data == NULL) {
-        LOG("error handling RPC request");
-        qdict_put(qdict, "response", qstring_from_str("error"));
-        goto out_no_resp;
-    }
-
-    xmlrpc_env_init(&env);
-    resp = xmlrpc_parse_response(&env, resp_data, resp_data_len);
-    if (va_rpc_has_error(&env)) {
-        qdict_put(qdict, "response", qstring_from_str("error"));
-        goto out_no_resp;
-    }
-    qdict_put(qdict, "response", qstring_from_str("ok"));
-
-    xmlrpc_DECREF(resp);
-out_no_resp:
-    if (mon_cb) {
-        mon_cb(mon_data, QOBJECT(qdict));
-    }
-    qobject_decref(QOBJECT(qdict));
-}
-
-/*
- * do_agent_ping(): Ping a guest
- */
-int do_agent_ping(Monitor *mon, const QDict *mon_params,
-                      MonitorCompletion cb, void *opaque)
-{
-    xmlrpc_env env;
-    xmlrpc_value *params;
-    int ret;
-
-    xmlrpc_env_init(&env);
-
-    params = xmlrpc_build_value(&env, "(n)");
-    if (va_rpc_has_error(&env)) {
-        return -1;
-    }
-
-    ret = va_do_rpc(&env, "va.ping", params, do_agent_ping_cb, cb, opaque);
-    if (ret) {
-        qerror_report(QERR_VA_FAILED, ret, strerror(ret));
-    }
-    xmlrpc_DECREF(params);
-    return ret;
+    return true;
+out_bad:
+    qerror_report(QERR_RPC_FAILED, errnum, errstr);
+    return false;
 }
 
 static void va_print_capability_iter(QObject *obj, void *opaque)
 {
     Monitor *mon = opaque;
-    QString *method = qobject_to_qstring(obj);
-    const char *method_str;
+    QString *function = qobject_to_qstring(obj);
+    const char *function_str;
 
-    if (method) {
-        method_str = qstring_get_str(method);
-        monitor_printf(mon, "%s\n", method_str); 
+    if (function) {
+        function_str = qstring_get_str(function);
+        monitor_printf(mon, "%s\n", function_str); 
     }
 }
 
-void do_agent_capabilities_print(Monitor *mon, const QObject *data)
+void do_va_capabilities_print(Monitor *mon, const QObject *data)
 {
-    QList *qlist;
+    QDict *ret = qobject_to_qdict(data);
 
     TRACE("called");
 
-    monitor_printf(mon, "the following RPC methods are supported by the guest agent:\n");
-    qlist = qobject_to_qlist(data);
-    qlist_iter(qlist, va_print_capability_iter, mon);
+    if (!data) {
+        return;
+    }
+
+    monitor_printf(mon,
+                   "guest agent version: %s\n"
+                   "supported methods:\n", qdict_get_str(ret, "version"));
+    qlist_iter(qdict_get_qlist(ret, "methods"), va_print_capability_iter, mon);
 }
 
-static void do_agent_capabilities_cb(const char *resp_data,
-                                     size_t resp_data_len,
-                                     MonitorCompletion *mon_cb,
-                                     void *mon_data)
+static void do_va_capabilities_cb(QDict *resp,
+                                  MonitorCompletion *mon_cb,
+                                  void *mon_data)
 {
-    xmlrpc_value *resp = NULL;
-    xmlrpc_value *cur_val = NULL;
-    const char *cur_method = NULL;
-    xmlrpc_env env;
-    QList *qlist = qlist_new();
-    int i;
-
+    QDict *ret = NULL;
+    QObject *ret_qobject = NULL;
+        
     TRACE("called");
-
-    if (resp_data == NULL) {
-        LOG("error handling RPC request");
-        goto out_no_resp;
+    if (!va_check_response_ok(resp, &ret)) {
+        goto out;
     }
 
-    TRACE("resp = %s\n", resp_data);
-
-    xmlrpc_env_init(&env);
-    resp = xmlrpc_parse_response(&env, resp_data, resp_data_len);
-    if (va_rpc_has_error(&env)) {
-        goto out_no_resp;
+    if (!va_qdict_haskey_with_type(ret, "methods", QTYPE_QLIST) ||
+        !va_qdict_haskey_with_type(ret, "version", QTYPE_QSTRING)) {
+        qerror_report(QERR_VA_FAILED, -EINVAL,
+                      "response does not contain required fields");
+        goto out;
     }
-
-    /* extract the list of supported RPCs */
-    for (i = 0; i < xmlrpc_array_size(&env, resp); i++) {
-        xmlrpc_array_read_item(&env, resp, i, &cur_val);
-        xmlrpc_read_string(&env, cur_val, &cur_method);
-        if (cur_method) {
-            TRACE("cur_method: %s", cur_method);
-            qlist_append_obj(qlist, QOBJECT(qstring_from_str(cur_method)));
-        }
-        xmlrpc_DECREF(cur_val);
-    }
-
-    /* set our client capabilities accordingly */
-    va_set_capabilities(qlist);
-
-    xmlrpc_DECREF(resp);
-out_no_resp:
+    va_set_capabilities(qdict_get_qlist(ret, "methods"));
+    va_set_version_level(qdict_get_str(ret, "version"));
+    ret_qobject = QOBJECT(ret);
+out:
     if (mon_cb) {
-        TRACE("CALLING MONITOR CALLBACK");
-        mon_cb(mon_data, QOBJECT(qlist));
-    } else {
-        TRACE("NOT CALLING MONITOR CALLBACK");
+        TRACE("called");
+        mon_cb(mon_data, ret_qobject);
     }
-    qobject_decref(QOBJECT(qlist));
+    TRACE("called");
 }
 
 /*
- * do_agent_capabilities(): Fetch/re-negotiate guest agent capabilities
+ * do_va_capabilities(): Fetch/re-negotiate guest agent capabilities
  */
-int do_agent_capabilities(Monitor *mon, const QDict *mon_params,
-                          MonitorCompletion cb, void *opaque)
+int do_va_capabilities(Monitor *mon, const QDict *params,
+                       MonitorCompletion cb, void *opaque)
 {
-    xmlrpc_env env;
-    xmlrpc_value *params;
-    int ret;
-
-    xmlrpc_env_init(&env);
-
-    params = xmlrpc_build_value(&env, "()");
-    if (va_rpc_has_error(&env)) {
-        return -1;
-    }
-
-    ret = va_do_rpc(&env, "system.listMethods", params,
-                    do_agent_capabilities_cb, cb, opaque);
+    int ret = va_do_rpc("capabilities", params, do_va_capabilities_cb, cb,
+                        opaque);
     if (ret) {
-        qerror_report(QERR_VA_FAILED, ret, strerror(ret));
+        qerror_report(QERR_VA_FAILED, ret, strerror(-ret));
     }
-    xmlrpc_DECREF(params);
     return ret;
 }
 
-/* non-HMP/QMP RPC client functions */
-
-int va_client_init_capabilities(void)
+void do_va_ping_print(Monitor *mon, const QObject *data)
 {
-    xmlrpc_env env;
-    xmlrpc_value *params;
-
-    xmlrpc_env_init(&env);
-
-    params = xmlrpc_build_value(&env, "()");
-    if (va_rpc_has_error(&env)) {
-        return -1;
-    }
-
-    return va_do_rpc(&env, "system.listMethods", params,
-                     do_agent_capabilities_cb, NULL, NULL);
-}
-
-static void va_send_hello_cb(const char *resp_data,
-                             size_t resp_data_len,
-                             MonitorCompletion *mon_cb,
-                             void *mon_data)
-{
-    xmlrpc_value *resp = NULL;
-    xmlrpc_env env;
+    QDict *ret = qobject_to_qdict(data);
 
     TRACE("called");
 
-    if (resp_data == NULL) {
-        LOG("error handling RPC request");
+    if (!data) {
         return;
     }
+    monitor_printf(mon, "status: %s\n", qdict_get_str(ret, "status"));
+}
 
-    xmlrpc_env_init(&env);
-    resp = xmlrpc_parse_response(&env, resp_data, resp_data_len);
-    if (va_rpc_has_error(&env)) {
-        LOG("error parsing RPC response");
-        return;
+static void do_va_ping_cb(QDict *resp,
+                          MonitorCompletion *mon_cb,
+                          void *mon_data)
+{
+    QDict *ret = qdict_new();
+    const char *status;
+        
+    if (va_check_response_ok(resp, NULL)) {
+        status = "success";
+    } else {
+        status = "error or timeout";
+    }
+    qdict_put_obj(ret, "status", QOBJECT(qstring_from_str(status)));
+
+    if (mon_cb) {
+        TRACE("called");
+        mon_cb(mon_data, QOBJECT(ret));
+    }
+    QDECREF(ret);
+    TRACE("called");
+}
+
+/*
+ * do_va_ping(): Ping the guest agent
+ */
+int do_va_ping(Monitor *mon, const QDict *params,
+               MonitorCompletion cb, void *opaque)
+{
+    int ret = va_do_rpc("ping", params, do_va_ping_cb, cb, opaque);
+    if (ret) {
+        qerror_report(QERR_VA_FAILED, ret, strerror(-ret));
+    }
+    return ret;
+}
+
+static void do_va_shutdown_cb(QDict *resp,
+                              MonitorCompletion *mon_cb,
+                              void *mon_data)
+{
+    TRACE("called");
+    va_check_response_ok(resp, NULL); 
+    if (mon_cb) {
+        TRACE("called");
+        mon_cb(mon_data, NULL);
+    }
+}
+
+/*
+ * do_va_ping(): Ping the guest agent
+ */
+int do_va_shutdown(Monitor *mon, const QDict *params,
+                   MonitorCompletion cb, void *opaque)
+{
+    int ret = va_do_rpc("shutdown", params, do_va_shutdown_cb, cb, opaque);
+    if (ret) {
+        qerror_report(QERR_VA_FAILED, ret, strerror(-ret));
+    }
+    return ret;
+}
+
+/* RPC client functions called outside of HMP/QMP */
+int va_client_init_capabilities(void)
+{
+    int ret = va_do_rpc("capabilities", NULL, do_va_capabilities_cb, NULL,
+                        NULL);
+    if (ret) {
+        LOG("erroring negotiating capabilities: %s", strerror(-ret));
     }
 
-    xmlrpc_DECREF(resp);
+    return 0;
 }
 
 int va_send_hello(void)
 {
-    xmlrpc_env env;
-    xmlrpc_value *params;
-    int ret;
-
-    TRACE("called");
-
-    xmlrpc_env_init(&env);
-    params = xmlrpc_build_value(&env, "()");
-    if (va_rpc_has_error(&env)) {
-        return -1;
-    }
-
-    ret = va_do_rpc(&env, "va.hello", params, va_send_hello_cb, NULL, NULL);
+    int ret = va_do_rpc("hello", NULL, NULL, NULL, NULL);
     if (ret) {
-        qerror_report(QERR_VA_FAILED, ret, strerror(ret));
+        LOG("error sending start up notification to host");
     }
-    xmlrpc_DECREF(params);
     return ret;
 }

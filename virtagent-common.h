@@ -88,9 +88,12 @@ typedef void (VAHTSendCallback)(const void *opaque);
 
 int va_init(VAContext ctx);
 void va_process_jobs(void);
-int va_xport_send_response(void *content, size_t content_len, const char *tag,
+bool va_qdict_haskey_with_type(const QDict *qdict, const char *key,
+                               qtype_code type);
+QDict *va_qdict_copy(const QDict *old);
+int va_xport_send_response(const char *content, size_t content_len, const char *tag,
                            const void *opaque, VAHTSendCallback cb);
-int va_xport_send_request(void *content, size_t content_len, const char *tag,
+int va_xport_send_request(const char *content, size_t content_len, const char *tag,
                           const void *opaque, VAHTSendCallback cb);
 void va_http_read_handler(void *opaque);
 #endif /* VIRTAGENT_COMMON_H */

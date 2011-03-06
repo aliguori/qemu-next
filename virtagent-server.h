@@ -34,4 +34,4 @@ typedef struct VAServerData {
 int va_server_init(VAManager *m, VAServerData *server_data, bool is_host);
 int va_server_close(void);
 //int va_do_server_rpc(const char *content, size_t content_len, const char tag[64]);
-int va_server_job_create(char *content, size_t content_len, const char *tag);
+int va_server_job_create(const char *content, size_t content_len, const char *tag);

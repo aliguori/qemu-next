@@ -1231,83 +1231,51 @@ ETEXI
 #endif
 
     {
-        .name       = "agent_viewfile",
-        .args_type  = "filepath:s",
-        .params     = "filepath",
-        .help       = "Echo a file from the guest filesystem",
-        .user_print = do_agent_viewfile_print,
-        .mhandler.cmd_async = do_agent_viewfile,
-        .flags      = MONITOR_CMD_ASYNC,
-    },
-
-STEXI
-@item agent_viewfile @var{filepath}
-@findex agent_viewfile
-Echo the file identified by @var{filepath} on the guest filesystem
-ETEXI
-
-    {
-        .name       = "agent_viewdmesg",
+        .name       = "va_capabilities",
         .args_type  = "",
         .params     = "",
-        .help       = "View guest dmesg output",
-        .user_print = do_agent_viewdmesg_print,
-        .mhandler.cmd_async = do_agent_viewdmesg,
+        .help       = "Fetch and re-negotiate guest agent capabilties",
+        .user_print = do_va_capabilities_print,
+        .mhandler.cmd_async = do_va_capabilities,
         .flags      = MONITOR_CMD_ASYNC,
     },
 
 STEXI
-@item agent_viewdmesg
-@findex agent_viewdmesg
-View guest dmesg output
-ETEXI
-
-    {
-        .name       = "agent_shutdown",
-        .args_type  = "shutdown_type:s",
-        .params     = "[reboot|shutdown|poweroff]",
-        .help       = "Shutdown/reboot a guest locally",
-        .user_print = monitor_user_noop,
-        .mhandler.cmd_async = do_agent_shutdown,
-        .flags      = MONITOR_CMD_ASYNC,
-    },
-
-STEXI
-@item agent_shutdown
-@findex agent_shutdown
-Shutdown/reboot a guest locally
-ETEXI
-
-    {
-        .name       = "agent_ping",
-        .args_type  = "",
-        .params     = "",
-        .help       = "Ping a guest",
-        .user_print = do_agent_ping_print,
-        .mhandler.cmd_async = do_agent_ping,
-        .flags      = MONITOR_CMD_ASYNC,
-    },
-
-STEXI
-@item agent_ping
-@findex agent_ping
-Ping a guest
-ETEXI
-
-    {
-        .name       = "agent_capabilities",
-        .args_type  = "",
-        .params     = "",
-        .help       = "Fetch and re-negotiate guest agent capabilities",
-        .user_print = do_agent_capabilities_print,
-        .mhandler.cmd_async = do_agent_capabilities,
-        .flags      = MONITOR_CMD_ASYNC,
-    },
-
-STEXI
-@item agent_capabilities
-@findex agent_capabilities
+@item va_capabilities
+@findex va_capabilities
 Fetch and re-negotiate guest agent capabilties
+ETEXI
+
+    {
+        .name       = "va_ping",
+        .args_type  = "",
+        .params     = "",
+        .help       = "Ping the guest agent",
+        .user_print = do_va_ping_print,
+        .mhandler.cmd_async = do_va_ping,
+        .flags      = MONITOR_CMD_ASYNC,
+    },
+
+STEXI
+@item va_ping
+@findex va_ping
+Ping the guest agent
+ETEXI
+
+    {
+        .name       = "va_shutdown",
+        .args_type  = "shutdown_mode:s",
+        .params     = "shutdown_mode",
+        .help       = "Start guest-initiated reboot/halt/powerdown",
+        .user_print = monitor_user_noop,
+        .mhandler.cmd_async = do_va_shutdown,
+        .flags      = MONITOR_CMD_ASYNC,
+    },
+
+STEXI
+@item va_shutdown
+@findex va_shutdown
+Start guest-initiated reboot/halt/powerdown
 ETEXI
 
 STEXI

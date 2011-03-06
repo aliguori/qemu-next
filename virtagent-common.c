@@ -16,6 +16,48 @@
 
 VAState *va_state;
 
+/* helper to avoid tedious key/type checking on QDict entries */
+bool va_qdict_haskey_with_type(const QDict *qdict, const char *key,
+                               qtype_code type)
+{
+    QObject *qobj;
+    if (!qdict) {
+        return false;
+    }
+    if (!qdict_haskey(qdict, key)) {
+        return false;
+    }
+    qobj = qdict_get(qdict, key);
+    if (qobject_type(qobj) != type) {
+        return false;
+    }
+
+    return true;
+}
+
+static void va_qdict_insert(const char *key, QObject *entry, void *opaque)
+{
+    QDict *dict = opaque;
+
+    if (key && entry) {
+        qdict_put_obj(dict, key, entry);
+    }
+}
+
+QDict *va_qdict_copy(const QDict *old)
+{
+    QDict *new;
+
+    if (!old) {
+        return NULL;
+    }
+
+    new = qdict_new();
+    qdict_iter(old, va_qdict_insert, new);
+
+    return new;
+}
+
 void va_process_jobs(void)
 {
     va_kick(va_state->manager);
@@ -67,7 +109,7 @@ static int va_connect(void)
             LOG("error getting channel flags: %s", strerror(errno));
             return -errno;
         }
-        ret = fcntl(fd, F_SETFL, ret | O_ASYNC);
+        ret = fcntl(fd, F_SETFL, ret | O_ASYNC | O_NONBLOCK);
         if (ret < 0) {
             LOG("error setting channel flags: %s", strerror(errno));
             return -errno;

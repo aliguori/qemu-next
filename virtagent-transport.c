@@ -42,6 +42,7 @@ typedef struct VAHTState {
     size_t hdr_len;
     size_t hdr_pos;
     char *content;
+    const char *send_content;
     size_t content_len;
     size_t content_pos;
     const void *opaque;
@@ -151,9 +152,13 @@ static void va_http_read_handler_reset(void)
 static void va_http_process(char *content, size_t content_len,
                             const char *tag, enum va_http_type type)
 {
+    int ret;
     TRACE("marker");
     if (type == VA_HTTP_TYPE_REQUEST) {
-        va_server_job_create(content, content_len, tag);
+        ret = va_server_job_create(content, content_len, tag);
+        if (ret < 0) {
+            LOG("error processing request: %s", strerror(-ret));
+        }
     } else if (type == VA_HTTP_TYPE_RESPONSE) {
         va_client_read_response_done(content, content_len, tag);
     } else {
@@ -198,7 +203,7 @@ void va_http_read_handler(void *opaque)
                 goto out_bad;
             }
         } else if (ret == 0) {
-            LOG("connected closed unexpectedly");
+            LOG("connection closed unexpectedly");
             goto out_bad_wait;
         } else {
             TRACE("found header, number of bytes skipped: %d",
@@ -228,7 +233,7 @@ void va_http_read_handler(void *opaque)
                 goto out_bad;
             }
         } else if (ret == 0) {
-            LOG("connected closed unexpectedly");
+            LOG("connection closed unexpectedly");
             goto out_bad_wait;
         } else if (s->hdr_pos >= VA_HDR_LEN_MAX) {
             LOG("http header too long");
@@ -243,7 +248,7 @@ void va_http_read_handler(void *opaque)
                 LOG("http content length too long");
                 goto out_bad;
             }
-            s->content = qemu_mallocz(s->content_len);
+            s->content = qemu_mallocz(s->content_len + 1);
             s->state = VA_READ_BODY;
             TRACE("read http header:\n<<<%s>>>\n", s->hdr);
         }
@@ -270,6 +275,7 @@ void va_http_read_handler(void *opaque)
 
         TRACE("read http content:\n<<<%s>>>\n", s->content);
         http_status = VA_HTTP_STATUS_OK;
+        s->content[s->content_len] = '\0';
         goto out;
     default:
         LOG("unknown state");
@@ -308,6 +314,7 @@ static void va_http_send_handler(void *opaque)
     enum va_http_status http_status;
     int fd = va_state->fd;
     int ret;
+    char flush_char = VA_SENTINEL;
 
     TRACE("called");
 
@@ -336,11 +343,11 @@ static void va_http_send_handler(void *opaque)
         } else {
             s->state = VA_SEND_BODY;
             TRACE("sent http header:\n<<<%s>>>", s->hdr);
-            TRACE("preparing to send http content:\n<<<%s>>>", s->content);
+            TRACE("preparing to send http content:\n<<<%s>>>", s->send_content);
         }
     case VA_SEND_BODY:
         do {
-            ret = write(fd, s->content + s->content_pos,
+            ret = write(fd, s->send_content + s->content_pos,
                         s->content_len - s->content_pos);
             if (ret <= 0) {
                 break;
@@ -359,8 +366,7 @@ static void va_http_send_handler(void *opaque)
             goto out_bad;
         } else {
             http_status = VA_HTTP_STATUS_OK;
-            TRACE("sent http content:\n<<<%s>>>", s->content);
-            sprintf(s->content, "THIS IS A TEST!!!!!!!!!!!!!");
+            TRACE("sent http content:\n<<<%s>>>", s->send_content);
             goto out;
         }
     default:
@@ -373,6 +379,8 @@ out_bad:
 out:
     s->state = VA_SEND_COMPLETE;
     qemu_set_fd_handler(fd, va_http_read_handler, NULL, NULL);
+    /* XXX: try to force flush to get around buggy guests */
+    ret = write(fd, &flush_char, 1);
     s->send_cb(s->opaque);
 }
 
@@ -381,7 +389,7 @@ static void va_send_handler_reset(void)
     TRACE("called");
     assert(va_send_state.state == VA_SEND_START ||
            va_send_state.state == VA_SEND_COMPLETE);
-    va_send_state.content = NULL;
+    va_send_state.send_content = NULL;
     va_send_state.content_len = 0;
     va_send_state.content_pos = 0;
     va_send_state.hdr_pos = 0;
@@ -389,13 +397,13 @@ static void va_send_handler_reset(void)
     memset(va_send_state.hdr_client_tag, 0, 64);
 }
 
-int va_xport_send_response(void *content, size_t content_len, const char *tag,
+int va_xport_send_response(const char *content, size_t content_len, const char *tag,
                            const void *opaque, VAHTSendCallback cb)
 {
     TRACE("called");
     va_send_handler_reset();
-    va_send_state.content = content;
-    TRACE("sending response: %s", va_send_state.content);
+    va_send_state.send_content = content;
+    TRACE("sending response: %s", va_send_state.send_content);
     va_send_state.content_len = content_len;
     va_send_state.opaque = opaque;
     va_send_state.send_cb = cb;
@@ -406,13 +414,13 @@ int va_xport_send_response(void *content, size_t content_len, const char *tag,
     return 0;
 }
 
-int va_xport_send_request(void *content, size_t content_len, const char *tag,
+int va_xport_send_request(const char *content, size_t content_len, const char *tag,
                           const void *opaque, VAHTSendCallback cb)
 {
     TRACE("called");
     va_send_handler_reset();
-    va_send_state.content = content;
-    TRACE("sending request: %s", va_send_state.content);
+    va_send_state.send_content = content;
+    TRACE("sending request: %s", va_send_state.send_content);
     va_send_state.content_len = content_len;
     va_send_state.opaque = opaque;
     va_send_state.send_cb = cb;

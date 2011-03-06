@@ -72,6 +72,7 @@ int va_server_job_add(VAManager *m, const char *tag, void *opaque,
                       VAServerJobOps ops);
 void va_server_job_execute_done(VAManager *m, const char *tag);
 void va_server_job_send_done(VAManager *m, const char *tag);
+void va_server_job_cancel(VAManager *m, const char *tag);
 
 /* interfaces for client jobs */
 int va_client_job_add(VAManager *m, const char *tag, void *opaque,

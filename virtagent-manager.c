@@ -119,6 +119,20 @@ static void va_server_job_callback(VAServerJob *j)
     }
 }
 
+void va_server_job_cancel(VAManager *m, const char *tag)
+{
+    VAServerJob *j = va_server_job_by_tag(m, tag);
+    TRACE("called");
+    if (!j) {
+        LOG("server job with tag \"%s\" not found", tag);
+        return;
+    }
+    /* TODO: need to decrement sends/execs in flight appropriately */
+    /* make callback and move to done state, kick() will handle cleanup */
+    va_server_job_callback(j);
+    va_kick(m);
+}
+
 /* client job operations */
 
 static VAClientJob *va_client_job_by_tag(VAManager *m, const char *tag)

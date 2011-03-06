@@ -738,151 +738,19 @@ Example:
 EQMP
 
     {
-        .name       = "agent_viewfile",
-        .args_type  = "filepath:s",
-        .params     = "filepath",
-        .help       = "Echo a file from the guest filesystem",
-        .user_print = monitor_user_noop,
-        .mhandler.cmd_async = do_agent_viewfile,
-        .flags      = MONITOR_CMD_ASYNC,
-    },
-
-STEXI
-@item agent_viewfile @var{filepath}
-@findex agent_viewfile
-Echo the file identified by @var{filepath} on the guest filesystem
-ETEXI
-SQMP
-agent_viewfile
---------
-
-Echo the file identified by @var{filepath} from the guest filesystem.
-
-Arguments:
-
-- "filepath": Full guest path of the desired file
-
-Example:
-
--> { "execute": "agent_viewfile",
-                "arguments": { "filepath": "/sys/kernel/kexec_loaded" } }
-<- { "return": { "contents": "0" } }
-
-EQMP
-
-    {
-        .name       = "agent_viewdmesg",
-        .args_type  = "",
-        .params     = "",
-        .help       = "View guest dmesg output",
-        .user_print = do_agent_viewdmesg_print,
-        .mhandler.cmd_async = do_agent_viewdmesg,
-        .flags      = MONITOR_CMD_ASYNC,
-    },
-
-STEXI
-@item agent_viewdmesg
-@findex agent_viewdmesg
-View guest dmesg output
-ETEXI
-SQMP
-agent_viewdmesg
---------
-
-View guest dmesg output
-
-Arguments:
-
-(none)
-
-Example:
-
--> { "execute": "agent_viewdmesg" }
-<- { "return": {
-       "contents": "[353487.942215] usb 1-4: USB disconnect, address 9\n..."
-     }
-   }
-
-EQMP
-
-    {
-        .name       = "agent_shutdown",
-        .args_type  = "shutdown_type:s",
-        .params     = "[reboot|shutdown|poweroff]",
-        .help       = "Shutdown/reboot the guest locally",
-        .user_print = monitor_user_noop,
-        .mhandler.cmd_async = do_agent_shutdown,
-        .flags      = MONITOR_CMD_ASYNC,
-    },
-
-STEXI
-@item agent_shutdown
-@findex agent_shutdown
-Shutdown/reboot the guest locally
-ETEXI
-SQMP
-agent_shutdown
---------
-
-Shutdown the guest locally
-
-Arguments:
-
-(none)
-
-Example:
-
--> { "execute": "agent_shutdown" }
-<- { "return": {} }
-
-EQMP
-
-    {
-        .name       = "agent_ping",
-        .args_type  = "",
-        .params     = "",
-        .help       = "Ping a guest",
-        .user_print = do_agent_ping_print,
-        .mhandler.cmd_async = do_agent_ping,
-        .flags      = MONITOR_CMD_ASYNC,
-    },
-
-STEXI
-@item agent_ping
-@findex agent_ping
-Ping a guest
-ETEXI
-SQMP
-agent_ping
---------
-
-Ping a guest
-
-Arguments:
-
-(none)
-
-Example:
-
--> { "execute": "agent_ping" }
-<- { "return": { "response":"ok" } }
-
-EQMP
-
-    {
-        .name       = "agent_capabilities",
+        .name       = "va_capabilities",
         .args_type  = "",
         .params     = "",
         .help       = "Fetch and re-negotiate guest agent capabilities",
-        .user_print = do_agent_capabilities_print,
-        .mhandler.cmd_async = do_agent_capabilities,
+        .user_print = monitor_user_noop,
+        .mhandler.cmd_async = do_va_capabilities,
         .flags      = MONITOR_CMD_ASYNC,
     },
 
 STEXI
-@item agent_capabilities
-@findex agent_capabilities
-Fetch and re-negotiate guest agent capabilties
+@item va
+@findex va
+Execute virtagent command
 ETEXI
 SQMP
 agent_capabilities
