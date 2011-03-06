@@ -17,10 +17,4 @@ char *qmp_unmarshal_type_str(QObject *value, Error **errp);
 bool qmp_unmarshal_type_bool(QObject *value, Error **errp);
 double qmp_unmarshal_type_number(QObject *value, Error **errp);
 
-#define BUILD_ASSERT(cond) do {     \
-    (void)sizeof(int[-1+!!(cond)]); \
-} while (0)
-
-#define BUILD_BUG() BUILD_ASSERT(0)
-
 #endif

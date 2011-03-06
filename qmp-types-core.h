@@ -7,5 +7,10 @@
 
 typedef struct QmpSignal QmpSignal;
 
+#define BUILD_ASSERT(cond) do {     \
+    (void)sizeof(int[-1+!!(cond)]); \
+} while (0)
+
+#define BUILD_BUG() BUILD_ASSERT(0)
 
 #endif
