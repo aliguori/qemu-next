@@ -1,3 +1,16 @@
+/*
+ * virtagent - job queue management
+ *
+ * Copyright IBM Corp. 2011
+ *
+ * Authors:
+ *  Michael Roth      <mdroth@linux.vnet.ibm.com>
+ *
+ * This work is licensed under the terms of the GNU GPL, version 2 or later.
+ * See the COPYING file in the top-level directory.
+ *
+ */
+
 //#include "qemu-common.h"
 #include "virtagent-manager.h"
 #include "virtagent-common.h"
