@@ -109,6 +109,10 @@ static const QErrorStringTable qerror_table[] = {
         .desc      = "Duplicate ID '%(id)' for %(object)",
     },
     {
+        .error_fmt = QERR_ENUM_VALUE_INVALID,
+        .desc      = "Enum value '%(value)' is invalid for type '%(type)'",
+    },
+    {
         .error_fmt = QERR_FD_NOT_FOUND,
         .desc      = "File descriptor named '%(name)' not found",
     },
