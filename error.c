@@ -1,8 +1,19 @@
+/*
+ * QEMU Error Objects
+ *
+ * Copyright IBM, Corp. 2011
+ *
+ * Authors:
+ *  Anthony Liguori   <aliguori@us.ibm.com>
+ *
+ * This work is licensed under the terms of the GNU LGPL, version 2.  See
+ * the COPYING.LIB file in the top-level directory.
+ */
 #include "error.h"
 #include "error_int.h"
 #include "qemu-objects.h"
 #include "qerror.h"
-#include <glib.h>
+#include <assert.h>
 
 struct Error
 {
@@ -70,11 +81,11 @@ bool error_is_type(Error *err, const char *fmt)
     char classname[1024];
 
     ptr = strstr(fmt, "'class': '");
-    g_assert(ptr != NULL);
+    assert(ptr != NULL);
     ptr += strlen("'class': '");
 
     end = strchr(ptr, '\'');
-    g_assert(end != NULL);
+    assert(end != NULL);
     
     memcpy(classname, ptr, (end - ptr));
     classname[(end - ptr)] = 0;
