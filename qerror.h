@@ -98,6 +98,9 @@ void qerror_set_desc(QError *qerr, const char *fmt);
 #define QERR_DUPLICATE_ID \
     "{ 'class': 'DuplicateId', 'data': { 'id': %s, 'object': %s } }"
 
+#define QERR_ENUM_VALUE_INVALID \
+    "{ 'class': 'EnumValueInvalid', 'data': { 'type': %s, 'value': %s } }"
+
 #define QERR_FD_NOT_FOUND \
     "{ 'class': 'FdNotFound', 'data': { 'name': %s } }"
 
