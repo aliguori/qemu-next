@@ -145,6 +145,10 @@ static const QErrorStringTable qerror_table[] = {
         .desc      = "Invalid JSON syntax",
     },
     {
+        .error_fmt = QERR_JSON_PARSE_ERROR,
+        .desc      = "Error parsing JSON: %(message)",
+    },
+    {
         .error_fmt = QERR_KVM_MISSING_CAP,
         .desc      = "Using KVM without %(capability), %(feature) unavailable",
     },
