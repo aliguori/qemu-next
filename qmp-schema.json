@@ -110,3 +110,18 @@
 # Since: 0.14.0
 ##
 { 'command': 'qmp_capabilities' }
+
+##
+# @put_event:
+#
+# Disconnect a signal.  This command is used to disconnect from a signal based
+# on the handle returned by a signal accessor.
+#
+# @tag: the handle returned by a signal accessor.
+#
+# Returns: Nothing on success.
+#          If @tag is not a valid handle, InvalidParameterValue
+#
+# Since: 0.15.0
+##
+{ 'command': 'put-event', 'data': {'tag': 'int'} }
