@@ -181,6 +181,71 @@ static void block_signal_trampoline(void *opaque, const char *device,
     qobject_decref(event);
 }
 
+static void qdict_putf(QDict *dict, const char *key, const char *fmt, ...)
+{
+    va_list ap;
+    QObject *obj;
+
+    va_start(ap, fmt);
+    obj = qobject_from_jsonv(fmt, &ap);
+    va_end(ap);
+
+    qdict_put_obj(dict, key, obj);
+}
+
+static void vnc_signal_trampoline(void *opaque, const char *name,
+                                  VncClientInfo *client, VncServerInfo *server)
+{
+    QmpState *state = opaque;
+    QObject *event;
+    qemu_timeval tv;
+    QObject *qclient;
+    QDict *dict;
+
+    qclient = qobject_from_jsonf("{'host': %s, 'family': %s, 'service': %s}",
+                                 client->host, client->family, client->service);
+    dict = qobject_to_qdict(qclient);
+
+    if (client->has_x509_dname) {
+        qdict_putf(dict, "x509_dname", "%s", client->x509_dname);
+    }
+    if (client->has_sasl_username) {
+        qdict_putf(dict, "sasl_username", "%s", client->sasl_username);
+    }
+
+    qemu_gettimeofday(&tv);
+    event = qobject_from_jsonf("{ 'timestamp': { 'seconds': %" PRId64 ", "
+                               "                 'microseconds': %" PRId64 " }, "
+                               "  'event': %s, "
+                               "  'data': { 'client': %p, "
+                               "            'server': { 'host': %s, "
+                               "                        'family': %s, "
+                               "                        'service': %s, "
+                               "                        'auth': %s } } }",
+                               tv.tv_sec, tv.tv_usec, name, qclient, server->host,
+                               server->family, server->service, server->auth);
+
+    state->event(state, event);
+    qobject_decref(event);
+}
+
+static void vnc_connected_trampoline(void *opaque, VncClientInfo *client,
+                                     VncServerInfo *server)
+{
+    vnc_signal_trampoline(opaque, "VNC_CONNECTED", client, server);
+}
+
+static void vnc_initialized_trampoline(void *opaque, VncClientInfo *client,
+                                     VncServerInfo *server)
+{
+    vnc_signal_trampoline(opaque, "VNC_INITIALIZED", client, server);
+}
+
+static void vnc_disconnected_trampoline(void *opaque, VncClientInfo *client,
+                                     VncServerInfo *server)
+{
+    vnc_signal_trampoline(opaque, "VNC_DISCONNECTED", client, server);
+}
 
 #define full_signal_connect(state, ev, fn)                         \
 do {                                                               \
@@ -205,6 +270,12 @@ void qmp_qmp_capabilities(QmpState *state, Error **errp)
                         resume_signal_trampoline);
     full_signal_connect(state, qmp_get_block_io_error_event(NULL),
                         block_signal_trampoline);
+    full_signal_connect(state, qmp_get_vnc_connected_event(NULL),
+                        vnc_connected_trampoline);
+    full_signal_connect(state, qmp_get_vnc_initialized_event(NULL),
+                        vnc_initialized_trampoline);
+    full_signal_connect(state, qmp_get_vnc_disconnected_event(NULL),
+                        vnc_disconnected_trampoline);
 }
 
 typedef struct QmpSession
