@@ -2478,7 +2478,7 @@ int main(int argc, char **argv, char **envp)
                     fprintf(stderr, "-qmp: too many QMP chardevs\n");
                     exit(1);
                 }
-                qmp_chardevs[++nb_qmp_chardevs] = optarg;
+                qmp_chardevs[nb_qmp_chardevs++] = optarg;
                 break;
             case QEMU_OPTION_mon:
                 opts = qemu_opts_parse(qemu_find_opts_nofail("mon"), optarg, 1);
