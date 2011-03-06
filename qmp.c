@@ -22,10 +22,6 @@
 #include "ui/qemu-spice.h"
 #include "qmp-core.h"
 
-void qmp_qmp_capabilities(QmpState *state, Error **errp)
-{
-}
-
 VersionInfo *qmp_query_version(Error **err)
 {
     VersionInfo *info = qmp_alloc_version_info();
