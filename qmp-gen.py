@@ -925,6 +925,321 @@ qmp__out:
 
     return ret
 
+
+def gen_lib_decl(name, options, retval, suffix='', proxy=False, async=False):
+    if proxy:
+        async=True
+
+    if proxy:
+        args = []
+    else:
+        args = ['QmpSession *qmp__session']
+    for argname, argtype, optional in parse_args(options):
+        if argtype == '**':
+            args.append('KeyValues * %s' % c_var(argname))
+        else:
+            if optional:
+                args.append('bool has_%s' % c_var(argname))
+            args.append('%s %s' % (qmp_type_to_c(argtype), c_var(argname)))
+
+    args.append('Error **qmp__err')
+
+    if proxy:
+        prefix = 'qmp'
+    else:
+        prefix = 'libqmp'
+
+    if proxy:
+        qmp_retval = 'void'
+        args.append('%sCompletionFunc *qmp__cc' % camel_case(name))
+        args.append('void *qmp__opaque')
+    else:
+        qmp_retval = qmp_type_to_c(retval, True)
+
+    return mcgen('''
+%(ret)s %(prefix)s_%(name)s(%(args)s)%(suffix)s
+''', ret=qmp_retval, prefix=prefix, name=c_var(name), args=', '.join(args), suffix=suffix)
+
+def gen_lib_declaration(name, options, retval):
+    return gen_lib_decl(name, options, retval, ';')
+
+def gen_lib_event_definition(name, typeinfo):
+    args = ''
+    for argname, argtype, optional in parse_args(typeinfo):
+        if optional:
+            args += cgen('    bool has_%(name)s;', name=c_var(argname))
+        args += cgen('    %(type)s %(name)s = 0;', type=qmp_type_to_c(argtype, True), name=c_var(argname))
+
+    ret = mcgen('''
+
+static void libqmp_notify_%(fn_name)s(QDict *qmp__args, void *qmp__fn, void *qmp__opaque, Error **qmp__errp)
+{
+    %(fn_ret)s *qmp__native_fn = qmp__fn;
+    Error *qmp__err = NULL;
+%(args)s
+
+    (void)qmp__err;
+''',
+                fn_name=de_camel_case(qmp_event_to_c(name)),
+                fn_ret=qmp_event_func_to_c(name), args=args)
+
+    for argname, argtype, optional in parse_args(typeinfo):
+        if optional:
+            ret += cgen('    BUILD_BUG()')
+        ret += mcgen('''
+
+    if (!qdict_haskey(qmp__args, "%(name)s")) {
+        error_set(qmp__errp, QERR_MISSING_PARAMETER, "%(name)s");
+        goto qmp__out;
+    }
+
+    %(c_name)s = %(unmarshal)s(qdict_get(qmp__args, "%(name)s"), &qmp__err);
+    if (qmp__err) {
+        if (error_is_type(qmp__err, QERR_INVALID_PARAMETER_TYPE)) {
+            error_set(qmp__errp, QERR_INVALID_PARAMETER_TYPE, "%(name)s",
+                      error_get_field(qmp__err, "expected"));
+            error_free(qmp__err);
+            qmp__err = NULL;
+        } else {
+            error_propagate(qmp__errp, qmp__err);
+        }
+        goto qmp__out;
+    }
+''', name=argname, c_name=c_var(argname), unmarshal=qmp_type_from_qobj(argtype))
+
+    arglist = ['qmp__opaque']
+    for argname, argtype, optional in parse_args(typeinfo):
+        arglist.append(c_var(argname))
+    ret += mcgen('''
+
+    qmp__native_fn(%(args)s);
+''', args=', '.join(arglist))
+
+    has_label = False
+    for argname, argtype, optional in parse_args(typeinfo):
+        if not has_label:
+            ret += mcgen('''
+qmp__out:
+''')
+            has_label = True
+
+        if qmp_type_should_free(argtype):
+            ret += cgen('    %(free)s(%(name)s);', free=qmp_free_func(argtype), name=c_var(argname))
+    ret += mcgen('''
+    return;
+}
+''')
+    return ret
+
+def gen_async_lib_definition(name, options, retval):
+    ret = mcgen('''
+
+typedef struct %(cc_name)sCompletionCB
+{
+    %(cc_name)sCompletionFunc *cb;
+    void *opaque;
+} %(cc_name)sCompletionCB;
+
+static void qmp_%(c_name)s_cb(void *qmp__opaque, QObject *qmp__retval, Error *qmp__err)
+{
+    %(cc_name)sCompletionCB *qmp__cb = qmp__opaque;
+''',
+                cc_name=camel_case(name), c_name=c_var(name))
+
+    if retval != 'none':
+        ret += cgen('    %(ret_type)s qmp__native_retval = 0;',
+                           ret_type=qmp_type_to_c(retval, True))
+
+    if type(retval) == list:
+        ret += mcgen('''
+
+    if (!qmp__err) {
+        QList *qmp__list_retval = qobject_to_qlist(qmp__retval);
+        QListEntry *qmp__i;
+        QLIST_FOREACH_ENTRY(qmp__list_retval, qmp__i) {
+            %(ret_type)s qmp__native_i = %(unmarshal)s(qmp__i->value, &qmp__err);
+            if (qmp__err) {
+                %(free)s(qmp__native_retval);
+                break;
+            }
+            qmp__native_i->next = qmp__native_retval;
+            qmp__native_retval = qmp__native_i;
+        }
+    }
+''',
+                            ret_type=qmp_type_to_c(retval[0], True),
+                            unmarshal=qmp_type_from_qobj(retval[0]),
+                            free=qmp_free_func(retval[0]))
+    elif is_dict(retval):
+        ret += mcgen('''
+    // FIXME (using an anonymous dict as return value)')
+    BUILD_BUG();
+''')
+    elif retval != 'none':
+        ret += mcgen('''
+
+    if (!qmp__err) {
+        qmp__native_retval = %(unmarshal)s(qmp__retval, &qmp__err);
+    }
+''',
+                            unmarshal=qmp_type_from_qobj(retval))
+    ret += cgen('')
+    if retval == 'none':
+        ret += cgen('    qmp__cb->cb(qmp__cb->opaque, qmp__err);')
+    else:
+        ret += cgen('    qmp__cb->cb(qmp__cb->opaque, qmp__native_retval, qmp__err);')
+    ret += cgen('}')
+
+    return ret
+
+def gen_lib_definition(name, options, retval, proxy=False, async=False):
+    if proxy:
+        async = True
+
+    ret = ''
+    if proxy:
+        ret += gen_async_lib_definition(name, options, retval)
+
+    fn_decl = gen_lib_decl(name, options, retval, proxy=proxy, async=async)
+    ret += mcgen('''
+
+%(fn_decl)s
+{
+    QDict *qmp__args = qdict_new();
+''',
+                        fn_decl=fn_decl)
+    if async:
+        ret += mcgen('''
+    %(cc_name)sCompletionCB *qmp__cb = qemu_mallocz(sizeof(*qmp__cb));
+
+    qmp__cb->cb = qmp__cc;
+    qmp__cb->opaque = qmp__opaque;
+''',
+                            cc_name=camel_case(name))
+    else:
+        ret += mcgen('''
+    Error *qmp__local_err = NULL;
+    QObject *qmp__retval = NULL;
+''')
+        if retval != 'none':
+            ret += cgen('    %(ret_type)s qmp__native_retval = 0;',
+                               ret_type=qmp_type_to_c(retval, True))
+        if qmp_type_is_event(retval):
+            ret += cgen('    int qmp__global_handle = 0;')
+    ret += cgen('')
+
+    for argname, argtype, optional in parse_args(options):
+        if argtype == '**':
+            ret += mcgen('''
+    {
+        KeyValues *qmp__i;
+        for (qmp__i = %(name)s; qmp__i; qmp__i = qmp__i->next) {
+            qdict_put(qmp__args, qmp__i->key, qstring_from_str(qmp__i->value));
+        }
+    }
+''',
+                         name=c_var(argname))
+        else:
+            if optional:
+                ret += mcgen('''
+    if (has_%(c_name)s) {
+''',
+                                    c_name=c_var(argname))
+                push_indent()
+            ret += mcgen('''
+    qdict_put_obj(qmp__args, "%(name)s", %(marshal)s(%(c_name)s));
+''',
+                                name=argname, c_name=c_var(argname),
+                                marshal=qmp_type_to_qobj(argtype))
+            if optional:
+                pop_indent()
+                ret += mcgen('''
+    }
+''')
+
+    if proxy:
+        ret += mcgen('''
+    qmp_guest_dispatch("%(name)s", qmp__args, qmp__err, qmp_%(c_name)s_cb, qmp__cb);
+''',
+                            name=name, c_name=c_var(name))
+    else:
+        ret += mcgen('''
+    qmp__retval = qmp__session->dispatch(qmp__session, "%(name)s", qmp__args, &qmp__local_err);
+''',
+                            name=name)
+    ret += mcgen('''
+
+    QDECREF(qmp__args);
+''')
+
+    if async:
+        pass
+    elif type(retval) == list:
+        ret += mcgen('''
+
+    if (!qmp__local_err) {
+        QList *qmp__list_retval = qobject_to_qlist(qmp__retval);
+        QListEntry *qmp__i;
+        QLIST_FOREACH_ENTRY(qmp__list_retval, qmp__i) {
+            %(type)s qmp__native_i = %(unmarshal)s(qmp__i->value, &qmp__local_err);
+            if (qmp__local_err) {
+                %(free)s(qmp__native_retval);
+                break;
+            }
+            qmp__native_i->next = qmp__native_retval;
+            qmp__native_retval = qmp__native_i;
+        }
+        qobject_decref(qmp__retval);
+    }
+    error_propagate(qmp__err, qmp__local_err);
+    return qmp__native_retval;
+''',
+                     type=qmp_type_to_c(retval[0], True),
+                     unmarshal=qmp_type_from_qobj(retval[0]),
+                     free=qmp_free_func(retval[0]))
+    elif is_dict(retval):
+        ret += mcgen('''
+    // FIXME (using an anonymous dict as return value)
+    BUILD_BUG();
+''')
+    elif qmp_type_is_event(retval):
+        if proxy:
+            ret += cgen('    BUILD_BUG();')
+        ret += mcgen('''
+    if (!qmp__local_err) {
+        qmp__global_handle = %(unmarshal)s(qmp__retval, &qmp__local_err);
+        qobject_decref(qmp__retval);
+        qmp__retval = NULL;
+    }
+    if (!qmp__local_err) {
+        qmp__native_retval = libqmp_signal_init(qmp__session, %(type)s, qmp__global_handle);
+    }
+    error_propagate(qmp__err, qmp__local_err);
+    return qmp__native_retval;
+''',
+                            unmarshal=qmp_type_from_qobj('int'),
+                            type=qmp_event_to_c(retval))
+    elif retval != 'none':
+        ret += mcgen('''
+
+    if (!qmp__local_err) {
+        qmp__native_retval = %(unmarshal)s(qmp__retval, &qmp__local_err);
+        qobject_decref(qmp__retval);
+    }
+    error_propagate(qmp__err, qmp__local_err);
+    return qmp__native_retval;
+''',
+                            unmarshal=qmp_type_from_qobj(retval))
+    else:
+        ret += mcgen('''
+    qobject_decref(qmp__retval);
+    error_propagate(qmp__err, qmp__local_err);
+''')
+
+    ret += cgen('}')
+
+    return ret
+
 def tokenize(data):
     while len(data):
         if data[0] in ['{', '}', ':', ',', '[', ']']:
@@ -1028,6 +1343,18 @@ def generate(kind):
 #include "qmp.h"
 #include "qmp-core.h"
 ''')
+    elif kind == 'lib-header':
+        ret += mcgen('''
+#ifndef LIBQMP_H
+#define LIBQMP_H
+
+#include "libqmp-core.h"
+''')
+    elif kind == 'lib-body':
+        ret += mcgen('''
+#include "libqmp.h"
+#include "libqmp-internal.h"
+''')
     
     exprs = []
     expr = ''
@@ -1084,6 +1411,8 @@ def generate(kind):
            event_types[name] = data
            if kind == 'types-header':
                ret += gen_type_declaration(name, data)
+           elif kind == 'lib-body':
+               ret += gen_lib_event_definition(name, data)
        elif s.has_key('command'):
             name = s['command']
             options = {}
@@ -1094,10 +1423,17 @@ def generate(kind):
                 retval = s['returns']
             if kind == 'body':
                 async = qmp_is_async_cmd(name)
+                proxy = qmp_is_proxy_cmd(name)
+                if proxy:
+                    ret += gen_lib_definition(name, options, retval, proxy=True)
                 ret += gen_definition(name, options, retval, async=async)
             elif kind == 'header':
                 async = qmp_is_async_cmd(name)
                 ret += gen_declaration(name, options, retval, async=async)
+            elif kind == 'lib-body':
+                ret += gen_lib_definition(name, options, retval)
+            elif kind == 'lib-header':
+                ret += gen_lib_declaration(name, options, retval)
 
     if kind.endswith('header'):
         ret += cgen('#endif')
@@ -1134,6 +1470,21 @@ static void qmp_init_marshal(void)
 }
 
 qapi_init(qmp_init_marshal);
+''')
+    elif kind == 'lib-body':
+        ret += mcgen('''
+
+void libqmp_init_events(QmpSession *sess)
+{
+''')
+        for event in event_types:
+            ret += mcgen('''
+    libqmp_register_event(sess, "%(name)s", &libqmp_notify_%(c_event_name)s);
+''',
+                         name=event,
+                         c_event_name=de_camel_case(qmp_event_to_c(event)))
+        ret += mcgen('''
+}
 ''')
 
     return ret
