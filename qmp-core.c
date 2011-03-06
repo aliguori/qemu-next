@@ -447,3 +447,7 @@ void qmp_init_chardev(CharDriverState *chr)
     qemu_chr_add_handlers(chr, qmp_chr_can_receive, qmp_chr_receive,
                           qmp_chr_event, s);
 }
+
+void qmp_qmp_capabilities(QmpState *state, Error **errp)
+{
+}

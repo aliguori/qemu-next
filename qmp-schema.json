@@ -100,3 +100,13 @@
 # Since: 0.14.0
 ##
 { 'command': 'quit' }
+
+##
+# @qmp_capabilities:
+#
+# Currently a nop command.  To communicate with older servers, this should be
+# sent first before executing new commands.
+#
+# Since: 0.14.0
+##
+{ 'command': 'qmp_capabilities' }
