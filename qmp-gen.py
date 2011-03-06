@@ -281,6 +281,154 @@ void qmp_free_%s(%s *obj)
     return qemu_mallocz(512);
 }''' % (name, c_var_name, name)
 
+def print_metatype_def(typeinfo, name, lhs, indent=0):
+    if indent == 0:
+        sep = '->'
+    else:
+        sep = '.'
+    new_lhs = 'qmp__member%d' % (indent / 4)
+
+    if type(typeinfo) == str:
+        inprint('    %s = %s(%s);' % (lhs, qmp_type_to_qobj_ctor(typeinfo), name), indent)
+    elif is_dict(typeinfo):
+        inprint('    {', indent)
+        inprint('        QDict *qmp__dict = qdict_new();', indent)
+        inprint('        QObject *%s;' % new_lhs, indent)
+        print
+        for key in typeinfo:
+            member = key
+            if key.startswith('*'):
+                member = key[1:]
+                inprint('        if (%s%shas_%s) {' % (name, sep, c_var(member)), indent)
+                print_metatype_def(typeinfo[key], '%s%s%s' % (name, sep, c_var(member)), new_lhs, indent + 8)
+                inprint('            qdict_put_obj(qmp__dict, "%s", %s);' % (member, new_lhs), indent)
+                inprint('        }', indent)
+            else:
+                print_metatype_def(typeinfo[key], '%s%s%s' % (name, sep, c_var(member)), new_lhs, indent + 4)
+                inprint('        qdict_put_obj(qmp__dict, "%s", %s);' % (member, new_lhs), indent)
+            print
+        inprint('        %s = QOBJECT(qmp__dict);' % lhs, indent)
+        inprint('    }', indent)
+    elif type(typeinfo) == list:
+        inprint('    {', indent)
+        inprint('        QList *qmp__list = qlist_new();', indent)
+        inprint('        %s %s_i;' % (qmp_type_to_c(typeinfo[0], True), new_lhs), indent)
+        print
+        inprint('        for (%s_i = %s; %s_i != NULL; %s_i = %s_i->next) {' % (new_lhs, name, new_lhs, new_lhs, new_lhs), indent)
+        inprint('            QObject *qmp__member = %s(%s_i);' % (qmp_type_to_qobj_ctor(typeinfo[0]), new_lhs), indent)
+        inprint('            qlist_append_obj(qmp__list, qmp__member);', indent)
+        inprint('        }', indent)
+        inprint('        %s = QOBJECT(qmp__list);' % lhs, indent)
+        inprint('    }', indent)
+
+def qobj_to_c(typename):
+    return 'qmp_unmarshal_type_%s' % typename
+
+def print_metatype_undef(typeinfo, name, lhs, indent=0):
+    if indent == 0:
+        sep = '->'
+    else:
+        sep = '.'
+
+    indent += 4
+
+    if type(typeinfo) == str:
+        inprint('%s = %s(%s, &qmp__err);' % (lhs, qobj_to_c(typeinfo), name), indent)
+        inprint('if (qmp__err) {', indent)
+        inprint('    goto qmp__err_out;', indent)
+        inprint('}', indent)
+    elif is_dict(typeinfo):
+        objname = 'qmp__object%d' % ((indent - 4) / 4)
+        inprint('{', indent)
+        inprint('    QDict *qmp__dict = qobject_to_qdict(%s);' % c_var(name), indent)
+        inprint('    QObject *%s;' % objname, indent)
+        for key in typeinfo:
+            member = key
+            optional = False
+            if key.startswith('*'):
+                member = key[1:]
+                optional = True
+            if optional:
+                inprint('if (qdict_haskey(qmp__dict, "%s")) {' % (member), indent + 4)
+                inprint('    %s = qdict_get(qmp__dict, "%s");' % (objname, member), indent + 4)
+                inprint('    %s%shas_%s = true;' % (lhs, sep, c_var(member)), indent + 4)
+                print_metatype_undef(typeinfo[key], objname, '%s%s%s' % (lhs, sep, c_var(member)), indent + 4)
+                inprint('} else {', indent + 4)
+                inprint('    %s%shas_%s = false;' % (lhs, sep, c_var(member)), indent + 4)
+                inprint('}', indent + 4)
+            else:
+                inprint('%s = qdict_get(qmp__dict, "%s");' % (objname, key), indent + 4)
+                print_metatype_undef(typeinfo[key], objname, '%s%s%s' % (lhs, sep, c_var(member)), indent)
+        inprint('}', indent)
+    elif type(typeinfo) == list:
+        objname = 'qmp__object%d' % ((indent - 4) / 4)
+        inprint('{', indent)
+        inprint('    QList *qmp__list = qobject_to_qlist(%s);' % c_var(name), indent)
+        inprint('    QListEntry *%s;' % objname, indent)
+        inprint('    QLIST_FOREACH_ENTRY(qmp__list, %s) {' % objname, indent)
+        inprint('        %s qmp__node = %s(%s->value, &qmp__err);' % (qmp_type_to_c(typeinfo[0], True), qmp_type_from_qobj(typeinfo[0]), objname), indent)
+        inprint('        if (qmp__err) {', indent)
+        inprint('            goto qmp__err_out;', indent)
+        inprint('        }', indent)
+        inprint('        qmp__node->next = %s;' % lhs, indent)
+        inprint('        %s = qmp__node;' % lhs, indent)
+        inprint('    }', indent)
+        inprint('}', indent)
+
+def print_type_marshal_definition(name, typeinfo):
+    c_var_name = de_camel_case(name)
+    if qmp_type_is_event(name):
+        return
+
+    print '''
+QObject *qmp_marshal_type_%s(%s src)
+{''' % (name, qmp_type_to_c(name))
+    print '    QObject *qmp__retval;'
+    print_metatype_def(typeinfo, 'src', 'qmp__retval')
+    print '''    return qmp__retval;
+}
+
+%s qmp_unmarshal_type_%s(QObject *src, Error **errp)
+{''' % (qmp_type_to_c(name), name)
+    print '    Error *qmp__err = NULL;'
+    print '    %s qmp__retval = qmp_alloc_%s();' % (qmp_type_to_c(name), c_var_name)
+    print_metatype_undef(typeinfo, 'src', 'qmp__retval')
+    print '''    return qmp__retval;
+qmp__err_out:
+    error_propagate(errp, qmp__err);
+    %s(qmp__retval);
+    return NULL;
+}''' % (qmp_free_func(name))
+
+def print_type_marshal_declaration(name, typeinfo):
+    if qmp_type_is_event(name):
+        return
+
+    if is_dict(typeinfo):
+        print
+        print 'QObject *qmp_marshal_type_%s(%s src);' % (name, qmp_type_to_c(name))
+        print '%s qmp_unmarshal_type_%s(QObject *src, Error **errp);' % (qmp_type_to_c(name), name)
+
+def print_enum_marshal_declaration(name, entries):
+    print
+    print 'QObject *qmp_marshal_type_%s(%s value);' % (name, name)
+    print '%s qmp_unmarshal_type_%s(QObject *obj, Error **errp);' % (name, name)
+
+def print_enum_marshal_definition(name, entries):
+    print '''
+QObject *qmp_marshal_type_%s(%s value)
+{
+    return QOBJECT(qint_from_int(value));
+}
+''' % (name, name)
+
+    print '''
+%s qmp_unmarshal_type_%s(QObject *obj, Error **errp)
+{
+    return (%s)qint_get_int(qobject_to_qint(obj));
+}
+''' % (name, name, name)
+
 def tokenize(data):
     while len(data):
         if data[0] in ['{', '}', ':', ',', '[', ']']:
@@ -336,6 +484,10 @@ if len(sys.argv) == 2:
         kind = 'types-body'
     elif sys.argv[1] == '--types-header':
         kind = 'types-header'
+    elif sys.argv[1] == '--marshal-body':
+        kind = 'marshal-body'
+    elif sys.argv[1] == '--marshal-header':
+        kind = 'marshal-header'
 
 if kind == 'types-header':
     print '''/* THIS FILE IS AUTOMATICALLY GENERATED, DO NOT EDIT */
@@ -350,6 +502,20 @@ elif kind == 'types-body':
 
 #include "qmp-types.h"
 #include "qemu-common.h"
+'''
+elif kind == 'marshal-header':
+    print '''/* THIS FILE IS AUTOMATICALLY GENERATED, DO NOT EDIT */
+#ifndef QMP_MARSHAL_TYPES_H
+#define QMP_MARSHAL_TYPES_H
+
+#include "qmp-marshal-types-core.h"
+
+'''
+elif kind == 'marshal-body':
+    print '''/* THIS FILE IS AUTOMATICALLY GENERATED, DO NOT EDIT */
+
+#include "qmp-marshal-types.h"
+#include "qerror.h"
 '''
 
 exprs = []
@@ -382,12 +548,20 @@ for s in exprs:
                 print_type_definition(key, s[key])
             elif kind == 'types-header':
                 print_type_declaration(key, s[key])
+            elif kind == 'marshal-body':
+                print_type_marshal_definition(key, s[key])
+            elif kind == 'marshal-header':
+                print_type_marshal_declaration(key, s[key])
         else:
             enum_types.append(key)
             if kind == 'types-header':
                 print_enum_declaration(key, s[key])
             elif kind == 'types-body':
                 print_enum_definition(key, s[key])
+            elif kind == 'marshal-header':
+                print_enum_marshal_declaration(key, s[key])
+            elif kind == 'marshal-body':
+                print_enum_marshal_definition(key, s[key])
 
 if kind.endswith('header'):
     print '#endif'

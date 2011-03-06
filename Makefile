@@ -4,7 +4,7 @@ GENERATED_HEADERS = config-host.h trace.h qemu-options.def
 ifeq ($(TRACE_BACKEND),dtrace)
 GENERATED_HEADERS += trace-dtrace.h
 endif
-GENERATED_HEADERS += qmp-types.h
+GENERATED_HEADERS += qmp-types.h qmp-marshal-types.h
 
 ifneq ($(wildcard config-host.mak),)
 # Put the all: rule here so that config-host.mak can contain dependencies.
@@ -153,7 +153,14 @@ qmp-types.c: $(SRC_PATH)/qmp-schema.json $(SRC_PATH)/qmp-gen.py
 qmp-types.h: $(SRC_PATH)/qmp-schema.json $(SRC_PATH)/qmp-gen.py
 	$(call quiet-command,python $(SRC_PATH)/qmp-gen.py --types-header < $< > $@, "  GEN   $@")
 
+qmp-marshal-types.c: $(SRC_PATH)/qmp-schema.json $(SRC_PATH)/qmp-gen.py
+	$(call quiet-command,python $(SRC_PATH)/qmp-gen.py --marshal-body < $< > $@, "  GEN   $@")
+
+qmp-marshal-types.h: $(SRC_PATH)/qmp-schema.json $(SRC_PATH)/qmp-gen.py
+	$(call quiet-command,python $(SRC_PATH)/qmp-gen.py --marshal-header < $< > $@, "  GEN   $@")
+
 qmp-types.o: qmp-types.c qmp-types.h
+qmp-marshal-types.o: qmp-marshal-types.c qmp-marshal-types.h qmp-types.h
 
 version.o: $(SRC_PATH)/version.rc config-host.mak
 	$(call quiet-command,$(WINDRES) -I. -o $@ $<,"  RC    $(TARGET_DIR)$@")
