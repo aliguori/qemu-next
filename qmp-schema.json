@@ -1,0 +1,90 @@
+# *-*- Mode: Python -*-*
+
+##
+# QMP Schema
+#
+# This file defines the types, commands, and events used by QMP.  It should
+# fully describe the interface used by QMP.
+#
+# This file is designed to be loosely based on JSON although it's technical
+# executable Python.  While dictionaries are used, they are parsed as
+# OrderedDicts so that ordering is preserved.
+#
+# There are two basic syntaxes used.  The first syntax defines a type and is
+# represented by a dictionary.  There are three kinds of types that are
+# supported.
+#
+# A complex type is a dictionary containing a single key who's value is a
+# dictionary.  This corresponds to a struct in C or an Object in JSON.  An
+# example of a complex type is:
+#
+#  { 'type': 'MyType',
+#    'data' { 'member1': 'str', 'member2': 'int', '*member3': 'str } }
+#
+# The use of '*' as a prefix to the name means the member is optional.  Optional
+# members should always be added to the end of the dictionary to preserve
+# backwards compatibility.
+#
+# An enumeration type is a dictionary containing a single key who's value is a
+# list of strings.  An example enumeration is:
+#
+#  { 'enum': 'MyEnum', 'data': [ 'value1', 'value2', 'value3' ] }
+#
+# A signal is similar in form to a complex type except the single key is
+# entirely upper case instead of CamelCase.  An example signal is:
+#
+#  { 'event': 'MY_SIGNAL', 'data': { 'arg1': 'str', 'arg2': 'str' } }
+#
+# Generally speaking, complex types and enums should always use CamelCase for
+# the type names.
+#
+# Commands are defined by using a list containing three members.  The first
+# member is the command name, the second member is a dictionary containing
+# arguments, and the third member is the return type.
+#
+# An example command is:
+#
+#  { 'command': 'my-command',
+#    'data': { 'arg1': 'str', '*arg2': 'str' },
+#    'returns': 'str' ]
+#
+# Command names should be all lower case with words separated by a hyphen.
+
+### 0.14.0 commands.  Do not modify. ###
+
+##
+# @VersionInfo:
+#
+# A description of QEMU's version.
+#
+# @qemu.major:  The major version of QEMU
+#
+# @qemu.minor:  The minor version of QEMU
+#
+# @qemu.micro:  The micro version of QEMU.  By current convention, a micro
+#               version of 50 signifies a development branch.  A micro version
+#               greater than or equal to 90 signifies a release candidate for
+#               the next minor version.  A micro version of less than 50
+#               signifies a stable release.
+#
+# @package:     QEMU will always set this field to an empty string.  Downstream
+#               versions of QEMU should set this to a non-empty string.  The
+#               exact format depends on the downstream however it highly
+#               recommended that a unique name is used.
+#
+# Since: 0.14.0
+##
+{ 'type': 'VersionInfo',
+  'data': {'qemu': {'major': 'int', 'minor': 'int', 'micro': 'int'},
+           'package': 'str'} }
+
+##
+# @query-version:
+#
+# Returns the current version of QEMU.
+#
+# Returns:  A @VersionInfo object describing the current version of QEMU.
+#
+# Since: 0.14.0
+##
+{ 'command': 'query-version', 'returns': 'VersionInfo' }
