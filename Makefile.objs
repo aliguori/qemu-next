@@ -103,6 +103,7 @@ common-obj-y += block-migration.o
 common-obj-y += pflib.o
 common-obj-y += bitmap.o bitops.o
 common-obj-y += qmp-marshal-types.o qmp-marshal-types-core.o
+common-obj-y += qmp-core.o
 
 common-obj-$(CONFIG_BRLAPI) += baum.o
 common-obj-$(CONFIG_POSIX) += migration-exec.o migration-unix.o migration-fd.o
