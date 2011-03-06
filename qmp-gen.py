@@ -360,6 +360,205 @@ const char *qmp_type_%(dcc_name)s_to_str(%(name)s value, Error **errp)
                  name=name)
     return ret
 
+def gen_type_marshal_declaration(name, typeinfo):
+    if is_dict(typeinfo):
+        return mcgen('''
+
+QObject *qmp_marshal_type_%(name)s(%(type)s src);
+%(type)s qmp_unmarshal_type_%(name)s(QObject *src, Error **errp);
+''',
+                     name=name, type=qmp_type_to_c(name))
+
+    return ''
+
+def gen_metatype_def(typeinfo, name, lhs, sep='->', level=0):
+    new_lhs = 'qmp__member%d' % level
+
+    ret = ''
+
+    if type(typeinfo) == str:
+        ret += cgen('    %(lhs)s = %(marshal)s(%(name)s);',
+                    lhs=lhs, name=name,
+                    marshal=qmp_type_to_qobj(typeinfo))
+    elif is_dict(typeinfo):
+        ret += mcgen('''
+    {
+        QDict *qmp__dict = qdict_new();
+        QObject *%(new_lhs)s;
+''',
+                     new_lhs=new_lhs)
+        for argname, argtype, optional in parse_args(typeinfo):
+            ret += cgen('')
+            if optional:
+                ret += mcgen('''
+        if (%(name)s%(sep)shas_%(c_name)s) {
+''',
+                             name=name, sep=sep,
+                             c_name=c_var(argname))
+                push_indent()
+            push_indent()
+            ret += gen_metatype_def(argtype, '%s%s%s' % (name, sep, c_var(argname)), new_lhs, '.', level + 1)
+            pop_indent()
+            ret += mcgen('''
+        qdict_put_obj(qmp__dict, "%(name)s", %(new_lhs)s);
+''',
+                         name=argname, new_lhs=new_lhs)
+            if optional:
+                pop_indent()
+                ret += mcgen('''
+        }
+''')
+        ret += mcgen('''
+        %(lhs)s = QOBJECT(qmp__dict);
+    }
+''',
+                     lhs=lhs)
+    elif type(typeinfo) == list:
+        ret += mcgen('''
+    {
+        QList *qmp__list = qlist_new();
+        %(type)s %(new_lhs)s_i;
+
+        for (%(new_lhs)s_i = %(name)s; %(new_lhs)s_i != NULL; %(new_lhs)s_i = %(new_lhs)s_i->next) {
+            QObject *qmp__member = %(marshal)s(%(new_lhs)s_i);
+            qlist_append_obj(qmp__list, qmp__member);
+        }
+        %(lhs)s = QOBJECT(qmp__list);
+    }
+''',
+                     type=qmp_type_to_c(typeinfo[0], True),
+                     new_lhs=new_lhs, name=name, lhs=lhs,
+                     marshal=qmp_type_to_qobj(typeinfo[0]))
+
+    return ret
+
+def gen_metatype_undef(typeinfo, name, lhs, sep='->', level=0):
+    ret = ''
+    if type(typeinfo) == str:
+        ret += mcgen('''
+    %(lhs)s = %(unmarshal)s(%(c_name)s, &qmp__err);
+    if (qmp__err) {
+        goto qmp__err_out;
+    }
+''',
+                     lhs=lhs, c_name=c_var(name),
+                     unmarshal=qmp_type_from_qobj(typeinfo))
+    elif is_dict(typeinfo):
+        objname = 'qmp__object%d' % level
+        ret += mcgen('''
+    {
+        QDict *qmp__dict = qobject_to_qdict(%(c_name)s);
+        QObject *%(objname)s;
+
+''',
+                     c_name=c_var(name), objname=objname)
+        for argname, argtype, optional in parse_args(typeinfo):
+            if optional:
+                ret += mcgen('''
+        if (qdict_haskey(qmp__dict, "%(name)s")) {
+''',
+                             name=argname)
+                push_indent()
+            ret += mcgen('''
+        %(objname)s = qdict_get(qmp__dict, "%(name)s");
+''',
+                         name=argname, objname=objname)
+            push_indent()
+            ret += gen_metatype_undef(argtype, objname, '%s%s%s' % (lhs, sep, c_var(argname)), '.', level + 1)
+            pop_indent()
+            if optional:
+                pop_indent()
+                ret += mcgen('''
+            %(lhs)s%(sep)shas_%(c_name)s = true;
+        } else {
+            %(lhs)s%(sep)shas_%(c_name)s = false;
+        }
+''',
+                             lhs=lhs, sep=sep, c_name=c_var(argname))
+
+        ret += mcgen('''
+    }
+''')
+
+    elif type(typeinfo) == list:
+        objname = 'qmp__object%d' % level
+        ret += mcgen('''
+    {
+        QList *qmp__list = qobject_to_qlist(%(c_name)s);
+        QListEntry *%(objname)s;
+        QLIST_FOREACH_ENTRY(qmp__list, %(objname)s) {
+            %(type)s qmp__node = %(unmarshal)s(%(objname)s->value, &qmp__err);
+            if (qmp__err) {
+                goto qmp__err_out;
+            }
+            qmp__node->next = %(lhs)s;
+            %(lhs)s = qmp__node;
+        }
+    }
+''',
+                     c_name=c_var(name), objname=objname, lhs=lhs,
+                     type=qmp_type_to_c(typeinfo[0], True),
+                     unmarshal=qmp_type_from_qobj(typeinfo[0]))
+
+    return ret
+
+def gen_type_marshal_definition(name, typeinfo):
+    ret = mcgen('''
+
+QObject *qmp_marshal_type_%(name)s(%(type)s src)
+{
+    QObject *qmp__retval;
+
+%(marshal)s
+
+    return qmp__retval;
+}
+
+%(type)s qmp_unmarshal_type_%(name)s(QObject *src, Error **errp)
+{
+    Error *qmp__err = NULL;
+    %(type)s qmp__retval = qmp_alloc_%(dcc_name)s();
+
+%(unmarshal)s
+
+    return qmp__retval;
+
+qmp__err_out:
+    error_propagate(errp, qmp__err);
+    %(free)s(qmp__retval);
+    return NULL;
+}
+''',
+                 name=name, type=qmp_type_to_c(name),
+                 marshal=gen_metatype_def(typeinfo, 'src', 'qmp__retval'),
+                 dcc_name=de_camel_case(name), free=qmp_free_func(name),
+                 unmarshal=gen_metatype_undef(typeinfo, 'src', 'qmp__retval'))
+
+    return ret
+
+def gen_enum_marshal_declaration(name, entries):
+    return mcgen('''
+
+QObject *qmp_marshal_type_%(name)s(%(name)s value);
+%(name)s qmp_unmarshal_type_%(name)s(QObject *obj, Error **errp);
+''',
+                name=name)
+
+def gen_enum_marshal_definition(name, entries):
+    return mcgen('''
+
+QObject *qmp_marshal_type_%(name)s(%(name)s value)
+{
+    return QOBJECT(qint_from_int(value));
+}
+
+%(name)s qmp_unmarshal_type_%(name)s(QObject *obj, Error **errp)
+{
+    return (%(name)s)qint_get_int(qobject_to_qint(obj));
+}
+''',
+                name=name)
+
 def tokenize(data):
     while len(data):
         if data[0] in ['{', '}', ':', ',', '[', ']']:
@@ -436,6 +635,18 @@ def generate(kind):
 #include "qmp-types.h"
 #include "qmp-marshal-types.h"
 ''')
+    elif kind == 'marshal-header':
+        ret += mcgen('''
+#ifndef QMP_MARSHAL_TYPES_H
+#define QMP_MARSHAL_TYPES_H
+
+#include "qmp-marshal-types-core.h"
+''')
+    elif kind == 'marshal-body':
+        ret += mcgen('''
+#include "qmp-marshal-types.h"
+#include "qerror.h"
+''')
     
     exprs = []
     expr = ''
@@ -466,6 +677,10 @@ def generate(kind):
                ret += gen_type_definition(name, data)
            elif kind == 'types-header':
                ret += gen_type_declaration(name, data)
+           elif kind == 'marshal-body':
+               ret += gen_type_marshal_definition(name, data)
+           elif kind == 'marshal-header':
+               ret += gen_type_marshal_declaration(name, data)
        elif s.has_key('enum'):
            name = s['enum']
            data = s['data']
@@ -475,6 +690,10 @@ def generate(kind):
                ret += gen_enum_declaration(name, data)
            elif kind == 'types-body':
                ret += gen_enum_definition(name, data)
+           elif kind == 'marshal-header':
+               ret += gen_enum_marshal_declaration(name, data)
+           elif kind == 'marshal-body':
+               ret += gen_enum_marshal_definition(name, data)
        elif s.has_key('event'):
            name = s['event']
            data = {}
