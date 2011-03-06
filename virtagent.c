@@ -100,25 +100,6 @@ static bool va_has_capability(const char *method)
     return cmp_state.found;
 }
 
-#if 0
-static void test_qdict(void)
-{
-    QDict *new, *old;
-
-    old = qdict_new();
-    qdict_put_obj(old, "key1", QOBJECT(qstring_from_str("entry1")));
-    qdict_put_obj(old, "key2", QOBJECT(qstring_from_str("entry2")));
-    qdict_put_obj(old, "key3", QOBJECT(qint_from_int(3)));
-    TRACE("old:\n%s\n",qstring_get_str(qobject_to_json(QOBJECT(old))));
-    new = va_qdict_copy(old);
-    TRACE("new:\n%s\n",qstring_get_str(qobject_to_json(QOBJECT(new))));
-    if (!new) {
-        TRACE("error");
-    }
-    abort();
-}
-#endif
-
 int va_client_init(VAManager *m, VAClientData *client_data)
 {
     client_data->supported_methods = NULL;
