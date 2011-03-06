@@ -44,6 +44,15 @@ struct QmpState
     QTAILQ_HEAD(, DefaultQmpConnection) default_connections;
 };
 
+typedef struct QmpSession
+{
+    JSONMessageParser parser;
+    QmpState state;
+    CharDriverState *chr;
+    int max_global_handle;
+    QTAILQ_HEAD(, QmpConnection) connections;
+} QmpSession;
+
 static QTAILQ_HEAD(, QmpCommand) qmp_commands =
     QTAILQ_HEAD_INITIALIZER(qmp_commands);
 
@@ -65,6 +74,18 @@ void qmp_register_stateful_command(const char *name, QmpStatefulCommandFunc *fn)
     cmd->stateful = true;
     cmd->sfn = fn;
     QTAILQ_INSERT_TAIL(&qmp_commands, cmd, node);
+}
+
+static QmpCommand *qmp_find_command(const char *name)
+{
+    QmpCommand *i;
+
+    QTAILQ_FOREACH(i, &qmp_commands, node) {
+        if (strcmp(i->name, name) == 0) {
+            return i;
+        }
+    }
+    return NULL;
 }
 
 char *qobject_as_string(QObject *obj)
@@ -177,4 +198,198 @@ void qmp_signal_disconnect(QmpSignal *obj, int handle)
             break;
         }
     }
+}
+
+static QObject *qmp_dispatch_err(QmpState *state, QList *tokens, Error **errp)
+{
+    const char *command;
+    QDict *args, *dict;
+    QObject *request;
+    QmpCommand *cmd;
+    QObject *ret = NULL;
+    Error *err = NULL;
+
+    request = json_parser_parse_err(tokens, NULL, &err);
+    if (request == NULL) {
+        if (err == NULL) {
+            error_set(errp, QERR_JSON_PARSE_ERROR, "no valid JSON object");
+        } else {
+            error_propagate(errp, err);
+        }
+        return NULL;
+    }
+    if (qobject_type(request) != QTYPE_QDICT) {
+        error_set(errp, QERR_JSON_PARSE_ERROR, "request is not a dictionary");
+        return NULL;
+    }
+
+    dict = qobject_to_qdict(request);
+    if (!qdict_haskey(dict, "execute")) {
+        error_set(errp, QERR_JSON_PARSE_ERROR, "no execute key");
+        return NULL;
+    }
+
+    command = qdict_get_str(dict, "execute");
+    cmd = qmp_find_command(command);
+    if (cmd == NULL) {
+        error_set(errp, QERR_COMMAND_NOT_FOUND, command);
+        return NULL;
+    }
+
+    if (!qdict_haskey(dict, "arguments")) {
+        args = qdict_new();
+    } else {
+        args = qdict_get_qdict(dict, "arguments");
+        QINCREF(args);
+    }
+
+    if (cmd->stateful) {
+        cmd->sfn(state, args, &ret, errp);
+    } else {
+        cmd->fn(args, &ret, errp);
+    }
+
+    QDECREF(args);
+    qobject_decref(request);
+
+    return ret;
+}
+
+static QObject *qmp_dispatch(QmpState *state, QList *tokens)
+{
+    Error *err = NULL;
+    QObject *ret;
+    QDict *rsp;
+
+    ret = qmp_dispatch_err(state, tokens, &err);
+
+    rsp = qdict_new();
+    if (err) {
+        qdict_put_obj(rsp, "error", error_get_qobject(err));
+        error_free(err);
+    } else {
+        if (ret) {
+            qdict_put_obj(rsp, "return", ret);
+        } else {
+            qdict_put(rsp, "return", qdict_new());
+        }
+    }
+
+    return QOBJECT(rsp);
+}
+
+static void qmp_chr_parse(JSONMessageParser *parser, QList *tokens)
+{
+    QmpSession *s = container_of(parser, QmpSession, parser);
+    QObject *rsp;
+    QString *str;
+    
+    rsp = qmp_dispatch(&s->state, tokens);
+
+    str = qobject_to_json(rsp);
+    qemu_chr_write(s->chr, (void *)str->string, str->length);
+    qemu_chr_write(s->chr, (void *)"\n", 1);
+
+    QDECREF(str);
+    qobject_decref(rsp);
+}
+
+static int qmp_chr_can_receive(void *opaque)
+{
+    return 1024;
+}
+
+static void qmp_chr_receive(void *opaque, const uint8_t *buf, int size)
+{
+    QmpSession *s = opaque;
+    json_message_parser_feed(&s->parser, (char *)buf, size);
+}
+
+static void qmp_chr_send_greeting(QmpSession *s)
+{
+    VersionInfo *info;
+    QObject *vers;
+    QObject *greeting;
+    QString *str;
+
+    info = qmp_query_version(NULL);
+    vers = qmp_marshal_type_VersionInfo(info);
+    qmp_free_version_info(info);
+
+    greeting = qobject_from_jsonf("{'QMP': {'version': %p, 'capabilities': []} }",
+                                  vers);
+    str = qobject_to_json(greeting);
+    qobject_decref(greeting);
+
+    qemu_chr_write(s->chr, (void *)str->string, str->length);
+    qemu_chr_write(s->chr, (void *)"\n", 1);
+    QDECREF(str);
+}
+
+static void qmp_chr_event(void *opaque, int event)
+{
+    QmpSession *s = opaque;
+    switch (event) {
+    case CHR_EVENT_OPENED:
+        // FIXME disconnect any connected signals including defaults
+        json_message_parser_init(&s->parser, qmp_chr_parse);
+        qmp_chr_send_greeting(s);
+        break;
+    case CHR_EVENT_CLOSED:
+        json_message_parser_flush(&s->parser);
+        break;
+    }
+}
+
+static int qmp_chr_add_connection(QmpState *state,  QmpConnection *conn)
+{
+    QmpSession *s = container_of(state, QmpSession, state);
+
+    QTAILQ_INSERT_TAIL(&s->connections, conn, node);
+    return ++s->max_global_handle;
+}
+
+static void qmp_chr_send_event(QmpState *state, QObject *event)
+{
+    QmpSession *s = container_of(state, QmpSession, state);
+    QString *str;
+
+    str = qobject_to_json(event);
+    qemu_chr_write(s->chr, (void *)str->string, str->length);
+    qemu_chr_write(s->chr, (void *)"\n", 1);
+    QDECREF(str);
+}
+
+static void qmp_chr_del_connection(QmpState *state, int global_handle, Error **errp)
+{
+    QmpSession *s = container_of(state, QmpSession, state);
+    QmpConnection *conn;
+
+    QTAILQ_FOREACH(conn, &s->connections, node) {
+        if (conn->global_handle == global_handle) {
+            qmp_signal_disconnect(conn->signal, conn->handle);
+            QTAILQ_REMOVE(&s->connections, conn, node);
+            qemu_free(conn);
+            return;
+        }
+    }
+
+    error_set(errp, QERR_INVALID_PARAMETER_VALUE, "tag", "valid event handle");
+}
+
+void qmp_init_chardev(CharDriverState *chr)
+{
+    QmpSession *s = qemu_mallocz(sizeof(*s));
+
+    s->chr = chr;
+    s->state.add_connection = qmp_chr_add_connection;
+    s->state.event = qmp_chr_send_event;
+    s->state.del_connection = qmp_chr_del_connection;
+    QTAILQ_INIT(&s->state.default_connections);
+
+    s->max_global_handle = 0;
+    QTAILQ_INIT(&s->connections);
+
+    qemu_chr_add_handlers(chr, qmp_chr_can_receive, qmp_chr_receive,
+                          qmp_chr_event, s);
 }

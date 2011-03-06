@@ -48,8 +48,6 @@ typedef struct QmpConnection
 
 void qmp_register_command(const char *name, QmpCommandFunc *fn);
 void qmp_register_stateful_command(const char *name, QmpStatefulCommandFunc *fn);
-void qmp_init_chardev(CharDriverState *chr);
-
 char *qobject_as_string(QObject *obj);
 
 QmpSignal *qmp_signal_init(void);
@@ -81,5 +79,7 @@ void qmp_state_event(QmpConnection *conn, QObject *data);
         (obj)->func(qmp__slot->opaque, ## __VA_ARGS__);      \
     }                                                        \
 } while(0)
+
+void qmp_init_chardev(CharDriverState *chr);
 
 #endif
