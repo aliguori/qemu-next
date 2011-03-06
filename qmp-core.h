@@ -60,8 +60,9 @@ int qmp_signal_connect(QmpSignal *obj, void *func, void *opaque);
 void qmp_signal_disconnect(QmpSignal *obj, int handle);
 
 void qmp_state_add_connection(QmpState *sess, const char *name, QmpSignal *obj, int handle, QmpConnection *conn);
-void qmp_put_event(QmpState *sess, int global_handle, Error **errp);
 void qmp_state_event(QmpConnection *conn, QObject *data);
+
+int qmp_state_get_fd(QmpState *sess);
 
 #define signal_init(obj) do {          \
     (obj)->signal = qmp_signal_init(); \
@@ -82,5 +83,7 @@ void qmp_state_event(QmpConnection *conn, QObject *data);
         (obj)->func(qmp__slot->opaque, ## __VA_ARGS__);      \
     }                                                        \
 } while(0)
+
+void qmp_init_chardev(CharDriverState *chr);
 
 #endif
