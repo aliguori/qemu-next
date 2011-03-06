@@ -161,27 +161,50 @@ static void resume_signal_trampoline(void *opaque)
     def_signal_trampoline(opaque, "RESUME");
 }
 
-#define full_signal_connect(state, ev, fn, opaque)                 \
+static void block_signal_trampoline(void *opaque, const char *device,
+                                    const char *action, const char *operation)
+{
+    QmpState *state = opaque;
+    QObject *event;
+    qemu_timeval tv;
+
+    qemu_gettimeofday(&tv);
+    event = qobject_from_jsonf("{ 'timestamp': { 'seconds': %" PRId64 ", "
+                               "                 'microseconds': %" PRId64 " }, "
+                               "  'event': 'BLOCK_IO_ERROR', "
+                               "  'data': { 'device': %s, "
+                               "            'action': %s, "
+                               "            'operation': %s } }",
+                               tv.tv_sec, tv.tv_usec, device, action,
+                               operation);
+    state->event(state, event);
+    qobject_decref(event);
+}
+
+
+#define full_signal_connect(state, ev, fn)                         \
 do {                                                               \
-    typeof(ev) event = (ev);                                      \
+    typeof(ev) event = (ev);                                       \
     DefaultQmpConnection *conn = qemu_mallocz(sizeof(*conn));      \
     conn->obj = event->signal;                                     \
-    conn->handle = signal_connect(event, (fn), (opaque));          \
+    conn->handle = signal_connect(event, (fn), (state));           \
     QTAILQ_INSERT_TAIL(&(state)->default_connections, conn, node); \
 } while (0)
 
 void qmp_qmp_capabilities(QmpState *state, Error **errp)
 {
     full_signal_connect(state, qmp_get_shutdown_event(NULL),
-                        shutdown_signal_trampoline, state);
+                        shutdown_signal_trampoline);
     full_signal_connect(state, qmp_get_reset_event(NULL),
-                        reset_signal_trampoline, state);
+                        reset_signal_trampoline);
     full_signal_connect(state, qmp_get_powerdown_event(NULL),
-                        powerdown_signal_trampoline, state);
+                        powerdown_signal_trampoline);
     full_signal_connect(state, qmp_get_stop_event(NULL),
-                        stop_signal_trampoline, state);
+                        stop_signal_trampoline);
     full_signal_connect(state, qmp_get_resume_event(NULL),
-                        resume_signal_trampoline, state);
+                        resume_signal_trampoline);
+    full_signal_connect(state, qmp_get_block_io_error_event(NULL),
+                        block_signal_trampoline);
 }
 
 typedef struct QmpSession
