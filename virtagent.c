@@ -116,7 +116,7 @@ static bool va_is_enabled(void)
 }
 
 typedef struct VAClientRequest {
-    const QDict *payload;
+    QString *payload;
     int magic;
     char tag[64];
     VAClientCallback *cb;
@@ -151,26 +151,22 @@ static void va_send_request_cb(const void *opaque)
 /* called by VAManager to start send, in turn calls out to xport layer */
 static int va_send_request(void *opaque, const char *tag)
 {
-    VAClientRequest *req;
-    const char *params_json;
+    VAClientRequest *req = opaque;
+    const char *payload_json;
     int ret;
 
     TRACE("called");
-    req = opaque;
-    if (!req || !req->payload ||
-        qobject_type(QOBJECT(req->payload)) != QTYPE_QDICT) {
+    if (!req || !req->payload) {
+        TRACE("marker");
+        return -EINVAL;
+    }
+    payload_json = qstring_get_str(req->payload);
+    if (!payload_json) {
         TRACE("marker");
         return -EINVAL;
     }
     TRACE("marker");
-    const QObject *tmp_qobject = QOBJECT(req->payload);
-    TRACE("marker");
-    QString *tmp_qstring = qobject_to_json(tmp_qobject);
-    TRACE("marker");
-    params_json = qstring_get_str(tmp_qstring);
-    //params_json = qstring_get_str(qobject_to_json(QOBJECT(req->payload)));
-    TRACE("marker");
-    ret = va_xport_send_request((void *)params_json, strlen(params_json),
+    ret = va_xport_send_request(payload_json, strlen(payload_json),
                                 tag, tag, va_send_request_cb);
     TRACE("marker");
     /* register timeout */
@@ -216,6 +212,9 @@ static int va_callback(void *opaque, void *resp_opaque, const char *tag)
     /* TODO: cleanup */
     if (req) {
         TRACE("called");
+        if (req->payload) {
+            QDECREF(req->payload);
+        }
         qemu_free(req);
     }
     if (resp) {
@@ -235,7 +234,8 @@ static int va_do_rpc(const char *method, const QDict *params,
                      void *mon_data)
 {
     VAClientRequest *req;
-    QDict *payload, *params_copy;
+    QDict *payload, *params_copy = NULL;
+    QString *payload_json;
     struct timeval ts;
     int ret;
 
@@ -260,19 +260,36 @@ static int va_do_rpc(const char *method, const QDict *params,
     payload = qdict_new();
     qdict_put_obj(payload, "method",
                   QOBJECT(qstring_from_str(method)));
-    /* TODO: we should copy the params rather than cast non-const */
     if (params) {
+        TRACE("marker");
         params_copy = va_qdict_copy(params);
         if (!params_copy) {
             LOG("error processing parameters");
             QDECREF(payload);
-            qemu_free(req);
-            goto out;
+            ret = -EINVAL;
+            goto out_free;
         }
-        //qdict_put_obj(payload, "params", QOBJECT((QDict *)params));
         qdict_put_obj(payload, "params", QOBJECT(params_copy));
     }
-    req->payload = payload;
+
+    /* convert payload to json */
+    TRACE("marker");
+    payload_json = qobject_to_json(QOBJECT(payload));
+    TRACE("marker");
+    /* TODO: why is this causing a:
+     * "free(): corrupted unsorted chunks: 0x0000000002cf1890" ??
+     */
+    QDECREF(payload);
+    TRACE("marker");
+    if (!payload_json) {
+        TRACE("marker");
+        LOG("error converting request to json");
+        ret = -EINVAL;
+        goto out_free;
+    }
+    TRACE("marker");
+    req->payload = payload_json;
+
     /* TODO: should switch to UUIDs eventually */
     memset(req->tag, 0, 64);
     gettimeofday(&ts, NULL);
@@ -285,11 +302,13 @@ static int va_do_rpc(const char *method, const QDict *params,
     if (ret) {
         TRACE("marker");
         va_client_job_cancel(va_client_data->manager, req->tag);
-        qemu_free(req);
-        goto out;
+        goto out_free;
     }
 
 out:
+    return ret;
+out_free:
+    qemu_free(req);
     return ret;
 }
 
