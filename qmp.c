@@ -12,6 +12,7 @@
 #include "qemu-common.h"
 #include "qmp-core.h"
 #include "qmp.h"
+#include "sysemu.h"
 
 VersionInfo *qmp_query_version(Error **err)
 {
@@ -29,3 +30,8 @@ VersionInfo *qmp_query_version(Error **err)
     return info;
 }
 
+void qmp_quit(Error **err)
+{
+    no_shutdown = 0;
+    qemu_system_shutdown_request();
+}
