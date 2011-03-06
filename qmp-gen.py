@@ -650,6 +650,171 @@ static void qmp_marshal_%s(const QDict *qdict, QObject **ret_data, Error **err)
 
     print '}'
 
+
+def print_lib_decl(name, required, optional, retval, suffix=''):
+    args = ['QmpSession *qmp__session']
+    for key in required:
+        args.append('%s %s' % (qmp_type_to_c(required[key]), c_var(key)))
+
+    for key in optional:
+        if optional[key] == '**':
+            args.append('KeyValues * %s' % c_var(key))
+        else:
+            args.append('bool has_%s' % c_var(key))
+            args.append('%s %s' % (qmp_type_to_c(optional[key]), c_var(key)))
+
+    args.append('Error **qmp__err')
+
+    print '%s libqmp_%s(%s)%s' % (qmp_type_to_c(retval, True), c_var(name), ', '.join(args), suffix)
+
+def print_lib_event_decl(name, end=''):
+    print 'static void libqmp_notify_%s(QDict *qmp__args, void *qmp__fn, void *qmp__opaque, Error **qmp__errp)%s' % (de_camel_case(qmp_event_to_c(name)), end)
+
+def print_lib_declaration(name, required, optional, retval):
+    print_lib_decl(name, required, optional, retval, ';')
+
+def print_lib_event_definition(name, typeinfo):
+    print
+    print_lib_event_decl(name)
+    print '{'
+    print '    %s *qmp__native_fn = qmp__fn;' % (qmp_event_func_to_c(name))
+    print '    Error *qmp__err = NULL;'
+    for argname, argtype, optional in parse_args(typeinfo):
+        if optional:
+            print '    bool has_%s;' % (c_var(argname))
+        print '    %s %s = 0;' % (qmp_type_to_c(argtype, True), c_var(argname))
+
+    print
+    print '    (void)qmp__err;'
+
+    for argname, argtype, optional in parse_args(typeinfo):
+        if optional:
+            print '    BUILD_BUG()'
+        print '''
+    if (!qdict_haskey(qmp__args, "%s")) {
+        error_set(qmp__errp, QERR_MISSING_PARAMETER, "%s");
+        goto qmp__out;
+    }
+
+    %s = %s(qdict_get(qmp__args, "%s"), &qmp__err);
+    if (qmp__err) {
+        if (error_is_type(qmp__err, QERR_INVALID_PARAMETER_TYPE)) {
+            error_set(qmp__errp, QERR_INVALID_PARAMETER_TYPE, "%s",
+                      error_get_field(qmp__err, "expected"));
+            error_free(qmp__err);
+            qmp__err = NULL;
+        } else {
+            error_propagate(qmp__errp, qmp__err);
+        }
+        goto qmp__out;
+    }''' % (argname, argname, c_var(argname), qmp_type_from_qobj(argtype), argname, argname)
+
+    arglist = ['qmp__opaque']
+    for argname, argtype, optional in parse_args(typeinfo):
+        arglist.append(c_var(argname))
+    print
+    print '    qmp__native_fn(%s);' % (', '.join(arglist))
+
+    has_label = False
+    for argname, argtype, optional in parse_args(typeinfo):
+        if not has_label:
+            print
+            print 'qmp__out:'
+            has_label = True
+
+        if qmp_type_should_free(argtype):
+            print '    %s(%s);' % (qmp_free_func(argtype), c_var(argname))
+    print '    return;'
+    print '}'
+
+def print_lib_definition(name, required, optional, retval):
+    print
+    print_lib_decl(name, required, optional, retval)
+    print '''{
+    QDict *qmp__args = qdict_new();
+    Error *qmp__local_err = NULL;'''
+
+    print '    QObject *qmp__retval = NULL;'
+    if retval != 'none':
+        print '    %s qmp__native_retval = 0;' % (qmp_type_to_c(retval, True))
+    if qmp_type_is_event(retval):
+        print '    int qmp__global_handle = 0;'
+    print
+
+    for key in required:
+        argname = key
+        argtype = required[key]
+        print '    qdict_put_obj(qmp__args, "%s", %s(%s));' % (key, qmp_type_to_qobj_ctor(argtype), c_var(argname))
+    if required:
+        print
+
+    for key in optional:
+        argname = key
+        argtype = optional[key]
+        if argtype.startswith('**'):
+            print '''    {
+        KeyValues *qmp__i;
+        for (qmp__i = %s; qmp__i; qmp__i = qmp__i->next) {
+            qdict_put(qmp__args, qmp__i->key, qstring_from_str(qmp__i->value));
+        }
+    }''' % c_var(argname)
+            continue
+        print '    if (has_%s) {' % c_var(argname)
+        print '        qdict_put_obj(qmp__args, "%s", %s(%s));' % (key, qmp_type_to_qobj_ctor(argtype), c_var(argname))
+        print '    }'
+        print
+
+    print '    qmp__retval = qmp__session->dispatch(qmp__session, "%s", qmp__args, &qmp__local_err);' % name
+
+    print
+    print '    QDECREF(qmp__args);'
+
+    if type(retval) == list:
+        print '''
+    if (!qmp__local_err) {
+        QList *qmp__list_retval = qobject_to_qlist(qmp__retval);
+        QListEntry *qmp__i;
+        QLIST_FOREACH_ENTRY(qmp__list_retval, qmp__i) {
+            %s qmp__native_i = %s(qmp__i->value, &qmp__local_err);
+            if (qmp__local_err) {
+                %s(qmp__native_retval);
+                break;
+            }
+            qmp__native_i->next = qmp__native_retval;
+            qmp__native_retval = qmp__native_i;
+        }
+        qobject_decref(qmp__retval);
+    }
+    error_propagate(qmp__err, qmp__local_err);
+    return qmp__native_retval;''' % (qmp_type_to_c(retval[0], True), qmp_type_from_qobj(retval[0]), qmp_free_func(retval[0]))
+    elif is_dict(retval):
+        print '    // FIXME (using an anonymous dict as return value)'
+        print '    BUILD_BUG();'
+    elif qmp_type_is_event(retval):
+        print '''    if (!qmp__local_err) {
+        qmp__global_handle = %s(qmp__retval, &qmp__local_err);
+        qobject_decref(qmp__retval);
+        qmp__retval = NULL;
+    }
+    if (!qmp__local_err) {
+        qmp__native_retval = libqmp_signal_init(qmp__session, %s, qmp__global_handle);
+    }
+    error_propagate(qmp__err, qmp__local_err);
+    return qmp__native_retval;''' % (qmp_type_from_qobj('int'), qmp_event_to_c(retval))
+    elif retval != 'none':
+        print '''
+    if (!qmp__local_err) {
+        qmp__native_retval = %s(qmp__retval, &qmp__local_err);
+        qobject_decref(qmp__retval);
+    }
+    error_propagate(qmp__err, qmp__local_err);
+    return qmp__native_retval;''' % qmp_type_from_qobj(retval)
+    else:
+        print '    qobject_decref(qmp__retval);'
+        print '    error_propagate(qmp__err, qmp__local_err);'
+
+    print '}'
+
 def tokenize(data):
     while len(data):
         if data[0] in ['{', '}', ':', ',', '[', ']']:
@@ -713,7 +878,10 @@ if len(sys.argv) == 2:
         kind = 'body'
     elif sys.argv[1] == '--header':
         kind = 'header'
-
+    elif sys.argv[1] == '--lib-header':
+        kind = 'lib-header'
+    elif sys.argv[1] == '--lib-body':
+        kind = 'lib-body'
 
 if kind == 'types-header':
     print '''/* THIS FILE IS AUTOMATICALLY GENERATED, DO NOT EDIT */
@@ -759,6 +927,19 @@ elif kind == 'body':
 #include "qmp.h"
 #include "qmp-core.h"
 '''
+elif kind == 'lib-header':
+    print '''/* THIS FILE IS AUTOMATICALLY GENERATED, DO NOT EDIT */
+#ifndef LIBQMP_H
+#define LIBQMP_H
+
+#include "libqmp-core.h"
+'''
+elif kind == 'lib-body':
+    print '''/* THIS FILE IS AUTOMATICALLY GENERATED, DO NOT EDIT */
+
+#include "libqmp.h"
+#include "libqmp-internal.h"
+'''
 
 exprs = []
 expr = ''
@@ -794,6 +975,9 @@ for s in exprs:
                 print_type_marshal_definition(key, s[key])
             elif kind == 'marshal-header':
                 print_type_marshal_declaration(key, s[key])
+            elif kind == 'lib-body':
+                if qmp_type_is_event(key):
+                    print_lib_event_definition(key, event_types[key])
         else:
             enum_types.append(key)
             if kind == 'types-header':
@@ -810,6 +994,10 @@ for s in exprs:
             print_definition(name, required, optional, retval)
         elif kind == 'header':
             print_declaration(name, required, optional, retval)
+        elif kind == 'lib-body':
+            print_lib_definition(name, required, optional, retval)
+        elif kind == 'lib-header':
+            print_lib_declaration(name, required, optional, retval)
 
 if kind.endswith('header'):
     print '#endif'
@@ -827,3 +1015,10 @@ elif kind == 'body':
     print '};'
     print
     print 'qapi_init(qmp_init_marshal);'
+elif kind == 'lib-body':
+    print
+    print 'void libqmp_init_events(QmpSession *sess)'
+    print '{'
+    for event in event_types:
+        print '    libqmp_register_event(sess, "%s", &libqmp_notify_%s);' % (event, de_camel_case(qmp_event_to_c(event)))
+    print '}'
