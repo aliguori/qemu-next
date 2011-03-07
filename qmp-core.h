@@ -20,10 +20,12 @@ typedef struct QmpUnixServer QmpUnixServer;
 QmpUnixServer *qmp_unix_server_new(const char *path);
 void qmp_unix_server_delete(QmpUnixServer *path);
 
+typedef void (SignalFunc)(void);
+
 typedef struct QmpSlot
 {
     int handle;
-    void *func;
+    SignalFunc *func;
     void *opaque;
     QTAILQ_ENTRY(QmpSlot) node;
 } QmpSlot;
@@ -48,7 +50,7 @@ typedef struct QmpConnection
 QmpSignal *qmp_signal_init(void);
 void qmp_signal_ref(QmpSignal *obj);
 void qmp_signal_unref(QmpSignal *obj);
-int qmp_signal_connect(QmpSignal *obj, void *func, void *opaque);
+int qmp_signal_connect(QmpSignal *obj, SignalFunc *func, void *opaque);
 void qmp_signal_disconnect(QmpSignal *obj, int handle);
 
 void qmp_state_add_connection(QmpState *sess, const char *name, QmpSignal *obj, int handle, QmpConnection *conn);
@@ -62,7 +64,7 @@ void qmp_state_event(QmpConnection *conn, QObject *data);
 #define signal_unref(obj) qmp_signal_unref((obj)->signal)
 
 #define signal_connect(obj, fn, opaque) \
-    qmp_signal_connect((obj)->signal, (obj)->func = fn, opaque)
+    qmp_signal_connect((obj)->signal, (SignalFunc *)((obj)->func = fn), opaque)
 
 #define signal_disconnect(obj, handle) \
     qmp_signal_disconnect((obj)->signal, handle)
@@ -70,7 +72,7 @@ void qmp_state_event(QmpConnection *conn, QObject *data);
 #define signal_notify(obj, ...) do {                         \
     QmpSlot *qmp__slot;                                      \
     QTAILQ_FOREACH(qmp__slot, &(obj)->signal->slots, node) { \
-        (obj)->func = qmp__slot->func;                       \
+        (obj)->func = (typeof((obj)->func))(qmp__slot->func);   \
         (obj)->func(qmp__slot->opaque, ## __VA_ARGS__);      \
     }                                                        \
 } while(0)

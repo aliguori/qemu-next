@@ -830,7 +830,7 @@ void qmp_signal_unref(QmpSignal *obj)
     }
 }
 
-int qmp_signal_connect(QmpSignal *obj, void *func, void *opaque)
+int qmp_signal_connect(QmpSignal *obj, SignalFunc *func, void *opaque)
 {
     int handle = ++obj->max_handle;
     QmpSlot *slot = qemu_mallocz(sizeof(*slot));
