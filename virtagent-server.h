@@ -11,9 +11,8 @@
  *
  */
 
-#include <xmlrpc-c/base.h>
-#include <xmlrpc-c/server.h>
 #include "virtagent-manager.h"
+#include "qdict.h"
 
 #define GUEST_AGENT_SERVICE_ID "virtagent"
 #define GUEST_AGENT_PATH "/tmp/virtagent-guest.sock"
@@ -23,11 +22,15 @@
 #define VA_FILEBUF_LEN 16384
 #define VA_DMESG_LEN 16384
 
+typedef struct VARPCFunction {
+    QDict *(*func)(const QDict *params);
+    const char *func_name;
+} VARPCFunction;
+
 typedef struct VAServerData {
-    xmlrpc_env env;
-    xmlrpc_registry *registry;
     bool enabled;
     bool is_host;
+    VARPCFunction *functions;
     VAManager *manager;
 } VAServerData;
 

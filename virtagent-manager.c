@@ -11,8 +11,6 @@
  *
  */
 
-//#include "qemu-common.h"
-#include "virtagent-manager.h"
 #include "virtagent-common.h"
 
 typedef struct VAServerJob {

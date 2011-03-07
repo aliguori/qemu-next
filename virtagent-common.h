@@ -14,9 +14,6 @@
 #ifndef VIRTAGENT_COMMON_H
 #define VIRTAGENT_COMMON_H
 
-#include <xmlrpc-c/base.h>
-#include <xmlrpc-c/client.h>
-#include <xmlrpc-c/server.h>
 #include <termios.h>
 #include "qemu-common.h"
 #include "qemu_socket.h"

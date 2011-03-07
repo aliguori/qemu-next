@@ -137,8 +137,8 @@ static int va_connect(void)
         tio.c_oflag = 0;
         tio.c_lflag = 0;
         tio.c_cflag |= VA_BAUDRATE;
-        /* 1 available byte min or reads will block (we'll set non-blocking elsewhere,
-         * else we have to deal with read()=0 instead)
+        /* 1 available byte min, else reads will block (we'll set non-blocking
+         * elsewhere, else we'd have to deal with read()=0 instead)
          */
         tio.c_cc[VMIN] = 1;
         tio.c_cc[VTIME] = 0;

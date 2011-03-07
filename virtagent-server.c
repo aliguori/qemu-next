@@ -12,17 +12,13 @@
  *
  */
 #include <syslog.h>
-#include "qemu_socket.h"
 #include "virtagent-common.h"
+#include "qemu_socket.h"
 #include "qjson.h"
 #include "qint.h"
 
-typedef struct RPCFunction {
-    QDict *(*func)(const QDict *params);
-    const char *func_name;
-} RPCFunction;
-static RPCFunction guest_functions[];
-static RPCFunction host_functions[];
+static VARPCFunction guest_functions[];
+static VARPCFunction host_functions[];
 static VAServerData *va_server_data;
 static bool va_enable_syslog = false; /* enable syslog'ing of RPCs */
 
@@ -34,6 +30,8 @@ static bool va_enable_syslog = false; /* enable syslog'ing of RPCs */
     snprintf(msg_buf, 1024, msg, ## __VA_ARGS__); \
     syslog(LOG_INFO, "virtagent, %s", msg_buf); \
 } while(0)
+
+/* helper functions for RPCs */
 
 static QDict *va_server_format_response(QDict *return_data, int errnum,
                                         const char *errstr)
@@ -70,7 +68,10 @@ static QDict *va_server_format_response(QDict *return_data, int errnum,
 /* RPCs */
 
 /* va_shutdown(): initiate guest shutdown
- * rpc return values: none
+ * params/response qdict format:
+ *   params{shutdown_mode}: "reboot"|"powerdown"|"shutdown"
+ *   response{error}: <error code>
+ *   response{errstr}: <error description>
  */
 static QDict *va_shutdown(const QDict *params)
 {
@@ -123,7 +124,9 @@ out:
 }
 
 /* va_hello(): handle client startup notification
- * rpc return values: none
+ * params/response qdict format (*=optional):
+ *   response{error}: <error code>
+ *   response{errstr}: <error description>
  */
 static QDict *va_hello(const QDict *params)
 {
@@ -137,9 +140,10 @@ static QDict *va_hello(const QDict *params)
     return va_server_format_response(NULL, 0, NULL);
 }
 
-/* va_ping(): respond to client. response without error in env
- *   variable indicates successful response
- * rpc return values: none
+/* va_ping(): respond to/pong to client.
+ * params/response qdict format (*=optional):
+ *   response{error}: <error code>
+ *   response{errstr}: <error description>
  */
 static QDict *va_ping(const QDict *params)
 {
@@ -149,26 +153,33 @@ static QDict *va_ping(const QDict *params)
 }
 
 /* va_capabilities(): return server capabilities
- * rpc return values:
- *   - version: virtagent version
- *   - methods: list of supported RPCs
+ * params/response qdict format (*=optional):
+ *   response{error}: <error code>
+ *   response{errstr}: <error description>
+ *   response{return_data}{methods}: list of callable RPCs
+ *   response{return_data}{version}: virtagent version
  */
 static QDict *va_capabilities(const QDict *params)
 {
     QList *functions = qlist_new();
     QDict *ret = qdict_new();
+    int i;
+    const char *func_name;
+
     TRACE("called");
     SLOG("va_capabilities()");
-    qlist_append_obj(functions, QOBJECT(qstring_from_str("capabilities")));
-    qlist_append_obj(functions, QOBJECT(qstring_from_str("ping")));
-    qlist_append_obj(functions, QOBJECT(qstring_from_str("shutdown")));
+
+    for (i = 0; va_server_data->functions[i].func != NULL; ++i) {
+        func_name = va_server_data->functions[i].func_name;
+        qlist_append_obj(functions, QOBJECT(qstring_from_str(func_name)));
+    }
     qdict_put_obj(ret, "methods", QOBJECT(functions));
     qdict_put_obj(ret, "version", QOBJECT(qstring_from_str(VA_VERSION)));
 
     return va_server_format_response(ret, 0, NULL);
 }
 
-static RPCFunction guest_functions[] = {
+static VARPCFunction guest_functions[] = {
     { .func = va_shutdown,
       .func_name = "shutdown" },
     { .func = va_ping,
@@ -178,7 +189,7 @@ static RPCFunction guest_functions[] = {
     { NULL, NULL }
 };
 
-static RPCFunction host_functions[] = {
+static VARPCFunction host_functions[] = {
     { .func = va_ping,
       .func_name = "ping" },
     { .func = va_hello,
@@ -200,7 +211,7 @@ static int va_do_server_rpc(VARequestData *d, const char *tag)
 {
     int ret = 0, i;
     const char *func_name;
-    RPCFunction *func_list = va_server_data->is_host ?
+    VARPCFunction *func_list = va_server_data->is_host ?
                              host_functions : guest_functions;
     QDict *response = NULL, *params = NULL;
     bool found;
@@ -224,11 +235,8 @@ static int va_do_server_rpc(VARequestData *d, const char *tag)
         goto out;
     }
     func_name = qdict_get_str(d->request, "method");
-    TRACE("marker, specified method: %s", func_name);
     for (i = 0; func_list[i].func != NULL; ++i) {
-        TRACE("marker, current method: %s", func_list[i].func_name);
         if (strcmp(func_name, func_list[i].func_name) == 0) {
-            TRACE("marker");
             if (va_qdict_haskey_with_type(d->request, "params", QTYPE_QDICT)) {
                 params = qdict_get_qdict(d->request, "params");
             }
@@ -239,67 +247,28 @@ static int va_do_server_rpc(VARequestData *d, const char *tag)
     }
 
     if (!response) {
-        TRACE("marker");
         if (found) {
-            TRACE("marker");
             response = va_server_format_response(NULL, -1,
                                                  "error executing rpc");
         } else {
-            TRACE("marker");
             response = va_server_format_response(NULL, -1,
                                                  "unsupported rpc specified");
         }
     }
-    TRACE("marker");
-    TRACE("called, request data d: %p", d);
-    d->response = NULL;
-    TRACE("marker");
+    /* TODO: store the json rather than the QDict that generates it */
     d->response = response;
-    //d->response = qdict_new();
-    TRACE("marker, d->response: %p", d->response);
-    qdict_put_obj(d->response, "blah", QOBJECT(qstring_from_str("meh")));
-    TRACE("marker");
-    QObject *tmp_qobj = QOBJECT(d->response);
-    TRACE("marker");
-    QString *tmp_qstr = qobject_to_json(tmp_qobj);
-    TRACE("marker");
-    const char *tmp_json = qstring_get_str(tmp_qstr);
-    TRACE("marker");
-    TRACE("rpc json response:\n%s\n", tmp_json);
 
     va_server_job_execute_done(va_server_data->manager, tag);
-    /*
-    ret = va_server_job_add(resp_xml, tag);
-    if (ret != 0) {
-        LOG("error adding server job: %s", strerror(ret));
-    }
-    */
 
 out:
     return ret;
 }
 
-/*
-static void va_register_functions(xmlrpc_env *env, xmlrpc_registry *registry,
-                                  RPCFunction *list)
-{
-    int i;
-    for (i = 0; list[i].func != NULL; ++i) {
-        TRACE("adding func: %s", list[i].func_name);
-        xmlrpc_registry_add_method(env, registry, NULL, list[i].func_name,
-                                   list[i].func, NULL);
-    }
-}
-*/
-
 int va_server_init(VAManager *m, VAServerData *server_data, bool is_host)
 {
-    //RPCFunction *func_list = is_host ? host_functions : guest_functions;
-
     va_enable_syslog = !is_host; /* enable logging for guest agent */
-    //va_register_functions(&server_data->env, server_data->registry, func_list);
+    server_data->functions = is_host ? host_functions : guest_functions;
     server_data->enabled = true;
-    /* TODO: this is redundant given the is_host arg */
     server_data->is_host = is_host;
     server_data->manager = m;
     va_server_data = server_data;
@@ -314,12 +283,6 @@ int va_server_close(void)
     }
     return 0;
 }
-
-/*
-typedef struct VAServerResponse {
-    xmlrpc_mem_block *content;
-} VAServerResponse;
-*/
 
 /* called by VAManager to start executing the RPC */
 static int va_execute(void *opaque, const char *tag)
@@ -353,24 +316,13 @@ static int va_send_response(void *opaque, const char *tag)
         ret = -EINVAL;
         goto out_cancel;
     }
-    TRACE("marker");
-    QObject *tmp_qobj = QOBJECT(d->response);
-    TRACE("marker");
-    QString *tmp_qstr = qobject_to_json(tmp_qobj);
-    TRACE("marker");
-    const char *tmp_json = qstring_get_str(tmp_qstr);
-    TRACE("marker");
-    //json_resp = qstring_get_str(qobject_to_json(QOBJECT(d->response)));
-    json_resp = tmp_json;
+    json_resp = qstring_get_str(qobject_to_json(QOBJECT(d->response)));
     TRACE("marker");
     if (!json_resp) {
         ret = -EINVAL;
         LOG("server generated invalid JSON response");
         goto out_cancel;
     }
-    TRACE("marker");
-    assert(json_resp);
-    TRACE("json_resp:\n%s\n", json_resp);
 
     ret = va_xport_send_response(json_resp, strlen(json_resp),
                                  tag, tag, va_send_response_cb);
@@ -385,12 +337,10 @@ static int va_cleanup(void *opaque, const char *tag)
     VARequestData *d = opaque;
     if (d) {
         if (d->request) {
-            /* TODO: double-check were handling these refs properly */
-            qobject_decref(QOBJECT(d->request));
+            QDECREF(d->request);
         }
         if (d->response) {
-            /* TODO: double-check were handling these refs properly */
-            qobject_decref(QOBJECT(d->response));
+            QDECREF(d->response);
         }
         qemu_free(d);
     }
@@ -409,17 +359,21 @@ int va_server_job_create(const char *content, size_t content_len, const char *ta
     VARequestData *d = qemu_mallocz(sizeof(VAServerData));
     QObject *request_obj;
 
-    TRACE("got content:\n%s\n", content);
+    if (!content) {
+        LOG("recieved job with null request string");
+        goto out_bad;
+    }
+
     request_obj = qobject_from_json(content);
     if (!request_obj) {
         LOG("unable to parse JSON arguments");
         goto out_bad;
     }
-    TRACE("parsed as:\n%s\n", qstring_get_str((qobject_to_json(request_obj))));
-    d->request = qobject_to_qdict(request_obj);
 
+    d->request = qobject_to_qdict(request_obj);
     if (!d->request) {
-        LOG("recieved qobject of unexpected type: %d", qobject_type(request_obj));
+        LOG("recieved qobject of unexpected type: %d",
+             qobject_type(request_obj));
         goto out_bad_free;
     }
 
@@ -429,6 +383,7 @@ int va_server_job_create(const char *content, size_t content_len, const char *ta
     }
 
     va_server_job_add(va_server_data->manager, tag, d, server_job_ops);
+
     return 0;
 out_bad_free:
     if (d->request) {

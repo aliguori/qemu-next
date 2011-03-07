@@ -117,7 +117,6 @@ static bool va_is_enabled(void)
 
 typedef struct VAClientRequest {
     QString *payload;
-    int magic;
     char tag[64];
     VAClientCallback *cb;
     /* for use by QMP functions */
@@ -128,7 +127,6 @@ typedef struct VAClientRequest {
 } VAClientRequest;
 
 typedef struct VAClientResponse {
-
     char *content;
     size_t content_len;
 } VAClientResponse;
@@ -197,10 +195,13 @@ static int va_callback(void *opaque, void *resp_opaque, const char *tag)
 {
     VAClientRequest *req = opaque; 
     QDict *resp = resp_opaque;
+
     TRACE("called");
+
     if (req->timer) {
         qemu_del_timer(req->timer);
     }
+
     if (req->cb) {
         if (resp) {
             req->cb(resp, req->mon_cb, req->mon_data);
@@ -209,18 +210,18 @@ static int va_callback(void *opaque, void *resp_opaque, const char *tag)
             req->cb(NULL, req->mon_cb, req->mon_data);
         }
     }
-    /* TODO: cleanup */
+
     if (req) {
-        TRACE("called");
         if (req->payload) {
             QDECREF(req->payload);
         }
         qemu_free(req);
     }
+
     if (resp) {
-        TRACE("called");
         QDECREF(resp);
     }
+
     return 0;
 }
 
@@ -261,7 +262,6 @@ static int va_do_rpc(const char *method, const QDict *params,
     qdict_put_obj(payload, "method",
                   QOBJECT(qstring_from_str(method)));
     if (params) {
-        TRACE("marker");
         params_copy = va_qdict_copy(params);
         if (!params_copy) {
             LOG("error processing parameters");
@@ -273,21 +273,13 @@ static int va_do_rpc(const char *method, const QDict *params,
     }
 
     /* convert payload to json */
-    TRACE("marker");
     payload_json = qobject_to_json(QOBJECT(payload));
-    TRACE("marker");
-    /* TODO: why is this causing a:
-     * "free(): corrupted unsorted chunks: 0x0000000002cf1890" ??
-     */
     QDECREF(payload);
-    TRACE("marker");
     if (!payload_json) {
-        TRACE("marker");
         LOG("error converting request to json");
         ret = -EINVAL;
         goto out_free;
     }
-    TRACE("marker");
     req->payload = payload_json;
 
     /* TODO: should switch to UUIDs eventually */
@@ -312,16 +304,18 @@ out_free:
     return ret;
 }
 
-/* QMP/HMP RPC client functions */
-
-/* XXX: The JSON that generates the response may originate from untrusted
+/* validate the RPC response. if response indicates an error, log it
+ * to stderr/monitor. if return_data != NULL, return_data will be set
+ * to the response payload of the RPC if present, otherwise an error
+ * will be logged. if return_data == NULL, response payload is ignored,
+ * and only the RPC's error indicator is checked for success.
+ *
+ * XXX: The JSON that generates the response may originate from untrusted
  * sources such as an unsupported/malicious guest agent, so we must take
  * particular care to not make any assumptions about what the response
  * contains. In particular, always check for key existence, and no blind
  * qdict_get_<type>() calls since the value may be an unexpected type. This
  * also applies to the return_data we pass back to callers.
- *
- * TODO: Automating these checks somehow would be nice...
  */
 static bool va_check_response_ok(QDict *resp, QDict **return_data)
 {
@@ -329,15 +323,14 @@ static bool va_check_response_ok(QDict *resp, QDict **return_data)
     const char *errstr = NULL;
 
     TRACE("called");
+    /* TODO: not sure if errnum is of much use here */
     if (!resp) {
-        TRACE("marker");
         errnum = ENOMSG;
         errstr = "response is null";
         goto out_bad;
     }
     
     if (va_qdict_haskey_with_type(resp, "errnum", QTYPE_QINT)) {
-        TRACE("marker");
         errnum = qdict_get_int(resp, "errnum");
         if (errnum) {
             if (va_qdict_haskey_with_type(resp, "errstr", QTYPE_QSTRING)) {
@@ -346,19 +339,16 @@ static bool va_check_response_ok(QDict *resp, QDict **return_data)
             goto out_bad;
         }
     } else {
-        TRACE("marker");
         errnum = EINVAL;
         errstr = "response is missing error code";
         goto out_bad;
     }
     
     if (return_data) {
-        TRACE("marker");
         if (va_qdict_haskey_with_type(resp, "return_data", QTYPE_QDICT)) {
             TRACE("marker");
             *return_data = qdict_get_qdict(resp, "return_data");
         } else {
-            TRACE("marker");
             errnum = EINVAL;
             errstr = "response indicates success, but missing expected retval";
             goto out_bad;
@@ -370,6 +360,8 @@ out_bad:
     qerror_report(QERR_RPC_FAILED, errnum, errstr);
     return false;
 }
+
+/* QMP/HMP RPC client functions and their helpers */
 
 static void va_print_capability_iter(QObject *obj, void *opaque)
 {
@@ -388,7 +380,6 @@ void do_va_capabilities_print(Monitor *mon, const QObject *data)
     QDict *ret = qobject_to_qdict(data);
 
     TRACE("called");
-
     if (!data) {
         return;
     }
@@ -422,10 +413,8 @@ static void do_va_capabilities_cb(QDict *resp,
     ret_qobject = QOBJECT(ret);
 out:
     if (mon_cb) {
-        TRACE("called");
         mon_cb(mon_data, ret_qobject);
     }
-    TRACE("called");
 }
 
 /*
@@ -469,11 +458,9 @@ static void do_va_ping_cb(QDict *resp,
     qdict_put_obj(ret, "status", QOBJECT(qstring_from_str(status)));
 
     if (mon_cb) {
-        TRACE("called");
         mon_cb(mon_data, QOBJECT(ret));
     }
     QDECREF(ret);
-    TRACE("called");
 }
 
 /*
@@ -496,13 +483,12 @@ static void do_va_shutdown_cb(QDict *resp,
     TRACE("called");
     va_check_response_ok(resp, NULL); 
     if (mon_cb) {
-        TRACE("called");
         mon_cb(mon_data, NULL);
     }
 }
 
 /*
- * do_va_ping(): Ping the guest agent
+ * do_va_shutdown(): shutdown/powerdown/reboot the guest
  */
 int do_va_shutdown(Monitor *mon, const QDict *params,
                    MonitorCompletion cb, void *opaque)
@@ -515,6 +501,7 @@ int do_va_shutdown(Monitor *mon, const QDict *params,
 }
 
 /* RPC client functions called outside of HMP/QMP */
+
 int va_client_init_capabilities(void)
 {
     int ret = va_do_rpc("capabilities", NULL, do_va_capabilities_cb, NULL,
@@ -530,7 +517,8 @@ int va_send_hello(void)
 {
     int ret = va_do_rpc("hello", NULL, NULL, NULL, NULL);
     if (ret) {
-        LOG("error sending start up notification to host");
+        LOG("error sending start up notification to host: %s",
+            strerror(-ret));
     }
     return ret;
 }
