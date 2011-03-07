@@ -260,6 +260,10 @@ static void va_process_server_job(VAManager *m, VAServerJob *sj)
         case VA_SERVER_JOB_STATE_BUSY:
             TRACE("marker, server job currently busy");
             break;
+        case VA_SERVER_JOB_STATE_DONE:
+            TRACE("marker");
+            QTAILQ_REMOVE(&m->server_jobs, sj, next);
+            break;
         default:
             LOG("error, unknown server job state");
             break;
@@ -288,6 +292,7 @@ static void va_process_client_job(VAManager *m, VAClientJob *cj)
         case VA_CLIENT_JOB_STATE_DONE:
             TRACE("marker");
             QTAILQ_REMOVE(&m->client_jobs, cj, next);
+            break;
         case VA_CLIENT_JOB_STATE_BUSY:
             TRACE("marker, client job currently busy");
             break;
