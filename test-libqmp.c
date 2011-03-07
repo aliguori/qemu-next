@@ -7,6 +7,9 @@
 #include <stdlib.h>
 #include <glib.h>
 #include <sys/wait.h>
+#include <unistd.h>
+#include <errno.h>
+#include <string.h>
 #include "config-host.h"
 #include "libqmp.h"
 #include "ui/d3des.h"
@@ -239,11 +242,11 @@ static int vnc_connect(int port, const char *password)
     read_or_assert(s, &name_size, sizeof(name_size));
     name_size = ntohl(name_size);
 
-    name = qemu_mallocz(name_size + 1);
+    name = malloc(name_size + 1);
     read_or_assert(s, name, name_size);
     name[name_size] = 0;
 
-    qemu_free(name);
+    free(name);
 
     close(s);
 
@@ -808,8 +811,8 @@ static KeyValues *kv_alloc(const char *key, ...)
     va_start(ap, key);
     while (key) {
         KeyValues *kv = qmp_alloc_key_values();
-        kv->key = qemu_strdup(key);
-        kv->value = qemu_strdup(va_arg(ap, const char *));
+        kv->key = strdup(key);
+        kv->value = strdup(va_arg(ap, const char *));
         kv->next = kv_list;
         kv_list = kv;
         key = va_arg(ap, const char *);
