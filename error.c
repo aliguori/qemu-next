@@ -76,9 +76,9 @@ void error_free(Error *err)
 
 bool error_is_type(Error *err, const char *fmt)
 {
+    const char *error_class;
     char *ptr;
     char *end;
-    char classname[1024];
 
     ptr = strstr(fmt, "'class': '");
     assert(ptr != NULL);
@@ -86,11 +86,13 @@ bool error_is_type(Error *err, const char *fmt)
 
     end = strchr(ptr, '\'');
     assert(end != NULL);
-    
-    memcpy(classname, ptr, (end - ptr));
-    classname[(end - ptr)] = 0;
 
-    return strcmp(classname, error_get_field(err, "class")) == 0;
+    error_class = error_get_field(err, "class");
+    if (strlen(error_class) != end - ptr) {
+        return false;
+    }
+
+    return strncmp(ptr, error_class, end - ptr) == 0;
 }
 
 void error_propagate(Error **dst_err, Error *local_err)
