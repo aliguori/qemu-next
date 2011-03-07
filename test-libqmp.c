@@ -9,13 +9,7 @@
 #include <sys/wait.h>
 #include "config-host.h"
 #include "libqmp.h"
-#include "qerror.h"
 #include "ui/d3des.h"
-
-/**
- * TODO:
- *  3) figure out how to support errors without exposing qobject
- */
 
 #define g_assert_noerr(err) g_assert(err == NULL);
 #define g_assert_anyerr(err) g_assert(err != NULL);

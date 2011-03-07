@@ -14,11 +14,11 @@ void qmp_register_command(const char *name, QmpCommandFunc *fn);
 void qmp_register_stateful_command(const char *name, QmpStatefulCommandFunc *fn);
 void qmp_init_chardev(CharDriverState *chr);
 
+char *qobject_as_string(QObject *obj);
+
 typedef struct QmpUnixServer QmpUnixServer;
 QmpUnixServer *qmp_unix_server_new(const char *path);
 void qmp_unix_server_delete(QmpUnixServer *path);
-
-char *qobject_as_string(QObject *obj);
 
 typedef struct QmpSlot
 {
@@ -54,7 +54,6 @@ void qmp_signal_disconnect(QmpSignal *obj, int handle);
 void qmp_state_add_connection(QmpState *sess, const char *name, QmpSignal *obj, int handle, QmpConnection *conn);
 void qmp_state_del_connection(QmpState *sess, int global_handle, Error **errp);
 void qmp_state_event(QmpConnection *conn, QObject *data);
-void qmp_qmp_capabilities(QmpState *sess, Error **errp);
 
 #define signal_init(obj) do {          \
     (obj)->signal = qmp_signal_init(); \
@@ -75,6 +74,8 @@ void qmp_qmp_capabilities(QmpState *sess, Error **errp);
         (obj)->func(qmp__slot->opaque, ## __VA_ARGS__);      \
     }                                                        \
 } while(0)
+
+void qmp_qmp_capabilities(QmpState *sess, Error **errp);
 
 #endif
 
