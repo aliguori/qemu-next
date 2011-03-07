@@ -216,6 +216,15 @@ LIBQMP_OBJS += $(oslib-obj-y) $(trace-obj-y) qemu-malloc.o
 
 test-libqmp: test-libqmp.o $(LIBQMP_OBJS) qemu-timer-common.o
 
+check: test-libqmp
+	$(call quiet-command, ./test-libqmp, "  CHECK   $@")
+
+test-report.html: test-report.log
+	$(call quiet-command, gtester-report $< > $@, "  GEN   $@")
+
+test-report.log: test-libqmp
+	$(call quiet-command, gtester -k -o $@ ./test-libqmp 2>/dev/null >/dev/null || true, "  TEST  $<")
+
 clean:
 # avoid old build problems by removing potentially incorrect old files
 	rm -f config.mak op-i386.h opc-i386.h gen-op-i386.h op-arm.h opc-arm.h gen-op-arm.h
