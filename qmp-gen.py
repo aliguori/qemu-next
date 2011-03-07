@@ -69,16 +69,13 @@ def qmp_type_to_c(typename, retval=False, indent=0):
         return qmp_array_type_to_c(typename[0])
     elif is_dict(typename):
         string = 'struct {\n'
-        for key in typename:
-            name = key
-            if key.startswith('*'):
-                name = key[1:]
-                string += "%sbool has_%s;\n" % (genindent(indent + 4), c_var(name))
+        for argname, argtype, optional in parse_args(typename):
+            if optional:
+                string += "%sbool has_%s;\n" % (genindent(indent + 4), c_var(argname))
             string += "%s%s %s;\n" % (genindent(indent + 4),
-                                      qmp_type_to_c(typename[key],
-                                                    True,
+                                      qmp_type_to_c(argtype, True,
                                                     indent=(indent + 4)),
-                                      c_var(name))
+                                      c_var(argname))
         string += "%s}" % genindent(indent)
         return string
     elif typename == 'int':
@@ -106,17 +103,15 @@ def qmp_type_to_qobj_ctor(typename):
 def qmp_type_from_qobj(typename):
     return qobj_to_c(typename)
 
-def print_lib_decl(name, required, optional, retval, suffix=''):
+def print_lib_decl(name, options, retval, suffix=''):
     args = ['QmpSession *qmp__session']
-    for key in required:
-        args.append('%s %s' % (qmp_type_to_c(required[key]), c_var(key)))
-
-    for key in optional:
-        if optional[key] == '**':
-            args.append('KeyValues * %s' % c_var(key))
+    for argname, argtype, optional in parse_args(options):
+        if argtype == '**':
+            args.append('KeyValues * %s' % c_var(argname))
         else:
-            args.append('bool has_%s' % c_var(key))
-            args.append('%s %s' % (qmp_type_to_c(optional[key]), c_var(key)))
+            if optional:
+                args.append('bool has_%s' % c_var(argname))
+            args.append('%s %s' % (qmp_type_to_c(argtype), c_var(argname)))
 
     args.append('Error **qmp__err')
 
@@ -125,8 +120,8 @@ def print_lib_decl(name, required, optional, retval, suffix=''):
 def print_lib_event_decl(name, end=''):
     print 'static void libqmp_notify_%s(QDict *qmp__args, void *qmp__fn, void *qmp__opaque, Error **qmp__errp)%s' % (de_camel_case(qmp_event_to_c(name)), end)
 
-def print_lib_declaration(name, required, optional, retval):
-    print_lib_decl(name, required, optional, retval, ';')
+def print_lib_declaration(name, options, retval):
+    print_lib_decl(name, options, retval, ';')
 
 def parse_args(typeinfo):
     for member in typeinfo:
@@ -192,9 +187,9 @@ def print_lib_event_definition(name, typeinfo):
     print '    return;'
     print '}'
 
-def print_lib_definition(name, required, optional, retval):
+def print_lib_definition(name, options, retval):
     print
-    print_lib_decl(name, required, optional, retval)
+    print_lib_decl(name, options, retval)
     print '''{
     QDict *qmp__args = qdict_new();
     Error *qmp__local_err = NULL;'''
@@ -206,31 +201,25 @@ def print_lib_definition(name, required, optional, retval):
         print '    int qmp__global_handle = 0;'
     print
 
-    for key in required:
-        argname = key
-        argtype = required[key]
-        print '    qdict_put_obj(qmp__args, "%s", %s(%s));' % (key, qmp_type_to_qobj_ctor(argtype), c_var(argname))
-    if required:
-        print
-
-    for key in optional:
-        argname = key
-        argtype = optional[key]
-        if argtype.startswith('**'):
+    for argname, argtype, optional in parse_args(options):
+        if argtype == '**':
             print '''    {
         KeyValues *qmp__i;
         for (qmp__i = %s; qmp__i; qmp__i = qmp__i->next) {
             qdict_put(qmp__args, qmp__i->key, qstring_from_str(qmp__i->value));
         }
     }''' % c_var(argname)
-            continue
-        print '    if (has_%s) {' % c_var(argname)
-        print '        qdict_put_obj(qmp__args, "%s", %s(%s));' % (key, qmp_type_to_qobj_ctor(argtype), c_var(argname))
-        print '    }'
-        print
+        else:
+            indent = 4
+            if optional:
+                inprint('if (has_%s) {' % c_var(argname), indent)
+                indent += 4
+            inprint('qdict_put_obj(qmp__args, "%s", %s(%s));' % (argname, qmp_type_to_qobj_ctor(argtype), c_var(argname)), indent)
+            if optional:
+                indent -= 4
+                inprint('}', indent)
 
     print '    qmp__retval = qmp__session->dispatch(qmp__session, "%s", qmp__args, &qmp__local_err);' % name
-
     print
     print '    QDECREF(qmp__args);'
 
@@ -280,34 +269,28 @@ def print_lib_definition(name, required, optional, retval):
 
     print '}'
 
-def print_declaration(name, required, optional, retval):
+def print_declaration(name, options, retval):
     args = []
     if name in ['qmp_capabilities', 'put-event']:
         return
-    for key in required:
-        args.append('%s %s' % (qmp_type_to_c(required[key]), c_var(key)))
-
-    for key in optional:
-        if optional[key] == '**':
-            args.append('KeyValues * %s' % c_var(key))
+    for argname, argtype, optional in parse_args(options):
+        if argtype == '**':
+            args.append('KeyValues * %s' % c_var(argname))
         else:
-            args.append('bool has_%s' % c_var(key))
-            args.append('%s %s' % (qmp_type_to_c(optional[key]), c_var(key)))
-
+            if optional:
+                args.append('bool has_%s' % c_var(argname))
+            args.append('%s %s' % (qmp_type_to_c(argtype), c_var(argname)))
     args.append('Error **err')
 
     print '%s qmp_%s(%s);' % (qmp_type_to_c(retval, True), c_var(name), ', '.join(args))
 
-def print_definition(name, required, optional, retval):
+def print_definition(name, options, retval):
     if qmp_type_is_event(retval):
         arglist = ['void *opaque']
-        for member in event_types[retval]:
-            argname = c_var(member)
-            argtype = event_types[retval][member]
-            if argname[0] == '*':
-                argname = argname[1:]
-                arglist.append('bool has_%s' % argname)
-            arglist.append('%s %s' % (qmp_type_to_c(argtype), argname))
+        for argname, argtype, optional in parse_args(event_types[retval]):
+            if optional:
+                arglist.append('bool has_%s' % c_var(argname))
+            arglist.append('%s %s' % (qmp_type_to_c(argtype), c_var(argname)))
         print '''
 static void qmp_marshal_%s(%s)
 {
@@ -315,19 +298,15 @@ static void qmp_marshal_%s(%s)
     QmpConnection *qmp__conn = opaque;
 ''' % (qmp_event_to_c(retval), ', '.join(arglist))
 
-        for member in event_types[retval]:
-            argname = member
-            argtype = event_types[retval][member]
-            opt = False
-            if argname[0] == '*':
-                argname = argname[1:]
-                opt = True
-            if opt:
-                print '    if (has_%s) {' % c_var(argname)
-                print '        qdict_put_obj(qmp__args, "%s", %s(%s));' % (argname, qmp_type_to_qobj_ctor(argtype), c_var(argname))
-                print '    }'
-            else:
-                print '    qdict_put_obj(qmp__args, "%s", %s(%s));' % (argname, qmp_type_to_qobj_ctor(argtype), c_var(argname))
+        indent = 4
+        for argname, argtype, optional in parse_args(event_types[retval]):
+            if optional:
+                inprint('if (has_%s) {' % c_var(argname), indent)
+                indent += 4
+            inprint('qdict_put_obj(qmp__args, "%s", %s(%s));' % (argname, qmp_type_to_qobj_ctor(argtype), c_var(argname)), indent)
+            if optional:
+                indent -= 4
+                inprint('}', indent)
 
         print '''
     qmp_state_event(qmp__conn, QOBJECT(qmp__args));
@@ -348,15 +327,13 @@ static void qmp_marshal_%s(const QDict *qdict, QObject **ret_data, Error **err)
 {''' % c_var(name)
     print '    Error *qmp__err = NULL;'
 
-    for key in required:
-        print '    %s %s = 0;' % (qmp_type_to_c(required[key], True), c_var(key))
-
-    for key in optional:
-        if optional[key] == '**':
-            print '    KeyValues * %s = 0;' % c_var(key)
+    for argname, argtype, optional in parse_args(options):
+        if argtype == '**':
+            print '    KeyValues * %s = 0;' % c_var(argname)
         else:
-            print '    bool has_%s = false;' % (c_var(key))
-            print '    %s %s = 0;' % (qmp_type_to_c(optional[key], True), c_var(key))
+            if optional:
+                print '    bool has_%s = false;' % (c_var(argname))
+            print '    %s %s = 0;' % (qmp_type_to_c(argtype, True), c_var(argname))
 
     if retval != 'none':
         print '    %s qmp_retval = 0;' % (qmp_type_to_c(retval, True))
@@ -364,8 +341,49 @@ static void qmp_marshal_%s(const QDict *qdict, QObject **ret_data, Error **err)
     print '''
     (void)qmp__err;'''
 
-    for key in required:
-        print '''
+    for argname, argtype, optional in parse_args(options):
+        if argtype == '**':
+            print '''
+    {
+        const QDictEntry *qmp__qdict_i;
+
+        %s = NULL;
+        for (qmp__qdict_i = qdict_first(qdict); qmp__qdict_i; qmp__qdict_i = qdict_next(qdict, qmp__qdict_i)) {
+            KeyValues *qmp__i;''' % c_var(argname)
+            for argname1, argtype1, optional1 in parse_args(options):
+                if argname1 == argname:
+                    continue
+                print '''            if (strcmp(qmp__qdict_i->key, "%s") == 0) {
+                continue;
+            }''' % argname1
+            print '''
+            qmp__i = qmp_alloc_key_values();
+            qmp__i->key = qemu_strdup(qmp__qdict_i->key);
+            qmp__i->value = qobject_as_string(qmp__qdict_i->value);
+            qmp__i->next = %s;
+            %s = qmp__i;
+        }
+    }''' % (c_var(argname), c_var(argname))
+        elif optional:
+            print '''
+    if (qdict_haskey(qdict, "%s")) {
+        %s = %s(qdict_get(qdict, "%s"), &qmp__err);
+        if (qmp__err) {
+            if (error_is_type(qmp__err, QERR_INVALID_PARAMETER_TYPE)) {
+                error_set(err, QERR_INVALID_PARAMETER_TYPE, "%s",
+                          error_get_field(qmp__err, "expected"));
+                error_free(qmp__err);
+                qmp__err = NULL;
+            } else {
+                error_propagate(err, qmp__err);
+            }
+            goto qmp__out;
+        }
+        has_%s = true;
+    }
+''' % (argname, c_var(argname), qmp_type_from_qobj(argtype), argname, argname, c_var(argname))
+        else:
+            print '''
     if (!qdict_haskey(qdict, "%s")) {
         error_set(err, QERR_MISSING_PARAMETER, "%s");
         goto qmp__out;
@@ -383,59 +401,13 @@ static void qmp_marshal_%s(const QDict *qdict, QObject **ret_data, Error **err)
         }
         goto qmp__out;
     }
-''' % (key, key, c_var(key), qmp_type_from_qobj(required[key]), key, key)
-
-    for key in optional:
-        if optional[key] == '**':
-            print '''
-    {
-        const QDictEntry *qmp__qdict_i;
-
-        %s = NULL;
-        for (qmp__qdict_i = qdict_first(qdict); qmp__qdict_i; qmp__qdict_i = qdict_next(qdict, qmp__qdict_i)) {
-            KeyValues *qmp__i;''' % c_var(key)
-            for key1 in required.keys() + optional.keys():
-                if key1 == key:
-                    continue
-                print '''            if (strcmp(qmp__qdict_i->key, "%s") == 0) {
-                continue;
-            }''' % key1
-            print '''
-            qmp__i = qmp_alloc_key_values();
-            qmp__i->key = qemu_strdup(qmp__qdict_i->key);
-            qmp__i->value = qobject_as_string(qmp__qdict_i->value);
-            qmp__i->next = %s;
-            %s = qmp__i;
-        }
-    }''' % (c_var(key), c_var(key))
-        else:
-            print '''
-    if (qdict_haskey(qdict, "%s")) {
-        %s = %s(qdict_get(qdict, "%s"), &qmp__err);
-        if (qmp__err) {
-            if (error_is_type(qmp__err, QERR_INVALID_PARAMETER_TYPE)) {
-                error_set(err, QERR_INVALID_PARAMETER_TYPE, "%s",
-                          error_get_field(qmp__err, "expected"));
-                error_free(qmp__err);
-                qmp__err = NULL;
-            } else {
-                error_propagate(err, qmp__err);
-            }
-            goto qmp__out;
-        }
-        has_%s = true;
-    }
-''' % (key, c_var(key), qmp_type_from_qobj(optional[key]), key, key, c_var(key))
+''' % (argname, argname, c_var(argname), qmp_type_from_qobj(argtype), argname, argname)
 
     args = []
-    for key in required:
-        args.append(c_var(key))
-    for key in optional:
-        if optional[key] == '**':
-            args.append(c_var(key))
-        else:
-            args.append('has_%s' % c_var(key))
-            args.append(c_var(key))
+    for argname, argtype, optional in parse_args(options):
+        if optional and argtype != '**':
+            args.append('has_%s' % c_var(argname))
+        args.append(c_var(argname))
     args.append('err')
 
     if name in ['qmp_capabilities', 'put-event']:
@@ -482,18 +454,18 @@ static void qmp_marshal_%s(const QDict *qdict, QObject **ret_data, Error **err)
         print '    qemu_free(qmp__connection);'
     print
     args = []
-    for argname in required:
-        argtype = required[argname]
-        if qmp_type_should_free(argtype):
-            print '    %s(%s);' % (qmp_free_func(argtype), c_var(argname))
-    for argname in optional:
-        argtype = optional[argname]
+    for argname, argtype, optional in parse_args(options):
         if argtype == '**':
             print '    %s(%s);' % (qmp_free_func('KeyValues'), c_var(argname))
         elif qmp_type_should_free(argtype):
-            print '    if (has_%s) {' % c_var(argname)
-            print '        %s(%s);' % (qmp_free_func(argtype), c_var(argname))
-            print '    }'
+            indent = 4
+            if optional:
+                inprint('if (has_%s) {' % c_var(argname), indent)
+                indent += 4
+            inprint('%s(%s);' % (qmp_free_func(argtype), c_var(argname)), indent)
+            if optional:
+                indent -= 4
+                inprint('}', indent)
     if retval != 'none':
         if qmp_type_should_free(retval):
             print '    %s(%s);' % (qmp_free_func(retval), 'qmp_retval')
@@ -674,12 +646,10 @@ def print_type_declaration(name, typeinfo):
         print
         print "typedef struct %s %s;" % (name, name)
         print "struct %s {" % name
-        for key in typeinfo:
-            member = key
-            if key.startswith('*'):
-                member = key[1:]
-                print "    bool has_%s;" % c_var(member)
-            print "    %s %s;" % (qmp_type_to_c(typeinfo[key], True, indent=4), c_var(member))
+        for argname, argtype, optional in parse_args(typeinfo):
+            if optional:
+                print "    bool has_%s;" % c_var(argname)
+            print "    %s %s;" % (qmp_type_to_c(argtype, True, indent=4), c_var(argname))
         print "    %s *next;" % c_var(name)
         print "};"
         print
@@ -723,17 +693,15 @@ def print_metatype_def(typeinfo, name, lhs, indent=0):
         inprint('        QDict *qmp__dict = qdict_new();', indent)
         inprint('        QObject *%s;' % new_lhs, indent)
         print
-        for key in typeinfo:
-            member = key
-            if key.startswith('*'):
-                member = key[1:]
-                inprint('        if (%s%shas_%s) {' % (name, sep, c_var(member)), indent)
-                print_metatype_def(typeinfo[key], '%s%s%s' % (name, sep, c_var(member)), new_lhs, indent + 8)
-                inprint('            qdict_put_obj(qmp__dict, "%s", %s);' % (member, new_lhs), indent)
+        for argname, argtype, optional in parse_args(typeinfo):
+            if optional:
+                inprint('        if (%s%shas_%s) {' % (name, sep, c_var(argname)), indent)
+                indent += 4
+            print_metatype_def(argtype, '%s%s%s' % (name, sep, c_var(argname)), new_lhs, indent + 4)
+            inprint('            qdict_put_obj(qmp__dict, "%s", %s);' % (argname, new_lhs), indent)
+            if optional:
+                indent -= 4
                 inprint('        }', indent)
-            else:
-                print_metatype_def(typeinfo[key], '%s%s%s' % (name, sep, c_var(member)), new_lhs, indent + 4)
-                inprint('        qdict_put_obj(qmp__dict, "%s", %s);' % (member, new_lhs), indent)
             print
         inprint('        %s = QOBJECT(qmp__dict);' % lhs, indent)
         inprint('    }', indent)
@@ -770,23 +738,18 @@ def print_metatype_undef(typeinfo, name, lhs, indent=0):
         inprint('{', indent)
         inprint('    QDict *qmp__dict = qobject_to_qdict(%s);' % c_var(name), indent)
         inprint('    QObject *%s;' % objname, indent)
-        for key in typeinfo:
-            member = key
-            optional = False
-            if key.startswith('*'):
-                member = key[1:]
-                optional = True
+        for argname, argtype, optional in parse_args(typeinfo):
             if optional:
-                inprint('if (qdict_haskey(qmp__dict, "%s")) {' % (member), indent + 4)
-                inprint('    %s = qdict_get(qmp__dict, "%s");' % (objname, member), indent + 4)
-                inprint('    %s%shas_%s = true;' % (lhs, sep, c_var(member)), indent + 4)
-                print_metatype_undef(typeinfo[key], objname, '%s%s%s' % (lhs, sep, c_var(member)), indent + 4)
+                inprint('if (qdict_haskey(qmp__dict, "%s")) {' % (argname), indent + 4)
+                indent += 4
+            inprint('    %s = qdict_get(qmp__dict, "%s");' % (objname, argname), indent)
+            print_metatype_undef(argtype, objname, '%s%s%s' % (lhs, sep, c_var(argname)), indent)
+            if optional:
+                indent -= 4
+                inprint('    %s%shas_%s = true;' % (lhs, sep, c_var(argname)), indent + 4)
                 inprint('} else {', indent + 4)
-                inprint('    %s%shas_%s = false;' % (lhs, sep, c_var(member)), indent + 4)
+                inprint('    %s%shas_%s = false;' % (lhs, sep, c_var(argname)), indent + 4)
                 inprint('}', indent + 4)
-            else:
-                inprint('%s = qdict_get(qmp__dict, "%s");' % (objname, key), indent + 4)
-                print_metatype_undef(typeinfo[key], objname, '%s%s%s' % (lhs, sep, c_var(member)), indent)
         inprint('}', indent)
     elif type(typeinfo) == list:
         objname = 'qmp__object%d' % ((indent - 4) / 4)
@@ -1072,15 +1035,15 @@ for s in exprs:
             elif kind == 'qdev-body':
                 print_qdev_definition(key, s[key])
     else:
-        name, required, optional, retval = s
+        name, options, retval = s
         if kind == 'body':
-            print_definition(name, required, optional, retval)
+            print_definition(name, options, retval)
         elif kind == 'header':
-            print_declaration(name, required, optional, retval)
+            print_declaration(name, options, retval)
         elif kind == 'lib-body':
-            print_lib_definition(name, required, optional, retval)
+            print_lib_definition(name, options, retval)
         elif kind == 'lib-header':
-            print_lib_declaration(name, required, optional, retval)
+            print_lib_declaration(name, options, retval)
 
 if kind.endswith('header'):
     print '#endif'
@@ -1091,7 +1054,7 @@ elif kind == 'body':
     for s in exprs:
         if type(s) != list:
             continue
-        if qmp_type_is_event(s[3]) or s[0] in ['qmp_capabilities', 'put-event']:
+        if qmp_type_is_event(s[2]) or s[0] in ['qmp_capabilities', 'put-event']:
             print '    qmp_register_stateful_command("%s", &qmp_marshal_%s);' % (s[0], c_var(s[0]))
         else:
             print '    qmp_register_command("%s", &qmp_marshal_%s);' % (s[0], c_var(s[0]))
