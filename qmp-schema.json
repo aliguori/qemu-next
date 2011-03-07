@@ -1,4 +1,52 @@
 # *-*- Mode: Python -*-*
+
+##
+# QMP Schema
+#
+# This file defines the types, commands, and events used by QMP.  It should
+# fully describe the interface used by QMP.
+#
+# This file is designed to be loosely based on JSON although it's technical
+# executable Python.  While dictionaries are used, they are parsed as
+# OrderedDicts so that ordering is preserved.
+#
+# There are two basic syntaxes used.  The first syntax defines a type and is
+# represented by a dictionary.  There are three kinds of types that are
+# supported.
+#
+# A complex type is a dictionary containing a single key who's value is a
+# dictionary.  This corresponds to a struct in C or an Object in JSON.  An
+# example of a complex type is:
+#
+#  { 'MyType': { 'member1': 'str', 'member2': 'int', '*member3': 'str } }
+#
+# The use of '*' as a prefix to the name means the member is optional.  Optional
+# members should always be added to the end of the dictionary to preserve
+# backwards compatibility.
+#
+# An enumeration type is a dictionary containing a single key who's value is a
+# list of strings.  An example enumeration is:
+#
+#  { 'MyEnum': [ 'value1', 'value2', 'value3' ] }
+#
+# A signal is similar in form to a complex type except the single key is
+# entirely upper case instead of CamelCase.  An example signal is:
+#
+#  { 'MY_SIGNAL': { 'arg1': 'str', 'arg2': 'str' } }
+#
+# Generally speaking, complex types and enums should always use CamelCase for
+# the type names.
+#
+# Commands are defined by using a list containing three members.  The first
+# member is the command name, the second member is a dictionary containing
+# arguments, and the third member is the return type.
+#
+# An example command is:
+#
+#  [ 'my-command', { 'arg1': 'str', '*arg2': 'str' }, 'none' ]
+#
+# Command names should be all lower case with words separated by a hyphen.
+
 ### 0.14.0 commands.  Do not modify. ###
 
 ##
