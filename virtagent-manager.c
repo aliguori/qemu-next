@@ -23,6 +23,7 @@ typedef struct VAServerJob {
         VA_SERVER_JOB_STATE_BUSY,
         VA_SERVER_JOB_STATE_EXECUTED,
         VA_SERVER_JOB_STATE_SENT,
+        VA_SERVER_JOB_STATE_DONE,
     } state;
 } VAServerJob;
 
@@ -50,8 +51,6 @@ struct VAManager {
     QTAILQ_HEAD(, VAServerJob) server_jobs;
     QTAILQ_HEAD(, VAClientJob) client_jobs;
 };
-
-//static void va_kick(VAManager *m);
 
 /* server job operations/helpers */
 
@@ -128,6 +127,7 @@ static void va_server_job_callback(VAServerJob *j)
     if (j->ops.callback) {
         j->ops.callback(j->opaque, j->tag);
     }
+    j->state = VA_SERVER_JOB_STATE_DONE;
 }
 
 void va_server_job_cancel(VAManager *m, const char *tag)

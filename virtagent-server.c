@@ -51,16 +51,6 @@ static QDict *va_server_format_response(QDict *return_data, int errnum,
     if (return_data) {
         qdict_put_obj(response, "return_data", QOBJECT(return_data));
     }
-    TRACE("response: %p", response);
-    TRACE("marker");
-    QObject *tmp_qobj = QOBJECT(response);
-    TRACE("marker");
-    QString *tmp_qstr = qobject_to_json(tmp_qobj);
-    TRACE("marker");
-    const char *tmp_json = qstring_get_str(tmp_qstr);
-    TRACE("marker");
-    TRACE("formatted rpc json response:\n%s\n", tmp_json);
-
 
     return response;
 }
@@ -204,7 +194,7 @@ static bool va_server_is_enabled(void)
 
 typedef struct VARequestData {
     QDict *request;
-    QDict *response;
+    QString *response;
 } VARequestData;
 
 static int va_do_server_rpc(VARequestData *d, const char *tag)
@@ -228,7 +218,6 @@ static int va_do_server_rpc(VARequestData *d, const char *tag)
         goto out;
     }
 
-    TRACE("marker");
     if (!va_qdict_haskey_with_type(d->request, "method", QTYPE_QSTRING)) {
         ret = -EINVAL;
         va_server_job_cancel(va_server_data->manager, tag);
@@ -256,7 +245,11 @@ static int va_do_server_rpc(VARequestData *d, const char *tag)
         }
     }
     /* TODO: store the json rather than the QDict that generates it */
-    d->response = response;
+    d->response = qobject_to_json(QOBJECT(response));
+    if (!d->response) {
+        ret = -EINVAL;
+        goto out;
+    }
 
     va_server_job_execute_done(va_server_data->manager, tag);
 
@@ -316,8 +309,7 @@ static int va_send_response(void *opaque, const char *tag)
         ret = -EINVAL;
         goto out_cancel;
     }
-    json_resp = qstring_get_str(qobject_to_json(QOBJECT(d->response)));
-    TRACE("marker");
+    json_resp = qstring_get_str(d->response);
     if (!json_resp) {
         ret = -EINVAL;
         LOG("server generated invalid JSON response");
