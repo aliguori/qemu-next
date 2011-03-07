@@ -228,12 +228,8 @@ QError *qerror_new(void)
 
 static void parse_error(const QErrorStringTable *entry, int c)
 {
-#if 0
-    qerror_abort(qerror, "expected '%c' in '%s'", c, entry->desc);
-#else
     fprintf(stderr, "expected '%c' in '%s'", c, entry->desc);
     abort();
-#endif
 }
 
 void qerror_set_desc(QError *qerr, const char *fmt)
@@ -249,11 +245,7 @@ void qerror_set_desc(QError *qerr, const char *fmt)
         }
     }
 
-#if 0
-    qerror_abort(qerr, "error format '%s' not found", fmt);
-#else
     abort();
-#endif
 }
 
 static const char *append_field(QDict *error, QString *outstr,
@@ -282,11 +274,7 @@ static const char *append_field(QDict *error, QString *outstr,
     qdict = qobject_to_qdict(qdict_get(error, "data"));
     obj = qdict_get(qdict, key);
     if (!obj) {
-#if 0
-        qerror_abort(qerror, "key '%s' not found in QDict", key);
-#else
         abort();
-#endif
     }
 
     switch (qobject_type(obj)) {
@@ -297,11 +285,7 @@ static const char *append_field(QDict *error, QString *outstr,
             qstring_append_int(outstr, qdict_get_int(qdict, key));
             break;
         default:
-#if 0
-            qerror_abort(qerror, "invalid type '%c'", qobject_type(obj));
-#else
             abort();
-#endif
     }
 
     QDECREF(key_qs);
