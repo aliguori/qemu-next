@@ -79,5 +79,7 @@ void qmp_state_event(QmpConnection *conn, QObject *data);
 
 void qmp_qmp_capabilities(QmpState *sess, Error **errp);
 
+QObject *qmp_guest_dispatch(const char *name, const QDict *args, Error **errp);
+
 #endif
 

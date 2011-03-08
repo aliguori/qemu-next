@@ -103,8 +103,11 @@ def qmp_type_to_qobj_ctor(typename):
 def qmp_type_from_qobj(typename):
     return qobj_to_c(typename)
 
-def print_lib_decl(name, options, retval, suffix=''):
-    args = ['QmpSession *qmp__session']
+def print_lib_decl(name, options, retval, suffix='', guest=False):
+    if guest:
+        args = []
+    else:
+        args = ['QmpSession *qmp__session']
     for argname, argtype, optional in parse_args(options):
         if argtype == '**':
             args.append('KeyValues * %s' % c_var(argname))
@@ -115,12 +118,17 @@ def print_lib_decl(name, options, retval, suffix=''):
 
     args.append('Error **qmp__err')
 
-    print '%s libqmp_%s(%s)%s' % (qmp_type_to_c(retval, True), c_var(name), ', '.join(args), suffix)
+    if guest:
+        prefix = 'qmp'
+    else:
+        prefix = 'libqmp'
+
+    print '%s %s_%s(%s)%s' % (qmp_type_to_c(retval, True), prefix, c_var(name), ', '.join(args), suffix)
 
 def print_lib_event_decl(name, end=''):
     print 'static void libqmp_notify_%s(QDict *qmp__args, void *qmp__fn, void *qmp__opaque, Error **qmp__errp)%s' % (de_camel_case(qmp_event_to_c(name)), end)
 
-def print_lib_declaration(name, options, retval):
+def print_lib_declaration(name, options, retval, guest=False):
     print_lib_decl(name, options, retval, ';')
 
 def parse_args(typeinfo):
@@ -187,9 +195,9 @@ def print_lib_event_definition(name, typeinfo):
     print '    return;'
     print '}'
 
-def print_lib_definition(name, options, retval):
+def print_lib_definition(name, options, retval, guest=False):
     print
-    print_lib_decl(name, options, retval)
+    print_lib_decl(name, options, retval, guest=guest)
     print '''{
     QDict *qmp__args = qdict_new();
     Error *qmp__local_err = NULL;'''
@@ -219,7 +227,10 @@ def print_lib_definition(name, options, retval):
                 indent -= 4
                 inprint('}', indent)
 
-    print '    qmp__retval = qmp__session->dispatch(qmp__session, "%s", qmp__args, &qmp__local_err);' % name
+    if guest:
+        print '    qmp__retval = qmp_guest_dispatch("%s", qmp__args, &qmp__local_err);' % (name)
+    else:
+        print '    qmp__retval = qmp__session->dispatch(qmp__session, "%s", qmp__args, &qmp__local_err);' % (name)
     print
     print '    QDECREF(qmp__args);'
 
@@ -245,6 +256,8 @@ def print_lib_definition(name, options, retval):
         print '    // FIXME (using an anonymous dict as return value)'
         print '    BUILD_BUG();'
     elif qmp_type_is_event(retval):
+        if guest:
+            print '    BUILD_BUG();'
         print '''    if (!qmp__local_err) {
         qmp__global_handle = %s(qmp__retval, &qmp__local_err);
         qobject_decref(qmp__retval);
@@ -1037,6 +1050,8 @@ for s in exprs:
     else:
         name, options, retval = s
         if kind == 'body':
+            if name.startswith('guest-'):
+                print_lib_definition(name, options, retval, guest=True)
             print_definition(name, options, retval)
         elif kind == 'header':
             print_declaration(name, options, retval)

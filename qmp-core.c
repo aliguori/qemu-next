@@ -857,3 +857,7 @@ void qmp_signal_disconnect(QmpSignal *obj, int handle)
     }
 }
 
+QObject *qmp_guest_dispatch(const char *name, const QDict *args, Error **errp)
+{
+    return NULL;
+}

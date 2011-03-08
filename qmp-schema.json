@@ -1350,3 +1350,5 @@
 { 'VirtioNetTxStrategy': ['bh', 'timer'] }
 { 'GuestInfo': {'*name': 'str', '*pid': 'int'} }
 
+[ 'guest-ping', {}, 'none' ]
+[ 'guest-view-file', { 'filename': 'str' }, 'str' ]
