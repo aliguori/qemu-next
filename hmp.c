@@ -380,6 +380,7 @@ void hmp_info_version(Monitor *mon)
     qmp_free_version_info(info);
 }
 
+#if 0
 void hmp_info_status(Monitor *mon)
 {
     StatusInfo *info;
@@ -392,6 +393,23 @@ void hmp_info_status(Monitor *mon)
 
     qmp_free_status_info(info);
 }
+#else
+static void hmp_info_status_cb(void *opaque, StatusInfo *info, Error *err)
+{
+    Monitor *mon = opaque;
+
+    monitor_printf(mon, "VM status: %s%s\n",
+                   info->running ? "running" : "paused",
+                   info->singlestep ? " (single step mode)" : "");
+    monitor_resume(mon);
+}
+
+void hmp_info_status(Monitor *mon)
+{
+    qmp_query_status(NULL, hmp_info_status_cb, mon);
+    monitor_suspend(mon);
+}
+#endif
 
 void hmp_info_block(Monitor *mon)
 {

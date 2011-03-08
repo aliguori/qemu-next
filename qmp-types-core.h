@@ -6,6 +6,7 @@
 #include "error.h"
 
 typedef struct QmpSignal QmpSignal;
+typedef struct QmpCommandState QmpCommandState;
 
 #define BUILD_ASSERT(cond) do {     \
     (void)sizeof(int[-1+!!(cond)]); \

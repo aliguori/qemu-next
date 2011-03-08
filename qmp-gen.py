@@ -103,7 +103,10 @@ def qmp_type_to_qobj_ctor(typename):
 def qmp_type_from_qobj(typename):
     return qobj_to_c(typename)
 
-def print_lib_decl(name, options, retval, suffix='', guest=False):
+def qmp_is_async_cmd(name):
+    return (name.startswith('guest-') or name in ['query-status'])
+
+def print_lib_decl(name, options, retval, suffix='', guest=False, async=False):
     if guest:
         args = []
     else:
@@ -128,7 +131,7 @@ def print_lib_decl(name, options, retval, suffix='', guest=False):
 def print_lib_event_decl(name, end=''):
     print 'static void libqmp_notify_%s(QDict *qmp__args, void *qmp__fn, void *qmp__opaque, Error **qmp__errp)%s' % (de_camel_case(qmp_event_to_c(name)), end)
 
-def print_lib_declaration(name, options, retval, guest=False):
+def print_lib_declaration(name, options, retval):
     print_lib_decl(name, options, retval, ';')
 
 def parse_args(typeinfo):
@@ -195,9 +198,9 @@ def print_lib_event_definition(name, typeinfo):
     print '    return;'
     print '}'
 
-def print_lib_definition(name, options, retval, guest=False):
+def print_lib_definition(name, options, retval, guest=False, async=False):
     print
-    print_lib_decl(name, options, retval, guest=guest)
+    print_lib_decl(name, options, retval, guest=guest, async=async)
     print '''{
     QDict *qmp__args = qdict_new();
     Error *qmp__local_err = NULL;'''
@@ -282,10 +285,20 @@ def print_lib_definition(name, options, retval, guest=False):
 
     print '}'
 
-def print_declaration(name, options, retval):
+def print_async_fn_decl(name, options, retval):
+    if retval == 'none':
+        print 'typedef void (%sCompletionFunc)(void *qmp__opaque, Error *qmp__err);' % (camel_case(name))
+    else:
+        print 'typedef void (%sCompletionFunc)(void *qmp__opaque, %s qmp__retval, Error *qmp__err);' % (camel_case(name), qmp_type_to_c(retval))
+
+def print_declaration(name, options, retval, async=False):
     args = []
     if name in ['qmp_capabilities', 'put-event']:
         return
+
+    if async:
+        print_async_fn_decl(name, options, retval)
+
     for argname, argtype, optional in parse_args(options):
         if argtype == '**':
             args.append('KeyValues * %s' % c_var(argname))
@@ -295,9 +308,60 @@ def print_declaration(name, options, retval):
             args.append('%s %s' % (qmp_type_to_c(argtype), c_var(argname)))
     args.append('Error **err')
 
-    print '%s qmp_%s(%s);' % (qmp_type_to_c(retval, True), c_var(name), ', '.join(args))
+    if async:
+        args.append('%sCompletionFunc *qmp__cc' % camel_case(name))
+        args.append('void *qmp__opaque')
+        qmp_retval = 'void'
+    else:
+        qmp_retval = qmp_type_to_c(retval, True)
 
-def print_definition(name, options, retval):
+    print '%s qmp_%s(%s);' % (qmp_retval, c_var(name), ', '.join(args))
+
+def print_async_definition(name, options, retval):
+    print
+    if retval == 'none':
+        print 'static void qmp_async_completion_%s(void *qmp__opaque, Error *qmp__err)' % c_var(name)
+    else:
+        print 'static void qmp_async_completion_%s(void *qmp__opaque, %s qmp__retval, Error *qmp__err)' % (c_var(name), qmp_type_to_c(retval))
+    print '{'
+    if retval != 'none':
+        print '    QObject *qmp__ret_data;'
+    print '    QmpCommandState *qmp__cmd = qmp__opaque;'
+    print
+    print '    if (qmp__err) {'
+    print '        qmp_async_complete_command(qmp__cmd, NULL, qmp__err);'
+    print '        return;'
+    print '    }'
+    if retval == 'none':
+        pass
+    elif type(retval) == str:
+        print
+        print '    qmp__ret_data = %s(qmp__retval);' % qmp_type_to_qobj_ctor(retval)
+    elif type(retval) == list:
+        print
+        print '''    qmp__ret_data = QOBJECT(qlist_new());
+    if (qmp__retval) {
+        QList *list = qobject_to_qlist(qmp__ret_data);
+        %s i;
+        for (i = qmp__retval; i != NULL; i = i->next) {
+            QObject *obj = %s(i);
+            qlist_append_obj(list, obj);
+        }
+    }''' % (qmp_type_to_c(retval[0], True), qmp_type_to_qobj_ctor(retval[0]))
+
+    print
+    print '    qmp_async_complete_command(qmp__cmd, qmp__ret_data, NULL);'
+
+    if retval != 'none':
+        if qmp_type_should_free(retval):
+            print
+            print '    %s(%s);' % (qmp_free_func(retval), 'qmp__retval')
+    print '}'
+
+def print_definition(name, options, retval, async=False):
+    if async:
+        print_async_definition(name, options, retval)     
+
     if qmp_type_is_event(retval):
         arglist = ['void *opaque']
         for argname, argtype, optional in parse_args(event_types[retval]):
@@ -334,6 +398,10 @@ static void qmp_marshal_%s(QmpState *qmp__sess, const QDict *qdict, QObject **re
         print '''
 static void qmp_marshal_%s(QmpState *qmp__sess, const QDict *qdict, QObject **ret_data, Error **err)
 {''' % c_var(name)
+    elif async:
+        print '''
+static void qmp_async_marshal_%s(const QDict *qdict, Error **err, QmpCommandState *qmp__cmd)
+{''' % c_var(name)
     else:
         print '''
 static void qmp_marshal_%s(const QDict *qdict, QObject **ret_data, Error **err)
@@ -348,7 +416,7 @@ static void qmp_marshal_%s(const QDict *qdict, QObject **ret_data, Error **err)
                 print '    bool has_%s = false;' % (c_var(argname))
             print '    %s %s = 0;' % (qmp_type_to_c(argtype, True), c_var(argname))
 
-    if retval != 'none':
+    if retval != 'none' and not async:
         print '    %s qmp_retval = 0;' % (qmp_type_to_c(retval, True))
 
     print '''
@@ -426,12 +494,16 @@ static void qmp_marshal_%s(const QDict *qdict, QObject **ret_data, Error **err)
     if name in ['qmp_capabilities', 'put-event']:
         args = ['qmp__sess'] + args
 
+    if async:
+        args.append('qmp_async_completion_%s' % c_var(name))
+        args.append('qmp__cmd')
+
     arglist = ', '.join(args)
     fn = 'qmp_%s' % c_var(name)
 
     if name == 'put-event':
         print '    qmp_state_del_connection(%s);' % arglist
-    elif retval == 'none':
+    elif retval == 'none' or async:
         print '    %s(%s);' % (fn, arglist)
     else:
         print '    qmp_retval = %s(%s);' % (fn, arglist)
@@ -441,7 +513,7 @@ static void qmp_marshal_%s(const QDict *qdict, QObject **ret_data, Error **err)
         goto qmp__out;
     }'''
 
-    if retval == 'none':
+    if retval == 'none' or async:
         pass
     elif qmp_type_is_event(retval):
         print '    qmp__handle = signal_connect(qmp_retval, qmp_marshal_%s, qmp__connection);' % (qmp_event_to_c(retval))
@@ -479,7 +551,7 @@ static void qmp_marshal_%s(const QDict *qdict, QObject **ret_data, Error **err)
             if optional:
                 indent -= 4
                 inprint('}', indent)
-    if retval != 'none':
+    if retval != 'none' and not async:
         if qmp_type_should_free(retval):
             print '    %s(%s);' % (qmp_free_func(retval), 'qmp_retval')
     print '    return;'
@@ -498,7 +570,7 @@ def camel_case(name):
     new_name = ''
     first = True
     for ch in name:
-        if ch == '_':
+        if ch in ['_', '-']:
             first = True
         elif first:
             new_name += ch.upper()
@@ -1050,11 +1122,13 @@ for s in exprs:
     else:
         name, options, retval = s
         if kind == 'body':
-            if name.startswith('guest-'):
-                print_lib_definition(name, options, retval, guest=True)
-            print_definition(name, options, retval)
+            async = qmp_is_async_cmd(name)
+#            if name.startswith('guest-'):
+#                print_lib_definition(name, options, retval, guest=True, async=async)
+            print_definition(name, options, retval, async=async)
         elif kind == 'header':
-            print_declaration(name, options, retval)
+            async = qmp_is_async_cmd(name)
+            print_declaration(name, options, retval, async=async)
         elif kind == 'lib-body':
             print_lib_definition(name, options, retval)
         elif kind == 'lib-header':
@@ -1069,8 +1143,11 @@ elif kind == 'body':
     for s in exprs:
         if type(s) != list:
             continue
+        async = qmp_is_async_cmd(s[0])
         if qmp_type_is_event(s[2]) or s[0] in ['qmp_capabilities', 'put-event']:
             print '    qmp_register_stateful_command("%s", &qmp_marshal_%s);' % (s[0], c_var(s[0]))
+        elif async:
+            print '    qmp_register_async_command("%s", &qmp_async_marshal_%s);' % (s[0], c_var(s[0]))
         else:
             print '    qmp_register_command("%s", &qmp_marshal_%s);' % (s[0], c_var(s[0]))
     print '};'

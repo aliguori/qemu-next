@@ -370,6 +370,7 @@ KvmInfo *qmp_query_kvm(Error **errp)
     return info;
 }
 
+#if 0
 StatusInfo *qmp_query_status(Error **errp)
 {
     StatusInfo *info = qmp_alloc_status_info();
@@ -379,3 +380,34 @@ StatusInfo *qmp_query_status(Error **errp)
 
     return info;
 }
+#else
+typedef struct QmpQueryStatusState
+{
+    QEMUBH *bh;
+    QueryStatusCompletionFunc *cc;
+    void *opaque;
+} QmpQueryStatusState;
+
+static void qmp_query_status_cb(void *opaque)
+{
+    QmpQueryStatusState *s = opaque;
+    StatusInfo *info = qmp_alloc_status_info();
+
+    info->running = vm_running;
+    info->singlestep = singlestep;
+
+    s->cc(s->opaque, info, NULL);
+    qemu_bh_delete(s->bh);
+    qemu_free(s);
+}
+
+void qmp_query_status(Error **err, QueryStatusCompletionFunc *qmp__cc, void *qmp__opaque)
+{
+    QmpQueryStatusState *s = qemu_mallocz(sizeof(*s));
+
+    s->cc = qmp__cc;
+    s->opaque = qmp__opaque;
+    s->bh = qemu_bh_new(qmp_query_status_cb, s);
+    qemu_bh_schedule(s->bh);
+}
+#endif

@@ -8,12 +8,20 @@
 #include "qemu-queue.h"
 #include "sysemu.h"
 
+typedef enum QmpCommandType
+{
+    QCT_NORMAL,
+    QCT_STATEFUL,
+    QCT_ASYNC,
+} QmpCommandType;
+
 typedef struct QmpCommand
 {
     const char *name;
-    bool stateful;
+    QmpCommandType type;
     QmpCommandFunc *fn;
     QmpStatefulCommandFunc *sfn;
+    QmpAsyncCommandFunc *afn;
     QTAILQ_ENTRY(QmpCommand) node;
 } QmpCommand;
 
@@ -25,7 +33,7 @@ void qmp_register_command(const char *name, QmpCommandFunc *fn)
     QmpCommand *cmd = qemu_mallocz(sizeof(*cmd));
 
     cmd->name = name;
-    cmd->stateful = false;
+    cmd->type = QCT_NORMAL;
     cmd->fn = fn;
     QTAILQ_INSERT_TAIL(&qmp_commands, cmd, node);
 }
@@ -35,8 +43,18 @@ void qmp_register_stateful_command(const char *name, QmpStatefulCommandFunc *fn)
     QmpCommand *cmd = qemu_mallocz(sizeof(*cmd));
 
     cmd->name = name;
-    cmd->stateful = true;
+    cmd->type = QCT_STATEFUL;
     cmd->sfn = fn;
+    QTAILQ_INSERT_TAIL(&qmp_commands, cmd, node);
+}
+
+void qmp_register_async_command(const char *name, QmpAsyncCommandFunc *fn)
+{
+    QmpCommand *cmd = qemu_mallocz(sizeof(*cmd));
+
+    cmd->name = name;
+    cmd->type = QCT_ASYNC;
+    cmd->afn = fn;
     QTAILQ_INSERT_TAIL(&qmp_commands, cmd, node);
 }
 
@@ -287,6 +305,12 @@ typedef struct QmpSession
     QTAILQ_HEAD(, QmpConnection) connections;
 } QmpSession;
 
+struct QmpCommandState
+{
+    QmpState *state;
+    QObject *tag;
+};
+
 static QObject *qmp_dispatch_err(QmpState *state, QList *tokens, Error **errp)
 {
     const char *command;
@@ -330,10 +354,33 @@ static QObject *qmp_dispatch_err(QmpState *state, QList *tokens, Error **errp)
         QINCREF(args);
     }
 
-    if (cmd->stateful) {
-        cmd->sfn(state, args, &ret, errp);
-    } else {
+    switch (cmd->type) {
+    case QCT_NORMAL:
         cmd->fn(args, &ret, errp);
+        if (ret == NULL) {
+            ret = QOBJECT(qdict_new());
+        }
+        break;
+    case QCT_STATEFUL:
+        cmd->sfn(state, args, &ret, errp);
+        if (ret == NULL) {
+            ret = QOBJECT(qdict_new());
+        }
+        break;
+    case QCT_ASYNC: {
+        QmpCommandState *s = qemu_mallocz(sizeof(*s));
+        // FIXME save async commands and do something
+        // smart if disconnect occurs before completion
+        s->state = state;
+        s->tag = NULL;
+        if (qdict_haskey(dict, "tag")) {
+            s->tag = qdict_get(dict, "tag");
+            qobject_incref(s->tag);
+        }
+        cmd->afn(args, errp, s);
+        ret = NULL;
+    }
+        break;
     }
 
     QDECREF(args);
@@ -354,12 +401,11 @@ static QObject *qmp_dispatch(QmpState *state, QList *tokens)
     if (err) {
         qdict_put_obj(rsp, "error", error_get_qobject(err));
         error_free(err);
+    } else if (ret) {
+        qdict_put_obj(rsp, "return", ret);
     } else {
-        if (ret) {
-            qdict_put_obj(rsp, "return", ret);
-        } else {
-            qdict_put(rsp, "return", qdict_new());
-        }
+        QDECREF(rsp);
+        return NULL;
     }
 
     return QOBJECT(rsp);
@@ -373,12 +419,14 @@ static void qmp_chr_parse(JSONMessageParser *parser, QList *tokens)
     
     rsp = qmp_dispatch(&s->state, tokens);
 
-    str = qobject_to_json(rsp);
-    qemu_chr_write(s->chr, (void *)str->string, str->length);
-    qemu_chr_write(s->chr, (void *)"\n", 1);
+    if (rsp) {
+        str = qobject_to_json(rsp);
+        qemu_chr_write(s->chr, (void *)str->string, str->length);
+        qemu_chr_write(s->chr, (void *)"\n", 1);
 
-    QDECREF(str);
-    qobject_decref(rsp);
+        QDECREF(str);
+        qobject_decref(rsp);
+    }
 }
 
 static int qmp_chr_can_receive(void *opaque)
@@ -629,8 +677,10 @@ static void qmp_unix_session_parse(JSONMessageParser *parser, QList *tokens)
     QObject *rsp;
 
     rsp = qmp_dispatch(&sess->state, tokens);
-    qmp_unix_session_send(sess, rsp);
-    qobject_decref(rsp);
+    if (rsp) {
+        qmp_unix_session_send(sess, rsp);
+        qobject_decref(rsp);
+    }
 }
 
 static int qmp_unix_session_add_connection(QmpState *state,  QmpConnection *conn)
@@ -855,6 +905,25 @@ void qmp_signal_disconnect(QmpSignal *obj, int handle)
             break;
         }
     }
+}
+
+void qmp_async_complete_command(QmpCommandState *cmd, QObject *retval, Error *err)
+{
+    QDict *rsp;
+
+    rsp = qdict_new();
+    if (err) {
+        qdict_put_obj(rsp, "error", error_get_qobject(err));
+    } else {
+        qobject_incref(retval);
+        qdict_put_obj(rsp, "return", retval);
+    }
+    if (cmd->tag) {
+        qdict_put_obj(rsp, "tag", cmd->tag);
+        cmd->tag = NULL;
+    }
+    cmd->state->event(cmd->state, QOBJECT(rsp));
+    qemu_free(cmd);
 }
 
 QObject *qmp_guest_dispatch(const char *name, const QDict *args, Error **errp)

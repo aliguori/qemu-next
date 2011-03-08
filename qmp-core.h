@@ -9,10 +9,14 @@ typedef struct QmpState QmpState;
 
 typedef void (QmpCommandFunc)(const QDict *, QObject **, Error **);
 typedef void (QmpStatefulCommandFunc)(QmpState *qmp__sess, const QDict *, QObject **, Error **);
+typedef void (QmpAsyncCommandFunc)(const QDict *, Error **, QmpCommandState *);
 
 void qmp_register_command(const char *name, QmpCommandFunc *fn);
 void qmp_register_stateful_command(const char *name, QmpStatefulCommandFunc *fn);
+void qmp_register_async_command(const char *name, QmpAsyncCommandFunc *fn);
 void qmp_init_chardev(CharDriverState *chr);
+
+void qmp_async_complete_command(QmpCommandState *cmd, QObject *retval, Error *err);
 
 char *qobject_as_string(QObject *obj);
 
