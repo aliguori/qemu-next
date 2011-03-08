@@ -104,7 +104,7 @@ def qmp_type_from_qobj(typename):
     return qobj_to_c(typename)
 
 def qmp_is_async_cmd(name):
-    return (name.startswith('guest-') or name in ['query-status'])
+    return name.startswith('guest-')
 
 def print_lib_decl(name, options, retval, suffix='', guest=False, async=False):
     if guest:
