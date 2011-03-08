@@ -126,7 +126,14 @@ def print_lib_decl(name, options, retval, suffix='', guest=False, async=False):
     else:
         prefix = 'libqmp'
 
-    print '%s %s_%s(%s)%s' % (qmp_type_to_c(retval, True), prefix, c_var(name), ', '.join(args), suffix)
+    if async:
+        qmp_retval = 'void'
+        args.append('%sCompletionFunc *qmp__cc' % camel_case(name))
+        args.append('void *qmp__opaque')
+    else:
+        qmp_retval = qmp_type_to_c(retval, True)
+
+    print '%s %s_%s(%s)%s' % (qmp_retval, prefix, c_var(name), ', '.join(args), suffix)
 
 def print_lib_event_decl(name, end=''):
     print 'static void libqmp_notify_%s(QDict *qmp__args, void *qmp__fn, void *qmp__opaque, Error **qmp__errp)%s' % (de_camel_case(qmp_event_to_c(name)), end)
@@ -199,17 +206,66 @@ def print_lib_event_definition(name, typeinfo):
     print '}'
 
 def print_lib_definition(name, options, retval, guest=False, async=False):
+    if guest and async:
+        print '''
+typedef struct %sCompletionCB
+{
+    %sCompletionFunc *cb;
+    void *opaque;
+} %sCompletionCB;''' % (camel_case(name), camel_case(name), camel_case(name))
+        print
+        print '''static void qmp_%s_cb(void *qmp__opaque, QObject *qmp__retval, Error *qmp__err)
+{
+    %sCompletionCB *qmp__cb = qmp__opaque;''' % (c_var(name), camel_case(name))
+        if retval != 'none':
+            print '    %s qmp__native_retval = 0;' % (qmp_type_to_c(retval, True))
+        if type(retval) == list:
+            print '''
+    if (!qmp__err) {
+        QList *qmp__list_retval = qobject_to_qlist(qmp__retval);
+        QListEntry *qmp__i;
+        QLIST_FOREACH_ENTRY(qmp__list_retval, qmp__i) {
+            %s qmp__native_i = %s(qmp__i->value, &qmp__err);
+            if (qmp__err) {
+                %s(qmp__native_retval);
+                break;
+            }
+            qmp__native_i->next = qmp__native_retval;
+            qmp__native_retval = qmp__native_i;
+        }
+    }''' % (qmp_type_to_c(retval[0], True), qmp_type_from_qobj(retval[0]), qmp_free_func(retval[0]))
+        elif is_dict(retval):
+            print '    // FIXME (using an anonymous dict as return value)'
+            print '    BUILD_BUG();'
+
+        elif retval != 'none':
+            print '''
+    if (!qmp__err) {
+        qmp__native_retval = %s(qmp__retval, &qmp__err);
+    }''' % qmp_type_from_qobj(retval)
+        print
+        if retval == 'none':
+            print '    qmp__cb->cb(qmp__cb->opaque, qmp__err);'
+        else:
+            print '    qmp__cb->cb(qmp__cb->opaque, qmp__native_retval, qmp__err);'
+        print '}'
+
     print
     print_lib_decl(name, options, retval, guest=guest, async=async)
     print '''{
-    QDict *qmp__args = qdict_new();
-    Error *qmp__local_err = NULL;'''
+    QDict *qmp__args = qdict_new();'''
+    if async:
+        print '''    %sCompletionCB *qmp__cb = qemu_mallocz(sizeof(*qmp__cb));
 
-    print '    QObject *qmp__retval = NULL;'
-    if retval != 'none':
-        print '    %s qmp__native_retval = 0;' % (qmp_type_to_c(retval, True))
-    if qmp_type_is_event(retval):
-        print '    int qmp__global_handle = 0;'
+    qmp__cb->cb = qmp__cc;
+    qmp__cb->opaque = qmp__opaque;''' % camel_case(name)
+    else:
+        print '    Error *qmp__local_err = NULL;'
+        print '    QObject *qmp__retval = NULL;'
+        if retval != 'none':
+            print '    %s qmp__native_retval = 0;' % (qmp_type_to_c(retval, True))
+        if qmp_type_is_event(retval):
+            print '    int qmp__global_handle = 0;'
     print
 
     for argname, argtype, optional in parse_args(options):
@@ -230,14 +286,16 @@ def print_lib_definition(name, options, retval, guest=False, async=False):
                 indent -= 4
                 inprint('}', indent)
 
-    if guest:
-        print '    qmp__retval = qmp_guest_dispatch("%s", qmp__args, &qmp__local_err);' % (name)
+    if guest and async:
+        print '    qmp_guest_dispatch("%s", qmp__args, qmp__err, qmp_%s_cb, qmp__cb);' % (name, c_var(name))
     else:
         print '    qmp__retval = qmp__session->dispatch(qmp__session, "%s", qmp__args, &qmp__local_err);' % (name)
     print
     print '    QDECREF(qmp__args);'
 
-    if type(retval) == list:
+    if async:
+        pass
+    elif type(retval) == list:
         print '''
     if (!qmp__local_err) {
         QList *qmp__list_retval = qobject_to_qlist(qmp__retval);
@@ -350,12 +408,10 @@ def print_async_definition(name, options, retval):
     }''' % (qmp_type_to_c(retval[0], True), qmp_type_to_qobj_ctor(retval[0]))
 
     print
-    print '    qmp_async_complete_command(qmp__cmd, qmp__ret_data, NULL);'
-
-    if retval != 'none':
-        if qmp_type_should_free(retval):
-            print
-            print '    %s(%s);' % (qmp_free_func(retval), 'qmp__retval')
+    ret_data = 'qmp__ret_data'
+    if retval == 'none':
+        ret_data = 'NULL'
+    print '    qmp_async_complete_command(qmp__cmd, %s, NULL);' % (ret_data)
     print '}'
 
 def print_definition(name, options, retval, async=False):
@@ -1123,8 +1179,8 @@ for s in exprs:
         name, options, retval = s
         if kind == 'body':
             async = qmp_is_async_cmd(name)
-#            if name.startswith('guest-'):
-#                print_lib_definition(name, options, retval, guest=True, async=async)
+            if name.startswith('guest-'):
+                print_lib_definition(name, options, retval, guest=True, async=async)
             print_definition(name, options, retval, async=async)
         elif kind == 'header':
             async = qmp_is_async_cmd(name)

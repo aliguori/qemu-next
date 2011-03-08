@@ -83,7 +83,11 @@ void qmp_state_event(QmpConnection *conn, QObject *data);
 
 void qmp_qmp_capabilities(QmpState *sess, Error **errp);
 
-QObject *qmp_guest_dispatch(const char *name, const QDict *args, Error **errp);
+typedef void (QmpGuestCompletionFunc)(void *opaque, QObject *ret_data, Error *err);
+
+void qmp_guest_dispatch(const char *name, const QDict *args, Error **errp,
+                        QmpGuestCompletionFunc *cb, void *opaque);
+
 
 #endif
 

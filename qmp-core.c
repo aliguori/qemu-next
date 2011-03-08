@@ -926,7 +926,7 @@ void qmp_async_complete_command(QmpCommandState *cmd, QObject *retval, Error *er
     qemu_free(cmd);
 }
 
-QObject *qmp_guest_dispatch(const char *name, const QDict *args, Error **errp)
+void qmp_guest_dispatch(const char *name, const QDict *args, Error **errp,
+                        QmpGuestCompletionFunc *cb, void *opaque)
 {
-    return NULL;
 }
