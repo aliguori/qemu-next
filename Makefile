@@ -173,6 +173,12 @@ libqmp.h: $(SRC_PATH)/qmp-schema.json $(SRC_PATH)/qmp-gen.py
 libqmp.c: $(SRC_PATH)/qmp-schema.json $(SRC_PATH)/qmp-gen.py
 	$(call quiet-command,python $(SRC_PATH)/qmp-gen.py --lib-body < $< > $@, "  GEN   $@")
 
+guest-agent.h: $(SRC_PATH)/qmp-schema.json $(SRC_PATH)/qmp-gen.py
+	$(call quiet-command,python $(SRC_PATH)/qmp-gen.py --guest-header < $< > $@, "  GEN   $@")
+
+guest-agent.c: $(SRC_PATH)/qmp-schema.json $(SRC_PATH)/qmp-gen.py
+	$(call quiet-command,python $(SRC_PATH)/qmp-gen.py --guest-body < $< > $@, "  GEN   $@")
+
 qdev-marshal.h: $(SRC_PATH)/qmp-schema.json $(SRC_PATH)/qmp-gen.py
 	$(call quiet-command,python $(SRC_PATH)/qmp-gen.py --qdev-header < $< > $@, "  GEN   $@")
 
