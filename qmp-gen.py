@@ -38,7 +38,7 @@ def cgen(code, **kwds):
     indent = genindent(indent_level)
     lines = code.split('\n')
     lines = map(lambda x: indent + x, lines)
-    return '\n'.join(lines) % kwds
+    return '\n'.join(lines) % kwds + '\n'
 
 def mcgen(code, **kwds):
     return cgen('\n'.join(code.split('\n')[1:-1]), **kwds)
@@ -135,6 +135,40 @@ def parse_args(typeinfo):
             optional = True
         yield (argname, argtype, optional)
 
+def de_camel_case(name):
+    new_name = ''
+    for ch in name:
+        if ch.isupper() and new_name:
+            new_name += '_'
+        new_name += ch.lower()
+    return new_name
+
+def camel_case(name):
+    new_name = ''
+    first = True
+    for ch in name:
+        if ch in ['_', '-']:
+            first = True
+        elif first:
+            new_name += ch.upper()
+            first = False
+        else:
+            new_name += ch.lower()
+    return new_name
+
+def qmp_event_to_c(name):
+    return '%sEvent' % camel_case(name)
+
+def qmp_event_func_to_c(name):
+    return '%sFunc' % camel_case(name)
+
+def enum_abbreviation(name):
+    ab = ''
+    for ch in name:
+        if ch.isupper():
+            ab += ch
+    return ab
+
 def gen_lib_decl(name, options, retval, suffix='', guest=False, async=False):
     if guest:
         args = []
@@ -173,8 +207,8 @@ def gen_lib_event_definition(name, typeinfo):
     args = ''
     for argname, argtype, optional in parse_args(typeinfo):
         if optional:
-            args += '\n' + cgen('    bool has_%(name)s;', name=c_var(argname))
-        args += '\n' + cgen('    %(type)s %(name)s = 0;', type=qmp_type_to_c(argtype, True), name=c_var(argname))
+            args += cgen('    bool has_%(name)s;', name=c_var(argname))
+        args += cgen('    %(type)s %(name)s = 0;', type=qmp_type_to_c(argtype, True), name=c_var(argname))
 
     ret = mcgen('''
 
@@ -191,8 +225,8 @@ static void libqmp_notify_%(fn_name)s(QDict *qmp__args, void *qmp__fn, void *qmp
 
     for argname, argtype, optional in parse_args(typeinfo):
         if optional:
-            ret += '\n' + cgen('    BUILD_BUG()')
-        ret += '\n' + mcgen('''
+            ret += cgen('    BUILD_BUG()')
+        ret += mcgen('''
 
     if (!qdict_haskey(qmp__args, "%(name)s")) {
         error_set(qmp__errp, QERR_MISSING_PARAMETER, "%(name)s");
@@ -216,7 +250,7 @@ static void libqmp_notify_%(fn_name)s(QDict *qmp__args, void *qmp__fn, void *qmp
     arglist = ['qmp__opaque']
     for argname, argtype, optional in parse_args(typeinfo):
         arglist.append(c_var(argname))
-    ret += '\n' + mcgen('''
+    ret += mcgen('''
 
     qmp__native_fn(%(args)s);
 ''', args=', '.join(arglist))
@@ -224,14 +258,14 @@ static void libqmp_notify_%(fn_name)s(QDict *qmp__args, void *qmp__fn, void *qmp
     has_label = False
     for argname, argtype, optional in parse_args(typeinfo):
         if not has_label:
-            ret += '\n' + mcgen('''
+            ret += mcgen('''
 qmp__out:
 ''')
             has_label = True
 
         if qmp_type_should_free(argtype):
-            ret += '\n' + cgen('    %(free)s(%(name)s);', free=qmp_free_func(argtype), name=c_var(argname))
-    ret += '\n' + mcgen('''
+            ret += cgen('    %(free)s(%(name)s);', free=qmp_free_func(argtype), name=c_var(argname))
+    ret += mcgen('''
     return;
 }
 ''')
@@ -253,11 +287,11 @@ static void qmp_%(c_name)s_cb(void *qmp__opaque, QObject *qmp__retval, Error *qm
                 cc_name=camel_case(name), c_name=c_var(name))
 
     if retval != 'none':
-        ret += '\n' + cgen('    %(ret_type)s qmp__native_retval = 0;',
+        ret += cgen('    %(ret_type)s qmp__native_retval = 0;',
                            ret_type=qmp_type_to_c(retval, True))
 
     if type(retval) == list:
-        ret += '\n' + mcgen('''
+        ret += mcgen('''
 
     if (!qmp__err) {
         QList *qmp__list_retval = qobject_to_qlist(qmp__retval);
@@ -277,24 +311,24 @@ static void qmp_%(c_name)s_cb(void *qmp__opaque, QObject *qmp__retval, Error *qm
                             unmarshal=qmp_type_from_qobj(retval[0]),
                             free=qmp_free_func(retval[0]))
     elif is_dict(retval):
-        ret += '\n' + mcgen('''
+        ret += mcgen('''
     // FIXME (using an anonymous dict as return value)')
     BUILD_BUG();
 ''')
     elif retval != 'none':
-        ret += '\n' + mcgen('''
+        ret += mcgen('''
 
     if (!qmp__err) {
         qmp__native_retval = %(unmarshal)s(qmp__retval, &qmp__err);
     }
 ''',
                             unmarshal=qmp_type_from_qobj(retval))
-    ret += '\n' + cgen('')
+    ret += cgen('')
     if retval == 'none':
-        ret += '\n' + cgen('    qmp__cb->cb(qmp__cb->opaque, qmp__err);')
+        ret += cgen('    qmp__cb->cb(qmp__cb->opaque, qmp__err);')
     else:
-        ret += '\n' + cgen('    qmp__cb->cb(qmp__cb->opaque, qmp__native_retval, qmp__err);')
-    ret += '\n' + cgen('}')
+        ret += cgen('    qmp__cb->cb(qmp__cb->opaque, qmp__native_retval, qmp__err);')
+    ret += cgen('}')
 
     return ret
 
@@ -304,7 +338,7 @@ def gen_lib_definition(name, options, retval, guest=False, async=False):
         ret += gen_async_lib_definition(name, options, retval)
 
     fn_decl = gen_lib_decl(name, options, retval, guest=guest, async=async)
-    ret += '\n' + mcgen('''
+    ret += mcgen('''
 
 %(fn_decl)s
 {
@@ -312,7 +346,7 @@ def gen_lib_definition(name, options, retval, guest=False, async=False):
 ''',
                         fn_decl=fn_decl)
     if async:
-        ret += '\n' + mcgen('''
+        ret += mcgen('''
     %(cc_name)sCompletionCB *qmp__cb = qemu_mallocz(sizeof(*qmp__cb));
 
     qmp__cb->cb = qmp__cc;
@@ -320,20 +354,20 @@ def gen_lib_definition(name, options, retval, guest=False, async=False):
 ''',
                             cc_name=camel_case(name))
     else:
-        ret += '\n' + mcgen('''
+        ret += mcgen('''
     Error *qmp__local_err = NULL;
     QObject *qmp__retval = NULL;
 ''')
         if retval != 'none':
-            ret += '\n' + cgen('    %(ret_type)s qmp__native_retval = 0;',
+            ret += cgen('    %(ret_type)s qmp__native_retval = 0;',
                                ret_type=qmp_type_to_c(retval, True))
         if qmp_type_is_event(retval):
-            ret += '\n' + cgen('    int qmp__global_handle = 0;')
-    ret += '\n' + cgen('')
+            ret += cgen('    int qmp__global_handle = 0;')
+    ret += cgen('')
 
     for argname, argtype, optional in parse_args(options):
         if argtype == '**':
-            ret += '\n' + mcgen('''
+            ret += mcgen('''
     {
         KeyValues *qmp__i;
         for (qmp__i = %(name)s; qmp__i; qmp__i = qmp__i->next) {
@@ -344,33 +378,33 @@ def gen_lib_definition(name, options, retval, guest=False, async=False):
                          name=c_var(argname))
         else:
             if optional:
-                ret += '\n' + mcgen('''
+                ret += mcgen('''
     if (has_%(c_name)s) {
 ''',
                                     c_name=c_var(argname))
                 push_indent()
-            ret += '\n' + mcgen('''
+            ret += mcgen('''
     qdict_put_obj(qmp__args, "%(name)s", %(marshal)s(%(c_name)s));
 ''',
                                 name=argname, c_name=c_var(argname),
                                 marshal=qmp_type_to_qobj_ctor(argtype))
             if optional:
                 pop_indent()
-                ret += '\n' + mcgen('''
+                ret += mcgen('''
     }
 ''')
 
     if guest and async:
-        ret += '\n' + mcgen('''
+        ret += mcgen('''
     qmp_guest_dispatch("%(name)s", qmp__args, qmp__err, qmp_%(c_name)s_cb, qmp__cb);
 ''',
                             name=name, c_name=c_var(name))
     else:
-        ret += '\n' + mcgen('''
+        ret += mcgen('''
     qmp__retval = qmp__session->dispatch(qmp__session, "%(name)s", qmp__args, &qmp__local_err);
 ''',
                             name=name)
-    ret += '\n' + mcgen('''
+    ret += mcgen('''
 
     QDECREF(qmp__args);
 ''')
@@ -378,7 +412,7 @@ def gen_lib_definition(name, options, retval, guest=False, async=False):
     if async:
         pass
     elif type(retval) == list:
-        ret += '\n' + mcgen('''
+        ret += mcgen('''
 
     if (!qmp__local_err) {
         QList *qmp__list_retval = qobject_to_qlist(qmp__retval);
@@ -401,14 +435,14 @@ def gen_lib_definition(name, options, retval, guest=False, async=False):
                      unmarshal=qmp_type_from_qobj(retval[0]),
                      free=qmp_free_func(retval[0]))
     elif is_dict(retval):
-        ret += '\n' + mcgen('''
+        ret += mcgen('''
     // FIXME (using an anonymous dict as return value)
     BUILD_BUG();
 ''')
     elif qmp_type_is_event(retval):
         if guest:
-            ret += '\n' + cgen('    BUILD_BUG();')
-        ret += '\n' + mcgen('''
+            ret += cgen('    BUILD_BUG();')
+        ret += mcgen('''
     if (!qmp__local_err) {
         qmp__global_handle = %(unmarshal)s(qmp__retval, &qmp__local_err);
         qobject_decref(qmp__retval);
@@ -423,7 +457,7 @@ def gen_lib_definition(name, options, retval, guest=False, async=False):
                             unmarshal=qmp_type_from_qobj('int'),
                             type=qmp_event_to_c(retval))
     elif retval != 'none':
-        ret += '\n' + mcgen('''
+        ret += mcgen('''
 
     if (!qmp__local_err) {
         qmp__native_retval = %(unmarshal)s(qmp__retval, &qmp__local_err);
@@ -434,28 +468,35 @@ def gen_lib_definition(name, options, retval, guest=False, async=False):
 ''',
                             unmarshal=qmp_type_from_qobj(retval))
     else:
-        ret += '\n' + mcgen('''
+        ret += mcgen('''
     qobject_decref(qmp__retval);
     error_propagate(qmp__err, qmp__local_err);
 ''')
 
-    ret += '\n' + cgen('}')
+    ret += cgen('}')
 
     return ret
 
-def print_async_fn_decl(name, options, retval):
+def gen_async_fn_decl(name, options, retval):
     if retval == 'none':
-        print 'typedef void (%sCompletionFunc)(void *qmp__opaque, Error *qmp__err);' % (camel_case(name))
+        return mcgen('''
+typedef void (%(cc_name)sCompletionFunc)(void *qmp__opaque, Error *qmp__err);
+''',
+                    cc_name=camel_case(name))
     else:
-        print 'typedef void (%sCompletionFunc)(void *qmp__opaque, %s qmp__retval, Error *qmp__err);' % (camel_case(name), qmp_type_to_c(retval))
+        return mcgen('''
+typedef void (%(cc_name)sCompletionFunc)(void *qmp__opaque, %(ret_type)s qmp__retval, Error *qmp__err);
+''', cc_name=camel_case(name), ret_type=qmp_type_to_c(retval))
 
-def print_declaration(name, options, retval, async=False, prefix='qmp'):
+def gen_declaration(name, options, retval, async=False, prefix='qmp'):
     args = []
     if name in ['qmp_capabilities', 'put-event']:
-        return
+        return ''
+
+    ret = ''
 
     if async:
-        print_async_fn_decl(name, options, retval)
+        ret += gen_async_fn_decl(name, options, retval)
 
     for argname, argtype, optional in parse_args(options):
         if argtype == '**':
@@ -473,50 +514,76 @@ def print_declaration(name, options, retval, async=False, prefix='qmp'):
     else:
         qmp_retval = qmp_type_to_c(retval, True)
 
-    print '%s %s_%s(%s);' % (qmp_retval, prefix, c_var(name), ', '.join(args))
+    ret += cgen('%(ret_type)s %(prefix)s_%(c_name)s(%(args)s);',
+                ret_type=qmp_retval, prefix=prefix,
+                c_name=c_var(name), args=', '.join(args))
 
-def print_async_definition(name, options, retval):
-    print
+    return ret
+
+def gen_async_definition(name, options, retval):
     if retval == 'none':
-        print 'static void qmp_async_completion_%s(void *qmp__opaque, Error *qmp__err)' % c_var(name)
+        ret = mcgen('''
+
+static void qmp_async_completion_%(c_name)s(void *qmp__opaque, Error *qmp__err)
+{
+''',
+                    c_name=c_var(name))
     else:
-        print 'static void qmp_async_completion_%s(void *qmp__opaque, %s qmp__retval, Error *qmp__err)' % (c_var(name), qmp_type_to_c(retval))
-    print '{'
+        ret = mcgen('''
+
+static void qmp_async_completion_%(c_name)s(void *qmp__opaque, %(ret_type)s qmp__retval, Error *qmp__err)
+{
+''',
+                    c_name=c_var(name), ret_type=qmp_type_to_c(retval))
     if retval != 'none':
-        print '    QObject *qmp__ret_data;'
-    print '    QmpCommandState *qmp__cmd = qmp__opaque;'
-    print
-    print '    if (qmp__err) {'
-    print '        qmp_async_complete_command(qmp__cmd, NULL, qmp__err);'
-    print '        return;'
-    print '    }'
+        ret += cgen('    QObject *qmp__ret_data;')
+    ret += mcgen('''
+    QmpCommandState *qmp__cmd = qmp__opaque;
+
+    if (qmp__err) {
+        qmp_async_complete_command(qmp__cmd, NULL, qmp__err);
+        return;
+    }
+''')
     if retval == 'none':
         pass
     elif type(retval) == str:
-        print
-        print '    qmp__ret_data = %s(qmp__retval);' % qmp_type_to_qobj_ctor(retval)
+        ret += mcgen('''
+
+    qmp__ret_data = %(marshal)s(qmp__retval);
+''',
+                     marshal=qmp_type_to_qobj_ctor(retval))
     elif type(retval) == list:
-        print
-        print '''    qmp__ret_data = QOBJECT(qlist_new());
+        ret += mcgen('''
+
+    qmp__ret_data = QOBJECT(qlist_new());
     if (qmp__retval) {
         QList *list = qobject_to_qlist(qmp__ret_data);
-        %s i;
+        %(type)s i;
         for (i = qmp__retval; i != NULL; i = i->next) {
-            QObject *obj = %s(i);
+            QObject *obj = %(marshal)s(i);
             qlist_append_obj(list, obj);
         }
-    }''' % (qmp_type_to_c(retval[0], True), qmp_type_to_qobj_ctor(retval[0]))
+    }
+''',
+              type=qmp_type_to_c(retval[0], True),
+              marshal=qmp_type_to_qobj_ctor(retval[0]))
 
-    print
     ret_data = 'qmp__ret_data'
     if retval == 'none':
         ret_data = 'NULL'
-    print '    qmp_async_complete_command(qmp__cmd, %s, NULL);' % (ret_data)
-    print '}'
+    ret += mcgen('''
 
-def print_definition(name, options, retval, async=False, prefix='qmp'):
+    qmp_async_complete_command(qmp__cmd, %(ret_var)s, NULL);
+}
+''', ret_var=ret_data)
+
+    return ret
+
+def gen_definition(name, options, retval, async=False, prefix='qmp'):
+    ret = ''
     if async:
-        print_async_definition(name, options, retval)     
+        ret = gen_async_definition(name, options, retval)
 
     if qmp_type_is_event(retval):
         arglist = ['void *opaque']
@@ -524,90 +591,125 @@ def print_definition(name, options, retval, async=False, prefix='qmp'):
             if optional:
                 arglist.append('bool has_%s' % c_var(argname))
             arglist.append('%s %s' % (qmp_type_to_c(argtype), c_var(argname)))
-        print '''
-static void qmp_marshal_%s(%s)
+        ret += mcgen('''
+
+static void qmp_marshal_%(c_name)s(%(args)s)
 {
     QDict *qmp__args = qdict_new();
     QmpConnection *qmp__conn = opaque;
-''' % (qmp_event_to_c(retval), ', '.join(arglist))
+''',
+                     c_name=qmp_event_to_c(retval),
+                     args=', '.join(arglist))
 
-        indent = 4
         for argname, argtype, optional in parse_args(event_types[retval]):
             if optional:
-                inprint('if (has_%s) {' % c_var(argname), indent)
-                indent += 4
-            inprint('qdict_put_obj(qmp__args, "%s", %s(%s));' % (argname, qmp_type_to_qobj_ctor(argtype), c_var(argname)), indent)
+                ret += cgen('    if (has_%(c_name)s) {', c_name=c_var(argname))
+                push_indent()
+            ret += mcgen('''
+    qdict_put_obj(qmp__args, "%(name)s", %(marshal)s(%(c_name)s));
+''',
+                         name=argname,  c_name=c_var(argname),
+                         marshal=qmp_type_to_qobj_ctor(argtype))
             if optional:
-                indent -= 4
-                inprint('}', indent)
+                pop_indent()
+                ret += cgen('    }')
 
-        print '''
+        ret += mcgen('''
+
     qmp_state_event(qmp__conn, QOBJECT(qmp__args));
     QDECREF(qmp__args);
-}'''
-        print '''
-static void qmp_marshal_%s(QmpState *qmp__sess, const QDict *qdict, QObject **ret_data, Error **err)
+}
+
+static void qmp_marshal_%(c_name)s(QmpState *qmp__sess, const QDict *qdict, QObject **ret_data, Error **err)
 {
     int qmp__handle;
-    QmpConnection *qmp__connection = qemu_mallocz(sizeof(QmpConnection));''' % c_var(name)
+    QmpConnection *qmp__connection = qemu_mallocz(sizeof(QmpConnection));
+''',
+                     c_name=c_var(name))
     elif name in ['qmp_capabilities', 'put-event']:
-        print '''
-static void qmp_marshal_%s(QmpState *qmp__sess, const QDict *qdict, QObject **ret_data, Error **err)
-{''' % c_var(name)
+        ret += mcgen('''
+
+static void qmp_marshal_%(c_name)s(QmpState *qmp__sess, const QDict *qdict, QObject **ret_data, Error **err)
+{
+''',
+                     c_name=c_var(name))
     elif async:
-        print '''
-static void qmp_async_marshal_%s(const QDict *qdict, Error **err, QmpCommandState *qmp__cmd)
-{''' % c_var(name)
+        ret += mcgen('''
+
+static void qmp_async_marshal_%(c_name)s(const QDict *qdict, Error **err, QmpCommandState *qmp__cmd)
+{
+''',
+                     c_name=c_var(name))
     else:
-        print '''
-static void qmp_marshal_%s(const QDict *qdict, QObject **ret_data, Error **err)
-{''' % c_var(name)
-    print '    Error *qmp__err = NULL;'
+        ret += mcgen('''
+
+static void qmp_marshal_%(c_name)s(const QDict *qdict, QObject **ret_data, Error **err)
+{
+''', 
+                     c_name=c_var(name))
+    ret += mcgen('''
+    Error *qmp__err = NULL;
+''')
 
     for argname, argtype, optional in parse_args(options):
         if argtype == '**':
-            print '    KeyValues * %s = 0;' % c_var(argname)
+            ret += cgen('    KeyValues * %(c_name)s = 0;', c_name=c_var(argname))
         else:
             if optional:
-                print '    bool has_%s = false;' % (c_var(argname))
-            print '    %s %s = 0;' % (qmp_type_to_c(argtype, True), c_var(argname))
+                ret += cgen('    bool has_%(c_name)s = false;', c_name=c_var(argname))
+            ret += cgen('    %(type)s %(c_name)s = 0;',
+                        type=qmp_type_to_c(argtype, True), c_name=c_var(argname))
 
     if retval != 'none' and not async:
-        print '    %s qmp_retval = 0;' % (qmp_type_to_c(retval, True))
+        ret += mcgen('''
+    %(type)s qmp_retval = 0;
+''',
+                     type=qmp_type_to_c(retval, True))
 
-    print '''
-    (void)qmp__err;'''
+    ret += mcgen('''
+
+    (void)qmp__err;
+''')
 
     for argname, argtype, optional in parse_args(options):
         if argtype == '**':
-            print '''
+            ret += mcgen('''
     {
         const QDictEntry *qmp__qdict_i;
 
-        %s = NULL;
+        %(c_name)s = NULL;
         for (qmp__qdict_i = qdict_first(qdict); qmp__qdict_i; qmp__qdict_i = qdict_next(qdict, qmp__qdict_i)) {
-            KeyValues *qmp__i;''' % c_var(argname)
+            KeyValues *qmp__i;
+''',
+                         c_name=c_var(argname))
             for argname1, argtype1, optional1 in parse_args(options):
                 if argname1 == argname:
                     continue
-                print '''            if (strcmp(qmp__qdict_i->key, "%s") == 0) {
+                ret += mcgen('''
+            if (strcmp(qmp__qdict_i->key, "%(name)s") == 0) {
                 continue;
-            }''' % argname1
-            print '''
+            }
+''',
+                             name=argname1)
+            ret += mcgen('''
+
             qmp__i = qmp_alloc_key_values();
             qmp__i->key = qemu_strdup(qmp__qdict_i->key);
             qmp__i->value = qobject_as_string(qmp__qdict_i->value);
-            qmp__i->next = %s;
-            %s = qmp__i;
+            qmp__i->next = %(c_name)s;
+            %(c_name)s = qmp__i;
         }
-    }''' % (c_var(argname), c_var(argname))
+    }
+''',
+                         c_name=c_var(argname))
         elif optional:
-            print '''
-    if (qdict_haskey(qdict, "%s")) {
-        %s = %s(qdict_get(qdict, "%s"), &qmp__err);
+            ret += mcgen('''
+
+    if (qdict_haskey(qdict, "%(name)s")) {
+        %(c_name)s = %(unmarshal)s(qdict_get(qdict, "%(name)s"), &qmp__err);
         if (qmp__err) {
             if (error_is_type(qmp__err, QERR_INVALID_PARAMETER_TYPE)) {
-                error_set(err, QERR_INVALID_PARAMETER_TYPE, "%s",
+                error_set(err, QERR_INVALID_PARAMETER_TYPE, "%(name)s",
                           error_get_field(qmp__err, "expected"));
                 error_free(qmp__err);
                 qmp__err = NULL;
@@ -616,20 +718,23 @@ static void qmp_marshal_%s(const QDict *qdict, QObject **ret_data, Error **err)
             }
             goto qmp__out;
         }
-        has_%s = true;
+        has_%(c_name)s = true;
     }
-''' % (argname, c_var(argname), qmp_type_from_qobj(argtype), argname, argname, c_var(argname))
+''',
+                         name=argname, c_name=c_var(argname),
+                         unmarshal=qmp_type_from_qobj(argtype))
         else:
-            print '''
-    if (!qdict_haskey(qdict, "%s")) {
-        error_set(err, QERR_MISSING_PARAMETER, "%s");
+            ret += mcgen('''
+
+    if (!qdict_haskey(qdict, "%(name)s")) {
+        error_set(err, QERR_MISSING_PARAMETER, "%(name)s");
         goto qmp__out;
     }
 
-    %s = %s(qdict_get(qdict, "%s"), &qmp__err);
+    %(c_name)s = %(unmarshal)s(qdict_get(qdict, "%(name)s"), &qmp__err);
     if (qmp__err) {
         if (error_is_type(qmp__err, QERR_INVALID_PARAMETER_TYPE)) {
-            error_set(err, QERR_INVALID_PARAMETER_TYPE, "%s",
+            error_set(err, QERR_INVALID_PARAMETER_TYPE, "%(name)s",
                       error_get_field(qmp__err, "expected"));
             error_free(qmp__err);
             qmp__err = NULL;
@@ -638,7 +743,9 @@ static void qmp_marshal_%s(const QDict *qdict, QObject **ret_data, Error **err)
         }
         goto qmp__out;
     }
-''' % (argname, argname, c_var(argname), qmp_type_from_qobj(argtype), argname, argname)
+''',
+                         name=argname, c_name=c_var(argname),
+                         unmarshal=qmp_type_from_qobj(argtype))
 
     args = []
     for argname, argtype, optional in parse_args(options):
@@ -658,95 +765,85 @@ static void qmp_marshal_%s(const QDict *qdict, QObject **ret_data, Error **err)
     fn = '%s_%s' % (prefix, c_var(name))
 
     if name == 'put-event':
-        print '    qmp_state_del_connection(%s);' % arglist
+        ret += cgen('    qmp_state_del_connection(%(args)s);', args=arglist)
     elif retval == 'none' or async:
-        print '    %s(%s);' % (fn, arglist)
+        ret += cgen('    %(fn)s(%(args)s);', fn=fn, args=arglist)
     else:
-        print '    qmp_retval = %s(%s);' % (fn, arglist)
+        ret += cgen('    qmp_retval = %(fn)s(%(args)s);', fn=fn, args=arglist)
 
-    print '''
+    ret += mcgen('''
+
     if (error_is_set(err)) {
         goto qmp__out;
-    }'''
+    }
+''')
 
     if retval == 'none' or async:
         pass
     elif qmp_type_is_event(retval):
-        print '    qmp__handle = signal_connect(qmp_retval, qmp_marshal_%s, qmp__connection);' % (qmp_event_to_c(retval))
-        print '    qmp_state_add_connection(qmp__sess, "%s", qmp_retval->signal, qmp__handle, qmp__connection);' % retval
-        print '    *ret_data = QOBJECT(qint_from_int(qmp__connection->global_handle));'
-        print '    qmp__connection = NULL;'
+        ret += mcgen('''
+    qmp__handle = signal_connect(qmp_retval, qmp_marshal_%(event_name)s, qmp__connection);
+    qmp_state_add_connection(qmp__sess, "%(ret_name)s", qmp_retval->signal, qmp__handle, qmp__connection);
+    *ret_data = QOBJECT(qint_from_int(qmp__connection->global_handle));
+    qmp__connection = NULL;
+''',
+                     event_name=qmp_event_to_c(retval),
+                     ret_name=retval)
     elif type(retval) == str:
-        print '    *ret_data = %s(qmp_retval);' % qmp_type_to_qobj_ctor(retval)
+        ret += mcgen('''
+    *ret_data = %(marshal)s(qmp_retval);
+''',
+                     marshal=qmp_type_to_qobj_ctor(retval))
     elif type(retval) == list:
-        print '''    *ret_data = QOBJECT(qlist_new());
+        ret += mcgen('''
+    *ret_data = QOBJECT(qlist_new());
     if (qmp_retval) {
         QList *list = qobject_to_qlist(*ret_data);
-        %s i;
+        %(ret_type)s i;
         for (i = qmp_retval; i != NULL; i = i->next) {
-            QObject *obj = %s(i);
+            QObject *obj = %(marshal)s(i);
             qlist_append_obj(list, obj);
         }
-    }''' % (qmp_type_to_c(retval[0], True), qmp_type_to_qobj_ctor(retval[0]))
+    }
+''',
+                     ret_type=qmp_type_to_c(retval[0], True),
+                     marshal=qmp_type_to_qobj_ctor(retval[0]))
 
-    print
-    print 'qmp__out:'
+    ret += mcgen('''
+
+qmp__out:
+''')
+
     if qmp_type_is_event(retval):
-        print '    qemu_free(qmp__connection);'
-    print
+        ret += cgen('    qemu_free(qmp__connection);')
+    ret += cgen('')
     args = []
     for argname, argtype, optional in parse_args(options):
         if argtype == '**':
-            print '    %s(%s);' % (qmp_free_func('KeyValues'), c_var(argname))
+            ret += cgen('    %(free)s(%(c_name)s);',
+                        free=qmp_free_func('KeyValues'),
+                        c_name=c_var(argname))
         elif qmp_type_should_free(argtype):
-            indent = 4
             if optional:
-                inprint('if (has_%s) {' % c_var(argname), indent)
-                indent += 4
-            inprint('%s(%s);' % (qmp_free_func(argtype), c_var(argname)), indent)
+                ret += cgen('    if (has_%(c_name)s) {', c_name=c_var(argname))
+                push_indent()
+            ret += cgen('    %(free)s(%(c_name)s);',
+                        free=qmp_free_func(argtype), c_name=c_var(argname))
             if optional:
-                indent -= 4
-                inprint('}', indent)
+                pop_indent()
+                ret += cgen('    }')
     if retval != 'none' and not async:
         if qmp_type_should_free(retval):
-            print '    %s(%s);' % (qmp_free_func(retval), 'qmp_retval')
-    print '    return;'
+            ret += cgen('    %(free)s(%(c_name)s);',
+                        free=qmp_free_func(retval), c_name='qmp_retval')
 
-    print '}'
+    ret += mcgen('''
 
-def de_camel_case(name):
-    new_name = ''
-    for ch in name:
-        if ch.isupper() and new_name:
-            new_name += '_'
-        new_name += ch.lower()
-    return new_name
+    return;
+}
+''')
 
-def camel_case(name):
-    new_name = ''
-    first = True
-    for ch in name:
-        if ch in ['_', '-']:
-            first = True
-        elif first:
-            new_name += ch.upper()
-            first = False
-        else:
-            new_name += ch.lower()
-    return new_name
-
-def qmp_event_to_c(name):
-    return '%sEvent' % camel_case(name)
-
-def qmp_event_func_to_c(name):
-    return '%sFunc' % camel_case(name)
-
-def enum_abbreviation(name):
-    ab = ''
-    for ch in name:
-        if ch.isupper():
-            ab += ch
-    return ab
+    return ret
 
 def print_enum_declaration(name, entries):
     print
@@ -1257,7 +1354,7 @@ def main(args):
                     print_type_marshal_declaration(key, s[key])
                 elif kind == 'lib-body':
                     if qmp_type_is_event(key):
-                        print gen_lib_event_definition(key, event_types[key])
+                        sys.stdout.write(gen_lib_event_definition(key, event_types[key]))
             else:
                 enum_types.append(key)
                 if kind == 'types-header':
@@ -1277,21 +1374,21 @@ def main(args):
             if kind == 'body':
                 async = qmp_is_async_cmd(name)
                 if name.startswith('guest-'):
-                    print gen_lib_definition(name, options, retval, guest=True, async=async)
-                print_definition(name, options, retval, async=async)
+                    sys.stdout.write(gen_lib_definition(name, options, retval, guest=True, async=async))
+                sys.stdout.write(gen_definition(name, options, retval, async=async))
             elif kind == 'header':
                 async = qmp_is_async_cmd(name)
-                print_declaration(name, options, retval, async=async)
+                sys.stdout.write(gen_declaration(name, options, retval, async=async))
             elif kind == 'guest-body':
                 if name.startswith('guest-'):
-                    print_definition(name, options, retval, prefix='qga')
+                    sys.stdout.write(gen_definition(name, options, retval, prefix='qga'))
             elif kind == 'guest-header':
                 if name.startswith('guest-'):
                     print_declaration(name, options, retval, prefix='qga')
             elif kind == 'lib-body':
-                print gen_lib_definition(name, options, retval)
+                sys.stdout.write(gen_lib_definition(name, options, retval))
             elif kind == 'lib-header':
-                print gen_lib_declaration(name, options, retval)
+                sys.stdout.write(gen_lib_declaration(name, options, retval))
     
     if kind.endswith('header'):
         print '#endif'
