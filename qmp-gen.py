@@ -24,6 +24,23 @@ def genindent(count):
         ret += " "
     return ret
 
+indent_level = 0
+
+def push_indent():
+    indent_level += 4
+
+def pop_indent():
+    indent_level -= 4
+
+def cgen(code, **kwds):
+    indent = genindent(indent_level)
+    lines = code.split('\n')
+    lines = map(lambda x: indent + x, lines)
+    return '\n'.join(lines) % kwds
+
+def mcgen(code, **kwds):
+    return cgen('\n'.join(code.split('\n')[1:-1]), **kwds)
+
 def is_dict(obj):
     if type(obj) in [dict, OrderedDict]:
         return True
@@ -106,7 +123,17 @@ def qmp_type_from_qobj(typename):
 def qmp_is_async_cmd(name):
     return name.startswith('guest-')
 
-def print_lib_decl(name, options, retval, suffix='', guest=False, async=False):
+def parse_args(typeinfo):
+    for member in typeinfo:
+        argname = member
+        argtype = typeinfo[member]
+        optional = False
+        if member.startswith('*'):
+            argname = member[1:]
+            optional = True
+        yield (argname, argtype, optional)
+
+def gen_lib_decl(name, options, retval, suffix='', guest=False, async=False):
     if guest:
         args = []
     else:
@@ -133,51 +160,47 @@ def print_lib_decl(name, options, retval, suffix='', guest=False, async=False):
     else:
         qmp_retval = qmp_type_to_c(retval, True)
 
-    print '%s %s_%s(%s)%s' % (qmp_retval, prefix, c_var(name), ', '.join(args), suffix)
+    return mcgen('''
+%(ret)s %(prefix)s_%(name)s(%(args)s)%(suffix)s
+''', ret=qmp_retval, prefix=prefix, name=c_var(name), args=', '.join(args), suffix=suffix)
 
-def print_lib_event_decl(name, end=''):
-    print 'static void libqmp_notify_%s(QDict *qmp__args, void *qmp__fn, void *qmp__opaque, Error **qmp__errp)%s' % (de_camel_case(qmp_event_to_c(name)), end)
+def gen_lib_declaration(name, options, retval):
+    return gen_lib_decl(name, options, retval, ';')
 
-def print_lib_declaration(name, options, retval):
-    print_lib_decl(name, options, retval, ';')
-
-def parse_args(typeinfo):
-    for member in typeinfo:
-        argname = member
-        argtype = typeinfo[member]
-        optional = False
-        if member.startswith('*'):
-            argname = member[1:]
-            optional = True
-        yield (argname, argtype, optional)
-
-def print_lib_event_definition(name, typeinfo):
-    print
-    print_lib_event_decl(name)
-    print '{'
-    print '    %s *qmp__native_fn = qmp__fn;' % (qmp_event_func_to_c(name))
-    print '    Error *qmp__err = NULL;'
+def gen_lib_event_definition(name, typeinfo):
+    args = ''
     for argname, argtype, optional in parse_args(typeinfo):
         if optional:
-            print '    bool has_%s;' % (c_var(argname))
-        print '    %s %s = 0;' % (qmp_type_to_c(argtype, True), c_var(argname))
+            args += '\n' + cgen('    bool has_%(name)s;', name=c_var(argname))
+        args += '\n' + cgen('    %(type)s %(name)s = 0;', type=qmp_type_to_c(argtype, True), name=c_var(argname))
 
-    print
-    print '    (void)qmp__err;'
+    ret = mcgen('''
+
+static void libqmp_notify_%(fn_name)s(QDict *qmp__args, void *qmp__fn, void *qmp__opaque, Error **qmp__errp)
+{
+    %(fn_ret)s *qmp__native_fn = qmp__fn;
+    Error *qmp__err = NULL;
+%(args)s
+
+    (void)qmp__err;
+''',
+                fn_name=de_camel_case(qmp_event_to_c(name)),
+                fn_ret=qmp_event_func_to_c(name), args=args)
 
     for argname, argtype, optional in parse_args(typeinfo):
         if optional:
-            print '    BUILD_BUG()'
-        print '''
-    if (!qdict_haskey(qmp__args, "%s")) {
-        error_set(qmp__errp, QERR_MISSING_PARAMETER, "%s");
+            ret += '\n' + cgen('    BUILD_BUG()')
+        ret += '\n' + mcgen('''
+
+    if (!qdict_haskey(qmp__args, "%(name)s")) {
+        error_set(qmp__errp, QERR_MISSING_PARAMETER, "%(name)s");
         goto qmp__out;
     }
 
-    %s = %s(qdict_get(qmp__args, "%s"), &qmp__err);
+    %(c_name)s = %(unmarshal)s(qdict_get(qmp__args, "%(name)s"), &qmp__err);
     if (qmp__err) {
         if (error_is_type(qmp__err, QERR_INVALID_PARAMETER_TYPE)) {
-            error_set(qmp__errp, QERR_INVALID_PARAMETER_TYPE, "%s",
+            error_set(qmp__errp, QERR_INVALID_PARAMETER_TYPE, "%(name)s",
                       error_get_field(qmp__err, "expected"));
             error_free(qmp__err);
             qmp__err = NULL;
@@ -185,73 +208,100 @@ def print_lib_event_definition(name, typeinfo):
             error_propagate(qmp__errp, qmp__err);
         }
         goto qmp__out;
-    }''' % (argname, argname, c_var(argname), qmp_type_from_qobj(argtype), argname, argname)
+    }
+''', name=argname, c_name=c_var(argname), unmarshal=qmp_type_from_qobj(argtype))
 
     arglist = ['qmp__opaque']
     for argname, argtype, optional in parse_args(typeinfo):
         arglist.append(c_var(argname))
-    print
-    print '    qmp__native_fn(%s);' % (', '.join(arglist))
+    ret += '\n' + mcgen('''
+
+    qmp__native_fn(%(args)s);
+''', args=', '.join(arglist))
 
     has_label = False
     for argname, argtype, optional in parse_args(typeinfo):
         if not has_label:
-            print
-            print 'qmp__out:'
+            ret += '\n' + mcgen('''
+qmp__out:
+''')
             has_label = True
 
         if qmp_type_should_free(argtype):
-            print '    %s(%s);' % (qmp_free_func(argtype), c_var(argname))
-    print '    return;'
-    print '}'
+            ret += '\n' + cgen('    %(free)s(%(name)s);', free=qmp_free_func(argtype), name=c_var(argname))
+    ret += '\n' + mcgen('''
+    return;
+}
+''')
+    return ret
 
-def print_lib_definition(name, options, retval, guest=False, async=False):
-    if guest and async:
-        print '''
-typedef struct %sCompletionCB
+def gen_async_lib_definition(name, options, retval):
+    ret = mcgen('''
+
+typedef struct %(cc_name)sCompletionCB
 {
-    %sCompletionFunc *cb;
+    %(cc_name)sCompletionFunc *cb;
     void *opaque;
-} %sCompletionCB;''' % (camel_case(name), camel_case(name), camel_case(name))
-        print
-        print '''static void qmp_%s_cb(void *qmp__opaque, QObject *qmp__retval, Error *qmp__err)
+} %(cc_name)sCompletionCB;
+
+static void qmp_%(c_name)s_cb(void *qmp__opaque, QObject *qmp__retval, Error *qmp__err)
 {
-    %sCompletionCB *qmp__cb = qmp__opaque;''' % (c_var(name), camel_case(name))
-        if retval != 'none':
-            print '    %s qmp__native_retval = 0;' % (qmp_type_to_c(retval, True))
-        if type(retval) == list:
-            print '''
+    %(cc_name)sCompletionCB *qmp__cb = qmp__opaque;
+''',
+                cc_name=camel_case(name), c_name=c_var(name))
+
+    if retval != 'none':
+        ret += '\n' + cgen('    %(ret_type)s qmp__native_retval = 0;',
+                           ret_type=qmp_type_to_c(retval, True))
+
+    if type(retval) == list:
+        ret += '\n' + mcgen('''
+
     if (!qmp__err) {
         QList *qmp__list_retval = qobject_to_qlist(qmp__retval);
         QListEntry *qmp__i;
         QLIST_FOREACH_ENTRY(qmp__list_retval, qmp__i) {
-            %s qmp__native_i = %s(qmp__i->value, &qmp__err);
+            %(ret_type)s qmp__native_i = %(unmarshal)s(qmp__i->value, &qmp__err);
             if (qmp__err) {
-                %s(qmp__native_retval);
+                %(free)s(qmp__native_retval);
                 break;
             }
             qmp__native_i->next = qmp__native_retval;
             qmp__native_retval = qmp__native_i;
         }
-    }''' % (qmp_type_to_c(retval[0], True), qmp_type_from_qobj(retval[0]), qmp_free_func(retval[0]))
-        elif is_dict(retval):
-            print '    // FIXME (using an anonymous dict as return value)'
-            print '    BUILD_BUG();'
+    }
+''',
+                            ret_type=qmp_type_to_c(retval[0], True),
+                            unmarshal=qmp_type_from_qobj(retval[0]),
+                            free=qmp_free_func(retval[0]))
+    elif is_dict(retval):
+        ret += '\n' + mcgen('''
+    // FIXME (using an anonymous dict as return value)')
+    BUILD_BUG();
+''')
+    elif retval != 'none':
+        ret += '\n' + mcgen('''
 
-        elif retval != 'none':
-            print '''
     if (!qmp__err) {
-        qmp__native_retval = %s(qmp__retval, &qmp__err);
-    }''' % qmp_type_from_qobj(retval)
-        print
-        if retval == 'none':
-            print '    qmp__cb->cb(qmp__cb->opaque, qmp__err);'
-        else:
-            print '    qmp__cb->cb(qmp__cb->opaque, qmp__native_retval, qmp__err);'
-        print '}'
+        qmp__native_retval = %(unmarshal)s(qmp__retval, &qmp__err);
+    }
+''',
+                            unmarshal=qmp_type_from_qobj(retval))
+    ret += '\n' + cgen('')
+    if retval == 'none':
+        ret += '\n' + cgen('    qmp__cb->cb(qmp__cb->opaque, qmp__err);')
+    else:
+        ret += '\n' + cgen('    qmp__cb->cb(qmp__cb->opaque, qmp__native_retval, qmp__err);')
+    ret += '\n' + cgen('}')
+
+    return ret
+
+def print_lib_definition(name, options, retval, guest=False, async=False):
+    if guest and async:
+        print gen_async_lib_definition(name, options, retval)
 
     print
-    print_lib_decl(name, options, retval, guest=guest, async=async)
+    print gen_lib_decl(name, options, retval, guest=guest, async=async)
     print '''{
     QDict *qmp__args = qdict_new();'''
     if async:
@@ -1157,7 +1207,7 @@ def main(args):
                     print_type_marshal_declaration(key, s[key])
                 elif kind == 'lib-body':
                     if qmp_type_is_event(key):
-                        print_lib_event_definition(key, event_types[key])
+                        print gen_lib_event_definition(key, event_types[key])
             else:
                 enum_types.append(key)
                 if kind == 'types-header':
@@ -1191,7 +1241,7 @@ def main(args):
             elif kind == 'lib-body':
                 print_lib_definition(name, options, retval)
             elif kind == 'lib-header':
-                print_lib_declaration(name, options, retval)
+                print gen_lib_declaration(name, options, retval)
     
     if kind.endswith('header'):
         print '#endif'
