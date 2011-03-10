@@ -1078,104 +1078,157 @@ typedef struct %(c_event)s {
                      c_event=qmp_event_to_c(name))
     return ret
 
-def print_type_marshal_declaration(name, typeinfo):
-    if qmp_type_is_event(name):
-        return
-
-    if is_dict(typeinfo):
-        print
-        print 'QObject *qmp_marshal_type_%s(%s src);' % (name, qmp_type_to_c(name))
-        print '%s qmp_unmarshal_type_%s(QObject *src, Error **errp);' % (qmp_type_to_c(name), name)
-
+# FIXME delete
 def inprint(string, indent):
     print '%s%s' % (genindent(indent), string)
 
-def print_metatype_def(typeinfo, name, lhs, indent=0):
-    if indent == 0:
-        sep = '->'
-    else:
-        sep = '.'
-    new_lhs = 'qmp__member%d' % (indent / 4)
+def gen_type_marshal_declaration(name, typeinfo):
+    if qmp_type_is_event(name):
+        return ''
+
+    if is_dict(typeinfo):
+        return mcgen('''
+
+QObject *qmp_marshal_type_%(name)s(%(type)s src);
+%(type)s qmp_unmarshal_type_%(name)s(QObject *src, Error **errp);
+''',
+                     name=name, type=qmp_type_to_c(name))
+
+    return ''
+
+def gen_metatype_def(typeinfo, name, lhs, sep='->', level=0):
+    new_lhs = 'qmp__member%d' % level
+
+    ret = ''
 
     if type(typeinfo) == str:
-        inprint('    %s = %s(%s);' % (lhs, qmp_type_to_qobj_ctor(typeinfo), name), indent)
+        ret += cgen('    %(lhs)s = %(marshal)s(%(name)s);',
+                    lhs=lhs, name=name,
+                    marshal=qmp_type_to_qobj_ctor(typeinfo))
     elif is_dict(typeinfo):
-        inprint('    {', indent)
-        inprint('        QDict *qmp__dict = qdict_new();', indent)
-        inprint('        QObject *%s;' % new_lhs, indent)
-        print
+        ret += mcgen('''
+    {
+        QDict *qmp__dict = qdict_new();
+        QObject *%(new_lhs)s;
+''',
+                     new_lhs=new_lhs)
         for argname, argtype, optional in parse_args(typeinfo):
+            ret += cgen('')
             if optional:
-                inprint('        if (%s%shas_%s) {' % (name, sep, c_var(argname)), indent)
-                indent += 4
-            print_metatype_def(argtype, '%s%s%s' % (name, sep, c_var(argname)), new_lhs, indent + 4)
-            inprint('        qdict_put_obj(qmp__dict, "%s", %s);' % (argname, new_lhs), indent)
+                ret += mcgen('''
+        if (%(name)s%(sep)shas_%(c_name)s) {
+''',
+                             name=name, sep=sep,
+                             c_name=c_var(argname))
+                push_indent()
+            push_indent()
+            ret += gen_metatype_def(argtype, '%s%s%s' % (name, sep, c_var(argname)), new_lhs, '.', level + 1)
+            pop_indent()
+            ret += mcgen('''
+        qdict_put_obj(qmp__dict, "%(name)s", %(new_lhs)s);
+''',
+                         name=argname, new_lhs=new_lhs)
             if optional:
-                indent -= 4
-                inprint('        }', indent)
-            print
-        inprint('        %s = QOBJECT(qmp__dict);' % lhs, indent)
-        inprint('    }', indent)
+                pop_indent()
+                ret += mcgen('''
+        }
+''')
+        ret += mcgen('''
+        %(lhs)s = QOBJECT(qmp__dict);
+    }
+''',
+                     lhs=lhs)
     elif type(typeinfo) == list:
-        inprint('    {', indent)
-        inprint('        QList *qmp__list = qlist_new();', indent)
-        inprint('        %s %s_i;' % (qmp_type_to_c(typeinfo[0], True), new_lhs), indent)
-        print
-        inprint('        for (%s_i = %s; %s_i != NULL; %s_i = %s_i->next) {' % (new_lhs, name, new_lhs, new_lhs, new_lhs), indent)
-        inprint('            QObject *qmp__member = %s(%s_i);' % (qmp_type_to_qobj_ctor(typeinfo[0]), new_lhs), indent)
-        inprint('            qlist_append_obj(qmp__list, qmp__member);', indent)
-        inprint('        }', indent)
-        inprint('        %s = QOBJECT(qmp__list);' % lhs, indent)
-        inprint('    }', indent)
+        ret += mcgen('''
+    {
+        QList *qmp__list = qlist_new();
+        %(type)s %(new_lhs)s_i;
+
+        for (%(new_lhs)s_i = %(name)s; %(new_lhs)s_i != NULL; %(new_lhs)s_i = %(new_lhs)s_i->next) {
+            QObject *qmp__member = %(marshal)s(%(new_lhs)s_i);
+            qlist_append_obj(qmp__list, qmp__member);
+        }
+        %(lhs)s = QOBJECT(qmp__list);
+    }
+''',
+                     type=qmp_type_to_c(typeinfo[0], True),
+                     new_lhs=new_lhs, name=name, lhs=lhs,
+                     marshal=qmp_type_to_qobj_ctor(typeinfo[0]))
+
+    return ret
 
 def qobj_to_c(typename):
     return 'qmp_unmarshal_type_%s' % typename
 
-def print_metatype_undef(typeinfo, name, lhs, indent=0):
-    if indent == 0:
-        sep = '->'
-    else:
-        sep = '.'
-
-    indent += 4
-
+def gen_metatype_undef(typeinfo, name, lhs, sep='->', level=0):
+    ret = ''
     if type(typeinfo) == str:
-        inprint('%s = %s(%s, &qmp__err);' % (lhs, qobj_to_c(typeinfo), name), indent)
-        inprint('if (qmp__err) {', indent)
-        inprint('    goto qmp__err_out;', indent)
-        inprint('}', indent)
+        ret += mcgen('''
+    %(lhs)s = %(unmarshal)s(%(c_name)s, &qmp__err);
+    if (qmp__err) {
+        goto qmp__err_out;
+    }
+''',
+                     lhs=lhs, c_name=c_var(name),
+                     unmarshal=qobj_to_c(typeinfo))
     elif is_dict(typeinfo):
-        objname = 'qmp__object%d' % ((indent - 4) / 4)
-        inprint('{', indent)
-        inprint('    QDict *qmp__dict = qobject_to_qdict(%s);' % c_var(name), indent)
-        inprint('    QObject *%s;' % objname, indent)
+        objname = 'qmp__object%d' % level
+        ret += mcgen('''
+    {
+        QDict *qmp__dict = qobject_to_qdict(%(c_name)s);
+        QObject *%(objname)s;
+
+''',
+                     c_name=c_var(name), objname=objname)
         for argname, argtype, optional in parse_args(typeinfo):
             if optional:
-                inprint('if (qdict_haskey(qmp__dict, "%s")) {' % (argname), indent + 4)
-                indent += 4
-            inprint('    %s = qdict_get(qmp__dict, "%s");' % (objname, argname), indent)
-            print_metatype_undef(argtype, objname, '%s%s%s' % (lhs, sep, c_var(argname)), indent)
+                ret += mcgen('''
+        if (qdict_haskey(qmp__dict, "%(name)s")) {
+''',
+                             name=argname)
+                push_indent()
+            ret += mcgen('''
+        %(objname)s = qdict_get(qmp__dict, "%(name)s");
+''',
+                         name=argname, objname=objname)
+            push_indent()
+            ret += gen_metatype_undef(argtype, objname, '%s%s%s' % (lhs, sep, c_var(argname)), '.', level + 1)
+            pop_indent()
             if optional:
-                indent -= 4
-                inprint('    %s%shas_%s = true;' % (lhs, sep, c_var(argname)), indent + 4)
-                inprint('} else {', indent + 4)
-                inprint('    %s%shas_%s = false;' % (lhs, sep, c_var(argname)), indent + 4)
-                inprint('}', indent + 4)
-        inprint('}', indent)
+                pop_indent()
+                ret += mcgen('''
+            %(lhs)s%(sep)shas_%(c_name)s = true;
+        } else {
+            %(lhs)s%(sep)shas_%(c_name)s = false;
+        }
+''',
+                             lhs=lhs, sep=sep, c_name=c_var(argname))
+
+        ret += mcgen('''
+    }
+''')
+
     elif type(typeinfo) == list:
-        objname = 'qmp__object%d' % ((indent - 4) / 4)
-        inprint('{', indent)
-        inprint('    QList *qmp__list = qobject_to_qlist(%s);' % c_var(name), indent)
-        inprint('    QListEntry *%s;' % objname, indent)
-        inprint('    QLIST_FOREACH_ENTRY(qmp__list, %s) {' % objname, indent)
-        inprint('        %s qmp__node = %s(%s->value, &qmp__err);' % (qmp_type_to_c(typeinfo[0], True), qmp_type_from_qobj(typeinfo[0]), objname), indent)
-        inprint('        if (qmp__err) {', indent)
-        inprint('            goto qmp__err_out;', indent)
-        inprint('        }', indent)
-        inprint('        qmp__node->next = %s;' % lhs, indent)
-        inprint('        %s = qmp__node;' % lhs, indent)
-        inprint('    }', indent)
-        inprint('}', indent)
+        objname = 'qmp__object%d' % level
+        ret += mcgen('''
+    {
+        QList *qmp__list = qobject_to_qlist(%(c_name)s);
+        QListEntry *%(objname)s;
+        QLIST_FOREACH_ENTRY(qmp__list, %(objname)s) {
+            %(type)s qmp__node = %(unmarshal)s(%(objname)s->value, &qmp__err);
+            if (qmp__err) {
+                goto qmp__err_out;
+            }
+            qmp__node->next = %(lhs)s;
+            %(lhs)s = qmp__node;
+        }
+    }
+''',
+                     c_name=c_var(name), objname=objname, lhs=lhs,
+                     type=qmp_type_to_c(typeinfo[0], True),
+                     unmarshal=qmp_type_from_qobj(typeinfo[0]))
+
+    return ret
 
 def gen_metatype_free(typeinfo, prefix):
     ret = ''
@@ -1211,30 +1264,43 @@ def gen_metatype_free(typeinfo, prefix):
 
     return ret
 
-def print_type_marshal_definition(name, typeinfo):
-    c_var_name = de_camel_case(name)
+def gen_type_marshal_definition(name, typeinfo):
+    ret = ''
     if qmp_type_is_event(name):
-        return
+        return ret
 
-    print '''
-QObject *qmp_marshal_type_%s(%s src)
-{''' % (name, qmp_type_to_c(name))
-    print '    QObject *qmp__retval;'
-    print_metatype_def(typeinfo, 'src', 'qmp__retval')
-    print '''    return qmp__retval;
+    ret += mcgen('''
+
+QObject *qmp_marshal_type_%(name)s(%(type)s src)
+{
+    QObject *qmp__retval;
+
+%(marshal)s
+
+    return qmp__retval;
 }
 
-%s qmp_unmarshal_type_%s(QObject *src, Error **errp)
-{''' % (qmp_type_to_c(name), name)
-    print '    Error *qmp__err = NULL;'
-    print '    %s qmp__retval = qmp_alloc_%s();' % (qmp_type_to_c(name), c_var_name)
-    print_metatype_undef(typeinfo, 'src', 'qmp__retval')
-    print '''    return qmp__retval;
+%(type)s qmp_unmarshal_type_%(name)s(QObject *src, Error **errp)
+{
+    Error *qmp__err = NULL;
+    %(type)s qmp__retval = qmp_alloc_%(dcc_name)s();
+
+%(unmarshal)s
+
+    return qmp__retval;
+
 qmp__err_out:
     error_propagate(errp, qmp__err);
-    %s(qmp__retval);
+    %(free)s(qmp__retval);
     return NULL;
-}''' % (qmp_free_func(name))
+}
+''',
+                 name=name, type=qmp_type_to_c(name),
+                 marshal=gen_metatype_def(typeinfo, 'src', 'qmp__retval'),
+                 dcc_name=de_camel_case(name), free=qmp_free_func(name),
+                 unmarshal=gen_metatype_undef(typeinfo, 'src', 'qmp__retval'))
+
+    return ret
 
 def gen_type_definition(name, typeinfo):
     if qmp_type_is_event(name):
@@ -1437,9 +1503,9 @@ def main(args):
                 elif kind == 'types-header':
                     sys.stdout.write(gen_type_declaration(key, s[key]))
                 elif kind == 'marshal-body':
-                    print_type_marshal_definition(key, s[key])
+                    sys.stdout.write(gen_type_marshal_definition(key, s[key]))
                 elif kind == 'marshal-header':
-                    print_type_marshal_declaration(key, s[key])
+                    sys.stdout.write(gen_type_marshal_declaration(key, s[key]))
                 elif kind == 'lib-body':
                     if qmp_type_is_event(key):
                         sys.stdout.write(gen_lib_event_definition(key, event_types[key]))
