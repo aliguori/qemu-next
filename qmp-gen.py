@@ -931,110 +931,152 @@ const char *qmp_type_%(dcc_name)s_to_str(%(name)s value, Error **errp)
                  name=name)
     return ret
 
-def print_enum_marshal_definition(name, entries):
-    print '''
-QObject *qmp_marshal_type_%s(%s value)
+def gen_enum_marshal_definition(name, entries):
+    return mcgen('''
+
+QObject *qmp_marshal_type_%(name)s(%(name)s value)
 {
     return QOBJECT(qint_from_int(value));
 }
-''' % (name, name)
 
-    print '''
-%s qmp_unmarshal_type_%s(QObject *obj, Error **errp)
+%(name)s qmp_unmarshal_type_%(name)s(QObject *obj, Error **errp)
 {
-    return (%s)qint_get_int(qobject_to_qint(obj));
+    return (%(name)s)qint_get_int(qobject_to_qint(obj));
 }
-''' % (name, name, name)
+''',
+                name=name)
 
-def print_qdev_declaration(name, entries):
-    print '''
-extern PropertyInfo qdev_prop_%s;
+def gen_qdev_declaration(name, entries):
+    return mcgen('''
 
-#define DEFINE_PROP_%s(_n, _s, _f, _d) \\
-    DEFINE_PROP_DEFAULT(_n, _s, _f, _d, qdev_prop_%s, %s)
-''' % (name, de_camel_case(name).upper(), name, name)
+extern PropertyInfo qdev_prop_%(name)s;
 
-def print_qdev_definition(name, entries):
-    print '''
-static int parse_%s(DeviceState *dev, Property *prop, const char *str)
+#define DEFINE_PROP_%(upper_name)s(_n, _s, _f, _d) \\
+    DEFINE_PROP_DEFAULT(_n, _s, _f, _d, qdev_prop_%(name)s, %(name)s)
+''',
+                 name=name,
+                 upper_name=de_camel_case(name).upper())
+
+def gen_qdev_definition(name, entries):
+    ret = mcgen('''
+
+static int parse_%(name)s(DeviceState *dev, Property *prop, const char *str)
 {
-    %s *ptr = qdev_get_prop_ptr(dev, prop);
+    %(name)s *ptr = qdev_get_prop_ptr(dev, prop);
     char *end;
-''' % (name, name)
+''',
+                name=name)
     first = True
     for entry in entries:
+        prefix='} else '
         if first:
+            prefix=''
             first = False
-            print '    if (strcmp(str, "%s") == 0) {' % entry
-        else:
-            print '    } else if (strcmp(str, "%s") == 0) {' % entry
-        print '        *ptr = %s_%s;' % (enum_abbreviation(name), entry.upper())
-    print '''    } else {
+        ret += mcgen('''
+    %(prefix)sif (strcmp(str, "%(entry)s") == 0) {
+        *ptr = %(abrev)s_%(value)s;
+''',
+                     prefix=prefix, entry=entry,
+                     abrev=enum_abbreviation(name),
+                     value=entry.upper())
+    ret += mcgen('''
+    } else {
         *ptr = strtoul(str, &end, 0);
         if ((*end != '\\0') || (end == str)) {
             return -EINVAL;
         }
-        if (*ptr > %s_%s) {
+        if (*ptr > %(abrev)s_%(value)s) {
             return -EINVAL;
         }
     }
     return 0;
-}''' % (enum_abbreviation(name), entries[-1].upper())
+}
 
-    print '''
-static int print_%s(DeviceState *dev, Property *prop, char *dest, size_t len)
+static int print_%(name)s(DeviceState *dev, Property *prop, char *dest, size_t len)
 {
-    %s *ptr = qdev_get_prop_ptr(dev, prop);
-''' % (name, name)
+    %(name)s *ptr = qdev_get_prop_ptr(dev, prop);
+''',
+                 abrev=enum_abbreviation(name),
+                 value=entries[-1].upper(),
+                 name=name)
+
     first = True
     for entry in entries:
         enum = '%s_%s' % (enum_abbreviation(name), entry.upper())
+        prefix = '} else '
         if first:
+            prefix=''
             first = False
-            print '    if (*ptr == %s) {' % enum
-        else:
-            print '    } else if (*ptr == %s) {' % enum
-        print '        return snprintf(dest, len, "%%s", "%s");' % entry
-    print '''    }
+        ret += mcgen('''
+    %(prefix)sif (*ptr == %(enum)s) {
+        return snprintf(dest, len, "%%s", "%(name)s");
+''',
+                     prefix=prefix, enum=enum, name=entry)
+    ret += mcgen('''
+    }
+
     return -EINVAL;
 }
 
-PropertyInfo qdev_prop_%s = {
-    .name = "%s",
+PropertyInfo qdev_prop_%(name)s = {
+    .name = "%(name)s",
     .type = PROP_TYPE_STRING,
-    .size = sizeof(%s),
-    .parse = parse_%s,
-    .print = print_%s,
-};''' % (name, name, name, name, name)
+    .size = sizeof(%(name)s),
+    .parse = parse_%(name)s,
+    .print = print_%(name)s,
+};
+''',
+                 name=name)
+    return ret
 
-def print_type_declaration(name, typeinfo):
+def gen_type_declaration(name, typeinfo):
+    ret = ''
     if type(typeinfo) == str:
-        print
-        print "typedef %s %s;" % (qmp_type_to_c(typeinfo), name)
+        ret += mcgen('''
+
+typedef %(type)s %(name)s;
+''',
+                     type=qmp_type_to_c(typeinfo),
+                     name=name)
     elif is_dict(typeinfo) and not name.isupper():
-        print
-        print "typedef struct %s %s;" % (name, name)
-        print "struct %s {" % name
+        ret += mcgen('''
+
+typedef struct %(name)s %(name)s;
+struct %(name)s {
+''', name=name)
         for argname, argtype, optional in parse_args(typeinfo):
             if optional:
-                print "    bool has_%s;" % c_var(argname)
-            print "    %s %s;" % (qmp_type_to_c(argtype, True, indent=4), c_var(argname))
-        print "    %s *next;" % c_var(name)
-        print "};"
-        print
-        print "%s *qmp_alloc_%s(void);" % (name, de_camel_case(name))
-        print "void qmp_free_%s(%s *obj);" % (de_camel_case(name), name)
+                ret += cgen('    bool has_%(c_name)s;',
+                            c_name=c_var(argname))
+            ret += cgen('    %(type)s %(c_name)s;',
+                        type=qmp_type_to_c(argtype, True, indent=4),
+                        c_name=c_var(argname))
+        ret += mcgen('''
+    %(c_name)s *next;
+};
+
+%(name)s *qmp_alloc_%(dcc_name)s(void);
+void qmp_free_%(dcc_name)s(%(name)s *obj);
+''',
+                     c_name=c_var(name), name=name,
+                     dcc_name=de_camel_case(name))
     elif is_dict(typeinfo) and name.isupper():
         arglist = ['void *opaque']
         for argname, argtype, optional in parse_args(typeinfo):
             arglist.append('%s %s' % (qmp_type_to_c(argtype), argname))
-        print
-        print 'typedef void (%s)(%s);' % (qmp_event_func_to_c(name), ', '.join(arglist))
-        print
-        print 'typedef struct %s {' % qmp_event_to_c(name)
-        print '    QmpSignal *signal;'
-        print '    %s *func;' % qmp_event_func_to_c(name)
-        print '} %s;' % qmp_event_to_c(name)
+        ret += mcgen('''
+
+typedef void (%(event_func)s)(%(args)s);
+
+typedef struct %(c_event)s {
+    QmpSignal *signal;
+    %(event_func)s *func;
+} %(c_event)s;
+''',
+                     event_func=qmp_event_func_to_c(name),
+                     args=', '.join(arglist),
+                     c_event=qmp_event_to_c(name))
+    return ret
 
 def print_type_marshal_declaration(name, typeinfo):
     if qmp_type_is_event(name):
@@ -1135,25 +1177,39 @@ def print_metatype_undef(typeinfo, name, lhs, indent=0):
         inprint('    }', indent)
         inprint('}', indent)
 
-def print_metatype_free(typeinfo, prefix, indent=4):
+def gen_metatype_free(typeinfo, prefix):
+    ret = ''
+
     for argname, argtype, optional in parse_args(typeinfo):
         if type(argtype) == list:
             argtype = argtype[0]
 
         if is_dict(argtype):
             if optional:
-                inprint('if (%shas_%s) {' % (prefix, argname), indent)
-                print_metatype_free(argtype, '%s%s.' % (prefix, argname), indent + 4)
-                inprint('}', indent)
-            else:
-                print_metatype_free(argtype, '%s%s.' % (prefix, argname), indent)
+                ret += cgen('    if (%(prefix)shas_%(c_name)s) {',
+                            prefix=prefix, c_name=c_var(argname))
+                push_indent()
+            ret += gen_metatype_free(argtype, '%s%s.' % (prefix, argname))
+            if optional:
+                pop_indent()
+                ret += cgen('    }')
         elif qmp_type_should_free(argtype):
             if optional:
-                inprint('if (%shas_%s) {' % (prefix, argname), indent)
-                inprint('    %s(%s%s);' % (qmp_free_func(argtype), prefix, argname), indent)
-                inprint('}', indent)
+                ret += mcgen('''
+    if (%(prefix)shas_%(c_name)s) {
+        %(free)s(%(prefix)s%(c_name)s);
+    }
+''',
+                             prefix=prefix, c_name=c_var(argname),
+                             free=qmp_free_func(argtype))
             else:
-                inprint('%s(%s%s);' % (qmp_free_func(argtype), prefix, argname), indent)
+                ret += mcgen('''
+    %(free)s(%(prefix)s%(c_name)s);
+''',
+                             prefix=prefix, c_name=c_var(argname),
+                             free=qmp_free_func(argtype))
+
+    return ret
 
 def print_type_marshal_definition(name, typeinfo):
     c_var_name = de_camel_case(name)
@@ -1180,32 +1236,33 @@ qmp__err_out:
     return NULL;
 }''' % (qmp_free_func(name))
 
-def print_type_definition(name, typeinfo):
+def gen_type_definition(name, typeinfo):
     if qmp_type_is_event(name):
-        return
+        return ''
 
-    c_var_name = de_camel_case(name)
 
-    print '''
-void qmp_free_%s(%s *obj)
+    return mcgen('''
+
+void qmp_free_%(dcc_name)s(%(name)s *obj)
 {
     if (!obj) {
         return;
-    }''' % (c_var_name, name)
+    }
+%(type_free)s
 
-    print_metatype_free(typeinfo, 'obj->')
-
-    print '''
-    %s(obj->next);
+    %(free)s(obj->next);
     qemu_free(obj);
-}''' % (qmp_free_func(name))
+}
 
-    print '''
-%s *qmp_alloc_%s(void)
+%(name)s *qmp_alloc_%(dcc_name)s(void)
 {
-    BUILD_ASSERT(sizeof(%s) < 512);
+    BUILD_ASSERT(sizeof(%(name)s) < 512);
     return qemu_mallocz(512);
-}''' % (name, c_var_name, name)
+}
+''',
+                dcc_name=de_camel_case(name), name=name,
+                free=qmp_free_func(name),
+                type_free=gen_metatype_free(typeinfo, 'obj->'))
 
 def tokenize(data):
     while len(data):
@@ -1376,9 +1433,9 @@ def main(args):
                 if qmp_type_is_event(key):
                     event_types[key] = s[key]
                 if kind == 'types-body':
-                    print_type_definition(key, s[key])
+                    sys.stdout.write(gen_type_definition(key, s[key]))
                 elif kind == 'types-header':
-                    print_type_declaration(key, s[key])
+                    sys.stdout.write(gen_type_declaration(key, s[key]))
                 elif kind == 'marshal-body':
                     print_type_marshal_definition(key, s[key])
                 elif kind == 'marshal-header':
@@ -1395,11 +1452,11 @@ def main(args):
                 elif kind == 'marshal-header':
                     sys.stdout.write(gen_enum_marshal_declaration(key, s[key]))
                 elif kind == 'marshal-body':
-                    print_enum_marshal_definition(key, s[key])
+                    sys.stdout.write(gen_enum_marshal_definition(key, s[key]))
                 elif kind == 'qdev-header':
-                    print_qdev_declaration(key, s[key])
+                    sys.stdout.write(gen_qdev_declaration(key, s[key]))
                 elif kind == 'qdev-body':
-                    print_qdev_definition(key, s[key])
+                    sys.stdout.write(gen_qdev_definition(key, s[key]))
         else:
             name, options, retval = s
             if kind == 'body':
@@ -1415,7 +1472,7 @@ def main(args):
                     sys.stdout.write(gen_definition(name, options, retval, prefix='qga'))
             elif kind == 'guest-header':
                 if name.startswith('guest-'):
-                    print_declaration(name, options, retval, prefix='qga')
+                    sys.stdout.write(gen_declaration(name, options, retval, prefix='qga'))
             elif kind == 'lib-body':
                 sys.stdout.write(gen_lib_definition(name, options, retval))
             elif kind == 'lib-header':
