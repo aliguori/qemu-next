@@ -845,60 +845,91 @@ qmp__out:
 
     return ret
 
-def print_enum_declaration(name, entries):
-    print
-    print 'typedef enum %s {' % name
+def gen_enum_declaration(name, entries):
+    ret = mcgen('''
+
+typedef enum %(name)s {
+''', name=name)
     i = 0
     for entry in entries:
-        print '    %s_%s = %d,' % (enum_abbreviation(name), entry.upper(), i)
+        ret += cgen('    %(abrev)s_%(name)s = %(value)d,',
+                    abrev=enum_abbreviation(name),
+                    name=entry.upper(), value=i)
         i += 1
-    print '} %s;' % name
-    print
-    print '%s qmp_type_%s_from_str(const char *str, Error **errp);' % (name, de_camel_case(name))
-    print 'const char *qmp_type_%s_to_str(%s value, Error **errp);' % (de_camel_case(name), name)
+    ret += mcgen('''
+} %(name)s;
 
-def print_enum_marshal_declaration(name, entries):
-    print
-    print 'QObject *qmp_marshal_type_%s(%s value);' % (name, name)
-    print '%s qmp_unmarshal_type_%s(QObject *obj, Error **errp);' % (name, name)
+%(name)s qmp_type_%(dcc_name)s_from_str(const char *str, Error **errp);
+const char *qmp_type_%(dcc_name)s_to_str(%(name)s value, Error **errp);
+''',
+                 name=name, dcc_name=de_camel_case(name))
+    return ret
 
-def print_enum_definition(name, entries):
-    print '''
-%s qmp_type_%s_from_str(const char *str, Error **errp)
-{''' % (name, de_camel_case(name))
+def gen_enum_marshal_declaration(name, entries):
+    return mcgen('''
+
+QObject *qmp_marshal_type_%(name)s(%(name)s value);
+%(name)s qmp_unmarshal_type_%(name)s(QObject *obj, Error **errp);
+''',
+                name=name)
+
+def gen_enum_definition(name, entries):
+    ret = mcgen('''
+
+%(name)s qmp_type_%(dcc_name)s_from_str(const char *str, Error **errp)
+{
+''',
+                name=name,
+                dcc_name=de_camel_case(name))
     first = True
     for entry in entries:
+        prefix = '} else '
         if first:
-            print '    if (strcmp(str, "%s") == 0) {' % entry
+            prefix = ''
             first = False
-        else:
-            print '    } else if (strcmp(str, "%s") == 0) {' % entry
-        print '        return %s_%s;' % (enum_abbreviation(name), entry.upper())
-    print '''    } else {
-        error_set(errp, QERR_ENUM_VALUE_INVALID, "%s", str);
-        return %s_%s;
-    }
-}''' % (name, enum_abbreviation(name), entries[0].upper())
+        ret += mcgen('''
+    %(prefix)sif (strcmp(str, "%(entry)s") == 0) {
+        return %(abrev)s_%(value)s;
+''',
+                     prefix=prefix, entry=entry,
+                     abrev=enum_abbreviation(name), value=entry.upper())
 
-    print '''
-const char *qmp_type_%s_to_str(%s value, Error **errp)
-{''' % (de_camel_case(name), name)
+    ret += mcgen('''
+    } else {
+        error_set(errp, QERR_ENUM_VALUE_INVALID, "%(name)s", str);
+        return %(abrev)s_%(value)s;
+    }
+}
+
+const char *qmp_type_%(dcc_name)s_to_str(%(name)s value, Error **errp)
+{
+''',
+                 name=name, abrev=enum_abbreviation(name),
+                 value=entries[0].upper(), dcc_name=de_camel_case(name))
+
     first = True
     for entry in entries:
         enum = '%s_%s' % (enum_abbreviation(name), entry.upper())
+        prefix = '} else '
         if first:
-            print '    if (value == %s) {' % enum
+            prefix = ''
             first = False
-        else:
-            print '    } else if (value == %s) {' % enum
-        print '        return "%s";' % entry
-    print '''    } else {
+        ret += mcgen('''
+    %(prefix)sif (value == %(enum)s) {
+        return "%(entry)s";
+''',
+                     entry=entry, prefix=prefix, enum=enum)
+    ret += mcgen('''
+    } else {
         char buf[32];
         snprintf(buf, sizeof(buf), "%%d", value);
-        error_set(errp, QERR_ENUM_VALUE_INVALID, "%s", buf);
+        error_set(errp, QERR_ENUM_VALUE_INVALID, "%(name)s", buf);
         return NULL;
     }
-}''' % name
+}
+''',
+                 name=name)
+    return ret
 
 def print_enum_marshal_definition(name, entries):
     print '''
@@ -1358,11 +1389,11 @@ def main(args):
             else:
                 enum_types.append(key)
                 if kind == 'types-header':
-                    print_enum_declaration(key, s[key])
+                    sys.stdout.write(gen_enum_declaration(key, s[key]))
                 elif kind == 'types-body':
-                    print_enum_definition(key, s[key])
+                    sys.stdout.write(gen_enum_definition(key, s[key]))
                 elif kind == 'marshal-header':
-                    print_enum_marshal_declaration(key, s[key])
+                    sys.stdout.write(gen_enum_marshal_declaration(key, s[key]))
                 elif kind == 'marshal-body':
                     print_enum_marshal_definition(key, s[key])
                 elif kind == 'qdev-header':
