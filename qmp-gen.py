@@ -1,7 +1,7 @@
 ##
-# Virtio Support
+# QAPI Code Generator
 #
-# Copyright IBM, Corp. 2007
+# Copyright IBM, Corp. 2011
 #
 # Authors:
 #  Anthony Liguori   <aliguori@us.ibm.com>
@@ -116,11 +116,11 @@ def qmp_type_to_c(typename, retval=False, indent=0):
     else:
         return 'struct %s *' % typename
 
-def qmp_type_to_qobj_ctor(typename):
+def qmp_type_to_qobj(typename):
     return 'qmp_marshal_type_%s' % typename
 
 def qmp_type_from_qobj(typename):
-    return qobj_to_c(typename)
+    return 'qmp_unmarshal_type_%s' % typename
 
 def qmp_is_async_cmd(name):
     return name.startswith('guest-')
@@ -387,7 +387,7 @@ def gen_lib_definition(name, options, retval, guest=False, async=False):
     qdict_put_obj(qmp__args, "%(name)s", %(marshal)s(%(c_name)s));
 ''',
                                 name=argname, c_name=c_var(argname),
-                                marshal=qmp_type_to_qobj_ctor(argtype))
+                                marshal=qmp_type_to_qobj(argtype))
             if optional:
                 pop_indent()
                 ret += mcgen('''
@@ -552,7 +552,7 @@ static void qmp_async_completion_%(c_name)s(void *qmp__opaque, %(ret_type)s qmp_
 
     qmp__ret_data = %(marshal)s(qmp__retval);
 ''',
-                     marshal=qmp_type_to_qobj_ctor(retval))
+                     marshal=qmp_type_to_qobj(retval))
     elif type(retval) == list:
         ret += mcgen('''
 
@@ -567,7 +567,7 @@ static void qmp_async_completion_%(c_name)s(void *qmp__opaque, %(ret_type)s qmp_
     }
 ''',
               type=qmp_type_to_c(retval[0], True),
-              marshal=qmp_type_to_qobj_ctor(retval[0]))
+              marshal=qmp_type_to_qobj(retval[0]))
 
     ret_data = 'qmp__ret_data'
     if retval == 'none':
@@ -609,7 +609,7 @@ static void qmp_marshal_%(c_name)s(%(args)s)
     qdict_put_obj(qmp__args, "%(name)s", %(marshal)s(%(c_name)s));
 ''',
                          name=argname,  c_name=c_var(argname),
-                         marshal=qmp_type_to_qobj_ctor(argtype))
+                         marshal=qmp_type_to_qobj(argtype))
             if optional:
                 pop_indent()
                 ret += cgen('    }')
@@ -636,7 +636,7 @@ static void qmp_marshal_%(c_name)s(QmpState *qmp__sess, const QDict *qdict, QObj
     elif async:
         ret += mcgen('''
 
-static void qmp_async_marshal_%(c_name)s(const QDict *qdict, Error **err, QmpCommandState *qmp__cmd)
+static void qmp_marshal_%(c_name)s(const QDict *qdict, Error **err, QmpCommandState *qmp__cmd)
 {
 ''',
                      c_name=c_var(name))
@@ -793,7 +793,7 @@ static void qmp_marshal_%(c_name)s(const QDict *qdict, QObject **ret_data, Error
         ret += mcgen('''
     *ret_data = %(marshal)s(qmp_retval);
 ''',
-                     marshal=qmp_type_to_qobj_ctor(retval))
+                     marshal=qmp_type_to_qobj(retval))
     elif type(retval) == list:
         ret += mcgen('''
     *ret_data = QOBJECT(qlist_new());
@@ -807,7 +807,7 @@ static void qmp_marshal_%(c_name)s(const QDict *qdict, QObject **ret_data, Error
     }
 ''',
                      ret_type=qmp_type_to_c(retval[0], True),
-                     marshal=qmp_type_to_qobj_ctor(retval[0]))
+                     marshal=qmp_type_to_qobj(retval[0]))
 
     ret += mcgen('''
 
@@ -1078,10 +1078,6 @@ typedef struct %(c_event)s {
                      c_event=qmp_event_to_c(name))
     return ret
 
-# FIXME delete
-def inprint(string, indent):
-    print '%s%s' % (genindent(indent), string)
-
 def gen_type_marshal_declaration(name, typeinfo):
     if qmp_type_is_event(name):
         return ''
@@ -1104,7 +1100,7 @@ def gen_metatype_def(typeinfo, name, lhs, sep='->', level=0):
     if type(typeinfo) == str:
         ret += cgen('    %(lhs)s = %(marshal)s(%(name)s);',
                     lhs=lhs, name=name,
-                    marshal=qmp_type_to_qobj_ctor(typeinfo))
+                    marshal=qmp_type_to_qobj(typeinfo))
     elif is_dict(typeinfo):
         ret += mcgen('''
     {
@@ -1153,12 +1149,9 @@ def gen_metatype_def(typeinfo, name, lhs, sep='->', level=0):
 ''',
                      type=qmp_type_to_c(typeinfo[0], True),
                      new_lhs=new_lhs, name=name, lhs=lhs,
-                     marshal=qmp_type_to_qobj_ctor(typeinfo[0]))
+                     marshal=qmp_type_to_qobj(typeinfo[0]))
 
     return ret
-
-def qobj_to_c(typename):
-    return 'qmp_unmarshal_type_%s' % typename
 
 def gen_metatype_undef(typeinfo, name, lhs, sep='->', level=0):
     ret = ''
@@ -1170,7 +1163,7 @@ def gen_metatype_undef(typeinfo, name, lhs, sep='->', level=0):
     }
 ''',
                      lhs=lhs, c_name=c_var(name),
-                     unmarshal=qobj_to_c(typeinfo))
+                     unmarshal=qmp_type_from_qobj(typeinfo))
     elif is_dict(typeinfo):
         objname = 'qmp__object%d' % level
         ret += mcgen('''
@@ -1381,57 +1374,57 @@ def ordered_eval(string):
     return parse_value(map(lambda x: x, tokenize(string)))[0]
 #    return eval(string)
 
-def main(args):
-    if len(args) != 1:
-        return 1
-    if not args[0].startswith('--'):
-        return 1
+def generate(kind):
+    global enum_types
+    global event_types
+    global indent_level
 
-    kind = args[0][2:]
+    enum_types = []
+    event_types = {}
+    indent_level = 0
+
+    ret = mcgen('''
+/* THIS FILE IS AUTOMATICALLY GENERATED, DO NOT EDIT */
+''')
 
     if kind == 'marshal-header':
-        print '''/* THIS FILE IS AUTOMATICALLY GENERATED, DO NOT EDIT */
+        ret += mcgen('''
 #ifndef QMP_MARSHAL_TYPES_H
 #define QMP_MARSHAL_TYPES_H
 
 #include "qmp-marshal-types-core.h"
-
-'''
+''')
     elif kind == 'marshal-body':
-        print '''/* THIS FILE IS AUTOMATICALLY GENERATED, DO NOT EDIT */
-
+        ret += mcgen('''
 #include "qmp-marshal-types.h"
 #include "qerror.h"
-'''
+''')
     elif kind == 'types-header':
-        print '''/* THIS FILE IS AUTOMATICALLY GENERATED, DO NOT EDIT */
+        ret += mcgen('''
 #ifndef QMP_TYPES_H
 #define QMP_TYPES_H
 
 #include "qmp-types-core.h"
-
-'''
+''')
     elif kind == 'types-body':
-        print '''/* THIS FILE IS AUTOMATICALLY GENERATED, DO NOT EDIT */
-
+        ret += mcgen('''
 #include "qmp-types.h"
 #include "qmp-marshal-types.h"
-'''
+''')
     elif kind == 'lib-header':
-        print '''/* THIS FILE IS AUTOMATICALLY GENERATED, DO NOT EDIT */
+        ret += mcgen('''
 #ifndef LIBQMP_H
 #define LIBQMP_H
 
 #include "libqmp-core.h"
-'''
+''')
     elif kind == 'lib-body':
-        print '''/* THIS FILE IS AUTOMATICALLY GENERATED, DO NOT EDIT */
-
+        ret += mcgen('''
 #include "libqmp.h"
 #include "libqmp-internal.h"
-'''
+''')
     elif kind == 'header':
-        print '''/* THIS FILE IS AUTOMATICALLY GENERATED, DO NOT EDIT */
+        ret += mcgen('''
 #ifndef QMP_H
 #define QMP_H
 
@@ -1439,38 +1432,36 @@ def main(args):
 #include "qemu-objects.h"
 #include "qmp-types.h"
 #include "error.h"
-'''
+''')
     elif kind == 'body':
-        print '''/* THIS FILE IS AUTOMATICALLY GENERATED, DO NOT EDIT */
-
+        ret += mcgen('''
 #include "qmp.h"
 #include "qmp-core.h"
-'''
+''')
     elif kind == 'guest-header':
-        print '''/* THIS FILE IS AUTOMATICALLY GENERATED, DO NOT EDIT */
+        ret += mcgen('''
 #ifndef GUEST_AGENT_H
 #define GUEST_AGENT_H
 
 #include "guest-agent-core.h"
-'''
+''')
     elif kind == 'guest-body':
-        print '''/* THIS FILE IS AUTOMATICALLY GENERATED, DO NOT EDIT */
-
+        ret += mcgen('''
 #include "guest-agent.h"
-'''
+''')
     elif kind == 'qdev-header':
-        print '''/* THIS FILE IS AUTOMATICALLY GENERATED, DO NOT EDIT */
+        ret += mcgen('''
 #ifndef QDEV_MARSHAL_H
 #define QDEV_MARSHAL_H
 
 #include "qemu-common.h"
 #include "qmp-types.h"
 #include "hw/qdev.h"
-'''
+''')
     elif kind == 'qdev-body':
-        print '''/* THIS FILE IS AUTOMATICALLY GENERATED, DO NOT EDIT */
+        ret += mcgen('''
 #include "qdev-marshal.h"
-'''
+''')
     
     exprs = []
     expr = ''
@@ -1499,87 +1490,131 @@ def main(args):
                 if qmp_type_is_event(key):
                     event_types[key] = s[key]
                 if kind == 'types-body':
-                    sys.stdout.write(gen_type_definition(key, s[key]))
+                    ret += gen_type_definition(key, s[key])
                 elif kind == 'types-header':
-                    sys.stdout.write(gen_type_declaration(key, s[key]))
+                    ret += gen_type_declaration(key, s[key])
                 elif kind == 'marshal-body':
-                    sys.stdout.write(gen_type_marshal_definition(key, s[key]))
+                    ret += gen_type_marshal_definition(key, s[key])
                 elif kind == 'marshal-header':
-                    sys.stdout.write(gen_type_marshal_declaration(key, s[key]))
+                    ret += gen_type_marshal_declaration(key, s[key])
                 elif kind == 'lib-body':
                     if qmp_type_is_event(key):
-                        sys.stdout.write(gen_lib_event_definition(key, event_types[key]))
+                        ret += gen_lib_event_definition(key, event_types[key])
             else:
                 enum_types.append(key)
                 if kind == 'types-header':
-                    sys.stdout.write(gen_enum_declaration(key, s[key]))
+                    ret += gen_enum_declaration(key, s[key])
                 elif kind == 'types-body':
-                    sys.stdout.write(gen_enum_definition(key, s[key]))
+                    ret += gen_enum_definition(key, s[key])
                 elif kind == 'marshal-header':
-                    sys.stdout.write(gen_enum_marshal_declaration(key, s[key]))
+                    ret += gen_enum_marshal_declaration(key, s[key])
                 elif kind == 'marshal-body':
-                    sys.stdout.write(gen_enum_marshal_definition(key, s[key]))
+                    ret += gen_enum_marshal_definition(key, s[key])
                 elif kind == 'qdev-header':
-                    sys.stdout.write(gen_qdev_declaration(key, s[key]))
+                    ret += gen_qdev_declaration(key, s[key])
                 elif kind == 'qdev-body':
-                    sys.stdout.write(gen_qdev_definition(key, s[key]))
+                    ret += gen_qdev_definition(key, s[key])
         else:
             name, options, retval = s
             if kind == 'body':
                 async = qmp_is_async_cmd(name)
                 if name.startswith('guest-'):
-                    sys.stdout.write(gen_lib_definition(name, options, retval, guest=True, async=async))
-                sys.stdout.write(gen_definition(name, options, retval, async=async))
+                    ret += gen_lib_definition(name, options, retval, guest=True, async=async)
+                ret += gen_definition(name, options, retval, async=async)
             elif kind == 'header':
                 async = qmp_is_async_cmd(name)
-                sys.stdout.write(gen_declaration(name, options, retval, async=async))
+                ret += gen_declaration(name, options, retval, async=async)
             elif kind == 'guest-body':
                 if name.startswith('guest-'):
-                    sys.stdout.write(gen_definition(name, options, retval, prefix='qga'))
+                    ret += gen_definition(name, options, retval, prefix='qga')
             elif kind == 'guest-header':
                 if name.startswith('guest-'):
-                    sys.stdout.write(gen_declaration(name, options, retval, prefix='qga'))
+                    ret += gen_declaration(name, options, retval, prefix='qga')
             elif kind == 'lib-body':
-                sys.stdout.write(gen_lib_definition(name, options, retval))
+                ret += gen_lib_definition(name, options, retval)
             elif kind == 'lib-header':
-                sys.stdout.write(gen_lib_declaration(name, options, retval))
+                ret += gen_lib_declaration(name, options, retval)
     
     if kind.endswith('header'):
-        print '#endif'
+        ret += cgen('#endif')
     elif kind == 'body':
-        print
-        print 'static void qmp_init_marshal(void)'
-        print '{'
+        ret += mcgen('''
+
+static void qmp_init_marshal(void)
+{
+''')
         for s in exprs:
             if type(s) != list:
                 continue
             async = qmp_is_async_cmd(s[0])
             if qmp_type_is_event(s[2]) or s[0] in ['qmp_capabilities', 'put-event']:
-                print '    qmp_register_stateful_command("%s", &qmp_marshal_%s);' % (s[0], c_var(s[0]))
+                ret += mcgen('''
+    qmp_register_stateful_command("%(name)s", &qmp_marshal_%(c_name)s);
+''',
+                             name=s[0], c_name=c_var(s[0]))
             elif async:
-                print '    qmp_register_async_command("%s", &qmp_async_marshal_%s);' % (s[0], c_var(s[0]))
+                ret += mcgen('''
+    qmp_register_async_command("%(name)s", &qmp_marshal_%(c_name)s);
+''',
+                             name=s[0], c_name=c_var(s[0]))
             else:
-                print '    qmp_register_command("%s", &qmp_marshal_%s);' % (s[0], c_var(s[0]))
-        print '};'
-        print
-        print 'qapi_init(qmp_init_marshal);'
+                ret += mcgen('''
+    qmp_register_command("%(name)s", &qmp_marshal_%(c_name)s);
+''',
+                             name=s[0], c_name=c_var(s[0]))
+        ret += mcgen('''
+}
+
+qapi_init(qmp_init_marshal);
+''')
     elif kind == 'guest-body':
-        print
-        print 'void qga_init_marshal(void)'
-        print '{'
+        ret += mcgen('''
+
+void qga_init_marshal(void)
+{
+''')
         for s in exprs:
             if type(s) != list:
                 continue
             if s[0].startswith('guest-'):
-                print '    qga_register_command("%s", &qmp_marshal_%s);' % (s[0], c_var(s[0]))
-        print '};'
+                ret += mcgen('''
+    qga_register_command("%(name)s", &qmp_marshal_%(c_name)s);
+''',
+                             name=s[0], c_name=c_var(s[0]))
+        ret += mcgen('''
+}
+''')
     elif kind == 'lib-body':
-        print
-        print 'void libqmp_init_events(QmpSession *sess)'
-        print '{'
+        ret += mcgen('''
+
+void libqmp_init_events(QmpSession *sess)
+{
+''')
         for event in event_types:
-            print '    libqmp_register_event(sess, "%s", &libqmp_notify_%s);' % (event, de_camel_case(qmp_event_to_c(event)))
-        print '}'
+            ret += mcgen('''
+    libqmp_register_event(sess, "%(name)s", &libqmp_notify_%(c_event_name)s);
+''',
+                         name=event,
+                         c_event_name=de_camel_case(qmp_event_to_c(event)))
+        ret += mcgen('''
+}
+''')
+
+    return ret
+
+def main(args):
+    if len(args) != 1:
+        return 1
+    if not args[0].startswith('--'):
+        return 1
+
+    kind = args[0][2:]
+
+    ret = generate(kind)
+
+    sys.stdout.write(ret)
+
+    return 0
 
 if __name__ == '__main__':
     sys.exit(main(sys.argv[1:]))
