@@ -1122,6 +1122,7 @@ static void test_event_vnc_events(void)
     int disconnect_count = 0;
     int initialized_count = 0;
     int ret;
+    struct timeval tv;
 
     sess = qemu("-S -vnc :300");
 
@@ -1140,16 +1141,28 @@ static void test_event_vnc_events(void)
 
     ret = vnc_connect(5900 + 300, NULL);
     g_assert_cmpint(ret, ==, 0);
-    libqmp_wait_event(sess, NULL);
-    libqmp_poll_event(sess);
+
+    tv.tv_sec = 2; tv.tv_usec = 0;
+    while (!(connect_count == 1 &&
+             disconnect_count == 1 &&
+             initialized_count == 1) &&
+           (tv.tv_sec || tv.tv_usec)) {
+        libqmp_wait_event(sess, &tv);
+    }
     g_assert_cmpint(connect_count, ==, 1);
     g_assert_cmpint(disconnect_count, ==, 1);
     g_assert_cmpint(initialized_count, ==, 1);
 
     ret = vnc_connect(5900 + 300, NULL);
     g_assert_cmpint(ret, ==, 0);
-    libqmp_wait_event(sess, NULL);
-    libqmp_poll_event(sess);
+
+    tv.tv_sec = 2; tv.tv_usec = 0;
+    while (!(connect_count == 2 &&
+             disconnect_count == 2 &&
+             initialized_count == 2) &&
+           (tv.tv_sec || tv.tv_usec)) {
+        libqmp_wait_event(sess, &tv);
+    }
     g_assert_cmpint(connect_count, ==, 2);
     g_assert_cmpint(disconnect_count, ==, 2);
     g_assert_cmpint(initialized_count, ==, 2);
@@ -1159,8 +1172,14 @@ static void test_event_vnc_events(void)
 
     ret = vnc_connect(5900 + 300, NULL);
     g_assert_cmpint(ret, ==, 0);
-    libqmp_wait_event(sess, NULL);
-    libqmp_poll_event(sess);
+
+    tv.tv_sec = 2; tv.tv_usec = 0;
+    while (!(connect_count == 2 &&
+             disconnect_count == 2 &&
+             initialized_count == 3) &&
+           (tv.tv_sec || tv.tv_usec)) {
+        libqmp_wait_event(sess, &tv);
+    }
     g_assert_cmpint(connect_count, ==, 2);
     g_assert_cmpint(disconnect_count, ==, 2);
     g_assert_cmpint(initialized_count, ==, 3);

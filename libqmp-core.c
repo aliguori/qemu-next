@@ -50,10 +50,10 @@ static void fd_qmp_session_process_event(FdQmpSession *fs, QDict *response)
     event = qdict_get_str(response, "event");
     tramp = get_event_trampoline(&fs->session, event);
 
-    fs->event_count++;
-
     if (tramp && qdict_haskey(response, "tag")) {
         tag = qdict_get_int(response, "tag");
+
+        fs->event_count++;
 
         QTAILQ_FOREACH(signal, &fs->session.signals, node) {
             if (signal->global_handle == tag) {
