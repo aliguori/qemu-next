@@ -327,24 +327,24 @@ static QObject *qmp_dispatch_err(QmpState *state, QList *tokens, Error **errp)
         } else {
             error_propagate(errp, err);
         }
-        return NULL;
+        goto out;
     }
     if (qobject_type(request) != QTYPE_QDICT) {
         error_set(errp, QERR_JSON_PARSE_ERROR, "request is not a dictionary");
-        return NULL;
+        goto out;
     }
 
     dict = qobject_to_qdict(request);
     if (!qdict_haskey(dict, "execute")) {
         error_set(errp, QERR_JSON_PARSE_ERROR, "no execute key");
-        return NULL;
+        goto out;
     }
 
     command = qdict_get_str(dict, "execute");
     cmd = qmp_find_command(command);
     if (cmd == NULL) {
         error_set(errp, QERR_COMMAND_NOT_FOUND, command);
-        return NULL;
+        goto out;
     }
 
     if (!qdict_haskey(dict, "arguments")) {
@@ -384,6 +384,8 @@ static QObject *qmp_dispatch_err(QmpState *state, QList *tokens, Error **errp)
     }
 
     QDECREF(args);
+
+out:
     qobject_decref(request);
 
     return ret;
