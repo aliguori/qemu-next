@@ -169,8 +169,11 @@ def enum_abbreviation(name):
             ab += ch
     return ab
 
-def gen_lib_decl(name, options, retval, suffix='', guest=False, async=False):
-    if guest:
+def gen_lib_decl(name, options, retval, suffix='', proxy=False, async=False):
+    if proxy:
+        async=True
+
+    if proxy:
         args = []
     else:
         args = ['QmpSession *qmp__session']
@@ -184,12 +187,12 @@ def gen_lib_decl(name, options, retval, suffix='', guest=False, async=False):
 
     args.append('Error **qmp__err')
 
-    if guest:
+    if proxy:
         prefix = 'qmp'
     else:
         prefix = 'libqmp'
 
-    if async:
+    if proxy:
         qmp_retval = 'void'
         args.append('%sCompletionFunc *qmp__cc' % camel_case(name))
         args.append('void *qmp__opaque')
@@ -332,12 +335,15 @@ static void qmp_%(c_name)s_cb(void *qmp__opaque, QObject *qmp__retval, Error *qm
 
     return ret
 
-def gen_lib_definition(name, options, retval, guest=False, async=False):
+def gen_lib_definition(name, options, retval, proxy=False, async=False):
+    if proxy:
+        async = True
+
     ret = ''
-    if guest and async:
+    if proxy:
         ret += gen_async_lib_definition(name, options, retval)
 
-    fn_decl = gen_lib_decl(name, options, retval, guest=guest, async=async)
+    fn_decl = gen_lib_decl(name, options, retval, proxy=proxy, async=async)
     ret += mcgen('''
 
 %(fn_decl)s
@@ -394,7 +400,7 @@ def gen_lib_definition(name, options, retval, guest=False, async=False):
     }
 ''')
 
-    if guest and async:
+    if proxy:
         ret += mcgen('''
     qmp_guest_dispatch("%(name)s", qmp__args, qmp__err, qmp_%(c_name)s_cb, qmp__cb);
 ''',
@@ -440,7 +446,7 @@ def gen_lib_definition(name, options, retval, guest=False, async=False):
     BUILD_BUG();
 ''')
     elif qmp_type_is_event(retval):
-        if guest:
+        if proxy:
             ret += cgen('    BUILD_BUG();')
         ret += mcgen('''
     if (!qmp__local_err) {
@@ -1519,7 +1525,7 @@ def generate(kind):
             if kind == 'body':
                 async = qmp_is_async_cmd(name)
                 if name.startswith('guest-'):
-                    ret += gen_lib_definition(name, options, retval, guest=True, async=async)
+                    ret += gen_lib_definition(name, options, retval, proxy=True)
                 ret += gen_definition(name, options, retval, async=async)
             elif kind == 'header':
                 async = qmp_is_async_cmd(name)
