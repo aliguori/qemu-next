@@ -15,6 +15,15 @@ from ordereddict import OrderedDict
 enum_types = []
 event_types = {}
 
+def qmp_is_proxy_cmd(name):
+    return name.startswith('guest-')
+
+def qmp_is_async_cmd(name):
+    return name.startswith('guest-')
+
+def qmp_is_stateful_cmd(name):
+    return name in ['qmp_capabilities', 'put-event']
+
 def c_var(name):
     return '_'.join(name.split('-'))
 
@@ -121,12 +130,6 @@ def qmp_type_to_qobj(typename):
 
 def qmp_type_from_qobj(typename):
     return 'qmp_unmarshal_type_%s' % typename
-
-def qmp_is_proxy_cmd(name):
-    return name.startswith('guest-')
-
-def qmp_is_async_cmd(name):
-    return name.startswith('guest-')
 
 def parse_args(typeinfo):
     for member in typeinfo:
@@ -499,7 +502,7 @@ typedef void (%(cc_name)sCompletionFunc)(void *qmp__opaque, %(ret_type)s qmp__re
 
 def gen_declaration(name, options, retval, async=False, prefix='qmp'):
     args = []
-    if name in ['qmp_capabilities', 'put-event']:
+    if qmp_is_stateful_cmd(name):
         return ''
 
     ret = ''
@@ -635,7 +638,7 @@ static void qmp_marshal_%(c_name)s(QmpState *qmp__sess, const QDict *qdict, QObj
     QmpConnection *qmp__connection = qemu_mallocz(sizeof(QmpConnection));
 ''',
                      c_name=c_var(name))
-    elif name in ['qmp_capabilities', 'put-event']:
+    elif qmp_is_stateful_cmd(name):
         ret += mcgen('''
 
 static void qmp_marshal_%(c_name)s(QmpState *qmp__sess, const QDict *qdict, QObject **ret_data, Error **err)
@@ -763,7 +766,7 @@ static void qmp_marshal_%(c_name)s(const QDict *qdict, QObject **ret_data, Error
         args.append(c_var(argname))
     args.append('err')
 
-    if name in ['qmp_capabilities', 'put-event']:
+    if qmp_is_stateful_cmd(name):
         args = ['qmp__sess'] + args
 
     if async:
@@ -1564,13 +1567,12 @@ static void qmp_init_marshal(void)
             if s.has_key('returns'):
                 retval = s['returns']
 
-            async = qmp_is_async_cmd(name)
-            if qmp_type_is_event(retval) or name in ['qmp_capabilities', 'put-event']:
+            if qmp_type_is_event(retval) or qmp_is_stateful_cmd(name):
                 ret += mcgen('''
     qmp_register_stateful_command("%(name)s", &qmp_marshal_%(c_name)s);
 ''',
                              name=name, c_name=c_var(name))
-            elif async:
+            elif qmp_is_async_cmd(name):
                 ret += mcgen('''
     qmp_register_async_command("%(name)s", &qmp_marshal_%(c_name)s);
 ''',
