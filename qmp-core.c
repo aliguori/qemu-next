@@ -110,7 +110,7 @@ void qmp_state_add_connection(QmpState *sess, const char *event_name, QmpSignal 
     conn->global_handle = sess->add_connection(sess, conn);
 }
 
-void qmp_state_del_connection(QmpState *sess, int global_handle, Error **errp)
+void qmp_put_event(QmpState *sess, int global_handle, Error **errp)
 {
     sess->del_connection(sess, global_handle, errp);
 }

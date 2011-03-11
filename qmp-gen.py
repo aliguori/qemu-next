@@ -773,9 +773,7 @@ static void qmp_marshal_%(c_name)s(const QDict *qdict, QObject **ret_data, Error
     arglist = ', '.join(args)
     fn = '%s_%s' % (prefix, c_var(name))
 
-    if name == 'put-event':
-        ret += cgen('    qmp_state_del_connection(%(args)s);', args=arglist)
-    elif retval == 'none' or async:
+    if retval == 'none' or async:
         ret += cgen('    %(fn)s(%(args)s);', fn=fn, args=arglist)
     else:
         ret += cgen('    qmp_retval = %(fn)s(%(args)s);', fn=fn, args=arglist)
