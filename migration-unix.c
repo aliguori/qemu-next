@@ -75,10 +75,8 @@ static void unix_wait_for_connect(void *opaque)
     }
 }
 
-MigrationState *unix_start_outgoing_migration(Monitor *mon,
-                                              const char *path,
+MigrationState *unix_start_outgoing_migration(const char *path,
 					      int64_t bandwidth_limit,
-					      int detach,
 					      int blk,
 					      int inc)
 {
@@ -102,7 +100,6 @@ MigrationState *unix_start_outgoing_migration(Monitor *mon,
     s->mig_state.shared = inc;
 
     s->state = MIG_STATE_ACTIVE;
-    s->mon = NULL;
     s->bandwidth_limit = bandwidth_limit;
     s->fd = qemu_socket(PF_UNIX, SOCK_STREAM, 0);
     if (s->fd < 0) {
@@ -124,10 +121,6 @@ MigrationState *unix_start_outgoing_migration(Monitor *mon,
     if (ret < 0 && ret != -EINPROGRESS && ret != -EWOULDBLOCK) {
         DPRINTF("connect failed\n");
         goto err_after_open;
-    }
-
-    if (!detach) {
-        migrate_fd_monitor_suspend(s, mon);
     }
 
     if (ret >= 0)

@@ -90,18 +90,14 @@ void qmp_migrate(const char *uri, bool has_blk, bool blk,
     }
 
     if (strstart(uri, "tcp:", &p)) {
-        s = tcp_start_outgoing_migration(NULL, p, max_throttle, true,
-                                         blk, inc);
+        s = tcp_start_outgoing_migration(p, max_throttle, blk, inc);
 #if !defined(WIN32)
     } else if (strstart(uri, "exec:", &p)) {
-        s = exec_start_outgoing_migration(NULL, p, max_throttle, true,
-                                          blk, inc);
+        s = exec_start_outgoing_migration(p, max_throttle, blk, inc);
     } else if (strstart(uri, "unix:", &p)) {
-        s = unix_start_outgoing_migration(NULL, p, max_throttle, true,
-                                          blk, inc);
+        s = unix_start_outgoing_migration(p, max_throttle, blk, inc);
     } else if (strstart(uri, "fd:", &p)) {
-        s = fd_start_outgoing_migration(NULL, p, max_throttle, true, 
-                                        blk, inc);
+        s = fd_start_outgoing_migration(p, max_throttle, blk, inc);
 #endif
     } else {
         error_set(errp, QERR_INVALID_PARAMETER_VALUE, "uri", "a valid migration protocol");
@@ -207,17 +203,6 @@ MigrationInfo *qmp_query_migrate(Error **errp)
 
 /* shared migration helpers */
 
-void migrate_fd_monitor_suspend(FdMigrationState *s, Monitor *mon)
-{
-    s->mon = mon;
-    if (monitor_suspend(mon) == 0) {
-        DPRINTF("suspending monitor\n");
-    } else {
-        monitor_printf(mon, "terminal does not allow synchronous "
-                       "migration, continuing detached\n");
-    }
-}
-
 void migrate_fd_error(FdMigrationState *s)
 {
     DPRINTF("setting error state\n");
@@ -241,11 +226,6 @@ int migrate_fd_cleanup(FdMigrationState *s)
 
     if (s->fd != -1)
         close(s->fd);
-
-    /* Don't resume monitor until we've flushed all of the buffers */
-    if (s->mon) {
-        monitor_resume(s->mon);
-    }
 
     s->fd = -1;
 
@@ -275,9 +255,6 @@ ssize_t migrate_fd_put_buffer(void *opaque, const void *data, size_t size)
     if (ret == -EAGAIN) {
         qemu_set_fd_handler2(s->fd, NULL, NULL, migrate_fd_put_notify, s);
     } else if (ret < 0) {
-        if (s->mon) {
-            monitor_resume(s->mon);
-        }
         s->state = MIG_STATE_ERROR;
     }
 
@@ -296,7 +273,7 @@ void migrate_fd_connect(FdMigrationState *s)
                                       migrate_fd_close);
 
     DPRINTF("beginning savevm\n");
-    ret = qemu_savevm_state_begin(s->mon, s->file, s->mig_state.blk,
+    ret = qemu_savevm_state_begin(s->file, s->mig_state.blk,
                                   s->mig_state.shared);
     if (ret < 0) {
         DPRINTF("failed, %d\n", ret);
@@ -317,14 +294,14 @@ void migrate_fd_put_ready(void *opaque)
     }
 
     DPRINTF("iterate\n");
-    if (qemu_savevm_state_iterate(s->mon, s->file) == 1) {
+    if (qemu_savevm_state_iterate(s->file) == 1) {
         int state;
         int old_vm_running = vm_running;
 
         DPRINTF("done iterating\n");
         vm_stop(0);
 
-        if ((qemu_savevm_state_complete(s->mon, s->file)) < 0) {
+        if ((qemu_savevm_state_complete(s->file)) < 0) {
             if (old_vm_running) {
                 vm_start();
             }
@@ -358,7 +335,7 @@ void migrate_fd_cancel(MigrationState *mig_state)
     DPRINTF("cancelling migration\n");
 
     s->state = MIG_STATE_CANCELLED;
-    qemu_savevm_state_cancel(s->mon, s->file);
+    qemu_savevm_state_cancel(s->file);
 
     migrate_fd_cleanup(s);
 }

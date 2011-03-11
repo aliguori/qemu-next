@@ -76,10 +76,8 @@ static void tcp_wait_for_connect(void *opaque)
     }
 }
 
-MigrationState *tcp_start_outgoing_migration(Monitor *mon,
-                                             const char *host_port,
+MigrationState *tcp_start_outgoing_migration(const char *host_port,
                                              int64_t bandwidth_limit,
-                                             int detach,
 					     int blk,
 					     int inc)
 {
@@ -103,7 +101,6 @@ MigrationState *tcp_start_outgoing_migration(Monitor *mon,
     s->mig_state.shared = inc;
 
     s->state = MIG_STATE_ACTIVE;
-    s->mon = NULL;
     s->bandwidth_limit = bandwidth_limit;
     s->fd = qemu_socket(PF_INET, SOCK_STREAM, 0);
     if (s->fd == -1) {
@@ -112,10 +109,6 @@ MigrationState *tcp_start_outgoing_migration(Monitor *mon,
     }
 
     socket_set_nonblock(s->fd);
-
-    if (!detach) {
-        migrate_fd_monitor_suspend(s, mon);
-    }
 
     do {
         ret = connect(s->fd, (struct sockaddr *)&addr, sizeof(addr));
