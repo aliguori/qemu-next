@@ -18,7 +18,8 @@
 # dictionary.  This corresponds to a struct in C or an Object in JSON.  An
 # example of a complex type is:
 #
-#  { 'MyType': { 'member1': 'str', 'member2': 'int', '*member3': 'str } }
+#  { 'type': 'MyType',
+#    'data' { 'member1': 'str', 'member2': 'int', '*member3': 'str } }
 #
 # The use of '*' as a prefix to the name means the member is optional.  Optional
 # members should always be added to the end of the dictionary to preserve
@@ -27,12 +28,12 @@
 # An enumeration type is a dictionary containing a single key who's value is a
 # list of strings.  An example enumeration is:
 #
-#  { 'MyEnum': [ 'value1', 'value2', 'value3' ] }
+#  { 'enum': 'MyEnum', 'data': [ 'value1', 'value2', 'value3' ] }
 #
 # A signal is similar in form to a complex type except the single key is
 # entirely upper case instead of CamelCase.  An example signal is:
 #
-#  { 'MY_SIGNAL': { 'arg1': 'str', 'arg2': 'str' } }
+#  { 'event': 'MY_SIGNAL', 'data': { 'arg1': 'str', 'arg2': 'str' } }
 #
 # Generally speaking, complex types and enums should always use CamelCase for
 # the type names.
@@ -43,7 +44,9 @@
 #
 # An example command is:
 #
-#  [ 'my-command', { 'arg1': 'str', '*arg2': 'str' }, 'none' ]
+#  { 'command': 'my-command',
+#    'data': { 'arg1': 'str', '*arg2': 'str' },
+#    'returns': 'str' ]
 #
 # Command names should be all lower case with words separated by a hyphen.
 
@@ -59,7 +62,7 @@
 #
 # Since: 0.14.0
 ##
-[ 'quit', {}, 'none' ]
+{ 'command': 'quit' }
 
 ##
 # @change:
@@ -96,7 +99,8 @@
 #
 # Since: 0.14.0
 ##
-[ 'change', {'device': 'str', 'target': 'str', '*arg': 'str'}, 'none' ]
+{ 'command': 'change',
+  'data': {'device': 'str', 'target': 'str', '*arg': 'str'} }
 
 ##
 # @block_passwd:
@@ -129,7 +133,8 @@
 #
 # Since: 0.14.0
 ##
-[ 'block_passwd', {'device': 'str', 'password': 'str'}, 'none' ]
+{ 'command': 'block_passwd',
+  'data': {'device': 'str', 'password': 'str'} }
 
 ##
 # @VersionInfo:
@@ -153,8 +158,9 @@
 #
 # Since: 0.14.0
 ##
-{ 'VersionInfo': {'qemu': {'major': 'int', 'minor': 'int', 'micro': 'int'},
-                  'package': 'str'} }
+{ 'type': 'VersionInfo',
+  'data': {'qemu': {'major': 'int', 'minor': 'int', 'micro': 'int'},
+           'package': 'str'} }
 
 ##
 # @query-version:
@@ -165,7 +171,7 @@
 #
 # Since: 0.14.0
 ##
-[ 'query-version', {}, 'VersionInfo' ]
+{ 'command': 'query-version', 'returns': 'VersionInfo' }
 
 ##
 # @eject:
@@ -190,7 +196,7 @@
 #
 # Since: 0.14.0
 ##
-[ 'eject', {'device': 'str', '*force': 'bool'} , 'none' ]
+{ 'command': 'eject', 'data': {'device': 'str', '*force': 'bool'} }
 
 ##
 # @qmp_capabilities:
@@ -200,7 +206,7 @@
 #
 # Since: 0.14.0
 ##
-[ 'qmp_capabilities', {}, 'none' ]
+{ 'command': 'qmp_capabilities' }
 
 ##
 # @screendump:
@@ -217,7 +223,7 @@
 # Notes: Not all server versions reliably send an error when file creation
 #        fails.
 ##
-[ 'screendump', {'filename': 'str'}, 'none' ]
+{ 'command': 'screendump', 'data': {'filename': 'str'} }
 
 ##
 # @stop:
@@ -229,7 +235,7 @@
 # Notes:  This function will succeed even if the guest is already in the stopped
 #         state
 ##
-[ 'stop' , {}, 'none' ]
+{ 'command': 'stop' }
 
 ##
 # @cont:
@@ -245,7 +251,7 @@
 #
 # Notes:  The function will succeed if the guest is currently running.
 ##
-[ 'cont' , {}, 'none' ]
+{ 'command': 'cont' }
 
 ##
 # @StatusInfo:
@@ -260,7 +266,7 @@
 #
 # Notes: @singlestep is enabled through the GDB stub
 ##
-{ 'StatusInfo': {'running': 'bool', 'singlestep': 'bool'} }
+{ 'type': 'StatusInfo', 'data': {'running': 'bool', 'singlestep': 'bool'} }
 
 ##
 # @query-status:
@@ -271,7 +277,7 @@
 #
 # Since:  0.14.0
 ##
-[ 'query-status', {}, 'StatusInfo' ]
+{ 'command': 'query-status', 'returns': 'StatusInfo' }
 
 ##
 # @BlockDeviceInfo:
@@ -292,8 +298,9 @@
 #
 # Notes: This interface is only found in @BlockInfo.
 ##
-{ 'BlockDeviceInfo': { 'file': 'str', 'ro': 'bool', 'drv': 'str',
-                       '*backing_file': 'str', 'encrypted': 'bool' } }
+{ 'type': 'BlockDeviceInfo',
+  'data': { 'file': 'str', 'ro': 'bool', 'drv': 'str',
+            '*backing_file': 'str', 'encrypted': 'bool' } }
 
 ##
 # @BlockInfo:
@@ -316,8 +323,9 @@
 #
 # Since:  0.14.0
 ##
-{ 'BlockInfo': {'device': 'str', 'type': 'str', 'removable': 'bool',
-                'locked': 'bool', '*inserted': 'BlockDeviceInfo'} }
+{ 'type': 'BlockInfo',
+  'data': {'device': 'str', 'type': 'str', 'removable': 'bool',
+           'locked': 'bool', '*inserted': 'BlockDeviceInfo'} }
 
 ##
 # @query-block:
@@ -328,7 +336,7 @@
 #
 # Since: 0.14.0
 ##
-[ 'query-block', {}, ['BlockInfo'] ]
+{ 'command': 'query-block', 'returns': ['BlockInfo'] }
 
 ##
 # @BlockDeviceStats:
@@ -350,9 +358,9 @@
 #
 # Since: 0.14.0
 ##
-{ 'BlockDeviceStats': {'rd_bytes': 'int', 'wr_bytes': 'int',
-                       'rd_operations': 'int', 'wr_operations': 'int',
-                       'wr_highest_offset': 'int' } }
+{ 'type': 'BlockDeviceStats',
+  'data': {'rd_bytes': 'int', 'wr_bytes': 'int', 'rd_operations': 'int',
+           'wr_operations': 'int', 'wr_highest_offset': 'int' } }
 ##
 # @BlockStats:
 #
@@ -369,8 +377,9 @@
 #
 # Since: 0.14.0
 ##
-{ 'BlockStats': {'*device': 'str', 'stats': 'BlockDeviceStats',
-                 '*parent': 'BlockStats'} }
+{ 'type': 'BlockStats',
+  'data': {'*device': 'str', 'stats': 'BlockDeviceStats',
+           '*parent': 'BlockStats'} }
 
 ##
 # @query-blockstats:
@@ -381,7 +390,7 @@
 #
 # Since: 0.14.0
 ##
-[ 'query-blockstats', {}, ['BlockStats'] ]
+{ 'command': 'query-blockstats', 'returns': ['BlockStats'] }
 
 ##
 # @VncClientInfo:
@@ -408,8 +417,9 @@
 #
 # Since: 0.14.0
 ##
-{ 'VncClientInfo': {'host': 'str', 'family': 'str', 'service': 'str',
-                    '*x509_dname': 'str', '*sasl_username': 'str'} }
+{ 'type': 'VncClientInfo',
+  'data': {'host': 'str', 'family': 'str', 'service': 'str',
+           '*x509_dname': 'str', '*sasl_username': 'str'} }
 
 ##
 # @VncInfo:
@@ -443,9 +453,9 @@
 #
 # Since: 0.14.0
 ##
-{ 'VncInfo': {'enabled': 'bool', '*host': 'str', '*family': 'str',
-              '*service': 'str', '*auth': 'str',
-              '*clients': ['VncClientInfo']} }
+{ 'type': 'VncInfo',
+  'data': {'enabled': 'bool', '*host': 'str', '*family': 'str',
+           '*service': 'str', '*auth': 'str', '*clients': ['VncClientInfo']} }
 
 ##
 # @query-vnc:
@@ -456,7 +466,7 @@
 #
 # Since: 0.14.0
 ##
-[ 'query-vnc', {}, 'VncInfo' ]
+{ 'command': 'query-vnc', 'returns': 'VncInfo' }
 
 ##
 # @NameInfo:
@@ -467,7 +477,7 @@
 #
 # Since 0.14.0
 ##
-{ 'NameInfo': {'*name': 'str'} }
+{ 'type': 'NameInfo', 'data': {'*name': 'str'} }
 
 ##
 # @query-name:
@@ -478,7 +488,7 @@
 #
 # Since 0.14.0
 ##
-[ 'query-name', {}, 'NameInfo' ]
+{ 'command': 'query-name', 'returns': 'NameInfo' }
 
 ##
 # @UuidInfo:
@@ -491,7 +501,7 @@
 #
 # Notes: If not UUID was specified for the guest, a null UUID is returned.
 ##
-{ 'UuidInfo': {'UUID': 'str'} }
+{ 'type': 'UuidInfo', 'data': {'UUID': 'str'} }
 
 ##
 # @query-uuid:
@@ -502,7 +512,7 @@
 #
 # Since 0.14.0
 ##
-[ 'query-uuid', {}, 'UuidInfo' ]
+{ 'command': 'query-uuid', 'returns': 'UuidInfo' }
 
 ##
 # @human-monitor-command:
@@ -520,8 +530,9 @@
 # Notes: This command only exists as a stop-gap.  It's use is highly
 #        discouraged.  The semantics of this command are not guaranteed.
 ##
-[ 'human-monitor-command', {'command-line': 'str', '*cpu-index': 'int'},
-  'str' ] 
+{ 'command': 'human-monitor-command',
+  'data': {'command-line': 'str', '*cpu-index': 'int'},
+  'returns': 'str' } 
 
 ##
 # @CommandInfo:
@@ -532,7 +543,7 @@
 #
 # Since: 0.14.0
 ##
-{ 'CommandInfo': {'name': 'str'} }
+{ 'type': 'CommandInfo', 'data': {'name': 'str'} }
 
 ##
 # @query-commands:
@@ -543,7 +554,7 @@
 #
 # Since: 0.14.0
 ##
-[ 'query-commands', {}, ['CommandInfo'] ]
+{ 'command': 'query-commands', 'returns': ['CommandInfo'] }
 
 ##
 # @system_reset:
@@ -552,7 +563,7 @@
 #
 # Since: 0.14.0
 ##
-[ 'system_reset', {}, 'none' ]
+{ 'command': 'system_reset' }
 
 ##
 # @system_powerdown:
@@ -566,7 +577,7 @@
 #        that it has shut down.  Many guests will respond to this command by
 #        prompting the user in some way.
 ##
-[ 'system_powerdown', {}, 'none' ]
+{ 'command': 'system_powerdown' }
 
 ##
 # @cpu:
@@ -577,7 +588,7 @@
 #
 # Notes: Do not use this command.
 ##
-[ 'cpu', {'index': 'int'}, 'none' ]
+{ 'command': 'cpu', 'data': {'index': 'int'} }
 
 ##
 # @CpuInfo:
@@ -608,8 +619,9 @@
 # Notes: @halted is a transient state that changes frequently.  By the time the
 #        data is sent to the client, the guest may no longer be halted.
 ##
-{ 'CpuInfo': {'CPU': 'int', 'current': 'bool', 'halted': 'bool', '*pc': 'int',
-              '*nip': 'int', '*npc': 'int', '*PC': 'int'} }
+{ 'type': 'CpuInfo',
+  'data': {'CPU': 'int', 'current': 'bool', 'halted': 'bool', '*pc': 'int',
+           '*nip': 'int', '*npc': 'int', '*PC': 'int'} }
 
 ##
 # @query-cpus:
@@ -620,7 +632,7 @@
 #
 # Since: 0.14.0
 ##
-[ 'query-cpus', {}, ['CpuInfo'] ]
+{ 'command': 'query-cpus', 'returns': ['CpuInfo'] }
 
 ##
 # @set_link:
@@ -640,7 +652,7 @@
 #        will succeed even if the network adapter does not support link status
 #        notification.
 ##
-[ 'set_link', {'name': 'str', 'up': 'bool'}, 'none' ]
+{ 'command': 'set_link', 'data': {'name': 'str', 'up': 'bool'} }
 
 ##
 # @set_password:
@@ -669,7 +681,8 @@
 #
 # Since: 0.14.0
 ##
-[ 'set_password', {'protocol': 'str', 'password': 'str', '*connected': 'str'}, 'none' ]
+{ 'command': 'set_password',
+  'data': {'protocol': 'str', 'password': 'str', '*connected': 'str'} }
 
 ##
 # @expire_password:
@@ -696,7 +709,7 @@
 #        use the absolute time version of the @time parameter unless you're
 #        sure you are on the same machine as the QEMU instance.
 ##
-[ 'expire_password', {'protocol': 'str', 'time': 'str'}, 'none' ]
+{ 'command': 'expire_password', 'data': {'protocol': 'str', 'time': 'str'} }
 
 ##
 # @KvmInfo:
@@ -709,7 +722,7 @@
 #
 # Since: 0.14.0
 ##
-{ 'KvmInfo': {'enabled': 'bool', 'present': 'bool'} }
+{ 'type': 'KvmInfo', 'data': {'enabled': 'bool', 'present': 'bool'} }
 
 ##
 # @query-kvm:
@@ -720,7 +733,7 @@
 #
 # Since: 0.14.0
 ##
-[ 'query-kvm', {}, 'KvmInfo' ]
+{ 'command': 'query-kvm', 'returns': 'KvmInfo' }
 
 ##
 # @ChardevInfo:
@@ -736,7 +749,7 @@
 #
 # Since: 0.14.0
 ##
-{ 'ChardevInfo': {'label': 'str', 'filename': 'str'} }
+{ 'type': 'ChardevInfo', 'data': {'label': 'str', 'filename': 'str'} }
 
 ##
 # @query-chardev:
@@ -747,7 +760,7 @@
 #
 # Since: 0.14.0
 ##
-[ 'query-chardev', {}, ['ChardevInfo'] ]
+{ 'command': 'query-chardev', 'returns': ['ChardevInfo'] }
 
 ##
 # @MouseInfo:
@@ -764,8 +777,9 @@
 #
 # Since: 0.14.0
 ##
-{ 'MouseInfo': {'name': 'str', 'index': 'int', 'current': 'bool',
-                'absolute': 'bool'} }
+{ 'type': 'MouseInfo',
+  'data': {'name': 'str', 'index': 'int', 'current': 'bool',
+           'absolute': 'bool'} }
 
 ##
 # @query-mice:
@@ -776,7 +790,7 @@
 #
 # Since: 0.14.0
 ##
-[ 'query-mice', {}, ['MouseInfo'] ]
+{ 'command': 'query-mice', 'returns': ['MouseInfo'] }
 
 ##
 # @memsave:
@@ -801,8 +815,8 @@
 #
 # Notes: Errors were not reliably returned until 0.15.0
 ##
-[ 'memsave', {'val': 'int', 'size': 'int', 'filename': 'str',
-              '*cpu': 'int'}, 'none' ]
+{ 'command': 'memsave',
+  'data': {'val': 'int', 'size': 'int', 'filename': 'str', '*cpu': 'int'} }
 
 ##
 # @pmemsave:
@@ -823,7 +837,8 @@
 #
 # Notes: Errors were not reliably returned until 0.15.0
 ##
-[ 'pmemsave', {'val': 'int', 'size': 'int', 'filename': 'str'}, 'none' ]
+{ 'command': 'pmemsave',
+  'data': {'val': 'int', 'size': 'int', 'filename': 'str'} }
 
 ##
 # @PciMemoryRange:
@@ -836,7 +851,7 @@
 #
 # Since: 0.14.0
 ##
-{ 'PciMemoryRange': {'base': 'int', 'limit': 'int'} }
+{ 'type': 'PciMemoryRange', 'data': {'base': 'int', 'limit': 'int'} }
 
 ##
 # @PciMemoryRegion
@@ -854,9 +869,9 @@
 #
 # Since: 0.14.0
 ##
-{ 'PciMemoryRegion': {'bar': 'int', 'type': 'str', 'address': 'int',
-                      'size': 'int', '*prefetch': 'bool',
-                      '*mem_type_64': 'bool' } }
+{ 'type': 'PciMemoryRegion',
+  'data': {'bar': 'int', 'type': 'str', 'address': 'int', 'size': 'int',
+           '*prefetch': 'bool', '*mem_type_64': 'bool' } }
 
 ##
 # @PciBridgeInfo:
@@ -883,12 +898,12 @@
 #
 # Since: 0.14.0
 ##
-{ 'PciBridgeInfo': {'bus': { 'number': 'int', 'secondary': 'int',
-                             'subordinate': 'int',
-                             'io_range': 'PciMemoryRange',
-                             'memory_range': 'PciMemoryRange',
-                             'prefetchable_range': 'PciMemoryRange' },
-                    '*devices': ['PciDeviceInfo']} }
+{ 'type': 'PciBridgeInfo',
+  'data': {'bus': { 'number': 'int', 'secondary': 'int', 'subordinate': 'int',
+                    'io_range': 'PciMemoryRange',
+                    'memory_range': 'PciMemoryRange',
+                    'prefetchable_range': 'PciMemoryRange' },
+           '*devices': ['PciDeviceInfo']} }
 
 ##
 # @PciDeviceInfo:
@@ -922,12 +937,12 @@
 #
 # Since: 0.14.0
 ##
-{ 'PciDeviceInfo': {'bus': 'int', 'slot': 'int', 'function': 'int',
-                    'class_info': {'*desc': 'str', 'class': 'int'},
-                    'id': {'device': 'int', 'vendor': 'int'},
-                    '*irq': 'int', 'qdev_id': 'str',
-                    '*pci_bridge': 'PciBridgeInfo',
-                    'regions': ['PciMemoryRegion']} }
+{ 'type': 'PciDeviceInfo',
+  'data': {'bus': 'int', 'slot': 'int', 'function': 'int',
+           'class_info': {'*desc': 'str', 'class': 'int'},
+           'id': {'device': 'int', 'vendor': 'int'},
+           '*irq': 'int', 'qdev_id': 'str', '*pci_bridge': 'PciBridgeInfo',
+           'regions': ['PciMemoryRegion']} }
 
 ##
 # @PciInfo:
@@ -940,7 +955,7 @@
 #
 # Since: 0.14.0
 ##
-{ 'PciInfo': {'bus': 'int', 'devices': ['PciDeviceInfo']} }
+{ 'type': 'PciInfo', 'data': {'bus': 'int', 'devices': ['PciDeviceInfo']} }
 
 ##
 # @query-pci:
@@ -951,7 +966,7 @@
 #
 # Since: 0.14.0
 ##
-[ 'query-pci', {}, ['PciInfo'] ]
+{ 'command': 'query-pci', 'returns': ['PciInfo'] }
 
 ##
 # @BalloonInfo:
@@ -977,10 +992,11 @@
 # Notes: all current versions of QEMU do not fill out optional information in
 #        this structure.
 ##
-{ 'BalloonInfo': {'actual': 'int', '*mem_swapped_in': 'int',
-                  '*mem_swapped_out': 'int', '*major_page_faults': 'int',
-                  '*minor_page_faults': 'int', '*free_mem': 'int',
-                  '*total_mem': 'int'} }
+{ 'type': 'BalloonInfo',
+  'data': {'actual': 'int', '*mem_swapped_in': 'int',
+           '*mem_swapped_out': 'int', '*major_page_faults': 'int',
+           '*minor_page_faults': 'int', '*free_mem': 'int',
+           '*total_mem': 'int'} }
 
 ##
 # @query-balloon:
@@ -994,7 +1010,7 @@
 #
 # Since: 0.14.0
 ##
-[ 'query-balloon', {}, 'BalloonInfo' ]
+{ 'command': 'query-balloon', 'returns': 'BalloonInfo' }
 
 ##
 # @balloon:
@@ -1014,7 +1030,7 @@
 #
 # Since: 0.14.0
 ##
-[ 'balloon', {'value': 'int'}, 'none' ]
+{ 'command': 'balloon', 'data': {'value': 'int'} }
 
 ##
 # @KeyValues:
@@ -1029,7 +1045,7 @@
 #
 # Since: 0.14.0
 ##
-{ 'KeyValues': {'key': 'str', 'value': 'str'} }
+{ 'type': 'KeyValues', 'data': {'key': 'str', 'value': 'str'} }
 
 ##
 # @device_add:
@@ -1054,7 +1070,8 @@
 #
 # Since: 0.14.0
 ##
-[ 'device_add', {'driver': 'str', 'id': 'str', '*opts': '**'}, 'none' ]
+{ 'command': 'device_add',
+  'data': {'driver': 'str', 'id': 'str', '*opts': '**'} }
 
 ##
 # @device_del:
@@ -1074,7 +1091,7 @@
 #
 # Since: 0.14.0
 ##
-[ 'device_del', {'id': 'str'}, 'none' ]
+{ 'command': 'device_del', 'data': {'id': 'str'} }
 
 ##
 # @netdev_add:
@@ -1098,7 +1115,7 @@
 #          If @opts contains an invalid parameter for this backend,
 #            InvalidParameter
 ##
-[ 'netdev_add', {'type': 'str', 'id': 'str', '*opts': '**'}, 'none' ]
+{ 'command': 'netdev_add', 'data': {'type': 'str', 'id': 'str', '*opts': '**'} }
 
 ##
 # @netdev_del:
@@ -1112,74 +1129,87 @@
 #
 # Since: 0.14.0
 ##
-[ 'netdev_del', {'id': 'str'}, 'none' ]
+{ 'command': 'netdev_del', 'data': {'id': 'str'} }
 
 ### Commands that still need docs ###
 
-[ 'migrate', {'uri': 'str', '*blk': 'bool', '*inc': 'bool'}, 'none' ]
-[ 'migrate_cancel', {}, 'none' ]
-[ 'migrate_set_speed', {'value': 'int'}, 'none' ]
-[ 'migrate_set_downtime', {'value': 'number'}, 'none' ]
-{ 'MigrationStats': {'transferred': 'int', 'remaining': 'int', 'total': 'int' } }
-{ 'MigrationInfo': {'*status': 'str', '*ram': 'MigrationStats', '*disk': 'MigrationStats'} }
-[ 'query-migrate', {}, 'MigrationInfo' ]
+{ 'command': 'migrate', 'data': {'uri': 'str', '*blk': 'bool', '*inc': 'bool'} }
+{ 'command': 'migrate_cancel' }
+{ 'command': 'migrate_set_speed', 'data': {'value': 'int'} }
+{ 'command': 'migrate_set_downtime', 'data': {'value': 'number'} }
+{ 'type': 'MigrationStats',
+  'data': {'transferred': 'int', 'remaining': 'int', 'total': 'int' } }
+{ 'type': 'MigrationInfo',
+  'data': {'*status': 'str', '*ram': 'MigrationStats',
+           '*disk': 'MigrationStats'} }
+{ 'command': 'query-migrate', 'returns': 'MigrationInfo' }
 
-[ 'getfd', {'fdname': 'str'}, 'none' ]
-[ 'closefd', {'fdname': 'str'}, 'none' ]
+{ 'command': 'getfd', 'data': {'fdname': 'str'} }
+{ 'command': 'closefd', 'data': {'fdname': 'str'} }
 
-{ 'SpiceChannel': {'host': 'str', 'family': 'str', 'port': 'str', 'connection-id': 'int', 'channel-type': 'int', 'channel-id': 'int', 'tls': 'bool'} }
-{ 'SpiceInfo': {'enabled': 'bool', '*host': 'str', '*port': 'int', '*tls-port': 'int', '*auth': 'str', '*channels': ['SpiceChannel']} }
-[ 'query-spice', {}, 'SpiceInfo' ]
+{ 'type': 'SpiceChannel',
+  'data': {'host': 'str', 'family': 'str', 'port': 'str',
+           'connection-id': 'int', 'channel-type': 'int', 'channel-id': 'int',
+           'tls': 'bool'} }
+{ 'type': 'SpiceInfo',
+  'data': {'enabled': 'bool', '*host': 'str', '*port': 'int',
+           '*tls-port': 'int', '*auth': 'str', '*channels': ['SpiceChannel']} }
+{ 'command': 'query-spice', 'returns': 'SpiceInfo' }
 
 ## 0.14.0 Events ##
 
-{ 'SHUTDOWN': {} }
-[ 'get-shutdown-event', {}, 'SHUTDOWN' ]
+{ 'event': 'SHUTDOWN' }
+{ 'command': 'get-shutdown-event', 'returns': 'SHUTDOWN' }
 
-{ 'RESET': {} }
-[ 'get-reset-event', {}, 'RESET' ]
+{ 'event': 'RESET' }
+{ 'command': 'get-reset-event', 'returns': 'RESET' }
 
-{ 'POWERDOWN': {} }
-[ 'get-powerdown-event', {}, 'POWERDOWN' ]
+{ 'event': 'POWERDOWN' }
+{ 'command': 'get-powerdown-event', 'returns': 'POWERDOWN' }
 
-{ 'STOP': {} }
-[ 'get-stop-event', {}, 'STOP' ]
+{ 'event': 'STOP' }
+{ 'command': 'get-stop-event', 'returns': 'STOP' }
 
-{ 'RESUME': {} }
-[ 'get-resume-event', {}, 'RESUME' ]
+{ 'event': 'RESUME' }
+{ 'command': 'get-resume-event', 'returns': 'RESUME' }
 
-{ 'VncServerInfo': { 'host': 'str', 'family': 'str', 'service': 'str',
-                     'auth': 'str' } }
-{ 'VNC_CONNECTED': { 'client': 'VncClientInfo', 'server': 'VncServerInfo' } }
-[ 'get-vnc-connected-event', {}, 'VNC_CONNECTED' ]
+{ 'type': 'VncServerInfo',
+  'data': { 'host': 'str', 'family': 'str', 'service': 'str', 'auth': 'str' } }
+{ 'event': 'VNC_CONNECTED',
+  'data': { 'client': 'VncClientInfo', 'server': 'VncServerInfo' } }
+{ 'command': 'get-vnc-connected-event', 'returns': 'VNC_CONNECTED' }
 
-{ 'VNC_INITIALIZED': { 'client': 'VncClientInfo', 'server': 'VncServerInfo' } }
-[ 'get-vnc-initialized-event', {}, 'VNC_INITIALIZED' ]
+{ 'event': 'VNC_INITIALIZED',
+  'data': { 'client': 'VncClientInfo', 'server': 'VncServerInfo' } }
+{ 'command': 'get-vnc-initialized-event', 'returns': 'VNC_INITIALIZED' }
 
-{ 'VNC_DISCONNECTED': { 'client': 'VncClientInfo', 'server': 'VncServerInfo' } }
-[ 'get-vnc-disconnected-event', {}, 'VNC_DISCONNECTED' ]
+{ 'event': 'VNC_DISCONNECTED',
+  'data': { 'client': 'VncClientInfo', 'server': 'VncServerInfo' } }
+{ 'command': 'get-vnc-disconnected-event', 'returns': 'VNC_DISCONNECTED' }
 
 
-{ 'BLOCK_IO_ERROR': { 'device': 'str', 'action': 'str', 'operation': 'str' } }
-[ 'get-block-io-error-event', {}, 'BLOCK_IO_ERROR' ]
+{ 'event': 'BLOCK_IO_ERROR',
+  'data': { 'device': 'str', 'action': 'str', 'operation': 'str' } }
+{ 'command': 'get-block-io-error-event', 'returns': 'BLOCK_IO_ERROR' }
 
-{ 'RTC_CHANGE': { 'offset': 'int' } }
-[ 'get-rtc-change-event', {}, 'RTC_CHANGE' ]
+{ 'event': 'RTC_CHANGE', 'data': { 'offset': 'int' } }
+{ 'command': 'get-rtc-change-event', 'returns': 'RTC_CHANGE' }
 
-{ 'WATCHDOG': { 'action': 'str' } }
-[ 'get-watchdog-event', {}, 'WATCHDOG' ]
+{ 'event': 'WATCHDOG', 'data': { 'action': 'str' } }
+{ 'command': 'get-watchdog-event', 'returns': 'WATCHDOG' }
 
-{ 'SpiceClientInfo': { 'host': 'str', 'port': 'str', 'family': 'str',
-                       '*connection-id': 'int', '*channel-type': 'int',
-                       '*channel-id': 'int', '*tls': 'bool' } }
-{ 'SpiceServerInfo': { 'host': 'str', 'port': 'str', 'family': 'str',
-                       '*auth': 'str' } }
-{ 'SPICE_CONNECTED': { 'client': 'SpiceClientInfo',
-                       'server': 'SpiceServerInfo' } }
-{ 'SPICE_INITIALIZED': { 'client': 'SpiceClientInfo',
-                         'server': 'SpiceServerInfo' } }
-{ 'SPICE_DISCONNECTED': { 'client': 'SpiceClientInfo',
-                          'server': 'SpiceServerInfo' } }
+{ 'type': 'SpiceClientInfo',
+  'data': { 'host': 'str', 'port': 'str', 'family': 'str',
+            '*connection-id': 'int', '*channel-type': 'int',
+            '*channel-id': 'int', '*tls': 'bool' } }
+{ 'type': 'SpiceServerInfo',
+  'data': { 'host': 'str', 'port': 'str', 'family': 'str', '*auth': 'str' } }
+{ 'event': 'SPICE_CONNECTED',
+  'data': { 'client': 'SpiceClientInfo', 'server': 'SpiceServerInfo' } }
+{ 'event': 'SPICE_INITIALIZED',
+  'data': { 'client': 'SpiceClientInfo', 'server': 'SpiceServerInfo' } }
+{ 'event': 'SPICE_DISCONNECTED',
+  'data': { 'client': 'SpiceClientInfo', 'server': 'SpiceServerInfo' } }
 
 # 0.15.0 commands.  These can be changed up until the next release
 
@@ -1204,7 +1234,8 @@
 #
 # Since: 0.15.0
 ##
-{ 'NetworkType': ['none', 'nic', 'slirp', 'tap', 'socket', 'vde', 'dump'] }
+{ 'enum': 'NetworkType',
+  'data': ['none', 'nic', 'slirp', 'tap', 'socket', 'vde', 'dump'] }
 
 ##
 # @NetworkInfo:
@@ -1223,8 +1254,9 @@
 #
 # Since: 0.15.0:
 ##
-{ 'NetworkInfo': {'name': 'str', 'type': 'NetworkType',
-                  '*vlan_id': 'int', '*peer': 'str'} }
+{ 'type': 'NetworkInfo',
+  'data': {'name': 'str', 'type': 'NetworkType', '*vlan_id': 'int',
+           '*peer': 'str'} }
 
 ##
 # @query-network:
@@ -1235,7 +1267,7 @@
 # 
 # Since: 0.15.0
 ##
-[ 'query-network', {}, ['NetworkInfo'] ]
+{ 'command': 'query-network', 'returns': ['NetworkInfo'] }
 
 ##
 # @TapInfo:
@@ -1256,9 +1288,10 @@
 #
 # Since: 0.15.0
 ##
-{ 'TapInfo': {'fd': 'int', 'vhost_enabled': 'bool',
-              'vnet_hdr_enabled': 'bool', 'ufo_enabled': 'bool',
-              '*down_script': 'str', '*down_script_arg': 'str'} }
+{ 'type': 'TapInfo',
+  'data': {'fd': 'int', 'vhost_enabled': 'bool', 'vnet_hdr_enabled': 'bool',
+           'ufo_enabled': 'bool', '*down_script': 'str',
+           '*down_script_arg': 'str'} }
 
 ##
 # @query-tap:
@@ -1273,7 +1306,7 @@
 #
 # Since: 0.15.0
 ##
-[ 'query-tap', {'id': 'str'}, 'TapInfo' ]
+{ 'command': 'query-tap', 'data': {'id': 'str'}, 'returns': 'TapInfo' }
 
 ##
 # @change-blockdev:
@@ -1301,8 +1334,9 @@
 #
 # Since: 0.15.0
 ##
-[ 'change-blockdev', {'device': 'str', 'filename': 'str',
-                      '*format': 'str', '*password': 'str'}, 'none' ]
+{ 'command': 'change-blockdev',
+  'data': {'device': 'str', 'filename': 'str', '*format': 'str',
+           '*password': 'str'} }
 
 ##
 # @set-blockdev-password:
@@ -1314,7 +1348,8 @@
 #
 # Since: 0.15.0
 ##
-[ 'set-blockdev-password', {'device': 'str', 'password': 'str'}, 'none' ]
+{ 'command': 'set-blockdev-password',
+  'data': {'device': 'str', 'password': 'str'} }
 
 ##
 # @change-vnc-listen:
@@ -1328,7 +1363,7 @@
 # Notes:  At this moment in time, the behavior of existing client connections
 #         when this command is executed is undefined.
 ##
-[ 'change-vnc-listen', {'target': 'str'}, 'none' ]
+{ 'command': 'change-vnc-listen', 'data': {'target': 'str'} }
 
 ##
 # @change-vnc-password:
@@ -1342,13 +1377,14 @@
 # Notes:  An empty password in this command will set the password to the empty
 #         string.  Existing clients are unaffected by executing this command.
 ##
-[ 'change-vnc-password', {'password': 'str'}, 'none' ]
+{ 'command': 'change-vnc-password', 'data': {'password': 'str'} }
 
-[ 'put-event', {'tag': 'int'}, 'none' ]
+{ 'command': 'put-event', 'data': {'tag': 'int'} }
 
 ## Internal types ##
-{ 'VirtioNetTxStrategy': ['bh', 'timer'] }
-{ 'GuestInfo': {'*name': 'str', '*pid': 'int'} }
+{ 'enum': 'VirtioNetTxStrategy', 'data': ['bh', 'timer'] }
+{ 'type': 'GuestInfo', 'data': {'*name': 'str', '*pid': 'int'} }
 
-[ 'guest-ping', {}, 'none' ]
-[ 'guest-view-file', { 'filename': 'str' }, 'str' ]
+{ 'command': 'guest-ping' }
+{ 'command': 'guest-view-file', 'data': { 'filename': 'str' },
+  'returns': 'str' }

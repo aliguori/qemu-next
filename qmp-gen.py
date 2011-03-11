@@ -122,6 +122,9 @@ def qmp_type_to_qobj(typename):
 def qmp_type_from_qobj(typename):
     return 'qmp_unmarshal_type_%s' % typename
 
+def qmp_is_proxy_cmd(name):
+    return name.startswith('guest-')
+
 def qmp_is_async_cmd(name):
     return name.startswith('guest-')
 
@@ -1085,9 +1088,6 @@ typedef struct %(c_event)s {
     return ret
 
 def gen_type_marshal_declaration(name, typeinfo):
-    if qmp_type_is_event(name):
-        return ''
-
     if is_dict(typeinfo):
         return mcgen('''
 
@@ -1264,11 +1264,7 @@ def gen_metatype_free(typeinfo, prefix):
     return ret
 
 def gen_type_marshal_definition(name, typeinfo):
-    ret = ''
-    if qmp_type_is_event(name):
-        return ret
-
-    ret += mcgen('''
+    ret = mcgen('''
 
 QObject *qmp_marshal_type_%(name)s(%(type)s src)
 {
@@ -1302,10 +1298,6 @@ qmp__err_out:
     return ret
 
 def gen_type_definition(name, typeinfo):
-    if qmp_type_is_event(name):
-        return ''
-
-
     return mcgen('''
 
 void qmp_free_%(dcc_name)s(%(name)s *obj)
@@ -1490,51 +1482,68 @@ def generate(kind):
         exprs.append(s)
     
     for s in exprs:
-        if is_dict(s):
-            key = s.keys()[0]
-            if is_dict(s[key]):
-                if qmp_type_is_event(key):
-                    event_types[key] = s[key]
-                if kind == 'types-body':
-                    ret += gen_type_definition(key, s[key])
-                elif kind == 'types-header':
-                    ret += gen_type_declaration(key, s[key])
-                elif kind == 'marshal-body':
-                    ret += gen_type_marshal_definition(key, s[key])
-                elif kind == 'marshal-header':
-                    ret += gen_type_marshal_declaration(key, s[key])
-                elif kind == 'lib-body':
-                    if qmp_type_is_event(key):
-                        ret += gen_lib_event_definition(key, event_types[key])
-            else:
-                enum_types.append(key)
-                if kind == 'types-header':
-                    ret += gen_enum_declaration(key, s[key])
-                elif kind == 'types-body':
-                    ret += gen_enum_definition(key, s[key])
-                elif kind == 'marshal-header':
-                    ret += gen_enum_marshal_declaration(key, s[key])
-                elif kind == 'marshal-body':
-                    ret += gen_enum_marshal_definition(key, s[key])
-                elif kind == 'qdev-header':
-                    ret += gen_qdev_declaration(key, s[key])
-                elif kind == 'qdev-body':
-                    ret += gen_qdev_definition(key, s[key])
-        else:
-            name, options, retval = s
+       if s.has_key('type'):
+           name = s['type']
+           data = s['data']
+
+           if kind == 'types-body':
+               ret += gen_type_definition(name, data)
+           elif kind == 'types-header':
+               ret += gen_type_declaration(name, data)
+           elif kind == 'marshal-body':
+               ret += gen_type_marshal_definition(name, data)
+           elif kind == 'marshal-header':
+               ret += gen_type_marshal_declaration(name, data)
+       elif s.has_key('enum'):
+           name = s['enum']
+           data = s['data']
+
+           enum_types.append(s['enum'])
+           if kind == 'types-header':
+               ret += gen_enum_declaration(name, data)
+           elif kind == 'types-body':
+               ret += gen_enum_definition(name, data)
+           elif kind == 'marshal-header':
+               ret += gen_enum_marshal_declaration(name, data)
+           elif kind == 'marshal-body':
+               ret += gen_enum_marshal_definition(name, data)
+           elif kind == 'qdev-header':
+               ret += gen_qdev_declaration(name, data)
+           elif kind == 'qdev-body':
+               ret += gen_qdev_definition(name, data)
+       elif s.has_key('event'):
+           name = s['event']
+           data = {}
+           if s.has_key('data'):
+               data = s['data']
+
+           event_types[name] = data
+           if kind == 'types-header':
+               ret += gen_type_declaration(name, data)
+           elif kind == 'lib-body':
+               ret += gen_lib_event_definition(name, data)
+       elif s.has_key('command'):
+            name = s['command']
+            options = {}
+            if s.has_key('data'):
+                options = s['data']
+            retval = 'none'
+            if s.has_key('returns'):
+                retval = s['returns']
             if kind == 'body':
                 async = qmp_is_async_cmd(name)
-                if name.startswith('guest-'):
+                proxy = qmp_is_proxy_cmd(name)
+                if proxy:
                     ret += gen_lib_definition(name, options, retval, proxy=True)
                 ret += gen_definition(name, options, retval, async=async)
             elif kind == 'header':
                 async = qmp_is_async_cmd(name)
                 ret += gen_declaration(name, options, retval, async=async)
             elif kind == 'guest-body':
-                if name.startswith('guest-'):
+                if qmp_is_proxy_cmd(name):
                     ret += gen_definition(name, options, retval, prefix='qga')
             elif kind == 'guest-header':
-                if name.startswith('guest-'):
+                if qmp_is_proxy_cmd(name):
                     ret += gen_declaration(name, options, retval, prefix='qga')
             elif kind == 'lib-body':
                 ret += gen_lib_definition(name, options, retval)
@@ -1550,24 +1559,29 @@ static void qmp_init_marshal(void)
 {
 ''')
         for s in exprs:
-            if type(s) != list:
+            if not s.has_key('command'):
                 continue
-            async = qmp_is_async_cmd(s[0])
-            if qmp_type_is_event(s[2]) or s[0] in ['qmp_capabilities', 'put-event']:
+            name = s['command']
+            retval = 'none'
+            if s.has_key('returns'):
+                retval = s['returns']
+
+            async = qmp_is_async_cmd(name)
+            if qmp_type_is_event(retval) or name in ['qmp_capabilities', 'put-event']:
                 ret += mcgen('''
     qmp_register_stateful_command("%(name)s", &qmp_marshal_%(c_name)s);
 ''',
-                             name=s[0], c_name=c_var(s[0]))
+                             name=name, c_name=c_var(name))
             elif async:
                 ret += mcgen('''
     qmp_register_async_command("%(name)s", &qmp_marshal_%(c_name)s);
 ''',
-                             name=s[0], c_name=c_var(s[0]))
+                             name=name, c_name=c_var(name))
             else:
                 ret += mcgen('''
     qmp_register_command("%(name)s", &qmp_marshal_%(c_name)s);
 ''',
-                             name=s[0], c_name=c_var(s[0]))
+                             name=name, c_name=c_var(name))
         ret += mcgen('''
 }
 
@@ -1580,13 +1594,14 @@ void qga_init_marshal(void)
 {
 ''')
         for s in exprs:
-            if type(s) != list:
+            if not s.has_key('command'):
                 continue
-            if s[0].startswith('guest-'):
+            name = s['command']
+            if qmp_is_proxy_command(name):
                 ret += mcgen('''
     qga_register_command("%(name)s", &qmp_marshal_%(c_name)s);
 ''',
-                             name=s[0], c_name=c_var(s[0]))
+                             name=name, c_name=c_var(name))
         ret += mcgen('''
 }
 ''')
