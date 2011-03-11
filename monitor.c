@@ -61,6 +61,7 @@
 #include "trace.h"
 #endif
 #include "ui/qemu-spice.h"
+#include "qmp-core.h"
 
 //#define DEBUG
 //#define DEBUG_COMPLETION
@@ -1947,14 +1948,13 @@ int monitor_get_fd(Monitor *mon, const char *fdname)
     return -1;
 }
 
-void qmp_getfd(const char *fdname, Error **errp)
+void qmp_getfd(QmpState *sess, const char *fdname, Error **errp)
 {
-    /* FIXME this doesn't work with a Unix Session */
     Monitor *mon = cur_mon;
     mon_fd_t *monfd;
     int fd;
 
-    fd = qemu_chr_get_msgfd(mon->chr);
+    fd = qmp_state_get_fd(sess);
     if (fd == -1) {
         error_set(errp, QERR_FD_NOT_SUPPLIED);
         return;
@@ -1983,7 +1983,7 @@ void qmp_getfd(const char *fdname, Error **errp)
     QLIST_INSERT_HEAD(&mon->fds, monfd, next);
 }
 
-void qmp_closefd(const char *fdname, Error **errp)
+void qmp_closefd(QmpState *sess, const char *fdname, Error **errp)
 {
     Monitor *mon = cur_mon; /* FIXME */
     mon_fd_t *monfd;

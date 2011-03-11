@@ -22,7 +22,7 @@ def qmp_is_async_cmd(name):
     return name.startswith('guest-')
 
 def qmp_is_stateful_cmd(name):
-    return name in ['qmp_capabilities', 'put-event']
+    return name in ['qmp_capabilities', 'put-event', 'getfd', 'closefd']
 
 def c_var(name):
     return '_'.join(name.split('-'))
@@ -502,9 +502,6 @@ typedef void (%(cc_name)sCompletionFunc)(void *qmp__opaque, %(ret_type)s qmp__re
 
 def gen_declaration(name, options, retval, async=False, prefix='qmp'):
     args = []
-    if qmp_is_stateful_cmd(name):
-        return ''
-
     ret = ''
 
     if async:
@@ -525,6 +522,9 @@ def gen_declaration(name, options, retval, async=False, prefix='qmp'):
         qmp_retval = 'void'
     else:
         qmp_retval = qmp_type_to_c(retval, True)
+
+    if qmp_is_stateful_cmd(name):
+        args = ['QmpState *qmp__state'] + args
 
     ret += cgen('%(ret_type)s %(prefix)s_%(c_name)s(%(args)s);',
                 ret_type=qmp_retval, prefix=prefix,

@@ -5,8 +5,6 @@
 #include "qmp-marshal-types.h"
 #include "error_int.h"
 
-typedef struct QmpState QmpState;
-
 typedef void (QmpCommandFunc)(const QDict *, QObject **, Error **);
 typedef void (QmpStatefulCommandFunc)(QmpState *qmp__sess, const QDict *, QObject **, Error **);
 typedef void (QmpAsyncCommandFunc)(const QDict *, Error **, QmpCommandState *);
@@ -60,6 +58,8 @@ void qmp_signal_disconnect(QmpSignal *obj, int handle);
 void qmp_state_add_connection(QmpState *sess, const char *name, QmpSignal *obj, int handle, QmpConnection *conn);
 void qmp_state_event(QmpConnection *conn, QObject *data);
 
+int qmp_state_get_fd(QmpState *sess);
+
 #define signal_init(obj) do {          \
     (obj)->signal = qmp_signal_init(); \
 } while (0)
@@ -79,9 +79,6 @@ void qmp_state_event(QmpConnection *conn, QObject *data);
         (obj)->func(qmp__slot->opaque, ## __VA_ARGS__);      \
     }                                                        \
 } while(0)
-
-void qmp_qmp_capabilities(QmpState *sess, Error **errp);
-void qmp_put_event(QmpState *sess, int global_handle, Error **errp);
 
 typedef void (QmpGuestCompletionFunc)(void *opaque, QObject *ret_data, Error *err);
 

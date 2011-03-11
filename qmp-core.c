@@ -97,6 +97,7 @@ struct QmpState
     int (*add_connection)(QmpState *s, QmpConnection *conn);
     void (*del_connection)(QmpState *s, int global_handle, Error **errp);
     void (*event)(QmpState *s, QObject *data);
+    int (*get_fd)(QmpState *s);
 
     QTAILQ_HEAD(, DefaultQmpConnection) default_connections;
 };
@@ -110,7 +111,12 @@ void qmp_state_add_connection(QmpState *sess, const char *event_name, QmpSignal 
     conn->global_handle = sess->add_connection(sess, conn);
 }
 
-void qmp_put_event(QmpState *sess, int global_handle, Error **errp)
+int qmp_state_get_fd(QmpState *sess)
+{
+    return sess->get_fd(sess);
+}
+
+void qmp_put_event(QmpState *sess, int64_t global_handle, Error **errp)
 {
     sess->del_connection(sess, global_handle, errp);
 }
@@ -514,6 +520,13 @@ static void qmp_chr_del_connection(QmpState *state, int global_handle, Error **e
     error_set(errp, QERR_INVALID_PARAMETER_VALUE, "tag", "valid event handle");
 }
 
+static int qmp_chr_get_fd(QmpState *state)
+{
+    QmpSession *s = container_of(state, QmpSession, state);
+
+    return qemu_chr_get_msgfd(s->chr);
+}
+
 void qmp_init_chardev(CharDriverState *chr)
 {
     QmpSession *s = qemu_mallocz(sizeof(*s));
@@ -522,6 +535,7 @@ void qmp_init_chardev(CharDriverState *chr)
     s->state.add_connection = qmp_chr_add_connection;
     s->state.event = qmp_chr_send_event;
     s->state.del_connection = qmp_chr_del_connection;
+    s->state.get_fd = qmp_chr_get_fd;
     QTAILQ_INIT(&s->state.default_connections);
 
     s->max_global_handle = 0;
@@ -716,6 +730,11 @@ static void qmp_unix_session_event(QmpState *state, QObject *event)
     qmp_unix_session_send(sess, event);
 }
 
+static int qmp_unix_session_get_fd(QmpState *state)
+{
+    return -1;
+}
+
 static void qmp_unix_server_read_event(void *opaque)
 {
     QmpUnixServer *s = opaque;
@@ -729,6 +748,7 @@ static void qmp_unix_server_read_event(void *opaque)
     sess->state.add_connection = qmp_unix_session_add_connection;
     sess->state.del_connection = qmp_unix_session_del_connection;
     sess->state.event = qmp_unix_session_event;
+    sess->state.get_fd = qmp_unix_session_get_fd;
     QTAILQ_INIT(&sess->state.default_connections);
     QTAILQ_INIT(&sess->connections);
 
