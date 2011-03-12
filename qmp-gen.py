@@ -131,6 +131,9 @@ def qmp_type_to_qobj(typename):
 def qmp_type_from_qobj(typename):
     return 'qmp_unmarshal_type_%s' % typename
 
+def qcfg_unmarshal_type(name):
+    return 'qcfg_unmarshal_type_%s' % name
+
 def parse_args(typeinfo):
     for member in typeinfo:
         argname = member
@@ -1404,8 +1407,79 @@ def gen_qcfg_marshal_declaration(name, data):
                 c_type=qmp_type_to_c(name), name=name)
     return ret;
 
-def qcfg_unmarshal_type(name):
-    return 'qcfg_unmarshal_type_%s' % name
+def gen_qcfg_union_marshal_definition(name, typeinfo):
+    kind_name = '%sKind' % name
+
+    ret = mcgen('''
+
+%(c_type)s qcfg_unmashal_type_%(name)s(KeyValues *kv, Error **errp)
+{
+    %(c_type)s obj;
+    Error *local_err = NULL;
+    KeyValues *kv;
+    bool has_value = false;
+
+    obj = qmp_alloc_%(dcc_name)s();
+''',
+                c_type=qmp_type_to_c(name), name=name,
+                dcc_name=de_camel_case(name))
+
+    for argname, argtype, optional in parse_args(typeinfo):
+        if optional or type(argtype) in [list, dict]:
+            print '    BUILD_BUG();'
+            continue
+        ret += mcgen('''
+
+    kv = qcfg_find_key(kvs, "%(name)s");
+    if (kv) {
+        if (has_value) {
+            error_set(&local_err, QERR_UNION_MULTIPLE_ENTRIES, "%(name)s");
+            goto qmp__out;
+        }
+        has_value = true;
+        obj->kind = %(abrev)s_%(uname)s;
+        obj->%(c_name)s = %(unmarshal)s(kv, &local_err);
+        if (local_err) {
+            goto qmp__out;
+        }
+        qmp_free_key_values(kv);
+        kv = NULL;
+    }
+''',
+                     name=argname, abrev=enum_abbreviation(kind_name),
+                     uname=c_var(argname).upper(), c_name=c_var(argname),
+                     unmarshal=qcfg_unmarshal_type(argtype))
+
+    ret += mcgen('''
+
+    if (!has_value) {
+        error_set(&local_err, QERR_UNION_NO_VALUE);
+        goto qmp__out;
+    }
+
+    return obj;
+
+qmp__out:
+    %(free)s(obj);
+    qmp_free_key_values(kv);
+    error_propagate(errp, local_err);
+    return NULL;
+}
+''',
+                 free=qmp_free_func(name))
+
+    return ret
+
+def gen_qcfg_enum_marshal_definition(name, typeinfo):
+    return mcgen('''
+
+%(c_type)s qcfg_unmarshal_type_%(name)s(KeyValues *kv, Error **errp)
+{
+    return qmp_type_%(dcc_name)s_from_str(kv->value, errp);
+}
+''',
+                c_type=qmp_type_to_c(name), name=name,
+                dcc_name=de_camel_case(name))
 
 def gen_qcfg_marshal_definition(name, typeinfo):
     ret = mcgen('''
@@ -1444,7 +1518,7 @@ def gen_qcfg_marshal_definition(name, typeinfo):
         goto qmp__out;
     }
 ''',
-                         name=name)
+                         name=argname)
         ret += mcgen('''
 
     obj->%(c_name)s = %(unmarshal)s(kv, &local_err);
@@ -1461,6 +1535,8 @@ def gen_qcfg_marshal_definition(name, typeinfo):
             ret += cgen('    }')
 
     ret += mcgen('''
+
+    return obj;
 
 qmp__out:
     qmp_free_key_values(kv);
@@ -1680,6 +1756,8 @@ def generate(kind):
                ret += gen_qdev_definition(name, data)
            elif kind == 'qcfg-header':
                ret += gen_qcfg_marshal_declaration(name, data)
+           elif kind == 'qcfg-body':
+               ret += gen_qcfg_enum_marshal_definition(name, data)
        elif s.has_key('union'):
            name = s['union']
            data = s['data']
@@ -1690,6 +1768,8 @@ def generate(kind):
                ret += gen_union_definition(name, data)
            elif kind == 'qcfg-header':
                ret += gen_qcfg_marshal_declaration(name, data)
+           elif kind == 'qcfg-body':
+               ret += gen_qcfg_union_marshal_definition(name, data)
        elif s.has_key('event'):
            name = s['event']
            data = {}
