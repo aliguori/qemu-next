@@ -1397,6 +1397,82 @@ void qmp_free_%(dcc_name)s(%(name)s *obj)
 
     return ret
 
+def gen_qcfg_marshal_declaration(name, data):
+    ret = mcgen('''
+%(c_type)s qcfg_unmarshal_type_%(name)s(KeyValues *kvs, Error **errp);
+''',
+                c_type=qmp_type_to_c(name), name=name)
+    return ret;
+
+def qcfg_unmarshal_type(name):
+    return 'qcfg_unmarshal_type_%s' % name
+
+def gen_qcfg_marshal_definition(name, typeinfo):
+    ret = mcgen('''
+
+%(c_type)s qcfg_unmarshal_type_%(name)s(KeyValues *kvs, Error **errp)
+{
+    %(c_type)s obj;
+    Error *local_err = NULL;
+    KeyValues *kv;
+
+    obj = qmp_alloc_%(dcc_name)s();
+''',
+                c_type=qmp_type_to_c(name), name=name,
+                dcc_name=de_camel_case(name))
+
+    for argname, argtype, optional in parse_args(typeinfo):
+        if type(argtype) in [dict, list]:
+            ret += cgen('    BUILD_BUG();')
+            continue
+        ret += mcgen('''
+
+    kv = qcfg_find_key(kvs, "%(name)s");
+''',
+                    name=argname)
+        if optional:
+            ret += mcgen('''
+    if (kv) {
+        obj->has_%(c_name)s = true;
+''',
+                         c_name=c_var(argname))
+            push_indent()
+        else:
+            ret += mcgen('''
+    if (!kv) {
+        error_set(&local_err, QERR_MISSING_PARAMETER, "%(name)s");
+        goto qmp__out;
+    }
+''',
+                         name=name)
+        ret += mcgen('''
+
+    obj->%(c_name)s = %(unmarshal)s(kv, &local_err);
+    if (local_err) {
+        goto qmp__out;
+    }
+    qmp_free_key_values(kv);
+    kv = NULL;
+''',
+                     c_name=c_var(argname),
+                     unmarshal=qcfg_unmarshal_type(argtype))
+        if optional:
+            pop_indent()
+            ret += cgen('    }')
+
+    ret += mcgen('''
+
+qmp__out:
+    qmp_free_key_values(kv);
+    %(free)s(obj);
+    error_propagate(errp, local_err);
+    return NULL;
+}
+''',
+                 free=qmp_free_func(name))
+
+    return ret
+
 def tokenize(data):
     while len(data):
         if data[0] in ['{', '}', ':', ',', '[', ']']:
@@ -1536,6 +1612,17 @@ def generate(kind):
         ret += mcgen('''
 #include "qdev-marshal.h"
 ''')
+    elif kind == 'qcfg-header':
+        ret += mcgen('''
+#ifndef QCFG_H
+#define QCFG_H
+
+#include "qcfg-core.h"
+''')
+    elif kind == 'qcfg-body':
+        ret += mcgen('''
+#include "qcfg.h"
+''')
     
     exprs = []
     expr = ''
@@ -1570,6 +1657,10 @@ def generate(kind):
                ret += gen_type_marshal_definition(name, data)
            elif kind == 'marshal-header':
                ret += gen_type_marshal_declaration(name, data)
+           elif kind == 'qcfg-header':
+               ret += gen_qcfg_marshal_declaration(name, data)
+           elif kind == 'qcfg-body':
+               ret += gen_qcfg_marshal_definition(name, data)
        elif s.has_key('enum'):
            name = s['enum']
            data = s['data']
@@ -1587,6 +1678,8 @@ def generate(kind):
                ret += gen_qdev_declaration(name, data)
            elif kind == 'qdev-body':
                ret += gen_qdev_definition(name, data)
+           elif kind == 'qcfg-header':
+               ret += gen_qcfg_marshal_declaration(name, data)
        elif s.has_key('union'):
            name = s['union']
            data = s['data']
@@ -1595,6 +1688,8 @@ def generate(kind):
                ret += gen_union_declaration(name, data)
            elif kind == 'types-body':
                ret += gen_union_definition(name, data)
+           elif kind == 'qcfg-header':
+               ret += gen_qcfg_marshal_declaration(name, data)
        elif s.has_key('event'):
            name = s['event']
            data = {}
