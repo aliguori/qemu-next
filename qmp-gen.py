@@ -1322,6 +1322,81 @@ void qmp_free_%(dcc_name)s(%(name)s *obj)
                 free=qmp_free_func(name),
                 type_free=gen_metatype_free(typeinfo, 'obj->'))
 
+def gen_union_declaration(name, typeinfo):
+    kind_name = "%sKind" % name
+    entries = map(lambda (x, y, z): x, parse_args(typeinfo))
+    ret = gen_enum_declaration(kind_name, entries)
+
+    ret += mcgen('''
+typedef struct %(name)s {
+    %(kind)s kind;
+    union {
+''',
+                 kind=kind_name, name=name)
+
+    for argname, argtype, optional in parse_args(typeinfo):
+        ret += cgen('        %(c_type)s %(c_name)s;',
+                    c_type=qmp_type_to_c(argtype),
+                    c_name=c_var(argname))
+
+    ret += mcgen('''
+    };
+    struct %(name)s * next;
+} %(name)s;
+
+%(name)s *qmp_alloc_%(dcc_name)s(void);
+void qmp_free_%(dcc_name)s(%(name)s *obj);
+''',
+                 name=name, dcc_name=de_camel_case(name))
+                 
+    return ret
+
+def gen_union_definition(name, typeinfo):
+    kind_name = "%sKind" % name
+    entries = map(lambda (x, y, z): x, parse_args(typeinfo))
+    ret = gen_enum_definition(kind_name, entries)
+
+    ret += mcgen('''
+
+%(name)s *qmp_alloc_%(dcc_name)s(void)
+{
+    BUILD_ASSERT(sizeof(%(name)s) < 512);
+    return qemu_mallocz(512);
+}
+
+void qmp_free_%(dcc_name)s(%(name)s *obj)
+{
+    if (!obj) {
+        return;
+    }
+
+    switch (obj->kind) {
+''',
+                 name=name, dcc_name=de_camel_case(name))
+
+    for argname, argtype, optional in parse_args(typeinfo):
+        ret += mcgen('''
+    case %(abrev)s_%(uname)s:
+        %(free)s(obj->%(c_name)s);
+        break;
+''',
+                     free=qmp_free_func(argtype), c_name=c_var(argname),
+                     abrev=enum_abbreviation(kind_name),
+                     uname=c_var(argname).upper())
+        
+
+    ret += mcgen('''
+    }
+             
+    qmp_free_%(dcc_name)s(obj->next);
+    qemu_free(obj);
+}
+''',
+                 name=name, dcc_name=de_camel_case(name))
+
+
+    return ret
+
 def tokenize(data):
     while len(data):
         if data[0] in ['{', '}', ':', ',', '[', ']']:
@@ -1512,6 +1587,14 @@ def generate(kind):
                ret += gen_qdev_declaration(name, data)
            elif kind == 'qdev-body':
                ret += gen_qdev_definition(name, data)
+       elif s.has_key('union'):
+           name = s['union']
+           data = s['data']
+
+           if kind == 'types-header':
+               ret += gen_union_declaration(name, data)
+           elif kind == 'types-body':
+               ret += gen_union_definition(name, data)
        elif s.has_key('event'):
            name = s['event']
            data = {}
