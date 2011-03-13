@@ -150,57 +150,59 @@ trace-dtrace.o: trace-dtrace.dtrace $(GENERATED_HEADERS)
 simpletrace.o: simpletrace.c $(GENERATED_HEADERS)
 
 qmp-marshal.c: $(SRC_PATH)/qmp-schema.json $(SRC_PATH)/qmp-gen.py
-	$(call quiet-command,python $(SRC_PATH)/qmp-gen.py --body < $< > $@, "  GEN   $@")
+	$(call quiet-command,python $(SRC_PATH)/qmp-gen.py --body $@ < $<, "  GEN   $@")
 
 qmp-types.c: $(SRC_PATH)/qmp-schema.json $(SRC_PATH)/qmp-gen.py
-	$(call quiet-command,python $(SRC_PATH)/qmp-gen.py --types-body < $< > $@, "  GEN   $@")
+	$(call quiet-command,python $(SRC_PATH)/qmp-gen.py --types-body $@ < $<, "  GEN   $@")
 
 qmp-types.h: $(SRC_PATH)/qmp-schema.json $(SRC_PATH)/qmp-gen.py
-	$(call quiet-command,python $(SRC_PATH)/qmp-gen.py --types-header < $< > $@, "  GEN   $@")
+	$(call quiet-command,python $(SRC_PATH)/qmp-gen.py --types-header $@ < $<, "  GEN   $@")
 
 qmp-marshal-types.c: $(SRC_PATH)/qmp-schema.json $(SRC_PATH)/qmp-gen.py
-	$(call quiet-command,python $(SRC_PATH)/qmp-gen.py --marshal-body < $< > $@, "  GEN   $@")
+	$(call quiet-command,python $(SRC_PATH)/qmp-gen.py --marshal-body $@ < $<, "  GEN   $@")
 
 qmp-marshal-types.h: $(SRC_PATH)/qmp-schema.json $(SRC_PATH)/qmp-gen.py
-	$(call quiet-command,python $(SRC_PATH)/qmp-gen.py --marshal-header < $< > $@, "  GEN   $@")
+	$(call quiet-command,python $(SRC_PATH)/qmp-gen.py --marshal-header $@ < $<, "  GEN   $@")
 
 qmp.h: $(SRC_PATH)/qmp-schema.json $(SRC_PATH)/qmp-gen.py
-	$(call quiet-command,python $(SRC_PATH)/qmp-gen.py --header < $< > $@, "  GEN   $@")
+	$(call quiet-command,python $(SRC_PATH)/qmp-gen.py --header $@ < $<, "  GEN   $@")
 
 libqmp.h: $(SRC_PATH)/qmp-schema.json $(SRC_PATH)/qmp-gen.py
-	$(call quiet-command,python $(SRC_PATH)/qmp-gen.py --lib-header < $< > $@, "  GEN   $@")
+	$(call quiet-command,python $(SRC_PATH)/qmp-gen.py --lib-header $@ < $<, "  GEN   $@")
 
 libqmp.c: $(SRC_PATH)/qmp-schema.json $(SRC_PATH)/qmp-gen.py
-	$(call quiet-command,python $(SRC_PATH)/qmp-gen.py --lib-body < $< > $@, "  GEN   $@")
+	$(call quiet-command,python $(SRC_PATH)/qmp-gen.py --lib-body $@ < $<, "  GEN   $@")
 
 guest-agent.h: $(SRC_PATH)/qmp-schema.json $(SRC_PATH)/qmp-gen.py
-	$(call quiet-command,python $(SRC_PATH)/qmp-gen.py --guest-header < $< > $@, "  GEN   $@")
+	$(call quiet-command,python $(SRC_PATH)/qmp-gen.py --guest-header $@ < $<, "  GEN   $@")
 
 guest-agent.c: $(SRC_PATH)/qmp-schema.json $(SRC_PATH)/qmp-gen.py
-	$(call quiet-command,python $(SRC_PATH)/qmp-gen.py --guest-body < $< > $@, "  GEN   $@")
+	$(call quiet-command,python $(SRC_PATH)/qmp-gen.py --guest-body $@ < $<, "  GEN   $@")
 
 qdev-marshal.h: $(SRC_PATH)/qmp-schema.json $(SRC_PATH)/qmp-gen.py
-	$(call quiet-command,python $(SRC_PATH)/qmp-gen.py --qdev-header < $< > $@, "  GEN   $@")
+	$(call quiet-command,python $(SRC_PATH)/qmp-gen.py --qdev-header $@ < $<, "  GEN   $@")
 
 qdev-marshal.c: $(SRC_PATH)/qmp-schema.json $(SRC_PATH)/qmp-gen.py
-	$(call quiet-command,python $(SRC_PATH)/qmp-gen.py --qdev-body < $< > $@, "  GEN   $@")
+	$(call quiet-command,python $(SRC_PATH)/qmp-gen.py --qdev-body $@ < $<, "  GEN   $@")
 
-qcfg-marshal.h: $(SRC_PATH)/cli-schema.json $(SRC_PATH)/qmp-gen.py
-	$(call quiet-command,python $(SRC_PATH)/qmp-gen.py --qcfg-header < $< > $@, "  GEN   $@")
+qcfg-marshal.h: $(SRC_PATH)/qcfg-schema.json $(SRC_PATH)/qmp-gen.py
+	$(call quiet-command,python $(SRC_PATH)/qmp-gen.py --qcfg-header $@ < $<, "  GEN   $@")
 
-qcfg-marshal.c: $(SRC_PATH)/cli-schema.json $(SRC_PATH)/qmp-gen.py
-	$(call quiet-command,python $(SRC_PATH)/qmp-gen.py --qcfg-body < $< > $@, "  GEN   $@")
+qcfg-marshal.c: $(SRC_PATH)/qcfg-schema.json $(SRC_PATH)/qmp-gen.py
+	$(call quiet-command,python $(SRC_PATH)/qmp-gen.py --qcfg-body $@ < $<, "  GEN   $@")
 
-qcfg-types.h: $(SRC_PATH)/cli-schema.json $(SRC_PATH)/qmp-gen.py
-	$(call quiet-command,python $(SRC_PATH)/qmp-gen.py --types-header < $< > $@, "  GEN   $@")
+qcfg-types.h: $(SRC_PATH)/qcfg-schema.json $(SRC_PATH)/qmp-gen.py
+	$(call quiet-command,python $(SRC_PATH)/qmp-gen.py --types-header $@ < $<, "  GEN   $@")
 
-qcfg-types.c: $(SRC_PATH)/cli-schema.json $(SRC_PATH)/qmp-gen.py
-	$(call quiet-command,python $(SRC_PATH)/qmp-gen.py --types-body < $< > $@, "  GEN   $@")
+qcfg-types.c: $(SRC_PATH)/qcfg-schema.json $(SRC_PATH)/qmp-gen.py
+	$(call quiet-command,python $(SRC_PATH)/qmp-gen.py --types-body $@ < $<, "  GEN   $@")
 
 qmp-marshal.o: qmp-marshal.c qmp.h qmp-types.h
 qmp-types.o: qmp-types.c qmp-types.h
 libqmp.o: libqmp.c libqmp.h qmp-types.h
 qdev-marshal.o: qdev-marshal.c qdev-marshal.h qmp-types.h
+qcfg-types.o: qcfg-types.c qcfg-types.h
+qcfg-marshal.o: qcfg-marshal.c qcfg-marshal.h qcfg-types.h
 
 version.o: $(SRC_PATH)/version.rc config-host.mak
 	$(call quiet-command,$(WINDRES) -I. -o $@ $<,"  RC    $(TARGET_DIR)$@")

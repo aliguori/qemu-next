@@ -1,0 +1,38 @@
+{ 'type': 'ProbeProtocol', 'data': { 'unsafe': 'bool', 'filename': 'str' } }
+
+{ 'type': 'FileProtocol', 'data': { 'filename': 'str' } }
+
+{ 'type': 'HostDeviceProtocol', 'data': { 'device': 'str' } }
+
+{ 'type': 'NbdProtocol', 'data': { 'hostname': 'str', 'port': 'int' } }
+
+{ 'union': 'BlockdevProtocol',
+  'data': { 'probe': 'ProbeProtocol', 'file': 'FileProtocol',
+            'host-dev': 'HostDeviceProtocol', 'nbd': 'NbdProtocol' } }
+
+{ 'type': 'ProbeFormat', 'data': { '*unsafe': 'bool', 'file': 'BlockdevProtocol' } }
+
+{ 'type': 'RawFormat', 'data': { 'file': 'BlockdevProtocol' } }
+
+{ 'type': 'Qcow2Format',
+  'data': { 'file': 'BlockdevProtocol',
+            '*backing-file': 'BlockdevFormat' } }
+
+{ 'type': 'QedFormat',
+  'data': { 'file': 'BlockdevProtocol',
+            '*backing-file': 'BlockdevFormat',
+            '*copy-on-read': 'bool' } }
+
+{ 'union': 'BlockdevFormat',
+  'data': { 'probe': 'ProbeFormat', 'raw': 'RawFormat',
+            'qcow2': 'Qcow2Format', 'qed': 'QedFormat' } }
+
+{ 'enum': 'BlockdevCacheSetting',
+  'data': [ 'none', 'writethrough', 'writeback' ] }
+
+{ 'type': 'BlockdevConfig',
+  'data': { 'id': 'str',
+            'cache': 'BlockdevCacheSetting',
+            'format': 'BlockdevFormat',
+            '*device': 'str' } }
+
