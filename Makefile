@@ -1,7 +1,7 @@
 # Makefile for QEMU.
 
 GENERATED_HEADERS = config-host.h trace.h qemu-options.def qmp.h libqmp.h qdev-marshal.h
-GENERATED_HEADERS += qmp-types.h qmp-marshal-types.h
+GENERATED_HEADERS += qmp-types.h qmp-marshal-types.h qcfg-marshal.h qcfg-types.h
 ifeq ($(TRACE_BACKEND),dtrace)
 GENERATED_HEADERS += trace-dtrace.h
 endif
