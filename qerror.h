@@ -187,6 +187,12 @@ void qerror_set_desc(QError *qerr, const char *fmt);
 #define QERR_UNDEFINED_ERROR \
     "{ 'class': 'UndefinedError', 'data': {} }"
 
+#define QERR_UNION_NO_VALUE \
+    "{ 'class': 'UnionNoValue', 'data': {} }"
+
+#define QERR_UNION_MULTIPLE_ENTRIES \
+    "{ 'class': 'UnionMultipleEntries', 'data': { 'value': %s } }"
+
 #define QERR_VNC_SERVER_FAILED \
     "{ 'class': 'VNCServerFailed', 'data': { 'target': %s } }"
 

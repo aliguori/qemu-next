@@ -185,6 +185,18 @@ qdev-marshal.h: $(SRC_PATH)/qmp-schema.json $(SRC_PATH)/qmp-gen.py
 qdev-marshal.c: $(SRC_PATH)/qmp-schema.json $(SRC_PATH)/qmp-gen.py
 	$(call quiet-command,python $(SRC_PATH)/qmp-gen.py --qdev-body < $< > $@, "  GEN   $@")
 
+qcfg-marshal.h: $(SRC_PATH)/cli-schema.json $(SRC_PATH)/qmp-gen.py
+	$(call quiet-command,python $(SRC_PATH)/qmp-gen.py --qcfg-header < $< > $@, "  GEN   $@")
+
+qcfg-marshal.c: $(SRC_PATH)/cli-schema.json $(SRC_PATH)/qmp-gen.py
+	$(call quiet-command,python $(SRC_PATH)/qmp-gen.py --qcfg-body < $< > $@, "  GEN   $@")
+
+qcfg-types.h: $(SRC_PATH)/cli-schema.json $(SRC_PATH)/qmp-gen.py
+	$(call quiet-command,python $(SRC_PATH)/qmp-gen.py --types-header < $< > $@, "  GEN   $@")
+
+qcfg-types.c: $(SRC_PATH)/cli-schema.json $(SRC_PATH)/qmp-gen.py
+	$(call quiet-command,python $(SRC_PATH)/qmp-gen.py --types-body < $< > $@, "  GEN   $@")
+
 qmp-marshal.o: qmp-marshal.c qmp.h qmp-types.h
 qmp-types.o: qmp-types.c qmp-types.h
 libqmp.o: libqmp.c libqmp.h qmp-types.h

@@ -867,7 +867,7 @@ typedef enum %(name)s {
     for entry in entries:
         ret += cgen('    %(abrev)s_%(name)s = %(value)d,',
                     abrev=enum_abbreviation(name),
-                    name=entry.upper(), value=i)
+                    name=c_var(entry).upper(), value=i)
         i += 1
     ret += mcgen('''
 } %(name)s;
@@ -905,7 +905,7 @@ def gen_enum_definition(name, entries):
         return %(abrev)s_%(value)s;
 ''',
                      prefix=prefix, entry=entry,
-                     abrev=enum_abbreviation(name), value=entry.upper())
+                     abrev=enum_abbreviation(name), value=c_var(entry).upper())
 
     ret += mcgen('''
     } else {
@@ -918,11 +918,11 @@ const char *qmp_type_%(dcc_name)s_to_str(%(name)s value, Error **errp)
 {
 ''',
                  name=name, abrev=enum_abbreviation(name),
-                 value=entries[0].upper(), dcc_name=de_camel_case(name))
+                 value=c_var(entries[0]).upper(), dcc_name=de_camel_case(name))
 
     first = True
     for entry in entries:
-        enum = '%s_%s' % (enum_abbreviation(name), entry.upper())
+        enum = '%s_%s' % (enum_abbreviation(name), c_var(entry).upper())
         prefix = '} else '
         if first:
             prefix = ''
@@ -991,7 +991,7 @@ static int parse_%(name)s(DeviceState *dev, Property *prop, const char *str)
 ''',
                      prefix=prefix, entry=entry,
                      abrev=enum_abbreviation(name),
-                     value=entry.upper())
+                     value=c_var(entry).upper())
     ret += mcgen('''
     } else {
         *ptr = strtoul(str, &end, 0);
@@ -1010,12 +1010,12 @@ static int print_%(name)s(DeviceState *dev, Property *prop, char *dest, size_t l
     %(name)s *ptr = qdev_get_prop_ptr(dev, prop);
 ''',
                  abrev=enum_abbreviation(name),
-                 value=entries[-1].upper(),
+                 value=c_var(entries[-1]).upper(),
                  name=name)
 
     first = True
     for entry in entries:
-        enum = '%s_%s' % (enum_abbreviation(name), entry.upper())
+        enum = '%s_%s' % (enum_abbreviation(name), c_var(entry).upper())
         prefix = '} else '
         if first:
             prefix=''
@@ -1412,7 +1412,7 @@ def gen_qcfg_union_marshal_definition(name, typeinfo):
 
     ret = mcgen('''
 
-%(c_type)s qcfg_unmashal_type_%(name)s(KeyValues *kv, Error **errp)
+%(c_type)s qcfg_unmarshal_type_%(name)s(KeyValues *kvs, Error **errp)
 {
     %(c_type)s obj;
     Error *local_err = NULL;
@@ -1473,9 +1473,9 @@ qmp__out:
 def gen_qcfg_enum_marshal_definition(name, typeinfo):
     return mcgen('''
 
-%(c_type)s qcfg_unmarshal_type_%(name)s(KeyValues *kv, Error **errp)
+%(c_type)s qcfg_unmarshal_type_%(name)s(KeyValues *kvs, Error **errp)
 {
-    return qmp_type_%(dcc_name)s_from_str(kv->value, errp);
+    return qmp_type_%(dcc_name)s_from_str(kvs->value, errp);
 }
 ''',
                 c_type=qmp_type_to_c(name), name=name,
