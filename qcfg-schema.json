@@ -32,7 +32,7 @@
 
 { 'type': 'BlockdevConfig',
   'data': { 'id': 'str',
-            'cache': 'BlockdevCacheSetting',
             'format': 'BlockdevFormat',
+            '*cache': 'BlockdevCacheSetting',
             '*device': 'str' } }
 
