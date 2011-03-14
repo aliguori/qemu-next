@@ -52,6 +52,7 @@ const char *error_get_pretty(Error *err)
         QString *str;
         str = qerror_format(err->fmt, err->obj);
         err->msg = qemu_strdup(qstring_get_str(str));
+        QDECREF(str);
     }
 
     return err->msg;

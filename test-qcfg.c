@@ -27,6 +27,8 @@ int main(int argc, char **argv)
         config = qcfg_unmarshal_type_BlockdevConfig(kvs, &err);
         if (err) {
             printf("parse error: %s\n", error_get_pretty(err));
+            error_free(err);
+            qmp_free_key_values(kvs);
             return 1;
         }
 

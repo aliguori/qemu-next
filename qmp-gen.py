@@ -1455,6 +1455,35 @@ def gen_qcfg_union_marshal_definition(name, typeinfo):
                      unmarshal=qcfg_unmarshal_type(argtype),
                      dcc_name=de_camel_case(kind_name), type_name=name)
 
+    first = True
+    ret += mcgen('''
+
+    for (kv = kvs; kv; kv = kv->next) {
+''')
+    for argname, argtype, optional in parse_args(typeinfo):
+        if first:
+            ret += mcgen('''
+        if (!(qcfg_iskey(kv->key, "%(name)s") ||
+''',
+                         name=argname)
+            first = False
+        else:
+            ret += mcgen('''
+              qcfg_iskey(kv->key, "%(name)s") ||
+''',
+                         name=argname)
+    if not first:
+        ret += mcgen('''
+              false)) {
+            error_set(&local_err, QERR_INVALID_PARAMETER, kv->key);
+            kv = NULL;
+            goto qmp__out;
+        }
+''')
+    ret += mcgen('''
+    }
+''')
+
     ret += mcgen('''
 
     if (!has_value) {
@@ -1539,6 +1568,35 @@ def gen_qcfg_marshal_definition(name, typeinfo):
         if optional:
             pop_indent()
             ret += cgen('    }')
+
+    first = True
+    ret += mcgen('''
+
+    for (kv = kvs; kv; kv = kv->next) {
+''')
+    for argname, argtype, optional in parse_args(typeinfo):
+        if first:
+            ret += mcgen('''
+        if (!(qcfg_iskey(kv->key, "%(name)s") ||
+''',
+                         name=argname)
+            first = False
+        else:
+            ret += mcgen('''
+              qcfg_iskey(kv->key, "%(name)s") ||
+''',
+                         name=argname)
+    if not first:
+        ret += mcgen('''
+              false)) {
+            error_set(&local_err, QERR_INVALID_PARAMETER, kv->key);
+            kv = NULL;
+            goto qmp__out;
+        }
+''')
+    ret += mcgen('''
+    }
+''')
 
     ret += mcgen('''
 

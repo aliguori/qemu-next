@@ -29,6 +29,17 @@ static char *qemu_strdup_upto(const char *value, const char *end)
     return val;
 }
 
+bool qcfg_iskey(const char *user_key, const char *key)
+{
+    const char *p;
+
+    if (strcmp(user_key, key) == 0 ||
+        (strstart(user_key, key, &p) && *p == '.')) {
+            return true;
+    }
+    return false;
+}
+
 void qcfg_enhance_error(Error **errp, const char *name)
 {
     Error *err;
@@ -40,7 +51,9 @@ void qcfg_enhance_error(Error **errp, const char *name)
     err = *errp;
     if (error_is_type(err, QERR_UNION_NO_VALUE) ||
         error_is_type(err, QERR_UNION_MULTIPLE_ENTRIES) ||
-        error_is_type(err, QERR_ENUM_VALUE_INVALID)) {
+        error_is_type(err, QERR_ENUM_VALUE_INVALID) ||
+        error_is_type(err, QERR_MISSING_PARAMETER) ||
+        error_is_type(err, QERR_INVALID_PARAMETER)) {
         const char *old_name = error_get_field(err, "name");
         char new_name[1024];
 
