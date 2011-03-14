@@ -912,16 +912,15 @@ def gen_enum_definition(name, entries):
 
     ret += mcgen('''
     } else {
-        error_set(errp, QERR_ENUM_VALUE_INVALID, "%(name)s", str);
-        return %(abrev)s_%(value)s;
+        error_set(errp, QERR_ENUM_VALUE_INVALID, "", "%(name)s", str);
+        return 0;
     }
 }
 
 const char *qmp_type_%(dcc_name)s_to_str(%(name)s value, Error **errp)
 {
 ''',
-                 name=name, abrev=enum_abbreviation(name),
-                 value=c_var(entries[0]).upper(), dcc_name=de_camel_case(name))
+                 name=name, dcc_name=de_camel_case(name))
 
     first = True
     for entry in entries:
@@ -939,7 +938,7 @@ const char *qmp_type_%(dcc_name)s_to_str(%(name)s value, Error **errp)
     } else {
         char buf[32];
         snprintf(buf, sizeof(buf), "%%d", value);
-        error_set(errp, QERR_ENUM_VALUE_INVALID, "%(name)s", buf);
+        error_set(errp, QERR_ENUM_VALUE_INVALID, "", "%(name)s", buf);
         return NULL;
     }
 }
@@ -1436,13 +1435,15 @@ def gen_qcfg_union_marshal_definition(name, typeinfo):
     kv = qcfg_find_key(kvs, "%(name)s");
     if (kv) {
         if (has_value) {
-            error_set(&local_err, QERR_UNION_MULTIPLE_ENTRIES, "%(name)s");
+            error_set(&local_err, QERR_UNION_MULTIPLE_ENTRIES, "", "%(type_name)s",
+                      qmp_type_%(dcc_name)s_to_str(obj->kind, NULL), "%(name)s");
             goto qmp__out;
         }
         has_value = true;
         obj->kind = %(abrev)s_%(uname)s;
         obj->%(c_name)s = %(unmarshal)s(kv, &local_err);
         if (local_err) {
+            qcfg_enhance_error(&local_err, "%(name)s");
             goto qmp__out;
         }
         qmp_free_key_values(kv);
@@ -1451,12 +1452,13 @@ def gen_qcfg_union_marshal_definition(name, typeinfo):
 ''',
                      name=argname, abrev=enum_abbreviation(kind_name),
                      uname=c_var(argname).upper(), c_name=c_var(argname),
-                     unmarshal=qcfg_unmarshal_type(argtype))
+                     unmarshal=qcfg_unmarshal_type(argtype),
+                     dcc_name=de_camel_case(kind_name), type_name=name)
 
     ret += mcgen('''
 
     if (!has_value) {
-        error_set(&local_err, QERR_UNION_NO_VALUE, "%(name)s");
+        error_set(&local_err, QERR_UNION_NO_VALUE, "", "%(name)s");
         goto qmp__out;
     }
 
@@ -1526,12 +1528,13 @@ def gen_qcfg_marshal_definition(name, typeinfo):
 
     obj->%(c_name)s = %(unmarshal)s(kv, &local_err);
     if (local_err) {
+        qcfg_enhance_error(&local_err, "%(name)s");
         goto qmp__out;
     }
     qmp_free_key_values(kv);
     kv = NULL;
 ''',
-                     c_name=c_var(argname),
+                     c_name=c_var(argname), name=argname,
                      unmarshal=qcfg_unmarshal_type(argtype))
         if optional:
             pop_indent()

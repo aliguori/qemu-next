@@ -29,6 +29,31 @@ static char *qemu_strdup_upto(const char *value, const char *end)
     return val;
 }
 
+void qcfg_enhance_error(Error **errp, const char *name)
+{
+    Error *err;
+
+    if (!errp) {
+        return;
+    }
+
+    err = *errp;
+    if (error_is_type(err, QERR_UNION_NO_VALUE) ||
+        error_is_type(err, QERR_UNION_MULTIPLE_ENTRIES) ||
+        error_is_type(err, QERR_ENUM_VALUE_INVALID)) {
+        const char *old_name = error_get_field(err, "name");
+        char new_name[1024];
+
+        if (*old_name) {
+            snprintf(new_name, sizeof(new_name), "%s.%s", name, old_name);
+        } else {
+            snprintf(new_name, sizeof(new_name), "%s", name);
+        }
+
+        error_set_field(err, "name", new_name);
+    }
+}
+
 KeyValues *qcfg_parse(const char *value, const char *implicit_key)
 {
     const char *ptr = value;

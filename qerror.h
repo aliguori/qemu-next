@@ -101,7 +101,7 @@ void qerror_set_desc(QError *qerr, const char *fmt);
     "{ 'class': 'DuplicateId', 'data': { 'id': %s, 'object': %s } }"
 
 #define QERR_ENUM_VALUE_INVALID \
-    "{ 'class': 'EnumValueInvalid', 'data': { 'type': %s, 'value': %s } }"
+    "{ 'class': 'EnumValueInvalid', 'data': { 'name': %s, 'type': %s, 'value': %s } }"
 
 #define QERR_FD_NOT_FOUND \
     "{ 'class': 'FdNotFound', 'data': { 'name': %s } }"
@@ -188,10 +188,10 @@ void qerror_set_desc(QError *qerr, const char *fmt);
     "{ 'class': 'UndefinedError', 'data': {} }"
 
 #define QERR_UNION_NO_VALUE \
-    "{ 'class': 'UnionNoValue', 'data': { 'value': %s } }"
+    "{ 'class': 'UnionNoValue', 'data': { 'name': %s, 'type': %s } }"
 
 #define QERR_UNION_MULTIPLE_ENTRIES \
-    "{ 'class': 'UnionMultipleEntries', 'data': { 'value': %s } }"
+    "{ 'class': 'UnionMultipleEntries', 'data': { 'name': %s, 'type': %s, 'value': %s, 'new-value': %s } }"
 
 #define QERR_VNC_SERVER_FAILED \
     "{ 'class': 'VNCServerFailed', 'data': { 'target': %s } }"

@@ -67,6 +67,12 @@ const char *error_get_field(Error *err, const char *field)
     }
 }
 
+void error_set_field(Error *err, const char *field, const char *value)
+{
+    QDict *dict = qdict_get_qdict(err->obj, "data");
+    return qdict_put(dict, field, qstring_from_str(value));
+}
+
 void error_free(Error *err)
 {
     QDECREF(err->obj);

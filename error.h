@@ -45,6 +45,11 @@ const char *error_get_pretty(Error *err);
 const char *error_get_field(Error *err, const char *field);
 
 /**
+ * Get an individual named error field.
+ */
+void error_set_field(Error *err, const char *field, const char *value);
+
+/**
  * Propagate an error to an indirect pointer to an error.  This function will
  * always transfer ownership of the error reference and handles the case where
  * dst_err is NULL correctly.

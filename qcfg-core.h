@@ -15,6 +15,8 @@
 KeyValues *qcfg_find_key(KeyValues *kvs, const char *key);
 KeyValues *qcfg_parse(const char *value, const char *implicit_key);
 
+void qcfg_enhance_error(Error **errp, const char *name);
+
 char *qcfg_unmarshal_type_str(KeyValues *kvs, Error **errp);
 bool qcfg_unmarshal_type_bool(KeyValues *kvs, Error **errp);
 int64_t qcfg_unmarshal_type_int(KeyValues *kvs, Error **errp);

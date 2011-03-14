@@ -110,7 +110,7 @@ static const QErrorStringTable qerror_table[] = {
     },
     {
         .error_fmt = QERR_ENUM_VALUE_INVALID,
-        .desc      = "Enum value '%(value)' is invalid for type '%(type)'",
+        .desc      = "Enum '%(name)' with value '%(value)' is invalid for type '%(type)'",
     },
     {
         .error_fmt = QERR_FD_NOT_FOUND,
@@ -206,11 +206,11 @@ static const QErrorStringTable qerror_table[] = {
     },
     {
         .error_fmt = QERR_UNION_NO_VALUE,
-        .desc      = "Union `%(value)' has no value defined",
+        .desc      = "Union '%(name)' of type '%(type)' has no value defined",
     },
     {
         .error_fmt = QERR_UNION_MULTIPLE_ENTRIES,
-        .desc      = "More than one union value specified, `%(target)'",
+        .desc      = "Cannot set union '%(name)' of type '%(type)' to value '%(new-value)' because it already is set to value '%(value)'"
     },
     {
         .error_fmt = QERR_VNC_SERVER_FAILED,
