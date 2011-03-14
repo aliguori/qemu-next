@@ -1,7 +1,7 @@
 # Makefile for QEMU.
 
 GENERATED_HEADERS = config-host.h trace.h qemu-options.def qmp.h libqmp.h qdev-marshal.h
-GENERATED_HEADERS += qmp-types.h qmp-marshal-types.h qcfg-marshal.h qcfg-types.h
+GENERATED_HEADERS += qmp-types.h qmp-marshal-types.h qcfg-marshal.h
 ifeq ($(TRACE_BACKEND),dtrace)
 GENERATED_HEADERS += trace-dtrace.h
 endif
@@ -185,24 +185,17 @@ qdev-marshal.h: $(SRC_PATH)/qmp-schema.json $(SRC_PATH)/qmp-gen.py
 qdev-marshal.c: $(SRC_PATH)/qmp-schema.json $(SRC_PATH)/qmp-gen.py
 	$(call quiet-command,python $(SRC_PATH)/qmp-gen.py --qdev-body $@ < $<, "  GEN   $@")
 
-qcfg-marshal.h: $(SRC_PATH)/qcfg-schema.json $(SRC_PATH)/qmp-gen.py
+qcfg-marshal.h: $(SRC_PATH)/qmp-schema.json $(SRC_PATH)/qmp-gen.py
 	$(call quiet-command,python $(SRC_PATH)/qmp-gen.py --qcfg-header $@ < $<, "  GEN   $@")
 
-qcfg-marshal.c: $(SRC_PATH)/qcfg-schema.json $(SRC_PATH)/qmp-gen.py
+qcfg-marshal.c: $(SRC_PATH)/qmp-schema.json $(SRC_PATH)/qmp-gen.py
 	$(call quiet-command,python $(SRC_PATH)/qmp-gen.py --qcfg-body $@ < $<, "  GEN   $@")
-
-qcfg-types.h: $(SRC_PATH)/qcfg-schema.json $(SRC_PATH)/qmp-gen.py
-	$(call quiet-command,python $(SRC_PATH)/qmp-gen.py --types-header $@ < $<, "  GEN   $@")
-
-qcfg-types.c: $(SRC_PATH)/qcfg-schema.json $(SRC_PATH)/qmp-gen.py
-	$(call quiet-command,python $(SRC_PATH)/qmp-gen.py --types-body $@ < $<, "  GEN   $@")
 
 qmp-marshal.o: qmp-marshal.c qmp.h qmp-types.h
 qmp-types.o: qmp-types.c qmp-types.h
 libqmp.o: libqmp.c libqmp.h qmp-types.h
 qdev-marshal.o: qdev-marshal.c qdev-marshal.h qmp-types.h
-qcfg-types.o: qcfg-types.c qcfg-types.h
-qcfg-marshal.o: qcfg-marshal.c qcfg-marshal.h qcfg-types.h
+qcfg-marshal.o: qcfg-marshal.c qcfg-marshal.h
 
 version.o: $(SRC_PATH)/version.rc config-host.mak
 	$(call quiet-command,$(WINDRES) -I. -o $@ $<,"  RC    $(TARGET_DIR)$@")
@@ -240,7 +233,7 @@ LIBQMP_OBJS += qerror.o
 LIBQMP_OBJS += json-streamer.o json-lexer.o json-parser.o
 LIBQMP_OBJS += $(oslib-obj-y) $(trace-obj-y) qemu-malloc.o
 
-QCFG_OBJS := qmp-types.o qcfg-types.o qcfg-core.o qcfg-marshal.o error.o
+QCFG_OBJS := qmp-types.o qcfg-core.o qcfg-marshal.o error.o
 QCFG_OBJS += qfloat.o qint.o qdict.o qstring.o qlist.o qbool.o qjson.o
 QCFG_OBJS += qerror.o
 QCFG_OBJS += json-streamer.o json-lexer.o json-parser.o

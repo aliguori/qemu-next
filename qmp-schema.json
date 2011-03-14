@@ -1390,5 +1390,99 @@
   'returns': 'str' }
 
 
-{ 'union': 'TestUnion',
-  'data': { 'foo': 'str', 'bar': 'VersionInfo' } }
+{ 'type': 'ProbeProtocol', 'data': { 'unsafe': 'bool', 'filename': 'str' } }
+
+{ 'type': 'FileProtocol', 'data': { 'filename': 'str' } }
+
+{ 'type': 'HostDeviceProtocol', 'data': { 'device': 'str' } }
+
+{ 'type': 'NbdProtocol', 'data': { 'hostname': 'str', 'port': 'int' } }
+
+{ 'union': 'BlockdevProtocol',
+  'data': { 'probe': 'ProbeProtocol', 'file': 'FileProtocol',
+            'host-dev': 'HostDeviceProtocol', 'nbd': 'NbdProtocol' } }
+
+{ 'type': 'ProbeFormat', 'data': { '*unsafe': 'bool', 'protocol': 'BlockdevProtocol' } }
+
+{ 'type': 'RawFormat', 'data': { 'protocol': 'BlockdevProtocol' } }
+
+{ 'type': 'Qcow2Format',
+  'data': { 'protocol': 'BlockdevProtocol',
+            '*backing-file': 'BlockdevFormat' } }
+
+{ 'type': 'QedFormat',
+  'data': { 'protocol': 'BlockdevProtocol',
+            '*backing-file': 'BlockdevFormat',
+            '*copy-on-read': 'bool' } }
+
+{ 'union': 'BlockdevFormat',
+  'data': { 'probe': 'ProbeFormat', 'raw': 'RawFormat',
+            'qcow2': 'Qcow2Format', 'qed': 'QedFormat' } }
+
+{ 'enum': 'BlockdevCacheSetting',
+  'data': [ 'none', 'writethrough', 'writeback' ] }
+
+{ 'type': 'BlockdevConfig',
+  'data': { 'id': 'str',
+            'format': 'BlockdevFormat',
+            '*cache': 'BlockdevCacheSetting',
+            '*device': 'str' } }
+
+{ 'option': 'blockdev', 'data': 'BlockdevConfig' }
+
+##
+# @VncConfig:
+#
+# Configuration options for the built-in VNC server.
+#
+# @address:  The hostname to bind the VNC server to.  If specified in the form
+#            `:display', the server binds to any interface on port
+#            (display + 5900).  If specified in the form, `hostname:display',
+#            the server is bound to `hostname' interface on port
+#            (display + 5900).  If specified in the form, `unix:path', then the
+#            server is bound to the unix domain socket `path'.
+#
+# @password: #optional If true, VNC authentication is enabled.  Use the
+#            @set-password command in QMP to set the password.
+#
+# @reverse:  #optional If true, @address is treated as a client address and the
+#            server will connect to @address and then proceed with the server
+#            session.  This can be helpful when working through a proxy.
+#
+# @no-lock-key-sync: #optional If true, disable the built-in heuristics that
+#                    attempt to key the Caps and Num Lock keys synchronized
+#                    with the host.
+#
+# @sasl:     #optional If true, enable SASL authentication.
+#
+# @tls:      #optional If true, use TLS to encrypt the session.
+#
+# @x509:     #optional The location of an x509 certificate to use to encrypt
+#            the session.  This cannot be used in conjunction with @tls.
+#
+# @x509verify: #optional The location of an x509 certificate to use to encrypt
+#              the session.  This is similar to @x509 but it also verifies the
+#              clients x509 certificates when they connect.
+#
+# @acl:      #optional If true, enable VNC ACL support.  ACLs can be set through
+#            QMP.
+#
+# @lossy:    #optional If true, compression will be enabled that can degrade
+#            image quality but result in significantly less bandwidth.
+#
+# Since: 0.14.0
+##
+{ 'type': 'VncConfig',
+  'data': { 'address': 'str', '*password': 'bool', '*reverse': 'bool',
+            '*no-lock-key-sync': 'bool', '*sasl': 'bool', '*tls': 'bool',
+            '*x509': 'str', '*x509verify': 'str', '*acl': 'bool',
+            '*lossy': 'bool' } }
+
+##
+# @vnc:
+#
+# Enable the built-in VNC server for the guest's VGA output.
+#
+# Since: 0.14.0
+##
+{ 'option': 'vnc', 'data': 'VncConfig' }

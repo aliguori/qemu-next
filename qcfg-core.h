@@ -2,7 +2,6 @@
 #define QCFG_CORE_H
 
 #include "qemu-common.h"
-#include "qcfg-types.h"
 #include "qmp-types.h"
 #include "qerror.h"
 

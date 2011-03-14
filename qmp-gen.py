@@ -1877,6 +1877,7 @@ def generate(kind, output):
         exprs.append(s)
 
     qobj_types = []
+    qcfg_types = []
 
     for s in exprs:
         if s.has_key('type'):
@@ -1897,6 +1898,9 @@ def generate(kind, output):
             if s.has_key('data'):
                 for argname, argtype, optional in parse_args(s['data']):
                     qobj_types += get_dependent_types(argtype)
+        elif s.has_key('option'):
+            if s.has_key('data'):
+                qcfg_types += get_dependent_types(s['data'])
     
     for s in exprs:
        if s.has_key('type'):
@@ -1914,9 +1918,11 @@ def generate(kind, output):
                if name in qobj_types:
                    ret += gen_type_marshal_declaration(name, data)
            elif kind == 'qcfg-header':
-               ret += gen_qcfg_marshal_declaration(name, data)
+               if name in qcfg_types:
+                   ret += gen_qcfg_marshal_declaration(name, data)
            elif kind == 'qcfg-body':
-               ret += gen_qcfg_marshal_definition(name, data)
+               if name in qcfg_types:
+                   ret += gen_qcfg_marshal_definition(name, data)
        elif s.has_key('enum'):
            name = s['enum']
            data = s['data']
@@ -1937,9 +1943,11 @@ def generate(kind, output):
            elif kind == 'qdev-body':
                ret += gen_qdev_definition(name, data)
            elif kind == 'qcfg-header':
-               ret += gen_qcfg_marshal_declaration(name, data)
+               if name in qcfg_types:
+                   ret += gen_qcfg_marshal_declaration(name, data)
            elif kind == 'qcfg-body':
-               ret += gen_qcfg_enum_marshal_definition(name, data)
+               if name in qcfg_types:
+                   ret += gen_qcfg_enum_marshal_definition(name, data)
        elif s.has_key('union'):
            name = s['union']
            data = s['data']
@@ -1955,9 +1963,11 @@ def generate(kind, output):
                if name in qobj_types:
                    ret += gen_union_marshal_definition(name, data)
            elif kind == 'qcfg-header':
-               ret += gen_qcfg_marshal_declaration(name, data)
+               if name in qcfg_types:
+                   ret += gen_qcfg_marshal_declaration(name, data)
            elif kind == 'qcfg-body':
-               ret += gen_qcfg_union_marshal_definition(name, data)
+               if name in qcfg_types:
+                   ret += gen_qcfg_union_marshal_definition(name, data)
        elif s.has_key('event'):
            name = s['event']
            data = {}
