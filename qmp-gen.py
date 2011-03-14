@@ -1772,6 +1772,24 @@ def ordered_eval(string):
     return parse_value(map(lambda x: x, tokenize(string)))[0]
 #    return eval(string)
 
+dependent_types = {}
+
+def get_dependent_types(typeinfo):
+    ret = []
+
+    if type(typeinfo) == str:
+        ret = [typeinfo]
+        if dependent_types.has_key(typeinfo):
+            ret += dependent_types[typeinfo]
+    elif is_dict(typeinfo):
+        ret = []
+        for key in typeinfo:
+            ret += get_dependent_types(typeinfo[key])
+    elif type(typeinfo) == list:
+        ret = get_dependent_types(typeinfo[0])
+
+    return ret
+
 def generate(kind, output):
     global enum_types
     global event_types
@@ -1857,6 +1875,28 @@ def generate(kind, output):
     if expr:
         s = ordered_eval(expr)
         exprs.append(s)
+
+    qobj_types = []
+
+    for s in exprs:
+        if s.has_key('type'):
+            d = get_dependent_types(s['data'])
+            dependent_types[s['type']] = d
+        elif s.has_key('union'):
+            d = get_dependent_types(s['data'])
+            dependent_types[s['union']] = d
+        elif s.has_key('enum'):
+            dependent_types[s['enum']] = []
+        elif s.has_key('command'):
+            if s.has_key('data'):
+                for argname, argtype, optional in parse_args(s['data']):
+                    qobj_types += get_dependent_types(argtype)
+            if s.has_key('returns'):
+                qobj_types += get_dependent_types(s['returns'])
+        elif s.has_key('event'):
+            if s.has_key('data'):
+                for argname, argtype, optional in parse_args(s['data']):
+                    qobj_types += get_dependent_types(argtype)
     
     for s in exprs:
        if s.has_key('type'):
@@ -1868,9 +1908,11 @@ def generate(kind, output):
            elif kind == 'types-header':
                ret += gen_type_declaration(name, data)
            elif kind == 'marshal-body':
-               ret += gen_type_marshal_definition(name, data)
+               if name in qobj_types:
+                   ret += gen_type_marshal_definition(name, data)
            elif kind == 'marshal-header':
-               ret += gen_type_marshal_declaration(name, data)
+               if name in qobj_types:
+                   ret += gen_type_marshal_declaration(name, data)
            elif kind == 'qcfg-header':
                ret += gen_qcfg_marshal_declaration(name, data)
            elif kind == 'qcfg-body':
@@ -1885,9 +1927,11 @@ def generate(kind, output):
            elif kind == 'types-body':
                ret += gen_enum_definition(name, data)
            elif kind == 'marshal-header':
-               ret += gen_enum_marshal_declaration(name, data)
+               if name in qobj_types:
+                   ret += gen_enum_marshal_declaration(name, data)
            elif kind == 'marshal-body':
-               ret += gen_enum_marshal_definition(name, data)
+               if name in qobj_types:
+                   ret += gen_enum_marshal_definition(name, data)
            elif kind == 'qdev-header':
                ret += gen_qdev_declaration(name, data)
            elif kind == 'qdev-body':
@@ -1905,9 +1949,11 @@ def generate(kind, output):
            elif kind == 'types-body':
                ret += gen_union_definition(name, data)
            elif kind == 'marshal-header':
-               ret += gen_type_marshal_declaration(name, data)
+               if name in qobj_types:
+                   ret += gen_type_marshal_declaration(name, data)
            elif kind == 'marshal-body':
-               ret += gen_union_marshal_definition(name, data)
+               if name in qobj_types:
+                   ret += gen_union_marshal_definition(name, data)
            elif kind == 'qcfg-header':
                ret += gen_qcfg_marshal_declaration(name, data)
            elif kind == 'qcfg-body':
