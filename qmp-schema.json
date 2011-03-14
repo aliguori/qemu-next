@@ -1428,7 +1428,7 @@
             '*cache': 'BlockdevCacheSetting',
             '*device': 'str' } }
 
-{ 'option': 'blockdev', 'data': 'BlockdevConfig' }
+{ 'option': 'blockdev', 'data': 'BlockdevConfig', 'implicit': 'id' }
 
 ##
 # @VncConfig:
@@ -1485,4 +1485,4 @@
 #
 # Since: 0.14.0
 ##
-{ 'option': 'vnc', 'data': 'VncConfig' }
+{ 'option': 'vnc', 'data': 'VncConfig', 'implicit': 'address' }

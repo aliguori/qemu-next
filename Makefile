@@ -191,11 +191,18 @@ qcfg-marshal.h: $(SRC_PATH)/qmp-schema.json $(SRC_PATH)/qmp-gen.py
 qcfg-marshal.c: $(SRC_PATH)/qmp-schema.json $(SRC_PATH)/qmp-gen.py
 	$(call quiet-command,python $(SRC_PATH)/qmp-gen.py --qcfg-body $@ < $<, "  GEN   $@")
 
+qcfg-opts.h: $(SRC_PATH)/qmp-schema.json $(SRC_PATH)/qmp-gen.py
+	$(call quiet-command,python $(SRC_PATH)/qmp-gen.py --opts-header $@ < $<, "  GEN   $@")
+
+qcfg-opts.c: $(SRC_PATH)/qmp-schema.json $(SRC_PATH)/qmp-gen.py
+	$(call quiet-command,python $(SRC_PATH)/qmp-gen.py --opts-body $@ < $<, "  GEN   $@")
+
 qmp-marshal.o: qmp-marshal.c qmp.h qmp-types.h
 qmp-types.o: qmp-types.c qmp-types.h
 libqmp.o: libqmp.c libqmp.h qmp-types.h
 qdev-marshal.o: qdev-marshal.c qdev-marshal.h qmp-types.h
-qcfg-marshal.o: qcfg-marshal.c qcfg-marshal.h
+qcfg-marshal.o: qcfg-marshal.c qcfg-marshal.h qmp-types.h
+qcfg-opts.o: qcfg-opts.c qcfg-opts.h qcfg-marshal.h qmp-types.h
 
 version.o: $(SRC_PATH)/version.rc config-host.mak
 	$(call quiet-command,$(WINDRES) -I. -o $@ $<,"  RC    $(TARGET_DIR)$@")
@@ -233,7 +240,7 @@ LIBQMP_OBJS += qerror.o
 LIBQMP_OBJS += json-streamer.o json-lexer.o json-parser.o
 LIBQMP_OBJS += $(oslib-obj-y) $(trace-obj-y) qemu-malloc.o
 
-QCFG_OBJS := qmp-types.o qcfg-core.o qcfg-marshal.o error.o
+QCFG_OBJS := qmp-types.o error.o qcfg-core.o qcfg-marshal.o qcfg-opts.o qcfg.o
 QCFG_OBJS += qfloat.o qint.o qdict.o qstring.o qlist.o qbool.o qjson.o
 QCFG_OBJS += qerror.o
 QCFG_OBJS += json-streamer.o json-lexer.o json-parser.o

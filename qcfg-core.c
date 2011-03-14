@@ -1,5 +1,6 @@
 #include "qcfg-core.h"
 #include "qerror.h"
+#include "qcfg-opts-core.h"
 
 static const char *strchr_upto(const char *value, char ch, const char *end)
 {
@@ -90,7 +91,7 @@ KeyValues *qcfg_parse(const char *value, const char *implicit_key)
         kv->key = qemu_strdup_upto(ptr, value);
 
         if (value == end) {
-            if (first) {
+            if (first && implicit_key) {
                 kv->value = kv->key;
                 kv->key = qemu_strdup(implicit_key);
             } else {
@@ -199,3 +200,10 @@ double qcfg_unmarshal_type_number(KeyValues *kvs, Error **errp)
     return val;
 }
 
+void qcfg_register_option_arg(const char *name, QcfgHandlerArg *fn)
+{
+}
+
+void qcfg_register_option_noarg(const char *name, QcfgHandlerNoarg *fn)
+{
+}

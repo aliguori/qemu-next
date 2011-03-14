@@ -1721,6 +1721,75 @@ qmp__out:
 
     return ret
 
+def gen_opts_declaration(name, data):
+    if data == None:
+        ret = mcgen('''
+void qcfg_handle_%(c_name)s(Error **errp);
+''',
+                    c_name=c_var(name))
+    else:
+        ret = mcgen('''
+void qcfg_handle_%(c_name)s(%(type)s config, Error **errp);
+''',
+                    c_name=c_var(name), type=qmp_type_to_c(data))
+    return ret
+
+def gen_opts_declaration(name, data):
+    if data == None:
+        ret = mcgen('''
+void qcfg_handle_%(c_name)s(Error **errp);
+''',
+                    c_name=c_var(name))
+    else:
+        ret = mcgen('''
+void qcfg_handle_%(c_name)s(%(type)s config, Error **errp);
+''',
+                    c_name=c_var(name), type=qmp_type_to_c(data))
+    return ret
+
+def gen_opts_definition(name, data, implicit_key):
+    if data == None:
+        ret = mcgen('''
+
+static void qcfg_dispatch_%(c_name)s(Error **errp)
+{
+    qcfg_handle_%(c_name)s(errp);
+}
+''',
+                    c_name=c_var(name))
+    else:
+        if implicit_key != None:
+            implicit_key = '"%s"' % implicit_key
+        else:
+            implicit_key = 'NULL'
+
+        ret = mcgen('''
+
+static void qcfg_dispatch_%(c_name)s(const char *value, Error **errp)
+{
+    %(type)s config;
+    Error *local_err = NULL;
+    KeyValues *kvs;
+
+    kvs = qcfg_parse(value, %(implicit_key)s);
+    config = qcfg_unmarshal_type_%(type_name)s(kvs, &local_err);
+    if (local_err) {
+        goto out;
+    } else {
+        qcfg_handle_%(c_name)s(config, &local_err);
+    }
+
+out:
+    error_propagate(errp, local_err);
+    %(free)s(config);
+    qmp_free_key_values(kvs);
+}
+''',
+                    c_name=c_var(name), type=qmp_type_to_c(data),
+                    implicit_key=implicit_key, free=qmp_free_func(data),
+                    type_name=data)
+    return ret
+
 def tokenize(data):
     while len(data):
         if data[0] in ['{', '}', ':', ',', '[', ']']:
@@ -2006,6 +2075,18 @@ def generate(kind, output):
                 ret += gen_lib_definition(name, options, retval)
             elif kind == 'lib-header':
                 ret += gen_lib_declaration(name, options, retval)
+       elif s.has_key('option'):
+           name = s['option']
+           data = None
+           implicit_key = None
+           if s.has_key('data'):
+               data = s['data']
+           if s.has_key('implicit'):
+               implicit_key = s['implicit']
+           if kind == 'opts-header':
+               ret += gen_opts_declaration(name, data)
+           elif kind == 'opts-body':
+               ret += gen_opts_definition(name, data, implicit_key)
     
     if kind.endswith('header'):
         ret += cgen('#endif')
@@ -2073,6 +2154,30 @@ void libqmp_init_events(QmpSession *sess)
 ''',
                          name=event,
                          c_event_name=de_camel_case(qmp_event_to_c(event)))
+        ret += mcgen('''
+}
+''')
+    elif kind == 'opts-body':
+        ret += mcgen('''
+
+void qcfg_options_init(void)
+{
+''')
+        for s in exprs:
+            if not s.has_key('option'):
+                continue
+            name = s['option']
+            if s.has_key('data'):
+                ret += mcgen('''
+     qcfg_register_option_arg("%(name)s", &qcfg_dispatch_%(c_name)s);
+''',
+                             name=name, c_name=c_var(name))
+            else:
+                ret += mcgen('''
+     qcfg_register_option_noarg("%(name)s", &qcfg_dispatch_%(c_name)s);
+''',
+                             name=name, c_name=c_var(name))
+                    
         ret += mcgen('''
 }
 ''')
