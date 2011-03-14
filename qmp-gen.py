@@ -79,6 +79,9 @@ def qmp_type_should_free(typename):
         return True
     return False
 
+def qmp_type_is_simple(typename):
+    return typename in ['str', 'int', 'number']
+
 def qmp_free_func(typename):
     if type(typename) == list:
         return qmp_free_func(typename[0])
@@ -1453,7 +1456,7 @@ def gen_qcfg_union_marshal_definition(name, typeinfo):
     ret += mcgen('''
 
     if (!has_value) {
-        error_set(&local_err, QERR_UNION_NO_VALUE);
+        error_set(&local_err, QERR_UNION_NO_VALUE, "%(name)s");
         goto qmp__out;
     }
 
@@ -1466,7 +1469,7 @@ qmp__out:
     return NULL;
 }
 ''',
-                 free=qmp_free_func(name))
+                 free=qmp_free_func(name), name=name)
 
     return ret
 

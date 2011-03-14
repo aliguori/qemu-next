@@ -72,7 +72,7 @@ defconfig:
 
 -include config-all-devices.mak
 
-TOOLS += test-libqmp qsh
+TOOLS += test-libqmp test-qcfg qsh
 
 build-all: $(DOCS) $(TOOLS) recurse-all
 
@@ -240,7 +240,14 @@ LIBQMP_OBJS += qerror.o
 LIBQMP_OBJS += json-streamer.o json-lexer.o json-parser.o
 LIBQMP_OBJS += $(oslib-obj-y) $(trace-obj-y) qemu-malloc.o
 
+QCFG_OBJS := qmp-types.o qcfg-types.o qcfg-core.o qcfg-marshal.o error.o
+QCFG_OBJS += qfloat.o qint.o qdict.o qstring.o qlist.o qbool.o qjson.o
+QCFG_OBJS += qerror.o
+QCFG_OBJS += json-streamer.o json-lexer.o json-parser.o
+QCFG_OBJS += $(oslib-obj-y) $(trace-obj-y) qemu-malloc.o cutils.o
+
 test-libqmp: test-libqmp.o $(LIBQMP_OBJS) ui/d3des.o qemu-timer-common.o
+test-qcfg: test-qcfg.o $(QCFG_OBJS) qemu-timer-common.o
 
 qmp-check: build-all
 	$(call quiet-command, ./test-libqmp, "  CHECK   $@")

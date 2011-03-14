@@ -205,6 +205,14 @@ static const QErrorStringTable qerror_table[] = {
         .desc      = "An undefined error has ocurred",
     },
     {
+        .error_fmt = QERR_UNION_NO_VALUE,
+        .desc      = "Union `%(value)' has no value defined",
+    },
+    {
+        .error_fmt = QERR_UNION_MULTIPLE_ENTRIES,
+        .desc      = "More than one union value specified, `%(target)'",
+    },
+    {
         .error_fmt = QERR_VNC_SERVER_FAILED,
         .desc      = "Could not start VNC server on %(target)",
     },

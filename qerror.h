@@ -188,7 +188,7 @@ void qerror_set_desc(QError *qerr, const char *fmt);
     "{ 'class': 'UndefinedError', 'data': {} }"
 
 #define QERR_UNION_NO_VALUE \
-    "{ 'class': 'UnionNoValue', 'data': {} }"
+    "{ 'class': 'UnionNoValue', 'data': { 'value': %s } }"
 
 #define QERR_UNION_MULTIPLE_ENTRIES \
     "{ 'class': 'UnionMultipleEntries', 'data': { 'value': %s } }"

@@ -10,16 +10,16 @@
   'data': { 'probe': 'ProbeProtocol', 'file': 'FileProtocol',
             'host-dev': 'HostDeviceProtocol', 'nbd': 'NbdProtocol' } }
 
-{ 'type': 'ProbeFormat', 'data': { '*unsafe': 'bool', 'file': 'BlockdevProtocol' } }
+{ 'type': 'ProbeFormat', 'data': { '*unsafe': 'bool', 'protocol': 'BlockdevProtocol' } }
 
-{ 'type': 'RawFormat', 'data': { 'file': 'BlockdevProtocol' } }
+{ 'type': 'RawFormat', 'data': { 'protocol': 'BlockdevProtocol' } }
 
 { 'type': 'Qcow2Format',
-  'data': { 'file': 'BlockdevProtocol',
+  'data': { 'protocol': 'BlockdevProtocol',
             '*backing-file': 'BlockdevFormat' } }
 
 { 'type': 'QedFormat',
-  'data': { 'file': 'BlockdevProtocol',
+  'data': { 'protocol': 'BlockdevProtocol',
             '*backing-file': 'BlockdevFormat',
             '*copy-on-read': 'bool' } }
 

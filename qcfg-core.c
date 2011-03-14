@@ -1,11 +1,85 @@
 #include "qcfg-core.h"
 #include "qerror.h"
 
-KeyValues *qcfg_parse(const char *value, const char *implicit_key)
+static const char *strchr_upto(const char *value, char ch, const char *end)
 {
-    return NULL;
+    while (*value && value != end && *value != ch) {
+        value++;
+    }
+
+    return value;
 }
 
+static const char *strend(const char *value)
+{
+    while (*value) {
+        value++;
+    }
+    return value;
+}
+
+static char *qemu_strdup_upto(const char *value, const char *end)
+{
+    size_t len = end - value;
+    char *val = qemu_malloc(len + 1);
+
+    memcpy(val, value, len);
+    val[len] = 0;
+
+    return val;
+}
+
+KeyValues *qcfg_parse(const char *value, const char *implicit_key)
+{
+    const char *ptr = value;
+    KeyValues *kv_list = NULL;
+    KeyValues **pkv = &kv_list;
+    bool first = true;
+
+    while (*ptr) {
+        const char *end;
+        const char *value;
+        KeyValues *kv;
+
+        kv = qmp_alloc_key_values();
+
+        end = strchr(ptr, ',');
+        if (end == NULL) {
+            end = strend(ptr);
+        }
+        value = strchr_upto(ptr, '=', end);
+
+        kv->key = qemu_strdup_upto(ptr, value);
+
+        if (value == end) {
+            if (first) {
+                kv->value = kv->key;
+                kv->key = qemu_strdup(implicit_key);
+            } else {
+                kv->value = qemu_strdup("on");
+            }
+        } else {
+            // FIXME decode escaped stuff here
+            kv->value = qemu_strdup_upto(value + 1, end);
+        }
+
+        ptr = end;
+        if (*ptr) {
+            ptr++;
+        }
+
+        *pkv = kv;
+        pkv = &kv->next;
+
+        first = false;
+    }
+
+    return kv_list;
+}
+
+
+// FIXME, always allocate
+// always return a list of options for complex types
 KeyValues *qcfg_find_key(KeyValues *kvs, const char *key)
 {
     KeyValues *ret = NULL;
