@@ -309,6 +309,7 @@ static void qmp_%(c_name)s_cb(void *qmp__opaque, QObject *qmp__retval, Error *qm
         ret += mcgen('''
 
     if (!qmp__err) {
+        // FIXME need to validate the type here
         QList *qmp__list_retval = qobject_to_qlist(qmp__retval);
         QListEntry *qmp__i;
         QLIST_FOREACH_ENTRY(qmp__list_retval, qmp__i) {
@@ -433,6 +434,7 @@ def gen_lib_definition(name, options, retval, proxy=False, async=False):
         ret += mcgen('''
 
     if (!qmp__local_err) {
+        // FIXME need to validate the type here
         QList *qmp__list_retval = qobject_to_qlist(qmp__retval);
         QListEntry *qmp__i;
         QLIST_FOREACH_ENTRY(qmp__list_retval, qmp__i) {
@@ -576,6 +578,7 @@ static void qmp_async_completion_%(c_name)s(void *qmp__opaque, %(ret_type)s qmp_
 
     qmp__ret_data = QOBJECT(qlist_new());
     if (qmp__retval) {
+        // FIXME need to validate the type here
         QList *list = qobject_to_qlist(qmp__ret_data);
         %(type)s i;
         for (i = qmp__retval; i != NULL; i = i->next) {
@@ -814,6 +817,7 @@ static void qmp_marshal_%(c_name)s(const QDict *qdict, QObject **ret_data, Error
         ret += mcgen('''
     *ret_data = QOBJECT(qlist_new());
     if (qmp_retval) {
+        // FIXME need to validate the type here
         QList *list = qobject_to_qlist(*ret_data);
         %(ret_type)s i;
         for (i = qmp_retval; i != NULL; i = i->next) {
@@ -956,6 +960,7 @@ QObject *qmp_marshal_type_%(name)s(%(name)s value)
 
 %(name)s qmp_unmarshal_type_%(name)s(QObject *obj, Error **errp)
 {
+    // FIXME need to validate the type here
     return (%(name)s)qint_get_int(qobject_to_qint(obj));
 }
 ''',
@@ -1180,8 +1185,15 @@ def gen_metatype_undef(typeinfo, name, lhs, sep='->', level=0):
         objname = 'qmp__object%d' % level
         ret += mcgen('''
     {
-        QDict *qmp__dict = qobject_to_qdict(%(c_name)s);
+        QDict *qmp__dict;
         QObject *%(objname)s;
+
+        if (qobject_type(%(c_name)s) != QTYPE_QDICT) {
+            error_set(&qmp__err, QERR_INVALID_PARAMETER_TYPE, "<unknown>", "JSON object");
+            goto qmp__err_out;
+        }
+
+        qmp__dict = qobject_to_qdict(%(c_name)s);
 
 ''',
                      c_name=c_var(name), objname=objname)
@@ -1217,6 +1229,7 @@ def gen_metatype_undef(typeinfo, name, lhs, sep='->', level=0):
         objname = 'qmp__object%d' % level
         ret += mcgen('''
     {
+        // FIXME need to validate the type here
         QList *qmp__list = qobject_to_qlist(%(c_name)s);
         QListEntry *%(objname)s;
         QLIST_FOREACH_ENTRY(qmp__list, %(objname)s) {
@@ -1327,6 +1340,101 @@ void qmp_free_%(dcc_name)s(%(name)s *obj)
                 free=qmp_free_func(name),
                 type_free=gen_metatype_free(typeinfo, 'obj->'))
 
+def gen_union_marshal_definition(name, typeinfo):
+    ret = mcgen('''
+
+QObject *qmp_marshal_type_%(name)s(%(type)s src)
+{
+    QDict *qmp__retval = qdict_new();
+
+    qdict_put(qmp__retval, "kind", qint_from_int(src->kind));
+
+    switch (src->kind) {
+''',
+                name=name, type=qmp_type_to_c(name))
+
+    for argname, argtype, optional in parse_args(typeinfo):
+        if optional or type(argtype) in [list, dict]:
+            ret += cgen('        BUILD_BUG();')
+            continue
+        ret += mcgen('''
+    case %(abrev)s_%(uname)s:
+        qdict_put_obj(qmp__retval, "%(name)s", %(marshal)s(src->%(c_name)s));
+        break;
+''',
+                     abrev=enum_abbreviation('%sKind' % name),
+                     uname=c_var(argname).upper(), name=argname,
+                     c_name=c_var(argname), marshal=qmp_type_to_qobj(argtype))
+
+    ret += mcgen('''
+    }
+
+    return QOBJECT(qmp__retval);
+}
+
+%(type)s qmp_unmarshal_type_%(name)s(QObject *src, Error **errp)
+{
+    %(type)s qmp__retval = qmp_alloc_%(dcc_name)s();
+    Error *local_err = NULL;
+    QDict *dict;
+
+    if (qobject_type(src) != QTYPE_QDICT) {
+        error_set(&local_err, QERR_INVALID_PARAMETER_TYPE, "<unknown>", "JSON object");
+        goto out;
+    }
+
+    dict = qobject_to_qdict(src);
+    if (!qdict_haskey(dict, "kind")) {
+        error_set(&local_err, QERR_MISSING_PARAMETER, "kind");
+        goto out;
+    }
+
+    if (qobject_type(qdict_get(dict, "kind")) != QTYPE_QINT) {
+        error_set(&local_err, QERR_INVALID_PARAMETER_TYPE, "kind", "integer");
+        goto out;
+    }
+
+    switch (qdict_get_int(dict, "kind")) {    
+''',
+                 name=name, type=qmp_type_to_c(name),
+                 dcc_name=de_camel_case(name))
+
+    for argname, argtype, optional in parse_args(typeinfo):
+        ret += mcgen('''
+    case %(abrev)s_%(uname)s:
+        if (!qdict_haskey(dict, "%(name)s")) {
+            error_set(&local_err, QERR_MISSING_PARAMETER, "%(name)s");
+            goto out;
+        }
+        qmp__retval->kind = %(abrev)s_%(uname)s;
+        qmp__retval->%(c_name)s = %(unmarshal)s(qdict_get(dict, "%(name)s"), &local_err);
+        break;
+''',
+                     abrev=enum_abbreviation('%sKind' % name), name=argname,
+                     uname=c_var(argname).upper(), c_name=c_var(argname),
+                     unmarshal=qmp_type_from_qobj(argtype))
+
+    ret += mcgen('''
+    default:
+        error_set(&local_err, QERR_INVALID_PARAMETER_VALUE, "kind", "%(name)sKind");
+        goto out;
+    }
+
+    if (local_err) {
+        goto out;
+    }
+
+    return qmp__retval;
+
+out:
+    %(free)s(qmp__retval);
+    error_propagate(errp, local_err);
+    return NULL;
+}
+''',
+                 name=name, free=qmp_free_func(name))
+    return ret
+
 def gen_union_declaration(name, typeinfo):
     kind_name = "%sKind" % name
     entries = map(lambda (x, y, z): x, parse_args(typeinfo))
@@ -1341,7 +1449,7 @@ typedef struct %(name)s {
 
     for argname, argtype, optional in parse_args(typeinfo):
         ret += cgen('        %(c_type)s %(c_name)s;',
-                    c_type=qmp_type_to_c(argtype),
+                    c_type=qmp_type_to_c(argtype, True),
                     c_name=c_var(argname))
 
     ret += mcgen('''
@@ -1796,6 +1904,10 @@ def generate(kind, output):
                ret += gen_union_declaration(name, data)
            elif kind == 'types-body':
                ret += gen_union_definition(name, data)
+           elif kind == 'marshal-header':
+               ret += gen_type_marshal_declaration(name, data)
+           elif kind == 'marshal-body':
+               ret += gen_union_marshal_definition(name, data)
            elif kind == 'qcfg-header':
                ret += gen_qcfg_marshal_declaration(name, data)
            elif kind == 'qcfg-body':

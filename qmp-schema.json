@@ -1388,3 +1388,7 @@
 { 'command': 'guest-ping' }
 { 'command': 'guest-view-file', 'data': { 'filename': 'str' },
   'returns': 'str' }
+
+
+{ 'union': 'TestUnion',
+  'data': { 'foo': 'str', 'bar': 'VersionInfo' } }
