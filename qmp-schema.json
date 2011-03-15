@@ -1470,13 +1470,23 @@
 # @lossy:    #optional If true, compression will be enabled that can degrade
 #            image quality but result in significantly less bandwidth.
 #
+# @to:       #optional If specified, QEMU will try to allocated the first free
+#            port in the range specified by @address and @to.
+#
+# @ipv4:     #optional If true, force VNC server to listen on an ipv4 address.
+#
+# @ipv6:     #optional If true, force VNC server to listen on an ipv6 address.
+#
+# Notes: If both @ipv4 and @ipv6 are false, QEMU will try to listen on either
+#        address for connections.
+#
 # Since: 0.14.0
 ##
 { 'type': 'VncConfig',
   'data': { 'address': 'str', '*password': 'bool', '*reverse': 'bool',
             '*no-lock-key-sync': 'bool', '*sasl': 'bool', '*tls': 'bool',
             '*x509': 'str', '*x509verify': 'str', '*acl': 'bool',
-            '*lossy': 'bool' } }
+            '*lossy': 'bool', '*to': 'int', 'ipv4': '*bool', '*ipv6': 'bool' } }
 
 ##
 # @vnc:
