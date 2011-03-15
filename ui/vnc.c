@@ -264,7 +264,7 @@ static VncClientInfo *vnc_client_info_dup(const VncClientInfo *info)
 {
     VncClientInfo *ret;
 
-    ret = qmp_alloc_vnc_client_info();
+    ret = qapi_alloc_vnc_client_info();
     ret->host = qemu_strdup(info->host);
     ret->service = qemu_strdup(info->service);
     ret->family = qemu_strdup(info->family);
@@ -303,7 +303,7 @@ static VncClientInfo *qmp_query_vnc_client(VncState *client)
         return NULL;
     }
 
-    info = qmp_alloc_vnc_client_info();
+    info = qapi_alloc_vnc_client_info();
     info->host = qemu_strdup(host);
     info->service = qemu_strdup(serv);
     info->family = qemu_strdup(inet_strfamily(sa.ss_family));
@@ -333,10 +333,10 @@ static VncServerInfo *qmp_query_vnc_server(VncState *vs)
     char host[NI_MAXHOST];
     char serv[NI_MAXSERV];
 
-    info = qmp_alloc_vnc_server_info();
+    info = qapi_alloc_vnc_server_info();
 
     if (getsockname(vnc_display->lsock, (struct sockaddr *)&sa, &salen) == -1) {
-        qmp_free_vnc_server_info(info);
+        qapi_free_vnc_server_info(info);
         return NULL;
     }
 
@@ -344,7 +344,7 @@ static VncServerInfo *qmp_query_vnc_server(VncState *vs)
                     host, sizeof(host),
                     serv, sizeof(serv),
                     NI_NUMERICHOST | NI_NUMERICSERV) < 0) {
-        qmp_free_vnc_server_info(info);
+        qapi_free_vnc_server_info(info);
         return NULL;
     }
 
@@ -392,8 +392,8 @@ static void vnc_qapi_event(VncState *vs, MonitorEvent event)
         break;
     }
 
-    qmp_free_vnc_client_info(client);
-    qmp_free_vnc_server_info(server);
+    qapi_free_vnc_client_info(client);
+    qapi_free_vnc_server_info(server);
 }
 
 static void info_vnc_iter(QObject *obj, void *opaque)
@@ -474,7 +474,7 @@ void do_info_vnc(Monitor *mon, QObject **ret_data)
 
 VncInfo *qmp_query_vnc(Error **errp)
 {
-    VncInfo *info = qmp_alloc_vnc_info();
+    VncInfo *info = qapi_alloc_vnc_info();
 
     if (vnc_display == NULL || vnc_display->display == NULL) {
         info->enabled = false;
@@ -496,7 +496,7 @@ VncInfo *qmp_query_vnc(Error **errp)
 
         if (getsockname(vnc_display->lsock, (struct sockaddr *)&sa, &salen) == -1) {
             error_set(errp, QERR_UNDEFINED_ERROR);
-            qmp_free_vnc_info(info);
+            qapi_free_vnc_info(info);
             return NULL;
         }
 
@@ -505,7 +505,7 @@ VncInfo *qmp_query_vnc(Error **errp)
                         serv, sizeof(serv),
                         NI_NUMERICHOST | NI_NUMERICSERV) < 0) {
             error_set(errp, QERR_UNDEFINED_ERROR);
-            qmp_free_vnc_info(info);
+            qapi_free_vnc_info(info);
             return NULL;
         }
 
@@ -1189,7 +1189,7 @@ static void vnc_disconnect_finish(VncState *vs)
     buffer_free(&vs->output);
 
     qobject_decref(vs->info);
-    qmp_free_vnc_client_info(vs->client_info);
+    qapi_free_vnc_client_info(vs->client_info);
 
     vnc_zlib_clear(vs);
     vnc_tight_clear(vs);

@@ -46,7 +46,7 @@ static int qsh_list(int argc, char **argv, Error **errp)
                g->has_pid ? g->pid : -1,
                info->running ? "running" : "halted");
 
-        qmp_free_status_info(info);
+        qapi_free_status_info(info);
         qmp_session_destroy(sess);
     }
     return 0;

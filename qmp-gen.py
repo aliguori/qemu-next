@@ -82,13 +82,13 @@ def qmp_type_should_free(typename):
 def qmp_type_is_simple(typename):
     return typename in ['str', 'int', 'number']
 
-def qmp_free_func(typename):
+def qapi_free_func(typename):
     if type(typename) == list:
-        return qmp_free_func(typename[0])
+        return qapi_free_func(typename[0])
     elif typename == 'str':
         return 'qemu_free'
     else:
-        return 'qmp_free_%s' % (de_camel_case(typename))
+        return 'qapi_free_%s' % (de_camel_case(typename))
 
 def qmp_type_is_event(typename):
     if type(typename) == str and typename.isupper():
@@ -279,7 +279,7 @@ qmp__out:
             has_label = True
 
         if qmp_type_should_free(argtype):
-            ret += cgen('    %(free)s(%(name)s);', free=qmp_free_func(argtype), name=c_var(argname))
+            ret += cgen('    %(free)s(%(name)s);', free=qapi_free_func(argtype), name=c_var(argname))
     ret += mcgen('''
     return;
 }
@@ -325,7 +325,7 @@ static void qmp_%(c_name)s_cb(void *qmp__opaque, QObject *qmp__retval, Error *qm
 ''',
                             ret_type=qmp_type_to_c(retval[0], True),
                             unmarshal=qmp_type_from_qobj(retval[0]),
-                            free=qmp_free_func(retval[0]))
+                            free=qapi_free_func(retval[0]))
     elif is_dict(retval):
         ret += mcgen('''
     // FIXME (using an anonymous dict as return value)')
@@ -453,7 +453,7 @@ def gen_lib_definition(name, options, retval, proxy=False, async=False):
 ''',
                      type=qmp_type_to_c(retval[0], True),
                      unmarshal=qmp_type_from_qobj(retval[0]),
-                     free=qmp_free_func(retval[0]))
+                     free=qapi_free_func(retval[0]))
     elif is_dict(retval):
         ret += mcgen('''
     // FIXME (using an anonymous dict as return value)
@@ -714,7 +714,7 @@ static void qmp_marshal_%(c_name)s(const QDict *qdict, QObject **ret_data, Error
                              name=argname1)
             ret += mcgen('''
 
-            qmp__i = qmp_alloc_key_values();
+            qmp__i = qapi_alloc_key_values();
             qmp__i->key = qemu_strdup(qmp__qdict_i->key);
             qmp__i->value = qobject_as_string(qmp__qdict_i->value);
             qmp__i->next = %(c_name)s;
@@ -841,21 +841,21 @@ qmp__out:
     for argname, argtype, optional in parse_args(options):
         if argtype == '**':
             ret += cgen('    %(free)s(%(c_name)s);',
-                        free=qmp_free_func('KeyValues'),
+                        free=qapi_free_func('KeyValues'),
                         c_name=c_var(argname))
         elif qmp_type_should_free(argtype):
             if optional:
                 ret += cgen('    if (has_%(c_name)s) {', c_name=c_var(argname))
                 push_indent()
             ret += cgen('    %(free)s(%(c_name)s);',
-                        free=qmp_free_func(argtype), c_name=c_var(argname))
+                        free=qapi_free_func(argtype), c_name=c_var(argname))
             if optional:
                 pop_indent()
                 ret += cgen('    }')
     if retval != 'none' and not async:
         if qmp_type_should_free(retval):
             ret += cgen('    %(free)s(%(c_name)s);',
-                        free=qmp_free_func(retval), c_name='qmp_retval')
+                        free=qapi_free_func(retval), c_name='qmp_retval')
 
     ret += mcgen('''
 
@@ -1075,8 +1075,8 @@ struct %(name)s {
     %(c_name)s *next;
 };
 
-%(name)s *qmp_alloc_%(dcc_name)s(void);
-void qmp_free_%(dcc_name)s(%(name)s *obj);
+%(name)s *qapi_alloc_%(dcc_name)s(void);
+void qapi_free_%(dcc_name)s(%(name)s *obj);
 ''',
                      c_name=c_var(name), name=name,
                      dcc_name=de_camel_case(name))
@@ -1272,13 +1272,13 @@ def gen_metatype_free(typeinfo, prefix):
     }
 ''',
                              prefix=prefix, c_name=c_var(argname),
-                             free=qmp_free_func(argtype))
+                             free=qapi_free_func(argtype))
             else:
                 ret += mcgen('''
     %(free)s(%(prefix)s%(c_name)s);
 ''',
                              prefix=prefix, c_name=c_var(argname),
-                             free=qmp_free_func(argtype))
+                             free=qapi_free_func(argtype))
 
     return ret
 
@@ -1297,7 +1297,7 @@ QObject *qmp_marshal_type_%(name)s(%(type)s src)
 %(type)s qmp_unmarshal_type_%(name)s(QObject *src, Error **errp)
 {
     Error *qmp__err = NULL;
-    %(type)s qmp__retval = qmp_alloc_%(dcc_name)s();
+    %(type)s qmp__retval = qapi_alloc_%(dcc_name)s();
 
 %(unmarshal)s
 
@@ -1311,7 +1311,7 @@ qmp__err_out:
 ''',
                  name=name, type=qmp_type_to_c(name),
                  marshal=gen_metatype_def(typeinfo, 'src', 'qmp__retval'),
-                 dcc_name=de_camel_case(name), free=qmp_free_func(name),
+                 dcc_name=de_camel_case(name), free=qapi_free_func(name),
                  unmarshal=gen_metatype_undef(typeinfo, 'src', 'qmp__retval'))
 
     return ret
@@ -1319,7 +1319,7 @@ qmp__err_out:
 def gen_type_definition(name, typeinfo):
     return mcgen('''
 
-void qmp_free_%(dcc_name)s(%(name)s *obj)
+void qapi_free_%(dcc_name)s(%(name)s *obj)
 {
     if (!obj) {
         return;
@@ -1330,14 +1330,14 @@ void qmp_free_%(dcc_name)s(%(name)s *obj)
     qemu_free(obj);
 }
 
-%(name)s *qmp_alloc_%(dcc_name)s(void)
+%(name)s *qapi_alloc_%(dcc_name)s(void)
 {
     BUILD_ASSERT(sizeof(%(name)s) < 512);
     return qemu_mallocz(512);
 }
 ''',
                 dcc_name=de_camel_case(name), name=name,
-                free=qmp_free_func(name),
+                free=qapi_free_func(name),
                 type_free=gen_metatype_free(typeinfo, 'obj->'))
 
 def gen_union_marshal_definition(name, typeinfo):
@@ -1374,7 +1374,7 @@ QObject *qmp_marshal_type_%(name)s(%(type)s src)
 
 %(type)s qmp_unmarshal_type_%(name)s(QObject *src, Error **errp)
 {
-    %(type)s qmp__retval = qmp_alloc_%(dcc_name)s();
+    %(type)s qmp__retval = qapi_alloc_%(dcc_name)s();
     Error *local_err = NULL;
     QDict *dict;
 
@@ -1432,7 +1432,7 @@ out:
     return NULL;
 }
 ''',
-                 name=name, free=qmp_free_func(name))
+                 name=name, free=qapi_free_func(name))
     return ret
 
 def gen_union_declaration(name, typeinfo):
@@ -1457,8 +1457,8 @@ typedef struct %(name)s {
     struct %(name)s * next;
 } %(name)s;
 
-%(name)s *qmp_alloc_%(dcc_name)s(void);
-void qmp_free_%(dcc_name)s(%(name)s *obj);
+%(name)s *qapi_alloc_%(dcc_name)s(void);
+void qapi_free_%(dcc_name)s(%(name)s *obj);
 ''',
                  name=name, dcc_name=de_camel_case(name))
                  
@@ -1471,13 +1471,13 @@ def gen_union_definition(name, typeinfo):
 
     ret += mcgen('''
 
-%(name)s *qmp_alloc_%(dcc_name)s(void)
+%(name)s *qapi_alloc_%(dcc_name)s(void)
 {
     BUILD_ASSERT(sizeof(%(name)s) < 512);
     return qemu_mallocz(512);
 }
 
-void qmp_free_%(dcc_name)s(%(name)s *obj)
+void qapi_free_%(dcc_name)s(%(name)s *obj)
 {
     if (!obj) {
         return;
@@ -1493,7 +1493,7 @@ void qmp_free_%(dcc_name)s(%(name)s *obj)
         %(free)s(obj->%(c_name)s);
         break;
 ''',
-                     free=qmp_free_func(argtype), c_name=c_var(argname),
+                     free=qapi_free_func(argtype), c_name=c_var(argname),
                      abrev=enum_abbreviation(kind_name),
                      uname=c_var(argname).upper())
         
@@ -1501,7 +1501,7 @@ void qmp_free_%(dcc_name)s(%(name)s *obj)
     ret += mcgen('''
     }
              
-    qmp_free_%(dcc_name)s(obj->next);
+    qapi_free_%(dcc_name)s(obj->next);
     qemu_free(obj);
 }
 ''',
@@ -1529,7 +1529,7 @@ def gen_qcfg_union_marshal_definition(name, typeinfo):
     KeyValues *kv;
     bool has_value = false;
 
-    obj = qmp_alloc_%(dcc_name)s();
+    obj = qapi_alloc_%(dcc_name)s();
 ''',
                 c_type=qmp_type_to_c(name), name=name,
                 dcc_name=de_camel_case(name))
@@ -1554,7 +1554,7 @@ def gen_qcfg_union_marshal_definition(name, typeinfo):
             qcfg_enhance_error(&local_err, "%(name)s");
             goto qmp__out;
         }
-        qmp_free_key_values(kv);
+        qapi_free_key_values(kv);
         kv = NULL;
     }
 ''',
@@ -1603,12 +1603,12 @@ def gen_qcfg_union_marshal_definition(name, typeinfo):
 
 qmp__out:
     %(free)s(obj);
-    qmp_free_key_values(kv);
+    qapi_free_key_values(kv);
     error_propagate(errp, local_err);
     return NULL;
 }
 ''',
-                 free=qmp_free_func(name), name=name)
+                 free=qapi_free_func(name), name=name)
 
     return ret
 
@@ -1632,7 +1632,7 @@ def gen_qcfg_marshal_definition(name, typeinfo):
     Error *local_err = NULL;
     KeyValues *kv;
 
-    obj = qmp_alloc_%(dcc_name)s();
+    obj = qapi_alloc_%(dcc_name)s();
 ''',
                 c_type=qmp_type_to_c(name), name=name,
                 dcc_name=de_camel_case(name))
@@ -1668,7 +1668,7 @@ def gen_qcfg_marshal_definition(name, typeinfo):
         qcfg_enhance_error(&local_err, "%(name)s");
         goto qmp__out;
     }
-    qmp_free_key_values(kv);
+    qapi_free_key_values(kv);
     kv = NULL;
 ''',
                      c_name=c_var(argname), name=argname,
@@ -1711,13 +1711,13 @@ def gen_qcfg_marshal_definition(name, typeinfo):
     return obj;
 
 qmp__out:
-    qmp_free_key_values(kv);
+    qapi_free_key_values(kv);
     %(free)s(obj);
     error_propagate(errp, local_err);
     return NULL;
 }
 ''',
-                 free=qmp_free_func(name))
+                 free=qapi_free_func(name))
 
     return ret
 
@@ -1782,11 +1782,11 @@ static void qcfg_dispatch_%(c_name)s(const char *value, Error **errp)
 out:
     error_propagate(errp, local_err);
     %(free)s(config);
-    qmp_free_key_values(kvs);
+    qapi_free_key_values(kvs);
 }
 ''',
                     c_name=c_var(name), type=qmp_type_to_c(data),
-                    implicit_key=implicit_key, free=qmp_free_func(data),
+                    implicit_key=implicit_key, free=qapi_free_func(data),
                     type_name=data)
     return ret
 

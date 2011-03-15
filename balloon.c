@@ -80,11 +80,11 @@ BalloonInfo *qmp_query_balloon(Error **errp)
         return NULL;
     }
 
-    info = qmp_alloc_balloon_info();
+    info = qapi_alloc_balloon_info();
 
     if (qemu_balloon_stats(info) == 0) {
         error_set(errp, QERR_DEVICE_NOT_ACTIVE, "balloon");
-        qmp_free_balloon_info(info);
+        qapi_free_balloon_info(info);
         return NULL;
     }
 

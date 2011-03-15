@@ -1356,7 +1356,7 @@ NetworkInfo *qmp_query_network(Error **errp)
         QTAILQ_FOREACH(vc, &vlan->clients, next) {
             NetworkInfo *info;
 
-            info = qmp_alloc_network_info();
+            info = qapi_alloc_network_info();
             info->name = qemu_strdup(vc->name);
             info->type = vc->info->type;
             info->has_vlan_id = true;
@@ -1368,7 +1368,7 @@ NetworkInfo *qmp_query_network(Error **errp)
     QTAILQ_FOREACH(vc, &non_vlan_clients, next) {
         NetworkInfo *info;
 
-        info = qmp_alloc_network_info();
+        info = qapi_alloc_network_info();
         info->name = qemu_strdup(vc->name);
         info->type = vc->info->type;
         if (vc->peer) {

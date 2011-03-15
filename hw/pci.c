@@ -1394,7 +1394,7 @@ static PciMemoryRegion *qmp_query_pci_regions(const PCIDevice *dev)
             continue;
         }
 
-        region = qmp_alloc_pci_memory_region();
+        region = qapi_alloc_pci_memory_region();
 
         if (r->type & PCI_BASE_ADDRESS_SPACE_IO) {
             region->type = qemu_strdup("io");
@@ -1421,21 +1421,21 @@ static PciBridgeInfo *qmp_query_pci_bridge(PCIDevice *dev, PCIBus *bus, int bus_
 {
     PciBridgeInfo *info;
 
-    info = qmp_alloc_pci_bridge_info();
+    info = qapi_alloc_pci_bridge_info();
 
     info->bus.number = dev->config[PCI_PRIMARY_BUS];
     info->bus.secondary = dev->config[PCI_SECONDARY_BUS];
     info->bus.subordinate = dev->config[PCI_SUBORDINATE_BUS];
 
-    info->bus.io_range = qmp_alloc_pci_memory_range();
+    info->bus.io_range = qapi_alloc_pci_memory_range();
     info->bus.io_range->base = pci_bridge_get_base(dev, PCI_BASE_ADDRESS_SPACE_IO);
     info->bus.io_range->limit = pci_bridge_get_limit(dev, PCI_BASE_ADDRESS_SPACE_IO);
 
-    info->bus.memory_range = qmp_alloc_pci_memory_range();
+    info->bus.memory_range = qapi_alloc_pci_memory_range();
     info->bus.memory_range->base = pci_bridge_get_base(dev, PCI_BASE_ADDRESS_SPACE_MEMORY);
     info->bus.memory_range->limit = pci_bridge_get_limit(dev, PCI_BASE_ADDRESS_SPACE_MEMORY);
 
-    info->bus.prefetchable_range = qmp_alloc_pci_memory_range();
+    info->bus.prefetchable_range = qapi_alloc_pci_memory_range();
     info->bus.prefetchable_range->base = pci_bridge_get_base(dev, PCI_BASE_ADDRESS_MEM_PREFETCH);
     info->bus.prefetchable_range->limit = pci_bridge_get_limit(dev, PCI_BASE_ADDRESS_MEM_PREFETCH);
 
@@ -1458,7 +1458,7 @@ static PciDeviceInfo *qmp_query_pci_device(PCIDevice *dev, PCIBus *bus, int bus_
     int class;
     const pci_class_desc *desc;
 
-    info = qmp_alloc_pci_device_info();
+    info = qapi_alloc_pci_device_info();
     info->bus = bus_num;
     info->slot = PCI_SLOT(dev->devfn);
     info->function = PCI_FUNC(dev->devfn);
@@ -1512,7 +1512,7 @@ static PciInfo *qmp_query_pci_bus(PCIBus *bus, int bus_num)
 
     bus = pci_find_bus(bus, bus_num);
     if (bus) {
-        info = qmp_alloc_pci_info();
+        info = qapi_alloc_pci_info();
         info->bus = bus_num;
         info->devices = qmp_query_pci_devices(bus, bus_num);
     }

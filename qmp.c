@@ -24,7 +24,7 @@
 
 VersionInfo *qmp_query_version(Error **err)
 {
-    VersionInfo *info = qmp_alloc_version_info();
+    VersionInfo *info = qapi_alloc_version_info();
     const char *version = QEMU_VERSION;
     char *tmp;
 
@@ -40,7 +40,7 @@ VersionInfo *qmp_query_version(Error **err)
 
 NameInfo *qmp_query_name(Error **errp)
 {
-    NameInfo *info = qmp_alloc_name_info();
+    NameInfo *info = qapi_alloc_name_info();
 
     if (qemu_name) {
         info->has_name = true;
@@ -52,7 +52,7 @@ NameInfo *qmp_query_name(Error **errp)
 
 UuidInfo *qmp_query_uuid(Error **errp)
 {
-    UuidInfo *info = qmp_alloc_uuid_info();
+    UuidInfo *info = qapi_alloc_uuid_info();
     char uuid[64];
 
     snprintf(uuid, sizeof(uuid), UUID_FMT, qemu_uuid[0], qemu_uuid[1],
@@ -75,7 +75,7 @@ CpuInfo *qmp_query_cpus(Error **errp)
 
         cpu_synchronize_state(env);
 
-        info = qmp_alloc_cpu_info();
+        info = qapi_alloc_cpu_info();
         info->CPU = env->cpu_index;
         info->current = (env == first_cpu);
         info->halted = env->halted;
@@ -362,7 +362,7 @@ void qmp_system_powerdown(Error **erp)
 
 KvmInfo *qmp_query_kvm(Error **errp)
 {
-    KvmInfo *info = qmp_alloc_kvm_info();
+    KvmInfo *info = qapi_alloc_kvm_info();
     info->enabled = kvm_enabled();
 #ifdef CONFIG_KVM
     info->present = true;
@@ -372,7 +372,7 @@ KvmInfo *qmp_query_kvm(Error **errp)
 
 StatusInfo *qmp_query_status(Error **errp)
 {
-    StatusInfo *info = qmp_alloc_status_info();
+    StatusInfo *info = qapi_alloc_status_info();
 
     info->running = vm_running;
     info->singlestep = singlestep;

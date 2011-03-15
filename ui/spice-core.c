@@ -209,7 +209,7 @@ static SpiceChannel *qmp_query_spice_channels(Error **errp)
     ChannelList *item;
     
     QTAILQ_FOREACH(item, &channel_list, link) {
-        SpiceChannel *chan = qmp_alloc_spice_channel();
+        SpiceChannel *chan = qapi_alloc_spice_channel();
         char host[NI_MAXHOST], port[NI_MAXSERV];
         const char *family;
 
@@ -406,7 +406,7 @@ SpiceInfo *qmp_query_spice(Error **errp)
     const char *addr;
     int port, tls_port;
 
-    info = qmp_alloc_spice_info();
+    info = qapi_alloc_spice_info();
 
     if (!spice_server) {
         info->enabled = false;

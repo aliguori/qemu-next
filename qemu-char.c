@@ -2596,7 +2596,7 @@ ChardevInfo *qmp_query_chardev(Error **errp)
     CharDriverState *chr;
 
     QTAILQ_FOREACH(chr, &chardevs, next) {
-        ChardevInfo *info = qmp_alloc_chardev_info();
+        ChardevInfo *info = qapi_alloc_chardev_info();
         info->label = qemu_strdup(chr->label);
         info->filename = qemu_strdup(chr->filename);
 

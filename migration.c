@@ -161,7 +161,7 @@ void qmp_migrate_set_downtime(double value, Error **errp)
 MigrationInfo *qmp_query_migrate(Error **errp)
 {
     MigrationState *s = current_migration;
-    MigrationInfo *info = qmp_alloc_migration_info();
+    MigrationInfo *info = qapi_alloc_migration_info();
 
     if (s) {
         switch (s->get_status(s)) {
@@ -170,14 +170,14 @@ MigrationInfo *qmp_query_migrate(Error **errp)
             info->status = qemu_strdup("active");
 
             info->has_ram = true;
-            info->ram = qmp_alloc_migration_stats();
+            info->ram = qapi_alloc_migration_stats();
             info->ram->transferred = ram_bytes_transferred();
             info->ram->remaining = ram_bytes_remaining();
             info->ram->total = ram_bytes_total();
 
             if (blk_mig_active()) {
                 info->has_disk = true;
-                info->disk = qmp_alloc_migration_stats();
+                info->disk = qapi_alloc_migration_stats();
                 info->disk->transferred = blk_mig_bytes_transferred();
                 info->disk->remaining = blk_mig_bytes_remaining();
                 info->disk->total = blk_mig_bytes_total();

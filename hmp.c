@@ -199,7 +199,7 @@ void hmp_device_add(Monitor *mon, const QDict *qdict)
             continue;
         }
 
-        kv = qmp_alloc_key_values();
+        kv = qapi_alloc_key_values();
         kv->key = qemu_strdup(key);
         kv->value = qemu_strdup(value);
         kv->next = opts;
@@ -207,7 +207,7 @@ void hmp_device_add(Monitor *mon, const QDict *qdict)
     }
 
     qmp_device_add(device, id, opts, &err);
-    qmp_free_key_values(opts);
+    qapi_free_key_values(opts);
 
     if (err) {
         monitor_printf(mon, "device_add: %s\n", error_get_pretty(err));
@@ -246,7 +246,7 @@ void hmp_netdev_add(Monitor *mon, const QDict *qdict)
             continue;
         }
 
-        kv = qmp_alloc_key_values();
+        kv = qapi_alloc_key_values();
         kv->key = qemu_strdup(key);
         kv->value = qemu_strdup(value);
         kv->next = opts;
@@ -254,7 +254,7 @@ void hmp_netdev_add(Monitor *mon, const QDict *qdict)
     }
 
     qmp_netdev_add(type, id, opts, &err);
-    qmp_free_key_values(opts);
+    qapi_free_key_values(opts);
 
     if (err) {
         monitor_printf(mon, "netdev_add: %s\n", error_get_pretty(err));
@@ -364,7 +364,7 @@ void hmp_info_version(Monitor *mon)
                    info->qemu.major, info->qemu.minor, info->qemu.micro,
                    info->package);
 
-    qmp_free_version_info(info);
+    qapi_free_version_info(info);
 }
 
 void hmp_info_status(Monitor *mon)
@@ -377,7 +377,7 @@ void hmp_info_status(Monitor *mon)
                    info->running ? "running" : "paused",
                    info->singlestep ? " (single step mode)" : "");
 
-    qmp_free_status_info(info);
+    qapi_free_status_info(info);
 }
 
 void hmp_info_block(Monitor *mon)
@@ -412,7 +412,7 @@ void hmp_info_block(Monitor *mon)
         monitor_printf(mon, "\n");
     }
 
-    qmp_free_block_info(block_list);
+    qapi_free_block_info(block_list);
 }
 
 void hmp_info_blockstats(Monitor *mon)
@@ -438,7 +438,7 @@ void hmp_info_blockstats(Monitor *mon)
                        stats->stats->wr_operations);
     }
 
-    qmp_free_block_stats(stats_list);
+    qapi_free_block_stats(stats_list);
 }
 
 void hmp_info_vnc(Monitor *mon)
@@ -479,7 +479,7 @@ void hmp_info_vnc(Monitor *mon)
         }
     }
 
-    qmp_free_vnc_info(info);
+    qapi_free_vnc_info(info);
 }
 
 void hmp_info_name(Monitor *mon)
@@ -490,7 +490,7 @@ void hmp_info_name(Monitor *mon)
     if (info->has_name) {
         monitor_printf(mon, "%s\n", info->name);
     }
-    qmp_free_name_info(info);
+    qapi_free_name_info(info);
 }
 
 void hmp_info_uuid(Monitor *mon)
@@ -499,7 +499,7 @@ void hmp_info_uuid(Monitor *mon)
 
     info = qmp_query_uuid(NULL);
     monitor_printf(mon, "%s\n", info->UUID);
-    qmp_free_uuid_info(info);
+    qapi_free_uuid_info(info);
 }
 
 void hmp_info_cpus(Monitor *mon)
@@ -537,7 +537,7 @@ void hmp_info_cpus(Monitor *mon)
         monitor_printf(mon, "\n");
     }
 
-    qmp_free_cpu_info(cpu_list);
+    qapi_free_cpu_info(cpu_list);
 }
 
 void hmp_info_kvm(Monitor *mon)
@@ -552,7 +552,7 @@ void hmp_info_kvm(Monitor *mon)
         monitor_printf(mon, "not compiled\n");
     }
 
-    qmp_free_kvm_info(info);
+    qapi_free_kvm_info(info);
 }
 
 void hmp_info_chardev(Monitor *mon)
@@ -564,7 +564,7 @@ void hmp_info_chardev(Monitor *mon)
         monitor_printf(mon, "%s: filename=%s\n", info->label, info->filename);
     }
 
-    qmp_free_chardev_info(char_info);
+    qapi_free_chardev_info(char_info);
 }
 
 void hmp_info_mice(Monitor *mon)
@@ -584,7 +584,7 @@ void hmp_info_mice(Monitor *mon)
                        mouse->absolute ? " (absolute)" : "");
     }
 
-    qmp_free_mouse_info(mice_list);
+    qapi_free_mouse_info(mice_list);
 }
 
 static void hmp_info_pci_device(Monitor *mon, PciDeviceInfo *dev)
@@ -679,7 +679,7 @@ void hmp_info_pci(Monitor *mon)
         }
     }
 
-    qmp_free_pci_info(pci_list);
+    qapi_free_pci_info(pci_list);
 }
 
 void hmp_info_balloon(Monitor *mon)
@@ -747,7 +747,7 @@ void hmp_info_migrate(Monitor *mon)
                        info->disk->total >> 10);
     }
 
-    qmp_free_migration_info(info);
+    qapi_free_migration_info(info);
 }
 
 void hmp_info_spice(Monitor *mon)
@@ -786,5 +786,5 @@ void hmp_info_spice(Monitor *mon)
         monitor_printf(mon, "Channels: none\n");
     }
 
-    qmp_free_spice_info(info);
+    qapi_free_spice_info(info);
 }

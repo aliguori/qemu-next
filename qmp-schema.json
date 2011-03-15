@@ -1443,7 +1443,7 @@
 #            server is bound to the unix domain socket `path'.
 #
 # @password: #optional If true, VNC authentication is enabled.  Use the
-#            @set-password command in QMP to set the password.
+#            @set_password command in QMP to set the password.
 #
 # @reverse:  #optional If true, @address is treated as a client address and the
 #            server will connect to @address and then proceed with the server

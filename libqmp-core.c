@@ -377,7 +377,7 @@ GuestInfo *libqmp_list_guests(void)
             }
             close(c);
 
-            info = qmp_alloc_guest_info();
+            info = qapi_alloc_guest_info();
             info->has_name = true;
             info->name = qemu_strdup(name);
             info->next = guest_list;
@@ -399,7 +399,7 @@ GuestInfo *libqmp_list_guests(void)
             }
             close(c);
 
-            info = qmp_alloc_guest_info();
+            info = qapi_alloc_guest_info();
             info->has_pid = true;
             info->pid = pid;
             info->next = guest_list;

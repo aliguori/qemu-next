@@ -464,7 +464,7 @@ static void test_running(QmpSession *sess)
     g_assert_noerr(err);
 
     g_assert_cmpint(info->running, ==, true);
-    qmp_free_status_info(info);
+    qapi_free_status_info(info);
 }
 
 static void test_stopped(QmpSession *sess)
@@ -476,7 +476,7 @@ static void test_stopped(QmpSession *sess)
     g_assert_noerr(err);
 
     g_assert_cmpint(info->running, ==, false);
-    qmp_free_status_info(info);
+    qapi_free_status_info(info);
 }
 
 static void test_cont(void)
@@ -561,7 +561,7 @@ static void test_balloon_nodrv(void)
     g_assert_noerr(err);
     g_assert(info);
     g_assert_cmpint(info->actual, ==, 16<<20);
-    qmp_free_balloon_info(info);
+    qapi_free_balloon_info(info);
     libqmp_quit(sess, NULL);
     qemu_destroy(sess);
 }
@@ -631,7 +631,7 @@ static void test_block_query(void)
     g_assert(found_cd);
     g_assert(found_floppy);
 
-    qmp_free_block_info(block_list);
+    qapi_free_block_info(block_list);
 
     libqmp_quit(sess, NULL);
     qemu_destroy(sess);
@@ -676,7 +676,7 @@ static void test_block_query(void)
     g_assert(found_cd);
     g_assert(found_floppy);
 
-    qmp_free_block_info(block_list);
+    qapi_free_block_info(block_list);
 
     unlink(filename);
     libqmp_quit(sess, NULL);
@@ -718,7 +718,7 @@ static void test_block_query_stats(void)
     g_assert(found_floppy);
     g_assert(found_hd1);
 
-    qmp_free_block_stats(stats_list);
+    qapi_free_block_stats(stats_list);
 
     libqmp_quit(sess, NULL);
     qemu_destroy(sess);
@@ -764,7 +764,7 @@ static void test_version(void)
     g_assert_cmpint(micro, ==, info->qemu.micro);
     g_assert_cmpstr(ptr, ==, info->package);
 
-    qmp_free_version_info(info);
+    qapi_free_version_info(info);
 
     libqmp_quit(sess, NULL);
 
@@ -810,7 +810,7 @@ static KeyValues *kv_alloc(const char *key, ...)
 
     va_start(ap, key);
     while (key) {
-        KeyValues *kv = qmp_alloc_key_values();
+        KeyValues *kv = qapi_alloc_key_values();
         kv->key = strdup(key);
         kv->value = strdup(va_arg(ap, const char *));
         kv->next = kv_list;
@@ -836,7 +836,7 @@ static void test_device_add_bad_param(void)
     g_assert_cmpstr(error_get_field(err, "property"), ==, "not-a-valid-parameter-name");
     error_free(err);
 
-    qmp_free_key_values(kv);
+    qapi_free_key_values(kv);
     libqmp_quit(sess, NULL);
     qemu_destroy(sess);
 }
@@ -855,7 +855,7 @@ static void test_device_add_bad_param_value(void)
     g_assert_cmpstr(error_get_field(err, "property"), ==, "addr");
     error_free(err);
 
-    qmp_free_key_values(kv);
+    qapi_free_key_values(kv);
     libqmp_quit(sess, NULL);
     qemu_destroy(sess);
 }
@@ -874,7 +874,7 @@ static void test_device_add_not_found_param_value(void)
     g_assert_cmpstr(error_get_field(err, "property"), ==, "drive");
     error_free(err);
 
-    qmp_free_key_values(kv);
+    qapi_free_key_values(kv);
     libqmp_quit(sess, NULL);
     qemu_destroy(sess);
 }
@@ -892,7 +892,7 @@ static void test_device_add_nic(void)
     libqmp_device_add(sess, "virtio-net-pci", "net0", kv, &err);
     g_assert_noerr(err);
 
-    qmp_free_key_values(kv);
+    qapi_free_key_values(kv);
     libqmp_quit(sess, NULL);
     qemu_destroy(sess);
 }
@@ -924,7 +924,7 @@ static void test_device_del_nic(void)
 
     libqmp_device_add(sess, "virtio-net-pci", "net0", kv, &err);
     g_assert_noerr(err);
-    qmp_free_key_values(kv);
+    qapi_free_key_values(kv);
 
     libqmp_device_del(sess, "net0", &err);
     g_assert_noerr(err);
@@ -983,7 +983,7 @@ static void test_query_network(void)
     g_assert(found_nic0 == true);
     g_assert(found_nic1 == true);
 
-    qmp_free_network_info(info_list);
+    qapi_free_network_info(info_list);
 
     libqmp_quit(sess, NULL);
     qemu_destroy(sess);
@@ -1008,7 +1008,7 @@ static void test_query_tap(void)
 
     g_assert(tap->vnet_hdr_enabled == false);
 
-    qmp_free_tap_info(tap);
+    qapi_free_tap_info(tap);
 
     libqmp_quit(sess, NULL);
     qemu_destroy(sess);
@@ -1042,7 +1042,7 @@ static void test_query_pci(void)
 
     g_assert(found_balloon == true);
 
-    qmp_free_pci_info(pci_busses);
+    qapi_free_pci_info(pci_busses);
 
     libqmp_quit(sess, NULL);
     qemu_destroy(sess);

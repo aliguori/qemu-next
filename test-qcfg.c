@@ -29,9 +29,9 @@ static void test_blockdev(void)
     g_assert_cmpint(config->format->qcow2->protocol->kind, ==, BPK_FILE);
     g_assert_cmpstr(config->format->qcow2->protocol->file->filename, ==, "image.img");
 
-    qmp_free_blockdev_config(config);
+    qapi_free_blockdev_config(config);
 
-    qmp_free_key_values(kvs);
+    qapi_free_key_values(kvs);
 }
 
 int main(int argc, char **argv)

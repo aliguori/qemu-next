@@ -233,7 +233,7 @@ MouseInfo *qmp_query_mice(Error **errp)
     bool current = true;
 
     QTAILQ_FOREACH(cursor, &mouse_handlers, node) {
-        MouseInfo *info = qmp_alloc_mouse_info();
+        MouseInfo *info = qapi_alloc_mouse_info();
 
         info->name = qemu_strdup(cursor->qemu_put_mouse_event_name);
         info->index = cursor->index;

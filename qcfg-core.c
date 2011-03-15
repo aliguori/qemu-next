@@ -80,7 +80,7 @@ KeyValues *qcfg_parse(const char *value, const char *implicit_key)
         const char *value;
         KeyValues *kv;
 
-        kv = qmp_alloc_key_values();
+        kv = qapi_alloc_key_values();
 
         end = strchr(ptr, ',');
         if (end == NULL) {
@@ -134,7 +134,7 @@ KeyValues *qcfg_find_key(KeyValues *kvs, const char *key)
             single_key = true;
         } else if (!single_key && strstart(kv->key, key, &p)) {
             if (*p == '.') {
-                KeyValues *new_kv = qmp_alloc_key_values();
+                KeyValues *new_kv = qapi_alloc_key_values();
 
                 new_kv->key = qemu_strdup(p + 1);
                 new_kv->value = qemu_strdup(kv->value);
@@ -146,7 +146,7 @@ KeyValues *qcfg_find_key(KeyValues *kvs, const char *key)
     }
 
     if (single_key && ret) {
-        KeyValues *new_kv = qmp_alloc_key_values();
+        KeyValues *new_kv = qapi_alloc_key_values();
         new_kv->key = qemu_strdup(ret->key);
         new_kv->value = qemu_strdup(ret->value);
         ret = new_kv;

@@ -541,7 +541,7 @@ TapInfo *qmp_query_tap(const char *id, Error **errp)
     }
 
     s = DO_UPCAST(TAPState, nc, vc);
-    info = qmp_alloc_tap_info();
+    info = qapi_alloc_tap_info();
     info->fd = s->fd;
     if (s->down_script[0]) {
         info->has_down_script = true;
