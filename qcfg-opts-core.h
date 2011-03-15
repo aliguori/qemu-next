@@ -12,5 +12,7 @@ void qcfg_options_init(void);
 void qcfg_register_option_arg(const char *name, QcfgHandlerArg *fn);
 void qcfg_register_option_noarg(const char *name, QcfgHandlerNoarg *fn);
 
+void qcfg_process_option(const char *name, const char *optarg, Error **errp);
+
 #endif
 

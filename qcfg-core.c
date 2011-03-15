@@ -200,10 +200,65 @@ double qcfg_unmarshal_type_number(KeyValues *kvs, Error **errp)
     return val;
 }
 
+typedef struct QcfgOptionHandler
+{
+    const char *name;
+    bool has_arg;
+    QcfgHandlerArg *fn_arg;
+    QcfgHandlerNoarg *fn_noarg;
+    QTAILQ_ENTRY(QcfgOptionHandler) node;
+} QcfgOptionHandler;
+
+static QTAILQ_HEAD(, QcfgOptionHandler) qcfg_option_handlers =
+    QTAILQ_HEAD_INITIALIZER(qcfg_option_handlers);
+
 void qcfg_register_option_arg(const char *name, QcfgHandlerArg *fn)
 {
+    QcfgOptionHandler *handler;
+
+    handler = qemu_mallocz(sizeof(*handler));
+    handler->name = name;
+    handler->has_arg = true;
+    handler->fn_arg = fn;
+
+    QTAILQ_INSERT_TAIL(&qcfg_option_handlers, handler, node);
 }
 
 void qcfg_register_option_noarg(const char *name, QcfgHandlerNoarg *fn)
 {
+    QcfgOptionHandler *handler;
+
+    handler = qemu_mallocz(sizeof(*handler));
+    handler->name = name;
+    handler->has_arg = false;
+    handler->fn_noarg = fn;
+
+    QTAILQ_INSERT_TAIL(&qcfg_option_handlers, handler, node);
+}
+
+void qcfg_process_option(const char *name, const char *optarg, Error **errp)
+{
+    QcfgOptionHandler *handler;
+
+    QTAILQ_FOREACH(handler, &qcfg_option_handlers, node) {
+        if (strcmp(handler->name, name) != 0) {
+            continue;
+        }
+
+        if (handler->has_arg) {
+            if (!optarg) {
+                error_set(errp, QERR_MISSING_PARAMETER, name);
+            } else {
+                handler->fn_arg(optarg, errp);
+            }
+        } else {
+            if (optarg) {
+                error_set(errp, QERR_INVALID_PARAMETER_VALUE, name, "no value");
+            } else {
+                handler->fn_noarg(errp);
+            }
+        }
+
+        break;
+    }
 }
