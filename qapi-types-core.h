@@ -9,8 +9,8 @@
  * This work is licensed under the terms of the GNU LGPL, version 2.  See
  * the COPYING.LIB file in the top-level directory.
  */
-#ifndef QMP_TYPES_CORE_H
-#define QMP_TYPES_CORE_H
+#ifndef QAPI_TYPES_CORE_H
+#define QAPI_TYPES_CORE_H
 
 #include <stdint.h>
 #include <stdbool.h>

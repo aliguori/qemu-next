@@ -2,7 +2,7 @@
 #define LIBQMP_CORE_H
 
 #include <sys/types.h>
-#include "qmp-types.h"
+#include "qapi-types.h"
 #include "error.h"
 
 typedef struct QmpSession QmpSession;

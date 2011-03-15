@@ -5,7 +5,7 @@
 #include "qemu-objects.h"
 #include "qerror.h"
 #include "error.h"
-#include "qmp-types.h"
+#include "qapi-types.h"
 
 QObject *qmp_marshal_type_int(int64_t value);
 QObject *qmp_marshal_type_str(const char *value);

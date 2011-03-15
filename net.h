@@ -6,7 +6,7 @@
 #include "qdict.h"
 #include "qemu-option.h"
 #include "net/queue.h"
-#include "qmp-types.h"
+#include "qapi-types.h"
 
 struct MACAddr {
     uint8_t a[6];

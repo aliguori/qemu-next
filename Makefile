@@ -1,7 +1,7 @@
 # Makefile for QEMU.
 
 GENERATED_HEADERS = config-host.h trace.h qemu-options.def qmp.h libqmp.h qdev-marshal.h
-GENERATED_HEADERS += qmp-types.h qmp-marshal-types.h qcfg-marshal.h
+GENERATED_HEADERS += qapi-types.h qmp-marshal-types.h qcfg-marshal.h
 ifeq ($(TRACE_BACKEND),dtrace)
 GENERATED_HEADERS += trace-dtrace.h
 endif
@@ -152,10 +152,10 @@ simpletrace.o: simpletrace.c $(GENERATED_HEADERS)
 qmp-marshal.c: $(SRC_PATH)/qmp-schema.json $(SRC_PATH)/qmp-gen.py
 	$(call quiet-command,python $(SRC_PATH)/qmp-gen.py --body $@ < $<, "  GEN   $@")
 
-qmp-types.c: $(SRC_PATH)/qmp-schema.json $(SRC_PATH)/qmp-gen.py
+qapi-types.c: $(SRC_PATH)/qmp-schema.json $(SRC_PATH)/qmp-gen.py
 	$(call quiet-command,python $(SRC_PATH)/qmp-gen.py --types-body $@ < $<, "  GEN   $@")
 
-qmp-types.h: $(SRC_PATH)/qmp-schema.json $(SRC_PATH)/qmp-gen.py
+qapi-types.h: $(SRC_PATH)/qmp-schema.json $(SRC_PATH)/qmp-gen.py
 	$(call quiet-command,python $(SRC_PATH)/qmp-gen.py --types-header $@ < $<, "  GEN   $@")
 
 qmp-marshal-types.c: $(SRC_PATH)/qmp-schema.json $(SRC_PATH)/qmp-gen.py
@@ -197,12 +197,12 @@ qcfg-opts.h: $(SRC_PATH)/qmp-schema.json $(SRC_PATH)/qmp-gen.py
 qcfg-opts.c: $(SRC_PATH)/qmp-schema.json $(SRC_PATH)/qmp-gen.py
 	$(call quiet-command,python $(SRC_PATH)/qmp-gen.py --opts-body $@ < $<, "  GEN   $@")
 
-qmp-marshal.o: qmp-marshal.c qmp.h qmp-types.h
-qmp-types.o: qmp-types.c qmp-types.h
-libqmp.o: libqmp.c libqmp.h qmp-types.h
-qdev-marshal.o: qdev-marshal.c qdev-marshal.h qmp-types.h
-qcfg-marshal.o: qcfg-marshal.c qcfg-marshal.h qmp-types.h
-qcfg-opts.o: qcfg-opts.c qcfg-opts.h qcfg-marshal.h qmp-types.h
+qmp-marshal.o: qmp-marshal.c qmp.h qapi-types.h
+qapi-types.o: qapi-types.c qapi-types.h
+libqmp.o: libqmp.c libqmp.h qapi-types.h
+qdev-marshal.o: qdev-marshal.c qdev-marshal.h qapi-types.h
+qcfg-marshal.o: qcfg-marshal.c qcfg-marshal.h qapi-types.h
+qcfg-opts.o: qcfg-opts.c qcfg-opts.h qcfg-marshal.h qapi-types.h
 
 version.o: $(SRC_PATH)/version.rc config-host.mak
 	$(call quiet-command,$(WINDRES) -I. -o $@ $<,"  RC    $(TARGET_DIR)$@")
@@ -233,14 +233,14 @@ check-qlist: check-qlist.o qlist.o qint.o $(CHECK_PROG_DEPS)
 check-qfloat: check-qfloat.o qfloat.o $(CHECK_PROG_DEPS)
 check-qjson: check-qjson.o qfloat.o qint.o qdict.o qstring.o qlist.o qbool.o qjson.o json-streamer.o json-lexer.o json-parser.o $(CHECK_PROG_DEPS)
 
-LIBQMP_OBJS := qmp-types.o libqmp.o error.o libqmp-core.o
+LIBQMP_OBJS := qapi-types.o libqmp.o error.o libqmp-core.o
 LIBQMP_OBJS += qmp-marshal-types-core.o qmp-marshal-types.o
 LIBQMP_OBJS += qfloat.o qint.o qdict.o qstring.o qlist.o qbool.o qjson.o
 LIBQMP_OBJS += qerror.o
 LIBQMP_OBJS += json-streamer.o json-lexer.o json-parser.o
 LIBQMP_OBJS += $(oslib-obj-y) $(trace-obj-y) qemu-malloc.o
 
-QCFG_OBJS := qmp-types.o error.o qcfg-core.o qcfg-marshal.o qcfg-opts.o qcfg.o
+QCFG_OBJS := qapi-types.o error.o qcfg-core.o qcfg-marshal.o qcfg-opts.o qcfg.o
 QCFG_OBJS += qfloat.o qint.o qdict.o qstring.o qlist.o qbool.o qjson.o
 QCFG_OBJS += qerror.o
 QCFG_OBJS += json-streamer.o json-lexer.o json-parser.o
@@ -252,13 +252,16 @@ test-qcfg: test-qcfg.o $(QCFG_OBJS) qemu-timer-common.o
 qmp-check: build-all
 	$(call quiet-command, ./test-libqmp, "  CHECK   $@")
 
-check: qmp-check
+qcfg-check: build-all
+	$(call quiet-command, ./test-qcfg, "  CHECK   $@")
+
+check: qmp-check qcfg-check
 
 test-report.html: test-report.log
 	$(call quiet-command, gtester-report $< > $@, "  GEN   $@")
 
-test-report.log: test-libqmp
-	$(call quiet-command, gtester -k -o $@ ./test-libqmp 2>/dev/null >/dev/null || true, "  TEST  $<")
+test-report.log: test-libqmp test-qcfg
+	$(call quiet-command, gtester -k -o $@ $^ 2>/dev/null >/dev/null || true, "  TEST  $<")
 
 qsh: qsh.o $(LIBQMP_OBJS) qemu-timer-common.o
 

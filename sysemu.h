@@ -7,7 +7,7 @@
 #include "qemu-queue.h"
 #include "qemu-timer.h"
 #include "notify.h"
-#include "qmp-types.h"
+#include "qapi-types.h"
 
 #ifdef _WIN32
 #include <windows.h>

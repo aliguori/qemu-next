@@ -3,6 +3,6 @@
 
 #include "qemu-common.h"
 #include <stdbool.h>
-#include "qmp-types.h"
+#include "qapi-types.h"
 
 #endif

@@ -3,7 +3,7 @@
 
 #include "qemu-common.h"
 #include "error.h"
-#include "qmp-types.h"
+#include "qapi-types.h"
 #include "qcfg-core.h"
 
 #endif

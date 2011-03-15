@@ -1889,7 +1889,7 @@ def generate(kind, output):
 
 #include "qemu-common.h"
 #include "qemu-objects.h"
-#include "qmp-types.h"
+#include "qapi-types.h"
 #include "error.h"
 ''',
                      guard=guard)
@@ -1904,7 +1904,7 @@ def generate(kind, output):
 #define %(guard)s
 
 #include "qemu-common.h"
-#include "qmp-types.h"
+#include "qapi-types.h"
 #include "hw/qdev.h"
 ''',
                      guard=guard)
