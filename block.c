@@ -1635,6 +1635,50 @@ void bdrv_info(Monitor *mon, QObject **ret_data)
     *ret_data = QOBJECT(bs_list);
 }
 
+typedef struct BlockdevWrapper
+{
+    Blockdev blockdev;
+    BlockDriverState *bs;
+} BlockdevWrapper;
+
+BlockDriverState *blockdev_to_bs(Blockdev *bd)
+{
+    return container_of(bd, BlockdevWrapper, blockdev)->bs;
+}
+
+Blockdev *qapi_new_blockdev(const char *info, Error **errp)
+{
+    BlockdevWrapper *bw;
+    BlockDriverState *bs;
+
+    bs = bdrv_find(info);
+    if (bs == NULL) {
+        error_set(errp, QERR_DEVICE_NOT_FOUND, info);
+        return NULL;
+    }
+
+    bw = qemu_mallocz(sizeof(*bw));
+    bw->blockdev.info = qemu_strdup(info);
+    bw->bs = bs;
+
+    return &bw->blockdev;
+}
+
+void qapi_free_blockdev(Blockdev *obj)
+{
+    BlockdevWrapper *bw;
+
+    if (!obj) {
+        return;
+    }
+
+    bw = container_of(obj, BlockdevWrapper, blockdev);
+
+    qemu_free(bw->blockdev.info);
+    qapi_free_blockdev(bw->blockdev.next);
+    qemu_free(bw);
+}
+
 BlockInfo *qmp_query_block(Error **errp)
 {
     BlockInfo *block_list = NULL;
@@ -1658,7 +1702,7 @@ BlockInfo *qmp_query_block(Error **errp)
             break;
         }
 
-        info->device = qemu_strdup(bs->device_name);
+        info->device = qapi_new_blockdev(bs->device_name, NULL);
         info->removable = bs->removable;
         info->locked = bs->locked;
 
@@ -1737,7 +1781,7 @@ static BlockStats *qmp_query_blockstat(BlockDriverState *bs, Error **errp)
 
     if (bs->device_name[0]) {
         s->has_device = true;
-        s->device = qemu_strdup(bs->device_name);
+        s->device = qapi_new_blockdev(bs->device_name, NULL);
     }
     
     s->stats = qapi_alloc_block_device_stats();

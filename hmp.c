@@ -19,11 +19,17 @@ void hmp_eject(Monitor *mon, const QDict *qdict)
     int force = qdict_get_try_bool(qdict, "force", 0);
     const char *filename = qdict_get_str(qdict, "device");
     Error *err = NULL;
+    Blockdev *bd;
 
-    qmp_eject(filename, true, force, &err);
+    bd = qapi_new_blockdev(filename, NULL);
+
+    qmp_eject(bd, true, force, &err);
     if (err) {
         monitor_printf(mon, "eject: %s\n", error_get_pretty(err));
+        error_free(err);
     }
+
+    qapi_free_blockdev(bd);
 }
 
 void hmp_block_passwd(Monitor *mon, const QDict *qdict)
@@ -31,12 +37,17 @@ void hmp_block_passwd(Monitor *mon, const QDict *qdict)
     const char *device = qdict_get_str(qdict, "device");
     const char *password = qdict_get_str(qdict, "password");
     Error *err = NULL;
+    Blockdev *bd;
 
-    qmp_set_blockdev_password(device, password, &err);
+    bd = qapi_new_blockdev(device, NULL);
+
+    qmp_set_blockdev_password(bd, password, &err);
     if (err) {
         monitor_printf(mon, "block_passwd: %s\n", error_get_pretty(err));
         error_free(err);
     }
+
+    qapi_free_blockdev(bd);
 }
 
 static void cb_hmp_change_bdrv_pwd(Monitor *mon, const char *password,
@@ -44,9 +55,11 @@ static void cb_hmp_change_bdrv_pwd(Monitor *mon, const char *password,
 {
     Error *encryption_err = opaque;
     Error *err = NULL;
+    Blockdev *bd;
 
-    qmp_block_passwd(error_get_field(encryption_err, "device"),
-                     password, &err);
+    bd = qapi_new_blockdev(error_get_field(encryption_err, "device"), NULL);
+
+    qmp_block_passwd(bd, password, &err);
     if (err) {
         monitor_printf(mon, "invalid password\n");
         error_free(err);
@@ -55,6 +68,8 @@ static void cb_hmp_change_bdrv_pwd(Monitor *mon, const char *password,
     error_free(encryption_err);
 
     monitor_read_command(mon, 1);
+
+    qapi_free_blockdev(bd);
 }
 
 void hmp_change(Monitor *mon, const QDict *qdict)
@@ -388,7 +403,7 @@ void hmp_info_block(Monitor *mon)
 
     for (info = block_list; info; info = info->next) {
         monitor_printf(mon, "%s: type=%s removable=%d",
-                       info->device, info->type, info->removable);
+                       info->device->info, info->type, info->removable);
 
         if (info->removable) {
             monitor_printf(mon, " locked=%d", info->locked);
@@ -426,7 +441,7 @@ void hmp_info_blockstats(Monitor *mon)
             continue;
         }
 
-        monitor_printf(mon, "%s:", stats->device);
+        monitor_printf(mon, "%s:", stats->device->info);
         monitor_printf(mon, " rd_bytes=%" PRId64
                        " wr_bytes=%" PRId64
                        " rd_operations=%" PRId64

@@ -5,6 +5,7 @@
 #include "qemu-common.h"
 #include "qemu-option.h"
 #include "qobject.h"
+#include "qapi-types.h"
 
 /* block.c */
 typedef struct BlockDriver BlockDriver;
@@ -237,7 +238,7 @@ int bdrv_get_dirty(BlockDriverState *bs, int64_t sector);
 void bdrv_reset_dirty(BlockDriverState *bs, int64_t cur_sector,
                       int nr_sectors);
 int64_t bdrv_get_dirty_count(BlockDriverState *bs);
-
+BlockDriverState *blockdev_to_bs(Blockdev *bd);
 
 typedef enum {
     BLKDBG_L1_UPDATE,

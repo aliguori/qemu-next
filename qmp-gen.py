@@ -1099,8 +1099,7 @@ typedef struct %(c_event)s {
     return ret
 
 def gen_type_marshal_declaration(name, typeinfo):
-    if is_dict(typeinfo):
-        return mcgen('''
+    return mcgen('''
 
 QObject *qmp_marshal_type_%(name)s(%(type)s src);
 %(type)s qmp_unmarshal_type_%(name)s(QObject *src, Error **errp);
@@ -1806,8 +1805,93 @@ void qapi_free_%(dcc_name)s(%(name)s *obj);
                  ref_type=qmp_type_to_c(data, True),
                  value_type=qmp_type_to_c(data))
 
-def gen_handle_definition(name, data):
+def gen_handle_marshal_definition(name, typeinfo):
+    return mcgen('''
+
+QObject *qmp_marshal_type_%(name)s(%(type)s src)
+{
+    QDict *dict = qdict_new();
+    QString *handle = qstring_from_str("%(name)s");
+
+    qdict_put(dict, "__handle__", handle);
+    qdict_put_obj(dict, "data", %(marshal)s(src->info));
+    
+    return QOBJECT(dict);
+}
+
+%(type)s qmp_unmarshal_type_%(name)s(QObject *src, Error **errp)
+{
+    QDict *dict;
+    QObject *qobj;
+    Error *local_err = NULL;
+    %(data_type)s info;
+    %(type)s retval;
+
+    if (qobject_type(src) != QTYPE_QDICT) {
+        error_set(&local_err, QERR_INVALID_PARAMETER_TYPE, "<unknown>", "JSON object");
+        goto out;
+    }
+
+    dict = qobject_to_qdict(src);
+
+    if (!qdict_haskey(dict, "__handle__")) {
+        error_set(&local_err, QERR_MISSING_PARAMETER, "__handle__");
+        goto out;
+    }
+
+    qobj = qdict_get(dict, "__handle__");
+
+    if (qobject_type(qobj) != QTYPE_QSTRING) {
+        error_set(&local_err, QERR_INVALID_PARAMETER_TYPE, "__handle__", "string");
+        goto out;
+    }
+
+    if (strcmp(qstring_get_str(qobject_to_qstring(qobj)), "%(name)s") != 0) {
+        error_set(&local_err, QERR_INVALID_PARAMETER_VALUE, "__handle__", "%(name)s");
+        goto out;
+    }
+
+    if (!qdict_haskey(dict, "data")) {
+        error_set(&local_err, QERR_MISSING_PARAMETER, "data");
+        goto out;
+    }
+
+    qobj = qdict_get(dict, "data");
+    info = %(data_unmarshal)s(qobj, &local_err);
+    if (local_err) {
+        goto out;
+    }
+
+    retval = qapi_new_%(dcc_name)s(info, errp);
+
+    %(data_free)s(info);
+
+    return retval;
+
+out:
+    error_propagate(errp, local_err);
+    return NULL;
+}
+''',
+                 name=name, type=qmp_type_to_c(name),
+                 data_type=qmp_type_to_c(typeinfo, True),
+                 dcc_name=de_camel_case(name),
+                 marshal=qmp_type_to_qobj(typeinfo),
+                 data_unmarshal=qmp_type_from_qobj(typeinfo),
+                 data_free=qapi_free_func(typeinfo))
+
+def gen_handle_lib_definition(name, typeinfo):
     ret = mcgen('''
+
+%(name)s *qapi_new_%(dcc_name)s(%(value_type)s info, Error **errp)
+{
+    %(name)s *retval = qemu_mallocz(sizeof(*retval));
+    /* a fancy pants way to do a generic object dup */
+    QObject *obj = %(marshal)s(info);
+    retval->info = %(unmarshal)s(obj, NULL);
+    qobject_decref(obj);
+    return retval;
+}
 
 void qapi_free_%(dcc_name)s(%(name)s *obj)
 {
@@ -1815,14 +1899,15 @@ void qapi_free_%(dcc_name)s(%(name)s *obj)
         return;
     }
 
-    ''',
-                dcc_name=de_camel_case(name), name=name)
-
-    if qmp_type_should_free(data):
-        ret += mcgen('''
-    %(free)s(obj->info);
 ''',
-                     free=qapi_free_func(data))
+                name=name, dcc_name=de_camel_case(name),
+                value_type=qmp_type_to_c(typeinfo),
+                marshal=qmp_type_to_qobj(typeinfo),
+                unmarshal=qmp_type_from_qobj(typeinfo))
+
+    if qmp_type_should_free(typeinfo):
+        ret += cgen('    %(free)s(obj->info);',
+                    free=qapi_free_func(typeinfo));
 
     ret += mcgen('''
     qapi_free_%(dcc_name)s(obj->next);
@@ -2138,8 +2223,13 @@ def generate(kind, output):
            data = s['data']
            if kind == 'types-header':
                ret += gen_handle_declaration(name, data);
-           elif kind == 'types-body':
-               ret += gen_handle_definition(name, data);
+           elif kind == 'marshal-header':
+               ret += gen_type_marshal_declaration(name, data)
+           elif kind == 'marshal-body':
+               ret += gen_handle_marshal_definition(name, data)
+           elif kind == 'lib-body':
+               ret += gen_handle_lib_definition(name, data)
+
     
     if kind.endswith('header'):
         ret += cgen('#endif')

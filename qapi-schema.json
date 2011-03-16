@@ -102,6 +102,8 @@
 { 'command': 'change',
   'data': {'device': 'str', 'target': 'str', '*arg': 'str'} }
 
+{ 'handle': 'Blockdev', 'data': 'str' }
+
 ##
 # @block_passwd:
 #
@@ -134,7 +136,7 @@
 # Since: 0.14.0
 ##
 { 'command': 'block_passwd',
-  'data': {'device': 'str', 'password': 'str'} }
+  'data': {'device': 'Blockdev', 'password': 'str'} }
 
 ##
 # @VersionInfo:
@@ -196,7 +198,7 @@
 #
 # Since: 0.14.0
 ##
-{ 'command': 'eject', 'data': {'device': 'str', '*force': 'bool'} }
+{ 'command': 'eject', 'data': {'device': 'Blockdev', '*force': 'bool'} }
 
 ##
 # @qmp_capabilities:
@@ -324,7 +326,7 @@
 # Since:  0.14.0
 ##
 { 'type': 'BlockInfo',
-  'data': {'device': 'str', 'type': 'str', 'removable': 'bool',
+  'data': {'device': 'Blockdev', 'type': 'str', 'removable': 'bool',
            'locked': 'bool', '*inserted': 'BlockDeviceInfo'} }
 
 ##
@@ -378,7 +380,7 @@
 # Since: 0.14.0
 ##
 { 'type': 'BlockStats',
-  'data': {'*device': 'str', 'stats': 'BlockDeviceStats',
+  'data': {'*device': 'Blockdev', 'stats': 'BlockDeviceStats',
            '*parent': 'BlockStats'} }
 
 ##
@@ -1335,7 +1337,7 @@
 # Since: 0.15.0
 ##
 { 'command': 'change-blockdev',
-  'data': {'device': 'str', 'filename': 'str', '*format': 'str',
+  'data': {'device': 'Blockdev', 'filename': 'str', '*format': 'str',
            '*password': 'str'} }
 
 ##
@@ -1349,7 +1351,7 @@
 # Since: 0.15.0
 ##
 { 'command': 'set-blockdev-password',
-  'data': {'device': 'str', 'password': 'str'} }
+  'data': {'device': 'Blockdev', 'password': 'str'} }
 
 ##
 # @change-vnc-listen:
@@ -1496,5 +1498,3 @@
 # Since: 0.14.0
 ##
 { 'option': 'vnc', 'data': 'VncConfig', 'implicit': 'address' }
-
-{ 'handle': 'Blockdev', 'data': 'str' }

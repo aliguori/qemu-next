@@ -240,11 +240,9 @@ LIBQMP_OBJS += qerror.o
 LIBQMP_OBJS += json-streamer.o json-lexer.o json-parser.o
 LIBQMP_OBJS += $(oslib-obj-y) $(trace-obj-y) qemu-malloc.o
 
-QCFG_OBJS := qapi-types.o error.o qcfg-core.o qcfg-marshal.o qcfg-opts.o qcfg.o
-QCFG_OBJS += qfloat.o qint.o qdict.o qstring.o qlist.o qbool.o qjson.o
-QCFG_OBJS += qerror.o
-QCFG_OBJS += json-streamer.o json-lexer.o json-parser.o
-QCFG_OBJS += $(oslib-obj-y) $(trace-obj-y) qemu-malloc.o cutils.o
+QCFG_OBJS := qcfg-core.o qcfg-marshal.o qcfg-opts.o qcfg.o
+QCFG_OBJS += cutils.o
+QCFG_OBJS += $(LIBQMP_OBJS)
 
 test-libqmp: test-libqmp.o $(LIBQMP_OBJS) ui/d3des.o qemu-timer-common.o
 test-qcfg: test-qcfg.o $(QCFG_OBJS) qemu-timer-common.o

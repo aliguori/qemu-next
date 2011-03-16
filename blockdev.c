@@ -593,32 +593,21 @@ static void eject_device(BlockDriverState *bs, int force, Error **err)
     bdrv_close(bs);
 }
 
-void qmp_eject(const char * device, bool has_force, bool force, Error **err)
+void qmp_eject(Blockdev *device, bool has_force, bool force, Error **err)
 {
-    BlockDriverState *bs;
+    BlockDriverState *bs = blockdev_to_bs(device);
 
     if (!has_force) {
         force = false;
     }
 
-    bs = bdrv_find(device);
-    if (!bs) {
-        error_set(err, QERR_DEVICE_NOT_FOUND, device);
-        return;
-    }
     eject_device(bs, force, err);
 }
 
-void qmp_set_blockdev_password(const char *device, const char *password, Error **err)
+void qmp_set_blockdev_password(Blockdev *device, const char *password, Error **err)
 {
-    BlockDriverState *bs;
+    BlockDriverState *bs = blockdev_to_bs(device);
     int ret;
-
-    bs = bdrv_find(device);
-    if (!bs) {
-        error_set(err, QERR_DEVICE_NOT_FOUND, device);
-        return;
-    }
 
     ret = bdrv_set_key(bs, password);
     if (ret == -EINVAL) {
@@ -628,7 +617,7 @@ void qmp_set_blockdev_password(const char *device, const char *password, Error *
     }
 }
 
-void qmp_block_passwd(const char *device, const char *password, Error **err)
+void qmp_block_passwd(Blockdev *device, const char *password, Error **err)
 {
     qmp_set_blockdev_password(device, password, err);
 }
@@ -690,7 +679,7 @@ void deprecated_qmp_change_blockdev(const char *device, const char *filename,
     qmp_bdrv_open_encrypted(bs, filename, bdrv_flags, drv, NULL, errp);
 }
 
-void qmp_change_blockdev(const char *device, const char *filename,
+void qmp_change_blockdev(Blockdev *device, const char *filename,
                          bool has_format, const char *format,
                          bool has_password, const char *password,
                          Error **errp)
@@ -701,11 +690,8 @@ void qmp_change_blockdev(const char *device, const char *filename,
     Error *err = NULL;
     bool probed_raw = false;
 
-    bs = bdrv_find(device);
-    if (!bs) {
-        error_set(errp, QERR_DEVICE_NOT_FOUND, device);
-        return;
-    }
+    bs = blockdev_to_bs(device);
+
     if (has_format) {
         drv = bdrv_find_whitelisted_format(format);
         if (!drv) {
