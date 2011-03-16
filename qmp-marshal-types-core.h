@@ -7,14 +7,20 @@
 #include "error.h"
 #include "qapi-types.h"
 
-QObject *qmp_marshal_type_int(int64_t value);
-QObject *qmp_marshal_type_str(const char *value);
-QObject *qmp_marshal_type_bool(bool value);
-QObject *qmp_marshal_type_number(double value);
+typedef struct QmpMarshalState QmpMarshalState;
 
-int64_t qmp_unmarshal_type_int(QObject *value, Error **errp);
-char *qmp_unmarshal_type_str(QObject *value, Error **errp);
-bool qmp_unmarshal_type_bool(QObject *value, Error **errp);
-double qmp_unmarshal_type_number(QObject *value, Error **errp);
+struct QmpMarshalState
+{
+};
+
+QObject *qmp_marshal_type_int(QmpMarshalState *qmp__mstate, int64_t value);
+QObject *qmp_marshal_type_str(QmpMarshalState *qmp__mstate, const char *value);
+QObject *qmp_marshal_type_bool(QmpMarshalState *qmp__mstate, bool value);
+QObject *qmp_marshal_type_number(QmpMarshalState *qmp__mstate, double value);
+
+int64_t qmp_unmarshal_type_int(QmpMarshalState *qmp__mstate, QObject *value, Error **errp);
+char *qmp_unmarshal_type_str(QmpMarshalState *qmp__mstate, QObject *value, Error **errp);
+bool qmp_unmarshal_type_bool(QmpMarshalState *qmp__mstate, QObject *value, Error **errp);
+double qmp_unmarshal_type_number(QmpMarshalState *qmp__mstate, QObject *value, Error **errp);
 
 #endif

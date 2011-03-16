@@ -1,27 +1,27 @@
 #include "qmp-marshal-types-core.h"
 #include "qerror.h"
 
-QObject *qmp_marshal_type_int(int64_t value)
+QObject *qmp_marshal_type_int(QmpMarshalState *qmp__mstate, int64_t value)
 {
     return QOBJECT(qint_from_int(value));
 }
 
-QObject *qmp_marshal_type_str(const char *value)
+QObject *qmp_marshal_type_str(QmpMarshalState *qmp__mstate, const char *value)
 {
     return QOBJECT(qstring_from_str(value));
 }
 
-QObject *qmp_marshal_type_bool(bool value)
+QObject *qmp_marshal_type_bool(QmpMarshalState *qmp__mstate, bool value)
 {
     return QOBJECT(qbool_from_int(value));
 }
 
-QObject *qmp_marshal_type_number(double value)
+QObject *qmp_marshal_type_number(QmpMarshalState *qmp__mstate, double value)
 {
     return QOBJECT(qfloat_from_double(value));
 }
 
-int64_t qmp_unmarshal_type_int(QObject *value, Error **errp)
+int64_t qmp_unmarshal_type_int(QmpMarshalState *qmp__mstate, QObject *value, Error **errp)
 {
     if (qobject_type(value) != QTYPE_QINT) {
         error_set(errp, QERR_INVALID_PARAMETER_TYPE, "<unknown>", "int");
@@ -30,7 +30,7 @@ int64_t qmp_unmarshal_type_int(QObject *value, Error **errp)
     return qint_get_int(qobject_to_qint(value));
 }
 
-char *qmp_unmarshal_type_str(QObject *value, Error **errp)
+char *qmp_unmarshal_type_str(QmpMarshalState *qmp__mstate, QObject *value, Error **errp)
 {
     if (qobject_type(value) != QTYPE_QSTRING) {
         error_set(errp, QERR_INVALID_PARAMETER_TYPE, "<unknown>", "string");
@@ -39,7 +39,7 @@ char *qmp_unmarshal_type_str(QObject *value, Error **errp)
     return qemu_strdup(qstring_get_str(qobject_to_qstring(value)));
 }
 
-bool qmp_unmarshal_type_bool(QObject *value, Error **errp)
+bool qmp_unmarshal_type_bool(QmpMarshalState *qmp__mstate, QObject *value, Error **errp)
 {
     if (qobject_type(value) != QTYPE_QBOOL) {
         error_set(errp, QERR_INVALID_PARAMETER_TYPE, "<unknown>", "bool");
@@ -48,7 +48,7 @@ bool qmp_unmarshal_type_bool(QObject *value, Error **errp)
     return qbool_get_int(qobject_to_qbool(value));
 }
 
-double qmp_unmarshal_type_number(QObject *value, Error **errp)
+double qmp_unmarshal_type_number(QmpMarshalState *qmp__mstate, QObject *value, Error **errp)
 {
     if (qobject_type(value) != QTYPE_QFLOAT) {
         error_set(errp, QERR_INVALID_PARAMETER_TYPE, "<unknown>", "float");

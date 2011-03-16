@@ -231,9 +231,11 @@ static void libqmp_notify_%(fn_name)s(QDict *qmp__args, void *qmp__fn, void *qmp
 {
     %(fn_ret)s *qmp__native_fn = qmp__fn;
     Error *qmp__err = NULL;
+    QmpMarshalState qmp__mstate_obj, *qmp__mstate = &qmp__mstate_obj;
 %(args)s
 
     (void)qmp__err;
+    (void)qmp__mstate;
 ''',
                 fn_name=de_camel_case(qmp_event_to_c(name)),
                 fn_ret=qmp_event_func_to_c(name), args=args)
@@ -248,7 +250,7 @@ static void libqmp_notify_%(fn_name)s(QDict *qmp__args, void *qmp__fn, void *qmp
         goto qmp__out;
     }
 
-    %(c_name)s = %(unmarshal)s(qdict_get(qmp__args, "%(name)s"), &qmp__err);
+    %(c_name)s = %(unmarshal)s(qmp__mstate, qdict_get(qmp__args, "%(name)s"), &qmp__err);
     if (qmp__err) {
         if (error_is_type(qmp__err, QERR_INVALID_PARAMETER_TYPE)) {
             error_set(qmp__errp, QERR_INVALID_PARAMETER_TYPE, "%(name)s",
@@ -298,12 +300,15 @@ typedef struct %(cc_name)sCompletionCB
 static void qmp_%(c_name)s_cb(void *qmp__opaque, QObject *qmp__retval, Error *qmp__err)
 {
     %(cc_name)sCompletionCB *qmp__cb = qmp__opaque;
+    QmpMarshalState qmp__mstate_obj, *qmp__mstate = &qmp__mstate_obj;
 ''',
                 cc_name=camel_case(name), c_name=c_var(name))
 
     if retval != 'none':
         ret += cgen('    %(ret_type)s qmp__native_retval = 0;',
                            ret_type=qmp_type_to_c(retval, True))
+
+    ret += cgen('    (void)qmp__mstate;')
 
     if type(retval) == list:
         ret += mcgen('''
@@ -313,7 +318,7 @@ static void qmp_%(c_name)s_cb(void *qmp__opaque, QObject *qmp__retval, Error *qm
         QList *qmp__list_retval = qobject_to_qlist(qmp__retval);
         QListEntry *qmp__i;
         QLIST_FOREACH_ENTRY(qmp__list_retval, qmp__i) {
-            %(ret_type)s qmp__native_i = %(unmarshal)s(qmp__i->value, &qmp__err);
+            %(ret_type)s qmp__native_i = %(unmarshal)s(qmp__mstate, qmp__i->value, &qmp__err);
             if (qmp__err) {
                 %(free)s(qmp__native_retval);
                 break;
@@ -335,7 +340,7 @@ static void qmp_%(c_name)s_cb(void *qmp__opaque, QObject *qmp__retval, Error *qm
         ret += mcgen('''
 
     if (!qmp__err) {
-        qmp__native_retval = %(unmarshal)s(qmp__retval, &qmp__err);
+        qmp__native_retval = %(unmarshal)s(qmp__mstate, qmp__retval, &qmp__err);
     }
 ''',
                             unmarshal=qmp_type_from_qobj(retval))
@@ -362,11 +367,14 @@ def gen_lib_definition(name, options, retval, proxy=False, async=False):
 %(fn_decl)s
 {
     QDict *qmp__args = qdict_new();
+    QmpMarshalState qmp__mstate_obj, *qmp__mstate = &qmp__mstate_obj;
 ''',
                         fn_decl=fn_decl)
     if async:
         ret += mcgen('''
     %(cc_name)sCompletionCB *qmp__cb = qemu_mallocz(sizeof(*qmp__cb));
+
+    (void)qmp__mstate;
 
     qmp__cb->cb = qmp__cc;
     qmp__cb->opaque = qmp__opaque;
@@ -382,7 +390,11 @@ def gen_lib_definition(name, options, retval, proxy=False, async=False):
                                ret_type=qmp_type_to_c(retval, True))
         if qmp_type_is_event(retval):
             ret += cgen('    int qmp__global_handle = 0;')
-    ret += cgen('')
+    ret += mcgen('''
+
+    (void)qmp__mstate;
+
+''')
 
     for argname, argtype, optional in parse_args(options):
         if argtype == '**':
@@ -403,7 +415,7 @@ def gen_lib_definition(name, options, retval, proxy=False, async=False):
                                     c_name=c_var(argname))
                 push_indent()
             ret += mcgen('''
-    qdict_put_obj(qmp__args, "%(name)s", %(marshal)s(%(c_name)s));
+    qdict_put_obj(qmp__args, "%(name)s", %(marshal)s(qmp__mstate, %(c_name)s));
 ''',
                                 name=argname, c_name=c_var(argname),
                                 marshal=qmp_type_to_qobj(argtype))
@@ -438,7 +450,7 @@ def gen_lib_definition(name, options, retval, proxy=False, async=False):
         QList *qmp__list_retval = qobject_to_qlist(qmp__retval);
         QListEntry *qmp__i;
         QLIST_FOREACH_ENTRY(qmp__list_retval, qmp__i) {
-            %(type)s qmp__native_i = %(unmarshal)s(qmp__i->value, &qmp__local_err);
+            %(type)s qmp__native_i = %(unmarshal)s(qmp__mstate, qmp__i->value, &qmp__local_err);
             if (qmp__local_err) {
                 %(free)s(qmp__native_retval);
                 break;
@@ -464,7 +476,7 @@ def gen_lib_definition(name, options, retval, proxy=False, async=False):
             ret += cgen('    BUILD_BUG();')
         ret += mcgen('''
     if (!qmp__local_err) {
-        qmp__global_handle = %(unmarshal)s(qmp__retval, &qmp__local_err);
+        qmp__global_handle = %(unmarshal)s(qmp__mstate, qmp__retval, &qmp__local_err);
         qobject_decref(qmp__retval);
         qmp__retval = NULL;
     }
@@ -480,7 +492,7 @@ def gen_lib_definition(name, options, retval, proxy=False, async=False):
         ret += mcgen('''
 
     if (!qmp__local_err) {
-        qmp__native_retval = %(unmarshal)s(qmp__retval, &qmp__local_err);
+        qmp__native_retval = %(unmarshal)s(qmp__mstate, qmp__retval, &qmp__local_err);
         qobject_decref(qmp__retval);
     }
     error_propagate(qmp__err, qmp__local_err);
@@ -559,6 +571,9 @@ static void qmp_async_completion_%(c_name)s(void *qmp__opaque, %(ret_type)s qmp_
         ret += cgen('    QObject *qmp__ret_data;')
     ret += mcgen('''
     QmpCommandState *qmp__cmd = qmp__opaque;
+    QmpMarshalState qmp__mstate_obj, *qmp__mstate = &qmp__mstate_obj;
+
+    (void)qmp__mstate;
 
     if (qmp__err) {
         qmp_async_complete_command(qmp__cmd, NULL, qmp__err);
@@ -570,7 +585,7 @@ static void qmp_async_completion_%(c_name)s(void *qmp__opaque, %(ret_type)s qmp_
     elif type(retval) == str:
         ret += mcgen('''
 
-    qmp__ret_data = %(marshal)s(qmp__retval);
+    qmp__ret_data = %(marshal)s(qmp__mstate, qmp__retval);
 ''',
                      marshal=qmp_type_to_qobj(retval))
     elif type(retval) == list:
@@ -582,7 +597,7 @@ static void qmp_async_completion_%(c_name)s(void *qmp__opaque, %(ret_type)s qmp_
         QList *list = qobject_to_qlist(qmp__ret_data);
         %(type)s i;
         for (i = qmp__retval; i != NULL; i = i->next) {
-            QObject *obj = %(marshal)s(i);
+            QObject *obj = %(marshal)s(qmp__mstate, i);
             qlist_append_obj(list, obj);
         }
     }
@@ -618,6 +633,9 @@ static void qmp_marshal_%(c_name)s(%(args)s)
 {
     QDict *qmp__args = qdict_new();
     QmpConnection *qmp__conn = opaque;
+    QmpMarshalState qmp__mstate_obj, *qmp__mstate = &qmp__mstate_obj;
+
+    (void)qmp__mstate;
 ''',
                      c_name=qmp_event_to_c(retval),
                      args=', '.join(arglist))
@@ -627,7 +645,7 @@ static void qmp_marshal_%(c_name)s(%(args)s)
                 ret += cgen('    if (has_%(c_name)s) {', c_name=c_var(argname))
                 push_indent()
             ret += mcgen('''
-    qdict_put_obj(qmp__args, "%(name)s", %(marshal)s(%(c_name)s));
+    qdict_put_obj(qmp__args, "%(name)s", %(marshal)s(qmp__mstate, %(c_name)s));
 ''',
                          name=argname,  c_name=c_var(argname),
                          marshal=qmp_type_to_qobj(argtype))
@@ -670,6 +688,7 @@ static void qmp_marshal_%(c_name)s(const QDict *qdict, QObject **ret_data, Error
                      c_name=c_var(name))
     ret += mcgen('''
     Error *qmp__err = NULL;
+    QmpMarshalState qmp__mstate_obj, *qmp__mstate = &qmp__mstate_obj;
 ''')
 
     for argname, argtype, optional in parse_args(options):
@@ -690,6 +709,7 @@ static void qmp_marshal_%(c_name)s(const QDict *qdict, QObject **ret_data, Error
     ret += mcgen('''
 
     (void)qmp__err;
+    (void)qmp__mstate;
 ''')
 
     for argname, argtype, optional in parse_args(options):
@@ -727,7 +747,7 @@ static void qmp_marshal_%(c_name)s(const QDict *qdict, QObject **ret_data, Error
             ret += mcgen('''
 
     if (qdict_haskey(qdict, "%(name)s")) {
-        %(c_name)s = %(unmarshal)s(qdict_get(qdict, "%(name)s"), &qmp__err);
+        %(c_name)s = %(unmarshal)s(qmp__mstate, qdict_get(qdict, "%(name)s"), &qmp__err);
         if (qmp__err) {
             if (error_is_type(qmp__err, QERR_INVALID_PARAMETER_TYPE)) {
                 error_set(err, QERR_INVALID_PARAMETER_TYPE, "%(name)s",
@@ -752,7 +772,7 @@ static void qmp_marshal_%(c_name)s(const QDict *qdict, QObject **ret_data, Error
         goto qmp__out;
     }
 
-    %(c_name)s = %(unmarshal)s(qdict_get(qdict, "%(name)s"), &qmp__err);
+    %(c_name)s = %(unmarshal)s(qmp__mstate, qdict_get(qdict, "%(name)s"), &qmp__err);
     if (qmp__err) {
         if (error_is_type(qmp__err, QERR_INVALID_PARAMETER_TYPE)) {
             error_set(err, QERR_INVALID_PARAMETER_TYPE, "%(name)s",
@@ -810,7 +830,7 @@ static void qmp_marshal_%(c_name)s(const QDict *qdict, QObject **ret_data, Error
                      ret_name=retval)
     elif type(retval) == str:
         ret += mcgen('''
-    *ret_data = %(marshal)s(qmp_retval);
+    *ret_data = %(marshal)s(qmp__mstate, qmp_retval);
 ''',
                      marshal=qmp_type_to_qobj(retval))
     elif type(retval) == list:
@@ -821,7 +841,7 @@ static void qmp_marshal_%(c_name)s(const QDict *qdict, QObject **ret_data, Error
         QList *list = qobject_to_qlist(*ret_data);
         %(ret_type)s i;
         for (i = qmp_retval; i != NULL; i = i->next) {
-            QObject *obj = %(marshal)s(i);
+            QObject *obj = %(marshal)s(qmp__mstate, i);
             qlist_append_obj(list, obj);
         }
     }
@@ -888,8 +908,8 @@ const char *qmp_type_%(dcc_name)s_to_str(%(name)s value, Error **errp);
 def gen_enum_marshal_declaration(name, entries):
     return mcgen('''
 
-QObject *qmp_marshal_type_%(name)s(%(name)s value);
-%(name)s qmp_unmarshal_type_%(name)s(QObject *obj, Error **errp);
+QObject *qmp_marshal_type_%(name)s(QmpMarshalState *qmp__mstate, %(name)s value);
+%(name)s qmp_unmarshal_type_%(name)s(QmpMarshalState *qmp__mstate, QObject *obj, Error **errp);
 ''',
                 name=name)
 
@@ -953,12 +973,12 @@ const char *qmp_type_%(dcc_name)s_to_str(%(name)s value, Error **errp)
 def gen_enum_marshal_definition(name, entries):
     return mcgen('''
 
-QObject *qmp_marshal_type_%(name)s(%(name)s value)
+QObject *qmp_marshal_type_%(name)s(QmpMarshalState *qmp__mstate, %(name)s value)
 {
     return QOBJECT(qint_from_int(value));
 }
 
-%(name)s qmp_unmarshal_type_%(name)s(QObject *obj, Error **errp)
+%(name)s qmp_unmarshal_type_%(name)s(QmpMarshalState *qmp__mstate, QObject *obj, Error **errp)
 {
     // FIXME need to validate the type here
     return (%(name)s)qint_get_int(qobject_to_qint(obj));
@@ -1101,8 +1121,8 @@ typedef struct %(c_event)s {
 def gen_type_marshal_declaration(name, typeinfo):
     return mcgen('''
 
-QObject *qmp_marshal_type_%(name)s(%(type)s src);
-%(type)s qmp_unmarshal_type_%(name)s(QObject *src, Error **errp);
+QObject *qmp_marshal_type_%(name)s(QmpMarshalState *qmp__mstate, %(type)s src);
+%(type)s qmp_unmarshal_type_%(name)s(QmpMarshalState *qmp__mstate, QObject *src, Error **errp);
 ''',
                      name=name, type=qmp_type_to_c(name))
 
@@ -1114,7 +1134,7 @@ def gen_metatype_def(typeinfo, name, lhs, sep='->', level=0):
     ret = ''
 
     if type(typeinfo) == str:
-        ret += cgen('    %(lhs)s = %(marshal)s(%(name)s);',
+        ret += cgen('    %(lhs)s = %(marshal)s(qmp__mstate, %(name)s);',
                     lhs=lhs, name=name,
                     marshal=qmp_type_to_qobj(typeinfo))
     elif is_dict(typeinfo):
@@ -1157,7 +1177,7 @@ def gen_metatype_def(typeinfo, name, lhs, sep='->', level=0):
         %(type)s %(new_lhs)s_i;
 
         for (%(new_lhs)s_i = %(name)s; %(new_lhs)s_i != NULL; %(new_lhs)s_i = %(new_lhs)s_i->next) {
-            QObject *qmp__member = %(marshal)s(%(new_lhs)s_i);
+            QObject *qmp__member = %(marshal)s(qmp__mstate, %(new_lhs)s_i);
             qlist_append_obj(qmp__list, qmp__member);
         }
         %(lhs)s = QOBJECT(qmp__list);
@@ -1173,7 +1193,7 @@ def gen_metatype_undef(typeinfo, name, lhs, sep='->', level=0):
     ret = ''
     if type(typeinfo) == str:
         ret += mcgen('''
-    %(lhs)s = %(unmarshal)s(%(c_name)s, &qmp__err);
+    %(lhs)s = %(unmarshal)s(qmp__mstate, %(c_name)s, &qmp__err);
     if (qmp__err) {
         goto qmp__err_out;
     }
@@ -1232,7 +1252,7 @@ def gen_metatype_undef(typeinfo, name, lhs, sep='->', level=0):
         QList *qmp__list = qobject_to_qlist(%(c_name)s);
         QListEntry *%(objname)s;
         QLIST_FOREACH_ENTRY(qmp__list, %(objname)s) {
-            %(type)s qmp__node = %(unmarshal)s(%(objname)s->value, &qmp__err);
+            %(type)s qmp__node = %(unmarshal)s(qmp__mstate, %(objname)s->value, &qmp__err);
             if (qmp__err) {
                 goto qmp__err_out;
             }
@@ -1284,7 +1304,7 @@ def gen_metatype_free(typeinfo, prefix):
 def gen_type_marshal_definition(name, typeinfo):
     ret = mcgen('''
 
-QObject *qmp_marshal_type_%(name)s(%(type)s src)
+QObject *qmp_marshal_type_%(name)s(QmpMarshalState *qmp__mstate, %(type)s src)
 {
     QObject *qmp__retval;
 
@@ -1293,7 +1313,7 @@ QObject *qmp_marshal_type_%(name)s(%(type)s src)
     return qmp__retval;
 }
 
-%(type)s qmp_unmarshal_type_%(name)s(QObject *src, Error **errp)
+%(type)s qmp_unmarshal_type_%(name)s(QmpMarshalState *qmp__mstate, QObject *src, Error **errp)
 {
     Error *qmp__err = NULL;
     %(type)s qmp__retval = qapi_alloc_%(dcc_name)s();
@@ -1342,7 +1362,7 @@ void qapi_free_%(dcc_name)s(%(name)s *obj)
 def gen_union_marshal_definition(name, typeinfo):
     ret = mcgen('''
 
-QObject *qmp_marshal_type_%(name)s(%(type)s src)
+QObject *qmp_marshal_type_%(name)s(QmpMarshalState *qmp__mstate, %(type)s src)
 {
     QDict *qmp__retval = qdict_new();
 
@@ -1358,7 +1378,7 @@ QObject *qmp_marshal_type_%(name)s(%(type)s src)
             continue
         ret += mcgen('''
     case %(abrev)s_%(uname)s:
-        qdict_put_obj(qmp__retval, "%(name)s", %(marshal)s(src->%(c_name)s));
+        qdict_put_obj(qmp__retval, "%(name)s", %(marshal)s(qmp__mstate, src->%(c_name)s));
         break;
 ''',
                      abrev=enum_abbreviation('%sKind' % name),
@@ -1371,7 +1391,7 @@ QObject *qmp_marshal_type_%(name)s(%(type)s src)
     return QOBJECT(qmp__retval);
 }
 
-%(type)s qmp_unmarshal_type_%(name)s(QObject *src, Error **errp)
+%(type)s qmp_unmarshal_type_%(name)s(QmpMarshalState *qmp__mstate, QObject *src, Error **errp)
 {
     %(type)s qmp__retval = qapi_alloc_%(dcc_name)s();
     Error *local_err = NULL;
@@ -1406,7 +1426,7 @@ QObject *qmp_marshal_type_%(name)s(%(type)s src)
             goto out;
         }
         qmp__retval->kind = %(abrev)s_%(uname)s;
-        qmp__retval->%(c_name)s = %(unmarshal)s(qdict_get(dict, "%(name)s"), &local_err);
+        qmp__retval->%(c_name)s = %(unmarshal)s(qmp__mstate, qdict_get(dict, "%(name)s"), &local_err);
         break;
 ''',
                      abrev=enum_abbreviation('%sKind' % name), name=argname,
@@ -1808,18 +1828,18 @@ void qapi_free_%(dcc_name)s(%(name)s *obj);
 def gen_handle_marshal_definition(name, typeinfo):
     return mcgen('''
 
-QObject *qmp_marshal_type_%(name)s(%(type)s src)
+QObject *qmp_marshal_type_%(name)s(QmpMarshalState *qmp__mstate, %(type)s src)
 {
     QDict *dict = qdict_new();
     QString *handle = qstring_from_str("%(name)s");
 
     qdict_put(dict, "__handle__", handle);
-    qdict_put_obj(dict, "data", %(marshal)s(src->info));
+    qdict_put_obj(dict, "data", %(marshal)s(qmp__mstate, src->info));
     
     return QOBJECT(dict);
 }
 
-%(type)s qmp_unmarshal_type_%(name)s(QObject *src, Error **errp)
+%(type)s qmp_unmarshal_type_%(name)s(QmpMarshalState *qmp__mstate, QObject *src, Error **errp)
 {
     QDict *dict;
     QObject *qobj;
@@ -1857,7 +1877,7 @@ QObject *qmp_marshal_type_%(name)s(%(type)s src)
     }
 
     qobj = qdict_get(dict, "data");
-    info = %(data_unmarshal)s(qobj, &local_err);
+    info = %(data_unmarshal)s(qmp__mstate, qobj, &local_err);
     if (local_err) {
         goto out;
     }
@@ -1885,10 +1905,11 @@ def gen_handle_lib_definition(name, typeinfo):
 
 %(name)s *qapi_new_%(dcc_name)s(%(value_type)s info, Error **errp)
 {
+    QmpMarshalState qmp__mstate = {};
     %(name)s *retval = qemu_mallocz(sizeof(*retval));
     /* a fancy pants way to do a generic object dup */
-    QObject *obj = %(marshal)s(info);
-    retval->info = %(unmarshal)s(obj, NULL);
+    QObject *obj = %(marshal)s(&qmp__mstate, info);
+    retval->info = %(unmarshal)s(&qmp__mstate, obj, NULL);
     qobject_decref(obj);
     return retval;
 }
