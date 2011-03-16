@@ -1790,6 +1790,49 @@ out:
                     type_name=data)
     return ret
 
+def gen_handle_declaration(name, data):
+    return mcgen('''
+
+typedef struct %(name)s {
+    %(ref_type)s info;
+
+    struct %(name)s * next;
+} %(name)s;
+
+%(name)s *qapi_new_%(dcc_name)s(%(value_type)s info, Error **errp);
+void qapi_free_%(dcc_name)s(%(name)s *obj);
+''',
+                 name=name, dcc_name=de_camel_case(name),
+                 ref_type=qmp_type_to_c(data, True),
+                 value_type=qmp_type_to_c(data))
+
+def gen_handle_definition(name, data):
+    ret = mcgen('''
+
+void qapi_free_%(dcc_name)s(%(name)s *obj)
+{
+    if (!obj) {
+        return;
+    }
+
+    ''',
+                dcc_name=de_camel_case(name), name=name)
+
+    if qmp_type_should_free(data):
+        ret += mcgen('''
+    %(free)s(obj->info);
+''',
+                     free=qapi_free_func(data))
+
+    ret += mcgen('''
+    qapi_free_%(dcc_name)s(obj->next);
+    qemu_free(obj);
+}
+''',
+                 dcc_name=de_camel_case(name))
+
+    return ret
+
 def tokenize(data):
     while len(data):
         if data[0] in ['{', '}', ':', ',', '[', ']']:
@@ -1970,6 +2013,9 @@ def generate(kind, output):
         elif s.has_key('option'):
             if s.has_key('data'):
                 qcfg_types += get_dependent_types(s['data'])
+        elif s.has_key('handle'):
+            if s.has_key('data'):
+                qobj_types += get_dependent_types(s['data'])
     
     for s in exprs:
        if s.has_key('type'):
@@ -2087,6 +2133,13 @@ def generate(kind, output):
                ret += gen_opts_declaration(name, data)
            elif kind == 'opts-body':
                ret += gen_opts_definition(name, data, implicit_key)
+       elif s.has_key('handle'):
+           name = s['handle']
+           data = s['data']
+           if kind == 'types-header':
+               ret += gen_handle_declaration(name, data);
+           elif kind == 'types-body':
+               ret += gen_handle_definition(name, data);
     
     if kind.endswith('header'):
         ret += cgen('#endif')

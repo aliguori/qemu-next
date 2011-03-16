@@ -1496,3 +1496,5 @@
 # Since: 0.14.0
 ##
 { 'option': 'vnc', 'data': 'VncConfig', 'implicit': 'address' }
+
+{ 'handle': 'Blockdev', 'data': 'str' }
