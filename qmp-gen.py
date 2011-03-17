@@ -227,15 +227,15 @@ def gen_lib_event_definition(name, typeinfo):
 
     ret = mcgen('''
 
-static void libqmp_notify_%(fn_name)s(QDict *qmp__args, void *qmp__fn, void *qmp__opaque, Error **qmp__errp)
+static void libqmp_notify_%(fn_name)s(QmpSession *qmp__sess, QDict *qmp__args, void *qmp__fn, void *qmp__opaque, Error **qmp__errp)
 {
     %(fn_ret)s *qmp__native_fn = qmp__fn;
     Error *qmp__err = NULL;
-    QmpMarshalState qmp__mstate_obj, *qmp__mstate = &qmp__mstate_obj;
+    QmpMarshalState *qmp__mstate;
 %(args)s
 
     (void)qmp__err;
-    (void)qmp__mstate;
+    qmp__mstate = &qmp__sess->mstate;
 ''',
                 fn_name=de_camel_case(qmp_event_to_c(name)),
                 fn_ret=qmp_event_func_to_c(name), args=args)
@@ -300,7 +300,7 @@ typedef struct %(cc_name)sCompletionCB
 static void qmp_%(c_name)s_cb(void *qmp__opaque, QObject *qmp__retval, Error *qmp__err)
 {
     %(cc_name)sCompletionCB *qmp__cb = qmp__opaque;
-    QmpMarshalState qmp__mstate_obj, *qmp__mstate = &qmp__mstate_obj;
+    QmpMarshalState qmp__mstate_obj = {}, *qmp__mstate = &qmp__mstate_obj;
 ''',
                 cc_name=camel_case(name), c_name=c_var(name))
 
@@ -367,14 +367,12 @@ def gen_lib_definition(name, options, retval, proxy=False, async=False):
 %(fn_decl)s
 {
     QDict *qmp__args = qdict_new();
-    QmpMarshalState qmp__mstate_obj, *qmp__mstate = &qmp__mstate_obj;
 ''',
                         fn_decl=fn_decl)
     if async:
         ret += mcgen('''
+    QmpMarshalState qmp__mstate_obj = {}, *qmp__mstate = &qmp__mstate_obj;
     %(cc_name)sCompletionCB *qmp__cb = qemu_mallocz(sizeof(*qmp__cb));
-
-    (void)qmp__mstate;
 
     qmp__cb->cb = qmp__cc;
     qmp__cb->opaque = qmp__opaque;
@@ -384,6 +382,7 @@ def gen_lib_definition(name, options, retval, proxy=False, async=False):
         ret += mcgen('''
     Error *qmp__local_err = NULL;
     QObject *qmp__retval = NULL;
+    QmpMarshalState *qmp__mstate = &qmp__session->mstate;
 ''')
         if retval != 'none':
             ret += cgen('    %(ret_type)s qmp__native_retval = 0;',
@@ -393,7 +392,6 @@ def gen_lib_definition(name, options, retval, proxy=False, async=False):
     ret += mcgen('''
 
     (void)qmp__mstate;
-
 ''')
 
     for argname, argtype, optional in parse_args(options):
@@ -571,9 +569,9 @@ static void qmp_async_completion_%(c_name)s(void *qmp__opaque, %(ret_type)s qmp_
         ret += cgen('    QObject *qmp__ret_data;')
     ret += mcgen('''
     QmpCommandState *qmp__cmd = qmp__opaque;
-    QmpMarshalState qmp__mstate_obj, *qmp__mstate = &qmp__mstate_obj;
+    QmpMarshalState *qmp__mstate;
 
-    (void)qmp__mstate;
+    qmp__mstate = qmp_state_get_mstate(qmp__cmd->state);
 
     if (qmp__err) {
         qmp_async_complete_command(qmp__cmd, NULL, qmp__err);
@@ -633,9 +631,9 @@ static void qmp_marshal_%(c_name)s(%(args)s)
 {
     QDict *qmp__args = qdict_new();
     QmpConnection *qmp__conn = opaque;
-    QmpMarshalState qmp__mstate_obj, *qmp__mstate = &qmp__mstate_obj;
+    QmpMarshalState *qmp__mstate;
 
-    (void)qmp__mstate;
+    qmp__mstate = qmp_state_get_mstate(qmp__conn->state);
 ''',
                      c_name=qmp_event_to_c(retval),
                      args=', '.join(arglist))
@@ -665,13 +663,6 @@ static void qmp_marshal_%(c_name)s(QmpState *qmp__sess, const QDict *qdict, QObj
     QmpConnection *qmp__connection = qemu_mallocz(sizeof(QmpConnection));
 ''',
                      c_name=c_var(name))
-    elif qmp_is_stateful_cmd(name):
-        ret += mcgen('''
-
-static void qmp_marshal_%(c_name)s(QmpState *qmp__sess, const QDict *qdict, QObject **ret_data, Error **err)
-{
-''',
-                     c_name=c_var(name))
     elif async:
         ret += mcgen('''
 
@@ -682,13 +673,14 @@ static void qmp_marshal_%(c_name)s(const QDict *qdict, Error **err, QmpCommandSt
     else:
         ret += mcgen('''
 
-static void qmp_marshal_%(c_name)s(const QDict *qdict, QObject **ret_data, Error **err)
+static void qmp_marshal_%(c_name)s(QmpState *qmp__sess, const QDict *qdict, QObject **ret_data, Error **err)
 {
-''', 
+''',
                      c_name=c_var(name))
+
     ret += mcgen('''
     Error *qmp__err = NULL;
-    QmpMarshalState qmp__mstate_obj, *qmp__mstate = &qmp__mstate_obj;
+    QmpMarshalState *qmp__mstate;
 ''')
 
     for argname, argtype, optional in parse_args(options):
@@ -706,10 +698,17 @@ static void qmp_marshal_%(c_name)s(const QDict *qdict, QObject **ret_data, Error
 ''',
                      type=qmp_type_to_c(retval, True))
 
-    ret += mcgen('''
+    if async:
+        ret += mcgen('''
 
     (void)qmp__err;
-    (void)qmp__mstate;
+    qmp__mstate = qmp_state_get_mstate(qmp__cmd->state);
+''')
+    else:
+        ret += mcgen('''
+
+    (void)qmp__err;
+    qmp__mstate = qmp_state_get_mstate(qmp__sess);
 ''')
 
     for argname, argtype, optional in parse_args(options):
@@ -2268,12 +2267,7 @@ static void qmp_init_marshal(void)
             if s.has_key('returns'):
                 retval = s['returns']
 
-            if qmp_type_is_event(retval) or qmp_is_stateful_cmd(name):
-                ret += mcgen('''
-    qmp_register_stateful_command("%(name)s", &qmp_marshal_%(c_name)s);
-''',
-                             name=name, c_name=c_var(name))
-            elif qmp_is_async_cmd(name):
+            if qmp_is_async_cmd(name):
                 ret += mcgen('''
     qmp_register_async_command("%(name)s", &qmp_marshal_%(c_name)s);
 ''',

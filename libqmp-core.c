@@ -66,7 +66,7 @@ static void fd_qmp_session_process_event(FdQmpSession *fs, QDict *response)
                 }
 
                 QTAILQ_FOREACH(conn, &signal->connections, node) {
-                    tramp(args, conn->fn, conn->opaque, &err);
+                    tramp(&fs->session, args, conn->fn, conn->opaque, &err);
                     if (err) {
                         error_free(err);
                     }

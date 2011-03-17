@@ -5,7 +5,7 @@
 #include "qmp-marshal-types.h"
 #include "error_int.h"
 
-typedef void (EventTrampolineFunc)(QDict *qmp__args, void *qmp__fn, void *qmp__opaque, Error **qmp__errp);
+typedef void (EventTrampolineFunc)(QmpSession *qmp__sess, QDict *qmp__args, void *qmp__fn, void *qmp__opaque, Error **qmp__errp);
 
 typedef struct QmpEventTrampoline
 {
@@ -37,6 +37,7 @@ struct QmpSession
     bool (*wait_event)(QmpSession *session, struct timeval *tv);
     QTAILQ_HEAD(, QmpEventTrampoline) events;
     QTAILQ_HEAD(, QmpSignal) signals;
+    QmpMarshalState mstate;
 };
 
 void libqmp_init_events(QmpSession *sess);

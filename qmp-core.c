@@ -11,7 +11,6 @@
 typedef enum QmpCommandType
 {
     QCT_NORMAL,
-    QCT_STATEFUL,
     QCT_ASYNC,
 } QmpCommandType;
 
@@ -20,7 +19,6 @@ typedef struct QmpCommand
     const char *name;
     QmpCommandType type;
     QmpCommandFunc *fn;
-    QmpStatefulCommandFunc *sfn;
     QmpAsyncCommandFunc *afn;
     QTAILQ_ENTRY(QmpCommand) node;
 } QmpCommand;
@@ -35,16 +33,6 @@ void qmp_register_command(const char *name, QmpCommandFunc *fn)
     cmd->name = name;
     cmd->type = QCT_NORMAL;
     cmd->fn = fn;
-    QTAILQ_INSERT_TAIL(&qmp_commands, cmd, node);
-}
-
-void qmp_register_stateful_command(const char *name, QmpStatefulCommandFunc *fn)
-{
-    QmpCommand *cmd = qemu_mallocz(sizeof(*cmd));
-
-    cmd->name = name;
-    cmd->type = QCT_STATEFUL;
-    cmd->sfn = fn;
     QTAILQ_INSERT_TAIL(&qmp_commands, cmd, node);
 }
 
@@ -100,6 +88,7 @@ struct QmpState
     int (*get_fd)(QmpState *s);
 
     QTAILQ_HEAD(, DefaultQmpConnection) default_connections;
+    QmpMarshalState mstate;
 };
 
 void qmp_state_add_connection(QmpState *sess, const char *event_name, QmpSignal *obj, int handle, QmpConnection *conn)
@@ -114,6 +103,11 @@ void qmp_state_add_connection(QmpState *sess, const char *event_name, QmpSignal 
 int qmp_state_get_fd(QmpState *sess)
 {
     return sess->get_fd(sess);
+}
+
+QmpMarshalState *qmp_state_get_mstate(QmpState *sess)
+{
+    return &sess->mstate;
 }
 
 void qmp_put_event(QmpState *sess, int64_t global_handle, Error **errp)
@@ -311,12 +305,6 @@ typedef struct QmpSession
     QTAILQ_HEAD(, QmpConnection) connections;
 } QmpSession;
 
-struct QmpCommandState
-{
-    QmpState *state;
-    QObject *tag;
-};
-
 static QObject *qmp_dispatch_err(QmpState *state, QList *tokens, Error **errp)
 {
     const char *command;
@@ -362,13 +350,7 @@ static QObject *qmp_dispatch_err(QmpState *state, QList *tokens, Error **errp)
 
     switch (cmd->type) {
     case QCT_NORMAL:
-        cmd->fn(args, &ret, errp);
-        if (ret == NULL) {
-            ret = QOBJECT(qdict_new());
-        }
-        break;
-    case QCT_STATEFUL:
-        cmd->sfn(state, args, &ret, errp);
+        cmd->fn(state, args, &ret, errp);
         if (ret == NULL) {
             ret = QOBJECT(qdict_new());
         }

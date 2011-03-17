@@ -5,12 +5,16 @@
 #include "qmp-marshal-types.h"
 #include "error_int.h"
 
-typedef void (QmpCommandFunc)(const QDict *, QObject **, Error **);
-typedef void (QmpStatefulCommandFunc)(QmpState *qmp__sess, const QDict *, QObject **, Error **);
+struct QmpCommandState
+{
+    QmpState *state;
+    QObject *tag;
+};
+
+typedef void (QmpCommandFunc)(QmpState *qmp__sess, const QDict *, QObject **, Error **);
 typedef void (QmpAsyncCommandFunc)(const QDict *, Error **, QmpCommandState *);
 
 void qmp_register_command(const char *name, QmpCommandFunc *fn);
-void qmp_register_stateful_command(const char *name, QmpStatefulCommandFunc *fn);
 void qmp_register_async_command(const char *name, QmpAsyncCommandFunc *fn);
 void qmp_init_chardev(CharDriverState *chr);
 
@@ -57,6 +61,7 @@ void qmp_signal_disconnect(QmpSignal *obj, int handle);
 
 void qmp_state_add_connection(QmpState *sess, const char *name, QmpSignal *obj, int handle, QmpConnection *conn);
 void qmp_state_event(QmpConnection *conn, QObject *data);
+QmpMarshalState *qmp_state_get_mstate(QmpState *sess);
 
 int qmp_state_get_fd(QmpState *sess);
 
