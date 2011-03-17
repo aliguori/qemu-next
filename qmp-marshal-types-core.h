@@ -11,6 +11,7 @@ typedef struct QmpMarshalState QmpMarshalState;
 
 struct QmpMarshalState
 {
+    bool non_canonical_handles;
 };
 
 QObject *qmp_marshal_type_int(QmpMarshalState *qmp__mstate, int64_t value);

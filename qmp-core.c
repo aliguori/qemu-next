@@ -520,6 +520,7 @@ void qmp_init_chardev(CharDriverState *chr)
     s->state.del_connection = qmp_chr_del_connection;
     s->state.get_fd = qmp_chr_get_fd;
     QTAILQ_INIT(&s->state.default_connections);
+    s->state.mstate.non_canonical_handles = true;
 
     s->max_global_handle = 0;
     QTAILQ_INIT(&s->connections);
@@ -735,6 +736,7 @@ static void qmp_unix_server_read_event(void *opaque)
     sess->state.get_fd = qmp_unix_session_get_fd;
     QTAILQ_INIT(&sess->state.default_connections);
     QTAILQ_INIT(&sess->connections);
+    sess->state.mstate.non_canonical_handles = true;
 
     json_message_parser_init(&sess->parser, qmp_unix_session_parse);
     qmp_unix_session_update_handlers(sess);

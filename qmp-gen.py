@@ -1829,8 +1829,15 @@ def gen_handle_marshal_definition(name, typeinfo):
 
 QObject *qmp_marshal_type_%(name)s(QmpMarshalState *qmp__mstate, %(type)s src)
 {
-    QDict *dict = qdict_new();
-    QString *handle = qstring_from_str("%(name)s");
+    QDict *dict;
+    QString *handle;
+
+    if (qmp__mstate->non_canonical_handles) {
+        return %(marshal)s(qmp__mstate, src->info);
+    }
+
+    dict = qdict_new();
+    handle = qstring_from_str("%(name)s");
 
     qdict_put(dict, "__handle__", handle);
     qdict_put_obj(dict, "data", %(marshal)s(qmp__mstate, src->info));
@@ -1845,6 +1852,21 @@ QObject *qmp_marshal_type_%(name)s(QmpMarshalState *qmp__mstate, %(type)s src)
     Error *local_err = NULL;
     %(data_type)s info;
     %(type)s retval;
+
+    if (qmp__mstate->non_canonical_handles) {
+        info = %(data_unmarshal)s(qmp__mstate, src, &local_err);
+        if (local_err) {
+            goto out;
+        }
+
+        retval = qapi_new_%(dcc_name)s(info, &local_err);
+        if (local_err) {
+            goto out;
+        }
+
+        %(data_free)s(info);
+        return retval;
+    }
 
     if (qobject_type(src) != QTYPE_QDICT) {
         error_set(&local_err, QERR_INVALID_PARAMETER_TYPE, "<unknown>", "JSON object");

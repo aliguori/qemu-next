@@ -242,6 +242,7 @@ QmpSession *qmp_session_new(int fd)
     s->session.dispatch = qmp_session_fd_dispatch;
     s->session.wait_event = qmp_session_fd_wait_event;
     s->got_greeting = false;
+    s->session.mstate.non_canonical_handles = true;
 
     QTAILQ_INIT(&s->session.events);
     QTAILQ_INIT(&s->session.signals);
