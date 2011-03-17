@@ -197,6 +197,9 @@ qcfg-opts.h: $(SRC_PATH)/qapi-schema.json $(SRC_PATH)/qmp-gen.py
 qcfg-opts.c: $(SRC_PATH)/qapi-schema.json $(SRC_PATH)/qmp-gen.py
 	$(call quiet-command,python $(SRC_PATH)/qmp-gen.py --opts-body $@ < $<, "  GEN   $@")
 
+qmp/schema.py: $(SRC_PATH)/qapi-schema.json $(SRC_PATH)/qmp-gen.py
+	$(call quiet-command,python $(SRC_PATH)/qmp-gen.py --pybinding $@ < $<, "  GEN   $@")
+
 qmp-marshal.o: qmp-marshal.c qmp.h qapi-types.h
 qapi-types.o: qapi-types.c qapi-types.h
 libqmp.o: libqmp.c libqmp.h qapi-types.h
@@ -262,6 +265,8 @@ test-report.log: test-libqmp test-qcfg
 	$(call quiet-command, gtester -k -o $@ $^ 2>/dev/null >/dev/null || true, "  TEST  $<")
 
 qsh: qsh.o $(LIBQMP_OBJS) qemu-timer-common.o
+
+pyqmp: qmp/schema.py
 
 clean:
 # avoid old build problems by removing potentially incorrect old files
