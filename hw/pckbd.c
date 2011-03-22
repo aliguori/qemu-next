@@ -366,7 +366,7 @@ static void kbd_reset(void *opaque)
 }
 
 static const VMStateDescription vmstate_kbd = {
-    .name = "pckbd",
+    .name = "mm-pckbd",
     .version_id = 3,
     .minimum_version_id = 3,
     .minimum_version_id_old = 3,
