@@ -114,7 +114,7 @@ static const VMStateInfo vmstate_hack_uint16_from_uint8 = {
 };
 
 #define VMSTATE_UINT16_HACK_TEST(_f, _s, _t)                           \
-    VMSTATE_SINGLE_TEST(_f, _s, _t, 0, vmstate_hack_uint16_from_uint8, uint16_t)
+    VMSTATE_SINGLE_TEST_HACK(_f, _s, _t, 0, vmstate_hack_uint16_from_uint8, uint16_t)
 
 static bool is_old_eeprom_version(void *opaque, int version_id)
 {
