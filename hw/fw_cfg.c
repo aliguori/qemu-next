@@ -194,7 +194,7 @@ static const VMStateInfo vmstate_hack_uint32_as_uint16 = {
 };
 
 #define VMSTATE_UINT16_HACK(_f, _s, _t)                                    \
-    VMSTATE_SINGLE_TEST(_f, _s, _t, 0, vmstate_hack_uint32_as_uint16, uint32_t)
+    VMSTATE_SINGLE_TEST_HACK(_f, _s, _t, 0, vmstate_hack_uint32_as_uint16, uint32_t)
 
 
 static bool is_version_1(void *opaque, int version_id)
