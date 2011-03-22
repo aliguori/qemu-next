@@ -82,6 +82,7 @@
 #include "migration.h"
 #include "qemu_socket.h"
 #include "qemu-queue.h"
+#include "qemu-objects.h"
 
 #define SELF_ANNOUNCE_ROUNDS 5
 
@@ -1283,6 +1284,85 @@ void vmstate_unregister(DeviceState *dev, const VMStateDescription *vmsd,
             qemu_free(se);
         }
     }
+}
+
+typedef struct VmsdEntry
+{
+    const VMStateDescription *desc;
+    QTAILQ_ENTRY(VmsdEntry) node;
+} VmsdEntry;
+
+static QTAILQ_HEAD(, VmsdEntry) vmsd_description_list =
+    QTAILQ_HEAD_INITIALIZER(vmsd_description_list);
+
+void register_vmstate_description(const VMStateDescription *desc)
+{
+    VmsdEntry *e = qemu_mallocz(sizeof(*e));
+
+    e->desc = desc;
+    QTAILQ_INSERT_TAIL(&vmsd_description_list, e, node);
+}
+
+static QDict *vmstate_dump_state(const VMStateDescription *desc)
+{
+    VMStateField *f;
+    QDict *ret;
+
+    ret = qdict_new();
+
+    qdict_put(ret, "__version__", qint_from_int(desc->version_id));
+    for (f = desc->fields; f && f->name; f++) {
+        if (qdict_haskey(ret, f->name)) {
+            fprintf(stderr, "vmstate: duplicate key `%s' in `%s'\n",
+                    f->name, desc->name);
+            exit(1);
+        }
+        if (f->vmsd) {
+            qdict_put(ret, f->name, vmstate_dump_state(f->vmsd));
+        } else {
+            qdict_put(ret, f->name, qstring_from_str(f->info->name));
+        }
+    }
+
+    return ret;
+}
+
+void vmstate_dump_schema(void)
+{
+    QDict *items;
+    QString *str;
+    VmsdEntry *e;
+    DeviceInfo *info;
+
+    items = qdict_new();
+
+    QTAILQ_FOREACH(e, &vmsd_description_list, node) {
+        if (qdict_haskey(items, e->desc->name)) {
+            fprintf(stderr, "vmstate: duplicate devices of name `%s'\n",
+                    e->desc->name);
+            exit(1);
+        }
+        qdict_put(items, e->desc->name, vmstate_dump_state(e->desc));
+    }
+
+    for (info = device_info_list; info; info = info->next) {
+        if (!info->vmsd) {
+            continue;
+        }
+
+        if (qdict_haskey(items, info->vmsd->name)) {
+            fprintf(stderr, "vmstate: duplicate devices of name `%s'\n",
+                    info->vmsd->name);
+            exit(1);
+        }
+        qdict_put(items, info->vmsd->name, vmstate_dump_state(info->vmsd));
+    }
+
+    str = qobject_to_json_pretty(QOBJECT(items));
+    printf("%s\n", qstring_get_str(str));
+
+    QDECREF(str);
+    QDECREF(items);
 }
 
 static void vmstate_subsection_save(QEMUFile *f, const VMStateDescription *vmsd,

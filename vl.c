@@ -2038,6 +2038,7 @@ int main(int argc, char **argv, char **envp)
 #endif
     int defconfig = 1;
     const char *trace_file = NULL;
+    bool vmstate_dump = false;
 
     atexit(qemu_run_exit_notifiers);
     error_set_progname(argv[0]);
@@ -2876,6 +2877,9 @@ int main(int argc, char **argv, char **envp)
                     fclose(fp);
                     break;
                 }
+            case QEMU_OPTION_vmstate_dump:
+                vmstate_dump = true;
+                break;
             default:
                 os_parse_cmd_args(popt->index, optarg);
             }
@@ -3123,6 +3127,12 @@ int main(int argc, char **argv, char **envp)
         qdev_prop_register_global_list(machine->compat_props);
     }
     qemu_add_globals();
+
+    if (vmstate_dump) {
+        module_call_init(MODULE_INIT_VMSTATE);
+        vmstate_dump_schema();
+        exit(0);
+    }
 
     machine->init(ram_size, boot_devices,
                   kernel_filename, kernel_cmdline, initrd_filename, cpu_model);

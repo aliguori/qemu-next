@@ -2368,6 +2368,16 @@ Specify a trace file to log output traces to.
 ETEXI
 #endif
 
+DEF("vmstate-dump", 0, QEMU_OPTION_vmstate_dump,
+    "-vmstate-dump   output the current VMState schema and exit\n",
+    QEMU_ARCH_ALL)
+STEXI
+@item -vmstate-dump
+@findex -vmstate-dump
+This option is only used for an internal test suite.  The output format may
+change in the future.
+ETEXI
+
 HXCOMM This is the last statement. Insert new options before this line!
 STEXI
 @end table

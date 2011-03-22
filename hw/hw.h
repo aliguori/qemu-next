@@ -924,4 +924,9 @@ int vmstate_register_with_alias_id(DeviceState *dev, int instance_id,
                                    int required_for_version);
 void vmstate_unregister(DeviceState *dev, const VMStateDescription *vmsd,
                         void *opaque);
+
+void register_vmstate_description(const VMStateDescription *desc);
+
+void vmstate_dump_schema(void);
+
 #endif
