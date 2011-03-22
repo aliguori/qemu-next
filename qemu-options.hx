@@ -2349,6 +2349,15 @@ Specify a trace file to log output traces to.
 ETEXI
 #endif
 
+DEF("dump-savevm", HAS_ARG, QEMU_OPTION_dump_savevm,
+    "-dump-savevm VERSION\n"
+    "                dump the savevm schema for a given version\n",
+    QEMU_ARCH_ALL)
+STEXI
+@item -dump-savevm
+@findex -dump-savevm
+ETEXI
+
 HXCOMM This is the last statement. Insert new options before this line!
 STEXI
 @end table

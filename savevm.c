@@ -1436,6 +1436,28 @@ static void vmstate_save(QEMUFile *f, SaveStateEntry *se)
     vmstate_save_state(f,se->vmsd, se->opaque);
 }
 
+void vmstate_dump(FILE *f, int version)
+{
+    SaveStateEntry *se;
+    bool first = true;
+
+    QTAILQ_FOREACH(se, &savevm_handlers, entry) {
+        VMStateField *field;
+        if (!se->vmsd) {
+            continue;
+        }
+        if (first) {
+            first = false;
+        } else {
+            fprintf(f, "\n");
+        }
+        fprintf(f, "%s.__version__ = %d\n", se->vmsd->name, se->version_id);
+        for (field = se->vmsd->fields; field->name; field++) {
+            fprintf(f, "%s.%s\n", se->vmsd->name, field->name);
+        }
+    }
+}
+
 #define QEMU_VM_FILE_MAGIC           0x5145564d
 #define QEMU_VM_FILE_VERSION_COMPAT  0x00000002
 #define QEMU_VM_FILE_VERSION         0x00000003

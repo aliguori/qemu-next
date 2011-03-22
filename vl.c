@@ -1941,6 +1941,7 @@ int main(int argc, char **argv, char **envp)
     int show_vnc_port = 0;
     int defconfig = 1;
     const char *trace_file = NULL;
+    int dump_savevm = -1;
 
     atexit(qemu_run_exit_notifiers);
     error_set_progname(argv[0]);
@@ -2760,6 +2761,9 @@ int main(int argc, char **argv, char **envp)
                     fclose(fp);
                     break;
                 }
+            case QEMU_OPTION_dump_savevm:
+                dump_savevm = atoi(optarg);
+                break;
             default:
                 os_parse_cmd_args(popt->index, optarg);
             }
@@ -3012,6 +3016,11 @@ int main(int argc, char **argv, char **envp)
                   kernel_filename, kernel_cmdline, initrd_filename, cpu_model);
 
     cpu_synchronize_all_post_init();
+
+    if (dump_savevm != -1) {
+        vmstate_dump(stdout, dump_savevm);
+        exit(0);
+    }
 
     /* must be after terminal init, SDL library changes signal handlers */
     os_setup_signal_handling();
