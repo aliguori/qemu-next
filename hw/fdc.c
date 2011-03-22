@@ -1939,7 +1939,7 @@ static ISADeviceInfo isa_fdc_info = {
 };
 
 static const VMStateDescription vmstate_sysbus_fdc ={
-    .name = "fdc",
+    .name = "sysbus-fdc",
     .version_id = 2,
     .minimum_version_id = 2,
     .fields = (VMStateField []) {
