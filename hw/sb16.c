@@ -77,6 +77,7 @@ typedef struct SB16State {
 
     int v2x6;
 
+    uint8_t csp_param_dummy;
     uint8_t csp_param;
     uint8_t csp_value;
     uint8_t csp_mode;
@@ -1313,7 +1314,7 @@ static const VMStateDescription vmstate_sb16 = {
         VMSTATE_INT32(can_write, SB16State),
         VMSTATE_INT32(v2x6, SB16State),
 
-        VMSTATE_UINT8(csp_param, SB16State),
+        VMSTATE_UINT8(csp_param_dummy, SB16State),
         VMSTATE_UINT8(csp_value, SB16State),
         VMSTATE_UINT8(csp_mode, SB16State),
         VMSTATE_UINT8(csp_param, SB16State),
