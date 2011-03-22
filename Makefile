@@ -25,7 +25,8 @@ Makefile: ;
 configure: ;
 
 .PHONY: all clean cscope distclean dvi html info install install-doc \
-	pdf recurse-all speed tar tarbin test build-all
+	pdf recurse-all speed tar tarbin test build-all check-vmstate check \
+        check-help
 
 $(call set-vpath, $(SRC_PATH):$(SRC_PATH)/hw)
 
@@ -71,7 +72,9 @@ defconfig:
 
 -include config-all-devices.mak
 
-build-all: $(DOCS) $(TOOLS) recurse-all
+TESTS=test-vmstate
+
+build-all: $(DOCS) $(TOOLS) $(TESTS) recurse-all
 
 config-host.h: config-host.h-timestamp
 config-host.h-timestamp: config-host.mak
@@ -145,6 +148,33 @@ trace-dtrace.o: trace-dtrace.dtrace $(GENERATED_HEADERS)
 	$(call quiet-command,dtrace -o $@ -G -s $<, "  GEN trace-dtrace.o")
 
 simpletrace.o: simpletrace.c $(GENERATED_HEADERS)
+
+vmstate-schema.c: $(SRC_PATH)/vmstate/schema.json
+	$(call quiet-command,$(SRC_PATH)/scripts/json2c.sh < $^ > $@,"  GEN   $@")
+
+test-vmstate-obj-y  = qfloat.o qint.o qdict.o qstring.o qlist.o qbool.o qjson.o
+test-vmstate-obj-y += json-streamer.o json-lexer.o json-parser.o 
+test-vmstate-obj-y += vmstate-schema.o qemu-malloc.o $(oslib-obj-y)
+
+test-vmstate: test-vmstate.o $(test-vmstate-obj-y)
+
+check-vmstate: test-vmstate
+	@./test-vmstate
+
+check: check-vmstate
+
+check-help:
+	@echo " make check             run all check tests against build"
+	@echo " make check-vmstate     run VMState checks"
+	@echo " make test-report.html  make an HTML report of make check"
+
+test-report.log: $(TESTS)
+	@gtester -k -o $@ $^
+
+test-report.html: test-report.log
+	@gtester-report $^ > $@
+
+-include $(SUBDIR_DEVICES_MAK_DEP)
 
 version.o: $(SRC_PATH)/version.rc config-host.mak
 	$(call quiet-command,$(WINDRES) -I. -o $@ $<,"  RC    $(TARGET_DIR)$@")
