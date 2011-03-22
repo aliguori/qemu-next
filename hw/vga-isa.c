@@ -72,10 +72,19 @@ static int vga_initfn(ISADevice *dev)
     return 0;
 }
 
+static const VMStateDescription vmstate_vga_isa = {
+    .name = "isa-vga",
+    .version_id = 1,
+    .fields = (VMStateField []) {
+        VMSTATE_STRUCT(state, ISAVGAState, 0, vmstate_vga_common, VGACommonState),
+        VMSTATE_END_OF_LIST(),
+    },
+};
+
 static ISADeviceInfo vga_info = {
     .qdev.name     = "isa-vga",
     .qdev.size     = sizeof(ISAVGAState),
-    .qdev.vmsd     = &vmstate_vga_common,
+    .qdev.vmsd     = &vmstate_vga_isa,
     .qdev.reset     = vga_reset_isa,
     .qdev.no_user  = 1,
     .init          = vga_initfn,
