@@ -1783,6 +1783,7 @@ static ssize_t nic_receive(VLANClientState *nc, const uint8_t * buf, size_t size
 }
 
 static const VMStateDescription vmstate_eepro100 = {
+    .name = "eepro100-base",
     .version_id = 3,
     .minimum_version_id = 2,
     .minimum_version_id_old = 2,
@@ -2061,6 +2062,8 @@ static void eepro100_register_devices(void)
         pci_dev->qdev.size = sizeof(EEPRO100State);
         pci_qdev_register(pci_dev);
     }
+
+    register_vmstate_description(&vmstate_eepro100);
 }
 
 device_init(eepro100_register_devices)

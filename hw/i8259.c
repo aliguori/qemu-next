@@ -537,3 +537,10 @@ qemu_irq *i8259_init(qemu_irq parent_irq)
     isa_pic = s;
     return qemu_allocate_irqs(i8259_set_irq, s, 16);
 }
+
+static void i8259_vmstate_init(void)
+{
+    register_vmstate_description(&vmstate_pic);
+}
+
+device_init(i8259_vmstate_init);

@@ -334,4 +334,11 @@ uint16_t *eeprom93xx_data(eeprom_t *eeprom)
     return &eeprom->contents[0];
 }
 
+static void eeprom93xx_vmstate_init(void)
+{
+    register_vmstate_description(&vmstate_eeprom);
+}
+
+device_init(eeprom93xx_vmstate_init);
+
 /* eof */

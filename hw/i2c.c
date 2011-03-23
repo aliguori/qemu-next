@@ -194,3 +194,10 @@ DeviceState *i2c_create_slave(i2c_bus *bus, const char *name, uint8_t addr)
     qdev_init_nofail(dev);
     return dev;
 }
+
+static void i2c_vmstate_init(void)
+{
+    register_vmstate_description(&vmstate_i2c_bus);
+}
+
+device_init(i2c_vmstate_init);

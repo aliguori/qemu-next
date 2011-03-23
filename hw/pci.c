@@ -2136,3 +2136,10 @@ int pci_qdev_find_device(const char *id, PCIDevice **pdev)
 
     return rc;
 }
+
+static void pci_vmstate_init(void)
+{
+    register_vmstate_description(&vmstate_pcibus);
+}
+
+device_init(pci_vmstate_init);

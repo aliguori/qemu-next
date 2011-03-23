@@ -553,3 +553,10 @@ void DMA_init(int high_page_enable, qemu_irq *cpu_request_exit)
 
     dma_bh = qemu_bh_new(DMA_run_bh, NULL);
 }
+
+static void dma_vmstate_init(void)
+{
+    register_vmstate_description(&vmstate_dma);
+}
+
+device_init(dma_vmstate_init);

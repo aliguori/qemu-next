@@ -626,3 +626,11 @@ void *ps2_mouse_init(void (*update_irq)(void *, int), void *update_arg)
     qemu_register_reset(ps2_mouse_reset, s);
     return s;
 }
+
+static void ps2_vmstate_init(void)
+{
+    register_vmstate_description(&vmstate_ps2_keyboard);
+    register_vmstate_description(&vmstate_ps2_mouse);
+}
+
+device_init(ps2_vmstate_init);
