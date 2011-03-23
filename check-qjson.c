@@ -8,7 +8,7 @@
  * See the COPYING.LIB file in the top-level directory.
  *
  */
-#include <check.h>
+#include <glib.h>
 
 #include "qstring.h"
 #include "qint.h"
@@ -20,7 +20,7 @@
 
 #include "qemu-common.h"
 
-START_TEST(escaped_string)
+static void test_escaped_string(void)
 {
     int i;
     struct {
@@ -51,16 +51,16 @@ START_TEST(escaped_string)
 
         obj = qobject_from_json(test_cases[i].encoded);
 
-        fail_unless(obj != NULL);
-        fail_unless(qobject_type(obj) == QTYPE_QSTRING);
+        g_assert(obj != NULL);
+        g_assert(qobject_type(obj) == QTYPE_QSTRING);
         
         str = qobject_to_qstring(obj);
-        fail_unless(strcmp(qstring_get_str(str), test_cases[i].decoded) == 0,
+        g_assert(strcmp(qstring_get_str(str), test_cases[i].decoded) == 0,
                     "%s != %s\n", qstring_get_str(str), test_cases[i].decoded);
 
         if (test_cases[i].skip == 0) {
             str = qobject_to_json(obj);
-            fail_unless(strcmp(qstring_get_str(str),test_cases[i].encoded) == 0,
+            g_assert(strcmp(qstring_get_str(str),test_cases[i].encoded) == 0,
                         "%s != %s\n", qstring_get_str(str),
                                       test_cases[i].encoded);
 
@@ -70,9 +70,8 @@ START_TEST(escaped_string)
         QDECREF(str);
     }
 }
-END_TEST
 
-START_TEST(simple_string)
+static void test_simple_string(void)
 {
     int i;
     struct {
@@ -91,23 +90,22 @@ START_TEST(simple_string)
 
         obj = qobject_from_json(test_cases[i].encoded);
 
-        fail_unless(obj != NULL);
-        fail_unless(qobject_type(obj) == QTYPE_QSTRING);
+        g_assert(obj != NULL);
+        g_assert(qobject_type(obj) == QTYPE_QSTRING);
         
         str = qobject_to_qstring(obj);
-        fail_unless(strcmp(qstring_get_str(str), test_cases[i].decoded) == 0);
+        g_assert(strcmp(qstring_get_str(str), test_cases[i].decoded) == 0);
 
         str = qobject_to_json(obj);
-        fail_unless(strcmp(qstring_get_str(str), test_cases[i].encoded) == 0);
+        g_assert(strcmp(qstring_get_str(str), test_cases[i].encoded) == 0);
 
         qobject_decref(obj);
         
         QDECREF(str);
     }
 }
-END_TEST
 
-START_TEST(single_quote_string)
+static void test_single_quote_string(void)
 {
     int i;
     struct {
@@ -126,18 +124,17 @@ START_TEST(single_quote_string)
 
         obj = qobject_from_json(test_cases[i].encoded);
 
-        fail_unless(obj != NULL);
-        fail_unless(qobject_type(obj) == QTYPE_QSTRING);
+        g_assert(obj != NULL);
+        g_assert(qobject_type(obj) == QTYPE_QSTRING);
         
         str = qobject_to_qstring(obj);
-        fail_unless(strcmp(qstring_get_str(str), test_cases[i].decoded) == 0);
+        g_assert(strcmp(qstring_get_str(str), test_cases[i].decoded) == 0);
 
         QDECREF(str);
     }
 }
-END_TEST
 
-START_TEST(vararg_string)
+static void test_vararg_string(void)
 {
     int i;
     struct {
@@ -154,18 +151,17 @@ START_TEST(vararg_string)
 
         obj = qobject_from_jsonf("%s", test_cases[i].decoded);
 
-        fail_unless(obj != NULL);
-        fail_unless(qobject_type(obj) == QTYPE_QSTRING);
+        g_assert(obj != NULL);
+        g_assert(qobject_type(obj) == QTYPE_QSTRING);
         
         str = qobject_to_qstring(obj);
-        fail_unless(strcmp(qstring_get_str(str), test_cases[i].decoded) == 0);
+        g_assert(strcmp(qstring_get_str(str), test_cases[i].decoded) == 0);
 
         QDECREF(str);
     }
 }
-END_TEST
 
-START_TEST(simple_number)
+static void test_simple_number(void)
 {
     int i;
     struct {
@@ -186,25 +182,24 @@ START_TEST(simple_number)
         QInt *qint;
 
         obj = qobject_from_json(test_cases[i].encoded);
-        fail_unless(obj != NULL);
-        fail_unless(qobject_type(obj) == QTYPE_QINT);
+        g_assert(obj != NULL);
+        g_assert(qobject_type(obj) == QTYPE_QINT);
 
         qint = qobject_to_qint(obj);
-        fail_unless(qint_get_int(qint) == test_cases[i].decoded);
+        g_assert(qint_get_int(qint) == test_cases[i].decoded);
         if (test_cases[i].skip == 0) {
             QString *str;
 
             str = qobject_to_json(obj);
-            fail_unless(strcmp(qstring_get_str(str), test_cases[i].encoded) == 0);
+            g_assert(strcmp(qstring_get_str(str), test_cases[i].encoded) == 0);
             QDECREF(str);
         }
 
         QDECREF(qint);
     }
 }
-END_TEST
 
-START_TEST(float_number)
+static void test_float_number(void)
 {
     int i;
     struct {
@@ -224,26 +219,25 @@ START_TEST(float_number)
         QFloat *qfloat;
 
         obj = qobject_from_json(test_cases[i].encoded);
-        fail_unless(obj != NULL);
-        fail_unless(qobject_type(obj) == QTYPE_QFLOAT);
+        g_assert(obj != NULL);
+        g_assert(qobject_type(obj) == QTYPE_QFLOAT);
 
         qfloat = qobject_to_qfloat(obj);
-        fail_unless(qfloat_get_double(qfloat) == test_cases[i].decoded);
+        g_assert(qfloat_get_double(qfloat) == test_cases[i].decoded);
 
         if (test_cases[i].skip == 0) {
             QString *str;
 
             str = qobject_to_json(obj);
-            fail_unless(strcmp(qstring_get_str(str), test_cases[i].encoded) == 0);
+            g_assert(strcmp(qstring_get_str(str), test_cases[i].encoded) == 0);
             QDECREF(str);
         }
 
         QDECREF(qfloat);
     }
 }
-END_TEST
 
-START_TEST(vararg_number)
+static void test_vararg_number(void)
 {
     QObject *obj;
     QInt *qint;
@@ -253,85 +247,83 @@ START_TEST(vararg_number)
     double valuef = 2.323423423;
 
     obj = qobject_from_jsonf("%d", value);
-    fail_unless(obj != NULL);
-    fail_unless(qobject_type(obj) == QTYPE_QINT);
+    g_assert(obj != NULL);
+    g_assert(qobject_type(obj) == QTYPE_QINT);
 
     qint = qobject_to_qint(obj);
-    fail_unless(qint_get_int(qint) == value);
+    g_assert(qint_get_int(qint) == value);
 
     QDECREF(qint);
 
     obj = qobject_from_jsonf("%" PRId64, value64);
-    fail_unless(obj != NULL);
-    fail_unless(qobject_type(obj) == QTYPE_QINT);
+    g_assert(obj != NULL);
+    g_assert(qobject_type(obj) == QTYPE_QINT);
 
     qint = qobject_to_qint(obj);
-    fail_unless(qint_get_int(qint) == value64);
+    g_assert(qint_get_int(qint) == value64);
 
     QDECREF(qint);
 
     obj = qobject_from_jsonf("%f", valuef);
-    fail_unless(obj != NULL);
-    fail_unless(qobject_type(obj) == QTYPE_QFLOAT);
+    g_assert(obj != NULL);
+    g_assert(qobject_type(obj) == QTYPE_QFLOAT);
 
     qfloat = qobject_to_qfloat(obj);
-    fail_unless(qfloat_get_double(qfloat) == valuef);
+    g_assert(qfloat_get_double(qfloat) == valuef);
 
     QDECREF(qfloat);
 }
-END_TEST
 
-START_TEST(keyword_literal)
+static void test_keyword_literal(void)
 {
     QObject *obj;
     QBool *qbool;
     QString *str;
 
     obj = qobject_from_json("true");
-    fail_unless(obj != NULL);
-    fail_unless(qobject_type(obj) == QTYPE_QBOOL);
+    g_assert(obj != NULL);
+    g_assert(qobject_type(obj) == QTYPE_QBOOL);
 
     qbool = qobject_to_qbool(obj);
-    fail_unless(qbool_get_int(qbool) != 0);
+    g_assert(qbool_get_int(qbool) != 0);
 
     str = qobject_to_json(obj);
-    fail_unless(strcmp(qstring_get_str(str), "true") == 0);
+    g_assert(strcmp(qstring_get_str(str), "true") == 0);
     QDECREF(str);
 
     QDECREF(qbool);
 
     obj = qobject_from_json("false");
-    fail_unless(obj != NULL);
-    fail_unless(qobject_type(obj) == QTYPE_QBOOL);
+    g_assert(obj != NULL);
+    g_assert(qobject_type(obj) == QTYPE_QBOOL);
 
     qbool = qobject_to_qbool(obj);
-    fail_unless(qbool_get_int(qbool) == 0);
+    g_assert(qbool_get_int(qbool) == 0);
 
     str = qobject_to_json(obj);
-    fail_unless(strcmp(qstring_get_str(str), "false") == 0);
+    g_assert(strcmp(qstring_get_str(str), "false") == 0);
     QDECREF(str);
 
     QDECREF(qbool);
 
     obj = qobject_from_jsonf("%i", false);
-    fail_unless(obj != NULL);
-    fail_unless(qobject_type(obj) == QTYPE_QBOOL);
+    g_assert(obj != NULL);
+    g_assert(qobject_type(obj) == QTYPE_QBOOL);
 
     qbool = qobject_to_qbool(obj);
-    fail_unless(qbool_get_int(qbool) == 0);
+    g_assert(qbool_get_int(qbool) == 0);
 
     QDECREF(qbool);
     
     obj = qobject_from_jsonf("%i", true);
-    fail_unless(obj != NULL);
-    fail_unless(qobject_type(obj) == QTYPE_QBOOL);
+    g_assert(obj != NULL);
+    g_assert(qobject_type(obj) == QTYPE_QBOOL);
 
     qbool = qobject_to_qbool(obj);
-    fail_unless(qbool_get_int(qbool) != 0);
+    g_assert(qbool_get_int(qbool) != 0);
 
     QDECREF(qbool);
 }
-END_TEST
 
 typedef struct LiteralQDictEntry LiteralQDictEntry;
 typedef struct LiteralQObject LiteralQObject;
@@ -425,7 +417,7 @@ static int compare_litqobj_to_qobj(LiteralQObject *lhs, QObject *rhs)
     return 0;
 }
 
-START_TEST(simple_dict)
+static void test_simple_dict(void)
 {
     int i;
     struct {
@@ -459,26 +451,25 @@ START_TEST(simple_dict)
         QString *str;
 
         obj = qobject_from_json(test_cases[i].encoded);
-        fail_unless(obj != NULL);
-        fail_unless(qobject_type(obj) == QTYPE_QDICT);
+        g_assert(obj != NULL);
+        g_assert(qobject_type(obj) == QTYPE_QDICT);
 
-        fail_unless(compare_litqobj_to_qobj(&test_cases[i].decoded, obj) == 1);
+        g_assert(compare_litqobj_to_qobj(&test_cases[i].decoded, obj) == 1);
 
         str = qobject_to_json(obj);
         qobject_decref(obj);
 
         obj = qobject_from_json(qstring_get_str(str));
-        fail_unless(obj != NULL);
-        fail_unless(qobject_type(obj) == QTYPE_QDICT);
+        g_assert(obj != NULL);
+        g_assert(qobject_type(obj) == QTYPE_QDICT);
 
-        fail_unless(compare_litqobj_to_qobj(&test_cases[i].decoded, obj) == 1);
+        g_assert(compare_litqobj_to_qobj(&test_cases[i].decoded, obj) == 1);
         qobject_decref(obj);
         QDECREF(str);
     }
 }
-END_TEST
 
-START_TEST(simple_list)
+static void test_simple_list(void)
 {
     int i;
     struct {
@@ -523,26 +514,25 @@ START_TEST(simple_list)
         QString *str;
 
         obj = qobject_from_json(test_cases[i].encoded);
-        fail_unless(obj != NULL);
-        fail_unless(qobject_type(obj) == QTYPE_QLIST);
+        g_assert(obj != NULL);
+        g_assert(qobject_type(obj) == QTYPE_QLIST);
 
-        fail_unless(compare_litqobj_to_qobj(&test_cases[i].decoded, obj) == 1);
+        g_assert(compare_litqobj_to_qobj(&test_cases[i].decoded, obj) == 1);
 
         str = qobject_to_json(obj);
         qobject_decref(obj);
 
         obj = qobject_from_json(qstring_get_str(str));
-        fail_unless(obj != NULL);
-        fail_unless(qobject_type(obj) == QTYPE_QLIST);
+        g_assert(obj != NULL);
+        g_assert(qobject_type(obj) == QTYPE_QLIST);
 
-        fail_unless(compare_litqobj_to_qobj(&test_cases[i].decoded, obj) == 1);
+        g_assert(compare_litqobj_to_qobj(&test_cases[i].decoded, obj) == 1);
         qobject_decref(obj);
         QDECREF(str);
     }
 }
-END_TEST
 
-START_TEST(simple_whitespace)
+static void test_simple_whitespace(void)
 {
     int i;
     struct {
@@ -592,27 +582,26 @@ START_TEST(simple_whitespace)
         QString *str;
 
         obj = qobject_from_json(test_cases[i].encoded);
-        fail_unless(obj != NULL);
-        fail_unless(qobject_type(obj) == QTYPE_QLIST);
+        g_assert(obj != NULL);
+        g_assert(qobject_type(obj) == QTYPE_QLIST);
 
-        fail_unless(compare_litqobj_to_qobj(&test_cases[i].decoded, obj) == 1);
+        g_assert(compare_litqobj_to_qobj(&test_cases[i].decoded, obj) == 1);
 
         str = qobject_to_json(obj);
         qobject_decref(obj);
 
         obj = qobject_from_json(qstring_get_str(str));
-        fail_unless(obj != NULL);
-        fail_unless(qobject_type(obj) == QTYPE_QLIST);
+        g_assert(obj != NULL);
+        g_assert(qobject_type(obj) == QTYPE_QLIST);
 
-        fail_unless(compare_litqobj_to_qobj(&test_cases[i].decoded, obj) == 1);
+        g_assert(compare_litqobj_to_qobj(&test_cases[i].decoded, obj) == 1);
 
         qobject_decref(obj);
         QDECREF(str);
     }
 }
-END_TEST
 
-START_TEST(simple_varargs)
+static void test_simple_varargs(void)
 {
     QObject *embedded_obj;
     QObject *obj;
@@ -626,169 +615,118 @@ START_TEST(simple_varargs)
             {}}));
 
     embedded_obj = qobject_from_json("[32, 42]");
-    fail_unless(embedded_obj != NULL);
+    g_assert(embedded_obj != NULL);
 
     obj = qobject_from_jsonf("[%d, 2, %p]", 1, embedded_obj);
-    fail_unless(obj != NULL);
+    g_assert(obj != NULL);
 
-    fail_unless(compare_litqobj_to_qobj(&decoded, obj) == 1);
+    g_assert(compare_litqobj_to_qobj(&decoded, obj) == 1);
 
     qobject_decref(obj);
 }
-END_TEST
 
-START_TEST(empty_input)
+static void test_empty_input(void)
 {
     const char *empty = "";
 
     QObject *obj = qobject_from_json(empty);
-    fail_unless(obj == NULL);
+    g_assert(obj == NULL);
 }
-END_TEST
 
-START_TEST(unterminated_string)
+static void test_unterminated_string(void)
 {
     QObject *obj = qobject_from_json("\"abc");
-    fail_unless(obj == NULL);
+    g_assert(obj == NULL);
 }
-END_TEST
 
-START_TEST(unterminated_sq_string)
+static void test_unterminated_sq_string(void)
 {
     QObject *obj = qobject_from_json("'abc");
-    fail_unless(obj == NULL);
+    g_assert(obj == NULL);
 }
-END_TEST
 
-START_TEST(unterminated_escape)
+static void test_unterminated_escape(void)
 {
     QObject *obj = qobject_from_json("\"abc\\\"");
-    fail_unless(obj == NULL);
+    g_assert(obj == NULL);
 }
-END_TEST
 
-START_TEST(unterminated_array)
+static void test_unterminated_array(void)
 {
     QObject *obj = qobject_from_json("[32");
-    fail_unless(obj == NULL);
+    g_assert(obj == NULL);
 }
-END_TEST
 
-START_TEST(unterminated_array_comma)
+static void test_unterminated_array_comma(void)
 {
     QObject *obj = qobject_from_json("[32,");
-    fail_unless(obj == NULL);
+    g_assert(obj == NULL);
 }
-END_TEST
 
-START_TEST(invalid_array_comma)
+static void test_invalid_array_comma(void)
 {
     QObject *obj = qobject_from_json("[32,}");
-    fail_unless(obj == NULL);
+    g_assert(obj == NULL);
 }
-END_TEST
 
-START_TEST(unterminated_dict)
+static void test_unterminated_dict(void)
 {
     QObject *obj = qobject_from_json("{'abc':32");
-    fail_unless(obj == NULL);
+    g_assert(obj == NULL);
 }
-END_TEST
 
-START_TEST(unterminated_dict_comma)
+static void test_unterminated_dict_comma(void)
 {
     QObject *obj = qobject_from_json("{'abc':32,");
-    fail_unless(obj == NULL);
+    g_assert(obj == NULL);
 }
-END_TEST
 
 #if 0
-START_TEST(invalid_dict_comma)
+static void test_invalid_dict_comma(void)
 {
     QObject *obj = qobject_from_json("{'abc':32,}");
-    fail_unless(obj == NULL);
+    g_assert(obj == NULL);
 }
-END_TEST
 
-START_TEST(unterminated_literal)
+static void test_unterminated_literal(void)
 {
     QObject *obj = qobject_from_json("nul");
-    fail_unless(obj == NULL);
+    g_assert(obj == NULL);
 }
-END_TEST
 #endif
 
-static Suite *qjson_suite(void)
+int main(int argc, char **argv)
 {
-    Suite *suite;
-    TCase *string_literals, *number_literals, *keyword_literals;
-    TCase *dicts, *lists, *whitespace, *varargs, *errors;
+    g_test_init(&argc, &argv, NULL);
 
-    string_literals = tcase_create("String Literals");
-    tcase_add_test(string_literals, simple_string);
-    tcase_add_test(string_literals, escaped_string);
-    tcase_add_test(string_literals, single_quote_string);
-    tcase_add_test(string_literals, vararg_string);
-
-    number_literals = tcase_create("Number Literals");
-    tcase_add_test(number_literals, simple_number);
-    tcase_add_test(number_literals, float_number);
-    tcase_add_test(number_literals, vararg_number);
-
-    keyword_literals = tcase_create("Keywords");
-    tcase_add_test(keyword_literals, keyword_literal);
-    dicts = tcase_create("Objects");
-    tcase_add_test(dicts, simple_dict);
-    lists = tcase_create("Lists");
-    tcase_add_test(lists, simple_list);
-
-    whitespace = tcase_create("Whitespace");
-    tcase_add_test(whitespace, simple_whitespace);
-
-    varargs = tcase_create("Varargs");
-    tcase_add_test(varargs, simple_varargs);
-
-    errors = tcase_create("Invalid JSON");
-    tcase_add_test(errors, empty_input);
-    tcase_add_test(errors, unterminated_string);
-    tcase_add_test(errors, unterminated_escape);
-    tcase_add_test(errors, unterminated_sq_string);
-    tcase_add_test(errors, unterminated_array);
-    tcase_add_test(errors, unterminated_array_comma);
-    tcase_add_test(errors, invalid_array_comma);
-    tcase_add_test(errors, unterminated_dict);
-    tcase_add_test(errors, unterminated_dict_comma);
+    g_test_add_func("/strings/simple_string", test_simple_string);
+    g_test_add_func("/strings/escaped_string", test_escaped_string);
+    g_test_add_func("/strings/single_quote_string", test_single_quote_string);
+    g_test_add_func("/strings/vararg_string", test_vararg_string);
+    g_test_add_func("/numbers/simple_number", test_simple_number);
+    g_test_add_func("/numbers/float_number", test_float_number);
+    g_test_add_func("/numbers/vararg_number", test_vararg_number);
+    g_test_add_func("/keywords/literal", test_keyword_literal);
+    g_test_add_func("/dicts/simple_dict", test_simple_dict);
+    g_test_add_func("/lists/simple_list", test_simple_list);
+    g_test_add_func("/whitespace/simple_whitespace", test_simple_whitespace);
+    g_test_add_func("/varargs/simple_varargs", test_simple_varargs);
+    g_test_add_func("/invalid/empty_input", test_empty_input);
+    g_test_add_func("/invalid/unterminated_string", test_unterminated_string);
+    g_test_add_func("/invalid/unterminated_escape", test_unterminated_escape);
+    g_test_add_func("/invalid/unterminated_sq_string", test_unterminated_sq_string);
+    g_test_add_func("/invalid/unterminated_array", test_unterminated_array);
+    g_test_add_func("/invalid/unterminated_array_comma", test_unterminated_array_comma);
+    g_test_add_func("/invalid/invalid_array_comma", test_invalid_array_comma);
+    g_test_add_func("/invalid/unterminated_dict", test_unterminated_dict);
+    g_test_add_func("/invalid/unterminated_dict_comma", test_unterminated_dict_comma);
 #if 0
     /* FIXME: this print parse error messages on stderr.  */
-    tcase_add_test(errors, invalid_dict_comma);
-    tcase_add_test(errors, unterminated_literal);
+    g_test_add_func("/invalid/invalid_dict_comma", test_invalid_dict_comma);
+    g_test_add_func("/invalid/unterminated_literal", test_unterminated_literal);
 #endif
 
-    suite = suite_create("QJSON test-suite");
-    suite_add_tcase(suite, string_literals);
-    suite_add_tcase(suite, number_literals);
-    suite_add_tcase(suite, keyword_literals);
-    suite_add_tcase(suite, dicts);
-    suite_add_tcase(suite, lists);
-    suite_add_tcase(suite, whitespace);
-    suite_add_tcase(suite, varargs);
-    suite_add_tcase(suite, errors);
+    g_test_run();
 
-    return suite;
-}
-
-int main(void)
-{
-    int nf;
-    Suite *s;
-    SRunner *sr;
-
-    s = qjson_suite();
-    sr = srunner_create(s);
-        
-    srunner_run_all(sr, CK_NORMAL);
-    nf = srunner_ntests_failed(sr);
-    srunner_free(sr);
-    
-    return (nf == 0) ? EXIT_SUCCESS : EXIT_FAILURE;
+    return 0;
 }

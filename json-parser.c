@@ -88,6 +88,22 @@ static int token_is_escape(QObject *obj, const char *value)
     return (strcmp(token_get_value(obj), value) == 0);
 }
 
+static QObject *tokens_peek(QListEntry **tokens)
+{
+    return (*tokens)->value;
+}
+
+static QObject *tokens_pop(QListEntry **tokens)
+{
+    QListEntry *entry = *tokens;
+    QObject *token;
+
+    token = entry->value;
+    *tokens = qlist_next(entry);
+
+    return token;
+}
+
 /**
  * Error handler
  */
@@ -272,15 +288,14 @@ static int parse_pair(JSONParserContext *ctxt, QDict *dict, QListEntry **tokens,
     QObject *key, *token = NULL, *value, *peek;
     QListEntry *entry = *tokens;
 
-    peek = entry->value;
+    peek = tokens_peek(&entry);
     key = parse_value(ctxt, &entry, ap);
     if (!key || qobject_type(key) != QTYPE_QSTRING) {
         parse_error(ctxt, peek, "key is not a string in object");
         goto out;
     }
 
-    token = entry->value;
-    entry = qlist_next(entry);
+    token = tokens_pop(&entry);
     if (!token_is_operator(token, ':')) {
         parse_error(ctxt, token, "missing : in object pair");
         goto out;
@@ -311,22 +326,20 @@ static QObject *parse_object(JSONParserContext *ctxt, QListEntry **tokens, va_li
     QObject *token, *peek;
     QListEntry *entry = *tokens;
 
-    token = entry->value;
-    entry = qlist_next(entry);
+    token = tokens_pop(&entry);
     if (!token_is_operator(token, '{')) {
         goto out;
     }
 
     dict = qdict_new();
 
-    peek = entry->value;
+    peek = tokens_peek(&entry);
     if (!token_is_operator(peek, '}')) {
         if (parse_pair(ctxt, dict, &entry, ap) == -1) {
             goto out;
         }
 
-        token = entry->value;
-        entry = qlist_next(entry);
+        token = tokens_pop(&entry);
         while (!token_is_operator(token, '}')) {
             if (!token_is_operator(token, ',')) {
                 parse_error(ctxt, token, "expected separator in dict");
@@ -338,12 +351,11 @@ static QObject *parse_object(JSONParserContext *ctxt, QListEntry **tokens, va_li
                 goto out;
             }
 
-            token = entry->value;
-            entry = qlist_next(entry);
+            token = tokens_pop(&entry);
         }
         token = NULL;
     } else {
-        entry = qlist_next(entry);
+        tokens_pop(&entry);
         token = NULL;
     }
 
@@ -362,8 +374,7 @@ static QObject *parse_array(JSONParserContext *ctxt, QListEntry **tokens, va_lis
     QObject *token, *peek;
     QListEntry *entry = *tokens;
 
-    token = entry->value;
-    entry = qlist_next(entry);
+    token = tokens_pop(&entry);
     if (!token_is_operator(token, '[')) {
         goto out;
     }
@@ -371,7 +382,7 @@ static QObject *parse_array(JSONParserContext *ctxt, QListEntry **tokens, va_lis
 
     list = qlist_new();
 
-    peek = entry->value;
+    peek = tokens_peek(&entry);
     if (!token_is_operator(peek, ']')) {
         QObject *obj;
 
@@ -383,8 +394,7 @@ static QObject *parse_array(JSONParserContext *ctxt, QListEntry **tokens, va_lis
 
         qlist_append_obj(list, obj);
 
-        token = entry->value;
-        entry = qlist_next(entry);
+        token = tokens_pop(&entry);
         while (!token_is_operator(token, ']')) {
             if (!token_is_operator(token, ',')) {
                 parse_error(ctxt, token, "expected separator in list");
@@ -399,11 +409,10 @@ static QObject *parse_array(JSONParserContext *ctxt, QListEntry **tokens, va_lis
 
             qlist_append_obj(list, obj);
 
-            token = entry->value;
-            entry = qlist_next(entry);
+            token = tokens_pop(&entry);
         }
     } else {
-        entry = qlist_next(entry);
+        tokens_pop(&entry);
     }
 
     *tokens = entry;
@@ -420,8 +429,7 @@ static QObject *parse_keyword(JSONParserContext *ctxt, QListEntry **tokens)
     QObject *token, *ret;
     QListEntry *entry = *tokens;
 
-    token = entry->value;
-    entry = qlist_next(entry);
+    token = tokens_pop(&entry);
 
     if (token_get_type(token) != JSON_KEYWORD) {
         return NULL;
@@ -450,8 +458,7 @@ static QObject *parse_escape(JSONParserContext *ctxt, QListEntry **tokens, va_li
         return NULL;
     }
 
-    token = entry->value;
-    entry = qlist_next(entry);
+    token = tokens_pop(&entry);
 
     if (token_is_escape(token, "%p")) {
         obj = va_arg(*ap, QObject *);
@@ -482,8 +489,7 @@ static QObject *parse_literal(JSONParserContext *ctxt, QListEntry **tokens)
     QObject *token, *obj;
     QListEntry *entry = *tokens;
 
-    token = entry->value;
-    entry = qlist_next(entry);
+    token = tokens_pop(&entry);
     switch (token_get_type(token)) {
     case JSON_STRING:
         obj = QOBJECT(qstring_from_escaped_str(ctxt, token));
