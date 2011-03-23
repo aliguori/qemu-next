@@ -287,7 +287,7 @@ static const VMStateDescription vmstate_ioapic = {
     .fields = (VMStateField[]) {
         VMSTATE_UINT8(id, IOAPICState),
         VMSTATE_UINT8(ioregsel, IOAPICState),
-        VMSTATE_UNUSED_V(2, 8), /* to account for qemu-kvm's v2 format */
+        VMSTATE_UNUSED_V(0, 2, 8), /* to account for qemu-kvm's v2 format */
         VMSTATE_UINT32_V(irr, IOAPICState, 2),
         VMSTATE_UINT64_ARRAY(ioredtbl, IOAPICState, IOAPIC_NUM_PINS),
         VMSTATE_END_OF_LIST()

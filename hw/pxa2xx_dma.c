@@ -534,7 +534,7 @@ static VMStateDescription vmstate_pxa2xx_dma = {
     .minimum_version_id = 0,
     .minimum_version_id_old = 0,
     .fields = (VMStateField[]) {
-        VMSTATE_UNUSED_TEST(is_version_0, 4),
+        VMSTATE_UNUSED_TEST(0, is_version_0, 4),
         VMSTATE_UINT32(stopintr, PXA2xxDMAState),
         VMSTATE_UINT32(eorintr, PXA2xxDMAState),
         VMSTATE_UINT32(rasintr, PXA2xxDMAState),

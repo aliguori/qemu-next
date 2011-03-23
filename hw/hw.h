@@ -630,8 +630,8 @@ extern const VMStateInfo vmstate_info_unused_buffer;
     .offset     = offsetof(_state, _field),                          \
 }
 
-#define VMSTATE_UNUSED_BUFFER(_test, _version, _size) {              \
-    .name         = "unused" stringify(__LINE__),                    \
+#define VMSTATE_UNUSED_BUFFER(_index, _test, _version, _size) {      \
+    .name         = "unused" stringify(_index),                      \
     .field_exists = (_test),                                         \
     .version_id   = (_version),                                      \
     .size         = (_size),                                         \
@@ -881,14 +881,14 @@ extern const VMStateDescription vmstate_usb_device;
 #define VMSTATE_BUFFER_UNSAFE(_field, _state, _version, _size)        \
     VMSTATE_BUFFER_UNSAFE_INFO(_field, _state, _version, vmstate_info_buffer, _size)
 
-#define VMSTATE_UNUSED_V(_v, _size)                                   \
-    VMSTATE_UNUSED_BUFFER(NULL, _v, _size)
+#define VMSTATE_UNUSED_V(_index, _v, _size)      \
+    VMSTATE_UNUSED_BUFFER(_index, NULL, _v, _size)
 
-#define VMSTATE_UNUSED(_size)                                         \
-    VMSTATE_UNUSED_V(0, _size)
+#define VMSTATE_UNUSED(_index, _size)            \
+    VMSTATE_UNUSED_V(_index, 0, _size)
 
-#define VMSTATE_UNUSED_TEST(_test, _size)                             \
-    VMSTATE_UNUSED_BUFFER(_test, 0, _size)
+#define VMSTATE_UNUSED_TEST(_index, _test, _size)        \
+    VMSTATE_UNUSED_BUFFER(_index, _test, 0, _size)
 
 #ifdef NEED_CPU_H
 #if TARGET_LONG_BITS == 64

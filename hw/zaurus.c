@@ -220,7 +220,7 @@ static const VMStateDescription vmstate_scoop_regs = {
         VMSTATE_UINT16(irr, ScoopInfo),
         VMSTATE_UINT16(imr, ScoopInfo),
         VMSTATE_UINT16(isr, ScoopInfo),
-        VMSTATE_UNUSED_TEST(is_version_0, 2),
+        VMSTATE_UNUSED_TEST(0, is_version_0, 2),
         VMSTATE_END_OF_LIST(),
     },
 };

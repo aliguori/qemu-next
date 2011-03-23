@@ -1709,7 +1709,7 @@ const VMStateDescription vmstate_pcnet = {
         VMSTATE_UINT64(timer, PCNetState),
         VMSTATE_INT32(xmit_pos, PCNetState),
         VMSTATE_BUFFER(buffer, PCNetState),
-        VMSTATE_UNUSED_TEST(is_version_2, 4),
+        VMSTATE_UNUSED_TEST(0, is_version_2, 4),
         VMSTATE_INT32(tx_busy, PCNetState),
         VMSTATE_TIMER(poll_timer, PCNetState),
         VMSTATE_END_OF_LIST()

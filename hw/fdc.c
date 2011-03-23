@@ -1961,11 +1961,21 @@ static SysBusDeviceInfo sysbus_fdc_info = {
     },
 };
 
+static const VMStateDescription vmstate_sun4m_fdc ={
+    .name = "sun4m-fdc",
+    .version_id = 2,
+    .minimum_version_id = 2,
+    .fields = (VMStateField []) {
+        VMSTATE_STRUCT(state, FDCtrlSysBus, 0, vmstate_fdc, FDCtrl),
+        VMSTATE_END_OF_LIST()
+    }
+};
+
 static SysBusDeviceInfo sun4m_fdc_info = {
     .init = sun4m_fdc_init1,
     .qdev.name  = "SUNW,fdtwo",
     .qdev.size  = sizeof(FDCtrlSysBus),
-    .qdev.vmsd  = &vmstate_sysbus_fdc,
+    .qdev.vmsd  = &vmstate_sun4m_fdc,
     .qdev.reset = fdctrl_external_reset_sysbus,
     .qdev.props = (Property[]) {
         DEFINE_PROP_DRIVE("drive", FDCtrlSysBus, state.drives[0].bs),

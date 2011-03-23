@@ -1789,15 +1789,15 @@ static const VMStateDescription vmstate_eepro100 = {
     .minimum_version_id_old = 2,
     .fields      = (VMStateField []) {
         VMSTATE_PCI_DEVICE(dev, EEPRO100State),
-        VMSTATE_UNUSED(32),
+        VMSTATE_UNUSED(0, 32),
         VMSTATE_BUFFER(mult, EEPRO100State),
         VMSTATE_BUFFER(mem, EEPRO100State),
         /* Save all members of struct between scb_stat and mem. */
         VMSTATE_UINT8(scb_stat, EEPRO100State),
         VMSTATE_UINT8(int_stat, EEPRO100State),
-        VMSTATE_UNUSED(3*4),
+        VMSTATE_UNUSED(1, 3*4),
         VMSTATE_MACADDR(conf.macaddr, EEPRO100State),
-        VMSTATE_UNUSED(19*4),
+        VMSTATE_UNUSED(2, 19*4),
         VMSTATE_UINT16_ARRAY(mdimem, EEPRO100State, 32),
         /* The eeprom should be saved and restored by its own routines. */
         VMSTATE_UINT32(device, EEPRO100State),

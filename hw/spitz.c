@@ -1052,7 +1052,7 @@ static VMStateDescription vmstate_spitz_kbd = {
     .fields = (VMStateField []) {
         VMSTATE_UINT16(sense_state, SpitzKeyboardState),
         VMSTATE_UINT16(strobe_state, SpitzKeyboardState),
-        VMSTATE_UNUSED_TEST(is_version_0, 5),
+        VMSTATE_UNUSED_TEST(0, is_version_0, 5),
         VMSTATE_END_OF_LIST(),
     },
 };

@@ -513,3 +513,10 @@ int cpu_load(QEMUFile *f, void *opaque, int version_id)
 {
     return vmstate_load_state(f, &vmstate_cpu, opaque, version_id);
 }
+
+static void cpu_vmstate_init(void)
+{
+    register_vmstate_description(&vmstate_cpu);
+}
+
+device_init(cpu_vmstate_init);

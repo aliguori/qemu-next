@@ -961,8 +961,8 @@ static const VMStateDescription vmstate_e1000 = {
     .minimum_version_id_old = 1,
     .fields      = (VMStateField []) {
         VMSTATE_PCI_DEVICE(dev, E1000State),
-        VMSTATE_UNUSED_TEST(is_version_1, 4), /* was instance id */
-        VMSTATE_UNUSED(4), /* Was mmio_base.  */
+        VMSTATE_UNUSED_TEST(0, is_version_1, 4), /* was instance id */
+        VMSTATE_UNUSED(1, 4), /* Was mmio_base.  */
         VMSTATE_UINT32(rxbuf_size, E1000State),
         VMSTATE_UINT32(rxbuf_min_shift, E1000State),
         VMSTATE_UINT32(eecd_state.val_in, E1000State),

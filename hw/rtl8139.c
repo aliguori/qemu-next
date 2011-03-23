@@ -3227,7 +3227,7 @@ static const VMStateDescription vmstate_rtl8139 = {
         VMSTATE_UINT16(CpCmd, RTL8139State),
         VMSTATE_UINT8(TxThresh, RTL8139State),
 
-        VMSTATE_UNUSED(4),
+        VMSTATE_UNUSED(0, 4),
         VMSTATE_MACADDR(conf.macaddr, RTL8139State),
         VMSTATE_INT32(rtl8139_mmio_io_addr_dummy, RTL8139State),
 

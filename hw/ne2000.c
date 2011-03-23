@@ -658,7 +658,7 @@ const VMStateDescription vmstate_ne2000 = {
         VMSTATE_BUFFER(phys, NE2000State),
         VMSTATE_UINT8(curpag, NE2000State),
         VMSTATE_BUFFER(mult, NE2000State),
-        VMSTATE_UNUSED(4), /* was irq */
+        VMSTATE_UNUSED(0, 4), /* was irq */
         VMSTATE_BUFFER(mem, NE2000State),
         VMSTATE_END_OF_LIST()
     }

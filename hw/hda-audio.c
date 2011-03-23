@@ -866,8 +866,21 @@ static const VMStateDescription vmstate_hda_audio_stream = {
     }
 };
 
-static const VMStateDescription vmstate_hda_audio = {
-    .name = "hda-audio",
+static const VMStateDescription vmstate_hda_output = {
+    .name = "hda-output",
+    .version_id = 1,
+    .post_load = hda_audio_post_load,
+    .fields = (VMStateField []) {
+        VMSTATE_STRUCT_ARRAY(st, HDAAudioState, 4, 0,
+                             vmstate_hda_audio_stream,
+                             HDAAudioStream),
+        VMSTATE_BOOL_ARRAY(running, HDAAudioState, 16),
+        VMSTATE_END_OF_LIST()
+    }
+};
+
+static const VMStateDescription vmstate_hda_duplex = {
+    .name = "hda-duplex",
     .version_id = 1,
     .post_load = hda_audio_post_load,
     .fields = (VMStateField []) {
@@ -898,7 +911,7 @@ static HDACodecDeviceInfo hda_audio_info_output = {
     .qdev.name    = "hda-output",
     .qdev.desc    = "HDA Audio Codec, output-only",
     .qdev.size    = sizeof(HDAAudioState),
-    .qdev.vmsd    = &vmstate_hda_audio,
+    .qdev.vmsd    = &vmstate_hda_output,
     .qdev.props   = hda_audio_properties,
     .init         = hda_audio_init_output,
     .exit         = hda_audio_exit,
@@ -910,7 +923,7 @@ static HDACodecDeviceInfo hda_audio_info_duplex = {
     .qdev.name    = "hda-duplex",
     .qdev.desc    = "HDA Audio Codec, duplex",
     .qdev.size    = sizeof(HDAAudioState),
-    .qdev.vmsd    = &vmstate_hda_audio,
+    .qdev.vmsd    = &vmstate_hda_duplex,
     .qdev.props   = hda_audio_properties,
     .init         = hda_audio_init_duplex,
     .exit         = hda_audio_exit,

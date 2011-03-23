@@ -1229,7 +1229,7 @@ static const VMStateDescription vmstate_ac97 = {
         VMSTATE_STRUCT_ARRAY(bm_regs, AC97LinkState, 3, 1,
                              vmstate_ac97_bm_regs, AC97BusMasterRegs),
         VMSTATE_BUFFER(mixer_data, AC97LinkState),
-        VMSTATE_UNUSED_TEST(is_version_2, 3),
+        VMSTATE_UNUSED_TEST(0, is_version_2, 3),
         VMSTATE_END_OF_LIST()
     }
 };
