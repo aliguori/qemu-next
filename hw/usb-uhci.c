@@ -377,8 +377,56 @@ static const VMStateDescription vmstate_uhci_port = {
     }
 };
 
-static const VMStateDescription vmstate_uhci = {
-    .name = "uhci",
+static const VMStateDescription vmstate_uhci_piix3 = {
+    .name = "uhci-piix3",
+    .version_id = 2,
+    .minimum_version_id = 1,
+    .minimum_version_id_old = 1,
+    .pre_save = uhci_pre_save,
+    .fields      = (VMStateField []) {
+        VMSTATE_PCI_DEVICE(dev, UHCIState),
+        VMSTATE_UINT8_EQUAL(num_ports_vmstate, UHCIState),
+        VMSTATE_STRUCT_ARRAY(ports, UHCIState, NB_PORTS, 1,
+                             vmstate_uhci_port, UHCIPort),
+        VMSTATE_UINT16(cmd, UHCIState),
+        VMSTATE_UINT16(status, UHCIState),
+        VMSTATE_UINT16(intr, UHCIState),
+        VMSTATE_UINT16(frnum, UHCIState),
+        VMSTATE_UINT32(fl_base_addr, UHCIState),
+        VMSTATE_UINT8(sof_timing, UHCIState),
+        VMSTATE_UINT8(status2, UHCIState),
+        VMSTATE_TIMER(frame_timer, UHCIState),
+        VMSTATE_INT64_V(expire_time, UHCIState, 2),
+        VMSTATE_END_OF_LIST()
+    }
+};
+
+static const VMStateDescription vmstate_uhci_piix4 = {
+    .name = "uhci-piix4",
+    .version_id = 2,
+    .minimum_version_id = 1,
+    .minimum_version_id_old = 1,
+    .pre_save = uhci_pre_save,
+    .fields      = (VMStateField []) {
+        VMSTATE_PCI_DEVICE(dev, UHCIState),
+        VMSTATE_UINT8_EQUAL(num_ports_vmstate, UHCIState),
+        VMSTATE_STRUCT_ARRAY(ports, UHCIState, NB_PORTS, 1,
+                             vmstate_uhci_port, UHCIPort),
+        VMSTATE_UINT16(cmd, UHCIState),
+        VMSTATE_UINT16(status, UHCIState),
+        VMSTATE_UINT16(intr, UHCIState),
+        VMSTATE_UINT16(frnum, UHCIState),
+        VMSTATE_UINT32(fl_base_addr, UHCIState),
+        VMSTATE_UINT8(sof_timing, UHCIState),
+        VMSTATE_UINT8(status2, UHCIState),
+        VMSTATE_TIMER(frame_timer, UHCIState),
+        VMSTATE_INT64_V(expire_time, UHCIState, 2),
+        VMSTATE_END_OF_LIST()
+    }
+};
+
+static const VMStateDescription vmstate_uhci_vt82c686b = {
+    .name = "uhci-vt82c686b",
     .version_id = 2,
     .minimum_version_id = 1,
     .minimum_version_id_old = 1,
@@ -1190,17 +1238,17 @@ static PCIDeviceInfo uhci_info[] = {
     {
         .qdev.name    = "piix3-usb-uhci",
         .qdev.size    = sizeof(UHCIState),
-        .qdev.vmsd    = &vmstate_uhci,
+        .qdev.vmsd    = &vmstate_uhci_piix3,
         .init         = usb_uhci_piix3_initfn,
     },{
         .qdev.name    = "piix4-usb-uhci",
         .qdev.size    = sizeof(UHCIState),
-        .qdev.vmsd    = &vmstate_uhci,
+        .qdev.vmsd    = &vmstate_uhci_piix4,
         .init         = usb_uhci_piix4_initfn,
     },{
         .qdev.name    = "vt82c686b-usb-uhci",
         .qdev.size    = sizeof(UHCIState),
-        .qdev.vmsd    = &vmstate_uhci,
+        .qdev.vmsd    = &vmstate_uhci_vt82c686b,
         .init         = usb_uhci_vt82c686b_initfn,
     },{
         /* end of list */
