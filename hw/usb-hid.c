@@ -917,8 +917,26 @@ static const VMStateDescription vmstate_usb_ptr_queue = {
         VMSTATE_END_OF_LIST()
     }
 };
-static const VMStateDescription vmstate_usb_ptr = {
-    .name = "usb-ptr",
+
+static const VMStateDescription vmstate_usb_tablet = {
+    .name = "usb-tablet",
+    .version_id = 1,
+    .minimum_version_id = 1,
+    .post_load = usb_hid_post_load,
+    .fields = (VMStateField []) {
+        VMSTATE_USB_DEVICE(dev, USBHIDState),
+        VMSTATE_STRUCT_ARRAY(ptr.queue, USBHIDState, QUEUE_LENGTH, 0,
+                             vmstate_usb_ptr_queue, USBPointerEvent),
+        VMSTATE_UINT32(head, USBHIDState),
+        VMSTATE_UINT32(n, USBHIDState),
+        VMSTATE_INT32(protocol, USBHIDState),
+        VMSTATE_UINT8(idle, USBHIDState),
+        VMSTATE_END_OF_LIST()
+    }
+};
+
+static const VMStateDescription vmstate_usb_mouse = {
+    .name = "usb-mouse",
     .version_id = 1,
     .minimum_version_id = 1,
     .post_load = usb_hid_post_load,
@@ -960,7 +978,7 @@ static struct USBDeviceInfo hid_info[] = {
         .qdev.name      = "usb-tablet",
         .usbdevice_name = "tablet",
         .qdev.size      = sizeof(USBHIDState),
-        .qdev.vmsd      = &vmstate_usb_ptr,
+        .qdev.vmsd      = &vmstate_usb_tablet,
         .usb_desc       = &desc_tablet,
         .init           = usb_tablet_initfn,
         .handle_packet  = usb_generic_handle_packet,
@@ -973,7 +991,7 @@ static struct USBDeviceInfo hid_info[] = {
         .qdev.name      = "usb-mouse",
         .usbdevice_name = "mouse",
         .qdev.size      = sizeof(USBHIDState),
-        .qdev.vmsd      = &vmstate_usb_ptr,
+        .qdev.vmsd      = &vmstate_usb_mouse,
         .usb_desc       = &desc_mouse,
         .init           = usb_mouse_initfn,
         .handle_packet  = usb_generic_handle_packet,
