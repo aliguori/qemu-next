@@ -49,5 +49,7 @@ QObject *qlist_pop(QList *qlist);
 QObject *qlist_peek(QList *qlist);
 int qlist_empty(const QList *qlist);
 QList *qobject_to_qlist(const QObject *obj);
+QListEntry *qlist_first(QList *qlist);
+QListEntry *qlist_next(QListEntry *entry);
 
 #endif /* QLIST_H */

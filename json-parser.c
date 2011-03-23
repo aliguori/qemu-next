@@ -38,7 +38,7 @@ typedef struct JSONParserContext
  * 4) deal with premature EOI
  */
 
-static QObject *parse_value(JSONParserContext *ctxt, QList **tokens, va_list *ap);
+static QObject *parse_value(JSONParserContext *ctxt, QListEntry **tokens, va_list *ap);
 
 /**
  * Token manipulators
@@ -267,25 +267,26 @@ out:
 /**
  * Parsing rules
  */
-static int parse_pair(JSONParserContext *ctxt, QDict *dict, QList **tokens, va_list *ap)
+static int parse_pair(JSONParserContext *ctxt, QDict *dict, QListEntry **tokens, va_list *ap)
 {
     QObject *key, *token = NULL, *value, *peek;
-    QList *working = qlist_copy(*tokens);
+    QListEntry *entry = *tokens;
 
-    peek = qlist_peek(working);
-    key = parse_value(ctxt, &working, ap);
+    peek = entry->value;
+    key = parse_value(ctxt, &entry, ap);
     if (!key || qobject_type(key) != QTYPE_QSTRING) {
         parse_error(ctxt, peek, "key is not a string in object");
         goto out;
     }
 
-    token = qlist_pop(working);
+    token = entry->value;
+    entry = qlist_next(entry);
     if (!token_is_operator(token, ':')) {
         parse_error(ctxt, token, "missing : in object pair");
         goto out;
     }
 
-    value = parse_value(ctxt, &working, ap);
+    value = parse_value(ctxt, &entry, ap);
     if (value == NULL) {
         parse_error(ctxt, token, "Missing value in dict");
         goto out;
@@ -293,154 +294,137 @@ static int parse_pair(JSONParserContext *ctxt, QDict *dict, QList **tokens, va_l
 
     qdict_put_obj(dict, qstring_get_str(qobject_to_qstring(key)), value);
 
-    qobject_decref(token);
     qobject_decref(key);
-    QDECREF(*tokens);
-    *tokens = working;
+    *tokens = entry;
 
     return 0;
 
 out:
-    qobject_decref(token);
     qobject_decref(key);
-    QDECREF(working);
 
     return -1;
 }
 
-static QObject *parse_object(JSONParserContext *ctxt, QList **tokens, va_list *ap)
+static QObject *parse_object(JSONParserContext *ctxt, QListEntry **tokens, va_list *ap)
 {
     QDict *dict = NULL;
     QObject *token, *peek;
-    QList *working = qlist_copy(*tokens);
+    QListEntry *entry = *tokens;
 
-    token = qlist_pop(working);
+    token = entry->value;
+    entry = qlist_next(entry);
     if (!token_is_operator(token, '{')) {
         goto out;
     }
-    qobject_decref(token);
-    token = NULL;
 
     dict = qdict_new();
 
-    peek = qlist_peek(working);
+    peek = entry->value;
     if (!token_is_operator(peek, '}')) {
-        if (parse_pair(ctxt, dict, &working, ap) == -1) {
+        if (parse_pair(ctxt, dict, &entry, ap) == -1) {
             goto out;
         }
 
-        token = qlist_pop(working);
+        token = entry->value;
+        entry = qlist_next(entry);
         while (!token_is_operator(token, '}')) {
             if (!token_is_operator(token, ',')) {
                 parse_error(ctxt, token, "expected separator in dict");
                 goto out;
             }
-            qobject_decref(token);
             token = NULL;
 
-            if (parse_pair(ctxt, dict, &working, ap) == -1) {
+            if (parse_pair(ctxt, dict, &entry, ap) == -1) {
                 goto out;
             }
 
-            token = qlist_pop(working);
+            token = entry->value;
+            entry = qlist_next(entry);
         }
-        qobject_decref(token);
         token = NULL;
     } else {
-        token = qlist_pop(working);
-        qobject_decref(token);
+        entry = qlist_next(entry);
         token = NULL;
     }
 
-    QDECREF(*tokens);
-    *tokens = working;
+    *tokens = entry;
 
     return QOBJECT(dict);
 
 out:
-    qobject_decref(token);
-    QDECREF(working);
     QDECREF(dict);
     return NULL;
 }
 
-static QObject *parse_array(JSONParserContext *ctxt, QList **tokens, va_list *ap)
+static QObject *parse_array(JSONParserContext *ctxt, QListEntry **tokens, va_list *ap)
 {
     QList *list = NULL;
     QObject *token, *peek;
-    QList *working = qlist_copy(*tokens);
+    QListEntry *entry = *tokens;
 
-    token = qlist_pop(working);
+    token = entry->value;
+    entry = qlist_next(entry);
     if (!token_is_operator(token, '[')) {
         goto out;
     }
-    qobject_decref(token);
     token = NULL;
 
     list = qlist_new();
 
-    peek = qlist_peek(working);
+    peek = entry->value;
     if (!token_is_operator(peek, ']')) {
         QObject *obj;
 
-        obj = parse_value(ctxt, &working, ap);
+        obj = parse_value(ctxt, &entry, ap);
         if (obj == NULL) {
-            parse_error(ctxt, token, "expecting value");
+            parse_error(ctxt, peek, "expecting value");
             goto out;
         }
 
         qlist_append_obj(list, obj);
 
-        token = qlist_pop(working);
+        token = entry->value;
+        entry = qlist_next(entry);
         while (!token_is_operator(token, ']')) {
             if (!token_is_operator(token, ',')) {
                 parse_error(ctxt, token, "expected separator in list");
                 goto out;
             }
 
-            qobject_decref(token);
-            token = NULL;
-
-            obj = parse_value(ctxt, &working, ap);
+            obj = parse_value(ctxt, &entry, ap);
             if (obj == NULL) {
-                parse_error(ctxt, token, "expecting value");
+                parse_error(ctxt, NULL, "expecting value");
                 goto out;
             }
 
             qlist_append_obj(list, obj);
 
-            token = qlist_pop(working);
+            token = entry->value;
+            entry = qlist_next(entry);
         }
-
-        qobject_decref(token);
-        token = NULL;
     } else {
-        token = qlist_pop(working);
-        qobject_decref(token);
-        token = NULL;
+        entry = qlist_next(entry);
     }
 
-    QDECREF(*tokens);
-    *tokens = working;
+    *tokens = entry;
 
     return QOBJECT(list);
 
 out:
-    qobject_decref(token);
-    QDECREF(working);
     QDECREF(list);
     return NULL;
 }
 
-static QObject *parse_keyword(JSONParserContext *ctxt, QList **tokens)
+static QObject *parse_keyword(JSONParserContext *ctxt, QListEntry **tokens)
 {
     QObject *token, *ret;
-    QList *working = qlist_copy(*tokens);
+    QListEntry *entry = *tokens;
 
-    token = qlist_pop(working);
+    token = entry->value;
+    entry = qlist_next(entry);
 
     if (token_get_type(token) != JSON_KEYWORD) {
-        goto out;
+        return NULL;
     }
 
     if (token_is_keyword(token, "true")) {
@@ -449,32 +433,25 @@ static QObject *parse_keyword(JSONParserContext *ctxt, QList **tokens)
         ret = QOBJECT(qbool_from_int(false));
     } else {
         parse_error(ctxt, token, "invalid keyword `%s'", token_get_value(token));
-        goto out;
+        return NULL;
     }
 
-    qobject_decref(token);
-    QDECREF(*tokens);
-    *tokens = working;
+    *tokens = entry;
 
     return ret;
-
-out: 
-    qobject_decref(token);
-    QDECREF(working);
-
-    return NULL;
 }
 
-static QObject *parse_escape(JSONParserContext *ctxt, QList **tokens, va_list *ap)
+static QObject *parse_escape(JSONParserContext *ctxt, QListEntry **tokens, va_list *ap)
 {
     QObject *token = NULL, *obj;
-    QList *working = qlist_copy(*tokens);
+    QListEntry *entry = *tokens;
 
     if (ap == NULL) {
-        goto out;
+        return NULL;
     }
 
-    token = qlist_pop(working);
+    token = entry->value;
+    entry = qlist_next(entry);
 
     if (token_is_escape(token, "%p")) {
         obj = va_arg(*ap, QObject *);
@@ -492,28 +469,21 @@ static QObject *parse_escape(JSONParserContext *ctxt, QList **tokens, va_list *a
     } else if (token_is_escape(token, "%f")) {
         obj = QOBJECT(qfloat_from_double(va_arg(*ap, double)));
     } else {
-        goto out;
+        return NULL;
     }
 
-    qobject_decref(token);
-    QDECREF(*tokens);
-    *tokens = working;
+    *tokens = entry;
 
     return obj;
-
-out:
-    qobject_decref(token);
-    QDECREF(working);
-
-    return NULL;
 }
 
-static QObject *parse_literal(JSONParserContext *ctxt, QList **tokens)
+static QObject *parse_literal(JSONParserContext *ctxt, QListEntry **tokens)
 {
     QObject *token, *obj;
-    QList *working = qlist_copy(*tokens);
+    QListEntry *entry = *tokens;
 
-    token = qlist_pop(working);
+    token = entry->value;
+    entry = qlist_next(entry);
     switch (token_get_type(token)) {
     case JSON_STRING:
         obj = QOBJECT(qstring_from_escaped_str(ctxt, token));
@@ -526,23 +496,15 @@ static QObject *parse_literal(JSONParserContext *ctxt, QList **tokens)
         obj = QOBJECT(qfloat_from_double(strtod(token_get_value(token), NULL)));
         break;
     default:
-        goto out;
+        return NULL;
     }
 
-    qobject_decref(token);
-    QDECREF(*tokens);
-    *tokens = working;
+    *tokens = entry;
 
     return obj;
-
-out:
-    qobject_decref(token);
-    QDECREF(working);
-
-    return NULL;
 }
 
-static QObject *parse_value(JSONParserContext *ctxt, QList **tokens, va_list *ap)
+static QObject *parse_value(JSONParserContext *ctxt, QListEntry **tokens, va_list *ap)
 {
     QObject *obj;
 
@@ -566,12 +528,7 @@ static QObject *parse_value(JSONParserContext *ctxt, QList **tokens, va_list *ap
 QObject *json_parser_parse(QList *tokens, va_list *ap)
 {
     JSONParserContext ctxt = {};
-    QList *working = qlist_copy(tokens);
-    QObject *result;
+    QListEntry *working = qlist_first(tokens);
 
-    result = parse_value(&ctxt, &working, ap);
-
-    QDECREF(working);
-
-    return result;
+    return parse_value(&ctxt, &working, ap);
 }
