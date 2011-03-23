@@ -155,3 +155,13 @@ static void qlist_destroy_obj(QObject *obj)
 
     qemu_free(qlist);
 }
+
+QListEntry *qlist_first(QList *qlist)
+{
+    return QTAILQ_FIRST(&qlist->head);
+}
+
+QListEntry *qlist_next(QListEntry *entry)
+{
+    return QTAILQ_NEXT(entry, next);
+}
