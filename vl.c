@@ -3129,7 +3129,6 @@ int main(int argc, char **argv, char **envp)
     qemu_add_globals();
 
     if (vmstate_dump) {
-        module_call_init(MODULE_INIT_VMSTATE);
         vmstate_dump_schema();
         exit(0);
     }
