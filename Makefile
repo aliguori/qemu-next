@@ -73,6 +73,8 @@ defconfig:
 
 build-all: $(DOCS) $(TOOLS) recurse-all
 
+TOOLS = check-qjson check-qint
+
 config-host.h: config-host.h-timestamp
 config-host.h-timestamp: config-host.mak
 qemu-options.def: $(SRC_PATH)/qemu-options.hx
@@ -173,6 +175,7 @@ check-qstring: check-qstring.o qstring.o $(CHECK_PROG_DEPS)
 check-qdict: check-qdict.o qdict.o qfloat.o qint.o qstring.o qbool.o qlist.o $(CHECK_PROG_DEPS)
 check-qlist: check-qlist.o qlist.o qint.o $(CHECK_PROG_DEPS)
 check-qfloat: check-qfloat.o qfloat.o $(CHECK_PROG_DEPS)
+
 check-qjson: check-qjson.o qfloat.o qint.o qdict.o qstring.o qlist.o qbool.o qjson.o json-streamer.o json-lexer.o json-parser.o $(CHECK_PROG_DEPS)
 
 clean:

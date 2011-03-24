@@ -33,7 +33,7 @@ static void test_escaped_string(void)
         { "\"\\n\"", "\n" },
         { "\"\\r\"", "\r" },
         { "\"\\t\"", "\t" },
-        { "\"\\/\"", "\\/" },
+        { "\"\\/\"", "/" },
         { "\"\\\\\"", "\\" },
         { "\"\\\"\"", "\"" },
         { "\"hello world \\\"embedded string\\\"\"",
@@ -55,14 +55,11 @@ static void test_escaped_string(void)
         g_assert(qobject_type(obj) == QTYPE_QSTRING);
         
         str = qobject_to_qstring(obj);
-        g_assert(strcmp(qstring_get_str(str), test_cases[i].decoded) == 0,
-                    "%s != %s\n", qstring_get_str(str), test_cases[i].decoded);
+        g_assert_cmpstr(qstring_get_str(str), ==, test_cases[i].decoded);
 
         if (test_cases[i].skip == 0) {
             str = qobject_to_json(obj);
-            g_assert(strcmp(qstring_get_str(str),test_cases[i].encoded) == 0,
-                        "%s != %s\n", qstring_get_str(str),
-                                      test_cases[i].encoded);
+            g_assert_cmpstr(qstring_get_str(str), ==, test_cases[i].encoded);
 
             qobject_decref(obj);
         }

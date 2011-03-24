@@ -184,6 +184,9 @@ static void to_json(const QObject *obj, QString *str, int pretty, int indent)
                 case '\t':
                     qstring_append(str, "\\t");
                     break;
+                case '/':
+                    qstring_append(str, "\\/");
+                    break;
                 default: {
                     if (ptr[0] <= 0x1F) {
                         char escape[7];
