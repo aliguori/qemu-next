@@ -25,7 +25,8 @@ Makefile: ;
 configure: ;
 
 .PHONY: all clean cscope distclean dvi html info install install-doc \
-	pdf recurse-all speed tar tarbin test build-all
+	pdf recurse-all speed tar tarbin test build-all check check-help \
+        check-qobject
 
 $(call set-vpath, $(SRC_PATH):$(SRC_PATH)/hw)
 
@@ -43,6 +44,22 @@ SUBDIR_DEVICES_MAK_DEP=$(patsubst %, %/config-devices.mak.d, $(TARGET_DIRS))
 
 config-all-devices.mak: $(SUBDIR_DEVICES_MAK)
 	$(call quiet-command,cat $(SUBDIR_DEVICES_MAK) | grep =y | sort -u > $@,"  GEN   $@")
+
+check: check-qobject
+
+check-help:
+	@echo " make check             run all check tests against build"
+	@echo " make check-qobject     run QOBject checks"
+	@echo " make test-report.html  make an HTML report of make check"
+
+check-qobject: $(TESTS)
+	@for i in $(TESTS); do ./$$i; done
+
+test-report.log: $(TESTS)
+	@gtester -k -o $@ $(TESTS)
+
+test-report.html: test-report.log
+	@gtester-report $< > $@
 
 -include $(SUBDIR_DEVICES_MAK_DEP)
 
@@ -71,9 +88,10 @@ defconfig:
 
 -include config-all-devices.mak
 
-build-all: $(DOCS) $(TOOLS) recurse-all
+build-all: $(DOCS) $(TOOLS) $(TESTS) recurse-all
 
-TOOLS = check-qjson check-qint
+TESTS = check-qjson check-qint check-qstring check-qlist check-qdict
+TESTS += check-qfloat
 
 config-host.h: config-host.h-timestamp
 config-host.h-timestamp: config-host.mak
@@ -170,9 +188,12 @@ check-qint.o check-qstring.o check-qdict.o check-qlist.o check-qfloat.o check-qj
 
 CHECK_PROG_DEPS = qemu-malloc.o $(oslib-obj-y) $(trace-obj-y)
 
+qdict-test-data.c: $(SRC_PATH)/qdict-test-data.txt
+	$(call quiet-command,sh $(SRC_PATH)/scripts/str2c.sh qdict_test_data < $< > $@,"  GEN   $@")
+
 check-qint: check-qint.o qint.o $(CHECK_PROG_DEPS)
 check-qstring: check-qstring.o qstring.o $(CHECK_PROG_DEPS)
-check-qdict: check-qdict.o qdict.o qfloat.o qint.o qstring.o qbool.o qlist.o $(CHECK_PROG_DEPS)
+check-qdict: check-qdict.o qdict.o qfloat.o qint.o qstring.o qbool.o qlist.o qdict-test-data.o $(CHECK_PROG_DEPS)
 check-qlist: check-qlist.o qlist.o qint.o $(CHECK_PROG_DEPS)
 check-qfloat: check-qfloat.o qfloat.o $(CHECK_PROG_DEPS)
 

@@ -289,85 +289,74 @@ static void test_qdict_get_not_exists(void)
  * This is a lot big for a unit-test, but there is no other place
  * to have it.
  */
-
-static void remove_dots(char *string)
-{
-    char *p = strchr(string, ':');
-    if (p)
-        *p = '\0';
-}
-
-static QString *read_line(FILE *file, char *key)
-{
-    char value[128];
-
-    if (fscanf(file, "%127s%127s", key, value) == EOF) {
-        return NULL;
-    }
-    remove_dots(key);
-    return qstring_from_str(value);
-}
-
-#define reset_file(file)    fseek(file, 0L, SEEK_SET)
+extern const char *qdict_test_data;
 
 static void test_qdict_stress(void)
 {
     size_t lines;
-    char key[128];
-    FILE *test_file;
     QDict *qdict;
-    QString *value;
-    const char *test_file_path = "qdict-test-data.txt";
-
-    test_file = fopen(test_file_path, "r");
-    g_assert(test_file != NULL);
+    const char *ptr;
 
     // Create the dict
     qdict = qdict_new();
     g_assert(qdict != NULL);
 
     // Add everything from the test file
-    for (lines = 0;; lines++) {
-        value = read_line(test_file, key);
-        if (!value)
-            break;
+    ptr = qdict_test_data;
+    lines = 0;
+    while (ptr && *ptr) {
+        const char *key_end = strchr(ptr, ':');
+        const char *value_end = strchr(ptr, '\n');
+        QString *key, *value;
 
-        qdict_put(qdict, key, value);
+        key = qstring_from_substr(ptr, 0, key_end - ptr);
+        value = qstring_from_substr(key_end + 1, 0, value_end - key_end - 1);
+        qdict_put(qdict, qstring_get_str(key), value);
+        QDECREF(key);
+
+        ptr = value_end + 1;
+        lines++;
     }
     g_assert(qdict_size(qdict) == lines);
 
     // Check if everything is really in there
-    reset_file(test_file);
-    for (;;) {
-        const char *str1, *str2;
+    // Add everything from the test file
+    ptr = qdict_test_data;
+    while (ptr && *ptr) {
+        const char *key_end = strchr(ptr, ':');
+        const char *value_end = strchr(ptr, '\n');
+        QString *key, *value;
 
-        value = read_line(test_file, key);
-        if (!value)
-            break;
+        key = qstring_from_substr(ptr, 0, key_end - ptr);
+        value = qstring_from_substr(key_end + 1, 0, value_end - key_end - 1);
 
-        str1 = qstring_get_str(value);
+        g_assert_cmpstr(qstring_get_str(value), ==, qdict_get_str(qdict, qstring_get_str(key)));
 
-        str2 = qdict_get_str(qdict, key);
-        g_assert(str2 != NULL);
-
-        g_assert(strcmp(str1, str2) == 0);
-
+        QDECREF(key);
         QDECREF(value);
+
+        ptr = value_end + 1;
     }
 
     // Delete everything
-    reset_file(test_file);
-    for (;;) {
-        value = read_line(test_file, key);
-        if (!value)
-            break;
+    ptr = qdict_test_data;
+    while (ptr && *ptr) {
+        const char *key_end = strchr(ptr, ':');
+        const char *value_end = strchr(ptr, '\n');
+        QString *key, *value;
 
-        qdict_del(qdict, key);
+        key = qstring_from_substr(ptr, 0, key_end - ptr);
+        value = qstring_from_substr(key_end + 1, 0, value_end - key_end - 1);
+
+        qdict_del(qdict, qstring_get_str(key));
+
+        QDECREF(key);
         QDECREF(value);
 
-        g_assert(qdict_haskey(qdict, key) == 0);
+        ptr = value_end + 1;
+
+        g_assert(qdict_haskey(qdict, qstring_get_str(key)) == 0);
     }
-    fclose(test_file);
 
     g_assert(qdict_size(qdict) == 0);
     QDECREF(qdict);
