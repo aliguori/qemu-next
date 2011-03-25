@@ -10,7 +10,7 @@
  * See the COPYING.LIB file in the top-level directory.
  *
  */
-#include <check.h>
+#include <glib.h>
 
 #include "qfloat.h"
 #include "qemu-common.h"
@@ -21,56 +21,34 @@
  * (with some violations to access 'private' data)
  */
 
-START_TEST(qfloat_from_double_test)
+static void test_qfloat_from_double(void)
 {
     QFloat *qf;
     const double value = -42.23423;
 
     qf = qfloat_from_double(value);
-    fail_unless(qf != NULL);
-    fail_unless(qf->value == value);
-    fail_unless(qf->base.refcnt == 1);
-    fail_unless(qobject_type(QOBJECT(qf)) == QTYPE_QFLOAT);
+    g_assert(qf != NULL);
+    g_assert(qf->value == value);
+    g_assert(qf->base.refcnt == 1);
+    g_assert(qobject_type(QOBJECT(qf)) == QTYPE_QFLOAT);
 
-    // destroy doesn't exit yet
     qemu_free(qf);
 }
-END_TEST
 
-START_TEST(qfloat_destroy_test)
+static void test_qfloat_destroy(void)
 {
     QFloat *qf = qfloat_from_double(0.0);
     QDECREF(qf);
 }
-END_TEST
 
-static Suite *qfloat_suite(void)
+int main(int argc, char **argv)
 {
-    Suite *s;
-    TCase *qfloat_public_tcase;
+    g_test_init(&argc, &argv, NULL);
 
-    s = suite_create("QFloat test-suite");
+    g_test_add_func("/public/qfloat_from_double", test_qfloat_from_double);
+    g_test_add_func("/public/qfloat_destroy", test_qfloat_destroy);
 
-    qfloat_public_tcase = tcase_create("Public Interface");
-    suite_add_tcase(s, qfloat_public_tcase);
-    tcase_add_test(qfloat_public_tcase, qfloat_from_double_test);
-    tcase_add_test(qfloat_public_tcase, qfloat_destroy_test);
+    g_test_run();
 
-    return s;
-}
-
-int main(void)
-{
-    int nf;
-    Suite *s;
-    SRunner *sr;
-
-    s = qfloat_suite();
-    sr = srunner_create(s);
-
-    srunner_run_all(sr, CK_NORMAL);
-    nf = srunner_ntests_failed(sr);
-    srunner_free(sr);
-
-    return (nf == 0) ? EXIT_SUCCESS : EXIT_FAILURE;
+    return 0;
 }
