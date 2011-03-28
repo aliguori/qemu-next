@@ -250,6 +250,10 @@ QCFG_OBJS += $(LIBQMP_OBJS)
 test-libqmp: test-libqmp.o $(LIBQMP_OBJS) ui/d3des.o qemu-timer-common.o
 test-qcfg: test-qcfg.o $(QCFG_OBJS) qemu-timer-common.o
 
+qapi-obj-y := qapi/qmp-output-visiter.o
+
+test-visiter: test-visiter.o qfloat.o qint.o qdict.o qstring.o qlist.o qbool.o $(qapi-obj-y) error.o osdep.o qemu-malloc.o $(oslib-obj-y) qjson.o json-streamer.o json-lexer.o json-parser.o qerror.o
+
 qmp-check: build-all
 	$(call quiet-command, ./test-libqmp, "  CHECK   $@")
 
@@ -459,4 +463,4 @@ tarbin:
 	$(mandir)/man8/qemu-nbd.8
 
 # Include automatically generated dependency files
--include $(wildcard *.d audio/*.d slirp/*.d block/*.d net/*.d ui/*.d)
+-include $(wildcard *.d audio/*.d slirp/*.d block/*.d net/*.d ui/*.d qapi/*.d)

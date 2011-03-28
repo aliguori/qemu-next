@@ -3247,7 +3247,7 @@ done # for target in $targets
 # build tree in object directory in case the source is not in the current directory
 DIRS="tests tests/cris slirp audio block net pc-bios/optionrom"
 DIRS="$DIRS roms/seabios roms/vgabios"
-DIRS="$DIRS fsdev ui"
+DIRS="$DIRS fsdev ui qapi"
 FILES="Makefile tests/Makefile"
 FILES="$FILES tests/cris/Makefile tests/cris/.gdbinit"
 FILES="$FILES pc-bios/optionrom/Makefile pc-bios/keymaps"
