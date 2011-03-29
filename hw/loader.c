@@ -52,12 +52,198 @@
 
 #include <zlib.h>
 
+#include <linux/iso_fs.h>
+
+static uint8_t iso_u8(void *ptr)
+{
+    uint8_t *buf = (uint8_t *)ptr;
+    return buf[0];
+}
+
+static inline uint16_t iso_u16(void *ptr)
+{
+    uint8_t *buf = (uint8_t *)ptr;
+    return buf[0] | (buf[1] << 8);
+}
+
+static inline uint32_t iso_u32(void *ptr)
+{
+    uint8_t *buf = (uint8_t *)ptr;
+    return (buf[3] << 24) | (buf[2] << 16) | (buf[1] << 8) | buf[0];
+}
+
+typedef struct IsoFile
+{
+    int directory;
+    off_t offset;
+    off_t size;
+} IsoFile;
+
+static IsoFile *iso_find_path(BlockDriverState *bs, IsoFile *dir, const char *pathname)
+{
+    struct iso_directory_record record;
+    ssize_t len;
+    char name[257];
+    uint8_t name_len;
+    off_t offset = dir->offset;
+
+    if (!dir->directory) {
+        return NULL;
+    }
+
+    len = bdrv_pread(bs, offset, &record, sizeof(record));
+    assert(len == sizeof(record));
+
+    while ((offset - dir->offset) < dir->size) {
+        size_t size;
+        int directory;
+
+        name_len = iso_u8(record.name_len);
+        directory = !!(iso_u8(record.flags) & 0x02);
+
+        size = len;
+        len = bdrv_pread(bs, offset + len, name, name_len);
+        assert(len == name_len);
+        name[name_len] = 0;
+
+        size += len;
+
+        if (size < iso_u8(record.length)) {
+            size_t record_length = iso_u8(record.length) - size;
+            char buffer[256];
+            int i = 0;
+
+            len = bdrv_pread(bs, offset + size, buffer, record_length);
+            assert(len == record_length);
+            if (buffer[i] == 0) {
+                i++;
+            }
+
+            if (record_length > 5 && buffer[i] == 'R' && buffer[i + 1] == 'R') {
+                i += 5;
+                while (i < record_length) {
+                    if (buffer[i] == 'N' && buffer[i + 1] == 'M') {
+                        name_len = buffer[i + 2] - 5;
+                        memcpy(name, &buffer[i + 5], name_len);
+                        name[name_len] = 0;
+                        i += buffer[i + 2];
+                    } else {
+                        break;
+                    }
+                }
+            }
+        }
+
+        if (strcmp(name, pathname) == 0) {
+            IsoFile *ret = malloc(sizeof(*ret));
+            ret->directory = directory;
+            ret->offset = iso_u32(record.extent) * 2048;
+            ret->size = iso_u32(record.size);
+            return ret;
+        }
+
+        offset += iso_u8(record.length);
+
+        do {
+            len = bdrv_pread(bs, offset, &record, sizeof(record));
+            assert(len == sizeof(record));
+
+            if (iso_u8(record.length) == 0) {
+                offset += 2047;
+                offset &= ~2047ULL;
+            }
+        } while (iso_u8(record.length) == 0 && (offset - dir->offset) < dir->size);
+    }
+    
+    return NULL;
+}
+
+static IsoFile *iso_find_root(BlockDriverState *bs)
+{
+    off_t offset = 0;
+    ssize_t len;
+    struct iso_volume_descriptor vd;
+
+    offset = 32768;
+    do {
+        len = bdrv_pread(bs, offset, &vd, sizeof(vd));
+        assert(len == sizeof(vd));
+
+        if (iso_u8(vd.type) == 1) {
+            struct iso_primary_descriptor *pd;
+            struct iso_directory_record *root;
+            char name[256];
+            IsoFile *ret;
+
+            pd = (struct iso_primary_descriptor *)&vd;
+            root = (struct iso_directory_record *)pd->root_directory_record;
+
+            memcpy(name, root->name, iso_u8(root->name_len));
+            name[iso_u8(root->name_len)] = 0;
+
+            ret = malloc(sizeof(*ret));
+            ret->directory = 1;
+            ret->offset = iso_u32(root->extent) * 2048;
+            ret->size = iso_u32(root->size);
+            return ret;
+        }
+
+        offset += len;
+    } while (iso_u8(vd.type) != 255);
+
+    return NULL;
+}
+
+static IsoFile *iso_find_file(BlockDriverState *bs, const char *filename)
+{
+    const char *end;
+    IsoFile *cur = iso_find_root(bs);
+
+    printf("%s\n", filename);
+
+    while (cur && filename) {
+        IsoFile *dir;
+        char pathname[257];
+
+        end = strchr(filename, '/');
+        if (end) {
+            memcpy(pathname, filename, end - filename);
+            pathname[end - filename] = 0;
+            filename = end + 1;
+        } else {
+            snprintf(pathname, sizeof(pathname), "%s", filename);
+            filename = end;
+        }
+
+        dir = iso_find_path(bs, cur, pathname);
+        printf("path - %s: dir - %p\n", pathname, dir);
+        qemu_free(cur);
+        cur = dir;
+    }
+
+    return cur;
+}
+
 static int roms_loaded;
 
 /* return the size or -1 if error */
 int get_image_size(const char *filename)
 {
     int fd, size;
+    const char *p;
+
+    if (strstart(filename, "cdrom:///", &p)) {
+        BlockDriverState *bs = bdrv_find("ide1-cd0");
+        if (!bs || !bdrv_is_inserted(bs)) {
+            return -1;
+        }
+
+        IsoFile *f = iso_find_file(bs, p);
+        size = f->size;
+        qemu_free(f);
+        return size;
+    }
+
     fd = open(filename, O_RDONLY | O_BINARY);
     if (fd < 0)
         return -1;
@@ -71,11 +257,28 @@ int get_image_size(const char *filename)
 int load_image(const char *filename, uint8_t *addr)
 {
     int fd, size;
-    fd = open(filename, O_RDONLY | O_BINARY);
-    if (fd < 0)
-        return -1;
-    size = lseek(fd, 0, SEEK_END);
-    lseek(fd, 0, SEEK_SET);
+    const char *p;
+
+    if (strstart(filename, "cdrom:///", &p)) {
+        IsoFile *f;
+        BlockDriverState *bs = bdrv_find("ide1-cd0");
+        if (!bs || !bdrv_is_inserted(bs)) {
+            return -1;
+        }
+
+        f = iso_find_file(bs, p);
+        size = f->size;
+        size = bdrv_pread(bs, f->offset, addr, size);
+        qemu_free(f);
+        return size;
+    } else {
+        fd = open(filename, O_RDONLY | O_BINARY);
+        if (fd < 0) {
+            return -1;
+        }
+        size = lseek(fd, 0, SEEK_END);
+        lseek(fd, 0, SEEK_SET);
+    }
     if (read(fd, addr, size) != size) {
         close(fd);
         return -1;
