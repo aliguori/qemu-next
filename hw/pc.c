@@ -635,20 +635,6 @@ static void *bochs_bios_init(void)
     return fw_cfg;
 }
 
-static long get_file_size(FILE *f)
-{
-    long where, size;
-
-    /* XXX: on Unix systems, using fstat() probably makes more sense */
-
-    where = ftell(f);
-    fseek(f, 0, SEEK_END);
-    size = ftell(f);
-    fseek(f, where, SEEK_SET);
-
-    return size;
-}
-
 static void load_linux(void *fw_cfg,
                        const char *kernel_filename,
 		       const char *initrd_filename,
@@ -660,21 +646,29 @@ static void load_linux(void *fw_cfg,
     uint32_t initrd_max;
     uint8_t header[8192], *setup, *kernel, *initrd_data;
     target_phys_addr_t real_addr, prot_addr, cmdline_addr, initrd_addr = 0;
-    FILE *f;
     char *vmode;
+    uint8_t *data;
 
     /* Align to 16 bytes as a paranoia measure */
     cmdline_size = (strlen(kernel_cmdline)+16) & ~15;
 
     /* load the kernel header */
-    f = fopen(kernel_filename, "rb");
-    if (!f || !(kernel_size = get_file_size(f)) ||
-	fread(header, 1, MIN(ARRAY_SIZE(header), kernel_size), f) !=
-	MIN(ARRAY_SIZE(header), kernel_size)) {
+    kernel_size = get_image_size(kernel_filename);
+    if (kernel_size == -1) {
 	fprintf(stderr, "qemu: could not load kernel '%s': %s\n",
 		kernel_filename, strerror(errno));
 	exit(1);
     }
+
+    data = qemu_malloc(kernel_size);
+
+    if (load_image(kernel_filename, data) == -1) {
+	fprintf(stderr, "qemu: could not load kernel '%s': %s\n",
+		kernel_filename, strerror(errno));
+	exit(1);
+    }        
+
+    memcpy(header, data, MIN(ARRAY_SIZE(header), kernel_size));
 
     /* kernel protocol version */
 #if 0
@@ -683,11 +677,20 @@ static void load_linux(void *fw_cfg,
     if (ldl_p(header+0x202) == 0x53726448)
 	protocol = lduw_p(header+0x206);
     else {
+        FILE *f;
 	/* This looks like a multiboot kernel. If it is, let's stop
 	   treating it like a Linux kernel. */
+        f = fopen(kernel_filename, "rb");
+        if (!f) {
+            exit(1);
+        }
         if (load_multiboot(fw_cfg, f, kernel_filename, initrd_filename,
-                           kernel_cmdline, kernel_size, header))
+                           kernel_cmdline, kernel_size, header)) {
+            qemu_free(data);
+            fclose(f);
             return;
+        }
+        fclose(f);
 	protocol = 0;
     }
 
@@ -807,16 +810,12 @@ static void load_linux(void *fw_cfg,
 
     setup  = qemu_malloc(setup_size);
     kernel = qemu_malloc(kernel_size);
-    fseek(f, 0, SEEK_SET);
-    if (fread(setup, 1, setup_size, f) != setup_size) {
-        fprintf(stderr, "fread() failed\n");
-        exit(1);
-    }
-    if (fread(kernel, 1, kernel_size, f) != kernel_size) {
-        fprintf(stderr, "fread() failed\n");
-        exit(1);
-    }
-    fclose(f);
+
+    memcpy(setup, data, setup_size);
+    memcpy(kernel, data + setup_size, kernel_size);
+
+    qemu_free(data);
+
     memcpy(setup, header, MIN(sizeof(header), setup_size));
 
     fw_cfg_add_i32(fw_cfg, FW_CFG_KERNEL_ADDR, prot_addr);
