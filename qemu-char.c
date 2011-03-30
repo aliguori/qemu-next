@@ -641,8 +641,8 @@ static int handle_fd_param(QemuOpts *opts, const char *key)
         return -1;
     }
 
-    if (qemu_isdigit(key[0])) {
-        return atoi(key);
+    if (qemu_isdigit(value[0])) {
+        return atoi(value);
     }
 
     return monitor_get_fd(cur_mon, value);

@@ -152,6 +152,12 @@ static QemuOptsList qemu_chardev_opts = {
         },{
             .name = "debug",
             .type = QEMU_OPT_NUMBER,
+        },{
+            .name = "fdin",
+            .type = QEMU_OPT_STRING,
+        },{
+            .name = "fdout",
+            .type = QEMU_OPT_STRING,
         },
         { /* end of list */ }
     },
