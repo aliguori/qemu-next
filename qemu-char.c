@@ -632,6 +632,41 @@ static CharDriverState *qemu_chr_open_fd(int fd_in, int fd_out)
     return chr;
 }
 
+static int handle_fd_param(QemuOpts *opts, const char *key)
+{
+    const char *value;
+
+    value = qemu_opt_get(opts, key);
+    if (value == NULL) {
+        return -1;
+    }
+
+    if (qemu_isdigit(key[0])) {
+        return atoi(key);
+    }
+
+    return monitor_get_fd(cur_mon, value);
+}
+
+static CharDriverState *qemu_chr_open_fdname(QemuOpts *opts)
+{
+    CharDriverState *chr;
+    FDCharDriver *s;
+
+    chr = qemu_mallocz(sizeof(CharDriverState));
+    s = qemu_mallocz(sizeof(FDCharDriver));
+    s->fd_in = handle_fd_param(opts, "fdin");
+    s->fd_out = handle_fd_param(opts, "fdout");
+    chr->opaque = s;
+    chr->chr_write = fd_chr_write;
+    chr->chr_update_read_handler = fd_chr_update_read_handler;
+    chr->chr_close = fd_chr_close;
+
+    qemu_chr_generic_open(chr);
+
+    return chr;
+}
+
 static CharDriverState *qemu_chr_open_file_out(QemuOpts *opts)
 {
     int fd_out;
@@ -2481,6 +2516,7 @@ static const struct {
     { .name = "pipe",      .open = qemu_chr_open_pipe },
     { .name = "pty",       .open = qemu_chr_open_pty },
     { .name = "stdio",     .open = qemu_chr_open_stdio },
+    { .name = "fdname",    .open = qemu_chr_open_fdname },
 #endif
 #ifdef CONFIG_BRLAPI
     { .name = "braille",   .open = chr_baum_init },
