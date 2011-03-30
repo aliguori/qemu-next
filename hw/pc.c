@@ -548,8 +548,8 @@ static void bochs_bios_write(void *opaque, uint32_t addr, uint32_t val)
         /* LGPL'ed VGA BIOS messages */
     case 0x501:
     case 0x502:
-        fprintf(stderr, "VGA BIOS panic, line %d\n", val);
-        exit(1);
+        exit((val << 2) | 0x02);
+        break;
     case 0x500:
     case 0x503:
 #ifdef DEBUG_BIOS
@@ -590,8 +590,8 @@ static void *bochs_bios_init(void)
     register_ioport_write(0x403, 1, 1, bochs_bios_write, NULL);
     register_ioport_write(0x8900, 1, 1, bochs_bios_write, NULL);
 
-    register_ioport_write(0x501, 1, 2, bochs_bios_write, NULL);
-    register_ioport_write(0x502, 1, 2, bochs_bios_write, NULL);
+    register_ioport_write(0x501, 1, 1, bochs_bios_write, NULL);
+    register_ioport_write(0x502, 1, 1, bochs_bios_write, NULL);
     register_ioport_write(0x500, 1, 1, bochs_bios_write, NULL);
     register_ioport_write(0x503, 1, 1, bochs_bios_write, NULL);
 
