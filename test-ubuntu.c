@@ -1,27 +1,4 @@
 /*
- * Rough idea:
- *
- * Create a socket pair
- *
- * pid = fork()
- * Launch a guest with system():
- *
- * x86_64-softmmu/qemu-system-x86_64
-     -hda ~/images/ubuntu.img -cdrom ~/isos/ubuntu-10.04.2-server-amd64.iso
- *   -chardev fdname,fdin=10,fdout=10,id=httpd -serial stdio -vnc none
- *   -net user,guestfwd=tcp:10.0.2.1:80-chardev:httpd -net nic -enable-kvm
- *   -kernel cdrom:///install/vmlinuz -initrd cdrom:///install/initrd.gz
- *   -append 'priority=critical locale=en_US url=http://10.0.2.1/server.cfg console=ttyS0'
- *
- * wait for read to come in on the socket
- * write the http response
- *
- * waitpid(pid);
- *
- * take the exit code, check for code & 0x2 for a guest exit, then do code >> 2
- * to determine the guest exit status.
- *
- * look for an guest exit status of 1.
  */
 
 #include "qemu-common.h"
@@ -84,6 +61,33 @@ const char rsp[] =
     "d-i	preseed/late_command		string echo -ne '\x1' | dd bs=1 count=1 seek=1281 of=/dev/port\n"
     ;
 
+static const char ks[] =
+    "install\n"
+    "text\n"
+    "reboot\n"
+    "lang en_US.UTF-8\n"
+    "keyboard us\n"
+    "network --bootproto dhcp\n"
+    "rootpw 123456\n"
+    "firewall --enabled --ssh\n"
+    "selinux --enforcing\n"
+    "timezone --utc America/New_York\n"
+    "firstboot --disable\n"
+    "bootloader --location=mbr --append=\"console=tty0 console=ttyS0,115200\"\n"
+    "zerombr\n"
+    "clearpart --all --initlabel\n"
+    "autopart\n"
+    "reboot\n"
+    "\n"
+    "%packages\n"
+    "@base\n"
+    "@core\n"
+    "%end\n"
+    "%post\n"
+    "echo -ne '\x1' | dd bs=1 count=1 seek=1281 of=/dev/port\n"
+    "%end\n"
+    ;
+
 static int systemf(const char *fmt, ...)
     __attribute__((format(printf, 1, 2)));
 
@@ -99,18 +103,67 @@ static int systemf(const char *fmt, ...)
     return system(buffer);
 }
 
-static void test_ubuntu(gconstpointer data)
+typedef struct WeightedChoice
 {
-    const char *distro = data;
-    int status;
-    pid_t pid;
-    int fds[2];
-    int ret;
+    const char *string;
+    int percentage;
+} WeightedChoice;
+
+static const char *choose(WeightedChoice *choices)
+{
+    int i, value;
+    int cur_percentage = 0;
+
+    value = g_test_rand_int_range(0, 100);
+    for (i = 0; choices[i].string; i++) {
+        cur_percentage += choices[i].percentage;
+        if (value < cur_percentage) {
+            return choices[i].string;
+        }
+    }
+
+    g_assert_not_reached();
+    return NULL;
+}
+
+static void test_image(const char *image, const char *iso,
+                       const char *kernel, const char *initrd,
+                       const char *cmdline)
+{
     char buffer[1024];
-    long max_cpus;
-    long max_mem;
-    int num_cpus;
-    int mem_mb;
+    int fds[2];
+    pid_t pid;
+    int status, ret;
+    long max_cpus, max_mem;
+    int num_cpus, mem_mb;
+    const char *nic_type, *blk_type, *cache_type, *disk_format, *aio_method;
+    WeightedChoice nic_types[] = {
+        { "e1000", 25 },
+        { "virtio", 50 },
+        { "rtl8139", 25 },
+        { }
+    };
+    WeightedChoice blk_types[] = {
+        { "virtio", 50 },
+        { "ide", 50 },
+        { }
+    };
+    WeightedChoice cache_types[] = {
+        { "none", 50 },
+        { "writethrough", 50 },
+        { }
+    };
+    WeightedChoice disk_formats[] = {
+        { "raw", 50 },
+        { "qcow2", 25 },
+        { "qed", 25 },
+        { }
+    };
+    WeightedChoice aio_methods[] = {
+        { "threads", 75 },
+        { "native", 25 },
+        { }
+    };
 
     ret = socketpair(PF_UNIX, SOCK_STREAM, 0, fds);
     g_assert(ret != -1);
@@ -124,31 +177,43 @@ static void test_ubuntu(gconstpointer data)
 
     mem_mb = (g_test_rand_int_range(128, max_mem) + 7) & ~0x03;
 
+    nic_type = choose(nic_types);
+    blk_type = choose(blk_types);
+    cache_type = choose(cache_types);
+    disk_format = choose(disk_formats);
+    aio_method = choose(aio_methods);
+
+    if (strcmp(cache_type, "none") != 0) {
+        aio_method = "threads";
+    }
+
     g_test_message("Using %d VCPUS", num_cpus);
     g_test_message("Using %d MB of RAM", mem_mb);
+    g_test_message("Using `%s' network card", nic_type);
+    g_test_message("Using `%s' block device, cache=`%s', format=`%s', aio=`%s'",
+                   blk_type, cache_type, disk_format, aio_method);
 
     pid = fork();
     if (pid == 0) {
-        char image[1024];
         int status;
 
-        snprintf(image, sizeof(image), "/tmp/ubuntu-%s.img", distro);
-
-        status = systemf("./qemu-img create -f qcow2 %s 10G", image);
+        status = systemf("./qemu-img create -f %s %s 10G", disk_format, image);
         if (status != 0) {
             exit(WEXITSTATUS(status));
         }
 
         status = systemf("x86_64-softmmu/qemu-system-x86_64 "
-                         "-hda %s -cdrom ~/isos/ubuntu-%s.iso "
+                         "-drive file=%s,if=%s,cache=%s,aio=%s -cdrom %s "
                          "-chardev fdname,fdin=%d,fdout=%d,id=httpd "
                          "-net user,guestfwd=tcp:10.0.2.1:80-chardev:httpd "
-                         "-net nic -enable-kvm "
-                         "-kernel cdrom:///install/vmlinuz "
-                         "-initrd cdrom:///install/initrd.gz "
-                         "-append 'priority=critical locale=en_US url=http://10.0.2.1/server.cfg console=ttyS0' "
+                         "-net nic,model=%s -enable-kvm "
+                         "-kernel cdrom://%s "
+                         "-initrd cdrom://%s "
+                         "-append '%s' "
                          "-serial stdio -vnc none -smp %d -m %d ",
-                         image, distro, fds[1], fds[1], num_cpus, mem_mb);
+                         image, blk_type, cache_type, aio_method,
+                         iso, fds[1], fds[1], nic_type, kernel, initrd,
+                         cmdline, num_cpus, mem_mb);
         unlink(image);
 
         if (!WIFEXITED(status)) {
@@ -179,10 +244,39 @@ static void test_ubuntu(gconstpointer data)
     g_assert_cmpint(WEXITSTATUS(status), ==, 6);
 }
 
+static void test_ubuntu(gconstpointer data)
+{
+    const char *distro = data;
+    char image[1024];
+    char iso[1024];
+
+    snprintf(image, sizeof(image), "/tmp/ubuntu-%s.img", distro);
+    snprintf(iso, sizeof(iso), "~/isos/ubuntu-%s.iso", distro);
+
+    test_image(image, iso, "/install/vmlinuz", "/install/initrd.gz",
+               "priority=critical locale=en_US "
+               "url=http://10.0.2.1/server.cfg console=ttyS0");
+}
+
+static void test_fedora(gconstpointer data)
+{
+    const char *distro = data;
+    char image[1024];
+    char iso[1024];
+
+    snprintf(image, sizeof(image), "/tmp/fedora-%s.img", distro);
+    snprintf(iso, sizeof(iso), "~/isos/Fedora-%s-DVD.iso", distro);
+
+    test_image(image, iso, "/isolinux/vmlinuz", "/isolinux/initrd.img",
+               "stage2=hd:LABEL=\"Fedora\" "
+               "ks=http://10.0.2.1/server.ks console=ttyS0");
+}
+
 int main(int argc, char **argv)
 {
     g_test_init(&argc, &argv, NULL);
 
+    g_test_add_data_func("/fedora/14/x86_64", "14-x86_64", test_fedora);
     g_test_add_data_func("/ubuntu/9.10/server/amd64", "9.10-server-amd64", test_ubuntu);
     g_test_add_data_func("/ubuntu/10.04.2/server/amd64", "10.04.2-server-amd64", test_ubuntu);
     g_test_add_data_func("/ubuntu/10.10/server/amd64", "10.10-server-amd64", test_ubuntu);
