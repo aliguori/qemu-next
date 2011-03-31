@@ -199,8 +199,6 @@ static IsoFile *iso_find_file(BlockDriverState *bs, const char *filename)
     const char *end;
     IsoFile *cur = iso_find_root(bs);
 
-    printf("%s\n", filename);
-
     while (cur && filename) {
         IsoFile *dir;
         char pathname[257];
@@ -216,7 +214,6 @@ static IsoFile *iso_find_file(BlockDriverState *bs, const char *filename)
         }
 
         dir = iso_find_path(bs, cur, pathname);
-        printf("path - %s: dir - %p\n", pathname, dir);
         qemu_free(cur);
         cur = dir;
     }
