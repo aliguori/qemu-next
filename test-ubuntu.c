@@ -83,12 +83,28 @@ const char rsp[] =
     "d-i	preseed/late_command		string echo -ne '\x1' | dd bs=1 count=1 seek=1281 of=/dev/port\n"
     ;
 
-static void test_ubuntu_10_04_2_server_amd64(void)
+static int systemf(const char *fmt, ...)
+    __attribute__((format(printf, 1, 2)));
+
+static int systemf(const char *fmt, ...)
 {
+    char buffer[1024];
+    va_list ap;
+
+    va_start(ap, fmt);
+    vsnprintf(buffer, sizeof(buffer), fmt, ap);
+    va_end(ap);
+
+    return system(buffer);
+}
+
+static void test_ubuntu(gconstpointer data)
+{
+    const char *distro = data;
     int status;
     pid_t pid;
-    int ret;
     int fds[2];
+    int ret;
     char buffer[1024];
 
     ret = socketpair(PF_UNIX, SOCK_STREAM, 0, fds);
@@ -96,22 +112,28 @@ static void test_ubuntu_10_04_2_server_amd64(void)
 
     pid = fork();
     if (pid == 0) {
+        char image[1024];
         int status;
-        char buffer[1024];
 
-        snprintf(buffer, sizeof(buffer),
-                 "x86_64-softmmu/qemu-system-x86_64 "
-                 "-hda ~/images/ubuntu.img "
-                 "-cdrom ~/isos/ubuntu-10.04.2-server-amd64.iso "
-                 "-chardev fdname,fdin=%d,fdout=%d,id=httpd "
-                 "-net user,guestfwd=tcp:10.0.2.1:80-chardev:httpd "
-                 "-net nic -enable-kvm "
-                 "-kernel cdrom:///install/vmlinuz "
-                 "-initrd cdrom:///install/initrd.gz "
-                 "-append 'priority=critical locale=en_US url=http://10.0.2.1/server.cfg' ",
-                 fds[1], fds[1]);
+        snprintf(image, sizeof(image), "/tmp/ubuntu-%s.img", distro);
 
-        status = system(buffer);
+        status = systemf("./qemu-img create -f qcow2 %s 10G", image);
+        if (status != 0) {
+            exit(WEXITSTATUS(status));
+        }
+
+        status = systemf("x86_64-softmmu/qemu-system-x86_64 "
+                         "-hda %s -cdrom ~/isos/ubuntu-%s.iso "
+                         "-chardev fdname,fdin=%d,fdout=%d,id=httpd "
+                         "-net user,guestfwd=tcp:10.0.2.1:80-chardev:httpd "
+                         "-net nic -enable-kvm "
+                         "-kernel cdrom:///install/vmlinuz "
+                         "-initrd cdrom:///install/initrd.gz "
+                         "-append 'priority=critical locale=en_US url=http://10.0.2.1/server.cfg console=ttyS0' "
+                         "-serial stdio -vnc none ",
+                         image, distro, fds[1], fds[1]);
+        unlink(image);
+
         if (!WIFEXITED(status)) {
             exit(1);
         }
@@ -144,7 +166,8 @@ int main(int argc, char **argv)
 {
     g_test_init(&argc, &argv, NULL);
 
-    g_test_add_func("/ubuntu/10.04.2/server/amd64", test_ubuntu_10_04_2_server_amd64);
+    g_test_add_data_func("/ubuntu/10.04.2/server/amd64", "10.04.2-server-amd64", test_ubuntu);
+    g_test_add_data_func("/ubuntu/10.10/server/amd64", "10.10-server-amd64", test_ubuntu);
 
     g_test_run();
 
