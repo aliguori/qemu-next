@@ -236,6 +236,10 @@ int get_image_size(const char *filename)
         }
 
         IsoFile *f = iso_find_file(bs, p);
+        if (!f) {
+            return -1;
+        }
+
         size = f->size;
         qemu_free(f);
         return size;
@@ -264,6 +268,10 @@ int load_image(const char *filename, uint8_t *addr)
         }
 
         f = iso_find_file(bs, p);
+        if (!f) {
+            return -1;
+        }
+
         size = f->size;
         size = bdrv_pread(bs, f->offset, addr, size);
         qemu_free(f);
