@@ -28,6 +28,7 @@
 #include "qemu_socket.h"
 #include <sys/types.h>
 #include <sys/wait.h>
+#include <unistd.h>
 #include <glib.h>
 
 const char rsp[] = 
@@ -106,9 +107,25 @@ static void test_ubuntu(gconstpointer data)
     int fds[2];
     int ret;
     char buffer[1024];
+    long max_cpus;
+    long max_mem;
+    int num_cpus;
+    int mem_mb;
 
     ret = socketpair(PF_UNIX, SOCK_STREAM, 0, fds);
     g_assert(ret != -1);
+
+    max_cpus = sysconf(_SC_NPROCESSORS_ONLN);
+    num_cpus = MIN(g_test_rand_int_range(1, max_cpus + 1), 8);
+
+    /* Don't use more than 1/2 of physical memory */
+    max_mem = (sysconf(_SC_PHYS_PAGES) * sysconf(_SC_PAGE_SIZE)) >> 20;
+    max_mem /= 2;
+
+    mem_mb = (g_test_rand_int_range(128, max_mem) + 7) & ~0x03;
+
+    g_test_message("Using %d VCPUS", num_cpus);
+    g_test_message("Using %d MB of RAM", mem_mb);
 
     pid = fork();
     if (pid == 0) {
@@ -130,8 +147,8 @@ static void test_ubuntu(gconstpointer data)
                          "-kernel cdrom:///install/vmlinuz "
                          "-initrd cdrom:///install/initrd.gz "
                          "-append 'priority=critical locale=en_US url=http://10.0.2.1/server.cfg console=ttyS0' "
-                         "-serial stdio -vnc none ",
-                         image, distro, fds[1], fds[1]);
+                         "-serial stdio -vnc none -smp %d -m %d ",
+                         image, distro, fds[1], fds[1], num_cpus, mem_mb);
         unlink(image);
 
         if (!WIFEXITED(status)) {
@@ -166,6 +183,7 @@ int main(int argc, char **argv)
 {
     g_test_init(&argc, &argv, NULL);
 
+    g_test_add_data_func("/ubuntu/9.10/server/amd64", "9.10-server-amd64", test_ubuntu);
     g_test_add_data_func("/ubuntu/10.04.2/server/amd64", "10.04.2-server-amd64", test_ubuntu);
     g_test_add_data_func("/ubuntu/10.10/server/amd64", "10.10-server-amd64", test_ubuntu);
 
