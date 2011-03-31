@@ -8,7 +8,7 @@
 #include <unistd.h>
 #include <glib.h>
 
-const char rsp[] = 
+static const char preseed[] = 
     "d-i	debian-installer/locale	string en_US.UTF-8\n"
     "d-i	debian-installer/splash boolean false\n"
     "d-i	console-setup/ask_detect	boolean false\n"
@@ -128,7 +128,7 @@ static const char *choose(WeightedChoice *choices)
 
 static void test_image(const char *image, const char *iso,
                        const char *kernel, const char *initrd,
-                       const char *cmdline)
+                       const char *cmdline, const char *config_file)
 {
     char buffer[1024];
     int fds[2];
@@ -137,6 +137,7 @@ static void test_image(const char *image, const char *iso,
     long max_cpus, max_mem;
     int num_cpus, mem_mb;
     const char *nic_type, *blk_type, *cache_type, *disk_format, *aio_method;
+    const char *vga_type;
     WeightedChoice nic_types[] = {
         { "e1000", 25 },
         { "virtio", 50 },
@@ -164,6 +165,11 @@ static void test_image(const char *image, const char *iso,
         { "native", 25 },
         { }
     };
+    WeightedChoice vga_types[] = {
+        { "cirrus", 80 },
+        { "std", 20 },
+        { }
+    };
 
     ret = socketpair(PF_UNIX, SOCK_STREAM, 0, fds);
     g_assert(ret != -1);
@@ -182,6 +188,7 @@ static void test_image(const char *image, const char *iso,
     cache_type = choose(cache_types);
     disk_format = choose(disk_formats);
     aio_method = choose(aio_methods);
+    vga_type = choose(vga_types);
 
     if (strcmp(cache_type, "none") != 0) {
         aio_method = "threads";
@@ -192,6 +199,7 @@ static void test_image(const char *image, const char *iso,
     g_test_message("Using `%s' network card", nic_type);
     g_test_message("Using `%s' block device, cache=`%s', format=`%s', aio=`%s'",
                    blk_type, cache_type, disk_format, aio_method);
+    g_test_message("Using `%s' graphics card", vga_type);
 
     pid = fork();
     if (pid == 0) {
@@ -207,13 +215,12 @@ static void test_image(const char *image, const char *iso,
                          "-chardev fdname,fdin=%d,fdout=%d,id=httpd "
                          "-net user,guestfwd=tcp:10.0.2.1:80-chardev:httpd "
                          "-net nic,model=%s -enable-kvm "
-                         "-kernel cdrom://%s "
-                         "-initrd cdrom://%s "
-                         "-append '%s' "
+                         "-kernel cdrom://%s -initrd cdrom://%s "
+                         "-append '%s' -vga %s "
                          "-serial stdio -vnc none -smp %d -m %d ",
                          image, blk_type, cache_type, aio_method,
                          iso, fds[1], fds[1], nic_type, kernel, initrd,
-                         cmdline, num_cpus, mem_mb);
+                         cmdline, vga_type, num_cpus, mem_mb);
         unlink(image);
 
         if (!WIFEXITED(status)) {
@@ -231,12 +238,12 @@ static void test_image(const char *image, const char *iso,
              "Date: Wed, 30 Mar 2011 19:46:35 GMT\r\n"
              "Content-type: text/plain\r\n"
              "Content-length: %ld\r\n"
-             "\r\n", strlen(rsp));
+             "\r\n", strlen(config_file));
     ret = write(fds[0], buffer, strlen(buffer));
     g_assert_cmpint(ret, ==, strlen(buffer));
 
-    ret = write(fds[0], rsp, strlen(rsp));
-    g_assert_cmpint(ret, ==, strlen(rsp));
+    ret = write(fds[0], config_file, strlen(config_file));
+    g_assert_cmpint(ret, ==, strlen(config_file));
 
     ret = waitpid(pid, &status, 0);
     g_assert(ret == pid);
@@ -255,7 +262,8 @@ static void test_ubuntu(gconstpointer data)
 
     test_image(image, iso, "/install/vmlinuz", "/install/initrd.gz",
                "priority=critical locale=en_US "
-               "url=http://10.0.2.1/server.cfg console=ttyS0");
+               "url=http://10.0.2.1/server.cfg console=ttyS0",
+               preseed);
 }
 
 static void test_fedora(gconstpointer data)
@@ -269,7 +277,8 @@ static void test_fedora(gconstpointer data)
 
     test_image(image, iso, "/isolinux/vmlinuz", "/isolinux/initrd.img",
                "stage2=hd:LABEL=\"Fedora\" "
-               "ks=http://10.0.2.1/server.ks console=ttyS0");
+               "ks=http://10.0.2.1/server.ks console=ttyS0",
+               ks);
 }
 
 int main(int argc, char **argv)
