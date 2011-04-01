@@ -285,6 +285,7 @@ int main(int argc, char **argv)
 {
     g_test_init(&argc, &argv, NULL);
 
+    g_test_add_data_func("/fedora/13/i386", "13-i386", test_fedora);
     g_test_add_data_func("/fedora/14/x86_64", "14-x86_64", test_fedora);
     g_test_add_data_func("/ubuntu/9.10/server/amd64", "9.10-server-amd64", test_ubuntu);
     g_test_add_data_func("/ubuntu/10.04.2/server/amd64", "10.04.2-server-amd64", test_ubuntu);
