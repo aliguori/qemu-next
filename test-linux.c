@@ -266,6 +266,67 @@ static void test_ubuntu(gconstpointer data)
                preseed);
 }
 
+static void test_ppc_image(const char *image, const char *iso,
+                           const char *kernel, const char *initrd,
+                           const char *cmdline, const char *config_file)
+{
+    char buffer[1024];
+    int fds[2];
+    pid_t pid;
+    int status, ret;
+
+    ret = socketpair(PF_UNIX, SOCK_STREAM, 0, fds);
+    g_assert(ret != -1);
+
+    pid = fork();
+    if (pid == 0) {
+        int status;
+
+        status = systemf("./qemu-img create -f raw %s 10G", image);
+        if (status != 0) {
+            exit(WEXITSTATUS(status));
+        }
+
+        status = systemf("ppc64-softmmu/qemu-system-ppc64 "
+                         "-drive file=%s,if=scsi -cdrom %s "
+                         "-chardev fdname,fdin=%d,fdout=%d,id=httpd "
+                         "-net user,guestfwd=tcp:10.0.2.1:80-chardev:httpd "
+                         "-net nic -enable-kvm "
+                         "-kernel cdrom://%s -initrd cdrom://%s "
+                         "-append '%s' "
+                         "-serial stdio -vnc none -m 1G -M pseries ",
+                         image, iso, fds[1], fds[1],
+                         kernel, initrd, cmdline);
+        unlink(image);
+
+        if (!WIFEXITED(status)) {
+            exit(1);
+        }
+
+        exit(WEXITSTATUS(status));
+    }
+
+    ret = read(fds[0], buffer, 1);
+    g_assert(ret == 1);
+    snprintf(buffer, sizeof(buffer),
+             "HTTP/1.0 200 OK\r\n"
+             "Server: BaseHTTP/0.3 Python/2.6.5\r\n"
+             "Date: Wed, 30 Mar 2011 19:46:35 GMT\r\n"
+             "Content-type: text/plain\r\n"
+             "Content-length: %ld\r\n"
+             "\r\n", strlen(config_file));
+    ret = write(fds[0], buffer, strlen(buffer));
+    g_assert_cmpint(ret, ==, strlen(buffer));
+
+    ret = write(fds[0], config_file, strlen(config_file));
+    g_assert_cmpint(ret, ==, strlen(config_file));
+
+    ret = waitpid(pid, &status, 0);
+    g_assert(ret == pid);
+    g_assert(WIFEXITED(status));
+    g_assert_cmpint(WEXITSTATUS(status), ==, 6);
+}
+
 static void test_fedora(gconstpointer data)
 {
     const char *distro = data;
@@ -281,10 +342,28 @@ static void test_fedora(gconstpointer data)
                ks);
 }
 
+static void test_ppc_debian(gconstpointer data)
+{
+    const char *distro = data;
+    char image[1024];
+    char iso[1024];
+
+    snprintf(image, sizeof(image), "/tmp/debian-%s.img", distro);
+    snprintf(iso, sizeof(iso), "~/isos/debian-%s-DVD-1.iso", distro);
+
+    test_ppc_image(image, iso, "/install/powerpc64/vmlinux",
+                   "/install/powerpc64/initrd.gz",
+                   "priority=critical locale=en_US "
+                   "url=http://10.0.2.1/server.cfg console=ttyS0",
+                   preseed);
+}
+
 int main(int argc, char **argv)
 {
     g_test_init(&argc, &argv, NULL);
 
+    g_test_add_data_func("/debian/6.0.1a/ppc64", "6.0.1a-powerpc",
+                         test_ppc_debian);
     g_test_add_data_func("/fedora/13/i386", "13-i386", test_fedora);
     g_test_add_data_func("/fedora/14/x86_64", "14-x86_64", test_fedora);
     g_test_add_data_func("/ubuntu/9.10/server/amd64", "9.10-server-amd64", test_ubuntu);
