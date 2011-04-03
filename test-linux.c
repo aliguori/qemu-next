@@ -291,7 +291,7 @@ static void test_ppc_image(const char *image, const char *iso,
                          "-drive file=%s,if=scsi -cdrom %s "
                          "-chardev fdname,fdin=%d,fdout=%d,id=httpd "
                          "-net user,guestfwd=tcp:10.0.2.1:80-chardev:httpd "
-                         "-net nic -enable-kvm "
+                         "-net nic "
                          "-kernel cdrom://%s -initrd cdrom://%s "
                          "-append '%s' "
                          "-serial stdio -vnc none -m 1G -M pseries ",
