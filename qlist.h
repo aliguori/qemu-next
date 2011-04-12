@@ -50,4 +50,14 @@ QObject *qlist_peek(QList *qlist);
 int qlist_empty(const QList *qlist);
 QList *qobject_to_qlist(const QObject *obj);
 
+static inline QListEntry *qlist_first(QList *qlist)
+{
+    return qlist->head.tqh_first;
+}
+
+static inline QListEntry *qlist_next(QListEntry *entry)
+{
+    return entry->next.tqe_next;
+}
+
 #endif /* QLIST_H */
