@@ -190,6 +190,9 @@ struct PCIDevice {
     char *romfile;
     ram_addr_t rom_offset;
     uint32_t rom_bar;
+
+    /* Hotpluggable */
+    bool unpluggable;
 };
 
 PCIDevice *pci_register_device(PCIBus *bus, const char *name,

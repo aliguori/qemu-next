@@ -475,7 +475,7 @@ static void pciej_write(void *opaque, uint32_t addr, uint32_t val)
 
     QLIST_FOREACH_SAFE(qdev, &bus->children, sibling, next) {
         dev = DO_UPCAST(PCIDevice, qdev, qdev);
-        if (PCI_SLOT(dev->devfn) == slot) {
+        if (PCI_SLOT(dev->devfn) == slot && dev->unpluggable) {
             qdev_free(qdev);
         }
     }
