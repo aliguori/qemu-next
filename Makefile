@@ -341,5 +341,7 @@ tarbin:
 	$(mandir)/man1/qemu-img.1 \
 	$(mandir)/man8/qemu-nbd.8
 
+include $(SRC_PATH)/Makefile.doc
+
 # Include automatically generated dependency files
 -include $(wildcard *.d audio/*.d slirp/*.d block/*.d net/*.d ui/*.d)

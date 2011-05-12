@@ -163,6 +163,8 @@ int main(int argc, char **argv)
 
 #include "ui/qemu-spice.h"
 
+#include "qdev-doc.h"
+
 //#define DEBUG_NET
 //#define DEBUG_SLIRP
 
@@ -1298,6 +1300,82 @@ void qemu_system_vmstop_request(int reason)
     qemu_notify_event();
 }
 
+bool qdev_verify_docs(void)
+{
+    DeviceStateDocumentation *doc;
+    DeviceInfo *dev;
+    int errors = 0;
+    int warnings = 0;
+
+    for (dev = device_info_list; dev; dev = dev->next) {
+        PropertyDocumentation *prop_doc;
+        Property *prop;
+
+        for (doc = device_docs; doc->name; doc++) {
+            if (strcmp(doc->name, dev->name) == 0) {
+                break;
+            }
+        }
+
+        if (doc->name == NULL) {
+            fprintf(stderr, "Warning: device `%s' is undocumented\n",
+                    dev->name);
+            warnings++;
+            continue;
+        }
+
+        for (prop = dev->props; prop->name; prop++) {
+            for (prop_doc = doc->properties; prop_doc->name; prop_doc++) {
+                if (strcmp(prop->name, prop_doc->name) == 0) {
+                    break;
+                }
+            }
+
+            if (prop_doc->name == NULL) {
+                fprintf(stderr, "Warning: device `%s' has undocumented property `%s'\n",
+                        dev->name, prop->name);
+                warnings++;
+            }
+        }
+
+        for (prop_doc = doc->properties; prop_doc->name; prop_doc++) {
+            for (prop = dev->props; prop->name; prop++) {
+                if (strcmp(prop->name, prop_doc->name) == 0) {
+                    break;
+                }
+            }
+
+            if (prop->name == NULL) {
+                fprintf(stderr, "Error: device `%s' has documented property `%s' with no definition\n",
+                        dev->name, prop_doc->name);
+                errors++;
+            }
+        }
+    }
+
+    for (doc = device_docs; doc->name; doc++) {
+        for (dev = device_info_list; dev; dev = dev->next) {
+            if (strcmp(doc->name, dev->name) == 0) {
+                break;
+            }
+        }
+
+        if (dev == NULL) {
+            fprintf(stderr, "Error: documented device `%s' has no definition\n",
+                    doc->name);
+            errors++;
+        }
+    }
+
+    fprintf(stderr, "%d warnings, %d errors.\n", warnings, errors);
+
+    if (errors > 0) {
+        return true;
+    }
+
+    return false;
+}
+
 void main_loop_wait(int nonblocking)
 {
     fd_set rfds, wfds, xfds;
@@ -2057,6 +2135,7 @@ int main(int argc, char **argv, char **envp)
 #endif
     int defconfig = 1;
     const char *trace_file = NULL;
+    bool do_qdev_verify = false;
 
     atexit(qemu_run_exit_notifiers);
     error_set_progname(argv[0]);
@@ -2890,6 +2969,9 @@ int main(int argc, char **argv, char **envp)
                     fclose(fp);
                     break;
                 }
+            case QEMU_OPTION_qdev_verify:
+                do_qdev_verify = true;
+                break;
             default:
                 os_parse_cmd_args(popt->index, optarg);
             }
@@ -3135,6 +3217,13 @@ int main(int argc, char **argv, char **envp)
         exit(1);
 
     module_call_init(MODULE_INIT_DEVICE);
+
+    if (do_qdev_verify) {
+        if (qdev_verify_docs()) {
+            exit(1);
+        }
+        exit(0);
+    }
 
     if (qemu_opts_foreach(qemu_find_opts("device"), device_help_func, NULL, 0) != 0)
         exit(0);

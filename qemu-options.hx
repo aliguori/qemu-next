@@ -2380,6 +2380,16 @@ Specify a trace file to log output traces to.
 ETEXI
 #endif
 
+DEF("qdev-verify", 0, QEMU_OPTION_qdev_verify,
+    "-qdev-verify\n"
+    "                Verify qdev properties match documentation\n",
+    QEMU_ARCH_ALL)
+STEXI
+@item -qdev-verify
+@findex -qdev-verify
+Verify qdev properties match documentation.
+ETEXI
+
 HXCOMM This is the last statement. Insert new options before this line!
 STEXI
 @end table

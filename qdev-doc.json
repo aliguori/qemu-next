@@ -1,0 +1,16 @@
+# -*- Mode: Python -*-
+
+[ { "device": "isa-serial",
+    "parent": "ISADevice",
+    "properties": {
+            "index": { "type": "uint32",
+                       "doc": "A value from 0-3 that describes which IO regions to expose the device on.  This sets appropriate values for iobase and irq." },
+            "iobase": { "type": "hex32",
+                        "doc": "The base IO address to expose the device on." },
+            "irq": { "type": "uint32",
+                     "doc": "The IRQ to use for the device." },
+            "chardev": { "type": "chr",
+                         "doc": "The name of a character device to specify." }
+            }
+  }
+  ]

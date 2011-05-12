@@ -1,0 +1,5 @@
+qdev-doc.html: $(SRC_PATH)/qdev-doc.json $(SRC_PATH)/scripts/qdev-doc-to-html.py
+	python $(SRC_PATH)/scripts/qdev-doc-to-html.py < $< > $@
+
+qdev-doc.c: $(SRC_PATH)/qdev-doc.json $(SRC_PATH)/scripts/qdev-doc-to-c.py
+	python $(SRC_PATH)/scripts/qdev-doc-to-c.py < $< > $@
