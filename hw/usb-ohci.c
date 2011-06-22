@@ -62,7 +62,7 @@ typedef struct OHCIPort {
 typedef struct {
     USBBus bus;
     qemu_irq irq;
-    int mem;
+    MemoryRegion mem;
     int num_ports;
     const char *name;
 
@@ -1426,12 +1426,12 @@ static void ohci_port_set_status(OHCIState *ohci, int portnum, uint32_t val)
     return;
 }
 
-static uint32_t ohci_mem_read(void *ptr, target_phys_addr_t addr)
+static uint64_t ohci_mem_read(void *opaque,
+                              target_phys_addr_t addr,
+                              unsigned size)
 {
-    OHCIState *ohci = ptr;
+    OHCIState *ohci = opaque;
     uint32_t retval;
-
-    addr &= 0xff;
 
     /* Only aligned reads are allowed on OHCI */
     if (addr & 3) {
@@ -1549,11 +1549,12 @@ static uint32_t ohci_mem_read(void *ptr, target_phys_addr_t addr)
     return retval;
 }
 
-static void ohci_mem_write(void *ptr, target_phys_addr_t addr, uint32_t val)
+static void ohci_mem_write(void *opaque,
+                           target_phys_addr_t addr,
+                           uint64_t val,
+                           unsigned size)
 {
-    OHCIState *ohci = ptr;
-
-    addr &= 0xff;
+    OHCIState *ohci = opaque;
 
     /* Only aligned reads are allowed on OHCI */
     if (addr & 3) {
@@ -1685,18 +1686,10 @@ static void ohci_device_destroy(USBBus *bus, USBDevice *dev)
     }
 }
 
-/* Only dword reads are defined on OHCI register space */
-static CPUReadMemoryFunc * const ohci_readfn[3]={
-    ohci_mem_read,
-    ohci_mem_read,
-    ohci_mem_read
-};
-
-/* Only dword writes are defined on OHCI register space */
-static CPUWriteMemoryFunc * const ohci_writefn[3]={
-    ohci_mem_write,
-    ohci_mem_write,
-    ohci_mem_write
+static const MemoryRegionOps ohci_mem_ops = {
+    .read = ohci_mem_read,
+    .write = ohci_mem_write,
+    .endianness = DEVICE_LITTLE_ENDIAN,
 };
 
 static USBPortOps ohci_port_ops = {
@@ -1731,8 +1724,7 @@ static void usb_ohci_init(OHCIState *ohci, DeviceState *dev,
                 usb_frame_time, usb_bit_time);
     }
 
-    ohci->mem = cpu_register_io_memory(ohci_readfn, ohci_writefn, ohci,
-                                       DEVICE_LITTLE_ENDIAN);
+    memory_region_init_io(&ohci->mem, &ohci_mem_ops, ohci, "ohci", 256);
     ohci->localmem_base = localmem_base;
 
     ohci->name = dev->info->name;
@@ -1767,7 +1759,7 @@ static int usb_ohci_initfn_pci(struct PCIDevice *dev)
     ohci->state.irq = ohci->pci_dev.irq[0];
 
     /* TODO: avoid cast below by using dev */
-    pci_register_bar_simple(&ohci->pci_dev, 0, 256, 0, ohci->state.mem);
+    pci_register_bar_region(&ohci->pci_dev, 0, 0, &ohci->state.mem);
     return 0;
 }
 
@@ -1789,7 +1781,7 @@ static int ohci_init_pxa(SysBusDevice *dev)
 
     usb_ohci_init(&s->ohci, &dev->qdev, s->num_ports, s->dma_offset);
     sysbus_init_irq(dev, &s->ohci.irq);
-    sysbus_init_mmio(dev, 0x1000, s->ohci.mem);
+    sysbus_init_mmio_region(dev, &s->ohci.mem);
 
     return 0;
 }
