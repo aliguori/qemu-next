@@ -2369,6 +2369,7 @@ static MemoryRegionOps cirrus_linear_bitblt_io_ops = {
 
 static void unmap_bank(CirrusVGAState *s, unsigned bank)
 {
+    printf("unmapping bank %d\n", bank);
     if (s->cirrus_bank[bank]) {
         memory_region_del_subregion(&s->low_mem_container,
                                     s->cirrus_bank[bank]);
@@ -2397,6 +2398,7 @@ static void map_linear_vram_bank(CirrusVGAState *s, unsigned bank)
             mr,
             1);
         unmap_bank(s, bank);
+        printf("mapped bank %d @ %x\n", bank, s->cirrus_bank_base[bank]);
         s->cirrus_bank[bank] = mr;
     } else {
         unmap_bank(s, bank);
