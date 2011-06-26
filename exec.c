@@ -2669,6 +2669,9 @@ void cpu_register_physical_memory_log(target_phys_addr_t start_addr,
     ram_addr_t orig_size = size;
     subpage_t *subpage;
 
+    printf("%s: start %"PRIx64" size %lx offset %lx region_offset %lx\n",
+           __func__, (uint64_t)start_addr, size, phys_offset, region_offset);
+
     assert(size);
     cpu_notify_set_memory(start_addr, size, phys_offset, log_dirty);
 

@@ -197,6 +197,20 @@ static void flatview_simplify(FlatView *view)
     }
 }
 
+static void flatview_dump(FlatView *view)
+{
+    unsigned i;
+    FlatRange *r;
+
+    printf("memory map:\n");
+    for (i = 0; i < view->nr; ++i) {
+        r = &view->ranges[i];
+        printf("flatrange[%d]: %"PRIx64"-%"PRIx64" (%s@%"PRIx64")\n",
+               i, r->addr.start, r->addr.start + r->addr.size - 1, r->mr->name,
+               (uint64_t)r->offset_in_region);
+    }
+}
+
 static void memory_region_prepare_ram_addr(MemoryRegion *mr);
 
 static void as_memory_range_add(AddressSpace *as, FlatRange *fr)
@@ -468,6 +482,8 @@ static FlatView generate_memory_topology(MemoryRegion *mr)
     render_memory_region(&view, mr, 0, addrrange_make(0, UINT64_MAX));
     flatview_simplify(&view);
 
+    flatview_dump(&view);
+
     return view;
 }
 
@@ -564,6 +580,9 @@ static void address_space_update_topology(AddressSpace *as)
                     && !flatrange_equal(frold, frnew)))) {
             /* In old, but (not in new, or in new but attributes changed). */
 
+            printf("dropping %"PRIx64"-%"PRIx64"\n", frold->addr.start,
+                   frold->addr.start + frold->addr.size - 1);
+
             as->ops->range_del(as, frold);
             ++iold;
         } else if (frold && frnew && flatrange_equal(frold, frnew)) {
@@ -579,6 +598,12 @@ static void address_space_update_topology(AddressSpace *as)
             ++inew;
         } else {
             /* In new */
+
+            printf("adding %"PRIx64"-%"PRIx64" offset %"PRIx64" ram %lx\n",
+                   frnew->addr.start,
+                   frnew->addr.start + frnew->addr.size - 1,
+                   (uint64_t)frnew->offset_in_region,
+                   frnew->mr->ram_addr);
 
             as->ops->range_add(as, frnew);
             ++inew;
@@ -691,6 +716,9 @@ static void memory_region_write_thunk_n(void *_mr,
     uint64_t access_mask;
     unsigned i;
 
+    printf("write: region %s addr %"PRIx64" size %d data %"PRIx64"\n",
+           mr->name, (uint64_t)addr, size, data);
+
     if (!memory_region_access_valid(mr, addr, size)) {
         return; /* FIXME: better signalling */
     }
@@ -715,6 +743,9 @@ static void memory_region_write_thunk_n(void *_mr,
     addr += mr->offset;
     for (i = 0; i < size; i += access_size) {
         /* FIXME: big-endian support */
+        printf(" -> write: addr %"PRIx64" data %"PRIx64" size %d\n",
+               (uint64_t)addr + i, (data >> (i * 8)) & access_mask,
+               access_size);
         mr->ops->write(mr->opaque, addr + i, (data >> (i * 8)) & access_mask,
                        access_size);
     }
