@@ -1965,7 +1965,7 @@ static uint64_t cirrus_vga_mem_read(void *opaque,
     uint32_t val;
 
     if ((s->vga.sr[0x07] & 0x01) == 0) {
-	return vga_mem_readb(s, addr);
+        return vga_mem_readb(&s->vga, addr);
     }
 
     if (addr < 0x10000) {
@@ -2010,7 +2010,7 @@ static void cirrus_vga_mem_write(void *opaque,
     unsigned mode;
 
     if ((s->vga.sr[0x07] & 0x01) == 0) {
-	vga_mem_writeb(s, addr, mem_value);
+        vga_mem_writeb(&s->vga, addr, mem_value);
         return;
     }
 
