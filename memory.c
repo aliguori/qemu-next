@@ -122,6 +122,27 @@ static void flatview_destroy(FlatView *view)
     qemu_free(view->ranges);
 }
 
+/* Attempt to simplify a view by merging ajacent ranges */
+static void flatview_simplify(FlatView *view)
+{
+    unsigned i;
+    FlatRange *r1, *r2;
+
+    for (i = 0; i + 1 < view->nr; ++i) {
+        r1 = &view->ranges[i];
+        r2 = &view->ranges[i+1];
+        if (addrrange_end(r1->addr) == r2->addr.start
+            && r1->mr == r2->mr
+            && r1->offset_in_region + r1->addr.size == r2->offset_in_region
+            && r1->dirty_log_mask == r2->dirty_log_mask) {
+            r1->addr.size += r2->addr.size;
+            memmove(r2, r2 + 1, (view->nr - (i + 2)) * sizeof(*r2));
+            --view->nr;
+            --i;
+        }
+    }
+}
+
 /* Render a memory region into the global view.  Ranges in @view obscure
  * ranges in @mr.
  */
@@ -209,6 +230,7 @@ static FlatView generate_memory_topology(MemoryRegion *mr)
     flatview_init(&view);
 
     render_memory_region(&view, mr, 0, addrrange_make(0, UINT64_MAX));
+    flatview_simplify(&view);
 
     return view;
 }
