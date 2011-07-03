@@ -3820,7 +3820,7 @@ static void memory_map_init(void)
     set_system_memory_map(system_memory);
 
     system_io = qemu_malloc(sizeof(*system_io));
-    memory_region_init(system_memory, "io", 65536);
+    memory_region_init(system_io, "io", 65536);
     set_system_io_map(system_io);
 }
 
