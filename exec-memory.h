@@ -15,6 +15,8 @@
  */
 MemoryRegion *get_system_memory(void);
 
+MemoryRegion *get_system_io(void);
+
 /* Set the root memory region.  This region is the system memory map. */
 void set_system_memory_map(MemoryRegion *mr);
 
