@@ -203,6 +203,7 @@ QEMU_CFLAGS += $(VNC_TLS_CFLAGS)
 QEMU_CFLAGS += $(VNC_SASL_CFLAGS)
 QEMU_CFLAGS += $(VNC_JPEG_CFLAGS)
 QEMU_CFLAGS += $(VNC_PNG_CFLAGS)
+QEMU_CFLAGS += $(GLIB_CFLAGS)
 
 # xen backend driver support
 obj-i386-$(CONFIG_XEN) += xen_machine_pv.o xen_domainbuild.o
