@@ -19,9 +19,9 @@ void device_reset(Device *device)
     return class->reset(device);
 }
 
-void device_initialize(Device *device)
+void device_initialize(Device *device, const char *id)
 {
-    type_initialize(device, TYPE_DEVICE);
+    type_initialize(device, TYPE_DEVICE, id);
 }
 
 static const TypeInfo device_type_info = {

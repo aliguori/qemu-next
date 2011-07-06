@@ -37,7 +37,7 @@ typedef struct PlugClass {
 #define TYPE_PLUG "plug"
 #define PLUG(obj) TYPE_CHECK(Plug, obj, TYPE_PLUG)
 
-void plug_initialize(Plug *plug);
+void plug_initialize(Plug *plug, const char *id);
 
 void plug_set_property(Plug *plug, const char *name, Visitor *v, Error **errp);
 
@@ -49,15 +49,19 @@ void plug_add_property(Plug *plug, const char *name,
 
 /** types **/
 
-typedef struct FunctionPointer
-{
-    void (*fn)(void);
-} FunctionPointer;
-
 void plug_get_property__int(Plug *plug, const char *name, Visitor *v, void *opaque, Error **errp);
 void plug_set_property__int(Plug *plug, const char *name, Visitor *v, void *opaque, Error **errp);
 void plug_add_property_int(Plug *plug, const char *name,
                            int64_t (*getter)(Plug *plug),
                            void (*setter)(Plug *plug, int64_t));
+
+void plug_get_property__plug(Plug *plug, const char *name, Visitor *v, void *opaque, Error **errp);
+
+void plug_add_property_plug(Plug *plug, const char *name, Plug *value, const char *typename);
+
+void plug_get_property__socket(Plug *plug, const char *name, Visitor *v, void *opaque, Error **errp);
+void plug_set_property__socket(Plug *plug, const char *name, Visitor *v, void *opaque, Error **errp);
+
+void plug_add_property_socket(Plug *plug, const char *name, Plug **value, const char *typename);
 
 #endif

@@ -33,9 +33,13 @@ typedef struct TypeClass
     Type type;
 } TypeClass;
 
+#define MAX_ID (32 + 1)
+
 typedef struct TypeInstance
 {
     TypeClass *class;
+
+    char id[MAX_ID];
 } TypeInstance;
 
 typedef struct TypeInfo
@@ -74,11 +78,13 @@ typedef struct TypeInfo
 
 Type type_register_static(const TypeInfo *info);
 
-void type_initialize(void *obj, const char *typename);
+void type_initialize(void *obj, const char *typename, const char *id);
 
-TypeInstance *type_new(const char *typename);
+TypeInstance *type_new(const char *typename, const char *id);
 
 TypeInstance *type_check_type(TypeInstance *obj, const char *typename);
+
+TypeInstance *type_find_by_id(const char *id);
 
 TypeClass *type_check_class(TypeClass *obj, const char *typename);
 

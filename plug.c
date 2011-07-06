@@ -47,9 +47,9 @@ void plug_get_property(Plug *plug, const char *name, Visitor *v, Error **errp)
     prop->getter(plug, name, v, prop->getter_opaque, errp);
 }
 
-void plug_initialize(Plug *plug)
+void plug_initialize(Plug *plug, const char *id)
 {
-    type_initialize(plug, TYPE_PLUG);
+    type_initialize(plug, TYPE_PLUG, id);
 }
 
 static const TypeInfo plug_type_info = {
@@ -66,6 +66,11 @@ static void register_devices(void)
 device_init(register_devices);
 
 /** FIXME: move to generated code **/
+
+typedef struct FunctionPointer
+{
+    void (*fn)(void);
+} FunctionPointer;
 
 void plug_get_property__int(Plug *plug, const char *name, Visitor *v, void *opaque, Error **errp)
 {
@@ -107,3 +112,79 @@ void plug_add_property_int(Plug *plug, const char *name,
                       plug_get_property__int, getter_fp,
                       plug_set_property__int, setter_fp);
 }
+
+typedef struct PlugData
+{
+    const char *typename;
+    Plug *value;
+} PlugData;
+
+void plug_get_property__plug(Plug *plug, const char *name, Visitor *v, void *opaque, Error **errp)
+{
+    PlugData *data = opaque;
+    char *value;
+
+    value = (char *)TYPE_INSTANCE(data->value)->id;
+    visit_type_str(v, &value, name, errp);
+}
+
+void plug_add_property_plug(Plug *plug, const char *name, Plug *value, const char *typename)
+{
+    PlugData *data = qemu_mallocz(sizeof(*data));
+
+    data->typename = typename;
+    data->value = value;
+
+    plug_add_property(plug, name, plug_get_property__plug, data, NULL, NULL);
+}
+
+typedef struct SocketData
+{
+    const char *typename;
+    Plug **value;
+} SocketData;
+
+void plug_get_property__socket(Plug *plug, const char *name, Visitor *v, void *opaque, Error **errp)
+{
+    SocketData *data = opaque;
+    const char *value = "";
+
+    if (*data->value) {
+        value = TYPE_INSTANCE(*data->value)->id;
+    }
+
+    visit_type_str(v, (char **)&value, name, errp);
+}
+
+void plug_set_property__socket(Plug *plug, const char *name, Visitor *v, void *opaque, Error **errp)
+{
+    char *value = NULL;
+    Error *local_err = NULL;
+    SocketData *data = opaque;
+    TypeInstance *obj;
+
+    /* FIXME: memleak? */
+    visit_type_str(v, &value, name, &local_err);
+    if (local_err) {
+        error_propagate(errp, local_err);
+        return;
+    }
+
+    obj = type_find_by_id(value);
+    assert(obj != NULL);
+
+    *data->value = PLUG(type_check_type(obj, data->typename));
+}
+
+void plug_add_property_socket(Plug *plug, const char *name, Plug **value, const char *typename)
+{
+    SocketData *data = qemu_mallocz(sizeof(*data));
+
+    data->typename = typename;
+    data->value = value;
+
+    plug_add_property(plug, name,
+                      plug_get_property__socket, data,
+                      plug_set_property__socket, data);
+}
+

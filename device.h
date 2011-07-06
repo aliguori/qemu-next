@@ -22,7 +22,7 @@ typedef struct DeviceClass
 #define DEVICE(obj) TYPE_CHECK(Device, obj, TYPE_DEVICE)
 #define DEVICE_CLASS(class) TYPE_CLASS_CHECK(DeviceClass, class, TYPE_DEVICE)
 
-void device_initialize(Device *device);
+void device_initialize(Device *device, const char *id);
 
 void device_realize(Device *device);
 

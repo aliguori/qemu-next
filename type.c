@@ -1,4 +1,5 @@
 #include "type.h"
+#include <glib.h>
 
 typedef struct TypeImpl
 {
@@ -155,29 +156,49 @@ static void type_instance_init(TypeInstance *obj, const char *typename)
     }
 }
 
-void type_initialize(void *data, const char *typename)
+static GHashTable *global_object_table;
+
+void type_initialize(void *data, const char *typename, const char *id)
 {
     TypeImpl *ti = type_get_instance(type_get_by_name(typename));
     TypeInstance *obj = data;
 
-    assert(ti->instance_size >= sizeof(TypeClass *));
+    assert(ti->instance_size >= sizeof(TypeClass));
 
     type_class_init(ti);
 
+    memset(obj, 0, ti->instance_size);
+
     obj->class = ti->class;
+    snprintf(obj->id, sizeof(obj->id), "%s", id);
+
+    if (global_object_table == NULL) {
+        global_object_table = g_hash_table_new(g_str_hash, g_str_equal);
+    }
+
+    g_hash_table_insert(global_object_table, obj->id, obj);
 
     type_instance_init(obj, typename);
 }
 
-TypeInstance *type_new(const char *typename)
+TypeInstance *type_new(const char *typename, const char *id)
 {
     TypeImpl *ti = type_get_instance(type_get_by_name(typename));
     TypeInstance *obj;
 
     obj = qemu_malloc(ti->instance_size);
-    type_initialize(obj, typename);
+    type_initialize(obj, typename, id);
 
     return obj;
+}
+
+TypeInstance *type_find_by_id(const char *id)
+{
+    gpointer data = g_hash_table_lookup(global_object_table, id);
+
+    assert(data);
+
+    return TYPE_INSTANCE(data);
 }
 
 TypeInstance *type_check_type(TypeInstance *obj, const char *typename)
