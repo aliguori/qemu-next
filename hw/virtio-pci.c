@@ -169,24 +169,11 @@ static int virtio_pci_set_host_notifier_internal(VirtIOPCIProxy *proxy,
                          __func__, r);
             return r;
         }
-        r = kvm_set_ioeventfd_pio_word(event_notifier_get_fd(notifier),
-                                       proxy->addr + VIRTIO_PCI_QUEUE_NOTIFY,
-                                       n, assign);
-        if (r < 0) {
-            error_report("%s: unable to map ioeventfd: %d",
-                         __func__, r);
-            event_notifier_cleanup(notifier);
-        }
+        memory_region_add_eventfd(&proxy->bar, VIRTIO_PCI_QUEUE_NOTIFY, 2,
+                                  true, n, event_notifier_get_fd(notifier));
     } else {
-        r = kvm_set_ioeventfd_pio_word(event_notifier_get_fd(notifier),
-                                       proxy->addr + VIRTIO_PCI_QUEUE_NOTIFY,
-                                       n, assign);
-        if (r < 0) {
-            error_report("%s: unable to unmap ioeventfd: %d",
-                         __func__, r);
-            return r;
-        }
-
+        memory_region_del_eventfd(&proxy->bar, VIRTIO_PCI_QUEUE_NOTIFY, 2,
+                                  true, n, event_notifier_get_fd(notifier));
         /* Handle the race condition where the guest kicked and we deassigned
          * before we got around to handling the kick.
          */
@@ -423,7 +410,6 @@ static uint32_t virtio_pci_config_readb(void *opaque, uint32_t addr)
 {
     VirtIOPCIProxy *proxy = opaque;
     uint32_t config = VIRTIO_PCI_CONFIG(&proxy->pci_dev);
-    addr -= proxy->addr;
     if (addr < config)
         return virtio_ioport_read(proxy, addr);
     addr -= config;
@@ -434,7 +420,6 @@ static uint32_t virtio_pci_config_readw(void *opaque, uint32_t addr)
 {
     VirtIOPCIProxy *proxy = opaque;
     uint32_t config = VIRTIO_PCI_CONFIG(&proxy->pci_dev);
-    addr -= proxy->addr;
     if (addr < config)
         return virtio_ioport_read(proxy, addr);
     addr -= config;
@@ -445,7 +430,6 @@ static uint32_t virtio_pci_config_readl(void *opaque, uint32_t addr)
 {
     VirtIOPCIProxy *proxy = opaque;
     uint32_t config = VIRTIO_PCI_CONFIG(&proxy->pci_dev);
-    addr -= proxy->addr;
     if (addr < config)
         return virtio_ioport_read(proxy, addr);
     addr -= config;
@@ -456,7 +440,6 @@ static void virtio_pci_config_writeb(void *opaque, uint32_t addr, uint32_t val)
 {
     VirtIOPCIProxy *proxy = opaque;
     uint32_t config = VIRTIO_PCI_CONFIG(&proxy->pci_dev);
-    addr -= proxy->addr;
     if (addr < config) {
         virtio_ioport_write(proxy, addr, val);
         return;
@@ -469,7 +452,6 @@ static void virtio_pci_config_writew(void *opaque, uint32_t addr, uint32_t val)
 {
     VirtIOPCIProxy *proxy = opaque;
     uint32_t config = VIRTIO_PCI_CONFIG(&proxy->pci_dev);
-    addr -= proxy->addr;
     if (addr < config) {
         virtio_ioport_write(proxy, addr, val);
         return;
@@ -482,7 +464,6 @@ static void virtio_pci_config_writel(void *opaque, uint32_t addr, uint32_t val)
 {
     VirtIOPCIProxy *proxy = opaque;
     uint32_t config = VIRTIO_PCI_CONFIG(&proxy->pci_dev);
-    addr -= proxy->addr;
     if (addr < config) {
         virtio_ioport_write(proxy, addr, val);
         return;
@@ -491,30 +472,26 @@ static void virtio_pci_config_writel(void *opaque, uint32_t addr, uint32_t val)
     virtio_config_writel(proxy->vdev, addr, val);
 }
 
-static void virtio_map(PCIDevice *pci_dev, int region_num,
-                       pcibus_t addr, pcibus_t size, int type)
-{
-    VirtIOPCIProxy *proxy = container_of(pci_dev, VirtIOPCIProxy, pci_dev);
-    VirtIODevice *vdev = proxy->vdev;
-    unsigned config_len = VIRTIO_PCI_REGION_SIZE(pci_dev) + vdev->config_len;
+const MemoryRegionPortio virtio_portio[] = {
+    { 0, 0x10000, 1, .write = virtio_pci_config_writeb, },
+    { 0, 0x10000, 2, .write = virtio_pci_config_writew, },
+    { 0, 0x10000, 4, .write = virtio_pci_config_writel, },
+    { 0, 0x10000, 1, .read = virtio_pci_config_readb, },
+    { 0, 0x10000, 2, .read = virtio_pci_config_readw, },
+    { 0, 0x10000, 4, .read = virtio_pci_config_readl, },
+    PORTIO_END
+};
 
-    proxy->addr = addr;
-
-    register_ioport_write(addr, config_len, 1, virtio_pci_config_writeb, proxy);
-    register_ioport_write(addr, config_len, 2, virtio_pci_config_writew, proxy);
-    register_ioport_write(addr, config_len, 4, virtio_pci_config_writel, proxy);
-    register_ioport_read(addr, config_len, 1, virtio_pci_config_readb, proxy);
-    register_ioport_read(addr, config_len, 2, virtio_pci_config_readw, proxy);
-    register_ioport_read(addr, config_len, 4, virtio_pci_config_readl, proxy);
-
-    if (vdev->config_len)
-        vdev->get_config(vdev, vdev->config);
-}
+static MemoryRegionOps virtio_pci_config_ops = {
+    .old_portio = virtio_portio,
+    .endianness = DEVICE_LITTLE_ENDIAN,
+};
 
 static void virtio_write_config(PCIDevice *pci_dev, uint32_t address,
                                 uint32_t val, int len)
 {
     VirtIOPCIProxy *proxy = DO_UPCAST(VirtIOPCIProxy, pci_dev, pci_dev);
+    VirtIODevice *vdev = proxy->vdev;
 
     if (PCI_COMMAND == address) {
         if (!(val & PCI_COMMAND_MASTER)) {
@@ -524,6 +501,9 @@ static void virtio_write_config(PCIDevice *pci_dev, uint32_t address,
                                   proxy->vdev->status & ~VIRTIO_CONFIG_S_DRIVER_OK);
             }
         }
+    }
+    if (address == PCI_BASE_ADDRESS_0 && vdev->config_len) {
+        vdev->get_config(vdev, vdev->config);
     }
 
     pci_default_write_config(pci_dev, address, val, len);
@@ -678,8 +658,10 @@ void virtio_init_pci(VirtIOPCIProxy *proxy, VirtIODevice *vdev)
     if (size & (size-1))
         size = 1 << qemu_fls(size);
 
-    pci_register_bar(&proxy->pci_dev, 0, size, PCI_BASE_ADDRESS_SPACE_IO,
-                           virtio_map);
+    memory_region_init_io(&proxy->bar, &virtio_pci_config_ops, proxy,
+                          "virtio-pci", size);
+    pci_register_bar_region(&proxy->pci_dev, 0, PCI_BASE_ADDRESS_SPACE_IO,
+                            &proxy->bar);
 
     if (!kvm_has_many_ioeventfds()) {
         proxy->flags &= ~VIRTIO_PCI_FLAG_USE_IOEVENTFD;
@@ -714,6 +696,9 @@ static int virtio_blk_init_pci(PCIDevice *pci_dev)
 
 static int virtio_exit_pci(PCIDevice *pci_dev)
 {
+    VirtIOPCIProxy *proxy = DO_UPCAST(VirtIOPCIProxy, pci_dev, pci_dev);
+
+    memory_region_destroy(&proxy->bar);
     return msix_uninit(pci_dev);
 }
 
