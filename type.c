@@ -181,6 +181,35 @@ void type_initialize(void *data, const char *typename, const char *id)
     type_instance_init(obj, typename);
 }
 
+static void type_instance_finalize(TypeInstance *obj, const char *typename)
+{
+    TypeImpl *ti = type_get_instance(type_get_by_name(typename));
+
+    if (ti->instance_finalize) {
+        ti->instance_finalize(obj);
+    }
+
+    if (ti->parent) {
+        type_instance_init(obj, ti->parent);
+    }
+}
+
+void type_finalize(void *data)
+{
+    TypeInstance *obj = data;
+    TypeImpl *ti = type_get_instance(obj->class->type);
+
+    g_hash_table_remove(global_object_table, obj->id);
+
+    type_instance_finalize(obj, ti->name);
+}
+
+const char *type_get_name(Type type)
+{
+    TypeImpl *ti = type_get_instance(type);
+    return ti->name;
+}
+
 TypeInstance *type_new(const char *typename, const char *id)
 {
     TypeImpl *ti = type_get_instance(type_get_by_name(typename));

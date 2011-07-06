@@ -4,19 +4,69 @@ static void device_initfn(TypeInstance *obj)
 {
     Device *device = DEVICE(obj);
 
-    device->y = 84;
+    device->realized = false;
 }
 
-void device_realize(Device *device)
+static void _device_on_realize(Device *device)
 {
-    DeviceClass *class = DEVICE_CLASS(TYPE_INSTANCE(device)->class);
-    return class->realize(device);
+    /* FIXME: do something useful like locking all sockets */
+    /* this requires having r/w flags for properties and being
+       able to toggle flags dynamically */
 }
 
-void device_reset(Device *device)
+/* Default reset implement completely reinitializes the device */
+static void _device_on_reset(Device *device)
+{
+    TypeInstance *ti = TYPE_INSTANCE(device);
+    const char *typename = type_get_name(ti->class->type);
+    const char *id = ti->id;
+
+    type_finalize(TYPE_INSTANCE(device));
+    type_initialize(device, typename, id);
+
+    /* FIXME save off properties and restore properties 
+       maybe we should tag properties as host visible or something.
+    */
+}
+
+static void _device_visit(Device *device, Visitor *v, const char *name, Error **errp)
+{
+    visit_start_struct(v, (void **)&device, "Device", name, 0, errp);
+    visit_type_bool(v, &device->realized, "realized", errp);
+    visit_end_struct(v, errp);
+}
+
+static void device_class_initfn(TypeClass *type_class)
+{
+    DeviceClass *class = DEVICE_CLASS(type_class);
+
+    class->on_realize = _device_on_realize;
+    class->on_reset = _device_on_reset;
+    class->visit = _device_visit;
+}
+
+void device_set_realized(Device *device, bool realized)
 {
     DeviceClass *class = DEVICE_CLASS(TYPE_INSTANCE(device)->class);
-    return class->reset(device);
+
+    if (!device->realized && realized) {
+        device->realized = true;
+        class->on_realize(device);
+    } else if (device->realized && !realized) {
+        device->realized = false;
+        class->on_reset(device);
+    }
+}
+
+bool device_get_realized(Device *device)
+{
+    return device->realized;
+}
+
+void device_visit(Device *device, Visitor *v, const char *name, Error **errp)
+{
+    DeviceClass *class = DEVICE_CLASS(TYPE_INSTANCE(device)->class);
+    return class->visit(device, v, name, errp);
 }
 
 void device_initialize(Device *device, const char *id)
@@ -24,11 +74,17 @@ void device_initialize(Device *device, const char *id)
     type_initialize(device, TYPE_DEVICE, id);
 }
 
+void device_finalize(Device *device)
+{
+    type_finalize(device);
+}
+
 static const TypeInfo device_type_info = {
     .name = TYPE_DEVICE,
     .parent = TYPE_PLUG,
     .instance_size = sizeof(Device),
     .class_size = sizeof(DeviceClass),
+    .class_init = device_class_initfn,
     .instance_init = device_initfn,
 };
 

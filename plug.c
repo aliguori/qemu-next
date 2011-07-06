@@ -52,6 +52,11 @@ void plug_initialize(Plug *plug, const char *id)
     type_initialize(plug, TYPE_PLUG, id);
 }
 
+void plug_finalize(Plug *plug)
+{
+    type_finalize(plug);
+}
+
 static const TypeInfo plug_type_info = {
     .name = TYPE_PLUG,
     .instance_size = sizeof(Plug),

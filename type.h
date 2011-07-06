@@ -80,6 +80,8 @@ Type type_register_static(const TypeInfo *info);
 
 void type_initialize(void *obj, const char *typename, const char *id);
 
+void type_finalize(void *obj);
+
 TypeInstance *type_new(const char *typename, const char *id);
 
 TypeInstance *type_check_type(TypeInstance *obj, const char *typename);
@@ -93,5 +95,7 @@ TypeClass *type_check_class(TypeClass *obj, const char *typename);
 #define TYPE_CLASS_CHECK(class, obj, name) ((class *)type_check_class((TypeClass *)(obj), (name)))
 
 Type type_get_by_name(const char *name);
+
+const char *type_get_name(Type type);
 
 #endif

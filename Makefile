@@ -190,6 +190,8 @@ test-qmp-commands: test-qmp-commands.o qfloat.o qint.o qdict.o qstring.o qlist.o
 
 test-plug$(EXESUF): test-plug.o qemu-malloc.o plug.o type.o $(oslib-obj-y) qapi/qapi-visit-core.o $(qobject-obj-y) qjson.o qemu-tool.o
 
+test-device$(EXESUF): test-device.o qemu-malloc.o device.o plug.o type.o $(oslib-obj-y) qapi/qapi-visit-core.o $(qobject-obj-y) qjson.o qemu-tool.o
+
 QEMULIBS=libhw32 libhw64 libuser libdis libdis-user
 
 clean:
