@@ -85,6 +85,7 @@ struct MemoryRegionOps {
 };
 
 typedef struct CoalescedMemoryRange CoalescedMemoryRange;
+typedef struct MemoryRegionIoeventfd MemoryRegionIoeventfd;
 
 struct MemoryRegion {
     /* All fields are private - violators will be prosecuted */
@@ -107,6 +108,8 @@ struct MemoryRegion {
     QTAILQ_HEAD(coalesced_ranges, CoalescedMemoryRange) coalesced;
     const char *name;
     uint8_t dirty_log_mask;
+    unsigned ioeventfd_nb;
+    MemoryRegionIoeventfd *ioeventfds;
 };
 
 struct MemoryRegionPortio {
@@ -207,6 +210,23 @@ void memory_region_add_coalescing(MemoryRegion *mr,
                                   uint64_t size);
 /* Disable MMIO coalescing for the region. */
 void memory_region_clear_coalescing(MemoryRegion *mr);
+
+
+/* Request an eventfd to be triggered when a word is written to a location */
+void memory_region_add_eventfd(MemoryRegion *mr,
+                               target_phys_addr_t addr,
+                               unsigned size,
+                               bool match_data,
+                               uint64_t data,
+                               int fd);
+
+/* Cancel an existing eventfd  */
+void memory_region_del_eventfd(MemoryRegion *mr,
+                               target_phys_addr_t addr,
+                               unsigned size,
+                               bool match_data,
+                               uint64_t data,
+                               int fd);
 
 /* Add a sub-region at @offset.  The sub-region may not overlap with other
  * subregions (except for those explicitly marked as overlapping)
