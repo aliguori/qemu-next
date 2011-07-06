@@ -160,6 +160,7 @@ int main(int argc, char **argv)
 #include "qemu-queue.h"
 #include "cpus.h"
 #include "arch_init.h"
+#include "plug.h"
 
 #include "ui/qemu-spice.h"
 
@@ -2704,6 +2705,11 @@ int main(int argc, char **argv, char **envp)
                 break;
             case QEMU_OPTION_device:
                 if (!qemu_opts_parse(qemu_find_opts("device"), optarg, 1)) {
+                    exit(1);
+                }
+                break;
+            case QEMU_OPTION_plug:
+                if (!plug_create_from_string(optarg)) {
                     exit(1);
                 }
                 break;

@@ -483,6 +483,10 @@ possible drivers and properties, use @code{-device ?} and
 @code{-device @var{driver},?}.
 ETEXI
 
+DEF("plug", HAS_ARG, QEMU_OPTION_plug,
+    "-plug type,id=name[,prop[=value][,...]]\n",
+    QEMU_ARCH_ALL)
+
 DEFHEADING(File system options:)
 
 DEF("fsdev", HAS_ARG, QEMU_OPTION_fsdev,

@@ -135,6 +135,12 @@ libcacard.la: $(GENERATED_HEADERS) $(oslib-obj-y) qemu-malloc.o qemu-timer-commo
 install-libcacard: libcacard.la
 	$(call quiet-command,$(MAKE) $(SUBDIR_MAKEFLAGS) -C libcacard V="$(V)" TARGET_DIR="$*/" install-libcacard,)
 endif
+
+######################################################################
+
+test-type$(EXESUF): test-type.o qemu-malloc.o type.o $(oslib-obj-y)
+test-variant$(EXESUF): test-variant.o qemu-malloc.o type.o $(oslib-obj-y)
+
 ######################################################################
 
 qemu-img.o: qemu-img-cmds.h
