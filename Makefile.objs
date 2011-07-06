@@ -158,8 +158,6 @@ common-obj-$(CONFIG_SLIRP) += $(addprefix slirp/, $(slirp-obj-y))
 common-obj-$(CONFIG_XEN) += xen_backend.o xen_devconfig.o
 common-obj-$(CONFIG_XEN) += xen_console.o xenfb.o xen_disk.o xen_nic.o
 
-common-obj-y += plug.o
-
 ######################################################################
 # libuser
 

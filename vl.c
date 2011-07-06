@@ -2709,9 +2709,6 @@ int main(int argc, char **argv, char **envp)
                 }
                 break;
             case QEMU_OPTION_plug:
-                if (!plug_create_from_string(optarg)) {
-                    exit(1);
-                }
                 break;
             case QEMU_OPTION_smp:
                 smp_parse(optarg);
