@@ -13,6 +13,7 @@
 #define ERROR_H
 
 #include <stdbool.h>
+#include "qemu-common.h"
 
 /**
  * A class representing internal errors within QEMU.  An error has a string

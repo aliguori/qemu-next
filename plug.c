@@ -1,199 +1,109 @@
 #include "plug.h"
 
-/** plug **/
-
-typedef struct PlugClass
+static void plug_initfn(TypeInstance *obj)
 {
-    Type type; 
-} PlugClass;
-
-typedef struct Plug
-{
-    PlugClass *class;
-} Plug;
-
-Type plug_get_type(void)
-{
-    static Type type = 0;
-
-    if (type == 0) {
-        static const TypeInfo type_info = {
-            .name = "plug",
-            .abstract = true,
-            .instance_size = sizeof(Plug),
-            .class_size = sizeof(PlugClass),
-        };
-        type = type_register_static(0, &type_info);
-    }
-
-    return type;
 }
 
-/** virtio **/
-
-typedef struct VirtioDeviceClass
+void plug_add_property(Plug *plug, const char *name,
+                       PlugPropertyAccessor *getter, void *getter_opaque,
+                       PlugPropertyAccessor *setter, void *setter_opaque)
 {
-    PlugClass parent_class;
+    PlugProperty *prop = qemu_mallocz(sizeof(*prop));
 
-    void (*get_config)(VirtioDevice *vdev, uint32_t offset, void *data, size_t len);
-    void (*set_config)(VirtioDevice *vdev, uint32_t offset, const void *data, size_t len);
-} VirtioDeviceClass;
+    prop->name = name;
 
-typedef struct VirtioDevice
-{
-    Plug parent;
-} VirtioDevice;
+    prop->getter = getter;
+    prop->getter_opaque = getter_opaque;
 
-Type virtio_get_type(void)
-{
-    static Type type = 0;
+    prop->setter = setter;
+    prop->setter_opaque = setter_opaque;
 
-    if (type == 0) {
-        static const TypeInfo type_info = {
-            .name = "virtio",
-            .abstract = true,
-            .instance_size = sizeof(VirtioDevice),
-            .class_size = sizeof(VirtioClass),
-        };
-        type = type_register_static(plug_get_type(), &type_info);
-    }
-
-    return type;
+    prop->next = plug->first_prop;
+    plug->first_prop = prop;
 }
 
-/** virtio-net **/
-
-typedef struct VirtioNetClass
+static PlugProperty *plug_find_property(Plug *plug, const char *name)
 {
-    VirtioDeviceClass parent_class;
-} VirtioNetClass;
+    PlugProperty *prop;
 
-typedef struct VirtioNetDevice
-{
-    VirtioDevice parent;
-} VirtioNetDevice;
-
-static void virtio_net_get_config(VirtioDevice *vdev, uint32_t offset, void *data, size_t len)
-{
-    VirtioNetDevice *dev = VIRTIO_NET_DEVICE(vdev);
-}
-
-static void virtio_net_set_config(VirtioDevice *vdev, uint32_t offset, const void *data, size_t len)
-{
-    VirtioNetDevice *dev = VIRTIO_NET_DEVICE(vdev);
-}
-
-static void virtio_net_class_init(PlugClass *parent_class)
-{
-    VirtioClass *virtio_klass = VIRTIO_CLASS(parent_class);
-
-    virtio_klass->get = virtio_net_get_config;
-    virtio_klass->set = virtio_net_set_config;
-}
-
-Type virtio_net_get_type(void)
-{
-    static Type type = 0;
-
-    if (type == 0) {
-        static const TypeInfo type_info = {
-            .name = "virtio-net",
-            .instance_size = sizeof(VirtioNetDevice),
-            .class_size = sizeof(VirtioNetClass),
-            .class_init = virtio_net_class_init,
-        };
-        type = type_register_static(virtio_get_type(), &type_info);
-    }
-
-    return type;
-}
-
-/** garbage **/
-
-int plug_create_from_kv(int argc, const char *names[], const char *values[])
-{
-    int i;
-
-    for (i = 0; i < argc; i++) {
-        printf("'%s': '%s'\n", names[i], values[i]);
-    }
-
-    return 0;
-}
-
-int plug_create_from_va(const char *driver, const char *id, va_list ap)
-{
-    const char *arg_name[128];
-    const char *arg_value[128];
-    int arg_count = 0;
-    const char *key;
-    
-    arg_name[arg_count] = "driver";
-    arg_value[arg_count] = driver;
-    arg_count++;
-
-    arg_name[arg_count] = "id";
-    arg_value[arg_count] = id;
-    arg_count++;
-
-    while ((key = va_arg(ap, const char *))) {
-        const char *value = va_arg(ap, const char *);
-
-        arg_name[arg_count] = key;
-        arg_value[arg_count] = value;
-        arg_count++;
-    }
-
-    return plug_create_from_kv(arg_count, arg_name, arg_value);
-}
-
-int plug_create(const char *driver, const char *id, ...)
-{
-    va_list ap;
-    int ret;
-
-    va_start(ap, id);
-    ret = plug_create_from_va(driver, id, ap);
-    va_end(ap);
-
-    return ret;
-}
-
-int plug_create_from_string(const char *optarg)
-{
-    char buffer[1024];
-    char *token, *ptr = buffer;
-    bool first_option = true;
-    const char *arg_name[128];
-    const char *arg_value[128];
-    int arg_count = 0;
-
-    snprintf(buffer, sizeof(buffer), "%s", optarg);
-
-    for (token = strsep(&ptr, ","); token; token = strsep(&ptr, ",")) {
-        char *sep = strchr(token, '=');
-        const char *key, *value;
-        
-        if (sep == NULL) {
-            if (first_option) {
-                key = "driver";
-                value = token;
-            } else {
-                key = token;
-                value = "on";
-            }
-        } else {
-            *sep = '\0';
-            key = token;
-            value = sep + 1;
+    for (prop = plug->first_prop; prop; prop = prop->next) {
+        if (strcmp(prop->name, name) == 0) {
+            return prop;
         }
-
-        arg_name[arg_count] = key;
-        arg_value[arg_count] = value;
-        arg_count++;
-
-        first_option = false;
     }
 
-    return plug_create_from_kv(arg_count, arg_name, arg_value);
+    return NULL;
+}
+
+void plug_set_property(Plug *plug, const char *name, Visitor *v, Error **errp)
+{
+    PlugProperty *prop = plug_find_property(plug, name);
+    prop->setter(plug, name, v, prop->setter_opaque, errp);
+}
+
+void plug_get_property(Plug *plug, const char *name, Visitor *v, Error **errp)
+{
+    PlugProperty *prop = plug_find_property(plug, name);
+    prop->getter(plug, name, v, prop->getter_opaque, errp);
+}
+
+void plug_initialize(Plug *plug)
+{
+    type_initialize(plug, TYPE_PLUG);
+}
+
+static const TypeInfo plug_type_info = {
+    .name = TYPE_PLUG,
+    .instance_size = sizeof(Plug),
+    .instance_init = plug_initfn,
+};
+
+static void register_devices(void)
+{
+    type_register_static(&plug_type_info);
+}
+
+device_init(register_devices);
+
+/** FIXME: move to generated code **/
+
+void plug_get_property__int(Plug *plug, const char *name, Visitor *v, void *opaque, Error **errp)
+{
+    FunctionPointer *fp = opaque;
+    int64_t (*getter)(Plug *) = (int64_t (*)(Plug *))fp->fn;
+    int64_t value;
+
+    value = getter(plug);
+    visit_type_int(v, &value, name, errp);
+}
+
+void plug_set_property__int(Plug *plug, const char *name, Visitor *v, void *opaque, Error **errp)
+{
+    FunctionPointer *fp = opaque;
+    void (*setter)(Plug *, int64_t) = (void (*)(Plug *, int64_t))fp->fn;
+    int64_t value = 0;
+    Error *local_err = NULL;
+
+    visit_type_int(v, &value, name, &local_err);
+    if (local_err) {
+        error_propagate(errp, local_err);
+        return;
+    }
+
+    setter(plug, value);
+}
+
+void plug_add_property_int(Plug *plug, const char *name,
+                           int64_t (*getter)(Plug *plug),
+                           void (*setter)(Plug *plug, int64_t))
+{
+    FunctionPointer *getter_fp = qemu_mallocz(sizeof(*getter_fp));
+    FunctionPointer *setter_fp = qemu_mallocz(sizeof(*setter_fp));
+
+    getter_fp->fn = (void (*)(void))getter;
+    setter_fp->fn = (void (*)(void))setter;
+
+    plug_add_property(plug, name,
+                      plug_get_property__int, getter_fp,
+                      plug_set_property__int, setter_fp);
 }
