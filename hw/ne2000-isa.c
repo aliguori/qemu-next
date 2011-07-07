@@ -61,24 +61,18 @@ static const VMStateDescription vmstate_isa_ne2000 = {
     }
 };
 
+#include "exec-memory.h"
+
 static int isa_ne2000_initfn(ISADevice *dev)
 {
     ISANE2000State *isa = DO_UPCAST(ISANE2000State, dev, dev);
     NE2000State *s = &isa->ne2000;
 
-    register_ioport_write(isa->iobase, 16, 1, ne2000_ioport_write, s);
-    register_ioport_read(isa->iobase, 16, 1, ne2000_ioport_read, s);
+    ne2000_setup_io(s, 0x20);
     isa_init_ioport_range(dev, isa->iobase, 16);
-
-    register_ioport_write(isa->iobase + 0x10, 1, 1, ne2000_asic_ioport_write, s);
-    register_ioport_read(isa->iobase + 0x10, 1, 1, ne2000_asic_ioport_read, s);
-    register_ioport_write(isa->iobase + 0x10, 2, 2, ne2000_asic_ioport_write, s);
-    register_ioport_read(isa->iobase + 0x10, 2, 2, ne2000_asic_ioport_read, s);
     isa_init_ioport_range(dev, isa->iobase + 0x10, 2);
-
-    register_ioport_write(isa->iobase + 0x1f, 1, 1, ne2000_reset_ioport_write, s);
-    register_ioport_read(isa->iobase + 0x1f, 1, 1, ne2000_reset_ioport_read, s);
     isa_init_ioport(dev, isa->iobase + 0x1f);
+    memory_region_add_subregion(get_system_io(), isa->iobase, &s->io);
 
     isa_init_irq(dev, &s->irq, isa->isairq);
 
