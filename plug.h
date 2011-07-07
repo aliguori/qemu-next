@@ -8,26 +8,6 @@
 typedef struct Plug Plug;
 typedef struct PlugProperty PlugProperty;
 
-typedef void (PlugPropertyAccessor)(Plug *, const char *, Visitor *, void *, Error **errp);
-
-#define MAX_NAME (32 + 1)
-#define MAX_TYPENAME (32 + 1)
-
-struct PlugProperty
-{
-    char name[MAX_NAME];
-    char typename[MAX_TYPENAME];
-    
-
-    PlugPropertyAccessor *getter;
-    void *getter_opaque;
-
-    PlugPropertyAccessor *setter;
-    void *setter_opaque;
-
-    PlugProperty *next;
-};
-
 struct Plug
 {
     TypeInstance parent;
@@ -42,6 +22,9 @@ typedef struct PlugClass {
 #define TYPE_PLUG "plug"
 #define PLUG(obj) TYPE_CHECK(Plug, obj, TYPE_PLUG)
 
+typedef void (PlugPropertyAccessor)(Plug *plug, const char *name, Visitor *v, void *opaque, Error **errp);
+typedef void (PropertyEnumerator)(Plug *plug, const char *name, const char *typename, void *opaque);
+
 void plug_initialize(Plug *plug, const char *id);
 void plug_finalize(Plug *plug);
 
@@ -53,6 +36,10 @@ void plug_add_property_full(Plug *plug, const char *name,
                             PlugPropertyAccessor *getter, void *getter_opaque,
                             PlugPropertyAccessor *setter, void *setter_opaque,
                             const char *typename);
+
+void plug_foreach_property(Plug *plug, PropertyEnumerator *enumfn, void *opaque);
+
+const char *plug_get_id(Plug *plug);
 
 #include "plug-proptypes.h"
 

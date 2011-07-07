@@ -67,7 +67,7 @@ void plug_get_property__plug(Plug *plug, const char *name, Visitor *v, void *opa
 void plug_add_property_plug(Plug *plug, const char *name, Plug *value, const char *typename)
 {
     PlugData *data = qemu_mallocz(sizeof(*data));
-    char fulltype[MAX_TYPENAME];
+    char fulltype[33];
 
     data->typename = typename;
     data->value = value;
@@ -121,7 +121,7 @@ void plug_set_property__socket(Plug *plug, const char *name, Visitor *v, void *o
 void plug_add_property_socket(Plug *plug, const char *name, Plug **value, const char *typename)
 {
     SocketData *data = qemu_mallocz(sizeof(*data));
-    char fulltype[MAX_TYPENAME];
+    char fulltype[33];
 
     data->typename = typename;
     data->value = value;

@@ -1,8 +1,22 @@
 #include "plug.h"
 
-static void plug_initfn(TypeInstance *obj)
+#define MAX_NAME (32 + 1)
+#define MAX_TYPENAME (32 + 1)
+
+struct PlugProperty
 {
-}
+    char name[MAX_NAME];
+    char typename[MAX_TYPENAME];
+    
+
+    PlugPropertyAccessor *getter;
+    void *getter_opaque;
+
+    PlugPropertyAccessor *setter;
+    void *setter_opaque;
+
+    PlugProperty *next;
+};
 
 void plug_add_property_full(Plug *plug, const char *name,
                             PlugPropertyAccessor *getter, void *getter_opaque,
@@ -49,6 +63,15 @@ void plug_get_property(Plug *plug, const char *name, Visitor *v, Error **errp)
     prop->getter(plug, name, v, prop->getter_opaque, errp);
 }
 
+void plug_foreach_property(Plug *plug, PropertyEnumerator *enumfn, void *opaque)
+{
+    PlugProperty *prop;
+
+    for (prop = plug->first_prop; prop; prop = prop->next) {
+        enumfn(plug, prop->name, prop->typename, opaque);
+    }
+}
+
 void plug_initialize(Plug *plug, const char *id)
 {
     type_initialize(plug, TYPE_PLUG, id);
@@ -59,10 +82,14 @@ void plug_finalize(Plug *plug)
     type_finalize(plug);
 }
 
+const char *plug_get_id(Plug *plug)
+{
+    return TYPE_INSTANCE(plug)->id;
+}
+
 static const TypeInfo plug_type_info = {
     .name = TYPE_PLUG,
     .instance_size = sizeof(Plug),
-    .instance_init = plug_initfn,
 };
 
 static void register_devices(void)

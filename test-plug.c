@@ -121,6 +121,15 @@ static void string_output_visitor_init(StringOutputVisitor *sv)
     sv->parent.type_str = string_output_visitor_str;
 }
 
+static void print_props(Plug *plug, const char *name, const char *typename, void *opaque)
+{
+    StringOutputVisitor sov;
+
+    string_output_visitor_init(&sov);
+    plug_get_property(plug, name, &sov.parent, NULL);
+    printf("`%s.%s' is a `%s' and has a value of `%s'\n", plug_get_id(plug), name, typename, sov.value);
+}
+
 int main(int argc, char **argv)
 {
     TestPlug tp;
@@ -156,6 +165,8 @@ int main(int argc, char **argv)
 
     printf("tp::child - %p\n", &tp.child);
     printf("tp.slot - %p\n", tp.slot);
+
+    plug_foreach_property(PLUG(&tp), print_props, NULL);
 
     assert(&tp.child == tp.slot);
 
