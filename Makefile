@@ -188,9 +188,9 @@ test-visitor: test-visitor.o $(qapi-obj-y) $(qobject-obj-y) osdep.o qemu-malloc.
 test-qmp-commands.o: $(addprefix $(qapi-dir)/, test-qapi-types.c test-qapi-types.h test-qapi-visit.c test-qapi-visit.h test-qmp-marshal.c test-qmp-commands.h)
 test-qmp-commands: test-qmp-commands.o qfloat.o qint.o qdict.o qstring.o qlist.o qbool.o $(qapi-obj-y) error.o osdep.o qemu-malloc.o $(oslib-obj-y) qjson.o json-streamer.o json-lexer.o json-parser.o qerror.o qemu-error.o qemu-tool.o $(qapi-dir)/test-qapi-visit.o $(qapi-dir)/test-qapi-types.o $(qapi-dir)/test-qmp-marshal.o module.o
 
-test-plug$(EXESUF): test-plug.o qemu-malloc.o plug.o type.o $(oslib-obj-y) qapi/qapi-visit-core.o $(qobject-obj-y) qjson.o qemu-tool.o
+test-plug$(EXESUF): test-plug.o qemu-malloc.o plug.o plug-proptypes.o type.o $(oslib-obj-y) qapi/qapi-visit-core.o $(qobject-obj-y) qjson.o qemu-tool.o
 
-test-device$(EXESUF): test-device.o qemu-malloc.o device.o plug.o type.o $(oslib-obj-y) qapi/qapi-visit-core.o $(qobject-obj-y) qjson.o qemu-tool.o
+test-device$(EXESUF): test-device.o qemu-malloc.o device.o plug.o plug-proptypes.o type.o $(oslib-obj-y) qapi/qapi-visit-core.o $(qobject-obj-y) qjson.o qemu-tool.o
 
 QEMULIBS=libhw32 libhw64 libuser libdis libdis-user
 
