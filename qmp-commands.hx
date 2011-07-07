@@ -103,6 +103,33 @@ EQMP
     },
 
     {
+        .name       = "plug_get",
+        .args_type  = "options:O",
+        .params     = "",
+        .help       = "get plug property",
+        .user_print = monitor_user_noop,
+        .mhandler.cmd_new = do_plug_get,
+    },
+
+    {
+        .name       = "plug_set",
+        .args_type  = "options:O",
+        .params     = "",
+        .help       = "set plug property",
+        .user_print = monitor_user_noop,
+        .mhandler.cmd_new = do_plug_set,
+    },
+
+    {
+        .name       = "plug_list_props",
+        .args_type  = "id:s",
+        .params     = "",
+        .help       = "list plug properties",
+        .user_print = monitor_user_noop,
+        .mhandler.cmd_new = do_plug_list_props,
+    },
+
+    {
         .name       = "eject",
         .args_type  = "force:-f,device:B",
         .params     = "[-f] device",

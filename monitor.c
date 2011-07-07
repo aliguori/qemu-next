@@ -63,6 +63,7 @@
 #include "ui/qemu-spice.h"
 #include "plug.h"
 #include "qapi/qmp-input-visitor.h"
+#include "qapi/qmp-output-visitor.h"
 
 //#define DEBUG
 //#define DEBUG_COMPLETION
@@ -1026,14 +1027,12 @@ static int do_plug_create(Monitor *mon, const QDict *qdict, QObject **ret_data)
 {
     const char *id = qdict_get_str(qdict, "id");
     const char *type = qdict_get_str(qdict, "type");
-    Plug *plug;
-
-    plug = PLUG(type_new(type, id));
-
-#if 0
     QmpInputVisitor *qiv;
     Visitor *v;
     const QDictEntry *e;
+    Plug *plug;
+
+    plug = PLUG(type_new(type, id));
 
     qiv = qmp_input_visitor_new(QOBJECT(qdict));
     v = qmp_input_get_visitor(qiv);
@@ -1051,7 +1050,8 @@ static int do_plug_create(Monitor *mon, const QDict *qdict, QObject **ret_data)
             return -1;
         }
     }
-#endif
+
+    qmp_input_visitor_cleanup(qiv);
 
     return 0;
 }
@@ -1072,6 +1072,91 @@ static int do_plug_list(Monitor *mon, const QDict *qdict, QObject **ret_data)
     QList *qlist = qlist_new();
 
     type_foreach(plug_list_tramp, qlist);
+
+    *ret_data = QOBJECT(qlist);
+
+    return 0;
+}
+
+static int do_plug_get(Monitor *mon, const QDict *qdict, QObject **ret_data)
+{
+    const char *id = qdict_get_str(qdict, "id");
+    const char *name = qdict_get_str(qdict, "name");
+    Error *local_err = NULL;
+    QmpOutputVisitor *qov;
+    Plug *plug;
+    Visitor *v;
+
+    qov = qmp_output_visitor_new();
+    v = qmp_output_get_visitor(qov);
+
+    plug = PLUG(type_find_by_id(id));
+
+    plug_get_property(plug, name, v, &local_err);
+    if (local_err) {
+        error_free(local_err);
+        qmp_output_visitor_cleanup(qov);
+
+        return -1;
+    }
+
+    *ret_data = qmp_output_get_qobject(qov);
+
+    qmp_output_visitor_cleanup(qov);
+
+    return 0;
+}
+
+static int do_plug_set(Monitor *mon, const QDict *qdict, QObject **ret_data)
+{
+    const char *id = qdict_get_str(qdict, "id");
+    const char *name = qdict_get_str(qdict, "name");
+    QObject *value = qdict_get(qdict, "value");
+    Error *local_err = NULL;
+    QmpInputVisitor *qiv;
+    Plug *plug;
+    Visitor *v;
+
+    qiv = qmp_input_visitor_new(value);
+    v = qmp_input_get_visitor(qiv);
+
+    plug = PLUG(type_find_by_id(id));
+
+    plug_set_property(plug, name, v, &local_err);
+    if (local_err) {
+        error_free(local_err);
+        qmp_input_visitor_cleanup(qiv);
+        return -1;
+    }
+
+    qmp_input_visitor_cleanup(qiv);
+
+    return 0;
+}
+
+static void plug_list_props_tramp(Plug *plug, const char *name, const char *typename, int flags, void *opaque)
+{
+    QList *qlist = opaque;
+    QDict *item = qdict_new();
+
+    qdict_put(item, "name", qstring_from_str(name));
+    qdict_put(item, "type", qstring_from_str(typename));
+    qdict_put(item, "readable", qbool_from_int(!!(flags & PROP_F_READ)));
+    qdict_put(item, "writeable", qbool_from_int(!!(flags & PROP_F_WRITE)));
+    qdict_put(item, "maskable", qbool_from_int(!!(flags & PROP_F_MASKABLE)));
+
+    qlist_append(qlist, item);
+}
+
+static int do_plug_list_props(Monitor *mon, const QDict *qdict, QObject **ret_data)
+{
+    const char *id = qdict_get_str(qdict, "id");
+    QList *qlist = qlist_new();
+    Plug *plug;
+
+    plug = PLUG(type_find_by_id(id));
+
+    plug_foreach_property(plug, plug_list_props_tramp, qlist);
 
     *ret_data = QOBJECT(qlist);
 

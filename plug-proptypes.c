@@ -50,6 +50,51 @@ void plug_add_property_int(Plug *plug, const char *name,
                            "int", flags);
 }
 
+/** bool **/
+
+static void plug_get_property__bool(Plug *plug, const char *name, Visitor *v, void *opaque, Error **errp)
+{
+    FunctionPointer *fp = opaque;
+    bool (*getter)(Plug *) = (bool (*)(Plug *))fp->fn;
+    bool value;
+
+    value = getter(plug);
+    visit_type_bool(v, &value, name, errp);
+}
+
+static void plug_set_property__bool(Plug *plug, const char *name, Visitor *v, void *opaque, Error **errp)
+{
+    FunctionPointer *fp = opaque;
+    void (*setter)(Plug *, bool) = (void (*)(Plug *, bool))fp->fn;
+    bool value = false;
+    Error *local_err = NULL;
+
+    visit_type_bool(v, &value, name, &local_err);
+    if (local_err) {
+        error_propagate(errp, local_err);
+        return;
+    }
+
+    setter(plug, value);
+}
+
+void plug_add_property_bool(Plug *plug, const char *name,
+                            bool (*getter)(Plug *plug),
+                            void (*setter)(Plug *plug, bool),
+                            int flags)
+{
+    FunctionPointer *getter_fp = qemu_mallocz(sizeof(*getter_fp));
+    FunctionPointer *setter_fp = qemu_mallocz(sizeof(*setter_fp));
+
+    getter_fp->fn = (void (*)(void))getter;
+    setter_fp->fn = (void (*)(void))setter;
+
+    plug_add_property_full(plug, name,
+                           plug_get_property__bool, getter_fp,
+                           plug_set_property__bool, setter_fp,
+                           "bool", flags);
+}
+
 typedef struct PlugData
 {
     const char *typename;
