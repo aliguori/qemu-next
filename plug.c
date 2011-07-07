@@ -4,13 +4,15 @@ static void plug_initfn(TypeInstance *obj)
 {
 }
 
-void plug_add_property(Plug *plug, const char *name,
-                       PlugPropertyAccessor *getter, void *getter_opaque,
-                       PlugPropertyAccessor *setter, void *setter_opaque)
+void plug_add_property_full(Plug *plug, const char *name,
+                            PlugPropertyAccessor *getter, void *getter_opaque,
+                            PlugPropertyAccessor *setter, void *setter_opaque,
+                            const char *typename)
 {
     PlugProperty *prop = qemu_mallocz(sizeof(*prop));
 
-    prop->name = name;
+    snprintf(prop->name, sizeof(prop->name), "%s", name);
+    snprintf(prop->typename, sizeof(prop->typename), "%s", typename);
 
     prop->getter = getter;
     prop->getter_opaque = getter_opaque;
@@ -113,9 +115,10 @@ void plug_add_property_int(Plug *plug, const char *name,
     getter_fp->fn = (void (*)(void))getter;
     setter_fp->fn = (void (*)(void))setter;
 
-    plug_add_property(plug, name,
-                      plug_get_property__int, getter_fp,
-                      plug_set_property__int, setter_fp);
+    plug_add_property_full(plug, name,
+                           plug_get_property__int, getter_fp,
+                           plug_set_property__int, setter_fp,
+                           "int");
 }
 
 typedef struct PlugData
@@ -136,11 +139,17 @@ void plug_get_property__plug(Plug *plug, const char *name, Visitor *v, void *opa
 void plug_add_property_plug(Plug *plug, const char *name, Plug *value, const char *typename)
 {
     PlugData *data = qemu_mallocz(sizeof(*data));
+    char fulltype[MAX_TYPENAME];
 
     data->typename = typename;
     data->value = value;
 
-    plug_add_property(plug, name, plug_get_property__plug, data, NULL, NULL);
+    snprintf(fulltype, sizeof(fulltype), "plug<%s>", typename);
+
+    plug_add_property_full(plug, name,
+                           plug_get_property__plug, data,
+                           NULL, NULL,
+                           fulltype);
 }
 
 typedef struct SocketData
@@ -184,12 +193,16 @@ void plug_set_property__socket(Plug *plug, const char *name, Visitor *v, void *o
 void plug_add_property_socket(Plug *plug, const char *name, Plug **value, const char *typename)
 {
     SocketData *data = qemu_mallocz(sizeof(*data));
+    char fulltype[MAX_TYPENAME];
 
     data->typename = typename;
     data->value = value;
 
-    plug_add_property(plug, name,
-                      plug_get_property__socket, data,
-                      plug_set_property__socket, data);
+    snprintf(fulltype, sizeof(fulltype), "socket<%s>", typename);
+
+    plug_add_property_full(plug, name,
+                           plug_get_property__socket, data,
+                           plug_set_property__socket, data,
+                           fulltype);
 }
 

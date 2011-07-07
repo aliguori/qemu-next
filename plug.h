@@ -10,9 +10,14 @@ typedef struct PlugProperty PlugProperty;
 
 typedef void (PlugPropertyAccessor)(Plug *, const char *, Visitor *, void *, Error **errp);
 
+#define MAX_NAME (32 + 1)
+#define MAX_TYPENAME (32 + 1)
+
 struct PlugProperty
 {
-    const char *name;
+    char name[MAX_NAME];
+    char typename[MAX_TYPENAME];
+    
 
     PlugPropertyAccessor *getter;
     void *getter_opaque;
@@ -44,9 +49,10 @@ void plug_set_property(Plug *plug, const char *name, Visitor *v, Error **errp);
 
 void plug_get_property(Plug *plug, const char *name, Visitor *v, Error **errp);
 
-void plug_add_property(Plug *plug, const char *name,
-                       PlugPropertyAccessor *getter, void *getter_opaque,
-                       PlugPropertyAccessor *setter, void *setter_opaque);
+void plug_add_property_full(Plug *plug, const char *name,
+                            PlugPropertyAccessor *getter, void *getter_opaque,
+                            PlugPropertyAccessor *setter, void *setter_opaque,
+                            const char *typename);
 
 /** types **/
 
