@@ -96,6 +96,11 @@ TypeClass *type_check_class(TypeClass *obj, const char *typename);
 
 Type type_get_by_name(const char *name);
 
+const char *type_get_id(TypeInstance *obj);
+const char *type_get_type(TypeInstance *obj);
+
+void type_foreach(void (*enumfn)(TypeInstance *obj, void *opaque), void *opaque);
+
 const char *type_get_name(Type type);
 
 #endif

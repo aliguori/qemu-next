@@ -85,6 +85,24 @@ Example:
 EQMP
 
     {
+        .name       = "plug_create",
+        .args_type  = "device:O",
+        .params     = "type=value,id=value[,prop=value][,...]",
+        .help       = "create a plug",
+        .user_print = monitor_user_noop,
+        .mhandler.cmd_new = do_plug_create,
+    },
+
+    {
+        .name       = "plug_list",
+        .args_type  = "",
+        .params     = "",
+        .help       = "list plugs",
+        .user_print = monitor_user_noop,
+        .mhandler.cmd_new = do_plug_list,
+    },
+
+    {
         .name       = "eject",
         .args_type  = "force:-f,device:B",
         .params     = "[-f] device",

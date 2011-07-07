@@ -61,6 +61,8 @@
 #include "trace.h"
 #endif
 #include "ui/qemu-spice.h"
+#include "plug.h"
+#include "qapi/qmp-input-visitor.h"
 
 //#define DEBUG
 //#define DEBUG_COMPLETION
@@ -1016,6 +1018,62 @@ static int do_quit(Monitor *mon, const QDict *qdict, QObject **ret_data)
     monitor_suspend(mon);
     no_shutdown = 0;
     qemu_system_shutdown_request();
+
+    return 0;
+}
+
+static int do_plug_create(Monitor *mon, const QDict *qdict, QObject **ret_data)
+{
+    const char *id = qdict_get_str(qdict, "id");
+    const char *type = qdict_get_str(qdict, "type");
+    Plug *plug;
+
+    plug = PLUG(type_new(type, id));
+
+#if 0
+    QmpInputVisitor *qiv;
+    Visitor *v;
+    const QDictEntry *e;
+
+    qiv = qmp_input_visitor_new(QOBJECT(qdict));
+    v = qmp_input_get_visitor(qiv);
+
+    for (e = qdict_first(qdict); e; e = qdict_next(qdict, e)) {
+        Error *local_err = NULL;
+
+        if (strcmp(e->key, "id") == 0 || strcmp(e->key, "type") == 0) {
+            continue;
+        }
+
+        plug_set_property(plug, e->key, v, &local_err);
+        if (local_err) {
+            error_free(local_err);
+            return -1;
+        }
+    }
+#endif
+
+    return 0;
+}
+
+static void plug_list_tramp(TypeInstance *obj, void *opaque)
+{
+    QList *qlist = opaque;
+    QDict *item = qdict_new();
+
+    qdict_put(item, "id", qstring_from_str(type_get_id(obj)));
+    qdict_put(item, "type", qstring_from_str(type_get_type(obj)));
+
+    qlist_append(qlist, item);
+}
+
+static int do_plug_list(Monitor *mon, const QDict *qdict, QObject **ret_data)
+{
+    QList *qlist = qlist_new();
+
+    type_foreach(plug_list_tramp, qlist);
+
+    *ret_data = QOBJECT(qlist);
 
     return 0;
 }

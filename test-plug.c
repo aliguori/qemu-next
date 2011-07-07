@@ -9,7 +9,6 @@ void register_module_init(void (*fn)(void), module_init_type type)
     int i = nb_module_init++;
     module_initfn[i] = fn;
 }
-
 typedef struct TestPlug
 {
     Plug parent;

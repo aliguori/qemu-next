@@ -110,7 +110,7 @@ static size_t type_class_get_size(TypeImpl *ti)
 
 static void type_class_init(TypeImpl *ti)
 {
-    size_t class_size = sizeof(Type);
+    size_t class_size = sizeof(TypeClass);
 
     if (ti->class) {
         return;
@@ -131,10 +131,12 @@ static void type_class_init(TypeImpl *ti)
         class_size = ti_parent->class_size;
         assert(ti_parent->class_size <= ti->class_size);
 
-        memcpy(ti->class + sizeof(Type), ti_parent->class, ti_parent->class_size - sizeof(Type));
+        memcpy((void *)ti->class + class_size,
+               (void *)ti_parent->class + class_size,
+               ti_parent->class_size - class_size);
     }
 
-    memset(ti->class + class_size, 0, ti->class_size - class_size);
+    memset((void *)ti->class + class_size, 0, ti->class_size - class_size);
 
     type_class_base_init(ti, ti->parent);
 
@@ -270,4 +272,36 @@ TypeClass *type_check_class(TypeClass *class, const char *typename)
     abort();
 
     return NULL;
+}
+
+const char *type_get_id(TypeInstance *obj)
+{
+    return obj->id;
+}
+
+const char *type_get_type(TypeInstance *obj)
+{
+    return type_get_name(obj->class->type);
+}
+
+typedef struct TypeForeachData
+{
+    void (*enumfn)(TypeInstance *obj, void *opaque);
+    void *opaque;
+} TypeForeachData;
+
+static void type_foreach_tramp(gpointer key, gpointer value, gpointer opaque)
+{
+    TypeForeachData *data = opaque;
+    data->enumfn(TYPE_INSTANCE(value), data->opaque);
+}
+
+void type_foreach(void (*enumfn)(TypeInstance *obj, void *opaque), void *opaque)
+{
+    TypeForeachData data = {
+        .enumfn = enumfn,
+        .opaque = opaque,
+    };
+
+    g_hash_table_foreach(global_object_table, type_foreach_tramp, &data);
 }
