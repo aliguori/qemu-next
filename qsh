@@ -1,0 +1,50 @@
+#!/usr/bin/python
+
+import json, socket
+import sys
+
+class QmpClient(object):
+    def __init__(self, host, port):
+        s = socket.socket(socket.AF_INET)
+        s.connect((host, port))
+
+        self.s = s
+        self.s.recv(1024)
+
+    def _command(self, _command_name, **args):
+        req = { "execute": _command_name, "arguments": args }
+        self.s.sendall(json.dumps(req))
+        return json.loads(self.s.recv(1024))['return']
+
+    def qmp_capabilities(self):
+        return self._command('qmp_capabilities')
+
+    def plug_create(self, typename, name, **args):
+        self._command('plug_create', id=name, type=typename, **args)
+
+    def plug_list(self):
+        return self._command('plug_list')
+
+    def plug_get(self, name, propname):
+        return self._command('plug_get', id=name, name=propname)
+
+    def plug_set(self, name, propname, value):
+        self._command('plug_set', id=name, name=propname, value=value)
+
+    def plug_list_props(self, name):
+        return self._command('plug_list_props', id=name)
+
+if __name__ == '__main__':
+    qmp = QmpClient('localhost', 8080)
+
+    print qmp.qmp_capabilities()
+    print qmp.plug_create('gate', 'foo')
+    print qmp.plug_list()
+    print qmp.plug_get('foo', 'level')
+    qmp.plug_set('foo', 'level', True)
+    print qmp.plug_get('foo', 'level')
+    print qmp.plug_list_props('foo')
+
+
+
+
