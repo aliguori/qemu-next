@@ -48,9 +48,9 @@ static void test_plug_initfn(TypeInstance *obj)
     plug_initialize(&tp->child, name);
 
     tp->x = 42;
-    plug_add_property_int(PLUG(tp), "x", test_plug_get_x, test_plug_set_x);
+    plug_add_property_int(PLUG(tp), "x", test_plug_get_x, test_plug_set_x, PROP_F_READWRITE);
     plug_add_property_plug(PLUG(tp), "child", &tp->child, TYPE_PLUG);
-    plug_add_property_socket(PLUG(tp), "slot", &tp->slot, TYPE_PLUG);
+    plug_add_property_socket(PLUG(tp), "slot", &tp->slot, TYPE_PLUG, PROP_F_READWRITE | PROP_F_MASKABLE);
 }
 
 static const TypeInfo test_plug_type_info = {
@@ -121,13 +121,14 @@ static void string_output_visitor_init(StringOutputVisitor *sv)
     sv->parent.type_str = string_output_visitor_str;
 }
 
-static void print_props(Plug *plug, const char *name, const char *typename, void *opaque)
+static void print_props(Plug *plug, const char *name, const char *typename, int flags, void *opaque)
 {
     StringOutputVisitor sov;
 
     string_output_visitor_init(&sov);
     plug_get_property(plug, name, &sov.parent, NULL);
-    printf("`%s.%s' is a `%s' and has a value of `%s'\n", plug_get_id(plug), name, typename, sov.value);
+    printf("`%s.%s' is a `%s' and has a value of `%s', %s\n", plug_get_id(plug), name, typename, sov.value,
+           ((flags & PROP_F_READWRITE) == PROP_F_READWRITE) ? "rw" : "ro"); // FIXME
 }
 
 int main(int argc, char **argv)

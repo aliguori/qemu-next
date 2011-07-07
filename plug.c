@@ -15,13 +15,15 @@ struct PlugProperty
     PlugPropertyAccessor *setter;
     void *setter_opaque;
 
+    int flags;
+
     PlugProperty *next;
 };
 
 void plug_add_property_full(Plug *plug, const char *name,
                             PlugPropertyAccessor *getter, void *getter_opaque,
                             PlugPropertyAccessor *setter, void *setter_opaque,
-                            const char *typename)
+                            const char *typename, int flags)
 {
     PlugProperty *prop = qemu_mallocz(sizeof(*prop));
 
@@ -33,6 +35,8 @@ void plug_add_property_full(Plug *plug, const char *name,
 
     prop->setter = setter;
     prop->setter_opaque = setter_opaque;
+
+    prop->flags = flags;
 
     prop->next = plug->first_prop;
     plug->first_prop = prop;
@@ -54,12 +58,18 @@ static PlugProperty *plug_find_property(Plug *plug, const char *name)
 void plug_set_property(Plug *plug, const char *name, Visitor *v, Error **errp)
 {
     PlugProperty *prop = plug_find_property(plug, name);
+
+    assert((prop->flags & PROP_F_WRITE));
+    assert(!plug->props_masked || !(prop->flags & PROP_F_MASKABLE));
+
     prop->setter(plug, name, v, prop->setter_opaque, errp);
 }
 
 void plug_get_property(Plug *plug, const char *name, Visitor *v, Error **errp)
 {
     PlugProperty *prop = plug_find_property(plug, name);
+
+    assert((prop->flags & PROP_F_READ));
     prop->getter(plug, name, v, prop->getter_opaque, errp);
 }
 
@@ -68,8 +78,18 @@ void plug_foreach_property(Plug *plug, PropertyEnumerator *enumfn, void *opaque)
     PlugProperty *prop;
 
     for (prop = plug->first_prop; prop; prop = prop->next) {
-        enumfn(plug, prop->name, prop->typename, opaque);
+        enumfn(plug, prop->name, prop->typename, prop->flags, opaque);
     }
+}
+
+void plug_set_properties_masked(Plug *plug, bool masked)
+{
+    plug->props_masked = masked;
+}
+
+bool plug_get_properties_masked(Plug *plug)
+{
+    return plug->props_masked;
 }
 
 void plug_initialize(Plug *plug, const char *id)

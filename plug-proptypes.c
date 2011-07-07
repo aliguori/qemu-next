@@ -7,7 +7,7 @@ typedef struct FunctionPointer
     void (*fn)(void);
 } FunctionPointer;
 
-void plug_get_property__int(Plug *plug, const char *name, Visitor *v, void *opaque, Error **errp)
+static void plug_get_property__int(Plug *plug, const char *name, Visitor *v, void *opaque, Error **errp)
 {
     FunctionPointer *fp = opaque;
     int64_t (*getter)(Plug *) = (int64_t (*)(Plug *))fp->fn;
@@ -17,7 +17,7 @@ void plug_get_property__int(Plug *plug, const char *name, Visitor *v, void *opaq
     visit_type_int(v, &value, name, errp);
 }
 
-void plug_set_property__int(Plug *plug, const char *name, Visitor *v, void *opaque, Error **errp)
+static void plug_set_property__int(Plug *plug, const char *name, Visitor *v, void *opaque, Error **errp)
 {
     FunctionPointer *fp = opaque;
     void (*setter)(Plug *, int64_t) = (void (*)(Plug *, int64_t))fp->fn;
@@ -35,7 +35,8 @@ void plug_set_property__int(Plug *plug, const char *name, Visitor *v, void *opaq
 
 void plug_add_property_int(Plug *plug, const char *name,
                            int64_t (*getter)(Plug *plug),
-                           void (*setter)(Plug *plug, int64_t))
+                           void (*setter)(Plug *plug, int64_t),
+                           int flags)
 {
     FunctionPointer *getter_fp = qemu_mallocz(sizeof(*getter_fp));
     FunctionPointer *setter_fp = qemu_mallocz(sizeof(*setter_fp));
@@ -46,7 +47,7 @@ void plug_add_property_int(Plug *plug, const char *name,
     plug_add_property_full(plug, name,
                            plug_get_property__int, getter_fp,
                            plug_set_property__int, setter_fp,
-                           "int");
+                           "int", flags);
 }
 
 typedef struct PlugData
@@ -55,7 +56,7 @@ typedef struct PlugData
     Plug *value;
 } PlugData;
 
-void plug_get_property__plug(Plug *plug, const char *name, Visitor *v, void *opaque, Error **errp)
+static void plug_get_property__plug(Plug *plug, const char *name, Visitor *v, void *opaque, Error **errp)
 {
     PlugData *data = opaque;
     char *value;
@@ -77,7 +78,7 @@ void plug_add_property_plug(Plug *plug, const char *name, Plug *value, const cha
     plug_add_property_full(plug, name,
                            plug_get_property__plug, data,
                            NULL, NULL,
-                           fulltype);
+                           fulltype, PROP_F_READ);
 }
 
 typedef struct SocketData
@@ -86,7 +87,7 @@ typedef struct SocketData
     Plug **value;
 } SocketData;
 
-void plug_get_property__socket(Plug *plug, const char *name, Visitor *v, void *opaque, Error **errp)
+static void plug_get_property__socket(Plug *plug, const char *name, Visitor *v, void *opaque, Error **errp)
 {
     SocketData *data = opaque;
     const char *value = "";
@@ -98,7 +99,7 @@ void plug_get_property__socket(Plug *plug, const char *name, Visitor *v, void *o
     visit_type_str(v, (char **)&value, name, errp);
 }
 
-void plug_set_property__socket(Plug *plug, const char *name, Visitor *v, void *opaque, Error **errp)
+static void plug_set_property__socket(Plug *plug, const char *name, Visitor *v, void *opaque, Error **errp)
 {
     char *value = NULL;
     Error *local_err = NULL;
@@ -118,7 +119,7 @@ void plug_set_property__socket(Plug *plug, const char *name, Visitor *v, void *o
     *data->value = PLUG(type_check_type(obj, data->typename));
 }
 
-void plug_add_property_socket(Plug *plug, const char *name, Plug **value, const char *typename)
+void plug_add_property_socket(Plug *plug, const char *name, Plug **value, const char *typename, bool maskable)
 {
     SocketData *data = qemu_mallocz(sizeof(*data));
     char fulltype[33];
@@ -131,6 +132,6 @@ void plug_add_property_socket(Plug *plug, const char *name, Plug **value, const 
     plug_add_property_full(plug, name,
                            plug_get_property__socket, data,
                            plug_set_property__socket, data,
-                           fulltype);
+                           fulltype, PROP_F_READWRITE | (maskable ? PROP_F_MASKABLE : 0));
 }
 
