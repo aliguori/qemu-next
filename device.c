@@ -4,7 +4,10 @@ static void device_initfn(TypeInstance *obj)
 {
     Device *device = DEVICE(obj);
 
-    device->realized = false;
+    plug_add_property_bool(PLUG(device), "realized",
+                           (bool (*)(Plug *))device_get_realized,
+                           (void (*)(Plug *, bool))device_set_realized,
+                           PROP_F_READWRITE);
 }
 
 static void _device_on_realize(Device *device)
@@ -51,10 +54,14 @@ void device_set_realized(Device *device, bool realized)
 
     if (!device->realized && realized) {
         device->realized = true;
-        class->on_realize(device);
+        if (class->on_realize) {
+            class->on_realize(device);
+        }
     } else if (device->realized && !realized) {
         device->realized = false;
-        class->on_reset(device);
+        if (class->on_reset) {
+            class->on_reset(device);
+        }
     }
 }
 

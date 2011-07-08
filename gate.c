@@ -10,24 +10,69 @@ void gate_finalize(Gate *gate)
     type_finalize(gate);
 }
 
-void gate_set_level(Gate *gate, bool level)
+static bool gate_compute(Gate *obj, bool in0, bool in1)
 {
-    gate->level = level;
+    GateClass *class;
+
+    class = GATE_CLASS(type_get_class(TYPE_INSTANCE(obj)));
+
+    return class->compute(obj, in0, in1);
 }
 
-bool gate_get_level(Gate *gate)
+static void gate_on_level_changed(Gate *obj)
 {
-    return gate->level;
+    bool level;
+
+    level = gate_compute(obj, pin_get_level(obj->in[0]), pin_get_level(obj->in[1]));
+    pin_set_level(&obj->out, level);
+}
+
+static void gate_on_in0_level_changed(Notifier *notifier)
+{
+    Gate *obj = container_of(notifier, Gate, in_level_changed[0]);
+
+    gate_on_level_changed(obj);
+}
+
+static void gate_on_in1_level_changed(Notifier *notifier)
+{
+    Gate *obj = container_of(notifier, Gate, in_level_changed[1]);
+
+    gate_on_level_changed(obj);
 }
 
 static void gate_initfn(TypeInstance *inst)
 {
     Gate *obj = GATE(inst);
+    char name[256];
 
-    plug_add_property_bool(PLUG(obj), "level",
-                           (bool (*)(Plug *))gate_get_level, 
-                           (void (*)(Plug *, bool))gate_set_level,
-                           PROP_F_READWRITE);
+    snprintf(name, sizeof(name), "%s::out", plug_get_id(PLUG(obj)));
+    pin_initialize(&obj->out, name);
+
+    obj->in_level_changed[0].notify = gate_on_in0_level_changed;
+    obj->in_level_changed[1].notify = gate_on_in1_level_changed;
+
+    plug_add_property_plug(PLUG(obj), "out", (Plug *)&obj->out, TYPE_PIN);
+    plug_add_property_socket(PLUG(obj), "in[0]", (Plug **)&obj->in[0], TYPE_PIN, true);
+    plug_add_property_socket(PLUG(obj), "in[1]", (Plug **)&obj->in[1], TYPE_PIN, true);
+}
+
+static void gate_on_realize(Device *device)
+{
+    Gate *obj = GATE(device);
+
+    /* FIXME lock sockets */
+    notifier_list_add(&obj->in[0]->level_changed, &obj->in_level_changed[0]);
+    notifier_list_add(&obj->in[1]->level_changed, &obj->in_level_changed[1]);
+
+    gate_on_level_changed(obj);
+}
+
+static void gate_class_initfn(TypeClass *base_class)
+{
+    DeviceClass *device_class = DEVICE_CLASS(base_class);
+
+    device_class->on_realize = gate_on_realize;
 }
 
 static const TypeInfo gate_type_info = {
@@ -35,6 +80,7 @@ static const TypeInfo gate_type_info = {
     .parent = TYPE_DEVICE,
     .instance_size = sizeof(Gate),
     .instance_init = gate_initfn,
+    .class_init = gate_class_initfn,
 };
 
 static void register_devices(void)

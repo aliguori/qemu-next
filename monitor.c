@@ -65,6 +65,8 @@
 #include "qapi/qmp-input-visitor.h"
 #include "qapi/qmp-output-visitor.h"
 
+#include <glib.h>
+
 //#define DEBUG
 //#define DEBUG_COMPLETION
 
@@ -1023,6 +1025,8 @@ static int do_quit(Monitor *mon, const QDict *qdict, QObject **ret_data)
     return 0;
 }
 
+static GSList *global_plug_list;
+
 static int do_plug_create(Monitor *mon, const QDict *qdict, QObject **ret_data)
 {
     const char *id = qdict_get_str(qdict, "id");
@@ -1033,6 +1037,8 @@ static int do_plug_create(Monitor *mon, const QDict *qdict, QObject **ret_data)
     Plug *plug;
 
     plug = PLUG(type_new(type, id));
+
+    global_plug_list = g_slist_prepend(global_plug_list, plug);
 
     qiv = qmp_input_visitor_new(QOBJECT(qdict));
     v = qmp_input_get_visitor(qiv);
@@ -1056,22 +1062,20 @@ static int do_plug_create(Monitor *mon, const QDict *qdict, QObject **ret_data)
     return 0;
 }
 
-static void plug_list_tramp(TypeInstance *obj, void *opaque)
-{
-    QList *qlist = opaque;
-    QDict *item = qdict_new();
-
-    qdict_put(item, "id", qstring_from_str(type_get_id(obj)));
-    qdict_put(item, "type", qstring_from_str(type_get_type(obj)));
-
-    qlist_append(qlist, item);
-}
-
 static int do_plug_list(Monitor *mon, const QDict *qdict, QObject **ret_data)
 {
     QList *qlist = qlist_new();
+    GSList *i;
 
-    type_foreach(plug_list_tramp, qlist);
+    for (i = global_plug_list; i; i = i->next) {
+        TypeInstance *obj = i->data;
+        QDict *item = qdict_new();
+
+        qdict_put(item, "id", qstring_from_str(type_get_id(obj)));
+        qdict_put(item, "type", qstring_from_str(type_get_type(obj)));
+
+        qlist_append(qlist, item);
+    }
 
     *ret_data = QOBJECT(qlist);
 

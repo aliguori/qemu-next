@@ -9,12 +9,22 @@ class QmpClient(object):
         s.connect((host, port))
 
         self.s = s
-        self.s.recv(1024)
+        self.buffer = ''
+        self.readline()
+
+    def readline(self):
+        while not self.buffer.find('\n') != -1:
+            self.buffer += self.s.recv(1024)
+
+        line, self.buffer = self.buffer.split('\n', 1)
+        return line
 
     def _command(self, _command_name, **args):
         req = { "execute": _command_name, "arguments": args }
         self.s.sendall(json.dumps(req))
-        return json.loads(self.s.recv(1024))['return']
+        
+        rsp = json.loads(self.readline())
+        return rsp['return']
 
     def qmp_capabilities(self):
         return self._command('qmp_capabilities')
@@ -34,17 +44,114 @@ class QmpClient(object):
     def plug_list_props(self, name):
         return self._command('plug_list_props', id=name)
 
-if __name__ == '__main__':
-    qmp = QmpClient('localhost', 8080)
+    def quit(self):
+        self._command('quit')
 
-    print qmp.qmp_capabilities()
-    print qmp.plug_create('gate', 'foo')
-    print qmp.plug_list()
-    print qmp.plug_get('foo', 'level')
-    qmp.plug_set('foo', 'level', True)
-    print qmp.plug_get('foo', 'level')
-    print qmp.plug_list_props('foo')
+from ConfigParser import SafeConfigParser
+import re
+
+class GitConfigParser(SafeConfigParser):
+    SECTCRE = re.compile(r'\[(?P<header>[^\"]+"[^"]*")\]')
 
 
+def resolve_property(qmp, value):
+    value = value[1:]
 
+    components = value.split('/')
+
+    name = components[0]
+    components = components[1:]
+
+    prop = components[-1]
+    for component in components[:-1]:
+        name = qmp.plug_get(name, component)
+
+    return name, prop
+
+def parse_property(srv, value):
+    if value == 'True':
+        value = True
+    elif value == 'False':
+        value = False
+    elif value[0] in '0123456789-':
+        value = int(value)
+    elif value[0] == '/':
+        name, prop = resolve_property(srv, value)
+        value = qmp.plug_get(name, prop)
+    elif value[0] == '"':
+        value = value[1:-1]
+    return value
+
+qmp = QmpClient('localhost', 8080)
+qmp.qmp_capabilities()
+
+command = sys.argv[1]
+
+if command == 'import':    
+    cp = GitConfigParser()
+    cp.read([sys.argv[2]])
+
+    for section in cp.sections():
+        kind, name = section.split(' ', 1)
+        name = name[1:-1]
+        qmp.plug_create(kind, name)
+
+    for section in cp.sections():
+        kind, name = section.split(' ', 1)
+        name = name[1:-1]
+
+        for key, value in cp.items(section):
+            value = parse_property(qmp, value)
+            qmp.plug_set(name, key, value)
+elif command == 'create':
+    if len(sys.argv) != 4:
+        sys.exit(1)
+    qmp.plug_create(sys.argv[2], sys.argv[3])
+elif command == 'exit':
+    qmp.quit()
+elif command == 'set':
+    if len(sys.argv) != 4:
+        sys.exit(1)
+
+    name, prop = resolve_property(qmp, sys.argv[2])
+
+    value = parse_property(qmp, sys.argv[3])
+    qmp.plug_set(name, prop, value)
+elif command == 'get':
+    if len(sys.argv) != 3:
+        sys.exit(1)
+
+    name, prop = resolve_property(qmp, sys.argv[2])
+    print qmp.plug_get(name, prop)
+elif command == 'ls':
+    if len(sys.argv) != 3:
+        sys.exit(1)
+
+    path = sys.argv[2]
+
+    while path.endswith('/'):
+        path = path[:-1]
+
+    if path == '':
+        path = '/'
+
+    if path == '/':
+        items = qmp.plug_list()
+        for item in items:
+            print '%s/' % item['id']
+    else:
+        if path[1:].find('/') == -1:
+            items = qmp.plug_list_props(path[1:])
+        else:
+            name, prop = resolve_property(qmp, path)
+            name = qmp.plug_get(name, prop)
+            items = qmp.plug_list_props(name)
+
+        for item in items:
+            if item['type'].startswith('plug<'):
+                print '%s/' % item['name']
+            elif item['type'].startswith('socket<'):
+                print '@%s/' % item['name']
+            else:
+                print '%s' % item['name']
 

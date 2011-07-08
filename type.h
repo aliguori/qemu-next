@@ -90,6 +90,8 @@ TypeInstance *type_find_by_id(const char *id);
 
 TypeClass *type_check_class(TypeClass *obj, const char *typename);
 
+TypeClass *type_get_class(TypeInstance *obj);
+
 #define TYPE_INSTANCE(obj) ((TypeInstance *)(obj))
 #define TYPE_CHECK(type, obj, name) ((type *)type_check_type((TypeInstance *)(obj), (name)))
 #define TYPE_CLASS_CHECK(class, obj, name) ((class *)type_check_class((TypeClass *)(obj), (name)))

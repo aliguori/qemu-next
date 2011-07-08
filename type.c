@@ -131,9 +131,9 @@ static void type_class_init(TypeImpl *ti)
         class_size = ti_parent->class_size;
         assert(ti_parent->class_size <= ti->class_size);
 
-        memcpy((void *)ti->class + class_size,
-               (void *)ti_parent->class + class_size,
-               ti_parent->class_size - class_size);
+        memcpy((void *)ti->class + sizeof(TypeClass),
+               (void *)ti_parent->class + sizeof(TypeClass),
+               ti_parent->class_size - sizeof(TypeClass));
     }
 
     memset((void *)ti->class + class_size, 0, ti->class_size - class_size);
@@ -282,6 +282,11 @@ const char *type_get_id(TypeInstance *obj)
 const char *type_get_type(TypeInstance *obj)
 {
     return type_get_name(obj->class->type);
+}
+
+TypeClass *type_get_class(TypeInstance *obj)
+{
+    return obj->class;
 }
 
 typedef struct TypeForeachData
