@@ -64,7 +64,12 @@ def resolve_property(qmp, value):
 
     prop = components[-1]
     for component in components[:-1]:
+        if component.startswith('@'):
+            component = component[1:]
         name = qmp.plug_get(name, component)
+
+    if prop.startswith('@'):
+        prop = prop[1:]
 
     return name, prop
 
