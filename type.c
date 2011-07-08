@@ -310,3 +310,8 @@ void type_foreach(void (*enumfn)(TypeInstance *obj, void *opaque), void *opaque)
 
     g_hash_table_foreach(global_object_table, type_foreach_tramp, &data);
 }
+
+TypeClass *type_get_super(TypeInstance *obj)
+{
+    return type_get_instance(type_get_by_name(type_get_instance(obj->class->type)->parent))->class;
+}

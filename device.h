@@ -39,6 +39,4 @@ void device_set_realized(Device *device, bool realized);
 
 bool device_get_realized(Device *device);
 
-void device_visit(Device *device, Visitor *v, const char *name, Error **errp);
-
 #endif

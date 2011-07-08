@@ -1,5 +1,12 @@
 #include "device.h"
 
+static void device_visit(Plug *plug, const char *name, Visitor *v, void *opaque, Error **errp)
+{
+    DeviceClass *class = DEVICE_CLASS(TYPE_INSTANCE(plug)->class);
+    // FIXME reset before set
+    return class->visit(DEVICE(plug), v, name, errp);
+}
+
 static void device_initfn(TypeInstance *obj)
 {
     Device *device = DEVICE(obj);
@@ -7,6 +14,12 @@ static void device_initfn(TypeInstance *obj)
     plug_add_property_bool(PLUG(device), "realized",
                            (bool (*)(Plug *))device_get_realized,
                            (void (*)(Plug *, bool))device_set_realized,
+                           PROP_F_READWRITE);
+
+    plug_add_property_full(PLUG(device), "state",
+                           device_visit, NULL,
+                           device_visit, NULL,
+                           type_get_type(TYPE_INSTANCE(device)),
                            PROP_F_READWRITE);
 }
 
@@ -68,12 +81,6 @@ void device_set_realized(Device *device, bool realized)
 bool device_get_realized(Device *device)
 {
     return device->realized;
-}
-
-void device_visit(Device *device, Visitor *v, const char *name, Error **errp)
-{
-    DeviceClass *class = DEVICE_CLASS(TYPE_INSTANCE(device)->class);
-    return class->visit(device, v, name, errp);
 }
 
 void device_initialize(Device *device, const char *id)

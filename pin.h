@@ -20,6 +20,7 @@ typedef struct Pin
 
 void pin_initialize(Pin *pin, const char *id);
 void pin_finalize(Pin *pin);
+void pin_visit(Pin *pin, Visitor *v, const char *name, Error **errp);
 
 void pin_set_level(Pin *pin, bool value);
 bool pin_get_level(Pin *pin);

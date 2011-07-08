@@ -51,11 +51,37 @@ static void source_initfn(TypeInstance *inst)
                           PROP_F_READWRITE);
 }
 
+void source_visit(Source *obj, Visitor *v, const char *name, Error **errp)
+{
+    DeviceClass *device_class = DEVICE_CLASS(type_get_super(TYPE_INSTANCE(obj)));
+    int i;
+
+    visit_start_struct(v, (void **)&obj, "Source", name, sizeof(Source), errp);
+
+    device_class->visit(DEVICE(obj), v, "super", errp);
+
+    for (i = 0; i < 8; i++) {
+        char buffer[32];
+        snprintf(buffer, sizeof(buffer), "out[%d]", i);
+        pin_visit(&obj->out[i], v, buffer, errp);
+    }
+
+    visit_end_struct(v, errp);
+}
+
+static void source_class_initfn(TypeClass *class)
+{
+    DeviceClass *device_class = DEVICE_CLASS(class);
+
+    device_class->visit = (void (*)(Device *, Visitor *, const char *, Error **))source_visit;
+}
+
 static const TypeInfo source_type_info = {
     .name = TYPE_SOURCE,
     .parent = TYPE_DEVICE,
     .instance_size = sizeof(Source),
     .instance_init = source_initfn,
+    .class_init = source_class_initfn,
 };
 
 void sink_initialize(Sink *obj, const char *id)

@@ -16,6 +16,7 @@ typedef struct Source
 
 void source_initialize(Source *obj, const char *id);
 void source_finalize(Source *obj);
+void source_visit(Source *obj, Visitor *v, const char *name, Error **errp);
 
 int64_t source_get_value(Source *obj);
 void source_set_value(Source *obj, int64_t value);

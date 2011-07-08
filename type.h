@@ -105,4 +105,6 @@ void type_foreach(void (*enumfn)(TypeInstance *obj, void *opaque), void *opaque)
 
 const char *type_get_name(Type type);
 
+TypeClass *type_get_super(TypeInstance *obj);
+
 #endif
