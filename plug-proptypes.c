@@ -164,7 +164,7 @@ static void plug_set_property__socket(Plug *plug, const char *name, Visitor *v, 
     *data->value = PLUG(type_check_type(obj, data->typename));
 }
 
-void plug_add_property_socket(Plug *plug, const char *name, Plug **value, const char *typename, bool maskable)
+void plug_add_property_socket(Plug *plug, const char *name, Plug **value, const char *typename)
 {
     SocketData *data = qemu_mallocz(sizeof(*data));
     char fulltype[33];
@@ -177,6 +177,6 @@ void plug_add_property_socket(Plug *plug, const char *name, Plug **value, const 
     plug_add_property_full(plug, name,
                            plug_get_property__socket, data,
                            plug_set_property__socket, data,
-                           fulltype, PROP_F_READWRITE | (maskable ? PROP_F_MASKABLE : 0));
+                           fulltype, PROP_F_READWRITE);
 }
 

@@ -95,6 +95,7 @@ TypeClass *type_get_class(TypeInstance *obj);
 #define TYPE_INSTANCE(obj) ((TypeInstance *)(obj))
 #define TYPE_CHECK(type, obj, name) ((type *)type_check_type((TypeInstance *)(obj), (name)))
 #define TYPE_CLASS_CHECK(class, obj, name) ((class *)type_check_class((TypeClass *)(obj), (name)))
+#define TYPE_GET_CLASS(class, obj, name) TYPE_CLASS_CHECK(class, type_get_class(TYPE_INSTANCE(obj)), name)
 
 Type type_get_by_name(const char *name);
 

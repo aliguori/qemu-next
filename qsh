@@ -3,6 +3,10 @@
 import json, socket
 import sys
 
+class QmpException(Exception):
+    def __init__(self, cls, desc):
+        Exception.__init__(self, desc)
+
 class QmpClient(object):
     def __init__(self, host, port):
         s = socket.socket(socket.AF_INET)
@@ -24,6 +28,8 @@ class QmpClient(object):
         self.s.sendall(json.dumps(req))
         
         rsp = json.loads(self.readline())
+        if rsp.has_key('error'):
+            raise QmpException(rsp['error']['class'], rsp['error']['desc'])
         return rsp['return']
 
     def qmp_capabilities(self):

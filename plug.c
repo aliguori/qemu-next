@@ -1,4 +1,6 @@
 #include "plug.h"
+#include "qerror.h"
+#include "string-visitor.h"
 
 #define MAX_NAME (32 + 1)
 #define MAX_TYPENAME (32 + 1)
@@ -59,8 +61,15 @@ void plug_set_property(Plug *plug, const char *name, Visitor *v, Error **errp)
 {
     PlugProperty *prop = plug_find_property(plug, name);
 
-    assert((prop->flags & PROP_F_WRITE));
-    assert(!plug->props_masked || !(prop->flags & PROP_F_MASKABLE));
+    if (!prop) {
+        error_set(errp, QERR_PROPERTY_NOT_FOUND, type_get_id(TYPE_INSTANCE(plug)), name);
+        return;
+    }
+
+    if (!(prop->flags & PROP_F_WRITE) || (prop->flags & PROP_F_LOCKED)) {
+        error_set(errp, QERR_PROPERTY_READ_ONLY, type_get_id(TYPE_INSTANCE(plug)), name);
+        return;
+    }
 
     prop->setter(plug, name, v, prop->setter_opaque, errp);
 }
@@ -69,8 +78,53 @@ void plug_get_property(Plug *plug, const char *name, Visitor *v, Error **errp)
 {
     PlugProperty *prop = plug_find_property(plug, name);
 
-    assert((prop->flags & PROP_F_READ));
+    if (!prop) {
+        error_set(errp, QERR_PROPERTY_NOT_FOUND, type_get_id(TYPE_INSTANCE(plug)), name);
+        return;
+    }
+
+    if (!(prop->flags & PROP_F_READ)) {
+        error_set(errp, QERR_PROPERTY_READ_ONLY, type_get_id(TYPE_INSTANCE(plug)), name);
+        return;
+    }
+
     prop->getter(plug, name, v, prop->getter_opaque, errp);
+}
+
+void plug_lock_property(Plug *plug, const char *name)
+{
+    PlugProperty *prop = plug_find_property(plug, name);
+
+    assert(prop != NULL);
+
+    prop->flags |= PROP_F_LOCKED;
+}
+
+void plug_unlock_property(Plug *plug, const char *name)
+{
+    PlugProperty *prop = plug_find_property(plug, name);
+
+    assert(prop != NULL);
+
+    prop->flags &= ~PROP_F_LOCKED;
+}
+
+void plug_lock_all_properties(Plug *plug)
+{
+    PlugProperty *prop;
+
+    for (prop = plug->first_prop; prop; prop = prop->next) {
+        prop->flags |= PROP_F_LOCKED;
+    }
+}
+
+void plug_unlock_all_properties(Plug *plug)
+{
+    PlugProperty *prop;
+
+    for (prop = plug->first_prop; prop; prop = prop->next) {
+        prop->flags &= ~PROP_F_LOCKED;
+    }
 }
 
 void plug_foreach_property(Plug *plug, PropertyEnumerator *enumfn, void *opaque)
@@ -82,14 +136,76 @@ void plug_foreach_property(Plug *plug, PropertyEnumerator *enumfn, void *opaque)
     }
 }
 
-void plug_set_properties_masked(Plug *plug, bool masked)
+void plug_set_realized(Plug *plug, bool realized)
 {
-    plug->props_masked = masked;
+    PlugClass *class = PLUG_GET_CLASS(plug);
+    bool old_value = plug->realized;
+
+    plug->realized = realized;
+
+    if (plug->realized && !old_value) {
+        class->realize(plug);
+    } else if (!plug->realized && old_value) {
+        class->unrealize(plug);
+    }
 }
 
-bool plug_get_properties_masked(Plug *plug)
+bool plug_get_realized(Plug *plug)
 {
-    return plug->props_masked;
+    return plug->realized;
+}
+
+static char *plug_get_property_str(Plug *plug, const char *name, Error **errp)
+{
+    StringOutputVisitor sov;
+
+    string_output_visitor_init(&sov);
+    plug_get_property(plug, name, &sov.parent, errp);
+
+    return qemu_strdup(sov.value);
+}
+
+static void plug_propagate_realized(Plug *plug, const char *name,
+                                    const char *typename, int flags,
+                                    void *opaque)
+{
+    if (strstart(typename, "plug<", NULL)) {
+        char *child_name;
+        Plug *child_plug;
+
+        child_name = plug_get_property_str(plug, name, NULL);
+        child_plug = PLUG(type_find_by_id(child_name));
+
+        plug_set_realized(child_plug, plug_get_realized(plug));
+
+        qemu_free(child_name);
+    }
+}
+
+void plug_realize_all(Plug *plug)
+{
+    /* This doesn't loop infinitely because the callbacks are only called when
+     * the state changes. */
+    plug_set_realized(plug, true);
+    plug_lock_all_properties(plug);
+    plug_foreach_property(plug, plug_propagate_realized, NULL);
+}
+
+void plug_unrealize_all(Plug *plug)
+{
+    /* This doesn't loop infinitely because the callbacks are only called when
+     * the state changes. */
+    plug_set_realized(plug, false);
+    plug_unlock_all_properties(plug);
+    plug_foreach_property(plug, plug_propagate_realized, NULL);
+}
+
+static void plug_class_initfn(TypeClass *base_class)
+{
+    PlugClass *class = PLUG_CLASS(base_class);
+
+    class->realize = plug_realize_all;
+    class->unrealize = plug_unrealize_all;
 }
 
 void plug_initialize(Plug *plug, const char *id)
@@ -102,14 +218,10 @@ void plug_finalize(Plug *plug)
     type_finalize(plug);
 }
 
-const char *plug_get_id(Plug *plug)
-{
-    return TYPE_INSTANCE(plug)->id;
-}
-
 static const TypeInfo plug_type_info = {
     .name = TYPE_PLUG,
     .instance_size = sizeof(Plug),
+    .class_init = plug_class_initfn,
 };
 
 static void register_devices(void)

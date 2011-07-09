@@ -14,23 +14,30 @@ typedef enum PlugPropertyFlags
     PROP_F_READ = 1,
     PROP_F_WRITE = 2,
     PROP_F_READWRITE = (PROP_F_READ | PROP_F_WRITE),
-    PROP_F_MASKABLE = 4,
+    PROP_F_LOCKED = 4,
 } PlugPropertyFlags;
 
 struct Plug
 {
     TypeInstance parent;
 
+    /* private */
+    bool realized;
     PlugProperty *first_prop;
-    bool props_masked;
 };
 
 typedef struct PlugClass {
     TypeClass parent_class;
+
+    /* protected */
+    void (*realize)(Plug *plug);
+    void (*unrealize)(Plug *plug);
 } PlugClass;
 
 #define TYPE_PLUG "plug"
 #define PLUG(obj) TYPE_CHECK(Plug, obj, TYPE_PLUG)
+#define PLUG_GET_CLASS(obj) TYPE_GET_CLASS(PlugClass, obj, TYPE_PLUG)
+#define PLUG_CLASS(obj) TYPE_CLASS_CHECK(PlugClass, obj, TYPE_PLUG)
 
 typedef void (PlugPropertyAccessor)(Plug *plug, const char *name, Visitor *v, void *opaque, Error **errp);
 typedef void (PropertyEnumerator)(Plug *plug, const char *name, const char *typename, int flags, void *opaque);
@@ -49,11 +56,17 @@ void plug_add_property_full(Plug *plug, const char *name,
 
 void plug_foreach_property(Plug *plug, PropertyEnumerator *enumfn, void *opaque);
 
-void plug_set_properties_masked(Plug *plug, bool masked);
+void plug_lock_property(Plug *plug, const char *name);
+void plug_unlock_property(Plug *plug, const char *name);
 
-bool plug_get_properties_masked(Plug *plug);
+void plug_lock_all_properties(Plug *plug);
+void plug_unlock_all_properties(Plug *plug);
 
-const char *plug_get_id(Plug *plug);
+void plug_set_realized(Plug *plug, bool realized);
+bool plug_get_realized(Plug *plug);
+
+void plug_realize_all(Plug *plug);
+void plug_unrealize_all(Plug *plug);
 
 #include "plug-proptypes.h"
 

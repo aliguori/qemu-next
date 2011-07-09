@@ -17,7 +17,7 @@ void plug_add_property_bool(Plug *plug, const char *name,
 
 void plug_add_property_plug(Plug *plug, const char *name, Plug *value, const char *typename);
 
-void plug_add_property_socket(Plug *plug, const char *name, Plug **value, const char *typename, bool maskable);
+void plug_add_property_socket(Plug *plug, const char *name, Plug **value, const char *typename);
 
 
 #endif

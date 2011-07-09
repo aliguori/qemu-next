@@ -38,7 +38,7 @@ static void source_initfn(TypeInstance *inst)
     int i;
 
     for (i = 0; i < 8; i++) {
-        snprintf(name, sizeof(name), "%s::out[%d]", plug_get_id(PLUG(obj)), i);
+        snprintf(name, sizeof(name), "%s::out[%d]", type_get_id(inst), i);
         pin_initialize(&obj->out[i], name);
         
         snprintf(name, sizeof(name), "out[%d]", i);
@@ -114,7 +114,7 @@ static void sink_initfn(TypeInstance *inst)
 
     for (i = 0; i < 8; i++) {
         snprintf(name, sizeof(name), "in[%d]", i);
-        plug_add_property_socket(PLUG(obj), name, (Plug **)&obj->in[i], TYPE_PIN, true);
+        plug_add_property_socket(PLUG(obj), name, (Plug **)&obj->in[i], TYPE_PIN);
     }
 
     plug_add_property_int(PLUG(obj), "value",

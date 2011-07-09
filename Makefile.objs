@@ -105,6 +105,7 @@ common-obj-y += pflib.o
 common-obj-y += bitmap.o bitops.o
 
 common-obj-y += type.o plug.o plug-proptypes.o pin.o gate.o device.o logic_gates.o src_snk.o
+common-obj-y += string-visitor.o
 
 common-obj-$(CONFIG_BRLAPI) += baum.o
 common-obj-$(CONFIG_POSIX) += migration-exec.o migration-unix.o migration-fd.o

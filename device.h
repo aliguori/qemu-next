@@ -8,8 +8,6 @@
 typedef struct Device
 {
     Plug parent;
-
-    bool realized;
 } Device;
 
 typedef struct DeviceClass
@@ -18,10 +16,6 @@ typedef struct DeviceClass
 
     /* public */
     void (*visit)(Device *device, Visitor *v, const char *name, Error **errp);
-
-    /* protected */
-    void (*on_realize)(Device *device);
-    void (*on_reset)(Device *device);
 } DeviceClass;
 
 #define TYPE_DEVICE "device"
@@ -30,13 +24,5 @@ typedef struct DeviceClass
 
 void device_initialize(Device *device, const char *id);
 void device_finalize(Device *device);
-
-void device_realize(Device *device);
-
-void device_reset(Device *device);
-
-void device_set_realized(Device *device, bool realized);
-
-bool device_get_realized(Device *device);
 
 #endif

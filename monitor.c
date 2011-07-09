@@ -1034,9 +1034,15 @@ static int do_plug_create(Monitor *mon, const QDict *qdict, QObject **ret_data)
     QmpInputVisitor *qiv;
     Visitor *v;
     const QDictEntry *e;
+    TypeInstance *inst;
     Plug *plug;
 
-    plug = PLUG(type_new(type, id));
+    inst = type_new(type, id);
+    if (inst == NULL) {
+        return -1;
+    }
+
+    plug = PLUG(inst);
 
     global_plug_list = g_slist_prepend(global_plug_list, plug);
 
@@ -1088,13 +1094,19 @@ static int do_plug_get(Monitor *mon, const QDict *qdict, QObject **ret_data)
     const char *name = qdict_get_str(qdict, "name");
     Error *local_err = NULL;
     QmpOutputVisitor *qov;
+    TypeInstance *inst;
     Plug *plug;
     Visitor *v;
 
     qov = qmp_output_visitor_new();
     v = qmp_output_get_visitor(qov);
 
-    plug = PLUG(type_find_by_id(id));
+    inst = type_find_by_id(id);
+    if (inst == NULL) {
+        return -1;
+    }
+
+    plug = PLUG(inst);
 
     plug_get_property(plug, name, v, &local_err);
     if (local_err) {
@@ -1118,13 +1130,19 @@ static int do_plug_set(Monitor *mon, const QDict *qdict, QObject **ret_data)
     QObject *value = qdict_get(qdict, "value");
     Error *local_err = NULL;
     QmpInputVisitor *qiv;
+    TypeInstance *inst;
     Plug *plug;
     Visitor *v;
 
     qiv = qmp_input_visitor_new(value);
     v = qmp_input_get_visitor(qiv);
 
-    plug = PLUG(type_find_by_id(id));
+    inst = type_find_by_id(id);
+    if (inst == NULL) {
+        return -1;
+    }
+
+    plug = PLUG(inst);
 
     plug_set_property(plug, name, v, &local_err);
     if (local_err) {
@@ -1147,7 +1165,7 @@ static void plug_list_props_tramp(Plug *plug, const char *name, const char *type
     qdict_put(item, "type", qstring_from_str(typename));
     qdict_put(item, "readable", qbool_from_int(!!(flags & PROP_F_READ)));
     qdict_put(item, "writeable", qbool_from_int(!!(flags & PROP_F_WRITE)));
-    qdict_put(item, "maskable", qbool_from_int(!!(flags & PROP_F_MASKABLE)));
+    qdict_put(item, "locked", qbool_from_int(!!(flags & PROP_F_LOCKED)));
 
     qlist_append(qlist, item);
 }
@@ -1156,9 +1174,15 @@ static int do_plug_list_props(Monitor *mon, const QDict *qdict, QObject **ret_da
 {
     const char *id = qdict_get_str(qdict, "id");
     QList *qlist = qlist_new();
+    TypeInstance *inst;
     Plug *plug;
 
-    plug = PLUG(type_find_by_id(id));
+    inst = type_find_by_id(id);
+    if (inst == NULL) {
+        return -1;
+    }
+
+    plug = PLUG(inst);
 
     plug_foreach_property(plug, plug_list_props_tramp, qlist);
 

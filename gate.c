@@ -46,20 +46,20 @@ static void gate_initfn(TypeInstance *inst)
     Gate *obj = GATE(inst);
     char name[256];
 
-    snprintf(name, sizeof(name), "%s::out", plug_get_id(PLUG(obj)));
+    snprintf(name, sizeof(name), "%s::out", type_get_id(inst));
     pin_initialize(&obj->out, name);
 
     obj->in_level_changed[0].notify = gate_on_in0_level_changed;
     obj->in_level_changed[1].notify = gate_on_in1_level_changed;
 
     plug_add_property_plug(PLUG(obj), "out", (Plug *)&obj->out, TYPE_PIN);
-    plug_add_property_socket(PLUG(obj), "in[0]", (Plug **)&obj->in[0], TYPE_PIN, true);
-    plug_add_property_socket(PLUG(obj), "in[1]", (Plug **)&obj->in[1], TYPE_PIN, true);
+    plug_add_property_socket(PLUG(obj), "in[0]", (Plug **)&obj->in[0], TYPE_PIN);
+    plug_add_property_socket(PLUG(obj), "in[1]", (Plug **)&obj->in[1], TYPE_PIN);
 }
 
-static void gate_on_realize(Device *device)
+static void gate_on_realize(Plug *plug)
 {
-    Gate *obj = GATE(device);
+    Gate *obj = GATE(plug);
 
     /* FIXME lock sockets */
     notifier_list_add(&obj->in[0]->level_changed, &obj->in_level_changed[0]);
@@ -70,9 +70,9 @@ static void gate_on_realize(Device *device)
 
 static void gate_class_initfn(TypeClass *base_class)
 {
-    DeviceClass *device_class = DEVICE_CLASS(base_class);
+    PlugClass *plug_class = PLUG_CLASS(base_class);
 
-    device_class->on_realize = gate_on_realize;
+    plug_class->realize = gate_on_realize;
 }
 
 static const TypeInfo gate_type_info = {

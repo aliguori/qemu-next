@@ -225,9 +225,17 @@ TypeInstance *type_new(const char *typename, const char *id)
 
 TypeInstance *type_find_by_id(const char *id)
 {
-    gpointer data = g_hash_table_lookup(global_object_table, id);
+    gpointer data;
 
-    assert(data);
+    if (global_object_table == NULL) {
+        return NULL;
+    }
+
+    data = g_hash_table_lookup(global_object_table, id);
+
+    if (!data) {
+        return NULL;
+    }
 
     return TYPE_INSTANCE(data);
 }
