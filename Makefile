@@ -5,6 +5,8 @@ ifeq ($(TRACE_BACKEND),dtrace)
 GENERATED_HEADERS += trace-dtrace.h
 endif
 
+QEMU_CFLAGS+=-I$(SRC_PATH)/include
+
 ifneq ($(wildcard config-host.mak),)
 # Put the all: rule here so that config-host.mak can contain dependencies.
 all: build-all

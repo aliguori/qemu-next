@@ -10,6 +10,7 @@ include $(SRC_PATH)/rules.mak
 $(call set-vpath, $(SRC_PATH):$(SRC_PATH)/hw)
 
 QEMU_CFLAGS+=-I.. -I$(SRC_PATH)/fpu
+QEMU_CFLAGS+=-I$(SRC_PATH)/include
 
 include $(SRC_PATH)/Makefile.objs
 

@@ -1,4 +1,4 @@
-#include "logic_gates.h"
+#include "qemu/logic_gates.h"
 
 void and_gate_initialize(AndGate *gate, const char *id)
 {

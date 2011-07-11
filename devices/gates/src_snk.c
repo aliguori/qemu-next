@@ -1,4 +1,4 @@
-#include "src_snk.h"
+#include "qemu/src_snk.h"
 
 void source_initialize(Source *obj, const char *id)
 {
@@ -53,12 +53,10 @@ static void source_initfn(TypeInstance *inst)
 
 void source_visit(Source *obj, Visitor *v, const char *name, Error **errp)
 {
-    DeviceClass *device_class = DEVICE_CLASS(type_get_super(TYPE_INSTANCE(obj)));
     int i;
 
     visit_start_struct(v, (void **)&obj, "Source", name, sizeof(Source), errp);
-
-    device_class->visit(DEVICE(obj), v, "super", errp);
+    device_visit(DEVICE(obj), v, "super", errp);
 
     for (i = 0; i < 8; i++) {
         char buffer[32];
@@ -73,7 +71,7 @@ static void source_class_initfn(TypeClass *class)
 {
     DeviceClass *device_class = DEVICE_CLASS(class);
 
-    device_class->visit = (void (*)(Device *, Visitor *, const char *, Error **))source_visit;
+    device_class->visit = (DeviceVisitor *)source_visit;
 }
 
 static const TypeInfo source_type_info = {

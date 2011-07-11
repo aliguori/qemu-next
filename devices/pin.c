@@ -1,4 +1,4 @@
-#include "pin.h"
+#include "qemu/pin.h"
 
 void pin_initialize(Pin *pin, const char *id)
 {

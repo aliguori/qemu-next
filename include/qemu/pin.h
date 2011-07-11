@@ -1,7 +1,7 @@
 #ifndef PIN_H
 #define PIN_H
 
-#include "device.h"
+#include "qemu/device.h"
 #include "notify.h"
 
 typedef struct Pin

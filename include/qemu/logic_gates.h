@@ -1,7 +1,7 @@
 #ifndef LOGIC_GATES_H
 #define LOGIC_GATES_H
 
-#include "gate.h"
+#include "qemu/gate.h"
 
 typedef struct AndGate
 {

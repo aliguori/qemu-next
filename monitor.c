@@ -61,7 +61,7 @@
 #include "trace.h"
 #endif
 #include "ui/qemu-spice.h"
-#include "plug.h"
+#include "qemu/plug.h"
 #include "qapi/qmp-input-visitor.h"
 #include "qapi/qmp-output-visitor.h"
 

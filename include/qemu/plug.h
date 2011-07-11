@@ -1,7 +1,7 @@
 #ifndef PLUG_H
 #define PLUG_H
 
-#include "type.h"
+#include "qemu/type.h"
 #include "error.h"
 #include "qapi/qapi-visit-core.h"
 
@@ -68,6 +68,6 @@ bool plug_get_realized(Plug *plug);
 void plug_realize_all(Plug *plug);
 void plug_unrealize_all(Plug *plug);
 
-#include "plug-proptypes.h"
+#include "qemu/plug-proptypes.h"
 
 #endif

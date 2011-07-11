@@ -1,8 +1,8 @@
 #ifndef SRC_SNK_H
 #define SRC_SNK_H
 
-#include "device.h"
-#include "pin.h"
+#include "qemu/device.h"
+#include "qemu/pin.h"
 
 typedef struct Source
 {

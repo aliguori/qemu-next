@@ -1,8 +1,8 @@
 #ifndef GATE_H
 #define GATE_H
 
-#include "device.h"
-#include "pin.h"
+#include "qemu/device.h"
+#include "qemu/pin.h"
 
 typedef struct Gate
 {

@@ -1,4 +1,4 @@
-#include "gate.h"
+#include "qemu/gate.h"
 
 void gate_initialize(Gate *gate, const char *id)
 {

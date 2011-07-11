@@ -1,7 +1,7 @@
 #ifndef DEVICE_H
 #define DEVICE_H
 
-#include "plug.h"
+#include "qemu/plug.h"
 
 #include "qapi/qapi-visit-core.h"
 
@@ -10,19 +10,23 @@ typedef struct Device
     Plug parent;
 } Device;
 
+typedef void (DeviceVisitor)(Device *device, Visitor *v, const char *name, Error **errp);
+
 typedef struct DeviceClass
 {
     PlugClass parent_class;
 
     /* public */
-    void (*visit)(Device *device, Visitor *v, const char *name, Error **errp);
+    DeviceVisitor *visit;
 } DeviceClass;
 
 #define TYPE_DEVICE "device"
 #define DEVICE(obj) TYPE_CHECK(Device, obj, TYPE_DEVICE)
 #define DEVICE_CLASS(class) TYPE_CLASS_CHECK(DeviceClass, class, TYPE_DEVICE)
+#define DEVICE_GET_CLASS(obj) TYPE_GET_CLASS(DeviceClass, obj, TYPE_DEVICE)
 
 void device_initialize(Device *device, const char *id);
 void device_finalize(Device *device);
+void device_visit(Device *device, Visitor *v, const char *name, Error **errp);
 
 #endif

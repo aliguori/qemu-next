@@ -104,8 +104,12 @@ common-obj-y += block-migration.o iohandler.o
 common-obj-y += pflib.o
 common-obj-y += bitmap.o bitops.o
 
-common-obj-y += type.o plug.o plug-proptypes.o pin.o gate.o device.o logic_gates.o src_snk.o
 common-obj-y += string-visitor.o
+
+QEMU_CFLAGS += -I$(SRC_PATH)/include
+
+CONFIG_GATES=y
+include $(SRC_PATH)/devices/Makefile
 
 common-obj-$(CONFIG_BRLAPI) += baum.o
 common-obj-$(CONFIG_POSIX) += migration-exec.o migration-unix.o migration-fd.o

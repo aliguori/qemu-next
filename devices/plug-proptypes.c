@@ -1,6 +1,6 @@
 /** FIXME: move to generated code **/
 
-#include "plug-proptypes.h"
+#include "qemu/plug-proptypes.h"
 
 typedef struct FunctionPointer
 {

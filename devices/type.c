@@ -1,4 +1,4 @@
-#include "type.h"
+#include "qemu/type.h"
 #include <glib.h>
 
 typedef struct TypeImpl

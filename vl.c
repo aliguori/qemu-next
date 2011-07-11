@@ -160,7 +160,7 @@ int main(int argc, char **argv)
 #include "qemu-queue.h"
 #include "cpus.h"
 #include "arch_init.h"
-#include "plug.h"
+#include "qemu/plug.h"
 
 #include "ui/qemu-spice.h"
 
