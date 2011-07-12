@@ -33,6 +33,7 @@ typedef struct Sink
 
 void sink_initialize(Sink *obj, const char *id);
 void sink_finalize(Sink *obj);
+void sink_visit(Sink *obj, Visitor *v, const char *name, Error **errp);
 
 int64_t sink_get_value(Sink *obj);
 void sink_set_value(Sink *obj, int64_t value);

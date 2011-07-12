@@ -29,5 +29,6 @@ typedef struct GateClass
 
 void gate_initialize(Gate *gate, const char *id);
 void gate_finalize(Gate *gate);
+void gate_visit(Gate *obj, Visitor *v, const char *name, Error **errp);
 
 #endif

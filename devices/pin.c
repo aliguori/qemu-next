@@ -12,14 +12,9 @@ void pin_finalize(Pin *pin)
 
 void pin_visit(Pin *obj, Visitor *v, const char *name, Error **errp)
 {
-    DeviceClass *device_class = DEVICE_CLASS(type_get_super(TYPE_INSTANCE(obj)));
-
     visit_start_struct(v, (void **)&obj, "Pin", name, sizeof(Pin), errp);
-
-    device_class->visit(DEVICE(obj), v, "super", errp);
-
+    device_visit(DEVICE(obj), v, "super", errp);
     visit_type_bool(v, &obj->level, "level", errp);
-
     visit_end_struct(v, errp);
 }
 
@@ -55,7 +50,7 @@ static void pin_class_initfn(TypeClass *class)
 {
     DeviceClass *device_class = DEVICE_CLASS(class);
 
-    device_class->visit = (void (*)(Device *, Visitor *, const char *, Error **))pin_visit;
+    device_class->visit = (DeviceVisitor *)pin_visit;
 }
 
 static const TypeInfo pin_type_info = {

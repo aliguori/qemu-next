@@ -24,37 +24,35 @@ void device_visit(Device *device, Visitor *v, const char *name, Error **errp)
     visit_end_struct(v, errp);
 }
 
+#if 0
+static void device_visit_properties(Device *device, const char *name,
+                                    Visitor *v, Error **errp)
+{
+}
+#endif
+
 static void device_unrealize(Plug *plug)
 {
 #if 0
     Device *device = DEVICE(plug);
+    const char *typename, *id;
     QmpOutputVisitor *qov;
-    Visitor *v;
+    QmpInputVisitor *qiv;
 
     /* 0) Save off id and type name
 
-       1) Save each property, we'll have to use a list of visitors to do this
-       which sort of sucks.
+       1) Save each property.  We need to walk through each property, and for
+          plug properties, recursively record the properties into a data
+          structure.
 
-       2) Call device_unrealize on all child plugs
+       2) Call type_finalize(device);
 
-       (sidebar) We need to not explicitly finalize plugs in each types finalize
-       function.  This implies that we need a base class finalize to do this
-       like Plug.  We need some magic so we can suppress that.
+       3) Call type_initialize(device, typename, id);
 
-       3) Remove all properties.  This will inhibit plugs from being finalized
-       automatically.
+       4) Set properties, recursively of course to match (1)
 
-       4) Call type_finalize() on device.
-
-       5) Call type_initialize() on device.
-
-       6) For each saved property, set the property to the saved value.  The
-       problem with this is that in (2) the properties would have been saved
-       for child plugs.  But in (5) we'll reinitialize each plug (even though
-       it's already been initialized.
-
-       This process needs more thought.
+       At the end of this function, the effective is that the device has been
+       destroyed, recreated, with its properties restored.
     */
 #endif
 }

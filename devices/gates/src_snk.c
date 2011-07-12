@@ -121,11 +121,26 @@ static void sink_initfn(TypeInstance *inst)
                           PROP_F_READ);
 }
 
+void sink_visit(Sink *obj, Visitor *v, const char *name, Error **errp)
+{
+    visit_start_struct(v, (void **)&obj, "Sink", name, sizeof(Sink), errp);
+    device_visit(DEVICE(obj), v, "super", errp);
+    visit_end_struct(v, errp);
+}
+
+static void sink_class_initfn(TypeClass *class)
+{
+    DeviceClass *device_class = DEVICE_CLASS(class);
+
+    device_class->visit = (DeviceVisitor *)sink_visit;
+}
+
 static const TypeInfo sink_type_info = {
     .name = TYPE_SINK,
     .parent = TYPE_DEVICE,
     .instance_size = sizeof(Sink),
     .instance_init = sink_initfn,
+    .class_init = sink_class_initfn,
 };
 
 static void register_devices(void)

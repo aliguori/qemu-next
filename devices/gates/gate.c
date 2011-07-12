@@ -41,6 +41,14 @@ static void gate_on_in1_level_changed(Notifier *notifier)
     gate_on_level_changed(obj);
 }
 
+void gate_visit(Gate *obj, Visitor *v, const char *name, Error **errp)
+{
+    visit_start_struct(v, (void **)&obj, "Gate", name, sizeof(*obj), errp);
+    device_visit(DEVICE(obj), v, "super", errp);
+    pin_visit(&obj->out, v, "out", errp);
+    visit_end_struct(v, errp);
+}
+
 static void gate_initfn(TypeInstance *inst)
 {
     Gate *obj = GATE(inst);
@@ -70,9 +78,11 @@ static void gate_on_realize(Plug *plug)
 
 static void gate_class_initfn(TypeClass *base_class)
 {
+    DeviceClass *device_class = DEVICE_CLASS(base_class);
     PlugClass *plug_class = PLUG_CLASS(base_class);
 
     plug_class->realize = gate_on_realize;
+    device_class->visit = (DeviceVisitor *)gate_visit;
 }
 
 static const TypeInfo gate_type_info = {
