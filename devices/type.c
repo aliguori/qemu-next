@@ -22,6 +22,8 @@ typedef struct TypeImpl
     const char *parent;
 
     TypeClass *class;
+
+    InterfaceInfo *interfaces; // FIXME store new class name
 } TypeImpl;
 
 static int num_types = 1;
@@ -49,6 +51,8 @@ Type type_register_static(const TypeInfo *info)
 
     ti->instance_init = info->instance_init;
     ti->instance_finalize = info->instance_finalize;
+
+    ti->interfaces = info->interfaces;
 
     return type;
 }
@@ -108,6 +112,13 @@ static size_t type_class_get_size(TypeImpl *ti)
     return sizeof(TypeClass);
 }
 
+static void type_class_interface_init(TypeClass *class, InterfaceImpl *iface)
+{
+    // Create a new type that derivces from iface->type and uses
+    // iface->interface_initfn to initialize class.  Store resulting type
+    // in structure.  Maybe this could be an anonymous class...
+}
+
 static void type_class_init(TypeImpl *ti)
 {
     size_t class_size = sizeof(TypeClass);
@@ -140,9 +151,23 @@ static void type_class_init(TypeImpl *ti)
 
     type_class_base_init(ti, ti->parent);
 
+    if (ti->interfaces) {
+        int i;
+
+        for (i = 0; ti->interfaces[i]; i++) {
+            type_class_interface_init(&ti->class, &ti->interfaces[i]);
+        }
+    }
+
     if (ti->class_init) {
         ti->class_init(ti->class);
     }
+}
+
+static void type_add_interface(TypeInstance *obj, const char *typename)
+{
+    // instantiate an object of typename and store it in the interface list
+    // of obj.
 }
 
 static void type_instance_init(TypeInstance *obj, const char *typename)
@@ -151,6 +176,14 @@ static void type_instance_init(TypeInstance *obj, const char *typename)
 
     if (ti->parent) {
         type_instance_init(obj, ti->parent);
+    }
+
+    if (ti->interfaces) {
+        int i;
+
+        for (i = 0; ti->interfaces[i].typename; i++) {
+            type_add_interface(obj, &ti->interfaces[i]->type);
+        }
     }
 
     if (ti->instance_init) {

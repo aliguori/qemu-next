@@ -80,14 +80,19 @@ void plug_get_property(Plug *plug, const char *name, Visitor *v, Error **errp)
 
     if (!prop) {
         error_set(errp, QERR_PROPERTY_NOT_FOUND, type_get_id(TYPE_INSTANCE(plug)), name);
+        printf("property not found\n");
         return;
     }
 
     if (!(prop->flags & PROP_F_READ)) {
         error_set(errp, QERR_PROPERTY_READ_ONLY, type_get_id(TYPE_INSTANCE(plug)), name);
+        printf("property read only\n");
         return;
     }
 
+    printf("calling getter for %s\n", name);
+
+    printf("getter - %p\n", prop->getter);
     prop->getter(plug, name, v, prop->getter_opaque, errp);
 }
 
@@ -144,9 +149,13 @@ void plug_set_realized(Plug *plug, bool realized)
     plug->realized = realized;
 
     if (plug->realized && !old_value) {
-        class->realize(plug);
+        if (class->realize) {
+            class->realize(plug);
+        }
     } else if (!plug->realized && old_value) {
-        class->unrealize(plug);
+        if (class->unrealize) {
+            class->unrealize(plug);
+        }
     }
 }
 
@@ -155,12 +164,13 @@ bool plug_get_realized(Plug *plug)
     return plug->realized;
 }
 
-static char *plug_get_property_str(Plug *plug, const char *name, Error **errp)
+char *plug_get_property_str(Plug *plug, const char *name, Error **errp)
 {
     StringOutputVisitor sov;
 
     string_output_visitor_init(&sov);
     plug_get_property(plug, name, &sov.parent, errp);
+    printf("%p.%s -> %s\n", plug, name, sov.value);
 
     return qemu_strdup(sov.value);
 }
@@ -218,9 +228,20 @@ void plug_finalize(Plug *plug)
     type_finalize(plug);
 }
 
+static void plug_initfn(TypeInstance *inst)
+{
+    Plug *obj = PLUG(inst);
+
+    plug_add_property_bool(obj, "realized",
+                           plug_get_realized,
+                           plug_set_realized,
+                           PROP_F_READWRITE);
+}
+
 static const TypeInfo plug_type_info = {
     .name = TYPE_PLUG,
     .instance_size = sizeof(Plug),
+    .instance_init = plug_initfn,
     .class_init = plug_class_initfn,
 };
 

@@ -68,6 +68,8 @@ bool plug_get_realized(Plug *plug);
 void plug_realize_all(Plug *plug);
 void plug_unrealize_all(Plug *plug);
 
+char *plug_get_property_str(Plug *plug, const char *name, Error **errp);
+
 #include "qemu/plug-proptypes.h"
 
 #endif

@@ -1,5 +1,6 @@
 #include "qemu/device.h"
 #include "qapi/qmp-output-visitor.h"
+#include "qapi/qmp-input-visitor.h"
 
 static void device_state_accessor(Plug *plug, const char *name, Visitor *v, void *opaque, Error **errp)
 {
@@ -24,37 +25,84 @@ void device_visit(Device *device, Visitor *v, const char *name, Error **errp)
     visit_end_struct(v, errp);
 }
 
-#if 0
-static void device_visit_properties(Device *device, const char *name,
-                                    Visitor *v, Error **errp)
+static void device_visit_properties(Device *device, bool is_input, const char *name, Visitor *v, Error **errp);
+
+typedef struct DeviceVisitPropertyData
 {
+    Visitor *v;
+    Error **errp;
+    bool is_input;
+} DeviceVisitPropertyData;
+
+static void device_visit_property(Plug *plug, const char *name, const char *typename, int flags, void *opaque)
+{
+    DeviceVisitPropertyData *data = opaque;
+
+    if (strcmp(name, "state") == 0 || strcmp(name, "realized") == 0) {
+        return;
+    }
+
+    if (strstart(typename, "plug<", NULL)) {
+        char *plugname = plug_get_property_str(plug, name, data->errp);
+        Device *value;
+
+        printf("%s - [%s]\n", name, plugname);
+        value = DEVICE(type_find_by_id(plugname));
+        device_visit_properties(value, data->is_input, name, data->v, data->errp);
+        qemu_free(plugname);
+    } else if (data->is_input) {
+        if ((flags & PROP_F_READ) && (flags & PROP_F_WRITE)) {
+            plug_set_property(plug, name, data->v, data->errp);
+        }
+        if (error_is_set(data->errp)) {
+            printf("got error working on %s: %s\n", name, error_get_pretty(*data->errp));
+        }
+    } else {
+        if (flags & PROP_F_READ) {
+            plug_get_property(plug, name, data->v, data->errp);
+        }
+    }
 }
-#endif
+
+static void device_visit_properties(Device *device, bool is_input, const char *name, Visitor *v, Error **errp)
+{
+    DeviceVisitPropertyData data = {
+        .v = v,
+        .errp = errp,
+        .is_input = is_input,
+    };
+
+    visit_start_struct(v, (void **)&device, "Device", name, sizeof(Device), errp);
+    plug_foreach_property(PLUG(device), device_visit_property, &data);
+    visit_end_struct(v, errp);
+}
 
 static void device_unrealize(Plug *plug)
 {
-#if 0
     Device *device = DEVICE(plug);
-    const char *typename, *id;
+    const char *typename;
+    char id[1024];
     QmpOutputVisitor *qov;
     QmpInputVisitor *qiv;
+    Error *local_err = NULL; // FIXME
 
-    /* 0) Save off id and type name
+    snprintf(id, sizeof(id), "%s", type_get_id(TYPE_INSTANCE(device)));
+    typename = type_get_type(TYPE_INSTANCE(device));
 
-       1) Save each property.  We need to walk through each property, and for
-          plug properties, recursively record the properties into a data
-          structure.
+    qov = qmp_output_visitor_new();
 
-       2) Call type_finalize(device);
+    device_visit_properties(device, false, id, qmp_output_get_visitor(qov), &local_err);
 
-       3) Call type_initialize(device, typename, id);
+    type_finalize(device);
+    printf("%s %s\n", typename, id);
+    type_initialize(device, typename, id);
 
-       4) Set properties, recursively of course to match (1)
+    qiv = qmp_input_visitor_new(qmp_output_get_qobject(qov));
 
-       At the end of this function, the effective is that the device has been
-       destroyed, recreated, with its properties restored.
-    */
-#endif
+    device_visit_properties(device, true, id, qmp_input_get_visitor(qiv), &local_err);
+
+    qmp_input_visitor_cleanup(qiv);
+    qmp_output_visitor_cleanup(qov);
 }
 
 static void device_class_initfn(TypeClass *type_class)

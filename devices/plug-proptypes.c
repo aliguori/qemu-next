@@ -107,6 +107,8 @@ static void plug_get_property__plug(Plug *plug, const char *name, Visitor *v, vo
     char *value;
 
     value = (char *)TYPE_INSTANCE(data->value)->id;
+    printf("plug -- %s\n", value);
+    printf("visitor - %p\n", v->type_str);
     visit_type_str(v, &value, name, errp);
 }
 

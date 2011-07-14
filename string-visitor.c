@@ -30,6 +30,7 @@ static void string_output_visitor_str(Visitor *v, char **obj, const char *name, 
 {
     StringOutputVisitor *sv = container_of(v, StringOutputVisitor, parent);
 
+    printf("out - %s: %s\n", name, *obj);
     snprintf(sv->value, sizeof(sv->value), "%s", *obj);
 }
 

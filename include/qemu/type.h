@@ -28,6 +28,8 @@
 
 typedef uint64_t Type;
 
+typedef struct TypeInterface TypeInterface;
+
 typedef struct TypeClass
 {
     Type type;
@@ -35,12 +37,26 @@ typedef struct TypeClass
 
 #define MAX_ID (32 + 1)
 
+struct TypeInterface
+{
+    TypeInstance *iface;
+    TypeInterface *next;
+};
+
 typedef struct TypeInstance
 {
     TypeClass *class;
 
     char id[MAX_ID];
+
+    TypeInterface *first_interface;
 } TypeInstance;
+
+typedef struct InterfaceInfo
+{
+    const char *type;
+    void (*interface_initfn)(TypeClass *class);
+} InterfaceInfo;
 
 typedef struct TypeInfo
 {
@@ -74,6 +90,8 @@ typedef struct TypeInfo
 
     void (*instance_init)(TypeInstance *obj);
     void (*instance_finalize)(TypeInstance *obj);
+
+    InterfaceInfo *interfaces;
 } TypeInfo;
 
 Type type_register_static(const TypeInfo *info);
@@ -91,6 +109,10 @@ TypeInstance *type_find_by_id(const char *id);
 TypeClass *type_check_class(TypeClass *obj, const char *typename);
 
 TypeClass *type_get_class(TypeInstance *obj);
+
+TypeInstance *type_get_interface(TypeInstance *obj, const char *typename);
+
+TypeInstance *interface_get_type(TypeInstance *iface);
 
 #define TYPE_INSTANCE(obj) ((TypeInstance *)(obj))
 #define TYPE_CHECK(type, obj, name) ((type *)type_check_type((TypeInstance *)(obj), (name)))
