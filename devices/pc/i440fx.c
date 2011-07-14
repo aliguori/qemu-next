@@ -95,7 +95,20 @@ static void i440fx_rom_write(I440FX *obj, uint64_t addr, int size, uint64_t valu
 
 static uint64_t i440fx_rom_read(I440FX *obj, uint64_t addr, int size)
 {
-    return 0;
+    uint64_t value;
+    uint32_t bios_offset;
+
+    bios_offset = (uint32_t)-rom_device_get_size(&obj->bios);
+
+    if (addr_in_range(addr, size, bios_offset, 1ULL << 32)) {
+        value = rom_device_read(&obj->bios, addr - bios_offset, size);
+    } else if (addr_in_range(addr, size, 0xF0000, 0x100000)) {
+        value = rom_device_read(&obj->bios, addr - 0xF0000, size);
+    } else {
+        value = 0;
+    }
+
+    return value;
 }
 
 static void i440fx_pci_host_write(I440FX *obj, uint8_t offset, int size, uint32_t value)
@@ -109,6 +122,10 @@ static uint32_t i440fx_pci_host_read(I440FX *obj, uint8_t offset, int size)
 
 void i440fx_mm_write(I440FX *obj, uint64_t addr, int size, uint64_t value)
 {
+    uint32_t bios_offset;
+
+    bios_offset = (uint32_t)-rom_device_get_size(&obj->bios);
+
     if (addr_in_range(addr, size, 0xC0000, 0xF0000)) {
         /* legacy ROM region */
         int segment = (addr - 0xC0000) / 0x4000 + 2;
@@ -125,14 +142,14 @@ void i440fx_mm_write(I440FX *obj, uint64_t addr, int size, uint64_t value)
             i440fx_rom_write(obj, addr, size, value);
         }
     } else if (addr >= obj->max_ram_offset ||
-               addr_in_range(addr, size, 0xE00000000, obj->bios_offset)) {
+               addr_in_range(addr, size, 0xE00000000, bios_offset)) {
         /* PCI holes */
         PciDevice *device = i440fx_pci_devsel(obj, addr, size, false);
 
         if (device) {
             pci_device_write(device, addr, size, value, false);
         }
-    } else if (addr_in_range(addr, size, obj->bios_offset, 1ULL << 32)) {
+    } else if (addr_in_range(addr, size, bios_offset, 1ULL << 32)) {
         /* extended BIOS ROM region */
         i440fx_rom_write(obj, addr, size, value);
     } else {
@@ -144,6 +161,9 @@ void i440fx_mm_write(I440FX *obj, uint64_t addr, int size, uint64_t value)
 uint64_t i440fx_mm_read(I440FX *obj, uint64_t addr, int size)
 {
     uint64_t value = 0;
+    uint32_t bios_offset;
+
+    bios_offset = (uint32_t)-rom_device_get_size(&obj->bios);
 
     if (addr_in_range(addr, size, 0xC0000, 0xF0000)) {
         /* legacy ROM region */
@@ -163,14 +183,14 @@ uint64_t i440fx_mm_read(I440FX *obj, uint64_t addr, int size)
             value = i440fx_rom_read(obj, addr, size);
         }
     } else if (addr >= obj->max_ram_offset ||
-               addr_in_range(addr, size, 0xE00000000, obj->bios_offset)) {
+               addr_in_range(addr, size, 0xE00000000, bios_offset)) {
         /* PCI holes */
         PciDevice *device = i440fx_pci_devsel(obj, addr, size, false);
 
         if (device) {
             value = pci_device_read(device, addr, size, false);
         }
-    } else if (addr_in_range(addr, size, obj->bios_offset, 1ULL << 32)) {
+    } else if (addr_in_range(addr, size, bios_offset, 1ULL << 32)) {
         /* extended BIOS ROM region */
         value = i440fx_rom_read(obj, addr, size);
     } else {
@@ -251,7 +271,11 @@ static void i440fx_pci_bus_initfn(TypeClass *class)
 static void i440fx_initfn(TypeInstance *inst)
 {
     I440FX *obj = I440FX(inst);
+    char buffer[128];
     int i;
+
+    snprintf(buffer, sizeof(buffer), "%s::bios", type_get_id(inst));
+    rom_device_initialize(&obj->bios, buffer);
 
     /* slot[0] is reserved for the host controller */
     for (i = 1; i < 32; i++) {
@@ -260,6 +284,8 @@ static void i440fx_initfn(TypeInstance *inst)
         snprintf(buffer, sizeof(buffer), "slot[%d]", i);
         plug_add_property_socket(PLUG(obj), buffer, (Plug **)&obj->slots[i], TYPE_PCI_DEVICE);
     }
+
+    plug_add_property_plug(PLUG(obj), "bios", PLUG(&obj->bios), TYPE_ROM_DEVICE);
 }
 
 static const TypeInfo i440fx_type_info = {

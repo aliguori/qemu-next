@@ -1,9 +1,10 @@
 #ifndef I440FX_H
 #define I440FX_H
 
-#include "device.h"
-#include "pci_bus.h"
-#include "pci_device.h"
+#include "qemu/device.h"
+#include "qemu/pci_bus.h"
+#include "qemu/pci_device.h"
+#include "qemu/rom.h"
 
 /**
  * The I440FX is the main chipset in a classic Pentium-era PC.
@@ -20,7 +21,8 @@ typedef struct I440FX
     int config_index;
     uint8_t config[256];
 
-    uint32_t bios_offset;
+    RomDevice bios;
+
     uint64_t max_ram_offset;
 
     PciDevice *slots[32];
