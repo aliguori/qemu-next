@@ -1,9 +1,8 @@
 #ifndef PCI_BUS_H
 #define PCI_BUS_H
 
-#include "type.h"
-
-typedef struct PciDevice PciDevice;
+#include "qemu/type.h"
+#include "qemu/pci_device.h"
 
 typedef struct PciBus
 {
@@ -22,6 +21,11 @@ typedef struct PciBusClass
 
 #define TYPE_PCI_BUS "pci-bus"
 #define PCI_BUS(obj) TYPE_CHECK(PciBus, obj, TYPE_PCI_BUS)
-#define PCI_BUS_CLASS(obj) TYPE_CLASS_CHECK(PciBusClass, (obj), TYPE_PCI_BUS)
+#define PCI_BUS_CLASS(class) TYPE_CLASS_CHECK(PciBusClass, class, TYPE_PCI_BUS)
+#define PCI_BUS_GET_CLASS(obj) TYPE_GET_CLASS(PciBusClass, obj, TYPE_PCI_BUS)
+
+uint64_t pci_bus_read(PciBus *bus, PciDevice *dev, uint64_t addr, int size);
+void pci_bus_write(PciBus *bus, PciDevice *dev, uint64_t addr, int size, uint64_t value);
+void pci_bus_update_irq(PciBus *bus, PciDevice *dev);
 
 #endif

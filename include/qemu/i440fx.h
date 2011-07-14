@@ -3,6 +3,7 @@
 
 #include "device.h"
 #include "pci_bus.h"
+#include "pci_device.h"
 
 /**
  * The I440FX is the main chipset in a classic Pentium-era PC.
