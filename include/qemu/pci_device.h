@@ -17,8 +17,8 @@ typedef struct PciDevice
 typedef uint32_t (PciDeviceConfigRead)(PciDevice *device, uint8_t offset, int size);
 typedef void (PciDeviceConfigWrite)(PciDevice *device, uint8_t offset, int size, uint32_t value);
 
-typedef uint64_t (PciDeviceRead)(PciDevice *device, uint64_t addr, int size);
-typedef void (PciDeviceWrite)(PciDevice *device, uint64_t addr, int size, uint64_t value);
+typedef uint64_t (PciDeviceRead)(PciDevice *device, uint64_t addr, int size, bool ioio);
+typedef void (PciDeviceWrite)(PciDevice *device, uint64_t addr, int size, uint64_t value, bool ioio);
 
 typedef uint64_t (PciDeviceRegionRead)(PciDevice *device, int region, uint64_t offset, int size);
 typedef void (PciDeviceRegionWrite)(PciDevice *device, int region, uint64_t offset, int size, uint64_t value);
@@ -52,11 +52,13 @@ void pci_device_config_write_std(PciDevice *device, uint8_t offset, int size, ui
 uint32_t pci_device_config_read(PciDevice *device, uint8_t offset, int size);
 void pci_device_config_write(PciDevice *device, uint8_t offset, int size, uint32_t value);
 
-uint64_t pci_device_read(PciDevice *device, uint64_t offset, int size);
-void pci_device_write(PciDevice *device, uint64_t offset, int size, uint64_t value);
+uint64_t pci_device_read(PciDevice *device, uint64_t offset, int size, bool ioio);
+void pci_device_write(PciDevice *device, uint64_t offset, int size, uint64_t value, bool ioio);
 
 uint64_t pci_device_region_read(PciDevice *device, int region, uint64_t offset, int size);
 void pci_device_region_write(PciDevice *device, int region, uint64_t offset, int size, uint64_t value);
+
+bool pci_device_is_target(PciDevice *device, uint64_t addr, int size, bool ioio);
 
 /* Config space accessors */
 void pci_device_set_vendor_id(PciDevice *device, uint16_t value);

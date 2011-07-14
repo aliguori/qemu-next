@@ -71,14 +71,14 @@ void pci_device_config_write(PciDevice *device, uint8_t offset, int size, uint32
     PCI_DEVICE_GET_CLASS(device)->config_write(device, offset, size, value);
 }
 
-uint64_t pci_device_read(PciDevice *device, uint64_t offset, int size)
+uint64_t pci_device_read(PciDevice *device, uint64_t offset, int size, bool ioio)
 {
-    return PCI_DEVICE_GET_CLASS(device)->read(device, offset, size);
+    return PCI_DEVICE_GET_CLASS(device)->read(device, offset, size, ioio);
 }
 
-void pci_device_write(PciDevice *device, uint64_t offset, int size, uint64_t value)
+void pci_device_write(PciDevice *device, uint64_t offset, int size, uint64_t value, bool ioio)
 {
-    PCI_DEVICE_GET_CLASS(device)->write(device, offset, size, value);
+    PCI_DEVICE_GET_CLASS(device)->write(device, offset, size, value, ioio);
 }
 
 uint64_t pci_device_region_read(PciDevice *device, int region, uint64_t offset, int size)
@@ -89,6 +89,12 @@ uint64_t pci_device_region_read(PciDevice *device, int region, uint64_t offset, 
 void pci_device_region_write(PciDevice *device, int region, uint64_t offset, int size, uint64_t value)
 {
     PCI_DEVICE_GET_CLASS(device)->region_write(device, region, offset, size, value);
+}
+
+bool pci_device_is_target(PciDevice *device, uint64_t addr, int size, bool ioio)
+{
+    /* FIXME */
+    return false;
 }
 
 void pci_device_set_vendor_id(PciDevice *device, uint16_t value)
