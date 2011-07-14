@@ -50,6 +50,12 @@ typedef struct TypeInterface
     TypeClass parent_class;
 } TypeInterface;
 
+typedef struct Interface
+{
+    TypeInstance parent;
+    TypeInstance *obj;
+} Interface;
+
 typedef struct InterfaceInfo
 {
     const char *type;
@@ -102,7 +108,9 @@ TypeInstance *type_new(const char *typename, const char *id);
 
 void type_delete(TypeInstance *obj);
 
-TypeInstance *type_check_type(TypeInstance *obj, const char *typename);
+bool type_is_type(TypeInstance *obj, const char *typename);
+TypeInstance *type_dynamic_cast(TypeInstance *obj, const char *typename);
+TypeInstance *type_dynamic_cast_assert(TypeInstance *obj, const char *typename);
 
 TypeInstance *type_find_by_id(const char *id);
 
@@ -111,9 +119,12 @@ TypeClass *type_check_class(TypeClass *obj, const char *typename);
 TypeClass *type_get_class(TypeInstance *obj);
 
 #define TYPE_INSTANCE(obj) ((TypeInstance *)(obj))
-#define TYPE_CHECK(type, obj, name) ((type *)type_check_type((TypeInstance *)(obj), (name)))
+#define TYPE_CHECK(type, obj, name) ((type *)type_dynamic_cast_assert((TypeInstance *)(obj), (name)))
 #define TYPE_CLASS_CHECK(class, obj, name) ((class *)type_check_class((TypeClass *)(obj), (name)))
 #define TYPE_GET_CLASS(class, obj, name) TYPE_CLASS_CHECK(class, type_get_class(TYPE_INSTANCE(obj)), name)
+
+#define TYPE_INTERFACE "interface"
+#define INTERFACE(obj) TYPE_CHECK(Interface, obj, TYPE_INTERFACE)
 
 Type type_get_by_name(const char *name);
 
@@ -125,5 +136,7 @@ void type_foreach(void (*enumfn)(TypeInstance *obj, void *opaque), void *opaque)
 const char *type_get_name(Type type);
 
 TypeClass *type_get_super(TypeInstance *obj);
+
+void type_system_init(void);
 
 #endif

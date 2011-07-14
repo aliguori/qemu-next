@@ -46,6 +46,8 @@ Type type_register_static(const TypeInfo *info)
 
     ti = &type_table[type];
 
+    assert(info->name != NULL);
+
     ti->name = info->name;
     ti->parent = info->parent;
     ti->type = type;
@@ -169,16 +171,10 @@ static size_t type_class_get_size(TypeImpl *ti)
     return sizeof(TypeClass);
 }
 
-typedef struct InterfaceInstance
-{
-    TypeInstance parent;
-    TypeInstance *obj;
-} InterfaceInstance;
-
 static void type_class_interface_init(TypeImpl *ti, InterfaceImpl *iface)
 {
     TypeInfo info = {
-        .instance_size = sizeof(InterfaceInstance),
+        .instance_size = sizeof(Interface),
         .parent = iface->parent,
         .class_init = iface->interface_initfn,
     };
@@ -231,12 +227,12 @@ static void type_class_init(TypeImpl *ti)
 static void type_instance_interface_init(TypeInstance *obj, InterfaceImpl *iface)
 {
     TypeImpl *ti = type_get_instance(iface->type);
-    InterfaceInstance *iface_obj;
+    Interface *iface_obj;
     static int count;
     char buffer[32];
 
     snprintf(buffer, sizeof(buffer), "__anonymous_%d", count++);
-    iface_obj = TYPE_CHECK(InterfaceInstance, type_new(ti->name, buffer), ti->name);
+    iface_obj = INTERFACE(type_new(ti->name, buffer));
     iface_obj->obj = obj;
 
     obj->interfaces = g_slist_prepend(obj->interfaces, iface_obj);
@@ -294,11 +290,10 @@ static void type_instance_finalize(TypeInstance *obj, const char *typename)
     }
 
     while (obj->interfaces) {
-        InterfaceInstance *iface_obj = obj->interfaces->data;
+        Interface *iface_obj = obj->interfaces->data;
         obj->interfaces = g_slist_delete_link(obj->interfaces, obj->interfaces);
         type_delete(TYPE_INSTANCE(iface_obj));
     }
-        
 
     if (ti->parent) {
         type_instance_init(obj, ti->parent);
@@ -355,25 +350,78 @@ TypeInstance *type_find_by_id(const char *id)
     return TYPE_INSTANCE(data);
 }
 
-TypeInstance *type_check_type(TypeInstance *obj, const char *typename)
+bool type_is_type(TypeInstance *obj, const char *typename)
 {
     Type target_type = type_get_by_name(typename);
     Type type = obj->class->type;
 
+    /* Check if typename is a direct ancestor of type */
     while (type) {
         TypeImpl *ti = type_get_instance(type);
 
         if (ti->type == target_type) {
-            return obj;
+            return true;
         }
 
         type = type_get_by_name(ti->parent);
     }
 
-    fprintf(stderr, "Object %p is not an instance of type %d\n", obj, (int)type);
-    abort();
+    return false;
+}
+
+TypeInstance *type_dynamic_cast(TypeInstance *obj, const char *typename)
+{
+    GSList *i;
+
+    /* Check if typename is a direct ancestor */
+    if (type_is_type(obj, typename)) {
+        return obj;
+    }
+
+    /* Check if obj has an interface of typename */
+    for (i = obj->interfaces; i; i = i->next) {
+        Interface *iface = i->data;
+
+        if (type_is_type(TYPE_INSTANCE(iface), typename)) {
+            return TYPE_INSTANCE(iface);
+        }
+    }
+
+    /* Check if obj is an interface and it's containing object is a direct ancestor of typename */
+    if (type_is_type(obj, TYPE_INTERFACE)) {
+        Interface *iface = INTERFACE(obj);
+
+        if (type_is_type(iface->obj, typename)) {
+            return iface->obj;
+        }
+    }
 
     return NULL;
+}
+
+void type_system_init(void)
+{
+    static TypeInfo interface_info = {
+        .name = TYPE_INTERFACE,
+        .instance_size = sizeof(Interface),
+        .class_size = sizeof(TypeInterface),
+    };
+
+    type_register_static(&interface_info);
+}
+
+TypeInstance *type_dynamic_cast_assert(TypeInstance *obj, const char *typename)
+{
+    TypeInstance *inst;
+
+    inst = type_dynamic_cast(obj, typename);
+
+    if (!inst) {
+        fprintf(stderr, "Object %p is not an instance of type %s\n", obj, typename);
+        abort();
+    }
+
+    return inst;
 }
 
 TypeClass *type_check_class(TypeClass *class, const char *typename)
@@ -438,3 +486,4 @@ TypeClass *type_get_super(TypeInstance *obj)
 {
     return type_get_instance(type_get_by_name(type_get_instance(obj->class->type)->parent))->class;
 }
+

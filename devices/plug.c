@@ -90,9 +90,7 @@ void plug_get_property(Plug *plug, const char *name, Visitor *v, Error **errp)
         return;
     }
 
-    printf("calling getter for %s\n", name);
 
-    printf("getter - %p\n", prop->getter);
     prop->getter(plug, name, v, prop->getter_opaque, errp);
 }
 

@@ -163,7 +163,7 @@ static void plug_set_property__socket(Plug *plug, const char *name, Visitor *v, 
     obj = type_find_by_id(value);
     assert(obj != NULL);
 
-    *data->value = PLUG(type_check_type(obj, data->typename));
+    *data->value = PLUG(type_dynamic_cast_assert(obj, data->typename));
 }
 
 void plug_add_property_socket(Plug *plug, const char *name, Plug **value, const char *typename)

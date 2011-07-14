@@ -1,30 +1,13 @@
-#ifndef PCI_H
-#define PCI_H
+#ifndef PCI_DEVICE_H
+#define PCI_DEVICE_H
 
-typedef struct PCIBus PCIBus;
-typedef struct PCIBusClass PCIBusClass;
-
-struct PCIBusClass
-{
-    TypeClass parent_class;
-
-    uint64_t (*read)(PCIBus *bus, PCIDevice *dev, uint64_t addr, int size);
-    void (*read_dma)(PCIBus *bus, PCIDevice *dev, uint64_t addr, int size, void *data);
-
-    void (*write)(PCIBus *bus, PCIDevice *dev, uint64_t addr, int size, uint64_t value);
-    void (*write_dma)(PCIBus *bus, PCIDevice *dev, uint64_t addr, int size, const void *data);
-};
-
-struct PCIBus
-{
-    TypeInstance parent;
-};
+#include "device.h"
 
 typedef struct PCIDevice
 {
     Device parent;
 
-    PCIBus *bus;
+    struct PCIBus *bus;
 
     uint8_t config[256];
     uint8_t wmask[256];
@@ -41,5 +24,49 @@ typedef struct PCIDeviceClass
     PCIDeviceRead *read;
     PCIDeviceWrite *write;
 } PCIDeviceClass;
+
+void pci_device_initialize(PCIDevice *obj, const char *id);
+void pci_device_finalize(PCIDevice *obj);
+void pci_device_visit(PCIDevice *device, Visitor *v, const char *name, Error **errp);
+
+uint32_t pci_device_config_read(PCIDevice *device, uint8_t offset, int size);
+void pci_device_config_write(PCIDevice *device, uint8_t offset, int size, uint8_t value);
+
+uint64_t pci_device_region_read(PCIDevice *device, int region, uint64_t offset, int size);
+void pci_device_region_write(PCIDevice *device, int region, uint64_t offset, int size, uint64_t value);
+
+/* Config space accessors */
+void pci_device_set_vendor_id(PCIDevice *device, uint16_t value);
+uint16_t pci_device_get_vendor_id(PCIDevice *device);
+
+void pci_device_set_device_id(PCIDevice *device, uint16_t value);
+uint16_t pci_device_get_device_id(PCIDevice *device);
+
+void pci_device_set_command(PCIDevice *device, uint16_t value);
+uint16_t pci_device_get_command(PCIDevice *device);
+
+void pci_device_set_status(PCIDevice *device, uint16_t value);
+uint16_t pci_device_get_status(PCIDevice *device);
+
+void pci_device_set_class_revision(PCIDevice *device, uint8_t value);
+uint8_t pci_device_get_class_revision(PCIDevice *device);
+
+void pci_device_set_class_prog(PCIDevice *device, uint8_t value);
+uint8_t pci_device_get_class_prog(PCIDevice *device);
+
+void pci_device_set_class_device(PCIDevice *device, uint16_t value);
+uint16_t pci_device_get_class_device(PCIDevice *device);
+
+void pci_device_set_cache_line_size(PCIDevice *device, uint8_t value);
+uint8_t pci_device_get_cache_line_size(PCIDevice *device);
+
+void pci_device_set_latency_timer(PCIDevice *device, uint8_t value);
+uint8_t pci_device_get_latency_timer(PCIDevice *device);
+
+void pci_device_set_header_type(PCIDevice *device, uint8_t value);
+uint8_t pci_device_get_header_type(PCIDevice *device);
+
+void pci_device_set_bist(PCIDevice *device, uint8_t value);
+uint8_t pci_device_get_bist(PCIDevice *device);
 
 #endif
