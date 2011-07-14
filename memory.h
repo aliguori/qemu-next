@@ -15,6 +15,7 @@
 typedef struct MemoryRegionOps MemoryRegionOps;
 typedef struct MemoryRegion MemoryRegion;
 typedef struct MemoryRegionPortio MemoryRegionPortio;
+typedef struct MemoryRegionMmio MemoryRegionMmio;
 
 /* Must match *_DIRTY_FLAGS in cpu-all.h.  To be replaced with dynamic
  * registration.
@@ -22,6 +23,11 @@ typedef struct MemoryRegionPortio MemoryRegionPortio;
 #define DIRTY_MEMORY_VGA       0
 #define DIRTY_MEMORY_CODE      1
 #define DIRTY_MEMORY_MIGRATION 3
+
+struct MemoryRegionMmio {
+    CPUReadMemoryFunc *read[3];
+    CPUWriteMemoryFunc *write[3];
+};
 
 /*
  * Memory region callbacks
@@ -72,6 +78,10 @@ struct MemoryRegionOps {
      * backwards compatibility with old portio registration
      */
     const MemoryRegionPortio *old_portio;
+    /* If .read and .write are not present, old_mmio may be used for
+     * backwards compatibility with old mmio registration
+     */
+    const MemoryRegionMmio old_mmio;
 };
 
 typedef struct CoalescedMemoryRange CoalescedMemoryRange;
