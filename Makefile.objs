@@ -126,6 +126,8 @@ audio-obj-$(CONFIG_AUDIO_WIN_INT) += audio_win_int.o
 audio-obj-y += wavcapture.o
 common-obj-y += $(addprefix audio/, $(audio-obj-y))
 
+common-obj-y += devices/plug.o
+
 ui-obj-y += keymaps.o
 ui-obj-$(CONFIG_SDL) += sdl.o sdl_zoom.o x_keymap.o
 ui-obj-$(CONFIG_COCOA) += cocoa.o
