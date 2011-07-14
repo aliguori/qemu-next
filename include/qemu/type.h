@@ -2,6 +2,7 @@
 #define QEMU_TYPE_H
 
 #include "qemu-common.h"
+#include <glib.h>
 
 /**
  * Generic QEMU Type infrastructure
@@ -28,8 +29,6 @@
 
 typedef uint64_t Type;
 
-typedef struct TypeInterface TypeInterface;
-
 typedef struct TypeClass
 {
     Type type;
@@ -37,20 +36,19 @@ typedef struct TypeClass
 
 #define MAX_ID (32 + 1)
 
-struct TypeInterface
-{
-    TypeInstance *iface;
-    TypeInterface *next;
-};
-
 typedef struct TypeInstance
 {
     TypeClass *class;
 
     char id[MAX_ID];
 
-    TypeInterface *first_interface;
+    GSList *interfaces;
 } TypeInstance;
+
+typedef struct TypeInterface
+{
+    TypeClass parent_class;
+} TypeInterface;
 
 typedef struct InterfaceInfo
 {
@@ -102,6 +100,8 @@ void type_finalize(void *obj);
 
 TypeInstance *type_new(const char *typename, const char *id);
 
+void type_delete(TypeInstance *obj);
+
 TypeInstance *type_check_type(TypeInstance *obj, const char *typename);
 
 TypeInstance *type_find_by_id(const char *id);
@@ -109,10 +109,6 @@ TypeInstance *type_find_by_id(const char *id);
 TypeClass *type_check_class(TypeClass *obj, const char *typename);
 
 TypeClass *type_get_class(TypeInstance *obj);
-
-TypeInstance *type_get_interface(TypeInstance *obj, const char *typename);
-
-TypeInstance *interface_get_type(TypeInstance *iface);
 
 #define TYPE_INSTANCE(obj) ((TypeInstance *)(obj))
 #define TYPE_CHECK(type, obj, name) ((type *)type_check_type((TypeInstance *)(obj), (name)))

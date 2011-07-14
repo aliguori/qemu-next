@@ -1,6 +1,15 @@
 #include "qemu/type.h"
 #include <glib.h>
 
+#define MAX_INTERFACES 32
+
+typedef struct InterfaceImpl
+{
+    const char *parent;
+    void (*interface_initfn)(TypeClass *class);
+    Type type;
+} InterfaceImpl;
+
 typedef struct TypeImpl
 {
     const char *name;
@@ -23,7 +32,8 @@ typedef struct TypeImpl
 
     TypeClass *class;
 
-    InterfaceInfo *interfaces; // FIXME store new class name
+    int num_interfaces;
+    InterfaceImpl interfaces[MAX_INTERFACES];
 } TypeImpl;
 
 static int num_types = 1;
@@ -52,7 +62,54 @@ Type type_register_static(const TypeInfo *info)
     ti->instance_init = info->instance_init;
     ti->instance_finalize = info->instance_finalize;
 
-    ti->interfaces = info->interfaces;
+    if (info->interfaces) {
+        int i;
+
+        for (i = 0; info->interfaces[i].type; i++) {
+            ti->interfaces[i].parent = info->interfaces[i].type;
+            ti->interfaces[i].interface_initfn = info->interfaces[i].interface_initfn;
+            ti->num_interfaces++;
+        }
+    }
+
+    return type;
+}
+
+static Type type_register_anonymous(const TypeInfo *info)
+{
+    Type type = num_types++;
+    TypeImpl *ti;
+    char buffer[32];
+    static int count;
+
+    ti = &type_table[type];
+
+    snprintf(buffer, sizeof(buffer), "<anonymous-%d>", count++);
+    ti->name = qemu_strdup(buffer);
+    ti->parent = qemu_strdup(info->parent);
+    ti->type = type;
+
+    ti->class_size = info->class_size;
+    ti->instance_size = info->instance_size;
+
+    ti->base_init = info->base_init;
+    ti->base_finalize = info->base_finalize;
+
+    ti->class_init = info->class_init;
+    ti->class_finalize = info->class_finalize;
+
+    ti->instance_init = info->instance_init;
+    ti->instance_finalize = info->instance_finalize;
+
+    if (info->interfaces) {
+        int i;
+
+        for (i = 0; info->interfaces[i].type; i++) {
+            ti->interfaces[i].parent = info->interfaces[i].type;
+            ti->interfaces[i].interface_initfn = info->interfaces[i].interface_initfn;
+            ti->num_interfaces++;
+        }
+    }
 
     return type;
 }
@@ -112,16 +169,27 @@ static size_t type_class_get_size(TypeImpl *ti)
     return sizeof(TypeClass);
 }
 
-static void type_class_interface_init(TypeClass *class, InterfaceImpl *iface)
+typedef struct InterfaceInstance
 {
-    // Create a new type that derivces from iface->type and uses
-    // iface->interface_initfn to initialize class.  Store resulting type
-    // in structure.  Maybe this could be an anonymous class...
+    TypeInstance parent;
+    TypeInstance *obj;
+} InterfaceInstance;
+
+static void type_class_interface_init(TypeImpl *ti, InterfaceImpl *iface)
+{
+    TypeInfo info = {
+        .instance_size = sizeof(InterfaceInstance),
+        .parent = iface->parent,
+        .class_init = iface->interface_initfn,
+    };
+
+    iface->type = type_register_anonymous(&info);
 }
 
 static void type_class_init(TypeImpl *ti)
 {
     size_t class_size = sizeof(TypeClass);
+    int i;
 
     if (ti->class) {
         return;
@@ -151,12 +219,8 @@ static void type_class_init(TypeImpl *ti)
 
     type_class_base_init(ti, ti->parent);
 
-    if (ti->interfaces) {
-        int i;
-
-        for (i = 0; ti->interfaces[i]; i++) {
-            type_class_interface_init(&ti->class, &ti->interfaces[i]);
-        }
+    for (i = 0; i < ti->num_interfaces; i++) {
+        type_class_interface_init(ti, &ti->interfaces[i]);
     }
 
     if (ti->class_init) {
@@ -164,26 +228,31 @@ static void type_class_init(TypeImpl *ti)
     }
 }
 
-static void type_add_interface(TypeInstance *obj, const char *typename)
+static void type_instance_interface_init(TypeInstance *obj, InterfaceImpl *iface)
 {
-    // instantiate an object of typename and store it in the interface list
-    // of obj.
+    TypeImpl *ti = type_get_instance(iface->type);
+    InterfaceInstance *iface_obj;
+    static int count;
+    char buffer[32];
+
+    snprintf(buffer, sizeof(buffer), "__anonymous_%d", count++);
+    iface_obj = TYPE_CHECK(InterfaceInstance, type_new(ti->name, buffer), ti->name);
+    iface_obj->obj = obj;
+
+    obj->interfaces = g_slist_prepend(obj->interfaces, iface_obj);
 }
 
 static void type_instance_init(TypeInstance *obj, const char *typename)
 {
     TypeImpl *ti = type_get_instance(type_get_by_name(typename));
+    int i;
 
     if (ti->parent) {
         type_instance_init(obj, ti->parent);
     }
 
-    if (ti->interfaces) {
-        int i;
-
-        for (i = 0; ti->interfaces[i].typename; i++) {
-            type_add_interface(obj, &ti->interfaces[i]->type);
-        }
+    for (i = 0; i < ti->num_interfaces; i++) {
+        type_instance_interface_init(obj, &ti->interfaces[i]);
     }
 
     if (ti->instance_init) {
@@ -224,6 +293,13 @@ static void type_instance_finalize(TypeInstance *obj, const char *typename)
         ti->instance_finalize(obj);
     }
 
+    while (obj->interfaces) {
+        InterfaceInstance *iface_obj = obj->interfaces->data;
+        obj->interfaces = g_slist_delete_link(obj->interfaces, obj->interfaces);
+        type_delete(TYPE_INSTANCE(iface_obj));
+    }
+        
+
     if (ti->parent) {
         type_instance_init(obj, ti->parent);
     }
@@ -254,6 +330,12 @@ TypeInstance *type_new(const char *typename, const char *id)
     type_initialize(obj, typename, id);
 
     return obj;
+}
+
+void type_delete(TypeInstance *obj)
+{
+    type_finalize(obj);
+    qemu_free(obj);
 }
 
 TypeInstance *type_find_by_id(const char *id)
