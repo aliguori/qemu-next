@@ -111,13 +111,33 @@ static uint64_t i440fx_rom_read(I440FX *obj, uint64_t addr, int size)
     return value;
 }
 
-static void i440fx_pci_host_write(I440FX *obj, uint8_t offset, int size, uint32_t value)
+static void i440fx_pci_host_write(I440FX *obj, uint8_t address, int size, uint32_t value)
 {
+    uint8_t bus = (address >> 16) & 0xFF;
+    uint8_t devfn = (address >> 8) & 0xFF;
+    uint8_t offset = (address >> 0) & 0xFF;
+    uint8_t slot = (devfn >> 3) & 0x1F;
+
+    /* FIXME fn's other than 0 */
+    if (bus == 0 && obj->slots[slot] && devfn == (slot << 3)) {
+        pci_device_config_write(obj->slots[slot], offset, size, value);
+    }
 }
 
-static uint32_t i440fx_pci_host_read(I440FX *obj, uint8_t offset, int size)
+static uint32_t i440fx_pci_host_read(I440FX *obj, uint8_t address, int size)
 {
-    return 0;
+    uint8_t bus = (address >> 16) & 0xFF;
+    uint8_t devfn = (address >> 8) & 0xFF;
+    uint8_t offset = (address >> 0) & 0xFF;
+    uint8_t slot = (devfn >> 3) & 0x1F;
+    uint32_t value = ~0;
+
+    /* FIXME fn's other than 0 */
+    if (bus == 0 && obj->slots[slot] && devfn == (slot << 3)) {
+        value = pci_device_config_read(obj->slots[slot], offset, size);
+    }
+
+    return value;
 }
 
 void i440fx_mm_write(I440FX *obj, uint64_t addr, int size, uint64_t value)
