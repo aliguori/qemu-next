@@ -481,6 +481,20 @@ void block_dev_set_cache(BlockDev *obj, bool value)
     }
 }
 
+bool block_dev_get_readonly(BlockDev *obj)
+{
+    return !!(obj->bdrv_flags & BDRV_O_RDWR);
+}
+
+void block_dev_set_readonly(BlockDev *obj, bool value)
+{
+    if (value) {
+        obj->bdrv_flags &= ~BDRV_O_RDWR;
+    } else {
+        obj->bdrv_flags |= BDRV_O_RDWR;
+    }
+}
+
 static void block_dev_init(TypeInstance *inst)
 {
     BlockDev *obj = BLOCK_DEV(inst);
@@ -488,6 +502,11 @@ static void block_dev_init(TypeInstance *inst)
     plug_add_property_bool(PLUG(obj), "cache",
                            (PlugPropertyGetterBool *)block_dev_get_cache,
                            (PlugPropertySetterBool *)block_dev_set_cache,
+                           PROP_F_READWRITE);
+
+    plug_add_property_bool(PLUG(obj), "readonly",
+                           (PlugPropertyGetterBool *)block_dev_get_readonly,
+                           (PlugPropertySetterBool *)block_dev_set_readonly,
                            PROP_F_READWRITE);
 }
 

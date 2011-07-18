@@ -176,6 +176,9 @@ void block_dev_finalize(BlockDev *obj);
 bool block_dev_get_cache(BlockDev *obj);
 void block_dev_set_cache(BlockDev *obj, bool value);
 
+bool block_dev_get_readonly(BlockDev *obj);
+void block_dev_set_readonly(BlockDev *obj, bool value);
+
 int block_dev_read(BlockDev *bs,
                   int64_t sector_num,
                   uint8_t *buf,

@@ -104,6 +104,9 @@ static void plug_get_property__str(Plug *plug, const char *name, Visitor *v, voi
     char *value;
 
     value = (char *)getter(plug);
+    if (value == NULL) {
+        value = (char *)"";
+    }
     visit_type_str(v, &value, name, errp);
 }
 
