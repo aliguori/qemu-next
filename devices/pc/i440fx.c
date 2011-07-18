@@ -291,6 +291,7 @@ static void i440fx_pci_bus_initfn(TypeClass *class)
 static void i440fx_initfn(TypeInstance *inst)
 {
     I440FX *obj = I440FX(inst);
+    PciDevice *pci_dev = PCI_DEVICE(obj);
     char buffer[128];
     int i;
 
@@ -306,11 +307,18 @@ static void i440fx_initfn(TypeInstance *inst)
     }
 
     plug_add_property_plug(PLUG(obj), "bios", PLUG(&obj->bios), TYPE_ROM_DEVICE);
+
+    obj->slots[0] = pci_dev;
+
+    pci_device_set_vendor_id(pci_dev, PCI_VENDOR_ID_INTEL);
+    pci_device_set_device_id(pci_dev, PCI_DEVICE_ID_INTEL_82441);
+    pci_device_set_class_revision(pci_dev, 0x02);
+    pci_device_set_class_device(pci_dev, PCI_CLASS_BRIDGE_HOST);
 }
 
 static const TypeInfo i440fx_type_info = {
     .name = TYPE_I440FX,
-    .parent = TYPE_DEVICE,
+    .parent = TYPE_PCI_DEVICE,
     .instance_size = sizeof(I440FX),
     .instance_init = i440fx_initfn,
     .interfaces = (InterfaceInfo[]){

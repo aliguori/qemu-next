@@ -3,15 +3,17 @@
 
 #include "device.h"
 
+#define PCI_CONFIG_SIZE 128
+
 typedef struct PciDevice
 {
     Device parent;
 
     struct PciBus *bus;
 
-    uint8_t config[256];
-    uint8_t wmask[256];
-    uint8_t w1mask[256];
+    uint8_t config[PCI_CONFIG_SIZE];
+    uint8_t wmask[PCI_CONFIG_SIZE];
+    uint8_t w1mask[PCI_CONFIG_SIZE];
 } PciDevice;
 
 typedef uint32_t (PciDeviceConfigRead)(PciDevice *device, uint8_t offset, int size);

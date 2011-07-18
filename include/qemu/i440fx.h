@@ -16,7 +16,7 @@
 
 typedef struct I440FX
 {
-    Device parent;
+    PciDevice parent;
 
     int config_index;
     uint8_t config[256];
