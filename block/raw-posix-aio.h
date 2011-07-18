@@ -13,6 +13,8 @@
 #ifndef QEMU_RAW_POSIX_AIO_H
 #define QEMU_RAW_POSIX_AIO_H
 
+#include "block.h"
+
 /* AIO request types */
 #define QEMU_AIO_READ         0x0001
 #define QEMU_AIO_WRITE        0x0002

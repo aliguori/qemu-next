@@ -111,6 +111,8 @@ QEMU_CFLAGS += -I$(SRC_PATH)/include
 CONFIG_GATES=y
 include $(SRC_PATH)/devices/Makefile
 
+common-obj-y += backends/block_dev.o backends/block_file.o
+
 common-obj-$(CONFIG_BRLAPI) += baum.o
 common-obj-$(CONFIG_POSIX) += migration-exec.o migration-unix.o migration-fd.o
 common-obj-$(CONFIG_WIN32) += version.o
