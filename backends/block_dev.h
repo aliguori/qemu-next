@@ -18,19 +18,13 @@ typedef struct BlockDev
 
     /* the memory alignment required for the buffers handled by this driver */
     int buffer_alignment;
-
-    /* Whether to use the host page cache */
-    bool cache;
 } BlockDev;
 
 typedef struct BlockDevClass
 {
     Plug parent_class;
 
-    int (*open)(BlockDev *bs);
-
-    void (*close)(BlockDev *bs);
-
+    /** Public **/
     int (*read)(BlockDev *bs,
                 int64_t sector_num,
                 uint8_t *buf,
@@ -162,6 +156,11 @@ typedef struct BlockDevClass
      * zeros, 0 otherwise.
      */
     int (*has_zero_init)(BlockDev *bs);
+
+    /** Protected **/
+    int (*open)(BlockDev *bs);
+
+    void (*close)(BlockDev *bs);
 } BlockDevClass;
 
 #define TYPE_BLOCK_DEV "block_dev"

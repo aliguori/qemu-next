@@ -168,7 +168,6 @@ char *plug_get_property_str(Plug *plug, const char *name, Error **errp)
 
     string_output_visitor_init(&sov);
     plug_get_property(plug, name, &sov.parent, errp);
-    printf("%p.%s -> %s\n", plug, name, sov.value);
 
     return qemu_strdup(sov.value);
 }
@@ -239,6 +238,7 @@ static void plug_initfn(TypeInstance *inst)
 static const TypeInfo plug_type_info = {
     .name = TYPE_PLUG,
     .instance_size = sizeof(Plug),
+    .class_size = sizeof(PlugClass),
     .instance_init = plug_initfn,
     .class_init = plug_class_initfn,
 };

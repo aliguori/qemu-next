@@ -142,17 +142,22 @@ endif
 
 ######################################################################
 
-dev-obj-y := type.o device.o pci_bus.o pci_device.o rom.o pc/i440fx.o
-dev-obj-y += plug-proptypes.o plug.o
+dev-obj-y := type.o plug-proptypes.o plug.o
 
 qapi-obj-y := qapi/qapi-visit-core.o error.o qapi/qmp-output-visitor.o
 qapi-obj-y += qapi/qmp-input-visitor.o qdict.o qstring.o qint.o qbool.o
 qapi-obj-y += qlist.o qjson.o qfloat.o qjson.o json-streamer.o json-parser.o
 qapi-obj-y += json-lexer.o string-visitor.o cutils.o 
 
+test-type-obj-y := qemu-malloc.o $(oslib-obj-y)
+test-type-obj-y += $(addprefix devices/,$(dev-obj-y)) $(qapi-obj-y)
+test-type-obj-y += test-type-stub.o
+
 test-type$(EXESUF): test-type.o qemu-malloc.o type.o $(oslib-obj-y)
 test-variant$(EXESUF): test-variant.o qemu-malloc.o type.o $(oslib-obj-y)
-test-i440fx$(EXESUF): test-i440fx.o qemu-malloc.o $(oslib-obj-y) $(addprefix devices/,$(dev-obj-y)) $(qapi-obj-y)
+test-i440fx$(EXESUF): test-i440fx.o $(addprefix devices/,device.o pci_bus.o pci_device.o rom.o pc/i440fx.o) $(test-type-obj-y)
+chrdrv/test-mem$(EXESUF): chrdrv/test-mem.o chrdrv/chrdrv.o chrdrv/mem.o $(test-type-obj-y)
+
 
 ######################################################################
 
