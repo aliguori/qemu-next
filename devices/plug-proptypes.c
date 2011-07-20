@@ -10,7 +10,7 @@ typedef struct FunctionPointer
 static void plug_get_property__int(Plug *plug, const char *name, Visitor *v, void *opaque, Error **errp)
 {
     FunctionPointer *fp = opaque;
-    int64_t (*getter)(Plug *) = (int64_t (*)(Plug *))fp->fn;
+    PlugPropertyGetterInt *getter = (PlugPropertyGetterInt *)fp->fn;
     int64_t value;
 
     value = getter(plug);
@@ -20,7 +20,7 @@ static void plug_get_property__int(Plug *plug, const char *name, Visitor *v, voi
 static void plug_set_property__int(Plug *plug, const char *name, Visitor *v, void *opaque, Error **errp)
 {
     FunctionPointer *fp = opaque;
-    void (*setter)(Plug *, int64_t) = (void (*)(Plug *, int64_t))fp->fn;
+    PlugPropertySetterInt *setter = (PlugPropertySetterInt *)fp->fn;
     int64_t value = 0;
     Error *local_err = NULL;
 
@@ -34,8 +34,8 @@ static void plug_set_property__int(Plug *plug, const char *name, Visitor *v, voi
 }
 
 void plug_add_property_int(Plug *plug, const char *name,
-                           int64_t (*getter)(Plug *plug),
-                           void (*setter)(Plug *plug, int64_t),
+                           PlugPropertyGetterInt *getter,
+                           PlugPropertySetterInt *setter,
                            int flags)
 {
     FunctionPointer *getter_fp = qemu_mallocz(sizeof(*getter_fp));

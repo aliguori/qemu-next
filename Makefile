@@ -156,7 +156,9 @@ test-type-obj-y += test-type-stub.o
 test-type$(EXESUF): test-type.o qemu-malloc.o type.o $(oslib-obj-y)
 test-variant$(EXESUF): test-variant.o qemu-malloc.o type.o $(oslib-obj-y)
 test-i440fx$(EXESUF): test-i440fx.o $(addprefix devices/,device.o pci_bus.o pci_device.o rom.o pc/i440fx.o) $(test-type-obj-y)
+
 chrdrv/test-mem$(EXESUF): chrdrv/test-mem.o chrdrv/chrdrv.o chrdrv/mem.o $(test-type-obj-y)
+chrdrv/test-tcp$(EXESUF): chrdrv/test-tcp.o chrdrv/chrdrv.o chrdrv/socket.o chrdrv/tcp.o $(test-type-obj-y)
 
 
 ######################################################################

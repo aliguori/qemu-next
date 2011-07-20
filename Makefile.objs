@@ -113,7 +113,7 @@ include $(SRC_PATH)/devices/Makefile
 
 common-obj-y += backends/block_dev.o backends/block_file.o
 
-common-obj-y += chrdrv/chrdrv.o chrdrv/mem.o chrdrv/tcp.o
+common-obj-y += chrdrv/chrdrv.o chrdrv/mem.o chrdrv/socket.o
 
 common-obj-$(CONFIG_BRLAPI) += baum.o
 common-obj-$(CONFIG_POSIX) += migration-exec.o migration-unix.o migration-fd.o
