@@ -1,0 +1,12 @@
+config BLOCK
+       bool "QEMU Block Layer"
+       default y
+       help
+         This is the block layer.
+
+config BLOCK_FILE
+       bool "File block driver"
+       default y
+       depends on BLOCK
+       help
+         This is the file driver

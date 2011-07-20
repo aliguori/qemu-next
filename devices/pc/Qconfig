@@ -1,0 +1,6 @@
+config I440FX
+       bool "I440FX chipset"
+       default y
+       depends on PCI
+       help
+         bar

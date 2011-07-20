@@ -1,0 +1,4 @@
+source qom/Qconfig
+source devices/Qconfig
+source backends/Qconfig
+source chrdrv/Qconfig

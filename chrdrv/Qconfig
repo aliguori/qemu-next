@@ -1,0 +1,26 @@
+config CHRDRV
+       bool "QEMU Character Drivers"
+       default y
+       help
+         Character layer
+
+config CHRDRV_MEM
+       bool "Memory character device"
+       default y
+       depends on CHRDRV
+       help
+         Memory character device.
+
+config CHRDRV_SOCKET
+       bool "Socket driver"
+       default y
+       depends on CHRDRV
+       help
+         foo
+
+config CHRDRV_TCP
+       bool "TCP driver"
+       default y
+       depends on CHDRV_SOCKET
+       help
+         bar

@@ -1,0 +1,20 @@
+config DEVICE
+       bool "Device model"
+       default y
+       help
+         Device model
+
+config PCI
+       bool "PCI devices"
+       default y
+       depends on DEVICE
+       help
+         Foo
+
+config ROM
+       bool "ROM device"
+       default y
+       depends on DEVICE
+
+source pc/Qconfig
+source gates/Qconfig

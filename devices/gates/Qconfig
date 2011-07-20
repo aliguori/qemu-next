@@ -1,5 +1,6 @@
 config GATES
-	tristate "Gate devices"
-	depends on DEVICE
-	---help---
-	  This module provides gate devices
+       bool "Gate devices"
+       default y
+       depends on DEVICE
+       help
+         This module provides gate devices

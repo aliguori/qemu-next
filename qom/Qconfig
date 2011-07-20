@@ -1,0 +1,5 @@
+config QOM
+       bool "QEMU Object Model Support"
+       default y
+       help
+         This is the core object model used by QEMU.
