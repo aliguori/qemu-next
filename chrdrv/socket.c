@@ -117,6 +117,7 @@ static void socket_chr_try_read(void *opaque)
         closesocket(s->fd);
         s->fd = -1;
         char_driver_event(CHAR_DRIVER(s), CHR_EVENT_CLOSED);
+        // fixme call something that socketserver can hook
     } else if (size > 0) {
         char_driver_read(CHAR_DRIVER(s), buf, size);
     }

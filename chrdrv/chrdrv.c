@@ -122,7 +122,7 @@ static void char_driver_realize(Plug *plug)
 int char_driver_can_read(CharDriver *chr)
 {
     if (!chr->chr_can_read) {
-        return 0;
+        return 1024;
     }
 
     return chr->chr_can_read(chr->handler_opaque);

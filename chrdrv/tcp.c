@@ -121,6 +121,8 @@ static int tcp_server_make_listen_socket(SocketServer *ss)
         fd = -1;
     }
 
+    listen(fd, 1);
+
     return fd;
 }
 
