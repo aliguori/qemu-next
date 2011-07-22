@@ -7,76 +7,61 @@ typedef struct FunctionPointer
     void (*fn)(void);
 } FunctionPointer;
 
-static void plug_get_property__int(Plug *plug, const char *name, Visitor *v, void *opaque, Error **errp)
-{
-    FunctionPointer *fp = opaque;
-    PlugPropertyGetterInt *getter = (PlugPropertyGetterInt *)fp->fn;
-    int64_t value;
-
-    value = getter(plug);
-    visit_type_int(v, &value, name, errp);
+#define GEN_PROPDEF(ctype, typename, ctypename) \
+static void CONCAT(plug_get_property__, ctypename)(Plug *plug, const char *name, Visitor *v, void *opaque, Error **errp) \
+{ \
+    FunctionPointer *fp = opaque; \
+    CONCAT(PlugPropertyGetter, typename) *getter = (CONCAT(PlugPropertyGetter, typename) *)fp->fn; \
+    int64_t value; \
+ \
+    value = getter(plug); \
+    visit_type_int(v, &value, name, errp); \
+} \
+ \
+static void CONCAT(plug_set_property__, ctypename)(Plug *plug, const char *name, Visitor *v, void *opaque, Error **errp) 
+{ \
+    FunctionPointer *fp = opaque; \
+    CONCAT(PlugPropertySetter, ctypename) *setter = (CONCAT(PlugPropertySetter, ctypename) *)fp->fn; \
+    int64_t value = 0; \
+    Error *local_err = NULL; \
+ \
+    visit_type_int(v, &value, name, &local_err); \
+    if (local_err) { \
+        error_propagate(errp, local_err); \
+        return; \
+    } \
+ \
+    setter(plug, value); \
+} \
+ \
+void CONCAT(plug_add_property_, ctypename)(Plug *plug, const char *name, \
+                                           CONCAT(PlugPropertyGetter, ctypename) *getter, \
+                                           CONCAT(PlugPropertySetter, ctypename) *setter, \
+                                           int flags) \
+{ \
+    FunctionPointer *getter_fp = qemu_mallocz(sizeof(*getter_fp)); \
+    FunctionPointer *setter_fp = qemu_mallocz(sizeof(*setter_fp)); \
+ \
+    getter_fp->fn = (void (*)(void))getter; \
+    setter_fp->fn = (void (*)(void))setter; \
+ \
+    plug_add_property_full(plug, name, \
+                           CONCAT(plug_get_property__, ctypename), getter_fp, \
+                           CONCAT(plug_set_property__, ctypename), setter_fp, \
+                           STRIFY(ctypename), flags); \
 }
 
-static void plug_set_property__int(Plug *plug, const char *name, Visitor *v, void *opaque, Error **errp)
-{
-    FunctionPointer *fp = opaque;
-    PlugPropertySetterInt *setter = (PlugPropertySetterInt *)fp->fn;
-    int64_t value = 0;
-    Error *local_err = NULL;
+GEN_PROP(int8_t, Int8, int8);
+GEN_PROP(int16_t, Int16, int16);
+GEN_PROP(int32_t, Int32, int32);
+GEN_PROP(int64_t, Int64, int64);
+GEN_PROP(uint8_t, UInt8, uint8);
+GEN_PROP(uint16_t, UInt16, uint16);
+GEN_PROP(uint32_t, UInt32, uint32);
+GEN_PROP(uint64_t, UInt64, uint64);
+GEN_PROP(int64_t, Int, int);
 
-    visit_type_int(v, &value, name, &local_err);
-    if (local_err) {
-        error_propagate(errp, local_err);
-        return;
-    }
-
-    setter(plug, value);
-}
-
-void plug_add_property_int(Plug *plug, const char *name,
-                           PlugPropertyGetterInt *getter,
-                           PlugPropertySetterInt *setter,
-                           int flags)
-{
-    FunctionPointer *getter_fp = qemu_mallocz(sizeof(*getter_fp));
-    FunctionPointer *setter_fp = qemu_mallocz(sizeof(*setter_fp));
-
-    getter_fp->fn = (void (*)(void))getter;
-    setter_fp->fn = (void (*)(void))setter;
-
-    plug_add_property_full(plug, name,
-                           plug_get_property__int, getter_fp,
-                           plug_set_property__int, setter_fp,
-                           "int", flags);
-}
-
-/** bool **/
-
-static void plug_get_property__bool(Plug *plug, const char *name, Visitor *v, void *opaque, Error **errp)
-{
-    FunctionPointer *fp = opaque;
-    PlugPropertyGetterBool *getter = (PlugPropertyGetterBool *)fp->fn;
-    bool value;
-
-    value = getter(plug);
-    visit_type_bool(v, &value, name, errp);
-}
-
-static void plug_set_property__bool(Plug *plug, const char *name, Visitor *v, void *opaque, Error **errp)
-{
-    FunctionPointer *fp = opaque;
-    PlugPropertySetterBool *setter = (PlugPropertySetterBool *)fp->fn;
-    bool value = false;
-    Error *local_err = NULL;
-
-    visit_type_bool(v, &value, name, &local_err);
-    if (local_err) {
-        error_propagate(errp, local_err);
-        return;
-    }
-
-    setter(plug, value);
-}
+#undefine GEN_PROP
 
 void plug_add_property_bool(Plug *plug, const char *name,
                             PlugPropertyGetterBool *getter,

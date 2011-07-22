@@ -399,16 +399,18 @@ TypeInstance *type_dynamic_cast(TypeInstance *obj, const char *typename)
     return NULL;
 }
 
-void type_system_init(void)
+
+static void register_interface(void)
 {
     static TypeInfo interface_info = {
         .name = TYPE_INTERFACE,
         .instance_size = sizeof(Interface),
-        .class_size = sizeof(TypeInterface),
     };
 
     type_register_static(&interface_info);
 }
+
+device_init(register_interface);
 
 TypeInstance *type_dynamic_cast_assert(TypeInstance *obj, const char *typename)
 {
