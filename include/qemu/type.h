@@ -301,11 +301,26 @@ struct InterfaceInfo
 /**
  * @type_new:
  *
+ * This function will initialize a new object using heap allocated memory.  This
+ * function should be paired with @type_delete to free the resources associated
+ * with the object.
+ *
+ * @typename: The name of the type of the object to instantiate
+ *
+ * @id:       The id of the object.  This must be unique.
+ *
+ * Returns:   The newly allocated and instantiated object.
+ *
  */
 TypeInstance *type_new(const char *typename, const char *id);
 
 /**
  * @type_delete:
+ *
+ * Finalize an object and then free the memory associated with it.  This should
+ * be paired with @type_new to free the resources associated with an object.
+ *
+ * @obj:  The object to free.
  *
  */
 void type_delete(TypeInstance *obj);
@@ -313,11 +328,25 @@ void type_delete(TypeInstance *obj);
 /**
  * @type_initialize:
  *
+ * This function will initialize an object.  The memory for the object should
+ * have already been allocated.
+ *
+ * @obj:      A pointer to the memory to be used for the object.
+ *
+ * @typename: The name of the type of the object to instantiate
+ *
+ * @id:       The id of the object.  This must be unique.
+ *
  */
 void type_initialize(void *obj, const char *typename, const char *id);
 
 /**
  * @type_finalize:
+ *
+ * This function destroys and object without freeing the memory associated with
+ * it.
+ *
+ * @obj:
  *
  */
 void type_finalize(void *obj);
@@ -325,11 +354,26 @@ void type_finalize(void *obj);
 /**
  * @type_dynamic_cast:
  *
+ * This function will determine if @obj is-a @typename.  @obj can refer to an
+ * object or an interface associated with an object.
+ *
+ * @obj:       The object to cast.
+ *
+ * @typename:  The @typename
+ *
+ * Returns:
+ *
  */
 TypeInstance *type_dynamic_cast(TypeInstance *obj, const char *typename);
 
 /**
  * @type_dynamic_cast_assert:
+ *
+ * @obj:
+ *
+ * @typename:
+ *
+ * Returns:
  *
  */
 TypeInstance *type_dynamic_cast_assert(TypeInstance *obj, const char *typename);
@@ -337,11 +381,21 @@ TypeInstance *type_dynamic_cast_assert(TypeInstance *obj, const char *typename);
 /**
  * @type_is_type:
  *
+ * @obj:
+ *
+ * @typename:
+ *
+ * Returns:
+ *
  */
 bool type_is_type(TypeInstance *obj, const char *typename);
 
 /**
  * @type_get_class:
+ *
+ * @obj:
+ *
+ * Returns:
  *
  */
 TypeClass *type_get_class(TypeInstance *obj);
@@ -349,18 +403,28 @@ TypeClass *type_get_class(TypeInstance *obj);
 /**
  * @type_get_id:
  *
+ * @obj:
+ *
+ * Returns:
+ *
  */
 const char *type_get_id(TypeInstance *obj);
 
 /**
- * @char *type_get_type:
+ * @type_get_type:
  *
+ * @obj:
+ *
+ * Returns:
  */
 const char *type_get_type(TypeInstance *obj);
 
 /**
  * @type_get_super:
  *
+ * @obj:
+ *
+ * Returns:
  */
 TypeClass *type_get_super(TypeInstance *obj);
 
@@ -369,11 +433,18 @@ TypeClass *type_get_super(TypeInstance *obj);
 /**
  * @type_register_static:
  *
+ * @info:
+ *
+ * Returns:
  */
 Type type_register_static(const TypeInfo *info);
 
 /**
  * @type_find_by_id:
+ *
+ * @id:
+ *
+ * Returns:
  *
  */
 TypeInstance *type_find_by_id(const char *id);
@@ -381,25 +452,41 @@ TypeInstance *type_find_by_id(const char *id);
 /**
  * @type_check_class:
  *
+ * @obj:
+ *
+ * @typename:
+ *
+ * Returns:
  */
 TypeClass *type_check_class(TypeClass *obj, const char *typename);
 
 /**
  * @type_get_by_name:
  *
+ * @name:
+ *
+ * Returns:
  */
 Type type_get_by_name(const char *name);
 
 /**
  * @type_get_name:
  *
+ * @type:
+ *
+ * Returns:
  */
 const char *type_get_name(Type type);
 
 /**
  * @type_foreach:
  *
+ * @enumfn:
+ *
+ * @opaque:
+ *
  */
-void type_foreach(void (*enumfn)(TypeInstance *obj, void *opaque), void *opaque);
+void type_foreach(void (*enumfn)(TypeInstance *obj, void *opaque),
+                  void *opaque);
 
 #endif
