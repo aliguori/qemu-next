@@ -189,7 +189,9 @@ struct TypeInfo
      */
 
     /**
-     * @interfaces the list of interfaces associated with this type.
+     * @interfaces the list of interfaces associated with this type.  This
+     * should point to a static array that's terminated with a zero filled
+     * element.
      */
     InterfaceInfo *interfaces;
 };
@@ -238,61 +240,166 @@ struct TypeInfo
 /**
  * @Interface:
  *
+ * The base for all Interfaces.  This is a subclass of TypeInstance.  Subclasses
+ * of @Interface should never have an instance that contains anything other than
+ * a single @Interface member.
  */ 
 struct Interface
 {
+    /**
+     * @parent base class
+     */
     TypeInstance parent;
+
+    /* private */
+
+    /**
+     * @obj a pointer to the object that implements this interface.  This is
+     * used to allow casting from an interface to the base object.
+     */
     TypeInstance *obj;
 };
 
+/**
+ * @InterfaceClass:
+ *
+ * The class for all interfaces.  Subclasses of this class should only add
+ * virtual methods.
+ */
 struct InterfaceClass
 {
+    /**
+     * @parent_class the base class
+     */
     TypeClass parent_class;
 };
 
+/**
+ * @InterfaceInfo:
+ *
+ * The information associated with an interface.
+ */
 struct InterfaceInfo
 {
+    /**
+     * @type the name of the interface
+     */
     const char *type;
+
+    /**
+     * @interface_initfn is called during class initialization and is used to
+     * initialize an interface associated with a class.  This function should
+     * initialize any default virtual functions for a class and/or override
+     * virtual functions in a parent class.
+     */
     void (*interface_initfn)(TypeClass *class);
 };
 
 #define TYPE_INTERFACE "interface"
 #define INTERFACE(obj) TYPE_CHECK(Interface, obj, TYPE_INTERFACE)
 
+/**
+ * @type_new:
+ *
+ */
 TypeInstance *type_new(const char *typename, const char *id);
 
+/**
+ * @type_delete:
+ *
+ */
 void type_delete(TypeInstance *obj);
 
+/**
+ * @type_initialize:
+ *
+ */
 void type_initialize(void *obj, const char *typename, const char *id);
 
+/**
+ * @type_finalize:
+ *
+ */
 void type_finalize(void *obj);
 
+/**
+ * @type_dynamic_cast:
+ *
+ */
 TypeInstance *type_dynamic_cast(TypeInstance *obj, const char *typename);
 
+/**
+ * @type_dynamic_cast_assert:
+ *
+ */
 TypeInstance *type_dynamic_cast_assert(TypeInstance *obj, const char *typename);
 
+/**
+ * @type_is_type:
+ *
+ */
 bool type_is_type(TypeInstance *obj, const char *typename);
 
+/**
+ * @type_get_class:
+ *
+ */
 TypeClass *type_get_class(TypeInstance *obj);
 
+/**
+ * @type_get_id:
+ *
+ */
 const char *type_get_id(TypeInstance *obj);
 
+/**
+ * @char *type_get_type:
+ *
+ */
 const char *type_get_type(TypeInstance *obj);
 
+/**
+ * @type_get_super:
+ *
+ */
 TypeClass *type_get_super(TypeInstance *obj);
 
 /**/
 
+/**
+ * @type_register_static:
+ *
+ */
 Type type_register_static(const TypeInfo *info);
 
+/**
+ * @type_find_by_id:
+ *
+ */
 TypeInstance *type_find_by_id(const char *id);
 
+/**
+ * @type_check_class:
+ *
+ */
 TypeClass *type_check_class(TypeClass *obj, const char *typename);
 
+/**
+ * @type_get_by_name:
+ *
+ */
 Type type_get_by_name(const char *name);
 
+/**
+ * @type_get_name:
+ *
+ */
 const char *type_get_name(Type type);
 
+/**
+ * @type_foreach:
+ *
+ */
 void type_foreach(void (*enumfn)(TypeInstance *obj, void *opaque), void *opaque);
 
 #endif
