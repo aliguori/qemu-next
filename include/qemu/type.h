@@ -15,32 +15,81 @@ typedef struct TypeInfo TypeInfo;
 typedef struct Interface Interface;
 typedef struct InterfaceInfo InterfaceInfo;
 
+/**
+ * @TypeClass:
+ *
+ * The base for all classes.  The only thing that @TypeClass contains is an
+ * integer type handle.
+ */
 struct TypeClass
 {
+    /**
+     * @type the handle of the type for a class
+     */
     Type type;
 };
 
+/**
+ * @TypeInstance:
+ *
+ * The base for all objects.  The first member of this object is a pointer to
+ * a @TypeClass.  Since C guarantees that the first member of a structure
+ * always begins at byte 0 of that structure, as long as any sub-object places
+ * its parent as the first member, we can cast directly to a @TypeInstance.
+ *
+ * As a result, @TypeInstance contains a reference to the objects type as its
+ * first member.  This allows identification of the real type of the object at
+ * run time.
+ *
+ * @TypeInstance also contains a list of @Interfaces that this object
+ * implements.
+ */
 struct TypeInstance
 {
+    /**
+     * @class the type of the instantiated object.
+     */
     TypeClass *class;
 
+    /**
+     * @id the name of the object
+     */
     char id[MAX_ID];
 
+    /**
+     * @interfaces a list of @Interface objects implemented by this object
+     */
     GSList *interfaces;
 };
 
+/**
+ * @TypeInfo:
+ *
+ */
 struct TypeInfo
 {
-    /* Name of type */
+    /**
+     * @name the name of the type
+     */
     const char *name;
 
-    /* Name of parent type */
+    /**
+     * @parent the name of the parent type
+     */
     const char *parent;
 
-    /* Size of the class */
+    /**
+     * @class_size the size of the class object (derivative of @TypeClass) for
+     * this object.  If @class_size is 0, then the size of the class will be
+     * assumed to be the size of the parent class.  This allows a type to avoid
+     * implementing an explicit class type if they are not adding additional
+     * virtual functions.
+     */
     size_t class_size;
 
-    /* Size of an instance */
+    /**
+     * @instance_size the size of the object (derivative of @TypeInstance)
+     */
     size_t instance_size;
 
     /* Used during class initialization.
