@@ -11,7 +11,7 @@ typedef struct PciBus
 
 typedef struct PciBusClass
 {
-    TypeInterface parent_interface;
+    InterfaceClass parent_interface;
 
     uint64_t (*read)(PciBus *bus, PciDevice *dev, uint64_t addr, int size);
     void (*write)(PciBus *bus, PciDevice *dev, uint64_t addr, int size, uint64_t value);

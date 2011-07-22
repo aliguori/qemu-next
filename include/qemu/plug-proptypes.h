@@ -24,10 +24,17 @@ GEN_PROP(uint16_t, UInt16, uint16);
 GEN_PROP(uint32_t, UInt32, uint32);
 GEN_PROP(uint64_t, UInt64, uint64);
 GEN_PROP(int64_t, Int, int);
-GEN_PROP(bool, Bool, bool);
 GEN_PROP(const char *, Str, str);
 
-#undefine GEN_PROP
+#undef GEN_PROP
+
+typedef bool (PlugPropertyGetterBool)(Plug *plug);
+typedef void (PlugPropertySetterBool)(Plug *plug, bool value);
+
+void plug_add_property_bool(Plug *plug, const char *name,
+                            PlugPropertyGetterBool *getter,
+                            PlugPropertySetterBool *setter,
+                            int flags);
 
 void plug_add_property_plug(Plug *plug, const char *name, Plug *value, const char *typename);
 

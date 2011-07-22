@@ -12,6 +12,7 @@ typedef struct TypeClass TypeClass;
 typedef struct TypeInstance TypeInstance;
 typedef struct TypeInfo TypeInfo;
 
+typedef struct InterfaceClass InterfaceClass;
 typedef struct Interface Interface;
 typedef struct InterfaceInfo InterfaceInfo;
 
@@ -79,6 +80,64 @@ struct TypeInfo
     const char *parent;
 
     /**
+     * Instance Initialization
+     *
+     * This functions manage the instance construction and destruction of a
+     * type.
+     */
+
+    /**
+     * @instance_size the size of the object (derivative of @TypeInstance).  If
+     * @instance_size is 0, then the size of the object will be the size of the
+     * parent object.
+     */
+    size_t instance_size;
+
+    /**
+     * @instance_init
+     *
+     * This function is called to initialize an object.  The parent class will
+     * have already been initialized so the type is only responsible for
+     * initializing its own members.
+     */
+    void (*instance_init)(TypeInstance *obj);
+
+    /**
+     * @instance_finalize
+     *
+     * This function is called during object destruction.  This is called before
+     * the parent @instance_finalize function has been called.  An object should
+     * only free the members that are unique to its type in this function.
+     */
+    void (*instance_finalize)(TypeInstance *obj);
+
+    /**
+     * Class Initialization
+     *
+     * Before an object is initialized, the class for the object must be
+     * initialized.  There is only one class object for all instance objects
+     * that is created lazily.
+     *
+     * Classes are initialized by first initializing any parent classes (if
+     * necessary).  After the parent class object has initialized, it will be
+     * copied into the current class object and any additional storage in the
+     * class object is zero filled.
+     *
+     * The effect of this is that classes automatically inherit any virtual
+     * function pointers that the parent class has already initialized.  All
+     * other fields will be zero filled.
+     *
+     * After this initial copy, @base_init is invoked.  This is meant to handle
+     * the case where a class may have a dynamic field that was copied via
+     * a shallow copy but needs to be deep copied.  @base_init is called for
+     * each parent class but not for the class being instantiated.
+     *
+     * Once all of the parent classes have been initialized and their @base_init
+     * functions have been called, @class_init is called to let the class being
+     * instantiated provide default initialize for it's virtual functions.
+     */
+
+    /**
      * @class_size the size of the class object (derivative of @TypeClass) for
      * this object.  If @class_size is 0, then the size of the class will be
      * assumed to be the size of the parent class.  This allows a type to avoid
@@ -88,41 +147,107 @@ struct TypeInfo
     size_t class_size;
 
     /**
-     * @instance_size the size of the object (derivative of @TypeInstance)
-     */
-    size_t instance_size;
-
-    /* Used during class initialization.
+     * @base_init
      *
-     * base_init is called after memcpy()'ing the base class into the new
-     * class.  The purpose is to allow reinitialization of any dynamically
-     * allocated class members.  If you just have non-dynamic class members
-     * (such as function pointers), you don't need to implement this function.
-     *
-     * class_init is called after initializing all of the base classes.  This
-     * is where you should set all class members (dynamic or static).
+     * This function is called after memcpy()'ing the base class into the new
+     * class to reinitialize any members that require deep copy.
      */
     void (*base_init)(TypeClass *klass);
+
+    /**
+     * @base_finalize
+     *
+     * This function is called during a class's destruction and is meant to
+     * allow any dynamic parameters allocated by @base_init to be released.
+     */
     void (*base_finalize)(TypeClass *klass);
 
+    /**
+     * @class_init
+     *
+     * This function is called after all parent class initialization has occured
+     * to allow a class to set its default virtual method pointers.  This is
+     * also the function to use to override virtual methods from a parent class.
+     */
     void (*class_init)(TypeClass *klass);
+
+    /**
+     * @class_finalize
+     *
+     * This function is called during class destruction and is meant to release
+     * and dynamic parameters allocated by @class_init.
+     */
     void (*class_finalize)(TypeClass *klass);
 
-    void (*instance_init)(TypeInstance *obj);
-    void (*instance_finalize)(TypeInstance *obj);
+    /**
+     * Interfaces
+     *
+     * Interfaces allow a limited form of multiple inheritance.  Instances are
+     * similar to normal types except for the fact that are only defined by
+     * their classes and never carry any state.  You can cast an object to one
+     * of its @Interface types and vice versa.
+     */
 
+    /**
+     * @interfaces the list of interfaces associated with this type.
+     */
     InterfaceInfo *interfaces;
 };
 
-#define TYPE_INSTANCE(obj) ((TypeInstance *)(obj))
-#define TYPE_CHECK(type, obj, name) ((type *)type_dynamic_cast_assert((TypeInstance *)(obj), (name)))
-#define TYPE_CLASS_CHECK(class, obj, name) ((class *)type_check_class((TypeClass *)(obj), (name)))
-#define TYPE_GET_CLASS(class, obj, name) TYPE_CLASS_CHECK(class, type_get_class(TYPE_INSTANCE(obj)), name)
+/**
+ * @TYPE_INSTANCE
+ *
+ * Converts an object to a @TypeInstance.  Since all objects are @TypeInstances,
+ * this function will always succeed.
+ */
+#define TYPE_INSTANCE(obj) \
+    ((TypeInstance *)(obj))
 
+/**
+ * @TYPE_CHECK
+ *
+ * A type safe version of @type_dynamic_cast_assert.  Typically each class will
+ * define a macro based on this type to perform type safe dynamic_casts to
+ * this object type.
+ *
+ * If an invalid object is passed to this function, a run time assert will be
+ * generated.
+ */
+#define TYPE_CHECK(type, obj, name) \
+    ((type *)type_dynamic_cast_assert((TypeInstance *)(obj), (name)))
+
+/**
+ * @TYPE_CLASS_CHECK
+ *
+ * A type safe version of @type_check_class.  This macro is typically wrapped
+ * by each type to perform type safe casts of a class to a specific class type.
+ */
+#define TYPE_CLASS_CHECK(class, obj, name) \
+    ((class *)type_check_class((TypeClass *)(obj), (name)))
+
+/**
+ * @TYPE_GET_CLASS
+ *
+ * This function will return a specific class for a given object.  Its generally
+ * used by each type to provide a type safe macro to get a specific class type
+ * from an object.
+ */
+#define TYPE_GET_CLASS(class, obj, name) \
+    TYPE_CLASS_CHECK(class, type_get_class(TYPE_INSTANCE(obj)), name)
+
+/**
+ * @Interface:
+ *
+ */ 
 struct Interface
 {
     TypeInstance parent;
     TypeInstance *obj;
+};
+
+struct InterfaceClass
+{
+    TypeClass parent_class;
 };
 
 struct InterfaceInfo

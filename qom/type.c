@@ -176,6 +176,7 @@ static void type_class_interface_init(TypeImpl *ti, InterfaceImpl *iface)
     TypeInfo info = {
         .instance_size = sizeof(Interface),
         .parent = iface->parent,
+        .class_size = sizeof(InterfaceClass),
         .class_init = iface->interface_initfn,
     };
 

@@ -2076,8 +2076,6 @@ int main(int argc, char **argv, char **envp)
     atexit(qemu_run_exit_notifiers);
     error_set_progname(argv[0]);
 
-    type_system_init();
-
     init_clocks();
 
     qemu_cache_utils_init(envp);
