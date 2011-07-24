@@ -1,0 +1,9 @@
+QEMU_CFLAGS += -I$(SRC_PATH)/include
+
+QCONFIGS = $(shell find $(SRC_PATH) -name "Qconfig" -print)
+
+config-qom.mak: $(SRC_PATH)/Qconfig $(QCONFIGS)
+	$(SRC_PATH)/scripts/genconfig.sh $< > $@
+
+-include config-qom.mak
+

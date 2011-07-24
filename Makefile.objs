@@ -170,6 +170,9 @@ common-obj-$(CONFIG_SLIRP) += $(addprefix slirp/, $(slirp-obj-y))
 common-obj-$(CONFIG_XEN_BACKEND) += xen_backend.o xen_devconfig.o
 common-obj-$(CONFIG_XEN_BACKEND) += xen_console.o xenfb.o xen_disk.o xen_nic.o
 
+# QEMU Object Model
+include $(SRC_PATH)/Makefile.qom
+
 ######################################################################
 # libuser
 
