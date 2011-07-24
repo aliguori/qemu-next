@@ -112,6 +112,15 @@ Notes:
 EQMP
 
     {
+        .name       = "plug_list",
+        .args_type  = "type:s?",
+        .params     = "",
+        .help       = "list plugs",
+        .user_print = monitor_user_noop,
+        .mhandler.cmd_new = do_plug_list,
+    },
+
+    {
         .name       = "eject",
         .args_type  = "force:-f,device:B",
         .params     = "[-f] device",

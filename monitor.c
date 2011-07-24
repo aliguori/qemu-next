@@ -1069,6 +1069,31 @@ static int do_plug_create(Monitor *mon, const QDict *qdict, QObject **ret_data)
     return 0;
 }
 
+static int do_plug_list(Monitor *mon, const QDict *qdict, QObject **ret_data)
+{
+    QList *qlist = qlist_new();
+    const char *type = qdict_get_try_str(qdict, "type");
+    GSList *i;
+
+    for (i = global_plug_list; i; i = i->next) {
+        TypeInstance *obj = i->data;
+        QDict *item = qdict_new();
+
+        if (type && !type_is_type(obj, type)) {
+            continue;
+        }
+
+        qdict_put(item, "id", qstring_from_str(type_get_id(obj)));
+        qdict_put(item, "type", qstring_from_str(type_get_type(obj)));
+
+        qlist_append(qlist, item);
+    }
+
+    *ret_data = QOBJECT(qlist);
+
+    return 0;
+}
+
 #ifdef CONFIG_VNC
 static int change_vnc_password(const char *password)
 {
