@@ -1,1 +1,2 @@
 source qapi/Qconfig
+source qom/Qconfig
