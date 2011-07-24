@@ -159,12 +159,115 @@ bool plug_get_realized(Plug *plug)
     return plug->realized;
 }
 
+static char *plug_get_property_str(Plug *plug, const char *name, Error **errp)
+{
+    StringOutputVisitor sov;
+
+    string_output_visitor_init(&sov);
+    plug_get_property(plug, name, &sov.parent, errp);
+
+    return qemu_strdup(sov.value);
+}
+
+static void plug_propagate_realized(Plug *plug, const char *name,
+                                    const char *typename, int flags,
+                                    void *opaque)
+{
+    if (strstart(typename, "plug<", NULL)) {
+        char *child_name;
+        Plug *child_plug;
+
+        child_name = plug_get_property_str(plug, name, NULL);
+        child_plug = PLUG(type_find_by_id(child_name));
+
+        plug_set_realized(child_plug, plug_get_realized(plug));
+
+        qemu_free(child_name);
+    }
+}
+
+typedef struct PlugData
+{
+    const char *typename;
+    Plug *value;
+} PlugData;
+
+static void plug_get_property__plug(Plug *plug, const char *name, Visitor *v, void *opaque, Error **errp)
+{
+    PlugData *data = opaque;
+    char *value;
+
+    value = (char *)TYPE_INSTANCE(data->value)->id;
+    visit_type_str(v, &value, name, errp);
+}
+
+static void plug_del_property__plug(Plug *plug, const char *name, void *opaque)
+{
+    PlugData *data = opaque;
+
+    type_finalize(data->value);
+    qemu_free(data);
+}
+
+void plug_add_property_plug(Plug *plug, Plug *value, const char *typename,
+                            const char *name, ...)
+{
+    PlugData *data = qemu_mallocz(sizeof(*data));
+    char fullid[MAX_NAME];
+    char fulltype[MAX_TYPENAME];
+    size_t off;
+    va_list ap;
+
+    data->typename = typename;
+    data->value = value;
+
+    snprintf(fulltype, sizeof(fulltype), "plug<%s>", typename);
+
+    va_start(ap, name);
+    off = snprintf(fullid, sizeof(fullid), "%s::",
+                   type_get_id(TYPE_INSTANCE(plug)));
+    vsnprintf(&fullid[off], sizeof(fullid) - off, name, ap);
+    va_end(ap);
+
+    type_initialize(plug, typename, fullid);
+
+    plug_add_property_full(plug, name,
+                           plug_get_property__plug,
+                           NULL,
+                           plug_del_property__plug,
+                           data, fulltype, PROP_F_READ);
+}
+
+Plug *plug_get_property_plug(Plug *plug, Error **errp, const char *name, ...)
+{
+    char fullname[MAX_NAME];
+    char *plugname;
+    Plug *value;
+    va_list ap;
+
+    va_start(ap, name);
+    vsnprintf(fullname, sizeof(fullname), name, ap);
+    va_end(ap);
+
+    plugname = plug_get_property_str(plug, fullname, errp);
+    if (error_is_set(errp)) {
+        return NULL;
+    }
+
+    value = PLUG(type_find_by_id(plugname));
+
+    qemu_free(plugname);
+
+    return value;
+}
+
 void plug_realize_all(Plug *plug)
 {
     /* This doesn't loop infinitely because the callbacks are only called when
      * the state changes. */
     plug_set_realized(plug, true);
     plug_lock_all_properties(plug);
+    plug_foreach_property(plug, plug_propagate_realized, NULL);
 }
 
 void plug_unrealize_all(Plug *plug)
@@ -173,6 +276,7 @@ void plug_unrealize_all(Plug *plug)
      * the state changes. */
     plug_set_realized(plug, false);
     plug_unlock_all_properties(plug);
+    plug_foreach_property(plug, plug_propagate_realized, NULL);
 }
 
 static void plug_class_initfn(TypeClass *base_class)
