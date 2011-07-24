@@ -170,6 +170,10 @@ static const QErrorStringTable qerror_table[] = {
         .desc      = "Property '%(device).%(property)' not found",
     },
     {
+        .error_fmt = QERR_PROPERTY_READ_ONLY,
+        .desc      = "Property '%(device).%(property)' is read only",
+    },
+    {
         .error_fmt = QERR_PROPERTY_VALUE_BAD,
         .desc      = "Property '%(device).%(property)' doesn't take value '%(value)'",
     },
