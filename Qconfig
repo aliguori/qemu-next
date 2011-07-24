@@ -1,2 +1,3 @@
 source qapi/Qconfig
 source qom/Qconfig
+source devices/Qconfig

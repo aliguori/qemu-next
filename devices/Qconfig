@@ -1,0 +1,6 @@
+config DEVICE
+       bool "QOM based device model"
+       default y
+       depends on QOM && QAPI_QMP
+       help
+         Device model
