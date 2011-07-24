@@ -139,6 +139,15 @@ EQMP
     },
 
     {
+        .name       = "plug_list_props",
+        .args_type  = "id:s",
+        .params     = "",
+        .help       = "list plug properties",
+        .user_print = monitor_user_noop,
+        .mhandler.cmd_new = do_plug_list_props,
+    },
+
+    {
         .name       = "eject",
         .args_type  = "force:-f,device:B",
         .params     = "[-f] device",
