@@ -1,1 +1,1 @@
-devices-obj-$(CONFIG_DEVICE) := device.o
+devices-obj-$(CONFIG_DEVICE) := device.o pin.o
