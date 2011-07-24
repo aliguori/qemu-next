@@ -85,6 +85,33 @@ Example:
 EQMP
 
     {
+        .name       = "plug_create",
+        .args_type  = "device:O",
+        .params     = "type=value,id=value[,prop=value][,...]",
+        .help       = "create a plug",
+        .user_print = monitor_user_noop,
+        .mhandler.cmd_new = do_plug_create,
+    },
+
+SQMP
+plug_create
+-----------
+
+Create a plug.
+
+Arguments:
+
+- type: typename of object (json-string)
+- id: name of object (json-string)
+- object properties
+
+Notes:
+
+ (1) id MUST not contain the sequence "::"
+
+EQMP
+
+    {
         .name       = "eject",
         .args_type  = "force:-f,device:B",
         .params     = "[-f] device",

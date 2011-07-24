@@ -62,6 +62,12 @@
 #endif
 #include "ui/qemu-spice.h"
 
+#include "qemu/plug.h"
+#include "qapi/qmp-input-visitor.h"
+#include "qapi/qmp-output-visitor.h"
+
+#include <glib.h>
+
 //#define DEBUG
 //#define DEBUG_COMPLETION
 
@@ -1016,6 +1022,49 @@ static int do_quit(Monitor *mon, const QDict *qdict, QObject **ret_data)
     monitor_suspend(mon);
     no_shutdown = 0;
     qemu_system_shutdown_request();
+
+    return 0;
+}
+
+static GSList *global_plug_list;
+
+static int do_plug_create(Monitor *mon, const QDict *qdict, QObject **ret_data)
+{
+    const char *id = qdict_get_str(qdict, "id");
+    const char *type = qdict_get_str(qdict, "type");
+    QmpInputVisitor *qiv;
+    Visitor *v;
+    const QDictEntry *e;
+    TypeInstance *inst;
+    Plug *plug;
+
+    inst = type_new(type, id);
+    if (inst == NULL) {
+        return -1;
+    }
+
+    plug = PLUG(inst);
+
+    global_plug_list = g_slist_prepend(global_plug_list, plug);
+
+    qiv = qmp_input_visitor_new((QObject *)QOBJECT(qdict));
+    v = qmp_input_get_visitor(qiv);
+
+    for (e = qdict_first(qdict); e; e = qdict_next(qdict, e)) {
+        Error *local_err = NULL;
+
+        if (strcmp(e->key, "id") == 0 || strcmp(e->key, "type") == 0) {
+            continue;
+        }
+
+        plug_set_property(plug, e->key, v, &local_err);
+        if (local_err) {
+            error_free(local_err);
+            return -1;
+        }
+    }
+
+    qmp_input_visitor_cleanup(qiv);
 
     return 0;
 }
