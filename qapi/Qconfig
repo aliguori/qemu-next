@@ -1,0 +1,19 @@
+config QAPI
+       bool "QEMU API Support"
+       default y
+       help
+         This provides a generic marshalling framework for converting C types
+         to other data structures.  If unsure, say y here.
+
+config QAPI_QMP
+       bool "QAPI support for QObjects"
+       default y
+       help
+         This allows QAPI to convert to and from QObjects.  QObjects are mainly
+         used to marshal to and from JSON.
+
+config QAPI_QMP_SERVER
+       bool "QAPI based QMP server"
+       default y
+       help
+         This provides a QMP server framework using QAPI.

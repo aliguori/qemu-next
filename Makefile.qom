@@ -7,3 +7,5 @@ config-qom.mak: $(SRC_PATH)/Qconfig $(QCONFIGS)
 
 -include config-qom.mak
 
+include $(SRC_PATH)/qapi/Makefile
+common-obj-y += $(addprefix qapi/,$(qapi-obj-y))
