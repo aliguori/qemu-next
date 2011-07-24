@@ -24,3 +24,10 @@ config CHRDRV_TCP_SERVER
        depends on CHRDRV_SOCKET
        help
          Character driver that implements a TCP server transport.
+
+config CHRDRV_UNIX_SERVER
+       bool "UNIX server character driver"
+       default y
+       depends on CHRDRV_SOCKET && UNIX
+       help
+         Character driver that implements a domain socket server transport.
