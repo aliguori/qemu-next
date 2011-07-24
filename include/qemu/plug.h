@@ -77,6 +77,8 @@ void plug_add_property_plug(Plug *plug, Plug *value, const char *typename, const
 
 Plug *plug_get_property_plug(Plug *plug, Error **errp, const char *name, ...);
 
+void plug_add_property_socket(Plug *plug, const char *name, Plug **value, const char *typename);
+
 #include "qemu/plug-proptypes.h"
 
 #endif

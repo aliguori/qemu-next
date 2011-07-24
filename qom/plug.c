@@ -265,6 +265,70 @@ Plug *plug_get_property_plug(Plug *plug, Error **errp, const char *name, ...)
     return value;
 }
 
+typedef struct SocketData
+{
+    const char *typename;
+    Plug **value;
+} SocketData;
+
+static void plug_get_property__socket(Plug *plug, const char *name, Visitor *v, void *opaque, Error **errp)
+{
+    SocketData *data = opaque;
+    const char *value = "";
+
+    if (*data->value) {
+        value = TYPE_INSTANCE(*data->value)->id;
+    }
+
+    visit_type_str(v, (char **)&value, name, errp);
+}
+
+static void plug_set_property__socket(Plug *plug, const char *name, Visitor *v, void *opaque, Error **errp)
+{
+    char *value = NULL;
+    Error *local_err = NULL;
+    SocketData *data = opaque;
+    TypeInstance *obj;
+
+    visit_type_str(v, &value, name, &local_err);
+    if (local_err) {
+        error_propagate(errp, local_err);
+        return;
+    }
+
+    obj = type_find_by_id(value);
+    assert(obj != NULL);
+
+    *data->value = PLUG(type_dynamic_cast_assert(obj, data->typename));
+
+    qemu_free(value);
+}
+
+static void plug_del_property__socket(Plug *plug, const char *name, void *opaque)
+{
+    SocketData *data = opaque;
+
+    qemu_free(data);
+}
+
+void plug_add_property_socket(Plug *plug, const char *name, Plug **value, const char *typename)
+{
+    SocketData *data = qemu_mallocz(sizeof(*data));
+    char fulltype[33];
+
+    data->typename = typename;
+    data->value = value;
+
+    snprintf(fulltype, sizeof(fulltype), "socket<%s>", typename);
+
+    plug_add_property_full(plug, name,
+                           plug_get_property__socket,
+                           plug_set_property__socket,
+                           plug_del_property__socket,
+                           data,
+                           fulltype, PROP_F_READWRITE);
+}
+
 void plug_realize_all(Plug *plug)
 {
     /* This doesn't loop infinitely because the callbacks are only called when
