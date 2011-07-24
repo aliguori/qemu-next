@@ -112,6 +112,15 @@ Notes:
 EQMP
 
     {
+        .name       = "plug_destroy",
+        .args_type  = "type:s",
+        .params     = "type=value",
+        .help       = "destroy a plug",
+        .user_print = monitor_user_noop,
+        .mhandler.cmd_new = do_plug_destroy,
+    },
+
+    {
         .name       = "plug_list",
         .args_type  = "type:s?",
         .params     = "",

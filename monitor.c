@@ -1069,6 +1069,26 @@ static int do_plug_create(Monitor *mon, const QDict *qdict, QObject **ret_data)
     return 0;
 }
 
+static int do_plug_destroy(Monitor *mon, const QDict *qdict, QObject **ret_data)
+{
+    const char *id = qdict_get_str(qdict, "id");
+    TypeInstance *inst;
+    Plug *plug;
+
+    inst = type_find_by_id(id);
+    if (inst == NULL) {
+        return -1;
+    }
+
+    plug = PLUG(inst);
+
+    global_plug_list = g_slist_remove(global_plug_list, plug);
+
+    type_delete(inst);
+
+    return 0;
+}
+
 static int do_plug_list(Monitor *mon, const QDict *qdict, QObject **ret_data)
 {
     QList *qlist = qlist_new();
