@@ -67,8 +67,8 @@ void plug_unlock_property(Plug *plug, const char *name);
 void plug_lock_all_properties(Plug *plug);
 void plug_unlock_all_properties(Plug *plug);
 
-void plug_set_realized(Plug *plug, bool realized);
-bool plug_get_realized(Plug *plug);
+void plug_set_realized(Plug *plug, bool realized, Error **errp);
+bool plug_get_realized(Plug *plug, Error **errp);
 
 void plug_realize_all(Plug *plug);
 void plug_unrealize_all(Plug *plug);

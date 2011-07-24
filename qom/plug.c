@@ -140,7 +140,7 @@ void plug_foreach_property(Plug *plug, PropertyEnumerator *enumfn, void *opaque)
     }
 }
 
-void plug_set_realized(Plug *plug, bool realized)
+void plug_set_realized(Plug *plug, bool realized, Error **errp)
 {
     PlugClass *class = PLUG_GET_CLASS(plug);
     bool old_value = plug->realized;
@@ -158,7 +158,7 @@ void plug_set_realized(Plug *plug, bool realized)
     }
 }
 
-bool plug_get_realized(Plug *plug)
+bool plug_get_realized(Plug *plug, Error **errp)
 {
     return plug->realized;
 }
@@ -184,7 +184,7 @@ static void plug_propagate_realized(Plug *plug, const char *name,
         child_name = plug_get_property_str(plug, name, NULL);
         child_plug = PLUG(type_find_by_id(child_name));
 
-        plug_set_realized(child_plug, plug_get_realized(plug));
+        plug_set_realized(child_plug, plug_get_realized(plug, NULL), NULL);
 
         qemu_free(child_name);
     }
@@ -333,7 +333,7 @@ void plug_realize_all(Plug *plug)
 {
     /* This doesn't loop infinitely because the callbacks are only called when
      * the state changes. */
-    plug_set_realized(plug, true);
+    plug_set_realized(plug, true, NULL);
     plug_lock_all_properties(plug);
     plug_foreach_property(plug, plug_propagate_realized, NULL);
 }
@@ -342,7 +342,7 @@ void plug_unrealize_all(Plug *plug)
 {
     /* This doesn't loop infinitely because the callbacks are only called when
      * the state changes. */
-    plug_set_realized(plug, false);
+    plug_set_realized(plug, false, NULL);
     plug_unlock_all_properties(plug);
     plug_foreach_property(plug, plug_propagate_realized, NULL);
 }
