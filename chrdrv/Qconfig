@@ -17,3 +17,10 @@ config CHRDRV_SOCKET
        depends on CHRDRV
        help
          Character driver that implements a socket based transport.
+
+config CHRDRV_TCP_SERVER
+       bool "TCP server character driver"
+       default y
+       depends on CHRDRV_SOCKET
+       help
+         Character driver that implements a TCP server transport.
