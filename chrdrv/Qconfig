@@ -25,6 +25,13 @@ config CHRDRV_TCP_SERVER
        help
          Character driver that implements a TCP server transport.
 
+config CHRDRV_TCP_CLIENT
+       bool "TCP client character driver"
+       default y
+       depends on CHRDRV_SOCKET
+       help
+         Character driver that implements a TCP client transport.
+
 config CHRDRV_UNIX_SERVER
        bool "UNIX server character driver"
        default y
