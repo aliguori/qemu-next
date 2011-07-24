@@ -1162,6 +1162,41 @@ static int do_plug_set(Monitor *mon, const QDict *qdict, QObject **ret_data)
     return 0;
 }
 
+static void plug_list_props_tramp(Plug *plug, const char *name, const char *typename, int flags, void *opaque)
+{
+    QList *qlist = opaque;
+    QDict *item = qdict_new();
+
+    qdict_put(item, "name", qstring_from_str(name));
+    qdict_put(item, "type", qstring_from_str(typename));
+    qdict_put(item, "readable", qbool_from_int(!!(flags & PROP_F_READ)));
+    qdict_put(item, "writeable", qbool_from_int(!!(flags & PROP_F_WRITE)));
+    qdict_put(item, "locked", qbool_from_int(!!(flags & PROP_F_LOCKED)));
+
+    qlist_append(qlist, item);
+}
+
+static int do_plug_list_props(Monitor *mon, const QDict *qdict, QObject **ret_data)
+{
+    const char *id = qdict_get_str(qdict, "id");
+    QList *qlist = qlist_new();
+    TypeInstance *inst;
+    Plug *plug;
+
+    inst = type_find_by_id(id);
+    if (inst == NULL) {
+        return -1;
+    }
+
+    plug = PLUG(inst);
+
+    plug_foreach_property(plug, plug_list_props_tramp, qlist);
+
+    *ret_data = QOBJECT(qlist);
+
+    return 0;
+}
+
 #ifdef CONFIG_VNC
 static int change_vnc_password(const char *password)
 {
