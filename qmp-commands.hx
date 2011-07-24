@@ -121,6 +121,15 @@ EQMP
     },
 
     {
+        .name       = "plug_get",
+        .args_type  = "options:O",
+        .params     = "",
+        .help       = "get plug property",
+        .user_print = monitor_user_noop,
+        .mhandler.cmd_new = do_plug_get,
+    },
+
+    {
         .name       = "eject",
         .args_type  = "force:-f,device:B",
         .params     = "[-f] device",
