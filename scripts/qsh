@@ -1,0 +1,184 @@
+#!/usr/bin/python
+
+import json, socket
+import sys
+
+class QmpException(Exception):
+    def __init__(self, cls, desc):
+        Exception.__init__(self, desc)
+
+class QmpClient(object):
+    def __init__(self, host, port):
+        s = socket.socket(socket.AF_INET)
+        s.connect((host, port))
+
+        self.s = s
+        self.buffer = ''
+        self.readline()
+
+    def readline(self):
+        while not self.buffer.find('\n') != -1:
+            self.buffer += self.s.recv(1024)
+
+        line, self.buffer = self.buffer.split('\n', 1)
+        return line
+
+    def _command(self, _command_name, **args):
+        req = { "execute": _command_name, "arguments": args }
+        self.s.sendall(json.dumps(req))
+        
+        rsp = json.loads(self.readline())
+        if rsp.has_key('error'):
+            raise QmpException(rsp['error']['class'], rsp['error']['desc'])
+        return rsp['return']
+
+    def qmp_capabilities(self):
+        return self._command('qmp_capabilities')
+
+    def plug_create(self, typename, name, **args):
+        self._command('plug_create', id=name, type=typename, **args)
+
+    def plug_list(self, typename=None):
+        if typename == None:
+            return self._command('plug_list')
+        else:
+            return self._command('plug_list', type=typename)
+
+    def plug_get(self, name, propname):
+        return self._command('plug_get', id=name, name=propname)
+
+    def plug_set(self, name, propname, value):
+        self._command('plug_set', id=name, name=propname, value=value)
+
+    def plug_list_props(self, name):
+        return self._command('plug_list_props', id=name)
+
+    def quit(self):
+        self._command('quit')
+
+from ConfigParser import SafeConfigParser
+import re
+
+class GitConfigParser(SafeConfigParser):
+    SECTCRE = re.compile(r'\[(?P<header>[^\"]+"[^"]*")\]')
+
+
+def resolve_property(qmp, value):
+    value = value[1:]
+
+    components = value.split('/')
+
+    name = components[0]
+    components = components[1:]
+
+    prop = components[-1]
+    for component in components[:-1]:
+        if component.startswith('@'):
+            component = component[1:]
+        name = qmp.plug_get(name, component)
+
+    if prop.startswith('@'):
+        prop = prop[1:]
+
+    return name, prop
+
+def parse_property(srv, value):
+    if value == 'True':
+        value = True
+    elif value == 'False':
+        value = False
+    elif value[0] in '0123456789-':
+        value = int(value)
+    elif value[0] == '/':
+        name, prop = resolve_property(srv, value)
+        value = qmp.plug_get(name, prop)
+    elif value[0] == '"':
+        value = value[1:-1]
+    return value
+
+qmp = QmpClient('localhost', 8080)
+qmp.qmp_capabilities()
+
+command = sys.argv[1]
+
+if command == 'import':    
+    cp = GitConfigParser()
+    cp.read([sys.argv[2]])
+
+    for section in cp.sections():
+        kind, name = section.split(' ', 1)
+        name = name[1:-1]
+        qmp.plug_create(kind, name)
+
+    for section in cp.sections():
+        kind, name = section.split(' ', 1)
+        name = name[1:-1]
+
+        for key, value in cp.items(section):
+            value = parse_property(qmp, value)
+            qmp.plug_set(name, key, value)
+elif command == 'create':
+    if len(sys.argv) != 4:
+        sys.exit(1)
+    qmp.plug_create(sys.argv[2], sys.argv[3])
+elif command == 'exit':
+    qmp.quit()
+elif command == 'set':
+    if len(sys.argv) not in [4, 5]:
+        sys.exit(1)
+
+    name, prop = resolve_property(qmp, sys.argv[2])
+
+    if sys.argv[3] == '--string':
+        value = str(sys.argv[4])
+    elif sys.argv[3] == '--int':
+        value = long(sys.argv[4])
+    else:
+        value = parse_property(qmp, sys.argv[3])
+
+    qmp.plug_set(name, prop, value)
+elif command == 'get':
+    if len(sys.argv) != 3:
+        sys.exit(1)
+
+    name, prop = resolve_property(qmp, sys.argv[2])
+    print qmp.plug_get(name, prop)
+elif command == 'plug_list':
+    if len(sys.argv) != 3:
+        sys.exit(1)
+
+    items = qmp.plug_list(sys.argv[2])
+    for i in items:
+        print i
+elif command == 'ls':
+    if len(sys.argv) != 3:
+        sys.exit(1)
+
+    path = sys.argv[2]
+
+    while path.endswith('/'):
+        path = path[:-1]
+
+    if path == '':
+        path = '/'
+
+    if path == '/':
+        items = qmp.plug_list()
+        for item in items:
+            print '%s/' % item['id']
+    else:
+        if path[1:].find('/') == -1:
+            items = qmp.plug_list_props(path[1:])
+        else:
+            name, prop = resolve_property(qmp, path)
+            name = qmp.plug_get(name, prop)
+            items = qmp.plug_list_props(name)
+
+        for item in items:
+            if item['type'].startswith('plug<'):
+                print '%s/' % item['name']
+            elif item['type'].startswith('socket<'):
+                print '@%s/' % item['name']
+            else:
+                print '%s' % item['name']
+
