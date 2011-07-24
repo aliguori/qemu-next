@@ -1,0 +1,21 @@
+QEMU_CFLAGS += -I$(SRC_PATH)/include
+
+QCONFIGS = $(shell find $(SRC_PATH) -name "Qconfig" -print)
+
+config-qom.mak: $(SRC_PATH)/Qconfig $(QCONFIGS)
+	$(SRC_PATH)/scripts/genconfig.sh $< > $@
+
+-include config-qom.mak
+
+include $(SRC_PATH)/qom/Makefile
+common-obj-y += $(addprefix qom/,$(qom-obj-y))
+
+include $(SRC_PATH)/devices/Makefile
+common-obj-y += $(addprefix devices/,$(devices-obj-y))
+
+include $(SRC_PATH)/backends/Makefile
+common-obj-y += $(addprefix backends/,$(backends-obj-y))
+
+include $(SRC_PATH)/chrdrv/Makefile
+common-obj-y += $(addprefix chrdrv/,$(chdrv-obj-y))
+
