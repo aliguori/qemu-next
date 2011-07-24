@@ -10,3 +10,10 @@ config CHRDRV_MEM
        depends on CHRDRV
        help
          Character device that stores all written data to a memory buffer.
+
+config CHRDRV_SOCKET
+       bool "Socket character driver"
+       default y
+       depends on CHRDRV
+       help
+         Character driver that implements a socket based transport.
