@@ -130,6 +130,15 @@ EQMP
     },
 
     {
+        .name       = "plug_set",
+        .args_type  = "options:O",
+        .params     = "",
+        .help       = "set plug property",
+        .user_print = monitor_user_noop,
+        .mhandler.cmd_new = do_plug_set,
+    },
+
+    {
         .name       = "eject",
         .args_type  = "force:-f,device:B",
         .params     = "[-f] device",
