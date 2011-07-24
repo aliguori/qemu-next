@@ -1,0 +1,5 @@
+config CHRDRV
+       bool "QEMU Character Drivers"
+       default y
+       help
+         Character layer

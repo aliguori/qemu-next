@@ -16,3 +16,6 @@ common-obj-y += $(addprefix qom/,$(qom-obj-y))
 include $(SRC_PATH)/devices/Makefile
 common-obj-y += $(addprefix devices/,$(devices-obj-y))
 
+include $(SRC_PATH)/chrdrv/Makefile
+common-obj-y += $(addprefix chrdrv/,$(chrdrv-obj-y))
+

@@ -1,3 +1,4 @@
 source qapi/Qconfig
 source qom/Qconfig
 source devices/Qconfig
+source chrdrv/Qconfig
