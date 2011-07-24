@@ -3,3 +3,10 @@ config CHRDRV
        default y
        help
          Character layer
+
+config CHRDRV_MEM
+       bool "Memory character device"
+       default y
+       depends on CHRDRV
+       help
+         Character device that stores all written data to a memory buffer.
