@@ -1094,6 +1094,41 @@ static int do_plug_list(Monitor *mon, const QDict *qdict, QObject **ret_data)
     return 0;
 }
 
+static int do_plug_get(Monitor *mon, const QDict *qdict, QObject **ret_data)
+{
+    const char *id = qdict_get_str(qdict, "id");
+    const char *name = qdict_get_str(qdict, "name");
+    Error *local_err = NULL;
+    QmpOutputVisitor *qov;
+    TypeInstance *inst;
+    Plug *plug;
+    Visitor *v;
+
+    qov = qmp_output_visitor_new();
+    v = qmp_output_get_visitor(qov);
+
+    inst = type_find_by_id(id);
+    if (inst == NULL) {
+        return -1;
+    }
+
+    plug = PLUG(inst);
+
+    plug_get_property(plug, name, v, &local_err);
+    if (local_err) {
+        error_free(local_err);
+        qmp_output_visitor_cleanup(qov);
+
+        return -1;
+    }
+
+    *ret_data = qmp_output_get_qobject(qov);
+
+    qmp_output_visitor_cleanup(qov);
+
+    return 0;
+}
+
 #ifdef CONFIG_VNC
 static int change_vnc_password(const char *password)
 {
