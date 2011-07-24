@@ -13,3 +13,6 @@ common-obj-y += $(addprefix qapi/,$(qapi-obj-y))
 include $(SRC_PATH)/qom/Makefile
 common-obj-y += $(addprefix qom/,$(qom-obj-y))
 
+include $(SRC_PATH)/devices/Makefile
+common-obj-y += $(addprefix devices/,$(devices-obj-y))
+
