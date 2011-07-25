@@ -134,7 +134,9 @@ static uint64_t translate_kernel_address(void *opaque, uint64_t addr)
 #define AXIDMA_BASEADDR 0x84600000
 
 static void
-petalogix_ml605_init(ram_addr_t ram_size,
+petalogix_ml605_init(MemoryRegion *address_space_mem,
+                          MemoryRegion *address_space_io,
+                          ram_addr_t ram_size,
                           const char *boot_device,
                           const char *kernel_filename,
                           const char *kernel_cmdline,

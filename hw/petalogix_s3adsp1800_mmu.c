@@ -111,7 +111,9 @@ static uint64_t translate_kernel_address(void *opaque, uint64_t addr)
 }
 
 static void
-petalogix_s3adsp1800_init(ram_addr_t ram_size,
+petalogix_s3adsp1800_init(MemoryRegion *address_space_mem,
+                          MemoryRegion *address_space_io,
+                          ram_addr_t ram_size,
                           const char *boot_device,
                           const char *kernel_filename,
                           const char *kernel_cmdline,

@@ -223,7 +223,9 @@ static struct __attribute__((__packed__))
     char kernel_cmdline[256];
 } boot_params;
 
-static void r2d_init(ram_addr_t ram_size,
+static void r2d_init(MemoryRegion *address_space_mem,
+              MemoryRegion *address_space_io,
+              ram_addr_t ram_size,
               const char *boot_device,
 	      const char *kernel_filename, const char *kernel_cmdline,
 	      const char *initrd_filename, const char *cpu_model)

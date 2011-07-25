@@ -4,8 +4,11 @@
 #define HW_BOARDS_H
 
 #include "qdev.h"
+#include "memory.h"
 
-typedef void QEMUMachineInitFunc(ram_addr_t ram_size,
+typedef void QEMUMachineInitFunc(MemoryRegion *address_space_mem,
+                                 MemoryRegion *address_space_io,
+                                 ram_addr_t ram_size,
                                  const char *boot_device,
                                  const char *kernel_filename,
                                  const char *kernel_cmdline,

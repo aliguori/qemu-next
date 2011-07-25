@@ -205,7 +205,9 @@ static struct arm_boot_info tosa_binfo = {
     .ram_size = 0x04000000,
 };
 
-static void tosa_init(ram_addr_t ram_size,
+static void tosa_init(MemoryRegion *address_space_mem,
+                MemoryRegion *address_space_io,
+                ram_addr_t ram_size,
                 const char *boot_device,
                 const char *kernel_filename, const char *kernel_cmdline,
                 const char *initrd_filename, const char *cpu_model)

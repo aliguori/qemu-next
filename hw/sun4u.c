@@ -867,7 +867,9 @@ static const struct hwdef hwdefs[] = {
 };
 
 /* Sun4u hardware initialisation */
-static void sun4u_init(ram_addr_t RAM_size,
+static void sun4u_init(MemoryRegion *address_space_mem,
+                       MemoryRegion *address_space_io,
+                       ram_addr_t RAM_size,
                        const char *boot_devices,
                        const char *kernel_filename, const char *kernel_cmdline,
                        const char *initrd_filename, const char *cpu_model)
@@ -877,7 +879,9 @@ static void sun4u_init(ram_addr_t RAM_size,
 }
 
 /* Sun4v hardware initialisation */
-static void sun4v_init(ram_addr_t RAM_size,
+static void sun4v_init(MemoryRegion *address_space_mem,
+                       MemoryRegion *address_space_io,
+                       ram_addr_t RAM_size,
                        const char *boot_devices,
                        const char *kernel_filename, const char *kernel_cmdline,
                        const char *initrd_filename, const char *cpu_model)
@@ -887,7 +891,9 @@ static void sun4v_init(ram_addr_t RAM_size,
 }
 
 /* Niagara hardware initialisation */
-static void niagara_init(ram_addr_t RAM_size,
+static void niagara_init(MemoryRegion *address_space_mem,
+                         MemoryRegion *address_space_io,
+                         ram_addr_t RAM_size,
                          const char *boot_devices,
                          const char *kernel_filename, const char *kernel_cmdline,
                          const char *initrd_filename, const char *cpu_model)

@@ -29,6 +29,7 @@
 #include "blockdev.h"
 #include "milkymist-hw.h"
 #include "lm32.h"
+#include "memory.h"
 
 #define BIOS_FILENAME    "mmone-bios.bin"
 #define BIOS_OFFSET      0x00860000
@@ -72,7 +73,9 @@ static void main_cpu_reset(void *opaque)
 }
 
 static void
-milkymist_init(ram_addr_t ram_size_not_used,
+milkymist_init(MemoryRegion *address_space_mem,
+                          MemoryRegion *address_space_io,
+                          ram_addr_t ram_size_not_used,
                           const char *boot_device,
                           const char *kernel_filename,
                           const char *kernel_cmdline,

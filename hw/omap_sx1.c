@@ -214,7 +214,9 @@ static void sx1_init(ram_addr_t ram_size,
     //~ qemu_console_resize(ds, 640, 480);
 }
 
-static void sx1_init_v1(ram_addr_t ram_size,
+static void sx1_init_v1(MemoryRegion *address_space_mem,
+                MemoryRegion *address_space_io,
+                ram_addr_t ram_size,
                 const char *boot_device,
                 const char *kernel_filename, const char *kernel_cmdline,
                 const char *initrd_filename, const char *cpu_model)
@@ -223,7 +225,9 @@ static void sx1_init_v1(ram_addr_t ram_size,
                 kernel_cmdline, initrd_filename, cpu_model, 1);
 }
 
-static void sx1_init_v2(ram_addr_t ram_size,
+static void sx1_init_v2(MemoryRegion *address_space_mem,
+                MemoryRegion *address_space_io,
+                ram_addr_t ram_size,
                 const char *boot_device,
                 const char *kernel_filename, const char *kernel_cmdline,
                 const char *initrd_filename, const char *cpu_model)

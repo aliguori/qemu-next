@@ -222,35 +222,41 @@ static void pc_init1(MemoryRegion *system_memory,
     }
 }
 
-static void pc_init_pci(ram_addr_t ram_size,
+static void pc_init_pci(MemoryRegion *address_space_mem,
+                        MemoryRegion *address_space_io,
+                        ram_addr_t ram_size,
                         const char *boot_device,
                         const char *kernel_filename,
                         const char *kernel_cmdline,
                         const char *initrd_filename,
                         const char *cpu_model)
 {
-    pc_init1(get_system_memory(),
-             get_system_io(),
+    pc_init1(address_space_mem,
+             address_space_io,
              ram_size, boot_device,
              kernel_filename, kernel_cmdline,
              initrd_filename, cpu_model, 1, 1);
 }
 
-static void pc_init_pci_no_kvmclock(ram_addr_t ram_size,
+static void pc_init_pci_no_kvmclock(MemoryRegion *address_space_mem,
+                                    MemoryRegion *address_space_io,
+                                    ram_addr_t ram_size,
                                     const char *boot_device,
                                     const char *kernel_filename,
                                     const char *kernel_cmdline,
                                     const char *initrd_filename,
                                     const char *cpu_model)
 {
-    pc_init1(get_system_memory(),
-             get_system_io(),
+    pc_init1(address_space_mem,
+             address_space_io,
              ram_size, boot_device,
              kernel_filename, kernel_cmdline,
              initrd_filename, cpu_model, 1, 0);
 }
 
-static void pc_init_isa(ram_addr_t ram_size,
+static void pc_init_isa(MemoryRegion *address_space_mem,
+                        MemoryRegion *address_space_io,
+                        ram_addr_t ram_size,
                         const char *boot_device,
                         const char *kernel_filename,
                         const char *kernel_cmdline,
@@ -259,15 +265,17 @@ static void pc_init_isa(ram_addr_t ram_size,
 {
     if (cpu_model == NULL)
         cpu_model = "486";
-    pc_init1(get_system_memory(),
-             get_system_io(),
+    pc_init1(address_space_mem,
+             address_space_io,
              ram_size, boot_device,
              kernel_filename, kernel_cmdline,
              initrd_filename, cpu_model, 0, 1);
 }
 
 #ifdef CONFIG_XEN
-static void pc_xen_hvm_init(ram_addr_t ram_size,
+static void pc_xen_hvm_init(MemoryRegion *address_space_mem,
+                            MemoryRegion *address_space_io,
+                            ram_addr_t ram_size,
                             const char *boot_device,
                             const char *kernel_filename,
                             const char *kernel_cmdline,
@@ -277,7 +285,8 @@ static void pc_xen_hvm_init(ram_addr_t ram_size,
     if (xen_hvm_init() != 0) {
         hw_error("xen hardware virtual machine initialisation failed");
     }
-    pc_init_pci_no_kvmclock(ram_size, boot_device,
+    pc_init_pci_no_kvmclock(address_space_mem, address_space_io,
+                            ram_size, boot_device,
                             kernel_filename, kernel_cmdline,
                             initrd_filename, cpu_model);
     xen_vcpu_init();

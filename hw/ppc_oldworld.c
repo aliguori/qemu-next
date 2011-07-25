@@ -65,7 +65,9 @@ static target_phys_addr_t round_page(target_phys_addr_t addr)
     return (addr + TARGET_PAGE_SIZE - 1) & TARGET_PAGE_MASK;
 }
 
-static void ppc_heathrow_init (ram_addr_t ram_size,
+static void ppc_heathrow_init (MemoryRegion *address_space_mem,
+                               MemoryRegion *address_space_io,
+                               ram_addr_t ram_size,
                                const char *boot_device,
                                const char *kernel_filename,
                                const char *kernel_cmdline,

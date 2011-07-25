@@ -148,6 +148,7 @@ int main(int argc, char **argv)
 #ifdef CONFIG_VIRTFS
 #include "fsdev/qemu-fsdev.h"
 #endif
+#include "exec-memory.h"
 
 #include "disas.h"
 
@@ -3217,7 +3218,7 @@ int main(int argc, char **argv, char **envp)
     }
     qemu_add_globals();
 
-    machine->init(ram_size, boot_devices,
+    machine->init(get_system_memory(), get_system_io(), ram_size, boot_devices,
                   kernel_filename, kernel_cmdline, initrd_filename, cpu_model);
 
     cpu_synchronize_all_post_init();

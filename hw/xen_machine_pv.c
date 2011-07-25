@@ -29,7 +29,9 @@
 #include "xen_domainbuild.h"
 #include "blockdev.h"
 
-static void xen_init_pv(ram_addr_t ram_size,
+static void xen_init_pv(MemoryRegion *address_space_mem,
+                        MemoryRegion *address_space_io,
+                        ram_addr_t ram_size,
 			const char *boot_device,
 			const char *kernel_filename,
 			const char *kernel_cmdline,

@@ -218,7 +218,9 @@ static void mpc8544ds_cpu_reset(void *opaque)
     mmubooke_create_initial_mapping(env, 0, 0);
 }
 
-static void mpc8544ds_init(ram_addr_t ram_size,
+static void mpc8544ds_init(MemoryRegion *address_space_mem,
+                         MemoryRegion *address_space_io,
+                         ram_addr_t ram_size,
                          const char *boot_device,
                          const char *kernel_filename,
                          const char *kernel_cmdline,

@@ -131,7 +131,9 @@ int s390_virtio_hypercall(CPUState *env, uint64_t mem, uint64_t hypercall)
 }
 
 /* PC hardware initialisation */
-static void s390_init(ram_addr_t my_ram_size,
+static void s390_init(MemoryRegion *address_space_mem,
+                      MemoryRegion *address_space_io,
+                      ram_addr_t my_ram_size,
                       const char *boot_device,
                       const char *kernel_filename,
                       const char *kernel_cmdline,

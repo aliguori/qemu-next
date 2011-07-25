@@ -1186,7 +1186,9 @@ static stellaris_board_info stellaris_boards[] = {
   }
 };
 
-static void stellaris_init(const char *kernel_filename, const char *cpu_model,
+static void stellaris_init(MemoryRegion *address_space_mem,
+                           MemoryRegion *address_space_io,
+                           const char *kernel_filename, const char *cpu_model,
                            stellaris_board_info *board)
 {
     static const int uart_irq[] = {5, 6, 33, 34};
@@ -1313,20 +1315,26 @@ static void stellaris_init(const char *kernel_filename, const char *cpu_model,
 }
 
 /* FIXME: Figure out how to generate these from stellaris_boards.  */
-static void lm3s811evb_init(ram_addr_t ram_size,
+static void lm3s811evb_init(MemoryRegion *address_space_mem,
+                     MemoryRegion *address_space_io,
+                     ram_addr_t ram_size,
                      const char *boot_device,
                      const char *kernel_filename, const char *kernel_cmdline,
                      const char *initrd_filename, const char *cpu_model)
 {
-    stellaris_init(kernel_filename, cpu_model, &stellaris_boards[0]);
+    stellaris_init(address_space_mem, address_space_io,
+                   kernel_filename, cpu_model, &stellaris_boards[0]);
 }
 
-static void lm3s6965evb_init(ram_addr_t ram_size,
+static void lm3s6965evb_init(MemoryRegion *address_space_mem,
+                     MemoryRegion *address_space_io,
+                     ram_addr_t ram_size,
                      const char *boot_device,
                      const char *kernel_filename, const char *kernel_cmdline,
                      const char *initrd_filename, const char *cpu_model)
 {
-    stellaris_init(kernel_filename, cpu_model, &stellaris_boards[1]);
+    stellaris_init(address_space_mem, address_space_io,
+                   kernel_filename, cpu_model, &stellaris_boards[1]);
 }
 
 static QEMUMachine lm3s811evb_machine = {
