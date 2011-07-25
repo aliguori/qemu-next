@@ -66,8 +66,26 @@ config-all-devices.mak: $(SUBDIR_DEVICES_MAK)
 	  cp -p $@ $@.old; \
 	 fi
 
-defconfig:
+blahconfig:
 	rm -f config-all-devices.mak $(SUBDIR_DEVICES_MAK)
+
+####### Kconfig rules
+export HOSTCC             := $(CC)
+export CONFIG_SHELL       := sh
+export KCONFIG_AUTOHEADER := autoconf.h
+export KCONFIG_CONFIG     := config-qom.mak
+
+autoconf.h : $(KCONFIG_CONFIG)
+	$(Q)$(MAKE) silentoldconfig
+
+$(KCONFIG_CONFIG):
+	$(Q)$(MAKE) defconfig
+
+%onfig:
+	$(Q)mkdir -p kconfig/lxdialog
+	$(Q)mkdir -p include/config
+	$(Q)$(MAKE) -f $(SRC_PATH)/kconfig/Makefile srctree=$(SRC_PATH) \
+                       src=kconfig obj=kconfig Q=$(Q) Kconfig=$(SRC_PATH)/Qconfig $@
 
 -include config-all-devices.mak
 
