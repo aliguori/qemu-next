@@ -21,6 +21,9 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
+
+#include <glib.h>
+
 #include "hw.h"
 #include "qemu-timer.h"
 #include "qemu-char.h"
@@ -102,7 +105,8 @@ static void leon3_generic_hw_init(MemoryRegion *address_space_mem,
                                   const char *cpu_model)
 {
     CPUState   *env;
-    ram_addr_t  ram_offset, prom_offset;
+    MemoryRegion *ram = g_new(MemoryRegion, 1);
+    MemoryRegion *prom = g_new(MemoryRegion, 1);
     int         ret;
     char       *filename;
     qemu_irq   *cpu_irqs = NULL;
@@ -141,14 +145,14 @@ static void leon3_generic_hw_init(MemoryRegion *address_space_mem,
         exit(1);
     }
 
-    ram_offset = qemu_ram_alloc(NULL, "leon3.ram", ram_size);
-    cpu_register_physical_memory(0x40000000, ram_size, ram_offset | IO_MEM_RAM);
+    memory_region_init_ram(ram, NULL, "leon3.ram", ram_size);
+    memory_region_add_subregion(address_space_mem, 0x40000000, ram);
 
     /* Allocate BIOS */
     prom_size = 8 * 1024 * 1024; /* 8Mb */
-    prom_offset = qemu_ram_alloc(NULL, "Leon3.bios", prom_size);
-    cpu_register_physical_memory(0x00000000, prom_size,
-                                 prom_offset | IO_MEM_ROM);
+    memory_region_init_ram(prom, NULL, "Leon3.bios", prom_size);
+    memory_region_set_readonly(prom, true);
+    memory_region_add_subregion(address_space_mem, 0x00000000, prom);
 
     /* Load boot prom */
     if (bios_name == NULL) {
