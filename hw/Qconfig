@@ -1,0 +1,264 @@
+config QDEV
+       bool "QDev device model"
+       default y
+       help
+         This is the core QDev based device model.
+
+config ACPI
+       bool "ACPI device"
+       default y
+       depends on QDEV
+       help
+         ACPI device support.
+
+config AHCI
+       bool "AHCI device"
+       default y
+       depends on QDEV
+       help
+         AHCI device support.
+
+config APM
+       bool "APM device"
+       default y
+       depends on QDEV
+       help
+         APM device support.
+
+config APPLESMC
+       bool "APPLESMC device"
+       default y
+       depends on QDEV
+       help
+         APPLESMC device support.
+
+config DMA
+       bool "DMA device"
+       default y
+       depends on QDEV
+       help
+         DMA device support.
+
+config E1000_PCI
+       bool "E1000_PCI device"
+       default y
+       depends on QDEV
+       help
+         E1000_PCI device support.
+
+config EEPRO100_PCI
+       bool "EEPRO100_PCI device"
+       default y
+       depends on QDEV
+       help
+         EEPRO100_PCI device support.
+
+config FDC
+       bool "FDC device"
+       default y
+       depends on QDEV
+       help
+         FDC device support.
+
+config HPET
+       bool "HPET device"
+       default y
+       depends on QDEV
+       help
+         HPET device support.
+
+config I8254
+       bool "I8254 device"
+       default y
+       depends on QDEV
+       help
+         I8254 device support.
+
+config IDE_CORE
+       bool "IDE_CORE device"
+       default y
+       depends on QDEV
+       help
+         IDE_CORE device support.
+
+config IDE_ISA
+       bool "IDE_ISA device"
+       default y
+       depends on QDEV
+       help
+         IDE_ISA device support.
+
+config IDE_PCI
+       bool "IDE_PCI device"
+       default y
+       depends on QDEV
+       help
+         IDE_PCI device support.
+
+config IDE_PIIX
+       bool "IDE_PIIX device"
+       default y
+       depends on QDEV
+       help
+         IDE_PIIX device support.
+
+config IDE_QDEV
+       bool "IDE_QDEV device"
+       default y
+       depends on QDEV
+       help
+         IDE_QDEV device support.
+
+config LSI_SCSI_PCI
+       bool "LSI_SCSI_PCI device"
+       default y
+       depends on QDEV
+       help
+         LSI_SCSI_PCI device support.
+
+config NE2000_ISA
+       bool "NE2000_ISA device"
+       default y
+       depends on QDEV
+       help
+         NE2000_ISA device support.
+
+config NE2000_PCI
+       bool "NE2000_PCI device"
+       default y
+       depends on QDEV
+       help
+         NE2000_PCI device support.
+
+config PARALLEL
+       bool "PARALLEL device"
+       default y
+       depends on QDEV
+       help
+         PARALLEL device support.
+
+config PCI
+       bool "PCI device"
+       default y
+       depends on QDEV
+       help
+         PCI device support.
+
+config PCKBD
+       bool "PCKBD device"
+       default y
+       depends on QDEV
+       help
+         PCKBD device support.
+
+config PCNET_COMMON
+       bool "PCNET_COMMON device"
+       default y
+       depends on QDEV
+       help
+         PCNET_COMMON device support.
+
+config PCNET_PCI
+       bool "PCNET_PCI device"
+       default y
+       depends on QDEV
+       help
+         PCNET_PCI device support.
+
+config PCSPK
+       bool "PCSPK device"
+       default y
+       depends on QDEV
+       help
+         PCSPK device support.
+
+config PIIX_PCI
+       bool "PIIX_PCI device"
+       default y
+       depends on QDEV
+       help
+         PIIX_PCI device support.
+
+config RTL8139_PCI
+       bool "RTL8139_PCI device"
+       default y
+       depends on QDEV
+       help
+         RTL8139_PCI device support.
+
+config SERIAL
+       bool "SERIAL device"
+       default y
+       depends on QDEV
+       help
+         SERIAL device support.
+
+config SOUND
+       bool "SOUND device"
+       default y
+       depends on QDEV
+       help
+         SOUND device support.
+
+config USB_EHCI
+       bool "USB_EHCI device"
+       default y
+       depends on QDEV
+       help
+         USB_EHCI device support.
+
+config USB_OHCI
+       bool "USB_OHCI device"
+       default y
+       depends on QDEV
+       help
+         USB_OHCI device support.
+
+config USB_UHCI
+       bool "USB_UHCI device"
+       default y
+       depends on QDEV
+       help
+         USB_UHCI device support.
+
+config VGA_ISA
+       bool "VGA_ISA device"
+       default y
+       depends on QDEV
+       help
+         VGA_ISA device support.
+
+config VGA_PCI
+       bool "VGA_PCI device"
+       default y
+       depends on QDEV
+       help
+         VGA_PCI device support.
+
+config VIRTIO_PCI
+       bool "VIRTIO_PCI device"
+       default y
+       depends on QDEV
+       help
+         VIRTIO_PCI device support.
+
+config VIRTIO
+       bool "VIRTIO device"
+       default y
+       depends on QDEV
+       help
+         VIRTIO device support.
+
+config VMMOUSE
+       bool "VMMOUSE device"
+       default y
+       depends on QDEV
+       help
+         VMMOUSE device support.
+
+config VMWARE_VGA
+       bool "VMWARE_VGA device"
+       default y
+       depends on QDEV
+       help
+         VMWARE_VGA device support.
