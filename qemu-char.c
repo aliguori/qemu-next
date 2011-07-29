@@ -173,6 +173,11 @@ static size_t char_queue_read(CharQueue *q, void *data, size_t size)
     return i;
 }
 
+static uint32_t char_queue_get_avail(CharQueue *q)
+{
+    return sizeof(q->ring) - (q->prod - q->cons);
+}
+
 static void qemu_chr_flush_fe_tx(CharDriverState *s)
 {
     uint8_t buf[MAX_CHAR_QUEUE_RING];
@@ -200,23 +205,49 @@ int qemu_chr_fe_write(CharDriverState *s, const uint8_t *buf, int len)
     return ret;
 }
 
+static void qemu_chr_flush_be_tx(CharDriverState *s)
+{
+    uint8_t buf[MAX_CHAR_QUEUE_RING];
+    int len;
+
+    /* Only drain what the be can handle */
+    len = s->chr_can_read(s->handler_opaque);
+    if (len == 0) {
+        return;
+    }
+
+    len = char_queue_read(&s->be_tx, buf, len);
+
+    /* We only drained what we knew the be could handle so we don't need to
+     * requeue any data. */
+    s->chr_read(s, buf, len);
+}
+
+int qemu_chr_be_can_write(CharDriverState *s)
+{
+    /* Try to flush any queued data before returning how much data we can
+     * accept. */
+    qemu_chr_flush_be_tx(s);
+
+    return char_queue_get_avail(&s->be_tx);
+}
+
+int qemu_chr_be_write(CharDriverState *s, uint8_t *buf, int len)
+{
+    int ret;
+
+    ret = char_queue_write(&s->be_tx, buf, len);
+
+    qemu_chr_flush_be_tx(s);
+
+    return ret;
+}
+
 int qemu_chr_ioctl(CharDriverState *s, int cmd, void *arg)
 {
     if (!s->chr_ioctl)
         return -ENOTSUP;
     return s->chr_ioctl(s, cmd, arg);
-}
-
-int qemu_chr_be_can_write(CharDriverState *s)
-{
-    if (!s->chr_can_read)
-        return 0;
-    return s->chr_can_read(s->handler_opaque);
-}
-
-void qemu_chr_be_write(CharDriverState *s, uint8_t *buf, int len)
-{
-    s->chr_read(s->handler_opaque, buf, len);
 }
 
 int qemu_chr_get_msgfd(CharDriverState *s)
