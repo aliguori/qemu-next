@@ -74,6 +74,7 @@ struct CharDriverState {
     char *filename;
     int opened;
     int avail_connections;
+
     QTAILQ_ENTRY(CharDriverState) next;
 };
 
@@ -87,7 +88,7 @@ void qemu_chr_guest_close(struct CharDriverState *chr);
 void qemu_chr_close(CharDriverState *chr);
 void qemu_chr_printf(CharDriverState *s, const char *fmt, ...)
     GCC_FMT_ATTR(2, 3);
-int qemu_chr_write(CharDriverState *s, const uint8_t *buf, int len);
+int qemu_chr_fe_write(CharDriverState *s, const uint8_t *buf, int len);
 void qemu_chr_send_event(CharDriverState *s, int event);
 void qemu_chr_add_handlers(CharDriverState *s,
                            IOCanReadHandler *fd_can_read,
