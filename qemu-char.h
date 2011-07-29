@@ -63,6 +63,8 @@ typedef struct CharQueue
 struct CharDriverState {
     void (*init)(struct CharDriverState *s);
     int (*chr_write)(struct CharDriverState *s, const uint8_t *buf, int len);
+    IOHandler *be_read;
+    IOHandler *be_write;
     void (*chr_update_read_handler)(struct CharDriverState *s);
     int (*chr_ioctl)(struct CharDriverState *s, int cmd, void *arg);
     int (*get_msgfd)(struct CharDriverState *s);

@@ -188,6 +188,11 @@ static void qemu_chr_flush_fe_tx(CharDriverState *s)
     uint8_t buf[MAX_CHAR_QUEUE_RING];
     int len;
 
+    /* Don't use polling queue if new style handlers are registered */
+    if (s->be_read || s->be_write) {
+        return;
+    }
+
     /* Drain the queue into a flat buffer */
     len = char_queue_read(&s->fe_tx, buf, sizeof(buf));
 
@@ -199,8 +204,19 @@ static void qemu_chr_flush_fe_tx(CharDriverState *s)
 int qemu_chr_fe_write(CharDriverState *s, const uint8_t *buf, int len)
 {
     int ret;
+    bool is_empty;
+
+    is_empty = char_queue_get_empty(&s->fe_tx);
 
     ret = char_queue_write(&s->fe_tx, buf, len);
+
+    /* If the queue was empty, and now it's not, generate a read edge
+     * event for the backend. */
+    if (is_empty && !char_queue_get_empty(&s->fe_tx)) {
+        if (s->be_read) {
+            s->be_read(s->opaque);
+        }
+    }
 
     qemu_chr_flush_fe_tx(s);
 
@@ -209,7 +225,22 @@ int qemu_chr_fe_write(CharDriverState *s, const uint8_t *buf, int len)
 
 int qemu_chr_fe_read(CharDriverState *s, uint8_t *buf, int len)
 {
-    return char_queue_read(&s->be_tx, buf, len);
+    bool is_full;
+    int ret;
+
+    is_full = (char_queue_get_avail(&s->be_tx) == 0);
+
+    ret = char_queue_read(&s->be_tx, buf, len);
+
+    /* If the queue was empty, and now its not, generate a write edge
+     * event for the backend. */
+    if (is_full && char_queue_get_avail(&s->be_tx)) {
+        if (s->be_write) {
+            s->be_write(s->opaque);
+        }
+    }
+
+    return ret;
 }
 
 void qemu_chr_fe_set_handlers(CharDriverState *s,
@@ -259,7 +290,7 @@ static void qemu_chr_flush_be_tx(CharDriverState *s)
 
     /* We only drained what we knew the be could handle so we don't need to
      * requeue any data. */
-    s->chr_read(s, buf, len);
+    s->chr_read(s->handler_opaque, buf, len);
 }
 
 int qemu_chr_be_can_write(CharDriverState *s)
@@ -282,8 +313,7 @@ int qemu_chr_be_write(CharDriverState *s, uint8_t *buf, int len)
 
     /* If the queue was empty, and now it's not, trigger a read edge
      * event. */
-    if ((s->fe_read || s->fe_write) &&
-        (is_empty && !char_queue_get_empty(&s->be_tx))) {
+    if (is_empty && !char_queue_get_empty(&s->be_tx)) {
         if (s->fe_read) {
             s->fe_read(s->handler_opaque);
         }
