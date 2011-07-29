@@ -151,14 +151,14 @@ int qemu_chr_ioctl(CharDriverState *s, int cmd, void *arg)
     return s->chr_ioctl(s, cmd, arg);
 }
 
-int qemu_chr_can_read(CharDriverState *s)
+int qemu_chr_be_can_write(CharDriverState *s)
 {
     if (!s->chr_can_read)
         return 0;
     return s->chr_can_read(s->handler_opaque);
 }
 
-void qemu_chr_read(CharDriverState *s, uint8_t *buf, int len)
+void qemu_chr_be_write(CharDriverState *s, uint8_t *buf, int len)
 {
     s->chr_read(s->handler_opaque, buf, len);
 }
@@ -565,7 +565,7 @@ static int fd_chr_read_poll(void *opaque)
     CharDriverState *chr = opaque;
     FDCharDriver *s = chr->opaque;
 
-    s->max_size = qemu_chr_can_read(chr);
+    s->max_size = qemu_chr_be_can_write(chr);
     return s->max_size;
 }
 
@@ -589,7 +589,7 @@ static void fd_chr_read(void *opaque)
         return;
     }
     if (size > 0) {
-        qemu_chr_read(chr, buf, size);
+        qemu_chr_be_write(chr, buf, size);
     }
 }
 
@@ -699,8 +699,8 @@ static int stdio_read_poll(void *opaque)
     CharDriverState *chr = opaque;
 
     /* try to flush the queue if needed */
-    if (term_fifo_size != 0 && qemu_chr_can_read(chr) > 0) {
-        qemu_chr_read(chr, term_fifo, 1);
+    if (term_fifo_size != 0 && qemu_chr_be_can_write(chr) > 0) {
+        qemu_chr_be_write(chr, term_fifo, 1);
         term_fifo_size = 0;
     }
     /* see if we can absorb more chars */
@@ -724,8 +724,8 @@ static void stdio_read(void *opaque)
         return;
     }
     if (size > 0) {
-        if (qemu_chr_can_read(chr) > 0) {
-            qemu_chr_read(chr, buf, 1);
+        if (qemu_chr_be_can_write(chr) > 0) {
+            qemu_chr_be_write(chr, buf, 1);
         } else if (term_fifo_size == 0) {
             term_fifo[term_fifo_size++] = buf[0];
         }
@@ -890,7 +890,7 @@ static int pty_chr_read_poll(void *opaque)
     CharDriverState *chr = opaque;
     PtyCharDriver *s = chr->opaque;
 
-    s->read_bytes = qemu_chr_can_read(chr);
+    s->read_bytes = qemu_chr_be_can_write(chr);
     return s->read_bytes;
 }
 
@@ -914,7 +914,7 @@ static void pty_chr_read(void *opaque)
     }
     if (size > 0) {
         pty_chr_state(chr, 1);
-        qemu_chr_read(chr, buf, size);
+        qemu_chr_be_write(chr, buf, size);
     }
 }
 
@@ -1602,7 +1602,7 @@ static int win_chr_read_poll(CharDriverState *chr)
 {
     WinCharState *s = chr->opaque;
 
-    s->max_size = qemu_chr_can_read(chr);
+    s->max_size = qemu_chr_be_can_write(chr);
     return s->max_size;
 }
 
@@ -1624,7 +1624,7 @@ static void win_chr_readfile(CharDriverState *chr)
     }
 
     if (size > 0) {
-        qemu_chr_read(chr, buf, size);
+        qemu_chr_be_write(chr, buf, size);
     }
 }
 
@@ -1840,15 +1840,15 @@ static int udp_chr_read_poll(void *opaque)
     CharDriverState *chr = opaque;
     NetCharDriver *s = chr->opaque;
 
-    s->max_size = qemu_chr_can_read(chr);
+    s->max_size = qemu_chr_be_can_write(chr);
 
     /* If there were any stray characters in the queue process them
      * first
      */
     while (s->max_size > 0 && s->bufptr < s->bufcnt) {
-        qemu_chr_read(chr, &s->buf[s->bufptr], 1);
+        qemu_chr_be_write(chr, &s->buf[s->bufptr], 1);
         s->bufptr++;
-        s->max_size = qemu_chr_can_read(chr);
+        s->max_size = qemu_chr_be_can_write(chr);
     }
     return s->max_size;
 }
@@ -1867,9 +1867,9 @@ static void udp_chr_read(void *opaque)
 
     s->bufptr = 0;
     while (s->max_size > 0 && s->bufptr < s->bufcnt) {
-        qemu_chr_read(chr, &s->buf[s->bufptr], 1);
+        qemu_chr_be_write(chr, &s->buf[s->bufptr], 1);
         s->bufptr++;
-        s->max_size = qemu_chr_can_read(chr);
+        s->max_size = qemu_chr_be_can_write(chr);
     }
 }
 
@@ -1963,7 +1963,7 @@ static int tcp_chr_read_poll(void *opaque)
     TCPCharDriver *s = chr->opaque;
     if (!s->connected)
         return 0;
-    s->max_size = qemu_chr_can_read(chr);
+    s->max_size = qemu_chr_be_can_write(chr);
     return s->max_size;
 }
 
@@ -2109,7 +2109,7 @@ static void tcp_chr_read(void *opaque)
         if (s->do_telnetopt)
             tcp_chr_process_IAC_bytes(chr, s, buf, &size);
         if (size > 0)
-            qemu_chr_read(chr, buf, size);
+            qemu_chr_be_write(chr, buf, size);
     }
 }
 

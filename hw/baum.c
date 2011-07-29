@@ -223,7 +223,7 @@ static void baum_accept_input(struct CharDriverState *chr)
 
     if (!baum->out_buf_used)
         return;
-    room = qemu_chr_can_read(chr);
+    room = qemu_chr_be_can_write(chr);
     if (!room)
         return;
     if (room > baum->out_buf_used)
@@ -231,12 +231,12 @@ static void baum_accept_input(struct CharDriverState *chr)
 
     first = BUF_SIZE - baum->out_buf_ptr;
     if (room > first) {
-        qemu_chr_read(chr, baum->out_buf + baum->out_buf_ptr, first);
+        qemu_chr_be_write(chr, baum->out_buf + baum->out_buf_ptr, first);
         baum->out_buf_ptr = 0;
         baum->out_buf_used -= first;
         room -= first;
     }
-    qemu_chr_read(chr, baum->out_buf + baum->out_buf_ptr, room);
+    qemu_chr_be_write(chr, baum->out_buf + baum->out_buf_ptr, room);
     baum->out_buf_ptr += room;
     baum->out_buf_used -= room;
 }
@@ -250,16 +250,16 @@ static void baum_write_packet(BaumDriverState *baum, const uint8_t *buf, int len
     while (len--)
         if ((*cur++ = *buf++) == ESC)
             *cur++ = ESC;
-    room = qemu_chr_can_read(baum->chr);
+    room = qemu_chr_be_can_write(baum->chr);
     len = cur - io_buf;
     if (len <= room) {
         /* Fits */
-        qemu_chr_read(baum->chr, io_buf, len);
+        qemu_chr_be_write(baum->chr, io_buf, len);
     } else {
         int first;
         uint8_t out;
         /* Can't fit all, send what can be, and store the rest. */
-        qemu_chr_read(baum->chr, io_buf, room);
+        qemu_chr_be_write(baum->chr, io_buf, room);
         len -= room;
         cur = io_buf + room;
         if (len > BUF_SIZE - baum->out_buf_used) {
