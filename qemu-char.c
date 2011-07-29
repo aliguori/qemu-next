@@ -205,6 +205,11 @@ int qemu_chr_fe_write(CharDriverState *s, const uint8_t *buf, int len)
     return ret;
 }
 
+int qemu_chr_fe_read(CharDriverState *s, uint8_t *buf, int len)
+{
+    return char_queue_read(&s->be_tx, buf, len);
+}
+
 static void qemu_chr_flush_be_tx(CharDriverState *s)
 {
     uint8_t buf[MAX_CHAR_QUEUE_RING];
@@ -241,6 +246,11 @@ int qemu_chr_be_write(CharDriverState *s, uint8_t *buf, int len)
     qemu_chr_flush_be_tx(s);
 
     return ret;
+}
+
+int qemu_chr_be_read(CharDriverState *s, uint8_t *buf, int len)
+{
+    return char_queue_read(&s->fe_tx, buf, len);
 }
 
 int qemu_chr_ioctl(CharDriverState *s, int cmd, void *arg)

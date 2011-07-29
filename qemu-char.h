@@ -101,6 +101,7 @@ void qemu_chr_close(CharDriverState *chr);
 void qemu_chr_printf(CharDriverState *s, const char *fmt, ...)
     GCC_FMT_ATTR(2, 3);
 int qemu_chr_fe_write(CharDriverState *s, const uint8_t *buf, int len);
+int qemu_chr_fe_read(CharDriverState *s, uint8_t *buf, int len);
 void qemu_chr_send_event(CharDriverState *s, int event);
 void qemu_chr_add_handlers(CharDriverState *s,
                            IOCanReadHandler *fd_can_read,
@@ -111,6 +112,7 @@ int qemu_chr_ioctl(CharDriverState *s, int cmd, void *arg);
 void qemu_chr_generic_open(CharDriverState *s);
 int qemu_chr_be_can_write(CharDriverState *s);
 int qemu_chr_be_write(CharDriverState *s, uint8_t *buf, int len);
+int qemu_chr_be_read(CharDriverState *s, uint8_t *buf, int len);
 int qemu_chr_get_msgfd(CharDriverState *s);
 void qemu_chr_accept_input(CharDriverState *s);
 int qemu_chr_add_client(CharDriverState *s, int fd);
