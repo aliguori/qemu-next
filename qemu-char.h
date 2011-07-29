@@ -70,6 +70,8 @@ struct CharDriverState {
     IOEventHandler *chr_event;
     IOCanReadHandler *chr_can_read;
     IOReadHandler *chr_read;
+    IOHandler *fe_read;
+    IOHandler *fe_write;
     void *handler_opaque;
     void (*chr_send_event)(struct CharDriverState *chr, int event);
     void (*chr_close)(struct CharDriverState *chr);
@@ -108,6 +110,13 @@ void qemu_chr_add_handlers(CharDriverState *s,
                            IOReadHandler *fd_read,
                            IOEventHandler *fd_event,
                            void *opaque);
+
+void qemu_chr_fe_set_handlers(CharDriverState *s,
+                              IOHandler *chr_read,
+                              IOHandler *chr_write,
+                              IOEventHandler *chr_event,
+                              void *opaque);
+
 int qemu_chr_ioctl(CharDriverState *s, int cmd, void *arg);
 void qemu_chr_generic_open(CharDriverState *s);
 int qemu_chr_be_can_write(CharDriverState *s);

@@ -139,13 +139,23 @@ void qemu_chr_generic_open(CharDriverState *s)
     }
 }
 
+static uint32_t char_queue_get_avail(CharQueue *q)
+{
+    return sizeof(q->ring) - (q->prod - q->cons);
+}
+
+static bool char_queue_get_empty(CharQueue *q)
+{
+    return (q->cons == q->prod);
+}
+
 static size_t char_queue_write(CharQueue *q, const void *data, size_t size)
 {
     const uint8_t *ptr = data;
     size_t i;
 
     for (i = 0; i < size; i++) {
-        if ((q->prod - q->cons) == sizeof(q->ring)) {
+        if (char_queue_get_avail(q) == 0) {
             break;
         }
 
@@ -162,7 +172,7 @@ static size_t char_queue_read(CharQueue *q, void *data, size_t size)
     size_t i;
 
     for (i = 0; i < size; i++) {
-        if (q->cons == q->prod) {
+        if (char_queue_get_empty(q)) {
             break;
         }
 
@@ -173,25 +183,17 @@ static size_t char_queue_read(CharQueue *q, void *data, size_t size)
     return i;
 }
 
-static uint32_t char_queue_get_avail(CharQueue *q)
-{
-    return sizeof(q->ring) - (q->prod - q->cons);
-}
-
 static void qemu_chr_flush_fe_tx(CharDriverState *s)
 {
     uint8_t buf[MAX_CHAR_QUEUE_RING];
-    int len, written_len;
+    int len;
 
     /* Drain the queue into a flat buffer */
     len = char_queue_read(&s->fe_tx, buf, sizeof(buf));
 
-    written_len = s->chr_write(s, buf, len);
-    if (written_len < len) {
-        /* If the backend didn't accept the full write, queue the unwritten
-         * data back in the queue. */
-        char_queue_write(&s->fe_tx, &buf[written_len], len - written_len);
-    }
+    s->chr_write(s, buf, len);
+
+    /* We drop unwritten data until we have backend flow control */
 }
 
 int qemu_chr_fe_write(CharDriverState *s, const uint8_t *buf, int len)
@@ -210,10 +212,42 @@ int qemu_chr_fe_read(CharDriverState *s, uint8_t *buf, int len)
     return char_queue_read(&s->be_tx, buf, len);
 }
 
+void qemu_chr_fe_set_handlers(CharDriverState *s,
+                              IOHandler *chr_read,
+                              IOHandler *chr_write,
+                              IOEventHandler *chr_event,
+                              void *opaque)
+{
+    if (!opaque && !chr_read && !chr_write && !chr_event) {
+        /* chr driver being released. */
+        ++s->avail_connections;
+    }
+    s->fe_read = chr_read;
+    s->fe_write = chr_write;
+    s->chr_event = chr_event;
+    s->handler_opaque = opaque;
+
+    /* FIXME broken for mux */
+    if (s->chr_update_read_handler) {
+        s->chr_update_read_handler(s);
+    }
+
+    /* We're connecting to an already opened device, so let's make sure we
+       also get the open event */
+    if (s->opened) {
+        qemu_chr_generic_open(s);
+    }
+}
+
 static void qemu_chr_flush_be_tx(CharDriverState *s)
 {
     uint8_t buf[MAX_CHAR_QUEUE_RING];
     int len;
+
+    /* Don't invoke the polling handlers if we have edge handlers installed. */
+    if (s->fe_read || s->fe_write) {
+        return;
+    }
 
     /* Only drain what the be can handle */
     len = s->chr_can_read(s->handler_opaque);
@@ -240,8 +274,20 @@ int qemu_chr_be_can_write(CharDriverState *s)
 int qemu_chr_be_write(CharDriverState *s, uint8_t *buf, int len)
 {
     int ret;
+    bool is_empty;
+
+    is_empty = char_queue_get_empty(&s->be_tx);
 
     ret = char_queue_write(&s->be_tx, buf, len);
+
+    /* If the queue was empty, and now it's not, trigger a read edge
+     * event. */
+    if ((s->fe_read || s->fe_write) &&
+        (is_empty && !char_queue_get_empty(&s->be_tx))) {
+        if (s->fe_read) {
+            s->fe_read(s->handler_opaque);
+        }
+    }
 
     qemu_chr_flush_be_tx(s);
 
@@ -250,7 +296,22 @@ int qemu_chr_be_write(CharDriverState *s, uint8_t *buf, int len)
 
 int qemu_chr_be_read(CharDriverState *s, uint8_t *buf, int len)
 {
-    return char_queue_read(&s->fe_tx, buf, len);
+    bool is_full;
+    int ret;
+
+    is_full = (char_queue_get_avail(&s->fe_tx) == 0);
+
+    ret = char_queue_read(&s->fe_tx, buf, len);
+
+    /* If the queue was full, and now it's not, trigger an write edge
+     * event. */
+    if (is_full && char_queue_get_avail(&s->fe_tx)) {
+        if (s->fe_write) {
+            s->fe_write(s->handler_opaque);
+        }
+    }
+
+    return ret;
 }
 
 int qemu_chr_ioctl(CharDriverState *s, int cmd, void *arg)
