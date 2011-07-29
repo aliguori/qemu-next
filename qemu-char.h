@@ -51,6 +51,15 @@ typedef struct {
 
 typedef void IOEventHandler(void *opaque, int event);
 
+#define MAX_CHAR_QUEUE_RING 1024
+
+typedef struct CharQueue
+{
+    uint32_t prod;
+    uint32_t cons;
+    uint8_t ring[MAX_CHAR_QUEUE_RING];
+} CharQueue;
+
 struct CharDriverState {
     void (*init)(struct CharDriverState *s);
     int (*chr_write)(struct CharDriverState *s, const uint8_t *buf, int len);
@@ -74,6 +83,8 @@ struct CharDriverState {
     char *filename;
     int opened;
     int avail_connections;
+
+    CharQueue fe_tx;
 
     QTAILQ_ENTRY(CharDriverState) next;
 };

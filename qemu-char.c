@@ -139,9 +139,65 @@ void qemu_chr_generic_open(CharDriverState *s)
     }
 }
 
+static size_t char_queue_write(CharQueue *q, const void *data, size_t size)
+{
+    const uint8_t *ptr = data;
+    size_t i;
+
+    for (i = 0; i < size; i++) {
+        if ((q->prod - q->cons) == sizeof(q->ring)) {
+            break;
+        }
+
+        q->ring[q->prod % sizeof(q->ring)] = ptr[i];
+        q->prod++;
+    }
+
+    return i;
+}
+
+static size_t char_queue_read(CharQueue *q, void *data, size_t size)
+{
+    uint8_t *ptr = data;
+    size_t i;
+
+    for (i = 0; i < size; i++) {
+        if (q->cons == q->prod) {
+            break;
+        }
+
+        ptr[i] = q->ring[q->cons % sizeof(q->ring)];
+        q->cons++;
+    }
+
+    return i;
+}
+
+static void qemu_chr_flush_fe_tx(CharDriverState *s)
+{
+    uint8_t buf[MAX_CHAR_QUEUE_RING];
+    int len, written_len;
+
+    /* Drain the queue into a flat buffer */
+    len = char_queue_read(&s->fe_tx, buf, sizeof(buf));
+
+    written_len = s->chr_write(s, buf, len);
+    if (written_len < len) {
+        /* If the backend didn't accept the full write, queue the unwritten
+         * data back in the queue. */
+        char_queue_write(&s->fe_tx, &buf[written_len], len - written_len);
+    }
+}
+
 int qemu_chr_fe_write(CharDriverState *s, const uint8_t *buf, int len)
 {
-    return s->chr_write(s, buf, len);
+    int ret;
+
+    ret = char_queue_write(&s->fe_tx, buf, len);
+
+    qemu_chr_flush_fe_tx(s);
+
+    return ret;
 }
 
 int qemu_chr_ioctl(CharDriverState *s, int cmd, void *arg)
