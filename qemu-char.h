@@ -88,6 +88,8 @@ struct CharDriverState {
     int opened;
     int avail_connections;
 
+    int fe_opened;
+
     CharQueue fe_tx;
     CharQueue be_tx;
 

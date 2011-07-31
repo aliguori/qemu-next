@@ -206,6 +206,8 @@ int qemu_chr_fe_write(CharDriverState *s, const uint8_t *buf, int len)
     int ret;
     bool is_empty;
 
+    assert(s->fe_opened > 0);
+
     is_empty = char_queue_get_empty(&s->fe_tx);
 
     ret = char_queue_write(&s->fe_tx, buf, len);
@@ -228,6 +230,8 @@ int qemu_chr_fe_read(CharDriverState *s, uint8_t *buf, int len)
     bool is_full;
     int ret;
 
+    assert(s->fe_opened > 0);
+
     is_full = (char_queue_get_avail(&s->be_tx) == 0);
 
     ret = char_queue_read(&s->be_tx, buf, len);
@@ -249,6 +253,8 @@ void qemu_chr_fe_set_handlers(CharDriverState *s,
                               IOEventHandler *chr_event,
                               void *opaque)
 {
+    assert(s->fe_opened > 0);
+
     if (!opaque && !chr_read && !chr_write && !chr_event) {
         /* chr driver being released. */
         ++s->avail_connections;
@@ -2822,6 +2828,8 @@ void qemu_chr_set_echo(struct CharDriverState *chr, bool echo)
 
 void qemu_chr_fe_open(struct CharDriverState *chr)
 {
+    chr->fe_opened++;
+
     if (chr->chr_guest_open) {
         chr->chr_guest_open(chr);
     }
@@ -2832,6 +2840,8 @@ void qemu_chr_fe_close(struct CharDriverState *chr)
     if (chr->chr_guest_close) {
         chr->chr_guest_close(chr);
     }
+
+    chr->fe_opened--;
 }
 
 void qemu_chr_close(CharDriverState *chr)
