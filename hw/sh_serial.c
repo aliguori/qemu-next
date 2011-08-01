@@ -66,6 +66,8 @@ typedef struct {
     qemu_irq bri;
 } sh_serial_state;
 
+static void sh_serial_update_handlers(sh_serial_state *s);
+
 static void sh_serial_clear_fifo(sh_serial_state * s)
 {
     memset(s->rx_fifo, 0, SH_RX_FIFO_LENGTH);
@@ -93,6 +95,7 @@ static void sh_serial_write(void *opaque, uint32_t offs, uint32_t val)
     case 0x08: /* SCR */
         /* TODO : For SH7751, SCIF mask should be 0xfb. */
         s->scr = val & ((s->feat & SH_SERIAL_FEAT_SCIF) ? 0xfa : 0xff);
+        sh_serial_update_handlers(s);
         if (!(val & (1 << 5)))
             s->flags |= SH_SERIAL_FLAG_TEND;
         if ((s->feat & SH_SERIAL_FEAT_SCIF) && s->txi) {
@@ -299,16 +302,8 @@ static void sh_serial_receive_break(sh_serial_state *s)
         s->sr |= (1 << 4);
 }
 
-static int sh_serial_can_receive1(void *opaque)
+static void sh_serial_receive1(sh_serial_state *s, const uint8_t *buf, int size)
 {
-    sh_serial_state *s = opaque;
-    return sh_serial_can_receive(s);
-}
-
-static void sh_serial_receive1(void *opaque, const uint8_t *buf, int size)
-{
-    sh_serial_state *s = opaque;
-
     if (s->feat & SH_SERIAL_FEAT_SCIF) {
         int i;
         for (i = 0; i < size; i++) {
@@ -331,6 +326,19 @@ static void sh_serial_receive1(void *opaque, const uint8_t *buf, int size)
     }
 }
 
+static void sh_serial_receive_handler(void *opaque)
+{
+    sh_serial_state *s = opaque;
+    uint8_t buf[32];
+    int size;
+
+    size = sh_serial_can_receive(s);
+    size = MIN(size, sizeof(buf));
+    size = qemu_chr_fe_read(s->chr, buf, size);
+
+    sh_serial_receive1(s, buf, size);
+}
+
 static void sh_serial_event(void *opaque, int event)
 {
     sh_serial_state *s = opaque;
@@ -349,6 +357,16 @@ static CPUWriteMemoryFunc * const sh_serial_writefn[] = {
     &sh_serial_write,
     &sh_serial_write,
 };
+
+static void sh_serial_update_handlers(sh_serial_state *s)
+{
+    if (sh_serial_can_receive(s) > 0) {
+        qemu_chr_fe_set_handlers(s->chr, sh_serial_receive_handler,
+                                 NULL, sh_serial_event, s);
+    } else {
+        qemu_chr_fe_set_handlers(s->chr, NULL, NULL, sh_serial_event, s);
+    }
+}
 
 void sh_serial_init (target_phys_addr_t base, int feat,
 		     uint32_t freq, CharDriverState *chr,
@@ -391,8 +409,7 @@ void sh_serial_init (target_phys_addr_t base, int feat,
 
     if (chr) {
         qemu_chr_fe_open(chr);
-        qemu_chr_add_handlers(chr, sh_serial_can_receive1, sh_serial_receive1,
-			      sh_serial_event, s);
+        sh_serial_update_handlers(s);
     }
 
     s->eri = eri_source;
