@@ -59,6 +59,8 @@ struct xlx_uartlite
     uint32_t regs[R_MAX];
 };
 
+static void uart_update_handlers(struct xlx_uartlite *s);
+
 static void uart_update_irq(struct xlx_uartlite *s)
 {
     unsigned int irq;
@@ -93,6 +95,7 @@ static uint32_t uart_readl (void *opaque, target_phys_addr_t addr)
             r = s->rx_fifo[(s->rx_fifo_pos - s->rx_fifo_len) & 7];
             if (s->rx_fifo_len)
                 s->rx_fifo_len--;
+            uart_update_handlers(s);
             uart_update_status(s);
             uart_update_irq(s);
             break;
@@ -123,6 +126,7 @@ uart_writel (void *opaque, target_phys_addr_t addr, uint32_t value)
             if (value & CONTROL_RST_RX) {
                 s->rx_fifo_pos = 0;
                 s->rx_fifo_len = 0;
+                uart_update_handlers(s);
             }
             s->regs[addr] = value;
             break;
@@ -159,10 +163,8 @@ static CPUWriteMemoryFunc * const uart_write[] = {
     &uart_writel,
 };
 
-static void uart_rx(void *opaque, const uint8_t *buf, int size)
+static void uart_rx(struct xlx_uartlite *s, const uint8_t *buf, int size)
 {
-    struct xlx_uartlite *s = opaque;
-
     /* Got a byte.  */
     if (s->rx_fifo_len >= 8) {
         printf("WARNING: UART dropped char.\n");
@@ -172,6 +174,7 @@ static void uart_rx(void *opaque, const uint8_t *buf, int size)
     s->rx_fifo_pos++;
     s->rx_fifo_pos &= 0x7;
     s->rx_fifo_len++;
+    uart_update_handlers(s);
 
     uart_update_status(s);
     uart_update_irq(s);
@@ -188,9 +191,30 @@ static int uart_can_rx(void *opaque)
     return r;
 }
 
+static void uart_rx_handler(void *opaque)
+{
+    struct xlx_uartlite *s = opaque;
+    uint8_t buf[32];
+    int size;
+
+    size = uart_can_rx(s);
+    size = MIN(size, sizeof(buf));
+    size = qemu_chr_fe_read(s->chr, buf, size);
+
+    uart_rx(s, buf, size);
+}
+
 static void uart_event(void *opaque, int event)
 {
+}
 
+static void uart_update_handlers(struct xlx_uartlite *s)
+{
+    if (uart_can_rx(s) > 0) {
+        qemu_chr_fe_set_handlers(s->chr, uart_rx_handler, NULL, uart_event, s);
+    } else {
+        qemu_chr_fe_set_handlers(s->chr, NULL, NULL, uart_event, s);
+    }
 }
 
 static int xilinx_uartlite_init(SysBusDevice *dev)
@@ -208,7 +232,7 @@ static int xilinx_uartlite_init(SysBusDevice *dev)
     s->chr = qdev_init_chardev(&dev->qdev);
     if (s->chr) {
         qemu_chr_fe_open(s->chr);
-        qemu_chr_add_handlers(s->chr, uart_can_rx, uart_rx, uart_event, s);
+        uart_update_handlers(s);
     }
     return 0;
 }
