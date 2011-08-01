@@ -893,6 +893,8 @@ typedef struct {
     QEMUTimer *tx_timer;
 } StrongARMUARTState;
 
+static void strongarm_uart_update_handlers(StrongARMUARTState *s);
+
 static void strongarm_uart_update_status(StrongARMUARTState *s)
 {
     uint16_t utsr1 = 0;
@@ -1012,14 +1014,13 @@ static void strongarm_uart_rx_push(StrongARMUARTState *s, uint16_t c)
     if (s->rx_len < 12) {
         s->rx_fifo[(s->rx_start + s->rx_len) % 12] = c;
         s->rx_len++;
+        strongarm_uart_update_handlers(s);
     } else
         s->rx_fifo[(s->rx_start + 11) % 12] |= RX_FIFO_ROR;
 }
 
-static int strongarm_uart_can_receive(void *opaque)
+static int strongarm_uart_can_receive(StrongARMUARTState *s)
 {
-    StrongARMUARTState *s = opaque;
-
     if (s->rx_len == 12) {
         return 0;
     }
@@ -1030,9 +1031,8 @@ static int strongarm_uart_can_receive(void *opaque)
     return 1;
 }
 
-static void strongarm_uart_receive(void *opaque, const uint8_t *buf, int size)
+static void strongarm_uart_receive(StrongARMUARTState *s, const uint8_t *buf, int size)
 {
-    StrongARMUARTState *s = opaque;
     int i;
 
     for (i = 0; i < size; i++) {
@@ -1045,6 +1045,19 @@ static void strongarm_uart_receive(void *opaque, const uint8_t *buf, int size)
 
     strongarm_uart_update_status(s);
     strongarm_uart_update_int_status(s);
+}
+
+static void strongarm_uart_receive_handler(void *opaque)
+{
+    StrongARMUARTState *s = opaque;
+    uint8_t buf[32];
+    int size;
+
+    size = strongarm_uart_can_receive(s);
+    size = MIN(size, sizeof(buf));
+    size = qemu_chr_fe_read(s->chr, buf, size);
+
+    strongarm_uart_receive(s, buf, size);
 }
 
 static void strongarm_uart_event(void *opaque, int event)
@@ -1102,6 +1115,7 @@ static uint32_t strongarm_uart_read(void *opaque, target_phys_addr_t addr)
             ret = s->rx_fifo[s->rx_start];
             s->rx_start = (s->rx_start + 1) % 12;
             s->rx_len--;
+            strongarm_uart_update_handlers(s);
             strongarm_uart_update_status(s);
             strongarm_uart_update_int_status(s);
             return ret;
@@ -1149,6 +1163,7 @@ static void strongarm_uart_write(void *opaque, target_phys_addr_t addr,
         if ((s->utcr3 & UTCR3_TXE) == 0) {
             s->tx_len = 0;
         }
+        strongarm_uart_update_handlers(s);
         strongarm_uart_update_status(s);
         strongarm_uart_update_int_status(s);
         break;
@@ -1188,6 +1203,23 @@ static CPUWriteMemoryFunc * const strongarm_uart_writefn[] = {
     strongarm_uart_write,
 };
 
+static void strongarm_uart_update_handlers(StrongARMUARTState *s)
+{
+    if (strongarm_uart_can_receive(s) > 0) {
+        qemu_chr_fe_set_handlers(s->chr,
+                                 strongarm_uart_receive_handler,
+                                 NULL,
+                                 strongarm_uart_event,
+                                 s);
+    } else {
+        qemu_chr_fe_set_handlers(s->chr,
+                                 NULL,
+                                 NULL,
+                                 strongarm_uart_event,
+                                 s);
+    }
+}
+
 static int strongarm_uart_init(SysBusDevice *dev)
 {
     StrongARMUARTState *s = FROM_SYSBUS(StrongARMUARTState, dev);
@@ -1203,11 +1235,7 @@ static int strongarm_uart_init(SysBusDevice *dev)
 
     if (s->chr) {
         qemu_chr_fe_open(s->chr);
-        qemu_chr_add_handlers(s->chr,
-                        strongarm_uart_can_receive,
-                        strongarm_uart_receive,
-                        strongarm_uart_event,
-                        s);
+        strongarm_uart_update_handlers(s);
     }
 
     return 0;
@@ -1224,6 +1252,7 @@ static void strongarm_uart_reset(DeviceState *dev)
 
     s->rx_len = s->tx_len = 0;
 
+    strongarm_uart_update_handlers(s);
     strongarm_uart_update_parameters(s);
     strongarm_uart_update_status(s);
     strongarm_uart_update_int_status(s);
