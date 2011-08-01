@@ -147,6 +147,7 @@ static int milkymist_uart_init(SysBusDevice *dev)
 
     s->chr = qdev_init_chardev(&dev->qdev);
     if (s->chr) {
+        qemu_chr_fe_open(s->chr);
         qemu_chr_add_handlers(s->chr, uart_can_rx, uart_rx, uart_event, s);
     }
 

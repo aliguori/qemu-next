@@ -493,6 +493,7 @@ static int usb_serial_initfn(USBDevice *dev)
         return -1;
     }
 
+    qemu_chr_fe_open(s->cs);
     qemu_chr_add_handlers(s->cs, usb_serial_can_read, usb_serial_read,
                           usb_serial_event, s);
     usb_serial_handle_reset(dev);

@@ -278,6 +278,7 @@ static int pl011_init(SysBusDevice *dev, const unsigned char *id)
     s->cr = 0x300;
     s->flags = 0x90;
     if (s->chr) {
+        qemu_chr_fe_open(s->chr);
         qemu_chr_add_handlers(s->chr, pl011_can_receive, pl011_receive,
                               pl011_event, s);
     }

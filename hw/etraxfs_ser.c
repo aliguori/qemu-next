@@ -214,10 +214,12 @@ static int etraxfs_ser_init(SysBusDevice *dev)
                                       DEVICE_NATIVE_ENDIAN);
     sysbus_init_mmio(dev, R_MAX * 4, ser_regs);
     s->chr = qdev_init_chardev(&dev->qdev);
-    if (s->chr)
+    if (s->chr) {
+        qemu_chr_fe_open(s->chr);
         qemu_chr_add_handlers(s->chr,
                       serial_can_receive, serial_receive,
                       serial_event, s);
+    }
     return 0;
 }
 

@@ -910,6 +910,7 @@ static int escc_init1(SysBusDevice *dev)
         s->chn[i].chn = 1 - i;
         s->chn[i].clock = s->frequency / 2;
         if (s->chn[i].chr) {
+            qemu_chr_fe_open(s->chn[i].chr);
             qemu_chr_add_handlers(s->chn[i].chr, serial_can_receive,
                                   serial_receive1, serial_event, &s->chn[i]);
         }

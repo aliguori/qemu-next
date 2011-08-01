@@ -281,6 +281,7 @@ static int passthru_initfn(CCIDCardState *base)
     card->vscard_in_hdr = 0;
     if (card->cs) {
         DPRINTF(card, D_INFO, "initing chardev\n");
+        qemu_chr_fe_open(card->cs);
         qemu_chr_add_handlers(card->cs,
             ccid_card_vscard_can_read,
             ccid_card_vscard_read,

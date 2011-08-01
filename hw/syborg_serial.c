@@ -304,6 +304,7 @@ static int syborg_serial_init(SysBusDevice *dev)
     sysbus_init_mmio(dev, 0x1000, iomemtype);
     s->chr = qdev_init_chardev(&dev->qdev);
     if (s->chr) {
+        qemu_chr_fe_open(s->chr);
         qemu_chr_add_handlers(s->chr, syborg_serial_can_receive,
                               syborg_serial_receive, syborg_serial_event, s);
     }

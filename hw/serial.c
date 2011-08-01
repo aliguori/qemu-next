@@ -741,6 +741,8 @@ static void serial_init_core(SerialState *s)
 
     qemu_register_reset(serial_reset, s);
 
+    qemu_chr_fe_open(s->chr);
+
     qemu_chr_add_handlers(s->chr, serial_can_receive1, serial_receive1,
                           serial_event, s);
 }

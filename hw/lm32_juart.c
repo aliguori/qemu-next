@@ -116,6 +116,7 @@ static int lm32_juart_init(SysBusDevice *dev)
 
     s->chr = qdev_init_chardev(&dev->qdev);
     if (s->chr) {
+        qemu_chr_fe_open(s->chr);
         qemu_chr_add_handlers(s->chr, juart_can_rx, juart_rx, juart_event, s);
     }
 

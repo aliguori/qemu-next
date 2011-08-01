@@ -2038,9 +2038,11 @@ static PXA2xxFIrState *pxa2xx_fir_init(target_phys_addr_t base,
                     pxa2xx_fir_writefn, s, DEVICE_NATIVE_ENDIAN);
     cpu_register_physical_memory(base, 0x1000, iomemtype);
 
-    if (chr)
+    if (chr) {
+        qemu_chr_fe_open(chr);
         qemu_chr_add_handlers(chr, pxa2xx_fir_is_empty,
                         pxa2xx_fir_rx, pxa2xx_fir_event, s);
+    }
 
     register_savevm(NULL, "pxa2xx_fir", 0, 0, pxa2xx_fir_save,
                     pxa2xx_fir_load, s);

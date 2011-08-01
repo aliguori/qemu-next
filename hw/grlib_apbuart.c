@@ -149,6 +149,7 @@ static int grlib_apbuart_init(SysBusDevice *dev)
     UART *uart      = FROM_SYSBUS(typeof(*uart), dev);
     int   uart_regs = 0;
 
+    qemu_chr_fe_open(uart->chr);
     qemu_chr_add_handlers(uart->chr,
                           grlib_apbuart_can_receive,
                           grlib_apbuart_receive,

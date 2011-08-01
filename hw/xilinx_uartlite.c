@@ -206,8 +206,10 @@ static int xilinx_uartlite_init(SysBusDevice *dev)
     sysbus_init_mmio(dev, R_MAX * 4, uart_regs);
 
     s->chr = qdev_init_chardev(&dev->qdev);
-    if (s->chr)
+    if (s->chr) {
+        qemu_chr_fe_open(s->chr);
         qemu_chr_add_handlers(s->chr, uart_can_rx, uart_rx, uart_event, s);
+    }
     return 0;
 }
 

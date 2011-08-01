@@ -286,6 +286,7 @@ static CharDriverState* create_eventfd_chr_device(void * opaque, int eventfd,
         exit(-1);
     }
 
+    qemu_chr_fe_open(chr);
     /* if MSI is supported we need multiple interrupts */
     if (ivshmem_has_feature(s, IVSHMEM_MSI)) {
         s->eventfd_table[vector].pdev = &s->dev;
@@ -698,6 +699,7 @@ static int pci_ivshmem_init(PCIDevice *dev)
 
         s->eventfd_chr = qemu_mallocz(s->vectors * sizeof(CharDriverState *));
 
+        qemu_chr_fe_open(s->server_chr);
         qemu_chr_add_handlers(s->server_chr, ivshmem_can_receive, ivshmem_read,
                      ivshmem_event, s);
     } else {

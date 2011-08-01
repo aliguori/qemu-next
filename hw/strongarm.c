@@ -1202,6 +1202,7 @@ static int strongarm_uart_init(SysBusDevice *dev)
     s->tx_timer = qemu_new_timer_ns(vm_clock, strongarm_uart_tx, s);
 
     if (s->chr) {
+        qemu_chr_fe_open(s->chr);
         qemu_chr_add_handlers(s->chr,
                         strongarm_uart_can_receive,
                         strongarm_uart_receive,

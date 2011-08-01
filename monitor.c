@@ -5276,6 +5276,8 @@ void monitor_init(CharDriverState *chr, int flags)
         monitor_read_command(mon, 0);
     }
 
+    qemu_chr_fe_open(chr);
+
     if (monitor_ctrl_mode(mon)) {
         mon->mc = qemu_mallocz(sizeof(MonitorControl));
         /* Control mode requires special handlers */
