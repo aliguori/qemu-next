@@ -12,16 +12,15 @@ typedef struct VIOsPAPRVTYDevice {
     uint8_t buf[VTERM_BUFSIZE];
 } VIOsPAPRVTYDevice;
 
-static int vty_can_receive(void *opaque)
-{
-    VIOsPAPRVTYDevice *dev = (VIOsPAPRVTYDevice *)opaque;
+static void vty_update_handlers(VIOsPAPRVTYDevice *dev);
 
+static int vty_can_receive(VIOsPAPRVTYDevice *dev)
+{
     return (dev->in - dev->out) < VTERM_BUFSIZE;
 }
 
-static void vty_receive(void *opaque, const uint8_t *buf, int size)
+static void vty_receive(VIOsPAPRVTYDevice *dev, const uint8_t *buf, int size)
 {
-    VIOsPAPRVTYDevice *dev = (VIOsPAPRVTYDevice *)opaque;
     int i;
 
     if ((dev->in == dev->out) && size) {
@@ -32,6 +31,20 @@ static void vty_receive(void *opaque, const uint8_t *buf, int size)
         assert((dev->in - dev->out) < VTERM_BUFSIZE);
         dev->buf[dev->in++ % VTERM_BUFSIZE] = buf[i];
     }
+    vty_update_handlers(dev);
+}
+
+static void vty_receive_handler(void *opaque)
+{
+    VIOsPAPRVTYDevice *dev = opaque;
+    uint8_t buf[32];
+    int size;
+
+    size = vty_can_receive(dev);
+    size = MIN(size, sizeof(buf));
+    size = qemu_chr_fe_read(dev->chardev, buf, size);
+
+    vty_receive(dev, buf, size);
 }
 
 static int vty_getchars(VIOsPAPRDevice *sdev, uint8_t *buf, int max)
@@ -42,6 +55,7 @@ static int vty_getchars(VIOsPAPRDevice *sdev, uint8_t *buf, int max)
     while ((n < max) && (dev->out != dev->in)) {
         buf[n++] = dev->buf[dev->out++ % VTERM_BUFSIZE];
     }
+    vty_update_handlers(dev);
 
     return n;
 }
@@ -54,13 +68,22 @@ void vty_putchars(VIOsPAPRDevice *sdev, uint8_t *buf, int len)
     qemu_chr_fe_write(dev->chardev, buf, len);
 }
 
+static void vty_update_handlers(VIOsPAPRVTYDevice *dev)
+{
+    if (vty_can_receive(dev) > 0) {
+        qemu_chr_fe_set_handlers(dev->chardev, vty_receive_handler,
+                                 NULL, NULL, dev);
+    } else {
+        qemu_chr_fe_set_handlers(dev->chardev, NULL, NULL, NULL, dev);
+    }
+}
+
 static int spapr_vty_init(VIOsPAPRDevice *sdev)
 {
     VIOsPAPRVTYDevice *dev = (VIOsPAPRVTYDevice *)sdev;
 
     qemu_chr_fe_open(dev->chardev);
-    qemu_chr_add_handlers(dev->chardev, vty_can_receive,
-                          vty_receive, NULL, dev);
+    vty_update_handlers(dev);
 
     return 0;
 }
