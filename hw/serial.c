@@ -163,7 +163,8 @@ typedef struct ISASerialState {
     SerialState state;
 } ISASerialState;
 
-static void serial_receive1(void *opaque, const uint8_t *buf, int size);
+static void serial_update_handlers(SerialState *s);
+static void serial_receive1(SerialState *s, const uint8_t *buf, int size);
 
 static void fifo_clear(SerialState *s, int fifo)
 {
@@ -172,6 +173,7 @@ static void fifo_clear(SerialState *s, int fifo)
     f->count = 0;
     f->head = 0;
     f->tail = 0;
+    serial_update_handlers(s);
 }
 
 static int fifo_put(SerialState *s, int fifo, uint8_t chr)
@@ -192,6 +194,8 @@ static int fifo_put(SerialState *s, int fifo, uint8_t chr)
     else if (fifo == RECV_FIFO)
         s->lsr |= UART_LSR_OE;
 
+    serial_update_handlers(s);
+
     return 1;
 }
 
@@ -207,6 +211,8 @@ static uint8_t fifo_get(SerialState *s, int fifo)
     if (f->tail == UART_FIFO_LENGTH)
         f->tail = 0;
     f->count--;
+
+    serial_update_handlers(s);
 
     return c;
 }
@@ -531,6 +537,7 @@ static uint32_t serial_ioport_read(void *opaque, uint32_t addr)
                 ret = s->rbr;
                 s->lsr &= ~(UART_LSR_DR | UART_LSR_BI);
             }
+            serial_update_handlers(s);
             serial_update_irq(s);
             if (!(s->mcr & UART_MCR_LOOP)) {
                 /* in loopback mode, don't receive any data */
@@ -603,7 +610,7 @@ static int serial_can_receive(SerialState *s)
         else
              return 0;
     } else {
-    return !(s->lsr & UART_LSR_DR);
+        return !(s->lsr & UART_LSR_DR);
     }
 }
 
@@ -613,6 +620,7 @@ static void serial_receive_break(SerialState *s)
     /* When the LSR_DR is set a null byte is pushed into the fifo */
     fifo_put(s, RECV_FIFO, '\0');
     s->lsr |= UART_LSR_BI | UART_LSR_DR;
+    serial_update_handlers(s);
     serial_update_irq(s);
 }
 
@@ -625,15 +633,8 @@ static void fifo_timeout_int (void *opaque) {
     }
 }
 
-static int serial_can_receive1(void *opaque)
+static void serial_receive1(SerialState *s, const uint8_t *buf, int size)
 {
-    SerialState *s = opaque;
-    return serial_can_receive(s);
-}
-
-static void serial_receive1(void *opaque, const uint8_t *buf, int size)
-{
-    SerialState *s = opaque;
     if(s->fcr & UART_FCR_FE) {
         int i;
         for (i = 0; i < size; i++) {
@@ -648,7 +649,22 @@ static void serial_receive1(void *opaque, const uint8_t *buf, int size)
         s->rbr = buf[0];
         s->lsr |= UART_LSR_DR;
     }
+    serial_update_handlers(s);
     serial_update_irq(s);
+}
+
+static void serial_receive2(void *opaque)
+{
+    SerialState *s = opaque;
+    uint8_t buf[32];
+    int max;
+
+    max = serial_can_receive(s);
+    max = MAX(sizeof(buf), max);
+
+    max = qemu_chr_fe_read(s->chr, buf, max);
+
+    serial_receive1(s, buf, max);
 }
 
 static void serial_event(void *opaque, int event)
@@ -657,6 +673,16 @@ static void serial_event(void *opaque, int event)
     DPRINTF("event %x\n", event);
     if (event == CHR_EVENT_BREAK)
         serial_receive_break(s);
+}
+
+static void serial_update_handlers(SerialState *s)
+{
+    if (serial_can_receive(s) > 0) {
+        qemu_chr_fe_set_handlers(s->chr, serial_receive2, NULL,
+                                 serial_event, s);
+    } else {
+        qemu_chr_fe_set_handlers(s->chr, NULL, NULL, serial_event, s);
+    }
 }
 
 static void serial_pre_save(void *opaque)
@@ -724,6 +750,7 @@ static void serial_reset(void *opaque)
 
     s->thr_ipending = 0;
     s->last_break_enable = 0;
+    serial_update_handlers(s);
     qemu_irq_lower(s->irq);
 }
 
@@ -743,8 +770,7 @@ static void serial_init_core(SerialState *s)
 
     qemu_chr_fe_open(s->chr);
 
-    qemu_chr_add_handlers(s->chr, serial_can_receive1, serial_receive1,
-                          serial_event, s);
+    serial_update_handlers(s);
 }
 
 /* Change the main reference oscillator frequency. */
