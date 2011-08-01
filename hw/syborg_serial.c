@@ -70,6 +70,8 @@ typedef struct {
     uint32_t dma_rx_size;
 } SyborgSerialState;
 
+static void syborg_serial_update_handlers(SyborgSerialState *s);
+
 static void syborg_serial_update(SyborgSerialState *s)
 {
     int level;
@@ -142,6 +144,7 @@ static void dma_rx_start(SyborgSerialState *s, uint32_t len)
     } else {
         s->dma_rx_size = 0;
     }
+    syborg_serial_update_handlers(s);
 
     while (len--) {
         ch = fifo_pop(s);
@@ -219,6 +222,7 @@ static void syborg_serial_write(void *opaque, target_phys_addr_t offset,
         /* For safety, writes to this register cancel any pending DMA.  */
         s->dma_rx_size = 0;
         s->dma_rx_ptr = value;
+        syborg_serial_update_handlers(s);
         break;
     case SERIAL_DMA_RX_COUNT:
         dma_rx_start(s, value);
@@ -230,19 +234,15 @@ static void syborg_serial_write(void *opaque, target_phys_addr_t offset,
     }
 }
 
-static int syborg_serial_can_receive(void *opaque)
+static int syborg_serial_can_receive(SyborgSerialState *s)
 {
-    SyborgSerialState *s = (SyborgSerialState *)opaque;
-
     if (s->dma_rx_size)
         return s->dma_rx_size;
     return s->fifo_size - s->read_count;
 }
 
-static void syborg_serial_receive(void *opaque, const uint8_t *buf, int size)
+static void syborg_serial_receive(SyborgSerialState *s, const uint8_t *buf, int size)
 {
-    SyborgSerialState *s = (SyborgSerialState *)opaque;
-
     if (s->dma_rx_size) {
         /* Place it in the DMA buffer.  */
         cpu_physical_memory_write(s->dma_rx_ptr, buf, size);
@@ -253,7 +253,21 @@ static void syborg_serial_receive(void *opaque, const uint8_t *buf, int size)
             fifo_push(s, *buf);
     }
 
+    syborg_serial_update_handlers(s);
     syborg_serial_update(s);
+}
+
+static void syborg_serial_receive_handler(void *opaque)
+{
+    SyborgSerialState *s = opaque;
+    uint8_t buf[32];
+    int size;
+
+    size = syborg_serial_can_receive(s);
+    size = MIN(size, sizeof(buf));
+    size = qemu_chr_fe_read(s->chr, buf, size);
+
+    syborg_serial_receive(s, buf, size);
 }
 
 static void syborg_serial_event(void *opaque, int event)
@@ -292,6 +306,16 @@ static const VMStateDescription vmstate_syborg_serial = {
     }
 };
 
+static void syborg_serial_update_handlers(SyborgSerialState *s)
+{
+    if (syborg_serial_can_receive(s)) {
+        qemu_chr_fe_set_handlers(s->chr, syborg_serial_receive_handler,
+                                 NULL, syborg_serial_event, s);
+    } else {
+        qemu_chr_fe_set_handlers(s->chr, NULL, NULL, syborg_serial_event, s);
+    }
+}
+
 static int syborg_serial_init(SysBusDevice *dev)
 {
     SyborgSerialState *s = FROM_SYSBUS(SyborgSerialState, dev);
@@ -305,8 +329,7 @@ static int syborg_serial_init(SysBusDevice *dev)
     s->chr = qdev_init_chardev(&dev->qdev);
     if (s->chr) {
         qemu_chr_fe_open(s->chr);
-        qemu_chr_add_handlers(s->chr, syborg_serial_can_receive,
-                              syborg_serial_receive, syborg_serial_event, s);
+        syborg_serial_update_handlers(s);
     }
     if (s->fifo_size <= 0) {
         fprintf(stderr, "syborg_serial: fifo too small\n");
