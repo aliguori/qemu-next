@@ -178,6 +178,8 @@ static const USBDesc desc_braille = {
     .str  = desc_strings,
 };
 
+static void usb_serial_update_handlers(USBSerialState *s);
+
 static void usb_serial_reset(USBSerialState *s)
 {
     /* TODO: Set flow control to none */
@@ -185,6 +187,7 @@ static void usb_serial_reset(USBSerialState *s)
     s->event_trigger = 0;
     s->recv_ptr = 0;
     s->recv_used = 0;
+    usb_serial_update_handlers(s);
     /* TODO: purge in char driver */
 }
 
@@ -254,6 +257,7 @@ static int usb_serial_handle_control(USBDevice *dev, USBPacket *p,
             s->recv_ptr = 0;
             s->recv_used = 0;
             /* TODO: purge from char device */
+            usb_serial_update_handlers(s);
             break;
         case FTDI_RESET_TX:
             /* TODO: purge from char device */
@@ -410,6 +414,7 @@ static int usb_serial_handle_data(USBDevice *dev, USBPacket *p)
         if (len > first_len)
             usb_packet_copy(p, s->recv_buf, len - first_len);
         s->recv_used -= len;
+        usb_serial_update_handlers(s);
         s->recv_ptr = (s->recv_ptr + len) % RECV_BUF;
         ret = len + 2;
         break;
@@ -463,6 +468,20 @@ static void usb_serial_read(void *opaque, const uint8_t *buf, int size)
         memcpy(s->recv_buf + start, buf, size);
     }
     s->recv_used += size;
+    usb_serial_update_handlers(s);
+}
+
+static void usb_serial_read_handler(void *opaque)
+{
+    USBSerialState *s = opaque;
+    uint8_t buf[32];
+    int size;
+
+    size = usb_serial_can_read(s);
+    size = MIN(size, sizeof(buf));
+
+    size = qemu_chr_fe_read(s->cs, buf, size);
+    usb_serial_read(s, buf, size);
 }
 
 static void usb_serial_event(void *opaque, int event)
@@ -482,6 +501,16 @@ static void usb_serial_event(void *opaque, int event)
     }
 }
 
+static void usb_serial_update_handlers(USBSerialState *s)
+{
+    if (usb_serial_can_read(s) > 0) {
+        qemu_chr_fe_set_handlers(s->cs, usb_serial_read_handler,
+                                 NULL, usb_serial_event, s);
+    } else {
+        qemu_chr_fe_set_handlers(s->cs, NULL, NULL, usb_serial_event, s);
+    }
+}
+
 static int usb_serial_initfn(USBDevice *dev)
 {
     USBSerialState *s = DO_UPCAST(USBSerialState, dev, dev);
@@ -494,8 +523,7 @@ static int usb_serial_initfn(USBDevice *dev)
     }
 
     qemu_chr_fe_open(s->cs);
-    qemu_chr_add_handlers(s->cs, usb_serial_can_read, usb_serial_read,
-                          usb_serial_event, s);
+    usb_serial_update_handlers(s);
     usb_serial_handle_reset(dev);
     return 0;
 }
