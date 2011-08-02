@@ -1,0 +1,20 @@
+Red Hat: redhat.com hch@lst.de glommer@mothafucka.localdomain
+SuSE: suse.de novell.com
+IBM: ibm.com kernel.crashing.org gibson.dropbear.id.au
+AMD: amd.com
+Citrix: citrix.com
+Canonical: canonical.com
+Intel: intel.com
+VIA: viatech.com.cn
+Linaro: linaro
+Google: google.com
+Code Sourcery: codesourcery.com
+Siemens: siemens.com siemens-enterprise.com
+Fujitsu: fujitsu.com
+Dream Host: dreamhost.com
+Nokia: nokia.com
+Samsung: samsung.com
+NTT: lab.ntt.co.jp
+FreeScale: freescale.com
+XenSource: xensource.com
+VA Linux: valinux.co.jp

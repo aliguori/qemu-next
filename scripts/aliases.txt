@@ -1,0 +1,18 @@
+andrew.zaborowski@intel.com: balrog@zabor.org
+edgar@axis.com: edgar.iglesias@gmail.com
+edgar.iglesias@petalogix.com: edgar.iglesias@gmail.com
+lcapitulino@gmail.com: lcapitulino@redhat.com
+riku.voipio@nokia.com: riku.voipio@linaro.org
+riku.voipio@iki.fi: riku.voipio@linaro.org
+andreas.faerber: andreas.faerber@web.de
+anthony@codemonkey.ws: aliguori@us.ibm.com
+atar4qemu@googlemail.com: atar4qemu@gmail.com
+bernhard.kohl@gmx.net: bernhard.kohl@nsn.com
+jan.kiszka@web.de: jan.kiszka@siemens.com
+mail@kevin-wolf.de: kwolf@redhat.com
+marcandre.lureau@gmail.com: marcandre.lureau@redhat.com
+rth@twiddle.net: rth@redhat.com
+sripathi@sripathi.in.ibm.com: sripathik@in.ibm.com
+
+
+
