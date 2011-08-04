@@ -17,6 +17,7 @@
  * License along with this library; if not, see <http://www.gnu.org/licenses/>.
  */
 
+#include <glib.h>
 #include "sysbus.h"
 #include "hw.h"
 #include "net.h"
@@ -85,7 +86,7 @@ milkymist_init(MemoryRegion *address_space_mem,
     int kernel_size;
     DriveInfo *dinfo;
     ram_addr_t phys_sdram;
-    ram_addr_t phys_flash;
+    MemoryRegion *phys_flash = g_new(MemoryRegion, 1);
     qemu_irq irq[32], *cpu_irq;
     int i;
     char *bios_filename;
@@ -116,13 +117,14 @@ milkymist_init(MemoryRegion *address_space_mem,
     cpu_register_physical_memory(sdram_base, sdram_size,
             phys_sdram | IO_MEM_RAM);
 
-    phys_flash = qemu_ram_alloc(NULL, "milkymist.flash", flash_size);
+    memory_region_init_rom_device(phys_flash, &pflash_cfi01_ops_be,
+                                  NULL, "milkymist.flash", flash_size);
     dinfo = drive_get(IF_PFLASH, 0, 0);
     /* Numonyx JS28F256J3F105 */
     pflash_cfi01_register(flash_base, phys_flash,
                           dinfo ? dinfo->bdrv : NULL, flash_sector_size,
                           flash_size / flash_sector_size, 2,
-                          0x00, 0x89, 0x00, 0x1d, 1);
+                          0x00, 0x89, 0x00, 0x1d);
 
     /* create irq lines */
     cpu_irq = qemu_allocate_irqs(cpu_irq_handler, env, 1);

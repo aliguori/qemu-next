@@ -7,6 +7,7 @@
  * All peripherial devices are attached to this "bus" with
  * the standard PC ISA addresses.
 */
+#include <glib.h>
 #include "hw.h"
 #include "mips.h"
 #include "mips_cpudevs.h"
@@ -165,7 +166,7 @@ void mips_r4k_init (MemoryRegion *address_space_mem,
 {
     char *filename;
     ram_addr_t ram_offset;
-    ram_addr_t bios_offset;
+    MemoryRegion *bios = g_new(MemoryRegion, 1);
     int bios_size;
     CPUState *env;
     ResetData *reset_info;
@@ -229,18 +230,20 @@ void mips_r4k_init (MemoryRegion *address_space_mem,
     be = 0;
 #endif
     if ((bios_size > 0) && (bios_size <= BIOS_SIZE)) {
-        bios_offset = qemu_ram_alloc(NULL, "mips_r4k.bios", BIOS_SIZE);
-	cpu_register_physical_memory(0x1fc00000, BIOS_SIZE,
-                                     bios_offset | IO_MEM_ROM);
-
+        memory_region_init_ram(bios, NULL, "mips_r4k.bios", BIOS_SIZE);
+        memory_region_set_readonly(bios, true);
+        memory_region_add_subregion(address_space_mem, 0x1fc00000, bios);
         load_image_targphys(filename, 0x1fc00000, BIOS_SIZE);
     } else if ((dinfo = drive_get(IF_PFLASH, 0, 0)) != NULL) {
         uint32_t mips_rom = 0x00400000;
-        bios_offset = qemu_ram_alloc(NULL, "mips_r4k.bios", mips_rom);
-        if (!pflash_cfi01_register(0x1fc00000, bios_offset,
+        memory_region_init_rom_device(bios,
+                                      (be ? &pflash_cfi01_ops_be
+                                          : &pflash_cfi01_ops_le),
+                                      NULL, "mips_r4k.bios", mips_rom);
+        if (!pflash_cfi01_register(0x1fc00000, bios,
                                    dinfo->bdrv, sector_len,
                                    mips_rom / sector_len,
-                                   4, 0, 0, 0, 0, be)) {
+                                   4, 0, 0, 0, 0)) {
             fprintf(stderr, "qemu: Error registering flash memory.\n");
 	}
     }

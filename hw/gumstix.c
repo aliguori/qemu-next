@@ -31,6 +31,7 @@
  * # qemu-system-arm -M verdex -pflash flash -monitor null -nographic -m 289
  */
 
+#include <glib.h>
 #include "hw.h"
 #include "pxa.h"
 #include "net.h"
@@ -50,7 +51,8 @@ static void connex_init(MemoryRegion *address_space_mem,
 {
     PXA2xxState *cpu;
     DriveInfo *dinfo;
-    int be;
+    const MemoryRegionOps *flash_ops;
+    MemoryRegion *flash = g_new(MemoryRegion, 1);
 
     uint32_t connex_rom = 0x01000000;
     uint32_t connex_ram = 0x04000000;
@@ -65,14 +67,15 @@ static void connex_init(MemoryRegion *address_space_mem,
     }
 
 #ifdef TARGET_WORDS_BIGENDIAN
-    be = 1;
+    flash_ops = &pflash_cfi01_ops_be;
 #else
-    be = 0;
+    flash_ops = &pflash_cfi01_ops_le;
 #endif
-    if (!pflash_cfi01_register(0x00000000, qemu_ram_alloc(NULL, "connext.rom",
-                                                          connex_rom),
+    memory_region_init_rom_device(flash, flash_ops,
+                                  NULL, "connext.rom", connex_rom);
+    if (!pflash_cfi01_register(0x00000000, flash,
                                dinfo->bdrv, sector_len, connex_rom / sector_len,
-                               2, 0, 0, 0, 0, be)) {
+                               2, 0, 0, 0, 0)) {
         fprintf(stderr, "qemu: Error registering flash memory.\n");
         exit(1);
     }
@@ -91,7 +94,8 @@ static void verdex_init(MemoryRegion *address_space_mem,
 {
     PXA2xxState *cpu;
     DriveInfo *dinfo;
-    int be;
+    MemoryRegion *flash = g_new(MemoryRegion, 1);
+    const MemoryRegionOps *flash_ops;
 
     uint32_t verdex_rom = 0x02000000;
     uint32_t verdex_ram = 0x10000000;
@@ -106,14 +110,15 @@ static void verdex_init(MemoryRegion *address_space_mem,
     }
 
 #ifdef TARGET_WORDS_BIGENDIAN
-    be = 1;
+    flash_ops = &pflash_cfi01_ops_be;
 #else
-    be = 0;
+    flash_ops = &pflash_cfi01_ops_le;
 #endif
-    if (!pflash_cfi01_register(0x00000000, qemu_ram_alloc(NULL, "verdex.rom",
-                                                          verdex_rom),
+    memory_region_init_rom_device(flash, flash_ops,
+                                  NULL, "verdex.rom", verdex_rom);
+    if (!pflash_cfi01_register(0x00000000, flash,
                                dinfo->bdrv, sector_len, verdex_rom / sector_len,
-                               2, 0, 0, 0, 0, be)) {
+                               2, 0, 0, 0, 0)) {
         fprintf(stderr, "qemu: Error registering flash memory.\n");
         exit(1);
     }
