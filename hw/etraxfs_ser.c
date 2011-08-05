@@ -60,6 +60,8 @@ struct etrax_serial
     uint32_t regs[R_MAX];
 };
 
+static void serial_update_handlers(struct etrax_serial *s);
+
 static void ser_update_irq(struct etrax_serial *s)
 {
 
@@ -95,6 +97,7 @@ static uint32_t ser_readl (void *opaque, target_phys_addr_t addr)
             if (s->rx_fifo_len) {
                 r |= 1 << STAT_DAV;
                 s->rx_fifo_len--;
+                serial_update_handlers(s);
             }
             r |= 1 << STAT_TR_RDY;
             r |= 1 << STAT_TR_IDLE;
@@ -137,6 +140,7 @@ ser_writel (void *opaque, target_phys_addr_t addr, uint32_t value)
             break;
         default:
             s->regs[addr] = value;
+            serial_update_handlers(s);
             break;
     }
     ser_update_irq(s);
@@ -152,9 +156,8 @@ static CPUWriteMemoryFunc * const ser_write[] = {
     &ser_writel,
 };
 
-static void serial_receive(void *opaque, const uint8_t *buf, int size)
+static void serial_receive(struct etrax_serial *s, const uint8_t *buf, int size)
 {
-    struct etrax_serial *s = opaque;
     int i;
 
     /* Got a byte.  */
@@ -170,12 +173,12 @@ static void serial_receive(void *opaque, const uint8_t *buf, int size)
         s->rx_fifo_len++;
     }
 
+    serial_update_handlers(s);
     ser_update_irq(s);
 }
 
-static int serial_can_receive(void *opaque)
+static int serial_can_receive(struct etrax_serial *s)
 {
-    struct etrax_serial *s = opaque;
     int r;
 
     /* Is the receiver enabled?  */
@@ -192,6 +195,29 @@ static void serial_event(void *opaque, int event)
 
 }
 
+static void serial_receive_handler(void *opaque)
+{
+    struct etrax_serial *s = opaque;
+    uint8_t buf[32];
+    int size;
+
+    size = serial_can_receive(s);
+    size = MIN(size, sizeof(buf));
+    size = qemu_chr_fe_read(s->chr, buf, size);
+
+    serial_receive(s, buf, size);
+}
+
+static void serial_update_handlers(struct etrax_serial *s)
+{
+    if (serial_can_receive(s) > 0) {
+        qemu_chr_fe_set_handlers(s->chr, serial_receive_handler,
+                              NULL, serial_event, s);
+    } else {
+        qemu_chr_fe_set_handlers(s->chr, NULL, NULL, serial_event, s);
+    }
+}
+
 static void etraxfs_ser_reset(DeviceState *d)
 {
     struct etrax_serial *s = container_of(d, typeof(*s), busdev.qdev);
@@ -201,6 +227,7 @@ static void etraxfs_ser_reset(DeviceState *d)
     s->regs[RS_STAT_DIN] |= (1 << STAT_TR_IDLE);
 
     s->regs[RW_REC_CTRL] = 0x10000;
+    serial_update_handlers(s);
 
 }
 
@@ -216,9 +243,7 @@ static int etraxfs_ser_init(SysBusDevice *dev)
     s->chr = qdev_init_chardev(&dev->qdev);
     if (s->chr) {
         qemu_chr_fe_open(s->chr);
-        qemu_chr_add_handlers(s->chr,
-                      serial_can_receive, serial_receive,
-                      serial_event, s);
+        serial_update_handlers(s);
     }
     return 0;
 }
