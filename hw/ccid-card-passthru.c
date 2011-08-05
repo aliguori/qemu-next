@@ -58,6 +58,8 @@ struct PassthruState {
     uint8_t  debug;
 };
 
+static void ccid_card_vscard_update_handlers(PassthruState *card);
+
 /*
  * VSCard protocol over chardev
  * This code should not depend on the card type.
@@ -104,10 +106,8 @@ static void ccid_card_vscard_send_init(PassthruState *s)
                          (uint8_t *)&msg, sizeof(msg));
 }
 
-static int ccid_card_vscard_can_read(void *opaque)
+static int ccid_card_vscard_can_read(PassthruState *card)
 {
-    PassthruState *card = opaque;
-
     return VSCARD_IN_SIZE >= card->vscard_in_pos ?
            VSCARD_IN_SIZE - card->vscard_in_pos : 0;
 }
@@ -200,11 +200,11 @@ static void ccid_card_vscard_drop_connection(PassthruState *card)
 {
     qemu_chr_close(card->cs);
     card->vscard_in_pos = card->vscard_in_hdr = 0;
+    ccid_card_vscard_update_handlers(card);
 }
 
-static void ccid_card_vscard_read(void *opaque, const uint8_t *buf, int size)
+static void ccid_card_vscard_read(PassthruState *card, const uint8_t *buf, int size)
 {
-    PassthruState *card = opaque;
     VSCMsgHeader *hdr;
 
     if (card->vscard_in_pos + size > VSCARD_IN_SIZE) {
@@ -233,6 +233,7 @@ static void ccid_card_vscard_read(void *opaque, const uint8_t *buf, int size)
     if (card->vscard_in_hdr == card->vscard_in_pos) {
         card->vscard_in_pos = card->vscard_in_hdr = 0;
     }
+    ccid_card_vscard_update_handlers(card);
 }
 
 static void ccid_card_vscard_event(void *opaque, int event)
@@ -242,12 +243,40 @@ static void ccid_card_vscard_event(void *opaque, int event)
     switch (event) {
     case CHR_EVENT_BREAK:
         card->vscard_in_pos = card->vscard_in_hdr = 0;
+        ccid_card_vscard_update_handlers(card);
         break;
     case CHR_EVENT_FOCUS:
         break;
     case CHR_EVENT_OPENED:
         DPRINTF(card, D_INFO, "%s: CHR_EVENT_OPENED\n", __func__);
         break;
+    }
+}
+
+static void ccid_card_vscard_read_handler(void *opaque)
+{
+    PassthruState *card = opaque;
+    uint8_t buf[32];
+    int size;
+
+    size = ccid_card_vscard_can_read(card);
+    size = MIN(size, sizeof(buf));
+    size = qemu_chr_fe_read(card->cs, buf, size);
+
+    ccid_card_vscard_read(card, buf, size);
+}
+
+static void ccid_card_vscard_update_handlers(PassthruState *card)
+{
+    if (ccid_card_vscard_can_read(card) > 0) {
+        qemu_chr_fe_set_handlers(card->cs,
+                                 ccid_card_vscard_read_handler,
+                                 NULL,
+                                 ccid_card_vscard_event, card);
+    } else {
+        qemu_chr_fe_set_handlers(card->cs,
+                                 NULL, NULL,
+                                 ccid_card_vscard_event, card);
     }
 }
 
@@ -282,11 +311,7 @@ static int passthru_initfn(CCIDCardState *base)
     if (card->cs) {
         DPRINTF(card, D_INFO, "initing chardev\n");
         qemu_chr_fe_open(card->cs);
-        qemu_chr_add_handlers(card->cs,
-            ccid_card_vscard_can_read,
-            ccid_card_vscard_read,
-            ccid_card_vscard_event, card);
-        ccid_card_vscard_send_init(card);
+        ccid_card_vscard_update_handlers(card);
     } else {
         error_report("missing chardev");
         return -1;
