@@ -98,6 +98,8 @@ struct LM32UartState {
 };
 typedef struct LM32UartState LM32UartState;
 
+static void uart_update_handlers(LM32UartState *s);
+
 static void uart_update_irq(LM32UartState *s)
 {
     unsigned int irq;
@@ -135,6 +137,7 @@ static uint32_t uart_read(void *opaque, target_phys_addr_t addr)
         r = s->regs[R_RXTX];
         s->regs[R_LSR] &= ~LSR_DR;
         uart_update_irq(s);
+        uart_update_handlers(s);
         break;
     case R_IIR:
     case R_LSR:
@@ -204,10 +207,8 @@ static CPUWriteMemoryFunc * const uart_write_fn[] = {
     &uart_write,
 };
 
-static void uart_rx(void *opaque, const uint8_t *buf, int size)
+static void uart_rx(LM32UartState *s, const uint8_t *buf, int size)
 {
-    LM32UartState *s = opaque;
-
     if (s->regs[R_LSR] & LSR_DR) {
         s->regs[R_LSR] |= LSR_OE;
     }
@@ -216,17 +217,38 @@ static void uart_rx(void *opaque, const uint8_t *buf, int size)
     s->regs[R_RXTX] = *buf;
 
     uart_update_irq(s);
+    uart_update_handlers(s);
 }
 
-static int uart_can_rx(void *opaque)
+static int uart_can_rx(LM32UartState *s)
 {
-    LM32UartState *s = opaque;
-
     return !(s->regs[R_LSR] & LSR_DR);
 }
 
 static void uart_event(void *opaque, int event)
 {
+}
+
+static void uart_rx_handler(void *opaque)
+{
+    LM32UartState *s = opaque;
+    uint8_t buf[32];
+    int size;
+
+    size = uart_can_rx(s);
+    size = MIN(size, sizeof(buf));
+    size = qemu_chr_fe_read(s->chr, buf, size);
+
+    uart_rx(s, buf, size);
+}
+
+static void uart_update_handlers(LM32UartState *s)
+{
+    if (uart_can_rx(s) > 0) {
+        qemu_chr_fe_set_handlers(s->chr, uart_rx_handler, NULL, uart_event, s);
+    } else {
+        qemu_chr_fe_set_handlers(s->chr, NULL, NULL, uart_event, s);
+    }
 }
 
 static void uart_reset(DeviceState *d)
@@ -240,6 +262,7 @@ static void uart_reset(DeviceState *d)
 
     /* defaults */
     s->regs[R_LSR] = LSR_THRE | LSR_TEMT;
+    uart_update_handlers(s);
 }
 
 static int lm32_uart_init(SysBusDevice *dev)
@@ -256,7 +279,7 @@ static int lm32_uart_init(SysBusDevice *dev)
     s->chr = qdev_init_chardev(&dev->qdev);
     if (s->chr) {
         qemu_chr_fe_open(s->chr);
-        qemu_chr_add_handlers(s->chr, uart_can_rx, uart_rx, uart_event, s);
+        uart_update_handlers(s);
     }
 
     return 0;
