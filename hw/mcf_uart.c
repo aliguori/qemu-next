@@ -52,6 +52,8 @@ typedef struct {
 #define MCF_UART_RxIRQ  0x40
 #define MCF_UART_RxRTS  0x80
 
+static void mcf_uart_update_handlers(mcf_uart_state *s);
+
 static void mcf_uart_update(mcf_uart_state *s)
 {
     s->isr &= ~(MCF_UART_TxINT | MCF_UART_RxINT);
@@ -88,7 +90,7 @@ uint32_t mcf_uart_read(void *opaque, target_phys_addr_t addr)
             if (s->fifo_len == 0)
                 s->sr &= ~MCF_UART_RxRDY;
             mcf_uart_update(s);
-            qemu_chr_accept_input(s->chr);
+            mcf_uart_update_handlers(s);
             return val;
         }
     case 0x10:
@@ -118,6 +120,7 @@ static void mcf_uart_do_tx(mcf_uart_state *s)
     } else {
         s->sr &= ~MCF_UART_TxRDY;
     }
+    mcf_uart_update_handlers(s);
 }
 
 static void mcf_do_command(mcf_uart_state *s, uint8_t cmd)
@@ -133,11 +136,13 @@ static void mcf_do_command(mcf_uart_state *s, uint8_t cmd)
         s->rx_enabled = 0;
         s->fifo_len = 0;
         s->sr &= ~(MCF_UART_RxRDY | MCF_UART_FFULL);
+        mcf_uart_update_handlers(s);
         break;
     case 3: /* Reset transmitter.  */
         s->tx_enabled = 0;
         s->sr |= MCF_UART_TxEMP;
         s->sr &= ~MCF_UART_TxRDY;
+        mcf_uart_update_handlers(s);
         break;
     case 4: /* Reset error status.  */
         break;
@@ -172,9 +177,11 @@ static void mcf_do_command(mcf_uart_state *s, uint8_t cmd)
         break;
     case 1: /* Enable.  */
         s->rx_enabled = 1;
+        mcf_uart_update_handlers(s);
         break;
     case 2:
         s->rx_enabled = 0;
+        mcf_uart_update_handlers(s);
         break;
     case 3: /* Reserved.  */
         fprintf(stderr, "mcf_uart: Bad RX command\n");
@@ -200,6 +207,7 @@ void mcf_uart_write(void *opaque, target_phys_addr_t addr, uint32_t val)
         s->sr &= ~MCF_UART_TxEMP;
         s->tb = val;
         mcf_uart_do_tx(s);
+        mcf_uart_update_handlers(s);
         break;
     case 0x10:
         /* ACR is ignored.  */
@@ -223,6 +231,7 @@ static void mcf_uart_reset(mcf_uart_state *s)
     s->rx_enabled = 0;
     s->isr = 0;
     s->imr = 0;
+    mcf_uart_update_handlers(s);
 }
 
 static void mcf_uart_push_byte(mcf_uart_state *s, uint8_t data)
@@ -237,6 +246,7 @@ static void mcf_uart_push_byte(mcf_uart_state *s, uint8_t data)
     if (s->fifo_len == 4)
         s->sr |= MCF_UART_FFULL;
 
+    mcf_uart_update_handlers(s);
     mcf_uart_update(s);
 }
 
@@ -254,18 +264,37 @@ static void mcf_uart_event(void *opaque, int event)
     }
 }
 
-static int mcf_uart_can_receive(void *opaque)
+static int mcf_uart_can_receive(mcf_uart_state *s)
 {
-    mcf_uart_state *s = (mcf_uart_state *)opaque;
-
     return s->rx_enabled && (s->sr & MCF_UART_FFULL) == 0;
 }
 
-static void mcf_uart_receive(void *opaque, const uint8_t *buf, int size)
+static void mcf_uart_receive(mcf_uart_state *s, const uint8_t *buf, int size)
 {
-    mcf_uart_state *s = (mcf_uart_state *)opaque;
-
     mcf_uart_push_byte(s, buf[0]);
+}
+
+static void mcf_uart_receive_handler(void *opaque)
+{
+    mcf_uart_state *s = opaque;
+    uint8_t buf[32];
+    int size;
+
+    size = mcf_uart_can_receive(s);
+    size = MIN(size, sizeof(buf));
+    size = qemu_chr_fe_read(s->chr, buf, size);
+
+    mcf_uart_receive(s, buf, size);
+}
+
+static void mcf_uart_update_handlers(mcf_uart_state *s)
+{
+    if (mcf_uart_can_receive(s) > 0) {
+        qemu_chr_fe_set_handlers(s->chr, mcf_uart_receive_handler,
+                                 NULL, mcf_uart_event, s);
+    } else {
+        qemu_chr_fe_set_handlers(s->chr, NULL, NULL, mcf_uart_event, s);
+    }        
 }
 
 void *mcf_uart_init(qemu_irq irq, CharDriverState *chr)
@@ -277,8 +306,6 @@ void *mcf_uart_init(qemu_irq irq, CharDriverState *chr)
     s->irq = irq;
     if (chr) {
         qemu_chr_fe_open(chr);
-        qemu_chr_add_handlers(chr, mcf_uart_can_receive, mcf_uart_receive,
-                              mcf_uart_event, s);
     }
     mcf_uart_reset(s);
     return s;
