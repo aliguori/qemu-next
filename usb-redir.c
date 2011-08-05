@@ -128,6 +128,7 @@ static void usbredir_interrupt_packet(void *priv, uint32_t id,
 
 static int usbredir_handle_status(USBRedirDevice *dev,
                                        int status, int actual_len);
+static void usbredir_update_handlers(USBRedirDevice *dev);
 
 #define VERSION "qemu usb-redir guest " QEMU_VERSION
 
@@ -736,6 +737,8 @@ static void usbredir_open_close_bh(void *opaque)
         usbredirparser_init(dev->parser, VERSION, NULL, 0, 0);
         usbredirparser_do_write(dev->parser);
     }
+
+    usbredir_update_handlers(dev);
 }
 
 static void usbredir_do_attach(void *opaque)
@@ -749,25 +752,16 @@ static void usbredir_do_attach(void *opaque)
  * chardev callbacks
  */
 
-static int usbredir_chardev_can_read(void *opaque)
+static void usbredir_chardev_read(void *opaque)
 {
     USBRedirDevice *dev = opaque;
-
-    if (dev->parser) {
-        /* usbredir_parser_do_read will consume *all* data we give it */
-        return 1024 * 1024;
-    } else {
-        /* usbredir_open_close_bh hasn't handled the open event yet */
-        return 0;
-    }
-}
-
-static void usbredir_chardev_read(void *opaque, const uint8_t *buf, int size)
-{
-    USBRedirDevice *dev = opaque;
+    uint8_t buf[1024 * 1024];
+    int size;
 
     /* No recursion allowed! */
     assert(dev->read_buf == NULL);
+
+    size = qemu_chr_fe_read(dev->chr, buf, sizeof(buf));
 
     dev->read_buf = buf;
     dev->read_buf_size = size;
@@ -786,6 +780,17 @@ static void usbredir_chardev_event(void *opaque, int event)
     case CHR_EVENT_CLOSED:
         qemu_bh_schedule(dev->open_close_bh);
         break;
+    }
+}
+
+static void usbredir_update_handlers(USBRedirDevice *dev)
+{
+    if (dev->parser) {
+        qemu_chr_fe_set_handlers(dev->cs, usbredir_chardev_read,
+                                 NULL, usbredir_chardev_event, dev);
+    } else {
+        qemu_chr_fe_set_handlers(dev->cs, NULL, NULL,
+                                 usbredir_chardev_event, dev);
     }
 }
 
@@ -815,8 +820,7 @@ static int usbredir_initfn(USBDevice *udev)
     udev->auto_attach = 0;
 
     qemu_chr_fe_open(dev->cs);
-    qemu_chr_add_handlers(dev->cs, usbredir_chardev_can_read,
-                          usbredir_chardev_read, usbredir_chardev_event, dev);
+    usbredir_update_handlers(dev);
 
     return 0;
 }
