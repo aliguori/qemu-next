@@ -74,7 +74,7 @@ static void debugcon_init_core(DebugconState *s)
     }
 
     qemu_chr_fe_open(s->chr);
-    qemu_chr_add_handlers(s->chr, NULL, NULL, NULL, s);
+    qemu_chr_fe_set_handlers(s->chr, NULL, NULL, NULL, s);
 }
 
 static int debugcon_isa_initfn(ISADevice *dev)
