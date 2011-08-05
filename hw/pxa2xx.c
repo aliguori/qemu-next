@@ -1798,6 +1798,8 @@ struct PXA2xxFIrState {
     uint8_t rx_fifo[64];
 };
 
+static void pxa2xx_fir_update_handlers(PXA2xxFIrState *s);
+
 static void pxa2xx_fir_reset(PXA2xxFIrState *s)
 {
     s->control[0] = 0x00;
@@ -1873,6 +1875,7 @@ static uint32_t pxa2xx_fir_read(void *opaque, target_phys_addr_t addr)
             s->rx_len --;
             ret = s->rx_fifo[s->rx_start ++];
             s->rx_start &= 63;
+            pxa2xx_fir_update_handlers(s);
             pxa2xx_fir_update(s);
             return ret;
         }
@@ -1908,6 +1911,7 @@ static void pxa2xx_fir_write(void *opaque, target_phys_addr_t addr,
         s->enable = value & 1;				/* ITR */
         if (!s->enable)
             s->status[0] = 0;
+        pxa2xx_fir_update_handlers(s);
         pxa2xx_fir_update(s);
         break;
     case ICCR1:
@@ -1948,15 +1952,13 @@ static CPUWriteMemoryFunc * const pxa2xx_fir_writefn[] = {
     pxa2xx_fir_write,
 };
 
-static int pxa2xx_fir_is_empty(void *opaque)
+static int pxa2xx_fir_can_rx(PXA2xxFIrState *s)
 {
-    PXA2xxFIrState *s = (PXA2xxFIrState *) opaque;
-    return (s->rx_len < 64);
+    return (64 - s->rx_len);
 }
 
-static void pxa2xx_fir_rx(void *opaque, const uint8_t *buf, int size)
+static void pxa2xx_fir_rx(PXA2xxFIrState *s, const uint8_t *buf, int size)
 {
-    PXA2xxFIrState *s = (PXA2xxFIrState *) opaque;
     if (!(s->control[0] & (1 << 4)))			/* RXE */
         return;
 
@@ -1973,11 +1975,35 @@ static void pxa2xx_fir_rx(void *opaque, const uint8_t *buf, int size)
             s->rx_fifo[(s->rx_start + s->rx_len ++) & 63] = ~*(buf ++);
     }
 
+    pxa2xx_fir_update_handlers(s);
     pxa2xx_fir_update(s);
 }
 
 static void pxa2xx_fir_event(void *opaque, int event)
 {
+}
+
+static void pxa2xx_fir_rx_handler(void *opaque)
+{
+    PXA2xxFIrState *s = opaque;
+    uint8_t buf[32];
+    int size;
+
+    size = pxa2xx_fir_can_rx(s);
+    size = MIN(size, sizeof(buf));
+    size = qemu_chr_fe_read(s->chr, buf, size);
+
+    pxa2xx_fir_rx(s, buf, size);
+}
+
+static void pxa2xx_fir_update_handlers(PXA2xxFIrState *s)
+{
+    if (pxa2xx_fir_can_rx(s) > 0) {
+        qemu_chr_fe_set_handlers(s->chr, pxa2xx_fir_rx_handler,
+                                 NULL, pxa2xx_fir_event, s);
+    } else {
+        qemu_chr_fe_set_handlers(s->chr, NULL, NULL, pxa2xx_fir_event, s);
+    }
 }
 
 static void pxa2xx_fir_save(QEMUFile *f, void *opaque)
@@ -2016,6 +2042,8 @@ static int pxa2xx_fir_load(QEMUFile *f, void *opaque, int version_id)
     for (i = 0; i < s->rx_len; i ++)
         s->rx_fifo[i] = qemu_get_byte(f);
 
+    pxa2xx_fir_update_handlers(s);
+
     return 0;
 }
 
@@ -2040,8 +2068,6 @@ static PXA2xxFIrState *pxa2xx_fir_init(target_phys_addr_t base,
 
     if (chr) {
         qemu_chr_fe_open(chr);
-        qemu_chr_add_handlers(chr, pxa2xx_fir_is_empty,
-                        pxa2xx_fir_rx, pxa2xx_fir_event, s);
     }
 
     register_savevm(NULL, "pxa2xx_fir", 0, 0, pxa2xx_fir_save,
