@@ -234,8 +234,8 @@ struct SerialState {
 #define R_EXTINT 15
 
 static void handle_kbd_command(ChannelState *s, int val);
-static int serial_can_receive(void *opaque);
 static void serial_receive_byte(ChannelState *s, int ch);
+static void serial_update_handlers(void *opaque);
 
 static void clear_queue(void *opaque)
 {
@@ -331,6 +331,7 @@ static void escc_reset_chn(ChannelState *s)
     s->rxint_under_svc = s->txint_under_svc = 0;
     s->e0_mode = s->led_mode = s->caps_lock_mode = s->num_lock_mode = 0;
     clear_queue(s);
+    serial_update_handlers(s);
 }
 
 static void escc_reset(DeviceState *d)
@@ -538,6 +539,7 @@ static void escc_mem_write(void *opaque, target_phys_addr_t addr,
         case W_MISC1 ... W_CLOCK:
         case W_MISC2 ... W_EXTINT:
             s->wregs[s->reg] = val;
+            serial_update_handlers(s);
             break;
         case W_TXCTRL1:
         case W_TXCTRL2:
@@ -586,6 +588,7 @@ static void escc_mem_write(void *opaque, target_phys_addr_t addr,
         }
         s->rregs[R_STATUS] |= STATUS_TXEMPTY; // Tx buffer empty
         s->rregs[R_SPEC] |= SPEC_ALLSENT; // All sent
+        serial_update_handlers(s);
         set_txint(s);
         break;
     default:
@@ -620,8 +623,7 @@ static uint64_t escc_mem_read(void *opaque, target_phys_addr_t addr,
         else
             ret = s->rx;
         SER_DPRINTF("Read channel %c, ch %d\n", CHN_C(s), ret);
-        if (s->chr)
-            qemu_chr_accept_input(s->chr);
+        serial_update_handlers(s);
         return ret;
     default:
         break;
@@ -639,9 +641,8 @@ static const MemoryRegionOps escc_mem_ops = {
     },
 };
 
-static int serial_can_receive(void *opaque)
+static int serial_can_receive(ChannelState *s)
 {
-    ChannelState *s = opaque;
     int ret;
 
     if (((s->wregs[W_RXCTRL] & RXCTRL_RXEN) == 0) // Rx not enabled
@@ -659,17 +660,18 @@ static void serial_receive_byte(ChannelState *s, int ch)
     s->rregs[R_STATUS] |= STATUS_RXAV;
     s->rx = ch;
     set_rxint(s);
+    serial_update_handlers(s);
 }
 
 static void serial_receive_break(ChannelState *s)
 {
     s->rregs[R_STATUS] |= STATUS_BRK;
+    serial_update_handlers(s);
     escc_update_irq(s);
 }
 
-static void serial_receive1(void *opaque, const uint8_t *buf, int size)
+static void serial_receive1(ChannelState *s, const uint8_t *buf, int size)
 {
-    ChannelState *s = opaque;
     serial_receive_byte(s, buf[0]);
 }
 
@@ -679,6 +681,18 @@ static void serial_event(void *opaque, int event)
     if (event == CHR_EVENT_BREAK)
         serial_receive_break(s);
 }
+
+static CPUReadMemoryFunc * const escc_mem_read[3] = {
+    escc_mem_readb,
+    NULL,
+    NULL,
+};
+
+static CPUWriteMemoryFunc * const escc_mem_write[3] = {
+    escc_mem_writeb,
+    NULL,
+    NULL,
+};
 
 static const VMStateDescription vmstate_escc_chn = {
     .name ="escc_chn",
@@ -911,8 +925,7 @@ static int escc_init1(SysBusDevice *dev)
         s->chn[i].clock = s->frequency / 2;
         if (s->chn[i].chr) {
             qemu_chr_fe_open(s->chn[i].chr);
-            qemu_chr_add_handlers(s->chn[i].chr, serial_can_receive,
-                                  serial_receive1, serial_event, &s->chn[i]);
+            serial_update_handlers(&s->chn[i]);
         }
     }
     s->chn[0].otherchn = &s->chn[1];
