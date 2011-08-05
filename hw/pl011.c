@@ -45,6 +45,8 @@ static const unsigned char pl011_id_arm[8] =
 static const unsigned char pl011_id_luminary[8] =
   { 0x11, 0x00, 0x18, 0x01, 0x0d, 0xf0, 0x05, 0xb1 };
 
+static void pl011_update_handlers(pl011_state *s);
+
 static void pl011_update(pl011_state *s)
 {
     uint32_t flags;
@@ -69,6 +71,7 @@ static uint32_t pl011_read(void *opaque, target_phys_addr_t offset)
             s->read_count--;
             if (++s->read_pos == 16)
                 s->read_pos = 0;
+            pl011_update_handlers(s);
         }
         if (s->read_count == 0) {
             s->flags |= PL011_FLAG_RXFE;
@@ -154,6 +157,7 @@ static void pl011_write(void *opaque, target_phys_addr_t offset,
         break;
     case 11: /* UARTLCR_H */
         s->lcr = value;
+        pl011_update_handlers(s);
         pl011_set_read_trigger(s);
         break;
     case 12: /* UARTCR */
@@ -182,19 +186,16 @@ static void pl011_write(void *opaque, target_phys_addr_t offset,
     }
 }
 
-static int pl011_can_receive(void *opaque)
+static int pl011_can_receive(pl011_state *s)
 {
-    pl011_state *s = (pl011_state *)opaque;
-
     if (s->lcr & 0x10)
         return s->read_count < 16;
     else
         return s->read_count < 1;
 }
 
-static void pl011_put_fifo(void *opaque, uint32_t value)
+static void pl011_put_fifo(pl011_state *s, uint32_t value)
 {
-    pl011_state *s = (pl011_state *)opaque;
     int slot;
 
     slot = s->read_pos + s->read_count;
@@ -210,17 +211,41 @@ static void pl011_put_fifo(void *opaque, uint32_t value)
         s->int_level |= PL011_INT_RX;
         pl011_update(s);
     }
+    pl011_update_handlers(s);
 }
 
-static void pl011_receive(void *opaque, const uint8_t *buf, int size)
+static void pl011_receive(pl011_state *s, const uint8_t *buf, int size)
 {
-    pl011_put_fifo(opaque, *buf);
+    pl011_put_fifo(s, *buf);
 }
 
 static void pl011_event(void *opaque, int event)
 {
     if (event == CHR_EVENT_BREAK)
         pl011_put_fifo(opaque, 0x400);
+}
+
+static void pl011_receive_handler(void *opaque)
+{
+    pl011_state *s = opaque;
+    uint8_t buf[32];
+    int size;
+
+    size = pl011_can_receive(s);
+    size = MIN(size, sizeof(buf));
+    size = qemu_chr_fe_read(s->chr, buf, size);
+
+    pl011_receive(s, buf, size);
+}
+
+static void pl011_update_handlers(pl011_state *s)
+{
+    if (pl011_can_receive(s) > 0) {
+        qemu_chr_fe_set_handlers(s->chr, pl011_receive_handler, NULL,
+                                 pl011_event, s);
+    } else {
+        qemu_chr_fe_set_handlers(s->chr, NULL, NULL, pl011_event, s);
+    }
 }
 
 static CPUReadMemoryFunc * const pl011_readfn[] = {
@@ -279,8 +304,7 @@ static int pl011_init(SysBusDevice *dev, const unsigned char *id)
     s->flags = 0x90;
     if (s->chr) {
         qemu_chr_fe_open(s->chr);
-        qemu_chr_add_handlers(s->chr, pl011_can_receive, pl011_receive,
-                              pl011_event, s);
+        pl011_update_handlers(s);
     }
     vmstate_register(&dev->qdev, -1, &vmstate_pl011, s);
     return 0;
