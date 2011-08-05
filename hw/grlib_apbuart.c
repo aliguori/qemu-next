@@ -78,19 +78,19 @@ typedef struct UART {
     uint32_t control;
 } UART;
 
-static int grlib_apbuart_can_receive(void *opaque)
-{
-    UART *uart = opaque;
+static void grlib_apbuart_update_handlers(UART *uart);
 
+static int grlib_apbuart_can_receive(UART *uart)
+{
     return !!(uart->status & UART_DATA_READY);
 }
 
-static void grlib_apbuart_receive(void *opaque, const uint8_t *buf, int size)
+static void grlib_apbuart_receive(UART *uart, const uint8_t *buf, int size)
 {
-    UART *uart = opaque;
-
     uart->receive  = *buf;
     uart->status  |= UART_DATA_READY;
+
+    grlib_apbuart_update_handlers(uart);
 
     if (uart->control & UART_RECEIVE_INTERRUPT) {
         qemu_irq_pulse(uart->irq);
@@ -100,6 +100,36 @@ static void grlib_apbuart_receive(void *opaque, const uint8_t *buf, int size)
 static void grlib_apbuart_event(void *opaque, int event)
 {
     trace_grlib_apbuart_event(event);
+}
+
+static void grlib_apbuart_receive_handler(void *opaque)
+{
+    UART *uart = opaque;
+    uint8_t buf[32];
+    int size;
+
+    size = grlib_apbuart_can_receive(uart);
+    size = MIN(size, sizeof(buf));
+    size = qemu_chr_fe_read(uart->chr, buf, size);
+
+    grlib_apbuart_receive(uart, buf, size);
+}
+
+static void grlib_apbuart_update_handlers(UART *uart)
+{
+    if (grlib_apbuart_can_receive(uart) > 0) {
+        qemu_chr_fe_set_handlers(uart->chr,
+                                 grlib_apbuart_receive_handler,
+                                 NULL,
+                                 grlib_apbuart_event,
+                                 uart);
+    } else {
+        qemu_chr_fe_set_handlers(uart->chr,
+                                 NULL,
+                                 NULL,
+                                 grlib_apbuart_event,
+                                 uart);
+    }
 }
 
 static void
@@ -150,11 +180,7 @@ static int grlib_apbuart_init(SysBusDevice *dev)
     int   uart_regs = 0;
 
     qemu_chr_fe_open(uart->chr);
-    qemu_chr_add_handlers(uart->chr,
-                          grlib_apbuart_can_receive,
-                          grlib_apbuart_receive,
-                          grlib_apbuart_event,
-                          uart);
+    grlib_apbuart_update_handlers(uart);
 
     sysbus_init_irq(dev, &uart->irq);
 
