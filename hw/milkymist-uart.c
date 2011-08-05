@@ -105,22 +105,18 @@ static CPUWriteMemoryFunc * const uart_write_fn[] = {
     &uart_write,
 };
 
-static void uart_rx(void *opaque, const uint8_t *buf, int size)
+static void uart_rx(void *opaque)
 {
     MilkymistUartState *s = opaque;
+    uint8_t buf[1];
 
-    s->regs[R_RXTX] = *buf;
+    if (qemu_chr_fe_read(s->chr, buf, 1) == 0) {
+        return;
+    }
+
+    s->regs[R_RXTX] = buf[0];
     trace_milkymist_uart_pulse_irq_rx();
     qemu_irq_pulse(s->rx_irq);
-}
-
-static int uart_can_rx(void *opaque)
-{
-    return 1;
-}
-
-static void uart_event(void *opaque, int event)
-{
 }
 
 static void milkymist_uart_reset(DeviceState *d)
@@ -148,7 +144,7 @@ static int milkymist_uart_init(SysBusDevice *dev)
     s->chr = qdev_init_chardev(&dev->qdev);
     if (s->chr) {
         qemu_chr_fe_open(s->chr);
-        qemu_chr_add_handlers(s->chr, uart_can_rx, uart_rx, uart_event, s);
+        qemu_chr_fe_set_handlers(s->chr, uart_rx, NULL, NULL, s);
     }
 
     return 0;
