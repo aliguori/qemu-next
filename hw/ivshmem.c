@@ -46,6 +46,7 @@ typedef struct Peer {
 typedef struct EventfdEntry {
     PCIDevice *pdev;
     int vector;
+    CharDriverState *chr;
 } EventfdEntry;
 
 typedef struct IVShmemState {
@@ -244,18 +245,15 @@ static const MemoryRegionOps ivshmem_mmio_ops = {
     },
 };
 
-static void ivshmem_receive(void *opaque, const uint8_t *buf, int size)
+static void ivshmem_receive(void *opaque)
 {
     IVShmemState *s = opaque;
-
+    uint8_t buf[8];
+    
+    qemu_chr_fe_read(s->server_chr, buf, sizeof(buf));
     ivshmem_IntrStatus_write(s, *buf);
 
     IVSHMEM_DPRINTF("ivshmem_receive 0x%02x\n", *buf);
-}
-
-static int ivshmem_can_receive(void * opaque)
-{
-    return 8;
 }
 
 static void ivshmem_event(void *opaque, int event)
@@ -263,12 +261,15 @@ static void ivshmem_event(void *opaque, int event)
     IVSHMEM_DPRINTF("ivshmem_event %d\n", event);
 }
 
-static void fake_irqfd(void *opaque, const uint8_t *buf, int size) {
+static void fake_irqfd(void *opaque)
+{
 
     EventfdEntry *entry = opaque;
     PCIDevice *pdev = entry->pdev;
+    uint8_t buf[8];
 
     IVSHMEM_DPRINTF("interrupt on vector %p %d\n", pdev, entry->vector);
+    qemu_chr_fe_read(entry->chr, buf, sizeof(buf));
     msix_notify(pdev, entry->vector);
 }
 
@@ -291,12 +292,13 @@ static CharDriverState* create_eventfd_chr_device(void * opaque, int eventfd,
     if (ivshmem_has_feature(s, IVSHMEM_MSI)) {
         s->eventfd_table[vector].pdev = &s->dev;
         s->eventfd_table[vector].vector = vector;
+        s->eventfd_table[vector].chr = chr;
 
-        qemu_chr_add_handlers(chr, ivshmem_can_receive, fake_irqfd,
-                      ivshmem_event, &s->eventfd_table[vector]);
+        qemu_chr_fe_set_handlers(chr, fake_irqfd, NULL, ivshmem_event,
+                                 &s->eventfd_table[vector]);
     } else {
-        qemu_chr_add_handlers(chr, ivshmem_can_receive, ivshmem_receive,
-                      ivshmem_event, s);
+        qemu_chr_fe_set_handlers(chr, ivshmem_receive, NULL,
+                                 ivshmem_event, s);
     }
 
     return chr;
@@ -393,12 +395,15 @@ static void increase_dynamic_storage(IVShmemState *s, int new_min_size) {
     }
 }
 
-static void ivshmem_read(void *opaque, const uint8_t * buf, int flags)
+static void ivshmem_read(void *opaque)
 {
     IVShmemState *s = opaque;
     int incoming_fd, tmp_fd;
     int guest_max_eventfd;
     long incoming_posn;
+    uint8_t buf[8];
+
+    qemu_chr_fe_read(s->server_chr, buf, sizeof(buf));
 
     memcpy(&incoming_posn, buf, sizeof(long));
     /* pick off s->server_chr->msgfd and store it, posn should accompany msg */
@@ -700,8 +705,8 @@ static int pci_ivshmem_init(PCIDevice *dev)
         s->eventfd_chr = qemu_mallocz(s->vectors * sizeof(CharDriverState *));
 
         qemu_chr_fe_open(s->server_chr);
-        qemu_chr_add_handlers(s->server_chr, ivshmem_can_receive, ivshmem_read,
-                     ivshmem_event, s);
+        qemu_chr_fe_set_handlers(s->server_chr, ivshmem_read, NULL,
+                                 ivshmem_event, s);
     } else {
         /* just map the file immediately, we're not using a server */
         int fd;
