@@ -633,8 +633,11 @@ static int slirp_guestfwd(SlirpState *s, const char *config_str,
     fwd->port = port;
     fwd->slirp = s->slirp;
 
+#if 0
+    /* FIXME */
     qemu_chr_add_handlers(fwd->hd, guestfwd_can_read, guestfwd_read,
                           NULL, fwd);
+#endif
     return 0;
 
  fail_syntax:
