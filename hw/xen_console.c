@@ -128,17 +128,17 @@ static int xencons_can_receive(void *opaque)
     return ring_free_bytes(con);
 }
 
-static void xencons_receive(void *opaque, const uint8_t *buf, int len)
+static void xencons_receive(void *opaque)
 {
     struct XenConsole *con = opaque;
     struct xencons_interface *intf = con->sring;
     XENCONS_RING_IDX prod;
-    int i, max;
+    uint8_t buf[1024];
+    int i, max, len;
 
     max = ring_free_bytes(con);
-    /* The can_receive() func limits this, but check again anyway */
-    if (max < len)
-	len = max;
+    max = MIN(max, sizeof(buf));
+    len = qemu_chr_fe_read(con->chr, buf, max);
 
     prod = intf->in_prod;
     for (i = 0; i < len; i++) {
@@ -148,6 +148,16 @@ static void xencons_receive(void *opaque, const uint8_t *buf, int len)
     xen_wmb();
     intf->in_prod = prod;
     xen_be_send_notify(&con->xendev);
+}
+
+static void xencons_update_handlers(struct XenConsole *con)
+{
+    if (xencons_can_receive(con) > 0) {
+        qemu_chr_fe_set_handlers(con->chr, xencons_receive,
+                                 NULL, NULL, con);
+    } else {
+        qemu_chr_fe_set_handlers(con->chr, NULL, NULL, NULL, con);
+    }
 }
 
 static void xencons_send(struct XenConsole *con)
@@ -234,8 +244,7 @@ static int con_connect(struct XenDevice *xendev)
     xen_be_bind_evtchn(&con->xendev);
     if (con->chr) {
         qemu_chr_fe_open(con->chr);
-        qemu_chr_add_handlers(con->chr, xencons_can_receive, xencons_receive,
-                              NULL, con);
+        xencons_update_handlers(con);
     }
 
     xen_be_printf(xendev, 1, "ring mfn %d, remote port %d, local port %d, limit %zd\n",
@@ -251,7 +260,7 @@ static void con_disconnect(struct XenDevice *xendev)
     struct XenConsole *con = container_of(xendev, struct XenConsole, xendev);
 
     if (con->chr) {
-        qemu_chr_add_handlers(con->chr, NULL, NULL, NULL, NULL);
+        qemu_chr_fe_set_handlers(con->chr, NULL, NULL, NULL, NULL);
         qemu_chr_fe_close(con->chr);
     }
     xen_be_unbind_evtchn(&con->xendev);
@@ -269,6 +278,7 @@ static void con_event(struct XenDevice *xendev)
     buffer_append(con);
     if (con->buffer.size - con->buffer.consumed)
 	xencons_send(con);
+    xencons_update_handlers(con);
 }
 
 /* -------------------------------------------------------------------- */
