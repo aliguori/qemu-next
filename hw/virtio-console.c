@@ -20,6 +20,7 @@ typedef struct VirtConsole {
     CharDriverState *chr;
 } VirtConsole;
 
+static void virtconsole_update_handlers(VirtConsole *vcon);
 
 /* Callback function that's called when the guest sends us data */
 static ssize_t flush_buf(VirtIOSerialPort *port, const uint8_t *buf, size_t len)
@@ -53,6 +54,7 @@ static void guest_open(VirtIOSerialPort *port)
     VirtConsole *vcon = DO_UPCAST(VirtConsole, port, port);
 
     qemu_chr_fe_open(vcon->chr);
+    virtconsole_update_handlers(vcon);
 }
 
 /* Callback function that's called when the guest closes the port */
@@ -63,18 +65,16 @@ static void guest_close(VirtIOSerialPort *port)
     qemu_chr_fe_close(vcon->chr);
 }
 
-/* Readiness of the guest to accept data on a port */
-static int chr_can_read(void *opaque)
-{
-    VirtConsole *vcon = opaque;
-
-    return virtio_serial_guest_ready(&vcon->port);
-}
-
 /* Send data from a char device over to the guest */
-static void chr_read(void *opaque, const uint8_t *buf, int size)
+static void chr_read_handler(void *opaque)
 {
     VirtConsole *vcon = opaque;
+    uint8_t buf[4096];
+    int size;
+
+    size = virtio_serial_guest_ready(&vcon->port);
+    size = MIN(size, sizeof(buf));
+    size = qemu_chr_fe_read(vcon->chr, buf, size);
 
     trace_virtio_console_chr_read(vcon->port.id, size);
     virtio_serial_write(&vcon->port, buf, size);
@@ -95,6 +95,17 @@ static void chr_event(void *opaque, int event)
     }
 }
 
+static void virtconsole_update_handlers(VirtConsole *vcon)
+{
+    if (virtio_serial_guest_ready(&vcon->port) > 0) {
+        qemu_chr_fe_set_handlers(vcon->chr, chr_read_handler, NULL, chr_event,
+                                 vcon);
+    } else {
+        qemu_chr_fe_set_handlers(vcon->chr, NULL, NULL, chr_event,
+                                 vcon);
+    }
+}
+
 static int virtconsole_initfn(VirtIOSerialPort *port)
 {
     VirtConsole *vcon = DO_UPCAST(VirtConsole, port, port);
@@ -107,8 +118,7 @@ static int virtconsole_initfn(VirtIOSerialPort *port)
     }
 
     if (vcon->chr) {
-        qemu_chr_add_handlers(vcon->chr, chr_can_read, chr_read, chr_event,
-                              vcon);
+        /* FIXME we need a notifier for when guest ready changes */
         info->have_data = flush_buf;
         info->guest_open = guest_open;
         info->guest_close = guest_close;
@@ -122,11 +132,7 @@ static int virtconsole_exitfn(VirtIOSerialPort *port)
     VirtConsole *vcon = DO_UPCAST(VirtConsole, port, port);
 
     if (vcon->chr) {
-	/*
-	 * Instead of closing the chardev, free it so it can be used
-	 * for other purposes.
-	 */
-	qemu_chr_add_handlers(vcon->chr, NULL, NULL, NULL, NULL);
+        qemu_chr_fe_close(vcon->chr);
     }
 
     return 0;
