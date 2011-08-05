@@ -47,6 +47,8 @@ struct LM32JuartState {
 };
 typedef struct LM32JuartState LM32JuartState;
 
+static void juart_update_handlers(LM32JuartState *s);
+
 uint32_t lm32_juart_get_jtx(DeviceState *d)
 {
     LM32JuartState *s = container_of(d, LM32JuartState, busdev.qdev);
@@ -82,24 +84,44 @@ void lm32_juart_set_jrx(DeviceState *d, uint32_t jtx)
 
     trace_lm32_juart_set_jrx(s->jrx);
     s->jrx &= ~JRX_FULL;
+    juart_update_handlers(s);
 }
 
-static void juart_rx(void *opaque, const uint8_t *buf, int size)
+static void juart_rx(LM32JuartState *s, const uint8_t *buf, int size)
 {
-    LM32JuartState *s = opaque;
-
     s->jrx = *buf | JRX_FULL;
+    juart_update_handlers(s);
 }
 
-static int juart_can_rx(void *opaque)
+static int juart_can_rx(LM32JuartState *s)
 {
-    LM32JuartState *s = opaque;
-
     return !(s->jrx & JRX_FULL);
 }
 
 static void juart_event(void *opaque, int event)
 {
+}
+
+static void juart_rx_handler(void *opaque)
+{
+    LM32JuartState *s = opaque;
+    uint8_t buf[32];
+    int size;
+
+    size = juart_can_rx(s);
+    size = MIN(size, sizeof(buf));
+    size = qemu_chr_fe_read(s->chr, buf, size);
+
+    juart_rx(s, buf, size);
+}
+
+static void juart_update_handlers(LM32JuartState *s)
+{
+    if (juart_can_rx(s) > 0) {
+        qemu_chr_fe_set_handlers(s->chr, juart_rx_handler, NULL, juart_event, s);
+    } else {
+        qemu_chr_fe_set_handlers(s->chr, NULL, NULL, juart_event, s);
+    }
 }
 
 static void juart_reset(DeviceState *d)
@@ -108,6 +130,7 @@ static void juart_reset(DeviceState *d)
 
     s->jtx = 0;
     s->jrx = 0;
+    juart_update_handlers(s);
 }
 
 static int lm32_juart_init(SysBusDevice *dev)
@@ -117,7 +140,7 @@ static int lm32_juart_init(SysBusDevice *dev)
     s->chr = qdev_init_chardev(&dev->qdev);
     if (s->chr) {
         qemu_chr_fe_open(s->chr);
-        qemu_chr_add_handlers(s->chr, juart_can_rx, juart_rx, juart_event, s);
+        juart_update_handlers(s);
     }
 
     return 0;
