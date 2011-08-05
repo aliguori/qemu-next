@@ -2673,16 +2673,13 @@ void gdbserver_fork(CPUState *env)
     cpu_watchpoint_remove_all(env, BP_GDB);
 }
 #else
-static int gdb_chr_can_receive(void *opaque)
+static void gdb_chr_receive(void *opaque)
 {
-  /* We can handle an arbitrarily large amount of data.
-   Pick the maximum packet size, which is as good as anything.  */
-  return MAX_PACKET_LENGTH;
-}
-
-static void gdb_chr_receive(void *opaque, const uint8_t *buf, int size)
-{
+    uint8_t buf[MAX_PACKET_LENGTH];
+    int size;
     int i;
+
+    size = qemu_chr_fe_read(gdbserver_state->chr, buf, sizeof(buf));
 
     for (i = 0; i < size; i++) {
         gdb_read_byte(gdbserver_state, buf[i]);
@@ -2769,8 +2766,8 @@ int gdbserver_start(const char *device)
             return -1;
 
         qemu_chr_fe_open(chr);
-        qemu_chr_add_handlers(chr, gdb_chr_can_receive, gdb_chr_receive,
-                              gdb_chr_event, NULL);
+        qemu_chr_fe_set_handlers(chr, gdb_chr_receive, NULL,
+                                 gdb_chr_event, NULL);
     }
 
     s = gdbserver_state;
