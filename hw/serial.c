@@ -539,10 +539,6 @@ static uint32_t serial_ioport_read(void *opaque, uint32_t addr)
             }
             serial_update_handlers(s);
             serial_update_irq(s);
-            if (!(s->mcr & UART_MCR_LOOP)) {
-                /* in loopback mode, don't receive any data */
-                qemu_chr_accept_input(s->chr);
-            }
         }
         break;
     case 1:

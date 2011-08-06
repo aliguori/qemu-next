@@ -215,6 +215,7 @@ static const uint8_t nabcc_translation[256] = {
     [BRLAPI_DOTS(0,0,0,1,1,1,0,0)] = '_',
 };
 
+#if 0
 /* The serial port can receive more of our data */
 static void baum_accept_input(struct CharDriverState *chr)
 {
@@ -240,6 +241,7 @@ static void baum_accept_input(struct CharDriverState *chr)
     baum->out_buf_ptr += room;
     baum->out_buf_used -= room;
 }
+#endif
 
 /* We want to send a packet */
 static void baum_write_packet(BaumDriverState *baum, const uint8_t *buf, int len)
@@ -592,7 +594,6 @@ int chr_baum_init(QemuOpts *opts, CharDriverState **_chr)
     chr->opaque = baum;
     chr->chr_write = baum_write;
     chr->chr_send_event = baum_send_event;
-    chr->chr_accept_input = baum_accept_input;
     chr->chr_close = baum_close;
 
     handle = qemu_mallocz(brlapi_getHandleSize());

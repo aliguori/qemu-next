@@ -337,12 +337,6 @@ int qemu_chr_add_client(CharDriverState *s, int fd)
     return s->chr_add_client ? s->chr_add_client(s, fd) : -1;
 }
 
-void qemu_chr_accept_input(CharDriverState *s)
-{
-    if (s->chr_accept_input)
-        s->chr_accept_input(s);
-}
-
 void qemu_chr_printf(CharDriverState *s, const char *fmt, ...)
 {
     char buf[READ_BUF_LEN];

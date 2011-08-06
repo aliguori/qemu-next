@@ -73,7 +73,6 @@ struct CharDriverState {
     void *handler_opaque;
     void (*chr_send_event)(struct CharDriverState *chr, int event);
     void (*chr_close)(struct CharDriverState *chr);
-    void (*chr_accept_input)(struct CharDriverState *chr);
     void (*chr_set_echo)(struct CharDriverState *chr, bool echo);
     void (*chr_guest_open)(struct CharDriverState *chr);
     void (*chr_guest_close)(struct CharDriverState *chr);
@@ -117,7 +116,6 @@ int qemu_chr_be_can_write(CharDriverState *s);
 int qemu_chr_be_write(CharDriverState *s, uint8_t *buf, int len);
 int qemu_chr_be_read(CharDriverState *s, uint8_t *buf, int len);
 int qemu_chr_fe_get_msgfd(CharDriverState *s);
-void qemu_chr_accept_input(CharDriverState *s);
 int qemu_chr_add_client(CharDriverState *s, int fd);
 void qemu_chr_info_print(Monitor *mon, const QObject *ret_data);
 void qemu_chr_info(Monitor *mon, QObject **ret_data);
