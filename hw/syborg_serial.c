@@ -270,11 +270,6 @@ static void syborg_serial_receive_handler(void *opaque)
     syborg_serial_receive(s, buf, size);
 }
 
-static void syborg_serial_event(void *opaque, int event)
-{
-    /* TODO: Report BREAK events?  */
-}
-
 static CPUReadMemoryFunc * const syborg_serial_readfn[] = {
      syborg_serial_read,
      syborg_serial_read,
@@ -310,9 +305,9 @@ static void syborg_serial_update_handlers(SyborgSerialState *s)
 {
     if (syborg_serial_can_receive(s)) {
         qemu_chr_fe_set_handlers(s->chr, syborg_serial_receive_handler,
-                                 NULL, syborg_serial_event, s);
+                                 NULL, NULL, s);
     } else {
-        qemu_chr_fe_set_handlers(s->chr, NULL, NULL, syborg_serial_event, s);
+        qemu_chr_fe_set_handlers(s->chr, NULL, NULL, NULL, s);
     }
 }
 
