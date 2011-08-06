@@ -1979,10 +1979,6 @@ static void pxa2xx_fir_rx(PXA2xxFIrState *s, const uint8_t *buf, int size)
     pxa2xx_fir_update(s);
 }
 
-static void pxa2xx_fir_event(void *opaque, int event)
-{
-}
-
 static void pxa2xx_fir_rx_handler(void *opaque)
 {
     PXA2xxFIrState *s = opaque;
@@ -1999,10 +1995,9 @@ static void pxa2xx_fir_rx_handler(void *opaque)
 static void pxa2xx_fir_update_handlers(PXA2xxFIrState *s)
 {
     if (pxa2xx_fir_can_rx(s) > 0) {
-        qemu_chr_fe_set_handlers(s->chr, pxa2xx_fir_rx_handler,
-                                 NULL, pxa2xx_fir_event, s);
+        qemu_chr_fe_set_handlers(s->chr, pxa2xx_fir_rx_handler, NULL, NULL, s);
     } else {
-        qemu_chr_fe_set_handlers(s->chr, NULL, NULL, pxa2xx_fir_event, s);
+        qemu_chr_fe_set_handlers(s->chr, NULL, NULL, NULL, s);
     }
 }
 
