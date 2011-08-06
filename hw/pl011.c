@@ -219,10 +219,11 @@ static void pl011_receive(pl011_state *s, const uint8_t *buf, int size)
     pl011_put_fifo(s, *buf);
 }
 
-static void pl011_event(void *opaque, int event)
+static int pl011_event(void *opaque, int event, void *data)
 {
     if (event == CHR_EVENT_BREAK)
         pl011_put_fifo(opaque, 0x400);
+    return 0;
 }
 
 static void pl011_receive_handler(void *opaque)
