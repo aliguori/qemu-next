@@ -1207,12 +1207,8 @@ static int add_graphics_client(Monitor *mon, const QDict *qdict, QObject **ret_d
 	return 0;
 #endif
     } else if ((s = qemu_chr_find(protocol)) != NULL) {
-	int fd = monitor_get_fd(mon, fdname);
-	if (qemu_chr_add_client(s, fd) < 0) {
-	    qerror_report(QERR_ADD_CLIENT_FAILED);
-	    return -1;
-	}
-	return 0;
+        qerror_report(QERR_ADD_CLIENT_FAILED);
+        return -1;
     }
 
     qerror_report(QERR_INVALID_PARAMETER, "protocol");

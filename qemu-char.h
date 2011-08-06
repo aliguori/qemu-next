@@ -67,7 +67,6 @@ struct CharDriverState {
     IOEventHandler *chr_ioctl;
     IOHandler *be_read;
     IOHandler *be_write;
-    int (*chr_add_client)(struct CharDriverState *chr, int fd);
     IOEventHandler *chr_event;
     IOHandler *fe_read;
     IOHandler *fe_write;
@@ -133,7 +132,6 @@ static inline void qemu_chr_fe_set_echo(CharDriverState *chr, bool echo)
     qemu_chr_fe_ioctl(chr, CHR_SET_ECHO, &echo);
 }
 
-int qemu_chr_add_client(CharDriverState *s, int fd);
 void qemu_chr_info_print(Monitor *mon, const QObject *ret_data);
 void qemu_chr_info(Monitor *mon, QObject **ret_data);
 CharDriverState *qemu_chr_find(const char *name);

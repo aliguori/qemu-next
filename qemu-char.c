@@ -327,11 +327,6 @@ int qemu_chr_fe_ioctl(CharDriverState *s, int cmd, void *arg)
     return s->chr_ioctl(s->opaque, cmd, arg);
 }
 
-int qemu_chr_add_client(CharDriverState *s, int fd)
-{
-    return s->chr_add_client ? s->chr_add_client(s, fd) : -1;
-}
-
 void qemu_chr_printf(CharDriverState *s, const char *fmt, ...)
 {
     char buf[READ_BUF_LEN];
@@ -482,6 +477,9 @@ static CharDriverState *qemu_chr_open_fd(int fd_in, int fd_out)
     chr->opaque = s;
     chr->chr_write = fd_chr_write;
     chr->chr_close = fd_chr_close;
+
+    qemu_set_fd_handler2(s->fd_in, fd_chr_read_poll,
+                         fd_chr_read, NULL, chr);
 
     qemu_chr_generic_open(chr);
 
@@ -1761,6 +1759,9 @@ static int qemu_chr_open_udp(QemuOpts *opts, CharDriverState **_chr)
     chr->chr_write = udp_chr_write;
     chr->chr_close = udp_chr_close;
 
+    qemu_set_fd_handler2(s->fd, udp_chr_read_poll,
+                         udp_chr_read, NULL, chr);
+
     *_chr = chr;
     return 0;
 
@@ -2128,7 +2129,6 @@ static int qemu_chr_open_socket(QemuOpts *opts, CharDriverState **_chr)
     chr->opaque = s;
     chr->chr_write = tcp_chr_write;
     chr->chr_close = tcp_chr_close;
-    chr->chr_add_client = tcp_chr_add_client;
     chr->chr_ioctl = tcp_chr_ioctl;
 
     if (is_listen) {
