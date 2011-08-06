@@ -320,7 +320,7 @@ int qemu_chr_be_read(CharDriverState *s, uint8_t *buf, int len)
     return ret;
 }
 
-int qemu_chr_ioctl(CharDriverState *s, int cmd, void *arg)
+int qemu_chr_fe_ioctl(CharDriverState *s, int cmd, void *arg)
 {
     if (!s->chr_ioctl)
         return -ENOTSUP;
