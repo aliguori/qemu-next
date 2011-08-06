@@ -1447,11 +1447,17 @@ void console_color_init(DisplayState *ds)
 static int n_text_consoles;
 static CharDriverState *text_consoles[128];
 
-static void text_console_set_echo(CharDriverState *chr, bool echo)
+static int text_console_ioctl(void *opaque, int cmd, void *data)
 {
-    TextConsole *s = chr->opaque;
+    TextConsole *s = opaque;
+    bool *pecho = data;
 
-    s->echo = echo;
+    if (cmd != CHR_SET_ECHO) {
+        return -ENOTSUP;
+    }
+
+    s->echo = *pecho;
+    return 0;
 }
 
 static void text_console_do_init(CharDriverState *chr, DisplayState *ds)
@@ -1553,7 +1559,7 @@ int text_console_init(QemuOpts *opts, CharDriverState **_chr)
     s->g_width = width;
     s->g_height = height;
     chr->opaque = s;
-    chr->chr_set_echo = text_console_set_echo;
+    chr->chr_ioctl = text_console_ioctl;
 
     *_chr = chr;
     return 0;

@@ -41,6 +41,7 @@ typedef struct {
 #define CHR_IOCTL_SERIAL_GET_TIOCM    19
 
 #define CHR_GET_MSGFD                 20
+#define CHR_SET_ECHO                  21
 
 #define CHR_TIOCM_CTS	0x020
 #define CHR_TIOCM_CAR	0x040
@@ -74,7 +75,6 @@ struct CharDriverState {
     void *handler_opaque;
     void (*chr_send_event)(struct CharDriverState *chr, int event);
     void (*chr_close)(struct CharDriverState *chr);
-    void (*chr_set_echo)(struct CharDriverState *chr, bool echo);
     void (*chr_guest_open)(struct CharDriverState *chr);
     void (*chr_guest_close)(struct CharDriverState *chr);
     void *opaque;
@@ -96,7 +96,7 @@ QemuOpts *qemu_chr_parse_compat(const char *label, const char *filename);
 CharDriverState *qemu_chr_open_opts(QemuOpts *opts,
                                     void (*init)(struct CharDriverState *s));
 CharDriverState *qemu_chr_open(const char *label, const char *filename, void (*init)(struct CharDriverState *s));
-void qemu_chr_fe_set_echo(struct CharDriverState *chr, bool echo);
+
 void qemu_chr_fe_open(struct CharDriverState *chr);
 void qemu_chr_fe_close(struct CharDriverState *chr);
 void qemu_chr_close(CharDriverState *chr);
@@ -128,6 +128,11 @@ static inline int qemu_chr_fe_get_msgfd(CharDriverState *s)
     }
 
     return ret;
+}
+
+static inline void qemu_chr_fe_set_echo(CharDriverState *chr, bool echo)
+{
+    qemu_chr_fe_ioctl(chr, CHR_SET_ECHO, &echo);
 }
 
 int qemu_chr_add_client(CharDriverState *s, int fd);
