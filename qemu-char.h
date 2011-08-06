@@ -40,6 +40,8 @@ typedef struct {
 #define CHR_IOCTL_SERIAL_SET_TIOCM    18
 #define CHR_IOCTL_SERIAL_GET_TIOCM    19
 
+#define CHR_GET_MSGFD                 20
+
 #define CHR_TIOCM_CTS	0x020
 #define CHR_TIOCM_CAR	0x040
 #define CHR_TIOCM_DSR	0x100
@@ -65,7 +67,6 @@ struct CharDriverState {
     IOHandler *be_read;
     IOHandler *be_write;
     void (*chr_update_read_handler)(struct CharDriverState *s);
-    int (*get_msgfd)(struct CharDriverState *s);
     int (*chr_add_client)(struct CharDriverState *chr, int fd);
     IOEventHandler *chr_event;
     IOHandler *fe_read;
@@ -115,7 +116,20 @@ void qemu_chr_generic_open(CharDriverState *s);
 int qemu_chr_be_can_write(CharDriverState *s);
 int qemu_chr_be_write(CharDriverState *s, uint8_t *buf, int len);
 int qemu_chr_be_read(CharDriverState *s, uint8_t *buf, int len);
-int qemu_chr_fe_get_msgfd(CharDriverState *s);
+
+static inline int qemu_chr_fe_get_msgfd(CharDriverState *s)
+{
+    int fd = -1;
+    int ret;
+
+    ret = qemu_chr_fe_ioctl(s, CHR_GET_MSGFD, &fd);
+    if (ret == 0) {
+        ret = fd;
+    }
+
+    return ret;
+}
+
 int qemu_chr_add_client(CharDriverState *s, int fd);
 void qemu_chr_info_print(Monitor *mon, const QObject *ret_data);
 void qemu_chr_info(Monitor *mon, QObject **ret_data);

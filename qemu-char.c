@@ -327,11 +327,6 @@ int qemu_chr_fe_ioctl(CharDriverState *s, int cmd, void *arg)
     return s->chr_ioctl(s->opaque, cmd, arg);
 }
 
-int qemu_chr_fe_get_msgfd(CharDriverState *s)
-{
-    return s->get_msgfd ? s->get_msgfd(s) : -1;
-}
-
 int qemu_chr_add_client(CharDriverState *s, int fd)
 {
     return s->chr_add_client ? s->chr_add_client(s, fd) : -1;
@@ -1883,12 +1878,25 @@ static void tcp_chr_process_IAC_bytes(CharDriverState *chr,
     *size = j;
 }
 
-static int tcp_get_msgfd(CharDriverState *chr)
+static int tcp_chr_ioctl(void *opaque, int cmd, void *data)
 {
-    TCPCharDriver *s = chr->opaque;
-    int fd = s->msgfd;
-    s->msgfd = -1;
-    return fd;
+    TCPCharDriver *s = opaque;
+    int ret;
+
+    switch (cmd) {
+    case CHR_GET_MSGFD: {
+        int *pfd = data;
+        *pfd = s->msgfd;
+        s->msgfd = -1;
+        ret = 0;
+        break;
+    }
+    default:
+        ret = -ENOTSUP;
+        break; 
+    }
+
+    return ret;
 }
 
 #ifndef _WIN32
@@ -2139,8 +2147,8 @@ static int qemu_chr_open_socket(QemuOpts *opts, CharDriverState **_chr)
     chr->opaque = s;
     chr->chr_write = tcp_chr_write;
     chr->chr_close = tcp_chr_close;
-    chr->get_msgfd = tcp_get_msgfd;
     chr->chr_add_client = tcp_chr_add_client;
+    chr->chr_ioctl = tcp_chr_ioctl;
 
     if (is_listen) {
         s->listen_fd = fd;
