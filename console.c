@@ -1187,7 +1187,7 @@ void kbd_put_keysym(int keysym)
         if (s->echo) {
             console_puts(s->chr, buf, q - buf);
         }
-        if (s->chr->chr_read) {
+        if (s->chr->opened) {
             qemu_fifo_write(&s->out_fifo, buf, q - buf);
             kbd_send_chars(s);
         }

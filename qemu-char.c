@@ -100,6 +100,8 @@
 
 #define READ_BUF_LEN 4096
 
+int term_escape_char = 0x01; /* ctrl-a is used for escape */
+
 /***********************************************************/
 /* character device */
 
@@ -294,8 +296,6 @@ int qemu_chr_be_write(CharDriverState *s, uint8_t *buf, int len)
             s->fe_read(s->handler_opaque);
         }
     }
-
-    qemu_chr_flush_be_tx(s);
 
     return ret;
 }

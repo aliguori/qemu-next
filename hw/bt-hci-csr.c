@@ -75,10 +75,8 @@ static inline void csrhci_fifo_wake(struct csrhci_s *s)
         return;
 
     /* XXX: Should wait for s->modem_state & CHR_TIOCM_RTS? */
-    if (s->chr.chr_can_read && s->chr.chr_can_read(s->chr.handler_opaque) &&
-                    s->chr.chr_read) {
-        s->chr.chr_read(s->chr.handler_opaque,
-                        s->outfifo + s->out_start ++, 1);
+    if (qemu_chr_be_can_write(&s->chr)) {
+        qemu_chr_be_write(&s->chr, s->outfifo + s->out_start ++, 1);
         s->out_len --;
         if (s->out_start >= s->out_size) {
             s->out_start = 0;

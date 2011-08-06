@@ -565,6 +565,7 @@ struct GuestFwd {
     Slirp *slirp;
 };
 
+#if 0
 static int guestfwd_can_read(void *opaque)
 {
     struct GuestFwd *fwd = opaque;
@@ -576,6 +577,7 @@ static void guestfwd_read(void *opaque, const uint8_t *buf, int size)
     struct GuestFwd *fwd = opaque;
     slirp_socket_recv(fwd->slirp, fwd->server, fwd->port, buf, size);
 }
+#endif
 
 static int slirp_guestfwd(SlirpState *s, const char *config_str,
                           int legacy_format)
