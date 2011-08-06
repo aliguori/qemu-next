@@ -324,7 +324,7 @@ int qemu_chr_ioctl(CharDriverState *s, int cmd, void *arg)
 {
     if (!s->chr_ioctl)
         return -ENOTSUP;
-    return s->chr_ioctl(s, cmd, arg);
+    return s->chr_ioctl(s->opaque, cmd, arg);
 }
 
 int qemu_chr_get_msgfd(CharDriverState *s)
@@ -1022,9 +1022,9 @@ static void tty_serial_init(int fd, int speed,
     tcsetattr (fd, TCSANOW, &tty);
 }
 
-static int tty_serial_ioctl(CharDriverState *chr, int cmd, void *arg)
+static int tty_serial_ioctl(void *opaque, int cmd, void *arg)
 {
-    FDCharDriver *s = chr->opaque;
+    FDCharDriver *s = opaque;
 
     switch(cmd) {
     case CHR_IOCTL_SERIAL_SET_PARAMS:
@@ -1147,9 +1147,9 @@ static int pp_hw_mode(ParallelCharDriver *s, uint16_t mode)
     return 1;
 }
 
-static int pp_ioctl(CharDriverState *chr, int cmd, void *arg)
+static int pp_ioctl(void *opaque, int cmd, void *arg)
 {
-    ParallelCharDriver *drv = chr->opaque;
+    ParallelCharDriver *drv = opaque;
     int fd = drv->fd;
     uint8_t b;
 
@@ -1275,9 +1275,9 @@ static int qemu_chr_open_pp(QemuOpts *opts, CharDriverState **_chr)
 #endif /* __linux__ */
 
 #if defined(__FreeBSD__) || defined(__FreeBSD_kernel__) || defined(__DragonFly__)
-static int pp_ioctl(CharDriverState *chr, int cmd, void *arg)
+static int pp_ioctl(void *opaque, int cmd, void *arg)
 {
-    int fd = (int)(intptr_t)chr->opaque;
+    int fd = (int)(intptr_t)opaque;
     uint8_t b;
 
     switch(cmd) {

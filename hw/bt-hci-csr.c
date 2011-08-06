@@ -351,10 +351,10 @@ static void csrhci_out_hci_packet_acl(void *opaque,
     csrhci_fifo_wake(s);
 }
 
-static int csrhci_ioctl(struct CharDriverState *chr, int cmd, void *arg)
+static int csrhci_ioctl(void *opaque, int cmd, void *arg)
 {
     QEMUSerialSetParams *ssp;
-    struct csrhci_s *s = (struct csrhci_s *) chr->opaque;
+    struct csrhci_s *s = opaque;
     int prev_state = s->modem_state;
 
     switch (cmd) {

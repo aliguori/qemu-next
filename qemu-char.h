@@ -16,9 +16,7 @@
 #define CHR_EVENT_MUX_IN  3 /* mux-focus was set to this terminal */
 #define CHR_EVENT_MUX_OUT 4 /* mux-focus will move on */
 #define CHR_EVENT_CLOSED  5 /* connection closed */
-
-
-#define CHR_IOCTL_SERIAL_SET_PARAMS   1
+#define CHR_IOCTL_SERIAL_SET_PARAMS   6
 typedef struct {
     int speed;
     int parity;
@@ -26,21 +24,21 @@ typedef struct {
     int stop_bits;
 } QEMUSerialSetParams;
 
-#define CHR_IOCTL_SERIAL_SET_BREAK    2
+#define CHR_IOCTL_SERIAL_SET_BREAK    7
 
-#define CHR_IOCTL_PP_READ_DATA        3
-#define CHR_IOCTL_PP_WRITE_DATA       4
-#define CHR_IOCTL_PP_READ_CONTROL     5
-#define CHR_IOCTL_PP_WRITE_CONTROL    6
-#define CHR_IOCTL_PP_READ_STATUS      7
-#define CHR_IOCTL_PP_EPP_READ_ADDR    8
-#define CHR_IOCTL_PP_EPP_READ         9
-#define CHR_IOCTL_PP_EPP_WRITE_ADDR  10
-#define CHR_IOCTL_PP_EPP_WRITE       11
-#define CHR_IOCTL_PP_DATA_DIR        12
+#define CHR_IOCTL_PP_READ_DATA        8
+#define CHR_IOCTL_PP_WRITE_DATA       9
+#define CHR_IOCTL_PP_READ_CONTROL     10
+#define CHR_IOCTL_PP_WRITE_CONTROL    11
+#define CHR_IOCTL_PP_READ_STATUS      12
+#define CHR_IOCTL_PP_EPP_READ_ADDR    13
+#define CHR_IOCTL_PP_EPP_READ         14
+#define CHR_IOCTL_PP_EPP_WRITE_ADDR   15
+#define CHR_IOCTL_PP_EPP_WRITE        16
+#define CHR_IOCTL_PP_DATA_DIR         17
 
-#define CHR_IOCTL_SERIAL_SET_TIOCM   13
-#define CHR_IOCTL_SERIAL_GET_TIOCM   14
+#define CHR_IOCTL_SERIAL_SET_TIOCM    18
+#define CHR_IOCTL_SERIAL_GET_TIOCM    19
 
 #define CHR_TIOCM_CTS	0x020
 #define CHR_TIOCM_CAR	0x040
@@ -63,10 +61,10 @@ typedef struct CharQueue
 struct CharDriverState {
     void (*init)(struct CharDriverState *s);
     int (*chr_write)(struct CharDriverState *s, const uint8_t *buf, int len);
+    IOEventHandler *chr_ioctl;
     IOHandler *be_read;
     IOHandler *be_write;
     void (*chr_update_read_handler)(struct CharDriverState *s);
-    int (*chr_ioctl)(struct CharDriverState *s, int cmd, void *arg);
     int (*get_msgfd)(struct CharDriverState *s);
     int (*chr_add_client)(struct CharDriverState *chr, int fd);
     IOEventHandler *chr_event;
