@@ -90,14 +90,14 @@ struct CharDriverState {
 };
 
 QemuOpts *qemu_chr_parse_compat(const char *label, const char *filename);
-CharDriverState *qemu_chr_open_opts(QemuOpts *opts,
+CharDriverState *qemu_chr_new_from_opts(QemuOpts *opts,
                                     void (*init)(struct CharDriverState *s));
-CharDriverState *qemu_chr_open(const char *label, const char *filename, void (*init)(struct CharDriverState *s));
+CharDriverState *qemu_chr_new(const char *label, const char *filename, void (*init)(struct CharDriverState *s));
 
 void qemu_chr_fe_open(struct CharDriverState *chr);
 void qemu_chr_fe_close(struct CharDriverState *chr);
-void qemu_chr_close(CharDriverState *chr);
-void qemu_chr_printf(CharDriverState *s, const char *fmt, ...)
+void qemu_chr_fe_delete(CharDriverState *chr);
+void qemu_chr_fe_printf(CharDriverState *s, const char *fmt, ...)
     GCC_FMT_ATTR(2, 3);
 int qemu_chr_fe_write(CharDriverState *s, const uint8_t *buf, int len);
 int qemu_chr_fe_read(CharDriverState *s, uint8_t *buf, int len);
@@ -109,10 +109,16 @@ void qemu_chr_fe_set_handlers(CharDriverState *s,
                               void *opaque);
 
 int qemu_chr_fe_ioctl(CharDriverState *s, int cmd, void *arg);
+
 void qemu_chr_generic_open(CharDriverState *s);
+
 int qemu_chr_be_can_write(CharDriverState *s);
 int qemu_chr_be_write(CharDriverState *s, uint8_t *buf, int len);
 int qemu_chr_be_read(CharDriverState *s, uint8_t *buf, int len);
+
+void qemu_chr_info_print(Monitor *mon, const QObject *ret_data);
+void qemu_chr_info(Monitor *mon, QObject **ret_data);
+CharDriverState *qemu_chr_find(const char *name);
 
 static inline int qemu_chr_fe_get_msgfd(CharDriverState *s)
 {
@@ -131,10 +137,6 @@ static inline void qemu_chr_fe_set_echo(CharDriverState *chr, bool echo)
 {
     qemu_chr_fe_ioctl(chr, CHR_SET_ECHO, &echo);
 }
-
-void qemu_chr_info_print(Monitor *mon, const QObject *ret_data);
-void qemu_chr_info(Monitor *mon, QObject **ret_data);
-CharDriverState *qemu_chr_find(const char *name);
 
 /* add an eventfd to the qemu devices that are polled */
 CharDriverState *qemu_chr_open_eventfd(int eventfd);

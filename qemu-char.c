@@ -327,7 +327,7 @@ int qemu_chr_fe_ioctl(CharDriverState *s, int cmd, void *arg)
     return s->chr_ioctl(s->opaque, cmd, arg);
 }
 
-void qemu_chr_printf(CharDriverState *s, const char *fmt, ...)
+void qemu_chr_fe_printf(CharDriverState *s, const char *fmt, ...)
 {
     char buf[READ_BUF_LEN];
     va_list ap;
@@ -2225,7 +2225,7 @@ QString *qemu_chr_mem_to_qs(CharDriverState *chr)
     return qstring_from_substr((char *) d->outbuf, 0, d->outbuf_size - 1);
 }
 
-/* NOTE: this driver can not be closed with qemu_chr_close()! */
+/* NOTE: this driver can not be closed with qemu_chr_fe_delete()! */
 void qemu_chr_close_mem(CharDriverState *chr)
 {
     MemoryDriver *d = chr->opaque;
@@ -2398,7 +2398,7 @@ static const struct {
 #endif
 };
 
-CharDriverState *qemu_chr_open_opts(QemuOpts *opts,
+CharDriverState *qemu_chr_new_from_opts(QemuOpts *opts,
                                     void (*init)(struct CharDriverState *s))
 {
     CharDriverState *chr;
@@ -2442,7 +2442,7 @@ CharDriverState *qemu_chr_open_opts(QemuOpts *opts,
     return chr;
 }
 
-CharDriverState *qemu_chr_open(const char *label, const char *filename, void (*init)(struct CharDriverState *s))
+CharDriverState *qemu_chr_new(const char *label, const char *filename, void (*init)(struct CharDriverState *s))
 {
     const char *p;
     CharDriverState *chr;
@@ -2456,7 +2456,7 @@ CharDriverState *qemu_chr_open(const char *label, const char *filename, void (*i
     if (!opts)
         return NULL;
 
-    chr = qemu_chr_open_opts(opts, init);
+    chr = qemu_chr_new_from_opts(opts, init);
     qemu_opts_del(opts);
     return chr;
 }
@@ -2479,7 +2479,7 @@ void qemu_chr_fe_close(struct CharDriverState *chr)
     chr->fe_opened--;
 }
 
-void qemu_chr_close(CharDriverState *chr)
+void qemu_chr_fe_delete(CharDriverState *chr)
 {
     QTAILQ_REMOVE(&chardevs, chr, next);
     if (chr->chr_close)

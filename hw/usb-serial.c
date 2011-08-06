@@ -433,7 +433,7 @@ static void usb_serial_handle_destroy(USBDevice *dev)
 {
     USBSerialState *s = (USBSerialState *)dev;
 
-    qemu_chr_close(s->cs);
+    qemu_chr_fe_delete(s->cs);
 }
 
 static int usb_serial_can_read(void *opaque)
@@ -569,7 +569,7 @@ static USBDevice *usb_serial_init(const char *filename)
     filename++;
 
     snprintf(label, sizeof(label), "usbserial%d", index++);
-    cdrv = qemu_chr_open(label, filename, NULL);
+    cdrv = qemu_chr_new(label, filename, NULL);
     if (!cdrv)
         return NULL;
 
@@ -592,7 +592,7 @@ static USBDevice *usb_braille_init(const char *unused)
     USBDevice *dev;
     CharDriverState *cdrv;
 
-    cdrv = qemu_chr_open("braille", "braille", NULL);
+    cdrv = qemu_chr_new("braille", "braille", NULL);
     if (!cdrv)
         return NULL;
 
