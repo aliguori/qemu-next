@@ -73,7 +73,6 @@ struct CharDriverState {
     IOHandler *fe_read;
     IOHandler *fe_write;
     void *handler_opaque;
-    void (*chr_send_event)(struct CharDriverState *chr, int event);
     void (*chr_close)(struct CharDriverState *chr);
     void (*chr_guest_open)(struct CharDriverState *chr);
     void (*chr_guest_close)(struct CharDriverState *chr);

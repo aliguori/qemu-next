@@ -1102,19 +1102,25 @@ static int console_puts(CharDriverState *chr, const uint8_t *buf, int len)
     return len;
 }
 
-static void console_send_event(CharDriverState *chr, int event)
+static int console_ioctl(void *opaque, int event, void *data)
 {
-    TextConsole *s = chr->opaque;
+    TextConsole *s = opaque;
     int i;
 
-    if (event == CHR_EVENT_FOCUS) {
-        for(i = 0; i < nb_consoles; i++) {
+    switch (event) {
+    case CHR_EVENT_FOCUS:
+        for (i = 0; i < nb_consoles; i++) {
             if (consoles[i] == s) {
                 console_select(i);
                 break;
             }
         }
+        return 0;
+    default:
+        break;
     }
+
+    return -ENOTSUP;
 }
 
 static void kbd_send_chars(void *opaque)
@@ -1453,7 +1459,7 @@ static int text_console_ioctl(void *opaque, int cmd, void *data)
     bool *pecho = data;
 
     if (cmd != CHR_SET_ECHO) {
-        return -ENOTSUP;
+        return console_ioctl(opaque, cmd, data);
     }
 
     s->echo = *pecho;
@@ -1468,7 +1474,7 @@ static void text_console_do_init(CharDriverState *chr, DisplayState *ds)
     s = chr->opaque;
 
     chr->chr_write = console_puts;
-    chr->chr_send_event = console_send_event;
+    chr->chr_ioctl = console_ioctl;
 
     s->out_fifo.buf = s->out_fifo_buf;
     s->out_fifo.buf_size = sizeof(s->out_fifo_buf);
