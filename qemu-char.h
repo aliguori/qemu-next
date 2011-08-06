@@ -67,7 +67,6 @@ struct CharDriverState {
     IOEventHandler *chr_ioctl;
     IOHandler *be_read;
     IOHandler *be_write;
-    void (*chr_update_read_handler)(struct CharDriverState *s);
     int (*chr_add_client)(struct CharDriverState *chr, int fd);
     IOEventHandler *chr_event;
     IOHandler *fe_read;

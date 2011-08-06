@@ -454,19 +454,6 @@ static void fd_chr_read(void *opaque)
     }
 }
 
-static void fd_chr_update_read_handler(CharDriverState *chr)
-{
-    FDCharDriver *s = chr->opaque;
-
-    if (s->fd_in >= 0) {
-        if (display_type == DT_NOGRAPHIC && s->fd_in == 0) {
-        } else {
-            qemu_set_fd_handler2(s->fd_in, fd_chr_read_poll,
-                                 fd_chr_read, NULL, chr);
-        }
-    }
-}
-
 static void fd_chr_close(struct CharDriverState *chr)
 {
     FDCharDriver *s = chr->opaque;
@@ -494,7 +481,6 @@ static CharDriverState *qemu_chr_open_fd(int fd_in, int fd_out)
     s->fd_out = fd_out;
     chr->opaque = s;
     chr->chr_write = fd_chr_write;
-    chr->chr_update_read_handler = fd_chr_update_read_handler;
     chr->chr_close = fd_chr_close;
 
     qemu_chr_generic_open(chr);
@@ -888,7 +874,6 @@ static int qemu_chr_open_pty(QemuOpts *opts, CharDriverState **_chr)
 
     chr->opaque = s;
     chr->chr_write = pty_chr_write;
-    chr->chr_update_read_handler = pty_chr_update_read_handler;
     chr->chr_close = pty_chr_close;
 
     s->timer = qemu_new_timer_ms(rt_clock, pty_chr_timer, chr);
@@ -1741,16 +1726,6 @@ static void udp_chr_read(void *opaque)
     }
 }
 
-static void udp_chr_update_read_handler(CharDriverState *chr)
-{
-    NetCharDriver *s = chr->opaque;
-
-    if (s->fd >= 0) {
-        qemu_set_fd_handler2(s->fd, udp_chr_read_poll,
-                             udp_chr_read, NULL, chr);
-    }
-}
-
 static void udp_chr_close(CharDriverState *chr)
 {
     NetCharDriver *s = chr->opaque;
@@ -1784,7 +1759,6 @@ static int qemu_chr_open_udp(QemuOpts *opts, CharDriverState **_chr)
     s->bufptr = 0;
     chr->opaque = s;
     chr->chr_write = udp_chr_write;
-    chr->chr_update_read_handler = udp_chr_update_read_handler;
     chr->chr_close = udp_chr_close;
 
     *_chr = chr;
