@@ -667,12 +667,13 @@ static void serial_receive2(void *opaque)
     serial_receive1(s, buf, max);
 }
 
-static void serial_event(void *opaque, int event)
+static int serial_event(void *opaque, int event, void *data)
 {
     SerialState *s = opaque;
     DPRINTF("event %x\n", event);
     if (event == CHR_EVENT_BREAK)
         serial_receive_break(s);
+    return 0;
 }
 
 static void serial_update_handlers(SerialState *s)

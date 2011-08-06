@@ -236,7 +236,7 @@ static void ccid_card_vscard_read(PassthruState *card, const uint8_t *buf, int s
     ccid_card_vscard_update_handlers(card);
 }
 
-static void ccid_card_vscard_event(void *opaque, int event)
+static int ccid_card_vscard_event(void *opaque, int event, void *data)
 {
     PassthruState *card = opaque;
 
@@ -251,6 +251,7 @@ static void ccid_card_vscard_event(void *opaque, int event)
         DPRINTF(card, D_INFO, "%s: CHR_EVENT_OPENED\n", __func__);
         break;
     }
+    return 0;
 }
 
 static void ccid_card_vscard_read_handler(void *opaque)

@@ -675,11 +675,12 @@ static void serial_receive1(ChannelState *s, const uint8_t *buf, int size)
     serial_receive_byte(s, buf[0]);
 }
 
-static void serial_event(void *opaque, int event)
+static int serial_event(void *opaque, int event, void *data)
 {
     ChannelState *s = opaque;
     if (event == CHR_EVENT_BREAK)
         serial_receive_break(s);
+    return 0;
 }
 
 static CPUReadMemoryFunc * const escc_mem_read[3] = {

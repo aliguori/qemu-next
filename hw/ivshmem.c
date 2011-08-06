@@ -256,9 +256,10 @@ static void ivshmem_receive(void *opaque)
     IVSHMEM_DPRINTF("ivshmem_receive 0x%02x\n", *buf);
 }
 
-static void ivshmem_event(void *opaque, int event)
+static int ivshmem_event(void *opaque, int event, void *data)
 {
     IVSHMEM_DPRINTF("ivshmem_event %d\n", event);
+    return 0;
 }
 
 static void fake_irqfd(void *opaque)

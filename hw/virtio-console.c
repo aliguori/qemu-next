@@ -80,7 +80,7 @@ static void chr_read_handler(void *opaque)
     virtio_serial_write(&vcon->port, buf, size);
 }
 
-static void chr_event(void *opaque, int event)
+static int chr_event(void *opaque, int event, void *data)
 {
     VirtConsole *vcon = opaque;
 
@@ -93,6 +93,8 @@ static void chr_event(void *opaque, int event)
         virtio_serial_close(&vcon->port);
         break;
     }
+
+    return 0;
 }
 
 static void virtconsole_update_handlers(VirtConsole *vcon)

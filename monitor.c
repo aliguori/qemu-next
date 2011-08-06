@@ -5189,7 +5189,7 @@ static QObject *get_qmp_greeting(void)
 /**
  * monitor_control_event(): Print QMP gretting
  */
-static void monitor_control_event(void *opaque, int event)
+static int monitor_control_event(void *opaque, int event, void *arg)
 {
     QObject *data;
     Monitor *mon = opaque;
@@ -5206,9 +5206,11 @@ static void monitor_control_event(void *opaque, int event)
         json_message_parser_destroy(&mon->mc->parser);
         break;
     }
+
+    return 0;
 }
 
-static void monitor_event(void *opaque, int event)
+static int monitor_event(void *opaque, int event, void *data)
 {
     Monitor *mon = opaque;
 
@@ -5246,6 +5248,8 @@ static void monitor_event(void *opaque, int event)
         mon->reset_seen = 1;
         break;
     }
+
+    return 0;
 }
 
 

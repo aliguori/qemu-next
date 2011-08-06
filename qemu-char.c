@@ -122,7 +122,7 @@ static void qemu_chr_event(CharDriverState *s, int event)
 
     if (!s->chr_event)
         return;
-    s->chr_event(s->handler_opaque, event);
+    s->chr_event(s->handler_opaque, event, NULL);
 }
 
 static void qemu_chr_generic_open_bh(void *opaque)

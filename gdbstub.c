@@ -2686,7 +2686,7 @@ static void gdb_chr_receive(void *opaque)
     }
 }
 
-static void gdb_chr_event(void *opaque, int event)
+static int gdb_chr_event(void *opaque, int event, void *data)
 {
     switch (event) {
     case CHR_EVENT_OPENED:
@@ -2696,6 +2696,8 @@ static void gdb_chr_event(void *opaque, int event)
     default:
         break;
     }
+
+    return 0;
 }
 
 static void gdb_monitor_output(GDBState *s, const char *msg, int len)

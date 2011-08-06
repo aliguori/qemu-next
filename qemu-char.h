@@ -49,7 +49,7 @@ typedef struct {
 #define CHR_TIOCM_DTR	0x002
 #define CHR_TIOCM_RTS	0x004
 
-typedef void IOEventHandler(void *opaque, int event);
+typedef int IOEventHandler(void *opaque, int event, void *data);
 
 #define MAX_CHAR_QUEUE_RING 1024
 

@@ -484,7 +484,7 @@ static void usb_serial_read_handler(void *opaque)
     usb_serial_read(s, buf, size);
 }
 
-static void usb_serial_event(void *opaque, int event)
+static int usb_serial_event(void *opaque, int event, void *data)
 {
     USBSerialState *s = opaque;
 
@@ -499,6 +499,8 @@ static void usb_serial_event(void *opaque, int event)
             /* TODO: Reset USB port */
             break;
     }
+
+    return 0;
 }
 
 static void usb_serial_update_handlers(USBSerialState *s)
