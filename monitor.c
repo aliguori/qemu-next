@@ -5287,7 +5287,7 @@ void monitor_init(CharDriverState *chr, int flags)
         /* Control mode requires special handlers */
         qemu_chr_fe_set_handlers(chr, monitor_control_read, NULL,
                                  monitor_control_event, mon);
-        qemu_chr_set_echo(chr, true);
+        qemu_chr_fe_set_echo(chr, true);
     } else {
         qemu_chr_fe_set_handlers(chr, monitor_read, NULL, monitor_event, mon);
     }

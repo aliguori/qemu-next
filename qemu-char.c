@@ -604,7 +604,7 @@ static void term_exit(void)
     fcntl(0, F_SETFL, old_fd0_flags);
 }
 
-static void qemu_chr_set_echo_stdio(CharDriverState *chr, bool echo)
+static void qemu_chr_fe_set_echo_stdio(CharDriverState *chr, bool echo)
 {
     struct termios tty;
 
@@ -651,12 +651,12 @@ static int qemu_chr_open_stdio(QemuOpts *opts, CharDriverState **_chr)
 
     chr = qemu_chr_open_fd(0, 1);
     chr->chr_close = qemu_chr_close_stdio;
-    chr->chr_set_echo = qemu_chr_set_echo_stdio;
+    chr->chr_set_echo = qemu_chr_fe_set_echo_stdio;
     qemu_set_fd_handler2(0, stdio_read_poll, stdio_read, NULL, chr);
     stdio_nb_clients++;
     stdio_allow_signal = qemu_opt_get_bool(opts, "signal",
                                            display_type != DT_NOGRAPHIC);
-    qemu_chr_set_echo(chr, false);
+    qemu_chr_fe_set_echo(chr, false);
 
     *_chr = chr;
     return 0;
@@ -2480,7 +2480,7 @@ CharDriverState *qemu_chr_open(const char *label, const char *filename, void (*i
     return chr;
 }
 
-void qemu_chr_set_echo(struct CharDriverState *chr, bool echo)
+void qemu_chr_fe_set_echo(struct CharDriverState *chr, bool echo)
 {
     if (chr->chr_set_echo) {
         chr->chr_set_echo(chr, echo);
