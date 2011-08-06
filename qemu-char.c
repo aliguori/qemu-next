@@ -327,7 +327,7 @@ int qemu_chr_ioctl(CharDriverState *s, int cmd, void *arg)
     return s->chr_ioctl(s->opaque, cmd, arg);
 }
 
-int qemu_chr_get_msgfd(CharDriverState *s)
+int qemu_chr_fe_get_msgfd(CharDriverState *s)
 {
     return s->get_msgfd ? s->get_msgfd(s) : -1;
 }
