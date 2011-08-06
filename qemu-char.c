@@ -353,12 +353,6 @@ void qemu_chr_printf(CharDriverState *s, const char *fmt, ...)
     va_end(ap);
 }
 
-void qemu_chr_send_event(CharDriverState *s, int event)
-{
-    if (s->chr_send_event)
-        s->chr_send_event(s, event);
-}
-
 static int null_chr_write(CharDriverState *chr, const uint8_t *buf, int len)
 {
     return len;

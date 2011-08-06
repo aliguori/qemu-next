@@ -104,7 +104,6 @@ void qemu_chr_printf(CharDriverState *s, const char *fmt, ...)
     GCC_FMT_ATTR(2, 3);
 int qemu_chr_fe_write(CharDriverState *s, const uint8_t *buf, int len);
 int qemu_chr_fe_read(CharDriverState *s, uint8_t *buf, int len);
-void qemu_chr_send_event(CharDriverState *s, int event);
 
 void qemu_chr_fe_set_handlers(CharDriverState *s,
                               IOHandler *chr_read,
