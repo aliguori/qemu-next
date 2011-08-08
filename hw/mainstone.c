@@ -91,7 +91,8 @@ static struct arm_boot_info mainstone_binfo = {
     .ram_size = 0x04000000,
 };
 
-static void mainstone_common_init(ram_addr_t ram_size,
+static void mainstone_common_init(MemoryRegion *address_space_mem,
+                ram_addr_t ram_size,
                 const char *kernel_filename,
                 const char *kernel_cmdline, const char *initrd_filename,
                 const char *cpu_model, enum mainstone_model_e model, int arm_id)
@@ -102,6 +103,7 @@ static void mainstone_common_init(ram_addr_t ram_size,
     DeviceState *mst_irq;
     DriveInfo *dinfo;
     int i;
+    MemoryRegion *rom = g_new(MemoryRegion, 1);
     MemoryRegion *flashes = g_new(MemoryRegion, 2);
     const MemoryRegionOps *flash_ops;
 
@@ -110,9 +112,9 @@ static void mainstone_common_init(ram_addr_t ram_size,
 
     /* Setup CPU & memory */
     cpu = pxa270_init(mainstone_binfo.ram_size, cpu_model);
-    cpu_register_physical_memory(0, MAINSTONE_ROM,
-                    qemu_ram_alloc(NULL, "mainstone.rom",
-                                   MAINSTONE_ROM) | IO_MEM_ROM);
+    memory_region_init_ram(rom, NULL, "mainstone.rom", MAINSTONE_ROM);
+    memory_region_set_readonly(rom, true);
+    memory_region_add_subregion(address_space_mem, 0, rom);
 
 #ifdef TARGET_WORDS_BIGENDIAN
     flash_ops = &pflash_cfi01_ops_be;
@@ -175,7 +177,7 @@ static void mainstone_init(MemoryRegion *address_space_mem,
                 const char *kernel_filename, const char *kernel_cmdline,
                 const char *initrd_filename, const char *cpu_model)
 {
-    mainstone_common_init(ram_size, kernel_filename,
+    mainstone_common_init(address_space_mem, ram_size, kernel_filename,
                 kernel_cmdline, initrd_filename, cpu_model, mainstone, 0x196);
 }
 
