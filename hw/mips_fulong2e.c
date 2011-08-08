@@ -15,6 +15,7 @@
  * http://www.loongsondeveloper.com/doc/Loongson2EUserGuide.pdf
  */
 
+#include <glib.h>
 #include "hw.h"
 #include "pc.h"
 #include "fdc.h"
@@ -258,7 +259,8 @@ static void mips_fulong2e_init(MemoryRegion *address_space_mem,
                         const char *initrd_filename, const char *cpu_model)
 {
     char *filename;
-    unsigned long ram_offset, bios_offset;
+    MemoryRegion *ram = g_new(MemoryRegion, 1);
+    MemoryRegion *bios = g_new(MemoryRegion, 1);
     long bios_size;
     int64_t kernel_entry;
     qemu_irq *i8259;
@@ -290,12 +292,12 @@ static void mips_fulong2e_init(MemoryRegion *address_space_mem,
     bios_size = 1024 * 1024;
 
     /* allocate RAM */
-    ram_offset = qemu_ram_alloc(NULL, "fulong2e.ram", ram_size);
-    bios_offset = qemu_ram_alloc(NULL, "fulong2e.bios", bios_size);
+    memory_region_init_ram(ram, NULL, "fulong2e.ram", ram_size);
+    memory_region_init_ram(bios, NULL, "fulong2e.bios", bios_size);
+    memory_region_set_readonly(bios, true);
 
-    cpu_register_physical_memory(0, ram_size, ram_offset);
-    cpu_register_physical_memory(0x1fc00000LL,
-					   bios_size, bios_offset | IO_MEM_ROM);
+    memory_region_add_subregion(address_space_mem, 0, ram);
+    memory_region_add_subregion(address_space_mem, 0x1fc00000LL, bios);
 
     /* We do not support flash operation, just loading pmon.bin as raw BIOS.
      * Please use -L to set the BIOS path and -bios to set bios name. */
@@ -306,7 +308,7 @@ static void mips_fulong2e_init(MemoryRegion *address_space_mem,
         loaderparams.kernel_cmdline = kernel_cmdline;
         loaderparams.initrd_filename = initrd_filename;
         kernel_entry = load_kernel (env);
-        write_bootloader(env, qemu_get_ram_ptr(bios_offset), kernel_entry);
+        write_bootloader(env, memory_region_get_ram_ptr(bios), kernel_entry);
     } else {
         if (bios_name == NULL) {
                 bios_name = FULONG_BIOSNAME;
