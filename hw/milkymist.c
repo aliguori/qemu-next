@@ -85,7 +85,7 @@ milkymist_init(MemoryRegion *address_space_mem,
     CPUState *env;
     int kernel_size;
     DriveInfo *dinfo;
-    ram_addr_t phys_sdram;
+    MemoryRegion *phys_sdram = g_new(MemoryRegion, 1);
     MemoryRegion *phys_flash = g_new(MemoryRegion, 1);
     qemu_irq irq[32], *cpu_irq;
     int i;
@@ -113,9 +113,8 @@ milkymist_init(MemoryRegion *address_space_mem,
 
     cpu_lm32_set_phys_msb_ignore(env, 1);
 
-    phys_sdram = qemu_ram_alloc(NULL, "milkymist.sdram", sdram_size);
-    cpu_register_physical_memory(sdram_base, sdram_size,
-            phys_sdram | IO_MEM_RAM);
+    memory_region_init_ram(phys_sdram, NULL, "milkymist.sdram", sdram_size);
+    memory_region_add_subregion(address_space_mem, sdram_base, phys_sdram);
 
     memory_region_init_rom_device(phys_flash, &pflash_cfi01_ops_be,
                                   NULL, "milkymist.flash", flash_size);
