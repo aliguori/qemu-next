@@ -190,11 +190,6 @@ static int serial_can_receive(struct etrax_serial *s)
     return r;
 }
 
-static void serial_event(void *opaque, int event)
-{
-
-}
-
 static void serial_receive_handler(void *opaque)
 {
     struct etrax_serial *s = opaque;
@@ -212,9 +207,9 @@ static void serial_update_handlers(struct etrax_serial *s)
 {
     if (serial_can_receive(s) > 0) {
         qemu_chr_fe_set_handlers(s->chr, serial_receive_handler,
-                              NULL, serial_event, s);
+                                 NULL, NULL, s);
     } else {
-        qemu_chr_fe_set_handlers(s->chr, NULL, NULL, serial_event, s);
+        qemu_chr_fe_set_handlers(s->chr, NULL, NULL, NULL, s);
     }
 }
 
