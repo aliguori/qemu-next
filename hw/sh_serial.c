@@ -339,11 +339,12 @@ static void sh_serial_receive_handler(void *opaque)
     sh_serial_receive1(s, buf, size);
 }
 
-static void sh_serial_event(void *opaque, int event)
+static int sh_serial_event(void *opaque, int event, void *data)
 {
     sh_serial_state *s = opaque;
     if (event == CHR_EVENT_BREAK)
         sh_serial_receive_break(s);
+    return 0;
 }
 
 static CPUReadMemoryFunc * const sh_serial_readfn[] = {
