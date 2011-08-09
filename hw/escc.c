@@ -683,18 +683,6 @@ static int serial_event(void *opaque, int event, void *data)
     return 0;
 }
 
-static CPUReadMemoryFunc * const escc_mem_read[3] = {
-    escc_mem_readb,
-    NULL,
-    NULL,
-};
-
-static CPUWriteMemoryFunc * const escc_mem_write[3] = {
-    escc_mem_writeb,
-    NULL,
-    NULL,
-};
-
 static const VMStateDescription vmstate_escc_chn = {
     .name ="escc_chn",
     .version_id = 2,
