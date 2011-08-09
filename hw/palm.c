@@ -211,7 +211,7 @@ static void palmte_init(MemoryRegion *address_space_mem,
     int rom_size, rom_loaded = 0;
     DisplayState *ds = get_displaystate();
 
-    cpu = omap310_mpu_init(sdram_size, cpu_model);
+    cpu = omap310_mpu_init(address_space_mem, sdram_size, cpu_model);
 
     /* External Flash (EMIFS) */
     cpu_register_physical_memory(OMAP_CS0_BASE, flash_size,
