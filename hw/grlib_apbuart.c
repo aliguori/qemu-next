@@ -97,9 +97,10 @@ static void grlib_apbuart_receive(UART *uart, const uint8_t *buf, int size)
     }
 }
 
-static void grlib_apbuart_event(void *opaque, int event)
+static int grlib_apbuart_event(void *opaque, int event, void *data)
 {
     trace_grlib_apbuart_event(event);
+    return 0;
 }
 
 static void grlib_apbuart_receive_handler(void *opaque)
