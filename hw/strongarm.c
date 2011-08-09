@@ -1060,7 +1060,7 @@ static void strongarm_uart_receive_handler(void *opaque)
     strongarm_uart_receive(s, buf, size);
 }
 
-static void strongarm_uart_event(void *opaque, int event)
+static int strongarm_uart_event(void *opaque, int event, void *data)
 {
     StrongARMUARTState *s = opaque;
     if (event == CHR_EVENT_BREAK) {
@@ -1070,6 +1070,7 @@ static void strongarm_uart_event(void *opaque, int event)
         strongarm_uart_update_status(s);
         strongarm_uart_update_int_status(s);
     }
+    return 0;
 }
 
 static void strongarm_uart_tx(void *opaque)
