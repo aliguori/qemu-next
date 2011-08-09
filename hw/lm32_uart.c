@@ -225,10 +225,6 @@ static int uart_can_rx(LM32UartState *s)
     return !(s->regs[R_LSR] & LSR_DR);
 }
 
-static void uart_event(void *opaque, int event)
-{
-}
-
 static void uart_rx_handler(void *opaque)
 {
     LM32UartState *s = opaque;
@@ -245,9 +241,9 @@ static void uart_rx_handler(void *opaque)
 static void uart_update_handlers(LM32UartState *s)
 {
     if (uart_can_rx(s) > 0) {
-        qemu_chr_fe_set_handlers(s->chr, uart_rx_handler, NULL, uart_event, s);
+        qemu_chr_fe_set_handlers(s->chr, uart_rx_handler, NULL, NULL, s);
     } else {
-        qemu_chr_fe_set_handlers(s->chr, NULL, NULL, uart_event, s);
+        qemu_chr_fe_set_handlers(s->chr, NULL, NULL, NULL, s);
     }
 }
 
