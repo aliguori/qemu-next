@@ -235,7 +235,7 @@ struct SerialState {
 
 static void handle_kbd_command(ChannelState *s, int val);
 static void serial_receive_byte(ChannelState *s, int ch);
-static void serial_update_handlers(void *opaque);
+static void serial_update_handlers(ChannelState *s);
 
 static void clear_queue(void *opaque)
 {
@@ -670,8 +670,16 @@ static void serial_receive_break(ChannelState *s)
     escc_update_irq(s);
 }
 
-static void serial_receive1(ChannelState *s, const uint8_t *buf, int size)
+static void serial_receive1(void *opaque)
 {
+    ChannelState *s = opaque;
+    uint8_t buf[32];
+    int size;
+
+    size = serial_can_receive(s);
+    size = MIN(size, sizeof(buf));
+    size = qemu_chr_fe_read(s->chr, buf, size);
+
     serial_receive_byte(s, buf[0]);
 }
 
@@ -681,6 +689,16 @@ static int serial_event(void *opaque, int event, void *data)
     if (event == CHR_EVENT_BREAK)
         serial_receive_break(s);
     return 0;
+}
+
+static void serial_update_handlers(ChannelState *s)
+{
+    if (serial_can_receive(s) > 0) {
+        qemu_chr_fe_set_handlers(s->chr, serial_receive1,
+                                 NULL, serial_event, s);
+    } else {
+        qemu_chr_fe_set_handlers(s->chr, NULL, NULL, serial_event, s);
+    }
 }
 
 static const VMStateDescription vmstate_escc_chn = {
