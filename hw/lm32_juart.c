@@ -98,10 +98,6 @@ static int juart_can_rx(LM32JuartState *s)
     return !(s->jrx & JRX_FULL);
 }
 
-static void juart_event(void *opaque, int event)
-{
-}
-
 static void juart_rx_handler(void *opaque)
 {
     LM32JuartState *s = opaque;
@@ -118,9 +114,9 @@ static void juart_rx_handler(void *opaque)
 static void juart_update_handlers(LM32JuartState *s)
 {
     if (juart_can_rx(s) > 0) {
-        qemu_chr_fe_set_handlers(s->chr, juart_rx_handler, NULL, juart_event, s);
+        qemu_chr_fe_set_handlers(s->chr, juart_rx_handler, NULL, NULL, s);
     } else {
-        qemu_chr_fe_set_handlers(s->chr, NULL, NULL, juart_event, s);
+        qemu_chr_fe_set_handlers(s->chr, NULL, NULL, NULL, s);
     }
 }
 
