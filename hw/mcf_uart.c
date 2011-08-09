@@ -250,7 +250,7 @@ static void mcf_uart_push_byte(mcf_uart_state *s, uint8_t data)
     mcf_uart_update(s);
 }
 
-static void mcf_uart_event(void *opaque, int event)
+static int mcf_uart_event(void *opaque, int event, void *data)
 {
     mcf_uart_state *s = (mcf_uart_state *)opaque;
 
@@ -262,6 +262,7 @@ static void mcf_uart_event(void *opaque, int event)
     default:
         break;
     }
+    return 0;
 }
 
 static int mcf_uart_can_receive(mcf_uart_state *s)
