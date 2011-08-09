@@ -204,16 +204,12 @@ static void uart_rx_handler(void *opaque)
     uart_rx(s, buf, size);
 }
 
-static void uart_event(void *opaque, int event)
-{
-}
-
 static void uart_update_handlers(struct xlx_uartlite *s)
 {
     if (uart_can_rx(s) > 0) {
-        qemu_chr_fe_set_handlers(s->chr, uart_rx_handler, NULL, uart_event, s);
+        qemu_chr_fe_set_handlers(s->chr, uart_rx_handler, NULL, NULL, s);
     } else {
-        qemu_chr_fe_set_handlers(s->chr, NULL, NULL, uart_event, s);
+        qemu_chr_fe_set_handlers(s->chr, NULL, NULL, NULL, s);
     }
 }
 
