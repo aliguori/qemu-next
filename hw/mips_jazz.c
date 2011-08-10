@@ -103,10 +103,11 @@ static void cpu_request_exit(void *opaque, int irq, int level)
     }
 }
 
-static
-void mips_jazz_init (MemoryRegion *address_space, ram_addr_t ram_size,
-                     const char *cpu_model,
-                     enum jazz_model_e jazz_model)
+static void mips_jazz_init(MemoryRegion *address_space,
+                           MemoryRegion *address_space_io,
+                           ram_addr_t ram_size,
+                           const char *cpu_model,
+                           enum jazz_model_e jazz_model)
 {
     char *filename;
     int bios_size, n;
@@ -182,7 +183,7 @@ void mips_jazz_init (MemoryRegion *address_space, ram_addr_t ram_size,
 
     /* ISA devices */
     i8259 = i8259_init(env->irq[4]);
-    isa_bus_new(NULL);
+    isa_bus_new(NULL, address_space_io);
     isa_bus_irqs(i8259);
     cpu_exit_irq = qemu_allocate_irqs(cpu_request_exit, NULL, 1);
     DMA_init(0, cpu_exit_irq);
@@ -289,7 +290,8 @@ void mips_magnum_init (MemoryRegion *address_space_mem,
                        const char *kernel_filename, const char *kernel_cmdline,
                        const char *initrd_filename, const char *cpu_model)
 {
-    mips_jazz_init(address_space_mem, ram_size, cpu_model, JAZZ_MAGNUM);
+    mips_jazz_init(address_space_mem, address_space_io,
+                   ram_size, cpu_model, JAZZ_MAGNUM);
 }
 
 static
@@ -300,7 +302,8 @@ void mips_pica61_init (MemoryRegion *address_space_mem,
                        const char *kernel_filename, const char *kernel_cmdline,
                        const char *initrd_filename, const char *cpu_model)
 {
-    mips_jazz_init(address_space_mem, ram_size, cpu_model, JAZZ_PICA61);
+    mips_jazz_init(address_space_mem, address_space_io,
+                   ram_size, cpu_model, JAZZ_PICA61);
 }
 
 static QEMUMachine mips_magnum_machine = {

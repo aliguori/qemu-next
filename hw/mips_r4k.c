@@ -260,7 +260,7 @@ void mips_r4k_init (MemoryRegion *address_space_mem,
 
     /* The PIC is attached to the MIPS CPU INT0 pin */
     i8259 = i8259_init(env->irq[2]);
-    isa_bus_new(NULL);
+    isa_bus_new(NULL, address_space_io);
     isa_bus_irqs(i8259);
 
     rtc_init(2000, NULL);
