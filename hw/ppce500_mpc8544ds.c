@@ -276,13 +276,13 @@ static void mpc8544ds_init(MemoryRegion *address_space_mem,
 
     /* Serial */
     if (serial_hds[0]) {
-        serial_mm_init(MPC8544_SERIAL0_REGS_BASE,
+        serial_mm_init(address_space_mem, MPC8544_SERIAL0_REGS_BASE,
                        0, mpic[12+26], 399193,
                        serial_hds[0], DEVICE_BIG_ENDIAN);
     }
 
     if (serial_hds[1]) {
-        serial_mm_init(MPC8544_SERIAL1_REGS_BASE,
+        serial_mm_init(address_space_mem, MPC8544_SERIAL1_REGS_BASE,
                        0, mpic[12+26], 399193,
                        serial_hds[0], DEVICE_BIG_ENDIAN);
     }

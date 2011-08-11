@@ -188,8 +188,8 @@ petalogix_ml605_init(MemoryRegion *address_space_mem,
         irq[i] = qdev_get_gpio_in(dev, i);
     }
 
-    serial_mm_init(UART16550_BASEADDR + 0x1000, 2, irq[5], 115200,
-                   serial_hds[0], DEVICE_LITTLE_ENDIAN);
+    serial_mm_init(address_space_mem, UART16550_BASEADDR + 0x1000, 2,
+                   irq[5], 115200, serial_hds[0], DEVICE_LITTLE_ENDIAN);
 
     /* 2 timers at irq 2 @ 100 Mhz.  */
     xilinx_timer_create(TIMER_BASEADDR, irq[2], 2, 100 * 1000000);

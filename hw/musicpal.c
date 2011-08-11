@@ -1488,12 +1488,12 @@ static void musicpal_init(MemoryRegion *address_space_mem,
                           pic[MP_TIMER4_IRQ], NULL);
 
     if (serial_hds[0]) {
-        serial_mm_init(MP_UART1_BASE, 2, pic[MP_UART1_IRQ], 1825000,
-                       serial_hds[0], DEVICE_NATIVE_ENDIAN);
+        serial_mm_init(address_space_mem, MP_UART1_BASE, 2, pic[MP_UART1_IRQ],
+                       1825000, serial_hds[0], DEVICE_NATIVE_ENDIAN);
     }
     if (serial_hds[1]) {
-        serial_mm_init(MP_UART2_BASE, 2, pic[MP_UART2_IRQ], 1825000,
-                       serial_hds[1], DEVICE_NATIVE_ENDIAN);
+        serial_mm_init(address_space_mem, MP_UART2_BASE, 2, pic[MP_UART2_IRQ],
+                       1825000, serial_hds[1], DEVICE_NATIVE_ENDIAN);
     }
 
     /* Register flash */
