@@ -294,7 +294,7 @@ static void z2_init(MemoryRegion *address_space_mem,
     }
 
     /* Setup CPU & memory */
-    cpu = pxa270_init(z2_binfo.ram_size, cpu_model);
+    cpu = pxa270_init(address_space_mem, z2_binfo.ram_size, cpu_model);
 
 #ifdef TARGET_WORDS_BIGENDIAN
     flash_ops = &pflash_cfi01_ops_be;

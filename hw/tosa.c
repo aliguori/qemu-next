@@ -219,7 +219,7 @@ static void tosa_init(MemoryRegion *address_space_mem,
     if (!cpu_model)
         cpu_model = "pxa255";
 
-    cpu = pxa255_init(tosa_binfo.ram_size);
+    cpu = pxa255_init(address_space_mem, tosa_binfo.ram_size);
 
     cpu_register_physical_memory(0, TOSA_ROM,
                     qemu_ram_alloc(NULL, "tosa.rom", TOSA_ROM) | IO_MEM_ROM);

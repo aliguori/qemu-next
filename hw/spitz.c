@@ -907,7 +907,7 @@ static void spitz_common_init(MemoryRegion *address_space_mem,
         cpu_model = (model == terrier) ? "pxa270-c5" : "pxa270-c0";
 
     /* Setup CPU & memory */
-    cpu = pxa270_init(spitz_binfo.ram_size, cpu_model);
+    cpu = pxa270_init(address_space_mem, spitz_binfo.ram_size, cpu_model);
 
     sl_flash_register(cpu, (model == spitz) ? FLASH_128M : FLASH_1024M);
 
