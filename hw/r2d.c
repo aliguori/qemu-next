@@ -262,7 +262,8 @@ static void r2d_init(MemoryRegion *address_space_mem,
     sysbus_create_varargs("sh_pci", 0x1e200000, irq[PCI_INTA], irq[PCI_INTB],
                           irq[PCI_INTC], irq[PCI_INTD], NULL);
 
-    sm501_init(0x10000000, SM501_VRAM_SIZE, irq[SM501], serial_hds[2]);
+    sm501_init(address_space_mem, 0x10000000, SM501_VRAM_SIZE,
+               irq[SM501], serial_hds[2]);
 
     /* onboard CF (True IDE mode, Master only). */
     dinfo = drive_get(IF_IDE, 0, 0);
