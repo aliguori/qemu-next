@@ -1059,18 +1059,11 @@ static void pci_update_mappings(PCIDevice *d)
              * Teach them such cases, such that filtered_size < size and
              * addr & (size - 1) != 0.
              */
-            if (r->type & PCI_BASE_ADDRESS_SPACE_IO) {
-                memory_region_add_subregion_overlap(r->address_space,
-                                                    r->addr,
-                                                    r->memory,
-                                                    1);
-            } else {
-                memory_region_add_subregion_overlap(r->address_space,
-                                                    pci_to_cpu_addr(d->bus,
-                                                                    r->addr),
-                                                    r->memory,
-                                                    1);
+            if (!(r->type & PCI_BASE_ADDRESS_SPACE_IO)) {
+                new_addr = pci_to_cpu_addr(d->bus, new_addr);
             }
+            memory_region_add_subregion_overlap(r->address_space,
+                                                new_addr, r->memory, 1);
         }
     }
 }
