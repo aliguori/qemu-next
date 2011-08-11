@@ -109,7 +109,8 @@ static void bamboo_init(MemoryRegion *address_space_mem,
     int i;
 
     /* Setup CPU. */
-    env = ppc440ep_init(&ram_size, &pcibus, pci_irq_nrs, 1, cpu_model);
+    env = ppc440ep_init(address_space_mem, &ram_size, &pcibus,
+                        pci_irq_nrs, 1, cpu_model);
 
     if (pcibus) {
         /* Register network interfaces. */
