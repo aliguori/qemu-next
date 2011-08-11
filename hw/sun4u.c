@@ -38,7 +38,6 @@
 #include "loader.h"
 #include "elf.h"
 #include "blockdev.h"
-#include "exec-memory.h"
 
 //#define DEBUG_IRQ
 //#define DEBUG_EBUS
@@ -732,7 +731,8 @@ static CPUState *cpu_devinit(const char *cpu_model, const struct hwdef *hwdef)
     return env;
 }
 
-static void sun4uv_init(ram_addr_t RAM_size,
+static void sun4uv_init(MemoryRegion *address_space_mem,
+                        ram_addr_t RAM_size,
                         const char *boot_devices,
                         const char *kernel_filename, const char *kernel_cmdline,
                         const char *initrd_filename, const char *cpu_model,
@@ -768,7 +768,7 @@ static void sun4uv_init(ram_addr_t RAM_size,
 
     i = 0;
     if (hwdef->console_serial_base) {
-        serial_mm_init(get_system_memory(), hwdef->console_serial_base, 0,
+        serial_mm_init(address_space_mem, hwdef->console_serial_base, 0,
                        NULL, 115200, serial_hds[i], DEVICE_BIG_ENDIAN);
         i++;
     }
@@ -875,7 +875,7 @@ static void sun4u_init(MemoryRegion *address_space_mem,
                        const char *kernel_filename, const char *kernel_cmdline,
                        const char *initrd_filename, const char *cpu_model)
 {
-    sun4uv_init(RAM_size, boot_devices, kernel_filename,
+    sun4uv_init(address_space_mem, RAM_size, boot_devices, kernel_filename,
                 kernel_cmdline, initrd_filename, cpu_model, &hwdefs[0]);
 }
 
@@ -887,7 +887,7 @@ static void sun4v_init(MemoryRegion *address_space_mem,
                        const char *kernel_filename, const char *kernel_cmdline,
                        const char *initrd_filename, const char *cpu_model)
 {
-    sun4uv_init(RAM_size, boot_devices, kernel_filename,
+    sun4uv_init(address_space_mem, RAM_size, boot_devices, kernel_filename,
                 kernel_cmdline, initrd_filename, cpu_model, &hwdefs[1]);
 }
 
@@ -899,7 +899,7 @@ static void niagara_init(MemoryRegion *address_space_mem,
                          const char *kernel_filename, const char *kernel_cmdline,
                          const char *initrd_filename, const char *cpu_model)
 {
-    sun4uv_init(RAM_size, boot_devices, kernel_filename,
+    sun4uv_init(address_space_mem, RAM_size, boot_devices, kernel_filename,
                 kernel_cmdline, initrd_filename, cpu_model, &hwdefs[2]);
 }
 
