@@ -209,8 +209,8 @@ static void ref405ep_init (MemoryRegion *address_space_mem,
 #ifdef DEBUG_BOARD_INIT
     printf("%s: register cpu\n", __func__);
 #endif
-    env = ppc405ep_init(ram_memories, ram_bases, ram_sizes, 33333333, &pic,
-                        kernel_filename == NULL ? 0 : 1);
+    env = ppc405ep_init(address_space_mem, ram_memories, ram_bases, ram_sizes,
+                        33333333, &pic, kernel_filename == NULL ? 0 : 1);
     /* allocate SRAM */
     sram_size = 512 * 1024;
     sram_offset = qemu_ram_alloc(NULL, "ef405ep.sram", sram_size);
@@ -538,8 +538,8 @@ static void taihu_405ep_init(MemoryRegion *address_space_mem,
 #ifdef DEBUG_BOARD_INIT
     printf("%s: register cpu\n", __func__);
 #endif
-    ppc405ep_init(ram_memories, ram_bases, ram_sizes, 33333333, &pic,
-                  kernel_filename == NULL ? 0 : 1);
+    ppc405ep_init(address_space_mem, ram_memories, ram_bases, ram_sizes,
+                  33333333, &pic, kernel_filename == NULL ? 0 : 1);
     /* allocate and load BIOS */
 #ifdef DEBUG_BOARD_INIT
     printf("%s: register BIOS\n", __func__);
