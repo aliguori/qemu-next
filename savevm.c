@@ -1686,10 +1686,6 @@ static int vmstate_subsection_load(QEMUFile *f, const VMStateDescription *vmsd,
 {
     const VMStateSubsection *sub = vmsd->subsections;
 
-    if (!sub || !sub->needed) {
-        return 0;
-    }
-
     while (qemu_peek_byte(f) == QEMU_VM_SUBSECTION) {
         char idstr[256];
         int ret;
