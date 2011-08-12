@@ -72,6 +72,7 @@
 #include "qemu-common.h"
 #include "hw/hw.h"
 #include "hw/qdev.h"
+#include "hw/boards.h"
 #include "net.h"
 #include "monitor.h"
 #include "sysemu.h"
@@ -1215,6 +1216,15 @@ void register_device_unmigratable(DeviceState *dev, const char *idstr,
     }
 }
 
+static inline int qemu_current_migration_format(void)
+{
+    if (current_machine->migration_format)
+        return current_machine->migration_format;
+
+    /* No format specified, default to the latest.  */
+    return QEMU_VM_FILE_VERSION;
+}
+
 int vmstate_register_with_alias_id(DeviceState *dev, int instance_id,
                                    const VMStateDescription *vmsd,
                                    void *opaque, int alias_id,
@@ -1475,7 +1485,7 @@ int qemu_savevm_state_begin(Monitor *mon, QEMUFile *f, int blk_enable,
     }
     
     qemu_put_be32(f, QEMU_VM_FILE_MAGIC);
-    qemu_put_be32(f, QEMU_VM_FILE_VERSION);
+    qemu_put_be32(f, qemu_current_migration_format());
 
     QTAILQ_FOREACH(se, &savevm_handlers, entry) {
         int len;
@@ -1748,8 +1758,10 @@ int qemu_loadvm_state(QEMUFile *f)
         fprintf(stderr, "SaveVM v2 format is obsolete and don't work anymore\n");
         return -ENOTSUP;
     }
-    if (v != QEMU_VM_FILE_VERSION)
+    if (v != qemu_current_migration_format()) {
+        fprintf(stderr, "Mismatching SaveVM format v%d\n", v);
         return -ENOTSUP;
+    }
 
     while ((section_type = qemu_get_byte(f)) != QEMU_VM_EOF) {
         uint32_t instance_id, version_id, section_id;

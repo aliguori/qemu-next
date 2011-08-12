@@ -19,6 +19,7 @@ typedef struct QEMUMachine {
     QEMUMachineInitFunc *init;
     int use_scsi;
     int max_cpus;
+    unsigned migration_format;
     unsigned int no_serial:1,
         no_parallel:1,
         use_virtcon:1,
