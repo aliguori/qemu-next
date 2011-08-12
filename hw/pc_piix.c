@@ -288,6 +288,7 @@ static QEMUMachine pc_machine_v0_15 = {
     .desc = "Standard PC",
     .init = pc_init_pci,
     .max_cpus = 255,
+    .migration_format = QEMU_VM_FILE_VERSION_0_15,
 };
 
 static QEMUMachine pc_machine_v0_13 = {
@@ -295,6 +296,7 @@ static QEMUMachine pc_machine_v0_13 = {
     .desc = "Standard PC",
     .init = pc_init_pci_no_kvmclock,
     .max_cpus = 255,
+    .migration_format = QEMU_VM_FILE_VERSION_0_15,
     .compat_props = (GlobalProperty[]) {
         {
             .driver   = "virtio-9p-pci",
@@ -334,6 +336,7 @@ static QEMUMachine pc_machine_v0_12 = {
     .desc = "Standard PC",
     .init = pc_init_pci_no_kvmclock,
     .max_cpus = 255,
+    .migration_format = QEMU_VM_FILE_VERSION_0_15,
     .compat_props = (GlobalProperty[]) {
         {
             .driver   = "virtio-serial-pci",
@@ -377,6 +380,7 @@ static QEMUMachine pc_machine_v0_11 = {
     .desc = "Standard PC, qemu 0.11",
     .init = pc_init_pci_no_kvmclock,
     .max_cpus = 255,
+    .migration_format = QEMU_VM_FILE_VERSION_0_15,
     .compat_props = (GlobalProperty[]) {
         {
             .driver   = "virtio-blk-pci",
@@ -428,6 +432,7 @@ static QEMUMachine pc_machine_v0_10 = {
     .desc = "Standard PC, qemu 0.10",
     .init = pc_init_pci_no_kvmclock,
     .max_cpus = 255,
+    .migration_format = QEMU_VM_FILE_VERSION_0_15,
     .compat_props = (GlobalProperty[]) {
         {
             .driver   = "virtio-blk-pci",

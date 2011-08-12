@@ -158,6 +158,14 @@ void qemu_announce_self(void)
 
 #define IO_BUF_SIZE 32768
 
+#define QEMU_VM_EOF                  0x00
+#define QEMU_VM_SECTION_START        0x01
+#define QEMU_VM_SECTION_PART         0x02
+#define QEMU_VM_SECTION_END          0x03
+#define QEMU_VM_SECTION_FULL         0x04
+#define QEMU_VM_SUBSECTION           0x05
+#define QEMU_VM_SUBSECTIONS_END      0x06
+
 struct QEMUFile {
     QEMUFilePutBufferFunc *put_buffer;
     QEMUFileGetBufferFunc *get_buffer;
@@ -1358,6 +1366,11 @@ int vmstate_load_state(QEMUFile *f, const VMStateDescription *vmsd,
                 }
                 if (field->flags & VMS_STRUCT) {
                     ret = vmstate_load_state(f, field->vmsd, addr, field->vmsd->version_id);
+                    if (qemu_current_migration_format() >= 4) {
+                        if (qemu_get_byte(f) != QEMU_VM_SUBSECTIONS_END) {
+                            return -EINVAL;
+                        }
+                    }
                 } else {
                     ret = field->info->get(f, addr, size);
 
@@ -1420,6 +1433,9 @@ void vmstate_save_state(QEMUFile *f, const VMStateDescription *vmsd,
                 }
                 if (field->flags & VMS_STRUCT) {
                     vmstate_save_state(f, field->vmsd, addr);
+                    if (qemu_current_migration_format() >= 4) {
+                        qemu_put_byte(f, QEMU_VM_SUBSECTIONS_END);
+                    }
                 } else {
                     field->info->put(f, addr, size);
                 }
@@ -1449,14 +1465,6 @@ static void vmstate_save(QEMUFile *f, SaveStateEntry *se)
 
 #define QEMU_VM_FILE_MAGIC           0x5145564d
 #define QEMU_VM_FILE_VERSION_COMPAT  0x00000002
-#define QEMU_VM_FILE_VERSION         0x00000003
-
-#define QEMU_VM_EOF                  0x00
-#define QEMU_VM_SECTION_START        0x01
-#define QEMU_VM_SECTION_PART         0x02
-#define QEMU_VM_SECTION_END          0x03
-#define QEMU_VM_SECTION_FULL         0x04
-#define QEMU_VM_SUBSECTION           0x05
 
 bool qemu_savevm_state_blocked(Monitor *mon)
 {

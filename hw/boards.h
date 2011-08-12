@@ -5,6 +5,9 @@
 
 #include "qdev.h"
 
+#define QEMU_VM_FILE_VERSION_0_15    0x00000003
+#define QEMU_VM_FILE_VERSION         0x00000004
+
 typedef void QEMUMachineInitFunc(ram_addr_t ram_size,
                                  const char *boot_device,
                                  const char *kernel_filename,
