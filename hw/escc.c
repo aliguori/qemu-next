@@ -487,7 +487,7 @@ static void escc_update_parameters(ChannelState *s)
     ssp.stop_bits = stop_bits;
     SER_DPRINTF("channel %c: speed=%d parity=%c data=%d stop=%d\n", CHN_C(s),
                 speed, parity, data_bits, stop_bits);
-    qemu_chr_ioctl(s->chr, CHR_IOCTL_SERIAL_SET_PARAMS, &ssp);
+    qemu_chr_fe_ioctl(s->chr, CHR_IOCTL_SERIAL_SET_PARAMS, &ssp);
 }
 
 static void escc_mem_write(void *opaque, target_phys_addr_t addr,
