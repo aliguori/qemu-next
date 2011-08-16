@@ -339,7 +339,7 @@ int pci_bus_num(PCIBus *s)
     return s->parent_dev->config[PCI_SECONDARY_BUS];
 }
 
-static int get_pci_config_device(QEMUFile *f, void *pv, size_t size)
+static int get_pci_config_device(QEMUFile *f, const char *name, void *pv, size_t size)
 {
     PCIDevice *s = container_of(pv, PCIDevice, config);
     uint8_t *config;
@@ -365,7 +365,7 @@ static int get_pci_config_device(QEMUFile *f, void *pv, size_t size)
 }
 
 /* just put buffer */
-static void put_pci_config_device(QEMUFile *f, void *pv, size_t size)
+static void put_pci_config_device(QEMUFile *f, const char *name, void *pv, size_t size)
 {
     const uint8_t **v = pv;
     assert(size == pci_config_size(container_of(pv, PCIDevice, config)));
@@ -378,7 +378,7 @@ static VMStateInfo vmstate_info_pci_config = {
     .put  = put_pci_config_device,
 };
 
-static int get_pci_irq_state(QEMUFile *f, void *pv, size_t size)
+static int get_pci_irq_state(QEMUFile *f, const char *name, void *pv, size_t size)
 {
     PCIDevice *s = container_of(pv, PCIDevice, irq_state);
     uint32_t irq_state[PCI_NUM_PINS];
@@ -399,7 +399,7 @@ static int get_pci_irq_state(QEMUFile *f, void *pv, size_t size)
     return 0;
 }
 
-static void put_pci_irq_state(QEMUFile *f, void *pv, size_t size)
+static void put_pci_irq_state(QEMUFile *f, const char *name, void *pv, size_t size)
 {
     int i;
     PCIDevice *s = container_of(pv, PCIDevice, irq_state);

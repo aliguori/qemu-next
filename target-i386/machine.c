@@ -212,14 +212,14 @@ static bool less_than_7(void *opaque, int version_id)
     return version_id < 7;
 }
 
-static int get_uint64_as_uint32(QEMUFile *f, void *pv, size_t size)
+static int get_uint64_as_uint32(QEMUFile *f, const char *name, void *pv, size_t size)
 {
     uint64_t *v = pv;
     *v = qemu_get_be32(f);
     return 0;
 }
 
-static void put_uint64_as_uint32(QEMUFile *f, void *pv, size_t size)
+static void put_uint64_as_uint32(QEMUFile *f, const char *name, void *pv, size_t size)
 {
     uint64_t *v = pv;
     qemu_put_be32(f, *v);

@@ -742,14 +742,14 @@ static int menelaus_rx(i2c_slave *i2c)
    Or we broke compatibility in the state, or we can't use struct tm
  */
 
-static int get_int32_as_uint16(QEMUFile *f, void *pv, size_t size)
+static int get_int32_as_uint16(QEMUFile *f, const char *name, void *pv, size_t size)
 {
     int *v = pv;
     *v = qemu_get_be16(f);
     return 0;
 }
 
-static void put_int32_as_uint16(QEMUFile *f, void *pv, size_t size)
+static void put_int32_as_uint16(QEMUFile *f, const char *name, void *pv, size_t size)
 {
     int *v = pv;
     qemu_put_be16(f, *v);

@@ -676,14 +676,14 @@ uint64_t qemu_get_be64(QEMUFile *f)
 
 /* bool */
 
-static int get_bool(QEMUFile *f, void *pv, size_t size)
+static int get_bool(QEMUFile *f, const char *name, void *pv, size_t size)
 {
     bool *v = pv;
     *v = qemu_get_byte(f);
     return 0;
 }
 
-static void put_bool(QEMUFile *f, void *pv, size_t size)
+static void put_bool(QEMUFile *f, const char *name, void *pv, size_t size)
 {
     bool *v = pv;
     qemu_put_byte(f, *v);
@@ -697,14 +697,14 @@ const VMStateInfo vmstate_info_bool = {
 
 /* 8 bit int */
 
-static int get_int8(QEMUFile *f, void *pv, size_t size)
+static int get_int8(QEMUFile *f, const char *name, void *pv, size_t size)
 {
     int8_t *v = pv;
     qemu_get_s8s(f, v);
     return 0;
 }
 
-static void put_int8(QEMUFile *f, void *pv, size_t size)
+static void put_int8(QEMUFile *f, const char *name, void *pv, size_t size)
 {
     int8_t *v = pv;
     qemu_put_s8s(f, v);
@@ -718,14 +718,14 @@ const VMStateInfo vmstate_info_int8 = {
 
 /* 16 bit int */
 
-static int get_int16(QEMUFile *f, void *pv, size_t size)
+static int get_int16(QEMUFile *f, const char *name, void *pv, size_t size)
 {
     int16_t *v = pv;
     qemu_get_sbe16s(f, v);
     return 0;
 }
 
-static void put_int16(QEMUFile *f, void *pv, size_t size)
+static void put_int16(QEMUFile *f, const char *name, void *pv, size_t size)
 {
     int16_t *v = pv;
     qemu_put_sbe16s(f, v);
@@ -739,14 +739,14 @@ const VMStateInfo vmstate_info_int16 = {
 
 /* 32 bit int */
 
-static int get_int32(QEMUFile *f, void *pv, size_t size)
+static int get_int32(QEMUFile *f, const char *name, void *pv, size_t size)
 {
     int32_t *v = pv;
     qemu_get_sbe32s(f, v);
     return 0;
 }
 
-static void put_int32(QEMUFile *f, void *pv, size_t size)
+static void put_int32(QEMUFile *f, const char *name, void *pv, size_t size)
 {
     int32_t *v = pv;
     qemu_put_sbe32s(f, v);
@@ -761,7 +761,7 @@ const VMStateInfo vmstate_info_int32 = {
 /* 32 bit int. See that the received value is the same than the one
    in the field */
 
-static int get_int32_equal(QEMUFile *f, void *pv, size_t size)
+static int get_int32_equal(QEMUFile *f, const char *name, void *pv, size_t size)
 {
     int32_t *v = pv;
     int32_t v2;
@@ -781,7 +781,7 @@ const VMStateInfo vmstate_info_int32_equal = {
 /* 32 bit int. See that the received value is the less or the same
    than the one in the field */
 
-static int get_int32_le(QEMUFile *f, void *pv, size_t size)
+static int get_int32_le(QEMUFile *f, const char *name, void *pv, size_t size)
 {
     int32_t *old = pv;
     int32_t new;
@@ -800,14 +800,14 @@ const VMStateInfo vmstate_info_int32_le = {
 
 /* 64 bit int */
 
-static int get_int64(QEMUFile *f, void *pv, size_t size)
+static int get_int64(QEMUFile *f, const char *name, void *pv, size_t size)
 {
     int64_t *v = pv;
     qemu_get_sbe64s(f, v);
     return 0;
 }
 
-static void put_int64(QEMUFile *f, void *pv, size_t size)
+static void put_int64(QEMUFile *f, const char *name, void *pv, size_t size)
 {
     int64_t *v = pv;
     qemu_put_sbe64s(f, v);
@@ -821,14 +821,14 @@ const VMStateInfo vmstate_info_int64 = {
 
 /* 8 bit unsigned int */
 
-static int get_uint8(QEMUFile *f, void *pv, size_t size)
+static int get_uint8(QEMUFile *f, const char *name, void *pv, size_t size)
 {
     uint8_t *v = pv;
     qemu_get_8s(f, v);
     return 0;
 }
 
-static void put_uint8(QEMUFile *f, void *pv, size_t size)
+static void put_uint8(QEMUFile *f, const char *name, void *pv, size_t size)
 {
     uint8_t *v = pv;
     qemu_put_8s(f, v);
@@ -842,14 +842,14 @@ const VMStateInfo vmstate_info_uint8 = {
 
 /* 16 bit unsigned int */
 
-static int get_uint16(QEMUFile *f, void *pv, size_t size)
+static int get_uint16(QEMUFile *f, const char *name, void *pv, size_t size)
 {
     uint16_t *v = pv;
     qemu_get_be16s(f, v);
     return 0;
 }
 
-static void put_uint16(QEMUFile *f, void *pv, size_t size)
+static void put_uint16(QEMUFile *f, const char *name, void *pv, size_t size)
 {
     uint16_t *v = pv;
     qemu_put_be16s(f, v);
@@ -863,14 +863,14 @@ const VMStateInfo vmstate_info_uint16 = {
 
 /* 32 bit unsigned int */
 
-static int get_uint32(QEMUFile *f, void *pv, size_t size)
+static int get_uint32(QEMUFile *f, const char *name, void *pv, size_t size)
 {
     uint32_t *v = pv;
     qemu_get_be32s(f, v);
     return 0;
 }
 
-static void put_uint32(QEMUFile *f, void *pv, size_t size)
+static void put_uint32(QEMUFile *f, const char *name, void *pv, size_t size)
 {
     uint32_t *v = pv;
     qemu_put_be32s(f, v);
@@ -885,7 +885,7 @@ const VMStateInfo vmstate_info_uint32 = {
 /* 32 bit uint. See that the received value is the same than the one
    in the field */
 
-static int get_uint32_equal(QEMUFile *f, void *pv, size_t size)
+static int get_uint32_equal(QEMUFile *f, const char *name, void *pv, size_t size)
 {
     uint32_t *v = pv;
     uint32_t v2;
@@ -905,14 +905,14 @@ const VMStateInfo vmstate_info_uint32_equal = {
 
 /* 64 bit unsigned int */
 
-static int get_uint64(QEMUFile *f, void *pv, size_t size)
+static int get_uint64(QEMUFile *f, const char *name, void *pv, size_t size)
 {
     uint64_t *v = pv;
     qemu_get_be64s(f, v);
     return 0;
 }
 
-static void put_uint64(QEMUFile *f, void *pv, size_t size)
+static void put_uint64(QEMUFile *f, const char *name, void *pv, size_t size)
 {
     uint64_t *v = pv;
     qemu_put_be64s(f, v);
@@ -927,7 +927,7 @@ const VMStateInfo vmstate_info_uint64 = {
 /* 8 bit int. See that the received value is the same than the one
    in the field */
 
-static int get_uint8_equal(QEMUFile *f, void *pv, size_t size)
+static int get_uint8_equal(QEMUFile *f, const char *name, void *pv, size_t size)
 {
     uint8_t *v = pv;
     uint8_t v2;
@@ -947,7 +947,7 @@ const VMStateInfo vmstate_info_uint8_equal = {
 /* 16 bit unsigned int int. See that the received value is the same than the one
    in the field */
 
-static int get_uint16_equal(QEMUFile *f, void *pv, size_t size)
+static int get_uint16_equal(QEMUFile *f, const char *name, void *pv, size_t size)
 {
     uint16_t *v = pv;
     uint16_t v2;
@@ -966,14 +966,14 @@ const VMStateInfo vmstate_info_uint16_equal = {
 
 /* timers  */
 
-static int get_timer(QEMUFile *f, void *pv, size_t size)
+static int get_timer(QEMUFile *f, const char *name, void *pv, size_t size)
 {
     QEMUTimer *v = pv;
     qemu_get_timer(f, v);
     return 0;
 }
 
-static void put_timer(QEMUFile *f, void *pv, size_t size)
+static void put_timer(QEMUFile *f, const char *name, void *pv, size_t size)
 {
     QEMUTimer *v = pv;
     qemu_put_timer(f, v);
@@ -987,14 +987,14 @@ const VMStateInfo vmstate_info_timer = {
 
 /* uint8_t buffers */
 
-static int get_buffer(QEMUFile *f, void *pv, size_t size)
+static int get_buffer(QEMUFile *f, const char *name, void *pv, size_t size)
 {
     uint8_t *v = pv;
     qemu_get_buffer(f, v, size);
     return 0;
 }
 
-static void put_buffer(QEMUFile *f, void *pv, size_t size)
+static void put_buffer(QEMUFile *f, const char *name, void *pv, size_t size)
 {
     uint8_t *v = pv;
     qemu_put_buffer(f, v, size);
@@ -1009,7 +1009,7 @@ const VMStateInfo vmstate_info_buffer = {
 /* unused buffers: space that was used for some fields that are
    not useful anymore */
 
-static int get_unused_buffer(QEMUFile *f, void *pv, size_t size)
+static int get_unused_buffer(QEMUFile *f, const char *name, void *pv, size_t size)
 {
     uint8_t buf[1024];
     int block_len;
@@ -1022,7 +1022,7 @@ static int get_unused_buffer(QEMUFile *f, void *pv, size_t size)
    return 0;
 }
 
-static void put_unused_buffer(QEMUFile *f, void *pv, size_t size)
+static void put_unused_buffer(QEMUFile *f, const char *name, void *pv, size_t size)
 {
     static const uint8_t buf[1024];
     int block_len;
@@ -1349,7 +1349,7 @@ int vmstate_load_state(QEMUFile *f, const VMStateDescription *vmsd,
                 if (field->flags & VMS_STRUCT) {
                     ret = vmstate_load_state(f, field->vmsd, addr, field->vmsd->version_id);
                 } else {
-                    ret = field->info->get(f, addr, size);
+                    ret = field->info->get(f, field->name, addr, size);
 
                 }
                 if (ret < 0) {
@@ -1411,7 +1411,7 @@ void vmstate_save_state(QEMUFile *f, const VMStateDescription *vmsd,
                 if (field->flags & VMS_STRUCT) {
                     vmstate_save_state(f, field->vmsd, addr);
                 } else {
-                    field->info->put(f, addr, size);
+                    field->info->put(f, field->name, addr, size);
                 }
             }
         }
