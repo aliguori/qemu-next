@@ -106,7 +106,7 @@ static void fp64_to_fp80(union x86_longdouble *p, uint64_t temp)
     p->exp = e;
 }
 
-static int get_fpreg(QEMUFile *f, void *opaque, size_t size)
+static int get_fpreg(QEMUFile *f, const char *name, void *opaque, size_t size)
 {
     FPReg *fp_reg = opaque;
     uint64_t mant;
@@ -118,7 +118,7 @@ static int get_fpreg(QEMUFile *f, void *opaque, size_t size)
     return 0;
 }
 
-static void put_fpreg(QEMUFile *f, void *opaque, size_t size)
+static void put_fpreg(QEMUFile *f, const char *name, void *opaque, size_t size)
 {
     FPReg *fp_reg = opaque;
     uint64_t mant;
@@ -126,6 +126,7 @@ static void put_fpreg(QEMUFile *f, void *opaque, size_t size)
     /* we save the real CPU data (in case of MMX usage only 'mant'
        contains the MMX register */
     cpu_get_fp80(&mant, &exp, fp_reg->d);
+    
     qemu_put_be64s(f, &mant);
     qemu_put_be16s(f, &exp);
 }
@@ -136,7 +137,7 @@ static const VMStateInfo vmstate_fpreg = {
     .put  = put_fpreg,
 };
 
-static int get_fpreg_1_mmx(QEMUFile *f, void *opaque, size_t size)
+static int get_fpreg_1_mmx(QEMUFile *f, const char *name, void *opaque, size_t size)
 {
     union x86_longdouble *p = opaque;
     uint64_t mant;
@@ -153,7 +154,7 @@ static const VMStateInfo vmstate_fpreg_1_mmx = {
     .put  = put_fpreg_error,
 };
 
-static int get_fpreg_1_no_mmx(QEMUFile *f, void *opaque, size_t size)
+static int get_fpreg_1_no_mmx(QEMUFile *f, const char *name, void *opaque, size_t size)
 {
     union x86_longdouble *p = opaque;
     uint64_t mant;
