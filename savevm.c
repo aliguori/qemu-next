@@ -685,8 +685,8 @@ static int get_bool(QEMUFile *f, const char *name, void *pv, size_t size)
 
 static void put_bool(QEMUFile *f, const char *name, void *pv, size_t size)
 {
-    bool *v = pv;
-    qemu_put_byte(f, *v);
+    Visitor *visitor = output_visitor_from_qemu_file(f);
+    visit_type_bool(visitor, (bool *)pv, name, NULL);
 }
 
 const VMStateInfo vmstate_info_bool = {
@@ -706,8 +706,8 @@ static int get_int8(QEMUFile *f, const char *name, void *pv, size_t size)
 
 static void put_int8(QEMUFile *f, const char *name, void *pv, size_t size)
 {
-    int8_t *v = pv;
-    qemu_put_s8s(f, v);
+    Visitor *visitor = output_visitor_from_qemu_file(f);
+    visit_type_int8(visitor, (int8_t *)pv, name, NULL);
 }
 
 const VMStateInfo vmstate_info_int8 = {
@@ -727,8 +727,8 @@ static int get_int16(QEMUFile *f, const char *name, void *pv, size_t size)
 
 static void put_int16(QEMUFile *f, const char *name, void *pv, size_t size)
 {
-    int16_t *v = pv;
-    qemu_put_sbe16s(f, v);
+    Visitor *visitor = output_visitor_from_qemu_file(f);
+    visit_type_int16(visitor, (int16_t *)pv, name, NULL);
 }
 
 const VMStateInfo vmstate_info_int16 = {
@@ -748,8 +748,8 @@ static int get_int32(QEMUFile *f, const char *name, void *pv, size_t size)
 
 static void put_int32(QEMUFile *f, const char *name, void *pv, size_t size)
 {
-    int32_t *v = pv;
-    qemu_put_sbe32s(f, v);
+    Visitor *visitor = output_visitor_from_qemu_file(f);
+    visit_type_int32(visitor, (int32_t *)pv, name, NULL);
 }
 
 const VMStateInfo vmstate_info_int32 = {
@@ -809,8 +809,8 @@ static int get_int64(QEMUFile *f, const char *name, void *pv, size_t size)
 
 static void put_int64(QEMUFile *f, const char *name, void *pv, size_t size)
 {
-    int64_t *v = pv;
-    qemu_put_sbe64s(f, v);
+    Visitor *visitor = output_visitor_from_qemu_file(f);
+    visit_type_int64(visitor, (int64_t *)pv, name, NULL);
 }
 
 const VMStateInfo vmstate_info_int64 = {
@@ -830,8 +830,8 @@ static int get_uint8(QEMUFile *f, const char *name, void *pv, size_t size)
 
 static void put_uint8(QEMUFile *f, const char *name, void *pv, size_t size)
 {
-    uint8_t *v = pv;
-    qemu_put_8s(f, v);
+    Visitor *visitor = output_visitor_from_qemu_file(f);
+    visit_type_uint8(visitor, (uint8_t *)pv, name, NULL);
 }
 
 const VMStateInfo vmstate_info_uint8 = {
@@ -851,8 +851,8 @@ static int get_uint16(QEMUFile *f, const char *name, void *pv, size_t size)
 
 static void put_uint16(QEMUFile *f, const char *name, void *pv, size_t size)
 {
-    uint16_t *v = pv;
-    qemu_put_be16s(f, v);
+    Visitor *visitor = output_visitor_from_qemu_file(f);
+    visit_type_uint16(visitor, (uint16_t *)pv, name, NULL);
 }
 
 const VMStateInfo vmstate_info_uint16 = {
@@ -872,8 +872,8 @@ static int get_uint32(QEMUFile *f, const char *name, void *pv, size_t size)
 
 static void put_uint32(QEMUFile *f, const char *name, void *pv, size_t size)
 {
-    uint32_t *v = pv;
-    qemu_put_be32s(f, v);
+    Visitor *visitor = output_visitor_from_qemu_file(f);
+    visit_type_uint32(visitor, (uint32_t *)pv, name, NULL);
 }
 
 const VMStateInfo vmstate_info_uint32 = {
@@ -914,8 +914,8 @@ static int get_uint64(QEMUFile *f, const char *name, void *pv, size_t size)
 
 static void put_uint64(QEMUFile *f, const char *name, void *pv, size_t size)
 {
-    uint64_t *v = pv;
-    qemu_put_be64s(f, v);
+    Visitor *visitor = output_visitor_from_qemu_file(f);
+    visit_type_uint64(visitor, (uint64_t *)pv, name, NULL);
 }
 
 const VMStateInfo vmstate_info_uint64 = {
@@ -973,10 +973,24 @@ static int get_timer(QEMUFile *f, const char *name, void *pv, size_t size)
     return 0;
 }
 
+static void visit_type_qemu_timer(Visitor *v, QEMUTimer *t, const char *name, Error **errp)
+{
+    uint64_t expire_time;
+
+    visit_start_struct(v, (void **)&t, "QEMUTimer", name, sizeof(*t), errp);
+    if (qemu_timer_pending(ts)) {
+        expire_time = ts->expire_time;
+    } else {
+        expire_time = -1;
+    }
+    visit_type_uint64(v, &expire_time, "expire_time", errp);
+    visit_end_struct(v, errp);
+}
+
 static void put_timer(QEMUFile *f, const char *name, void *pv, size_t size)
 {
-    QEMUTimer *v = pv;
-    qemu_put_timer(f, v);
+    Visitor *visitor = output_visitor_from_qemu_file(f);
+    visit_type_qemu_timer(visitor, (QEMUTimer *)pv, name, NULL);
 }
 
 const VMStateInfo vmstate_info_timer = {
@@ -996,8 +1010,14 @@ static int get_buffer(QEMUFile *f, const char *name, void *pv, size_t size)
 
 static void put_buffer(QEMUFile *f, const char *name, void *pv, size_t size)
 {
-    uint8_t *v = pv;
-    qemu_put_buffer(f, v, size);
+    Visitor *visitor = output_visitor_from_qemu_file(f);
+    size_t i;
+
+    visit_start_array(visitor, name, NULL);
+    for (i = 0; i < size; i++) {
+        visit_type_uint8(visitor, (uint8_t *)(pv + i), NULL, NULL);
+    }
+    visit_end_array(visitor, NULL);
 }
 
 const VMStateInfo vmstate_info_buffer = {
@@ -1024,14 +1044,15 @@ static int get_unused_buffer(QEMUFile *f, const char *name, void *pv, size_t siz
 
 static void put_unused_buffer(QEMUFile *f, const char *name, void *pv, size_t size)
 {
-    static const uint8_t buf[1024];
-    int block_len;
+    Visitor *visitor = output_visitor_from_qemu_file(f);
+    size_t i;
 
-    while (size > 0) {
-        block_len = MIN(sizeof(buf), size);
-        size -= block_len;
-        qemu_put_buffer(f, buf, block_len);
+    visit_start_array(visitor, name, NULL);
+    for (i = 0; i < size; i++) {
+        uint8_t zero = 0;
+        visit_type_uint8(visitor, &zero, NULL, NULL);
     }
+    visit_end_array(visitor, NULL);
 }
 
 const VMStateInfo vmstate_info_unused_buffer = {
