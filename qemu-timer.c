@@ -669,6 +669,20 @@ void qemu_get_timer(QEMUFile *f, QEMUTimer *ts)
     }
 }
 
+void visit_type_qemu_timer(Visitor *v, QEMUTimer **ts, const char *name, Error **errp)
+{
+    uint64_t expire_time;
+
+    visit_start_struct(v, (void **)ts, "QEMUTimer", name, sizeof(**ts), errp);
+    if (qemu_timer_pending(*ts)) {
+        expire_time = (*ts)->expire_time;
+    } else {
+        expire_time = -1;
+    }
+    visit_type_uint64(v, &expire_time, "expire_time", errp);
+    visit_end_struct(v, errp);
+}
+
 static const VMStateDescription vmstate_timers = {
     .name = "timer",
     .version_id = 2,

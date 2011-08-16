@@ -13,6 +13,20 @@
 
 #include "qapi/qapi-visit-core.h"
 
+void visit_start_array(Visitor *v, const char *name, Error **errp)
+{
+    if (!error_is_set(errp) && v->start_array) {
+        v->start_array(v, name, errp);
+    }
+}
+
+void visit_end_array(Visitor *v, Error **errp)
+{
+    if (!error_is_set(errp) && v->end_array) {
+        v->end_array(v, errp);
+    }
+}
+
 void visit_start_handle(Visitor *v, void **obj, const char *kind,
                         const char *name, Error **errp)
 {

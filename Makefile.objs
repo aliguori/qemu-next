@@ -170,6 +170,8 @@ common-obj-$(CONFIG_SLIRP) += $(addprefix slirp/, $(slirp-obj-y))
 common-obj-$(CONFIG_XEN_BACKEND) += xen_backend.o xen_devconfig.o
 common-obj-$(CONFIG_XEN_BACKEND) += xen_console.o xenfb.o xen_disk.o xen_nic.o
 
+common-obj-y += qfov.o
+
 ######################################################################
 # libuser
 
@@ -311,7 +313,6 @@ hw-obj-$(CONFIG_SOUND) += $(sound-obj-y)
 hw-obj-$(CONFIG_REALLY_VIRTFS) += $(addprefix 9pfs/, $(9pfs-nested-y))
 $(addprefix 9pfs/, $(9pfs-nested-y)): QEMU_CFLAGS+=$(GLIB_CFLAGS)
 
-
 ######################################################################
 # libdis
 # NOTE: the disassembler code is only needed for debugging
@@ -395,6 +396,8 @@ libcacard-y = cac.o event.o vcard.o vreader.o vcard_emul_nss.o vcard_emul_type.o
 qapi-nested-y = qapi-visit-core.o qmp-input-visitor.o qmp-output-visitor.o qapi-dealloc-visitor.o
 qapi-nested-y += qmp-registry.o qmp-dispatch.o
 qapi-obj-y = $(addprefix qapi/, $(qapi-nested-y))
+
+common-obj-y += $(qapi-obj-y)
 
 vl.o: QEMU_CFLAGS+=$(GPROF_CFLAGS)
 

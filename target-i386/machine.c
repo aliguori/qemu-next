@@ -2,6 +2,7 @@
 #include "hw/boards.h"
 #include "hw/pc.h"
 #include "hw/isa.h"
+#include "qfov.h"
 
 #include "cpu.h"
 #include "kvm.h"
@@ -78,7 +79,7 @@ static const VMStateDescription vmstate_mtrr_var = {
 #define VMSTATE_MTRR_VARS(_field, _state, _n, _v)                    \
     VMSTATE_STRUCT_ARRAY(_field, _state, _n, _v, vmstate_mtrr_var, MTRRVar)
 
-static void put_fpreg_error(QEMUFile *f, void *opaque, size_t size)
+static void put_fpreg_error(QEMUFile *f, const char *name, void *opaque, size_t size)
 {
     fprintf(stderr, "call put_fpreg() with invalid arguments\n");
     exit(0);
@@ -118,17 +119,26 @@ static int get_fpreg(QEMUFile *f, const char *name, void *opaque, size_t size)
     return 0;
 }
 
-static void put_fpreg(QEMUFile *f, const char *name, void *opaque, size_t size)
+static void visit_type_fpreg(Visitor *v, FPReg *fp_reg, const char *name,
+                             Error **errp)
 {
-    FPReg *fp_reg = opaque;
     uint64_t mant;
     uint16_t exp;
     /* we save the real CPU data (in case of MMX usage only 'mant'
        contains the MMX register */
     cpu_get_fp80(&mant, &exp, fp_reg->d);
-    
-    qemu_put_be64s(f, &mant);
-    qemu_put_be16s(f, &exp);
+
+    visit_start_struct(v, (void **)&fp_reg, "FPReg",
+                       name, sizeof(*fp_reg), errp);
+    visit_type_uint64(v, &mant, "mantissa", errp);
+    visit_type_uint16(v, &exp, "exponent", errp);
+    visit_end_struct(v, errp);
+}
+
+static void put_fpreg(QEMUFile *f, const char *name, void *opaque, size_t size)
+{
+    Visitor *v = output_visitor_from_qemu_file(f);
+    visit_type_fpreg(v, (FPReg *)opaque, name, NULL);
 }
 
 static const VMStateInfo vmstate_fpreg = {

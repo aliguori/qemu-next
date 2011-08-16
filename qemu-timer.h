@@ -5,6 +5,7 @@
 #include "notify.h"
 #include <time.h>
 #include <sys/time.h>
+#include "qapi/qapi-visit-core.h"
 
 #ifdef _WIN32
 #include <windows.h>
@@ -135,6 +136,9 @@ static inline int64_t get_clock(void)
 
 void qemu_get_timer(QEMUFile *f, QEMUTimer *ts);
 void qemu_put_timer(QEMUFile *f, QEMUTimer *ts);
+
+void visit_type_qemu_timer(Visitor *v, QEMUTimer **ts, const char *name,
+                          Error **errp);
 
 /* ptimer.c */
 typedef struct ptimer_state ptimer_state;

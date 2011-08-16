@@ -9,7 +9,7 @@ struct QEMUFileOutputVisitor
 
 static QEMUFileOutputVisitor *to_qfov(Visitor *v)
 {
-    return container_of(QEMUFileOutputVisitor, v, parent);
+    return container_of(v, QEMUFileOutputVisitor, parent);
 }
 
 static void qfov_type_bool(Visitor *v, bool *obj, const char *name,
@@ -83,17 +83,17 @@ QEMUFileOutputVisitor *qemu_file_output_visitor_new(QEMUFile *f)
 
     qfov = qemu_mallocz(sizeof(*qfov));
 
-    qfov->type_bool = qfov_type_bool;
-    qfov->type_int8 = qfov_type_int8;
-    qfov->type_int16 = qfov_type_int16;
-    qfov->type_int32 = qfov_type_int32;
-    qfov->type_int64 = qfov_type_int64;
-    qfov->type_uint8 = qfov_type_uint8;
-    qfov->type_uint16 = qfov_type_uint16;
-    qfov->type_uint32 = qfov_type_uint32;
-    qfov->type_uint64 = qfov_type_uint64;
+    qfov->parent.type_bool = qfov_type_bool;
+    qfov->parent.type_int8 = qfov_type_int8;
+    qfov->parent.type_int16 = qfov_type_int16;
+    qfov->parent.type_int32 = qfov_type_int32;
+    qfov->parent.type_int64 = qfov_type_int64;
+    qfov->parent.type_uint8 = qfov_type_uint8;
+    qfov->parent.type_uint16 = qfov_type_uint16;
+    qfov->parent.type_uint32 = qfov_type_uint32;
+    qfov->parent.type_uint64 = qfov_type_uint64;
 
-    output_visitor = g_slist_prepend(output_visitors, qfov);
+    output_visitors = g_slist_prepend(output_visitors, qfov);
 
     return qfov;
 }

@@ -82,6 +82,7 @@
 #include "qemu_socket.h"
 #include "qemu-queue.h"
 #include "cpus.h"
+#include "qfov.h"
 
 #define SELF_ANNOUNCE_ROUNDS 5
 
@@ -973,24 +974,11 @@ static int get_timer(QEMUFile *f, const char *name, void *pv, size_t size)
     return 0;
 }
 
-static void visit_type_qemu_timer(Visitor *v, QEMUTimer *t, const char *name, Error **errp)
-{
-    uint64_t expire_time;
-
-    visit_start_struct(v, (void **)&t, "QEMUTimer", name, sizeof(*t), errp);
-    if (qemu_timer_pending(ts)) {
-        expire_time = ts->expire_time;
-    } else {
-        expire_time = -1;
-    }
-    visit_type_uint64(v, &expire_time, "expire_time", errp);
-    visit_end_struct(v, errp);
-}
-
 static void put_timer(QEMUFile *f, const char *name, void *pv, size_t size)
 {
+    QEMUTimer *ts = (QEMUTimer *)pv;
     Visitor *visitor = output_visitor_from_qemu_file(f);
-    visit_type_qemu_timer(visitor, (QEMUTimer *)pv, name, NULL);
+    visit_type_qemu_timer(visitor, &ts, name, NULL);
 }
 
 const VMStateInfo vmstate_info_timer = {
