@@ -23,6 +23,7 @@
 #include "qemu-timer.h"
 #include "i2c.h"
 #include "console.h"
+#include "qfov.h"
 
 #define VERBOSE 1
 
@@ -751,8 +752,10 @@ static int get_int32_as_uint16(QEMUFile *f, const char *name, void *pv, size_t s
 
 static void put_int32_as_uint16(QEMUFile *f, const char *name, void *pv, size_t size)
 {
-    int *v = pv;
-    qemu_put_be16(f, *v);
+    Visitor *v = output_visitor_from_qemu_file(f);
+    int *val32 = pv;
+    uint16_t val16 = *val32;
+    visit_type_uint16(v, &val16, name, NULL);
 }
 
 static const VMStateInfo vmstate_hack_int32_as_uint16 = {
