@@ -31,6 +31,7 @@
 #include "loader.h"
 #include "qemu-objects.h"
 #include "range.h"
+#include "qfov.h"
 
 //#define DEBUG_PCI
 #ifdef DEBUG_PCI
@@ -367,9 +368,17 @@ static int get_pci_config_device(QEMUFile *f, const char *name, void *pv, size_t
 /* just put buffer */
 static void put_pci_config_device(QEMUFile *f, const char *name, void *pv, size_t size)
 {
-    const uint8_t **v = pv;
+    Visitor *visitor = output_visitor_from_qemu_file(f);
+    uint8_t **v = pv;
+    size_t i;
+
     assert(size == pci_config_size(container_of(pv, PCIDevice, config)));
-    qemu_put_buffer(f, *v, size);
+
+    visit_start_array(visitor, name, NULL);
+    for (i = 0; i < size; i++) {
+        visit_type_uint8(visitor, (*v) + i, NULL, NULL);
+    }
+    visit_end_array(visitor, NULL);
 }
 
 static VMStateInfo vmstate_info_pci_config = {
@@ -403,10 +412,14 @@ static void put_pci_irq_state(QEMUFile *f, const char *name, void *pv, size_t si
 {
     int i;
     PCIDevice *s = container_of(pv, PCIDevice, irq_state);
+    Visitor *v = output_visitor_from_qemu_file(f);
 
+    visit_start_array(v, name, NULL);
     for (i = 0; i < PCI_NUM_PINS; ++i) {
-        qemu_put_be32(f, pci_irq_state(s, i));
+        uint32_t irq_state = pci_irq_state(s, i);
+        visit_type_uint32(v, &irq_state, NULL, NULL);
     }
+    visit_end_array(v, NULL);
 }
 
 static VMStateInfo vmstate_info_pci_irq_state = {
