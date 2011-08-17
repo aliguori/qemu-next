@@ -10,6 +10,7 @@
 
 #include "ioport.h"
 #include "irq.h"
+#include "qapi/qapi-visit-core.h"
 
 /* VM Load/Save */
 
@@ -284,7 +285,8 @@ typedef struct VMStateDescription VMStateDescription;
 struct VMStateInfo {
     const char *name;
     int (*get)(QEMUFile *f, const char *name, void *pv, size_t size);
-    void (*put)(QEMUFile *f, const char *name, void *pv, size_t size);
+    void (*put)(Visitor *v, const char *name, void *pv, size_t size,
+                Error **errp);
 };
 
 enum VMStateFlags {

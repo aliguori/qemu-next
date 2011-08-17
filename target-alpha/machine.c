@@ -8,10 +8,11 @@ static int get_fpcr(QEMUFile *f, void *opaque, size_t size)
     return 0;
 }
 
-static void put_fpcr(QEMUFile *f, void *opaque, size_t size)
+static void put_fpcr(Visitor *v, const char *name, void *opaque, size_t size, Error **errp)
 {
     CPUAlphaState *env = opaque;
-    qemu_put_be64(f, cpu_alpha_load_fpcr(env));
+    uint64_t value = cpu_alpha_load_fpcr(env);
+    visit_type_uint64(v, &value, name, errp);
 }
 
 static const VMStateInfo vmstate_fpcr = {

@@ -332,8 +332,9 @@ static int get_uint32_as_uint16(QEMUFile *f, const char *name, void *pv, size_t 
     return 0;
 }
 
-static void put_unused(QEMUFile *f, const char *name, void *pv, size_t size)
+static void put_unused(Visitor *v, const char *name, void *pv, size_t size, Error **errp)
 {
+    /* FIXME: set errp */
     fprintf(stderr, "uint32_as_uint16 is only used for backward compatibility.\n");
     fprintf(stderr, "This functions shouldn't be called.\n");
 }

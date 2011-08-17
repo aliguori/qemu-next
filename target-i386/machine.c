@@ -79,10 +79,10 @@ static const VMStateDescription vmstate_mtrr_var = {
 #define VMSTATE_MTRR_VARS(_field, _state, _n, _v)                    \
     VMSTATE_STRUCT_ARRAY(_field, _state, _n, _v, vmstate_mtrr_var, MTRRVar)
 
-static void put_fpreg_error(QEMUFile *f, const char *name, void *opaque, size_t size)
+static void put_fpreg_error(Visitor *v, const char *name, void *opaque, size_t size, Error **errp)
 {
+    /* FIXME set errp */
     fprintf(stderr, "call put_fpreg() with invalid arguments\n");
-    exit(0);
 }
 
 /* XXX: add that in a FPU generic layer */
@@ -135,10 +135,9 @@ static void visit_type_fpreg(Visitor *v, FPReg *fp_reg, const char *name,
     visit_end_struct(v, errp);
 }
 
-static void put_fpreg(QEMUFile *f, const char *name, void *opaque, size_t size)
+static void put_fpreg(Visitor *v, const char *name, void *opaque, size_t size, Error **errp)
 {
-    Visitor *v = output_visitor_from_qemu_file(f);
-    visit_type_fpreg(v, (FPReg *)opaque, name, NULL);
+    visit_type_fpreg(v, (FPReg *)opaque, name, errp);
 }
 
 static const VMStateInfo vmstate_fpreg = {
@@ -230,10 +229,11 @@ static int get_uint64_as_uint32(QEMUFile *f, const char *name, void *pv, size_t 
     return 0;
 }
 
-static void put_uint64_as_uint32(QEMUFile *f, const char *name, void *pv, size_t size)
+static void put_uint64_as_uint32(Visitor *v, const char *name, void *pv, size_t size, Error **errp)
 {
-    uint64_t *v = pv;
-    qemu_put_be32(f, *v);
+    uint64_t *val64 = pv;
+    uint32_t val32 = *val64;
+    visit_type_uint32(v, &val32, name, errp);
 }
 
 static const VMStateInfo vmstate_hack_uint64_as_uint32 = {

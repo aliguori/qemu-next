@@ -750,12 +750,11 @@ static int get_int32_as_uint16(QEMUFile *f, const char *name, void *pv, size_t s
     return 0;
 }
 
-static void put_int32_as_uint16(QEMUFile *f, const char *name, void *pv, size_t size)
+static void put_int32_as_uint16(Visitor *v, const char *name, void *pv, size_t size, Error **errp)
 {
-    Visitor *v = output_visitor_from_qemu_file(f);
     int *val32 = pv;
     uint16_t val16 = *val32;
-    visit_type_uint16(v, &val16, name, NULL);
+    visit_type_uint16(v, &val16, name, errp);
 }
 
 static const VMStateInfo vmstate_hack_int32_as_uint16 = {

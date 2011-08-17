@@ -100,11 +100,11 @@ static int get_uint16_from_uint8(QEMUFile *f, const char *name, void *pv, size_t
     return 0;
 }
 
-static void put_unused(QEMUFile *f, const char *name, void *pv, size_t size)
+static void put_unused(Visitor *v, const char *name, void *pv, size_t size, Error **errp)
 {
+    /* FIXME set error in errp */
     fprintf(stderr, "uint16_from_uint8 is used only for backwards compatibility.\n");
     fprintf(stderr, "Never should be used to write a new state.\n");
-    exit(0);
 }
 
 static const VMStateInfo vmstate_hack_uint16_from_uint8 = {
