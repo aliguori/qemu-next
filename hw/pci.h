@@ -218,7 +218,7 @@ uint32_t pci_default_read_config(PCIDevice *d,
                                  uint32_t address, int len);
 void pci_default_write_config(PCIDevice *d,
                               uint32_t address, uint32_t val, int len);
-void pci_device_save(PCIDevice *s, QEMUFile *f);
+void pci_device_save(PCIDevice *s, Visitor *v, Error **errp);
 int pci_device_load(PCIDevice *s, QEMUFile *f);
 
 typedef void (*pci_set_irq_fn)(void *opaque, int irq_num, int level);

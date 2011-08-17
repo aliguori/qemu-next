@@ -859,32 +859,42 @@ static void virtio_net_tx_bh(void *opaque)
     }
 }
 
-static void virtio_net_save(QEMUFile *f, void *opaque)
+static void virtio_net_save(Visitor *v, void *opaque, const char *name, Error **errp)
 {
     VirtIONet *n = opaque;
+    uint32_t val32;
+
+    visit_start_struct(v, NULL, "VirtioNet", name, 0, errp);
 
     /* At this point, backend must be stopped, otherwise
      * it might keep writing to memory. */
     assert(!n->vhost_started);
-    virtio_save(&n->vdev, f);
 
-    qemu_put_buffer(f, n->mac, ETH_ALEN);
-    qemu_put_be32(f, n->tx_waiting);
-    qemu_put_be32(f, n->mergeable_rx_bufs);
-    qemu_put_be16(f, n->status);
-    qemu_put_byte(f, n->promisc);
-    qemu_put_byte(f, n->allmulti);
-    qemu_put_be32(f, n->mac_table.in_use);
-    qemu_put_buffer(f, n->mac_table.macs, n->mac_table.in_use * ETH_ALEN);
-    qemu_put_buffer(f, (uint8_t *)n->vlans, MAX_VLAN >> 3);
-    qemu_put_be32(f, n->has_vnet_hdr);
-    qemu_put_byte(f, n->mac_table.multi_overflow);
-    qemu_put_byte(f, n->mac_table.uni_overflow);
-    qemu_put_byte(f, n->alluni);
-    qemu_put_byte(f, n->nomulti);
-    qemu_put_byte(f, n->nouni);
-    qemu_put_byte(f, n->nobcast);
-    qemu_put_byte(f, n->has_ufo);
+    virtio_save(v, &n->vdev, "parent", errp);
+
+    visit_type_buffer(v, n->mac, ETH_ALEN, "mac", errp);
+    val32 = n->tx_waiting;
+    visit_type_uint32(v, &val32, "tx_waiting", errp);
+    val32 = n->mergeable_rx_bufs;
+    visit_type_uint32(v, &val32, "mergeable_rx_bufs", errp);
+    visit_type_uint16(v, &n->status, "status", errp);
+    visit_type_uint8(v, &n->promisc, "promisc", errp);
+    visit_type_uint8(v, &n->allmulti, "allmulti", errp);
+    val32 = n->mac_table.in_use;
+    visit_type_uint32(v, &val32, "in_use", errp);
+    // FIXME this should be an array
+    visit_type_buffer(v, &n->mac_table.macs, n->mac_table.in_use * ETH_ALEN, "macs", errp);
+    visit_type_buffer(v, (uint8_t *)n->vlans, MAX_VLAN >> 3, "vlans", errp);
+    visit_type_uint32(v, &n->has_vnet_hdr, "has_vnet_hdr", errp);
+    visit_type_uint8(v, &n->mac_table.multi_overflow, "multi_overflow", errp);
+    visit_type_uint8(v, &n->mac_table.uni_overflow, "uni_overflow", errp);
+    visit_type_uint8(v, &n->alluni, "alluni", errp);
+    visit_type_uint8(v, &n->nomulti, "nomulti", errp);
+    visit_type_uint8(v, &n->nouni, "nouni", errp);
+    visit_type_uint8(v, &n->nobcast, "nobcast", errp);
+    visit_type_uint8(v, &n->has_ufo, "has_ufo", errp);
+
+    visit_end_struct(v, errp);
 }
 
 static int virtio_net_load(QEMUFile *f, void *opaque, int version_id)
@@ -1044,8 +1054,8 @@ VirtIODevice *virtio_net_init(DeviceState *dev, NICConf *conf,
     n->vlans = qemu_mallocz(MAX_VLAN >> 3);
 
     n->qdev = dev;
-    register_savevm(dev, "virtio-net", -1, VIRTIO_NET_VM_VERSION,
-                    virtio_net_save, virtio_net_load, n);
+    register_savevm_live(dev, "virtio-net", -1, VIRTIO_NET_VM_VERSION,
+                         NULL, NULL, NULL, virtio_net_load, virtio_net_save, n);
 
     add_boot_device_path(conf->bootindex, dev, "/ethernet-phy@0");
 

@@ -276,16 +276,29 @@ int msix_uninit(PCIDevice *dev, MemoryRegion *bar)
     return 0;
 }
 
-void msix_save(PCIDevice *dev, QEMUFile *f)
+void msix_save(PCIDevice *dev, Visitor *v, Error **errp)
 {
     unsigned n = dev->msix_entries_nr;
+    unsigned i;
 
     if (!(dev->cap_present & QEMU_PCI_CAP_MSIX)) {
         return;
     }
 
-    qemu_put_buffer(f, dev->msix_table_page, n * PCI_MSIX_ENTRY_SIZE);
-    qemu_put_buffer(f, dev->msix_table_page + MSIX_PAGE_PENDING, (n + 7) / 8);
+    visit_start_array(v, "msix_table", errp);
+    for (i = 0; i < n; i++) {
+        unsigned k;
+        for (k = 0; k < PCI_MSIX_ENTRY_SIZE; k++) {
+            visit_type_uint8(v, &dev->msix_table_page[i * PCI_MSIX_ENTRY_SIZE + k], NULL, errp);
+        }
+    }
+    visit_end_array(v, errp);
+
+    visit_start_array(v, "msix_pending", errp);
+    for (i = 0; i < (n + 7) / 8; i++) {
+        visit_type_uint8(v, &dev->msix_table_page[MSIX_PAGE_PENDING + i], NULL, errp);
+    }
+    visit_end_array(v, errp);
 }
 
 /* Should be called after restoring the config space. */

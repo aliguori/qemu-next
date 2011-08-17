@@ -243,14 +243,19 @@ static void virtio_balloon_to_target(void *opaque, ram_addr_t target)
     }
 }
 
-static void virtio_balloon_save(QEMUFile *f, void *opaque)
+static void virtio_balloon_save(Visitor *v, void *opaque, const char *name,
+                                Error **errp)
 {
     VirtIOBalloon *s = opaque;
 
-    virtio_save(&s->vdev, f);
+    visit_start_struct(v, NULL, "VirtioBallon", name, 0, errp);
 
-    qemu_put_be32(f, s->num_pages);
-    qemu_put_be32(f, s->actual);
+    virtio_save(v, &s->vdev, "super", errp);
+
+    visit_type_uint32(v, &s->num_pages, "num_pages", errp);
+    visit_type_uint32(v, &s->actual, "actual", errp);
+
+    visit_end_struct(v, errp);
 }
 
 static int virtio_balloon_load(QEMUFile *f, void *opaque, int version_id)
@@ -294,8 +299,9 @@ VirtIODevice *virtio_balloon_init(DeviceState *dev)
     reset_stats(s);
 
     s->qdev = dev;
-    register_savevm(dev, "virtio-balloon", -1, 1,
-                    virtio_balloon_save, virtio_balloon_load, s);
+    register_savevm_live(dev, "virtio-balloon", -1, 1,
+                         NULL, NULL, NULL, virtio_balloon_load,
+                         virtio_balloon_save, s);
 
     return &s->vdev;
 }

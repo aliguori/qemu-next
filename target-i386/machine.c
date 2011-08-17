@@ -439,7 +439,9 @@ static const VMStateDescription vmstate_cpu = {
 
 void cpu_save(QEMUFile *f, void *opaque)
 {
+#if 0
     vmstate_save_state(f, &vmstate_cpu, opaque);
+#endif
 }
 
 int cpu_load(QEMUFile *f, void *opaque, int version_id)

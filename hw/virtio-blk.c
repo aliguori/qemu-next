@@ -489,19 +489,47 @@ static uint32_t virtio_blk_get_features(VirtIODevice *vdev, uint32_t features)
     return features;
 }
 
-static void virtio_blk_save(QEMUFile *f, void *opaque)
+static void virtio_blk_save(Visitor *v, void *opaque, const char *name,
+                            Error **errp)
 {
     VirtIOBlock *s = opaque;
     VirtIOBlockReq *req = s->rq;
+    int8_t val8;
 
-    virtio_save(&s->vdev, f);
+    visit_start_struct(v, NULL, "VirtioBlk", name, 0, errp);
+
+    virtio_save(v, &s->vdev, "super", errp);
     
+    visit_start_array(v, "requests", errp);
     while (req) {
-        qemu_put_sbyte(f, 1);
-        qemu_put_buffer(f, (unsigned char*)&req->elem, sizeof(req->elem));
+        /* Hell has a special place reserved for people that write C structures
+         * directly to the wire. */
+        uint8_t *ptr = (uint8_t *)&req->elem;
+        size_t i;
+
+        val8 = 1;
+        visit_start_struct(v, NULL, "VirtElement", NULL, 0, errp);
+        visit_type_int8(v, &val8, "present", errp);
+
+        visit_start_array(v, "request", errp);
+        for (i = 0; i < sizeof(req->elem); i++) {
+            visit_type_uint8(v, &ptr[i], NULL, errp);
+        }
+        visit_end_array(v, errp);
+
         req = req->next;
+        visit_end_struct(v, errp);
     }
-    qemu_put_sbyte(f, 0);
+
+    val8 = 0;
+
+    visit_start_struct(v, NULL, "VirtElement", NULL, 0, errp);
+    visit_type_int8(v, &val8, "present", errp);
+    visit_end_struct(v, errp);
+
+    visit_end_array(v, errp);
+
+    visit_end_struct(v, errp);
 }
 
 static int virtio_blk_load(QEMUFile *f, void *opaque, int version_id)
@@ -579,8 +607,8 @@ VirtIODevice *virtio_blk_init(DeviceState *dev, BlockConf *conf,
 
     qemu_add_vm_change_state_handler(virtio_blk_dma_restart_cb, s);
     s->qdev = dev;
-    register_savevm(dev, "virtio-blk", virtio_blk_id++, 2,
-                    virtio_blk_save, virtio_blk_load, s);
+    register_savevm_live(dev, "virtio-blk", virtio_blk_id++, 2, 
+                         NULL, NULL, NULL, virtio_blk_load, virtio_blk_save, s);
     bdrv_set_removable(s->bs, 0);
     bdrv_set_change_cb(s->bs, virtio_blk_change_cb, s);
     s->bs->buffer_alignment = conf->logical_block_size;

@@ -465,14 +465,14 @@ static inline const VMStateDescription *pci_get_vmstate(PCIDevice *s)
     return pci_is_express(s) ? &vmstate_pcie_device : &vmstate_pci_device;
 }
 
-void pci_device_save(PCIDevice *s, QEMUFile *f)
+void pci_device_save(PCIDevice *s, Visitor *v, Error **errp)
 {
     /* Clear interrupt status bit: it is implicit
      * in irq_state which we are saving.
      * This makes us compatible with old devices
      * which never set or clear this bit. */
     s->config[PCI_STATUS] &= ~PCI_STATUS_INTERRUPT;
-    vmstate_save_state(f, pci_get_vmstate(s), s);
+    vmstate_save_state(v, pci_get_vmstate(s), s, errp);
     /* Restore the interrupt status bit. */
     pci_update_irq_status(s);
 }

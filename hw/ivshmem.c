@@ -560,6 +560,7 @@ static void ivshmem_setup_msi(IVShmemState * s) {
     s->eventfd_table = qemu_mallocz(s->vectors * sizeof(EventfdEntry));
 }
 
+#if 0
 static void ivshmem_save(QEMUFile* f, void *opaque)
 {
     IVShmemState *proxy = opaque;
@@ -609,6 +610,7 @@ static int ivshmem_load(QEMUFile* f, void *opaque, int version_id)
 
     return 0;
 }
+#endif
 
 static int pci_ivshmem_init(PCIDevice *dev)
 {
@@ -621,8 +623,10 @@ static int pci_ivshmem_init(PCIDevice *dev)
         s->ivshmem_size = ivshmem_get_size(s);
     }
 
+#if 0
     register_savevm(&s->dev.qdev, "ivshmem", 0, 0, ivshmem_save, ivshmem_load,
                                                                         dev);
+#endif
 
     /* IRQFD requires MSI */
     if (ivshmem_has_feature(s, IVSHMEM_IOEVENTFD) &&

@@ -1053,6 +1053,7 @@ typedef struct SaveStateEntry {
     SaveLiveStateHandler *save_live_state;
     SaveStateHandler *save_state;
     LoadStateHandler *load_state;
+    VisitStateHandler *visit_state;
     const VMStateDescription *vmsd;
     void *opaque;
     CompatEntry *compat;
@@ -1107,6 +1108,7 @@ int register_savevm_live(DeviceState *dev,
                          SaveLiveStateHandler *save_live_state,
                          SaveStateHandler *save_state,
                          LoadStateHandler *load_state,
+                         VisitStateHandler *visit_state,
                          void *opaque)
 {
     SaveStateEntry *se;
@@ -1118,6 +1120,7 @@ int register_savevm_live(DeviceState *dev,
     se->save_live_state = save_live_state;
     se->save_state = save_state;
     se->load_state = load_state;
+    se->visit_state = visit_state;
     se->opaque = opaque;
     se->vmsd = NULL;
     se->no_migrate = 0;
@@ -1158,7 +1161,7 @@ int register_savevm(DeviceState *dev,
                     void *opaque)
 {
     return register_savevm_live(dev, idstr, instance_id, version_id,
-                                NULL, NULL, save_state, load_state, opaque);
+                                NULL, NULL, save_state, load_state, NULL, opaque);
 }
 
 void unregister_savevm(DeviceState *dev, const char *idstr, void *opaque)
@@ -1283,8 +1286,8 @@ void vmstate_unregister(DeviceState *dev, const VMStateDescription *vmsd,
     }
 }
 
-static void vmstate_subsection_save(QEMUFile *f, const VMStateDescription *vmsd,
-                                    void *opaque);
+static void vmstate_subsection_save(Visitor *v, const VMStateDescription *vmsd,
+                                    void *opaque, Error **errp);
 static int vmstate_subsection_load(QEMUFile *f, const VMStateDescription *vmsd,
                                    void *opaque);
 
@@ -1366,20 +1369,14 @@ int vmstate_load_state(QEMUFile *f, const VMStateDescription *vmsd,
     return 0;
 }
 
-void vmstate_save_state(QEMUFile *f, const VMStateDescription *vmsd,
-                        void *opaque)
+void vmstate_save_state(Visitor *v, const VMStateDescription *vmsd, void *opaque, Error **errp)
 {
     VMStateField *field = vmsd->fields;
-    QEMUFileOutputVisitor *qfov;
-    Visitor *v;
     char name[1024];
-
-    qfov = qemu_file_output_visitor_new(f);
-    v = qemu_file_output_get_visitor(qfov);
 
     /* FIXME need an instance id */
     snprintf(name, sizeof(name), "%s.0", vmsd->name);
-    visit_start_struct(v, NULL, vmsd->name, name, 0, NULL);
+    visit_start_struct(v, NULL, vmsd->name, name, 0, errp);
 
     if (vmsd->pre_save) {
         vmsd->pre_save(opaque);
@@ -1416,15 +1413,16 @@ void vmstate_save_state(QEMUFile *f, const VMStateDescription *vmsd,
                     addr = *(void **)addr;
                 }
                 if (field->flags & VMS_STRUCT) {
-                    vmstate_save_state(f, field->vmsd, addr);
+                    vmstate_save_state(v, field->vmsd, addr, errp);
                 } else {
-                    field->info->put(v, field->name, addr, size, NULL);
+                    field->info->put(v, field->name, addr, size, errp);
                 }
             }
         }
         field++;
     }
-    vmstate_subsection_save(f, vmsd, opaque);
+    vmstate_subsection_save(v, vmsd, opaque, errp);
+
     visit_end_struct(v, NULL);
 }
 
@@ -1438,11 +1436,20 @@ static int vmstate_load(QEMUFile *f, SaveStateEntry *se, int version_id)
 
 static void vmstate_save(QEMUFile *f, SaveStateEntry *se)
 {
-    if (!se->vmsd) {         /* Old style */
+    QEMUFileOutputVisitor *qfov;
+    char name[1024];
+    Visitor *v;
+
+    qfov = qemu_file_output_visitor_new(f);
+    v = qemu_file_output_get_visitor(qfov);
+
+    if (se->vmsd) {
+        vmstate_save_state(v, se->vmsd, se->opaque, NULL);
+    } else if (se->visit_state) {
+        se->visit_state(v, se->opaque, name, NULL);
+    } else {
         se->save_state(f, se->opaque);
-        return;
     }
-    vmstate_save_state(f,se->vmsd, se->opaque);
 }
 
 #define QEMU_VM_FILE_MAGIC           0x5145564d
@@ -1705,23 +1712,22 @@ static int vmstate_subsection_load(QEMUFile *f, const VMStateDescription *vmsd,
     return 0;
 }
 
-static void vmstate_subsection_save(QEMUFile *f, const VMStateDescription *vmsd,
-                                    void *opaque)
+static void vmstate_subsection_save(Visitor *v, const VMStateDescription *vmsd,
+                                    void *opaque, Error **errp)
 {
     const VMStateSubsection *sub = vmsd->subsections;
 
     while (sub && sub->needed) {
         if (sub->needed(opaque)) {
             const VMStateDescription *vmsd = sub->vmsd;
-            uint8_t len;
+            uint8_t guard = QEMU_VM_SUBSECTION;
 
-            qemu_put_byte(f, QEMU_VM_SUBSECTION);
-            len = strlen(vmsd->name);
-            qemu_put_byte(f, len);
-            qemu_put_buffer(f, (uint8_t *)vmsd->name, len);
-            qemu_put_be32(f, vmsd->version_id);
+            visit_start_struct(v, NULL, "Subsection", vmsd->name, 0, errp);
+            visit_type_uint8(v, &guard, "header", errp);
+//            visit_type_string(v, &vmsd->name, "name", errp); FIXME
+            visit_type_uint32(v, (uint32_t *)&vmsd->version_id, "version_id", errp);
             assert(!vmsd->subsections);
-            vmstate_save_state(f, vmsd, opaque);
+            vmstate_save_state(v, vmsd, opaque, errp);
         }
         sub++;
     }

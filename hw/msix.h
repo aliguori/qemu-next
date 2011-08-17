@@ -13,7 +13,7 @@ void msix_write_config(PCIDevice *pci_dev, uint32_t address,
 
 int msix_uninit(PCIDevice *d, MemoryRegion *bar);
 
-void msix_save(PCIDevice *dev, QEMUFile *f);
+void msix_save(PCIDevice *dev, Visitor *v, Error **errp);
 void msix_load(PCIDevice *dev, QEMUFile *f);
 
 int msix_enabled(PCIDevice *dev);

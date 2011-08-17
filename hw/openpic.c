@@ -1073,7 +1073,9 @@ static void openpic_save(QEMUFile* f, void *opaque)
     }
 #endif
 
+#if 0
     pci_device_save(&opp->pci_dev, f);
+#endif
 }
 
 static void openpic_load_IRQ_queue(QEMUFile* f, IRQ_queue_t *q)

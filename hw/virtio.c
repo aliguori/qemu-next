@@ -16,6 +16,7 @@
 #include "trace.h"
 #include "qemu-error.h"
 #include "virtio.h"
+#include "qfov.h"
 
 /* The alignment to use between consumer and producer parts of vring.
  * x86 pagesize again. */
@@ -728,37 +729,59 @@ void virtio_notify_config(VirtIODevice *vdev)
     virtio_notify_vector(vdev, vdev->config_vector);
 }
 
-void virtio_save(VirtIODevice *vdev, QEMUFile *f)
+void virtio_save(Visitor *v, VirtIODevice *vdev, const char *name, Error **errp)
 {
     int i;
+    uint32_t val32;
+
+    visit_start_struct(v, NULL, "VirtIODevice", name, 0, errp);
 
     if (vdev->binding->save_config)
-        vdev->binding->save_config(vdev->binding_opaque, f);
+        vdev->binding->save_config(v, vdev->binding_opaque, NULL);
 
-    qemu_put_8s(f, &vdev->status);
-    qemu_put_8s(f, &vdev->isr);
-    qemu_put_be16s(f, &vdev->queue_sel);
-    qemu_put_be32s(f, &vdev->guest_features);
-    qemu_put_be32(f, vdev->config_len);
-    qemu_put_buffer(f, vdev->config, vdev->config_len);
+    visit_type_uint8(v, &vdev->status, "status", errp);
+    visit_type_uint8(v, &vdev->isr, "isr", errp);
+    visit_type_uint16(v, &vdev->queue_sel, "queue_sel", errp);
+    visit_type_uint32(v, &vdev->guest_features, "guest_features", errp);
+
+    val32 = vdev->config_len;
+    visit_type_uint32(v, &val32, "config_len", errp);
+
+    visit_start_array(v, "config", errp);
+    for (i = 0; i < vdev->config_len; i++) {
+        uint8_t *config = vdev->config + i;
+        visit_type_uint8(v, config, NULL, errp);
+    }
+    visit_end_array(v, errp);
 
     for (i = 0; i < VIRTIO_PCI_QUEUE_MAX; i++) {
         if (vdev->vq[i].vring.num == 0)
             break;
     }
 
-    qemu_put_be32(f, i);
+    val32 = i;
+    visit_type_uint32(v, &val32, "queue_nums", errp);
 
     for (i = 0; i < VIRTIO_PCI_QUEUE_MAX; i++) {
+        char name[32];
+
         if (vdev->vq[i].vring.num == 0)
             break;
 
-        qemu_put_be32(f, vdev->vq[i].vring.num);
-        qemu_put_be64(f, vdev->vq[i].pa);
-        qemu_put_be16s(f, &vdev->vq[i].last_avail_idx);
+        snprintf(name, sizeof(name), "queue.%d", i);
+        visit_start_struct(v, NULL, "VirtQueue", name, 0, errp);
+
+        visit_type_uint32(v, &vdev->vq[i].vring.num, "num", errp);
+        visit_type_uint64(v, &vdev->vq[i].pa, "pa", errp);
+        visit_type_uint16(v, &vdev->vq[i].last_avail_idx, "last_avail_idx", errp);
+
         if (vdev->binding->save_queue)
-            vdev->binding->save_queue(vdev->binding_opaque, i, f);
+            vdev->binding->save_queue(v, vdev->binding_opaque, i, errp);
+
+        visit_end_struct(v, errp);
     }
+
+    visit_end_struct(v, errp);
 }
 
 int virtio_load(VirtIODevice *vdev, QEMUFile *f)

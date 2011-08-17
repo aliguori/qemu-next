@@ -105,20 +105,23 @@ static void virtio_pci_notify(void *opaque, uint16_t vector)
         qemu_set_irq(proxy->pci_dev.irq[0], proxy->vdev->isr & 1);
 }
 
-static void virtio_pci_save_config(void * opaque, QEMUFile *f)
+static void virtio_pci_save_config(Visitor *v, void * opaque, Error **errp)
 {
     VirtIOPCIProxy *proxy = opaque;
-    pci_device_save(&proxy->pci_dev, f);
-    msix_save(&proxy->pci_dev, f);
-    if (msix_present(&proxy->pci_dev))
-        qemu_put_be16(f, proxy->vdev->config_vector);
+    pci_device_save(&proxy->pci_dev, v, errp);
+    msix_save(&proxy->pci_dev, v, errp);
+    if (msix_present(&proxy->pci_dev)) {
+        visit_type_uint16(v, &proxy->vdev->config_vector, "config_vector", errp);
+    }
 }
 
-static void virtio_pci_save_queue(void * opaque, int n, QEMUFile *f)
+static void virtio_pci_save_queue(Visitor *v, void * opaque, int n, Error **errp)
 {
     VirtIOPCIProxy *proxy = opaque;
-    if (msix_present(&proxy->pci_dev))
-        qemu_put_be16(f, virtio_queue_vector(proxy->vdev, n));
+    if (msix_present(&proxy->pci_dev)) {
+        uint16_t val16 = virtio_queue_vector(proxy->vdev, n);
+        visit_type_uint16(v, &val16, "vector", errp);
+    }
 }
 
 static int virtio_pci_load_config(void * opaque, QEMUFile *f)

@@ -245,6 +245,7 @@ typedef void SaveStateHandler(QEMUFile *f, void *opaque);
 typedef int SaveLiveStateHandler(Monitor *mon, QEMUFile *f, int stage,
                                  void *opaque);
 typedef int LoadStateHandler(QEMUFile *f, void *opaque, int version_id);
+typedef void VisitStateHandler(Visitor *v, void *opaque, const char *name, Error **errp);
 
 int register_savevm(DeviceState *dev,
                     const char *idstr,
@@ -262,11 +263,25 @@ int register_savevm_live(DeviceState *dev,
 			 SaveLiveStateHandler *save_live_state,
                          SaveStateHandler *save_state,
                          LoadStateHandler *load_state,
+                         VisitStateHandler *visit_state,
                          void *opaque);
 
 void unregister_savevm(DeviceState *dev, const char *idstr, void *opaque);
 void register_device_unmigratable(DeviceState *dev, const char *idstr,
                                                                 void *opaque);
+
+static inline void visit_type_buffer(Visitor *v, void *buffer, size_t size,
+                                     const char *name, Error **errp)
+{
+    uint8_t *ptr = buffer;
+    size_t i;
+
+    visit_start_array(v, name, errp);
+    for (i = 0; i < size; i++) {
+        visit_type_uint8(v, &ptr[i], NULL, errp);
+    }
+    visit_end_array(v, errp);
+}
 
 typedef void QEMUResetHandler(void *opaque);
 
@@ -935,8 +950,8 @@ extern const VMStateDescription vmstate_hid_ptr_device;
 
 int vmstate_load_state(QEMUFile *f, const VMStateDescription *vmsd,
                        void *opaque, int version_id);
-void vmstate_save_state(QEMUFile *f, const VMStateDescription *vmsd,
-                        void *opaque);
+void vmstate_save_state(Visitor *v, const VMStateDescription *vmsd,
+                        void *opaque, Error **errp);
 int vmstate_register(DeviceState *dev, int instance_id,
                      const VMStateDescription *vmsd, void *base);
 int vmstate_register_with_alias_id(DeviceState *dev, int instance_id,

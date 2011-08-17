@@ -93,8 +93,8 @@ typedef struct VirtQueueElement
 
 typedef struct {
     void (*notify)(void * opaque, uint16_t vector);
-    void (*save_config)(void * opaque, QEMUFile *f);
-    void (*save_queue)(void * opaque, int n, QEMUFile *f);
+    void (*save_config)(Visitor *v, void *opaque, Error **errp );
+    void (*save_queue)(Visitor *v, void * opaque, int n, Error **errp);
     int (*load_config)(void * opaque, QEMUFile *f);
     int (*load_queue)(void * opaque, int n, QEMUFile *f);
     int (*load_done)(void * opaque, QEMUFile *f);
@@ -160,7 +160,7 @@ int virtqueue_avail_bytes(VirtQueue *vq, int in_bytes, int out_bytes);
 
 void virtio_notify(VirtIODevice *vdev, VirtQueue *vq);
 
-void virtio_save(VirtIODevice *vdev, QEMUFile *f);
+void virtio_save(Visitor *v, VirtIODevice *vdev, const char *name, Error **errp);
 
 int virtio_load(VirtIODevice *vdev, QEMUFile *f);
 
