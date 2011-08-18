@@ -4,6 +4,10 @@
 #include "test-qapi-types.h"
 #include "test-qapi-visit.h"
 #include "qemu-objects.h"
+#include "qapi/qemu-file-output-visitor.h"
+#include "qapi/qemu-file-input-visitor.h"
+#include "hw/hw.h"
+#include "qemu-common.h"
 
 typedef struct TestStruct
 {
@@ -323,6 +327,404 @@ static void test_nested_enums(void)
     qapi_free_NestedEnumsOne(nested_enums_cpy);
 }
 
+#define TEST_QEMU_FILE_PATH "/tmp/test_qemu_file_visitors"
+
+typedef struct QEMUFileValue {
+    union {
+        bool boolean;
+        double number;
+        uint8_t u8;
+        uint16_t u16;
+        uint32_t u32;
+        uint64_t u64;
+        int8_t s8;
+        int16_t s16;
+        int32_t s32;
+        int64_t s64;
+        uintmax_t umax;
+    } value;
+    union {
+        uint8_t u8[32];
+        uint16_t u16[32];
+        uint32_t u32[32];
+        uint64_t u64[32];
+        int8_t s8[32];
+        int16_t s16[32];
+        int32_t s32[32];
+        int64_t s64[32];
+        uintmax_t umax[32];
+    } array;
+    size_t array_len;
+    enum {
+        QFV_BOOL = 0,
+        QFV_NUMBER,
+        QFV_U8,
+        QFV_U16,
+        QFV_U32,
+        QFV_U64,
+        QFV_S8,
+        QFV_S16,
+        QFV_S32,
+        QFV_S64,
+        QFV_U8_ARRAY,
+        QFV_EOL,
+    } type;
+} QEMUFileValue;
+
+QEMUFileValue qfvalues[] = {
+    { .value.boolean = true, .type = QFV_BOOL },
+    { .value.boolean = false, .type = QFV_BOOL },
+    { .value.number = 3.14159265, .type = QFV_NUMBER },
+    { .value.u8 = 0, .type = QFV_U8 },
+    { .value.u8 = 1, .type = QFV_U8 },
+    { .value.u8 = 128, .type = QFV_U8 },
+    { .value.u8 = 255u, .type = QFV_U8 },
+    { .value.u16 = 0, .type = QFV_U16 },
+    { .value.u16 = 1, .type = QFV_U16 },
+    { .value.u16 = 32768, .type = QFV_U16 },
+    { .value.u16 = 65535u, .type = QFV_U16 },
+    { .value.u32 = 0, .type = QFV_U32 },
+    { .value.u32 = 1, .type = QFV_U32 },
+    { .value.u32 = 2147483648, .type = QFV_U32 },
+    { .value.u32 = 4294967295u, .type = QFV_U32 },
+    { .value.u64 = 0, .type = QFV_U64 },
+    { .value.u64 = 1, .type = QFV_U64 },
+    { .value.u64 = 9223372036854775808u, .type = QFV_U64 },
+    { .value.u64 = 18446744073709551615u, .type = QFV_U64 },
+    { .value.s8 = 0, .type = QFV_S8 },
+    { .value.s8 = 1, .type = QFV_S8 },
+    { .value.s8 = 128, .type = QFV_S8 },
+    { .value.s8 = -1, .type = QFV_S8 },
+    { .value.s16 = 0, .type = QFV_S16 },
+    { .value.s16 = 1, .type = QFV_S16 },
+    { .value.s16 = 32768, .type = QFV_S16 },
+    { .value.s16 = -1, .type = QFV_S16 },
+    { .value.s32 = 0, .type = QFV_S32 },
+    { .value.s32 = 1, .type = QFV_S32 },
+    { .value.s32 = 2147483648, .type = QFV_S32 },
+    { .value.s32 = -1, .type = QFV_S32 },
+    { .value.s64 = 0, .type = QFV_S64 },
+    { .value.s64 = 1, .type = QFV_S64 },
+    { .value.s64 = 9223372036854775808u, .type = QFV_S64 },
+    { .value.s64 = -1, .type = QFV_S64 },
+    { .array.u8 = { }, .array_len = 0, .type = QFV_U8_ARRAY },
+    { .array.u8 = { 1, 2, 3, 4 }, .array_len = 4, .type = QFV_U8_ARRAY },
+    { .type = QFV_EOL }
+};
+
+static void qfv_process(QEMUFileValue *qfv, bool visitor, bool write,
+                        void *opaque)
+{
+    int i;
+    void *ptr;
+
+    switch (qfv->type) {
+    case QFV_BOOL:
+        if (visitor) {
+            visit_type_bool(opaque, &qfv->value.boolean, NULL, NULL);
+        } else {
+            if (write) {
+                qemu_put_byte(opaque, qfv->value.boolean);
+            } else {
+                qfv->value.boolean = qemu_get_byte(opaque);
+            }
+        }
+        break;
+    case QFV_NUMBER:
+        if (visitor) {
+            visit_type_number(opaque, &qfv->value.number, NULL, NULL);
+        } else {
+            if (write) {
+                qemu_put_be64s(opaque, (uint64_t *)&qfv->value.number);
+            } else {
+                qemu_get_be64s(opaque, (uint64_t *)&qfv->value.number);
+            }
+        }
+        break;
+    case QFV_U8:
+        if (visitor) {
+            visit_type_uint8(opaque, &qfv->value.u8, NULL, NULL);
+        } else {
+            if (write) {
+                qemu_put_byte(opaque, qfv->value.u8);
+            } else {
+                qfv->value.u8 = qemu_get_byte(opaque);
+            }
+        }
+        break;
+    case QFV_U16:
+        if (visitor) {
+            visit_type_uint16(opaque, &qfv->value.u16, NULL, NULL);
+        } else {
+            if (write) {
+                qemu_put_be16(opaque, qfv->value.u16);
+            } else {
+                qfv->value.u16 = qemu_get_be16(opaque);
+            }
+        }
+        break;
+    case QFV_U32:
+        if (visitor) {
+            visit_type_uint32(opaque, &qfv->value.u32, NULL, NULL);
+        } else {
+            if (write) {
+                qemu_put_be32(opaque, qfv->value.u32);
+            } else {
+                qfv->value.u32 = qemu_get_be32(opaque);
+            }
+        }
+        break;
+    case QFV_U64:
+        if (visitor) {
+            visit_type_uint64(opaque, &qfv->value.u64, NULL, NULL);
+        } else {
+            if (write) {
+                qemu_put_be64(opaque, qfv->value.u64);
+            } else {
+                qfv->value.u64 = qemu_get_be64(opaque);
+            }
+        }
+        break;
+    case QFV_S8:
+        if (visitor) {
+            visit_type_int8(opaque, &qfv->value.s8, NULL, NULL);
+        } else {
+            if (write) {
+                qemu_put_byte(opaque, qfv->value.s8);
+            } else {
+                qfv->value.s8 = qemu_get_byte(opaque);
+            }
+        }
+        break;
+    case QFV_S16:
+        if (visitor) {
+            visit_type_int16(opaque, &qfv->value.s16, NULL, NULL);
+        } else {
+            if (write) {
+                qemu_put_be16(opaque, qfv->value.s16);
+            } else {
+                qfv->value.s16 = qemu_get_be16(opaque);
+            }
+        }
+        break;
+    case QFV_S32:
+        if (visitor) {
+            visit_type_int32(opaque, &qfv->value.s32, NULL, NULL);
+        } else {
+            if (write) {
+                qemu_put_be32(opaque, qfv->value.s32);
+            } else {
+                qfv->value.s32 = qemu_get_be32(opaque);
+            }
+        }
+        break;
+    case QFV_S64:
+        if (visitor) {
+            visit_type_int64(opaque, &qfv->value.s64, NULL, NULL);
+        } else {
+            if (write) {
+                qemu_put_be64(opaque, qfv->value.s64);
+            } else {
+                qfv->value.s64 = qemu_get_be64(opaque);
+            }
+        }
+        break;
+    case QFV_U8_ARRAY:
+        if (visitor) {
+            ptr = qfv->array.u8;
+            visit_start_array(opaque, (void **)&ptr, NULL,
+                              qfv->array_len, sizeof(uint8_t), NULL);
+            for (i = 0; i < qfv->array_len; i++, visit_next_array(opaque, NULL)) {
+                visit_type_uint8(opaque, &((uint8_t *)ptr)[i], NULL, NULL);
+            }
+            visit_end_array(opaque, NULL);
+        } else {
+            for (i = 0; i < qfv->array_len; i++) {
+                if (write) {
+                    qemu_put_byte(opaque, qfv->array.u8[i]);
+                } else {
+                    qfv->array.u8[i] = qemu_get_byte(opaque);
+                }
+            }
+        }
+        break;
+    default:
+        return;
+    }
+}
+
+static void qfv_visitor_write(QEMUFileValue *qfv, Visitor *v)
+{
+    qfv_process(qfv, true, true, v);
+}
+
+static void qfv_visitor_read(QEMUFileValue *qfv, Visitor *v)
+{
+    qfv_process(qfv, true, false, v);
+}
+
+static void qfv_write(QEMUFileValue *qfv, QEMUFile *f)
+{
+    qfv_process(qfv, false, true, f);
+}
+
+static void qfv_read(QEMUFileValue *qfv, QEMUFile *f)
+{
+    qfv_process(qfv, false, false, f);
+}
+
+static void test_qemu_file_in_visitor(void)
+{
+    QEMUFile *f1, *f2;
+    QemuFileInputVisitor *qfi;
+    QemuFileOutputVisitor *qfo;
+    Visitor *v;
+    QEMUFileValue qfval1, qfval2;
+    int i, j;
+    TestStruct ts, *pts;
+    TestStructList *lts;
+
+    /* write our test scalars/arrays */
+    f1 = qemu_fopen(TEST_QEMU_FILE_PATH, "wb");
+    g_assert(f1);
+    qfo = qemu_file_output_visitor_new(f1);
+    v = qemu_file_output_get_visitor(qfo);
+    for (i = 0; qfvalues[i].type != QFV_EOL; i++) {
+        qfv_write(&qfvalues[i], f1);
+    }
+    /* write our test struct/list. qemu_put_* interfaces have
+     * no analogue for this and instead rely on byte arrays,
+     * so we'll write this using a visitor and simply test
+     * visitor input/output compatibility
+     */
+    /* write a simple struct */
+    ts.x = 42;
+    ts.y = 43;
+    pts = &ts;
+    visit_type_TestStruct(v, &pts, NULL, NULL);
+    /* throw in a linked list as well */
+    lts = g_malloc0(sizeof(*lts));
+    lts->value = g_malloc0(sizeof(TestStruct));
+    lts->value->x = 44;
+    lts->value->y = 45;
+    lts->next = g_malloc0(sizeof(*lts));
+    lts->next->value = g_malloc0(sizeof(TestStruct));
+    lts->next->value->x = 46;
+    lts->next->value->y = 47;
+    visit_type_TestStructList(v, &lts, NULL, NULL);
+    g_free(lts->next->value);
+    g_free(lts->next);
+    g_free(lts->value);
+    g_free(lts);
+
+    qemu_file_output_visitor_cleanup(qfo);
+    qemu_fclose(f1);
+
+    /* make sure qemu_get_be* and input visitor read same/correct input */
+    f1 = qemu_fopen(TEST_QEMU_FILE_PATH, "rb");
+    f2 = qemu_fopen(TEST_QEMU_FILE_PATH, "rb");
+    qfi = qemu_file_input_visitor_new(f2);
+    g_assert(qfi);
+    v = qemu_file_input_get_visitor(qfi);
+    g_assert(v);
+    for (i = 0; qfvalues[i].type != QFV_EOL; i++) {
+        qfval1.value.umax = qfval2.value.umax = 0;
+        memset(qfval1.array.umax, 0, sizeof(qfval1.array.umax));
+        memset(qfval2.array.umax, 0, sizeof(qfval2.array.umax));
+        qfval1.type = qfval2.type = qfvalues[i].type;
+        qfval1.array_len = qfval2.array_len = qfvalues[i].array_len;
+        qfv_read(&qfval1, f1);
+        qfv_visitor_read(&qfval2, v);
+        if (qfvalues[i].type >= QFV_U8_ARRAY) {
+            for (j = 0; j < qfvalues[i].array_len; j++) { 
+                g_assert(qfval1.array.u8[j] == qfval2.array.u8[j]);
+                g_assert(qfval2.array.u8[j] == qfvalues[i].array.u8[j]);
+            }
+        } else {
+            g_assert(qfval1.value.umax == qfval2.value.umax);
+            g_assert(qfval2.value.umax == qfvalues[i].value.umax);
+        }
+    }
+    qemu_file_input_visitor_cleanup(qfi);
+    qemu_fclose(f1);
+    qemu_fclose(f2);
+    unlink(TEST_QEMU_FILE_PATH);
+}
+
+static void test_qemu_file_out_visitor(void)
+{
+    QEMUFile *f;
+    QemuFileOutputVisitor *qfo;
+    Visitor *v;
+    QEMUFileValue qfval1;
+    int i, j;
+    TestStruct ts, *pts;
+    TestStructList *lts;
+
+    /* write test scalars/arrays using an output visitor */
+    f = qemu_fopen(TEST_QEMU_FILE_PATH, "wb");
+    g_assert(f);
+    qfo = qemu_file_output_visitor_new(f);
+    g_assert(qfo);
+    v = qemu_file_output_get_visitor(qfo);
+    g_assert(v);
+    for (i = 0; qfvalues[i].type != QFV_EOL; i++) {
+        qfv_visitor_write(&qfvalues[i], v);
+    }
+    /* write a simple struct */
+    ts.x = 42;
+    ts.y = 43;
+    pts = &ts;
+    visit_type_TestStruct(v, &pts, NULL, NULL);
+    /* throw in a linked list as well */
+    lts = g_malloc0(sizeof(*lts));
+    lts->value = g_malloc0(sizeof(TestStruct));
+    lts->value->x = 44;
+    lts->value->y = 45;
+    lts->next = g_malloc0(sizeof(*lts));
+    lts->next->value = g_malloc0(sizeof(TestStruct));
+    lts->next->value->x = 46;
+    lts->next->value->y = 47;
+    visit_type_TestStructList(v, &lts, NULL, NULL);
+    g_free(lts->next->value);
+    g_free(lts->next);
+    g_free(lts->value);
+    g_free(lts);
+
+    qemu_file_output_visitor_cleanup(qfo);
+    qemu_fclose(f);
+
+    /* make sure output visitor wrote the expected values */
+    f = qemu_fopen(TEST_QEMU_FILE_PATH, "rb");
+    g_assert(f);
+    for (i = 0; qfvalues[i].type != QFV_EOL; i++) {
+        qfval1.type = qfvalues[i].type;
+        qfval1.value.umax = 0;
+        memset(qfval1.array.umax, 0, sizeof(qfval1.array.umax));
+        qfval1.array_len = qfvalues[i].array_len;
+
+        qfv_read(&qfval1, f);
+        if (qfvalues[i].type >= QFV_U8_ARRAY) {
+            for (j = 0; j < qfvalues[i].array_len; j++) { 
+                g_assert(qfval1.array.u8[j] == qfvalues[i].array.u8[j]);
+            }
+        } else {
+            g_assert(qfval1.value.umax == qfvalues[i].value.umax);
+        }
+    }
+    /* test the struct */
+    g_assert(qemu_get_be64(f) == ts.x);
+    g_assert(qemu_get_be64(f) == ts.y);
+    /* test the linked list */
+    g_assert(qemu_get_be64(f) == 44);
+    g_assert(qemu_get_be64(f) == 45);
+    g_assert(qemu_get_be64(f) == 46);
+    g_assert(qemu_get_be64(f) == 47);
+
+    qemu_fclose(f);
+    unlink(TEST_QEMU_FILE_PATH);
+}
+
 int main(int argc, char **argv)
 {
     g_test_init(&argc, &argv, NULL);
@@ -331,6 +733,8 @@ int main(int argc, char **argv)
     g_test_add_func("/0.15/nested_structs", test_nested_structs);
     g_test_add_func("/0.15/enums", test_enums);
     g_test_add_func("/0.15/nested_enums", test_nested_enums);
+    g_test_add_func("/1.0/qemu_file_input_visitor", test_qemu_file_in_visitor);
+    g_test_add_func("/1.0/qemu_file_output_visitor", test_qemu_file_out_visitor);
 
     g_test_run();
 
