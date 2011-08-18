@@ -20,6 +20,12 @@ coroutine-obj-$(CONFIG_POSIX) += coroutine-gthread.o
 endif
 coroutine-obj-$(CONFIG_WIN32) += coroutine-win32.o
 
+######################################################################
+# qapi
+qapi-nested-y = qapi-visit-core.o qmp-input-visitor.o qmp-output-visitor.o qapi-dealloc-visitor.o
+qapi-nested-y += qmp-registry.o qmp-dispatch.o
+qapi-obj-y = $(addprefix qapi/, $(qapi-nested-y))
+
 #######################################################################
 # block-obj-y is code used by both qemu system emulation and qemu-img
 
@@ -73,6 +79,9 @@ fsdev-obj-$(CONFIG_VIRTFS) += $(addprefix fsdev/, $(fsdev-nested-y))
 # CPUs and machines.
 
 common-obj-y = $(block-obj-y) blockdev.o
+common-obj-y += qmp-marshal.o qapi-visit.o qapi-types.o $(qapi-obj-y)
+common-obj-y += qmp.o hmp.o
+common-obj-y += qapi/qemu-file-output-visitor.o
 common-obj-y += $(net-obj-y)
 common-obj-y += $(qobject-obj-y)
 common-obj-$(CONFIG_LINUX) += $(fsdev-obj-$(CONFIG_LINUX))
@@ -397,16 +406,6 @@ $(trace-obj-y): $(GENERATED_HEADERS)
 # smartcard
 
 libcacard-y = cac.o event.o vcard.o vreader.o vcard_emul_nss.o vcard_emul_type.o card_7816.o
-
-######################################################################
-# qapi
-
-qapi-nested-y = qapi-visit-core.o qmp-input-visitor.o qmp-output-visitor.o qapi-dealloc-visitor.o
-qapi-nested-y += qmp-registry.o qmp-dispatch.o
-qapi-obj-y = $(addprefix qapi/, $(qapi-nested-y))
-
-common-obj-y += qmp-marshal.o qapi-visit.o qapi-types.o $(qapi-obj-y)
-common-obj-y += qmp.o hmp.o
 
 ######################################################################
 # guest agent
