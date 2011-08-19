@@ -140,6 +140,8 @@ void qdev_connect_gpio_out(DeviceState *dev, int n, qemu_irq pin);
 
 BusState *qdev_get_child_bus(DeviceState *dev, const char *name);
 
+int device_init_func(QemuOpts *opts, void *opaque);
+
 /*** Device API.  ***/
 
 typedef int (*qdev_initfn)(DeviceState *dev, DeviceInfo *info);

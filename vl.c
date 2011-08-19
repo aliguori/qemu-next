@@ -1665,16 +1665,6 @@ static int device_help_func(QemuOpts *opts, void *opaque)
     return qdev_device_help(opts);
 }
 
-static int device_init_func(QemuOpts *opts, void *opaque)
-{
-    DeviceState *dev;
-
-    dev = qdev_device_add(opts);
-    if (!dev)
-        return -1;
-    return 0;
-}
-
 static int chardev_init_func(QemuOpts *opts, void *opaque)
 {
     CharDriverState *chr;

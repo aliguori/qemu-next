@@ -887,17 +887,15 @@ int do_device_add(Monitor *mon, const QDict *qdict, QObject **ret_data)
         qemu_opts_del(opts);
         return 0;
     }
-    if (!qdev_device_add(opts)) {
-        qemu_opts_del(opts);
-        return -1;
-    }
-    return 0;
+    return device_init_func(opts, NULL);
 }
 
 int do_device_del(Monitor *mon, const QDict *qdict, QObject **ret_data)
 {
     const char *id = qdict_get_str(qdict, "id");
     DeviceState *dev;
+
+    /* FIXME: figure out how to tie this to device-compat.c */
 
     dev = qdev_find_recursive(main_system_bus, id);
     if (NULL == dev) {

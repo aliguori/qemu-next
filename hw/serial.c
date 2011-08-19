@@ -957,23 +957,30 @@ SerialState *serial_mm_init (target_phys_addr_t base, int it_shift,
     return s;
 }
 
-static ISADeviceInfo serial_isa_info = {
-    .qdev.name  = "isa-serial",
-    .qdev.size  = sizeof(ISASerialState),
-    .qdev.vmsd  = &vmstate_isa_serial,
-    .init       = serial_isa_initfn,
-    .qdev.props = (Property[]) {
-        DEFINE_PROP_UINT32("index", ISASerialState, index,   -1),
-        DEFINE_PROP_HEX32("iobase", ISASerialState, iobase,  -1),
-        DEFINE_PROP_UINT32("irq",   ISASerialState, isairq,  -1),
-        DEFINE_PROP_CHR("chardev",  ISASerialState, state.chr),
-        DEFINE_PROP_END_OF_LIST(),
-    },
+static void serial_class_initfn(TypeClass *type_class)
+{
+}
+
+void serial_initialize(Serial *obj, const char *id)
+{
+    type_initialize(obj, TYPE_SERIAL, id);
+}
+
+void serial_finalize(Serial *obj)
+{
+    type_finalize(obj);
+}
+
+static const TypeInfo serial_type_info = {
+    .name = TYPE_SERIAL,
+    .parent = TYPE_DEVICE,
+    .instance_size = sizeof(SerialDevice),
+    .class_init = serial_class_initfn,
 };
 
-static void serial_register_devices(void)
+static void register_devices(void)
 {
-    isa_qdev_register(&serial_isa_info);
+    type_register_static(&serial_type_info);
 }
 
 device_init(serial_register_devices)
