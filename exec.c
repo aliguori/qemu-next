@@ -400,6 +400,11 @@ static inline PageDesc *page_find(tb_page_addr_t index)
     return page_find_alloc(index, 0);
 }
 
+target_phys_addr_t target_page_mask(void)
+{
+    return TARGET_PAGE_MASK;
+}
+
 #if !defined(CONFIG_USER_ONLY)
 static PhysPageDesc *phys_page_find_alloc(target_phys_addr_t index, int alloc)
 {
@@ -2087,6 +2092,49 @@ static inline void tlb_reset_dirty_range(CPUTLBEntry *tlb_entry,
         if ((addr - start) < length) {
             tlb_entry->addr_write = (tlb_entry->addr_write & TARGET_PAGE_MASK) | TLB_NOTDIRTY;
         }
+    }
+}
+
+/* read dirty bit (return 0 or 1) */
+int cpu_physical_memory_is_dirty(ram_addr_t addr)
+{
+    return ram_list.phys_dirty[addr >> TARGET_PAGE_BITS] == 0xff;
+}
+
+int cpu_physical_memory_get_dirty_flags(ram_addr_t addr)
+{
+    return ram_list.phys_dirty[addr >> TARGET_PAGE_BITS];
+}
+
+int cpu_physical_memory_get_dirty(ram_addr_t addr,
+                                                int dirty_flags)
+{
+    return ram_list.phys_dirty[addr >> TARGET_PAGE_BITS] & dirty_flags;
+}
+
+void cpu_physical_memory_set_dirty(ram_addr_t addr)
+{
+    ram_list.phys_dirty[addr >> TARGET_PAGE_BITS] = 0xff;
+}
+
+int cpu_physical_memory_set_dirty_flags(ram_addr_t addr,
+                                        int dirty_flags)
+{
+    return ram_list.phys_dirty[addr >> TARGET_PAGE_BITS] |= dirty_flags;
+}
+
+void cpu_physical_memory_mask_dirty_range(ram_addr_t start,
+                                          int length,
+                                          int dirty_flags)
+{
+    int i, mask, len;
+    uint8_t *p;
+
+    len = length >> TARGET_PAGE_BITS;
+    mask = ~dirty_flags;
+    p = ram_list.phys_dirty + (start >> TARGET_PAGE_BITS);
+    for (i = 0; i < len; i++) {
+        p[i] &= mask;
     }
 }
 

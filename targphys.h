@@ -18,4 +18,6 @@ typedef uint64_t target_phys_addr_t;
 #endif
 #endif
 
+target_phys_addr_t target_page_mask(void);
+
 #endif

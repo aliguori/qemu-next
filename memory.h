@@ -351,20 +351,6 @@ void memory_region_reset_dirty(MemoryRegion *mr, target_phys_addr_t addr,
 void memory_region_set_readonly(MemoryRegion *mr, bool readonly);
 
 /**
- * memory_region_rom_device_set_readable: enable/disable ROM readability
- *
- * Allows a ROM device (initialized with memory_region_init_rom_device() to
- * to be marked as readable (default) or not readable.  When it is readable,
- * the device is mapped to guest memory.  When not readable, reads are
- * forwarded to the #MemoryRegion.read function.
- *
- * @mr: the memory region to be updated
- * @readable: whether reads are satisified directly (%true) or via callbacks
- *            (%false)
- */
-void memory_region_rom_device_set_readable(MemoryRegion *mr, bool readable);
-
-/**
  * memory_region_set_coalescing: Enable memory coalescing for the region.
  *
  * Enabled writes to a region to be queued for later processing. MMIO ->write
@@ -499,6 +485,9 @@ void memory_region_transaction_begin(void);
  */
 void memory_region_transaction_commit(void);
 
+bool memory_region_access_valid(MemoryRegion *mr,
+                                target_phys_addr_t addr,
+                                unsigned size);
 #endif
 
 #endif

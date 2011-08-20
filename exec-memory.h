@@ -20,6 +20,8 @@
  */
 
 #include "memory.h"
+#include "memory-io.h"
+#include "memory-mmio.h"
 
 #ifndef CONFIG_USER_ONLY
 
@@ -32,12 +34,6 @@ MemoryRegion *get_system_memory(void);
  * temporarily until a proper bus interface is available.
  */
 MemoryRegion *get_system_io(void);
-
-/* Set the root memory region.  This region is the system memory map. */
-void set_system_memory_map(MemoryRegion *mr);
-
-/* Set the I/O memory region.  This region is the I/O memory map. */
-void set_system_io_map(MemoryRegion *mr);
 
 #endif
 
