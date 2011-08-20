@@ -156,6 +156,18 @@ struct AddressSpaceOps {
     void (*log_stop)(AddressSpace *as, FlatRange *fr);
     void (*ioeventfd_add)(AddressSpace *as, MemoryRegionIoeventfd *fd);
     void (*ioeventfd_del)(AddressSpace *as, MemoryRegionIoeventfd *fd);
+    bool (*get_dirty)(AddressSpace *as, MemoryRegion *mr, target_phys_addr_t addr, unsigned client);
+    void (*set_dirty)(AddressSpace  *as, MemoryRegion *mr, target_phys_addr_t addr);
+    void (*sync_dirty_bitmap)(AddressSpace *as, MemoryRegion *mr);
+    void (*reset_dirty)(AddressSpace *as, MemoryRegion *mr, target_phys_addr_t addr,
+                        target_phys_addr_t size, unsigned client);
+    void *(*get_ram_ptr)(AddressSpace *as, MemoryRegion *mr);
+    void (*unregister_coalesced_mmio)(AddressSpace *as,
+                                     target_phys_addr_t start, 
+                                     unsigned size);
+    void (*register_coalesced_mmio)(AddressSpace *as,
+                                    target_phys_addr_t start, 
+                                    unsigned size);
 };
 
 #define FOR_EACH_FLAT_RANGE(var, view)          \
@@ -356,6 +368,55 @@ static void as_memory_ioeventfd_del(AddressSpace *as, MemoryRegionIoeventfd *fd)
     }
 }
 
+static bool as_memory_get_dirty(AddressSpace *as, MemoryRegion *mr, target_phys_addr_t addr, unsigned client)
+{
+    return cpu_physical_memory_get_dirty(mr->ram_addr + addr, 1 << client);
+}
+
+static void as_memory_set_dirty(AddressSpace  *as, MemoryRegion *mr, target_phys_addr_t addr)
+{
+    return cpu_physical_memory_set_dirty(mr->ram_addr + addr);
+}
+
+static void as_memory_sync_dirty_bitmap(AddressSpace *as, MemoryRegion *mr)
+{
+    FlatRange *fr;
+
+    FOR_EACH_FLAT_RANGE(fr, &as->current_map) {
+        if (fr->mr == mr) {
+            cpu_physical_sync_dirty_bitmap(fr->addr.start,
+                                           fr->addr.start + fr->addr.size);
+        }
+    }
+}
+
+static void as_memory_reset_dirty(AddressSpace *as, MemoryRegion *mr, target_phys_addr_t addr,
+                                  target_phys_addr_t size, unsigned client)
+{
+    cpu_physical_memory_reset_dirty(mr->ram_addr + addr,
+                                    mr->ram_addr + addr + size,
+                                    1 << client);
+}
+
+static void *as_memory_get_ram_ptr(AddressSpace *as, MemoryRegion *mr)
+{
+    return qemu_get_ram_ptr(mr->ram_addr);
+}
+
+static void as_memory_unregister_coalesced_mmio(AddressSpace *as,
+                                                target_phys_addr_t start, 
+                                                unsigned size)
+{
+    qemu_unregister_coalesced_mmio(start, size);
+}
+
+static void as_memory_register_coalesced_mmio(AddressSpace *as,
+                                              target_phys_addr_t start, 
+                                              unsigned size)
+{
+    qemu_register_coalesced_mmio(start, size);
+}
+
 static const AddressSpaceOps address_space_ops_memory = {
     .range_add = as_memory_range_add,
     .range_del = as_memory_range_del,
@@ -363,6 +424,13 @@ static const AddressSpaceOps address_space_ops_memory = {
     .log_stop = as_memory_log_stop,
     .ioeventfd_add = as_memory_ioeventfd_add,
     .ioeventfd_del = as_memory_ioeventfd_del,
+    .get_dirty = as_memory_get_dirty,
+    .set_dirty = as_memory_set_dirty,
+    .sync_dirty_bitmap = as_memory_sync_dirty_bitmap,
+    .reset_dirty = as_memory_reset_dirty,
+    .get_ram_ptr = as_memory_get_ram_ptr,
+    .register_coalesced_mmio = as_memory_register_coalesced_mmio,
+    .unregister_coalesced_mmio = as_memory_unregister_coalesced_mmio,
 };
 
 static AddressSpace address_space_memory = {
@@ -1009,25 +1077,19 @@ bool memory_region_get_dirty(MemoryRegion *mr, target_phys_addr_t addr,
                              unsigned client)
 {
     assert(mr->terminates);
-    return cpu_physical_memory_get_dirty(mr->ram_addr + addr, 1 << client);
+    return address_space_memory.ops->get_dirty(&address_space_memory, mr,
+                                               addr, client);
 }
 
 void memory_region_set_dirty(MemoryRegion *mr, target_phys_addr_t addr)
 {
     assert(mr->terminates);
-    return cpu_physical_memory_set_dirty(mr->ram_addr + addr);
+    address_space_memory.ops->set_dirty(&address_space_memory, mr, addr);
 }
 
 void memory_region_sync_dirty_bitmap(MemoryRegion *mr)
 {
-    FlatRange *fr;
-
-    FOR_EACH_FLAT_RANGE(fr, &address_space_memory.current_map) {
-        if (fr->mr == mr) {
-            cpu_physical_sync_dirty_bitmap(fr->addr.start,
-                                           fr->addr.start + fr->addr.size);
-        }
-    }
+    address_space_memory.ops->sync_dirty_bitmap(&address_space_memory, mr);
 }
 
 void memory_region_set_readonly(MemoryRegion *mr, bool readonly)
@@ -1047,9 +1109,8 @@ void memory_region_reset_dirty(MemoryRegion *mr, target_phys_addr_t addr,
                                target_phys_addr_t size, unsigned client)
 {
     assert(mr->terminates);
-    cpu_physical_memory_reset_dirty(mr->ram_addr + addr,
-                                    mr->ram_addr + addr + size,
-                                    1 << client);
+    address_space_memory.ops->reset_dirty(&address_space_memory, mr, addr,
+                                          size, client);
 }
 
 void *memory_region_get_ram_ptr(MemoryRegion *mr)
@@ -1060,7 +1121,7 @@ void *memory_region_get_ram_ptr(MemoryRegion *mr)
 
     assert(mr->terminates);
 
-    return qemu_get_ram_ptr(mr->ram_addr);
+    return address_space_memory.ops->get_ram_ptr(&address_space_memory, mr);
 }
 
 static void memory_region_update_coalesced_range(MemoryRegion *mr)
@@ -1071,15 +1132,17 @@ static void memory_region_update_coalesced_range(MemoryRegion *mr)
 
     FOR_EACH_FLAT_RANGE(fr, &address_space_memory.current_map) {
         if (fr->mr == mr) {
-            qemu_unregister_coalesced_mmio(fr->addr.start, fr->addr.size);
             QTAILQ_FOREACH(cmr, &mr->coalesced, link) {
+                address_space_memory.ops->unregister_coalesced_mmio(&address_space_memory,
+                                                                    fr->addr.start, fr->addr.size);
                 tmp = addrrange_shift(cmr->addr,
                                       fr->addr.start - fr->offset_in_region);
                 if (!addrrange_intersects(tmp, fr->addr)) {
                     continue;
                 }
                 tmp = addrrange_intersection(tmp, fr->addr);
-                qemu_register_coalesced_mmio(tmp.start, tmp.size);
+                address_space_memory.ops->register_coalesced_mmio(&address_space_memory,
+                                                                  fr->addr.start, fr->addr.size);
             }
         }
     }
