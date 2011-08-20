@@ -87,10 +87,8 @@ common-obj-$(CONFIG_PTIMER) += ptimer.o
 common-obj-$(CONFIG_MAX7310) += max7310.o
 common-obj-$(CONFIG_WM8750) += wm8750.o
 common-obj-$(CONFIG_TWL92230) += twl92230.o
-common-obj-$(CONFIG_TSC2005) += tsc2005.o
 common-obj-$(CONFIG_LM832X) += lm832x.o
 common-obj-$(CONFIG_TMP105) += tmp105.o
-common-obj-$(CONFIG_STELLARIS_INPUT) += stellaris_input.o
 common-obj-$(CONFIG_SSD0303) += ssd0303.o
 common-obj-$(CONFIG_SSD0323) += ssd0323.o
 common-obj-$(CONFIG_ADS7846) += ads7846.o
@@ -288,6 +286,9 @@ hw-obj-$(CONFIG_RC4030) += rc4030.o
 hw-obj-$(CONFIG_DP8393X) += dp8393x.o
 hw-obj-$(CONFIG_DS1225Y) += ds1225y.o
 hw-obj-$(CONFIG_MIPSNET) += mipsnet.o
+
+hw-obj-$(CONFIG_TSC2005) += tsc2005.o
+hw-obj-$(CONFIG_STELLARIS_INPUT) += stellaris_input.o
 
 # Sound
 sound-obj-y =

@@ -1,8 +1,7 @@
 #ifndef QEMU_DEVICES_H
 #define QEMU_DEVICES_H
 
-/* ??? Not all users of this file can include cpu-common.h.  */
-typedef struct MemoryRegion MemoryRegion;
+#include "memory.h"
 
 /* Devices that have nowhere better to go.  */
 
