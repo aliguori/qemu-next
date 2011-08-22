@@ -379,9 +379,8 @@ static void qemu_mod_timer_ns(QEMUTimer *ts, int64_t expire_time)
 
     /* Rearm if necessary  */
     if (pt == &active_timers[ts->clock->type]) {
-        if (g_hrtimer_pending(alarm_timer)) {
-            qemu_rearm_alarm_timer();
-        }
+        qemu_rearm_alarm_timer();
+
         /* Interrupt execution to force deadline recalculation.  */
         qemu_clock_warp(ts->clock);
         if (use_icount) {
@@ -410,6 +409,11 @@ int qemu_timer_pending(QEMUTimer *ts)
 int qemu_timer_expired(QEMUTimer *timer_head, int64_t current_time)
 {
     return qemu_timer_expired_ns(timer_head, current_time * timer_head->scale);
+}
+
+int qemu_timer_get_expires(QEMUTimer *ts)
+{
+    return ts->expire_time;
 }
 
 static void qemu_run_timers(QEMUClock *clock)
@@ -447,7 +451,7 @@ int64_t qemu_get_clock_ns(QEMUClock *clock)
         if (use_icount) {
             return cpu_get_icount();
         } else {
-            return g_get_monotonic_time_ns();
+            return cpu_get_clock();
         }
     }
 }
@@ -471,47 +475,8 @@ void init_clocks(void)
     rtc_clock = host_clock;
 }
 
-/* save a timer */
-void qemu_put_timer(QEMUFile *f, QEMUTimer *ts)
-{
-    uint64_t expire_time;
-
-    if (qemu_timer_pending(ts)) {
-        expire_time = ts->expire_time;
-    } else {
-        expire_time = -1;
-    }
-    qemu_put_be64(f, expire_time);
-}
-
-void qemu_get_timer(QEMUFile *f, QEMUTimer *ts)
-{
-    uint64_t expire_time;
-
-    expire_time = qemu_get_be64(f);
-    if (expire_time != -1) {
-        qemu_mod_timer_ns(ts, expire_time);
-    } else {
-        qemu_del_timer(ts);
-    }
-}
-
-static const VMStateDescription vmstate_timers = {
-    .name = "timer",
-    .version_id = 2,
-    .minimum_version_id = 1,
-    .minimum_version_id_old = 1,
-    .fields      = (VMStateField []) {
-        VMSTATE_INT64(cpu_ticks_offset, TimersState),
-        VMSTATE_INT64(dummy, TimersState),
-        VMSTATE_INT64_V(cpu_clock_offset, TimersState, 2),
-        VMSTATE_END_OF_LIST()
-    }
-};
-
 void configure_icount(const char *option)
 {
-    vmstate_register(NULL, 0, &vmstate_timers, &timers_state);
     if (!option)
         return;
 

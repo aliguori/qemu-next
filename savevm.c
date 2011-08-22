@@ -92,6 +92,44 @@
 #define ARP_PTYPE_IP 0x0800
 #define ARP_OP_REQUEST_REV 0x3
 
+/* save a timer */
+void qemu_put_timer(QEMUFile *f, QEMUTimer *ts)
+{
+    uint64_t expire_time;
+
+    if (qemu_timer_pending(ts)) {
+        expire_time = qemu_timer_get_expires(ts);
+    } else {
+        expire_time = -1;
+    }
+    qemu_put_be64(f, expire_time);
+}
+
+void qemu_get_timer(QEMUFile *f, QEMUTimer *ts)
+{
+    uint64_t expire_time;
+
+    expire_time = qemu_get_be64(f);
+    if (expire_time != -1) {
+        qemu_mod_timer_ns(ts, expire_time);
+    } else {
+        qemu_del_timer(ts);
+    }
+}
+
+static const VMStateDescription vmstate_timers = {
+    .name = "timer",
+    .version_id = 2,
+    .minimum_version_id = 1,
+    .minimum_version_id_old = 1,
+    .fields      = (VMStateField []) {
+        VMSTATE_INT64(cpu_ticks_offset, TimersState),
+        VMSTATE_INT64(dummy, TimersState),
+        VMSTATE_INT64_V(cpu_clock_offset, TimersState, 2),
+        VMSTATE_END_OF_LIST()
+    }
+};
+
 static int announce_self_create(uint8_t *buf,
 				uint8_t *mac_addr)
 {
@@ -984,6 +1022,13 @@ const VMStateInfo vmstate_info_timer = {
     .get  = get_timer,
     .put  = put_timer,
 };
+
+static void vmstate_timer_init(void)
+{
+    vmstate_register(NULL, 0, &vmstate_timers, &timers_state);
+}
+
+device_init(vmstate_timer_init);
 
 /* uint8_t buffers */
 

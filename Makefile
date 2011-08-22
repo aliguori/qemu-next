@@ -193,6 +193,8 @@ test-visitor: test-visitor.o qfloat.o qint.o qdict.o qstring.o qlist.o qbool.o $
 test-qmp-commands.o: $(addprefix $(qapi-dir)/, test-qapi-types.c test-qapi-types.h test-qapi-visit.c test-qapi-visit.h test-qmp-marshal.c test-qmp-commands.h) $(qapi-obj-y)
 test-qmp-commands: test-qmp-commands.o qfloat.o qint.o qdict.o qstring.o qlist.o qbool.o $(qapi-obj-y) error.o osdep.o $(oslib-obj-y) qjson.o json-streamer.o json-lexer.o json-parser.o qerror.o qemu-error.o qemu-tool.o $(qapi-dir)/test-qapi-visit.o $(qapi-dir)/test-qapi-types.o $(qapi-dir)/test-qmp-marshal.o module.o
 
+test-timer: test-timer.o qemu-timer.o ghrtimer.o notify.o
+
 QGALIB_GEN=$(addprefix $(qapi-dir)/, qga-qapi-types.c qga-qapi-types.h qga-qapi-visit.c qga-qmp-marshal.c)
 $(QGALIB_GEN): $(GENERATED_HEADERS)
 $(qga-obj-y) qemu-ga.o: $(QGALIB_GEN)
