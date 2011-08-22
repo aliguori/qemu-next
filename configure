@@ -1843,8 +1843,8 @@ fi
 ##########################################
 # glib support probe
 if $pkg_config --modversion gthread-2.0 > /dev/null 2>&1 ; then
-    glib_cflags=`$pkg_config --cflags gthread-2.0 2>/dev/null`
-    glib_libs=`$pkg_config --libs gthread-2.0 2>/dev/null`
+    glib_cflags=`$pkg_config --cflags gthread-2.0 gobject-2.0 2>/dev/null`
+    glib_libs=`$pkg_config --libs gthread-2.0 gobject-2.0 2>/dev/null`
     LIBS="$glib_libs $LIBS"
     libs_qga="$glib_libs $libs_qga"
 else

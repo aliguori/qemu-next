@@ -9,6 +9,7 @@ qobject-obj-y += qerror.o error.o
 oslib-obj-y = osdep.o
 oslib-obj-$(CONFIG_WIN32) += oslib-win32.o qemu-thread-win32.o
 oslib-obj-$(CONFIG_POSIX) += oslib-posix.o qemu-thread-posix.o
+oslib-obj-y += ghrtimer.o
 
 #######################################################################
 # coroutines
