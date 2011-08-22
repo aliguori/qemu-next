@@ -1430,8 +1430,6 @@ void main_loop_wait(int nonblocking)
     slirp_select_poll(&rfds, &wfds, &xfds, (ret < 0));
     glib_select_poll(&rfds, &wfds, &xfds, (ret < 0));
 
-    qemu_run_all_timers();
-
     /* Check bottom-halves last in case any of the earlier events triggered
        them.  */
     qemu_bh_poll();
@@ -2918,7 +2916,7 @@ int main(int argc, char **argv, char **envp)
                 old_param = 1;
                 break;
             case QEMU_OPTION_clock:
-                configure_alarms(optarg);
+                printf("WARNING: this option is deprecated and no longer needed.\n");
                 break;
             case QEMU_OPTION_startdate:
                 configure_rtc_date_offset(optarg, 1);
