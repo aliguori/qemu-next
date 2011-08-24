@@ -24,3 +24,17 @@ void hmp_info_name(Monitor *mon)
     }
     qapi_free_NameInfo(info);
 }
+
+void hmp_eject(Monitor *mon, const QDict *qdict)
+{
+    int force = qdict_get_try_bool(qdict, "force", 0);
+    const char *device = qdict_get_str(qdict, "device");
+    Error *err = NULL;
+
+    qmp_eject(device, true, force, &err);
+    if (err) {
+        monitor_printf(mon, "eject: %s\n", error_get_pretty(err));
+        error_free(err);
+    }
+}
+

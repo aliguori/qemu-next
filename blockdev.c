@@ -16,6 +16,7 @@
 #include "sysemu.h"
 #include "hw/qdev.h"
 #include "block_int.h"
+#include "qmp-commands.h"
 
 static QTAILQ_HEAD(drivelist, DriveInfo) drives = QTAILQ_HEAD_INITIALIZER(drives);
 
@@ -635,32 +636,31 @@ out:
     return ret;
 }
 
-static int eject_device(Monitor *mon, BlockDriverState *bs, int force)
+static int eject_device(BlockDriverState *bs, int force, Error **errp)
 {
     if (!bdrv_is_removable(bs)) {
-        qerror_report(QERR_DEVICE_NOT_REMOVABLE, bdrv_get_device_name(bs));
+        error_set(errp, QERR_DEVICE_NOT_REMOVABLE, bdrv_get_device_name(bs));
         return -1;
     }
     if (!force && bdrv_is_locked(bs)) {
-        qerror_report(QERR_DEVICE_LOCKED, bdrv_get_device_name(bs));
+        error_set(errp, QERR_DEVICE_LOCKED, bdrv_get_device_name(bs));
         return -1;
     }
     bdrv_close(bs);
     return 0;
 }
 
-int do_eject(Monitor *mon, const QDict *qdict, QObject **ret_data)
+void qmp_eject(const char *device, bool has_force, bool force, Error **errp)
 {
     BlockDriverState *bs;
-    int force = qdict_get_try_bool(qdict, "force", 0);
-    const char *filename = qdict_get_str(qdict, "device");
 
-    bs = bdrv_find(filename);
+    bs = bdrv_find(device);
     if (!bs) {
-        qerror_report(QERR_DEVICE_NOT_FOUND, filename);
-        return -1;
+        error_set(errp, QERR_DEVICE_NOT_FOUND, device);
+        return;
     }
-    return eject_device(mon, bs, force);
+
+    eject_device(bs, force, errp);
 }
 
 int do_block_set_passwd(Monitor *mon, const QDict *qdict,
@@ -706,7 +706,7 @@ int do_change_block(Monitor *mon, const char *device,
             return -1;
         }
     }
-    if (eject_device(mon, bs, 0) < 0) {
+    if (eject_device(bs, 0, NULL) < 0) {
         return -1;
     }
     bdrv_flags = bdrv_is_read_only(bs) ? 0 : BDRV_O_RDWR;

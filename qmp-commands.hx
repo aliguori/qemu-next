@@ -89,8 +89,7 @@ EQMP
         .args_type  = "force:-f,device:B",
         .params     = "[-f] device",
         .help       = "eject a removable medium (use -f to force it)",
-        .user_print = monitor_user_noop,
-        .mhandler.cmd_new = do_eject,
+        .mhandler.cmd_new = qmp_marshal_input_eject,
     },
 
 SQMP
