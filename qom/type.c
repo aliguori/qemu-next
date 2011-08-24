@@ -18,7 +18,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#include "module.h"
+#include "qemu/module.h"
 
 #define MAX_INTERFACES 32
 
