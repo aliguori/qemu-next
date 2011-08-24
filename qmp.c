@@ -16,6 +16,7 @@
 
 #include "sysemu.h"
 #include "console.h"
+#include "blockdev.h"
 
 NameInfo *qmp_query_name(Error **errp)
 {
@@ -40,5 +41,23 @@ void qmp_change_vnc_listen(const char *target, Error **err)
 {
     if (vnc_display_open(NULL, target) < 0) {
         error_set(err, QERR_VNC_SERVER_FAILED, target);
+    }
+}
+
+void qmp_change(const char *device, const char *target,
+                bool has_arg, const char *arg, Error **err)
+{
+    if (strcmp(device, "vnc") == 0) {
+        if (strcmp(target, "passwd") == 0 || strcmp(target, "password") == 0) {
+            if (!has_arg || !arg[0]) {
+                vnc_display_disable_login(NULL);
+            } else {
+                qmp_change_vnc_password(arg, err);
+            }
+        } else {
+            qmp_change_vnc_listen(target, err);
+        }
+    } else {
+        deprecated_qmp_change_blockdev(device, target, has_arg, arg, err);
     }
 }
