@@ -776,8 +776,9 @@ void qmp_drive_change(const char *device, const char *filename,
     qmp_bdrv_open_encrypted(bs, filename, bdrv_flags, drv, password, errp);
 }
 
-int do_change_block(Monitor *mon, const char *device,
-                    const char *filename, const char *fmt)
+void deprecated_qmp_change_blockdev(const char *device, const char *filename,
+                                    bool has_format, const char *format,
+                                    Error **errp)
 {
     BlockDriverState *bs;
     BlockDriver *drv = NULL;
@@ -786,14 +787,14 @@ int do_change_block(Monitor *mon, const char *device,
 
     bs = bdrv_find(device);
     if (!bs) {
-        qerror_report(QERR_DEVICE_NOT_FOUND, device);
-        return -1;
+        error_set(errp, QERR_DEVICE_NOT_FOUND, device);
+        return;
     }
-    if (fmt) {
-        drv = bdrv_find_whitelisted_format(fmt);
+    if (has_format) {
+        drv = bdrv_find_whitelisted_format(format);
         if (!drv) {
-            qerror_report(QERR_INVALID_BLOCK_FORMAT, fmt);
-            return -1;
+            error_set(errp, QERR_INVALID_BLOCK_FORMAT, format);
+            return;
         }
     }
 
@@ -802,17 +803,13 @@ int do_change_block(Monitor *mon, const char *device,
 
     eject_device(bs, 0, &err);
     if (err) {
-        qerror_report_err(err);
-        return -1;
+        error_propagate(errp, err);
+        return;
     }
 
     qmp_bdrv_open_encrypted(bs, filename, bdrv_flags, drv, NULL, &err);
-    if (err) {
-        qerror_report_err(err);
-        return -1;
-    }
 
-    return 0;
+    error_propagate(errp, err);
 }
 
 int do_drive_del(Monitor *mon, const QDict *qdict, QObject **ret_data)
