@@ -121,6 +121,7 @@ typedef struct mon_cmd_t {
         int  (*cmd_async)(Monitor *mon, const QDict *params,
                           MonitorCompletion *cb, void *opaque);
     } mhandler;
+    bool qapi;
     int flags;
 } mon_cmd_t;
 
@@ -3159,7 +3160,7 @@ static const mon_cmd_t info_cmds[] = {
 };
 
 static const mon_cmd_t qmp_cmds[] = {
-#include "qmp-commands.h"
+#include "qmp-commands-old.h"
     { /* NULL */ },
 };
 
@@ -5029,10 +5030,14 @@ static void qmp_call_query_cmd(Monitor *mon, const mon_cmd_t *cmd)
         if (monitor_has_error(mon)) {
             monitor_protocol_emitter(mon, NULL);
         }
-    } else {
-        cmd->mhandler.info_new(mon, &ret_data);
+    } else if (cmd->qapi) {
+        QDict *args = qdict_new();
+
+        cmd->mhandler.cmd_new(mon, args, &ret_data);
         monitor_protocol_emitter(mon, ret_data);
         qobject_decref(ret_data);
+
+        QDECREF(args);
     }
 }
 
