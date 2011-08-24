@@ -11,7 +11,6 @@
  *
  */
 
-#include "qemu-queue.h"
 #include "qemu/module.h"
 
 #include <glib.h>
@@ -20,62 +19,36 @@ typedef struct ModuleEntry
 {
     module_init_type type;
     void (*init)(void);
-    QTAILQ_ENTRY(ModuleEntry) node;
 } ModuleEntry;
 
-typedef QTAILQ_HEAD(, ModuleEntry) ModuleTypeList;
+static GSList *init_type_list[MODULE_INIT_MAX];
 
-static ModuleTypeList init_type_list[MODULE_INIT_MAX];
-
-static void init_types(void)
+static GSList **find_type(module_init_type type)
 {
-    static int inited;
-    int i;
-
-    if (inited) {
-        return;
-    }
-
-    for (i = 0; i < MODULE_INIT_MAX; i++) {
-        QTAILQ_INIT(&init_type_list[i]);
-    }
-
-    inited = 1;
-}
-
-
-static ModuleTypeList *find_type(module_init_type type)
-{
-    ModuleTypeList *l;
-
-    init_types();
-
-    l = &init_type_list[type];
-
-    return l;
+    return &init_type_list[type];
 }
 
 void register_module_init(void (*fn)(void), module_init_type type)
 {
     ModuleEntry *e;
-    ModuleTypeList *l;
+    GSList **l;
 
     e = g_malloc0(sizeof(*e));
     e->init = fn;
 
     l = find_type(type);
 
-    QTAILQ_INSERT_TAIL(l, e, node);
+    *l = g_slist_prepend(*l, e);
 }
 
 void module_call_init(module_init_type type)
 {
-    ModuleTypeList *l;
-    ModuleEntry *e;
+    GSList *l, *i;
 
-    l = find_type(type);
+    l = *find_type(type);
 
-    QTAILQ_FOREACH(e, l, node) {
+    for (i = l; i; i = i->next) {
+        ModuleEntry *e = i->data;
         e->init();
     }
 }
