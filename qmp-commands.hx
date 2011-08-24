@@ -121,6 +121,14 @@ EQMP
         .mhandler.cmd_new = do_change,
     },
 
+    {
+        .name       = "drive-change",
+        .args_type  = "device:B,filename:F,format:s?password:s?",
+        .params     = "device filename [format] [password]",
+        .help       = "change a removable medium, optional format",
+        .mhandler.cmd_new = qmp_marshal_input_drive_change,
+    },
+
 SQMP
 change
 ------

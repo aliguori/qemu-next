@@ -124,3 +124,33 @@
 #         settings may change after executing this command.
 ##
 { 'command': 'change-vnc-listen', 'data': {'target': 'str'} }
+
+##
+# @drive-change:
+#
+# This is the preferred interface for changing a block device.
+#
+# @device:   The block device name.
+#
+# @filename: The new filename for the block device.  This may contain options
+#            encoded in a format specified by @format.
+#
+# @format:   #optional The format to use open the block device
+#
+# @password: #optional The password to use if the block device is encrypted
+#
+# Returns:  Nothing on success.
+#          If @device is not a valid block device, DeviceNotFound
+#          If @format is not a valid block format, InvalidBlockFormat
+#          If @filename is encrypted and @password isn't supplied,
+#            DeviceEncrypted.  The call should be repeated with @password
+#            supplied.
+#          If @format is not specified and @filename is a format that cannot
+#            be safely probed, MissingParameter.
+#          If @filename cannot be opened, OpenFileFailed
+#
+# Since: 1.0
+##
+{ 'command': 'drive-change',
+  'data': {'device': 'str', 'filename': 'str', '*format': 'str',
+           '*password': 'str'} }
