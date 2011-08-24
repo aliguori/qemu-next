@@ -9,7 +9,7 @@ static void string_input_visitor_int(Visitor *v, int64_t *obj, const char *name,
 static void string_input_visitor_str(Visitor *v, char **obj, const char *name, Error **errp)
 {
     StringInputVisitor *sv = container_of(v, StringInputVisitor, parent);
-    *obj = qemu_strdup(sv->value);
+    *obj = g_strdup(sv->value);
 }
 
 void string_input_visitor_init(StringInputVisitor *sv, const char *value)
