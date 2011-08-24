@@ -2,7 +2,7 @@
 #include "qemu-objects.h"
 #include "test-qmp-commands.h"
 #include "qapi/qmp-core.h"
-#include "module.h"
+#include "qemu/module.h"
 
 void qmp_user_def_cmd(Error **errp)
 {

@@ -23,7 +23,7 @@
 #include "qint.h"
 #include "qjson.h"
 #include "qga/guest-agent-core.h"
-#include "module.h"
+#include "qemu/module.h"
 #include "signal.h"
 #include "qerror.h"
 #include "error_int.h"

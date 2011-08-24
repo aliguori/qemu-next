@@ -24,7 +24,7 @@
 #include "qemu-common.h"
 #include "block_int.h"
 #include "bswap.h"
-#include "module.h"
+#include "qemu/module.h"
 #include <zlib.h>
 
 typedef struct BDRVDMGState {

@@ -51,7 +51,7 @@
 
 #include "qemu-common.h"
 #include "block_int.h"
-#include "module.h"
+#include "qemu/module.h"
 
 #if defined(CONFIG_UUID)
 #include <uuid/uuid.h>

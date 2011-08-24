@@ -26,7 +26,7 @@
 #include "trace.h"
 #include "monitor.h"
 #include "block_int.h"
-#include "module.h"
+#include "qemu/module.h"
 #include "qemu-objects.h"
 #include "qemu-coroutine.h"
 
