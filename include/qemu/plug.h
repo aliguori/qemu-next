@@ -31,8 +31,8 @@ typedef struct PlugClass {
     TypeClass parent_class;
 
     /* protected */
-    void (*realize)(Plug *plug);
-    void (*unrealize)(Plug *plug);
+    void (*realize)(Plug *plug, Error **errp);
+    void (*unrealize)(Plug *plug, Error **errp);
 } PlugClass;
 
 #define TYPE_PLUG "plug"

@@ -149,11 +149,11 @@ void plug_set_realized(Plug *plug, bool realized, Error **errp)
 
     if (plug->realized && !old_value) {
         if (class->realize) {
-            class->realize(plug);
+            class->realize(plug, errp);
         }
     } else if (!plug->realized && old_value) {
         if (class->unrealize) {
-            class->unrealize(plug);
+            class->unrealize(plug, errp);
         }
     }
 }

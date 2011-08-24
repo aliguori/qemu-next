@@ -71,14 +71,14 @@ static void device_visit_properties(Device *device, bool is_input, const char *n
     visit_end_struct(v, errp);
 }
 
-static void device_unrealize(Plug *plug)
+static void device_unrealize(Plug *plug, Error **errp)
 {
     Device *device = DEVICE(plug);
     const char *typename;
     char id[MAX_ID];
     QmpOutputVisitor *qov;
     QmpInputVisitor *qiv;
-    Error *local_err = NULL; // FIXME
+    Error *local_err = NULL;
 
     snprintf(id, sizeof(id), "%s", type_get_id(TYPE_INSTANCE(device)));
     typename = type_get_type(TYPE_INSTANCE(device));
@@ -96,6 +96,8 @@ static void device_unrealize(Plug *plug)
 
     qmp_input_visitor_cleanup(qiv);
     qmp_output_visitor_cleanup(qov);
+
+    error_propagate(errp, local_err);
 }
 
 static void device_class_initfn(TypeClass *type_class)
