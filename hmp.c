@@ -38,3 +38,15 @@ void hmp_eject(Monitor *mon, const QDict *qdict)
     }
 }
 
+void hmp_block_passwd(Monitor *mon, const QDict *qdict)
+{
+    const char *device = qdict_get_str(qdict, "device");
+    const char *password = qdict_get_str(qdict, "password");
+    Error *err = NULL;
+
+    qmp_set_blockdev_password(device, password, &err);
+    if (err) {
+        monitor_printf(mon, "block_passwd: %s\n", error_get_pretty(err));
+        error_free(err);
+    }
+}

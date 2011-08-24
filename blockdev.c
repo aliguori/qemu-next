@@ -663,28 +663,29 @@ void qmp_eject(const char *device, bool has_force, bool force, Error **errp)
     eject_device(bs, force, errp);
 }
 
-int do_block_set_passwd(Monitor *mon, const QDict *qdict,
-                        QObject **ret_data)
+void qmp_set_blockdev_password(const char *device, const char *password,
+                               Error **err)
 {
     BlockDriverState *bs;
-    int err;
+    int ret;
 
-    bs = bdrv_find(qdict_get_str(qdict, "device"));
+    bs = bdrv_find(device);
     if (!bs) {
-        qerror_report(QERR_DEVICE_NOT_FOUND, qdict_get_str(qdict, "device"));
-        return -1;
+        error_set(err, QERR_DEVICE_NOT_FOUND, device);
+        return;
     }
 
-    err = bdrv_set_key(bs, qdict_get_str(qdict, "password"));
-    if (err == -EINVAL) {
-        qerror_report(QERR_DEVICE_NOT_ENCRYPTED, bdrv_get_device_name(bs));
-        return -1;
-    } else if (err < 0) {
-        qerror_report(QERR_INVALID_PASSWORD);
-        return -1;
+    ret = bdrv_set_key(bs, password);
+    if (ret == -EINVAL) {
+        error_set(err, QERR_DEVICE_NOT_ENCRYPTED, bdrv_get_device_name(bs));
+    } else if (ret < 0) {
+        error_set(err, QERR_INVALID_PASSWORD);
     }
+}
 
-    return 0;
+void qmp_block_passwd(const char *device, const char *password, Error **err)
+{
+    qmp_set_blockdev_password(device, password, err);
 }
 
 int do_change_block(Monitor *mon, const char *device,

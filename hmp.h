@@ -19,5 +19,6 @@
 
 void hmp_info_name(Monitor *mon);
 void hmp_eject(Monitor *mon, const QDict *args);
+void hmp_block_passwd(Monitor *mon, const QDict *qdict);
 
 #endif

@@ -1205,7 +1205,7 @@ ETEXI
         .params     = "block_passwd device password",
         .help       = "set the password of encrypted block devices",
         .user_print = monitor_user_noop,
-        .mhandler.cmd_new = do_block_set_passwd,
+        .mhandler.cmd = hmp_block_passwd,
     },
 
 STEXI
