@@ -70,8 +70,8 @@ void plug_unlock_all_properties(Plug *plug);
 void plug_set_realized(Plug *plug, bool realized, Error **errp);
 bool plug_get_realized(Plug *plug, Error **errp);
 
-void plug_realize_all(Plug *plug);
-void plug_unrealize_all(Plug *plug);
+void plug_realize_all(Plug *plug, Error **errp);
+void plug_unrealize_all(Plug *plug, Error **errp);
 
 void plug_add_property_plug(Plug *plug, Plug *value, const char *typename, const char *name, ...);
 

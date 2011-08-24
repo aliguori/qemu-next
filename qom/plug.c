@@ -329,7 +329,7 @@ void plug_add_property_socket(Plug *plug, const char *name, Plug **value, const 
                            fulltype, PROP_F_READWRITE);
 }
 
-void plug_realize_all(Plug *plug)
+void plug_realize_all(Plug *plug, Error **errp)
 {
     /* This doesn't loop infinitely because the callbacks are only called when
      * the state changes. */
@@ -338,7 +338,7 @@ void plug_realize_all(Plug *plug)
     plug_foreach_property(plug, plug_propagate_realized, NULL);
 }
 
-void plug_unrealize_all(Plug *plug)
+void plug_unrealize_all(Plug *plug, Error **errp)
 {
     /* This doesn't loop infinitely because the callbacks are only called when
      * the state changes. */
