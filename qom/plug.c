@@ -26,7 +26,7 @@ void plug_add_property_full(Plug *plug, const char *name,
                             PlugPropertyFinalize *fini,
                             void *opaque, const char *typename, int flags)
 {
-    PlugProperty *prop = qemu_mallocz(sizeof(*prop));
+    PlugProperty *prop = g_malloc0(sizeof(*prop));
 
     snprintf(prop->name, sizeof(prop->name), "%s", name);
     snprintf(prop->typename, sizeof(prop->typename), "%s", typename);
@@ -170,7 +170,7 @@ static char *plug_get_property_str(Plug *plug, const char *name, Error **errp)
     string_output_visitor_init(&sov);
     plug_get_property(plug, name, &sov.parent, errp);
 
-    return qemu_strdup(sov.value);
+    return g_strdup(sov.value);
 }
 
 static void plug_propagate_realized(Plug *plug, const char *name,
@@ -186,7 +186,7 @@ static void plug_propagate_realized(Plug *plug, const char *name,
 
         plug_set_realized(child_plug, plug_get_realized(plug, NULL), NULL);
 
-        qemu_free(child_name);
+        g_free(child_name);
     }
 }
 
@@ -210,13 +210,13 @@ static void plug_del_property__plug(Plug *plug, const char *name, void *opaque)
     PlugData *data = opaque;
 
     type_finalize(data->value);
-    qemu_free(data);
+    g_free(data);
 }
 
 void plug_add_property_plug(Plug *plug, Plug *value, const char *typename,
                             const char *name, ...)
 {
-    PlugData *data = qemu_mallocz(sizeof(*data));
+    PlugData *data = g_malloc0(sizeof(*data));
     char fullid[MAX_NAME];
     char fulltype[MAX_TYPENAME];
     size_t off;
@@ -260,7 +260,7 @@ Plug *plug_get_property_plug(Plug *plug, Error **errp, const char *name, ...)
 
     value = PLUG(type_find_by_id(plugname));
 
-    qemu_free(plugname);
+    g_free(plugname);
 
     return value;
 }
@@ -301,19 +301,19 @@ static void plug_set_property__socket(Plug *plug, const char *name, Visitor *v, 
 
     *data->value = PLUG(type_dynamic_cast_assert(obj, data->typename));
 
-    qemu_free(value);
+    g_free(value);
 }
 
 static void plug_del_property__socket(Plug *plug, const char *name, void *opaque)
 {
     SocketData *data = opaque;
 
-    qemu_free(data);
+    g_free(data);
 }
 
 void plug_add_property_socket(Plug *plug, const char *name, Plug **value, const char *typename)
 {
-    SocketData *data = qemu_mallocz(sizeof(*data));
+    SocketData *data = g_malloc0(sizeof(*data));
     char fulltype[33];
 
     data->typename = typename;
@@ -376,7 +376,7 @@ static void plug_finifn(TypeInstance *inst)
         if (p->finalize) {
             p->finalize(plug, p->name, p->opaque);
         }
-        qemu_free(p);
+        g_free(p);
     }
 }
 
