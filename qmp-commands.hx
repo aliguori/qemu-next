@@ -868,6 +868,14 @@ Example:
 EQMP
 
     {
+        .name       = "change-vnc-password",
+        .args_type  = "password:s",
+        .params     = "password",
+        .help       = "set vnc password",
+        .mhandler.cmd_new = qmp_marshal_input_change_vnc_password,
+    },
+
+    {
         .name       = "set_password",
         .args_type  = "protocol:s,password:s,connected:s?",
         .params     = "protocol password action-if-connected",

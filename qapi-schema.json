@@ -96,3 +96,16 @@
 { 'command': 'set-blockdev-password',
   'data': {'device': 'str', 'password': 'str'} }
 
+##
+# @change-vnc-password:
+#
+# Change the VNC server password.
+#
+# @password:  the new password to use with VNC authentication
+#
+# Since: 1.0
+#
+# Notes:  An empty password in this command will set the password to the empty
+#         string.  Existing clients are unaffected by executing this command.
+##
+{ 'command': 'change-vnc-password', 'data': {'password': 'str'} }

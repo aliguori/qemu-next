@@ -12,8 +12,10 @@
  */
 
 #include "qemu-common.h"
-#include "sysemu.h"
 #include "qmp-commands.h"
+
+#include "sysemu.h"
+#include "console.h"
 
 NameInfo *qmp_query_name(Error **errp)
 {
@@ -25,4 +27,11 @@ NameInfo *qmp_query_name(Error **errp)
     }
 
     return info;
+}
+
+void qmp_change_vnc_password(const char *password, Error **err)
+{
+    if (vnc_display_password(NULL, password) < 0) {
+        error_set(err, QERR_SET_PASSWD_FAILED);
+    }
 }
