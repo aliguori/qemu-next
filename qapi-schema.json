@@ -109,3 +109,18 @@
 #         string.  Existing clients are unaffected by executing this command.
 ##
 { 'command': 'change-vnc-password', 'data': {'password': 'str'} }
+
+##
+# @change-vnc-listen:
+#
+# Change the host that the VNC server listens on.
+#
+# @target:  the new server specification to listen on
+#
+# Since: 1.0
+#
+# Notes:  At this moment in time, the behavior of existing client connections
+#         when this command is executed is undefined.  The authentication
+#         settings may change after executing this command.
+##
+{ 'command': 'change-vnc-listen', 'data': {'target': 'str'} }

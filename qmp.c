@@ -35,3 +35,10 @@ void qmp_change_vnc_password(const char *password, Error **err)
         error_set(err, QERR_SET_PASSWD_FAILED);
     }
 }
+
+void qmp_change_vnc_listen(const char *target, Error **err)
+{
+    if (vnc_display_open(NULL, target) < 0) {
+        error_set(err, QERR_VNC_SERVER_FAILED, target);
+    }
+}

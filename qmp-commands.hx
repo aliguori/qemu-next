@@ -876,6 +876,14 @@ EQMP
     },
 
     {
+        .name       = "change-vnc-listen",
+        .args_type  = "target:s",
+        .params     = "target",
+        .help       = "set vnc listening address",
+        .mhandler.cmd_new = qmp_marshal_input_change_vnc_listen,
+    },
+
+    {
         .name       = "set_password",
         .args_type  = "protocol:s,password:s,connected:s?",
         .params     = "protocol password action-if-connected",
