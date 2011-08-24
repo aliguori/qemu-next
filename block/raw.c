@@ -145,6 +145,8 @@ static BlockDriver bdrv_raw = {
     .bdrv_create        = raw_create,
     .create_options     = raw_create_options,
     .bdrv_has_zero_init = raw_has_zero_init,
+
+    .unsafe_probe       = true,
 };
 
 static void bdrv_raw_init(void)

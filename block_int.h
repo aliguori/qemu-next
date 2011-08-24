@@ -146,6 +146,8 @@ struct BlockDriver {
      */
     int (*bdrv_has_zero_init)(BlockDriverState *bs);
 
+    bool unsafe_probe;
+
     QLIST_ENTRY(BlockDriver) list;
 };
 
