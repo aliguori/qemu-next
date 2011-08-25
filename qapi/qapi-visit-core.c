@@ -66,6 +66,28 @@ void visit_end_list(Visitor *v, Error **errp)
     }
 }
 
+void visit_start_array(Visitor *v, void **obj, const char *name, size_t elem_count,
+                       size_t elem_size, Error **errp)
+{
+    if (!error_is_set(errp)) {
+        v->start_array(v, obj, name, elem_count, elem_size, errp);
+    }
+}
+
+void visit_next_array(Visitor *v, Error **errp)
+{
+    if (!error_is_set(errp)) {
+        v->next_array(v, errp);
+    }
+}
+
+void visit_end_array(Visitor *v, Error **errp)
+{
+    if (!error_is_set(errp)) {
+        v->end_array(v, errp);
+    }
+}
+
 void visit_start_optional(Visitor *v, bool *present, const char *name,
                           Error **errp)
 {
@@ -93,6 +115,62 @@ void visit_type_int(Visitor *v, int64_t *obj, const char *name, Error **errp)
 {
     if (!error_is_set(errp)) {
         v->type_int(v, obj, name, errp);
+    }
+}
+
+void visit_type_uint8(Visitor *v, uint8_t *obj, const char *name, Error **errp)
+{
+    if (!error_is_set(errp)) {
+        v->type_uint8(v, obj, name, errp);
+    }
+}
+
+void visit_type_uint16(Visitor *v, uint16_t *obj, const char *name, Error **errp)
+{
+    if (!error_is_set(errp)) {
+        v->type_uint16(v, obj, name, errp);
+    }
+}
+
+void visit_type_uint32(Visitor *v, uint32_t *obj, const char *name, Error **errp)
+{
+    if (!error_is_set(errp)) {
+        v->type_uint32(v, obj, name, errp);
+    }
+}
+
+void visit_type_uint64(Visitor *v, uint64_t *obj, const char *name, Error **errp)
+{
+    if (!error_is_set(errp)) {
+        v->type_uint64(v, obj, name, errp);
+    }
+}
+
+void visit_type_int8(Visitor *v, int8_t *obj, const char *name, Error **errp)
+{
+    if (!error_is_set(errp)) {
+        v->type_int8(v, obj, name, errp);
+    }
+}
+
+void visit_type_int16(Visitor *v, int16_t *obj, const char *name, Error **errp)
+{
+    if (!error_is_set(errp)) {
+        v->type_int16(v, obj, name, errp);
+    }
+}
+
+void visit_type_int32(Visitor *v, int32_t *obj, const char *name, Error **errp)
+{
+    if (!error_is_set(errp)) {
+        v->type_int32(v, obj, name, errp);
+    }
+}
+
+void visit_type_int64(Visitor *v, int64_t *obj, const char *name, Error **errp)
+{
+    if (!error_is_set(errp)) {
+        v->type_int64(v, obj, name, errp);
     }
 }
 
