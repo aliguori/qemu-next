@@ -82,6 +82,7 @@ common-obj-y = $(block-obj-y) blockdev.o
 common-obj-y += qmp-marshal.o qapi-visit.o qapi-types.o $(qapi-obj-y)
 common-obj-y += qmp.o hmp.o
 common-obj-y += qapi/qemu-file-output-visitor.o
+common-obj-y += qapi/qemu-file-input-visitor.o
 common-obj-y += $(net-obj-y)
 common-obj-y += $(qobject-obj-y)
 common-obj-$(CONFIG_LINUX) += $(fsdev-obj-$(CONFIG_LINUX))
