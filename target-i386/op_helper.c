@@ -5015,7 +5015,7 @@ void tlb_fill(target_ulong addr, int is_write, int mmu_idx, void *retaddr)
             /* now we have a real cpu fault */
             pc = (unsigned long)retaddr;
             tb = tb_find_pc(pc);
-            if (tb) {
+            if (tb && tcg_enabled()) {
                 /* the PC is inside the translated code. It means that we have
                    a virtual CPU fault */
                 cpu_restore_state(tb, env, pc);

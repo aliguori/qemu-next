@@ -67,11 +67,11 @@ all: $(PROGS) stap
 
 #########################################################
 # cpu emulator library
-libobj-y = exec.o translate-all.o cpu-exec.o
-libobj-y += tcg/tcg.o tcg/optimize.o
+libobj-y = exec.o cpu-exec.o
 libobj-y += fpu/softfloat.o
 libobj-y += op_helper.o helper.o
-libobj-$(CONFIG_TCG) += translate.o
+libobj-$(CONFIG_TCG) += translate.o translate-all.o
+libobj-$(CONFIG_TCG) += tcg/tcg.o tcg/optimize.o
 ifeq ($(TARGET_BASE_ARCH), i386)
 libobj-y += cpuid.o
 endif

@@ -67,9 +67,7 @@ int cpu_gen_code(CPUState *env, TranslationBlock *tb, int *gen_code_size_ptr)
 #endif
     tcg_func_start(s);
 
-    if (tcg_enabled()) {
-        gen_intermediate_code(env, tb);
-    }
+    gen_intermediate_code(env, tb);
 
     /* generate machine code */
     gen_code_buf = tb->tc_ptr;
@@ -125,9 +123,7 @@ int cpu_restore_state(TranslationBlock *tb,
 #endif
     tcg_func_start(s);
 
-    if (tcg_enabled()) {
-        gen_intermediate_code_pc(env, tb);
-    }
+    gen_intermediate_code_pc(env, tb);
 
     if (use_icount) {
         /* Reset the cycle counter to the start of the block.  */
@@ -157,9 +153,7 @@ int cpu_restore_state(TranslationBlock *tb,
         j--;
     env->icount_decr.u16.low -= gen_opc_icount[j];
 
-    if (tcg_enabled()) {
-        restore_state_to_opc(env, tb, j);
-    }
+    restore_state_to_opc(env, tb, j);
 
 #ifdef CONFIG_PROFILER
     s->restore_time += profile_getclock() - ti;
