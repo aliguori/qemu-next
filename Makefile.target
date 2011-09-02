@@ -67,7 +67,7 @@ all: $(PROGS) stap
 
 #########################################################
 # cpu emulator library
-libobj-y = exec.o
+libobj-y = exec.o exec-tcg.o
 libobj-y += helper.o
 libobj-$(CONFIG_TCG) += cpu-exec.o
 libobj-$(CONFIG_TCG) += op_helper.o

@@ -344,4 +344,39 @@ extern int singlestep;
 /* cpu-exec.c */
 extern volatile sig_atomic_t exit_request;
 
+void cpu_unlink_tb(CPUState *env);
+
+void tlb_reset_dirty_range(CPUTLBEntry *tlb_entry,
+                           unsigned long start, unsigned long length);
+
+void tb_invalidate_phys_page_fast(tb_page_addr_t start, int len);
+
+void tlb_set_dirty(CPUState *env, target_ulong vaddr);
+
+typedef struct PhysPageDesc {
+    /* offset in host memory of the page + io_index in the low bits */
+    ram_addr_t phys_offset;
+    ram_addr_t region_offset;
+} PhysPageDesc;
+
+PhysPageDesc *phys_page_find(target_phys_addr_t index);
+
+/* In system mode we want L1_MAP to be based on ram offsets,
+   while in user mode we want it to be based on virtual addresses.  */
+#if !defined(CONFIG_USER_ONLY)
+#if HOST_LONG_BITS < TARGET_PHYS_ADDR_SPACE_BITS
+# define L1_MAP_ADDR_SPACE_BITS  HOST_LONG_BITS
+#else
+# define L1_MAP_ADDR_SPACE_BITS  TARGET_PHYS_ADDR_SPACE_BITS
+#endif
+#else
+# define L1_MAP_ADDR_SPACE_BITS  TARGET_VIRT_ADDR_SPACE_BITS
+#endif
+
+/* Size of the L2 (and L3, etc) page tables.  */
+#define L2_BITS 10
+#define L2_SIZE (1 << L2_BITS)
+
+extern int io_mem_watch;
+
 #endif
