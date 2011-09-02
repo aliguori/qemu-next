@@ -130,6 +130,7 @@ xen_ctrl_version=""
 linux_aio=""
 attr=""
 xfs=""
+tcg="yes"
 
 vhost_net="no"
 kvm="no"
@@ -642,6 +643,10 @@ for opt do
   --disable-kvm) kvm="no"
   ;;
   --enable-kvm) kvm="yes"
+  ;;
+  --disable-tcg) tcg="no"
+  ;;
+  --enable-tcg) tcg="yes"
   ;;
   --disable-spice) spice="no"
   ;;
@@ -2877,7 +2882,6 @@ qemu_version=`head $source_path/VERSION`
 echo "VERSION=$qemu_version" >>$config_host_mak
 echo "PKGVERSION=$pkgversion" >>$config_host_mak
 echo "SRC_PATH=$source_path" >> $config_host_mak
-echo "TARGET_DIRS=$target_list" >> $config_host_mak
 if [ "$docs" = "yes" ] ; then
   echo "BUILD_DOCS=yes" >> $config_host_mak
 fi
@@ -3135,6 +3139,23 @@ if test "$static" = "no" -a "$user_pie" = "yes" ; then
   echo "QEMU_CFLAGS+=-fpie" > libdis-user/config.mak
 fi
 
+kvm_incompatible() {
+    if test "$kvm" = "yes" -a \
+      \( "$1" = "$cpu" -o \
+      \( "$1" = "ppcemb" -a "$cpu" = "ppc" \) -o \
+      \( "$1" = "ppc64"  -a "$cpu" = "ppc" \) -o \
+      \( "$1" = "ppc"    -a "$cpu" = "ppc64" \) -o \
+      \( "$1" = "ppcemb" -a "$cpu" = "ppc64" \) -o \
+      \( "$1" = "x86_64" -a "$cpu" = "i386"   \) -o \
+      \( "$1" = "i386"   -a "$cpu" = "x86_64" \) \) ; then
+	return 1
+    else
+	return 0
+    fi
+}
+
+target_list2=
+
 for target in $target_list; do
 target_dir="$target"
 config_target_mak=$target_dir/config-target.mak
@@ -3185,6 +3206,17 @@ case "$target" in
     ;;
 esac
 
+if test "$tcg" = "no"; then
+    if test "$target_softmmu" = "no"; then
+	continue;
+    fi
+    if kvm_incompatible "$target_arch2"; then
+	continue;
+    fi
+fi
+
+target_list2="$target $target_list2"
+
 mkdir -p $target_dir
 mkdir -p $target_dir/fpu
 mkdir -p $target_dir/tcg
@@ -3212,6 +3244,10 @@ target_libs_softmmu=
 TARGET_ARCH="$target_arch2"
 TARGET_BASE_ARCH=""
 TARGET_ABI_DIR=""
+
+if test "$tcg" = "yes"; then
+  echo "CONFIG_TCG=1" >> $config_target_mak
+fi
 
 case "$target_arch2" in
   i386)
@@ -3597,6 +3633,8 @@ echo "QEMU_CFLAGS+=$cflags" >> $config_target_mak
 echo "QEMU_INCLUDES+=$includes" >> $config_target_mak
 
 done # for target in $targets
+
+echo "TARGET_DIRS=$target_list2" >> $config_host_mak
 
 # build tree in object directory in case the source is not in the current directory
 DIRS="tests tests/cris slirp audio block net pc-bios/optionrom"
