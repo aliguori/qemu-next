@@ -22,6 +22,12 @@
 #include "qemu-common.h"
 #include "cpu-common.h"
 
+#if defined(CONFIG_TCG)
+#define tcg_enabled() (tcg_in_use())
+#else
+#define tcg_enabled() (0)
+#endif
+
 /* some important defines:
  *
  * WORDS_ALIGNED : if defined, the host cpu can only make word aligned

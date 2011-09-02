@@ -585,7 +585,7 @@ void tcg_exec_init(unsigned long tb_size)
 #endif
 }
 
-bool tcg_enabled(void)
+bool tcg_in_use(void)
 {
     return code_gen_buffer != NULL;
 }
