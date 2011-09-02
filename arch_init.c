@@ -711,7 +711,11 @@ int audio_available(void)
 
 int tcg_available(void)
 {
+#if defined(CONFIG_TCG)
     return 1;
+#else
+    return 0;
+#endif
 }
 
 int kvm_available(void)
