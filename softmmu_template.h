@@ -131,7 +131,9 @@ DATA_TYPE REGPARM glue(glue(__ld, SUFFIX), MMUSUFFIX)(target_ulong addr,
         if ((addr & (DATA_SIZE - 1)) != 0)
             do_unaligned_access(addr, READ_ACCESS_TYPE, mmu_idx, retaddr);
 #endif
-        tlb_fill(addr, READ_ACCESS_TYPE, mmu_idx, retaddr);
+        if (tcg_enabled()) {
+            tlb_fill(addr, READ_ACCESS_TYPE, mmu_idx, retaddr);
+        }
         goto redo;
     }
     return res;
@@ -179,10 +181,12 @@ static DATA_TYPE glue(glue(slow_ld, SUFFIX), MMUSUFFIX)(target_ulong addr,
             addend = env->tlb_table[mmu_idx][index].addend;
             res = glue(glue(ld, USUFFIX), _raw)((uint8_t *)(long)(addr+addend));
         }
-    } else {
+    } else if (tcg_enabled()) {
         /* the page is not in the TLB : fill it */
         tlb_fill(addr, READ_ACCESS_TYPE, mmu_idx, retaddr);
         goto redo;
+    } else {
+        return 0;
     }
     return res;
 }
@@ -269,7 +273,9 @@ void REGPARM glue(glue(__st, SUFFIX), MMUSUFFIX)(target_ulong addr,
         if ((addr & (DATA_SIZE - 1)) != 0)
             do_unaligned_access(addr, 1, mmu_idx, retaddr);
 #endif
-        tlb_fill(addr, 1, mmu_idx, retaddr);
+        if (tcg_enabled()) {
+            tlb_fill(addr, 1, mmu_idx, retaddr);
+        }
         goto redo;
     }
 }
@@ -314,7 +320,7 @@ static void glue(glue(slow_st, SUFFIX), MMUSUFFIX)(target_ulong addr,
             addend = env->tlb_table[mmu_idx][index].addend;
             glue(glue(st, SUFFIX), _raw)((uint8_t *)(long)(addr+addend), val);
         }
-    } else {
+    } else if (tcg_enabled()) {
         /* the page is not in the TLB : fill it */
         tlb_fill(addr, 1, mmu_idx, retaddr);
         goto redo;

@@ -26,11 +26,6 @@ int tb_invalidated_flag;
 
 //#define CONFIG_DEBUG_EXEC
 
-bool qemu_cpu_has_work(CPUState *env)
-{
-    return cpu_has_work(env);
-}
-
 void cpu_loop_exit(CPUState *env)
 {
     env->current_tb = NULL;
@@ -177,8 +172,6 @@ static void cpu_handle_debug_exception(CPUState *env)
 }
 
 /* main execution loop */
-
-volatile sig_atomic_t exit_request;
 
 int cpu_exec(CPUState *env)
 {
@@ -506,8 +499,10 @@ int cpu_exec(CPUState *env)
                 if (qemu_loglevel_mask(CPU_LOG_TB_CPU)) {
                     /* restore flags in standard format */
 #if defined(TARGET_I386)
-                    env->eflags = env->eflags | cpu_cc_compute_all(env, CC_OP)
-                        | (DF & DF_MASK);
+                    env->eflags = env->eflags | (DF & DF_MASK);
+                    if (tcg_enabled()) {
+                        env->eflags |= cpu_cc_compute_all(env, CC_OP);
+                    }
                     log_cpu_state(env, X86_DUMP_CCOP);
                     env->eflags &= ~(DF_MASK | CC_O | CC_S | CC_Z | CC_A | CC_P | CC_C);
 #elif defined(TARGET_M68K)
@@ -597,8 +592,10 @@ int cpu_exec(CPUState *env)
 
 #if defined(TARGET_I386)
     /* restore flags in standard format */
-    env->eflags = env->eflags | cpu_cc_compute_all(env, CC_OP)
-        | (DF & DF_MASK);
+    env->eflags = env->eflags | (DF & DF_MASK);
+    if (tcg_enabled()) {
+        env->eflags |= cpu_cc_compute_all(env, CC_OP);
+    }
 #elif defined(TARGET_ARM)
     /* XXX: Save/restore host fpu exception state?.  */
 #elif defined(TARGET_UNICORE32)

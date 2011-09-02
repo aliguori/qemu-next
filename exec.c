@@ -230,6 +230,13 @@ static int tlb_flush_count;
 static int tb_flush_count;
 static int tb_phys_invalidate_count;
 
+volatile sig_atomic_t exit_request;
+
+bool qemu_cpu_has_work(CPUState *env)
+{
+    return cpu_has_work(env);
+}
+
 #ifdef _WIN32
 static void map_exec(void *addr, long size)
 {
@@ -901,7 +908,9 @@ void tb_phys_invalidate(TranslationBlock *tb, tb_page_addr_t page_addr)
         invalidate_page_bitmap(p);
     }
 
-    tb_invalidated_flag = 1;
+    if (tcg_enabled()) {
+        tb_invalidated_flag = 1;
+    }
 
     /* remove the TB from the hash list */
     h = tb_jmp_cache_hash_func(tb->pc);
@@ -1002,8 +1011,10 @@ TranslationBlock *tb_gen_code(CPUState *env,
         tb_flush(env);
         /* cannot fail at this point */
         tb = tb_alloc(pc);
-        /* Don't forget to invalidate previous TB info.  */
-        tb_invalidated_flag = 1;
+        if (tcg_enabled()) {
+            /* Don't forget to invalidate previous TB info.  */
+            tb_invalidated_flag = 1;
+        }
     }
     tc_ptr = code_gen_ptr;
     tb->tc_ptr = tc_ptr;
@@ -1127,7 +1138,7 @@ void tb_invalidate_phys_page_range(tb_page_addr_t start, tb_page_addr_t end,
     }
 #endif
 #ifdef TARGET_HAS_PRECISE_SMC
-    if (current_tb_modified) {
+    if (current_tb_modified && tcg_enabled()) {
         /* we generate a block containing just the instruction
            modifying the memory. It will ensure that it cannot modify
            itself */
@@ -1216,7 +1227,7 @@ static void tb_invalidate_phys_page(tb_page_addr_t addr,
     }
     p->first_tb = NULL;
 #ifdef TARGET_HAS_PRECISE_SMC
-    if (current_tb_modified) {
+    if (current_tb_modified && tcg_enabled()) {
         /* we generate a block containing just the instruction
            modifying the memory. It will ensure that it cannot modify
            itself */
@@ -3445,7 +3456,9 @@ static void check_watchpoint(int offset, int len_mask, int flags)
                     cpu_get_tb_cpu_state(env, &pc, &cs_base, &cpu_flags);
                     tb_gen_code(env, pc, cs_base, cpu_flags, 1);
                 }
-                cpu_resume_from_signal(env, NULL);
+                if (tcg_enabled()) {
+                    cpu_resume_from_signal(env, NULL);
+                }
             }
         } else {
             wp->flags &= ~BP_WATCHPOINT_HIT;
@@ -4721,7 +4734,9 @@ void cpu_io_recompile(CPUState *env, void *retaddr)
        repeating the fault, which is horribly inefficient.
        Better would be to execute just this insn uncached, or generate a
        second new TB.  */
-    cpu_resume_from_signal(env, NULL);
+    if (tcg_enabled()) {
+        cpu_resume_from_signal(env, NULL);
+    }
 }
 
 #if !defined(CONFIG_USER_ONLY)

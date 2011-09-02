@@ -892,6 +892,7 @@ void vm_stop(int reason)
     do_vm_stop(reason);
 }
 
+#ifdef CONFIG_TCG
 static int tcg_cpu_exec(CPUState *env)
 {
     int ret;
@@ -929,6 +930,12 @@ static int tcg_cpu_exec(CPUState *env)
     }
     return ret;
 }
+#else
+static int tcg_cpu_exec(CPUState *env)
+{
+    return 0;
+}
+#endif
 
 bool cpu_exec_all(void)
 {
@@ -950,8 +957,10 @@ bool cpu_exec_all(void)
             if (kvm_enabled()) {
                 r = kvm_cpu_exec(env);
                 qemu_kvm_eat_signals(env);
-            } else {
+            } else if (tcg_enabled()) {
                 r = tcg_cpu_exec(env);
+            } else {
+                r = 0;
             }
             if (r == EXCP_DEBUG) {
                 cpu_handle_guest_debug(env);
