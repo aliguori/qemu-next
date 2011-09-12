@@ -25,6 +25,8 @@
 #include "qemu-common.h"
 #include "qemu_socket.h"
 #include "hw/hw.h"
+#include "qapi/qemu-file-output-visitor.h"
+#include "qapi/qemu-file-input-visitor.h"
 
 #define IO_BUF_SIZE 32768
 
@@ -58,6 +60,94 @@ typedef struct QEMUFileSocket
     int fd;
     QEMUFile *file;
 } QEMUFileSocket;
+
+/* TODO: temporary mechanism to support existing function signatures by
+ * creating a 1-to-1 mapping between QEMUFile's and the actual Visitor type.
+ * In the case of QemuFileOutputVisitor/QemuFileInputVisitor, the QEMUFile
+ * arg corresponds to the handle used by the visitor for reads/writes. For
+ * other visitors, the QEMUFile will serve purely as a key.
+ *
+ * Once all interfaces are converted to using Visitor directly, we will
+ * remove this lookup logic and pass the Visitor to the registered save/load
+ * functions directly.
+ */
+
+/* Clean up a *Visitor object associated with the QEMUFile */
+typedef int (QEMUFileVisitorCleanupFunc)(void *opaque);
+
+typedef struct VisitorNode {
+    void *opaque;
+    Visitor *visitor;
+    QEMUFile *file;
+    QEMUFileVisitorCleanupFunc *cleanup;
+    QTAILQ_ENTRY(VisitorNode) entry;
+} VisitorNode;
+
+static QTAILQ_HEAD(, VisitorNode) qemu_file_visitors =
+    QTAILQ_HEAD_INITIALIZER(qemu_file_visitors);
+
+Visitor *qemu_file_get_visitor(QEMUFile *f)
+{
+    VisitorNode *vnode;
+    QTAILQ_FOREACH(vnode, &qemu_file_visitors, entry) {
+        if (vnode->file == f) {
+            return vnode->visitor;
+        }
+    }
+    /* all QEMUFile instances should have an associated visitor */
+    assert(false);
+}
+
+QEMUFile *qemu_file_from_visitor(Visitor *v)
+{
+    VisitorNode *vnode;
+    QTAILQ_FOREACH(vnode, &qemu_file_visitors, entry) {
+        if (vnode->visitor == v) {
+            return vnode->file;
+        }
+    }
+    return NULL;
+}
+
+static void qemu_file_put_visitor(QEMUFile *f, Visitor *v, void *opaque,
+                                  QEMUFileVisitorCleanupFunc *cleanup)
+{
+    VisitorNode *vnode = g_malloc0(sizeof(*vnode));
+    vnode->file = f;
+    vnode->visitor = v;
+    vnode->opaque = opaque;
+    vnode->cleanup = cleanup;
+    QTAILQ_INSERT_TAIL(&qemu_file_visitors, vnode, entry);
+}
+
+static void qemu_file_remove_visitor(QEMUFile *f)
+{
+    VisitorNode *vnode;
+    QTAILQ_FOREACH(vnode, &qemu_file_visitors, entry) {
+        if (vnode->file == f) {
+            QTAILQ_REMOVE(&qemu_file_visitors, vnode, entry);
+            if (vnode->cleanup) {
+                vnode->cleanup(vnode->opaque);
+            }
+            g_free(vnode);
+        }
+    }
+}
+
+static int qemu_file_cleanup_output_visitor(void *opaque)
+{
+    QemuFileOutputVisitor *v = opaque;
+    qemu_file_output_visitor_cleanup(v);
+    return 0;
+}
+
+static int qemu_file_cleanup_input_visitor(void *opaque)
+{
+    QemuFileInputVisitor *v = opaque;
+    qemu_file_input_visitor_cleanup(v);
+    return 0;
+}
+
 
 static int socket_get_buffer(void *opaque, uint8_t *buf, int64_t pos, int size)
 {
@@ -177,8 +267,9 @@ QEMUFile *qemu_fdopen(int fd, const char *mode)
 
     s = g_malloc0(sizeof(QEMUFileStdio));
     s->stdio_file = fdopen(fd, mode);
-    if (!s->stdio_file)
+    if (!s->stdio_file) {
         goto fail;
+    }
 
     if (mode[0] == 'r') {
         s->file = qemu_fopen_ops(s, NULL, stdio_get_buffer, stdio_fclose,
@@ -270,6 +361,16 @@ QEMUFile *qemu_fopen_ops(void *opaque, QEMUFilePutBufferFunc *put_buffer,
     f->get_rate_limit = get_rate_limit;
     f->is_write = 0;
 
+    if (put_buffer) {
+        QemuFileOutputVisitor *ov = qemu_file_output_visitor_new(f);
+        qemu_file_put_visitor(f, qemu_file_output_get_visitor(ov), ov,
+                              qemu_file_cleanup_output_visitor);
+    } else {
+        QemuFileInputVisitor *iv = qemu_file_input_visitor_new(f);
+        qemu_file_put_visitor(f, qemu_file_input_get_visitor(iv), iv,
+                              qemu_file_cleanup_input_visitor);
+    }
+
     return f;
 }
 
@@ -336,6 +437,7 @@ int qemu_fclose(QEMUFile *f)
 {
     int ret = 0;
     qemu_fflush(f);
+    qemu_file_remove_visitor(f);
     if (f->close) {
         ret = f->close(f->opaque);
     }

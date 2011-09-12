@@ -10,6 +10,13 @@
 
 #include "ioport.h"
 #include "irq.h"
+#include "qemu-queue.h"
+#include "qapi/qapi-visit-core.h"
+#include "qapi/qemu-file-output-visitor.h"
+#include "qapi/qemu-file-input-visitor.h"
+
+Visitor *qemu_file_get_visitor(QEMUFile *f);
+QEMUFile *qemu_file_from_visitor(Visitor *v);
 
 /* VM Load/Save */
 
