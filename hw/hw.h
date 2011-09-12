@@ -10,6 +10,25 @@
 
 #include "ioport.h"
 #include "irq.h"
+#include "qemu-queue.h"
+#include "qapi/qapi-visit-core.h"
+#include "qapi/qemu-file-output-visitor.h"
+#include "qapi/qemu-file-input-visitor.h"
+
+/* QEMUFile->Visitor lookup routines to support legacy qemu_put_* calls */
+typedef struct QemuFileVisitorNode {
+    void *opaque; /* Visitor type */
+    QemuFileOutputVisitor *ov;
+    QemuFileInputVisitor *iv;
+    QEMUFile *f;
+    QTAILQ_ENTRY(QemuFileVisitorNode) entry;
+} QemuFileVisitorNode;
+
+Visitor *qemu_file_get_input_visitor(QEMUFile *f);
+Visitor *qemu_file_get_output_visitor(QEMUFile *f);
+QemuFileVisitorNode *qemu_file_get_visitor_node(QEMUFile *f);
+void qemu_file_put_visitor_node(QemuFileVisitorNode *n);
+void qemu_file_remove_visitor_node(QemuFileVisitorNode *n);
 
 /* VM Load/Save */
 

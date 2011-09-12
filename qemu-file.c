@@ -25,6 +25,8 @@
 #include "qemu-common.h"
 #include "qemu_socket.h"
 #include "hw/hw.h"
+#include "qapi/qemu-file-output-visitor.h"
+#include "qapi/qemu-file-input-visitor.h"
 
 #define IO_BUF_SIZE 32768
 
@@ -47,6 +49,61 @@ struct QEMUFile {
     int has_error;
 };
 
+/* TODO: temporary mechanism to support existing function signatures by
+ * creating a 1-to-1 mapping between QEMUFile's and the actual Visitor type.
+ * In the case of QemuFileOutputVisitor/QemuFileInputVisitor, the QEMUFile
+ * arg corresponds to the handle used by the visitor for reads/writes. For
+ * other visitors, the QEMUFile will serve purely as a key.
+ *
+ * Once all interfaces are converted to using Visitor directly, we will
+ * remove this lookup logic and pass the Visitor to the registered save/load
+ * functions directly.
+ */
+static QTAILQ_HEAD(, QemuFileVisitorNode) qemu_file_visitors =
+    QTAILQ_HEAD_INITIALIZER(qemu_file_visitors);
+
+QemuFileVisitorNode *qemu_file_get_visitor_node(QEMUFile *f)
+{
+    QemuFileVisitorNode *node;
+    QTAILQ_FOREACH(node, &qemu_file_visitors, entry) {
+        if (node->f == f) {
+            return node;
+        }
+    }
+    return NULL;
+}
+
+Visitor *qemu_file_get_output_visitor(QEMUFile *f)
+{
+    QemuFileVisitorNode *node = qemu_file_get_visitor_node(f);
+
+    if (node && node->ov) {
+        return qemu_file_output_get_visitor(node->ov);
+    }
+    return NULL;
+}
+
+Visitor *qemu_file_get_input_visitor(QEMUFile *f)
+{
+    QemuFileVisitorNode *node = qemu_file_get_visitor_node(f);
+
+    if (node && node->iv) {
+        return qemu_file_input_get_visitor(node->iv);
+    }
+    return NULL;
+}
+
+void qemu_file_put_visitor_node(QemuFileVisitorNode *node)
+{
+    QTAILQ_INSERT_TAIL(&qemu_file_visitors, node, entry);
+}
+
+void qemu_file_remove_visitor_node(QemuFileVisitorNode *node)
+{
+    QTAILQ_REMOVE(&qemu_file_visitors, node, entry);
+    g_free(node);
+}
+
 QEMUFile *qemu_fopen_ops(void *opaque, QEMUFilePutBufferFunc *put_buffer,
                          QEMUFileGetBufferFunc *get_buffer,
                          QEMUFileCloseFunc *close,
@@ -55,6 +112,7 @@ QEMUFile *qemu_fopen_ops(void *opaque, QEMUFilePutBufferFunc *put_buffer,
                          QEMUFileGetRateLimit *get_rate_limit)
 {
     QEMUFile *f;
+    QemuFileVisitorNode *node;
 
     f = g_malloc0(sizeof(QEMUFile));
 
@@ -66,6 +124,12 @@ QEMUFile *qemu_fopen_ops(void *opaque, QEMUFilePutBufferFunc *put_buffer,
     f->set_rate_limit = set_rate_limit;
     f->get_rate_limit = get_rate_limit;
     f->is_write = 0;
+
+    node = g_malloc0(sizeof(QemuFileVisitorNode));
+    node->ov = qemu_file_output_visitor_new(f);
+    node->iv = qemu_file_input_visitor_new(f);
+    node->f = f;
+    qemu_file_put_visitor_node(node);
 
     return f;
 }
