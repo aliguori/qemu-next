@@ -32,7 +32,6 @@ enum {
 struct DeviceState {
     char *id;
     enum DevState state;
-    QemuOpts *opts;
     int hotplugged;
     DeviceInfo *info;
     BusState *parent_bus;

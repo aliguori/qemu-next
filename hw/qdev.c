@@ -281,7 +281,6 @@ DeviceState *qdev_device_add(QemuOpts *opts)
         qerror_report(QERR_DEVICE_INIT_FAILED, driver);
         return NULL;
     }
-    qdev->opts = opts;
     return qdev;
 }
 
@@ -410,8 +409,6 @@ void qdev_free(DeviceState *dev)
             vmstate_unregister(dev, dev->info->vmsd, dev);
         if (dev->info->exit)
             dev->info->exit(dev);
-        if (dev->opts)
-            qemu_opts_del(dev->opts);
     }
     QLIST_REMOVE(dev, sibling);
     g_free(dev->id);
@@ -921,6 +918,8 @@ int do_device_add(Monitor *mon, const QDict *qdict, QObject **ret_data)
         qemu_opts_del(opts);
         return -1;
     }
+    qemu_opts_del(opts);
+
     return 0;
 }
 
