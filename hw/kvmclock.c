@@ -103,7 +103,7 @@ void kvmclock_create(void)
     if (kvm_enabled() &&
         first_cpu->cpuid_kvm_features & ((1ULL << KVM_FEATURE_CLOCKSOURCE) |
                                          (1ULL << KVM_FEATURE_CLOCKSOURCE2))) {
-        sysbus_create_simple("kvmclock", -1, NULL, NULL);
+        sysbus_create_simple("kvmclock", -1, NULL, "::kvmclock");
     }
 }
 

@@ -1103,7 +1103,7 @@ void pc_vga_init(PCIBus *pci_bus)
      * For nographic case, sga is enabled at all times
      */
     if (display_type == DT_NOGRAPHIC) {
-        isa_create_simple("sga", NULL);
+        isa_create_simple("sga", "::sga");
     }
 }
 
@@ -1132,7 +1132,8 @@ void pc_basic_device_init(qemu_irq *isa_irq,
     register_ioport_write(0xf0, 1, 1, ioportF0_write, NULL);
 
     if (!no_hpet) {
-        DeviceState *hpet = sysbus_try_create_simple("hpet", HPET_BASE, NULL, NULL);
+        DeviceState *hpet = sysbus_try_create_simple("hpet", HPET_BASE, NULL,
+                                                     "::hpet");
 
         if (hpet) {
             for (i = 0; i < 24; i++) {
@@ -1161,11 +1162,11 @@ void pc_basic_device_init(qemu_irq *isa_irq,
     }
 
     a20_line = qemu_allocate_irqs(handle_a20_line_change, first_cpu, 2);
-    i8042 = isa_create_simple("i8042", NULL);
+    i8042 = isa_create_simple("i8042", "::i8042");
     i8042_setup_a20_line(i8042, &a20_line[0]);
     if (!no_vmport) {
         vmport_init();
-        vmmouse = isa_try_create("vmmouse", NULL);
+        vmmouse = isa_try_create("vmmouse", "::vmmouse");
     } else {
         vmmouse = NULL;
     }
@@ -1173,7 +1174,7 @@ void pc_basic_device_init(qemu_irq *isa_irq,
         qdev_prop_set_ptr(&vmmouse->qdev, "ps2_mouse", i8042);
         qdev_init_nofail(&vmmouse->qdev);
     }
-    port92 = isa_create_simple("port92", NULL);
+    port92 = isa_create_simple("port92", "::port92");
     port92_init(port92, &a20_line[1]);
 
     cpu_exit_irq = qemu_allocate_irqs(cpu_request_exit, NULL, 1);

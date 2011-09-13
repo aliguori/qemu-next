@@ -137,7 +137,8 @@ void smbus_eeprom_init(i2c_bus *smbus, int nb_eeprom,
 
     for (i = 0; i < nb_eeprom; i++) {
         DeviceState *eeprom;
-        eeprom = qdev_create((BusState *)smbus, "smbus-eeprom", NULL);
+        eeprom = qdev_create((BusState *)smbus, "smbus-eeprom",
+                             "::eeprom[%d]", i);
         qdev_prop_set_uint8(eeprom, "address", 0x50 + i);
         qdev_prop_set_ptr(eeprom, "data", eeprom_buf + (i * 256));
         qdev_init_nofail(eeprom);
