@@ -34,7 +34,7 @@ etraxfs_eth_init(NICInfo *nd, target_phys_addr_t base, int phyaddr,
     DeviceState *dev;
     qemu_check_nic_model(nd, "fseth");
 
-    dev = qdev_create(NULL, "etraxfs-eth");
+    dev = qdev_create(NULL, "etraxfs-eth", NULL);
     qdev_set_nic_properties(dev, nd);
     qdev_prop_set_uint32(dev, "phyaddr", phyaddr);
     qdev_prop_set_ptr(dev, "dma_out", dma_out);

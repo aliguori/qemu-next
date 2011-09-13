@@ -9,7 +9,7 @@ static inline DeviceState *milkymist_uart_create(target_phys_addr_t base,
 {
     DeviceState *dev;
 
-    dev = qdev_create(NULL, "milkymist-uart");
+    dev = qdev_create(NULL, "milkymist-uart", NULL);
     qdev_init_nofail(dev);
     sysbus_mmio_map(sysbus_from_qdev(dev), 0, base);
     sysbus_connect_irq(sysbus_from_qdev(dev), 0, rx_irq);
@@ -22,7 +22,7 @@ static inline DeviceState *milkymist_hpdmc_create(target_phys_addr_t base)
 {
     DeviceState *dev;
 
-    dev = qdev_create(NULL, "milkymist-hpdmc");
+    dev = qdev_create(NULL, "milkymist-hpdmc", NULL);
     qdev_init_nofail(dev);
     sysbus_mmio_map(sysbus_from_qdev(dev), 0, base);
 
@@ -33,7 +33,7 @@ static inline DeviceState *milkymist_memcard_create(target_phys_addr_t base)
 {
     DeviceState *dev;
 
-    dev = qdev_create(NULL, "milkymist-memcard");
+    dev = qdev_create(NULL, "milkymist-memcard", NULL);
     qdev_init_nofail(dev);
     sysbus_mmio_map(sysbus_from_qdev(dev), 0, base);
 
@@ -45,7 +45,7 @@ static inline DeviceState *milkymist_vgafb_create(target_phys_addr_t base,
 {
     DeviceState *dev;
 
-    dev = qdev_create(NULL, "milkymist-vgafb");
+    dev = qdev_create(NULL, "milkymist-vgafb", NULL);
     qdev_prop_set_uint32(dev, "fb_offset", fb_offset);
     qdev_prop_set_uint32(dev, "fb_mask", fb_mask);
     qdev_init_nofail(dev);
@@ -61,7 +61,7 @@ static inline DeviceState *milkymist_sysctl_create(target_phys_addr_t base,
 {
     DeviceState *dev;
 
-    dev = qdev_create(NULL, "milkymist-sysctl");
+    dev = qdev_create(NULL, "milkymist-sysctl", NULL);
     qdev_prop_set_uint32(dev, "frequency", freq_hz);
     qdev_prop_set_uint32(dev, "systemid", system_id);
     qdev_prop_set_uint32(dev, "capabilities", capabilities);
@@ -80,7 +80,7 @@ static inline DeviceState *milkymist_pfpu_create(target_phys_addr_t base,
 {
     DeviceState *dev;
 
-    dev = qdev_create(NULL, "milkymist-pfpu");
+    dev = qdev_create(NULL, "milkymist-pfpu", NULL);
     qdev_init_nofail(dev);
     sysbus_mmio_map(sysbus_from_qdev(dev), 0, base);
     sysbus_connect_irq(sysbus_from_qdev(dev), 0, irq);
@@ -142,7 +142,7 @@ static inline DeviceState *milkymist_tmu2_create(target_phys_addr_t base,
     XFree(configs);
     XCloseDisplay(d);
 
-    dev = qdev_create(NULL, "milkymist-tmu2");
+    dev = qdev_create(NULL, "milkymist-tmu2", NULL);
     qdev_init_nofail(dev);
     sysbus_mmio_map(sysbus_from_qdev(dev), 0, base);
     sysbus_connect_irq(sysbus_from_qdev(dev), 0, irq);
@@ -159,7 +159,7 @@ static inline DeviceState *milkymist_ac97_create(target_phys_addr_t base,
 {
     DeviceState *dev;
 
-    dev = qdev_create(NULL, "milkymist-ac97");
+    dev = qdev_create(NULL, "milkymist-ac97", NULL);
     qdev_init_nofail(dev);
     sysbus_mmio_map(sysbus_from_qdev(dev), 0, base);
     sysbus_connect_irq(sysbus_from_qdev(dev), 0, crrequest_irq);
@@ -176,7 +176,7 @@ static inline DeviceState *milkymist_minimac_create(target_phys_addr_t base,
     DeviceState *dev;
 
     qemu_check_nic_model(&nd_table[0], "minimac");
-    dev = qdev_create(NULL, "milkymist-minimac");
+    dev = qdev_create(NULL, "milkymist-minimac", NULL);
     qdev_set_nic_properties(dev, &nd_table[0]);
     qdev_init_nofail(dev);
     sysbus_mmio_map(sysbus_from_qdev(dev), 0, base);
@@ -192,7 +192,7 @@ static inline DeviceState *milkymist_minimac2_create(target_phys_addr_t base,
     DeviceState *dev;
 
     qemu_check_nic_model(&nd_table[0], "minimac2");
-    dev = qdev_create(NULL, "milkymist-minimac2");
+    dev = qdev_create(NULL, "milkymist-minimac2", NULL);
     qdev_prop_set_taddr(dev, "buffers_base", buffers_base);
     qdev_set_nic_properties(dev, &nd_table[0]);
     qdev_init_nofail(dev);
@@ -209,7 +209,7 @@ static inline DeviceState *milkymist_softusb_create(target_phys_addr_t base,
 {
     DeviceState *dev;
 
-    dev = qdev_create(NULL, "milkymist-softusb");
+    dev = qdev_create(NULL, "milkymist-softusb", NULL);
     qdev_prop_set_uint32(dev, "pmem_base", pmem_base);
     qdev_prop_set_uint32(dev, "pmem_size", pmem_size);
     qdev_prop_set_uint32(dev, "dmem_base", dmem_base);

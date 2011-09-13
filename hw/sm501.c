@@ -1430,7 +1430,7 @@ void sm501_init(uint32_t base, uint32_t local_mem_bytes, qemu_irq irq,
                                  0x54, sm501_2d_engine_index);
 
     /* bridge to usb host emulation module */
-    dev = qdev_create(NULL, "sysbus-ohci");
+    dev = qdev_create(NULL, "sysbus-ohci", NULL);
     qdev_prop_set_uint32(dev, "num-ports", 2);
     qdev_prop_set_taddr(dev, "dma-offset", base);
     qdev_init_nofail(dev);

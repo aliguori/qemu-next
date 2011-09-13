@@ -70,7 +70,7 @@ VirtIOS390Bus *s390_virtio_bus_init(ram_addr_t *ram_size)
     DeviceState *dev;
 
     /* Create bridge device */
-    dev = qdev_create(NULL, "s390-virtio-bridge");
+    dev = qdev_create(NULL, "s390-virtio-bridge", NULL);
     qdev_init_nofail(dev);
 
     /* Create bus on bridge device */

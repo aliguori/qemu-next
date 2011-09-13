@@ -211,7 +211,7 @@ PCIBus *pci_pmac_init(qemu_irq *pic,
 
     /* Use values found on a real PowerMac */
     /* Uninorth main bus */
-    dev = qdev_create(NULL, "uni-north");
+    dev = qdev_create(NULL, "uni-north", NULL);
     qdev_init_nofail(dev);
     s = sysbus_from_qdev(dev);
     d = FROM_SYSBUS(UNINState, s);
@@ -237,7 +237,7 @@ PCIBus *pci_pmac_init(qemu_irq *pic,
 
     /* Uninorth AGP bus */
     pci_create_simple(d->host_state.bus, PCI_DEVFN(11, 0), "uni-north-agp");
-    dev = qdev_create(NULL, "uni-north-agp");
+    dev = qdev_create(NULL, "uni-north-agp", NULL);
     qdev_init_nofail(dev);
     s = sysbus_from_qdev(dev);
     sysbus_mmio_map(s, 0, 0xf0800000);
@@ -247,7 +247,7 @@ PCIBus *pci_pmac_init(qemu_irq *pic,
 #if 0
     /* XXX: not needed for now */
     pci_create_simple(d->host_state.bus, PCI_DEVFN(14, 0), "uni-north-pci");
-    dev = qdev_create(NULL, "uni-north-pci");
+    dev = qdev_create(NULL, "uni-north-pci", NULL);
     qdev_init_nofail(dev);
     s = sysbus_from_qdev(dev);
     sysbus_mmio_map(s, 0, 0xf4800000);
@@ -267,7 +267,7 @@ PCIBus *pci_pmac_u3_init(qemu_irq *pic,
 
     /* Uninorth AGP bus */
 
-    dev = qdev_create(NULL, "u3-agp");
+    dev = qdev_create(NULL, "u3-agp", NULL);
     qdev_init_nofail(dev);
     s = sysbus_from_qdev(dev);
     d = FROM_SYSBUS(UNINState, s);

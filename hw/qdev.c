@@ -88,7 +88,7 @@ static DeviceInfo *qdev_find_info(BusInfo *bus_info, const char *name)
     return NULL;
 }
 
-static DeviceState *qdev_create_from_info(BusState *bus, DeviceInfo *info)
+static DeviceState *qdev_create_from_info(BusState *bus, DeviceInfo *info, const char *id)
 {
     DeviceState *dev;
 
@@ -107,17 +107,18 @@ static DeviceState *qdev_create_from_info(BusState *bus, DeviceInfo *info)
     }
     dev->instance_id_alias = -1;
     dev->state = DEV_STATE_CREATED;
+    dev->id = id;
     return dev;
 }
 
 /* Create a new device.  This only initializes the device state structure
    and allows properties to be set.  qdev_init should be called to
    initialize the actual device emulation.  */
-DeviceState *qdev_create(BusState *bus, const char *name)
+DeviceState *qdev_create(BusState *bus, const char *name, const char *id)
 {
     DeviceState *dev;
 
-    dev = qdev_try_create(bus, name);
+    dev = qdev_try_create(bus, name, id);
     if (!dev) {
         if (bus) {
             hw_error("Unknown device '%s' for bus '%s'\n", name,
@@ -130,7 +131,7 @@ DeviceState *qdev_create(BusState *bus, const char *name)
     return dev;
 }
 
-DeviceState *qdev_try_create(BusState *bus, const char *name)
+DeviceState *qdev_try_create(BusState *bus, const char *name, const char *id)
 {
     DeviceInfo *info;
 
@@ -143,7 +144,7 @@ DeviceState *qdev_try_create(BusState *bus, const char *name)
         return NULL;
     }
 
-    return qdev_create_from_info(bus, info);
+    return qdev_create_from_info(bus, info, id);
 }
 
 static void qdev_print_devinfo(DeviceInfo *info)
@@ -226,7 +227,7 @@ int qdev_device_help(QemuOpts *opts)
 
 DeviceState *qdev_device_add(QemuOpts *opts)
 {
-    const char *driver, *path, *id;
+    const char *driver, *path;
     DeviceInfo *info;
     DeviceState *qdev;
     BusState *bus;
@@ -271,11 +272,7 @@ DeviceState *qdev_device_add(QemuOpts *opts)
     }
 
     /* create device, set properties */
-    qdev = qdev_create_from_info(bus, info);
-    id = qemu_opts_id(opts);
-    if (id) {
-        qdev->id = id;
-    }
+    qdev = qdev_create_from_info(bus, info, qemu_opts_id(opts));
     if (qemu_opt_foreach(opts, set_property, qdev, 1) != 0) {
         qdev_free(qdev);
         return NULL;

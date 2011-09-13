@@ -251,7 +251,7 @@ static int pxa2xx_pic_post_load(void *opaque, int version_id)
 
 DeviceState *pxa2xx_pic_init(target_phys_addr_t base, CPUState *env)
 {
-    DeviceState *dev = qdev_create(NULL, "pxa2xx_pic");
+    DeviceState *dev = qdev_create(NULL, "pxa2xx_pic", NULL);
     int iomemtype;
     PXA2xxPICState *s = FROM_SYSBUS(PXA2xxPICState, sysbus_from_qdev(dev));
 

@@ -201,7 +201,7 @@ void spapr_vlan_create(VIOsPAPRBus *bus, uint32_t reg, NICInfo *nd,
     DeviceState *dev;
     VIOsPAPRDevice *sdev;
 
-    dev = qdev_create(&bus->bus, "spapr-vlan");
+    dev = qdev_create(&bus->bus, "spapr-vlan", NULL);
     qdev_prop_set_uint32(dev, "reg", reg);
 
     qdev_set_nic_properties(dev, nd);

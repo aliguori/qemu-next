@@ -45,7 +45,7 @@ void ssi_register_slave(SSISlaveInfo *info)
 DeviceState *ssi_create_slave(SSIBus *bus, const char *name)
 {
     DeviceState *dev;
-    dev = qdev_create(&bus->qbus, name);
+    dev = qdev_create(&bus->qbus, name, NULL);
     qdev_init_nofail(dev);
     return dev;
 }
