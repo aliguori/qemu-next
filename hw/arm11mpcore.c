@@ -78,7 +78,7 @@ static int realview_mpcore_init(SysBusDevice *dev)
     /* ??? IRQ routing is hardcoded to "normal" mode.  */
     for (n = 0; n < 4; n++) {
         gic = sysbus_create_simple("realview_gic", 0x10040000 + n * 0x10000,
-                                   s->cpuic[10 + n]);
+                                   s->cpuic[10 + n], NULL);
         for (i = 0; i < 64; i++) {
             s->rvic[n][i] = qdev_get_gpio_in(gic, i);
         }

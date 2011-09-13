@@ -221,8 +221,8 @@ static void tosa_init(ram_addr_t ram_size,
     tmio = tc6393xb_init(0x10000000,
             qdev_get_gpio_in(cpu->gpio, TOSA_GPIO_TC6393XB_INT));
 
-    scp0 = sysbus_create_simple("scoop", 0x08800000, NULL);
-    scp1 = sysbus_create_simple("scoop", 0x14800040, NULL);
+    scp0 = sysbus_create_simple("scoop", 0x08800000, NULL, NULL);
+    scp1 = sysbus_create_simple("scoop", 0x14800040, NULL, NULL);
 
     tosa_gpio_setup(cpu, scp0, scp1, tmio);
 

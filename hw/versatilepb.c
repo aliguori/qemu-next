@@ -210,14 +210,14 @@ static void versatile_init(ram_addr_t ram_size,
     for (n = 0; n < 32; n++) {
         pic[n] = qdev_get_gpio_in(dev, n);
     }
-    dev = sysbus_create_simple("versatilepb_sic", 0x10003000, NULL);
+    dev = sysbus_create_simple("versatilepb_sic", 0x10003000, NULL, NULL);
     for (n = 0; n < 32; n++) {
         sysbus_connect_irq(sysbus_from_qdev(dev), n, pic[n]);
         sic[n] = qdev_get_gpio_in(dev, n);
     }
 
-    sysbus_create_simple("pl050_keyboard", 0x10006000, sic[3]);
-    sysbus_create_simple("pl050_mouse", 0x10007000, sic[4]);
+    sysbus_create_simple("pl050_keyboard", 0x10006000, sic[3], NULL);
+    sysbus_create_simple("pl050_mouse", 0x10007000, sic[4], NULL);
 
     dev = sysbus_create_varargs("versatile_pci", 0x40000000,
                                 sic[27], sic[28], sic[29], sic[30], NULL);
@@ -244,18 +244,18 @@ static void versatile_init(ram_addr_t ram_size,
         n--;
     }
 
-    sysbus_create_simple("pl011", 0x101f1000, pic[12]);
-    sysbus_create_simple("pl011", 0x101f2000, pic[13]);
-    sysbus_create_simple("pl011", 0x101f3000, pic[14]);
-    sysbus_create_simple("pl011", 0x10009000, sic[6]);
+    sysbus_create_simple("pl011", 0x101f1000, pic[12], NULL);
+    sysbus_create_simple("pl011", 0x101f2000, pic[13], NULL);
+    sysbus_create_simple("pl011", 0x101f3000, pic[14], NULL);
+    sysbus_create_simple("pl011", 0x10009000, sic[6], NULL);
 
-    sysbus_create_simple("pl080", 0x10130000, pic[17]);
-    sysbus_create_simple("sp804", 0x101e2000, pic[4]);
-    sysbus_create_simple("sp804", 0x101e3000, pic[5]);
+    sysbus_create_simple("pl080", 0x10130000, pic[17], NULL);
+    sysbus_create_simple("sp804", 0x101e2000, pic[4], NULL);
+    sysbus_create_simple("sp804", 0x101e3000, pic[5], NULL);
 
     /* The versatile/PB actually has a modified Color LCD controller
        that includes hardware cursor support from the PL111.  */
-    dev = sysbus_create_simple("pl110_versatile", 0x10120000, pic[16]);
+    dev = sysbus_create_simple("pl110_versatile", 0x10120000, pic[16], NULL);
     /* Wire up the mux control signals from the SYS_CLCD register */
     qdev_connect_gpio_out(sysctl, 0, qdev_get_gpio_in(dev, 0));
 
@@ -263,7 +263,7 @@ static void versatile_init(ram_addr_t ram_size,
     sysbus_create_varargs("pl181", 0x1000b000, sic[23], sic[2], NULL);
 
     /* Add PL031 Real Time Clock. */
-    sysbus_create_simple("pl031", 0x101e8000, pic[10]);
+    sysbus_create_simple("pl031", 0x101e8000, pic[10], NULL);
 
     /* Memory map for Versatile/PB:  */
     /* 0x10000000 System registers.  */

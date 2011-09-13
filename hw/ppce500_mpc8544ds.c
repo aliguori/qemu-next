@@ -286,7 +286,7 @@ static void mpc8544ds_init(ram_addr_t ram_size,
     }
 
     /* General Utility device */
-    sysbus_create_simple("mpc8544-guts", MPC8544_UTIL_BASE, NULL);
+    sysbus_create_simple("mpc8544-guts", MPC8544_UTIL_BASE, NULL, NULL);
 
     /* PCI */
     dev = sysbus_create_varargs("e500-pcihost", MPC8544_PCI_REGS_BASE,

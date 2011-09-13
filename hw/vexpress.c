@@ -126,22 +126,22 @@ static void vexpress_a9_init(ram_addr_t ram_size,
     qdev_connect_gpio_out(dev, 1,
                           qdev_get_gpio_in(sysctl, ARM_SYSCTL_GPIO_MMC_CARDIN));
 
-    sysbus_create_simple("pl050_keyboard", 0x10006000, pic[12]);
-    sysbus_create_simple("pl050_mouse", 0x10007000, pic[13]);
+    sysbus_create_simple("pl050_keyboard", 0x10006000, pic[12], NULL);
+    sysbus_create_simple("pl050_mouse", 0x10007000, pic[13], NULL);
 
-    sysbus_create_simple("pl011", 0x10009000, pic[5]);
-    sysbus_create_simple("pl011", 0x1000a000, pic[6]);
-    sysbus_create_simple("pl011", 0x1000b000, pic[7]);
-    sysbus_create_simple("pl011", 0x1000c000, pic[8]);
+    sysbus_create_simple("pl011", 0x10009000, pic[5], NULL);
+    sysbus_create_simple("pl011", 0x1000a000, pic[6], NULL);
+    sysbus_create_simple("pl011", 0x1000b000, pic[7], NULL);
+    sysbus_create_simple("pl011", 0x1000c000, pic[8], NULL);
 
     /* 0x1000f000 SP805 WDT */
 
-    sysbus_create_simple("sp804", 0x10011000, pic[2]);
-    sysbus_create_simple("sp804", 0x10012000, pic[3]);
+    sysbus_create_simple("sp804", 0x10011000, pic[2], NULL);
+    sysbus_create_simple("sp804", 0x10012000, pic[3], NULL);
 
     /* 0x10016000 Serial Bus DVI */
 
-    sysbus_create_simple("pl031", 0x10017000, pic[4]); /* RTC */
+    sysbus_create_simple("pl031", 0x10017000, pic[4], NULL); /* RTC */
 
     /* 0x1001a000 Compact Flash */
 
@@ -150,14 +150,14 @@ static void vexpress_a9_init(ram_addr_t ram_size,
     /* Daughterboard peripherals : 0x10020000 .. 0x20000000 */
 
     /* 0x10020000 PL111 CLCD (daughterboard) */
-    sysbus_create_simple("pl111", 0x10020000, pic[44]);
+    sysbus_create_simple("pl111", 0x10020000, pic[44], NULL);
 
     /* 0x10060000 AXI RAM */
     /* 0x100e0000 PL341 Dynamic Memory Controller */
     /* 0x100e1000 PL354 Static Memory Controller */
     /* 0x100e2000 System Configuration Controller */
 
-    sysbus_create_simple("sp804", 0x100e4000, pic[48]);
+    sysbus_create_simple("sp804", 0x100e4000, pic[48], NULL);
     /* 0x100e5000 SP805 Watchdog module */
     /* 0x100e6000 BP147 TrustZone Protection Controller */
     /* 0x100e9000 PL301 'Fast' AXI matrix */

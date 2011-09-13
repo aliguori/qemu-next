@@ -73,8 +73,10 @@ DeviceState *sysbus_create_varargs(const char *name,
 DeviceState *sysbus_try_create_varargs(const char *name,
                                        target_phys_addr_t addr, ...);
 static inline DeviceState *sysbus_create_simple(const char *name,
-                                              target_phys_addr_t addr,
-                                              qemu_irq irq)
+                                                target_phys_addr_t addr,
+                                                qemu_irq irq,
+                                                const char *id,
+                                                ...)
 {
     return sysbus_create_varargs(name, addr, irq, NULL);
 }

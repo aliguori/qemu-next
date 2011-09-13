@@ -160,7 +160,7 @@ petalogix_s3adsp1800_init(ram_addr_t ram_size,
         irq[i] = qdev_get_gpio_in(dev, i);
     }
 
-    sysbus_create_simple("xilinx,uartlite", 0x84000000, irq[3]);
+    sysbus_create_simple("xilinx,uartlite", 0x84000000, irq[3], NULL);
     /* 2 timers at irq 2 @ 62 Mhz.  */
     xilinx_timer_create(0x83c00000, irq[0], 2, 62 * 1000000);
     xilinx_ethlite_create(&nd_table[0], 0x81000000, irq[1], 0, 0);

@@ -1522,7 +1522,7 @@ static void musicpal_init(ram_addr_t ram_size,
     cpu_register_physical_memory(MP_SRAM_BASE, MP_SRAM_SIZE, sram_off);
 
     dev = sysbus_create_simple("mv88w8618_pic", MP_PIC_BASE,
-                               cpu_pic[ARM_PIC_CPU_IRQ]);
+                               cpu_pic[ARM_PIC_CPU_IRQ], NULL);
     for (i = 0; i < 32; i++) {
         pic[i] = qdev_get_gpio_in(dev, i);
     }
@@ -1583,7 +1583,7 @@ static void musicpal_init(ram_addr_t ram_size,
 #endif
 
     }
-    sysbus_create_simple("mv88w8618_flashcfg", MP_FLASHCFG_BASE, NULL);
+    sysbus_create_simple("mv88w8618_flashcfg", MP_FLASHCFG_BASE, NULL, NULL);
 
     qemu_check_nic_model(&nd_table[0], "mv88w8618");
     dev = qdev_create(NULL, "mv88w8618_eth", NULL);
@@ -1592,16 +1592,16 @@ static void musicpal_init(ram_addr_t ram_size,
     sysbus_mmio_map(sysbus_from_qdev(dev), 0, MP_ETH_BASE);
     sysbus_connect_irq(sysbus_from_qdev(dev), 0, pic[MP_ETH_IRQ]);
 
-    sysbus_create_simple("mv88w8618_wlan", MP_WLAN_BASE, NULL);
+    sysbus_create_simple("mv88w8618_wlan", MP_WLAN_BASE, NULL, NULL);
 
     musicpal_misc_init();
 
-    dev = sysbus_create_simple("musicpal_gpio", MP_GPIO_BASE, pic[MP_GPIO_IRQ]);
-    i2c_dev = sysbus_create_simple("gpio_i2c", -1, NULL);
+    dev = sysbus_create_simple("musicpal_gpio", MP_GPIO_BASE, pic[MP_GPIO_IRQ], NULL);
+    i2c_dev = sysbus_create_simple("gpio_i2c", -1, NULL, NULL);
     i2c = (i2c_bus *)qdev_get_child_bus(i2c_dev, "i2c");
 
-    lcd_dev = sysbus_create_simple("musicpal_lcd", MP_LCD_BASE, NULL);
-    key_dev = sysbus_create_simple("musicpal_key", -1, NULL);
+    lcd_dev = sysbus_create_simple("musicpal_lcd", MP_LCD_BASE, NULL, NULL);
+    key_dev = sysbus_create_simple("musicpal_key", -1, NULL, NULL);
 
     /* I2C read data */
     qdev_connect_gpio_out(i2c_dev, 0,

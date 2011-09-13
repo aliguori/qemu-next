@@ -2166,20 +2166,23 @@ PXA2xxState *pxa270_init(unsigned int sdram_size, const char *revision)
     for (i = 0; pxa27x_ssp[i].io_base; i ++) {
         DeviceState *dev;
         dev = sysbus_create_simple("pxa2xx-ssp", pxa27x_ssp[i].io_base,
-                        qdev_get_gpio_in(s->pic, pxa27x_ssp[i].irqn));
+                                   qdev_get_gpio_in(s->pic, pxa27x_ssp[i].irqn),
+                                   NULL);
         s->ssp[i] = (SSIBus *)qdev_get_child_bus(dev, "ssi");
     }
 
     if (usb_enabled) {
         sysbus_create_simple("sysbus-ohci", 0x4c000000,
-                        qdev_get_gpio_in(s->pic, PXA2XX_PIC_USBH1));
+                             qdev_get_gpio_in(s->pic, PXA2XX_PIC_USBH1),
+                             NULL);
     }
 
     s->pcmcia[0] = pxa2xx_pcmcia_init(0x20000000);
     s->pcmcia[1] = pxa2xx_pcmcia_init(0x30000000);
 
     sysbus_create_simple("pxa2xx_rtc", 0x40900000,
-                    qdev_get_gpio_in(s->pic, PXA2XX_PIC_RTCALARM));
+                         qdev_get_gpio_in(s->pic, PXA2XX_PIC_RTCALARM),
+                         NULL);
 
     s->i2c[0] = pxa2xx_i2c_init(0x40301600,
                     qdev_get_gpio_in(s->pic, PXA2XX_PIC_I2C), 0xffff);
@@ -2302,20 +2305,23 @@ PXA2xxState *pxa255_init(unsigned int sdram_size)
     for (i = 0; pxa255_ssp[i].io_base; i ++) {
         DeviceState *dev;
         dev = sysbus_create_simple("pxa2xx-ssp", pxa255_ssp[i].io_base,
-                        qdev_get_gpio_in(s->pic, pxa255_ssp[i].irqn));
+                                   qdev_get_gpio_in(s->pic, pxa255_ssp[i].irqn),
+                                   NULL);
         s->ssp[i] = (SSIBus *)qdev_get_child_bus(dev, "ssi");
     }
 
     if (usb_enabled) {
         sysbus_create_simple("sysbus-ohci", 0x4c000000,
-                        qdev_get_gpio_in(s->pic, PXA2XX_PIC_USBH1));
+                             qdev_get_gpio_in(s->pic, PXA2XX_PIC_USBH1),
+                             NULL);
     }
 
     s->pcmcia[0] = pxa2xx_pcmcia_init(0x20000000);
     s->pcmcia[1] = pxa2xx_pcmcia_init(0x30000000);
 
     sysbus_create_simple("pxa2xx_rtc", 0x40900000,
-                    qdev_get_gpio_in(s->pic, PXA2XX_PIC_RTCALARM));
+                         qdev_get_gpio_in(s->pic, PXA2XX_PIC_RTCALARM),
+                         NULL);
 
     s->i2c[0] = pxa2xx_i2c_init(0x40301600,
                     qdev_get_gpio_in(s->pic, PXA2XX_PIC_I2C), 0xffff);

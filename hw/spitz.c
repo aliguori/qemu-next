@@ -468,7 +468,7 @@ static void spitz_keyboard_register(PXA2xxState *cpu)
     DeviceState *dev;
     SpitzKeyboardState *s;
 
-    dev = sysbus_create_simple("spitz-keyboard", -1, NULL);
+    dev = sysbus_create_simple("spitz-keyboard", -1, NULL, NULL);
     s = FROM_SYSBUS(SpitzKeyboardState, sysbus_from_qdev(dev));
 
     for (i = 0; i < SPITZ_KEY_SENSE_NUM; i ++)
@@ -913,9 +913,9 @@ static void spitz_common_init(ram_addr_t ram_size,
 
     spitz_ssp_attach(cpu);
 
-    scp0 = sysbus_create_simple("scoop", 0x10800000, NULL);
+    scp0 = sysbus_create_simple("scoop", 0x10800000, NULL, NULL);
     if (model != akita) {
-        scp1 = sysbus_create_simple("scoop", 0x08800040, NULL);
+        scp1 = sysbus_create_simple("scoop", 0x08800040, NULL, NULL);
     }
 
     spitz_scoop_gpio_setup(cpu, scp0, scp1);

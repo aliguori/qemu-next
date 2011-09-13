@@ -1290,7 +1290,7 @@ static void stellaris_init(const char *kernel_filename, const char *cpu_model,
         if (board->dc2 & (0x10000 << i)) {
             dev = sysbus_create_simple("stellaris-gptm",
                                        0x40030000 + i * 0x1000,
-                                       pic[timer_irq[i]]);
+                                       pic[timer_irq[i]], NULL);
             /* TODO: This is incorrect, but we get away with it because
                the ADC output is only ever pulsed.  */
             qdev_connect_gpio_out(dev, 0, adc);
@@ -1302,7 +1302,7 @@ static void stellaris_init(const char *kernel_filename, const char *cpu_model,
     for (i = 0; i < 7; i++) {
         if (board->dc4 & (1 << i)) {
             gpio_dev[i] = sysbus_create_simple("pl061_luminary", gpio_addr[i],
-                                               pic[gpio_irq[i]]);
+                                               pic[gpio_irq[i]], NULL);
             for (j = 0; j < 8; j++) {
                 gpio_in[i][j] = qdev_get_gpio_in(gpio_dev[i], j);
                 gpio_out[i][j] = NULL;
@@ -1311,7 +1311,7 @@ static void stellaris_init(const char *kernel_filename, const char *cpu_model,
     }
 
     if (board->dc2 & (1 << 12)) {
-        dev = sysbus_create_simple("stellaris-i2c", 0x40020000, pic[8]);
+        dev = sysbus_create_simple("stellaris-i2c", 0x40020000, pic[8], NULL);
         i2c = (i2c_bus *)qdev_get_child_bus(dev, "i2c");
         if (board->peripherals & BP_OLED_I2C) {
             i2c_create_slave(i2c, "ssd0303", 0x3d);
@@ -1321,11 +1321,11 @@ static void stellaris_init(const char *kernel_filename, const char *cpu_model,
     for (i = 0; i < 4; i++) {
         if (board->dc2 & (1 << i)) {
             sysbus_create_simple("pl011_luminary", 0x4000c000 + i * 0x1000,
-                                 pic[uart_irq[i]]);
+                                 pic[uart_irq[i]], NULL);
         }
     }
     if (board->dc2 & (1 << 4)) {
-        dev = sysbus_create_simple("pl022", 0x40008000, pic[7]);
+        dev = sysbus_create_simple("pl022", 0x40008000, pic[7], NULL);
         if (board->peripherals & BP_OLED_SSI) {
             DeviceState *mux;
             void *bus;

@@ -123,9 +123,9 @@ static void lm32_evr_init(ram_addr_t ram_size_not_used,
         irq[i] = qdev_get_gpio_in(env->pic_state, i);
     }
 
-    sysbus_create_simple("lm32-uart", uart0_base, irq[uart0_irq]);
-    sysbus_create_simple("lm32-timer", timer0_base, irq[timer0_irq]);
-    sysbus_create_simple("lm32-timer", timer1_base, irq[timer1_irq]);
+    sysbus_create_simple("lm32-uart", uart0_base, irq[uart0_irq], NULL);
+    sysbus_create_simple("lm32-timer", timer0_base, irq[timer0_irq], NULL);
+    sysbus_create_simple("lm32-timer", timer1_base, irq[timer1_irq], NULL);
 
     /* make sure juart isn't the first chardev */
     env->juart_state = lm32_juart_init();
@@ -217,10 +217,10 @@ static void lm32_uclinux_init(ram_addr_t ram_size_not_used,
         irq[i] = qdev_get_gpio_in(env->pic_state, i);
     }
 
-    sysbus_create_simple("lm32-uart", uart0_base, irq[uart0_irq]);
-    sysbus_create_simple("lm32-timer", timer0_base, irq[timer0_irq]);
-    sysbus_create_simple("lm32-timer", timer1_base, irq[timer1_irq]);
-    sysbus_create_simple("lm32-timer", timer2_base, irq[timer2_irq]);
+    sysbus_create_simple("lm32-uart", uart0_base, irq[uart0_irq], NULL);
+    sysbus_create_simple("lm32-timer", timer0_base, irq[timer0_irq], NULL);
+    sysbus_create_simple("lm32-timer", timer1_base, irq[timer1_irq], NULL);
+    sysbus_create_simple("lm32-timer", timer2_base, irq[timer2_irq], NULL);
 
     /* make sure juart isn't the first chardev */
     env->juart_state = lm32_juart_init();

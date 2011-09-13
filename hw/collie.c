@@ -43,7 +43,7 @@ static void collie_init(ram_addr_t ram_size,
                     dinfo ? dinfo->bdrv : NULL, (64 * 1024),
                     512, 4, 0x00, 0x00, 0x00, 0x00, 0);
 
-    sysbus_create_simple("scoop", 0x40800000, NULL);
+    sysbus_create_simple("scoop", 0x40800000, NULL, NULL);
 
     collie_binfo.kernel_filename = kernel_filename;
     collie_binfo.kernel_cmdline = kernel_cmdline;

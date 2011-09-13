@@ -55,12 +55,12 @@ static void syborg_init(ram_addr_t ram_size,
 
     cpu_pic = arm_pic_init_cpu(env);
     dev = sysbus_create_simple("syborg,interrupt", 0xC0000000,
-                               cpu_pic[ARM_PIC_CPU_IRQ]);
+                               cpu_pic[ARM_PIC_CPU_IRQ], NULL);
     for (i = 0; i < 64; i++) {
         pic[i] = qdev_get_gpio_in(dev, i);
     }
 
-    sysbus_create_simple("syborg,rtc", 0xC0001000, NULL);
+    sysbus_create_simple("syborg,rtc", 0xC0001000, NULL, NULL);
 
     dev = qdev_create(NULL, "syborg,timer", NULL);
     qdev_prop_set_uint32(dev, "frequency", 1000000);
@@ -68,13 +68,13 @@ static void syborg_init(ram_addr_t ram_size,
     sysbus_mmio_map(sysbus_from_qdev(dev), 0, 0xC0002000);
     sysbus_connect_irq(sysbus_from_qdev(dev), 0, pic[1]);
 
-    sysbus_create_simple("syborg,keyboard", 0xC0003000, pic[2]);
-    sysbus_create_simple("syborg,pointer", 0xC0004000, pic[3]);
-    sysbus_create_simple("syborg,framebuffer", 0xC0005000, pic[4]);
-    sysbus_create_simple("syborg,serial", 0xC0006000, pic[5]);
-    sysbus_create_simple("syborg,serial", 0xC0007000, pic[6]);
-    sysbus_create_simple("syborg,serial", 0xC0008000, pic[7]);
-    sysbus_create_simple("syborg,serial", 0xC0009000, pic[8]);
+    sysbus_create_simple("syborg,keyboard", 0xC0003000, pic[2], NULL);
+    sysbus_create_simple("syborg,pointer", 0xC0004000, pic[3], NULL);
+    sysbus_create_simple("syborg,framebuffer", 0xC0005000, pic[4], NULL);
+    sysbus_create_simple("syborg,serial", 0xC0006000, pic[5], NULL);
+    sysbus_create_simple("syborg,serial", 0xC0007000, pic[6], NULL);
+    sysbus_create_simple("syborg,serial", 0xC0008000, pic[7], NULL);
+    sysbus_create_simple("syborg,serial", 0xC0009000, pic[8], NULL);
 
     if (nd_table[0].vlan || nd_table[0].netdev) {
         DeviceState *dev;

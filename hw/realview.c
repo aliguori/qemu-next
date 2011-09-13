@@ -227,31 +227,31 @@ static void realview_init(ram_addr_t ram_size,
     } else {
         uint32_t gic_addr = is_pb ? 0x1e000000 : 0x10040000;
         /* For now just create the nIRQ GIC, and ignore the others.  */
-        dev = sysbus_create_simple("realview_gic", gic_addr, cpu_irq[0]);
+        dev = sysbus_create_simple("realview_gic", gic_addr, cpu_irq[0], NULL);
     }
     for (n = 0; n < 64; n++) {
         pic[n] = qdev_get_gpio_in(dev, n);
     }
 
-    sysbus_create_simple("pl050_keyboard", 0x10006000, pic[20]);
-    sysbus_create_simple("pl050_mouse", 0x10007000, pic[21]);
+    sysbus_create_simple("pl050_keyboard", 0x10006000, pic[20], NULL);
+    sysbus_create_simple("pl050_mouse", 0x10007000, pic[21], NULL);
 
-    sysbus_create_simple("pl011", 0x10009000, pic[12]);
-    sysbus_create_simple("pl011", 0x1000a000, pic[13]);
-    sysbus_create_simple("pl011", 0x1000b000, pic[14]);
-    sysbus_create_simple("pl011", 0x1000c000, pic[15]);
+    sysbus_create_simple("pl011", 0x10009000, pic[12], NULL);
+    sysbus_create_simple("pl011", 0x1000a000, pic[13], NULL);
+    sysbus_create_simple("pl011", 0x1000b000, pic[14], NULL);
+    sysbus_create_simple("pl011", 0x1000c000, pic[15], NULL);
 
     /* DMA controller is optional, apparently.  */
-    sysbus_create_simple("pl081", 0x10030000, pic[24]);
+    sysbus_create_simple("pl081", 0x10030000, pic[24], NULL);
 
-    sysbus_create_simple("sp804", 0x10011000, pic[4]);
-    sysbus_create_simple("sp804", 0x10012000, pic[5]);
+    sysbus_create_simple("sp804", 0x10011000, pic[4], NULL);
+    sysbus_create_simple("sp804", 0x10012000, pic[5], NULL);
 
-    sysbus_create_simple("pl061", 0x10013000, pic[6]);
-    sysbus_create_simple("pl061", 0x10014000, pic[7]);
-    gpio2 = sysbus_create_simple("pl061", 0x10015000, pic[8]);
+    sysbus_create_simple("pl061", 0x10013000, pic[6], NULL);
+    sysbus_create_simple("pl061", 0x10014000, pic[7], NULL);
+    gpio2 = sysbus_create_simple("pl061", 0x10015000, pic[8], NULL);
 
-    sysbus_create_simple("pl111", 0x10020000, pic[23]);
+    sysbus_create_simple("pl111", 0x10020000, pic[23], NULL);
 
     dev = sysbus_create_varargs("pl181", 0x10005000, pic[17], pic[18], NULL);
     /* Wire up MMC card detect and read-only signals. These have
@@ -269,7 +269,7 @@ static void realview_init(ram_addr_t ram_size,
     qdev_connect_gpio_out(dev, 0, mmc_irq[0]);
     qdev_connect_gpio_out(dev, 1, mmc_irq[1]);
 
-    sysbus_create_simple("pl031", 0x10017000, pic[10]);
+    sysbus_create_simple("pl031", 0x10017000, pic[10], NULL);
 
     if (!is_pb) {
         dev = sysbus_create_varargs("realview_pci", 0x60000000,
@@ -300,7 +300,7 @@ static void realview_init(ram_addr_t ram_size,
         }
     }
 
-    dev = sysbus_create_simple("realview_i2c", 0x10002000, NULL);
+    dev = sysbus_create_simple("realview_i2c", 0x10002000, NULL, NULL);
     i2c = (i2c_bus *)qdev_get_child_bus(dev, "i2c");
     i2c_create_slave(i2c, "ds1338", 0x68);
 

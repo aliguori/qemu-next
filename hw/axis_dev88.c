@@ -335,7 +335,7 @@ void axisdev88_init (ram_addr_t ram_size,
 
     for (i = 0; i < 4; i++) {
         sysbus_create_simple("etraxfs,serial", 0x30026000 + i * 0x2000,
-                             irq[0x14 + i]);
+                             irq[0x14 + i], NULL);
     }
 
     if (!kernel_filename) {

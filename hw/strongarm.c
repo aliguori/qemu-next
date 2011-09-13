@@ -1563,7 +1563,8 @@ StrongARMState *sa1110_init(unsigned int sdram_size, const char *rev)
                     NULL);
 
     sysbus_create_simple("strongarm-rtc", 0x90010000,
-                    qdev_get_gpio_in(s->pic, SA_PIC_RTC_ALARM));
+                         qdev_get_gpio_in(s->pic, SA_PIC_RTC_ALARM),
+                         NULL);
 
     s->gpio = strongarm_gpio_init(0x90040000, s->pic);
 

@@ -141,7 +141,7 @@ static void mainstone_common_init(MemoryRegion *address_space_mem,
     }
 
     mst_irq = sysbus_create_simple("mainstone-fpga", MST_FPGA_PHYS,
-                    qdev_get_gpio_in(cpu->gpio, 0));
+                                   qdev_get_gpio_in(cpu->gpio, 0), NULL);
 
     /* setup keypad */
     printf("map addr %p\n", &map);
