@@ -1736,7 +1736,8 @@ PCIDevice *pci_create_multifunction(PCIBus *bus, int devfn, bool multifunction,
 
     devfn = pci_assign_devfn(bus, devfn, name);
 
-    dev = qdev_create(&bus->qbus, name, NULL);
+    dev = qdev_create(&bus->qbus, name, "::slot[%d.%d]",
+                      (devfn >> 3) & 0x1F, (devfn & 0x7));
 
     qdev_prop_set_uint32(dev, "addr", devfn);
     qdev_prop_set_bit(dev, "multifunction", multifunction);

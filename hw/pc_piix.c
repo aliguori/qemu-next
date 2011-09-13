@@ -181,8 +181,10 @@ static void pc_init1(MemoryRegion *system_memory,
         } else {
             dev = pci_piix3_ide_init(pci_bus, hd, piix3_devfn + 1);
         }
-        idebus[0] = qdev_get_child_bus(&dev->qdev, "ide.0");
-        idebus[1] = qdev_get_child_bus(&dev->qdev, "ide.1");
+        idebus[0] = qdev_get_child_bus(&dev->qdev,
+                                       "::i440fx::i440fx.0::slot[1.1].0");
+        idebus[1] = qdev_get_child_bus(&dev->qdev,
+                                       "::i440fx::i440fx.0::slot[1.1].1");
     } else {
         for(i = 0; i < MAX_IDE_BUS; i++) {
             ISADevice *dev;
