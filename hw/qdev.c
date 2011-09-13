@@ -47,8 +47,16 @@ static BusState *qbus_find(const char *path);
 /* Register a new device type.  */
 void qdev_register(DeviceInfo *info)
 {
+    int i;
+
     assert(info->size >= sizeof(DeviceState));
     assert(!info->next);
+
+    if (info->props) {
+        for (i = 0; info->props[i].name; i++) {
+            g_assert_cmpstr(info->props[i].name, !=, "id");
+        }
+    }
 
     info->next = device_info_list;
     device_info_list = info;
