@@ -107,7 +107,7 @@ static DeviceState *qdev_create_from_info(BusState *bus, DeviceInfo *info, const
     }
     dev->instance_id_alias = -1;
     dev->state = DEV_STATE_CREATED;
-    dev->id = id;
+    dev->id = g_strdup(id);
     return dev;
 }
 
@@ -414,6 +414,7 @@ void qdev_free(DeviceState *dev)
             qemu_opts_del(dev->opts);
     }
     QLIST_REMOVE(dev, sibling);
+    g_free(dev->id);
     for (prop = dev->info->props; prop && prop->name; prop++) {
         if (prop->info->free) {
             prop->info->free(dev, prop);

@@ -30,7 +30,7 @@ enum {
 /* This structure should not be accessed directly.  We declare it here
    so that it can be embedded in individual device state structures.  */
 struct DeviceState {
-    const char *id;
+    char *id;
     enum DevState state;
     QemuOpts *opts;
     int hotplugged;
