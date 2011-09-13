@@ -124,7 +124,7 @@ void isa_qdev_register(ISADeviceInfo *info)
     qdev_register(&info->qdev);
 }
 
-ISADevice *isa_create(const char *name)
+static ISADevice *isa_createv(const char *name, const char *id, va_list ap)
 {
     DeviceState *dev;
 
@@ -132,27 +132,45 @@ ISADevice *isa_create(const char *name)
         hw_error("Tried to create isa device %s with no isa bus present.",
                  name);
     }
-    dev = qdev_create(&isabus->qbus, name, NULL);
+    dev = qdev_createv(&isabus->qbus, name, id, ap);
     return DO_UPCAST(ISADevice, qdev, dev);
 }
 
-ISADevice *isa_try_create(const char *name)
-{
-    DeviceState *dev;
-
-    if (!isabus) {
-        hw_error("Tried to create isa device %s with no isa bus present.",
-                 name);
-    }
-    dev = qdev_try_create(&isabus->qbus, name, NULL);
-    return DO_UPCAST(ISADevice, qdev, dev);
-}
-
-ISADevice *isa_create_simple(const char *name)
+ISADevice *isa_create(const char *name, const char *id, ...)
 {
     ISADevice *dev;
+    va_list ap;
 
-    dev = isa_create(name);
+    va_start(ap, id);
+    dev = isa_createv(name, id, ap);
+    va_end(ap);
+
+    return dev;
+}
+
+ISADevice *isa_try_create(const char *name, const char *id, ...)
+{
+    DeviceState *dev;
+    va_list ap;
+
+    if (!isabus) {
+        hw_error("Tried to create isa device %s with no isa bus present.",
+                 name);
+    }
+    va_start(ap, id);
+    dev = qdev_try_create(&isabus->qbus, name, id, ap);
+    va_end(ap);
+    return DO_UPCAST(ISADevice, qdev, dev);
+}
+
+ISADevice *isa_create_simple(const char *name, const char *id, ...)
+{
+    ISADevice *dev;
+    va_list ap;
+
+    va_start(ap, id);
+    dev = isa_create(name, id, ap);
+    va_end(ap);
     qdev_init_nofail(&dev->qdev);
     return dev;
 }

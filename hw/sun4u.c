@@ -794,7 +794,7 @@ static void sun4uv_init(ram_addr_t RAM_size,
 
     pci_cmd646_ide_init(pci_bus, hd, 1);
 
-    isa_create_simple("i8042");
+    isa_create_simple("i8042", NULL);
     for(i = 0; i < MAX_FD; i++) {
         fd[i] = drive_get(IF_FLOPPY, 0, i);
     }

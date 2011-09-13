@@ -661,7 +661,7 @@ M48t59State *m48t59_init_isa(uint32_t io_base, uint16_t size, int type)
     ISADevice *dev;
     M48t59State *s;
 
-    dev = isa_create("m48t59_isa");
+    dev = isa_create("m48t59_isa", NULL);
     qdev_prop_set_uint32(&dev->qdev, "type", type);
     qdev_prop_set_uint32(&dev->qdev, "size", size);
     qdev_prop_set_uint32(&dev->qdev, "io_base", io_base);

@@ -661,7 +661,7 @@ static int cs4231a_initfn (ISADevice *dev)
 
 int cs4231a_init (qemu_irq *pic)
 {
-    isa_create_simple ("cs4231a");
+    isa_create_simple ("cs4231a", NULL);
     return 0;
 }
 

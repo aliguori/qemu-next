@@ -688,7 +688,7 @@ static void ppc_prep_init (ram_addr_t ram_size,
                      hd[2 * i],
 		     hd[2 * i + 1]);
     }
-    isa_create_simple("i8042");
+    isa_create_simple("i8042", NULL);
 
     cpu_exit_irq = qemu_allocate_irqs(cpu_request_exit, NULL, 1);
     DMA_init(1, cpu_exit_irq);

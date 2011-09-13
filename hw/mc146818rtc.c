@@ -646,7 +646,7 @@ ISADevice *rtc_init(int base_year, qemu_irq intercept_irq)
     ISADevice *dev;
     RTCState *s;
 
-    dev = isa_create("mc146818rtc");
+    dev = isa_create("mc146818rtc", NULL);
     s = DO_UPCAST(RTCState, dev, dev);
     qdev_prop_set_int32(&dev->qdev, "base_year", base_year);
     qdev_init_nofail(&dev->qdev);

@@ -363,7 +363,7 @@ static void mips_fulong2e_init(ram_addr_t ram_size, const char *boot_device,
     DMA_init(0, cpu_exit_irq);
 
     /* Super I/O */
-    isa_create_simple("i8042");
+    isa_create_simple("i8042", NULL);
 
     rtc_init(2000, NULL);
 

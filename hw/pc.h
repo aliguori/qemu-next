@@ -23,7 +23,7 @@ static inline bool serial_isa_init(int index, CharDriverState *chr)
 {
     ISADevice *dev;
 
-    dev = isa_try_create("isa-serial");
+    dev = isa_try_create("isa-serial", NULL);
     if (!dev) {
         return false;
     }
@@ -42,7 +42,7 @@ static inline bool parallel_init(int index, CharDriverState *chr)
 {
     ISADevice *dev;
 
-    dev = isa_try_create("isa-parallel");
+    dev = isa_try_create("isa-parallel", NULL);
     if (!dev) {
         return false;
     }
@@ -88,7 +88,7 @@ static inline ISADevice *pit_init(int base, int irq)
 {
     ISADevice *dev;
 
-    dev = isa_create("isa-pit");
+    dev = isa_create("isa-pit", NULL);
     qdev_prop_set_uint32(&dev->qdev, "iobase", base);
     qdev_prop_set_uint32(&dev->qdev, "irq", irq);
     qdev_init_nofail(&dev->qdev);
@@ -108,7 +108,7 @@ void hpet_pit_enable(void);
 /* vmport.c */
 static inline void vmport_init(void)
 {
-    isa_create_simple("vmport");
+    isa_create_simple("vmport", NULL);
 }
 void vmport_register(unsigned char command, IOPortReadFunc *func, void *opaque);
 void vmmouse_get_data(uint32_t *data);
@@ -208,7 +208,7 @@ static inline int isa_vga_init(void)
 {
     ISADevice *dev;
 
-    dev = isa_try_create("isa-vga");
+    dev = isa_try_create("isa-vga", NULL);
     if (!dev) {
         fprintf(stderr, "Warning: isa-vga not available\n");
         return 0;
@@ -233,7 +233,7 @@ static inline bool isa_ne2000_init(int base, int irq, NICInfo *nd)
 
     qemu_check_nic_model(nd, "ne2k_isa");
 
-    dev = isa_try_create("ne2k_isa");
+    dev = isa_try_create("ne2k_isa", NULL);
     if (!dev) {
         return false;
     }

@@ -294,7 +294,7 @@ void mips_r4k_init (ram_addr_t ram_size,
                      hd[MAX_IDE_DEVS * i],
 		     hd[MAX_IDE_DEVS * i + 1]);
 
-    isa_create_simple("i8042");
+    isa_create_simple("i8042", NULL);
 }
 
 static QEMUMachine mips_machine = {

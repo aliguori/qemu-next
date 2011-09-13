@@ -1393,7 +1393,7 @@ static int sb16_initfn (ISADevice *dev)
 
 int SB16_init (qemu_irq *pic)
 {
-    isa_create_simple ("sb16");
+    isa_create_simple ("sb16", NULL);
     return 0;
 }
 

@@ -81,7 +81,7 @@ ISADevice *isa_ide_init(int iobase, int iobase2, int isairq,
     ISADevice *dev;
     ISAIDEState *s;
 
-    dev = isa_create("isa-ide");
+    dev = isa_create("isa-ide", NULL);
     qdev_prop_set_uint32(&dev->qdev, "iobase",  iobase);
     qdev_prop_set_uint32(&dev->qdev, "iobase2", iobase2);
     qdev_prop_set_uint32(&dev->qdev, "irq",     isairq);

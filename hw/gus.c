@@ -296,7 +296,7 @@ static int gus_initfn (ISADevice *dev)
 
 int GUS_init (qemu_irq *pic)
 {
-    isa_create_simple ("gus");
+    isa_create_simple ("gus", NULL);
     return 0;
 }
 

@@ -11,7 +11,7 @@ static inline void fdctrl_init_isa(DriveInfo **fds)
 {
     ISADevice *dev;
 
-    dev = isa_try_create("isa-fdc");
+    dev = isa_try_create("isa-fdc", NULL);
     if (!dev) {
         return;
     }
