@@ -39,7 +39,7 @@ struct DeviceState {
      * @id: a unique name identifying the device in the entire device model.
      *      May be NULL
      */
-    const char *id;
+    char *id;
 
     /**
      * @parent: pointer to the device that created this device.  It is never
