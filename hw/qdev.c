@@ -88,9 +88,10 @@ static DeviceInfo *qdev_find_info(BusInfo *bus_info, const char *name)
     return NULL;
 }
 
-static DeviceState *qdev_create_from_info(BusState *bus, DeviceInfo *info, const char *id)
+static DeviceState *qdev_create_from_infov(BusState *bus, DeviceInfo *info, const char *id, va_list ap)
 {
     DeviceState *dev;
+    char *name = NULL;
 
     assert(bus->info == info->bus_info);
     dev = g_malloc0(info->size);
@@ -107,18 +108,50 @@ static DeviceState *qdev_create_from_info(BusState *bus, DeviceInfo *info, const
     }
     dev->instance_id_alias = -1;
     dev->state = DEV_STATE_CREATED;
-    dev->id = g_strdup(id);
+
+    if (id) {
+        name = g_strdup_vprintf(id, ap);
+        if (name[0] == ':' && name[1] == ':') {
+            const char *parent_bus, *parent_device;
+            char *full_name;
+
+            if (dev->parent_bus && dev->parent_bus->parent) {
+                parent_device = dev->parent_bus->parent->id;
+                parent_bus = dev->parent_bus->name;
+
+                full_name = g_strdup_printf("%s%s%s",
+                                            dev->parent_bus->parent->id,
+                                            dev->parent_bus->name,
+                                            name);
+                g_free(name);
+                name = full_name;
+            }
+        }
+    }
+    dev->id = name;
+    return dev;
+}
+
+static DeviceState *qdev_create_from_info(BusState *bus, DeviceInfo *info, const char *id, ...)
+{
+    DeviceState *dev;
+    va_list ap;
+
+    va_start(ap, id);
+    dev = qdev_create_from_infov(bus, info, id, ap);
+    va_end(ap);
+
     return dev;
 }
 
 /* Create a new device.  This only initializes the device state structure
    and allows properties to be set.  qdev_init should be called to
    initialize the actual device emulation.  */
-DeviceState *qdev_create(BusState *bus, const char *name, const char *id)
+DeviceState *qdev_createv(BusState *bus, const char *name, const char *id, va_list ap)
 {
     DeviceState *dev;
 
-    dev = qdev_try_create(bus, name, id);
+    dev = qdev_try_createv(bus, name, id, ap);
     if (!dev) {
         if (bus) {
             hw_error("Unknown device '%s' for bus '%s'\n", name,
@@ -131,7 +164,19 @@ DeviceState *qdev_create(BusState *bus, const char *name, const char *id)
     return dev;
 }
 
-DeviceState *qdev_try_create(BusState *bus, const char *name, const char *id)
+DeviceState *qdev_create(BusState *bus, const char *name, const char *id, ...)
+{
+    DeviceState *dev;
+    va_list ap;
+
+    va_start(ap, id);
+    dev = qdev_createv(bus, name, id, ap);
+    va_end(ap);
+
+    return dev;
+}
+
+DeviceState *qdev_try_createv(BusState *bus, const char *name, const char *id, va_list ap)
 {
     DeviceInfo *info;
 
@@ -144,7 +189,19 @@ DeviceState *qdev_try_create(BusState *bus, const char *name, const char *id)
         return NULL;
     }
 
-    return qdev_create_from_info(bus, info, id);
+    return qdev_create_from_infov(bus, info, id, ap);
+}
+
+DeviceState *qdev_try_create(BusState *bus, const char *name, const char *id, ...)
+{
+    DeviceState *dev;
+    va_list ap;
+
+    va_start(ap, id);
+    dev = qdev_try_createv(bus, name, id, ap);
+    va_end(ap);
+
+    return dev;
 }
 
 static void qdev_print_devinfo(DeviceInfo *info)
@@ -231,6 +288,7 @@ DeviceState *qdev_device_add(QemuOpts *opts)
     DeviceInfo *info;
     DeviceState *qdev;
     BusState *bus;
+    const char *id;
 
     driver = qemu_opt_get(opts, "driver");
     if (!driver) {
@@ -271,8 +329,15 @@ DeviceState *qdev_device_add(QemuOpts *opts)
         return NULL;
     }
 
+    id = qemu_opts_id(opts);
+
     /* create device, set properties */
-    qdev = qdev_create_from_info(bus, info, qemu_opts_id(opts));
+    if (id) {
+        qdev = qdev_create_from_info(bus, info, "%s", id);
+    } else {
+        qdev = qdev_create_from_info(bus, info, NULL);
+    }
+
     if (qemu_opt_foreach(opts, set_property, qdev, 1) != 0) {
         qdev_free(qdev);
         return NULL;

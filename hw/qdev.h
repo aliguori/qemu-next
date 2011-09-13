@@ -120,8 +120,12 @@ typedef struct GlobalProperty {
 
 /*** Board API.  This should go away once we have a machine config file.  ***/
 
-DeviceState *qdev_create(BusState *bus, const char *name, const char *id);
-DeviceState *qdev_try_create(BusState *bus, const char *name, const char *id);
+DeviceState *qdev_create(BusState *bus, const char *name, const char *id, ...)
+    GCC_FMT_ATTR(3, 4);
+DeviceState *qdev_createv(BusState *bus, const char *name, const char *id, va_list ap);
+DeviceState *qdev_try_create(BusState *bus, const char *name, const char *id, ...)
+    GCC_FMT_ATTR(3, 4);
+DeviceState *qdev_try_createv(BusState *bus, const char *name, const char *id, va_list ap);
 int qdev_device_help(QemuOpts *opts);
 DeviceState *qdev_device_add(QemuOpts *opts);
 int qdev_init(DeviceState *dev) QEMU_WARN_UNUSED_RESULT;
