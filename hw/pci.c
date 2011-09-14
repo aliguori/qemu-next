@@ -731,6 +731,26 @@ static void pci_config_free(PCIDevice *pci_dev)
     g_free(pci_dev->used);
 }
 
+static int pci_assign_devfn(PCIBus *bus, int devfn, const char *name)
+{
+    if (devfn < 0) {
+        for(devfn = bus->devfn_min ; devfn < ARRAY_SIZE(bus->devices);
+            devfn += PCI_FUNC_MAX) {
+            if (!bus->devices[devfn])
+                goto found;
+        }
+        error_report("PCI: no slot/function available for %s, all in use", name);
+        return -1;
+    found: ;
+    } else if (bus->devices[devfn]) {
+        error_report("PCI: slot %d function %d not available for %s, in use by %s",
+                     PCI_SLOT(devfn), PCI_FUNC(devfn), name, bus->devices[devfn]->name);
+        return -1;
+    }
+
+    return devfn;
+}
+
 /* -1 for devfn means auto assign */
 static PCIDevice *do_pci_register_device(PCIDevice *pci_dev, PCIBus *bus,
                                          const char *name, int devfn,
@@ -739,20 +759,11 @@ static PCIDevice *do_pci_register_device(PCIDevice *pci_dev, PCIBus *bus,
     PCIConfigReadFunc *config_read = info->config_read;
     PCIConfigWriteFunc *config_write = info->config_write;
 
-    if (devfn < 0) {
-        for(devfn = bus->devfn_min ; devfn < ARRAY_SIZE(bus->devices);
-            devfn += PCI_FUNC_MAX) {
-            if (!bus->devices[devfn])
-                goto found;
-        }
-        error_report("PCI: no slot/function available for %s, all in use", name);
-        return NULL;
-    found: ;
-    } else if (bus->devices[devfn]) {
-        error_report("PCI: slot %d function %d not available for %s, in use by %s",
-                     PCI_SLOT(devfn), PCI_FUNC(devfn), name, bus->devices[devfn]->name);
+    devfn = pci_assign_devfn(bus, devfn, name);
+    if (devfn == -1) {
         return NULL;
     }
+
     pci_dev->bus = bus;
     pci_dev->devfn = devfn;
     pstrcpy(pci_dev->name, sizeof(pci_dev->name), name);
@@ -1723,7 +1734,10 @@ PCIDevice *pci_create_multifunction(PCIBus *bus, int devfn, bool multifunction,
 {
     DeviceState *dev;
 
+    devfn = pci_assign_devfn(bus, devfn, name);
+
     dev = qdev_create(&bus->qbus, name, NULL);
+
     qdev_prop_set_uint32(dev, "addr", devfn);
     qdev_prop_set_bit(dev, "multifunction", multifunction);
     return DO_UPCAST(PCIDevice, qdev, dev);
