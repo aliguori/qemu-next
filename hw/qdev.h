@@ -8,7 +8,7 @@
 
 typedef struct Property Property;
 
-typedef struct PropertyInfo PropertyInfo;
+typedef struct LegacyPropertyInfo LegacyPropertyInfo;
 
 typedef struct CompatProperty CompatProperty;
 
@@ -78,7 +78,7 @@ struct BusState {
 
 struct Property {
     const char   *name;
-    PropertyInfo *info;
+    LegacyPropertyInfo *info;
     int          offset;
     int          bitnr;
     void         *defval;
@@ -102,7 +102,7 @@ enum PropertyType {
     PROP_TYPE_BIT,
 };
 
-struct PropertyInfo {
+struct LegacyPropertyInfo {
     const char *name;
     size_t size;
     enum PropertyType type;
@@ -221,22 +221,22 @@ int do_device_del(Monitor *mon, const QDict *qdict, QObject **ret_data);
 
 /*** qdev-properties.c ***/
 
-extern PropertyInfo qdev_prop_bit;
-extern PropertyInfo qdev_prop_uint8;
-extern PropertyInfo qdev_prop_uint16;
-extern PropertyInfo qdev_prop_uint32;
-extern PropertyInfo qdev_prop_int32;
-extern PropertyInfo qdev_prop_uint64;
-extern PropertyInfo qdev_prop_hex32;
-extern PropertyInfo qdev_prop_hex64;
-extern PropertyInfo qdev_prop_string;
-extern PropertyInfo qdev_prop_chr;
-extern PropertyInfo qdev_prop_ptr;
-extern PropertyInfo qdev_prop_macaddr;
-extern PropertyInfo qdev_prop_drive;
-extern PropertyInfo qdev_prop_netdev;
-extern PropertyInfo qdev_prop_vlan;
-extern PropertyInfo qdev_prop_pci_devfn;
+extern LegacyPropertyInfo qdev_prop_bit;
+extern LegacyPropertyInfo qdev_prop_uint8;
+extern LegacyPropertyInfo qdev_prop_uint16;
+extern LegacyPropertyInfo qdev_prop_uint32;
+extern LegacyPropertyInfo qdev_prop_int32;
+extern LegacyPropertyInfo qdev_prop_uint64;
+extern LegacyPropertyInfo qdev_prop_hex32;
+extern LegacyPropertyInfo qdev_prop_hex64;
+extern LegacyPropertyInfo qdev_prop_string;
+extern LegacyPropertyInfo qdev_prop_chr;
+extern LegacyPropertyInfo qdev_prop_ptr;
+extern LegacyPropertyInfo qdev_prop_macaddr;
+extern LegacyPropertyInfo qdev_prop_drive;
+extern LegacyPropertyInfo qdev_prop_netdev;
+extern LegacyPropertyInfo qdev_prop_vlan;
+extern LegacyPropertyInfo qdev_prop_pci_devfn;
 
 #define DEFINE_PROP(_name, _state, _field, _prop, _type) { \
         .name      = (_name),                                    \

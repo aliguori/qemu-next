@@ -55,7 +55,7 @@ static int print_bit(DeviceState *dev, Property *prop, char *dest, size_t len)
     return snprintf(dest, len, (*p & qdev_get_prop_mask(prop)) ? "on" : "off");
 }
 
-PropertyInfo qdev_prop_bit = {
+LegacyPropertyInfo qdev_prop_bit = {
     .name  = "on/off",
     .type  = PROP_TYPE_BIT,
     .size  = sizeof(uint32_t),
@@ -85,7 +85,7 @@ static int print_uint8(DeviceState *dev, Property *prop, char *dest, size_t len)
     return snprintf(dest, len, "%" PRIu8, *ptr);
 }
 
-PropertyInfo qdev_prop_uint8 = {
+LegacyPropertyInfo qdev_prop_uint8 = {
     .name  = "uint8",
     .type  = PROP_TYPE_UINT8,
     .size  = sizeof(uint8_t),
@@ -115,7 +115,7 @@ static int print_uint16(DeviceState *dev, Property *prop, char *dest, size_t len
     return snprintf(dest, len, "%" PRIu16, *ptr);
 }
 
-PropertyInfo qdev_prop_uint16 = {
+LegacyPropertyInfo qdev_prop_uint16 = {
     .name  = "uint16",
     .type  = PROP_TYPE_UINT16,
     .size  = sizeof(uint16_t),
@@ -145,7 +145,7 @@ static int print_uint32(DeviceState *dev, Property *prop, char *dest, size_t len
     return snprintf(dest, len, "%" PRIu32, *ptr);
 }
 
-PropertyInfo qdev_prop_uint32 = {
+LegacyPropertyInfo qdev_prop_uint32 = {
     .name  = "uint32",
     .type  = PROP_TYPE_UINT32,
     .size  = sizeof(uint32_t),
@@ -172,7 +172,7 @@ static int print_int32(DeviceState *dev, Property *prop, char *dest, size_t len)
     return snprintf(dest, len, "%" PRId32, *ptr);
 }
 
-PropertyInfo qdev_prop_int32 = {
+LegacyPropertyInfo qdev_prop_int32 = {
     .name  = "int32",
     .type  = PROP_TYPE_INT32,
     .size  = sizeof(int32_t),
@@ -201,7 +201,7 @@ static int print_hex32(DeviceState *dev, Property *prop, char *dest, size_t len)
     return snprintf(dest, len, "0x%" PRIx32, *ptr);
 }
 
-PropertyInfo qdev_prop_hex32 = {
+LegacyPropertyInfo qdev_prop_hex32 = {
     .name  = "hex32",
     .type  = PROP_TYPE_UINT32,
     .size  = sizeof(uint32_t),
@@ -231,7 +231,7 @@ static int print_uint64(DeviceState *dev, Property *prop, char *dest, size_t len
     return snprintf(dest, len, "%" PRIu64, *ptr);
 }
 
-PropertyInfo qdev_prop_uint64 = {
+LegacyPropertyInfo qdev_prop_uint64 = {
     .name  = "uint64",
     .type  = PROP_TYPE_UINT64,
     .size  = sizeof(uint64_t),
@@ -260,7 +260,7 @@ static int print_hex64(DeviceState *dev, Property *prop, char *dest, size_t len)
     return snprintf(dest, len, "0x%" PRIx64, *ptr);
 }
 
-PropertyInfo qdev_prop_hex64 = {
+LegacyPropertyInfo qdev_prop_hex64 = {
     .name  = "hex64",
     .type  = PROP_TYPE_UINT64,
     .size  = sizeof(uint64_t),
@@ -293,7 +293,7 @@ static int print_string(DeviceState *dev, Property *prop, char *dest, size_t len
     return snprintf(dest, len, "\"%s\"", *ptr);
 }
 
-PropertyInfo qdev_prop_string = {
+LegacyPropertyInfo qdev_prop_string = {
     .name  = "string",
     .type  = PROP_TYPE_STRING,
     .size  = sizeof(char*),
@@ -335,7 +335,7 @@ static int print_drive(DeviceState *dev, Property *prop, char *dest, size_t len)
                     *ptr ? bdrv_get_device_name(*ptr) : "<null>");
 }
 
-PropertyInfo qdev_prop_drive = {
+LegacyPropertyInfo qdev_prop_drive = {
     .name  = "drive",
     .type  = PROP_TYPE_DRIVE,
     .size  = sizeof(BlockDriverState *),
@@ -372,7 +372,7 @@ static int print_chr(DeviceState *dev, Property *prop, char *dest, size_t len)
     }
 }
 
-PropertyInfo qdev_prop_chr = {
+LegacyPropertyInfo qdev_prop_chr = {
     .name  = "chr",
     .type  = PROP_TYPE_CHR,
     .size  = sizeof(CharDriverState*),
@@ -406,7 +406,7 @@ static int print_netdev(DeviceState *dev, Property *prop, char *dest, size_t len
     }
 }
 
-PropertyInfo qdev_prop_netdev = {
+LegacyPropertyInfo qdev_prop_netdev = {
     .name  = "netdev",
     .type  = PROP_TYPE_NETDEV,
     .size  = sizeof(VLANClientState*),
@@ -440,7 +440,7 @@ static int print_vlan(DeviceState *dev, Property *prop, char *dest, size_t len)
     }
 }
 
-PropertyInfo qdev_prop_vlan = {
+LegacyPropertyInfo qdev_prop_vlan = {
     .name  = "vlan",
     .type  = PROP_TYPE_VLAN,
     .size  = sizeof(VLANClientState*),
@@ -451,7 +451,7 @@ PropertyInfo qdev_prop_vlan = {
 /* --- pointer --- */
 
 /* Not a proper property, just for dirty hacks.  TODO Remove it!  */
-PropertyInfo qdev_prop_ptr = {
+LegacyPropertyInfo qdev_prop_ptr = {
     .name  = "ptr",
     .type  = PROP_TYPE_PTR,
     .size  = sizeof(void*),
@@ -496,7 +496,7 @@ static int print_mac(DeviceState *dev, Property *prop, char *dest, size_t len)
                     mac->a[3], mac->a[4], mac->a[5]);
 }
 
-PropertyInfo qdev_prop_macaddr = {
+LegacyPropertyInfo qdev_prop_macaddr = {
     .name  = "macaddr",
     .type  = PROP_TYPE_MACADDR,
     .size  = sizeof(MACAddr),
@@ -539,7 +539,7 @@ static int print_pci_devfn(DeviceState *dev, Property *prop, char *dest, size_t 
     }
 }
 
-PropertyInfo qdev_prop_pci_devfn = {
+LegacyPropertyInfo qdev_prop_pci_devfn = {
     .name  = "pci-devfn",
     .type  = PROP_TYPE_UINT32,
     .size  = sizeof(uint32_t),
@@ -591,7 +591,7 @@ int qdev_prop_parse(DeviceState *dev, const char *name, const char *value)
     prop = qdev_prop_find(dev, name);
     /*
      * TODO Properties without a parse method are just for dirty
-     * hacks.  qdev_prop_ptr is the only such PropertyInfo.  It's
+     * hacks.  qdev_prop_ptr is the only such LegacyPropertyInfo.  It's
      * marked for removal.  The test !prop->info->parse should be
      * removed along with it.
      */
