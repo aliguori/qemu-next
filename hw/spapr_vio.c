@@ -595,13 +595,6 @@ static int spapr_vio_busdev_init(DeviceState *qdev, DeviceInfo *qinfo)
 {
     VIOsPAPRDeviceInfo *info = (VIOsPAPRDeviceInfo *)qinfo;
     VIOsPAPRDevice *dev = (VIOsPAPRDevice *)qdev;
-    char *id;
-
-    if (asprintf(&id, "%s@%x", info->dt_name, dev->reg) < 0) {
-        return -1;
-    }
-
-    dev->qdev.id = id;
 
     rtce_init(dev);
 
@@ -649,7 +642,7 @@ VIOsPAPRBus *spapr_vio_bus_init(void)
     DeviceInfo *qinfo;
 
     /* Create bridge device */
-    dev = qdev_create(NULL, "spapr-vio-bridge", NULL);
+    dev = qdev_create(NULL, "spapr-vio-bridge", "::vio-bridge");
     qdev_init_nofail(dev);
 
     /* Create bus on bridge device */

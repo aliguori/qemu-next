@@ -122,7 +122,7 @@ void spapr_vty_create(VIOsPAPRBus *bus,
     DeviceState *dev;
     VIOsPAPRDevice *sdev;
 
-    dev = qdev_create(&bus->bus, "spapr-vty", NULL);
+    dev = qdev_create(&bus->bus, "spapr-vty", "::vty[0x%x]", reg);
     qdev_prop_set_uint32(dev, "reg", reg);
     qdev_prop_set_chr(dev, "chardev", chardev);
     qdev_init_nofail(dev);
