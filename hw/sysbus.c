@@ -174,7 +174,8 @@ void sysbus_register_dev(const char *name, size_t size, sysbus_initfn init)
 }
 
 DeviceState *sysbus_create_varargs(const char *name,
-                                   target_phys_addr_t addr, ...)
+                                   target_phys_addr_t addr,
+                                   const char *id, ...)
 {
     DeviceState *dev;
     SysBusDevice *s;
@@ -182,13 +183,18 @@ DeviceState *sysbus_create_varargs(const char *name,
     qemu_irq irq;
     int n;
 
-    dev = qdev_create(NULL, name, NULL);
+    if (id) {
+        dev = qdev_create(NULL, name, "%s", id);
+    } else {
+        dev = qdev_create(NULL, name, NULL);
+    }
+
     s = sysbus_from_qdev(dev);
     qdev_init_nofail(dev);
     if (addr != (target_phys_addr_t)-1) {
         sysbus_mmio_map(s, 0, addr);
     }
-    va_start(va, addr);
+    va_start(va, id);
     n = 0;
     while (1) {
         irq = va_arg(va, qemu_irq);
@@ -201,8 +207,57 @@ DeviceState *sysbus_create_varargs(const char *name,
     return dev;
 }
 
+DeviceState *sysbus_create_simple(const char *name,
+                                  target_phys_addr_t addr,
+                                  qemu_irq irq,
+                                  const char *id,
+                                  ...)
+{
+    DeviceState *dev;
+    char *fullname;
+    va_list ap;
+
+    va_start(ap, id);
+    if (id) {
+        fullname = g_strdup_vprintf(id, ap);
+    } else {
+        fullname = g_strdup("");
+    }
+    va_end(ap);
+
+    dev = sysbus_create_varargs(name, addr, fullname, irq, NULL);
+    g_free(fullname);
+
+    return dev;
+}
+
+DeviceState *sysbus_try_create_simple(const char *name,
+                                      target_phys_addr_t addr,
+                                      qemu_irq irq,
+                                      const char *id,
+                                      ...)
+{
+    DeviceState *dev;
+    char *fullname;
+    va_list ap;
+
+    va_start(ap, id);
+    if (id) {
+        fullname = g_strdup_vprintf(id, ap);
+    } else {
+        fullname = g_strdup("");
+    }
+    va_end(ap);
+
+    dev = sysbus_try_create_varargs(name, addr, fullname, irq, NULL);
+    g_free(fullname);
+
+    return dev;
+}
+
 DeviceState *sysbus_try_create_varargs(const char *name,
-                                       target_phys_addr_t addr, ...)
+                                       target_phys_addr_t addr,
+                                       const char *id, ...)
 {
     DeviceState *dev;
     SysBusDevice *s;
@@ -210,7 +265,7 @@ DeviceState *sysbus_try_create_varargs(const char *name,
     qemu_irq irq;
     int n;
 
-    dev = qdev_try_create(NULL, name, NULL);
+    dev = qdev_try_create(NULL, name, "%s", id);
     if (!dev) {
         return NULL;
     }
@@ -219,7 +274,7 @@ DeviceState *sysbus_try_create_varargs(const char *name,
     if (addr != (target_phys_addr_t)-1) {
         sysbus_mmio_map(s, 0, addr);
     }
-    va_start(va, addr);
+    va_start(va, id);
     n = 0;
     while (1) {
         irq = va_arg(va, qemu_irq);

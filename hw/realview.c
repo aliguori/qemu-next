@@ -253,7 +253,7 @@ static void realview_init(ram_addr_t ram_size,
 
     sysbus_create_simple("pl111", 0x10020000, pic[23], NULL);
 
-    dev = sysbus_create_varargs("pl181", 0x10005000, pic[17], pic[18], NULL);
+    dev = sysbus_create_varargs("pl181", 0x10005000, NULL, pic[17], pic[18], NULL);
     /* Wire up MMC card detect and read-only signals. These have
      * to go to both the PL061 GPIO and the sysctl register.
      * Note that the PL181 orders these lines (readonly,inserted)
@@ -272,7 +272,7 @@ static void realview_init(ram_addr_t ram_size,
     sysbus_create_simple("pl031", 0x10017000, pic[10], NULL);
 
     if (!is_pb) {
-        dev = sysbus_create_varargs("realview_pci", 0x60000000,
+        dev = sysbus_create_varargs("realview_pci", 0x60000000, NULL,
                                     pic[48], pic[49], pic[50], pic[51], NULL);
         pci_bus = (PCIBus *)qdev_get_child_bus(dev, "pci");
         if (usb_enabled) {

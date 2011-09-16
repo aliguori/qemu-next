@@ -255,8 +255,8 @@ static void r2d_init(ram_addr_t ram_size,
     /* Register peripherals */
     s = sh7750_init(env);
     irq = r2d_fpga_init(0x04000000, sh7750_irl(s));
-    sysbus_create_varargs("sh_pci", 0x1e200000, irq[PCI_INTA], irq[PCI_INTB],
-                          irq[PCI_INTC], irq[PCI_INTD], NULL);
+    sysbus_create_varargs("sh_pci", 0x1e200000, NULL, irq[PCI_INTA],
+                          irq[PCI_INTB], irq[PCI_INTC], irq[PCI_INTD], NULL);
 
     sm501_init(0x10000000, SM501_VRAM_SIZE, irq[SM501], serial_hds[2]);
 

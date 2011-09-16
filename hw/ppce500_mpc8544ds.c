@@ -289,7 +289,7 @@ static void mpc8544ds_init(ram_addr_t ram_size,
     sysbus_create_simple("mpc8544-guts", MPC8544_UTIL_BASE, NULL, NULL);
 
     /* PCI */
-    dev = sysbus_create_varargs("e500-pcihost", MPC8544_PCI_REGS_BASE,
+    dev = sysbus_create_varargs("e500-pcihost", MPC8544_PCI_REGS_BASE, NULL,
                                 mpic[pci_irq_nrs[0]], mpic[pci_irq_nrs[1]],
                                 mpic[pci_irq_nrs[2]], mpic[pci_irq_nrs[3]],
                                 NULL);

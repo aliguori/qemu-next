@@ -1280,7 +1280,7 @@ static void stellaris_init(const char *kernel_filename, const char *cpu_model,
                       flash_size, sram_size, kernel_filename, cpu_model);
 
     if (board->dc1 & (1 << 16)) {
-        dev = sysbus_create_varargs("stellaris-adc", 0x40038000,
+        dev = sysbus_create_varargs("stellaris-adc", 0x40038000, NULL,
                                     pic[14], pic[15], pic[16], pic[17], NULL);
         adc = qdev_get_gpio_in(dev, 0);
     } else {

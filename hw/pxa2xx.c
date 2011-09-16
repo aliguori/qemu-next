@@ -2093,7 +2093,7 @@ PXA2xxState *pxa270_init(unsigned int sdram_size, const char *revision)
     s->dma = pxa27x_dma_init(0x40000000,
                     qdev_get_gpio_in(s->pic, PXA2XX_PIC_DMA));
 
-    sysbus_create_varargs("pxa27x-timer", 0x40a00000,
+    sysbus_create_varargs("pxa27x-timer", 0x40a00000, NULL,
                     qdev_get_gpio_in(s->pic, PXA2XX_PIC_OST_0 + 0),
                     qdev_get_gpio_in(s->pic, PXA2XX_PIC_OST_0 + 1),
                     qdev_get_gpio_in(s->pic, PXA2XX_PIC_OST_0 + 2),
@@ -2232,7 +2232,7 @@ PXA2xxState *pxa255_init(unsigned int sdram_size)
     s->dma = pxa255_dma_init(0x40000000,
                     qdev_get_gpio_in(s->pic, PXA2XX_PIC_DMA));
 
-    sysbus_create_varargs("pxa25x-timer", 0x40a00000,
+    sysbus_create_varargs("pxa25x-timer", 0x40a00000, NULL,
                     qdev_get_gpio_in(s->pic, PXA2XX_PIC_OST_0 + 0),
                     qdev_get_gpio_in(s->pic, PXA2XX_PIC_OST_0 + 1),
                     qdev_get_gpio_in(s->pic, PXA2XX_PIC_OST_0 + 2),

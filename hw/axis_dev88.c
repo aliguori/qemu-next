@@ -330,8 +330,8 @@ void axisdev88_init (ram_addr_t ram_size,
     }
 
     /* 2 timers.  */
-    sysbus_create_varargs("etraxfs,timer", 0x3001e000, irq[0x1b], nmi[1], NULL);
-    sysbus_create_varargs("etraxfs,timer", 0x3005e000, irq[0x1b], nmi[1], NULL);
+    sysbus_create_varargs("etraxfs,timer", 0x3001e000, NULL, irq[0x1b], nmi[1], NULL);
+    sysbus_create_varargs("etraxfs,timer", 0x3005e000, NULL, irq[0x1b], nmi[1], NULL);
 
     for (i = 0; i < 4; i++) {
         sysbus_create_simple("etraxfs,serial", 0x30026000 + i * 0x2000,

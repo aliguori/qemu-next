@@ -69,23 +69,24 @@ void sysbus_del_io(SysBusDevice *dev, MemoryRegion *mem);
 
 /* Legacy helper function for creating devices.  */
 DeviceState *sysbus_create_varargs(const char *name,
-                                 target_phys_addr_t addr, ...);
+                                   target_phys_addr_t addr,
+                                   const char *id, ...);
 DeviceState *sysbus_try_create_varargs(const char *name,
-                                       target_phys_addr_t addr, ...);
-static inline DeviceState *sysbus_create_simple(const char *name,
-                                                target_phys_addr_t addr,
-                                                qemu_irq irq,
-                                                const char *id,
-                                                ...)
-{
-    return sysbus_create_varargs(name, addr, irq, NULL);
-}
+                                       target_phys_addr_t addr,
+                                       const char *id, ...);
 
-static inline DeviceState *sysbus_try_create_simple(const char *name,
-                                                    target_phys_addr_t addr,
-                                                    qemu_irq irq)
-{
-    return sysbus_try_create_varargs(name, addr, irq, NULL);
-}
+DeviceState *sysbus_create_simple(const char *name,
+                                  target_phys_addr_t addr,
+                                  qemu_irq irq,
+                                  const char *id,
+                                  ...)
+    GCC_FMT_ATTR(4, 5);
+
+DeviceState *sysbus_try_create_simple(const char *name,
+                                      target_phys_addr_t addr,
+                                      qemu_irq irq,
+                                      const char *id,
+                                      ...)
+    GCC_FMT_ATTR(4, 5);
 
 #endif /* !HW_SYSBUS_H */

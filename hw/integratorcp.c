@@ -502,13 +502,14 @@ static void integratorcp_init(ram_addr_t ram_size,
 
     cpu_pic = arm_pic_init_cpu(env);
     dev = sysbus_create_varargs("integrator_pic", 0x14000000,
+                                NULL,
                                 cpu_pic[ARM_PIC_CPU_IRQ],
                                 cpu_pic[ARM_PIC_CPU_FIQ], NULL);
     for (i = 0; i < 32; i++) {
         pic[i] = qdev_get_gpio_in(dev, i);
     }
     sysbus_create_simple("integrator_pic", 0xca000000, pic[26], NULL);
-    sysbus_create_varargs("integrator_pit", 0x13000000,
+    sysbus_create_varargs("integrator_pit", 0x13000000, NULL,
                           pic[5], pic[6], pic[7], NULL);
     sysbus_create_simple("pl031", 0x15000000, pic[8], NULL);
     sysbus_create_simple("pl011", 0x16000000, pic[1], NULL);
@@ -516,7 +517,7 @@ static void integratorcp_init(ram_addr_t ram_size,
     icp_control_init(0xcb000000);
     sysbus_create_simple("pl050_keyboard", 0x18000000, pic[3], NULL);
     sysbus_create_simple("pl050_mouse", 0x19000000, pic[4], NULL);
-    sysbus_create_varargs("pl181", 0x1c000000, pic[23], pic[24], NULL);
+    sysbus_create_varargs("pl181", 0x1c000000, NULL, pic[23], pic[24], NULL);
     if (nd_table[0].vlan)
         smc91c111_init(&nd_table[0], 0xc8000000, pic[27]);
 

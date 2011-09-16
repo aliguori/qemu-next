@@ -1552,10 +1552,10 @@ StrongARMState *sa1110_init(unsigned int sdram_size, const char *rev)
                                                 sdram_size) | IO_MEM_RAM);
 
     pic = arm_pic_init_cpu(s->env);
-    s->pic = sysbus_create_varargs("strongarm_pic", 0x90050000,
+    s->pic = sysbus_create_varargs("strongarm_pic", 0x90050000, NULL,
                     pic[ARM_PIC_CPU_IRQ], pic[ARM_PIC_CPU_FIQ], NULL);
 
-    sysbus_create_varargs("pxa25x-timer", 0x90000000,
+    sysbus_create_varargs("pxa25x-timer", 0x90000000, NULL,
                     qdev_get_gpio_in(s->pic, SA_PIC_OSTC0),
                     qdev_get_gpio_in(s->pic, SA_PIC_OSTC1),
                     qdev_get_gpio_in(s->pic, SA_PIC_OSTC2),
@@ -1568,7 +1568,7 @@ StrongARMState *sa1110_init(unsigned int sdram_size, const char *rev)
 
     s->gpio = strongarm_gpio_init(0x90040000, s->pic);
 
-    s->ppc = sysbus_create_varargs("strongarm-ppc", 0x90060000, NULL);
+    s->ppc = sysbus_create_varargs("strongarm-ppc", 0x90060000, NULL, NULL);
 
     for (i = 0; sa_serial[i].io_base; i++) {
         DeviceState *dev = qdev_create(NULL, "strongarm-uart", NULL);
@@ -1581,7 +1581,9 @@ StrongARMState *sa1110_init(unsigned int sdram_size, const char *rev)
     }
 
     s->ssp = sysbus_create_varargs("strongarm-ssp", 0x80070000,
-                qdev_get_gpio_in(s->pic, SA_PIC_SSP), NULL);
+                                   NULL,
+                                   qdev_get_gpio_in(s->pic, SA_PIC_SSP),
+                                   NULL);
     s->ssp_bus = (SSIBus *)qdev_get_child_bus(s->ssp, "ssi");
 
     return s;

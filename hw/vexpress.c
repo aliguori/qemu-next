@@ -119,7 +119,7 @@ static void vexpress_a9_init(ram_addr_t ram_size,
     /* 0x10002000 serial bus PCI */
     /* 0x10004000 PL041 audio */
 
-    dev = sysbus_create_varargs("pl181", 0x10005000, pic[9], pic[10], NULL);
+    dev = sysbus_create_varargs("pl181", 0x10005000, NULL, pic[9], pic[10], NULL);
     /* Wire up MMC card detect and read-only signals */
     qdev_connect_gpio_out(dev, 0,
                           qdev_get_gpio_in(sysctl, ARM_SYSCTL_GPIO_MMC_WPROT));

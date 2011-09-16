@@ -205,7 +205,7 @@ static void versatile_init(ram_addr_t ram_size,
     sysbus_mmio_map(sysbus_from_qdev(sysctl), 0, 0x10000000);
 
     cpu_pic = arm_pic_init_cpu(env);
-    dev = sysbus_create_varargs("pl190", 0x10140000,
+    dev = sysbus_create_varargs("pl190", 0x10140000, NULL,
                                 cpu_pic[0], cpu_pic[1], NULL);
     for (n = 0; n < 32; n++) {
         pic[n] = qdev_get_gpio_in(dev, n);
@@ -219,7 +219,7 @@ static void versatile_init(ram_addr_t ram_size,
     sysbus_create_simple("pl050_keyboard", 0x10006000, sic[3], NULL);
     sysbus_create_simple("pl050_mouse", 0x10007000, sic[4], NULL);
 
-    dev = sysbus_create_varargs("versatile_pci", 0x40000000,
+    dev = sysbus_create_varargs("versatile_pci", 0x40000000, NULL,
                                 sic[27], sic[28], sic[29], sic[30], NULL);
     pci_bus = (PCIBus *)qdev_get_child_bus(dev, "pci");
 
@@ -259,8 +259,8 @@ static void versatile_init(ram_addr_t ram_size,
     /* Wire up the mux control signals from the SYS_CLCD register */
     qdev_connect_gpio_out(sysctl, 0, qdev_get_gpio_in(dev, 0));
 
-    sysbus_create_varargs("pl181", 0x10005000, sic[22], sic[1], NULL);
-    sysbus_create_varargs("pl181", 0x1000b000, sic[23], sic[2], NULL);
+    sysbus_create_varargs("pl181", 0x10005000, NULL, sic[22], sic[1], NULL);
+    sysbus_create_varargs("pl181", 0x1000b000, NULL, sic[23], sic[2], NULL);
 
     /* Add PL031 Real Time Clock. */
     sysbus_create_simple("pl031", 0x101e8000, pic[10], NULL);
