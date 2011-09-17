@@ -154,7 +154,7 @@ static void sl_flash_register(PXA2xxState *cpu, int size)
 {
     DeviceState *dev;
 
-    dev = qdev_create(NULL, "sl-nand", NULL);
+    dev = qdev_create(NULL, "sl-nand", "::sl-nand");
 
     qdev_prop_set_uint8(dev, "manf_id", NAND_MFR_SAMSUNG);
     if (size == FLASH_128M)

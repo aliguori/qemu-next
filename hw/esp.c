@@ -714,7 +714,7 @@ void esp_init(target_phys_addr_t espaddr, int it_shift,
     SysBusDevice *s;
     ESPState *esp;
 
-    dev = qdev_create(NULL, "esp", NULL);
+    dev = qdev_create(NULL, "esp", "::esp");
     esp = DO_UPCAST(ESPState, busdev.qdev, dev);
     esp->dma_memory_read = dma_memory_read;
     esp->dma_memory_write = dma_memory_write;

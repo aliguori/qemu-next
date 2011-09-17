@@ -1514,7 +1514,7 @@ PXA2xxI2CState *pxa2xx_i2c_init(target_phys_addr_t base,
     SysBusDevice *i2c_dev;
     PXA2xxI2CState *s;
 
-    i2c_dev = sysbus_from_qdev(qdev_create(NULL, "pxa2xx_i2c", NULL));
+    i2c_dev = sysbus_from_qdev(qdev_create(NULL, "pxa2xx_i2c", "::pxa2xx_i2c"));
     qdev_prop_set_uint32(&i2c_dev->qdev, "size", region_size + 1);
     qdev_prop_set_uint32(&i2c_dev->qdev, "offset",
             base - (base & (~region_size) & TARGET_PAGE_MASK));

@@ -483,7 +483,7 @@ DeviceState *pxa27x_dma_init(target_phys_addr_t base, qemu_irq irq)
 {
     DeviceState *dev;
 
-    dev = qdev_create(NULL, "pxa2xx-dma", NULL);
+    dev = qdev_create(NULL, "pxa2xx-dma", "::pxa2xx-dma");
     qdev_prop_set_int32(dev, "channels", PXA27X_DMA_NUM_CHANNELS);
     qdev_init_nofail(dev);
 
@@ -497,7 +497,7 @@ DeviceState *pxa255_dma_init(target_phys_addr_t base, qemu_irq irq)
 {
     DeviceState *dev;
 
-    dev = qdev_create(NULL, "pxa2xx-dma", NULL);
+    dev = qdev_create(NULL, "pxa2xx-dma", "::pxa2xx-dma");
     qdev_prop_set_int32(dev, "channels", PXA27X_DMA_NUM_CHANNELS);
     qdev_init_nofail(dev);
 

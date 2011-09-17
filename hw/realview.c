@@ -204,7 +204,7 @@ static void realview_init(ram_addr_t ram_size,
     }
 
     sys_id = is_pb ? 0x01780500 : 0xc1400400;
-    sysctl = qdev_create(NULL, "realview_sysctl", NULL);
+    sysctl = qdev_create(NULL, "realview_sysctl", "::realview_sysctl");
     qdev_prop_set_uint32(sysctl, "sys_id", sys_id);
     qdev_init_nofail(sysctl);
     qdev_prop_set_uint32(sysctl, "proc_id", proc_id);
