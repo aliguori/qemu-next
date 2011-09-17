@@ -606,7 +606,8 @@ static int fs_eth_init(SysBusDevice *dev)
 
 	qemu_macaddr_default_if_unset(&s->conf.macaddr);
 	s->nic = qemu_new_nic(&net_etraxfs_info, &s->conf,
-			      dev->qdev.info->name, dev->qdev.id, s);
+			      dev->qdev.info->name,
+                              qdev_get_id(&dev->qdev), s);
 	qemu_format_nic_info_str(&s->nic->nc, s->conf.macaddr.a);
 
 	tdk_init(&s->phy);

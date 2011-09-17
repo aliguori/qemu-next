@@ -677,12 +677,14 @@ void qdev_prop_set_string(DeviceState *dev, const char *name, char *value)
 int qdev_prop_set_drive(DeviceState *dev, const char *name, BlockDriverState *value)
 {
     int res;
+    const char *devid;
 
     res = bdrv_attach_dev(value, dev);
     if (res < 0) {
+        devid = qdev_get_id(dev);
         error_report("Can't attach drive %s to %s.%s: %s",
                      bdrv_get_device_name(value),
-                     dev->id ? dev->id : dev->info->name,
+                     devid ? devid : dev->info->name,
                      name, strerror(-res));
         return -1;
     }

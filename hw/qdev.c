@@ -266,7 +266,7 @@ DeviceState *qdev_device_add(QemuOpts *opts)
     qdev = qdev_create_from_info(bus, info);
     id = qemu_opts_id(opts);
     if (id) {
-        qdev->id = id;
+        qdev_set_id(qdev, id);
     }
     if (qemu_opt_foreach(opts, set_property, qdev, 1) != 0) {
         qdev_free(qdev);
@@ -313,6 +313,16 @@ void qdev_set_legacy_instance_id(DeviceState *dev, int alias_id,
     assert(dev->state == DEV_STATE_CREATED);
     dev->instance_id_alias = alias_id;
     dev->alias_required_for_version = required_for_version;
+}
+
+const char *qdev_get_id(DeviceState *dev)
+{
+    return dev->id;
+}
+
+void qdev_set_id(DeviceState *dev, const char *id)
+{
+    dev->id = id;
 }
 
 int qdev_unplug(DeviceState *dev)
@@ -577,8 +587,10 @@ DeviceState *qdev_find_recursive(BusState *bus, const char *id)
     BusState *child;
 
     QLIST_FOREACH(dev, &bus->children, sibling) {
-        if (dev->id && strcmp(dev->id, id) == 0)
+        const char *devid = qdev_get_id(dev);
+        if (devid && strcmp(devid, id) == 0) {
             return dev;
+        }
         QLIST_FOREACH(child, &dev->child_bus, sibling) {
             ret = qdev_find_recursive(child, id);
             if (ret) {
@@ -593,9 +605,10 @@ static void qbus_list_bus(DeviceState *dev)
 {
     BusState *child;
     const char *sep = " ";
+    const char *devid = qdev_get_id(dev);
 
     error_printf("child busses at \"%s\":",
-                 dev->id ? dev->id : dev->info->name);
+                 devid ? devid : dev->info->name);
     QLIST_FOREACH(child, &dev->child_bus, sibling) {
         error_printf("%s\"%s\"", sep, child->name);
         sep = ", ";
@@ -610,9 +623,12 @@ static void qbus_list_dev(BusState *bus)
 
     error_printf("devices at \"%s\":", bus->name);
     QLIST_FOREACH(dev, &bus->children, sibling) {
+        const char *devid;
         error_printf("%s\"%s\"", sep, dev->info->name);
-        if (dev->id)
-            error_printf("/\"%s\"", dev->id);
+        devid = qdev_get_id(dev);
+        if (devid) {
+            error_printf("/\"%s\"", devid);
+        }
         sep = ", ";
     }
     error_printf("\n");
@@ -641,7 +657,8 @@ static DeviceState *qbus_find_dev(BusState *bus, char *elem)
      *   (3) driver alias, if present
      */
     QLIST_FOREACH(dev, &bus->children, sibling) {
-        if (dev->id  &&  strcmp(dev->id, elem) == 0) {
+        const char *devid = qdev_get_id(dev);
+        if (devid  &&  strcmp(devid, elem) == 0) {
             return dev;
         }
     }
@@ -757,11 +774,12 @@ void qbus_create_inplace(BusState *bus, BusInfo *info,
     if (name) {
         /* use supplied name */
         bus->name = g_strdup(name);
-    } else if (parent && parent->id) {
+    } else if (parent && qdev_get_id(parent)) {
+        const char *parent_id = qdev_get_id(parent);
         /* parent device has id -> use it for bus name */
-        len = strlen(parent->id) + 16;
+        len = strlen(parent_id) + 16;
         buf = g_malloc(len);
-        snprintf(buf, len, "%s.%d", parent->id, parent->num_child_bus);
+        snprintf(buf, len, "%s.%d", parent_id, parent->num_child_bus);
         bus->name = buf;
     } else {
         /* no id -> use lowercase bus type for bus name */
@@ -853,8 +871,9 @@ static void qdev_print_props(Monitor *mon, DeviceState *dev, Property *props,
 static void qdev_print(Monitor *mon, DeviceState *dev, int indent)
 {
     BusState *child;
+    const char *devid = qdev_get_id(dev);
     qdev_printf("dev: %s, id \"%s\"\n", dev->info->name,
-                dev->id ? dev->id : "");
+                devid ? devid : "");
     indent += 2;
     if (dev->num_gpio_in) {
         qdev_printf("gpio-in %d\n", dev->num_gpio_in);

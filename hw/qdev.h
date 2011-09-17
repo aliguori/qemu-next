@@ -129,6 +129,8 @@ int qdev_init(DeviceState *dev) QEMU_WARN_UNUSED_RESULT;
 void qdev_init_nofail(DeviceState *dev);
 void qdev_set_legacy_instance_id(DeviceState *dev, int alias_id,
                                  int required_for_version);
+const char *qdev_get_id(DeviceState *dev);
+void qdev_set_id(DeviceState *dev, const char *id);
 int qdev_unplug(DeviceState *dev);
 void qdev_free(DeviceState *dev);
 int qdev_simple_unplug_cb(DeviceState *dev);

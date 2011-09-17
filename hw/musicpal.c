@@ -386,7 +386,7 @@ static int mv88w8618_eth_init(SysBusDevice *dev)
 
     sysbus_init_irq(dev, &s->irq);
     s->nic = qemu_new_nic(&net_mv88w8618_info, &s->conf,
-                          dev->qdev.info->name, dev->qdev.id, s);
+                          dev->qdev.info->name, qdev_get_id(&dev->qdev), s);
     s->mmio_index = cpu_register_io_memory(mv88w8618_eth_readfn,
                                            mv88w8618_eth_writefn, s,
                                            DEVICE_NATIVE_ENDIAN);

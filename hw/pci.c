@@ -1397,14 +1397,16 @@ static QObject *pci_get_dev_dict(PCIDevice *dev, PCIBus *bus, int bus_num)
 {
     uint8_t type;
     QObject *obj;
+    const char *devid = qdev_get_id(&dev->qdev);
 
-    obj = qobject_from_jsonf("{ 'bus': %d, 'slot': %d, 'function': %d,"                                       "'class_info': %p, 'id': %p, 'regions': %p,"
-                              " 'qdev_id': %s }",
-                              bus_num,
-                              PCI_SLOT(dev->devfn), PCI_FUNC(dev->devfn),
-                              pci_get_dev_class(dev), pci_get_dev_id(dev),
-                              pci_get_regions_list(dev),
-                              dev->qdev.id ? dev->qdev.id : "");
+    obj = qobject_from_jsonf("{ 'bus': %d, 'slot': %d, 'function': %d,"
+                             "'class_info': %p, 'id': %p, 'regions': %p,"
+                             " 'qdev_id': %s }",
+                             bus_num,
+                             PCI_SLOT(dev->devfn), PCI_FUNC(dev->devfn),
+                             pci_get_dev_class(dev), pci_get_dev_id(dev),
+                             pci_get_regions_list(dev),
+                             devid ? devid : "");
 
     if (dev->config[PCI_INTERRUPT_PIN] != 0) {
         QDict *qdict = qobject_to_qdict(obj);

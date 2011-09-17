@@ -81,7 +81,7 @@ static int vio_make_devnode(VIOsPAPRDevice *dev,
         return vdevice_off;
     }
 
-    node_off = fdt_add_subnode(fdt, vdevice_off, dev->qdev.id);
+    node_off = fdt_add_subnode(fdt, vdevice_off, qdev_get_id(&dev->qdev));
     if (node_off < 0) {
         return node_off;
     }
@@ -601,7 +601,7 @@ static int spapr_vio_busdev_init(DeviceState *qdev, DeviceInfo *qinfo)
         return -1;
     }
 
-    dev->qdev.id = id;
+    qdev_set_id(&dev->qdev, id);
 
     rtce_init(dev);
 

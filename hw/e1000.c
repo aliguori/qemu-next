@@ -1177,7 +1177,8 @@ static int pci_e1000_init(PCIDevice *pci_dev)
     d->eeprom_data[EEPROM_CHECKSUM_REG] = checksum;
 
     d->nic = qemu_new_nic(&net_e1000_info, &d->conf,
-                          d->dev.qdev.info->name, d->dev.qdev.id, d);
+                          d->dev.qdev.info->name,
+                          qdev_get_id(&d->dev.qdev), d);
 
     qemu_format_nic_info_str(&d->nic->nc, macaddr);
 
