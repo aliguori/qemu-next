@@ -168,7 +168,11 @@ typedef struct GlobalProperty {
  *             newly created device
  */
 DeviceState *qdev_add_child(DeviceState *dev, BusState *bus,
-                            const char *typename, const char *fmt, ...);
+                            const char *typename, const char *fmt, ...)
+    GCC_FMT_ATTR(4, 5);
+
+DeviceState *qdev_add_childv(DeviceState *dev, BusState *bus,
+                             const char *typename, const char *fmt, va_list ap);
 
 /**
  * @qdev_try_add_child:
@@ -178,7 +182,13 @@ DeviceState *qdev_add_child(DeviceState *dev, BusState *bus,
  * of exiting.
  */
 DeviceState *qdev_try_add_child(DeviceState *dev, BusState *bus,
-                                const char *typename, const char *fmt, ...);
+                                const char *typename, const char *fmt, ...)
+    GCC_FMT_ATTR(4, 5);
+
+DeviceState *qdev_try_add_childv(DeviceState *dev, BusState *bus,
+                                 const char *typename, const char *fmt,
+                                 va_list ap);
+
 int qdev_device_help(QemuOpts *opts);
 DeviceState *qdev_device_add(QemuOpts *opts);
 int qdev_init(DeviceState *dev) QEMU_WARN_UNUSED_RESULT;

@@ -80,7 +80,9 @@ static DeviceInfo *qdev_find_info(BusInfo *bus_info, const char *name)
     return NULL;
 }
 
-static DeviceState *qdev_create_from_info(BusState *bus, DeviceInfo *info)
+static DeviceState *qdev_create_from_infov(DeviceState *parent, BusState *bus,
+                                           DeviceInfo *info, const char *fmt,
+                                           va_list ap)
 {
     DeviceState *dev;
 
@@ -88,6 +90,10 @@ static DeviceState *qdev_create_from_info(BusState *bus, DeviceInfo *info)
     dev = g_malloc0(info->size);
     dev->info = info;
     dev->parent_bus = bus;
+    dev->parent = parent;
+    if (fmt) {
+        dev->name = g_strdup_vprintf(fmt, ap);
+    }
     qdev_prop_set_defaults(dev, dev->info->props);
     qdev_prop_set_defaults(dev, dev->parent_bus->info->props);
     qdev_prop_set_globals(dev);
@@ -102,15 +108,29 @@ static DeviceState *qdev_create_from_info(BusState *bus, DeviceInfo *info)
     return dev;
 }
 
+static DeviceState *qdev_create_from_info(DeviceState *parent, BusState *bus,
+                                          DeviceInfo *info, const char *fmt,
+                                          ...)
+{
+    DeviceState *dev;
+    va_list ap;
+
+    va_start(ap, fmt);
+    dev = qdev_create_from_infov(parent, bus, info, fmt, ap);
+    va_end(ap);
+
+    return dev;
+}
+
 /* Create a new device.  This only initializes the device state structure
    and allows properties to be set.  qdev_init should be called to
    initialize the actual device emulation.  */
-DeviceState *qdev_add_child(DeviceState *parent, BusState *bus,
-                            const char *typename, const char *fmt, ...)
+DeviceState *qdev_add_childv(DeviceState *parent, BusState *bus,
+                             const char *typename, const char *fmt, va_list ap)
 {
     DeviceState *dev;
 
-    dev = qdev_try_add_child(NULL, bus, typename, NULL);
+    dev = qdev_try_add_childv(NULL, bus, typename, fmt, ap);
     if (!dev) {
         if (bus) {
             hw_error("Unknown device '%s' for bus '%s'\n", typename,
@@ -123,8 +143,22 @@ DeviceState *qdev_add_child(DeviceState *parent, BusState *bus,
     return dev;
 }
 
-DeviceState *qdev_try_add_child(DeviceState *dev, BusState *bus,
-                                const char *typename, const char *fmt, ...)
+DeviceState *qdev_add_child(DeviceState *parent, BusState *bus,
+                            const char *typename, const char *fmt, ...)
+{
+    DeviceState *dev;
+    va_list ap;
+
+    va_start(ap, fmt);
+    dev = qdev_add_childv(parent, bus, typename, fmt, ap);
+    va_end(ap);
+
+    return dev;
+}
+
+DeviceState *qdev_try_add_childv(DeviceState *parent, BusState *bus,
+                                 const char *typename, const char *fmt,
+                                 va_list ap)
 {
     DeviceInfo *info;
 
@@ -136,8 +170,21 @@ DeviceState *qdev_try_add_child(DeviceState *dev, BusState *bus,
     if (!info) {
         return NULL;
     }
+    
+    return qdev_create_from_infov(parent, bus, info, fmt, ap);
+}
 
-    return qdev_create_from_info(bus, info);
+DeviceState *qdev_try_add_child(DeviceState *parent, BusState *bus,
+                                const char *typename, const char *fmt, ...)
+{
+    DeviceState *dev;
+    va_list ap;
+
+    va_start(ap, fmt);
+    dev = qdev_try_add_childv(parent, bus, typename, fmt, ap);
+    va_end(ap);
+
+    return dev;
 }
 
 static void qdev_print_devinfo(DeviceInfo *info)
@@ -265,10 +312,12 @@ DeviceState *qdev_device_add(QemuOpts *opts)
     }
 
     /* create device, set properties */
-    qdev = qdev_create_from_info(bus, info);
     id = qemu_opts_id(opts);
     if (id) {
+        qdev = qdev_create_from_info(NULL, bus, info, "%s", id);
         qdev_set_id(qdev, id);
+    } else {
+        qdev = qdev_create_from_info(NULL, bus, info, NULL);
     }
     if (qemu_opt_foreach(opts, set_property, qdev, 1) != 0) {
         qdev_free(qdev);
