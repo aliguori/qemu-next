@@ -1086,7 +1086,7 @@ PCIBus *gt64120_register(qemu_irq *pic)
     GT64120State *d;
     DeviceState *dev;
 
-    dev = qdev_create(NULL, "gt64120");
+    dev = qdev_add_child(NULL, NULL, "gt64120", NULL);
     qdev_init_nofail(dev);
     s = sysbus_from_qdev(dev);
     d = FROM_SYSBUS(GT64120State, s);

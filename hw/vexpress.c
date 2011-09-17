@@ -85,7 +85,7 @@ static void vexpress_a9_init(ram_addr_t ram_size,
                                  ram_offset | IO_MEM_RAM);
 
     /* 0x1e000000 A9MPCore (SCU) private memory region */
-    dev = qdev_create(NULL, "a9mpcore_priv");
+    dev = qdev_add_child(NULL, NULL, "a9mpcore_priv", NULL);
     qdev_prop_set_uint32(dev, "num-cpu", smp_cpus);
     qdev_init_nofail(dev);
     busdev = sysbus_from_qdev(dev);
@@ -109,7 +109,7 @@ static void vexpress_a9_init(ram_addr_t ram_size,
     proc_id = 0x0c000191;
 
     /* 0x10000000 System registers */
-    sysctl = qdev_create(NULL, "realview_sysctl");
+    sysctl = qdev_add_child(NULL, NULL, "realview_sysctl", NULL);
     qdev_prop_set_uint32(sysctl, "sys_id", sys_id);
     qdev_init_nofail(sysctl);
     qdev_prop_set_uint32(sysctl, "proc_id", proc_id);

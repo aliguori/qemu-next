@@ -51,7 +51,7 @@ DeviceState *grlib_irqmp_create(target_phys_addr_t   base,
 
     assert(cpu_irqs != NULL);
 
-    dev = qdev_create(NULL, "grlib,irqmp");
+    dev = qdev_add_child(NULL, NULL, "grlib,irqmp", NULL);
     qdev_prop_set_ptr(dev, "set_pil_in", set_pil_in);
     qdev_prop_set_ptr(dev, "set_pil_in_opaque", env);
 
@@ -82,7 +82,7 @@ DeviceState *grlib_gptimer_create(target_phys_addr_t  base,
     DeviceState *dev;
     int i;
 
-    dev = qdev_create(NULL, "grlib,gptimer");
+    dev = qdev_add_child(NULL, NULL, "grlib,gptimer", NULL);
     qdev_prop_set_uint32(dev, "nr-timers", nr_timers);
     qdev_prop_set_uint32(dev, "frequency", freq);
     qdev_prop_set_uint32(dev, "irq-line", base_irq);
@@ -109,7 +109,7 @@ DeviceState *grlib_apbuart_create(target_phys_addr_t  base,
 {
     DeviceState *dev;
 
-    dev = qdev_create(NULL, "grlib,apbuart");
+    dev = qdev_add_child(NULL, NULL, "grlib,apbuart", NULL);
     qdev_prop_set_chr(dev, "chrdev", serial);
 
     if (qdev_init(dev)) {

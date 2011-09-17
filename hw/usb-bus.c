@@ -132,7 +132,7 @@ USBDevice *usb_create(USBBus *bus, const char *name)
     }
 #endif
 
-    dev = qdev_create(&bus->qbus, name);
+    dev = qdev_add_child(NULL, &bus->qbus, name, NULL);
     return DO_UPCAST(USBDevice, qdev, dev);
 }
 

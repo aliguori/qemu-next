@@ -1586,7 +1586,7 @@ static void musicpal_init(ram_addr_t ram_size,
     sysbus_create_simple("mv88w8618_flashcfg", MP_FLASHCFG_BASE, NULL);
 
     qemu_check_nic_model(&nd_table[0], "mv88w8618");
-    dev = qdev_create(NULL, "mv88w8618_eth");
+    dev = qdev_add_child(NULL, NULL, "mv88w8618_eth", NULL);
     qdev_set_nic_properties(dev, &nd_table[0]);
     qdev_init_nofail(dev);
     sysbus_mmio_map(sysbus_from_qdev(dev), 0, MP_ETH_BASE);
@@ -1622,7 +1622,7 @@ static void musicpal_init(ram_addr_t ram_size,
     }
 
     wm8750_dev = i2c_create_slave(i2c, "wm8750", MP_WM_ADDR);
-    dev = qdev_create(NULL, "mv88w8618_audio");
+    dev = qdev_add_child(NULL, NULL, "mv88w8618_audio", NULL);
     s = sysbus_from_qdev(dev);
     qdev_prop_set_ptr(dev, "wm8750", wm8750_dev);
     qdev_init_nofail(dev);

@@ -635,7 +635,7 @@ M48t59State *m48t59_init(qemu_irq IRQ, target_phys_addr_t mem_base,
     M48t59SysBusState *d;
     M48t59State *state;
 
-    dev = qdev_create(NULL, "m48t59");
+    dev = qdev_add_child(NULL, NULL, "m48t59", NULL);
     qdev_prop_set_uint32(dev, "type", type);
     qdev_prop_set_uint32(dev, "size", size);
     qdev_prop_set_uint32(dev, "io_base", io_base);

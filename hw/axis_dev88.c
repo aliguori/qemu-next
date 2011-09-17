@@ -294,7 +294,7 @@ void axisdev88_init (ram_addr_t ram_size,
 
 
     cpu_irq = cris_pic_init_cpu(env);
-    dev = qdev_create(NULL, "etraxfs,pic");
+    dev = qdev_add_child(NULL, NULL, "etraxfs,pic", NULL);
     /* FIXME: Is there a proper way to signal vectors to the CPU core?  */
     qdev_prop_set_ptr(dev, "interrupt_vector", &env->interrupt_vector);
     qdev_init_nofail(dev);

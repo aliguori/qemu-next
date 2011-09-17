@@ -281,7 +281,7 @@ static PCIBus *i440fx_common_init(const char *device_name,
     PIIX3State *piix3;
     PCII440FXState *f;
 
-    dev = qdev_create(NULL, "i440FX-pcihost");
+    dev = qdev_add_child(NULL, NULL, "i440FX-pcihost", NULL);
     s = FROM_SYSBUS(I440FXState, sysbus_from_qdev(dev));
     s->address_space = address_space_mem;
     b = pci_bus_new(&s->busdev.qdev, NULL, pci_address_space,

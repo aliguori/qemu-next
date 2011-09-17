@@ -1280,7 +1280,7 @@ int intel_hda_and_codec_init(PCIBus *bus)
 
     controller = pci_create_simple(bus, -1, "intel-hda");
     hdabus = QLIST_FIRST(&controller->qdev.child_bus);
-    codec = qdev_create(hdabus, "hda-duplex");
+    codec = qdev_add_child(NULL, hdabus, "hda-duplex", NULL);
     qdev_init_nofail(codec);
     return 0;
 }

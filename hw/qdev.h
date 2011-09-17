@@ -121,8 +121,43 @@ typedef struct GlobalProperty {
 
 /*** Board API.  This should go away once we have a machine config file.  ***/
 
-DeviceState *qdev_create(BusState *bus, const char *name);
-DeviceState *qdev_try_create(BusState *bus, const char *name);
+/**
+ * @qdev_add_child:
+ *
+ * Create a child device (composition) and attach it to a bus.  This function
+ * will exit QEMU if an error occurs.
+ *
+ * An example of where to use this interface is if you have a SoC device that
+ * is composed of individual components.  The SoC device would call this
+ * function to create individual components.
+ *
+ * When adding a child, the child's name must be specified.  This name must be
+ * unique for the parent device.  IOW, no other child must have this name.  The
+ * name does not have to be globally unique though.
+ *
+ * A child's name is not the same thing as the child's id.  The id is created
+ * from the name and is guaranteed to be unique throughout the entire
+ * device model.
+ *
+ * @dev      - the device that will own the newly created device
+ * @bus      - the bus to attach the device to.  This bus is completely
+ *             unrelated to the creating device.
+ * @typename - the type name of the device to create.
+ * @fmt      - @printf style format string specifying the name to use for the
+ *             newly created device
+ */
+DeviceState *qdev_add_child(DeviceState *dev, BusState *bus,
+                            const char *typename, const char *fmt, ...);
+
+/**
+ * @qdev_try_add_child:
+ *
+ * See @qdev_add_child for a description of parameters.  This function is
+ * identical to @qdev_add_child except that it returns #NULL on error instead
+ * of exiting.
+ */
+DeviceState *qdev_try_add_child(DeviceState *dev, BusState *bus,
+                                const char *typename, const char *fmt, ...);
 int qdev_device_help(QemuOpts *opts);
 DeviceState *qdev_device_add(QemuOpts *opts);
 int qdev_init(DeviceState *dev) QEMU_WARN_UNUSED_RESULT;

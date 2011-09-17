@@ -379,7 +379,7 @@ void arm_sysctl_init(uint32_t base, uint32_t sys_id, uint32_t proc_id)
 {
     DeviceState *dev;
 
-    dev = qdev_create(NULL, "realview_sysctl");
+    dev = qdev_add_child(NULL, NULL, "realview_sysctl", NULL);
     qdev_prop_set_uint32(dev, "sys_id", sys_id);
     qdev_init_nofail(dev);
     qdev_prop_set_uint32(dev, "proc_id", proc_id);

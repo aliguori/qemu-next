@@ -99,7 +99,7 @@ SCSIDevice *scsi_bus_legacy_add_drive(SCSIBus *bus, BlockDriverState *bdrv,
     DeviceState *dev;
 
     driver = bdrv_is_sg(bdrv) ? "scsi-generic" : "scsi-disk";
-    dev = qdev_create(&bus->qbus, driver);
+    dev = qdev_add_child(NULL, &bus->qbus, driver, NULL);
     qdev_prop_set_uint32(dev, "scsi-id", unit);
     if (qdev_prop_exists(dev, "removable")) {
         qdev_prop_set_bit(dev, "removable", removable);

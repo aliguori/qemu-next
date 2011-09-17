@@ -255,7 +255,7 @@ static void s390_init(ram_addr_t my_ram_size,
             exit(1);
         }
 
-        dev = qdev_create((BusState *)s390_bus, "virtio-net-s390");
+        dev = qdev_add_child(NULL, (BusState *)s390_bus, "virtio-net-s390", NULL);
         qdev_set_nic_properties(dev, nd);
         qdev_init_nofail(dev);
     }
@@ -270,7 +270,7 @@ static void s390_init(ram_addr_t my_ram_size,
             continue;
         }
 
-        dev = qdev_create((BusState *)s390_bus, "virtio-blk-s390");
+        dev = qdev_add_child(NULL, (BusState *)s390_bus, "virtio-blk-s390", NULL);
         qdev_prop_set_drive_nofail(dev, "drive", dinfo->bdrv);
         qdev_init_nofail(dev);
     }

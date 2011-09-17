@@ -105,24 +105,26 @@ static DeviceState *qdev_create_from_info(BusState *bus, DeviceInfo *info)
 /* Create a new device.  This only initializes the device state structure
    and allows properties to be set.  qdev_init should be called to
    initialize the actual device emulation.  */
-DeviceState *qdev_create(BusState *bus, const char *name)
+DeviceState *qdev_add_child(DeviceState *parent, BusState *bus,
+                            const char *typename, const char *fmt, ...)
 {
     DeviceState *dev;
 
-    dev = qdev_try_create(bus, name);
+    dev = qdev_try_add_child(NULL, bus, typename, NULL);
     if (!dev) {
         if (bus) {
-            hw_error("Unknown device '%s' for bus '%s'\n", name,
+            hw_error("Unknown device '%s' for bus '%s'\n", typename,
                      bus->info->name);
         } else {
-            hw_error("Unknown device '%s' for default sysbus\n", name);
+            hw_error("Unknown device '%s' for default sysbus\n", typename);
         }
     }
 
     return dev;
 }
 
-DeviceState *qdev_try_create(BusState *bus, const char *name)
+DeviceState *qdev_try_add_child(DeviceState *dev, BusState *bus,
+                                const char *typename, const char *fmt, ...)
 {
     DeviceInfo *info;
 
@@ -130,7 +132,7 @@ DeviceState *qdev_try_create(BusState *bus, const char *name)
         bus = sysbus_get_default();
     }
 
-    info = qdev_find_info(bus->info, name);
+    info = qdev_find_info(bus->info, typename);
     if (!info) {
         return NULL;
     }

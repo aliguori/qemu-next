@@ -204,14 +204,14 @@ static void realview_init(ram_addr_t ram_size,
     }
 
     sys_id = is_pb ? 0x01780500 : 0xc1400400;
-    sysctl = qdev_create(NULL, "realview_sysctl");
+    sysctl = qdev_add_child(NULL, NULL, "realview_sysctl", NULL);
     qdev_prop_set_uint32(sysctl, "sys_id", sys_id);
     qdev_init_nofail(sysctl);
     qdev_prop_set_uint32(sysctl, "proc_id", proc_id);
     sysbus_mmio_map(sysbus_from_qdev(sysctl), 0, 0x10000000);
 
     if (is_mpcore) {
-        dev = qdev_create(NULL, is_pb ? "a9mpcore_priv": "realview_mpcore");
+        dev = qdev_add_child(NULL, NULL, is_pb ? "a9mpcore_priv": "realview_mpcore", NULL);
         qdev_prop_set_uint32(dev, "num-cpu", smp_cpus);
         qdev_init_nofail(dev);
         busdev = sysbus_from_qdev(dev);

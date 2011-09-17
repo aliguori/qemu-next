@@ -182,7 +182,7 @@ DeviceState *sysbus_create_varargs(const char *name,
     qemu_irq irq;
     int n;
 
-    dev = qdev_create(NULL, name);
+    dev = qdev_add_child(NULL, NULL, name, NULL);
     s = sysbus_from_qdev(dev);
     qdev_init_nofail(dev);
     if (addr != (target_phys_addr_t)-1) {
@@ -210,7 +210,7 @@ DeviceState *sysbus_try_create_varargs(const char *name,
     qemu_irq irq;
     int n;
 
-    dev = qdev_try_create(NULL, name);
+    dev = qdev_try_add_child(NULL, NULL, name, NULL);
     if (!dev) {
         return NULL;
     }
