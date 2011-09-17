@@ -30,12 +30,33 @@ enum {
 /* This structure should not be accessed directly.  We declare it here
    so that it can be embedded in individual device state structures.  */
 struct DeviceState {
+    /**
+     * @parent_bus: pointer to the bus that this device sits on.  May be NULL.
+     */
+    BusState *parent_bus;
+
+    /**
+     * @id: a unique name identifying the device in the entire device model.
+     *      May be NULL
+     */
     const char *id;
+
+    /**
+     * @parent: pointer to the device that created this device.  It is never
+     *          NULL.
+     */
+    DeviceState *parent;
+
+    /**
+     * @name: a unique name identifying the device among its sibling devices.
+     *        This name is only unique within the parent.  It is never NULL.
+     */
+    const char *name;
+
     enum DevState state;
     QemuOpts *opts;
     int hotplugged;
     DeviceInfo *info;
-    BusState *parent_bus;
     int num_gpio_out;
     qemu_irq *gpio_out;
     int num_gpio_in;
