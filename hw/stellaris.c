@@ -1350,7 +1350,7 @@ static void stellaris_init(const char *kernel_filename, const char *cpu_model,
 
         qemu_check_nic_model(&nd_table[0], "stellaris");
 
-        enet = qdev_add_child(NULL, NULL, "stellaris_enet", NULL);
+        enet = qdev_add_child(machine_dev, NULL, "stellaris_enet", NULL);
         qdev_set_nic_properties(enet, &nd_table[0]);
         qdev_init_nofail(enet);
         sysbus_mmio_map(sysbus_from_qdev(enet), 0, 0x40048000);

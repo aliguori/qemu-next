@@ -595,7 +595,7 @@ static void prom_init(target_phys_addr_t addr, const char *bios_name)
     char *filename;
     int ret;
 
-    dev = qdev_add_child(NULL, NULL, "openprom", NULL);
+    dev = qdev_add_child(machine_dev, NULL, "openprom", NULL);
     qdev_init_nofail(dev);
     s = sysbus_from_qdev(dev);
 
@@ -674,7 +674,7 @@ static void ram_init(target_phys_addr_t addr, ram_addr_t RAM_size)
     RamDevice *d;
 
     /* allocate RAM */
-    dev = qdev_add_child(NULL, NULL, "memory", NULL);
+    dev = qdev_add_child(machine_dev, NULL, "memory", NULL);
     s = sysbus_from_qdev(dev);
 
     d = FROM_SYSBUS(RamDevice, s);

@@ -787,7 +787,7 @@ void smc91c111_init(NICInfo *nd, uint32_t base, qemu_irq irq)
     SysBusDevice *s;
 
     qemu_check_nic_model(nd, "smc91c111");
-    dev = qdev_add_child(NULL, NULL, "smc91c111", NULL);
+    dev = qdev_add_child(machine_dev, NULL, "smc91c111", NULL);
     qdev_set_nic_properties(dev, nd);
     qdev_init_nofail(dev);
     s = sysbus_from_qdev(dev);

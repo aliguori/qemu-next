@@ -649,7 +649,7 @@ VIOsPAPRBus *spapr_vio_bus_init(void)
     DeviceInfo *qinfo;
 
     /* Create bridge device */
-    dev = qdev_add_child(NULL, NULL, "spapr-vio-bridge", NULL);
+    dev = qdev_add_child(machine_dev, NULL, "spapr-vio-bridge", NULL);
     qdev_init_nofail(dev);
 
     /* Create bus on bridge device */

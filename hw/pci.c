@@ -1725,7 +1725,7 @@ PCIDevice *pci_create_multifunction(PCIBus *bus, int devfn, bool multifunction,
 {
     DeviceState *dev;
 
-    dev = qdev_add_child(NULL, &bus->qbus, name, NULL);
+    dev = qdev_add_child(machine_dev, &bus->qbus, name, NULL);
     qdev_prop_set_uint32(dev, "addr", devfn);
     qdev_prop_set_bit(dev, "multifunction", multifunction);
     return DO_UPCAST(PCIDevice, qdev, dev);

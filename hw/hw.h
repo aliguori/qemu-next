@@ -11,6 +11,8 @@
 #include "ioport.h"
 #include "irq.h"
 
+extern DeviceState *machine_dev;
+
 /* VM Load/Save */
 
 /* This function writes a chunk of data to a file at the given position.

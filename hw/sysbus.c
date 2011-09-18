@@ -182,7 +182,7 @@ DeviceState *sysbus_create_varargs(const char *name,
     qemu_irq irq;
     int n;
 
-    dev = qdev_add_child(NULL, NULL, name, NULL);
+    dev = qdev_add_child(machine_dev, NULL, name, NULL);
     s = sysbus_from_qdev(dev);
     qdev_init_nofail(dev);
     if (addr != (target_phys_addr_t)-1) {

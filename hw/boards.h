@@ -35,6 +35,5 @@ typedef struct QEMUMachine {
 int qemu_register_machine(QEMUMachine *m);
 
 extern QEMUMachine *current_machine;
-extern DeviceState *machine_dev;
 
 #endif

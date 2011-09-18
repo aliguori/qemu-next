@@ -59,7 +59,7 @@ void empty_slot_init(target_phys_addr_t addr, uint64_t slot_size)
         SysBusDevice *s;
         EmptySlot *e;
 
-        dev = qdev_add_child(NULL, NULL, "empty_slot", NULL);
+        dev = qdev_add_child(machine_dev, NULL, "empty_slot", NULL);
         s = sysbus_from_qdev(dev);
         e = FROM_SYSBUS(EmptySlot, s);
         e->size = slot_size;

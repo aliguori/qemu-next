@@ -46,7 +46,7 @@ ISABus *isa_bus_new(DeviceState *dev)
         return NULL;
     }
     if (NULL == dev) {
-        dev = qdev_add_child(NULL, NULL, "isabus-bridge", NULL);
+        dev = qdev_add_child(machine_dev, NULL, "isabus-bridge", NULL);
         qdev_init_nofail(dev);
     }
 
@@ -132,7 +132,7 @@ ISADevice *isa_create(const char *name)
         hw_error("Tried to create isa device %s with no isa bus present.",
                  name);
     }
-    dev = qdev_add_child(NULL, &isabus->qbus, name, NULL);
+    dev = qdev_add_child(machine_dev, &isabus->qbus, name, NULL);
     return DO_UPCAST(ISADevice, qdev, dev);
 }
 
