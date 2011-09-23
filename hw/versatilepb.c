@@ -198,7 +198,7 @@ static void versatile_init(ram_addr_t ram_size,
     /* SDRAM at address zero.  */
     cpu_register_physical_memory(0, ram_size, ram_offset | IO_MEM_RAM);
 
-    sysctl = qdev_add_child(machine_dev, NULL, "realview_sysctl", NULL);
+    sysctl = qdev_add_child(machine_dev, NULL, "realview_sysctl", "realview_sysctl");
     qdev_prop_set_uint32(sysctl, "sys_id", 0x41007004);
     qdev_init_nofail(sysctl);
     qdev_prop_set_uint32(sysctl, "proc_id", 0x02000000);

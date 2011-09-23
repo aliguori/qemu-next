@@ -195,7 +195,7 @@ void mips_jazz_init (ram_addr_t ram_size,
     /* Video card */
     switch (jazz_model) {
     case JAZZ_MAGNUM:
-        dev = qdev_add_child(machine_dev, NULL, "sysbus-g364", NULL);
+        dev = qdev_add_child(machine_dev, NULL, "sysbus-g364", "sysbus-g364");
         qdev_init_nofail(dev);
         sysbus = sysbus_from_qdev(dev);
         sysbus_mmio_map(sysbus, 0, 0x60080000);
@@ -284,7 +284,7 @@ void mips_jazz_init (ram_addr_t ram_size,
     audio_init(i8259, NULL);
 
     /* NVRAM */
-    dev = qdev_add_child(machine_dev, NULL, "ds1225y", NULL);
+    dev = qdev_add_child(machine_dev, NULL, "ds1225y", "ds1225y");
     qdev_init_nofail(dev);
     sysbus = sysbus_from_qdev(dev);
     sysbus_mmio_map(sysbus, 0, 0x80009000);

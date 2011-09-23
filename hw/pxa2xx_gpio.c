@@ -257,7 +257,7 @@ DeviceState *pxa2xx_gpio_init(target_phys_addr_t base,
 {
     DeviceState *dev;
 
-    dev = qdev_add_child(machine_dev, NULL, "pxa2xx-gpio", NULL);
+    dev = qdev_add_child(machine_dev, NULL, "pxa2xx-gpio", "pxa2xx-gpio");
     qdev_prop_set_int32(dev, "lines", lines);
     qdev_prop_set_int32(dev, "ncpu", env->cpu_index);
     qdev_init_nofail(dev);

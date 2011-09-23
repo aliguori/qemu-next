@@ -484,7 +484,7 @@ FWCfgState *fw_cfg_init(uint32_t ctl_port, uint32_t data_port,
     SysBusDevice *d;
     FWCfgState *s;
 
-    dev = qdev_add_child(machine_dev, NULL, "fw_cfg", NULL);
+    dev = qdev_add_child(machine_dev, NULL, "fw_cfg", "fw_cfg");
     qdev_prop_set_uint32(dev, "ctl_iobase", ctl_port);
     qdev_prop_set_uint32(dev, "data_iobase", data_port);
     qdev_init_nofail(dev);

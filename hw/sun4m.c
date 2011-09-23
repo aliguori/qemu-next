@@ -373,7 +373,7 @@ static void *iommu_init(target_phys_addr_t addr, uint32_t version, qemu_irq irq)
     DeviceState *dev;
     SysBusDevice *s;
 
-    dev = qdev_add_child(machine_dev, NULL, "iommu", NULL);
+    dev = qdev_add_child(machine_dev, NULL, "iommu", "iommu");
     qdev_prop_set_uint32(dev, "version", version);
     qdev_init_nofail(dev);
     s = sysbus_from_qdev(dev);
@@ -389,7 +389,7 @@ static void *sparc32_dma_init(target_phys_addr_t daddr, qemu_irq parent_irq,
     DeviceState *dev;
     SysBusDevice *s;
 
-    dev = qdev_add_child(machine_dev, NULL, "sparc32_dma", NULL);
+    dev = qdev_add_child(machine_dev, NULL, "sparc32_dma", "sparc32_dma");
     qdev_prop_set_ptr(dev, "iommu_opaque", iommu);
     qdev_prop_set_uint32(dev, "is_ledma", is_ledma);
     qdev_init_nofail(dev);
@@ -410,7 +410,7 @@ static void lance_init(NICInfo *nd, target_phys_addr_t leaddr,
 
     qemu_check_nic_model(&nd_table[0], "lance");
 
-    dev = qdev_add_child(machine_dev, NULL, "lance", NULL);
+    dev = qdev_add_child(machine_dev, NULL, "lance", "lance");
     qdev_set_nic_properties(dev, nd);
     qdev_prop_set_ptr(dev, "dma", dma_opaque);
     qdev_init_nofail(dev);
@@ -429,7 +429,7 @@ static DeviceState *slavio_intctl_init(target_phys_addr_t addr,
     SysBusDevice *s;
     unsigned int i, j;
 
-    dev = qdev_add_child(machine_dev, NULL, "slavio_intctl", NULL);
+    dev = qdev_add_child(machine_dev, NULL, "slavio_intctl", "slavio_intctl");
     qdev_init_nofail(dev);
 
     s = sysbus_from_qdev(dev);
@@ -457,7 +457,7 @@ static void slavio_timer_init_all(target_phys_addr_t addr, qemu_irq master_irq,
     SysBusDevice *s;
     unsigned int i;
 
-    dev = qdev_add_child(machine_dev, NULL, "slavio_timer", NULL);
+    dev = qdev_add_child(machine_dev, NULL, "slavio_timer", "slavio_timer");
     qdev_prop_set_uint32(dev, "num_cpus", num_cpus);
     qdev_init_nofail(dev);
     s = sysbus_from_qdev(dev);
@@ -484,7 +484,7 @@ static void slavio_misc_init(target_phys_addr_t base,
     DeviceState *dev;
     SysBusDevice *s;
 
-    dev = qdev_add_child(machine_dev, NULL, "slavio_misc", NULL);
+    dev = qdev_add_child(machine_dev, NULL, "slavio_misc", "slavio_misc");
     qdev_init_nofail(dev);
     s = sysbus_from_qdev(dev);
     if (base) {
@@ -520,7 +520,7 @@ static void ecc_init(target_phys_addr_t base, qemu_irq irq, uint32_t version)
     DeviceState *dev;
     SysBusDevice *s;
 
-    dev = qdev_add_child(machine_dev, NULL, "eccmemctl", NULL);
+    dev = qdev_add_child(machine_dev, NULL, "eccmemctl", "eccmemctl");
     qdev_prop_set_uint32(dev, "version", version);
     qdev_init_nofail(dev);
     s = sysbus_from_qdev(dev);
@@ -536,7 +536,7 @@ static void apc_init(target_phys_addr_t power_base, qemu_irq cpu_halt)
     DeviceState *dev;
     SysBusDevice *s;
 
-    dev = qdev_add_child(machine_dev, NULL, "apc", NULL);
+    dev = qdev_add_child(machine_dev, NULL, "apc", "apc");
     qdev_init_nofail(dev);
     s = sysbus_from_qdev(dev);
     /* Power management (APC) XXX: not a Slavio device */
@@ -550,7 +550,7 @@ static void tcx_init(target_phys_addr_t addr, int vram_size, int width,
     DeviceState *dev;
     SysBusDevice *s;
 
-    dev = qdev_add_child(machine_dev, NULL, "SUNW,tcx", NULL);
+    dev = qdev_add_child(machine_dev, NULL, "SUNW,tcx", "SUNW,tcx");
     qdev_prop_set_taddr(dev, "addr", addr);
     qdev_prop_set_uint32(dev, "vram_size", vram_size);
     qdev_prop_set_uint16(dev, "width", width);
@@ -585,7 +585,7 @@ static void idreg_init(target_phys_addr_t addr)
     DeviceState *dev;
     SysBusDevice *s;
 
-    dev = qdev_add_child(machine_dev, NULL, "macio_idreg", NULL);
+    dev = qdev_add_child(machine_dev, NULL, "macio_idreg", "macio_idreg");
     qdev_init_nofail(dev);
     s = sysbus_from_qdev(dev);
 
@@ -621,7 +621,7 @@ static void afx_init(target_phys_addr_t addr)
     DeviceState *dev;
     SysBusDevice *s;
 
-    dev = qdev_add_child(machine_dev, NULL, "tcx_afx", NULL);
+    dev = qdev_add_child(machine_dev, NULL, "tcx_afx", "tcx_afx");
     qdev_init_nofail(dev);
     s = sysbus_from_qdev(dev);
 
@@ -664,7 +664,7 @@ static void prom_init(target_phys_addr_t addr, const char *bios_name)
     char *filename;
     int ret;
 
-    dev = qdev_add_child(machine_dev, NULL, "openprom", NULL);
+    dev = qdev_add_child(machine_dev, NULL, "openprom", "openprom");
     qdev_init_nofail(dev);
     s = sysbus_from_qdev(dev);
 
@@ -750,7 +750,7 @@ static void ram_init(target_phys_addr_t addr, ram_addr_t RAM_size,
                 (unsigned int)(max_mem / (1024 * 1024)));
         exit(1);
     }
-    dev = qdev_add_child(machine_dev, NULL, "memory", NULL);
+    dev = qdev_add_child(machine_dev, NULL, "memory", "memory");
     s = sysbus_from_qdev(dev);
 
     d = FROM_SYSBUS(RamDevice, s);
@@ -1470,7 +1470,7 @@ static DeviceState *sbi_init(target_phys_addr_t addr, qemu_irq **parent_irq)
     SysBusDevice *s;
     unsigned int i;
 
-    dev = qdev_add_child(machine_dev, NULL, "sbi", NULL);
+    dev = qdev_add_child(machine_dev, NULL, "sbi", "sbi");
     qdev_init_nofail(dev);
 
     s = sysbus_from_qdev(dev);
@@ -1665,7 +1665,7 @@ static DeviceState *sun4c_intctl_init(target_phys_addr_t addr,
     SysBusDevice *s;
     unsigned int i;
 
-    dev = qdev_add_child(machine_dev, NULL, "sun4c_intctl", NULL);
+    dev = qdev_add_child(machine_dev, NULL, "sun4c_intctl", "sun4c_intctl");
     qdev_init_nofail(dev);
 
     s = sysbus_from_qdev(dev);

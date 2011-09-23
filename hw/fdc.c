@@ -1825,7 +1825,7 @@ void fdctrl_init_sysbus(qemu_irq irq, int dma_chann,
     DeviceState *dev;
     FDCtrlSysBus *sys;
 
-    dev = qdev_add_child(machine_dev, NULL, "sysbus-fdc", NULL);
+    dev = qdev_add_child(machine_dev, NULL, "sysbus-fdc", "sysbus-fdc");
     sys = DO_UPCAST(FDCtrlSysBus, busdev.qdev, dev);
     fdctrl = &sys->state;
     fdctrl->dma_chann = dma_chann; /* FIXME */
@@ -1846,7 +1846,7 @@ void sun4m_fdctrl_init(qemu_irq irq, target_phys_addr_t io_base,
     DeviceState *dev;
     FDCtrlSysBus *sys;
 
-    dev = qdev_add_child(machine_dev, NULL, "SUNW,fdtwo", NULL);
+    dev = qdev_add_child(machine_dev, NULL, "SUNW,fdtwo", "SUNW,fdtwo");
     if (fds[0]) {
         qdev_prop_set_drive_nofail(dev, "drive", fds[0]->bdrv);
     }

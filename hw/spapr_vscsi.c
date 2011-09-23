@@ -899,7 +899,7 @@ void spapr_vscsi_create(VIOsPAPRBus *bus, uint32_t reg,
     DeviceState *dev;
     VIOsPAPRDevice *sdev;
 
-    dev = qdev_add_child(machine_dev, &bus->bus, "spapr-vscsi", NULL);
+    dev = qdev_add_child(machine_dev, &bus->bus, "spapr-vscsi", "spapr-vscsi");
     qdev_prop_set_uint32(dev, "reg", reg);
 
     qdev_init_nofail(dev);

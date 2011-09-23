@@ -167,7 +167,7 @@ static void n8x0_nand_setup(struct n800_s *s)
     char *otp_region;
     DriveInfo *dinfo;
 
-    s->nand = qdev_add_child(machine_dev, NULL, "onenand", NULL);
+    s->nand = qdev_add_child(machine_dev, NULL, "onenand", "onenand");
     qdev_prop_set_uint16(s->nand, "manufacturer_id", NAND_MFR_SAMSUNG);
     /* Either 0x40 or 0x48 are OK for the device ID */
     qdev_prop_set_uint16(s->nand, "device_id", 0x48);
@@ -767,7 +767,7 @@ static void n8x0_uart_setup(struct n800_s *s)
 static void n8x0_usb_setup(struct n800_s *s)
 {
     SysBusDevice *dev;
-    s->usb = qdev_add_child(machine_dev, NULL, "tusb6010", NULL);
+    s->usb = qdev_add_child(machine_dev, NULL, "tusb6010", "tusb6010");
     dev = sysbus_from_qdev(s->usb);
     qdev_init_nofail(s->usb);
     sysbus_connect_irq(dev, 0,

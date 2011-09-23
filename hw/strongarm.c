@@ -610,7 +610,7 @@ static DeviceState *strongarm_gpio_init(target_phys_addr_t base,
     DeviceState *dev;
     int i;
 
-    dev = qdev_add_child(machine_dev, NULL, "strongarm-gpio", NULL);
+    dev = qdev_add_child(machine_dev, NULL, "strongarm-gpio", "strongarm-gpio");
     qdev_init_nofail(dev);
 
     sysbus_mmio_map(sysbus_from_qdev(dev), 0, base);
@@ -1570,7 +1570,7 @@ StrongARMState *sa1110_init(unsigned int sdram_size, const char *rev)
     s->ppc = sysbus_create_varargs("strongarm-ppc", 0x90060000, NULL);
 
     for (i = 0; sa_serial[i].io_base; i++) {
-        DeviceState *dev = qdev_add_child(machine_dev, NULL, "strongarm-uart", NULL);
+        DeviceState *dev = qdev_add_child(machine_dev, NULL, "strongarm-uart", "strongarm-uart");
         qdev_prop_set_chr(dev, "chardev", serial_hds[i]);
         qdev_init_nofail(dev);
         sysbus_mmio_map(sysbus_from_qdev(dev), 0,

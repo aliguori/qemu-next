@@ -495,7 +495,7 @@ static void integratorcp_init(ram_addr_t ram_size,
     memory_region_init_alias(ram_alias, "ram.alias", ram, 0, ram_size);
     memory_region_add_subregion(address_space_mem, 0x80000000, ram_alias);
 
-    dev = qdev_add_child(machine_dev, NULL, "integrator_core", NULL);
+    dev = qdev_add_child(machine_dev, NULL, "integrator_core", "integrator_core");
     qdev_prop_set_uint32(dev, "memsz", ram_size >> 20);
     qdev_init_nofail(dev);
     sysbus_mmio_map((SysBusDevice *)dev, 0, 0x10000000);

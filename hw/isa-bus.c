@@ -46,7 +46,7 @@ ISABus *isa_bus_new(DeviceState *dev)
         return NULL;
     }
     if (NULL == dev) {
-        dev = qdev_add_child(machine_dev, NULL, "isabus-bridge", NULL);
+        dev = qdev_add_child(machine_dev, NULL, "isabus-bridge", "isabus-bridge");
         qdev_init_nofail(dev);
     }
 

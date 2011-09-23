@@ -59,7 +59,7 @@ static void ioapic_init(IsaIrqState *isa_irq_state)
     SysBusDevice *d;
     unsigned int i;
 
-    dev = qdev_add_child(machine_dev, NULL, "ioapic", NULL);
+    dev = qdev_add_child(machine_dev, NULL, "ioapic", "ioapic");
     qdev_init_nofail(dev);
     d = sysbus_from_qdev(dev);
     sysbus_mmio_map(d, 0, 0xfec00000);

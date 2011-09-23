@@ -119,7 +119,7 @@ static void mipsnet_init(int base, qemu_irq irq, NICInfo *nd)
     DeviceState *dev;
     SysBusDevice *s;
 
-    dev = qdev_add_child(machine_dev, NULL, "mipsnet", NULL);
+    dev = qdev_add_child(machine_dev, NULL, "mipsnet", "mipsnet");
     qdev_set_nic_properties(dev, nd);
     qdev_init_nofail(dev);
 

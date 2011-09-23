@@ -1185,7 +1185,7 @@ void lan9118_init(NICInfo *nd, uint32_t base, qemu_irq irq)
     SysBusDevice *s;
 
     qemu_check_nic_model(nd, "lan9118");
-    dev = qdev_add_child(machine_dev, NULL, "lan9118", NULL);
+    dev = qdev_add_child(machine_dev, NULL, "lan9118", "lan9118");
     qdev_set_nic_properties(dev, nd);
     qdev_init_nofail(dev);
     s = sysbus_from_qdev(dev);

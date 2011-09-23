@@ -2378,7 +2378,7 @@ struct omap_mpu_state_s *omap2420_mpu_init(unsigned long sdram_size,
                     omap_findclk(s, "i2c2.fclk"),
                     omap_findclk(s, "i2c2.iclk"));
 
-    s->gpio = qdev_add_child(machine_dev, NULL, "omap2-gpio", NULL);
+    s->gpio = qdev_add_child(machine_dev, NULL, "omap2-gpio", "omap2-gpio");
     qdev_prop_set_int32(s->gpio, "mpu_model", s->mpu_model);
     qdev_prop_set_ptr(s->gpio, "iclk", omap_findclk(s, "gpio_iclk"));
     qdev_prop_set_ptr(s->gpio, "fclk0", omap_findclk(s, "gpio1_dbclk"));
