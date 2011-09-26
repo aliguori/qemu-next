@@ -92,7 +92,27 @@ static DeviceState *qdev_create_from_infov(DeviceState *parent, BusState *bus,
     dev->parent_bus = bus;
     dev->parent = parent;
     if (fmt) {
+        char *id;
+        DeviceState *n;
+
         dev->name = g_strdup_vprintf(fmt, ap);
+        id = g_strdup(dev->name);
+
+        for (n = dev->parent; n; n = dev->parent) {
+            char *newid;
+
+            if (dev->name) {
+                newid = g_strdup_printf("%s/%s", dev->name, id);
+            } else {
+                newid = g_strdup_printf("<null>/%s", id);
+            }
+
+            g_free(id);
+            id = newid;
+        }
+
+        qdev_set_id(dev, id);
+        g_free(id);
     }
     qdev_prop_set_defaults(dev, dev->info->props);
     qdev_prop_set_defaults(dev, dev->parent_bus->info->props);
@@ -372,6 +392,9 @@ const char *qdev_get_id(DeviceState *dev)
 
 void qdev_set_id(DeviceState *dev, const char *id)
 {
+    if (dev->id) {
+        g_free(dev->id);
+    }
     dev->id = g_strdup(id);
 }
 

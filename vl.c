@@ -3315,7 +3315,7 @@ int main(int argc, char **argv, char **envp)
     }
     qemu_add_globals();
 
-    machine_dev = qdev_add_child(NULL, NULL, "machine", NULL);
+    machine_dev = qdev_add_child(NULL, NULL, "machine", "root");
     qdev_prop_set_uint64(machine_dev, "ram_size", ram_size);
     qdev_prop_set_string(machine_dev, "boot_device", g_strdup(boot_devices));
     qdev_prop_set_string(machine_dev, "kernel_filename",
