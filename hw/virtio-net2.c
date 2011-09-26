@@ -8,9 +8,9 @@
 #include <pthread.h>
 #include "pci.h"
 
-//#define DEBUG_VIRTIO_NET_2 1
+//#define DEBUG_VIRTIO_NET2 1
 
-#ifdef DEBUG_VIRTIO_NET_2
+#ifdef DEBUG_VIRTIO_NET2
 #define dprintf(fmt, ...) \
     do { fprintf(stderr, fmt "\n", ## __VA_ARGS__); } while (0)
 #else
@@ -100,16 +100,11 @@ static void virtio_net_kick(VirtioNet2 *n, VirtioQueue2 *vq)
 {
     mb();
     if (!(vq->avail->flags & VRING_AVAIL_F_NO_INTERRUPT)) {
-#if 0
         uint64_t count = 1;
         ssize_t len;
 
         len = write(n->event_fd, &count, sizeof(count));
         assert(len != -1);
-#else
-        kvm_set_irq(11, 1, NULL);
-        kvm_set_irq(11, 0, NULL);
-#endif
     }
 }
 
@@ -307,7 +302,9 @@ static uint32_t virtio_net_config_read(void *opaque, uint32_t addr, int size)
         value = n->status;
         break;
     case VIRTIO_PCI_ISR:
-        value = 1;
+        value = n->isr;
+        n->isr = 0;
+        virtio_net_update_irq(n);
         break;
     default:
         break;
