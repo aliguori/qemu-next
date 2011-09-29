@@ -24,7 +24,7 @@ coroutine-obj-$(CONFIG_WIN32) += coroutine-win32.o
 # qapi
 qapi-nested-y = qapi-visit-core.o qmp-input-visitor.o qmp-output-visitor.o qapi-dealloc-visitor.o
 qapi-nested-y += qmp-registry.o qmp-dispatch.o
-qapi-obj-y = $(addprefix qapi/, $(qapi-nested-y))
+qapi-obj-y = $(addprefix qapi/, $(qapi-nested-y)) $(trace-obj-y)
 
 #######################################################################
 # block-obj-y is code used by both qemu system emulation and qemu-img
