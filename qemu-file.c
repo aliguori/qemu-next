@@ -27,6 +27,7 @@
 #include "hw/hw.h"
 #include "qapi/qemu-file-output-visitor.h"
 #include "qapi/qemu-file-input-visitor.h"
+#include "trace.h"
 
 #define IO_BUF_SIZE 32768
 
@@ -454,6 +455,8 @@ void qemu_put_buffer(QEMUFile *f, const uint8_t *buf, int size)
 {
     int l;
 
+    trace_qemu_put_buffer(f, buf, size);
+
     if (!f->last_error && f->is_write == 0 && f->buf_index > 0) {
         fprintf(stderr,
                 "Attempted to write to buffer while read buffer is not empty\n");
@@ -484,6 +487,7 @@ void qemu_put_byte(QEMUFile *f, int v)
         abort();
     }
 
+    trace_qemu_put_byte(f, v & 0xff);
     f->buf[f->buf_index++] = v;
     f->is_write = 1;
     if (f->buf_index >= IO_BUF_SIZE) {
@@ -531,6 +535,8 @@ int qemu_get_buffer(QEMUFile *f, uint8_t *buf, int size)
     int pending = size;
     int done = 0;
 
+    trace_qemu_get_buffer(f, buf, size);
+
     while (pending > 0) {
         int res;
 
@@ -570,6 +576,7 @@ int qemu_get_byte(QEMUFile *f)
 
     result = qemu_peek_byte(f, 0);
     qemu_file_skip(f, 1);
+    trace_qemu_get_byte(f, result);
     return result;
 }
 
@@ -632,6 +639,7 @@ void qemu_put_be16(QEMUFile *f, unsigned int v)
 {
     qemu_put_byte(f, v >> 8);
     qemu_put_byte(f, v);
+    trace_qemu_put_be16(f, v);
 }
 
 void qemu_put_be32(QEMUFile *f, unsigned int v)
@@ -640,12 +648,14 @@ void qemu_put_be32(QEMUFile *f, unsigned int v)
     qemu_put_byte(f, v >> 16);
     qemu_put_byte(f, v >> 8);
     qemu_put_byte(f, v);
+    trace_qemu_put_be32(f, v);
 }
 
 void qemu_put_be64(QEMUFile *f, uint64_t v)
 {
     qemu_put_be32(f, v >> 32);
     qemu_put_be32(f, v);
+    trace_qemu_put_be64(f, v);
 }
 
 unsigned int qemu_get_be16(QEMUFile *f)
@@ -653,6 +663,7 @@ unsigned int qemu_get_be16(QEMUFile *f)
     unsigned int v;
     v = qemu_get_byte(f) << 8;
     v |= qemu_get_byte(f);
+    trace_qemu_get_be16(f, v);
     return v;
 }
 
@@ -663,6 +674,7 @@ unsigned int qemu_get_be32(QEMUFile *f)
     v |= qemu_get_byte(f) << 16;
     v |= qemu_get_byte(f) << 8;
     v |= qemu_get_byte(f);
+    trace_qemu_get_be32(f, v);
     return v;
 }
 
@@ -671,5 +683,6 @@ uint64_t qemu_get_be64(QEMUFile *f)
     uint64_t v;
     v = (uint64_t)qemu_get_be32(f) << 32;
     v |= qemu_get_be32(f);
+    trace_qemu_get_be64(f, v);
     return v;
 }
