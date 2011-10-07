@@ -538,3 +538,21 @@ esp_mem_writeb_cmd_ensel(uint32_t val) "Enable selection (%2.2x)"
 # monitor.c
 handle_qmp_command(void *mon, const char *cmd_name) "mon %p cmd_name \"%s\""
 monitor_protocol_emitter(void *mon) "mon %p"
+
+# qemu-file.c
+qemu_put_buffer(void *f, const uint8_t *buf, int size) "file=%p, buf=%p, size=%d"
+qemu_get_buffer(void *f, const uint8_t *buf, int size) "file=%p, buf=%p, size=%d"
+qemu_put_byte(void *f, int val) "file=%p, val=0x%x"
+qemu_get_byte(void *f, int val) "file=%p, val=0x%x"
+qemu_put_be16(void *f, unsigned int v) "file=%p, val=0x%x"
+qemu_get_be16(void *f, unsigned int v) "file=%p, val=0x%x"
+qemu_put_be32(void *f, unsigned int v) "file=%p, val=0x%x"
+qemu_get_be32(void *f, unsigned int v) "file=%p, val=0x%x"
+qemu_put_be64(void *f, uint64_t v) "file=%p, val=0x%"PRIx64
+qemu_get_be64(void *f, uint64_t v) "file=%p, val=0x%"PRIx64
+qemu_put_sbe16(void *f, int v) "file=%p, val=0x%x"
+qemu_get_sbe16(void *f, int v) "file=%p, val=0x%x"
+qemu_put_sbe32(void *f, int v) "file=%p, val=0x%x"
+qemu_get_sbe32(void *f, int v) "file=%p, val=0x%x"
+qemu_put_sbe64(void *f, int64_t v) "file=%p, val=0x%"PRIx64
+qemu_get_sbe64(void *f, int64_t v) "file=%p, val=0x%"PRIx64
