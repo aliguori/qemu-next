@@ -629,7 +629,8 @@ void init_clocks(void)
 }
 
 /* save a timer */
-void qemu_put_timer(QEMUFile *f, QEMUTimer *ts)
+void qemu_put_timer_visitor(Visitor *v, const char *name, QEMUTimer *ts,
+                            Error **err)
 {
     uint64_t expire_time;
 
@@ -638,19 +639,34 @@ void qemu_put_timer(QEMUFile *f, QEMUTimer *ts)
     } else {
         expire_time = -1;
     }
-    qemu_put_be64(f, expire_time);
+    visit_type_uint64(v, &expire_time, name, err);
 }
 
-void qemu_get_timer(QEMUFile *f, QEMUTimer *ts)
+void qemu_put_timer(QEMUFile *f, QEMUTimer *ts)
+{
+    Visitor *v = qemu_file_get_output_visitor(f);
+    assert(v);
+    qemu_put_timer_visitor(v, "timer", ts, NULL);
+}
+
+void qemu_get_timer_visitor(Visitor *v, const char *name, QEMUTimer *ts,
+                            Error **err)
 {
     uint64_t expire_time;
 
-    expire_time = qemu_get_be64(f);
+    visit_type_uint64(v, &expire_time, name, err);
     if (expire_time != -1) {
         qemu_mod_timer_ns(ts, expire_time);
     } else {
         qemu_del_timer(ts);
     }
+}
+
+void qemu_get_timer(QEMUFile *f, QEMUTimer *ts)
+{
+    Visitor *v = qemu_file_get_input_visitor(f);
+    assert(v);
+    qemu_get_timer_visitor(v, "timer", ts, NULL);
 }
 
 static const VMStateDescription vmstate_timers = {

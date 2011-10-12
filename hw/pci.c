@@ -334,23 +334,25 @@ int pci_bus_num(PCIBus *s)
     return s->parent_dev->config[PCI_SECONDARY_BUS];
 }
 
-static int get_pci_config_device(QEMUFile *f, void *pv, size_t size)
+static int get_pci_config_device(Visitor *v, const char *name, void *pv,
+                                 size_t size, Error **err)
 {
     PCIDevice *s = container_of(pv, PCIDevice, config);
-    uint8_t *config;
+    uint8_t *config = NULL;
     int i;
 
     assert(size == pci_config_size(s));
-    config = g_malloc(size);
 
-    qemu_get_buffer(f, config, size);
+    visit_start_array(v, (void **)&config, name, size, 1, err);
     for (i = 0; i < size; ++i) {
+        visit_type_uint8(v, &config[i], NULL, err);
         if ((config[i] ^ s->config[i]) &
             s->cmask[i] & ~s->wmask[i] & ~s->w1cmask[i]) {
             g_free(config);
             return -EINVAL;
         }
     }
+    visit_end_array(v, err);
     memcpy(s->config, config, size);
 
     pci_update_mappings(s);
@@ -360,11 +362,17 @@ static int get_pci_config_device(QEMUFile *f, void *pv, size_t size)
 }
 
 /* just put buffer */
-static void put_pci_config_device(QEMUFile *f, void *pv, size_t size)
+static void put_pci_config_device(Visitor *v, const char *name, void *pv,
+                                  size_t size, Error **err)
 {
-    const uint8_t **v = pv;
+    uint8_t *config = *(uint8_t **)pv;
+    int i;
     assert(size == pci_config_size(container_of(pv, PCIDevice, config)));
-    qemu_put_buffer(f, *v, size);
+    visit_start_array(v, (void **)&config, name, size, 1, err);
+    for (i = 0; i < size; i++) {
+        visit_type_uint8(v, &config[i], NULL, err);
+    }
+    visit_end_array(v, err);
 }
 
 static VMStateInfo vmstate_info_pci_config = {
@@ -373,19 +381,22 @@ static VMStateInfo vmstate_info_pci_config = {
     .put  = put_pci_config_device,
 };
 
-static int get_pci_irq_state(QEMUFile *f, void *pv, size_t size)
+static int get_pci_irq_state(Visitor *v, const char *name, void *pv,
+                             size_t size, Error **err)
 {
     PCIDevice *s = container_of(pv, PCIDevice, irq_state);
     uint32_t irq_state[PCI_NUM_PINS];
     int i;
+    visit_start_array(v, NULL, name, PCI_NUM_PINS, 4, err);
     for (i = 0; i < PCI_NUM_PINS; ++i) {
-        irq_state[i] = qemu_get_be32(f);
+        visit_type_uint32(v, &irq_state[i], NULL, err);
         if (irq_state[i] != 0x1 && irq_state[i] != 0) {
             fprintf(stderr, "irq state %d: must be 0 or 1.\n",
                     irq_state[i]);
             return -EINVAL;
         }
     }
+    visit_end_array(v, err);
 
     for (i = 0; i < PCI_NUM_PINS; ++i) {
         pci_set_irq_state(s, i, irq_state[i]);
@@ -394,14 +405,19 @@ static int get_pci_irq_state(QEMUFile *f, void *pv, size_t size)
     return 0;
 }
 
-static void put_pci_irq_state(QEMUFile *f, void *pv, size_t size)
+static void put_pci_irq_state(Visitor *v, const char *name, void *pv,
+                              size_t size, Error **err)
 {
     int i;
     PCIDevice *s = container_of(pv, PCIDevice, irq_state);
+    uint32_t irq_state;
 
+    visit_start_array(v, NULL, name, PCI_NUM_PINS, 4, err);
     for (i = 0; i < PCI_NUM_PINS; ++i) {
-        qemu_put_be32(f, pci_irq_state(s, i));
+        irq_state = pci_irq_state(s, i);
+        visit_type_uint32(v, &irq_state, NULL, err);
     }
+    visit_end_array(v, err);
 }
 
 static VMStateInfo vmstate_info_pci_irq_state = {
