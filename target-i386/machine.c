@@ -78,7 +78,8 @@ static const VMStateDescription vmstate_mtrr_var = {
 #define VMSTATE_MTRR_VARS(_field, _state, _n, _v)                    \
     VMSTATE_STRUCT_ARRAY(_field, _state, _n, _v, vmstate_mtrr_var, MTRRVar)
 
-static void put_fpreg_error(QEMUFile *f, void *opaque, size_t size)
+static void put_fpreg_error(Visitor *v, const char *name, void *opaque,
+                            size_t size, Error **err)
 {
     fprintf(stderr, "call put_fpreg() with invalid arguments\n");
     exit(0);
@@ -106,19 +107,23 @@ static void fp64_to_fp80(union x86_longdouble *p, uint64_t temp)
     p->exp = e;
 }
 
-static int get_fpreg(QEMUFile *f, void *opaque, size_t size)
+static int get_fpreg(Visitor *v, const char *name, void *opaque,
+                     size_t size, Error **err)
 {
     FPReg *fp_reg = opaque;
     uint64_t mant;
     uint16_t exp;
 
-    qemu_get_be64s(f, &mant);
-    qemu_get_be16s(f, &exp);
+    visit_start_struct(v, NULL, NULL, name, 0, err);
+    visit_type_uint64(v, &mant, "mant", err);
+    visit_type_uint16(v, &exp, "exp", err);
+    visit_end_struct(v, err);
     fp_reg->d = cpu_set_fp80(mant, exp);
     return 0;
 }
 
-static void put_fpreg(QEMUFile *f, void *opaque, size_t size)
+static void put_fpreg(Visitor *v, const char *name, void *opaque,
+                      size_t size, Error **err)
 {
     FPReg *fp_reg = opaque;
     uint64_t mant;
@@ -126,8 +131,10 @@ static void put_fpreg(QEMUFile *f, void *opaque, size_t size)
     /* we save the real CPU data (in case of MMX usage only 'mant'
        contains the MMX register */
     cpu_get_fp80(&mant, &exp, fp_reg->d);
-    qemu_put_be64s(f, &mant);
-    qemu_put_be16s(f, &exp);
+    visit_start_struct(v, NULL, NULL, name, 0, err);
+    visit_type_uint64(v, &mant, "mant", err);
+    visit_type_uint16(v, &exp, "exp", err);
+    visit_end_struct(v, err);
 }
 
 static const VMStateInfo vmstate_fpreg = {
@@ -136,12 +143,13 @@ static const VMStateInfo vmstate_fpreg = {
     .put  = put_fpreg,
 };
 
-static int get_fpreg_1_mmx(QEMUFile *f, void *opaque, size_t size)
+static int get_fpreg_1_mmx(Visitor *v, const char *name, void *opaque,
+                           size_t size, Error **err)
 {
     union x86_longdouble *p = opaque;
     uint64_t mant;
 
-    qemu_get_be64s(f, &mant);
+    visit_type_uint64(v, &mant, name, err);
     p->mant = mant;
     p->exp = 0xffff;
     return 0;
@@ -153,12 +161,13 @@ static const VMStateInfo vmstate_fpreg_1_mmx = {
     .put  = put_fpreg_error,
 };
 
-static int get_fpreg_1_no_mmx(QEMUFile *f, void *opaque, size_t size)
+static int get_fpreg_1_no_mmx(Visitor *v, const char *name, void *opaque,
+                              size_t size, Error **err)
 {
     union x86_longdouble *p = opaque;
     uint64_t mant;
 
-    qemu_get_be64s(f, &mant);
+    visit_type_uint64(v, &mant, name, err);
     fp64_to_fp80(p, mant);
     return 0;
 }
@@ -212,17 +221,23 @@ static bool less_than_7(void *opaque, int version_id)
     return version_id < 7;
 }
 
-static int get_uint64_as_uint32(QEMUFile *f, void *pv, size_t size)
+static int get_uint64_as_uint32(Visitor *v, const char *name, void *pv,
+                                size_t size, Error **err)
 {
-    uint64_t *v = pv;
-    *v = qemu_get_be32(f);
+    uint64_t *val1 = pv;
+    uint32_t val2;
+    visit_type_uint32(v, &val2, name, err);
+    *val1 = val2;
     return 0;
 }
 
-static void put_uint64_as_uint32(QEMUFile *f, void *pv, size_t size)
+static void put_uint64_as_uint32(Visitor *v, const char *name, void *pv,
+                                 size_t size, Error **err)
 {
-    uint64_t *v = pv;
-    qemu_put_be32(f, *v);
+    uint64_t *val1 = pv;
+    uint32_t val2;
+    visit_type_uint32(v, &val2, name, err);
+    *val1 = val2;
 }
 
 static const VMStateInfo vmstate_hack_uint64_as_uint32 = {

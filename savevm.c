@@ -183,19 +183,28 @@ static QEMUFile *qemu_fopen_bdrv(BlockDriverState *bs, int is_writable)
 
 /* timer */
 
-void qemu_put_timer(QEMUFile *f, QEMUTimer *ts)
+void qemu_put_timer_visitor(Visitor *v, const char *name, QEMUTimer *ts,
+                            Error **err)
 {
     uint64_t expire_time;
-
     expire_time = qemu_timer_expire_time_ns(ts);
-    qemu_put_be64(f, expire_time);
+
+    visit_type_uint64(v, &expire_time, name, err);
 }
 
-void qemu_get_timer(QEMUFile *f, QEMUTimer *ts)
+void qemu_put_timer(QEMUFile *f, QEMUTimer *ts)
+{
+    Visitor *v = qemu_file_get_visitor(f);
+    assert(v);
+    qemu_put_timer_visitor(v, "timer", ts, NULL);
+}
+
+void qemu_get_timer_visitor(Visitor *v, const char *name, QEMUTimer *ts,
+                            Error **err)
 {
     uint64_t expire_time;
 
-    expire_time = qemu_get_be64(f);
+    visit_type_uint64(v, &expire_time, name, err);
     if (expire_time != -1) {
         qemu_mod_timer_ns(ts, expire_time);
     } else {
@@ -203,19 +212,28 @@ void qemu_get_timer(QEMUFile *f, QEMUTimer *ts)
     }
 }
 
+void qemu_get_timer(QEMUFile *f, QEMUTimer *ts)
+{
+    Visitor *v = qemu_file_get_visitor(f);
+    assert(v);
+    qemu_get_timer_visitor(v, "timer", ts, NULL);
+}
+
 /* bool */
 
-static int get_bool(QEMUFile *f, void *pv, size_t size)
+static int get_bool(Visitor *v, const char *name, void *pv, size_t size,
+                    Error **err)
 {
-    bool *v = pv;
-    *v = qemu_get_byte(f);
+    bool *val = pv;
+    visit_type_bool(v, val, name, err);
     return 0;
 }
 
-static void put_bool(QEMUFile *f, void *pv, size_t size)
+static void put_bool(Visitor *v, const char *name, void *pv, size_t size,
+                     Error **err)
 {
-    bool *v = pv;
-    qemu_put_byte(f, *v);
+    bool *val = pv;
+    visit_type_bool(v, val, name, err);
 }
 
 const VMStateInfo vmstate_info_bool = {
@@ -226,17 +244,19 @@ const VMStateInfo vmstate_info_bool = {
 
 /* 8 bit int */
 
-static int get_int8(QEMUFile *f, void *pv, size_t size)
+static int get_int8(Visitor *v, const char *name, void *pv, size_t size,
+                    Error **err)
 {
-    int8_t *v = pv;
-    qemu_get_s8s(f, v);
+    int8_t *val = pv;
+    visit_type_int8(v, val, name, err);
     return 0;
 }
 
-static void put_int8(QEMUFile *f, void *pv, size_t size)
+static void put_int8(Visitor *v, const char *name, void *pv, size_t size,
+                     Error **err)
 {
-    int8_t *v = pv;
-    qemu_put_s8s(f, v);
+    int8_t *val = pv;
+    visit_type_int8(v, val, name, err);
 }
 
 const VMStateInfo vmstate_info_int8 = {
@@ -247,17 +267,19 @@ const VMStateInfo vmstate_info_int8 = {
 
 /* 16 bit int */
 
-static int get_int16(QEMUFile *f, void *pv, size_t size)
+static int get_int16(Visitor *v, const char *name, void *pv, size_t size,
+                     Error **err)
 {
-    int16_t *v = pv;
-    qemu_get_sbe16s(f, v);
+    int16_t *val = pv;
+    visit_type_int16(v, val, name, err);
     return 0;
 }
 
-static void put_int16(QEMUFile *f, void *pv, size_t size)
+static void put_int16(Visitor *v, const char *name, void *pv, size_t size,
+                      Error **err)
 {
-    int16_t *v = pv;
-    qemu_put_sbe16s(f, v);
+    int16_t *val = pv;
+    visit_type_int16(v, val, name, err);
 }
 
 const VMStateInfo vmstate_info_int16 = {
@@ -268,17 +290,19 @@ const VMStateInfo vmstate_info_int16 = {
 
 /* 32 bit int */
 
-static int get_int32(QEMUFile *f, void *pv, size_t size)
+static int get_int32(Visitor *v, const char *name, void *pv, size_t size,
+                     Error **err)
 {
-    int32_t *v = pv;
-    qemu_get_sbe32s(f, v);
+    int32_t *val = pv;
+    visit_type_int32(v, val, name, err);
     return 0;
 }
 
-static void put_int32(QEMUFile *f, void *pv, size_t size)
+static void put_int32(Visitor *v, const char *name, void *pv, size_t size,
+                      Error **err)
 {
-    int32_t *v = pv;
-    qemu_put_sbe32s(f, v);
+    int32_t *val = pv;
+    visit_type_int32(v, val, name, err);
 }
 
 const VMStateInfo vmstate_info_int32 = {
@@ -290,13 +314,14 @@ const VMStateInfo vmstate_info_int32 = {
 /* 32 bit int. See that the received value is the same than the one
    in the field */
 
-static int get_int32_equal(QEMUFile *f, void *pv, size_t size)
+static int get_int32_equal(Visitor *v, const char *name, void *pv, size_t size,
+                           Error **err)
 {
-    int32_t *v = pv;
+    int32_t *v1 = pv;
     int32_t v2;
-    qemu_get_sbe32s(f, &v2);
+    visit_type_int32(v, &v2, name, err);
 
-    if (*v == v2)
+    if (*v1 == v2)
         return 0;
     return -EINVAL;
 }
@@ -310,11 +335,12 @@ const VMStateInfo vmstate_info_int32_equal = {
 /* 32 bit int. See that the received value is the less or the same
    than the one in the field */
 
-static int get_int32_le(QEMUFile *f, void *pv, size_t size)
+static int get_int32_le(Visitor *v, const char *name, void *pv, size_t size,
+                        Error **err)
 {
     int32_t *old = pv;
     int32_t new;
-    qemu_get_sbe32s(f, &new);
+    visit_type_int32(v, &new, name, err);
 
     if (*old <= new)
         return 0;
@@ -329,17 +355,19 @@ const VMStateInfo vmstate_info_int32_le = {
 
 /* 64 bit int */
 
-static int get_int64(QEMUFile *f, void *pv, size_t size)
+static int get_int64(Visitor *v, const char *name, void *pv, size_t size,
+                     Error **err)
 {
-    int64_t *v = pv;
-    qemu_get_sbe64s(f, v);
+    int64_t *val = pv;
+    visit_type_int64(v, val, name, err);
     return 0;
 }
 
-static void put_int64(QEMUFile *f, void *pv, size_t size)
+static void put_int64(Visitor *v, const char *name, void *pv, size_t size,
+                      Error **err)
 {
-    int64_t *v = pv;
-    qemu_put_sbe64s(f, v);
+    int64_t *val = pv;
+    visit_type_int64(v, val, name, err);
 }
 
 const VMStateInfo vmstate_info_int64 = {
@@ -350,17 +378,19 @@ const VMStateInfo vmstate_info_int64 = {
 
 /* 8 bit unsigned int */
 
-static int get_uint8(QEMUFile *f, void *pv, size_t size)
+static int get_uint8(Visitor *v, const char *name, void *pv, size_t size,
+                     Error **err)
 {
-    uint8_t *v = pv;
-    qemu_get_8s(f, v);
+    uint8_t *val = pv;
+    visit_type_uint8(v, val, name, err);
     return 0;
 }
 
-static void put_uint8(QEMUFile *f, void *pv, size_t size)
+static void put_uint8(Visitor *v, const char *name, void *pv, size_t size,
+                      Error **err)
 {
-    uint8_t *v = pv;
-    qemu_put_8s(f, v);
+    uint8_t *val = pv;
+    visit_type_uint8(v, val, name, err);
 }
 
 const VMStateInfo vmstate_info_uint8 = {
@@ -371,17 +401,19 @@ const VMStateInfo vmstate_info_uint8 = {
 
 /* 16 bit unsigned int */
 
-static int get_uint16(QEMUFile *f, void *pv, size_t size)
+static int get_uint16(Visitor *v, const char *name, void *pv, size_t size,
+                      Error **err)
 {
-    uint16_t *v = pv;
-    qemu_get_be16s(f, v);
+    uint16_t *val = pv;
+    visit_type_uint16(v, val, name, err);
     return 0;
 }
 
-static void put_uint16(QEMUFile *f, void *pv, size_t size)
+static void put_uint16(Visitor *v, const char *name, void *pv, size_t size,
+                       Error **err)
 {
-    uint16_t *v = pv;
-    qemu_put_be16s(f, v);
+    uint16_t *val = pv;
+    visit_type_uint16(v, val, name, err);
 }
 
 const VMStateInfo vmstate_info_uint16 = {
@@ -392,17 +424,19 @@ const VMStateInfo vmstate_info_uint16 = {
 
 /* 32 bit unsigned int */
 
-static int get_uint32(QEMUFile *f, void *pv, size_t size)
+static int get_uint32(Visitor *v, const char *name, void *pv, size_t size,
+                      Error **err)
 {
-    uint32_t *v = pv;
-    qemu_get_be32s(f, v);
+    uint32_t *val = pv;
+    visit_type_uint32(v, val, name, err);
     return 0;
 }
 
-static void put_uint32(QEMUFile *f, void *pv, size_t size)
+static void put_uint32(Visitor *v, const char *name, void *pv, size_t size,
+                       Error **err)
 {
-    uint32_t *v = pv;
-    qemu_put_be32s(f, v);
+    uint32_t *val = pv;
+    visit_type_uint32(v, val, name, err);
 }
 
 const VMStateInfo vmstate_info_uint32 = {
@@ -414,13 +448,14 @@ const VMStateInfo vmstate_info_uint32 = {
 /* 32 bit uint. See that the received value is the same than the one
    in the field */
 
-static int get_uint32_equal(QEMUFile *f, void *pv, size_t size)
+static int get_uint32_equal(Visitor *v, const char *name, void *pv, size_t size,
+                            Error **err)
 {
-    uint32_t *v = pv;
+    uint32_t *v1 = pv;
     uint32_t v2;
-    qemu_get_be32s(f, &v2);
+    visit_type_uint32(v, &v2, name, err);
 
-    if (*v == v2) {
+    if (*v1 == v2) {
         return 0;
     }
     return -EINVAL;
@@ -434,17 +469,19 @@ const VMStateInfo vmstate_info_uint32_equal = {
 
 /* 64 bit unsigned int */
 
-static int get_uint64(QEMUFile *f, void *pv, size_t size)
+static int get_uint64(Visitor *v, const char *name, void *pv, size_t size,
+                      Error **err)
 {
-    uint64_t *v = pv;
-    qemu_get_be64s(f, v);
+    uint64_t *val = pv;
+    visit_type_uint64(v, val, name, err);
     return 0;
 }
 
-static void put_uint64(QEMUFile *f, void *pv, size_t size)
+static void put_uint64(Visitor *v, const char *name, void *pv, size_t size,
+                       Error **err)
 {
-    uint64_t *v = pv;
-    qemu_put_be64s(f, v);
+    uint64_t *val = pv;
+    visit_type_uint64(v, val, name, err);
 }
 
 const VMStateInfo vmstate_info_uint64 = {
@@ -456,13 +493,14 @@ const VMStateInfo vmstate_info_uint64 = {
 /* 8 bit int. See that the received value is the same than the one
    in the field */
 
-static int get_uint8_equal(QEMUFile *f, void *pv, size_t size)
+static int get_uint8_equal(Visitor *v, const char *name, void *pv, size_t size,
+                           Error **err)
 {
-    uint8_t *v = pv;
+    uint8_t *v1 = pv;
     uint8_t v2;
-    qemu_get_8s(f, &v2);
+    visit_type_uint8(v, &v2, name, err);
 
-    if (*v == v2)
+    if (*v1 == v2)
         return 0;
     return -EINVAL;
 }
@@ -476,13 +514,14 @@ const VMStateInfo vmstate_info_uint8_equal = {
 /* 16 bit unsigned int int. See that the received value is the same than the one
    in the field */
 
-static int get_uint16_equal(QEMUFile *f, void *pv, size_t size)
+static int get_uint16_equal(Visitor *v, const char *name, void *pv, size_t size,
+                            Error **err)
 {
-    uint16_t *v = pv;
+    uint16_t *v1 = pv;
     uint16_t v2;
-    qemu_get_be16s(f, &v2);
+    visit_type_uint16(v, &v2, name, err);
 
-    if (*v == v2)
+    if (*v1 == v2)
         return 0;
     return -EINVAL;
 }
@@ -495,17 +534,19 @@ const VMStateInfo vmstate_info_uint16_equal = {
 
 /* timers  */
 
-static int get_timer(QEMUFile *f, void *pv, size_t size)
+static int get_timer(Visitor *v, const char *name, void *pv, size_t size,
+                     Error **err)
 {
-    QEMUTimer *v = pv;
-    qemu_get_timer(f, v);
+    QEMUTimer *t = pv;
+    qemu_get_timer_visitor(v, name, t, err);
     return 0;
 }
 
-static void put_timer(QEMUFile *f, void *pv, size_t size)
+static void put_timer(Visitor *v, const char *name, void *pv, size_t size,
+                      Error **err)
 {
-    QEMUTimer *v = pv;
-    qemu_put_timer(f, v);
+    QEMUTimer *t = pv;
+    qemu_put_timer_visitor(v, name, t, err);
 }
 
 const VMStateInfo vmstate_info_timer = {
@@ -516,17 +557,29 @@ const VMStateInfo vmstate_info_timer = {
 
 /* uint8_t buffers */
 
-static int get_buffer(QEMUFile *f, void *pv, size_t size)
+static int get_buffer(Visitor *v, const char *name, void *pv, size_t size,
+                      Error **err)
 {
-    uint8_t *v = pv;
-    qemu_get_buffer(f, v, size);
+    uint8_t *val = pv;
+    int i;
+    visit_start_array(v, NULL, name, size, 1, err);
+    for (i = 0; i < size; i++) {
+        visit_type_uint8(v, &val[i], NULL, err);
+    }
+    visit_end_array(v, err);
     return 0;
 }
 
-static void put_buffer(QEMUFile *f, void *pv, size_t size)
+static void put_buffer(Visitor *v, const char *name, void *pv, size_t size,
+                       Error **err)
 {
-    uint8_t *v = pv;
-    qemu_put_buffer(f, v, size);
+    uint8_t *val = pv;
+    int i;
+    visit_start_array(v, NULL, name, size, 1, err);
+    for (i = 0; i < size; i++) {
+        visit_type_uint8(v, &val[i], NULL, err);
+    }
+    visit_end_array(v, err);
 }
 
 const VMStateInfo vmstate_info_buffer = {
@@ -538,29 +591,39 @@ const VMStateInfo vmstate_info_buffer = {
 /* unused buffers: space that was used for some fields that are
    not useful anymore */
 
-static int get_unused_buffer(QEMUFile *f, void *pv, size_t size)
+static int get_unused_buffer(Visitor *v, const char *name, void *pv,
+                             size_t size, Error **err)
 {
     uint8_t buf[1024];
-    int block_len;
+    int block_len, i;
 
+    visit_start_array(v, NULL, name, size, 1, err);
     while (size > 0) {
         block_len = MIN(sizeof(buf), size);
         size -= block_len;
-        qemu_get_buffer(f, buf, block_len);
+        for (i = 0; i < block_len; i++) {
+            visit_type_uint8(v, &buf[i], NULL, err);
+        }
     }
+    visit_end_array(v, err);
    return 0;
 }
 
-static void put_unused_buffer(QEMUFile *f, void *pv, size_t size)
+static void put_unused_buffer(Visitor *v, const char *name, void *pv,
+                             size_t size, Error **err)
 {
-    static const uint8_t buf[1024];
-    int block_len;
+    static uint8_t buf[1024];
+    int block_len, i;
 
+    visit_start_array(v, NULL, name, size, 1, err);
     while (size > 0) {
         block_len = MIN(sizeof(buf), size);
         size -= block_len;
-        qemu_put_buffer(f, buf, block_len);
+        for (i = 0; i < block_len; i++) {
+            visit_type_uint8(v, &buf[i], NULL, err);
+        }
     }
+    visit_end_array(v, err);
 }
 
 const VMStateInfo vmstate_info_unused_buffer = {
@@ -820,34 +883,57 @@ static void vmstate_subsection_save(QEMUFile *f, const VMStateDescription *vmsd,
 static int vmstate_subsection_load(QEMUFile *f, const VMStateDescription *vmsd,
                                    void *opaque);
 
-int vmstate_load_state(QEMUFile *f, const VMStateDescription *vmsd,
-                       void *opaque, int version_id)
+static bool vmstate_field_needed(VMStateField *field,
+                                 const VMStateDescription *vmsd,
+                                 void *opaque, int version_id, bool load)
+{
+    if (load) {
+        return ((field->field_exists &&
+                 field->field_exists(opaque, version_id)) ||
+                (!field->field_exists && field->version_id <= version_id));
+    }
+    return (!field->field_exists ||
+            field->field_exists(opaque, vmsd->version_id));
+}
+
+static int vmstate_process_qf(QEMUFile *f, const VMStateDescription *vmsd,
+                           void *opaque, int version_id, bool load, Error **errp)
 {
     VMStateField *field = vmsd->fields;
     int ret;
+    Visitor *v = qemu_file_get_visitor(f);
+    Error *err = NULL;
 
-    if (version_id > vmsd->version_id) {
-        return -EINVAL;
+    assert(v);
+    if (load) {
+        if (version_id > vmsd->version_id) {
+            return -EINVAL;
+        }
+        if (version_id < vmsd->minimum_version_id_old) {
+            return -EINVAL;
+        }
+        if  (version_id < vmsd->minimum_version_id) {
+            return vmsd->load_state_old(f, opaque, version_id);
+        }
+        if (vmsd->pre_load) {
+            int ret = vmsd->pre_load(opaque);
+            if (ret) {
+                return ret;
+            }
+        }
+    } else {
+        if (vmsd->pre_save) {
+            vmsd->pre_save(opaque);
+        }
     }
-    if (version_id < vmsd->minimum_version_id_old) {
-        return -EINVAL;
-    }
-    if  (version_id < vmsd->minimum_version_id) {
-        return vmsd->load_state_old(f, opaque, version_id);
-    }
-    if (vmsd->pre_load) {
-        int ret = vmsd->pre_load(opaque);
-        if (ret)
-            return ret;
-    }
+
+    visit_start_struct(v, NULL, NULL, vmsd->name, 0, &err);
     while(field->name) {
-        if ((field->field_exists &&
-             field->field_exists(opaque, version_id)) ||
-            (!field->field_exists &&
-             field->version_id <= version_id)) {
+        if (vmstate_field_needed(field, vmsd, opaque, version_id, load)) {
             void *base_addr = opaque + field->offset;
             int i, n_elems = 1;
             int size = field->size;
+            bool is_array = false;
 
             if (field->flags & VMS_VBUFFER) {
                 size = *(int32_t *)(opaque+field->size_offset);
@@ -857,14 +943,28 @@ int vmstate_load_state(QEMUFile *f, const VMStateDescription *vmsd,
             }
             if (field->flags & VMS_ARRAY) {
                 n_elems = field->num;
+                visit_start_array(v, NULL, field->name, n_elems, size, &err);
+                is_array = true;
             } else if (field->flags & VMS_VARRAY_INT32) {
                 n_elems = *(int32_t *)(opaque+field->num_offset);
+                visit_start_array(v, NULL, field->name, n_elems,
+                                  sizeof(int32_t), &err);
+                is_array = true;
             } else if (field->flags & VMS_VARRAY_UINT32) {
                 n_elems = *(uint32_t *)(opaque+field->num_offset);
+                visit_start_array(v, NULL, field->name, n_elems,
+                                  sizeof(uint32_t), &err);
+                is_array = true;
             } else if (field->flags & VMS_VARRAY_UINT16) {
                 n_elems = *(uint16_t *)(opaque+field->num_offset);
+                visit_start_array(v, NULL, field->name, n_elems,
+                                  sizeof(uint16_t), &err);
+                is_array = true;
             } else if (field->flags & VMS_VARRAY_UINT8) {
                 n_elems = *(uint8_t *)(opaque+field->num_offset);
+                visit_start_array(v, NULL, field->name, n_elems,
+                                  sizeof(uint8_t), &err);
+                is_array = true;
             }
             if (field->flags & VMS_POINTER) {
                 base_addr = *(void **)base_addr + field->start;
@@ -876,77 +976,63 @@ int vmstate_load_state(QEMUFile *f, const VMStateDescription *vmsd,
                     addr = *(void **)addr;
                 }
                 if (field->flags & VMS_STRUCT) {
-                    ret = vmstate_load_state(f, field->vmsd, addr, field->vmsd->version_id);
+                    if (load) {
+                        ret = vmstate_load_state(f, field->vmsd, addr,
+                                                 field->vmsd->version_id);
+                    } else {
+                        vmstate_save_state(f, field->vmsd, addr);
+                    }
                 } else {
-                    ret = field->info->get(f, addr, size);
-
+                    if (load) {
+                        ret = field->info->get(v, field->name, addr, size, &err);
+                    } else {
+                        field->info->put(v, field->name, addr, size, &err);
+                    }
                 }
-                if (ret < 0) {
+                if (load && ret < 0) {
                     return ret;
                 }
             }
+            if (is_array) {
+                visit_end_array(v, &err);
+            }
         }
         field++;
     }
-    ret = vmstate_subsection_load(f, vmsd, opaque);
-    if (ret != 0) {
-        return ret;
+
+    if (error_is_set(&err)) {
+        error_report("error %s state: %s", load ? "loading" : "saving",
+                     error_get_pretty(err));
+        error_propagate(errp, err);
     }
-    if (vmsd->post_load) {
+
+    if (load) {
+        ret = vmstate_subsection_load(f, vmsd, opaque);
+        if (ret != 0) {
+            return ret;
+        }
+    } else {
+        vmstate_subsection_save(f, vmsd, opaque);
+    }
+
+    visit_end_struct(v, &err);
+
+    if (load && vmsd->post_load) {
         return vmsd->post_load(opaque, version_id);
     }
+
     return 0;
 }
 
-void vmstate_save_state(QEMUFile *f, const VMStateDescription *vmsd,
-                        void *opaque)
+int vmstate_load_state(QEMUFile *f, const VMStateDescription *vmsd,
+                       void *opaque, int version_id)
 {
-    VMStateField *field = vmsd->fields;
+    return vmstate_process_qf(f, vmsd, opaque, version_id, VMS_LOAD, NULL);
+}
 
-    if (vmsd->pre_save) {
-        vmsd->pre_save(opaque);
-    }
-    while(field->name) {
-        if (!field->field_exists ||
-            field->field_exists(opaque, vmsd->version_id)) {
-            void *base_addr = opaque + field->offset;
-            int i, n_elems = 1;
-            int size = field->size;
-
-            if (field->flags & VMS_VBUFFER) {
-                size = *(int32_t *)(opaque+field->size_offset);
-                if (field->flags & VMS_MULTIPLY) {
-                    size *= field->size;
-                }
-            }
-            if (field->flags & VMS_ARRAY) {
-                n_elems = field->num;
-            } else if (field->flags & VMS_VARRAY_INT32) {
-                n_elems = *(int32_t *)(opaque+field->num_offset);
-            } else if (field->flags & VMS_VARRAY_UINT16) {
-                n_elems = *(uint16_t *)(opaque+field->num_offset);
-            } else if (field->flags & VMS_VARRAY_UINT8) {
-                n_elems = *(uint8_t *)(opaque+field->num_offset);
-            }
-            if (field->flags & VMS_POINTER) {
-                base_addr = *(void **)base_addr + field->start;
-            }
-            for (i = 0; i < n_elems; i++) {
-                void *addr = base_addr + size * i;
-
-                if (field->flags & VMS_ARRAY_OF_POINTER) {
-                    addr = *(void **)addr;
-                }
-                if (field->flags & VMS_STRUCT) {
-                    vmstate_save_state(f, field->vmsd, addr);
-                } else {
-                    field->info->put(f, addr, size);
-                }
-            }
-        }
-        field++;
-    }
-    vmstate_subsection_save(f, vmsd, opaque);
+void vmstate_save_state(QEMUFile *f, const VMStateDescription *vmsd, void *opaque)
+{
+    vmstate_process_qf(f, vmsd, opaque, 0, VMS_SAVE, NULL);
 }
 
 static int vmstate_load(QEMUFile *f, SaveStateEntry *se, int version_id)
@@ -963,7 +1049,22 @@ static void vmstate_save(QEMUFile *f, SaveStateEntry *se)
         se->save_state(f, se->opaque);
         return;
     }
-    vmstate_save_state(f,se->vmsd, se->opaque);
+    vmstate_save_state(f, se->vmsd, se->opaque);
+}
+
+/* This wrapper allows direct callers of vmstate_load_state/vmstate_save_state
+ * to be migrated to Visitors even though internally we still use QEMUFile
+ * for old-style LoadStateHandler/SaveStateHandler users. Once the latter users
+ * are converted we can modify the interfaces accordingly, allowing us to drop
+ * references to QEMUFile in the vmstate path. Thus, both old-style users and
+ * vmstate users are decoupled from QEMUFile, leaving only live save/load users
+ * and savevm.c, which can then be reworked without touching device code.
+ */
+int vmstate_process(Visitor *v, const VMStateDescription *vmsd,
+                    void *opaque, int version_id, bool load, Error **errp)
+{
+    return vmstate_process_qf(qemu_file_from_visitor(v), vmsd, opaque,
+                              version_id, load, errp);
 }
 
 #define QEMU_VM_FILE_MAGIC           0x5145564d
@@ -1199,40 +1300,60 @@ static const VMStateDescription *vmstate_get_subsection(const VMStateSubsection 
 static int vmstate_subsection_load(QEMUFile *f, const VMStateDescription *vmsd,
                                    void *opaque)
 {
+    Visitor *v = qemu_file_get_visitor(f);
+    Error *err = NULL;
+
+    assert(v);
+
+    visit_start_list(v, "subsections", &err);
+    /* FIXME: unforunately there's no way around using a peek here, since
+     * when using an input visitor we *must* read to know whether or not to
+     * continue, which will misalign the rest of the stream.
+     * When we switch interfaces to be Visitor-centric and move to
+     * and non-QEMUFile-based Visitor this will need to be one of the first
+     * migration compatibility breaks.
+     */
     while (qemu_peek_byte(f, 0) == QEMU_VM_SUBSECTION) {
         char idstr[256];
-        int ret;
-        uint8_t version_id, len, size;
+        int ret, i;
+        uint32_t version_id, len;
         const VMStateDescription *sub_vmsd;
+        uint8_t tag;
 
-        len = qemu_peek_byte(f, 1);
-        if (len < strlen(vmsd->name) + 1) {
-            /* subsection name has be be "section_name/a" */
-            return 0;
-        }
-        size = qemu_peek_buffer(f, (uint8_t *)idstr, len, 2);
-        if (size != len) {
-            return 0;
-        }
-        idstr[size] = 0;
+        visit_start_struct(v, NULL, NULL, NULL, 0, &err);
 
+        visit_type_uint8(v, &tag, "__SUBSECTION__", &err);
+        visit_type_uint8(v, (uint8_t *)&len, "len", &err);
+        visit_start_array(v, NULL, "name", len, 1, &err);
+        for (i = 0; i < len; i++) {
+            visit_type_uint8(v, (uint8_t *)&idstr[i], NULL, &err);
+        }
+        visit_end_array(v, &err);
+        idstr[len] = 0;
         if (strncmp(vmsd->name, idstr, strlen(vmsd->name)) != 0) {
-            /* it don't have a valid subsection name */
+            /* doesn't have a valid subsection name */
             return 0;
         }
+        visit_type_uint32(v, &version_id, "version_id", &err);
+
         sub_vmsd = vmstate_get_subsection(vmsd->subsections, idstr);
         if (sub_vmsd == NULL) {
             return -ENOENT;
         }
-        qemu_file_skip(f, 1); /* subsection */
-        qemu_file_skip(f, 1); /* len */
-        qemu_file_skip(f, len); /* idstr */
-        version_id = qemu_get_be32(f);
 
         ret = vmstate_load_state(f, sub_vmsd, opaque, version_id);
         if (ret) {
             return ret;
         }
+
+        visit_end_struct(v, &err);
+    }
+    visit_end_list(v, &err);
+
+    if (error_is_set(&err)) {
+        error_report("error loading subsections: %s", error_get_pretty(err));
+        error_free(err);
+        return -EINVAL;
     }
     return 0;
 }
@@ -1241,21 +1362,37 @@ static void vmstate_subsection_save(QEMUFile *f, const VMStateDescription *vmsd,
                                     void *opaque)
 {
     const VMStateSubsection *sub = vmsd->subsections;
+    uint8_t tag = QEMU_VM_SUBSECTION;
+    int i;
+    Visitor *v = qemu_file_get_visitor(f);
+    Error *err = NULL;
 
+    assert(v);
+    visit_start_list(v, "subsections", &err);
     while (sub && sub->needed) {
         if (sub->needed(opaque)) {
             const VMStateDescription *vmsd = sub->vmsd;
             uint8_t len;
 
-            qemu_put_byte(f, QEMU_VM_SUBSECTION);
+            visit_start_struct(v, NULL, NULL, NULL, 0, &err);
+
+            visit_type_uint8(v, &tag, "__SUBSECTION__", &err);
             len = strlen(vmsd->name);
-            qemu_put_byte(f, len);
-            qemu_put_buffer(f, (uint8_t *)vmsd->name, len);
-            qemu_put_be32(f, vmsd->version_id);
+            visit_type_uint8(v, &len, "len", &err);
+            visit_start_array(v, (void **)&vmsd->name, "name", len, 1, &err);
+            for (i = 0; i < len; i++) {
+                visit_type_uint8(v, (uint8_t *)&vmsd->name[i], NULL, &err);
+            }
+            visit_end_array(v, &err);
+            visit_type_uint32(v, (uint32_t *)&vmsd->version_id, "version_id", &err);
+            assert(!vmsd->subsections);
             vmstate_save_state(f, vmsd, opaque);
+
+            visit_end_struct(v, &err);
         }
         sub++;
     }
+    visit_end_list(v, &err);
 }
 
 typedef struct LoadStateEntry {

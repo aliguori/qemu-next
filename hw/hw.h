@@ -293,8 +293,8 @@ typedef struct VMStateDescription VMStateDescription;
 
 struct VMStateInfo {
     const char *name;
-    int (*get)(QEMUFile *f, void *pv, size_t size);
-    void (*put)(QEMUFile *f, void *pv, size_t size);
+    int (*get)(Visitor *v, const char *name, void *pv, size_t size, Error **err);
+    void (*put)(Visitor *v, const char *name, void *pv, size_t size, Error **err);
 };
 
 enum VMStateFlags {
@@ -941,10 +941,14 @@ extern const VMStateDescription vmstate_hid_ptr_device;
 #define VMSTATE_END_OF_LIST()                                         \
     {}
 
+#define VMS_LOAD true
+#define VMS_SAVE false
 int vmstate_load_state(QEMUFile *f, const VMStateDescription *vmsd,
                        void *opaque, int version_id);
 void vmstate_save_state(QEMUFile *f, const VMStateDescription *vmsd,
                         void *opaque);
+int vmstate_process(Visitor *v, const VMStateDescription *vmsd,
+                    void *opaque, int version_id, bool load,Error **errp);
 int vmstate_register(DeviceState *dev, int instance_id,
                      const VMStateDescription *vmsd, void *base);
 int vmstate_register_with_alias_id(DeviceState *dev, int instance_id,

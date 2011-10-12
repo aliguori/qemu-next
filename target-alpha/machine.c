@@ -1,17 +1,22 @@
 #include "hw/hw.h"
 #include "hw/boards.h"
 
-static int get_fpcr(QEMUFile *f, void *opaque, size_t size)
+static int get_fpcr(Visitor *v, const char *name, void *opaque,
+                    size_t size, Error **err)
 {
     CPUAlphaState *env = opaque;
-    cpu_alpha_store_fpcr(env, qemu_get_be64(f));
+    uint64_t fpcr;
+    visit_type_uint64(v, &fpcr, name, err);
+    cpu_alpha_store_fpcr(env, fpcr);
     return 0;
 }
 
-static void put_fpcr(QEMUFile *f, void *opaque, size_t size)
+static void put_fpcr(Visitor *v, const char *name, void *opaque,
+                     size_t size, Error **err)
 {
     CPUAlphaState *env = opaque;
-    qemu_put_be64(f, cpu_alpha_load_fpcr(env));
+    uint64_t fpcr = cpu_alpha_load_fpcr(env);
+    visit_type_uint64(v, &fpcr, name, err);
 }
 
 static const VMStateInfo vmstate_fpcr = {

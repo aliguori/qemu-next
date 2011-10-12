@@ -326,14 +326,18 @@ static void fw_cfg_reset(DeviceState *d)
    Or we broke compatibility in the state, or we can't use struct tm
  */
 
-static int get_uint32_as_uint16(QEMUFile *f, void *pv, size_t size)
+static int get_uint32_as_uint16(Visitor *v, const char *name, void *pv,
+                                size_t size, Error **err)
 {
-    uint32_t *v = pv;
-    *v = qemu_get_be16(f);
+    uint32_t *val = pv;
+    uint16_t val2;
+    visit_type_uint16(v, &val2, name, err);
+    *val = val2;
     return 0;
 }
 
-static void put_unused(QEMUFile *f, void *pv, size_t size)
+static void put_unused(Visitor *v, const char *name, void *pv, size_t size,
+                       Error **err)
 {
     fprintf(stderr, "uint32_as_uint16 is only used for backward compatibility.\n");
     fprintf(stderr, "This functions shouldn't be called.\n");
