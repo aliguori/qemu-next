@@ -68,11 +68,6 @@ void tlb_fill(CPUState *env1, target_ulong addr, int is_write, int mmu_idx,
             /* now we have a real cpu fault */
             pc = (unsigned long)retaddr;
             tb = tb_find_pc(pc);
-            if (likely(tb)) {
-                /* the PC is inside the translated code. It means that we have
-                   a virtual CPU fault */
-                cpu_restore_state(tb, env, pc);
-            }
         }
         cpu_loop_exit(env);
     }

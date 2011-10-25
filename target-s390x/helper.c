@@ -76,15 +76,10 @@ CPUS390XState *cpu_s390x_init(const char *cpu_model)
 #if !defined (CONFIG_USER_ONLY)
     struct tm tm;
 #endif
-    static int inited = 0;
     static int cpu_num = 0;
 
     env = g_malloc0(sizeof(CPUS390XState));
     cpu_exec_init(env);
-    if (tcg_enabled() && !inited) {
-        inited = 1;
-        s390x_translate_init();
-    }
 
 #if !defined(CONFIG_USER_ONLY)
     qemu_get_timedate(&tm, 0);
@@ -125,7 +120,6 @@ void cpu_reset(CPUS390XState *env)
 {
     if (qemu_loglevel_mask(CPU_LOG_RESET)) {
         qemu_log("CPU Reset (CPU %d)\n", env->cpu_index);
-        log_cpu_state(env, 0);
     }
 
     memset(env, 0, offsetof(CPUS390XState, breakpoints));
