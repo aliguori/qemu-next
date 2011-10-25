@@ -220,7 +220,6 @@ int cpu_exec(CPUState *env)
     env->reserve_addr = -1;
 #elif defined(TARGET_LM32)
 #elif defined(TARGET_MICROBLAZE)
-#elif defined(TARGET_MIPS)
 #elif defined(TARGET_SH4)
 #elif defined(TARGET_CRIS)
 #elif defined(TARGET_S390X)
@@ -273,7 +272,7 @@ int cpu_exec(CPUState *env)
                         env->exception_index = EXCP_DEBUG;
                         cpu_loop_exit(env);
                     }
-#if defined(TARGET_ARM) || defined(TARGET_SPARC) || defined(TARGET_MIPS) || \
+#if defined(TARGET_ARM) || defined(TARGET_SPARC) || \
     defined(TARGET_PPC) || defined(TARGET_ALPHA) || defined(TARGET_CRIS) || \
     defined(TARGET_MICROBLAZE) || defined(TARGET_LM32) || defined(TARGET_UNICORE32)
                     if (interrupt_request & CPU_INTERRUPT_HALT) {
@@ -363,15 +362,6 @@ int cpu_exec(CPUState *env)
                         && !(env->sregs[SR_MSR] & (MSR_EIP | MSR_BIP))
                         && !(env->iflags & (D_FLAG | IMM_FLAG))) {
                         env->exception_index = EXCP_IRQ;
-                        do_interrupt(env);
-                        next_tb = 0;
-                    }
-#elif defined(TARGET_MIPS)
-                    if ((interrupt_request & CPU_INTERRUPT_HARD) &&
-                        cpu_mips_hw_interrupts_pending(env)) {
-                        /* Raise it */
-                        env->exception_index = EXCP_EXT_INTERRUPT;
-                        env->error_code = 0;
                         do_interrupt(env);
                         next_tb = 0;
                     }
@@ -620,7 +610,6 @@ int cpu_exec(CPUState *env)
     env->sr = (env->sr & 0xffe0)
               | env->cc_dest | (env->cc_x << 4);
 #elif defined(TARGET_MICROBLAZE)
-#elif defined(TARGET_MIPS)
 #elif defined(TARGET_SH4)
 #elif defined(TARGET_ALPHA)
 #elif defined(TARGET_CRIS)

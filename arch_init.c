@@ -68,8 +68,6 @@ const char arch_config_name[] = CONFIG_QEMU_CONFDIR "/target-" TARGET_ARCH ".con
 #define QEMU_ARCH QEMU_ARCH_LM32
 #elif defined(TARGET_MICROBLAZE)
 #define QEMU_ARCH QEMU_ARCH_MICROBLAZE
-#elif defined(TARGET_MIPS)
-#define QEMU_ARCH QEMU_ARCH_MIPS
 #elif defined(TARGET_PPC)
 #define QEMU_ARCH QEMU_ARCH_PPC
 #elif defined(TARGET_S390X)
@@ -480,7 +478,7 @@ struct soundhw {
 
 static struct soundhw soundhw[] = {
 #ifdef HAS_AUDIO_CHOICE
-#if defined(TARGET_I386) || defined(TARGET_MIPS)
+#if defined(TARGET_I386)
     {
         "pcspk",
         "PC speaker",

@@ -194,12 +194,6 @@ void target_disas(FILE *out, target_ulong code, target_ulong size, int flags)
     print_insn = print_insn_ppc;
 #elif defined(TARGET_M68K)
     print_insn = print_insn_m68k;
-#elif defined(TARGET_MIPS)
-#ifdef TARGET_WORDS_BIGENDIAN
-    print_insn = print_insn_big_mips;
-#else
-    print_insn = print_insn_little_mips;
-#endif
 #elif defined(TARGET_SH4)
     disasm_info.mach = bfd_mach_sh4;
     print_insn = print_insn_sh;
@@ -290,10 +284,6 @@ void disas(FILE *out, void *code, unsigned long size)
 #endif
 #elif defined(__arm__)
     print_insn = print_insn_arm;
-#elif defined(__MIPSEB__)
-    print_insn = print_insn_big_mips;
-#elif defined(__MIPSEL__)
-    print_insn = print_insn_little_mips;
 #elif defined(__m68k__)
     print_insn = print_insn_m68k;
 #elif defined(__s390__)
@@ -407,12 +397,6 @@ void monitor_disas(Monitor *mon, CPUState *env,
     print_insn = print_insn_ppc;
 #elif defined(TARGET_M68K)
     print_insn = print_insn_m68k;
-#elif defined(TARGET_MIPS)
-#ifdef TARGET_WORDS_BIGENDIAN
-    print_insn = print_insn_big_mips;
-#else
-    print_insn = print_insn_little_mips;
-#endif
 #elif defined(TARGET_SH4)
     disasm_info.mach = bfd_mach_sh4;
     print_insn = print_insn_sh;

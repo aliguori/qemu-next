@@ -274,8 +274,6 @@ elif check_define _ARCH_PPC ; then
   else
     cpu="ppc"
   fi
-elif check_define __mips__ ; then
-  cpu="mips"
 elif check_define __ia64__ ; then
   cpu="ia64"
 elif check_define __s390__ ; then
@@ -312,9 +310,6 @@ case "$cpu" in
   ;;
   hppa|parisc|parisc64)
     cpu="hppa"
-  ;;
-  mips*)
-    cpu="mips"
   ;;
   s390)
     cpu="s390"
@@ -837,9 +832,6 @@ case "$cpu" in
     ppc*)
            host_guest_base="yes"
            ;;
-    mips*)
-           host_guest_base="yes"
-           ;;
     ia64*)
            host_guest_base="yes"
            ;;
@@ -868,10 +860,6 @@ lm32-softmmu \
 m68k-softmmu \
 microblaze-softmmu \
 microblazeel-softmmu \
-mips-softmmu \
-mipsel-softmmu \
-mips64-softmmu \
-mips64el-softmmu \
 ppc-softmmu \
 ppcemb-softmmu \
 ppc64-softmmu \
@@ -896,8 +884,6 @@ cris-linux-user \
 m68k-linux-user \
 microblaze-linux-user \
 microblazeel-linux-user \
-mips-linux-user \
-mipsel-linux-user \
 ppc-linux-user \
 ppc64-linux-user \
 ppc64abi32-linux-user \
@@ -1171,7 +1157,7 @@ else
 
 # if cross compiling, cannot launch a program, so make a static guess
 case "$cpu" in
-  armv4b|hppa|m68k|mips|mips64|ppc|ppc64|s390|s390x|sparc|sparc64)
+  armv4b|hppa|m68k|ppc|ppc64|s390|s390x|sparc|sparc64)
     bigendian=yes
   ;;
 esac
@@ -2770,7 +2756,7 @@ echo "docdir=$docdir" >> $config_host_mak
 echo "confdir=$confdir" >> $config_host_mak
 
 case "$cpu" in
-  i386|x86_64|alpha|cris|hppa|ia64|lm32|m68k|microblaze|mips|mips64|ppc|ppc64|s390|s390x|sparc|sparc64|unicore32)
+  i386|x86_64|alpha|cris|hppa|ia64|lm32|m68k|microblaze|ppc|ppc64|s390|s390x|sparc|sparc64|unicore32)
     ARCH=$cpu
   ;;
   armv4b|armv4l)
@@ -3172,7 +3158,7 @@ target_arch2=`echo $target | cut -d '-' -f 1`
 target_bigendian="no"
 
 case "$target_arch2" in
-  armeb|lm32|m68k|microblaze|mips|mipsn32|mips64|ppc|ppcemb|ppc64|ppc64abi32|s390x|sh4eb|sparc|sparc64|sparc32plus|xtensaeb)
+  armeb|lm32|m68k|microblaze|ppc|ppcemb|ppc64|ppc64abi32|s390x|sh4eb|sparc|sparc64|sparc32plus|xtensaeb)
   target_bigendian=yes
   ;;
 esac
@@ -3287,25 +3273,6 @@ case "$target_arch2" in
     target_nptl="yes"
     target_phys_bits=32
     target_libs_softmmu="$fdt_libs"
-  ;;
-  mips|mipsel)
-    TARGET_ARCH=mips
-    echo "TARGET_ABI_MIPSO32=y" >> $config_target_mak
-    target_nptl="yes"
-    target_phys_bits=64
-  ;;
-  mipsn32|mipsn32el)
-    TARGET_ARCH=mipsn32
-    TARGET_BASE_ARCH=mips
-    echo "TARGET_ABI_MIPSN32=y" >> $config_target_mak
-    target_phys_bits=64
-  ;;
-  mips64|mips64el)
-    TARGET_ARCH=mips64
-    TARGET_BASE_ARCH=mips
-    echo "TARGET_ABI_MIPSN64=y" >> $config_target_mak
-    target_phys_bits=64
-    target_long_alignment=8
   ;;
   ppc)
     gdb_xml_files="power-core.xml power-fpu.xml power-altivec.xml power-spe.xml"
@@ -3528,10 +3495,6 @@ for i in $ARCH $TARGET_BASE_ARCH ; do
     echo "CONFIG_MICROBLAZE_DIS=y"  >> $config_target_mak
     echo "CONFIG_MICROBLAZE_DIS=y"  >> $libdis_config_mak
   ;;
-  mips*)
-    echo "CONFIG_MIPS_DIS=y"  >> $config_target_mak
-    echo "CONFIG_MIPS_DIS=y"  >> $libdis_config_mak
-  ;;
   ppc*)
     echo "CONFIG_PPC_DIS=y"  >> $config_target_mak
     echo "CONFIG_PPC_DIS=y"  >> $libdis_config_mak
@@ -3570,7 +3533,7 @@ if test "$target_softmmu" = "yes" ; then
   lm32)
     cflags="-DHAS_AUDIO $cflags"
   ;;
-  i386|mips|ppc)
+  i386|ppc)
     cflags="-DHAS_AUDIO -DHAS_AUDIO_CHOICE $cflags"
   ;;
   esac
