@@ -266,7 +266,7 @@ else
 fi
 
 case "$cpu" in
-  alpha|cris|ia64|ppc|ppc64)
+  alpha|ia64|ppc|ppc64)
     cpu="$cpu"
   ;;
   i386|i486|i586|i686|i86pc|BePC)
@@ -768,7 +768,6 @@ i386-softmmu \
 x86_64-softmmu \
 alpha-softmmu \
 arm-softmmu \
-cris-softmmu \
 ppc-softmmu \
 ppcemb-softmmu \
 ppc64-softmmu \
@@ -2559,7 +2558,7 @@ echo "docdir=$docdir" >> $config_host_mak
 echo "confdir=$confdir" >> $config_host_mak
 
 case "$cpu" in
-  i386|x86_64|alpha|cris|hppa|ia64|ppc|ppc64|s390|s390x)
+  i386|x86_64|alpha|hppa|ia64|ppc|ppc64|s390|s390x)
     ARCH=$cpu
   ;;
   armv4b|armv4l)
@@ -3023,10 +3022,6 @@ case "$target_arch2" in
     target_phys_bits=32
     target_llong_alignment=4
   ;;
-  cris)
-    target_nptl="yes"
-    target_phys_bits=32
-  ;;
   ppc)
     gdb_xml_files="power-core.xml power-fpu.xml power-altivec.xml power-spe.xml"
     target_phys_bits=32
@@ -3167,10 +3162,6 @@ for i in $ARCH $TARGET_BASE_ARCH ; do
     echo "CONFIG_ARM_DIS=y"  >> $config_target_mak
     echo "CONFIG_ARM_DIS=y"  >> $libdis_config_mak
   ;;
-  cris)
-    echo "CONFIG_CRIS_DIS=y"  >> $config_target_mak
-    echo "CONFIG_CRIS_DIS=y"  >> $libdis_config_mak
-  ;;
   hppa)
     echo "CONFIG_HPPA_DIS=y"  >> $config_target_mak
     echo "CONFIG_HPPA_DIS=y"  >> $libdis_config_mak
@@ -3212,11 +3203,6 @@ if test "$target_softmmu" = "yes" ; then
   esac
 fi
 
-if test "$target_softmmu" = "yes" -a \( \
-        "$TARGET_ARCH" = "cris" \) ; then
-  echo "CONFIG_NEED_MMU=y" >> $config_target_mak
-fi
-
 if test "$gprof" = "yes" ; then
   echo "TARGET_GPROF=yes" >> $config_target_mak
   if test "$target_softmmu" = "yes" ; then
@@ -3249,14 +3235,13 @@ echo "QEMU_INCLUDES+=$includes" >> $config_target_mak
 done # for target in $targets
 
 # build tree in object directory in case the source is not in the current directory
-DIRS="tests tests/cris slirp audio block net pc-bios/optionrom"
+DIRS="tests slirp audio block net pc-bios/optionrom"
 DIRS="$DIRS pc-bios/spapr-rtas"
 DIRS="$DIRS roms/seabios roms/vgabios"
 DIRS="$DIRS fsdev ui"
 DIRS="$DIRS qapi qapi-generated"
 DIRS="$DIRS qga trace"
 FILES="Makefile tests/Makefile qdict-test-data.txt"
-FILES="$FILES tests/cris/Makefile tests/cris/.gdbinit"
 FILES="$FILES pc-bios/optionrom/Makefile pc-bios/keymaps"
 FILES="$FILES pc-bios/spapr-rtas/Makefile"
 FILES="$FILES roms/seabios/Makefile roms/vgabios/Makefile"
