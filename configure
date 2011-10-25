@@ -79,7 +79,6 @@ source_path=`dirname "$0"`
 cpu=""
 interp_prefix="/usr/gnemul/qemu-%M"
 static="no"
-sparc_cpu=""
 cross_prefix=""
 audio_drv_list=""
 audio_card_list="ac97 es1370 sb16 hda"
@@ -196,21 +195,6 @@ for opt do
   ;;
   --extra-ldflags=*) LDFLAGS="$optarg $LDFLAGS"
   ;;
-  --sparc_cpu=*)
-    sparc_cpu="$optarg"
-    case $sparc_cpu in
-    v7|v8|v8plus|v8plusa)
-      cpu="sparc"
-    ;;
-    v9)
-      cpu="sparc64"
-    ;;
-    *)
-      echo "undefined SPARC architecture. Exiting";
-      exit 1
-    ;;
-    esac
-  ;;
   esac
 done
 # OS specific
@@ -257,14 +241,6 @@ elif check_define __i386__ ; then
   cpu="i386"
 elif check_define __x86_64__ ; then
   cpu="x86_64"
-elif check_define __sparc__ ; then
-  # We can't check for 64 bit (when gcc is biarch) or V8PLUSA
-  # They must be specified using --sparc_cpu
-  if check_define __arch64__ ; then
-    cpu="sparc64"
-  else
-    cpu="sparc"
-  fi
 elif check_define _ARCH_PPC ; then
   if check_define _ARCH_PPC64 ; then
     cpu="ppc64"
@@ -290,7 +266,7 @@ else
 fi
 
 case "$cpu" in
-  alpha|cris|ia64|lm32|m68k|microblaze|ppc|ppc64|sparc64|unicore32)
+  alpha|cris|ia64|lm32|m68k|microblaze|ppc|ppc64unicore32)
     cpu="$cpu"
   ;;
   i386|i486|i586|i686|i86pc|BePC)
@@ -313,9 +289,6 @@ case "$cpu" in
   ;;
   s390x)
     cpu="s390x"
-  ;;
-  sparc|sun4[cdmuv])
-    cpu="sparc"
   ;;
   *)
     echo "Unsupported CPU = $cpu"
@@ -661,8 +634,6 @@ for opt do
   ;;
   --enable-uname-release=*) uname_release="$optarg"
   ;;
-  --sparc_cpu=*)
-  ;;
   --enable-werror) werror="yes"
   ;;
   --disable-werror) werror="no"
@@ -748,31 +719,6 @@ done
 #
 host_guest_base="no"
 case "$cpu" in
-    sparc) case $sparc_cpu in
-           v7|v8)
-             QEMU_CFLAGS="-mcpu=${sparc_cpu} -D__sparc_${sparc_cpu}__ $QEMU_CFLAGS"
-           ;;
-           v8plus|v8plusa)
-             QEMU_CFLAGS="-mcpu=ultrasparc -D__sparc_${sparc_cpu}__ $QEMU_CFLAGS"
-           ;;
-           *) # sparc_cpu not defined in the command line
-             QEMU_CFLAGS="-mcpu=ultrasparc -D__sparc_v8plus__ $QEMU_CFLAGS"
-           esac
-           LDFLAGS="-m32 $LDFLAGS"
-           QEMU_CFLAGS="-m32 -ffixed-g2 -ffixed-g3 $QEMU_CFLAGS"
-           if test "$solaris" = "no" ; then
-             QEMU_CFLAGS="-ffixed-g1 -ffixed-g6 $QEMU_CFLAGS"
-             helper_cflags="-ffixed-i0"
-           fi
-           ;;
-    sparc64)
-           QEMU_CFLAGS="-m64 -mcpu=ultrasparc -D__sparc_v9__ $QEMU_CFLAGS"
-           LDFLAGS="-m64 $LDFLAGS"
-           QEMU_CFLAGS="-ffixed-g5 -ffixed-g6 -ffixed-g7 $QEMU_CFLAGS"
-           if test "$solaris" != "no" ; then
-             QEMU_CFLAGS="-ffixed-g1 $QEMU_CFLAGS"
-           fi
-           ;;
     s390)
            QEMU_CFLAGS="-m31 -march=z990 $QEMU_CFLAGS"
            LDFLAGS="-m31 $LDFLAGS"
@@ -835,8 +781,6 @@ ppcemb-softmmu \
 ppc64-softmmu \
 sh4-softmmu \
 sh4eb-softmmu \
-sparc-softmmu \
-sparc64-softmmu \
 s390x-softmmu \
 "
 fi
@@ -940,7 +884,6 @@ echo "  --fmod-lib               path to FMOD library"
 echo "  --fmod-inc               path to FMOD includes"
 echo "  --oss-lib                path to OSS library"
 echo "  --enable-uname-release=R Return R for uname -r in usermode emulation"
-echo "  --sparc_cpu=V            Build qemu for Sparc architecture v7, v8, v8plus, v8plusa, v9"
 echo "  --disable-uuid           disable uuid support"
 echo "  --enable-uuid            enable uuid support"
 echo "  --disable-vde            disable support for vde network"
@@ -1086,7 +1029,7 @@ else
 
 # if cross compiling, cannot launch a program, so make a static guess
 case "$cpu" in
-  armv4b|hppa|m68k|ppc|ppc64|s390|s390x|sparc|sparc64)
+  armv4b|hppa|m68k|ppc|ppc64|s390|s390x)
     bigendian=yes
   ;;
 esac
@@ -2570,9 +2513,6 @@ if test "$vnc" = "yes" ; then
     echo "VNC PNG support   $vnc_png"
     echo "VNC thread        $vnc_thread"
 fi
-if test -n "$sparc_cpu"; then
-    echo "Target Sparc Arch $sparc_cpu"
-fi
 echo "xen support       $xen"
 echo "brlapi support    $brlapi"
 echo "bluez  support    $bluez"
@@ -2628,7 +2568,7 @@ echo "docdir=$docdir" >> $config_host_mak
 echo "confdir=$confdir" >> $config_host_mak
 
 case "$cpu" in
-  i386|x86_64|alpha|cris|hppa|ia64|lm32|m68k|microblaze|ppc|ppc64|s390|s390x|sparc|sparc64|unicore32)
+  i386|x86_64|alpha|cris|hppa|ia64|lm32|m68k|microblaze|ppc|ppc64|s390|s390x|unicore32)
     ARCH=$cpu
   ;;
   armv4b|armv4l)
@@ -3030,7 +2970,7 @@ target_arch2=`echo $target | cut -d '-' -f 1`
 target_bigendian="no"
 
 case "$target_arch2" in
-  armeb|lm32|m68k|microblaze|ppc|ppcemb|ppc64|ppc64abi32|s390x|sh4eb|sparc|sparc64|sparc32plus)
+  armeb|lm32|m68k|microblaze|ppc|ppcemb|ppc64|ppc64abi32|s390x|sh4eb)
   target_bigendian=yes
   ;;
 esac
@@ -3152,21 +3092,6 @@ case "$target_arch2" in
     target_nptl="yes"
     target_phys_bits=32
   ;;
-  sparc)
-    target_phys_bits=64
-  ;;
-  sparc64)
-    TARGET_BASE_ARCH=sparc
-    target_phys_bits=64
-    target_long_alignment=8
-  ;;
-  sparc32plus)
-    TARGET_ARCH=sparc64
-    TARGET_BASE_ARCH=sparc
-    TARGET_ABI_DIR=sparc
-    echo "TARGET_ABI32=y" >> $config_target_mak
-    target_phys_bits=64
-  ;;
   s390x)
     target_nptl="yes"
     target_phys_bits=64
@@ -3258,9 +3183,7 @@ cflags=""
 includes=""
 ldflags=""
 
-if test "$ARCH" = "sparc64" ; then
-  includes="-I\$(SRC_PATH)/tcg/sparc $includes"
-elif test "$ARCH" = "s390x" ; then
+if test "$ARCH" = "s390x" ; then
   includes="-I\$(SRC_PATH)/tcg/s390 $includes"
 elif test "$ARCH" = "x86_64" ; then
   includes="-I\$(SRC_PATH)/tcg/i386 $includes"
@@ -3316,10 +3239,6 @@ for i in $ARCH $TARGET_BASE_ARCH ; do
   sh4)
     echo "CONFIG_SH4_DIS=y"  >> $config_target_mak
     echo "CONFIG_SH4_DIS=y"  >> $libdis_config_mak
-  ;;
-  sparc*)
-    echo "CONFIG_SPARC_DIS=y"  >> $config_target_mak
-    echo "CONFIG_SPARC_DIS=y"  >> $libdis_config_mak
   ;;
   esac
 done
