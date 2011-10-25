@@ -718,7 +718,6 @@ default_target_list=""
 # these targets are portable
 if [ "$softmmu" = "yes" ] ; then
     default_target_list="\
-i386-softmmu \
 x86_64-softmmu \
 "
 fi
@@ -2937,9 +2936,6 @@ TARGET_BASE_ARCH=""
 TARGET_ABI_DIR=""
 
 case "$target_arch2" in
-  i386)
-    target_phys_bits=64
-  ;;
   x86_64)
     TARGET_BASE_ARCH=i386
     target_phys_bits=64
@@ -2968,7 +2964,7 @@ if [ "$TARGET_ABI_DIR" = "" ]; then
 fi
 echo "TARGET_ABI_DIR=$TARGET_ABI_DIR" >> $config_target_mak
 case "$target_arch2" in
-  i386|x86_64)
+  x86_64)
     if test "$xen" = "yes" -a "$target_softmmu" = "yes" ; then
       target_phys_bits=64
       echo "CONFIG_XEN=y" >> $config_target_mak
@@ -2980,7 +2976,7 @@ case "$target_arch2" in
     echo "CONFIG_NO_XEN=y" >> $config_target_mak
 esac
 case "$target_arch2" in
-  i386|x86_64)
+  x86_64)
     # Make sure the target and host cpus are compatible
     if test "$kvm" = "yes" -a "$target_softmmu" = "yes" -a \
       \( "$target_arch2" = "$cpu" -o \
@@ -3029,7 +3025,7 @@ for i in $ARCH $TARGET_BASE_ARCH ; do
     echo "CONFIG_HPPA_DIS=y"  >> $config_target_mak
     echo "CONFIG_HPPA_DIS=y"  >> $libdis_config_mak
   ;;
-  i386|x86_64)
+  x86_64)
     echo "CONFIG_I386_DIS=y"  >> $config_target_mak
     echo "CONFIG_I386_DIS=y"  >> $libdis_config_mak
   ;;
@@ -3061,7 +3057,7 @@ if test "$linux" = "yes" ; then
   includes="-I\$(SRC_PATH)/linux-headers $includes"
   mkdir -p linux-headers
   case "$cpu" in
-  i386|x86_64)
+  x86_64)
     symlink $source_path/linux-headers/asm-x86 linux-headers/asm
     ;;
   esac
