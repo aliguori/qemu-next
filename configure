@@ -241,12 +241,6 @@ elif check_define __i386__ ; then
   cpu="i386"
 elif check_define __x86_64__ ; then
   cpu="x86_64"
-elif check_define _ARCH_PPC ; then
-  if check_define _ARCH_PPC64 ; then
-    cpu="ppc64"
-  else
-    cpu="ppc"
-  fi
 elif check_define __ia64__ ; then
   cpu="ia64"
 elif check_define __s390__ ; then
@@ -260,7 +254,7 @@ else
 fi
 
 case "$cpu" in
-  ia64|ppc|ppc64)
+  ia64)
     cpu="$cpu"
   ;;
   i386|i486|i586|i686|i86pc|BePC)
@@ -730,9 +724,6 @@ case "$cpu" in
            cc_i386='$(CC) -m32'
            host_guest_base="yes"
            ;;
-    ppc*)
-           host_guest_base="yes"
-           ;;
     ia64*)
            host_guest_base="yes"
            ;;
@@ -751,9 +742,6 @@ if [ "$softmmu" = "yes" ] ; then
     default_target_list="\
 i386-softmmu \
 x86_64-softmmu \
-ppc-softmmu \
-ppcemb-softmmu \
-ppc64-softmmu \
 s390x-softmmu \
 "
 fi
@@ -1002,7 +990,7 @@ else
 
 # if cross compiling, cannot launch a program, so make a static guess
 case "$cpu" in
-  hppa|ppc|ppc64|s390|s390x)
+  hppa|s390|s390x)
     bigendian=yes
   ;;
 esac
@@ -2429,9 +2417,6 @@ if test \( "$cpu" = "i386" -o "$cpu" = "x86_64" \) -a \
         "$softmmu" = yes ; then
   roms="optionrom"
 fi
-if test "$cpu" = "ppc64" -a "$targetos" != "Darwin" ; then
-  roms="$roms spapr-rtas"
-fi
 
 echo "Install prefix    $prefix"
 echo "BIOS directory    `eval echo $datadir`"
@@ -2541,7 +2526,7 @@ echo "docdir=$docdir" >> $config_host_mak
 echo "confdir=$confdir" >> $config_host_mak
 
 case "$cpu" in
-  i386|x86_64|hppa|ia64|ppc|ppc64|s390|s390x)
+  i386|x86_64|hppa|ia64|s390|s390x)
     ARCH=$cpu
   ;;
 esac
@@ -2940,7 +2925,7 @@ target_arch2=`echo $target | cut -d '-' -f 1`
 target_bigendian="no"
 
 case "$target_arch2" in
-  ppc|ppcemb|ppc64|ppc64abi32|s390x)
+  s390x)
   target_bigendian=yes
   ;;
 esac
@@ -2988,37 +2973,6 @@ case "$target_arch2" in
     target_phys_bits=64
     target_long_alignment=8
   ;;
-  ppc)
-    gdb_xml_files="power-core.xml power-fpu.xml power-altivec.xml power-spe.xml"
-    target_phys_bits=32
-    target_nptl="yes"
-    target_libs_softmmu="$fdt_libs"
-  ;;
-  ppcemb)
-    TARGET_BASE_ARCH=ppc
-    TARGET_ABI_DIR=ppc
-    gdb_xml_files="power-core.xml power-fpu.xml power-altivec.xml power-spe.xml"
-    target_phys_bits=64
-    target_nptl="yes"
-    target_libs_softmmu="$fdt_libs"
-  ;;
-  ppc64)
-    TARGET_BASE_ARCH=ppc
-    TARGET_ABI_DIR=ppc
-    gdb_xml_files="power64-core.xml power-fpu.xml power-altivec.xml power-spe.xml"
-    target_phys_bits=64
-    target_long_alignment=8
-    target_libs_softmmu="$fdt_libs"
-  ;;
-  ppc64abi32)
-    TARGET_ARCH=ppc64
-    TARGET_BASE_ARCH=ppc
-    TARGET_ABI_DIR=ppc
-    echo "TARGET_ABI32=y" >> $config_target_mak
-    gdb_xml_files="power64-core.xml power-fpu.xml power-altivec.xml power-spe.xml"
-    target_phys_bits=64
-    target_libs_softmmu="$fdt_libs"
-  ;;
   s390x)
     target_nptl="yes"
     target_phys_bits=64
@@ -3059,14 +3013,10 @@ case "$target_arch2" in
     echo "CONFIG_NO_XEN=y" >> $config_target_mak
 esac
 case "$target_arch2" in
-  i386|x86_64|ppcemb|ppc|ppc64|s390x)
+  i386|x86_64|s390x)
     # Make sure the target and host cpus are compatible
     if test "$kvm" = "yes" -a "$target_softmmu" = "yes" -a \
       \( "$target_arch2" = "$cpu" -o \
-      \( "$target_arch2" = "ppcemb" -a "$cpu" = "ppc" \) -o \
-      \( "$target_arch2" = "ppc64"  -a "$cpu" = "ppc" \) -o \
-      \( "$target_arch2" = "ppc"    -a "$cpu" = "ppc64" \) -o \
-      \( "$target_arch2" = "ppcemb" -a "$cpu" = "ppc64" \) -o \
       \( "$target_arch2" = "x86_64" -a "$cpu" = "i386"   \) -o \
       \( "$target_arch2" = "i386"   -a "$cpu" = "x86_64" \) \) ; then
       echo "CONFIG_KVM=y" >> $config_target_mak
@@ -3075,9 +3025,6 @@ case "$target_arch2" in
       fi
     fi
 esac
-if test "$target_arch2" = "ppc64" -a "$fdt" = "yes"; then
-  echo "CONFIG_PSERIES=y" >> $config_target_mak
-fi
 if test "$target_bigendian" = "yes" ; then
   echo "TARGET_WORDS_BIGENDIAN=y" >> $config_target_mak
 fi
@@ -3123,10 +3070,6 @@ for i in $ARCH $TARGET_BASE_ARCH ; do
     echo "CONFIG_IA64_DIS=y"  >> $config_target_mak
     echo "CONFIG_IA64_DIS=y"  >> $libdis_config_mak
   ;;
-  ppc*)
-    echo "CONFIG_PPC_DIS=y"  >> $config_target_mak
-    echo "CONFIG_PPC_DIS=y"  >> $libdis_config_mak
-  ;;
   s390*)
     echo "CONFIG_S390_DIS=y"  >> $config_target_mak
     echo "CONFIG_S390_DIS=y"  >> $libdis_config_mak
@@ -3136,7 +3079,7 @@ done
 
 if test "$target_softmmu" = "yes" ; then
   case "$TARGET_BASE_ARCH" in
-  i386|ppc)
+  i386)
     cflags="-DHAS_AUDIO -DHAS_AUDIO_CHOICE $cflags"
   ;;
   esac
@@ -3157,9 +3100,6 @@ if test "$linux" = "yes" ; then
   case "$cpu" in
   i386|x86_64)
     symlink $source_path/linux-headers/asm-x86 linux-headers/asm
-    ;;
-  ppcemb|ppc|ppc64)
-    symlink $source_path/linux-headers/asm-powerpc linux-headers/asm
     ;;
   s390x)
     symlink $source_path/linux-headers/asm-s390 linux-headers/asm
