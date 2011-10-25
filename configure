@@ -2999,8 +2999,8 @@ if test "$target_softmmu" = "yes" ; then
   echo "TARGET_PHYS_ADDR_BITS=$target_phys_bits" >> $config_target_mak
   echo "CONFIG_SOFTMMU=y" >> $config_target_mak
   echo "LIBS+=$libs_softmmu $target_libs_softmmu" >> $config_target_mak
-  echo "HWDIR=../libhw$target_phys_bits" >> $config_target_mak
-  echo "subdir-$target: subdir-libhw$target_phys_bits" >> $config_host_mak
+  echo "HWDIR=../libhw64" >> $config_target_mak
+  echo "subdir-$target: subdir-libhw64" >> $config_host_mak
 fi
 if test "$smartcard_nss" = "yes" ; then
   echo "subdir-$target: subdir-libcacard" >> $config_host_mak
