@@ -160,9 +160,6 @@ solaris="no"
 profiler="no"
 cocoa="no"
 softmmu="yes"
-linux_user="no"
-darwin_user="no"
-bsd_user="no"
 guest_base=""
 uname_release=""
 mixemu="no"
@@ -401,7 +398,6 @@ Darwin)
   else
     QEMU_CFLAGS="-mdynamic-no-pic $QEMU_CFLAGS"
   fi
-  darwin_user="yes"
   cocoa="yes"
   audio_drv_list="coreaudio"
   audio_possible_drivers="coreaudio sdl fmod"
@@ -462,7 +458,6 @@ Haiku)
   audio_drv_list="oss"
   audio_possible_drivers="oss alsa sdl esd pa"
   linux="yes"
-  linux_user="yes"
   usb="linux"
   kvm="yes"
   vhost_net="yes"
@@ -471,13 +466,6 @@ Haiku)
   fi
 ;;
 esac
-
-if [ "$bsd" = "yes" ] ; then
-  if [ "$darwin" != "yes" ] ; then
-    usb="bsd"
-  fi
-  bsd_user="yes"
-fi
 
 : ${make=${MAKE-make}}
 : ${install=${INSTALL-install}}
@@ -662,24 +650,6 @@ for opt do
   --disable-system) softmmu="no"
   ;;
   --enable-system) softmmu="yes"
-  ;;
-  --disable-user)
-      linux_user="no" ;
-      bsd_user="no" ;
-      darwin_user="no"
-  ;;
-  --enable-user) ;;
-  --disable-linux-user) linux_user="no"
-  ;;
-  --enable-linux-user) linux_user="yes"
-  ;;
-  --disable-darwin-user) darwin_user="no"
-  ;;
-  --enable-darwin-user) darwin_user="yes"
-  ;;
-  --disable-bsd-user) bsd_user="no"
-  ;;
-  --enable-bsd-user) bsd_user="yes"
   ;;
   --enable-guest-base) guest_base="yes"
   ;;
@@ -872,43 +842,6 @@ xtensa-softmmu \
 xtensaeb-softmmu \
 "
 fi
-# the following are Linux specific
-if [ "$linux_user" = "yes" ] ; then
-    default_target_list="${default_target_list}\
-i386-linux-user \
-x86_64-linux-user \
-alpha-linux-user \
-arm-linux-user \
-armeb-linux-user \
-cris-linux-user \
-m68k-linux-user \
-microblaze-linux-user \
-microblazeel-linux-user \
-ppc-linux-user \
-ppc64-linux-user \
-ppc64abi32-linux-user \
-sh4-linux-user \
-sh4eb-linux-user \
-sparc-linux-user \
-sparc64-linux-user \
-sparc32plus-linux-user \
-unicore32-linux-user \
-s390x-linux-user \
-"
-fi
-# the following are Darwin specific
-if [ "$darwin_user" = "yes" ] ; then
-    default_target_list="$default_target_list i386-darwin-user ppc-darwin-user "
-fi
-# the following are BSD specific
-if [ "$bsd_user" = "yes" ] ; then
-    default_target_list="${default_target_list}\
-i386-bsd-user \
-x86_64-bsd-user \
-sparc-bsd-user \
-sparc64-bsd-user \
-"
-fi
 
 if test x"$show_help" = x"yes" ; then
 cat << EOF
@@ -996,8 +929,6 @@ echo "  --enable-system          enable all system emulation targets"
 echo "  --disable-system         disable all system emulation targets"
 echo "  --enable-user            enable supported user emulation targets"
 echo "  --disable-user           disable all user emulation targets"
-echo "  --enable-linux-user      enable all linux usermode emulation targets"
-echo "  --disable-linux-user     disable all linux usermode emulation targets"
 echo "  --enable-darwin-user     enable all darwin usermode emulation targets"
 echo "  --disable-darwin-user    disable all darwin usermode emulation targets"
 echo "  --enable-bsd-user        enable all BSD usermode emulation targets"
@@ -2013,63 +1944,6 @@ EOF
   fi
 fi
 
-#
-# Check for xxxat() functions when we are building linux-user
-# emulator.  This is done because older glibc versions don't
-# have syscall stubs for these implemented.
-#
-atfile=no
-cat > $TMPC << EOF
-#define _ATFILE_SOURCE
-#include <sys/types.h>
-#include <fcntl.h>
-#include <unistd.h>
-
-int
-main(void)
-{
-	/* try to unlink nonexisting file */
-	return (unlinkat(AT_FDCWD, "nonexistent_file", 0));
-}
-EOF
-if compile_prog "" "" ; then
-  atfile=yes
-fi
-
-# Check for inotify functions when we are building linux-user
-# emulator.  This is done because older glibc versions don't
-# have syscall stubs for these implemented.  In that case we
-# don't provide them even if kernel supports them.
-#
-inotify=no
-cat > $TMPC << EOF
-#include <sys/inotify.h>
-
-int
-main(void)
-{
-	/* try to start inotify */
-	return inotify_init();
-}
-EOF
-if compile_prog "" "" ; then
-  inotify=yes
-fi
-
-inotify1=no
-cat > $TMPC << EOF
-#include <sys/inotify.h>
-
-int
-main(void)
-{
-    /* try to start inotify */
-    return inotify_init1(0);
-}
-EOF
-if compile_prog "" "" ; then
-  inotify1=yes
-fi
 
 # check if utimensat and futimens are supported
 utimens=no
@@ -3163,37 +3037,9 @@ case "$target_arch2" in
   ;;
 esac
 target_softmmu="no"
-target_user_only="no"
-target_linux_user="no"
-target_darwin_user="no"
-target_bsd_user="no"
 case "$target" in
   ${target_arch2}-softmmu)
     target_softmmu="yes"
-    ;;
-  ${target_arch2}-linux-user)
-    if test "$linux" != "yes" ; then
-      echo "ERROR: Target '$target' is only available on a Linux host"
-      exit 1
-    fi
-    target_user_only="yes"
-    target_linux_user="yes"
-    ;;
-  ${target_arch2}-darwin-user)
-    if test "$darwin" != "yes" ; then
-      echo "ERROR: Target '$target' is only available on a Darwin host"
-      exit 1
-    fi
-    target_user_only="yes"
-    target_darwin_user="yes"
-    ;;
-  ${target_arch2}-bsd-user)
-    if test "$bsd" != "yes" ; then
-      echo "ERROR: Target '$target' is only available on a BSD host"
-      exit 1
-    fi
-    target_user_only="yes"
-    target_bsd_user="yes"
     ;;
   *)
     echo "ERROR: Target '$target' not recognised"
@@ -3206,9 +3052,6 @@ mkdir -p $target_dir/fpu
 mkdir -p $target_dir/tcg
 mkdir -p $target_dir/ide
 mkdir -p $target_dir/9pfs
-if test "$target" = "arm-linux-user" -o "$target" = "armeb-linux-user" -o "$target" = "arm-bsd-user" -o "$target" = "armeb-bsd-user" ; then
-  mkdir -p $target_dir/nwfpe
-fi
 symlink $source_path/Makefile.target $target_dir/Makefile
 
 
@@ -3402,15 +3245,6 @@ if test "$target_softmmu" = "yes" ; then
   echo "HWDIR=../libhw$target_phys_bits" >> $config_target_mak
   echo "subdir-$target: subdir-libhw$target_phys_bits" >> $config_host_mak
 fi
-if test "$target_user_only" = "yes" ; then
-  echo "CONFIG_USER_ONLY=y" >> $config_target_mak
-fi
-if test "$target_linux_user" = "yes" ; then
-  echo "CONFIG_LINUX_USER=y" >> $config_target_mak
-fi
-if test "$target_darwin_user" = "yes" ; then
-  echo "CONFIG_DARWIN_USER=y" >> $config_target_mak
-fi
 if test "$smartcard_nss" = "yes" ; then
   echo "subdir-$target: subdir-libcacard" >> $config_host_mak
   echo "libcacard_libs=$libcacard_libs" >> $config_host_mak
@@ -3422,20 +3256,6 @@ if test ! -z "$gdb_xml_files" ; then
     list="$list $source_path/gdb-xml/$x"
   done
   echo "TARGET_XML_FILES=$list" >> $config_target_mak
-fi
-
-if test "$target_user_only" = "yes" -a "$bflt" = "yes"; then
-  echo "TARGET_HAS_BFLT=y" >> $config_target_mak
-fi
-if test "$target_user_only" = "yes" \
-        -a "$nptl" = "yes" -a "$target_nptl" = "yes"; then
-  echo "CONFIG_USE_NPTL=y" >> $config_target_mak
-fi
-if test "$target_user_only" = "yes" -a "$guest_base" = "yes"; then
-  echo "CONFIG_USE_GUEST_BASE=y" >> $config_target_mak
-fi
-if test "$target_bsd_user" = "yes" ; then
-  echo "CONFIG_BSD_USER=y" >> $config_target_mak
 fi
 
 # generate QEMU_CFLAGS/LDFLAGS for targets
@@ -3455,11 +3275,7 @@ else
 fi
 includes="-I\$(SRC_PATH)/tcg $includes"
 
-if test "$target_user_only" = "yes" ; then
-    libdis_config_mak=libdis-user/config.mak
-else
-    libdis_config_mak=libdis/config.mak
-fi
+libdis_config_mak=libdis/config.mak
 
 for i in $ARCH $TARGET_BASE_ARCH ; do
   case "$i" in
@@ -3539,12 +3355,6 @@ if test "$target_softmmu" = "yes" ; then
   esac
 fi
 
-if test "$target_user_only" = "yes" -a "$static" = "no" -a \
-	"$user_pie" = "yes" ; then
-  cflags="-fpie $cflags"
-  ldflags="-pie $ldflags"
-fi
-
 if test "$target_softmmu" = "yes" -a \( \
         "$TARGET_ARCH" = "microblaze" -o \
         "$TARGET_ARCH" = "cris" \) ; then
@@ -3553,30 +3363,10 @@ fi
 
 if test "$gprof" = "yes" ; then
   echo "TARGET_GPROF=yes" >> $config_target_mak
-  if test "$target_linux_user" = "yes" ; then
-    cflags="-p $cflags"
-    ldflags="-p $ldflags"
-  fi
   if test "$target_softmmu" = "yes" ; then
     ldflags="-p $ldflags"
     echo "GPROF_CFLAGS=-p" >> $config_target_mak
   fi
-fi
-
-linker_script="-Wl,-T../config-host.ld -Wl,-T,\$(SRC_PATH)/\$(ARCH).ld"
-if test "$target_linux_user" = "yes" -o "$target_bsd_user" = "yes" ; then
-  case "$ARCH" in
-  sparc)
-    # -static is used to avoid g1/g3 usage by the dynamic linker
-    ldflags="$linker_script -static $ldflags"
-    ;;
-  alpha | s390x)
-    # The default placement of the application is fine.
-    ;;
-  *)
-    ldflags="$linker_script $ldflags"
-    ;;
-  esac
 fi
 
 # use included Linux headers
@@ -3662,7 +3452,6 @@ fi
 d=libuser
 mkdir -p $d
 mkdir -p $d/trace
-symlink $source_path/Makefile.user $d/Makefile
 if test "$static" = "no" -a "$user_pie" = "yes" ; then
   echo "QEMU_CFLAGS+=-fpie" > $d/config.mak
 fi
