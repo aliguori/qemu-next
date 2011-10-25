@@ -260,7 +260,7 @@ else
 fi
 
 case "$cpu" in
-  alpha|ia64|ppc|ppc64)
+  ia64|ppc|ppc64)
     cpu="$cpu"
   ;;
   i386|i486|i586|i686|i86pc|BePC)
@@ -751,7 +751,6 @@ if [ "$softmmu" = "yes" ] ; then
     default_target_list="\
 i386-softmmu \
 x86_64-softmmu \
-alpha-softmmu \
 ppc-softmmu \
 ppcemb-softmmu \
 ppc64-softmmu \
@@ -2542,7 +2541,7 @@ echo "docdir=$docdir" >> $config_host_mak
 echo "confdir=$confdir" >> $config_host_mak
 
 case "$cpu" in
-  i386|x86_64|alpha|hppa|ia64|ppc|ppc64|s390|s390x)
+  i386|x86_64|hppa|ia64|ppc|ppc64|s390|s390x)
     ARCH=$cpu
   ;;
 esac
@@ -2990,11 +2989,6 @@ case "$target_arch2" in
     target_phys_bits=64
     target_long_alignment=8
   ;;
-  alpha)
-    target_phys_bits=64
-    target_long_alignment=8
-    target_nptl="yes"
-  ;;
   ppc)
     gdb_xml_files="power-core.xml power-fpu.xml power-altivec.xml power-spe.xml"
     target_phys_bits=32
@@ -3127,10 +3121,6 @@ libdis_config_mak=libdis/config.mak
 
 for i in $ARCH $TARGET_BASE_ARCH ; do
   case "$i" in
-  alpha)
-    echo "CONFIG_ALPHA_DIS=y"  >> $config_target_mak
-    echo "CONFIG_ALPHA_DIS=y"  >> $libdis_config_mak
-  ;;
   hppa)
     echo "CONFIG_HPPA_DIS=y"  >> $config_target_mak
     echo "CONFIG_HPPA_DIS=y"  >> $libdis_config_mak
@@ -3153,13 +3143,6 @@ for i in $ARCH $TARGET_BASE_ARCH ; do
   ;;
   esac
 done
-
-case "$ARCH" in
-alpha)
-  # Ensure there's only a single GP
-  cflags="-msmall-data $cflags"
-;;
-esac
 
 if test "$target_softmmu" = "yes" ; then
   case "$TARGET_BASE_ARCH" in
