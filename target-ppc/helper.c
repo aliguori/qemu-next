@@ -3133,7 +3133,6 @@ void cpu_reset(CPUPPCState *env)
 
     if (qemu_loglevel_mask(CPU_LOG_RESET)) {
         qemu_log("CPU Reset (CPU %d)\n", env->cpu_index);
-        log_cpu_state(env, 0);
     }
 
     msr = (target_ulong)0;
@@ -3178,19 +3177,20 @@ void cpu_reset(CPUPPCState *env)
 CPUPPCState *cpu_ppc_init (const char *cpu_model)
 {
     CPUPPCState *env;
+#if 0
     const ppc_def_t *def;
 
     def = cpu_ppc_find_by_name(cpu_model);
     if (!def)
         return NULL;
+#endif
 
     env = g_malloc0(sizeof(CPUPPCState));
     cpu_exec_init(env);
-    if (tcg_enabled()) {
-        ppc_translate_init();
-    }
     env->cpu_model_str = cpu_model;
+#if 0
     cpu_ppc_register_internal(env, def);
+#endif
 
     qemu_init_vcpu(env);
 

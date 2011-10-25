@@ -26,7 +26,6 @@
 
 #include "qemu-common.h"
 #include "cpu.h"
-#include "tcg.h"
 #include "hw/hw.h"
 #include "hw/qdev.h"
 #include "osdep.h"
@@ -567,15 +566,9 @@ static void code_gen_alloc(unsigned long tb_size)
    size. */
 void tcg_exec_init(unsigned long tb_size)
 {
-    cpu_gen_init();
     code_gen_alloc(tb_size);
     code_gen_ptr = code_gen_buffer;
     page_init();
-#if !defined(CONFIG_USER_ONLY) || !defined(CONFIG_USE_GUEST_BASE)
-    /* There's no guest base to take into account, so go ahead and
-       initialize the prologue now.  */
-    tcg_prologue_init(&tcg_ctx);
-#endif
 }
 
 bool tcg_enabled(void)
@@ -985,7 +978,7 @@ TranslationBlock *tb_gen_code(CPUState *env,
     uint8_t *tc_ptr;
     tb_page_addr_t phys_pc, phys_page2;
     target_ulong virt_page2;
-    int code_gen_size;
+    int code_gen_size = 0;
 
     phys_pc = get_page_addr_code(env, pc);
     tb = tb_alloc(pc);
@@ -1002,7 +995,6 @@ TranslationBlock *tb_gen_code(CPUState *env,
     tb->cs_base = cs_base;
     tb->flags = flags;
     tb->cflags = cflags;
-    cpu_gen_code(env, tb, &code_gen_size);
     code_gen_ptr = (void *)(((unsigned long)code_gen_ptr + code_gen_size + CODE_GEN_ALIGN - 1) & ~(CODE_GEN_ALIGN - 1));
 
     /* check next page if needed */
@@ -1083,7 +1075,6 @@ void tb_invalidate_phys_page_range(tb_page_addr_t start, tb_page_addr_t end,
                 restore the CPU state */
 
                 current_tb_modified = 1;
-                cpu_restore_state(current_tb, env, env->mem_io_pc);
                 cpu_get_tb_cpu_state(env, &current_pc, &current_cs_base,
                                      &current_flags);
             }
@@ -1191,7 +1182,6 @@ static void tb_invalidate_phys_page(tb_page_addr_t addr,
                    restore the CPU state */
 
             current_tb_modified = 1;
-            cpu_restore_state(current_tb, env, pc);
             cpu_get_tb_cpu_state(env, &current_pc, &current_cs_base,
                                  &current_flags);
         }
@@ -1897,20 +1887,10 @@ void cpu_abort(CPUState *env, const char *fmt, ...)
     fprintf(stderr, "qemu: fatal: ");
     vfprintf(stderr, fmt, ap);
     fprintf(stderr, "\n");
-#ifdef TARGET_I386
-    cpu_dump_state(env, stderr, fprintf, X86_DUMP_FPU | X86_DUMP_CCOP);
-#else
-    cpu_dump_state(env, stderr, fprintf, 0);
-#endif
     if (qemu_log_enabled()) {
         qemu_log("qemu: fatal: ");
         qemu_log_vprintf(fmt, ap2);
         qemu_log("\n");
-#ifdef TARGET_I386
-        log_cpu_state(env, X86_DUMP_FPU | X86_DUMP_CCOP);
-#else
-        log_cpu_state(env, 0);
-#endif
         qemu_log_flush();
         qemu_log_close();
     }
@@ -3420,7 +3400,6 @@ static void check_watchpoint(int offset, int len_mask, int flags)
                     cpu_abort(env, "check_watchpoint: could not find TB for "
                               "pc=%p", (void *)env->mem_io_pc);
                 }
-                cpu_restore_state(tb, env, env->mem_io_pc);
                 tb_phys_invalidate(tb, -1);
                 if (wp->flags & BP_STOP_BEFORE_ACCESS) {
                     env->exception_index = EXCP_DEBUG;
@@ -4661,7 +4640,6 @@ void cpu_io_recompile(CPUState *env, void *retaddr)
                   retaddr);
     }
     n = env->icount_decr.u16.low + tb->icount;
-    cpu_restore_state(tb, env, (unsigned long)retaddr);
     /* Calculate how many instructions had been executed before the fault
        occurred.  */
     n = n - env->icount_decr.u16.low;
@@ -4756,7 +4734,6 @@ void dump_exec_info(FILE *f, fprintf_function cpu_fprintf)
     cpu_fprintf(f, "TB flush count      %d\n", tb_flush_count);
     cpu_fprintf(f, "TB invalidate count %d\n", tb_phys_invalidate_count);
     cpu_fprintf(f, "TLB flush count     %d\n", tlb_flush_count);
-    tcg_dump_info(f, cpu_fprintf);
 }
 
 #define MMUSUFFIX _cmmu

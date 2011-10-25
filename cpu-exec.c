@@ -19,7 +19,6 @@
 #include "config.h"
 #include "cpu.h"
 #include "disas.h"
-#include "tcg.h"
 #include "qemu-barrier.h"
 
 int tb_invalidated_flag;
@@ -67,7 +66,7 @@ static void cpu_exec_nocache(CPUState *env, int max_cycles,
                      max_cycles);
     env->current_tb = tb;
     /* execute the generated code */
-    next_tb = tcg_qemu_tb_exec(env, tb->tc_ptr);
+    next_tb = 0;
     env->current_tb = NULL;
 
     if ((next_tb & 3) == 2) {
@@ -515,8 +514,6 @@ int cpu_exec(CPUState *env)
                     env->sr = (env->sr & 0xffe0)
                               | env->cc_dest | (env->cc_x << 4);
                     log_cpu_state(env, 0);
-#else
-                    log_cpu_state(env, 0);
 #endif
                 }
 #endif /* DEBUG_DISAS || CONFIG_DEBUG_EXEC */
@@ -553,7 +550,7 @@ int cpu_exec(CPUState *env)
                 if (likely(!env->exit_request)) {
                     tc_ptr = tb->tc_ptr;
                 /* execute the generated code */
-                    next_tb = tcg_qemu_tb_exec(env, tc_ptr);
+                    next_tb = 0;
                     if ((next_tb & 3) == 2) {
                         /* Instruction counter expired.  */
                         int insns_left;

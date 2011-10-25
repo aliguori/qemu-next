@@ -81,7 +81,7 @@ common-obj-y += $(oslib-obj-y)
 common-obj-$(CONFIG_WIN32) += os-win32.o
 common-obj-$(CONFIG_POSIX) += os-posix.o
 
-common-obj-y += tcg-runtime.o host-utils.o main-loop.o
+common-obj-y += host-utils.o main-loop.o
 common-obj-y += irq.o input.o
 common-obj-$(CONFIG_PTIMER) += ptimer.o
 common-obj-$(CONFIG_MAX7310) += max7310.o
@@ -175,7 +175,7 @@ common-obj-$(CONFIG_XEN_BACKEND) += xen_console.o xenfb.o xen_disk.o xen_nic.o
 
 user-obj-y =
 user-obj-y += envlist.o path.o
-user-obj-y += tcg-runtime.o host-utils.o
+user-obj-y += host-utils.o
 user-obj-y += cutils.o cache-utils.o
 user-obj-y += $(trace-obj-y)
 

@@ -797,15 +797,6 @@ static CPUState *mon_get_cpu(void)
 
 static void do_info_registers(Monitor *mon)
 {
-    CPUState *env;
-    env = mon_get_cpu();
-#ifdef TARGET_I386
-    cpu_dump_state(env, (FILE *)mon, monitor_fprintf,
-                   X86_DUMP_FPU);
-#else
-    cpu_dump_state(env, (FILE *)mon, monitor_fprintf,
-                   0);
-#endif
 }
 
 static void print_cpu_iter(QObject *obj, void *opaque)
@@ -930,17 +921,6 @@ static void do_info_history(Monitor *mon)
         i++;
     }
 }
-
-#if defined(TARGET_PPC)
-/* XXX: not implemented in other targets */
-static void do_info_cpu_stats(Monitor *mon)
-{
-    CPUState *env;
-
-    env = mon_get_cpu();
-    cpu_dump_statistics(env, (FILE *)mon, &monitor_fprintf, 0);
-}
-#endif
 
 #if defined(CONFIG_TRACE_SIMPLE)
 static void do_info_trace(Monitor *mon)
@@ -2977,15 +2957,6 @@ static const mon_cmd_t info_cmds[] = {
         .help       = "show the current VM UUID",
         .mhandler.info = hmp_info_uuid,
     },
-#if defined(TARGET_PPC)
-    {
-        .name       = "cpustats",
-        .args_type  = "",
-        .params     = "",
-        .help       = "show CPU statistics",
-        .mhandler.info = do_info_cpu_stats,
-    },
-#endif
 #if defined(CONFIG_SLIRP)
     {
         .name       = "usernet",
