@@ -266,7 +266,7 @@ else
 fi
 
 case "$cpu" in
-  alpha|cris|ia64|lm32|m68k|microblaze|ppc|ppc64unicore32)
+  alpha|cris|ia64|lm32|m68k|microblaze|ppc|ppc64)
     cpu="$cpu"
   ;;
   i386|i486|i586|i686|i86pc|BePC)
@@ -752,9 +752,6 @@ case "$cpu" in
            host_guest_base="yes"
            ;;
     hppa*)
-           host_guest_base="yes"
-           ;;
-    unicore32*)
            host_guest_base="yes"
            ;;
 esac
@@ -2566,7 +2563,7 @@ echo "docdir=$docdir" >> $config_host_mak
 echo "confdir=$confdir" >> $config_host_mak
 
 case "$cpu" in
-  i386|x86_64|alpha|cris|hppa|ia64|lm32|m68k|microblaze|ppc|ppc64|s390|s390x|unicore32)
+  i386|x86_64|alpha|cris|hppa|ia64|lm32|m68k|microblaze|ppc|ppc64|s390|s390x)
     ARCH=$cpu
   ;;
   armv4b|armv4l)
@@ -3088,9 +3085,6 @@ case "$target_arch2" in
     target_nptl="yes"
     target_phys_bits=64
     target_long_alignment=8
-  ;;
-  unicore32)
-    target_phys_bits=32
   ;;
   *)
     echo "Unsupported target CPU"
