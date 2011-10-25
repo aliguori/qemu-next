@@ -266,7 +266,7 @@ else
 fi
 
 case "$cpu" in
-  alpha|cris|ia64|lm32|m68k|microblaze|ppc|ppc64)
+  alpha|cris|ia64|lm32|m68k|ppc|ppc64)
     cpu="$cpu"
   ;;
   i386|i486|i586|i686|i86pc|BePC)
@@ -771,8 +771,6 @@ arm-softmmu \
 cris-softmmu \
 lm32-softmmu \
 m68k-softmmu \
-microblaze-softmmu \
-microblazeel-softmmu \
 ppc-softmmu \
 ppcemb-softmmu \
 ppc64-softmmu \
@@ -2563,7 +2561,7 @@ echo "docdir=$docdir" >> $config_host_mak
 echo "confdir=$confdir" >> $config_host_mak
 
 case "$cpu" in
-  i386|x86_64|alpha|cris|hppa|ia64|lm32|m68k|microblaze|ppc|ppc64|s390|s390x)
+  i386|x86_64|alpha|cris|hppa|ia64|lm32|m68k|ppc|ppc64|s390|s390x)
     ARCH=$cpu
   ;;
   armv4b|armv4l)
@@ -2965,7 +2963,7 @@ target_arch2=`echo $target | cut -d '-' -f 1`
 target_bigendian="no"
 
 case "$target_arch2" in
-  armeb|lm32|m68k|microblaze|ppc|ppcemb|ppc64|ppc64abi32|s390x)
+  armeb|lm32|m68k|ppc|ppcemb|ppc64|ppc64abi32|s390x)
   target_bigendian=yes
   ;;
 esac
@@ -3042,13 +3040,6 @@ case "$target_arch2" in
     target_int_alignment=2
     target_long_alignment=2
     target_llong_alignment=2
-  ;;
-  microblaze|microblazeel)
-    TARGET_ARCH=microblaze
-    bflt="yes"
-    target_nptl="yes"
-    target_phys_bits=32
-    target_libs_softmmu="$fdt_libs"
   ;;
   ppc)
     gdb_xml_files="power-core.xml power-fpu.xml power-altivec.xml power-spe.xml"
@@ -3210,10 +3201,6 @@ for i in $ARCH $TARGET_BASE_ARCH ; do
     echo "CONFIG_M68K_DIS=y"  >> $config_target_mak
     echo "CONFIG_M68K_DIS=y"  >> $libdis_config_mak
   ;;
-  microblaze*)
-    echo "CONFIG_MICROBLAZE_DIS=y"  >> $config_target_mak
-    echo "CONFIG_MICROBLAZE_DIS=y"  >> $libdis_config_mak
-  ;;
   ppc*)
     echo "CONFIG_PPC_DIS=y"  >> $config_target_mak
     echo "CONFIG_PPC_DIS=y"  >> $libdis_config_mak
@@ -3247,7 +3234,6 @@ if test "$target_softmmu" = "yes" ; then
 fi
 
 if test "$target_softmmu" = "yes" -a \( \
-        "$TARGET_ARCH" = "microblaze" -o \
         "$TARGET_ARCH" = "cris" \) ; then
   echo "CONFIG_NEED_MMU=y" >> $config_target_mak
 fi
