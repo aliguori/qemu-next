@@ -8,6 +8,8 @@
 #include <pthread.h>
 #include "pci.h"
 
+#define DIRECT_IRQ_INJECTION 1
+#define EDGE_TRIGGER 1
 //#define DEBUG_VIRTIO_NET2 1
 
 #ifdef DEBUG_VIRTIO_NET2
@@ -78,7 +80,11 @@ static VirtioNet2 *to_vnet(PCIDevice *pci_dev)
 
 static void virtio_net_update_irq(VirtioNet2 *n)
 {
+#ifdef DIRECT_IRQ_INJECTION
+    kvm_irq_level(11, !!(n->isr & 1));
+#else
     qemu_set_irq(n->pci_dev.irq[0], !!(n->isr & 1));
+#endif
 }
 
 static void virtio_net_process_eventfd(void *opaque)
@@ -100,11 +106,20 @@ static void virtio_net_kick(VirtioNet2 *n, VirtioQueue2 *vq)
 {
     mb();
     if (!(vq->avail->flags & VRING_AVAIL_F_NO_INTERRUPT)) {
+#ifdef DIRECT_IRQ_INJECTION
+        n->isr = 1; // FIXME testandset
+        kvm_irq_level(11, 1);
+#ifdef EDGE_TRIGGER
+        kvm_irq_level(11, 0);
+        n->isr = 0;
+#endif
+#else
         uint64_t count = 1;
         ssize_t len;
 
         len = write(n->event_fd, &count, sizeof(count));
         assert(len != -1);
+#endif
     }
 }
 
@@ -187,6 +202,7 @@ static void *virtio_net_tx_thread(void *opaque)
 {
     VirtioNet2 *n = opaque;
     VirtioQueue2 *vq = &n->vq[1];
+    bool needs_kick = false;
 
     vq->used->flags |= VRING_USED_F_NO_NOTIFY;
 
@@ -195,11 +211,18 @@ static void *virtio_net_tx_thread(void *opaque)
         unsigned in_num, out_num;
         unsigned head;
         ssize_t len;
+        size_t count = 0;
 
         do {
             in_num = out_num = 0;
             head = virtio_net_next_avail(n, vq, sg, vq->num, &in_num, &out_num);
-        } while (head == vq->num);
+            count += 1;
+        } while (head == vq->num && count < 100000);
+
+        if (head == vq->num && needs_kick) {
+            virtio_net_kick(n, vq);
+            needs_kick = false;
+        }
 
         while (head != vq->num) {
             dprintf("got tx packet %d %d %d", head, in_num, out_num);
@@ -211,14 +234,13 @@ static void *virtio_net_tx_thread(void *opaque)
 
             assert(len != -1);
             dprintf("wrote %ld", len);
+            needs_kick = true;
 
             virtio_net_add_used(vq, head, 0);
 
             in_num = out_num = 0;
             head = virtio_net_next_avail(n, vq, sg, vq->num, &in_num, &out_num);
         }
-
-        virtio_net_kick(n, vq);
     }
 
     return NULL;
@@ -303,7 +325,7 @@ static uint32_t virtio_net_config_read(void *opaque, uint32_t addr, int size)
         break;
     case VIRTIO_PCI_ISR:
         value = n->isr;
-        n->isr = 0;
+        n->isr = 0; // FIXME testandset
         virtio_net_update_irq(n);
         break;
     default:

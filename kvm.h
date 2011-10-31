@@ -221,6 +221,8 @@ int kvm_irqchip_in_kernel(void);
 
 int kvm_set_irq(int irq, int level, int *status);
 
+int kvm_irq_level(int irq, int level);
+
 #ifdef NEED_CPU_H
 #include "qemu-kvm.h"
 #endif

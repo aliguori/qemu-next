@@ -1460,5 +1460,13 @@ int kvm_on_sigbus(int code, void *addr)
     return kvm_arch_on_sigbus(code, addr);
 }
 
+int kvm_irq_level(int irq, int level)
+{
+    struct kvm_irq_level intr;
+    intr.irq = irq;
+    intr.level = level;
+    return kvm_vm_ioctl(kvm_state, KVM_IRQ_LINE, &intr);
+}
+
 #undef PAGE_SIZE
 #include "qemu-kvm.c"
