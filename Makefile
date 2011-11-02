@@ -215,6 +215,10 @@ $(qga-obj-y) qemu-ga.o: $(QGALIB_GEN) $(GENERATED_HEADERS)
 
 qemu-ga$(EXESUF): qemu-ga.o $(qga-obj-y) $(qapi-obj-y) $(tools-obj-y) $(qobject-obj-y) $(version-obj-y) $(QGALIB_OBJ)
 
+libqtest.o: libqtest.c
+
+rtc-test$(EXESUF): rtc-test.o libqtest.o
+
 QEMULIBS=libhw32 libhw64 libuser libdis libdis-user
 
 clean:
