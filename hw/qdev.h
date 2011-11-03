@@ -377,6 +377,4 @@ DeviceState *qdev_get_root(void);
 
 gchar *qdev_get_canonical_path(DeviceState *dev);
 
-DeviceState *qdev_resolve_path(const char *path, bool *ambiguous);
-
 #endif
