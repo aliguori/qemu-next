@@ -1136,38 +1136,6 @@ void qdev_property_add_child(DeviceState *dev, const char *name,
     g_free(type);
 }
 
-static void qdev_set_link_property(DeviceState *dev, Visitor *v, void *opaque,
-                                   const char *name, Error **errp)
-{
-    DeviceState *value;
-    char *path;
-    bool ambiguous = false;
-
-    visit_type_str(v, &path, name, errp);
-
-    value = qdev_resolve_path(path, &ambiguous);
-    if (!value) {
-        error_set(errp, QERR_DEVICE_NOT_FOUND, path);
-        g_free(path);
-        return;
-    }
-    qdev_property_update_opaque(dev, name, value, errp);
-    g_free(path);
-}
-
-void qdev_property_add_link(DeviceState *dev, const char *name,
-                             DeviceState *child, Error **errp)
-{
-    gchar *type;
-
-    type = g_strdup_printf("link<%s>", dev->info->name);
-
-    qdev_property_add(dev, name, type, qdev_get_child_property,
-                      qdev_set_link_property, NULL, child, errp);
-
-    g_free(type);
-}
-
 static gchar *qdev_get_path_in(DeviceState *parent, DeviceState *dev)
 {
     GSList *i;

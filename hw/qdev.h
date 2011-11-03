@@ -378,9 +378,6 @@ DeviceState *qdev_get_root(void);
 void qdev_property_add_child(DeviceState *dev, const char *name,
                              DeviceState *child, Error **errp);
 
-void qdev_property_add_link(DeviceState *dev, const char *name,
-                            DeviceState *child, Error **errp);
-
 gchar *qdev_get_canonical_path(DeviceState *dev);
 
 DeviceState *qdev_resolve_path(const char *path, bool *ambiguous);
