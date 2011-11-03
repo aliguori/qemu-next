@@ -396,32 +396,11 @@ void qdev_init_nofail(DeviceState *dev)
     }
 }
 
-static void qdev_property_del_all(DeviceState *dev)
-{
-    while (dev->properties) {
-        GSList *i = dev->properties;
-        DeviceProperty *prop = i->data;
-
-        dev->properties = i->next;
-
-        if (prop->release) {
-            prop->release(dev, prop->name, prop->opaque);
-        }
-
-        g_free(prop->name);
-        g_free(prop->type);
-        g_free(prop);
-        g_free(i);
-    }
-}
-
 /* Unlink device from bus and free the structure.  */
 void qdev_free(DeviceState *dev)
 {
     BusState *bus;
     Property *prop;
-
-    qdev_property_del_all(dev);
 
     if (dev->state == DEV_STATE_INITIALIZED) {
         while (dev->num_child_bus) {
