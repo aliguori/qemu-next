@@ -371,6 +371,21 @@ void qdev_property_get(DeviceState *dev, Visitor *v, const char *name,
 void qdev_property_set(DeviceState *dev, Visitor *v, const char *name,
                        Error **errp);
 
+void qdev_property_update_opaque(DeviceState *dev, const char *name,
+                                 void *opaque, Error **errp);
+
 void qdev_property_add_legacy(DeviceState *dev, Property *prop, Error **errp);
+
+DeviceState *qdev_get_root(void);
+
+void qdev_property_add_child(DeviceState *dev, const char *name,
+                             DeviceState *child, Error **errp);
+
+void qdev_property_add_link(DeviceState *dev, const char *name,
+                            DeviceState *child, Error **errp);
+
+gchar *qdev_get_canonical_path(DeviceState *dev);
+
+DeviceState *qdev_resolve_path(const char *path, bool *ambiguous);
 
 #endif

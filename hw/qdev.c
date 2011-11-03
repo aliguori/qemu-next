@@ -396,11 +396,32 @@ void qdev_init_nofail(DeviceState *dev)
     }
 }
 
+static void qdev_property_del_all(DeviceState *dev)
+{
+    while (dev->properties) {
+        GSList *i = dev->properties;
+        DeviceProperty *prop = i->data;
+
+        dev->properties = i->next;
+
+        if (prop->release) {
+            prop->release(dev, prop->name, prop->opaque);
+        }
+
+        g_free(prop->name);
+        g_free(prop->type);
+        g_free(prop);
+        g_free(i);
+    }
+}
+
 /* Unlink device from bus and free the structure.  */
 void qdev_free(DeviceState *dev)
 {
     BusState *bus;
     Property *prop;
+
+    qdev_property_del_all(dev);
 
     if (dev->state == DEV_STATE_INITIALIZED) {
         while (dev->num_child_bus) {
@@ -1036,6 +1057,19 @@ void qdev_property_set(DeviceState *dev, Visitor *v, const char *name,
     }
 }
 
+void qdev_property_update_opaque(DeviceState *dev, const char *name,
+                                 void *opaque, Error **errp)
+{
+    DeviceProperty *prop = qdev_property_find(dev, name);
+
+    if (prop == NULL) {
+        error_set(errp, QERR_PROPERTY_NOT_FOUND, dev->id?:"", name);
+        return;
+    }
+
+    prop->opaque = opaque;
+}
+
 /**
  * Legacy property handling
  */
@@ -1110,4 +1144,216 @@ void qdev_property_add_legacy(DeviceState *dev, Property *prop,
                       prop, errp);
 
     g_free(type);
+}
+
+static void qdev_get_child_property(DeviceState *dev, Visitor *v, void *opaque,
+                                    const char *name, Error **errp)
+{
+    DeviceState *child = opaque;
+    gchar *path;
+
+    path = qdev_get_canonical_path(child);
+    visit_type_str(v, &path, name, errp);
+    g_free(path);
+}
+
+void qdev_property_add_child(DeviceState *dev, const char *name,
+                             DeviceState *child, Error **errp)
+{
+    gchar *type;
+
+    type = g_strdup_printf("child<%s>", dev->info->name);
+
+    qdev_property_add(dev, name, type, qdev_get_child_property,
+                      NULL, NULL, child, errp);
+
+    g_free(type);
+}
+
+static void qdev_set_link_property(DeviceState *dev, Visitor *v, void *opaque,
+                                   const char *name, Error **errp)
+{
+    DeviceState *value;
+    char *path;
+    bool ambiguous = false;
+
+    visit_type_str(v, &path, name, errp);
+
+    value = qdev_resolve_path(path, &ambiguous);
+    if (!value) {
+        error_set(errp, QERR_DEVICE_NOT_FOUND, path);
+        g_free(path);
+        return;
+    }
+    qdev_property_update_opaque(dev, name, value, errp);
+    g_free(path);
+}
+
+void qdev_property_add_link(DeviceState *dev, const char *name,
+                             DeviceState *child, Error **errp)
+{
+    gchar *type;
+
+    type = g_strdup_printf("link<%s>", dev->info->name);
+
+    qdev_property_add(dev, name, type, qdev_get_child_property,
+                      qdev_set_link_property, NULL, child, errp);
+
+    g_free(type);
+}
+
+static gchar *qdev_get_path_in(DeviceState *parent, DeviceState *dev)
+{
+    GSList *i;
+
+    for (i = parent->properties; i; i = i->next) {
+        DeviceProperty *prop = i->data;
+        gchar *subpath;
+
+        if (!strstart(prop->type, "child<", NULL)) {
+            continue;
+        }
+
+        /* Check to see if the device is one of parent's children */
+        if (prop->opaque == dev) {
+            return g_strdup(prop->name);
+        }
+
+        /* Check to see if the device is a child of our child */
+        subpath = qdev_get_path_in(prop->opaque, dev);
+        if (subpath) {
+            gchar *path;
+
+            path = g_strdup_printf("%s/%s", prop->name, subpath);
+            g_free(subpath);
+
+            return path;
+        }
+    }
+
+    return NULL;
+}
+
+gchar *qdev_get_canonical_path(DeviceState *dev)
+{
+    DeviceState *root;
+    gchar *path, *newpath;
+
+    root = qdev_get_root();
+
+    path = qdev_get_path_in(qdev_get_root(), dev);
+    g_assert(path != NULL);
+
+    newpath = g_strdup_printf("/%s", path);
+    g_free(path);
+
+    return newpath;
+}
+
+static DeviceState *qdev_resolve_abs_path(DeviceState *parent,
+                                          gchar **parts,
+                                          int index)
+{
+    DeviceProperty *prop;
+
+    if (parts[index] == NULL) {
+        return parent;
+    }
+
+    prop = qdev_property_find(parent, parts[index]);
+    if (prop == NULL) {
+        return NULL;
+    }
+
+    if (!strstart(prop->type, "link<", NULL) &&
+        !strstart(prop->type, "child<", NULL)) {
+        return NULL;
+    }
+
+    return qdev_resolve_abs_path(prop->opaque, parts, index + 1);
+}
+
+static DeviceState *qdev_resolve_partial_path(DeviceState *parent,
+                                              gchar **parts,
+                                              bool *ambiguous)
+{
+    DeviceState *dev = NULL;
+    GSList *i;
+
+    for (i = parent->properties; i; i = i->next) {
+        DeviceProperty *prop = i->data;
+        DeviceState *found;
+
+        if (!strstart(prop->type, "child<", NULL)) {
+            continue;
+        }
+
+        found = qdev_resolve_abs_path(prop->opaque, parts, 0);
+        if (found) {
+            if (dev) {
+                if (ambiguous) {
+                    *ambiguous = true;
+                }
+                return NULL;
+            }
+
+            dev = found;
+        }
+
+        found = qdev_resolve_partial_path(prop->opaque, parts, ambiguous);
+        if (found) {
+            if (dev) {
+                if (ambiguous) {
+                    *ambiguous = true;
+                }
+                return NULL;
+            }
+            dev = found;
+        }
+    }
+
+    return dev;
+}
+
+DeviceState *qdev_resolve_path(const char *path, bool *ambiguous)
+{
+    bool partial_path = true;
+    DeviceState *dev;
+    gchar **parts;
+
+    parts = g_strsplit(path, "/", 0);
+    if (parts == NULL || parts[0] == NULL) {
+        return qdev_get_root();
+    }
+
+    if (strcmp(parts[0], "") == 0) {
+        partial_path = false;
+    }
+
+    if (partial_path) {
+        dev = qdev_resolve_partial_path(qdev_get_root(), parts, ambiguous);
+    } else {
+        dev = qdev_resolve_abs_path(qdev_get_root(), parts, 1);
+    }
+
+    g_strfreev(parts);
+
+    return dev;
+}
+
+DeviceState *qdev_get_root(void)
+{
+    static DeviceState *qdev_root;
+
+    if (!qdev_root) {
+        static DeviceInfo root_info = {
+            .name = "root-complex",
+            .size = sizeof(DeviceState),
+            .no_user = 1,
+        };
+        qdev_register(&root_info);
+        qdev_root = qdev_create(NULL, "root-complex");
+    }
+
+    return qdev_root;
 }
