@@ -5,6 +5,7 @@
 #include "qemu-queue.h"
 #include "qemu-char.h"
 #include "qemu-option.h"
+#include "qapi/qapi-visit-core.h"
 
 typedef struct Property Property;
 
@@ -27,6 +28,35 @@ enum {
     DEV_NVECTORS_UNSPECIFIED = -1,
 };
 
+/**
+ * @DevicePropertyEtter - called when trying to get/set a property
+ *
+ * @dev the device that owns the property
+ * @v the visitor that contains the property data
+ * @opaque the opaque registered with the property
+ * @name the name of the property
+ * @errp a pointer to an Error that is filled if getting/setting fails.
+ */
+typedef void (DevicePropertyEtter)(DeviceState *dev,
+                                   Visitor *v,
+                                   void *opaque,
+                                   const char *name,
+                                   Error **errp);
+
+typedef void (DevicePropertyRelease)(DeviceState *dev,
+                                     const char *name,
+                                     void *opaque);
+
+typedef struct DeviceProperty
+{
+    gchar *name;
+    gchar *type;
+    DevicePropertyEtter *set;
+    DevicePropertyEtter *get;
+    DevicePropertyRelease *release;
+    void *opaque;
+} DeviceProperty;
+
 /* This structure should not be accessed directly.  We declare it here
    so that it can be embedded in individual device state structures.  */
 struct DeviceState {
@@ -45,6 +75,7 @@ struct DeviceState {
     QTAILQ_ENTRY(DeviceState) sibling;
     int instance_id_alias;
     int alias_required_for_version;
+    GSList *properties;
 };
 
 typedef void (*bus_dev_printfn)(Monitor *mon, DeviceState *dev, int indent);
@@ -329,4 +360,14 @@ char *qdev_get_fw_dev_path(DeviceState *dev);
 /* This is a nasty hack to allow passing a NULL bus to qdev_create.  */
 extern struct BusInfo system_bus_info;
 
+void qdev_property_add(DeviceState *dev, const char *name, const char *type,
+                       DevicePropertyEtter *get, DevicePropertyEtter *set,
+                       DevicePropertyRelease *release, void *opaque,
+                       Error **errp);
+
+void qdev_property_get(DeviceState *dev, Visitor *v, const char *name,
+                       Error **errp);
+
+void qdev_property_set(DeviceState *dev, Visitor *v, const char *name,
+                       Error **errp);
 #endif

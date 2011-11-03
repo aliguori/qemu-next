@@ -962,3 +962,70 @@ char* qdev_get_fw_dev_path(DeviceState *dev)
 
     return strdup(path);
 }
+
+void qdev_property_add(DeviceState *dev, const char *name, const char *type,
+                       DevicePropertyEtter *get, DevicePropertyEtter *set,
+                       DevicePropertyRelease *release, void *opaque,
+                       Error **errp)
+{
+    DeviceProperty *prop = g_malloc0(sizeof(*prop));
+
+    prop->name = g_strdup(name);
+    prop->type = g_strdup(type);
+    prop->get = get;
+    prop->set = set;
+    prop->release = release;
+    prop->opaque = opaque;
+
+    printf("Adding property %s:%s\n", name, type);
+    dev->properties = g_slist_append(dev->properties, prop);
+}
+
+static DeviceProperty *qdev_property_find(DeviceState *dev, const char *name)
+{
+    GSList *i;
+
+    for (i = dev->properties; i; i = i->next) {
+        DeviceProperty *prop = i->data;
+
+        if (strcmp(prop->name, name) == 0) {
+            return prop;
+        }
+    }
+
+    return NULL;
+}
+
+void qdev_property_get(DeviceState *dev, Visitor *v, const char *name,
+                       Error **errp)
+{
+    DeviceProperty *prop = qdev_property_find(dev, name);
+
+    if (prop == NULL) {
+        error_set(errp, QERR_PROPERTY_NOT_FOUND, dev->id?:"", name);
+        return;
+    }
+
+    if (!prop->get) {
+        error_set(errp, QERR_PERMISSION_DENIED);
+    } else {
+        prop->get(dev, prop->opaque, v, name, errp);
+    }
+}
+
+void qdev_property_set(DeviceState *dev, Visitor *v, const char *name,
+                       Error **errp)
+{
+    DeviceProperty *prop = qdev_property_find(dev, name);
+
+    if (prop == NULL) {
+        error_set(errp, QERR_PROPERTY_NOT_FOUND, dev->id?:"", name);
+        return;
+    }
+
+    if (!prop->set) {
+        error_set(errp, QERR_PERMISSION_DENIED);
+    } else {
+        prop->set(dev, prop->opaque, v, name, errp);
+    }
+}
