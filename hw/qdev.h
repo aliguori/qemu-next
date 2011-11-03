@@ -375,6 +375,4 @@ void qdev_property_add_legacy(DeviceState *dev, Property *prop, Error **errp);
 
 DeviceState *qdev_get_root(void);
 
-gchar *qdev_get_canonical_path(DeviceState *dev);
-
 #endif
