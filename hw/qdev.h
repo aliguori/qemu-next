@@ -370,4 +370,7 @@ void qdev_property_get(DeviceState *dev, Visitor *v, const char *name,
 
 void qdev_property_set(DeviceState *dev, Visitor *v, const char *name,
                        Error **errp);
+
+void qdev_property_add_legacy(DeviceState *dev, Property *prop, Error **errp);
+
 #endif
