@@ -1111,20 +1111,3 @@ void qdev_property_add_legacy(DeviceState *dev, Property *prop,
 
     g_free(type);
 }
-
-DeviceState *qdev_get_root(void)
-{
-    static DeviceState *qdev_root;
-
-    if (!qdev_root) {
-        static DeviceInfo root_info = {
-            .name = "root-complex",
-            .size = sizeof(DeviceState),
-            .no_user = 1,
-        };
-        qdev_register(&root_info);
-        qdev_root = qdev_create(NULL, "root-complex");
-    }
-
-    return qdev_root;
-}
