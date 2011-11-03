@@ -375,9 +375,6 @@ void qdev_property_add_legacy(DeviceState *dev, Property *prop, Error **errp);
 
 DeviceState *qdev_get_root(void);
 
-void qdev_property_add_child(DeviceState *dev, const char *name,
-                             DeviceState *child, Error **errp);
-
 gchar *qdev_get_canonical_path(DeviceState *dev);
 
 DeviceState *qdev_resolve_path(const char *path, bool *ambiguous);

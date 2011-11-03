@@ -1112,30 +1112,6 @@ void qdev_property_add_legacy(DeviceState *dev, Property *prop,
     g_free(type);
 }
 
-static void qdev_get_child_property(DeviceState *dev, Visitor *v, void *opaque,
-                                    const char *name, Error **errp)
-{
-    DeviceState *child = opaque;
-    gchar *path;
-
-    path = qdev_get_canonical_path(child);
-    visit_type_str(v, &path, name, errp);
-    g_free(path);
-}
-
-void qdev_property_add_child(DeviceState *dev, const char *name,
-                             DeviceState *child, Error **errp)
-{
-    gchar *type;
-
-    type = g_strdup_printf("child<%s>", dev->info->name);
-
-    qdev_property_add(dev, name, type, qdev_get_child_property,
-                      NULL, NULL, child, errp);
-
-    g_free(type);
-}
-
 static gchar *qdev_get_path_in(DeviceState *parent, DeviceState *dev)
 {
     GSList *i;
