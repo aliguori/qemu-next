@@ -1036,19 +1036,6 @@ void qdev_property_set(DeviceState *dev, Visitor *v, const char *name,
     }
 }
 
-void qdev_property_update_opaque(DeviceState *dev, const char *name,
-                                 void *opaque, Error **errp)
-{
-    DeviceProperty *prop = qdev_property_find(dev, name);
-
-    if (prop == NULL) {
-        error_set(errp, QERR_PROPERTY_NOT_FOUND, dev->id?:"", name);
-        return;
-    }
-
-    prop->opaque = opaque;
-}
-
 /**
  * Legacy property handling
  */

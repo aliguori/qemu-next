@@ -371,9 +371,6 @@ void qdev_property_get(DeviceState *dev, Visitor *v, const char *name,
 void qdev_property_set(DeviceState *dev, Visitor *v, const char *name,
                        Error **errp);
 
-void qdev_property_update_opaque(DeviceState *dev, const char *name,
-                                 void *opaque, Error **errp);
-
 void qdev_property_add_legacy(DeviceState *dev, Property *prop, Error **errp);
 
 DeviceState *qdev_get_root(void);
