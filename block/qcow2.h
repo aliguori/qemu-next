@@ -125,6 +125,8 @@ typedef struct BDRVQcowState {
     int snapshots_size;
     int nb_snapshots;
     QCowSnapshot *snapshots;
+
+    Error *migration_blocker;
 } BDRVQcowState;
 
 /* XXX: use std qcow open function ? */
