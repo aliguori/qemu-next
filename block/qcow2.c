@@ -279,10 +279,12 @@ static int qcow2_open(BlockDriverState *bs, int flags)
         goto fail;
     }
 
-    error_set(&s->migration_blocker,
-              QERR_BLOCK_FORMAT_FEATURE_NOT_SUPPORTED,
-              "qcow2", bs->device_name, "live migration");
-    migrate_add_blocker(s->migration_blocker);
+    if (bs->encrypted) {
+        error_set(&s->migration_blocker,
+                  QERR_BLOCK_FORMAT_FEATURE_NOT_SUPPORTED,
+                  "qcow2", bs->device_name, "live migration");
+        migrate_add_blocker(s->migration_blocker);
+    }
 
     /* Initialise locks */
     qemu_co_mutex_init(&s->lock);
@@ -628,8 +630,10 @@ static void qcow2_close(BlockDriverState *bs)
     BDRVQcowState *s = bs->opaque;
     g_free(s->l1_table);
 
-    migrate_del_blocker(s->migration_blocker);
-    error_free(s->migration_blocker);
+    if (s->migration_blocker) {
+        migrate_del_blocker(s->migration_blocker);
+        error_free(s->migration_blocker);
+    }
 
     qcow2_cache_flush(bs, s->l2_table_cache);
     qcow2_cache_flush(bs, s->refcount_block_cache);
