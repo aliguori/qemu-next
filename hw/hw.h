@@ -943,4 +943,15 @@ int vmstate_register_with_alias_id(DeviceState *dev, int instance_id,
                                    int required_for_version);
 void vmstate_unregister(DeviceState *dev, const VMStateDescription *vmsd,
                         void *opaque);
+
+typedef struct VMState
+{
+    const char *name;
+    int instance_id;
+    VMStateDescription *vmsd;
+    void *object;
+} VMState;
+
+GSList *vmstate_get_all(void);
+
 #endif

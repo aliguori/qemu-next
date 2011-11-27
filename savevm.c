@@ -1468,6 +1468,23 @@ static int vmstate_load(QEMUFile *f, SaveStateEntry *se, int version_id)
     return vmstate_load_state(f, se->vmsd, se->opaque, version_id);
 }
 
+GSList *vmstate_get_all(void)
+{
+    SaveStateEntry *se;
+    GSList *lst = NULL;
+
+    QTAILQ_FOREACH(se, &savevm_handlers, entry) {
+        VMState *vms = g_malloc(sizeof(*vms));
+        vms->name = se->idstr;
+        vms->instance_id = se->instance_id;
+        vms->vmsd = se->vmsd;
+        vms->object = se->opaque;
+        lst = g_slist_append(lst, vms);
+    }
+
+    return lst;
+}
+
 static void vmstate_save(QEMUFile *f, SaveStateEntry *se)
 {
     if (!se->vmsd) {         /* Old style */

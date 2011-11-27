@@ -166,6 +166,7 @@ int main(int argc, char **argv)
 #include "arch_init.h"
 
 #include "ui/qemu-spice.h"
+#include "pyembed.h"
 
 //#define DEBUG_NET
 //#define DEBUG_SLIRP
@@ -2187,6 +2188,8 @@ int main(int argc, char **argv, char **envp)
     atexit(qemu_run_exit_notifiers);
     error_set_progname(argv[0]);
 
+    python_init();
+
     g_mem_set_vtable(&mem_trace);
     if (!g_thread_supported()) {
         g_thread_init(NULL);
@@ -3347,6 +3350,8 @@ int main(int argc, char **argv, char **envp)
     }
     qemu_add_globals();
 
+    python_load("myext");
+
     machine->init(ram_size, boot_devices,
                   kernel_filename, kernel_cmdline, initrd_filename, cpu_model);
 
@@ -3486,6 +3491,8 @@ int main(int argc, char **argv, char **envp)
     pause_all_vcpus();
     net_cleanup();
     res_free();
+
+    python_cleanup();
 
     return 0;
 }

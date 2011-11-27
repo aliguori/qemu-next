@@ -185,6 +185,7 @@ opengl=""
 zlib="yes"
 guest_agent="yes"
 libiscsi=""
+libpython=""
 
 # parse CC options first
 for opt do
@@ -668,6 +669,10 @@ for opt do
   ;;
   --enable-libiscsi) libiscsi="yes"
   ;;
+  --disable-python) libpython="no"
+  ;;
+  --enable-python) libpython="yes"
+  ;;
   --enable-profiler) profiler="yes"
   ;;
   --enable-cocoa)
@@ -1061,6 +1066,8 @@ echo "  --enable-spice           enable spice"
 echo "  --enable-rbd             enable building the rados block device (rbd)"
 echo "  --disable-libiscsi       disable iscsi support"
 echo "  --enable-libiscsi        enable iscsi support"
+echo "  --disable-python         disable Python support"
+echo "  --enable-python          enable Python support"
 echo "  --disable-smartcard      disable smartcard support"
 echo "  --enable-smartcard       enable smartcard support"
 echo "  --disable-smartcard-nss  disable smartcard nss support"
@@ -2418,6 +2425,26 @@ fi
 
 
 ##########################################
+# Python support probe
+if test "$libpython" != "no"; then
+    if $pkg_config --modversion python > /dev/null 2>&1 ; then
+	libpython="yes"
+        python_cflags=`$pkg_config --cflags python 2>/dev/null`
+        python_libs=`$pkg_config --libs python 2>/dev/null`
+	pygtk_cflags=`$pkg_config --cflags pygobject-2.0 2>/dev/null`
+	pygtk_libs=`$pkg_config --libs pygobject-2.0 2>/dev/null`
+	pygtk_libs="$pygtk_libs -lpyglib-2.0-python2.7"
+	QEMU_CFLAGS="$python_cflags $pygtk_cflags $QEMU_CFLAGS"
+        LIBS="$python_libs $pygtk_libs $LIBS"
+    else
+	if test "$libpython" = "yes"; then
+	    feature_not_found "python"
+	fi
+	libpython="no"
+    fi
+fi
+
+##########################################
 # Do we need librt
 cat > $TMPC <<EOF
 #include <signal.h>
@@ -2829,6 +2856,7 @@ echo "nss used          $smartcard_nss"
 echo "usb net redir     $usb_redir"
 echo "OpenGL support    $opengl"
 echo "libiscsi support  $libiscsi"
+echo "Python support    $libpython"
 echo "build guest agent $guest_agent"
 
 if test "$sdl_too_old" = "yes"; then
@@ -3144,6 +3172,10 @@ fi
 
 if test "$libiscsi" = "yes" ; then
   echo "CONFIG_LIBISCSI=y" >> $config_host_mak
+fi
+
+if test "$libpython" = "yes" ; then
+  echo "CONFIG_PYTHON=y" >> $config_host_mak
 fi
 
 # XXX: suppress that
