@@ -66,7 +66,7 @@ struct SMBusDevice {
     uint8_t command;
 };
 
-void smbus_register_device(I2CSlaveInfo *info);
+void smbus_register_device(DeviceInfo *info);
 
 /* Master device commands.  */
 void smbus_quick_command(i2c_bus *bus, uint8_t addr, int read);

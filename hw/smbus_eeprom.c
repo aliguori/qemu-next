@@ -116,11 +116,11 @@ static void smbus_eeprom_class_initfn(ObjectClass *klass, void *data)
     sc->read_data = eeprom_read_data;
 }
 
-static I2CSlaveInfo smbus_eeprom_info = {
-    .qdev.name = "smbus-eeprom",
-    .qdev.size = sizeof(SMBusEEPROMDevice),
-    .qdev.class_init = smbus_eeprom_class_initfn,
-    .qdev.props = (Property[]) {
+static DeviceInfo smbus_eeprom_info = {
+    .name = "smbus-eeprom",
+    .size = sizeof(SMBusEEPROMDevice),
+    .class_init = smbus_eeprom_class_initfn,
+    .props = (Property[]) {
         DEFINE_PROP_PTR("data", SMBusEEPROMDevice, data),
         DEFINE_PROP_END_OF_LIST(),
     },

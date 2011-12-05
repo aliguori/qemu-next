@@ -207,13 +207,9 @@ static int smbus_device_init(I2CSlave *i2c)
     return sc->init(dev);
 }
 
-void smbus_register_device(I2CSlaveInfo *info)
+void smbus_register_device(DeviceInfo *info)
 {
-    assert(info->qdev.size >= sizeof(SMBusDevice));
-    info->init = smbus_device_init;
-    info->event = smbus_i2c_event;
-    info->recv = smbus_i2c_recv;
-    info->send = smbus_i2c_send;
+    assert(info->size >= sizeof(SMBusDevice));
     i2c_register_slave_subclass(info, TYPE_SMBUS_DEVICE);
 }
 
@@ -318,12 +314,23 @@ void smbus_write_block(i2c_bus *bus, uint8_t addr, uint8_t command, uint8_t *dat
     i2c_end_transfer(bus);
 }
 
+static void smbus_device_class_init(ObjectClass *klass, void *data)
+{
+    I2CSlaveClass *sc = I2C_SLAVE_CLASS(klass);
+
+    sc->init = smbus_device_init;
+    sc->event = smbus_i2c_event;
+    sc->recv = smbus_i2c_recv;
+    sc->send = smbus_i2c_send;
+}
+
 static TypeInfo smbus_device_type_info = {
     .name = TYPE_SMBUS_DEVICE,
     .parent = TYPE_I2C_SLAVE,
     .instance_size = sizeof(SMBusDevice),
     .abstract = true,
     .class_size = sizeof(SMBusDeviceClass),
+    .class_init = smbus_device_class_init,
 };
 
 static void smbus_device_register_devices(void)
