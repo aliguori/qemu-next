@@ -2927,8 +2927,8 @@ static int pci_cirrus_vga_initfn(PCIDevice *dev)
 {
      PCICirrusVGAState *d = DO_UPCAST(PCICirrusVGAState, dev, dev);
      CirrusVGAState *s = &d->cirrus_vga;
-     PCIDeviceInfo *info = DO_UPCAST(PCIDeviceInfo, qdev, qdev_get_info(&dev->qdev));
-     int16_t device_id = info->device_id;
+     PCIDeviceClass *pc = PCI_DEVICE_GET_CLASS(dev);
+     int16_t device_id = pc->device_id;
 
      /* setup VGA */
      vga_common_init(&s->vga, VGA_RAM_SIZE);
