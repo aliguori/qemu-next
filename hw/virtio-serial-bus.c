@@ -822,7 +822,7 @@ static int virtser_port_qdev_exit(DeviceState *qdev)
     return 0;
 }
 
-void virtio_serial_port_qdev_register(VirtIOSerialPortInfo *info)
+void virtio_serial_port_qdev_register(DeviceInfo *info)
 {
     info->init = virtser_port_qdev_init;
     info->bus_info = &virtser_bus_info;
