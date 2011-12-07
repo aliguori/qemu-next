@@ -402,19 +402,67 @@ static DeviceInfo unin_internal_pci_host_info = {
     .class_init = unin_internal_pci_host_class_init,
 };
 
+static void pci_unin_main_device_class_init(ObjectClass *klass, void *data)
+{
+    SysBusDeviceClass *sdc = SYS_BUS_DEVICE_CLASS(klass);
+
+    sdc->init = pci_unin_main_device_init;
+}
+
+static DeviceInfo pci_unin_main_device_info = {
+    .name = "uni-north",
+    .size = sizeof(UNINState),
+    .class_init = pci_unin_main_device_class_init,
+};
+
+static void pci_u3_agp_device_class_init(ObjectClass *klass, void *data)
+{
+    SysBusDeviceClass *sdc = SYS_BUS_DEVICE_CLASS(klass);
+
+    sdc->init = pci_u3_agp_device_init;
+}
+
+static DeviceInfo pci_u3_agp_device_info = {
+    .name = "u3-agp",
+    .size = sizeof(UNINState),
+    .class_init = pci_u3_agp_device_class_init,
+};
+
+static void pci_unin_agp_device_class_init(ObjectClass *klass, void *data)
+{
+    SysBusDeviceClass *sdc = SYS_BUS_DEVICE_CLASS(klass);
+
+    sdc->init = pci_unin_agp_device_init;
+}
+
+static DeviceInfo pci_unin_agp_device_info = {
+    .name = "uni-north-agp",
+    .size = sizeof(UNINState),
+    .class_init = pci_unin_agp_device_class_init,
+};
+
+static void pci_unin_internal_device_class_init(ObjectClass *klass, void *data)
+{
+    SysBusDeviceClass *sdc = SYS_BUS_DEVICE_CLASS(klass);
+
+    sdc->init = pci_unin_internal_device_init;
+}
+
+static DeviceInfo pci_unin_internal_device_info = {
+    .name = "uni-north-pci",
+    .size = sizeof(UNINState),
+    .class_init = pci_unin_internal_device_class_init,
+};
+
 static void unin_register_devices(void)
 {
-    sysbus_register_dev("uni-north", sizeof(UNINState),
-                        pci_unin_main_init_device);
+    sysbus_qdev_register(&pci_unin_main_device_info);
     pci_qdev_register(&unin_main_pci_host_info);
-    sysbus_register_dev("u3-agp", sizeof(UNINState),
-                        pci_u3_agp_init_device);
+    sysbus_qdev_register(&pci_u3_agp_device_info);
     pci_qdev_register(&u3_agp_pci_host_info);
-    sysbus_register_dev("uni-north-agp", sizeof(UNINState),
-                        pci_unin_agp_init_device);
+    sysbus_qdev_register(&pci_unin_agp_device_info);
     pci_qdev_register(&unin_agp_pci_host_info);
-    sysbus_register_dev("uni-north-pci", sizeof(UNINState),
-                        pci_unin_internal_init_device);
+    sysbus_qdev_register(&pci_unin_internal_device_info);
     pci_qdev_register(&unin_internal_pci_host_info);
 }
 

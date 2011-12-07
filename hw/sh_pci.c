@@ -133,7 +133,7 @@ static void sh_pci_unmap(SysBusDevice *dev, target_phys_addr_t base)
     memory_region_del_subregion(get_system_memory(), &s->isa);
 }
 
-static int sh_pci_init_device(SysBusDevice *dev)
+static int sh_pci_device_init(SysBusDevice *dev)
 {
     SHPCIState *s;
     int i;
@@ -183,10 +183,22 @@ static DeviceInfo sh_pci_host_info = {
     .class_init = sh_pci_host_class_init,
 };
 
+static void sh_pci_device_class_init(ObjectClass *klass, void *data)
+{
+    SysBusDeviceClass *sdc = SYS_BUS_DEVICE_CLASS(klass);
+
+    sdc->init = sh_pci_device_init;
+}
+
+static DeviceInfo sh_pci_device_info = {
+    .name = "",
+    .size = sizeof(SHPCIState),
+    .class_init = sh_pci_device_class_init,
+};
+
 static void sh_pci_register_devices(void)
 {
-    sysbus_register_dev("sh_pci", sizeof(SHPCIState),
-                        sh_pci_init_device);
+    sysbus_qdev_register(&sh_pci_device_info);
     pci_qdev_register(&sh_pci_host_info);
 }
 
