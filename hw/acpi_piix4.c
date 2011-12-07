@@ -394,23 +394,32 @@ i2c_bus *piix4_pm_init(PCIBus *bus, DeviceState **pdev, int devfn,
     return s->smb.smbus;
 }
 
-static PCIDeviceInfo piix4_pm_info = {
-    .qdev.name          = "PIIX4_PM",
-    .qdev.desc          = "PM",
-    .qdev.size          = sizeof(PIIX4PMState),
-    .qdev.vmsd          = &vmstate_acpi,
-    .qdev.no_user       = 1,
-    .no_hotplug         = 1,
-    .init               = piix4_pm_initfn,
-    .config_write       = pm_write_config,
-    .vendor_id          = PCI_VENDOR_ID_INTEL,
-    .device_id          = PCI_DEVICE_ID_INTEL_82371AB_3,
-    .revision           = 0x03,
-    .class_id           = PCI_CLASS_BRIDGE_OTHER,
-    .qdev.props         = (Property[]) {
-        DEFINE_PROP_UINT32("smb_io_base", PIIX4PMState, smb_io_base, 0),
-        DEFINE_PROP_END_OF_LIST(),
-    }
+static Property piix4_pm_properties[] = {
+    DEFINE_PROP_UINT32("smb_io_base", PIIX4PMState, smb_io_base, 0),
+    DEFINE_PROP_END_OF_LIST(),
+};
+
+static void piix4_pm_class_init(ObjectClass *klass, void *data)
+{
+    PCIDeviceClass *k = PCI_DEVICE_CLASS(klass);
+
+    k->no_hotplug = 1;
+    k->init = piix4_pm_initfn;
+    k->config_write = pm_write_config;
+    k->vendor_id = PCI_VENDOR_ID_INTEL;
+    k->device_id = PCI_DEVICE_ID_INTEL_82371AB_3;
+    k->revision = 0x03;
+    k->class_id = PCI_CLASS_BRIDGE_OTHER;
+}
+
+static DeviceInfo piix4_pm_info = {
+    .name = "PIIX4_PM",
+    .desc = "PM",
+    .size = sizeof(PIIX4PMState),
+    .vmsd = &vmstate_acpi,
+    .no_user = 1,
+    .props = piix4_pm_properties,
+    .class_init = piix4_pm_class_init,
 };
 
 static void piix4_pm_register(void)

@@ -2962,17 +2962,24 @@ DeviceState *pci_cirrus_vga_init(PCIBus *bus)
     return &pci_create_simple(bus, -1, "cirrus-vga")->qdev;
 }
 
-static PCIDeviceInfo cirrus_vga_info = {
-    .qdev.name    = "cirrus-vga",
-    .qdev.desc    = "Cirrus CLGD 54xx VGA",
-    .qdev.size    = sizeof(PCICirrusVGAState),
-    .qdev.vmsd    = &vmstate_pci_cirrus_vga,
-    .no_hotplug   = 1,
-    .init         = pci_cirrus_vga_initfn,
-    .romfile      = VGABIOS_CIRRUS_FILENAME,
-    .vendor_id    = PCI_VENDOR_ID_CIRRUS,
-    .device_id    = CIRRUS_ID_CLGD5446,
-    .class_id     = PCI_CLASS_DISPLAY_VGA,
+static void cirrus_vga_class_init(ObjectClass *klass, void *data)
+{
+    PCIDeviceClass *k = PCI_DEVICE_CLASS(klass);
+
+    k->no_hotplug = 1;
+    k->init = pci_cirrus_vga_initfn;
+    k->romfile = VGABIOS_CIRRUS_FILENAME;
+    k->vendor_id = PCI_VENDOR_ID_CIRRUS;
+    k->device_id = CIRRUS_ID_CLGD5446;
+    k->class_id = PCI_CLASS_DISPLAY_VGA;
+}
+
+static DeviceInfo cirrus_vga_info = {
+    .name = "cirrus-vga",
+    .desc = "Cirrus CLGD 54xx VGA",
+    .size = sizeof(PCICirrusVGAState),
+    .vmsd = &vmstate_pci_cirrus_vga,
+    .class_init = cirrus_vga_class_init,
 };
 
 static void cirrus_vga_register(void)
