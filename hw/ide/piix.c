@@ -303,6 +303,6 @@ static void piix_ide_register(void)
 {
     pci_qdev_register(&piix3_ide_info);
     pci_qdev_register(&piix3_ide_xen_info);
-    pci_qdev_register(&piix_ide_info);
+    pci_qdev_register(&piix4_ide_info);
 }
 device_init(piix_ide_register);
