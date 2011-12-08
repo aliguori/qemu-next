@@ -1285,7 +1285,7 @@ static TypeInfo hda_codec_device_type_info = {
 
 static void intel_hda_register(void)
 {
-    pci_qdev_register(&intel_hda_info);
+    pci_qdev_register(&intel_hda_info, TYPE_PCI_DEVICE);
     type_register_static(&hda_codec_device_type_info);
 }
 device_init(intel_hda_register);
