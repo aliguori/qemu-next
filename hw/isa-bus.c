@@ -210,7 +210,7 @@ static TypeInfo isa_device_type_info = {
 
 static void isabus_register_devices(void)
 {
-    sysbus_register_withprop(&isabus_bridge_info);
+    sysbus_register_withprop(&isabus_bridge_info, TYPE_SYS_BUS_DEVICE);
     type_register_static(&isa_device_type_info);
 }
 

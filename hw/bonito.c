@@ -824,7 +824,7 @@ static DeviceInfo bonito_pcihost_info = {
 
 static void bonito_register(void)
 {
-    sysbus_register_withprop(&bonito_pcihost_info);
+    sysbus_register_withprop(&bonito_pcihost_info, TYPE_SYS_BUS_DEVICE);
     pci_qdev_register(&bonito_info);
 }
 device_init(bonito_register);

@@ -1883,6 +1883,6 @@ static DeviceInfo ohci_sysbus_info = {
 static void ohci_register(void)
 {
     pci_qdev_register(&ohci_pci_info);
-    sysbus_register_withprop(&ohci_sysbus_info);
+    sysbus_register_withprop(&ohci_sysbus_info, TYPE_SYS_BUS_DEVICE);
 }
 device_init(ohci_register);
