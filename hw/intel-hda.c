@@ -74,12 +74,12 @@ static int hda_codec_dev_exit(DeviceState *qdev)
     return 0;
 }
 
-void hda_codec_register(DeviceInfo *info)
+void hda_codec_register(DeviceInfo *info, const char *parent)
 {
     info->init = hda_codec_dev_init;
     info->exit = hda_codec_dev_exit;
     info->bus_info = &hda_codec_bus_info;
-    qdev_register_subclass(info, TYPE_HDA_CODEC_DEVICE);
+    qdev_register_subclass(info, parent);
 }
 
 HDACodecDevice *hda_codec_find(HDACodecBus *bus, uint32_t cad)
