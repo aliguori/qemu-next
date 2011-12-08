@@ -1,15 +1,21 @@
 import sys
 
-info = 'SSISlaveInfo'
-klass = 'SSISlaveClass'
-cast = 'SSI_SLAVE_CLASS'
+info = 'DeviceInfo'
+parent = 'TYPE_ISA_DEVICE'
+func = 'isa_qdev_register'
 
 lines = sys.stdin.read().split('\n')
+
+output = ''
+def emit(line):
+    global output
+    output += '%s\n' % line
 
 i = 0
 while i < len(lines):
     line = lines[i]
     i += 1
+    begin = i
 
     if line.startswith('static %s ' % info):
         if not line.endswith('info = {'):
@@ -17,6 +23,7 @@ while i < len(lines):
 
         name = line.split()[2][:-5]
 
+        mapped_items = {}
         items = []
         processed_lines = []
         while i < len(lines) and lines[i] != '};':
@@ -35,7 +42,7 @@ while i < len(lines):
                 sys.stdout.write('\n'.join(processed_lines))
                 raise
 
-            if key == '.qdev.props' and value.startswith('('):
+            if key == '.props' and value.startswith('('):
                 properties = []
                 while i < len(lines) and lines[i].strip() not in ['},', '}']:
                     line = lines[i]
@@ -53,6 +60,7 @@ while i < len(lines):
                 i += 1
                 value = properties
 
+            mapped_items[key] = value
             items.append((key, value))
 
         if i == len(lines):
@@ -60,36 +68,64 @@ while i < len(lines):
 
         i += 1
 
-        props = filter(lambda (x,y): x == '.qdev.props', items)
+        props = filter(lambda (x,y): x == '.props', items)
         if len(props) and type(props[0][1]) == list:
-            print 'static Property %s_properties[] = {' % name
-            for prop in props[0][1]:
-                print '    %s,' % prop
-            print '};'
-            print
+            emit('static Property %s_properties[] = {' % name)
+            for line in props[0][1]:
+                emit('    %s,' % line)
+            emit('};')
+            emit('')
 
-        print '''static void %s_class_init(ObjectClass *klass, void *data)
-{
-    %s *k = %s(klass);
-''' % (name, klass, cast)
-        for key, value in items:
-            if key.startswith('.qdev.'):
-                continue
+        if mapped_items.has_key('.class_init'):
+            class_init = mapped_items['.class_init']
+            for j in range(i):
+                if lines[i - j].startswith('static void %s(' % class_init):
+                    k = 1
+                    emit(lines[i - j])
+                    emit(lines[i - j + k])
+                    emit('    DeviceClass *k = DEVICE_CLASS(klass);')
+                    k += 1
+                    while lines[i - j + k] != '}':
+                        emit(lines[i - j + k])
+                        k += 1
+                    lines = lines[0:i - j] + lines[i - j + k + 1:]
+                    print j, k
+                    begin -= k + 3
+                    break
+        else:
+            class_init = '%s_class_init' % name
+            emit('static void %s(ObjectClass *klass, void *data)' % class_init)
+            emit('{')
+            emit('    DeviceClass *k = DEVICE_CLASS(klass);')
+            emit('')
 
-            print '    k->%s = %s;' % (key[1:], value)
-        print '''}
+        for item in ['fw_name', 'alias', 'desc', 'props', 'no_user', 'reset', 'vmsd']:
+            key = '.%s' % item
+            if mapped_items.has_key(key):
+                if item == 'props' and type(value) == list:
+                    emit('    k->props = &%s_properties;' % name)
+                else:
+                    emit('    k->%s = %s;' % (item, mapped_items[key]))
+        emit('}')
+        emit('')
 
-static DeviceInfo %s_info = {''' % name
-        for key, value in items:
-            if not key.startswith('.qdev.'):
-                continue
+        emit('static TypeInfo %s_type_info = {' % name)
+        emit('    .name = %s,' % mapped_items['.name'])
+        emit('    .parent = %s,' % parent)
+        emit('    .instance_size = %s,' % mapped_items['.size'])
 
-            if key == '.qdev.props' and type(value) == list:
-                print '    .props = %s_properties,' % name
-            else:
-                print '    %s = %s,' % (key[5:], value)
-        print '    .class_init = %s_class_init,' % (name)
-        print '};'
+        emit('    .class_init = %s,' % class_init)
+        emit('};')
+
+        print '\n'.join(lines[0:begin])
+        sys.stdout.write(output)
+        output = ''
+        def fixup(line):
+            if line.strip().startswith('isa_qdev_register('):
+                return '    type_register_static(&%s_type_info);' % name
+            return line
+        print '\n'.join(map(fixup, lines[i - k - 1:-1]))
+        break
+
     elif i < len(lines):
-        print line
-
+        pass
