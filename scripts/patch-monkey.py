@@ -89,7 +89,6 @@ while i < len(lines):
                         emit(lines[i - j + k])
                         k += 1
                     lines = lines[0:i - j] + lines[i - j + k + 1:]
-                    print j, k
                     begin -= k + 3
                     break
         else:
