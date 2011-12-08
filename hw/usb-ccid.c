@@ -1360,7 +1360,7 @@ static TypeInfo ccid_card_type_info = {
 static void ccid_register_devices(void)
 {
     type_register_static(&ccid_card_type_info);
-    usb_qdev_register(&ccid_info);
+    usb_qdev_register(&ccid_info, TYPE_USB_DEVICE);
     usb_legacy_register(CCID_DEV_NAME, "ccid", NULL);
 }
 device_init(ccid_register_devices)
