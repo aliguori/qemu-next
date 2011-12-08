@@ -48,7 +48,7 @@ while i < len(lines):
                     line = lines[i]
                     i += 1
 
-                    line = line.strip()
+                    line = line[8:]
                     if line.endswith(','):
                         line = line[:-1]
 
