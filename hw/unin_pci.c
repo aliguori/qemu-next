@@ -427,10 +427,11 @@ static void pci_u3_agp_device_class_init(ObjectClass *klass, void *data)
     sdc->init = pci_u3_agp_device_init;
 }
 
-static DeviceInfo pci_u3_agp_device_info = {
-    .name = "u3-agp",
-    .size = sizeof(UNINState),
-    .class_init = pci_u3_agp_device_class_init,
+static TypeInfo pci_u3_agp_device_info = {
+    .name          = "u3-agp",
+    .parent        = TYPE_SYS_BUS_DEVICE,
+    .instance_size = sizeof(UNINState),
+    .class_init    = pci_u3_agp_device_class_init,
 };
 
 static void pci_unin_agp_device_class_init(ObjectClass *klass, void *data)
@@ -440,10 +441,11 @@ static void pci_unin_agp_device_class_init(ObjectClass *klass, void *data)
     sdc->init = pci_unin_agp_device_init;
 }
 
-static DeviceInfo pci_unin_agp_device_info = {
-    .name = "uni-north-agp",
-    .size = sizeof(UNINState),
-    .class_init = pci_unin_agp_device_class_init,
+static TypeInfo pci_unin_agp_device_info = {
+    .name          = "uni-north-agp",
+    .parent        = TYPE_SYS_BUS_DEVICE,
+    .instance_size = sizeof(UNINState),
+    .class_init    = pci_unin_agp_device_class_init,
 };
 
 static void pci_unin_internal_device_class_init(ObjectClass *klass, void *data)
@@ -453,21 +455,22 @@ static void pci_unin_internal_device_class_init(ObjectClass *klass, void *data)
     sdc->init = pci_unin_internal_device_init;
 }
 
-static DeviceInfo pci_unin_internal_device_info = {
-    .name = "uni-north-pci",
-    .size = sizeof(UNINState),
-    .class_init = pci_unin_internal_device_class_init,
+static TypeInfo pci_unin_internal_device_info = {
+    .name          = "uni-north-pci",
+    .parent        = TYPE_SYS_BUS_DEVICE,
+    .instance_size = sizeof(UNINState),
+    .class_init    = pci_unin_internal_device_class_init,
 };
 
 static void unin_register_devices(void)
 {
     type_register_static(&pci_unin_main_device_info);
     type_register_static(&unin_main_pci_host_info);
-    qdev_register_subclass(&pci_u3_agp_device_info, TYPE_SYS_BUS_DEVICE);
+    type_register_static(&pci_u3_agp_device_info);
     type_register_static(&u3_agp_pci_host_info);
-    qdev_register_subclass(&pci_unin_agp_device_info, TYPE_SYS_BUS_DEVICE);
+    type_register_static(&pci_unin_agp_device_info);
     type_register_static(&unin_agp_pci_host_info);
-    qdev_register_subclass(&pci_unin_internal_device_info, TYPE_SYS_BUS_DEVICE);
+    type_register_static(&pci_unin_internal_device_info);
     type_register_static(&unin_internal_pci_host_info);
 }
 

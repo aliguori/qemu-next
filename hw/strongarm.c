@@ -1525,18 +1525,20 @@ static const VMStateDescription vmstate_strongarm_ssp_regs = {
 
 static void strongarm_ssp_class_init(ObjectClass *klass, void *data)
 {
+    DeviceClass *dc = DEVICE_CLASS(klass);
     SysBusDeviceClass *k = SYS_BUS_DEVICE_CLASS(klass);
 
     k->init = strongarm_ssp_init;
+    dc->desc = "StrongARM SSP controller";
+    dc->reset = strongarm_ssp_reset;
+    dc->vmsd = &vmstate_strongarm_ssp_regs;
 }
 
-static DeviceInfo strongarm_ssp_info = {
-    .name = "strongarm-ssp",
-    .desc = "StrongARM SSP controller",
-    .size = sizeof(StrongARMSSPState),
-    .reset = strongarm_ssp_reset,
-    .vmsd = &vmstate_strongarm_ssp_regs,
-    .class_init = strongarm_ssp_class_init,
+static TypeInfo strongarm_ssp_info = {
+    .name          = "strongarm-ssp",
+    .parent        = TYPE_SYS_BUS_DEVICE,
+    .instance_size = sizeof(StrongARMSSPState),
+    .class_init    = strongarm_ssp_class_init,
 };
 
 /* Main CPU functions */
@@ -1610,6 +1612,6 @@ static void strongarm_register_devices(void)
     type_register_static(&strongarm_gpio_info);
     type_register_static(&strongarm_ppc_info);
     type_register_static(&strongarm_uart_info);
-    qdev_register_subclass(&strongarm_ssp_info, TYPE_SYS_BUS_DEVICE);
+    type_register_static(&strongarm_ssp_info);
 }
 device_init(strongarm_register_devices)

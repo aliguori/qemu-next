@@ -1330,17 +1330,19 @@ static const VMStateDescription musicpal_gpio_vmsd = {
 
 static void musicpal_gpio_class_init(ObjectClass *klass, void *data)
 {
+    DeviceClass *dc = DEVICE_CLASS(klass);
     SysBusDeviceClass *k = SYS_BUS_DEVICE_CLASS(klass);
 
     k->init = musicpal_gpio_init;
+    dc->reset = musicpal_gpio_reset;
+    dc->vmsd = &musicpal_gpio_vmsd;
 }
 
-static DeviceInfo musicpal_gpio_info = {
-    .name = "musicpal_gpio",
-    .size = sizeof(musicpal_gpio_state),
-    .reset = musicpal_gpio_reset,
-    .vmsd = &musicpal_gpio_vmsd,
-    .class_init = musicpal_gpio_class_init,
+static TypeInfo musicpal_gpio_info = {
+    .name          = "musicpal_gpio",
+    .parent        = TYPE_SYS_BUS_DEVICE,
+    .instance_size = sizeof(musicpal_gpio_state),
+    .class_init    = musicpal_gpio_class_init,
 };
 
 /* Keyboard codes & masks */
@@ -1481,16 +1483,18 @@ static const VMStateDescription musicpal_key_vmsd = {
 
 static void musicpal_key_class_init(ObjectClass *klass, void *data)
 {
+    DeviceClass *dc = DEVICE_CLASS(klass);
     SysBusDeviceClass *k = SYS_BUS_DEVICE_CLASS(klass);
 
     k->init = musicpal_key_init;
+    dc->vmsd = &musicpal_key_vmsd;
 }
 
-static DeviceInfo musicpal_key_info = {
-    .name = "musicpal_key",
-    .size = sizeof(musicpal_key_state),
-    .vmsd = &musicpal_key_vmsd,
-    .class_init = musicpal_key_class_init,
+static TypeInfo musicpal_key_info = {
+    .name          = "musicpal_key",
+    .parent        = TYPE_SYS_BUS_DEVICE,
+    .instance_size = sizeof(musicpal_key_state),
+    .class_init    = musicpal_key_class_init,
 };
 
 static struct arm_boot_info musicpal_binfo = {
@@ -1662,10 +1666,11 @@ static void mv88w8618_wlan_class_init(ObjectClass *klass, void *data)
     sdc->init = mv88w8618_wlan_init;
 }
 
-static DeviceInfo mv88w8618_wlan_info = {
-    .name = "mv88w8618_wlan",
-    .size = sizeof(SysBusDevice),
-    .class_init = mv88w8618_wlan_class_init,
+static TypeInfo mv88w8618_wlan_info = {
+    .name          = "mv88w8618_wlan",
+    .parent        = TYPE_SYS_BUS_DEVICE,
+    .instance_size = sizeof(SysBusDevice),
+    .class_init    = mv88w8618_wlan_class_init,
 };
 
 static void musicpal_register_devices(void)
@@ -1674,10 +1679,10 @@ static void musicpal_register_devices(void)
     type_register_static(&mv88w8618_pit_info);
     type_register_static(&mv88w8618_flashcfg_info);
     type_register_static(&mv88w8618_eth_info);
-    qdev_register_subclass(&mv88w8618_wlan_info, TYPE_SYS_BUS_DEVICE);
+    type_register_static(&mv88w8618_wlan_info);
     type_register_static(&musicpal_lcd_info);
-    qdev_register_subclass(&musicpal_gpio_info, TYPE_SYS_BUS_DEVICE);
-    qdev_register_subclass(&musicpal_key_info, TYPE_SYS_BUS_DEVICE);
+    type_register_static(&musicpal_gpio_info);
+    type_register_static(&musicpal_key_info);
 }
 
 device_init(musicpal_register_devices)
