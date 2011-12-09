@@ -381,10 +381,11 @@ static void unin_agp_pci_host_class_init(ObjectClass *klass, void *data)
     k->class_id = PCI_CLASS_BRIDGE_HOST;
 }
 
-static DeviceInfo unin_agp_pci_host_info = {
-    .name = "uni-north-agp",
-    .size = sizeof(PCIDevice),
-    .class_init = unin_agp_pci_host_class_init,
+static TypeInfo unin_agp_pci_host_info = {
+    .name          = "uni-north-agp",
+    .parent        = TYPE_PCI_DEVICE,
+    .instance_size = sizeof(PCIDevice),
+    .class_init    = unin_agp_pci_host_class_init,
 };
 
 static void unin_internal_pci_host_class_init(ObjectClass *klass, void *data)
@@ -463,7 +464,7 @@ static void unin_register_devices(void)
     qdev_register_subclass(&pci_u3_agp_device_info, TYPE_SYS_BUS_DEVICE);
     type_register_static(&u3_agp_pci_host_info);
     qdev_register_subclass(&pci_unin_agp_device_info, TYPE_SYS_BUS_DEVICE);
-    qdev_register_subclass(&unin_agp_pci_host_info, TYPE_PCI_DEVICE);
+    type_register_static(&unin_agp_pci_host_info);
     qdev_register_subclass(&pci_unin_internal_device_info, TYPE_SYS_BUS_DEVICE);
     qdev_register_subclass(&unin_internal_pci_host_info, TYPE_PCI_DEVICE);
 }

@@ -663,16 +663,18 @@ static const VMStateDescription vmstate_strongarm_gpio_regs = {
 
 static void strongarm_gpio_class_init(ObjectClass *klass, void *data)
 {
+    DeviceClass *dc = DEVICE_CLASS(klass);
     SysBusDeviceClass *k = SYS_BUS_DEVICE_CLASS(klass);
 
     k->init = strongarm_gpio_initfn;
+    dc->desc = "StrongARM GPIO controller";
 }
 
-static DeviceInfo strongarm_gpio_info = {
-    .name = "strongarm-gpio",
-    .desc = "StrongARM GPIO controller",
-    .size = sizeof(StrongARMGPIOInfo),
-    .class_init = strongarm_gpio_class_init,
+static TypeInfo strongarm_gpio_info = {
+    .name          = "strongarm-gpio",
+    .parent        = TYPE_SYS_BUS_DEVICE,
+    .instance_size = sizeof(StrongARMGPIOInfo),
+    .class_init    = strongarm_gpio_class_init,
 };
 
 /* Peripheral Pin Controller */
@@ -1601,7 +1603,7 @@ static void strongarm_register_devices(void)
 {
     type_register_static(&strongarm_pic_info);
     type_register_static(&strongarm_rtc_sysbus_info);
-    qdev_register_subclass(&strongarm_gpio_info, TYPE_SYS_BUS_DEVICE);
+    type_register_static(&strongarm_gpio_info);
     qdev_register_subclass(&strongarm_ppc_info, TYPE_SYS_BUS_DEVICE);
     qdev_register_subclass(&strongarm_uart_info, TYPE_SYS_BUS_DEVICE);
     qdev_register_subclass(&strongarm_ssp_info, TYPE_SYS_BUS_DEVICE);

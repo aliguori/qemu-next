@@ -707,21 +707,23 @@ static Property ram_properties[] = {
 
 static void ram_class_init(ObjectClass *klass, void *data)
 {
+    DeviceClass *dc = DEVICE_CLASS(klass);
     SysBusDeviceClass *k = SYS_BUS_DEVICE_CLASS(klass);
 
     k->init = ram_init1;
+    dc->props = ram_properties;
 }
 
-static DeviceInfo ram_info = {
-    .name = "memory",
-    .size = sizeof(RamDevice),
-    .props = ram_properties,
-    .class_init = ram_class_init,
+static TypeInfo ram_info = {
+    .name          = "memory",
+    .parent        = TYPE_SYS_BUS_DEVICE,
+    .instance_size = sizeof(RamDevice),
+    .class_init    = ram_class_init,
 };
 
 static void ram_register_devices(void)
 {
-    qdev_register_subclass(&ram_info, TYPE_SYS_BUS_DEVICE);
+    type_register_static(&ram_info);
 }
 
 device_init(ram_register_devices);

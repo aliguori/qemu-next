@@ -1452,10 +1452,11 @@ static void stellaris_gptm_class_init(ObjectClass *klass, void *data)
     sdc->init = stellaris_gptm_init;
 }
 
-static DeviceInfo stellaris_gptm_info = {
-    .name = "stellaris-gptm",
-    .size = sizeof(gptm_state),
-    .class_init = stellaris_gptm_class_init,
+static TypeInfo stellaris_gptm_info = {
+    .name          = "stellaris-gptm",
+    .parent        = TYPE_SYS_BUS_DEVICE,
+    .instance_size = sizeof(gptm_state),
+    .class_init    = stellaris_gptm_class_init,
 };
 
 static void stellaris_adc_class_init(ObjectClass *klass, void *data)
@@ -1474,7 +1475,7 @@ static DeviceInfo stellaris_adc_info = {
 static void stellaris_register_devices(void)
 {
     type_register_static(&stellaris_i2c_info);
-    qdev_register_subclass(&stellaris_gptm_info, TYPE_SYS_BUS_DEVICE);
+    type_register_static(&stellaris_gptm_info);
     qdev_register_subclass(&stellaris_adc_info, TYPE_SYS_BUS_DEVICE);
     type_register_static(&stellaris_ssi_bus_info);
 }

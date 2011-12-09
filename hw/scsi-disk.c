@@ -1785,26 +1785,30 @@ static TypeInfo scsi_cd_info = {
 };
 
 #ifdef __linux__
+static Property scsi_block_properties[] = {
+    DEFINE_SCSI_DISK_PROPERTIES(),
+    DEFINE_PROP_END_OF_LIST(),
+};
+
 static void scsi_block_class_initfn(ObjectClass *klass, void *data)
 {
+    DeviceClass *dc = DEVICE_CLASS(klass);
     SCSIDeviceClass *sc = SCSI_DEVICE_CLASS(klass);
 
     sc->init         = scsi_block_initfn;
     sc->destroy      = scsi_destroy;
     sc->alloc_req    = scsi_block_new_request;
+    dc->fw_name = "disk";
+    dc->desc = "SCSI block device passthrough";
+    dc->reset = scsi_disk_reset;
+    dc->props = scsi_block_properties;
 }
 
-static DeviceInfo scsi_block_info = {
-    .name    = "scsi-block",
-    .fw_name = "disk",
-    .desc    = "SCSI block device passthrough",
-    .size    = sizeof(SCSIDiskState),
-    .reset   = scsi_disk_reset,
-    .class_init = scsi_block_class_initfn,
-    .props   = (Property[]) {
-        DEFINE_SCSI_DISK_PROPERTIES(),
-        DEFINE_PROP_END_OF_LIST(),
-    },
+static TypeInfo scsi_block_info = {
+    .name          = "scsi-block",
+    .parent        = TYPE_SCSI_DEVICE,
+    .instance_size = sizeof(SCSIDiskState),
+    .class_init    = scsi_block_class_initfn,
 };
 #endif
 
@@ -1837,7 +1841,7 @@ static void scsi_disk_register_devices(void)
     type_register_static(&scsi_hd_info);
     type_register_static(&scsi_cd_info);
 #ifdef __linux__
-    qdev_register_subclass(&scsi_block_info, TYPE_SCSI_DEVICE);
+    type_register_static(&scsi_block_info);
 #endif
     qdev_register_subclass(&scsi_disk_info, TYPE_SCSI_DEVICE);
 }

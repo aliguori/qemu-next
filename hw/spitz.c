@@ -1090,17 +1090,19 @@ static const VMStateDescription vmstate_corgi_ssp_regs = {
 
 static void corgi_ssp_class_init(ObjectClass *klass, void *data)
 {
+    DeviceClass *dc = DEVICE_CLASS(klass);
     SSISlaveClass *k = SSI_SLAVE_CLASS(klass);
 
     k->init = corgi_ssp_init;
     k->transfer = corgi_ssp_transfer;
+    dc->vmsd = &vmstate_corgi_ssp_regs;
 }
 
-static DeviceInfo corgi_ssp_info = {
-    .name = "corgi-ssp",
-    .size = sizeof(CorgiSSPState),
-    .vmsd = &vmstate_corgi_ssp_regs,
-    .class_init = corgi_ssp_class_init,
+static TypeInfo corgi_ssp_info = {
+    .name          = "corgi-ssp",
+    .parent        = TYPE_SSI_SLAVE,
+    .instance_size = sizeof(CorgiSSPState),
+    .class_init    = corgi_ssp_class_init,
 };
 
 static const VMStateDescription vmstate_spitz_lcdtg_regs = {
@@ -1132,7 +1134,7 @@ static DeviceInfo spitz_lcdtg_info = {
 
 static void spitz_register_devices(void)
 {
-    qdev_register_subclass(&corgi_ssp_info, TYPE_SSI_SLAVE);
+    type_register_static(&corgi_ssp_info);
     qdev_register_subclass(&spitz_lcdtg_info, TYPE_SSI_SLAVE);
     type_register_static(&spitz_keyboard_info);
     type_register_static(&sl_nand_info);

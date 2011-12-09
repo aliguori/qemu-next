@@ -473,6 +473,7 @@ static Property via_pm_properties[] = {
 
 static void via_pm_class_init(ObjectClass *klass, void *data)
 {
+    DeviceClass *dc = DEVICE_CLASS(klass);
     PCIDeviceClass *k = PCI_DEVICE_CLASS(klass);
 
     k->init = vt82c686b_pm_initfn;
@@ -481,20 +482,21 @@ static void via_pm_class_init(ObjectClass *klass, void *data)
     k->device_id = PCI_DEVICE_ID_VIA_ACPI;
     k->class_id = PCI_CLASS_BRIDGE_OTHER;
     k->revision = 0x40;
+    dc->desc = "PM";
+    dc->vmsd = &vmstate_acpi;
+    dc->props = via_pm_properties;
 }
 
-static DeviceInfo via_pm_info = {
-    .name = "VT82C686B_PM",
-    .desc = "PM",
-    .size = sizeof(VT686PMState),
-    .vmsd = &vmstate_acpi,
-    .props = via_pm_properties,
-    .class_init = via_pm_class_init,
+static TypeInfo via_pm_info = {
+    .name          = "VT82C686B_PM",
+    .parent        = TYPE_PCI_DEVICE,
+    .instance_size = sizeof(VT686PMState),
+    .class_init    = via_pm_class_init,
 };
 
 static void vt82c686b_pm_register(void)
 {
-    qdev_register_subclass(&via_pm_info, TYPE_PCI_DEVICE);
+    type_register_static(&via_pm_info);
 }
 
 device_init(vt82c686b_pm_register);

@@ -501,24 +501,26 @@ static TypeInfo pl110_versatile_info = {
 
 static void pl111_class_init(ObjectClass *klass, void *data)
 {
+    DeviceClass *dc = DEVICE_CLASS(klass);
     SysBusDeviceClass *k = SYS_BUS_DEVICE_CLASS(klass);
 
     k->init = pl111_init;
+    dc->no_user = 1;
+    dc->vmsd = &vmstate_pl110;
 }
 
-static DeviceInfo pl111_info = {
-    .name = "pl111",
-    .size = sizeof(pl110_state),
-    .vmsd = &vmstate_pl110,
-    .no_user = 1,
-    .class_init = pl111_class_init,
+static TypeInfo pl111_info = {
+    .name          = "pl111",
+    .parent        = TYPE_SYS_BUS_DEVICE,
+    .instance_size = sizeof(pl110_state),
+    .class_init    = pl111_class_init,
 };
 
 static void pl110_register_devices(void)
 {
     type_register_static(&pl110_info);
     type_register_static(&pl110_versatile_info);
-    qdev_register_subclass(&pl111_info, TYPE_SYS_BUS_DEVICE);
+    type_register_static(&pl111_info);
 }
 
 device_init(pl110_register_devices)
