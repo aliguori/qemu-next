@@ -40,6 +40,7 @@ typedef struct ISASerialDevice {
     uint32_t iobase;
     uint32_t isairq;
     SerialDevice state;
+    CharDriverState *chr;
 } ISASerialDevice;
 
 static void serial_receive1(void *opaque, const uint8_t *buf, int size);
@@ -606,11 +607,13 @@ static void serial_reset(void *opaque)
     qemu_irq_lower(s->irq);
 }
 
-static void serial_init_core(SerialDevice *s)
+static int serial_initfn(DeviceState *dev)
 {
+    SerialDevice *s = SERIAL_DEVICE(dev);
+
     if (!s->chr) {
         fprintf(stderr, "Can't create serial device, empty char device\n");
-	exit(1);
+        return -1;
     }
 
     s->modem_status_poll = qemu_new_timer_ns(vm_clock, (QEMUTimerCB *) serial_update_msl, s);
@@ -622,6 +625,14 @@ static void serial_init_core(SerialDevice *s)
 
     qemu_chr_add_handlers(s->chr, serial_can_receive1, serial_receive1,
                           serial_event, s);
+
+    return 0;
+}
+
+static void serial_class_init(ObjectClass *klass, void *data)
+{
+    DeviceClass *k = DEVICE_CLASS(klass);
+    k->init = serial_initfn;
 }
 
 /* Change the main reference oscillator frequency. */
@@ -630,6 +641,13 @@ void serial_set_frequency(SerialDevice *s, uint32_t frequency)
     s->baudbase = frequency;
     serial_update_parameters(s);
 }
+
+static TypeInfo serial_device_info = {
+    .name = TYPE_SERIAL_DEVICE,
+    .parent = TYPE_DEVICE,
+    .instance_size = sizeof(SerialDevice),
+    .class_init = serial_class_init,
+};
 
 static const int isa_serial_io[MAX_SERIAL_PORTS] = { 0x3f8, 0x2f8, 0x3e8, 0x2e8 };
 static const int isa_serial_irq[MAX_SERIAL_PORTS] = { 4, 3, 4, 3 };
@@ -648,6 +666,7 @@ static int serial_isa_initfn(ISADevice *dev)
     static int index;
     ISASerialDevice *isa = DO_UPCAST(ISASerialDevice, dev, dev);
     SerialDevice *s = &isa->state;
+    int err;
 
     if (isa->index == -1)
         isa->index = index;
@@ -659,9 +678,18 @@ static int serial_isa_initfn(ISADevice *dev)
         isa->isairq = isa_serial_irq[isa->index];
     index++;
 
+    object_initialize(s, TYPE_SERIAL_DEVICE);
+
     s->baudbase = 115200;
+    s->chr = isa->chr;
+
+    err = qdev_init(DEVICE(s));
+    if (err < 0) {
+        return err;
+    }
+
     isa_init_irq(dev, &s->irq, isa->isairq);
-    serial_init_core(s);
+
     qdev_set_legacy_instance_id(&dev->qdev, isa->iobase, 3);
 
     memory_region_init_io(&s->io, &serial_io_ops, s, "serial", 8);
@@ -684,12 +712,15 @@ SerialDevice *serial_init(int base, qemu_irq irq, int baudbase,
 {
     SerialDevice *s;
 
-    s = g_malloc0(sizeof(SerialDevice));
+    s = SERIAL_DEVICE(object_new(TYPE_SERIAL_DEVICE));
 
     s->irq = irq;
     s->baudbase = baudbase;
     s->chr = chr;
-    serial_init_core(s);
+
+    if (qdev_init(DEVICE(s)) < 0) {
+        return NULL;
+    }
 
     vmstate_register(NULL, base, &vmstate_serial, s);
 
@@ -739,14 +770,17 @@ SerialDevice *serial_mm_init(MemoryRegion *address_space,
 {
     SerialDevice *s;
 
-    s = g_malloc0(sizeof(SerialDevice));
+    s = SERIAL_DEVICE(object_new(TYPE_SERIAL_DEVICE));
 
     s->it_shift = it_shift;
     s->irq = irq;
     s->baudbase = baudbase;
     s->chr = chr;
 
-    serial_init_core(s);
+    if (qdev_init(DEVICE(s)) < 0) {
+        return NULL;
+    }
+
     vmstate_register(NULL, base, &vmstate_serial, s);
 
     memory_region_init_io(&s->io, &serial_mm_ops[end], s,
@@ -761,7 +795,7 @@ static Property serial_isa_properties[] = {
     DEFINE_PROP_UINT32("index", ISASerialDevice, index,   -1),
     DEFINE_PROP_HEX32("iobase", ISASerialDevice, iobase,  -1),
     DEFINE_PROP_UINT32("irq",   ISASerialDevice, isairq,  -1),
-    DEFINE_PROP_CHR("chardev",  ISASerialDevice, state.chr),
+    DEFINE_PROP_CHR("chardev",  ISASerialDevice, chr),
     DEFINE_PROP_END_OF_LIST(),
 };
 
@@ -784,6 +818,7 @@ static TypeInfo serial_isa_info = {
 static void serial_register_devices(void)
 {
     type_register_static(&serial_isa_info);
+    type_register_static(&serial_device_info);
 }
 
 device_init(serial_register_devices)

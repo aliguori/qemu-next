@@ -438,9 +438,13 @@ static void info_qdm_one(ObjectClass *klass, void *data)
 
     info = DEVICE_CLASS(klass);
 
-    error_printf("name \"%s\", bus %s",
-                 object_class_get_name(klass),
-                 info->bus_info->name);
+    if (info->bus_info) {
+        error_printf("name \"%s\", bus %s",
+                     object_class_get_name(klass),
+                     info->bus_info->name);
+    } else {
+        error_printf("name \"%s\"", object_class_get_name(klass));
+    }
     if (info->alias) {
         error_printf(", alias \"%s\"", info->alias);
     }
