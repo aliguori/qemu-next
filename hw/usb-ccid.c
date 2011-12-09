@@ -1192,14 +1192,6 @@ static int ccid_card_init(DeviceState *qdev, DeviceInfo *base)
     return ret;
 }
 
-void ccid_card_qdev_register(DeviceInfo *info, const char *parent)
-{
-    info->bus_info = &ccid_bus_info;
-    info->init = ccid_card_init;
-    info->exit = ccid_card_exit;
-    qdev_register_subclass(info, parent);
-}
-
 static int ccid_initfn(USBDevice *dev)
 {
     USBCCIDState *s = DO_UPCAST(USBCCIDState, dev, dev);
@@ -1349,12 +1341,21 @@ static struct DeviceInfo ccid_info = {
     },
 };
 
+static void ccid_card_class_init(ObjectClass *klass, void *data)
+{
+    DeviceClass *k = DEVICE_CLASS(klass);
+    k->bus_info = &ccid_bus_info;
+    k->init = ccid_card_init;
+    k->exit = ccid_card_exit;
+}
+
 static TypeInfo ccid_card_type_info = {
     .name = TYPE_CCID_CARD,
     .parent = TYPE_DEVICE,
     .instance_size = sizeof(CCIDCardState),
     .abstract = true,
     .class_size = sizeof(CCIDCardClass),
+    .class_init = ccid_card_class_init,
 };
 
 static void ccid_register_devices(void)
