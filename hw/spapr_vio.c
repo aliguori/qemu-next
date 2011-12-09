@@ -761,7 +761,7 @@ static TypeInfo spapr_vio_type_info = {
 
 static void spapr_vio_register_devices(void)
 {
-    sysbus_register_withprop(&spapr_vio_bridge_info, TYPE_SYS_BUS_DEVICE);
+    qdev_register_subclass(&spapr_vio_bridge_info, TYPE_SYS_BUS_DEVICE);
     type_register_static(&spapr_vio_type_info);
 }
 
