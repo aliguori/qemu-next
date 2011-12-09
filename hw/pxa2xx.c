@@ -2319,16 +2319,17 @@ static void pxa2xx_ssp_class_init(ObjectClass *klass, void *data)
     sdc->init = pxa2xx_ssp_init;
 }
 
-static DeviceInfo pxa2xx_ssp_info = {
-    .name = "pxa2xx-ssp",
-    .size = sizeof(PXA2xxSSPState),
-    .class_init = pxa2xx_ssp_class_init,
+static TypeInfo pxa2xx_ssp_info = {
+    .name          = "pxa2xx-ssp",
+    .parent        = TYPE_SYS_BUS_DEVICE,
+    .instance_size = sizeof(PXA2xxSSPState),
+    .class_init    = pxa2xx_ssp_class_init,
 };
 
 static void pxa2xx_register_devices(void)
 {
     type_register_static(&pxa2xx_i2c_slave_info);
-    qdev_register_subclass(&pxa2xx_ssp_info, TYPE_SYS_BUS_DEVICE);
+    type_register_static(&pxa2xx_ssp_info);
     type_register_static(&pxa2xx_i2c_info);
     type_register_static(&pxa2xx_rtc_sysbus_info);
 }

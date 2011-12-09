@@ -1262,6 +1262,7 @@ static TypeInfo vt82c686b_uhci_info = {
 
 static void ich9_uhci1_class_init(ObjectClass *klass, void *data)
 {
+    DeviceClass *dc = DEVICE_CLASS(klass);
     PCIDeviceClass *k = PCI_DEVICE_CLASS(klass);
 
     k->init = usb_uhci_common_initfn;
@@ -1269,14 +1270,15 @@ static void ich9_uhci1_class_init(ObjectClass *klass, void *data)
     k->device_id = PCI_DEVICE_ID_INTEL_82801I_UHCI1;
     k->revision = 0x03;
     k->class_id = PCI_CLASS_SERIAL_USB;
+    dc->vmsd = &vmstate_uhci;
+    dc->props = uhci_properties;
 }
 
-static DeviceInfo ich9_uhci1_info = {
-    .name = "ich9-usb-uhci1",
-    .size = sizeof(UHCIState),
-    .vmsd = &vmstate_uhci,
-    .props = uhci_properties,
-    .class_init = ich9_uhci1_class_init,
+static TypeInfo ich9_uhci1_info = {
+    .name          = "ich9-usb-uhci1",
+    .parent        = TYPE_PCI_DEVICE,
+    .instance_size = sizeof(UHCIState),
+    .class_init    = ich9_uhci1_class_init,
 };
 
 static void ich9_uhci2_class_init(ObjectClass *klass, void *data)
@@ -1322,7 +1324,7 @@ static void uhci_register(void)
     type_register_static(&piix3_uhci_info);
     type_register_static(&piix4_uhci_info);
     type_register_static(&vt82c686b_uhci_info);
-    qdev_register_subclass(&ich9_uhci1_info, TYPE_PCI_DEVICE);
+    type_register_static(&ich9_uhci1_info);
     qdev_register_subclass(&ich9_uhci2_info, TYPE_PCI_DEVICE);
     qdev_register_subclass(&ich9_uhci3_info, TYPE_PCI_DEVICE);
 }

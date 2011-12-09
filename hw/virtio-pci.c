@@ -886,6 +886,7 @@ static Property virtio_balloon_properties[] = {
 
 static void virtio_balloon_class_init(ObjectClass *klass, void *data)
 {
+    DeviceClass *dc = DEVICE_CLASS(klass);
     PCIDeviceClass *k = PCI_DEVICE_CLASS(klass);
 
     k->init = virtio_balloon_init_pci;
@@ -894,15 +895,16 @@ static void virtio_balloon_class_init(ObjectClass *klass, void *data)
     k->device_id = PCI_DEVICE_ID_VIRTIO_BALLOON;
     k->revision = VIRTIO_PCI_ABI_VERSION;
     k->class_id = PCI_CLASS_MEMORY_RAM;
+    dc->alias = "virtio-balloon";
+    dc->reset = virtio_pci_reset;
+    dc->props = virtio_balloon_properties;
 }
 
-static DeviceInfo virtio_balloon_info = {
-    .name = "virtio-balloon-pci",
-    .alias = "virtio-balloon",
-    .size = sizeof(VirtIOPCIProxy),
-    .props = virtio_balloon_properties,
-    .reset = virtio_pci_reset,
-    .class_init = virtio_balloon_class_init,
+static TypeInfo virtio_balloon_info = {
+    .name          = "virtio-balloon-pci",
+    .parent        = TYPE_PCI_DEVICE,
+    .instance_size = sizeof(VirtIOPCIProxy),
+    .class_init    = virtio_balloon_class_init,
 };
 
 static void virtio_pci_register_devices(void)
@@ -913,7 +915,8 @@ static void virtio_pci_register_devices(void)
     type_register_static_alias(&virtio_net_info, "virtio-net");
     type_register_static(&virtio_serial_info);
     type_register_static_alias(&virtio_serial_info, "virtio-serial");
-    qdev_register_subclass(&virtio_balloon_info, TYPE_PCI_DEVICE);
+    type_register_static(&virtio_balloon_info);
+    type_register_static_alias(&virtio_balloon_info, "virtio-balloon");
 }
 
 device_init(virtio_pci_register_devices)

@@ -1119,23 +1119,25 @@ static const VMStateDescription vmstate_spitz_lcdtg_regs = {
 
 static void spitz_lcdtg_class_init(ObjectClass *klass, void *data)
 {
+    DeviceClass *dc = DEVICE_CLASS(klass);
     SSISlaveClass *k = SSI_SLAVE_CLASS(klass);
 
     k->init = spitz_lcdtg_init;
     k->transfer = spitz_lcdtg_transfer;
+    dc->vmsd = &vmstate_spitz_lcdtg_regs;
 }
 
-static DeviceInfo spitz_lcdtg_info = {
-    .name = "spitz-lcdtg",
-    .size = sizeof(SpitzLCDTG),
-    .vmsd = &vmstate_spitz_lcdtg_regs,
-    .class_init = spitz_lcdtg_class_init,
+static TypeInfo spitz_lcdtg_info = {
+    .name          = "spitz-lcdtg",
+    .parent        = TYPE_SSI_SLAVE,
+    .instance_size = sizeof(SpitzLCDTG),
+    .class_init    = spitz_lcdtg_class_init,
 };
 
 static void spitz_register_devices(void)
 {
     type_register_static(&corgi_ssp_info);
-    qdev_register_subclass(&spitz_lcdtg_info, TYPE_SSI_SLAVE);
+    type_register_static(&spitz_lcdtg_info);
     type_register_static(&spitz_keyboard_info);
     type_register_static(&sl_nand_info);
 }
