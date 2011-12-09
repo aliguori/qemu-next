@@ -96,14 +96,14 @@ typedef struct ChannelState {
     uint8_t rx, tx;
 } ChannelState;
 
-struct SerialState {
+typedef struct SerialState {
     SysBusDevice busdev;
     struct ChannelState chn[2];
     uint32_t it_shift;
     MemoryRegion mmio;
     uint32_t disabled;
     uint32_t frequency;
-};
+} SerialState;
 
 #define SERIAL_CTRL 0
 #define SERIAL_DATA 1

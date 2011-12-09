@@ -9,34 +9,9 @@
 #include "net.h"
 #include "memory.h"
 #include "ioapic.h"
+#include "serial.h"
 
 /* PC-style peripherals (also used by other machines).  */
-
-/* serial.c */
-
-SerialState *serial_init(int base, qemu_irq irq, int baudbase,
-                         CharDriverState *chr);
-SerialState *serial_mm_init(MemoryRegion *address_space,
-                            target_phys_addr_t base, int it_shift,
-                            qemu_irq irq, int baudbase,
-                            CharDriverState *chr, enum device_endian);
-static inline DeviceState *serial_isa_init(int index, CharDriverState *chr)
-{
-    ISADevice *dev;
-
-    dev = isa_try_create("isa-serial");
-    if (!dev) {
-        return NULL;
-    }
-    qdev_prop_set_uint32(&dev->qdev, "index", index);
-    qdev_prop_set_chr(&dev->qdev, "chardev", chr);
-    if (qdev_init(&dev->qdev) < 0) {
-        return NULL;
-    }
-    return &dev->qdev;
-}
-
-void serial_set_frequency(SerialState *s, uint32_t frequency);
 
 /* parallel.c */
 static inline DeviceState *parallel_init(int index, CharDriverState *chr)

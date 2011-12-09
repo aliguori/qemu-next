@@ -229,7 +229,6 @@ typedef struct PCIEAERLog PCIEAERLog;
 typedef struct PCIEAERErr PCIEAERErr;
 typedef struct PCIEPort PCIEPort;
 typedef struct PCIESlot PCIESlot;
-typedef struct SerialState SerialState;
 typedef struct IRQState *qemu_irq;
 typedef struct PCMCIACardState PCMCIACardState;
 typedef struct MouseTransformInfo MouseTransformInfo;
