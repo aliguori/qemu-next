@@ -790,6 +790,7 @@ PCIBus *bonito_init(qemu_irq *pic)
 
 static void bonito_class_init(ObjectClass *klass, void *data)
 {
+    DeviceClass *dc = DEVICE_CLASS(klass);
     PCIDeviceClass *k = PCI_DEVICE_CLASS(klass);
 
     k->init = bonito_initfn;
@@ -797,15 +798,16 @@ static void bonito_class_init(ObjectClass *klass, void *data)
     k->device_id = 0x00d5;
     k->revision = 0x01;
     k->class_id = PCI_CLASS_BRIDGE_HOST;
+    dc->desc = "Host bridge";
+    dc->no_user = 1;
+    dc->vmsd = &vmstate_bonito;
 }
 
-static DeviceInfo bonito_info = {
-    .name = "Bonito",
-    .desc = "Host bridge",
-    .size = sizeof(PCIBonitoState),
-    .vmsd = &vmstate_bonito,
-    .no_user = 1,
-    .class_init = bonito_class_init,
+static TypeInfo bonito_info = {
+    .name          = "Bonito",
+    .parent        = TYPE_PCI_DEVICE,
+    .instance_size = sizeof(PCIBonitoState),
+    .class_init    = bonito_class_init,
 };
 
 static void bonito_pcihost_class_init(ObjectClass *klass, void *data)
@@ -825,6 +827,6 @@ static DeviceInfo bonito_pcihost_info = {
 static void bonito_register(void)
 {
     qdev_register_subclass(&bonito_pcihost_info, TYPE_SYS_BUS_DEVICE);
-    qdev_register_subclass(&bonito_info, TYPE_PCI_DEVICE);
+    type_register_static(&bonito_info);
 }
 device_init(bonito_register);

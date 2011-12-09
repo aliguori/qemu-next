@@ -1843,20 +1843,22 @@ static Property ohci_pci_properties[] = {
 
 static void ohci_pci_class_init(ObjectClass *klass, void *data)
 {
+    DeviceClass *dc = DEVICE_CLASS(klass);
     PCIDeviceClass *k = PCI_DEVICE_CLASS(klass);
 
     k->init = usb_ohci_initfn_pci;
     k->vendor_id = PCI_VENDOR_ID_APPLE;
     k->device_id = PCI_DEVICE_ID_APPLE_IPID_USB;
     k->class_id = PCI_CLASS_SERIAL_USB;
+    dc->desc = "Apple USB Controller";
+    dc->props = ohci_pci_properties;
 }
 
-static DeviceInfo ohci_pci_info = {
-    .name = "pci-ohci",
-    .desc = "Apple USB Controller",
-    .size = sizeof(OHCIPCIState),
-    .props = ohci_pci_properties,
-    .class_init = ohci_pci_class_init,
+static TypeInfo ohci_pci_info = {
+    .name          = "pci-ohci",
+    .parent        = TYPE_PCI_DEVICE,
+    .instance_size = sizeof(OHCIPCIState),
+    .class_init    = ohci_pci_class_init,
 };
 
 static Property ohci_sysbus_properties[] = {
@@ -1882,7 +1884,7 @@ static DeviceInfo ohci_sysbus_info = {
 
 static void ohci_register(void)
 {
-    qdev_register_subclass(&ohci_pci_info, TYPE_PCI_DEVICE);
+    type_register_static(&ohci_pci_info);
     qdev_register_subclass(&ohci_sysbus_info, TYPE_SYS_BUS_DEVICE);
 }
 device_init(ohci_register);

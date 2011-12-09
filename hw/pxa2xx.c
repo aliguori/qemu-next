@@ -1235,17 +1235,19 @@ static const VMStateDescription vmstate_pxa2xx_rtc_regs = {
 
 static void pxa2xx_rtc_sysbus_class_init(ObjectClass *klass, void *data)
 {
+    DeviceClass *dc = DEVICE_CLASS(klass);
     SysBusDeviceClass *k = SYS_BUS_DEVICE_CLASS(klass);
 
     k->init = pxa2xx_rtc_init;
+    dc->desc = "PXA2xx RTC Controller";
+    dc->vmsd = &vmstate_pxa2xx_rtc_regs;
 }
 
-static DeviceInfo pxa2xx_rtc_sysbus_info = {
-    .name = "pxa2xx_rtc",
-    .desc = "PXA2xx RTC Controller",
-    .size = sizeof(PXA2xxRTCState),
-    .vmsd = &vmstate_pxa2xx_rtc_regs,
-    .class_init = pxa2xx_rtc_sysbus_class_init,
+static TypeInfo pxa2xx_rtc_sysbus_info = {
+    .name          = "pxa2xx_rtc",
+    .parent        = TYPE_SYS_BUS_DEVICE,
+    .instance_size = sizeof(PXA2xxRTCState),
+    .class_init    = pxa2xx_rtc_sysbus_class_init,
 };
 
 /* I2C Interface */
@@ -2325,7 +2327,7 @@ static void pxa2xx_register_devices(void)
     qdev_register_subclass(&pxa2xx_i2c_slave_info, TYPE_I2C_SLAVE);
     qdev_register_subclass(&pxa2xx_ssp_info, TYPE_SYS_BUS_DEVICE);
     qdev_register_subclass(&pxa2xx_i2c_info, TYPE_SYS_BUS_DEVICE);
-    qdev_register_subclass(&pxa2xx_rtc_sysbus_info, TYPE_SYS_BUS_DEVICE);
+    type_register_static(&pxa2xx_rtc_sysbus_info);
 }
 
 device_init(pxa2xx_register_devices)

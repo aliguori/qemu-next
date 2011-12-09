@@ -491,18 +491,20 @@ static Property pxa25x_timer_dev_properties[] = {
 
 static void pxa25x_timer_dev_class_init(ObjectClass *klass, void *data)
 {
+    DeviceClass *dc = DEVICE_CLASS(klass);
     SysBusDeviceClass *k = SYS_BUS_DEVICE_CLASS(klass);
 
     k->init = pxa2xx_timer_init;
+    dc->desc = "PXA25x timer";
+    dc->vmsd = &vmstate_pxa2xx_timer_regs;
+    dc->props = pxa25x_timer_dev_properties;
 }
 
-static DeviceInfo pxa25x_timer_dev_info = {
-    .name = "pxa25x-timer",
-    .desc = "PXA25x timer",
-    .size = sizeof(PXA2xxTimerInfo),
-    .vmsd = &vmstate_pxa2xx_timer_regs,
-    .props = pxa25x_timer_dev_properties,
-    .class_init = pxa25x_timer_dev_class_init,
+static TypeInfo pxa25x_timer_dev_info = {
+    .name          = "pxa25x-timer",
+    .parent        = TYPE_SYS_BUS_DEVICE,
+    .instance_size = sizeof(PXA2xxTimerInfo),
+    .class_init    = pxa25x_timer_dev_class_init,
 };
 
 static Property pxa27x_timer_dev_properties[] = {
@@ -530,7 +532,7 @@ static DeviceInfo pxa27x_timer_dev_info = {
 
 static void pxa2xx_timer_register(void)
 {
-    qdev_register_subclass(&pxa25x_timer_dev_info, TYPE_SYS_BUS_DEVICE);
+    type_register_static(&pxa25x_timer_dev_info);
     qdev_register_subclass(&pxa27x_timer_dev_info, TYPE_SYS_BUS_DEVICE);
 };
 device_init(pxa2xx_timer_register);

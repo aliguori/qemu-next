@@ -1027,17 +1027,19 @@ static Property sl_nand_properties[] = {
 
 static void sl_nand_class_init(ObjectClass *klass, void *data)
 {
+    DeviceClass *dc = DEVICE_CLASS(klass);
     SysBusDeviceClass *k = SYS_BUS_DEVICE_CLASS(klass);
 
     k->init = sl_nand_init;
+    dc->vmsd = &vmstate_sl_nand_info;
+    dc->props = sl_nand_properties;
 }
 
-static DeviceInfo sl_nand_info = {
-    .name = "sl-nand",
-    .size = sizeof(SLNANDState),
-    .vmsd = &vmstate_sl_nand_info,
-    .props = sl_nand_properties,
-    .class_init = sl_nand_class_init,
+static TypeInfo sl_nand_info = {
+    .name          = "sl-nand",
+    .parent        = TYPE_SYS_BUS_DEVICE,
+    .instance_size = sizeof(SLNANDState),
+    .class_init    = sl_nand_class_init,
 };
 
 static VMStateDescription vmstate_spitz_kbd = {
@@ -1131,7 +1133,7 @@ static void spitz_register_devices(void)
     qdev_register_subclass(&corgi_ssp_info, TYPE_SSI_SLAVE);
     qdev_register_subclass(&spitz_lcdtg_info, TYPE_SSI_SLAVE);
     qdev_register_subclass(&spitz_keyboard_info, TYPE_SYS_BUS_DEVICE);
-    qdev_register_subclass(&sl_nand_info, TYPE_SYS_BUS_DEVICE);
+    type_register_static(&sl_nand_info);
 }
 
 device_init(spitz_register_devices)

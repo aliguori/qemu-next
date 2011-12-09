@@ -1969,27 +1969,31 @@ static const VMStateDescription vmstate_isa_fdc ={
     }
 };
 
+static Property isa_fdc_properties[] = {
+    DEFINE_PROP_DRIVE("driveA", FDCtrlISABus, state.drives[0].bs),
+    DEFINE_PROP_DRIVE("driveB", FDCtrlISABus, state.drives[1].bs),
+    DEFINE_PROP_INT32("bootindexA", FDCtrlISABus, bootindexA, -1),
+    DEFINE_PROP_INT32("bootindexB", FDCtrlISABus, bootindexB, -1),
+    DEFINE_PROP_END_OF_LIST(),
+};
+
 static void isabus_fdc_class_init1(ObjectClass *klass, void *data)
 {
+    DeviceClass *dc = DEVICE_CLASS(klass);
     ISADeviceClass *ic = ISA_DEVICE_CLASS(klass);
     ic->init = isabus_fdc_init1;
+    dc->fw_name = "fdc";
+    dc->no_user = 1;
+    dc->reset = fdctrl_external_reset_isa;
+    dc->vmsd = &vmstate_isa_fdc;
+    dc->props = isa_fdc_properties;
 }
 
-static DeviceInfo isa_fdc_info = {
-    .class_init = isabus_fdc_class_init1,
-    .name  = "isa-fdc",
-    .fw_name  = "fdc",
-    .size  = sizeof(FDCtrlISABus),
-    .no_user = 1,
-    .vmsd  = &vmstate_isa_fdc,
-    .reset = fdctrl_external_reset_isa,
-    .props = (Property[]) {
-        DEFINE_PROP_DRIVE("driveA", FDCtrlISABus, state.drives[0].bs),
-        DEFINE_PROP_DRIVE("driveB", FDCtrlISABus, state.drives[1].bs),
-        DEFINE_PROP_INT32("bootindexA", FDCtrlISABus, bootindexA, -1),
-        DEFINE_PROP_INT32("bootindexB", FDCtrlISABus, bootindexB, -1),
-        DEFINE_PROP_END_OF_LIST(),
-    },
+static TypeInfo isa_fdc_info = {
+    .name          = "isa-fdc",
+    .parent        = TYPE_ISA_DEVICE,
+    .instance_size = sizeof(FDCtrlISABus),
+    .class_init    = isabus_fdc_class_init1,
 };
 
 static const VMStateDescription vmstate_sysbus_fdc ={
@@ -2047,7 +2051,7 @@ static DeviceInfo sun4m_fdc_info = {
 
 static void fdc_register_devices(void)
 {
-    qdev_register_subclass(&isa_fdc_info, TYPE_ISA_DEVICE);
+    type_register_static(&isa_fdc_info);
     qdev_register_subclass(&sysbus_fdc_info, TYPE_SYS_BUS_DEVICE);
     qdev_register_subclass(&sun4m_fdc_info, TYPE_SYS_BUS_DEVICE);
 }

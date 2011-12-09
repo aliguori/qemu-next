@@ -173,17 +173,19 @@ static VMStateDescription vmstate_zipit_lcd_state = {
 
 static void zipit_lcd_class_init(ObjectClass *klass, void *data)
 {
+    DeviceClass *dc = DEVICE_CLASS(klass);
     SSISlaveClass *k = SSI_SLAVE_CLASS(klass);
 
     k->init = zipit_lcd_init;
     k->transfer = zipit_lcd_transfer;
+    dc->vmsd = &vmstate_zipit_lcd_state;
 }
 
-static DeviceInfo zipit_lcd_info = {
-    .name = "zipit-lcd",
-    .size = sizeof(ZipitLCD),
-    .vmsd = &vmstate_zipit_lcd_state,
-    .class_init = zipit_lcd_class_init,
+static TypeInfo zipit_lcd_info = {
+    .name          = "zipit-lcd",
+    .parent        = TYPE_SSI_SLAVE,
+    .instance_size = sizeof(ZipitLCD),
+    .class_init    = zipit_lcd_class_init,
 };
 
 typedef struct {
@@ -337,7 +339,7 @@ static void z2_init(ram_addr_t ram_size,
         NULL,
         qdev_get_gpio_in(cpu->gpio, Z2_GPIO_SD_DETECT));
 
-    qdev_register_subclass(&zipit_lcd_info, TYPE_SSI_SLAVE);
+    type_register_static(&zipit_lcd_info);
     qdev_register_subclass(&aer915_info, TYPE_I2C_SLAVE);
     z2_lcd = ssi_create_slave(cpu->ssp[1], "zipit-lcd");
     bus = pxa2xx_i2c_bus(cpu->i2c[0]);

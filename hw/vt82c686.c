@@ -345,6 +345,7 @@ void vt82c686b_ac97_init(PCIBus *bus, int devfn)
 
 static void via_ac97_class_init(ObjectClass *klass, void *data)
 {
+    DeviceClass *dc = DEVICE_CLASS(klass);
     PCIDeviceClass *k = PCI_DEVICE_CLASS(klass);
 
     k->init = vt82c686b_ac97_initfn;
@@ -352,18 +353,19 @@ static void via_ac97_class_init(ObjectClass *klass, void *data)
     k->device_id = PCI_DEVICE_ID_VIA_AC97;
     k->revision = 0x50;
     k->class_id = PCI_CLASS_MULTIMEDIA_AUDIO;
+    dc->desc = "AC97";
 }
 
-static DeviceInfo via_ac97_info = {
-    .name = "VT82C686B_AC97",
-    .desc = "AC97",
-    .size = sizeof(VT686AC97State),
-    .class_init = via_ac97_class_init,
+static TypeInfo via_ac97_info = {
+    .name          = "VT82C686B_AC97",
+    .parent        = TYPE_PCI_DEVICE,
+    .instance_size = sizeof(VT686AC97State),
+    .class_init    = via_ac97_class_init,
 };
 
 static void vt82c686b_ac97_register(void)
 {
-    qdev_register_subclass(&via_ac97_info, TYPE_PCI_DEVICE);
+    type_register_static(&via_ac97_info);
 }
 
 device_init(vt82c686b_ac97_register);

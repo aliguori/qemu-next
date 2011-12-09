@@ -1729,28 +1729,32 @@ static SCSIRequest *scsi_block_new_request(SCSIDevice *d, uint32_t tag,
     DEFINE_PROP_STRING("ver",  SCSIDiskState, version),         \
     DEFINE_PROP_STRING("serial",  SCSIDiskState, serial)
 
+static Property scsi_hd_properties[] = {
+    DEFINE_SCSI_DISK_PROPERTIES(),
+    DEFINE_PROP_BIT("removable", SCSIDiskState, removable, 0, false),
+    DEFINE_PROP_END_OF_LIST(),
+};
+
 static void scsi_hd_class_initfn(ObjectClass *klass, void *data)
 {
+    DeviceClass *dc = DEVICE_CLASS(klass);
     SCSIDeviceClass *sc = SCSI_DEVICE_CLASS(klass);
 
     sc->init         = scsi_hd_initfn;
     sc->destroy      = scsi_destroy;
     sc->alloc_req    = scsi_new_request;
     sc->unit_attention_reported = scsi_disk_unit_attention_reported;
+    dc->fw_name = "disk";
+    dc->desc = "virtual SCSI disk";
+    dc->reset = scsi_disk_reset;
+    dc->props = scsi_hd_properties;
 }
 
-static DeviceInfo scsi_hd_info = {
-    .name    = "scsi-hd",
-    .fw_name = "disk",
-    .desc    = "virtual SCSI disk",
-    .size    = sizeof(SCSIDiskState),
-    .reset   = scsi_disk_reset,
-    .class_init = scsi_hd_class_initfn,
-    .props   = (Property[]) {
-        DEFINE_SCSI_DISK_PROPERTIES(),
-        DEFINE_PROP_BIT("removable", SCSIDiskState, removable, 0, false),
-        DEFINE_PROP_END_OF_LIST(),
-    },
+static TypeInfo scsi_hd_info = {
+    .name          = "scsi-hd",
+    .parent        = TYPE_SCSI_DEVICE,
+    .instance_size = sizeof(SCSIDiskState),
+    .class_init    = scsi_hd_class_initfn,
 };
 
 static void scsi_cd_class_initfn(ObjectClass *klass, void *data)
@@ -1826,7 +1830,7 @@ static DeviceInfo scsi_disk_info = {
 
 static void scsi_disk_register_devices(void)
 {
-    qdev_register_subclass(&scsi_hd_info, TYPE_SCSI_DEVICE);
+    type_register_static(&scsi_hd_info);
     qdev_register_subclass(&scsi_cd_info, TYPE_SCSI_DEVICE);
 #ifdef __linux__
     qdev_register_subclass(&scsi_block_info, TYPE_SCSI_DEVICE);

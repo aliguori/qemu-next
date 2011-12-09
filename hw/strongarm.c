@@ -200,17 +200,19 @@ static VMStateDescription vmstate_strongarm_pic_regs = {
 
 static void strongarm_pic_class_init(ObjectClass *klass, void *data)
 {
+    DeviceClass *dc = DEVICE_CLASS(klass);
     SysBusDeviceClass *k = SYS_BUS_DEVICE_CLASS(klass);
 
     k->init = strongarm_pic_initfn;
+    dc->desc = "StrongARM PIC";
+    dc->vmsd = &vmstate_strongarm_pic_regs;
 }
 
-static DeviceInfo strongarm_pic_info = {
-    .name = "strongarm_pic",
-    .desc = "StrongARM PIC",
-    .size = sizeof(StrongARMPICState),
-    .vmsd = &vmstate_strongarm_pic_regs,
-    .class_init = strongarm_pic_class_init,
+static TypeInfo strongarm_pic_info = {
+    .name          = "strongarm_pic",
+    .parent        = TYPE_SYS_BUS_DEVICE,
+    .instance_size = sizeof(StrongARMPICState),
+    .class_init    = strongarm_pic_class_init,
 };
 
 /* Real-Time Clock */
@@ -1595,7 +1597,7 @@ StrongARMState *sa1110_init(MemoryRegion *sysmem,
 
 static void strongarm_register_devices(void)
 {
-    qdev_register_subclass(&strongarm_pic_info, TYPE_SYS_BUS_DEVICE);
+    type_register_static(&strongarm_pic_info);
     qdev_register_subclass(&strongarm_rtc_sysbus_info, TYPE_SYS_BUS_DEVICE);
     qdev_register_subclass(&strongarm_gpio_info, TYPE_SYS_BUS_DEVICE);
     qdev_register_subclass(&strongarm_ppc_info, TYPE_SYS_BUS_DEVICE);

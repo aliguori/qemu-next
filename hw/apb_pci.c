@@ -447,10 +447,11 @@ static void pbm_pci_host_class_init(ObjectClass *klass, void *data)
     k->is_bridge = 1;
 }
 
-static DeviceInfo pbm_pci_host_info = {
-    .name = "pbm",
-    .size = sizeof(PCIDevice),
-    .class_init = pbm_pci_host_class_init,
+static TypeInfo pbm_pci_host_info = {
+    .name          = "pbm",
+    .parent        = TYPE_PCI_DEVICE,
+    .instance_size = sizeof(PCIDevice),
+    .class_init    = pbm_pci_host_class_init,
 };
 
 static void pbm_host_class_init(ObjectClass *klass, void *data)
@@ -491,7 +492,7 @@ static DeviceInfo pbm_pci_bridge_info = {
 static void pbm_register_devices(void)
 {
     qdev_register_subclass(&pbm_host_info, TYPE_SYS_BUS_DEVICE);
-    qdev_register_subclass(&pbm_pci_host_info, TYPE_PCI_DEVICE);
+    type_register_static(&pbm_pci_host_info);
     qdev_register_subclass(&pbm_pci_bridge_info, TYPE_PCI_DEVICE);
 }
 

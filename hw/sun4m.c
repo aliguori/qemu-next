@@ -615,15 +615,16 @@ static void idreg_class_init(ObjectClass *klass, void *data)
     k->init = idreg_init1;
 }
 
-static DeviceInfo idreg_info = {
-    .name = "macio_idreg",
-    .size = sizeof(IDRegState),
-    .class_init = idreg_class_init,
+static TypeInfo idreg_info = {
+    .name          = "macio_idreg",
+    .parent        = TYPE_SYS_BUS_DEVICE,
+    .instance_size = sizeof(IDRegState),
+    .class_init    = idreg_class_init,
 };
 
 static void idreg_register_devices(void)
 {
-    qdev_register_subclass(&idreg_info, TYPE_SYS_BUS_DEVICE);
+    type_register_static(&idreg_info);
 }
 
 device_init(idreg_register_devices);

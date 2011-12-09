@@ -568,15 +568,16 @@ static void ebus_class_init(ObjectClass *klass, void *data)
     k->class_id = PCI_CLASS_BRIDGE_OTHER;
 }
 
-static DeviceInfo ebus_info = {
-    .name = "ebus",
-    .size = sizeof(EbusState),
-    .class_init = ebus_class_init,
+static TypeInfo ebus_info = {
+    .name          = "ebus",
+    .parent        = TYPE_PCI_DEVICE,
+    .instance_size = sizeof(EbusState),
+    .class_init    = ebus_class_init,
 };
 
 static void pci_ebus_register(void)
 {
-    qdev_register_subclass(&ebus_info, TYPE_PCI_DEVICE);
+    type_register_static(&ebus_info);
 }
 
 device_init(pci_ebus_register);

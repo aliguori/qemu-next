@@ -84,16 +84,18 @@ static Property mpcore_rirq_properties[] = {
 
 static void mpcore_rirq_class_init(ObjectClass *klass, void *data)
 {
+    DeviceClass *dc = DEVICE_CLASS(klass);
     SysBusDeviceClass *k = SYS_BUS_DEVICE_CLASS(klass);
 
     k->init = realview_mpcore_init;
+    dc->props = mpcore_rirq_properties;
 }
 
-static DeviceInfo mpcore_rirq_info = {
-    .name = "realview_mpcore",
-    .size = sizeof(mpcore_rirq_state),
-    .props = mpcore_rirq_properties,
-    .class_init = mpcore_rirq_class_init,
+static TypeInfo mpcore_rirq_info = {
+    .name          = "realview_mpcore",
+    .parent        = TYPE_SYS_BUS_DEVICE,
+    .instance_size = sizeof(mpcore_rirq_state),
+    .class_init    = mpcore_rirq_class_init,
 };
 
 static Property mpcore_priv_properties[] = {
@@ -117,7 +119,7 @@ static DeviceInfo mpcore_priv_info = {
 
 static void arm11mpcore_register_devices(void)
 {
-    qdev_register_subclass(&mpcore_rirq_info, TYPE_SYS_BUS_DEVICE);
+    type_register_static(&mpcore_rirq_info);
     qdev_register_subclass(&mpcore_priv_info, TYPE_SYS_BUS_DEVICE);
 }
 

@@ -119,10 +119,11 @@ static void versatile_pci_host_class_init(ObjectClass *klass, void *data)
     k->class_id = PCI_CLASS_PROCESSOR_CO;
 }
 
-static DeviceInfo versatile_pci_host_info = {
-    .name = "versatile_pci_host",
-    .size = sizeof(PCIDevice),
-    .class_init = versatile_pci_host_class_init,
+static TypeInfo versatile_pci_host_info = {
+    .name          = "versatile_pci_host",
+    .parent        = TYPE_PCI_DEVICE,
+    .instance_size = sizeof(PCIDevice),
+    .class_init    = versatile_pci_host_class_init,
 };
 
 static void pci_vpb_class_init(ObjectClass *klass, void *data)
@@ -155,7 +156,7 @@ static void versatile_pci_register_devices(void)
 {
     qdev_register_subclass(&pci_vpb_info, TYPE_SYS_BUS_DEVICE);
     qdev_register_subclass(&pci_realview_info, TYPE_SYS_BUS_DEVICE);
-    qdev_register_subclass(&versatile_pci_host_info, TYPE_PCI_DEVICE);
+    type_register_static(&versatile_pci_host_info);
 }
 
 device_init(versatile_pci_register_devices)

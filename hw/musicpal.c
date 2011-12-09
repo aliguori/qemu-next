@@ -415,17 +415,19 @@ static Property mv88w8618_eth_properties[] = {
 
 static void mv88w8618_eth_class_init(ObjectClass *klass, void *data)
 {
+    DeviceClass *dc = DEVICE_CLASS(klass);
     SysBusDeviceClass *k = SYS_BUS_DEVICE_CLASS(klass);
 
     k->init = mv88w8618_eth_init;
+    dc->vmsd = &mv88w8618_eth_vmsd;
+    dc->props = mv88w8618_eth_properties;
 }
 
-static DeviceInfo mv88w8618_eth_info = {
-    .name = "mv88w8618_eth",
-    .size = sizeof(mv88w8618_eth_state),
-    .vmsd = &mv88w8618_eth_vmsd,
-    .props = mv88w8618_eth_properties,
-    .class_init = mv88w8618_eth_class_init,
+static TypeInfo mv88w8618_eth_info = {
+    .name          = "mv88w8618_eth",
+    .parent        = TYPE_SYS_BUS_DEVICE,
+    .instance_size = sizeof(mv88w8618_eth_state),
+    .class_init    = mv88w8618_eth_class_init,
 };
 
 /* LCD register offsets */
@@ -1663,7 +1665,7 @@ static void musicpal_register_devices(void)
     qdev_register_subclass(&mv88w8618_pic_info, TYPE_SYS_BUS_DEVICE);
     qdev_register_subclass(&mv88w8618_pit_info, TYPE_SYS_BUS_DEVICE);
     qdev_register_subclass(&mv88w8618_flashcfg_info, TYPE_SYS_BUS_DEVICE);
-    qdev_register_subclass(&mv88w8618_eth_info, TYPE_SYS_BUS_DEVICE);
+    type_register_static(&mv88w8618_eth_info);
     qdev_register_subclass(&mv88w8618_wlan_info, TYPE_SYS_BUS_DEVICE);
     qdev_register_subclass(&musicpal_lcd_info, TYPE_SYS_BUS_DEVICE);
     qdev_register_subclass(&musicpal_gpio_info, TYPE_SYS_BUS_DEVICE);

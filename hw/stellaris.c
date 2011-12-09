@@ -1424,10 +1424,11 @@ static void stellaris_ssi_bus_class_init(ObjectClass *klass, void *data)
     k->transfer = stellaris_ssi_bus_transfer;
 }
 
-static DeviceInfo stellaris_ssi_bus_info = {
-    .name = "evb6965-ssi",
-    .size = sizeof(stellaris_ssi_bus_state),
-    .class_init = stellaris_ssi_bus_class_init,
+static TypeInfo stellaris_ssi_bus_info = {
+    .name          = "evb6965-ssi",
+    .parent        = TYPE_SSI_SLAVE,
+    .instance_size = sizeof(stellaris_ssi_bus_state),
+    .class_init    = stellaris_ssi_bus_class_init,
 };
 
 static void stellaris_i2c_class_init(ObjectClass *klass, void *data)
@@ -1474,7 +1475,7 @@ static void stellaris_register_devices(void)
     qdev_register_subclass(&stellaris_i2c_info, TYPE_SYS_BUS_DEVICE);
     qdev_register_subclass(&stellaris_gptm_info, TYPE_SYS_BUS_DEVICE);
     qdev_register_subclass(&stellaris_adc_info, TYPE_SYS_BUS_DEVICE);
-    qdev_register_subclass(&stellaris_ssi_bus_info, TYPE_SSI_SLAVE);
+    type_register_static(&stellaris_ssi_bus_info);
 }
 
 device_init(stellaris_register_devices)
