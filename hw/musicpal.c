@@ -1009,16 +1009,18 @@ static const VMStateDescription mv88w8618_flashcfg_vmsd = {
 
 static void mv88w8618_flashcfg_class_init(ObjectClass *klass, void *data)
 {
+    DeviceClass *dc = DEVICE_CLASS(klass);
     SysBusDeviceClass *k = SYS_BUS_DEVICE_CLASS(klass);
 
     k->init = mv88w8618_flashcfg_init;
+    dc->vmsd = &mv88w8618_flashcfg_vmsd;
 }
 
-static DeviceInfo mv88w8618_flashcfg_info = {
-    .name = "mv88w8618_flashcfg",
-    .size = sizeof(mv88w8618_flashcfg_state),
-    .vmsd = &mv88w8618_flashcfg_vmsd,
-    .class_init = mv88w8618_flashcfg_class_init,
+static TypeInfo mv88w8618_flashcfg_info = {
+    .name          = "mv88w8618_flashcfg",
+    .parent        = TYPE_SYS_BUS_DEVICE,
+    .instance_size = sizeof(mv88w8618_flashcfg_state),
+    .class_init    = mv88w8618_flashcfg_class_init,
 };
 
 /* Misc register offsets */
@@ -1670,7 +1672,7 @@ static void musicpal_register_devices(void)
 {
     type_register_static(&mv88w8618_pic_info);
     type_register_static(&mv88w8618_pit_info);
-    qdev_register_subclass(&mv88w8618_flashcfg_info, TYPE_SYS_BUS_DEVICE);
+    type_register_static(&mv88w8618_flashcfg_info);
     type_register_static(&mv88w8618_eth_info);
     qdev_register_subclass(&mv88w8618_wlan_info, TYPE_SYS_BUS_DEVICE);
     type_register_static(&musicpal_lcd_info);

@@ -1285,19 +1285,21 @@ static Property strongarm_uart_properties[] = {
 
 static void strongarm_uart_class_init(ObjectClass *klass, void *data)
 {
+    DeviceClass *dc = DEVICE_CLASS(klass);
     SysBusDeviceClass *k = SYS_BUS_DEVICE_CLASS(klass);
 
     k->init = strongarm_uart_init;
+    dc->desc = "StrongARM UART controller";
+    dc->reset = strongarm_uart_reset;
+    dc->vmsd = &vmstate_strongarm_uart_regs;
+    dc->props = strongarm_uart_properties;
 }
 
-static DeviceInfo strongarm_uart_info = {
-    .name = "strongarm-uart",
-    .desc = "StrongARM UART controller",
-    .size = sizeof(StrongARMUARTState),
-    .reset = strongarm_uart_reset,
-    .vmsd = &vmstate_strongarm_uart_regs,
-    .props = strongarm_uart_properties,
-    .class_init = strongarm_uart_class_init,
+static TypeInfo strongarm_uart_info = {
+    .name          = "strongarm-uart",
+    .parent        = TYPE_SYS_BUS_DEVICE,
+    .instance_size = sizeof(StrongARMUARTState),
+    .class_init    = strongarm_uart_class_init,
 };
 
 /* Synchronous Serial Ports */
@@ -1607,7 +1609,7 @@ static void strongarm_register_devices(void)
     type_register_static(&strongarm_rtc_sysbus_info);
     type_register_static(&strongarm_gpio_info);
     type_register_static(&strongarm_ppc_info);
-    qdev_register_subclass(&strongarm_uart_info, TYPE_SYS_BUS_DEVICE);
+    type_register_static(&strongarm_uart_info);
     qdev_register_subclass(&strongarm_ssp_info, TYPE_SYS_BUS_DEVICE);
 }
 device_init(strongarm_register_devices)
