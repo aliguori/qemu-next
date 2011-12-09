@@ -679,6 +679,7 @@ static int serial_isa_initfn(ISADevice *dev)
     index++;
 
     object_initialize(s, TYPE_SERIAL_DEVICE);
+    qdev_property_add_child(DEVICE(dev), "uart", DEVICE(s), NULL);
 
     s->baudbase = 115200;
     s->chr = isa->chr;
