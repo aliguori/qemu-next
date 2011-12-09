@@ -448,6 +448,7 @@ ObjectClass *object_get_super(Object *obj);
  * Returns:
  */
 Type type_register_static(const TypeInfo *info);
+#define type_register_static_alias(info, alias) do { } while (0)
 
 /**
  * @object_check_class:
