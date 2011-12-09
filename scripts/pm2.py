@@ -82,6 +82,13 @@ def process(lines):
         i += 1
 
     devinfo = parse_device_info(lines[start:][:(end-start-1)])
+
+    needs_dc = False
+    for field in ['fw_name', 'alias', 'desc', 'no_user', 'reset', 'vmsd', 'props']:
+        if devinfo.has_key(field):
+            needs_dc = True
+            break
+
     if devinfo.has_key('class_init'):
         i = 0
         while i < start:
@@ -110,7 +117,8 @@ def process(lines):
             print
 
         print '\n'.join(lines[class_init_begin:][0:2])
-        print '    DeviceClass *dc = DEVICE_CLASS(klass);'
+        if needs_dc:
+            print '    DeviceClass *dc = DEVICE_CLASS(klass);'
         print '\n'.join(lines[class_init_begin+2:][0:class_init_end-class_init_begin-4])
         for field in ['fw_name', 'alias', 'desc', 'no_user', 'reset',
                       'vmsd']:
@@ -131,19 +139,20 @@ def process(lines):
                 print prop[4:]
             print '};'
             print
-        print 'static void %s(ObjectClass *klass, void *data)' % info.replace('info', 'class_init')
-        print '{'
-        print '    DeviceClass *dc = DEVICE_CLASS(klass);'
-        for field in ['fw_name', 'alias', 'desc', 'no_user', 'reset',
-                      'vmsd']:
-            if devinfo.has_key(field):
-                print '    dc->%s = %s;' % (field, devinfo[field])
-        if devinfo.has_key('props'):
-            if type(devinfo['props']) == list:
-                print '    dc->props = %s;' % info.replace('info', 'properties')
-            else:
-                print '    dc->props = %s;' % devinfo['props']
-        print '}'
+        if needs_dc:
+            print 'static void %s(ObjectClass *klass, void *data)' % info.replace('info', 'class_init')
+            print '{'
+            print '    DeviceClass *dc = DEVICE_CLASS(klass);'
+            for field in ['fw_name', 'alias', 'desc', 'no_user', 'reset',
+                          'vmsd']:
+                if devinfo.has_key(field):
+                    print '    dc->%s = %s;' % (field, devinfo[field])
+            if devinfo.has_key('props'):
+                if type(devinfo['props']) == list:
+                    print '    dc->props = %s;' % info.replace('info', 'properties')
+                else:
+                    print '    dc->props = %s;' % devinfo['props']
+            print '}'
 
     print 'static TypeInfo %s = {' % info
     print '    .name          = %s,' % devinfo['name']
