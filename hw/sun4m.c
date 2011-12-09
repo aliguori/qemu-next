@@ -663,15 +663,16 @@ static void afx_class_init(ObjectClass *klass, void *data)
     k->init = afx_init1;
 }
 
-static DeviceInfo afx_info = {
-    .name = "tcx_afx",
-    .size = sizeof(AFXState),
-    .class_init = afx_class_init,
+static TypeInfo afx_info = {
+    .name          = "tcx_afx",
+    .parent        = TYPE_SYS_BUS_DEVICE,
+    .instance_size = sizeof(AFXState),
+    .class_init    = afx_class_init,
 };
 
 static void afx_register_devices(void)
 {
-    qdev_register_subclass(&afx_info, TYPE_SYS_BUS_DEVICE);
+    type_register_static(&afx_info);
 }
 
 device_init(afx_register_devices);

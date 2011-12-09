@@ -173,16 +173,17 @@ static void max1111_class_init(ObjectClass *klass, void *data)
     k->transfer = max111x_transfer;
 }
 
-static DeviceInfo max1111_info = {
-    .name = "max1111",
-    .size = sizeof(MAX111xState),
-    .class_init = max1111_class_init,
+static TypeInfo max1111_info = {
+    .name          = "max1111",
+    .parent        = TYPE_SSI_SLAVE,
+    .instance_size = sizeof(MAX111xState),
+    .class_init    = max1111_class_init,
 };
 
 static void max111x_register_devices(void)
 {
     type_register_static(&max1110_info);
-    qdev_register_subclass(&max1111_info, TYPE_SSI_SLAVE);
+    type_register_static(&max1111_info);
 }
 
 device_init(max111x_register_devices)

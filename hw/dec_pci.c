@@ -119,10 +119,11 @@ static void dec_21154_pci_host_class_init(ObjectClass *klass, void *data)
     k->is_bridge = 1;
 }
 
-static DeviceInfo dec_21154_pci_host_info = {
-    .name = "dec-21154",
-    .size = sizeof(PCIDevice),
-    .class_init = dec_21154_pci_host_class_init,
+static TypeInfo dec_21154_pci_host_info = {
+    .name          = "dec-21154",
+    .parent        = TYPE_PCI_DEVICE,
+    .instance_size = sizeof(PCIDevice),
+    .class_init    = dec_21154_pci_host_class_init,
 };
 
 static void pci_dec_21154_device_class_init(ObjectClass *klass, void *data)
@@ -141,7 +142,7 @@ static DeviceInfo pci_dec_21154_device_info = {
 static void dec_register_devices(void)
 {
     qdev_register_subclass(&pci_dec_21154_device_info, TYPE_SYS_BUS_DEVICE);
-    qdev_register_subclass(&dec_21154_pci_host_info, TYPE_PCI_DEVICE);
+    type_register_static(&dec_21154_pci_host_info);
     type_register_static(&dec_21154_pci_bridge_info);
 }
 

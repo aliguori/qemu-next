@@ -633,16 +633,18 @@ static const VMStateDescription musicpal_lcd_vmsd = {
 
 static void musicpal_lcd_class_init(ObjectClass *klass, void *data)
 {
+    DeviceClass *dc = DEVICE_CLASS(klass);
     SysBusDeviceClass *k = SYS_BUS_DEVICE_CLASS(klass);
 
     k->init = musicpal_lcd_init;
+    dc->vmsd = &musicpal_lcd_vmsd;
 }
 
-static DeviceInfo musicpal_lcd_info = {
-    .name = "musicpal_lcd",
-    .size = sizeof(musicpal_lcd_state),
-    .vmsd = &musicpal_lcd_vmsd,
-    .class_init = musicpal_lcd_class_init,
+static TypeInfo musicpal_lcd_info = {
+    .name          = "musicpal_lcd",
+    .parent        = TYPE_SYS_BUS_DEVICE,
+    .instance_size = sizeof(musicpal_lcd_state),
+    .class_init    = musicpal_lcd_class_init,
 };
 
 /* PIC register offsets */
@@ -1667,7 +1669,7 @@ static void musicpal_register_devices(void)
     qdev_register_subclass(&mv88w8618_flashcfg_info, TYPE_SYS_BUS_DEVICE);
     type_register_static(&mv88w8618_eth_info);
     qdev_register_subclass(&mv88w8618_wlan_info, TYPE_SYS_BUS_DEVICE);
-    qdev_register_subclass(&musicpal_lcd_info, TYPE_SYS_BUS_DEVICE);
+    type_register_static(&musicpal_lcd_info);
     qdev_register_subclass(&musicpal_gpio_info, TYPE_SYS_BUS_DEVICE);
     qdev_register_subclass(&musicpal_key_info, TYPE_SYS_BUS_DEVICE);
 }

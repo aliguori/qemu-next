@@ -757,22 +757,24 @@ static Property m48t59_properties[] = {
 
 static void m48t59_class_init(ObjectClass *klass, void *data)
 {
+    DeviceClass *dc = DEVICE_CLASS(klass);
     SysBusDeviceClass *k = SYS_BUS_DEVICE_CLASS(klass);
 
     k->init = m48t59_init1;
+    dc->reset = m48t59_reset_sysbus;
+    dc->props = m48t59_properties;
 }
 
-static DeviceInfo m48t59_info = {
-    .name = "m48t59",
-    .size = sizeof(M48t59SysBusState),
-    .reset = m48t59_reset_sysbus,
-    .props = m48t59_properties,
-    .class_init = m48t59_class_init,
+static TypeInfo m48t59_info = {
+    .name          = "m48t59",
+    .parent        = TYPE_SYS_BUS_DEVICE,
+    .instance_size = sizeof(M48t59SysBusState),
+    .class_init    = m48t59_class_init,
 };
 
 static void m48t59_register_devices(void)
 {
-    qdev_register_subclass(&m48t59_info, TYPE_SYS_BUS_DEVICE);
+    type_register_static(&m48t59_info);
     type_register_static(&m48t59_isa_info);
 }
 

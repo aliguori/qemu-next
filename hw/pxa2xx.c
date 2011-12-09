@@ -1491,10 +1491,11 @@ static void pxa2xx_i2c_slave_class_init(ObjectClass *klass, void *data)
     k->send = pxa2xx_i2c_tx;
 }
 
-static DeviceInfo pxa2xx_i2c_slave_info = {
-    .name = "pxa2xx-i2c-slave",
-    .size = sizeof(PXA2xxI2CSlaveState),
-    .class_init = pxa2xx_i2c_slave_class_init,
+static TypeInfo pxa2xx_i2c_slave_info = {
+    .name          = "pxa2xx-i2c-slave",
+    .parent        = TYPE_I2C_SLAVE,
+    .instance_size = sizeof(PXA2xxI2CSlaveState),
+    .class_init    = pxa2xx_i2c_slave_class_init,
 };
 
 PXA2xxI2CState *pxa2xx_i2c_init(target_phys_addr_t base,
@@ -2324,7 +2325,7 @@ static DeviceInfo pxa2xx_ssp_info = {
 
 static void pxa2xx_register_devices(void)
 {
-    qdev_register_subclass(&pxa2xx_i2c_slave_info, TYPE_I2C_SLAVE);
+    type_register_static(&pxa2xx_i2c_slave_info);
     qdev_register_subclass(&pxa2xx_ssp_info, TYPE_SYS_BUS_DEVICE);
     qdev_register_subclass(&pxa2xx_i2c_info, TYPE_SYS_BUS_DEVICE);
     type_register_static(&pxa2xx_rtc_sysbus_info);

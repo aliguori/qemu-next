@@ -146,15 +146,16 @@ static void pci_grackle_device_class_init(ObjectClass *klass, void *data)
     sdc->init = pci_grackle_device_init;
 }
 
-static DeviceInfo pci_grackle_device_info = {
-    .name = "grackle",
-    .size = sizeof(GrackleState),
-    .class_init = pci_grackle_device_class_init,
+static TypeInfo pci_grackle_device_info = {
+    .name          = "grackle",
+    .parent        = TYPE_SYS_BUS_DEVICE,
+    .instance_size = sizeof(GrackleState),
+    .class_init    = pci_grackle_device_class_init,
 };
 
 static void grackle_register_devices(void)
 {
-    qdev_register_subclass(&pci_grackle_device_info, TYPE_SYS_BUS_DEVICE);
+    type_register_static(&pci_grackle_device_info);
     type_register_static(&grackle_pci_host_info);
 }
 

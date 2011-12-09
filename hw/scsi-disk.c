@@ -1757,27 +1757,31 @@ static TypeInfo scsi_hd_info = {
     .class_init    = scsi_hd_class_initfn,
 };
 
+static Property scsi_cd_properties[] = {
+    DEFINE_SCSI_DISK_PROPERTIES(),
+    DEFINE_PROP_END_OF_LIST(),
+};
+
 static void scsi_cd_class_initfn(ObjectClass *klass, void *data)
 {
+    DeviceClass *dc = DEVICE_CLASS(klass);
     SCSIDeviceClass *sc = SCSI_DEVICE_CLASS(klass);
 
     sc->init         = scsi_cd_initfn;
     sc->destroy      = scsi_destroy;
     sc->alloc_req    = scsi_new_request;
     sc->unit_attention_reported = scsi_disk_unit_attention_reported;
+    dc->fw_name = "disk";
+    dc->desc = "virtual SCSI CD-ROM";
+    dc->reset = scsi_disk_reset;
+    dc->props = scsi_cd_properties;
 }
 
-static DeviceInfo scsi_cd_info = {
-    .name    = "scsi-cd",
-    .fw_name = "disk",
-    .desc    = "virtual SCSI CD-ROM",
-    .size    = sizeof(SCSIDiskState),
-    .reset   = scsi_disk_reset,
-    .class_init = scsi_cd_class_initfn,
-    .props   = (Property[]) {
-        DEFINE_SCSI_DISK_PROPERTIES(),
-        DEFINE_PROP_END_OF_LIST(),
-    },
+static TypeInfo scsi_cd_info = {
+    .name          = "scsi-cd",
+    .parent        = TYPE_SCSI_DEVICE,
+    .instance_size = sizeof(SCSIDiskState),
+    .class_init    = scsi_cd_class_initfn,
 };
 
 #ifdef __linux__
@@ -1831,7 +1835,7 @@ static DeviceInfo scsi_disk_info = {
 static void scsi_disk_register_devices(void)
 {
     type_register_static(&scsi_hd_info);
-    qdev_register_subclass(&scsi_cd_info, TYPE_SCSI_DEVICE);
+    type_register_static(&scsi_cd_info);
 #ifdef __linux__
     qdev_register_subclass(&scsi_block_info, TYPE_SCSI_DEVICE);
 #endif

@@ -278,16 +278,17 @@ static void tosa_ssp_class_init(ObjectClass *klass, void *data)
     k->transfer = tosa_ssp_tansfer;
 }
 
-static DeviceInfo tosa_ssp_info = {
-    .name = "tosa-ssp",
-    .size = sizeof(SSISlave),
-    .class_init = tosa_ssp_class_init,
+static TypeInfo tosa_ssp_info = {
+    .name          = "tosa-ssp",
+    .parent        = TYPE_SSI_SLAVE,
+    .instance_size = sizeof(SSISlave),
+    .class_init    = tosa_ssp_class_init,
 };
 
 static void tosa_register_devices(void)
 {
     type_register_static(&tosa_dac_info);
-    qdev_register_subclass(&tosa_ssp_info, TYPE_SSI_SLAVE);
+    type_register_static(&tosa_ssp_info);
 }
 
 device_init(tosa_register_devices)

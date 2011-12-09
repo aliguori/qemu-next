@@ -371,22 +371,24 @@ static TypeInfo i440fx_info = {
 
 static void i440fx_pcihost_class_init(ObjectClass *klass, void *data)
 {
+    DeviceClass *dc = DEVICE_CLASS(klass);
     SysBusDeviceClass *k = SYS_BUS_DEVICE_CLASS(klass);
 
     k->init = i440fx_pcihost_initfn;
+    dc->fw_name = "pci";
+    dc->no_user = 1;
 }
 
-static DeviceInfo i440fx_pcihost_info = {
-    .name = "i440FX-pcihost",
-    .fw_name = "pci",
-    .size = sizeof(I440FXState),
-    .no_user = 1,
-    .class_init = i440fx_pcihost_class_init,
+static TypeInfo i440fx_pcihost_info = {
+    .name          = "i440FX-pcihost",
+    .parent        = TYPE_SYS_BUS_DEVICE,
+    .instance_size = sizeof(I440FXState),
+    .class_init    = i440fx_pcihost_class_init,
 };
 
 static void i440fx_register(void)
 {
-    qdev_register_subclass(&i440fx_pcihost_info, TYPE_SYS_BUS_DEVICE);
+    type_register_static(&i440fx_pcihost_info);
     type_register_static(&i440fx_info);
 }
 

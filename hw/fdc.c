@@ -2014,18 +2014,20 @@ static Property sysbus_fdc_properties[] = {
 
 static void sysbus_fdc_class_init(ObjectClass *klass, void *data)
 {
+    DeviceClass *dc = DEVICE_CLASS(klass);
     SysBusDeviceClass *k = SYS_BUS_DEVICE_CLASS(klass);
 
     k->init = sysbus_fdc_init1;
+    dc->reset = fdctrl_external_reset_sysbus;
+    dc->vmsd = &vmstate_sysbus_fdc;
+    dc->props = sysbus_fdc_properties;
 }
 
-static DeviceInfo sysbus_fdc_info = {
-    .name = "sysbus-fdc",
-    .size = sizeof(FDCtrlSysBus),
-    .vmsd = &vmstate_sysbus_fdc,
-    .reset = fdctrl_external_reset_sysbus,
-    .props = sysbus_fdc_properties,
-    .class_init = sysbus_fdc_class_init,
+static TypeInfo sysbus_fdc_info = {
+    .name          = "sysbus-fdc",
+    .parent        = TYPE_SYS_BUS_DEVICE,
+    .instance_size = sizeof(FDCtrlSysBus),
+    .class_init    = sysbus_fdc_class_init,
 };
 
 static Property sun4m_fdc_properties[] = {
@@ -2052,7 +2054,7 @@ static DeviceInfo sun4m_fdc_info = {
 static void fdc_register_devices(void)
 {
     type_register_static(&isa_fdc_info);
-    qdev_register_subclass(&sysbus_fdc_info, TYPE_SYS_BUS_DEVICE);
+    type_register_static(&sysbus_fdc_info);
     qdev_register_subclass(&sun4m_fdc_info, TYPE_SYS_BUS_DEVICE);
 }
 

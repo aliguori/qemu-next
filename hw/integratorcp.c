@@ -571,15 +571,16 @@ static void icp_pic_class_init(ObjectClass *klass, void *data)
     sdc->init = icp_pic_init;
 }
 
-static DeviceInfo icp_pic_info = {
-    .name = "integrator_pic",
-    .size = sizeof(icp_pic_state),
-    .class_init = icp_pic_class_init,
+static TypeInfo icp_pic_info = {
+    .name          = "integrator_pic",
+    .parent        = TYPE_SYS_BUS_DEVICE,
+    .instance_size = sizeof(icp_pic_state),
+    .class_init    = icp_pic_class_init,
 };
 
 static void integratorcp_register_devices(void)
 {
-    qdev_register_subclass(&icp_pic_info, TYPE_SYS_BUS_DEVICE);
+    type_register_static(&icp_pic_info);
     type_register_static(&core_info);
 }
 

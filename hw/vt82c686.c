@@ -393,6 +393,7 @@ void vt82c686b_mc97_init(PCIBus *bus, int devfn)
 
 static void via_mc97_class_init(ObjectClass *klass, void *data)
 {
+    DeviceClass *dc = DEVICE_CLASS(klass);
     PCIDeviceClass *k = PCI_DEVICE_CLASS(klass);
 
     k->init = vt82c686b_mc97_initfn;
@@ -400,18 +401,19 @@ static void via_mc97_class_init(ObjectClass *klass, void *data)
     k->device_id = PCI_DEVICE_ID_VIA_MC97;
     k->class_id = PCI_CLASS_COMMUNICATION_OTHER;
     k->revision = 0x30;
+    dc->desc = "MC97";
 }
 
-static DeviceInfo via_mc97_info = {
-    .name = "VT82C686B_MC97",
-    .desc = "MC97",
-    .size = sizeof(VT686MC97State),
-    .class_init = via_mc97_class_init,
+static TypeInfo via_mc97_info = {
+    .name          = "VT82C686B_MC97",
+    .parent        = TYPE_PCI_DEVICE,
+    .instance_size = sizeof(VT686MC97State),
+    .class_init    = via_mc97_class_init,
 };
 
 static void vt82c686b_mc97_register(void)
 {
-    qdev_register_subclass(&via_mc97_info, TYPE_PCI_DEVICE);
+    type_register_static(&via_mc97_info);
 }
 
 device_init(vt82c686b_mc97_register);

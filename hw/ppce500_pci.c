@@ -380,21 +380,23 @@ static TypeInfo e500_host_bridge_info = {
 
 static void e500_pcihost_class_init(ObjectClass *klass, void *data)
 {
+    DeviceClass *dc = DEVICE_CLASS(klass);
     SysBusDeviceClass *k = SYS_BUS_DEVICE_CLASS(klass);
 
     k->init = e500_pcihost_initfn;
+    dc->vmsd = &vmstate_ppce500_pci;
 }
 
-static DeviceInfo e500_pcihost_info = {
-    .name = "e500-pcihost",
-    .size = sizeof(PPCE500PCIState),
-    .vmsd = &vmstate_ppce500_pci,
-    .class_init = e500_pcihost_class_init,
+static TypeInfo e500_pcihost_info = {
+    .name          = "e500-pcihost",
+    .parent        = TYPE_SYS_BUS_DEVICE,
+    .instance_size = sizeof(PPCE500PCIState),
+    .class_init    = e500_pcihost_class_init,
 };
 
 static void e500_pci_register(void)
 {
-    qdev_register_subclass(&e500_pcihost_info, TYPE_SYS_BUS_DEVICE);
+    type_register_static(&e500_pcihost_info);
     type_register_static(&e500_host_bridge_info);
 }
 device_init(e500_pci_register);

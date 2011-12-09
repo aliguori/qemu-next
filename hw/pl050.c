@@ -182,22 +182,24 @@ static TypeInfo pl050_kbd_info = {
 
 static void pl050_mouse_class_init(ObjectClass *klass, void *data)
 {
+    DeviceClass *dc = DEVICE_CLASS(klass);
     SysBusDeviceClass *k = SYS_BUS_DEVICE_CLASS(klass);
 
     k->init = pl050_init_mouse;
+    dc->vmsd = &vmstate_pl050;
 }
 
-static DeviceInfo pl050_mouse_info = {
-    .name = "pl050_mouse",
-    .size = sizeof(pl050_state),
-    .vmsd = &vmstate_pl050,
-    .class_init = pl050_mouse_class_init,
+static TypeInfo pl050_mouse_info = {
+    .name          = "pl050_mouse",
+    .parent        = TYPE_SYS_BUS_DEVICE,
+    .instance_size = sizeof(pl050_state),
+    .class_init    = pl050_mouse_class_init,
 };
 
 static void pl050_register_devices(void)
 {
     type_register_static(&pl050_kbd_info);
-    qdev_register_subclass(&pl050_mouse_info, TYPE_SYS_BUS_DEVICE);
+    type_register_static(&pl050_mouse_info);
 }
 
 device_init(pl050_register_devices)

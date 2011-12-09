@@ -133,10 +133,11 @@ static void pci_vpb_class_init(ObjectClass *klass, void *data)
     sdc->init = pci_vpb_init;
 }
 
-static DeviceInfo pci_vpb_info = {
-    .name = "versatile_pci",
-    .size = sizeof(PCIVPBState),
-    .class_init = pci_vpb_class_init,
+static TypeInfo pci_vpb_info = {
+    .name          = "versatile_pci",
+    .parent        = TYPE_SYS_BUS_DEVICE,
+    .instance_size = sizeof(PCIVPBState),
+    .class_init    = pci_vpb_class_init,
 };
 
 static void pci_realview_class_init(ObjectClass *klass, void *data)
@@ -154,7 +155,7 @@ static DeviceInfo pci_realview_info = {
 
 static void versatile_pci_register_devices(void)
 {
-    qdev_register_subclass(&pci_vpb_info, TYPE_SYS_BUS_DEVICE);
+    type_register_static(&pci_vpb_info);
     qdev_register_subclass(&pci_realview_info, TYPE_SYS_BUS_DEVICE);
     type_register_static(&versatile_pci_host_info);
 }

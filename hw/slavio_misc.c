@@ -500,16 +500,17 @@ static void apc_class_init(ObjectClass *klass, void *data)
     k->init = apc_init1;
 }
 
-static DeviceInfo apc_info = {
-    .name = "apc",
-    .size = sizeof(MiscState),
-    .class_init = apc_class_init,
+static TypeInfo apc_info = {
+    .name          = "apc",
+    .parent        = TYPE_SYS_BUS_DEVICE,
+    .instance_size = sizeof(MiscState),
+    .class_init    = apc_class_init,
 };
 
 static void slavio_misc_register_devices(void)
 {
     type_register_static(&slavio_misc_info);
-    qdev_register_subclass(&apc_info, TYPE_SYS_BUS_DEVICE);
+    type_register_static(&apc_info);
 }
 
 device_init(slavio_misc_register_devices)

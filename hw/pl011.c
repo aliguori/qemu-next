@@ -316,16 +316,17 @@ static void pl011_luminary_class_init(ObjectClass *klass, void *data)
     sdc->init = pl011_luminary_init;
 }
 
-static DeviceInfo pl011_luminary_info = {
-    .name = "pl011_luminary",
-    .size = sizeof(pl011_state),
-    .class_init = pl011_luminary_class_init,
+static TypeInfo pl011_luminary_info = {
+    .name          = "pl011_luminary",
+    .parent        = TYPE_SYS_BUS_DEVICE,
+    .instance_size = sizeof(pl011_state),
+    .class_init    = pl011_luminary_class_init,
 };
 
 static void pl011_register_devices(void)
 {
     type_register_static(&pl011_arm_info);
-    qdev_register_subclass(&pl011_luminary_info, TYPE_SYS_BUS_DEVICE);
+    type_register_static(&pl011_luminary_info);
 }
 
 device_init(pl011_register_devices)

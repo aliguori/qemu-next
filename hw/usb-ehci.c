@@ -2285,6 +2285,7 @@ static TypeInfo ehci_info = {
 
 static void ich9_ehci_class_init(ObjectClass *klass, void *data)
 {
+    DeviceClass *dc = DEVICE_CLASS(klass);
     PCIDeviceClass *k = PCI_DEVICE_CLASS(klass);
 
     k->init = usb_ehci_initfn;
@@ -2292,14 +2293,15 @@ static void ich9_ehci_class_init(ObjectClass *klass, void *data)
     k->device_id = PCI_DEVICE_ID_INTEL_82801I_EHCI1;
     k->revision = 0x03;
     k->class_id = PCI_CLASS_SERIAL_USB;
+    dc->vmsd = &vmstate_ehci;
+    dc->props = ehci_properties;
 }
 
-static DeviceInfo ich9_ehci_info = {
-    .name = "ich9-usb-ehci1",
-    .size = sizeof(EHCIState),
-    .vmsd = &vmstate_ehci,
-    .props = ehci_properties,
-    .class_init = ich9_ehci_class_init,
+static TypeInfo ich9_ehci_info = {
+    .name          = "ich9-usb-ehci1",
+    .parent        = TYPE_PCI_DEVICE,
+    .instance_size = sizeof(EHCIState),
+    .class_init    = ich9_ehci_class_init,
 };
 
 static int usb_ehci_initfn(PCIDevice *dev)
@@ -2376,7 +2378,7 @@ static int usb_ehci_initfn(PCIDevice *dev)
 static void ehci_register(void)
 {
     type_register_static(&ehci_info);
-    qdev_register_subclass(&ich9_ehci_info, TYPE_PCI_DEVICE);
+    type_register_static(&ich9_ehci_info);
 }
 device_init(ehci_register);
 

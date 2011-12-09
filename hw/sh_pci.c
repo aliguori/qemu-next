@@ -191,15 +191,16 @@ static void sh_pci_device_class_init(ObjectClass *klass, void *data)
     sdc->init = sh_pci_device_init;
 }
 
-static DeviceInfo sh_pci_device_info = {
-    .name = "",
-    .size = sizeof(SHPCIState),
-    .class_init = sh_pci_device_class_init,
+static TypeInfo sh_pci_device_info = {
+    .name          = "",
+    .parent        = TYPE_SYS_BUS_DEVICE,
+    .instance_size = sizeof(SHPCIState),
+    .class_init    = sh_pci_device_class_init,
 };
 
 static void sh_pci_register_devices(void)
 {
-    qdev_register_subclass(&sh_pci_device_info, TYPE_SYS_BUS_DEVICE);
+    type_register_static(&sh_pci_device_info);
     type_register_static(&sh_pci_host_info);
 }
 

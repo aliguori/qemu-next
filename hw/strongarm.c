@@ -421,17 +421,19 @@ static const VMStateDescription vmstate_strongarm_rtc_regs = {
 
 static void strongarm_rtc_sysbus_class_init(ObjectClass *klass, void *data)
 {
+    DeviceClass *dc = DEVICE_CLASS(klass);
     SysBusDeviceClass *k = SYS_BUS_DEVICE_CLASS(klass);
 
     k->init = strongarm_rtc_init;
+    dc->desc = "StrongARM RTC Controller";
+    dc->vmsd = &vmstate_strongarm_rtc_regs;
 }
 
-static DeviceInfo strongarm_rtc_sysbus_info = {
-    .name = "strongarm-rtc",
-    .desc = "StrongARM RTC Controller",
-    .size = sizeof(StrongARMRTCState),
-    .vmsd = &vmstate_strongarm_rtc_regs,
-    .class_init = strongarm_rtc_sysbus_class_init,
+static TypeInfo strongarm_rtc_sysbus_info = {
+    .name          = "strongarm-rtc",
+    .parent        = TYPE_SYS_BUS_DEVICE,
+    .instance_size = sizeof(StrongARMRTCState),
+    .class_init    = strongarm_rtc_sysbus_class_init,
 };
 
 /* GPIO */
@@ -1598,7 +1600,7 @@ StrongARMState *sa1110_init(MemoryRegion *sysmem,
 static void strongarm_register_devices(void)
 {
     type_register_static(&strongarm_pic_info);
-    qdev_register_subclass(&strongarm_rtc_sysbus_info, TYPE_SYS_BUS_DEVICE);
+    type_register_static(&strongarm_rtc_sysbus_info);
     qdev_register_subclass(&strongarm_gpio_info, TYPE_SYS_BUS_DEVICE);
     qdev_register_subclass(&strongarm_ppc_info, TYPE_SYS_BUS_DEVICE);
     qdev_register_subclass(&strongarm_uart_info, TYPE_SYS_BUS_DEVICE);

@@ -211,15 +211,16 @@ static void spapr_phb_class_init(ObjectClass *klass, void *data)
     sdc->init = spapr_phb_init;
 }
 
-static DeviceInfo spapr_phb_info = {
-    .name = "spapr-pci-host-bridge",
-    .size = sizeof(sPAPRPHBState),
-    .class_init = spapr_phb_class_init,
+static TypeInfo spapr_phb_info = {
+    .name          = "spapr-pci-host-bridge",
+    .parent        = TYPE_SYS_BUS_DEVICE,
+    .instance_size = sizeof(sPAPRPHBState),
+    .class_init    = spapr_phb_class_init,
 };
 
 static void spapr_register_devices(void)
 {
-    qdev_register_subclass(&spapr_phb_info, TYPE_SYS_BUS_DEVICE);
+    type_register_static(&spapr_phb_info);
     type_register_static(&spapr_main_pci_host_info);
 }
 

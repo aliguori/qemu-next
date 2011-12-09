@@ -169,21 +169,23 @@ static Property virtserialport_properties[] = {
 
 static void virtserialport_class_init(ObjectClass *klass, void *data)
 {
+    DeviceClass *dc = DEVICE_CLASS(klass);
     VirtIOSerialPortClass *k = VIRTIO_SERIAL_PORT_CLASS(klass);
 
     k->init = virtconsole_initfn;
     k->exit = virtconsole_exitfn;
+    dc->props = virtserialport_properties;
 }
 
-static DeviceInfo virtserialport_info = {
-    .name = "virtserialport",
-    .size = sizeof(VirtConsole),
-    .props = virtserialport_properties,
-    .class_init = virtserialport_class_init,
+static TypeInfo virtserialport_info = {
+    .name          = "virtserialport",
+    .parent        = TYPE_VIRTIO_SERIAL_PORT,
+    .instance_size = sizeof(VirtConsole),
+    .class_init    = virtserialport_class_init,
 };
 
 static void virtserialport_register(void)
 {
-    qdev_register_subclass(&virtserialport_info, TYPE_VIRTIO_SERIAL_PORT);
+    type_register_static(&virtserialport_info);
 }
 device_init(virtserialport_register)

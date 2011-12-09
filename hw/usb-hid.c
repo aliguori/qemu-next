@@ -573,19 +573,21 @@ static void usb_hid_class_initfn(ObjectClass *klass, void *data)
 
 static void usb_tablet_class_initfn(ObjectClass *klass, void *data)
 {
+    DeviceClass *dc = DEVICE_CLASS(klass);
     USBDeviceClass *uc = USB_DEVICE_CLASS(klass);
 
     usb_hid_class_initfn(klass, data);
     uc->init           = usb_tablet_initfn;
     uc->product_desc   = "QEMU USB Tablet";
     uc->usb_desc       = &desc_tablet;
+    dc->vmsd = &vmstate_usb_ptr;
 }
 
-static DeviceInfo usb_tablet_info = {
-    .name      = "usb-tablet",
-    .size      = sizeof(USBHIDState),
-    .vmsd      = &vmstate_usb_ptr,
-    .class_init= usb_tablet_class_initfn,
+static TypeInfo usb_tablet_info = {
+    .name          = "usb-tablet",
+    .parent        = TYPE_USB_DEVICE,
+    .instance_size = sizeof(USBHIDState),
+    .class_init    = usb_tablet_class_initfn,
 };
 
 static void usb_mouse_class_initfn(ObjectClass *klass, void *data)
@@ -624,7 +626,7 @@ static DeviceInfo usb_keyboard_info = {
 
 static void usb_hid_register_devices(void)
 {
-    qdev_register_subclass(&usb_tablet_info, TYPE_USB_DEVICE);
+    type_register_static(&usb_tablet_info);
     usb_legacy_register("usb-tablet", "tablet", NULL);
     qdev_register_subclass(&usb_mouse_info, TYPE_USB_DEVICE);
     usb_legacy_register("usb-mouse", "mouse", NULL);

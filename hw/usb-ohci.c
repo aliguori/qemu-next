@@ -1869,22 +1869,24 @@ static Property ohci_sysbus_properties[] = {
 
 static void ohci_sysbus_class_init(ObjectClass *klass, void *data)
 {
+    DeviceClass *dc = DEVICE_CLASS(klass);
     SysBusDeviceClass *k = SYS_BUS_DEVICE_CLASS(klass);
 
     k->init = ohci_init_pxa;
+    dc->desc = "OHCI USB Controller";
+    dc->props = ohci_sysbus_properties;
 }
 
-static DeviceInfo ohci_sysbus_info = {
-    .name = "sysbus-ohci",
-    .desc = "OHCI USB Controller",
-    .size = sizeof(OHCISysBusState),
-    .props = ohci_sysbus_properties,
-    .class_init = ohci_sysbus_class_init,
+static TypeInfo ohci_sysbus_info = {
+    .name          = "sysbus-ohci",
+    .parent        = TYPE_SYS_BUS_DEVICE,
+    .instance_size = sizeof(OHCISysBusState),
+    .class_init    = ohci_sysbus_class_init,
 };
 
 static void ohci_register(void)
 {
     type_register_static(&ohci_pci_info);
-    qdev_register_subclass(&ohci_sysbus_info, TYPE_SYS_BUS_DEVICE);
+    type_register_static(&ohci_sysbus_info);
 }
 device_init(ohci_register);

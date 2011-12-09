@@ -1062,17 +1062,19 @@ static Property spitz_keyboard_properties[] = {
 
 static void spitz_keyboard_class_init(ObjectClass *klass, void *data)
 {
+    DeviceClass *dc = DEVICE_CLASS(klass);
     SysBusDeviceClass *k = SYS_BUS_DEVICE_CLASS(klass);
 
     k->init = spitz_keyboard_init;
+    dc->vmsd = &vmstate_spitz_kbd;
+    dc->props = spitz_keyboard_properties;
 }
 
-static DeviceInfo spitz_keyboard_info = {
-    .name = "spitz-keyboard",
-    .size = sizeof(SpitzKeyboardState),
-    .vmsd = &vmstate_spitz_kbd,
-    .props = spitz_keyboard_properties,
-    .class_init = spitz_keyboard_class_init,
+static TypeInfo spitz_keyboard_info = {
+    .name          = "spitz-keyboard",
+    .parent        = TYPE_SYS_BUS_DEVICE,
+    .instance_size = sizeof(SpitzKeyboardState),
+    .class_init    = spitz_keyboard_class_init,
 };
 
 static const VMStateDescription vmstate_corgi_ssp_regs = {
@@ -1132,7 +1134,7 @@ static void spitz_register_devices(void)
 {
     qdev_register_subclass(&corgi_ssp_info, TYPE_SSI_SLAVE);
     qdev_register_subclass(&spitz_lcdtg_info, TYPE_SSI_SLAVE);
-    qdev_register_subclass(&spitz_keyboard_info, TYPE_SYS_BUS_DEVICE);
+    type_register_static(&spitz_keyboard_info);
     type_register_static(&sl_nand_info);
 }
 
