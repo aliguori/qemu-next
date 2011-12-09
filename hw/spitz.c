@@ -1128,8 +1128,8 @@ static DeviceInfo spitz_lcdtg_info = {
 
 static void spitz_register_devices(void)
 {
-    ssi_register_slave(&corgi_ssp_info);
-    ssi_register_slave(&spitz_lcdtg_info);
+    qdev_register_subclass(&corgi_ssp_info, TYPE_SSI_SLAVE);
+    qdev_register_subclass(&spitz_lcdtg_info, TYPE_SSI_SLAVE);
     qdev_register_subclass(&spitz_keyboard_info, TYPE_SYS_BUS_DEVICE);
     qdev_register_subclass(&sl_nand_info, TYPE_SYS_BUS_DEVICE);
 }

@@ -1474,7 +1474,7 @@ static void stellaris_register_devices(void)
     qdev_register_subclass(&stellaris_i2c_info, TYPE_SYS_BUS_DEVICE);
     qdev_register_subclass(&stellaris_gptm_info, TYPE_SYS_BUS_DEVICE);
     qdev_register_subclass(&stellaris_adc_info, TYPE_SYS_BUS_DEVICE);
-    ssi_register_slave(&stellaris_ssi_bus_info);
+    qdev_register_subclass(&stellaris_ssi_bus_info, TYPE_SSI_SLAVE);
 }
 
 device_init(stellaris_register_devices)
