@@ -91,6 +91,8 @@ typedef struct SerialFIFO {
 #define SERIAL_DEVICE_GET_CLASS(obj) \
      OBJECT_GET_CLASS(SerialDeviceClass, (obj), TYPE_SERIAL_DEVICE)
 
+typedef struct DeviceClass SerialDeviceClass;
+
 typedef struct SerialDevice {
     DeviceState parent;
 
@@ -114,7 +116,6 @@ typedef struct SerialDevice {
     qemu_irq irq;
     CharDriverState *chr;
     int last_break_enable;
-    int it_shift;
     int baudbase;
     int tsr_retry;
 
@@ -136,10 +137,6 @@ typedef struct SerialDevice {
 
 SerialDevice *serial_init(int base, qemu_irq irq, int baudbase,
                          CharDriverState *chr);
-SerialDevice *serial_mm_init(MemoryRegion *address_space,
-                            target_phys_addr_t base, int it_shift,
-                            qemu_irq irq, int baudbase,
-                            CharDriverState *chr, enum device_endian);
 
 void serial_set_frequency(SerialDevice *s, uint32_t frequency);
 

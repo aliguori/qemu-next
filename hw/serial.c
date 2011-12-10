@@ -637,7 +637,7 @@ static TypeInfo serial_device_info = {
 };
 
 SerialDevice *serial_init(int base, qemu_irq irq, int baudbase,
-                         CharDriverState *chr)
+                          CharDriverState *chr)
 {
     SerialDevice *s;
 
@@ -655,68 +655,6 @@ SerialDevice *serial_init(int base, qemu_irq irq, int baudbase,
 
     register_ioport_write(base, 8, 1, (IOPortWriteFunc *)serial_ioport_write, s);
     register_ioport_read(base, 8, 1, (IOPortReadFunc *)serial_ioport_read, s);
-    return s;
-}
-
-/* Memory mapped interface */
-static uint64_t serial_mm_read(void *opaque, target_phys_addr_t addr,
-                               unsigned size)
-{
-    SerialDevice *s = opaque;
-    return serial_ioport_read(s, addr >> s->it_shift);
-}
-
-static void serial_mm_write(void *opaque, target_phys_addr_t addr,
-                            uint64_t value, unsigned size)
-{
-    SerialDevice *s = opaque;
-    value &= ~0u >> (32 - (size * 8));
-    serial_ioport_write(s, addr >> s->it_shift, value);
-}
-
-static const MemoryRegionOps serial_mm_ops[3] = {
-    [DEVICE_NATIVE_ENDIAN] = {
-        .read = serial_mm_read,
-        .write = serial_mm_write,
-        .endianness = DEVICE_NATIVE_ENDIAN,
-    },
-    [DEVICE_LITTLE_ENDIAN] = {
-        .read = serial_mm_read,
-        .write = serial_mm_write,
-        .endianness = DEVICE_LITTLE_ENDIAN,
-    },
-    [DEVICE_BIG_ENDIAN] = {
-        .read = serial_mm_read,
-        .write = serial_mm_write,
-        .endianness = DEVICE_BIG_ENDIAN,
-    },
-};
-
-SerialDevice *serial_mm_init(MemoryRegion *address_space,
-                            target_phys_addr_t base, int it_shift,
-                            qemu_irq irq, int baudbase,
-                            CharDriverState *chr, enum device_endian end)
-{
-    SerialDevice *s;
-
-    s = SERIAL_DEVICE(object_new(TYPE_SERIAL_DEVICE));
-
-    s->it_shift = it_shift;
-    s->irq = irq;
-    s->baudbase = baudbase;
-    s->chr = chr;
-
-    if (qdev_init(DEVICE(s)) < 0) {
-        return NULL;
-    }
-
-    vmstate_register(NULL, base, &vmstate_serial, s);
-
-    memory_region_init_io(&s->io, &serial_mm_ops[end], s,
-                          "serial", 8 << it_shift);
-    memory_region_add_subregion(address_space, base, &s->io);
-
-    serial_update_msl(s);
     return s;
 }
 

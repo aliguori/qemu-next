@@ -81,6 +81,7 @@ static void serial_isa_inst_initfn(Object *obj)
 
     object_initialize(&dev->uart, TYPE_SERIAL_DEVICE);
     qdev_property_add_child(DEVICE(dev), "uart", DEVICE(&dev->uart), NULL);
+    qdev_prop_set_globals(DEVICE(dev));
 }
 
 static TypeInfo serial_isa_info = {
