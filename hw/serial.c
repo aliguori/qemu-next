@@ -34,15 +34,6 @@ do { fprintf(stderr, "serial: " fmt , ## __VA_ARGS__); } while (0)
 do {} while (0)
 #endif
 
-typedef struct ISASerialDevice {
-    ISADevice dev;
-    uint32_t index;
-    uint32_t iobase;
-    uint32_t isairq;
-    SerialDevice state;
-    CharDriverState *chr;
-} ISASerialDevice;
-
 static void serial_receive1(void *opaque, const uint8_t *buf, int size);
 
 static void fifo_clear(SerialDevice *s, int fifo)
@@ -241,11 +232,8 @@ static void serial_xmit(void *opaque)
     }
 }
 
-
-static void serial_ioport_write(void *opaque, uint32_t addr, uint32_t val)
+void serial_ioport_write(SerialDevice *s, uint32_t addr, uint32_t val)
 {
-    SerialDevice *s = opaque;
-
     addr &= 7;
     DPRINTF("write addr=0x%02x val=0x%02x\n", addr, val);
     switch(addr) {
@@ -388,9 +376,8 @@ static void serial_ioport_write(void *opaque, uint32_t addr, uint32_t val)
     }
 }
 
-static uint32_t serial_ioport_read(void *opaque, uint32_t addr)
+uint32_t serial_ioport_read(SerialDevice *s, uint32_t addr)
 {
-    SerialDevice *s = opaque;
     uint32_t ret;
 
     addr &= 7;
@@ -558,7 +545,7 @@ static int serial_post_load(void *opaque, int version_id)
     return 0;
 }
 
-static const VMStateDescription vmstate_serial = {
+const VMStateDescription vmstate_serial = {
     .name = "serial",
     .version_id = 3,
     .minimum_version_id = 2,
@@ -649,65 +636,6 @@ static TypeInfo serial_device_info = {
     .class_init = serial_class_init,
 };
 
-static const int isa_serial_io[MAX_SERIAL_PORTS] = { 0x3f8, 0x2f8, 0x3e8, 0x2e8 };
-static const int isa_serial_irq[MAX_SERIAL_PORTS] = { 4, 3, 4, 3 };
-
-static const MemoryRegionPortio serial_portio[] = {
-    { 0, 8, 1, .read = serial_ioport_read, .write = serial_ioport_write },
-    PORTIO_END_OF_LIST()
-};
-
-static const MemoryRegionOps serial_io_ops = {
-    .old_portio = serial_portio
-};
-
-static int serial_isa_initfn(ISADevice *dev)
-{
-    static int index;
-    ISASerialDevice *isa = DO_UPCAST(ISASerialDevice, dev, dev);
-    SerialDevice *s = &isa->state;
-    int err;
-
-    if (isa->index == -1)
-        isa->index = index;
-    if (isa->index >= MAX_SERIAL_PORTS)
-        return -1;
-    if (isa->iobase == -1)
-        isa->iobase = isa_serial_io[isa->index];
-    if (isa->isairq == -1)
-        isa->isairq = isa_serial_irq[isa->index];
-    index++;
-
-    object_initialize(s, TYPE_SERIAL_DEVICE);
-    qdev_property_add_child(DEVICE(dev), "uart", DEVICE(s), NULL);
-
-    s->baudbase = 115200;
-    s->chr = isa->chr;
-
-    err = qdev_init(DEVICE(s));
-    if (err < 0) {
-        return err;
-    }
-
-    isa_init_irq(dev, &s->irq, isa->isairq);
-
-    qdev_set_legacy_instance_id(&dev->qdev, isa->iobase, 3);
-
-    memory_region_init_io(&s->io, &serial_io_ops, s, "serial", 8);
-    isa_register_ioport(dev, &s->io, isa->iobase);
-    return 0;
-}
-
-static const VMStateDescription vmstate_isa_serial = {
-    .name = "serial",
-    .version_id = 3,
-    .minimum_version_id = 2,
-    .fields      = (VMStateField []) {
-        VMSTATE_STRUCT(state, ISASerialDevice, 0, vmstate_serial, SerialDevice),
-        VMSTATE_END_OF_LIST()
-    }
-};
-
 SerialDevice *serial_init(int base, qemu_irq irq, int baudbase,
                          CharDriverState *chr)
 {
@@ -725,8 +653,8 @@ SerialDevice *serial_init(int base, qemu_irq irq, int baudbase,
 
     vmstate_register(NULL, base, &vmstate_serial, s);
 
-    register_ioport_write(base, 8, 1, serial_ioport_write, s);
-    register_ioport_read(base, 8, 1, serial_ioport_read, s);
+    register_ioport_write(base, 8, 1, (IOPortWriteFunc *)serial_ioport_write, s);
+    register_ioport_read(base, 8, 1, (IOPortReadFunc *)serial_ioport_read, s);
     return s;
 }
 
@@ -792,33 +720,8 @@ SerialDevice *serial_mm_init(MemoryRegion *address_space,
     return s;
 }
 
-static Property serial_isa_properties[] = {
-    DEFINE_PROP_UINT32("index", ISASerialDevice, index,   -1),
-    DEFINE_PROP_HEX32("iobase", ISASerialDevice, iobase,  -1),
-    DEFINE_PROP_UINT32("irq",   ISASerialDevice, isairq,  -1),
-    DEFINE_PROP_CHR("chardev",  ISASerialDevice, chr),
-    DEFINE_PROP_END_OF_LIST(),
-};
-
-static void serial_isa_class_initfn(ObjectClass *klass, void *data)
-{
-    DeviceClass *dc = DEVICE_CLASS(klass);
-    ISADeviceClass *ic = ISA_DEVICE_CLASS(klass);
-    ic->init = serial_isa_initfn;
-    dc->vmsd = &vmstate_isa_serial;
-    dc->props = serial_isa_properties;
-}
-
-static TypeInfo serial_isa_info = {
-    .name          = "isa-serial",
-    .parent        = TYPE_ISA_DEVICE,
-    .instance_size = sizeof(ISASerialDevice),
-    .class_init    = serial_isa_class_initfn,
-};
-
 static void serial_register_devices(void)
 {
-    type_register_static(&serial_isa_info);
     type_register_static(&serial_device_info);
 }
 

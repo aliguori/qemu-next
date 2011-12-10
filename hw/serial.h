@@ -143,20 +143,9 @@ SerialDevice *serial_mm_init(MemoryRegion *address_space,
 
 void serial_set_frequency(SerialDevice *s, uint32_t frequency);
 
-static inline DeviceState *serial_isa_init(int index, CharDriverState *chr)
-{
-    ISADevice *dev;
+uint32_t serial_ioport_read(SerialDevice *s, uint32_t addr);
+void serial_ioport_write(SerialDevice *s, uint32_t addr, uint32_t val);
 
-    dev = isa_try_create("isa-serial");
-    if (!dev) {
-        return NULL;
-    }
-    qdev_prop_set_uint32(&dev->qdev, "index", index);
-    qdev_prop_set_chr(&dev->qdev, "chardev", chr);
-    if (qdev_init(&dev->qdev) < 0) {
-        return NULL;
-    }
-    return &dev->qdev;
-}
+extern const VMStateDescription vmstate_serial;
 
 #endif

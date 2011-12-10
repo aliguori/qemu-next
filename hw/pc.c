@@ -43,6 +43,7 @@
 #include "ui/qemu-spice.h"
 #include "memory.h"
 #include "exec-memory.h"
+#include "isa-serial.h"
 
 /* output Bochs bios info messages */
 //#define DEBUG_BIOS
