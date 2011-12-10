@@ -37,6 +37,7 @@
 #include "elf.h"
 #include "sysbus.h"
 #include "exec-memory.h"
+#include "isa-serial.h"
 
 static struct _loaderparams {
     int ram_size;
@@ -142,6 +143,7 @@ mips_mipssim_init (ram_addr_t ram_size,
     MemoryRegion *bios = g_new(MemoryRegion, 1);
     CPUState *env;
     ResetData *reset_info;
+    ISABus *isa_bus;
     int bios_size;
 
     /* Init CPUs. */
@@ -204,13 +206,18 @@ mips_mipssim_init (ram_addr_t ram_size,
     cpu_mips_irq_init_cpu(env);
     cpu_mips_clock_init(env);
 
+    isa_bus = isa_bus_new(NULL, get_system_io());
+
     /* Register 64 KB of ISA IO space at 0x1fd00000. */
     isa_mmio_init(0x1fd00000, 0x00010000);
 
     /* A single 16450 sits at offset 0x3f8. It is attached to
        MIPS CPU INT2, which is interrupt 4. */
-    if (serial_hds[0])
-        serial_init(0x3f8, env->irq[4], 115200, serial_hds[0]);
+    if (serial_hds[0]) {
+        ISASerialDevice *d;
+        d = serial_isa_init(isa_bus, 0, serial_hds[0]);
+        serial_set_frequency(&d->uart, 115200);
+    }
 
     if (nd_table[0].vlan)
         /* MIPSnet uses the MIPS CPU INT0, which is interrupt 2. */

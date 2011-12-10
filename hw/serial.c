@@ -3,6 +3,10 @@
  *
  * Copyright (c) 2003-2004 Fabrice Bellard
  * Copyright (c) 2008 Citrix Systems, Inc.
+ * Copyright IBM, Corp. 2011
+ *
+ * Authors:
+ *  Anthony Liguori <aliguori@us.ibm.com>
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -635,28 +639,6 @@ static TypeInfo serial_device_info = {
     .instance_size = sizeof(SerialDevice),
     .class_init = serial_class_init,
 };
-
-SerialDevice *serial_init(int base, qemu_irq irq, int baudbase,
-                          CharDriverState *chr)
-{
-    SerialDevice *s;
-
-    s = SERIAL_DEVICE(object_new(TYPE_SERIAL_DEVICE));
-
-    s->irq = irq;
-    s->baudbase = baudbase;
-    s->chr = chr;
-
-    if (qdev_init(DEVICE(s)) < 0) {
-        return NULL;
-    }
-
-    vmstate_register(NULL, base, &vmstate_serial, s);
-
-    register_ioport_write(base, 8, 1, (IOPortWriteFunc *)serial_ioport_write, s);
-    register_ioport_read(base, 8, 1, (IOPortReadFunc *)serial_ioport_read, s);
-    return s;
-}
 
 static void serial_register_devices(void)
 {

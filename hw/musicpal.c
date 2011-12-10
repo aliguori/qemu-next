@@ -20,6 +20,7 @@
 #include "i2c.h"
 #include "blockdev.h"
 #include "exec-memory.h"
+#include "mm-serial.h"
 
 #define MP_MISC_BASE            0x80002000
 #define MP_MISC_SIZE            0x00001000

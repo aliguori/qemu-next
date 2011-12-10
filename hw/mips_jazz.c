@@ -39,6 +39,7 @@
 #include "blockdev.h"
 #include "sysbus.h"
 #include "exec-memory.h"
+#include "mm-serial.h"
 
 enum jazz_model_e
 {

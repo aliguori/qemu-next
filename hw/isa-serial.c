@@ -3,6 +3,10 @@
  *
  * Copyright (c) 2003-2004 Fabrice Bellard
  * Copyright (c) 2008 Citrix Systems, Inc.
+ * Copyright IBM, Corp. 2011
+ *
+ * Authors:
+ *  Anthony Liguori <aliguori@us.ibm.com>
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal

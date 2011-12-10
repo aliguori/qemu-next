@@ -24,6 +24,7 @@
 #include "mc146818rtc.h"
 #include "blockdev.h"
 #include "exec-memory.h"
+#include "isa-serial.h"
 
 #define MAX_IDE_BUS 2
 
@@ -168,6 +169,7 @@ void mips_r4k_init (ram_addr_t ram_size,
     DriveInfo *hd[MAX_IDE_BUS * MAX_IDE_DEVS];
     DriveInfo *dinfo;
     int be;
+    ISABus *isa_bus;
 
     /* init CPUs */
     if (cpu_model == NULL) {
@@ -256,7 +258,7 @@ void mips_r4k_init (ram_addr_t ram_size,
     cpu_mips_clock_init(env);
 
     /* The PIC is attached to the MIPS CPU INT0 pin */
-    isa_bus_new(NULL, get_system_io());
+    isa_bus = isa_bus_new(NULL, get_system_io());
     i8259 = i8259_init(env->irq[2]);
     isa_bus_irqs(i8259);
 
@@ -270,7 +272,7 @@ void mips_r4k_init (ram_addr_t ram_size,
 
     for(i = 0; i < MAX_SERIAL_PORTS; i++) {
         if (serial_hds[i]) {
-            serial_isa_init(i, serial_hds[i]);
+            serial_isa_init(isa_bus, i, serial_hds[i]);
         }
     }
 

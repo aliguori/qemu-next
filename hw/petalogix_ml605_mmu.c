@@ -39,6 +39,7 @@
 #include "blockdev.h"
 #include "pc.h"
 #include "exec-memory.h"
+#include "mm-serial.h"
 
 #include "microblaze_pic_cpu.h"
 #include "xilinx_axidma.h"

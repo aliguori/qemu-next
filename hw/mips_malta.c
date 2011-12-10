@@ -47,6 +47,8 @@
 #include "mc146818rtc.h"
 #include "blockdev.h"
 #include "exec-memory.h"
+#include "mm-serial.h"
+#include "isa-serial.h"
 
 //#define DEBUG_BOARD_INIT
 
@@ -69,7 +71,7 @@ typedef struct {
     uint32_t i2csel;
     CharDriverState *display;
     char display_text[9];
-    SerialState *uart;
+    MMSerialDevice *uart;
 } MaltaFPGAState;
 
 static ISADevice *pit;
@@ -779,6 +781,7 @@ void mips_malta_init (ram_addr_t ram_size,
     qemu_irq *cpu_exit_irq;
     int piix4_devfn;
     i2c_bus *smbus;
+    ISABus *isa_bus;
     int i;
     DriveInfo *dinfo;
     DriveInfo *hd[MAX_IDE_BUS * MAX_IDE_DEVS];
@@ -926,6 +929,7 @@ void mips_malta_init (ram_addr_t ram_size,
     cpu_mips_irq_init_cpu(env);
     cpu_mips_clock_init(env);
 
+    isa_bus = isa_bus_new(NULL, get_system_io());
     /*
      * We have a circular dependency problem: pci_bus depends on isa_irq,
      * isa_irq is provided by i8259, i8259 depends on ISA, ISA depends
@@ -962,8 +966,8 @@ void mips_malta_init (ram_addr_t ram_size,
     isa_create_simple("i8042");
 
     rtc_init(2000, NULL);
-    serial_isa_init(0, serial_hds[0]);
-    serial_isa_init(1, serial_hds[1]);
+    serial_isa_init(isa_bus, 0, serial_hds[0]);
+    serial_isa_init(isa_bus, 1, serial_hds[1]);
     if (parallel_hds[0])
         parallel_init(0, parallel_hds[0]);
     for(i = 0; i < MAX_FD; i++) {

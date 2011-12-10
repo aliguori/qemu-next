@@ -3,6 +3,10 @@
  *
  * Copyright (c) 2003-2004 Fabrice Bellard
  * Copyright (c) 2008 Citrix Systems, Inc.
+ * Copyright IBM, Corp. 2011
+ *
+ * Authors:
+ *  Anthony Liguori <aliguori@us.ibm.com>
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -34,14 +38,45 @@
 
 typedef struct ISASerialDevice {
     ISADevice dev;
+
+    /**
+     * PC serial device index
+     */
     uint32_t index;
+
+    /**
+     * Port IO base, overrides index
+     */
     uint32_t iobase;
+
+    /**
+     * ISA IRQ, overrides index
+     */
     uint32_t isairq;
-    SerialDevice uart;
+
+    /**
+     * Backend to send data to
+     */
     CharDriverState *chr;
+
+    /* Private */
+    SerialDevice uart;
     MemoryRegion io;
 } ISASerialDevice;
 
+/**
+ * @serial_isa_init
+ *
+ * Creates an ISA serial device.
+ *
+ * @isa_bus - the ISA bus
+ *
+ * @index - the PC serial index
+ *
+ * @chr - the backend to send data to
+ *
+ * Returns: a new @ISASerialDevice
+ */
 ISASerialDevice *serial_isa_init(ISABus *isa_bus, int index, CharDriverState *chr);
 
 #endif

@@ -1,3 +1,31 @@
+/*
+ * QEMU 16550A UART emulation
+ *
+ * Copyright (c) 2003-2004 Fabrice Bellard
+ * Copyright (c) 2008 Citrix Systems, Inc.
+ * Copyright IBM, Corp. 2011
+ *
+ * Authors:
+ *  Anthony Liguori <aliguori@us.ibm.com>
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL
+ * THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+ * THE SOFTWARE.
+ */
 #ifndef QEMU_SERIAL_H
 #define QEMU_SERIAL_H
 
@@ -94,6 +122,11 @@ typedef struct DeviceClass SerialDeviceClass;
 typedef struct SerialDevice {
     DeviceState parent;
 
+    qemu_irq irq;
+    CharDriverState *chr;
+    int baudbase;
+
+    /* Private */
     uint16_t divider;
     uint8_t rbr; /* receive register */
     uint8_t thr; /* transmit holding register */
@@ -111,10 +144,7 @@ typedef struct SerialDevice {
     /* NOTE: this hidden state is necessary for tx irq generation as
        it can be reset while reading iir */
     int thr_ipending;
-    qemu_irq irq;
-    CharDriverState *chr;
     int last_break_enable;
-    int baudbase;
     int tsr_retry;
 
     uint64_t last_xmit_ts;              /* Time when the last byte was successfully sent out of the tsr */
@@ -131,9 +161,6 @@ typedef struct SerialDevice {
 
     struct QEMUTimer *modem_status_poll;
 } SerialDevice;
-
-SerialDevice *serial_init(int base, qemu_irq irq, int baudbase,
-                         CharDriverState *chr);
 
 void serial_set_frequency(SerialDevice *s, uint32_t frequency);
 
