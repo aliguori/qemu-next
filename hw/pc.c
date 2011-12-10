@@ -1175,7 +1175,7 @@ void pc_basic_device_init(DeviceState *board,
             DeviceState *dev;
             char name[1024];
 
-            dev = serial_isa_init(i, serial_hds[i]);
+            dev = DEVICE(serial_isa_init(i, serial_hds[i]));
             snprintf(name, sizeof(name), "serial[%d]", i);
             qdev_property_add_child(board, name, dev, NULL);
         }

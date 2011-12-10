@@ -17,6 +17,6 @@ typedef struct ISASerialDevice {
     CharDriverState *chr;
 } ISASerialDevice;
 
-DeviceState *serial_isa_init(int index, CharDriverState *chr);
+ISASerialDevice *serial_isa_init(int index, CharDriverState *chr);
 
 #endif
