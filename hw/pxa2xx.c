@@ -15,6 +15,7 @@
 #include "ssi.h"
 #include "qemu-char.h"
 #include "blockdev.h"
+#include "mm-serial.h"
 
 static struct {
     target_phys_addr_t io_base;

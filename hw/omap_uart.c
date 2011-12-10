@@ -23,11 +23,12 @@
 /* We use pc-style serial ports.  */
 #include "pc.h"
 #include "exec-memory.h"
+#include "mm-serial.h"
 
 /* UARTs */
 struct omap_uart_s {
     target_phys_addr_t base;
-    SerialState *serial; /* TODO */
+    MMSerialDevice *serial; /* TODO */
     struct omap_target_agent_s *ta;
     omap_clk fclk;
     qemu_irq irq;
