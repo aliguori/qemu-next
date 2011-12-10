@@ -9,7 +9,6 @@
 #include "net.h"
 #include "memory.h"
 #include "ioapic.h"
-#include "serial.h"
 
 /* PC-style peripherals (also used by other machines).  */
 

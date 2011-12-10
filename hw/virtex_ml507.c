@@ -35,6 +35,7 @@
 #include "elf.h"
 #include "qemu-log.h"
 #include "exec-memory.h"
+#include "mm-serial.h"
 
 #include "ppc.h"
 #include "ppc4xx.h"

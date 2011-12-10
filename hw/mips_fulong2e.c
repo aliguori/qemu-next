@@ -39,6 +39,7 @@
 #include "mc146818rtc.h"
 #include "blockdev.h"
 #include "exec-memory.h"
+#include "isa-serial.h"
 
 #define DEBUG_FULONG2E_INIT
 
@@ -266,6 +267,7 @@ static void mips_fulong2e_init(ram_addr_t ram_size, const char *boot_device,
     qemu_irq *cpu_exit_irq;
     int via_devfn;
     PCIBus *pci_bus;
+    ISABus *isa_bus;
     i2c_bus *smbus;
     int i;
     DriveInfo *hd[MAX_IDE_BUS * MAX_IDE_DEVS];
@@ -346,6 +348,7 @@ static void mips_fulong2e_init(ram_addr_t ram_size, const char *boot_device,
     /* Interrupt controller */
     /* The 8259 -> IP5  */
     i8259 = i8259_init(env->irq[5]);
+    isa_bus = isa_bus_new(NULL, get_system_io());
     isa_bus_irqs(i8259);
 
     vt82c686b_ide_init(pci_bus, hd, PCI_DEVFN(FULONG2E_VIA_SLOT, 1));
@@ -369,7 +372,7 @@ static void mips_fulong2e_init(ram_addr_t ram_size, const char *boot_device,
 
     for(i = 0; i < MAX_SERIAL_PORTS; i++) {
         if (serial_hds[i]) {
-            serial_isa_init(i, serial_hds[i]);
+            serial_isa_init(isa_bus, i, serial_hds[i]);
         }
     }
 

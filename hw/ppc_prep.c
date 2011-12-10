@@ -39,6 +39,7 @@
 #include "mc146818rtc.h"
 #include "blockdev.h"
 #include "exec-memory.h"
+#include "isa-serial.h"
 
 //#define HARD_DEBUG_PPC_IO
 //#define DEBUG_PPC_IO
@@ -525,6 +526,7 @@ static void ppc_prep_init (ram_addr_t ram_size,
     PCIBus *pci_bus;
     qemu_irq *i8259;
     qemu_irq *cpu_exit_irq;
+    ISABus *isa_bus;
     int ppc_boot_device;
     DriveInfo *hd[MAX_IDE_BUS * MAX_IDE_DEVS];
     DriveInfo *fd[MAX_FD];
@@ -628,7 +630,7 @@ static void ppc_prep_init (ram_addr_t ram_size,
         hw_error("Only 6xx bus is supported on PREP machine\n");
     }
     /* Hmm, prep has no pci-isa bridge ??? */
-    isa_bus_new(NULL, get_system_io());
+    isa_bus = isa_bus_new(NULL, get_system_io());
     i8259 = i8259_init(first_cpu->irq_inputs[PPC6xx_INPUT_INT]);
     pci_bus = pci_prep_init(i8259, get_system_memory(), get_system_io());
     isa_bus_irqs(i8259);
@@ -644,8 +646,9 @@ static void ppc_prep_init (ram_addr_t ram_size,
     //    pit = pit_init(0x40, 0);
     rtc_init(2000, NULL);
 
-    if (serial_hds[0])
-        serial_isa_init(0, serial_hds[0]);
+    if (serial_hds[0]) {
+        serial_isa_init(isa_bus, 0, serial_hds[0]);
+    }
     nb_nics1 = nb_nics;
     if (nb_nics1 > NE2000_NB_MAX)
         nb_nics1 = NE2000_NB_MAX;

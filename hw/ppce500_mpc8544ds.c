@@ -31,6 +31,7 @@
 #include "elf.h"
 #include "sysbus.h"
 #include "exec-memory.h"
+#include "mm-serial.h"
 
 #define BINARY_DEVICE_TREE_FILE    "mpc8544ds.dtb"
 #define UIMAGE_LOAD_BASE           0

@@ -30,6 +30,7 @@
 #include "sysbus.h"
 #include "qdev-addr.h"
 #include "range.h"
+#include "mm-serial.h"
 
 /*
  * Status: 2010/05/07

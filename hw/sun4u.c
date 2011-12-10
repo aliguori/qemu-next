@@ -39,6 +39,8 @@
 #include "elf.h"
 #include "blockdev.h"
 #include "exec-memory.h"
+#include "mm-serial.h"
+#include "isa-serial.h"
 
 //#define DEBUG_IRQ
 //#define DEBUG_EBUS
@@ -777,6 +779,7 @@ static void sun4uv_init(MemoryRegion *address_space_mem,
     qemu_irq *irq;
     DriveInfo *hd[MAX_IDE_BUS * MAX_IDE_DEVS];
     DriveInfo *fd[MAX_FD];
+    ISABus *isa_bus;
     void *fw_cfg;
 
     /* init CPUs */
@@ -787,6 +790,7 @@ static void sun4uv_init(MemoryRegion *address_space_mem,
 
     prom_init(hwdef->prom_addr, bios_name);
 
+    isa_bus = isa_bus_new(NULL, get_system_io());
 
     irq = qemu_allocate_irqs(cpu_set_irq, env, MAX_PILS);
     pci_bus = pci_apb_init(APB_SPECIAL_BASE, APB_MEM_BASE, irq, &pci_bus2,
@@ -804,7 +808,7 @@ static void sun4uv_init(MemoryRegion *address_space_mem,
     }
     for(; i < MAX_SERIAL_PORTS; i++) {
         if (serial_hds[i]) {
-            serial_isa_init(i, serial_hds[i]);
+            serial_isa_init(isa_bus, i, serial_hds[i]);
         }
     }
 

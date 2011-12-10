@@ -29,6 +29,7 @@
 #include "sysemu.h"
 #include "qemu-log.h"
 #include "exec-memory.h"
+#include "mm-serial.h"
 
 #define DEBUG_OPBA
 #define DEBUG_SDRAM
