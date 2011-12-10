@@ -101,14 +101,6 @@
 #define RECV_FIFO           1
 #define MAX_XMIT_RETRY      4
 
-typedef struct SerialFIFO {
-    uint8_t data[UART_FIFO_LENGTH];
-    uint8_t count;
-    uint8_t itl;                        /* Interrupt Trigger Level */
-    uint8_t tail;
-    uint8_t head;
-} SerialFIFO;
-
 #define TYPE_SERIAL_DEVICE "serial-device"
 #define SERIAL_DEVICE(obj) \
      OBJECT_CHECK(SerialDevice, (obj), TYPE_SERIAL_DEVICE)
@@ -116,6 +108,14 @@ typedef struct SerialFIFO {
      OBJECT_CLASS_CHECK(SerialDeviceClass, (klass), TYPE_SERIAL_DEVICE)
 #define SERIAL_DEVICE_GET_CLASS(obj) \
      OBJECT_GET_CLASS(SerialDeviceClass, (obj), TYPE_SERIAL_DEVICE)
+
+typedef struct SerialFIFO {
+    uint8_t data[UART_FIFO_LENGTH];
+    uint8_t count;
+    uint8_t itl;                        /* Interrupt Trigger Level */
+    uint8_t tail;
+    uint8_t head;
+} SerialFIFO;
 
 typedef struct DeviceClass SerialDeviceClass;
 

@@ -570,9 +570,9 @@ const VMStateDescription vmstate_serial = {
     }
 };
 
-static void serial_reset(void *opaque)
+static void serial_reset(DeviceState *dev)
 {
-    SerialDevice *s = opaque;
+    SerialDevice *s = SERIAL_DEVICE(dev);
 
     s->rbr = 0;
     s->ier = 0;
@@ -598,6 +598,13 @@ static void serial_reset(void *opaque)
     qemu_irq_lower(s->irq);
 }
 
+/* Change the main reference oscillator frequency. */
+void serial_set_frequency(SerialDevice *s, uint32_t frequency)
+{
+    s->baudbase = frequency;
+    serial_update_parameters(s);
+}
+
 static int serial_initfn(DeviceState *dev)
 {
     SerialDevice *s = SERIAL_DEVICE(dev);
@@ -612,8 +619,6 @@ static int serial_initfn(DeviceState *dev)
     s->fifo_timeout_timer = qemu_new_timer_ns(vm_clock, (QEMUTimerCB *) fifo_timeout_int, s);
     s->transmit_timer = qemu_new_timer_ns(vm_clock, (QEMUTimerCB *) serial_xmit, s);
 
-    qemu_register_reset(serial_reset, s);
-
     qemu_chr_add_handlers(s->chr, serial_can_receive1, serial_receive1,
                           serial_event, s);
 
@@ -624,13 +629,7 @@ static void serial_class_init(ObjectClass *klass, void *data)
 {
     DeviceClass *k = DEVICE_CLASS(klass);
     k->init = serial_initfn;
-}
-
-/* Change the main reference oscillator frequency. */
-void serial_set_frequency(SerialDevice *s, uint32_t frequency)
-{
-    s->baudbase = frequency;
-    serial_update_parameters(s);
+    k->reset = serial_reset;
 }
 
 static TypeInfo serial_device_info = {

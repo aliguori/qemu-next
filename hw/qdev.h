@@ -70,7 +70,6 @@ typedef struct DeviceProperty
 #define DEVICE_CLASS(klass) OBJECT_CLASS_CHECK(DeviceClass, (klass), TYPE_DEVICE)
 #define DEVICE_GET_CLASS(obj) OBJECT_GET_CLASS(DeviceClass, (obj), TYPE_DEVICE)
 
-typedef int (*qdev_initfn)(DeviceState *dev);
 typedef int (*qdev_event)(DeviceState *dev);
 typedef void (*qdev_resetfn)(DeviceState *dev);
 
@@ -83,14 +82,16 @@ typedef struct DeviceClass {
     Property *props;
     int no_user;
 
-    /* callbacks */
+    /* called right before realize */
+    int (*init)(DeviceState *dev);
+
+    /* called at reset */
     void (*reset)(DeviceState *dev);
 
     /* device state */
     const VMStateDescription *vmsd;
 
     /* Private to qdev / bus.  */
-    qdev_initfn init;
     qdev_event unplug;
     qdev_event exit;
     BusInfo *bus_info;
