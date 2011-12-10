@@ -4,7 +4,7 @@
 #include "isa.h"
 #include "serial.h"
 
-#define TYPE_ISA_SERIAL_DEVICE "isa-serial-device"
+#define TYPE_ISA_SERIAL_DEVICE "isa-serial"
 #define ISA_SERIAL_DEVICE(obj) \
      OBJECT_CHECK(ISASerialDevice, (obj), TYPE_ISA_SERIAL_DEVICE)
 

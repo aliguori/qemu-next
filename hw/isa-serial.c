@@ -85,7 +85,7 @@ static void serial_isa_inst_initfn(Object *obj)
 }
 
 static TypeInfo serial_isa_info = {
-    .name          = "isa-serial",
+    .name          = TYPE_ISA_SERIAL_DEVICE,
     .parent        = TYPE_ISA_DEVICE,
     .instance_size = sizeof(ISASerialDevice),
     .class_init    = serial_isa_class_initfn,
@@ -96,7 +96,7 @@ DeviceState *serial_isa_init(int index, CharDriverState *chr)
 {
     ISADevice *dev;
 
-    dev = isa_try_create("isa-serial");
+    dev = isa_try_create(TYPE_ISA_SERIAL_DEVICE);
     if (!dev) {
         return NULL;
     }
