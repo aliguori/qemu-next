@@ -1129,7 +1129,8 @@ static void cpu_request_exit(void *opaque, int irq, int level)
     }
 }
 
-void pc_basic_device_init(DeviceState *board,
+void pc_basic_device_init(ISABus *isa_bus,
+                          DeviceState *board,
                           DeviceState *superio,
                           qemu_irq *gsi,
                           ISADevice **rtc_state,
@@ -1175,7 +1176,7 @@ void pc_basic_device_init(DeviceState *board,
             DeviceState *dev;
             char name[1024];
 
-            dev = DEVICE(serial_isa_init(i, serial_hds[i]));
+            dev = DEVICE(serial_isa_init(isa_bus, i, serial_hds[i]));
             snprintf(name, sizeof(name), "serial[%d]", i);
             qdev_property_add_child(board, name, dev, NULL);
         }

@@ -115,7 +115,8 @@ void pc_memory_init(MemoryRegion *system_memory,
                     MemoryRegion **ram_memory);
 qemu_irq *pc_allocate_cpu_irq(void);
 DeviceState *pc_vga_init(PCIBus *pci_bus);
-void pc_basic_device_init(DeviceState *board,
+void pc_basic_device_init(ISABus *isa_bus,
+                          DeviceState *board,
                           DeviceState *superio,
                           qemu_irq *gsi,
                           ISADevice **rtc_state,

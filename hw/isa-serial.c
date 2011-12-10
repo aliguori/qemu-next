@@ -23,6 +23,7 @@
  * THE SOFTWARE.
  */
 #include "isa-serial.h"
+#include "sysemu.h"
 
 /**
  * This demonstrates composition as a way to change the behavior of a device.
@@ -71,8 +72,8 @@ static int serial_isa_initfn(ISADevice *dev)
 
     qdev_set_legacy_instance_id(&dev->qdev, isa->iobase, 3);
 
-    memory_region_init_io(&s->io, &serial_io_ops, s, "serial", 8);
-    isa_register_ioport(dev, &s->io, isa->iobase);
+    memory_region_init_io(&isa->io, &serial_io_ops, s, "serial", 8);
+    isa_register_ioport(dev, &isa->io, isa->iobase);
     return 0;
 }
 
@@ -120,12 +121,13 @@ static TypeInfo serial_isa_info = {
     .instance_init = serial_isa_inst_initfn,
 };
 
-ISASerialDevice *serial_isa_init(int index, CharDriverState *chr)
+ISASerialDevice *serial_isa_init(ISABus *isa_bus, int index, CharDriverState *chr)
 {
     ISASerialDevice *s;
 
     s = ISA_SERIAL_DEVICE(object_new(TYPE_ISA_SERIAL_DEVICE));
     qdev_prop_set_globals(DEVICE(s));
+    qdev_set_parent_bus(DEVICE(s), (BusState *)isa_bus);
 
     s->index = index;
     s->chr = chr;

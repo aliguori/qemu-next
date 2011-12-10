@@ -1,11 +1,9 @@
 #ifndef QEMU_SERIAL_H
 #define QEMU_SERIAL_H
 
-#include "hw.h"
+#include "qdev.h"
 #include "qemu-char.h"
-#include "isa.h"
 #include "qemu-timer.h"
-#include "sysemu.h"
 
 #define UART_LCR_DLAB	0x80	/* Divisor latch access bit */
 
@@ -132,7 +130,6 @@ typedef struct SerialDevice {
     int poll_msl;
 
     struct QEMUTimer *modem_status_poll;
-    MemoryRegion io;
 } SerialDevice;
 
 SerialDevice *serial_init(int base, qemu_irq irq, int baudbase,

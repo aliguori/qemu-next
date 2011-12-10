@@ -71,11 +71,11 @@ static int serial_mm_initfn(DeviceState *dev)
         return err;
     }
 
-    vmstate_register(NULL, s->base, &vmstate_serial, &s->parent);
+    vmstate_register(NULL, s->base, &vmstate_serial, SERIAL_DEVICE(s));
 
-    memory_region_init_io(&s->parent.io, &serial_mm_ops[s->end], s,
+    memory_region_init_io(&s->io, &serial_mm_ops[s->end], s,
                           TYPE_MM_SERIAL_DEVICE, 8 << s->it_shift);
-    memory_region_add_subregion(s->address_space, s->base, &s->parent.io);
+    memory_region_add_subregion(s->address_space, s->base, &s->io);
 
     return 0;
 }

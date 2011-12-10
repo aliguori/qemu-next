@@ -104,6 +104,7 @@ static void pc_init1(MemoryRegion *system_memory,
     DeviceState *superio = NULL;
     DeviceState *board;
     DeviceState *dev;
+    ISABus *isa_bus = NULL;
 
     board = qdev_create(NULL, "container");
     qdev_property_add_child(qdev_get_root(), "pc", board, NULL);
@@ -162,7 +163,7 @@ static void pc_init1(MemoryRegion *system_memory,
     } else {
         pci_bus = NULL;
         i440fx_state = NULL;
-        isa_bus_new(NULL, system_io);
+        isa_bus = isa_bus_new(NULL, system_io);
         no_hpet = 1;
     }
     isa_bus_irqs(gsi);
@@ -195,7 +196,7 @@ static void pc_init1(MemoryRegion *system_memory,
     }
 
     /* init basic PC hardware */
-    pc_basic_device_init(board, superio, gsi, &rtc_state,
+    pc_basic_device_init(isa_bus, board, superio, gsi, &rtc_state,
                          &floppy, xen_enabled());
 
     for(i = 0; i < nb_nics; i++) {
