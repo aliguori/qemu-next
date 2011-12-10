@@ -14,6 +14,8 @@
 #include "sysemu.h"
 #include "mc146818rtc.h"
 #include "ide.h"
+#include "exec-memory.h"
+#include "isa-serial.h"
 
 #define MAX_IDE_BUS 2
 
@@ -55,6 +57,7 @@ static void clipper_init(ram_addr_t ram_size,
     const char *palcode_filename;
     uint64_t palcode_entry, palcode_low, palcode_high;
     uint64_t kernel_entry, kernel_low, kernel_high;
+    ISABus *isa_bus;
 
     /* Create up to 4 cpus.  */
     memset(cpus, 0, sizeof(cpus));
@@ -69,6 +72,8 @@ static void clipper_init(ram_addr_t ram_size,
     /* Init the chipset.  */
     pci_bus = typhoon_init(ram_size, &rtc_irq, cpus, clipper_pci_map_irq);
 
+    isa_bus = isa_bus_new(NULL, get_system_io());
+
     rtc_init(1980, rtc_irq);
     pit_init(0x40, 0);
     isa_create_simple("i8042");
@@ -79,7 +84,7 @@ static void clipper_init(ram_addr_t ram_size,
     /* Serial code setup.  */
     for (i = 0; i < MAX_SERIAL_PORTS; ++i) {
         if (serial_hds[i]) {
-            serial_isa_init(i, serial_hds[i]);
+            serial_isa_init(isa_bus, i, serial_hds[i]);
         }
     }
 

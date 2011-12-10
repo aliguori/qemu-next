@@ -33,9 +33,13 @@ static const int isa_serial_io[MAX_SERIAL_PORTS] = { 0x3f8, 0x2f8, 0x3e8, 0x2e8 
 static const int isa_serial_irq[MAX_SERIAL_PORTS] = { 4, 3, 4, 3 };
 
 static const MemoryRegionPortio serial_portio[] = {
-    { 0, 8, 1,
-      .read = (IOPortReadFunc *)serial_ioport_read,
-      .write = (IOPortWriteFunc *)serial_ioport_write },
+    {
+        .offset = 0,
+        .len = 8,
+        .size = 1,
+        .read = (IOPortReadFunc *)serial_ioport_read,
+        .write = (IOPortWriteFunc *)serial_ioport_write
+    },
     PORTIO_END_OF_LIST()
 };
 
@@ -50,14 +54,18 @@ static int serial_isa_initfn(ISADevice *dev)
     SerialDevice *s = &isa->uart;
     int err;
 
-    if (isa->index == -1)
+    if (isa->index == -1) {
         isa->index = index;
-    if (isa->index >= MAX_SERIAL_PORTS)
+    }
+    if (isa->index >= MAX_SERIAL_PORTS) {
         return -1;
-    if (isa->iobase == -1)
+    }
+    if (isa->iobase == -1) {
         isa->iobase = isa_serial_io[isa->index];
-    if (isa->isairq == -1)
+    }
+    if (isa->isairq == -1) {
         isa->isairq = isa_serial_irq[isa->index];
+    }
     index++;
 
     s->baudbase = 115200;
@@ -72,7 +80,7 @@ static int serial_isa_initfn(ISADevice *dev)
 
     qdev_set_legacy_instance_id(&dev->qdev, isa->iobase, 3);
 
-    memory_region_init_io(&isa->io, &serial_io_ops, s, "serial", 8);
+    memory_region_init_io(&isa->io, &serial_io_ops, s, TYPE_ISA_SERIAL_DEVICE, 8);
     isa_register_ioport(dev, &isa->io, isa->iobase);
     return 0;
 }
@@ -126,7 +134,6 @@ ISASerialDevice *serial_isa_init(ISABus *isa_bus, int index, CharDriverState *ch
     ISASerialDevice *s;
 
     s = ISA_SERIAL_DEVICE(object_new(TYPE_ISA_SERIAL_DEVICE));
-    qdev_prop_set_globals(DEVICE(s));
     qdev_set_parent_bus(DEVICE(s), (BusState *)isa_bus);
 
     s->index = index;
