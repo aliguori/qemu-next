@@ -16,6 +16,15 @@
 
 #ifndef CONFIG_USER_ONLY
 
+/**
+ * SECTION:memory
+ * @title:Memory API
+ * @short_description: interfaces for dispatching I/O to devices
+ *
+ * The memory API models the memory and I/O buses and controllers of a QEMU
+ * machine.
+ */
+
 #include <stdint.h>
 #include <stdbool.h>
 #include "qemu-common.h"
@@ -45,72 +54,76 @@ struct MemoryRegionMmio {
     CPUWriteMemoryFunc *write[3];
 };
 
+/**
+ * MemoryRegionGuestConstraints:
+ * @min_access_size: If nonzero, specify bounds on access sizes beyond which a
+ *   machine check is thrown.
+ * @max_access_size: If nonzero, specify bounds on access sizes beyond which a
+ *   machine check is thrown.
+ * @unaligned: If true, unaligned accesses are supported.  Otherwise unaligned
+ *    accesses throw machine checks.
+ * @accepts: If present, and returns #false, the transaction is not accepted
+ *   by the device (and results in machine dependent behaviour such
+ *   as a machine check exception).
+ *
+ * Guest-visible constraints.
+ */
 struct MemoryRegionGuestConstraints
 {
-    /* If nonzero, specify bounds on access sizes beyond which a machine
-     * check is thrown.
-     */
     unsigned min_access_size;
     unsigned max_access_size;
-    /* If true, unaligned accesses are supported.  Otherwise unaligned
-     * accesses throw machine checks.
-     */
     bool unaligned;
-    /*
-     * If present, and returns #false, the transaction is not accepted
-     * by the device (and results in machine dependent behaviour such
-     * as a machine check exception).
-     */
     bool (*accepts)(void *opaque, target_phys_addr_t addr,
                     unsigned size, bool is_write);
 };
 
+/**
+ * MemoryRegionInternalConstraints:
+ * @min_access_size: If nonzero, specifies the minimum size implemented.
+ *   Smaller sizes will be rounded upwards and a partial result will be
+ *   returned.
+ * @max_access_size: If nonzero, specifies the maximum size implemented.
+ *   Larger sizes will be done as a series of accesses with smaller sizes.
+ * @unaligned: If true, unaligned accesses are supported.  Otherwise all
+ *   accesses are converted to (possibly multiple) naturally aligned accesses.
+ *
+ * Internal implementation constraints.
+ */
 struct MemoryRegionInternalConstraints
 {
-    /* If nonzero, specifies the minimum size implemented.  Smaller sizes
-     * will be rounded upwards and a partial result will be returned.
-     */
     unsigned min_access_size;
-    /* If nonzero, specifies the maximum size implemented.  Larger sizes
-     * will be done as a series of accesses with smaller sizes.
-     */
     unsigned max_access_size;
-    /* If true, unaligned accesses are supported.  Otherwise all accesses
-     * are converted to (possibly multiple) naturally aligned accesses.
-     */
     bool unaligned;
 };
 
-/*
- * Memory region callbacks
+/**
+ * MemoryRegionOps:
+ * @read: Read from the memory region. addr is relative to mr; size is in bytes.
+ * @write: Write to the memory region. addr is relative to mr; size is in bytes.
+ * @valid: Guest visible constraints.
+ * @impl: Internal implementation constraints.
+ * @old_portio: If @read and @write are not present, may be used for
+ *   backwards compatibility with old portio registration.
+ * @old_mmio: If @read and @write are not present, may be used for
+ *   backwards compatibility with old mmio registration.
+ *
+ * Memory region callbacks.
  */
 struct MemoryRegionOps {
-    /* Read from the memory region. @addr is relative to @mr; @size is
-     * in bytes. */
     uint64_t (*read)(void *opaque,
                      target_phys_addr_t addr,
                      unsigned size);
-    /* Write to the memory region. @addr is relative to @mr; @size is
-     * in bytes. */
     void (*write)(void *opaque,
                   target_phys_addr_t addr,
                   uint64_t data,
                   unsigned size);
 
     enum device_endian endianness;
-    /* Guest-visible constraints: */
-    MemoryRegionGuestConstraints valid;
 
-    /* Internal implementation constraints: */
+    MemoryRegionGuestConstraints valid;
     MemoryRegionInternalConstraints impl;
 
-    /* If .read and .write are not present, old_portio may be used for
-     * backwards compatibility with old portio registration
-     */
     const MemoryRegionPortio *old_portio;
-    /* If .read and .write are not present, old_mmio may be used for
-     * backwards compatibility with old mmio registration
-     */
     const MemoryRegionMmio old_mmio;
 };
 
@@ -119,6 +132,7 @@ typedef struct MemoryRegionIoeventfd MemoryRegionIoeventfd;
 
 struct MemoryRegion {
     /* All fields are private - violators will be prosecuted */
+    /*< private >*/
     const MemoryRegionOps *ops;
     void *opaque;
     MemoryRegion *parent;
@@ -156,30 +170,32 @@ struct MemoryRegionPortio {
 #define PORTIO_END_OF_LIST() { }
 
 /**
- * memory_region_init: Initialize a memory region
- *
- * The region typically acts as a container for other memory regions.  Use
- * memory_region_add_subregion() to add subregions.
- *
+ * memory_region_init:
  * @mr: the #MemoryRegion to be initialized
  * @name: used for debugging; not visible to the user or ABI
  * @size: size of the region; any subregions beyond this size will be clipped
+ *
+ * Initialize a memory region
+ *
+ * The region typically acts as a container for other memory regions.  Use
+ * memory_region_add_subregion() to add subregions.
  */
 void memory_region_init(MemoryRegion *mr,
                         const char *name,
                         uint64_t size);
 /**
- * memory_region_init_io: Initialize an I/O memory region.
- *
- * Accesses into the region will cause the callbacks in @ops to be called.
- * if @size is nonzero, subregions will be clipped to @size.
- *
+ * memory_region_init_io:
  * @mr: the #MemoryRegion to be initialized.
  * @ops: a structure containing read and write callbacks to be used when
  *       I/O is performed on the region.
  * @opaque: passed to to the read and write callbacks of the @ops structure.
  * @name: used for debugging; not visible to the user or ABI
  * @size: size of the region.
+ *
+ * Initialize an I/O memory region.
+ *
+ * Accesses into the region will cause the callbacks in @ops to be called.
+ * if @size is nonzero, subregions will be clipped to @size.
  */
 void memory_region_init_io(MemoryRegion *mr,
                            const MemoryRegionOps *ops,
@@ -188,15 +204,16 @@ void memory_region_init_io(MemoryRegion *mr,
                            uint64_t size);
 
 /**
- * memory_region_init_ram:  Initialize RAM memory region.  Accesses into the
- *                          region will modify memory directly.
- *
+ * memory_region_init_ram:
  * @mr: the #MemoryRegion to be initialized.
- * @dev: a device associated with the region; may be %NULL.
+ * @dev: a device associated with the region; may be #NULL.
  * @name: the name of the region; the pair (@dev, @name) must be globally
  *        unique.  The name is part of the save/restore ABI and so cannot be
  *        changed.
  * @size: size of the region.
+ *
+ * Initialize RAM memory region.  Accesses into the region will modify memory
+ * directly.
  */
 void memory_region_init_ram(MemoryRegion *mr,
                             DeviceState *dev, /* FIXME: layering violation */
@@ -204,17 +221,17 @@ void memory_region_init_ram(MemoryRegion *mr,
                             uint64_t size);
 
 /**
- * memory_region_init_ram:  Initialize RAM memory region from a user-provided.
- *                          pointer.  Accesses into the region will modify
- *                          memory directly.
- *
+ * memory_region_init_ram:
  * @mr: the #MemoryRegion to be initialized.
- * @dev: a device associated with the region; may be %NULL.
+ * @dev: a device associated with the region; may be #NULL.
  * @name: the name of the region; the pair (@dev, @name) must be globally
  *        unique.  The name is part of the save/restore ABI and so cannot be
  *        changed.
  * @size: size of the region.
  * @ptr: memory to be mapped; must contain at least @size bytes.
+ *
+ * Initialize RAM memory region from a user-provided pointer.  Accesses into
+ * the region will modify memory directly.
  */
 void memory_region_init_ram_ptr(MemoryRegion *mr,
                                 DeviceState *dev, /* FIXME: layering violation */
@@ -223,15 +240,16 @@ void memory_region_init_ram_ptr(MemoryRegion *mr,
                                 void *ptr);
 
 /**
- * memory_region_init_alias: Initialize a memory region that aliases all or a
- *                           part of another memory region.
- *
+ * memory_region_init_alias:
  * @mr: the #MemoryRegion to be initialized.
  * @name: used for debugging; not visible to the user or ABI
  * @orig: the region to be referenced; @mr will be equivalent to
  *        @orig between @offset and @offset + @size - 1.
  * @offset: start of the section in @orig to be referenced.
  * @size: size of the region.
+ *
+ * Initialize a memory region that aliases all or a part of another memory
+ * region.
  */
 void memory_region_init_alias(MemoryRegion *mr,
                               const char *name,
@@ -240,16 +258,16 @@ void memory_region_init_alias(MemoryRegion *mr,
                               uint64_t size);
 
 /**
- * memory_region_init_rom_device:  Initialize a ROM memory region.  Writes are
- *                                 handled via callbacks.
- *
+ * memory_region_init_rom_device:
  * @mr: the #MemoryRegion to be initialized.
  * @ops: callbacks for write access handling.
- * @dev: a device associated with the region; may be %NULL.
+ * @dev: a device associated with the region; may be #NULL.
  * @name: the name of the region; the pair (@dev, @name) must be globally
  *        unique.  The name is part of the save/restore ABI and so cannot be
  *        changed.
  * @size: size of the region.
+ *
+ * Initialize a ROM memory region.  Writes are handled via callbacks.
  */
 void memory_region_init_rom_device(MemoryRegion *mr,
                                    const MemoryRegionOps *ops,
@@ -259,182 +277,192 @@ void memory_region_init_rom_device(MemoryRegion *mr,
                                    uint64_t size);
 
 /**
- * memory_region_destroy: Destroy a memory region and reclaim all resources.
- *
+ * memory_region_destroy:
  * @mr: the region to be destroyed.  May not currently be a subregion
  *      (see memory_region_add_subregion()) or referenced in an alias
  *      (see memory_region_init_alias()).
+ *
+ * Destroy a memory region and reclaim all resources.
  */
 void memory_region_destroy(MemoryRegion *mr);
 
 /**
- * memory_region_size: get a memory region's size.
- *
+ * memory_region_size:
  * @mr: the memory region being queried.
+ *
+ * get a memory region's size.
  */
 uint64_t memory_region_size(MemoryRegion *mr);
 
 /**
- * memory_region_get_ram_ptr: Get a pointer into a RAM memory region.
+ * memory_region_get_ram_ptr:
+ * @mr: the memory region being queried.
+ *
+ * Get a pointer into a RAM memory region.
  *
  * Returns a host pointer to a RAM memory region (created with
  * memory_region_init_ram() or memory_region_init_ram_ptr()).  Use with
  * care.
- *
- * @mr: the memory region being queried.
  */
 void *memory_region_get_ram_ptr(MemoryRegion *mr);
 
 /**
- * memory_region_set_offset: Sets an offset to be added to MemoryRegionOps
- *                           callbacks.
+ * memory_region_set_offset:
  *
- * This function is deprecated and should not be used in new code.
+ * Sets an offset to be added to MemoryRegionOps callbacks.
+ *
+ * Deprecated: This should not be used in new code.
  */
 void memory_region_set_offset(MemoryRegion *mr, target_phys_addr_t offset);
 
 /**
- * memory_region_set_log: Turn dirty logging on or off for a region.
+ * memory_region_set_log:
+ * @mr: the memory region being updated.
+ * @log: whether dirty logging is to be enabled or disabled.
+ * @client: the user of the logging information; #DIRTY_MEMORY_MIGRATION or
+ *          #DIRTY_MEMORY_VGA.
+ *
+ * Turn dirty logging on or off for a region.
  *
  * Turns dirty logging on or off for a specified client (display, migration).
  * Only meaningful for RAM regions.
- *
- * @mr: the memory region being updated.
- * @log: whether dirty logging is to be enabled or disabled.
- * @client: the user of the logging information; %DIRTY_MEMORY_MIGRATION or
- *          %DIRTY_MEMORY_VGA.
  */
 void memory_region_set_log(MemoryRegion *mr, bool log, unsigned client);
 
 /**
- * memory_region_get_dirty: Check whether a page is dirty for a specified
- *                          client.
+ * memory_region_get_dirty:
+ * @mr: the memory region being queried.
+ * @addr: the address (relative to the start of the region) being queried.
+ * @client: the user of the logging information; #DIRTY_MEMORY_MIGRATION or
+ *          #DIRTY_MEMORY_VGA.
+ *
+ * Check whether a page is dirty for a specified client.
  *
  * Checks whether a page has been written to since the last
  * call to memory_region_reset_dirty() with the same @client.  Dirty logging
  * must be enabled.
- *
- * @mr: the memory region being queried.
- * @addr: the address (relative to the start of the region) being queried.
- * @client: the user of the logging information; %DIRTY_MEMORY_MIGRATION or
- *          %DIRTY_MEMORY_VGA.
  */
 bool memory_region_get_dirty(MemoryRegion *mr, target_phys_addr_t addr,
                              unsigned client);
 
 /**
- * memory_region_set_dirty: Mark a page as dirty in a memory region.
- *
- * Marks a page as dirty, after it has been dirtied outside guest code.
- *
+ * memory_region_set_dirty:
  * @mr: the memory region being queried.
  * @addr: the address (relative to the start of the region) being dirtied.
+ *
+ * Mark a page as dirty in a memory region.
+ *
+ * Marks a page as dirty, after it has been dirtied outside guest code.
  */
 void memory_region_set_dirty(MemoryRegion *mr, target_phys_addr_t addr);
 
 /**
- * memory_region_sync_dirty_bitmap: Synchronize a region's dirty bitmap with
- *                                  any external TLBs (e.g. kvm)
+ * memory_region_sync_dirty_bitmap:
+ * @mr: the region being flushed.
+ *
+ * Synchronize a region's dirty bitmap with any external TLBs (e.g. kvm)
  *
  * Flushes dirty information from accelerators such as kvm and vhost-net
  * and makes it available to users of the memory API.
- *
- * @mr: the region being flushed.
  */
 void memory_region_sync_dirty_bitmap(MemoryRegion *mr);
 
 /**
- * memory_region_reset_dirty: Mark a range of pages as clean, for a specified
- *                            client.
- *
- * Marks a range of pages as no longer dirty.
- *
+ * memory_region_reset_dirty:
  * @mr: the region being updated.
  * @addr: the start of the subrange being cleaned.
  * @size: the size of the subrange being cleaned.
- * @client: the user of the logging information; %DIRTY_MEMORY_MIGRATION or
- *          %DIRTY_MEMORY_VGA.
+ * @client: the user of the logging information; #DIRTY_MEMORY_MIGRATION or
+ *          #DIRTY_MEMORY_VGA.
+ *
+ * Mark a range of pages as clean, for a specified client.
+ *
+ * Marks a range of pages as no longer dirty.
  */
 void memory_region_reset_dirty(MemoryRegion *mr, target_phys_addr_t addr,
                                target_phys_addr_t size, unsigned client);
 
 /**
- * memory_region_set_readonly: Turn a memory region read-only (or read-write)
+ * memory_region_set_readonly:
+ * @mr: the region being updated.
+ * @readonly: whether rhe region is to be ROM or RAM.
+ *
+ * Turn a memory region read-only (or read-write)
  *
  * Allows a memory region to be marked as read-only (turning it into a ROM).
  * only useful on RAM regions.
- *
- * @mr: the region being updated.
- * @readonly: whether rhe region is to be ROM or RAM.
  */
 void memory_region_set_readonly(MemoryRegion *mr, bool readonly);
 
 /**
- * memory_region_rom_device_set_readable: enable/disable ROM readability
+ * memory_region_rom_device_set_readable:
+ * @mr: the memory region to be updated
+ * @readable: whether reads are satisified directly (#true) or via callbacks
+ *            (#false)
+ *
+ * Enable/disable ROM readability
  *
  * Allows a ROM device (initialized with memory_region_init_rom_device() to
  * to be marked as readable (default) or not readable.  When it is readable,
  * the device is mapped to guest memory.  When not readable, reads are
  * forwarded to the #MemoryRegion.read function.
- *
- * @mr: the memory region to be updated
- * @readable: whether reads are satisified directly (%true) or via callbacks
- *            (%false)
  */
 void memory_region_rom_device_set_readable(MemoryRegion *mr, bool readable);
 
 /**
- * memory_region_set_coalescing: Enable memory coalescing for the region.
+ * memory_region_set_coalescing:
+ * @mr: the memory region to be write coalesced
+ *
+ * Enable memory coalescing for the region.
  *
  * Enabled writes to a region to be queued for later processing. MMIO ->write
  * callbacks may be delayed until a non-coalesced MMIO is issued.
  * Only useful for IO regions.  Roughly similar to write-combining hardware.
- *
- * @mr: the memory region to be write coalesced
  */
 void memory_region_set_coalescing(MemoryRegion *mr);
 
 /**
- * memory_region_add_coalescing: Enable memory coalescing for a sub-range of
- *                               a region.
- *
- * Like memory_region_set_coalescing(), but works on a sub-range of a region.
- * Multiple calls can be issued coalesced disjoint ranges.
- *
+ * memory_region_add_coalescing:
  * @mr: the memory region to be updated.
  * @offset: the start of the range within the region to be coalesced.
  * @size: the size of the subrange to be coalesced.
+ *
+ * Enable memory coalescing for a sub-range of a region.
+ *
+ * Like memory_region_set_coalescing(), but works on a sub-range of a region.
+ * Multiple calls can be issued coalesced disjoint ranges.
  */
 void memory_region_add_coalescing(MemoryRegion *mr,
                                   target_phys_addr_t offset,
                                   uint64_t size);
 
 /**
- * memory_region_clear_coalescing: Disable MMIO coalescing for the region.
+ * memory_region_clear_coalescing:
+ * @mr: the memory region to be updated.
+ *
+ * Disable MMIO coalescing for the region.
  *
  * Disables any coalescing caused by memory_region_set_coalescing() or
  * memory_region_add_coalescing().  Roughly equivalent to uncacheble memory
  * hardware.
- *
- * @mr: the memory region to be updated.
  */
 void memory_region_clear_coalescing(MemoryRegion *mr);
 
 /**
- * memory_region_add_eventfd: Request an eventfd to be triggered when a word
- *                            is written to a location.
- *
- * Marks a word in an IO region (initialized with memory_region_init_io())
- * as a trigger for an eventfd event.  The I/O callback will not be called.
- * The caller must be prepared to handle failure (that is, take the required
- * action if the callback _is_ called).
- *
+ * memory_region_add_eventfd:
  * @mr: the memory region being updated.
  * @addr: the address within @mr that is to be monitored
  * @size: the size of the access to trigger the eventfd
  * @match_data: whether to match against @data, instead of just @addr
  * @data: the data to match against the guest write
  * @fd: the eventfd to be triggered when @addr, @size, and @data all match.
+ *
+ * Request an eventfd to be triggered when a word is written to a location.
+ *
+ * Marks a word in an IO region (initialized with memory_region_init_io())
+ * as a trigger for an eventfd event.  The I/O callback will not be called.
+ * The caller must be prepared to handle failure (that is, take the required
+ * action if the callback _is_ called).
  **/
 void memory_region_add_eventfd(MemoryRegion *mr,
                                target_phys_addr_t addr,
@@ -444,17 +472,18 @@ void memory_region_add_eventfd(MemoryRegion *mr,
                                int fd);
 
 /**
- * memory_region_del_eventfd: Cancel an eventfd.
- *
- * Cancels an eventfd trigger requested by a previous
- * memory_region_add_eventfd() call.
- *
+ * memory_region_del_eventfd:
  * @mr: the memory region being updated.
  * @addr: the address within @mr that is to be monitored
  * @size: the size of the access to trigger the eventfd
  * @match_data: whether to match against @data, instead of just @addr
  * @data: the data to match against the guest write
  * @fd: the eventfd to be triggered when @addr, @size, and @data all match.
+ *
+ * Cancel an eventfd.
+ *
+ * Cancels an eventfd trigger requested by a previous
+ * memory_region_add_eventfd() call.
  */
 void memory_region_del_eventfd(MemoryRegion *mr,
                                target_phys_addr_t addr,
@@ -463,24 +492,32 @@ void memory_region_del_eventfd(MemoryRegion *mr,
                                uint64_t data,
                                int fd);
 /**
- * memory_region_add_subregion: Add a subregion to a container.
+ * memory_region_add_subregion:
+ * @mr: the region to contain the new subregion; must be a container
+ *      initialized with memory_region_init().
+ * @offset: the offset relative to @mr where @subregion is added.
+ * @subregion: the subregion to be added.
+ *
+ * Add a subregion to a container.
  *
  * Adds a subregion at @offset.  The subregion may not overlap with other
  * subregions (except for those explicitly marked as overlapping).  A region
  * may only be added once as a subregion (unless removed with
  * memory_region_del_subregion()); use memory_region_init_alias() if you
  * want a region to be a subregion in multiple locations.
- *
- * @mr: the region to contain the new subregion; must be a container
- *      initialized with memory_region_init().
- * @offset: the offset relative to @mr where @subregion is added.
- * @subregion: the subregion to be added.
  */
 void memory_region_add_subregion(MemoryRegion *mr,
                                  target_phys_addr_t offset,
                                  MemoryRegion *subregion);
 /**
- * memory_region_add_subregion: Add a subregion to a container, with overlap.
+ * memory_region_add_subregion:
+ * @mr: the region to contain the new subregion; must be a container
+ *      initialized with memory_region_init().
+ * @offset: the offset relative to @mr where @subregion is added.
+ * @subregion: the subregion to be added.
+ * @priority: used for resolving overlaps; highest priority wins.
+ *
+ * Add a subregion to a container, with overlap.
  *
  * Adds a subregion at @offset.  The subregion may overlap with other
  * subregions.  Conflicts are resolved by having a higher @priority hide a
@@ -488,30 +525,27 @@ void memory_region_add_subregion(MemoryRegion *mr,
  * A region may only be added once as a subregion (unless removed with
  * memory_region_del_subregion()); use memory_region_init_alias() if you
  * want a region to be a subregion in multiple locations.
- *
- * @mr: the region to contain the new subregion; must be a container
- *      initialized with memory_region_init().
- * @offset: the offset relative to @mr where @subregion is added.
- * @subregion: the subregion to be added.
- * @priority: used for resolving overlaps; highest priority wins.
  */
 void memory_region_add_subregion_overlap(MemoryRegion *mr,
                                          target_phys_addr_t offset,
                                          MemoryRegion *subregion,
                                          unsigned priority);
 /**
- * memory_region_del_subregion: Remove a subregion.
- *
- * Removes a subregion from its container.
- *
+ * memory_region_del_subregion:
  * @mr: the container to be updated.
  * @subregion: the region being removed; must be a current subregion of @mr.
+ *
+ * Remove a subregion.
+ *
+ * Removes a subregion from its container.
  */
 void memory_region_del_subregion(MemoryRegion *mr,
                                  MemoryRegion *subregion);
 
 /**
- * memory_region_transaction_begin: Start a transaction.
+ * memory_region_transaction_begin:
+ *
+ * Start a transaction.
  *
  * During a transaction, changes will be accumulated and made visible
  * only when the transaction ends (is commited).
@@ -519,8 +553,9 @@ void memory_region_del_subregion(MemoryRegion *mr,
 void memory_region_transaction_begin(void);
 
 /**
- * memory_region_transaction_commit: Commit a transaction and make changes
- *                                   visible to the guest.
+ * memory_region_transaction_commit:
+ *
+ * Commit a transaction and make changes visible to the guest.
  */
 void memory_region_transaction_commit(void);
 
