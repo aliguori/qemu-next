@@ -1,0 +1,15 @@
+DOC_SRC=$(wildcard $(SRC_PATH)/include/*.h)
+
+gtkdoc: html/index.html
+
+html/index.html: $(DOC_SRC)
+	gtkdoc-scan --module=QEMU --source-dir=$(SRC_PATH)/include && \
+        cp $(SRC_PATH)/QEMU-docs.xml . && \
+	gtkdoc-mkdb --module=QEMU --output-format=xml --source-dir=$(SRC_PATH)/include && \
+	mkdir -p html && \
+        (cd html && gtkdoc-mkhtml QEMU ../QEMU-docs.xml && cd ..) && \
+	gtkdoc-fixxref --module=QEMU --module-dir=html
+
+gtkdoc-clean:
+	$(RM) -r html xml
+	$(RM) $(SCAN_GEN) sgml.stamp *.bak html.stamp
