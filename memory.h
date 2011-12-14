@@ -30,6 +30,8 @@ typedef struct MemoryRegionOps MemoryRegionOps;
 typedef struct MemoryRegion MemoryRegion;
 typedef struct MemoryRegionPortio MemoryRegionPortio;
 typedef struct MemoryRegionMmio MemoryRegionMmio;
+typedef struct MemoryRegionGuestConstraints MemoryRegionGuestConstraints;
+typedef struct MemoryRegionInternalConstraints MemoryRegionInternalConstraints;
 
 /* Must match *_DIRTY_FLAGS in cpu-all.h.  To be replaced with dynamic
  * registration.
@@ -41,6 +43,42 @@ typedef struct MemoryRegionMmio MemoryRegionMmio;
 struct MemoryRegionMmio {
     CPUReadMemoryFunc *read[3];
     CPUWriteMemoryFunc *write[3];
+};
+
+struct MemoryRegionGuestConstraints
+{
+    /* If nonzero, specify bounds on access sizes beyond which a machine
+     * check is thrown.
+     */
+    unsigned min_access_size;
+    unsigned max_access_size;
+    /* If true, unaligned accesses are supported.  Otherwise unaligned
+     * accesses throw machine checks.
+     */
+    bool unaligned;
+    /*
+     * If present, and returns #false, the transaction is not accepted
+     * by the device (and results in machine dependent behaviour such
+     * as a machine check exception).
+     */
+    bool (*accepts)(void *opaque, target_phys_addr_t addr,
+                    unsigned size, bool is_write);
+};
+
+struct MemoryRegionInternalConstraints
+{
+    /* If nonzero, specifies the minimum size implemented.  Smaller sizes
+     * will be rounded upwards and a partial result will be returned.
+     */
+    unsigned min_access_size;
+    /* If nonzero, specifies the maximum size implemented.  Larger sizes
+     * will be done as a series of accesses with smaller sizes.
+     */
+    unsigned max_access_size;
+    /* If true, unaligned accesses are supported.  Otherwise all accesses
+     * are converted to (possibly multiple) naturally aligned accesses.
+     */
+    bool unaligned;
 };
 
 /*
@@ -61,39 +99,10 @@ struct MemoryRegionOps {
 
     enum device_endian endianness;
     /* Guest-visible constraints: */
-    struct {
-        /* If nonzero, specify bounds on access sizes beyond which a machine
-         * check is thrown.
-         */
-        unsigned min_access_size;
-        unsigned max_access_size;
-        /* If true, unaligned accesses are supported.  Otherwise unaligned
-         * accesses throw machine checks.
-         */
-         bool unaligned;
-        /*
-         * If present, and returns #false, the transaction is not accepted
-         * by the device (and results in machine dependent behaviour such
-         * as a machine check exception).
-         */
-        bool (*accepts)(void *opaque, target_phys_addr_t addr,
-                        unsigned size, bool is_write);
-    } valid;
+    MemoryRegionGuestConstraints valid;
+
     /* Internal implementation constraints: */
-    struct {
-        /* If nonzero, specifies the minimum size implemented.  Smaller sizes
-         * will be rounded upwards and a partial result will be returned.
-         */
-        unsigned min_access_size;
-        /* If nonzero, specifies the maximum size implemented.  Larger sizes
-         * will be done as a series of accesses with smaller sizes.
-         */
-        unsigned max_access_size;
-        /* If true, unaligned accesses are supported.  Otherwise all accesses
-         * are converted to (possibly multiple) naturally aligned accesses.
-         */
-         bool unaligned;
-    } impl;
+    MemoryRegionInternalConstraints impl;
 
     /* If .read and .write are not present, old_portio may be used for
      * backwards compatibility with old portio registration
