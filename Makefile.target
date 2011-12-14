@@ -199,6 +199,7 @@ obj-$(CONFIG_NO_KVM) += kvm-stub.o
 obj-y += memory.o
 obj-y += tpm.o
 obj-$(CONFIG_TPM) += tpm_tis.o
+obj-$(CONFIG_TPM_PASSTHROUGH) += tpm_passthrough.o
 LIBS+=-lz
 
 QEMU_CFLAGS += $(VNC_TLS_CFLAGS)
