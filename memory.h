@@ -26,10 +26,12 @@
 #include "ioport.h"
 #include "int128.h"
 
-typedef struct MemoryRegionOps MemoryRegionOps;
-typedef struct MemoryRegion MemoryRegion;
-typedef struct MemoryRegionPortio MemoryRegionPortio;
-typedef struct MemoryRegionMmio MemoryRegionMmio;
+typedef struct _MemoryRegionOps MemoryRegionOps;
+typedef struct _MemoryRegion MemoryRegion;
+typedef struct _MemoryRegionPortio MemoryRegionPortio;
+typedef struct _MemoryRegionMmio MemoryRegionMmio;
+typedef struct _MemoryRegionGuestConstraints MemoryRegionGuestConstraints;
+typedef struct _MemoryRegionInternalConstraints MemoryRegionInternalConstraints;
 
 /* Must match *_DIRTY_FLAGS in cpu-all.h.  To be replaced with dynamic
  * registration.
@@ -38,15 +40,51 @@ typedef struct MemoryRegionMmio MemoryRegionMmio;
 #define DIRTY_MEMORY_CODE      1
 #define DIRTY_MEMORY_MIGRATION 3
 
-struct MemoryRegionMmio {
+struct _MemoryRegionMmio {
     CPUReadMemoryFunc *read[3];
     CPUWriteMemoryFunc *write[3];
+};
+
+struct _MemoryRegionGuestConstraints
+{
+    /* If nonzero, specify bounds on access sizes beyond which a machine
+     * check is thrown.
+     */
+    unsigned min_access_size;
+    unsigned max_access_size;
+    /* If true, unaligned accesses are supported.  Otherwise unaligned
+     * accesses throw machine checks.
+     */
+    bool unaligned;
+    /*
+     * If present, and returns #false, the transaction is not accepted
+     * by the device (and results in machine dependent behaviour such
+     * as a machine check exception).
+     */
+    bool (*accepts)(void *opaque, target_phys_addr_t addr,
+                    unsigned size, bool is_write);
+};
+
+struct _MemoryRegionInternalConstraints
+{
+    /* If nonzero, specifies the minimum size implemented.  Smaller sizes
+     * will be rounded upwards and a partial result will be returned.
+     */
+    unsigned min_access_size;
+    /* If nonzero, specifies the maximum size implemented.  Larger sizes
+     * will be done as a series of accesses with smaller sizes.
+     */
+    unsigned max_access_size;
+    /* If true, unaligned accesses are supported.  Otherwise all accesses
+     * are converted to (possibly multiple) naturally aligned accesses.
+     */
+    bool unaligned;
 };
 
 /*
  * Memory region callbacks
  */
-struct MemoryRegionOps {
+struct _MemoryRegionOps {
     /* Read from the memory region. @addr is relative to @mr; @size is
      * in bytes. */
     uint64_t (*read)(void *opaque,
@@ -61,39 +99,10 @@ struct MemoryRegionOps {
 
     enum device_endian endianness;
     /* Guest-visible constraints: */
-    struct {
-        /* If nonzero, specify bounds on access sizes beyond which a machine
-         * check is thrown.
-         */
-        unsigned min_access_size;
-        unsigned max_access_size;
-        /* If true, unaligned accesses are supported.  Otherwise unaligned
-         * accesses throw machine checks.
-         */
-         bool unaligned;
-        /*
-         * If present, and returns #false, the transaction is not accepted
-         * by the device (and results in machine dependent behaviour such
-         * as a machine check exception).
-         */
-        bool (*accepts)(void *opaque, target_phys_addr_t addr,
-                        unsigned size, bool is_write);
-    } valid;
+    MemoryRegionGuestConstraints valid;
+
     /* Internal implementation constraints: */
-    struct {
-        /* If nonzero, specifies the minimum size implemented.  Smaller sizes
-         * will be rounded upwards and a partial result will be returned.
-         */
-        unsigned min_access_size;
-        /* If nonzero, specifies the maximum size implemented.  Larger sizes
-         * will be done as a series of accesses with smaller sizes.
-         */
-        unsigned max_access_size;
-        /* If true, unaligned accesses are supported.  Otherwise all accesses
-         * are converted to (possibly multiple) naturally aligned accesses.
-         */
-         bool unaligned;
-    } impl;
+    MemoryRegionInternalConstraints impl;
 
     /* If .read and .write are not present, old_portio may be used for
      * backwards compatibility with old portio registration
@@ -105,10 +114,10 @@ struct MemoryRegionOps {
     const MemoryRegionMmio old_mmio;
 };
 
-typedef struct CoalescedMemoryRange CoalescedMemoryRange;
-typedef struct MemoryRegionIoeventfd MemoryRegionIoeventfd;
+typedef struct _CoalescedMemoryRange CoalescedMemoryRange;
+typedef struct _MemoryRegionIoeventfd MemoryRegionIoeventfd;
 
-struct MemoryRegion {
+struct _MemoryRegion {
     /* All fields are private - violators will be prosecuted */
     const MemoryRegionOps *ops;
     void *opaque;
@@ -127,16 +136,16 @@ struct MemoryRegion {
     target_phys_addr_t alias_offset;
     unsigned priority;
     bool may_overlap;
-    QTAILQ_HEAD(subregions, MemoryRegion) subregions;
-    QTAILQ_ENTRY(MemoryRegion) subregions_link;
-    QTAILQ_HEAD(coalesced_ranges, CoalescedMemoryRange) coalesced;
+    QTAILQ_HEAD(subregions, _MemoryRegion) subregions;
+    QTAILQ_ENTRY(_MemoryRegion) subregions_link;
+    QTAILQ_HEAD(coalesced_ranges, _CoalescedMemoryRange) coalesced;
     const char *name;
     uint8_t dirty_log_mask;
     unsigned ioeventfd_nb;
     MemoryRegionIoeventfd *ioeventfds;
 };
 
-struct MemoryRegionPortio {
+struct _MemoryRegionPortio {
     uint32_t offset;
     uint32_t len;
     unsigned size;

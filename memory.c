@@ -72,12 +72,12 @@ static AddrRange addrrange_intersection(AddrRange r1, AddrRange r2)
     return addrrange_make(start, int128_sub(end, start));
 }
 
-struct CoalescedMemoryRange {
+struct _CoalescedMemoryRange {
     AddrRange addr;
-    QTAILQ_ENTRY(CoalescedMemoryRange) link;
+    QTAILQ_ENTRY(_CoalescedMemoryRange) link;
 };
 
-struct MemoryRegionIoeventfd {
+struct _MemoryRegionIoeventfd {
     AddrRange addr;
     bool match_data;
     uint64_t data;
