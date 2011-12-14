@@ -19,6 +19,7 @@ ifdef CONFIG_LINUX
 QEMU_CFLAGS += -I../linux-headers
 endif
 QEMU_CFLAGS += -I.. -I$(TARGET_PATH) -DNEED_CPU_H
+QEMU_CFLAGS += -I$(SRC_PATH)/include
 
 include $(SRC_PATH)/Makefile.objs
 
