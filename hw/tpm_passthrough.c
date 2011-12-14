@@ -377,33 +377,68 @@ static int tpm_passthrough_handle_device_opts(QemuOpts *opts, TPMBackend *tb)
     const char *value;
     char buf[64];
     int n;
+    struct stat statbuf;
 
-    value = qemu_opt_get(opts, "path");
-    if (!value) {
-        value = TPM_PASSTHROUGH_DEFAULT_DEVICE;
+    value = qemu_opt_get(opts, "fd");
+    if (value) {
+        if (qemu_opt_get(opts, "path")) {
+            error_report("fd= is invalid with path=");
+            return -1;
+        }
+
+        tb->s.tpm_pt->tpm_fd = qemu_parse_fd(value);
+        if (tb->s.tpm_pt->tpm_fd < 0) {
+            error_report("Illegal file descriptor for TPM device.\n");
+            return -1;
+        }
+
+        snprintf(buf, sizeof(buf), "fd=%d", tb->s.tpm_pt->tpm_fd);
+
+        tb->parameters = g_strdup(buf);
+
+        if (tb->parameters == NULL) {
+            goto err_close_tpmdev;
+        }
+    } else {
+        value = qemu_opt_get(opts, "path");
+        if (!value) {
+            value = TPM_PASSTHROUGH_DEFAULT_DEVICE;
+        }
+
+        n = snprintf(tb->s.tpm_pt->tpm_dev, sizeof(tb->s.tpm_pt->tpm_dev),
+                     "%s", value);
+
+        if (n >= sizeof(tb->s.tpm_pt->tpm_dev)) {
+            error_report("TPM device path is too long.\n");
+            goto err_exit;
+        }
+
+        snprintf(buf, sizeof(buf), "path=%s", tb->s.tpm_pt->tpm_dev);
+
+        tb->parameters = g_strdup(buf);
+
+        if (tb->parameters == NULL) {
+            return 1;
+        }
+
+        tb->s.tpm_pt->tpm_fd = open(tb->s.tpm_pt->tpm_dev, O_RDWR);
+        if (tb->s.tpm_pt->tpm_fd < 0) {
+            error_report("Cannot access TPM device using '%s'.\n",
+                         tb->s.tpm_pt->tpm_dev);
+            goto err_exit;
+        }
     }
 
-    n = snprintf(tb->s.tpm_pt->tpm_dev, sizeof(tb->s.tpm_pt->tpm_dev),
-                 "%s", value);
-
-    if (n >= sizeof(tb->s.tpm_pt->tpm_dev)) {
-        error_report("TPM device path is too long.\n");
-        goto err_exit;
+    if (fstat(tb->s.tpm_pt->tpm_fd, &statbuf) != 0) {
+        error_report("Cannot determine file descriptor type for TPM "
+                     "device: %s", strerror(errno));
+        goto err_close_tpmdev;
     }
 
-    snprintf(buf, sizeof(buf), "path=%s", tb->s.tpm_pt->tpm_dev);
-
-    tb->parameters = g_strdup(buf);
-
-    if (tb->parameters == NULL) {
-        return 1;
-    }
-
-    tb->s.tpm_pt->tpm_fd = open(tb->s.tpm_pt->tpm_dev, O_RDWR);
-    if (tb->s.tpm_pt->tpm_fd < 0) {
-        error_report("Cannot access TPM device using '%s'.\n",
-                     tb->s.tpm_pt->tpm_dev);
-        goto err_exit;
+    /* only allow character devices for now */
+    if (!S_ISCHR(statbuf.st_mode)) {
+        error_report("TPM file descriptor is not a character device");
+        goto err_close_tpmdev;
     }
 
     if (tpm_passthrough_test_tpmdev(tb->s.tpm_pt->tpm_fd)) {
