@@ -16,6 +16,7 @@
 
   <chapter>
     <title>Core Device APIs</title>
+        <xi:include href="xml/memory.xml"/>
 
   </chapter>
   <index id="api-index-full">
