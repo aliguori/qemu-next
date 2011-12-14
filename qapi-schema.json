@@ -1275,3 +1275,32 @@
 { 'command': 'qom-set',
   'data': { 'path': 'str', 'property': 'str', 'value': 'visitor' },
   'gen': 'no' }
+
+##
+# @TPMInfo:
+#
+# Information about the TPM
+#
+# @model: The TPM frontend model, i.e., tpm-tis
+#
+# @id: The ID of the TPM
+#
+# @type: The type of TPM backend, i.e., passthrough
+#
+# @parameters: Additional parameters of the TPM backend device
+#
+# Since: 1.1
+##
+{ 'type': 'TPMInfo',
+  'data': {'model': 'str', 'id': 'str', 'type': 'str', 'parameters': 'str' } }
+
+##
+# @query-tpm
+#
+# Return information about the TPM device.
+#
+# Returns: @TPMInfo on success
+#
+# Since: 1.1
+##
+{ 'command': 'query-tpm', 'returns': ['TPMInfo'] }

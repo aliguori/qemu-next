@@ -139,6 +139,7 @@ int main(int argc, char **argv)
 #include "block.h"
 #include "blockdev.h"
 #include "block-migration.h"
+#include "tpm.h"
 #include "dma.h"
 #include "audio/audio.h"
 #include "migration.h"
@@ -2537,6 +2538,16 @@ int main(int argc, char **argv, char **envp)
                 ram_size = value;
                 break;
             }
+            case QEMU_OPTION_tpmdev:
+#ifdef CONFIG_TPM
+                if (tpm_config_parse(qemu_find_opts("tpmdev"), optarg) < 0) {
+                    exit(1);
+                }
+#else
+                fprintf(stderr, "TPM support is disabled\n");
+                exit(1);
+#endif
+                break;
             case QEMU_OPTION_mempath:
                 mem_path = optarg;
                 break;
@@ -3230,6 +3241,12 @@ int main(int argc, char **argv, char **envp)
         exit(1);
     }
 
+#ifdef CONFIG_TPM
+    if (tpm_init() < 0) {
+        exit(1);
+    }
+#endif
+
     /* init the bluetooth world */
     if (foreach_device_config(DEV_BT, bt_parse))
         exit(1);
@@ -3476,6 +3493,9 @@ int main(int argc, char **argv, char **envp)
     pause_all_vcpus();
     net_cleanup();
     res_free();
+#ifdef CONFIG_TPM
+    tpm_cleanup();
+#endif
 
     return 0;
 }
