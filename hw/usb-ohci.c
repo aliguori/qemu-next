@@ -1810,9 +1810,12 @@ static int usb_ohci_initfn_pci(struct PCIDevice *dev)
     return 0;
 }
 
-void usb_ohci_init_pci(struct PCIBus *bus, int devfn)
+USBBus *usb_ohci_init_pci(struct PCIBus *bus, int devfn)
 {
-    pci_create_simple(bus, devfn, "pci-ohci");
+    PCIDevice *dev = pci_create_simple(bus, devfn, "pci-ohci");
+    OHCIPCIState *ohci = DO_UPCAST(OHCIPCIState, pci_dev, dev);
+
+    return &ohci->state.bus
 }
 
 typedef struct {

@@ -2,8 +2,9 @@
 #define QEMU_USB_OHCI_H
 
 #include "qemu-common.h"
+#include "usb.h"
 
-void usb_ohci_init_pci(struct PCIBus *bus, int devfn);
+USBBus *usb_ohci_init_pci(struct PCIBus *bus, int devfn);
 
 #endif
 
