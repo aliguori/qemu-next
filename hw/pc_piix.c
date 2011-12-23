@@ -42,6 +42,7 @@
 #include "xen.h"
 #include "memory.h"
 #include "exec-memory.h"
+#include "usb.h"
 #ifdef CONFIG_XEN
 #  include <xen/hvm/hvm_info_table.h>
 #endif
@@ -378,7 +379,7 @@ static QEMUMachine pc_machine_v1_1 = {
             .property = "vapic",\
             .value    = "off",\
         },{\
-            .driver   = "USB",\
+            .driver   = TYPE_USB_DEVICE,\
             .property = "full-path",\
             .value    = "no",\
         }
@@ -451,7 +452,7 @@ static QEMUMachine pc_machine_v0_14 = {
 #define PC_COMPAT_0_13 \
         PC_COMPAT_0_14,\
         {\
-            .driver   = "PCI",\
+            .driver   = TYPE_PCI_DEVICE,\
             .property = "command_serr_enable",\
             .value    = "off",\
         },{\

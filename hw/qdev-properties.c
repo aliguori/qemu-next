@@ -1172,11 +1172,14 @@ void qdev_prop_set_globals(DeviceState *dev)
     GlobalProperty *prop;
 
     QTAILQ_FOREACH(prop, &global_props, next) {
-        if (strcmp(object_get_typename(OBJECT(dev)), prop->driver) != 0 &&
-            strcmp(qdev_get_bus_info(dev)->name, prop->driver) != 0) {
+        Object *obj;
+
+        obj = object_dynamic_cast(OBJECT(dev), prop->driver);
+        if (obj == NULL) {
             continue;
         }
-        if (qdev_prop_parse(dev, prop->property, prop->value) != 0) {
+
+        if (qdev_prop_parse(DEVICE(obj), prop->property, prop->value) != 0) {
             exit(1);
         }
     }
