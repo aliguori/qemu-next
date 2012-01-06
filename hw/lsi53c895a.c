@@ -17,6 +17,7 @@
 #include "scsi.h"
 #include "block_int.h"
 #include "dma.h"
+#include "qemu/safe-buffer.h"
 
 //#define DEBUG_LSI
 //#define DEBUG_LSI_REG
@@ -196,7 +197,7 @@ typedef struct {
        0 = COMMAND, 1 = disconnect, 2 = DATA OUT, 3 = DATA IN.  */
     int msg_action;
     int msg_len;
-    uint8_t msg[LSI_MAX_MSGIN_LEN];
+    SAFE_BUFFER_STATIC(msg, LSI_MAX_MSGIN_LEN);
     /* 0 if SCRIPTS are running or stopped.
      * 1 if a Wait Reselect instruction has been issued.
      * 2 if processing DMA from lsi_execute_script.
@@ -272,8 +273,7 @@ typedef struct {
     uint32_t scratch[18]; /* SCRATCHA-SCRATCHR */
     uint8_t sbr;
 
-    /* Script ram is stored as 32-bit words in host byteorder.  */
-    uint32_t script_ram[2048];
+    SAFE_BUFFER_STATIC(script_ram, 4 * 2048);
 } LSIState;
 
 static inline int lsi_irq_on_rsl(LSIState *s)
@@ -603,7 +603,7 @@ static void lsi_add_msg_byte(LSIState *s, uint8_t data)
         BADF("MSG IN data too long\n");
     } else {
         DPRINTF("MSG IN 0x%02x\n", data);
-        s->msg[s->msg_len++] = data;
+        sb_stb(&s->msg, s->msg_len++, data);
     }
 }
 
@@ -822,16 +822,16 @@ static void lsi_do_msgin(LSIState *s)
 {
     int len;
     DPRINTF("Message in len=%d/%d\n", s->dbc, s->msg_len);
-    s->sfbr = s->msg[0];
+    s->sfbr = sb_ldb(&s->msg, 0);
     len = s->msg_len;
     if (len > s->dbc)
         len = s->dbc;
-    pci_dma_write(&s->dev, s->dnad, s->msg, len);
+    pci_dma_write(&s->dev, s->dnad, sb_get_ptr(&s->msg, 0, len), len);
     /* Linux drivers rely on the last byte being in the SIDL.  */
-    s->sidl = s->msg[len - 1];
+    s->sidl = sb_ldb(&s->msg, len - 1);
     s->msg_len -= len;
     if (s->msg_len) {
-        memmove(s->msg, s->msg + len, s->msg_len);
+        sb_copy_offset(&s->msg, 0, &s->msg, len, s->msg_len);
     } else {
         /* ??? Check if ATN (not yet implemented) is asserted and maybe
            switch to PHASE_MO.  */
@@ -1616,7 +1616,7 @@ static uint8_t lsi_reg_readb(LSIState *s, int offset)
     case 0x58: /* SBDL */
         /* Some drivers peek at the data bus during the MSG IN phase.  */
         if ((s->sstat1 & PHASE_MASK) == PHASE_MI)
-            return s->msg[0];
+            return sb_ldb(&s->msg, 0);
         return 0;
     case 0x59: /* SBDL high */
         return 0;
@@ -1915,29 +1915,16 @@ static void lsi_ram_write(void *opaque, target_phys_addr_t addr,
                           uint64_t val, unsigned size)
 {
     LSIState *s = opaque;
-    uint32_t newval;
-    uint32_t mask;
-    int shift;
 
-    newval = s->script_ram[addr >> 2];
-    shift = (addr & 3) * 8;
-    mask = ((uint64_t)1 << (size * 8)) - 1;
-    newval &= ~(mask << shift);
-    newval |= val << shift;
-    s->script_ram[addr >> 2] = newval;
+    sb_stb(&s->script_ram, addr, val);
 }
 
 static uint64_t lsi_ram_read(void *opaque, target_phys_addr_t addr,
                              unsigned size)
 {
     LSIState *s = opaque;
-    uint32_t val;
-    uint32_t mask;
 
-    val = s->script_ram[addr >> 2];
-    mask = ((uint64_t)1 << (size * 8)) - 1;
-    val >>= (addr & 3) * 8;
-    return val & mask;
+    return sb_ldb(&s->script_ram, addr);
 }
 
 static const MemoryRegionOps lsi_ram_ops = {
@@ -2001,7 +1988,7 @@ static const VMStateDescription vmstate_lsi_scsi = {
         VMSTATE_INT32(status, LSIState),
         VMSTATE_INT32(msg_action, LSIState),
         VMSTATE_INT32(msg_len, LSIState),
-        VMSTATE_BUFFER(msg, LSIState),
+//        VMSTATE_BUFFER(msg, LSIState),
         VMSTATE_INT32(waiting, LSIState),
 
         VMSTATE_UINT32(dsa, LSIState),
@@ -2066,7 +2053,7 @@ static const VMStateDescription vmstate_lsi_scsi = {
         VMSTATE_BUFFER_UNSAFE(scratch, LSIState, 0, 18 * sizeof(uint32_t)),
         VMSTATE_UINT8(sbr, LSIState),
 
-        VMSTATE_BUFFER_UNSAFE(script_ram, LSIState, 0, 2048 * sizeof(uint32_t)),
+//        VMSTATE_BUFFER_UNSAFE(script_ram, LSIState, 0, 2048 * sizeof(uint32_t)),
         VMSTATE_END_OF_LIST()
     }
 };
@@ -2096,6 +2083,9 @@ static int lsi_scsi_init(PCIDevice *dev)
 {
     LSIState *s = DO_UPCAST(LSIState, dev, dev);
     uint8_t *pci_conf;
+
+    SAFE_BUFFER_STATIC_INIT(s, msg);
+    SAFE_BUFFER_STATIC_INIT(s, script_ram);
 
     pci_conf = s->dev.config;
 
