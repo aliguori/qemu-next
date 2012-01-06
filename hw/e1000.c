@@ -32,6 +32,7 @@
 #include "loader.h"
 #include "sysemu.h"
 #include "dma.h"
+#include "qemu/safe-buffer.h"
 
 #include "e1000_hw.h"
 
@@ -94,11 +95,10 @@ typedef struct E1000State_st {
     uint32_t rxbuf_min_shift;
     int check_rxov;
     struct e1000_tx {
-        unsigned char header[256];
-        unsigned char vlan_header[4];
-        /* Fields vlan and data must not be reordered or separated. */
-        unsigned char vlan[4];
-        unsigned char data[0x10000];
+        SAFE_BUFFER_STATIC(header, 256);
+        SAFE_BUFFER_STATIC(vlan_header, 4);
+        SAFE_BUFFER_STATIC(vlan, 4);
+        SAFE_BUFFER_STATIC(data, 0x10000);
         uint16_t size;
         unsigned char sum_needed;
         unsigned char vlan_needed;
@@ -301,16 +301,15 @@ flash_eerd_read(E1000State *s, int x)
 }
 
 static void
-putsum(uint8_t *data, uint32_t n, uint32_t sloc, uint32_t css, uint32_t cse)
+putsum(SafeBuffer *data, uint32_t n, uint32_t sloc, uint32_t css, uint32_t cse)
 {
     uint32_t sum;
 
     if (cse && cse < n)
         n = cse + 1;
     if (sloc < n-1) {
-        sum = net_checksum_add(n-css, data+css);
-        cpu_to_be16wu((uint16_t *)(data + sloc),
-                      net_checksum_finish(sum));
+        sum = net_checksum_add(n-css, sb_get_ptr(data, css, n-css));
+        sb_stw_be(data, sloc, net_checksum_finish(sum));
     }
 }
 
@@ -351,7 +350,7 @@ fcs_len(E1000State *s)
 static void
 xmit_seg(E1000State *s)
 {
-    uint16_t len, *sp;
+    uint16_t len;
     unsigned int frames = s->tx.tso_frames, css, sofar, n;
     struct e1000_tx *tp = &s->tx;
 
@@ -360,46 +359,61 @@ xmit_seg(E1000State *s)
         DBGOUT(TXSUM, "frames %d size %d ipcss %d\n",
                frames, tp->size, css);
         if (tp->ip) {		// IPv4
-            cpu_to_be16wu((uint16_t *)(tp->data+css+2),
-                          tp->size - css);
-            cpu_to_be16wu((uint16_t *)(tp->data+css+4),
-                          be16_to_cpup((uint16_t *)(tp->data+css+4))+frames);
+            sb_stw_be(&tp->data, css+2, tp->size - css);
+            sb_stw_be(&tp->data, css+4, sb_ldw_be(&tp->data, css+4)+frames);
         } else			// IPv6
-            cpu_to_be16wu((uint16_t *)(tp->data+css+4),
-                          tp->size - css);
+            sb_stw_be(&tp->data, css+4, tp->size - css);
         css = tp->tucss;
         len = tp->size - css;
         DBGOUT(TXSUM, "tcp %d tucss %d len %d\n", tp->tcp, css, len);
         if (tp->tcp) {
             sofar = frames * tp->mss;
-            cpu_to_be32wu((uint32_t *)(tp->data+css+4),	// seq
-                be32_to_cpupu((uint32_t *)(tp->data+css+4))+sofar);
+            sb_stl_be(&tp->data, css+4,	// seq
+                      sb_ldl_be(&tp->data, css+4)+sofar);
             if (tp->paylen - sofar > tp->mss)
-                tp->data[css + 13] &= ~9;		// PSH, FIN
+                sb_stb_be(&tp->data, css + 13,
+                          sb_ldb_be(&tp->data, css + 13) & ~9); // PSH, FIN
         } else	// UDP
-            cpu_to_be16wu((uint16_t *)(tp->data+css+4), len);
+            sb_stw_be(&tp->data, css+4, len);
         if (tp->sum_needed & E1000_TXD_POPTS_TXSM) {
             unsigned int phsum;
             // add pseudo-header length before checksum calculation
-            sp = (uint16_t *)(tp->data + tp->tucso);
-            phsum = be16_to_cpup(sp) + len;
+            phsum = sb_ldw_be(&tp->data, tp->tucso) + len;
             phsum = (phsum >> 16) + (phsum & 0xffff);
-            cpu_to_be16wu(sp, phsum);
+            sb_stw_be(&tp->data, tp->tucso, phsum);
         }
         tp->tso_frames++;
     }
 
     if (tp->sum_needed & E1000_TXD_POPTS_TXSM)
-        putsum(tp->data, tp->size, tp->tucso, tp->tucss, tp->tucse);
+        putsum(&tp->data, tp->size, tp->tucso, tp->tucss, tp->tucse);
     if (tp->sum_needed & E1000_TXD_POPTS_IXSM)
-        putsum(tp->data, tp->size, tp->ipcso, tp->ipcss, tp->ipcse);
+        putsum(&tp->data, tp->size, tp->ipcso, tp->ipcss, tp->ipcse);
     if (tp->vlan_needed) {
-        memmove(tp->vlan, tp->data, 4);
-        memmove(tp->data, tp->data + 4, 8);
-        memcpy(tp->data + 8, tp->vlan_header, 4);
-        qemu_send_packet(&s->nic->nc, tp->vlan, tp->size + 4);
+        SafeBuffer packet;
+
+        /* Previously, the code would purposefully overflow into tp->data to
+         * avoid the data copy.  That's just asking for trouble.  Create a
+         * temporary packet of the right size instead of doing bad things.
+         */
+
+        sb_copy(&tp->vlan, &tp->data, 4);
+        sb_copy_offset(&tp->data, 0, &tp->data, 4, 8);
+        sb_copy_offset(&tp->data, 8, &tp->vlan_header, 0, 4);
+
+        sb_init(&packet, tp->size + 4);
+        sb_copy(&packet, &tp->vlan, 4);
+        sb_copy_offset(&packet, 4, &tp->data, 0, tp->size);
+
+        qemu_send_packet(&s->nic->nc,
+                         sb_get_ptr(&packet, 0, tp->size + 4),
+                         tp->size + 4);
+
+        sb_unref(&packet);
     } else
-        qemu_send_packet(&s->nic->nc, tp->data, tp->size);
+        qemu_send_packet(&s->nic->nc,
+                         sb_get_ptr(&tp->data, 0, tp->size),
+                         tp->size);
     s->mac_reg[TPT]++;
     s->mac_reg[GPTC]++;
     n = s->mac_reg[TOTL];
@@ -452,10 +466,10 @@ process_tx_desc(E1000State *s, struct e1000_tx_desc *dp)
     if (vlan_enabled(s) && is_vlan_txd(txd_lower) &&
         (tp->cptse || txd_lower & E1000_TXD_CMD_EOP)) {
         tp->vlan_needed = 1;
-        cpu_to_be16wu((uint16_t *)(tp->vlan_header),
-                      le16_to_cpup((uint16_t *)(s->mac_reg + VET)));
-        cpu_to_be16wu((uint16_t *)(tp->vlan_header + 2),
-                      le16_to_cpu(dp->upper.fields.special));
+        sb_stw_be(&tp->vlan_header, 0,
+                  le16_to_cpup((uint16_t *)(s->mac_reg + VET)));
+        sb_stw_be(&tp->vlan_header, 2,
+                  le16_to_cpu(dp->upper.fields.special));
     }
         
     addr = le64_to_cpu(dp->buffer_addr);
@@ -466,14 +480,16 @@ process_tx_desc(E1000State *s, struct e1000_tx_desc *dp)
             bytes = split_size;
             if (tp->size + bytes > msh)
                 bytes = msh - tp->size;
-            pci_dma_read(&s->dev, addr, tp->data + tp->size, bytes);
+            pci_dma_read(&s->dev, addr,
+                         sb_get_ptr(&tp->data, tp->size, bytes),
+                         bytes);
             if ((sz = tp->size + bytes) >= hdr && tp->size < hdr)
-                memmove(tp->header, tp->data, hdr);
+                sb_copy(&tp->header, &tp->data, hdr);
             tp->size = sz;
             addr += bytes;
             if (sz == msh) {
                 xmit_seg(s);
-                memmove(tp->data, tp->header, hdr);
+                sb_copy(&tp->data, &tp->header, hdr);
                 tp->size = hdr;
             }
         } while (split_size -= bytes);
@@ -481,7 +497,9 @@ process_tx_desc(E1000State *s, struct e1000_tx_desc *dp)
         // context descriptor TSE is not set, while data descriptor TSE is set
         DBGOUT(TXERR, "TCP segmentaion Error\n");
     } else {
-        pci_dma_read(&s->dev, addr, tp->data + tp->size, split_size);
+        pci_dma_read(&s->dev, addr,
+                     sb_get_ptr(&tp->data, tp->size, split_size),
+                     split_size);
         tp->size += split_size;
     }
 
@@ -999,8 +1017,8 @@ static const VMStateDescription vmstate_e1000 = {
         VMSTATE_UINT8(tx.sum_needed, E1000State),
         VMSTATE_INT8(tx.ip, E1000State),
         VMSTATE_INT8(tx.tcp, E1000State),
-        VMSTATE_BUFFER(tx.header, E1000State),
-        VMSTATE_BUFFER(tx.data, E1000State),
+//        VMSTATE_SAFE_BUFFER(tx.header, E1000State),
+//        VMSTATE_SAFE_BUFFER(tx.data, E1000State),
         VMSTATE_UINT16_ARRAY(eeprom_data, E1000State, 64),
         VMSTATE_UINT16_ARRAY(phy_reg, E1000State, 0x20),
         VMSTATE_UINT32(mac_reg[CTRL], E1000State),
@@ -1129,7 +1147,12 @@ static void e1000_reset(void *opaque)
     memset(d->mac_reg, 0, sizeof d->mac_reg);
     memmove(d->mac_reg, mac_reg_init, sizeof mac_reg_init);
     d->rxbuf_min_shift = 1;
+
     memset(&d->tx, 0, sizeof d->tx);
+    SAFE_BUFFER_STATIC_INIT(&d->tx, header);
+    SAFE_BUFFER_STATIC_INIT(&d->tx, vlan_header);
+    SAFE_BUFFER_STATIC_INIT(&d->tx, vlan);
+    SAFE_BUFFER_STATIC_INIT(&d->tx, data);
 }
 
 static NetClientInfo net_e1000_info = {
