@@ -68,6 +68,9 @@ void sb_copy_offset(SafeBuffer *lhs, size_t lhs_offset,
 
 void sb_append(SafeBuffer *b, const void *data, size_t size);
 
+#define sb_ldb(b, offset) sb_ldb_be(b, offset)
+#define sb_stb(b, offset, value) sb_stb_be(b, offset, value)
+
 /** Big Endian Integer Accessors **/
 
 static inline uint8_t sb_ldb_be(SafeBuffer *b, size_t offset)
