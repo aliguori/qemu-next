@@ -8,6 +8,8 @@ endif
 #######################################################################
 # Subdir makefiles
 
+common-obj-y =
+
 include $(SRC_PATH)/qobject/Makefile
 common-obj-y += $(addprefix qobject/, $(qobject-obj-y))
 
@@ -31,6 +33,9 @@ common-obj-y += $(addprefix slirp/, $(slirp-obj-y))
 
 include $(SRC_PATH)/qapi/Makefile
 common-obj-y += $(addprefix qapi/, $(qapi-nested-y))
+
+include $(SRC_PATH)/hw/Makefile
+common-obj-y += $(hw-obj-y)
 
 #######################################################################
 # oslib-obj-y is code depending on the OS (win32 vs posix)
@@ -77,42 +82,12 @@ common-obj-$(CONFIG_POSIX) += os-posix.o
 
 common-obj-y += tcg-runtime.o host-utils.o main-loop.o
 common-obj-y += irq.o input.o
-common-obj-$(CONFIG_PTIMER) += ptimer.o
-common-obj-$(CONFIG_MAX7310) += max7310.o
-common-obj-$(CONFIG_WM8750) += wm8750.o
-common-obj-$(CONFIG_TWL92230) += twl92230.o
-common-obj-$(CONFIG_TSC2005) += tsc2005.o
-common-obj-$(CONFIG_LM832X) += lm832x.o
-common-obj-$(CONFIG_TMP105) += tmp105.o
-common-obj-$(CONFIG_STELLARIS_INPUT) += stellaris_input.o
-common-obj-$(CONFIG_SSD0303) += ssd0303.o
-common-obj-$(CONFIG_SSD0323) += ssd0323.o
-common-obj-$(CONFIG_ADS7846) += ads7846.o
-common-obj-$(CONFIG_MAX111X) += max111x.o
-common-obj-$(CONFIG_DS1338) += ds1338.o
-common-obj-y += i2c.o smbus.o smbus_eeprom.o
-common-obj-y += eeprom93xx.o
-common-obj-y += scsi-disk.o cdrom.o
-common-obj-y += scsi-generic.o scsi-bus.o
-common-obj-y += hid.o
-common-obj-y += usb.o usb-hub.o usb-$(HOST_USB).o usb-hid.o usb-msd.o usb-wacom.o
-common-obj-y += usb-serial.o usb-net.o usb-bus.o usb-desc.o
-common-obj-$(CONFIG_SSI) += ssi.o
-common-obj-$(CONFIG_SSI_SD) += ssi-sd.o
-common-obj-$(CONFIG_SD) += sd.o
-common-obj-y += bt.o bt-host.o bt-vhci.o bt-l2cap.o bt-sdp.o bt-hci.o bt-hid.o usb-bt.o
-common-obj-y += bt-hci-csr.o
+
 common-obj-y += buffered_file.o migration.o migration-tcp.o
 common-obj-y += qemu-char.o #aio.o
-common-obj-y += msmouse.o ps2.o
-common-obj-y += qdev.o qdev-properties.o
 common-obj-y += block-migration.o iohandler.o
 common-obj-y += pflib.o
 common-obj-y += bitmap.o bitops.o
-
-common-obj-$(CONFIG_BRLAPI) += baum.o
-common-obj-$(CONFIG_POSIX) += migration-exec.o migration-unix.o migration-fd.o
-common-obj-$(CONFIG_WIN32) += version.o
 
 common-obj-$(CONFIG_SPICE) += ui/spice-core.o ui/spice-input.o ui/spice-display.o spice-qemu-char.o
 
@@ -120,10 +95,6 @@ common-obj-y += iov.o acl.o
 common-obj-$(CONFIG_POSIX) += compatfd.o
 common-obj-y += notify.o event_notifier.o
 common-obj-y += qemu-timer.o qemu-timer-common.o
-
-# xen backend driver support
-common-obj-$(CONFIG_XEN_BACKEND) += xen_backend.o xen_devconfig.o
-common-obj-$(CONFIG_XEN_BACKEND) += xen_console.o xenfb.o xen_disk.o xen_nic.o
 
 ######################################################################
 # libuser
@@ -134,125 +105,7 @@ user-obj-y += tcg-runtime.o host-utils.o
 user-obj-y += cutils.o cache-utils.o
 user-obj-y += $(trace-obj-y)
 
-common-obj-y += vl.o loader.o
-common-obj-$(CONFIG_VIRTIO) += virtio-console.o
-common-obj-y += usb-libhw.o
-common-obj-$(CONFIG_VIRTIO_PCI) += virtio-pci.o
-common-obj-y += fw_cfg.o
-common-obj-$(CONFIG_PCI) += pci.o pci_bridge.o
-common-obj-$(CONFIG_PCI) += msix.o msi.o
-common-obj-$(CONFIG_PCI) += pci_host.o pcie_host.o
-common-obj-$(CONFIG_PCI) += ioh3420.o xio3130_upstream.o xio3130_downstream.o
-common-obj-y += watchdog.o
-common-obj-$(CONFIG_ISA_MMIO) += isa_mmio.o
-common-obj-$(CONFIG_ECC) += ecc.o
-common-obj-$(CONFIG_NAND) += nand.o
-common-obj-$(CONFIG_PFLASH_CFI01) += pflash_cfi01.o
-common-obj-$(CONFIG_PFLASH_CFI02) += pflash_cfi02.o
-
-common-obj-$(CONFIG_M48T59) += m48t59.o
-common-obj-$(CONFIG_ESCC) += escc.o
-common-obj-$(CONFIG_EMPTY_SLOT) += empty_slot.o
-
-common-obj-$(CONFIG_SERIAL) += serial.o
-common-obj-$(CONFIG_PARALLEL) += parallel.o
-common-obj-$(CONFIG_I8254) += i8254.o
-common-obj-$(CONFIG_PCSPK) += pcspk.o
-common-obj-$(CONFIG_PCKBD) += pckbd.o
-common-obj-$(CONFIG_USB_UHCI) += usb-uhci.o
-common-obj-$(CONFIG_USB_OHCI) += usb-ohci.o
-common-obj-$(CONFIG_USB_EHCI) += usb-ehci.o
-common-obj-$(CONFIG_FDC) += fdc.o
-common-obj-$(CONFIG_ACPI) += acpi.o acpi_piix4.o
-common-obj-$(CONFIG_APM) += pm_smbus.o apm.o
-common-obj-$(CONFIG_DMA) += dma.o
-common-obj-$(CONFIG_HPET) += hpet.o
-common-obj-$(CONFIG_APPLESMC) += applesmc.o
-common-obj-$(CONFIG_SMARTCARD) += usb-ccid.o ccid-card-passthru.o
-common-obj-$(CONFIG_SMARTCARD_NSS) += ccid-card-emulated.o
-common-obj-$(CONFIG_USB_REDIR) += usb-redir.o
-common-obj-$(CONFIG_I8259) += i8259.o
-
-# PPC devices
-common-obj-$(CONFIG_PREP_PCI) += prep_pci.o
-# Mac shared devices
-common-obj-$(CONFIG_MACIO) += macio.o
-common-obj-$(CONFIG_CUDA) += cuda.o
-common-obj-$(CONFIG_ADB) += adb.o
-common-obj-$(CONFIG_MAC_NVRAM) += mac_nvram.o
-common-obj-$(CONFIG_MAC_DBDMA) += mac_dbdma.o
-# OldWorld PowerMac
-common-obj-$(CONFIG_HEATHROW_PIC) += heathrow_pic.o
-common-obj-$(CONFIG_GRACKLE_PCI) += grackle_pci.o
-# NewWorld PowerMac
-common-obj-$(CONFIG_UNIN_PCI) += unin_pci.o
-common-obj-$(CONFIG_DEC_PCI) += dec_pci.o
-# PowerPC E500 boards
-common-obj-$(CONFIG_PPCE500_PCI) += ppce500_pci.o
-
-# MIPS devices
-common-obj-$(CONFIG_PIIX4) += piix4.o
-common-obj-$(CONFIG_G364FB) += g364fb.o
-
-# PCI watchdog devices
-common-obj-$(CONFIG_PCI) += wdt_i6300esb.o
-
-common-obj-$(CONFIG_PCI) += pcie.o pcie_aer.o pcie_port.o
-
-# PCI network cards
-common-obj-$(CONFIG_NE2000_PCI) += ne2000.o
-common-obj-$(CONFIG_EEPRO100_PCI) += eepro100.o
-common-obj-$(CONFIG_PCNET_PCI) += pcnet-pci.o
-common-obj-$(CONFIG_PCNET_COMMON) += pcnet.o
-common-obj-$(CONFIG_E1000_PCI) += e1000.o
-common-obj-$(CONFIG_RTL8139_PCI) += rtl8139.o
-
-common-obj-$(CONFIG_SMC91C111) += smc91c111.o
-common-obj-$(CONFIG_LAN9118) += lan9118.o
-common-obj-$(CONFIG_NE2000_ISA) += ne2000-isa.o
-common-obj-$(CONFIG_OPENCORES_ETH) += opencores_eth.o
-
-# IDE
-common-obj-$(CONFIG_IDE_CORE) += ide/core.o ide/atapi.o
-common-obj-$(CONFIG_IDE_QDEV) += ide/qdev.o
-common-obj-$(CONFIG_IDE_PCI) += ide/pci.o
-common-obj-$(CONFIG_IDE_ISA) += ide/isa.o
-common-obj-$(CONFIG_IDE_PIIX) += ide/piix.o
-common-obj-$(CONFIG_IDE_CMD646) += ide/cmd646.o
-common-obj-$(CONFIG_IDE_MACIO) += ide/macio.o
-common-obj-$(CONFIG_IDE_VIA) += ide/via.o
-common-obj-$(CONFIG_AHCI) += ide/ahci.o
-common-obj-$(CONFIG_AHCI) += ide/ich.o
-
-# SCSI layer
-common-obj-$(CONFIG_LSI_SCSI_PCI) += lsi53c895a.o
-common-obj-$(CONFIG_ESP) += esp.o
-
-common-obj-y += dma-helpers.o sysbus.o isa-bus.o
-common-obj-y += qdev-addr.o container.o
-
-# VGA
-common-obj-$(CONFIG_VGA_PCI) += vga-pci.o
-common-obj-$(CONFIG_VGA_ISA) += vga-isa.o
-common-obj-$(CONFIG_VGA_ISA_MM) += vga-isa-mm.o
-common-obj-$(CONFIG_VMWARE_VGA) += vmware_vga.o
-common-obj-$(CONFIG_VMMOUSE) += vmmouse.o
-
-common-obj-$(CONFIG_RC4030) += rc4030.o
-common-obj-$(CONFIG_DP8393X) += dp8393x.o
-common-obj-$(CONFIG_DS1225Y) += ds1225y.o
-common-obj-$(CONFIG_MIPSNET) += mipsnet.o
-
-# Sound
-common-obj-$(CONFIG_SB16) += sb16.o
-common-obj-$(CONFIG_ES1370) += es1370.o
-common-obj-$(CONFIG_AC97) += ac97.o
-common-obj-$(CONFIG_ADLIB) += fmopl.o adlib.o
-common-obj-$(CONFIG_GUS) += gus.o gusemu_hal.o gusemu_mixer.o
-common-obj-$(CONFIG_CS4231A) += cs4231a.o
-common-obj-$(CONFIG_HDA) += intel-hda.o hda-audio.o
-
-adlib.o fmopl.o: QEMU_CFLAGS += -DBUILD_Y8950=0
+common-obj-y += vl.o
 
 ######################################################################
 # libdis
