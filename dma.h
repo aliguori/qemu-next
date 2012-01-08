@@ -17,7 +17,6 @@
 
 typedef struct ScatterGatherEntry ScatterGatherEntry;
 
-#if defined(TARGET_PHYS_ADDR_BITS)
 typedef target_phys_addr_t dma_addr_t;
 
 #define DMA_ADDR_FMT TARGET_FMT_plx
@@ -42,7 +41,6 @@ struct QEMUSGList {
 void qemu_sglist_init(QEMUSGList *qsg, int alloc_hint);
 void qemu_sglist_add(QEMUSGList *qsg, dma_addr_t base, dma_addr_t len);
 void qemu_sglist_destroy(QEMUSGList *qsg);
-#endif
 
 typedef BlockDriverAIOCB *DMAIOFunc(BlockDriverState *bs, int64_t sector_num,
                                  QEMUIOVector *iov, int nb_sectors,

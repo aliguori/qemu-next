@@ -799,11 +799,7 @@ static void rtl8139_write_buffer(RTL8139State *s, const void *buf, int size)
 #define MIN_BUF_SIZE 60
 static inline dma_addr_t rtl8139_addr64(uint32_t low, uint32_t high)
 {
-#if TARGET_PHYS_ADDR_BITS > 32
     return low | ((target_phys_addr_t)high << 32);
-#else
-    return low;
-#endif
 }
 
 static int rtl8139_can_receive(VLANClientState *nc)

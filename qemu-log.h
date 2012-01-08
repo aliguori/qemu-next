@@ -51,6 +51,7 @@ extern int loglevel;
 /* Special cases: */
 
 /* cpu_dump_state() logging functions: */
+#ifdef NEED_CPU_H
 #define log_cpu_state(env, f) cpu_dump_state((env), logfile, fprintf, (f));
 #define log_cpu_state_mask(b, env, f) do {           \
       if (loglevel & (b)) log_cpu_state((env), (f)); \
@@ -64,8 +65,7 @@ extern int loglevel;
 
 /* page_dump() output to the log file: */
 #define log_page_dump() page_dump(logfile)
-
-
+#endif
 
 /* Maintenance: */
 
