@@ -17,6 +17,8 @@ QEMU_CFLAGS+=-I../
 
 QEMU_CFLAGS+=$(GLIB_CFLAGS)
 
+QEMU_CFLAGS+=-I$(SRC_PATH)/include
+
 libcacard.lib-y=$(addsuffix .lo,$(basename $(libcacard-y)))
 
 vscclient: $(libcacard-y) $(QEMU_OBJS) vscclient.o
