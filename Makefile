@@ -94,7 +94,7 @@ include $(SRC_PATH)/Makefile.objs
 endif
 
 $(common-obj-y): $(GENERATED_HEADERS)
-subdir-libcacard: $(oslib-obj-y) $(trace-obj-y) qemu-timer-common.o
+subdir-libcacard: $(addprefix oslib/,$(oslib-obj-y)) $(trace-obj-y) qemu-timer-common.o
 
 $(filter %-softmmu,$(SUBDIR_RULES)): $(trace-obj-y) $(common-obj-y) subdir-libdis
 
@@ -139,7 +139,7 @@ libcacard.la:
 install-libcacard:
 	@echo "libtool is missing, please install and rerun configure"; exit 1
 else
-libcacard.la: $(GENERATED_HEADERS) $(oslib-obj-y) qemu-timer-common.o $(addsuffix .lo, $(basename $(trace-obj-y)))
+libcacard.la: $(GENERATED_HEADERS) $(addprefix oslib/,$(oslib-obj-y)) qemu-timer-common.o $(addsuffix .lo, $(basename $(trace-obj-y)))
 	$(call quiet-command,$(MAKE) $(SUBDIR_MAKEFLAGS) -C libcacard V="$(V)" TARGET_DIR="$*/" libcacard.la,)
 
 install-libcacard: libcacard.la
@@ -150,7 +150,7 @@ endif
 qemu-img.o: qemu-img-cmds.h
 qemu-img.o qemu-tool.o qemu-nbd.o qemu-io.o cmd.o qemu-ga.o: $(GENERATED_HEADERS)
 
-tools-obj-y = $(oslib-obj-y) $(trace-obj-y) qemu-tool.o qemu-timer.o \
+tools-obj-y = $(addprefix oslib/,$(oslib-obj-y)) $(trace-obj-y) qemu-tool.o qemu-timer.o \
 	qemu-timer-common.o main-loop.o notify.o iohandler.o cutils.o async.o
 tools-obj-$(CONFIG_POSIX) += compatfd.o
 

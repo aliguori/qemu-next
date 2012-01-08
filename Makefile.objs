@@ -34,11 +34,8 @@ common-obj-y += $(addprefix qapi/, $(qapi-nested-y))
 include $(SRC_PATH)/hw/Makefile
 common-obj-y += $(hw-obj-y)
 
-#######################################################################
-# oslib-obj-y is code depending on the OS (win32 vs posix)
-oslib-obj-y = osdep.o
-oslib-obj-$(CONFIG_WIN32) += oslib-win32.o qemu-thread-win32.o
-oslib-obj-$(CONFIG_POSIX) += oslib-posix.o qemu-thread-posix.o
+include $(SRC_PATH)/oslib/Makefile
+common-obj-y += $(addprefix oslib/,$(oslib-obj-y))
 
 #######################################################################
 # coroutines
@@ -73,9 +70,6 @@ common-obj-y += net.o
 
 common-obj-y += $(block-obj-y) blockdev.o
 common-obj-y += readline.o console.o cursor.o
-common-obj-y += $(oslib-obj-y)
-common-obj-$(CONFIG_WIN32) += os-win32.o
-common-obj-$(CONFIG_POSIX) += os-posix.o
 
 common-obj-y += tcg-runtime.o host-utils.o main-loop.o
 common-obj-y += irq.o input.o
