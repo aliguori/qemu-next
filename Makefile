@@ -380,10 +380,10 @@ qemu-img.1: qemu-img.texi qemu-img-cmds.texi
 	  "  GEN   $@")
 
 fsdev/virtfs-proxy-helper.1: fsdev/virtfs-proxy-helper.texi
-	$(call quiet-command, \
+	$(call quiet-command2, \
 	  perl -Ww -- $(SRC_PATH)/scripts/texi2pod.pl $< fsdev/virtfs-proxy-helper.pod && \
 	  pod2man --section=1 --center=" " --release=" " fsdev/virtfs-proxy-helper.pod > $@, \
-	  "  GEN   $@")
+	  "  GEN   $@",$@)
 
 qemu-nbd.8: qemu-nbd.texi
 	$(call quiet-command, \
