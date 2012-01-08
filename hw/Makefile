@@ -1,3 +1,9 @@
+include $(SRC_PATH)/hw/ide/Makefile
+hw-obj-y += $(addprefix ide/,$(ide-obj-y))
+
+include $(SRC_PATH)/hw/9pfs/Makefile
+hw-obj-y += $(addprefix 9pfs/, $(9pfs-obj-y))
+
 hw-obj-$(CONFIG_PTIMER) += ptimer.o
 hw-obj-$(CONFIG_MAX7310) += max7310.o
 hw-obj-$(CONFIG_WM8750) += wm8750.o
@@ -111,18 +117,6 @@ hw-obj-$(CONFIG_SMC91C111) += smc91c111.o
 hw-obj-$(CONFIG_LAN9118) += lan9118.o
 hw-obj-$(CONFIG_NE2000_ISA) += ne2000-isa.o
 hw-obj-$(CONFIG_OPENCORES_ETH) += opencores_eth.o
-
-# IDE
-hw-obj-$(CONFIG_IDE_CORE) += ide/core.o ide/atapi.o
-hw-obj-$(CONFIG_IDE_QDEV) += ide/qdev.o
-hw-obj-$(CONFIG_IDE_PCI) += ide/pci.o
-hw-obj-$(CONFIG_IDE_ISA) += ide/isa.o
-hw-obj-$(CONFIG_IDE_PIIX) += ide/piix.o
-hw-obj-$(CONFIG_IDE_CMD646) += ide/cmd646.o
-hw-obj-$(CONFIG_IDE_MACIO) += ide/macio.o
-hw-obj-$(CONFIG_IDE_VIA) += ide/via.o
-hw-obj-$(CONFIG_AHCI) += ide/ahci.o
-hw-obj-$(CONFIG_AHCI) += ide/ich.o
 
 # SCSI layer
 hw-obj-$(CONFIG_LSI_SCSI_PCI) += lsi53c895a.o

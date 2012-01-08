@@ -1,0 +1,10 @@
+ide-obj-$(CONFIG_IDE_CORE) += core.o atapi.o
+ide-obj-$(CONFIG_IDE_QDEV) += qdev.o
+ide-obj-$(CONFIG_IDE_PCI) += pci.o
+ide-obj-$(CONFIG_IDE_ISA) += isa.o
+ide-obj-$(CONFIG_IDE_PIIX) += piix.o
+ide-obj-$(CONFIG_IDE_CMD646) += cmd646.o
+ide-obj-$(CONFIG_IDE_MACIO) += macio.o
+ide-obj-$(CONFIG_IDE_VIA) += via.o
+ide-obj-$(CONFIG_AHCI) += ahci.o
+ide-obj-$(CONFIG_AHCI) += ich.o

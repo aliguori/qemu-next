@@ -16,9 +16,6 @@ common-obj-y += $(addprefix qobject/, $(qobject-obj-y))
 include $(SRC_PATH)/fsdev/Makefile
 common-obj-y += $(addprefix fsdev/, $(fsdev-nested-y))
 
-include $(SRC_PATH)/hw/9pfs/Makefile
-common-obj-y += $(addprefix 9pfs/, $(9pfs-obj-y))
-
 include $(SRC_PATH)/net/Makefile
 common-obj-y += $(addprefix net/, $(net-nested-y))
 
