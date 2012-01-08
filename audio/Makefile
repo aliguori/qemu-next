@@ -1,0 +1,14 @@
+audio-obj-y = audio.o noaudio.o wavaudio.o mixeng.o
+audio-obj-$(CONFIG_SDL) += sdlaudio.o
+audio-obj-$(CONFIG_OSS) += ossaudio.o
+audio-obj-$(CONFIG_SPICE) += spiceaudio.o
+audio-obj-$(CONFIG_COREAUDIO) += coreaudio.o
+audio-obj-$(CONFIG_ALSA) += alsaaudio.o
+audio-obj-$(CONFIG_DSOUND) += dsoundaudio.o
+audio-obj-$(CONFIG_FMOD) += fmodaudio.o
+audio-obj-$(CONFIG_ESD) += esdaudio.o
+audio-obj-$(CONFIG_PA) += paaudio.o
+audio-obj-$(CONFIG_WINWAVE) += winwaveaudio.o
+audio-obj-$(CONFIG_AUDIO_PT_INT) += audio_pt_int.o
+audio-obj-$(CONFIG_AUDIO_WIN_INT) += audio_win_int.o
+audio-obj-y += wavcapture.o

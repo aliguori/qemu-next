@@ -1,0 +1,10 @@
+block-nested-y += raw.o cow.o qcow.o vdi.o vmdk.o cloop.o dmg.o bochs.o vpc.o vvfat.o
+block-nested-y += qcow2.o qcow2-refcount.o qcow2-cluster.o qcow2-snapshot.o qcow2-cache.o
+block-nested-y += qed.o qed-gencb.o qed-l2-cache.o qed-table.o qed-cluster.o
+block-nested-y += qed-check.o
+block-nested-y += parallels.o nbd.o blkdebug.o sheepdog.o blkverify.o
+block-nested-$(CONFIG_WIN32) += raw-win32.o
+block-nested-$(CONFIG_POSIX) += raw-posix.o
+block-nested-$(CONFIG_LIBISCSI) += iscsi.o
+block-nested-$(CONFIG_CURL) += curl.o
+block-nested-$(CONFIG_RBD) += rbd.o

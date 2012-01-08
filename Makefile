@@ -174,6 +174,7 @@ check-qfloat: check-qfloat.o qfloat.o $(tools-obj-y)
 check-qjson: check-qjson.o $(addprefix qobject/,$(qobject-obj-y)) $(tools-obj-y)
 test-coroutine: test-coroutine.o qemu-timer-common.o async.o $(coroutine-obj-y) $(tools-obj-y)
 
+qapi-obj-y = $(addprefix qapi/,$(qapi-nested-y))
 $(qapi-obj-y): $(GENERATED_HEADERS)
 qapi-dir := $(BUILD_DIR)/qapi-generated
 test-qmp-input-visitor.o test-qmp-output-visitor.o test-qmp-commands.o qemu-ga$(EXESUF): QEMU_CFLAGS += -I $(qapi-dir)
