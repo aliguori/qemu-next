@@ -481,20 +481,12 @@ static void xhci_kick_ep(XHCIState *xhci, unsigned int slotid,
 
 static inline target_phys_addr_t xhci_addr64(uint32_t low, uint32_t high)
 {
-#if TARGET_PHYS_ADDR_BITS > 32
     return low | ((target_phys_addr_t)high << 32);
-#else
-    return low;
-#endif
 }
 
 static inline target_phys_addr_t xhci_mask64(uint64_t addr)
 {
-#if TARGET_PHYS_ADDR_BITS > 32
     return addr;
-#else
-    return addr & 0xffffffff;
-#endif
 }
 
 static void xhci_irq_update(XHCIState *xhci)
@@ -2369,11 +2361,7 @@ static uint32_t xhci_cap_read(XHCIState *xhci, uint32_t reg)
     case 0x0c: /* HCSPARAMS 3 */
         return 0x00000000;
     case 0x10: /* HCCPARAMS */
-#if TARGET_PHYS_ADDR_BITS > 32
         return 0x00081001;
-#else
-        return 0x00081000;
-#endif
     case 0x14: /* DBOFF */
         return OFF_DOORBELL;
     case 0x18: /* RTSOFF */

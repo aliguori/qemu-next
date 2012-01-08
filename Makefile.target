@@ -9,9 +9,6 @@ include ../config-host.mak
 include config-devices.mak
 include config-target.mak
 include $(SRC_PATH)/rules.mak
-ifneq ($(HWDIR),)
-include $(HWDIR)/config.mak
-endif
 
 TARGET_PATH=$(SRC_PATH)/target-$(TARGET_BASE_ARCH)
 $(call set-vpath, $(SRC_PATH):$(TARGET_PATH):$(SRC_PATH)/hw)
@@ -401,7 +398,6 @@ $(obj-y) $(obj-$(TARGET_BASE_ARCH)-y): $(GENERATED_HEADERS)
 obj-y += $(addprefix ../, $(common-obj-y))
 obj-y += $(addprefix ../libdis/, $(libdis-y))
 obj-y += $(libobj-y)
-obj-y += $(addprefix $(HWDIR)/, $(hw-obj-y))
 obj-y += $(addprefix ../, $(trace-obj-y))
 
 endif # CONFIG_SOFTMMU

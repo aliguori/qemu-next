@@ -324,6 +324,8 @@ hw-obj-$(CONFIG_SOUND) += $(sound-obj-y)
 
 hw-obj-$(CONFIG_REALLY_VIRTFS) += $(addprefix 9pfs/, $(9pfs-nested-y))
 
+common-obj-y += $(hw-obj-y)
+
 ######################################################################
 # libdis
 # NOTE: the disassembler code is only needed for debugging

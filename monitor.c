@@ -1115,26 +1115,6 @@ static void do_print(Monitor *mon, const QDict *qdict)
     int format = qdict_get_int(qdict, "format");
     target_phys_addr_t val = qdict_get_int(qdict, "val");
 
-#if TARGET_PHYS_ADDR_BITS == 32
-    switch(format) {
-    case 'o':
-        monitor_printf(mon, "%#o", val);
-        break;
-    case 'x':
-        monitor_printf(mon, "%#x", val);
-        break;
-    case 'u':
-        monitor_printf(mon, "%u", val);
-        break;
-    default:
-    case 'd':
-        monitor_printf(mon, "%d", val);
-        break;
-    case 'c':
-        monitor_printc(mon, val);
-        break;
-    }
-#else
     switch(format) {
     case 'o':
         monitor_printf(mon, "%#" PRIo64, val);
@@ -1153,7 +1133,6 @@ static void do_print(Monitor *mon, const QDict *qdict)
         monitor_printc(mon, val);
         break;
     }
-#endif
     monitor_printf(mon, "\n");
 }
 

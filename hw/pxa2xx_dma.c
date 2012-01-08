@@ -508,13 +508,13 @@ static bool is_version_0(void *opaque, int version_id)
 
 static VMStateDescription vmstate_pxa2xx_dma_chan = {
     .name = "pxa2xx_dma_chan",
-    .version_id = 1,
-    .minimum_version_id = 1,
-    .minimum_version_id_old = 1,
+    .version_id = 2,
+    .minimum_version_id = 2,
+    .minimum_version_id_old = 2,
     .fields = (VMStateField[]) {
-        VMSTATE_UINTTL(descr, PXA2xxDMAChannel),
-        VMSTATE_UINTTL(src, PXA2xxDMAChannel),
-        VMSTATE_UINTTL(dest, PXA2xxDMAChannel),
+        VMSTATE_UINT64(descr, PXA2xxDMAChannel),
+        VMSTATE_UINT64(src, PXA2xxDMAChannel),
+        VMSTATE_UINT64(dest, PXA2xxDMAChannel),
         VMSTATE_UINT32(cmd, PXA2xxDMAChannel),
         VMSTATE_UINT32(state, PXA2xxDMAChannel),
         VMSTATE_INT32(request, PXA2xxDMAChannel),

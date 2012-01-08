@@ -930,15 +930,15 @@ static void pxa2xx_lcdc_orientation(void *opaque, int angle)
 
 static const VMStateDescription vmstate_dma_channel = {
     .name = "dma_channel",
-    .version_id = 0,
-    .minimum_version_id = 0,
-    .minimum_version_id_old = 0,
+    .version_id = 1,
+    .minimum_version_id = 1,
+    .minimum_version_id_old = 1,
     .fields      = (VMStateField[]) {
-        VMSTATE_UINTTL(branch, struct DMAChannel),
+        VMSTATE_UINT64(branch, struct DMAChannel),
         VMSTATE_UINT8(up, struct DMAChannel),
         VMSTATE_BUFFER(pbuffer, struct DMAChannel),
-        VMSTATE_UINTTL(descriptor, struct DMAChannel),
-        VMSTATE_UINTTL(source, struct DMAChannel),
+        VMSTATE_UINT64(descriptor, struct DMAChannel),
+        VMSTATE_UINT64(source, struct DMAChannel),
         VMSTATE_UINT32(id, struct DMAChannel),
         VMSTATE_UINT32(command, struct DMAChannel),
         VMSTATE_END_OF_LIST()
