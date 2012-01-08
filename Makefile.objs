@@ -80,12 +80,12 @@ common-obj-y += block-migration.o iohandler.o
 common-obj-y += pflib.o
 common-obj-y += bitmap.o bitops.o
 
-common-obj-$(CONFIG_SPICE) += ui/spice-core.o ui/spice-input.o ui/spice-display.o spice-qemu-char.o
-
 common-obj-y += iov.o acl.o
 common-obj-$(CONFIG_POSIX) += compatfd.o
 common-obj-y += notify.o event_notifier.o
 common-obj-y += qemu-timer.o qemu-timer-common.o
+
+common-obj-$(CONFIG_SPICE) += spice-qemu-char.o
 
 ######################################################################
 # libuser

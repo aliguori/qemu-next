@@ -13,3 +13,5 @@ ui-obj-y += vnc-jobs-async.o
 else
 ui-obj-y += vnc-jobs-sync.o
 endif
+ui-obj-$(CONFIG_SPICE) += spice-core.o spice-input.o spice-display.o
+
