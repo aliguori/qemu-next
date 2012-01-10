@@ -21,6 +21,7 @@
 #include "disas.h"
 #include "tcg.h"
 #include "qemu-barrier.h"
+#include "qtest.h"
 
 int tb_invalidated_flag;
 
@@ -187,6 +188,10 @@ int cpu_exec(CPUState *env)
     TranslationBlock *tb;
     uint8_t *tc_ptr;
     unsigned long next_tb;
+
+    if (qtest_enabled()) {
+        env->halted = 1;
+    }
 
     if (env->halted) {
         if (!cpu_has_work(env)) {
