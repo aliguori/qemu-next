@@ -55,6 +55,7 @@ test-qmp-commands$(EXESUF): test-qmp-commands.o $(qobject-obj-y) $(qapi-obj-y) $
 
 $(SRC_PATH)/tests/qemu-iotests-quick.sh: qemu-img qemu-io
 
+tests/rtc-test: tests/rtc-test.o tests/libqtest.o
 
 .PHONY: check check-block
 
