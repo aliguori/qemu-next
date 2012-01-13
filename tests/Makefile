@@ -15,7 +15,7 @@ CHECKS += test-string-output-visitor$(EXESUF)
 TEST_SCRIPTS = $(SRC_PATH)/tests/qemu-iotests-quick.sh
 
 
-HW_TESTS=
+HW_TESTS=tests/rtc-test
 
 TARGETS=$(patsubst %-softmmu,%, $(filter %-softmmu,$(TARGET_DIRS)))
 
