@@ -11,7 +11,13 @@ CHECKS += test-qmp-input-visitor$(EXESUF)
 CHECKS += test-qmp-output-visitor$(EXESUF)
 CHECKS += test-string-input-visitor$(EXESUF)
 CHECKS += test-string-output-visitor$(EXESUF)
-CHECKS += $(SRC_PATH)/tests/qemu-iotests-quick.sh
+
+TEST_SCRIPTS = $(SRC_PATH)/tests/qemu-iotests-quick.sh
+
+
+HW_TESTS=
+
+TARGETS=$(patsubst %-softmmu,%, $(filter %-softmmu,$(TARGET_DIRS)))
 
 check-qint.o check-qstring.o check-qdict.o check-qlist.o check-qfloat.o check-qjson.o test-coroutine.o: $(GENERATED_HEADERS)
 
@@ -59,8 +65,58 @@ tests/rtc-test: tests/rtc-test.o tests/libqtest.o
 
 .PHONY: check check-block
 
-check: $(CHECKS)
-	$(call quiet-command, gtester $(CHECKS), "  CHECK")
-
 check-block:
 	$(call quiet-command, $(SHELL) $(SRC_PATH)/tests/check-block.sh , "  CHECK")
+
+check-help:
+	@echo "Regression targets:"
+	@echo
+	@echo " make check                Run all tests"
+	@echo " make check-qtest          Run qtest tests"
+	@echo " make check-unit           Run qobject tests"
+	@echo " make check-block          Run block tests"
+	@echo " make check-report.html    Generates an HTML test report"
+	@echo
+	@echo "Please note that HTML reports do not regenerate if the unit tests"
+	@echo "has not changed."
+	@echo
+	@echo "The variable SPEED can be set to control the gtester speed setting"
+
+.SECONDARY:
+
+SPEED ?= quick
+
+# Reports
+check-report-qtest-%.log: $(HW_TESTS)
+	$(call quiet-command,QTEST_QEMU_BINARY=`basename $@ .log | cut -f4 -d-`-softmmu/qemu-system-`basename $@ .log | cut -f4 -d-` \
+	  gtester -k -q -o $@ -m=$(SPEED) $(HW_TESTS),"  TEST   $^ (`basename $@ .log | cut -f4 -d-`)")
+
+check-report-unit.log: $(CHECKS)
+	$(call quiet-command,gtester -k -q -m=$(SPEED) -o $@ $^, "  TEST   $^")
+
+check-report.log: check-report-unit.log $(patsubst %,check-report-qtest-%.log, $(TARGETS))
+	$(call quiet-command,$(SRC_PATH)/scripts/gtester-cat $^ > $@, "  GEN    $@")
+
+check-report.html: check-report.log
+	$(call quiet-command,gtester-report $< > $@, "  GEN    $@")
+
+# Check tests
+
+check-qtest-%: $(HW_TESTS)
+	@for test in $^; do \
+	    arch=`echo $@ | cut -f3- -d-`; \
+	    echo "Running '$$test' with qemu-system-$$arch..."; \
+	    $(SRC_PATH)/scripts/qtest $$arch-softmmu/qemu-system-$$arch $$test || exit $$?; \
+	done
+
+check-qtest: $(patsubst %,check-qtest-%, $(TARGETS))
+
+check-unit: $(addprefix $(shell pwd)/, $(CHECKS)) $(TEST_SCRIPTS)
+	@for test in $^; do \
+	    echo "Running '$$test'..."; \
+	    $$test || exit $?; \
+	done
+
+check: check-unit check-qtest
+
+.PHONY: check-help check-qtest check-unit check
