@@ -13,6 +13,8 @@
 #include "libqtest.h"
 #include "hw/mc146818rtc_regs.h"
 
+#include <sys/time.h>
+#include <inttypes.h>
 #include <glib.h>
 #include <stdio.h>
 #include <string.h>
@@ -222,7 +224,7 @@ static void set_alarm_time(struct tm *tm)
     cmos_write(RTC_HOURS_ALARM, RTC_ALARM_DONT_CARE);
 }
 
-static void alarm_time(void)
+static void alarm_timer(void)
 {
     struct tm now;
     time_t ts;
@@ -249,6 +251,49 @@ static void alarm_time(void)
     }
 
     g_assert(get_irq(RTC_ISA_IRQ));
+
+    /* EOI */
+    cmos_read(RTC_REG_C);
+    cmos_write(RTC_REG_B, cmos_read(RTC_REG_B) & ~REG_B_AIE);
+}
+
+#define USEC_PER_SEC 1000000
+
+static void periodic_timer(void)
+{
+    struct timeval start, end;
+    int duration = 60;
+    int64_t usecs;
+    int irq_count, expected_irq_count;
+
+    /* set DEC mode */
+    cmos_write(RTC_REG_B, cmos_read(RTC_REG_B) | REG_B_DM);
+
+    g_assert(!get_irq(RTC_ISA_IRQ));
+
+    /* Enable periodic interrupt */
+    cmos_write(RTC_REG_A, 0x26); /* 1Khz timer */
+
+    gettimeofday(&start, NULL);
+    cmos_write(RTC_REG_B, cmos_read(RTC_REG_B) | REG_B_PIE);
+
+    irq_count = 0;
+    while (irq_count < (duration * 1024)) {
+        if (get_irq(RTC_ISA_IRQ)) {
+            cmos_read(RTC_REG_C);
+            irq_count++;
+        }
+        usleep(1);
+    }
+    gettimeofday(&end, NULL);
+
+    usecs = end.tv_usec - start.tv_usec;
+    usecs += (end.tv_sec - start.tv_sec) * USEC_PER_SEC;
+
+    expected_irq_count = (1024 * usecs) / USEC_PER_SEC;
+
+    printf("delta - %d (%d - %d)\n", expected_irq_count - irq_count,
+           expected_irq_count, irq_count);
 }
 
 int main(int argc, char **argv)
@@ -262,11 +307,12 @@ int main(int argc, char **argv)
     arch = qtest_get_arch();
     /* These tests only work on i386 and x86_64 */
     if (strcmp(arch, "i386") == 0 || strcmp(arch, "x86_64") == 0) {
-        s = qtest_start("-vnc none");
+        s = qtest_start("-vnc none -rtc driftfix=slew");
 
         qtest_add_func("/rtc/bcd/check-time", bcd_check_time);
         qtest_add_func("/rtc/dec/check-time", dec_check_time);
-        qtest_add_func("/rtc/alarm-time", alarm_time);
+        qtest_add_func("/rtc/timer/alarm", alarm_timer);
+        qtest_add_func("/rtc/timer/periodic", periodic_timer);
     } else {
         g_test_message("Skipping unsupported arch `%s'\n", arch);
     }
