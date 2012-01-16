@@ -3,6 +3,13 @@
 
 #include "console.h"
 
+/**
+ * This represents a backend capable of displaying graphics.  This may be the
+ * VNC server, an SDL window, etc.
+ *
+ * All DisplayChangeListeners are associated with a DisplayState.  There may be
+ * many DCL's per DS, but only one DS per DCL.
+ */
 struct DisplayChangeListener {
     int idle;
     uint64_t gui_timer_interval;
@@ -24,12 +31,21 @@ struct DisplayChangeListener {
     struct DisplayChangeListener *next;
 };
 
+/**
+ * Under the right circumstances, we can avoid bouncing by using a backend
+ * allocated buffer to render directly to assuming the backend can create a
+ * buffer and that there is only one backend for a given DisplayState that wants
+ * to be the allocator.  This is backend state.
+ */
 struct DisplayAllocator {
     DisplaySurface* (*create_displaysurface)(DisplayAllocator *da, int width, int height);
     DisplaySurface* (*resize_displaysurface)(DisplayAllocator *da, DisplaySurface *surface, int width, int height);
     void (*free_displaysurface)(DisplayAllocator *da, DisplaySurface *surface);
 };
 
+/**
+ * This is associated with a device.
+ */
 struct DisplayState {
     struct DisplaySurface *surface;
     struct QEMUTimer *gui_timer;
