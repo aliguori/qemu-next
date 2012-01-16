@@ -189,7 +189,7 @@ static PixelFormat sdl_to_qemu_pixelformat(SDL_PixelFormat *sdl_pf)
     return qemu_pf;
 }
 
-static DisplaySurface* sdl_create_displaysurface(int width, int height)
+static DisplaySurface* sdl_create_displaysurface(DisplayAllocator *da, int width, int height)
 {
     SDLDisplayState *s = global_sdl_state;
     DisplaySurface *surface = (DisplaySurface*) g_malloc0(sizeof(DisplaySurface));
@@ -235,7 +235,7 @@ static DisplaySurface* sdl_create_displaysurface(int width, int height)
     return surface;
 }
 
-static void sdl_free_displaysurface(DisplaySurface *surface)
+static void sdl_free_displaysurface(DisplayAllocator *da, DisplaySurface *surface)
 {
     SDLDisplayState *s = global_sdl_state;
 
@@ -248,10 +248,10 @@ static void sdl_free_displaysurface(DisplaySurface *surface)
     g_free(surface);
 }
 
-static DisplaySurface* sdl_resize_displaysurface(DisplaySurface *surface, int width, int height)
+static DisplaySurface* sdl_resize_displaysurface(DisplayAllocator *da, DisplaySurface *surface, int width, int height)
 {
-    sdl_free_displaysurface(surface);
-    return sdl_create_displaysurface(width, height);
+    sdl_free_displaysurface(da, surface);
+    return sdl_create_displaysurface(da, width, height);
 }
 
 /* generic keyboard conversion */

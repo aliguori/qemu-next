@@ -1271,7 +1271,8 @@ static TextConsole *new_console(DisplayState *ds, console_type_t console_type)
     return s;
 }
 
-static DisplaySurface* defaultallocator_create_displaysurface(int width, int height)
+static DisplaySurface* defaultallocator_create_displaysurface(DisplayAllocator *da, 
+                                                              int width, int height)
 {
     DisplaySurface *surface = (DisplaySurface*) g_malloc0(sizeof(DisplaySurface));
 
@@ -1281,8 +1282,9 @@ static DisplaySurface* defaultallocator_create_displaysurface(int width, int hei
     return surface;
 }
 
-static DisplaySurface* defaultallocator_resize_displaysurface(DisplaySurface *surface,
-                                          int width, int height)
+static DisplaySurface* defaultallocator_resize_displaysurface(DisplayAllocator *da, 
+                                                              DisplaySurface *surface,
+                                                              int width, int height)
 {
     int linesize = width * 4;
     qemu_alloc_display(surface, width, height, linesize,
@@ -1328,7 +1330,7 @@ DisplaySurface* qemu_create_displaysurface_from(int width, int height, int bpp,
     return surface;
 }
 
-static void defaultallocator_free_displaysurface(DisplaySurface *surface)
+static void defaultallocator_free_displaysurface(DisplayAllocator *da, DisplaySurface *surface)
 {
     if (surface == NULL)
         return;
@@ -1380,8 +1382,8 @@ DisplayAllocator *register_displayallocator(DisplayState *ds, DisplayAllocator *
 {
     if(ds->allocator ==  &default_allocator) {
         DisplaySurface *surf;
-        surf = da->create_displaysurface(ds_get_width(ds), ds_get_height(ds));
-        defaultallocator_free_displaysurface(ds->surface);
+        surf = da->create_displaysurface(da, ds_get_width(ds), ds_get_height(ds));
+        defaultallocator_free_displaysurface(da, ds->surface);
         ds->surface = surf;
         ds->allocator = da;
     }

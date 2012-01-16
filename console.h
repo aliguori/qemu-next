@@ -166,9 +166,9 @@ struct DisplayChangeListener {
 };
 
 struct DisplayAllocator {
-    DisplaySurface* (*create_displaysurface)(int width, int height);
-    DisplaySurface* (*resize_displaysurface)(DisplaySurface *surface, int width, int height);
-    void (*free_displaysurface)(DisplaySurface *surface);
+    DisplaySurface* (*create_displaysurface)(DisplayAllocator *da, int width, int height);
+    DisplaySurface* (*resize_displaysurface)(DisplayAllocator *da, DisplaySurface *surface, int width, int height);
+    void (*free_displaysurface)(DisplayAllocator *da, DisplaySurface *surface);
 };
 
 struct DisplayState {
@@ -196,17 +196,17 @@ DisplayAllocator *register_displayallocator(DisplayState *ds, DisplayAllocator *
 
 static inline DisplaySurface* qemu_create_displaysurface(DisplayState *ds, int width, int height)
 {
-    return ds->allocator->create_displaysurface(width, height);    
+    return ds->allocator->create_displaysurface(ds->allocator, width, height);
 }
 
 static inline DisplaySurface* qemu_resize_displaysurface(DisplayState *ds, int width, int height)
 {
-    return ds->allocator->resize_displaysurface(ds->surface, width, height);
+    return ds->allocator->resize_displaysurface(ds->allocator, ds->surface, width, height);
 }
 
 static inline void qemu_free_displaysurface(DisplayState *ds)
 {
-    ds->allocator->free_displaysurface(ds->surface);
+    ds->allocator->free_displaysurface(ds->allocator, ds->surface);
 }
 
 static inline int is_surface_bgr(DisplaySurface *surface)
