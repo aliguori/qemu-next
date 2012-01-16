@@ -39,9 +39,8 @@ typedef struct SDLDisplayState SDLDisplayState;
 
 struct SDLDisplayState
 {
-    DisplayState *ds;
+    DisplayChangeListener dcl;
 
-    DisplayChangeListener *dcl;
     SDL_Surface *real_screen;
     SDL_Surface *guest_screen;
     int gui_grab; /* if true, all keyboard/mouse events are grabbed */
@@ -73,12 +72,12 @@ struct SDLDisplayState
 
 static SDLDisplayState *to_sdl_display(DisplayChangeListener *dcl)
 {
-    return dcl->opaque;
+    return container_of(dcl, SDLDisplayState, dcl);
 }
 
 static DisplayState *to_display(SDLDisplayState *s)
 {
-    return s->ds;
+    return s->dcl.ds;
 }
 
 static SDLDisplayState *from_display_allocator(DisplayAllocator *da)
@@ -624,7 +623,7 @@ static void absolute_mouse_grab(SDLDisplayState *s)
 
 static void handle_keydown(SDLDisplayState *s, SDL_Event *ev)
 {
-    DisplayState *ds = s->ds;
+    DisplayState *ds = to_display(s);
     int mod_state;
     int keycode;
 
@@ -648,7 +647,7 @@ static void handle_keydown(SDLDisplayState *s, SDL_Event *ev)
         case 0x16: /* 'u' key on US keyboard */
             if (s->scaling_active) {
                 s->scaling_active = 0;
-                sdl_resize(s->dcl);
+                sdl_resize(&s->dcl);
                 vga_hw_invalidate();
                 vga_hw_update();
             }
@@ -878,12 +877,12 @@ static void handle_activation(SDLDisplayState *s, SDL_Event *ev)
     if (ev->active.state & SDL_APPACTIVE) {
         if (ev->active.gain) {
             /* Back to default interval */
-            s->dcl->gui_timer_interval = 0;
-            s->dcl->idle = 0;
+            s->dcl.gui_timer_interval = 0;
+            s->dcl.idle = 0;
         } else {
             /* Sleeping interval */
-            s->dcl->gui_timer_interval = 500;
-            s->dcl->idle = 1;
+            s->dcl.gui_timer_interval = 500;
+            s->dcl.idle = 1;
         }
     }
 }
@@ -1007,7 +1006,6 @@ void sdl_display_init(DisplayState *ds, int full_screen, int no_frame)
     const SDL_VideoInfo *vi;
     char *filename;
 
-    s->ds = ds;
     s->gui_grab_code = KMOD_LALT | KMOD_LCTRL;
 
 #if defined(__APPLE__)
@@ -1070,16 +1068,14 @@ void sdl_display_init(DisplayState *ds, int full_screen, int no_frame)
         sdl_grab_start(s);
     }
 
-    s->dcl = g_malloc0(sizeof(DisplayChangeListener));
-    s->dcl->dpy_update = sdl_update;
-    s->dcl->dpy_resize = sdl_resize;
-    s->dcl->dpy_refresh = sdl_refresh;
-    s->dcl->dpy_setdata = sdl_setdata;
-    s->dcl->dpy_fill = sdl_fill;
-    s->dcl->opaque = s;
-    s->dcl->mouse_set = sdl_mouse_warp;
-    s->dcl->cursor_define = sdl_mouse_define;
-    register_displaychangelistener(ds, s->dcl);
+    s->dcl.dpy_update = sdl_update;
+    s->dcl.dpy_resize = sdl_resize;
+    s->dcl.dpy_refresh = sdl_refresh;
+    s->dcl.dpy_setdata = sdl_setdata;
+    s->dcl.dpy_fill = sdl_fill;
+    s->dcl.mouse_set = sdl_mouse_warp;
+    s->dcl.cursor_define = sdl_mouse_define;
+    register_displaychangelistener(ds, &s->dcl);
 
     s->da.create_displaysurface = sdl_create_displaysurface;
     s->da.resize_displaysurface = sdl_resize_displaysurface;

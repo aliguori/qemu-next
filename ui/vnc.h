@@ -130,7 +130,6 @@ struct VncDisplay
     QEMUTimer *timer;
     int timer_interval;
     int lsock;
-    DisplayState *ds;
     kbd_layout_t *kbd_layout;
     int lock_key_sync;
 #ifdef CONFIG_VNC_THREAD
@@ -238,7 +237,6 @@ struct VncState
 {
     int csock;
 
-    DisplayState *ds;
     DECLARE_BITMAP(dirty[VNC_MAX_HEIGHT], VNC_DIRTY_BITS);
     uint8_t **lossy_rect; /* Not an Array to avoid costly memcpy in
                            * vnc-jobs-async.c */

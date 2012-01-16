@@ -114,6 +114,11 @@ static const struct {
     { 9, PNG_ALL_FILTERS },
 };
 
+static DisplayState *to_display(VncState *vs)
+{
+    return vs->vd->dcl.ds;
+}
+
 static int send_png_rect(VncState *vs, int x, int y, int w, int h,
                          VncPalette *palette);
 
@@ -123,7 +128,7 @@ static bool tight_can_send_png_rect(VncState *vs, int w, int h)
         return false;
     }
 
-    if (ds_get_bytes_per_pixel(vs->ds) == 1 ||
+    if (ds_get_bytes_per_pixel(to_display(vs)) == 1 ||
         vs->clientds.pf.bytes_per_pixel == 1) {
         return false;
     }
@@ -217,7 +222,7 @@ tight_detect_smooth_image24(VncState *vs, int w, int h)
         unsigned char *buf = vs->tight.tight.buffer;                    \
                                                                         \
         endian = ((vs->clientds.flags & QEMU_BIG_ENDIAN_FLAG) !=        \
-                  (vs->ds->surface->flags & QEMU_BIG_ENDIAN_FLAG));     \
+                  (to_display(vs)->surface->flags & QEMU_BIG_ENDIAN_FLAG));     \
                                                                         \
                                                                         \
         max[0] = vs->clientds.pf.rmax;                                  \
@@ -301,7 +306,7 @@ tight_detect_smooth_image(VncState *vs, int w, int h)
         return 0;
     }
 
-    if (ds_get_bytes_per_pixel(vs->ds) == 1 ||
+    if (ds_get_bytes_per_pixel(to_display(vs)) == 1 ||
         vs->clientds.pf.bytes_per_pixel == 1 ||
         w < VNC_TIGHT_DETECT_MIN_WIDTH || h < VNC_TIGHT_DETECT_MIN_HEIGHT) {
         return 0;
@@ -558,7 +563,7 @@ tight_filter_gradient24(VncState *vs, uint8_t *buf, int w, int h)
     memset(vs->tight.gradient.buffer, 0, w * 3 * sizeof(int));
 
     if ((vs->clientds.flags & QEMU_BIG_ENDIAN_FLAG) ==
-        (vs->ds->surface->flags & QEMU_BIG_ENDIAN_FLAG)) {
+        (to_display(vs)->surface->flags & QEMU_BIG_ENDIAN_FLAG)) {
         shift[0] = vs->clientds.pf.rshift;
         shift[1] = vs->clientds.pf.gshift;
         shift[2] = vs->clientds.pf.bshift;
@@ -616,7 +621,7 @@ tight_filter_gradient24(VncState *vs, uint8_t *buf, int w, int h)
         memset (vs->tight.gradient.buffer, 0, w * 3 * sizeof(int));     \
                                                                         \
         endian = ((vs->clientds.flags & QEMU_BIG_ENDIAN_FLAG) !=        \
-                  (vs->ds->surface->flags & QEMU_BIG_ENDIAN_FLAG));     \
+                  (to_display(vs)->surface->flags & QEMU_BIG_ENDIAN_FLAG));     \
                                                                         \
         max[0] = vs->clientds.pf.rmax;                                  \
         max[1] = vs->clientds.pf.gmax;                                  \
@@ -683,8 +688,8 @@ DEFINE_GRADIENT_FILTER_FUNCTION(32)
         int dx, dy;                                                     \
                                                                         \
         fbptr = (uint##bpp##_t *)                                       \
-            (vd->server->data + y * ds_get_linesize(vs->ds) +           \
-             x * ds_get_bytes_per_pixel(vs->ds));                       \
+            (vd->server->data + y * ds_get_linesize(to_display(vs)) +           \
+             x * ds_get_bytes_per_pixel(to_display(vs)));                       \
                                                                         \
         c = *fbptr;                                                     \
         if (samecolor && (uint32_t)c != *color) {                       \
@@ -698,7 +703,7 @@ DEFINE_GRADIENT_FILTER_FUNCTION(32)
                 }                                                       \
             }                                                           \
             fbptr = (uint##bpp##_t *)                                   \
-                ((uint8_t *)fbptr + ds_get_linesize(vs->ds));           \
+                ((uint8_t *)fbptr + ds_get_linesize(to_display(vs)));           \
         }                                                               \
                                                                         \
         *color = (uint32_t)c;                                           \
@@ -907,7 +912,7 @@ static void tight_pack24(VncState *vs, uint8_t *buf, size_t count, size_t *ret)
     buf32 = (uint32_t *)buf;
 
     if ((vs->clientds.flags & QEMU_BIG_ENDIAN_FLAG) ==
-        (vs->ds->surface->flags & QEMU_BIG_ENDIAN_FLAG)) {
+        (to_display(vs)->surface->flags & QEMU_BIG_ENDIAN_FLAG)) {
         rshift = vs->clientds.pf.rshift;
         gshift = vs->clientds.pf.gshift;
         bshift = vs->clientds.pf.bshift;
@@ -1156,14 +1161,14 @@ static void rgb_prepare_row24(VncState *vs, uint8_t *dst, int x, int y,
     uint32_t *fbptr;
     uint32_t pix;
 
-    fbptr = (uint32_t *)(vd->server->data + y * ds_get_linesize(vs->ds) +
-                         x * ds_get_bytes_per_pixel(vs->ds));
+    fbptr = (uint32_t *)(vd->server->data + y * ds_get_linesize(to_display(vs)) +
+                         x * ds_get_bytes_per_pixel(to_display(vs)));
 
     while (count--) {
         pix = *fbptr++;
-        *dst++ = (uint8_t)(pix >> vs->ds->surface->pf.rshift);
-        *dst++ = (uint8_t)(pix >> vs->ds->surface->pf.gshift);
-        *dst++ = (uint8_t)(pix >> vs->ds->surface->pf.bshift);
+        *dst++ = (uint8_t)(pix >> to_display(vs)->surface->pf.rshift);
+        *dst++ = (uint8_t)(pix >> to_display(vs)->surface->pf.gshift);
+        *dst++ = (uint8_t)(pix >> to_display(vs)->surface->pf.bshift);
     }
 }
 
@@ -1179,25 +1184,25 @@ static void rgb_prepare_row24(VncState *vs, uint8_t *dst, int x, int y,
         int r, g, b;                                                    \
                                                                         \
         fbptr = (uint##bpp##_t *)                                       \
-            (vd->server->data + y * ds_get_linesize(vs->ds) +           \
-             x * ds_get_bytes_per_pixel(vs->ds));                       \
+            (vd->server->data + y * ds_get_linesize(to_display(vs)) +           \
+             x * ds_get_bytes_per_pixel(to_display(vs)));                       \
                                                                         \
         while (count--) {                                               \
             pix = *fbptr++;                                             \
                                                                         \
-            r = (int)((pix >> vs->ds->surface->pf.rshift)               \
-                      & vs->ds->surface->pf.rmax);                      \
-            g = (int)((pix >> vs->ds->surface->pf.gshift)               \
-                      & vs->ds->surface->pf.gmax);                      \
-            b = (int)((pix >> vs->ds->surface->pf.bshift)               \
-                      & vs->ds->surface->pf.bmax);                      \
+            r = (int)((pix >> to_display(vs)->surface->pf.rshift)               \
+                      & to_display(vs)->surface->pf.rmax);                      \
+            g = (int)((pix >> to_display(vs)->surface->pf.gshift)               \
+                      & to_display(vs)->surface->pf.gmax);                      \
+            b = (int)((pix >> to_display(vs)->surface->pf.bshift)               \
+                      & to_display(vs)->surface->pf.bmax);                      \
                                                                         \
-            *dst++ = (uint8_t)((r * 255 + vs->ds->surface->pf.rmax / 2) \
-                               / vs->ds->surface->pf.rmax);             \
-            *dst++ = (uint8_t)((g * 255 + vs->ds->surface->pf.gmax / 2) \
-                               / vs->ds->surface->pf.gmax);             \
-            *dst++ = (uint8_t)((b * 255 + vs->ds->surface->pf.bmax / 2) \
-                               / vs->ds->surface->pf.bmax);             \
+            *dst++ = (uint8_t)((r * 255 + to_display(vs)->surface->pf.rmax / 2) \
+                               / to_display(vs)->surface->pf.rmax);             \
+            *dst++ = (uint8_t)((g * 255 + to_display(vs)->surface->pf.gmax / 2) \
+                               / to_display(vs)->surface->pf.gmax);             \
+            *dst++ = (uint8_t)((b * 255 + to_display(vs)->surface->pf.bmax / 2) \
+                               / to_display(vs)->surface->pf.bmax);             \
         }                                                               \
     }
 
@@ -1207,10 +1212,10 @@ DEFINE_RGB_GET_ROW_FUNCTION(32)
 static void rgb_prepare_row(VncState *vs, uint8_t *dst, int x, int y,
                             int count)
 {
-    if (ds_get_bytes_per_pixel(vs->ds) == 4) {
-        if (vs->ds->surface->pf.rmax == 0xFF &&
-            vs->ds->surface->pf.gmax == 0xFF &&
-            vs->ds->surface->pf.bmax == 0xFF) {
+    if (ds_get_bytes_per_pixel(to_display(vs)) == 4) {
+        if (to_display(vs)->surface->pf.rmax == 0xFF &&
+            to_display(vs)->surface->pf.gmax == 0xFF &&
+            to_display(vs)->surface->pf.bmax == 0xFF) {
             rgb_prepare_row24(vs, dst, x, y, count);
         } else {
             rgb_prepare_row32(vs, dst, x, y, count);
@@ -1269,7 +1274,7 @@ static int send_jpeg_rect(VncState *vs, int x, int y, int w, int h, int quality)
     uint8_t *buf;
     int dy;
 
-    if (ds_get_bytes_per_pixel(vs->ds) == 1)
+    if (ds_get_bytes_per_pixel(to_display(vs)) == 1)
         return send_full_color_rect(vs, x, y, w, h);
 
     buffer_reserve(&vs->tight.jpeg, 2048);

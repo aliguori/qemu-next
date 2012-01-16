@@ -22,8 +22,6 @@ struct DisplayChangeListener {
     void (*cursor_define)(DisplayChangeListener *dcl, QEMUCursor *cursor);
 
     struct DisplayChangeListener *next;
-
-    void *opaque;
 };
 
 struct DisplayAllocator {

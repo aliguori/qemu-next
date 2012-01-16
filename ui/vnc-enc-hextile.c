@@ -88,8 +88,10 @@ int vnc_hextile_send_framebuffer_update(VncState *vs, int x,
 
 void vnc_hextile_set_pixel_conversion(VncState *vs, int generic)
 {
+    DisplayState *ds = vs->vd->dcl.ds;
+
     if (!generic) {
-        switch (vs->ds->surface->pf.bits_per_pixel) {
+        switch (ds->surface->pf.bits_per_pixel) {
             case 8:
                 vs->hextile.send_tile = send_hextile_tile_8;
                 break;
@@ -101,7 +103,7 @@ void vnc_hextile_set_pixel_conversion(VncState *vs, int generic)
                 break;
         }
     } else {
-        switch (vs->ds->surface->pf.bits_per_pixel) {
+        switch (ds->surface->pf.bits_per_pixel) {
             case 8:
                 vs->hextile.send_tile = send_hextile_tile_generic_8;
                 break;
