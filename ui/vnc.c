@@ -43,7 +43,6 @@ static const struct timeval VNC_REFRESH_LOSSY = { 2, 0 };
 #include "d3des.h"
 
 static VncDisplay *vnc_display; /* needed for info vnc */
-static DisplayChangeListener *dcl;
 
 static int vnc_cursor_define(VncState *vs);
 
@@ -1032,7 +1031,7 @@ static void vnc_disconnect_finish(VncState *vs)
     QTAILQ_REMOVE(&vs->vd->clients, vs, next);
 
     if (QTAILQ_EMPTY(&vs->vd->clients)) {
-        dcl->idle = 1;
+        vs->vd->dcl->idle = 1;
     }
 
     qemu_remove_mouse_mode_change_notifier(&vs->mouse_mode_notifier);
@@ -2512,7 +2511,7 @@ static void vnc_init_timer(VncDisplay *vd)
     vd->timer_interval = VNC_REFRESH_INTERVAL_BASE;
     if (vd->timer == NULL && !QTAILQ_EMPTY(&vd->clients)) {
         vd->timer = qemu_new_timer_ms(rt_clock, vnc_refresh, vd);
-        vnc_dpy_resize(dcl);
+        vnc_dpy_resize(vd->dcl);
         vnc_refresh(vd);
     }
 }
@@ -2551,7 +2550,7 @@ static void vnc_connect(VncDisplay *vd, int csock, int skipauth)
     }
 
     VNC_DEBUG("New client on socket %d\n", csock);
-    dcl->idle = 0;
+    vd->dcl->idle = 0;
     socket_set_nonblock(vs->csock);
     qemu_set_fd_handler2(vs->csock, NULL, vnc_client_read, NULL, vs);
 
@@ -2631,17 +2630,17 @@ void vnc_display_init(DisplayState *ds)
     vnc_start_worker_thread();
 #endif
 
-    dcl = g_malloc0(sizeof(DisplayChangeListener));
+    vs->dcl = g_malloc0(sizeof(DisplayChangeListener));
 
-    dcl->opaque = vs;
-    dcl->idle = 1;
-    dcl->dpy_copy = vnc_dpy_copy;
-    dcl->dpy_update = vnc_dpy_update;
-    dcl->dpy_resize = vnc_dpy_resize;
-    dcl->dpy_setdata = vnc_dpy_setdata;
-    dcl->mouse_set = vnc_mouse_set;
-    dcl->cursor_define = vnc_dpy_cursor_define;
-    register_displaychangelistener(ds, dcl);
+    vs->dcl->opaque = vs;
+    vs->dcl->idle = 1;
+    vs->dcl->dpy_copy = vnc_dpy_copy;
+    vs->dcl->dpy_update = vnc_dpy_update;
+    vs->dcl->dpy_resize = vnc_dpy_resize;
+    vs->dcl->dpy_setdata = vnc_dpy_setdata;
+    vs->dcl->mouse_set = vnc_mouse_set;
+    vs->dcl->cursor_define = vnc_dpy_cursor_define;
+    register_displaychangelistener(ds, vs->dcl);
 }
 
 
