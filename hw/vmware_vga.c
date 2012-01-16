@@ -480,7 +480,7 @@ static inline void vmsvga_cursor_define(struct vmsvga_state_s *s,
     }
 
     if (s->vga.ds->cursor_define)
-        s->vga.ds->cursor_define(qc);
+        s->vga.ds->cursor_define(s->vga.ds, qc);
     cursor_put(qc);
 }
 #endif
@@ -905,7 +905,7 @@ static void vmsvga_value_write(void *opaque, uint32_t address, uint32_t value)
         s->cursor.on &= (value != SVGA_CURSOR_ON_HIDE);
 #ifdef HW_MOUSE_ACCEL
         if (s->vga.ds->mouse_set && value <= SVGA_CURSOR_ON_SHOW)
-            s->vga.ds->mouse_set(s->cursor.x, s->cursor.y, s->cursor.on);
+            s->vga.ds->mouse_set(s->vga.ds, s->cursor.x, s->cursor.y, s->cursor.on);
 #endif
         break;
 

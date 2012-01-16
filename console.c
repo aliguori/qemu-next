@@ -1363,12 +1363,9 @@ static void dumb_display_init(void)
 
 void register_displaystate(DisplayState *ds)
 {
-    DisplayState **s;
-    s = &display_state;
-    while (*s != NULL)
-        s = &(*s)->next;
-    ds->next = NULL;
-    *s = ds;
+    if (display_state == NULL) {
+        display_state = ds;
+    }
 }
 
 DisplayState *get_displaystate(void)

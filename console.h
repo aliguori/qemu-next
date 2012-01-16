@@ -179,10 +179,8 @@ struct DisplayState {
     struct DisplayAllocator* allocator;
     struct DisplayChangeListener* listeners;
 
-    void (*mouse_set)(int x, int y, int on);
-    void (*cursor_define)(QEMUCursor *cursor);
-
-    struct DisplayState *next;
+    void (*mouse_set)(DisplayState *ds, int x, int y, int on);
+    void (*cursor_define)(DisplayState *ds, QEMUCursor *cursor);
 };
 
 void register_displaystate(DisplayState *ds);
