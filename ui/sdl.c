@@ -68,9 +68,8 @@ struct SDLDisplayState
     Notifier mouse_mode_notifier;
     Notifier exit_notifier;
     kbd_layout_t *kbd_layout;
+    DisplayAllocator da;
 };
-
-static SDLDisplayState *global_sdl_state;
 
 static SDLDisplayState *to_sdl_display(DisplayState *ds)
 {
@@ -80,6 +79,11 @@ static SDLDisplayState *to_sdl_display(DisplayState *ds)
 static DisplayState *to_display(SDLDisplayState *s)
 {
     return s->ds;
+}
+
+static SDLDisplayState *from_display_allocator(DisplayAllocator *da)
+{
+    return container_of(da, SDLDisplayState, da);
 }
 
 static void sdl_update(DisplayState *ds, int x, int y, int w, int h)
@@ -191,7 +195,7 @@ static PixelFormat sdl_to_qemu_pixelformat(SDL_PixelFormat *sdl_pf)
 
 static DisplaySurface* sdl_create_displaysurface(DisplayAllocator *da, int width, int height)
 {
-    SDLDisplayState *s = global_sdl_state;
+    SDLDisplayState *s = from_display_allocator(da);
     DisplaySurface *surface = (DisplaySurface*) g_malloc0(sizeof(DisplaySurface));
 
     if (surface == NULL) {
@@ -237,7 +241,7 @@ static DisplaySurface* sdl_create_displaysurface(DisplayAllocator *da, int width
 
 static void sdl_free_displaysurface(DisplayAllocator *da, DisplaySurface *surface)
 {
-    SDLDisplayState *s = global_sdl_state;
+    SDLDisplayState *s = from_display_allocator(da);
 
     s->allocator = 0;
     if (surface == NULL)
@@ -998,14 +1002,12 @@ void sdl_display_init(DisplayState *ds, int full_screen, int no_frame)
     SDLDisplayState *s = g_malloc0(sizeof(*s));
     int flags;
     uint8_t data = 0;
-    DisplayAllocator *da;
     const SDL_VideoInfo *vi;
     char *filename;
 
     ds->opaque = s;
     s->ds = ds;
 
-    global_sdl_state = s;
     s->gui_grab_code = KMOD_LALT | KMOD_LCTRL;
 
 #if defined(__APPLE__)
@@ -1078,11 +1080,10 @@ void sdl_display_init(DisplayState *ds, int full_screen, int no_frame)
     ds->cursor_define = sdl_mouse_define;
     register_displaychangelistener(ds, s->dcl);
 
-    da = g_malloc0(sizeof(DisplayAllocator));
-    da->create_displaysurface = sdl_create_displaysurface;
-    da->resize_displaysurface = sdl_resize_displaysurface;
-    da->free_displaysurface = sdl_free_displaysurface;
-    if (register_displayallocator(ds, da) == da) {
+    s->da.create_displaysurface = sdl_create_displaysurface;
+    s->da.resize_displaysurface = sdl_resize_displaysurface;
+    s->da.free_displaysurface = sdl_free_displaysurface;
+    if (register_displayallocator(ds, &s->da) == &s->da) {
         dpy_resize(ds);
     }
 
