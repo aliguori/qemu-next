@@ -44,7 +44,7 @@ static WINDOW *screenpad = NULL;
 static int width, height, gwidth, gheight, invalidate;
 static int px, py, sminx, sminy, smaxx, smaxy;
 
-static void curses_update(DisplayState *ds, int x, int y, int w, int h)
+static void curses_update(DisplayChangeListener *dcl, int x, int y, int w, int h)
 {
     chtype *line;
 
@@ -95,8 +95,10 @@ static void curses_calc_pad(void)
     }
 }
 
-static void curses_resize(DisplayState *ds)
+static void curses_resize(DisplayChangeListener *dcl)
 {
+    DisplayState *ds = dcl->ds;
+
     if (ds_get_width(ds) == gwidth && ds_get_height(ds) == gheight)
         return;
 
@@ -133,7 +135,7 @@ static void curses_winch_handler(int signum)
 #endif
 #endif
 
-static void curses_cursor_position(DisplayState *ds, int x, int y)
+static void curses_cursor_position(DisplayChangeListener *dcl, int x, int y)
 {
     if (x >= 0) {
         x = sminx + x - px;
@@ -159,8 +161,9 @@ static void curses_cursor_position(DisplayState *ds, int x, int y)
 
 static kbd_layout_t *kbd_layout = NULL;
 
-static void curses_refresh(DisplayState *ds)
+static void curses_refresh(DisplayChangeListener *dcl)
 {
+    DisplayState *ds = dcl->ds;
     int chr, nextchr, keysym, keycode, keycode_alt;
 
     if (invalidate) {
@@ -194,7 +197,7 @@ static void curses_refresh(DisplayState *ds)
             clear();
             refresh();
             curses_calc_pad();
-            curses_update(ds, 0, 0, width, height);
+            curses_update(dcl, 0, 0, width, height);
             ds->surface->width = FONT_WIDTH * width;
             ds->surface->height = FONT_HEIGHT * height;
             continue;

@@ -6,7 +6,6 @@
 #include "notify.h"
 #include "qerror.h"
 #include "monitor.h"
-#include "display.h"
 
 /* keyboard/mouse support */
 
@@ -196,7 +195,6 @@ void cocoa_display_init(DisplayState *ds, int full_screen);
 
 /* vnc.c */
 void vnc_display_init(DisplayState *ds);
-void vnc_display_close(DisplayState *ds);
 int vnc_display_open(DisplayState *ds, const char *display);
 void vnc_display_add_client(DisplayState *ds, int csock, int skipauth);
 int vnc_display_disable_login(DisplayState *ds);
@@ -219,5 +217,7 @@ static inline int vnc_display_pw_expire(DisplayState *ds, time_t expires)
 
 /* curses.c */
 void curses_display_init(DisplayState *ds, int full_screen);
+
+#include "display.h"
 
 #endif

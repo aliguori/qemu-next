@@ -402,10 +402,10 @@ static void framebuffer_update_request(VncState *vs, int incremental,
 static void vnc_refresh(void *opaque);
 static int vnc_refresh_server_surface(VncDisplay *vd);
 
-static void vnc_dpy_update(DisplayState *ds, int x, int y, int w, int h)
+static void vnc_dpy_update(DisplayChangeListener *dcl, int x, int y, int w, int h)
 {
     int i;
-    VncDisplay *vd = ds->opaque;
+    VncDisplay *vd = dcl->opaque;
     struct VncSurface *s = &vd->guest;
 
     h += y;
@@ -527,9 +527,10 @@ static void vnc_abort_display_jobs(VncDisplay *vd)
 }
 #endif
 
-static void vnc_dpy_resize(DisplayState *ds)
+static void vnc_dpy_resize(DisplayChangeListener *dcl)
 {
-    VncDisplay *vd = ds->opaque;
+    VncDisplay *vd = dcl->opaque;
+    DisplayState *ds = dcl->ds;
     VncState *vs;
 
     vnc_abort_display_jobs(vd);
@@ -707,9 +708,9 @@ static void vnc_copy(VncState *vs, int src_x, int src_y, int dst_x, int dst_y, i
     vnc_flush(vs);
 }
 
-static void vnc_dpy_copy(DisplayState *ds, int src_x, int src_y, int dst_x, int dst_y, int w, int h)
+static void vnc_dpy_copy(DisplayChangeListener *dcl, int src_x, int src_y, int dst_x, int dst_y, int w, int h)
 {
-    VncDisplay *vd = ds->opaque;
+    VncDisplay *vd = dcl->opaque;
     VncState *vs, *vn;
     uint8_t *src_row;
     uint8_t *dst_row;
@@ -779,7 +780,7 @@ static void vnc_dpy_copy(DisplayState *ds, int src_x, int src_y, int dst_x, int 
     }
 }
 
-static void vnc_mouse_set(DisplayState *ds, int x, int y, int visible)
+static void vnc_mouse_set(DisplayChangeListener *dcl, int x, int y, int visible)
 {
     /* can we ask the client(s) to move the pointer ??? */
 }
@@ -806,9 +807,9 @@ static int vnc_cursor_define(VncState *vs)
     return -1;
 }
 
-static void vnc_dpy_cursor_define(DisplayState *ds, QEMUCursor *c)
+static void vnc_dpy_cursor_define(DisplayChangeListener *dcl, QEMUCursor *c)
 {
-    VncDisplay *vd = vnc_display;
+    VncDisplay *vd = dcl->opaque;
     VncState *vs;
 
     cursor_put(vd->cursor);
@@ -1879,7 +1880,7 @@ static void pixel_format_message (VncState *vs) {
     vnc_write(vs, pad, 3);           /* padding */
 }
 
-static void vnc_dpy_setdata(DisplayState *ds)
+static void vnc_dpy_setdata(DisplayChangeListener *dcl)
 {
     /* We don't have to do anything */
 }
@@ -2511,7 +2512,7 @@ static void vnc_init_timer(VncDisplay *vd)
     vd->timer_interval = VNC_REFRESH_INTERVAL_BASE;
     if (vd->timer == NULL && !QTAILQ_EMPTY(&vd->clients)) {
         vd->timer = qemu_new_timer_ms(rt_clock, vnc_refresh, vd);
-        vnc_dpy_resize(vd->ds);
+        vnc_dpy_resize(dcl);
         vnc_refresh(vd);
     }
 }
@@ -2609,10 +2610,6 @@ void vnc_display_init(DisplayState *ds)
 {
     VncDisplay *vs = g_malloc0(sizeof(*vs));
 
-    dcl = g_malloc0(sizeof(DisplayChangeListener));
-
-    ds->opaque = vs;
-    dcl->idle = 1;
     vnc_display = vs;
 
     vs->lsock = -1;
@@ -2634,20 +2631,22 @@ void vnc_display_init(DisplayState *ds)
     vnc_start_worker_thread();
 #endif
 
+    dcl = g_malloc0(sizeof(DisplayChangeListener));
+
+    dcl->opaque = vs;
+    dcl->idle = 1;
     dcl->dpy_copy = vnc_dpy_copy;
     dcl->dpy_update = vnc_dpy_update;
     dcl->dpy_resize = vnc_dpy_resize;
     dcl->dpy_setdata = vnc_dpy_setdata;
+    dcl->mouse_set = vnc_mouse_set;
+    dcl->cursor_define = vnc_dpy_cursor_define;
     register_displaychangelistener(ds, dcl);
-    ds->mouse_set = vnc_mouse_set;
-    ds->cursor_define = vnc_dpy_cursor_define;
 }
 
 
-void vnc_display_close(DisplayState *ds)
+static void vnc_display_close(VncDisplay *vs)
 {
-    VncDisplay *vs = ds ? (VncDisplay *)ds->opaque : vnc_display;
-
     if (!vs)
         return;
     if (vs->display) {
@@ -2668,7 +2667,7 @@ void vnc_display_close(DisplayState *ds)
 
 int vnc_display_disable_login(DisplayState *ds)
 {
-    VncDisplay *vs = ds ? (VncDisplay *)ds->opaque : vnc_display;
+    VncDisplay *vs = vnc_display;
 
     if (!vs) {
         return -1;
@@ -2687,7 +2686,7 @@ int vnc_display_disable_login(DisplayState *ds)
 int vnc_display_password(DisplayState *ds, const char *password)
 {
     int ret = 0;
-    VncDisplay *vs = ds ? (VncDisplay *)ds->opaque : vnc_display;
+    VncDisplay *vs = vnc_display;
 
     if (!vs) {
         ret = -EINVAL;
@@ -2716,7 +2715,7 @@ out:
 
 int vnc_display_pw_expire(DisplayState *ds, time_t expires)
 {
-    VncDisplay *vs = ds ? (VncDisplay *)ds->opaque : vnc_display;
+    VncDisplay *vs = vnc_display;
 
     vs->expires = expires;
     return 0;
@@ -2724,14 +2723,14 @@ int vnc_display_pw_expire(DisplayState *ds, time_t expires)
 
 char *vnc_display_local_addr(DisplayState *ds)
 {
-    VncDisplay *vs = ds ? (VncDisplay *)ds->opaque : vnc_display;
+    VncDisplay *vs = vnc_display;
     
     return vnc_socket_local_addr("%s:%s", vs->lsock);
 }
 
 int vnc_display_open(DisplayState *ds, const char *display)
 {
-    VncDisplay *vs = ds ? (VncDisplay *)ds->opaque : vnc_display;
+    VncDisplay *vs = vnc_display;
     const char *options;
     int password = 0;
     int reverse = 0;
@@ -2749,7 +2748,7 @@ int vnc_display_open(DisplayState *ds, const char *display)
 
     if (!vnc_display)
         return -1;
-    vnc_display_close(ds);
+    vnc_display_close(vs);
     if (strcmp(display, "none") == 0)
         return 0;
 
@@ -2958,7 +2957,7 @@ int vnc_display_open(DisplayState *ds, const char *display)
 
 void vnc_display_add_client(DisplayState *ds, int csock, int skipauth)
 {
-    VncDisplay *vs = ds ? (VncDisplay *)ds->opaque : vnc_display;
+    VncDisplay *vs = vnc_display;
 
     return vnc_connect(vs, csock, skipauth);
 }

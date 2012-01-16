@@ -71,9 +71,9 @@ struct SDLDisplayState
     DisplayAllocator da;
 };
 
-static SDLDisplayState *to_sdl_display(DisplayState *ds)
+static SDLDisplayState *to_sdl_display(DisplayChangeListener *dcl)
 {
-    return ds->opaque;
+    return dcl->opaque;
 }
 
 static DisplayState *to_display(SDLDisplayState *s)
@@ -86,9 +86,9 @@ static SDLDisplayState *from_display_allocator(DisplayAllocator *da)
     return container_of(da, SDLDisplayState, da);
 }
 
-static void sdl_update(DisplayState *ds, int x, int y, int w, int h)
+static void sdl_update(DisplayChangeListener *dcl, int x, int y, int w, int h)
 {
-    SDLDisplayState *s = to_sdl_display(ds);
+    SDLDisplayState *s = to_sdl_display(dcl);
     SDL_Rect rec;
 
     rec.x = x;
@@ -109,9 +109,10 @@ static void sdl_update(DisplayState *ds, int x, int y, int w, int h)
     SDL_UpdateRect(s->real_screen, rec.x, rec.y, rec.w, rec.h);
 }
 
-static void sdl_setdata(DisplayState *ds)
+static void sdl_setdata(DisplayChangeListener *dcl)
 {
-    SDLDisplayState *s = to_sdl_display(ds);
+    SDLDisplayState *s = to_sdl_display(dcl);
+    DisplayState *ds = to_display(s);
 
     if (s->guest_screen != NULL) SDL_FreeSurface(s->guest_screen);
 
@@ -142,16 +143,17 @@ static void do_sdl_resize(SDLDisplayState *s, int width, int height, int bpp)
     }
 }
 
-static void sdl_resize(DisplayState *ds)
+static void sdl_resize(DisplayChangeListener *dcl)
 {
-    SDLDisplayState *s = to_sdl_display(ds);
+    SDLDisplayState *s = to_sdl_display(dcl);
+    DisplayState *ds = to_display(s);
 
     if (!s->allocator) {
         if (!s->scaling_active)
             do_sdl_resize(s, ds_get_width(ds), ds_get_height(ds), 0);
         else if (s->real_screen->format->BitsPerPixel != ds_get_bits_per_pixel(ds))
             do_sdl_resize(s, s->real_screen->w, s->real_screen->h, ds_get_bits_per_pixel(ds));
-        sdl_setdata(ds);
+        sdl_setdata(dcl);
     } else {
         if (s->guest_screen != NULL) {
             SDL_FreeSurface(s->guest_screen);
@@ -620,9 +622,9 @@ static void absolute_mouse_grab(SDLDisplayState *s)
     }
 }
 
-static void handle_keydown(DisplayState *ds, SDL_Event *ev)
+static void handle_keydown(SDLDisplayState *s, SDL_Event *ev)
 {
-    SDLDisplayState *s = to_sdl_display(ds);
+    DisplayState *ds = s->ds;
     int mod_state;
     int keycode;
 
@@ -646,7 +648,7 @@ static void handle_keydown(DisplayState *ds, SDL_Event *ev)
         case 0x16: /* 'u' key on US keyboard */
             if (s->scaling_active) {
                 s->scaling_active = 0;
-                sdl_resize(ds);
+                sdl_resize(s->dcl);
                 vga_hw_invalidate();
                 vga_hw_update();
             }
@@ -886,9 +888,9 @@ static void handle_activation(SDLDisplayState *s, SDL_Event *ev)
     }
 }
 
-static void sdl_refresh(DisplayState *ds)
+static void sdl_refresh(DisplayChangeListener *dcl)
 {
-    SDLDisplayState *s = to_sdl_display(ds);
+    SDLDisplayState *s = to_sdl_display(dcl);
     SDL_Event ev1, *ev = &ev1;
 
     if (s->last_vm_running != runstate_is_running()) {
@@ -902,10 +904,10 @@ static void sdl_refresh(DisplayState *ds)
     while (SDL_PollEvent(ev)) {
         switch (ev->type) {
         case SDL_VIDEOEXPOSE:
-            sdl_update(ds, 0, 0, s->real_screen->w, s->real_screen->h);
+            sdl_update(dcl, 0, 0, s->real_screen->w, s->real_screen->h);
             break;
         case SDL_KEYDOWN:
-            handle_keydown(ds, ev);
+            handle_keydown(s, ev);
             break;
         case SDL_KEYUP:
             handle_keyup(s, ev);
@@ -937,17 +939,17 @@ static void sdl_refresh(DisplayState *ds)
     }
 }
 
-static void sdl_fill(DisplayState *ds, int x, int y, int w, int h, uint32_t c)
+static void sdl_fill(DisplayChangeListener *dcl, int x, int y, int w, int h, uint32_t c)
 {
-    SDLDisplayState *s = to_sdl_display(ds);
+    SDLDisplayState *s = to_sdl_display(dcl);
     SDL_Rect dst = { x, y, w, h };
 
     SDL_FillRect(s->real_screen, &dst, c);
 }
 
-static void sdl_mouse_warp(DisplayState *ds, int x, int y, int on)
+static void sdl_mouse_warp(DisplayChangeListener *dcl, int x, int y, int on)
 {
-    SDLDisplayState *s = to_sdl_display(ds);
+    SDLDisplayState *s = to_sdl_display(dcl);
 
     if (on) {
         if (!s->guest_cursor)
@@ -965,9 +967,9 @@ static void sdl_mouse_warp(DisplayState *ds, int x, int y, int on)
     s->guest_y = y;
 }
 
-static void sdl_mouse_define(DisplayState *ds, QEMUCursor *c)
+static void sdl_mouse_define(DisplayChangeListener *dcl, QEMUCursor *c)
 {
-    SDLDisplayState *s = to_sdl_display(ds);
+    SDLDisplayState *s = to_sdl_display(dcl);
     uint8_t *image, *mask;
     int bpl;
 
@@ -1005,9 +1007,7 @@ void sdl_display_init(DisplayState *ds, int full_screen, int no_frame)
     const SDL_VideoInfo *vi;
     char *filename;
 
-    ds->opaque = s;
     s->ds = ds;
-
     s->gui_grab_code = KMOD_LALT | KMOD_LCTRL;
 
 #if defined(__APPLE__)
@@ -1076,8 +1076,9 @@ void sdl_display_init(DisplayState *ds, int full_screen, int no_frame)
     s->dcl->dpy_refresh = sdl_refresh;
     s->dcl->dpy_setdata = sdl_setdata;
     s->dcl->dpy_fill = sdl_fill;
-    ds->mouse_set = sdl_mouse_warp;
-    ds->cursor_define = sdl_mouse_define;
+    s->dcl->opaque = s;
+    s->dcl->mouse_set = sdl_mouse_warp;
+    s->dcl->cursor_define = sdl_mouse_define;
     register_displaychangelistener(ds, s->dcl);
 
     s->da.create_displaysurface = sdl_create_displaysurface;

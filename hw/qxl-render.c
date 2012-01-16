@@ -198,10 +198,6 @@ void qxl_render_cursor(PCIQXLDevice *qxl, QXLCommandExt *ext)
     QXLCursor *cursor;
     QEMUCursor *c;
 
-    if (!qxl->ssd.ds->mouse_set || !qxl->ssd.ds->cursor_define) {
-        return;
-    }
-
     if (qxl->debug > 1 && cmd->type != QXL_CURSOR_MOVE) {
         fprintf(stderr, "%s", __FUNCTION__);
         qxl_log_cmd_cursor(qxl, cmd, ext->group_id);

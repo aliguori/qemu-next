@@ -2332,19 +2332,20 @@ void vga_init_vbe(VGACommonState *s, MemoryRegion *system_memory)
 /********************************************************/
 /* vga screen dump */
 
-static void vga_save_dpy_update(DisplayState *ds,
+static void vga_save_dpy_update(DisplayChangeListener *dcl,
                                 int x, int y, int w, int h)
 {
+    DisplayState *ds = dcl->ds;
     if (screen_dump_filename) {
         ppm_save(screen_dump_filename, ds->surface);
     }
 }
 
-static void vga_save_dpy_resize(DisplayState *s)
+static void vga_save_dpy_resize(DisplayChangeListener *dcl)
 {
 }
 
-static void vga_save_dpy_refresh(DisplayState *s)
+static void vga_save_dpy_refresh(DisplayChangeListener *dcl)
 {
 }
 
