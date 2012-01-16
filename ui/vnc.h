@@ -124,7 +124,7 @@ struct VncSurface
 
 struct VncDisplay
 {
-    DisplayChangeListener *dcl;
+    DisplayChangeListener dcl;
 
     QTAILQ_HEAD(, VncState) clients;
     QEMUTimer *timer;

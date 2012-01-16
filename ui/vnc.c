@@ -401,10 +401,15 @@ static void framebuffer_update_request(VncState *vs, int incremental,
 static void vnc_refresh(void *opaque);
 static int vnc_refresh_server_surface(VncDisplay *vd);
 
+static VncDisplay *to_vnc_display(DisplayChangeListener *dcl)
+{
+    return container_of(dcl, VncDisplay, dcl);
+}
+
 static void vnc_dpy_update(DisplayChangeListener *dcl, int x, int y, int w, int h)
 {
     int i;
-    VncDisplay *vd = dcl->opaque;
+    VncDisplay *vd = to_vnc_display(dcl);
     struct VncSurface *s = &vd->guest;
 
     h += y;
@@ -528,7 +533,7 @@ static void vnc_abort_display_jobs(VncDisplay *vd)
 
 static void vnc_dpy_resize(DisplayChangeListener *dcl)
 {
-    VncDisplay *vd = dcl->opaque;
+    VncDisplay *vd = to_vnc_display(dcl);
     DisplayState *ds = dcl->ds;
     VncState *vs;
 
@@ -709,7 +714,7 @@ static void vnc_copy(VncState *vs, int src_x, int src_y, int dst_x, int dst_y, i
 
 static void vnc_dpy_copy(DisplayChangeListener *dcl, int src_x, int src_y, int dst_x, int dst_y, int w, int h)
 {
-    VncDisplay *vd = dcl->opaque;
+    VncDisplay *vd = to_vnc_display(dcl);
     VncState *vs, *vn;
     uint8_t *src_row;
     uint8_t *dst_row;
@@ -808,7 +813,7 @@ static int vnc_cursor_define(VncState *vs)
 
 static void vnc_dpy_cursor_define(DisplayChangeListener *dcl, QEMUCursor *c)
 {
-    VncDisplay *vd = dcl->opaque;
+    VncDisplay *vd = to_vnc_display(dcl);
     VncState *vs;
 
     cursor_put(vd->cursor);
@@ -1031,7 +1036,7 @@ static void vnc_disconnect_finish(VncState *vs)
     QTAILQ_REMOVE(&vs->vd->clients, vs, next);
 
     if (QTAILQ_EMPTY(&vs->vd->clients)) {
-        vs->vd->dcl->idle = 1;
+        vs->vd->dcl.idle = 1;
     }
 
     qemu_remove_mouse_mode_change_notifier(&vs->mouse_mode_notifier);
@@ -2511,7 +2516,7 @@ static void vnc_init_timer(VncDisplay *vd)
     vd->timer_interval = VNC_REFRESH_INTERVAL_BASE;
     if (vd->timer == NULL && !QTAILQ_EMPTY(&vd->clients)) {
         vd->timer = qemu_new_timer_ms(rt_clock, vnc_refresh, vd);
-        vnc_dpy_resize(vd->dcl);
+        vnc_dpy_resize(&vd->dcl);
         vnc_refresh(vd);
     }
 }
@@ -2550,7 +2555,7 @@ static void vnc_connect(VncDisplay *vd, int csock, int skipauth)
     }
 
     VNC_DEBUG("New client on socket %d\n", csock);
-    vd->dcl->idle = 0;
+    vd->dcl.idle = 0;
     socket_set_nonblock(vs->csock);
     qemu_set_fd_handler2(vs->csock, NULL, vnc_client_read, NULL, vs);
 
@@ -2630,17 +2635,14 @@ void vnc_display_init(DisplayState *ds)
     vnc_start_worker_thread();
 #endif
 
-    vs->dcl = g_malloc0(sizeof(DisplayChangeListener));
-
-    vs->dcl->opaque = vs;
-    vs->dcl->idle = 1;
-    vs->dcl->dpy_copy = vnc_dpy_copy;
-    vs->dcl->dpy_update = vnc_dpy_update;
-    vs->dcl->dpy_resize = vnc_dpy_resize;
-    vs->dcl->dpy_setdata = vnc_dpy_setdata;
-    vs->dcl->mouse_set = vnc_mouse_set;
-    vs->dcl->cursor_define = vnc_dpy_cursor_define;
-    register_displaychangelistener(ds, vs->dcl);
+    vs->dcl.idle = 1;
+    vs->dcl.dpy_copy = vnc_dpy_copy;
+    vs->dcl.dpy_update = vnc_dpy_update;
+    vs->dcl.dpy_resize = vnc_dpy_resize;
+    vs->dcl.dpy_setdata = vnc_dpy_setdata;
+    vs->dcl.mouse_set = vnc_mouse_set;
+    vs->dcl.cursor_define = vnc_dpy_cursor_define;
+    register_displaychangelistener(ds, &vs->dcl);
 }
 
 
