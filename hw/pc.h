@@ -85,18 +85,6 @@ void gsi_handler(void *opaque, int n, int level);
 
 #define PIT_FREQ 1193182
 
-static inline ISADevice *pit_init(ISABus *bus, int base, int irq)
-{
-    ISADevice *dev;
-
-    dev = isa_create(bus, "isa-pit");
-    qdev_prop_set_uint32(&dev->qdev, "iobase", base);
-    qdev_prop_set_uint32(&dev->qdev, "irq", irq);
-    qdev_init_nofail(&dev->qdev);
-
-    return dev;
-}
-
 void pit_set_gate(ISADevice *dev, int channel, int val);
 int pit_get_gate(ISADevice *dev, int channel);
 int pit_get_initial_count(ISADevice *dev, int channel);

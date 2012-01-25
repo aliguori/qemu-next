@@ -24,12 +24,10 @@
  * This driver attempts to emulate an HPET device in software.
  */
 
-#include "hw.h"
 #include "pc.h"
 #include "console.h"
 #include "qemu-timer.h"
 #include "hpet_emul.h"
-#include "sysbus.h"
 #include "mc146818rtc.h"
 
 //#define HPET_DEBUG
@@ -40,40 +38,6 @@
 #endif
 
 #define HPET_MSI_SUPPORT        0
-
-struct HPETState;
-typedef struct HPETTimer {  /* timers */
-    uint8_t tn;             /*timer number*/
-    QEMUTimer *qemu_timer;
-    struct HPETState *state;
-    /* Memory-mapped, software visible timer registers */
-    uint64_t config;        /* configuration/cap */
-    uint64_t cmp;           /* comparator */
-    uint64_t fsb;           /* FSB route */
-    /* Hidden register state */
-    uint64_t period;        /* Last value written to comparator */
-    uint8_t wrap_flag;      /* timer pop will indicate wrap for one-shot 32-bit
-                             * mode. Next pop will be actual timer expiration.
-                             */
-} HPETTimer;
-
-typedef struct HPETState {
-    SysBusDevice busdev;
-    MemoryRegion iomem;
-    uint64_t hpet_offset;
-    qemu_irq irqs[HPET_NUM_IRQ_ROUTES];
-    uint32_t flags;
-    uint8_t rtc_irq_level;
-    uint8_t num_timers;
-    HPETTimer timer[HPET_MAX_TIMERS];
-
-    /* Memory-mapped, software visible registers */
-    uint64_t capability;        /* capabilities */
-    uint64_t config;            /* configuration */
-    uint64_t isr;               /* interrupt status reg */
-    uint64_t hpet_counter;      /* main counter */
-    uint8_t  hpet_id;           /* instance id */
-} HPETState;
 
 static uint32_t hpet_in_legacy_mode(HPETState *s)
 {
@@ -190,16 +154,16 @@ static void update_irq(struct HPETTimer *timer, int set)
     if (!set || !timer_enabled(timer) || !hpet_enabled(timer->state)) {
         s->isr &= ~mask;
         if (!timer_fsb_route(timer)) {
-            qemu_irq_lower(s->irqs[route]);
+            pin_lower(&s->irqs[route]);
         }
     } else if (timer_fsb_route(timer)) {
         stl_le_phys(timer->fsb >> 32, timer->fsb & 0xffffffff);
     } else if (timer->config & HPET_TN_TYPE_LEVEL) {
         s->isr |= mask;
-        qemu_irq_raise(s->irqs[route]);
+        pin_raise(&s->irqs[route]);
     } else {
         s->isr &= ~mask;
-        qemu_irq_pulse(s->irqs[route]);
+        pin_pulse(&s->irqs[route]);
     }
 }
 
@@ -549,10 +513,10 @@ static void hpet_ram_write(void *opaque, target_phys_addr_t addr,
             /* i8254 and RTC are disabled when HPET is in legacy mode */
             if (activating_bit(old_val, new_val, HPET_CFG_LEGACY)) {
                 hpet_pit_disable();
-                qemu_irq_lower(s->irqs[RTC_ISA_IRQ]);
+                pin_lower(&s->irqs[RTC_ISA_IRQ]);
             } else if (deactivating_bit(old_val, new_val, HPET_CFG_LEGACY)) {
                 hpet_pit_enable();
-                qemu_set_irq(s->irqs[RTC_ISA_IRQ], s->rtc_irq_level);
+                pin_set_level(&s->irqs[RTC_ISA_IRQ], pin_get_level(s->rtc_irq));
             }
             break;
         case HPET_CFG + 4:
@@ -638,13 +602,12 @@ static void hpet_reset(DeviceState *d)
     count = 1;
 }
 
-static void hpet_handle_rtc_irq(void *opaque, int n, int level)
+static void hpet_handle_rtc_irq(Notifier *notifier, void *opaque)
 {
-    HPETState *s = FROM_SYSBUS(HPETState, opaque);
+    HPETState *s = container_of(notifier, HPETState, rtc_notifier);
 
-    s->rtc_irq_level = level;
     if (!hpet_in_legacy_mode(s)) {
-        qemu_set_irq(s->irqs[RTC_ISA_IRQ], level);
+        pin_set_level(&s->irqs[RTC_ISA_IRQ], pin_get_level(s->rtc_irq));
     }
 }
 
@@ -664,11 +627,11 @@ static int hpet_init(SysBusDevice *dev)
         return -1;
     }
 
-    s->hpet_id = hpet_cfg.count++;
-
-    for (i = 0; i < HPET_NUM_IRQ_ROUTES; i++) {
-        sysbus_init_irq(dev, &s->irqs[i]);
+    if (s->rtc_irq == NULL) {
+        return -1;
     }
+
+    s->hpet_id = hpet_cfg.count++;
 
     if (s->num_timers < HPET_MIN_TIMERS) {
         s->num_timers = HPET_MIN_TIMERS;
@@ -687,12 +650,30 @@ static int hpet_init(SysBusDevice *dev)
     s->capability |= (s->num_timers - 1) << HPET_ID_NUM_TIM_SHIFT;
     s->capability |= ((HPET_CLK_PERIOD) << 32);
 
-    qdev_init_gpio_in(&dev->qdev, hpet_handle_rtc_irq, 1);
+    s->rtc_notifier.notify = hpet_handle_rtc_irq;
+    pin_add_level_change_notifier(s->rtc_irq, &s->rtc_notifier);
 
     /* HPET Area */
     memory_region_init_io(&s->iomem, &hpet_ram_ops, s, "hpet", 0x400);
     sysbus_init_mmio(dev, &s->iomem);
     return 0;
+}
+
+static void hpet_initfn(Object *obj)
+{
+    HPETState *s = HPET(obj);
+    int i;
+
+    for (i = 0; i < ARRAY_SIZE(s->irqs); i++) {
+        char name[32];
+
+        object_initialize(&s->irqs[i], TYPE_PIN);
+        snprintf(name, sizeof(name), "irq[%d]", i);
+        object_property_add_child(obj, name, OBJECT(&s->irqs[i]), NULL);
+    }
+
+    object_property_add_link(obj, "rtc_irq", TYPE_PIN, 
+                             (Object **)&s->rtc_irq, NULL);
 }
 
 static Property hpet_device_properties[] = {
@@ -714,9 +695,10 @@ static void hpet_device_class_init(ObjectClass *klass, void *data)
 }
 
 static TypeInfo hpet_device_info = {
-    .name          = "hpet",
+    .name          = TYPE_HPET, 
     .parent        = TYPE_SYS_BUS_DEVICE,
     .instance_size = sizeof(HPETState),
+    .instance_init = hpet_initfn,
     .class_init    = hpet_device_class_init,
 };
 

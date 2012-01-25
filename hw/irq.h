@@ -2,10 +2,58 @@
 #define QEMU_IRQ_H
 
 /* Generic IRQ/GPIO pin infrastructure.  */
+#include "qemu/object.h"
+#include "notify.h"
 
 typedef struct IRQState *qemu_irq;
 
 typedef void (*qemu_irq_handler)(void *opaque, int n, int level);
+
+#define TYPE_PIN "pin"
+#define PIN(obj) OBJECT_CHECK(Pin, (obj), TYPE_PIN)
+
+typedef struct Pin
+{
+    Object parent;
+
+    /*< private >*/
+    bool level;
+    NotifierList level_change_notifiers;
+} Pin;
+
+void pin_set_level(Pin *pin, bool level);
+
+bool pin_get_level(Pin *pin);
+
+static inline void pin_lower(Pin *pin)
+{
+    pin_set_level(pin, false);
+}
+
+static inline void pin_raise(Pin *pin)
+{
+    pin_set_level(pin, true);
+}
+
+static inline void pin_pulse(Pin *pin)
+{
+    pin_set_level(pin, true);
+    pin_set_level(pin, false);
+}
+
+void pin_connect_qemu_irq(Pin *in, qemu_irq out);
+
+void pin_connect_pin(Pin *in, Pin *out);
+
+void pin_add_level_change_notifier(Pin *pin, Notifier *notifier);
+
+void pin_del_level_change_notifier(Pin *pin, Notifier *notifier);
+
+struct IRQState {
+    qemu_irq_handler handler;
+    void *opaque;
+    int n;
+};
 
 void qemu_set_irq(qemu_irq irq, int level);
 

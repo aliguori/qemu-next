@@ -471,6 +471,23 @@ struct soundhw {
     } init;
 };
 
+#if defined(HAS_AUDIO_CHOICE) && (defined(TARGET_I386) || defined(TARGET_MIPS))
+static int pcspk_audio_init(ISABus *bus)
+{
+    PCSpeaker *s = PC_SPEAKER(object_find_type(TYPE_PC_SPEAKER));
+    Error *err = NULL;
+
+    pcspk_set_enable_audio(s, true, &err);
+    if (err) {
+        qerror_report_err(err);
+        error_free(err);
+        return -1;
+    }
+
+    return 0;
+}
+#endif
+
 static struct soundhw soundhw[] = {
 #ifdef HAS_AUDIO_CHOICE
 #if defined(TARGET_I386) || defined(TARGET_MIPS)

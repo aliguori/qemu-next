@@ -24,29 +24,8 @@
 
 #include "hw.h"
 #include "pc.h"
-#include "isa.h"
-#include "audio/audio.h"
 #include "qemu-timer.h"
-
-#define PCSPK_BUF_LEN 1792
-#define PCSPK_SAMPLE_RATE 32000
-#define PCSPK_MAX_FREQ (PCSPK_SAMPLE_RATE >> 1)
-#define PCSPK_MIN_COUNT ((PIT_FREQ + PCSPK_MAX_FREQ - 1) / PCSPK_MAX_FREQ)
-
-typedef struct {
-    uint8_t sample_buf[PCSPK_BUF_LEN];
-    QEMUSoundCard card;
-    SWVoiceOut *voice;
-    ISADevice *pit;
-    unsigned int pit_count;
-    unsigned int samples;
-    unsigned int play_pos;
-    int data_on;
-    int dummy_refresh_clock;
-} PCSpkState;
-
-static const char *s_spk = "pcspk";
-static PCSpkState pcspk_state;
+#include "pcspk.h"
 
 static inline void generate_samples(PCSpkState *s)
 {
@@ -96,20 +75,28 @@ static void pcspk_callback(void *opaque, int free)
     }
 }
 
-int pcspk_audio_init(ISABus *bus)
+void pcspk_set_audio_enabled(PCSpkState *s, bool enable, Error **errp)
 {
-    PCSpkState *s = &pcspk_state;
     struct audsettings as = {PCSPK_SAMPLE_RATE, 1, AUD_FMT_U8, 0};
 
-    AUD_register_card(s_spk, &s->card);
-
-    s->voice = AUD_open_out(&s->card, s->voice, s_spk, s, pcspk_callback, &as);
-    if (!s->voice) {
-        AUD_log(s_spk, "Could not open voice\n");
-        return -1;
+    if (!enable) {
+        return;
     }
 
-    return 0;
+    s->audio_enabled = enable;
+
+    AUD_register_card("pcspk", &s->card);
+
+    s->voice = AUD_open_out(&s->card, s->voice, "pcspk",
+                            s, pcspk_callback, &as);
+    if (!s->voice) {
+        error_set(errp, QERR_OPEN_FILE_FAILED, "voice");
+    }
+}
+
+void pcspk_get_audio_enabled(PCSpkState *s)
+{
+    return s->audio_enabled;
 }
 
 static uint32_t pcspk_ioport_read(void *opaque, uint32_t addr)
@@ -137,11 +124,50 @@ static void pcspk_ioport_write(void *opaque, uint32_t addr, uint32_t val)
     }
 }
 
-void pcspk_init(ISADevice *pit)
+static int pcspk_realize(ISADevice *pit)
 {
-    PCSpkState *s = &pcspk_state;
+    PCSpkState *s = PC_SPEAKER(pit);
 
-    s->pit = pit;
+    if (s->pit == NULL) {
+        return -1;
+    }
+
     register_ioport_read(0x61, 1, 1, pcspk_ioport_read, s);
     register_ioport_write(0x61, 1, 1, pcspk_ioport_write, s);
+
+    return 0;
 }
+
+static void pcspk_initfn(Object *obj)
+{
+    PCSpkState *s = PC_SPEAKER(obj);
+
+    object_property_add_bool(obj, "audio-enabled",
+                             (BoolPropertyGetter *)pcspk_get_audio_enabled,
+                             (BoolPropertySetter *)pcspk_set_audio_enabled,
+                             NULL);
+
+    object_property_add_link(obj, "pit", TYPE_PIT, (Object **)&s->pit, NULL);
+}
+
+static void pcspk_class_init(ObjectClass *klass, void *data)
+{
+    ISADeviceClass *ic = ISA_DEVICE_CLASS(klass);
+
+    ic->init = pcspk_realize;
+}
+
+static TypeInfo pcspk_type = {
+    .type = TYPE_PC_SPEAKER,
+    .parent = TYPE_ISA_DEVICE,
+    .instance_init = pcspk_initfn,
+    .instance_size = sizeof(PCSpkState),
+    .class_init = pcspk_class_init,
+};
+
+static void register_devices(void)
+{
+    type_register_static(&pcspk_type);
+}
+
+device_init(register_devices);

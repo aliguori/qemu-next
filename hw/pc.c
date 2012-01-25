@@ -1137,30 +1137,51 @@ void pc_basic_device_init(ISABus *isa_bus, qemu_irq *gsi,
 {
     int i;
     DriveInfo *fd[MAX_FD];
-    qemu_irq rtc_irq = NULL;
     qemu_irq *a20_line;
-    ISADevice *i8042, *port92, *vmmouse, *pit;
+    ISADevice *i8042, *port92, *vmmouse;
     qemu_irq *cpu_exit_irq;
+    HPETState *hpet = NULL;
+    RTCState *rtc;
+    PITState *pit;
+    qemu_irq irq;
 
     register_ioport_write(0x80, 1, 1, ioport80_write, NULL);
 
     register_ioport_write(0xf0, 1, 1, ioportF0_write, NULL);
 
     if (!no_hpet) {
-        DeviceState *hpet = sysbus_try_create_simple("hpet", HPET_BASE, NULL);
+        hpet = HPET(object_new(TYPE_HPET));
 
-        if (hpet) {
-            for (i = 0; i < GSI_NUM_PINS; i++) {
-                sysbus_connect_irq(sysbus_from_qdev(hpet), i, gsi[i]);
-            }
-            rtc_irq = qdev_get_gpio_in(hpet, 0);
+        for (i = 0; i < GSI_NUM_PINS; i++) {
+            pin_connect_qemu_irq(&hpet->irqs[i], gsi[i]);
         }
     }
-    *rtc_state = rtc_init(isa_bus, 2000, rtc_irq);
 
-    qemu_register_boot_set(pc_boot_set, *rtc_state);
+    rtc = RTC(object_new(TYPE_RTC));
+    rtc_set_base_year(rtc, 2000);
+    qdev_init_nofail(DEVICE(rtc));
+    
+    if (hpet) {
+        hpet->rtc_irq = &rtc->irq;
+        qdev_init_nofail(DEVICE(hpet));
 
-    pit = pit_init(isa_bus, 0x40, 0);
+        sysbus_mmio_map(SYS_BUS_DEVICE(hpet), 0, HPET_BASE);
+    } else {
+        isa_init_irq(ISA_DEVICE(rtc), &irq, RTC_ISA_IRQ);
+        pin_connect_qemu_irq(&rtc->irq, irq);
+    }
+
+    qemu_register_boot_set(pc_boot_set, rtc);
+
+    *rtc_state = ISA_DEVICE(rtc);
+
+    pit = PIT(object_new(TYPE_PIT));
+    pit_set_iobase(pit, 0x40);
+
+    isa_init_irq(ISA_DEVICE(pit), &irq, 0);
+    pin_connect_qemu_irq(&pit->irq, irq);
+    qdev_init_nofail(DEVICE(pit));
+
     pcspk_init(pit);
 
     for(i = 0; i < MAX_SERIAL_PORTS; i++) {
