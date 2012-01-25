@@ -474,10 +474,11 @@ struct soundhw {
 #if defined(HAS_AUDIO_CHOICE) && (defined(TARGET_I386) || defined(TARGET_MIPS))
 static int pcspk_audio_init(ISABus *bus)
 {
-    PCSpeaker *s = PC_SPEAKER(object_find_type(TYPE_PC_SPEAKER));
+    /* FIXME */
+    PCSpkState *s = PC_SPEAKER(object_resolve_path("pcspk", NULL));
     Error *err = NULL;
 
-    pcspk_set_enable_audio(s, true, &err);
+    pcspk_set_audio_enabled(s, true, &err);
     if (err) {
         qerror_report_err(err);
         error_free(err);

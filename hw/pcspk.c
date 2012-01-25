@@ -143,8 +143,8 @@ static void pcspk_initfn(Object *obj)
     PCSpkState *s = PC_SPEAKER(obj);
 
     object_property_add_bool(obj, "audio-enabled",
-                             (BoolPropertyGetter *)pcspk_get_audio_enabled,
-                             (BoolPropertySetter *)pcspk_set_audio_enabled,
+                             (BoolGetter *)pcspk_get_audio_enabled,
+                             (BoolSetter *)pcspk_set_audio_enabled,
                              NULL);
 
     object_property_add_link(obj, "pit", TYPE_PIT, (Object **)&s->pit, NULL);

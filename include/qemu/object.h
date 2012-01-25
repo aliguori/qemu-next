@@ -659,6 +659,13 @@ void object_property_add_str(Object *obj, const char *name,
                              StringGetter *get, StringSetter *set,
                              Error **errp);
 
+typedef bool (BoolGetter)(Object *, Error **);
+typedef void (BoolSetter)(Object *, bool, Error **);
+
+void object_property_add_bool(Object *obj, const char *name,
+                              BoolGetter *get, BoolSetter *set,
+                              Error **errp);
+
 typedef void (ObjectPropertyEnumerator)(Object *obj,
                                         const char *name,
                                         const char *typename,

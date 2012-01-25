@@ -34,12 +34,12 @@ typedef struct PCSpkState {
 void pcspk_set_audio_enabled(PCSpkState *s, bool enable, Error **errp);
 bool pcspk_get_audio_enabled(PCSpkState *s);
 
-static inline PCSpkState *pcspk_init(PITState *pit)
+static inline PCSpkState *pcspk_init(ISADevice *isa_pit)
 {
     PCSpkState *s;
 
     s = PC_SPEAKER(object_new(TYPE_PC_SPEAKER));
-    s->pit = pit;
+    s->pit = PIT(isa_pit);
     qdev_init_nofail(DEVICE(s));
 
     return s;
