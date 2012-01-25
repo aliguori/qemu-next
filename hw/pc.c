@@ -1143,6 +1143,7 @@ void pc_basic_device_init(ISABus *isa_bus, qemu_irq *gsi,
     HPETState *hpet = NULL;
     RTCState *rtc;
     PITState *pit;
+    PCSpkState *pc_spk;
     qemu_irq irq;
 
     register_ioport_write(0x80, 1, 1, ioport80_write, NULL);
@@ -1159,10 +1160,11 @@ void pc_basic_device_init(ISABus *isa_bus, qemu_irq *gsi,
 
     rtc = RTC(object_new(TYPE_RTC));
     rtc_set_base_year(rtc, 2000);
-    qdev_init_nofail(DEVICE(rtc));
     
     if (hpet) {
         hpet->rtc_irq = &rtc->irq;
+
+        /* FIXME we must init hpet before calling sysbus_mmio_map */
         qdev_init_nofail(DEVICE(hpet));
 
         sysbus_mmio_map(SYS_BUS_DEVICE(hpet), 0, HPET_BASE);
@@ -1173,16 +1175,21 @@ void pc_basic_device_init(ISABus *isa_bus, qemu_irq *gsi,
 
     qemu_register_boot_set(pc_boot_set, rtc);
 
-    *rtc_state = ISA_DEVICE(rtc);
-
     pit = PIT(object_new(TYPE_PIT));
     pit_set_iobase(pit, 0x40);
+    qdev_set_parent_bus(DEVICE(pit), BUS(isa_bus));
 
     isa_init_irq(ISA_DEVICE(pit), &irq, 0);
-    pin_connect_qemu_irq(&pit->irq, irq);
-    qdev_init_nofail(DEVICE(pit));
+    pin_connect_qemu_irq(&pit->channels[0].irq, irq);
 
-    pcspk_init(pit);
+    pc_spk = PC_SPEAKER(object_new(TYPE_PC_SPEAKER));
+    pc_spk->pit = pit;
+
+    qdev_init_nofail(DEVICE(rtc));
+    qdev_init_nofail(DEVICE(pit));
+    qdev_init_nofail(DEVICE(pc_spk));
+
+    *rtc_state = ISA_DEVICE(rtc);
 
     for(i = 0; i < MAX_SERIAL_PORTS; i++) {
         if (serial_hds[i]) {

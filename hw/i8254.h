@@ -27,36 +27,40 @@ typedef struct PITChannelState {
     /* irq handling */
     int64_t next_transition_time;
     QEMUTimer *irq_timer;
-    qemu_irq irq;
+    Pin irq;
 } PITChannelState;
 
 typedef struct PITState {
     ISADevice dev;
     MemoryRegion ioports;
-    uint32_t irq;
     uint32_t iobase;
     PITChannelState channels[3];
 } PITState;
-
-static inline ISADevice *pit_init(ISABus *bus, int base, int irq)
-{
-    ISADevice *dev;
-
-    dev = isa_create(bus, "isa-pit");
-    qdev_prop_set_uint32(&dev->qdev, "iobase", base);
-    qdev_prop_set_uint32(&dev->qdev, "irq", irq);
-    qdev_init_nofail(&dev->qdev);
-
-    return dev;
-}
 
 void pit_set_gate(PITState *pit, int channel, int val);
 int pit_get_gate(PITState *pit, int channel);
 int pit_get_initial_count(PITState *pit, int channel);
 int pit_get_mode(PITState *pit, int channel);
 int pit_get_out(PITState *pit, int channel, int64_t current_time);
+void pit_set_iobase(PITState *pit, uint32_t iobase);
 
 void hpet_pit_disable(void);
 void hpet_pit_enable(void);
+
+static inline ISADevice *pit_init(ISABus *bus, int base, int irqno)
+{
+    PITState *pit;
+    qemu_irq irq;
+
+    pit = PIT(object_new("isa-pit"));
+    pit_set_iobase(pit, base);
+
+    isa_init_irq(ISA_DEVICE(pit), &irq, irqno);
+    pin_connect_qemu_irq(&pit->channels[0].irq, irq);
+
+    qdev_init_nofail(DEVICE(pit));
+
+    return ISA_DEVICE(pit);
+}
 
 #endif

@@ -151,6 +151,11 @@ static int64_t pit_get_next_transition_time(PITChannelState *s,
     return next_time;
 }
 
+void pit_set_iobase(PITState *pit, uint32_t iobase)
+{
+    pit->iobase = iobase;
+}
+
 /* val must be 0 or 1 */
 void pit_set_gate(PITState *pit, int channel, int val)
 {
@@ -346,7 +351,7 @@ static void pit_irq_timer_update(PITChannelState *s, int64_t current_time)
         return;
     expire_time = pit_get_next_transition_time(s, current_time);
     irq_level = pit_get_out1(s, current_time);
-    qemu_set_irq(s->irq, irq_level);
+    pin_set_level(&s->irq, irq_level);
 #ifdef DEBUG_PIT
     printf("irq_level=%d next_delay=%f\n",
            irq_level,
@@ -481,15 +486,14 @@ static const MemoryRegionOps pit_ioport_ops = {
     .old_portio = pit_portio
 };
 
-static int pit_initfn(ISADevice *dev)
+static int pit_realize(ISADevice *dev)
 {
-    PITState *pit = DO_UPCAST(PITState, dev, dev);
+    PITState *pit = PIT(dev);
     PITChannelState *s;
 
     s = &pit->channels[0];
     /* the timer 0 is connected to an IRQ */
     s->irq_timer = qemu_new_timer_ns(vm_clock, pit_irq_timer, s);
-    s->irq = isa_get_irq(dev, pit->irq);
 
     memory_region_init_io(&pit->ioports, &pit_ioport_ops, pit, "pit", 4);
     isa_register_ioport(dev, &pit->ioports, pit->iobase);
@@ -499,8 +503,17 @@ static int pit_initfn(ISADevice *dev)
     return 0;
 }
 
+static void pit_initfn(Object *obj)
+{
+    PITState *pit = PIT(obj);
+
+    object_initialize(&pit->channels[0].irq, TYPE_PIN);
+    object_initialize(&pit->channels[1].irq, TYPE_PIN);
+
+    object_property_add_child(obj, "irq", OBJECT(&pit->channels[0].irq), NULL);
+}
+
 static Property pit_properties[] = {
-    DEFINE_PROP_UINT32("irq", PITState, irq,  -1),
     DEFINE_PROP_HEX32("iobase", PITState, iobase,  -1),
     DEFINE_PROP_END_OF_LIST(),
 };
@@ -509,8 +522,8 @@ static void pit_class_initfn(ObjectClass *klass, void *data)
 {
     DeviceClass *dc = DEVICE_CLASS(klass);
     ISADeviceClass *ic = ISA_DEVICE_CLASS(klass);
-    ic->init = pit_initfn;
-    dc->no_user = 1;
+
+    ic->init = pit_realize;
     dc->reset = pit_reset;
     dc->vmsd = &vmstate_pit;
     dc->props = pit_properties;
@@ -520,6 +533,7 @@ static TypeInfo pit_info = {
     .name          = TYPE_PIT,
     .parent        = TYPE_ISA_DEVICE,
     .instance_size = sizeof(PITState),
+    .instance_init = pit_initfn,
     .class_init    = pit_class_initfn,
 };
 
