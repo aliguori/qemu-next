@@ -21,10 +21,7 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#include "hw.h"
-#include "pc.h"
-#include "isa.h"
-#include "qemu-timer.h"
+#include "i8254.h"
 
 //#define DEBUG_PIT
 
@@ -32,34 +29,6 @@
 #define RW_STATE_MSB 2
 #define RW_STATE_WORD0 3
 #define RW_STATE_WORD1 4
-
-typedef struct PITChannelState {
-    int count; /* can be 65536 */
-    uint16_t latched_count;
-    uint8_t count_latched;
-    uint8_t status_latched;
-    uint8_t status;
-    uint8_t read_state;
-    uint8_t write_state;
-    uint8_t write_latch;
-    uint8_t rw_mode;
-    uint8_t mode;
-    uint8_t bcd; /* not supported */
-    uint8_t gate; /* timer start */
-    int64_t count_load_time;
-    /* irq handling */
-    int64_t next_transition_time;
-    QEMUTimer *irq_timer;
-    qemu_irq irq;
-} PITChannelState;
-
-typedef struct PITState {
-    ISADevice dev;
-    MemoryRegion ioports;
-    uint32_t irq;
-    uint32_t iobase;
-    PITChannelState channels[3];
-} PITState;
 
 static PITState pit_state;
 
@@ -123,9 +92,8 @@ static int pit_get_out1(PITChannelState *s, int64_t current_time)
     return out;
 }
 
-int pit_get_out(ISADevice *dev, int channel, int64_t current_time)
+int pit_get_out(PITState *pit, int channel, int64_t current_time)
 {
-    PITState *pit = DO_UPCAST(PITState, dev, dev);
     PITChannelState *s = &pit->channels[channel];
     return pit_get_out1(s, current_time);
 }
@@ -184,9 +152,8 @@ static int64_t pit_get_next_transition_time(PITChannelState *s,
 }
 
 /* val must be 0 or 1 */
-void pit_set_gate(ISADevice *dev, int channel, int val)
+void pit_set_gate(PITState *pit, int channel, int val)
 {
-    PITState *pit = DO_UPCAST(PITState, dev, dev);
     PITChannelState *s = &pit->channels[channel];
 
     switch(s->mode) {
@@ -216,23 +183,20 @@ void pit_set_gate(ISADevice *dev, int channel, int val)
     s->gate = val;
 }
 
-int pit_get_gate(ISADevice *dev, int channel)
+int pit_get_gate(PITState *pit, int channel)
 {
-    PITState *pit = DO_UPCAST(PITState, dev, dev);
     PITChannelState *s = &pit->channels[channel];
     return s->gate;
 }
 
-int pit_get_initial_count(ISADevice *dev, int channel)
+int pit_get_initial_count(PITState *pit, int channel)
 {
-    PITState *pit = DO_UPCAST(PITState, dev, dev);
     PITChannelState *s = &pit->channels[channel];
     return s->count;
 }
 
-int pit_get_mode(ISADevice *dev, int channel)
+int pit_get_mode(PITState *pit, int channel)
 {
-    PITState *pit = DO_UPCAST(PITState, dev, dev);
     PITChannelState *s = &pit->channels[channel];
     return s->mode;
 }
@@ -553,7 +517,7 @@ static void pit_class_initfn(ObjectClass *klass, void *data)
 }
 
 static TypeInfo pit_info = {
-    .name          = "isa-pit",
+    .name          = TYPE_PIT,
     .parent        = TYPE_ISA_DEVICE,
     .instance_size = sizeof(PITState),
     .class_init    = pit_class_initfn,

@@ -94,7 +94,7 @@ void pcspk_set_audio_enabled(PCSpkState *s, bool enable, Error **errp)
     }
 }
 
-void pcspk_get_audio_enabled(PCSpkState *s)
+bool pcspk_get_audio_enabled(PCSpkState *s)
 {
     return s->audio_enabled;
 }
@@ -158,7 +158,7 @@ static void pcspk_class_init(ObjectClass *klass, void *data)
 }
 
 static TypeInfo pcspk_type = {
-    .type = TYPE_PC_SPEAKER,
+    .name = TYPE_PC_SPEAKER,
     .parent = TYPE_ISA_DEVICE,
     .instance_init = pcspk_initfn,
     .instance_size = sizeof(PCSpkState),

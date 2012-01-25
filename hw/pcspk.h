@@ -32,9 +32,9 @@ typedef struct PCSpkState {
 } PCSpkState;
 
 void pcspk_set_audio_enabled(PCSpkState *s, bool enable, Error **errp);
-void pcspk_get_audio_enabled(PCSpkState *s);
+bool pcspk_get_audio_enabled(PCSpkState *s);
 
-static inline PCSpkState *pcspk_init(PIT *pit)
+static inline PCSpkState *pcspk_init(PITState *pit)
 {
     PCSpkState *s;
 
