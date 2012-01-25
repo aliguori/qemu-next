@@ -996,27 +996,6 @@ void pc_memory_init(MemoryRegion *system_memory,
 
     linux_boot = (kernel_filename != NULL);
 
-    /* Allocate RAM.  We allocate it as a single memory region and use
-     * aliases to address portions of it, mostly for backwards compatibility
-     * with older qemus that used qemu_ram_alloc().
-     */
-    ram = g_malloc(sizeof(*ram));
-    memory_region_init_ram(ram, "pc.ram",
-                           below_4g_mem_size + above_4g_mem_size);
-    vmstate_register_ram_global(ram);
-    *ram_memory = ram;
-    ram_below_4g = g_malloc(sizeof(*ram_below_4g));
-    memory_region_init_alias(ram_below_4g, "ram-below-4g", ram,
-                             0, below_4g_mem_size);
-    memory_region_add_subregion(system_memory, 0, ram_below_4g);
-    if (above_4g_mem_size > 0) {
-        ram_above_4g = g_malloc(sizeof(*ram_above_4g));
-        memory_region_init_alias(ram_above_4g, "ram-above-4g", ram,
-                                 below_4g_mem_size, above_4g_mem_size);
-        memory_region_add_subregion(system_memory, 0x100000000ULL,
-                                    ram_above_4g);
-    }
-
     /* BIOS load */
     if (bios_name == NULL)
         bios_name = BIOS_FILENAME;

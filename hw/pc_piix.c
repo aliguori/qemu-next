@@ -131,7 +131,6 @@ static void pc_init1(MemoryRegion *system_memory,
                      int kvmclock_enabled)
 {
     int i;
-    ram_addr_t below_4g_mem_size, above_4g_mem_size;
     PCIBus *pci_bus;
     ISABus *isa_bus;
     PCII440FXState *i440fx_state;
@@ -157,23 +156,6 @@ static void pc_init1(MemoryRegion *system_memory,
         kvmclock_create();
     }
 
-    if (ram_size >= 0xe0000000 ) {
-        above_4g_mem_size = ram_size - 0xe0000000;
-        below_4g_mem_size = 0xe0000000;
-    } else {
-        above_4g_mem_size = 0;
-        below_4g_mem_size = ram_size;
-    }
-
-    if (pci_enabled) {
-        pci_memory = g_new(MemoryRegion, 1);
-        memory_region_init(pci_memory, "pci", INT64_MAX);
-        rom_memory = pci_memory;
-    } else {
-        pci_memory = NULL;
-        rom_memory = system_memory;
-    }
-
     /* allocate ram and load rom/bios */
     if (!xen_enabled()) {
         pc_memory_init(system_memory,
@@ -194,12 +176,6 @@ static void pc_init1(MemoryRegion *system_memory,
     if (pci_enabled) {
         pci_bus = i440fx_init(&i440fx_state, &piix3_devfn, &isa_bus, gsi,
                               system_memory, system_io, ram_size,
-                              below_4g_mem_size,
-                              0x100000000ULL - below_4g_mem_size,
-                              0x100000000ULL + above_4g_mem_size,
-                              (sizeof(target_phys_addr_t) == 4
-                               ? 0
-                               : ((uint64_t)1 << 62)),
                               pci_memory, ram_memory);
     } else {
         pci_bus = NULL;
@@ -252,23 +228,13 @@ static void pc_init1(MemoryRegion *system_memory,
     if (pci_enabled) {
         PCIDevice *dev;
         if (xen_enabled()) {
-            dev = pci_piix3_xen_ide_init(pci_bus, hd, piix3_devfn + 1);
+            dev = pci_piix3_xen_ide_init(pci_bus, hd, DEVFN(1, 1));
         } else {
-            dev = pci_piix3_ide_init(pci_bus, hd, piix3_devfn + 1);
+            dev = pci_piix3_ide_init(pci_bus, hd, DEVFN(1, 1));
         }
         idebus[0] = qdev_get_child_bus(&dev->qdev, "ide.0");
         idebus[1] = qdev_get_child_bus(&dev->qdev, "ide.1");
 
-        /* FIXME there's some major spaghetti here.  Somehow we create the
-         * devices on the PIIX before we actually create it.  We create the
-         * PIIX3 deep in the recess of the i440fx creation too and then lose
-         * the DeviceState.
-         *
-         * For now, let's "fix" this by making judicious use of paths.  This
-         * is not generally the right way to do this.
-         */
-        object_property_add_child(object_resolve_path("/i440fx/piix3", NULL),
-                                  "rtc", (Object *)rtc_state, NULL);
     } else {
         for(i = 0; i < MAX_IDE_BUS; i++) {
             ISADevice *dev;
