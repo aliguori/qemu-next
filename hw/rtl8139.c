@@ -3488,6 +3488,8 @@ static int pci_rtl8139_init(PCIDevice *dev)
     s->eeprom.contents[7] = s->conf.macaddr.a[0] | s->conf.macaddr.a[1] << 8;
     s->eeprom.contents[8] = s->conf.macaddr.a[2] | s->conf.macaddr.a[3] << 8;
     s->eeprom.contents[9] = s->conf.macaddr.a[4] | s->conf.macaddr.a[5] << 8;
+    /* workaround broken windows 2008 sp2 driver. */
+    memcpy(s->phys, s->conf.macaddr.a, 6);
 
     s->nic = qemu_new_nic(&net_rtl8139_info, &s->conf,
                           object_get_typename(OBJECT(dev)), dev->qdev.id, s);
