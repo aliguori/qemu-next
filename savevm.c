@@ -2284,7 +2284,7 @@ void do_info_snapshots(Monitor *mon)
 
 void vmstate_register_ram(MemoryRegion *mr, DeviceState *dev)
 {
-    qemu_ram_set_idstr(memory_region_get_ram_addr(mr) & TARGET_PAGE_MASK,
+    qemu_ram_set_idstr(memory_region_get_ram_addr(mr) & target_get_page_mask(),
                        memory_region_name(mr), dev);
 }
 

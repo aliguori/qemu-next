@@ -328,6 +328,8 @@ hw-obj-$(CONFIG_REALLY_VIRTFS) += $(addprefix 9pfs/, $(9pfs-nested-y))
 
 common-obj-y += $(hw-obj-y)
 
+common-obj-y += savevm.o
+
 ######################################################################
 # libdis
 # NOTE: the disassembler code is only needed for debugging
