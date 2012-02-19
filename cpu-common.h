@@ -85,7 +85,6 @@ void stl_be_phys(target_phys_addr_t addr, uint32_t val);
 void stq_le_phys(target_phys_addr_t addr, uint64_t val);
 void stq_be_phys(target_phys_addr_t addr, uint64_t val);
 
-#ifdef NEED_CPU_H
 uint32_t lduw_phys(target_phys_addr_t addr);
 uint32_t ldl_phys(target_phys_addr_t addr);
 uint64_t ldq_phys(target_phys_addr_t addr);
@@ -94,7 +93,6 @@ void stq_phys_notdirty(target_phys_addr_t addr, uint64_t val);
 void stw_phys(target_phys_addr_t addr, uint32_t val);
 void stl_phys(target_phys_addr_t addr, uint32_t val);
 void stq_phys(target_phys_addr_t addr, uint64_t val);
-#endif
 
 void cpu_physical_memory_write_rom(target_phys_addr_t addr,
                                    const uint8_t *buf, int len);

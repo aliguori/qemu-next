@@ -17,7 +17,6 @@
 #include "qemu-common.h"
 #include "virtio.h"
 #include "pc.h"
-#include "cpu.h"
 #include "balloon.h"
 #include "virtio-balloon.h"
 #include "kvm.h"
@@ -26,6 +25,9 @@
 #if defined(__linux__)
 #include <sys/mman.h>
 #endif
+
+/* FIXME */
+extern ram_addr_t ram_size;
 
 typedef struct VirtIOBalloon
 {
@@ -48,7 +50,7 @@ static void balloon_page(void *addr, int deflate)
 {
 #if defined(__linux__)
     if (!kvm_enabled() || kvm_has_sync_mmu())
-        qemu_madvise(addr, TARGET_PAGE_SIZE,
+        qemu_madvise(addr, (1ULL << VIRTIO_BALLOON_PFN_SHIFT),
                 deflate ? QEMU_MADV_WILLNEED : QEMU_MADV_DONTNEED);
 #endif
 }
@@ -81,7 +83,7 @@ static void virtio_balloon_handle_output(VirtIODevice *vdev, VirtQueue *vq)
             ram_addr_t pa;
             ram_addr_t addr;
 
-            pa = (ram_addr_t)ldl_p(&pfn) << VIRTIO_BALLOON_PFN_SHIFT;
+            pa = (ram_addr_t)target_ldl(&pfn) << VIRTIO_BALLOON_PFN_SHIFT;
             offset += 4;
 
             /* FIXME: remove get_system_memory(), but how? */
@@ -120,8 +122,8 @@ static void virtio_balloon_receive_stats(VirtIODevice *vdev, VirtQueue *vq)
 
     while (iov_to_buf(elem->out_sg, elem->out_num, &stat, offset, sizeof(stat))
            == sizeof(stat)) {
-        uint16_t tag = tswap16(stat.tag);
-        uint64_t val = tswap64(stat.val);
+        uint16_t tag = target_lduw(&stat.tag);
+        uint64_t val = target_ldq(&stat.val);
 
         offset += sizeof(stat);
         if (tag < VIRTIO_BALLOON_S_NR)

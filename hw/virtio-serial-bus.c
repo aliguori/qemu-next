@@ -221,7 +221,7 @@ static size_t send_control_msg(VirtIOSerialPort *port, void *buf, size_t len)
     }
 
     cpkt = (struct virtio_console_control *)buf;
-    stl_p(&cpkt->id, port->id);
+    target_stl(&cpkt->id, port->id);
     memcpy(elem.in_sg[0].iov_base, buf, len);
 
     virtqueue_push(vq, &elem, len);
@@ -234,8 +234,8 @@ static size_t send_control_event(VirtIOSerialPort *port, uint16_t event,
 {
     struct virtio_console_control cpkt;
 
-    stw_p(&cpkt.event, event);
-    stw_p(&cpkt.value, value);
+    target_stw(&cpkt.event, event);
+    target_stw(&cpkt.value, value);
 
     trace_virtio_serial_send_control_event(port->id, event, value);
     return send_control_msg(port, &cpkt, sizeof(cpkt));
@@ -343,8 +343,8 @@ static void handle_control_message(VirtIOSerial *vser, void *buf, size_t len)
         return;
     }
 
-    cpkt.event = lduw_p(&gcpkt->event);
-    cpkt.value = lduw_p(&gcpkt->value);
+    cpkt.event = target_lduw(&gcpkt->event);
+    cpkt.value = target_lduw(&gcpkt->value);
 
     trace_virtio_serial_handle_control_message(cpkt.event, cpkt.value);
 
@@ -364,10 +364,10 @@ static void handle_control_message(VirtIOSerial *vser, void *buf, size_t len)
         return;
     }
 
-    port = find_port_by_id(vser, ldl_p(&gcpkt->id));
+    port = find_port_by_id(vser, target_ldl(&gcpkt->id));
     if (!port) {
         error_report("virtio-serial-bus: Unexpected port id %u for device %s",
-                     ldl_p(&gcpkt->id), vser->bus.qbus.name);
+                     target_ldl(&gcpkt->id), vser->bus.qbus.name);
         return;
     }
 
@@ -394,8 +394,8 @@ static void handle_control_message(VirtIOSerial *vser, void *buf, size_t len)
         }
 
         if (port->name) {
-            stw_p(&cpkt.event, VIRTIO_CONSOLE_PORT_NAME);
-            stw_p(&cpkt.value, 1);
+            target_stw(&cpkt.event, VIRTIO_CONSOLE_PORT_NAME);
+            target_stw(&cpkt.value, 1);
 
             buffer_len = sizeof(cpkt) + strlen(port->name) + 1;
             buffer = g_malloc(buffer_len);
@@ -545,7 +545,7 @@ static void virtio_serial_save(QEMUFile *f, void *opaque)
     qemu_put_be32s(f, &s->config.max_nr_ports);
 
     /* The ports map */
-    max_nr_ports = tswap32(s->config.max_nr_ports);
+    max_nr_ports = target_ldl(&s->config.max_nr_ports);
     for (i = 0; i < (max_nr_ports + 31) / 32; i++) {
         qemu_put_be32s(f, &s->ports_map[i]);
     }
@@ -607,8 +607,8 @@ static int virtio_serial_load(QEMUFile *f, void *opaque, int version_id)
     qemu_get_be16s(f, &s->config.rows);
 
     qemu_get_be32s(f, &max_nr_ports);
-    tswap32s(&max_nr_ports);
-    if (max_nr_ports > tswap32(s->config.max_nr_ports)) {
+    max_nr_ports = target_ldl(&max_nr_ports);
+    if (max_nr_ports > target_ldl(&s->config.max_nr_ports)) {
         /* Source could have had more ports than us. Fail migration. */
         return -EINVAL;
     }
@@ -704,7 +704,7 @@ static uint32_t find_free_port_id(VirtIOSerial *vser)
 {
     unsigned int i, max_nr_ports;
 
-    max_nr_ports = tswap32(vser->config.max_nr_ports);
+    max_nr_ports = target_ldl(&vser->config.max_nr_ports);
     for (i = 0; i < (max_nr_ports + 31) / 32; i++) {
         uint32_t map, bit;
 
@@ -786,7 +786,7 @@ static int virtser_port_qdev_init(DeviceState *qdev)
         }
     }
 
-    max_nr_ports = tswap32(port->vser->config.max_nr_ports);
+    max_nr_ports = target_ldl(&port->vser->config.max_nr_ports);
     if (port->id >= max_nr_ports) {
         error_report("virtio-serial-bus: Out-of-range port id specified, max. allowed: %u",
                      max_nr_ports - 1);
@@ -893,7 +893,7 @@ VirtIODevice *virtio_serial_init(DeviceState *dev, virtio_serial_conf *conf)
         vser->ovqs[i] = virtio_add_queue(vdev, 128, handle_output);
     }
 
-    vser->config.max_nr_ports = tswap32(conf->max_virtserial_ports);
+    vser->config.max_nr_ports = target_ldl(&conf->max_virtserial_ports);
     vser->ports_map = g_malloc0(((conf->max_virtserial_ports + 31) / 32)
         * sizeof(vser->ports_map[0]));
     /*

@@ -79,7 +79,7 @@ static void virtio_net_get_config(VirtIODevice *vdev, uint8_t *config)
     VirtIONet *n = to_virtio_net(vdev);
     struct virtio_net_config netcfg;
 
-    stw_p(&netcfg.status, n->status);
+    target_stw(&netcfg.status, n->status);
     memcpy(netcfg.mac, n->mac, ETH_ALEN);
     memcpy(config, &netcfg, sizeof(netcfg));
 }
@@ -343,7 +343,7 @@ static int virtio_net_handle_mac(VirtIONet *n, uint8_t cmd,
     n->mac_table.multi_overflow = 0;
     memset(n->mac_table.macs, 0, MAC_TABLE_ENTRIES * ETH_ALEN);
 
-    mac_data.entries = ldl_p(elem->out_sg[1].iov_base);
+    mac_data.entries = target_ldl(elem->out_sg[1].iov_base);
 
     if (sizeof(mac_data.entries) +
         (mac_data.entries * ETH_ALEN) > elem->out_sg[1].iov_len)
@@ -359,7 +359,7 @@ static int virtio_net_handle_mac(VirtIONet *n, uint8_t cmd,
 
     n->mac_table.first_multi = n->mac_table.in_use;
 
-    mac_data.entries = ldl_p(elem->out_sg[2].iov_base);
+    mac_data.entries = target_ldl(elem->out_sg[2].iov_base);
 
     if (sizeof(mac_data.entries) +
         (mac_data.entries * ETH_ALEN) > elem->out_sg[2].iov_len)
@@ -389,7 +389,7 @@ static int virtio_net_handle_vlan_table(VirtIONet *n, uint8_t cmd,
         return VIRTIO_NET_ERR;
     }
 
-    vid = lduw_p(elem->out_sg[1].iov_base);
+    vid = target_lduw(elem->out_sg[1].iov_base);
 
     if (vid >= MAX_VLAN)
         return VIRTIO_NET_ERR;
@@ -423,8 +423,8 @@ static void virtio_net_handle_ctrl(VirtIODevice *vdev, VirtQueue *vq)
             exit(1);
         }
 
-        ctrl.class = ldub_p(elem.out_sg[0].iov_base);
-        ctrl.cmd = ldub_p(elem.out_sg[0].iov_base + sizeof(ctrl.class));
+        ctrl.class = target_ldub(elem.out_sg[0].iov_base);
+        ctrl.cmd = target_ldub(elem.out_sg[0].iov_base + sizeof(ctrl.class));
 
         if (ctrl.class == VIRTIO_NET_CTRL_RX_MODE)
             status = virtio_net_handle_rx_mode(n, ctrl.cmd, &elem);
@@ -433,7 +433,7 @@ static void virtio_net_handle_ctrl(VirtIODevice *vdev, VirtQueue *vq)
         else if (ctrl.class == VIRTIO_NET_CTRL_VLAN)
             status = virtio_net_handle_vlan_table(n, ctrl.cmd, &elem);
 
-        stb_p(elem.in_sg[elem.in_num - 1].iov_base, status);
+        target_stb(elem.in_sg[elem.in_num - 1].iov_base, status);
 
         virtqueue_push(vq, &elem, sizeof(status));
         virtio_notify(vdev, vq);
@@ -679,7 +679,7 @@ static ssize_t virtio_net_receive(VLANClientState *nc, const uint8_t *buf, size_
     }
 
     if (mhdr) {
-        stw_p(&mhdr->num_buffers, i);
+        target_stw(&mhdr->num_buffers, i);
     }
 
     virtqueue_flush(n->rx_vq, i);
