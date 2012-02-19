@@ -730,3 +730,43 @@ int xen_available(void)
     return 0;
 #endif
 }
+
+uint8_t target_ldub(void *data)
+{
+    return ldub_raw(data);
+}
+
+uint16_t target_lduw(void *data)
+{
+    return lduw_raw(data);
+}
+
+uint32_t target_ldl(void *data)
+{
+    return ldl_raw(data);
+}
+
+uint64_t target_ldq(void *data)
+{
+    return ldq_raw(data);
+}
+
+void target_stb(void *data, uint8_t value)
+{
+    stb_raw(data, value);
+}
+
+void target_stw(void *data, uint16_t value)
+{
+    stw_raw(data, value);
+}
+
+void target_stl(void *data, uint32_t value)
+{
+    stl_raw(data, value);
+}
+
+void target_stq(void *data, uint64_t value)
+{
+    stq_raw(data, value);
+}
