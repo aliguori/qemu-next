@@ -28,14 +28,12 @@
 #include "kvm.h"
 #include "bswap.h"
 #include "memory.h"
+#include "arch_init.h"
 
 /* This check must be after config-host.h is included */
 #ifdef CONFIG_EVENTFD
 #include <sys/eventfd.h>
 #endif
-
-/* KVM uses PAGE_SIZE in it's definition of COALESCED_MMIO_MAX */
-#define PAGE_SIZE TARGET_PAGE_SIZE
 
 //#define DEBUG_KVM
 
@@ -46,6 +44,8 @@
 #define DPRINTF(fmt, ...) \
     do { } while (0)
 #endif
+
+#define PAGE_SIZE (target_get_page_size())
 
 typedef struct KVMSlot
 {
@@ -233,7 +233,7 @@ int kvm_init_vcpu(CPUState *env)
 
     if (s->coalesced_mmio && !s->coalesced_mmio_ring) {
         s->coalesced_mmio_ring =
-            (void *)env->kvm_run + s->coalesced_mmio * PAGE_SIZE;
+            (void *)env->kvm_run + s->coalesced_mmio * target_get_page_size();
     }
 
     ret = kvm_arch_init_vcpu(env);
@@ -348,7 +348,7 @@ static int kvm_get_dirty_pages_log_range(MemoryRegionSection *section,
     unsigned int i, j;
     unsigned long page_number, c;
     target_phys_addr_t addr, addr1;
-    unsigned int len = ((section->size / TARGET_PAGE_SIZE) + HOST_LONG_BITS - 1) / HOST_LONG_BITS;
+    unsigned int len = ((section->size / target_get_page_size()) + HOST_LONG_BITS - 1) / HOST_LONG_BITS;
 
     /*
      * bitmap-traveling is faster than memory-traveling (for addr...)
@@ -361,9 +361,9 @@ static int kvm_get_dirty_pages_log_range(MemoryRegionSection *section,
                 j = ffsl(c) - 1;
                 c &= ~(1ul << j);
                 page_number = i * HOST_LONG_BITS + j;
-                addr1 = page_number * TARGET_PAGE_SIZE;
+                addr1 = page_number * target_get_page_size();
                 addr = section->offset_within_region + addr1;
-                memory_region_set_dirty(section->mr, addr, TARGET_PAGE_SIZE);
+                memory_region_set_dirty(section->mr, addr, target_get_page_size());
             } while (c != 0);
         }
     }
@@ -410,7 +410,7 @@ static int kvm_physical_sync_dirty_bitmap(MemoryRegionSection *section)
          * So for now, let's align to 64 instead of HOST_LONG_BITS here, in
          * a hope that sizeof(long) wont become >8 any time soon.
          */
-        size = ALIGN(((mem->memory_size) >> TARGET_PAGE_BITS),
+        size = ALIGN(((mem->memory_size) >> target_get_page_bits()),
                      /*HOST_LONG_BITS*/ 64) / 8;
         if (!d.dirty_bitmap) {
             d.dirty_bitmap = g_malloc(size);
@@ -544,8 +544,8 @@ static void kvm_set_phys_mem(MemoryRegionSection *section, bool add)
 
     /* kvm works in page size chunks, but the function may be called
        with sub-page size and unaligned start address. */
-    size = TARGET_PAGE_ALIGN(size);
-    start_addr = TARGET_PAGE_ALIGN(start_addr);
+    size = target_page_align(size);
+    start_addr = target_page_align(start_addr);
 
     if (!memory_region_is_ram(mr)) {
         return;
@@ -624,11 +624,11 @@ static void kvm_set_phys_mem(MemoryRegionSection *section, bool add)
             if (err) {
                 fprintf(stderr, "%s: error registering prefix slot: %s\n",
                         __func__, strerror(-err));
-#ifdef TARGET_PPC
-                fprintf(stderr, "%s: This is probably because your kernel's " \
-                                "PAGE_SIZE is too big. Please try to use 4k " \
-                                "PAGE_SIZE!\n", __func__);
-#endif
+                if (arch_type == QEMU_ARCH_PPC) {
+                    fprintf(stderr, "%s: This is probably because your kernel's " \
+                            "PAGE_SIZE is too big. Please try to use 4k " \
+                            "PAGE_SIZE!\n", __func__);
+                }
                 abort();
             }
         }
@@ -907,10 +907,10 @@ int kvm_init(void)
 
     s->vmfd = kvm_ioctl(s, KVM_CREATE_VM, 0);
     if (s->vmfd < 0) {
-#ifdef TARGET_S390X
-        fprintf(stderr, "Please add the 'switch_amode' kernel parameter to "
-                        "your host kernel command line\n");
-#endif
+        if (arch_type == QEMU_ARCH_S390X) {
+            fprintf(stderr, "Please add the 'switch_amode' kernel parameter to "
+                    "your host kernel command line\n");
+        }
         ret = s->vmfd;
         goto err;
     }

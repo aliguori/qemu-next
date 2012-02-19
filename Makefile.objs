@@ -334,6 +334,7 @@ hw-obj-$(CONFIG_REALLY_VIRTFS) += $(addprefix 9pfs/, $(9pfs-nested-y))
 common-obj-y += $(hw-obj-y)
 
 common-obj-y += savevm.o balloon.o ioport.o
+common-obj-$(CONFIG_KVM) += kvm-all.o
 
 ######################################################################
 # libdis
