@@ -22,4 +22,13 @@ target_phys_addr_t target_get_page_size(void);
 
 bool target_is_bigendian(void);
 
+static inline bool host_is_bigendian(void)
+{
+#if defined(HOST_WORDS_BIGENDIAN)
+    return true;
+#else
+    return false;
+#endif
+}
+
 #endif
