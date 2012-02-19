@@ -780,3 +780,12 @@ target_phys_addr_t target_get_page_size(void)
 {
     return TARGET_PAGE_SIZE;
 }
+
+bool target_is_bigendian(void)
+{
+#if defined(TARGET_WORDS_BIGENDIAN)
+    return true;
+#else
+    return false;
+#endif
+}
