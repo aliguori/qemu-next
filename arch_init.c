@@ -789,3 +789,13 @@ bool target_is_bigendian(void)
     return false;
 #endif
 }
+
+target_phys_addr_t target_get_page_bits(void)
+{
+    return TARGET_PAGE_BITS;
+}
+
+target_phys_addr_t target_page_align(target_phys_addr_t addr)
+{
+    return TARGET_PAGE_ALIGN(addr);
+}

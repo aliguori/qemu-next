@@ -21,6 +21,8 @@ void target_stq(void *data, uint64_t value);
 
 target_phys_addr_t target_get_page_mask(void);
 target_phys_addr_t target_get_page_size(void);
+target_phys_addr_t target_get_page_bits(void);
+target_phys_addr_t target_page_align(target_phys_addr_t addr);
 
 bool target_is_bigendian(void);
 
