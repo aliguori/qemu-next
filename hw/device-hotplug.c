@@ -29,6 +29,7 @@
 #include "qemu-config.h"
 #include "sysemu.h"
 #include "monitor.h"
+#include "arch_init.h"
 
 DriveInfo *add_init_drive(const char *optstr)
 {
@@ -47,16 +48,6 @@ DriveInfo *add_init_drive(const char *optstr)
 
     return dinfo;
 }
-
-#if !defined(TARGET_I386)
-int pci_drive_hot_add(Monitor *mon, const QDict *qdict,
-                      DriveInfo *dinfo, int type)
-{
-    /* On non-x86 we don't do PCI hotplug */
-    monitor_printf(mon, "Can't hot-add drive to type %d\n", type);
-    return -1;
-}
-#endif
 
 void drive_hot_add(Monitor *mon, const QDict *qdict)
 {
@@ -79,8 +70,13 @@ void drive_hot_add(Monitor *mon, const QDict *qdict)
         monitor_printf(mon, "OK\n");
         break;
     default:
-        if (pci_drive_hot_add(mon, qdict, dinfo, type)) {
+        if (arch_type != QEMU_ARCH_I386) {
+            monitor_printf(mon, "Can't hot-add drive to type %d\n", type);
             goto err;
+        } else {
+            if (pci_drive_hot_add(mon, qdict, dinfo, type)) {
+                goto err;
+            }
         }
     }
     return;

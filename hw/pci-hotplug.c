@@ -33,7 +33,6 @@
 #include "qemu-config.h"
 #include "blockdev.h"
 
-#if defined(TARGET_I386)
 static PCIDevice *qemu_pci_hot_add_nic(Monitor *mon,
                                        const char *devaddr,
                                        const char *opts_str)
@@ -251,7 +250,6 @@ void pci_device_hot_add(Monitor *mon, const QDict *qdict)
     } else
         monitor_printf(mon, "failed to add %s\n", opts);
 }
-#endif
 
 static int pci_device_hot_remove(Monitor *mon, const char *pci_addr)
 {

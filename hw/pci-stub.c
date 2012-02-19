@@ -45,3 +45,9 @@ void pcie_aer_inject_error_print(Monitor *mon, const QObject *data)
 {
     pci_error_message(mon);
 }
+
+int pci_drive_hot_add(Monitor *mon, const QDict *qdict,
+                      DriveInfo *dinfo, int type)
+{
+    return -1;
+}
