@@ -30,6 +30,7 @@
 #include "pixel_ops.h"
 #include "qemu-timer.h"
 #include "xen.h"
+#include "arch_init.h"
 
 //#define DEBUG_VGA
 //#define DEBUG_VGA_MEM
@@ -1668,18 +1669,18 @@ static void vga_draw_graphic(VGACommonState *s, int full_update)
         disp_width != s->last_width ||
         height != s->last_height ||
         s->last_depth != depth) {
-#if defined(HOST_WORDS_BIGENDIAN) == defined(TARGET_WORDS_BIGENDIAN)
-        if (depth == 16 || depth == 32) {
-#else
-        if (depth == 32) {
-#endif
+
+        if (((host_is_bigendian() == target_is_bigendian()) && depth == 16) ||
+             depth == 32) {
             qemu_free_displaysurface(s->ds);
-            s->ds->surface = qemu_create_displaysurface_from(disp_width, height, depth,
-                    s->line_offset,
-                    s->vram_ptr + (s->start_addr * 4));
-#if defined(HOST_WORDS_BIGENDIAN) != defined(TARGET_WORDS_BIGENDIAN)
-            s->ds->surface->pf = qemu_different_endianness_pixelformat(depth);
-#endif
+            s->ds->surface = qemu_create_displaysurface_from(disp_width,
+                                                             height, depth,
+                                                             s->line_offset,
+                                                             s->vram_ptr +
+                                                             (s->start_addr * 4));
+            if (host_is_bigendian() == target_is_bigendian()) {
+                s->ds->surface->pf = qemu_different_endianness_pixelformat(depth);
+            }
             dpy_resize(s->ds);
         } else {
             qemu_console_resize(s->ds, disp_width, height);
@@ -2292,11 +2293,14 @@ static const MemoryRegionPortio vga_portio_list[] = {
 #ifdef CONFIG_BOCHS_VBE
 static const MemoryRegionPortio vbe_portio_list[] = {
     { 0, 1, 2, .read = vbe_ioport_read_index, .write = vbe_ioport_write_index },
-# ifdef TARGET_I386
-    { 1, 1, 2, .read = vbe_ioport_read_data, .write = vbe_ioport_write_data },
-# else
     { 2, 1, 2, .read = vbe_ioport_read_data, .write = vbe_ioport_write_data },
-# endif
+    PORTIO_END_OF_LIST(),
+};
+
+static const MemoryRegionPortio vbe_portio_list_i386[] = {
+    { 0, 1, 2, .read = vbe_ioport_read_index, .write = vbe_ioport_write_index },
+    { 1, 1, 2, .read = vbe_ioport_read_data, .write = vbe_ioport_write_data },
+    { 2, 1, 2, .read = vbe_ioport_read_data, .write = vbe_ioport_write_data },
     PORTIO_END_OF_LIST(),
 };
 #endif /* CONFIG_BOCHS_VBE */
@@ -2307,11 +2311,18 @@ MemoryRegion *vga_init_io(VGACommonState *s,
                           const MemoryRegionPortio **vbe_ports)
 {
     MemoryRegion *vga_mem;
+    const MemoryRegionPortio *ports;
+
+    if (arch_type == QEMU_ARCH_I386) {
+        ports = vbe_portio_list_i386;
+    } else {
+        ports = vbe_portio_list;
+    }
 
     *vga_ports = vga_portio_list;
     *vbe_ports = NULL;
 #ifdef CONFIG_BOCHS_VBE
-    *vbe_ports = vbe_portio_list;
+    *vbe_ports = ports;
 #endif
 
     vga_mem = g_malloc(sizeof(*vga_mem));

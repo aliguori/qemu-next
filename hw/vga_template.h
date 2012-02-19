@@ -351,15 +351,17 @@ static void glue(vga_draw_line8_, DEPTH)(VGACommonState *s1, uint8_t *d,
 static void glue(vga_draw_line15_, PIXEL_NAME)(VGACommonState *s1, uint8_t *d,
                                           const uint8_t *s, int width)
 {
-#if DEPTH == 15 && defined(HOST_WORDS_BIGENDIAN) == defined(TARGET_WORDS_BIGENDIAN)
-    memcpy(d, s, width * 2);
+#if DEPTH == 15
+    if (host_is_bigendian() == target_is_bigendian()) {
+        memcpy(d, s, width * 2);
+    } else {
 #else
     int w;
     uint32_t v, r, g, b;
 
     w = width;
     do {
-        v = lduw_raw((void *)s);
+        v = target_lduw((void *)s); /* is this right? */
         r = (v >> 7) & 0xf8;
         g = (v >> 2) & 0xf8;
         b = (v << 3) & 0xf8;
@@ -367,6 +369,9 @@ static void glue(vga_draw_line15_, PIXEL_NAME)(VGACommonState *s1, uint8_t *d,
         s += 2;
         d += BPP;
     } while (--w != 0);
+#endif
+#if DEPTH == 15
+    }
 #endif
 }
 
@@ -376,15 +381,17 @@ static void glue(vga_draw_line15_, PIXEL_NAME)(VGACommonState *s1, uint8_t *d,
 static void glue(vga_draw_line16_, PIXEL_NAME)(VGACommonState *s1, uint8_t *d,
                                           const uint8_t *s, int width)
 {
-#if DEPTH == 16 && defined(HOST_WORDS_BIGENDIAN) == defined(TARGET_WORDS_BIGENDIAN)
-    memcpy(d, s, width * 2);
+#if DEPTH == 16
+    if (host_is_bigendian() == target_is_bigendian()) {
+        memcpy(d, s, width * 2);
+    } else {
 #else
     int w;
     uint32_t v, r, g, b;
 
     w = width;
     do {
-        v = lduw_raw((void *)s);
+        v = target_lduw((void *)s); /* is this right? */
         r = (v >> 8) & 0xf8;
         g = (v >> 3) & 0xfc;
         b = (v << 3) & 0xf8;
@@ -392,6 +399,9 @@ static void glue(vga_draw_line16_, PIXEL_NAME)(VGACommonState *s1, uint8_t *d,
         s += 2;
         d += BPP;
     } while (--w != 0);
+#endif
+#if DEPTH == 16
+    }
 #endif
 }
 
@@ -406,15 +416,15 @@ static void glue(vga_draw_line24_, PIXEL_NAME)(VGACommonState *s1, uint8_t *d,
 
     w = width;
     do {
-#if defined(TARGET_WORDS_BIGENDIAN)
-        r = s[0];
-        g = s[1];
-        b = s[2];
-#else
-        b = s[0];
-        g = s[1];
-        r = s[2];
-#endif
+        if (target_is_bigendian()) {
+            r = s[0];
+            g = s[1];
+            b = s[2];
+        } else {
+            b = s[0];
+            g = s[1];
+            r = s[2];
+        }
         ((PIXEL_TYPE *)d)[0] = glue(rgb_to_pixel, PIXEL_NAME)(r, g, b);
         s += 3;
         d += BPP;
@@ -427,27 +437,32 @@ static void glue(vga_draw_line24_, PIXEL_NAME)(VGACommonState *s1, uint8_t *d,
 static void glue(vga_draw_line32_, PIXEL_NAME)(VGACommonState *s1, uint8_t *d,
                                           const uint8_t *s, int width)
 {
-#if DEPTH == 32 && defined(HOST_WORDS_BIGENDIAN) == defined(TARGET_WORDS_BIGENDIAN) && !defined(BGR_FORMAT)
-    memcpy(d, s, width * 4);
+#if DEPTH == 32 && !defined(BGR_FORMAT)
+    if (host_is_bigendian() == target_is_bigendian()) {
+        memcpy(d, s, width * 4);
+    } else {
 #else
     int w;
     uint32_t r, g, b;
 
     w = width;
     do {
-#if defined(TARGET_WORDS_BIGENDIAN)
-        r = s[1];
-        g = s[2];
-        b = s[3];
-#else
-        b = s[0];
-        g = s[1];
-        r = s[2];
-#endif
+        if (target_is_bigendian()) {
+            r = s[1];
+            g = s[2];
+            b = s[3];
+        } else {
+            b = s[0];
+            g = s[1];
+            r = s[2];
+        }
         ((PIXEL_TYPE *)d)[0] = glue(rgb_to_pixel, PIXEL_NAME)(r, g, b);
         s += 4;
         d += BPP;
     } while (--w != 0);
+#endif
+#if DEPTH == 32 && !defined(BGR_FORMAT)
+    }
 #endif
 }
 

@@ -301,6 +301,7 @@ hw-obj-$(CONFIG_RC4030) += rc4030.o
 hw-obj-$(CONFIG_DP8393X) += dp8393x.o
 hw-obj-$(CONFIG_DS1225Y) += ds1225y.o
 hw-obj-$(CONFIG_MIPSNET) += mipsnet.o
+hw-obj-$(CONFIG_VGA) += vga.o
 
 # Sound
 sound-obj-y =
