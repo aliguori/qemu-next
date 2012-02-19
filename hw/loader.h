@@ -1,6 +1,9 @@
 #ifndef LOADER_H
 #define LOADER_H
 
+#include "hw.h"
+#include "targphys.h"
+
 /* loader.c */
 int get_image_size(const char *filename);
 int load_image(const char *filename, uint8_t *addr); /* deprecated */

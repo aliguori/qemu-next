@@ -306,6 +306,7 @@ hw-obj-$(CONFIG_VGA) += vga.o
 hw-obj-$(CONFIG_PCI) += pci-hotplug.o
 hw-obj-y += device-hotplug.o
 
+hw-obj-y += sga.o smbios.o wdt_ib700.o debugcon.o multiboot.o
 
 # Sound
 sound-obj-y =

@@ -28,6 +28,7 @@
 #include "loader.h"
 #include "elf.h"
 #include "sysemu.h"
+#include "arch_init.h"
 
 /* Show multiboot debug output */
 //#define DEBUG_MULTIBOOT
@@ -95,6 +96,9 @@ typedef struct {
     int mb_mods_count;
 } MultibootState;
 
+/* FIXME */
+extern ram_addr_t ram_size;
+
 static uint32_t mb_add_cmdline(MultibootState *s, const char *cmdline)
 {
     target_phys_addr_t p = s->offset_cmdlines;
@@ -114,9 +118,9 @@ static void mb_add_mod(MultibootState *s,
 
     p = (char *)s->mb_buf + s->offset_mbinfo + MB_MOD_SIZE * s->mb_mods_count;
 
-    stl_p(p + MB_MOD_START,   start);
-    stl_p(p + MB_MOD_END,     end);
-    stl_p(p + MB_MOD_CMDLINE, cmdline_phys);
+    target_stl(p + MB_MOD_START,   start);
+    target_stl(p + MB_MOD_END,     end);
+    target_stl(p + MB_MOD_CMDLINE, cmdline_phys);
 
     mb_debug("mod%02d: "TARGET_FMT_plx" - "TARGET_FMT_plx"\n",
              s->mb_mods_count, start, end);
@@ -144,9 +148,9 @@ int load_multiboot(void *fw_cfg,
     /* Ok, let's see if it is a multiboot image.
        The header is 12x32bit long, so the latest entry may be 8192 - 48. */
     for (i = 0; i < (8192 - 48); i += 4) {
-        if (ldl_p(header+i) == 0x1BADB002) {
-            uint32_t checksum = ldl_p(header+i+8);
-            flags = ldl_p(header+i+4);
+        if (target_ldl(header+i) == 0x1BADB002) {
+            uint32_t checksum = target_ldl(header+i+8);
+            flags = target_ldl(header+i+4);
             checksum += flags;
             checksum += (uint32_t)0x1BADB002;
             if (!checksum) {
@@ -178,7 +182,7 @@ int load_multiboot(void *fw_cfg,
         }
 
         kernel_size = load_elf(kernel_filename, NULL, NULL, &elf_entry,
-                               &elf_low, &elf_high, 0, ELF_MACHINE, 0);
+                               &elf_low, &elf_high, 0, elf_machine_type(), 0);
         if (kernel_size < 0) {
             fprintf(stderr, "Error while loading elf kernel\n");
             exit(1);
@@ -197,21 +201,21 @@ int load_multiboot(void *fw_cfg,
                   mb_kernel_size, (size_t)mh_entry_addr);
     } else {
         /* Valid if mh_flags sets MULTIBOOT_HEADER_HAS_ADDR. */
-        uint32_t mh_header_addr = ldl_p(header+i+12);
-        uint32_t mh_load_end_addr = ldl_p(header+i+20);
-        uint32_t mh_bss_end_addr = ldl_p(header+i+24);
-        mh_load_addr = ldl_p(header+i+16);
+        uint32_t mh_header_addr = target_ldl(header+i+12);
+        uint32_t mh_load_end_addr = target_ldl(header+i+20);
+        uint32_t mh_bss_end_addr = target_ldl(header+i+24);
+        mh_load_addr = target_ldl(header+i+16);
         uint32_t mb_kernel_text_offset = i - (mh_header_addr - mh_load_addr);
         uint32_t mb_load_size = mh_load_end_addr - mh_load_addr;
 
-        mh_entry_addr = ldl_p(header+i+28);
+        mh_entry_addr = target_ldl(header+i+28);
         mb_kernel_size = mh_bss_end_addr - mh_load_addr;
 
         /* Valid if mh_flags sets MULTIBOOT_HEADER_HAS_VBE.
-        uint32_t mh_mode_type = ldl_p(header+i+32);
-        uint32_t mh_width = ldl_p(header+i+36);
-        uint32_t mh_height = ldl_p(header+i+40);
-        uint32_t mh_depth = ldl_p(header+i+44); */
+        uint32_t mh_mode_type = target_ldl(header+i+32);
+        uint32_t mh_width = target_ldl(header+i+36);
+        uint32_t mh_height = target_ldl(header+i+40);
+        uint32_t mh_depth = target_ldl(header+i+44); */
 
         mb_debug("multiboot: mh_header_addr = %#x\n", mh_header_addr);
         mb_debug("multiboot: mh_load_addr = %#x\n", mh_load_addr);
@@ -232,7 +236,7 @@ int load_multiboot(void *fw_cfg,
 
     mbs.mb_buf_phys = mh_load_addr;
 
-    mbs.mb_buf_size = TARGET_PAGE_ALIGN(mb_kernel_size);
+    mbs.mb_buf_size = target_page_align(mb_kernel_size);
     mbs.offset_mbinfo = mbs.mb_buf_size;
 
     /* Calculate space for cmdlines and mb_mods */
@@ -249,7 +253,7 @@ int load_multiboot(void *fw_cfg,
         mbs.mb_buf_size += MB_MOD_SIZE * mbs.mb_mods_avail;
     }
 
-    mbs.mb_buf_size = TARGET_PAGE_ALIGN(mbs.mb_buf_size);
+    mbs.mb_buf_size = target_page_align(mbs.mb_buf_size);
 
     /* enlarge mb_buf to hold cmdlines and mb-info structs */
     mbs.mb_buf          = g_realloc(mbs.mb_buf, mbs.mb_buf_size);
@@ -280,7 +284,7 @@ int load_multiboot(void *fw_cfg,
                 exit(1);
             }
 
-            mbs.mb_buf_size = TARGET_PAGE_ALIGN(mb_mod_length + mbs.mb_buf_size);
+            mbs.mb_buf_size = target_page_align(mb_mod_length + mbs.mb_buf_size);
             mbs.mb_buf = g_realloc(mbs.mb_buf, mbs.mb_buf_size);
 
             load_image(initrd_filename, (unsigned char *)mbs.mb_buf + offs);
@@ -298,21 +302,21 @@ int load_multiboot(void *fw_cfg,
     char kcmdline[strlen(kernel_filename) + strlen(kernel_cmdline) + 2];
     snprintf(kcmdline, sizeof(kcmdline), "%s %s",
              kernel_filename, kernel_cmdline);
-    stl_p(bootinfo + MBI_CMDLINE, mb_add_cmdline(&mbs, kcmdline));
+    target_stl(bootinfo + MBI_CMDLINE, mb_add_cmdline(&mbs, kcmdline));
 
-    stl_p(bootinfo + MBI_MODS_ADDR,  mbs.mb_buf_phys + mbs.offset_mbinfo);
-    stl_p(bootinfo + MBI_MODS_COUNT, mbs.mb_mods_count); /* mods_count */
+    target_stl(bootinfo + MBI_MODS_ADDR,  mbs.mb_buf_phys + mbs.offset_mbinfo);
+    target_stl(bootinfo + MBI_MODS_COUNT, mbs.mb_mods_count); /* mods_count */
 
     /* the kernel is where we want it to be now */
-    stl_p(bootinfo + MBI_FLAGS, MULTIBOOT_FLAGS_MEMORY
+    target_stl(bootinfo + MBI_FLAGS, MULTIBOOT_FLAGS_MEMORY
                                 | MULTIBOOT_FLAGS_BOOT_DEVICE
                                 | MULTIBOOT_FLAGS_CMDLINE
                                 | MULTIBOOT_FLAGS_MODULES
                                 | MULTIBOOT_FLAGS_MMAP);
-    stl_p(bootinfo + MBI_MEM_LOWER,   640);
-    stl_p(bootinfo + MBI_MEM_UPPER,   (ram_size / 1024) - 1024);
-    stl_p(bootinfo + MBI_BOOT_DEVICE, 0x8000ffff); /* XXX: use the -boot switch? */
-    stl_p(bootinfo + MBI_MMAP_ADDR,   ADDR_E820_MAP);
+    target_stl(bootinfo + MBI_MEM_LOWER,   640);
+    target_stl(bootinfo + MBI_MEM_UPPER,   (ram_size / 1024) - 1024);
+    target_stl(bootinfo + MBI_BOOT_DEVICE, 0x8000ffff); /* XXX: use the -boot switch? */
+    target_stl(bootinfo + MBI_MMAP_ADDR,   ADDR_E820_MAP);
 
     mb_debug("multiboot: mh_entry_addr = %#x\n", mh_entry_addr);
     mb_debug("           mb_buf_phys   = "TARGET_FMT_plx"\n", mbs.mb_buf_phys);

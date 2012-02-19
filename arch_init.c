@@ -43,6 +43,7 @@
 #include "hw/smbios.h"
 #include "exec-memory.h"
 #include "hw/pcspk.h"
+#include "elf.h"
 
 #ifdef TARGET_SPARC
 int graphic_width = 1024;
@@ -798,4 +799,9 @@ target_phys_addr_t target_get_page_bits(void)
 target_phys_addr_t target_page_align(target_phys_addr_t addr)
 {
     return TARGET_PAGE_ALIGN(addr);
+}
+
+int elf_machine_type(void)
+{
+    return ELF_MACHINE;
 }

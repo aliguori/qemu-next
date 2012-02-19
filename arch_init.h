@@ -32,4 +32,6 @@ int tcg_available(void);
 int kvm_available(void);
 int xen_available(void);
 
+int elf_machine_type(void);
+
 #endif
