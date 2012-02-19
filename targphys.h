@@ -17,4 +17,7 @@ void target_stw(void *data, uint16_t value);
 void target_stl(void *data, uint32_t value);
 void target_stq(void *data, uint64_t value);
 
+target_phys_addr_t target_get_page_mask(void);
+target_phys_addr_t target_get_page_size(void);
+
 #endif

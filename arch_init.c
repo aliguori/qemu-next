@@ -770,3 +770,13 @@ void target_stq(void *data, uint64_t value)
 {
     stq_raw(data, value);
 }
+
+target_phys_addr_t target_get_page_mask(void)
+{
+    return TARGET_PAGE_MASK;
+}
+
+target_phys_addr_t target_get_page_size(void)
+{
+    return TARGET_PAGE_SIZE;
+}
