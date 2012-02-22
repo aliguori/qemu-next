@@ -79,7 +79,7 @@ defconfig:
 
 -include config-all-devices.mak
 
-build-all: $(DOCS) $(TOOLS) $(HELPERS-y) recurse-all
+build-all: $(DOCS) $(TOOLS) qemud $(HELPERS-y) recurse-all
 
 config-host.h: config-host.h-timestamp
 config-host.h-timestamp: config-host.mak
@@ -169,6 +169,7 @@ qemu-img-cmds.h: $(SRC_PATH)/qemu-img-cmds.hx
 $(qapi-obj-y): $(GENERATED_HEADERS)
 qapi-dir := $(BUILD_DIR)/qapi-generated
 qemu-ga$(EXESUF): LIBS = $(LIBS_QGA)
+qemud$(EXESUF): LIBS = $(LIBS_QGA)
 
 gen-out-type = $(subst .,-,$(suffix $@))
 
@@ -202,6 +203,7 @@ $(QGALIB_OBJ): $(QGALIB_GEN) $(GENERATED_HEADERS)
 $(qga-obj-y) qemu-ga.o: $(QGALIB_GEN) $(GENERATED_HEADERS)
 
 qemu-ga$(EXESUF): qemu-ga.o $(qga-obj-y) $(qapi-obj-y) $(tools-obj-y) $(qobject-obj-y) $(version-obj-y) $(QGALIB_OBJ)
+qemud$(EXESUF): qemud.o $(qapi-obj-y) $(tools-obj-y) $(qobject-obj-y) $(version-obj-y) qemu-sockets.o qemu-option.o
 
 QEMULIBS=libhw32 libhw64 libuser libdis libdis-user
 
@@ -209,7 +211,7 @@ clean:
 # avoid old build problems by removing potentially incorrect old files
 	rm -f config.mak op-i386.h opc-i386.h gen-op-i386.h op-arm.h opc-arm.h gen-op-arm.h
 	rm -f qemu-options.def
-	rm -f *.o *.d *.a *.lo $(TOOLS) $(HELPERS-y) qemu-ga TAGS cscope.* *.pod *~ */*~
+	rm -f *.o *.d *.a *.lo $(TOOLS) $(HELPERS-y) qemu-ga qemud TAGS cscope.* *.pod *~ */*~
 	rm -Rf .libs
 	rm -f slirp/*.o slirp/*.d audio/*.o audio/*.d block/*.o block/*.d net/*.o net/*.d fsdev/*.o fsdev/*.d ui/*.o ui/*.d qapi/*.o qapi/*.d qga/*.o qga/*.d
 	rm -f qemu-img-cmds.h
