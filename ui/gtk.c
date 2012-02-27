@@ -76,6 +76,10 @@ typedef struct GtkDisplayState
     GtkWidget *window;
 
     GtkWidget *menu_bar;
+    GtkWidget *hbox;
+
+    GtkWidget *net_spinner;
+    GtkWidget *hd_spinner;
 
     GtkWidget *file_menu_item;
     GtkWidget *file_menu;
@@ -497,7 +501,7 @@ static void gd_menu_full_screen(GtkMenuItem *item, void *opaque)
 
     if (gtk_check_menu_item_get_active(GTK_CHECK_MENU_ITEM(s->full_screen_item))) {
         gtk_notebook_set_show_tabs(GTK_NOTEBOOK(s->notebook), FALSE);
-        gtk_widget_set_size_request(s->menu_bar, 0, 0);
+        gtk_widget_set_size_request(s->hbox, 0, 0);
         gtk_widget_set_size_request(s->drawing_area, -1, -1);
         gtk_window_set_resizable(GTK_WINDOW(s->window), TRUE);
         gtk_window_fullscreen(GTK_WINDOW(s->window));
@@ -506,7 +510,7 @@ static void gd_menu_full_screen(GtkMenuItem *item, void *opaque)
     } else {
         gtk_window_unfullscreen(GTK_WINDOW(s->window));
         gd_menu_show_tabs(GTK_MENU_ITEM(s->show_tabs_item), s);
-        gtk_widget_set_size_request(s->menu_bar, -1, -1);
+        gtk_widget_set_size_request(s->hbox, -1, -1);
         gtk_widget_set_size_request(s->drawing_area, s->ds->surface->width, s->ds->surface->height);
         gtk_window_set_resizable(GTK_WINDOW(s->window), FALSE);
         gtk_check_menu_item_set_active(GTK_CHECK_MENU_ITEM(s->grab_item), FALSE);
@@ -915,6 +919,38 @@ static void gd_create_menus(GtkDisplayState *s)
     gtk_menu_shell_append(GTK_MENU_SHELL(s->menu_bar), s->view_menu_item);
 }
 
+#define IMG_BASE "/home/anthony/svn/vbox/src/VBox/Frontends/VirtualBox/images/"
+
+static gboolean gd_update_spinners(gpointer user_data)
+{
+    GtkDisplayState *s = user_data;
+    static int generation = 0;
+
+    generation++;
+
+    if ((generation % 100) < 20) {
+        if ((generation % 2)) {
+            gtk_image_set_from_file(GTK_IMAGE(s->net_spinner), IMG_BASE "nw_read_16px.png");
+        } else {
+            gtk_image_set_from_file(GTK_IMAGE(s->net_spinner), IMG_BASE "nw_write_16px.png");
+        }
+    } else {
+        gtk_image_set_from_file(GTK_IMAGE(s->net_spinner), IMG_BASE "nw_16px.png");
+    }
+
+    if ((generation % 100) > 80) {
+        if ((generation % 2)) {
+            gtk_image_set_from_file(GTK_IMAGE(s->hd_spinner), IMG_BASE "hd_read_16px.png");
+        } else {
+            gtk_image_set_from_file(GTK_IMAGE(s->hd_spinner), IMG_BASE "hd_write_16px.png");
+        }
+    } else {
+        gtk_image_set_from_file(GTK_IMAGE(s->hd_spinner), IMG_BASE "hd_16px.png");
+    }
+
+    return TRUE;
+}
+
 void gtk_display_init(DisplayState *ds)
 {
     GtkDisplayState *s = g_malloc0(sizeof(*s));
@@ -933,6 +969,10 @@ void gtk_display_init(DisplayState *ds)
     s->notebook = gtk_notebook_new();
     s->drawing_area = gtk_drawing_area_new();
     s->menu_bar = gtk_menu_bar_new();
+    s->hbox = gtk_hbox_new(FALSE, 6);
+
+    s->net_spinner = gtk_image_new_from_file(IMG_BASE "nw_16px.png");
+    s->hd_spinner = gtk_image_new_from_file(IMG_BASE "hd_16px.png");
 
     s->scale_x = 1.0;
     s->scale_y = 1.0;
@@ -972,7 +1012,13 @@ void gtk_display_init(DisplayState *ds)
 
     gd_update_caption(s);
 
-    gtk_box_pack_start(GTK_BOX(s->vbox), s->menu_bar, FALSE, TRUE, 0);
+    g_timeout_add(100, gd_update_spinners, s);
+
+    gtk_box_pack_start(GTK_BOX(s->hbox), s->menu_bar, TRUE, TRUE, 0);
+    gtk_box_pack_start(GTK_BOX(s->hbox), s->net_spinner, FALSE, FALSE, 0);
+    gtk_box_pack_start(GTK_BOX(s->hbox), s->hd_spinner, FALSE, FALSE, 0);
+
+    gtk_box_pack_start(GTK_BOX(s->vbox), s->hbox, FALSE, TRUE, 0);
     gtk_box_pack_start(GTK_BOX(s->vbox), s->notebook, TRUE, TRUE, 0);
 
     gtk_container_add(GTK_CONTAINER(s->window), s->vbox);
