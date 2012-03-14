@@ -9,7 +9,9 @@
 typedef struct Client
 {
     GIOChannel *chan;
+    GString *tx;
     int fd;
+    int watch;
 } Client;
 
 #define QEMUD_INFO   0
@@ -58,11 +60,12 @@ static void qemud_log(int level, const char *fmt, ...)
     fprintf(stderr, "\n");
 }
 
-static void qemud_client_close(Client *c)
+static void qemud_client_free(Client *c)
 {
     qemud_log(QEMUD_INFO, "Closing client %d\n", c->fd);
     close(c->fd);
     g_io_channel_unref(c->chan);
+    g_source_remove(c->watch);
     g_free(c);
 }
 
@@ -78,11 +81,11 @@ static gboolean qemud_client_recv(GIOChannel *chan, GIOCondition cond, gpointer 
             return TRUE;
         }
         qemud_log(QEMUD_WARN, "received error on fd %d: %m", c->fd);
-        qemud_client_close(c);
+        qemud_client_free(c);
         return FALSE;
     } else if (len == 0) {
         qemud_log(QEMUD_INFO, "received EOF on %d", c->fd);
-        qemud_client_close(c);
+        qemud_client_free(c);
         return FALSE;
     }
 
@@ -91,13 +94,27 @@ static gboolean qemud_client_recv(GIOChannel *chan, GIOCondition cond, gpointer 
     return TRUE;
 }
 
+static Client *qemud_client_new(int fd)
+{
+    Client *c = g_malloc0(sizeof(*c));
+
+    c->fd = fd;
+    socket_set_nonblock(c->fd);
+    c->chan = g_io_channel_unix_new(c->fd);
+    c->watch = g_io_add_watch(c->chan,
+                              G_IO_IN | G_IO_PRI | G_IO_ERR | G_IO_HUP,
+                              qemud_client_recv, c);
+
+    return c;
+}
+
 static gboolean qemud_accept(GIOChannel *chan, GIOCondition cond, gpointer user_data)
 {
     int s = g_io_channel_unix_get_fd(chan);
     int fd;
     struct sockaddr_un addr;
     socklen_t addrlen = sizeof(addr);
-    Client *c = g_malloc0(sizeof(*c));
+    Client *c;
 
     fd = qemu_accept(s, (struct sockaddr *)&addr, &addrlen);
     if (fd == -1) {
@@ -105,16 +122,9 @@ static gboolean qemud_accept(GIOChannel *chan, GIOCondition cond, gpointer user_
         return TRUE;
     }
 
+    c = qemud_client_new(fd);
+
     qemud_log(QEMUD_INFO, "accepted new client with fd of %d", fd);
-
-    c->fd = fd;
-    socket_set_nonblock(c->fd);
-
-    c->chan = g_io_channel_unix_new(c->fd);
-
-    g_io_add_watch(c->chan,
-                   G_IO_IN | G_IO_PRI | G_IO_ERR | G_IO_HUP,
-                   qemud_client_recv, c);
 
     return TRUE;
 }
