@@ -91,6 +91,7 @@ typedef struct GtkDisplayState
     GtkWidget *zoom_in_item;
     GtkWidget *zoom_out_item;
     GtkWidget *zoom_fixed_item;
+    GtkWidget *zoom_fit_item;
     GtkWidget *grab_item;
     GtkWidget *grab_on_hover_item;
     GtkWidget *vga_item;
@@ -116,6 +117,7 @@ typedef struct GtkDisplayState
 
     GdkCursor *null_cursor;
     Notifier mouse_mode_notifier;
+    gboolean free_scale;
 } GtkDisplayState;
 
 static GtkDisplayState *global_state;
@@ -180,6 +182,9 @@ static void gd_update(DisplayState *ds, int x, int y, int w, int h)
 {
     GtkDisplayState *s = ds->opaque;
     int x1, x2, y1, y2;
+    int mx, my;
+    int fbw, fbh;
+    int ww, wh;
 
     dprintf("update(x=%d, y=%d, w=%d, h=%d)\n", x, y, w, h);
 
@@ -189,7 +194,20 @@ static void gd_update(DisplayState *ds, int x, int y, int w, int h)
     x2 = ceil(x * s->scale_x + w * s->scale_x);
     y2 = ceil(y * s->scale_y + h * s->scale_y);
 
-    gtk_widget_queue_draw_area(s->drawing_area, x1, y1, (x2 - x1), (y2 - y1));
+    fbw = s->ds->surface->width * s->scale_x;
+    fbh = s->ds->surface->height * s->scale_y;
+
+    gdk_drawable_get_size(gtk_widget_get_window(s->drawing_area), &ww, &wh);
+
+    mx = my = 0;
+    if (ww > fbw) {
+        mx = (ww - fbw) / 2;
+    }
+    if (wh > fbh) {
+        my = (wh - fbh) / 2;
+    }
+
+    gtk_widget_queue_draw_area(s->drawing_area, mx + x1, my + y1, (x2 - x1), (y2 - y1));
 }
 
 static void gd_refresh(DisplayState *ds)
@@ -235,9 +253,26 @@ static void gd_resize(DisplayState *ds)
                                                      ds->surface->linesize);
 
     if (!s->full_screen) {
+        GtkRequisition req;
+        double sx, sy;
+
+        if (s->free_scale) {
+            sx = s->scale_x;
+            sy = s->scale_y;
+
+            s->scale_y = 1.0;
+            s->scale_x = 1.0;
+        } else {
+            sx = 1.0;
+            sy = 1.0;
+        }
+
         gtk_widget_set_size_request(s->drawing_area,
                                     ds->surface->width * s->scale_x,
                                     ds->surface->height * s->scale_y);
+        gtk_widget_size_request(s->vbox, &req);
+
+        gtk_window_resize(GTK_WINDOW(s->window), req.width * sx, req.height * sy);
     }
 }
 
@@ -272,6 +307,7 @@ static gboolean gd_window_close(GtkWidget *widget, GdkEvent *event,
 static gboolean gd_draw_event(GtkWidget *widget, cairo_t *cr, void *opaque)
 {
     GtkDisplayState *s = opaque;
+    int mx, my;
     int ww, wh;
     int fbw, fbh;
 
@@ -280,18 +316,42 @@ static gboolean gd_draw_event(GtkWidget *widget, cairo_t *cr, void *opaque)
 
     gdk_drawable_get_size(gtk_widget_get_window(widget), &ww, &wh);
 
-    cairo_rectangle(cr, 0, 0, ww, wh);
-
-    if (ww != fbw || wh != fbh) {
+    if (s->full_screen) {
         s->scale_x = (double)ww / fbw;
         s->scale_y = (double)wh / fbh;
-        cairo_scale(cr, s->scale_x, s->scale_y);
-    } else {
-        s->scale_x = 1.0;
-        s->scale_y = 1.0;
+    } else if (s->free_scale) {
+        double sx, sy;
+
+        sx = (double)ww / fbw;
+        sy = (double)wh / fbh;
+
+        s->scale_x = s->scale_y = MIN(sx, sy);
     }
 
-    cairo_set_source_surface(cr, s->surface, 0, 0);
+    fbw *= s->scale_x;
+    fbh *= s->scale_y;
+
+    mx = my = 0;
+    if (ww > fbw) {
+        mx = (ww - fbw) / 2;
+    }
+    if (wh > fbh) {
+        my = (wh - fbh) / 2;
+    }
+
+    cairo_rectangle(cr, 0, 0, ww, wh);
+
+    /* Optionally cut out the inner area where the pixmap
+       will be drawn. This avoids 'flashing' since we're
+       not double-buffering. Note we're using the undocumented
+       behaviour of drawing the rectangle from right to left
+       to cut out the whole */
+    cairo_rectangle(cr, mx + fbw, my,
+                    -1 * fbw, fbh);
+    cairo_fill(cr);
+
+    cairo_scale(cr, s->scale_x, s->scale_y);
+    cairo_set_source_surface(cr, s->surface, mx / s->scale_x, my / s->scale_y);
     cairo_paint(cr);
 
     return TRUE;
@@ -503,7 +563,6 @@ static void gd_menu_full_screen(GtkMenuItem *item, void *opaque)
         gtk_notebook_set_show_tabs(GTK_NOTEBOOK(s->notebook), FALSE);
         gtk_widget_set_size_request(s->hbox, 0, 0);
         gtk_widget_set_size_request(s->drawing_area, -1, -1);
-        gtk_window_set_resizable(GTK_WINDOW(s->window), TRUE);
         gtk_window_fullscreen(GTK_WINDOW(s->window));
         gtk_check_menu_item_set_active(GTK_CHECK_MENU_ITEM(s->grab_item), TRUE);
         s->full_screen = TRUE;
@@ -512,9 +571,10 @@ static void gd_menu_full_screen(GtkMenuItem *item, void *opaque)
         gd_menu_show_tabs(GTK_MENU_ITEM(s->show_tabs_item), s);
         gtk_widget_set_size_request(s->hbox, -1, -1);
         gtk_widget_set_size_request(s->drawing_area, s->ds->surface->width, s->ds->surface->height);
-        gtk_window_set_resizable(GTK_WINDOW(s->window), FALSE);
         gtk_check_menu_item_set_active(GTK_CHECK_MENU_ITEM(s->grab_item), FALSE);
         s->full_screen = FALSE;
+        s->scale_x = 1.0;
+        s->scale_y = 1.0;
     }
 
     gd_update_cursor(s, FALSE);
@@ -523,6 +583,9 @@ static void gd_menu_full_screen(GtkMenuItem *item, void *opaque)
 static void gd_menu_zoom_in(GtkMenuItem *item, void *opaque)
 {
     GtkDisplayState *s = opaque;
+
+    gtk_check_menu_item_set_active(GTK_CHECK_MENU_ITEM(s->zoom_fit_item),
+                                   FALSE);
 
     s->scale_x += .25;
     s->scale_y += .25;
@@ -534,11 +597,15 @@ static void gd_menu_zoom_out(GtkMenuItem *item, void *opaque)
 {
     GtkDisplayState *s = opaque;
 
+    gtk_check_menu_item_set_active(GTK_CHECK_MENU_ITEM(s->zoom_fit_item),
+                                   FALSE);
+
     s->scale_x -= .25;
     s->scale_y -= .25;
 
     s->scale_x = MAX(s->scale_x, .25);
     s->scale_y = MAX(s->scale_y, .25);
+
 
     gd_resize(s->ds);
 }
@@ -551,6 +618,17 @@ static void gd_menu_zoom_fixed(GtkMenuItem *item, void *opaque)
     s->scale_y = 1.0;
 
     gd_resize(s->ds);
+}
+
+static void gd_menu_zoom_fit(GtkMenuItem *item, void *opaque)
+{
+    GtkDisplayState *s = opaque;
+
+    if (gtk_check_menu_item_get_active(GTK_CHECK_MENU_ITEM(s->zoom_fit_item))) {
+        s->free_scale = TRUE;
+    } else {
+        s->free_scale = FALSE;
+    }
 }
 
 static void gd_grab_keyboard(GtkDisplayState *s)
@@ -811,6 +889,8 @@ static void gd_connect_signals(GtkDisplayState *s)
                      G_CALLBACK(gd_menu_zoom_out), s);
     g_signal_connect(s->zoom_fixed_item, "activate",
                      G_CALLBACK(gd_menu_zoom_fixed), s);
+    g_signal_connect(s->zoom_fit_item, "activate",
+                     G_CALLBACK(gd_menu_zoom_fit), s);
     g_signal_connect(s->vga_item, "activate",
                      G_CALLBACK(gd_menu_switch_vc), s);
     g_signal_connect(s->grab_item, "activate",
@@ -872,6 +952,9 @@ static void gd_create_menus(GtkDisplayState *s)
                                  "<QEMU>/View/Zoom Fixed");
     gtk_accel_map_add_entry("<QEMU>/View/Zoom Fixed", GDK_KEY_0, GDK_CONTROL_MASK | GDK_MOD1_MASK);
     gtk_menu_append(GTK_MENU(s->view_menu), s->zoom_fixed_item);
+
+    s->zoom_fit_item = gtk_check_menu_item_new_with_mnemonic(_("Zoom To _Fit"));
+    gtk_menu_append(GTK_MENU(s->view_menu), s->zoom_fit_item);
 
     separator = gtk_separator_menu_item_new();
     gtk_menu_append(GTK_MENU(s->view_menu), separator);
@@ -976,6 +1059,7 @@ void gtk_display_init(DisplayState *ds)
 
     s->scale_x = 1.0;
     s->scale_y = 1.0;
+    s->free_scale = FALSE;
 
     setlocale(LC_ALL, "");
     bindtextdomain("qemu", CONFIG_QEMU_PREFIX "/share/locale");
@@ -1007,8 +1091,6 @@ void gtk_display_init(DisplayState *ds)
 
     gtk_notebook_set_show_tabs(GTK_NOTEBOOK(s->notebook), FALSE);
     gtk_notebook_set_show_border(GTK_NOTEBOOK(s->notebook), FALSE);
-
-    gtk_window_set_resizable(GTK_WINDOW(s->window), FALSE);
 
     gd_update_caption(s);
 
