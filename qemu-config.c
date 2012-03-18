@@ -3,6 +3,20 @@
 #include "qemu-option.h"
 #include "qemu-config.h"
 #include "hw/qdev.h"
+#include "gdbstub.h"
+#include "net.h"
+
+static QemuOptsList qemu_system_opts = {
+    .name = "system",
+    .head = QTAILQ_HEAD_INITIALIZER(qemu_system_opts.head),
+    .merge_lists = true,
+    .desc = {
+#define HAS_ARG 1
+#define QEMU_OPTIONS_GENERATE_QEMUOPTS
+#include "qemu-options-wrapper.h"
+        { /* end of list */}
+    },
+};
 
 static QemuOptsList qemu_drive_opts = {
     .name = "drive",
@@ -628,6 +642,7 @@ static QemuOptsList *vm_config_groups[32] = {
     &qemu_machine_opts,
     &qemu_boot_opts,
     &qemu_iscsi_opts,
+    &qemu_system_opts,
     NULL,
 };
 

@@ -1588,6 +1588,7 @@ typedef struct QEMUOption {
     int flags;
     int index;
     uint32_t arch_mask;
+    bool global;
 } QEMUOption;
 
 static const QEMUOption qemu_options[] = {
