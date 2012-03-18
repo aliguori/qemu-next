@@ -757,80 +757,97 @@ void qemu_config_write(FILE *fp)
     }
 }
 
-int qemu_config_parse(FILE *fp, QemuOptsList **lists, const char *fname)
+int qemu_config_parse(QemuOptsList **lists, const char *filename)
 {
-    char line[1024], group[64], id[64], arg[64], value[1024];
-    Location loc;
-    QemuOptsList *list = NULL;
-    QemuOpts *opts = NULL;
-    int res = -1, lno = 0;
+    GKeyFile *f;
+    GError *err = NULL;
+    gchar **groups;
+    gsize i, nb_groups = 0;
 
-    loc_push_none(&loc);
-    while (fgets(line, sizeof(line), fp) != NULL) {
-        loc_set_file(fname, ++lno);
-        if (line[0] == '\n') {
-            /* skip empty lines */
-            continue;
+    f = g_key_file_new();
+    if (!g_key_file_load_from_file(f, filename, 0, &err)) {
+        if (err->code == G_FILE_ERROR_NOENT) {
+            return 0;
         }
-        if (line[0] == '#') {
-            /* comment */
-            continue;
+        fprintf(stderr, "could not parse config: %s\n", err->message);
+        g_error_free(err);
+        return -EINVAL;
+    }
+
+    groups = g_key_file_get_groups(f, &nb_groups);
+    for (i = 0; i < nb_groups; i++) {
+        gchar **keys;
+        gchar *subkey = NULL;
+        gchar *group;
+        gsize j, nb_keys = 0;
+        char *ptr;
+        QemuOpts *opts;
+        QemuOptsList *list;
+
+        group = g_strdup(groups[i]);
+
+        ptr = strchr(group, '"');
+        if (ptr) {
+            *ptr = 0;
+            subkey = g_strdup(ptr + 1);
+            ptr = strchr(subkey, '"');
+            *ptr = 0;
+            g_strchomp(group);
         }
-        if (sscanf(line, "[%63s \"%63[^\"]\"]", group, id) == 2) {
-            /* group with id */
-            list = find_list(lists, group);
-            if (list == NULL)
-                goto out;
-            opts = qemu_opts_create(list, id, 1);
-            continue;
+            
+        list = find_list(lists, group);
+        if (list == NULL) {
+            break;
         }
-        if (sscanf(line, "[%63[^]]]", group) == 1) {
-            /* group without id */
-            list = find_list(lists, group);
-            if (list == NULL)
-                goto out;
+
+        if (subkey) {
+            opts = qemu_opts_create(list, subkey, 1);
+        } else {
             opts = qemu_opts_create(list, NULL, 0);
-            continue;
         }
-        if (sscanf(line, " %63s = \"%1023[^\"]\"", arg, value) == 2) {
-            /* arg = value */
-            if (opts == NULL) {
-                error_report("no group defined");
-                goto out;
+
+        keys = g_key_file_get_keys(f, groups[i], &nb_keys, NULL);
+        for (j = 0; j < nb_keys; j++) {
+            gchar *value;
+            gsize len;
+
+            value = g_key_file_get_string(f, groups[i], keys[j], &err);
+            if (err) {
+                fprintf(stderr,
+                        "warning: failed to read key `%s' in section `%s': %s\n",
+                        keys[j], groups[i], err->message);
+                g_free(value);
+                g_error_free(err);
+                break;
             }
-            if (qemu_opt_set(opts, arg, value) != 0) {
-                goto out;
+            
+            if (value[0] == '"') {
+                value[0] = ' ';
             }
-            continue;
+
+            len = strlen(value);
+            if (value[len - 1] == '"') {
+                value[len - 1] = 0;
+            }
+            g_strchug(value);
+
+            qemu_opt_set(opts, keys[j], value);
+            g_free(value);
         }
-        error_report("parse error");
-        goto out;
+
+        g_free(subkey);
+        g_free(group);
+        g_strfreev(keys);
     }
-    if (ferror(fp)) {
-        error_report("error reading file");
-        goto out;
-    }
-    res = 0;
-out:
-    loc_pop(&loc);
-    return res;
+
+    g_strfreev(groups);
+
+    g_key_file_free(f);
+
+    return 0;
 }
 
 int qemu_read_config_file(const char *filename)
 {
-    FILE *f = fopen(filename, "r");
-    int ret;
-
-    if (f == NULL) {
-        return -errno;
-    }
-
-    ret = qemu_config_parse(f, vm_config_groups, filename);
-    fclose(f);
-
-    if (ret == 0) {
-        return 0;
-    } else {
-        return -EINVAL;
-    }
+    return qemu_config_parse(vm_config_groups, filename);
 }

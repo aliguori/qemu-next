@@ -244,16 +244,10 @@ static int add_rule(QemuOpts *opts, void *opaque)
 
 static int read_config(BDRVBlkdebugState *s, const char *filename)
 {
-    FILE *f;
     int ret;
     struct add_rule_data d;
 
-    f = fopen(filename, "r");
-    if (f == NULL) {
-        return -errno;
-    }
-
-    ret = qemu_config_parse(f, config_groups, filename);
+    ret = qemu_config_parse(config_groups, filename);
     if (ret < 0) {
         goto fail;
     }
@@ -269,7 +263,6 @@ static int read_config(BDRVBlkdebugState *s, const char *filename)
 fail:
     qemu_opts_reset(&inject_error_opts);
     qemu_opts_reset(&set_state_opts);
-    fclose(f);
     return ret;
 }
 
