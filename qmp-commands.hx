@@ -2125,3 +2125,8 @@ EQMP
         .args_type  = "implements:s?,abstract:b?",
         .mhandler.cmd_new = qmp_marshal_input_qom_list_types,
     },
+    {
+        .name       = "query-config-capabilities",
+        .args_type  = "",
+        .mhandler.cmd_new = qmp_marshal_input_query_config_capabilities,
+    },

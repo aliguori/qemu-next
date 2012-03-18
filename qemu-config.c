@@ -2,6 +2,7 @@
 #include "qemu-error.h"
 #include "qemu-option.h"
 #include "qemu-config.h"
+#include "qmp-commands.h"
 #include "hw/qdev.h"
 #include "gdbstub.h"
 #include "net.h"
@@ -865,4 +866,54 @@ int qemu_config_parse(QemuOptsList **lists, const char *filename)
 int qemu_read_config_file(const char *filename)
 {
     return qemu_config_parse(vm_config_groups, filename);
+}
+
+ConfigSectionList *qmp_query_config_capabilities(Error **errp)
+{
+    ConfigSectionList *lst = NULL;
+    int i;
+
+    for (i = 0; vm_config_groups[i]; i++) {
+        QemuOptsList *olist = vm_config_groups[i];
+        ConfigSection *s = g_malloc0(sizeof(*s));
+        ConfigSectionList *e = g_malloc0(sizeof(*e));
+        QemuOptDesc *desc;
+
+        s->name = g_strdup(olist->name);
+        for (desc = olist->desc; desc->name; desc++) {
+            ConfigOption *o = g_malloc0(sizeof(*o));
+            ConfigOptionList *oe = g_malloc0(sizeof(*oe));
+
+            o->name = g_strdup(desc->name);
+            switch (desc->type) {
+            case QEMU_OPT_STRING:
+                o->type = CONFIG_OPTION_TYPE_STRING;
+                break;
+            case QEMU_OPT_BOOL:
+                o->type = CONFIG_OPTION_TYPE_BOOL;
+                break;
+            case QEMU_OPT_NUMBER:
+                o->type = CONFIG_OPTION_TYPE_NUMBER;
+                break;
+            case QEMU_OPT_SIZE:
+                o->type = CONFIG_OPTION_TYPE_SIZE;
+                break;
+            }
+
+            if (desc->help) {
+                o->has_help = true;
+                o->help = g_strdup(desc->help);
+            }
+
+            oe->value = o;
+            oe->next = s->parameters;
+            s->parameters = oe;
+        }
+
+        e->value = s;
+        e->next = lst;
+        lst = e;
+    }
+
+    return lst;
 }

@@ -1663,3 +1663,69 @@
 { 'command': 'qom-list-types',
   'data': { '*implements': 'str', '*abstract': 'bool' },
   'returns': [ 'ObjectTypeInfo' ] }
+
+##
+# @ConfigOptionType
+#
+# An enumeration describing the type of a configuration file entry.
+#
+# @string: a UTF-8 string
+#
+# @bool: either 'on' or 'off'
+#
+# @number: an integer
+#
+# @size: an integer followed by either 'K', 'M', 'G', or 'T'.
+#
+# Since: 1.1
+##
+{ 'enum': 'ConfigOptionType'
+  'data': [ 'string', 'bool', 'number', 'size' ] }
+
+##
+# @ConfigOption
+#
+# An option within a configuration section.
+#
+# @name: the name of the configuration option
+#
+# @type: the type of the configuration option
+#
+# @help: an optional help description.  This should not be parsed or relied upon
+#        in any way.  Its content's may change in future versions of QEMU.
+#
+# Since: 1.1
+##
+{ 'type': 'ConfigOption',
+  'data': { 'name': 'str',
+            'type': 'ConfigOptionType',
+            '*help': 'str' } }
+
+##
+# @ConfigSection
+#
+# A section within a configuration file.
+#
+# @name:       the section name
+#
+# @parameters: a list of supported parameters
+#
+# Since: 1.1
+##
+{ 'type': 'ConfigSection',
+  'data': { 'name': 'str',
+            'parameters': [ 'ConfigOption' ] } }
+
+##
+# @query-config-capabilities
+#
+# Returns the current set of capabilities supported by the various QEMU commands
+# that work with configuration files.
+#
+# Returns: a list of @ConfigSections describe the currently supported
+#          configuration sections.
+#
+# Since: 1.1
+##
+{ 'command': 'query-config-capabilities',
+  'returns': [ 'ConfigSection' ] }
