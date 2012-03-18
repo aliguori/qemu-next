@@ -2187,6 +2187,24 @@ static void qemu_run_machine_init_done_notifiers(void)
     notifier_list_notify(&machine_init_done_notifiers, NULL);
 }
 
+static const QEMUOption *find_opt_by_name(const char *name)
+{
+    const QEMUOption *popt;
+
+    popt = qemu_options;
+    for(;;) {
+        if (!popt->name) {
+            break;
+        }
+        if (!strcmp(popt->name, name)) {
+            return popt;
+        }
+        popt++;
+    }
+
+    return NULL;
+}
+
 static const QEMUOption *lookup_opt(int argc, char **argv,
                                     const char **poptarg, int *poptind)
 {
@@ -2200,15 +2218,10 @@ static const QEMUOption *lookup_opt(int argc, char **argv,
     /* Treat --foo the same as -foo.  */
     if (r[1] == '-')
         r++;
-    popt = qemu_options;
-    for(;;) {
-        if (!popt->name) {
-            error_report("invalid option");
-            exit(1);
-        }
-        if (!strcmp(popt->name, r + 1))
-            break;
-        popt++;
+    popt = find_opt_by_name(r + 1);
+    if (popt == NULL) {
+        error_report("invalid option");
+        exit(1);
     }
     if (popt->flags & HAS_ARG) {
         if (optind >= argc) {
@@ -2272,6 +2285,35 @@ typedef struct QemuOptions
     int cyls, heads, secs, translation;
     int defconfig;
 } QemuOptions;
+
+static void qemu_parse_option(int index, const char *optarg, QemuOptions *options);
+
+static int qemu_parse_system_option(const char *name, const char *value, void *opaque)
+{
+    QemuOptions *options = opaque;
+    const QEMUOption *popt;
+
+    popt = find_opt_by_name(name);
+    if (popt == NULL) {
+        return -1;
+    }
+
+    qemu_parse_option(popt->index, value, options);
+
+    return 0;
+}
+
+static int qemu_parse_system_section(QemuOpts *opts, void *opaque)
+{
+    QemuOptions *options = opaque;
+
+    return qemu_opt_foreach(opts, qemu_parse_system_option, options, 0);
+}
+
+static void qemu_parse_system_sections(QemuOptions *options)
+{
+    qemu_opts_foreach(qemu_find_opts("system"), qemu_parse_system_section, options, 1);
+}
 
 static void qemu_parse_option(int index, const char *optarg, QemuOptions *options)
 {
@@ -3143,6 +3185,8 @@ static void qemu_parse_options(int argc, char **argv, QemuOptions *options)
             qemu_parse_option(popt->index, optarg, options);
         }
     }
+
+    qemu_parse_system_sections(options);
 }
 
 int main(int argc, char **argv, char **envp)
