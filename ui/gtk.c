@@ -384,9 +384,31 @@ static gboolean gd_motion_event(GtkWidget *widget, GdkEventMotion *motion,
     GtkDisplayState *s = opaque;
     int dx, dy;
     int x, y;
+    int mx, my;
+    int fbh, fbw;
+    int ww, wh;
 
-    x = motion->x / s->scale_x;
-    y = motion->y / s->scale_y;
+    fbw = s->ds->surface->width * s->scale_x;
+    fbh = s->ds->surface->height * s->scale_y;
+
+    gdk_drawable_get_size(gtk_widget_get_window(s->drawing_area), &ww, &wh);
+
+    mx = my = 0;
+    if (ww > fbw) {
+        mx = (ww - fbw) / 2;
+    }
+    if (wh > fbh) {
+        my = (wh - fbh) / 2;
+    }
+
+    x = (motion->x - mx) / s->scale_x;
+    y = (motion->y - my) / s->scale_y;
+
+    if (x < 0 || y < 0 ||
+        x >= s->ds->surface->width ||
+        y >= s->ds->surface->height) {
+        return TRUE;
+    }
 
     if (kbd_mouse_is_absolute()) {
         dx = x * 0x7FFF / (s->ds->surface->width - 1);
