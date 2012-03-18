@@ -678,6 +678,7 @@ int qemu_opt_set_bool(QemuOpts *opts, const char *name, bool val)
         opt->desc = desc+i;
     }
     opt->value.boolean = !!val;
+    opt->str = val ? "on" : "off";
     return 0;
 }
 
