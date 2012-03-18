@@ -3132,6 +3132,7 @@ static void qemu_parse_options(int argc, char **argv, QemuOptions *options)
 {
     int optind;
     const char *optarg;
+    QemuOpts *system_opts;
 
     /* first pass of option parsing */
     optind = 1;
@@ -3166,13 +3167,15 @@ static void qemu_parse_options(int argc, char **argv, QemuOptions *options)
         }
     }
 
+    system_opts = qemu_opts_create(qemu_find_opts("system"), NULL, 0);
+
     /* second pass of option parsing */
     optind = 1;
     for(;;) {
         if (optind >= argc)
             break;
         if (argv[optind][0] != '-') {
-	    options->hda_opts = drive_add(IF_DEFAULT, 0, argv[optind++], HD_OPTS);
+            qemu_opt_set(system_opts, "hda", argv[optind++]);
         } else {
             const QEMUOption *popt;
 
@@ -3182,7 +3185,11 @@ static void qemu_parse_options(int argc, char **argv, QemuOptions *options)
                 exit(1);
             }
 
-            qemu_parse_option(popt->index, optarg, options);
+            if ((popt->flags & HAS_ARG)) {
+                qemu_opt_set(system_opts, popt->name, optarg);
+            } else {
+                qemu_opt_set_bool(system_opts, popt->name, true);
+            }
         }
     }
 
