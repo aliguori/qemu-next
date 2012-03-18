@@ -2265,6 +2265,29 @@ int qemu_init_main_loop(void)
     return main_loop_init();
 }
 
+static void qemu_print_capabilities(void)
+{
+    QObject *version, *commands, *config;
+    QDict *dict;
+    QString *json;
+
+    qmp_marshal_input_query_version(NULL, NULL, &version);
+    qmp_marshal_input_query_commands(NULL, NULL, &commands);
+    qmp_marshal_input_query_config_capabilities(NULL, NULL, &config);
+
+    dict = qdict_new();
+    qdict_put_obj(dict, "version", version);
+    qdict_put_obj(dict, "commands", commands);
+    qdict_put_obj(dict, "config", config);
+
+    json = qobject_to_json_pretty(QOBJECT(dict));
+
+    printf("%s\n", qstring_get_str(json));
+
+    QDECREF(json);
+    QDECREF(dict);
+}
+
 typedef struct QemuOptions
 {
     QEMUMachine *machine;
@@ -3123,6 +3146,10 @@ static void qemu_parse_option(int index, const char *optarg, QemuOptions *option
             fclose(fp);
             break;
         }
+    case QEMU_OPTION_query_capabilities:
+        qemu_print_capabilities();
+        exit(0);
+        break;
     default:
         os_parse_cmd_args(index, optarg);
     }

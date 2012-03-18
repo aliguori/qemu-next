@@ -2710,6 +2710,10 @@ the @var{simple} tracing backend.
 @end table
 ETEXI
 
+DEF("query-capabilities", 0, QEMU_OPTION_query_capabilities,
+    "-query-capabilities  print QEMU capabilities and exit\n",
+    QEMU_ARCH_ALL)
+
 HXCOMM This is the last statement. Insert new options before this line!
 STEXI
 @end table
