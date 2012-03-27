@@ -3104,6 +3104,8 @@ struct qemu_argument {
 };
 
 struct qemu_argument arg_table[] = {
+    {"help",       "",                 false, handle_arg_help,
+     "",           ""},
     {"h",          "",                 false, handle_arg_help,
      "",           "print this help"},
     {"g",          "QEMU_GDB",         true,  handle_arg_gdb,
