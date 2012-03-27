@@ -3240,6 +3240,10 @@ static int parse_args(int argc, char **argv)
         if (!strcmp(r, "-")) {
             break;
         }
+        /* Treat --foo the same as -foo.  */
+        if (r[0] == '-') {
+            r++;
+        }
 
         for (arginfo = arg_table; arginfo->handle_opt != NULL; arginfo++) {
             if (!strcmp(r, arginfo->argv)) {
