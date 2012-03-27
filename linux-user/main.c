@@ -3245,7 +3245,9 @@ static int parse_args(int argc, char **argv)
             if (!strcmp(r, arginfo->argv)) {
                 if (arginfo->has_arg) {
                     if (optind >= argc) {
-                        usage(1);
+                        (void) fprintf(stderr,
+                            "qemu: missing argument for option '%s'\n", r);
+                        exit(1);
                     }
                     arginfo->handle_opt(argv[optind]);
                     optind++;
@@ -3258,12 +3260,14 @@ static int parse_args(int argc, char **argv)
 
         /* no option matched the current argv */
         if (arginfo->handle_opt == NULL) {
-            usage(1);
+            (void) fprintf(stderr, "qemu: unknown option '%s'\n", r);
+            exit(1);
         }
     }
 
     if (optind >= argc) {
-        usage(1);
+        (void) fprintf(stderr, "qemu: invalid option '%s'\n", r);
+        exit(1);
     }
 
     filename = argv[optind];
