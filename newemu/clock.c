@@ -1,12 +1,6 @@
 #include "newemu/clock.h"
 
-#include "qemu-common.h"
-#include "qemu-timer.h"
-
-struct clock_impl
-{
-    QEMUClock *clock;
-};
+#include "newemu/clock-priv.h"
 
 struct clock *clock_get_instance(void)
 {
@@ -23,20 +17,5 @@ struct clock *clock_get_instance(void)
 
 uint64_t clock_get_ns(struct clock *c)
 {
-    return qemu_get_clock_ns(c->impl->vm_clock);
-}
-
-uint64_t clock_get_us(struct clock *c)
-{
-    return qemu_get_clock_ns(c->impl->vm_clock) / 1000L;
-}
-
-uint64_t clock_get_ms(struct clock *c)
-{
-    return qemu_get_clock_ns(c->impl->vm_clock) / 1000000L;
-}
-
-uint64_t clock_get_sec(struct clock *c)
-{
-    return qemu_get_clock_ns(c->impl->vm_clock) / NS_PER_SEC;
+    return qemu_get_clock_ns(c->impl->clock);
 }

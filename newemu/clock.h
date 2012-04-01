@@ -18,10 +18,19 @@ struct clock *clock_get_instance(void);
 
 uint64_t clock_get_ns(struct clock *c);
 
-uint64_t clock_get_us(struct clock *c);
+static inline uint64_t clock_get_us(struct clock *c)
+{
+    return clock_get_ns(c) / 1000L;
+}
 
-uint64_t clock_get_ms(struct clock *c);
+static inline uint64_t clock_get_ms(struct clock *c)
+{
+    return clock_get_us(c) / 1000L;
+}
 
-uint64_t clock_get_sec(struct clock *c);
+static inline uint64_t clock_get_sec(struct clock *c)
+{
+    return clock_get_ms(c) / 1000L;
+}
 
 #endif
