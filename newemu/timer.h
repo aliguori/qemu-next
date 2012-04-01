@@ -3,8 +3,12 @@
 
 #include <stdbool.h>
 #include <stdint.h>
+#include <stddef.h>
 
 #include "newemu/clock.h"
+
+#define container_of(obj, type, member) \
+    (type *)((char *)(obj) - offsetof(type, member))
 
 /* we use a PIMPL pattern here to avoid having to pull qemu dependencies into
    the header file. */
