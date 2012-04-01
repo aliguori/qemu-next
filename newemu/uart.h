@@ -5,6 +5,8 @@
 #include "newemu/pin.h"
 #include "newemu/serial_iface.h"
 
+#include <glib.h>
+
 #define UART_LCR_DLAB	0x80	/* Divisor latch access bit */
 
 #define UART_IER_MSI	0x08	/* Enable Modem status interrupt */
@@ -85,6 +87,8 @@ struct uart_fifo {
 };
 
 struct uart {
+    GMutex *lock;
+
     uint16_t divider;
     uint8_t rbr; /* receive register */
     uint8_t thr; /* transmit holding register */

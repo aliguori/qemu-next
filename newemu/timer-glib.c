@@ -10,6 +10,9 @@ struct timer_impl
 static gboolean timer_trampoline(void *opaque)
 {
     struct timer *t = opaque;
+    struct clock *clock = t->clock;
+
+    g_assert(clock->impl->thread == g_thread_self());
 
     t->cb(t);
 
@@ -59,10 +62,14 @@ uint64_t timer_get_deadline_ns(struct timer *t)
 
 void timer_set_deadline_ns(struct timer *t, uint64_t value)
 {
+    struct clock *clock = t->clock;
+    GSource *src;
+
     timer_cancel(t);
 
     t->impl->deadline = value;
 
-    g_timeout_add((value - clock_get_ns(t->clock)) / 1000000UL,
-                  timer_trampoline, t);
+    src = g_timeout_source_new((value - clock_get_ns(t->clock)) / 1000000UL);
+    g_source_set_callback(src, timer_trampoline, t, NULL);
+    t->impl->tag = g_source_attach(src, clock->impl->context);
 }

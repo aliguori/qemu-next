@@ -5,6 +5,8 @@
 
 struct clock_impl
 {
+    GThread *thread;
+    GMainContext *context;
 };
 
 #endif

@@ -37,7 +37,7 @@ do { fprintf(stderr, "serial: " fmt , ## __VA_ARGS__); } while (0)
 do {} while (0)
 #endif
 
-static void fifo_clear(struct uart *s, int fifo)
+static void _fifo_clear(struct uart *s, int fifo)
 {
     struct uart_fifo *f = (fifo) ? &s->recv_fifo : &s->xmit_fifo;
     memset(f->data, 0, UART_FIFO_LENGTH);
@@ -46,7 +46,7 @@ static void fifo_clear(struct uart *s, int fifo)
     f->tail = 0;
 }
 
-static int fifo_put(struct uart *s, int fifo, uint8_t chr)
+static int _fifo_put(struct uart *s, int fifo, uint8_t chr)
 {
     struct uart_fifo *f = (fifo) ? &s->recv_fifo : &s->xmit_fifo;
 
@@ -69,7 +69,7 @@ static int fifo_put(struct uart *s, int fifo, uint8_t chr)
     return 1;
 }
 
-static uint8_t fifo_get(struct uart *s, int fifo)
+static uint8_t _fifo_get(struct uart *s, int fifo)
 {
     struct uart_fifo *f = (fifo) ? &s->recv_fifo : &s->xmit_fifo;
     uint8_t c;
@@ -87,7 +87,7 @@ static uint8_t fifo_get(struct uart *s, int fifo)
     return c;
 }
 
-static void uart_update_irq(struct uart *s)
+static void _uart_update_irq(struct uart *s)
 {
     uint8_t tmp_iir = UART_IIR_NO_INT;
 
@@ -117,7 +117,7 @@ static void uart_update_irq(struct uart *s)
     }
 }
 
-static void uart_update_parameters(struct uart *s)
+static void _uart_update_parameters(struct uart *s)
 {
     int speed, parity, data_bits, stop_bits, frame_size;
 
@@ -154,7 +154,7 @@ static void uart_update_parameters(struct uart *s)
            speed, parity, data_bits, stop_bits);
 }
 
-static void uart_update_msl(struct uart *s)
+static void _uart_update_msl(struct uart *s)
 {
     uint8_t omsr;
     int flags;
@@ -197,7 +197,7 @@ static void uart_update_msl(struct uart *s)
          if ((s->msr & UART_MSR_TERI) && !(omsr & UART_MSR_RI)) {
              s->msr &= ~UART_MSR_TERI;
          }
-         uart_update_irq(s);
+         _uart_update_irq(s);
     }
 
     /* The real 16550A apparently has a 250ns response latency to line status
@@ -212,16 +212,18 @@ static void uart_update_msl_cb(struct timer *t)
 {
     struct uart *s = container_of(t, struct uart, modem_status_poll);
 
-    uart_update_msl(s);
+    g_mutex_lock(s->lock);
+    _uart_update_msl(s);
+    g_mutex_unlock(s->lock);
 }
 
-static void uart_xmit(struct uart *s)
+static void _uart_xmit(struct uart *s)
 {
     uint64_t new_xmit_ts = clock_get_ns(s->clock);
 
     if (s->tsr_retry <= 0) {
         if (s->fcr & UART_FCR_FE) {
-            s->tsr = fifo_get(s,XMIT_FIFO);
+            s->tsr = _fifo_get(s,XMIT_FIFO);
             if (!s->xmit_fifo.count) {
                 s->lsr |= UART_LSR_THRE;
             }
@@ -260,18 +262,23 @@ static void uart_xmit(struct uart *s)
     if (s->lsr & UART_LSR_THRE) {
         s->lsr |= UART_LSR_TEMT;
         s->thr_ipending = 1;
-        uart_update_irq(s);
+        _uart_update_irq(s);
     }
 }
 
 static void uart_xmit_cb(struct timer *t)
 {
     struct uart *s = container_of(t, struct uart, transmit_timer);
-    uart_xmit(s);
+
+    g_mutex_lock(s->lock);
+    _uart_xmit(s);
+    g_mutex_unlock(s->lock);
 }
 
 void uart_io_write(struct uart *s, uint8_t addr, uint8_t val)
 {
+    g_mutex_lock(s->lock);
+
     addr &= 7;
     DPRINTF("write addr=0x%02x val=0x%02x\n", addr, val);
     switch(addr) {
@@ -279,27 +286,27 @@ void uart_io_write(struct uart *s, uint8_t addr, uint8_t val)
     case 0:
         if (s->lcr & UART_LCR_DLAB) {
             s->divider = (s->divider & 0xff00) | val;
-            uart_update_parameters(s);
+            _uart_update_parameters(s);
         } else {
             s->thr = (uint8_t) val;
             if(s->fcr & UART_FCR_FE) {
-                fifo_put(s, XMIT_FIFO, s->thr);
+                _fifo_put(s, XMIT_FIFO, s->thr);
                 s->thr_ipending = 0;
                 s->lsr &= ~UART_LSR_TEMT;
                 s->lsr &= ~UART_LSR_THRE;
-                uart_update_irq(s);
+                _uart_update_irq(s);
             } else {
                 s->thr_ipending = 0;
                 s->lsr &= ~UART_LSR_THRE;
-                uart_update_irq(s);
+                _uart_update_irq(s);
             }
-            uart_xmit(s);
+            _uart_xmit(s);
         }
         break;
     case 1:
         if (s->lcr & UART_LCR_DLAB) {
             s->divider = (s->divider & 0x00ff) | (val << 8);
-            uart_update_parameters(s);
+            _uart_update_parameters(s);
         } else {
             s->ier = val & 0x0f;
             /* If the backend device is a real serial port, turn polling of the
@@ -308,7 +315,7 @@ void uart_io_write(struct uart *s, uint8_t addr, uint8_t val)
             if (s->poll_msl >= 0) {
                 if (s->ier & UART_IER_MSI) {
                     s->poll_msl = 1;
-                    uart_update_msl(s);
+                    _uart_update_msl(s);
                 } else {
                     timer_cancel(&s->modem_status_poll);
                     s->poll_msl = 0;
@@ -316,7 +323,7 @@ void uart_io_write(struct uart *s, uint8_t addr, uint8_t val)
             }
             if (s->lsr & UART_LSR_THRE) {
                 s->thr_ipending = 1;
-                uart_update_irq(s);
+                _uart_update_irq(s);
             }
         }
         break;
@@ -337,11 +344,11 @@ void uart_io_write(struct uart *s, uint8_t addr, uint8_t val)
         if (val & UART_FCR_RFR) {
             timer_cancel(&s->fifo_timeout_timer);
             s->timeout_ipending = 0;
-            fifo_clear(s,RECV_FIFO);
+            _fifo_clear(s,RECV_FIFO);
         }
 
         if (val & UART_FCR_XFR) {
-            fifo_clear(s,XMIT_FIFO);
+            _fifo_clear(s,XMIT_FIFO);
         }
 
         if (val & UART_FCR_FE) {
@@ -367,13 +374,13 @@ void uart_io_write(struct uart *s, uint8_t addr, uint8_t val)
 
         /* Set fcr - or at least the bits in it that are supposed to "stick" */
         s->fcr = val & 0xC9;
-        uart_update_irq(s);
+        _uart_update_irq(s);
         break;
     case 3: {
         int break_enable;
 
         s->lcr = val;
-        uart_update_parameters(s);
+        _uart_update_parameters(s);
         break_enable = (val >> 6) & 1;
         if (break_enable != s->last_break_enable) {
             s->last_break_enable = break_enable;
@@ -419,11 +426,15 @@ void uart_io_write(struct uart *s, uint8_t addr, uint8_t val)
         s->scr = val;
         break;
     }
+
+    g_mutex_unlock(s->lock);
 }
 
 uint8_t uart_io_read(struct uart *s, uint8_t addr)
 {
     uint32_t ret;
+
+    g_mutex_lock(s->lock);
 
     addr &= 7;
     switch(addr) {
@@ -433,7 +444,7 @@ uint8_t uart_io_read(struct uart *s, uint8_t addr)
             ret = s->divider & 0xff;
         } else {
             if (s->fcr & UART_FCR_FE) {
-                ret = fifo_get(s,RECV_FIFO);
+                ret = _fifo_get(s,RECV_FIFO);
                 if (s->recv_fifo.count == 0) {
                     s->lsr &= ~(UART_LSR_DR | UART_LSR_BI);
                 } else {
@@ -445,7 +456,7 @@ uint8_t uart_io_read(struct uart *s, uint8_t addr)
                 ret = s->rbr;
                 s->lsr &= ~(UART_LSR_DR | UART_LSR_BI);
             }
-            uart_update_irq(s);
+            _uart_update_irq(s);
             if (!(s->mcr & UART_MCR_LOOP)) {
                 /* in loopback mode, don't receive any data */
                 sif_accept_input(s->sif);
@@ -463,7 +474,7 @@ uint8_t uart_io_read(struct uart *s, uint8_t addr)
         ret = s->iir;
         if ((ret & UART_IIR_ID) == UART_IIR_THRI) {
             s->thr_ipending = 0;
-            uart_update_irq(s);
+            _uart_update_irq(s);
         }
         break;
     case 3:
@@ -477,7 +488,7 @@ uint8_t uart_io_read(struct uart *s, uint8_t addr)
         /* Clear break and overrun interrupts */
         if (s->lsr & (UART_LSR_BI|UART_LSR_OE)) {
             s->lsr &= ~(UART_LSR_BI|UART_LSR_OE);
-            uart_update_irq(s);
+            _uart_update_irq(s);
         }
         break;
     case 6:
@@ -489,13 +500,13 @@ uint8_t uart_io_read(struct uart *s, uint8_t addr)
             ret |= (s->mcr & 0x01) << 5;
         } else {
             if (s->poll_msl >= 0) {
-                uart_update_msl(s);
+                _uart_update_msl(s);
             }
             ret = s->msr;
             /* Clear delta bits & msr int after read, if they were set */
             if (s->msr & UART_MSR_ANY_DELTA) {
                 s->msr &= 0xF0;
-                uart_update_irq(s);
+                _uart_update_irq(s);
             }
         }
         break;
@@ -504,12 +515,17 @@ uint8_t uart_io_read(struct uart *s, uint8_t addr)
         break;
     }
     DPRINTF("read addr=0x%02x val=0x%02x\n", addr, ret);
+
+    g_mutex_unlock(s->lock);
+
     return ret;
 }
 
 int uart_can_send(struct uart *s)
 {
     int value;
+
+    g_mutex_lock(s->lock);
 
     if (s->fcr & UART_FCR_FE) {
         /* Advertise (fifo.itl - fifo.count) bytes when count < ITL, and 1 if
@@ -530,16 +546,22 @@ int uart_can_send(struct uart *s)
         value = !(s->lsr & UART_LSR_DR);
     }
 
+    g_mutex_unlock(s->lock);
+
     return value;
 }
 
 void uart_break(struct uart *s)
 {
+    g_mutex_lock(s->lock);
+
     s->rbr = 0;
     /* When the LSR_DR is set a null byte is pushed into the fifo */
-    fifo_put(s, RECV_FIFO, '\0');
+    _fifo_put(s, RECV_FIFO, '\0');
     s->lsr |= UART_LSR_BI | UART_LSR_DR;
-    uart_update_irq(s);
+    _uart_update_irq(s);
+
+    g_mutex_unlock(s->lock);
 }
 
 /* There's data in recv_fifo and s->rbr has not been read for 4 char transmit
@@ -548,16 +570,22 @@ static void fifo_timeout_int(struct timer *t)
 {
     struct uart *s = container_of(t, struct uart, fifo_timeout_timer);
 
+    g_mutex_lock(s->lock);
+
     if (s->recv_fifo.count) {
         s->timeout_ipending = 1;
-        uart_update_irq(s);
+        _uart_update_irq(s);
     }
+
+    g_mutex_unlock(s->lock);
 }
 
 void uart_send(struct uart *s, uint8_t value)
 {
+    g_mutex_lock(s->lock);
+
     if (s->fcr & UART_FCR_FE) {
-        fifo_put(s, RECV_FIFO, value);
+        _fifo_put(s, RECV_FIFO, value);
         s->lsr |= UART_LSR_DR;
 
         /* call the timeout receive callback in 4 char transmit time */
@@ -570,11 +598,15 @@ void uart_send(struct uart *s, uint8_t value)
         s->rbr = value;
         s->lsr |= UART_LSR_DR;
     }
-    uart_update_irq(s);
+    _uart_update_irq(s);
+
+    g_mutex_unlock(s->lock);
 }
 
 void uart_reset(struct uart *s)
 {
+    g_mutex_lock(s->lock);
+
     s->rbr = 0;
     s->ier = 0;
     s->iir = UART_IIR_NO_INT;
@@ -589,8 +621,8 @@ void uart_reset(struct uart *s)
     s->char_transmit_time = (NS_PER_SEC / 9600) * 10;
     s->poll_msl = 0;
 
-    fifo_clear(s,RECV_FIFO);
-    fifo_clear(s,XMIT_FIFO);
+    _fifo_clear(s,RECV_FIFO);
+    _fifo_clear(s,XMIT_FIFO);
 
     s->last_xmit_ts = clock_get_ns(s->clock);
 
@@ -598,10 +630,14 @@ void uart_reset(struct uart *s)
     s->last_break_enable = 0;
 
     pin_lower(&s->irq);
+
+    g_mutex_unlock(s->lock);
 }
 
 void uart_init(struct uart *s, struct clock *c, struct serial_interface *sif)
 {
+    s->lock = g_mutex_new();
+
     s->clock = c;
     s->sif = sif;
 
@@ -614,9 +650,15 @@ void uart_init(struct uart *s, struct clock *c, struct serial_interface *sif)
 
 void uart_cleanup(struct uart *s)
 {
+    g_mutex_lock(s->lock);
+
     timer_cleanup(&s->modem_status_poll);
     timer_cleanup(&s->fifo_timeout_timer);
     timer_cleanup(&s->transmit_timer);
 
     pin_cleanup(&s->irq);
+
+    g_mutex_unlock(s->lock);
+
+    g_mutex_free(s->lock);
 }
