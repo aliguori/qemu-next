@@ -26,6 +26,7 @@
 #include "newemu/uart.h"
 
 #include <string.h>
+#include <stdio.h>
 
 //#define DEBUG_SERIAL
 
@@ -227,6 +228,8 @@ static void _uart_xmit(struct uart *s)
             if (!s->xmit_fifo.count) {
                 s->lsr |= UART_LSR_THRE;
             }
+        } else if ((s->lsr & UART_LSR_THRE)) {
+            return;
         } else {
             s->tsr = s->thr;
             s->lsr |= UART_LSR_THRE;
@@ -237,7 +240,7 @@ static void _uart_xmit(struct uart *s)
         /* in loopback mode, say that we just received a char */
         uart_send(s, s->tsr);
     } else if (sif_send(s->sif, s->tsr) != 1) {
-        if ((s->tsr_retry > 0) && (s->tsr_retry <= MAX_XMIT_RETRY)) {
+        if ((s->tsr_retry >= 0) && (s->tsr_retry <= MAX_XMIT_RETRY)) {
             s->tsr_retry++;
             timer_set_deadline_ns(&s->transmit_timer,
                                   new_xmit_ts + s->char_transmit_time);
