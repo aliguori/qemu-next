@@ -1,17 +1,30 @@
-#include <glib.h>
-#include <stdio.h>
-#include <unistd.h>
-
 #include "newemu/uart.h"
 #include "newemu/clock.h"
 #include "newemu/serial_iface.h"
 
+#include <glib.h>
+#include <stdio.h>
+#include <unistd.h>
+#include <string.h>
+
+struct test_sif
+{
+    struct serial_interface iface;
+    char buffer[1024];
+    size_t index;
+    size_t size;
+};
+
 static int test_send(struct serial_interface *sif, uint8_t value)
 {
     static int counter;
+    struct test_sif *tif = container_of(sif, struct test_sif, iface);
 
     if ((counter++ % 3) == 0) {
-        putchar(value);
+        g_assert(tif->index < (tif->size - 1));
+
+        tif->buffer[tif->index++] = value;
+        tif->buffer[tif->index] = 0;
         return 1;
     }
 
@@ -69,21 +82,48 @@ static void uart_puts_int(struct uart *s, const char *str)
     } while (!(lsr & UART_LSR_TEMT));
 }
 
-int main(int argc, char **argv)
+static void uart_test(void)
 {
     struct clock *clock = clock_get_instance();
-    struct serial_interface sif = { .ops = &sif_ops };
+    struct test_sif tif = { .iface.ops = &sif_ops,
+                            .size = 1024 };
     struct uart s;
 
-    uart_init(&s, clock, &sif);
+    uart_init(&s, clock, &tif.iface);
 
     uart_puts(&s, "Hello, world!\n");
+    g_assert_cmpint(tif.index, ==, strlen("Hello, world!\n"));
+    g_assert_cmpstr(tif.buffer, ==, "Hello, world!\n");
+    tif.index = 0;
+
+    uart_cleanup(&s);
+}
+
+static void uart_int_test(void)
+{
+    struct clock *clock = clock_get_instance();
+    struct test_sif tif = { .iface.ops = &sif_ops,
+                            .size = 1024 };
+    struct uart s;
+
+    uart_init(&s, clock, &tif.iface);
 
     uart_io_write(&s, 1, UART_IER_THRI);
 
     uart_puts_int(&s, "Hello, world!\n");
+    g_assert_cmpint(tif.index, ==, strlen("Hello, world!\n"));
+    g_assert_cmpstr(tif.buffer, ==, "Hello, world!\n");
+    tif.index = 0;
 
     uart_cleanup(&s);
+}
+
+int main(int argc, char **argv)
+{
+    /* gtester isn't getting along with our threading yet... */
+
+    uart_test();
+    uart_int_test();
 
     return 0;
 }

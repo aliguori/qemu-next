@@ -22,6 +22,8 @@ void device_init(struct device *dev, struct clock *clock, const char *name, ...)
 {
     va_list ap;
 
+    dev->lock = g_mutex_new();
+
     va_start(ap, name);
     vsnprintf(dev->id, sizeof(dev->id), name, ap);
     va_end(ap);
@@ -63,9 +65,31 @@ void device_init_timer(struct device *dev, struct timer *timer,
     device_add_cleanup_handler(dev, device_cleanup_timer, timer);
 }
 
+static void device_cleanup_pin(struct device *dev, void *data)
+{
+    struct pin *p = data;
+    pin_cleanup(p);
+}
+
+void device_init_pin(struct device *dev, struct pin *pin,
+                     const char *name, ...)
+{
+    va_list ap;
+    char buffer[32];
+
+    va_start(ap, name);
+    snprintf(buffer, sizeof(buffer), "%s::%s", dev->id, name);
+    pin_initv(pin, buffer, ap);
+    va_end(ap);
+
+    device_add_cleanup_handler(dev, device_cleanup_pin, pin);
+}
+
 void device_cleanup(struct device *dev)
 {
     GSList *i;
+
+    device_lock(dev);
 
     while ((i = dev->cleanup)) {
         struct device_cleanup_data *d = i->data;
@@ -80,4 +104,17 @@ void device_cleanup(struct device *dev)
     }
 
     device_log(dev, "finalized");
+
+    device_unlock(dev);
+    g_mutex_free(dev->lock);
+}
+
+void device_lock(struct device *dev)
+{
+    g_mutex_lock(dev->lock);
+}
+
+void device_unlock(struct device *dev)
+{
+    g_mutex_unlock(dev->lock);
 }

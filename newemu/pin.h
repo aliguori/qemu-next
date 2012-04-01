@@ -2,15 +2,20 @@
 #define PIN_H
 
 #include <stdbool.h>
+#include <stdarg.h>
 #include <glib.h>
 
 struct pin
 {
+    char id[32];
     GMutex *lock;
     bool level;
 };
 
-void pin_init(struct pin *p);
+void pin_init(struct pin *p, const char *name, ...)
+    __attribute__((format(printf, 2, 3)));
+
+void pin_initv(struct pin *p, const char *name, va_list ap);
 
 void pin_cleanup(struct pin *p);
 

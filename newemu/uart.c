@@ -216,9 +216,9 @@ static void uart_update_msl_cb(struct timer *t)
 {
     struct uart *s = container_of(t, struct uart, modem_status_poll);
 
-    g_mutex_lock(s->lock);
+    device_lock(&s->dev);
     _uart_update_msl(s);
-    g_mutex_unlock(s->lock);
+    device_unlock(&s->dev);
 }
 
 static void _uart_xmit(struct uart *s)
@@ -281,14 +281,14 @@ static void uart_xmit_cb(struct timer *t)
 {
     struct uart *s = container_of(t, struct uart, transmit_timer);
 
-    g_mutex_lock(s->lock);
+    device_lock(&s->dev);
     _uart_xmit(s);
-    g_mutex_unlock(s->lock);
+    device_unlock(&s->dev);
 }
 
 void uart_io_write(struct uart *s, uint8_t addr, uint8_t val)
 {
-    g_mutex_lock(s->lock);
+    device_lock(&s->dev);
 
     uart_log(s, "io_write(0x%02x, 0x%02x)", addr, val);
 
@@ -439,14 +439,14 @@ void uart_io_write(struct uart *s, uint8_t addr, uint8_t val)
         break;
     }
 
-    g_mutex_unlock(s->lock);
+    device_unlock(&s->dev);
 }
 
 uint8_t uart_io_read(struct uart *s, uint8_t addr)
 {
     uint32_t ret;
 
-    g_mutex_lock(s->lock);
+    device_lock(&s->dev);
 
     addr &= 7;
     switch(addr) {
@@ -529,14 +529,14 @@ uint8_t uart_io_read(struct uart *s, uint8_t addr)
 
     uart_log(s, "io_read(0x%02x) = 0x%02x", addr, ret);
 
-    g_mutex_unlock(s->lock);
+    device_unlock(&s->dev);
 
     return ret;
 }
 
 void uart_break(struct uart *s)
 {
-    g_mutex_lock(s->lock);
+    device_lock(&s->dev);
 
     uart_log(s, "received break");
 
@@ -546,7 +546,7 @@ void uart_break(struct uart *s)
     s->lsr |= UART_LSR_BI | UART_LSR_DR;
     _uart_update_irq(s);
 
-    g_mutex_unlock(s->lock);
+    device_unlock(&s->dev);
 }
 
 /* There's data in recv_fifo and s->rbr has not been read for 4 char transmit
@@ -555,14 +555,14 @@ static void fifo_timeout_int(struct timer *t)
 {
     struct uart *s = container_of(t, struct uart, fifo_timeout_timer);
 
-    g_mutex_lock(s->lock);
+    device_lock(&s->dev);
 
     if (s->recv_fifo.count) {
         s->timeout_ipending = 1;
         _uart_update_irq(s);
     }
 
-    g_mutex_unlock(s->lock);
+    device_unlock(&s->dev);
 }
 
 static size_t _uart_can_send(struct uart *s)
@@ -596,7 +596,7 @@ ssize_t uart_send(struct uart *s, const void *data, size_t len)
     size_t orig_len = len;
     const uint8_t *ptr = data;
 
-    g_mutex_lock(s->lock);
+    device_lock(&s->dev);
 
     len = MIN(len, _uart_can_send(s));
 
@@ -625,7 +625,7 @@ ssize_t uart_send(struct uart *s, const void *data, size_t len)
 
     uart_log(s, "sent %ld bytes of requested %lu bytes", len, orig_len);
 
-    g_mutex_unlock(s->lock);
+    device_unlock(&s->dev);
 
     return len;
 }
@@ -662,9 +662,9 @@ static void _uart_reset(struct uart *s)
 
 void uart_reset(struct uart *s)
 {
-    g_mutex_lock(s->lock);
+    device_lock(&s->dev);
     _uart_reset(s);
-    g_mutex_unlock(s->lock);
+    device_unlock(&s->dev);
 }
 
 void uart_init(struct uart *s, struct clock *c, struct serial_interface *sif)
@@ -682,19 +682,12 @@ void uart_init(struct uart *s, struct clock *c, struct serial_interface *sif)
     device_init_timer(&s->dev, &s->transmit_timer,
                       uart_xmit_cb, "xmit_timer");
 
-    pin_init(&s->irq);
+    device_init_pin(&s->dev, &s->irq, "irq");
 
     _uart_reset(s);
 }
 
 void uart_cleanup(struct uart *s)
 {
-    g_mutex_lock(s->lock);
-
-    pin_cleanup(&s->irq);
-
     device_cleanup(&s->dev);
-
-    g_mutex_unlock(s->lock);
-    g_mutex_free(s->lock);
 }
