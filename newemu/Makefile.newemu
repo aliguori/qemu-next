@@ -1,0 +1,1 @@
+obj-y += newemu/clock-qemu.o newemu/timer-qemu.o newemu/pin.o newemu/uart.o

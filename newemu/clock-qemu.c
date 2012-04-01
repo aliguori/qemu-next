@@ -1,6 +1,6 @@
 #include "newemu/clock.h"
 
-#include "newemu/clock-priv.h"
+#include "newemu/clock-qemu.h"
 
 struct clock *clock_get_instance(void)
 {

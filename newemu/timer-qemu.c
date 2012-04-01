@@ -1,5 +1,5 @@
 #include "newemu/timer.h"
-#include "newemu/clock-priv.h"
+#include "newemu/clock-qemu.h"
 
 struct timer_impl
 {
