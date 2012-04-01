@@ -127,6 +127,8 @@ struct uart {
 
 void uart_init(struct uart *s, struct clock *c, struct serial_interface *sif);
 
+void uart_cleanup(struct uart *s);
+
 void uart_write(struct uart *s, uint8_t addr, uint8_t val);
 
 uint8_t uart_read(struct uart *s, uint8_t addr);

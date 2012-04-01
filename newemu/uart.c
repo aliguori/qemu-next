@@ -614,3 +614,12 @@ void uart_init(struct uart *s, struct clock *c, struct serial_interface *sif)
 
     pin_init(&s->irq);
 }
+
+void uart_cleanup(struct uart *s)
+{
+    timer_cleanup(&s->modem_status_poll);
+    timer_cleanup(&s->fifo_timeout_timer);
+    timer_cleanup(&s->transmit_timer);
+
+    pin_cleanup(&s->irq);
+}
