@@ -35,9 +35,15 @@ static void uart_putchar(struct uart *s, int ch)
 
 static void uart_puts(struct uart *s, const char *str)
 {
+    int lsr;
+
     for (; *str; str++) {
         uart_putchar(s, *str);
     }
+
+    do {
+        lsr = uart_io_read(s, 5);
+    } while (!(lsr & UART_LSR_TEMT));
 }
 
 int main(int argc, char **argv)
@@ -51,9 +57,6 @@ int main(int argc, char **argv)
     uart_reset(&s);
 
     uart_puts(&s, "Hello, world!\n");
-
-    /* FIXME */
-    usleep(100000);
 
     uart_cleanup(&s);
 

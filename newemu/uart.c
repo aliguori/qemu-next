@@ -233,6 +233,7 @@ static void _uart_xmit(struct uart *s)
         } else {
             s->tsr = s->thr;
             s->lsr |= UART_LSR_THRE;
+            s->lsr &= ~UART_LSR_TEMT;
         }
     }
 
