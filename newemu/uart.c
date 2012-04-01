@@ -28,14 +28,15 @@
 #include <string.h>
 #include <stdio.h>
 
-//#define DEBUG_SERIAL
+//#define DEBUG_UART
 
-#ifdef DEBUG_SERIAL
-#define DPRINTF(fmt, ...) \
-do { fprintf(stderr, "serial: " fmt , ## __VA_ARGS__); } while (0)
+#ifdef DEBUG_UART
+#define uart_log(s, fmt, ...) \
+    printf("UART[%s]: " fmt "\n", (s)->dev.id, ## __VA_ARGS__)
 #else
-#define DPRINTF(fmt, ...) \
-do {} while (0)
+#define uart_log(s, fmt, ...) do { if (0) \
+    printf("UART[%s]: " fmt "\n", (s)->dev.id, ## __VA_ARGS__); \
+} while (0)
 #endif
 
 #define XMIT_FIFO           0
@@ -155,9 +156,6 @@ static void _uart_update_parameters(struct uart *s)
     speed = s->baudbase / s->divider;
     s->char_transmit_time = (NS_PER_SEC / speed) * frame_size;
     sif_set_params(s->sif, speed, parity, data_bits, stop_bits);
-
-    DPRINTF("speed=%d parity=%c data=%d stop=%d\n",
-           speed, parity, data_bits, stop_bits);
 }
 
 static void _uart_update_msl(struct uart *s)
@@ -239,6 +237,7 @@ static void _uart_xmit(struct uart *s)
             s->tsr = s->thr;
             s->lsr |= UART_LSR_THRE;
             s->lsr &= ~UART_LSR_TEMT;
+            uart_log(s, "moved THR to TSR: 0x%02x", s->tsr);
         }
     }
 
@@ -248,6 +247,7 @@ static void _uart_xmit(struct uart *s)
     } else if (sif_send(s->sif, s->tsr) != 1) {
         if ((s->tsr_retry >= 0) && (s->tsr_retry <= MAX_XMIT_RETRY)) {
             s->tsr_retry++;
+            uart_log(s, "sif not ready, retrying");
             timer_set_deadline_ns(&s->transmit_timer,
                                   new_xmit_ts + s->char_transmit_time);
             return;
@@ -257,9 +257,11 @@ static void _uart_xmit(struct uart *s)
                get one that goes through. This is to prevent guests that log to
                unconnected pipes or pty's from stalling. */
             s->tsr_retry = -1;
+            uart_log(s, "max retries hit, dropping future characters");
         }
     } else {
         s->tsr_retry = 0;
+        uart_log(s, "sent character: 0x%02x", s->tsr);
     }
 
     s->last_xmit_ts = clock_get_ns(s->clock);
@@ -288,8 +290,9 @@ void uart_io_write(struct uart *s, uint8_t addr, uint8_t val)
 {
     g_mutex_lock(s->lock);
 
+    uart_log(s, "io_write(0x%02x, 0x%02x)", addr, val);
+
     addr &= 7;
-    DPRINTF("write addr=0x%02x val=0x%02x\n", addr, val);
     switch(addr) {
     default:
     case 0:
@@ -523,7 +526,8 @@ uint8_t uart_io_read(struct uart *s, uint8_t addr)
         ret = s->scr;
         break;
     }
-    DPRINTF("read addr=0x%02x val=0x%02x\n", addr, ret);
+
+    uart_log(s, "io_read(0x%02x) = 0x%02x", addr, ret);
 
     g_mutex_unlock(s->lock);
 
@@ -533,6 +537,8 @@ uint8_t uart_io_read(struct uart *s, uint8_t addr)
 void uart_break(struct uart *s)
 {
     g_mutex_lock(s->lock);
+
+    uart_log(s, "received break");
 
     s->rbr = 0;
     /* When the LSR_DR is set a null byte is pushed into the fifo */
@@ -587,6 +593,7 @@ static size_t _uart_can_send(struct uart *s)
 
 ssize_t uart_send(struct uart *s, const void *data, size_t len)
 {
+    size_t orig_len = len;
     const uint8_t *ptr = data;
 
     g_mutex_lock(s->lock);
@@ -616,6 +623,8 @@ ssize_t uart_send(struct uart *s, const void *data, size_t len)
     }
     _uart_update_irq(s);
 
+    uart_log(s, "sent %ld bytes of requested %lu bytes", len, orig_len);
+
     g_mutex_unlock(s->lock);
 
     return len;
@@ -623,6 +632,8 @@ ssize_t uart_send(struct uart *s, const void *data, size_t len)
 
 static void _uart_reset(struct uart *s)
 {
+    uart_log(s, "reset");
+
     s->fcr = 0;
     s->rbr = 0;
     s->ier = 0;
