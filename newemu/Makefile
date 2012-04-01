@@ -1,1 +1,1 @@
-obj-y += newemu/clock.o newemu/timer.o
+obj-y += newemu/clock.o newemu/timer.o newemu/pin.o
