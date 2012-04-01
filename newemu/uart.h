@@ -4,7 +4,9 @@
 #include "newemu/timer.h"
 #include "newemu/pin.h"
 #include "newemu/serial_iface.h"
+#include "newemu/device.h"
 
+#include <sys/types.h>
 #include <glib.h>
 
 #define UART_LCR_DLAB	0x80	/* Divisor latch access bit */
@@ -74,81 +76,147 @@
 
 #define UART_FIFO_LENGTH    16      /* 16550A Fifo Length */
 
-#define XMIT_FIFO           0
-#define RECV_FIFO           1
-#define MAX_XMIT_RETRY      4
-
 struct uart_fifo {
     uint8_t data[UART_FIFO_LENGTH];
     uint8_t count;
     uint8_t itl;                        /* Interrupt Trigger Level */
     uint8_t tail;
     uint8_t head;
+
+    uint8_t reserved[16];
 };
 
 struct uart {
+    struct device dev;
+
+    struct pin irq;
+
+    struct uart_fifo recv_fifo;
+    struct uart_fifo xmit_fifo;
+
+    struct timer fifo_timeout_timer;
+    struct timer transmit_timer;
+    struct timer modem_status_poll;
+
     GMutex *lock;
+    struct clock *clock;
+    struct serial_interface *sif;
+
+    /* Time when the last byte was successfully sent out of the tsr */
+    uint64_t last_xmit_ts;
+    /* time to transmit a char in ticks*/
+    uint64_t char_transmit_time;
+
+    /* NOTE: this hidden state is necessary for tx irq generation as
+       it can be reset while reading iir */
+    int thr_ipending;
+    int last_break_enable;
+
+    int it_shift;
+    int baudbase;
+
+    int tsr_retry;
+
+    /* timeout interrupt pending state */
+    int timeout_ipending;
+
+    int poll_msl;
 
     uint16_t divider;
+
     uint8_t rbr; /* receive register */
     uint8_t thr; /* transmit holding register */
     uint8_t tsr; /* transmit shift register */
     uint8_t ier;
+
     uint8_t iir; /* read only */
     uint8_t lcr;
     uint8_t mcr;
     uint8_t lsr; /* read only */
+
     uint8_t msr; /* read only */
     uint8_t scr;
     uint8_t fcr;
     uint8_t fcr_vmstate; /* we can't write directly this value
                             it has side effects */
-    /* NOTE: this hidden state is necessary for tx irq generation as
-       it can be reset while reading iir */
-    int thr_ipending;
-    struct pin irq;
-    int last_break_enable;
-    int it_shift;
-    int baudbase;
-    int tsr_retry;
-    uint32_t wakeup;
 
-    /* Time when the last byte was successfully sent out of the tsr */
-    uint64_t last_xmit_ts;
-    struct uart_fifo recv_fifo;
-    struct uart_fifo xmit_fifo;
-
-    struct timer fifo_timeout_timer;
-    /* timeout interrupt pending state */
-    int timeout_ipending;
-    struct timer transmit_timer;
-
-
-    /* time to transmit a char in ticks*/
-    uint64_t char_transmit_time;
-    int poll_msl;
-
-    struct timer modem_status_poll;
-
-    struct clock *clock;
-
-    struct serial_interface *sif;
+    uint8_t reserved[64];
 };
 
+/**
+ * uart_init:
+ *
+ * Initialize a UART structure.
+ *
+ * @s a pointer to a UART structure to initialize
+ * @c a pointer to a clock to use for the device
+ * @sif a pointer to an implementation of the serial device interface
+ */
 void uart_init(struct uart *s, struct clock *c, struct serial_interface *sif);
 
+/**
+ * uart_cleanup:
+ *
+ * Cleanup the resources associated with a UART
+ *
+ * @s a pointer to a previously initialized UART structure
+ */
 void uart_cleanup(struct uart *s);
 
+/**
+ * uart_io_write:
+ *
+ * Write to the IO register of a UART.
+ *
+ * @s a pointer to a UART
+ * @addr the address to write to.  Only the bottom three bits are considered.
+ * @val the value to write
+ */
 void uart_io_write(struct uart *s, uint8_t addr, uint8_t val);
 
+/**
+ * uart_io_read:
+ *
+ * Read from an IO register of a UART.
+ *
+ * @s a pointer to a UART
+ * @addr the address to read from.  Only the bottom three bits are considered.
+ *
+ * Returns:
+ *  The IO data requests on @addr.
+ */
 uint8_t uart_io_read(struct uart *s, uint8_t addr);
 
+/**
+ * uart_io_break:
+ *
+ * Send a break command to the UART.
+ *
+ * @s a pointer to a UART
+ */
 void uart_break(struct uart *s);
 
-int uart_can_send(struct uart *s);
+/**
+ * uart_send:
+ *
+ * Send data to a UART.
+ *
+ * @s a pointer to a UART
+ * @data a buffer containing data from the UART
+ * @size the number of bytes to send
+ *
+ * Returns:
+ *  The number of characters successfully written.
+ */
+ssize_t uart_send(struct uart *s, const void *data, size_t len);
 
-void uart_send(struct uart *s, uint8_t value);
-
+/**
+ * uart_reset:
+ *
+ * Reset the state of the UART.
+ *
+ * @s a pointer to a UART
+ */
 void uart_reset(struct uart *s);
 
 #endif

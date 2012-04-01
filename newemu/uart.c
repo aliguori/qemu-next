@@ -38,6 +38,11 @@ do { fprintf(stderr, "serial: " fmt , ## __VA_ARGS__); } while (0)
 do {} while (0)
 #endif
 
+#define XMIT_FIFO           0
+#define RECV_FIFO           1
+
+#define MAX_XMIT_RETRY      4
+
 static void _fifo_clear(struct uart *s, int fifo)
 {
     struct uart_fifo *f = (fifo) ? &s->recv_fifo : &s->xmit_fifo;
@@ -239,7 +244,7 @@ static void _uart_xmit(struct uart *s)
 
     if (s->mcr & UART_MCR_LOOP) {
         /* in loopback mode, say that we just received a char */
-        uart_send(s, s->tsr);
+        uart_send(s, &s->tsr, 1);
     } else if (sif_send(s->sif, s->tsr) != 1) {
         if ((s->tsr_retry >= 0) && (s->tsr_retry <= MAX_XMIT_RETRY)) {
             s->tsr_retry++;
@@ -293,7 +298,7 @@ void uart_io_write(struct uart *s, uint8_t addr, uint8_t val)
             _uart_update_parameters(s);
         } else {
             s->thr = (uint8_t) val;
-            if(s->fcr & UART_FCR_FE) {
+            if (s->fcr & UART_FCR_FE) {
                 _fifo_put(s, XMIT_FIFO, s->thr);
                 s->thr_ipending = 0;
                 s->lsr &= ~UART_LSR_TEMT;
@@ -525,36 +530,6 @@ uint8_t uart_io_read(struct uart *s, uint8_t addr)
     return ret;
 }
 
-int uart_can_send(struct uart *s)
-{
-    int value;
-
-    g_mutex_lock(s->lock);
-
-    if (s->fcr & UART_FCR_FE) {
-        /* Advertise (fifo.itl - fifo.count) bytes when count < ITL, and 1 if
-           above. If UART_FIFO_LENGTH - fifo.count is advertised the effect
-           will be to almost always fill the fifo completely before the guest
-           has a chance to respond, effectively overriding the ITL that the
-           guest has set. */
-        if (s->recv_fifo.count < UART_FIFO_LENGTH) {
-            if (s->recv_fifo.count <= s->recv_fifo.itl) {
-                value = s->recv_fifo.itl - s->recv_fifo.count;
-            } else {
-                value = 1;
-            }
-        } else {
-            value = 0;
-        }
-    } else {
-        value = !(s->lsr & UART_LSR_DR);
-    }
-
-    g_mutex_unlock(s->lock);
-
-    return value;
-}
-
 void uart_break(struct uart *s)
 {
     g_mutex_lock(s->lock);
@@ -584,33 +559,71 @@ static void fifo_timeout_int(struct timer *t)
     g_mutex_unlock(s->lock);
 }
 
-void uart_send(struct uart *s, uint8_t value)
+static size_t _uart_can_send(struct uart *s)
 {
-    g_mutex_lock(s->lock);
+    int value;
 
     if (s->fcr & UART_FCR_FE) {
-        _fifo_put(s, RECV_FIFO, value);
-        s->lsr |= UART_LSR_DR;
-
-        /* call the timeout receive callback in 4 char transmit time */
-        timer_set_deadline_rel_ns(&s->fifo_timeout_timer,
-                                  s->char_transmit_time * 4);
+        /* Advertise (fifo.itl - fifo.count) bytes when count < ITL, and 1 if
+           above. If UART_FIFO_LENGTH - fifo.count is advertised the effect
+           will be to almost always fill the fifo completely before the guest
+           has a chance to respond, effectively overriding the ITL that the
+           guest has set. */
+        if (s->recv_fifo.count < UART_FIFO_LENGTH) {
+            if (s->recv_fifo.count <= s->recv_fifo.itl) {
+                value = s->recv_fifo.itl - s->recv_fifo.count;
+            } else {
+                value = 1;
+            }
+        } else {
+            value = 0;
+        }
     } else {
+        value = !(s->lsr & UART_LSR_DR);
+    }
+
+    return value;
+}
+
+ssize_t uart_send(struct uart *s, const void *data, size_t len)
+{
+    const uint8_t *ptr = data;
+
+    g_mutex_lock(s->lock);
+
+    len = MIN(len, _uart_can_send(s));
+
+    if (s->fcr & UART_FCR_FE) {
+        size_t i;
+
+        for (i = 0; i < len; i++) {
+            _fifo_put(s, RECV_FIFO, ptr[i]);
+        }
+
+        if (len) {
+            s->lsr |= UART_LSR_DR;
+
+            /* call the timeout receive callback in 4 char transmit time */
+            timer_set_deadline_rel_ns(&s->fifo_timeout_timer,
+                                      s->char_transmit_time * 4);
+        }
+    } else if (len) {
         if (s->lsr & UART_LSR_DR) {
             s->lsr |= UART_LSR_OE;
         }
-        s->rbr = value;
+        s->rbr = ptr[0];
         s->lsr |= UART_LSR_DR;
     }
     _uart_update_irq(s);
 
     g_mutex_unlock(s->lock);
+
+    return len;
 }
 
-void uart_reset(struct uart *s)
+static void _uart_reset(struct uart *s)
 {
-    g_mutex_lock(s->lock);
-
+    s->fcr = 0;
     s->rbr = 0;
     s->ier = 0;
     s->iir = UART_IIR_NO_INT;
@@ -634,7 +647,12 @@ void uart_reset(struct uart *s)
     s->last_break_enable = 0;
 
     pin_lower(&s->irq);
+}
 
+void uart_reset(struct uart *s)
+{
+    g_mutex_lock(s->lock);
+    _uart_reset(s);
     g_mutex_unlock(s->lock);
 }
 
@@ -642,27 +660,30 @@ void uart_init(struct uart *s, struct clock *c, struct serial_interface *sif)
 {
     s->lock = g_mutex_new();
 
-    s->clock = c;
     s->sif = sif;
 
-    timer_init(&s->modem_status_poll, s->clock, uart_update_msl_cb);
-    timer_init(&s->fifo_timeout_timer, s->clock, fifo_timeout_int);
-    timer_init(&s->transmit_timer, s->clock, uart_xmit_cb);
+    device_init(&s->dev, c, "uart");
+
+    device_init_timer(&s->dev, &s->modem_status_poll,
+                      uart_update_msl_cb, "modem_status");
+    device_init_timer(&s->dev, &s->fifo_timeout_timer,
+                      fifo_timeout_int, "fifo_timeout");
+    device_init_timer(&s->dev, &s->transmit_timer,
+                      uart_xmit_cb, "xmit_timer");
 
     pin_init(&s->irq);
+
+    _uart_reset(s);
 }
 
 void uart_cleanup(struct uart *s)
 {
     g_mutex_lock(s->lock);
 
-    timer_cleanup(&s->modem_status_poll);
-    timer_cleanup(&s->fifo_timeout_timer);
-    timer_cleanup(&s->transmit_timer);
-
     pin_cleanup(&s->irq);
 
-    g_mutex_unlock(s->lock);
+    device_cleanup(&s->dev);
 
+    g_mutex_unlock(s->lock);
     g_mutex_free(s->lock);
 }

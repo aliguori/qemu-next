@@ -4,6 +4,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include <stddef.h>
+#include <stdarg.h>
 
 #include "newemu/clock.h"
 
@@ -22,12 +23,18 @@ typedef void (timer_callback)(struct timer *t);
 
 struct timer
 {
+    char id[32];
     struct clock *clock;
     timer_callback *cb;
     struct timer_impl *impl;
 };
 
-void timer_init(struct timer *t, struct clock *c, timer_callback *cb);
+void timer_init(struct timer *t, struct clock *c, timer_callback *cb,
+                const char *name, ...)
+    __attribute__((format(printf, 4, 5)));
+
+void timer_initv(struct timer *t, struct clock *c, timer_callback *cb,
+                 const char *name, va_list ap);
 
 void timer_cleanup(struct timer *t);
 

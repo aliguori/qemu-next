@@ -12,7 +12,7 @@ LDLIBS += $(shell pkg-config --libs gthread-2.0)
 
 all: uart-test
 
-uart-test: uart-test.o clock-glib.o timer-glib.o pin.o uart.o
+uart-test: uart-test.o clock-glib.o timer-glib.o pin.o uart.o device.o
 
 %.o: %.c
 	$(CC) -c -o $@ $(CFLAGS) -MF .$@.deps $<

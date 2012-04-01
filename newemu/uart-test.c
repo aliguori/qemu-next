@@ -54,8 +54,6 @@ int main(int argc, char **argv)
 
     uart_init(&s, clock, &sif);
 
-    uart_reset(&s);
-
     uart_puts(&s, "Hello, world!\n");
 
     uart_cleanup(&s);
