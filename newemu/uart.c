@@ -233,8 +233,8 @@ static void uart_xmit(struct uart *s)
 
     if (s->mcr & UART_MCR_LOOP) {
         /* in loopback mode, say that we just received a char */
-        uart_receive(s, &s->tsr, 1);
-    } else if (sif_write(s->sif, s->tsr) != 1) {
+        uart_send(s, s->tsr);
+    } else if (sif_send(s->sif, s->tsr) != 1) {
         if ((s->tsr_retry > 0) && (s->tsr_retry <= MAX_XMIT_RETRY)) {
             s->tsr_retry++;
             timer_set_deadline_ns(&s->transmit_timer,
@@ -270,7 +270,7 @@ static void uart_xmit_cb(struct timer *t)
     uart_xmit(s);
 }
 
-void uart_write(struct uart *s, uint8_t addr, uint8_t val)
+void uart_io_write(struct uart *s, uint8_t addr, uint8_t val)
 {
     addr &= 7;
     DPRINTF("write addr=0x%02x val=0x%02x\n", addr, val);
@@ -421,7 +421,7 @@ void uart_write(struct uart *s, uint8_t addr, uint8_t val)
     }
 }
 
-uint8_t uart_read(struct uart *s, uint8_t addr)
+uint8_t uart_io_read(struct uart *s, uint8_t addr)
 {
     uint32_t ret;
 
@@ -507,7 +507,7 @@ uint8_t uart_read(struct uart *s, uint8_t addr)
     return ret;
 }
 
-int uart_can_receive(struct uart *s)
+int uart_can_send(struct uart *s)
 {
     int value;
 
@@ -554,13 +554,10 @@ static void fifo_timeout_int(struct timer *t)
     }
 }
 
-void uart_receive(struct uart *s, const uint8_t *buf, int size)
+void uart_send(struct uart *s, uint8_t value)
 {
     if (s->fcr & UART_FCR_FE) {
-        int i;
-        for (i = 0; i < size; i++) {
-            fifo_put(s, RECV_FIFO, buf[i]);
-        }
+        fifo_put(s, RECV_FIFO, value);
         s->lsr |= UART_LSR_DR;
 
         /* call the timeout receive callback in 4 char transmit time */
@@ -570,7 +567,7 @@ void uart_receive(struct uart *s, const uint8_t *buf, int size)
         if (s->lsr & UART_LSR_DR) {
             s->lsr |= UART_LSR_OE;
         }
-        s->rbr = buf[0];
+        s->rbr = value;
         s->lsr |= UART_LSR_DR;
     }
     uart_update_irq(s);

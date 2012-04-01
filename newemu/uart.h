@@ -53,9 +53,12 @@
 #define UART_LSR_PE	0x04	/* Parity error indicator */
 #define UART_LSR_OE	0x02	/* Overrun error indicator */
 #define UART_LSR_DR	0x01	/* Receiver data ready */
-#define UART_LSR_INT_ANY 0x1E	/* Any of the lsr-interrupt-triggering status bits */
 
-/* Interrupt trigger levels. The byte-counts are for 16550A - in newer UARTs the byte-count for each ITL is higher. */
+/* Any of the lsr-interrupt-triggering status bits */
+#define UART_LSR_INT_ANY 0x1E
+
+/* Interrupt trigger levels. The byte-counts are for 16550A - in newer UARTs
+   the byte-count for each ITL is higher. */
 
 #define UART_FCR_ITL_1      0x00 /* 1 byte ITL */
 #define UART_FCR_ITL_2      0x40 /* 4 bytes ITL */
@@ -106,16 +109,19 @@ struct uart {
     int tsr_retry;
     uint32_t wakeup;
 
-    uint64_t last_xmit_ts;              /* Time when the last byte was successfully sent out of the tsr */
+    /* Time when the last byte was successfully sent out of the tsr */
+    uint64_t last_xmit_ts;
     struct uart_fifo recv_fifo;
     struct uart_fifo xmit_fifo;
 
     struct timer fifo_timeout_timer;
-    int timeout_ipending;                   /* timeout interrupt pending state */
+    /* timeout interrupt pending state */
+    int timeout_ipending;
     struct timer transmit_timer;
 
 
-    uint64_t char_transmit_time;               /* time to transmit a char in ticks*/
+    /* time to transmit a char in ticks*/
+    uint64_t char_transmit_time;
     int poll_msl;
 
     struct timer modem_status_poll;
@@ -129,15 +135,15 @@ void uart_init(struct uart *s, struct clock *c, struct serial_interface *sif);
 
 void uart_cleanup(struct uart *s);
 
-void uart_write(struct uart *s, uint8_t addr, uint8_t val);
+void uart_io_write(struct uart *s, uint8_t addr, uint8_t val);
 
-uint8_t uart_read(struct uart *s, uint8_t addr);
-
-int uart_can_receive(struct uart *s);
+uint8_t uart_io_read(struct uart *s, uint8_t addr);
 
 void uart_break(struct uart *s);
 
-void uart_receive(struct uart *s, const uint8_t *buf, int size);
+int uart_can_send(struct uart *s);
+
+void uart_send(struct uart *s, uint8_t value);
 
 void uart_reset(struct uart *s);
 
