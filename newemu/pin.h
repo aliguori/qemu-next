@@ -2,9 +2,11 @@
 #define PIN_H
 
 #include <stdbool.h>
+#include <glib.h>
 
 struct pin
 {
+    GMutex *lock;
     bool level;
 };
 

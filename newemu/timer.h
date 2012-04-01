@@ -13,6 +13,8 @@
 /* we use a PIMPL pattern here to avoid having to pull qemu dependencies into
    the header file. */
 
+/* the caller must synchronize access to this object itself */
+
 struct timer_impl;
 struct timer;
 
