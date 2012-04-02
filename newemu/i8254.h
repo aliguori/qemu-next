@@ -61,20 +61,23 @@ struct i8254
     struct device dev;
 
     struct i8254_channel channels[3];
+
+    char reserved[32];
 };
+
+
+void i8254_init(struct i8254 *s, struct clock *c);
+
+void i8254_cleanup(struct i8254 *s);
 
 void i8254_set_channel_gate(struct i8254 *s, int channel, int val);
 
-void i8254_io_write(struct i8254 *i8254, uint32_t addr, uint32_t val);
+void i8254_io_write(struct i8254 *s, uint32_t addr, uint32_t val);
 
-uint32_t i8254_io_read(struct i8254 *i8254, uint32_t addr);
+uint32_t i8254_io_read(struct i8254 *s, uint32_t addr);
 
-void i8254_set_irq_enable(struct i8254 *pit, int enable);
+void i8254_set_irq_enable(struct i8254 *s, int enable);
 
-void i8254_reset(struct i8254 *i8254);
-
-void i8254_init(struct i8254 *pit, struct clock *c);
-
-void i8254_cleanup(struct i8254 *pit);
+void i8254_reset(struct i8254 *s);
 
 #endif
