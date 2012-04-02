@@ -434,6 +434,7 @@ static void i8254_channel_init(struct i8254_channel *s, struct clock *c,
     /* the timer 0 is connected to an IRQ */
     if (index == 0) {
         device_init_timer(&s->dev, &s->irq_timer, i8254_irq_timer, "irq_timer");
+        s->irq_disabled = 0;
     } else {
         s->irq_disabled = 1;
     }

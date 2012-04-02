@@ -1,2 +1,3 @@
 .*.deps
 uart-test
+i8254-test
