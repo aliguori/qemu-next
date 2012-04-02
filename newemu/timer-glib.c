@@ -93,6 +93,7 @@ uint64_t timer_get_deadline_ns(struct timer *t)
 void timer_set_deadline_ns(struct timer *t, uint64_t value)
 {
     struct clock *clock = t->clock;
+    int64_t rel, now;
     GSource *src;
 
     timer_cancel(t);
@@ -100,7 +101,14 @@ void timer_set_deadline_ns(struct timer *t, uint64_t value)
     timer_log(t, "deadline changed to %" PRIu64, value);
     t->impl->deadline = value;
 
-    src = g_timeout_source_new((value - clock_get_ns(t->clock)) / 1000000UL);
+    now = clock_get_ns(t->clock);
+    if (value < now) {
+        rel = 0;
+    } else {
+        rel = (value - now) / 1000000UL;
+    }
+
+    src = g_timeout_source_new(rel);
     g_source_set_callback(src, timer_trampoline, t, NULL);
     t->impl->tag = g_source_attach(src, clock->impl->context);
 }

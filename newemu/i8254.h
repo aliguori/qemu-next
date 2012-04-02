@@ -38,7 +38,7 @@ struct i8254_channel
     int64_t next_transition_time;
 
     uint32_t irq_disabled;
-    int count; /* can be 65536 */
+    int32_t count; /* can be 65536 */
 
     uint16_t latched_count;
 
@@ -64,7 +64,6 @@ struct i8254
 
     char reserved[32];
 };
-
 
 void i8254_init(struct i8254 *s, struct clock *c);
 

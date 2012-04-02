@@ -27,6 +27,9 @@
 #include "newemu/timer.h"
 #include "newemu/pin.h"
 
+#include <stdio.h>
+#include <inttypes.h>
+
 #define RW_STATE_LSB 1
 #define RW_STATE_MSB 2
 #define RW_STATE_WORD0 3
@@ -467,6 +470,7 @@ static void i8254_channel_init(struct i8254_channel *sc, struct clock *c,
     if (index == 0) {
         device_init_timer(&sc->dev, &sc->irq_timer,
                           i8254_irq_timer, "irq_timer");
+        device_init_pin(&sc->dev, &sc->irq, "irq");
         sc->irq_disabled = 0;
     } else {
         sc->irq_disabled = 1;

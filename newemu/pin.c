@@ -2,7 +2,7 @@
 
 #include <stdio.h>
 
-#define DEBUG_PIN
+//#define DEBUG_PIN
 
 #ifdef DEBUG_PIN
 #define pin_log(s, fmt, ...) \

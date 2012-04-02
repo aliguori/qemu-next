@@ -12,6 +12,8 @@ int main(int argc, char **argv)
 
     i8254_init(&s, clock);
 
+    sleep(5);
+
     i8254_cleanup(&s);
 
     return 0;
