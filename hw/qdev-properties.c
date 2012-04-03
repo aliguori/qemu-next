@@ -893,17 +893,18 @@ static Property *qdev_prop_walk(Property *props, const char *name)
 
 static Property *qdev_prop_find(DeviceState *dev, const char *name)
 {
+    ObjectClass *class;
     Property *prop;
 
     /* device properties */
-    prop = qdev_prop_walk(qdev_get_props(dev), name);
-    if (prop)
-        return prop;
-
-    /* bus properties */
-    prop = qdev_prop_walk(dev->parent_bus->info->props, name);
-    if (prop)
-        return prop;
+    class = object_get_class(OBJECT(dev));
+    do {
+        prop = qdev_prop_walk(DEVICE_CLASS(class)->props, name);
+        if (prop) {
+            return prop;
+        }
+        class = object_class_get_parent(class);
+    } while (class != object_class_by_name(TYPE_DEVICE));
 
     return NULL;
 }
