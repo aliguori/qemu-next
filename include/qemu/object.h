@@ -918,6 +918,19 @@ void object_property_add_str(Object *obj, const char *name,
                              struct Error **errp);
 
 /**
+ * object_child_foreach:
+ * @obj: the object whose children will be navigated
+ * @fn: the iterator function to be called
+ * @opaque: an opaque value that will be passed to the iterator
+ *
+ * Call @fn passing each child of @obj and @opaque to it, until @fn returns
+ * non-zero.  Return the last value returned by @fn, or 0 if there is no
+ * child.
+ */
+int object_child_foreach(Object *obj, int (*fn)(Object *child, void *opaque),
+                         void *opaque);
+
+/**
  * container_get:
  * @path: path to the container
  *
@@ -927,6 +940,5 @@ void object_property_add_str(Object *obj, const char *name,
  * Returns: the container object.
  */
 Object *container_get(const char *path);
-
 
 #endif
