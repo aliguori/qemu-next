@@ -119,17 +119,17 @@ DeviceState *qdev_try_create(BusState *bus, const char *type)
    calling this function.
    On failure, destroy the device and return negative value.
    Return 0 on success.  */
-int qdev_init(DeviceState *dev)
+static void device_realize(Object *obj, Error **errp)
 {
+    DeviceState *dev = DEVICE(obj);
     DeviceClass *dc = DEVICE_GET_CLASS(dev);
     int rc;
-
-    assert(!object_is_realized(OBJECT(dev)));
 
     rc = dc->init(dev);
     if (rc < 0) {
         qdev_free(dev);
-        return rc;
+        error_set(errp, QERR_INVALID_PARAMETER_COMBINATION);
+        return;
     }
 
     if (!OBJECT(dev)->parent) {
@@ -146,11 +146,28 @@ int qdev_init(DeviceState *dev)
                                        dev->instance_id_alias,
                                        dev->alias_required_for_version);
     }
-    OBJECT(dev)->state = OBJECT_STATE_REALIZED;
+}
+
+static void device_realize_children(Object *obj, Error **errp)
+{
+    DeviceState *dev = DEVICE(obj);
+    Error *err = NULL;
+
+    object_realize_children(OBJECT(dev), &err);
+    if (err) {
+        error_propagate(errp, err);
+        return;
+    }
     if (dev->hotplugged) {
         device_reset(dev);
     }
-    return 0;
+}
+
+int qdev_init(DeviceState *dev)
+{
+    Error *err = NULL;
+    object_property_set_bool(OBJECT(dev), true, "realized", &err);
+    return err ? -EINVAL : 0;
 }
 
 void qdev_set_legacy_instance_id(DeviceState *dev, int alias_id,
@@ -628,6 +645,12 @@ Object *qdev_get_machine(void)
     return dev;
 }
 
+static void device_class_init(ObjectClass *klass, void *data)
+{
+    klass->realize = device_realize;
+    klass->realize_children = device_realize_children;
+}
+
 static TypeInfo device_type_info = {
     .name = TYPE_DEVICE,
     .parent = TYPE_OBJECT,
@@ -636,6 +659,7 @@ static TypeInfo device_type_info = {
     .instance_finalize = device_finalize,
     .abstract = true,
     .class_size = sizeof(DeviceClass),
+    .class_init = device_class_init,
 };
 
 static void qdev_register_types(void)
