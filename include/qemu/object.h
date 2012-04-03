@@ -33,6 +33,9 @@ typedef struct TypeInfo TypeInfo;
 typedef struct InterfaceClass InterfaceClass;
 typedef struct InterfaceInfo InterfaceInfo;
 
+typedef struct Property Property;
+typedef struct PropertyInfo PropertyInfo;
+
 #define TYPE_OBJECT "object"
 
 /**
@@ -239,6 +242,9 @@ struct ObjectClass
 {
     /*< private >*/
     Type type;
+
+    /*< public >*/
+    Property *props;
 };
 
 typedef enum ObjectState {
@@ -969,9 +975,6 @@ int object_child_foreach(Object *obj, int (*fn)(Object *child, void *opaque),
  * Returns: the container object.
  */
 Object *container_get(const char *path);
-
-typedef struct Property Property;
-typedef struct PropertyInfo PropertyInfo;
 
 struct Property {
     const char   *name;

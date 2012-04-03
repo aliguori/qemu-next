@@ -407,7 +407,7 @@ static void armv7m_nvic_class_init(ObjectClass *klass, void *data)
 
     sdc->init = armv7m_nvic_init;
     dc->vmsd  = &vmstate_nvic;
-    dc->props = armv7m_nvic_properties;
+    klass->props = armv7m_nvic_properties;
 }
 
 static TypeInfo armv7m_nvic_info = {

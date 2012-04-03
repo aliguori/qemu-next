@@ -2900,7 +2900,7 @@ static void xhci_class_init(ObjectClass *klass, void *data)
     DeviceClass *dc = DEVICE_CLASS(klass);
 
     dc->vmsd    = &vmstate_xhci;
-    dc->props   = xhci_properties;
+    klass->props    = xhci_properties;
     k->init         = usb_xhci_initfn;
     k->vendor_id    = PCI_VENDOR_ID_NEC;
     k->device_id    = PCI_DEVICE_ID_NEC_UPD720200;

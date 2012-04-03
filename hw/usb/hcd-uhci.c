@@ -1248,7 +1248,7 @@ static void piix3_uhci_class_init(ObjectClass *klass, void *data)
     k->revision = 0x01;
     k->class_id = PCI_CLASS_SERIAL_USB;
     dc->vmsd = &vmstate_uhci;
-    dc->props = uhci_properties;
+    klass->props = uhci_properties;
 }
 
 static TypeInfo piix3_uhci_info = {
@@ -1270,7 +1270,7 @@ static void piix4_uhci_class_init(ObjectClass *klass, void *data)
     k->revision = 0x01;
     k->class_id = PCI_CLASS_SERIAL_USB;
     dc->vmsd = &vmstate_uhci;
-    dc->props = uhci_properties;
+    klass->props = uhci_properties;
 }
 
 static TypeInfo piix4_uhci_info = {
@@ -1292,7 +1292,7 @@ static void vt82c686b_uhci_class_init(ObjectClass *klass, void *data)
     k->revision = 0x01;
     k->class_id = PCI_CLASS_SERIAL_USB;
     dc->vmsd = &vmstate_uhci;
-    dc->props = uhci_properties;
+    klass->props = uhci_properties;
 }
 
 static TypeInfo vt82c686b_uhci_info = {
@@ -1313,7 +1313,7 @@ static void ich9_uhci1_class_init(ObjectClass *klass, void *data)
     k->revision = 0x03;
     k->class_id = PCI_CLASS_SERIAL_USB;
     dc->vmsd = &vmstate_uhci;
-    dc->props = uhci_properties;
+    klass->props = uhci_properties;
 }
 
 static TypeInfo ich9_uhci1_info = {
@@ -1334,7 +1334,7 @@ static void ich9_uhci2_class_init(ObjectClass *klass, void *data)
     k->revision = 0x03;
     k->class_id = PCI_CLASS_SERIAL_USB;
     dc->vmsd = &vmstate_uhci;
-    dc->props = uhci_properties;
+    klass->props = uhci_properties;
 }
 
 static TypeInfo ich9_uhci2_info = {
@@ -1355,7 +1355,7 @@ static void ich9_uhci3_class_init(ObjectClass *klass, void *data)
     k->revision = 0x03;
     k->class_id = PCI_CLASS_SERIAL_USB;
     dc->vmsd = &vmstate_uhci;
-    dc->props = uhci_properties;
+    klass->props = uhci_properties;
 }
 
 static TypeInfo ich9_uhci3_info = {

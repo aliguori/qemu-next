@@ -917,7 +917,7 @@ static void hda_audio_output_class_init(ObjectClass *klass, void *data)
     k->stream = hda_audio_stream;
     dc->desc = "HDA Audio Codec, output-only";
     dc->vmsd = &vmstate_hda_audio;
-    dc->props = hda_audio_properties;
+    klass->props = hda_audio_properties;
 }
 
 static TypeInfo hda_audio_output_info = {
@@ -938,7 +938,7 @@ static void hda_audio_duplex_class_init(ObjectClass *klass, void *data)
     k->stream = hda_audio_stream;
     dc->desc = "HDA Audio Codec, duplex";
     dc->vmsd = &vmstate_hda_audio;
-    dc->props = hda_audio_properties;
+    klass->props = hda_audio_properties;
 }
 
 static TypeInfo hda_audio_duplex_info = {

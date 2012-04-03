@@ -2227,7 +2227,7 @@ static void ehci_class_init(ObjectClass *klass, void *data)
     k->revision = 0x10;
     k->class_id = PCI_CLASS_SERIAL_USB;
     dc->vmsd = &vmstate_ehci;
-    dc->props = ehci_properties;
+    klass->props = ehci_properties;
 }
 
 static TypeInfo ehci_info = {
@@ -2248,7 +2248,7 @@ static void ich9_ehci_class_init(ObjectClass *klass, void *data)
     k->revision = 0x03;
     k->class_id = PCI_CLASS_SERIAL_USB;
     dc->vmsd = &vmstate_ehci;
-    dc->props = ehci_properties;
+    klass->props = ehci_properties;
 }
 
 static TypeInfo ich9_ehci_info = {

@@ -235,7 +235,7 @@ static void pcsysfw_class_init (ObjectClass *klass, void *data)
     DeviceClass *dc = DEVICE_CLASS (klass);
 
     dc->desc = "PC System Firmware";
-    dc->props = pcsysfw_properties;
+    klass->props = pcsysfw_properties;
 }
 
 static TypeInfo pcsysfw_info = {

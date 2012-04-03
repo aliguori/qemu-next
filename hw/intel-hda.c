@@ -1261,7 +1261,7 @@ static void intel_hda_class_init(ObjectClass *klass, void *data)
     dc->desc = "Intel HD Audio Controller";
     dc->reset = intel_hda_reset;
     dc->vmsd = &vmstate_intel_hda;
-    dc->props = intel_hda_properties;
+    klass->props = intel_hda_properties;
 }
 
 static TypeInfo intel_hda_info = {
@@ -1277,7 +1277,7 @@ static void hda_codec_device_class_init(ObjectClass *klass, void *data)
     k->init = hda_codec_dev_init;
     k->exit = hda_codec_dev_exit;
     k->bus_info = &hda_codec_bus_info;
-    k->props = hda_props;
+    klass->props = hda_props;
 }
 
 static TypeInfo hda_codec_device_type_info = {

@@ -1225,10 +1225,29 @@ bool object_is_realized(Object *obj)
     return obj->state == OBJECT_STATE_REALIZED;
 }
 
+static void object_class_base_init(ObjectClass *klass, void *data)
+{
+    /* We explicitly look up properties in the superclasses,
+     * so do not propagate them to the subclasses.
+     */
+    klass->props = NULL;
+}
+
 static void object_instance_init(Object *obj)
 {
+    ObjectClass *class;
+    Property *prop;
+
     object_property_add_str(obj, "type", qdev_get_type, NULL, NULL);
     obj->state = OBJECT_STATE_CREATED;
+
+    class = object_get_class(obj);
+    do {
+        for (prop = OBJECT_CLASS(class)->props; prop && prop->name; prop++) {
+            object_property_add_static(obj, prop, NULL);
+        }
+        class = object_class_get_parent(class);
+    } while (class != object_class_by_name(TYPE_OBJECT));
 }
 
 static void register_types(void)
@@ -1242,6 +1261,7 @@ static void register_types(void)
     static TypeInfo object_info = {
         .name = TYPE_OBJECT,
         .instance_size = sizeof(Object),
+        .class_base_init = object_class_base_init,
         .instance_init = object_instance_init,
         .abstract = true,
     };

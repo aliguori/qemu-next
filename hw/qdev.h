@@ -32,7 +32,6 @@ typedef struct DeviceClass {
 
     const char *fw_name;
     const char *desc;
-    Property *props;
     int no_user;
 
     /* callbacks */

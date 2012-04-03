@@ -1329,7 +1329,7 @@ static void ccid_class_initfn(ObjectClass *klass, void *data)
     uc->handle_destroy = ccid_handle_destroy;
     dc->desc = "CCID Rev 1.1 smartcard reader";
     dc->vmsd = &ccid_vmstate;
-    dc->props = ccid_properties;
+    klass->props = ccid_properties;
 }
 
 static TypeInfo ccid_info = {
@@ -1345,7 +1345,7 @@ static void ccid_card_class_init(ObjectClass *klass, void *data)
     k->bus_info = &ccid_bus_info;
     k->init = ccid_card_init;
     k->exit = ccid_card_exit;
-    k->props = ccid_props;
+    klass->props = ccid_props;
 }
 
 static TypeInfo ccid_card_type_info = {

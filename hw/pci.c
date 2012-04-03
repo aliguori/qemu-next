@@ -2003,7 +2003,7 @@ static void pci_device_class_init(ObjectClass *klass, void *data)
     k->unplug = pci_unplug_device;
     k->exit = pci_unregister_device;
     k->bus_info = &pci_bus_info;
-    k->props = pci_props;
+    klass->props = pci_props;
 }
 
 static TypeInfo pci_device_type_info = {

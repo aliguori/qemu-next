@@ -361,11 +361,10 @@ static Property s390_virtio_net_properties[] = {
 
 static void s390_virtio_net_class_init(ObjectClass *klass, void *data)
 {
-    DeviceClass *dc = DEVICE_CLASS(klass);
     VirtIOS390DeviceClass *k = VIRTIO_S390_DEVICE_CLASS(klass);
 
     k->init = s390_virtio_net_init;
-    dc->props = s390_virtio_net_properties;
+    klass->props = s390_virtio_net_properties;
 }
 
 static TypeInfo s390_virtio_net = {
@@ -383,11 +382,10 @@ static Property s390_virtio_blk_properties[] = {
 
 static void s390_virtio_blk_class_init(ObjectClass *klass, void *data)
 {
-    DeviceClass *dc = DEVICE_CLASS(klass);
     VirtIOS390DeviceClass *k = VIRTIO_S390_DEVICE_CLASS(klass);
 
     k->init = s390_virtio_blk_init;
-    dc->props = s390_virtio_blk_properties;
+    klass->props = s390_virtio_blk_properties;
 }
 
 static TypeInfo s390_virtio_blk = {
@@ -405,11 +403,10 @@ static Property s390_virtio_serial_properties[] = {
 
 static void s390_virtio_serial_class_init(ObjectClass *klass, void *data)
 {
-    DeviceClass *dc = DEVICE_CLASS(klass);
     VirtIOS390DeviceClass *k = VIRTIO_S390_DEVICE_CLASS(klass);
 
     k->init = s390_virtio_serial_init;
-    dc->props = s390_virtio_serial_properties;
+    klass->props = s390_virtio_serial_properties;
 }
 
 static TypeInfo s390_virtio_serial = {
@@ -452,11 +449,10 @@ static Property s390_virtio_scsi_properties[] = {
 
 static void s390_virtio_scsi_class_init(ObjectClass *klass, void *data)
 {
-    DeviceClass *dc = DEVICE_CLASS(klass);
     VirtIOS390DeviceClass *k = VIRTIO_S390_DEVICE_CLASS(klass);
 
     k->init = s390_virtio_scsi_init;
-    dc->props = s390_virtio_scsi_properties;
+    klass->props = s390_virtio_scsi_properties;
 }
 
 static TypeInfo s390_virtio_scsi = {
