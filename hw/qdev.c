@@ -90,7 +90,6 @@ void qdev_set_parent_bus(DeviceState *dev, BusState *bus)
         qdev_property_add_legacy(dev, prop, NULL);
         qdev_property_add_static(dev, prop, NULL);
     }
-    qdev_prop_set_defaults(dev, dev->parent_bus->info->props);
 }
 
 /* Create a new device.  This only initializes the device state structure
@@ -592,6 +591,9 @@ void qdev_property_add_legacy(DeviceState *dev, Property *prop,
 void qdev_property_add_static(DeviceState *dev, Property *prop,
                               Error **errp)
 {
+    Error *local_err = NULL;
+    Object *obj = OBJECT(dev);
+
     /*
      * TODO qdev_prop_ptr does not have getters or setters.  It must
      * go now that it can be replaced with links.  The test should be
@@ -601,10 +603,28 @@ void qdev_property_add_static(DeviceState *dev, Property *prop,
         return;
     }
 
-    object_property_add(OBJECT(dev), prop->name, prop->info->name,
+    object_property_add(obj, prop->name, prop->info->name,
                         prop->info->get, prop->info->set,
                         prop->info->release,
-                        prop, errp);
+                        prop, &local_err);
+
+    if (local_err) {
+        error_propagate(errp, local_err);
+        return;
+    }
+    if (prop->qtype == QTYPE_NONE) {
+        return;
+    }
+
+    if (prop->qtype == QTYPE_QBOOL) {
+        object_property_set_bool(obj, prop->defval, prop->name, &local_err);
+    } else if (prop->info->enum_table) {
+        object_property_set_str(obj, prop->info->enum_table[prop->defval],
+                                prop->name, &local_err);
+    } else if (prop->qtype == QTYPE_QINT) {
+        object_property_set_int(obj, prop->defval, prop->name, &local_err);
+    }
+    assert_no_error(local_err);
 }
 
 static void device_initfn(Object *obj)
@@ -624,8 +644,6 @@ static void device_initfn(Object *obj)
         qdev_property_add_legacy(dev, prop, NULL);
         qdev_property_add_static(dev, prop, NULL);
     }
-
-    qdev_prop_set_defaults(dev, qdev_get_props(dev));
 }
 
 /* Unlink device from bus and free the structure.  */
