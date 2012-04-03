@@ -460,7 +460,7 @@ static QEMUMachine pc_machine_v0_13 = {
             .property = "rombar",
             .value    = stringify(0),
         },{
-            .driver   = "PCI",
+            .driver   = TYPE_PCI_DEVICE,
             .property = "command_serr_enable",
             .value    = "off",
         },{
@@ -520,7 +520,7 @@ static QEMUMachine pc_machine_v0_12 = {
             .property = "rombar",
             .value    = stringify(0),
         },{
-            .driver   = "PCI",
+            .driver   = TYPE_PCI_DEVICE,
             .property = "command_serr_enable",
             .value    = "off",
         },{
@@ -584,11 +584,11 @@ static QEMUMachine pc_machine_v0_11 = {
             .property = "ver",
             .value    = "0.11",
         },{
-            .driver   = "PCI",
+            .driver   = TYPE_PCI_DEVICE,
             .property = "rombar",
             .value    = stringify(0),
         },{
-            .driver   = "PCI",
+            .driver   = TYPE_PCI_DEVICE,
             .property = "command_serr_enable",
             .value    = "off",
         },{
@@ -664,11 +664,11 @@ static QEMUMachine pc_machine_v0_10 = {
             .property = "ver",
             .value    = "0.10",
         },{
-            .driver   = "PCI",
+            .driver   = TYPE_PCI_DEVICE,
             .property = "rombar",
             .value    = stringify(0),
         },{
-            .driver   = "PCI",
+            .driver   = TYPE_PCI_DEVICE,
             .property = "command_serr_enable",
             .value    = "off",
         },{

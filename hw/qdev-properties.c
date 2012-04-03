@@ -1101,17 +1101,20 @@ void qdev_prop_register_global_list(GlobalProperty *props)
 
 void qdev_prop_set_globals(DeviceState *dev)
 {
-    GlobalProperty *prop;
+    ObjectClass *class = object_get_class(OBJECT(dev));
 
-    QTAILQ_FOREACH(prop, &global_props, next) {
-        if (strcmp(object_get_typename(OBJECT(dev)), prop->driver) != 0 &&
-            strcmp(qdev_get_bus_info(dev)->name, prop->driver) != 0) {
-            continue;
+    do {
+        GlobalProperty *prop;
+        QTAILQ_FOREACH(prop, &global_props, next) {
+            if (strcmp(object_class_get_name(class), prop->driver) != 0) {
+                continue;
+            }
+            if (qdev_prop_parse(dev, prop->property, prop->value) != 0) {
+                exit(1);
+            }
         }
-        if (qdev_prop_parse(dev, prop->property, prop->value) != 0) {
-            exit(1);
-        }
-    }
+        class = object_class_get_parent(class);
+    } while (class);
 }
 
 static int qdev_add_one_global(QemuOpts *opts, void *opaque)
