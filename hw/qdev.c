@@ -129,7 +129,6 @@ DeviceState *qdev_try_create(BusState *bus, const char *type)
     }
 
     qdev_set_parent_bus(dev, bus);
-    qdev_prop_set_globals(dev);
 
     return dev;
 }
@@ -644,6 +643,7 @@ static void device_initfn(Object *obj)
         qdev_property_add_legacy(dev, prop, NULL);
         qdev_property_add_static(dev, prop, NULL);
     }
+    qdev_prop_set_globals(dev);
 }
 
 /* Unlink device from bus and free the structure.  */
