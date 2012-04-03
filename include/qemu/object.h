@@ -241,6 +241,11 @@ struct ObjectClass
     Type type;
 };
 
+typedef enum ObjectState {
+    OBJECT_STATE_CREATED = 1,
+    OBJECT_STATE_REALIZED,
+} ObjectState;
+
 /**
  * Object:
  *
@@ -264,6 +269,7 @@ struct Object
     QTAILQ_HEAD(, ObjectProperty) properties;
     uint32_t ref;
     Object *parent;
+    ObjectState state;
 };
 
 /**
@@ -810,6 +816,14 @@ const char *object_property_get_type(Object *obj, const char *name,
  * Returns: the root object of the composition tree
  */
 Object *object_get_root(void);
+
+/**
+ * object_is_realized:
+ * @obj: the object
+ *
+ * Returns whether @obj has been realized (i.e. completely constructed).
+ */
+bool object_is_realized(Object *obj);
 
 /**
  * object_get_canonical_path:
