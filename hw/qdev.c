@@ -601,27 +601,31 @@ static void device_initfn(Object *obj)
 }
 
 /* Unlink device from bus and free the structure.  */
-static void device_finalize(Object *obj)
+static void device_unrealize(Object *obj)
 {
     DeviceState *dev = DEVICE(obj);
     BusState *bus;
     DeviceClass *dc = DEVICE_GET_CLASS(dev);
 
-    if (object_is_realized(obj)) {
-        while (dev->num_child_bus) {
-            bus = QLIST_FIRST(&dev->child_bus);
-            qbus_free(bus);
-        }
-        if (qdev_get_vmsd(dev)) {
-            vmstate_unregister(dev, qdev_get_vmsd(dev), dev);
-        }
-        if (dc->exit) {
-            dc->exit(dev);
-        }
-        if (dev->opts) {
-            qemu_opts_del(dev->opts);
-        }
+    while (dev->num_child_bus) {
+        bus = QLIST_FIRST(&dev->child_bus);
+        qbus_free(bus);
     }
+    if (qdev_get_vmsd(dev)) {
+        vmstate_unregister(dev, qdev_get_vmsd(dev), dev);
+    }
+    if (dc->exit) {
+        dc->exit(dev);
+    }
+    if (dev->opts) {
+        qemu_opts_del(dev->opts);
+    }
+}
+
+static void device_finalize(Object *obj)
+{
+    DeviceState *dev = DEVICE(obj);
+
     QTAILQ_REMOVE(&dev->parent_bus->children, dev, sibling);
 }
 
@@ -649,6 +653,7 @@ static void device_class_init(ObjectClass *klass, void *data)
 {
     klass->realize = device_realize;
     klass->realize_children = device_realize_children;
+    klass->unrealize = device_unrealize;
 }
 
 static TypeInfo device_type_info = {
