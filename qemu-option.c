@@ -204,41 +204,20 @@ static int parse_option_number(const char *name, const char *value, uint64_t *re
     return 0;
 }
 
-static int parse_option_size(const char *name, const char *value, uint64_t *ret)
+static int parse_option_size(const char *name, const char *value,
+                             const char default_suffix, uint64_t *ret)
 {
     char *postfix;
-    double sizef;
+    int64_t size;
 
-    if (value != NULL) {
-        sizef = strtod(value, &postfix);
-        switch (*postfix) {
-        case 'T':
-            sizef *= 1024;
-            /* fall through */
-        case 'G':
-            sizef *= 1024;
-            /* fall through */
-        case 'M':
-            sizef *= 1024;
-            /* fall through */
-        case 'K':
-        case 'k':
-            sizef *= 1024;
-            /* fall through */
-        case 'b':
-        case '\0':
-            *ret = (uint64_t) sizef;
-            break;
-        default:
-            qerror_report(QERR_INVALID_PARAMETER_VALUE, name, "a size");
-            error_printf_unless_qmp("You may use k, M, G or T suffixes for "
-                    "kilobytes, megabytes, gigabytes and terabytes.\n");
-            return -1;
-        }
-    } else {
+    size = strtosz_suffix(value, &postfix, default_suffix);
+    if (size < 0 || *postfix) {
         qerror_report(QERR_INVALID_PARAMETER_VALUE, name, "a size");
+        error_printf_unless_qmp("You may use k, M, G or T suffixes for "
+                    "kilobytes, megabytes, gigabytes and terabytes.\n");
         return -1;
     }
+    *ret = size;
     return 0;
 }
 
@@ -289,7 +268,7 @@ int set_option_parameter(QEMUOptionParameter *list, const char *name,
         break;
 
     case OPT_SIZE:
-        if (parse_option_size(name, value, &list->value.n) == -1)
+        if (parse_option_size(name, value, 'B', &list->value.n) == -1)
             return -1;
         break;
 
@@ -589,7 +568,7 @@ static int qemu_opt_parse(QemuOpt *opt)
     case QEMU_OPT_NUMBER:
         return parse_option_number(opt->name, opt->str, &opt->value.uint);
     case QEMU_OPT_SIZE:
-        return parse_option_size(opt->name, opt->str, &opt->value.uint);
+        return parse_option_size(opt->name, opt->str, 'M', &opt->value.uint);
     default:
         abort();
     }
