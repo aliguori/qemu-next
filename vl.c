@@ -2267,7 +2267,7 @@ int main(int argc, char **argv, char **envp)
     int optind;
     const char *optarg;
     const char *loadvm = NULL;
-    QEMUMachine *machine;
+    QEMUMachine *machine = NULL;
     const char *cpu_model;
     const char *vga_model = NULL;
     const char *pid_file = NULL;
@@ -2312,7 +2312,6 @@ int main(int argc, char **argv, char **envp)
     os_setup_early_signal_handling();
 
     module_call_init(MODULE_INIT_MACHINE);
-    machine = find_default_machine();
     cpu_model = NULL;
     ram_size = 0;
     snapshot = 0;
@@ -2379,7 +2378,7 @@ int main(int argc, char **argv, char **envp)
             }
             switch(popt->index) {
             case QEMU_OPTION_M:
-                machine = machine_parse(optarg);
+                qemu_opts_set(qemu_find_opts("machine"), 0, "type", optarg);
                 break;
             case QEMU_OPTION_cpu:
                 /* hw initialization will check this */
@@ -2948,10 +2947,6 @@ int main(int argc, char **argv, char **envp)
                     fprintf(stderr, "parse error: %s\n", optarg);
                     exit(1);
                 }
-                optarg = qemu_opt_get(opts, "type");
-                if (optarg) {
-                    machine = machine_parse(optarg);
-                }
                 break;
             case QEMU_OPTION_usb:
                 usb_enabled = 1;
@@ -3213,10 +3208,18 @@ int main(int argc, char **argv, char **envp)
         data_dir = CONFIG_QEMU_DATADIR;
     }
 
-    if (machine == NULL) {
-        fprintf(stderr, "No machine found.\n");
-        exit(1);
+    machine_opts = qemu_opts_find(qemu_find_opts("machine"), 0);
+    if (machine_opts) {
+        optarg = qemu_opt_get(machine_opts, "type");
+        if (optarg) {
+            machine = machine_parse(optarg);
+        }
     }
+    if (!machine) {
+        machine = find_default_machine();
+    }
+
+    current_machine = machine;
 
     /*
      * Default to max_cpus = smp_cpus, in case the user doesn't
@@ -3307,7 +3310,7 @@ int main(int argc, char **argv, char **envp)
         exit(1);
     }
 
-    machine_opts = qemu_opts_find(qemu_find_opts("machine"), 0);
+    /* Initialize machine options */
     bios_name = NULL;
     kernel_filename = initrd_filename = kernel_cmdline = NULL;
     ram_size = DEFAULT_RAM_SIZE * 1024 * 1024;
@@ -3491,8 +3494,6 @@ int main(int argc, char **argv, char **envp)
     cpu_synchronize_all_post_init();
 
     set_numa_modes();
-
-    current_machine = machine;
 
     /* init USB devices */
     if (usb_enabled) {
