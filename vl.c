@@ -2930,7 +2930,7 @@ int main(int argc, char **argv, char **envp)
                 break;
             }
             case QEMU_OPTION_acpitable:
-                do_acpitable_option(optarg);
+                qemu_opts_parse(qemu_find_opts("acpitable"), optarg, 0);
                 break;
             case QEMU_OPTION_smbios:
                 do_smbios_option(optarg);
@@ -3198,6 +3198,13 @@ int main(int argc, char **argv, char **envp)
     }
 
     current_machine = machine;
+
+    if (qemu_opts_foreach(qemu_find_opts("acpitable"), acpi_table_add, NULL, 1)
+        != 0) {
+        fprintf(stderr, "Wrong acpi table provided\n");
+        exit(1);
+    }
+
 
     /*
      * Default to max_cpus = smp_cpus, in case the user doesn't
