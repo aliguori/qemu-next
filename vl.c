@@ -2678,7 +2678,7 @@ int main(int argc, char **argv, char **envp)
                 singlestep = 1;
                 break;
             case QEMU_OPTION_S:
-                autostart = 0;
+                qemu_opts_set(qemu_find_opts("machine"), 0, "autostart", "off");
                 break;
 	    case QEMU_OPTION_k:
 		keyboard_layout = optarg;
@@ -3311,6 +3311,7 @@ int main(int argc, char **argv, char **envp)
     kernel_filename = initrd_filename = kernel_cmdline = NULL;
     ram_size = DEFAULT_RAM_SIZE * 1024 * 1024;
     if (machine_opts) {
+        autostart = qemu_opt_get_bool(machine_opts, "autostart", true);
         ram_size = qemu_opt_get_size(machine_opts, "ram_size", ram_size);
         kernel_filename = qemu_opt_get(machine_opts, "kernel");
         initrd_filename = qemu_opt_get(machine_opts, "initrd");
