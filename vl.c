@@ -935,41 +935,29 @@ char *get_boot_devices_list(uint32_t *size)
     return list;
 }
 
-static void numa_add(const char *optarg)
+static int numa_add(QemuOpts *opts, void *opaque)
 {
-    char option[128];
+    const char *option;
     char *endptr;
     unsigned long long value, endvalue;
     int nodenr;
 
-    optarg = get_opt_name(option, 128, optarg, ',') + 1;
-    if (strcmp(option, "node")) {
-        return;
-    }
-    if (get_param_value(option, 128, "nodeid", optarg) == 0) {
-        nodenr = nb_numa_nodes;
-    } else {
-        nodenr = strtoull(option, NULL, 10);
+    nodenr = qemu_opt_get_number(opts, "nodeid", nb_numa_nodes);
+    if (nodenr >= MAX_NODES) {
+        fprintf(stderr, "only %d NUMA nodes supported.\n", MAX_NODES);
+        return 1;
     }
 
-    if (get_param_value(option, 128, "mem", optarg) == 0) {
-        node_mem[nodenr] = 0;
-    } else {
-        int64_t sval;
-        sval = strtosz(option, &endptr);
-        if (sval < 0 || *endptr) {
-            fprintf(stderr, "qemu: invalid numa mem size: %s\n", optarg);
-            exit(1);
-        }
-        node_mem[nodenr] = sval;
-    }
-    if (get_param_value(option, 128, "cpus", optarg) == 0) {
-        node_cpumask[nodenr] = 0;
-    } else {
+    node_mem[nodenr] = qemu_opt_get_size(opts, "mem", 0);
+    node_cpumask[nodenr] = 0;
+
+    option = qemu_opt_get(opts, "cpus");
+    if (option) {
         value = strtoull(option, &endptr, 10);
         if (value >= 64) {
             value = 63;
             fprintf(stderr, "only 64 CPUs in NUMA mode supported.\n");
+            return 1;
         } else {
             if (*endptr == '-') {
                 endvalue = strtoull(endptr+1, &endptr, 10);
@@ -977,6 +965,7 @@ static void numa_add(const char *optarg)
                     endvalue = 62;
                     fprintf(stderr,
                         "only 63 CPUs in NUMA mode supported.\n");
+                    return 1;
                 }
                 value = (2ULL << endvalue) - (1ULL << value);
             } else {
@@ -986,6 +975,7 @@ static void numa_add(const char *optarg)
         node_cpumask[nodenr] = value;
     }
     nb_numa_nodes++;
+    return 0;
 }
 
 static int smp_init_func(QemuOpts *opts, void *opaque)
@@ -2488,7 +2478,13 @@ int main(int argc, char **argv, char **envp)
                     fprintf(stderr, "qemu: too many NUMA nodes\n");
                     exit(1);
                 }
-                numa_add(optarg);
+                if (strcmp(optarg, "node") == 0) {
+                    qemu_opts_create(qemu_find_opts("numa"), NULL, 0);
+                } else if (memcmp(optarg, "node,", 5) == 0) {
+                    qemu_opts_parse(qemu_find_opts("numa"), optarg + 5, 0);
+                } else {
+                    fprintf(stderr, "qemu: expected 'node', -numa ignored\n");
+                }
                 break;
             case QEMU_OPTION_display:
                 display_type = select_display(optarg);
@@ -3218,6 +3214,10 @@ int main(int argc, char **argv, char **envp)
         fprintf(stderr, "Number of SMP cpus requested (%d), exceeds max cpus "
                 "supported by machine `%s' (%d)\n", smp_cpus,  machine->name,
                 machine->max_cpus);
+        exit(1);
+    }
+
+    if (qemu_opts_foreach(qemu_find_opts("numa"), numa_add, NULL, 1) != 0) {
         exit(1);
     }
 
