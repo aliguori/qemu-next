@@ -582,6 +582,10 @@ static QemuOptsList qemu_machine_opts = {
             .name = "dtb",
             .type = QEMU_OPT_STRING,
             .help = "Linux kernel device tree file",
+        }, {
+            .name = "ram_size",
+            .type = QEMU_OPT_SIZE,
+            .help = "RAM size",
         },
         { /* End of list */ }
     },

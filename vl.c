@@ -2645,20 +2645,7 @@ int main(int argc, char **argv, char **envp)
                 exit(0);
                 break;
             case QEMU_OPTION_m: {
-                int64_t value;
-                char *end;
-
-                value = strtosz(optarg, &end);
-                if (value < 0 || *end) {
-                    fprintf(stderr, "qemu: invalid ram size: %s\n", optarg);
-                    exit(1);
-                }
-
-                if (value != (uint64_t)(ram_addr_t)value) {
-                    fprintf(stderr, "qemu: ram size too large\n");
-                    exit(1);
-                }
-                ram_size = value;
+                qemu_opts_set(qemu_find_opts("machine"), 0, "ram_size", optarg);
                 break;
             }
             case QEMU_OPTION_mempath:
@@ -3320,26 +3307,14 @@ int main(int argc, char **argv, char **envp)
         exit(1);
     }
 
-    /* init the memory */
-    if (ram_size == 0) {
-        ram_size = DEFAULT_RAM_SIZE * 1024 * 1024;
-    }
-
-    configure_accelerator();
-
-    qemu_init_cpu_loop();
-    if (qemu_init_main_loop()) {
-        fprintf(stderr, "qemu_init_main_loop failed\n");
-        exit(1);
-    }
-
     machine_opts = qemu_opts_find(qemu_find_opts("machine"), 0);
+    kernel_filename = initrd_filename = kernel_cmdline = NULL;
+    ram_size = DEFAULT_RAM_SIZE * 1024 * 1024;
     if (machine_opts) {
+        ram_size = qemu_opt_get_size(machine_opts, "ram_size", ram_size);
         kernel_filename = qemu_opt_get(machine_opts, "kernel");
         initrd_filename = qemu_opt_get(machine_opts, "initrd");
         kernel_cmdline = qemu_opt_get(machine_opts, "append");
-    } else {
-        kernel_filename = initrd_filename = kernel_cmdline = NULL;
     }
 
     if (!kernel_cmdline) {
@@ -3360,6 +3335,14 @@ int main(int argc, char **argv, char **envp)
 
     if (!linux_boot && machine_opts && qemu_opt_get(machine_opts, "dtb")) {
         fprintf(stderr, "-dtb only allowed with -kernel option\n");
+        exit(1);
+    }
+
+    configure_accelerator();
+
+    qemu_init_cpu_loop();
+    if (qemu_init_main_loop()) {
+        fprintf(stderr, "qemu_init_main_loop failed\n");
         exit(1);
     }
 
