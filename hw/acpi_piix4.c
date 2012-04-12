@@ -61,6 +61,13 @@ typedef struct PIIX4PMState {
     PMSMBus smb;
     uint32_t smb_io_base;
 
+    MemoryRegion smb_io;
+    MemoryRegion acpi_io;
+    MemoryRegion acpi_hot_io;
+    MemoryRegion pci_hot_io;
+    MemoryRegion pciej_hot_io;
+    MemoryRegion pcirmv_hot_io;
+
     qemu_irq irq;
     qemu_irq smi_irq;
     int kvm_enabled;
@@ -176,7 +183,8 @@ static void apm_ctrl_changed(uint32_t val, void *arg)
     }
 }
 
-static void acpi_dbg_writel(void *opaque, uint32_t addr, uint32_t val)
+static void acpi_dbg_writel(void *opaque, target_phys_addr_t addr,
+                            uint64_t val, unsigned size)
 {
     PIIX4_DPRINTF("ACPI: DBG: 0x%08x\n", val);
 }
@@ -325,6 +333,15 @@ static void piix4_pm_machine_ready(Notifier *n, void *opaque)
 
 }
 
+static const MemoryRegionOps acpi_io_ops = {
+    .write = acpi_dbg_writel,
+    .endianness = DEVICE_NATIVE_ENDIAN,
+    .impl = {
+        .min_access_size = 4,
+        .max_access_size = 4,
+    },
+};
+
 static int piix4_pm_initfn(PCIDevice *dev)
 {
     PIIX4PMState *s = DO_UPCAST(PIIX4PMState, dev, dev);
@@ -341,7 +358,9 @@ static int piix4_pm_initfn(PCIDevice *dev)
     /* APM */
     apm_init(&s->apm, apm_ctrl_changed, s);
 
-    register_ioport_write(ACPI_DBG_IO_ADDR, 4, 4, acpi_dbg_writel, s);
+    memory_region_init_io(&s->acpi_io, &acpi_io_ops, s, "piix4-acpi", 4);
+    memory_region_add_subregion(pci_address_space_io(dev), ACPI_DBG_IO_ADDR,
+                                &s->acpi_io);
 
     if (s->kvm_enabled) {
         /* Mark SMM as already inited to prevent SMM from running.  KVM does not
@@ -429,17 +448,18 @@ static void piix4_pm_register_types(void)
 
 type_init(piix4_pm_register_types)
 
-static uint32_t gpe_readb(void *opaque, uint32_t addr)
+static uint64_t gpe_readb(void *opaque, target_phys_addr_t addr, unsigned size)
 {
     PIIX4PMState *s = opaque;
-    uint32_t val = acpi_gpe_ioport_readb(&s->ar, addr);
+    uint64_t val = acpi_gpe_ioport_readb(&s->ar, addr);
 
     PIIX4_DPRINTF("gpe read %x == %x\n", addr, val);
     return val;
 }
 
-static void gpe_writeb(void *opaque, uint32_t addr, uint32_t val)
-{
+static void gpe_writeb(void *opaque, target_phys_addr_t addr, uint64_t val,
+                       unsigned size)
+ {
     PIIX4PMState *s = opaque;
 
     acpi_gpe_ioport_writeb(&s->ar, addr, val);
@@ -448,47 +468,51 @@ static void gpe_writeb(void *opaque, uint32_t addr, uint32_t val)
     PIIX4_DPRINTF("gpe write %x <== %d\n", addr, val);
 }
 
-static uint32_t pcihotplug_read(void *opaque, uint32_t addr)
+static uint64_t pcihotplug_read(void *opaque, target_phys_addr_t addr,
+                                unsigned size)
 {
     uint32_t val = 0;
     struct pci_status *g = opaque;
     switch (addr) {
-        case PCI_BASE:
-            val = g->up;
-            break;
-        case PCI_BASE + 4:
-            val = g->down;
-            break;
-        default:
-            break;
+    case 0:
+        val = g->up;
+        break;
+    case 4:
+        val = g->down;
+        break;
+    default:
+        break;
     }
 
     PIIX4_DPRINTF("pcihotplug read %x == %x\n", addr, val);
     return val;
 }
 
-static void pcihotplug_write(void *opaque, uint32_t addr, uint32_t val)
+static void pcihotplug_write(void *opaque, target_phys_addr_t addr,
+                             uint64_t val, unsigned size)
 {
     struct pci_status *g = opaque;
     switch (addr) {
-        case PCI_BASE:
-            g->up = val;
-            break;
-        case PCI_BASE + 4:
-            g->down = val;
-            break;
+    case 0:
+        g->up = val;
+        break;
+    case 4:
+        g->down = val;
+        break;
    }
 
     PIIX4_DPRINTF("pcihotplug write %x <== %d\n", addr, val);
 }
 
-static uint32_t pciej_read(void *opaque, uint32_t addr)
+static uint64_t pciej_read(void *opaque, target_phys_addr_t addr,
+                           unsigned size)
 {
     PIIX4_DPRINTF("pciej read %x\n", addr);
     return 0;
 }
 
-static void pciej_write(void *opaque, uint32_t addr, uint32_t val)
+static void pciej_write(void *opaque, target_phys_addr_t addr, uint64_t val,
+                        unsigned size)
 {
     BusState *bus = opaque;
     DeviceState *qdev, *next;
@@ -506,14 +530,16 @@ static void pciej_write(void *opaque, uint32_t addr, uint32_t val)
     PIIX4_DPRINTF("pciej write %x <== %d\n", addr, val);
 }
 
-static uint32_t pcirmv_read(void *opaque, uint32_t addr)
+static uint64_t pcirmv_read(void *opaque, target_phys_addr_t addr,
+                            unsigned size)
 {
     PIIX4PMState *s = opaque;
 
     return s->pci0_hotplug_enable;
 }
 
-static void pcirmv_write(void *opaque, uint32_t addr, uint32_t val)
+static void pcirmv_write(void *opaque, target_phys_addr_t addr, uint64_t val,
+                         unsigned size)
 {
     return;
 }
@@ -521,22 +547,70 @@ static void pcirmv_write(void *opaque, uint32_t addr, uint32_t val)
 static int piix4_device_hotplug(DeviceState *qdev, PCIDevice *dev,
                                 PCIHotplugState state);
 
+static const MemoryRegionOps acpi_hot_io_ops = {
+    .read = gpe_readb,
+    .write = gpe_writeb,
+    .endianness = DEVICE_NATIVE_ENDIAN,
+    .impl = {
+        .min_access_size = 1,
+        .max_access_size = 1,
+    },
+};
+
+static const MemoryRegionOps pci_hot_io_ops = {
+    .read = pcihotplug_read,
+    .write = pcihotplug_write,
+    .endianness = DEVICE_NATIVE_ENDIAN,
+    .impl = {
+        .min_access_size = 4,
+        .max_access_size = 4,
+    },
+};
+
+static const MemoryRegionOps pciej_hot_io_ops = {
+    .read = pciej_read,
+    .write = pciej_write,
+    .endianness = DEVICE_NATIVE_ENDIAN,
+    .impl = {
+        .min_access_size = 4,
+        .max_access_size = 4,
+    },
+};
+
+static const MemoryRegionOps pcirmv_hot_io_ops = {
+    .read = pcirmv_read,
+    .write = pcirmv_write,
+    .endianness = DEVICE_NATIVE_ENDIAN,
+    .impl = {
+        .min_access_size = 4,
+        .max_access_size = 4,
+    },
+};
+
 static void piix4_acpi_system_hot_add_init(PCIBus *bus, PIIX4PMState *s)
 {
     struct pci_status *pci0_status = &s->pci0_status;
 
-    register_ioport_write(GPE_BASE, GPE_LEN, 1, gpe_writeb, s);
-    register_ioport_read(GPE_BASE, GPE_LEN, 1,  gpe_readb, s);
-    acpi_gpe_blk(&s->ar, GPE_BASE);
+    memory_region_init_io(&s->acpi_hot_io, &acpi_hot_io_ops, s,
+                          "piix4-acpi-hot", GPE_LEN);
+    memory_region_add_subregion(pci_address_space_io(&s->dev), GPE_BASE,
+                                &s->acpi_hot_io);
+    acpi_gpe_blk(&s->ar, 0);
 
-    register_ioport_write(PCI_BASE, 8, 4, pcihotplug_write, pci0_status);
-    register_ioport_read(PCI_BASE, 8, 4,  pcihotplug_read, pci0_status);
+    memory_region_init_io(&s->pci_hot_io, &pci_hot_io_ops, pci0_status,
+                          "piix4-pci-hot", 8);
+    memory_region_add_subregion(pci_address_space_io(&s->dev), PCI_BASE,
+                                &s->pci_hot_io);
 
-    register_ioport_write(PCI_EJ_BASE, 4, 4, pciej_write, bus);
-    register_ioport_read(PCI_EJ_BASE, 4, 4,  pciej_read, bus);
+    memory_region_init_io(&s->pciej_hot_io, &pciej_hot_io_ops, bus,
+                          "piix4-pciej-hot", 4);
+    memory_region_add_subregion(pci_address_space_io(&s->dev), PCI_EJ_BASE,
+                                &s->pciej_hot_io);
 
-    register_ioport_write(PCI_RMV_BASE, 4, 4, pcirmv_write, s);
-    register_ioport_read(PCI_RMV_BASE, 4, 4,  pcirmv_read, s);
+    memory_region_init_io(&s->pcirmv_hot_io, &pcirmv_hot_io_ops, s,
+                          "piix4-pcirmv-hot", 4);
+    memory_region_add_subregion(pci_address_space_io(&s->dev), PCI_RMV_BASE,
+                                &s->pcirmv_hot_io);
 
     pci_bus_hotplug(bus, piix4_device_hotplug, &s->dev.qdev);
 }
