@@ -356,7 +356,7 @@ static int piix4_pm_initfn(PCIDevice *dev)
     pci_conf[0x40] = 0x01; /* PM io base read only bit */
 
     /* APM */
-    apm_init(&s->apm, apm_ctrl_changed, s);
+    apm_init(dev, &s->apm, apm_ctrl_changed, s);
 
     memory_region_init_io(&s->acpi_io, &acpi_io_ops, s, "piix4-acpi", 4);
     memory_region_add_subregion(pci_address_space_io(dev), ACPI_DBG_IO_ADDR,
