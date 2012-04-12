@@ -163,6 +163,7 @@ typedef struct VT686PMState {
     APMState apm;
     PMSMBus smb;
     uint32_t smb_io_base;
+    MemoryRegion smb_io;
 } VT686PMState;
 
 typedef struct VT686AC97State {
@@ -405,6 +406,16 @@ static TypeInfo via_mc97_info = {
     .class_init    = via_mc97_class_init,
 };
 
+static const MemoryRegionOps smb_io_ops = {
+    .read = smb_ioport_readb,
+    .write = smb_ioport_writeb,
+    .endianess = DEVICE_NATIVE_ENDIAN,
+    .impl = {
+        .min_access_size = 1,
+        .max_access_size = 1,
+    },
+};
+
 /* vt82c686 pm init */
 static int vt82c686b_pm_initfn(PCIDevice *dev)
 {
@@ -424,8 +435,11 @@ static int vt82c686b_pm_initfn(PCIDevice *dev)
     pci_conf[0x90] = s->smb_io_base | 1;
     pci_conf[0x91] = s->smb_io_base >> 8;
     pci_conf[0xd2] = 0x90;
-    register_ioport_write(s->smb_io_base, 0xf, 1, smb_ioport_writeb, &s->smb);
-    register_ioport_read(s->smb_io_base, 0xf, 1, smb_ioport_readb, &s->smb);
+
+    memory_region_init_io(&s->smb_io, &smb_io_ops, &s->smb, "vt82c686b-smb",
+                          0xf);
+    memory_region_add_subregion(pci_address_space_io(dev), s->smb_io_base,
+                                &s->smb_io);
 
     apm_init(dev, &s->apm, NULL, s);
 

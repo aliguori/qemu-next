@@ -15,7 +15,9 @@ typedef struct PMSMBus {
 } PMSMBus;
 
 void pm_smbus_init(DeviceState *parent, PMSMBus *smb);
-void smb_ioport_writeb(void *opaque, uint32_t addr, uint32_t val);
-uint32_t smb_ioport_readb(void *opaque, uint32_t addr);
+void smb_ioport_writeb(void *opaque, target_phys_addr_t addr, uint64_t val,
+                       unsigned size);
+uint64_t smb_ioport_readb(void *opaque, target_phys_addr_t addr,
+                          unsigned size);
 
 #endif /* !PM_SMBUS_H */

@@ -94,7 +94,8 @@ static void smb_transaction(PMSMBus *s)
     s->smb_stat |= 0x04;
 }
 
-void smb_ioport_writeb(void *opaque, uint32_t addr, uint32_t val)
+void smb_ioport_writeb(void *opaque, target_phys_addr_t addr, uint64_t val,
+                       unsigned size)
 {
     PMSMBus *s = opaque;
     addr &= 0x3f;
@@ -131,10 +132,10 @@ void smb_ioport_writeb(void *opaque, uint32_t addr, uint32_t val)
     }
 }
 
-uint32_t smb_ioport_readb(void *opaque, uint32_t addr)
+uint64_t smb_ioport_readb(void *opaque, target_phys_addr_t addr, unsigned size)
 {
     PMSMBus *s = opaque;
-    uint32_t val;
+    uint64_t val;
 
     addr &= 0x3f;
     switch(addr) {

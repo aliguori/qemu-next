@@ -333,6 +333,16 @@ static void piix4_pm_machine_ready(Notifier *n, void *opaque)
 
 }
 
+static const MemoryRegionOps smb_io_ops = {
+    .read = smb_ioport_readb,
+    .write = smb_ioport_writeb,
+    .endianness = DEVICE_NATIVE_ENDIAN,
+    .impl = {
+        .min_access_size = 1,
+        .max_access_size = 1,
+    },
+};
+
 static const MemoryRegionOps acpi_io_ops = {
     .write = acpi_dbg_writel,
     .endianness = DEVICE_NATIVE_ENDIAN,
@@ -373,8 +383,10 @@ static int piix4_pm_initfn(PCIDevice *dev)
     pci_conf[0x90] = s->smb_io_base | 1;
     pci_conf[0x91] = s->smb_io_base >> 8;
     pci_conf[0xd2] = 0x09;
-    register_ioport_write(s->smb_io_base, 64, 1, smb_ioport_writeb, &s->smb);
-    register_ioport_read(s->smb_io_base, 64, 1, smb_ioport_readb, &s->smb);
+
+    memory_region_init_io(&s->smb_io, &smb_io_ops, &s->smb, "piix4-smb", 64);
+    memory_region_add_subregion(pci_address_space_io(dev), s->smb_io_base,
+                                &s->smb_io);
 
     acpi_pm_tmr_init(&s->ar, pm_tmr_timer);
     acpi_gpe_init(&s->ar, GPE_LEN);
