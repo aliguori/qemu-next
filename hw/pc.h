@@ -15,7 +15,7 @@
 /* serial.c */
 
 SerialState *serial_init(int base, qemu_irq irq, int baudbase,
-                         CharDriverState *chr);
+                         CharDriverState *chr, MemoryRegion *system_io);
 SerialState *serial_mm_init(MemoryRegion *address_space,
                             target_phys_addr_t base, int it_shift,
                             qemu_irq irq, int baudbase,

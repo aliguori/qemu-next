@@ -28,6 +28,7 @@
 #include "pc.h"
 #include "qemu-timer.h"
 #include "sysemu.h"
+#include "exec-memory.h"
 
 //#define DEBUG_SERIAL
 
@@ -810,7 +811,7 @@ static const VMStateDescription vmstate_isa_serial = {
 };
 
 SerialState *serial_init(int base, qemu_irq irq, int baudbase,
-                         CharDriverState *chr)
+                         CharDriverState *chr, MemoryRegion *system_io)
 {
     SerialState *s;
 
@@ -823,8 +824,9 @@ SerialState *serial_init(int base, qemu_irq irq, int baudbase,
 
     vmstate_register(NULL, base, &vmstate_serial, s);
 
-    register_ioport_write(base, 8, 1, serial_ioport_write, s);
-    register_ioport_read(base, 8, 1, serial_ioport_read, s);
+    memory_region_init_io(&s->io, &serial_io_ops, s, "serial", 8);
+    memory_region_add_subregion(system_io, base, &s->io);
+
     return s;
 }
 

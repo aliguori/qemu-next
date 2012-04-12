@@ -212,7 +212,8 @@ mips_mipssim_init (ram_addr_t ram_size,
     /* A single 16450 sits at offset 0x3f8. It is attached to
        MIPS CPU INT2, which is interrupt 4. */
     if (serial_hds[0])
-        serial_init(0x3f8, env->irq[4], 115200, serial_hds[0]);
+        serial_init(0x3f8, env->irq[4], 115200, serial_hds[0],
+                    get_system_io());
 
     if (nd_table[0].vlan)
         /* MIPSnet uses the MIPS CPU INT0, which is interrupt 2. */
