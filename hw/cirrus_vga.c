@@ -198,6 +198,7 @@ typedef void (*cirrus_fill_t)(struct CirrusVGAState *s,
 typedef struct CirrusVGAState {
     VGACommonState vga;
 
+    PortioList cirrus_port_list;
     MemoryRegion cirrus_linear_io;
     MemoryRegion cirrus_linear_bitblt_io;
     MemoryRegion cirrus_mmio_io;
@@ -2781,8 +2782,23 @@ static const MemoryRegionOps cirrus_linear_io_ops = {
     },
 };
 
+static const MemoryRegionPortio cirrus_portio_list[] = {
+    { 0x04, 2, 1, .write = cirrus_vga_ioport_write,
+    .read = cirrus_vga_ioport_read, }, /* 0x3b4 */
+    { 0x0a, 1, 1, .write = cirrus_vga_ioport_write,
+    .read = cirrus_vga_ioport_read, }, /* 0x3ba */
+    { 0x10, 16, 1, .write = cirrus_vga_ioport_write,
+    .read = cirrus_vga_ioport_read, }, /* 0x3c0 */
+    { 0x24, 2, 1, .write = cirrus_vga_ioport_write,
+    .read = cirrus_vga_ioport_read, }, /* 0x3d4 */
+    { 0x2a, 1, 1, .write = cirrus_vga_ioport_write,
+    .read = cirrus_vga_ioport_read, }, /* 0x3da */
+    PORTIO_END_OF_LIST(),
+};
+
 static void cirrus_init_common(CirrusVGAState * s, int device_id, int is_pci,
-                               MemoryRegion *system_memory)
+                               MemoryRegion *system_memory,
+                               MemoryRegion *system_io)
 {
     int i;
     static int inited;
@@ -2814,19 +2830,8 @@ static void cirrus_init_common(CirrusVGAState * s, int device_id, int is_pci,
             s->bustype = CIRRUS_BUSTYPE_ISA;
     }
 
-    register_ioport_write(0x3c0, 16, 1, cirrus_vga_ioport_write, s);
-
-    register_ioport_write(0x3b4, 2, 1, cirrus_vga_ioport_write, s);
-    register_ioport_write(0x3d4, 2, 1, cirrus_vga_ioport_write, s);
-    register_ioport_write(0x3ba, 1, 1, cirrus_vga_ioport_write, s);
-    register_ioport_write(0x3da, 1, 1, cirrus_vga_ioport_write, s);
-
-    register_ioport_read(0x3c0, 16, 1, cirrus_vga_ioport_read, s);
-
-    register_ioport_read(0x3b4, 2, 1, cirrus_vga_ioport_read, s);
-    register_ioport_read(0x3d4, 2, 1, cirrus_vga_ioport_read, s);
-    register_ioport_read(0x3ba, 1, 1, cirrus_vga_ioport_read, s);
-    register_ioport_read(0x3da, 1, 1, cirrus_vga_ioport_read, s);
+    portio_list_init(&s->cirrus_port_list, cirrus_portio_list, s, "cirrus-io");
+    portio_list_add(&s->cirrus_port_list, system_io, 0x3b0);
 
     memory_region_init(&s->low_mem_container,
                        "cirrus-lowmem-container",
@@ -2893,7 +2898,7 @@ static int vga_initfn(ISADevice *dev)
 
     vga_common_init(s, VGA_RAM_SIZE);
     cirrus_init_common(&d->cirrus_vga, CIRRUS_ID_CLGD5430, 0,
-                       isa_address_space(dev));
+                       isa_address_space(dev), isa_address_space_io(dev));
     s->ds = graphic_console_init(s->update, s->invalidate,
                                  s->screen_dump, s->text_update,
                                  s);
@@ -2934,7 +2939,8 @@ static int pci_cirrus_vga_initfn(PCIDevice *dev)
 
      /* setup VGA */
      vga_common_init(&s->vga, VGA_RAM_SIZE);
-     cirrus_init_common(s, device_id, 1, pci_address_space(dev));
+     cirrus_init_common(s, device_id, 1, pci_address_space(dev),
+                        pci_address_space_io(dev));
      s->vga.ds = graphic_console_init(s->vga.update, s->vga.invalidate,
                                       s->vga.screen_dump, s->vga.text_update,
                                       &s->vga);
