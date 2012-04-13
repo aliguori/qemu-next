@@ -402,7 +402,7 @@ static bool scsi_target_emulate_inquiry(SCSITargetReq *r)
         r->buf[7] = 0x10 | (r->req.bus->info->tcq ? 0x02 : 0); /* Sync, TCQ.  */
         memcpy(&r->buf[8], "QEMU    ", 8);
         memcpy(&r->buf[16], "QEMU TARGET     ", 16);
-        strncpy((char *) &r->buf[32], QEMU_VERSION, 4);
+        strncpy((char *) &r->buf[32], qemu_get_version(), 4);
     }
     return true;
 }

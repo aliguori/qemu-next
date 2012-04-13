@@ -376,6 +376,7 @@ static QEMUMachine pc_machine_v1_0 = {
         },
         { /* end of list */ }
     },
+    .hw_version = "1.0",
 };
 
 static QEMUMachine pc_machine_v0_15 = {
@@ -395,6 +396,7 @@ static QEMUMachine pc_machine_v0_15 = {
         },
         { /* end of list */ }
     },
+    .hw_version = "0.15",
 };
 
 static QEMUMachine pc_machine_v0_14 = {
@@ -439,6 +441,7 @@ static QEMUMachine pc_machine_v0_14 = {
         },
         { /* end of list */ }
     },
+    .hw_version = "0.14",
 };
 
 static QEMUMachine pc_machine_v0_13 = {
@@ -495,6 +498,7 @@ static QEMUMachine pc_machine_v0_13 = {
         },
         { /* end of list */ }
     },
+    .hw_version = "0.13",
 };
 
 static QEMUMachine pc_machine_v0_12 = {
@@ -554,7 +558,8 @@ static QEMUMachine pc_machine_v0_12 = {
             .value    = stringify(1),
         },
         { /* end of list */ }
-    }
+    },
+    .hw_version = "0.12",
 };
 
 static QEMUMachine pc_machine_v0_11 = {
@@ -622,7 +627,8 @@ static QEMUMachine pc_machine_v0_11 = {
             .value    = stringify(1),
         },
         { /* end of list */ }
-    }
+    },
+    .hw_version = "0.11",
 };
 
 static QEMUMachine pc_machine_v0_10 = {
@@ -703,6 +709,7 @@ static QEMUMachine pc_machine_v0_10 = {
         },
         { /* end of list */ }
     },
+    .hw_version = "0.10",
 };
 
 static QEMUMachine isapc_machine = {
