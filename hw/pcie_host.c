@@ -72,7 +72,7 @@ static void pcie_mmcfg_data_write(void *opaque, target_phys_addr_t mmcfg_addr,
            256 <= addr < 4K has no effects. */
         return;
     }
-    pci_host_config_write_common(pci_dev, addr, limit, val, len);
+    pci_host_config_write_common(pci_dev, addr, val, len);
 }
 
 static uint64_t pcie_mmcfg_data_read(void *opaque,
@@ -95,7 +95,7 @@ static uint64_t pcie_mmcfg_data_read(void *opaque,
            256 <= addr < 4K has no effects. */
         return ~0x0;
     }
-    return pci_host_config_read_common(pci_dev, addr, limit, len);
+    return pci_host_config_read_common(pci_dev, addr, len);
 }
 
 static const MemoryRegionOps pcie_mmcfg_ops = {

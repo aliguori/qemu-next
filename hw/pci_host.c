@@ -48,17 +48,17 @@ static inline PCIDevice *pci_dev_find_by_addr(PCIBus *bus, uint32_t addr)
 }
 
 void pci_host_config_write_common(PCIDevice *pci_dev, uint32_t addr,
-                                  uint32_t limit, uint32_t val, uint32_t len)
+                                  uint32_t val, uint32_t len)
 {
-    assert(len <= 4);
-    pci_dev->config_write(pci_dev, addr, val, MIN(len, limit - addr));
+    assert((len <= 4) && ((addr + len) <= pci_config_size(pci_dev)));
+    pci_dev->config_write(pci_dev, addr, val, len);
 }
 
 uint32_t pci_host_config_read_common(PCIDevice *pci_dev, uint32_t addr,
-                                     uint32_t limit, uint32_t len)
+                                     uint32_t len)
 {
-    assert(len <= 4);
-    return pci_dev->config_read(pci_dev, addr, MIN(len, limit - addr));
+    assert((len <= 4) && ((addr + len) <= pci_config_size(pci_dev)));
+    return pci_dev->config_read(pci_dev, addr, len);
 }
 
 void pci_data_write(PCIBus *s, uint32_t addr, uint32_t val, int len)
@@ -72,8 +72,7 @@ void pci_data_write(PCIBus *s, uint32_t addr, uint32_t val, int len)
 
     PCI_DPRINTF("%s: %s: addr=%02" PRIx32 " val=%08" PRIx32 " len=%d\n",
                 __func__, pci_dev->name, config_addr, val, len);
-    pci_host_config_write_common(pci_dev, config_addr, PCI_CONFIG_SPACE_SIZE,
-                                 val, len);
+    pci_host_config_write_common(pci_dev, config_addr, val, len);
 }
 
 uint32_t pci_data_read(PCIBus *s, uint32_t addr, int len)
@@ -86,8 +85,7 @@ uint32_t pci_data_read(PCIBus *s, uint32_t addr, int len)
         return ~0x0;
     }
 
-    val = pci_host_config_read_common(pci_dev, config_addr,
-                                      PCI_CONFIG_SPACE_SIZE, len);
+    val = pci_host_config_read_common(pci_dev, config_addr, len);
     PCI_DPRINTF("%s: %s: addr=%02"PRIx32" val=%08"PRIx32" len=%d\n",
                 __func__, pci_dev->name, config_addr, val, len);
 

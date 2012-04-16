@@ -84,8 +84,7 @@ static void finish_read_pci_config(sPAPREnvironment *spapr, uint64_t buid,
         return;
     }
 
-    val = pci_host_config_read_common(pci_dev, addr,
-                                      pci_config_size(pci_dev), size);
+    val = pci_host_config_read_common(pci_dev, addr, size);
 
     rtas_st(rets, 0, 0);
     rtas_st(rets, 1, val);
@@ -151,9 +150,8 @@ static void finish_write_pci_config(sPAPREnvironment *spapr, uint64_t buid,
         return;
     }
 
-    pci_host_config_write_common(pci_dev, addr, pci_config_size(pci_dev),
-                                 val, size);
-
+    pci_host_config_write_common(pci_dev, addr, val, size);
+    
     rtas_st(rets, 0, 0);
 }
 
