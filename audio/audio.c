@@ -70,6 +70,7 @@ static struct {
     int log_to_monitor;
     int try_poll_in;
     int try_poll_out;
+    int mixemu;
 } conf = {
     .fixed_out = { /* DAC fixed settings */
         .enabled = 1,
@@ -100,6 +101,7 @@ static struct {
     .log_to_monitor = 0,
     .try_poll_in = 1,
     .try_poll_out = 1,
+    .mixemu = 1,
 };
 
 static AudioState glob_audio_state;
@@ -1044,7 +1046,7 @@ int audio_pcm_sw_write (SWVoiceOut *sw, void *buf, int size)
     if (swlim) {
         sw->conv (sw->buf, buf, swlim);
 
-        if (!(sw->hw->ctl_caps & VOICE_VOLUME_CAP)) {
+        if (!(sw->hw->ctl_caps & VOICE_VOLUME_CAP) && conf.mixemu) {
             mixeng_volume (sw->buf, swlim, &sw->vol);
         }
     }
@@ -1656,6 +1658,12 @@ static struct audio_option audio_options[] = {
         .tag   = AUD_OPT_BOOL,
         .valp  = &conf.log_to_monitor,
         .descr = "Print logging messages to monitor instead of stderr"
+    },
+    {
+        .name  = "MIXEMU",
+        .tag   = AUD_OPT_BOOL,
+        .valp  = &conf.mixemu,
+        .descr = "Enable mixer emulation (1 - enabled, 0 - disabled)"
     },
     { /* End of list */ }
 };

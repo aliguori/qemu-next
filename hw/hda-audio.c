@@ -121,15 +121,11 @@ static void hda_codec_parse_fmt(uint32_t format, struct audsettings *as)
 #define QEMU_HDA_AMP_NONE    (0)
 #define QEMU_HDA_AMP_STEPS   0x4a
 
-#ifdef CONFIG_MIXEMU
 #define QEMU_HDA_AMP_CAPS                                               \
     (AC_AMPCAP_MUTE |                                                   \
      (QEMU_HDA_AMP_STEPS << AC_AMPCAP_OFFSET_SHIFT)    |                \
      (QEMU_HDA_AMP_STEPS << AC_AMPCAP_NUM_STEPS_SHIFT) |                \
      (3                  << AC_AMPCAP_STEP_SIZE_SHIFT))
-#else
-#define QEMU_HDA_AMP_CAPS    QEMU_HDA_AMP_NONE
-#endif
 
 /* common: audio output widget */
 static const desc_param common_params_audio_dac[] = {
