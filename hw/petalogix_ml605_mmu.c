@@ -36,6 +36,7 @@
 #include "blockdev.h"
 #include "pc.h"
 #include "exec-memory.h"
+#include "ssi.h"
 
 #include "microblaze_boot.h"
 #include "microblaze_pic_cpu.h"
@@ -53,6 +54,8 @@
 #define UART16550_BASEADDR 0x83e00000
 #define AXIENET_BASEADDR 0x82780000
 #define AXIDMA_BASEADDR 0x84600000
+
+#define NUM_SPI_FLASHES 2
 
 static void machine_cpu_reset(CPUMBState *env)
 {
@@ -75,6 +78,7 @@ petalogix_ml605_init(ram_addr_t ram_size,
 {
     MemoryRegion *address_space_mem = get_system_memory();
     DeviceState *dev;
+    SysBusDevice *busdev;
     CPUMBState *env;
     DriveInfo *dinfo;
     int i;
@@ -129,6 +133,23 @@ petalogix_ml605_init(ram_addr_t ram_size,
                                   irq[3], 0x1000, 0x1000);
         xilinx_axiethernetdma_create(&dmach, 0x84600000,
                                      irq[1], irq[0], 100 * 1000000);
+    }
+
+    {
+        void *spi;
+
+        dev = qdev_create(NULL, "xilinx,spi");
+        qdev_prop_set_uint8(dev, "num-cs", NUM_SPI_FLASHES);
+        qdev_init_nofail(dev);
+        busdev = sysbus_from_qdev(dev);
+        sysbus_mmio_map(busdev, 0, 0x40a00000);
+        sysbus_connect_irq(busdev, 0, irq[6]);
+
+        spi = qdev_get_child_bus(dev, "spi");
+
+        for (i = 0; i < NUM_SPI_FLASHES; i++) {
+            ssi_create_slave(spi, "m25p80", i);
+        }
     }
 
     microblaze_load_kernel(env, ddr_base, ram_size, BINARY_DEVICE_TREE_FILE,
