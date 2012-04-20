@@ -293,6 +293,7 @@ obj-microblaze-y = petalogix_s3adsp1800_mmu.o
 obj-microblaze-y += petalogix_ml605_mmu.o
 obj-microblaze-y += microblaze_boot.o
 obj-microblaze-y += m25p80.o
+obj-microblaze-y += xilinx_spi.o
 
 obj-microblaze-y += microblaze_pic_cpu.o
 obj-microblaze-y += xilinx_intc.o
