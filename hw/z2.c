@@ -346,7 +346,7 @@ static void z2_init(ram_addr_t ram_size,
 
     type_register_static(&zipit_lcd_info);
     type_register_static(&aer915_info);
-    z2_lcd = ssi_create_slave(cpu->ssp[1], "zipit-lcd");
+    z2_lcd = ssi_create_slave(cpu->ssp[1], "zipit-lcd", 0);
     bus = pxa2xx_i2c_bus(cpu->i2c[0]);
     i2c_create_slave(bus, "aer915", 0x55);
     wm = i2c_create_slave(bus, "wm8750", 0x1b);

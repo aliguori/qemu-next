@@ -1309,14 +1309,14 @@ static void stellaris_init(const char *kernel_filename, const char *cpu_model,
             void *bus;
 
             bus = qdev_get_child_bus(dev, "ssi");
-            mux = ssi_create_slave(bus, "evb6965-ssi");
+            mux = ssi_create_slave(bus, "evb6965-ssi", 0);
             gpio_out[GPIO_D][0] = qdev_get_gpio_in(mux, 0);
 
             bus = qdev_get_child_bus(mux, "ssi0");
-            ssi_create_slave(bus, "ssi-sd");
+            ssi_create_slave(bus, "ssi-sd", 0);
 
             bus = qdev_get_child_bus(mux, "ssi1");
-            dev = ssi_create_slave(bus, "ssd0323");
+            dev = ssi_create_slave(bus, "ssd0323", 0);
             gpio_out[GPIO_C][7] = qdev_get_gpio_in(dev, 0);
 
             /* Make sure the select pin is high.  */

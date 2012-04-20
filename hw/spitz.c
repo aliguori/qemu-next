@@ -669,18 +669,18 @@ static void spitz_ssp_attach(PXA2xxState *cpu)
     DeviceState *dev;
     void *bus;
 
-    mux = ssi_create_slave(cpu->ssp[CORGI_SSP_PORT - 1], "corgi-ssp");
+    mux = ssi_create_slave(cpu->ssp[CORGI_SSP_PORT - 1], "corgi-ssp", 0);
 
     bus = qdev_get_child_bus(mux, "ssi0");
-    ssi_create_slave(bus, "spitz-lcdtg");
+    ssi_create_slave(bus, "spitz-lcdtg", 0);
 
     bus = qdev_get_child_bus(mux, "ssi1");
-    dev = ssi_create_slave(bus, "ads7846");
+    dev = ssi_create_slave(bus, "ads7846", 0);
     qdev_connect_gpio_out(dev, 0,
                           qdev_get_gpio_in(cpu->gpio, SPITZ_GPIO_TP_INT));
 
     bus = qdev_get_child_bus(mux, "ssi2");
-    max1111 = ssi_create_slave(bus, "max1111");
+    max1111 = ssi_create_slave(bus, "max1111", 0);
     max111x_set_input(max1111, MAX1111_BATT_VOLT, SPITZ_BATTERY_VOLT);
     max111x_set_input(max1111, MAX1111_BATT_TEMP, 0);
     max111x_set_input(max1111, MAX1111_ACIN_VOLT, SPITZ_CHARGEON_ACIN);
