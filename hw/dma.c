@@ -22,7 +22,11 @@
  * THE SOFTWARE.
  */
 #include "hw.h"
-#include "isa.h"
+#include "dma-controller.h"
+
+/**
+ * TODO: move DMA entry points to ISA and make ISA bus have DMA controllers
+ */
 
 /* #define DEBUG_DMA */
 
@@ -32,49 +36,8 @@
 #define DPRINTF(...) do { if (0) { fprintf(stderr, "dma: " __VA_ARGS__); } } while (0)
 #endif
 
-#define TYPE_DMA_CONTROLLER "dma-controller"
-#define DMA_CONTROLLER(obj) \
-    OBJECT_CHECK(DMAController, (obj), TYPE_DMA_CONTROLLER)
-
-typedef struct DMARegisters
-{
-    int now[2];
-    uint16_t base[2];
-    uint8_t mode;
-    uint8_t page;
-    uint8_t pageh;
-    uint8_t dack;
-    uint8_t eop;
-    DMA_transfer_handler transfer_handler;
-    void *opaque;
-} DMARegisters;
-
 #define ADDR 0
 #define COUNT 1
-
-#define TYPE_DMA_CONTROLLER "dma-controller"
-#define DMA_CONTROLLER(obj) \
-    OBJECT_CHECK(DMAController, (obj), TYPE_DMA_CONTROLLER)
-
-typedef struct DMAController
-{
-    DeviceState dev;
-
-    uint8_t status;
-    uint8_t command;
-    uint8_t mask;
-    uint8_t flip_flop;
-    int dshift;
-    QEMUTimer *run_timer;
-    DMARegisters regs[4];
-    MemoryRegion io;
-
-    /* FIXME: make single region */
-    MemoryRegion page_io;
-    MemoryRegion pageh_io;
-} DMAController;
-
-static DMAController *dma_controllers[2];
 
 enum {
     CMD_MEMORY_TO_MEMORY = 0x01,
@@ -107,8 +70,8 @@ static void channel_run(DMAController *d, int ichan)
         DPRINTF("DMA not in single mode select %#x\n", opmode);
     }
 
-    n = r->transfer_handler(r->opaque, ichan + (d->dshift << 2),
-                            r->now[COUNT], (r->base[COUNT] + 1) << d->dshift);
+    n = r->transfer_handler(r->opaque, r->now[COUNT],
+                            (r->base[COUNT] + 1) << d->dshift);
     r->now[COUNT] = n;
     DPRINTF("dma_pos %d size %d\n", n, (r->base[COUNT] + 1) << d->dshift);
 }
@@ -381,53 +344,57 @@ static uint64_t dma_controller_read(void *opaque,
     }
 }
 
-int DMA_get_channel_mode(int nchan)
+int dma_controller_get_channel_mode(DMAController *d, int nchan)
 {
-    return dma_controllers[nchan > 3]->regs[nchan & 3].mode;
+    return d->regs[nchan & 3].mode;
 }
 
-void DMA_hold_DREQ(int nchan)
+int dma_controller_get_width(DMAController *d)
 {
-    int ncont, ichan;
+    return d->dshift;
+}
 
-    ncont = nchan > 3;
+void dma_controller_hold_DREQ(DMAController *d, int nchan)
+{
+    int ichan;
+
     ichan = nchan & 3;
-    DPRINTF("held cont=%d chan=%d\n", ncont, ichan);
-    dma_controllers[ncont]->status |= 1 << (ichan + 4);
-    dma_controller_run(dma_controllers[ncont]);
+    DPRINTF("held chan=%d\n", ichan);
+    d->status |= 1 << (ichan + 4);
+    dma_controller_run(d);
 }
 
-void DMA_release_DREQ(int nchan)
+void dma_controller_release_DREQ(DMAController *d, int nchan)
 {
-    int ncont, ichan;
+    int ichan;
 
-    ncont = nchan > 3;
     ichan = nchan & 3;
-    DPRINTF("released cont=%d chan=%d\n", ncont, ichan);
-    dma_controllers[ncont]->status &= ~(1 << (ichan + 4));
-    dma_controller_run(dma_controllers[ncont]);
+    DPRINTF("released chan=%d\n", ichan);
+    d->status &= ~(1 << (ichan + 4));
+    dma_controller_run(d);
 }
 
-void DMA_register_channel(int nchan,
-                          DMA_transfer_handler transfer_handler,
-                          void *opaque)
+void dma_controller_channel_register(DMAController *d, int nchan,
+                                     DMATransferHandler *transfer_handler,
+                                     void *opaque)
 {
     DMARegisters *r;
-    int ichan, ncont;
+    int ichan;
 
-    ncont = nchan > 3;
     ichan = nchan & 3;
 
-    r = dma_controllers[ncont]->regs + ichan;
+    r = d->regs + ichan;
     r->transfer_handler = transfer_handler;
     r->opaque = opaque;
 }
 
-int DMA_read_memory(int nchan, void *buf, int pos, int len)
+int dma_controller_channel_read(DMAController *d, int nchan,
+                                void *buf, int pos, int len)
 {
-    DMARegisters *r = &dma_controllers[nchan > 3]->regs[nchan & 3];
-    target_phys_addr_t addr = ((r->pageh & 0x7f) << 24) | (r->page << 16) | r->now[ADDR];
+    DMARegisters *r = &d->regs[nchan & 3];
+    target_phys_addr_t addr;
 
+    addr = ((r->pageh & 0x7f) << 24) | (r->page << 16) | r->now[ADDR];
     if (r->mode & 0x20) {
         int i;
         uint8_t *p = buf;
@@ -445,11 +412,13 @@ int DMA_read_memory(int nchan, void *buf, int pos, int len)
     return len;
 }
 
-int DMA_write_memory(int nchan, void *buf, int pos, int len)
+int dma_controller_channel_write(DMAController *d, int nchan,
+                                 void *buf, int pos, int len)
 {
-    DMARegisters *r = &dma_controllers[nchan > 3]->regs[nchan & 3];
-    target_phys_addr_t addr = ((r->pageh & 0x7f) << 24) | (r->page << 16) | r->now[ADDR];
+    DMARegisters *r = &d->regs[nchan & 3];
+    target_phys_addr_t addr;
 
+    addr = ((r->pageh & 0x7f) << 24) | (r->page << 16) | r->now[ADDR];
     if (r->mode & 0x20) {
         int i;
         uint8_t *p = buf;
@@ -473,10 +442,10 @@ static void dma_controller_reset(DeviceState *dev)
     dma_controller_write_cont(d, (0x0d << d->dshift), 0);
 }
 
-static int dma_phony_handler(void *opaque, int nchan, int dma_pos, int dma_len)
+static int dma_phony_handler(void *opaque, int dma_pos, int dma_len)
 {
-    DPRINTF("unregistered DMA channel used nchan=%d dma_pos=%d dma_len=%d\n",
-           nchan, dma_pos, dma_len);
+    DPRINTF("unregistered DMA channel used dma_pos=%d dma_len=%d\n",
+            dma_pos, dma_len);
     return dma_pos;
 }
 
@@ -608,12 +577,12 @@ static void register_types(void)
 
 type_init(register_types);
 
-static DMAController *dma_controller_init(MemoryRegion *addr_space,
-                                          int high_page_enable,
-                                          int dshift,
-                                          int base,
-                                          int page_base,
-                                          int pageh_base)
+DMAController *dma_controller_init(MemoryRegion *addr_space,
+                                   int high_page_enable,
+                                   int dshift,
+                                   int base,
+                                   int page_base,
+                                   int pageh_base)
 {
     DMAController *d;
 
@@ -631,6 +600,7 @@ static DMAController *dma_controller_init(MemoryRegion *addr_space,
     return d;
 }
 
+#if 0
 void DMA_init(MemoryRegion *addr_space, int high_page_enable)
 {
     dma_controllers[0] = dma_controller_init(addr_space, high_page_enable, 0,
@@ -638,3 +608,4 @@ void DMA_init(MemoryRegion *addr_space, int high_page_enable)
     dma_controllers[1] = dma_controller_init(addr_space, high_page_enable, 1,
                                              0xc0, 0x88, 0x488);
 }
+#endif

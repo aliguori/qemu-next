@@ -214,8 +214,6 @@ static void fd_revalidate(FDrive *drv)
 
 static void fdctrl_reset(FDCtrl *fdctrl, int do_irq);
 static void fdctrl_reset_fifo(FDCtrl *fdctrl);
-static int fdctrl_transfer_handler (void *opaque, int nchan,
-                                    int dma_pos, int dma_len);
 static void fdctrl_raise_irq(FDCtrl *fdctrl, uint8_t status0);
 static FDrive *get_cur_drv(FDCtrl *fdctrl);
 
@@ -391,6 +389,7 @@ struct FDCtrl {
     /* Controller state */
     QEMUTimer *result_timer;
     int dma_chann;
+    ISADMAChannel *dma;
     /* Controller's identification */
     uint8_t version;
     /* HW */
@@ -1039,7 +1038,7 @@ static void fdctrl_stop_transfer(FDCtrl *fdctrl, uint8_t status0,
     fdctrl->fifo[6] = FD_SECTOR_SC;
     fdctrl->data_dir = FD_DIR_READ;
     if (!(fdctrl->msr & FD_MSR_NONDMA)) {
-        DMA_release_DREQ(fdctrl->dma_chann);
+        isa_dma_channel_release_DREQ(fdctrl->dma);
     }
     fdctrl->msr |= FD_MSR_RQM | FD_MSR_DIO;
     fdctrl->msr &= ~FD_MSR_NONDMA;
@@ -1130,7 +1129,7 @@ static void fdctrl_start_transfer(FDCtrl *fdctrl, int direction)
     if (fdctrl->dor & FD_DOR_DMAEN) {
         int dma_mode;
         /* DMA transfer are enabled. Check if DMA channel is well programmed */
-        dma_mode = DMA_get_channel_mode(fdctrl->dma_chann);
+        dma_mode = isa_dma_channel_get_mode(fdctrl->dma);
         dma_mode = (dma_mode >> 2) & 3;
         FLOPPY_DPRINTF("dma_mode=%d direction=%d (%d - %d)\n",
                        dma_mode, direction,
@@ -1145,7 +1144,7 @@ static void fdctrl_start_transfer(FDCtrl *fdctrl, int direction)
             /* Now, we just have to wait for the DMA controller to
              * recall us...
              */
-            DMA_hold_DREQ(fdctrl->dma_chann);
+            isa_dma_channel_hold_DREQ(fdctrl->dma);
             return;
         } else {
             FLOPPY_ERROR("dma_mode=%d direction=%d\n", dma_mode, direction);
@@ -1173,8 +1172,8 @@ static void fdctrl_start_transfer_del(FDCtrl *fdctrl, int direction)
 }
 
 /* handlers for DMA transfers */
-static int fdctrl_transfer_handler (void *opaque, int nchan,
-                                    int dma_pos, int dma_len)
+static int fdctrl_transfer_handler(void *opaque, ISADMAChannel *chan,
+                                   int dma_pos, int dma_len)
 {
     FDCtrl *fdctrl;
     FDrive *cur_drv;
@@ -1224,8 +1223,8 @@ static int fdctrl_transfer_handler (void *opaque, int nchan,
         switch (fdctrl->data_dir) {
         case FD_DIR_READ:
             /* READ commands */
-            DMA_write_memory (nchan, fdctrl->fifo + rel_pos,
-                              fdctrl->data_pos, len);
+            isa_dma_channel_write(chan, fdctrl->fifo + rel_pos,
+                                  fdctrl->data_pos, len);
             break;
         case FD_DIR_WRITE:
             /* WRITE commands */
@@ -1239,8 +1238,8 @@ static int fdctrl_transfer_handler (void *opaque, int nchan,
                 goto transfer_error;
             }
 
-            DMA_read_memory (nchan, fdctrl->fifo + rel_pos,
-                             fdctrl->data_pos, len);
+            isa_dma_channel_read(chan, fdctrl->fifo + rel_pos,
+                                 fdctrl->data_pos, len);
             if (bdrv_write(cur_drv->bs, fd_sector(cur_drv),
                            fdctrl->fifo, 1) < 0) {
                 FLOPPY_ERROR("writing sector %d\n", fd_sector(cur_drv));
@@ -1253,7 +1252,7 @@ static int fdctrl_transfer_handler (void *opaque, int nchan,
             {
                 uint8_t tmpbuf[FD_SECTOR_LEN];
                 int ret;
-                DMA_read_memory (nchan, tmpbuf, fdctrl->data_pos, len);
+                isa_dma_channel_read(chan, tmpbuf, fdctrl->data_pos, len);
                 ret = memcmp(tmpbuf, fdctrl->fifo + rel_pos, len);
                 if (ret == 0) {
                     status2 = FD_SR2_SEH;
@@ -1947,8 +1946,6 @@ static int fdctrl_init_common(FDCtrl *fdctrl)
     fdctrl->config = FD_CONFIG_EIS | FD_CONFIG_EFIFO; /* Implicit seek, polling & FIFO enabled */
     fdctrl->num_floppies = MAX_FD;
 
-    if (fdctrl->dma_chann != -1)
-        DMA_register_channel(fdctrl->dma_chann, &fdctrl_transfer_handler, fdctrl);
     return fdctrl_connect_drives(fdctrl);
 }
 
@@ -1973,6 +1970,12 @@ static int isabus_fdc_init1(ISADevice *dev)
     fdctrl->dma_chann = dma_chann;
 
     qdev_set_legacy_instance_id(&dev->qdev, iobase, 2);
+
+    if (fdctrl->dma_chann != -1) {
+        fdctrl->dma = isa_dma_channel_register(dev, fdctrl->dma_chann,
+                                               fdctrl_transfer_handler, fdctrl);
+    }
+
     ret = fdctrl_init_common(fdctrl);
 
     add_boot_device_path(isa->bootindexA, &dev->qdev, "/floppy@0");

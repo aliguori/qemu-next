@@ -40,6 +40,14 @@ static void isa_bus_initfn(Object *obj)
         snprintf(buffer, sizeof(buffer), "irq[%d]", i);
         object_property_add_child(obj, buffer, OBJECT(&bus->in[i]), NULL);
     }
+
+    for (i = 0; i < 2; i++) {
+        char buffer[32];
+
+        snprintf(buffer, sizeof(buffer), "dma_controller[%d]", i);
+        object_property_add_link(obj, buffer, TYPE_DMA_CONTROLLER,
+                                 (Object **)&bus->controllers[i], NULL);
+    }
 }
 
 static TypeInfo isa_bus_info = {
@@ -49,7 +57,8 @@ static TypeInfo isa_bus_info = {
     .instance_size = sizeof(ISABus),
 };
 
-ISABus *isa_bus_new(DeviceState *dev, MemoryRegion *address_space_io)
+ISABus *isa_bus_new(DeviceState *dev, MemoryRegion *address_space_io,
+                    DMAController *primary, DMAController *secondary)
 {
     if (isabus) {
         fprintf(stderr, "Can't create a second ISA bus\n");
@@ -62,6 +71,8 @@ ISABus *isa_bus_new(DeviceState *dev, MemoryRegion *address_space_io)
 
     isabus = FROM_QBUS(ISABus, qbus_create(TYPE_ISA_BUS, dev, NULL));
     isabus->address_space_io = address_space_io;
+    isabus->controllers[0] = primary;
+    isabus->controllers[1] = secondary;
     return isabus;
 }
 
@@ -202,6 +213,78 @@ static void isabus_bridge_class_init(ObjectClass *klass, void *data)
     k->init = isabus_bridge_init;
     dc->fw_name = "isa";
     dc->no_user = 1;
+}
+
+struct ISADMAChannel
+{
+    ISABus *isa_bus;
+    DMAController *d;
+    int nchan;
+    ISADMATransferHandler *transfer_handler;
+    void *opaque;
+};
+
+static int isa_dma_channel_tramp(void *opaque, int pos, int size)
+{
+    ISADMAChannel *chan = opaque;
+
+    return chan->transfer_handler(chan->opaque, chan, pos, size);
+}
+
+ISADMAChannel *isa_dma_channel_register(ISADevice *dev, int nchan,
+                                        ISADMATransferHandler *transfer_handler,
+                                        void *opaque)
+{
+    ISADMAChannel *chan;
+    ISABus *isa_bus = (ISABus *)DEVICE(dev)->parent_bus;
+    DMAController *d;
+
+    chan = g_malloc0(sizeof(*chan));
+
+    if (nchan > 3) {
+        d = isa_bus->controllers[0];
+    } else {
+        d = isa_bus->controllers[1];
+    }
+
+    chan->d = d;
+    chan->nchan = nchan & 3;
+    chan->transfer_handler = transfer_handler;
+    chan->opaque = opaque;
+
+    dma_controller_channel_register(d, nchan & 3, isa_dma_channel_tramp, chan);
+
+    return chan;
+}
+
+int isa_dma_channel_get_mode(ISADMAChannel *chan)
+{
+    return dma_controller_get_channel_mode(chan->d, chan->nchan);
+}
+
+int isa_dma_channel_get_width(ISADMAChannel *chan)
+{
+    return dma_controller_get_width(chan->d);
+}
+
+int isa_dma_channel_read(ISADMAChannel *chan, void *buf, int pos, int size)
+{
+    return dma_controller_channel_read(chan->d, chan->nchan, buf, pos, size);
+}
+
+int isa_dma_channel_write(ISADMAChannel *chan, void *buf, int pos, int size)
+{
+    return dma_controller_channel_write(chan->d, chan->nchan, buf, pos, size);
+}
+
+void isa_dma_channel_hold_DREQ(ISADMAChannel *chan)
+{
+    return dma_controller_hold_DREQ(chan->d, chan->nchan);
+}
+
+void isa_dma_channel_release_DREQ(ISADMAChannel *chan)
+{
+    return dma_controller_release_DREQ(chan->d, chan->nchan);
 }
 
 static TypeInfo isabus_bridge_info = {

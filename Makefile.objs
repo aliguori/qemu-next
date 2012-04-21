@@ -243,7 +243,6 @@ hw-obj-$(CONFIG_FDC) += fdc.o
 hw-obj-$(CONFIG_ACPI) += acpi.o acpi_piix4.o
 hw-obj-$(CONFIG_APM) += pm_smbus.o apm.o
 hw-obj-$(CONFIG_DMA) += dma.o
-hw-obj-$(CONFIG_I82374) += i82374.o
 hw-obj-$(CONFIG_HPET) += hpet.o
 hw-obj-$(CONFIG_APPLESMC) += applesmc.o
 hw-obj-$(CONFIG_SMARTCARD) += usb/dev-smartcard-reader.o ccid-card-passthru.o
@@ -253,7 +252,6 @@ hw-obj-$(CONFIG_I8259) += i8259_common.o i8259.o
 
 # PPC devices
 hw-obj-$(CONFIG_PREP_PCI) += prep_pci.o
-hw-obj-$(CONFIG_I82378) += i82378.o
 # Mac shared devices
 hw-obj-$(CONFIG_MACIO) += macio.o
 hw-obj-$(CONFIG_CUDA) += cuda.o
@@ -270,7 +268,6 @@ hw-obj-$(CONFIG_DEC_PCI) += dec_pci.o
 hw-obj-$(CONFIG_PPCE500_PCI) += ppce500_pci.o
 
 # MIPS devices
-hw-obj-$(CONFIG_PIIX4) += piix4.o
 hw-obj-$(CONFIG_G364FB) += g364fb.o
 hw-obj-$(CONFIG_JAZZ_LED) += jazz_led.o
 

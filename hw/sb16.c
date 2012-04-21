@@ -58,6 +58,9 @@ typedef struct SB16State {
     uint32_t port;
     uint32_t ver;
 
+    ISADMAChannel *dma_chan;
+    ISADMAChannel *hdma_chan;
+
     int in_index;
     int out_data_len;
     int fmt_stereo;
@@ -166,17 +169,17 @@ static void speaker (SB16State *s, int on)
 
 static void control (SB16State *s, int hold)
 {
-    int dma = s->use_hdma ? s->hdma : s->dma;
+    ISADMAChannel *chan = s->use_hdma ? s->hdma_chan : s->dma_chan;
     s->dma_running = hold;
 
-    ldebug ("hold %d high %d dma %d\n", hold, s->use_hdma, dma);
+    ldebug ("hold %d high %d dma %p\n", hold, s->use_hdma, chan);
 
     if (hold) {
-        DMA_hold_DREQ (dma);
+        isa_dma_channel_hold_DREQ (chan);
         AUD_set_active_out (s->voice, 1);
     }
     else {
-        DMA_release_DREQ (dma);
+        isa_dma_channel_release_DREQ (chan);
         AUD_set_active_out (s->voice, 0);
     }
 }
@@ -1141,7 +1144,7 @@ static IO_READ_PROTO (mixer_read)
     return s->mixer_regs[s->mixer_nreg];
 }
 
-static int write_audio (SB16State *s, int nchan, int dma_pos,
+static int write_audio (SB16State *s, ISADMAChannel *chan, int dma_pos,
                         int dma_len, int len)
 {
     int temp, net;
@@ -1160,7 +1163,7 @@ static int write_audio (SB16State *s, int nchan, int dma_pos,
             to_copy = sizeof (tmpbuf);
         }
 
-        copied = DMA_read_memory (nchan, tmpbuf, dma_pos, to_copy);
+        copied = isa_dma_channel_read (chan, tmpbuf, dma_pos, to_copy);
         copied = AUD_write (s->voice, tmpbuf, copied);
 
         temp -= copied;
@@ -1175,14 +1178,14 @@ static int write_audio (SB16State *s, int nchan, int dma_pos,
     return net;
 }
 
-static int SB_read_DMA (void *opaque, int nchan, int dma_pos, int dma_len)
+static int SB_read_DMA (void *opaque, ISADMAChannel *chan, int dma_pos, int dma_len)
 {
     SB16State *s = opaque;
     int till, copy, written, free;
 
     if (s->block_size <= 0) {
-        dolog ("invalid block size=%d nchan=%d dma_pos=%d dma_len=%d\n",
-               s->block_size, nchan, dma_pos, dma_len);
+        dolog ("invalid block size=%d nchan=%p dma_pos=%d dma_len=%d\n",
+               s->block_size, chan, dma_pos, dma_len);
         return dma_pos;
     }
 
@@ -1214,12 +1217,12 @@ static int SB_read_DMA (void *opaque, int nchan, int dma_pos, int dma_len)
         }
     }
 
-    written = write_audio (s, nchan, dma_pos, dma_len, copy);
+    written = write_audio (s, chan, dma_pos, dma_len, copy);
     dma_pos = (dma_pos + written) % dma_len;
     s->left_till_irq -= written;
 
     if (s->left_till_irq <= 0) {
-        s->mixer_regs[0x82] |= (nchan & 4) ? 2 : 1;
+        s->mixer_regs[0x82] |= isa_dma_channel_get_width(chan) ? 2 : 1;
         pin_raise (&s->pic);
         if (0 == s->dma_auto) {
             control (s, 0);
@@ -1377,8 +1380,8 @@ static int sb16_realize (ISADevice *dev)
 
     isa_register_portio_list (dev, s->port, sb16_ioport_list, s, "sb16");
 
-    DMA_register_channel (s->hdma, SB_read_DMA, s);
-    DMA_register_channel (s->dma, SB_read_DMA, s);
+    s->hdma_chan = isa_dma_channel_register (dev, s->hdma, SB_read_DMA, s);
+    s->dma_chan = isa_dma_channel_register (dev, s->dma, SB_read_DMA, s);
     s->can_write = 1;
 
     AUD_register_card ("sb16", &s->card);

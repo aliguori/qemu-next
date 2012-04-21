@@ -62,6 +62,8 @@ typedef struct PIIX3State {
 
     qemu_irq *pic;
 
+    DMAController controllers[2];
+
     /* This member isn't used. Just for save/load compatibility */
     int32_t pci_irq_levels_vmstate[PIIX_NUM_PIRQS];
 } PIIX3State;
@@ -492,13 +494,48 @@ static const VMStateDescription vmstate_piix3 = {
     }
 };
 
-static int piix3_initfn(PCIDevice *dev)
+static int piix3_realize(PCIDevice *dev)
 {
     PIIX3State *d = DO_UPCAST(PIIX3State, dev, dev);
+    int i;
 
-    isa_bus_new(&d->dev.qdev, pci_address_space_io(dev));
+    for (i = 0; i < 2; i++) {
+        static const int addrs[2][2] = { { 0x00, 0x80 }, { 0xc0, 0x88 } };
+        DMAController *s = &d->controllers[i];
+        int err;
+
+        err = qdev_init(DEVICE(s));
+        if (err < 0) {
+            return err;
+        }
+
+        memory_region_add_subregion_overlap(pci_address_space_io(dev),
+                                            addrs[i][0],
+                                            &s->io, 0);
+        memory_region_add_subregion_overlap(pci_address_space_io(dev),
+                                            addrs[i][1],
+                                            &s->page_io, 0);
+    }
+    isa_bus_new(&d->dev.qdev, pci_address_space_io(dev),
+                &d->controllers[0], &d->controllers[1]);
     qemu_register_reset(piix3_reset, d);
     return 0;
+}
+
+static void piix3_initfn(Object *obj)
+{
+    PIIX3State *d = OBJECT_CHECK(PIIX3State, obj, "PIIX3");
+    int i;
+
+    for (i = 0; i < 2; i++) {
+        DMAController *s = &d->controllers[i];
+
+        object_initialize(s, TYPE_DMA_CONTROLLER);
+        qdev_prop_set_globals(DEVICE(s));
+        if (i) {
+            qdev_prop_set_int32(DEVICE(s), "dshift", 1);
+        }
+    }
 }
 
 static void piix3_class_init(ObjectClass *klass, void *data)
@@ -510,7 +547,7 @@ static void piix3_class_init(ObjectClass *klass, void *data)
     dc->vmsd        = &vmstate_piix3;
     dc->no_user     = 1,
     k->no_hotplug   = 1;
-    k->init         = piix3_initfn;
+    k->init         = piix3_realize;
     k->config_write = piix3_write_config;
     k->vendor_id    = PCI_VENDOR_ID_INTEL;
     k->device_id    = PCI_DEVICE_ID_INTEL_82371SB_0; // 82371SB PIIX3 PCI-to-ISA bridge (Step A1)
@@ -520,6 +557,7 @@ static void piix3_class_init(ObjectClass *klass, void *data)
 static TypeInfo piix3_info = {
     .name          = "PIIX3",
     .parent        = TYPE_PCI_DEVICE,
+    .instance_init = piix3_initfn,
     .instance_size = sizeof(PIIX3State),
     .class_init    = piix3_class_init,
 };
@@ -533,7 +571,7 @@ static void piix3_xen_class_init(ObjectClass *klass, void *data)
     dc->vmsd        = &vmstate_piix3;
     dc->no_user     = 1;
     k->no_hotplug   = 1;
-    k->init         = piix3_initfn;
+    k->init         = piix3_realize;
     k->config_write = piix3_write_config_xen;
     k->vendor_id    = PCI_VENDOR_ID_INTEL;
     k->device_id    = PCI_DEVICE_ID_INTEL_82371SB_0; // 82371SB PIIX3 PCI-to-ISA bridge (Step A1)

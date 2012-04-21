@@ -7,6 +7,7 @@
 #include "memory.h"
 #include "qdev.h"
 #include "qemu/pin.h"
+#include "dma-controller.h"
 
 #define ISA_NUM_IRQS 16
 
@@ -29,6 +30,7 @@ struct ISABus {
     BusState qbus;
     MemoryRegion *address_space_io;
     Pin in[ISA_NUM_IRQS];
+    DMAController *controllers[2];
     qemu_irq *out;
 };
 
@@ -39,7 +41,8 @@ struct ISADevice {
     int ioport_id;
 };
 
-ISABus *isa_bus_new(DeviceState *dev, MemoryRegion *address_space_io);
+ISABus *isa_bus_new(DeviceState *dev, MemoryRegion *address_space_io,
+                    DMAController *primary, DMAController *secondary);
 void isa_bus_realize(ISABus *bus);
 void isa_bus_irqs(ISABus *bus, qemu_irq *irqs);
 qemu_irq isa_get_irq(ISADevice *dev, int isairq);
@@ -86,14 +89,20 @@ void isa_mmio_setup(MemoryRegion *mr, target_phys_addr_t size);
 void isa_mmio_init(target_phys_addr_t base, target_phys_addr_t size);
 
 /* dma.c */
-int DMA_get_channel_mode (int nchan);
-int DMA_read_memory (int nchan, void *buf, int pos, int size);
-int DMA_write_memory (int nchan, void *buf, int pos, int size);
-void DMA_hold_DREQ (int nchan);
-void DMA_release_DREQ (int nchan);
-void DMA_schedule(int nchan);
-void DMA_init(MemoryRegion *addr_space, int high_page_enable);
-void DMA_register_channel (int nchan,
-                           DMA_transfer_handler transfer_handler,
-                           void *opaque);
+typedef struct ISADMAChannel ISADMAChannel;
+
+typedef int (ISADMATransferHandler)(void *opaque, ISADMAChannel *chan,
+                                    int pos, int size);
+
+ISADMAChannel *isa_dma_channel_register(ISADevice *dev, int nchan,
+                                        ISADMATransferHandler *transfer_handler,
+                                        void *opaque);
+
+int isa_dma_channel_get_mode(ISADMAChannel *chan);
+int isa_dma_channel_get_width(ISADMAChannel *chan);
+int isa_dma_channel_read(ISADMAChannel *chan, void *buf, int pos, int size);
+int isa_dma_channel_write(ISADMAChannel *chan, void *buf, int pos, int size);
+void isa_dma_channel_hold_DREQ(ISADMAChannel *chan);
+void isa_dma_channel_release_DREQ(ISADMAChannel *chan);
+
 #endif

@@ -934,7 +934,8 @@ void mips_malta_init (ram_addr_t ram_size,
     /* Southbridge */
     ide_drive_get(hd, MAX_IDE_BUS);
 
-    piix4_devfn = piix4_init(pci_bus, &isa_bus, 80);
+//    piix4_devfn = piix4_init(pci_bus, &isa_bus, 80);
+    piix4_devfn = 0; // FIXME
 
     /* Interrupt controller */
     /* The 8259 is attached to the MIPS CPU INT0 pin, ie interrupt 2 */

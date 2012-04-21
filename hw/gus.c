@@ -191,30 +191,30 @@ void GUS_dmarequest (GUSEmuState *der)
 {
     /* GUSState *s = (GUSState *) der; */
     ldebug ("dma request %d\n", der->gusdma);
-    DMA_hold_DREQ (der->gusdma);
+    isa_dma_channel_hold_DREQ (der->gusdma_chan);
 }
 
-static int GUS_read_DMA (void *opaque, int nchan, int dma_pos, int dma_len)
+static int GUS_read_DMA (void *opaque, ISADMAChannel *chan, int dma_pos, int dma_len)
 {
     GUSState *s = opaque;
     char tmpbuf[4096];
     int pos = dma_pos, mode, left = dma_len - dma_pos;
 
     ldebug ("read DMA %#x %d\n", dma_pos, dma_len);
-    mode = DMA_get_channel_mode (s->emu.gusdma);
+    mode = isa_dma_channel_get_mode (s->emu.gusdma_chan);
     while (left) {
         int to_copy = audio_MIN ((size_t) left, sizeof (tmpbuf));
         int copied;
 
         ldebug ("left=%d to_copy=%d pos=%d\n", left, to_copy, pos);
-        copied = DMA_read_memory (nchan, tmpbuf, pos, to_copy);
+        copied = isa_dma_channel_read (chan, tmpbuf, pos, to_copy);
         gus_dma_transferdata (&s->emu, tmpbuf, copied, left == copied);
         left -= copied;
         pos += copied;
     }
 
     if (0 == ((mode >> 4) & 1)) {
-        DMA_release_DREQ (s->emu.gusdma);
+        isa_dma_channel_release_DREQ (s->emu.gusdma_chan);
     }
     return dma_len;
 }
@@ -286,7 +286,8 @@ static int gus_realize (ISADevice *dev)
     isa_register_portio_list (dev, (s->port + 0x100) & 0xf00,
                               gus_portio_list2, s, "gus");
 
-    DMA_register_channel (s->emu.gusdma, GUS_read_DMA, s);
+    s->emu.gusdma_chan = isa_dma_channel_register (dev, s->emu.gusdma,
+                                                   GUS_read_DMA, s);
     s->emu.himemaddr = s->himem;
     s->emu.gusdatapos = s->emu.himemaddr + 1024 * 1024 + 32;
     s->emu.opaque = s;

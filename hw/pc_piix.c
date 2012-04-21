@@ -202,9 +202,16 @@ static void pc_init1(MemoryRegion *system_memory,
                                : ((uint64_t)1 << 62)),
                               pci_memory, ram_memory);
     } else {
+        DMAController *controllers[2];
+
+        controllers[0] = dma_controller_init(system_io, 0, 0,
+                                             0x00, 0x80, 0x480);
+        controllers[1] = dma_controller_init(system_io, 0, 1,
+                                             0xc0, 0x88, 0x488);
+
         pci_bus = NULL;
         i440fx_state = NULL;
-        isa_bus = isa_bus_new(NULL, system_io);
+        isa_bus = isa_bus_new(NULL, system_io, controllers[0], controllers[1]);
         no_hpet = 1;
     }
     isa_bus_irqs(isa_bus, gsi);
