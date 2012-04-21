@@ -52,18 +52,29 @@ typedef struct DMARegisters
 #define ADDR 0
 #define COUNT 1
 
+#define TYPE_DMA_CONTROLLER "dma-controller"
+#define DMA_CONTROLLER(obj) \
+    OBJECT_CHECK(DMAController, (obj), TYPE_DMA_CONTROLLER)
+
 typedef struct DMAController
 {
+    DeviceState dev;
+
     uint8_t status;
     uint8_t command;
     uint8_t mask;
     uint8_t flip_flop;
     int dshift;
+    QEMUTimer *run_timer;
     DMARegisters regs[4];
-    qemu_irq *cpu_request_exit;
+    MemoryRegion io;
+
+    /* FIXME: make single region */
+    MemoryRegion page_io;
+    MemoryRegion pageh_io;
 } DMAController;
 
-static DMAController dma_controllers[2];
+static DMAController *dma_controllers[2];
 
 enum {
     CMD_MEMORY_TO_MEMORY = 0x01,
@@ -80,63 +91,111 @@ enum {
 
 };
 
-static void DMA_run(void);
-
-static const int channels[8] = {-1, 2, 3, 1, -1, -1, -1, 0};
-
-static void write_page(void *opaque, uint32_t nport, uint32_t data)
+static void channel_run(DMAController *d, int ichan)
 {
-    DMAController *d = opaque;
-    int ichan;
+    int n;
+    DMARegisters *r = &d->regs[ichan];
+    int dir, opmode;
 
-    ichan = channels[nport & 7];
-    if (-1 == ichan) {
-        DPRINTF("invalid channel %#x %#x\n", nport, data);
-        return;
+    dir = (r->mode >> 5) & 1;
+    opmode = (r->mode >> 6) & 3;
+
+    if (dir) {
+        DPRINTF("DMA in address decrement mode\n");
     }
-    d->regs[ichan].page = data;
+    if (opmode != 1) {
+        DPRINTF("DMA not in single mode select %#x\n", opmode);
+    }
+
+    n = r->transfer_handler(r->opaque, ichan + (d->dshift << 2),
+                            r->now[COUNT], (r->base[COUNT] + 1) << d->dshift);
+    r->now[COUNT] = n;
+    DPRINTF("dma_pos %d size %d\n", n, (r->base[COUNT] + 1) << d->dshift);
 }
 
-static void write_pageh(void *opaque, uint32_t nport, uint32_t data)
+static void dma_controller_run(DMAController *d)
 {
-    DMAController *d = opaque;
     int ichan;
 
-    ichan = channels[nport & 7];
-    if (-1 == ichan) {
-        DPRINTF("invalid channel %#x %#x\n", nport, data);
-        return;
+    for (ichan = 0; ichan < 4; ichan++) {
+        int mask;
+
+        mask = 1 << ichan;
+
+        if ((0 == (d->mask & mask)) && (0 != (d->status & (mask << 4)))) {
+            channel_run(d, ichan);
+        }
     }
-    d->regs[ichan].pageh = data;
 }
 
-static uint32_t read_page(void *opaque, uint32_t nport)
+static DMARegisters *dma_controller_lookup_regs(DMAController *d,
+                                                target_phys_addr_t addr)
 {
-    DMAController *d = opaque;
+    static const int channels[8] = {-1, 2, 3, 1, -1, -1, -1, 0};
     int ichan;
 
-    ichan = channels[nport & 7];
-    if (-1 == ichan) {
-        DPRINTF("invalid channel read %#x\n", nport);
-        return 0;
+    ichan = channels[addr & 7];
+    if (ichan == -1) {
+        DPRINTF("invalid channel %#x\n", (uint32_t)addr);;
+        return NULL;
     }
-    return d->regs[ichan].page;
+
+    return &d->regs[ichan];
 }
 
-static uint32_t read_pageh(void *opaque, uint32_t nport)
+static void dma_controller_write_page(void *opaque, target_phys_addr_t addr,
+                                      uint64_t val, unsigned size)
 {
-    DMAController *d = opaque;
-    int ichan;
+    DMAController *d = DMA_CONTROLLER(opaque);
+    DMARegisters *r;
 
-    ichan = channels[nport & 7];
-    if (-1 == ichan) {
-        DPRINTF("invalid channel read %#x\n", nport);
-        return 0;
+    r = dma_controller_lookup_regs(d, addr);
+    if (r) {
+        r->page = val;
     }
-    return d->regs[ichan].pageh;
 }
 
-static void init_chan(DMAController *d, int ichan)
+static void dma_controller_write_pageh(void *opaque, target_phys_addr_t addr,
+                                       uint64_t val, unsigned size)
+{
+    DMAController *d = DMA_CONTROLLER(opaque);
+    DMARegisters *r;
+
+    r = dma_controller_lookup_regs(d, addr);
+    if (r) {
+        r->pageh = val;
+    }
+}
+
+static uint64_t dma_controller_read_page(void *opaque,
+                                         target_phys_addr_t addr,
+                                         unsigned size)
+{
+    DMAController *d = DMA_CONTROLLER(opaque);
+    DMARegisters *r;
+
+    r = dma_controller_lookup_regs(d, addr);
+    if (r) {
+        return r->page;
+    }
+    return 0;
+}
+
+static uint64_t dma_controller_read_pageh(void *opaque,
+                                          target_phys_addr_t addr,
+                                          unsigned size)
+{
+    DMAController *d = DMA_CONTROLLER(opaque);
+    DMARegisters *r;
+
+    r = dma_controller_lookup_regs(d, addr);
+    if (r) {
+        return r->pageh;
+    }
+    return 0;
+}
+
+static void dma_controller_init_chan(DMAController *d, int ichan)
 {
     DMARegisters *r;
 
@@ -145,7 +204,7 @@ static void init_chan(DMAController *d, int ichan)
     r->now[COUNT] = 0;
 }
 
-static int getff(DMAController *d)
+static int dma_controller_getff(DMAController *d)
 {
     int ff;
 
@@ -154,19 +213,17 @@ static int getff(DMAController *d)
     return ff;
 }
 
-static uint32_t read_chan(void *opaque, uint32_t nport)
+static uint32_t dma_controller_read_chan(DMAController *d, uint32_t iport)
 {
-    DMAController *d = opaque;
-    int ichan, nreg, iport, ff, val, dir;
+    int ichan, nreg, ff, val, dir;
     DMARegisters *r;
 
-    iport = (nport >> d->dshift) & 0x0f;
     ichan = iport >> 1;
     nreg = iport & 1;
     r = d->regs + ichan;
 
     dir = ((r->mode >> 5) & 1) ? -1 : 1;
-    ff = getff(d);
+    ff = dma_controller_getff(d);
     if (nreg) {
         val = (r->base[COUNT] << d->dshift) - r->now[COUNT];
     } else {
@@ -177,30 +234,27 @@ static uint32_t read_chan(void *opaque, uint32_t nport)
     return (val >> (d->dshift + (ff << 3))) & 0xff;
 }
 
-static void write_chan(void *opaque, uint32_t nport, uint32_t data)
+static void dma_controller_write_chan(DMAController *d, uint32_t iport,
+                                      uint32_t data)
 {
-    DMAController *d = opaque;
-    int iport, ichan, nreg;
+    int ichan, nreg;
     DMARegisters *r;
 
-    iport = (nport >> d->dshift) & 0x0f;
     ichan = iport >> 1;
     nreg = iport & 1;
     r = d->regs + ichan;
-    if (getff(d)) {
+    if (dma_controller_getff(d)) {
         r->base[nreg] = (r->base[nreg] & 0xff) | ((data << 8) & 0xff00);
-        init_chan(d, ichan);
+        dma_controller_init_chan(d, ichan);
     } else {
         r->base[nreg] = (r->base[nreg] & 0xff00) | (data & 0xff);
     }
 }
 
-static void write_cont(void *opaque, uint32_t nport, uint32_t data)
+static void dma_controller_write_cont(DMAController *d, uint32_t iport, uint32_t data)
 {
-    DMAController *d = opaque;
-    int iport, ichan = 0;
+    int ichan = 0;
 
-    iport = (nport >> d->dshift) & 0x0f;
     switch (iport) {
     case 0x08:                  /* command */
         if ((data != 0) && (data & CMD_NOT_SUPPORTED)) {
@@ -218,7 +272,7 @@ static void write_cont(void *opaque, uint32_t nport, uint32_t data)
             d->status &= ~(1 << (ichan + 4));
         }
         d->status &= ~(1 << ichan);
-        DMA_run();
+        dma_controller_run(d);
         break;
 
     case 0x0a:                  /* single mask */
@@ -227,7 +281,7 @@ static void write_cont(void *opaque, uint32_t nport, uint32_t data)
         } else {
             d->mask &= ~(1 << (data & 3));
         }
-        DMA_run();
+        dma_controller_run(d);
         break;
 
     case 0x0b:                  /* mode */
@@ -260,12 +314,12 @@ static void write_cont(void *opaque, uint32_t nport, uint32_t data)
 
     case 0x0e:                  /* clear mask for all channels */
         d->mask = 0;
-        DMA_run();
+        dma_controller_run(d);
         break;
 
     case 0x0f:                  /* write mask for all channels */
         d->mask = data;
-        DMA_run();
+        dma_controller_run(d);
         break;
 
     default:
@@ -274,17 +328,15 @@ static void write_cont(void *opaque, uint32_t nport, uint32_t data)
     }
 
     if (0xc != iport) {
-        DPRINTF("write_cont: nport %#06x, ichan % 2d, val %#06x\n",
-                nport, ichan, data);
+        DPRINTF("write_cont: iport %#06x, ichan % 2d, val %#06x\n",
+                iport, ichan, data);
     }
 }
 
-static uint32_t read_cont(void *opaque, uint32_t nport)
+static uint32_t dma_controller_read_cont(DMAController *d, uint32_t iport)
 {
-    DMAController *d = opaque;
-    int iport, val;
+    int val;
 
-    iport = (nport >> d->dshift) & 0x0f;
     switch (iport) {
     case 0x08:                  /* status */
         val = d->status;
@@ -298,13 +350,40 @@ static uint32_t read_cont(void *opaque, uint32_t nport)
         break;
     }
 
-    DPRINTF("read_cont: nport %#06x, iport %#04x val %#x\n", nport, iport, val);
+    DPRINTF("read_cont: iport %#04x val %#x\n", iport, val);
     return val;
+}
+
+static void dma_controller_write(void *opaque, target_phys_addr_t addr,
+                                 uint64_t val, unsigned size)
+{
+    DMAController *d = DMA_CONTROLLER(opaque);
+    int iport = (addr >> d->dshift) & 0x0f;
+
+    if (iport < 8) {
+        dma_controller_write_chan(d, iport, val);
+    } else {
+        dma_controller_write_cont(d, iport - 8, val);
+    }
+}
+
+static uint64_t dma_controller_read(void *opaque,
+                                    target_phys_addr_t addr,
+                                    unsigned size)
+{
+    DMAController *d = DMA_CONTROLLER(opaque);
+    int iport = (addr >> d->dshift) & 0x0f;
+
+    if (iport < 8) {
+        return dma_controller_read_chan(d, iport);
+    } else {
+        return dma_controller_read_cont(d, iport - 8);
+    }
 }
 
 int DMA_get_channel_mode(int nchan)
 {
-    return dma_controllers[nchan > 3].regs[nchan & 3].mode;
+    return dma_controllers[nchan > 3]->regs[nchan & 3].mode;
 }
 
 void DMA_hold_DREQ(int nchan)
@@ -314,8 +393,8 @@ void DMA_hold_DREQ(int nchan)
     ncont = nchan > 3;
     ichan = nchan & 3;
     DPRINTF("held cont=%d chan=%d\n", ncont, ichan);
-    dma_controllers[ncont].status |= 1 << (ichan + 4);
-    DMA_run();
+    dma_controllers[ncont]->status |= 1 << (ichan + 4);
+    dma_controller_run(dma_controllers[ncont]);
 }
 
 void DMA_release_DREQ(int nchan)
@@ -325,73 +404,8 @@ void DMA_release_DREQ(int nchan)
     ncont = nchan > 3;
     ichan = nchan & 3;
     DPRINTF("released cont=%d chan=%d\n", ncont, ichan);
-    dma_controllers[ncont].status &= ~(1 << (ichan + 4));
-    DMA_run();
-}
-
-static void channel_run(int ncont, int ichan)
-{
-    int n;
-    DMARegisters *r = &dma_controllers[ncont].regs[ichan];
-    int dir, opmode;
-
-    dir = (r->mode >> 5) & 1;
-    opmode = (r->mode >> 6) & 3;
-
-    if (dir) {
-        DPRINTF("DMA in address decrement mode\n");
-    }
-    if (opmode != 1) {
-        DPRINTF("DMA not in single mode select %#x\n", opmode);
-    }
-
-    n = r->transfer_handler(r->opaque, ichan + (ncont << 2),
-                            r->now[COUNT], (r->base[COUNT] + 1) << ncont);
-    r->now[COUNT] = n;
-    DPRINTF("dma_pos %d size %d\n", n, (r->base[COUNT] + 1) << ncont);
-}
-
-static QEMUBH *dma_bh;
-
-static void DMA_run(void)
-{
-    DMAController *d;
-    int icont, ichan;
-    int rearm = 0;
-    static int running = 0;
-
-    if (running) {
-        rearm = 1;
-        goto out;
-    } else {
-        running = 1;
-    }
-
-    d = dma_controllers;
-
-    for (icont = 0; icont < 2; icont++, d++) {
-        for (ichan = 0; ichan < 4; ichan++) {
-            int mask;
-
-            mask = 1 << ichan;
-
-            if ((0 == (d->mask & mask)) && (0 != (d->status & (mask << 4)))) {
-                channel_run(icont, ichan);
-                rearm = 1;
-            }
-        }
-    }
-
-    running = 0;
-out:
-    if (rearm) {
-        qemu_bh_schedule_idle(dma_bh);
-    }
-}
-
-static void DMA_run_bh(void *unused)
-{
-    DMA_run();
+    dma_controllers[ncont]->status &= ~(1 << (ichan + 4));
+    dma_controller_run(dma_controllers[ncont]);
 }
 
 void DMA_register_channel(int nchan,
@@ -404,14 +418,14 @@ void DMA_register_channel(int nchan,
     ncont = nchan > 3;
     ichan = nchan & 3;
 
-    r = dma_controllers[ncont].regs + ichan;
+    r = dma_controllers[ncont]->regs + ichan;
     r->transfer_handler = transfer_handler;
     r->opaque = opaque;
 }
 
 int DMA_read_memory(int nchan, void *buf, int pos, int len)
 {
-    DMARegisters *r = &dma_controllers[nchan > 3].regs[nchan & 3];
+    DMARegisters *r = &dma_controllers[nchan > 3]->regs[nchan & 3];
     target_phys_addr_t addr = ((r->pageh & 0x7f) << 24) | (r->page << 16) | r->now[ADDR];
 
     if (r->mode & 0x20) {
@@ -433,7 +447,7 @@ int DMA_read_memory(int nchan, void *buf, int pos, int len)
 
 int DMA_write_memory(int nchan, void *buf, int pos, int len)
 {
-    DMARegisters *r = &dma_controllers[nchan > 3].regs[nchan & 3];
+    DMARegisters *r = &dma_controllers[nchan > 3]->regs[nchan & 3];
     target_phys_addr_t addr = ((r->pageh & 0x7f) << 24) | (r->page << 16) | r->now[ADDR];
 
     if (r->mode & 0x20) {
@@ -453,18 +467,10 @@ int DMA_write_memory(int nchan, void *buf, int pos, int len)
     return len;
 }
 
-/* request the emulator to transfer a new DMA memory block ASAP */
-void DMA_schedule(int nchan)
+static void dma_controller_reset(DeviceState *dev)
 {
-    DMAController *d = &dma_controllers[nchan > 3];
-
-    qemu_irq_pulse(*d->cpu_request_exit);
-}
-
-static void dma_reset(void *opaque)
-{
-    DMAController *d = opaque;
-    write_cont(d, (0x0d << d->dshift), 0);
+    DMAController *d = DMA_CONTROLLER(dev);
+    dma_controller_write_cont(d, (0x0d << d->dshift), 0);
 }
 
 static int dma_phony_handler(void *opaque, int nchan, int dma_pos, int dma_len)
@@ -474,43 +480,59 @@ static int dma_phony_handler(void *opaque, int nchan, int dma_pos, int dma_len)
     return dma_pos;
 }
 
-/* dshift = 0: 8 bit DMA, 1 = 16 bit DMA */
-static void dma_init2(DMAController *d, int base, int dshift,
-                      int page_base, int pageh_base,
-                      qemu_irq *cpu_request_exit)
+/* bottom half is chan, top half is controller */
+static MemoryRegionOps dma_ops = {
+    .read = dma_controller_read,
+    .write = dma_controller_write,
+};
+
+static MemoryRegionOps page_ops = {
+    .read = dma_controller_read_page,
+    .write = dma_controller_write_page,
+};
+
+static MemoryRegionOps pageh_ops = {
+    .read = dma_controller_read_pageh,
+    .write = dma_controller_write_pageh,
+};
+
+static void dma_controller_run_timer(void *opaque)
 {
-    static const int page_port_list[] = { 0x1, 0x2, 0x3, 0x7 };
+    DMAController *d = DMA_CONTROLLER(opaque);
+
+    dma_controller_run(d);
+
+    /* Run every 1ms */
+    qemu_mod_timer_ns(d->run_timer,
+                      qemu_get_clock_ns(vm_clock) + 1 * 1000000UL);
+}
+
+static int dma_controller_realize(DeviceState *dev)
+{
+    DMAController *d = DMA_CONTROLLER(dev);
+
+    /* FIXME: move to initfn once MR's are converted to QOM */
+    memory_region_init_io(&d->io, &dma_ops, d,
+                          "DMA::chan", 8 << d->dshift);
+
+    dma_controller_run_timer(d);
+
+    return 0;
+}
+
+static void dma_controller_initfn(Object *obj)
+{
+    DMAController *d = DMA_CONTROLLER(obj);
     int i;
 
-    d->dshift = dshift;
-    d->cpu_request_exit = cpu_request_exit;
-    for (i = 0; i < 8; i++) {
-        register_ioport_write(base + (i << dshift), 1, 1, write_chan, d);
-        register_ioport_read(base + (i << dshift), 1, 1, read_chan, d);
-    }
-    for (i = 0; i < ARRAY_SIZE(page_port_list); i++) {
-        register_ioport_write(page_base + page_port_list[i], 1, 1,
-                              write_page, d);
-        register_ioport_read(page_base + page_port_list[i], 1, 1,
-                             read_page, d);
-        if (pageh_base >= 0) {
-            register_ioport_write(pageh_base + page_port_list[i], 1, 1,
-                                  write_pageh, d);
-            register_ioport_read(pageh_base + page_port_list[i], 1, 1,
-                                 read_pageh, d);
-        }
-    }
-    for (i = 0; i < 8; i++) {
-        register_ioport_write(base + ((i + 8) << dshift), 1, 1,
-                              write_cont, d);
-        register_ioport_read(base + ((i + 8) << dshift), 1, 1,
-                             read_cont, d);
-    }
-    qemu_register_reset(dma_reset, d);
-    dma_reset(d);
+    memory_region_init_io(&d->page_io, &page_ops, d, "DMA::page", 8);
+    memory_region_init_io(&d->pageh_io, &pageh_ops, d, "DMA::pageh", 8);
+
     for (i = 0; i < ARRAY_SIZE (d->regs); ++i) {
         d->regs[i].transfer_handler = dma_phony_handler;
     }
+
+    d->run_timer = qemu_new_timer_ns(vm_clock, dma_controller_run_timer, d);
 }
 
 static const VMStateDescription vmstate_dma_regs = {
@@ -532,12 +554,14 @@ static const VMStateDescription vmstate_dma_regs = {
 
 static int dma_post_load(void *opaque, int version_id)
 {
-    DMA_run();
+    DMAController *d = DMA_CONTROLLER(opaque);
+
+    dma_controller_run(d);
 
     return 0;
 }
 
-static const VMStateDescription vmstate_dma = {
+static const VMStateDescription vmstate_dma_controller = {
     .name = "dma",
     .version_id = 1,
     .minimum_version_id = 1,
@@ -553,14 +577,64 @@ static const VMStateDescription vmstate_dma = {
     }
 };
 
-void DMA_init(int high_page_enable, qemu_irq *cpu_request_exit)
-{
-    dma_init2(&dma_controllers[0], 0x00, 0, 0x80,
-              high_page_enable ? 0x480 : -1, cpu_request_exit);
-    dma_init2(&dma_controllers[1], 0xc0, 1, 0x88,
-              high_page_enable ? 0x488 : -1, cpu_request_exit);
-    vmstate_register(NULL, 0, &vmstate_dma, &dma_controllers[0]);
-    vmstate_register(NULL, 1, &vmstate_dma, &dma_controllers[1]);
+/* dshift = 0: 8 bit DMA, 1 = 16 bit DMA */
+static Property dma_controller_properties[] = {
+    DEFINE_PROP_INT32("dshift", DMAController, dshift, 0),
+    DEFINE_PROP_END_OF_LIST(),
+};
 
-    dma_bh = qemu_bh_new(DMA_run_bh, NULL);
+static void dma_controller_class_initfn(ObjectClass *klass, void *data)
+{
+    DeviceClass *dc = DEVICE_CLASS(klass);
+
+    dc->init = dma_controller_realize;
+    dc->reset = dma_controller_reset;
+    dc->vmsd = &vmstate_dma_controller;
+    dc->props = dma_controller_properties;
+}
+
+static TypeInfo dma_controller_info = {
+    .name = TYPE_DMA_CONTROLLER,
+    .parent = TYPE_DEVICE,
+    .instance_init = dma_controller_initfn,
+    .instance_size = sizeof(DMAController),
+    .class_init = dma_controller_class_initfn,
+};
+
+static void register_types(void)
+{
+    type_register_static(&dma_controller_info);
+}
+
+type_init(register_types);
+
+static DMAController *dma_controller_init(MemoryRegion *addr_space,
+                                          int high_page_enable,
+                                          int dshift,
+                                          int base,
+                                          int page_base,
+                                          int pageh_base)
+{
+    DMAController *d;
+
+    d = DMA_CONTROLLER(object_new(TYPE_DMA_CONTROLLER));
+    qdev_prop_set_globals(DEVICE(d));
+    qdev_prop_set_int32(DEVICE(d), "dshift", dshift);
+    qdev_init_nofail(DEVICE(d));
+
+    memory_region_add_subregion(addr_space, base, &d->io);
+    memory_region_add_subregion(addr_space, page_base, &d->page_io);
+    if (high_page_enable) {
+        memory_region_add_subregion(addr_space, pageh_base, &d->pageh_io);
+    }
+
+    return d;
+}
+
+void DMA_init(MemoryRegion *addr_space, int high_page_enable)
+{
+    dma_controllers[0] = dma_controller_init(addr_space, high_page_enable, 0,
+                                             0x00, 0x80, 0x480);
+    dma_controllers[1] = dma_controller_init(addr_space, high_page_enable, 1,
+                                             0xc0, 0x88, 0x488);
 }

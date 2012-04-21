@@ -23,6 +23,7 @@
  */
 
 #include "isa.h"
+#include "exec-memory.h"
 
 //#define DEBUG_I82374
 
@@ -99,7 +100,7 @@ static uint32_t i82374_read_descriptor(void *opaque, uint32_t nport)
 
 static void i82374_init(I82374State *s)
 {
-    DMA_init(1, NULL);
+    DMA_init(get_system_io(), 1);
     memset(s->commands, 0, sizeof(s->commands));
 }
 
