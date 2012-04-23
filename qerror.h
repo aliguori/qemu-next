@@ -67,6 +67,9 @@ QError *qobject_to_qerror(const QObject *obj);
 #define QERR_BLOCK_FORMAT_FEATURE_NOT_SUPPORTED \
     "{ 'class': 'BlockFormatFeatureNotSupported', 'data': { 'format': %s, 'name': %s, 'feature': %s } }"
 
+#define QERR_BLOCK_JOB_SPEED_INVALID \
+    "{ 'class': 'BlockJobSpeedInvalid', 'data': { 'value': %"PRId64" } }"
+
 #define QERR_BUFFER_OVERRUN \
     "{ 'class': 'BufferOverrun', 'data': {} }"
 

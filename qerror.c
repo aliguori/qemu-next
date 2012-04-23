@@ -64,6 +64,10 @@ static const QErrorStringTable qerror_table[] = {
         .desc      = "Block format '%(format)' used by device '%(name)' does not support feature '%(feature)'",
     },
     {
+        .error_fmt = QERR_BLOCK_JOB_SPEED_INVALID,
+        .desc      = "Block job speed value '%(value)' is invalid",
+    },
+    {
         .error_fmt = QERR_BUS_NO_HOTPLUG,
         .desc      = "Bus '%(bus)' does not support hotplugging",
     },
