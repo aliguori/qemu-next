@@ -4072,8 +4072,8 @@ out:
 }
 
 void *block_job_create(const BlockJobType *job_type, BlockDriverState *bs,
-                       BlockDriverCompletionFunc *cb, void *opaque,
-                       Error **errp)
+                       int64_t speed, BlockDriverCompletionFunc *cb,
+                       void *opaque, Error **errp)
 {
     BlockJob *job;
 
@@ -4089,6 +4089,20 @@ void *block_job_create(const BlockJobType *job_type, BlockDriverState *bs,
     job->cb            = cb;
     job->opaque        = opaque;
     bs->job = job;
+
+    /* Only set speed when necessary to avoid NotSupported error */
+    if (speed != 0) {
+        Error *local_err = NULL;
+
+        block_job_set_speed(job, speed, &local_err);
+        if (error_is_set(&local_err)) {
+            bs->job = NULL;
+            g_free(job);
+            bdrv_set_in_use(bs, 0);
+            error_propagate(errp, local_err);
+            return NULL;
+        }
+    }
     return job;
 }
 
