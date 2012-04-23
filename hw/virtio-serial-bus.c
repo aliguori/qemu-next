@@ -512,6 +512,23 @@ static uint32_t get_features(VirtIODevice *vdev, uint32_t features)
     return features;
 }
 
+static void set_features(VirtIODevice *vdev, uint32_t features)
+{
+    VirtIOSerial *vser;
+    VirtIOSerialPort *port;
+
+    vser = DO_UPCAST(VirtIOSerial, vdev, vdev);
+    port = find_port_by_id(vser, 0);
+
+    if (port && !use_multiport(vser)) {
+        /*
+         * Allow writes to guest in this case; we have no way of
+         * knowing if a guest port is connected.
+         */
+        port->guest_connected = true;
+    }
+}
+
 /* Guest requested config info */
 static void get_config(VirtIODevice *vdev, uint8_t *config_data)
 {
@@ -798,14 +815,6 @@ static int virtser_port_qdev_init(DeviceState *qdev)
         return ret;
     }
 
-    if (!use_multiport(port->vser)) {
-        /*
-         * Allow writes to guest in this case; we have no way of
-         * knowing if a guest port is connected.
-         */
-        port->guest_connected = true;
-    }
-
     port->elem.out_num = 0;
 
     QTAILQ_INSERT_TAIL(&port->vser->ports, port, next);
@@ -903,6 +912,7 @@ VirtIODevice *virtio_serial_init(DeviceState *dev, virtio_serial_conf *conf)
     mark_port_added(vser, 0);
 
     vser->vdev.get_features = get_features;
+    vser->vdev.set_features = set_features;
     vser->vdev.get_config = get_config;
     vser->vdev.set_config = set_config;
 
