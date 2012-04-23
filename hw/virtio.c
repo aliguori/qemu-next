@@ -770,10 +770,10 @@ int virtio_set_features(VirtIODevice *vdev, uint32_t val)
     bool bad = (val & ~supported_features) != 0;
 
     val &= supported_features;
+    vdev->guest_features = val;
     if (vdev->set_features) {
         vdev->set_features(vdev, val);
     }
-    vdev->guest_features = val;
     return bad ? -1 : 0;
 }
 
