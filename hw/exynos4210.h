@@ -76,6 +76,69 @@
 
 #define EXYNOS4210_I2C_NUMBER               9
 
+/*
+ * Exynos4210 general purpose input/output (GPIO)
+ */
+
+/* GPIO part 1 port group numbers */
+#define EXYNOS4210_GPIO1_GPA0               0
+#define EXYNOS4210_GPIO1_GPA1               1
+#define EXYNOS4210_GPIO1_GPB                2
+#define EXYNOS4210_GPIO1_GPC0               3
+#define EXYNOS4210_GPIO1_GPC1               4
+#define EXYNOS4210_GPIO1_GPD0               5
+#define EXYNOS4210_GPIO1_GPD1               6
+#define EXYNOS4210_GPIO1_GPE0               7
+#define EXYNOS4210_GPIO1_GPE1               8
+#define EXYNOS4210_GPIO1_GPE2               9
+#define EXYNOS4210_GPIO1_GPE3               10
+#define EXYNOS4210_GPIO1_GPE4               11
+#define EXYNOS4210_GPIO1_GPF0               12
+#define EXYNOS4210_GPIO1_GPF1               13
+#define EXYNOS4210_GPIO1_GPF2               14
+#define EXYNOS4210_GPIO1_GPF3               15
+#define EXYNOS4210_GPIO1_ETC0               16
+#define EXYNOS4210_GPIO1_ETC1               17
+
+/* GPIO part 2 port group numbers */
+#define EXYNOS4210_GPIO2_GPJ0               0
+#define EXYNOS4210_GPIO2_GPJ1               1
+#define EXYNOS4210_GPIO2_GPK0               2
+#define EXYNOS4210_GPIO2_GPK1               3
+#define EXYNOS4210_GPIO2_GPK2               4
+#define EXYNOS4210_GPIO2_GPK3               5
+#define EXYNOS4210_GPIO2_GPL0               6
+#define EXYNOS4210_GPIO2_GPL1               7
+#define EXYNOS4210_GPIO2_GPL2               8
+#define EXYNOS4210_GPIO2_GPY0               9
+#define EXYNOS4210_GPIO2_GPY1               10
+#define EXYNOS4210_GPIO2_GPY2               11
+#define EXYNOS4210_GPIO2_GPY3               12
+#define EXYNOS4210_GPIO2_GPY4               13
+#define EXYNOS4210_GPIO2_GPY5               14
+#define EXYNOS4210_GPIO2_GPY6               15
+#define EXYNOS4210_GPIO2_ETC6               16
+/* GPIO part 2 X port groups numbers */
+#define EXYNOS4210_GPIO2X_GPX0              0
+#define EXYNOS4210_GPIO2X_GPX1              1
+#define EXYNOS4210_GPIO2X_GPX2              2
+#define EXYNOS4210_GPIO2X_GPX3              3
+
+/* GPIO part 3 port group numbers */
+#define EXYNOS4210_GPIO3_GPZ                0
+
+/* Get GPIO line number from GPIO port group name and group pin number */
+#define EXYNOS4210_GPIO_MAX_PIN_IN_PORT     8
+#define EXYNOS4210_GPIO1_LINE(group, pin) \
+    ((EXYNOS4210_GPIO1_##group * EXYNOS4210_GPIO_MAX_PIN_IN_PORT) + (pin))
+#define EXYNOS4210_GPIO2_LINE(group, pin) \
+    ((EXYNOS4210_GPIO2_##group * EXYNOS4210_GPIO_MAX_PIN_IN_PORT) + (pin))
+#define EXYNOS4210_GPIO2X_LINE(group, pin) \
+    ((EXYNOS4210_GPIO2X_##group * EXYNOS4210_GPIO_MAX_PIN_IN_PORT) + (pin))
+#define EXYNOS4210_GPIO3_LINE(group, pin) \
+    ((EXYNOS4210_GPIO3_##group * EXYNOS4210_GPIO_MAX_PIN_IN_PORT) + (pin))
+
+
 typedef struct Exynos4210Irq {
     qemu_irq int_combiner_irq[EXYNOS4210_MAX_INT_COMBINER_IN_IRQ];
     qemu_irq ext_combiner_irq[EXYNOS4210_MAX_EXT_COMBINER_IN_IRQ];
@@ -98,6 +161,7 @@ typedef struct Exynos4210State {
     MemoryRegion boot_secondary;
     MemoryRegion bootreg_mem;
     i2c_bus *i2c_if[EXYNOS4210_I2C_NUMBER];
+    DeviceState *gpio1, *gpio2, *gpio2x, *gpio3;
 } Exynos4210State;
 
 void exynos4210_write_secondary(CPUARMState *env,

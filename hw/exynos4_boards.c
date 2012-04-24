@@ -150,7 +150,7 @@ static void smdkc210_init(ram_addr_t ram_size,
             kernel_cmdline, initrd_filename, EXYNOS4_BOARD_SMDKC210);
 
     lan9215_init(SMDK_LAN9118_BASE_ADDR,
-            qemu_irq_invert(s->irq_table[exynos4210_get_irq(37, 1)]));
+            qdev_get_gpio_in(s->gpio2x, EXYNOS4210_GPIO2X_LINE(GPX0, 5)));
     arm_load_kernel(first_cpu, &exynos4_board_binfo);
 }
 

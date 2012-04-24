@@ -36,6 +36,12 @@
 /* MCT */
 #define EXYNOS4210_MCT_BASE_ADDR       0x10050000
 
+/* GPIO */
+#define EXYNOS4210_GPIO1_BASE_ADDR     0x11400000
+#define EXYNOS4210_GPIO2_BASE_ADDR     0x11000000
+#define EXYNOS4210_GPIO2X_BASE_ADDR    0x11000C00
+#define EXYNOS4210_GPIO3_BASE_ADDR     0x03860000
+
 /* I2C */
 #define EXYNOS4210_I2C_SHIFT           0x00010000
 #define EXYNOS4210_I2C_BASE_ADDR       0x13860000
@@ -278,6 +284,47 @@ Exynos4210State *exynos4210_init(MemoryRegion *system_mem,
     sysbus_connect_irq(busdev, 5,
             s->irq_table[exynos4210_get_irq(35, 3)]);
     sysbus_mmio_map(busdev, 0, EXYNOS4210_MCT_BASE_ADDR);
+
+    /* GPIO */
+    s->gpio1 = qdev_create(NULL, "exynos4210.gpio1");
+    qdev_init_nofail(s->gpio1);
+    busdev = sysbus_from_qdev(s->gpio1);
+    sysbus_connect_irq(busdev, 0, s->irq_table[exynos4210_get_irq(24, 1)]);
+    sysbus_mmio_map(busdev, 0, EXYNOS4210_GPIO1_BASE_ADDR);
+
+    s->gpio2 = qdev_create(NULL, "exynos4210.gpio2");
+    qdev_init_nofail(s->gpio2);
+    busdev = sysbus_from_qdev(s->gpio2);
+    sysbus_connect_irq(busdev, 0, s->irq_table[exynos4210_get_irq(24, 0)]);
+    sysbus_mmio_map(busdev, 0, EXYNOS4210_GPIO2_BASE_ADDR);
+
+    s->gpio2x = qdev_create(NULL, "exynos4210.gpio2x");
+    qdev_init_nofail(s->gpio2x);
+    busdev = sysbus_from_qdev(s->gpio2x);
+    sysbus_connect_irq(busdev, 0, s->irq_table[exynos4210_get_irq(40, 0)]);
+    sysbus_connect_irq(busdev, 1, s->irq_table[exynos4210_get_irq(41, 0)]);
+    sysbus_connect_irq(busdev, 2, s->irq_table[exynos4210_get_irq(42, 0)]);
+    sysbus_connect_irq(busdev, 3, s->irq_table[exynos4210_get_irq(43, 0)]);
+    sysbus_connect_irq(busdev, 4, s->irq_table[exynos4210_get_irq(37, 0)]);
+    sysbus_connect_irq(busdev, 5, s->irq_table[exynos4210_get_irq(37, 1)]);
+    sysbus_connect_irq(busdev, 6, s->irq_table[exynos4210_get_irq(37, 2)]);
+    sysbus_connect_irq(busdev, 7, s->irq_table[exynos4210_get_irq(37, 3)]);
+    sysbus_connect_irq(busdev, 8, s->irq_table[exynos4210_get_irq(38, 0)]);
+    sysbus_connect_irq(busdev, 9, s->irq_table[exynos4210_get_irq(38, 1)]);
+    sysbus_connect_irq(busdev, 10, s->irq_table[exynos4210_get_irq(38, 2)]);
+    sysbus_connect_irq(busdev, 11, s->irq_table[exynos4210_get_irq(38, 3)]);
+    sysbus_connect_irq(busdev, 12, s->irq_table[exynos4210_get_irq(38, 4)]);
+    sysbus_connect_irq(busdev, 13, s->irq_table[exynos4210_get_irq(38, 5)]);
+    sysbus_connect_irq(busdev, 14, s->irq_table[exynos4210_get_irq(38, 6)]);
+    sysbus_connect_irq(busdev, 15, s->irq_table[exynos4210_get_irq(38, 7)]);
+    sysbus_connect_irq(busdev, 16, s->irq_table[exynos4210_get_irq(39, 0)]);
+    sysbus_mmio_map(busdev, 0, EXYNOS4210_GPIO2X_BASE_ADDR);
+
+    s->gpio3 = qdev_create(NULL, "exynos4210.gpio3");
+    qdev_init_nofail(s->gpio3);
+    busdev = sysbus_from_qdev(s->gpio3);
+    sysbus_mmio_map(busdev, 0, EXYNOS4210_GPIO3_BASE_ADDR);
+
 
     /*** I2C ***/
     for (n = 0; n < EXYNOS4210_I2C_NUMBER; n++) {
