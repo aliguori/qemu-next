@@ -110,6 +110,8 @@ typedef struct USBHostDevice {
     int       closing;
     uint32_t  iso_urb_count;
     uint32_t  options;
+    uint32_t  timeout_secs;
+    uint32_t  timeout_count;
     Notifier  exit;
 
     struct endp_data ep_in[USB_MAX_ENDPOINTS];
@@ -276,6 +278,7 @@ struct AsyncURB
     struct usbdevfs_iso_packet_desc isocpd[ISO_FRAME_DESC_PER_URB];
     USBHostDevice *hdev;
     QLIST_ENTRY(AsyncURB) next;
+    QEMUTimer *timeout;
 
     /* For regular async urbs */
     USBPacket     *packet;
@@ -285,16 +288,34 @@ struct AsyncURB
     int iso_frame_idx; /* -1 means in flight */
 };
 
+static void async_timeout(void *opaque)
+{
+    AsyncURB *aurb = opaque;
+    USBHostDevice *s = aurb->hdev;
+
+    s->timeout_count++;
+    if (s->timeout_count < 10 ||
+        s->timeout_count % 10 == 0) {
+        fprintf(stderr, "husb: urb timeout (%d secs, #%d)\n",
+                s->timeout_secs, s->timeout_count);
+    }
+    trace_usb_host_urb_timeout(s->bus_num, s->addr, aurb);
+    ioctl(s->fd, USBDEVFS_DISCARDURB, aurb);
+}
+
 static AsyncURB *async_alloc(USBHostDevice *s)
 {
     AsyncURB *aurb = g_malloc0(sizeof(AsyncURB));
     aurb->hdev = s;
     QLIST_INSERT_HEAD(&s->aurbs, aurb, next);
+    aurb->timeout = qemu_new_timer_ns(vm_clock, async_timeout, aurb);
     return aurb;
 }
 
 static void async_free(AsyncURB *aurb)
 {
+    qemu_del_timer(aurb->timeout);
+    qemu_free_timer(aurb->timeout);
     QLIST_REMOVE(aurb, next);
     g_free(aurb);
 }
@@ -938,6 +959,11 @@ static int usb_host_handle_data(USBDevice *dev, USBPacket *p)
                 return USB_RET_STALL;
             }
         }
+        if (urb->type == USBDEVFS_URB_TYPE_BULK) {
+            qemu_mod_timer(aurb->timeout, qemu_get_clock_ns(vm_clock)
+                           + s->timeout_secs * get_ticks_per_sec());
+        }
+
     } while (rem > 0);
 
     return USB_RET_ASYNC;
@@ -1444,6 +1470,7 @@ static Property usb_host_dev_properties[] = {
     DEFINE_PROP_HEX32("vendorid",  USBHostDevice, match.vendor_id,  0),
     DEFINE_PROP_HEX32("productid", USBHostDevice, match.product_id, 0),
     DEFINE_PROP_UINT32("isobufs",  USBHostDevice, iso_urb_count,    4),
+    DEFINE_PROP_UINT32("timeout",  USBHostDevice, timeout_secs,     5),
     DEFINE_PROP_INT32("bootindex", USBHostDevice, bootindex,        -1),
     DEFINE_PROP_BIT("pipeline",    USBHostDevice, options,
                     USB_HOST_OPT_PIPELINE, true),
