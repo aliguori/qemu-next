@@ -57,7 +57,9 @@ typedef uint8_t flag;
 typedef uint8_t uint8;
 typedef int8_t int8;
 #ifndef _AIX
+#if !(defined(__APPLE__) && defined(_UINT16))
 typedef int uint16;
+#endif
 typedef int int16;
 #endif
 typedef unsigned int uint32;
