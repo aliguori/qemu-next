@@ -28,6 +28,7 @@
 #include "exec-memory.h"
 #include "exynos4210.h"
 #include "boards.h"
+#include "i2c.h"
 
 #undef DEBUG
 
@@ -44,6 +45,7 @@
 #endif
 
 #define SMDK_LAN9118_BASE_ADDR      0x05000000
+#define MAXTOUCH_TS_I2C_ADDR        0x4a
 
 typedef enum Exynos4BoardType {
     EXYNOS4_BOARD_NURI,
@@ -135,9 +137,12 @@ static void nuri_init(ram_addr_t ram_size,
         const char *kernel_filename, const char *kernel_cmdline,
         const char *initrd_filename, const char *cpu_model)
 {
-    exynos4_boards_init_common(kernel_filename, kernel_cmdline,
-                initrd_filename, EXYNOS4_BOARD_NURI);
-
+    Exynos4210State *s = exynos4_boards_init_common(kernel_filename,
+            kernel_cmdline, initrd_filename, EXYNOS4_BOARD_NURI);
+    DeviceState *dev =
+        i2c_create_slave(s->i2c_if[3], "maxtouch.var0", MAXTOUCH_TS_I2C_ADDR);
+    qdev_connect_gpio_out(dev, 0, qdev_get_gpio_in(s->gpio2x,
+            EXYNOS4210_GPIO2X_LINE(GPX0, 4)));
     arm_load_kernel(first_cpu, &exynos4_board_binfo);
 }
 
