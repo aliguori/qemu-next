@@ -292,7 +292,10 @@ static void scsi_do_read(void *opaque, int ret)
 
     if (ret < 0) {
         if (scsi_handle_rw_error(r, -ret)) {
-            goto done;
+            if (!r->req.io_canceled) {
+                scsi_req_unref(&r->req);
+                return;
+            }
         }
     }
 
@@ -306,11 +309,6 @@ static void scsi_do_read(void *opaque, int ret)
         bdrv_acct_start(s->qdev.conf.bs, &r->acct, n * BDRV_SECTOR_SIZE, BDRV_ACCT_READ);
         r->req.aiocb = bdrv_aio_readv(s->qdev.conf.bs, r->sector, &r->qiov, n,
                                       scsi_read_complete, r);
-    }
-
-done:
-    if (!r->req.io_canceled) {
-        scsi_req_unref(&r->req);
     }
 }
 
