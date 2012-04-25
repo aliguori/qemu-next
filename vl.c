@@ -156,8 +156,6 @@ int main(int argc, char **argv)
 
 #include "qemu_socket.h"
 
-#include "slirp/libslirp.h"
-
 #include "trace.h"
 #include "trace/control.h"
 #include "qemu-queue.h"
@@ -560,197 +558,6 @@ static void configure_rtc(QemuOpts *opts)
 }
 
 /***********************************************************/
-/* Bluetooth support */
-static int nb_hcis;
-static int cur_hci;
-static struct HCIInfo *hci_table[MAX_NICS];
-
-static struct bt_vlan_s {
-    struct bt_scatternet_s net;
-    int id;
-    struct bt_vlan_s *next;
-} *first_bt_vlan;
-
-/* find or alloc a new bluetooth "VLAN" */
-static struct bt_scatternet_s *qemu_find_bt_vlan(int id)
-{
-    struct bt_vlan_s **pvlan, *vlan;
-    for (vlan = first_bt_vlan; vlan != NULL; vlan = vlan->next) {
-        if (vlan->id == id)
-            return &vlan->net;
-    }
-    vlan = g_malloc0(sizeof(struct bt_vlan_s));
-    vlan->id = id;
-    pvlan = &first_bt_vlan;
-    while (*pvlan != NULL)
-        pvlan = &(*pvlan)->next;
-    *pvlan = vlan;
-    return &vlan->net;
-}
-
-static void null_hci_send(struct HCIInfo *hci, const uint8_t *data, int len)
-{
-}
-
-static int null_hci_addr_set(struct HCIInfo *hci, const uint8_t *bd_addr)
-{
-    return -ENOTSUP;
-}
-
-static struct HCIInfo null_hci = {
-    .cmd_send = null_hci_send,
-    .sco_send = null_hci_send,
-    .acl_send = null_hci_send,
-    .bdaddr_set = null_hci_addr_set,
-};
-
-struct HCIInfo *qemu_next_hci(void)
-{
-    if (cur_hci == nb_hcis)
-        return &null_hci;
-
-    return hci_table[cur_hci++];
-}
-
-static struct HCIInfo *hci_init(const char *str)
-{
-    char *endp;
-    struct bt_scatternet_s *vlan = 0;
-
-    if (!strcmp(str, "null"))
-        /* null */
-        return &null_hci;
-    else if (!strncmp(str, "host", 4) && (str[4] == '\0' || str[4] == ':'))
-        /* host[:hciN] */
-        return bt_host_hci(str[4] ? str + 5 : "hci0");
-    else if (!strncmp(str, "hci", 3)) {
-        /* hci[,vlan=n] */
-        if (str[3]) {
-            if (!strncmp(str + 3, ",vlan=", 6)) {
-                vlan = qemu_find_bt_vlan(strtol(str + 9, &endp, 0));
-                if (*endp)
-                    vlan = 0;
-            }
-        } else
-            vlan = qemu_find_bt_vlan(0);
-        if (vlan)
-           return bt_new_hci(vlan);
-    }
-
-    fprintf(stderr, "qemu: Unknown bluetooth HCI `%s'.\n", str);
-
-    return 0;
-}
-
-static int bt_hci_parse(const char *str)
-{
-    struct HCIInfo *hci;
-    bdaddr_t bdaddr;
-
-    if (nb_hcis >= MAX_NICS) {
-        fprintf(stderr, "qemu: Too many bluetooth HCIs (max %i).\n", MAX_NICS);
-        return -1;
-    }
-
-    hci = hci_init(str);
-    if (!hci)
-        return -1;
-
-    bdaddr.b[0] = 0x52;
-    bdaddr.b[1] = 0x54;
-    bdaddr.b[2] = 0x00;
-    bdaddr.b[3] = 0x12;
-    bdaddr.b[4] = 0x34;
-    bdaddr.b[5] = 0x56 + nb_hcis;
-    hci->bdaddr_set(hci, bdaddr.b);
-
-    hci_table[nb_hcis++] = hci;
-
-    return 0;
-}
-
-static void bt_vhci_add(int vlan_id)
-{
-    struct bt_scatternet_s *vlan = qemu_find_bt_vlan(vlan_id);
-
-    if (!vlan->slave)
-        fprintf(stderr, "qemu: warning: adding a VHCI to "
-                        "an empty scatternet %i\n", vlan_id);
-
-    bt_vhci_init(bt_new_hci(vlan));
-}
-
-static struct bt_device_s *bt_device_add(const char *opt)
-{
-    struct bt_scatternet_s *vlan;
-    int vlan_id = 0;
-    char *endp = strstr(opt, ",vlan=");
-    int len = (endp ? endp - opt : strlen(opt)) + 1;
-    char devname[10];
-
-    pstrcpy(devname, MIN(sizeof(devname), len), opt);
-
-    if (endp) {
-        vlan_id = strtol(endp + 6, &endp, 0);
-        if (*endp) {
-            fprintf(stderr, "qemu: unrecognised bluetooth vlan Id\n");
-            return 0;
-        }
-    }
-
-    vlan = qemu_find_bt_vlan(vlan_id);
-
-    if (!vlan->slave)
-        fprintf(stderr, "qemu: warning: adding a slave device to "
-                        "an empty scatternet %i\n", vlan_id);
-
-    if (!strcmp(devname, "keyboard"))
-        return bt_keyboard_init(vlan);
-
-    fprintf(stderr, "qemu: unsupported bluetooth device `%s'\n", devname);
-    return 0;
-}
-
-static int bt_parse(const char *opt)
-{
-    const char *endp, *p;
-    int vlan;
-
-    if (strstart(opt, "hci", &endp)) {
-        if (!*endp || *endp == ',') {
-            if (*endp)
-                if (!strstart(endp, ",vlan=", 0))
-                    opt = endp + 1;
-
-            return bt_hci_parse(opt);
-       }
-    } else if (strstart(opt, "vhci", &endp)) {
-        if (!*endp || *endp == ',') {
-            if (*endp) {
-                if (strstart(endp, ",vlan=", &p)) {
-                    vlan = strtol(p, (char **) &endp, 0);
-                    if (*endp) {
-                        fprintf(stderr, "qemu: bad scatternet '%s'\n", p);
-                        return 1;
-                    }
-                } else {
-                    fprintf(stderr, "qemu: bad parameter '%s'\n", endp + 1);
-                    return 1;
-                }
-            } else
-                vlan = 0;
-
-            bt_vhci_add(vlan);
-            return 0;
-        }
-    } else if (strstart(opt, "device:", &endp))
-        return !bt_device_add(endp);
-
-    fprintf(stderr, "qemu: bad bluetooth parameter '%s'\n", opt);
-    return 1;
-}
-
-/***********************************************************/
 /* QEMU Block devices */
 
 #define HD_OPTS "media=disk"
@@ -1038,7 +845,6 @@ static void smp_parse(const char *optarg)
 
 static int usb_device_add(const char *devname)
 {
-    const char *p;
     USBDevice *dev = NULL;
 
     if (!usb_enabled)
@@ -1056,13 +862,6 @@ static int usb_device_add(const char *devname)
         dev = usb_host_device_open(usb_bus_find(-1), p);
     } else
 #endif
-    if (!strcmp(devname, "bt") || strstart(devname, "bt:", &p)) {
-        dev = usb_bt_init(usb_bus_find(-1),
-                          devname[2] ? hci_init(p)
-                                     : bt_new_hci(qemu_find_bt_vlan(0)));
-    } else {
-        return -1;
-    }
     if (!dev)
         return -1;
 
@@ -3349,10 +3148,6 @@ int main(int argc, char **argv, char **envp)
     if (net_init_clients() < 0) {
         exit(1);
     }
-
-    /* init the bluetooth world */
-    if (foreach_device_config(DEV_BT, bt_parse))
-        exit(1);
 
     if (!xen_enabled()) {
         /* On 32-bit hosts, QEMU is limited by virtual address space */

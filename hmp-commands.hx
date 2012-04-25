@@ -69,14 +69,6 @@ but should be used with extreme caution.  Note that this command only
 resizes image files, it can not resize block devices like LVM volumes.
 ETEXI
 
-    {
-        .name       = "block_stream",
-        .args_type  = "device:B,base:s?",
-        .params     = "device [base]",
-        .help       = "copy data from a backing file into a block device",
-        .mhandler.cmd = hmp_block_stream,
-    },
-
 STEXI
 @item block_stream
 @findex block_stream

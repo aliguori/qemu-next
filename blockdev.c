@@ -206,37 +206,6 @@ void drive_get_ref(DriveInfo *dinfo)
     dinfo->refcount++;
 }
 
-typedef struct {
-    QEMUBH *bh;
-    DriveInfo *dinfo;
-} DrivePutRefBH;
-
-static void drive_put_ref_bh(void *opaque)
-{
-    DrivePutRefBH *s = opaque;
-
-    drive_put_ref(s->dinfo);
-    qemu_bh_delete(s->bh);
-    g_free(s);
-}
-
-/*
- * Release a drive reference in a BH
- *
- * It is not possible to use drive_put_ref() from a callback function when the
- * callers still need the drive.  In such cases we schedule a BH to release the
- * reference.
- */
-static void drive_put_ref_bh_schedule(DriveInfo *dinfo)
-{
-    DrivePutRefBH *s;
-
-    s = g_new(DrivePutRefBH, 1);
-    s->bh = qemu_bh_new(drive_put_ref_bh, s);
-    s->dinfo = dinfo;
-    qemu_bh_schedule(s->bh);
-}
-
 static int parse_block_error_action(const char *buf, int is_read)
 {
     if (!strcmp(buf, "ignore")) {
@@ -1050,85 +1019,6 @@ void qmp_block_resize(const char *device, int64_t size, Error **errp)
         error_set(errp, QERR_UNDEFINED_ERROR);
         break;
     }
-}
-
-static QObject *qobject_from_block_job(BlockJob *job)
-{
-    return qobject_from_jsonf("{ 'type': %s,"
-                              "'device': %s,"
-                              "'len': %" PRId64 ","
-                              "'offset': %" PRId64 ","
-                              "'speed': %" PRId64 " }",
-                              job->job_type->job_type,
-                              bdrv_get_device_name(job->bs),
-                              job->len,
-                              job->offset,
-                              job->speed);
-}
-
-static void block_stream_cb(void *opaque, int ret)
-{
-    BlockDriverState *bs = opaque;
-    QObject *obj;
-
-    trace_block_stream_cb(bs, bs->job, ret);
-
-    assert(bs->job);
-    obj = qobject_from_block_job(bs->job);
-    if (ret < 0) {
-        QDict *dict = qobject_to_qdict(obj);
-        qdict_put(dict, "error", qstring_from_str(strerror(-ret)));
-    }
-
-    if (block_job_is_cancelled(bs->job)) {
-        monitor_protocol_event(QEVENT_BLOCK_JOB_CANCELLED, obj);
-    } else {
-        monitor_protocol_event(QEVENT_BLOCK_JOB_COMPLETED, obj);
-    }
-    qobject_decref(obj);
-
-    drive_put_ref_bh_schedule(drive_get_by_blockdev(bs));
-}
-
-void qmp_block_stream(const char *device, bool has_base,
-                      const char *base, Error **errp)
-{
-    BlockDriverState *bs;
-    BlockDriverState *base_bs = NULL;
-    int ret;
-
-    bs = bdrv_find(device);
-    if (!bs) {
-        error_set(errp, QERR_DEVICE_NOT_FOUND, device);
-        return;
-    }
-
-    if (base) {
-        base_bs = bdrv_find_backing_image(bs, base);
-        if (base_bs == NULL) {
-            error_set(errp, QERR_BASE_NOT_FOUND, base);
-            return;
-        }
-    }
-
-    ret = stream_start(bs, base_bs, base, block_stream_cb, bs);
-    if (ret < 0) {
-        switch (ret) {
-        case -EBUSY:
-            error_set(errp, QERR_DEVICE_IN_USE, device);
-            return;
-        default:
-            error_set(errp, QERR_NOT_SUPPORTED);
-            return;
-        }
-    }
-
-    /* Grab a reference so hotplug does not delete the BlockDriverState from
-     * underneath us.
-     */
-    drive_get_ref(drive_get_by_blockdev(bs));
-
-    trace_qmp_block_stream(bs, bs->job);
 }
 
 static BlockJob *find_block_job(const char *device)

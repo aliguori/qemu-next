@@ -687,12 +687,6 @@ Example:
 EQMP
 
     {
-        .name       = "block_stream",
-        .args_type  = "device:B,base:s?",
-        .mhandler.cmd_new = qmp_marshal_input_block_stream,
-    },
-
-    {
         .name       = "block_job_set_speed",
         .args_type  = "device:B,value:o",
         .mhandler.cmd_new = qmp_marshal_input_block_job_set_speed,
