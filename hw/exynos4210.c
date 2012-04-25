@@ -201,6 +201,7 @@ Exynos4210State *exynos4210_init(MemoryRegion *system_mem,
     memory_region_init_ram_ptr(&s->chipid_mem, "exynos4210.chipid",
             sizeof(chipid_and_omr), chipid_and_omr);
     memory_region_set_readonly(&s->chipid_mem, true);
+    vmstate_register_ram_global(&s->chipid_mem);
     memory_region_add_subregion(system_mem, EXYNOS4210_CHIPID_ADDR,
                                 &s->chipid_mem);
 
@@ -208,6 +209,7 @@ Exynos4210State *exynos4210_init(MemoryRegion *system_mem,
     memory_region_init_ram(&s->irom_mem, "exynos4210.irom",
                            EXYNOS4210_IROM_SIZE);
     memory_region_set_readonly(&s->irom_mem, true);
+    vmstate_register_ram_global(&s->irom_mem);
     memory_region_add_subregion(system_mem, EXYNOS4210_IROM_BASE_ADDR,
                                 &s->irom_mem);
     /* mirror of iROM */
