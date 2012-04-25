@@ -62,7 +62,7 @@
 /* Display controllers (FIMD) */
 #define EXYNOS4210_FIMD0_BASE_ADDR          0x11C00000
 
-static uint8_t chipid_and_omr[] = { 0x11, 0x02, 0x21, 0x43,
+static uint8_t chipid_and_omr[TARGET_PAGE_SIZE] = { 0x11, 0x02, 0x21, 0x43,
                                     0x09, 0x00, 0x00, 0x00 };
 
 void exynos4210_write_secondary(CPUARMState *env,
