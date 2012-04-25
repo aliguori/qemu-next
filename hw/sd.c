@@ -140,7 +140,7 @@ static const sd_cmd_type_t sd_cmd_type[64] = {
     sd_ac,   sd_ac,   sd_none, sd_none, sd_none, sd_none, sd_ac,   sd_none,
     sd_none, sd_none, sd_bc,   sd_none, sd_none, sd_none, sd_none, sd_none,
     sd_none, sd_none, sd_none, sd_none, sd_none, sd_none, sd_none, sd_ac,
-    sd_adtc, sd_none, sd_none, sd_none, sd_none, sd_none, sd_none, sd_none,
+    sd_adtc, sd_none, sd_bc,   sd_bc,   sd_none, sd_none, sd_none, sd_none,
 };
 
 static const sd_cmd_type_t sd_acmd_type[64] = {
@@ -354,12 +354,20 @@ static void sd_response_r1_make(SDState *sd, uint8_t *response)
     response[3] = (status >> 0) & 0xff;
 }
 
-static void sd_response_r3_make(SDState *sd, uint8_t *response)
+static int sd_response_r3_make(SDState *sd, uint8_t *response)
 {
-    response[0] = (sd->ocr >> 24) & 0xff;
-    response[1] = (sd->ocr >> 16) & 0xff;
-    response[2] = (sd->ocr >> 8) & 0xff;
-    response[3] = (sd->ocr >> 0) & 0xff;
+    int len = 4;
+
+    if (sd->spi) {
+        len = 5;
+        *(response++) = (sd->state == sd_idle_state) ? 1 : 0;
+    }
+    *(response++) = (sd->ocr >> 24) & 0xff;
+    *(response++) = (sd->ocr >> 16) & 0xff;
+    *(response++) = (sd->ocr >> 8) & 0xff;
+    *(response++) = (sd->ocr >> 0) & 0xff;
+
+    return len;
 }
 
 static void sd_response_r6_make(SDState *sd, uint8_t *response)
@@ -379,12 +387,20 @@ static void sd_response_r6_make(SDState *sd, uint8_t *response)
     response[3] = status & 0xff;
 }
 
-static void sd_response_r7_make(SDState *sd, uint8_t *response)
+static int sd_response_r7_make(SDState *sd, uint8_t *response)
 {
-    response[0] = (sd->vhs >> 24) & 0xff;
-    response[1] = (sd->vhs >> 16) & 0xff;
-    response[2] = (sd->vhs >>  8) & 0xff;
-    response[3] = (sd->vhs >>  0) & 0xff;
+    int len = 4;
+
+    if (sd->spi) {
+        len = 5;
+        *(response++) = (sd->state == sd_idle_state) ? 1 : 0;
+    }
+    *(response++) = (sd->vhs >> 24) & 0xff;
+    *(response++) = (sd->vhs >> 16) & 0xff;
+    *(response++) = (sd->vhs >>  8) & 0xff;
+    *(response++) = (sd->vhs >>  0) & 0xff;
+
+    return len;
 }
 
 static void sd_reset(SDState *sd, BlockDriverState *bdrv)
@@ -1145,6 +1161,19 @@ static sd_rsp_type_t sd_normal_command(SDState *sd,
             break;
         }
         break;
+    case 58:    /* CMD58: READ_OCR */
+        if (!sd->spi) {
+            goto bad_cmd;
+        }
+        switch (sd->state) {
+        case sd_idle_state:
+        case sd_transfer_state:
+            return sd_r3;
+
+        default:
+            break;
+        }
+        break;
 
     default:
     bad_cmd:
@@ -1354,8 +1383,7 @@ send_response:
         break;
 
     case sd_r3:
-        sd_response_r3_make(sd, response);
-        rsplen = 4;
+        rsplen = sd_response_r3_make(sd, response);
         break;
 
     case sd_r6:
@@ -1364,8 +1392,7 @@ send_response:
         break;
 
     case sd_r7:
-        sd_response_r7_make(sd, response);
-        rsplen = 4;
+        rsplen = sd_response_r7_make(sd, response);
         break;
 
     case sd_r0:
