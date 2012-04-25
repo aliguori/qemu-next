@@ -1,8 +1,7 @@
 /*
  * Samsung exynos4210 Interrupt Combiner
  *
- * Copyright (c) 2000 - 2011 Samsung Electronics Co., Ltd.
- * All rights reserved.
+ * Copyright (c) 2011 Samsung Electronics Co., Ltd.
  *
  * Evgeny Voevodin <e.voevodin@samsung.com>
  *

@@ -1,8 +1,7 @@
 /*
  * Samsung exynos4210 Display Controller (FIMD)
  *
- * Copyright (c) 2000 - 2011 Samsung Electronics Co., Ltd.
- * All rights reserved.
+ * Copyright (c) 2011 Samsung Electronics Co., Ltd.
  * Based on LCD controller for Samsung S5PC1xx-based board emulation
  * by Kirill Batuzov <batuzovk@ispras.ru>
  *
