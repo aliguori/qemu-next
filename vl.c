@@ -116,10 +116,8 @@ int main(int argc, char **argv)
 #include "hw/hw.h"
 #include "hw/boards.h"
 #include "hw/usb.h"
-#include "hw/pcmcia.h"
 #include "hw/pc.h"
 #include "hw/isa.h"
-#include "hw/baum.h"
 #include "hw/bt.h"
 #include "hw/watchdog.h"
 #include "hw/smbios.h"
@@ -1116,49 +1114,6 @@ void do_usb_del(Monitor *mon, const QDict *qdict)
     if (usb_device_del(devname) < 0) {
         error_report("could not delete USB device '%s'", devname);
     }
-}
-
-/***********************************************************/
-/* PCMCIA/Cardbus */
-
-static struct pcmcia_socket_entry_s {
-    PCMCIASocket *socket;
-    struct pcmcia_socket_entry_s *next;
-} *pcmcia_sockets = 0;
-
-void pcmcia_socket_register(PCMCIASocket *socket)
-{
-    struct pcmcia_socket_entry_s *entry;
-
-    entry = g_malloc(sizeof(struct pcmcia_socket_entry_s));
-    entry->socket = socket;
-    entry->next = pcmcia_sockets;
-    pcmcia_sockets = entry;
-}
-
-void pcmcia_socket_unregister(PCMCIASocket *socket)
-{
-    struct pcmcia_socket_entry_s *entry, **ptr;
-
-    ptr = &pcmcia_sockets;
-    for (entry = *ptr; entry; ptr = &entry->next, entry = *ptr)
-        if (entry->socket == socket) {
-            *ptr = entry->next;
-            g_free(entry);
-        }
-}
-
-void pcmcia_info(Monitor *mon)
-{
-    struct pcmcia_socket_entry_s *iter;
-
-    if (!pcmcia_sockets)
-        monitor_printf(mon, "No PCMCIA sockets\n");
-
-    for (iter = pcmcia_sockets; iter; iter = iter->next)
-        monitor_printf(mon, "%s: %s\n", iter->socket->slot_string,
-                       iter->socket->attached ? iter->socket->card_string :
-                       "Empty");
 }
 
 /***********************************************************/

@@ -25,7 +25,6 @@
 #include "hw/hw.h"
 #include "hw/qdev.h"
 #include "hw/usb.h"
-#include "hw/pcmcia.h"
 #include "hw/pc.h"
 #include "hw/pci.h"
 #include "hw/watchdog.h"
@@ -71,7 +70,6 @@
 #if defined(TARGET_SPARC)
 #include "hw/sun4m.h"
 #endif
-#include "hw/lm32_pic.h"
 
 //#define DEBUG
 //#define DEBUG_COMPLETION
@@ -2487,13 +2485,6 @@ static mon_cmd_t info_cmds[] = {
         .params     = "",
         .help       = "show the current VM status (running|paused)",
         .mhandler.info = hmp_info_status,
-    },
-    {
-        .name       = "pcmcia",
-        .args_type  = "",
-        .params     = "",
-        .help       = "show guest PCMCIA status",
-        .mhandler.info = pcmcia_info,
     },
     {
         .name       = "mice",
