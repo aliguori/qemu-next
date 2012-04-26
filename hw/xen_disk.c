@@ -67,6 +67,7 @@ struct ioreq {
     QEMUIOVector        v;
     int                 presync;
     int                 postsync;
+    uint8_t             mapped;
 
     /* grant mapping */
     uint32_t            domids[BLKIF_MAX_SEGMENTS_PER_REQUEST];
@@ -248,7 +249,7 @@ static void ioreq_unmap(struct ioreq *ioreq)
     XenGnttab gnt = ioreq->blkdev->xendev.gnttabdev;
     int i;
 
-    if (ioreq->v.niov == 0) {
+    if (ioreq->v.niov == 0 || ioreq->mapped == 0) {
         return;
     }
     if (batch_maps) {
@@ -274,6 +275,7 @@ static void ioreq_unmap(struct ioreq *ioreq)
             ioreq->page[i] = NULL;
         }
     }
+    ioreq->mapped = 0;
 }
 
 static int ioreq_map(struct ioreq *ioreq)
@@ -281,7 +283,7 @@ static int ioreq_map(struct ioreq *ioreq)
     XenGnttab gnt = ioreq->blkdev->xendev.gnttabdev;
     int i;
 
-    if (ioreq->v.niov == 0) {
+    if (ioreq->v.niov == 0 || ioreq->mapped == 1) {
         return 0;
     }
     if (batch_maps) {
@@ -313,8 +315,11 @@ static int ioreq_map(struct ioreq *ioreq)
             ioreq->blkdev->cnt_map++;
         }
     }
+    ioreq->mapped = 1;
     return 0;
 }
+
+static int ioreq_runio_qemu_aio(struct ioreq *ioreq);
 
 static void qemu_aio_complete(void *opaque, int ret)
 {
@@ -327,11 +332,19 @@ static void qemu_aio_complete(void *opaque, int ret)
     }
 
     ioreq->aio_inflight--;
+    if (ioreq->presync) {
+        ioreq->presync = 0;
+        ioreq_runio_qemu_aio(ioreq);
+        return;
+    }
     if (ioreq->aio_inflight > 0) {
         return;
     }
     if (ioreq->postsync) {
-        bdrv_flush(ioreq->blkdev->bs);
+        ioreq->postsync = 0;
+        ioreq->aio_inflight++;
+        bdrv_aio_flush(ioreq->blkdev->bs, qemu_aio_complete, ioreq);
+        return;
     }
 
     ioreq->status = ioreq->aio_errors ? BLKIF_RSP_ERROR : BLKIF_RSP_OKAY;
@@ -351,7 +364,8 @@ static int ioreq_runio_qemu_aio(struct ioreq *ioreq)
 
     ioreq->aio_inflight++;
     if (ioreq->presync) {
-        bdrv_flush(blkdev->bs); /* FIXME: aio_flush() ??? */
+        bdrv_aio_flush(ioreq->blkdev->bs, qemu_aio_complete, ioreq);
+        return 0;
     }
 
     switch (ioreq->req.operation) {
