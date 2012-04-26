@@ -113,6 +113,7 @@ static QEMUMachine petalogix_s3adsp1800_machine = {
     .name = "petalogix-s3adsp1800",
     .desc = "PetaLogix linux refdesign for xilinx Spartan 3ADSP1800",
     .init = petalogix_s3adsp1800_init,
+    .def_blk_if = IF_IDE,
     .is_default = 1
 };
 

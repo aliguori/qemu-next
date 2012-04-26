@@ -1658,6 +1658,7 @@ static QEMUMachine musicpal_machine = {
     .name = "musicpal",
     .desc = "Marvell 88w8618 / MusicPal (ARM926EJ-S)",
     .init = musicpal_init,
+    .def_blk_if = IF_IDE,
 };
 
 static void musicpal_machine_init(void)

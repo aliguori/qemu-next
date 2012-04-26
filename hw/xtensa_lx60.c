@@ -298,6 +298,7 @@ static QEMUMachine xtensa_lx60_machine = {
     .name = "lx60",
     .desc = "lx60 EVB (dc232b)",
     .init = xtensa_lx60_init,
+    .def_blk_if = IF_IDE,
     .max_cpus = 4,
 };
 
@@ -305,6 +306,7 @@ static QEMUMachine xtensa_lx200_machine = {
     .name = "lx200",
     .desc = "lx200 EVB (dc232b)",
     .init = xtensa_lx200_init,
+    .def_blk_if = IF_IDE,
     .max_cpus = 4,
 };
 

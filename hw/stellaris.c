@@ -16,6 +16,7 @@
 #include "net.h"
 #include "boards.h"
 #include "exec-memory.h"
+#include "blockdev.h"
 
 #define GPIO_A 0
 #define GPIO_B 1
@@ -1378,12 +1379,14 @@ static QEMUMachine lm3s811evb_machine = {
     .name = "lm3s811evb",
     .desc = "Stellaris LM3S811EVB",
     .init = lm3s811evb_init,
+    .def_blk_if = IF_IDE,
 };
 
 static QEMUMachine lm3s6965evb_machine = {
     .name = "lm3s6965evb",
     .desc = "Stellaris LM3S6965EVB",
     .init = lm3s6965evb_init,
+    .def_blk_if = IF_IDE,
 };
 
 static void stellaris_machine_init(void)

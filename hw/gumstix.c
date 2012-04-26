@@ -127,12 +127,14 @@ static QEMUMachine connex_machine = {
     .name = "connex",
     .desc = "Gumstix Connex (PXA255)",
     .init = connex_init,
+    .def_blk_if = IF_IDE,
 };
 
 static QEMUMachine verdex_machine = {
     .name = "verdex",
     .desc = "Gumstix Verdex (PXA270)",
     .init = verdex_init,
+    .def_blk_if = IF_IDE,
 };
 
 static void gumstix_machine_init(void)

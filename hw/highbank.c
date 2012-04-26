@@ -326,7 +326,7 @@ static QEMUMachine highbank_machine = {
     .name = "highbank",
     .desc = "Calxeda Highbank (ECX-1000)",
     .init = highbank_init,
-    .use_scsi = 1,
+    .def_blk_if = IF_SCSI,
     .max_cpus = 4,
 };
 

@@ -351,6 +351,7 @@ static QEMUMachine axisdev88_machine = {
     .name = "axis-dev88",
     .desc = "AXIS devboard 88",
     .init = axisdev88_init,
+    .def_blk_if = IF_IDE,
     .is_default = 1,
 };
 

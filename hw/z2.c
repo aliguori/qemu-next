@@ -371,6 +371,7 @@ static QEMUMachine z2_machine = {
     .name = "z2",
     .desc = "Zipit Z2 (PXA27x)",
     .init = z2_init,
+    .def_blk_if = IF_IDE,
 };
 
 static void z2_machine_init(void)

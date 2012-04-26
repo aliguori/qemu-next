@@ -976,24 +976,28 @@ static QEMUMachine akitapda_machine = {
     .name = "akita",
     .desc = "Akita PDA (PXA270)",
     .init = akita_init,
+    .def_blk_if = IF_IDE,
 };
 
 static QEMUMachine spitzpda_machine = {
     .name = "spitz",
     .desc = "Spitz PDA (PXA270)",
     .init = spitz_init,
+    .def_blk_if = IF_IDE,
 };
 
 static QEMUMachine borzoipda_machine = {
     .name = "borzoi",
     .desc = "Borzoi PDA (PXA270)",
     .init = borzoi_init,
+    .def_blk_if = IF_IDE,
 };
 
 static QEMUMachine terrierpda_machine = {
     .name = "terrier",
     .desc = "Terrier PDA (PXA270)",
     .init = terrier_init,
+    .def_blk_if = IF_IDE,
 };
 
 static void spitz_machine_init(void)

@@ -15,6 +15,7 @@
 #include "loader.h"
 #include "elf.h"
 #include "exec-memory.h"
+#include "blockdev.h"
 
 #define SYS_FREQ 66000000
 
@@ -291,6 +292,7 @@ static QEMUMachine mcf5208evb_machine = {
     .name = "mcf5208evb",
     .desc = "MCF5206EVB",
     .init = mcf5208evb_init,
+    .def_blk_if = IF_IDE,
     .is_default = 1,
 };
 

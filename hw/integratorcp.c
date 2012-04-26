@@ -14,6 +14,7 @@
 #include "net.h"
 #include "exec-memory.h"
 #include "sysemu.h"
+#include "blockdev.h"
 
 typedef struct {
     SysBusDevice busdev;
@@ -507,6 +508,7 @@ static QEMUMachine integratorcp_machine = {
     .name = "integratorcp",
     .desc = "ARM Integrator/CP (ARM926EJ-S)",
     .init = integratorcp_init,
+    .def_blk_if = IF_IDE,
     .is_default = 1,
 };
 

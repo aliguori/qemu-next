@@ -11,6 +11,7 @@
 #include "loader.h"
 #include "elf.h"
 #include "exec-memory.h"
+#include "blockdev.h"
 
 #define KERNEL_LOAD_ADDR 0x10000
 
@@ -73,6 +74,7 @@ static QEMUMachine dummy_m68k_machine = {
     .name = "dummy",
     .desc = "Dummy board",
     .init = dummy_m68k_init,
+    .def_blk_if = IF_IDE,
 };
 
 static void dummy_m68k_machine_init(void)

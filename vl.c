@@ -764,9 +764,9 @@ static int bt_parse(const char *opt)
 
 static int drive_init_func(QemuOpts *opts, void *opaque)
 {
-    int *use_scsi = opaque;
+    int *def_blk_if = opaque;
 
-    return drive_init(opts, *use_scsi) == NULL;
+    return drive_init(opts, *def_blk_if) == NULL;
 }
 
 static int drive_enable_snapshot(QemuOpts *opts, void *opaque)
@@ -777,14 +777,14 @@ static int drive_enable_snapshot(QemuOpts *opts, void *opaque)
     return 0;
 }
 
-static void default_drive(int enable, int snapshot, int use_scsi,
+static void default_drive(int enable, int snapshot, int def_blk_if,
                           BlockInterfaceType type, int index,
                           const char *optstr)
 {
     QemuOpts *opts;
 
     if (type == IF_DEFAULT) {
-        type = use_scsi ? IF_SCSI : IF_IDE;
+        type = def_blk_if;
     }
 
     if (!enable || drive_get_by_index(type, index)) {
@@ -795,7 +795,7 @@ static void default_drive(int enable, int snapshot, int use_scsi,
     if (snapshot) {
         drive_enable_snapshot(opts, NULL);
     }
-    if (!drive_init(opts, use_scsi)) {
+    if (!drive_init(opts, def_blk_if)) {
         exit(1);
     }
 }
@@ -3416,14 +3416,14 @@ int main(int argc, char **argv, char **envp)
     /* open the virtual block devices */
     if (snapshot)
         qemu_opts_foreach(qemu_find_opts("drive"), drive_enable_snapshot, NULL, 0);
-    if (qemu_opts_foreach(qemu_find_opts("drive"), drive_init_func, &machine->use_scsi, 1) != 0)
+    if (qemu_opts_foreach(qemu_find_opts("drive"), drive_init_func, &machine->def_blk_if, 1) != 0)
         exit(1);
 
-    default_drive(default_cdrom, snapshot, machine->use_scsi,
+    default_drive(default_cdrom, snapshot, machine->def_blk_if,
                   IF_DEFAULT, 2, CDROM_OPTS);
-    default_drive(default_floppy, snapshot, machine->use_scsi,
+    default_drive(default_floppy, snapshot, machine->def_blk_if,
                   IF_FLOPPY, 0, FD_OPTS);
-    default_drive(default_sdcard, snapshot, machine->use_scsi,
+    default_drive(default_sdcard, snapshot, machine->def_blk_if,
                   IF_SD, 0, SD_OPTS);
 
     register_savevm_live(NULL, "ram", 0, 4, NULL, ram_save_live, NULL,

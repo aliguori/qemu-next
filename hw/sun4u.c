@@ -947,6 +947,7 @@ static QEMUMachine sun4u_machine = {
     .name = "sun4u",
     .desc = "Sun4u platform",
     .init = sun4u_init,
+    .def_blk_if = IF_IDE,
     .max_cpus = 1, // XXX for now
     .is_default = 1,
 };
@@ -954,6 +955,7 @@ static QEMUMachine sun4u_machine = {
 static QEMUMachine sun4v_machine = {
     .name = "sun4v",
     .desc = "Sun4v platform",
+    .def_blk_if = IF_IDE,
     .init = sun4v_init,
     .max_cpus = 1, // XXX for now
 };
@@ -962,6 +964,7 @@ static QEMUMachine niagara_machine = {
     .name = "Niagara",
     .desc = "Sun4v platform, Niagara",
     .init = niagara_init,
+    .def_blk_if = IF_IDE,
     .max_cpus = 1, // XXX for now
 };
 

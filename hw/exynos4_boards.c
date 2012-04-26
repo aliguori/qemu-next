@@ -28,6 +28,7 @@
 #include "exec-memory.h"
 #include "exynos4210.h"
 #include "boards.h"
+#include "blockdev.h"
 
 #undef DEBUG
 
@@ -159,12 +160,14 @@ static QEMUMachine exynos4_machines[EXYNOS4_NUM_OF_BOARDS] = {
         .name = "nuri",
         .desc = "Samsung NURI board (Exynos4210)",
         .init = nuri_init,
+        .def_blk_if = IF_IDE,
         .max_cpus = EXYNOS4210_NCPUS,
     },
     [EXYNOS4_BOARD_SMDKC210] = {
         .name = "smdkc210",
         .desc = "Samsung SMDKC210 board (Exynos4210)",
         .init = smdkc210_init,
+        .def_blk_if = IF_IDE,
         .max_cpus = EXYNOS4210_NCPUS,
     },
 };

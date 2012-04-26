@@ -26,6 +26,7 @@
  */
 
 #include "sysemu.h"
+#include "blockdev.h"
 #include "boards.h"
 #include "loader.h"
 #include "elf.h"
@@ -107,6 +108,7 @@ static QEMUMachine xtensa_sim_machine = {
     .name = "sim",
     .desc = "sim machine (dc232b)",
     .init = xtensa_sim_init,
+    .def_blk_if = IF_IDE,
     .max_cpus = 4,
 };
 

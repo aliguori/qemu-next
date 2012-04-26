@@ -33,6 +33,7 @@
 #include "boards.h"
 #include "loader.h"
 #include "exec-memory.h"
+#include "blockdev.h"
 
 #define BIOS_FILENAME "shix_bios.bin"
 #define BIOS_ADDRESS 0xA0000000
@@ -93,6 +94,7 @@ static QEMUMachine shix_machine = {
     .name = "shix",
     .desc = "shix card",
     .init = shix_init,
+    .def_blk_if = IF_IDE,
     .is_default = 1,
 };
 

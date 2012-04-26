@@ -334,6 +334,7 @@ static QEMUMachine heathrow_machine = {
     .name = "g3beige",
     .desc = "Heathrow based PowerMAC",
     .init = ppc_heathrow_init,
+    .def_blk_if = IF_IDE,
     .max_cpus = MAX_CPUS,
 #ifndef TARGET_PPC64
     .is_default = 1,

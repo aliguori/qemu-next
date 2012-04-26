@@ -356,6 +356,7 @@ static QEMUMachine pc_machine_v1_1 = {
     .alias = "pc",
     .desc = "Standard PC",
     .init = pc_init_pci,
+    .def_blk_if = IF_IDE,
     .max_cpus = 255,
     .is_default = 1,
 };
@@ -387,6 +388,7 @@ static QEMUMachine pc_machine_v1_0 = {
     .name = "pc-1.0",
     .desc = "Standard PC",
     .init = pc_init_pci,
+    .def_blk_if = IF_IDE,
     .max_cpus = 255,
     .compat_props = (GlobalProperty[]) {
         PC_COMPAT_1_0,
@@ -401,6 +403,7 @@ static QEMUMachine pc_machine_v0_15 = {
     .name = "pc-0.15",
     .desc = "Standard PC",
     .init = pc_init_pci,
+    .def_blk_if = IF_IDE,
     .max_cpus = 255,
     .compat_props = (GlobalProperty[]) {
         PC_COMPAT_0_15,
@@ -432,6 +435,7 @@ static QEMUMachine pc_machine_v0_14 = {
     .name = "pc-0.14",
     .desc = "Standard PC",
     .init = pc_init_pci,
+    .def_blk_if = IF_IDE,
     .max_cpus = 255,
     .compat_props = (GlobalProperty[]) {
         PC_COMPAT_0_14, 
@@ -464,6 +468,7 @@ static QEMUMachine pc_machine_v0_13 = {
     .name = "pc-0.13",
     .desc = "Standard PC",
     .init = pc_init_pci_no_kvmclock,
+    .def_blk_if = IF_IDE,
     .max_cpus = 255,
     .compat_props = (GlobalProperty[]) {
         PC_COMPAT_0_13,
@@ -500,6 +505,7 @@ static QEMUMachine pc_machine_v0_12 = {
     .name = "pc-0.12",
     .desc = "Standard PC",
     .init = pc_init_pci_no_kvmclock,
+    .def_blk_if = IF_IDE,
     .max_cpus = 255,
     .compat_props = (GlobalProperty[]) {
         PC_COMPAT_0_12,
@@ -528,6 +534,7 @@ static QEMUMachine pc_machine_v0_11 = {
     .name = "pc-0.11",
     .desc = "Standard PC, qemu 0.11",
     .init = pc_init_pci_no_kvmclock,
+    .def_blk_if = IF_IDE,
     .max_cpus = 255,
     .compat_props = (GlobalProperty[]) {
         PC_COMPAT_0_11,
@@ -548,6 +555,7 @@ static QEMUMachine pc_machine_v0_10 = {
     .name = "pc-0.10",
     .desc = "Standard PC, qemu 0.10",
     .init = pc_init_pci_no_kvmclock,
+    .def_blk_if = IF_IDE,
     .max_cpus = 255,
     .compat_props = (GlobalProperty[]) {
         PC_COMPAT_0_11,
@@ -580,6 +588,7 @@ static QEMUMachine isapc_machine = {
     .name = "isapc",
     .desc = "ISA-only PC",
     .init = pc_init_isa,
+    .def_blk_if = IF_IDE,
     .max_cpus = 1,
     .compat_props = (GlobalProperty[]) {
         {
@@ -596,6 +605,7 @@ static QEMUMachine xenfv_machine = {
     .name = "xenfv",
     .desc = "Xen Fully-virtualized PC",
     .init = pc_xen_hvm_init,
+    .def_blk_if = IF_IDE,
     .max_cpus = HVM_MAX_VCPUS,
     .default_machine_opts = "accel=xen",
 };

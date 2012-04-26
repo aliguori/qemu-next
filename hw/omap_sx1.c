@@ -231,12 +231,14 @@ static QEMUMachine sx1_machine_v2 = {
     .name = "sx1",
     .desc = "Siemens SX1 (OMAP310) V2",
     .init = sx1_init_v2,
+    .def_blk_if = IF_IDE,
 };
 
 static QEMUMachine sx1_machine_v1 = {
     .name = "sx1-v1",
     .desc = "Siemens SX1 (OMAP310) V1",
     .init = sx1_init_v1,
+    .def_blk_if = IF_IDE,
 };
 
 static void sx1_machine_init(void)

@@ -363,6 +363,7 @@ static QEMUMachine ref405ep_machine = {
     .name = "ref405ep",
     .desc = "ref405ep",
     .init = ref405ep_init,
+    .def_blk_if = IF_IDE,
 };
 
 /*****************************************************************************/

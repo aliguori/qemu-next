@@ -205,6 +205,7 @@ static QEMUMachine milkymist_machine = {
     .name = "milkymist",
     .desc = "Milkymist One",
     .init = milkymist_init,
+    .def_blk_if = IF_IDE,
     .is_default = 0
 };
 

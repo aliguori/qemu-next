@@ -722,6 +722,7 @@ static QEMUMachine prep_machine = {
     .name = "prep",
     .desc = "PowerPC PREP platform",
     .init = ppc_prep_init,
+    .def_blk_if = IF_IDE,
     .max_cpus = MAX_CPUS,
 };
 

@@ -26,6 +26,7 @@
 #include "devices.h"
 #include "loader.h"
 #include "exec-memory.h"
+#include "blockdev.h"
 
 static uint32_t static_readb(void *opaque, target_phys_addr_t offset)
 {
@@ -279,6 +280,7 @@ static QEMUMachine palmte_machine = {
     .name = "cheetah",
     .desc = "Palm Tungsten|E aka. Cheetah PDA (OMAP310)",
     .init = palmte_init,
+    .def_blk_if = IF_IDE,
 };
 
 static void palmte_machine_init(void)

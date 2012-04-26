@@ -17,7 +17,7 @@ typedef struct QEMUMachine {
     const char *alias;
     const char *desc;
     QEMUMachineInitFunc *init;
-    int use_scsi;
+    int def_blk_if;
     int max_cpus;
     unsigned int no_serial:1,
         no_parallel:1,

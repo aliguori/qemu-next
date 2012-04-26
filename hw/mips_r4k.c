@@ -296,6 +296,7 @@ static QEMUMachine mips_machine = {
     .name = "mips",
     .desc = "mips r4k platform",
     .init = mips_r4k_init,
+    .def_blk_if = IF_IDE,
 };
 
 static void mips_machine_init(void)

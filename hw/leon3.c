@@ -31,6 +31,7 @@
 #include "elf.h"
 #include "trace.h"
 #include "exec-memory.h"
+#include "blockdev.h"
 
 #include "grlib.h"
 
@@ -209,10 +210,10 @@ static void leon3_generic_hw_init(ram_addr_t  ram_size,
 }
 
 QEMUMachine leon3_generic_machine = {
-    .name     = "leon3_generic",
-    .desc     = "Leon-3 generic",
-    .init     = leon3_generic_hw_init,
-    .use_scsi = 0,
+    .name       = "leon3_generic",
+    .desc       = "Leon-3 generic",
+    .init       = leon3_generic_hw_init,
+    .def_blk_if = IF_IDE,
 };
 
 static void leon3_machine_init(void)

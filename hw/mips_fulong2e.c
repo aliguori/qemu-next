@@ -394,6 +394,7 @@ QEMUMachine mips_fulong2e_machine = {
     .name = "fulong2e",
     .desc = "Fulong 2e mini pc",
     .init = mips_fulong2e_init,
+    .def_blk_if = IF_IDE,
 };
 
 static void mips_fulong2e_machine_init(void)

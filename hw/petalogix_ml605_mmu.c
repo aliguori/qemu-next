@@ -140,6 +140,7 @@ static QEMUMachine petalogix_ml605_machine = {
     .name = "petalogix-ml605",
     .desc = "PetaLogix linux refdesign for xilinx ml605 little endian",
     .init = petalogix_ml605_init,
+    .def_blk_if = IF_IDE,
     .is_default = 0
 };
 

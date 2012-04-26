@@ -112,6 +112,7 @@ static QEMUMachine xenpv_machine = {
     .name = "xenpv",
     .desc = "Xen Para-virtualized PC",
     .init = xen_init_pv,
+    .def_blk_if = IF_IDE,
     .max_cpus = 1,
     .default_machine_opts = "accel=xen",
 };

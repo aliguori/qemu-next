@@ -168,6 +168,7 @@ static QEMUMachine clipper_machine = {
     .name = "clipper",
     .desc = "Alpha DP264/CLIPPER",
     .init = clipper_init,
+    .def_blk_if = IF_IDE,
     .max_cpus = 4,
     .is_default = 1,
 };

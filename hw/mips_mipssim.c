@@ -223,6 +223,7 @@ static QEMUMachine mips_mipssim_machine = {
     .name = "mipssim",
     .desc = "MIPS MIPSsim platform",
     .init = mips_mipssim_init,
+    .def_blk_if = IF_IDE,
 };
 
 static void mips_mipssim_machine_init(void)

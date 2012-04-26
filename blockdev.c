@@ -274,7 +274,7 @@ static bool do_check_io_limits(BlockIOLimit *io_limits)
     return true;
 }
 
-DriveInfo *drive_init(QemuOpts *opts, int default_to_scsi)
+DriveInfo *drive_init(QemuOpts *opts, int def_blk_if)
 {
     const char *buf;
     const char *file = NULL;
@@ -326,7 +326,7 @@ DriveInfo *drive_init(QemuOpts *opts, int default_to_scsi)
             return NULL;
 	}
     } else {
-        type = default_to_scsi ? IF_SCSI : IF_IDE;
+        type = def_blk_if;
         pstrcpy(devname, sizeof(devname), if_name[type]);
     }
 

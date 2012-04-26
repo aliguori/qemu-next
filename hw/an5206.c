@@ -12,6 +12,7 @@
 #include "loader.h"
 #include "elf.h"
 #include "exec-memory.h"
+#include "blockdev.h"
 
 #define KERNEL_LOAD_ADDR 0x10000
 #define AN5206_MBAR_ADDR 0x10000000
@@ -86,6 +87,7 @@ static QEMUMachine an5206_machine = {
     .name = "an5206",
     .desc = "Arnewsh 5206",
     .init = an5206_init,
+    .def_blk_if = IF_IDE,
 };
 
 static void an5206_machine_init(void)

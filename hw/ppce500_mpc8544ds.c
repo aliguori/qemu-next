@@ -399,6 +399,7 @@ static QEMUMachine mpc8544ds_machine = {
     .name = "mpc8544ds",
     .desc = "mpc8544ds",
     .init = mpc8544ds_init,
+    .def_blk_if = IF_IDE,
     .max_cpus = 15,
 };
 

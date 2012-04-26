@@ -291,6 +291,7 @@ static QEMUMachine bamboo_machine = {
     .name = "bamboo",
     .desc = "bamboo",
     .init = bamboo_init,
+    .def_blk_if = IF_IDE,
 };
 
 static void bamboo_machine_init(void)

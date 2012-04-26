@@ -1013,6 +1013,7 @@ static QEMUMachine mips_malta_machine = {
     .name = "malta",
     .desc = "MIPS Malta Core LV",
     .init = mips_malta_init,
+    .def_blk_if = IF_IDE,
     .max_cpus = 16,
     .is_default = 1,
 };

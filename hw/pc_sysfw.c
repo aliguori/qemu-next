@@ -94,7 +94,7 @@ static void pc_fw_add_pflash_drv(void)
       return;
     }
 
-    drive_init(opts, machine->use_scsi);
+    drive_init(opts, machine->def_blk_if);
 }
 
 static void pc_system_flash_init(MemoryRegion *rom_memory,

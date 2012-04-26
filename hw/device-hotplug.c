@@ -39,7 +39,7 @@ DriveInfo *add_init_drive(const char *optstr)
     if (!opts)
         return NULL;
 
-    dinfo = drive_init(opts, current_machine->use_scsi);
+    dinfo = drive_init(opts, current_machine->def_blk_if);
     if (!dinfo) {
         qemu_opts_del(opts);
         return NULL;
