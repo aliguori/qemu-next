@@ -482,8 +482,10 @@ static void sd_erase(SDState *sd)
         return;
     }
 
-    start = sd_addr_to_wpnum(sd->erase_start);
-    end = sd_addr_to_wpnum(sd->erase_end);
+    start = sd_addr_to_wpnum(sd->ocr & (1 << 30) ?
+            (uint64_t)sd->erase_start * 512 : sd->erase_start);
+    end = sd_addr_to_wpnum(sd->ocr & (1 << 30) ?
+            (uint64_t)sd->erase_end * 512 : sd->erase_end);
     sd->erase_start = 0;
     sd->erase_end = 0;
     sd->csd[14] |= 0x40;
