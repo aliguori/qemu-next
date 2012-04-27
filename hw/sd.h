@@ -74,7 +74,6 @@ typedef struct SDState SDState;
 typedef struct SDClass {
     ObjectClass parent_class;
 
-    void (*init)(SDState *sd, BlockDriverState *bdrv);
     int (*do_command)(SDState *sd, SDRequest *req, uint8_t *response);
     void (*write_data)(SDState *sd, uint8_t value);
     uint8_t (*read_data)(SDState *sd);
@@ -96,8 +95,11 @@ static inline SDState *sd_init(BlockDriverState *bs, bool is_spi)
     SDState *sd = SD_CARD(object_new(TYPE_SD_CARD));
     Error *errp = NULL;
     object_property_set_bool(OBJECT(sd), is_spi, "spi", &errp);
+    if (bs) {
+        object_property_set_str(OBJECT(sd), bdrv_get_device_name(bs),
+                "device-id", &errp);
+    }
     assert_no_error(errp);
-    SD_GET_CLASS(sd)->init(sd, bs);
     return sd;
 }
 

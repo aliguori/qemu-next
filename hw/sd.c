@@ -491,16 +491,21 @@ static const VMStateDescription sd_vmstate = {
    whether card should be in SSI or MMC/SD mode.  It is also up to the
    board to ensure that ssi transfers only occur when the chip select
    is asserted.  */
-static void sd_init_card(SDState *sd, BlockDriverState *bs)
+static void sd_init_card(SDState *sd, BlockDriverState *bdrv, Error **errp)
 {
-    sd->buf = qemu_blockalign(bs, 512);
-    sd->enable = true;
-    sd_reset(sd, bs);
-    if (sd->bdrv) {
-        bdrv_attach_dev_nofail(sd->bdrv, sd);
-        bdrv_set_dev_ops(sd->bdrv, &sd_block_ops, sd);
+    if (bdrv_attach_dev(bdrv, sd) < 0) {
+        error_set(errp, QERR_DEVICE_IN_USE, bdrv_get_device_name(bdrv));
+        return;
     }
-    vmstate_register(NULL, -1, &sd_vmstate, sd);
+
+    bdrv_set_dev_ops(bdrv, &sd_block_ops, sd);
+    sd->buf = qemu_blockalign(bdrv, 512);
+    sd->enable = true;
+    sd_reset(sd, bdrv);
+    qemu_set_irq(sd->inserted_cb, bdrv_is_inserted(sd->bdrv));
+    if (bdrv_is_inserted(sd->bdrv)) {
+        qemu_set_irq(sd->readonly_cb, sd->wp_switch);
+    }
 }
 
 static void sd_set_callbacks(SDState *sd, qemu_irq readonly, qemu_irq insert)
@@ -1756,7 +1761,6 @@ static void sd_class_init(ObjectClass *klass, void *data)
 {
     SDClass *k = SD_CLASS(klass);
 
-    k->init = sd_init_card;
     k->set_cb = sd_set_callbacks;
     k->do_command = sd_send_command;
     k->data_ready = sd_is_data_ready;
@@ -1785,6 +1789,67 @@ static void sd_set_spimode(Object *obj, Visitor *v, void *opaque,
     }
 }
 
+static char *sd_devid_get(Object *obj, Error **errp)
+{
+    SDState *sd = SD_CARD(obj);
+    char *ret = NULL;
+
+    if (sd->bdrv) {
+        ret = g_strndup(bdrv_get_device_name(sd->bdrv), 32);
+    } else {
+        error_set(errp, QERR_DEVICE_HAS_NO_MEDIUM, "SD card");
+    }
+
+    return ret;
+}
+
+static void sd_devid_set(Object *obj, const char *value, Error **errp)
+{
+    SDState *sd = SD_CARD(obj);
+    BlockDriverState *bdrv = bdrv_find(value);
+
+    if (!bdrv) {
+        error_set(errp, QERR_DEVICE_NOT_FOUND, value);
+        return;
+    }
+
+    if (sd->bdrv) {
+        if (!strncmp(bdrv_get_device_name(sd->bdrv), value, 32)) {
+            return;
+        }
+
+        if (bdrv_in_use(sd->bdrv)) {
+            error_set(errp, QERR_DEVICE_IN_USE, bdrv_get_device_name(sd->bdrv));
+            return;
+        }
+
+        if (bdrv_get_attached_dev(bdrv)) {
+            error_set(errp, QERR_DEVICE_IN_USE, value);
+            return;
+        }
+
+        bdrv_close(sd->bdrv);
+        sd->enable = false;
+        bdrv_detach_dev(sd->bdrv, sd);
+        if (sd->buf) {
+            qemu_vfree(sd->buf);
+            sd->buf = NULL;
+        }
+        sd_reset(sd, NULL);
+
+        sd_init_card(sd, bdrv, errp);
+        if (error_is_set(errp)) {
+            vmstate_unregister(NULL, &sd_vmstate, sd);
+        }
+    } else {
+        sd_init_card(sd, bdrv, errp);
+        if (error_is_set(errp)) {
+            return;
+        }
+        vmstate_register(NULL, -1, &sd_vmstate, sd);
+    }
+}
+
 static void sd_initfn(Object *obj)
 {
     SDState *sd = SD_CARD(obj);
@@ -1792,6 +1857,8 @@ static void sd_initfn(Object *obj)
     sd->spi = false;
     object_property_add(obj, "spi", "boolean", sd_is_spi, sd_set_spimode,
             NULL, NULL, NULL);
+    object_property_add_str(OBJECT(sd), "device-id", sd_devid_get, sd_devid_set,
+            NULL);
 }
 
 static const TypeInfo sd_type_info = {
