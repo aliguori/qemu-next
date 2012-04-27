@@ -75,6 +75,8 @@ enum {
 };
 
 struct SDState {
+    Object parent_obj;
+
     uint32_t mode;
     int32_t state;
     uint32_t ocr;
@@ -489,11 +491,8 @@ static const VMStateDescription sd_vmstate = {
    whether card should be in SSI or MMC/SD mode.  It is also up to the
    board to ensure that ssi transfers only occur when the chip select
    is asserted.  */
-SDState *sd_init(BlockDriverState *bs, bool is_spi)
+static void sd_init_card(SDState *sd, BlockDriverState *bs, bool is_spi)
 {
-    SDState *sd;
-
-    sd = (SDState *) g_malloc0(sizeof(SDState));
     sd->buf = qemu_blockalign(bs, 512);
     sd->spi = is_spi;
     sd->enable = true;
@@ -503,10 +502,9 @@ SDState *sd_init(BlockDriverState *bs, bool is_spi)
         bdrv_set_dev_ops(sd->bdrv, &sd_block_ops, sd);
     }
     vmstate_register(NULL, -1, &sd_vmstate, sd);
-    return sd;
 }
 
-void sd_set_cb(SDState *sd, qemu_irq readonly, qemu_irq insert)
+static void sd_set_callbacks(SDState *sd, qemu_irq readonly, qemu_irq insert)
 {
     sd->readonly_cb = readonly;
     sd->inserted_cb = insert;
@@ -1334,7 +1332,7 @@ static int cmd_valid_while_locked(SDState *sd, SDRequest *req)
     return sd_cmd_class[req->cmd] == 0 || sd_cmd_class[req->cmd] == 7;
 }
 
-int sd_do_command(SDState *sd, SDRequest *req,
+static int sd_send_command(SDState *sd, SDRequest *req,
                   uint8_t *response) {
     int last_state;
     sd_rsp_type_t rtype;
@@ -1502,7 +1500,7 @@ static void sd_blk_write(SDState *sd, uint64_t addr, uint32_t len)
 #define APP_READ_BLOCK(a, len)	memset(sd->data, 0xec, len)
 #define APP_WRITE_BLOCK(a, len)
 
-void sd_write_data(SDState *sd, uint8_t value)
+static void sd_write_card_data(SDState *sd, uint8_t value)
 {
     int i;
 
@@ -1510,7 +1508,7 @@ void sd_write_data(SDState *sd, uint8_t value)
         return;
 
     if (sd->state != sd_receivingdata_state) {
-        fprintf(stderr, "sd_write_data: not in Receiving-Data state\n");
+        fprintf(stderr, "sd_write_card_data: not in Receiving-Data state\n");
         return;
     }
 
@@ -1621,12 +1619,12 @@ void sd_write_data(SDState *sd, uint8_t value)
         break;
 
     default:
-        fprintf(stderr, "sd_write_data: unknown command\n");
+        fprintf(stderr, "sd_write_card_data: unknown command\n");
         break;
     }
 }
 
-uint8_t sd_read_data(SDState *sd)
+static uint8_t sd_read_card_data(SDState *sd)
 {
     /* TODO: Append CRCs */
     uint8_t ret;
@@ -1636,7 +1634,7 @@ uint8_t sd_read_data(SDState *sd)
         return 0x00;
 
     if (sd->state != sd_sendingdata_state) {
-        fprintf(stderr, "sd_read_data: not in Sending-Data state\n");
+        fprintf(stderr, "sd_read_card_data: not in Sending-Data state\n");
         return 0x00;
     }
 
@@ -1738,19 +1736,47 @@ uint8_t sd_read_data(SDState *sd)
         break;
 
     default:
-        fprintf(stderr, "sd_read_data: unknown command\n");
+        fprintf(stderr, "sd_read_card_data: unknown command\n");
         return 0x00;
     }
 
     return ret;
 }
 
-bool sd_data_ready(SDState *sd)
+static bool sd_is_data_ready(SDState *sd)
 {
     return sd->state == sd_sendingdata_state;
 }
 
-void sd_enable(SDState *sd, bool enable)
+static void sd_enable_card(SDState *sd, bool enable)
 {
     sd->enable = enable;
 }
+
+static void sd_class_init(ObjectClass *klass, void *data)
+{
+    SDClass *k = SD_CLASS(klass);
+
+    k->init = sd_init_card;
+    k->set_cb = sd_set_callbacks;
+    k->do_command = sd_send_command;
+    k->data_ready = sd_is_data_ready;
+    k->read_data = sd_read_card_data;
+    k->write_data = sd_write_card_data;
+    k->enable = sd_enable_card;
+}
+
+static const TypeInfo sd_type_info = {
+    .name = TYPE_SD_CARD,
+    .parent = TYPE_OBJECT,
+    .instance_size = sizeof(SDState),
+    .class_init = sd_class_init,
+    .class_size = sizeof(SDClass)
+};
+
+static void sd_register_types(void)
+{
+    type_register_static(&sd_type_info);
+}
+
+type_init(sd_register_types)

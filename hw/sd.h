@@ -29,6 +29,9 @@
 #ifndef __hw_sd_h
 #define __hw_sd_h		1
 
+#include "qemu-common.h"
+#include "qemu/object.h"
+
 #define OUT_OF_RANGE		(1 << 31)
 #define ADDRESS_ERROR		(1 << 30)
 #define BLOCK_LEN_ERROR		(1 << 29)
@@ -67,13 +70,61 @@ typedef struct {
 
 typedef struct SDState SDState;
 
-SDState *sd_init(BlockDriverState *bs, bool is_spi);
-int sd_do_command(SDState *sd, SDRequest *req,
-                  uint8_t *response);
-void sd_write_data(SDState *sd, uint8_t value);
-uint8_t sd_read_data(SDState *sd);
-void sd_set_cb(SDState *sd, qemu_irq readonly, qemu_irq insert);
-bool sd_data_ready(SDState *sd);
-void sd_enable(SDState *sd, bool enable);
+typedef struct SDClass {
+    ObjectClass parent_class;
+
+    void (*init)(SDState *sd, BlockDriverState *bs, bool is_spi);
+    int (*do_command)(SDState *sd, SDRequest *req, uint8_t *response);
+    void (*write_data)(SDState *sd, uint8_t value);
+    uint8_t (*read_data)(SDState *sd);
+    void (*set_cb)(SDState *sd, qemu_irq readonly, qemu_irq insert);
+    bool (*data_ready)(SDState *sd);
+    void (*enable)(SDState *sd, bool enable);
+} SDClass;
+
+#define TYPE_SD_CARD            "sd-card"
+#define SD_CARD(obj)            \
+     OBJECT_CHECK(SDState, (obj), TYPE_SD_CARD)
+#define SD_CLASS(klass)         \
+     OBJECT_CLASS_CHECK(SDClass, (klass), TYPE_SD_CARD)
+#define SD_GET_CLASS(obj)       \
+     OBJECT_GET_CLASS(SDClass, (obj), TYPE_SD_CARD)
+
+static inline SDState *sd_init(BlockDriverState *bs, bool is_spi)
+{
+    SDState *sd = SD_CARD(object_new(TYPE_SD_CARD));
+    SD_GET_CLASS(sd)->init(sd, bs, is_spi);
+    return sd;
+}
+
+static inline int sd_do_command(SDState *sd, SDRequest *req, uint8_t *response)
+{
+    return SD_GET_CLASS(sd)->do_command(sd, req, response);
+}
+
+static inline uint8_t sd_read_data(SDState *sd)
+{
+    return SD_GET_CLASS(sd)->read_data(sd);
+}
+
+static inline void sd_write_data(SDState *sd, uint8_t value)
+{
+    SD_GET_CLASS(sd)->write_data(sd, value);
+}
+
+static inline bool sd_data_ready(SDState *sd)
+{
+    return SD_GET_CLASS(sd)->data_ready(sd);
+}
+
+static inline void sd_set_cb(SDState *sd, qemu_irq readonly, qemu_irq insert)
+{
+    SD_GET_CLASS(sd)->set_cb(sd, readonly, insert);
+}
+
+static inline void sd_enable(SDState *sd, bool enable)
+{
+    SD_GET_CLASS(sd)->enable(sd, enable);
+}
 
 #endif	/* __hw_sd_h */
