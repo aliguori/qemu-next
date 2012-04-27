@@ -81,6 +81,19 @@ path_of() {
     return 1
 }
 
+add_to_libs() {
+  found=no
+  for lib_entry in $LIBS; do
+    if test "$lib_entry" = "$1"; then
+      found=yes
+      break
+    fi
+  done
+  if test "$found" = "no"; then
+    LIBS="$1 $LIBS"
+  fi
+}
+
 # default parameters
 source_path=`dirname "$0"`
 cpu=""
@@ -2083,16 +2096,7 @@ else
   for pthread_lib in $PTHREADLIBS_LIST; do
     if compile_prog "" "$pthread_lib" ; then
       pthread=yes
-      found=no
-      for lib_entry in $LIBS; do
-        if test "$lib_entry" = "$pthread_lib"; then
-          found=yes
-          break
-        fi
-      done
-      if test "$found" = "no"; then
-        LIBS="$pthread_lib $LIBS"
-      fi
+      add_to_libs "$pthread_lib"
       break
     fi
   done
@@ -2581,7 +2585,7 @@ EOF
 if compile_prog "" "" ; then
   :
 elif compile_prog "" "-lrt" ; then
-  LIBS="-lrt $LIBS"
+  add_to_libs "-lrt"
 fi
 
 if test "$darwin" != "yes" -a "$mingw32" != "yes" -a "$solaris" != yes -a \
