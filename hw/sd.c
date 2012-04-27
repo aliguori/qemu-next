@@ -508,6 +508,19 @@ static void sd_init_card(SDState *sd, BlockDriverState *bdrv, Error **errp)
     }
 }
 
+static void sd_deinit_card(SDState *sd)
+{
+    bdrv_close(sd->bdrv);
+    sd->enable = false;
+    bdrv_detach_dev(sd->bdrv, sd);
+    sd_reset(sd, NULL);
+
+    if (sd->buf) {
+        qemu_vfree(sd->buf);
+        sd->buf = NULL;
+    }
+}
+
 static void sd_set_callbacks(SDState *sd, qemu_irq readonly, qemu_irq insert)
 {
     sd->readonly_cb = readonly;
@@ -1828,15 +1841,7 @@ static void sd_devid_set(Object *obj, const char *value, Error **errp)
             return;
         }
 
-        bdrv_close(sd->bdrv);
-        sd->enable = false;
-        bdrv_detach_dev(sd->bdrv, sd);
-        if (sd->buf) {
-            qemu_vfree(sd->buf);
-            sd->buf = NULL;
-        }
-        sd_reset(sd, NULL);
-
+        sd_deinit_card(sd);
         sd_init_card(sd, bdrv, errp);
         if (error_is_set(errp)) {
             vmstate_unregister(NULL, &sd_vmstate, sd);
@@ -1850,6 +1855,41 @@ static void sd_devid_set(Object *obj, const char *value, Error **errp)
     }
 }
 
+static void sd_is_ejected(Object *obj, Visitor *v, void *opaque,
+                         const char *name, Error **errp)
+{
+    SDState *sd = SD_CARD(obj);
+    bool ejected = sd->bdrv && bdrv_is_inserted(sd->bdrv) ? false : true;
+
+    visit_type_bool(v, &ejected, name, errp);
+}
+
+static void sd_eject(Object *obj, Visitor *v, void *opaque,
+                         const char *name, Error **errp)
+{
+    SDState *sd = SD_CARD(obj);
+    bool eject;
+
+    visit_type_bool(v, &eject, name, errp);
+    if (error_is_set(errp)) {
+        return;
+    }
+
+    if (eject) {
+        if (!sd->bdrv) {
+            return;
+        }
+
+        if (bdrv_in_use(sd->bdrv)) {
+            error_set(errp, QERR_DEVICE_IN_USE, bdrv_get_device_name(sd->bdrv));
+            return;
+        }
+
+        vmstate_unregister(NULL, &sd_vmstate, sd);
+        sd_deinit_card(sd);
+    }
+}
+
 static void sd_initfn(Object *obj)
 {
     SDState *sd = SD_CARD(obj);
@@ -1859,6 +1899,8 @@ static void sd_initfn(Object *obj)
             NULL, NULL, NULL);
     object_property_add_str(OBJECT(sd), "device-id", sd_devid_get, sd_devid_set,
             NULL);
+    object_property_add(obj, "eject", "boolean", sd_is_ejected, sd_eject,
+            NULL, NULL, NULL);
 }
 
 static const TypeInfo sd_type_info = {
