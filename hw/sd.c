@@ -1705,7 +1705,7 @@ uint8_t sd_read_data(SDState *sd)
     return ret;
 }
 
-int sd_data_ready(SDState *sd)
+bool sd_data_ready(SDState *sd)
 {
     return sd->state == sd_sendingdata_state;
 }
