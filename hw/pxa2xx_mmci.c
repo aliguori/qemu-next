@@ -117,12 +117,14 @@ static void pxa2xx_mmci_int_update(PXA2xxMMCIState *s)
 
 static void pxa2xx_mmci_fifo_update(PXA2xxMMCIState *s)
 {
+    SDClass *sd_class = SD_GET_CLASS(s->card);
+
     if (!s->active)
         return;
 
     if (s->cmdat & CMDAT_WR_RD) {
         while (s->bytesleft && s->tx_len) {
-            sd_write_data(s->card, s->tx_fifo[s->tx_start ++]);
+            sd_class->write_data(s->card, s->tx_fifo[s->tx_start ++]);
             s->tx_start &= 0x1f;
             s->tx_len --;
             s->bytesleft --;
@@ -132,7 +134,7 @@ static void pxa2xx_mmci_fifo_update(PXA2xxMMCIState *s)
     } else
         while (s->bytesleft && s->rx_len < 32) {
             s->rx_fifo[(s->rx_start + (s->rx_len ++)) & 0x1f] =
-                sd_read_data(s->card);
+                sd_class->read_data(s->card);
             s->bytesleft --;
             s->intreq |= INT_RXFIFO_REQ;
         }

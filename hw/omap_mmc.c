@@ -219,6 +219,7 @@ static void omap_mmc_command(struct omap_mmc_s *host, int cmd, int dir,
 
 static void omap_mmc_transfer(struct omap_mmc_s *host)
 {
+    SDClass *sd_class = SD_GET_CLASS(host->card);
     uint8_t value;
 
     if (!host->transfer)
@@ -229,10 +230,10 @@ static void omap_mmc_transfer(struct omap_mmc_s *host)
             if (host->fifo_len > host->af_level)
                 break;
 
-            value = sd_read_data(host->card);
+            value = sd_class->read_data(host->card);
             host->fifo[(host->fifo_start + host->fifo_len) & 31] = value;
             if (-- host->blen_counter) {
-                value = sd_read_data(host->card);
+                value = sd_class->read_data(host->card);
                 host->fifo[(host->fifo_start + host->fifo_len) & 31] |=
                         value << 8;
                 host->blen_counter --;
@@ -244,10 +245,10 @@ static void omap_mmc_transfer(struct omap_mmc_s *host)
                 break;
 
             value = host->fifo[host->fifo_start] & 0xff;
-            sd_write_data(host->card, value);
+            sd_class->write_data(host->card, value);
             if (-- host->blen_counter) {
                 value = host->fifo[host->fifo_start] >> 8;
-                sd_write_data(host->card, value);
+                sd_class->write_data(host->card, value);
                 host->blen_counter --;
             }
 

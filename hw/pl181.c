@@ -209,18 +209,19 @@ error:
 
 static void pl181_fifo_run(pl181_state *s)
 {
+    SDClass *sd_class = SD_GET_CLASS(s->card);
     uint32_t bits;
     uint32_t value = 0;
     int n;
     int is_read;
 
     is_read = (s->datactrl & PL181_DATA_DIRECTION) != 0;
-    if (s->datacnt != 0 && (!is_read || sd_data_ready(s->card))
+    if (s->datacnt != 0 && (!is_read || sd_class->data_ready(s->card))
             && !s->linux_hack) {
         if (is_read) {
             n = 0;
             while (s->datacnt && s->fifo_len < PL181_FIFO_LEN) {
-                value |= (uint32_t)sd_read_data(s->card) << (n * 8);
+                value |= (uint32_t)sd_class->read_data(s->card) << (n * 8);
                 s->datacnt--;
                 n++;
                 if (n == 4) {
@@ -241,7 +242,7 @@ static void pl181_fifo_run(pl181_state *s)
                 }
                 n--;
                 s->datacnt--;
-                sd_write_data(s->card, value & 0xff);
+                sd_class->write_data(s->card, value & 0xff);
                 value >>= 8;
             }
         }
