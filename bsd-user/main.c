@@ -672,7 +672,7 @@ void cpu_loop(CPUSPARCState *env)
 
 static void usage(void)
 {
-    printf("qemu-" TARGET_ARCH " version " QEMU_VERSION
+    printf("qemu-" TARGET_ARCH " version " QEMU_VERSION QEMU_PKGVERSION
            ", Copyright (c) 2003-2012 Fabrice Bellard and contributors\n"
            "usage: qemu-" TARGET_ARCH " [options] program [arguments...]\n"
            "BSD CPU emulator (compiled for %s emulation)\n"
