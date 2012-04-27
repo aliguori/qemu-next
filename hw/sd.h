@@ -31,6 +31,7 @@
 
 #include "qemu-common.h"
 #include "qemu/object.h"
+#include "qapi/qapi-visit-core.h"
 
 #define OUT_OF_RANGE		(1 << 31)
 #define ADDRESS_ERROR		(1 << 30)
@@ -73,7 +74,7 @@ typedef struct SDState SDState;
 typedef struct SDClass {
     ObjectClass parent_class;
 
-    void (*init)(SDState *sd, BlockDriverState *bs, bool is_spi);
+    void (*init)(SDState *sd, BlockDriverState *bdrv);
     int (*do_command)(SDState *sd, SDRequest *req, uint8_t *response);
     void (*write_data)(SDState *sd, uint8_t value);
     uint8_t (*read_data)(SDState *sd);
@@ -93,7 +94,10 @@ typedef struct SDClass {
 static inline SDState *sd_init(BlockDriverState *bs, bool is_spi)
 {
     SDState *sd = SD_CARD(object_new(TYPE_SD_CARD));
-    SD_GET_CLASS(sd)->init(sd, bs, is_spi);
+    Error *errp = NULL;
+    object_property_set_bool(OBJECT(sd), is_spi, "spi", &errp);
+    assert_no_error(errp);
+    SD_GET_CLASS(sd)->init(sd, bs);
     return sd;
 }
 

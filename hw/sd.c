@@ -491,10 +491,9 @@ static const VMStateDescription sd_vmstate = {
    whether card should be in SSI or MMC/SD mode.  It is also up to the
    board to ensure that ssi transfers only occur when the chip select
    is asserted.  */
-static void sd_init_card(SDState *sd, BlockDriverState *bs, bool is_spi)
+static void sd_init_card(SDState *sd, BlockDriverState *bs)
 {
     sd->buf = qemu_blockalign(bs, 512);
-    sd->spi = is_spi;
     sd->enable = true;
     sd_reset(sd, bs);
     if (sd->bdrv) {
@@ -1766,10 +1765,40 @@ static void sd_class_init(ObjectClass *klass, void *data)
     k->enable = sd_enable_card;
 }
 
+static void sd_is_spi(Object *obj, Visitor *v, void *opaque,
+                         const char *name, Error **errp)
+{
+    SDState *sd = SD_CARD(obj);
+
+    visit_type_bool(v, &sd->spi, name, errp);
+}
+
+static void sd_set_spimode(Object *obj, Visitor *v, void *opaque,
+                         const char *name, Error **errp)
+{
+    SDState *sd = SD_CARD(obj);
+
+    if (sd->state != sd_idle_state) {
+        error_set(errp, QERR_DEVICE_IN_USE, bdrv_get_device_name(sd->bdrv));
+    } else {
+        visit_type_bool(v, &sd->spi, name, errp);
+    }
+}
+
+static void sd_initfn(Object *obj)
+{
+    SDState *sd = SD_CARD(obj);
+
+    sd->spi = false;
+    object_property_add(obj, "spi", "boolean", sd_is_spi, sd_set_spimode,
+            NULL, NULL, NULL);
+}
+
 static const TypeInfo sd_type_info = {
     .name = TYPE_SD_CARD,
     .parent = TYPE_OBJECT,
     .instance_size = sizeof(SDState),
+    .instance_init = sd_initfn,
     .class_init = sd_class_init,
     .class_size = sizeof(SDClass)
 };
