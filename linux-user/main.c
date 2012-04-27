@@ -3120,7 +3120,7 @@ static void handle_arg_strace(const char *arg)
 static void handle_arg_version(const char *arg)
 {
     printf("qemu-" TARGET_ARCH " version " QEMU_VERSION QEMU_PKGVERSION
-           ", Copyright (c) 2003-2008 Fabrice Bellard\n");
+           ", Copyright (c) 2003-2012 Fabrice Bellard and contributors\n");
     exit(0);
 }
 
