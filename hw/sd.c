@@ -52,6 +52,7 @@ typedef enum {
     sd_r7,        /* Operating voltage */
     sd_r1b = -1,
     sd_illegal = -2,
+    sd_r1_long = -3, /* Two byte status in SPI mode.  */
 } sd_rsp_type_t;
 
 struct SDState {
@@ -342,24 +343,93 @@ static int sd_req_crc_validate(SDRequest *req)
     return sd_crc7(buffer, 5) != req->crc;	/* TODO */
 }
 
-static void sd_response_r1_make(SDState *sd, uint8_t *response)
+
+/* Make SPI status word from full card status.  Most commands only use
+   the high byte.  */
+static uint16_t sd_get_spi_status(SDState *sd, uint32_t cardstatus)
+{
+    uint16_t status = 0;
+
+    if (((cardstatus >> 9) & 0xf) < 4)
+        status |= SPI_SDR_IDLE;
+    if (cardstatus & ERASE_RESET)
+        status |= SPI_SDR_ERASE_RESET;
+    if (cardstatus & ILLEGAL_COMMAND)
+        status |= SPI_SDR_ILLEGAL_COMMAND;
+    if (cardstatus & COM_CRC_ERROR)
+        status |= SPI_SDR_COM_CRC_ERROR;
+    if (cardstatus & ERASE_SEQ_ERROR)
+        status |= SPI_SDR_ERASE_SEQ_ERROR;
+    if (cardstatus & ADDRESS_ERROR)
+        status |= SPI_SDR_ADDRESS_ERROR;
+    if (cardstatus & CARD_IS_LOCKED)
+        status |= SPI_SDR_LOCKED;
+    if (cardstatus & (LOCK_UNLOCK_FAILED | WP_ERASE_SKIP))
+        status |= SPI_SDR_WP_ERASE;
+    if (cardstatus & SD_ERROR)
+        status |= SPI_SDR_ERROR;
+    if (cardstatus & CC_ERROR)
+        status |= SPI_SDR_CC_ERROR;
+    if (cardstatus & CARD_ECC_FAILED)
+        status |= SPI_SDR_ECC_FAILED;
+    if (cardstatus & WP_VIOLATION)
+        status |= SPI_SDR_WP_VIOLATION;
+    if (cardstatus & ERASE_PARAM)
+        status |= SPI_SDR_ERASE_PARAM;
+    if (cardstatus & (OUT_OF_RANGE | CID_CSD_OVERWRITE))
+        status |= SPI_SDR_OUT_OF_RANGE;
+    /* ??? Don't know what Parameter Error really means, so
+       assume it's set if the second byte is nonzero.  */
+    if (status & 0xff)
+        status |= SPI_SDR_PARAMETER_ERROR;
+
+    return status;
+}
+
+static int sd_response_r1_make(SDState *sd, uint8_t *response)
 {
     uint32_t status = sd->card_status;
     /* Clear the "clear on read" status bits */
     sd->card_status &= ~CARD_STATUS_C;
 
-    response[0] = (status >> 24) & 0xff;
-    response[1] = (status >> 16) & 0xff;
-    response[2] = (status >> 8) & 0xff;
-    response[3] = (status >> 0) & 0xff;
+    if (sd->spi) {
+        response[0] = sd_get_spi_status(sd, status) >> 8;
+        return 1;
+    } else {
+        response[0] = (status >> 24) & 0xff;
+        response[1] = (status >> 16) & 0xff;
+        response[2] = (status >> 8) & 0xff;
+        response[3] = (status >> 0) & 0xff;
+        return 4;
+    }
 }
 
-static void sd_response_r3_make(SDState *sd, uint8_t *response)
+/* Only used in SPI mode.  */
+static int sd_response_r1_long_make(SDState *sd, uint8_t *response)
 {
-    response[0] = (sd->ocr >> 24) & 0xff;
-    response[1] = (sd->ocr >> 16) & 0xff;
-    response[2] = (sd->ocr >> 8) & 0xff;
-    response[3] = (sd->ocr >> 0) & 0xff;
+    uint32_t status = sd->card_status;
+    /* Clear the "clear on read" status bits */
+    sd->card_status &= ~CARD_STATUS_C;
+    status = sd_get_spi_status(sd, status);
+    response[0] = status >> 8;
+    response[1] = status & 0xff;
+    return 2;
+}
+
+static int sd_response_r3_make(SDState *sd, uint8_t *response)
+{
+    int len = 4;
+
+    if (sd->spi) {
+        len = 5;
+        *(response++) = sd_get_spi_status(sd, sd->card_status) >> 8;
+    }
+    *(response++) = (sd->ocr >> 24) & 0xff;
+    *(response++) = (sd->ocr >> 16) & 0xff;
+    *(response++) = (sd->ocr >> 8) & 0xff;
+    *(response++) = (sd->ocr >> 0) & 0xff;
+
+    return len;
 }
 
 static void sd_response_r6_make(SDState *sd, uint8_t *response)
@@ -379,12 +449,20 @@ static void sd_response_r6_make(SDState *sd, uint8_t *response)
     response[3] = status & 0xff;
 }
 
-static void sd_response_r7_make(SDState *sd, uint8_t *response)
+static int sd_response_r7_make(SDState *sd, uint8_t *response)
 {
-    response[0] = (sd->vhs >> 24) & 0xff;
-    response[1] = (sd->vhs >> 16) & 0xff;
-    response[2] = (sd->vhs >>  8) & 0xff;
-    response[3] = (sd->vhs >>  0) & 0xff;
+    int len = 4;
+
+    if (sd->spi) {
+        len = 5;
+        *(response++) = sd_get_spi_status(sd, sd->card_status) >> 8;
+    }
+    *(response++) = (sd->vhs >> 24) & 0xff;
+    *(response++) = (sd->vhs >> 16) & 0xff;
+    *(response++) = (sd->vhs >>  8) & 0xff;
+    *(response++) = (sd->vhs >>  0) & 0xff;
+
+    return len;
 }
 
 static void sd_reset(SDState *sd, BlockDriverState *bdrv)
@@ -441,7 +519,7 @@ static const BlockDevOps sd_block_ops = {
 };
 
 /* We do not model the chip select pin, so allow the board to select
-   whether card should be in SSI or MMC/SD mode.  It is also up to the
+   whether card should be in SPI or MMC/SD mode.  It is also up to the
    board to ensure that ssi transfers only occur when the chip select
    is asserted.  */
 SDState *sd_init(BlockDriverState *bs, int is_spi)
@@ -843,7 +921,7 @@ static sd_rsp_type_t sd_normal_command(SDState *sd,
             if (sd->rca != rca)
                 return sd_r0;
 
-            return sd_r1;
+            return sd->spi ? sd_r1_long : sd_r1;
 
         default:
             break;
@@ -1339,8 +1417,11 @@ send_response:
     switch (rtype) {
     case sd_r1:
     case sd_r1b:
-        sd_response_r1_make(sd, response);
-        rsplen = 4;
+        rsplen = sd_response_r1_make(sd, response);
+        break;
+
+    case sd_r1_long:
+        rsplen = sd_response_r1_long_make(sd, response);
         break;
 
     case sd_r2_i:
@@ -1354,8 +1435,7 @@ send_response:
         break;
 
     case sd_r3:
-        sd_response_r3_make(sd, response);
-        rsplen = 4;
+        rsplen = sd_response_r3_make(sd, response);
         break;
 
     case sd_r6:
@@ -1364,8 +1444,7 @@ send_response:
         break;
 
     case sd_r7:
-        sd_response_r7_make(sd, response);
-        rsplen = 4;
+        rsplen = sd_response_r7_make(sd, response);
         break;
 
     case sd_r0:

@@ -51,6 +51,23 @@
 #define APP_CMD			(1 << 5)
 #define AKE_SEQ_ERROR		(1 << 3)
 
+/* SPI State word bits.  */
+#define SPI_SDR_LOCKED          0x0001
+#define SPI_SDR_WP_ERASE        0x0002
+#define SPI_SDR_ERROR           0x0004
+#define SPI_SDR_CC_ERROR        0x0008
+#define SPI_SDR_ECC_FAILED      0x0010
+#define SPI_SDR_WP_VIOLATION    0x0020
+#define SPI_SDR_ERASE_PARAM     0x0040
+#define SPI_SDR_OUT_OF_RANGE    0x0080
+#define SPI_SDR_IDLE            0x0100
+#define SPI_SDR_ERASE_RESET     0x0200
+#define SPI_SDR_ILLEGAL_COMMAND 0x0400
+#define SPI_SDR_COM_CRC_ERROR   0x0800
+#define SPI_SDR_ERASE_SEQ_ERROR 0x1000
+#define SPI_SDR_ADDRESS_ERROR   0x2000
+#define SPI_SDR_PARAMETER_ERROR 0x4000
+
 typedef enum {
     sd_none = -1,
     sd_bc = 0,	/* broadcast -- no response */
