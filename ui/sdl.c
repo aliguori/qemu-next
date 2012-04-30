@@ -34,6 +34,13 @@
 #include "x_keymap.h"
 #include "sdl_zoom.h"
 
+#if 0
+/* Scaling with SDL is broken, therefore it is disabled by default.
+ * It can be enabled by defining the following macro.
+ */
+# define CONFIG_SDL_SCALING
+#endif
+
 static DisplayChangeListener *dcl;
 static SDL_Surface *real_screen;
 static SDL_Surface *guest_screen = NULL;
@@ -638,6 +645,7 @@ static void handle_keydown(DisplayState *ds, SDL_Event *ev)
             break;
         case 0x1b: /* '+' */
         case 0x35: /* '-' */
+#if defined(CONFIG_SDL_SCALING)
             if (!gui_fullscreen) {
                 int width = MAX(real_screen->w + (keycode == 0x1b ? 50 : -50),
                                 160);
@@ -648,6 +656,8 @@ static void handle_keydown(DisplayState *ds, SDL_Event *ev)
                 vga_hw_update();
                 gui_keysym = 1;
             }
+#endif /* CONFIG_SDL_SCALING */
+            break;
         default:
             break;
         }
@@ -889,9 +899,11 @@ static void sdl_refresh(DisplayState *ds)
             handle_activation(ds, ev);
             break;
         case SDL_VIDEORESIZE:
+#if defined(CONFIG_SDL_SCALING)
             sdl_scale(ds, ev->resize.w, ev->resize.h);
             vga_hw_invalidate();
             vga_hw_update();
+#endif
             break;
         default:
             break;

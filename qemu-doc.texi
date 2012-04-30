@@ -290,11 +290,11 @@ Toggle full screen
 
 @item Ctrl-Alt-+
 @kindex Ctrl-Alt-+
-Enlarge the screen
+Enlarge the screen. This function is currently disabled.
 
 @item Ctrl-Alt--
 @kindex Ctrl-Alt--
-Shrink the screen
+Shrink the screen. This function is currently disabled.
 
 @item Ctrl-Alt-u
 @kindex Ctrl-Alt-u
