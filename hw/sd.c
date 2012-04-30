@@ -141,7 +141,7 @@ static const sd_cmd_type_t sd_cmd_type[64] = {
     sd_ac,   sd_ac,   sd_none, sd_none, sd_none, sd_none, sd_ac,   sd_none,
     sd_none, sd_none, sd_bc,   sd_none, sd_none, sd_none, sd_none, sd_none,
     sd_none, sd_none, sd_none, sd_none, sd_none, sd_none, sd_none, sd_ac,
-    sd_adtc, sd_none, sd_none, sd_none, sd_none, sd_none, sd_none, sd_none,
+    sd_adtc, sd_none, sd_bcr,  sd_none,   sd_none, sd_none, sd_none, sd_none,
 };
 
 static const sd_cmd_type_t sd_acmd_type[64] = {
@@ -1218,6 +1218,19 @@ static sd_rsp_type_t sd_normal_command(SDState *sd,
             else
                 sd->state = sd_receivingdata_state;
             return sd_r1;
+
+        default:
+            break;
+        }
+        break;
+    case 58:    /* CMD58: READ_OCR */
+        if (!sd->spi) {
+            goto bad_cmd;
+        }
+        switch (sd->state) {
+        case sd_idle_state:
+        case sd_transfer_state:
+            return sd_r3;
 
         default:
             break;
