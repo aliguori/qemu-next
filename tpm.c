@@ -24,8 +24,25 @@ static QLIST_HEAD(, TPMBackend) tpm_backends =
 #ifdef CONFIG_TPM
 
 static const TPMDriverOps *bes[] = {
+#ifdef CONFIG_TPM_PASSTHROUGH
+    &tpm_passthrough_driver,
+#endif
     NULL,
 };
+
+/*
+ * Write an error message in the given output buffer.
+ */
+void tpm_write_fatal_error_response(uint8_t *out, uint32_t out_len)
+{
+    if (out_len >= sizeof(struct tpm_resp_hdr)) {
+        struct tpm_resp_hdr *resp = (struct tpm_resp_hdr *)out;
+
+        resp->tag = cpu_to_be16(TPM_TAG_RSP_COMMAND);
+        resp->len = cpu_to_be32(sizeof(struct tpm_resp_hdr));
+        resp->errcode = cpu_to_be32(TPM_FAIL);
+    }
+}
 
 const TPMDriverOps *tpm_get_backend_driver(const char *id)
 {
@@ -182,6 +199,7 @@ static TPMInfo *qmp_query_tpm_inst(TPMBackend *drv)
     res->id = g_strdup(drv->id);
     if (drv->path) {
         res->path = g_strdup(drv->path);
+        res->has_path = true;
     }
     res->type = g_strdup(drv->ops->id);
 
