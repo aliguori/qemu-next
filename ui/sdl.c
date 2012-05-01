@@ -217,8 +217,11 @@ static void sdl_free_displaysurface(DisplaySurface *surface)
 
 static DisplaySurface* sdl_resize_displaysurface(DisplaySurface *surface, int width, int height)
 {
-    sdl_free_displaysurface(surface);
-    return sdl_create_displaysurface(width, height);
+    if (surface->width != width || surface->height != height) {
+        sdl_free_displaysurface(surface);
+        surface = sdl_create_displaysurface(width, height);
+    }
+    return surface;
 }
 
 /* generic keyboard conversion */
