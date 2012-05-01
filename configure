@@ -195,6 +195,7 @@ guest_agent="yes"
 libiscsi=""
 coroutine=""
 tpm="no"
+tpm_passthrough="no"
 
 # parse CC options first
 for opt do
@@ -827,10 +828,19 @@ for opt do
   ;;
   --enable-tpm) tpm="yes"
   ;;
+  --enable-tpm-passthrough) tpm_passthrough="yes"
+  ;;
   *) echo "ERROR: unknown option $opt"; show_help="yes"
   ;;
   esac
 done
+
+if test "$tpm" = "no" ; then
+    if test "$tpm_passthrough" = "yes"; then
+        echo "ERROR: --enable-tpm-passthrough requires --enable-tpm"
+        exit 1
+    fi
+fi
 
 #
 # If cpu ~= sparc and  sparc_cpu hasn't been defined, plug in the right
@@ -1114,6 +1124,7 @@ echo "  --enable-guest-agent     enable building of the QEMU Guest Agent"
 echo "  --with-coroutine=BACKEND coroutine backend. Supported options:"
 echo "                           gthread, ucontext, sigaltstack, windows"
 echo "  --enable-tpm             enable TPM support"
+echo "  --enable-tpm-passthrough enable TPM passthrough driver"
 echo ""
 echo "NOTE: The object files are built at the place where configure is launched"
 exit 1
@@ -3019,6 +3030,7 @@ echo "libiscsi support  $libiscsi"
 echo "build guest agent $guest_agent"
 echo "coroutine backend $coroutine_backend"
 echo "TPM support       $tpm"
+echo "TPM passthrough   $tpm_passthrough"
 
 if test "$sdl_too_old" = "yes"; then
 echo "-> Your SDL version is too old - please upgrade to have SDL support"
@@ -3900,7 +3912,9 @@ fi
 if test "$tpm" = "yes"; then
   if test "$target_softmmu" = "yes" ; then
     if test "$linux" = "yes" ; then
-      echo "CONFIG_TPM_PASSTHROUGH=y" >> $config_host_mak
+      if test "$tpm_passthrough" = "yes" ; then
+        echo "CONFIG_TPM_PASSTHROUGH=y" >> $config_host_mak
+      fi
     fi
     echo "CONFIG_TPM=y" >> $config_host_mak
   fi
