@@ -24,6 +24,8 @@ typedef struct TPMBackend {
     char *id;
     const char *fe_model;
     char *path;
+    bool has_tpm_fd;
+    int  tpm_fd;
     const TPMDriverOps *ops;
 
     union {

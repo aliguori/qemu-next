@@ -567,10 +567,15 @@ void hmp_info_tpm(Monitor *mon)
         TPMInfo *ti = info->value;
         monitor_printf(mon, " tpm%d: model=%s\n",
                        c, ti->model);
-        monitor_printf(mon, "  \\ %s: type=%s%s%s\n",
+        monitor_printf(mon, "  \\ %s: type=%s%s%s",
                        ti->id, ti->type,
                        ti->has_path ? ",path=" : "",
                        ti->has_path ? ti->path : "");
+        if (ti->has_fd) {
+            monitor_printf(mon, ",fd=%" PRId64,
+                           ti->fd);
+        }
+        monitor_printf(mon, "\n");
         c++;
     }
     qapi_free_TPMInfoList(info_list);

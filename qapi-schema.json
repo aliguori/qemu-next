@@ -1769,10 +1769,12 @@
 #
 # @path: #optional Path to the TPM backend device
 #
+# @fd: #optional File descriptor for the TPM backend device
 # Since: 1.1
 ##
 { 'type': 'TPMInfo',
-  'data': {'model': 'str', 'id': 'str', 'type': 'str', '*path': 'str' } }
+  'data': {'model': 'str', 'id': 'str', 'type': 'str', '*path': 'str',
+           '*fd' : 'int' } }
 
 ##
 # @query-tpm

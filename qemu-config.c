@@ -628,6 +628,11 @@ static QemuOptsList qemu_tpmdev_opts = {
             .type = QEMU_OPT_STRING,
             .help = "Persistent storage for TPM state",
         },
+        {
+            .name = "fd",
+            .type = QEMU_OPT_STRING,
+            .help = "Filedescriptor for accessing the TPM",
+        },
         { /* end of list */ }
     },
 };
