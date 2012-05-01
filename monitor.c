@@ -47,6 +47,7 @@
 #include "migration.h"
 #include "kvm.h"
 #include "acl.h"
+#include "tpm.h"
 #include "qint.h"
 #include "qfloat.h"
 #include "qlist.h"
@@ -2600,6 +2601,13 @@ static mon_cmd_t info_cmds[] = {
         .params     = "",
         .help       = "show available trace-events & their state",
         .mhandler.info = do_trace_print_events,
+    },
+    {
+        .name       = "tpm",
+        .args_type  = "",
+        .params     = "",
+        .help       = "show the TPM device",
+        .mhandler.info = hmp_info_tpm,
     },
     {
         .name       = NULL,
