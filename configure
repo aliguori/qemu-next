@@ -3899,6 +3899,9 @@ fi
 
 if test "$tpm" = "yes"; then
   if test "$target_softmmu" = "yes" ; then
+    if test "$linux" = "yes" ; then
+      echo "CONFIG_TPM_PASSTHROUGH=y" >> $config_host_mak
+    fi
     echo "CONFIG_TPM=y" >> $config_host_mak
   fi
 fi

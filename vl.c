@@ -2676,11 +2676,13 @@ int main(int argc, char **argv, char **envp)
                 break;
             }
 #ifdef CONFIG_TPM
+# ifdef CONFIG_TPM_PASSTHROUGH
             case QEMU_OPTION_tpmdev:
                 if (tpm_config_parse(qemu_find_opts("tpmdev"), optarg) < 0) {
                     exit(1);
                 }
                 break;
+# endif
 #endif
             case QEMU_OPTION_mempath:
                 mem_path = optarg;
