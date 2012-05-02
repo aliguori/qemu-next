@@ -548,6 +548,34 @@ void hmp_info_block_jobs(Monitor *mon)
     }
 }
 
+void hmp_info_tpm(Monitor *mon)
+{
+    TPMInfoList *info_list, *info;
+    Error *err = NULL;
+    unsigned int c = 0;
+
+    info_list = qmp_query_tpm(&err);
+    if (err) {
+        monitor_printf(mon, "TPM device not supported\n");
+        error_free(err);
+        return;
+    }
+
+    monitor_printf(mon, "TPM device:\n");
+
+    for (info = info_list; info; info = info->next) {
+        TPMInfo *ti = info->value;
+        monitor_printf(mon, " tpm%d: model=%s\n",
+                       c, ti->model);
+        monitor_printf(mon, "  \\ %s: type=%s%s%s\n",
+                       ti->id, ti->type,
+                       ti->has_path ? ",path=" : "",
+                       ti->has_path ? ti->path : "");
+        c++;
+    }
+    qapi_free_TPMInfoList(info_list);
+}
+
 void hmp_quit(Monitor *mon, const QDict *qdict)
 {
     monitor_suspend(mon);

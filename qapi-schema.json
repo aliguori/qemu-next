@@ -1755,3 +1755,32 @@
 # Since: 0.14.0
 ##
 { 'command': 'device_del', 'data': {'id': 'str'} }
+
+##
+# @TPMInfo:
+#
+# Information about the TPM
+#
+# @model: The TPM frontend model, i.e., tpm-tis
+#
+# @id: The ID of the TPM
+#
+# @type: The type of TPM backend, i.e., passthrough
+#
+# @path: #optional Path to the TPM backend device
+#
+# Since: 1.1
+##
+{ 'type': 'TPMInfo',
+  'data': {'model': 'str', 'id': 'str', 'type': 'str', '*path': 'str' } }
+
+##
+# @query-tpm
+#
+# Return information about the TPM device.
+#
+# Returns: @TPMInfo on success
+#
+# Since: 1.1
+##
+{ 'command': 'query-tpm', 'returns': ['TPMInfo'] }
