@@ -201,6 +201,10 @@ static TPMInfo *qmp_query_tpm_inst(TPMBackend *drv)
         res->path = g_strdup(drv->path);
         res->has_path = true;
     }
+    if (drv->tpm_fd != NULL && *drv->tpm_fd >= 0) {
+        res->fd = *drv->tpm_fd;
+        res->has_fd = true;
+    }
     res->type = g_strdup(drv->ops->id);
 
     return res;

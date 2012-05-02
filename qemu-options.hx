@@ -2017,8 +2017,9 @@ DEFHEADING()
 DEFHEADING(TPM device options:)
 
 DEF("tpmdev", HAS_ARG, QEMU_OPTION_tpmdev, \
-    "-tpmdev passthrough,id=id[,path=path]\n"
-    "                use path to provide path to a character device; default is /dev/tpm0\n",
+    "-tpmdev passthrough,id=id[,path=path][,fd=h]\n"
+    "                use path to provide path to a character device; default is /dev/tpm0\n"
+    "                use fd to provide a file descriptor to a character device\n",
     QEMU_ARCH_ALL)
 STEXI
 
@@ -2040,7 +2041,7 @@ Use ? to print all available TPM backend types.
 qemu -tpmdev ?
 @end example
 
-@item -tpmdev passthrough, id=@var{id}, path=@var{path}
+@item -tpmdev passthrough, id=@var{id}, path=@var{path}, fd=@var{h}
 
 (Linux-host only) Enable access to the host's TPM using the passthrough
 driver.
@@ -2048,6 +2049,10 @@ driver.
 @option{path} specifies the path to the host's TPM device, i.e., on
 a Linux host this would be @code{/dev/tpm0}.
 @option{path} is optional and by default @code{/dev/tpm0} is used.
+
+@option{fd} specifies the file descriptor of the host's TPM device.
+@option{fd} and @option{path} are mutually exclusive.
+@option{fd} is optional.
 
 Some notes about using the host's TPM with the passthrough driver:
 

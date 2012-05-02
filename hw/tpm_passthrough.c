@@ -305,26 +305,54 @@ static int tpm_passthrough_test_tpmdev(int fd)
 static int tpm_passthrough_handle_device_opts(QemuOpts *opts, TPMBackend *tb)
 {
     const char *value;
+    struct stat statbuf;
 
-    value = qemu_opt_get(opts, "path");
-    if (!value) {
-        value = TPM_PASSTHROUGH_DEFAULT_DEVICE;
+    value = qemu_opt_get(opts, "fd");
+    if (value) {
+        if (qemu_opt_get(opts, "path")) {
+            error_report("fd= is invalid with path=");
+            goto err_exit;
+        }
+
+        tb->s.tpm_pt->tpm_fd = qemu_parse_fd(value);
+        if (tb->s.tpm_pt->tpm_fd < 0) {
+            error_report("Illegal file descriptor for TPM device.\n");
+            goto err_exit;
+        }
+
+        tb->tpm_fd = &tb->s.tpm_pt->tpm_fd;
+    } else {
+        value = qemu_opt_get(opts, "path");
+        if (!value) {
+            value = TPM_PASSTHROUGH_DEFAULT_DEVICE;
+        }
+
+        tb->s.tpm_pt->tpm_dev = g_strdup(value);
+
+        tb->path = g_strdup(value);
+
+        tb->s.tpm_pt->tpm_fd = open(tb->s.tpm_pt->tpm_dev, O_RDWR);
+        if (tb->s.tpm_pt->tpm_fd < 0) {
+            error_report("Cannot access TPM device using '%s'.\n",
+                         tb->s.tpm_pt->tpm_dev);
+            goto err_free_parameters;
+        }
     }
 
-    tb->s.tpm_pt->tpm_dev = g_strdup(value);
+    if (fstat(tb->s.tpm_pt->tpm_fd, &statbuf) != 0) {
+        error_report("Cannot determine file descriptor type for TPM "
+                     "device: %s", strerror(errno));
+        goto err_close_tpmdev;
+    }
 
-    tb->path = g_strdup(tb->s.tpm_pt->tpm_dev);
-
-    tb->s.tpm_pt->tpm_fd = open(tb->s.tpm_pt->tpm_dev, O_RDWR);
-    if (tb->s.tpm_pt->tpm_fd < 0) {
-        error_report("Cannot access TPM device using '%s'.\n",
-                     tb->s.tpm_pt->tpm_dev);
+    /* only allow character devices for now */
+    if (!S_ISCHR(statbuf.st_mode)) {
+        error_report("TPM file descriptor is not a character device");
         goto err_free_parameters;
     }
 
     if (tpm_passthrough_test_tpmdev(tb->s.tpm_pt->tpm_fd)) {
-        error_report("'%s' is not a TPM device.\n",
-                     tb->s.tpm_pt->tpm_dev);
+        error_report("Device is not a TPM.\n");
         goto err_close_tpmdev;
     }
 
@@ -341,6 +369,7 @@ static int tpm_passthrough_handle_device_opts(QemuOpts *opts, TPMBackend *tb)
     g_free(tb->s.tpm_pt->tpm_dev);
     tb->s.tpm_pt->tpm_dev = NULL;
 
+ err_exit:
     return 1;
 }
 
