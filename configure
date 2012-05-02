@@ -194,6 +194,7 @@ zlib="yes"
 guest_agent="yes"
 libiscsi=""
 coroutine=""
+tpm="no"
 
 # parse CC options first
 for opt do
@@ -824,6 +825,8 @@ for opt do
   ;;
   --disable-guest-agent) guest_agent="no"
   ;;
+  --enable-tpm) tpm="yes"
+  ;;
   *) echo "ERROR: unknown option $opt"; show_help="yes"
   ;;
   esac
@@ -1110,6 +1113,7 @@ echo "  --disable-guest-agent    disable building of the QEMU Guest Agent"
 echo "  --enable-guest-agent     enable building of the QEMU Guest Agent"
 echo "  --with-coroutine=BACKEND coroutine backend. Supported options:"
 echo "                           gthread, ucontext, sigaltstack, windows"
+echo "  --enable-tpm             enable TPM support"
 echo ""
 echo "NOTE: The object files are built at the place where configure is launched"
 exit 1
@@ -3014,6 +3018,7 @@ echo "OpenGL support    $opengl"
 echo "libiscsi support  $libiscsi"
 echo "build guest agent $guest_agent"
 echo "coroutine backend $coroutine_backend"
+echo "TPM support       $tpm"
 
 if test "$sdl_too_old" = "yes"; then
 echo "-> Your SDL version is too old - please upgrade to have SDL support"
@@ -3889,6 +3894,12 @@ if test "$gprof" = "yes" ; then
   if test "$target_softmmu" = "yes" ; then
     ldflags="-p $ldflags"
     echo "GPROF_CFLAGS=-p" >> $config_target_mak
+  fi
+fi
+
+if test "$tpm" = "yes"; then
+  if test "$target_softmmu" = "yes" ; then
+    echo "CONFIG_TPM=y" >> $config_host_mak
   fi
 fi
 
