@@ -110,7 +110,8 @@ static const char *find_typename_by_alias(const char *alias)
     int i;
 
     for (i = 0; qdev_alias_table[i].alias; i++) {
-        if (strcmp(qdev_alias_table[i].alias, alias) == 0) {
+        if (strcmp(qdev_alias_table[i].alias, alias) == 0 &&
+            object_class_by_name(qdev_alias_table[i].typename)) {
             return qdev_alias_table[i].typename;
         }
     }
