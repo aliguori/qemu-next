@@ -1775,7 +1775,7 @@ static void audio_atexit (void)
     HWVoiceOut *hwo = NULL;
     HWVoiceIn *hwi = NULL;
 
-    while ((hwo = audio_pcm_hw_find_any_enabled_out (hwo))) {
+    while ((hwo = audio_pcm_hw_find_any_out (hwo))) {
         SWVoiceCap *sc;
 
         hwo->pcm_ops->ctl_out (hwo, VOICE_DISABLE);
@@ -1791,7 +1791,7 @@ static void audio_atexit (void)
         }
     }
 
-    while ((hwi = audio_pcm_hw_find_any_enabled_in (hwi))) {
+    while ((hwi = audio_pcm_hw_find_any_in (hwi))) {
         hwi->pcm_ops->ctl_in (hwi, VOICE_DISABLE);
         hwi->pcm_ops->fini_in (hwi);
     }
