@@ -160,6 +160,7 @@ struct VncDisplay
     char *display;
     char *password;
     time_t expires;
+    bool fips;
     int auth;
     bool lossy;
     bool non_adaptive;

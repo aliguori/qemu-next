@@ -32,6 +32,9 @@
 #include "acl.h"
 #include "qemu-objects.h"
 #include "qmp-commands.h"
+#ifndef _WIN32
+#include <syslog.h>
+#endif
 
 #define VNC_REFRESH_INTERVAL_BASE 30
 #define VNC_REFRESH_INTERVAL_INC  50
@@ -47,6 +50,21 @@ static DisplayChangeListener *dcl;
 
 static int vnc_cursor_define(VncState *vs);
 static void vnc_release_modifiers(VncState *vs);
+
+static bool fips_enabled(void)
+{
+    bool enabled = false;
+
+#ifdef __linux__
+    FILE *fds = fopen("/proc/sys/crypto/fips_enabled", "r");
+    if (fds != NULL) {
+        enabled = (fgetc(fds) == '1');
+        fclose(fds);
+    }
+#endif /* __linux__ */
+
+    return enabled;
+}
 
 static void vnc_set_share_mode(VncState *vs, VncShareMode mode)
 {
@@ -2748,6 +2766,9 @@ void vnc_display_init(DisplayState *ds)
     dcl->idle = 1;
     vnc_display = vs;
 
+    vs->fips = fips_enabled();
+    VNC_DEBUG("FIPS mode %s\n", (vs->fips ? "enabled" : "disabled"));
+
     vs->lsock = -1;
 
     vs->ds = ds;
@@ -2892,6 +2913,19 @@ int vnc_display_open(DisplayState *ds, const char *display)
     while ((options = strchr(options, ','))) {
         options++;
         if (strncmp(options, "password", 8) == 0) {
+            if (vs->fips) {
+#ifndef _WIN32
+                syslog(LOG_NOTICE,
+                      "VNC password auth disabled due to FIPS mode, exiting\n");
+#endif
+                fprintf(stderr,
+                        "VNC password auth disabled due to FIPS mode, "
+                        "consider using the VeNCrypt or SASL authentication "
+                        "methods as an alernative\n");
+                g_free(vs->display);
+                vs->display = NULL;
+                return -1;
+            }
             password = 1; /* Require password auth */
         } else if (strncmp(options, "reverse", 7) == 0) {
             reverse = 1;
