@@ -381,6 +381,10 @@ static QEMUMachine pc_machine_v1_1 = {
             .driver   = "USB",\
             .property = "full-path",\
             .value    = "no",\
+        },{\
+            .driver   = "ivshmem",\
+            .property = "use64",\
+            .value    = "0",\
         }
 
 static QEMUMachine pc_machine_v1_0 = {
