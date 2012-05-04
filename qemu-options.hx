@@ -2743,6 +2743,11 @@ DEF("qtest-log", HAS_ARG, QEMU_OPTION_qtest_log,
     "-qtest-log LOG  specify tracing options\n",
     QEMU_ARCH_ALL)
 
+DEF("dont-dump-guest", 0, QEMU_OPTION_dont_dump_guest,
+    "-dont-dump-guest\n"
+    "                do not dump guest core\n",
+    QEMU_ARCH_ALL)
+
 HXCOMM This is the last statement. Insert new options before this line!
 STEXI
 @end table

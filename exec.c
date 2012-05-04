@@ -35,6 +35,7 @@
 #include "qemu-timer.h"
 #include "memory.h"
 #include "exec-memory.h"
+#include "sysemu.h"
 #if defined(CONFIG_USER_ONLY)
 #include <qemu.h>
 #if defined(__FreeBSD__) || defined(__FreeBSD_kernel__)
@@ -2622,6 +2623,7 @@ ram_addr_t qemu_ram_alloc_from_ptr(ram_addr_t size, void *host,
                                    MemoryRegion *mr)
 {
     RAMBlock *new_block;
+    int ret;
 
     size = TARGET_PAGE_ALIGN(size);
     new_block = g_malloc0(sizeof(*new_block));
@@ -2675,6 +2677,17 @@ ram_addr_t qemu_ram_alloc_from_ptr(ram_addr_t size, void *host,
                                        last_ram_offset() >> TARGET_PAGE_BITS);
     memset(ram_list.phys_dirty + (new_block->offset >> TARGET_PAGE_BITS),
            0xff, size >> TARGET_PAGE_BITS);
+
+
+    /* Use MADV_DONTDUMP, if user doesn't want the guest memory in the core */
+    if (dont_dump_guest) {
+        ret = qemu_madvise(new_block->host, size, QEMU_MADV_DONTDUMP);
+        if (ret) {
+            perror("qemu_madvise");
+            fprintf(stderr, "madvise doesn't support MADV_DONTDUMP, "
+                            "but -dont-dump-guest-core specified\n");
+        }
+    }
 
     if (kvm_enabled())
         kvm_setup_guest_memory(new_block->host, size);

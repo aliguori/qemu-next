@@ -232,6 +232,7 @@ int boot_menu;
 uint8_t *boot_splash_filedata;
 int boot_splash_filedata_size;
 uint8_t qemu_extra_params_fw[2];
+int dont_dump_guest;
 
 typedef struct FWBootEntry FWBootEntry;
 
@@ -3200,6 +3201,9 @@ int main(int argc, char **argv, char **envp)
                 break;
             case QEMU_OPTION_qtest_log:
                 qtest_log = optarg;
+                break;
+            case QEMU_OPTION_dont_dump_guest:
+                dont_dump_guest = 1;
                 break;
             default:
                 os_parse_cmd_args(popt->index, optarg);
