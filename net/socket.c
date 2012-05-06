@@ -580,8 +580,9 @@ static int net_socket_udp_init(VLANState *vlan,
     s->dgram_dst = raddr;
 
     snprintf(s->nc.info_str, sizeof(s->nc.info_str),
-             "socket: udp=%s:%d",
-             inet_ntoa(raddr.sin_addr), ntohs(raddr.sin_port));
+             "socket: udp=%s:%d, localaddr=%s,%d",
+             inet_ntoa(raddr.sin_addr), ntohs(raddr.sin_port),
+             inet_ntoa(laddr.sin_addr), ntohs(laddr.sin_port));
     return 0;
 }
 
