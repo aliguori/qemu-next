@@ -1320,7 +1320,7 @@ int ppcmas_tlb_check(CPUPPCState *env, ppcmas_tlb_t *tlb,
     }
 
     /* Check effective address */
-    if ((address & mask) != (tlb->mas2 & MAS2_EPN_MASK)) {
+    if ((address & mask) != (tlb->mas2 & MAS2_EPN_MASK & mask)) {
         return -1;
     }
 
