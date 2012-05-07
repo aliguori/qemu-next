@@ -641,6 +641,7 @@ static void vnc_write_pixels_generic(VncState *vs, struct PixelFormat *pf,
                                      void *pixels1, int size)
 {
     uint8_t buf[4];
+    static uint8_t last_error_bpp = 4; /* any of the supported formats */
 
     if (pf->bytes_per_pixel == 4) {
         uint32_t *pixels = pixels1;
@@ -667,7 +668,12 @@ static void vnc_write_pixels_generic(VncState *vs, struct PixelFormat *pf,
             vnc_write(vs, buf, vs->clientds.pf.bytes_per_pixel);
         }
     } else {
-        fprintf(stderr, "vnc_write_pixels_generic: VncState color depth not supported\n");
+        if (last_error_bpp != pf->bytes_per_pixel) {
+            last_error_bpp = pf->bytes_per_pixel;
+            fprintf(stderr,
+                    "vnc_write_pixels_generic: VncState color depth %d not supported\n",
+                    pf->bytes_per_pixel);
+        }
     }
 }
 
