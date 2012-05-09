@@ -1153,6 +1153,22 @@ void x86_cpu_list(FILE *f, fprintf_function cpu_fprintf, const char *optarg)
     }
 }
 
+static void mce_init(X86CPU *cpu)
+{
+    CPUX86State *cenv = &cpu->env;
+    unsigned int bank;
+
+    if (((cenv->cpuid_version >> 8) & 0xf) >= 6
+        && (cenv->cpuid_features & (CPUID_MCE | CPUID_MCA)) ==
+            (CPUID_MCE | CPUID_MCA)) {
+        cenv->mcg_cap = MCE_CAP_DEF | MCE_BANKS_DEF;
+        cenv->mcg_ctl = ~(uint64_t)0;
+        for (bank = 0; bank < MCE_BANKS_DEF; bank++) {
+            cenv->mce_banks[bank * 4] = ~(uint64_t)0;
+        }
+    }
+}
+
 int cpu_x86_register(X86CPU *cpu, const char *cpu_model)
 {
     CPUX86State *env = &cpu->env;
@@ -1204,6 +1220,8 @@ int cpu_x86_register(X86CPU *cpu, const char *cpu_model)
         error_free(error);
         return -1;
     }
+
+    mce_init(cpu);
     return 0;
 }
 
@@ -1706,22 +1724,6 @@ static void x86_cpu_reset(CPUState *s)
     cpu_watchpoint_remove_all(env, BP_CPU);
 }
 
-static void mce_init(X86CPU *cpu)
-{
-    CPUX86State *cenv = &cpu->env;
-    unsigned int bank;
-
-    if (((cenv->cpuid_version >> 8) & 0xf) >= 6
-        && (cenv->cpuid_features & (CPUID_MCE | CPUID_MCA)) ==
-            (CPUID_MCE | CPUID_MCA)) {
-        cenv->mcg_cap = MCE_CAP_DEF | MCE_BANKS_DEF;
-        cenv->mcg_ctl = ~(uint64_t)0;
-        for (bank = 0; bank < MCE_BANKS_DEF; bank++) {
-            cenv->mce_banks[bank * 4] = ~(uint64_t)0;
-        }
-    }
-}
-
 static void x86_cpu_initfn(Object *obj)
 {
     X86CPU *cpu = X86_CPU(obj);
@@ -1755,7 +1757,6 @@ static void x86_cpu_initfn(Object *obj)
                         x86_cpuid_set_tsc_freq, NULL, NULL, NULL);
 
     env->cpuid_apic_id = env->cpu_index;
-    mce_init(cpu);
 }
 
 static void x86_cpu_common_class_init(ObjectClass *oc, void *data)
