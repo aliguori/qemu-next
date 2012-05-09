@@ -2777,17 +2777,22 @@ fi
 # windows autodetected by make
 if test "$coroutine" = "" -o "$coroutine" = "ucontext"; then
   if test "$darwin" != "yes"; then
-    cat > $TMPC << EOF
+    if test "$linux" = "yes" -a "$cpu" = "i386"; then
+      # RT signal mask corruption for 32-on-64 bit prevents ucontext usage
+      coroutine_backend=gthread
+    else
+      cat > $TMPC << EOF
 #include <ucontext.h>
 #ifdef __stub_makecontext
 #error Ignoring glibc stub makecontext which will always fail
 #endif
 int main(void) { makecontext(0, 0, 0); return 0; }
 EOF
-    if compile_prog "" "" ; then
+      if compile_prog "" "" ; then
         coroutine_backend=ucontext
-    else
-	coroutine_backend=gthread
+      else
+        coroutine_backend=gthread
+      fi
     fi
   else
     echo "Silently falling back into gthread backend under darwin"
