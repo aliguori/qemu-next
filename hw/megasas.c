@@ -26,6 +26,7 @@
 #include "scsi.h"
 #include "scsi-defs.h"
 #include "block_int.h"
+#include "trace.h"
 
 #include "mfi.h"
 
@@ -221,6 +222,8 @@ static int megasas_map_sgl(MegasasCmd *cmd, union mfi_sgl *sgl)
     cmd->flags = le16_to_cpu(cmd->frame->header.flags);
     iov_count = cmd->frame->header.sge_count;
     if (iov_count > MEGASAS_MAX_SGE) {
+        trace_megasas_iovec_sgl_overflow(cmd->index, iov_count,
+                                         MEGASAS_MAX_SGE);
         return iov_count;
     }
     qemu_sglist_init(&cmd->qsg, iov_count);
@@ -228,16 +231,24 @@ static int megasas_map_sgl(MegasasCmd *cmd, union mfi_sgl *sgl)
         dma_addr_t iov_pa, iov_size_p;
 
         if (!sgl) {
+            trace_megasas_iovec_sgl_underflow(cmd->index, i);
             goto unmap;
         }
         iov_pa = megasas_sgl_get_addr(cmd, sgl);
         iov_size_p = megasas_sgl_get_len(cmd, sgl);
         if (!iov_pa || !iov_size_p) {
+            trace_megasas_iovec_sgl_invalid(cmd->index, i,
+                                            iov_pa, iov_size_p);
             goto unmap;
         }
         qemu_sglist_add(&cmd->qsg, iov_pa, iov_size_p);
         sgl = megasas_sgl_next(cmd, sgl);
         iov_size += (size_t)iov_size_p;
+    }
+    if (cmd->iov_size > iov_size) {
+        trace_megasas_iovec_overflow(cmd->index, iov_size, cmd->iov_size);
+    } else if (cmd->iov_size < iov_size) {
+        trace_megasas_iovec_underflow(cmd->iov_size, iov_size, cmd->iov_size);
     }
     cmd->iov_offset = 0;
     return 0;
@@ -411,6 +422,7 @@ static MegasasCmd *megasas_next_frame(MegasasState *s,
 
     cmd = megasas_lookup_frame(s, frame);
     if (cmd) {
+        trace_megasas_qf_found(cmd->index, cmd->pa);
         return cmd;
     }
     index = s->reply_queue_head;
@@ -423,6 +435,10 @@ static MegasasCmd *megasas_next_frame(MegasasState *s,
         index = megasas_next_index(s, index, s->fw_cmds);
         num++;
     }
+    if (!cmd) {
+        trace_megasas_qf_failed(frame);
+    }
+    trace_megasas_qf_new(index, cmd);
     return cmd;
 }
 
@@ -443,6 +459,7 @@ static MegasasCmd *megasas_enqueue_frame(MegasasState *s,
         /* Map all possible frames */
         cmd->frame = cpu_physical_memory_map(frame, &frame_size_p, 0);
         if (frame_size_p != frame_size) {
+            trace_megasas_qf_map_failed(cmd->index, (unsigned long)frame);
             if (cmd->frame) {
                 cpu_physical_memory_unmap(cmd->frame, frame_size_p, 0, 0);
                 cmd->frame = NULL;
@@ -459,6 +476,9 @@ static MegasasCmd *megasas_enqueue_frame(MegasasState *s,
     }
     cmd->count = count;
     s->busy++;
+
+    trace_megasas_qf_enqueue(cmd->index, cmd->count, cmd->context,
+                             s->reply_queue_head, s->busy);
 
     return cmd;
 }
@@ -485,6 +505,8 @@ static void megasas_complete_frame(MegasasState *s, uint64_t context)
             stl_le_phys(s->reply_queue_pa + queue_offset, context);
         }
         s->reply_queue_head = megasas_next_index(s, tail, s->fw_cmds);
+        trace_megasas_qf_complete(context, tail, queue_offset,
+                                  s->busy, s->doorbell);
     }
 
     if (megasas_intr_enabled(s)) {
@@ -492,11 +514,15 @@ static void megasas_complete_frame(MegasasState *s, uint64_t context)
         s->doorbell++;
         if (s->doorbell == 1) {
             if (msix_enabled(&s->dev)) {
+                trace_megasas_msix_raise(0);
                 msix_notify(&s->dev, 0);
             } else {
+                trace_megasas_irq_raise();
                 qemu_irq_raise(s->dev.irq[0]);
             }
         }
+    } else {
+        trace_megasas_qf_complete_noirq(context);
     }
 }
 
@@ -534,15 +560,18 @@ static int megasas_init_firmware(MegasasState *s, MegasasCmd *cmd)
     pa_lo = le32_to_cpu(cmd->frame->init.qinfo_new_addr_lo);
     pa_hi = le32_to_cpu(cmd->frame->init.qinfo_new_addr_hi);
     iq_pa = (((uint64_t) pa_hi << 32) | pa_lo);
+    trace_megasas_init_firmware((uint64_t)iq_pa);
     initq_size = sizeof(*initq);
     initq = cpu_physical_memory_map(iq_pa, &initq_size, 0);
     if (!initq || initq_size != sizeof(*initq)) {
+        trace_megasas_initq_map_failed(cmd->index);
         s->event_count++;
         ret = MFI_STAT_MEMORY_NOT_AVAILABLE;
         goto out;
     }
     s->reply_queue_len = le32_to_cpu(initq->rq_entries) & 0xFFFF;
     if (s->reply_queue_len > s->fw_cmds) {
+        trace_megasas_initq_mismatch(s->reply_queue_len, s->fw_cmds);
         s->event_count++;
         ret = MFI_STAT_INVALID_PARAMETER;
         goto out;
@@ -562,6 +591,9 @@ static int megasas_init_firmware(MegasasState *s, MegasasCmd *cmd)
     if (flags & MFI_QUEUE_FLAG_CONTEXT64) {
         s->flags |= MEGASAS_MASK_USE_QUEUE64;
     }
+    trace_megasas_init_queue((unsigned long)s->reply_queue_pa,
+                             s->reply_queue_len, s->reply_queue_head,
+                             s->reply_queue_tail, flags);
     megasas_reset_frames(s);
     s->fw_state = MFI_FWSTATE_OPERATIONAL;
 out:
@@ -577,9 +609,12 @@ static int megasas_map_dcmd(MegasasCmd *cmd)
 
     cmd->flags = le16_to_cpu(cmd->frame->header.flags);
     if (!cmd->frame->header.sge_count) {
+        trace_megasas_dcmd_zero_sge(cmd->index);
         cmd->iov_size = 0;
         return 0;
     } else if (cmd->frame->header.sge_count > 1) {
+        trace_megasas_dcmd_invalid_sge(cmd->index,
+                                       cmd->frame->header.sge_count);
         cmd->iov_size = 0;
         return -1;
     }
@@ -593,6 +628,8 @@ static int megasas_map_dcmd(MegasasCmd *cmd)
 
 static void megasas_finish_dcmd(MegasasCmd *cmd, uint32_t iov_size)
 {
+    trace_megasas_finish_dcmd(cmd->index, iov_size);
+
     if (cmd->frame->header.sge_count)
         qemu_sglist_destroy(&cmd->qsg);
     if (iov_size > cmd->iov_size) {
@@ -621,6 +658,8 @@ static int megasas_ctrl_get_info(MegasasState *s, MegasasCmd *cmd)
 
     memset(&info, 0x0, cmd->iov_size);
     if (cmd->iov_size < dcmd_size) {
+        trace_megasas_dcmd_invalid_xfer_len(cmd->index, cmd->iov_size,
+                                            dcmd_size);
         return MFI_STAT_INVALID_PARAMETER;
     }
 
@@ -716,6 +755,8 @@ static int megasas_mfc_get_defaults(MegasasState *s, MegasasCmd *cmd)
 
     memset(&info, 0x0, dcmd_size);
     if (cmd->iov_size < dcmd_size) {
+        trace_megasas_dcmd_invalid_xfer_len(cmd->index, cmd->iov_size,
+                                            dcmd_size);
         return MFI_STAT_INVALID_PARAMETER;
     }
 
@@ -744,6 +785,8 @@ static int megasas_dcmd_get_bios_info(MegasasState *s, MegasasCmd *cmd)
 
     memset(&info, 0x0, dcmd_size);
     if (cmd->iov_size < dcmd_size) {
+        trace_megasas_dcmd_invalid_xfer_len(cmd->index, cmd->iov_size,
+                                            dcmd_size);
         return MFI_STAT_INVALID_PARAMETER;
     }
     info.continue_on_error = 1;
@@ -774,6 +817,7 @@ static int megasas_dcmd_set_fw_time(MegasasState *s, MegasasCmd *cmd)
     /* This is a dummy; setting of firmware time is not allowed */
     memcpy(&fw_time, cmd->frame->dcmd.mbox, sizeof(fw_time));
 
+    trace_megasas_dcmd_set_fw_time(cmd->index, fw_time);
     fw_time = cpu_to_le64(megasas_fw_time());
     return MFI_STAT_OK;
 }
@@ -798,6 +842,8 @@ static int megasas_event_wait(MegasasState *s, MegasasCmd *cmd)
     union mfi_evt event;
 
     if (cmd->iov_size < sizeof(struct mfi_evt_detail)) {
+        trace_megasas_dcmd_invalid_xfer_len(cmd->index, cmd->iov_size,
+                                            sizeof(struct mfi_evt_detail));
         return MFI_STAT_INVALID_PARAMETER;
     }
     s->event_count = cpu_to_le32(cmd->frame->dcmd.mbox[0]);
@@ -822,6 +868,8 @@ static int megasas_dcmd_pd_get_list(MegasasState *s, MegasasCmd *cmd)
     memset(&info, 0, dcmd_size);
     offset = 8;
     if (cmd->iov_size < (offset + sizeof(struct mfi_pd_address))) {
+        trace_megasas_dcmd_invalid_xfer_len(cmd->index, cmd->iov_size,
+                                            offset + sizeof(struct mfi_pd_address));
         return MFI_STAT_INVALID_PARAMETER;
     }
 
@@ -845,6 +893,7 @@ static int megasas_dcmd_pd_get_list(MegasasState *s, MegasasCmd *cmd)
         num_pd_disks++;
         offset += sizeof(struct mfi_pd_address);
     }
+    trace_megasas_dcmd_pd_get_list(cmd->index, num_pd_disks, max_pd_disks, offset);
 
     info.size = cpu_to_le32(offset);
     info.count = cpu_to_le32(num_pd_disks);
@@ -859,6 +908,7 @@ static int megasas_dcmd_pd_list_query(MegasasState *s, MegasasCmd *cmd)
 
     /* mbox0 contains flags */
     flags = le16_to_cpu(cmd->frame->dcmd.mbox[0]);
+    trace_megasas_dcmd_pd_list_query(cmd->index, flags);
     if (flags == MR_PD_QUERY_TYPE_ALL ||
         megasas_is_jbod(s)) {
         return megasas_dcmd_pd_get_list(s, cmd);
@@ -888,10 +938,14 @@ static int megasas_pd_get_info_submit(SCSIDevice *sdev, int lun,
         megasas_setup_inquiry(cmdbuf, 0, sizeof(info->inquiry_data));
         req = scsi_req_new(sdev, cmd->index, lun, cmdbuf, cmd);
         if (!req) {
+            trace_megasas_dcmd_req_alloc_failed(cmd->index,
+                                                "PD get info std inquiry");
             g_free(cmd->iov_buf);
             cmd->iov_buf = NULL;
             return MFI_STAT_FLASH_ALLOC_FAIL;
         }
+        trace_megasas_dcmd_internal_submit(cmd->index,
+                                           "PD get info std inquiry", lun);
         len = scsi_req_enqueue(req);
         if (len > 0) {
             cmd->iov_size = len;
@@ -902,8 +956,12 @@ static int megasas_pd_get_info_submit(SCSIDevice *sdev, int lun,
         megasas_setup_inquiry(cmdbuf, 0x83, sizeof(info->vpd_page83));
         req = scsi_req_new(sdev, cmd->index, lun, cmdbuf, cmd);
         if (!req) {
+            trace_megasas_dcmd_req_alloc_failed(cmd->index,
+                                                "PD get info vpd inquiry");
             return MFI_STAT_FLASH_ALLOC_FAIL;
         }
+        trace_megasas_dcmd_internal_submit(cmd->index,
+                                           "PD get info vpd inquiry", lun);
         len = scsi_req_enqueue(req);
         if (len > 0) {
             cmd->iov_size = len;
@@ -958,6 +1016,7 @@ static int megasas_dcmd_pd_get_info(MegasasState *s, MegasasCmd *cmd)
     /* mbox0 has the ID */
     pd_id = le16_to_cpu(cmd->frame->dcmd.mbox[0]);
     sdev = scsi_device_find(&s->bus, 0, pd_id, 0);
+    trace_megasas_dcmd_pd_get_info(cmd->index, pd_id);
 
     if (sdev) {
         /* Submit inquiry */
@@ -977,6 +1036,8 @@ static int megasas_dcmd_ld_get_list(MegasasState *s, MegasasCmd *cmd)
 
     memset(&info, 0, dcmd_size);
     if (cmd->iov_size < dcmd_size) {
+        trace_megasas_dcmd_invalid_xfer_len(cmd->index, cmd->iov_size,
+                                            dcmd_size);
         return MFI_STAT_INVALID_PARAMETER;
     }
 
@@ -997,6 +1058,7 @@ static int megasas_dcmd_ld_get_list(MegasasState *s, MegasasCmd *cmd)
         num_ld_disks++;
     }
     info.ld_count = cpu_to_le32(num_ld_disks);
+    trace_megasas_dcmd_ld_get_list(cmd->index, num_ld_disks, max_ld_disks);
 
     resid = dma_buf_read((uint8_t *)&info, dcmd_size, &cmd->qsg);
     cmd->iov_size = dcmd_size - resid;
@@ -1022,10 +1084,14 @@ static int megasas_ld_get_info_submit(SCSIDevice *sdev, int lun,
         megasas_setup_inquiry(cdb, 0x83, sizeof(info->vpd_page83));
         req = scsi_req_new(sdev, cmd->index, lun, cdb, cmd);
         if (!req) {
+            trace_megasas_dcmd_req_alloc_failed(cmd->index,
+                                                "LD get info vpd inquiry");
             g_free(cmd->iov_buf);
             cmd->iov_buf = NULL;
             return MFI_STAT_FLASH_ALLOC_FAIL;
         }
+        trace_megasas_dcmd_internal_submit(cmd->index,
+                                           "LD get info vpd inquiry", lun);
         len = scsi_req_enqueue(req);
         if (len > 0) {
             cmd->iov_size = len;
@@ -1069,6 +1135,7 @@ static int megasas_dcmd_ld_get_info(MegasasState *s, MegasasCmd *cmd)
 
     /* mbox0 has the ID */
     ld_id = le16_to_cpu(cmd->frame->dcmd.mbox[0]);
+    trace_megasas_dcmd_ld_get_info(cmd->index, ld_id);
 
     if (megasas_is_jbod(s)) {
         return MFI_STAT_DEVICE_NOT_FOUND;
@@ -1177,6 +1244,8 @@ static int megasas_dcmd_get_properties(MegasasState *s, MegasasCmd *cmd)
 
     memset(&info, 0x0, dcmd_size);
     if (cmd->iov_size < dcmd_size) {
+        trace_megasas_dcmd_invalid_xfer_len(cmd->index, cmd->iov_size,
+                                            dcmd_size);
         return MFI_STAT_INVALID_PARAMETER;
     }
     info.pred_fail_poll_interval = cpu_to_le16(300);
@@ -1215,61 +1284,97 @@ static int megasas_cluster_reset_ld(MegasasState *s, MegasasCmd *cmd)
     return MFI_STAT_INVALID_DCMD;
 }
 
+static int megasas_dcmd_set_properties(MegasasState *s, MegasasCmd *cmd)
+{
+    uint8_t *dummy = g_malloc(cmd->iov_size);
+
+    dma_buf_write(dummy, cmd->iov_size, &cmd->qsg);
+
+    trace_megasas_dcmd_dump_frame(0,
+            dummy[0x00], dummy[0x01],dummy[0x02], dummy[0x03],
+            dummy[0x04], dummy[0x05], dummy[0x06], dummy[0x07]);
+    trace_megasas_dcmd_dump_frame(1,
+            dummy[0x08], dummy[0x09], dummy[0x0a], dummy[0x0b],
+            dummy[0x0c], dummy[0x0d], dummy[0x0e], dummy[0x0f]);
+    trace_megasas_dcmd_dump_frame(2,
+            dummy[0x10], dummy[0x11], dummy[0x12], dummy[0x13],
+            dummy[0x14], dummy[0x15], dummy[0x16], dummy[0x17]);
+    trace_megasas_dcmd_dump_frame(3,
+            dummy[0x18], dummy[0x19], dummy[0x1a], dummy[0x1b],
+            dummy[0x1c], dummy[0x1d], dummy[0x1e], dummy[0x1f]);
+    trace_megasas_dcmd_dump_frame(4,
+            dummy[0x20], dummy[0x21], dummy[0x22], dummy[0x23],
+            dummy[0x24], dummy[0x25], dummy[0x26], dummy[0x27]);
+    trace_megasas_dcmd_dump_frame(5,
+            dummy[0x28], dummy[0x29], dummy[0x2a], dummy[0x2b],
+            dummy[0x2c], dummy[0x2d], dummy[0x2e], dummy[0x2f]);
+    trace_megasas_dcmd_dump_frame(6,
+            dummy[0x30], dummy[0x31], dummy[0x32], dummy[0x33],
+            dummy[0x34], dummy[0x35], dummy[0x36], dummy[0x37]);
+    trace_megasas_dcmd_dump_frame(7,
+            dummy[0x38], dummy[0x39], dummy[0x3a], dummy[0x3b],
+            dummy[0x3c], dummy[0x3d], dummy[0x3e], dummy[0x3f]);
+    g_free(dummy);
+    return MFI_STAT_OK;
+}
+
 static int megasas_dcmd_dummy(MegasasState *s, MegasasCmd *cmd)
 {
+    trace_megasas_dcmd_dummy(cmd->index, cmd->iov_size);
     return MFI_STAT_OK;
 }
 
 static const struct dcmd_cmd_tbl_t {
     int opcode;
+    const char *desc;
     int (*func)(MegasasState *s, MegasasCmd *cmd);
 } dcmd_cmd_tbl[] = {
-    { MFI_DCMD_CTRL_MFI_HOST_MEM_ALLOC, megasas_dcmd_dummy },
-    { MFI_DCMD_CTRL_GET_INFO, megasas_ctrl_get_info },
-    { MFI_DCMD_CTRL_GET_PROPERTIES, megasas_dcmd_get_properties },
-    { MFI_DCMD_CTRL_SET_PROPERTIES, megasas_dcmd_dummy },
-    { MFI_DCMD_CTRL_ALARM_GET, megasas_dcmd_dummy },
-    { MFI_DCMD_CTRL_ALARM_ENABLE, megasas_dcmd_dummy },
-    { MFI_DCMD_CTRL_ALARM_DISABLE, megasas_dcmd_dummy },
-    { MFI_DCMD_CTRL_ALARM_SILENCE, megasas_dcmd_dummy },
-    { MFI_DCMD_CTRL_ALARM_TEST, megasas_dcmd_dummy },
-    { MFI_DCMD_CTRL_EVENT_GETINFO, megasas_event_info },
-    { MFI_DCMD_CTRL_EVENT_GET, megasas_dcmd_dummy },
-    { MFI_DCMD_CTRL_EVENT_WAIT, megasas_event_wait },
-    { MFI_DCMD_CTRL_SHUTDOWN, megasas_ctrl_shutdown },
-    { MFI_DCMD_HIBERNATE_STANDBY, megasas_dcmd_dummy },
-    { MFI_DCMD_CTRL_GET_TIME, megasas_dcmd_get_fw_time },
-    { MFI_DCMD_CTRL_SET_TIME, megasas_dcmd_set_fw_time },
-    { MFI_DCMD_CTRL_BIOS_DATA_GET, megasas_dcmd_get_bios_info },
-    { MFI_DCMD_CTRL_FACTORY_DEFAULTS, megasas_dcmd_dummy },
-    { MFI_DCMD_CTRL_MFC_DEFAULTS_GET, megasas_mfc_get_defaults },
-    { MFI_DCMD_CTRL_MFC_DEFAULTS_SET, megasas_dcmd_dummy },
-    { MFI_DCMD_CTRL_CACHE_FLUSH, megasas_cache_flush },
-    { MFI_DCMD_PD_GET_LIST, megasas_dcmd_pd_get_list },
-    { MFI_DCMD_PD_LIST_QUERY, megasas_dcmd_pd_list_query },
-    { MFI_DCMD_PD_GET_INFO, megasas_dcmd_pd_get_info },
-    { MFI_DCMD_PD_STATE_SET, megasas_dcmd_dummy },
-    { MFI_DCMD_PD_REBUILD, megasas_dcmd_dummy },
-    { MFI_DCMD_PD_BLINK, megasas_dcmd_dummy },
-    { MFI_DCMD_PD_UNBLINK, megasas_dcmd_dummy },
-    { MFI_DCMD_LD_GET_LIST, megasas_dcmd_ld_get_list},
-    { MFI_DCMD_LD_GET_INFO, megasas_dcmd_ld_get_info },
-    { MFI_DCMD_LD_GET_PROP, megasas_dcmd_dummy },
-    { MFI_DCMD_LD_SET_PROP, megasas_dcmd_dummy },
-    { MFI_DCMD_LD_DELETE, megasas_dcmd_dummy },
-    { MFI_DCMD_CFG_READ, megasas_dcmd_cfg_read },
-    { MFI_DCMD_CFG_ADD, megasas_dcmd_dummy },
-    { MFI_DCMD_CFG_CLEAR, megasas_dcmd_dummy },
-    { MFI_DCMD_CFG_FOREIGN_READ, megasas_dcmd_dummy },
-    { MFI_DCMD_CFG_FOREIGN_IMPORT, megasas_dcmd_dummy },
-    { MFI_DCMD_BBU_STATUS, megasas_dcmd_dummy },
-    { MFI_DCMD_BBU_CAPACITY_INFO, megasas_dcmd_dummy },
-    { MFI_DCMD_BBU_DESIGN_INFO, megasas_dcmd_dummy },
-    { MFI_DCMD_BBU_PROP_GET, megasas_dcmd_dummy },
-    { MFI_DCMD_CLUSTER, megasas_dcmd_dummy },
-    { MFI_DCMD_CLUSTER_RESET_ALL, megasas_dcmd_dummy },
-    { MFI_DCMD_CLUSTER_RESET_LD, megasas_cluster_reset_ld },
-    { -1, NULL }
+    { MFI_DCMD_CTRL_MFI_HOST_MEM_ALLOC, "CTRL_HOST_MEM_ALLOC", megasas_dcmd_dummy },
+    { MFI_DCMD_CTRL_GET_INFO, "CTRL_GET_INFO", megasas_ctrl_get_info },
+    { MFI_DCMD_CTRL_GET_PROPERTIES, "CTRL_GET_PROPERTIES", megasas_dcmd_get_properties },
+    { MFI_DCMD_CTRL_SET_PROPERTIES, "CTRL_SET_PROPERTIES", megasas_dcmd_set_properties },
+    { MFI_DCMD_CTRL_ALARM_GET, "CTRL_ALARM_GET", megasas_dcmd_dummy },
+    { MFI_DCMD_CTRL_ALARM_ENABLE, "CTRL_ALARM_ENABLE", megasas_dcmd_dummy },
+    { MFI_DCMD_CTRL_ALARM_DISABLE, "CTRL_ALARM_DISABLE", megasas_dcmd_dummy },
+    { MFI_DCMD_CTRL_ALARM_SILENCE, "CTRL_ALARM_SILENCE", megasas_dcmd_dummy },
+    { MFI_DCMD_CTRL_ALARM_TEST, "CTRL_ALARM_TEST", megasas_dcmd_dummy },
+    { MFI_DCMD_CTRL_EVENT_GETINFO, "CTRL_EVENT_GETINFO", megasas_event_info },
+    { MFI_DCMD_CTRL_EVENT_GET, "CTRL_EVENT_GET", megasas_dcmd_dummy },
+    { MFI_DCMD_CTRL_EVENT_WAIT, "CTRL_EVENT_WAIT", megasas_event_wait },
+    { MFI_DCMD_CTRL_SHUTDOWN, "CTRL_SHUTDOWN", megasas_ctrl_shutdown },
+    { MFI_DCMD_HIBERNATE_STANDBY, "CTRL_STANDBY", megasas_dcmd_dummy },
+    { MFI_DCMD_CTRL_GET_TIME, "CTRL_GET_TIME", megasas_dcmd_get_fw_time },
+    { MFI_DCMD_CTRL_SET_TIME, "CTRL_SET_TIME", megasas_dcmd_set_fw_time },
+    { MFI_DCMD_CTRL_BIOS_DATA_GET, "CTRL_BIOS_DATA_GET", megasas_dcmd_get_bios_info },
+    { MFI_DCMD_CTRL_FACTORY_DEFAULTS, "CTRL_FACTORY_DEFAULTS", megasas_dcmd_dummy },
+    { MFI_DCMD_CTRL_MFC_DEFAULTS_GET, "CTRL_MFC_DEFAULTS_GET", megasas_mfc_get_defaults },
+    { MFI_DCMD_CTRL_MFC_DEFAULTS_SET, "CTRL_MFC_DEFAULTS_SET", megasas_dcmd_dummy },
+    { MFI_DCMD_CTRL_CACHE_FLUSH, "CTRL_CACHE_FLUSH", megasas_cache_flush },
+    { MFI_DCMD_PD_GET_LIST, "PD_GET_LIST", megasas_dcmd_pd_get_list },
+    { MFI_DCMD_PD_LIST_QUERY, "PD_LIST_QUERY", megasas_dcmd_pd_list_query },
+    { MFI_DCMD_PD_GET_INFO, "PD_GET_INFO", megasas_dcmd_pd_get_info },
+    { MFI_DCMD_PD_STATE_SET, "PD_STATE_SET", megasas_dcmd_dummy },
+    { MFI_DCMD_PD_REBUILD, "PD_REBUILD", megasas_dcmd_dummy },
+    { MFI_DCMD_PD_BLINK, "PD_BLINK", megasas_dcmd_dummy },
+    { MFI_DCMD_PD_UNBLINK, "PD_UNBLINK", megasas_dcmd_dummy },
+    { MFI_DCMD_LD_GET_LIST, "LD_GET_LIST", megasas_dcmd_ld_get_list},
+    { MFI_DCMD_LD_GET_INFO, "LD_GET_INFO", megasas_dcmd_ld_get_info },
+    { MFI_DCMD_LD_GET_PROP, "LD_GET_PROP", megasas_dcmd_dummy },
+    { MFI_DCMD_LD_SET_PROP, "LD_SET_PROP", megasas_dcmd_dummy },
+    { MFI_DCMD_LD_DELETE, "LD_DELETE", megasas_dcmd_dummy },
+    { MFI_DCMD_CFG_READ, "CFG_READ", megasas_dcmd_cfg_read },
+    { MFI_DCMD_CFG_ADD, "CFG_ADD", megasas_dcmd_dummy },
+    { MFI_DCMD_CFG_CLEAR, "CFG_CLEAR", megasas_dcmd_dummy },
+    { MFI_DCMD_CFG_FOREIGN_READ, "CFG_FOREIGN_READ", megasas_dcmd_dummy },
+    { MFI_DCMD_CFG_FOREIGN_IMPORT, "CFG_FOREIGN_IMPORT", megasas_dcmd_dummy },
+    { MFI_DCMD_BBU_STATUS, "BBU_STATUS", megasas_dcmd_dummy },
+    { MFI_DCMD_BBU_CAPACITY_INFO, "BBU_CAPACITY_INFO", megasas_dcmd_dummy },
+    { MFI_DCMD_BBU_DESIGN_INFO, "BBU_DESIGN_INFO", megasas_dcmd_dummy },
+    { MFI_DCMD_BBU_PROP_GET, "BBU_PROP_GET", megasas_dcmd_dummy },
+    { MFI_DCMD_CLUSTER, "CLUSTER", megasas_dcmd_dummy },
+    { MFI_DCMD_CLUSTER_RESET_ALL, "CLUSTER_RESET_ALL", megasas_dcmd_dummy },
+    { MFI_DCMD_CLUSTER_RESET_LD, "CLUSTER_RESET_LD", megasas_cluster_reset_ld },
+    { -1, NULL, NULL }
 };
 
 static int megasas_handle_dcmd(MegasasState *s, MegasasCmd *cmd)
@@ -1279,6 +1384,7 @@ static int megasas_handle_dcmd(MegasasState *s, MegasasCmd *cmd)
     const struct dcmd_cmd_tbl_t *cmdptr = dcmd_cmd_tbl;
 
     opcode = le32_to_cpu(cmd->frame->dcmd.opcode);
+    trace_megasas_handle_dcmd(cmd->index, opcode);
     len = megasas_map_dcmd(cmd);
     if (len < 0) {
         return MFI_STAT_MEMORY_NOT_AVAILABLE;
@@ -1287,8 +1393,10 @@ static int megasas_handle_dcmd(MegasasState *s, MegasasCmd *cmd)
         cmdptr++;
     }
     if (cmdptr->opcode == -1) {
+        trace_megasas_dcmd_unhandled(cmd->index, opcode, len);
         retval = megasas_dcmd_dummy(s, cmd);
     } else {
+        trace_megasas_dcmd_enter(cmd->index, cmdptr->desc, len);
         retval = cmdptr->func(s, cmd);
     }
     if (retval != MFI_STAT_INVALID_STATUS) {
@@ -1306,6 +1414,7 @@ static int megasas_finish_internal_dcmd(MegasasCmd *cmd,
 
     opcode = le32_to_cpu(cmd->frame->dcmd.opcode);
     scsi_req_unref(req);
+    trace_megasas_dcmd_internal_finish(cmd->index, opcode, lun);
     switch (opcode) {
     case MFI_DCMD_PD_GET_INFO:
         retval = megasas_pd_get_info_submit(req->dev, lun, cmd);
@@ -1314,6 +1423,7 @@ static int megasas_finish_internal_dcmd(MegasasCmd *cmd,
         retval = megasas_ld_get_info_submit(req->dev, lun, cmd);
         break;
     default:
+        trace_megasas_dcmd_internal_invalid(cmd->index, opcode);
         retval = MFI_STAT_INVALID_DCMD;
         break;
     }
@@ -1332,7 +1442,23 @@ static int megasas_enqueue_req(MegasasCmd *cmd, bool is_write)
         len = -len;
     }
     if (len > 0) {
+        if (len > cmd->iov_size) {
+            if (is_write) {
+                trace_megasas_iov_write_overflow(cmd->index, len,
+                                                 cmd->iov_size);
+            } else {
+                trace_megasas_iov_read_overflow(cmd->index, len,
+                                                cmd->iov_size);
+            }
+        }
         if (len < cmd->iov_size) {
+            if (is_write) {
+                trace_megasas_iov_write_underflow(cmd->index, len,
+                                                  cmd->iov_size);
+            } else {
+                trace_megasas_iov_read_underflow(cmd->index, len,
+                                                 cmd->iov_size);
+            }
             cmd->iov_size = len;
         }
         scsi_req_continue(cmd->req);
@@ -1344,6 +1470,7 @@ static int megasas_handle_scsi(MegasasState *s, MegasasCmd *cmd,
                                bool is_logical)
 {
     uint8_t *cdb;
+    int len;
     bool is_write;
     struct SCSIDevice *sdev = NULL;
 
@@ -1354,12 +1481,22 @@ static int megasas_handle_scsi(MegasasState *s, MegasasCmd *cmd,
                                 cmd->frame->header.lun_id);
     }
     cmd->iov_size = le32_to_cpu(cmd->frame->header.data_len);
+    trace_megasas_handle_scsi(mfi_frame_desc[cmd->frame->header.frame_cmd],
+                              is_logical, cmd->frame->header.target_id,
+                              cmd->frame->header.lun_id, sdev, cmd->iov_size);
 
     if (!sdev || (megasas_is_jbod(s) && is_logical)) {
+        trace_megasas_scsi_target_not_present(
+            mfi_frame_desc[cmd->frame->header.frame_cmd], is_logical,
+            cmd->frame->header.target_id, cmd->frame->header.lun_id);
         return MFI_STAT_DEVICE_NOT_FOUND;
     }
 
     if (cmd->frame->header.cdb_len > 16) {
+        trace_megasas_scsi_invalid_cdb_len(
+                mfi_frame_desc[cmd->frame->header.frame_cmd], is_logical,
+                cmd->frame->header.target_id, cmd->frame->header.lun_id,
+                cmd->frame->header.cdb_len);
         megasas_write_sense(cmd, SENSE_CODE(INVALID_OPCODE));
         cmd->frame->header.scsi_status = CHECK_CONDITION;
         s->event_count++;
@@ -1376,6 +1513,9 @@ static int megasas_handle_scsi(MegasasState *s, MegasasCmd *cmd,
     cmd->req = scsi_req_new(sdev, cmd->index,
                             cmd->frame->header.lun_id, cdb, cmd);
     if (!cmd->req) {
+        trace_megasas_scsi_req_alloc_failed(
+                mfi_frame_desc[cmd->frame->header.frame_cmd],
+                cmd->frame->header.target_id, cmd->frame->header.lun_id);
         megasas_write_sense(cmd, SENSE_CODE(NO_SENSE));
         cmd->frame->header.scsi_status = BUSY;
         s->event_count++;
@@ -1383,7 +1523,16 @@ static int megasas_handle_scsi(MegasasState *s, MegasasCmd *cmd,
     }
 
     is_write = (cmd->req->cmd.mode == SCSI_XFER_TO_DEV);
-    megasas_enqueue_req(cmd, is_write);
+    len = megasas_enqueue_req(cmd, is_write);
+    if (len > 0) {
+        if (is_write) {
+            trace_megasas_scsi_write_start(cmd->index, len);
+        } else {
+            trace_megasas_scsi_read_start(cmd->index, len);
+        }
+    } else {
+        trace_megasas_scsi_nodata(cmd->index);
+    }
     return MFI_STAT_INVALID_STATUS;
 }
 
@@ -1393,6 +1542,7 @@ static int megasas_handle_io(MegasasState *s, MegasasCmd *cmd)
     uint64_t lba_start;
     bool is_write = (cmd->frame->header.frame_cmd == MFI_CMD_LD_WRITE);
     uint8_t cdb[16];
+    int len;
     struct SCSIDevice *sdev = NULL;
 
     lba_count = le32_to_cpu(cmd->frame->io.header.data_len);
@@ -1405,11 +1555,23 @@ static int megasas_handle_io(MegasasState *s, MegasasCmd *cmd)
                                 cmd->frame->header.lun_id);
     }
 
+    trace_megasas_handle_io(cmd->index,
+                            mfi_frame_desc[cmd->frame->header.frame_cmd],
+                            cmd->frame->header.target_id,
+                            cmd->frame->header.lun_id,
+                            (unsigned long)lba_start, (unsigned long)lba_count);
     if (!sdev) {
+        trace_megasas_io_target_not_present(cmd->index,
+            mfi_frame_desc[cmd->frame->header.frame_cmd],
+            cmd->frame->header.target_id, cmd->frame->header.lun_id);
         return MFI_STAT_DEVICE_NOT_FOUND;
     }
 
     if (cmd->frame->header.cdb_len > 16) {
+        trace_megasas_scsi_invalid_cdb_len(
+            mfi_frame_desc[cmd->frame->header.frame_cmd], 1,
+            cmd->frame->header.target_id, cmd->frame->header.lun_id,
+            cmd->frame->header.cdb_len);
         megasas_write_sense(cmd, SENSE_CODE(INVALID_OPCODE));
         cmd->frame->header.scsi_status = CHECK_CONDITION;
         s->event_count++;
@@ -1428,12 +1590,22 @@ static int megasas_handle_io(MegasasState *s, MegasasCmd *cmd)
     cmd->req = scsi_req_new(sdev, cmd->index,
                             cmd->frame->header.lun_id, cdb, cmd);
     if (!cmd->req) {
+        trace_megasas_scsi_req_alloc_failed(
+            mfi_frame_desc[cmd->frame->header.frame_cmd],
+            cmd->frame->header.target_id, cmd->frame->header.lun_id);
         megasas_write_sense(cmd, SENSE_CODE(NO_SENSE));
         cmd->frame->header.scsi_status = BUSY;
         s->event_count++;
         return MFI_STAT_SCSI_DONE_WITH_ERROR;
     }
-    megasas_enqueue_req(cmd, is_write);
+    len = megasas_enqueue_req(cmd, is_write);
+    if (len > 0) {
+        if (is_write) {
+            trace_megasas_io_write_start(cmd->index, lba_start, lba_count, len);
+        } else {
+            trace_megasas_io_read_start(cmd->index, lba_start, lba_count, len);
+        }
+    }
     return MFI_STAT_INVALID_STATUS;
 }
 
@@ -1464,6 +1636,8 @@ static void megasas_xfer_complete(SCSIRequest *req, uint32_t len)
     MegasasCmd *cmd = req->hba_private;
     uint8_t *buf;
     uint32_t opcode;
+
+    trace_megasas_io_complete(cmd->index, len);
 
     if (cmd->frame->header.frame_cmd != MFI_CMD_DCMD) {
         scsi_req_continue(req);
@@ -1499,6 +1673,8 @@ static void megasas_command_complete(SCSIRequest *req, uint32_t status,
     MegasasCmd *cmd = req->hba_private;
     uint8_t cmd_status = MFI_STAT_OK;
 
+    trace_megasas_command_complete(cmd->index, status, resid);
+
     if (cmd->req != req) {
         /*
          * Internal command complete
@@ -1509,6 +1685,8 @@ static void megasas_command_complete(SCSIRequest *req, uint32_t status,
         }
     } else {
         req->status = status;
+        trace_megasas_scsi_complete(cmd->index, req->status,
+                                    cmd->iov_size, req->cmd.xfer);
         if (req->status != GOOD) {
             cmd_status = MFI_STAT_SCSI_DONE_WITH_ERROR;
         }
@@ -1548,6 +1726,7 @@ static int megasas_handle_abort(MegasasState *s, MegasasCmd *cmd)
 
     abort_cmd = megasas_lookup_frame(s, abort_addr);
     if (!abort_cmd) {
+        trace_megasas_abort_no_cmd(cmd->index, abort_ctx);
         s->event_count++;
         return MFI_STAT_OK;
     }
@@ -1555,9 +1734,12 @@ static int megasas_handle_abort(MegasasState *s, MegasasCmd *cmd)
         abort_ctx &= (uint64_t)0xFFFFFFFF;
     }
     if (abort_cmd->context != abort_ctx) {
+        trace_megasas_abort_invalid_context(cmd->index, abort_cmd->index,
+                                            abort_cmd->context);
         s->event_count++;
         return MFI_STAT_ABORT_NOT_POSSIBLE;
     }
+    trace_megasas_abort_frame(cmd->index, abort_cmd->index);
     megasas_abort_command(abort_cmd);
     if (!s->event_cmd || abort_cmd != s->event_cmd) {
         s->event_cmd = NULL;
@@ -1582,6 +1764,7 @@ static void megasas_handle_frame(MegasasState *s, uint64_t frame_addr,
     cmd = megasas_enqueue_frame(s, frame_addr, frame_context, frame_count);
     if (!cmd) {
         /* reply queue full */
+        trace_megasas_frame_busy(frame_addr);
         megasas_frame_set_scsi_status(frame_addr, BUSY);
         megasas_frame_set_cmd_status(frame_addr, MFI_STAT_SCSI_DONE_WITH_ERROR);
         megasas_complete_frame(s, frame_context);
@@ -1609,6 +1792,8 @@ static void megasas_handle_frame(MegasasState *s, uint64_t frame_addr,
         frame_status = megasas_handle_io(s, cmd);
         break;
     default:
+        trace_megasas_unhandled_frame_cmd(cmd->index,
+                                          cmd->frame->header.frame_cmd);
         s->event_count++;
         break;
     }
@@ -1651,8 +1836,10 @@ static uint64_t megasas_mmio_read(void *opaque, target_phys_addr_t addr,
         retval = s->doorbell;
         break;
     default:
+        trace_megasas_mmio_invalid_readl(addr);
         break;
     }
+    trace_megasas_mmio_readl(addr, retval);
     return retval;
 }
 
@@ -1664,6 +1851,7 @@ static void megasas_mmio_write(void *opaque, target_phys_addr_t addr,
     uint32_t frame_count;
     int i;
 
+    trace_megasas_mmio_writel(addr, val);
     switch (addr) {
     case MFI_IDB:
         if (val & MFI_FWINIT_ABORT) {
@@ -1683,15 +1871,23 @@ static void megasas_mmio_write(void *opaque, target_phys_addr_t addr,
     case MFI_OMSK:
         s->intr_mask = val;
         if (!megasas_intr_enabled(s) && !msix_enabled(&s->dev)) {
+            trace_megasas_irq_lower();
             qemu_irq_lower(s->dev.irq[0]);
+        }
+        if (megasas_intr_enabled(s)) {
+            trace_megasas_intr_enabled();
+        } else {
+            trace_megasas_intr_disabled();
         }
         break;
     case MFI_ODCR0:
         s->doorbell = 0;
         if (s->producer_pa && megasas_intr_enabled(s)) {
             /* Update reply queue pointer */
+            trace_megasas_qf_update(s->reply_queue_head, s->busy);
             stl_le_phys(s->producer_pa, s->reply_queue_head);
             if (!msix_enabled(&s->dev)) {
+                trace_megasas_irq_lower();
                 qemu_irq_lower(s->dev.irq[0]);
             }
         }
@@ -1712,6 +1908,7 @@ static void megasas_mmio_write(void *opaque, target_phys_addr_t addr,
         megasas_handle_frame(s, frame_addr, frame_count);
         break;
     default:
+        trace_megasas_mmio_invalid_writel(addr, val);
         break;
     }
 }
@@ -1768,6 +1965,7 @@ static void megasas_soft_reset(MegasasState *s)
     int i;
     MegasasCmd *cmd;
 
+    trace_megasas_reset();
     for (i = 0; i < s->fw_cmds; i++) {
         cmd = &s->frames[i];
         megasas_abort_command(cmd);
@@ -1884,6 +2082,9 @@ static int megasas_scsi_init(PCIDevice *dev)
     if (s->fw_cmds > MEGASAS_MAX_FRAMES) {
         s->fw_cmds = MEGASAS_MAX_FRAMES;
     }
+    trace_megasas_init(s->fw_sge, s->fw_cmds,
+                       megasas_use_msix(s) ? "MSI-X" : "INTx",
+                       megasas_is_jbod(s) ? "jbod" : "raid");
     s->fw_luns = (MFI_MAX_LD > MAX_SCSI_DEVS) ?
         MAX_SCSI_DEVS : MFI_MAX_LD;
     s->producer_pa = 0;
