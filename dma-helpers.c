@@ -107,6 +107,28 @@ static void dma_complete(DMAAIOCB *dbs, int ret)
     }
 }
 
+static void dma_aio_cancel(BlockDriverAIOCB *acb)
+{
+    DMAAIOCB *dbs = container_of(acb, DMAAIOCB, common);
+
+    trace_dma_aio_cancel(dbs);
+
+    if (dbs->acb) {
+        BlockDriverAIOCB *acb = dbs->acb;
+        dbs->acb = NULL;
+        dbs->in_cancel = true;
+        bdrv_aio_cancel(acb);
+        dbs->in_cancel = false;
+    }
+    dbs->common.cb = NULL;
+    dma_complete(dbs, 0);
+}
+
+static void dma_bdrv_cancel_cb(void *opaque)
+{
+    dma_aio_cancel(&((DMAAIOCB *)opaque)->common);
+}
+
 static void dma_bdrv_cb(void *opaque, int ret)
 {
     DMAAIOCB *dbs = (DMAAIOCB *)opaque;
@@ -127,7 +149,8 @@ static void dma_bdrv_cb(void *opaque, int ret)
     while (dbs->sg_cur_index < dbs->sg->nsg) {
         cur_addr = dbs->sg->sg[dbs->sg_cur_index].base + dbs->sg_cur_byte;
         cur_len = dbs->sg->sg[dbs->sg_cur_index].len - dbs->sg_cur_byte;
-        mem = dma_memory_map(dbs->sg->dma, cur_addr, &cur_len, dbs->dir);
+        mem = dma_memory_map_with_cancel(dbs->sg->dma, dma_bdrv_cancel_cb, dbs,
+                                         cur_addr, &cur_len, dbs->dir);
         if (!mem)
             break;
         qemu_iovec_add(&dbs->iov, mem, cur_len);
@@ -147,23 +170,6 @@ static void dma_bdrv_cb(void *opaque, int ret)
     dbs->acb = dbs->io_func(dbs->bs, dbs->sector_num, &dbs->iov,
                             dbs->iov.size / 512, dma_bdrv_cb, dbs);
     assert(dbs->acb);
-}
-
-static void dma_aio_cancel(BlockDriverAIOCB *acb)
-{
-    DMAAIOCB *dbs = container_of(acb, DMAAIOCB, common);
-
-    trace_dma_aio_cancel(dbs);
-
-    if (dbs->acb) {
-        BlockDriverAIOCB *acb = dbs->acb;
-        dbs->acb = NULL;
-        dbs->in_cancel = true;
-        bdrv_aio_cancel(acb);
-        dbs->in_cancel = false;
-    }
-    dbs->common.cb = NULL;
-    dma_complete(dbs, 0);
 }
 
 static AIOPool dma_aio_pool = {
@@ -350,6 +356,8 @@ struct DMAMemoryMap {
     dma_addr_t              addr;
     size_t                  len;
     void                    *buf;
+    DMACancelMapFunc        *cancel;
+    void                    *cancel_opaque;
 
     DMAInvalidationState    *invalidate;
     QLIST_ENTRY(DMAMemoryMap) list;
@@ -364,7 +372,9 @@ void dma_context_init(DMAContext *dma, DMATranslateFunc fn)
     QLIST_INIT(&dma->memory_maps);
 }
 
-void *iommu_dma_memory_map(DMAContext *dma, dma_addr_t addr, dma_addr_t *len,
+void *iommu_dma_memory_map(DMAContext *dma,
+                           DMACancelMapFunc cb, void *cb_opaque,
+                           dma_addr_t addr, dma_addr_t *len,
                            DMADirection dir)
 {
     int err;
@@ -397,6 +407,8 @@ void *iommu_dma_memory_map(DMAContext *dma, dma_addr_t addr, dma_addr_t *len,
     map->len = *len;
     map->buf = buf;
     map->invalidate = NULL;
+    map->cancel = cb;
+    map->cancel_opaque = cb_opaque;
 
     QLIST_INSERT_HEAD(&dma->memory_maps, map, list);
 
@@ -430,7 +442,6 @@ void iommu_dma_memory_unmap(DMAContext *dma, void *buffer, dma_addr_t len,
         }
     }
 
-
     /* unmap called on a buffer that wasn't mapped */
     assert(false);
 }
@@ -450,6 +461,7 @@ void iommu_wait_for_invalidated_maps(DMAContext *dma,
         if (ranges_overlap(addr, len, map->addr, map->len)) {
             is.count++;
             map->invalidate = &is;
+            map->cancel(map->cancel_opaque);
         }
     }
 

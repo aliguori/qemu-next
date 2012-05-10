@@ -60,6 +60,8 @@ static inline bool dma_has_iommu(DMAContext *dma)
     return !!dma;
 }
 
+typedef void DMACancelMapFunc(void *);
+
 /* Checks that the given range of addresses is valid for DMA.  This is
  * useful for certain cases, but usually you should just use
  * dma_memory_{read,write}() and check for errors */
@@ -118,11 +120,15 @@ static inline int dma_memory_zero(DMAContext *dma, dma_addr_t addr,
 }
 
 void *iommu_dma_memory_map(DMAContext *dma,
+                           DMACancelMapFunc *cb, void *opaque,
                            dma_addr_t addr, dma_addr_t *len,
                            DMADirection dir);
-static inline void *dma_memory_map(DMAContext *dma,
-                                   dma_addr_t addr, dma_addr_t *len,
-                                   DMADirection dir)
+static inline void *dma_memory_map_with_cancel(DMAContext *dma,
+                                               DMACancelMapFunc *cb,
+                                               void *opaque,
+                                               dma_addr_t addr,
+                                               dma_addr_t *len,
+                                               DMADirection dir)
 {
     if (!dma_has_iommu(dma)) {
         target_phys_addr_t xlen = *len;
@@ -133,8 +139,14 @@ static inline void *dma_memory_map(DMAContext *dma,
         *len = xlen;
         return p;
     } else {
-        return iommu_dma_memory_map(dma, addr, len, dir);
+        return iommu_dma_memory_map(dma, cb, opaque, addr, len, dir);
     }
+}
+static inline void *dma_memory_map(DMAContext *dma,
+                                   dma_addr_t addr, dma_addr_t *len,
+                                   DMADirection dir)
+{
+    return dma_memory_map_with_cancel(dma, NULL, NULL, addr, len, dir);
 }
 
 void iommu_dma_memory_unmap(DMAContext *dma,
