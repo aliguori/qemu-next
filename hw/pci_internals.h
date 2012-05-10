@@ -16,6 +16,8 @@ extern struct BusInfo pci_bus_info;
 
 struct PCIBus {
     BusState qbus;
+    PCIDMAContextFunc dma_context_fn;
+    void *dma_context_opaque;
     uint8_t devfn_min;
     pci_set_irq_fn set_irq;
     pci_map_irq_fn map_irq;
