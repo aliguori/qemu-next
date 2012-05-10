@@ -312,6 +312,9 @@ int iommu_dma_memory_rw(DMAContext *dma, dma_addr_t addr,
         buf += plen;
     }
 
+    /* HACK: full memory barrier here */
+    __sync_synchronize();
+
     return 0;
 }
 
