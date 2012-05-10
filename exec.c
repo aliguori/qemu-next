@@ -3598,6 +3598,59 @@ void cpu_physical_memory_rw(target_phys_addr_t addr, uint8_t *buf,
     }
 }
 
+void cpu_physical_memory_zero(target_phys_addr_t addr, int len)
+{
+    int l;
+    uint8_t *ptr;
+    target_phys_addr_t page;
+    MemoryRegionSection *section;
+
+    while (len > 0) {
+        page = addr & TARGET_PAGE_MASK;
+        l = (page + TARGET_PAGE_SIZE) - addr;
+        if (l > len)
+            l = len;
+        section = phys_page_find(page >> TARGET_PAGE_BITS);
+
+        if (!memory_region_is_ram(section->mr)) {
+            target_phys_addr_t addr1;
+            addr1 = memory_region_section_addr(section, addr);
+            /* XXX: could force cpu_single_env to NULL to avoid
+               potential bugs */
+            if (l >= 4 && ((addr1 & 3) == 0)) {
+                /* 32 bit write access */
+                io_mem_write(section->mr, addr1, 0, 4);
+                l = 4;
+            } else if (l >= 2 && ((addr1 & 1) == 0)) {
+                /* 16 bit write access */
+                io_mem_write(section->mr, addr1, 0, 2);
+                l = 2;
+            } else {
+                /* 8 bit write access */
+                io_mem_write(section->mr, addr1, 0, 1);
+                l = 1;
+            }
+        } else if (!section->readonly) {
+            ram_addr_t addr1;
+            addr1 = memory_region_get_ram_addr(section->mr)
+                + memory_region_section_addr(section, addr);
+            /* RAM case */
+            ptr = qemu_get_ram_ptr(addr1);
+            memset(ptr, 0, l);
+            if (!cpu_physical_memory_is_dirty(addr1)) {
+                /* invalidate code */
+                tb_invalidate_phys_page_range(addr1, addr1 + l, 0);
+                /* set dirty bit */
+                cpu_physical_memory_set_dirty_flags(
+                    addr1, (0xff & ~CODE_DIRTY_FLAG));
+            }
+            qemu_put_ram_ptr(ptr);
+        }
+        len -= l;
+        addr += l;
+    }
+}
+
 /* used for ROM loading : can write in RAM and ROM */
 void cpu_physical_memory_write_rom(target_phys_addr_t addr,
                                    const uint8_t *buf, int len)

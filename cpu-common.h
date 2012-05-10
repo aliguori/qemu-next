@@ -53,6 +53,7 @@ void qemu_ram_set_idstr(ram_addr_t addr, const char *name, DeviceState *dev);
 
 void cpu_physical_memory_rw(target_phys_addr_t addr, uint8_t *buf,
                             int len, int is_write);
+void cpu_physical_memory_zero(target_phys_addr_t addr, int len);
 static inline void cpu_physical_memory_read(target_phys_addr_t addr,
                                             void *buf, int len)
 {
