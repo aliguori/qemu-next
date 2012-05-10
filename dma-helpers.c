@@ -9,6 +9,10 @@
 
 #include "dma.h"
 #include "trace.h"
+#include "range.h"
+#include "qemu-thread.h"
+
+/* #define DEBUG_IOMMU */
 
 void qemu_sglist_init(QEMUSGList *qsg, int alloc_hint, DMAContext *dma)
 {
@@ -243,4 +247,214 @@ void dma_acct_start(BlockDriverState *bs, BlockAcctCookie *cookie,
                     QEMUSGList *sg, enum BlockAcctType type)
 {
     bdrv_acct_start(bs, cookie, sg->size, type);
+}
+
+bool iommu_dma_memory_valid(DMAContext *dma, dma_addr_t addr, dma_addr_t len,
+                            DMADirection dir)
+{
+    target_phys_addr_t paddr, plen;
+
+#ifdef DEBUG_IOMMU
+    fprintf(stderr, "dma_memory_check context=%p addr=0x" DMA_ADDR_FMT
+            " len=0x" DMA_ADDR_FMT " dir=%d\n", dma, addr, len, dir);
+#endif
+
+    while (len) {
+        if (dma->translate(dma, addr, &paddr, &plen, dir) != 0) {
+            return false;
+        }
+
+        /* The translation might be valid for larger regions. */
+        if (plen > len) {
+            plen = len;
+        }
+
+        len -= plen;
+        addr += plen;
+    }
+
+    return true;
+}
+
+int iommu_dma_memory_rw(DMAContext *dma, dma_addr_t addr,
+                        void *buf, dma_addr_t len, DMADirection dir)
+{
+    target_phys_addr_t paddr, plen;
+    int err;
+
+#ifdef DEBUG_IOMMU
+    fprintf(stderr, "dma_memory_rw context=%p addr=0x" DMA_ADDR_FMT " len=0x"
+            DMA_ADDR_FMT " dir=%d\n", dma, addr, len, dir);
+#endif
+
+    while (len) {
+        err = dma->translate(dma, addr, &paddr, &plen, dir);
+        if (err) {
+            return -1;
+        }
+
+        /* The translation might be valid for larger regions. */
+        if (plen > len) {
+            plen = len;
+        }
+
+        cpu_physical_memory_rw(paddr, buf, plen,
+                               dir == DMA_DIRECTION_FROM_DEVICE);
+
+        len -= plen;
+        addr += plen;
+        buf += plen;
+    }
+
+    return 0;
+}
+
+int iommu_dma_memory_zero(DMAContext *dma, dma_addr_t addr, dma_addr_t len)
+{
+    target_phys_addr_t paddr, plen;
+    int err;
+
+#ifdef DEBUG_IOMMU
+    fprintf(stderr, "dma_memory_zero context=%p addr=0x" DMA_ADDR_FMT
+            " len=0x" DMA_ADDR_FMT "\n", dma, addr, len);
+#endif
+
+    while (len) {
+        err = dma->translate(dma, addr, &paddr, &plen,
+                             DMA_DIRECTION_FROM_DEVICE);
+        if (err) {
+            return err;
+        }
+
+        /* The translation might be valid for larger regions. */
+        if (plen > len) {
+            plen = len;
+        }
+
+        cpu_physical_memory_zero(paddr, plen);
+
+        len -= plen;
+        addr += plen;
+    }
+
+    return 0;
+}
+
+typedef struct {
+    unsigned long count;
+    QemuCond cond;
+} DMAInvalidationState;
+
+typedef struct DMAMemoryMap DMAMemoryMap;
+struct DMAMemoryMap {
+    dma_addr_t              addr;
+    size_t                  len;
+    void                    *buf;
+
+    DMAInvalidationState    *invalidate;
+    QLIST_ENTRY(DMAMemoryMap) list;
+};
+
+void dma_context_init(DMAContext *dma, DMATranslateFunc fn)
+{
+#ifdef DEBUG_IOMMU
+    fprintf(stderr, "dma_context_init(%p, %p)\n", dma, fn);
+#endif
+    dma->translate = fn;
+    QLIST_INIT(&dma->memory_maps);
+}
+
+void *iommu_dma_memory_map(DMAContext *dma, dma_addr_t addr, dma_addr_t *len,
+                           DMADirection dir)
+{
+    int err;
+    target_phys_addr_t paddr, plen;
+    void *buf;
+    DMAMemoryMap *map;
+
+    plen = *len;
+    err = dma->translate(dma, addr, &paddr, &plen, dir);
+    if (err) {
+        return NULL;
+    }
+
+    /*
+     * If this is true, the virtual region is contiguous,
+     * but the translated physical region isn't. We just
+     * clamp *len, much like cpu_physical_memory_map() does.
+     */
+    if (plen < *len) {
+        *len = plen;
+    }
+
+    buf = cpu_physical_memory_map(paddr, &plen,
+                                  dir == DMA_DIRECTION_FROM_DEVICE);
+    *len = plen;
+
+    /* We treat maps as remote TLBs to cope with stuff like AIO. */
+    map = g_malloc(sizeof(DMAMemoryMap));
+    map->addr = addr;
+    map->len = *len;
+    map->buf = buf;
+    map->invalidate = NULL;
+
+    QLIST_INSERT_HEAD(&dma->memory_maps, map, list);
+
+    return buf;
+}
+
+void iommu_dma_memory_unmap(DMAContext *dma, void *buffer, dma_addr_t len,
+                            DMADirection dir, dma_addr_t access_len)
+{
+    DMAMemoryMap *map;
+
+    cpu_physical_memory_unmap(buffer, len,
+                              dir == DMA_DIRECTION_FROM_DEVICE,
+                              access_len);
+
+    QLIST_FOREACH(map, &dma->memory_maps, list) {
+        if ((map->buf == buffer) && (map->len == len)) {
+            QLIST_REMOVE(map, list);
+
+            if (map->invalidate) {
+                /* If this mapping was invalidated */
+                if (--map->invalidate->count == 0) {
+                    /* And we're the last mapping invalidated at the time */
+                    /* Then wake up whoever was waiting for the
+                     * invalidation to complete */
+                    qemu_cond_signal(&map->invalidate->cond);
+                }
+            }
+
+            free(map);
+        }
+    }
+
+
+    /* unmap called on a buffer that wasn't mapped */
+    assert(false);
+}
+
+extern QemuMutex qemu_global_mutex;
+
+void iommu_wait_for_invalidated_maps(DMAContext *dma,
+                                     dma_addr_t addr, dma_addr_t len)
+{
+    DMAMemoryMap *map;
+    DMAInvalidationState is;
+
+    is.count = 0;
+    qemu_cond_init(&is.cond);
+
+    QLIST_FOREACH(map, &dma->memory_maps, list) {
+        if (ranges_overlap(addr, len, map->addr, map->len)) {
+            is.count++;
+            map->invalidate = &is;
+        }
+    }
+
+    if (is.count) {
+        qemu_cond_wait(&is.cond, &qemu_global_mutex);
+    }
+    assert(is.count == 0);
 }
