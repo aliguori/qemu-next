@@ -105,7 +105,9 @@ iscsi_set_events(IscsiLun *iscsilun)
 {
     struct iscsi_context *iscsi = iscsilun->iscsi;
 
-    qemu_aio_set_fd_handler(iscsi_get_fd(iscsi), iscsi_process_read,
+    qemu_aio_set_fd_handler(iscsi_get_fd(iscsi),
+                           (iscsi_queue_length(iscsi) > 0)
+                           ? iscsi_process_read : NULL,
                            (iscsi_which_events(iscsi) & POLLOUT)
                            ? iscsi_process_write : NULL,
                            iscsi_process_flush, iscsilun);
