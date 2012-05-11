@@ -3,6 +3,7 @@
 
 #include "isa.h"
 #include "mc146818rtc_regs.h"
+#include "qemu/qc-markers.h"
 
 typedef struct RTCState {
     ISADevice dev;
@@ -10,23 +11,23 @@ typedef struct RTCState {
     uint8_t cmos_data[128];
     uint8_t cmos_index;
     struct tm current_tm;
-    int32_t base_year;
+    int32_t _property base_year _default(1980);
     qemu_irq irq;
     qemu_irq sqw_irq;
-    int it_shift;
+    int _immutable it_shift;
     /* periodic timer */
     QEMUTimer *periodic_timer;
     int64_t next_periodic_time;
     /* second update */
     int64_t next_second_time;
-    uint16_t irq_reinject_on_ack_count;
-    uint32_t irq_coalesced;
-    uint32_t period;
-    QEMUTimer *coalesced_timer;
+    QEMUTimer _broken *coalesced_timer;
     QEMUTimer *second_timer;
     QEMUTimer *second_timer2;
+    uint16_t _broken irq_reinject_on_ack_count;
+    uint32_t irq_coalesced _version(2);
+    uint32_t period _version(2);
     Notifier clock_reset_notifier;
-    LostTickPolicy lost_tick_policy;
+    LostTickPolicy _property lost_tick_policy _default(LOST_TICK_DISCARD);
     Notifier suspend_notifier;
 } RTCState;
 
