@@ -32,6 +32,8 @@
 #include "pci_bridge.h"
 #include "pci_internals.h"
 #include "range.h"
+#include "msi.h"
+#include "msix.h"
 
 /* PCI bridge subsystem vendor ID helper functions */
 #define PCI_SSVID_SIZEOF        8
@@ -296,6 +298,8 @@ void pci_bridge_reset(DeviceState *qdev)
 {
     PCIDevice *dev = PCI_DEVICE(qdev);
     pci_bridge_reset_reg(dev);
+    msi_reset(dev);
+    msix_reset(dev);
 }
 
 /* default qdev initialization function for PCI-to-PCI bridge */
