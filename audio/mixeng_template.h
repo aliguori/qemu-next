@@ -27,6 +27,18 @@
  * dec++'ified by Dscho
  */
 
+/*
+ * Remove definitions of types, to prevent expansion in "glue" macro.
+ * This is needed at least for NetBSD, but any operating system that
+ * has those defines will probably cause trouble.
+ */
+#undef int8_t
+#undef uint8_t
+#undef int16_t
+#undef uint16_t
+#undef int32_t
+#undef uint32_t
+
 #ifndef SIGNED
 #define HALF (IN_MAX >> 1)
 #endif
