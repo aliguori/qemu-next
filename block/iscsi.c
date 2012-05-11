@@ -25,6 +25,9 @@
 #include "config-host.h"
 
 #include <poll.h>
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <sys/ioctl.h>
 #include "qemu-common.h"
 #include "qemu-error.h"
 #include "block_int.h"
@@ -116,6 +119,35 @@ iscsi_process_read(void *arg)
 {
     IscsiLun *iscsilun = arg;
     struct iscsi_context *iscsi = iscsilun->iscsi;
+    int socket_count = 0;
+    int err = 0;
+    socklen_t err_size = sizeof(err);
+
+    /* There are places where we might be invoked but the read-event
+       may not still be active.
+       Libiscsi treats POLLIN but socket having no bytes available to read
+       as a socket error.
+       So we have to check socket status and available bytes explicitely
+       before we invoke libiscsi.
+    */
+    if (getsockopt(iscsi_get_fd(iscsi), SOL_SOCKET, SO_ERROR, &err,
+                   &err_size) != 0 || err != 0) {
+        /* There is a socket error, call libicsi and let it try to handle
+           the error and maybe try reconnecting.
+         */
+        iscsi_service(iscsi, POLLIN);
+        iscsi_set_events(iscsilun);
+        return;
+    }
+
+    if (ioctl(iscsi_get_fd(iscsi), FIONREAD, &socket_count) == 0
+    && socket_count == 0) {
+        /* no bytes available to read from the socket, and there was no
+           error, just return without calling libiscsi
+         */
+        iscsi_set_events(iscsilun);
+        return;
+    }
 
     iscsi_service(iscsi, POLLIN);
     iscsi_set_events(iscsilun);
