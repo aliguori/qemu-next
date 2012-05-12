@@ -358,3 +358,17 @@ unsigned int msi_nr_vectors_allocated(const PCIDevice *dev)
     uint16_t flags = pci_get_word(dev->config + msi_flags_off(dev));
     return msi_nr_vectors(flags);
 }
+
+void msi_set_address_data(PCIDevice *dev, uint64_t address, uint16_t data)
+{
+    uint16_t flags = pci_get_word(dev->config + msi_flags_off(dev));
+    bool msi64bit = flags & PCI_MSI_FLAGS_64BIT;
+
+    if (msi64bit) {
+        pci_set_quad(dev->config + msi_address_lo_off(dev), address);
+    } else {
+        pci_set_long(dev->config + msi_address_lo_off(dev), address);
+    }
+    pci_set_word(dev->config + msi_data_off(dev, msi64bit), data);
+}
+

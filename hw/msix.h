@@ -29,4 +29,7 @@ void msix_notify(PCIDevice *dev, unsigned vector);
 
 void msix_reset(PCIDevice *dev);
 
+void msix_set_address_data(PCIDevice *dev, int vector,
+                           uint64_t address, uint32_t data);
+
 #endif

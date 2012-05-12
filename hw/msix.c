@@ -414,3 +414,13 @@ void msix_unuse_all_vectors(PCIDevice *dev)
         return;
     msix_free_irq_entries(dev);
 }
+
+void msix_set_address_data(PCIDevice *dev, int vector,
+                           uint64_t address, uint32_t data)
+{
+    uint8_t *table_entry = dev->msix_table_page + vector * PCI_MSIX_ENTRY_SIZE;
+    pci_set_quad(table_entry + PCI_MSIX_ENTRY_LOWER_ADDR, address);
+    pci_set_long(table_entry + PCI_MSIX_ENTRY_DATA, data);
+    table_entry[PCI_MSIX_ENTRY_VECTOR_CTRL] &= ~PCI_MSIX_ENTRY_CTRL_MASKBIT;
+}
+
