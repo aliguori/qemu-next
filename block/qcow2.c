@@ -1435,7 +1435,7 @@ fail:
     return ret;
 }
 
-static coroutine_fn int qcow2_co_flush_to_os(BlockDriverState *bs)
+static coroutine_fn int qcow2_co_flush_to_disk(BlockDriverState *bs)
 {
     BDRVQcowState *s = bs->opaque;
     int ret;
@@ -1580,7 +1580,7 @@ static BlockDriver bdrv_qcow2 = {
 
     .bdrv_co_readv          = qcow2_co_readv,
     .bdrv_co_writev         = qcow2_co_writev,
-    .bdrv_co_flush_to_os    = qcow2_co_flush_to_os,
+    .bdrv_co_flush_to_disk    = qcow2_co_flush_to_disk,
 
     .bdrv_co_write_zeroes   = qcow2_co_write_zeroes,
     .bdrv_co_discard        = qcow2_co_discard,
