@@ -404,6 +404,12 @@ struct FDCtrl {
     uint8_t status0;
     uint8_t status1;
     uint8_t status2;
+    /* DMA state */
+    uint32_t dma_pos;
+    uint32_t dma_len;
+    uint32_t dma_left;
+    uint32_t dma_status0;
+    uint32_t dma_status2;
     /* Command FIFO */
     uint8_t *fifo;
     int32_t fifo_size;
@@ -429,6 +435,8 @@ struct FDCtrl {
     /* Timers state */
     uint8_t timer0;
     uint8_t timer1;
+    QEMUIOVector qiov;
+    struct iovec iov;
 };
 
 typedef struct FDCtrlSysBus {
@@ -1031,6 +1039,7 @@ static void fdctrl_stop_transfer(FDCtrl *fdctrl, uint8_t status0,
     FDrive *cur_drv;
 
     cur_drv = get_cur_drv(fdctrl);
+
     FLOPPY_DPRINTF("transfer status: %02x %02x %02x (%02x)\n",
                    status0, status1, status2,
                    status0 | (cur_drv->head << 2) | GET_CUR_DRV(fdctrl));
@@ -1043,6 +1052,8 @@ static void fdctrl_stop_transfer(FDCtrl *fdctrl, uint8_t status0,
     fdctrl->fifo[6] = FD_SECTOR_SC;
     fdctrl->data_dir = FD_DIR_READ;
     if (!(fdctrl->msr & FD_MSR_NONDMA)) {
+        fdctrl->dma_pos = 0;
+        fdctrl->dma_len = 0;
         DMA_release_DREQ(fdctrl->dma_chann);
     }
     fdctrl->msr |= FD_MSR_RQM | FD_MSR_DIO;
@@ -1150,7 +1161,6 @@ static void fdctrl_start_transfer(FDCtrl *fdctrl, int direction)
              * recall us...
              */
             DMA_hold_DREQ(fdctrl->dma_chann);
-            DMA_schedule(fdctrl->dma_chann);
             return;
         } else {
             FLOPPY_ERROR("dma_mode=%d direction=%d\n", dma_mode, direction);
@@ -1160,7 +1170,8 @@ static void fdctrl_start_transfer(FDCtrl *fdctrl, int direction)
     fdctrl->msr |= FD_MSR_NONDMA;
     if (direction != FD_DIR_WRITE)
         fdctrl->msr |= FD_MSR_DIO;
-    /* IO based transfer: calculate len */
+
+    /* TODO: use AIO here and raise IRQ on the callback.  */
     fdctrl_raise_irq(fdctrl, 0x00);
 
     return;
@@ -1177,125 +1188,217 @@ static void fdctrl_start_transfer_del(FDCtrl *fdctrl, int direction)
     fdctrl_stop_transfer(fdctrl, FD_SR0_ABNTERM | FD_SR0_SEEK, 0x00, 0x00);
 }
 
+static int fdctrl_end_DMA(FDCtrl *fdctrl, int ret)
+{
+    if (ret < 0) {
+        /* Sure, image size is too small... */
+        fdctrl->dma_pos = fdctrl->dma_len;
+        fdctrl_stop_transfer(fdctrl, FD_SR0_ABNTERM | FD_SR0_SEEK, 0x00, 0x00);
+        return 0;
+    } else {
+        if (FD_DID_SEEK(fdctrl->data_state)) {
+            fdctrl->dma_status0 |= FD_SR0_SEEK;
+        }
+        /* If the conditions for scan are met, or the end of the
+           track is reached, terminate the command.  */
+        if ((fdctrl->data_dir == FD_DIR_SCANE ||
+             fdctrl->data_dir == FD_DIR_SCANL ||
+             fdctrl->data_dir == FD_DIR_SCANH) &&
+            (!(fdctrl->dma_status2 & FD_SR2_SNS) ||
+             FD_DID_SEEK(fdctrl->data_state))) {
+            fdctrl->dma_pos = fdctrl->dma_len;
+        }
+
+        if (fdctrl->dma_pos == fdctrl->dma_len) {
+            fdctrl_stop_transfer(fdctrl, fdctrl->dma_status0, 0x00,
+                                 fdctrl->dma_status2);
+        }
+    }
+
+    return fdctrl->dma_pos;
+}
+
+static int fdctrl_read_DMA(FDCtrl *fdctrl, int ret)
+{
+    FDrive *cur_drv = get_cur_drv(fdctrl);
+    int nchan = fdctrl->dma_chann;
+    int len;
+
+    if (ret < 0) {
+        fdctrl->dma_status2 = 0x00;
+        return fdctrl_end_DMA(fdctrl, ret);
+    }
+
+    len = MIN(fdctrl->dma_len - fdctrl->dma_pos,
+              FD_SECTOR_LEN - fdctrl->data_pos);
+    if (fdctrl->data_dir == FD_DIR_READ) {
+        /* READ commands */
+        DMA_write_memory(nchan,
+            &fdctrl->fifo[fdctrl->data_pos], fdctrl->dma_pos, len);
+        fdctrl->dma_status2 = 0x00;
+    } else {
+        /* SCAN commands, probably utterly broken... */
+        uint8_t tmpbuf[FD_SECTOR_LEN];
+        int ret;
+        DMA_read_memory(nchan, tmpbuf, fdctrl->dma_pos, len);
+        ret = memcmp(tmpbuf, &fdctrl->fifo[fdctrl->data_pos], len);
+
+        if (0 == ret) {
+            fdctrl->dma_status2 = FD_SR2_SEH;
+        }
+        if ((ret > 0 && fdctrl->data_dir != FD_DIR_SCANH) ||
+            (ret < 0 && fdctrl->data_dir != FD_DIR_SCANL)) {
+            fdctrl->dma_status2 = FD_SR2_SNS;
+        }
+        if ((ret < 0 && fdctrl->data_dir == FD_DIR_SCANL) ||
+            (ret > 0 && fdctrl->data_dir == FD_DIR_SCANH)) {
+            fdctrl->dma_status2 = 0x00;
+        }
+    }
+    fdctrl->data_pos += len;
+    fdctrl->dma_pos += len;
+    if (fdctrl->data_pos == FD_SECTOR_LEN) {
+        /* Seek to next sector */
+        fdctrl->data_pos = 0;
+        if (!fdctrl_seek_to_next_sect(fdctrl, cur_drv)) {
+            if (fdctrl->data_dir == FD_DIR_SCANE ||
+                fdctrl->data_dir == FD_DIR_SCANL ||
+                fdctrl->data_dir == FD_DIR_SCANH) {
+                fdctrl->dma_status2 = FD_SR2_SEH;
+            }
+            if (FD_DID_SEEK(fdctrl->data_state)) {
+                fdctrl->dma_status0 |= FD_SR0_SEEK;
+            }
+            fdctrl->dma_len = fdctrl->dma_pos;
+        }
+    }
+    return fdctrl_end_DMA(fdctrl, 0);
+}
+
+static void fdctrl_read_DMA_cb(void *opaque, int ret)
+{
+    FDCtrl *fdctrl = opaque;
+    int len = fdctrl_read_DMA(opaque, ret);
+    DMA_set_return(len, fdctrl->dma_chann);
+}
+
+static int fdctrl_write_DMA(FDCtrl *fdctrl, int ret)
+{
+    FDrive *cur_drv = get_cur_drv(fdctrl);
+    int len;
+
+    if (!fdctrl_seek_to_next_sect(fdctrl, cur_drv)) {
+        fdctrl->dma_len = fdctrl->dma_pos;
+    }
+
+    len = fdctrl->dma_left;
+    fdctrl->dma_left = FD_SECTOR_LEN;
+    fdctrl->dma_status2 = 0x00;
+    if (ret < 0) {
+        FLOPPY_DPRINTF("Floppy: error getting sector %d\n",
+               fd_sector(cur_drv));
+    }
+
+    return fdctrl_end_DMA(fdctrl, ret);
+}
+
+static void fdctrl_write_DMA_cb(void *opaque, int ret)
+{
+    FDCtrl *fdctrl = opaque;
+    int len = fdctrl_write_DMA(opaque, ret);
+    DMA_set_return(len, fdctrl->dma_chann);
+}
+
 /* handlers for DMA transfers */
 static int fdctrl_transfer_handler (void *opaque, int nchan,
                                     int dma_pos, int dma_len)
 {
-    FDCtrl *fdctrl;
-    FDrive *cur_drv;
-    int len, start_pos, rel_pos;
-    uint8_t status0 = 0x00, status1 = 0x00, status2 = 0x00;
+    FDCtrl *fdctrl = opaque;
+    FDrive *cur_drv = get_cur_drv(fdctrl);
+    int cur_sector = fd_sector(cur_drv);
+    int len;
 
-    fdctrl = opaque;
+    assert(fdctrl->dma_chann == nchan);
+
     if (fdctrl->msr & FD_MSR_RQM) {
         FLOPPY_DPRINTF("Not in DMA transfer mode !\n");
         DMA_release_DREQ(fdctrl->dma_chann);
         return 0;
     }
-    cur_drv = get_cur_drv(fdctrl);
-    if (fdctrl->data_dir == FD_DIR_SCANE || fdctrl->data_dir == FD_DIR_SCANL ||
-        fdctrl->data_dir == FD_DIR_SCANH)
-        status2 = FD_SR2_SNS;
-    if (dma_len > fdctrl->data_len)
+
+    if (dma_len > fdctrl->data_len) {
         dma_len = fdctrl->data_len;
+    }
     if (cur_drv->bs == NULL) {
-        if (fdctrl->data_dir == FD_DIR_WRITE)
+        if (fdctrl->data_dir == FD_DIR_WRITE) {
             fdctrl_stop_transfer(fdctrl, FD_SR0_ABNTERM | FD_SR0_SEEK, 0x00, 0x00);
-        else
+        } else {
             fdctrl_stop_transfer(fdctrl, FD_SR0_ABNTERM, 0x00, 0x00);
-        len = 0;
-        goto transfer_error;
-    }
-    rel_pos = fdctrl->data_pos % FD_SECTOR_LEN;
-    for (start_pos = fdctrl->data_pos; fdctrl->data_pos < dma_len;) {
-        len = dma_len - fdctrl->data_pos;
-        if (len + rel_pos > FD_SECTOR_LEN)
-            len = FD_SECTOR_LEN - rel_pos;
-        FLOPPY_DPRINTF("copy %d bytes (%d %d %d) %d pos %d %02x "
-                       "(%d-0x%08x 0x%08x)\n", len, dma_len, fdctrl->data_pos,
-                       fdctrl->data_len, GET_CUR_DRV(fdctrl), cur_drv->head,
-                       cur_drv->track, cur_drv->sect, fd_sector(cur_drv),
-                       fd_sector(cur_drv) * FD_SECTOR_LEN);
-        if (fdctrl->data_dir != FD_DIR_WRITE ||
-            len < FD_SECTOR_LEN || rel_pos != 0) {
-            /* READ & SCAN commands and realign to a sector for WRITE */
-            if (bdrv_read(cur_drv->bs, fd_sector(cur_drv),
-                          fdctrl->fifo, 1) < 0) {
-                FLOPPY_DPRINTF("Floppy: error getting sector %d\n",
-                               fd_sector(cur_drv));
-                /* Sure, image size is too small... */
-                memset(fdctrl->fifo, 0, FD_SECTOR_LEN);
-            }
-        }
-        switch (fdctrl->data_dir) {
-        case FD_DIR_READ:
-            /* READ commands */
-            DMA_write_memory (nchan, fdctrl->fifo + rel_pos,
-                              fdctrl->data_pos, len);
-            break;
-        case FD_DIR_WRITE:
-            /* WRITE commands */
-            if (cur_drv->ro) {
-                /* Handle readonly medium early, no need to do DMA, touch the
-                 * LED or attempt any writes. A real floppy doesn't attempt
-                 * to write to readonly media either. */
-                fdctrl_stop_transfer(fdctrl,
-                                     FD_SR0_ABNTERM | FD_SR0_SEEK, FD_SR1_NW,
-                                     0x00);
-                goto transfer_error;
-            }
-
-            DMA_read_memory (nchan, fdctrl->fifo + rel_pos,
-                             fdctrl->data_pos, len);
-            if (bdrv_write(cur_drv->bs, fd_sector(cur_drv),
-                           fdctrl->fifo, 1) < 0) {
-                FLOPPY_ERROR("writing sector %d\n", fd_sector(cur_drv));
-                fdctrl_stop_transfer(fdctrl, FD_SR0_ABNTERM | FD_SR0_SEEK, 0x00, 0x00);
-                goto transfer_error;
-            }
-            break;
-        default:
-            /* SCAN commands */
-            {
-                uint8_t tmpbuf[FD_SECTOR_LEN];
-                int ret;
-                DMA_read_memory (nchan, tmpbuf, fdctrl->data_pos, len);
-                ret = memcmp(tmpbuf, fdctrl->fifo + rel_pos, len);
-                if (ret == 0) {
-                    status2 = FD_SR2_SEH;
-                    goto end_transfer;
-                }
-                if ((ret < 0 && fdctrl->data_dir == FD_DIR_SCANL) ||
-                    (ret > 0 && fdctrl->data_dir == FD_DIR_SCANH)) {
-                    status2 = 0x00;
-                    goto end_transfer;
-                }
-            }
-            break;
-        }
-        fdctrl->data_pos += len;
-        rel_pos = fdctrl->data_pos % FD_SECTOR_LEN;
-        if (rel_pos == 0) {
-            /* Seek to next sector */
-            if (!fdctrl_seek_to_next_sect(fdctrl, cur_drv))
-                break;
         }
     }
- end_transfer:
-    len = fdctrl->data_pos - start_pos;
-    FLOPPY_DPRINTF("end transfer %d %d %d\n",
-                   fdctrl->data_pos, len, fdctrl->data_len);
-    if (fdctrl->data_dir == FD_DIR_SCANE ||
-        fdctrl->data_dir == FD_DIR_SCANL ||
-        fdctrl->data_dir == FD_DIR_SCANH)
-        status2 = FD_SR2_SEH;
-    if (FD_DID_SEEK(fdctrl->data_state))
-        status0 |= FD_SR0_SEEK;
-    fdctrl->data_len -= len;
-    fdctrl_stop_transfer(fdctrl, status0, status1, status2);
- transfer_error:
 
-    return len;
+    if (fdctrl->data_dir == FD_DIR_WRITE && cur_drv->ro) {
+        /* Handle readonly medium early, no need to do DMA, touch the
+         * LED or attempt any writes. A real floppy doesn't attempt
+         * to write to readonly media either.
+         */
+        fdctrl_stop_transfer(fdctrl,
+                             FD_SR0_ABNTERM | FD_SR0_SEEK, FD_SR1_NW,
+                             0x00);
+        return dma_len;
+     }
+
+    /* Start a new DMA operation?  */
+    assert(fdctrl->dma_pos == dma_pos);
+    if (dma_pos == 0) {
+        fdctrl->dma_status0 = 0x00;
+        fdctrl->dma_status2 = 0x00;
+        fdctrl->dma_len = dma_len;
+        fdctrl->dma_pos = dma_pos;
+        fdctrl->dma_left = FD_SECTOR_LEN;
+    }
+
+    assert(fdctrl->dma_len == dma_len);
+    assert(fdctrl->dma_pos < fdctrl->dma_len);
+
+    /* Need to read a partial buffer? */
+    if (fdctrl->data_pos > 0 && fdctrl->data_dir != FD_DIR_WRITE) {
+        return fdctrl_read_DMA(fdctrl, 0);
+    }
+
+    if (fdctrl->data_dir != FD_DIR_WRITE) {
+        DMA_set_channel_async(fdctrl->dma_chann, true);
+        bdrv_aio_readv(cur_drv->bs, cur_sector,
+            &fdctrl->qiov, 1, fdctrl_read_DMA_cb, fdctrl);
+        return 0;
+    }
+
+    /* Read up to a sector into the (repurposed) FIFO buffer and write
+     * if we complete the sector.  */
+    assert(dma_pos < dma_len || fdctrl->data_pos < FD_SECTOR_LEN);
+    len = MIN(dma_len - dma_pos, FD_SECTOR_LEN - fdctrl->data_pos);
+    FLOPPY_DPRINTF("copy %d bytes (%d %d %d) %d pos %d %02x "
+                   "(%d-0x%08x 0x%08x)\n", len, dma_len, fdctrl->data_pos,
+                   fdctrl->data_len, GET_CUR_DRV(fdctrl), cur_drv->head,
+                   cur_drv->track, cur_drv->sect, cur_sector,
+                   cur_sector * FD_SECTOR_LEN);
+
+    /* WRITE commands */
+    DMA_read_memory(nchan, &fdctrl->fifo[fdctrl->data_pos],
+                    fdctrl->dma_pos, len);
+    fdctrl->data_pos += len;
+    fdctrl->dma_pos += len;
+
+    if (fdctrl->data_pos < FD_SECTOR_LEN) {
+        fdctrl->dma_left -= len;
+        return fdctrl->dma_pos + len;
+    }
+
+    fdctrl->data_pos = 0;
+    DMA_set_channel_async(fdctrl->dma_chann, true);
+    bdrv_aio_writev(cur_drv->bs, cur_sector,
+        &fdctrl->qiov, 1, fdctrl_write_DMA_cb, fdctrl);
+    return 0;
 }
 
 /* Data register : 0x05 */
@@ -1946,6 +2049,10 @@ static int fdctrl_init_common(FDCtrl *fdctrl)
     FLOPPY_DPRINTF("init controller\n");
     fdctrl->fifo = qemu_memalign(512, FD_SECTOR_LEN);
     fdctrl->fifo_size = 512;
+    fdctrl->iov.iov_base = fdctrl->fifo;
+    fdctrl->iov.iov_len  = FD_SECTOR_LEN;
+    qemu_iovec_init_external(&fdctrl->qiov, &fdctrl->iov, 1);
+
     fdctrl->result_timer = qemu_new_timer_ns(vm_clock,
                                           fdctrl_result_timer, fdctrl);
 
