@@ -36,6 +36,7 @@
 #include "qdev-addr.h"
 #include "blockdev.h"
 #include "sysemu.h"
+#include "trace.h"
 
 /********************************************************/
 /* debug Floppy devices */
@@ -1039,6 +1040,7 @@ static void fdctrl_stop_transfer(FDCtrl *fdctrl, uint8_t status0,
     FDrive *cur_drv;
 
     cur_drv = get_cur_drv(fdctrl);
+    trace_fdctrl_stop_transfer(cur_drv, status0, status1, status2);
 
     FLOPPY_DPRINTF("transfer status: %02x %02x %02x (%02x)\n",
                    status0, status1, status2,
@@ -1077,6 +1079,11 @@ static void fdctrl_start_transfer(FDCtrl *fdctrl, int direction)
                    GET_CUR_DRV(fdctrl), kh, kt, ks,
                    fd_sector_calc(kh, kt, ks, cur_drv->last_sect,
                                   NUM_SIDES(cur_drv)));
+
+    trace_fdctrl_start_transfer(cur_drv, direction, kh, kt, ks,
+                        fd_sector_calc(kh, kt, ks, cur_drv->last_sect,
+                        NUM_SIDES(cur_drv)));
+
     switch (fd_seek(cur_drv, kh, kt, ks, fdctrl->config & FD_CONFIG_EIS)) {
     case 2:
         /* sect too big */
@@ -1190,6 +1197,10 @@ static void fdctrl_start_transfer_del(FDCtrl *fdctrl, int direction)
 
 static int fdctrl_end_DMA(FDCtrl *fdctrl, int ret)
 {
+    trace_fdctrl_end_DMA(get_cur_drv(fdctrl), ret,
+                         fd_sector(get_cur_drv(fdctrl)), fdctrl->dma_pos,
+                         fdctrl->dma_status2);
+
     if (ret < 0) {
         /* Sure, image size is too small... */
         fdctrl->dma_pos = fdctrl->dma_len;
@@ -1223,6 +1234,10 @@ static int fdctrl_read_DMA(FDCtrl *fdctrl, int ret)
     FDrive *cur_drv = get_cur_drv(fdctrl);
     int nchan = fdctrl->dma_chann;
     int len;
+
+    trace_fdctrl_read_DMA(cur_drv, ret, fdctrl->data_pos,
+                          fd_sector(cur_drv), fdctrl->dma_pos,
+                          fdctrl->dma_status2);
 
     if (ret < 0) {
         fdctrl->dma_status2 = 0x00;
@@ -1287,6 +1302,8 @@ static int fdctrl_write_DMA(FDCtrl *fdctrl, int ret)
     FDrive *cur_drv = get_cur_drv(fdctrl);
     int len;
 
+    trace_fdctrl_write_DMA(cur_drv, ret, fd_sector(cur_drv), fdctrl->dma_pos);
+
     if (!fdctrl_seek_to_next_sect(fdctrl, cur_drv)) {
         fdctrl->dma_len = fdctrl->dma_pos;
     }
@@ -1319,6 +1336,8 @@ static int fdctrl_transfer_handler (void *opaque, int nchan,
     int len;
 
     assert(fdctrl->dma_chann == nchan);
+    trace_fdctrl_transfer_handler(cur_drv, dma_pos, dma_len,
+                    fdctrl->dma_pos, fdctrl->dma_len);
 
     if (fdctrl->msr & FD_MSR_RQM) {
         FLOPPY_DPRINTF("Not in DMA transfer mode !\n");

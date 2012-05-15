@@ -805,3 +805,11 @@ qxl_render_blit_guest_primary_initialized(void) ""
 qxl_render_blit(int32_t stride, int32_t left, int32_t right, int32_t top, int32_t bottom) "stride=%d [%d, %d, %d, %d]"
 qxl_render_guest_primary_resized(int32_t width, int32_t height, int32_t stride, int32_t bytes_pp, int32_t bits_pp) "%dx%d, stride %d, bpp %d, depth %d"
 qxl_render_update_area_done(void *cookie) "%p"
+
+# hw/fdc.c
+fdctrl_stop_transfer(void *cur_drv, int status0, int status1, int status2) "drive=%p status=%02x/%02x/%02x"
+fdctrl_start_transfer(void *cur_drv, int direction, int kh, int kt, int ks, int sector) "drive=%p dir=%d h%d/t%d/s%d (sector %d)"
+fdctrl_transfer_handler(void *cur_drv, int dma_pos, int dma_len, int fdctrl_dma_pos, int fdctrl_dma_len) "drive=%p pos=%d/%d (expected %d/%d)"
+fdctrl_end_DMA(void *cur_drv, int ret, int sector, int pos, int status2) "drive=%p ret=%d sector=%d pos=%d status2=%02x"
+fdctrl_read_DMA(void *cur_drv, int ret, int data_pos, int sector, int pos, int status2) "drive=%p ret=%d data_pos=%d sector=%d pos=%d status2=%02x"
+fdctrl_write_DMA(void *cur_drv, int ret, int sector, int pos) "drive=%p ret=%d sector=%d pos=%d"
