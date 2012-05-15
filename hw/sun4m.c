@@ -147,6 +147,9 @@ int DMA_write_memory (int nchan, void *buf, int pos, int size)
 {
     return 0;
 }
+
+void DMA_set_channel_async(int nchan, bool val) {}
+void DMA_set_return(int nret, int nchan) {}
 void DMA_hold_DREQ (int nchan) {}
 void DMA_release_DREQ (int nchan) {}
 void DMA_schedule(int nchan) {}

@@ -1189,6 +1189,7 @@ static int fdctrl_transfer_handler (void *opaque, int nchan,
     fdctrl = opaque;
     if (fdctrl->msr & FD_MSR_RQM) {
         FLOPPY_DPRINTF("Not in DMA transfer mode !\n");
+        DMA_release_DREQ(fdctrl->dma_chann);
         return 0;
     }
     cur_drv = get_cur_drv(fdctrl);

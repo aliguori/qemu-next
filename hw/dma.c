@@ -45,6 +45,8 @@ struct dma_regs {
     uint8_t eop;
     DMA_transfer_handler transfer_handler;
     void *opaque;
+    bool channel_running;
+    bool channel_is_asynchronous;
 };
 
 #define ADDR 0
@@ -138,6 +140,8 @@ static inline void init_chan (struct dma_cont *d, int ichan)
     r = d->regs + ichan;
     r->now[ADDR] = r->base[ADDR] << d->dshift;
     r->now[COUNT] = 0;
+    r->channel_running = false;
+    r->channel_is_asynchronous = false;
 }
 
 static inline int getff (struct dma_cont *d)
@@ -327,7 +331,7 @@ void DMA_release_DREQ (int nchan)
     DMA_run();
 }
 
-static void channel_run (int ncont, int ichan)
+static void channel_do_transfer(int ncont, int ichan)
 {
     int n;
     struct dma_regs *r = &dma_controllers[ncont].regs[ichan];
@@ -351,46 +355,64 @@ static void channel_run (int ncont, int ichan)
     ldebug ("dma_pos %d size %d\n", n, (r->base[COUNT] + 1) << ncont);
 }
 
-static QEMUBH *dma_bh;
+static void channel_run(int ncont, int nchan)
+{
+    struct dma_cont *d = &dma_controllers[ncont];
+    struct dma_regs *r = &d->regs[nchan];
+
+    int mask = 1 << nchan;
+    while ((0 == (d->mask & mask)) && (0 != (d->status & (mask << 4)))) {
+        assert(!r->channel_running);
+        r->channel_running = true;
+        channel_do_transfer(ncont, nchan);
+        if (r->channel_is_asynchronous) {
+            break;
+        }
+        r->channel_running = false;
+    }
+}
 
 static void DMA_run (void)
 {
-    struct dma_cont *d;
     int icont, ichan;
-    int rearm = 0;
-    static int running = 0;
 
-    if (running) {
-        rearm = 1;
-        goto out;
-    } else {
-        running = 1;
-    }
-
-    d = dma_controllers;
-
-    for (icont = 0; icont < 2; icont++, d++) {
+    for (icont = 0; icont < 2; icont++) {
         for (ichan = 0; ichan < 4; ichan++) {
-            int mask;
-
-            mask = 1 << ichan;
-
-            if ((0 == (d->mask & mask)) && (0 != (d->status & (mask << 4)))) {
-                channel_run (icont, ichan);
-                rearm = 1;
+            struct dma_regs *r = &dma_controllers[icont].regs[ichan];
+            if (!r->channel_running) {
+                channel_run(icont, ichan);
             }
         }
     }
-
-    running = 0;
-out:
-    if (rearm)
-        qemu_bh_schedule_idle(dma_bh);
 }
 
-static void DMA_run_bh(void *unused)
+void DMA_set_channel_async(int nchan, bool val)
 {
-    DMA_run();
+    int icont, ichan;
+    struct dma_regs *r;
+
+    icont = nchan > 3;
+    ichan = nchan & 3;
+    r = &dma_controllers[icont].regs[ichan];
+    r->channel_is_asynchronous = val;
+}
+
+void DMA_set_return(int nret, int nchan)
+{
+    struct dma_regs *r;
+    struct dma_cont *d;
+    int icont, ichan;
+
+    icont = nchan > 3;
+    ichan = nchan & 3;
+    d = dma_controllers;
+    r = &d[icont].regs[ichan];
+    r->now[COUNT] = nret;
+    assert(r->channel_is_asynchronous);
+    assert(r->channel_running);
+    r->channel_running = false;
+    r->channel_is_asynchronous = false;
+    channel_run(icont, ichan);
 }
 
 void DMA_register_channel (int nchan,
@@ -560,6 +582,4 @@ void DMA_init(int high_page_enable, qemu_irq *cpu_request_exit)
               high_page_enable ? 0x488 : -1, cpu_request_exit);
     vmstate_register (NULL, 0, &vmstate_dma, &dma_controllers[0]);
     vmstate_register (NULL, 1, &vmstate_dma, &dma_controllers[1]);
-
-    dma_bh = qemu_bh_new(DMA_run_bh, NULL);
 }
