@@ -235,7 +235,14 @@ envlist_to_environ(const envlist_t *envlist, size_t *count)
 
 	for (entry = envlist->el_entries.lh_first; entry != NULL;
 	    entry = entry->ev_link.le_next) {
-		*(penv++) = strdup(entry->ev_var);
+		if ((*(penv++) = strdup(entry->ev_var)) == NULL) {
+			char **e = env;
+			while (e != penv) {
+				free(*e++);
+			}
+			free(env);
+			return NULL;
+		}
 	}
 	*penv = NULL; /* NULL terminate the list */
 
