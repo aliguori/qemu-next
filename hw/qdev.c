@@ -512,7 +512,7 @@ char* qdev_get_fw_dev_path(DeviceState *dev)
 
     path[l-1] = '\0';
 
-    return strdup(path);
+    return g_strdup(path);
 }
 
 static char *qdev_get_type(Object *obj, Error **errp)
