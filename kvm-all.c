@@ -1417,6 +1417,12 @@ int kvm_has_many_ioeventfds(void)
     return kvm_state->many_ioeventfds;
 }
 
+int kvm_has_legacy_s390x_memlayout(void)
+{
+    return !kvm_check_extension(kvm_state, KVM_CAP_S390_GMAP) ||
+           !kvm_check_extension(kvm_state, KVM_CAP_S390_COW);
+}
+
 int kvm_has_gsi_routing(void)
 {
 #ifdef KVM_CAP_IRQ_ROUTING

@@ -590,6 +590,7 @@ struct kvm_ppc_pvinfo {
 #define KVM_CAP_SYNC_REGS 74
 #define KVM_CAP_PCI_2_3 75
 #define KVM_CAP_KVMCLOCK_CTRL 76
+#define KVM_CAP_S390_COW 79
 
 #ifdef KVM_CAP_IRQ_ROUTING
 

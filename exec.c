@@ -2601,6 +2601,43 @@ void qemu_ram_set_idstr(ram_addr_t addr, const char *name, DeviceState *dev)
     }
 }
 
+/*
+ * lets make sure that we dont have the old s390x limitations regarding
+ * guest mappings
+ */
+static int legacy_s390x_mem_layout(void)
+{
+#if defined(TARGET_S390X) && defined(CONFIG_KVM)
+    return kvm_has_legacy_s390x_memlayout();
+#else
+    return 0;
+#endif
+}
+
+/*
+ * Legacy layout for s390:
+ * Older S390 KVM requires the topmost vma of the RAM to be
+ * smaller than an system defined value, which is at least 256GB.
+ * Larger systems have larger values. We put the guest between
+ * the end of data segment (system break) and this value. We
+ * use 32GB as a base to have enough room for the system break
+ * to grow. We also have to use MAP parameters that avoid
+ * read-only mapping of guest pages.
+ */
+static void *legacy_s390_alloc(ram_addr_t size)
+{
+    void *mem;
+
+    mem = mmap((void *) 0x800000000ULL, size,
+               PROT_EXEC|PROT_READ|PROT_WRITE,
+               MAP_SHARED | MAP_ANONYMOUS | MAP_FIXED, -1, 0);
+    if (mem == MAP_FAILED) {
+        fprintf(stderr, "Allocating RAM failed\n");
+        abort();
+    }
+    return mem;
+}
+
 ram_addr_t qemu_ram_alloc_from_ptr(ram_addr_t size, void *host,
                                    MemoryRegion *mr)
 {
@@ -2627,26 +2664,13 @@ ram_addr_t qemu_ram_alloc_from_ptr(ram_addr_t size, void *host,
             exit(1);
 #endif
         } else {
-#if defined(TARGET_S390X) && defined(CONFIG_KVM)
-            /* S390 KVM requires the topmost vma of the RAM to be smaller than
-               an system defined value, which is at least 256GB. Larger systems
-               have larger values. We put the guest between the end of data
-               segment (system break) and this value. We use 32GB as a base to
-               have enough room for the system break to grow. */
-            new_block->host = mmap((void*)0x800000000, size,
-                                   PROT_EXEC|PROT_READ|PROT_WRITE,
-                                   MAP_SHARED | MAP_ANONYMOUS | MAP_FIXED, -1, 0);
-            if (new_block->host == MAP_FAILED) {
-                fprintf(stderr, "Allocating RAM failed\n");
-                abort();
-            }
-#else
             if (xen_enabled()) {
                 xen_ram_alloc(new_block->offset, size, mr);
+            } else if (legacy_s390x_mem_layout()) {
+                new_block->host = legacy_s390_alloc(size);
             } else {
                 new_block->host = qemu_vmalloc(size);
             }
-#endif
             qemu_madvise(new_block->host, size, QEMU_MADV_MERGEABLE);
         }
     }
