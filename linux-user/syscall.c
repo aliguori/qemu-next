@@ -2814,6 +2814,7 @@ static inline abi_long do_msgrcv(int msqid, abi_long msgp,
 end:
     if (target_mb)
         unlock_user_struct(target_mb, msgp, 1);
+    free(host_mb);
     return ret;
 }
 
