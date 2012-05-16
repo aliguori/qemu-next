@@ -49,10 +49,15 @@ typedef int DMATranslateFunc(DMAContext *dma,
                              target_phys_addr_t *paddr,
                              target_phys_addr_t *len,
                              DMADirection dir);
+
+typedef void DMACancelMapFunc(void *);
 typedef void* DMAMapFunc(DMAContext *dma,
+                         DMACancelMapFunc cb,
+                         void *cb_opaque,	 
                          dma_addr_t addr,
                          dma_addr_t *len,
                          DMADirection dir);
+
 typedef void DMAUnmapFunc(DMAContext *dma,
                           void *buffer,
                           dma_addr_t len,
@@ -129,11 +134,15 @@ static inline int dma_memory_set(DMAContext *dma, dma_addr_t addr,
 }
 
 void *iommu_dma_memory_map(DMAContext *dma,
+                           DMACancelMapFunc *cb, void *opaque,
                            dma_addr_t addr, dma_addr_t *len,
                            DMADirection dir);
-static inline void *dma_memory_map(DMAContext *dma,
-                                   dma_addr_t addr, dma_addr_t *len,
-                                   DMADirection dir)
+static inline void *dma_memory_map_with_cancel(DMAContext *dma,
+                                               DMACancelMapFunc *cb,
+                                               void *opaque,
+                                               dma_addr_t addr,
+                                               dma_addr_t *len,
+                                               DMADirection dir)
 {
     if (!dma_has_iommu(dma)) {
         target_phys_addr_t xlen = *len;
@@ -144,8 +153,14 @@ static inline void *dma_memory_map(DMAContext *dma,
         *len = xlen;
         return p;
     } else {
-        return iommu_dma_memory_map(dma, addr, len, dir);
+        return iommu_dma_memory_map(dma, cb, opaque, addr, len, dir);
     }
+}
+static inline void *dma_memory_map(DMAContext *dma,
+                                   dma_addr_t addr, dma_addr_t *len,
+                                   DMADirection dir)
+{
+    return dma_memory_map_with_cancel(dma, NULL, NULL, addr, len, dir);
 }
 
 void iommu_dma_memory_unmap(DMAContext *dma,
