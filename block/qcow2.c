@@ -919,6 +919,7 @@ int qcow2_update_header(BlockDriverState *bs)
         ret = sizeof(*header);
         break;
     default:
+        free(buf);
         return -EINVAL;
     }
 
