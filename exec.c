@@ -3598,6 +3598,21 @@ void cpu_physical_memory_rw(target_phys_addr_t addr, uint8_t *buf,
     }
 }
 
+void cpu_physical_memory_set(target_phys_addr_t addr, uint8_t c, int len)
+{
+#define FILLBUF_SIZE 512
+    uint8_t fillbuf[FILLBUF_SIZE];
+    int l;
+
+    memset(fillbuf, c, FILLBUF_SIZE);
+    while (len > 0) {
+        l = len < FILLBUF_SIZE ? len : FILLBUF_SIZE;
+        cpu_physical_memory_rw(addr, fillbuf, l, true);
+        len -= len;
+        addr += len;
+    }
+}
+
 /* used for ROM loading : can write in RAM and ROM */
 void cpu_physical_memory_write_rom(target_phys_addr_t addr,
                                    const uint8_t *buf, int len)
