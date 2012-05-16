@@ -175,6 +175,7 @@ typedef struct PCIDeviceClass {
 
 struct PCIDevice {
     DeviceState qdev;
+
     /* PCI config space */
     uint8_t *config;
 
@@ -196,6 +197,7 @@ struct PCIDevice {
     uint32_t devfn;
     char name[64];
     PCIIORegion io_regions[PCI_NUM_REGIONS];
+    DMAContext *dma;
 
     /* do not access the following fields */
     PCIConfigReadFunc *config_read;
@@ -315,6 +317,10 @@ int pci_read_devaddr(Monitor *mon, const char *addr, int *domp, int *busp,
                      unsigned *slotp);
 
 void pci_device_deassert_intx(PCIDevice *dev);
+
+typedef DMAContext *(*PCIDMAContextFunc)(PCIBus *, void *, int);
+
+void pci_setup_iommu(PCIBus *bus, PCIDMAContextFunc fn, void *opaque);
 
 static inline void
 pci_set_byte(uint8_t *config, uint8_t val)
@@ -552,8 +558,7 @@ static inline uint32_t pci_config_size(const PCIDevice *d)
 /* DMA access functions */
 static inline DMAContext *pci_dma_context(PCIDevice *dev)
 {
-    /* Stub for when we have no PCI iommu support */
-    return NULL;
+    return dev->dma;
 }
 
 static inline int pci_dma_rw(PCIDevice *dev, dma_addr_t addr,
