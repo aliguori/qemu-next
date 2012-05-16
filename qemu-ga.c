@@ -243,12 +243,13 @@ void ga_set_response_delimited(GAState *s)
 static bool ga_open_pidfile(const char *pidfile)
 {
     int pidfd;
+    int write_err;
     char pidstr[32];
 
     pidfd = open(pidfile, O_CREAT|O_WRONLY, S_IRUSR|S_IWUSR);
     if (pidfd == -1 || lockf(pidfd, F_TLOCK, 0)) {
         g_critical("Cannot lock pid file, %s", strerror(errno));
-        return false;
+        goto fail;
     }
 
     if (ftruncate(pidfd, 0) || lseek(pidfd, 0, SEEK_SET)) {
@@ -256,7 +257,9 @@ static bool ga_open_pidfile(const char *pidfile)
         goto fail;
     }
     sprintf(pidstr, "%d", getpid());
-    if (write(pidfd, pidstr, strlen(pidstr)) != strlen(pidstr)) {
+    write_err = write(pidfd, pidstr, strlen(pidstr)) != strlen(pidstr);
+    if (close(pidfd) || write_err) {
+        pidfd = -1;
         g_critical("Failed to write pid file");
         goto fail;
     }
@@ -264,6 +267,9 @@ static bool ga_open_pidfile(const char *pidfile)
     return true;
 
 fail:
+    if (pidfd != -1) {
+        close(pidfd);
+    }
     unlink(pidfile);
     return false;
 }
