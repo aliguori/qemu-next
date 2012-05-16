@@ -41,6 +41,7 @@ typedef enum MonitorEvent {
     QEVENT_DEVICE_TRAY_MOVED,
     QEVENT_SUSPEND,
     QEVENT_WAKEUP,
+    QEVENT_BALLOON_CHANGE,
     QEVENT_MAX,
 } MonitorEvent;
 

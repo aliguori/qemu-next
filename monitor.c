@@ -493,6 +493,9 @@ void monitor_protocol_event(MonitorEvent event, QObject *data)
         case QEVENT_WAKEUP:
             event_name = "WAKEUP";
             break;
+        case QEVENT_BALLOON_CHANGE:
+            event_name = "BALLOON_CHANGE";
+            break;
         default:
             abort();
             break;
