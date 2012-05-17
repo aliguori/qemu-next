@@ -391,6 +391,7 @@ obj-xtensa-y += core-dc233c.o
 obj-xtensa-y += core-fsf.o
 
 obj-openrisc-y += openrisc_pic.o
+obj-openrisc-y += openrisc_timer.o
 
 main.o: QEMU_CFLAGS+=$(GPROF_CFLAGS)
 
