@@ -29,3 +29,51 @@ void cpu_openrisc_pic_reset(CPUOPENRISCState *env)
     env->picmr = 0x00000000;
     env->picsr = 0x00000000;
 }
+
+/* openrisc pic handler */
+static void openrisc_pic_cpu_handler(void *opaque, int irq, int level)
+{
+    CPUOPENRISCState *env = (CPUOPENRISCState *)opaque;
+    int i;
+    uint32_t irq_bit = 1 << irq;
+
+    if (irq > 31 || irq < 0) {
+        return;
+    }
+
+    if (level) {
+        env->picsr |= irq_bit;
+    } else {
+        env->picsr &= ~irq_bit;
+    }
+
+    for (i = 0; i < 32; i++) {
+        if ((env->picsr && (1 << i)) && (env->picmr && (1 << i))) {
+            cpu_interrupt(env, CPU_INTERRUPT_HARD);
+        } else {
+            cpu_reset_interrupt(env, CPU_INTERRUPT_HARD);
+            env->picsr &= ~(1 << i);
+        }
+    }
+}
+
+void cpu_openrisc_pic_init(CPUOPENRISCState *env)
+{
+    int i;
+    qemu_irq *qi;
+    qi = qemu_allocate_irqs(openrisc_pic_cpu_handler, env, NR_IRQS);
+
+    for (i = 0; i < NR_IRQS; i++) {
+        env->irq[i] = qi[i];
+    }
+}
+
+void cpu_openrisc_store_picmr(CPUOPENRISCState *env, uint32_t value)
+{
+    env->picmr |= value;
+}
+
+void cpu_openrisc_store_picsr(CPUOPENRISCState *env, uint32_t value)
+{
+    env->picsr &= ~value;
+}
