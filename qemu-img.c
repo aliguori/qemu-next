@@ -1533,6 +1533,172 @@ out:
     return 0;
 }
 
+static int img_diff(int argc, char **argv)
+{
+    /* qemu-img diff -b base modified out */
+    BlockDriverState *bs_base, *bs_modified, *bs_out;
+    const char *fmt_base, *base,
+        *fmt_modified, *modified,
+        *fmt_out, *out;
+    char *options;
+    int c, ret = 0;
+    uint64_t num_sectors_base, num_sectors_modified;
+    uint64_t sector;
+    int n;
+    uint8_t *buf_base;
+    uint8_t *buf_modified;
+
+    /* Parse commandline parameters */
+    fmt_base = NULL;
+    fmt_modified = NULL;
+    fmt_out = NULL;
+    base = NULL;
+    options = NULL;
+    for(;;) {
+        c = getopt(argc, argv, "b:hf:F:O:o:");
+        if (c == -1) {
+            break;
+        }
+        switch(c) {
+        case '?':
+        case 'h':
+            help();
+            return 0;
+        case 'f':
+            fmt_modified = optarg;
+            break;
+        case 'F':
+            fmt_base = optarg;
+            break;
+        case 'b':
+            base = optarg;
+            break;
+        case 'O':
+            fmt_out = optarg;
+            break;
+        case 'o':
+            options = optarg;
+            break;
+        }
+    }
+
+    if (base == NULL) {
+        error_report("The -b (backing filename) option must be supplied");
+        return 1;
+    }
+
+    if (argc - optind != 2) {
+        error_report("Exactly two filenames (source and destination) must be supplied");
+        return 1;
+    }
+    modified = argv[optind++];
+    out = argv[optind++];
+
+    if (fmt_out == NULL || fmt_out[0] == '\0') {
+        fmt_out = "qcow2";
+    }
+
+    if (options && !strcmp(options, "?")) {
+        ret = print_block_option_help(out, fmt_out);
+        return 1;
+    }
+
+    /* Open the input images. */
+    bs_base = bdrv_new_open(base, fmt_base, BDRV_O_FLAGS);
+    if (!bs_base) {
+        return 1;
+    }
+
+    bs_modified = bdrv_new_open(modified, fmt_modified, BDRV_O_FLAGS);
+    if (!bs_modified) {
+        return 1;
+    }
+
+    bdrv_get_geometry(bs_base, &num_sectors_base);
+    bdrv_get_geometry(bs_modified, &num_sectors_modified);
+    /* NB: It is possible to relax this constraint so that
+     * num_sectors_base <= num_sectors_modified, ie. the modified disk
+     * has been expanded.  That requires changes to the loop below.
+     */
+    if (num_sectors_base != num_sectors_modified) {
+        error_report("Number of sectors in backing and source must be the same");
+        goto out2;
+    }
+
+    /* Output image. */
+    ret = bdrv_img_create(out, fmt_out,
+                          /* base file becomes the new backing file */
+                          base, fmt_base,
+                          options, num_sectors_modified * BDRV_SECTOR_SIZE,
+                          BDRV_O_FLAGS);
+    if (ret != 0) {
+        goto out2;
+    }
+    bs_out = bdrv_new_open(out, fmt_out, BDRV_O_RDWR);
+
+    buf_base = qemu_blockalign(bs_base, IO_BUF_SIZE);
+    buf_modified = qemu_blockalign(bs_modified, IO_BUF_SIZE);
+
+    for (sector = 0; sector < num_sectors_modified; sector += n) {
+        /* How many sectors can we handle with the next read? */
+        if (sector + (IO_BUF_SIZE / BDRV_SECTOR_SIZE) <= num_sectors_modified) {
+            n = IO_BUF_SIZE / BDRV_SECTOR_SIZE;
+        } else {
+            n = num_sectors_modified - sector;
+        }
+
+        /* Read input files and compare. */
+        ret = bdrv_read(bs_base, sector, buf_base, n);
+        if (ret < 0) {
+            error_report("error while reading from backing file");
+            goto out;
+        }
+
+        ret = bdrv_read(bs_modified, sector, buf_modified, n);
+        if (ret < 0) {
+            error_report("error while reading from input file");
+            goto out;
+        }
+
+        /* If they differ, we need to write to the differences file. */
+        uint64_t written = 0;
+
+        while (written < n) {
+            int pnum;
+
+            if (compare_sectors(buf_base + written * BDRV_SECTOR_SIZE,
+                                buf_modified + written * BDRV_SECTOR_SIZE,
+                                n - written, &pnum)) {
+                ret = bdrv_write(bs_out, sector + written,
+                                 buf_modified + written * BDRV_SECTOR_SIZE,
+                                 pnum);
+                if (ret < 0) {
+                    error_report("Error while writing to output file: %s",
+                                 strerror(-ret));
+                    goto out;
+                }
+            }
+
+            written += pnum;
+        }
+    }
+
+    qemu_vfree(buf_base);
+    qemu_vfree(buf_modified);
+
+ out:
+    /* Cleanup */
+    bdrv_delete(bs_out);
+ out2:
+    bdrv_delete(bs_base);
+    bdrv_delete(bs_modified);
+
+    if (ret) {
+        return 1;
+    }
+    return 0;
+}
+
 static int img_resize(int argc, char **argv)
 {
     int c, ret, relative;

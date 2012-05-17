@@ -114,6 +114,28 @@ created as a copy on write image of the specified base image; the
 @var{backing_file} should have the same content as the input's base image,
 however the path, image format, etc may differ.
 
+@item diff [-F @var{backing_fmt}] -b @var{backing_file} [-f @var{fmt}] [-O @var{output_fmt}] [-o @var{options}] @var{filename} @var{output_filename}
+
+Create a new disk image (@var{output_filename}) which contains
+the differences between @var{backing_file} and @var{filename}.
+This is useful if you have cloned a disk image by copying it,
+and you want to get back to a thin image on top of a common base.
+
+Typical usage is:
+
+@code{qemu-img diff -b base.img modified.img diff.qcow2}
+
+The @var{backing_file} and @var{filename} must have the same
+virtual disk size, but may be in different formats.
+
+The format of @var{output_file} must be one that supports backing
+files (@code{qcow2} or @code{qed}).  If not specified,
+@var{output_fmt} defaults to @code{qcow2}.
+@var{options} can be used to specify options for the output file.
+
+@var{output_file} will have @var{backing_file} set as its backing
+file.
+
 @item info [-f @var{fmt}] @var{filename}
 
 Give information about the disk image @var{filename}. Use it in

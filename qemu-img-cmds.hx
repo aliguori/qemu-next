@@ -33,6 +33,12 @@ STEXI
 @item convert [-c] [-p] [-f @var{fmt}] [-t @var{cache}] [-O @var{output_fmt}] [-o @var{options}] [-s @var{snapshot_name}] [-S @var{sparse_size}] @var{filename} [@var{filename2} [...]] @var{output_filename}
 ETEXI
 
+DEF("diff", img_diff,
+    "diff [-F backing_fmt] -b backing_file [-f fmt] [-O output_fmt] [-o options] filename output_filename")
+STEXI
+@item diff [-F @var{backing_fmt}] -b @var{backing_file} [-f @var{fmt}] [-O @var{output_fmt}] [-o @var{options}] @var{filename} @var{output_filename}
+ETEXI
+
 DEF("info", img_info,
     "info [-f fmt] filename")
 STEXI
