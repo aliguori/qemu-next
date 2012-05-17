@@ -39,4 +39,8 @@ DEF_HELPER_FLAGS_3(sub, 0, tl, env, tl, tl)
 /* interrupt */
 DEF_HELPER_FLAGS_1(rfe, 0, void, env)
 
+/* sys */
+DEF_HELPER_FLAGS_4(mtspr, 0, void, env, tl, tl, tl)
+DEF_HELPER_FLAGS_4(mfspr, 0, void, env, tl, tl, tl)
+
 #include "def-helper.h"

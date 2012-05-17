@@ -704,7 +704,7 @@ static void dec_misc(DisasContext *dc, CPUOPENRISCState *env, uint32_t insn)
             TCGv_i32 ti = tcg_const_i32(I16);
             TCGv td = tcg_const_tl(rd);
             TCGv ta = tcg_const_tl(ra);
-            /* mfspr need a helper here */
+            gen_helper_mfspr(cpu_env, td, ta, ti);
             tcg_temp_free_i32(ti);
             tcg_temp_free(td);
             tcg_temp_free(ta);
@@ -717,7 +717,7 @@ static void dec_misc(DisasContext *dc, CPUOPENRISCState *env, uint32_t insn)
             TCGv_i32 ti = tcg_const_i32(tmp);
             TCGv ta = tcg_const_tl(ra);
             TCGv tb = tcg_const_tl(rb);
-            /* mtspr need a helper here */
+            gen_helper_mtspr(cpu_env, ta, tb, ti);
             tcg_temp_free_i32(ti);
             tcg_temp_free(ta);
             tcg_temp_free(tb);
