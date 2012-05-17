@@ -390,6 +390,8 @@ obj-xtensa-y += core-dc232b.o
 obj-xtensa-y += core-dc233c.o
 obj-xtensa-y += core-fsf.o
 
+obj-openrisc-y += openrisc_pic.o
+
 main.o: QEMU_CFLAGS+=$(GPROF_CFLAGS)
 
 monitor.o: hmp-commands.h qmp-commands-old.h
