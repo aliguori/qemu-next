@@ -1107,22 +1107,22 @@ static void dec_float(DisasContext *dc, CPUOPENRISCState *env, uint32_t insn)
 
     case 0x14:    /*lf.itof.d*/
         LOG_DIS("lf.itof r%d, r%d\n", rd, ra);
-        /* itof.d need a helper here */
+        gen_helper_itofd(cpu_R[rd], cpu_env, cpu_R[ra]);
         break;
 
     case 0x04:    /*lf.itof.s*/
         LOG_DIS("lf.itof r%d, r%d\n", rd, ra);
-        /* itof.s need a helper here */
+        gen_helper_itofs(cpu_R[rd], cpu_env, cpu_R[ra]);
         break;
 
     case 0x15:    /*lf.ftoi.d*/
         LOG_DIS("lf.ftoi r%d, r%d\n", rd, ra);
-        /* ftoi.d need a helper here */
+        gen_helper_ftoid(cpu_R[rd], cpu_env, cpu_R[ra]);
         break;
 
     case 0x05:    /*lf.ftoi.s*/
         LOG_DIS("lf.ftoi r%d, r%d\n", rd, ra);
-        /* ftoi.s need a helper here */
+        gen_helper_ftois(cpu_R[rd], cpu_env, cpu_R[ra]);
         break;
 
     case 0x16:    /*lf.rem.d*/
