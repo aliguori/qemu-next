@@ -1,5 +1,5 @@
 /*
- * OpenRISC helper defines
+ * OpenRISC exception helper routines
  *
  *  Copyright (c) 2011-2012 Jia Liu <proljc@gmail.com>
  *
@@ -18,12 +18,11 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston MA  02110-1301 USA
  */
 
-#include "def-helper.h"
+#include "cpu.h"
+#include "helper.h"
+#include "excp.h"
 
-/* exception */
-DEF_HELPER_FLAGS_2(exception, 0, void, env, i32)
-
-/* interrupt */
-DEF_HELPER_FLAGS_1(rfe, 0, void, env)
-
-#include "def-helper.h"
+void HELPER(exception)(CPUOPENRISCState *env, uint32_t excp)
+{
+    raise_exception(env, excp);
+}

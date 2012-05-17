@@ -155,6 +155,13 @@ static inline void gen_load_gpr(TCGv t, unsigned int reg)
     }
 }
 
+static void gen_exception(DisasContext *dc, unsigned int excp)
+{
+    TCGv_i32 tmp = tcg_const_i32(excp);
+    gen_helper_exception(cpu_env, tmp);
+    tcg_temp_free(tmp);
+}
+
 static void gen_goto_tb(DisasContext *dc, int n, target_ulong dest)
 {
     TranslationBlock *tb;
@@ -167,7 +174,7 @@ static void gen_goto_tb(DisasContext *dc, int n, target_ulong dest)
     } else {
         tcg_gen_movi_tl(cpu_pc, dest);
         if (dc->singlestep_enabled) {
-            /* exception here */
+            gen_exception(dc, EXCP_DEBUG);
         }
         tcg_gen_exit_tb(0);
     }
@@ -281,7 +288,7 @@ static void dec_calc(DisasContext *dc, CPUOPENRISCState *env, uint32_t insn)
             if (rb != 0) {
                 tcg_gen_div_tl(cpu_R[rd], cpu_R[ra], cpu_R[rb]);
             } else {
-                /* exception here */
+                gen_exception(dc, EXCP_RANGE);
             }
             break;
         default:
@@ -296,7 +303,7 @@ static void dec_calc(DisasContext *dc, CPUOPENRISCState *env, uint32_t insn)
             if (rb != 0) {
                 tcg_gen_divu_tl(cpu_R[rd], cpu_R[ra], cpu_R[rb]);
             } else {
-                /* exception here */
+                gen_exception(dc, EXCP_RANGE);
             }
             break;
         default:
@@ -1003,14 +1010,14 @@ static void dec_sys(DisasContext *dc, CPUOPENRISCState *env, uint32_t insn)
     case 0x000:  /*l.sys*/
         /*LOG_DIS("l.sys %d\n", K16);*/
         tcg_gen_movi_tl(cpu_pc, dc->pc);
-        /* exception here */
+        gen_exception(dc, EXCP_SYSCALL);
         dc->is_jmp = DISAS_UPDATE;
         break;
 
     case 0x100:  /*l.trap*/
         /*LOG_DIS("l.trap %d\n", K16);*/
         tcg_gen_movi_tl(cpu_pc, dc->pc);
-        /* exception here */
+        gen_exception(dc, EXCP_TRAP);
         break;
 
     case 0x300:  /*l.csync*/
@@ -1085,7 +1092,7 @@ static void dec_float(DisasContext *dc, CPUOPENRISCState *env, uint32_t insn)
         if (cpu_R[rb] != 0) {
             tcg_gen_div_i64(cpu_R[rd], cpu_R[ra], cpu_R[rb]);
         } else {
-            /* exception here */
+            gen_exception(dc, EXCP_RANGE);
         }
         break;
 
@@ -1094,7 +1101,7 @@ static void dec_float(DisasContext *dc, CPUOPENRISCState *env, uint32_t insn)
         if (cpu_R[rb] != 0) {
             tcg_gen_div_tl(cpu_R[rd], cpu_R[ra], cpu_R[rb]);
         } else {
-            /* exception here */
+            gen_exception(dc, EXCP_RANGE);
         }
         break;
 
@@ -1294,7 +1301,7 @@ static void check_breakpoint(CPUOPENRISCState *env, DisasContext *dc)
         QTAILQ_FOREACH(bp, &env->breakpoints, entry) {
             if (bp->pc == dc->pc) {
                 tcg_gen_movi_tl(cpu_pc, dc->pc);
-                /* exception here */
+                gen_exception(dc, EXCP_DEBUG);
                 dc->is_jmp = DISAS_UPDATE;
             }
         }
@@ -1403,7 +1410,7 @@ static inline void gen_intermediate_code_internal(CPUOPENRISCState *env,
         if (dc->is_jmp == DISAS_NEXT) {
             tcg_gen_movi_tl(cpu_pc, dc->pc);
         }
-        /* exception here*/
+        gen_exception(dc, EXCP_DEBUG);
     } else {
         switch (dc->is_jmp) {
         case DISAS_NEXT:
