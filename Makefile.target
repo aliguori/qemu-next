@@ -83,7 +83,9 @@ libobj-$(CONFIG_TCG_INTERPRETER) += tci.o
 libobj-y += fpu/softfloat.o
 ifneq ($(TARGET_BASE_ARCH), sparc)
 ifneq ($(TARGET_BASE_ARCH), alpha)
+ifneq ($(TARGET_BASE_ARCH), openrisc)
 libobj-y += op_helper.o
+endif
 endif
 endif
 libobj-y += helper.o
@@ -99,6 +101,7 @@ endif
 libobj-$(TARGET_SPARC) += int32_helper.o
 libobj-$(TARGET_SPARC64) += int64_helper.o
 libobj-$(TARGET_ALPHA) += int_helper.o fpu_helper.o sys_helper.o mem_helper.o
+libobj-$(TARGET_OPENRISC) += mem.o mem_helper.o
 
 libobj-y += disas.o
 libobj-$(CONFIG_TCI_DIS) += tci-dis.o
