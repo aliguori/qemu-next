@@ -569,7 +569,7 @@ static void dec_misc(DisasContext *dc, CPUOPENRISCState *env, uint32_t insn)
     case 0x09:    /*l.rfe*/
         LOG_DIS("l.rfe\n");
         {
-            /* rfe need a helper here */
+            gen_helper_rfe(cpu_env);
             dc->is_jmp = DISAS_UPDATE;
         }
         break;

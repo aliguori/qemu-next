@@ -20,4 +20,7 @@
 
 #include "def-helper.h"
 
+/* interrupt */
+DEF_HELPER_FLAGS_1(rfe, 0, void, env)
+
 #include "def-helper.h"
