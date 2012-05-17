@@ -203,7 +203,7 @@ static void dec_calc(DisasContext *dc, CPUOPENRISCState *env, uint32_t insn)
         switch (op1) {
         case 0x00:     /*l.add*/
             LOG_DIS("l.add r%d, r%d, r%d\n", rd, ra, rb);
-            /* Aha, we do need a helper here for add */
+            gen_helper_add(cpu_R[rd], cpu_env, cpu_R[ra], cpu_R[rb]);
             break;
         default:
             break;
@@ -214,7 +214,7 @@ static void dec_calc(DisasContext *dc, CPUOPENRISCState *env, uint32_t insn)
         switch (op1) {
         case 0x00:
             LOG_DIS("l.addc r%d, r%d, r%d\n", rd, ra, rb);
-            /* Aha, we do need a helper here for addc */
+            gen_helper_addc(cpu_R[rd], cpu_env, cpu_R[ra], cpu_R[rb]);
             break;
         default:
             break;
@@ -225,7 +225,7 @@ static void dec_calc(DisasContext *dc, CPUOPENRISCState *env, uint32_t insn)
         switch (op1) {
         case 0x00:
             LOG_DIS("l.sub r%d, r%d, r%d\n", rd, ra, rb);
-            /* Aha, we do need a helper here for sub */
+            gen_helper_sub(cpu_R[rd], cpu_env, cpu_R[ra], cpu_R[rb]);
             break;
         default:
             break;
@@ -352,11 +352,11 @@ static void dec_calc(DisasContext *dc, CPUOPENRISCState *env, uint32_t insn)
         switch (op1) {
         case 0x00:   /*l.ff1*/
             LOG_DIS("l.ff1 r%d, r%d, r%d\n", rd, ra, rb);
-            /* ff1 need a helper here */
+            gen_helper_ff1(cpu_R[rd], cpu_R[ra]);
             break;
         case 0x01:   /*l.fl1*/
             LOG_DIS("l.fl1 r%d, r%d, r%d\n", rd, ra, rb);
-            /* fl1 need a helper here */
+            gen_helper_fl1(cpu_R[rd], cpu_R[ra]);
             break;
         default:
             break;
@@ -659,7 +659,7 @@ static void dec_misc(DisasContext *dc, CPUOPENRISCState *env, uint32_t insn)
         LOG_DIS("l.addi r%d, r%d, %d\n", rd, ra, I16);
         {
             TCGv t0 = tcg_const_tl(sign_extend(I16, 16));
-            /* Aha, we do need a helper here for addi */
+            gen_helper_add(cpu_R[rd], cpu_env, cpu_R[ra], t0);
             tcg_temp_free(t0);
         }
         break;
@@ -668,7 +668,7 @@ static void dec_misc(DisasContext *dc, CPUOPENRISCState *env, uint32_t insn)
         LOG_DIS("l.addic r%d, r%d, %d\n", rd, ra, I16);
         {
             TCGv t0 = tcg_const_tl(sign_extend(I16, 16));
-            /* Aha, we do need a helper here for addic */
+            gen_helper_addc(cpu_R[rd], cpu_env, cpu_R[ra], t0);
             tcg_temp_free(t0);
         }
         break;
