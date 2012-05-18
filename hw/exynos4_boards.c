@@ -1,7 +1,7 @@
 /*
  *  Samsung exynos4 SoC based boards emulation
  *
- *  Copyright (c) 2011 Samsung Electronics Co., Ltd. All rights reserved.
+ *  Copyright (c) 2011 Samsung Electronics Co.
  *    Maksim Kozlov <m.kozlov@samsung.com>
  *    Evgeny Voevodin <e.voevodin@samsung.com>
  *    Igor Mitsyanko  <i.mitsyanko@samsung.com>

@@ -1,7 +1,7 @@
 /*
  *  Samsung exynos4210 SoC emulation
  *
- *  Copyright (c) 2011 Samsung Electronics Co., Ltd. All rights reserved.
+ *  Copyright (c) 2011 Samsung Electronics Co., Ltd.
  *    Maksim Kozlov <m.kozlov@samsung.com>
  *    Evgeny Voevodin <e.voevodin@samsung.com>
  *    Igor Mitsyanko  <i.mitsyanko@samsung.com>
