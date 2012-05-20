@@ -107,7 +107,7 @@ static const MemoryRegionOps unin_ops = {
 
 static int fw_cfg_boot_set(void *opaque, const char *boot_device)
 {
-    fw_cfg_add_i16(opaque, FW_CFG_BOOT_DEVICE, boot_device[0]);
+    fw_cfg_add_i16(FW_CFG_BOOT_DEVICE, boot_device[0]);
     return 0;
 }
 
@@ -152,7 +152,6 @@ static void ppc_core99_init (ram_addr_t ram_size,
     MemoryRegion *ide_mem[3];
     int ppc_boot_device;
     DriveInfo *hd[MAX_IDE_BUS * MAX_IDE_DEVS];
-    void *fw_cfg;
     void *dbdma;
     int machine_arch;
 
@@ -377,42 +376,42 @@ static void ppc_core99_init (ram_addr_t ram_size,
     macio_nvram_setup_bar(nvr, get_system_memory(), 0xFFF04000);
     /* No PCI init: the BIOS will do it */
 
-    fw_cfg = fw_cfg_init(0, 0, CFG_ADDR, CFG_ADDR + 2);
-    fw_cfg_add_i32(fw_cfg, FW_CFG_ID, 1);
-    fw_cfg_add_i64(fw_cfg, FW_CFG_RAM_SIZE, (uint64_t)ram_size);
-    fw_cfg_add_i16(fw_cfg, FW_CFG_MACHINE_ID, machine_arch);
-    fw_cfg_add_i32(fw_cfg, FW_CFG_KERNEL_ADDR, kernel_base);
-    fw_cfg_add_i32(fw_cfg, FW_CFG_KERNEL_SIZE, kernel_size);
+    fw_cfg_init(0, 0, CFG_ADDR, CFG_ADDR + 2);
+    fw_cfg_add_i32(FW_CFG_ID, 1);
+    fw_cfg_add_i64(FW_CFG_RAM_SIZE, (uint64_t)ram_size);
+    fw_cfg_add_i16(FW_CFG_MACHINE_ID, machine_arch);
+    fw_cfg_add_i32(FW_CFG_KERNEL_ADDR, kernel_base);
+    fw_cfg_add_i32(FW_CFG_KERNEL_SIZE, kernel_size);
     if (kernel_cmdline) {
-        fw_cfg_add_i32(fw_cfg, FW_CFG_KERNEL_CMDLINE, cmdline_base);
+        fw_cfg_add_i32(FW_CFG_KERNEL_CMDLINE, cmdline_base);
         pstrcpy_targphys("cmdline", cmdline_base, TARGET_PAGE_SIZE, kernel_cmdline);
     } else {
-        fw_cfg_add_i32(fw_cfg, FW_CFG_KERNEL_CMDLINE, 0);
+        fw_cfg_add_i32(FW_CFG_KERNEL_CMDLINE, 0);
     }
-    fw_cfg_add_i32(fw_cfg, FW_CFG_INITRD_ADDR, initrd_base);
-    fw_cfg_add_i32(fw_cfg, FW_CFG_INITRD_SIZE, initrd_size);
-    fw_cfg_add_i16(fw_cfg, FW_CFG_BOOT_DEVICE, ppc_boot_device);
+    fw_cfg_add_i32(FW_CFG_INITRD_ADDR, initrd_base);
+    fw_cfg_add_i32(FW_CFG_INITRD_SIZE, initrd_size);
+    fw_cfg_add_i16(FW_CFG_BOOT_DEVICE, ppc_boot_device);
 
-    fw_cfg_add_i16(fw_cfg, FW_CFG_PPC_WIDTH, graphic_width);
-    fw_cfg_add_i16(fw_cfg, FW_CFG_PPC_HEIGHT, graphic_height);
-    fw_cfg_add_i16(fw_cfg, FW_CFG_PPC_DEPTH, graphic_depth);
+    fw_cfg_add_i16(FW_CFG_PPC_WIDTH, graphic_width);
+    fw_cfg_add_i16(FW_CFG_PPC_HEIGHT, graphic_height);
+    fw_cfg_add_i16(FW_CFG_PPC_DEPTH, graphic_depth);
 
-    fw_cfg_add_i32(fw_cfg, FW_CFG_PPC_IS_KVM, kvm_enabled());
+    fw_cfg_add_i32(FW_CFG_PPC_IS_KVM, kvm_enabled());
     if (kvm_enabled()) {
 #ifdef CONFIG_KVM
         uint8_t *hypercall;
 
-        fw_cfg_add_i32(fw_cfg, FW_CFG_PPC_TBFREQ, kvmppc_get_tbfreq());
+        fw_cfg_add_i32(FW_CFG_PPC_TBFREQ, kvmppc_get_tbfreq());
         hypercall = g_malloc(16);
         kvmppc_get_hypercall(env, hypercall, 16);
-        fw_cfg_add_bytes(fw_cfg, FW_CFG_PPC_KVM_HC, hypercall, 16);
-        fw_cfg_add_i32(fw_cfg, FW_CFG_PPC_KVM_PID, getpid());
+        fw_cfg_add_bytes(FW_CFG_PPC_KVM_HC, hypercall, 16);
+        fw_cfg_add_i32(FW_CFG_PPC_KVM_PID, getpid());
 #endif
     } else {
-        fw_cfg_add_i32(fw_cfg, FW_CFG_PPC_TBFREQ, get_ticks_per_sec());
+        fw_cfg_add_i32(FW_CFG_PPC_TBFREQ, get_ticks_per_sec());
     }
 
-    qemu_register_boot_set(fw_cfg_boot_set, fw_cfg);
+    qemu_register_boot_set(fw_cfg_boot_set, NULL);
 }
 
 static QEMUMachine core99_machine = {

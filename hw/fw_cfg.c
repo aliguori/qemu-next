@@ -48,7 +48,7 @@ typedef struct FWCfgEntry {
     FWCfgCallback callback;
 } FWCfgEntry;
 
-struct FWCfgState {
+static struct FWCfgState {
     SysBusDevice busdev;
     MemoryRegion ctl_iomem, data_iomem, comb_iomem;
     uint32_t ctl_iobase, data_iobase;
@@ -57,7 +57,7 @@ struct FWCfgState {
     uint16_t cur_entry;
     uint32_t cur_offset;
     Notifier machine_ready;
-};
+} *fw_cfg;
 
 #define JPG_FILE 0
 #define BMP_FILE 1
@@ -113,7 +113,7 @@ error:
     return NULL;
 }
 
-static void fw_cfg_bootsplash(FWCfgState *s)
+static void fw_cfg_bootsplash(void)
 {
     int boot_splash_time = -1;
     const char *boot_splash_filename = NULL;
@@ -148,7 +148,7 @@ static void fw_cfg_bootsplash(FWCfgState *s)
         /* use little endian format */
         qemu_extra_params_fw[0] = (uint8_t)(boot_splash_time & 0xff);
         qemu_extra_params_fw[1] = (uint8_t)((boot_splash_time >> 8) & 0xff);
-        fw_cfg_add_file(s, "etc/boot-menu-wait", qemu_extra_params_fw, 2);
+        fw_cfg_add_file("etc/boot-menu-wait", qemu_extra_params_fw, 2);
     }
 
     /* insert splash file if user configurated */
@@ -173,10 +173,10 @@ static void fw_cfg_bootsplash(FWCfgState *s)
 
         /* insert data */
         if (file_type == JPG_FILE) {
-            fw_cfg_add_file(s, "bootsplash.jpg",
+            fw_cfg_add_file("bootsplash.jpg",
                     boot_splash_filedata, boot_splash_filedata_size);
         } else {
-            fw_cfg_add_file(s, "bootsplash.bmp",
+            fw_cfg_add_file("bootsplash.bmp",
                     boot_splash_filedata, boot_splash_filedata_size);
         }
         g_free(filename);
@@ -359,122 +359,126 @@ static const VMStateDescription vmstate_fw_cfg = {
     }
 };
 
-int fw_cfg_add_bytes(FWCfgState *s, uint16_t key, uint8_t *data, uint32_t len)
+int fw_cfg_add_bytes(uint16_t key, uint8_t *data, uint32_t len)
 {
     int arch = !!(key & FW_CFG_ARCH_LOCAL);
 
     key &= FW_CFG_ENTRY_MASK;
 
-    if (key >= FW_CFG_MAX_ENTRY)
+    if (key >= FW_CFG_MAX_ENTRY || !fw_cfg) {
         return 0;
+    }
 
-    s->entries[arch][key].data = data;
-    s->entries[arch][key].len = len;
+    fw_cfg->entries[arch][key].data = data;
+    fw_cfg->entries[arch][key].len = len;
 
     return 1;
 }
 
-int fw_cfg_add_i16(FWCfgState *s, uint16_t key, uint16_t value)
+int fw_cfg_add_i16(uint16_t key, uint16_t value)
 {
     uint16_t *copy;
 
     copy = g_malloc(sizeof(value));
     *copy = cpu_to_le16(value);
-    return fw_cfg_add_bytes(s, key, (uint8_t *)copy, sizeof(value));
+    return fw_cfg_add_bytes(key, (uint8_t *)copy, sizeof(value));
 }
 
-int fw_cfg_add_i32(FWCfgState *s, uint16_t key, uint32_t value)
+int fw_cfg_add_i32(uint16_t key, uint32_t value)
 {
     uint32_t *copy;
 
     copy = g_malloc(sizeof(value));
     *copy = cpu_to_le32(value);
-    return fw_cfg_add_bytes(s, key, (uint8_t *)copy, sizeof(value));
+    return fw_cfg_add_bytes(key, (uint8_t *)copy, sizeof(value));
 }
 
-int fw_cfg_add_i64(FWCfgState *s, uint16_t key, uint64_t value)
+int fw_cfg_add_i64(uint16_t key, uint64_t value)
 {
     uint64_t *copy;
 
     copy = g_malloc(sizeof(value));
     *copy = cpu_to_le64(value);
-    return fw_cfg_add_bytes(s, key, (uint8_t *)copy, sizeof(value));
+    return fw_cfg_add_bytes(key, (uint8_t *)copy, sizeof(value));
 }
 
-int fw_cfg_add_callback(FWCfgState *s, uint16_t key, FWCfgCallback callback,
+int fw_cfg_add_callback(uint16_t key, FWCfgCallback callback,
                         void *callback_opaque, uint8_t *data, size_t len)
 {
     int arch = !!(key & FW_CFG_ARCH_LOCAL);
 
-    if (!(key & FW_CFG_WRITE_CHANNEL))
+    if (!(key & FW_CFG_WRITE_CHANNEL) || !fw_cfg) {
         return 0;
+    }
 
     key &= FW_CFG_ENTRY_MASK;
 
     if (key >= FW_CFG_MAX_ENTRY || len > 65535)
         return 0;
 
-    s->entries[arch][key].data = data;
-    s->entries[arch][key].len = len;
-    s->entries[arch][key].callback_opaque = callback_opaque;
-    s->entries[arch][key].callback = callback;
+    fw_cfg->entries[arch][key].data = data;
+    fw_cfg->entries[arch][key].len = len;
+    fw_cfg->entries[arch][key].callback_opaque = callback_opaque;
+    fw_cfg->entries[arch][key].callback = callback;
 
     return 1;
 }
 
-int fw_cfg_add_file(FWCfgState *s,  const char *filename, uint8_t *data,
-                    uint32_t len)
+int fw_cfg_add_file(const char *filename, uint8_t *data, uint32_t len)
 {
     int i, index;
 
-    if (!s->files) {
-        int dsize = sizeof(uint32_t) + sizeof(FWCfgFile) * FW_CFG_FILE_SLOTS;
-        s->files = g_malloc0(dsize);
-        fw_cfg_add_bytes(s, FW_CFG_FILE_DIR, (uint8_t*)s->files, dsize);
+    if (!fw_cfg) {
+        return 0;
     }
 
-    index = be32_to_cpu(s->files->count);
+    if (!fw_cfg->files) {
+        int dsize = sizeof(uint32_t) + sizeof(FWCfgFile) * FW_CFG_FILE_SLOTS;
+        fw_cfg->files = g_malloc0(dsize);
+        fw_cfg_add_bytes(FW_CFG_FILE_DIR, (uint8_t *)fw_cfg->files, dsize);
+    }
+
+    index = be32_to_cpu(fw_cfg->files->count);
     if (index == FW_CFG_FILE_SLOTS) {
         fprintf(stderr, "fw_cfg: out of file slots\n");
         return 0;
     }
 
-    fw_cfg_add_bytes(s, FW_CFG_FILE_FIRST + index, data, len);
+    fw_cfg_add_bytes(FW_CFG_FILE_FIRST + index, data, len);
 
-    pstrcpy(s->files->f[index].name, sizeof(s->files->f[index].name),
+    pstrcpy(fw_cfg->files->f[index].name, sizeof(fw_cfg->files->f[index].name),
             filename);
     for (i = 0; i < index; i++) {
-        if (strcmp(s->files->f[index].name, s->files->f[i].name) == 0) {
+        if (strcmp(fw_cfg->files->f[index].name, fw_cfg->files->f[i].name)
+                        == 0) {
             FW_CFG_DPRINTF("%s: skip duplicate: %s\n", __FUNCTION__,
-                           s->files->f[index].name);
+                           fw_cfg->files->f[index].name);
             return 1;
         }
     }
 
-    s->files->f[index].size   = cpu_to_be32(len);
-    s->files->f[index].select = cpu_to_be16(FW_CFG_FILE_FIRST + index);
+    fw_cfg->files->f[index].size   = cpu_to_be32(len);
+    fw_cfg->files->f[index].select = cpu_to_be16(FW_CFG_FILE_FIRST + index);
     FW_CFG_DPRINTF("%s: #%d: %s (%d bytes)\n", __FUNCTION__,
-                   index, s->files->f[index].name, len);
+                   index, fw_cfg->files->f[index].name, len);
 
-    s->files->count = cpu_to_be32(index+1);
+    fw_cfg->files->count = cpu_to_be32(index+1);
     return 1;
 }
 
 static void fw_cfg_machine_ready(struct Notifier *n, void *data)
 {
     uint32_t len;
-    FWCfgState *s = container_of(n, FWCfgState, machine_ready);
     char *bootindex = get_boot_devices_list(&len);
 
-    fw_cfg_add_file(s, "bootorder", (uint8_t*)bootindex, len);
+    fw_cfg_add_file("bootorder", (uint8_t *)bootindex, len);
 }
 
-FWCfgState *fw_cfg_init(uint32_t ctl_port, uint32_t data_port,
-                        target_phys_addr_t ctl_addr, target_phys_addr_t data_addr)
+void fw_cfg_init(uint32_t ctl_port, uint32_t data_port,
+                 target_phys_addr_t ctl_addr, target_phys_addr_t data_addr)
 {
     DeviceState *dev;
     SysBusDevice *d;
-    FWCfgState *s;
 
     dev = qdev_create(NULL, "fw_cfg");
     qdev_prop_set_uint32(dev, "ctl_iobase", ctl_port);
@@ -482,7 +486,7 @@ FWCfgState *fw_cfg_init(uint32_t ctl_port, uint32_t data_port,
     qdev_init_nofail(dev);
     d = sysbus_from_qdev(dev);
 
-    s = DO_UPCAST(FWCfgState, busdev.qdev, dev);
+    fw_cfg = DO_UPCAST(FWCfgState, busdev.qdev, dev);
 
     if (ctl_addr) {
         sysbus_mmio_map(d, 0, ctl_addr);
@@ -490,18 +494,16 @@ FWCfgState *fw_cfg_init(uint32_t ctl_port, uint32_t data_port,
     if (data_addr) {
         sysbus_mmio_map(d, 1, data_addr);
     }
-    fw_cfg_add_bytes(s, FW_CFG_SIGNATURE, (uint8_t *)"QEMU", 4);
-    fw_cfg_add_bytes(s, FW_CFG_UUID, qemu_uuid, 16);
-    fw_cfg_add_i16(s, FW_CFG_NOGRAPHIC, (uint16_t)(display_type == DT_NOGRAPHIC));
-    fw_cfg_add_i16(s, FW_CFG_NB_CPUS, (uint16_t)smp_cpus);
-    fw_cfg_add_i16(s, FW_CFG_MAX_CPUS, (uint16_t)max_cpus);
-    fw_cfg_add_i16(s, FW_CFG_BOOT_MENU, (uint16_t)boot_menu);
-    fw_cfg_bootsplash(s);
+    fw_cfg_add_bytes(FW_CFG_SIGNATURE, (uint8_t *)"QEMU", 4);
+    fw_cfg_add_bytes(FW_CFG_UUID, qemu_uuid, 16);
+    fw_cfg_add_i16(FW_CFG_NOGRAPHIC, (uint16_t)(display_type == DT_NOGRAPHIC));
+    fw_cfg_add_i16(FW_CFG_NB_CPUS, (uint16_t)smp_cpus);
+    fw_cfg_add_i16(FW_CFG_MAX_CPUS, (uint16_t)max_cpus);
+    fw_cfg_add_i16(FW_CFG_BOOT_MENU, (uint16_t)boot_menu);
+    fw_cfg_bootsplash();
 
-    s->machine_ready.notify = fw_cfg_machine_ready;
-    qemu_add_machine_init_done_notifier(&s->machine_ready);
-
-    return s;
+    fw_cfg->machine_ready.notify = fw_cfg_machine_ready;
+    qemu_add_machine_init_done_notifier(&fw_cfg->machine_ready);
 }
 
 static int fw_cfg_init1(SysBusDevice *dev)

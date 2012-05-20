@@ -163,7 +163,7 @@ void DMA_register_channel (int nchan,
 
 static int fw_cfg_boot_set(void *opaque, const char *boot_device)
 {
-    fw_cfg_add_i16(opaque, FW_CFG_BOOT_DEVICE, boot_device[0]);
+    fw_cfg_add_i16(FW_CFG_BOOT_DEVICE, boot_device[0]);
     return 0;
 }
 
@@ -843,7 +843,6 @@ static void sun4m_hw_init(const struct sun4m_hwdef *hwdef, ram_addr_t RAM_size,
     qemu_irq *cpu_halt;
     unsigned long kernel_size;
     DriveInfo *fd[MAX_FD];
-    void *fw_cfg;
     unsigned int num_vsimms;
 
     /* init CPUs */
@@ -995,29 +994,29 @@ static void sun4m_hw_init(const struct sun4m_hwdef *hwdef, ram_addr_t RAM_size,
         ecc_init(hwdef->ecc_base, slavio_irq[28],
                  hwdef->ecc_version);
 
-    fw_cfg = fw_cfg_init(0, 0, CFG_ADDR, CFG_ADDR + 2);
-    fw_cfg_add_i32(fw_cfg, FW_CFG_ID, 1);
-    fw_cfg_add_i64(fw_cfg, FW_CFG_RAM_SIZE, (uint64_t)ram_size);
-    fw_cfg_add_i16(fw_cfg, FW_CFG_MACHINE_ID, hwdef->machine_id);
-    fw_cfg_add_i16(fw_cfg, FW_CFG_SUN4M_DEPTH, graphic_depth);
-    fw_cfg_add_i32(fw_cfg, FW_CFG_KERNEL_ADDR, KERNEL_LOAD_ADDR);
-    fw_cfg_add_i32(fw_cfg, FW_CFG_KERNEL_SIZE, kernel_size);
+    fw_cfg_init(0, 0, CFG_ADDR, CFG_ADDR + 2);
+    fw_cfg_add_i32(FW_CFG_ID, 1);
+    fw_cfg_add_i64(FW_CFG_RAM_SIZE, (uint64_t)ram_size);
+    fw_cfg_add_i16(FW_CFG_MACHINE_ID, hwdef->machine_id);
+    fw_cfg_add_i16(FW_CFG_SUN4M_DEPTH, graphic_depth);
+    fw_cfg_add_i32(FW_CFG_KERNEL_ADDR, KERNEL_LOAD_ADDR);
+    fw_cfg_add_i32(FW_CFG_KERNEL_SIZE, kernel_size);
     if (kernel_cmdline) {
-        fw_cfg_add_i32(fw_cfg, FW_CFG_KERNEL_CMDLINE, CMDLINE_ADDR);
+        fw_cfg_add_i32(FW_CFG_KERNEL_CMDLINE, CMDLINE_ADDR);
         pstrcpy_targphys("cmdline", CMDLINE_ADDR, TARGET_PAGE_SIZE, kernel_cmdline);
-        fw_cfg_add_bytes(fw_cfg, FW_CFG_CMDLINE_DATA,
+        fw_cfg_add_bytes(FW_CFG_CMDLINE_DATA,
                          (uint8_t*)strdup(kernel_cmdline),
                          strlen(kernel_cmdline) + 1);
-        fw_cfg_add_i32(fw_cfg, FW_CFG_CMDLINE_SIZE,
+        fw_cfg_add_i32(FW_CFG_CMDLINE_SIZE,
                        strlen(kernel_cmdline) + 1);
     } else {
-        fw_cfg_add_i32(fw_cfg, FW_CFG_KERNEL_CMDLINE, 0);
-        fw_cfg_add_i32(fw_cfg, FW_CFG_CMDLINE_SIZE, 0);
+        fw_cfg_add_i32(FW_CFG_KERNEL_CMDLINE, 0);
+        fw_cfg_add_i32(FW_CFG_CMDLINE_SIZE, 0);
     }
-    fw_cfg_add_i32(fw_cfg, FW_CFG_INITRD_ADDR, INITRD_LOAD_ADDR);
-    fw_cfg_add_i32(fw_cfg, FW_CFG_INITRD_SIZE, 0); // not used
-    fw_cfg_add_i16(fw_cfg, FW_CFG_BOOT_DEVICE, boot_device[0]);
-    qemu_register_boot_set(fw_cfg_boot_set, fw_cfg);
+    fw_cfg_add_i32(FW_CFG_INITRD_ADDR, INITRD_LOAD_ADDR);
+    fw_cfg_add_i32(FW_CFG_INITRD_SIZE, 0); /* not used */
+    fw_cfg_add_i16(FW_CFG_BOOT_DEVICE, boot_device[0]);
+    qemu_register_boot_set(fw_cfg_boot_set, NULL);
 }
 
 enum {
@@ -1525,7 +1524,6 @@ static void sun4d_hw_init(const struct sun4d_hwdef *hwdef, ram_addr_t RAM_size,
         espdma_irq, ledma_irq;
     qemu_irq esp_reset, dma_enable;
     unsigned long kernel_size;
-    void *fw_cfg;
     DeviceState *dev;
 
     /* init CPUs */
@@ -1606,26 +1604,26 @@ static void sun4d_hw_init(const struct sun4d_hwdef *hwdef, ram_addr_t RAM_size,
                graphic_height, graphic_depth, hwdef->nvram_machine_id,
                "Sun4d");
 
-    fw_cfg = fw_cfg_init(0, 0, CFG_ADDR, CFG_ADDR + 2);
-    fw_cfg_add_i32(fw_cfg, FW_CFG_ID, 1);
-    fw_cfg_add_i64(fw_cfg, FW_CFG_RAM_SIZE, (uint64_t)ram_size);
-    fw_cfg_add_i16(fw_cfg, FW_CFG_MACHINE_ID, hwdef->machine_id);
-    fw_cfg_add_i16(fw_cfg, FW_CFG_SUN4M_DEPTH, graphic_depth);
-    fw_cfg_add_i32(fw_cfg, FW_CFG_KERNEL_ADDR, KERNEL_LOAD_ADDR);
-    fw_cfg_add_i32(fw_cfg, FW_CFG_KERNEL_SIZE, kernel_size);
+    fw_cfg_init(0, 0, CFG_ADDR, CFG_ADDR + 2);
+    fw_cfg_add_i32(FW_CFG_ID, 1);
+    fw_cfg_add_i64(FW_CFG_RAM_SIZE, (uint64_t)ram_size);
+    fw_cfg_add_i16(FW_CFG_MACHINE_ID, hwdef->machine_id);
+    fw_cfg_add_i16(FW_CFG_SUN4M_DEPTH, graphic_depth);
+    fw_cfg_add_i32(FW_CFG_KERNEL_ADDR, KERNEL_LOAD_ADDR);
+    fw_cfg_add_i32(FW_CFG_KERNEL_SIZE, kernel_size);
     if (kernel_cmdline) {
-        fw_cfg_add_i32(fw_cfg, FW_CFG_KERNEL_CMDLINE, CMDLINE_ADDR);
+        fw_cfg_add_i32(FW_CFG_KERNEL_CMDLINE, CMDLINE_ADDR);
         pstrcpy_targphys("cmdline", CMDLINE_ADDR, TARGET_PAGE_SIZE, kernel_cmdline);
-        fw_cfg_add_bytes(fw_cfg, FW_CFG_CMDLINE_DATA,
+        fw_cfg_add_bytes(FW_CFG_CMDLINE_DATA,
                          (uint8_t*)strdup(kernel_cmdline),
                          strlen(kernel_cmdline) + 1);
     } else {
-        fw_cfg_add_i32(fw_cfg, FW_CFG_KERNEL_CMDLINE, 0);
+        fw_cfg_add_i32(FW_CFG_KERNEL_CMDLINE, 0);
     }
-    fw_cfg_add_i32(fw_cfg, FW_CFG_INITRD_ADDR, INITRD_LOAD_ADDR);
-    fw_cfg_add_i32(fw_cfg, FW_CFG_INITRD_SIZE, 0); // not used
-    fw_cfg_add_i16(fw_cfg, FW_CFG_BOOT_DEVICE, boot_device[0]);
-    qemu_register_boot_set(fw_cfg_boot_set, fw_cfg);
+    fw_cfg_add_i32(FW_CFG_INITRD_ADDR, INITRD_LOAD_ADDR);
+    fw_cfg_add_i32(FW_CFG_INITRD_SIZE, 0); /* not used */
+    fw_cfg_add_i16(FW_CFG_BOOT_DEVICE, boot_device[0]);
+    qemu_register_boot_set(fw_cfg_boot_set, NULL);
 }
 
 /* SPARCserver 1000 hardware initialisation */
@@ -1719,7 +1717,6 @@ static void sun4c_hw_init(const struct sun4c_hwdef *hwdef, ram_addr_t RAM_size,
     qemu_irq fdc_tc;
     unsigned long kernel_size;
     DriveInfo *fd[MAX_FD];
-    void *fw_cfg;
     DeviceState *dev;
     unsigned int i;
 
@@ -1798,26 +1795,26 @@ static void sun4c_hw_init(const struct sun4c_hwdef *hwdef, ram_addr_t RAM_size,
                graphic_height, graphic_depth, hwdef->nvram_machine_id,
                "Sun4c");
 
-    fw_cfg = fw_cfg_init(0, 0, CFG_ADDR, CFG_ADDR + 2);
-    fw_cfg_add_i32(fw_cfg, FW_CFG_ID, 1);
-    fw_cfg_add_i64(fw_cfg, FW_CFG_RAM_SIZE, (uint64_t)ram_size);
-    fw_cfg_add_i16(fw_cfg, FW_CFG_MACHINE_ID, hwdef->machine_id);
-    fw_cfg_add_i16(fw_cfg, FW_CFG_SUN4M_DEPTH, graphic_depth);
-    fw_cfg_add_i32(fw_cfg, FW_CFG_KERNEL_ADDR, KERNEL_LOAD_ADDR);
-    fw_cfg_add_i32(fw_cfg, FW_CFG_KERNEL_SIZE, kernel_size);
+    fw_cfg_init(0, 0, CFG_ADDR, CFG_ADDR + 2);
+    fw_cfg_add_i32(FW_CFG_ID, 1);
+    fw_cfg_add_i64(FW_CFG_RAM_SIZE, (uint64_t)ram_size);
+    fw_cfg_add_i16(FW_CFG_MACHINE_ID, hwdef->machine_id);
+    fw_cfg_add_i16(FW_CFG_SUN4M_DEPTH, graphic_depth);
+    fw_cfg_add_i32(FW_CFG_KERNEL_ADDR, KERNEL_LOAD_ADDR);
+    fw_cfg_add_i32(FW_CFG_KERNEL_SIZE, kernel_size);
     if (kernel_cmdline) {
-        fw_cfg_add_i32(fw_cfg, FW_CFG_KERNEL_CMDLINE, CMDLINE_ADDR);
+        fw_cfg_add_i32(FW_CFG_KERNEL_CMDLINE, CMDLINE_ADDR);
         pstrcpy_targphys("cmdline", CMDLINE_ADDR, TARGET_PAGE_SIZE, kernel_cmdline);
-        fw_cfg_add_bytes(fw_cfg, FW_CFG_CMDLINE_DATA,
+        fw_cfg_add_bytes(FW_CFG_CMDLINE_DATA,
                          (uint8_t*)strdup(kernel_cmdline),
                          strlen(kernel_cmdline) + 1);
     } else {
-        fw_cfg_add_i32(fw_cfg, FW_CFG_KERNEL_CMDLINE, 0);
+        fw_cfg_add_i32(FW_CFG_KERNEL_CMDLINE, 0);
     }
-    fw_cfg_add_i32(fw_cfg, FW_CFG_INITRD_ADDR, INITRD_LOAD_ADDR);
-    fw_cfg_add_i32(fw_cfg, FW_CFG_INITRD_SIZE, 0); // not used
-    fw_cfg_add_i16(fw_cfg, FW_CFG_BOOT_DEVICE, boot_device[0]);
-    qemu_register_boot_set(fw_cfg_boot_set, fw_cfg);
+    fw_cfg_add_i32(FW_CFG_INITRD_ADDR, INITRD_LOAD_ADDR);
+    fw_cfg_add_i32(FW_CFG_INITRD_SIZE, 0); /* not used */
+    fw_cfg_add_i16(FW_CFG_BOOT_DEVICE, boot_device[0]);
+    qemu_register_boot_set(fw_cfg_boot_set, NULL);
 }
 
 /* SPARCstation 2 hardware initialisation */

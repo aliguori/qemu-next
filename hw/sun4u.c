@@ -125,7 +125,7 @@ void DMA_register_channel (int nchan,
 
 static int fw_cfg_boot_set(void *opaque, const char *boot_device)
 {
-    fw_cfg_add_i16(opaque, FW_CFG_BOOT_DEVICE, boot_device[0]);
+    fw_cfg_add_i16(FW_CFG_BOOT_DEVICE, boot_device[0]);
     return 0;
 }
 
@@ -802,7 +802,6 @@ static void sun4uv_init(MemoryRegion *address_space_mem,
     qemu_irq *ivec_irqs, *pbm_irqs;
     DriveInfo *hd[MAX_IDE_BUS * MAX_IDE_DEVS];
     DriveInfo *fd[MAX_FD];
-    void *fw_cfg;
 
     /* init CPUs */
     env = cpu_devinit(cpu_model, hwdef);
@@ -867,30 +866,30 @@ static void sun4uv_init(MemoryRegion *address_space_mem,
                            graphic_width, graphic_height, graphic_depth,
                            (uint8_t *)&nd_table[0].macaddr);
 
-    fw_cfg = fw_cfg_init(BIOS_CFG_IOPORT, BIOS_CFG_IOPORT + 1, 0, 0);
-    fw_cfg_add_i32(fw_cfg, FW_CFG_ID, 1);
-    fw_cfg_add_i64(fw_cfg, FW_CFG_RAM_SIZE, (uint64_t)ram_size);
-    fw_cfg_add_i16(fw_cfg, FW_CFG_MACHINE_ID, hwdef->machine_id);
-    fw_cfg_add_i64(fw_cfg, FW_CFG_KERNEL_ADDR, kernel_entry);
-    fw_cfg_add_i64(fw_cfg, FW_CFG_KERNEL_SIZE, kernel_size);
+    fw_cfg_init(BIOS_CFG_IOPORT, BIOS_CFG_IOPORT + 1, 0, 0);
+    fw_cfg_add_i32(FW_CFG_ID, 1);
+    fw_cfg_add_i64(FW_CFG_RAM_SIZE, (uint64_t)ram_size);
+    fw_cfg_add_i16(FW_CFG_MACHINE_ID, hwdef->machine_id);
+    fw_cfg_add_i64(FW_CFG_KERNEL_ADDR, kernel_entry);
+    fw_cfg_add_i64(FW_CFG_KERNEL_SIZE, kernel_size);
     if (kernel_cmdline) {
-        fw_cfg_add_i32(fw_cfg, FW_CFG_CMDLINE_SIZE,
+        fw_cfg_add_i32(FW_CFG_CMDLINE_SIZE,
                        strlen(kernel_cmdline) + 1);
-        fw_cfg_add_bytes(fw_cfg, FW_CFG_CMDLINE_DATA,
+        fw_cfg_add_bytes(FW_CFG_CMDLINE_DATA,
                          (uint8_t*)strdup(kernel_cmdline),
                          strlen(kernel_cmdline) + 1);
     } else {
-        fw_cfg_add_i32(fw_cfg, FW_CFG_CMDLINE_SIZE, 0);
+        fw_cfg_add_i32(FW_CFG_CMDLINE_SIZE, 0);
     }
-    fw_cfg_add_i64(fw_cfg, FW_CFG_INITRD_ADDR, initrd_addr);
-    fw_cfg_add_i64(fw_cfg, FW_CFG_INITRD_SIZE, initrd_size);
-    fw_cfg_add_i16(fw_cfg, FW_CFG_BOOT_DEVICE, boot_devices[0]);
+    fw_cfg_add_i64(FW_CFG_INITRD_ADDR, initrd_addr);
+    fw_cfg_add_i64(FW_CFG_INITRD_SIZE, initrd_size);
+    fw_cfg_add_i16(FW_CFG_BOOT_DEVICE, boot_devices[0]);
 
-    fw_cfg_add_i16(fw_cfg, FW_CFG_SPARC64_WIDTH, graphic_width);
-    fw_cfg_add_i16(fw_cfg, FW_CFG_SPARC64_HEIGHT, graphic_height);
-    fw_cfg_add_i16(fw_cfg, FW_CFG_SPARC64_DEPTH, graphic_depth);
+    fw_cfg_add_i16(FW_CFG_SPARC64_WIDTH, graphic_width);
+    fw_cfg_add_i16(FW_CFG_SPARC64_HEIGHT, graphic_height);
+    fw_cfg_add_i16(FW_CFG_SPARC64_DEPTH, graphic_depth);
 
-    qemu_register_boot_set(fw_cfg_boot_set, fw_cfg);
+    qemu_register_boot_set(fw_cfg_boot_set, NULL);
 }
 
 enum {

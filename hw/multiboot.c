@@ -124,8 +124,7 @@ static void mb_add_mod(MultibootState *s,
     s->mb_mods_count++;
 }
 
-int load_multiboot(void *fw_cfg,
-                   FILE *f,
+int load_multiboot(FILE *f,
                    const char *kernel_filename,
                    const char *initrd_filename,
                    const char *kernel_cmdline,
@@ -324,15 +323,15 @@ int load_multiboot(void *fw_cfg,
     memcpy(mb_bootinfo_data, bootinfo, sizeof(bootinfo));
 
     /* Pass variables to option rom */
-    fw_cfg_add_i32(fw_cfg, FW_CFG_KERNEL_ENTRY, mh_entry_addr);
-    fw_cfg_add_i32(fw_cfg, FW_CFG_KERNEL_ADDR, mh_load_addr);
-    fw_cfg_add_i32(fw_cfg, FW_CFG_KERNEL_SIZE, mbs.mb_buf_size);
-    fw_cfg_add_bytes(fw_cfg, FW_CFG_KERNEL_DATA,
+    fw_cfg_add_i32(FW_CFG_KERNEL_ENTRY, mh_entry_addr);
+    fw_cfg_add_i32(FW_CFG_KERNEL_ADDR, mh_load_addr);
+    fw_cfg_add_i32(FW_CFG_KERNEL_SIZE, mbs.mb_buf_size);
+    fw_cfg_add_bytes(FW_CFG_KERNEL_DATA,
                      mbs.mb_buf, mbs.mb_buf_size);
 
-    fw_cfg_add_i32(fw_cfg, FW_CFG_INITRD_ADDR, ADDR_MBI);
-    fw_cfg_add_i32(fw_cfg, FW_CFG_INITRD_SIZE, sizeof(bootinfo));
-    fw_cfg_add_bytes(fw_cfg, FW_CFG_INITRD_DATA, mb_bootinfo_data,
+    fw_cfg_add_i32(FW_CFG_INITRD_ADDR, ADDR_MBI);
+    fw_cfg_add_i32(FW_CFG_INITRD_SIZE, sizeof(bootinfo));
+    fw_cfg_add_bytes(FW_CFG_INITRD_DATA, mb_bootinfo_data,
                      sizeof(bootinfo));
 
     option_rom[nb_option_roms].name = "multiboot.bin";

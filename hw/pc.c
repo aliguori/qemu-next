@@ -593,9 +593,8 @@ int e820_add_entry(uint64_t address, uint64_t length, uint32_t type)
     return index;
 }
 
-static void *bochs_bios_init(void)
+static void bochs_bios_init(void)
 {
-    void *fw_cfg;
     uint8_t *smbios_table;
     size_t smbios_len;
     uint64_t *numa_fw_cfg;
@@ -613,22 +612,21 @@ static void *bochs_bios_init(void)
     register_ioport_write(0x500, 1, 1, bochs_bios_write, NULL);
     register_ioport_write(0x503, 1, 1, bochs_bios_write, NULL);
 
-    fw_cfg = fw_cfg_init(BIOS_CFG_IOPORT, BIOS_CFG_IOPORT + 1, 0, 0);
+    fw_cfg_init(BIOS_CFG_IOPORT, BIOS_CFG_IOPORT + 1, 0, 0);
 
-    fw_cfg_add_i32(fw_cfg, FW_CFG_ID, 1);
-    fw_cfg_add_i64(fw_cfg, FW_CFG_RAM_SIZE, (uint64_t)ram_size);
-    fw_cfg_add_bytes(fw_cfg, FW_CFG_ACPI_TABLES, (uint8_t *)acpi_tables,
+    fw_cfg_add_i32(FW_CFG_ID, 1);
+    fw_cfg_add_i64(FW_CFG_RAM_SIZE, (uint64_t)ram_size);
+    fw_cfg_add_bytes(FW_CFG_ACPI_TABLES, (uint8_t *)acpi_tables,
                      acpi_tables_len);
-    fw_cfg_add_i32(fw_cfg, FW_CFG_IRQ0_OVERRIDE, kvm_allows_irq0_override());
+    fw_cfg_add_i32(FW_CFG_IRQ0_OVERRIDE, kvm_allows_irq0_override());
 
     smbios_table = smbios_get_table(&smbios_len);
     if (smbios_table)
-        fw_cfg_add_bytes(fw_cfg, FW_CFG_SMBIOS_ENTRIES,
-                         smbios_table, smbios_len);
-    fw_cfg_add_bytes(fw_cfg, FW_CFG_E820_TABLE, (uint8_t *)&e820_table,
+        fw_cfg_add_bytes(FW_CFG_SMBIOS_ENTRIES, smbios_table, smbios_len);
+    fw_cfg_add_bytes(FW_CFG_E820_TABLE, (uint8_t *)&e820_table,
                      sizeof(struct e820_table));
 
-    fw_cfg_add_bytes(fw_cfg, FW_CFG_HPET, (uint8_t *)&hpet_cfg,
+    fw_cfg_add_bytes(FW_CFG_HPET, (uint8_t *)&hpet_cfg,
                      sizeof(struct hpet_fw_config));
     /* allocate memory for the NUMA channel: one (64bit) word for the number
      * of nodes, one word for each VCPU->node and one word for each node to
@@ -647,10 +645,8 @@ static void *bochs_bios_init(void)
     for (i = 0; i < nb_numa_nodes; i++) {
         numa_fw_cfg[max_cpus + 1 + i] = cpu_to_le64(node_mem[i]);
     }
-    fw_cfg_add_bytes(fw_cfg, FW_CFG_NUMA, (uint8_t *)numa_fw_cfg,
+    fw_cfg_add_bytes(FW_CFG_NUMA, (uint8_t *)numa_fw_cfg,
                      (1 + max_cpus + nb_numa_nodes) * 8);
-
-    return fw_cfg;
 }
 
 static long get_file_size(FILE *f)
@@ -667,8 +663,7 @@ static long get_file_size(FILE *f)
     return size;
 }
 
-static void load_linux(void *fw_cfg,
-                       const char *kernel_filename,
+static void load_linux(const char *kernel_filename,
 		       const char *initrd_filename,
 		       const char *kernel_cmdline,
                        target_phys_addr_t max_ram_size)
@@ -703,9 +698,10 @@ static void load_linux(void *fw_cfg,
     else {
 	/* This looks like a multiboot kernel. If it is, let's stop
 	   treating it like a Linux kernel. */
-        if (load_multiboot(fw_cfg, f, kernel_filename, initrd_filename,
-                           kernel_cmdline, kernel_size, header))
+        if (load_multiboot(f, kernel_filename, initrd_filename,
+                           kernel_cmdline, kernel_size, header)) {
             return;
+        }
 	protocol = 0;
     }
 
@@ -745,9 +741,9 @@ static void load_linux(void *fw_cfg,
     if (initrd_max >= max_ram_size-ACPI_DATA_SIZE)
     	initrd_max = max_ram_size-ACPI_DATA_SIZE-1;
 
-    fw_cfg_add_i32(fw_cfg, FW_CFG_CMDLINE_ADDR, cmdline_addr);
-    fw_cfg_add_i32(fw_cfg, FW_CFG_CMDLINE_SIZE, strlen(kernel_cmdline)+1);
-    fw_cfg_add_bytes(fw_cfg, FW_CFG_CMDLINE_DATA,
+    fw_cfg_add_i32(FW_CFG_CMDLINE_ADDR, cmdline_addr);
+    fw_cfg_add_i32(FW_CFG_CMDLINE_SIZE, strlen(kernel_cmdline)+1);
+    fw_cfg_add_bytes(FW_CFG_CMDLINE_DATA,
                      (uint8_t*)strdup(kernel_cmdline),
                      strlen(kernel_cmdline)+1);
 
@@ -808,9 +804,9 @@ static void load_linux(void *fw_cfg,
         initrd_data = g_malloc(initrd_size);
         load_image(initrd_filename, initrd_data);
 
-        fw_cfg_add_i32(fw_cfg, FW_CFG_INITRD_ADDR, initrd_addr);
-        fw_cfg_add_i32(fw_cfg, FW_CFG_INITRD_SIZE, initrd_size);
-        fw_cfg_add_bytes(fw_cfg, FW_CFG_INITRD_DATA, initrd_data, initrd_size);
+        fw_cfg_add_i32(FW_CFG_INITRD_ADDR, initrd_addr);
+        fw_cfg_add_i32(FW_CFG_INITRD_SIZE, initrd_size);
+        fw_cfg_add_bytes(FW_CFG_INITRD_DATA, initrd_data, initrd_size);
 
 	stl_p(header+0x218, initrd_addr);
 	stl_p(header+0x21c, initrd_size);
@@ -837,13 +833,13 @@ static void load_linux(void *fw_cfg,
     fclose(f);
     memcpy(setup, header, MIN(sizeof(header), setup_size));
 
-    fw_cfg_add_i32(fw_cfg, FW_CFG_KERNEL_ADDR, prot_addr);
-    fw_cfg_add_i32(fw_cfg, FW_CFG_KERNEL_SIZE, kernel_size);
-    fw_cfg_add_bytes(fw_cfg, FW_CFG_KERNEL_DATA, kernel, kernel_size);
+    fw_cfg_add_i32(FW_CFG_KERNEL_ADDR, prot_addr);
+    fw_cfg_add_i32(FW_CFG_KERNEL_SIZE, kernel_size);
+    fw_cfg_add_bytes(FW_CFG_KERNEL_DATA, kernel, kernel_size);
 
-    fw_cfg_add_i32(fw_cfg, FW_CFG_SETUP_ADDR, real_addr);
-    fw_cfg_add_i32(fw_cfg, FW_CFG_SETUP_SIZE, setup_size);
-    fw_cfg_add_bytes(fw_cfg, FW_CFG_SETUP_DATA, setup, setup_size);
+    fw_cfg_add_i32(FW_CFG_SETUP_ADDR, real_addr);
+    fw_cfg_add_i32(FW_CFG_SETUP_SIZE, setup_size);
+    fw_cfg_add_bytes(FW_CFG_SETUP_DATA, setup, setup_size);
 
     option_rom[nb_option_roms].name = "linuxboot.bin";
     option_rom[nb_option_roms].bootindex = 0;
@@ -987,7 +983,6 @@ void pc_memory_init(MemoryRegion *system_memory,
     int linux_boot, i;
     MemoryRegion *ram, *option_rom_mr;
     MemoryRegion *ram_below_4g, *ram_above_4g;
-    void *fw_cfg;
 
     linux_boot = (kernel_filename != NULL);
 
@@ -1024,11 +1019,11 @@ void pc_memory_init(MemoryRegion *system_memory,
                                         option_rom_mr,
                                         1);
 
-    fw_cfg = bochs_bios_init();
-    rom_set_fw(fw_cfg);
+    bochs_bios_init();
 
     if (linux_boot) {
-        load_linux(fw_cfg, kernel_filename, initrd_filename, kernel_cmdline, below_4g_mem_size);
+        load_linux(kernel_filename, initrd_filename, kernel_cmdline,
+                   below_4g_mem_size);
     }
 
     for (i = 0; i < nb_option_roms; i++) {
