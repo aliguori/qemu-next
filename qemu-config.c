@@ -528,7 +528,7 @@ QemuOptsList qemu_spice_opts = {
     },
 };
 
-QemuOptsList qemu_option_rom_opts = {
+static QemuOptsList qemu_option_rom_opts = {
     .name = "option-rom",
     .implied_opt_name = "romfile",
     .head = QTAILQ_HEAD_INITIALIZER(qemu_option_rom_opts.head),
@@ -587,7 +587,7 @@ static QemuOptsList qemu_machine_opts = {
     },
 };
 
-QemuOptsList qemu_boot_opts = {
+static QemuOptsList qemu_boot_opts = {
     .name = "boot-opts",
     .head = QTAILQ_HEAD_INITIALIZER(qemu_boot_opts.head),
     .desc = {
