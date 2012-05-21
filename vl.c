@@ -1539,6 +1539,7 @@ static bool main_loop_should_exit(void)
         if (runstate_check(RUN_STATE_INTERNAL_ERROR) ||
             runstate_check(RUN_STATE_SHUTDOWN)) {
             runstate_set(RUN_STATE_PAUSED);
+            vm_start();
         }
     }
     if (qemu_powerdown_requested()) {
