@@ -51,6 +51,7 @@ typedef enum MonitorEvent {
 
 int monitor_cur_is_qmp(void);
 
+void monitor_global_init(void);
 void monitor_protocol_event(MonitorEvent event, QObject *data);
 void monitor_init(CharDriverState *chr, int flags);
 

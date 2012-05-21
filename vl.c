@@ -3208,6 +3208,8 @@ int main(int argc, char **argv, char **envp)
     }
     loc_set_none();
 
+    monitor_global_init();
+
     /* Init CPU def lists, based on config
      * - Must be called after all the qemu_read_config_file() calls
      * - Must be called before list_cpus()
