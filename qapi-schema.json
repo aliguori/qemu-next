@@ -241,7 +241,28 @@
 # Since: 0.14.0.
 ##
 { 'type': 'MigrationStats',
-  'data': {'transferred': 'int', 'remaining': 'int', 'total': 'int' } }
+  'data': {'transferred': 'int', 'remaining': 'int', 'total': 'int', 'duplicate': 'int', 'norm': 'int' } }
+
+##
+# @CacheStats
+#
+# Detailed XBZRLE migration cache statistics
+#
+# @cache_size: XBZRLE cache size
+#
+# @xbzrle_bytes: amount of bytes already transferred to the target VM
+#
+# @xbzrle_pages: amount of pages transferred to the target VM
+#
+# @xbzrle_cache_miss: numer of cache miss
+#
+# @xbzrle_overflow: number of overflows
+#
+# Since: 1.1
+##
+{ 'type': 'CacheStats',
+  'data': {'cache_size': 'int', 'xbzrle_bytes': 'int', 'xbzrle_pages': 'int',
+           'xbzrle_cache_miss': 'int', 'xbzrle_overflow': 'int' } }
 
 ##
 # @MigrationInfo
@@ -264,8 +285,8 @@
 ##
 { 'type': 'MigrationInfo',
   'data': {'*status': 'str', '*ram': 'MigrationStats',
-           '*disk': 'MigrationStats', '*params': ['MigrationCapabilityInfo']} }
-
+           '*disk': 'MigrationStats', '*params': ['MigrationCapabilityInfo'],
+           '*cache': 'CacheStats'} }
 ##
 # @query-migrate
 #

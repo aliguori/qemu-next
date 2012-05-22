@@ -148,6 +148,8 @@ MigrationInfo *qmp_query_migrate(Error **errp)
         info->ram->transferred = ram_bytes_transferred();
         info->ram->remaining = ram_bytes_remaining();
         info->ram->total = ram_bytes_total();
+        info->ram->duplicate = dup_mig_pages_transferred();
+        info->ram->norm  = norm_mig_pages_transferred();
 
         if (blk_mig_active()) {
             info->has_disk = true;
@@ -155,6 +157,16 @@ MigrationInfo *qmp_query_migrate(Error **errp)
             info->disk->transferred = blk_mig_bytes_transferred();
             info->disk->remaining = blk_mig_bytes_remaining();
             info->disk->total = blk_mig_bytes_total();
+        }
+
+        if (migrate_use_xbzrle()) {
+            info->has_cache = true;
+            info->cache = g_malloc0(sizeof(*info->cache));
+            info->cache->cache_size = migrate_xbzrle_cache_size();
+            info->cache->xbzrle_bytes  = xbzrle_mig_bytes_transferred();
+            info->cache->xbzrle_pages  = xbzrle_mig_pages_transferred();
+            info->cache->xbzrle_cache_miss = xbzrle_mig_pages_cache_miss();
+            info->cache->xbzrle_overflow = xbzrle_mig_pages_overflow();
         }
         break;
     case MIG_STATE_COMPLETED:
