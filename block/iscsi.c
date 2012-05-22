@@ -109,6 +109,13 @@ iscsi_set_events(IscsiLun *iscsilun)
                            (iscsi_which_events(iscsi) & POLLOUT)
                            ? iscsi_process_write : NULL,
                            iscsi_process_flush, iscsilun);
+
+    /* If we just added the event for writeable we must call
+       and the socket is already writeable the callback might
+       not be invoked until after a short delay unless we call
+       qemu_notify_event().
+     */
+    qemu_notify_event();
 }
 
 static void
