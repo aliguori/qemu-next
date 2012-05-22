@@ -24,6 +24,7 @@
 #include <stdint.h>
 #include <stdarg.h>
 #include <stdlib.h>
+#include <math.h>
 #ifndef _WIN32
 #include <sys/types.h>
 #include <sys/mman.h>
@@ -182,6 +183,14 @@ static struct {
     /* Cache for XBZRLE */
     Cache *cache;
 } XBZRLE = {0};
+
+
+void xbzrle_cache_resize(int64_t new_size)
+{
+    if (XBZRLE.cache != NULL) {
+        cache_resize(XBZRLE.cache, new_size/TARGET_PAGE_SIZE);
+    }
+}
 
 static void save_block_hdr(QEMUFile *f, RAMBlock *block, ram_addr_t offset,
         int cont, int flag)
