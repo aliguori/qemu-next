@@ -264,7 +264,7 @@
 ##
 { 'type': 'MigrationInfo',
   'data': {'*status': 'str', '*ram': 'MigrationStats',
-           '*disk': 'MigrationStats'} }
+           '*disk': 'MigrationStats', '*params': ['MigrationCapabilityInfo']} }
 
 ##
 # @query-migrate
@@ -276,6 +276,50 @@
 # Since: 0.14.0
 ##
 { 'command': 'query-migrate', 'returns': 'MigrationInfo' }
+
+##
+# @MigrationCapability
+#
+# Migration capabilities enumaration
+#
+# @xbzrle: current migration supports xbzrle
+#
+# Since: 1.1
+##
+{ 'enum': 'MigrationCapability',
+  'data': ['xbzrle'] }
+
+##
+# @MigrationCapabilityInfo
+#
+# Migration capability information
+#
+# @capability: capability enum
+#
+# Since: 1.2
+##
+{ 'type': 'MigrationCapabilityInfo',
+  'data': { 'capability' : 'MigrationCapability'} }
+
+##
+# @query-migration-capabilities
+#
+# Returns information about current migration process capabilties.
+#
+# Returns: @MigrationCapabilityInfo list
+#
+# Since: 1.2
+##
+{ 'command': 'query-migration-capabilities', 'returns': ['MigrationCapabilityInfo'] }
+
+##
+# @migrate_set_parameter
+#
+# Set the following migration parameters (like xbzrle )
+##
+# Since: 1.2
+##
+{ 'command': 'migrate-set-parameter', 'data': { 'parameter': 'str' } }
 
 ##
 # @MouseInfo:

@@ -861,6 +861,20 @@ Set maximum tolerated downtime (in seconds) for migration.
 ETEXI
 
     {
+        .name       = "migrate_set_parameter",
+        .args_type  = "parameter:s",
+        .params     = "parameter",
+        .help       = "Enable the usage of a capability for migration",
+        .mhandler.cmd = hmp_migrate_set_parameter,
+    },
+
+STEXI
+@item migrate_set_parameter @var{parameter}
+@findex migrate_set_parameter
+Enable the usage of a capability @var{parameter} for migration.
+ETEXI
+
+    {
         .name       = "client_migrate_info",
         .args_type  = "protocol:s,hostname:s,port:i?,tls-port:i?,cert-subject:s?",
         .params     = "protocol hostname port tls-port cert-subject",
@@ -1393,6 +1407,8 @@ show CPU statistics
 show user network stack connection states
 @item info migrate
 show migration status
+@item info migration_capabilities
+show migration capabilities
 @item info balloon
 show balloon information
 @item info qtree

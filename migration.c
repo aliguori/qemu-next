@@ -117,10 +117,22 @@ MigrationInfo *qmp_query_migrate(Error **errp)
 {
     MigrationInfo *info = g_malloc0(sizeof(*info));
     MigrationState *s = migrate_get_current();
+    int i;
 
     switch (s->state) {
     case MIG_STATE_SETUP:
-        /* no migration has happened ever */
+        /* no migration has happened ever show enabled capabilities */
+        for (i = 0; i < MIGRATION_CAPABILITY_MAX; i++) {
+            if (s->enabled_capabilities[i]) {
+                if (!info->has_params) {
+                    info->params = g_malloc0(sizeof(*info->params));
+                    info->has_params = true;
+                }
+                info->params->value = g_malloc(sizeof(*info->params->value));
+                info->params->value->capability = i;
+                info->params->next = NULL;
+            }
+        }
         break;
     case MIG_STATE_ACTIVE:
         info->has_status = true;
@@ -155,6 +167,38 @@ MigrationInfo *qmp_query_migrate(Error **errp)
     }
 
     return info;
+}
+
+MigrationCapabilityInfoList *qmp_query_migration_capabilities(Error **errp)
+{
+    MigrationCapabilityInfoList *caps_list = g_malloc0(sizeof(*caps_list));
+
+    caps_list->value = g_malloc(sizeof(*caps_list->value));
+    caps_list->value->capability = MIGRATION_CAPABILITY_XBZRLE;
+    caps_list->next = NULL;
+
+    return caps_list;
+}
+
+
+void qmp_migrate_set_parameter(const char *parameter, Error **errp)
+{
+    MigrationState *s = migrate_get_current();
+    int i;
+
+    if (s->state == MIG_STATE_ACTIVE) {
+        error_set(errp, QERR_MIGRATION_ACTIVE);
+        return;
+    }
+
+    for (i = 0; i < MIGRATION_CAPABILITY_MAX; i++) {
+        if (strcmp(parameter, MigrationCapability_lookup[i]) == 0) {
+            s->enabled_capabilities[i] = true;
+            return;
+        }
+    }
+
+    error_set(errp, QERR_INVALID_PARAMETER, parameter);
 }
 
 /* shared migration helpers */
@@ -365,12 +409,17 @@ static MigrationState *migrate_init(const MigrationParams *params)
 {
     MigrationState *s = migrate_get_current();
     int64_t bandwidth_limit = s->bandwidth_limit;
+    bool enabled_capabilities[MIGRATION_CAPABILITY_MAX];
+
+    memcpy(enabled_capabilities, s->enabled_capabilities,
+           sizeof(enabled_capabilities));
 
     memset(s, 0, sizeof(*s));
     s->bandwidth_limit = bandwidth_limit;
     s->params = *params;
+    memcpy(s->enabled_capabilities, enabled_capabilities,
+           sizeof(enabled_capabilities));
 
-    s->bandwidth_limit = bandwidth_limit;
     s->state = MIG_STATE_SETUP;
 
     return s;
