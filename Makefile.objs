@@ -137,6 +137,7 @@ common-obj-y += qdev.o qdev-properties.o qdev-monitor.o
 common-obj-y += block-migration.o iohandler.o
 common-obj-y += pflib.o
 common-obj-y += bitmap.o bitops.o
+common-obj-y += cache.o
 
 common-obj-$(CONFIG_BRLAPI) += baum.o
 common-obj-$(CONFIG_POSIX) += migration-exec.o migration-unix.o migration-fd.o
