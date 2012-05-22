@@ -120,7 +120,7 @@ class Event(object):
         The event arguments.
     """
 
-    _CRE = re.compile("((?P<props>.*)\s+)?(?P<name>[^(\s]+)\((?P<args>[^)]*)\)\s*(?P<fmt>\".*)?")
+    _CRE = re.compile("((?P<props>.*)\s+)?(?P<name>[^\"(\s]+)\((?P<args>[^)]*)\)\s*(?P<fmt>\".*)?")
 
     _VALID_PROPS = set(["disable"])
 
