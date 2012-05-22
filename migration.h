@@ -39,6 +39,7 @@ struct MigrationState
     void *opaque;
     MigrationParams params;
     bool enabled_capabilities[MIGRATION_CAPABILITY_MAX];
+    int64_t xbzrle_cache_size;
 };
 
 void process_incoming_migration(QEMUFile *f);
@@ -98,5 +99,12 @@ void migrate_add_blocker(Error *reason);
  * @reason - the error blocking migration
  */
 void migrate_del_blocker(Error *reason);
+
+int xbzrle_encode_buffer(uint8_t *old_buf, uint8_t *new_buf, int slen,
+                         uint8_t *dst, int dlen);
+int xbzrle_decode_buffer(uint8_t *src, int slen, uint8_t *dst, int dlen);
+
+int migrate_use_xbzrle(void);
+int64_t migrate_xbzrle_cache_size(void);
 
 #endif

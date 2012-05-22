@@ -2374,3 +2374,94 @@ void vmstate_register_ram_global(MemoryRegion *mr)
 {
     vmstate_register_ram(mr, NULL);
 }
+
+/*
+  page = zrun nzrun
+       | zrun nzrun page
+
+  zrun = length
+
+  nzrun = length byte...
+
+  length = uleb128 encoded integer
+ */
+int xbzrle_encode_buffer(uint8_t *old_buf, uint8_t *new_buf, int slen,
+                         uint8_t *dst, int dlen)
+{
+    uint32_t zrun_len = 0, nzrun_len = 0;
+    int d = 0 , i = 0;
+    uint8_t *nzrun_start = NULL;
+
+    while (i < slen) {
+        /* overflow */
+        if (d + 2 > dlen) {
+            return -1;
+        }
+
+        while (!(old_buf[i] ^ new_buf[i]) && ++i <= slen) {
+            zrun_len++;
+        }
+
+        /* buffer unchanged */
+        if (zrun_len == slen) {
+            return 0;
+        }
+
+        /* skip last zero run */
+        if (i == slen + 1) {
+            return d;
+        }
+
+        d += uleb128_encode_small(dst + d, zrun_len);
+
+        zrun_len = 0;
+        nzrun_start = new_buf + i;
+        while ((old_buf[i] ^ new_buf[i]) != 0 && ++i <= slen) {
+            nzrun_len++;
+        }
+
+        /* overflow */
+        if (d + nzrun_len + 2 > dlen) {
+            return -1;
+        }
+
+        d += uleb128_encode_small(dst + d, nzrun_len);
+        memcpy(dst + d, nzrun_start, nzrun_len);
+        d += nzrun_len;
+        nzrun_len = 0;
+    }
+
+    return d;
+}
+
+int xbzrle_decode_buffer(uint8_t *src, int slen, uint8_t *dst, int dlen)
+{
+    int i = 0, d = 0;
+    uint32_t count = 0;
+
+    while (i < slen) {
+
+        /* zrun */
+        i += uleb128_decode_small(src + i, &count);
+        d += count;
+
+        /* overflow */
+        g_assert(d <= dlen);
+
+        /* completed decoding */
+        if (i == slen - 1) {
+            return d;
+        }
+
+        /* nzrun */
+        i += uleb128_decode_small(src + i, &count);
+
+        g_assert(d + count <= dlen);
+
+        memcpy(dst + d , src + i, count);
+        d += count;
+        i += count;
+    }
+
+    return d;
+}
